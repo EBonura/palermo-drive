@@ -48,4 +48,24 @@ tools/.venv/bin/python -I tools/terrain_truth.py --worlds world,data/world_try
 `world/tiles/*.json` one file at a time through a temp name and `os.replace`; nothing else in a tile changes (building footprints for the cleaning come from the
 tiles themselves). `--out DIR` patches a copy instead (try it with `?worldurl=/data/world_try/`).
 
-RESULTS_PLACEHOLDER
+## Status (end of session)
+
+Done and live in `world/` (the `--terrain-only` bake finished cleanly: 742 of 1119 tiles patched, all tiles and the manifest parse):
+- DTM cleaning, the baked road bench (5 m cells, `near.bench`, smoothed along the road; checked against MASE points: Via Pietro Bonanno hairpin within 1 to 3 m of the lidar), motorways benched,
+  far grid corrected with lidar (Piazza Mondello 6 m to 2.4 m, Quattro Canti 30 m to 13 m, Acquasanta 22 m to 13 m; point samples instead of 100 m averages so cliffs keep their steepness),
+  low detail vertices dropped below a bench, 30 m tile skirts (cracks along tile borders on cliffs showed the sky as blue slivers), triplanar terrain texture.
+- The load-order race in the survey (Bonanno hairpin buried 7 to 9 m when loaded cold) came from `computeShape` reading neighbour tiles that were not in yet. The bench is now a function of position in the bake,
+  so it cannot depend on load order. Not yet re-verified with a cold `?at=` load after the final bake (I had just started it).
+- Piazza Mondello: the near grid was already 1 to 2 m (lidar agrees to 0.7 m rms); the 6 to 13 m came from the far grid, now fixed.
+- Monte Gallo: the near grid already holds the lidar wall (549 m to 268 m over 120 m on the NE face); the "smooth ramp" seen from Mondello was the 100 m far grid, now point sampled.
+
+Numbers: the city-wide check was only run on the first version (before: 2355 km sampled, meshlow 16.0 %, bank 5.1 %, grade 2.1 %, bump 1.6 %, cross 4.3 %, mesh 1.45 %). On Acquasanta, Via Altavilla and Via Pietro Bonanno tiles
+the new bench took mesh 7.6 % to 0.3 %, meshlow 16 % to 0.1 %, cross 35 % to 1 %. The final city-wide run (`tools/terrain_check.py --out ...`, about 10 minutes on an idle machine) was started and killed; rerun it.
+
+Left:
+1. Finish the lattice: `tools/.venv/bin/python -I tools/lidar_hills.py fetch --threads 16` (resumable, Pellegrino first, about 17 k points left at 3 per second; Gallo above 150 m is done), then `tools/.venv/bin/python -I tools/tiles.py --terrain-only`. Until then the 55 to 204 m band of Pellegrino uses the cleaned raster and TIN, which still has mild terracing.
+2. Rerun `terrain_check.py` city-wide and `terrain_truth.py`; cold-load check (`?at=309,-4001`, compare `game.groundY` with `World.ground`: expected 107.6 at 309,-4001 and 156.7 at 262.5,-3976).
+3. `src/world.js computeShape` still has the transitional rule (`t.benched || hi < 150`); once every tile is baked with benches, make it `if (t.nearS || hi - lo < 12) return;`.
+4. The blue strips were not positively identified; the likely cause (sky through cracks at tile borders, skirt was 8 m) is fixed. The pale "paving" pads around Pellegrino houses and the spruce trees are streets.js / props (streetscape agent), not terrain.
+5. The dark gash on one Pellegrino face seen in a distant view was not located.
+
