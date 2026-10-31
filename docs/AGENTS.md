@@ -24,6 +24,9 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/roadwear.js`, `assets/roadwear/`, plus small additions to `src/vehicle.js` (bump/jolt input, skid state) | road-wear agent |
 | `src/sea.js`, `assets/sea/` (water, shore, boats, drowning game over) | sea agent |
 | `src/horn.js`, `src/shouts.js` | lead |
+| `src/landmarks-city.js` (city-wide landmark models, instantiated per tile by world.js) | city landmarks agent |
+| district zones and palettes in `src/buildings.js`, `docs/districts.md` | district agent |
+| `src/world.js`, `src/streets.js` | streaming agent |
 | `tools/build/`, `.github/workflows/`, build/deploy pipeline, data codecs, three.js upgrade (coordinates module changes with owners) | performance agent |
 
 If you need something changed in a file you don't own (a new helper in core.js, a new field in the

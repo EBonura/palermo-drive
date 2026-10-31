@@ -25,6 +25,10 @@
 
 ## Next up (owner + friends' ideas)
 
+- **Explorable outskirts**: La Favorita (park, avenues, tracks, Palazzina Cinese), Monte Pellegrino (the
+  switchback road to Santa Rosalia's sanctuary and Castello Utveggio, smooth terrain on the hairpins), the ZEN
+  insulae; off-road driving on dirt and park ground. Being handled by the streaming work; finer DEM for the
+  mountain only if needed (ask the owner before downloading).
 - **Stadio Renzo Barbera** (Hubert's idea): model the stadium properly when the whole city loads, and make it
   enterable: drive in through a gate, onto the running track/pitch, stands full of rosanero tifosi sprites.
 - **Switch vehicle** (Hubert's idea): 3 lape (Calessino + the current liveries, a cargo Ape, an Ape 50) and

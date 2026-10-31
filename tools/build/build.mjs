@@ -115,7 +115,6 @@ function copyTree(src, dst) {
   }
 }
 copyTree(path.join(ROOT, 'assets'), path.join(OUT, 'assets'));
-if (fs.existsSync(path.join(ROOT, 'world'))) copyTree(path.join(ROOT, 'world'), path.join(OUT, 'world')); // whole-city tiles streamed by src/world.js (?world=1)
 fs.copyFileSync(path.join(ROOT, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 if (DATA_MODE === 'raw') for (const f of ['palermo-data.js', 'props-data.js', 'context-data.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));

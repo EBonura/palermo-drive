@@ -424,9 +424,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     while (inflight < CFG.conc && pending.length) {
       let bi = 0; for (let i = 1; i < pending.length; i++) if (pending[i].d < pending[bi].d) bi = i;
       const t = pending.splice(bi, 1)[0]; inflight++;
-      fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(txt => {
-        const p0 = performance.now(); stat.bytes += txt.length;
-        const d = JSON.parse(txt); stat.parseMax = Math.max(stat.parseMax, performance.now() - p0);
+      // (the production build serves the .bin twin through a fetch shim, tools/build/runtime/loader.js: always go through r.json())
+      fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
         t.data = d; stat.fetched++;
         if (d.near) t.nearS = gridSampler(d.near);
         prepareTile(t);
