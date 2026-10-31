@@ -693,7 +693,7 @@ Object.assign(MODELS, buildPoliceModels());
   function cull(cx, cz) {
     for (let i = vs.length - 1; i >= 0; i--) {
       const v = vs[i], dx = v.x - cx, dz = v.z - cz, d2 = dx * dx + dz * dz;
-      const keep = v.cop && v.cop.keep;                      // police in a chase stay however far they are
+      const keep = (v.cop && v.cop.keep) || (v.lifeEnd && d2 < 360 * 360);   // police in a chase stay however far they are; the team bus tours the city
       let kill = !keep && d2 > R_DESPAWN * R_DESPAWN;
       const lat = Math.abs((v.x - NX[v.route[0].a]) * v.route[0].rx + (v.z - NZ[v.route[0].a]) * v.route[0].rz);
       if (lat > 8 && !(v.cop && v.cop.mode === 'direct')) kill = true;

@@ -27,15 +27,22 @@ function rider(D, o) {
 }
 
 // One wheel: tyre + rim, in the wheel's own frame (the axle is the origin). style: 'lapa' whitewall, 'bike' alloy, 'car' flashy.
-function addWheel(K, W, style, rimOpt) {
+function addWheel(K, W, style, rimOpt, M) {
   const r = W.r, w = W.w, S = W.s, X = W.x;
+  if (style === 'cart') { // spoked wooden cart wheel: a painted rim ring, thin tyre band, four crossing spokes and a hub
+    S.add(M.trim, tor(r * 0.93, r * 0.055, 5, 24).clone().rotateY(PI / 2)); S.add(MAT.dark, tor(r * 0.995, r * 0.02, 4, 24).clone().rotateY(PI / 2));
+    for (let k = 0; k < 4; k++) S.add(MAT.wood, box(w * 0.7, r * 0.06, r * 1.86), 0, 0, 0, k * PI / 4);
+    S.add(M.trim, cylX(r * 0.12, r * 0.12, w + 0.05, 8)); return;
+  }
   S.add(MAT.tyre, cylX(r, r, w, style === 'bike' ? 14 : 16));
   const rm = rimOpt === 'oro' ? MAT.gold : rimOpt === 'neri' ? MAT.black : (rimOpt === 'cromati' || rimOpt === 'spinner') ? MAT.chrome : null;
   const spokes = (mat, n = 3, len = 1.3, wd = 0.12) => { for (let k = 0; k < n; k++) S.add(mat, box(w + 0.03, r * wd, r * len), 0, 0, 0, k * PI / n); };
-  if (rm) { // a chosen rim
+  if (rm) { // a chosen rim (a tuning part: it vanishes with the others when the vehicle is stripped, leaving the bare tyre)
+    K.stage = 1;
     S.add(rimOpt === 'neri' ? MAT.dark : rm, cylX(r * (style === 'lapa' ? 0.78 : 0.72), r * (style === 'lapa' ? 0.78 : 0.72), w + 0.012, 14));
     S.add(rm, cylX(r * 0.22, r * 0.22, w + 0.034, 10)); spokes(rm, style === 'car' ? 3 : 3, 1.36, 0.14);
     if (rimOpt === 'neri') S.add(colMat('#f27aa8', 0.5, 0.2), tor(r * 0.7, r * 0.03, 4, 18).clone().rotateY(PI / 2), 0, 0, 0);
+    K.stage = null;
   } else if (style === 'lapa') {
     S.add(MAT.white, cylX(r * 0.78, r * 0.78, w + 0.012, 14)); S.add(MAT.chrome, cylX(r * 0.4, r * 0.4, w + 0.026, 10)); S.add(MAT.dark, box(w + 0.03, 0.03, r * 0.5));
   } else if (style === 'bike') {
@@ -43,10 +50,11 @@ function addWheel(K, W, style, rimOpt) {
   } else { // flashy stock rims of the tamarro car: dark dish, chrome star, gold hub
     S.add(MAT.dark, cylX(r * 0.72, r * 0.72, w + 0.012, 16)); spokes(MAT.chrome, 3, 1.4, 0.15); S.add(MAT.gold, cylX(r * 0.2, r * 0.2, w + 0.036, 10));
   }
-  if (rimOpt === 'spinner') { // free-spinning blades on the outside (they keep turning when the wheel stops)
+  if (rimOpt === 'spinner') { K.stage = 1; // free-spinning blades on the outside (they keep turning when the wheel stops)
     const sides = Math.abs(W.cx) < 0.02 ? [-1, 1] : [Math.sign(W.cx)];
     for (const sd of sides) for (let k = 0; k < 3; k++) X.add(MAT.chrome, box(0.02, r * 0.17, r * 1.62), sd * (w / 2 + 0.02), 0, 0, k * PI / 3);
     for (const sd of sides) X.add(MAT.gold, cylX(r * 0.16, r * 0.16, 0.04, 8), sd * (w / 2 + 0.03), 0, 0);
+    K.stage = null;
   }
 }
 
@@ -88,7 +96,7 @@ function lapaFront(K, M, o) {
     for (const sx of [-1, 1]) W.add(pil, box(0.05, 1.0, 0.05), sx * 0.62, 0.5, 0);
     W.add(MAT.dark, box(0.5, 0.012, 0.012), 0.2, 0.08, 0.02, 0, 0, 0.12);
     W.add(MAT.chrome, box(0.012, 0.26, 0.012), 0.68, 0.3, 0.05, 0, 0, -0.15);
-    W.add(MAT.chrome, box(0.14, 0.1, 0.02), 0.72, 0.46, 0.14); }
+    K.stage = 1; W.add(MAT.chrome, box(0.14, 0.1, 0.02), 0.72, 0.46, 0.14); K.stage = null; }
   // handlebar (turns with the front wheel)
   B.add(MAT.chrome, cylX(0.015, 0.015, 0.7, 8), 0, 0, 0); B.add(MAT.chrome, box(0.03, 0.2, 0.03), 0, -0.1, 0);
   for (const sx of [-1, 1]) B.add(MAT.dark, cylX(0.022, 0.022, 0.1, 8), sx * 0.36, 0, 0);
@@ -224,7 +232,7 @@ function buildVespa(K, M, P, A) {
   // handlebar headset
   B.add(M.body, sph(0.15, 12, 8), 0, 0.02, 0.02, 0, 0, 0, 1.15, 0.8, 1.25);
   B.add(MAT.lamp, sph(0.075, 10, 8), 0, 0.02, 0.17); B.add(MAT.chrome, tor(0.078, 0.01, 5, 14), 0, 0.02, 0.16);
-  B.add(MAT.chrome, cylX(0.014, 0.014, 0.62, 8), 0, 0.07, -0.04); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.024, 0.024, 0.1, 8), sx * 0.34, 0.07, -0.04); B.tube(MAT.chrome, [sx * 0.2, 0.08, -0.04], [sx * 0.24, 0.3, -0.1], 0.008); B.add(MAT.chrome, box(0.1, 0.07, 0.015), sx * 0.24, 0.32, -0.1); }
+  B.add(MAT.chrome, cylX(0.014, 0.014, 0.62, 8), 0, 0.07, -0.04); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.024, 0.024, 0.1, 8), sx * 0.34, 0.07, -0.04); K.stage = 1; B.tube(MAT.chrome, [sx * 0.2, 0.08, -0.04], [sx * 0.24, 0.3, -0.1], 0.008); B.add(MAT.chrome, box(0.1, 0.07, 0.015), sx * 0.24, 0.32, -0.1); K.stage = null; }
   rider(D, { shirt: '#2f7a87', pants: '#3a4660', helmet: 'jet', helmetColor: '#f1efe8', hip: [0, 0.8, -0.38], sh: [0, 1.3, -0.26], head: [0, 1.5, -0.2], knee: [0.17, 0.78, 0.0], foot: [0.16, 0.27, 0.2], hand: [0.3, 1.06, 0.45] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 0.66, z: -0.97, w: 0.42, h: 0.12 }, neon: { x: 0.2, z0: -0.5, z1: 0.5, y: 0.15, bike: true }, glow: { w: 1.5, l: 2.6, z: 0 },
@@ -258,7 +266,7 @@ function buildScooterone(K, M, P, A) {
   B.add(M.body, box(0.4, 0.2, 0.3), 0, 0.02, 0.06); B.add(M.body, box(0.32, 0.16, 0.2), 0, -0.1, 0.18, 0.4);
   for (const sx of [-1, 1]) { B.add(MAT.lamp, box(0.1, 0.05, 0.03), sx * 0.1, 0.0, 0.25); }
   B.add(MAT.glass, box(0.3, 0.2, 0.01), 0, 0.2, 0.0, -0.4);
-  B.add(MAT.chrome, cylX(0.014, 0.014, 0.66, 8), 0, 0.14, -0.1); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.11, 8), sx * 0.36, 0.14, -0.1); B.tube(MAT.black, [sx * 0.2, 0.14, -0.1], [sx * 0.26, 0.34, -0.1], 0.008); B.add(MAT.black, box(0.1, 0.07, 0.015), sx * 0.26, 0.36, -0.1); }
+  B.add(MAT.chrome, cylX(0.014, 0.014, 0.66, 8), 0, 0.14, -0.1); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.11, 8), sx * 0.36, 0.14, -0.1); K.stage = 1; B.tube(MAT.black, [sx * 0.2, 0.14, -0.1], [sx * 0.26, 0.34, -0.1], 0.008); B.add(MAT.black, box(0.1, 0.07, 0.015), sx * 0.26, 0.36, -0.1); K.stage = null; }
   rider(D, { shirt: '#23262e', pants: '#4a5668', helmet: 'jet', helmetColor: '#1f2024', hip: [0, 0.9, -0.34], sh: [0, 1.46, -0.3], head: [0, 1.67, -0.26], knee: [0.17, 0.9, 0.12], foot: [0.16, 0.34, 0.26], hand: [0.3, 1.16, 0.4] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 1.26, z: -1.09, w: 0.4, h: 0.1 }, neon: { x: 0.22, z0: -0.6, z1: 0.55, y: 0.17, bike: true }, glow: { w: 1.6, l: 2.8, z: 0 },
@@ -290,7 +298,7 @@ function buildMotorino(K, M, P, A) {
   for (const sx of [-1, 1]) wf.p.tube(MAT.gold, [sx * 0.075, 0, 0], [sx * 0.07, 0.7, -0.23], 0.019);
   wf.p.add(M.body, cylX(0.33, 0.33, 0.08, 12, false, 0, PI * 0.55).clone().rotateY(PI), 0, 0.02, -0.02, 0, 0, 0, 1, 1, 1);
   // bar: wide handlebar, round headlight, little clocks
-  B.add(MAT.black, cylX(0.014, 0.014, 0.74, 8), 0, 0.03, 0); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.12, 8), sx * 0.38, 0.03, 0); B.tube(MAT.chrome, [sx * 0.3, 0.05, 0.02], [sx * 0.34, 0.24, -0.02], 0.007); B.add(MAT.chrome, box(0.09, 0.06, 0.012), sx * 0.34, 0.26, -0.02); }
+  B.add(MAT.black, cylX(0.014, 0.014, 0.74, 8), 0, 0.03, 0); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.12, 8), sx * 0.38, 0.03, 0); K.stage = 1; B.tube(MAT.chrome, [sx * 0.3, 0.05, 0.02], [sx * 0.34, 0.24, -0.02], 0.007); B.add(MAT.chrome, box(0.09, 0.06, 0.012), sx * 0.34, 0.26, -0.02); K.stage = null; }
   B.add(MAT.chrome, cylZ(0.1, 0.1, 0.12, 14), 0, -0.02, 0.14); B.add(MAT.lamp, cylZ(0.082, 0.082, 0.02, 14), 0, -0.02, 0.205); B.add(MAT.dark, box(0.1, 0.08, 0.04), 0, 0.12, -0.04);
   rider(D, { shirt: '#b0262a', pants: '#20242c', helmet: 'full', helmetColor: '#141418', hip: [0, 0.9, -0.4], sh: [0, 1.34, -0.12], head: [0, 1.5, -0.02], knee: [0.15, 0.78, 0.1], foot: [0.18, 0.36, -0.18], hand: [0.37, 1.04, 0.42] });
   Object.assign(A, {
@@ -317,7 +325,7 @@ function buildTascia(K, M, P, A) {
   T.add(MAT.tint, prism([-0.68, 0.68, -1.28, 0.58], 0.74, [-0.6, 0.6, -1.0, 0.18], 1.26));
   T.add(M.body, prism([-0.62, 0.62, -1.06, 0.26], 1.24, [-0.6, 0.6, -1.0, 0.18], 1.3));
   for (const sx of [-1, 1]) { T.limb(M.body, [sx * 0.67, 0.76, 0.56], [sx * 0.6, 1.26, 0.2], 0.05); T.limb(M.body, [sx * 0.68, 0.76, -0.3], [sx * 0.6, 1.26, -0.34], 0.05); T.limb(M.body, [sx * 0.68, 0.8, -1.28], [sx * 0.6, 1.26, -1.02], 0.07);
-    T.add(M.body, box(0.1, 0.07, 0.16), sx * 0.77, 0.9, 0.52, 0, 0.3 * sx); T.add(MAT.black, box(0.04, 0.04, 0.14), sx * 0.7, 0.64, 0.0); }
+    K.stage = 1; T.add(M.body, box(0.1, 0.07, 0.16), sx * 0.77, 0.9, 0.52, 0, 0.3 * sx); K.stage = null; T.add(MAT.black, box(0.04, 0.04, 0.14), sx * 0.7, 0.64, 0.0); }
   // lamps, grille, bumper lip, plate, tail lights, banner on the windscreen
   for (const sx of [-1, 1]) { T.add(MAT.lamp, box(0.3, 0.1, 0.05), sx * 0.52, 0.55, 1.74, 0, sx * -0.12); T.add(MAT.tail, box(0.3, 0.1, 0.04), sx * 0.52, 0.72, -1.79); }
   T.add(MAT.black, box(0.62, 0.12, 0.05), 0, 0.46, 1.77); T.add(MAT.chrome, box(0.64, 0.02, 0.06), 0, 0.4, 1.78);
@@ -330,6 +338,11 @@ function buildTascia(K, M, P, A) {
     const w = K.wheel(sx * 0.78, 0.29, sz * 1.1, 0.29, 0.2, sz > 0); addWheel(K, w, 'car', P.rims);
     T.add(MAT.dark, cylX(0.36, 0.36, 0.22, 14, false, 0, PI), sx * 0.76, 0.29, sz * 1.1);
   }
+  // the bare chassis (what is left after the ZEN): two rails, cross members, a steering wheel and the driver on the floor pan
+  for (const sx of [-1, 1]) T.add(MAT.dark, box(0.08, 0.08, 3.3), sx * 0.45, 0.3, 0);
+  for (const z of [-1.5, -0.3, 0.8, 1.6]) T.add(MAT.dark, box(1.0, 0.06, 0.08), 0, 0.3, z);
+  T.add(MAT.dark, box(0.5, 0.04, 0.9), 0.3, 0.34, -0.2); T.tube(MAT.dark, [0.3, 0.4, 0.55], [0.3, 0.9, 0.2], 0.02); T.add(MAT.dark, tor(0.14, 0.02, 4, 14), 0.3, 0.93, 0.18, -0.9, 0, 0);
+  rider(K.on('driver', 0.3, 0, 0), { shirt: '#c9342a', pants: '#3a4660', hip: [0, 0.5, -0.3], sh: [0, 0.92, -0.2], head: [0, 1.08, -0.15], knee: [0.12, 0.56, 0.15], foot: [0.12, 0.36, 0.45], hand: [-0.04, 0.9, 0.2] });
   // the fat stock exhaust: big oval can with a flared tip, right of centre
   T.add(MAT.chrome, cylZ(0.07, 0.085, 0.22, 12, false), 0.5, 0.22, -1.88); T.add(MAT.dark, cylZ(0.05, 0.05, 0.24, 10, false), 0.5, 0.22, -1.88);
   Object.assign(A, {
@@ -342,7 +355,55 @@ function buildTascia(K, M, P, A) {
   });
 }
 
-export const BUILD = { calessino: buildCalessino, cassone: buildCassone, lapa50: buildLapa50, vespa: buildVespa, scooterone: buildScooterone, motorino: buildMotorino, tascia: buildTascia };
+
+// ===================================================================================================================
+// HORSE AND SULKY (calesse da corsa): the vehicle of the "corse clandestine" night event, not in the garage. Cartoon horse, always happy.
+// ===================================================================================================================
+function buildSulky(K, M, P, A) {
+  K.spec.tiltPivot = [0, 0.5, 0]; K.spec.barPos = [0, 1.2, 0.2]; K.spec.len = 3.6;
+  K.group('tilt', [0, 0.5, 0]).group('driver', [0, 0.5, 0]).group('bar', [0, 1.2, 0.2]);
+  const T = K.on('tilt'), D = K.on('driver'), coat = M.body, cart = M.trim, wood = MAT.wood, blk = MAT.black;
+  // the sulky: two big spoked wheels, a light frame, a seat and a footboard, a pink pennant
+  for (const sx of [-1, 1]) {
+    const w = K.wheel(sx * 0.68, 0.5, -0.65, 0.5, 0.07, false); addWheel(K, w, 'cart', '', M);
+    T.add(cart, cylX(0.56, 0.56, 0.1, 14, false, 0, PI), sx * 0.68, 0.5, -0.65);
+    T.limb(wood, [sx * 0.34, 0.5, -0.65], [sx * 0.28, 0.98, -0.7], 0.05);
+    T.limb(wood, [sx * 0.36, 0.78, -0.95], [sx * 0.4, 0.95, 1.25], 0.055);   // shafts to the horse
+  }
+  T.add(MAT.dark, cylX(0.03, 0.03, 1.4, 8), 0, 0.5, -0.65);
+  T.add(cart, box(0.6, 0.07, 0.44), 0, 0.98, -0.72); T.add(cart, box(0.6, 0.34, 0.05), 0, 1.16, -0.97); T.add(cart, box(0.6, 0.04, 0.6), 0, 0.74, -0.3);
+  T.add(wood, box(0.8, 0.05, 0.05), 0, 0.88, 0.5);
+  T.tube(MAT.dark, [-0.22, 1.0, -0.98], [-0.22, 1.95, -0.98], 0.014); T.add(colMat('#f27aa8', 0.6), box(0.012, 0.16, 0.34), -0.22, 1.82, -1.16);
+  // the jockey, in pink and black silks
+  const silk = colMat('#f27aa8', 0.8), skin = colMat('#c58b64', 0.8);
+  D.limb(silk, [0, 1.02, -0.72], [0, 1.52, -0.58], 0.34, 0.22); D.add(skin, sph(0.1, 10, 8), 0, 1.7, -0.52);
+  D.add(colMat('#141418', 0.5), sph(0.115, 10, 8), 0, 1.74, -0.52, 0, 0, 0, 1, 0.75, 1.1); D.add(colMat('#141418', 0.5), box(0.2, 0.03, 0.12), 0, 1.69, -0.4);
+  for (const sx of [-1, 1]) {
+    D.limb(colMat('#f4f2ea', 0.8), [sx * 0.12, 1.02, -0.72], [sx * 0.14, 0.92, -0.35], 0.13, 0.13); D.limb(colMat('#f4f2ea', 0.8), [sx * 0.14, 0.92, -0.35], [sx * 0.15, 0.78, 0.0], 0.1, 0.1);
+    D.add(MAT.dark, box(0.1, 0.06, 0.2), sx * 0.15, 0.76, 0.06);
+    D.limb(silk, [sx * 0.2, 1.46, -0.58], [sx * 0.17, 1.18, -0.2], 0.09, 0.09); D.add(skin, sph(0.04, 6, 5), sx * 0.17, 1.18, -0.2);
+    T.tube(MAT.dark, [sx * 0.17, 1.18, -0.2], [sx * 0.1, 1.55, 2.0], 0.008);   // reins
+  }
+  // the horse: body and head bob, four legs and the tail swing (see rig.pose)
+  const bodyA = K.anim('body', [0, 1.1, 0.9], { bob: 0.045 }), B = bodyA;
+  B.add(coat, sph(1, 14, 10), 0, 0, 0, 0, 0, 0, 0.3, 0.36, 0.78); B.add(coat, sph(1, 12, 9), 0, 0, 0.62, 0, 0, 0, 0.27, 0.34, 0.4); B.add(coat, sph(1, 12, 9), 0, 0.02, -0.55, 0, 0, 0, 0.28, 0.34, 0.4);
+  B.add(cart, box(0.66, 0.08, 0.12), 0, 0.02, 0.2); B.add(cart, box(0.42, 0.04, 0.32), 0, 0.36, 0.15);
+  const headA = K.anim('head', [0, 1.35, 1.55], { bob: 0.045, axis: 'x', amp: 0.07, freq: 2, steerY: 0.4 }), H = headA;
+  H.tube(coat, [0, 0, 0], [0, 0.5, 0.4], 0.11, 8, 0.2);
+  H.limb(coat, [0, 0.55, 0.42], [0, 0.3, 0.8], 0.2, 0.26); H.limb(MAT.dark, [0, 0.32, 0.78], [0, 0.24, 0.92], 0.15, 0.15);
+  for (const sx of [-1, 1]) { H.add(MAT.white, box(0.035, 0.06, 0.06), sx * 0.1, 0.5, 0.58); H.add(blk, box(0.04, 0.035, 0.035), sx * 0.115, 0.5, 0.6); H.add(coat, box(0.05, 0.14, 0.05), sx * 0.07, 0.7, 0.4, 0.3); }
+  for (let k = 0; k < 5; k++) H.add(blk, box(0.05, 0.12, 0.07), 0, 0.12 + 0.1 * k + 0.05, 0.02 + 0.075 * k - 0.07, 0.4);
+  const tailA = K.anim('tail', [0, 1.2, 0.3], { axis: 'x', bias: 0.5, amp: 0.3, freq: 1, phase: 0.6, idle: 0.3 });
+  tailA.tube(blk, [0, 0, 0], [0, -0.45, -0.28], 0.05, 6, 0.04); tailA.add(blk, box(0.12, 0.34, 0.1), 0, -0.6, -0.34, 0.5);
+  const leg = (nm, x, z, ph) => { const L = K.anim(nm, [x, 0.86, z], { axis: 'x', amp: 0.75, freq: 1, phase: ph });
+    L.tube(coat, [0, 0, 0], [0, -0.43, 0.04], 0.07, 6, 0.09); L.tube(coat, [0, -0.43, 0.04], [0, -0.82, 0], 0.05, 6, 0.06); L.add(MAT.dark, box(0.1, 0.07, 0.13), 0, -0.84, 0.02); };
+  leg('fl', 0.17, 1.4, 0); leg('fr', -0.17, 1.4, PI * 0.5); leg('hl', 0.17, 0.45, PI); leg('hr', -0.17, 0.45, PI * 1.5);
+  Object.assign(A, {
+    kind: 'horse', neon: null, glow: { w: 2, l: 4, z: 0.4 }, flank: null, exh: [], tails: [], seats: [{ x: 0, z: -0.7, y: 1.0 }], barK: 0, steerMax: 0.62, tipMax: 0, track: 0.68, rearTrack: 0.68, wheelR: 0.5, len: 3.6,
+  });
+}
+
+export const BUILD = { sulky: buildSulky, calessino: buildCalessino, cassone: buildCassone, lapa50: buildLapa50, vespa: buildVespa, scooterone: buildScooterone, motorino: buildMotorino, tascia: buildTascia };
 
 // ===================================================================================================================
 // PARTS
@@ -358,6 +419,7 @@ function decalFlip(T, key, cx, cy, cz, w, h, face, flip) {
 
 function addParts(K, M, P, A) {
   const T = K.on('tilt');
+  K.stage = 1;   // tuning parts vanish when the ZEN strips the vehicle
   // --- spoiler (alettone) ---
   const S = A.spoil;
   if (P.spoiler && S) {
@@ -425,6 +487,7 @@ function addParts(K, M, P, A) {
     const cr = Math.min(B.w, B.h) * 0.38;
     CN.add(MAT.dark, cylZ(cr, cr * 0.5, 0.07, 14, false), B.x, B.y, z0 - 0.02); CN.add(MAT.chrome, tor(cr, cr * 0.1, 4, 16), B.x, B.y, z0 - 0.052); CN.add(MAT.chrome, cylZ(cr * 0.28, cr * 0.28, 0.05, 8), B.x, B.y, z0 - 0.045);
   }
+  K.stage = null;
 }
 export const NEON = Object.fromEntries([['rosa', '#ff2f9e'], ['ciano', '#18e6ff'], ['verde', '#37ff6a'], ['viola', '#9b4dff'], ['ambra', '#ffb020'], ['arcobaleno', '#18e6ff']]);
 
@@ -441,7 +504,7 @@ function template(look) {
   BUILD[look.type](K, M, look.parts, A);
   addParts(K, M, look.parts, A);
   A.type = look.type;
-  t = { key, type: look.type, A, groups: K.finish(), wheels: K.wheels, spec: { wheelsIn: 'lean', leanMode: 'tip', ...K.spec }, users: 0, tris: 0 };
+  t = { key, type: look.type, A, groups: K.finish(), wheels: K.wheels, anims: K.anims, spec: { wheelsIn: 'lean', leanMode: 'tip', len: A.len, ...K.spec }, users: 0, tris: 0 };
   for (const name in t.groups) for (const b of t.groups[name]) t.tris += b.geom.attributes.position.count / 3;
   tplCache.set(key, t);
   if (tplCache.size > 14) for (const [k, o] of tplCache) { if (tplCache.size <= 12) break; if (o.users <= 0 && o !== t) { for (const n in o.groups) for (const b of o.groups[n]) b.geom.dispose(); tplCache.delete(k); } }
@@ -451,6 +514,7 @@ export const geoKey = l => tplKey(cleanLook(l));
 export const templateStats = look => { const t = template(cleanLook(look)); return { tris: Math.round(t.tris), meshes: Object.values(t.groups).reduce((s, g) => s + g.length, 0) }; };
 
 const _glowGeo = plane(1, 1).clone().rotateX(-PI / 2);
+const cl01 = x => x < 0 ? 0 : x > 1 ? 1 : x;
 // local: true uses the shared painted materials (recoloured in place by the owner); false gives a private livery copy.
 function instantiate(tpl, livery, local) {
   tpl.users++;
@@ -459,30 +523,37 @@ function instantiate(tpl, livery, local) {
   const root = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group(), meshes = [];
   root.add(lean); lean.add(tilt); tilt.position.set(tp[0], tp[1], tp[2]);
   const fill = (parent, list) => { if (!list) return; for (const b of list) { const m = new THREE.Mesh(b.geom, mat(b.mat)); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
-  fill(tilt, tpl.groups.tilt);
-  const driver = new THREE.Group(); tilt.add(driver); fill(driver, tpl.groups.driver);
-  const bar = new THREE.Group(); bar.position.set(sp.barPos[0] - tp[0], sp.barPos[1] - tp[1], sp.barPos[2] - tp[2]); tilt.add(bar); fill(bar, tpl.groups.bar);
+  const Pm = { tilt }, stripObjs = [];
+  const driver = Pm.driver = new THREE.Group(); tilt.add(driver);
+  const bar = Pm.bar = new THREE.Group(); bar.position.set(sp.barPos[0] - tp[0], sp.barPos[1] - tp[1], sp.barPos[2] - tp[2]); tilt.add(bar);
   let sub = null, cone = null;
-  if (tpl.groups.sub) { const B = A.sub; sub = new THREE.Group(); sub.position.set(B.x - tp[0], B.y - tp[1], B.z - tp[2]); tilt.add(sub); fill(sub, tpl.groups.sub);
-    cone = new THREE.Group(); cone.position.set(B.x - tp[0], B.y - tp[1], B.z - B.d / 2 - tp[2]); tilt.add(cone); fill(cone, tpl.groups.cone); }
+  if (tpl.groups.sub) { const B = A.sub; sub = Pm.sub = new THREE.Group(); sub.position.set(B.x - tp[0], B.y - tp[1], B.z - tp[2]); tilt.add(sub);
+    cone = Pm.cone = new THREE.Group(); cone.position.set(B.x - tp[0], B.y - tp[1], B.z - B.d / 2 - tp[2]); tilt.add(cone); stripObjs.push(sub, cone); }
   const wheels = tpl.wheels.map((w, i) => {
-    const pivot = new THREE.Group(), spin = new THREE.Group(), spinner = new THREE.Group();
+    const pivot = Pm['w' + i] = new THREE.Group(), spin = Pm['w' + i + 's'] = new THREE.Group(), spinner = Pm['w' + i + 'x'] = new THREE.Group();
     if (sp.wheelsIn === 'tilt') { pivot.position.set(w.x - tp[0], w.y - tp[1], w.z - tp[2]); tilt.add(pivot); } else { pivot.position.set(w.x, w.y, w.z); lean.add(pivot); }
     pivot.add(spin); pivot.add(spinner);
-    fill(pivot, tpl.groups['w' + i]); fill(spin, tpl.groups['w' + i + 's']); fill(spinner, tpl.groups['w' + i + 'x']);
     return { pivot, spin, spinner, front: w.front, r: w.r };
   });
+  // animated limbs (the horse)
+  const anims = (tpl.anims || []).map(a => { const g = Pm['a:' + a.name] = new THREE.Group(); g.position.set(a.origin[0] - tp[0], a.origin[1] - tp[1], a.origin[2] - tp[2]); tilt.add(g); return { g, oy: g.position.y, ...a }; });
+  for (const name in tpl.groups) {
+    const i = name.indexOf('#'), base = i < 0 ? name : name.slice(0, i), parent = Pm[base]; if (!parent) continue;
+    if (i < 0) fill(parent, tpl.groups[name]);
+    else { const sg = new THREE.Group(); parent.add(sg); fill(sg, tpl.groups[name]); stripObjs.push(sg); }   // meshes the ZEN strips off
+  }
   // underglow decal on the road: a soft additive quad that does not lean with the body (one extra draw call, no lights)
   let glow = null;
-  if (tpl.key.split('|')[1].split(',')[GEO_PARTS.indexOf('neon')]) {
-    const id = tpl.key.split('|')[1].split(',')[GEO_PARTS.indexOf('neon')], g = A.glow;
-    glow = new THREE.Mesh(_glowGeo, neonMats(id, NEON[id] || '#ff2f9e').glow);
-    glow.scale.set(g.w, 1, g.l); glow.position.set(0, 0.06, g.z); glow.renderOrder = 2; glow.frustumCulled = false; root.add(glow);
+  const neonId = tpl.key.split('|')[1].split(',')[GEO_PARTS.indexOf('neon')];
+  if (neonId && A.glow) {
+    const g = A.glow;
+    glow = new THREE.Mesh(_glowGeo, neonMats(neonId, NEON[neonId] || '#ff2f9e').glow);
+    glow.scale.set(g.w, 1, g.l); glow.position.set(0, 0.06, g.z); glow.renderOrder = 2; glow.frustumCulled = false; root.add(glow); stripObjs.push(glow);
   }
   const tipMax = A.tipMax, steerK = A.steerMax / 0.62, track = A.track, bank = sp.leanMode === 'bank';
   const rig = {
-    root, lean, tilt, bar, wheels, meshes, driver, sub, cone, glow, A, PIV: tp[1], tipMax, kind: A.kind, type: tpl.type, livery, tpl,
-    // pose({ pitch, roll, lean (-1..1, sign = side), steer (rad), spin (rad), t (seconds, for spinners), lockRear })
+    root, lean, tilt, bar, wheels, meshes, driver, sub, cone, glow, A, PIV: tp[1], tipMax, kind: A.kind, type: tpl.type, livery, tpl, stripped: false,
+    // pose({ pitch, roll, lean (-1..1, sign = side), steer (rad), spin (rad), t (seconds, for spinners), speed (m/s, for the horse's gait), lockRear })
     pose(p) {
       tilt.rotation.set(p.pitch || 0, 0, p.roll || 0);
       const l = p.lean || 0;
@@ -491,7 +562,18 @@ function instantiate(tpl, livery, local) {
       const st = (p.steer || 0) * steerK;
       for (const w of wheels) { if (w.front) w.pivot.rotation.y = st; if (!(p.lockRear && !w.front)) w.spin.rotation.x = p.spin || 0; w.spinner.rotation.x = (p.spin || 0) * 0.45 + (p.t || 0) * 2.4; }
       bar.rotation.y = st * A.barK * (bank ? 1.3 : 1);
+      if (anims.length) {
+        const gp = (p.spin || 0) * 0.4, sa = p.speed == null ? 1 : cl01(p.speed / 4), tt = p.t || 0;
+        for (const a of anims) {
+          const k = Math.max(sa, a.idle || 0), ph = gp * (a.freq || 1) + (a.phase || 0);
+          if (a.axis) a.g.rotation[a.axis] = (a.bias || 0) + (a.amp || 0) * k * Math.sin(ph) + (a.idle ? 0.04 * Math.sin(tt * 2.1) : 0);
+          if (a.steerY) a.g.rotation.y = st * a.steerY;
+          if (a.bob) a.g.position.y = a.oy + a.bob * sa * Math.abs(Math.sin(gp)) + 0.012 * Math.sin(tt * 2.4);
+        }
+      }
     },
+    // the ZEN gag: hide everything but the frame, the wheels and the driver (the meshes tagged with a strip stage)
+    setStripped(b) { rig.stripped = !!b; for (const o of stripObjs) o.visible = !b; },
     dispose() { tpl.users--; if (root.parent) root.parent.remove(root); },
   };
   return rig;

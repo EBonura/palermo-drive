@@ -1352,23 +1352,32 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     group.userData.tris = tris; group.userData.styles = stats.styles; group.userData.ruins = ruinAt;
     if (!tile) { window.__bld = { tris, meshes: nm, stats, ms: performance.now() - tStart }; console.log('[buildings]', JSON.stringify(window.__bld)); }
   }
-  yield* run(null);
+  if (tile && PHOTO) { matPhoto = PHOTO.mat; photoData = PHOTO; }
+  if (tile) loadPhotos(); // tiles built before it lands stay procedural until they are rebuilt
+  yield* run(tile ? photoData : null);
 
-  // Photo-rectified facades (optional): assets/facades/photo/map.json = { buildingId: [{ wall, texture, u0, u1, v0, v1, credit }] }.
-  // wall = index of the footprint edge in b.p (start vertex), u runs from that vertex to the next, v from the pavement (v0) to the
-  // cornice (v1), with v = 0 at the bottom of the image. Loaded after the first build, then the buildings are rebuilt once.
-  if (!tile) (async () => { // (centro only: streamed tiles skip the photo facades for now)
+  // Photo-rectified facades: loaded once (loadPhotos below), then the centro rebuilds with them; streamed tiles use them once loaded.
+  if (tile) return group;
+  loadPhotos().then(P => { if (!P) return; matPhoto = P.mat; photoData = P; const it = run(P); while (!it.next().done); });
+  return group;
+}
+
+// assets/facades/photo/map.json = { buildingId: [{ wall, texture, u0, u1, v0, v1, credit }] }.
+// wall = index of the footprint edge in b.p (start vertex), u runs from that vertex to the next, v from the pavement (v0) to the
+// cornice (v1), with v = 0 at the bottom of the image. One shared texture array and material for the centro and every streamed tile.
+let PHOTO = null, photoP = null;
+function loadPhotos() {
+  return photoP || (photoP = (async () => {
     try {
       const resp = await fetch(new URLSearchParams(location.search).get('photomap') || 'assets/facades/photo/map.json', { cache: 'no-cache' });
-      if (!resp.ok) return;
+      if (!resp.ok) return null;
       const map = await resp.json(), byId = {}, urls = [];
       for (const id of Object.keys(map)) for (const e of map[id]) {
-        if (!D.buildings.some(b => b.id === id) || ctx.skip.has(id)) continue;
         let u = e.texture; if (!/^(https?:|\/|assets\/)/.test(u)) u = 'assets/facades/photo/' + u;
         let li = urls.indexOf(u); if (li < 0) { li = urls.length; urls.push(u); }
         (byId[id] = byId[id] || {})[e.wall] = { layer: li, u0: e.u0 ?? 0, u1: e.u1 ?? 1, v0: e.v0 ?? 0, v1: e.v1 ?? 1 };
       }
-      if (!urls.length) return;
+      if (!urls.length) return null;
       const PS = 1024, cv = document.createElement('canvas'); cv.width = cv.height = PS;
       const g = cv.getContext('2d', { willReadFrequently: true }), data = new Uint8Array(PS * PS * 4 * Math.min(urls.length, 32));
       for (let i = 0; i < Math.min(urls.length, 32); i++) {
@@ -1381,11 +1390,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const tex = new THREE.DataArrayTexture(data, PS, PS, Math.min(urls.length, 32));
       tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
       tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
-      matPhoto = atlasMaterial(tex, false, true); photoData = { byId, tex };
-      { const it = run(photoData); while (!it.next().done); }
-    } catch (e) { /* no photo map: procedural facades only */ }
-  })();
-  return group;
+      return PHOTO = { byId, tex, mat: atlasMaterial(tex, false, true) };
+    } catch (e) { return null; } // no photo map: procedural facades only
+  })());
 }
 
 function calcFloors(S, Hw, lv, sp) {

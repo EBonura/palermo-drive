@@ -14,6 +14,8 @@ import { D, groundY, hooks } from './core.js';
 import { garage, cleanLook, lookKey, LIVERIES as ALL_LIVERIES, VEHICLES } from './garage.js';
 import { buildVehicleModel, buildLocalRig, repaint, tickShared, geoKey } from './vehicle-models.js';
 import { createVehicleAudio } from './vehicle-audio.js';
+import { createVehicleEvents } from './vehicle-events.js';
+import { QUALITY } from './mobile.js';
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -62,6 +64,8 @@ const PRESET = {
   scooterone: { bike: true, nG: 1, cvt: true, gearV: [0, 32], gearA: [0, 6.6], L: 1.4, lock: 0.5, aGrip: 12.5, aDrift: 8.8, kGrip: 18, tipGrip: 0, tipA0: 99, rollGain: 0, rollMax: 0, bankGain: 0.04, bankMax: 0.58, wheelie: 0.13, wheelV: 11, pitchK: 0.016, pitchMax: 0.15, R: 0.5, AXLE: 0.56, camK: 0.88, camH: 1.25, eye: 1.7, brake: 13.5, nosThrust: 6.4 },
   // little naked bike: revvy, twitchy, big wheelies
   motorino: { bike: true, nG: 5, gearV: [0, 8, 14, 20, 27, 34], gearA: [0, 11, 8.2, 6.2, 4.8, 3.8], L: 1.3, lock: 0.5, aGrip: 12.8, aDrift: 8.8, kGrip: 19, tipGrip: 0, tipA0: 99, rollGain: 0, rollMax: 0, bankGain: 0.05, bankMax: 0.72, wheelie: 0.62, wheelV: 17, pitchK: 0.018, pitchMax: 0.18, R: 0.44, AXLE: 0.52, camK: 0.84, camH: 1.15, eye: 1.55, brake: 14, nosThrust: 6.6, sigMax: 0.65 },
+  // horse and sulky (the night race, not in the garage): fast in a straight line, understeers through wide turns, no tipping
+  sulky: { L: 3.2, lock: 0.45, lockV: 18, aGrip: 8.5, aDrift: 6.5, kGrip: 9, sigMax: 0.5, nG: 1, cvt: true, gearV: [0, 25], gearA: [0, 8.8], brake: 9, hbrake: 3.5, tipA0: 99, tipMax: 0, tipGrip: 0, rollGain: 0.002, rollMax: 0.04, pitchK: 0.004, R: 0.6, AXLE: 1.0, camK: 1.25, camH: 1.6, eye: 1.9, nosThrust: 4, nosTop: 1.1 },
   // tamarro hatchback: grippy, quick, flat, a long wheelbase for stability
   tascia: { L: 2.4, lock: 0.62, aGrip: 15.5, aDrift: 10.8, kGrip: 18, gearV: [0, 8, 14, 21, 28, 35], gearA: [0, 9.8, 7.6, 5.8, 4.5, 3.6], tipA0: 99, tipMax: 0, tipGrip: 0, rollGain: 0.0042, rollMax: 0.08, pitchK: 0.006, R: 0.8, AXLE: 0.95, camK: 1.1, camH: 1.2, eye: 1.25, brake: 16, hbrake: 5.5, nosThrust: 6.4 },
 };
@@ -93,7 +97,7 @@ export function createVehicle(env) {
   })();
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
   glow.visible = false;
-  let flames = [], rearZ = 0.7, rearTrack = 0.66, hornCustom = false;
+  let flames = [], rearZ = 0.7, rearTrack = 0.66, hornCustom = false, stripped = false, holdSimFlag = false, swapLock = false, events = null;
 
 
   // tyre smoke: one Points object with a ring buffer of puffs
@@ -200,7 +204,7 @@ export function createVehicle(env) {
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
   function physics(dt) {
     ticks++;
-    if (frozen) return;
+    if (frozen || holdSimFlag) return;
     if (freezeAt >= 0 && (simT += dt) >= freezeAt) { frozen = true; console.warn('[veh]', JSON.stringify({ type: car.type, vf: +car.vf.toFixed(1), wheelie: +car.wheelie.toFixed(2), pitch: +car.pitch.toFixed(2), bank: +car.bank.toFixed(2), tip: +car.tip.toFixed(2), ay: +car.ay.toFixed(1), gear: car.gear })); }
     const up = keys.KeyW || keys.ArrowUp, down = keys.KeyS || keys.ArrowDown;
     const left = keys.KeyA || keys.ArrowLeft, right = keys.KeyD || keys.ArrowRight, hb = !!keys.Space;
@@ -468,6 +472,11 @@ export function createVehicle(env) {
   }
 
   // ---------- mounting a look (vehicle + livery + parts) ----------
+  // the ZEN gag strips the vehicle to its frame and wheels (cosmetic only: the garage and the saved look are untouched)
+  function applyStrip() {
+    rig.setStripped(stripped); car.stripped = stripped;
+    hornCustom = !!curLook.parts.horn && !stripped; audio.setVoice(curLook.type, stripped ? '' : curLook.parts.exhaust);
+  }
   function applyPreset(type) {
     Object.assign(T, BASE, PRESET[type] || {});
     car.gear = Math.min(car.gear, T.nG);
@@ -477,7 +486,7 @@ export function createVehicle(env) {
     const prev = rig;
     if (prev && prev.type === look.type && prev.geo === geoKey(look)) { // only the paint or the horn changed: no rebuild
       if (look.livery !== prev.livery) { repaint(look.type, look.livery); prev.livery = look.livery; }
-      curLook = look; car.livery = look.livery; hornCustom = !!look.parts.horn; audio.setVoice(look.type, look.parts.exhaust);
+      curLook = look; car.livery = look.livery; applyStrip();
       return;
     }
     rig = buildLocalRig(look); rig.geo = geoKey(look); curLook = look;
@@ -486,18 +495,20 @@ export function createVehicle(env) {
     for (const [x, y, z] of A.tails) { const m = new THREE.Mesh(BRAKE_G, brakeMat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.02); rig.tilt.add(m); }
     flames = [];
     const ex = A.kind === 'bike' ? A.exh.slice(0, 1) : A.exh;
+    if (ex.length) {
     for (const [x, y, z] of ex) {
       const mk = (g, mat) => { const m = new THREE.Mesh(g, mat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.2); m.visible = false; m.frustumCulled = false; rig.tilt.add(m); return m; };
       flames.push([mk(FLAME_O, flameOuter), mk(FLAME_I, flameInner)]);
     }
     const ez = Math.min(...ex.map(e => e[2])) - 0.35, ey = ex.reduce((s, e) => s + e[1], 0) / ex.length;
     glow.position.set(0, ey - tp[1], ez - tp[2]); rig.tilt.add(glow);
+    }
     scene.add(rig.root);
     if (prev) prev.dispose();
     rearZ = -Math.min(...rig.tpl.wheels.map(w => w.z)); rearTrack = A.rearTrack;
     car.wheelPts = rig.tpl.wheels.map(w => ({ lx: w.x, fz: w.z, side: Math.abs(w.x) < 0.05 ? 0 : Math.sign(w.x), pitch: w.z > 0 ? 1 : -1 }));
     car.type = look.type; car.kind = A.kind; car.livery = look.livery;
-    hornCustom = !!look.parts.horn; audio.setVoice(look.type, look.parts.exhaust);
+    applyStrip();
     applyPreset(look.type);
     camState.init = false;
   }
@@ -522,14 +533,14 @@ export function createVehicle(env) {
 
   // Swap vehicle in the street: V on the keyboard, the swap button on the touch UI (mobile.js dispatches 'pd-swap'). Cycles through the owned vehicles.
   function cycleVehicle() {
-    const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4) return;
+    const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4 || swapLock) return;
     garage.setVehicle(owned[(owned.findIndex(v => v.id === garage.type) + 1) % owned.length].id);
   }
   addEventListener('keydown', e => { if (e.code === 'KeyV' && !e.repeat && !e.ctrlKey && !e.metaKey) cycleVehicle(); });
   addEventListener('pd-swap', cycleVehicle);
 
   // ---------- visual ----------
-  const _pose = { pitch: 0, roll: 0, lean: 0, steer: 0, spin: 0, t: 0, lockRear: false }, _au = { rpm: 0, thr: 0, nosAmt: 0, active: false, vf: 0, slip: 0, drift: 0, hb: false, scrape: 0 };
+  const _pose = { speed: 0, pitch: 0, roll: 0, lean: 0, steer: 0, spin: 0, t: 0, lockRear: false }, _au = { rpm: 0, thr: 0, nosAmt: 0, active: false, vf: 0, slip: 0, drift: 0, hb: false, scrape: 0 };
   function updateVisual(dt) {
     // is the simulation running (not on the title screen or paused)?
     if (ticks !== seenTicks) { seenTicks = ticks; idleFrames = 0; } else idleFrames++;
@@ -538,7 +549,7 @@ export function createVehicle(env) {
 
     const g = rig.root, now = performance.now() / 1000;
     g.position.set(car.x, groundY(car.x, car.z) + car.lift + car.hop, car.z); g.rotation.y = car.th;
-    const P = _pose; P.pitch = car.pitch; P.roll = car.roll; P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
+    const P = _pose; P.speed = Math.abs(car.vf); P.pitch = car.pitch; P.roll = car.roll; P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
     rig.pose(P);
     tickShared(now);
     brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : (car.tailGlow || 0) * 0.45; // tail lamps stay dimly lit at night (src/daynight.js sets car.tailGlow)
@@ -587,11 +598,13 @@ export function createVehicle(env) {
     audio.update(A);
     pollHit();
     hornTest = Math.max(0, hornTest - dt);
-    audio.hornUpdate(curLook.parts.horn || '', (rawH && active) || hornTest > 0, dt, car.x, car.z);
-    audio.bassUpdate(!!curLook.parts.sub && (active || showcase), dt, car.x, car.z);
-    const bp = curLook.parts.sub ? audio.bass.pulse : 0;
+    audio.hornUpdate(stripped ? '' : (curLook.parts.horn || ''), (rawH && active) || hornTest > 0, dt, car.x, car.z);
+    audio.bassUpdate(!!curLook.parts.sub && !stripped && (active || showcase), dt, car.x, car.z);
+    const bp = curLook.parts.sub && !stripped ? audio.bass.pulse : 0;
     car.bass = bp;
     if (rig.cone) { rig.cone.scale.set(1 + 0.12 * bp, 1 + 0.12 * bp, 1 + 0.9 * bp); rig.sub.scale.setScalar(1 + 0.025 * bp); if (bp > 0.3) cam.trauma = Math.max(cam.trauma, 0.05 * bp); }
+
+    if (events) events.update(dt, active);
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
@@ -611,6 +624,7 @@ export function createVehicle(env) {
   // rig.pose({ pitch, roll, lean, steer, spin, t }) and add it to the scene. buildLapa(liveryId) is the old Calessino-only call.
   const buildLapa = id => buildVehicleModel({ type: 'calessino', livery: id });
 
+  if (qs.has('strip')) stripped = true;   // test link: start stripped like after the ZEN
   syncSaved();
   const api = {
     car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, buildLapa, buildVehicleModel, bump,
@@ -621,6 +635,18 @@ export function createVehicle(env) {
     unlockAudio: audio.gesture,
     get rig() { return rig; }, get seats() { return rig.A.seats; }, audio,
   };
+  // used by src/vehicle-events.js (the ZEN gag and the night race)
+  api.holdSim = b => { holdSimFlag = !!b; if (b) { car.vx = car.vz = 0; } };
+  api.setStripped = b => { stripped = !!b; applyStrip(); };
+  Object.defineProperty(api, 'stripped', { get: () => stripped });
+  api.lockSwap = b => { swapLock = !!b; };
+  api.puff = puff;
+  api.teleport = (x, z, th) => {
+    Object.assign(car, { x, z, th, vx: 0, vz: 0, vf: 0, w: 0, slip: 0, drift: 0, dLatch: 0, psiDot: 0, psiPrev: th, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, steer: 0, sIn: 0 });
+    camState.init = false;
+  };
+  events = createVehicleEvents({ scene, camera, car, groundY, roadVerts, api, audio, mobile: QUALITY });
+  api.events = events;
   if (qs.has('debug') || qs.has('pdveh')) window.pdVehicle = api;   // test hook
   return api;
 }

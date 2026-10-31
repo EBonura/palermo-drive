@@ -70,7 +70,7 @@ export function createGags(env, T, police) {
   const insult = () => { let s; do s = pick(INSULTS); while (s === lastInsult && INSULTS.length > 1); lastInsult = s; return s; };
   const right = v => [-Math.cos(v.h), Math.sin(v.h)];            // the driver's right-hand side in the world
   const say = (id, text) => {
-    const i = peds.info(id); if (!i) return;
+    const i = peds.info(id); if (!i || Math.hypot(i.x - camera.position.x, i.z - camera.position.z) > 80) return;   // nobody sees the far ones
     env.shout?.(i.x, i.y + 1.9, i.z, text, () => { const k = peds.info(id); return k ? { x: k.x, y: k.y + 1.9, z: k.z } : null; });
   };
   const spawnDriver = (v, side) => { // side +1 = the kerb (right) side, -1 = the road side

@@ -2,7 +2,7 @@
 // Everything is drawn in code (canvas), no external image. Shared materials are created once; the livery-dependent
 // ("painted") materials exist per vehicle type and are recoloured in place (local car) or cloned per livery (remote players).
 import * as THREE from 'three';
-import { PI, TAU } from './vehicle-kit.js';
+import { PI, TAU, MAT_STAGE } from './vehicle-kit.js';
 
 // ---------- canvas textures ----------
 const rngOf = seed => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
@@ -155,6 +155,7 @@ export const MAT = {
   sticker: tiny(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0, alphaTest: 0.45, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })),
 };
 MAT.sticker.map = stickerAtlas();
+for (const m of [MAT.glass, MAT.tint, MAT.plastic, MAT.lamp, MAT.tail, MAT.sticker, MAT.seat, MAT.wood, MAT.orange, MAT.lemon, MAT.leaf]) MAT_STAGE.set(m, 1);
 const colMats = new Map();
 export const colMat = (c, r = 0.8, m = 0) => { const k = `${c}|${r}|${m}`; let x = colMats.get(k); if (!x) { x = std(c, r, m); x.userData.noShadow = true; colMats.set(k, x); } return x; };
 
@@ -166,6 +167,7 @@ export function neonMats(id, hex) {
   if (!t) {
     t = tiny(new THREE.MeshBasicMaterial({ color: neonColor(hex), toneMapped: false }));
     const g = new THREE.MeshBasicMaterial({ map: GLOW_TEX, color: neonColor(hex), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    MAT_STAGE.set(t, 1);
     neonTube.set(id, t); neonGlow.set(id, g);
   }
   return { tube: t, glow: neonGlow.get(id) };
@@ -190,6 +192,7 @@ const PAINT = {
   vespa: { menta: ['#8fd0b0', '#5a3d2b'], crema: ['#efe2bf', '#7a2b2b'], rosso: ['#c42f2a', '#222225'], azzurro: ['#5aa0d8', '#e8e2cc'], rosanero: ['#f08cb4', '#17131a'] },
   scooterone: { grigio: ['#8e949b', '#1b1b1e'], nero: ['#25262a', '#1b1b1e'], perla: ['#f2f0ea', '#25252a'], rosso: ['#c42f2a', '#1b1b1e'], rosanero: ['#f08cb4', '#17131a'] },
   motorino: { nero: ['#2a2b2e', '#c9a23a'], rosso: ['#c42f2a', '#1f1f22'], arancio: ['#ee7a1e', '#1f1f22'], verde: ['#9ad12e', '#1f1f22'], rosanero: ['#f08cb4', '#17131a'] },
+  sulky: { baio: ['#7a4a2a', '#e04a2a'], sauro: ['#a8582a', '#f2c200'], morello: ['#26262a', '#f27aa8'], grigio: ['#aaaaaa', '#1d6fd0'] },
   tascia: { viola: ['#7a3bc0', '#1b1320'], arancio: ['#f07a14', '#1b1b1e'], giallo: ['#f2d020', '#1b1b1e'], nero: ['#1b1b20', '#c9a23a'], rosanero: ['#f08cb4', '#17131a'] },
 };
 const makeSet = type => {
@@ -202,7 +205,7 @@ const makeSet = type => {
   return { body: std('#888888', gloss[0], gloss[1]), trim: std('#222222', 0.7) };
 };
 const sets = {};
-export const paintedSet = type => sets[type] || (sets[type] = makeSet(type));
+export const paintedSet = type => { if (!sets[type]) { sets[type] = makeSet(type); for (const k in sets[type]) MAT_STAGE.set(sets[type][k], 1); } return sets[type]; };
 export function paintSet(type, set, id) {
   if (type === 'calessino') {
     const L = LIV_CAL[id]; if (!L) return false;

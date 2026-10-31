@@ -63,9 +63,12 @@ function sliceGroups(geo) {
 
 const _M = new THREE.Matrix4(), _T = new THREE.Matrix4(), _Q = new THREE.Quaternion(), _E = new THREE.Euler(), _V = new THREE.Vector3(), _S = new THREE.Vector3(), _D = new THREE.Vector3(), _Z = new THREE.Vector3(0, 0, 1), _Y = new THREE.Vector3(0, 1, 0);
 
+// Strip stage of a material: 0 stays on a stripped vehicle (frame, wheels), 1 vanishes when the ZEN strips it (see vehicle-events.js).
+export const MAT_STAGE = new Map();
+
 export class Kit {
   // s: uniform scale applied to everything added (a smaller variant of a model)
-  constructor(s = 1) { this.s = s; this.g = {}; this.wheels = []; this.spec = {}; }
+  constructor(s = 1) { this.s = s; this.g = {}; this.wheels = []; this.spec = {}; this.anims = []; this.stage = null; }
   group(name, origin) { this.g[name] = { o: origin, b: new Map() }; return this; }
   _put(G, mat, geo, m) {
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
@@ -76,12 +79,15 @@ export class Kit {
   }
   // final car-frame matrix m (before the kit scale and the group origin)
   addM(name, mat, geo, m) {
-    const G = this.g[name]; if (!G) throw new Error('no group ' + name);
+    if (!this.g[name]) throw new Error('no group ' + name);
     const mm = _M.copy(m);
     if (this.s !== 1) mm.premultiply(_T.makeScale(this.s, this.s, this.s));
-    mm.premultiply(_T.makeTranslation(-G.o[0], -G.o[1], -G.o[2]));
-    if (Array.isArray(mat)) for (const [i, sub] of sliceGroups(geo)) this._put(G, mat[i], sub, mm);
-    else this._put(G, mat, geo, mm);
+    const base = this.g[name], skip = name === 'sub' || name === 'cone';
+    // the strip stage picks a sibling group 'name#1' (same origin) so a stripped vehicle can hide those meshes
+    const grp = m2 => { const st = skip ? 0 : (this.stage != null ? this.stage : (MAT_STAGE.get(m2) || 0)); if (!st) return base; const k = name + '#' + st; return this.g[k] || (this.g[k] = { o: base.o, b: new Map() }); };
+    mm.premultiply(_T.makeTranslation(-base.o[0], -base.o[1], -base.o[2]));
+    if (Array.isArray(mat)) for (const [i, sub] of sliceGroups(geo)) this._put(grp(mat[i]), mat[i], sub, mm);
+    else this._put(grp(mat), mat, geo, mm);
   }
   // ops bound to a group, optionally inside a parent transform (x, y, z, rx, ry, rz): a sub-assembly such as the windscreen
   on(name, px = 0, py = 0, pz = 0, prx = 0, pry = 0, prz = 0) {
@@ -113,6 +119,12 @@ export class Kit {
         return kit.onM(name, m.premultiply(parent));
       },
     };
+  }
+  // An animated limb (a horse's leg, tail, head): its own group pivoting at origin. a = { mode: 'rot' | 'bob', amp, phase, bias, freq, axis }.
+  anim(name, origin, a) {
+    const o = [origin[0] * this.s, origin[1] * this.s, origin[2] * this.s];
+    this.group('a:' + name, o); this.anims.push({ name, origin: o, ...a });
+    return this.on('a:' + name, origin[0], origin[1], origin[2]);
   }
   // A wheel: a pivot group (steering, fork, fender), a spin group (tyre, rim) and a spinner group (free-spinning rim blades).
   wheel(x, y, z, r, w, front) {

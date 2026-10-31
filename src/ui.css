@@ -155,7 +155,8 @@ html.pd-title :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: hidd
 .pd-stack { display: flex; flex-direction: column; gap: clamp(8px, 1.8vh, 14px); }
 .pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 2.2vh, 20px) clamp(16px, 3vw, 36px); overflow-y: auto; overflow-x: hidden; padding: 4px 14px 4px 12px; touch-action: pan-y; scrollbar-width: thin; }
 .pd-grid.spots { grid-template-columns: 1fr 1fr; }
-.pd-grid .pd-row[data-opt=camera], .pd-grid .pd-row[data-opt=timeStart], .pd-grid .pd-row[data-opt=timeSpeed] { grid-column: 1 / -1; }
+.pd-grid .pd-row[data-opt=camera] { grid-column: 1 / -1; }
+.pd-row[data-opt=timeStart] .pd-segb, .pd-row[data-opt=timeSpeed] .pd-segb { font-size: clamp(11px, 2.5vh, 16px); letter-spacing: .03em; padding: 0 2px; }
 .pd-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .pd-lang { width: min(46%, 300px); flex: 0 0 auto; }
 .pd-row { display: flex; flex-direction: column; gap: clamp(4px, 1vh, 8px); min-width: 0; }
