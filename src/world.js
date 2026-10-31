@@ -529,9 +529,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const k = 0.92 + 0.08 * Math.sin(i * 1.7); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
       }
     }
-    // strip quads: vertices come in left/right pairs along each road
+    // strip quads: vertices come in left/right pairs along each road (wound counter-clockwise seen from above)
     let base = 0;
-    for (const r of roads) { const n = pairs(r.p).length; for (let i = 0; i < n - 1; i++) { const a = base + i * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } base += n * 2; }
+    for (const r of roads) { const n = pairs(r.p).length; for (let i = 0; i < n - 1; i++) { const a = base + i * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } base += n * 2; }
     yield;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
