@@ -54,7 +54,7 @@ const DAYK = {
 const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'dome', 'amb']) k[f] = C(k[f]); return k; };
 const NIGHTK = { // Palermo after dark: saturated indigo sky, an orange light dome over the roofs, cool navy shadows, warm brown bounce from the streets
   sun: '#000000', sunI: 0, hemiS: '#26385c', hemiG: '#3a3028', hemiI: 0.62, fog: '#18224a', fogK: 1.25, expo: 1.2,
-  envZ: '#16264e', envH: '#5a3a24', envB: '#34281c', skyH: '#1c3066', skyZ: '#0e1a44', glow: '#5a6aa8', dome: '#c8742a', amb: '#0c1530', win: 0.5,
+  envZ: '#16264e', envH: '#5a3a24', envB: '#34281c', skyH: '#1a2c60', skyZ: '#0a1538', glow: '#5a6aa8', dome: '#c8742a', amb: '#0c1530', win: 0.5,
 };
 const KEYS = [
   K(0, { ...NIGHTK, win: 0.3 }),
@@ -99,7 +99,7 @@ vec3 pdTwilight(vec3 d) {
   float s = max(dot(d, uSunV), 0.0);
   g += uGlow * (pow(s, 5.0) * 0.32 + pow(s, 34.0) * 0.42) * (1.0 - 0.55 * h);
   float dm = max(uDome.r, max(uDome.g, uDome.b));   // sodium light dome over the city: the horizon turns amber (a mix, so it never goes mauve), weaker on the sea side
-  g = mix(g, uDome / max(dm, 0.001) * 0.5, exp(-abs(d.y) * 10.0) * clamp(dm * 1.5, 0.0, 0.8) * (0.6 + 0.4 * clamp(d.z * 0.7 + 0.35, 0.0, 1.0)));
+  g = mix(g, uDome / max(dm, 0.001) * 0.66, exp(-abs(d.y) * 9.0) * clamp(dm * 1.8, 0.0, 0.9) * (0.6 + 0.4 * clamp(d.z * 0.7 + 0.35, 0.0, 1.0)));
   g += uGlow * 0.18 * exp(-abs(d.y) * 9.0);                                        // the horizon band is the brightest part
   g += vec3(1.0, 0.82, 0.6) * (smoothstep(0.99996, 0.999985, s) * 6.0 + pow(s, 900.0) * 1.2) * uSunVis;  // sun disc (while it is above the sea)
   if (uStars > 0.01 && d.y > 0.0) {
@@ -229,9 +229,10 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       float near = clamp(lf.r * 1.7 + lf.g * 0.9, 0.0, 1.7);
       float fl = 0.0;
       for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, length(wpos.xz - f.xy))); }
-      float wash = uNightK.y * wall * exp(-hb / 9.0) * (0.3 + near) + fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;
       float gnd = smoothstep(0.7, 0.92, wn.y) * exp(-hb / 2.5) * near;                 // streets and piazzas: amber-brown under and between the lamps
-      totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * vec3(1.0, 0.5, 0.15) * uNightK.x * (wash + gnd * 1.7);
+      float wl = uNightK.y * wall * exp(-hb / 9.0) * (0.3 + near);                   // lamp-lit street: sodium orange
+      float wf = fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;                       // floodlit landmarks: warmer cream-gold, like the stone in the night photos
+      totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * uNightK.x * (vec3(1.0, 0.5, 0.15) * (wl + gnd * 1.25) + vec3(1.0, 0.66, 0.34) * wf);
     }`;
   const seenMats = new Set();
   vehicle?.rig?.root?.traverse(o => { if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) seenMats.add(m); }); // the player's lapa stays honestly lit

@@ -27,8 +27,12 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/landmarks-city.js` (city-wide landmark models, instantiated per tile by world.js) | city landmarks agent |
 | district zones and palettes in `src/buildings.js`, `docs/districts.md` | district agent |
 | `src/world.js`, `src/streets.js` | streaming agent |
+| `src/districts.js` | district agent |
+| `src/suca.js` (graffiti collectibles) | lead |
+| `src/vehicle-events.js` (ZEN gag, corse clandestine), `src/garage.js` | vehicles agent |
+| `assets/peds/px.js`, `assets/peds/head.js`, `assets/peds/figure.js` | sprites agent |
 | `src/daynight.js` (+ small hooks in props/buildings/vehicle/sea for night) | day/night agent |
-| `src/traffic.js`, `src/police.js` | police agent |
+| `src/traffic.js`, `src/police.js`, `src/gags.js`, `assets/traffic/police-models.js` | police agent |
 | `src/pedestrians.js`, `assets/peds/`, `src/missions.js`, `assets/missions/` | nightlife agent |
 | `tools/build/`, `.github/workflows/`, build/deploy pipeline, data codecs, three.js upgrade (coordinates module changes with owners) | performance agent |
 

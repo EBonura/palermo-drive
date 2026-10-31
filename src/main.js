@@ -398,6 +398,7 @@ createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
+renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
 document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
