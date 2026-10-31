@@ -56,9 +56,10 @@ export const TEX = {
     speckle(g, S, 6000, ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.10)'], 1, 2);
     for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(40,35,30,${rnd(0.05, 0.12)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 40), rnd(8, 30), 0, 0, 7); g.fill(); }
   }, 2),
-  grass: canvasTex(256, (g, S) => {
-    g.fillStyle = '#6f8a45'; g.fillRect(0, 0, S, S);
-    speckle(g, S, 7000, ['#7f9a52', '#5f7a3a', '#8aa35c', '#6b7f40'], 1, 3);
+  grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is olive with dry straw patches
+    g.fillStyle = '#6b7c43'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(${Math.random() < 0.6 ? '150,140,86' : '70,92,50'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 50), rnd(10, 34), rnd(0, 3), 0, 7); g.fill(); }
+    speckle(g, S, 7000, ['#7c8a4c', '#5a6e38', '#8c9356', '#667840', '#9a9560'], 1, 3);
   }, 3),
   sand: canvasTex(256, (g, S) => { // beaches of the world tiles (Mondello: pale, fine, slightly rippled sand)
     g.fillStyle = '#d3c8ae'; g.fillRect(0, 0, S, S);
@@ -276,9 +277,9 @@ export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true w
   let n = 0;
   for (let id = 0; id < roads.length; id++) {
     const r = roads[id], w = cw(r);
-    if (!w || r.tn || r.br || r.rb || w < 5.5 || r.p.length < 4) continue;
-    const lanes = r.ln || Math.max(1, Math.round(w / 3.2));
-    if (r.ow) {
+    if (!w || r.tn || r.br || r.j === 'roundabout' || w < 5.5 || r.p.length < 4) continue;
+    const lanes = r.l || Math.max(1, Math.round(w / 3.2));
+    if (r.o) {
       for (let i = 1; i < lanes; i++) line(r, id, (i - lanes / 2) * (w / lanes), 3, 6, 0.075, rng); // lane dividers, dashed
     } else if (w >= 11) {
       line(r, id, 0, 0, 0, 0.09, rng); // four lanes or more: solid centre line, dashed lane lines either side
@@ -293,7 +294,7 @@ export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true w
   for (const c of crossings || []) {
     let best = null, bd = 6;
     const a = grid.get(Math.floor(c.x / cell) * 100003 + Math.floor(c.z / cell)) || [];
-    for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].rb)) { bd = d; best = s; } }
+    for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].j === 'roundabout')) { bd = d; best = s; } }
     if (!best || (skip && skip(c.x, c.z))) continue;
     const dx = best.x1 - best.x0, dz = best.z1 - best.z0, L = Math.sqrt(dx * dx + dz * dz) || 1, tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
     const half = best.hw, bars = Math.max(2, Math.floor(half * 2 / 1.0));

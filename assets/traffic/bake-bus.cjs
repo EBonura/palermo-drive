@@ -1,9 +1,9 @@
-// Bakes the AMAT bus routes (OpenStreetMap, ODbL) into assets/traffic/bus-routes.js.
-// Inputs (Overpass JSON, cached in data/): bus_routes_osm.json ("out geom" of route=bus relations),
-// plus the bus stop nodes in data/props_osm.json. Run: node assets/traffic/bake-bus.cjs
+// Bakes the AMAT bus routes (OpenStreetMap, ODbL) into assets/traffic/bus-routes.js, for the whole tile area (world/manifest.json bbox).
+// Inputs: data/bus_routes_osm.json ("out geom" shaped route=bus relations of AMAT, written by a pyosmium pass over the Geofabrik
+// extract data/city/isole-latest.osm.pbf; an Overpass "out geom" of the same relations works too), plus the highway=bus_stop props
+// in world/tiles/*.json. Run: node assets/traffic/bake-bus.cjs
 const fs = require('fs'), path = require('path');
-global.window = {}; require(path.join(__dirname, '../../palermo-data.js'));
-const D = window.PALERMO_DATA, [bx0, bz0, bx1, bz1] = D.bounds;
+const ROOT = path.join(__dirname, '../..'), [bx0, bz0, bx1, bz1] = JSON.parse(fs.readFileSync(path.join(ROOT, 'world/manifest.json'))).bbox;
 const LAT0 = 38.11572, LON0 = 13.36126, KX = Math.cos(LAT0 * Math.PI / 180) * 111320, KZ = 110540;
 const proj = (lat, lon) => [Math.round((lon - LON0) * KX * 10) / 10, Math.round(-(lat - LAT0) * KZ * 10) / 10];
 const inside = p => p[0] > bx0 && p[0] < bx1 && p[1] > bz0 && p[1] < bz1;
@@ -12,8 +12,13 @@ const rels = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/bus_rou
   .filter(r => /AMAT/i.test(r.tags.network || '') || /AMAT/i.test(r.tags.operator || ''))
   .filter(r => r.members.some(m => m.type === 'way'));
 let stopsAll = [];
-// highway=bus_stop nodes: reuse the props agent's OSM extract (data/props_osm.json, same Overpass source)
-try { stopsAll = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/props_osm.json'))).elements.filter(n => n.tags && n.tags.highway === 'bus_stop' && n.lat).map(n => proj(n.lat, n.lon)).filter(inside); } catch (e) { /* optional */ }
+// highway=bus_stop nodes: the baked props of every tile (kind 'busstop', already in local metres)
+const TD = path.join(ROOT, 'world/tiles');
+for (const f of fs.readdirSync(TD)) {
+  if (!f.endsWith('.json')) continue;
+  for (const it of (JSON.parse(fs.readFileSync(path.join(TD, f))).props || { items: [] }).items) if (it.k === 'busstop') stopsAll.push([Math.round(it.x), Math.round(it.z)]);   // whole metres: stops are matched to the line within 10 m, and it compresses far better
+}
+stopsAll.sort((a, b) => Math.floor(a[0] / 100) - Math.floor(b[0] / 100) || Math.floor(a[1] / 100) - Math.floor(b[1] / 100) || a[0] - b[0] || a[1] - b[1]);
 const out = [];
 for (const r of rels) {
   const ways = r.members.filter(m => m.type === 'way' && m.geometry && m.geometry.length > 1).map(m => m.geometry.map(g => proj(g.lat, g.lon)));
