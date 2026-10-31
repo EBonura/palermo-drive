@@ -452,7 +452,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     lightDir.normalize();
     seaDir.copy(lightDir);
     if (lightDir.y < 0.07) { const h = Math.hypot(lightDir.x, lightDir.z) || 1, k = Math.sqrt(1 - 0.0049) / h; lightDir.set(lightDir.x * k, 0.07, lightDir.z * k); } // never grazing: keeps shadows sane
-    sun.color.copy(P.sun).multiplyScalar(wS + 1e-4).addScaledVector(MOON, wM * 0.62).multiplyScalar(1 / (wS + wM * 0.62 + 1e-4));
+    { const mS = wS, mM = wM * 0.62, tw = mS + mM + 1e-4; sun.color.setRGB((P.sun.r * mS + MOON.r * mM) / tw, (P.sun.g * mS + MOON.g * mM) / tw, (P.sun.b * mS + MOON.b * mM) / tw); }
     sun.intensity = P.sunI + moonI;
 
     hemi.color.copy(P.hemiS); hemi.groundColor.copy(P.hemiG); hemi.intensity = P.hemiI;

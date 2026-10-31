@@ -26,7 +26,8 @@ function getMat(key) {
     d.paint(cv.getContext('2d'), d.w, d.h);
     map = new THREE.CanvasTexture(cv); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   }
-  return CACHE[key] = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.92, metalness: 0, ...d.opts });
+  const { noShadow, ...mo } = d.opts;
+  return CACHE[key] = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo });
 }
 export function begin(baseY = 0) { BINS = {}; TRIS = 0; BASEY = baseY; }
 export function setBase(y) { BASEY = y; }
@@ -84,6 +85,8 @@ export function part(key, g0, o = {}) {
 
 // ---------- primitives ----------
 export const box = (key, sx, sy, sz, o = {}) => part(key, UB, { ...o, s: [sx, sy, sz] });
+// axis-aligned box in the frame M, from (x0,y0,z0) to (x1,y1,z1)
+export const bx = (key, M, x0, x1, y0, y1, z0, z1, o = {}) => box(key, x1 - x0, y1 - y0, z1 - z0, { M, p: [(x0 + x1) / 2, y0, (z0 + z1) / 2], ...o });
 export function cyl(key, rt, rb, h, seg, o = {}) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1, !!o.open, o.t0 || 0, o.tl || 2 * PI); g.translate(0, h / 2, 0);
   const tm = DEFS[key].texM;
@@ -282,7 +285,7 @@ export function paintFacade(g, W, H, Wm, Hm, c) {
 let SHARED = false;
 export function initShared() {
   if (SHARED) return; SHARED = true;
-  defMat('tufa', 256, 256, [3.2, 3.2], (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.4, 0.85, '#d6c298', '#8a7656', 311, 1.5));
+  defMat('tufa', 256, 256, [3.3, 3.3], (g, w, h) => paintAshlar(g, w, h, 3.3, 3.3, 0.55, 1.2, '#e6d7ae', '#b9a780', 311, 1.2, 0.05));
   defMat('stone', 256, 256, [3.2, 3.2], (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.45, 1.0, '#a29a8c', '#6d665a', 312, 1.5, 0.09));
   defMat('plaster', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#e6dac8'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 400, 2.5, 321, ['rgba(120,90,60,0.08)', 'rgba(255,255,255,0.10)']); streaks(g, w, h, 14, 322, 0.07, 60); });
   defMat('marble', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#e4e0d4'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2.2, 331, ['rgba(110,105,95,0.09)', 'rgba(255,255,250,0.12)']); });
@@ -297,8 +300,8 @@ export function initShared() {
   });
   defMat('flat', 0, 0, [1, 1], null);
   defMat('dark', 0, 0, [1, 1], null, { roughness: 1 });
-  defMat('bronze', 0, 0, [1, 1], null, { roughness: 0.45, metalness: 0.35 });
-  defMat('glass', 0, 0, [1, 1], null, { roughness: 0.18, metalness: 0.2 });
+  defMat('bronze', 0, 0, [1, 1], null, { roughness: 0.6, metalness: 0 });
+  defMat('glass', 0, 0, [1, 1], null, { roughness: 0.25, metalness: 0 });
   defMat('rail', 64, 64, [1, 1], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#2a2a30'; g.fillRect(0, 2, w, 5); g.fillRect(0, h - 6, w, 5); for (let x = 4; x < w; x += 16) g.fillRect(x, 0, 3, h); }, { alphaTest: 0.5, side: THREE.DoubleSide, noShadow: true });
   defMat('balus', 64, 64, [1, 1], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#e4e0d3'; g.fillRect(0, 0, w, 9); g.fillRect(0, h - 8, w, 8); for (let x = 0; x < w; x += 16) { g.fillRect(x + 4, 9, 8, h - 17); g.fillRect(x + 2, 22, 12, 8); g.fillRect(x + 2, 38, 12, 6); } }, { alphaTest: 0.5, side: THREE.DoubleSide });
   defMat('palm', 64, 64, [1, 1], (g, w, h) => {
