@@ -38,7 +38,7 @@ function buildPolitea(ctx) {
   const STONE = '#ffffff';
   const A0 = -PI / 2, A1 = PI / 2, SEG = 42;
   // ---- foundations and steps
-  bx('tufa', M, -27, 27, -(gr.hi - gr.lo) - 1.5, -0.03, -50, 33, { c: '#b9a67c' });
+  bx('tufa', M, -27, 27, -(gr.hi - gr.lo) - 1.5, -0.12, -50, 33, { c: '#b9a67c' });
   // ---- ground arcade of the semicircle
   const NB = 21, R0 = 23.2, ARC_D = 3.6, BAYH = 7.6;
   arcWall('dark', R0 - ARC_D + 0.2, 0, BAYH, A0, A1, SEG, { M, c: '#4a3a30', noao: true });
@@ -92,7 +92,7 @@ function buildPolitea(ctx) {
   bx('polBack', M, -SW / 2, SW / 2, 0, 29, SZ1, SZ0);
   bx('polBack', M, -21.3, 21.3, 0, 22, SZ1 - 9, SZ1 + 0.1);
   bx('stone', M, -SW / 2 - 0.4, SW / 2 + 0.4, 29, 30, SZ1 - 0.4, SZ0 + 0.4, { c: '#d0c3a0' });
-  bx('tile', M, -SW / 2 + 3, SW / 2 - 3, 30, 31.4, SZ1 + 3, SZ0 - 3, { c: '#c28668' });
+  bx('flat', M, -SW / 2 + 3, SW / 2 - 3, 30, 30.4, SZ1 + 3, SZ0 - 3, { c: '#9a948a' });
   bx('stone', M, -21.7, 21.7, 22, 22.8, SZ1 - 9.4, SZ1 + 0.1, { c: '#d0c3a0' });
   // ---- the monument in the piazza: stepped base, pedestal and statue, ringed by an iron railing
   const MZ = 49, MM = mul(M, tr(0, 0, MZ));
@@ -332,9 +332,9 @@ function buildSantuario() {
   const r_ = RNG(613);
   for (let i = 0; i < 7; i++) {
     const x = -W / 2 - 3 + i * 6.2, hh = 24 + r_() * 14, zz = -Dp / 2 - 2 - r_() * 4;
-    box('rock', 8 + r_() * 5, hh, 7 + r_() * 4, { M: mul(M, tr(x, -2, zz)), rx: -0.1 - r_() * 0.15, rz: (r_() - 0.5) * 0.25, ry: (r_() - 0.5) * 0.5, c: '#d6cdbd', noao: true });
+    box('rock', 8 + r_() * 5, hh, 7 + r_() * 4, { M: mul(M, tr(x, -2, zz)), rx: -0.1 - r_() * 0.15, rz: (r_() - 0.5) * 0.25, ry: (r_() - 0.5) * 0.5, c: '#ffffff', noao: true });
   }
-  for (const sg of [1]) for (let i = 0; i < 3; i++) box('rock', 9, 22 + i * 6, 9, { M: mul(M, tr(W / 2 + 3 + i * 4, -2, -Dp / 2 + 3 - i * 5)), rz: 0.15, ry: 0.3 * i, c: '#d6cdbd', noao: true });
+  for (const sg of [1]) for (let i = 0; i < 3; i++) box('rock', 9, 22 + i * 6, 9, { M: mul(M, tr(W / 2 + 3 + i * 4, -2, -Dp / 2 + 3 - i * 5)), rz: 0.15, ry: 0.3 * i, c: '#ffffff', noao: true });
   return end('Santuario di Santa Rosalia');
 }
 export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };

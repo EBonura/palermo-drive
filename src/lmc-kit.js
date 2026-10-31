@@ -312,12 +312,12 @@ export function initShared() {
   defMat('stone', 256, 256, [3.2, 3.2], (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.45, 1.0, '#a29a8c', '#6d665a', 312, 1.5, 0.09));
   defMat('plaster', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#e6dac8'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 400, 2.5, 321, ['rgba(120,90,60,0.08)', 'rgba(255,255,255,0.10)']); streaks(g, w, h, 14, 322, 0.07, 60); });
   defMat('marble', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#e4e0d4'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2.2, 331, ['rgba(110,105,95,0.09)', 'rgba(255,255,250,0.12)']); });
-  defMat('tile', 128, 128, [2.4, 2.4], (g, w, h) => { g.fillStyle = '#c4714c'; g.fillRect(0, 0, w, h); const r_ = rng(351); for (let y = 0; y < h; y += 8) { for (let x = 0; x < w; x += 8) { g.fillStyle = `hsl(${12 + r_() * 8},${48 + r_() * 12}%,${44 + r_() * 12}%)`; g.fillRect(x, y, 7, 7); } g.fillStyle = 'rgba(60,25,15,.45)'; g.fillRect(0, y + 7, w, 1); } });
+  defMat('tile', 128, 128, [2.4, 2.4], (g, w, h) => { g.fillStyle = '#c4714c'; g.fillRect(0, 0, w, h); const r_ = rng(351); for (let y = 0; y < h; y += 8) { for (let x = 0; x < w; x += 8) { g.fillStyle = `hsl(${14 + r_() * 8},${34 + r_() * 10}%,${46 + r_() * 12}%)`; g.fillRect(x, y, 7, 7); } g.fillStyle = 'rgba(60,25,15,.45)'; g.fillRect(0, y + 7, w, 1); } });
   defMat('lead', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#a9aca4'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2.5, 341, ['rgba(60,70,60,0.12)', 'rgba(255,255,245,0.08)']); g.fillStyle = 'rgba(70,80,72,0.22)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 1.5, h); });
   defMat('red', 128, 128, [2.5, 2.5], (g, w, h) => { g.fillStyle = '#b4655d'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 700, 3, 361, ['rgba(120,60,60,0.2)', 'rgba(220,150,130,0.18)', 'rgba(90,60,50,0.15)']); });
   defMat('earth', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#a79a7e'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 600, 3, 371, ['rgba(80,60,40,0.18)', 'rgba(220,200,160,0.2)']); });
   defMat('rock', 256, 256, [6, 6], (g, w, h) => {
-    g.fillStyle = '#9c9484'; g.fillRect(0, 0, w, h); const r_ = rng(381);
+    g.fillStyle = '#bcb3a0'; g.fillRect(0, 0, w, h); const r_ = rng(381);
     noiseDots(g, w, h, 1600, 4, 382, ['rgba(60,52,44,0.25)', 'rgba(215,205,185,0.25)', 'rgba(120,112,96,0.2)']);
     g.strokeStyle = 'rgba(40,34,28,0.35)'; g.lineWidth = 2; for (let i = 0; i < 14; i++) { g.beginPath(); let x = r_() * w, y = r_() * h; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (r_() - 0.5) * 50; y += 18 + r_() * 26; g.lineTo(x, y); } g.stroke(); }
   });

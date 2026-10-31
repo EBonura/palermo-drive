@@ -56,8 +56,9 @@ function buildZisa() {
   for (const sg of [-1, 1]) bx('zisaPink', M, sg * (W / 2 - 2.0) - 1.4, sg * (W / 2 - 2.0) + 1.4, H + 0.5, H + 4.6, -Dp / 2 + 0.8, -Dp / 2 + 3.6);
   // front steps, forecourt and the long pool on the axis
   for (let i = 0; i < 3; i++) bx('stone', M, -6 - i * 0.6, 6 + i * 0.6, -0.02, 0.5 - i * 0.18, Dp / 2 + 0.2, Dp / 2 + 1.0 + (2 - i) * 0.9 + 0.8, { c: '#cbbf9f' });
-  bx('marble', M, -3.2, 3.2, 0, 0.35, Dp / 2 + 5, Dp / 2 + 30, { c: '#d9d2bf' });
-  bx('glass', M, -2.7, 2.7, 0.25, 0.3, Dp / 2 + 5.4, Dp / 2 + 29.6, { c: '#5f95ad', noao: true });
+  for (const sg of [-1, 1]) bx('marble', M, sg * 3.0 - 0.3, sg * 3.0 + 0.3, 0, 0.4, Dp / 2 + 5, Dp / 2 + 30, { c: '#d9d2bf' });
+  for (const z of [Dp / 2 + 5, Dp / 2 + 29.7]) bx('marble', M, -3.3, 3.3, 0, 0.4, z, z + 0.3, { c: '#d9d2bf' });
+  bx('glass', M, -2.7, 2.7, 0.0, 0.2, Dp / 2 + 5.3, Dp / 2 + 29.7, { c: '#5f95ad', noao: true });
   return end('La Zisa');
 }
 export const ZISA = { name: 'La Zisa', x: -1770, z: -116, radius: 60, skipIds: [FP.zisa.id], build: buildZisa };

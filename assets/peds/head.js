@@ -157,8 +157,8 @@ export function hairBack(g, v, ht, hw, hh, skin, c, st) {
   const cap = (vol, fat, to, shiftTop = 0) => { for (let j = -vol; j <= to; j++) { let h; if (j >= 0) h = hf(j) + fat; else { const t = -j / (vol + 1); h = Math.max(2, Math.round((hf(0) + fat) * Math.sqrt(Math.max(0, 1 - t * t * 0.95)))); } add(ht + j, CX - h + (j < 0 ? shiftTop : 0), CX + h + (j < 0 ? shiftTop : 0)); } };
   switch (st) {
     case 'bald': for (let j = 3; j < hh - 3; j++) { const h = hf(j); add(ht + j, CX - h, CX - h + 3); add(ht + j, CX + h - 3, CX + h); } for (let k = 0; k < 4; k++) add(ht + hh - 5, CX - 5 + k, CX - 4 + k); P(CX - 5, ht + 1, 4, 2, sh(skin, 1.14)); break;
-    case 'fade': cap(1, 0, 5); for (let j = 6; j < hh - 1; j++) { const h = hf(j); for (let x = CX - h + 1; x < CX + h - 1; x++) if (hs(x, ht + j) < 0.6 - (j - 6) * 0.05) P(x, ht + j, 1, 1, mix(skin, c, 0.55)); } break;
-    case 'quiff': cap(6, 0, 6); for (let j = 7; j < hh - 1; j++) { const h = hf(j); for (let x = CX - h + 1; x < CX + h - 1; x++) if (hs(x, ht + j) < 0.55) P(x, ht + j, 1, 1, mix(skin, c, 0.5)); } o.shine = [CX - 3, ht - 3, 5, 5]; break;
+    case 'fade': cap(1, 0, 6); for (let j = 7; j < hh - 1; j++) { const h = hf(j); for (let x = CX - h + 1; x < CX + h - 1; x++) if (hs(x, ht + j) < 0.75 - (j - 7) * 0.06) P(x, ht + j, 1, 1, mix(skin, c, 0.6)); } break;
+    case 'quiff': cap(6, 0, 8); for (let j = 9; j < hh - 1; j++) { const h = hf(j); for (let x = CX - h + 1; x < CX + h - 1; x++) if (hs(x, ht + j) < 0.8 - (j - 9) * 0.1) P(x, ht + j, 1, 1, mix(skin, c, 0.65)); } o.shine = [CX - 3, ht - 3, 5, 5]; break;
     case 'curly': for (let j = -4; j <= hh - 3; j++) { const h = (j < 0 ? Math.round((hf(0) + 3) * Math.sqrt(Math.max(0, 1 - (j / -5) ** 2 * 0.95))) : hf(j) + 3) + (hs(j, 9) < 0.5 ? 1 : 0); add(ht + j, CX - h, CX + h); } break;
     case 'long': case 'wavy': {
       const wavy = st === 'wavy', endY = ht + hh + (wavy ? 24 : 20);
@@ -204,7 +204,7 @@ export function headSide(g, v, ht, hw, hh, st, skin, c) {
   if (v.beard) {
     for (let j = ey + 3 - ht; j < hh; j++) for (let x = front(j) - (j > ey - ht + 4 ? 0 : 0); x < backx(j) - (j < hh - 3 ? 4 : 0) + (j > hh - 6 ? 0 : 0); x++) { if (j === ey + 3 - ht && (x + j) & 1) continue; const n = hs(x, ht + j); P(x, ht + j, 1, 1, n < 0.2 ? sh(v.beard, 1.5) : n > 0.8 ? sh(v.beard, 0.8) : v.beard); }
     P(mx + 1, my - 1, 3, 3, mix(skin, v.beard, 0.2)); P(mx + 1, my, 3, 1, lipD); P(mx + 1, my + 1, 2, 1, lip);
-  } else if (v.stubble) { const sc = mix(skin, v.stubble, 0.45); for (let j = ey + 3 - ht; j < hh; j++) for (let x = front(j) + 1; x < backx(j) - 4; x++) if (((x + j) & 1) === 0) P(x, ht + j, 1, 1, sc); }
+  } else if (v.stubble) { const sc = mix(skin, v.stubble, 0.45); for (let j = ey + 4 - ht; j < hh; j++) for (let x = front(j) + 1; x < backx(j) - 7; x++) if (((x + j) & 1) === 0) P(x, ht + j, 1, 1, sc); }
   // hair
   const vol = { quiff: 6, bun: 1, curly: 4, long: 2, wavy: 2, slick: 2 }[st] || 1;
   const o = { shine: [sx0 + 5, ht - 1, 6, 3], str: 2 };
