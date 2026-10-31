@@ -226,13 +226,13 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       float hb = max(wpos.y - uNightK.z, 0.0);
       float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, hb);   // not on curbs and kerb faces
       vec3 lf = texture2D(uLampTex, (wpos.xz - uLampBox.xy) * uLampBox.zw).rgb;   // r: street lamps, g: along the streets
-      float near = clamp(lf.r * 1.7 + lf.g * 0.9, 0.0, 1.7);
+      float near = clamp(lf.r * 1.4 + lf.g * 0.9, 0.0, 1.4);
       float fl = 0.0;
       for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, length(wpos.xz - f.xy))); }
       float gnd = smoothstep(0.7, 0.92, wn.y) * exp(-hb / 2.5) * near;                 // streets and piazzas: amber-brown under and between the lamps
       float wl = uNightK.y * wall * exp(-hb / 9.0) * (0.3 + near);                   // lamp-lit street: sodium orange
       float wf = fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;                       // floodlit landmarks: warmer cream-gold, like the stone in the night photos
-      totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * uNightK.x * (vec3(1.0, 0.5, 0.15) * (wl + gnd * 1.25) + vec3(1.0, 0.66, 0.34) * wf);
+      totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * uNightK.x * (vec3(1.0, 0.5, 0.15) * (wl + gnd * 0.8) + vec3(1.0, 0.66, 0.34) * wf);
     }`;
   const seenMats = new Set();
   vehicle?.rig?.root?.traverse(o => { if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) seenMats.add(m); }); // the player's lapa stays honestly lit
@@ -587,7 +587,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         renderer.getDrawingBufferSize(_sz);
         lamps.haloMat.uniforms.uScale.value = _sz.y / (2 * Math.tan(camera.fov * DEG / 2));
         lamps.haloMat.uniforms.uAmt.value = lampOn * 1.15;
-        lamps.poolMat.opacity = lampOn * 0.5;
+        lamps.poolMat.opacity = lampOn * 0.36;
       }
     } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
     updateHeadlights(headOn);

@@ -48,6 +48,8 @@ await new Promise(r => setTimeout(r, 6000));
 const steady = (await cdp.send('Profiler.stop')).profile;
 const heap = (await cdp.send('HeapProfiler.stopSampling')).profile;
 summarize(steady, 'driving 6 s');
+const chains = new Map(); (function walk2(n, stack) { const cf = n.callFrame, k = `${cf.functionName || '(anon)'}:${cf.lineNumber + 1}`; const st = [...stack, k]; chains.set(st.join(' < ').split(' < ').reverse().slice(0, 5).join(' < '), (chains.get(st.join(' < ').split(' < ').reverse().slice(0, 5).join(' < ')) || 0) + n.selfSize); n.children.forEach(c => walk2(c, st)); })(heap.head, []);
+console.log('\n== allocation call chains (top 8, innermost first)'); for (const [k, v] of [...chains].sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(String((v / 1024).toFixed(0)).padStart(8), 'KB', k);
 const allocs = new Map(); (function walk(n) { const cf = n.callFrame, k = `${cf.functionName || '(anon)'} ${(cf.url || '').replace(/^https?:\/\/[^/]+\//, '')}:${cf.lineNumber + 1}`; allocs.set(k, (allocs.get(k) || 0) + n.selfSize); n.children.forEach(walk); })(heap.head);
 let sum = 0; for (const v of allocs.values()) sum += v;
 console.log(`\n== allocations while driving 6 s (includes garbage collected objects): ${(sum / 1024).toFixed(0)} KB sampled`);
