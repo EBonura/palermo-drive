@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { garage } from './garage.js';
 
+const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 
@@ -108,13 +109,13 @@ export function createPolice(env, T) {
     if (!T.snap(v)) v.hide = true;
   }
   function engageAmbient() {
-    for (const v of vs) if (v.cop && !v.cop.pursue && !v.fly && Math.hypot(v.x - car.x, v.z - car.z) < 200) engage(v);
+    for (const v of vs) if (v.cop && !v.cop.pursue && !v.fly && hyp(v.x - car.x, v.z - car.z) < 200) engage(v);
   }
   function pursuers() { const out = []; for (const v of vs) if (v.cop && v.cop.pursue) out.push(v); return out; }
 
   // Off-graph "box in" driving, 30 Hz from traffic.integrate. Targets a slot around the player; never rams at speed.
   function slotTarget(c) {
-    const sp = Math.hypot(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx;
+    const sp = hyp(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx;
     const lead = clamp(sp * 0.9, 0, 18);
     switch (c.slot % 5) {
       case 0: c.tx = car.x + fx * (7 + lead * 0.6); c.tz = car.z + fz * (7 + lead * 0.6); break;
@@ -128,10 +129,10 @@ export function createPolice(env, T) {
     const c = v.cop, ty = v.ty;
     if (v.fly) { T.stepFly(v, dt); return; }
     slotTarget(c);
-    const dx = c.tx - v.x, dz = c.tz - v.z, d = Math.hypot(dx, dz);
+    const dx = c.tx - v.x, dz = c.tz - v.z, d = hyp(dx, dz);
     const err = wrapPi(Math.atan2(dx, dz) - v.h), maxYaw = Math.max(v.v, 1.6) / ty.rmin;
     v.yaw = clamp(err * 3.2, -maxYaw, maxYaw); v.h += v.yaw * dt;
-    const psp = Math.hypot(car.vx, car.vz), pd = Math.hypot(car.x - v.x, car.z - v.z);
+    const psp = hyp(car.vx, car.vz), pd = hyp(car.x - v.x, car.z - v.z);
     let vd = Math.min(d * 1.1, ty.copV);
     if (Math.abs(err) > 1.0) vd *= 0.5;
     if (pd < 14) vd = Math.min(vd, psp + 3);     // close in gently: ramming the lapa at speed just yeets the police car
@@ -142,7 +143,7 @@ export function createPolice(env, T) {
     for (const o of vs) { // keep clear of the rest of the traffic
       if (o === v || o.fly) continue;
       const ox = v.x - o.x, oz = v.z - o.z; if (ox > 4.5 || ox < -4.5 || oz > 4.5 || oz < -4.5) continue;
-      const od = Math.hypot(ox, oz), min = (ty.L + o.ty.L) * 0.32;
+      const od = hyp(ox, oz), min = (ty.L + o.ty.L) * 0.32;
       if (od < min && od > 1e-3) { const k = (min - od) * 0.5; v.x += ox / od * k; v.z += oz / od * k; if (!o.cop) { o.x -= ox / od * k; o.z -= oz / od * k; } v.v *= 0.97; }
     }
     T.wallPush(v);
@@ -242,7 +243,7 @@ export function createPolice(env, T) {
 
   // ---------- per frame ----------
   function tick(dt) {
-    const lv = level(), sp = Math.hypot(car.vx, car.vz);
+    const lv = level(), sp = hyp(car.vx, car.vz);
     // chaos that comes from driving rather than from a single hit
     if (sp > 6.5 && peds && busted <= 0 && grace <= 0) {
       if (peds.near(car.x, car.z, 11) >= 5) chaos('market', 0.45 * dt * 4);
@@ -252,7 +253,7 @@ export function createPolice(env, T) {
     // who can see the lapa?
     let any = false;
     for (const v of ps) {
-      const c = v.cop, d = Math.hypot(v.x - car.x, v.z - car.z);
+      const c = v.cop, d = hyp(v.x - car.x, v.z - car.z);
       c.los = d < 75 && los(v.x, v.z, car.x, car.z);
       if (c.los) any = true;
       c.noLosT = c.los ? 0 : c.noLosT + dt;
@@ -269,7 +270,7 @@ export function createPolice(env, T) {
     // box in: close cops with a line of sight leave the road graph and take a slot around the lapa
     let slot = 0;
     for (const v of ps) {
-      const c = v.cop, d = Math.hypot(v.x - car.x, v.z - car.z);
+      const c = v.cop, d = hyp(v.x - car.x, v.z - car.z);
       if (v.fly) continue;
       if (c.mode === 'road' && d < 42 && c.los && v.ty.copV) { c.mode = 'direct'; c.stuckT = 0; v.cop.slot = slot++; }
       else if (c.mode === 'direct') {
@@ -278,7 +279,7 @@ export function createPolice(env, T) {
     }
     // busted?
     if (busted <= 0 && grace <= 0 && lv > 0) {
-      let n = 0; for (const v of ps) if (!v.fly && Math.hypot(v.x - car.x, v.z - car.z) < 9.5) n++;
+      let n = 0; for (const v of ps) if (!v.fly && hyp(v.x - car.x, v.z - car.z) < 9.5) n++;
       if (n > 0 && sp < 3.5) { bustT += dt * (1 + 0.4 * (n - 1)); if (bustT >= 2.2) bust(); } else bustT = Math.max(0, bustT - dt * 0.5);
     }
     // reinforcements
@@ -289,7 +290,7 @@ export function createPolice(env, T) {
       if (v) { makeCop(v, true); nextSpawn = time + 2.2; }
     }
     for (const v of ps) { // lost far behind and out of sight: replace with a closer one
-      if (Math.hypot(v.x - car.x, v.z - car.z) > 280 && !T.inView(v.x, 1, v.z, 4)) T.removeVehicle(v);
+      if (hyp(v.x - car.x, v.z - car.z) > 280 && !T.inView(v.x, 1, v.z, 4)) T.removeVehicle(v);
     }
     // a couple of patrol cars in the normal traffic when all is calm
     if (lv === 0 && busted <= 0 && time >= nextPatrol) {
@@ -323,7 +324,7 @@ export function createPolice(env, T) {
     let near = 1e9, pan = 0;
     if (heat > 0) for (const v of vs) {
       if (!v.cop || !v.cop.pursue || v.fly) continue;
-      const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z);
+      const d = hyp(v.x - camera.position.x, v.z - camera.position.z);
       if (d < near) { near = d; const rx = Math.cos(camera.rotation.y), rz = -Math.sin(camera.rotation.y); pan = ((v.x - camera.position.x) * rx + (v.z - camera.position.z) * rz) / (d + 8); }
     }
     sirenUpdate(near, pan);

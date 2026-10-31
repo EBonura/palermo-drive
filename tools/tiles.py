@@ -792,6 +792,18 @@ def parse_highways(files):
             r["tn"] = 1
         elif t.get("bridge") in ("yes", "viaduct", "movable"):
             r["br"] = 1
+        if hw in CARRIAGEWAY:   # what the paint needs (src/streets.js roadMarks): real carriageway width, lanes, one-way, roundabout
+            cw = round(width_of(t, CARRIAGEWAY[hw]), 1)
+            if cw != CARRIAGEWAY[hw]:
+                r["cw"] = cw
+            try:
+                r["ln"] = int(t["lanes"])
+            except (KeyError, ValueError):
+                pass
+            if t.get("oneway") in ("yes", "-1", "true", "1") or t.get("junction") == "roundabout":
+                r["ow"] = 1
+            if t.get("junction") == "roundabout":
+                r["rb"] = 1
         roads.append((r, LineString(pts)))
         if tunnel:
             continue

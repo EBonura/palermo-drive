@@ -3,9 +3,20 @@ import * as THREE from 'three';
 import {
   PI, bx, gridMesh, begin, end, setBase, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, archShape, rectShape, prism, pyramid, gable,
   mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, ringSegs, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
-  balus, rail, statue, horse, palm, crenel,
+  balus, rail, statue, horse, palm, crenel, crag,
 } from './lmc-kit.js';
 import { FP } from './landmarks-city-data.js';
+
+// pale grey limestone of the Pellegrino cliffs (shared by the Utveggio footing and the Santuario backdrop)
+function cliffMat() {
+  defMat('cliff', 256, 256, [7, 7], (g, w, h) => {
+    g.fillStyle = '#a8a69c'; g.fillRect(0, 0, w, h); const r = RNG(391);
+    noiseDots(g, w, h, 1500, 4, 392, ['rgba(70,66,58,0.22)', 'rgba(228,224,210,0.28)', 'rgba(130,126,112,0.2)']);
+    g.strokeStyle = 'rgba(52,48,42,0.32)'; g.lineWidth = 2;
+    for (let i = 0; i < 16; i++) { g.beginPath(); let x = r() * w, y = 0; g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (r() - 0.5) * 16; y += 30 + r() * 20; g.lineTo(x, y); } g.stroke(); }
+    streaks(g, w, h, 24, 393, 0.16, 160, '60,54,44');
+  });
+}
 
 // partial cylinder band (outer wall), facing outward, over the angle range [a0, a1] measured from +z towards +x
 function arcWall(key, r, y0, y1, a0, a1, seg, o = {}) { cyl(key, r, r, y1 - y0, seg, { open: true, t0: a0, tl: a1 - a0, p: [0, y0, 0], noao: o.noao, ...o }); }
@@ -270,8 +281,12 @@ function buildUtveggio() {
       bands: [{ y: 5.6, h: 0.4, c: '#ecd3bc' }, { y: 11.4, h: 0.4, c: '#ecd3bc' }, { y: 15.8, h: 0.5, c: '#ecd3bc' }],
       rows: [{ y0: 1.6, y1: 4.2, xs, w: 1.1, kind: 'rect' }, { y0: 6.6, y1: 10.2, xs: xs.slice(2, 10), w: 2.3, kind: 'arch', fr: 0.25, sill: false }, { y0: 6.8, y1: 9.4, xs: [xs[0], xs[1], xs[10], xs[11]], w: 1.1, kind: 'rect', shut: 'open' }, { y0: 12.2, y1: 14.8, xs, w: 1.1, kind: 'rect', shut: 'open' }], shut: '#7a5a4a' });
   });
-  // foundation on the cliff
-  skirtDown('stone', M, LW + 2, WD + 3, -(gr.hi - gr.lo) - 3, { c: '#a89f8f' });
+  // the grey limestone crag the castle sits on, with a stone retaining base just under the walls
+  cliffMat();
+  const drop = Math.min(46, gr.hi - gr.lo + 14);
+  crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 + 1.5, WD / 2 + 2.5, drop, { spread: 1.55, seed: 3, jit: 0.2 });
+  crag('cliff', mul(M, tr(-LW * 0.32, -4, -WD * 0.35)), 12, 9, drop * 0.7, { spread: 1.7, seed: 9, jit: 0.25, seg: 10 });
+  skirtDown('stone', M, LW + 2, WD + 3, -2.6, { c: '#b5ad9d' });
   // main wing: front texture panel, solid body, cornice, crenellations
   bx('utvWall', M, -LW / 2, LW / 2, 0, H, -WD / 2, WD / 2 - 0.02, { c: '#ffffff' });
   panel('utvFront', LW, 17, { M: mul(M, tr(0, 0, WD / 2 + 0.01)), uvk: [1, 1] });
@@ -286,7 +301,8 @@ function buildUtveggio() {
   }
   // the round bastion and the terrace wall at the foot (north-west blob of the footprint)
   const bxw = -510.5, bzw = -3985.0, by = Math.max(gr.hi - 1.5, groundY(bxw, bzw));
-  cyl('stone', 12.5, 13.5, by - groundY(bxw, bzw) + 3.2, 16, { p: [bxw, groundY(bxw, bzw) - 1.5, bzw], c: '#b9ad98' });
+  crag('cliff', tr(bxw, by + 1.7 - 1.5, bzw), 12.6, 12.6, by - groundY(bxw, bzw) + 6, { spread: 1.35, seed: 5, jit: 0.1 });
+  cyl('stone', 12.5, 12.6, 3.2, 16, { p: [bxw, by - 1.5, bzw], c: '#b9ad98' });
   lathe('stone', [[12.5, 0], [12.5, 0.9], [11.5, 0.9]], 16, { p: [bxw, by + 1.7, bzw], c: '#c9bda7' });
   // a long retaining wall in front of the castle, with crenellated coping
   const Mw = mul(M, tr(0, 0, WD / 2 + 7));

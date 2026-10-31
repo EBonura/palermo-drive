@@ -12,7 +12,7 @@
 // a hard cap on resident triangles shrinks the rings (phones). Geometry is disposed when parts go; materials are shared.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
-import { streetsIter, TEX as GROUND_TEX } from './streets.js';
+import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
 import { QUALITY } from './mobile.js';
@@ -723,6 +723,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'green'], curbs: true, offset: true, drape: 9, chunk: 0 });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
+    t.stage = 'paint'; {
+      const aoi = D.streets && D.streets.aoi, inC = aoi ? (x, z) => x > aoi[0] && x < aoi[2] && z > aoi[1] && z < aoi[3] : null; // the centro's paint is src/roadwear.js
+      const mk = yield* roadMarksIter(t.data.roads, ((t.data.props || {}).items || []).filter(i => i.k === 'crossing'), inC);
+      if (t.want < 2) { if (mk) disposeObj(mk); return; }
+      if (mk) setPart(t, 'paint', mk);
+    }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;
     t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
@@ -741,7 +747,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function* downgrade(t) {
     emit('drop', t);
-    setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
+    setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
