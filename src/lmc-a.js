@@ -284,7 +284,7 @@ function buildUtveggio() {
   // the grey limestone crag the castle sits on, with a stone retaining base just under the walls
   cliffMat();
   const drop = Math.min(46, gr.hi - gr.lo + 14);
-  crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 + 1.5, WD / 2 + 2.5, drop, { spread: 1.55, seed: 3, jit: 0.2 });
+  crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 * 1.2 + 1.5, (WD / 2 + 2.5) * 1.3, drop, { spread: 1.55, seed: 3, jit: 0.2 });
   crag('cliff', mul(M, tr(-LW * 0.32, -4, -WD * 0.35)), 12, 9, drop * 0.7, { spread: 1.7, seed: 9, jit: 0.25, seg: 10 });
   skirtDown('stone', M, LW + 2, WD + 3, -2.6, { c: '#b5ad9d' });
   // main wing: front texture panel, solid body, cornice, crenellations
@@ -294,7 +294,7 @@ function buildUtveggio() {
   crenel(mul(M, tr(0, H + 0.7, WD / 2 + 0.4)), LW + 0.8, { c: '#e0b9a2' }); crenel(mul(M, mul(rotY(PI), tr(0, H + 0.7, WD / 2 + 0.4))), LW + 0.8, { c: '#e0b9a2' });
   // end towers
   for (const sg of [-1, 1]) {
-    const Mt = mul(M, tr(sg * (LW / 2 - 4.2), 0, 1.5)), TH = 22.5;
+    const Mt = mul(M, tr(sg * (LW / 2 - 4.2), 0, 1.5)), TH = sg < 0 ? 19.6 : 23.5;   // the right-hand tower is the tall one
     bx('utvWall', Mt, -4.8, 4.8, 0, TH, -5.4, 5.4, { c: '#ffffff' });
     bx('flat', Mt, -5.4, 5.4, TH, TH + 0.8, -6.0, 6.0, { c: '#e5c4ae' });
     for (let q = 0; q < 4; q++) crenel(mul(Mt, mul(rotY(q * PI / 2), tr(0, TH + 0.8, q % 2 ? 5.9 : 5.5))), q % 2 ? 11.6 : 10.8, { c: '#e0b9a2' });
