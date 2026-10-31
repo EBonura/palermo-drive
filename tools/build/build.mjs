@@ -7,7 +7,7 @@
 //   - the other runtime assets copied (tooling and source-only files skipped)
 // The development tree and its import map / dev server are never touched.
 //
-// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist   --src=<project dir>
+// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist   --minify=false (readable bundle for profiling)   --src=<project dir>
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,7 +60,7 @@ const t0 = Date.now();
 const res = await esbuild.build({
   stdin: { contents: entrySrc, resolveDir: ROOT, sourcefile: 'entry.js' },
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
-  minify: true, treeShaking: true, legalComments: 'external', charset: 'utf8',
+  minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
   entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],

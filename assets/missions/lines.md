@@ -337,3 +337,181 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - (fr) Il fait trop chaud, je fonds.
 - (fr) Les feux rouges, c'est une suggestion?
 
+# Night (after dark, new)
+
+## Easter egg "u spacciaturi" (stop a few seconds in Ballarò, Vucciria, Capo, Zisa or Noce at night)
+
+### the hooded guy (owner's line, kept as is)
+
+- Ou curò, chi tti siaibbi?  
+  _Hey buddy, what do you need? (owner's spelling, kept as is)_
+
+### the driver answers (dismissive, no drugs mechanics: you can only drive off)
+
+- Nenti, nenti: sugnu fermu pi viriri u panorama.  
+  _Nothing, nothing: I am stopped to admire the view. (?)_
+- Curò, ju sugnu lapista, nun sugnu cliente. Annamu.  
+  _Buddy, I am a lapa driver, not a customer. Let us go. (?)_
+- Vossia sbagghiau persona: ju vegnu di missa.  
+  _You have the wrong person: I am coming from Mass. (?)_
+- Grazzi, ma haiu già a me dosi di guai: a patenti.  
+  _Thanks, but I already have my dose of trouble: my licence. (?)_
+- Staiu aspittannu a me cummari. Idda nun sapi ca ci sugnu ju.  
+  _I am waiting for my girlfriend. She does not know I am here. (?)_
+
+## Night mission "A Favorita" (needs ?world=1)
+
+### client: flag
+
+- Psst! Lapista! Fermati... ma discretamente.  
+  _Psst! Driver! Stop... but discreetly. (?)_
+- Ehi! Tassista! Ccà, ccà. No, nun guardari a mmia.  
+  _Hey! Taxi! Here, here. No, do not look at me. (?)_
+
+### client: board
+
+- Bonasira. Sugnu... un ispettori. Di... cosi. Pi lavoru.  
+  _Good evening. I am... an inspector. Of... things. For work. (?)_
+- Chi bedda nuttata. Nuddu mi canusci, vero?  
+  _What a lovely night. Nobody knows me, right? (?)_
+
+### client: ask
+
+- Mi porti ai viali da Favorita. Pi... na passiata. Salutari: u medicu m'ha ordinatu.  
+  _Take me to the avenues of the Favorita. For... a walk. Healthy: the doctor ordered it. (?)_
+- Va ammirari i pini, ccà. Sunnu pini di valuri storicu.  
+  _I go to admire the pines there. They are of historical value. (?)_
+- Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni di condominiu.  
+  _Something confidential. My wife thinks I am at a condominium meeting. (?)_
+
+### client: ambient
+
+- Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all'occhi.  
+  _Why sunglasses at night? For... the moon. It hurts my eyes. (?)_
+- Cchiù chianu! Mi pari ca mi talia tuttu u quartieri.  
+  _Slower! It feels like the whole neighbourhood is looking at me. (?)_
+- Nun mi taliari nta u specchiettu, grazzi.  
+  _Do not look at me in the mirror, thanks. (?)_
+- Si mi ricanuscinu mi rovinu: sugnu... cunsigghieri.  
+  _If they recognise me I am ruined: I am... a councillor. (?)_
+- Chistu è un impermeabili. Perché? Pi... a pioggia.  
+  _This is a raincoat. Why? For... the rain. (?) (it is not raining)_
+
+### client: fast
+
+- Mi viniu u giramentu di testa... o è u rimorsu?  
+  _I feel dizzy... or is it remorse? (?)_
+
+### client: drift
+
+- Mamma mia! Se mi vidi cu a lapa di traversu, mi runi a prima pagina!  
+  _Mamma mia! If they see me in a sideways lapa I make the front page! (?)_
+
+### client: wheels
+
+- Du roti! Cu u me cori! Chiamati u cunfissuri!  
+  _Two wheels! With my heart! Call the confessor! (?)_
+
+### client: miss
+
+- Nun m'ammazzari, ca ancora haiu... tanti pini d'ammirari!  
+  _Do not kill me, I still have... so many pines to admire! (?)_
+
+### client: hitPed
+
+- Chi è, un testimoni? Nun m'ha vistu nuddu, vero?  
+  _What, a witness? Nobody saw me, right? (?)_
+
+### client: hitWall
+
+- Chi botta! Mi vagnu u... impermeabili.  
+  _What a bump! I am wetting my... raincoat. (?)_
+
+### client: late
+
+- Prestu, prestu, ca fra picca mi veni u rimorsu! O me muggheri.  
+  _Hurry, hurry, soon remorse comes! Or my wife. (?)_
+
+### client: arrive
+
+- Ecco, ecco, grazzi. Teni, e nun diri nenti a nuddu!  
+  _Here, here, thanks. Keep it, and tell nobody! (?)_
+- Ti pregu, ti pregu: nun lu diri a nuddu. Ju ccà nun ci sugnu mai statu. Mai.  
+  _I beg you: tell nobody. I was never here. Never. (?)_
+
+### client: fail
+
+- Nun fa nenti, m'addummannu a casa... a pedi... cu a cuscienza.  
+  _Never mind, I will go home... on foot... with my conscience. (?)_
+
+### client: caught
+
+- Bonasira... nun... nun ci canusciu, signurina.  
+  _Good evening... I do not... I do not know you, miss. (?)_
+
+### driver: board
+
+- Salutari, eh? Certu, certu. A Favorita è u postu giustu pi u cori.  
+  _Healthy, of course. The Favorita is the right place for the heart. (?)_
+
+### driver: depart
+
+- Cinturi? Nun serbi: ccà nuddu viri nenti.  
+  _Seatbelts? No need: nobody sees anything here. (?)_
+
+### driver: ask
+
+- Tranquillu, avvucatu: ju sugnu na tomba.  
+  _Relax, lawyer: I am a tomb. (?)_
+
+### driver: arrive
+
+- Sugnu na tomba, avvucatu. Ma u tassametru parla.  
+  _I am a tomb, lawyer. But the meter talks. (?)_
+- Nun c'è prublema. Ju ccà passu ogni notti: mi ricordu tutti i facci.  
+  _No problem. I pass here every night: I remember all the faces. (?)_
+
+### the glam night folk on the avenue greet him
+
+- Buonasira, Cunsigghieri!  
+  _Good evening, Councillor! (?)_
+- Talè, u signuri di sempri!  
+  _Look, the usual gentleman! (?)_
+- Cunsigghieri, e i pini? Li ammirati sempri?  
+  _Councillor, and the pines? Still admiring them? (?)_
+- Cumu va, Avvucatu? E a riunioni di condominiu?  
+  _How is it going, Lawyer? And the condominium meeting? (?)_
+
+## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
+
+### cries
+
+- POLLANCHEEEE!  
+  _CORN ON THE COB! (the real street cry)_
+- POLLANCHEEEE CAURE!  
+  _HOT CORN ON THE COB! (?)_
+- Pollanche! Pollanche arrustuti!  
+  _Corn! Roasted corn! (?)_
+
+### when serving
+
+- Teni, cu u sali e u limuni!  
+  _Here, with salt and lemon! (?)_
+- Pi tia, ca è cavuda!  
+  _For you, it is hot! (?)_
+
+## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)
+
+### what they yell when the headlights or the horn hit them
+
+- Ma chi fari sunnu chisti?! Astuta, screanzatu!  
+  _What headlights are these?! Turn them off, rude one! (?)_
+- Ma ti pari u modu?! Chista è na maccina privata!  
+  _Is that any way to behave?! This is a private car! (?)_
+- Eh! Stavamu... cuntannu i stiddi!  
+  _Hey! We were... counting the stars! (?)_
+- Stavamu sulu... ripassannu u codici stradali!  
+  _We were only... revising the highway code! (?)_
+- Talè chi maleducatu! Cca c'è genti ca parla!  
+  _Look at this rude guy! People are talking here! (?)_
+

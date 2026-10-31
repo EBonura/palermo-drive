@@ -219,7 +219,7 @@ export function createPolice(env, T) {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try {
       const c = au.ctx = new AC();
-      au.master = c.createGain(); au.master.gain.value = au.vol * 0.13; au.master.connect(c.destination);
+      au.master = c.createGain(); au.master.gain.value = au.vol * 0.16; au.master.connect(c.destination);
       au.pan = c.createStereoPanner ? c.createStereoPanner() : c.createGain(); au.pan.connect(au.master);
       au.gain = c.createGain(); au.gain.gain.value = 0; au.gain.connect(au.pan);
       const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2300; lp.connect(au.gain);
@@ -228,10 +228,14 @@ export function createPolice(env, T) {
     } catch (e) { au.ctx = null; }
   }
   for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, startAudio, { passive: true });
+  // traffic.update stops being called while the game is paused (or the tab hidden): duck the siren then
+  let lastUpd = performance.now();
+  setInterval(() => { if (au.ctx && au.gain && performance.now() - lastUpd > 350) au.gain.gain.setTargetAtTime(0, au.ctx.currentTime, 0.05); }, 200);
   function sirenUpdate(near, pan) {
+    lastUpd = performance.now();
     const c = au.ctx; if (!c || c.state !== 'running' || !au.osc) return;
     const now = c.currentTime, g = au.vol > 0 && near < 1e8 ? Math.pow(clamp(1 - near / 170, 0, 1), 1.6) : 0;
-    au.gain.gain.setTargetAtTime(g * 0.6, now, 0.1);
+    au.gain.gain.setTargetAtTime(g * 0.8, now, 0.1);
     au.osc.frequency.setTargetAtTime((time % 1.1) < 0.55 ? 740 : 560, now, 0.025); // the Italian two-tone "ni-no"
     if (au.pan.pan) au.pan.pan.setTargetAtTime(clamp(pan, -0.8, 0.8), now, 0.12);
   }
@@ -333,6 +337,6 @@ export function createPolice(env, T) {
     update, drive, chaos, collide, isCop, makeCop, engage,
     heat: () => heat, level, isNight: () => night,
     bindPedestrians(api) { peds = api; api.onKnock?.(() => chaos('knock')); },
-    setVolume(v) { au.vol = clamp(+v || 0, 0, 1); if (au.master) au.master.gain.value = au.vol * 0.13; },
+    setVolume(v) { au.vol = clamp(+v || 0, 0, 1); if (au.master) au.master.gain.value = au.vol * 0.16; },
   };
 }

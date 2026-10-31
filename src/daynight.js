@@ -53,7 +53,7 @@ const DAYK = {
 };
 const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'amb']) k[f] = C(k[f]); return k; };
 const NIGHTK = {
-  sun: '#000000', sunI: 0, hemiS: '#2b3a6a', hemiG: '#1c2030', hemiI: 0.55, fog: '#141a36', fogK: 1.4, expo: 1.15,
+  sun: '#000000', sunI: 0, hemiS: '#2b3a6a', hemiG: '#1c2030', hemiI: 0.46, fog: '#141a36', fogK: 1.4, expo: 1.15,
   envZ: '#1a2548', envH: '#2b365f', envB: '#0b0b12', skyH: '#1a2250', skyZ: '#060b22', glow: '#5a6aa0', amb: '#0b1226', win: 0.5,
 };
 const KEYS = [
@@ -447,14 +447,14 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     const dusk = Math.exp(-Math.pow((altD + 2) / 6.5, 2));     // peaks as the sun meets the sea
     const sunUp = altD > -0.6;
     time.hour = vis; time.night = night; time.day = 1 - night; time.dusk = dusk; time.isNight = night > 0.5; time.sunUp = sunUp;
-    const moonI = 0.62 * ss(-1, -9, altD) * ss(0.02, 0.14, moonV.y);
-    const wS = P.sunI / 2.9, wM = moonI / 0.62 * 0.75;
+    const moonI = 0.5 * ss(-1, -9, altD) * ss(0.02, 0.14, moonV.y);
+    const wS = P.sunI / 2.9, wM = moonI / 0.5 * 0.75;
     lightDir.copy(sunV).multiplyScalar(wS + 1e-4).addScaledVector(moonV, wM);
     if (lightDir.lengthSq() < 1e-8) lightDir.copy(moonV);
     lightDir.normalize();
     seaDir.copy(lightDir);
     if (lightDir.y < 0.07) { const h = Math.hypot(lightDir.x, lightDir.z) || 1, k = Math.sqrt(1 - 0.0049) / h; lightDir.set(lightDir.x * k, 0.07, lightDir.z * k); } // never grazing: keeps shadows sane
-    { const mS = wS, mM = wM * 0.62, tw = mS + mM + 1e-4; sun.color.setRGB((P.sun.r * mS + MOON.r * mM) / tw, (P.sun.g * mS + MOON.g * mM) / tw, (P.sun.b * mS + MOON.b * mM) / tw); }
+    { const mS = wS, mM = wM * 0.5, tw = mS + mM + 1e-4; sun.color.setRGB((P.sun.r * mS + MOON.r * mM) / tw, (P.sun.g * mS + MOON.g * mM) / tw, (P.sun.b * mS + MOON.b * mM) / tw); }
     sun.intensity = P.sunI + moonI;
 
     hemi.color.copy(P.hemiS); hemi.groundColor.copy(P.hemiG); hemi.intensity = P.hemiI;
@@ -485,7 +485,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     }
     if (seaU) {
       seaU.uSunDir.value.copy(seaDir);
-      _seaSun.copy(P.sun).multiplyScalar(Math.min(1, P.sunI / 2.5)).add(_c.copy(MOON).multiplyScalar(0.45 * moonI / 0.62));
+      _seaSun.copy(P.sun).multiplyScalar(Math.min(1, P.sunI / 2.5)).add(_c.copy(MOON).multiplyScalar(0.45 * moonI / 0.5));
       seaU.uSunCol.value.copy(_seaSun);
       seaU.uHorizon.value.copy(DAY_SEA_H).lerp(P.skyH, Math.max(mixG, night)); seaU.uZenith.value.copy(DAY_SEA_Z).lerp(P.skyZ, Math.max(mixG, night));
       if (seaU.uAmb) seaU.uAmb.value.copy(P.amb);
