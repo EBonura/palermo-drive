@@ -89,6 +89,7 @@ def query_for(cat, b):
     return head + body + "\nout geom;"
 
 
+ONLY = None       # --tiles i_j,i_j: debugging, bake just these tiles (use with --out; the manifest then lists only them)
 PARTIAL = False   # --partial: bake from whatever is cached (plus data/context_tiles seeds) when Overpass is down
 MISSING = []
 
@@ -1300,13 +1301,26 @@ def near_for(i, j):
 
 
 def far_grid(elev, rect):
+    import numpy as np
     x0, z0, x1, z1 = rect
     x0 = math.floor((x0 - FAR_MARGIN) / FAR_STEP) * FAR_STEP
     z0 = math.floor((z0 - FAR_MARGIN) / FAR_STEP) * FAR_STEP
     nx = int((x1 + FAR_MARGIN - x0) / FAR_STEP) + 2
     nz = int((z1 + FAR_MARGIN - z0) / FAR_STEP) + 2
-    h = [round(elev(*unproj(x0 + i * FAR_STEP, z0 + j * FAR_STEP))) for j in range(nz) for i in range(nx)]
-    return {"x0": x0, "z0": z0, "s": FAR_STEP, "nx": nx, "nz": nz, "h": h}
+    h = np.array([elev(*unproj(x0 + i * FAR_STEP, z0 + j * FAR_STEP)) for j in range(nz) for i in range(nx)], dtype=np.float64)
+    if dem is not None:
+        # hills: replace Terrarium by the 10 m DEM averaged over each 100 m cell (a 5 x 5 box), weighted like near_for
+        gx, gz = np.meshgrid(x0 + np.arange(nx) * FAR_STEP, z0 + np.arange(nz) * FAR_STEP)
+        acc, cnt = np.zeros(gx.shape), np.zeros(gx.shape)
+        for ox in range(-50, 51, 25):
+            for oz in range(-50, 51, 25):
+                v = dem.sample(gx + ox, gz + oz)
+                acc += np.nan_to_num(v)
+                cnt += np.isfinite(v)
+        navg = np.where(cnt >= 13, acc / np.maximum(cnt, 1), np.nan)
+        w = np.where(np.isfinite(navg), _smooth(HILL_LO, HILL_HI, np.nan_to_num(navg)), 0.0).ravel()
+        h = h + w * (np.nan_to_num(navg).ravel() - h)
+    return {"x0": x0, "z0": z0, "s": FAR_STEP, "nx": nx, "nz": nz, "h": [int(round(v)) for v in h]}
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1482,11 +1496,13 @@ def build(offline=False):
     # Tiles
     os.makedirs(os.path.join(WORLD, "tiles"), exist_ok=True)
     for f in glob.glob(os.path.join(WORLD, "tiles", "*.json")):
-        os.remove(f)
+        os.remove(f)   # (WORLD is the staging dir with --publish, so the served world/ is never emptied)
     i0, i1 = math.floor(x0 / T), math.floor((x1 - 1e-6) / T)
     j0, j1 = math.floor(z0 / T), math.floor((z1 - 1e-6) / T)
     todo = [(i, j) for i in range(i0, i1 + 1) for j in range(j0, j1 + 1)
             if not land.disjoint(shapely.box(i * T, j * T, (i + 1) * T, (j + 1) * T))]
+    if ONLY:
+        todo = [t for t in todo if f"{t[0]}_{t[1]}" in ONLY]
     print(f"[{time.time() - t0:.0f}s] baking {len(todo)} candidate tiles", flush=True)
     results, errors = [], []
     with mp.get_context("fork").Pool(max(1, (os.cpu_count() or 2) - 1)) as pool:
@@ -1568,6 +1584,10 @@ if __name__ == "__main__":
     if "--out" in sys.argv:
         WORLD = os.path.abspath(sys.argv[sys.argv.index("--out") + 1])
     PUBLISH = "--publish" in sys.argv
+    if "--tiles" in sys.argv:
+        ONLY = set(sys.argv[sys.argv.index("--tiles") + 1].split(","))
+        if PUBLISH:
+            raise SystemExit("--tiles is for debugging with --out, not with --publish")
     if PUBLISH:
         WORLD_LIVE, WORLD = WORLD, os.path.join(ROOT, "data", "world_stage")
     if "--fetch-only" in sys.argv:
