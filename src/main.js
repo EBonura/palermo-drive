@@ -21,6 +21,7 @@ import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
+import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 
 const SPOTS = [
@@ -43,6 +44,7 @@ const SPOTS = [
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
+const perf = createPerf({ renderer, mobile: QUALITY.mobile }); // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
 renderer.shadowMap.type = +THREE.REVISION >= 182 ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -348,7 +350,7 @@ placeAt(0, 0);
     if (!q.has('hud')) document.querySelectorAll('.hud').forEach(e => e.style.display = 'none');
   }
 }
-if (location.search.includes('debug')) window.game = { world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
+if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
@@ -363,7 +365,7 @@ const game = {
 // One place where options touch the renderer; ui.js calls it after changing game.settings.
 function applySettings() {
   const st = game.settings, tier = { low: [1, 0], medium: [1.5, 1024], high: [2, QUALITY.shadowMap] }[st.quality] || [2, 4096];
-  renderer.setPixelRatio(Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio));
+  perf.setMax(Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio)); // [perf pass] ceiling; perf.js adapts below it
   renderer.shadowMap.enabled = tier[1] > 0;
   if (tier[1] && sun.shadow.mapSize.x !== tier[1]) { sun.shadow.mapSize.set(tier[1], tier[1]); sun.shadow.map?.dispose(); sun.shadow.map = null; }
   scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
@@ -403,6 +405,7 @@ document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
+  perf.frame(now); // [perf pass]
   const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now; // never negative (headless virtual time)
   if (game.state === 'play') {
     for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */ }
