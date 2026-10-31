@@ -36,7 +36,42 @@ export const VARIANTS = [
   { id: 'tourist2', skin: '#eec0a0', hair: '#d8b058', hairStyle: 'long', hat: { type: 'straw', col: '#e8dca8', col2: '#3f9ab8' }, top: '#d9443c', sleeve: 'short', glasses: '#1c1c20', bottom: { type: 'shorts', col: '#f0eee8', len: 8 }, shoes: '#a8684a', backpack: '#3a4a63', speed: 1.0 },
   { id: 'kid2', leg: 11, tor: 9, head: 9, tw: 10, skin: '#d9a98a', hair: '#4a2a1a', hairStyle: 'long', top: '#e87aa0', sleeve: 'short', bottom: { type: 'shorts', col: '#f0eee8', len: 4 }, shoes: '#c43c36', speed: 1.45, bounce: true },
   { id: 'vendor2', skin: '#cf9b78', hair: '#2a1a14', hairStyle: 'bun', top: '#b8382c', sleeve: 'short', apron: '#e9e4d6', bottom: { type: 'trousers', col: '#33302c' }, shoes: '#2c2622', speed: 0.95 },
+  // ---- Palermo FC home-shirt fans: pink with black collar, sleeve trims and scarf (no crest, no sponsor)
+  { id: 'tifoso', skin: '#d3a183', hair: '#1c1614', hairStyle: 'fade', top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', scarf: ['#f1a7c1', '#17151a'], bottom: { type: 'trousers', col: '#2c3a55' }, shoes: '#eeeeee', speed: 1.2 },
+  { id: 'tifoso2', tw: 14, skin: '#c99872', hair: '#1c1614', hairStyle: 'short', hat: { type: 'flatcap', col: '#17151a' }, top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', chain: '#d9b44a', beard: '#1c1614', bottom: { type: 'shorts', col: '#17151a', len: 9 }, shoes: '#eeeeee', speed: 0.95 },
+  { id: 'tifosa', skin: '#e0ae8c', hair: '#3a2418', hairStyle: 'bun', top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', bottom: { type: 'trousers', col: '#35527d' }, shoes: '#eeeeee', glasses: '#17151a', speed: 1.15 },
+  { id: 'tifoso_kid', leg: 11, tor: 9, head: 9, tw: 10, skin: '#d9a98a', hair: '#2a1c14', hairStyle: 'short', top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', scarf: ['#f1a7c1', '#17151a'], bottom: { type: 'shorts', col: '#17151a', len: 4 }, shoes: '#eeeeee', speed: 1.5, bounce: true },
+  { id: 'tifoso_nonno', tw: 14, stoop: 1, skin: '#c4906c', hair: '#d8d4cc', hairStyle: 'bald', top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', belt: '#17151a', bottom: { type: 'trousers', col: '#2a2a30' }, shoes: '#3a2a20', speed: 0.85 },
+  // ---- the street
+  { id: 'tuta', skin: '#d3a183', hair: '#17120f', hairStyle: 'fade', top: '#1f2a48', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bandolier: '#17151a', bottom: { type: 'trousers', col: '#1f2a48', stripe: '#f0eee8' }, shoes: '#f0eee8', speed: 1.3 },
+  { id: 'skinny', tw: 11, skin: '#c99872', hair: '#17120f', hairStyle: 'quiff', top: '#ecebe6', sleeve: 'short', chain: '#d9b44a', bandolier: '#3a2a20', bottom: { type: 'trousers', col: '#26324a' }, shoes: '#f0eee8', speed: 1.3 },
+  { id: 'motorino', skin: '#d0a081', hair: '#2a1c14', hat: { type: 'helmet', col: '#f0eee8' }, glasses: '#18161a', top: '#d9d4c6', sleeve: 'short', bottom: { type: 'shorts', col: '#3a4a63', len: 9 }, shoes: '#6b4a30', speed: 1.2 },
+  { id: 'motorina', skin: '#d9a98a', hair: '#2a1a14', hairStyle: 'long', top: '#4fa9a0', sleeve: 'short', bigGlasses: '#18161a', helmetHand: '#f0eee8', bottom: { type: 'trousers', col: '#26324a' }, shoes: '#eeeeee', speed: 1.25 },
+  { id: 'nonno_gilet', stoop: 1, skin: '#c4906c', hair: '#c8c4bc', hat: { type: 'flatcap', col: '#7a6a58' }, top: '#e6e0d0', vest: '#4a4a42', sleeve: 'long', belt: '#2a2018', bottom: { type: 'trousers', col: '#5a5044' }, shoes: '#3a2a20', speed: 0.8 },
+  { id: 'nonna2', leg: 17, tor: 14, head: 9, stoop: 1, skin: '#d6a284', hair: '#a8452a', hairStyle: 'short', bigGlasses: '#18161a', top: '#2a2830', sleeve: 'long', bottom: { type: 'skirt', col: '#3a2f4a', len: 12 }, legCol: '#2f2b33', shoes: '#18161a', purse: '#3a2a20', speed: 0.85 },
+  { id: 'nonna3', leg: 17, tor: 14, head: 9, stoop: 1, skin: '#cf9d7c', hair: '#dcd8d0', hairStyle: 'bun', top: '#2d3a55', sleeve: 'long', bottom: { type: 'skirt', col: '#2d3a55', len: 13 }, legCol: '#2f2b33', shoes: '#18161a', bag: '#c8c4b8', speed: 0.8 },
+  { id: 'pescivendolo', tw: 13, skin: '#c2916c', hair: '#17120f', hairStyle: 'fade', beard: '#17120f', top: '#2f4a75', sleeve: 'short', apron: '#a9cde0', boots: '#f0eee8', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#d8d6d0', speed: 1.0 },
+  { id: 'macellaio', tw: 13, skin: '#cf9d7c', hair: '#17120f', hairStyle: 'short', top: '#ecebe6', sleeve: 'long', stain: '#9a2424', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#2c2622', speed: 0.9 },
+  { id: 'shopper', skin: '#d9a98a', hair: '#d4a050', hairStyle: 'long', bigGlasses: '#18161a', top: '#e0a83a', sleeve: 'short', bag: '#c43c36', bag2: '#2f6b49', bottom: { type: 'trousers', col: '#f0eee8' }, shoes: '#c8a070', speed: 1.1 },
+  { id: 'beach_m', skin: '#b8744c', hair: '#17120f', hairStyle: 'short', glasses: '#18161a', top: '#b8744c', sleeve: 'short', scarf: ['#f0eee8', '#d9443c'], bottom: { type: 'shorts', col: '#2fa3c8', len: 10 }, shoes: '#2f8fd0', speed: 1.0 },
+  { id: 'beach_w', skin: '#d9a98a', hair: '#4a2a1a', hairStyle: 'long', hat: { type: 'straw', col: '#e8dca8', col2: '#d9443c' }, glasses: '#18161a', top: '#f0eee8', sleeve: 'short', tote: '#e0c070', bottom: { type: 'skirt', col: '#2fa3c8', len: 9 }, legCol: '#d9a98a', shoes: '#e8553c', speed: 1.0 },
+  { id: 'mamma', skin: '#d6a07c', hair: '#2a1a14', hairStyle: 'bun', top: '#6aa0c8', sleeve: 'short', stroller: ['#2a3f6b', '#3a4a63'], bottom: { type: 'trousers', col: '#35527d' }, shoes: '#eeeeee', speed: 0.9 },
+  { id: 'scuola', leg: 11, tor: 9, head: 9, tw: 10, skin: '#d9a98a', hair: '#2a1c14', hairStyle: 'short', top: '#2a3f6b', collar: '#f0eee8', sleeve: 'long', backpack: '#c43c36', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#eeeeee', speed: 1.4, bounce: true },
+  { id: 'suora', skin: '#d9ae8f', hair: '#8c8c8c', hat: { type: 'scarf', col: '#2a2a30', col2: '#f0eee8' }, top: '#4a5260', collar: '#f0eee8', sleeve: 'long', bottom: { type: 'robe', col: '#4a5260' }, shoes: '#18181c', speed: 0.95 },
+  { id: 'vigile', skin: '#d2a183', hair: '#2a2420', hat: { type: 'peaked', col: '#e8e6df', col2: '#b0903a' }, top: '#9fc4e0', sleeve: 'short', belt: '#2a2420', bottom: { type: 'trousers', col: '#1e2745' }, shoes: '#0e0e10', speed: 1.05 },
+  { id: 'cameriere', skin: '#cf9b78', hair: '#17120f', hairStyle: 'fade', top: '#f0eee8', vest: '#17151a', sleeve: 'long', apron: '#f4f2ec', bottom: { type: 'trousers', col: '#17151a' }, shoes: '#17151a', speed: 1.2 },
 ];
+// Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
+const W = {
+  nonna: [6, 3, 8, 1.5, 2], coppola: [6, 4, 6, 2, 2], vendor: [0.5, 1, 9, 0.5, 0.3], tourist: [2, 6, 2, 12, 2], kid: [4, 3, 4, 3, 2], teen: [5, 6, 4, 4, 4], priest: [1, 1, 0.5, 3, 0.3],
+  carabiniere: [0.6, 1.2, 0.5, 2, 1.5], signora: [3, 3, 3, 3, 3], suit: [3, 5, 1, 3, 3], nonno: [5, 2, 6, 2, 1], borsa: [5, 6, 6, 5, 4], ragazzo: [4, 5, 3, 4, 4], fruttivendolo: [0.5, 0.5, 7, 0.2, 0],
+  signora2: [3, 3, 3, 3, 3], suit2: [1.5, 3, 0.5, 1.5, 2], teen2: [3, 4, 2, 3, 3], coppola2: [5, 3, 4, 1, 1], ragazzo2: [3, 4, 3, 3, 3], tourist2: [2, 5, 1, 10, 2], kid2: [3, 3, 3, 3, 2], vendor2: [0.5, 1, 8, 0.5, 0.3],
+  tifoso: [4, 5, 2, 3, 14], tifoso2: [3, 4, 2, 2, 12], tifosa: [3, 4, 1, 2, 10], tifoso_kid: [2, 2, 1, 1, 6], tifoso_nonno: [1.5, 1.5, 1.5, 0.5, 5],
+  tuta: [5, 4, 3, 2, 3], skinny: [4, 5, 3, 3, 3], motorino: [3, 2, 3, 1, 2], motorina: [2, 2, 2, 1, 2], nonno_gilet: [5, 2, 5, 1, 1], nonna2: [6, 3, 7, 1, 1.5], nonna3: [5, 2, 5, 1, 1],
+  pescivendolo: [0.5, 0, 8, 0, 0], macellaio: [0.3, 0, 4, 0, 0], shopper: [2, 5, 3, 3, 3], beach_m: [0.5, 1.5, 0.5, 3, 0.5], beach_w: [0.5, 1.5, 0.5, 3, 0.5], mamma: [3, 3, 2, 2, 2],
+  scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
+};
+VARIANTS.forEach(v => { v.w = W[v.id] || [1, 1, 1, 1, 1]; });
 export const ROWS = VARIANTS.length;
 
 // ---------- drawing ----------
@@ -75,8 +110,8 @@ function figure(g, v, dir, pose) {
     // torso
     P(x0, shY, tw, tor, back && v.vest ? v.vest : top); g.clearRect(x0, shY, 1, 1); g.clearRect(x1, shY, 1, 1);
     if (v.vest && !back) { P(x0, shY, 3, tor, v.vest); P(x1 - 2, shY, 3, tor, v.vest); }
-    if (v.stain) { P(x0 + 2, shY + 4, 3, 2, v.stain); P(x1 - 4, shY + 8, 3, 3, v.stain); P(x0 + 3, hipY - 3, 2, 2, v.stain); }
-    if (v.scarf) { P(x0 + 2, shY, tw - 4, 2, v.scarf[0]); for (let k = 0; k < 4; k++) P(back ? x0 + 3 : 11, shY + 2 + k * 2, 2, 2, v.scarf[k & 1 ? 0 : 1]); if (!back) P(11, shY + 10, 2, 1, v.scarf[0]); }
+    if (v.stain) { P(x0 + 2, shY + 4, 3, 2, v.stain); P(x1 - 4, shY + 8, 2, 3, v.stain); }
+    if (v.scarf) { P(x0 + 1, shY, tw - 2, 2, v.scarf[1]); P(x0 + 1, shY + 1, tw - 2, 1, v.scarf[0]); if (!back) for (let k = 0; k < 5; k++) P(10, shY + 2 + k * 2, 3, 2, v.scarf[k & 1 ? 1 : 0]); }
     if (v.chain && !back) P(10, shY + 1, 4, 1, v.chain);
     if (v.shirt && !back) { P(10, shY, 4, 5, v.shirt); if (v.tie) P(12, shY + 1, 1, 6, v.tie); }
     if (v.collar && !back) { P(10, shY, 4, 2, v.collar === '#2f6b49' ? skin : v.collar); }
@@ -237,10 +272,12 @@ function hats(g, v, dir, hx0, hw, headTop, head, P, back) {
   }
 }
 
-// Draw one 24x48 cell to its own canvas, then add shading and an outline.
+let scratch = null, scratchG = null;
+// Draw one 24x48 cell to a shared scratch canvas, then add shading and an outline.
 function cell(v, dir, pose) {
-  const cv = document.createElement('canvas'); cv.width = CELL_W; cv.height = CELL_H;
-  const g = cv.getContext('2d', { willReadFrequently: true });
+  if (!scratch) { scratch = document.createElement('canvas'); scratch.width = CELL_W; scratch.height = CELL_H; scratchG = scratch.getContext('2d', { willReadFrequently: true }); }
+  const cv = scratch, g = scratchG;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, CELL_W, CELL_H);
   if (dir === RIGHT) { g.translate(CELL_W, 0); g.scale(-1, 1); }
   figure(g, v, dir === RIGHT ? LEFT : dir, pose);
   g.setTransform(1, 0, 0, 1, 0, 0);

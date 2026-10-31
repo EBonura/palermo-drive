@@ -258,3 +258,12 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 .pd-btn.drive, .pd-btn.pd-hot, .pd-kb .pd-btn:focus, .pd-segb[aria-pressed=true], .pd-liv[aria-pressed=true] { background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); }
 @media (hover: hover) { .pd-btn:hover, .pd-segb[aria-pressed=true]:hover { background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); } }
 .pd-btn.drive .pd-l2, .pd-btn:hover .pd-l2, .pd-kb .pd-btn:focus .pd-l2, .pd-liv[aria-pressed=true] .pd-l2 { opacity: .8; }
+
+/* Speech balloons from src/shouts.js: comic style, readable on a phone. */
+.shouts { position: fixed; inset: 0; pointer-events: none; z-index: 40; overflow: hidden; }
+.shout { position: absolute; left: 0; top: 0; max-width: min(46vw, 260px); padding: 7px 11px 8px;
+  background: #fff; color: #120a0e; border: 3px solid #120a0e; border-radius: 16px;
+  font: 800 clamp(13px, 2.4vw, 18px)/1.15 system-ui, sans-serif; text-align: center;
+  box-shadow: 4px 4px 0 #e8559a; will-change: transform, opacity; white-space: normal; }
+.shout::after { content: ''; position: absolute; left: 50%; bottom: -14px; margin-left: -6px;
+  border: 8px solid transparent; border-top: 12px solid #120a0e; border-bottom: 0; }

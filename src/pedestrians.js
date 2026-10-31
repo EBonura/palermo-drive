@@ -3,7 +3,7 @@
 // Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
-// - Art: assets/peds/sprites.js draws 22 pixel-art characters x 4 directions x 4 poses onto one canvas atlas.
+// - Art: assets/peds/sprites.js draws 44 pixel-art characters x 4 directions x 4 poses onto one canvas atlas.
 // - Rendering: two InstancedBufferGeometry draws (sprites, blob shadows) fed by the same per-instance buffers.
 //   The vertex shader billboards around the vertical axis only; the CPU picks the atlas cell from the angle between
 //   the camera and the walking direction and from the walk phase.
@@ -146,7 +146,7 @@ export function createPedestrians(env) {
 
   // ======================================================================== density map (people per m2 of walkable ground)
   const DC = 8, DNX = Math.ceil((AX1 - AX0) / DC), DNZ = Math.ceil((AZ1 - AZ0) / DC);
-  const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist
+  const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist, 4 match-day
   const stamp = (x, z, r, v, zn) => {
     const i0 = Math.max(0, Math.floor((x - r - AX0) / DC)), i1 = Math.min(DNX - 1, Math.floor((x + r - AX0) / DC));
     const j0 = Math.max(0, Math.floor((z - r - AZ0) / DC)), j1 = Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC));
@@ -167,10 +167,13 @@ export function createPedestrians(env) {
     stamp(-60, 410, 105, 0.08, 2);             // Ballaro
     stamp(260, -220, 110, 0.08, 2);            // Vucciria / Garraffello
     stamp(-390, -245, 90, 0.06, 2);            // Capo
+    stamp(-450, -930, 120, 0.06, 4);           // Politeama / Via Liberta: match-day crowds in pink
     const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini/i;
+    const FANS = /Ruggero Settimo|Mariano Stabile|Principe di Belmonte|Magliocco|Michele Amari|Liberta|Libert/i;
     for (const r of D.roads) {
       let v = 0, zn = 0, rad = 14;
-      if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
+      if (r.n && FANS.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.03; zn = 4; rad = 20; }
+      else if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
       else if (r.n && MARKET.test(r.n)) { v = 0.07; zn = 2; rad = 18; }
       else if (r.k === 'pedestrian') { v = 0.02; zn = 1; rad = 12; }
       if (!v) continue;
@@ -185,14 +188,10 @@ export function createPedestrians(env) {
   const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : zone[j * DNX + i]; };
   const MAXD = 0.08;
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
-  const VW = [
-    [6, 6, 0.5, 2, 4, 5, 1, 0.6, 3, 3, 5, 5, 4, 0.5, 3, 1.5, 3, 5, 4, 2, 3, 0.5],
-    [3, 4, 1, 6, 3, 6, 1, 1.2, 3, 5, 2, 6, 5, 0.5, 3, 3, 4, 3, 4, 5, 3, 0.5],
-    [8, 6, 9, 2, 4, 4, 0.5, 0.5, 3, 1, 6, 6, 3, 7, 3, 0.5, 2, 5, 3, 1, 4, 8],
-    [1.5, 2, 0.5, 12, 3, 4, 3, 2, 3, 3, 2, 5, 4, 0.2, 3, 1.5, 3, 1, 3, 10, 3, 0.2]];
+  const VW = [0, 1, 2, 3, 4].map(z => VARIANTS.map(v => v.w[z]));   // crowd mix per zone, set in assets/peds/sprites.js
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0));
   const pickVariant = zn => { let r = Math.random() * VWsum[zn]; const w = VW[zn]; for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
-  const IDLE_RATE = [0.015, 0.03, 0.08, 0.05];            // chance per second of stopping for a while
+  const IDLE_RATE = [0.015, 0.03, 0.08, 0.05, 0.06];            // chance per second of stopping for a while
 
   // ======================================================================== sprite rendering
   const atlas = new THREE.CanvasTexture(buildAtlas());
