@@ -513,6 +513,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
 
   // ---------- dirt tracks (highway=track, when the bake has them): a plain strip along the centreline ----------
+  // (lifted just above the park grass layer, streets.js green = CURB + 0.01 with polygon offset -5, or tracks in parks would be buried)
   const TRACK_COL = new THREE.Color('#a48c66');
   let trackMat = null;
   function* buildTracks(t) {
@@ -524,7 +525,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
         let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
         const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw;
-        P.push(lx, groundY(lx, lz) + 0.03, lz, rx, groundY(rx, rz) + 0.03, rz); N.push(0, 1, 0, 0, 1, 0);
+        P.push(lx, groundY(lx, lz) + 0.17, lz, rx, groundY(rx, rz) + 0.17, rz); N.push(0, 1, 0, 0, 1, 0);
         const k = 0.92 + 0.08 * Math.sin(i * 1.7); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
       }
     }
@@ -537,7 +538,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
     geo.setIndex(new THREE.BufferAttribute(new Uint32Array(I), 1));
-    trackMat = trackMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    trackMat = trackMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
     const m = new THREE.Mesh(geo, trackMat); m.receiveShadow = true; m.name = 'tracks';
     const g = new THREE.Group(); g.add(m); g.userData.tris = I.length / 3;
     return g;
