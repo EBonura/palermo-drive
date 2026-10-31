@@ -753,7 +753,7 @@ function build(env) {
     prevScrape = car.scrape; prevSpeed = sp;
     if (pedHits > 0) {
       pedHits = 0;
-      if (ev.ped <= 0) { ev.ped = 1.0; claim(f, 3, T('Pedone!', 'Pedestrian!')); tline(f, 'hitPed'); dline('hitPed', 1.8); }
+      if (ev.ped <= 0) { ev.ped = 1.0; tline(f, 'hitPed'); dline('hitPed', 1.8); } // the passengers comment, the fare stays (owner: hitting people costs nothing)
     }
     // chatter and the stigghiola smell
     ev.chat -= dt;
