@@ -28,6 +28,7 @@ const ICON = {
   cam: '<svg viewBox="0 0 48 48"><path d="M8 17h8l3-5h10l3 5h8v21H8z" /><circle cx="24" cy="26" r="6" /></svg>',
   reset: '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" /><path d="M10 8v9h9" /></svg>',
   full: '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>',
+  swap: '<svg viewBox="0 0 48 48"><path d="M10 18h26M28 10l8 8-8 8M38 32H12M20 24l-8 8 8 8" /></svg>',
   exit: '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>',
 };
 
@@ -121,13 +122,15 @@ export function setupMobile({ keys, camState, renderer, camera }) {
   const bCam = btn('cam', ICON.cam, 'Camera');
   const bReset = btn('reset', ICON.reset, 'Back on the road');
   const bFull = btn('full', ICON.full, 'Fullscreen');
-  small.append(bCam, bReset);
+  const bSwap = btn('swap', ICON.swap, 'Swap vehicle');   // cycles through the vehicles you own (src/vehicle.js listens for pd-swap)
+  small.append(bCam, bReset, bSwap);
   if (fsSupported) small.append(bFull);
   ui.append(steer, drive, small);
 
   const ACTIONS = {
     cam() { camState.mode = (camState.mode + 1) % 4; },
     reset() { dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r' })); dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r' })); },
+    swap() { dispatchEvent(new CustomEvent('pd-swap')); },
     full: toggleFullscreen,
   };
 

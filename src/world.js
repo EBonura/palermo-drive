@@ -77,7 +77,7 @@ const C = {
   rock: new THREE.Color('#b9b0a1'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#5f7d48'), green: new THREE.Color('#7a9a55'),
   beach: new THREE.Color('#d6c79f'),
 };
-const _c = new THREE.Color();
+const _c = new THREE.Color(), HAZE = new THREE.Color('#7297b4');
 function terrainColor(out, h, slope, noise) {
   if (h < 2) out.copy(C.sand);
   else if (h < 90 && slope < 0.15) out.copy(C.plain).lerp(C.grove, noise * 0.6);
@@ -114,7 +114,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  let M = null, farM = () => 0, world = null;
+  let M = null, farM = () => 0, world = null, landPoly = null;
   let tasks = [], pending = [], inflight = 0;
   let focus = { x: 0, z: 0 }, lastWanted = { x: 1e9, z: 1e9 }, wantedTimer = 0, forced = null;
   const stat = { frames: 0, work: 0, workMax: 0, workSum: 0, hitches: 0, fetched: 0, bytes: 0, built: 0, errors: 0, parseMax: 0 };
@@ -128,6 +128,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
     hooks.ground = tileGround;
+    { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+      landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
     buildFar();
     // warm the facade atlas in slices while the first tiles download
     const warm = warmBuildings(); tasks.push({ t: { d: -1 }, gen: warm, wait: null, name: 'atlas' });
@@ -163,7 +166,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const dx = (H(gi + 1, gj) - H(gi - 1, gj)) / (2 * s), dz = (H(gi, gj + 1) - H(gi, gj - 1)) / (2 * s), l = Math.hypot(dx, 1, dz);
         nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(gi * 1.7 + gj * 0.9) + Math.sin(gi * 0.37 - gj * 1.3)) * 0.25 + 0.5;
-        terrainColor(_c, y, Math.hypot(dx, dz), noise); col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
+        terrainColor(_c, y, Math.hypot(dx, dz), noise);
+        if (y > 2) _c.lerp(HAZE, y > 90 ? 0.3 : 0.1); // distant hills read hazed blue (style guide section 6); the scene fog does the rest
+        col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
       }
       const idx = new Uint16Array((vx - 1) * (vz - 1) * 6);
       const geo = new THREE.BufferGeometry();
@@ -213,12 +218,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     return t;
   }
+  // Before a part is built its triangles are guessed from the manifest's building count (calibrated on the centro tiles); once built, the real number is used.
   const estimate = (t, lod) => {
     const b = t.meta ? t.meta.b : 0;
     const have = (n, f) => t.tris[n] !== undefined ? t.tris[n] : f;
     if (lod === 0) return 0;
-    const low = have('terrain', 5000) + have('streets', 3000 + b * 12) + have('bldLow', b * 28);
-    return lod === 1 ? low : low - have('bldLow', b * 28) + have('streetsHi', 3000 + b * 30) + have('bldFull', b * 420);
+    const low = have('terrain', 1800) + have('streets', 2500 + b * 8) + have('bldLow', b * 45);
+    return lod === 1 ? low : have('terrain', 5400) + have('streets', 2500 + b * 8) + have('streetsHi', 8000 + b * 40) + have('bldFull', b * 230);
   };
   const triCount = t => { let n = 0; for (const k in t.tris) n += t.tris[k]; return n; };
 
@@ -597,6 +603,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     manifest: null,
     estTris: 0,
     raised,
+    // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.
+    isLand(x, z) {
+      if (!landPoly) return false;
+      if (x < landPoly.x0 || x > landPoly.x1 || z < landPoly.z0 || z > landPoly.z1) return false;
+      return inPoly(landPoly.pts, x, z) || landPoly.islands.some(p => inPoly(p, x, z));
+    },
     bind(b) { binding = b; applyAt(); },
     // Move the player somewhere far: stream the destination in first, then place the car (placeAt snaps to the nearest road vertex).
     teleport(x, z, done) { tele = { x, z, done }; wantedTimer = 99; },

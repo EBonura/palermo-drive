@@ -428,7 +428,8 @@ renderer.setAnimationLoop(now => {
   horn.update(dt, game.state === 'play');
   // sea.update animates the water; checkPlayer ends the run when the lapa drives into the sea.
   sea.update?.(dt, camera);
-  if (game.state === 'play') sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
+  // world: the baked coastline only covers the centro, so outside it the manifest's land polygon decides what is dry
+  if (game.state === 'play' && !(world && world.isLand(car.x, car.z))) sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);
