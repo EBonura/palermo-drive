@@ -179,6 +179,7 @@ export function createTraffic(env) {
   const SITES = [proj(38.1146, 13.3558), proj(38.1199, 13.3573), proj(38.115684, 13.361460)];
   const nearSite = (x, z) => SITES.some(s => Math.hypot(s[0] - x, s[1] - z) < 280);
   const counts = {};
+  let nextId = 0;
   const agentsOut = [];
 
   const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.b] === 1 && (c.ped || c.w >= ty.minW);
@@ -253,7 +254,7 @@ export function createTraffic(env) {
     if (Math.hypot(x - car.x, z - car.z) < 18) return false;
     for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return false;
     const v = {
-      ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
+      id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
       lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0,
       yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null,
     };
@@ -270,6 +271,7 @@ export function createTraffic(env) {
     if (SIG.has(n) && !green(n, e, time)) { v.why = 'sig'; return true; }
     if (NDEG[n] < 3) return false;
     if (v.wait > 9) return false;                                    // gridlock breaker
+    if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why = 'exit'; v.why2 = v.exitO; return true; } // keep the box clear, briefly
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1], tc = en ? e.dx * en.dz - e.dz * en.dx : 0; // > 0: turning right, < 0: left
     const eager = v.wait > 2.5;
@@ -277,21 +279,24 @@ export function createTraffic(env) {
       const o = occ[i]; if (o === v) continue;
       const oe = o.route[0];
       if (oe.b !== n) { // already past the node and still inside it
-        if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; return true; }
+        if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; v.why2 = o; return true; }
         continue;
       }
       if (oe === e) continue;
       const remO = oe.len - o.t;
       if (remO > 3 && remO / Math.max(o.v, 2.5) > 3.8) continue;       // far away
-      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why = 'inbox'; return true; } continue; } // it is in the box already
+      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why = 'inbox'; v.why2 = o; return true; } continue; } // it is in the box already
       const dot = oe.dx * e.dx + oe.dz * e.dz, rightDot = oe.dx * e.rx + oe.dz * e.rz;
       if (eager) continue;
       if (dot < -0.8) { // oncoming: only a left turn crosses it
-        if (tc < -0.35 && (oe.rank >= e.rank)) { const ot = o.route[1]; if (!ot || oe.dx * ot.dz - oe.dz * ot.dx > -0.35) { v.why = 'onc'; return true; } }
+        if (tc < -0.35 && (oe.rank >= e.rank)) { const ot = o.route[1]; if (!ot || oe.dx * ot.dz - oe.dz * ot.dx > -0.35) { v.why = 'onc'; v.why2 = o; return true; } }
         continue;
       }
-      if (oe.rank > e.rank) { v.why = 'rank'; return true; }
-      if (oe.rank === e.rank && rightDot < -0.35) { v.why = 'right'; return true; }
+      if (oe.rank > e.rank) { v.why = 'rank'; v.why2 = o; return true; }
+      if (oe.rank === e.rank) { // first come first served, the right-hand rule breaks ties
+        const d = (remO / Math.max(o.v, 2.5) - o.wait) - (rem / Math.max(v.v, 2.5) - v.wait);
+        if (d < -0.4 || (d < 0.4 && rightDot < -0.35)) { v.why = 'right'; v.why2 = o; return true; }
+      }
     }
     return false;
   }
@@ -331,7 +336,7 @@ export function createTraffic(env) {
         const o = list[i]; if (o === v) continue;
         const d = base + o.t;
         if (k === 0 && d <= 0) continue;
-        if (k === 1 && o.v < 2) exitSpace = Math.min(exitSpace, o.t - o.ty.L / 2); // free room past the node
+        if (k === 1 && o.v < 2 && o.t - o.ty.L / 2 < exitSpace) { exitSpace = o.t - o.ty.L / 2; v.exitO = o; } // free room past the node
         if (filt && !o.ty.scooter) continue;
         interact(d - L2 - o.ty.L / 2, o.v, o);
       }
@@ -350,6 +355,9 @@ export function createTraffic(env) {
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
       if (filt && !o.ty.scooter) continue;
+      if (cj < 0.45) { // crossing or oncoming: the junction rules decide, except for a stationary crosser blocking the way
+        if (cj < -0.45 || o.v > 0.4 || (v.stuck > 3 && v.id < o.id)) continue;
+      }
       interact(al - L2 - hl, (o.v) * cj, o);
     }
     { // the player
@@ -615,13 +623,20 @@ export function createTraffic(env) {
         overlN++; if (hit) overl++;
       }
       if (s % 150 === 149) {
-        let sp = 0, stuck = 0, wait = 0; for (const v of vs) { sp += v.v; if (v.stuck > 20) stuck++; if (v.wait > 0.5) wait++; }
-        log.push(`t=${((s + 1) / 30) | 0}s n=${vs.length} avgV=${(sp / Math.max(1, vs.length)).toFixed(1)} stuck20=${stuck} waiting=${wait} ms=${(ttot / tn).toFixed(2)}`);
+        let sp = 0, stuck = 0, wait = 0; const cause = {};
+        for (const v of vs) { sp += v.v; if (v.stuck > 20) stuck++; if (v.wait > 0.5) wait++; if (v.v < 0.5) { const k = v.hold ? 'H' + v.why : v.blocker ? 'follow' : 'free'; cause[k] = (cause[k] || 0) + 1; } }
+        log.push(`t=${((s + 1) / 30) | 0}s n=${vs.length} avgV=${(sp / Math.max(1, vs.length)).toFixed(1)} stuck20=${stuck} waiting=${wait} ms=${(ttot / tn).toFixed(2)} ${JSON.stringify(cause)}`);
       }
     }
     car.x = car0[0]; car.z = car0[1];
     for (const v of vs) types[v.name] = (types[v.name] || 0) + 1;
     const dump = vs.filter(v => v.stuck > 15).slice(0, 14).map(v => `${v.name}@${v.x | 0},${v.z | 0} v=${v.v.toFixed(1)} v0=${v.v0.toFixed(1)} hold=${v.hold} wait=${v.wait.toFixed(0)} gap=${v.minGap.toFixed(1)} blk=${v.blocker ? (v.blocker === 'player' ? 'PLAYER' : v.blocker.name + '@' + (v.blocker.x | 0) + ',' + (v.blocker.z | 0)) : '-'} rem=${(v.route[0].len - v.t).toFixed(0)} e=${v.route[0].name}${v.route[0].ow ? '(1w)' : ''} ndeg=${NDEG[v.route[0].b]} routeN=${v.route.length}`);
+    const hv = vs.filter(v => v.hold && (v.why === 'inbox' || v.why === 'exit')).slice(0, 8).map(v => { const o = v.why2; return `${v.id}:${v.name}@${v.x | 0},${v.z | 0} why=${v.why} rem=${(v.route[0].len - v.t).toFixed(0)} node=${v.route[0].b} wait=${v.wait.toFixed(1)} ${o && v.why === 'inbox' ? `<- ${o.id}:${o.name}@${o.x | 0},${o.z | 0} v=${o.v.toFixed(1)} remO=${(o.route[0].len - o.t).toFixed(1)} onNode=${o.route[0].b} hold=${o.hold}/${o.why} blk=${o.blocker && o.blocker.id}` : ''}`; });
+    console.log('TRAFFIC holds ' + hv.join(' || '));
+    const wf = v => v.hold ? v.why2 : (v.blocker && v.blocker !== 'player' ? v.blocker : null);
+    const cycles = new Set();
+    for (const v of vs) { if (v.v > 0.5) continue; let r = v, n = 0; const path = []; while (r && n++ < 60) { if (path.includes(r)) { cycles.add(path.slice(path.indexOf(r)).map(q => `${q.id}:${q.name}(${q.hold ? q.why : 'f'})@${q.x | 0},${q.z | 0}`).join('>')); break; } path.push(r); r = wf(r); } }
+    console.log('TRAFFIC cycles ' + [...cycles].slice(0, 5).join(' || '));
     const roots = {};
     for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
     console.log('TRAFFIC roots ' + JSON.stringify(roots));
