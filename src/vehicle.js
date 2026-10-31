@@ -1,4 +1,4 @@
-// Player car: model, handling, collision response, nitro, sound and chase camera. Owned by the driving work.
+// Player vehicle: a procedural Piaggio Ape Calessino (the Palermo "lapa"), handling, collision response, nitro, sound and chase camera. Owned by the driving work.
 // main.js owns input (env.keys), the world and the render loop; it calls physics(dt) at a fixed
 // 120 Hz, then updateVisual(dt) and updateCamera(dt) once per frame.
 //
@@ -6,9 +6,9 @@
 // classic arcade street racers): lots of grip and a speed-sensitive steering lock for normal driving,
 // and a separate drift state (handbrake, brake-tap-and-turn, or a big slide) in which steering sets the
 // slip angle you hold instead of the yaw rate. Velocity is rotated towards the nose by a capped
-// "tyre" rate, so grip loss, slides and drifts all come from one rule.
+// "tyre" rate, so grip loss, slides and drifts all come from one rule. The lapa is tall, so it rolls a lot and
+// tips onto two wheels in hard fast turns (visual, plus a small grip penalty that stops it from tipping further).
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { D, groundY } from './core.js';
 
 const PI = Math.PI, TAU = PI * 2;
@@ -19,117 +19,254 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 
 // ---------- tuning ----------
 const T = {
-  L: 2.5,            // wheelbase for the kinematic yaw rate, m
-  lock: 0.58,        // full steering lock at standstill, rad
-  lockV: 16,         // steering lock = lock / (1 + (v / lockV)^2), halved at 16 m/s
-  aGrip: 15.5,       // max lateral acceleration with full grip, m/s^2 (about 1.6 g)
-  aDrift: 10.5,      // max lateral acceleration while drifting
-  kGrip: 18,         // how hard grip pulls the velocity towards the nose (1/s)
-  kDrift: 2.6,
-  sigMax: 0.62,      // drift angle a full steering input asks for, rad (about 35 degrees)
-  scrubSlip: 4.5,    // speed lost per unit of sin(slip angle) while sliding, m/s^2
-  scrubDrift: 0.9,   // constant speed scrub while in drift state
-  gearV: [0, 11.5, 19, 28.5, 38, 47.5],   // speed at the rev limiter in each gear, m/s
-  gearA: [0, 10.4, 8.2, 6.6, 5.2, 4.3],   // peak engine acceleration in each gear, m/s^2
-  brake: 17, hbrake: 4.5, reverseV: 9, reverseA: 6,
-  drag: 0.0013, roll: 0.35,
+  L: 1.85,           // wheelbase for the kinematic yaw rate, m
+  lock: 0.72,        // full steering lock at standstill, rad
+  lockV: 12,         // steering lock = lock / (1 + (v / lockV)^2), halved at 12 m/s
+  aGrip: 12.5,       // max lateral acceleration with full grip, m/s^2 (about 1.3 g)
+  aDrift: 8.5,       // max lateral acceleration while drifting
+  kGrip: 16,         // how hard grip pulls the velocity towards the nose (1/s)
+  kDrift: 2.4,
+  sigMax: 0.6,       // drift angle a full steering input asks for, rad (about 34 degrees)
+  scrubSlip: 4.0,    // speed lost per unit of sin(slip angle) while sliding, m/s^2
+  scrubDrift: 0.8,   // constant speed scrub while in drift state
+  driftV: 5, brakeTurnV: 10,   // minimum speeds (m/s) for a handbrake drift and for a brake-tap drift
+  gearV: [0, 7, 12, 18.5, 24.5, 30],      // speed at the rev limiter in each gear, m/s (top about 108 km/h)
+  gearA: [0, 9.2, 7.0, 5.2, 4.0, 3.1],    // peak engine acceleration in each gear, m/s^2
+  brake: 14, hbrake: 4.5, reverseV: 6, reverseA: 5,
+  drag: 0.0012, roll: 0.35,
   nosTime: 3.4,      // seconds of boost from a full bar
-  nosThrust: 7.5, nosTop: 1.1, nosTorque: 1.3,
-  nosDriftFill: 0.24, nosSpeedFill: 0.03,
+  nosThrust: 6.0, nosTop: 1.17, nosTorque: 1.3,   // about 124 km/h flat out with nitro
+  nosDriftFill: 0.24, nosSpeedFill: 0.04,
+  tipA0: 8.5, tipA1: 3, tipMax: 0.17, tipGrip: 0.12,   // lateral accel where the inner wheels start to lift, range, max extra lean (rad), grip lost at full lift
+  rollGain: 0.0085, rollMax: 0.16,
 };
-const R_CAR = 0.93, AXLE = 1.1;
+const R_CAR = 0.74, AXLE = 0.72;
+const MODEL_LEN = 3.1;
+export const LIVERIES = [
+  { id: 'blu', name_it: 'Blu reale', name_en: 'Royal blue' },
+  { id: 'bianco', name_it: 'Bianco e bordeaux', name_en: 'White and burgundy' },
+  { id: 'carretto', name_it: 'Carretto siciliano', name_en: 'Sicilian cart' },
+];
 
 export function createVehicle(env) {
   const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts } = env;
   const baseFov = camera.fov;
 
-  // ---------- car model ----------
-  // Fallback box car until the glTF has loaded (or if it fails to).
-  function buildFallback() {
-    const group = new THREE.Group();
-    const paint = new THREE.MeshStandardMaterial({ color: '#b5121f', roughness: 0.35, metalness: 0.2 });
-    const glass = new THREE.MeshStandardMaterial({ color: '#1d252e', roughness: 0.08, metalness: 0.4 });
-    const dark = new THREE.MeshStandardMaterial({ color: '#1b1b1d', roughness: 0.8 });
-    const lamp = new THREE.MeshBasicMaterial({ color: '#fff6d8' });
-    const tail = new THREE.MeshBasicMaterial({ color: '#ff3b2f' });
-    const box = (w, h, l, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), mat); m.position.set(x, y, z); m.castShadow = true; group.add(m); return m; };
-    box(1.7, 0.62, 3.7, paint, 0, 0.62, 0);
-    box(1.5, 0.58, 2.0, paint, 0, 1.2, -0.25);
-    box(1.52, 0.42, 1.6, glass, 0, 1.2, -0.25);
-    box(1.38, 0.4, 2.02, glass, 0, 1.2, -0.25);
-    box(1.72, 0.14, 0.2, dark, 0, 0.36, 1.85);
-    box(1.72, 0.14, 0.2, dark, 0, 0.36, -1.85);
-    box(0.3, 0.14, 0.05, lamp, 0.6, 0.74, 1.86); box(0.3, 0.14, 0.05, lamp, -0.6, 0.74, 1.86);
-    box(0.3, 0.14, 0.05, tail, 0.62, 0.74, -1.86); box(0.3, 0.14, 0.05, tail, -0.62, 0.74, -1.86);
-    const wheelG = new THREE.CylinderGeometry(0.33, 0.33, 0.24, 12); wheelG.rotateZ(Math.PI / 2);
-    const wheels = [];
-    for (const [x, z] of [[0.8, 1.2], [-0.8, 1.2], [0.8, -1.2], [-0.8, -1.2]]) {
-      const pivot = new THREE.Group(); pivot.position.set(x, 0.33, z);
-      const spin = new THREE.Mesh(wheelG, dark); spin.castShadow = true; pivot.add(spin);
-      wheels.push({ pivot, spin, front: z > 0 });
-    }
-    return { body: group, wheels };
-  }
-
-  const carRoot = new THREE.Group();   // placed and yawed in the world
-  const tilt = new THREE.Group();      // body roll and pitch
-  carRoot.add(tilt);
-  const model = { wheels: [], rearZ: -1.85 };
-  {
-    const fb = buildFallback();
-    tilt.add(fb.body);
-    for (const w of fb.wheels) carRoot.add(w.pivot);
-    model.fallback = fb;
-    model.wheels = fb.wheels;
-  }
+  // ---------- the lapa: a procedural Piaggio Ape Calessino ----------
+  // Origin on the ground under the middle of the vehicle, +z forward, +x left. About 3.1 m long, 1.4 m wide, 2.0 m tall.
+  // Hierarchy: carRoot (world position and yaw) > lean (tips onto two wheels in hard turns) > [tilt (body, rolls on its
+  // springs about PIV), wheels]. The front wheel sits in a fork group that steers.
+  const PIV = 0.45;
+  const carRoot = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group();
+  carRoot.add(lean); lean.add(tilt); tilt.position.y = PIV;
   scene.add(carRoot);
 
-  const MODEL_SCALE = 1.3;   // Kenney hatchback is 2.85 m long, 1.3 m wide: scaled to a 3.7 m Panda-sized car
-  new GLTFLoader().load(new URL('../assets/cars/hatchback-sports.glb', import.meta.url).href, gltf => {
-    const root = gltf.scene, s = MODEL_SCALE, wheels = [];
-    const bodyNode = root.getObjectByName('body');
-    for (const n of ['wheel-front-left', 'wheel-front-right', 'wheel-back-left', 'wheel-back-right']) {
-      const node = root.getObjectByName(n);
-      node.geometry?.computeBoundingBox();
-      const cx = node.geometry.boundingBox.getCenter(new THREE.Vector3()).x;
-      const pivot = new THREE.Group(), spin = new THREE.Group();
-      pivot.position.set((node.position.x + cx) * s, node.position.y * s, node.position.z * s);
-      pivot.scale.setScalar(s);
-      node.position.set(-cx, 0, 0);
-      node.removeFromParent(); spin.add(node); pivot.add(spin);
-      wheels.push({ pivot, spin, front: n.includes('front') });
-    }
-    bodyNode.removeFromParent();
-    bodyNode.position.multiplyScalar(s); bodyNode.scale.setScalar(s);
-    const bodyGroup = new THREE.Group(); bodyGroup.add(bodyNode);
-    root.traverse(o => {
-      if (o.isMesh) {
-        o.castShadow = true;
-        o.material.roughness = 0.55; o.material.metalness = 0.1; o.material.side = THREE.FrontSide;
-      }
-    });
-    wheels.forEach(w => w.pivot.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.roughness = 0.7; } }));
-    // swap in
-    tilt.remove(model.fallback.body);
-    for (const w of model.fallback.wheels) carRoot.remove(w.pivot);
-    tilt.add(bodyGroup);
-    for (const w of wheels) carRoot.add(w.pivot);
-    model.wheels = wheels;
-    model.rearZ = -1.85;
-  }, undefined, err => console.warn('car model failed to load, keeping the box car', err));
-
-  // brake lights (glow over the baked tail lights) and nitro exhaust flames
-  const brakeMat = new THREE.MeshBasicMaterial({ color: '#ff1a10', transparent: true, opacity: 0, depthWrite: false, fog: false });
-  for (const x of [-0.58, 0.58]) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.05), brakeMat);
-    m.position.set(x, 0.82, -1.88); tilt.add(m);
+  // --- procedural textures ---
+  const rngOf = seed => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
+  function canvasTex(w, h, draw, repeat) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+    return t;
   }
+  const FOLK = { yellow: '#f2c200', red: '#d42a1f', blue: '#1c4fb8', green: '#1f9a4a', cream: '#fff0cf', orange: '#ec7a1c', dark: '#2a1a10' };
+  function flower(g, x, y, r, petal, centre, n = 8) {
+    for (let i = 0; i < n; i++) {
+      const a = i / n * TAU; g.fillStyle = petal; g.beginPath();
+      g.ellipse(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.4, r * 0.2, a, 0, TAU); g.fill();
+    }
+    g.fillStyle = centre; g.beginPath(); g.arc(x, y, r * 0.3, 0, TAU); g.fill();
+    g.fillStyle = FOLK.cream; g.beginPath(); g.arc(x, y, r * 0.12, 0, TAU); g.fill();
+  }
+  function scroll(g, x, y, r, col, dir) {
+    g.strokeStyle = col; g.lineWidth = Math.max(2, r * 0.2); g.lineCap = 'round'; g.beginPath();
+    for (let t = 0; t < 3.4 * PI; t += 0.12) { const rad = r * (1 - t / (3.8 * PI)); const px = x + dir * rad * Math.cos(t), py = y + rad * Math.sin(t); t === 0 ? g.moveTo(px, py) : g.lineTo(px, py); }
+    g.stroke();
+  }
+  function teeth(g, x, y, w, h, n, c1, c2, down) {
+    const tw = w / n;
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = i % 2 ? c1 : c2; g.beginPath();
+      if (down) { g.moveTo(x + i * tw, y); g.lineTo(x + (i + 1) * tw, y); g.lineTo(x + (i + 0.5) * tw, y + h); }
+      else { g.moveTo(x + i * tw, y + h); g.lineTo(x + (i + 1) * tw, y + h); g.lineTo(x + (i + 0.5) * tw, y); }
+      g.fill();
+    }
+  }
+  // Hand-painted folk-art panel in the spirit of the Sicilian cart: bright fields, scrolls, flowers, borders.
+  function folkPanel(g, w, h, seed) {
+    const R = rngOf(seed), C = FOLK;
+    g.fillStyle = C.yellow; g.fillRect(0, 0, w, h);
+    const band = h * 0.14;
+    g.fillStyle = C.red; g.fillRect(0, 0, w, band * 0.5); g.fillRect(0, h - band * 0.5, w, band * 0.5);
+    teeth(g, 0, band * 0.5, w, band * 0.5, Math.round(w / 26), C.blue, C.cream, true);
+    teeth(g, 0, h - band, w, band * 0.5, Math.round(w / 26), C.green, C.cream, false);
+    const n = Math.max(2, Math.round(w / (h * 1.05))), pw = w / n, py = band * 1.15, ph = h - band * 2.3;
+    const fields = [C.red, C.blue, C.green, C.orange], petals = [C.yellow, C.cream, C.orange, C.red];
+    for (let i = 0; i < n; i++) {
+      const x = i * pw + pw * 0.06, fw = pw * 0.88, f = (i + (R() * 4 | 0)) % 4;
+      g.fillStyle = C.dark; g.fillRect(x - 3, py - 3, fw + 6, ph + 6);
+      g.fillStyle = fields[f]; g.fillRect(x, py, fw, ph);
+      g.strokeStyle = C.cream; g.lineWidth = 2; g.strokeRect(x + 5, py + 5, fw - 10, ph - 10);
+      const cx = x + fw / 2, cy = py + ph / 2, r = Math.min(fw, ph) * 0.34;
+      scroll(g, cx - r * 1.25, cy - r * 0.35, r * 0.55, C.cream, 1); scroll(g, cx + r * 1.25, cy + r * 0.35, r * 0.55, C.cream, -1);
+      flower(g, cx, cy, r, petals[f], f === 1 ? C.red : C.blue, 8 + (i % 2) * 4);
+      for (let k = 0; k < 6; k++) { g.fillStyle = k % 2 ? C.yellow : C.cream; g.beginPath(); g.arc(x + fw * (0.15 + 0.14 * k), py + ph * 0.1, 3, 0, TAU); g.arc(x + fw * (0.15 + 0.14 * k), py + ph * 0.9, 3, 0, TAU); g.fill(); }
+      if (i < n - 1) { // diamond chain between fields
+        for (let k = 0; k < 4; k++) { const dx = x + fw + pw * 0.06, dy = py + ph * (0.12 + 0.25 * k); g.fillStyle = k % 2 ? C.red : C.blue; g.beginPath(); g.moveTo(dx, dy - 7); g.lineTo(dx + 6, dy); g.lineTo(dx, dy + 7); g.lineTo(dx - 6, dy); g.fill(); }
+      }
+    }
+  }
+  const T_FOLK_REAR = canvasTex(512, 200, (g, w, h) => folkPanel(g, w, h, 11));
+  const T_FOLK_CAB = canvasTex(384, 190, (g, w, h) => folkPanel(g, w, h, 29));
+  const T_CHECK = canvasTex(64, 64, g => { for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#fdfbf2' : '#1c4fb8'; g.fillRect(x * 32, y * 32, 32, 32); } }, [1, 12]);
+  const T_CANVAS = canvasTex(128, 128, (g, w, h) => {
+    const R = rngOf(5); g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 3) { g.fillStyle = `rgba(0,0,0,${0.05 + R() * 0.05})`; g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
+    for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(0,0,0,${R() * 0.06})`; g.fillRect(R() * w, R() * h, 2, 2); }
+  }, [2, 2]);
+  const T_WOOD = canvasTex(256, 128, (g, w, h) => {
+    const R = rngOf(3), n = 6, sh = h / n;
+    for (let i = 0; i < n; i++) {
+      const l = 36 + R() * 8; g.fillStyle = `hsl(28,62%,${l}%)`; g.fillRect(0, i * sh, w, sh);
+      for (let k = 0; k < 14; k++) { g.fillStyle = `rgba(60,30,10,${0.08 + R() * 0.1})`; g.fillRect(0, i * sh + R() * sh, w, 1); }
+      g.fillStyle = 'rgba(255,230,170,0.22)'; g.fillRect(0, i * sh + 2, w, 3);
+      g.fillStyle = '#2e1a0c'; g.fillRect(0, i * sh, w, 2);
+    }
+  });
+
+  // --- materials (livery changes recolour these in place) ---
+  const std = (c, r = 0.5, m = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+  const mBody = std('#1d4fd0', 0.32, 0.15), mArch = std('#1d4fd0', 0.32, 0.15), mCabSide = std('#1d4fd0', 0.32, 0.15), mRearSide = std('#ffffff', 0.45);
+  const mRoof = std('#f3efe4', 0.9), mDoor = std('#f3efe4', 0.9), mPillar = std('#1d4fd0', 0.32, 0.15);
+  mRoof.map = mDoor.map = T_CANVAS; mRoof.side = THREE.DoubleSide;
+  const mChrome = std('#e4e8ec', 0.25, 0.6), mGlass = new THREE.MeshStandardMaterial({ color: '#8fb4c8', roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false });
+  const mPlastic = new THREE.MeshStandardMaterial({ color: '#dfe8ee', roughness: 0.2, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  const mTyre = std('#1a1a1c', 0.9), mWhite = std('#f3f1e8', 0.7), mSeat = std('#efe6cf', 0.8), mDark = std('#1d1c1e', 0.8), mFloor = std('#3a3430', 0.9);
+  const mLamp = new THREE.MeshStandardMaterial({ color: '#fff7dc', emissive: '#ffe9a8', emissiveIntensity: 0.55, roughness: 0.2 });
+  const mTail = new THREE.MeshStandardMaterial({ color: '#a01410', emissive: '#6a0a06', emissiveIntensity: 0.5, roughness: 0.4 });
+  const mWood = std('#ffffff', 0.45); mWood.map = T_WOOD;
+  const mShirt = std('#2c3a58', 0.9), mSkin = std('#c58b64', 0.8);
+  const LIV = {
+    blu:      { body: '#1d4fd0', arch: '#1d4fd0', roof: '#f3efe4', door: '#f3efe4', pillar: '#1d4fd0', cab: '#1d4fd0', rear: 'wood' },
+    bianco:   { body: '#f1efe8', arch: '#f1efe8', roof: '#7a1830', door: '#7a1830', pillar: '#f1efe8', cab: '#f1efe8', rear: 'wood' },
+    carretto: { body: '#f0c000', arch: '#d42a1f', roof: '#74182c', door: '#74182c', pillar: 'check', cab: 'folk', rear: 'folk' },
+  };
+  function setLivery(id) {
+    const L = LIV[id]; if (!L) return;
+    const paint = (m, c, map) => { m.color.set(map ? '#ffffff' : c); if (m.map !== (map || null)) { m.map = map || null; m.needsUpdate = true; } };
+    paint(mBody, L.body); paint(mArch, L.arch);
+    paint(mRoof, L.roof, T_CANVAS); mRoof.color.set(L.roof); paint(mDoor, L.door, T_CANVAS); mDoor.color.set(L.door);
+    L.pillar === 'check' ? paint(mPillar, null, T_CHECK) : paint(mPillar, L.pillar);
+    L.cab === 'folk' ? paint(mCabSide, null, T_FOLK_CAB) : paint(mCabSide, L.cab);
+    paint(mRearSide, null, L.rear === 'folk' ? T_FOLK_REAR : T_WOOD);
+    car.livery = id;
+  }
+
+  // --- geometry helpers ---
+  const G = {}; const gcache = (k, f) => G[k] || (G[k] = f());
+  const box = (w, h, d) => gcache(`b${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d));
+  const cyl = (r0, r1, h, s = 12, open = false, a0 = 0, a1 = TAU) => gcache(`c${r0},${r1},${h},${s},${open},${a0},${a1}`, () => new THREE.CylinderGeometry(r0, r1, h, s, 1, open, a0, a1));
+  const wheelGeo = (r, w, s = 14) => gcache(`w${r},${w},${s}`, () => cyl(r, r, w, s).clone().rotateZ(PI / 2));
+  function mesh(geo, mat, parent, x, y, z, shadow = true) {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; parent.add(m); return m;
+  }
+  // body parts take car-frame coordinates; tilt sits at PIV so subtract it
+  const part = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = mesh(geo, mat, tilt, x, y - PIV, z); m.rotation.set(rx, ry, rz); return m; };
+
+  // lower body: dark underbody, cab tub, nose, rear body with side panels (wood or painted)
+  part(box(1.12, 0.1, 2.7), mDark, 0, 0.27, -0.1);
+  part(new THREE.BoxGeometry(1.3, 0.5, 0.9), [mCabSide, mCabSide, mBody, mBody, mBody, mBody], 0, 0.53, 0.35);
+  part(new THREE.BoxGeometry(1.3, 0.5, 1.5), [mRearSide, mRearSide, mFloor, mBody, mBody, mRearSide], 0, 0.53, -0.85);
+  part(box(1.0, 0.52, 0.4), mBody, 0, 0.74, 0.97);                                  // cowl
+  { const nose = part(cyl(0.5, 0.5, 0.52, 18), mBody, 0, 0.74, 1.0); nose.scale.set(1, 1, 0.82); }    // rounded nose
+  { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.014, 6, 24), mChrome); ring.rotation.x = PI / 2; ring.scale.set(1, 0.82, 1); ring.position.set(0, 1.0 - PIV, 1.0); ring.castShadow = true; tilt.add(ring); }
+  part(box(0.045, 0.46, 0.03), mChrome, 0, 0.78, 1.405);                            // chrome trim down the nose
+  for (const sx of [-1, 1]) {
+    part(new THREE.SphereGeometry(0.085, 10, 8), mLamp, sx * 0.27, 0.93, 1.355);
+    part(new THREE.TorusGeometry(0.09, 0.012, 6, 14), mChrome, sx * 0.27, 0.93, 1.34);
+    part(box(0.12, 0.05, 0.03), mTail, sx * 0.5, 0.64, -1.565);                       // tail lights
+    // rear wheel arches
+    const arch = part(cyl(0.285, 0.285, 0.2, 14, false, 0, PI).clone().rotateZ(PI / 2), mArch, sx * 0.66, 0.23, -0.7);
+    arch.material = mArch;
+  }
+  mArch.side = THREE.DoubleSide;
+  part(box(0.3, 0.1, 0.02), mWhite, 0, 0.45, -1.575);                               // number plate
+  part(box(1.0, 0.05, 0.12), mChrome, 0, 0.32, -1.58); part(box(0.95, 0.05, 0.1), mChrome, 0, 0.32, 1.1); // bumpers
+
+  // seats and driver
+  part(box(0.55, 0.28, 0.45), mSeat, 0, 0.92, 0.18); part(box(0.55, 0.42, 0.09), mSeat, 0, 1.2, -0.07);
+  part(box(1.12, 0.28, 0.5), mSeat, 0, 0.92, -1.2); part(box(1.12, 0.5, 0.09), mSeat, 0, 1.3, -1.48);
+  part(box(0.42, 0.5, 0.24), mShirt, 0, 1.28, 0.12).userData.driver = true;
+  { const h = part(new THREE.SphereGeometry(0.12, 10, 8), mSkin, 0, 1.68, 0.14); h.userData.driver = true; const c = part(box(0.26, 0.04, 0.2), mDark, 0, 1.78, 0.17); c.userData.driver = true; }
+  const driverParts = tilt.children.filter(m => m.userData.driver);
+
+  // windscreen, A-pillars, wiper and mirror (one group leaning back)
+  { const ws = new THREE.Group(); ws.position.set(0, 1.0 - PIV, 0.8); ws.rotation.x = -0.15; tilt.add(ws);
+    mesh(box(1.14, 0.7, 0.02), mGlass, ws, 0, 0.4, 0, false);
+    mesh(box(1.22, 0.04, 0.04), mChrome, ws, 0, 0.0, 0); mesh(box(1.22, 0.04, 0.04), mChrome, ws, 0, 0.78, 0);
+    mesh(box(0.025, 0.74, 0.022), mChrome, ws, 0, 0.4, 0.01);
+    for (const sx of [-1, 1]) { mesh(box(0.05, 1.0, 0.05), mPillar, ws, sx * 0.62, 0.5, 0); }
+    const wiper = mesh(box(0.5, 0.012, 0.012), mDark, ws, 0.2, 0.08, 0.02, false); wiper.rotation.z = 0.12;
+    const arm = mesh(box(0.012, 0.26, 0.012), mChrome, ws, 0.68, 0.3, 0.05, false); arm.rotation.z = -0.15;
+    mesh(box(0.14, 0.1, 0.02), mChrome, ws, 0.72, 0.46, 0.14);
+  }
+  // handlebar (turns with the front wheel)
+  const bar = new THREE.Group(); bar.position.set(0, 1.12 - PIV, 0.62); tilt.add(bar);
+  mesh(wheelGeo(0.015, 0.7, 8), mChrome, bar, 0, 0, 0, false); mesh(box(0.03, 0.2, 0.03), mChrome, bar, 0, -0.1, 0.0, false);
+  for (const sx of [-1, 1]) mesh(wheelGeo(0.022, 0.1, 8), mDark, bar, sx * 0.36, 0, 0, false);
+
+  // roof: canvas on a crowned, back-sloping panel, on chrome poles, with clear plastic at the back
+  { const rg = new THREE.BoxGeometry(1.5, 0.05, 2.45, 8, 1, 10), p = rg.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, p.getY(i) + z * 0.085 - x * x * 0.2 - (z > 0.9 ? (z - 0.9) * 0.15 : 0)); }
+    rg.computeVertexNormals();
+    part(rg, mRoof, 0, 1.97, -0.3);
+    part(box(1.36, 0.03, 0.5), mRoof, 0, 1.56, -1.6, -1.3);                      // rear canvas flap sloping down
+    part(box(1.5, 0.05, 0.03), mRoof, 0, 1.78, -1.52);                              // rear lip
+    part(box(1.1, 0.4, 0.015), mPlastic, 0, 1.5, -1.47, -0.25);                    // rear window
+  }
+  for (const sx of [-1, 1]) {
+    for (const z of [-1.45, -0.3]) part(cyl(0.017, 0.017, 1.1, 6), mChrome, sx * 0.66, 1.4, z);
+    part(box(0.012, 0.55, 1.1), mPlastic, sx * 0.715, 1.52, -0.88);                 // side windows
+    part(box(0.012, 0.3, 0.7), mPlastic, sx * 0.715, 1.6, 0.35);
+  }
+  // half doors (canvas on chrome frames, with hand-hold cut-outs)
+  for (const sx of [-1, 1]) for (const [z, len] of [[-0.9, 0.9], [0.33, 0.7]]) {
+    part(box(0.035, 0.4, len), mDoor, sx * 0.67, 0.99, z);
+    part(box(0.05, 0.03, len + 0.04), mChrome, sx * 0.67, 1.2, z);
+    part(box(0.05, 0.03, len + 0.04), mChrome, sx * 0.67, 0.79, z);
+    part(box(0.052, 0.07, 0.22), mDark, sx * 0.67, 1.08, z);
+  }
+
+  // --- wheels: small whitewalls with chrome hubcaps. Rear pair on the ground, front one in a steering fork ---
+  const wheelObjs = [];
+  function makeWheel(parent, x, y, z, front) {
+    const pivot = new THREE.Group(); pivot.position.set(x, y, z); parent.add(pivot);
+    const spin = new THREE.Group(); pivot.add(spin);
+    const r = 0.23, w = 0.15;
+    mesh(wheelGeo(r, w), mTyre, spin, 0, 0, 0); mesh(wheelGeo(r * 0.78, w + 0.012), mWhite, spin, 0, 0, 0, false);
+    mesh(wheelGeo(r * 0.4, w + 0.026, 10), mChrome, spin, 0, 0, 0, false); mesh(box(w + 0.03, 0.03, r * 0.5), mDark, spin, 0, 0, 0, false);
+    if (front) {
+      for (const sx of [-1, 1]) mesh(box(0.025, 0.55, 0.04), mChrome, pivot, sx * 0.1, 0.27, 0, false);
+      mesh(box(0.24, 0.04, 0.06), mChrome, pivot, 0, 0.5, 0, false);
+      const fender = mesh(cyl(0.275, 0.275, 0.2, 14, false, 0, PI).clone().rotateZ(PI / 2), mArch, pivot, 0, 0, 0);
+      void fender;
+    }
+    wheelObjs.push({ pivot, spin, front });
+  }
+  makeWheel(lean, 0, 0.23, 1.15, true);
+  makeWheel(lean, 0.66, 0.23, -0.7, false); makeWheel(lean, -0.66, 0.23, -0.7, false);
+  const model = { wheels: wheelObjs };
+
+  // brake lights (glow over the tail lights) and nitro exhaust flames
+  const brakeMat = new THREE.MeshBasicMaterial({ color: '#ff1a10', transparent: true, opacity: 0, depthWrite: false, fog: false });
+  for (const x of [-0.5, 0.5]) part(box(0.15, 0.07, 0.04), brakeMat, x, 0.64, -1.59, 0, 0, 0).castShadow = false;
   const flames = [];
   const flameOuter = new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
   const flameInner = new THREE.MeshBasicMaterial({ color: '#bfe6ff', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-  for (const x of [-0.45, 0.45]) {
-    const mk = (r, h, mat) => { const g = new THREE.ConeGeometry(r, h, 10, 1, true); g.translate(0, h / 2, 0); g.rotateX(-PI / 2); const m = new THREE.Mesh(g, mat); m.position.set(x, 0.42, -1.9); m.visible = false; m.frustumCulled = false; tilt.add(m); return m; };
-    flames.push([mk(0.14, 1, flameOuter), mk(0.07, 0.7, flameInner)]);
+  for (const x of [-0.3, 0.3]) {
+    const mk = (r, h, mat) => { const g = new THREE.ConeGeometry(r, h, 10, 1, true); g.translate(0, h / 2, 0); g.rotateX(-PI / 2); const m = new THREE.Mesh(g, mat); m.position.set(x, 0.36 - PIV, -1.6); m.visible = false; m.frustumCulled = false; tilt.add(m); return m; };
+    flames.push([mk(0.1, 1, flameOuter), mk(0.05, 0.7, flameInner)]);
   }
   const glowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -139,7 +276,8 @@ export function createVehicle(env) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   })();
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-  glow.position.set(0, 0.45, -2.3); glow.visible = false; tilt.add(glow);
+  glow.position.set(0, 0.4 - PIV, -1.95); glow.visible = false; tilt.add(glow);
+
 
   // tyre smoke: one Points object with a ring buffer of puffs
   const SMOKE_N = 56;
@@ -169,7 +307,7 @@ export function createVehicle(env) {
   const car = {
     x: 0, z: 0, th: 0, vx: 0, vz: 0, vf: 0, steer: 0, roll: 0, pitch: 0, lastVf: 0, lift: 0,
     w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosAmt: 0, nosOn: false, nosLock: false,
-    psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0,
+    psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu',
   };
   let ticks = 0, seenTicks = 0, idleFrames = 99;
   let hitMag = 0, hitId = 0, nosStartId = 0;
@@ -264,11 +402,11 @@ export function createVehicle(env) {
     // ----- drift state -----
     const sa = Math.abs(car.slip);
     const against = sIn !== 0 && sa > 0.06 && Math.sign(sIn) !== Math.sign(car.slip);
-    const brakeTurn = down && !up && vf > 14 && Math.abs(car.sIn) > 0.55;
-    if (vf > 6 && (hb || brakeTurn)) car.dLatch = 0.35;
+    const brakeTurn = down && !up && vf > T.brakeTurnV && Math.abs(car.sIn) > 0.55;
+    if (vf > T.driftV && (hb || brakeTurn)) car.dLatch = 0.35;
     car.dLatch = Math.max(0, car.dLatch - dt);
     let dT = 0;
-    if (vf > 6 && (car.dLatch > 0 || (sa > 0.24 && !against))) dT = 1;
+    if (vf > T.driftV && (car.dLatch > 0 || (sa > 0.24 && !against))) dT = 1;
     car.drift += (dT - car.drift) * Math.min(1, (dT > car.drift ? 10 : 5) * dt);
     const d = car.drift;
 
@@ -314,8 +452,8 @@ export function createVehicle(env) {
     // nitro bar: burns while boosting, refills with speed and (a lot) with drifting
     if (nosWant) car.nos = Math.max(0, car.nos - dt / T.nosTime);
     else {
-      const sp01 = clamp(vf / 40, 0, 1);
-      car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 15, 0, 1)) * dt);
+      const sp01 = clamp(vf / 28, 0, 1);
+      car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 10, 0, 1)) * dt);
     }
 
     // rebuild world velocity after the drive forces
@@ -324,7 +462,7 @@ export function createVehicle(env) {
     // ----- yaw -----
     const v1 = Math.hypot(car.vx, car.vz);
     const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
-    const wCap = T.aGrip * 0.92 / Math.max(Math.abs(vf), 3);
+    const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) / Math.max(Math.abs(vf), 3);
     const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap);
     let wT = wN;
     if (d > 0.01) {
@@ -349,7 +487,7 @@ export function createVehicle(env) {
       let psi = Math.atan2(car.vx, car.vz);
       const fwd = car.vx * sn + car.vz * cs >= 0;
       const e = wrap((fwd ? car.th : car.th + PI) - psi);
-      const aCap = lerp(T.aGrip, T.aDrift, d), kG = lerp(T.kGrip, T.kDrift, d);
+      const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip), kG = lerp(T.kGrip, T.kDrift, d);
       const rMax = aCap / Math.max(v, 4);
       let dpsi = clamp(e * kG, -rMax, rMax) * dt;
       if (Math.abs(dpsi) > Math.abs(e)) dpsi = e;
@@ -375,8 +513,10 @@ export function createVehicle(env) {
     // Body sits on the terrain, plus cosmetic weight transfer: roll out of the corner, dive and squat.
     const lx = cs, lz = -sn;
     const side = (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
-    const rollT = clamp(car.ay * 0.0042, -0.085, 0.085) + Math.atan(side);
-    const pitchT = clamp(-car.ax * 0.0048, -0.065, 0.065) - Math.atan(slope);
+    const tipT = clamp((Math.abs(car.ay) - T.tipA0) / T.tipA1, 0, 1) * sstep(7, 12, Math.abs(vf)) * (1 - 0.8 * d);
+    car.tip += (tipT - car.tip) * Math.min(1, (tipT > car.tip ? 7 : 4) * dt);
+    const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side);
+    const pitchT = clamp(-car.ax * 0.0075, -0.09, 0.09) - Math.atan(slope);
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
     car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);
@@ -395,7 +535,7 @@ export function createVehicle(env) {
     const master = audio.master = ctx.createGain(); master.gain.value = audio.vol * 0.9; master.connect(ctx.destination);
     const load = name => fetch(new URL(`../assets/audio/${name}.wav`, import.meta.url).href)
       .then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
-    Promise.all([load('engine'), load('skid'), load('impact')]).then(([eng, skid, imp]) => {
+    Promise.all([load('skid'), load('impact')]).then(([skid, imp]) => {
       const loop = (buf, filterType, f0) => {
         const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
         const filt = ctx.createBiquadFilter(); filt.type = filterType; filt.frequency.value = f0;
@@ -403,12 +543,27 @@ export function createVehicle(env) {
         src.connect(filt); filt.connect(gain); gain.connect(master); src.start();
         return { src, filt, gain };
       };
-      audio.engine = loop(eng, 'lowpass', 2000);
       audio.skid = loop(skid, 'lowpass', 5000);
       // nitro: looped white noise through a band-pass
       const nb = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), nd = nb.getChannelData(0);
       for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
       audio.nos = loop(nb, 'bandpass', 1400); audio.nos.filt.Q.value = 0.7;
+      // Engine: a small buzzy single-cylinder two-stroke, synthesised. Two detuned oscillators (saw plus a square an
+      // octave up) through a resonant low-pass and a mid peak, chopped by a sawtooth LFO at the firing rate (the
+      // "putt putt" at idle that blurs into a buzz), plus a little high-passed exhaust rasp.
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), lfo = ctx.createOscillator();
+      o1.type = 'sawtooth'; o2.type = 'square'; lfo.type = 'sawtooth';
+      const g2 = ctx.createGain(); g2.gain.value = 0.35;
+      const mix = ctx.createGain(), lp = ctx.createBiquadFilter(), pk = ctx.createBiquadFilter(), am = ctx.createGain(), out = ctx.createGain();
+      lp.type = 'lowpass'; lp.Q.value = 2.5; pk.type = 'peaking'; pk.frequency.value = 900; pk.gain.value = 7; pk.Q.value = 1.2;
+      am.gain.value = 0.62; out.gain.value = 0;
+      const lg = ctx.createGain(); lg.gain.value = -0.34; lfo.connect(lg); lg.connect(am.gain);
+      o1.connect(mix); o2.connect(g2); g2.connect(mix); mix.connect(lp); lp.connect(pk); pk.connect(am); am.connect(out); out.connect(master);
+      const rasp = ctx.createBufferSource(); rasp.buffer = nb; rasp.loop = true;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800; const ng = ctx.createGain(); ng.gain.value = 0;
+      rasp.connect(hp); hp.connect(ng); ng.connect(out);
+      for (const o of [o1, o2, lfo, rasp]) o.start();
+      audio.engine = { o1, o2, lfo, lp, out, ng };
       audio.impact = imp;
       audio.ready = true;
     }).catch(err => console.warn('car audio failed to load', err));
@@ -434,9 +589,12 @@ export function createVehicle(env) {
     const speed = Math.abs(car.vf);
     // engine
     const rpm = car.rpm, thr = active ? Math.max(car.thr, car.nosAmt) : 0;
-    set(a.engine.src.playbackRate, 0.5 + 1.25 * rpm + 0.07 * car.nosAmt, 0.04);
-    set(a.engine.gain.gain, active ? 0.22 + 0.4 * thr + 0.12 * rpm : 0, 0.08);
-    set(a.engine.filt.frequency, 900 + 5200 * (0.25 + 0.75 * thr) * (0.5 + 0.5 * rpm), 0.08);
+    const f1 = 62 + 175 * rpm + 18 * car.nosAmt;
+    set(a.engine.o1.frequency, f1, 0.03); set(a.engine.o2.frequency, f1 * 2.01, 0.03);
+    set(a.engine.lfo.frequency, 7 + 52 * rpm, 0.04);
+    set(a.engine.lp.frequency, 700 + 3500 * (0.3 + 0.7 * thr) * (0.4 + 0.6 * rpm), 0.06);
+    set(a.engine.out.gain, active ? 0.16 + 0.2 * thr + 0.08 * rpm : 0, 0.08);
+    set(a.engine.ng.gain, active ? 0.02 + 0.07 * thr * rpm : 0, 0.08);
     // skid and scrape
     const slide = clamp((Math.abs(car.slip) - 0.1) * 3, 0, 1) * clamp(speed / 8, 0, 1) * (car.drift > 0.2 ? 1 : 0.35);
     const hbLock = keys.Space && speed > 5 ? 0.7 : 0;
@@ -483,7 +641,7 @@ export function createVehicle(env) {
     dt = clamp(dt, 0, 0.1);
     cam.t += dt;
     const m = camState.mode;
-    const v = Math.hypot(car.vx, car.vz), sp01 = clamp(v / 45, 0, 1);
+    const v = Math.hypot(car.vx, car.vz), sp01 = clamp(v / 32, 0, 1);
     if (hitId !== cam.lastHit) { cam.lastHit = hitId; cam.trauma = Math.max(cam.trauma, clamp(lastHitMag / 22, 0, 1) * 0.9); }
     if (nosStartId !== cam.lastNosId) { cam.lastNosId = nosStartId; cam.kick = 1; }
     cam.trauma = Math.max(0, cam.trauma - 1.6 * dt);
@@ -500,7 +658,7 @@ export function createVehicle(env) {
 
     const gy = groundY(car.x, car.z);
     // field of view: speed, nitro punch
-    const fovT = baseFov + sp01 * 12 + cam.nosEnv * 11 + cam.kick * 6;
+    const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6;
     cam.fov += (fovT - cam.fov) * Math.min(1, 7 * dt);
     if (Math.abs(camera.fov - cam.fov) > 0.02) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
 
@@ -513,13 +671,15 @@ export function createVehicle(env) {
     cam.roll += (rollT - cam.roll) * Math.min(1, 8 * dt);
 
     if (m === 2) { // bonnet
-      camera.position.set(car.x + f.x * 0.4 + sx, gy + 1.45 + sy, car.z + f.z * 0.4 + sz);
+      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + 1.55 + sy, car.z + f.z * 0.3 + sz);
       camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy), car.z + f.z * 20);
       camera.rotateZ(cam.roll + car.roll * 0.5);
       camState.init = true;
+      for (const d of driverParts) d.visible = false;
       return;
     }
-    const [dist0, h] = [[7.5, 3], [16, 8], null, [3, 130]][m];
+    for (const d of driverParts) d.visible = true;
+    const [dist0, h] = [[5.8, 2.7], [13, 7], null, [3, 130]][m];
     const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 : 0);
     const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 : 0);
     if (!camState.init) { camState.pos.set(dx, dy, dz); camState.init = true; }
@@ -532,7 +692,7 @@ export function createVehicle(env) {
     }
     p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2);
     camera.position.set(p.x + sx, p.y + sy, p.z + sz);
-    const look = f.clone().multiplyScalar(m === 3 ? 0 : 4).add(_p.set(car.x, gy + 1.2, car.z));
+    const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + 1.3, car.z));
     camera.lookAt(look);
     if (cam.roll) camera.rotateZ(cam.roll);
   }
@@ -548,12 +708,18 @@ export function createVehicle(env) {
     const g = carRoot;
     g.position.set(car.x, groundY(car.x, car.z) + car.lift, car.z); g.rotation.y = car.th;
     tilt.rotation.set(car.pitch, 0, car.roll);
-    const spin = (car.vf || 0) * dt / 0.39;
+    // two-wheel lean: tip about the outer rear wheel's contact line (left turn = ay > 0 = lean right, outer wheel on the right)
+    {
+      const th = car.tip * T.tipMax * Math.sign(car.ay), px = -0.66 * Math.sign(car.ay);
+      lean.rotation.z = th; lean.position.set(px * (1 - Math.cos(th)), -px * Math.sin(th), 0);
+    }
+    const spin = (car.vf || 0) * dt / 0.23;
     for (const w of model.wheels) {
       const locked = w.front ? false : (keys.Space && Math.abs(car.vf) > 1);
       if (!locked) w.spin.rotation.x += spin;
       if (w.front) w.pivot.rotation.y = car.steer;
     }
+    bar.rotation.y = car.steer * 0.9;
     brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : 0;
 
     // nitro flames
@@ -563,10 +729,10 @@ export function createVehicle(env) {
       o.visible = i.visible = fl;
       if (fl) {
         const flick = 0.8 + Math.random() * 0.4;
-        o.scale.set(1.5, 1.5, (0.8 + 2.6 * n) * flick); i.scale.set(1.5, 1.5, (0.6 + 1.9 * n) * flick);
+        o.scale.set(1.3, 1.3, (0.7 + 2.2 * n) * flick); i.scale.set(1.3, 1.3, (0.5 + 1.6 * n) * flick);
       }
     }
-    if (fl) { glow.scale.setScalar(1.2 + 2.0 * n * (0.85 + Math.random() * 0.3)); glow.material.opacity = 0.9 * n; }
+    if (fl) { glow.scale.setScalar(1.0 + 1.6 * n * (0.85 + Math.random() * 0.3)); glow.material.opacity = 0.9 * n; }
 
     // tyre smoke while sliding, braking hard with the handbrake, or scraping
     const sp = Math.abs(car.vf);
@@ -577,7 +743,7 @@ export function createVehicle(env) {
       while (smokeAcc >= 1) {
         smokeAcc -= 1;
         const sgn = Math.random() < 0.5 ? 1 : -1;
-        puff(car.x - sn * 1.2 + cs * 0.8 * sgn + (Math.random() - 0.5) * 0.3, g.position.y + 0.15, car.z - cs * 1.2 - sn * 0.8 * sgn + (Math.random() - 0.5) * 0.3,
+        puff(car.x - sn * 0.7 + cs * 0.66 * sgn + (Math.random() - 0.5) * 0.3, g.position.y + 0.15, car.z - cs * 0.7 - sn * 0.66 * sgn + (Math.random() - 0.5) * 0.3,
           car.vx * 0.25 + (Math.random() - 0.5) * 0.8, car.vz * 0.25 + (Math.random() - 0.5) * 0.8, 0.9 + Math.random() * 0.5);
       }
     }
@@ -613,5 +779,6 @@ export function createVehicle(env) {
     if (audio.master) audio.master.gain.value = audio.vol * 0.9;
   }
 
-  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume };
+  setLivery('blu');
+  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery };
 }

@@ -34,7 +34,7 @@ WORLD = os.path.join(ROOT, "world")
 T = 500
 BBOX_LL = (38.065, 13.285, 38.225, 13.420)  # s, w, n, e (docs/TILES.md)
 UA = "palermo-drive-tiles/0.1 (hobby three.js game, OSM ODbL data; contact via github EBonura)"
-ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
+ENDPOINTS = ["https://z.overpass-api.de/api/interpreter", "https://overpass-api.de/api/interpreter"]
 
 # Sub-boxes for fetching: 4 x 3 boxes, split further automatically when Overpass gives up.
 ROWS, COLS = 4, 3
@@ -88,17 +88,17 @@ class Split(Exception):
     pass
 
 
-def overpass(q, tries=14):
+def overpass(q, tries=30):
     """POST a query. Busy servers (429/5xx) get exponential backoff and the mirrors in turn;
     only a query-level timeout or out-of-memory answer raises Split (use smaller boxes)."""
     data = urllib.parse.urlencode({"data": q}).encode()
     wait = 20
     for attempt in range(tries):
-        url = ENDPOINTS[(attempt // 2) % len(ENDPOINTS)]
+        url = ENDPOINTS[attempt % len(ENDPOINTS)]
         req = urllib.request.Request(url, data=data, headers={
             "User-Agent": UA, "Accept-Encoding": "gzip", "Accept": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=600) as r:
+            with urllib.request.urlopen(req, timeout=420) as r:
                 raw = r.read()
                 if r.headers.get("Content-Encoding") == "gzip":
                     raw = gzip.decompress(raw)
@@ -114,7 +114,7 @@ def overpass(q, tries=14):
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ConnectionError) as e:
             print(f"  fetch error {e!r}, waiting {wait}s", flush=True)
         time.sleep(wait)
-        wait = min(wait * 1.6, 240)
+        wait = min(wait * 1.5, 120)
     raise SystemExit("Overpass keeps failing, rerun later (cached boxes are kept)")
 
 

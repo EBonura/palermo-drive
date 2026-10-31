@@ -235,3 +235,17 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   .pd-tap { animation: none; } .pd-screen { transition: opacity .01s; transform: none; }
 }
+
+/* ---------- garage ---------- */
+.pd-s-garage { justify-content: flex-end; }
+.pd-garage { width: min(48vw, 430px); }
+.pd-liveries { overflow-y: auto; overflow-x: hidden; padding: 4px 12px 4px 10px; touch-action: pan-y; max-height: 100%; scrollbar-width: thin; }
+.pd-liv .pd-in { padding-left: 18px; }
+.pd-liv[aria-pressed=true] { background: linear-gradient(90deg, var(--pd-orange), var(--pd-pink)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.75), 0 0 20px rgba(255,45,149,.5); }
+.pd-liv[aria-pressed=true]::before { background: #fff; }
+.pd-liv[style*="--sw"]::after { content: ''; position: absolute; right: 14px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--sw); box-shadow: 0 0 0 2px rgba(255,255,255,.8); transform: skewX(11deg); }
+#pd-ui[data-screen=garage] .pd-scrim { opacity: 1; background: linear-gradient(270deg, rgba(20,5,43,.62) 0%, rgba(20,5,43,.3) 45%, rgba(20,5,43,0) 75%), linear-gradient(0deg, rgba(255,110,60,.2), transparent 40%); }
+@media (max-aspect-ratio: 1/1) { .pd-s-garage { align-items: flex-end; } .pd-garage { width: min(94vw, 480px); } }
+.pd-btn[hidden] { display: none; }
+.pd-garage .pd-h { font-size: clamp(24px, 5.6vh, 38px); white-space: nowrap; }
+.pd-garage { width: min(50vw, 460px); }
