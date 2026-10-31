@@ -6,6 +6,8 @@ One command regenerates world/manifest.json and world/tiles/*.json:
     tools/.venv/bin/python tools/tiles.py --overpass   use the Overpass API (cached per box in data/city/) instead
     tools/.venv/bin/python tools/tiles.py --fetch-only only extract/download, no bake
     tools/.venv/bin/python tools/tiles.py --offline    Overpass path: bake from the cache, never touch the network
+    tools/.venv/bin/python -I tools/tiles.py --publish bake into data/world_stage, then copy only changed tiles + manifest into world/
+    tools/.venv/bin/python -I tools/tiles.py --out DIR bake into DIR instead of world/
 
 Default source is data/city/isole-latest.osm.pbf (Geofabrik, ODbL, needs `osmium` in the venv). It is read in
 three passes and cached as Overpass-shaped `out geom` files data/city/pbf_<cat>_NNN.json.gz (rebuilt when the
@@ -51,7 +53,7 @@ def proj(lat, lon):
 # Fetching
 # ----------------------------------------------------------------------------------------------
 HIGHWAYS = ("motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|"
-            "tertiary|tertiary_link|unclassified|residential|living_street|service|pedestrian|footway|path|cycleway")
+            "tertiary|tertiary_link|unclassified|residential|living_street|service|pedestrian|footway|path|cycleway|track|bridleway")
 
 
 def query_for(cat, b):
@@ -426,8 +428,11 @@ ROAD_WIDTH = {  # roads[] widths (as in bake.py, plus the big roads the whole ci
     "motorway": 14, "motorway_link": 6, "trunk": 12, "trunk_link": 6, "primary": 11, "primary_link": 6,
     "secondary": 10, "secondary_link": 6, "tertiary": 8, "tertiary_link": 6, "unclassified": 6,
     "residential": 6, "living_street": 5, "pedestrian": 6, "service": 4, "footway": 2.2, "path": 2,
-    "cycleway": 2,
+    "cycleway": 2, "track": 3.5, "bridleway": 2.5,
 }
+# Dirt tracks stay centreline-only (no asphalt). src/world.js draws every roads[] entry with k == "track" as a dirt strip, so
+# bridleways (same surface, narrower) are baked as k "track" too; the width tells them apart.
+ROAD_KIND = {"bridleway": "track"}
 CARRIAGEWAY = {  # drivable asphalt widths when OSM has no width/lanes (streets.py values plus big roads)
     "motorway": 8, "motorway_link": 4.5, "trunk": 9, "trunk_link": 4.5, "primary": 10, "primary_link": 4.5,
     "secondary": 9, "secondary_link": 4.5, "tertiary": 8, "tertiary_link": 4.5, "unclassified": 6,
@@ -763,7 +768,7 @@ def parse_highways(files):
             plazas.append(pg)
             ped.append(pg)
             continue
-        r = {"w": ROAD_WIDTH[hw], "k": hw}
+        r = {"w": ROAD_WIDTH[hw], "k": ROAD_KIND.get(hw, hw)}
         if t.get("name"):
             r["n"] = t["name"]
         if tunnel:
@@ -1225,7 +1230,12 @@ def near_for(i, j):
     t = np.clip(best / NEAR_BLEND, 0, 1)
     fall = 1 - t * t * (3 - 2 * t)
     val = far(qx, qz) + bo * fall
-    land_q = shapely.contains_xy(G["land"], qx, qz)
+    # The land polygon only exists inside the bbox rectangle, so "not land" means sea only there. Outside it (the tiles that
+    # straddle the bbox edge) the clamp would drop real ground to -1.5 m while the neighbouring far-grid tile stays at its true
+    # height: the 35 m and 248 m steps on 10_6|10_7 and -14_-16|-14_-15. Outside the rectangle the far grid decides, as before.
+    rx0, rz0, rx1, rz1 = world_rect()
+    in_rect = (qx >= rx0) & (qx <= rx1) & (qz >= rz0) & (qz <= rz1)
+    land_q = shapely.contains_xy(G["land"], qx, qz) | ~in_rect
     val = np.where(land_q, val, np.minimum(val, -1.5))
     if best.min() > NEAR_BLEND:
         return None
@@ -1464,8 +1474,46 @@ def build(offline=False):
     print(f"done in {time.time() - t0:.0f}s")
 
 
+def publish(stage, dest):
+    """Copy only the tiles that differ from `dest` (world/) and then the manifest, each through a temp file + rename so
+    a server (or the autopush smoke test) never sees a half-written file. Tiles go first, the manifest last."""
+    st, dt = os.path.join(stage, "tiles"), os.path.join(dest, "tiles")
+    os.makedirs(dt, exist_ok=True)
+    changed, same, removed = [], 0, []
+    for f in sorted(os.listdir(st)):
+        new = open(os.path.join(st, f), "rb").read()
+        p = os.path.join(dt, f)
+        if os.path.exists(p) and open(p, "rb").read() == new:
+            same += 1
+            continue
+        with open(p + ".part", "wb") as fh:
+            fh.write(new)
+        os.replace(p + ".part", p)
+        changed.append(f[:-5])
+    for f in sorted(os.listdir(dt)):
+        if f.endswith(".json") and not os.path.exists(os.path.join(st, f)):
+            os.remove(os.path.join(dt, f))
+            removed.append(f[:-5])
+    mp = os.path.join(dest, "manifest.json")
+    raw = open(os.path.join(stage, "manifest.json"), "rb").read()
+    if not os.path.exists(mp) or open(mp, "rb").read() != raw:
+        with open(mp + ".part", "wb") as fh:
+            fh.write(raw)
+        os.replace(mp + ".part", mp)
+    print(f"published: {len(changed)} tiles changed, {same} identical, {len(removed)} removed; manifest updated")
+    print("changed tiles:", " ".join(changed))
+    return changed
+
+
 if __name__ == "__main__":
     USE_PBF = "--overpass" not in sys.argv
+    # --out DIR bakes into DIR instead of world/. --publish bakes into data/world_stage and then copies only the tiles
+    # that changed (plus the manifest) into world/ atomically, for rebakes while the game is being served.
+    if "--out" in sys.argv:
+        WORLD = os.path.abspath(sys.argv[sys.argv.index("--out") + 1])
+    PUBLISH = "--publish" in sys.argv
+    if PUBLISH:
+        WORLD_LIVE, WORLD = WORLD, os.path.join(ROOT, "data", "world_stage")
     if "--fetch-only" in sys.argv:
         fetch_all()
         ensure_terrarium()
@@ -1474,3 +1522,5 @@ if __name__ == "__main__":
         PARTIAL = "--partial" in sys.argv
         USE_PBF = "--overpass" not in sys.argv
         build(offline="--offline" in sys.argv or PARTIAL)
+        if PUBLISH:
+            publish(WORLD, WORLD_LIVE)
