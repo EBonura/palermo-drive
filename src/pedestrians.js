@@ -146,7 +146,7 @@ export function createPedestrians(env) {
 
   // ======================================================================== density map (people per m2 of walkable ground)
   const DC = 8, DNX = Math.ceil((AX1 - AX0) / DC), DNZ = Math.ceil((AZ1 - AZ0) / DC);
-  const BASE = 0.0035, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist
+  const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist
   const stamp = (x, z, r, v, zn) => {
     const i0 = Math.max(0, Math.floor((x - r - AX0) / DC)), i1 = Math.min(DNX - 1, Math.floor((x + r - AX0) / DC));
     const j0 = Math.max(0, Math.floor((z - r - AZ0) / DC)), j1 = Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC));
@@ -159,20 +159,20 @@ export function createPedestrians(env) {
   {
     const KX = Math.cos(38.11572 * Math.PI / 180) * 111320, KZ = 110540, pr = (la, lo) => [(lo - 13.36126) * KX, -(la - 38.11572) * KZ];
     const hot = (la, lo, r, v, zn) => { const [x, z] = pr(la, lo); stamp(x, z, r, v, zn); };
-    hot(38.115684, 13.36146, 100, 0.03, 1);    // Quattro Canti
-    hot(38.1151, 13.3622, 60, 0.03, 3);        // Piazza Pretoria
-    hot(38.1199, 13.3573, 85, 0.03, 3);        // Teatro Massimo
-    hot(38.1146, 13.3558, 70, 0.025, 3);       // Cattedrale
-    hot(38.1092, 13.3655, 60, 0.02, 1);        // Stazione
-    stamp(-60, 410, 105, 0.05, 2);             // Ballaro
-    stamp(260, -220, 110, 0.05, 2);            // Vucciria / Garraffello
-    stamp(-390, -245, 90, 0.04, 2);            // Capo
+    hot(38.115684, 13.36146, 100, 0.05, 1);    // Quattro Canti
+    hot(38.1151, 13.3622, 60, 0.05, 3);        // Piazza Pretoria
+    hot(38.1199, 13.3573, 85, 0.05, 3);        // Teatro Massimo
+    hot(38.1146, 13.3558, 70, 0.04, 3);       // Cattedrale
+    hot(38.1092, 13.3655, 60, 0.03, 1);        // Stazione
+    stamp(-60, 410, 105, 0.08, 2);             // Ballaro
+    stamp(260, -220, 110, 0.08, 2);            // Vucciria / Garraffello
+    stamp(-390, -245, 90, 0.06, 2);            // Capo
     const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini/i;
     for (const r of D.roads) {
       let v = 0, zn = 0, rad = 14;
-      if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.032 : 0.018; zn = 1; rad = 22; }
-      else if (r.n && MARKET.test(r.n)) { v = 0.04; zn = 2; rad = 18; }
-      else if (r.k === 'pedestrian') { v = 0.012; zn = 1; rad = 12; }
+      if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
+      else if (r.n && MARKET.test(r.n)) { v = 0.07; zn = 2; rad = 18; }
+      else if (r.k === 'pedestrian') { v = 0.02; zn = 1; rad = 12; }
       if (!v) continue;
       const p = r.p;
       for (let i = 0; i + 3 < p.length; i += 2) {
@@ -183,7 +183,7 @@ export function createPedestrians(env) {
   }
   const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : dens[j * DNX + i]; };
   const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : zone[j * DNX + i]; };
-  const MAXD = 0.05;
+  const MAXD = 0.08;
   // variant weights by zone: nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo
   const VW = [
     [6, 6, 0.5, 2, 4, 5, 1, 0.6, 5, 3, 5, 5, 5, 0.5],
@@ -348,7 +348,12 @@ export function createPedestrians(env) {
       }
     }
     const cl = cell(x, z); if (!cl) return false;
-    if (!atIdle) { const dn = densAt(x, z) * (cl === 2 ? 0.35 : cl === 3 ? 0.5 : 1); if (Math.random() * MAXD > dn) return false; }
+    if (!atIdle) {
+      // streets get more people per m2 than open piazze (crowds line up along streets)
+      let open = 0; for (let k = 0; k < 8; k++) if (cell(x + Math.cos(k * 0.785) * 5, z + Math.sin(k * 0.785) * 5)) open++;
+      const dn = densAt(x, z) * (cl === 2 ? 0.35 : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
+      if (Math.random() * MAXD > dn) return false;
+    }
     if (Math.hypot(x - car.x, z - car.z) < 3.5) return false;
     // not on top of someone else
     for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - x) < 0.5 && Math.abs(Z[j] - z) < 0.5) return false;
@@ -371,7 +376,7 @@ export function createPedestrians(env) {
       if (c) sum += densAt(x, z) * (c === 2 ? 0.35 : c === 3 ? 0.5 : 1);
     }
     const alt = camera.position.y - groundY(cx, cz), altK = clamp(1 - (alt - 40) / 200, 0.4, 1);
-    return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK));
+    return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK * 1.3));
   }
 
   // ======================================================================== behaviour
