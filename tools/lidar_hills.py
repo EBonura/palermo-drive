@@ -23,9 +23,10 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import lidar_raster as lr  # noqa: E402
+import lidar_truth as lt  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(HERE), "data", "dem_lidar_hills")
-PTS = os.path.join(ROOT, "points.json")
+PTS = os.path.join(ROOT, "points_dtm.json")   # points.json (the first version) took the DSM band: canopy and roofs, not ground
 STEP = 20.0
 WINDOW = (-6800.0, 5200.0, -12200.0, 8200.0)   # x0, x1, z0, z1 (the whole-city bbox, a little generous)
 
@@ -77,9 +78,12 @@ def fetch(threads=6):
     def one(c):
         x, z = c[0] * STEP, c[1] * STEP
         lat, lon = lr.xz_to_latlon(x, z)
-        r = lr.gfi_point(lr.LAYERS["dtm"], lat, lon)
+        try:
+            r = lt._ask(lat, lon)   # [dtm, dsm] by band id (@3 / @6); lr.gfi_point returns the last band, the DSM
+        except RuntimeError:
+            return
         with lock:
-            done[f"{c[0]},{c[1]}"] = None if r is None else round(r[1], 1)
+            done[f"{c[0]},{c[1]}"] = None if r is None else round(r[0], 1)
             count[0] += 1
             if count[0] % 500 == 0:
                 _save(done)
