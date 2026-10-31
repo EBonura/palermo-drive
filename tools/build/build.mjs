@@ -96,7 +96,7 @@ html = html.replace(/<script type="importmap">[\s\S]*?<\/script>\s*/, '');
 if (DATA_MODE === 'bin') html = html.replace(/<script src="(palermo|props|context)-data\.js"><\/script>\s*/g, '');
 mustReplace(/<script type="module" src="src\/main\.js"><\/script>/, '', 'the main.js module script');
 const fontPre = [...css.matchAll(/url\("?([^)"]*(?:mr-dafoe|racing-sans-one)[^)"]*\.woff2)"?\)/g)].map(m => `<link rel="preload" as="font" type="font/woff2" crossorigin href="${m[1].replace(/^\.\//, '')}">`); // title fonts: fetch them with the HTML, not after the CSS is parsed
-const preloads = [...fontPre, `<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
+const preloads = [...fontPre, `<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.filter(b => !b.late).map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
 html = html.replace('<link rel="manifest"', preloads.join('\n') + '\n<link rel="manifest"');
 html = html.replace('</body>', `<script type="module" src="js/${appName}"></script>\n</body>`);
 // minify the inline splash script

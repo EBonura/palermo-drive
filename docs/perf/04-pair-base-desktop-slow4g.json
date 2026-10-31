@@ -1,0 +1,244 @@
+{
+ "label": "baseline",
+ "root": "../../../../../../../../../private/tmp/claude-501/pd-perf/srcbase",
+ "profile": "desktop",
+ "net": "slow4g",
+ "cpuThrottle": 1,
+ "query": "debug&fixres",
+ "wire": {
+  "requests": 45,
+  "bytes": 3724230,
+  "rawBytes": 11133270,
+  "atReady": {
+   "requests": 45,
+   "bytes": 3724230,
+   "rawBytes": 11133270
+  },
+  "byKind": {
+   "html": {
+    "wire": 2383,
+    "raw": 6031,
+    "n": 1
+   },
+   "other": {
+    "wire": 8804,
+    "raw": 32470,
+    "n": 4
+   },
+   "js": {
+    "wire": 3274382,
+    "raw": 10655453,
+    "n": 28
+   },
+   "img": {
+    "wire": 361645,
+    "raw": 362300,
+    "n": 7
+   },
+   "font": {
+    "wire": 77016,
+    "raw": 77016,
+    "n": 5
+   }
+  }
+ },
+ "timing": {
+  "dcl": 19607,
+  "loaded": 20065,
+  "fcp": 460,
+  "loadingGone": 19607,
+  "firstDraw": 19783,
+  "readyWallMs": 20226
+ },
+ "jsHeapMB": 93.8,
+ "buildings": {
+  "tris": 1174884,
+  "meshes": 73,
+  "stats": {
+   "styles": {
+    "n19": 1680,
+    "bar": 757,
+    "church": 97,
+    "res": 1777,
+    "pw": 880,
+    "low": 576
+   },
+   "balconies": 18272,
+   "tanks": 6038,
+   "tiled": 783,
+   "flat": 6770,
+   "specs": 13,
+   "photo": 3,
+   "osmCol": 4
+  },
+  "ms": 291.39999997615814
+ },
+ "samples": [
+  {
+   "spot": "Quattro Canti",
+   "glCalls": 670,
+   "glTriangles": 3495041,
+   "calls": 424,
+   "triangles": 2828949,
+   "lines": 0,
+   "points": 436,
+   "geometries": 275,
+   "textures": 31,
+   "programs": 49,
+   "cpuRenderMsMedian": 5.6,
+   "cpuRenderMsP95": 6.4,
+   "frameMsMedian": 6.8,
+   "frameMsP95": 8,
+   "fps": 147.1,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Teatro Massimo",
+   "glCalls": 761,
+   "glTriangles": 3400910,
+   "calls": 497,
+   "triangles": 2810810,
+   "lines": 0,
+   "points": 436,
+   "geometries": 438,
+   "textures": 37,
+   "programs": 50,
+   "cpuRenderMsMedian": 5.9,
+   "cpuRenderMsP95": 6.9,
+   "frameMsMedian": 7.2,
+   "frameMsP95": 8.6,
+   "fps": 138.9,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "La Cala",
+   "glCalls": 731,
+   "glTriangles": 3800001,
+   "calls": 523,
+   "triangles": 3407117,
+   "lines": 0,
+   "points": 436,
+   "geometries": 492,
+   "textures": 42,
+   "programs": 50,
+   "cpuRenderMsMedian": 5.5,
+   "cpuRenderMsP95": 6.4,
+   "frameMsMedian": 6.7,
+   "frameMsP95": 7.8,
+   "fps": 149.3,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Stazione",
+   "glCalls": 534,
+   "glTriangles": 2819716,
+   "calls": 304,
+   "triangles": 2384622,
+   "lines": 0,
+   "points": 436,
+   "geometries": 520,
+   "textures": 42,
+   "programs": 50,
+   "cpuRenderMsMedian": 4.6,
+   "cpuRenderMsP95": 5.5,
+   "frameMsMedian": 5.7,
+   "frameMsP95": 7.1,
+   "fps": 175.4,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  }
+ ],
+ "errors": [],
+ "notFound": [],
+ "topFiles": [
+  [
+   "/palermo-data.js",
+   1592462,
+   5548605
+  ],
+  [
+   "/context-data.js",
+   1114380,
+   2825300
+  ],
+  [
+   "/build/three.module.js",
+   257952,
+   1272972
+  ],
+  [
+   "/assets/facades/photo/jung_1.jpg",
+   101682,
+   101682
+  ],
+  [
+   "/assets/facades/photo/jung_2.jpg",
+   87636,
+   87636
+  ],
+  [
+   "/assets/facades/photo/riso.jpg",
+   84750,
+   84750
+  ],
+  [
+   "/assets/facades/photo/gangi.jpg",
+   44884,
+   44884
+  ],
+  [
+   "/props-data.js",
+   40323,
+   160277
+  ],
+  [
+   "/assets/ui/bonnie-studios.png",
+   35983,
+   35983
+  ],
+  [
+   "/src/props.js",
+   30058,
+   99548
+  ],
+  [
+   "/src/landmarks.js",
+   22668,
+   75591
+  ],
+  [
+   "/src/buildings.js",
+   22094,
+   70243
+  ]
+ ],
+ "consoleTimeline": [
+  [
+   19481,
+   "[buildings] {\"tris\":1175036,\"meshes\":70,\"stats\":{\"styles\":{\"n19\":1680,\"bar\":757,\"church\":97,\"res\":1777,\"pw\":880,\"low\":576},\"balconies\":18278,\"tanks\":6039,\"tiled\":783,\"flat\":6770,\"specs\":13,\"photo\":0,\""
+  ],
+  [
+   19910,
+   "[props] 11200 instances in 1557 meshes, 708k tris, 366 ms {\"signal\":27,\"busstop\":132,\"shelter\":21,\"bollard\":309,\"bin_big\":303,\"bags\":366,\"bench\":115,\"monument\":99,\"fountain\":7,\"palm_fan_c\":43,\"palm_fa"
+  ],
+  [
+   23573,
+   "[buildings] {\"tris\":1174884,\"meshes\":73,\"stats\":{\"styles\":{\"n19\":1680,\"bar\":757,\"church\":97,\"res\":1777,\"pw\":880,\"low\":576},\"balconies\":18272,\"tanks\":6038,\"tiled\":783,\"flat\":6770,\"specs\":13,\"photo\":3,\""
+  ]
+ ]
+}
