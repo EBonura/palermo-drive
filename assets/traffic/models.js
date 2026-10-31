@@ -311,13 +311,15 @@ export function buildModels() {
 
 // One material for every vehicle. Vertex colour gives the fixed parts; the instance colour only
 // multiplies vertices whose `tint` attribute is 1 (the paintwork), so glass and tyres stay put.
+const V4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 export function makeMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 });
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float tint;')
       .replace('#include <color_vertex>',
-        'vColor = vec3(1.0);\n#ifdef USE_COLOR\nvColor *= color;\n#endif\n#ifdef USE_INSTANCING_COLOR\nvColor *= mix(vec3(1.0), instanceColor.xyz, tint);\n#endif');
+        // vColor became a vec4 in r180: initialise it as one when this three.js has the vec4 chunk
+        `${V4 ? 'vColor = vec4(1.0);' : 'vColor = vec3(1.0);'}\n#ifdef USE_COLOR\nvColor.rgb *= color.rgb;\n#endif\n#ifdef USE_INSTANCING_COLOR\nvColor.rgb *= mix(vec3(1.0), instanceColor.xyz, tint);\n#endif`);
   };
   m.customProgramCacheKey = () => 'traffic-tint';
   return m;

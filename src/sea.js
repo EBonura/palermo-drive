@@ -12,6 +12,7 @@
 // overlay offers Riprova (Enter) or Menu (window event 'pd-quit-to-title', cancelable: the shell calls preventDefault()
 // to say it took care of it, else the page reloads). A window event 'pd-drowned' ({ x, z }) tells missions to fail the run.
 import * as THREE from 'three';
+const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 import { QUALITY } from './mobile.js';
 import { pairs, inPoly, rng } from './core.js';
 
@@ -385,7 +386,10 @@ function boatMaterial() {
   mat.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <color_pars_vertex>', '#include <color_pars_vertex>\nattribute float aTint; attribute vec3 iCol1; attribute vec3 iCol2;')
-      .replace('#include <color_vertex>', 'vColor = color * mix(vec3(1.0), mix(iCol1, iCol2, step(1.5, aTint)), step(0.5, aTint));');
+      // three r180+ declares vColor as vec4; older releases as vec3. Emit whichever this build uses.
+      .replace('#include <color_vertex>', SEA_VCOLOR4
+        ? 'vColor = vec4(color.rgb * mix(vec3(1.0), mix(iCol1, iCol2, step(1.5, aTint)), step(0.5, aTint)), 1.0);'
+        : 'vColor = color * mix(vec3(1.0), mix(iCol1, iCol2, step(1.5, aTint)), step(0.5, aTint));');
   };
   return mat;
 }

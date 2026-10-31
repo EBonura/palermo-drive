@@ -596,7 +596,9 @@ export function createRoadWear(env) {
 
   // ---------- physics: the lapa's wheels against the holes ----------
   const WH = [{ lx: 0, fz: 1.15, side: 0, pitch: 1 }, { lx: 0.66, fz: -0.7, side: 1, pitch: -1 }, { lx: -0.66, fz: -0.7, side: -1, pitch: -1 }];
-  const ws = WH.map(() => ({ rec: null, cool: 0 }));
+  // The current vehicle's wheels (vehicle.js sets car.wheelPts: 2 for bikes, 3 for lape, 4 for the car).
+  const wheelSet = () => car.wheelPts || WH;
+  const ws = [0, 1, 2, 3].map(() => ({ rec: null, cool: 0 }));
   function holeAt(x, z) {
     const ix = Math.floor(x / CGS), iz = Math.floor(z / CGS); let best = null;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
@@ -612,7 +614,7 @@ export function createRoadWear(env) {
     return best;
   }
   function impact(rec, wi, k) {
-    const sp = Math.abs(car.vf || 0), w = WH[wi];
+    const sp = Math.abs(car.vf || 0), w = wheelSet()[wi] || WH[0];
     const size = rec.kind ? 0.25 : clamp((rec.r - 0.08) / 0.75, 0.05, 1.3), dep = clamp(rec.dep / 0.14, 0.4, 1.4);
     const I = size * dep * clamp(sp / 13, 0.12, 1.4) * k;
     if (I < 0.02) return;
@@ -625,8 +627,9 @@ export function createRoadWear(env) {
   }
   function collidePlayer(c, dt) {
     const sn = Math.sin(c.th), cs = Math.cos(c.th), moving = Math.abs(c.vf || 0) > 0.8;
-    for (let i = 0; i < 3; i++) {
-      const w = WH[i], st = ws[i], x = c.x + sn * w.fz + cs * w.lx, z = c.z + cs * w.fz - sn * w.lx;
+    const W = wheelSet();
+    for (let i = 0; i < Math.min(W.length, ws.length); i++) {
+      const w = W[i], st = ws[i], x = c.x + sn * w.fz + cs * w.lx, z = c.z + cs * w.fz - sn * w.lx;
       st.cool -= dt;
       const rec = holeAt(x, z);
       if (rec !== st.rec) {
