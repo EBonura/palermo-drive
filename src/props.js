@@ -1885,10 +1885,10 @@ function* generate(S, BUD) {
       const gpick = () => { let t = rf() * 104; for (const [v, w] of GK) { if ((t -= w) <= 0) return v; } return 'tree'; };
       const KEEP = [[-3060, -10150, 85], [-2995, -10120, 50], [-2500, -8960, 45]];
       let gn = 0;
-      for (let x = Math.max(S.x0, -3950); x < Math.min(S.x1, -2150) && gn < 700 * DEN; x += 8) {
+      for (let x = Math.max(S.x0, -3950); x < Math.min(S.x1, -2150) && gn < 520 * DEN; x += 8) {
         if (BUD.over()) yield;
         for (let z = Math.max(S.z0, -10750); z < Math.min(S.z1, -8650); z += 8) {
-          if (rf() > 0.17 * Math.min(1, DEN + 0.3)) continue;
+          if (rf() > 0.3 * Math.min(1, DEN + 0.3)) continue;
           const px = x + RF(-3.6, 3.6), pz = z + RF(-3.6, 3.6);
           if (!inBounds(px, pz) || !raisedMask(px, pz) || road(px, pz) || inB(px, pz) || paving(px, pz) || groundY(px, pz) < 1.0) continue;
           if (KEEP.some(k => hyp2(px - k[0], pz - k[1]) < k[2])) continue;

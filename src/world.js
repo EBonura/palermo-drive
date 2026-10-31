@@ -340,13 +340,15 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       }
       if ((j & 1) === 1) yield;
     }
-    // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid) stay hidden
+    // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid, a low detail cell next to a full detail one) stay hidden.
+    // On a cliff the two meshes of a tile border differ by more than the old 8 m, and the sky showed through as a bright blue sliver.
+    const SKIRT = 30;
     const sk = [], at = (i, j) => (j * n + i);
     for (let i = 0; i < n; i++) { sk.push(at(i, 0), at(i, n - 1), at(0, i), at(n - 1, i)); }
     const nb = n * n, total = nb + sk.length;
     const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
     P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - 8; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; });
+    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; });
     const idx = [];
     for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)

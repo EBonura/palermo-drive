@@ -17,7 +17,7 @@ function init() {
   cv = document.createElement('canvas'); cv.width = Math.ceil((REG.x1 - REG.x0) / REG.res); cv.height = Math.ceil((REG.z1 - REG.z0) / REG.res);
   ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = '#fff'; for (const [x, z, r] of KEEP) { ctx.beginPath(); ctx.arc((x - REG.x0) / REG.res, (z - REG.z0) / REG.res, r / REG.res, 0, 7); ctx.fill(); }
-  tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
 }
 
 function trace(poly) {   // poly: [outer, hole, ...] flat rings
