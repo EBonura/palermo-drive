@@ -16,6 +16,20 @@
   needs quay/pier ground (the whole-city tiles should solve it).
 - Collision for Fontana Pretoria (`window.__landmarkKeepout`), Teatro stairs and lions, Cathedral porch.
 
+## Resume here (2026-10-31 evening)
+
+- Owner will provide a street-level imagery key (Google Street View Static API, or a Mapillary token) so the 300-view comparison can
+  be done for real; the survey (docs/faithfulness/survey/) compared only ~20 views against Street View because the browser pane
+  returned black frames. Redo it with the key: fetch the view per viewpoint, compare, write findings (images stay out of the repo).
+- In progress when stopped (see each status note): terrain (docs/faithfulness/terrain.md: buried mountain roads, load-order race in
+  world.js computeShape, Pellegrino shape, Monte Gallo cliff, Mondello at sea level), streetscape (docs/faithfulness/streetscape.md:
+  paving halos, verges, motorways/medians/guard rails, Regione Siciliana gap), vegetation (docs/faithfulness/vegetation.md: species),
+  missing building footprints (docs/TILES.md "Footprint gap filling").
+- Mondello leftovers (docs/faithfulness/mondello.md): big block w73411051, Hotel La Torre, beach width.
+- Landmark leftovers (docs/faithfulness/landmarks.md): Cuba, Eremiti, Normanni front, Stazione Marittima, stadium stair ramps and fence collision.
+- Mondello has no bus: AMAT 806 isn't in OSM.
+- Phone budget: props 260-340k tris, thin rubbish piles first if phones struggle.
+
 ## Faithfulness (owner, standing rule)
 
 - Every visual change is compared side by side with Google Maps satellite/Street View (look only) and photos of the same viewpoint.
