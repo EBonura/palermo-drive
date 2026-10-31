@@ -23,6 +23,8 @@ for (const root of roots) {
   for (const [name, q] of Object.entries(VIEWS)) {
     const page = await browser.newPage();
     if (CDN) { await page.setRequestInterception(true); page.on('request', r => { const m = r.url().match(/^https:\/\/cdn\.jsdelivr\.net(\/npm\/.*)$/); m ? r.continue({ url: `http://127.0.0.1:${port}/__cdn${m[1]}` }) : r.continue(); }); }
+    page.on('pageerror', e => console.log('  pageerror', tag, name, String(e.message).slice(0, 200)));
+    page.on('console', m => { if (m.type() === 'error') console.log('  console.error', tag, name, m.text().slice(0, 200)); });
     await page.goto(`http://127.0.0.1:${port}/?${q}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => !document.getElementById('loading') && !!document.getElementById('view') && document.readyState !== 'loading', { timeout: 120000, polling: 250 });
     await new Promise(r => setTimeout(r, 6000));
