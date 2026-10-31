@@ -287,7 +287,8 @@ export function createPedestrians(env) {
   const VX = F(CAP), VZ = F(CAP), VY = F(CAP), HOP = F(CAP), ROLL = F(CAP), RD = F(CAP), TMR = F(CAP), STEER = F(CAP), TRAV = F(CAP), NEXTT = F(CAP);
   const SHT = F(CAP), SHC = F(CAP), BRI = F(CAP), SIZE = F(CAP), REACT = F(CAP), WAITT = F(CAP), TFLY = F(CAP);
   const ST = U(CAP), VAR = U(CAP), ZN = U(CAP), CLS = U(CAP), TICK = U(CAP);
-  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK];
+  const MIR = F(CAP);                                   // team-bus miracle countdown (seconds left standing up), 0 when seated
+  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR];
   const removeAt = i => { const l = --N.n; if (i !== l) for (const a of copyArrs) a[i] = a[l]; };
 
   // sun direction (horizontal, towards the sun) from the scene's directional light, for the "am I in a building's shade" test
@@ -485,7 +486,7 @@ export function createPedestrians(env) {
         const kf = Math.exp(-1.3 * dt); c.vx *= kf; c.vz *= kf;
       }
       const d = Math.hypot(c.x - cx0, c.z - cz0);
-      if (d > quality.R + 14 || (c.t > 30 && d > 35) || c.t > 150) { chairs.splice(k, 1); continue; }
+      if (c.dead || (c.keep && c.t > 3.2) || d > quality.R + 14 || (!c.keep && ((c.t > 30 && d > 35) || c.t > 150))) { chairs.splice(k, 1); continue; }
       c.y += (groundY(c.x, c.z) + (raisedMask(c.x, c.z) ? CURB : 0) - c.y) * Math.min(1, 14 * dt);
     }
   }
@@ -495,7 +496,7 @@ export function createPedestrians(env) {
       const i = n + k; if (i >= CAP) break; k++;
       const dxc = cpx - c.x, dzc = cpz - c.z, dist = Math.hypot(dxc, dzc) || 1, wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
       const s = wx * tx + wz * tz, cc = wx * tz - wz * tx, dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
-      const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
+      const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = c.keep ? 0 : u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
       pos[i * 3] = c.x; pos[i * 3 + 1] = c.y; pos[i * 3 + 2] = c.z;
       A[i * 4] = dir * POSES + (Math.hypot(c.vx, c.vz) > 0.15 ? Math.floor((c.ph % 1) * 4) & 3 : 0); A[i * 4 + 1] = CHAIRV; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
       B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1;
@@ -503,6 +504,25 @@ export function createPedestrians(env) {
     return k;
   }
 
+  // The team bus gag (src/gags.js): a wheelchair user within r of (x, z) stands up, shouts, hops for joy, then sits back down.
+  // The empty chair waits beside him (c.keep stops it tipping over). Returns true when someone stood up.
+  function miracle(x, z, r) {
+    const r2 = r * r;
+    for (let i = 0; i < N.n; i++) {
+      if (VAR[i] !== WCV || MIR[i] > 0 || ST[i] > WAIT) continue;
+      const dx = X[i] - x, dz = Z[i] - z; if (dx * dx + dz * dz > r2) continue;
+      if (chairs.length >= 10) chairs.shift();
+      const ch = { x: X[i], z: Z[i], y: Y[i], th: TH[i], vx: 0, vz: 0, t: 0, rd: 1, ph: 0, sh: SHC[i], keep: true };
+      chairs.push(ch);
+      VAR[i] = HEALV; ST[i] = IDLE; V[i] = 0; TMR[i] = 6; MIR[i] = 3.2;
+      const id = i; env.shout?.(X[i], Y[i] + 1.9, Z[i], 'Oh Palermo \u00E8 miracoloso!', () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }));
+      return true;
+    }
+    return false;
+  }
+  function seatAgain(i) {
+    if (VAR[i] === HEALV) { VAR[i] = WCV; ST[i] = IDLE; TMR[i] = rand(2, 5); V[i] = 0; HOP[i] = 0; }
+  }
   const knockCbs = [];
   function knock(i, nx, nz) {
     for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
@@ -559,6 +579,7 @@ export function createPedestrians(env) {
     const sfx = Math.sin(car.th), sfz = Math.cos(car.th);
     for (let i = 0; i < N.n; i++) {
       AGE[i] += dt;
+      if (MIR[i] > 0) { MIR[i] -= dt; HOP[i] = MIR[i] > 0 ? 0.1 * Math.abs(Math.sin(MIR[i] * 9)) : 0; if (MIR[i] <= 0) seatAgain(i); }
       let st = ST[i];
       // decision tick, staggered
       if ((STEER[i] -= dt) <= 0 && st <= WAIT) { STEER[i] = 0.1 + Math.random() * 0.04; steer(i, 0.12); st = ST[i]; }
@@ -780,5 +801,7 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
-  return { update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, onKnock: f => { knockCbs.push(f); } };
+  const api = { update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
+  return api;
 }
