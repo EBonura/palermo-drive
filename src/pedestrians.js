@@ -3,7 +3,7 @@
 // Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
-// - Art: assets/peds/sprites.js draws 14 pixel-art characters x 4 directions x 4 poses onto one canvas atlas.
+// - Art: assets/peds/sprites.js draws 22 pixel-art characters x 4 directions x 4 poses onto one canvas atlas.
 // - Rendering: two InstancedBufferGeometry draws (sprites, blob shadows) fed by the same per-instance buffers.
 //   The vertex shader billboards around the vertical axis only; the CPU picks the atlas cell from the angle between
 //   the camera and the walking direction and from the walk phase.
@@ -184,12 +184,12 @@ export function createPedestrians(env) {
   const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : dens[j * DNX + i]; };
   const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : zone[j * DNX + i]; };
   const MAXD = 0.08;
-  // variant weights by zone: nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo
+  // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
   const VW = [
-    [6, 6, 0.5, 2, 4, 5, 1, 0.6, 5, 3, 5, 5, 5, 0.5],
-    [3, 4, 1, 6, 3, 6, 1, 1.2, 6, 5, 2, 6, 6, 0.5],
-    [8, 6, 9, 2, 4, 4, 0.5, 0.5, 6, 1, 6, 6, 3, 7],
-    [1.5, 2, 0.5, 12, 3, 4, 3, 2, 5, 3, 2, 5, 5, 0.2]];
+    [6, 6, 0.5, 2, 4, 5, 1, 0.6, 3, 3, 5, 5, 4, 0.5, 3, 1.5, 3, 5, 4, 2, 3, 0.5],
+    [3, 4, 1, 6, 3, 6, 1, 1.2, 3, 5, 2, 6, 5, 0.5, 3, 3, 4, 3, 4, 5, 3, 0.5],
+    [8, 6, 9, 2, 4, 4, 0.5, 0.5, 3, 1, 6, 6, 3, 7, 3, 0.5, 2, 5, 3, 1, 4, 8],
+    [1.5, 2, 0.5, 12, 3, 4, 3, 2, 3, 3, 2, 5, 4, 0.2, 3, 1.5, 3, 1, 3, 10, 3, 0.2]];
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0));
   const pickVariant = zn => { let r = Math.random() * VWsum[zn]; const w = VW[zn]; for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
   const IDLE_RATE = [0.015, 0.03, 0.08, 0.05];            // chance per second of stopping for a while
@@ -636,6 +636,6 @@ export function createPedestrians(env) {
 
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
-  if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, cell, tiles, quality: () => quality, knock, items };
+  if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
   return { update, collidePlayer, setQuality, stats };
 }

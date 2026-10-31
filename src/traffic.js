@@ -64,7 +64,7 @@ const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI)
 export function createTraffic(env) {
   const { scene, camera, car, groundY, walls2d, closestOnSeg, D } = env;
   const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const MAXV = COARSE ? 42 : 95;
+  const MAXV = +(location.search.match(/[?&]tn=(\d+)/) || [])[1] || (COARSE ? 42 : 95);
   const CAPS = { bus: COARSE ? 2 : 4, carrozza: COARSE ? 1 : 2, carretto: COARSE ? 0 : 1 };
   const DEBUG = /[?&]trafficsim/.test(location.search);
 
@@ -249,10 +249,10 @@ export function createTraffic(env) {
   // ---------- driving ----------
   function mustHold(v, e, rem, exitSpace) {
     const n = e.b, ty = v.ty;
-    if (SIG.has(n) && !green(n, e, time)) return true;
+    if (SIG.has(n) && !green(n, e, time)) { v.why = 'sig'; return true; }
     if (NDEG[n] < 3) return false;
     if (v.wait > 9) return false;                                    // gridlock breaker
-    if (exitSpace < ty.L + 1.2 && v.wait < 6) return true;          // keep the box clear
+    if (exitSpace < ty.L + 1.2 && v.wait < 6) { v.why = 'exit'; return true; }          // keep the box clear
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1], tc = en ? e.dx * en.dz - e.dz * en.dx : 0; // > 0: turning right, < 0: left
     const eager = v.wait > 3.5;
@@ -260,21 +260,21 @@ export function createTraffic(env) {
       const o = occ[i]; if (o === v) continue;
       const oe = o.route[0];
       if (oe.b !== n) { // already past the node and still inside it
-        if (oe.a === n && o.t < 4.5 && oe !== en && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) return true;
+        if (oe.a === n && o.t < 4.5 && oe !== en && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; return true; }
         continue;
       }
       if (oe === e) continue;
       const remO = oe.len - o.t;
       if (remO > 3 && remO / Math.max(o.v, 2.5) > 3.8) continue;       // far away
-      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) return true; continue; } // it is in the box already
+      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why = 'inbox'; return true; } continue; } // it is in the box already
       const dot = oe.dx * e.dx + oe.dz * e.dz, rightDot = oe.dx * e.rx + oe.dz * e.rz;
       if (eager) continue;
       if (dot < -0.8) { // oncoming: only a left turn crosses it
-        if (tc < -0.35 && (oe.rank >= e.rank)) { const ot = o.route[1]; if (!ot || oe.dx * ot.dz - oe.dz * ot.dx > -0.35) return true; }
+        if (tc < -0.35 && (oe.rank >= e.rank)) { const ot = o.route[1]; if (!ot || oe.dx * ot.dz - oe.dz * ot.dx > -0.35) { v.why = 'onc'; return true; } }
         continue;
       }
-      if (oe.rank > e.rank) return true;
-      if (oe.rank === e.rank && rightDot < -0.35) return true;
+      if (oe.rank > e.rank) { v.why = 'rank'; return true; }
+      if (oe.rank === e.rank && rightDot < -0.35) { v.why = 'right'; return true; }
     }
     return false;
   }
@@ -572,6 +572,7 @@ export function createTraffic(env) {
   let debugDone = false;
   function runDebug() {
     const cam = camera, cx = car.x, cz = car.z, log = [];
+    const car0 = [car.x, car.z]; car.x = 9000; car.z = 9000; // park the player out of the way for the flow test
     cam.position.set(cx, 25, cz); cam.lookAt(cx, 0, cz + 1);
     const mask = document.createElement('canvas'), [x0, z0, x1, z1] = D.streets.aoi;
     mask.width = Math.ceil(x1 - x0); mask.height = Math.ceil(z1 - z0);
@@ -601,8 +602,14 @@ export function createTraffic(env) {
         log.push(`t=${((s + 1) / 30) | 0}s n=${vs.length} avgV=${(sp / Math.max(1, vs.length)).toFixed(1)} stuck20=${stuck} waiting=${wait} ms=${(ttot / tn).toFixed(2)}`);
       }
     }
+    car.x = car0[0]; car.z = car0[1];
     for (const v of vs) types[v.name] = (types[v.name] || 0) + 1;
     const dump = vs.filter(v => v.stuck > 15).slice(0, 14).map(v => `${v.name}@${v.x | 0},${v.z | 0} v=${v.v.toFixed(1)} v0=${v.v0.toFixed(1)} hold=${v.hold} wait=${v.wait.toFixed(0)} gap=${v.minGap.toFixed(1)} blk=${v.blocker ? (v.blocker === 'player' ? 'PLAYER' : v.blocker.name + '@' + (v.blocker.x | 0) + ',' + (v.blocker.z | 0)) : '-'} rem=${(v.route[0].len - v.t).toFixed(0)} e=${v.route[0].name}${v.route[0].ow ? '(1w)' : ''} ndeg=${NDEG[v.route[0].b]} routeN=${v.route.length}`);
+    const roots = {};
+    for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
+    console.log('TRAFFIC roots ' + JSON.stringify(roots));
+    const fr = vs.filter(v => v.stuck > 15 && !v.hold && !v.blocker).slice(0, 6).map(v => { const e = v.route[0]; return `${v.name}@${v.x | 0},${v.z | 0} rem=${(e.len - v.t).toFixed(1)} route=${v.route.length} outs=${NOUT[e.b].map(c => (c.ped ? 'P' : '') + (allowed(c, v.ty) ? 'ok' : 'no') + c.rank).join(',')} ins=${NIN[e.b].length} v0=${v.v0.toFixed(1)} v=${v.v.toFixed(2)} gap=${v.minGap.toFixed(1)} stopT=${v.stopT.toFixed(1)}`; });
+    console.log('TRAFFIC free ' + fr.join(' || '));
     console.log('TRAFFIC stuck: ' + dump.join(' || '));
     console.log('TRAFFIC ' + log.join(' | '));
     console.log(`TRAFFIC mean update ${(ttot / tn).toFixed(2)} ms, max ${tmax.toFixed(2)} ms, offAsphalt ${(100 * off / Math.max(1, offN)).toFixed(1)}%, overlapPairs ${overl} of ${overlN} pair-frames, graph nodes ${NX.length} edges ${EDGES.length}, types ${JSON.stringify(types)}`);
