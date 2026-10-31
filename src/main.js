@@ -237,7 +237,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') placeAt(car.x, car.z);
   if (e.code === 'Slash' || e.code === 'F1') { document.getElementById('help').classList.toggle('show'); e.preventDefault(); }
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= SPOTS.length) placeAt(...proj(SPOTS[n - 1][1], SPOTS[n - 1][2]));
+  if (n >= 1 && n <= SPOTS.length) { const [x, z] = proj(SPOTS[n - 1][1], SPOTS[n - 1][2]); placeAt(x, z); world?.teleport(x, z, () => placeAt(x, z)); }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -256,7 +256,7 @@ const shouts = createShouts(camera);
 // Modules without env access (props) can raise a balloon with a 'pd-shout' event.
 addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text); });
 let horn; // created once game settings exist (volume)
-const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout };
+const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer (null with ?world=0), see docs/TILES.md for onTile
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
@@ -346,7 +346,10 @@ setupMobile({ keys, camState, renderer, camera });
 placeAt(0, 0);
 { // ?spot=2&cam=1&turn=135 starts at a teleport spot, camera mode and heading offset in degrees
   const q = new URLSearchParams(location.search), spot = +q.get('spot'), turn = +q.get('turn');
-  if (spot >= 1 && spot <= SPOTS.length) placeAt(...proj(SPOTS[spot - 1][1], SPOTS[spot - 1][2]));
+  if (spot >= 1 && spot <= SPOTS.length) { // far spots wait for their tiles before the lapa looks for a road
+    const [x, z] = proj(SPOTS[spot - 1][1], SPOTS[spot - 1][2]);
+    placeAt(x, z); world?.teleport(x, z, () => { placeAt(x, z); if (turn) car.th += turn * Math.PI / 180; });
+  }
   if (turn) car.th += turn * Math.PI / 180;
   if (q.has('cam')) camState.mode = +q.get('cam') % 4;
   if (q.has('help')) document.getElementById('help').classList.remove('show');

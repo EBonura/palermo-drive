@@ -59,6 +59,14 @@ coast. Everything is baked into square tiles that the game streams around the ca
 - `world.drivePlayer(car, dt)` (called from the physics loop): off the hard surface the car loses a third of its grip, bounces and drags a little.
 - `world.isLand(x, z)`: manifest coastline; main.js only runs the sea's drowning check when it is false.
 
+## Default and per-tile hooks
+
+- The whole city is now the default; `?world=0` gives the old centro-only map (main.js creates the streamer unless that flag is set).
+- `world.onTile(fn)`: `fn('full', t)` when a tile reaches full detail, `fn('drop', t)` just before it leaves full detail (downgrade or release).
+  New subscribers get `'full'` replayed for every tile already at full detail. Returns an unsubscribe function. `t.i`, `t.j` (tile indices,
+  `T = 500` m), `t.k` (numeric key), `t.data` (the parsed tile: buildings, roads, streets, areas, labels, props, near).
+- `world.fullTiles()`: the tiles currently at full detail. `main.js` exposes the streamer as `world` (and on `window.game.world` with `?debug`).
+
 ## Phase 2: what each module needs to become per-tile
 
 - **props.js**: takes `(ctx, tile)`; reads `tile.props` (`items`, `areas`, `counts`), `tile.streets` masks (asphalt/paving/raised rasters per
