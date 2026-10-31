@@ -26,6 +26,23 @@ import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on pho
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 
+// Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
+// (plus Noce and Zisa from Nominatim, which have no place node).
+const QUARTIERI = [
+  ['Albergheria', 38.111251, 13.358334], ['Il Capo', 38.117661, 13.355602], ['Kalsa', 38.115137, 13.367461], ['La Loggia', 38.119866, 13.364662],
+  ['Olivuzza', 38.120092, 13.342101], ['Zisa', 38.1161147, 13.3411786], ['Noce', 38.1219509, 13.3334578], ['Altarello', 38.110381, 13.324993],
+  ['Baida', 38.114102, 13.297628], ['Boccadifalco', 38.108972, 13.306518], ['Borgo Nuovo', 38.129106, 13.294677], ['Bellolampo', 38.137249, 13.273214],
+  ['Passo di Rigano', 38.126318, 13.313429], ['Uditore', 38.132088, 13.325215], ['Cruillas', 38.143188, 13.320218], ['Inserra', 38.153439, 13.301051],
+  ['Quartiere Matteotti', 38.141886, 13.342916], ['Resuttana', 38.154198, 13.333469], ['San Lorenzo', 38.160828, 13.325925], ['Patti', 38.171209, 13.319675],
+  ['Pallavicino', 38.172533, 13.327618], ['Cardillo', 38.174603, 13.299546], ['Zen', 38.180561, 13.317062], ['Tommaso Natale', 38.190099, 13.287014],
+  ['Sferracavallo', 38.198467, 13.277152], ['Partanna', 38.196114, 13.310577], ['Mondello', 38.206214, 13.324552], ['Valdesi', 38.196173, 13.330951],
+  ['Addaura', 38.188966, 13.351365], ['Vergine Maria', 38.165799, 13.367677], ['Arenella', 38.152782, 13.375014], ['Acquasanta', 38.145398, 13.367408],
+  ['Villaggio Santa Rosalia', 38.09855, 13.350514], ['Pagliarelli', 38.089992, 13.331153], ['Villagrazia', 38.077792, 13.335862], ['Molara', 38.08161, 13.310733],
+  ['Falsomiele', 38.089746, 13.357153], ['Chiavelli', 38.082498, 13.368055], ['Guadagna', 38.098424, 13.368817], ['Settecannoli', 38.10056, 13.38309],
+  ['Romagnolo', 38.104641, 13.388605], ['Brancaccio', 38.095578, 13.383682], ['Ciaculli', 38.078302, 13.401197], ['Roccella', 38.092384, 13.410641],
+  ['Bandita', 38.097383, 13.416877], ['Acqua dei Corsari', 38.091611, 13.430685], ['Pomara', 38.084645, 13.43419], ['Croce Verde', 38.069522, 13.417503],
+];
+
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
   ['Teatro Massimo', 38.1199, 13.3573],
@@ -48,6 +65,17 @@ const SPOTS = [
   ['La Favorita (Palazzina Cinese)', 38.1667781, 13.3303513],
   ['Santuario di Santa Rosalia', 38.1680111, 13.3518430],
   ['Mondello (la piazza)', 38.2077898, 13.3266288],
+  ['Castello Utveggio', 38.1520766, 13.3556805],
+  ['Castello della Zisa', 38.1161147, 13.3411786],
+  ['La Cuba (Corso Calatafimi)', 38.1075791, 13.3426146],
+  ['Villa Giulia e Orto Botanico', 38.1134959, 13.3756082],
+  ['Ponte dell\'Ammiraglio', 38.1051828, 13.3750044],
+  ['Tonnara Florio (Arenella)', 38.1516884, 13.3744234],
+  ['Giardino Inglese', 38.1312509, 13.3522947],
+  ['Fiera del Mediterraneo', 38.1445037, 13.3565490],
+  ['Piazza Leoni (ingresso Favorita)', 38.1468260, 13.3433865],
+  ['Piazza Sant\'Anna', 38.1149181, 13.3651434],
+  ['Stazione Notarbartolo', 38.1315626, 13.3408256],
 ];
 
 // ---------- renderer / scene ----------
@@ -252,7 +280,11 @@ placeAt(0, 0);
   // ?campos=x,y,z&look=x,y,z pins a free camera (for screenshots); proj() gives x,z from lat/lon.
   if (q.has('campos')) {
     const [p, l] = ['campos', 'look'].map(k => (q.get(k) || '0,0,0').split(',').map(Number));
-    freeCam = () => { camera.position.set(...p); camera.lookAt(...l); };
+    const aerial = q.has('aerial'); // ?aerial: no haze and a far clip plane, for whole-map overview shots
+    freeCam = () => {
+      camera.position.set(...p); camera.lookAt(...l);
+      if (aerial) { if (camera.far < 90000) { camera.far = 90000; camera.updateProjectionMatrix(); } if (scene.fog) scene.fog.density = 0.000004; }
+    };
     if (!q.has('hud')) document.querySelectorAll('.hud').forEach(e => e.style.display = 'none');
   }
 }
@@ -307,7 +339,7 @@ if (window.game) window.game.suca = suca;
 if (window.game) window.game.traffic = traffic;
 // with the streamed world, a far start spot has to load before the lapa can find a road there
 const placeStart = (x, z) => { try { placeAt(x, z); } catch (e) { /* no road yet */ } world?.teleport(x, z, () => placeAt(x, z)); };
-setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, proj, groundY, D });
+setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
