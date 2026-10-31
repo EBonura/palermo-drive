@@ -33,12 +33,18 @@ function buildZisa() {
       g.quadraticCurveTo(X(cx - bw / 2), Y(y1 - bw * 0.2), X(cx), Y(y1)); g.quadraticCurveTo(X(cx + bw / 2), Y(y1 - bw * 0.2), X(cx + bw / 2), Y(y1 - bw * 0.7));
       g.lineTo(X(cx + bw / 2), Y(y0)); g.closePath(); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
     };
-    arches.forEach((cx, i) => {
-      pointed(cx, 1.2, 19.6, 8.8, '#a98f64', 'rgba(60,45,25,0.8)', 4);   // the tall blind arch
-      pointed(cx, 1.6, 18.6, 7.6, '#b39a70', 'rgba(60,45,25,0.5)', 2);
-      pointed(cx, 0, i === 1 ? 6.4 : 5.2, i === 1 ? 4.2 : 3.4, '#1c1712', '#e0d3b0', 5);   // portal
-      for (const [y0, y1] of [[8.4, 10.8], [12.0, 14.4]]) for (const dx of (i === 1 ? [-1.8, 1.8] : [-1.5, 1.5])) { pointed(cx + dx, y0, y1, 1.1, '#2b231c', '#e0d3b0', 2.5); }
-    });
+    // seven bays: pointed blind arches over two storeys with rectangular windows, three portals at the foot (the middle one the grand iwan)
+    const NB = 7, bw = W / NB, rect = (cx, y0, y1, ww) => { g.fillStyle = '#2b251e'; g.fillRect(X(cx - ww / 2), Y(y1), ww * sx, (y1 - y0) * sy); g.fillStyle = '#e3d5ae'; g.fillRect(X(cx - ww / 2) - 2, Y(y1) - 2, ww * sx + 4, 3); };
+    for (let i = 0; i < NB; i++) {
+      const cx = bw * (i + 0.5);
+      pointed(cx, 8.6, 20.2, bw - 1.4, '#b8a37a', 'rgba(60,45,25,0.55)', 3);            // the tall blind arch of the upper storeys
+      pointed(cx, 8.6, 19.0, bw - 2.6, '#c3ae84', 'rgba(60,45,25,0.35)', 2);
+      rect(cx, 10.4, 13.0, 1.05); rect(cx, 14.6, 17.2, 1.05);
+      if (i % 2 === 1) { const mid = i === 3, pw = mid ? 4.6 : 3.2, ph = mid ? 7.4 : 5.6;
+        pointed(cx, 0, ph + 2.2, pw + 2.2, '#a98f64', 'rgba(60,45,25,0.7)', 4);           // recess round the portal
+        pointed(cx, 0, ph, pw, '#18130f', '#e6d9b6', 5); }                                   // the portal itself
+      else { pointed(cx, 1.2, 7.2, bw - 2.2, '#b49b70', 'rgba(60,45,25,0.5)', 3); rect(cx, 2.6, 5.0, 0.9); }
+    }
     g.fillStyle = '#3a2f22'; g.fillRect(0, Y(23.2), w, 1.3 * sy);                              // inscription band
     g.fillStyle = '#c9b78e'; for (let x = 0.3; x < W; x += 0.6) g.fillRect(X(x), Y(22.8), 0.3 * sx, 0.5 * sy);
     g.fillStyle = 'rgba(40,30,20,0.18)'; g.fillRect(0, Y(20.1), w, 0.4 * sy);
@@ -146,21 +152,24 @@ function buildPonte() {
   const M = frame((a[0] + b[0]) / 2, gy, (a[1] + b[1]) / 2, -uz, ux);   // local x along the bridge
   begin(gy);
   defMat('pontStone', 256, 256, [3.2, 3.2], (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.32, 0.7, '#aaa07c', '#6f6648', 731, 2, 0.1));
-  const spans = [2.6, 3.4, 4.2, 5.0, 5.8, 6.4, 5.8, 5.0, 4.2, 3.4, 2.6], pier = 2.0, BW = 5.6;
+  // nine pointed arches of unequal span (the tall ones in the middle), a shallow hump, grey-ochre ashlar; a round masonry tower at each end
+  const sp0 = [2.4, 3.2, 4.2, 5.4, 6.6, 5.4, 4.2, 3.2, 2.4], pier = 2.4, BW = 5.6, sc = (L - pier * (sp0.length + 1)) / sp0.reduce((a, v) => a + v, 0), spans = sp0.map(v => v * sc);   // fitted to the OSM way
   let tot = pier; for (const s of spans) tot += s + pier;
-  let x = -tot / 2 + pier / 2;
-  const hump = (xx) => 3.2 + 3.4 * Math.cos(xx / (tot / 2) * PI / 2);
-  box('pontStone', pier, hump(x), BW, { M, p: [x, 0, 0] }); x += pier / 2;
+  const hump = (xx) => 4.4 + 3.0 * Math.cos(xx / (tot / 2) * PI / 2);
+  let x = -tot / 2;
+  box('pontStone', pier, hump(x + pier / 2), BW, { M, p: [x + pier / 2, 0, 0], c: '#d8d0b0' }); x += pier;
   for (const s of spans) {
     const cx = x + s / 2, H = hump(cx);
-    archBay('pontStone', s + pier, H, s, Math.min(H - 0.8, s * 0.95 + 0.4), BW, { M: mul(M, tr(cx, 0, -BW / 2)), pointed: true });
-    x += s + pier / 1;
+    archBay('pontStone', s + pier, H, s, Math.min(H - 0.7, s * 1.15 + 0.6), BW, { M: mul(M, tr(cx, 0, -BW / 2)), pointed: true, c: '#e6dfc2' });
+    x += s + pier;
   }
-  // parapets on both sides, following the hump
-  for (let q = 0; q < 16; q++) {
-    const x0 = -tot / 2 + q * tot / 16, x1 = x0 + tot / 16, y0 = hump((x0 + x1) / 2) + 0.2;
-    for (const sg of [-1, 1]) bx('pontStone', M, x0, x1 + 0.02, y0 - 0.5, y0 + 0.75, sg * (BW / 2 - 0.3) - 0.3, sg * (BW / 2 - 0.3) + 0.3);
+  // parapets on both sides, following the hump in short sloped slabs
+  const NQ = 28;
+  for (let q = 0; q < NQ; q++) {
+    const x0 = -tot / 2 + q * tot / NQ, x1 = x0 + tot / NQ, y0 = hump(x0) + 0.25, y1 = hump(x1) + 0.25, len = Math.hypot(x1 - x0, y1 - y0), rz = Math.atan2(y1 - y0, x1 - x0);
+    for (const sg of [-1, 1]) box('pontStone', len + 0.04, 1.1, 0.6, { M, p: [(x0 + x1) / 2, (y0 + y1) / 2, sg * (BW / 2 - 0.3)], rz, c: '#ddd5b6' });
   }
+  for (const sg of [-1, 1]) { cyl('pontStone', 1.3, 1.5, 8.2, 10, { M, p: [sg * (tot / 2 - 0.4), -0.5, BW / 2 - 0.2], c: '#d8d0b0' }); }
   return end("Ponte dell'Ammiraglio");
 }
 export const PONTE = { name: "Ponte dell'Ammiraglio", x: 1209, z: 1182, radius: 60, skipIds: [], build: buildPonte };
