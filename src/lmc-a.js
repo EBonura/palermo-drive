@@ -176,7 +176,7 @@ function buildStadio() {
   defMat('stFacade', 256, 512, [12, 18], (g, w, h) => paintFacade(g, w, h, 12, 18, { base: '#d8d2c4', trim: '#bfb8a8', glass: '#2a8c93', seed: 505,
     bands: [{ y: 13.4, h: 3.6, c: '#2f9aa1' }, { y: 5.4, h: 0.5, c: '#a9a396' }], pil: { xs: [0, 6], w: 0.8, c: '#e9e4d8' },
     rows: [{ y0: 1.2, y1: 4.2, n: 4, m: 1.5, w: 1.6, kind: 'rect', fr: 0.1, ped: false, glass: '#59636b' }, { y0: 7.0, y1: 10.5, n: 3, m: 2.2, w: 2.2, kind: 'rect', fr: 0.1, glass: '#59636b' }] }), { side: THREE.DoubleSide });
-  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2b9ea3'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
+  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2f8284'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
   defMat('stSteel', 0, 0, [1, 1], null, { roughness: 0.6 });
   defMat('stLamp', 0, 0, [1, 1], null, { roughness: 1, emissive: new THREE.Color('#fff6d8'), emissiveIntensity: 0.9 });
   const PW = ob.w + 4, PH = ob.d + 4;

@@ -941,7 +941,7 @@ function zoneOf(cx, cz, near) { return zoneAt(cx, cz, near && near.r && near.r.n
 // A building style is only offered where it exists in real life: Liberty villini are low, sacco blocks are tall, ZEN insulae are big.
 const ELIG = {
   bar: f => f <= 6, n19: f => f <= 6, res: f => f <= 5, pw: f => f >= 4, blk: f => f >= 5, pal: f => f >= 3 && f <= 7,
-  ins: (f, a) => f >= 4 && a > 300, lib: (f, a) => f <= 4 && a < 900, fish: f => f <= 3, ind: (f, a, Z) => Z.shed ? a > 180 : a > 500,
+  ins: (f, a, Z) => f >= 3 && a > (Z.insArea || 300), lib: (f, a) => f <= 4 && a < 900, fish: f => f <= 3, ind: (f, a, Z) => Z.shed ? a > 180 : a > 500,
 };
 const STYLE_KEYS = ['bar', 'n19', 'res', 'pw', 'lib', 'blk', 'pal', 'ins', 'fish', 'ind'];
 function chooseStyle(b, H, area, zone, r, o = {}) {
