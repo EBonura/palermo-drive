@@ -116,6 +116,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   walls2d.ext = wallGrid; streets.ext = nameGrid;
   let M = null, farM = () => 0, world = null, landPoly = null;
   let tasks = [], pending = [], inflight = 0;
+  // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
+  // Instantiated with the full-detail tile that contains (x, z), their skipIds left out of that tile's generic buildings, disposed with the tile.
+  // Loaded defensively: the file may not exist. (The specifier is a variable so the bundler does not choke on a missing file; once the file
+  // is in the repo, switch to the literal import('./landmarks-city.js') so the production build bundles it.)
+  let CITY = [];
+  { const spec = './landmarks-city.js'; import(/* @vite-ignore */ spec).then(m => { CITY = m.CITY_LANDMARKS || []; }).catch(() => { /* not there yet */ }); }
+  const cityIn = t => CITY.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j);
   let focus = { x: 0, z: 0 }, lastWanted = { x: 1e9, z: 1e9 }, wantedTimer = 0, forced = null;
   const stat = { frames: 0, work: 0, workMax: 0, workSum: 0, hitches: 0, fetched: 0, bytes: 0, built: 0, errors: 0, parseMax: 0 };
 
@@ -144,7 +151,19 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const i = Math.floor(x / T), j = Math.floor(z / T);
     let t = lastG;
     if (t === null || t.i !== i || t.j !== j || t.dead) { t = tiles.get(nk(i, j)); if (t === undefined || t.dead) { t = null; } else lastG = t; }
-    if (t !== null) return t.nearS ? t.nearS(x, z) : (t.data || t.lod ? farM(x, z) : (inNear(x, z) ? undefined : farM(x, z)));
+    if (t !== null) {
+      if (!t.nearS && !(t.data || t.lod)) return inNear(x, z) ? undefined : farM(x, z);
+      const g = t.nearS ? t.nearS(x, z) : farM(x, z), sh = t.shape;
+      if (sh === null) return g;
+      // road-following terrain shaping (see computeShape): pull the ground towards the smoothed road bench inside the corridor
+      const fx = (x - sh.x0) / sh.s, fz = (z - sh.z0) / sh.s;
+      if (fx < 0 || fz < 0 || fx >= sh.nx - 1 || fz >= sh.nz - 1) return g;
+      const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, k = j * sh.nx + i, n = sh.nx, W = sh.W, H = sh.WH;
+      const w = (W[k] * (1 - tx) + W[k + 1] * tx) * (1 - tz) + (W[k + n] * (1 - tx) + W[k + n + 1] * tx) * tz;
+      if (w <= 0) return g;
+      const wh = (H[k] * (1 - tx) + H[k + 1] * tx) * (1 - tz) + (H[k + n] * (1 - tx) + H[k + n + 1] * tx) * tz;
+      return g * (1 - w) + wh;
+    }
     return inNear(x, z) ? undefined : farM(x, z);
   }
 
@@ -213,7 +232,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const k = nk(i, j); let t = tiles.get(k);
     if (!t) {
       t = { i, j, k, id: i + '_' + j, cx: (i + 0.5) * T, cz: (j + 0.5) * T, meta: M.tiles[i + '_' + j], want: 0, lod: 0, d: 1e9, data: null, nearS: null, parts: {}, tris: {}, task: null,
-        fetchP: null, fetchRes: null, failed: false, hasFull: false, raised: null, tint: null, dead: false, urban: 0 };
+        fetchP: null, fetchRes: null, failed: false, hasFull: false, raised: null, hard: undefined, shape: null, shaped: false, tint: null, dead: false, urban: 0 };
       tiles.set(k, t);
     }
     return t;
@@ -224,7 +243,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const have = (n, f) => t.tris[n] !== undefined ? t.tris[n] : f;
     if (lod === 0) return 0;
     const low = have('terrain', 1800) + have('streets', 2500 + b * 8) + have('bldLow', b * 45);
-    return lod === 1 ? low : have('terrain', 5400) + have('streets', 2500 + b * 8) + have('streetsHi', 8000 + b * 40) + have('bldFull', b * 230);
+    return lod === 1 ? low : have('terrain', 5400) + have('streets', 2500 + b * 8) + have('streetsHi', 8000 + b * 40) + have('trees', 0) + have('bldFull', b * 230);
   };
   const triCount = t => { let n = 0; for (const k in t.tris) n += t.tris[k]; return n; };
 
@@ -243,7 +262,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
 
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
-    const useNear = !!t.nearS, step = (useNear ? 10 : 25) * stride, n = Math.round(T / step) + 1;
+    const useNear = !!t.nearS, step = t.shape && stride === 1 ? 5 : (useNear ? 10 : 25) * stride, n = Math.round(T / step) + 1; // 5 m under shaped road corridors so the mesh follows the bench
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3);
     const tint = t.tint, urban = t.urban;
@@ -364,7 +383,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1];
         if (r.n) nameGrid.addSeg(t.k, [a[0], a[1], b[0], b[1], r.n, r.w], a[0], a[1], b[0], b[1]);
-        if (DRIVABLE.has(r.k)) { const v = [a[0], a[1], Math.atan2(b[0] - a[0], b[1] - a[1])]; v.t = t.k; roadVerts.push(v); }
+        if (DRIVABLE.has(r.k) || r.k === 'track') { const v = [a[0], a[1], Math.atan2(b[0] - a[0], b[1] - a[1])]; v.t = t.k; roadVerts.push(v); }
       }
     }
     t.phys = true;
@@ -377,39 +396,226 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.phys = false;
   }
 
-  // ---------- raised-ground mask (sidewalks and grass the car bumps up onto), 0.5 m cells, bit-packed ----------
+  // ---------- surface masks: raised ground (sidewalks, grass: the car bumps up onto them) and hard ground (asphalt, paving, raised) ----------
+  // 0.5 m cells, bit-packed, drawn band by band into one canvas: raised+green in the red channel, asphalt+paving+raised in green.
+  // Anything not hard (park ground, dirt, hillside) is off-road for drivePlayer().
   const RK = 2, RW = T * RK, BAND = 250;
   let rcv = null, rg = null;
   function* buildRaised(t) {
-    const st = t.data.streets, polys = [...(st.raised || []), ...(st.green || [])];
-    if (!polys.length) { t.raised = null; return; }
+    const st = t.data.streets, ext = poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return [lo, hi]; };
+    const x0 = t.i * T, z0 = t.j * T, info = [];
+    for (const [layers, col] of [[['raised', 'green'], '#f00'], [['asphalt', 'paving', 'raised'], '#0f0']])
+      for (const l of layers) for (const poly of st[l] || []) { const [lo, hi] = ext(poly); info.push({ poly, col, lo: (lo - z0) * RK, hi: (hi - z0) * RK }); }
+    if (!info.length) { t.raised = null; t.hard = null; return; }
     if (!rcv) { rcv = document.createElement('canvas'); rcv.width = RW; rcv.height = BAND; rg = rcv.getContext('2d', { willReadFrequently: true }); }
-    const bits = new Uint8Array(RW * RW / 8), x0 = t.i * T, z0 = t.j * T;
-    // bounding boxes in canvas rows, so each band only draws the polygons that touch it
-    const info = polys.map(poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return { poly, lo: (lo - z0) * RK, hi: (hi - z0) * RK }; });
+    const bitsR = new Uint8Array(RW * RW / 8), bitsH = new Uint8Array(RW * RW / 8);
     for (let band = 0; band < RW / BAND; band++) {
       const y0 = band * BAND;
-      rg.setTransform(1, 0, 0, 1, 0, 0); rg.clearRect(0, 0, RW, BAND); rg.fillStyle = '#fff';
-      for (const { poly, lo, hi } of info) {
+      rg.setTransform(1, 0, 0, 1, 0, 0); rg.globalCompositeOperation = 'source-over'; rg.fillStyle = '#000'; rg.fillRect(0, 0, RW, BAND);
+      rg.globalCompositeOperation = 'lighter';
+      for (const { poly, col, lo, hi } of info) {
         if (hi < y0 || lo > y0 + BAND) continue;
-        rg.beginPath();
+        rg.fillStyle = col; rg.beginPath();
         for (const ring of poly) for (let i = 0; i < ring.length; i += 2) rg[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * RK, (ring[i + 1] - z0) * RK - y0);
         rg.fill('evenodd');
       }
       const px = rg.getImageData(0, 0, RW, BAND).data, base = band * BAND * RW;
-      for (let q = 0, n = RW * BAND; q < n; q++) if (px[q * 4 + 3] > 127) { const b = base + q; bits[b >> 3] |= 1 << (b & 7); }
+      for (let q = 0, n = RW * BAND; q < n; q++) {
+        const b = base + q;
+        if (px[q * 4] > 127) bitsR[b >> 3] |= 1 << (b & 7);
+        if (px[q * 4 + 1] > 127) bitsH[b >> 3] |= 1 << (b & 7);
+      }
       yield;
     }
-    t.raised = bits;
+    t.raised = bitsR; t.hard = bitsH;
   }
   let lastR = null;
-  function raised(x, z) {
+  function maskAt(x, z, which) {
     const i = Math.floor(x / T), j = Math.floor(z / T);
     let t = lastR;
-    if (t === null || t.i !== i || t.j !== j || t.dead) { t = tiles.get(nk(i, j)); if (t === undefined) return false; lastR = t; }
-    const bits = t.raised; if (bits === null) return false;
+    if (t === null || t.i !== i || t.j !== j || t.dead) { t = tiles.get(nk(i, j)); if (t === undefined) return undefined; lastR = t; }
+    const bits = t[which]; if (bits === null || bits === undefined) return bits === null ? false : undefined;
     const b = (((z - j * T) * RK) | 0) * RW + (((x - i * T) * RK) | 0);
     return (bits[b >> 3] >> (b & 7) & 1) === 1;
+  }
+  const raised = (x, z) => maskAt(x, z, 'raised') === true;
+
+  // Off the surfaced network (park ground, dirt tracks, hillside): less grip, a bumpy ride, a bit of drag. Called every physics step.
+  let bumpPhase = 0;
+  function drivePlayer(car, dt) {
+    if (maskAt(car.x, car.z, 'hard') !== false) return;
+    const v = Math.hypot(car.vx, car.vz);
+    if (v < 1.5) return;
+    car.gripLoss = Math.max(car.gripLoss || 0, 0.3);
+    bumpPhase += v * dt;
+    if (bumpPhase > 1.6) { bumpPhase = 0; car.hopV = Math.min(1.9, (car.hopV || 0) + 0.2 + 0.5 * Math.random() * Math.min(1, v / 12)); }
+    const k = Math.exp(-0.12 * dt); car.vx *= k; car.vz *= k;
+  }
+
+  // ---------- road-following terrain shaping ----------
+  // The ground under hill roads comes from a 100 m far grid (Monte Pellegrino has no usable lidar), which cannot follow a switchback. For
+  // every drivable road on hilly or lidar-less tiles we sample a blurred copy of the ground along the centreline, and carve a level bench
+  // at that height: full weight across the carriageway, easing back to the raw ground over SHAPE_EASE metres. The result is a pair of
+  // grids (weight, weight*height) that tileGround() mixes in, so streets, curbs, props, buildings, the car and the terrain mesh all agree.
+  // The target height depends only on position, so it is continuous across tile borders.
+  const SHAPE_ROADS = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'track']);
+  const SHAPE_EASE = 11, SHAPE_S = 2;
+  function* computeShape(t) {
+    if (t.shaped) return;
+    t.shaped = true;
+    const roads = t.data.roads.filter(r => SHAPE_ROADS.has(r.k) && !r.tn && !r.br);
+    if (!roads.length) return;
+    const base = t.nearS || farM;
+    let lo = 1e9, hi = -1e9;
+    for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) { const y = base(t.i * T + i * T / 8, t.j * T + j * T / 8); lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    if (t.nearS ? hi < 150 : hi - lo < 12) return; // lidar tiles are good below ~200 m; lidar-less ones only matter when hilly
+    const blur = (x, z) => {
+      let sum = base(x, z), n = 1;
+      for (const r of [20, 45]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; sum += base(x + Math.cos(a) * r, z + Math.sin(a) * r); n++; }
+      return sum / n;
+    };
+    let bx0 = 1e9, bz0 = 1e9, bx1 = -1e9, bz1 = -1e9;
+    const R = r => Math.max(r.w, 3) / 2 + 1.5 + SHAPE_EASE;
+    for (const r of roads) for (let i = 0; i < r.p.length; i += 2) { const e = R(r); bx0 = Math.min(bx0, r.p[i] - e); bx1 = Math.max(bx1, r.p[i] + e); bz0 = Math.min(bz0, r.p[i + 1] - e); bz1 = Math.max(bz1, r.p[i + 1] + e); }
+    bx0 = Math.max(bx0, t.i * T - 2); bz0 = Math.max(bz0, t.j * T - 2); bx1 = Math.min(bx1, (t.i + 1) * T + 2); bz1 = Math.min(bz1, (t.j + 1) * T + 2);
+    const s = SHAPE_S, x0 = Math.floor(bx0 / s) * s, z0 = Math.floor(bz0 / s) * s, nx = Math.ceil((bx1 - x0) / s) + 2, nz = Math.ceil((bz1 - z0) / s) + 2;
+    if (nx < 3 || nz < 3) return;
+    const W = new Float32Array(nx * nz), WH = new Float32Array(nx * nz), best = new Float32Array(nx * nz).fill(1e9);
+    let nr = 0;
+    for (const r of roads) {
+      const half = Math.max(r.w, 3) / 2, flat = half + 1.5, reach = R(r), p = pairs(r.p);
+      // resample every ~3 m, with the blurred height at each sample
+      const pts = [];
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 3));
+        for (let k = i === 0 ? 0 : 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; pts.push([x, z, blur(x, z)]); }
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1;
+        const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - reach - x0) / s)), i1 = Math.min(nx - 1, Math.ceil((Math.max(a[0], b[0]) + reach - x0) / s));
+        const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - reach - z0) / s)), j1 = Math.min(nz - 1, Math.ceil((Math.max(a[1], b[1]) + reach - z0) / s));
+        for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+          const px = x0 + ii * s, pz = z0 + j * s, tt = Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / l2));
+          const d = Math.hypot(px - a[0] - dx * tt, pz - a[1] - dz * tt);
+          if (d >= reach) continue;
+          const c = j * nx + ii; if (d >= best[c]) continue;
+          const e = d <= flat ? 1 : 1 - smooth(flat, reach, d);
+          best[c] = d; W[c] = e; WH[c] = e * (a[2] + (b[2] - a[2]) * tt);
+        }
+      }
+      if ((++nr & 3) === 0) yield;
+    }
+    t.shape = { x0, z0, s, nx, nz, W, WH };
+  }
+
+  // ---------- dirt tracks (highway=track, when the bake has them): a plain strip along the centreline ----------
+  const TRACK_COL = new THREE.Color('#a48c66');
+  let trackMat = null;
+  function* buildTracks(t) {
+    const roads = t.data.roads.filter(r => r.k === 'track'); if (!roads.length) return null;
+    const P = [], N = [], Cc = [], I = [];
+    for (const r of roads) {
+      const p = pairs(r.p), hw = Math.max(r.w || 3.5, 2.5) / 2;
+      for (let i = 0; i < p.length; i++) {
+        const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
+        let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
+        const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw;
+        P.push(lx, groundY(lx, lz) + 0.03, lz, rx, groundY(rx, rz) + 0.03, rz); N.push(0, 1, 0, 0, 1, 0);
+        const k = 0.92 + 0.08 * Math.sin(i * 1.7); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
+      }
+    }
+    // strip quads: vertices come in left/right pairs along each road
+    let base = 0;
+    for (const r of roads) { const n = pairs(r.p).length; for (let i = 0; i < n - 1; i++) { const a = base + i * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } base += n * 2; }
+    yield;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
+    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(I), 1));
+    trackMat = trackMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const m = new THREE.Mesh(geo, trackMat); m.receiveShadow = true; m.name = 'tracks';
+    const g = new THREE.Group(); g.add(m); g.userData.tris = I.length / 3;
+    return g;
+  }
+
+  // ---------- trees: cheap instanced pines in forest areas, a few in parks (full-detail tiles only) ----------
+  let treeGeo = null;
+  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  function getTreeGeo() {
+    if (treeGeo) return treeGeo;
+    const P = [], Nn = [], Cc = [], I = [];
+    const col = (r, g, b) => new THREE.Color(r, g, b);
+    const trunk = col(0.36, 0.27, 0.19), leafA = col(0.24, 0.42, 0.22), leafB = col(0.3, 0.5, 0.26);
+    const cone = (y0, y1, rad, sides, c) => {
+      const base = P.length / 3;
+      for (let i = 0; i < sides; i++) {
+        const a0 = i / sides * 6.2832, a1 = (i + 1) / sides * 6.2832, am = (a0 + a1) / 2, nx = Math.cos(am), nz = Math.sin(am), ny = rad / (y1 - y0);
+        const l = Math.hypot(nx, ny, nz), k = P.length / 3;
+        P.push(Math.cos(a0) * rad, y0, Math.sin(a0) * rad, Math.cos(a1) * rad, y0, Math.sin(a1) * rad, 0, y1, 0);
+        for (let q = 0; q < 3; q++) { Nn.push(nx / l, ny / l, nz / l); Cc.push(c.r * (q === 2 ? 1.1 : 0.85), c.g * (q === 2 ? 1.1 : 0.85), c.b * (q === 2 ? 1.1 : 0.85)); }
+        I.push(k, k + 2, k + 1);
+      }
+    };
+    const prism = (y0, y1, rad, c) => {
+      for (let i = 0; i < 4; i++) {
+        const a0 = i / 4 * 6.2832 + 0.785, a1 = (i + 1) / 4 * 6.2832 + 0.785, am = (a0 + a1) / 2, k = P.length / 3;
+        P.push(Math.cos(a0) * rad, y0, Math.sin(a0) * rad, Math.cos(a1) * rad, y0, Math.sin(a1) * rad, Math.cos(a1) * rad, y1, Math.sin(a1) * rad, Math.cos(a0) * rad, y1, Math.sin(a0) * rad);
+        for (let q = 0; q < 4; q++) { Nn.push(Math.cos(am), 0, Math.sin(am)); Cc.push(c.r, c.g, c.b); }
+        I.push(k, k + 2, k + 1, k, k + 3, k + 2);
+      }
+    };
+    prism(0, 2.2, 0.28, trunk);
+    cone(1.6, 6.2, 2.1, 7, leafA);
+    cone(4.2, 8.6, 1.5, 7, leafB);
+    treeGeo = new THREE.BufferGeometry();
+    treeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
+    treeGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(Nn), 3));
+    treeGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
+    treeGeo.setIndex(new THREE.BufferAttribute(new Uint16Array(I), 1));
+    return treeGeo;
+  }
+  const hash2 = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
+  function* buildTrees(t) {
+    const d = t.data, areas = (d.areas || []).filter(a => a.k === 'forest' || a.k === 'green').map(a => {
+      const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+      return { pts, x0, z0, x1, z1, p: a.k === 'forest' ? 0.9 : 0.3 };
+    });
+    if (!areas.length) return null;
+    // building footprints (bbox grid), so no tree grows through a house
+    const BC = 30, bg = new Map();
+    for (const b of d.buildings) {
+      const pts = pairs(b.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+      const e = { pts, x0, z0, x1, z1 };
+      for (let cx = Math.floor(x0 / BC); cx <= Math.floor(x1 / BC); cx++) for (let cz = Math.floor(z0 / BC); cz <= Math.floor(z1 / BC); cz++) { const k = cx * 100003 + cz; let l = bg.get(k); if (!l) bg.set(k, l = []); l.push(e); }
+    }
+    const inBld = (x, z) => { const l = bg.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false; for (const e of l) if (x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1 && inPoly(e.pts, x, z)) return true; return false; };
+    const SP = MOBILE ? 17 : 11, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    const mats = [], cols = [], MAX = MOBILE ? 900 : 2400;
+    for (let gz = t.j * T; gz < (t.j + 1) * T; gz += SP) {
+      for (let gx = t.i * T; gx < (t.i + 1) * T; gx += SP) {
+        const x = gx + hash2(gx, gz) * SP, z = gz + hash2(gz + 7.1, gx - 3.3) * SP;
+        let pr = 0;
+        for (const a of areas) if (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1 && a.p > pr && inPoly(a.pts, x, z)) pr = a.p;
+        if (pr === 0 || hash2(x * 1.3, z * 0.7) > pr) continue;
+        if (maskAt(x, z, 'hard') === true || inBld(x, z)) continue;
+        if (mats.length >= MAX) break;
+        const s = 0.75 + hash2(x + 1.9, z + 4.2) * 0.8;
+        q.setFromAxisAngle(up, hash2(x, z + 9.1) * 6.28); sc.set(s, s * (0.9 + hash2(z, x) * 0.3), s); pos.set(x, groundY(x, z) - 0.1, z);
+        m4.compose(pos, q, sc); mats.push(m4.clone());
+        const v = 0.8 + hash2(x - 5.5, z + 2.2) * 0.45; cols.push(col.setRGB(v, v * (0.95 + hash2(z, z) * 0.12), v * 0.9).clone());
+      }
+      yield;
+    }
+    if (!mats.length) return null;
+    const mesh = new THREE.InstancedMesh(getTreeGeo(), treeMat, mats.length);
+    mats.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, cols[i]); });
+    mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; mesh.name = 'trees';
+    if (mesh.computeBoundingSphere) mesh.computeBoundingSphere(); else mesh.frustumCulled = false;
+    const g = new THREE.Group(); g.add(mesh); g.userData.tris = mats.length * 22;
+    return g;
   }
 
   // ---------- fetching ----------
@@ -460,6 +666,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- LOD stages ----------
   function* buildLow(t) {
     if (t.want === 0) return;
+    yield* computeShape(t);
     setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group();
@@ -483,16 +690,24 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'green'], curbs: true, offset: true, drape: 9 });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
-    const bg = new THREE.Group();
-    yield* buildBuildingsIter(ctx, t.data, bg);
+    { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
+    if (t.want < 2) return;
+    { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
+    if (t.want < 2) return;
+    const bg = new THREE.Group(), lms = cityIn(t);
+    const tctx = lms.length ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]) } : ctx;
+    yield* buildBuildingsIter(tctx, t.data, bg);
+    for (const l of lms) { // landmark models standing in for those generic buildings
+      try { const o = l.build(ctx); if (o) { bg.add(o); yield; } } catch (e) { console.error('[world] landmark', l.name, e); }
+    }
     if (t.want < 2) { disposeObj(bg); return; }
     setPart(t, 'bldFull', bg);
     setPart(t, 'bldLow', null);
     t.lod = 2;
   }
   function* downgrade(t) {
-    setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null);
-    unregisterPhysics(t); t.raised = null; t.hasFull = false;
+    setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
+    unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
         if (!t.parts.bldLow) setPart(t, 'bldLow', yield* lowBuildings(t));
@@ -504,7 +719,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function release(t) {
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
-    unregisterPhysics(t); t.raised = null;
+    unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);
     t.dead = true; t.nearS = null; t.lod = 0; t.hasFull = false;
     tiles.delete(t.k);
@@ -602,6 +817,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     manifest: null,
     estTris: 0,
     raised,
+    drivePlayer,
     // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.
     isLand(x, z) {
       if (!landPoly) return false;

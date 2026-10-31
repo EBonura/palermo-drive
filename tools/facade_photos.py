@@ -36,42 +36,12 @@ TEXELS_PER_M = 19.2     # PS2-era density: a 26.7 m palazzo gets 512 px
 MAX_SIDE = 1024         # cap for very long walls (buildings.js stores every photo in a 1024 x 1024 layer)
 MARK0, MARK1 = '<!-- facade_photos:begin -->', '<!-- facade_photos:end -->'
 
-# One entry per rectified facade. quad = the 4 corners of the facade plane in the photo as seen in a view
+# assets/facades/photo/sources.json: one entry per rectified facade (key, bid, name, wall, cover, title, dw, quad, fix, auto, v0, split). quad = the 4 corners of the facade plane in the photo as seen in a view
 # `dw` px wide (top-left, top-right, bottom-right, bottom-left). cover = [c0, c1] fraction of the footprint edge
 # (from its start vertex) that the quad spans. auto = the quad reaches outside the photo, keep the largest photographed
 # block. v0 = drop that fraction of the wall height at the bottom (clutter). fix = obstructions to
 # paint out: ('poly', [pts]) or ('line', [pts], width), same view coordinates.
-SOURCES = [
-    dict(key='riso', bid='w926546486', name='Palazzo Belmonte Riso (Corso Vittorio Emanuele)', wall=5, cover=[0, 1],
-         title='Palazzo Belmonte Riso Palermo 2024-07-26 11.52.14.jpg', dw=2000,
-         quad=[[350, 108], [1660, 338], [1735, 1160], [262, 1150]],
-         fix=[('poly', [[1130, 1105], [1320, 1105], [1320, 1345], [1130, 1345]]),
-              ('poly', [[620, 940], [700, 940], [700, 1060], [620, 1060]]),
-              ('poly', [[480, 1090], [620, 1090], [620, 1300], [480, 1300]]),
-              ('line', [[0, 452], [1680, 682]], 7)]),
-    dict(key='gangi', bid='r4779709.0', name='Palazzo Valguarnera-Gangi (Piazza Croce dei Vespri)', wall=8, cover=[0, 1],
-         title='Palazzo Gangi (Palermo) 14 07 2024 01.jpg', dw=2000,
-         quad=[[130, 190], [1680, 180], [1690, 1160], [135, 1180]],
-         fix=[('mirror', [[1362, 838], [1500, 838], [1500, 1165], [1362, 1165]], 1008),   # festival banner; the facade is symmetric about the portal
-              ('poly', [[1500, 838], [1540, 838], [1540, 1365], [1500, 1365]]),
-              ('poly', [[1362, 1165], [1540, 1165], [1540, 1365], [1362, 1365]]),
-              ('poly', [[340, 1040], [462, 1040], [462, 1200], [340, 1200]]),
-              ('poly', [[700, 1035], [952, 1035], [952, 1215], [700, 1215]])]),
-    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], auto=True, v0=0.07,
-         title='Palermo, Palazzo Jung 01.jpg', dw=1920,
-         quad=[[95, 408], [1945, 288], [2414, 1084], [-183, 1029]],   # verticals through the vanishing point (925, -1443)
-         fix=[('poly', [[790, 1005], [948, 1005], [948, 1132], [790, 1132]]),
-              ('poly', [[0, 995], [240, 995], [240, 1100], [0, 1100]]),
-              ('poly', [[1628, 995], [1920, 995], [1920, 1125], [1628, 1125]]),
-              ('poly', [[1495, 555], [1565, 555], [1560, 610], [1640, 1100], [1596, 1100], [1530, 610]]),
-              ('poly', [[205, 870], [255, 870], [250, 1090], [190, 1090]])]),
-    dict(key='biondo', bid='w143740363', name='Teatro Biondo (Via Roma)', wall=1, cover=[0.22, 0.78], v0=0.135,
-         title='Facciata del Teatro Biondo.jpg', dw=1920,
-         quad=[[0, 178], [1920, 186], [1920, 1385], [0, 1392]],
-         fix=[('poly', [[1335, 1100], [1480, 1100], [1480, 1235], [1335, 1235]]),
-              ('poly', [[380, 1120], [480, 1120], [480, 1235], [380, 1235]]),
-              ('poly', [[0, 1165], [540, 1165], [540, 1235], [0, 1235]])]),
-]
+SOURCES = json.load(open(os.path.join(OUT, 'sources.json')))
 
 
 def log(*a):
@@ -79,13 +49,51 @@ def log(*a):
 
 
 # ---------------------------------------------------------------- data
-def load_data():
-    s = open(os.path.join(ROOT, 'palermo-data.js'), encoding='utf8').read()
-    return json.loads(s[s.index('{'): s.rindex('}') + 1])
+TILES = os.path.join(ROOT, 'world/tiles')
+BINDEX = '/private/tmp/claude-501/facade-src/bindex.json'
 
 
-def wall_info(D, bid, wall):
-    b = next(b for b in D['buildings'] if b['id'] == bid)
+def building_index():
+    """id -> [cx, cz, tile, name] for every building in world/tiles (cached outside the repo)."""
+    if not os.path.exists(BINDEX):
+        out = []
+        for f in os.listdir(TILES):
+            for b in json.load(open(os.path.join(TILES, f))).get('buildings', []):
+                p = b['p']; n = len(p) // 2
+                out.append([b['id'], round(sum(p[0::2]) / n, 1), round(sum(p[1::2]) / n, 1), f[:-5], b.get('n')])
+        os.makedirs(os.path.dirname(BINDEX), exist_ok=True)
+        json.dump(out, open(BINDEX, 'w'))
+    return {r[0]: r[1:] for r in json.load(open(BINDEX))}
+
+
+_IDX = None
+
+
+def get_building(bid):
+    global _IDX
+    if _IDX is None:
+        _IDX = building_index()
+    tile = _IDX[bid][2]
+    return next(b for b in json.load(open(os.path.join(TILES, tile + '.json')))['buildings'] if b['id'] == bid)
+
+
+def neighbour_buildings(bid):
+    """Footprints of the buildings in the same and the 8 surrounding tiles (for the screenshot camera)."""
+    global _IDX
+    if _IDX is None:
+        _IDX = building_index()
+    i, j = map(int, _IDX[bid][2].split('_'))
+    out = []
+    for di in (-1, 0, 1):
+        for dj in (-1, 0, 1):
+            f = os.path.join(TILES, f'{i + di}_{j + dj}.json')
+            if os.path.exists(f):
+                out += [b['p'] for b in json.load(open(f))['buildings']]
+    return out
+
+
+def wall_info(bid, wall):
+    b = get_building(bid)
     p = b['p']; n = len(p) // 2
     ax, az = p[2 * wall], p[2 * wall + 1]
     bx, bz = p[2 * ((wall + 1) % n)], p[2 * ((wall + 1) % n) + 1]
@@ -250,11 +258,10 @@ def rectify(s, wi):
 
 
 def build():
-    D = load_data()
     os.makedirs(OUT, exist_ok=True)
     mp = {}; creds = []
     for s in SOURCES:
-        wi = wall_info(D, s['bid'], s['wall'])
+        wi = wall_info(s['bid'], s['wall'])
         rect, (xa, xb, v0) = rectify(s, wi)
         rect = correct(rect)
         m = meta_for(s)
@@ -286,7 +293,9 @@ def build():
             photographed=[round(u_a, 3), round(u_b, 3), round(v0, 3)], size=[fw, fh], license=m['lic'], credit=credit))
         log(f"{name}: {fw}x{fh}  {s['name']}  wall {wi['L']:.1f} x {wi['H']:.1f} m  flip={flip}  photographed u {u_a:.2f}-{u_b:.2f} v>{v0:.2f}  {m['lic']}")
         creds.append((s, m))
-    json.dump(mp, open(os.path.join(OUT, 'map.json'), 'w'), indent=1)
+    tmp = os.path.join(OUT, 'map.json.tmp')                  # the game reloads this file live: swap it in atomically
+    json.dump(mp, open(tmp, 'w'), indent=1)
+    os.replace(tmp, os.path.join(OUT, 'map.json'))
     write_credits(creds)
 
 
@@ -314,15 +323,15 @@ def write_credits(creds):
 
 
 # ---------------------------------------------------------------- in-game shots + contact sheet
-def clear_distance(D, px, pz, n, want):
+def clear_distance(bid, px, pz, n, want):
     """How far in front of the wall point (px, pz) a camera can stand without a building in between (<= want)."""
     near = []
-    for b in D['buildings']:
-        xs, zs = b['p'][0::2], b['p'][1::2]
+    for bp in neighbour_buildings(bid):
+        xs, zs = bp[0::2], bp[1::2]
         if min(xs) - 5 < px + n[0] * want and max(xs) + 5 > px or True:
             if max(xs) >= min(px, px + n[0] * want) - 2 and min(xs) <= max(px, px + n[0] * want) + 2 and \
                max(zs) >= min(pz, pz + n[1] * want) - 2 and min(zs) <= max(pz, pz + n[1] * want) + 2:
-                near.append(b['p'])
+                near.append(bp)
     d = 2.0
     while d < want:
         if any(point_in(px + n[0] * d, pz + n[1] * d, p) for p in near):
@@ -332,17 +341,16 @@ def clear_distance(D, px, pz, n, want):
 
 
 def shots():
-    D = load_data()
     os.makedirs(SHOTS, exist_ok=True)
     for s in SOURCES:
         if len(sys.argv) > 2 and s['key'] not in sys.argv[2:]:
             continue
-        wi = wall_info(D, s['bid'], s['wall']); b = wi['b']
+        wi = wall_info(s['bid'], s['wall']); b = wi['b']
         c0, c1 = s['cover']
         f = (c0 + c1) / 2
         px = wi['a'][0] + (wi['e'][0] - wi['a'][0]) * f; pz = wi['a'][1] + (wi['e'][1] - wi['a'][1]) * f
         want = max(wi['L'] * (c1 - c0), wi['H']) * 1.15 + 8
-        d = clear_distance(D, px, pz, wi['n'], want)
+        d = clear_distance(s['bid'], px, pz, wi['n'], want)
         cx, cz = px + wi['n'][0] * d, pz + wi['n'][1] * d
         y0 = b['g'] + (4 if d >= want - .5 else 4 + (want - d) * .5)      # tight street: stand higher and look down
         q = f"campos={cx:.1f},{y0:.1f},{cz:.1f}&look={px:.1f},{b['g'] + wi['H'] * .45:.1f},{pz:.1f}"
@@ -354,9 +362,9 @@ def shots():
             subprocess.run([os.path.join(ROOT, 'tools/shot.sh'), out, q + extra], cwd=ROOT)
 
 
-def sheet():
+def sheet(per_page=7):
     from PIL import ImageDraw
-    D = load_data(); mp = json.load(open(os.path.join(OUT, 'map.json')))
+    mp = json.load(open(os.path.join(OUT, 'map.json')))
     cw, ch = 480, 290
     rows = []
     for s in SOURCES:
@@ -364,20 +372,11 @@ def sheet():
         ph = cv2.imread(os.path.join(SRC, fname(s['title'])))
         k = ph.shape[1] / s['dw']
         q = (np.array(s['quad'], np.float32) * k).astype(np.int32)
-        x0, y0 = q[:, 0].min(), q[:, 1].min(); x1, y1 = q[:, 0].max(), q[:, 1].max()
+        x0, y0 = max(0, q[:, 0].min()), max(0, q[:, 1].min()); x1, y1 = q[:, 0].max(), q[:, 1].max()
         padx, pady = int((x1 - x0) * .06), int((y1 - y0) * .06)
         crop = ph[max(0, y0 - pady):y1 + pady, max(0, x0 - padx):x1 + padx]
         photo = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
-        ents = [e for e in mp[s['bid']] if os.path.basename(e['texture']).startswith(s['key'])]
-        # stitch split textures back together (in the order the viewer sees them)
-        ims = [Image.open(os.path.join(ROOT, e['texture'])) for e in ents]
-        if len(ims) > 1:
-            tw = sum(i.width for i in ims); tex = Image.new('RGB', (tw, ims[0].height)); x = 0
-            order = sorted(range(len(ents)), key=lambda i: ents[i]['u0'], reverse=ents[0]['flip'])
-            for i in order:
-                tex.paste(ims[i], (x, 0)); x += ims[i].width
-        else:
-            tex = ims[0]
+        tex = Image.open(os.path.join(ROOT, 'assets/facades/photo', s['key'] + '.jpg'))
         games = []
         for tag in ('proc', 'photo'):
             gp = os.path.join(SHOTS, f"{s['key']}_{tag}.png")
@@ -387,17 +386,20 @@ def sheet():
             im = im.convert('RGB'); im.thumbnail((cw, ch)); c = Image.new('RGB', (cw, ch + 18), (30, 30, 30))
             c.paste(im, ((cw - im.width) // 2, 18 + (ch - im.height) // 2)); cells.append(c)
         d = [ImageDraw.Draw(c) for c in cells]
-        d[0].text((4, 3), f"{s['name']}  |  photo ({m['lic']})", fill='white')
+        d[0].text((4, 3), f"{s['name'][:48]}  |  photo ({m['lic']})", fill='white')
         d[1].text((4, 3), 'rectified texture (final size)', fill='white')
         d[2].text((4, 3), 'in-game, procedural facade', fill='white')
         d[3].text((4, 3), 'in-game, photo facade', fill='white')
         row = Image.new('RGB', (cw * 4, ch + 18))
         for i, c in enumerate(cells): row.paste(c, (i * cw, 0))
         rows.append(row)
-    sh = Image.new('RGB', (cw * 4, (ch + 18) * len(rows)))
-    for i, r in enumerate(rows): sh.paste(r, (0, i * (ch + 18)))
-    sh.save(SHEET)
-    log('wrote', SHEET, sh.size)
+    for pg in range((len(rows) + per_page - 1) // per_page):
+        part = rows[pg * per_page:(pg + 1) * per_page]
+        sh = Image.new('RGB', (cw * 4, (ch + 18) * len(part)))
+        for i, r in enumerate(part): sh.paste(r, (0, i * (ch + 18)))
+        path = SHEET if pg == 0 else SHEET.replace('.png', f'-{pg + 1}.png')
+        sh.save(path)
+        log('wrote', path, sh.size)
 
 
 if __name__ == '__main__':

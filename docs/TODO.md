@@ -31,10 +31,10 @@
   mountain only if needed (ask the owner before downloading).
 - **Stadio Renzo Barbera** (Hubert's idea): model the stadium properly when the whole city loads, and make it
   enterable: drive in through a gate, onto the running track/pitch, stands full of rosanero tifosi sprites.
-- **Switch vehicle** (Hubert's idea): 3 lape (Calessino + the current liveries, a cargo Ape, an Ape 50) and
+- DONE: **Switch vehicle** (Hubert's idea): 3 lape (Calessino + the current liveries, a cargo Ape, an Ape 50) and
   3 motorbikes (a Vespa, a scooter like a Liberty/SH, a small motorbike), chosen in the Garage and maybe
   swapped in the street; bikes need their own handling and rider sprite/model.
-- **Tamarro tuning garage** (Hubert's ideas): "macchine tasce" (loud tuned small cars: lowered, big
+- DONE: **Tamarro tuning garage** (Hubert's ideas): "macchine tasce" (loud tuned small cars: lowered, big
   exhausts, stickers, tinted windows, rims), SH-style big-wheel scooters (the Palermo classic; generic
   look, no Honda badges), and modded Ape with spoilers (alettoni), underglow neon, chrome, spinners,
   stickers, horn upgrades and subwoofers; parts and colours picked in the Garage, unlocked with fares.
@@ -42,6 +42,8 @@
 - Edge-of-screen hint when the taxi destination is behind you.
 
 ## Later (not in the current pass)
+
+- Multiplayer remote players: use vehicle.buildVehicleModel({type, livery, parts}) and send car.lean + look (only when multiplayer comes back).
 
 - **Traffic system**: moving cars, scooters and buses following the OSM road graph (one-ways, lanes,
   junction priority, traffic lights where OSM has them), reacting to the player, despawning out of view.

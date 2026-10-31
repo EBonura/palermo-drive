@@ -466,8 +466,8 @@ function atlasMaterial(tex, cutout, photo) {
       .replace('#include <color_fragment>', `
         vec4 tc = texture(uTex, vec3(vTileUv, floor(vLayer + 0.5)));
         float lum = dot(tc.rgb, vec3(0.3333));
-        float vl = dot(vColor, vec3(0.3333));
-        ${photo ? 'diffuseColor.rgb *= tc.rgb * vl * 0.9;' : 'diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor, smoothstep(0.15, 0.32, lum));'}
+        float vl = dot(vColor.rgb, vec3(0.3333)); // vColor is a vec4 since r180 (.rgb works on the old vec3 too)
+        ${photo ? 'diffuseColor.rgb *= tc.rgb * vl * 0.9;' : 'diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor.rgb, smoothstep(0.15, 0.32, lum));'}
         ${cutout ? 'diffuseColor.a *= tc.a;' : ''}`);
   };
   m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
