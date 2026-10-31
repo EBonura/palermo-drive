@@ -31,6 +31,8 @@ Notes on reading it.
 - Headless Chrome on this Mac has a fast GPU, so frame times say little about phone GPUs. Triangles per frame and main-thread render time are the numbers to trust.
 - Not measurable here: real phone GPU time. `src/perf.js` exists because of that (it adapts to whatever device it lands on).
 
+Live check on the real GitHub Pages site after the last deploy (`docs/perf/06-live-final-phone-slow4g.json`, phone profile, slow 4G, CDP byte counts): 23 requests, 2,163,635 bytes, ready in 12.8 s, no console errors.
+
 ### Per step (each step measured on the tree as it was at that moment, so the content differs a little between rows)
 
 | step | wire | requests | ready, desktop slow 4G | ready, phone slow 4G |
