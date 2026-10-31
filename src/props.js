@@ -349,7 +349,7 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
   def('umbrella', um, { tint: true, dbl: true });
 }
 
-// Cafe table with two chairs (front +z), and standing people in six fixed outfits
+// Cafe table with two chairs (front +z). People are billboard sprites in src/pedestrians.js
 {
   const mb = new MB(), tb = C('#d9d4c6'), ch = C('#4b3a2c');
   mb.prism(0, 0, 0.0, 0.7, 0.04, 0.04, 4, C('#2a2a2d'), { cap: false }); mb.prism(0, 0, 0.7, 0.74, 0.38, 0.38, 6, tb, { k0: 0.8 });
@@ -359,15 +359,6 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
     mb.box(s * 0.62 - 0.2, 0.48, s > 0 ? -0.2 : 0.16, s * 0.62 + 0.2, 0.9, s > 0 ? -0.16 : 0.2, ch, 0.9, 1, false);
   }
   def('cafe_set', mb);
-  const OUT = [['#2f4f7a', '#2b2b30', '#d9a98a'], ['#b7402f', '#3a4254', '#e0b392'], ['#e8e2d2', '#5a5448', '#c98e6a'], ['#4a6b3a', '#26262a', '#8a5a3c'], ['#d9b032', '#3d4f6e', '#e5bd9c'], ['#8a8f96', '#1f1f23', '#b57a54']];
-  OUT.forEach(([shirt, pants, skin], i) => {
-    const p = new MB(), hair = C(['#2a1d14', '#3b2a1c', '#15110e', '#6b4a2a', '#9a9a98', '#1b1b1b'][i]);
-    p.box(-0.17, 0.0, -0.08, -0.02, 0.85, 0.08, C(pants), 0.8, 1, false); p.box(0.02, 0.0, -0.08, 0.17, 0.85, 0.08, C(pants), 0.8, 1, false);
-    p.frust(0.82, [-0.19, -0.1, 0.19, 0.1], 1.42, [-0.2, -0.1, 0.2, 0.1], C(shirt), 0.9, 1, false);
-    p.box(-0.27, 0.85, -0.05, -0.19, 1.4, 0.05, C(shirt), 0.9, 1, false); p.box(0.19, 0.85, -0.05, 0.27, 1.4, 0.05, C(shirt), 0.9, 1, false);
-    p.lump(0, 1.56, 0, 0.11, 0.13, 0.11, C(skin), 0, 0.03, 0.9); p.lump(0, 1.6, -0.02, 0.115, 0.1, 0.115, hair, 0, 0.03, 0.9);
-    def('person' + i, p);
-  });
 }
 
 // Shop awning, wall at z=0 and out is +z; two-tone stripes via vertex colour
@@ -928,13 +919,9 @@ export function buildProps(ctx) {
 
   // ---------- 7b. cafe tables at real cafe/bar/restaurant positions, and people on foot
   {
-    let sets = 0, ppl = 0;
+    let sets = 0;
     const UMB = ['#ece4ca', '#e8dfc0', '#2f6b49', '#2f5f93', '#b73a2c', '#d9d4c2'];
     const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
-    const person = (x, z) => {
-      if (!walkable(x, z) || occHit(x, z, 0.5) || nearWall(x, z, 0.4)) return;
-      put('person' + Math.floor(rand() * 6), x, gy(x, z), z, R(0, TAU), R(0.94, 1.06)); occAdd(x, z, 0.45); ppl++;
-    };
     for (const it of osm) {
       if (it.k !== 'cafe') continue;
       if (rand() > (it.out === 'yes' ? 1 : 0.45)) continue;
@@ -947,25 +934,9 @@ export function buildProps(ctx) {
         const rot = Math.atan2(w.nx, w.nz) + R(-0.4, 0.4);
         put('cafe_set', x, gy(x, z), z, rot, 1); occAdd(x, z, 1.1); sets++; placed++;
         if (rand() < 0.55) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.8, C(pick(UMB)));
-        if (rand() < 0.5) person(x + Math.cos(rot) * 1.0, z - Math.sin(rot) * 1.0 + 0.0);
       }
-      if (placed && rand() < 0.5) person(w.px + w.nx * 3.2 + tx * R(-3, 3), w.pz + w.nz * 3.2 + tz * R(-3, 3));
     }
-    // pedestrians strolling in the pedestrian streets and piazze near the centre
-    D.roads.forEach(r => {
-      if (r.k !== 'pedestrian' && r.k !== 'living_street') return;
-      const p = pairs(r.p);
-      for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 1) continue;
-        for (let s = R(2, 12); s < L; s += R(9, 20)) {
-          const cx = a[0] + dx * s / L, cz = a[1] + dz * s / L, dist = Math.hypot(cx, cz);
-          if (dist > 900 || rand() > 0.85 - dist / 1400) continue;
-          const nn = 1 + Math.floor(rand() * 3), side = rand() < 0.5 ? 1 : -1, off = R(1.2, 3.2);
-          for (let q = 0; q < nn; q++) person(cx - dz / L * off * side + dx / L * q * R(0.5, 1.2), cz + dx / L * off * side + dz / L * q * R(0.5, 1.2));
-        }
-      }
-    });
-    stats.cafe_sets = sets; stats.people = ppl;
+    stats.cafe_sets = sets;
   }
 
   // ---------- 8. OSM parking lots: fill with parked cars
@@ -1094,7 +1065,7 @@ export function buildProps(ctx) {
 
   // ---------- flush instances
   let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [];
-  const FAR = { cafe_set: 280, person0: 260, person1: 260, person2: 260, person3: 260, person4: 260, person5: 260, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+  const FAR = { cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
     signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
     shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
