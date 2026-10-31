@@ -1,0 +1,36 @@
+{
+ "w926546486": [
+  {
+   "wall": 5,
+   "texture": "assets/facades/photo/riso.jpg",
+   "u0": 0.0,
+   "u1": 1.0,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "size": [
+    512,
+    392
+   ],
+   "license": "CC0",
+   "credit": "CSD2024, Palazzo Belmonte Riso Palermo 2024-07-26 11.52.14.jpg, CC0, https://commons.wikimedia.org/wiki/File:Palazzo_Belmonte_Riso_Palermo_2024-07-26_11.52.14.jpg"
+  }
+ ],
+ "r4779709.0": [
+  {
+   "wall": 8,
+   "texture": "assets/facades/photo/gangi.jpg",
+   "u0": 0.0,
+   "u1": 1.0,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "size": [
+    512,
+    336
+   ],
+   "license": "CC0",
+   "credit": "Effems, Palazzo Gangi (Palermo) 14 07 2024 01.jpg, CC0, https://commons.wikimedia.org/wiki/File:Palazzo_Gangi_(Palermo)_14_07_2024_01.jpg"
+  }
+ ]
+}

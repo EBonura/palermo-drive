@@ -34,3 +34,16 @@ stops attached to each relation) are derived from OpenStreetMap bus route relati
 cached in `data/bus_routes_osm.json`; bus stop positions also come from `data/props_osm.json`. Baked by
 `assets/traffic/bake-bus.cjs`. Map data (c) OpenStreetMap contributors, available under the Open Database
 Licence (ODbL), https://www.openstreetmap.org/copyright.
+
+<!-- facade_photos:begin -->
+
+## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
+
+Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).
+
+| Texture | Title | Author | Licence | Source | Changes |
+| --- | --- | --- | --- | --- | --- |
+| `facades/photo/riso.jpg` (Palazzo Belmonte Riso (Corso Vittorio Emanuele)) | Palazzo Belmonte Riso Palermo 2024-07-26 11.52.14.jpg | CSD2024 | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Palazzo_Belmonte_Riso_Palermo_2024-07-26_11.52.14.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 512 px max) |
+| `facades/photo/gangi.jpg` (Palazzo Valguarnera-Gangi (Piazza Croce dei Vespri)) | Palazzo Gangi (Palermo) 14 07 2024 01.jpg | Effems | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Palazzo_Gangi_(Palermo)_14_07_2024_01.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 512 px max) |
+
+<!-- facade_photos:end -->

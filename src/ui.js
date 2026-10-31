@@ -544,9 +544,9 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   function startCam(cam, sec) { // overhead orbit around the chosen spot, the lapa parked there
     if (cam.fov !== 50) { cam.fov = 50; cam.updateProjectionMatrix(); }
     const c = vehicle.car, gy = groundY(c.x, c.z), a = sec * 0.2 + 0.8;
-    cam.position.set(c.x + Math.sin(a) * 38, gy + 42, c.z + Math.cos(a) * 38);
+    cam.position.set(c.x + Math.sin(a) * 60, gy + 78, c.z + Math.cos(a) * 60);
     cam.lookAt(c.x, gy + 2, c.z);
-    cam.translateX(10); // spot sits left of centre, the list on the right
+    cam.translateX(14); // spot sits left of centre, the list on the right
   }
 
   // ---- options ----

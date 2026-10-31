@@ -201,8 +201,163 @@ def iter_elements(files):
         del els
 
 
+# ----------------------------------------------------------------------------------------------
+# Geofabrik extract (default source when data/city/isole-latest.osm.pbf exists)
+# ----------------------------------------------------------------------------------------------
+PBF = os.path.join(CITY, "isole-latest.osm.pbf")
+PBF_MARGIN = 0.03            # degrees around the bbox that are kept (ways crossing it stay whole)
+USE_PBF = True               # --overpass switches to the Overpass path
+PBF_PART = 30000             # elements per cache file
+
+_AMENITY_PROPS = {"waste_disposal", "waste_basket", "recycling", "bench", "fountain", "drinking_water",
+                  "bicycle_parking", "motorcycle_parking", "post_box", "telephone", "fuel", "cafe", "bar",
+                  "restaurant", "ice_cream", "pub", "fast_food"}
+_HW_SET = set(HIGHWAYS.split("|"))
+
+
+def _way_cats(t):
+    """Overpass-equivalent category membership of a way's tags."""
+    cats = []
+    if "building" in t:
+        cats.append("bld")
+    if t.get("highway") in _HW_SET:
+        cats.append("hwy")
+    if (t.get("natural") in ("coastline", "wood", "beach", "water") or t.get("leisure") in ("park", "garden")
+            or t.get("landuse") in ("grass", "forest", "village_green", "meadow")
+            or t.get("man_made") in ("pier", "breakwater")):
+        cats.append("misc")
+    a = t.get("amenity")
+    if (t.get("natural") == "tree_row" or a in ("parking", "fountain", "marketplace", "bicycle_parking",
+                                                   "motorcycle_parking")):
+        cats.append("props")
+    return cats
+
+
+def _rel_cats(t):
+    cats = []
+    if "building" in t:
+        cats.append("bld")
+    if (t.get("natural") in ("wood", "beach", "water") or t.get("leisure") in ("park", "garden")
+            or t.get("landuse") in ("grass", "forest", "village_green", "meadow")):
+        cats.append("misc")
+    return cats
+
+
+def _node_is_prop(t):
+    return bool(t.get("natural") == "tree" or t.get("highway") in ("street_lamp", "crossing", "bus_stop", "traffic_signals")
+                or t.get("amenity") in _AMENITY_PROPS or t.get("barrier") in ("bollard", "cycle_barrier", "lift_gate", "block")
+                or t.get("public_transport") == "platform" or t.get("shop")
+                or t.get("tourism") in ("artwork", "attraction", "viewpoint") or t.get("memorial")
+                or t.get("historic") in ("memorial", "monument", "wayside_cross", "wayside_shrine")
+                or t.get("emergency") == "fire_hydrant"
+                or t.get("man_made") in ("flagpole", "street_cabinet", "surveillance", "utility_pole", "pole"))
+
+
+def pbf_cache_files(cat):
+    return sorted(glob.glob(os.path.join(CITY, f"pbf_{cat}_*.json.gz")))
+
+
+def pbf_extract():
+    """Read the Geofabrik PBF in three passes (relations, nodes, ways) and write Overpass-shaped
+    `out geom` elements per category to data/city/pbf_<cat>_<n>.json.gz."""
+    import osmium
+    from array import array
+    s, w, n, e = BBOX_LL
+    s, w, n, e = s - PBF_MARGIN, w - PBF_MARGIN, n + PBF_MARGIN, e + PBF_MARGIN
+    t0 = time.time()
+    log = lambda m: print(f"[pbf {time.time() - t0:.0f}s] {m}", flush=True)
+    tags_of = lambda o: {t.k: t.v for t in o.tags}
+
+    # pass 1: relations worth keeping (multipolygons of buildings, parks, water ...)
+    rels, member_ids = {}, set()
+    for r in osmium.FileProcessor(PBF, osmium.osm.RELATION):
+        t = r.tags
+        if not (t.get("building") or t.get("natural") or t.get("leisure") or t.get("landuse")):
+            continue
+        tg = tags_of(r)
+        if not _rel_cats(tg):
+            continue
+        mem = [(m.role, m.ref) for m in r.members if m.type == "w" and m.role in ("outer", "inner")]
+        if mem:
+            rels[r.id] = (tg, mem)
+            member_ids.update(ref for _, ref in mem)
+    log(f"{len(rels)} candidate relations, {len(member_ids)} member ways")
+
+    # pass 2: node locations inside the margin box, plus the street-furniture nodes
+    loc = {}
+    props = []
+    for o in osmium.FileProcessor(PBF, osmium.osm.NODE):
+        if not o.location.valid():
+            continue
+        lat, lon = o.location.lat, o.location.lon
+        if s <= lat <= n and w <= lon <= e:
+            loc[o.id] = (lat, lon)
+            if len(o.tags) and _node_is_prop(tags_of(o)):
+                props.append({"type": "node", "id": o.id, "lat": lat, "lon": lon, "tags": tags_of(o)})
+    log(f"{len(loc)} nodes in the box, {len(props)} furniture nodes")
+
+    # pass 3: ways
+    out = {"bld": [], "hwy": [], "misc": [], "props": props}
+    member_geom = {}
+
+    def geometry(refs):
+        pts = [{"lat": loc[r][0], "lon": loc[r][1]} for r in refs if r in loc]
+        if len(pts) > 1 and refs[0] == refs[-1] and pts[0] != pts[-1]:
+            pts.append(pts[0])
+        return pts
+
+    for o in osmium.FileProcessor(PBF, osmium.osm.WAY):
+        t = o.tags
+        cats = _way_cats(t) if len(t) else []
+        is_member = o.id in member_ids
+        if not cats and not is_member:
+            continue
+        refs = [nd.ref for nd in o.nodes]
+        if not any(r in loc for r in refs):
+            continue
+        g = geometry(refs)
+        if len(g) < 2:
+            continue
+        if is_member:
+            member_geom[o.id] = g
+        if cats:
+            el = {"type": "way", "id": o.id, "tags": tags_of(o), "geometry": g}
+            for c in cats:
+                out[c].append(el)
+    log(f"ways: " + ", ".join(f"{k} {len(v)}" for k, v in out.items()))
+
+    for rid, (tg, mem) in rels.items():
+        members = [{"type": "way", "ref": ref, "role": role, "geometry": member_geom[ref]}
+                   for role, ref in mem if ref in member_geom]
+        if not members:
+            continue
+        el = {"type": "relation", "id": rid, "tags": tg, "members": members}
+        for c in _rel_cats(tg):
+            out[c].append(el)
+    log("relations added: " + ", ".join(f"{k} {len(v)}" for k, v in out.items()))
+
+    for f in glob.glob(os.path.join(CITY, "pbf_*_*.json.gz")):
+        os.remove(f)
+    for cat, els in out.items():
+        for i in range(0, max(len(els), 1), PBF_PART):
+            with gzip.open(os.path.join(CITY, f"pbf_{cat}_{i // PBF_PART:03d}.json.gz"), "wt", encoding="utf-8") as f:
+                json.dump({"elements": els[i:i + PBF_PART]}, f, separators=(",", ":"), ensure_ascii=False)
+    log("cache written")
+
+
+def pbf_files():
+    cats = ("misc", "hwy", "bld", "props")
+    fresh = all(pbf_cache_files(c) for c in cats) and all(
+        os.path.getmtime(f) > os.path.getmtime(PBF) for c in cats for f in pbf_cache_files(c))
+    if not fresh:
+        pbf_extract()
+    return {c: pbf_cache_files(c) for c in cats}
+
+
 def fetch_all(offline=False):
     os.makedirs(CITY, exist_ok=True)
+    if USE_PBF and os.path.exists(PBF):
+        return pbf_files()
     files = {cat: cache_files(cat, offline) for cat in ("misc", "hwy", "bld", "props")}
     if PARTIAL:
         seeds = sorted(glob.glob(os.path.join(ROOT, "data", "context_tiles", "*.json")))
@@ -1211,10 +1366,12 @@ def build(offline=False):
 
 
 if __name__ == "__main__":
+    USE_PBF = "--overpass" not in sys.argv
     if "--fetch-only" in sys.argv:
         fetch_all()
         ensure_terrarium()
         print("fetch done")
     else:
         PARTIAL = "--partial" in sys.argv
+        USE_PBF = "--overpass" not in sys.argv
         build(offline="--offline" in sys.argv or PARTIAL)

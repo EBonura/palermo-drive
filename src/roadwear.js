@@ -100,10 +100,11 @@ export function createRoadWear(env) {
           g.fill('evenodd');
         }
       }
-      const d = g.getImageData(0, 0, TS, TS).data, w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty);
-      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (d[(j * TS + i) * 4 + 3] > 127) { const k = (ty + j) * MW + tx + i; mask[k >> 3] |= 1 << (k & 7); }
+      const d = new Uint32Array(g.getImageData(0, 0, TS, TS).data.buffer), w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty);
+      for (let j = 0; j < h; j++) for (let i = 0, o = j * TS; i < w; i++) if (d[o + i] !== 0 && (d[o + i] >>> 24) > 127) { const k = (ty + j) * MW + tx + i; mask[k >> 3] |= 1 << (k & 7); }
     }
   }
+  const tMask = performance.now() - T0; // TEMPDEBUG
   const onRoad = (x, z) => {
     const i = ((x - AX0) * S) | 0, j = ((z - AZ0) * S) | 0;
     if (i < 0 || j < 0 || i >= MW || j >= MH) return false;
@@ -261,6 +262,7 @@ export function createRoadWear(env) {
       }
     }
   }
+  const tRoads = performance.now() - T0; // TEMPDEBUG
   const sNear = (x, z, r) => {   // nearest resampled road sample within r
     let best = -1, bd = r * r;
     const ix = Math.floor(x / SGC), iz = Math.floor(z / SGC), reach = Math.ceil(r / SGC);
@@ -655,6 +657,6 @@ export function createRoadWear(env) {
     _holes: () => [...cells.values()].flatMap(c => c.holes),
   };
   const initMs = performance.now() - T0;
-  window.__rw = api; // TEMPDEBUG
+  window.__rw = api; api.t = { tMask, tRoads, initMs }; // TEMPDEBUG
   return api;
 }
