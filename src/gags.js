@@ -218,5 +218,5 @@ export function createGags(env, T, police) {
     }
     hazards(fx);
   }
-  return { update, bump, bindPedestrians(api) { peds = api; if (window.__pd) window.__pd.peds = api; /* TEMP-DEBUG */ }, scenes: dps, startScene /* TEMP-DEBUG */ };
+  return { update, bump, bindPedestrians(api) { peds = api; }, scenes: dps };
 }

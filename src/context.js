@@ -196,6 +196,7 @@ export function buildContext(ctx) {
   scene.add(group);
   window.__contextStats = stats;
   console.info('context:', JSON.stringify(stats), 'tri total', stats.tris + stats.roadTris);
+  return group;
 }
 
 function pushUp(chunk, o, pts, t) {

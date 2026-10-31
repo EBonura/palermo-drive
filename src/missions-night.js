@@ -134,5 +134,5 @@ export function createNightLife(h) {
     }
   }
 
-  return { update(dt, allowed) { updateSpaccia(dt, allowed); updateAppartati(dt); }, inZone };
+  return { update(dt, allowed) { updateSpaccia(dt, allowed); updateAppartati(dt); }, inZone, sites };
 }
