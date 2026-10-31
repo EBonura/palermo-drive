@@ -120,14 +120,14 @@ function buildEremiti() {
   for (const q of [0, 1]) box('dark', 1.1, 2.4, 0.15, { M: mul(M, mul(tr(-6.7, 11.0, -7.1), rotY(q * PI / 2))), p: [q ? 2.12 : 0, 0, q ? 0 : 2.12], noao: true });
   domeOn(mul(M, tr(-6.7, 15.5, -7.1)), 1.6, 0.6);
   // cloister arcade of paired slender columns on the side opposite the tower
-  const NA = 10, MA = mul(M, tr(0, 0, Dc / 2 + 9.5));
+  const NA = 10, MA = mul(M, tr(0, 0, Dc / 2 + 7.0));
   bx('stone', MA, -NA * 1.2 - 0.8, NA * 1.2 + 0.8, 0, 0.5, -0.5, 0.6, { c: '#c9bda0' });
   for (let i = 0; i < NA; i++) {
     const x = (i - (NA - 1) / 2) * 2.4;
     archBay('tufa', 2.4, 3.9, 1.6, 3.2, 0.7, { M: mul(MA, tr(x, 0.5, -0.1)), pointed: true, oy0: 0.5, c: '#d8cba8' });
     for (const dx of [-0.35, 0.35]) cyl('marble', 0.09, 0.09, 2.7, 6, { M: mul(MA, tr(x + dx, 0.5, 0.25)), c: '#ece6d6' });
   }
-  bx('eremWall', M, -NA * 1.2 - 0.8, NA * 1.2 + 0.8, 4.4, 4.9, Dc / 2 + 8.9, Dc / 2 + 10.1);
+  bx('eremWall', M, -NA * 1.2 - 0.8, NA * 1.2 + 0.8, 4.4, 4.9, Dc / 2 + 6.4, Dc / 2 + 7.6);
   // palms and a citrus tree in the garden
   for (const [x, z] of [[-6, Dc / 2 + 5], [3, Dc / 2 + 4.5], [8, Dc / 2 + 6]]) palm(ob.cx + ob.vx * x + ob.vz * 0, gy, ob.cz + ob.vz * x + 0, 9.5, { r: x });
   return end('San Giovanni degli Eremiti');

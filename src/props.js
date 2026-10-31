@@ -387,7 +387,7 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
     for (let i = 0; i < n; i++) {
       const a = hash3(seed, i, 1) * TAU, rr = Math.sqrt(hash3(seed, i, 2)) * 0.95, r = rmin + hash3(seed, i, 3) * (rmax - rmin);
       const x = ox + Math.cos(a) * rx * rr, z = oz + Math.sin(a) * rz * rr, y = y0 + r * 0.65 + h * Math.pow(1 - rr * rr, 0.9);
-      mb.lump(x, y, z, r * 1.2, r * 0.85, r, C(pickP(pal, hash3(seed, i, 4))), 0, 0.24, 0.6, seed + i);
+      mb.lump(x, y, z, r * 1.25, r * 0.72, r * (0.85 + hash3(seed, i, 5) * 0.3), C(pickP(pal, hash3(seed, i, 4))), 0, 0.34, 0.55, seed + i);
     }
   };
   const bottlesOn = (mb, n, ox, oz, spread, seed) => {
@@ -416,9 +416,9 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
     const mb = new MB(), pal = burnt ? BURNP : BAGP;
     const binCols = burnt ? ['#2a2622', '#1f1c19'] : ['#4b6a5a', '#3d4248'];
     [-0.95, 0.45].forEach((x, k) => { mb.frust(0.12, [x - 0.55, 0.15, x + 0.55, 1.4], 1.12, [x - 0.58, 0.12, x + 0.58, 1.44], C(binCols[k]), 0.7, 1); });
-    mound(mb, 18, -0.25, 0.8, 1.7, 0.75, 1.05, 1.0, seed, pal, 0.24, 0.4);       // on and around the bins
-    mound(mb, 20, 0.1, 1.7, 2.3, 1.0, 0.7, 0, seed + 50, pal, 0.22, 0.4);        // sprawl in front
-    mound(mb, 8, 0, 2.5, 2.6, 0.6, 0.1, 0, seed + 99, pal, 0.14, 0.24);          // spill fringe
+    mound(mb, 22, -0.25, 0.8, 1.8, 0.75, 1.05, 1.0, seed, pal, 0.2, 0.36);       // on and around the bins
+    mound(mb, 24, 0.1, 1.7, 2.4, 1.0, 0.7, 0, seed + 50, pal, 0.18, 0.36);        // sprawl in front
+    mound(mb, 12, 0, 2.5, 2.8, 0.65, 0.1, 0, seed + 99, pal, 0.12, 0.22);          // spill fringe
     const card = burnt ? '#3a342c' : '#a98558';
     mb.box(1.7, 0, 0.5, 2.4, 0.5, 1.1, C(card), 0.75, 1); mb.box(1.8, 0.5, 0.6, 2.3, 0.85, 1.05, C(burnt ? '#2c2822' : '#b8966a'), 0.85, 1);
     mb.box(-2.4, 0, 0.9, -1.8, 0.35, 1.5, C(card), 0.75, 1);
@@ -1580,7 +1580,7 @@ export function buildProps(ctx) {
       if (megas >= MEGA_CAP) return false;
       const tx = -nz, tz = nx, px = x + nx * 0.3, pz = z + nz * 0.3;
       for (const u of [-2.6, 0, 2.6, 3.6]) for (const v of [0.3, 1.6, 3.0]) { const qx = px + tx * u + nx * v, qz = pz + tz * u + nz * v; if (inB(qx, qz) || !lane(qx, qz)) return false; }
-      if (march(px, pz, nx, nz, 9, (a2, b2) => !inB(a2, b2)) < 6.2) return false;       // the lapa must still pass
+      if (march(px, pz, nx, nz, 9, (a2, b2) => !inB(a2, b2)) < 5.6) return false;       // the lapa must still pass
       if (occHit(px + nx * 1.5, pz + nz * 1.5, 2.6) || nearJunction(px, pz, 7)) return false;
       const burnt = rt() < 0.28, name = burnt ? 'mega_burnt' + Math.floor(rt() * 2) : 'mega' + Math.floor(rt() * 3);
       put(name, px, gy(px, pz), pz, Math.atan2(nx, nz), RT(0.95, 1.1)); occAdd(px + nx * 1.5, pz + nz * 1.5, 2.8); megas++; st.mega = (st.mega || 0) + 1;
@@ -1594,7 +1594,7 @@ export function buildProps(ctx) {
     // piles beside the real and procedural cassonetti
     for (const [x, z, nx, nz, tx, tz, over] of binSites) {
       const sq = squalor(x, z);
-      if (rt() > (over ? 0.8 : 0.1 + 0.35 * sq)) continue;
+      if (rt() > (over ? 0.95 : 0.3 + 0.5 * sq)) continue;
       const nn = 1 + (rt() < 0.3 * sq ? 1 : 0) + (over && rt() < 0.4 ? 1 : 0);
       for (let q = 0; q < nn; q++) {
         const px = x + tx * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nx * RT(-0.15, 0.35), pz = z + tz * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nz * RT(-0.15, 0.35);
@@ -1615,9 +1615,9 @@ export function buildProps(ctx) {
         let nx = dz / L, nz = -dx / L; if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         const sq = squalor(cxm, czm);
         for (let s = RT(1, 14); s < L - 1; s += RT(28, 60)) {
-          if (sq > 0.8 && rt() < 0.02) { const [mx, mz] = wallSpot(A, nx, nz, s, L, dx, dz, 0.0); if (tryMega(mx, mz, nx, nz)) continue; }
+          if (sq > 0.8 && rt() < 0.06) { const [mx, mz] = wallSpot(A, nx, nz, s, L, dx, dz, 0.0); if (tryMega(mx, mz, nx, nz)) continue; }
           const u = rt();
-          if (u > 0.28 * sq * sq + 0.01) continue;
+          if (u > 0.55 * sq * sq + 0.02) continue;
           const [x, z] = wallSpot(A, nx, nz, s, L, dx, dz, 0.5);
           if (!free(x, z) || !lane(x, z) || nearJunction(x, z, 3.5) || !passable(x, z, nx, nz)) continue;
           const kind = rt();
@@ -1668,7 +1668,7 @@ export function buildProps(ctx) {
             if (rt() > 0.75) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 9, (x, z) => !inB(x, z)), e2 = march(cx, cz, -nx, -nz, 9, (x, z) => !inB(x, z));
             if (e < 1.4 || e + e2 < 4) continue;
-            if (rt() < 0.14) { if (tryMega(cx + nx * e, cz + nz * e, -nx, -nz)) continue; }
+            if (rt() < 0.3) { if (tryMega(cx + nx * e, cz + nz * e, -nx, -nz)) continue; }
             const d = e - 0.55, x = cx + nx * d, z = cz + nz * d;
             if (!free(x, z) || !lane(x, z)) continue;
             const rot = Math.atan2(-nx, -nz) + RT(-0.4, 0.4), k = rt();
@@ -1725,5 +1725,17 @@ export function buildProps(ctx) {
   const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, colliders: phys.count() };
   api.grid = phys.grid;
   if (location.search.includes('debug')) window.__props = Object.assign(api, { colls });
+  if (location.search.includes('proptest=')) setTimeout(() => { // TEMP test harness
+    const q = new URLSearchParams(location.search), models = q.get('proptest').split(','), S = +(q.get('sp') || 9), g = window.game; if (!g) return;
+    const px = +(q.get('px') || 0), pz = +(q.get('pz') || 0);
+    const tgs = colls.filter(c => models.includes(c.model) && c.st === 0).sort((a, b) => Math.hypot(a.x0 - px, a.z0 - pz) - Math.hypot(b.x0 - px, b.z0 - pz));
+    const tg = tgs[0]; if (!tg) { console.log('PROPTEST none'); return; }
+    const nx = Math.sin(tg.rot0), nz = Math.cos(tg.rot0), th = Math.atan2(-nx, -nz), car = g.car;
+    car.x = tg.x0 + nx * 9; car.z = tg.z0 + nz * 9; car.th = th;
+    let i = 0; for (; i < 600 && tg.st === 0; i++) { car.vx = Math.sin(th) * S; car.vz = Math.cos(th) * S; car.vf = S; car.x += car.vx / 120; car.z += car.vz / 120; api.collidePlayer(car, 1 / 120); }
+    for (let k = 0; k < +(q.get('after') || 40); k++) { car.x += car.vx / 120; car.z += car.vz / 120; api.collidePlayer(car, 1 / 120); }
+    car.vx = car.vz = car.vf = 0; car.x = tg.x0 + nx * 30; car.z = tg.z0 + nz * 30;
+    console.log('PROPTEST', tg.model, tg.x0.toFixed(1), tg.y0.toFixed(1), tg.z0.toFixed(1), tg.rot0.toFixed(2), tg.st, JSON.stringify(api.stats));
+  }, 2500);
   return api;
 }

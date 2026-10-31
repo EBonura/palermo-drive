@@ -117,7 +117,7 @@ export function archBay(key, W, H, ow, oh, d, o = {}) {
   if (ow > 0) {
     const r = ow / 2, y0 = o.oy0 || 0, h = Math.max(oh, r + y0 + 0.1), p = new THREE.Path();
     p.moveTo(-r, y0); p.lineTo(-r, h - r);
-    if (o.pointed) { p.lineTo(0, h + r * 0.35); p.lineTo(r, h - r); } else p.absarc(0, h - r, r, PI, 0, true);
+    if (o.pointed) { p.quadraticCurveTo(-r, h - r + r * 0.75, 0, h + r * 0.45); p.quadraticCurveTo(r, h - r + r * 0.75, r, h - r); } else p.absarc(0, h - r, r, PI, 0, true);
     p.lineTo(r, y0); p.lineTo(-r, y0);
     s.holes.push(p);
   }
@@ -332,6 +332,20 @@ export function initShared() {
     g.clearRect(0, 0, w, h); g.fillStyle = '#4f7a3a'; g.strokeStyle = '#3d6a2c'; g.lineWidth = 1.5;
     for (let a = -1.2; a <= 1.2; a += 0.3) { g.beginPath(); g.moveTo(32, 62); g.quadraticCurveTo(32 + a * 20, 20, 32 + a * 30, 14 + Math.abs(a) * 14); g.stroke(); }
   }, { alphaTest: 0.4, side: THREE.DoubleSide, noShadow: true });
+}
+
+
+// A plain building shell: footprint prism (wall texture wallKey) with a flat roof cap and a cornice round every edge;
+// o.lo adds a stone foundation down to that level, o.cornice false skips the cornice, o.roof sets the cap colour, o.cc the cornice colour.
+export function shell(wallKey, pts, holes, y0, H, o = {}) {
+  if (o.lo !== undefined && o.lo < y0) prism('stone', pts, o.lo, y0, { holes, c: '#a89c88' });
+  prism(wallKey, pts, y0, y0 + H, { holes });
+  prism('flat', pts, y0 + H, y0 + H + 0.15, { holes, c: o.roof || '#8f8a82' });
+  if (o.cornice === false) return;
+  for (let i = 0; i < pts.length; i++) {
+    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 1.2) continue;
+    bx('flat', frame((A[0] + B[0]) / 2, y0 + H - 0.45, (A[1] + B[1]) / 2, -dz / l, dx / l), -l / 2, l / 2, 0, 0.8, -0.5, 0.5, { c: o.cc || '#e2d2b4' });
+  }
 }
 
 // ---------- ornaments ----------
