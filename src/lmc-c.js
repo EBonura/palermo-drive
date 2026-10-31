@@ -310,7 +310,7 @@ function villino(name, fpk, wallSeed, base, trim, roofC, tower, H) {
   };
 }
 export const FLORIO = { name: 'Villino Florio', x: -1542, z: -433, radius: 40, skipIds: [FP.florio.id], build: villino('Villino Florio', 'florio', 901, '#d8b78a', '#f1e4c8', '#8f6a58', true, 14.6) };
-export const IDA = { name: 'Villino Ida', x: -913, z: -1292, radius: 40, skipIds: [FP.ida.id], build: villino('Villino Ida', 'ida', 902, '#e5c9a0', '#f6ecd4', '#9a6a52', false, 14.6) };
+export const IDA = { name: 'Villino Ida', x: -913, z: -1292, radius: 40, skipIds: [FP.ida.id, 'w229192664'], build: villino('Villino Ida', 'ida', 902, '#e5c9a0', '#f6ecd4', '#9a6a52', false, 14.6) };
 
 // ====================================================================================================
 // Stazione Marittima (the port passenger terminal): long pale block with ribbon windows, a clock tower and a canopy on the quay side
