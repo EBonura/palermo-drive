@@ -38,7 +38,7 @@ for (const id of ids) {
   let d; try { const r = await fetch('../world/tiles/' + id + '.json'); if (!r.ok) continue; d = await r.json(); } catch (e) { continue; }
   delete d.near; // flat ground, relative heights
   const g = buildBuildings({ skip: new Set(), scene }, d);
-  scene.add(g); stats.tiles++; stats.buildings += d.buildings.length; stats.tris += g.userData.tris || 0;
+  scene.add(g); stats.tiles++; stats.buildings += d.buildings.length; stats.tris += g.userData.tris || 0; if ((g.userData.ruins || []).length) (stats.ruinAt = stats.ruinAt || []).push(...g.userData.ruins.slice(0, 3)); for (const [k, n] of Object.entries(g.userData.styles || {})) stats[k] = (stats[k] || 0) + n;
   for (const [layer, mat, y] of [['asphalt', asphalt, 0.02], ['raised', sidewalk, 0.12]]) {
     for (const poly of d.streets[layer] || []) {
       try {

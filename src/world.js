@@ -118,10 +118,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
   // Instantiated with the full-detail tile that contains (x, z), their skipIds left out of that tile's generic buildings, disposed with the tile.
-  // Loaded defensively: the file may not exist. (The specifier is a variable so the bundler does not choke on a missing file; once the file
-  // is in the repo, switch to the literal import('./landmarks-city.js') so the production build bundles it.)
   let CITY = [];
-  { const spec = './landmarks-city.js'; import(/* @vite-ignore */ spec).then(m => { CITY = m.CITY_LANDMARKS || []; }).catch(() => { /* not there yet */ }); }
+  import('./landmarks-city.js').then(m => { CITY = m.CITY_LANDMARKS || []; }).catch(e => console.warn('city landmarks', e));
   const cityIn = t => CITY.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j);
   let focus = { x: 0, z: 0 }, lastWanted = { x: 1e9, z: 1e9 }, wantedTimer = 0, forced = null;
   const stat = { frames: 0, work: 0, workMax: 0, workSum: 0, hitches: 0, fetched: 0, bytes: 0, built: 0, errors: 0, parseMax: 0 };

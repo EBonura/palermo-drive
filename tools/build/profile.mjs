@@ -28,7 +28,11 @@ function summarize(profile, label) {
     const n = nodes.get(id), cf = n.callFrame, file = (cf.url || '(native)').replace(/^https?:\/\/[^/]+\//, '').replace(/\?.*/, '');
     const k = `${cf.functionName || '(anon)'} ${file}:${cf.lineNumber + 1}`; byFn.set(k, (byFn.get(k) || 0) + t); byFile.set(file, (byFile.get(file) || 0) + t);
   }
+  // inclusive time of the module entry points (needs --minify=false to have readable names)
+  const incl = new Map(); const sub = id => { const n = nodes.get(id); let t = self.get(id) || 0; for (const c of n.children || []) t += sub(c); return t; };
+  for (const n of profile.nodes) { const fn = n.callFrame.functionName; if (/^(build|create|setup|prepare|canvasTex|streetsIter|buildStreets|decode|loadBlobs|triangulateShape|computeVertexNormals|mergeGeometries|compile|init|run)\w*$/i.test(fn)) incl.set(fn, (incl.get(fn) || 0) + sub(n.id)); }
   console.log(`\n== ${label}: ${total.toFixed(0)} ms sampled`);
+  console.log('inclusive:', [...incl].sort((a, b) => b[1] - a[1]).slice(0, 22).map(([f, t]) => `${f} ${t.toFixed(0)}`).join(' | '));
   console.log('by file:', [...byFile].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([f, t]) => `${f} ${t.toFixed(0)}`).join(' | '));
   for (const [k, t] of [...byFn].sort((a, b) => b[1] - a[1]).slice(0, TOP)) console.log(String(t.toFixed(0)).padStart(6), 'ms', k);
 }

@@ -130,9 +130,10 @@ export function rectShape(w, h) { const s = new THREE.Shape(); s.moveTo(-w / 2, 
 // polygon (array of [x,z]) extruded upward from y0 to y1 (walls and flat top); winding independent
 export function prism(key, pts, y0, y1, o = {}) {
   const s = new THREE.Shape(pts.map(p => new THREE.Vector2(p[0], -p[1])));
+  for (const h of o.holes || []) s.holes.push(new THREE.Path(h.map(p => new THREE.Vector2(p[0], -p[1]))));
   const g = new THREE.ExtrudeGeometry(s, { depth: y1 - y0, bevelEnabled: false });
   g.rotateX(-PI / 2); g.translate(0, y0, 0); // shape y = -z; extrusion +z becomes up
-  part(key, g, o);
+  part(key, g, { ...o, holes: undefined });
 }
 // pyramid roof on a w x d base (base-centred at p)
 export function pyramid(key, w, d, h, o = {}) {

@@ -541,7 +541,7 @@ export function createVehicle(env) {
     const P = _pose; P.pitch = car.pitch; P.roll = car.roll; P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
     rig.pose(P);
     tickShared(now);
-    brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : 0;
+    brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : (car.tailGlow || 0) * 0.45; // tail lamps stay dimly lit at night (src/daynight.js sets car.tailGlow)
 
     // nitro flames
     const n = car.nosAmt, fl = n > 0.05;

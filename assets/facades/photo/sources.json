@@ -684,5 +684,155 @@
    ]
   ],
   "todo": false
+ },
+ {
+  "key": "excelsior",
+  "bid": "w905534988",
+  "name": "Palazzo Excelsior (Piazza Mordini)",
+  "wall": 2,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Palermo, Palazzo Excelsior (82596).jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
+ },
+ {
+  "key": "steri",
+  "bid": "r1291721.0",
+  "name": "Palazzo Chiaramonte-Steri (Piazza Marina)",
+  "wall": 0,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Palermo, Steri.jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
+ },
+ {
+  "key": "giustizia",
+  "bid": "r1241799.0",
+  "name": "Palazzo di Giustizia (Piazza Vittorio Emanuele Orlando)",
+  "wall": 2,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Palazzo di Giustizia (Palermo) 19 06 2026 01.jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    128,
+    265
+   ],
+   [
+    1492,
+    265
+   ],
+   [
+    1492,
+    492
+   ],
+   [
+    128,
+    492
+   ]
+  ],
+  "fix": [
+   [
+    "poly",
+    [
+     [
+      775,
+      350
+     ],
+     [
+      815,
+      350
+     ],
+     [
+      815,
+      555
+     ],
+     [
+      775,
+      555
+     ]
+    ]
+   ]
+  ],
+  "todo": false
+ },
+ {
+  "key": "igiea",
+  "bid": "w83825693",
+  "name": "Villa Igiea",
+  "wall": 26,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Villa Igiea.jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
  }
 ]

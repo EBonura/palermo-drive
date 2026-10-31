@@ -62,7 +62,7 @@ const res = await esbuild.build({
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
-  entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
+  define: { __PD_PROD__: 'true' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
 let appJs = null;

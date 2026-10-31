@@ -50,17 +50,17 @@ def log(*a):
 
 # ---------------------------------------------------------------- data
 TILES = os.path.join(ROOT, 'world/tiles')
-BINDEX = '/private/tmp/claude-501/facade-src/bindex.json'
+BINDEX = '/private/tmp/claude-501/facade-src/bindex2.json'
 
 
 def building_index():
-    """id -> [cx, cz, tile, name] for every building in world/tiles (cached outside the repo)."""
+    """id -> [cx, cz, tile, name, g] for every building in world/tiles (cached outside the repo)."""
     if not os.path.exists(BINDEX):
         out = []
         for f in os.listdir(TILES):
             for b in json.load(open(os.path.join(TILES, f))).get('buildings', []):
                 p = b['p']; n = len(p) // 2
-                out.append([b['id'], round(sum(p[0::2]) / n, 1), round(sum(p[1::2]) / n, 1), f[:-5], b.get('n')])
+                out.append([b['id'], round(sum(p[0::2]) / n, 1), round(sum(p[1::2]) / n, 1), f[:-5], b.get('n'), b.get('g')])
         os.makedirs(os.path.dirname(BINDEX), exist_ok=True)
         json.dump(out, open(BINDEX, 'w'))
     return {r[0]: r[1:] for r in json.load(open(BINDEX))}
@@ -90,6 +90,18 @@ def neighbour_buildings(bid):
             if os.path.exists(f):
                 out += [b['p'] for b in json.load(open(f))['buildings']]
     return out
+
+
+def ground_of(bid):
+    """Ground elevation for the screenshot camera: the building's own g, else the median g of lidar buildings within 200 m."""
+    global _IDX
+    if _IDX is None:
+        _IDX = building_index()
+    r = _IDX[bid]
+    if r[4] is not None:
+        return r[4]
+    gs = sorted(v[4] for v in _IDX.values() if v[4] is not None and abs(v[0] - r[0]) < 200 and abs(v[1] - r[1]) < 200)
+    return gs[len(gs) // 2] if gs else 5.0
 
 
 def wall_info(bid, wall):
@@ -327,6 +339,19 @@ def write_credits(creds):
 
 
 # ---------------------------------------------------------------- in-game shots + contact sheet
+def shot(out, query, budget=int(os.environ.get('VT', 60000))):
+    """Headless Chrome screenshot like tools/shot.sh, with a longer virtual-time budget so far tiles can stream in."""
+    import shutil, tempfile
+    prof = tempfile.mkdtemp(prefix='palermo-shot.')
+    try:
+        subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '--headless=new', f'--user-data-dir={prof}',
+                        '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars', '--window-size=1280,720',
+                        f'--virtual-time-budget={budget}', f'--screenshot={out}', f'http://localhost:8790/?help=0&{query}'],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    finally:
+        shutil.rmtree(prof, ignore_errors=True)
+
+
 def clear_distance(bid, px, pz, n, want):
     """How far in front of the wall point (px, pz) a camera can stand without a building in between (<= want)."""
     near = []
@@ -356,14 +381,14 @@ def shots():
         want = max(wi['L'] * (c1 - c0), wi['H']) * 1.15 + 8
         d = clear_distance(s['bid'], px, pz, wi['n'], want)
         cx, cz = px + wi['n'][0] * d, pz + wi['n'][1] * d
-        y0 = b['g'] + (4 if d >= want - .5 else 4 + (want - d) * .5)      # tight street: stand higher and look down
-        q = f"campos={cx:.1f},{y0:.1f},{cz:.1f}&look={px:.1f},{b['g'] + wi['H'] * .45:.1f},{pz:.1f}"
+        y0 = ground_of(s['bid']) + (4 if d >= want - .5 else 4 + (want - d) * .5)      # tight street: stand higher and look down
+        q = f"campos={cx:.1f},{y0:.1f},{cz:.1f}&look={px:.1f},{ground_of(s['bid']) + wi['H'] * .45:.1f},{pz:.1f}"
         for tag, extra in (('photo', ''), ('proc', '&photomap=none')):   # photomap=none: procedural baseline
             if os.environ.get('TAGS') and tag not in os.environ['TAGS'].split(','):
                 continue
             out = os.path.join(SHOTS, f"{s['key']}_{tag}.png")
             log('shot', s['key'], tag, q)
-            subprocess.run([os.path.join(ROOT, 'tools/shot.sh'), out, q + extra], cwd=ROOT)
+            shot(out, q + extra)
 
 
 def sheet(per_page=7):

@@ -120,3 +120,13 @@ red tile roofs (multiplier 1.6), no shops. **(est.)**
 - Beach clubs on stilts, boats and nets are not modelled; the lido is cabins and decks only.
 - Roller-shutter boxes, AC units and laundry are painted into the tiles, not modelled.
 - Photo facades (`assets/facades/photo/map.json`) still load for the centro only.
+
+## Checking it
+
+- `docs/districts/compare.jpg`: reference photo beside the render for Via Notarbartolo, Corso dei Mille, Sferracavallo and Mondello.
+- `docs/districts/m1.jpg` (Via Liberta, sacco grid, ZEN), `m3` (Kalsa, Albergheria, Borgo Vecchio, Noce), `m4` (Corso dei Mille, Oreto,
+  Stazione, Zisa), `m5` (CEP, Tommaso Natale, Mondello), `m6` (Sferracavallo, lido, Arenella, Acquasanta), `m7` (port, Brin, Uditore, Fiera),
+  `m8` (Favorita, Valdesi, Politeama): free-camera renders from `tools/district-shot.sh` (viewer lighting, no props or traffic).
+- `window.__bld` / `console` print per-style counts for the centro build; `tools/district-view.html` prints them per tile set.
+- Triangle budget: about the same as before (9 tiles around Via Liberta 491k before, 524k now; 9 tiles in the centro 866k before, 861k now).
+  The atlas grew by 30 layers of 256 x 256 (about 10 MB of texture with mips).
