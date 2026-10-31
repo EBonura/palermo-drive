@@ -330,7 +330,7 @@ export function createPedestrians(env) {
   const TURN_OFFS = [0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.1, -2.1, 0.25, -0.25];
 
   // ======================================================================== spawn / despawn
-  let cx = 0, cz = 0, camFwdX = 0, camFwdZ = -1, lastCx = 1e9, lastCz = 1e9, targetN = 0, targetT = 0, started = false, frameNo = 0;
+  let jumpedNow = false, cx = 0, cz = 0, camFwdX = 0, camFwdZ = -1, lastCx = 1e9, lastCz = 1e9, targetN = 0, targetT = 0, started = false, frameNo = 0;
   const idleTmp = [];
   function spawn(initial) {
     if (N.n >= CAP) return false;
@@ -360,7 +360,7 @@ export function createPedestrians(env) {
     const i = N.n++, zn = zoneAt(x, z), vi = pickVariant(zn), v = VARIANTS[vi];
     X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl;
     TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8);
-    THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = initial ? 5 : 0;
+    THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = !started || jumpedNow ? 5 : 0;
     VX[i] = VZ[i] = VY[i] = HOP[i] = ROLL[i] = 0; RD[i] = 1; TMR[i] = atIdle ? rand(6, 40) : 0; STEER[i] = Math.random() * 0.1; TRAV[i] = 0; NEXTT[i] = rand(10, 35);
     SHC[i] = SHT[i] = inSun(x, z); BRI[i] = rand(0.92, 1.08); SIZE[i] = rand(0.96, 1.04); REACT[i] = -1; WAITT[i] = 0; TFLY[i] = 0;
     ST[i] = atIdle ? IDLE : WALK; TICK[i] = (Math.random() * 5) | 0;
@@ -488,17 +488,17 @@ export function createPedestrians(env) {
     const jumped = Math.hypot(cx - lastCx, cz - lastCz) > 45;
     if (!started || jumped) { ensureTilesAround(cx, cz, 70, 60); }
     else ensureTilesAround(cx, cz, R + 25, 1.5);
-    lastCx = cx; lastCz = cz;
+    lastCx = cx; lastCz = cz; jumpedNow = jumped;
 
     // despawn the far ones, and retarget the crowd size twice a second
     for (let i = N.n - 1; i >= 0; i--) { if (Math.hypot(X[i] - cx, Z[i] - cz) > R + 14 || AGE[i] < -100) removeAt(i); }
     targetT -= dt;
     if (targetT <= 0 || !started || jumped) { targetN = estimateTarget(); targetT = 0.5; stats.target = targetN; }
     // spawn (fill quickly when starting or after a jump, else a few per frame)
-    const burst = !started || jumped || N.n < targetN * 0.5;
-    const budget = burst ? 2.5 : 0.6, ts = performance.now(); let tries = 0, spawned = 0;
-    while (N.n < targetN && tries < (burst ? 600 : 24) && spawned < (burst ? 60 : 4)) {
-      tries++; if (spawn(!started || jumped)) spawned++;
+    const burst = !started || jumped || N.n < targetN * 0.35;
+    const budget = !started || jumped ? 12 : burst ? 2.5 : 0.6, ts = performance.now(); let tries = 0, spawned = 0;
+    while (N.n < targetN && tries < (burst ? 1500 : 24) && spawned < (burst ? 400 : 4)) {
+      tries++; if (spawn(burst)) spawned++;
       if ((tries & 7) === 0 && performance.now() - ts > budget) break;
     }
     // slowly thin out when there are far too many (e.g. after the crowd density dropped)

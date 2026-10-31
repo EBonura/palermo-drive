@@ -84,6 +84,10 @@ def query_for(cat, b):
     return head + body + "\nout geom;"
 
 
+PARTIAL = False   # --partial: bake from whatever is cached (plus data/context_tiles seeds) when Overpass is down
+MISSING = []
+
+
 class Split(Exception):
     pass
 
@@ -150,6 +154,9 @@ def ensure(cat, b, offline=False, depth=0):
         return [path]
     if not os.path.exists(marker):
         if offline:
+            if PARTIAL:
+                MISSING.append((cat, box_key(b)))
+                return []
             raise SystemExit(f"missing cache {path} (run without --offline)")
         print(f"fetch {cat} {box_key(b)}", flush=True)
         try:
@@ -180,8 +187,11 @@ def iter_elements(files):
     """Stream elements from cache files, each (type, id) only once."""
     seen = set()
     for f in files:
-        with gzip.open(f, "rb") as fh:
-            els = json.load(fh)["elements"]
+        opener = gzip.open if f.endswith(".gz") else open
+        with opener(f, "rb") as fh:
+            els = json.load(fh)
+        if isinstance(els, dict):
+            els = els["elements"]
         for e in els:
             k = (e["type"], e["id"])
             if k in seen:
@@ -193,7 +203,13 @@ def iter_elements(files):
 
 def fetch_all(offline=False):
     os.makedirs(CITY, exist_ok=True)
-    return {cat: cache_files(cat, offline) for cat in ("misc", "hwy", "bld", "props")}
+    files = {cat: cache_files(cat, offline) for cat in ("misc", "hwy", "bld", "props")}
+    if PARTIAL:
+        seeds = sorted(glob.glob(os.path.join(ROOT, "data", "context_tiles", "*.json")))
+        files["bld"] += seeds   # `out tags geom` dumps of buildings + major roads (another tool's cache)
+        files["hwy"] += seeds
+        print(f"PARTIAL: {len(MISSING)} boxes missing {sorted(set(m[0] for m in MISSING))}, +{len(seeds)} seed files")
+    return files
 
 
 def ensure_terrarium(z=12, margin_m=None):
@@ -1200,4 +1216,5 @@ if __name__ == "__main__":
         ensure_terrarium()
         print("fetch done")
     else:
-        build(offline="--offline" in sys.argv)
+        PARTIAL = "--partial" in sys.argv
+        build(offline="--offline" in sys.argv or PARTIAL)
