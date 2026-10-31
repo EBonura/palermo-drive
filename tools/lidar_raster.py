@@ -10,12 +10,16 @@ The WMS only serves *rendered* images, so elevations are decoded from the pictur
   blended with a hillshade that adds the *same* integer to R, G and B of every pixel.
   The chroma (G-R, B-R) therefore depends on s only. data/lidar_raster/ramp_lut.json maps chroma ->
   elevation; it is calibrated once against GetFeatureInfo (`calibrate`).
-* Resolution of the decode is that of the ramp (about 1 colour per 1.4 stretch levels, ~1 m).
+* Resolution of the decode is that of the ramp: ~0.5 m rms below 60 m, worse higher up (3 to 4 m near 100 to 200 m).
+  The stretch clips at ~204 m (Monte Pellegrino): those cells read as NaN (SATURATED = "nan") and carry F_SAT.
+* Coverage is only the coastal belt (about 20% of the bbox); the 1 m products cover a further inland-south wedge
+  but are stretched over ~1800 m (7 m steps), so they are not decoded (see PROBE_LAYERS and `coverage`).
 * We request EPSG:4326 images whose bbox is exactly an axis-aligned rectangle of the game's local
   metre frame (the local projection is linear in lat/lon), 2 m per pixel, so sampling is a plain
   array lookup in (x, z).
 
 Layout (all under data/lidar_raster/):
+  raw/probe_<2x2|1x1>.png       coarse footprint probe (1 request each), decides which blocks are fetched
   raw/<dtm|dsm>/<bi>_<bj>.png   the server's RGBA PNG, cached, resumable (alpha 0 = no data)
   <dtm|dsm>/<bi>_<bj>.npz       decoded: e (int16 decimetres, -32768 = no data), f (uint8 flags)
   ramp_lut.json                 chroma -> elevation table
@@ -29,10 +33,10 @@ Library use (run with tools/.venv/bin/python):
     lr.sample_ndsm(x, z)                          # dsm - dtm, i.e. height above ground
 
 CLI (python3 tools/lidar_raster.py <cmd>):
-    fetch [--layers dtm dsm] [--delay 1.0]   download missing raw blocks (sequential, resumable)
+    fetch [dtm] [dsm] [--delay 1.0]          probe, then download the missing raw blocks (sequential, resumable)
     calibrate [--per 3]                      (re)build ramp_lut.json against GetFeatureInfo
     build                                    decode raw -> npz, write index.json
-    coverage [out.png]                       coverage map
+    coverage [out.png]                       coverage map (default data/lidar_raster/coverage.png) + area stats
     validate [--fresh 20] [--seed 1]         compare with GetFeatureInfo and with data/lidar.json
 """
 import io
@@ -52,10 +56,17 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bake import KX, KZ, LAT0, LON0  # noqa: E402
 
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "lidar_raster")
+ROOT = os.environ.get("LIDAR_RASTER_DIR") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "lidar_raster")
 WMS = "http://wms.pcn.minambiente.it/ogc?map=/ms_ogc/WMS_v1.3/servizi-LiDAR/LIDAR_SICILIA.map&service=WMS&version=1.3.0"
 UA = "palermo-drive-prototype/0.1 (lidar_raster; sequential, cached; CC BY 4.0 data)"
 LAYERS = {"dtm": "EL.LIDAR.SICILIA.2x2.DTM", "dsm": "EL.LIDAR.SICILIA.2x2.DSM_LAST"}
+# The 1x1 products cover a different, mostly inland-south area but their 8-bit stretch spans ~1800 m
+# (about 7 m per level), so they cannot be decoded usefully; we only probe their footprint for the coverage map.
+PROBE_LAYERS = {"2x2": "EL.LIDAR.SICILIA.2x2.DTM", "1x1": "EL.LIDAR.SICILIA.1x1.DTM"}
+PROBE_N = 1024
+SATURATED = "nan"  # "nan": cells at or above ~204 m (8-bit stretch clipped) read as no data; "clip": read as 204.0
+SHIFT = (0.0, 0.0)  # metres added to the sample position; see the accuracy notes (GetFeatureInfo prefers about +0.9, 0)
 
 # docs/TILES.md whole-city bbox
 CITY_BBOX = (38.065, 13.285, 38.225, 13.420)  # s, w, n, e
@@ -135,10 +146,35 @@ def raw_path(layer, bi, bj):
     return os.path.join(ROOT, "raw", layer, f"{bi}_{bj}.png")
 
 
+def probe(kind="2x2"):
+    """Coarse (1024 px over the whole bbox, ~12 m) footprint of a lidar product: bool array [row 0 = north]."""
+    p = os.path.join(ROOT, "raw", f"probe_{kind}.png")
+    if not os.path.exists(p):
+        raw = getmap(PROBE_LAYERS[kind], (CITY_BBOX[0], CITY_BBOX[1], CITY_BBOX[2], CITY_BBOX[3]), PROBE_N, PROBE_N)
+        Image.open(io.BytesIO(raw)).verify()
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "wb").write(raw)
+    return np.array(Image.open(p).convert("RGBA"))[..., 3] > 0
+
+
+def blocks_with_data(mask):
+    """Blocks whose area has any footprint pixel (dilated by one pixel so slivers are not missed)."""
+    s, w, n, e = CITY_BBOX
+    out = []
+    for bi, bj in block_list():
+        bs, bw, bn, be = block_bbox(bi, bj)
+        c0, c1 = int((max(bw, w) - w) / (e - w) * PROBE_N) - 1, int((min(be, e) - w) / (e - w) * PROBE_N) + 2
+        r0, r1 = int((n - min(bn, n)) / (n - s) * PROBE_N) - 1, int((n - max(bs, s)) / (n - s) * PROBE_N) + 2
+        if mask[max(r0, 0):max(r1, 0), max(c0, 0):max(c1, 0)].any():
+            out.append((bi, bj))
+    return out
+
+
 def fetch(layers=("dtm", "dsm"), delay=1.0):
-    blocks = block_list()
+    blocks = blocks_with_data(probe("2x2"))
     todo = [(l, b) for l in layers for b in blocks if not os.path.exists(raw_path(l, *b))]
-    print(f"{len(blocks)} blocks x {len(layers)} layers, {len(todo)} requests to make", flush=True)
+    print(f"{len(blocks)} of {len(block_list())} blocks have data; {len(blocks)} x {len(layers)} layers, "
+          f"{len(todo)} requests to make", flush=True)
     t0 = time.time()
     for n, (layer, (bi, bj)) in enumerate(todo, 1):
         raw = getmap(LAYERS[layer], block_bbox(bi, bj), NPX, NPX)
@@ -332,10 +368,12 @@ class _Layer:
             e = blk[0][gj[m] - b * NPX, gi[m] - a * NPX]
             out[m] = np.where(e == NODATA, np.nan, e / 10.0)
             fl[m] = blk[1][gj[m] - b * NPX, gi[m] - a * NPX]
+        if SATURATED == "nan":
+            out[(fl & F_SAT) > 0] = np.nan
         return (out, fl) if flags else out
 
     def sample(self, x, z, method="nearest", flags=False):
-        x, z = np.asarray(x, dtype=np.float64), np.asarray(z, dtype=np.float64)
+        x, z = np.asarray(x, dtype=np.float64) + SHIFT[0], np.asarray(z, dtype=np.float64) + SHIFT[1]
         scalar = x.ndim == 0 and z.ndim == 0
         x, z = np.atleast_1d(x), np.atleast_1d(z)
         if method == "nearest":
@@ -387,46 +425,77 @@ def sample_ndsm(x, z):
 # ----------------------------------------------------------------------------- coverage map
 
 def coverage(out):
+    """PNG map: green = DTM and DSM, orange = DTM only, blue = DSM only; grey grid = 500 m world tiles,
+    labelled lines = 2000 m blocks, yellow = TILES.md bbox. Also prints area statistics."""
+    from PIL import ImageDraw
     x0, x1, z0, z1 = city_rect()
-    scale = 0.05  # px per m (20 m per pixel)
-    bis = [b[0] for b in block_list()]
-    bjs = [b[1] for b in block_list()]
-    gx0, gz0 = min(bis) * BLOCK, min(bjs) * BLOCK
-    W, H = int((max(bis) + 1) * BLOCK * scale - gx0 * scale), int((max(bjs) + 1) * BLOCK * scale - gz0 * scale)
+    scale = 0.05  # px per m: one pixel = 20 m (every 10th source pixel)
+    bl = block_list()
+    gx0, gz0 = min(b[0] for b in bl) * BLOCK, min(b[1] for b in bl) * BLOCK
+    gx1, gz1 = (max(b[0] for b in bl) + 1) * BLOCK, (max(b[1] for b in bl) + 1) * BLOCK
+    W, H = int((gx1 - gx0) * scale), int((gz1 - gz0) * scale)
     img = np.zeros((H, W, 3), np.uint8)
     img[:] = (24, 26, 30)
-    step = int(round(1 / scale))  # decimate to 20 m
-    for (bi, bj) in block_list():
-        for name, col in (("dsm", (70, 150, 220)), ("dtm", (90, 200, 120))):
+    n_dtm = n_dsm = n_both = 0
+    step = int(BLOCK * scale)
+    for (bi, bj) in bl:
+        m = {}
+        for name in ("dtm", "dsm"):
             blk = _layer(name).block(bi, bj)
-            if blk is None:
-                continue
-            e = blk[0][::10, ::10] != NODATA  # 20 m grid
-            y0 = int((bj * BLOCK - gz0) * scale)
-            xx0 = int((bi * BLOCK - gx0) * scale)
-            sub = img[y0:y0 + e.shape[0], xx0:xx0 + e.shape[1]]
-            if name == "dtm":
-                sub[e] = col
-            else:  # blue where DSM exists but DTM does not, grey-blue mix where both
-                both = e & (sub == col).all(axis=2)
-                sub[e & ~both] = col
-                sub[both] = (60, 190, 190)
-    # the city bbox, tile grid, block grid, Quattro Canti
-    from PIL import ImageDraw
+            m[name] = np.zeros((step, step), bool) if blk is None else blk[0][5::10, 5::10] != NODATA
+        n_dtm += int(m["dtm"].sum())
+        n_dsm += int(m["dsm"].sum())
+        n_both += int((m["dtm"] & m["dsm"]).sum())
+        y0, xx0 = int((bj * BLOCK - gz0) * scale), int((bi * BLOCK - gx0) * scale)
+        sub = img[y0:y0 + step, xx0:xx0 + step]
+        sub[m["dtm"] & ~m["dsm"]] = (230, 150, 60)
+        sub[m["dsm"] & ~m["dtm"]] = (70, 130, 230)
+        sub[m["dtm"] & m["dsm"]] = (80, 200, 120)
+    # footprint of the 1 m products (not decodable, see PROBE_LAYERS): purple where we have nothing better
+    try:
+        m1 = probe("1x1")
+        xs = gx0 + (np.arange(W) + 0.5) / scale
+        zs = gz0 + (np.arange(H) + 0.5) / scale
+        lat, lon = LAT0 - zs[:, None] / KZ, LON0 + xs[None, :] / KX
+        s_, w_, n_, e_ = CITY_BBOX
+        ci = np.broadcast_to(((lon - w_) / (e_ - w_) * PROBE_N).astype(int), (H, W))
+        ri = np.broadcast_to(((n_ - lat) / (n_ - s_) * PROBE_N).astype(int), (H, W))
+        inside = (ci >= 0) & (ci < PROBE_N) & (ri >= 0) & (ri < PROBE_N)
+        sel = np.zeros((H, W), bool)
+        sel[inside] = m1[ri[inside], ci[inside]]
+        free = (img == (24, 26, 30)).all(axis=2)
+        n1 = int((sel & free).sum())
+        img[sel & free] = (150, 90, 190)
+    except Exception as ex:  # probe failed (service down): the map is still useful without it
+        print("1x1 probe skipped:", ex)
+        n1 = 0
     im = Image.fromarray(img)
     dr = ImageDraw.Draw(im)
     P = lambda x, z: ((x - gx0) * scale, (z - gz0) * scale)
-    for bi, bj in block_list():
-        dr.rectangle([*P(bi * BLOCK, bj * BLOCK), *P((bi + 1) * BLOCK, (bj + 1) * BLOCK)], outline=(90, 90, 100))
-        dr.text(P(bi * BLOCK + 40, bj * BLOCK + 40), f"{bi},{bj}", fill=(150, 150, 160))
+    for gx in range(int(gx0), int(gx1) + 1, 500):
+        dr.line([*P(gx, gz0), *P(gx, gz1)], fill=(44, 46, 52))
+    for gz in range(int(gz0), int(gz1) + 1, 500):
+        dr.line([*P(gx0, gz), *P(gx1, gz)], fill=(44, 46, 52))
+    for bi, bj in bl:
+        dr.rectangle([*P(bi * BLOCK, bj * BLOCK), *P((bi + 1) * BLOCK, (bj + 1) * BLOCK)], outline=(100, 100, 112))
+        dr.text(P(bi * BLOCK + 60, bj * BLOCK + 60), f"{bi},{bj}", fill=(170, 170, 180))
     dr.rectangle([*P(x0, z0), *P(x1, z1)], outline=(255, 200, 60), width=2)
     qx, qz = P(0, 0)
     dr.ellipse([qx - 4, qz - 4, qx + 4, qz + 4], outline=(255, 80, 80), width=2)
-    dr.text((qx + 6, qz - 6), "Quattro Canti", fill=(255, 120, 120))
-    dr.text((6, 4), "green = DTM+? / cyan = DTM and DSM / blue = DSM only; yellow = TILES.md bbox; blocks 2000 m",
-            fill=(220, 220, 220))
+    dr.text((qx + 7, qz - 5), "Quattro Canti", fill=(255, 130, 130))
+    for label, (la, lo) in (("Monte Pellegrino", (38.1771, 13.3510)), ("Mondello", (38.2, 13.3235)), ("Porto", (38.1260, 13.3700)),
+                            ("Foro Italico", (38.1100, 13.3770)), ("Brancaccio", (38.0900, 13.3880)),
+                            ("Boccadifalco", (38.1100, 13.3150)), ("Oreto", (38.1000, 13.3550))):
+        dr.text(P((lo - LON0) * KX, -(la - LAT0) * KZ), label, fill=(255, 255, 255))
+    dr.text((8, 6), "green: 2 m DTM+DSM (decoded)   purple: 1 m product only (7 m elevation steps, not decoded)   "
+            "black: none", fill=(225, 225, 225))
+    dr.text((8, 20), "20 m cells, grid 500 m, labelled boxes = 2000 m blocks, yellow = TILES.md bbox", fill=(190, 190, 190))
     im.save(out)
-    print("wrote", out, im.size)
+    area = (x1 - x0) * (z1 - z0) / 1e6
+    cell = (1 / scale) ** 2 / 1e6
+    print(f"wrote {out} {im.size}")
+    print(f"bbox area {area:.0f} km2; DTM {n_dtm * cell:.1f} km2, DSM {n_dsm * cell:.1f} km2, both {n_both * cell:.1f} km2 "
+          f"({n_both * cell / area:.0%} of bbox); extra 1 m-only footprint {n1 * cell:.1f} km2 ({n1 * cell / area:.0%})")
 
 
 # ----------------------------------------------------------------------------- validation
@@ -496,8 +565,10 @@ def validate(fresh=20, seed=1):
                         s.append(v[1])
         xs, zs, g, s = map(np.array, (xs, zs, g, s))
         rd, rs = sample_dtm(xs, zs), sample_dsm(xs, zs)
-        m = ~np.isnan(rd) & ~np.isnan(rs)
-        print(f"--- {m.sum()} of {len(xs)} building points in data/lidar.json have raster data")
+        art = s == g  # lidar.py stores surface = ground when the server returns no DSM band: not a real measurement
+        m = ~np.isnan(rd) & ~np.isnan(rs) & ~art
+        print(f"--- {m.sum()} of {len(xs)} building points in data/lidar.json usable ({art.sum()} have surface == ground "
+              f"exactly, dropped as suspect)")
         _stats("DTM err (nearest)", (rd - g)[m])
         _stats("DTM err (bilinear)", (sample_dtm(xs, zs, "bilinear") - g)[m])
         _stats("DSM err (nearest)", (rs - s)[m])

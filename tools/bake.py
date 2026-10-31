@@ -146,7 +146,9 @@ def lidar_shape(rec, outer, holes):
     pts = sample_points(outer, holes)
     if not rec or len(rec) != len(pts):
         return None
-    good = [(p, r) for p, r in zip(pts, rec) if isinstance(r, list)]
+    # Late in the sampling run the WMS stopped returning the DSM band and tools/lidar.py stored
+    # surface == ground. A real roof never matches the ground to the millimetre, so drop those.
+    good = [(p, r) for p, r in zip(pts, rec) if isinstance(r, list) and r[1] != r[0]]
     if not good:
         return None
     # Anything under 2.5 m is a sample that landed in an unmapped courtyard or on a terrace edge.
@@ -353,6 +355,19 @@ def main(src, dst):
             if len(pts) < 2:
                 continue
             r = {"w": ROAD_WIDTH[hw], "k": hw, "p": flat(pts)}
+            # For traffic: one-way direction (1 along the points, -1 against), lanes, speed, junctions.
+            ow = tags.get("oneway")
+            if ow in ("yes", "true", "1") or tags.get("junction") == "roundabout":
+                r["o"] = 1
+            elif ow == "-1":
+                r["o"] = -1
+            for tag, field in (("lanes", "l"), ("maxspeed", "ms")):
+                try:
+                    r[field] = int(tags[tag])
+                except (KeyError, ValueError):
+                    pass
+            if tags.get("junction"):
+                r["j"] = tags["junction"]
             if tags.get("name"):
                 r["n"] = tags["name"]
             roads.append(r)

@@ -17,6 +17,8 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/context.js`, `tools/context.py`, `data/context_osm.json`, `context-data.js` | context agent |
 | `src/vehicle.js`, `src/mobile.js`, `src/mobile.css`, `assets/cars/`, `assets/audio/` | driving agent |
 | `src/ui.js`, `src/ui.css`, `assets/ui/` | game-shell agent |
+| `src/traffic.js`, `assets/traffic/` | traffic agent |
+| `src/pedestrians.js`, `assets/peds/` (and removing the static pedestrians from `src/props.js`) | pedestrian agent |
 
 If you need something changed in a file you don't own (a new helper in core.js, a new field in the
 baked data), say so in your final report instead of editing it. You may copy small helpers into your own module.

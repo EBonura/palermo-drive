@@ -2,7 +2,8 @@
 
 ## Integration pass (lead, before publishing)
 
-- Hunt the `computeBoundingSphere(): Computed radius is NaN` console error (some module emits NaN positions).
+- `computeBoundingSphere(): Computed radius is NaN`: no NaN in the scene; most likely src/context.js computing
+  a bounding sphere on an empty chunk before checking it. Guard with a length check.
 - Pause the game while the portrait rotate prompt is showing.
 - Sky and haze read pale grey from altitude (title flyover): retune turbidity/fog for high cameras.
 - Camera pull-in only tests building walls; props between camera and car block the view.
