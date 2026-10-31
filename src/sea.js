@@ -205,7 +205,7 @@ void main() {
   vec3 N = normalize(vec3(-sl.x, 1.0, -sl.y));
 
   // depth from the distance to the shore: shallow shelf, then dropping away
-  float depth = 0.25 + 0.06 * min(d, 70.0) + 0.25 * max(d - 70.0, 0.0);
+  float depth = 0.25 + 0.06 * min(d, 70.0) + 0.5 * max(d - 70.0, 0.0);
 
   // seabed seen through the water (sand, rock, a hint of posidonia), shifted by the waves
   vec2 q = p + N.xz * min(depth, 3.0) * 0.8;
@@ -218,7 +218,7 @@ void main() {
   bed *= 0.85 + 0.3 * bn2;
   #endif
   vec3 trans = exp(-vec3(0.55, 0.11, 0.075) * depth);                           // red goes first
-  vec3 scat = mix(vec3(0.020, 0.50, 0.46), vec3(0.004, 0.085, 0.24), 1.0 - exp(-depth * 0.085));
+  vec3 scat = mix(vec3(0.020, 0.50, 0.46), vec3(0.004, 0.085, 0.24), 1.0 - exp(-depth * 0.13));
   float lit = 0.62 + 0.55 * max(dot(N, uSunDir), 0.0);
   vec3 body = (bed * trans * trans * exp(-depth * 0.3) + scat * (1.0 - exp(-depth * 0.5))) * lit;
 
@@ -420,7 +420,6 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   const rf = rasterLand(D, FINE, fineK), sdfFine = signedDistance(rf, 120);
   const rc = rasterLand({ land: D.land }, COARSE, 1 / 44), sdfCoarse = signedDistance(rc, 3000);
   const gm = rasterLand(D, GAME, 1);
-  if (location.search.includes('seatest')) { const cs = (x, z) => sdfCoarse[Math.floor((z - COARSE.z0) / 44) * rc.w + Math.floor((x - COARSE.x0) / 44)]; console.log('[sea] coarse', rc.w, rc.h, [[1100, -900], [1500, -1500], [3000, -3000], [0, 0], [800, -500]].map(p => p.join(',') + '=' + cs(...p).toFixed(0)).join(' '), 'fine', [[1100, -900], [800, -500], [700, -1000]].map(p => sdfFine[Math.floor((p[1] - FINE.z0) * rf.k) * rf.w + Math.floor((p[0] - FINE.x0) * rf.k)].toFixed(0))); } // TEMP-DEBUG
   const fineTex = halfTexture(sdfFine, rf.w, rf.h), coarseTex = halfTexture(sdfCoarse, rc.w, rc.h);
 
   // Is (x, z) open water? Exact at 1 m inside the harbour box, the coastline polygon elsewhere.
@@ -435,6 +434,27 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     const i0 = i | 0, j0 = j | 0, fx = i - i0, fz = j - j0, o = j0 * rf.w + i0, s = sdfFine;
     return (s[o] * (1 - fx) + s[o + 1] * fx) * (1 - fz) + (s[o + rf.w] * (1 - fx) + s[o + rf.w + 1] * fx) * fz;
   }
+
+  // The terrain meshes (near 10 m grid, far 150 m grid) are interpolated from coarse data, so their land-to-sea ramps
+  // poke through the water as beige or grey aprons along the quays and over the port basins. Sink the mesh vertices
+  // that stand in water; the land vertices (and everything that follows groundY) are untouched.
+  function shoreAny(x, z) {
+    const i = (x - FINE.x0) * rf.k - 0.5, j = (z - FINE.z0) * rf.k - 0.5;
+    if (i >= 0 && j >= 0 && i < rf.w - 1 && j < rf.h - 1) return shoreAt(x, z);
+    const ci = Math.floor((x - COARSE.x0) / 44), cj = Math.floor((z - COARSE.z0) / 44);
+    return ci >= 0 && cj >= 0 && ci < rc.w && cj < rc.h ? sdfCoarse[cj * rc.w + ci] : 1000;
+  }
+  try {
+    for (const o of scene.children) {
+      if (!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) continue;
+      const pos = o.geometry.attributes.position, a = pos.array;
+      const isNear = D.near && Math.abs(a[0] - D.near.x0) < 0.01 && Math.abs(a[2] - D.near.z0) < 0.01 && pos.count > 10000;
+      const isFar = D.far && Math.abs(a[0] - D.far.x0) < 0.01 && Math.abs(a[2] - D.far.z0) < 0.01 && pos.count === D.far.nx * D.far.nz;
+      if (!isNear && !isFar) continue;
+      for (let i = 0; i < pos.count; i++) if (a[i * 3 + 1] > -3 && shoreAny(a[i * 3], a[i * 3 + 2]) > 1) a[i * 3 + 1] = -12;
+      pos.needsUpdate = true; o.geometry.computeVertexNormals(); o.geometry.computeBoundingSphere();
+    }
+  } catch (e) { console.warn('[sea] terrain tweak skipped', e); }
 
   // -- the water
   const nrmTex = makeWaterTexture(256);
@@ -504,7 +524,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
         for (const side of [1, -1]) {
           const nx = -tz * side, nz = tx * side;
           for (let s = 3; s < len - 1.5; s += 3.2 + rand() * 1.8) {
-            if (rand() < 0.22) continue;
+            if (rand() < 0.55) continue;
             const isY = rand() < 0.3, L = (isY ? 11 : 7.5) * (0.8 + rand() * 0.3);
             const x = ax + tx * s + nx * (2.9 + L / 2), z = az + tz * s + nz * (2.9 + L / 2), yaw = Math.atan2(nx, nz) + (rand() - 0.5) * 0.1;
             (isY ? yacht : gozzo)(x, z, yaw, 0, 0.2);
@@ -513,7 +533,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
       }
     }
     const spots = (n, tries, x0, x1, z0, z1, sMin, sMax, fn) => { let k = 0; for (let t = 0; t < tries && k < n; t++) { const x = x0 + rand() * (x1 - x0), z = z0 + rand() * (z1 - z0), s = shoreAt(x, z); if (s >= sMin && s <= sMax && fn(x, z)) k++; } };
-    spots(9, 400, 460, 900, -820, -340, 9, 60, (x, z) => (rand() < 0.65 ? gozzo : yacht)(x, z, rand() * 6.28, 0.25)); // at anchor in the basin
+    spots(6, 400, 460, 900, -820, -340, 9, 60, (x, z) => (rand() < 0.65 ? gozzo : yacht)(x, z, rand() * 6.28, 0.25)); // at anchor in the basin
     spots(7, 400, 560, 1500, -900, 100, 60, 280, (x, z) => (rand() < 0.75 ? gozzo : yacht)(x, z, rand() * 6.28, 0.35));     // off the Foro Italico
     // ferries alongside the quays of the port
     const ferries = [];
@@ -530,7 +550,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
       }
     }
     ferries.sort((a, b) => b.rank - a.rank);
-    const FC = [['#1b3b6f', '#e8c020'], ['#f1f2f0', '#c0392b'], ['#23467f', '#f1f2f0']];
+    const FC = [['#2f5fae', '#e8c020'], ['#f1f2f0', '#c0392b'], ['#3a6bb8', '#f1f2f0']];
     let nf = 0;
     for (const fr of ferries) {
       if (nf >= 2) break;
@@ -665,7 +685,6 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }
 
   function startDrown(a) {
-    console.log('[sea] startDrown', a.car.x, a.car.z); // TEMP-DEBUG
     const { car, game, placeAt, shout } = a;
     S.on = true; S.t = 0; S.game = game; S.car = car; S.placeAt = placeAt;
     S.x = car.x; S.z = car.z; S.vx = car.vx || 0; S.vz = car.vz || 0; S.bubbleAcc = 0; S.shown = false;
@@ -685,7 +704,6 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     S.root = null;
   }
   function endDrown() {
-    console.log('[sea] endDrown', new Error().stack.split('\n').slice(1,4).join('|')); // TEMP-DEBUG
     S.on = false; resetLapa();
     uniforms.uClear.value.w = 0;
     rings.forEach(m => { m.visible = false; });
@@ -757,28 +775,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   // -- per-frame
   const _sz = new THREE.Vector2();
   let time = 0;
-  // TEMP-DEBUG-BEGIN scripted drive for screenshots: ?seatest=SECONDS_INTO_THE_DROWNING
-  const TEST = new URLSearchParams(location.search).has('seatest') ? +new URLSearchParams(location.search).get('seatest') : null;
-  let testRefs = null, testFrame = 0, testGo = false;
-  function testStep(dt) {
-    if (!testRefs) return dt;
-    testFrame++;
-    const car = testRefs.car, th = 0.5236;
-    if (testFrame < 4) testRefs.vehicle.camState.init = false;
-    if (testFrame === 4) {
-      let d = 0; while (d < 80 && !isWater(489.5 + Math.sin(th) * d, -427.5 + Math.cos(th) * d)) d += 0.5;
-      console.log('[sea] test water at', d);
-      d += 2.5;
-      Object.assign(car, { x: 489.5 + Math.sin(th) * d, z: -427.5 + Math.cos(th) * d, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testRefs.vehicle.camState.init = false;
-    }
-    if (S.on && S.shown) { const o = document.getElementById('sea-go'); o.style.transition = 'none'; o.firstElementChild.style.transition = 'none'; }
-    if (S.on && !S.pre) { S.pre = true; while (S.t < TEST) { stepDrown(0.04); stepPoints(spray, 0.04); stepPoints(bubbles, 0.04); } }
-    if (S.on) return 0;
-    return dt;
-  }
-  // TEMP-DEBUG-END
   function update(dt, camera = cam0) {
-    if (TEST !== null) dt = testStep(dt); // TEMP-DEBUG
     time += dt;
     uniforms.uTime.value = time;
     water.position.x = camera.position.x; water.position.z = camera.position.z;
@@ -793,13 +790,11 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     }
   }
   function checkPlayer(a) {
-    if (TEST !== null && !testRefs) testRefs = a; // TEMP-DEBUG
     if (S.on || !a || !a.car || !a.game || a.game.state !== 'play') return;
     if (isWater(a.car.x, a.car.z)) startDrown(a);
   }
 
   const api = { update, checkPlayer, isWater, shoreAt };
-  if (location.search.includes('debug')) window.__sea = api; // TEMP-DEBUG
   return api;
 }
 
