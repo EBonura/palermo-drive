@@ -283,21 +283,21 @@ export function createPedestrians(env) {
     main:   { row: 1, day: 0.012, night: 0.007, g: [0.35, 0.7, 0.7], m: [], add: { dogwalker: 0.4 }, addN: { dogwalker: 0.5 } },
     vicoli: { row: 0, day: 0.006, night: 0.0035, g: [0.35, 0.7, 0.7], m: [['market', 0.3]], add: { dogwalker: 0.3 }, addN: { dogwalker: 0.3 } },
     // Via della Liberta and the grid behind it: shoppers and office workers, no market, few tourists
-    lib:    { row: 1, day: 0.012, night: 0.006, g: [0.35, 0.7, 0.7], m: [['market', 0.08], ['tour', 0.35], ['shopper', 4], ['signora', 2], ['signora2', 2], ['borsa', 2], ['suit', 1.8], ['suit2', 1.8], ['fans', 0.5], ['young', 1.2]], add: { dogwalker: 0.5, jogger: 0.4 }, addN: { dogwalker: 0.6 } },
+    lib:    { row: 1, day: 0.007, night: 0.0045, g: [0.35, 0.7, 0.7], m: [['market', 0.08], ['tour', 0.35], ['shopper', 4], ['signora', 2], ['signora2', 2], ['borsa', 2], ['suit', 1.8], ['suit2', 1.8], ['fans', 0.5], ['young', 1.2]], add: { dogwalker: 0.5, jogger: 0.4 }, addN: { dogwalker: 0.6 } },
     // working-class quarters of Noce, Zisa, Oreto, Brancaccio, Uditore, Rigano, the outskirts: locals, elders, kids
-    local:  { row: 0, day: 0.0065, night: 0.003, g: [0.4, 0.6, 0.6], m: [['tour', 0.12], ['law', 0.5], ['market', 0.35], ['biz', 0.55], ['kids', 1.4], ['elders', 1.4], ['fans', 0.8]], add: { dogwalker: 0.5 }, addN: { dogwalker: 0.4 } },
+    local:  { row: 0, day: 0.0055, night: 0.003, g: [0.4, 0.6, 0.6], m: [['tour', 0.12], ['law', 0.5], ['market', 0.35], ['biz', 0.55], ['kids', 1.4], ['elders', 1.4], ['fans', 0.8]], add: { dogwalker: 0.5 }, addN: { dogwalker: 0.4 } },
     // ZEN: kids and teenagers outside, mopeds, no tourists, nobody in a suit
     zen:    { row: 0, day: 0.008, night: 0.0045, g: [0.6, 0.35, 0.35], m: [['tour', 0.03], ['law', 0.3], ['biz', 0.2], ['market', 0.25], ['kids', 3], ['young', 2.6], ['elders', 0.9], ['mamma', 1.5], ['fans', 1.3]], add: {}, addN: {} },
     // CEP and Borgo Nuovo: the same, a little calmer
     cep:    { row: 0, day: 0.0065, night: 0.003, g: [0.5, 0.4, 0.4], m: [['tour', 0.05], ['law', 0.4], ['biz', 0.4], ['market', 0.3], ['kids', 2], ['young', 1.7], ['elders', 1.1], ['fans', 1]], add: { dogwalker: 0.3 }, addN: {} },
     // Mondello: bathers in swimwear and straw hats, families, ice cream
-    beach:  { row: 3, day: 0.014, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
+    beach:  { row: 3, day: 0.011, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
     // the lido and the Mondello seafront in summer: packed
     lido:   { row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 14], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
     // Sferracavallo, Arenella, Acquasanta: fishing villages, seafront walkers
     coast:  { row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
     // La Favorita: joggers, dog walkers, families, pensioners
-    park:   { row: 0, def: 0.22, day: 0.0035, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
+    park:   { row: 0, def: 0.22, day: 0.0028, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
     // Monte Pellegrino and the countryside: a few pilgrims, hikers and a kiosk
     rural:  { row: 3, def: 0.6, day: 0.0013, night: 0.0003, g: [1, 0.03, 0.03], m: [['tour', 2], ['priest', 2], ['market', 0.3], ['biz', 0.1], ['beach', 0.2], ['kids', 0.4], ['fans', 0.1], ['young', 0.6], ['elders', 1.2]], add: { jogger: 0.6 }, addN: {} },
     // the port, the shipyards and Brin: workers on foot, few strollers
@@ -319,8 +319,8 @@ export function createPedestrians(env) {
   GK[2] = 1; GE[2] = 0.1;
   PNAMES.forEach(n => {
     const P = PROFILES[n], mul = {};
-    for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? 1) * f;
-    const dm = P.def ?? 1;   // def: multiplier for every variant the table does not name (a park is mostly joggers and dogs, not the whole city)
+    const dm = P.def ?? 1;   // def: multiplier on every variant (a park is mostly joggers and dogs, not the whole city); the table multiplies on top
+    for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? dm) * f;
     VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0)));
     VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0)));
     const z = VW.length - 1; GK[z] = P.g[0]; GE[z] = P.g[1]; GP[z] = P.g[2];

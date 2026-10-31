@@ -60,10 +60,39 @@ export const TEX = {
     g.fillStyle = '#6f8a45'; g.fillRect(0, 0, S, S);
     speckle(g, S, 7000, ['#7f9a52', '#5f7a3a', '#8aa35c', '#6b7f40'], 1, 3);
   }, 3),
-  sand: canvasTex(128, (g, S) => { // beaches of the world tiles (Mondello)
-    g.fillStyle = '#d6c79f'; g.fillRect(0, 0, S, S);
-    speckle(g, S, 2600, ['#e2d5b0', '#c9ba90', '#d0c196', '#e8dcba'], 1, 2);
-  }, 4),
+  sand: canvasTex(256, (g, S) => { // beaches of the world tiles (Mondello: pale, fine, slightly rippled sand)
+    g.fillStyle = '#d9cba5'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 26; i++) { // wind ripples and footprints-sized dimples
+      g.fillStyle = `rgba(${Math.random() < 0.5 ? '190,172,132' : '236,226,196'},${rnd(0.08, 0.2)})`;
+      g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(3, 8), rnd(-0.3, 0.3), 0, 7); g.fill();
+    }
+    speckle(g, S, 3600, ['#e6dab6', '#c9ba90', '#d3c49a', '#ece2c2', '#bfae84'], 1, 2);
+  }, 6),
+  // Detail multiplied over the vertex-coloured terrain of the world tiles (world-space UVs, 48 m repeat). Near white on purpose:
+  // the land cover colour comes from the vertices, this only breaks the flat colour up with rock flecks, scrub clumps and tufts.
+  // On steep faces the world UVs stretch along the fall line, which reads as limestone weathering streaks.
+  terrain: canvasTex(512, (g, S) => {
+    g.fillStyle = '#f0eee6'; g.fillRect(0, 0, S, S);
+    const wrap = (fn) => { for (const dx of [0, -S]) for (const dy of [0, -S]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+    for (let i = 0; i < 70; i++) { // large soft blotches (patches of drier or greener ground)
+      const x = rnd(0, S), y = rnd(0, S), rx = rnd(30, 110), ry = rnd(24, 80), a = rnd(0, 3), dark = Math.random() < 0.55;
+      g.fillStyle = dark ? `rgba(70,66,48,${rnd(0.05, 0.12)})` : `rgba(255,252,236,${rnd(0.08, 0.18)})`;
+      wrap(() => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, 7); g.fill(); });
+    }
+    for (let i = 0; i < 520; i++) { // scrub clumps: small dark olive blobs with a lighter tuft beside them
+      const x = rnd(0, S), y = rnd(0, S), r = rnd(2.5, 7);
+      g.fillStyle = `rgba(${Math.random() < 0.7 ? '62,76,44' : '92,86,52'},${rnd(0.22, 0.45)})`;
+      wrap(() => { g.beginPath(); g.ellipse(x, y, r, r * rnd(0.6, 1), rnd(0, 3), 0, 7); g.fill(); });
+      g.fillStyle = 'rgba(255,248,214,0.18)';
+      wrap(() => { g.beginPath(); g.ellipse(x + r * 0.9, y - r * 0.6, r * 0.6, r * 0.35, 0.4, 0, 7); g.fill(); });
+    }
+    for (let i = 0; i < 160; i++) { // pale limestone flecks and cracks
+      const x = rnd(0, S), y = rnd(0, S), w = rnd(3, 11), h = rnd(2, 5);
+      g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,250' : '120,112,98'},${rnd(0.2, 0.4)})`;
+      wrap(() => g.fillRect(x, y, w, h));
+    }
+    speckle(g, S, 9000, ['rgba(60,56,44,0.16)', 'rgba(255,255,245,0.16)', 'rgba(110,100,70,0.12)'], 1, 2);
+  }, 48),
 };
 
 // ---------- street geometry ----------

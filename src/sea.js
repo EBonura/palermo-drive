@@ -752,8 +752,8 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     ' float wob = 0.035 * sin(ang * 7.0 + uP * 3.0) + 0.025 * sin(ang * 13.0 - uP * 5.0);\n' +
     ' float R = 0.08 + 0.92 * uP;\n' +
     ' float ring = 1.0 - smoothstep(0.0, 0.10, abs(r - R + wob));\n' +
-    ' float patch = (1.0 - smoothstep(0.0, R * 0.9 + wob, r)) * (0.55 - 0.35 * uP);\n' +
-    ' float a = (ring * 0.85 + patch) * uA * (1.0 - uP * 0.5) * (1.0 - smoothstep(0.9, 1.0, r));\n' +
+    ' float foamPatch = (1.0 - smoothstep(0.0, R * 0.9 + wob, r)) * (0.55 - 0.35 * uP);\n' +
+    ' float a = (ring * 0.85 + foamPatch) * uA * (1.0 - uP * 0.5) * (1.0 - smoothstep(0.9, 1.0, r));\n' +
     ' if (a < 0.01) discard; gl_FragColor = vec4(0.93, 0.97, 1.0, a); }';
   const rings = [0, 1].map(() => {
     const mat = new THREE.ShaderMaterial({ uniforms: { uP: { value: 1 }, uA: { value: 0 } }, vertexShader: RING_VERT, fragmentShader: RING_FRAG, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });

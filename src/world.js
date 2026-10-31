@@ -12,7 +12,7 @@
 // a hard cap on resident triangles shrinks the rings (phones). Geometry is disposed when parts go; materials are shared.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
-import { streetsIter } from './streets.js';
+import { streetsIter, TEX as GROUND_TEX } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
 import { QUALITY } from './mobile.js';
@@ -74,15 +74,33 @@ class SegGrid {
 
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
-  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b3a993'), grove: new THREE.Color('#7f8f5c'), scrub: new THREE.Color('#77804f'),
-  rock: new THREE.Color('#b9b0a1'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#5f7d48'), green: new THREE.Color('#7a9a55'),
-  beach: new THREE.Color('#d6c79f'),
+  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b0a58a'), grove: new THREE.Color('#8a8a58'), scrub: new THREE.Color('#686d45'),
+  rock: new THREE.Color('#a8a090'), rockLo: new THREE.Color('#8f897b'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#6a8a48'),
+  beach: new THREE.Color('#dacca6'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
+  farm: new THREE.Color('#a8985f'), orchard: new THREE.Color('#6f8148'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
+  dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
 };
-const _c = new THREE.Color(), HAZE = new THREE.Color('#7297b4');
-function terrainColor(out, h, slope, noise) {
-  if (h < 2) out.copy(C.sand);
-  else if (h < 90 && slope < 0.15) out.copy(C.plain).lerp(C.grove, noise * 0.6);
-  else out.copy(C.scrub).lerp(C.rock, Math.min(1, slope * 1.4));
+// OSM land cover (tools/tiles.py areas[].k) that tints the terrain: colour, strength and priority (first match wins, lower = stronger claim)
+const COVER = {
+  sand: [C.beach, 0.92, 0], pitch: [C.pitch, 0.9, 1], rock: [C.rock, 0.9, 2], forest: [C.forest, 0.85, 3], orchard: [C.orchard, 0.8, 4],
+  green: [C.green, 0.85, 5], scrub: [C.scrub, 0.85, 6], cemetery: [C.cemetery, 0.7, 7], farm: [C.farm, 0.8, 8], dirt: [C.dirt, 0.85, 9],
+  rail: [C.rail, 0.8, 10], grass: [C.dry, 0.8, 11],
+};
+const _c = new THREE.Color(), _r = new THREE.Color(), HAZE = new THREE.Color('#7297b4');
+// h: ground height (m), slope: |gradient|, noise 0..1 (low frequency), n2 0..1 (a second, finer pattern)
+function terrainColor(out, h, slope, noise, n2 = 0.5) {
+  if (h < 1.6) { out.copy(C.shore).lerp(C.sand, 0.25 * noise); return out; } // rocky or built-up shore; beaches are OSM sand polygons
+  const hill = smooth(55, 130, h), steep = smooth(0.14, 0.4, slope);
+  // lowland: dry grass, straw and olive-green patches; hills: dark olive scrub with dry tan clearings
+  out.copy(C.plain).lerp(C.grove, noise * 0.55).lerp(C.dry, n2 * 0.35);
+  _r.copy(C.scrub).lerp(C.dry, n2 * 0.4).lerp(C.grove, noise * 0.2);
+  out.lerp(_r, Math.max(hill, steep * 0.8));
+  // limestone: grey-ochre, paler on the high ledges, with faint strata bands
+  const rock = smooth(0.38, 0.85, slope);
+  if (rock > 0) {
+    _r.copy(C.rockLo).lerp(C.rock, Math.min(1, 0.35 + noise * 0.5 + smooth(120, 420, h) * 0.3)).multiplyScalar(0.94 + 0.06 * Math.sin(h * 0.9));
+    out.lerp(_r, rock);
+  }
   return out;
 }
 
@@ -103,7 +121,8 @@ function getLowMats() {
   lowMats = {
     wall: new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.95 }),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
-    terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }),
+    terrain: new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide }),
+    far: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }), // the coarse far grid has no uvs
   };
   return lowMats;
 }
@@ -176,7 +195,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const H = (i, j) => h[Math.min(F.nz - 1, Math.max(0, j)) * F.nx + Math.min(F.nx - 1, Math.max(0, i))];
     const cs = Math.floor(F.x0 / (CELLS * s)), ce = Math.floor((F.x0 + (F.nx - 1) * s) / (CELLS * s));
     const rs = Math.floor(F.z0 / (CELLS * s)), re = Math.floor((F.z0 + (F.nz - 1) * s) / (CELLS * s));
-    const mat = getLowMats().terrain;
+    const mat = getLowMats().far;
     for (let a = cs; a <= ce; a++) for (let b = rs; b <= re; b++) {
       const ci0 = Math.max(0, Math.round((a * CELLS * s - F.x0) / s)), ci1 = Math.min(F.nx - 1, Math.round(((a + 1) * CELLS * s - F.x0) / s));
       const cj0 = Math.max(0, Math.round((b * CELLS * s - F.z0) / s)), cj1 = Math.min(F.nz - 1, Math.round(((b + 1) * CELLS * s - F.z0) / s));
@@ -267,8 +286,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* terrainMesh(t, stride) {
     const useNear = !!t.nearS, step = t.shape && stride === 1 ? 5 : (useNear ? 10 : 25) * stride, n = Math.round(T / step) + 1; // 5 m under shaped road corridors so the mesh follows the bench
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3);
-    const tint = t.tint, urban = t.urban;
+    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
+    const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const x = x0 + i * step, z = z0 + j * step, y = g(x, z), k = (j * n + i) * 3;
@@ -276,13 +295,17 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const dx = (g(x + e, z) - g(x - e, z)) / (2 * e), dz = (g(x, z + e) - g(x, z - e)) / (2 * e), l = Math.hypot(dx, 1, dz);
         pos[k] = x; pos[k + 1] = y - 0.2; pos[k + 2] = z; nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(x * 0.013 + z * 0.009) + Math.sin(x * 0.0037 - z * 0.013)) * 0.25 + 0.5;
-        terrainColor(_c, y, Math.hypot(dx, dz), noise);
+        const n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5, slope = Math.hypot(dx, dz);
+        terrainColor(_c, y, slope, noise, n2);
         if (urban > 0) _c.lerp(C.urban, urban);
         if (tint) for (const a of tint) {
           if (x < a.x0 || x > a.x1 || z < a.z0 || z > a.z1 || !inPoly(a.pts, x, z)) continue;
-          _c.lerp(a.col, 0.85); break;
+          _c.lerp(a.col, a.s); // woods, scrub and lawns give way to bare limestone where the ground is steep
+          if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
+          break;
         }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
+        const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
       }
       if ((j & 1) === 1) yield;
     }
@@ -290,9 +313,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const sk = [], at = (i, j) => (j * n + i);
     for (let i = 0; i < n; i++) { sk.push(at(i, 0), at(i, n - 1), at(0, i), at(n - 1, i)); }
     const nb = n * n, total = nb + sk.length;
-    const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3);
-    P.set(pos); N.set(nor); Cc.set(col);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - 8; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; });
+    const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
+    P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
+    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - 8; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; });
     const idx = [];
     for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
@@ -304,6 +327,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(Cc, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
     geo.setIndex(new THREE.BufferAttribute(total < 65536 ? new Uint16Array(idx) : new Uint32Array(idx), 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
     m.userData.tris = idx.length / 3;
@@ -652,11 +676,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function prepareTile(t) {
     const d = t.data;
     t.urban = Math.min(1, (d.buildings.length) / 160) * 0.8;
-    const kinds = { forest: C.forest, green: C.green, sand: C.beach };
-    t.tint = (d.areas || []).filter(a => kinds[a.k]).map(a => {
+    t.tint = (d.areas || []).filter(a => COVER[a.k]).sort((a, b) => COVER[a.k][2] - COVER[b.k][2]).map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
-      return { pts, x0, z0, x1, z1, col: kinds[a.k] };
+      return { pts, x0, z0, x1, z1, col: COVER[a.k][0], s: COVER[a.k][1], cover: a.k };
     });
   }
   function* ensureData(t) {
