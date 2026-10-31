@@ -41,7 +41,7 @@ MARK0, MARK1 = '<!-- facade_photos:begin -->', '<!-- facade_photos:end -->'
 # (from its start vertex) that the quad spans. auto = the quad reaches outside the photo, keep the largest photographed
 # block. v0 = drop that fraction of the wall height at the bottom (clutter). fix = obstructions to
 # paint out: ('poly', [pts]) or ('line', [pts], width), same view coordinates.
-SOURCES = json.load(open(os.path.join(OUT, 'sources.json')))
+SOURCES = [s for s in json.load(open(os.path.join(OUT, 'sources.json'))) if not s.get('todo')]   # todo = photo fetched, quad not set yet
 
 
 def log(*a):
@@ -120,18 +120,29 @@ def point_in(x, z, p):
 
 
 # ---------------------------------------------------------------- fetch
-def api(**kw):
-    kw['format'] = 'json'
-    u = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(kw)
-    for i in range(8):
+_LAST = [0.0]
+
+
+def _get(url, parse):
+    """GET with the pacing Commons asks for (a few requests, then 429 with Retry-After)."""
+    for i in range(12):
+        w = _LAST[0] + 7.0 - time.time()
+        if w > 0:
+            time.sleep(w)
+        _LAST[0] = time.time()
         try:
-            time.sleep(1.5)
-            return json.load(urllib.request.urlopen(urllib.request.Request(u, headers=UA)))
+            data = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120).read()
+            return json.loads(data) if parse else data
         except urllib.error.HTTPError as e:
             if e.code != 429:
                 raise
-            time.sleep(12 * (i + 1))
+            time.sleep(float(e.headers.get('Retry-After') or 30) + 2)
     raise RuntimeError('Commons rate limit')
+
+
+def api(**kw):
+    kw['format'] = 'json'
+    return _get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(kw), True)
 
 
 def fname(title):
@@ -147,14 +158,7 @@ def fetch(width=2400):
         r = api(action='query', titles='File:' + s['title'], prop='imageinfo', iiprop='url|size|extmetadata', iiurlwidth=width)
         ii = list(r['query']['pages'].values())[0]['imageinfo'][0]; m = ii['extmetadata']
         url = ii['thumburl'] if ii['width'] > width else ii['url']
-        for i in range(8):
-            try:
-                time.sleep(2)
-                data = urllib.request.urlopen(urllib.request.Request(url, headers=UA)).read(); break
-            except urllib.error.HTTPError as e:
-                if e.code != 429:
-                    raise
-                time.sleep(15 * (i + 1))
+        data = _get(url, False)
         open(path, 'wb').write(data)
         meta = dict(title=s['title'], orig=[ii['width'], ii['height']], url=ii['descriptionurl'], file=fn,
                     lic=m.get('LicenseShortName', {}).get('value'), licurl=m.get('LicenseUrl', {}).get('value'),

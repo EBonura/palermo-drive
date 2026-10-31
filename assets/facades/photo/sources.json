@@ -488,5 +488,37 @@
     ]
    ]
   ]
+ },
+ {
+  "key": "palmes",
+  "bid": "w278478513",
+  "name": "Grand Hotel et des Palmes (Via Mariano Stabile)",
+  "wall": 2,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Grand Hotel et des Palmes (Palermo) - Fa\u00e7ade.jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
  }
 ]

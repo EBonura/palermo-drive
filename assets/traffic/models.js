@@ -338,3 +338,5 @@ export function busSignGeometry() {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   return g;
 }
+
+export { MB, col, wheel, hatch, bus, apePick, SEDAN, PUNTO, PANDA, DARK, GLASS, WHITE, BLACK, LAMP, TAIL, SKIN };

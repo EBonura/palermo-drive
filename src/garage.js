@@ -132,6 +132,8 @@ export const garage = {
     const pr = this.partPrice(part, opt); if (st.cash < pr) return false;
     st.cash -= pr; st.owned[ownedKey.p(part, opt)] = 1; save(); emit(); return true;
   },
+  // Fines (src/police.js): takes at most what the wallet holds and returns what was actually taken.
+  debit(amount) { amount = Math.min(Math.max(0, Math.round(+amount) || 0), st.cash); if (amount > 0) { st.cash -= amount; save(); emit(); } return amount; },
   credit(amount) { if (amount > 0 && Number.isFinite(amount)) { st.cash += amount; save(); emit(); } },
   onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   // which parts a look wears that the player does not own (test links and previews): used by the garage to warn
