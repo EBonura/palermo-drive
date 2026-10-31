@@ -11,6 +11,8 @@ import { createVehicle } from './vehicle.js';
 import { setupUI } from './ui.js';
 import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
+import { createMissions } from './missions.js';
+import { createNet } from './net.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -356,6 +358,7 @@ const { car, camState, placeAt, physics, updateCamera } = vehicle;
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D };
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
+const mapMarkers = []; // { x, z, color, size } drawn on the minimap
 
 // ---------- minimap ----------
 const MM_SCALE = 1; // px per metre on the baked map
@@ -385,6 +388,16 @@ function drawMinimap() {
   mini.rotate(car.th - Math.PI);
   mini.scale(zoom, zoom);
   mini.drawImage(mapCanvas, -(car.x - mapCanvas.ox) * MM_SCALE, -(car.z - mapCanvas.oz) * MM_SCALE);
+  // Markers from other modules (missions, stigghiulari, other players): positions relative to the
+  // car in the same rotated frame as the map; off-map ones are pinned to the rim as arrows.
+  for (const m of mapMarkers) {
+    const dx = (m.x - car.x) * zoom * MM_SCALE, dz = (m.z - car.z) * zoom * MM_SCALE, a = car.th - Math.PI;
+    let px = dx * Math.cos(a) - dz * Math.sin(a), pz = dx * Math.sin(a) + dz * Math.cos(a);
+    const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
+    if (off) { px *= rim / r; pz *= rim / r; }
+    mini.fillStyle = m.color || '#e8559a'; mini.strokeStyle = '#000'; mini.lineWidth = 1.5;
+    mini.beginPath(); mini.arc(px, pz, off ? 4 : (m.size || 5), 0, Math.PI * 2); mini.fill(); mini.stroke();
+  }
   mini.restore();
   mini.fillStyle = '#c41e2a'; mini.strokeStyle = '#fff'; mini.lineWidth = 2;
   mini.beginPath(); mini.moveTo(W / 2, W / 2 - 9); mini.lineTo(W / 2 + 6, W / 2 + 7); mini.lineTo(W / 2 - 6, W / 2 + 7); mini.closePath(); mini.fill(); mini.stroke();
@@ -448,11 +461,18 @@ function applySettings() {
   scene.fog.density = 0.00014 / st.drawDistance;
   camera.far = 40000 * st.drawDistance; camera.updateProjectionMatrix();
   vehicle.setVolume?.(st.volume);
+  pedestrians.setQuality?.(st.quality);
+  traffic.setQuality?.(st.quality);
 }
 const params = new URLSearchParams(location.search);
 // Screenshot/debug links skip the title screen.
 if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = 'play';
-setupUI({ game, applySettings, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
+// ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
+// Both get the world, the player and the shell state. update(dt) runs every frame (missions only while
+// playing); they draw their own DOM and push minimap markers into mapMarkers.
+const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, placeAt, proj });
+const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
+setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
 applySettings();
 document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
@@ -463,6 +483,8 @@ renderer.setAnimationLoop(now => {
     for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
+  if (game.state === 'play') missions.update?.(dt);
+  net.update?.(dt);
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);

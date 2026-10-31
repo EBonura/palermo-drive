@@ -1,6 +1,6 @@
 # Palermo Drive: notes for agents working in parallel
 
-Goal: the most faithful PS2-era rendition of Palermo's centro storico we can build in three.js
+Goal: an irreverent, edgy driving game soaked in Palermitan culture (GTA/taxi spirit, you drive a lapa), set in the most faithful PS2-era rendition of Palermo we can build in three.js
 (textured low/mid-poly, 256 to 512 px tiled procedural textures, vertex-colour AO, baked detail).
 Faithfulness to the real city beats everything else. No mission/objective gameplay; the driving feel and the game shell (title, options, credits) are in scope.
 
@@ -19,6 +19,8 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/ui.js`, `src/ui.css`, `assets/ui/` | game-shell agent |
 | `src/traffic.js`, `assets/traffic/` | traffic agent |
 | `src/pedestrians.js`, `assets/peds/` (and removing the static pedestrians from `src/props.js`) | pedestrian agent |
+| `src/missions.js`, `assets/missions/`, plus small additions to `src/pedestrians.js` (scripted characters) and `src/ui.js` (menu entries, copy/tone) | missions agent |
+| `server/`, `src/net.js`, plus a small model-builder export in `src/vehicle.js` | multiplayer agent |
 
 If you need something changed in a file you don't own (a new helper in core.js, a new field in the
 baked data), say so in your final report instead of editing it. You may copy small helpers into your own module.
