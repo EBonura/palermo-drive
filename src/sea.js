@@ -774,6 +774,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }
 
   const api = { update, checkPlayer, isWater, shoreAt };
+  if (location.search.includes('debug')) window.__sea = api; // TEMP-DEBUG
   return api;
 }
 

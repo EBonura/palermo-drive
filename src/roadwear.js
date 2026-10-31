@@ -37,9 +37,9 @@ const COL = {
 const K = { primary: 0, secondary: 1, tertiary: 2, unclassified: 3, residential: 4, service: 5, living_street: 6, pedestrian: 7 };
 // per class, per metre of centreline: holes, repair patches, cracks, manholes
 const DENS = {
-  primary: [0.03, 0.012, 0.025, 0.02], secondary: [0.045, 0.015, 0.03, 0.02], tertiary: [0.07, 0.02, 0.04, 0.03],
-  unclassified: [0.09, 0.02, 0.04, 0.02], residential: [0.13, 0.03, 0.05, 0.03], service: [0.11, 0.02, 0.05, 0.015],
-  living_street: [0.11, 0.02, 0.04, 0.02], pedestrian: [0.05, 0.01, 0.03, 0.01],
+  primary: [0.04, 0.012, 0.025, 0.02], secondary: [0.06, 0.015, 0.03, 0.02], tertiary: [0.1, 0.02, 0.04, 0.03],
+  unclassified: [0.12, 0.02, 0.04, 0.02], residential: [0.18, 0.03, 0.05, 0.03], service: [0.15, 0.02, 0.05, 0.015],
+  living_street: [0.15, 0.02, 0.04, 0.02], pedestrian: [0.07, 0.01, 0.03, 0.01],
 };
 const MARKETS = [[-60, 410, 110], [260, -220, 110], [-390, -245, 90]];   // Ballaro, Vucciria, Capo
 

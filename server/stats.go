@@ -74,6 +74,7 @@ type persisted struct {
 type session struct {
 	last  time.Time
 	start time.Time
+	mp    bool // wants multiplayer (has a name and is not playing offline)
 }
 
 type statsCfg struct {
@@ -225,6 +226,17 @@ func (s *Stats) online(now time.Time) int {
 	return n
 }
 
+// onlineMP counts the sessions that would join the relay: multiplayer is only worth an open WebSocket when two or more of them overlap.
+func (s *Stats) onlineMP(now time.Time) int {
+	n := 0
+	for _, x := range s.sessions {
+		if x.mp && now.Sub(x.last) < sessionTTL {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *Stats) bumpPeaks(now time.Time) {
 	o := s.online(now)
 	for _, a := range []*Agg{agg(s.p.Days, s.dayKey), agg(s.p.Months, s.monthKey), &s.p.Total} {
@@ -252,10 +264,10 @@ func validID(id string) bool {
 	return true
 }
 
-// ping records one client ping. Returns false when it was rejected (rate limit, bad id).
-func (s *Stats) ping(ip, id, ev string, secs float64) bool {
+// ping records one client ping. Returns the number of multiplayer-willing sessions online, or -1 when rejected.
+func (s *Stats) ping(ip, id, ev string, secs float64, wantsMP bool) int {
 	if !validID(id) {
-		return false
+		return -1
 	}
 	now := time.Now().UTC()
 	k := idKey(id)
@@ -266,7 +278,7 @@ func (s *Stats) ping(ip, id, ev string, secs float64) bool {
 	b := s.ipHits[ip]
 	if b == nil {
 		if len(s.ipHits) > 50000 {
-			return false
+			return -1
 		}
 		b = &bucket{tokens: 30, t: now}
 		s.ipHits[ip] = b
@@ -274,7 +286,7 @@ func (s *Stats) ping(ip, id, ev string, secs float64) bool {
 	b.tokens = min(30, b.tokens+now.Sub(b.t).Seconds()*0.5)
 	b.t = now
 	if b.tokens < 1 {
-		return false
+		return -1
 	}
 	b.tokens--
 
@@ -339,15 +351,15 @@ func (s *Stats) ping(ip, id, ev string, secs float64) bool {
 		credit()
 		delete(s.sessions, k)
 		s.dirty = true
-		return true
+		return s.onlineMP(now)
 	default:
-		return false
+		return -1
 	}
 	if ss != nil {
-		ss.last = now
+		ss.last, ss.mp = now, wantsMP
 	}
 	s.bumpPeaks(now)
-	return true
+	return s.onlineMP(now)
 }
 
 // ---------- usage accounting and caps ----------
@@ -557,13 +569,14 @@ func (s *Stats) servePing(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 2 {
 		secs, _ = strconv.ParseFloat(parts[2], 64)
 	}
-	if !s.ping(clientIP(r), parts[0], parts[1], secs) {
+	on := s.ping(clientIP(r), parts[0], parts[1], secs, len(parts) > 3 && parts[3] == "1")
+	if on < 0 {
 		http.Error(w, "no", http.StatusTooManyRequests)
 		return
 	}
-	body := `{"mp":0}`
+	body := fmt.Sprintf(`{"mp":0,"on":%d}`, on)
 	if s.mpAvailable() {
-		body = `{"mp":1}`
+		body = fmt.Sprintf(`{"mp":1,"on":%d}`, on)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
