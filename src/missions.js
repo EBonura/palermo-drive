@@ -1,5 +1,5 @@
 // Game modes: "Turisti affamati" (tourist taxi runs to Palermo's eateries), the stigghiulari (grill vendors with smoke plumes and
-// nitro refills) and, after dark, "A Favorita" (a discreet client, needs the whole-city tiles ?world=1), the pollanche vendors on Monte
+// nitro refills) and, after dark, "A Favorita" (a discreet client in the Favorita), the pollanche vendors on Monte
 // Pellegrino and the night gags of src/missions-night.js. Owned by the missions work.
 //
 // createMissions(env) -> { mode, setMode('free'|'turisti'|'favorita'), update(dt), stop() }
@@ -589,7 +589,7 @@ function build(env) {
   // ------------------------------------------------------------------------------------ pollanche (corn on the cob), Monte Pellegrino
   // Carts at the Santuario di Santa Rosalia, built like the stigghiulari: brazier, umbrella, a vendor sprite, a minimap marker, a smoke
   // plume you can see from the city, "POLLANCHEEEE" now and then, and a nitro top-up when you stop. They live in the whole-city tiles,
-  // so they exist only with ?world=1: the plume and the marker at once, the cart and the vendor when the lapa comes within 420 m.
+  // so they are built lazily: the plume and the marker at once, the cart and the vendor when the lapa comes within 420 m.
   const polls = [];
   let pollPlume = null;
   if (worldOn()) {
@@ -804,7 +804,7 @@ function build(env) {
   }
 
   // ------------------------------------------------------------------------------------ night mission "A Favorita"
-  // After dark, with the whole-city tiles on (?world=1: the Favorita is ~3.9 km north-west of Quattro Canti and only exists there), a client
+  // After dark, (the Favorita is ~3.9 km north-west of Quattro Canti), a client
   // in sunglasses and a raincoat flags the lapa and asks, with a lot of innuendo and a lot of excuses, to be driven to Viale Diana in the
   // Favorita. Cheeky satire: the glam night folk waiting along the avenue greet him by name and the joke is entirely on him. Pays well, and
   // he begs you not to tell anyone. Starts from setMode('favorita') or by itself when you idle at night in free drive.
@@ -837,7 +837,6 @@ function build(env) {
   }
   const charHead = id => () => { const i = pedestrians.info(id); return i ? { x: i.x, y: i.y + 1.95, z: i.z } : { x: car.x, y: groundAt(car.x, car.z) + 2.4, z: car.z }; };
   function favUnavailable() {
-    if (!worldOn()) return T('Serve il mondo intero: togli ?world=0', 'Needs the whole-city world: drop ?world=0');
     if (!isNight()) return T('Il cliente esce solo di notte', 'The client only comes out at night');
     return '';
   }

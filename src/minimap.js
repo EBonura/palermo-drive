@@ -1,7 +1,7 @@
 // Round minimap (top right, <canvas id="mini">): cream land, white roads, brown buildings, heading up, with markers and the
 // mission route drawn on top in screen space.
 //
-// Streamed world (default): the map is made of one small canvas per 500 m tile ("piece"), painted on demand and kept in a LRU.
+// The map is made of one small canvas per 500 m tile ("piece"), painted on demand and kept in a LRU.
 //   1. base   land / sea from the manifest coastline (one Path2D built once). Every tile near the car gets this at once, so the
 //             map never goes blank, also for tiles whose data is not in yet.
 //   2. detail once the tile's parsed data is available (full or low detail tile, world.tileData): green/water/plaza areas, drivable
@@ -9,7 +9,6 @@
 // Each frame is just a few drawImage calls of the pieces around the car (no getImageData, no per-frame tile rebuilds). A piece
 // is painted slightly before it scrolls into view (margin PRE metres). The view widens a little at speed (zoom-out).
 //
-// ?world=0 (no streamer): the old single canvas of the baked centro (D.land, D.areas, D.roads, D.buildings).
 import { QUALITY } from './mobile.js';
 
 const W = 200; // canvas size in px (the CSS size varies, see ui/mobile css)
@@ -19,34 +18,14 @@ const AREA = { green: '#93b46a', forest: '#86a862', water: SEA, plaza: '#f2ead8'
 const PRE = 130; // metres beyond the visible radius that are painted ahead of time
 const EXTRA_ROADS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);
 
-export function createMinimap({ canvas, car, world = null, D, DRIVABLE, mapMarkers, mapRoute }) {
+export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRoute }) {
   const mini = canvas.getContext('2d');
   const MOBILE = !!QUALITY.mobile;
   const RES = MOBILE ? 192 : 384, S = RES / T, CAP = MOBILE ? 14 : 24; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
   const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0 };
 
-  // ---------- old path: one canvas of the baked centro ----------
-  const MM_SCALE = 1; // px per metre on the baked map
-  let mapCanvas = null;
-  if (!world) {
-    mapCanvas = document.createElement('canvas');
-    const [x0, z0, x1, z1] = D.bounds, pad = 200;
-    mapCanvas.width = Math.ceil((x1 - x0 + pad * 2) * MM_SCALE); mapCanvas.height = Math.ceil((z1 - z0 + pad * 2) * MM_SCALE);
-    mapCanvas.ox = x0 - pad; mapCanvas.oz = z0 - pad;
-    const g = mapCanvas.getContext('2d');
-    const tx = x => (x - mapCanvas.ox) * MM_SCALE, tz = z => (z - mapCanvas.oz) * MM_SCALE;
-    const path = flat => { g.beginPath(); for (let i = 0; i < flat.length; i += 2) g[i ? 'lineTo' : 'moveTo'](tx(flat[i]), tz(flat[i + 1])); };
-    g.fillStyle = SEA; g.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-    g.fillStyle = LAND; path(D.land); g.closePath(); g.fill();
-    for (const a of D.areas) { g.fillStyle = AREA[a.k]; path(a.p); g.closePath(); g.fill(); }
-    g.lineCap = g.lineJoin = 'round';
-    for (const r of D.roads) { if (!DRIVABLE.has(r.k)) continue; g.strokeStyle = r.k === 'pedestrian' ? '#f6efe0' : '#ffffff'; g.lineWidth = r.w * MM_SCALE * 1.3; path(r.p); g.stroke(); }
-    g.fillStyle = BLD;
-    for (const b of D.buildings) { path(b.p); g.closePath(); g.fill(); }
-  }
-
-  // ---------- streamed path: per tile pieces ----------
+  // ---------- per tile pieces ----------
   const pieces = new Map(); // key -> { c, g, i, j, detail } (insertion order = LRU order)
   const pool = []; // canvases of evicted pieces, reused
   let active = []; // pieces around the car, refreshed by scan()
@@ -161,7 +140,7 @@ export function createMinimap({ canvas, car, world = null, D, DRIVABLE, mapMarke
     const u = Math.min(1, Math.max(0, (v - 20) / 18)), target = 0.75 - 0.2 * u * u * (3 - 2 * u);
     zoom += (target - zoom) * Math.min(1, (dt || 0.016) * 1.5);
     const R = W / 2 / zoom;
-    if (world) {
+    {
       const ci = Math.floor(car.x / T), cj = Math.floor(car.z / T);
       scanT -= dt || 0.016;
       if (scanT <= 0 || ci !== scanI || cj !== scanJ || !landPath) { scanT = 0.2; scanI = ci; scanJ = cj; scan(R); }
@@ -174,8 +153,7 @@ export function createMinimap({ canvas, car, world = null, D, DRIVABLE, mapMarke
     mini.translate(W / 2, W / 2);
     mini.rotate(car.th - Math.PI);
     mini.scale(zoom, zoom);
-    if (world) drawTiles(R);
-    else mini.drawImage(mapCanvas, -(car.x - mapCanvas.ox) * MM_SCALE, -(car.z - mapCanvas.oz) * MM_SCALE);
+    drawTiles(R);
     mini.restore();
     // Markers from other modules (missions, stigghiulari, other players), drawn after restore() in plain
     // screen space: rotate each offset by the same angle as the map (heading up), scale like the map.
