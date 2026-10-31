@@ -545,7 +545,7 @@ function build(env) {
     const base = new Float32Array(n * 3), seed = new Float32Array(n * 3);
     pts.forEach((v, vi) => { for (let i = 0; i < PUFFS; i++) { const k = vi * PUFFS + i; base.set([v.x, v.y, v.z], k * 3); seed.set([(i + Math.random() * 0.9) / PUFFS, Math.random(), Math.random()], k * 3); } });
     const iBase = new THREE.InstancedBufferAttribute(base, 3); geo.setAttribute('iBase', iBase); geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 3)); geo.instanceCount = n;
-    const u = { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 } };
+    const u = { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 }, uLight: { value: 1 } };
     const plume = new THREE.Mesh(geo, new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide,
       vertexShader: `
@@ -564,17 +564,21 @@ function build(env) {
           vA = smoothstep(0.0, 0.05, age) * pow(1.0 - age, 1.1) * 0.9 * smoothstep(2.5, 15.0, vDist);
         }`,
       fragmentShader: `
-        uniform vec3 uFog; uniform float uFogD; varying vec2 vUv; varying float vA; varying float vT; varying float vDist;
+        uniform vec3 uFog; uniform float uFogD; uniform float uLight; varying vec2 vUv; varying float vA; varying float vT; varying float vDist;
         void main() {
           float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard;
           float a = smoothstep(1.0, 0.0, d) * vA;
           vec3 col = mix(vec3(0.30, 0.28, 0.27), vec3(0.80, 0.80, 0.82), smoothstep(0.0, 0.55, vT));
+          col *= uLight;   // smoke is lit by the sky: dark at night
           col = mix(col, uFog, 1.0 - exp(-uFogD * uFogD * vDist * vDist));
           gl_FragColor = vec4(col, a);
         }`,
     }));
     plume.frustumCulled = false; plume.renderOrder = 6;
-    plume.onBeforeRender = () => { u.uTime.value = now() % 5000; if (scene.fog) u.uFogD.value = scene.fog.density; };
+    plume.onBeforeRender = () => {
+      u.uTime.value = now() % 5000;
+      if (scene.fog) { u.uFogD.value = scene.fog.density; if (scene.fog.color) { u.uFog.value.copy(scene.fog.color); u.uLight.value = Math.min(1, Math.max(0.1, (0.3 * scene.fog.color.r + 0.59 * scene.fog.color.g + 0.11 * scene.fog.color.b) / 0.65)); } }   // follows the day/night haze
+    };
     scene.add(plume);
     return { mesh: plume, setY(vi, y) { for (let i = 0; i < PUFFS; i++) base[(vi * PUFFS + i) * 3 + 1] = y; iBase.needsUpdate = true; } };
   }
