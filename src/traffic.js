@@ -103,22 +103,23 @@ export function createTraffic(env) {
       if (f && g) { f.rev = g.id; g.rev = f.id; }
     }
   }
-  // Which edges a vehicle class may use, and which nodes still lead somewhere (into a big strongly
-  // connected part of the network): routes never enter one-way dead ends or isolated fragments.
+  // Which edges a vehicle class may use. A vehicle never U-turns, so an edge is only usable if, going
+  // forward, it reaches a big strongly connected part of the network: no routes into dead ends,
+  // one-way spurs or isolated fragments. (Tarjan over edges, then a reverse sweep.)
   const baseAllowed = (c, k) => k === 0 ? !c.ped : k === 1 ? true : c.bus;
   const ALIVE = [0, 1, 2].map(k => {
-    const N = NX.length, idx = new Int32Array(N).fill(-1), low = new Int32Array(N), onst = new Uint8Array(N), comp = new Int32Array(N).fill(-1);
+    const N = EDGES.length, idx = new Int32Array(N).fill(-1), low = new Int32Array(N), onst = new Uint8Array(N), comp = new Int32Array(N).fill(-1);
     const st = [], sizes = []; let counter = 0;
+    const succ = e => NOUT[e.b].filter(c => c.id !== e.rev && baseAllowed(c, k));
     for (let s0 = 0; s0 < N; s0++) {
-      if (idx[s0] >= 0) continue;
+      if (idx[s0] >= 0 || !baseAllowed(EDGES[s0], k)) continue;
       idx[s0] = low[s0] = counter++; st.push(s0); onst[s0] = 1;
-      const work = [[s0, 0]];
+      const work = [[s0, succ(EDGES[s0]), 0]];
       while (work.length) {
-        const top = work[work.length - 1], v = top[0], outs = NOUT[v];
-        if (top[1] < outs.length) {
-          const c = outs[top[1]++]; if (!baseAllowed(c, k)) continue;
-          const w = c.b;
-          if (idx[w] < 0) { idx[w] = low[w] = counter++; st.push(w); onst[w] = 1; work.push([w, 0]); }
+        const top = work[work.length - 1], v = top[0];
+        if (top[2] < top[1].length) {
+          const w = top[1][top[2]++].id;
+          if (idx[w] < 0) { idx[w] = low[w] = counter++; st.push(w); onst[w] = 1; work.push([w, succ(EDGES[w]), 0]); }
           else if (onst[w]) low[v] = Math.min(low[v], idx[w]);
         } else {
           if (low[v] === idx[v]) { let n = 0, w; do { w = st.pop(); onst[w] = 0; comp[w] = sizes.length; n++; } while (w !== v); sizes.push(n); }
@@ -128,23 +129,13 @@ export function createTraffic(env) {
       }
     }
     const good = new Uint8Array(N), q = [];
-    for (let n = 0; n < N; n++) if (sizes[comp[n]] >= 40) { good[n] = 1; q.push(n); }
-    while (q.length) { const n = q.pop(); for (const c of NIN[n]) if (baseAllowed(c, k) && !good[c.a]) { good[c.a] = 1; q.push(c.a); } }
+    for (let n = 0; n < N; n++) if (comp[n] >= 0 && sizes[comp[n]] >= 40) { good[n] = 1; q.push(n); }
+    while (q.length) {
+      const c = EDGES[q.pop()];
+      for (const e of NIN[c.a]) if (e.id !== c.rev && baseAllowed(e, k) && !good[e.id]) { good[e.id] = 1; q.push(e.id); }
+    }
     return good;
   });
-  for (const e of EDGES) { // junction box radius and give-way flags
-    NBOX[e.b] = Math.max(NBOX[e.b], Math.min(5.5, e.w * 0.5 * 0.85));
-    NBOX[e.a] = Math.max(NBOX[e.a], Math.min(5.5, e.w * 0.5 * 0.85));
-  }
-  for (const e of EDGES) {
-    const n = e.b;
-    if (NDEG[n] < 3) continue;
-    for (const c of NIN[n]) {
-      if (c === e || c.id === e.rev) continue;
-      e.slowJ = true;
-      if (c.rank > e.rank) e.giveWay = true;
-    }
-  }
   // optional traffic signals: D.signals = flat [x, z, ...] in local metres, snapped to the nearest junction
   const SIG = new Set();
   if (D.signals && D.signals.length) {
@@ -182,7 +173,7 @@ export function createTraffic(env) {
   let nextId = 0;
   const agentsOut = [];
 
-  const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.b] === 1 && (c.ped || c.w >= ty.minW);
+  const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
   function pickNext(e, ty) {
     const outs = NOUT[e.b]; let tot = 0, any = null;
     const ws = [];
@@ -195,10 +186,7 @@ export function createTraffic(env) {
       if (c.ped && !c.transit) w *= 0.5;
       ws.push(w); tot += w; any = c;
     }
-    if (tot <= 0) {
-      if (e.rev >= 0 && allowed(EDGES[e.rev], ty)) return EDGES[e.rev]; // dead end: turn round
-      return null;
-    }
+    if (tot <= 0) return null;
     let r = Math.random() * tot;
     for (let i = 0; i < outs.length; i++) if ((r -= ws[i]) <= 0 && ws[i] > 0) return outs[i];
     return any;
@@ -213,7 +201,7 @@ export function createTraffic(env) {
   function rebuildCandidates(cx, cz) {
     candEdges.length = 0; candCum.length = 0; let acc = 0;
     for (const e of EDGES) {
-      if (!(ALIVE[0][e.b] || ALIVE[1][e.b] || ALIVE[2][e.b])) continue;
+      if (!(ALIVE[0][e.id] || ALIVE[1][e.id] || ALIVE[2][e.id])) continue;
       const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = mx * mx + mz * mz;
       if (d2 < R_SPAWN_MIN * R_SPAWN_MIN || d2 > R_SPAWN_MAX * R_SPAWN_MAX) continue;
       acc += e.len * e.pw; candEdges.push(e); candCum.push(acc);
@@ -295,7 +283,7 @@ export function createTraffic(env) {
       if (oe.rank > e.rank) { v.why = 'rank'; v.why2 = o; return true; }
       if (oe.rank === e.rank) { // first come first served, the right-hand rule breaks ties
         const d = (remO / Math.max(o.v, 2.5) - o.wait) - (rem / Math.max(v.v, 2.5) - v.wait);
-        if (d < -0.4 || (d < 0.4 && rightDot < -0.35)) { v.why = 'right'; v.why2 = o; return true; }
+        if (d < -0.4 || (d < 0.4 && rightDot < -0.35 && (oe.dx * e.rx + oe.dz * e.rz > -0.35 || o.id < v.id)) || (d < 0.4 && o.id < v.id && rightDot < 0.35)) { v.why = 'right'; v.why2 = o; return true; }
       }
     }
     return false;
@@ -337,7 +325,7 @@ export function createTraffic(env) {
         const d = base + o.t;
         if (k === 0 && d <= 0) continue;
         if (k === 1 && o.v < 2 && o.t - o.ty.L / 2 < exitSpace) { exitSpace = o.t - o.ty.L / 2; v.exitO = o; } // free room past the node
-        if (filt && !o.ty.scooter) continue;
+        if ((filt && !o.ty.scooter) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
         interact(d - L2 - o.ty.L / 2, o.v, o);
       }
       base = k === 0 ? rem : base + route[k].len;
@@ -354,7 +342,7 @@ export function createTraffic(env) {
       const ofx = Math.sin(o.h), ofz = Math.cos(o.h), cj = ofx * fx + ofz * fz, sj = Math.abs(ofx * rx + ofz * rz), acj = Math.abs(cj);
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
-      if (filt && !o.ty.scooter) continue;
+      if ((filt && !o.ty.scooter) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
       if (cj < 0.45) { // crossing or oncoming: the junction rules decide, except for a stationary crosser blocking the way
         if (cj < -0.45 || o.v > 0.4 || (v.stuck > 3 && v.id < o.id)) continue;
       }
@@ -609,7 +597,7 @@ export function createTraffic(env) {
     }
     const md = g.getImageData(0, 0, mask.width, mask.height).data, onRoad = (x, z) => { const i = (x - x0) | 0, j = (z - z0) | 0; return md[(j * mask.width + i) * 4 + 3] > 127; };
     let tmax = 0, ttot = 0, tn = 0, off = 0, offN = 0, overl = 0, overlN = 0;
-    const types = {};
+    const types = {}, ovk = {};
     for (let s = 0; s < 1800; s++) {
       const t0 = performance.now();
       update(1 / 30, cam);
@@ -620,7 +608,7 @@ export function createTraffic(env) {
         let hit = false;
         for (const [za, ra] of a.ty.circ) for (const [zb, rb] of b.ty.circ)
           if (Math.hypot(a.x + Math.sin(a.h) * za - b.x - Math.sin(b.h) * zb, a.z + Math.cos(a.h) * za - b.z - Math.cos(b.h) * zb) < (ra + rb) * 0.75) hit = true;
-        overlN++; if (hit) overl++;
+        overlN++; if (hit) { overl++; const cj = Math.cos(a.h - b.h), k = (cj > 0.7 ? 'same' : cj < -0.7 ? 'opp' : 'cross') + (a.route[0] === b.route[0] ? '/sameEdge' : '') + (a.stuck > 20 || b.stuck > 20 ? '/ghost' : '') + (a.hold || b.hold ? '/hold' : '') + (a.ty.scooter || b.ty.scooter ? '/scooter' : ''); ovk[k] = (ovk[k] || 0) + 1; }
       }
       if (s % 150 === 149) {
         let sp = 0, stuck = 0, wait = 0; const cause = {};
@@ -639,6 +627,7 @@ export function createTraffic(env) {
     console.log('TRAFFIC cycles ' + [...cycles].slice(0, 5).join(' || '));
     const roots = {};
     for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
+    console.log('TRAFFIC overlaps ' + JSON.stringify(ovk));
     console.log('TRAFFIC roots ' + JSON.stringify(roots));
     const rs = new Set();
     for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; if (!r.hold) rs.add(r); }
