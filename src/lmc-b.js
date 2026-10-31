@@ -1,6 +1,7 @@
 // City landmarks, group B: the Arab-Norman monuments (Zisa, Cuba, San Giovanni degli Eremiti, Ponte dell'Ammiraglio) and Palazzo dei Normanni's front.
+import * as THREE from 'three';
 import {
-  THREE, PI, bx, gridMesh, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, prism, pyramid, gable, shell,
+  PI, bx, gridMesh, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, prism, pyramid, gable, shell,
   mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
   statue, palm, crenel, rail,
 } from './lmc-kit.js';

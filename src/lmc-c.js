@@ -1,7 +1,8 @@
 // City landmarks, group C: Mondello (Antico Stabilimento Balneare, entrance gate, beach front), Palazzina Cinese, the Gymnasium of the Orto Botanico,
 // Villa Giulia's gate, Teatro Garibaldi, the Ucciardone walls, the Fiera del Mediterraneo gate, Villa Igiea, two Liberty villini, the Stazione Marittima.
+import * as THREE from 'three';
 import {
-  THREE, PI, bx, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, archBay, prism, pyramid, gable, shell,
+  PI, bx, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, archBay, prism, pyramid, gable, shell,
   mul, tr, rotY, frame, pairsOf, obb, facing, groundRange, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
   statue, palm, crenel, rail, balus,
 } from './lmc-kit.js';
