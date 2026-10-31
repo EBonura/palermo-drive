@@ -157,7 +157,8 @@ function bus() {
     for (const z of [3.7, -3.4]) wheel(b, s * (hw - 0.14), z, 0.5, 0.3, 10);
   }
   b.box(-hw + 0.2, hw - 0.2, 1.2, 2.7, f - 0.02, f + 0.02, GLASS);                                         // windscreen
-  b.box(-0.9, 0.9, 2.74, 2.95, f - 0.02, f + 0.03, col('#e1a33a'));                                          // destination sign
+  b.box(-1.0, 1.0, 2.7, 3.0, f - 0.02, f + 0.03, BLACK);                                                   // destination display housing
+  b.box(-hw + 0.05, hw - 0.05, 0.9, 1.0, -f + 0.1, f - 0.1, col('#30302f'));                               // dark lower skirt band
   b.box(-hw + 0.15, hw - 0.15, 0.4, 0.8, f - 0.15, f + 0.07, DARK);                                         // bumper
   b.box(-hw + 0.15, hw - 0.15, 0.4, 0.8, -f - 0.07, -f + 0.15, DARK);
   b.box(-hw + 0.3, hw - 0.3, 1.6, 2.35, -f - 0.02, -f + 0.02, GLASS);                                      // rear window
@@ -320,4 +321,18 @@ export function makeMaterial() {
   };
   m.customProgramCacheKey = () => 'traffic-tint';
   return m;
+}
+
+// LED destination displays for the bus: front, and both sides. Each quad has uv 0..1; the shader
+// picks the atlas row from the per-instance `row` attribute (see traffic.js).
+export function busSignGeometry() {
+  const p = [], uv = [], f = 5.9, hw = 1.25;
+  const quad = (a, b, c, d) => { p.push(...a, ...b, ...c, ...a, ...c, ...d); uv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); };
+  quad([-0.92, 2.72, f + 0.036], [0.92, 2.72, f + 0.036], [0.92, 2.98, f + 0.036], [-0.92, 2.98, f + 0.036]);               // front, faces +z
+  quad([hw + 0.012, 2.46, 3.4], [hw + 0.012, 2.46, 5.2], [hw + 0.012, 2.7, 5.2], [hw + 0.012, 2.7, 3.4]);                  // left side (+x), faces +x
+  quad([-hw - 0.012, 2.46, 5.2], [-hw - 0.012, 2.46, 3.4], [-hw - 0.012, 2.7, 3.4], [-hw - 0.012, 2.7, 5.2]);              // right side (-x), faces -x
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return g;
 }
