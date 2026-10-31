@@ -47,7 +47,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
-const perf = createPerf({ renderer, mobile: QUALITY.mobile }); // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
+const perf = createPerf({ renderer, mobile: QUALITY.mobile });
+if (QUALITY.mobile) { const maxA = renderer.capabilities.getMaxAnisotropy(); renderer.capabilities.getMaxAnisotropy = () => Math.min(4, maxA); } // [perf pass] phones: cap anisotropic filtering at 4x whatever the modules ask for // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
 renderer.shadowMap.type = +THREE.REVISION >= 182 ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;

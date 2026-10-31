@@ -109,7 +109,10 @@ export function createGags(env, T, police) {
       if (!close) cands.push(v);
     }
     if (!cands.length) return;
-    const a = pick(cands), s = { a, b: null, ida: 0, idb: 0, state: 'arrive', t0: time, t1: 0, waitB: 0, nextLine: 0, lineNo: 0, playerT: 0, hornAt: 0, slow: false, speaker: 0, offT: 0 };
+    startScene(pick(cands));
+  }
+  function startScene(a) {
+    const s = { a, b: null, ida: 0, idb: 0, state: 'arrive', t0: time, t1: 0, waitB: 0, nextLine: 0, lineNo: 0, playerT: 0, hornAt: 0, slow: false, speaker: 0, offT: 0 };
     a.hold2 = 1; a.dp = s; dps.push(s);
   }
   function findBlocked(s) {
@@ -215,5 +218,5 @@ export function createGags(env, T, police) {
     }
     hazards(fx);
   }
-  return { update, bump, bindPedestrians(api) { peds = api; }, scenes: dps, newScene /* TEMP-DEBUG */ };
+  return { update, bump, bindPedestrians(api) { peds = api; if (window.__pd) window.__pd.peds = api; /* TEMP-DEBUG */ }, scenes: dps, startScene /* TEMP-DEBUG */ };
 }
