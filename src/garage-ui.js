@@ -21,6 +21,7 @@ const S = {
 };
 
 const CSS = `
+.gx-root { display: flex; flex-direction: column; gap: clamp(8px, 2vh, 16px); min-height: 0; flex: 1 1 auto; }
 .gx-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .gx-top .pd-h { font-size: clamp(22px, 5vh, 34px); white-space: nowrap; }
 .gx-cash { font: 700 clamp(18px, 4vh, 26px)/1 var(--pd-cond); letter-spacing: .08em; color: var(--pd-amber); background: rgba(255,255,255,.08); padding: 5px 10px; border-radius: 3px; box-shadow: inset 0 0 0 2px rgba(245,169,201,.35); white-space: nowrap; }
@@ -42,6 +43,7 @@ const CSS = `
 .gx-pop { color: var(--pd-amber); font: 700 clamp(15px, 3.4vh, 20px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
 @media (max-height: 460px) {
   .pd-garage { gap: 5px; padding-top: 8px; padding-bottom: 8px; }
+  .gx-root { gap: 5px; }
   .gx-tabs .pd-segb { min-height: 34px; font-size: 15px; }
   .gx-cats .pd-segb { min-height: 28px; font-size: 13px; padding: 0 8px; }
   .gx-list .pd-btn.sm { min-height: 38px; }
