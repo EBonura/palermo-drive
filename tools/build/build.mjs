@@ -95,7 +95,8 @@ mustReplace(/<\/style>/, `</style>\n<style>${css}</style>`, 'the inline <style> 
 html = html.replace(/<script type="importmap">[\s\S]*?<\/script>\s*/, '');
 if (DATA_MODE === 'bin') html = html.replace(/<script src="(palermo|props|context)-data\.js"><\/script>\s*/g, '');
 mustReplace(/<script type="module" src="src\/main\.js"><\/script>/, '', 'the main.js module script');
-const preloads = [`<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
+const fontPre = [...css.matchAll(/url\("?([^)"]*(?:mr-dafoe|racing-sans-one)[^)"]*\.woff2)"?\)/g)].map(m => `<link rel="preload" as="font" type="font/woff2" crossorigin href="${m[1].replace(/^\.\//, '')}">`); // title fonts: fetch them with the HTML, not after the CSS is parsed
+const preloads = [...fontPre, `<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
 html = html.replace('<link rel="manifest"', preloads.join('\n') + '\n<link rel="manifest"');
 html = html.replace('</body>', `<script type="module" src="js/${appName}"></script>\n</body>`);
 // minify the inline splash script
@@ -105,7 +106,7 @@ fs.writeFileSync(path.join(OUT, 'index.html'), html);
 
 // ---------- 5. static files ----------
 const SKIP_DIR = new Set(['cover-src', '_test', 'node_modules']);
-const SKIP_FILE = /(\.(md|cjs|mjs|sh|html|py|js)$|^cover-portrait\.png$)/;   // .js under assets/ is bundled, not served
+const SKIP_FILE = /(\.(md|cjs|mjs|sh|html|py|js)$|^cover-portrait\.png$|^contact-sheet)/;   // .js under assets/ is bundled, not served
 function copyTree(src, dst) {
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
     if (e.name.startsWith('.')) continue;
@@ -115,6 +116,24 @@ function copyTree(src, dst) {
   }
 }
 copyTree(path.join(ROOT, 'assets'), path.join(OUT, 'assets'));
+// Facade photos (assets/facades/photo): jpg -> webp (about a third smaller), map.json follows. Decoded by the game with Image.decode().
+{
+  const dir = path.join(OUT, 'assets/facades/photo'), mapFile = path.join(dir, 'map.json');
+  if (fs.existsSync(mapFile)) {
+    const { default: sharp } = await import('sharp');
+    let before = 0, after = 0, mapText = fs.readFileSync(mapFile, 'utf8');
+    for (const f of fs.readdirSync(dir).filter(f => /\.(jpe?g|png)$/i.test(f))) {
+      const src = path.join(dir, f), out = f.replace(/\.(jpe?g|png)$/i, '.webp');
+      const buf = await sharp(src).webp({ quality: 78, effort: 5 }).toBuffer();
+      before += fs.statSync(src).size; after += buf.length;
+      fs.writeFileSync(path.join(dir, out), buf); fs.rmSync(src);
+      mapText = mapText.split(f).join(out);
+    }
+    fs.writeFileSync(mapFile, mapText);
+    fs.rmSync(path.join(dir, 'sources.json'), { force: true });
+    console.log(`facade photos: ${kb(before)} -> ${kb(after)} (webp)`);
+  }
+}
 fs.copyFileSync(path.join(ROOT, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 if (DATA_MODE === 'raw') for (const f of ['palermo-data.js', 'props-data.js', 'context-data.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
