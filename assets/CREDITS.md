@@ -1,6 +1,6 @@
 # Asset credits (driving)
 
-The player vehicle (a Piaggio Ape Calessino "lapa") is built procedurally in `src/vehicle.js`, including the
+The player vehicles (three lape, three two-wheelers and a tamarro hatchback, with all tuning parts and sticker designs) are built procedurally in `src/vehicle-models.js` and `src/vehicle-art.js`; the Calessino "lapa" was the first (in `src/vehicle.js`), including the
 three livery textures (royal blue, white and burgundy, and the hand-painted Sicilian cart folk-art pattern, all
 drawn on canvases in code). No external model or texture is used for it.
 
@@ -18,7 +18,7 @@ No attribution is required, credit is given anyway.
 
 ## Audio (used)
 
-The engine sound is synthesised with Web Audio in `src/vehicle.js` (no sample). The tyre and impact sounds are:
+The engine, horn melodies and subwoofer beat are synthesised with Web Audio in `src/vehicle-audio.js` (no sample). The tyre and impact sounds are:
 
 | File | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |

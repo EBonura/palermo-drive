@@ -10,6 +10,8 @@ const sh = (c, k) => { const [r, g, b] = hx(c); const f = v => Math.max(0, Math.
 
 // ---------- the cast ----------
 // leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe.
+// the "falsi invalidi" gag: a tracksuit man in a wheelchair who leaps up and sprints off when the lapa comes near
+const TRACK = { tw: 13, skin: '#c99872', hair: '#6b645c', hairStyle: 'short', glasses: '#18161a', top: '#b83a2c', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#b83a2c', stripe: '#f0eee8' }, shoes: '#f0eee8' };
 export const VARIANTS = [
   { id: 'nonna', leg: 17, tor: 14, head: 9, stoop: 1, h: 1.6, skin: '#d6a284', hair: '#bdb8b0', hat: { type: 'scarf', col: '#222025' }, top: '#2a2830', sleeve: 'long',
     bottom: { type: 'skirt', col: '#25232a', len: 12 }, legCol: '#2f2b33', shoes: '#18161a', bag: '#5d8a4a', speed: 0.85 },
@@ -60,6 +62,9 @@ export const VARIANTS = [
   { id: 'suora', skin: '#d9ae8f', hair: '#8c8c8c', hat: { type: 'scarf', col: '#2a2a30', col2: '#f0eee8' }, top: '#4a5260', collar: '#f0eee8', sleeve: 'long', bottom: { type: 'robe', col: '#4a5260' }, shoes: '#18181c', speed: 0.95 },
   { id: 'vigile', skin: '#d2a183', hair: '#2a2420', hat: { type: 'peaked', col: '#e8e6df', col2: '#b0903a' }, top: '#9fc4e0', sleeve: 'short', belt: '#2a2420', bottom: { type: 'trousers', col: '#1e2745' }, shoes: '#0e0e10', speed: 1.05 },
   { id: 'cameriere', skin: '#cf9b78', hair: '#17120f', hairStyle: 'fade', top: '#f0eee8', vest: '#17151a', sleeve: 'long', apron: '#f4f2ec', bottom: { type: 'trousers', col: '#17151a' }, shoes: '#17151a', speed: 1.2 },
+  { id: 'wheelchair', ...TRACK, leg: 14, chair: true, speed: 1.0 },
+  { id: 'healed', ...TRACK, run: true, speed: 2.6 },
+  { id: 'chair_empty', chair: 'empty', leg: 14, top: '#000', skin: '#000', hair: '#000', bottom: { type: 'trousers', col: '#2c3a55' }, shoes: '#000' },
 ];
 // Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
 const W = {
@@ -69,6 +74,7 @@ const W = {
   tifoso: [4, 5, 2, 3, 14], tifoso2: [3, 4, 2, 2, 12], tifosa: [3, 4, 1, 2, 10], tifoso_kid: [2, 2, 1, 1, 6], tifoso_nonno: [1.5, 1.5, 1.5, 0.5, 5],
   tuta: [5, 4, 3, 2, 3], skinny: [4, 5, 3, 3, 3], motorino: [3, 2, 3, 1, 2], motorina: [2, 2, 2, 1, 2], nonno_gilet: [5, 2, 5, 1, 1], nonna2: [6, 3, 7, 1, 1.5], nonna3: [5, 2, 5, 1, 1],
   pescivendolo: [0.5, 0, 8, 0, 0], macellaio: [0.3, 0, 4, 0, 0], shopper: [2, 5, 3, 3, 3], beach_m: [0.5, 1.5, 0.5, 3, 0.5], beach_w: [0.5, 1.5, 0.5, 3, 0.5], mamma: [3, 3, 2, 2, 2],
+  wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0],
   scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
 };
 VARIANTS.forEach(v => { v.w = W[v.id] || [1, 1, 1, 1, 1]; });
@@ -92,7 +98,8 @@ function figure(g, v, dir, pose) {
   if (dir === FRONT || dir === BACK) {
     const back = dir === BACK;
     // legs: forward leg reaches the ground, the other lifts its foot
-    const lb = sw === 1 ? FY : sw === -1 ? FY - 2 : FY, rb = sw === -1 ? FY : sw === 1 ? FY - 2 : FY;
+    const hop = v.run ? 5 : 2, air = v.run && pose === 2 ? 4 : 0;
+    const lb = (sw === 1 ? FY : sw === -1 ? FY - hop : FY) - air, rb = (sw === -1 ? FY : sw === 1 ? FY - hop : FY) - air;
     const legs = [[12 - 5, lb], [12, rb]];
     for (const [lx, bot] of legs) {
       P(lx, hipY, 5, bot - hipY, legCol);
@@ -127,6 +134,10 @@ function figure(g, v, dir, pose) {
     const aL = sw === 1 ? 1 : 0, aR = sw === -1 ? 1 : 0; // the arm opposite the forward leg swings back (shorter)
     const arm = (ax, short, side) => {
       const len = armH - short;
+      if (v.run) { // arms thrown up and pumping
+        const up = (side < 0 ? sw : -sw) * 2, bx = ax + (side < 0 ? -1 : 1);
+        P(bx, shY - 7 - up, 3, 9, top); if (v.sleeveStripe) P(bx + (side < 0 ? 0 : 2), shY - 7 - up, 1, 8, v.sleeveStripe); P(bx, shY - 9 - up, 3, 2, skin); return;
+      }
       if (v.sleeve === 'short') { P(ax, shY + 1, 3, 5, top); if (v.trim) P(ax, shY + 5, 3, 1, v.trim); P(ax, shY + 6, 3, len - 5, skin); }
       else { P(ax, shY + 1, 3, len - 2, top); P(ax, shY + len - 1, 3, 2, skin); if (v.hood) P(ax, shY + len - 3, 3, 1, topD); }
       P(ax + (side < 0 ? 2 : 0), shY + 1, 1, len - 1, sh(top, 0.82));
@@ -175,7 +186,7 @@ function figure(g, v, dir, pose) {
     // side view, facing left; the right view is mirrored afterwards
     const hipX = 11, torW = Math.max(6, Math.round(tw * 0.62));
     const tx0 = hipX - (torW >> 1) - 1, tx1 = tx0 + torW - 1;
-    const swing = v.bounce ? 3 : 4;
+    const swing = v.run ? 6 : v.bounce ? 3 : 4;
     const near = (sw === 0 ? 0 : sw), fx = hipX - swing * near;     // near foot x (forward = -x)
     const limbs = (fxn, lift, c, shoe, dark) => {
       const cc = dark ? sh(c, 0.75) : c;
@@ -186,14 +197,15 @@ function figure(g, v, dir, pose) {
     };
     if (v.stroller) { const [c1, c2] = v.stroller; P(1, hipY + 5, 9, 6, c2); P(0, hipY + 2, 7, 4, c1); P(1, hipY + 2, 6, 1, sh(c1, 1.3)); P(7, hipY + 1, 5, 1, '#26262c'); P(9, hipY + 1, 1, 6, '#26262c'); P(1, FY - 4, 4, 4, '#1c1c20'); P(7, FY - 4, 4, 4, '#1c1c20'); P(2, FY - 3, 2, 2, '#8a8a90'); P(8, FY - 3, 2, 2, '#8a8a90'); }
     // far leg first
-    limbs(2 * hipX - fx, sw === 0 ? 0 : 1, legCol, v.shoes, true);
+    limbs(2 * hipX - fx, v.run ? 3 : sw === 0 ? 0 : 1, legCol, v.shoes, true);
     // far arm (behind torso)
-    const armHandN = hipX + 3 * near; // near arm goes back when the near leg is forward
+    const armHandN = hipX + (v.run ? 8 : 3) * near; // near arm goes back when the near leg is forward
     const sideArm = (hxn, dark) => {
       const c = dark ? sh(top, 0.7) : top;
-      limb(P, hipX, shY + 2, hxn, shY + armH - 1, 3, v.sleeve === 'short' ? c : c);
-      if (v.sleeve === 'short') limb(P, hxn - (hxn - hipX) * 0.35, shY + 6, hxn, shY + armH - 1, 3, dark ? sh(skin, 0.75) : skin);
-      P(hxn - 1, shY + armH - 1, 3, 2, dark ? sh(skin, 0.75) : skin);
+      const hy = v.run ? armH - 6 : armH - 1;
+      limb(P, hipX, shY + 2, hxn, shY + hy, 3, v.sleeve === 'short' ? c : c);
+      if (v.sleeve === 'short') limb(P, hxn - (hxn - hipX) * 0.35, shY + 6, hxn, shY + hy, 3, dark ? sh(skin, 0.75) : skin);
+      P(hxn - 1, shY + hy, 3, 2, dark ? sh(skin, 0.75) : skin);
     };
     sideArm(2 * hipX - armHandN, true);
     if (v.backpack) { P(tx1 + 1, shY + 1, 4, tor - 3, v.backpack); P(tx1 + 2, shY + 3, 2, 3, sh(v.backpack, 0.75)); }
@@ -202,7 +214,7 @@ function figure(g, v, dir, pose) {
       for (let y = hipY; y < hemY; y++) { const t = (y - hipY) / Math.max(1, hemY - hipY), ex = Math.round(t * (isRobe ? 3 : 2)); P(tx0 - ex + (y > hemY - 3 ? -sw : 0), y, torW + ex * 2, 1, B.col); }
     }
     // near leg over the garment hem
-    limbs(fx, sw === 0 ? 0 : 0, legCol, v.shoes, false);
+    limbs(fx, v.run && sw === 0 ? 3 : 0, legCol, v.shoes, false);
     if (isSkirt || isRobe) { for (let y = hipY; y < Math.min(hemY, hipY + 5); y++) P(tx0 - 1, y, torW + 2, 1, B.col); }
     // torso
     P(tx0, shY, torW, tor, v.vest || top); g.clearRect(tx0, shY, 1, 1);
@@ -246,6 +258,36 @@ function figure(g, v, dir, pose) {
   }
 }
 
+// Wheelchair: wheels turn with the pose (spokes rotate in profile, dashes run along the rim head-on).
+function chairParts(g, v, dir, pose) {
+  const P = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const empty = v.chair === 'empty', HY = FY - 14, dark = '#2e2e34', frame = '#4a4a52', cush = '#2f3f6a';
+  const B = v.bottom, hipX = 11, torW = Math.max(6, Math.round((v.tw || 12) * 0.62)), shY = HY - (v.tor || 14);
+  const wheelSide = (cx, cy, r) => {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) { const d = Math.hypot(x, y); if (d >= r - 1 && d <= r + 0.5) P(cx + x, cy + y, 1, 1, d >= r - 0.4 ? '#222226' : '#9a9aa2'); }
+    for (let k = 0; k < 4; k++) { const a = pose * 0.5 + k * Math.PI / 2; for (let t = 1; t < r - 1; t++) P(Math.round(cx + Math.cos(a) * t), Math.round(cy + Math.sin(a) * t), 1, 1, '#6c6c74'); }
+    P(cx - 1, cy - 1, 2, 2, '#c8c8d0');
+  };
+  const wheelFront = x => { for (let y = FY - 17; y < FY; y++) P(x, y, 2, 1, ((y + pose * 2) % 6) < 3 ? '#9a9aa2' : '#222226'); };
+  if (dir === FRONT || dir === BACK) {
+    wheelFront(1); wheelFront(21);
+    if (empty) {
+      P(7, FY - 30, 10, 18, dark); P(4, FY - 20, 2, 5, frame); P(18, FY - 20, 2, 5, frame); P(6, FY - 15, 12, 3, cush);
+      P(7, FY - 12, 2, 9, frame); P(15, FY - 12, 2, 9, frame); if (dir === FRONT) P(7, FY - 3, 10, 2, '#3a3a40');
+    } else if (dir === BACK) { P(7, shY + 4, 10, 10, dark); P(5, shY + 2, 2, 3, dark); P(17, shY + 2, 2, 3, dark); }
+    else { P(4, HY + 1, 3, 2, frame); P(17, HY + 1, 3, 2, frame); }
+  } else {
+    if (!empty) {
+      g.clearRect(0, HY, 24, 48 - HY);
+      P(hipX - 9, HY - 1, 11, 4, B.col); P(hipX - 9, HY + 3, 4, 8, B.col); P(hipX - 11, FY - 4, 6, 2, v.shoes); P(hipX - 11, FY - 2, 6, 1, '#3a3a40');
+      P(hipX + 4, shY + 3, 2, HY - shY + 4, dark); P(hipX + 5, shY + 2, 4, 1, dark); P(hipX - 8, HY + 3, 12, 1, dark);
+    } else {
+      P(hipX + 4, FY - 32, 2, 20, dark); P(hipX + 5, FY - 32, 4, 1, dark); P(hipX - 7, FY - 15, 12, 3, cush); P(hipX - 8, FY - 12, 2, 10, frame); P(hipX - 11, FY - 3, 5, 2, '#3a3a40');
+    }
+    wheelSide(hipX + 1, FY - 10, 8);
+  }
+}
+
 function limb(P, x0, y0, x1, y1, w, c) {
   const n = Math.max(1, y1 - y0);
   for (let y = y0; y <= y1; y++) { const x = Math.round(x0 + (x1 - x0) * (y - y0) / n); P(x - (w >> 1), y, w, 1, c); }
@@ -279,7 +321,9 @@ function cell(v, dir, pose) {
   const cv = scratch, g = scratchG;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, CELL_W, CELL_H);
   if (dir === RIGHT) { g.translate(CELL_W, 0); g.scale(-1, 1); }
-  figure(g, v, dir === RIGHT ? LEFT : dir, pose);
+  const dd = dir === RIGHT ? LEFT : dir;
+  if (v.chair !== 'empty') figure(g, v, dd, pose);
+  if (v.chair) chairParts(g, v, dd, pose);
   g.setTransform(1, 0, 0, 1, 0, 0);
   const img = g.getImageData(0, 0, CELL_W, CELL_H), d = img.data, W = CELL_W, H = CELL_H;
   const a = (x, y) => x < 0 || y < 0 || x >= W || y >= H ? 0 : d[(y * W + x) * 4 + 3] > 127 ? 1 : 0;
