@@ -211,3 +211,110 @@ export function buildStreets(streets, opts) {
   while (!it.next().done);
   return group;
 }
+
+// ---------- road paint outside the centro: lane lines, edge lines and zebra crossings (world tiles) ----------
+// Palermo's surfaced roads outside the centro storico carry white paint (worn, never fresh). Roads under 5.5 m wide (vicoli, service
+// roads) get none. Dashes are left out wherever another road crosses or joins, so junctions stay clear.
+const CAR_W = { motorway: 8, motorway_link: 4.5, trunk: 9, trunk_link: 4.5, primary: 10, primary_link: 4.5, secondary: 9, secondary_link: 4.5,
+  tertiary: 8, tertiary_link: 4.5, unclassified: 6, residential: 5.5, living_street: 4.5, service: 3.5 };
+const EDGE_LINED = new Set(['motorway', 'trunk', 'primary']);
+const PAINT = new THREE.Color('#dedbd0');
+let paintMat = null;
+// roads: tile roads[]; crossings: tile props items (k 'crossing', x, z). Returns a Group (or null when there is nothing to paint).
+export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true where something else already paints the road (the centro, src/roadwear.js)
+  const cell = 24, grid = new Map(), segs = [];
+  const cw = r => r.cw || CAR_W[r.k] || 0;
+  roads.forEach((r, id) => {
+    const w = cw(r); if (!w || r.tn) return;
+    const p = r.p;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const sg = { x0: p[i], z0: p[i + 1], x1: p[i + 2], z1: p[i + 3], hw: w / 2, id };
+      segs.push(sg);
+      for (let ix = Math.floor(Math.min(sg.x0, sg.x1) / cell); ix <= Math.floor(Math.max(sg.x0, sg.x1) / cell); ix++)
+        for (let iz = Math.floor(Math.min(sg.z0, sg.z1) / cell); iz <= Math.floor(Math.max(sg.z0, sg.z1) / cell); iz++) {
+          const k = ix * 100003 + iz; let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(sg);
+        }
+    }
+  });
+  const distSeg = (x, z, s) => {
+    const dx = s.x1 - s.x0, dz = s.z1 - s.z0, l2 = dx * dx + dz * dz;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - s.x0) * dx + (z - s.z0) * dz) / l2)) : 0, qx = s.x0 + dx * t - x, qz = s.z0 + dz * t - z;
+    return Math.sqrt(qx * qx + qz * qz);
+  };
+  const clear = (x, z, id, extra) => { // true when no other road overlaps this spot
+    const a = grid.get(Math.floor(x / cell) * 100003 + Math.floor(z / cell)); if (!a) return true;
+    for (const s of a) if (s.id !== id && distSeg(x, z, s) < s.hw + extra) return false;
+    return true;
+  };
+  const P = [], N = [], Cc = [];
+  let nq = 0;
+  const quad = (x0, z0, x1, z1, hw, shade) => { // a strip from (x0,z0) to (x1,z1), 2*hw wide
+    const dx = x1 - x0, dz = z1 - z0, l = Math.sqrt(dx * dx + dz * dz); if (l < 0.01) return;
+    const nx = -dz / l * hw, nz = dx / l * hw, c = PAINT, k = shade;
+    const A = [x0 + nx, z0 + nz], B = [x0 - nx, z0 - nz], C2 = [x1 - nx, z1 - nz], D = [x1 + nx, z1 + nz];
+    for (const q of [A, B, C2, A, C2, D]) { P.push(q[0], groundY(q[0], q[1]) + 0.035, q[1]); N.push(0, 1, 0); Cc.push(c.r * k, c.g * k, c.b * k); }
+    nq++;
+  };
+  // paints a line offset `off` m to the left of the centreline: dashed (dash, gap) or continuous in 6 m pieces
+  const line = (r, id, off, dash, gap, hw, rng) => {
+    const p = r.p, d = dash || 6, per = d + (dash ? gap : 0); let arc = 0;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3], dx = bx - ax, dz = bz - az, L = Math.sqrt(dx * dx + dz * dz);
+      if (L < 0.3) continue;
+      const tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
+      for (let k = Math.floor(arc / per); k * per < arc + L; k++) { // pattern periods are laid on the arc length, so dashes run on round bends
+        const u0 = Math.max(0, k * per - arc), u1 = Math.min(L, k * per + d - arc);
+        if (u1 - u0 < 0.6) continue;
+        const mx = ax + tx * (u0 + u1) / 2 + nx * off, mz = az + tz * (u0 + u1) / 2 + nz * off;
+        if ((skip && skip(mx, mz)) || !clear(mx, mz, id, hw + 2.2) || rng() < 0.07) continue; // junctions stay clear; a few dashes have worn away
+        quad(ax + tx * u0 + nx * off, az + tz * u0 + nz * off, ax + tx * u1 + nx * off, az + tz * u1 + nz * off, hw, 0.78 + 0.22 * rng());
+      }
+      arc += L;
+    }
+  };
+  let seed = 12345; const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  let n = 0;
+  for (let id = 0; id < roads.length; id++) {
+    const r = roads[id], w = cw(r);
+    if (!w || r.tn || r.br || r.rb || w < 5.5 || r.p.length < 4) continue;
+    const lanes = r.ln || Math.max(1, Math.round(w / 3.2));
+    if (r.ow) {
+      for (let i = 1; i < lanes; i++) line(r, id, (i - lanes / 2) * (w / lanes), 3, 6, 0.075, rng); // lane dividers, dashed
+    } else if (w >= 11) {
+      line(r, id, 0, 0, 0, 0.09, rng); // four lanes or more: solid centre line, dashed lane lines either side
+      line(r, id, w / 4, 3, 6, 0.075, rng); line(r, id, -w / 4, 3, 6, 0.075, rng);
+    } else {
+      line(r, id, 0, 3, 6, 0.075, rng); // two lanes: dashed white centre line
+    }
+    if (EDGE_LINED.has(r.k) && w >= 7) { line(r, id, w / 2 - 0.3, 0, 0, 0.06, rng); line(r, id, -w / 2 + 0.3, 0, 0, 0.06, rng); }
+    if ((++n & 15) === 0) yield;
+  }
+  // zebra crossings at OSM crossing nodes: bars 0.5 m wide, 3 m long, along the road, across its whole width
+  for (const c of crossings || []) {
+    let best = null, bd = 6;
+    const a = grid.get(Math.floor(c.x / cell) * 100003 + Math.floor(c.z / cell)) || [];
+    for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].rb)) { bd = d; best = s; } }
+    if (!best || (skip && skip(c.x, c.z))) continue;
+    const dx = best.x1 - best.x0, dz = best.z1 - best.z0, L = Math.sqrt(dx * dx + dz * dz) || 1, tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
+    const half = best.hw, bars = Math.max(2, Math.floor(half * 2 / 1.0));
+    // snap the centre of the zebra onto the centreline
+    const t0 = Math.max(0, Math.min(L, (c.x - best.x0) * tx + (c.z - best.z0) * tz)), cx = best.x0 + tx * t0, cz = best.z0 + tz * t0;
+    for (let b = 0; b < bars; b++) {
+      const off = -half + 0.5 + b * ((half * 2 - 1) / Math.max(1, bars - 1));
+      const sx = cx + nx * off, sz = cz + nz * off;
+      quad(sx - tx * 1.6, sz - tz * 1.6, sx + tx * 1.6, sz + tz * 1.6, 0.25, 0.82 + 0.18 * rng());
+    }
+    if ((++n & 7) === 0) yield;
+  }
+  if (!nq) return null;
+  const idx = new Uint32Array(P.length / 3); for (let i = 0; i < idx.length; i++) idx[i] = i;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
+  geo.setIndex(new THREE.BufferAttribute(idx.length < 65536 ? new Uint16Array(idx) : idx, 1));
+  paintMat = paintMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3.5, polygonOffsetUnits: -3.5 });
+  const m = new THREE.Mesh(geo, paintMat); m.name = 'road_paint'; m.receiveShadow = true;
+  const g = new THREE.Group(); g.add(m); g.userData.tris = P.length / 9;
+  return g;
+}
