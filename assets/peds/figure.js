@@ -110,7 +110,7 @@ function figure(g, v, dir, pose) {
     // ----- neck and torso
     block(P, CX - 4, shY - neckH - 1, 8, neckH + 3, skin, 1, 2); P(CX - 4, shY - neckH - 1, 8, 3, sk.d); P(CX + 1, shY - neckH - 1, 3, neckH + 3, sk.d);
     const waist = torH * 0.5, base = back && v.vest ? v.vest : top, bt = T(base), half0 = tw / 2;
-    const halfAt = r => r < 1 ? half0 - 4 : r < 2 ? half0 - 2 : r < 3 ? half0 - 1 : r < waist ? half0 : half0 - Math.round((r - waist) / (torH + hem - waist) * 3);
+    const halfAt = r => r < 1 ? half0 - 3 : r < 2 ? half0 - 1 : r < waist ? half0 : half0 - Math.round((r - waist) / (torH + hem - waist) * 3);
     for (let y = shY; y < hipY + hem; y++) {
       const r = y - shY, h = halfAt(r);
       P(CX - h, y, h * 2, 1, base); if (r > 2) P(CX - h, y, 1, 1, bt.l); P(CX + h - 3, y, 3, 1, bt.d); if (r > 3) P(CX + h - 1, y, 1, 1, bt.dd);
@@ -189,7 +189,7 @@ function figure(g, v, dir, pose) {
     const sh1 = (pose === 1 || pose === 2) ? 3 : 0, sh2 = (pose === 3 || pose === 4) ? 3 : 0;        // the arm opposite the leading leg swings back, hand a little higher
     const phoneUp = v.phone && !back;
     for (const s of [-1, 1]) {
-      const ax = s < 0 ? x0 - 4 : x1 - 1, shorten = s < 0 ? sh1 : sh2, y0 = shY, len = armLen - shorten;
+      const ax = s < 0 ? x0 - 3 : x1 - 2, shorten = s < 0 ? sh1 : sh2, y0 = shY + 1, len = armLen - 1 - shorten;
       if (s < 0 && phoneUp) {
         block(P, ax, y0, 5, 12, top, 1, 2); P(ax, y0 + 10, 5, 2, tt.d);
         limb(P, ax + 3, y0 + 11, ax + 8, ht + hh - 4, 5, 4, sleeveLong ? top : skin);
@@ -203,8 +203,7 @@ function figure(g, v, dir, pose) {
       }
       // shoulder cap, sleeve, forearm, hand
       const upperEnd = sleeveLong ? y0 + len - 7 : y0 + 12;
-      block(P, ax, y0, 5, upperEnd - y0, top, 1, 2); P(ax + (s < 0 ? 1 : 0), y0 - 1, 4, 1, top);
-      g.clr(ax + (s < 0 ? 0 : 4), y0, 1, 1);
+      block(P, ax, y0, 5, upperEnd - y0, top, 1, 2); g.clr(ax + (s < 0 ? 0 : 4), y0, 1, 1);
       if (v.trim && !sleeveLong) P(ax, upperEnd - 2, 5, 2, v.trim); else P(ax, upperEnd - 2, 5, 1, tt.d);
       Q(ax + (s < 0 ? 1 : 0), y0 + 4, 3, 1, tt.d); Q(ax + (s < 0 ? 0 : 1), y0 + 8, 4, 1, tt.d);
       if (v.sleeveStripe) P(ax + (s < 0 ? 0 : 4), y0 + 1, 1, upperEnd - y0 - 2, v.sleeveStripe), P(ax + (s < 0 ? 1 : 3), y0 + 1, 0, 0, v.sleeveStripe);
@@ -222,7 +221,7 @@ function figure(g, v, dir, pose) {
       } else forearm(ax + 1, upperEnd, 4, y0 + len - 6 - upperEnd, s);
       hand(ax + 1, y0 + len - 6, 4, s, false);
     }
-    const hl = { x: x0 - 2, y: shY + armLen - shortenOf(sh1) }, hr = { x: x1 + 3, y: shY + armLen - shortenOf(sh2) };
+    const hl = { x: x0 - 2, y: shY + armLen - sh1 }, hr = { x: x1 + 3, y: shY + armLen - sh2 };
     if (v.bag) item(P, 'bag', v.bag, hl.x, hl.y - 2, 'f', v);
     if (v.tote) item(P, 'tote', v.tote, hl.x, hl.y - 2, 'f', v);
     if (v.purse) item(P, 'purse', v.purse, hr.x, hr.y - 2, 'f', v);
@@ -236,7 +235,7 @@ function figure(g, v, dir, pose) {
     hat(g, v, dir, ht, hw, hh, st);
   } else {
     // ================= side view, facing left =================
-    const hipX = CX, torW = Math.max(12, Math.round(tw * 0.62)), tx0 = hipX - (torW >> 1) - 1, tx1 = tx0 + torW;
+    const hipX = CX, torW = Math.max(12, Math.round(tw * 0.7)), tx0 = hipX - (torW >> 1) - 1, tx1 = tx0 + torW;
     const S = run ? 14 : v.bounce ? 6 : 9, hipJ = hipY + 3;
     const legPose = [
       [{ dx: 0, lift: 0, k: 0 }, { dx: 1, lift: 0, k: 0 }],
@@ -251,7 +250,7 @@ function figure(g, v, dir, pose) {
       const kx = Math.round(hipX + L.dx * 0.5 + L.k), ky = Math.round((hipJ + ay) / 2) + (L.lift > 6 ? 3 : 0);
       limb(P, hipX, hipJ, kx, ky, 12, 9, c, { stripe: B.stripe && !dark ? B.stripe : null, sx: -1 }); limb(P, kx, ky, ax, ay, 9, 6, c, { stripe: B.stripe && !dark ? B.stripe : null, sx: -1 });
       if (!isSkirt && !isRobe && !isShorts) { const ct = T(c); Q(kx - 4, ky, 8, 1, ct.d); Q(kx - 3, ky + 3, 6, 1, ct.d); Q(ax - 3, ay - 2, 7, 1, ct.d); if (B.jeans) Q(kx - 2, ky - 8, 4, 6, sh(c, 1.14)); }
-      if (isShorts) { const sl = B.len * 2 + 2, bc = dark ? sh(B.col, 0.72) : B.col; limb(P, hipX, hipJ, hipX + (kx - hipX) * sl / (ky - hipJ), hipJ + sl, 13, 11, bc); P(hipX - 6, hipJ + sl - 1, 13, 1, T(bc).dd); }
+      if (isShorts) { const sl = Math.min(B.len * 2 + 2, ky - hipJ), bc = dark ? sh(B.col, 0.72) : B.col, ex = hipX + (kx - hipX) * sl / (ky - hipJ); limb(P, hipX, hipJ, ex, hipJ + sl, 13, 11, bc); P(ex - 5, hipJ + sl - 1, 11, 1, T(bc).dd); }
       if (v.boots) block(P, ax - 4, ay - 8, 9, 16, dark ? sh(v.boots, 0.75) : v.boots, 1, 2);
       // shoe: heel at ax+4, toe 9 px in front; a raised heel tilts the shoe toe-down
       for (let k = 0; k < 14; k++) {
@@ -334,7 +333,6 @@ function figure(g, v, dir, pose) {
     if (v.drink) item(P, v.drink.type, v.drink.col, hx - 1, hy, 's', v);
   }
 }
-const shortenOf = s => s;
 
 // Wheelchair (and the empty one): wheels turn with the pose, spokes in profile, dashes along the rim head-on.
 function chairParts(g, v, dir, pose) {
@@ -370,19 +368,17 @@ function chairParts(g, v, dir, pose) {
 // outline colour = a dark version of the neighbouring pixel (selective outline), light rim on the top-left edge and a shaded bottom-right
 const edgeK = [0.3, 0.28, 0.36];
 function finish(img) {
-  const d = img.d, W = CELL_W, H = CELL_H, out = new Uint8ClampedArray(d.length), a = (x, y) => x < 0 || y < 0 || x >= W || y >= H ? 0 : d[(y * W + x) * 4 + 3] > 127 ? 1 : 0;
+  const d = img.d, W = CELL_W, H = CELL_H, out = new Uint8ClampedArray(d.length), W2 = W + 2, m = new Uint8Array(W2 * (H + 2));   // opaque mask with a 1 px margin
+  for (let y = 0; y < H; y++) for (let x = 0, i = y * W * 4 + 3, k = (y + 1) * W2 + 1; x < W; x++, i += 4, k++) if (d[i] > 127) m[k] = 1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = (y * W + x) * 4;
-    if (a(x, y)) {
-      let k = 1;
-      if (!a(x - 1, y) || !a(x, y - 1)) k = 1.08; else if (!a(x + 1, y) || !a(x, y + 1)) k = 0.9;
-      const edge = !a(x - 1, y) || !a(x + 1, y) || !a(x, y - 1) || !a(x, y + 1);
-      if (edge) { out[i] = d[i] * k * 0.78; out[i + 1] = d[i + 1] * k * 0.76; out[i + 2] = d[i + 2] * k * 0.82; } else { out[i] = d[i]; out[i + 1] = d[i + 1]; out[i + 2] = d[i + 2]; }
+    const i = (y * W + x) * 4, k = (y + 1) * W2 + x + 1, L = m[k - 1], R = m[k + 1], U = m[k - W2], D = m[k + W2];
+    if (m[k]) {
+      let kk = 1; if (!L || !U) kk = 1.08; else if (!R || !D) kk = 0.9;
+      if (!L || !R || !U || !D) { out[i] = d[i] * kk * 0.78; out[i + 1] = d[i + 1] * kk * 0.76; out[i + 2] = d[i + 2] * kk * 0.82; } else { out[i] = d[i]; out[i + 1] = d[i + 1]; out[i + 2] = d[i + 2]; }
       out[i + 3] = 255;
-    } else {
-      let j = -1;
-      if (a(x - 1, y)) j = i - 4; else if (a(x + 1, y)) j = i + 4; else if (a(x, y - 1)) j = i - W * 4; else if (a(x, y + 1)) j = i + W * 4;
-      if (j >= 0) { out[i] = d[j] * edgeK[0] + 8; out[i + 1] = d[j + 1] * edgeK[1] + 6; out[i + 2] = d[j + 2] * edgeK[2] + 12; out[i + 3] = 255; }
+    } else if (L || R || U || D) {
+      const j = L ? i - 4 : R ? i + 4 : U ? i - W * 4 : i + W * 4;
+      out[i] = d[j] * edgeK[0] + 8; out[i + 1] = d[j + 1] * edgeK[1] + 6; out[i + 2] = d[j + 2] * edgeK[2] + 12; out[i + 3] = 255;
     }
   }
   return out;
