@@ -1,6 +1,6 @@
 # Faithfulness survey: summary
 
-Reviewer: independent adversarial pass. 304 street-level viewpoints (snapped to OSM road centrelines, eye height 1.6 m, 11:00) and 26 aerials were shot in the game from headless Chrome and compared with the real city. Real-world references were looked at only (nothing copied): about 25 Google Street View panoramas and 3 satellite views loaded successfully in the browser pane (the pane often failed to render a pano, so the number is far below the 300 asked for); the rest of the comparison is the in-game image against knowledge of Palermo. Each finding is tagged `sv` (checked against Street View or satellite), `mem` (from memory, verify) or `game` (defect visible in the game alone). In addition every viewpoint was ray-cast in the running game to test whether the road is buried by terrain, and a dense scan of the mountain-foot roads is in `buried-roads.md`.
+Reviewer: independent adversarial pass. 304 street-level viewpoints (snapped to OSM road centrelines, eye height 1.6 m, 11:00) and 26 aerials were shot in the game from headless Chrome and compared with the real city. Real-world references were looked at only (nothing copied): about 20 Google Street View panoramas and 3 satellite views loaded successfully in the browser pane (the pane often failed to render a pano, so the number is far below the 300 asked for); the rest of the comparison is the in-game image against knowledge of Palermo. Each finding is tagged `sv` (checked against Street View or satellite), `mem` (from memory, verify) or `game` (defect visible in the game alone). In addition every viewpoint was ray-cast in the running game to test whether the road is buried by terrain, and a dense scan of the mountain-foot roads is in `buried-roads.md`.
 
 Files: `viewpoints.json` (list), one `<area>.md` per area, `aerials-and-cross-cutting.md`, `buried-roads.md` and `buried-roads.json`.
 
@@ -8,21 +8,25 @@ Files: `viewpoints.json` (list), one `<area>.md` per area, `aerials-and-cross-cu
 
 | layer | high | med | low | total |
 |---|---|---|---|---|
-| road hidden by terrain | 10 | 7 | 5 | 22 |
+| road hidden by terrain | 10 | 7 | 4 | 21 |
 | road layout, width, markings | 4 | 12 | 3 | 19 |
 | pavements | 9 | 5 | 0 | 14 |
 | facade style and colour | 0 | 1 | 10 | 11 |
 | vegetation | 4 | 5 | 1 | 10 |
 | terrain | 1 | 6 | 2 | 9 |
 | landmarks | 1 | 4 | 3 | 8 |
-| walls, gardens, fences | 3 | 0 | 0 | 3 |
+| walls, gardens, fences | 3 | 1 | 0 | 4 |
 | building heights and massing (coverage) | 2 | 1 | 0 | 3 |
 | coastline and sea | 0 | 1 | 2 | 3 |
 | street furniture, props, parked cars | 0 | 0 | 1 | 1 |
 | viewpoint notes | 0 | 0 | 1 | 1 |
-| **all** | 34 | 42 | 28 | 104 |
+| **all** | 34 | 43 | 27 | 104 |
 
 Findings per area file: centro 7, politeama 6, mondello 17, pellegrino 18, zisa 14, sud 12, porto 5, landmarks 12, global 13.
+
+## Dense scan of mountain-foot roads
+
+About 457 buried samples in 323 stretches over roughly 41,800 road samples (Pellegrino, Billiemi/Boccadifalco/Baida, Grifone/Villagrazia/Ciaculli, Monte Gallo/Sferracavallo). 51 stretches have 1 m or more of terrain over the asphalt and 3 have 3 m or more. Worst: Via Padre Giordano Cascini 3.9 m, Via Grotte Partanna 3.9 m, Via Pietro Bonanno 3.0 m and 2.7 m, Via Monte Ercta 1.9 m (22 stretches), Lungomare Cristoforo Colombo, the A29 link road 2.0 m, Via Poggio Ridente 1.6 m. A cold start (spawn or teleport) shows far more burial than flying in from a distance, so treat the numbers as a lower bound. Details: `buried-roads.md`.
 
 ## Top 30 problems, ranked by damage to recognisability
 
@@ -47,7 +51,7 @@ Grouped by layer in the order they first appear; the number is the rank. `n` = h
 ### road hidden by terrain (4)
 
 4. **[high]** Roads buried under terrain on the mountain: Via Pietro Bonanno (up to 6.6 m at 38.16016,13.34982, 5.94 m at 38.15217,13.36476, 2.06 m at the hairpin crown), Via Monte Ercta, Via Poggio Ridente (2.28 m), Via San Martino, Lungomare side streets; the effect depends on tile load order (cold spawn or teleport shows it, flying in from afar does not). (n=20)
-6. **[high]** Viale Regione Siciliana Nord Ovest at 38.13036,13.33005 has no road mesh at all (17 of 70 samples without asphalt); satellite shows a 3+3 lane dual carriageway with median and slip roads. (n=1)
+6. **[high]** Viale Regione Siciliana Nord Ovest at 38.13036,13.33005 has no street mesh under 17 of 70 centreline samples and the camera stands on bare ground (possibly a bridge or ramp mapping issue); satellite shows a 3+3 lane dual carriageway with median and slip roads. (n=1)
 12. **[high]** Road-shaping bench failures: Via Pietro Calandra Sferracavallo (12 buried samples, 2.72 m, sand tongue across the road), Via Spina Santa shelf, Via San Martino tongue with hard polygon edge. (n=3)
 19. **[med]** Even in the flat centro: Via Pacinotti 2.72 m, Piazza Santa Teresa 1.77 m, Piazza Tredici Vittime and Via Crispi 1.11 m, Politeama squares 0.3 m. (n=13)
 

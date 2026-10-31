@@ -28,6 +28,20 @@
   "len_m_approx": 72
  },
  {
+  "road": "(unnamed)",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": -375,
+  "z": 7000,
+  "n": 1,
+  "depth": 3.04,
+  "lat": 38.05239,
+  "lon": 13.35698,
+  "len_m_approx": 24
+ },
+ {
   "road": "Via Pietro Bonanno",
   "cls": "unclassified",
   "kind": "hid",
@@ -40,6 +54,20 @@
   "lat": 38.15404,
   "lon": 13.36123,
   "len_m_approx": 72
+ },
+ {
+  "road": "Via Pietro Bonanno",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": 28,
+  "z": -4068,
+  "n": 7,
+  "depth": 2.66,
+  "lat": 38.15252,
+  "lon": 13.36158,
+  "len_m_approx": 168
  },
  {
   "road": "(unnamed)",
@@ -70,6 +98,20 @@
   "len_m_approx": 24
  },
  {
+  "road": "Via Monte Ercta",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -1994,
+  "z": -8111,
+  "n": 5,
+  "depth": 1.93,
+  "lat": 38.18909,
+  "lon": 13.3385,
+  "len_m_approx": 120
+ },
+ {
   "road": "Via Pietro Bonanno",
   "cls": "unclassified",
   "kind": "hid",
@@ -89,13 +131,13 @@
   "kind": "hid",
   "mode": "cold",
   "region": "pellegrino",
-  "x": -2029,
-  "z": -7763,
-  "n": 4,
+  "x": -2023,
+  "z": -7757,
+  "n": 5,
   "depth": 1.74,
-  "lat": 38.18595,
-  "lon": 13.33809,
-  "len_m_approx": 96
+  "lat": 38.1859,
+  "lon": 13.33816,
+  "len_m_approx": 120
  },
  {
   "road": "Via Palmiro Togliatti",
@@ -133,11 +175,11 @@
   "region": "pellegrino",
   "x": -2077,
   "z": -8502,
-  "n": 1,
+  "n": 2,
   "depth": 1.69,
   "lat": 38.19263,
   "lon": 13.33755,
-  "len_m_approx": 24
+  "len_m_approx": 48
  },
  {
   "road": "Via Monte Ercta",
@@ -322,6 +364,20 @@
   "len_m_approx": 48
  },
  {
+  "road": "(unnamed)",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1750,
+  "z": 4208,
+  "n": 7,
+  "depth": 1.23,
+  "lat": 38.07765,
+  "lon": 13.38124,
+  "len_m_approx": 168
+ },
+ {
   "road": "Via Spina Santa",
   "cls": "residential",
   "kind": "hid",
@@ -476,20 +532,6 @@
   "len_m_approx": 48
  },
  {
-  "road": "Via Pietro Bonanno",
-  "cls": "unclassified",
-  "kind": "hid",
-  "mode": "cold",
-  "region": "pellegrino",
-  "x": -6,
-  "z": -4080,
-  "n": 2,
-  "depth": 1.09,
-  "lat": 38.15263,
-  "lon": 13.36119,
-  "len_m_approx": 48
- },
- {
   "road": "Via Pietro Calandra",
   "cls": "residential",
   "kind": "hid",
@@ -574,6 +616,20 @@
   "len_m_approx": 72
  },
  {
+  "road": "Via Monte Erta",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -1905,
+  "z": -7008,
+  "n": 1,
+  "depth": 1.03,
+  "lat": 38.17912,
+  "lon": 13.33951,
+  "len_m_approx": 24
+ },
+ {
   "road": "Via Luoghicelli",
   "cls": "residential",
   "kind": "hid",
@@ -635,13 +691,13 @@
   "kind": "hid",
   "mode": "cold",
   "region": "pellegrino",
-  "x": -2238,
-  "z": -8004,
-  "n": 2,
+  "x": -2248,
+  "z": -8014,
+  "n": 5,
   "depth": 1,
-  "lat": 38.18812,
-  "lon": 13.33571,
-  "len_m_approx": 48
+  "lat": 38.18822,
+  "lon": 13.3356,
+  "len_m_approx": 120
  },
  {
   "road": "Via Placido Rizzotto",
@@ -840,6 +896,20 @@
   "len_m_approx": 48
  },
  {
+  "road": "Via Pietro Bonanno",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": 499,
+  "z": -3720,
+  "n": 1,
+  "depth": 0.87,
+  "lat": 38.14937,
+  "lon": 13.36696,
+  "len_m_approx": 24
+ },
+ {
   "road": "Via XXV Aprile",
   "cls": "residential",
   "kind": "hid",
@@ -880,6 +950,20 @@
   "lat": 38.08752,
   "lon": 13.29785,
   "len_m_approx": 48
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 5737,
+  "z": 7000,
+  "n": 1,
+  "depth": 0.82,
+  "lat": 38.05239,
+  "lon": 13.42676,
+  "len_m_approx": 24
  },
  {
   "road": "Via Monte Ercta",
@@ -929,13 +1013,13 @@
   "kind": "hid",
   "mode": "warm",
   "region": "grifone",
-  "x": 1239,
-  "z": 1800,
-  "n": 1,
+  "x": 1263,
+  "z": 1814,
+  "n": 2,
   "depth": 0.79,
-  "lat": 38.09944,
-  "lon": 13.37541,
-  "len_m_approx": 24
+  "lat": 38.09931,
+  "lon": 13.37568,
+  "len_m_approx": 48
  },
  {
   "road": "(unnamed)",
@@ -1090,6 +1174,34 @@
   "lat": 38.04917,
   "lon": 13.39304,
   "len_m_approx": 48
+ },
+ {
+  "road": "Via Pietro Bonanno",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": 137,
+  "z": -3959,
+  "n": 3,
+  "depth": 0.73,
+  "lat": 38.15153,
+  "lon": 13.36282,
+  "len_m_approx": 72
+ },
+ {
+  "road": "Via Conciliazione",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1035,
+  "z": 1950,
+  "n": 1,
+  "depth": 0.72,
+  "lat": 38.09808,
+  "lon": 13.37308,
+  "len_m_approx": 24
  },
  {
   "road": "(unnamed)",
@@ -1375,6 +1487,20 @@
   "road": "Via Pietro Bonanno",
   "cls": "unclassified",
   "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": 569,
+  "z": -4553,
+  "n": 3,
+  "depth": 0.65,
+  "lat": 38.15691,
+  "lon": 13.36776,
+  "len_m_approx": 72
+ },
+ {
+  "road": "Via Pietro Bonanno",
+  "cls": "unclassified",
+  "kind": "hid",
   "mode": "warm",
   "region": "pellegrino",
   "x": 569,
@@ -1426,6 +1552,20 @@
   "lat": 38.11176,
   "lon": 13.29733,
   "len_m_approx": 48
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1936,
+  "z": 2999,
+  "n": 1,
+  "depth": 0.64,
+  "lat": 38.08859,
+  "lon": 13.38336,
+  "len_m_approx": 24
  },
  {
   "road": "(unnamed)",
@@ -1481,6 +1621,20 @@
   "depth": 0.6,
   "lat": 38.20042,
   "lon": 13.29794,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Barresi",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1495,
+  "z": 4218,
+  "n": 1,
+  "depth": 0.6,
+  "lat": 38.07756,
+  "lon": 13.37833,
   "len_m_approx": 24
  },
  {
@@ -1583,6 +1737,20 @@
  },
  {
   "road": "(unnamed)",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": -2204,
+  "z": 4373,
+  "n": 1,
+  "depth": 0.56,
+  "lat": 38.07616,
+  "lon": 13.3361,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
   "cls": "unclassified",
   "kind": "hid",
   "mode": "warm",
@@ -1607,6 +1775,34 @@
   "depth": 0.56,
   "lat": 38.18779,
   "lon": 13.33942,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Monte Erta",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -1727,
+  "z": -6692,
+  "n": 1,
+  "depth": 0.56,
+  "lat": 38.17626,
+  "lon": 13.34154,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Viale Regione Siciliana Sud Est",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 2466,
+  "z": 2998,
+  "n": 1,
+  "depth": 0.56,
+  "lat": 38.0886,
+  "lon": 13.38942,
   "len_m_approx": 24
  },
  {
@@ -1807,6 +2003,20 @@
  },
  {
   "road": "(unnamed)",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 5629,
+  "z": 7047,
+  "n": 1,
+  "depth": 0.52,
+  "lat": 38.05197,
+  "lon": 13.42553,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
   "cls": "residential",
   "kind": "hid",
   "mode": "warm",
@@ -1921,6 +2131,20 @@
   "road": "Lungomare Cristoforo Colombo",
   "cls": "secondary",
   "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -1908,
+  "z": -8822,
+  "n": 2,
+  "depth": 0.49,
+  "lat": 38.19552,
+  "lon": 13.33948,
+  "len_m_approx": 48
+ },
+ {
+  "road": "Lungomare Cristoforo Colombo",
+  "cls": "secondary",
+  "kind": "hid",
   "mode": "warm",
   "region": "pellegrino",
   "x": -1908,
@@ -2013,6 +2237,20 @@
   "depth": 0.47,
   "lat": 38.10941,
   "lon": 13.30503,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 2294,
+  "z": 2997,
+  "n": 1,
+  "depth": 0.47,
+  "lat": 38.08861,
+  "lon": 13.38745,
   "len_m_approx": 24
  },
  {
@@ -2175,13 +2413,13 @@
   "kind": "hid",
   "mode": "cold",
   "region": "pellegrino",
-  "x": -2156,
-  "z": -7933,
-  "n": 1,
+  "x": -2158,
+  "z": -7938,
+  "n": 2,
   "depth": 0.45,
-  "lat": 38.18749,
-  "lon": 13.33664,
-  "len_m_approx": 24
+  "lat": 38.18753,
+  "lon": 13.33663,
+  "len_m_approx": 48
  },
  {
   "road": "Via Monte Ercta",
@@ -2478,6 +2716,20 @@
   "len_m_approx": 24
  },
  {
+  "road": "Via Enrico Mattei",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 3494,
+  "z": 2476,
+  "n": 1,
+  "depth": 0.42,
+  "lat": 38.09332,
+  "lon": 13.40115,
+  "len_m_approx": 24
+ },
+ {
   "road": "Via San Martino Delle Scale",
   "cls": "tertiary",
   "kind": "hid",
@@ -2573,6 +2825,20 @@
   "depth": 0.39,
   "lat": 38.12478,
   "lon": 13.24266,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Don Pino Puglisi",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 2994,
+  "z": 7657,
+  "n": 1,
+  "depth": 0.39,
+  "lat": 38.04645,
+  "lon": 13.39544,
   "len_m_approx": 24
  },
  {
@@ -2741,6 +3007,20 @@
   "depth": 0.37,
   "lat": 38.1897,
   "lon": 13.34629,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Filippo Pecoraino",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 4135,
+  "z": 2610,
+  "n": 1,
+  "depth": 0.37,
+  "lat": 38.09211,
+  "lon": 13.40847,
   "len_m_approx": 24
  },
  {
@@ -3458,6 +3738,20 @@
   "len_m_approx": 48
  },
  {
+  "road": "Viale Regione Siciliana Sud Est",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 5442,
+  "z": 3276,
+  "n": 1,
+  "depth": 0.31,
+  "lat": 38.08608,
+  "lon": 13.4234,
+  "len_m_approx": 24
+ },
+ {
   "road": "via Pier Paolo Pasolini",
   "cls": "residential",
   "kind": "hid",
@@ -3483,6 +3777,20 @@
   "depth": 0.3,
   "lat": 38.20747,
   "lon": 13.3069,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "tertiary",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 5916,
+  "z": 6475,
+  "n": 1,
+  "depth": 0.3,
+  "lat": 38.05714,
+  "lon": 13.42881,
   "len_m_approx": 24
  },
  {
@@ -3612,17 +3920,17 @@
   "len_m_approx": 24
  },
  {
-  "road": "Via Monte Ercta",
-  "cls": "unclassified",
+  "road": "Via Emiro Giafar",
+  "cls": "tertiary",
   "kind": "hid",
-  "mode": "cold",
-  "region": "pellegrino",
-  "x": -1958,
-  "z": -8099,
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1937,
+  "z": 2995,
   "n": 1,
   "depth": 0.29,
-  "lat": 38.18899,
-  "lon": 13.3389,
+  "lat": 38.08863,
+  "lon": 13.38338,
   "len_m_approx": 24
  },
  {
@@ -3637,6 +3945,20 @@
   "depth": 0.29,
   "lat": 38.08892,
   "lon": 13.29763,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Vittorio Bachelet",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 2641,
+  "z": 7105,
+  "n": 1,
+  "depth": 0.29,
+  "lat": 38.05144,
+  "lon": 13.39141,
   "len_m_approx": 24
  },
  {
@@ -3679,6 +4001,34 @@
   "depth": 0.28,
   "lat": 38.08905,
   "lon": 13.29738,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "residential",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "gallo",
+  "x": -3619,
+  "z": -10211,
+  "n": 1,
+  "depth": 0.28,
+  "lat": 38.20809,
+  "lon": 13.31994,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Lungomare Cristoforo Colombo",
+  "cls": "secondary",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": 85,
+  "z": -7685,
+  "n": 1,
+  "depth": 0.28,
+  "lat": 38.18524,
+  "lon": 13.36223,
   "len_m_approx": 24
  },
  {
@@ -3735,6 +4085,20 @@
   "depth": 0.28,
   "lat": 38.04952,
   "lon": 13.40685,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Via Monte Erta",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -1858,
+  "z": -6892,
+  "n": 1,
+  "depth": 0.28,
+  "lat": 38.17807,
+  "lon": 13.34005,
   "len_m_approx": 24
  },
  {
@@ -3833,6 +4197,20 @@
   "depth": 0.27,
   "lat": 38.05319,
   "lon": 13.31042,
+  "len_m_approx": 24
+ },
+ {
+  "road": "Lungomare Cristoforo Colombo",
+  "cls": "secondary",
+  "kind": "hid",
+  "mode": "cold",
+  "region": "pellegrino",
+  "x": -13,
+  "z": -7807,
+  "n": 1,
+  "depth": 0.27,
+  "lat": 38.18635,
+  "lon": 13.36111,
   "len_m_approx": 24
  },
  {
@@ -4057,6 +4435,20 @@
   "depth": 0.26,
   "lat": 38.08246,
   "lon": 13.2909,
+  "len_m_approx": 24
+ },
+ {
+  "road": "(unnamed)",
+  "cls": "unclassified",
+  "kind": "hid",
+  "mode": "warm",
+  "region": "grifone",
+  "x": 1099,
+  "z": 1882,
+  "n": 1,
+  "depth": 0.25,
+  "lat": 38.09869,
+  "lon": 13.37381,
   "len_m_approx": 24
  },
  {
