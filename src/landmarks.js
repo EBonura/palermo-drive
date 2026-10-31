@@ -1,0 +1,1151 @@
+// Hand-built landmark models. Owned by the landmarks work.
+// prepareLandmarks runs before buildings: add building ids to ctx.skip for any footprint a model replaces.
+// All models are assembled from merged parts (one mesh per material) in local frames, on groundY.
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { D, groundY, rng } from './core.js';
+
+const PI = Math.PI;
+const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+
+// ====================================================================================================
+// Toolkit: material registry, part collector, texture painters
+// ====================================================================================================
+const MATS = {};      // key -> { map, texM:[mu,mv], opts }
+const BINS = {};      // key -> geometries
+const STATS = {};
+const KEEPOUT = {};  // open-ground footprints of models, for the lead to treat as obstacles (exposed on window.__landmarkKeepout)     // landmark -> triangles
+let CUR = 'misc', BASEY = 0;
+
+function mkTex(w, h, draw) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'); draw(g, w, h);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+function defMat(key, map, texM, opts = {}) { MATS[key] = { map, texM, opts }; BINS[key] = []; }
+
+const UB = new THREE.BoxGeometry(1, 1, 1); UB.translate(0, 0.5, 0);   // base-centred unit box
+const GEO = {};
+const geo = (k, f) => GEO[k] || (GEO[k] = f());
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _c = new THREE.Color(), _n = new THREE.Vector3();
+
+// Add a geometry to a material bin. o: p [x,y,z], ry/rx/rz, s [sx,sy,sz], M parent matrix, c tint,
+// uv 'world' (metric, from world position and normal) or 'keep' (geometry uv times uvk).
+function part(key, g0, o = {}) {
+  const bin = BINS[key]; if (!bin) throw new Error('no material ' + key);
+  const g = g0.index ? g0.toNonIndexed() : g0.clone();
+  _e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ'); _q.setFromEuler(_e);
+  _m.compose(V3(o.p || [0, 0, 0]), _q, V3(o.s || [1, 1, 1]));
+  if (o.M) _m.premultiply(o.M);
+  g.applyMatrix4(_m);
+  const pos = g.attributes.position, nor = g.attributes.normal, n = pos.count;
+  const uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
+  const tm = MATS[key].texM;
+  _c.set(o.c || '#ffffff');
+  const keep = o.uv === 'keep', uk = o.uvk || [1, 1], uo = o.uvo || [0, 0];
+  for (let i = 0; i < n; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    if (keep) { uv[i * 2] = g.attributes.uv.getX(i) * uk[0] + uo[0]; uv[i * 2 + 1] = g.attributes.uv.getY(i) * uk[1] + uo[1]; }
+    else {
+      const nx = nor.getX(i), ny = nor.getY(i), nz = nor.getZ(i);
+      if (Math.abs(ny) > 0.6) { uv[i * 2] = x / tm[0]; uv[i * 2 + 1] = z / tm[1]; }
+      else { uv[i * 2] = (x * nz - z * nx) / tm[0]; uv[i * 2 + 1] = y / tm[1]; }
+      uv[i * 2] += uo[0]; uv[i * 2 + 1] += uo[1];
+    }
+    const ao = o.noao ? 1 : 0.74 + 0.26 * Math.min(1, Math.max(0, (y - BASEY) / 5));
+    col[i * 3] = _c.r * ao; col[i * 3 + 1] = _c.g * ao; col[i * 3 + 2] = _c.b * ao;
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.deleteAttribute('uv1');
+  bin.push(g);
+  STATS[CUR] = (STATS[CUR] || 0) + n / 3;
+}
+
+// Convenience primitives (base-centred; p is the base centre)
+const box = (key, sx, sy, sz, o = {}) => part(key, UB, { ...o, s: [sx, sy, sz] });
+function cyl(key, rt, rb, h, seg, o = {}) {
+  const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1, !!o.open); g.translate(0, h / 2, 0);
+  part(key, g, { uv: 'keep', uvk: [2 * PI * Math.max(rt, rb) / MATS[key].texM[0], h / MATS[key].texM[1]], ...o });
+}
+function lathe(key, prof, seg, o = {}) {
+  const g = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), seg);
+  part(key, g, o);
+}
+function sphere(key, r, o = {}) {
+  const g = geo('sph' + (o.seg || 8), () => new THREE.SphereGeometry(1, o.seg || 8, Math.max(4, (o.seg || 8) >> 1)));
+  part(key, g, { ...o, s: [r, r * (o.ky || 1), r] });
+}
+function shapeGeo(shape, depth, hole) {
+  if (hole) shape.holes.push(hole);
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 8 });
+}
+function archShape(w, h, shape = new THREE.Shape()) {
+  const r = w / 2;
+  shape.moveTo(-r, 0); shape.lineTo(r, 0); shape.lineTo(r, h - r);
+  shape.absarc(0, h - r, r, 0, PI, false); shape.lineTo(-r, 0);
+  return shape;
+}
+function archPath(w, h) { // hole path (clockwise opposite of the outer) for frames
+  const r = w / 2, p = new THREE.Path();
+  p.moveTo(-r, 0.03); p.lineTo(-r, h - r); p.absarc(0, h - r, r, PI, 0, true); p.lineTo(r, 0.03); p.lineTo(-r, 0.03);
+  return p;
+}
+function rectShape(w, h) { const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.lineTo(-w / 2, 0); return s; }
+
+// Local frame: origin (x,y,z), facing outward normal angle: local +z points along (nx, nz), local x is to the right when viewed from the front.
+function frame(x, y, z, nx, nz) {
+  const m = new THREE.Matrix4().makeRotationY(Math.atan2(nx, nz));
+  m.setPosition(x, y, z); return m;
+}
+const mul = (a, b) => new THREE.Matrix4().multiplyMatrices(a, b);
+const tr = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+const rotY = (a) => new THREE.Matrix4().makeRotationY(a);
+
+function finish(scene) {
+  const out = {};
+  for (const k in MATS) {
+    if (!BINS[k].length) continue;
+    const merged = mergeGeometries(BINS[k], false);
+    const m = MATS[k];
+    const mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...m.opts });
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = !m.opts.noShadow; mesh.receiveShadow = true; mesh.name = 'landmarks-' + k;
+    scene.add(mesh); out[k] = merged.attributes.position.count / 3;
+    BINS[k] = [];
+  }
+  return out;
+}
+
+// ---------- painters ----------
+const R_ = (seed) => rng(seed);
+function noiseDots(g, w, h, n, r, seed, cols) {
+  const r_ = R_(seed);
+  for (let i = 0; i < n; i++) { g.fillStyle = cols[(i % cols.length)]; const s = r * (0.4 + r_()); g.fillRect(r_() * w, r_() * h, s, s); }
+}
+function streaks(g, w, h, n, seed, alpha, len) {
+  const r_ = R_(seed);
+  for (let i = 0; i < n; i++) {
+    const x = r_() * w, y = r_() * h, l = len * (0.4 + r_()), ww = 1 + r_() * 4;
+    const gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, `rgba(30,22,14,${alpha})`); gr.addColorStop(1, 'rgba(30,22,14,0)');
+    g.fillStyle = gr; g.fillRect(x, y, ww, l);
+  }
+}
+// ashlar blocks: tile covers tw x th metres on a w x h canvas
+function paintAshlar(g, w, h, tw, th, course, block, base, joint, seed, jointW = 2, vary = 0.07) {
+  const r_ = R_(seed), pm = w / tw, rows = Math.round(th / course);
+  g.fillStyle = joint; g.fillRect(0, 0, w, h);
+  const b = new THREE.Color(base), c = new THREE.Color();
+  for (let j = 0; j < rows; j++) {
+    const y0 = j * course * (h / th), hh = course * (h / th);
+    let x = -r_() * block * pm;
+    while (x < w) {
+      const bw = block * pm * (0.7 + r_() * 0.6), k = 1 + (r_() - 0.5) * 2 * vary;
+      c.setRGB(Math.min(1, b.r * k), Math.min(1, b.g * k), Math.min(1, b.b * k));
+      g.fillStyle = '#' + c.getHexString(); g.fillRect(x + jointW / 2, y0 + jointW / 2, bw - jointW, hh - jointW);
+      x += bw;
+    }
+  }
+  noiseDots(g, w, h, w * h / 140, 1.6, seed + 7, ['rgba(60,45,30,0.10)', 'rgba(255,240,210,0.07)']);
+}
+
+// ---------- shared materials ----------
+let READY = false;
+function initMaterials() {
+  if (READY) return; READY = true;
+  defMat('ashlar', mkTex(512, 512, (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.4, 0.85, '#d2bd96', '#8a7656', 11)), [3.2, 3.2]);
+  defMat('rustic', mkTex(512, 512, (g, w, h) => paintAshlar(g, w, h, 3.3, 3.3, 0.55, 1.1, '#c4ab82', '#4e3f2e', 12, 5, 0.1)), [3.3, 3.3]);
+  defMat('plaster', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#e8dccb'; g.fillRect(0, 0, w, h);
+    noiseDots(g, w, h, 900, 2.5, 21, ['rgba(120,90,60,0.08)', 'rgba(255,255,255,0.10)']); streaks(g, w, h, 40, 22, 0.08, 120);
+  }), [4, 4]);
+  defMat('marble', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#e4e0d4'; g.fillRect(0, 0, w, h);
+    noiseDots(g, w, h, 700, 2.2, 31, ['rgba(110,105,95,0.09)', 'rgba(255,255,250,0.12)']);
+    g.strokeStyle = 'rgba(120,115,105,0.13)'; g.lineWidth = 1; const r_ = R_(32);
+    for (let i = 0; i < 14; i++) { g.beginPath(); let x = r_() * w, y = r_() * h; g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r_() - 0.3) * 70; y += (r_() - 0.5) * 70; g.lineTo(x, y); } g.stroke(); }
+  }), [3, 3]);
+  defMat('lead', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#b3b6ae'; g.fillRect(0, 0, w, h);
+    noiseDots(g, w, h, 900, 2.5, 41, ['rgba(60,70,60,0.12)', 'rgba(255,255,245,0.08)']);
+    g.fillStyle = 'rgba(70,80,72,0.22)'; for (let x = 0; x < w; x += 32) g.fillRect(x, 0, 2, h);
+  }), [3, 3]);
+  defMat('tile', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#c4714c'; g.fillRect(0, 0, w, h); const r_ = R_(51);
+    for (let y = 0; y < h; y += 16) { for (let x = 0; x < w; x += 16) { g.fillStyle = `hsl(${12 + r_() * 8},${48 + r_() * 12}%,${46 + r_() * 12}%)`; g.fillRect(x, y, 15, 15); } g.fillStyle = 'rgba(60,25,15,.5)'; g.fillRect(0, y + 14, w, 2); }
+  }), [2.4, 2.4]);
+  defMat('red', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#b4655d'; g.fillRect(0, 0, w, h);
+    noiseDots(g, w, h, 1400, 3, 61, ['rgba(120,60,60,0.2)', 'rgba(220,150,130,0.18)', 'rgba(90,60,50,0.15)']);
+  }), [2.5, 2.5]);
+  defMat('balus', mkTex(64, 64, (g, w, h) => {
+    g.clearRect(0, 0, w, h); g.fillStyle = '#e4e0d3';
+    g.fillRect(0, 0, w, 9); g.fillRect(0, h - 8, w, 8);
+    for (let x = 0; x < w; x += 16) { g.fillRect(x + 4, 9, 8, h - 17); g.fillRect(x + 2, 22, 12, 8); g.fillRect(x + 2, 38, 12, 6); }
+  }), [1, 1], { alphaTest: 0.5, side: THREE.DoubleSide });
+  defMat('majolica', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#d9c078'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 32) {
+      g.fillStyle = '#4f8c64'; g.beginPath(); g.moveTo(x + 16, y); g.lineTo(x + 32, y + 16); g.lineTo(x + 16, y + 32); g.lineTo(x, y + 16); g.fill();
+      g.fillStyle = '#c9a24a'; g.beginPath(); g.moveTo(x + 16, y + 8); g.lineTo(x + 24, y + 16); g.lineTo(x + 16, y + 24); g.lineTo(x + 8, y + 16); g.fill();
+    }
+    noiseDots(g, w, h, 600, 2, 71, ['rgba(80,60,30,0.15)']);
+  }), [4, 4], { side: THREE.DoubleSide });
+  defMat('flat', null, [1, 1]);
+  defMat('dark', null, [1, 1], { roughness: 1 });
+  defMat('bronze', null, [1, 1], { roughness: 0.5, metalness: 0.3 });
+  defMat('rail', mkTex(64, 64, (g, w, h) => {
+    g.clearRect(0, 0, w, h); g.fillStyle = '#2a2a30';
+    g.fillRect(0, 2, w, 5); g.fillRect(0, h - 6, w, 5);
+    for (let x = 4; x < w; x += 16) g.fillRect(x, 0, 3, h);
+  }), [1, 1], { alphaTest: 0.5, side: THREE.DoubleSide, transparent: false, noShadow: true });
+}
+
+// white stone balustrade panel (same convention as rail)
+function balus(M, len, h, o = {}) {
+  const g = geo('plane', () => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); return p; });
+  part('balus', g, { M, s: [len, h, 1], uv: 'keep', uvk: [len / h, 1], noao: true, ...o });
+}
+// iron railing panel: len x h metres, in a local frame with the panel centred on x, standing on y=0 at z
+function rail(M, len, h, o = {}) {
+  const g = geo('plane', () => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); return p; });
+  part('rail', g, { M, s: [len, h, 1], uv: 'keep', uvk: [len / 0.5 * 0.5, 1], noao: true, ...o });
+}
+// small robed statue standing on y=0 in the frame M; h = total height
+function statue(key, M, h, o = {}) {
+  const c = o.c || '#d6d2c4', k = h, na = !!o.noao;
+  // robe, shoulders, head, hanging arms, a cloak behind
+  lathe(key, [[0, 0], [0.23 * k, 0], [0.24 * k, 0.12 * k], [0.19 * k, 0.45 * k], [0.15 * k, 0.62 * k], [0.19 * k, 0.7 * k], [0.08 * k, 0.74 * k], [0.04 * k, 0.77 * k]], 8, { M, c, noao: na });
+  box(key, 0.42 * k, 0.1 * k, 0.17 * k, { M, p: [0, 0.62 * k, 0], c, noao: na });
+  sphere(key, 0.075 * k, { M, p: [0, 0.84 * k, 0.005 * k], c, seg: 6, noao: na });
+  box(key, 0.07 * k, 0.3 * k, 0.08 * k, { M, p: [0.22 * k, 0.4 * k, 0.04 * k], rz: 0.12, c, noao: na });
+  box(key, 0.07 * k, 0.3 * k, 0.08 * k, { M, p: [-0.22 * k, 0.4 * k, 0.04 * k], rz: -0.12, c, noao: na });
+  box(key, 0.36 * k, 0.62 * k, 0.05 * k, { M, p: [0, 0.1 * k, -0.15 * k], c: o.cloak || '#c8c3b3', noao: na });
+  if (o.crown) cyl(key, 0.08 * k, 0.06 * k, 0.07 * k, 6, { M, p: [0, 0.9 * k, 0], c });
+}
+function angel(key, M, h, o = {}) {
+  statue(key, M, h, o);
+  box(key, 0.5 * h, 0.4 * h, 0.04 * h, { M, p: [-0.28 * h, 0.5 * h, -0.12 * h], rz: 0.5, c: o.c || '#ddd9cc' });
+  box(key, 0.5 * h, 0.4 * h, 0.04 * h, { M, p: [0.28 * h, 0.5 * h, -0.12 * h], rz: -0.5, c: o.c || '#ddd9cc' });
+}
+// base height for a footprint
+const baseAt = (x, z) => groundY(x, z);
+function minGround(pts) { let m = Infinity; for (const p of pts) m = Math.min(m, groundY(p[0], p[1])); return m; }
+const byId = (id) => D.buildings.find(b => b.id === id);
+const relH = (b, dflt) => (b && b.r !== undefined && b.g !== undefined) ? b.r - b.g : (b ? b.h : dflt);
+const pairsOf = (flat) => { const o = []; for (let i = 0; i < flat.length; i += 2) o.push([flat[i], flat[i + 1]]); return o; };
+const centroid = (pts) => { let x = 0, z = 0; for (const p of pts) { x += p[0]; z += p[1]; } return [x / pts.length, z / pts.length]; };
+
+// ====================================================================================================
+// 1. Quattro Canti
+// ====================================================================================================
+const QC = { C: [17.49, 4.0], R: 15.29, Rf: 14.95, Wd: 12.6 };
+
+function paintQC(Wd, PXH) {
+  const W = 512, H = 1024, sx = W / Wd, sy = H / 25.6;
+  return mkTex(W, H, (g) => {
+    const X = (s) => (s + Wd / 2) * sx, Y = (y) => H - y * sy;
+    const rect = (s0, y0, s1, y1, f) => { g.fillStyle = f; g.fillRect(X(s0), Y(y1), (s1 - s0) * sx, (y1 - y0) * sy); };
+    const r_ = R_(101);
+    // base stone
+    g.fillStyle = '#8f7b58'; g.fillRect(0, 0, W, H);
+    // ground tier: heavy rustication
+    for (let y = 0; y < 7.4; y += 0.55) {
+      let s = -Wd / 2 - r_() * 1.1;
+      while (s < Wd / 2) {
+        const bw = 0.9 + r_() * 0.9, k = 0.88 + r_() * 0.2;
+        g.fillStyle = `rgb(${(150 * k) | 0},${(126 * k) | 0},${(90 * k) | 0})`; rect(s + 0.03, y + 0.03, s + bw - 0.03, y + 0.52, g.fillStyle); s += bw;
+      }
+    }
+    // mid and upper tiers: finer courses
+    for (const [ya, yb] of [[8.0, 15.0], [15.6, 21.8]]) for (let y = ya; y < yb; y += 0.7) {
+      let s = -Wd / 2 - r_() * 1.4;
+      while (s < Wd / 2) { const bw = 1.2 + r_() * 1.0, k = 0.9 + r_() * 0.18; rect(s + 0.02, y + 0.02, s + bw - 0.02, y + 0.68, `rgb(${(164 * k) | 0},${(140 * k) | 0},${(102 * k) | 0})`); s += bw; }
+    }
+    // cornice bands
+    for (const [y0, y1] of [[7.4, 8.0], [15.0, 15.6], [21.8, 22.5]]) { rect(-Wd / 2, y0, Wd / 2, y1, '#9d8864'); rect(-Wd / 2, y0, Wd / 2, y0 + 0.12, '#4d4132'); }
+    // attic above the top cornice
+    rect(-Wd / 2, 22.5, Wd / 2, 25.6, '#9a865f');
+    for (let s = -Wd / 2 + 0.3; s < Wd / 2; s += 1.5) rect(s, 22.5, s + 0.12, 24, '#6e5d44');
+    // corner quoin strips
+    for (const sg of [-1, 1]) {
+      const a = sg < 0 ? -Wd / 2 : Wd / 2 - 0.95, b = a + 0.95;
+      for (let y = 0; y < 22; y += 0.45) rect(a, y, b, y + 0.41, y < 7.4 ? '#8a7352' : '#b49c73');
+    }
+    // centre panel on the ground tier + plaque
+    rect(-2.0, 0.9, 2.0, 7.0, '#8e7a58'); g.strokeStyle = '#4a3c2b'; g.lineWidth = 3; g.strokeRect(X(-2.0), Y(7.0), 4.0 * sx, 6.1 * sy);
+    rect(-1.55, 4.6, 1.55, 6.3, '#d6cfbc'); g.fillStyle = '#5a5448';
+    for (let y = 4.85; y < 6.1; y += 0.16) g.fillRect(X(-1.3), Y(y), 2.6 * sx * (0.7 + r_() * 0.3), 3);
+    // windows
+    const win = (s, y0, y1, w, ped) => {
+      rect(s - w / 2 - 0.22, y0 - 0.15, s + w / 2 + 0.22, y1 + 0.15, '#c8bc9e');
+      rect(s - w / 2, y0, s + w / 2, y1, '#4a5a4f');
+      g.fillStyle = '#34423a'; for (let y = y0 + 0.1; y < y1; y += 0.14) g.fillRect(X(s - w / 2), Y(y), w * sx, 2);
+      g.fillStyle = '#26301f'; g.fillRect(X(s) - 1, Y(y1), 2, (y1 - y0) * sy);
+      if (ped) { g.fillStyle = '#c8bc9e'; g.beginPath(); g.moveTo(X(s - w / 2 - 0.5), Y(y1 + 0.2)); g.lineTo(X(s), Y(y1 + 1.0)); g.lineTo(X(s + w / 2 + 0.5), Y(y1 + 0.2)); g.fill(); }
+    };
+    for (const s of [-3.85, 3.85]) {
+      win(s, 2.9, 5.5, 1.2, false);
+      rect(s - 0.95, 1.7, s + 0.95, 2.75, '#b9ad90'); g.fillStyle = '#7d6e55'; for (let k = -0.8; k <= 0.8; k += 0.2) g.fillRect(X(s + k) - 2, Y(2.55), 4, 0.6 * sy);
+      win(s, 9.3, 13.2, 1.3, true);
+      win(s, 16.8, 20.0, 1.2, false);
+      rect(s - 0.7, 20.5, s + 0.7, 21.3, '#b9ad90');
+    }
+    // niches (dark inset) are real geometry; paint their backgrounds anyway
+    // weathering
+    streaks(g, W, H, 260, 103, 0.16, 190);
+    for (const y of [7.4, 15.0, 21.8]) { const gr = g.createLinearGradient(0, Y(y), 0, Y(y) + 90); gr.addColorStop(0, 'rgba(25,18,10,0.32)'); gr.addColorStop(1, 'rgba(25,18,10,0)'); g.fillStyle = gr; g.fillRect(0, Y(y), W, 90); }
+    noiseDots(g, W, H, 9000, 2, 104, ['rgba(40,30,20,0.18)', 'rgba(240,220,180,0.10)']);
+    // dark blackened lower area
+    const gb = g.createLinearGradient(0, H, 0, Y(5)); gb.addColorStop(0, 'rgba(25,20,15,0.35)'); gb.addColorStop(1, 'rgba(25,20,15,0)'); g.fillStyle = gb; g.fillRect(0, Y(5), W, 5 * sy);
+  });
+}
+
+function buildQuattroCanti() {
+  CUR = 'Quattro Canti';
+  const [cx, cz] = QC.C, { R, Rf, Wd } = QC;
+  // find the four concave arcs among building vertices
+  const pts = [];
+  for (const b of D.buildings) {
+    const p = b.p;
+    for (let i = 0; i < p.length; i += 2) {
+      const d = Math.hypot(p[i] - cx, p[i + 1] - cz);
+      if (Math.abs(d - R) < 0.5) pts.push({ a: Math.atan2(p[i + 1] - cz, p[i] - cx), b });
+    }
+  }
+  if (pts.length < 8) return;
+  pts.sort((p, q) => p.a - q.a);
+  const n = pts.length, TWO = 2 * PI;
+  let k0 = 0;
+  for (let i = 0; i < n; i++) { let gap = pts[(i + 1) % n].a - pts[i].a; if (gap < 0) gap += TWO; if (gap > 0.45) { k0 = (i + 1) % n; break; } }
+  const clusters = []; let cur = [];
+  for (let j = 0; j < n; j++) {
+    const p = pts[(k0 + j) % n];
+    if (cur.length) { let d = p.a - cur[cur.length - 1].a; if (d < 0) d += TWO; if (d > 0.45) { clusters.push(cur); cur = []; } }
+    cur.push(p);
+  }
+  if (cur.length) clusters.push(cur);
+  const arcs = [];
+  for (const cl of clusters) {
+    if (cl.length < 3) continue;
+    let a0 = cl[0].a, a1 = a0, last = a0;
+    for (const p of cl) { let d = p.a - last; if (d < 0) d += TWO; a1 += d; last = p.a; }
+    // relative roof height from lidar when present
+    const bs = cl.map(p => p.b).filter(b => b.r !== undefined);
+    arcs.push({ a0, a1, mid: (a0 + a1) / 2, rel: bs.length ? relH(bs[0]) : null, h: cl[0].b.h });
+  }
+  const rels = arcs.filter(a => a.rel).map(a => a.rel);
+  const H = rels.length ? Math.min(25, rels.reduce((s, v) => s + v, 0) / rels.length) : 23.3;
+  const sy = H / 23.3;
+  const tex = paintQC(Wd);
+  defMat('qcwall', tex, [Wd, 25.6]);
+  const stone = '#ffffff', marbleGrey = '#a7a3a6', whiteM = '#dedacc';
+
+  for (const arc of arcs) {
+    const th = (s) => arc.mid + s / Rf;
+    const gy0 = groundY(cx + Rf * Math.cos(arc.mid), cz + Rf * Math.sin(arc.mid));
+    BASEY = gy0;
+    // local frame at facade coordinate s, height y, depth z (toward the piazza)
+    const at = (s, y = 0, z = 0) => {
+      const t = th(s), dx = Math.cos(t), dz = Math.sin(t);
+      const m = frame(cx + Rf * dx, gy0 + y * sy * 0 + y, cz + Rf * dz, -dx, -dz);
+      return z ? mul(m, tr(0, 0, z)) : m;
+    };
+    // wall surface: faceted concave strip with painted texture
+    const nseg = 14, A = [];
+    {
+      const gg = new THREE.BufferGeometry(), P = [], N = [], U = [];
+      const ytop = 25.6 * sy, ybot = -1.0;
+      for (let i = 0; i < nseg; i++) {
+        const sa = -Wd / 2 + Wd * i / nseg, sb = -Wd / 2 + Wd * (i + 1) / nseg;
+        const ta = th(sa), tb = th(sb);
+        const pa = [cx + Rf * Math.cos(ta), cz + Rf * Math.sin(ta)], pb = [cx + Rf * Math.cos(tb), cz + Rf * Math.sin(tb)];
+        const tm = (ta + tb) / 2, nx = -Math.cos(tm), nz = -Math.sin(tm);
+        const ua = i / nseg, ub = (i + 1) / nseg;
+        const vb = ybot / (25.6 * sy), vt = ytop / (25.6 * sy);
+        const Q = [[pa, ybot, ua, vb], [pb, ybot, ub, vb], [pb, ytop, ub, vt], [pa, ytop, ua, vt]];
+        for (const k of [0, 1, 2, 0, 2, 3]) { const q = Q[k]; P.push(q[0][0], gy0 + q[1], q[0][1]); N.push(nx, 0, nz); U.push(q[2], q[3]); }
+      }
+      gg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      gg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+      gg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+      // wind faces towards the centre: check orientation by normal
+      part('qcwall', gg, { uv: 'keep', noao: true });
+    }
+    // horizontal arc slabs (cornices, balcony)
+    const arcSlab = (key, s0, s1, y0, y1, z0, z1, c) => {
+      const nn = Math.max(2, Math.ceil((s1 - s0) / 1.5));
+      for (let i = 0; i < nn; i++) {
+        const sa = s0 + (s1 - s0) * i / nn, sb = s0 + (s1 - s0) * (i + 1) / nn, sc = (sa + sb) / 2;
+        box(key, (sb - sa) * 1.05, y1 - y0, z1 - z0, { M: at(sc, y0, (z0 + z1) / 2), c });
+      }
+    };
+    const T1 = 7.4, T2 = 15.0, T3 = 21.8;
+    // cornices with a projecting top moulding and modillion row
+    for (const [yb, w] of [[T1, 0.55], [T2, 0.5], [T3, 0.55]]) {
+      arcSlab('ashlar', -Wd / 2, Wd / 2, yb, yb + 0.55, 0, w, '#a99468');
+      arcSlab('ashlar', -Wd / 2, Wd / 2, yb + 0.55, yb + 0.7, 0, w + 0.18, '#b8a37a');
+      for (let s = -Wd / 2 + 0.4; s < Wd / 2; s += 0.8) box('ashlar', 0.28, 0.35, 0.3, { M: at(s, yb - 0.3, 0.3), c: '#9a845c' });
+    }
+    // balcony of the middle tier: slab plus iron railing along the whole arc
+    arcSlab('ashlar', -Wd / 2, Wd / 2, T1 + 0.7, T1 + 0.95, 0, 1.05, '#a99468');
+    {
+      const nn = 8;
+      for (let i = 0; i < nn; i++) {
+        const sa = -Wd / 2 + Wd * i / nn, sb = sa + Wd / nn;
+        rail(at((sa + sb) / 2, T1 + 0.95, 1.0), (sb - sa) * 1.02, 1.05);
+      }
+    }
+    // balconies of the ground-tier windows
+    for (const s of [-3.85, 3.85]) {
+      box('ashlar', 2.0, 0.25, 0.55, { M: at(s, 1.55, 0.27), c: '#c4b898' });
+      rail(at(s, 1.8, 0.5), 1.9, 0.9);
+    }
+    // pilaster strips at the corners (protruding quoins)
+    for (const sg of [-1, 1]) {
+      const s = sg * (Wd / 2 - 0.47);
+      box('ashlar', 0.95, 22.0, 0.35, { M: at(s, 0, 0.17), c: '#b09a70' });
+      box('ashlar', 1.1, 0.3, 0.45, { M: at(s, 7.1, 0.22), c: '#b09a70' });
+    }
+    // free-standing columns (ground, middle) and pilaster pairs (upper)
+    for (const sg of [-1, 1]) {
+      const s = sg * 2.3;
+      box('marble', 0.8, 0.35, 0.8, { M: at(s, 0, 0.7), c: '#8c8780' });
+      cyl('marble', 0.27, 0.31, 6.7, 10, { M: at(s, 0.35, 0.7), c: marbleGrey });
+      box('marble', 0.75, 0.35, 0.75, { M: at(s, 7.05, 0.7), c: '#8c8780' });
+      box('marble', 0.8, 0.3, 0.8, { M: at(s, 8.25, 0.55), c: '#8c8780' });
+      cyl('marble', 0.2, 0.23, 5.6, 10, { M: at(s, 8.55, 0.55), c: marbleGrey });
+      box('marble', 0.7, 0.3, 0.7, { M: at(s, 14.15, 0.55), c: '#8c8780' });
+      box('ashlar', 0.55, 5.6, 0.3, { M: at(s, 15.6, 0.15), c: '#b09a70' });
+      box('ashlar', 0.65, 0.3, 0.4, { M: at(s, 21.3, 0.2), c: '#c0aa82' });
+    }
+    // centre niches: dark arched recess (frame + backing) and a statue
+    const niche = (y0, w, h, st, hs, crown) => {
+      const back = shapeGeo(archShape(w, h), 0.06);
+      part('dark', back, { M: at(0, y0, 0.05), uv: 'keep', c: '#2d2824', noao: true });
+      part('marble', shapeGeo(archShape(w + 0.5, h + 0.25), 0.16, archPath(w, h)), { M: at(0, y0 - 0.0, 0.0), c: '#d8d2c0' });
+      box('marble', 1.2, 0.7, 1.0, { M: at(0, y0, 0.55), c: '#cdc8b8' });
+      statue('marble', at(0, y0 + 0.7, 0.6), hs, { crown });
+    };
+    niche(9.0, 2.0, 5.2, 0, 3.1, true);
+    niche(16.4, 1.9, 4.6, 0, 3.0, false);
+    // ground-tier statue on its pedestal in the central panel, with fountain below
+    box('marble', 1.5, 1.4, 0.9, { M: at(0, 1.0, 0.45), c: '#cfc9b8' });
+    statue('marble', at(0, 2.4, 0.5), 2.4, {});
+    // fountain basin projecting into the piazza
+    cyl('marble', 1.6, 1.65, 0.45, 12, { M: at(0, 0, 1.6), c: '#bdb8a8' });
+    cyl('marble', 0.28, 0.4, 0.6, 8, { M: at(0, 0.45, 1.6), c: '#cfc9b8' });
+    lathe('marble', [[0, 0], [0.5, 0.05], [0.95, 0.35], [1.0, 0.5], [0.85, 0.5], [0, 0.12]], 12, { M: at(0, 1.0, 1.6), c: '#d2cdbd' });
+    box('marble', 1.4, 0.35, 0.3, { M: at(0, 0.0, 0.5), c: '#bdb8a8' });
+    // angels on the window pediments of the middle tier, and a window balustrade
+    for (const s of [-3.85, 3.85]) {
+      angel('marble', at(s, 14.2, 0.2), 1.4);
+      box('ashlar', 1.9, 0.28, 0.4, { M: at(s, 8.7, 0.2), c: '#c0b494' });
+    }
+    // crown: stepped attic with the coat of arms, end finials
+    box('ashlar', 4.6, 2.9, 0.7, { M: at(0, 22.5, 0.2), c: '#b59f76' });
+    box('ashlar', 4.0, 0.35, 0.9, { M: at(0, 25.3, 0.2), c: '#c0aa82' });
+    const crest = new THREE.Shape(); crest.moveTo(-1, 0); crest.lineTo(1, 0); crest.lineTo(1, 1.5); crest.quadraticCurveTo(1, 2.6, 0, 3.0); crest.quadraticCurveTo(-1, 2.6, -1, 1.5); crest.lineTo(-1, 0);
+    part('marble', shapeGeo(crest, 0.2), { M: at(0, 22.9, 0.9), s: [0.95, 0.85, 1], c: '#d8d2c0' });
+    angel('marble', at(-1.5, 22.5, 0.75), 1.6); angel('marble', at(1.5, 22.5, 0.75), 1.6);
+    sphere('marble', 0.25, { M: at(0, 25.8, 0.4), seg: 6, c: '#d8d2c0' });
+    for (const sg of [-1, 1]) {
+      const s = sg * (Wd / 2 - 0.45);
+      box('ashlar', 1.2, 1.8, 0.9, { M: at(s, 22.5, 0.3), c: '#b59f76' });
+      lathe('marble', [[0, 0], [0.3, 0], [0.38, 0.3], [0.25, 0.7], [0.12, 1.0], [0.0, 1.1]], 6, { M: at(s, 24.3, 0.3), c: '#d2cdbd' });
+      box('ashlar', 0.9, 1.0, 0.7, { M: at(sg * 3.6, 22.5, 0.2), c: '#b09a70' });
+      sphere('marble', 0.2, { M: at(sg * 3.6, 23.6, 0.2), seg: 6, c: '#d2cdbd' });
+    }
+  }
+}
+
+
+// ---------- polygon helpers ----------
+const polySign = (pts) => { let a = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; } return a; };
+// ordered (left, right) as seen from outside, plus the outward normal
+function edgeLR(pts, i) {
+  const a = pts[i], b = pts[(i + 1) % pts.length];
+  const dx = b[0] - a[0], dz = b[1] - a[1], len0 = Math.hypot(dx, dz), l = len0 || 1;
+  // outward normal depends on winding
+  let nx = dz / l, nz = -dx / l;
+  if (polySign(pts) < 0) { nx = -nx; nz = -nz; }
+  // right-hand direction as seen from outside
+  const rx = nz, rz = -nx;
+  return (dx * rx + dz * rz > 0) ? { L: a, R: b, nx, nz, len: len0 } : { L: b, R: a, nx, nz, len: len0 };
+}
+// vertical wall quad between L and R (as seen from outside); uv rectangle in 'keep' mode
+function wallQuad(key, L, R, yA, yB, uv, c, o = {}) {
+  const dx = R[0] - L[0], dz = R[1] - L[1], l = Math.hypot(dx, dz);
+  if (l < 0.01) return;
+  const nx = -dz / l, nz = dx / l;
+  const [u0, v0, u1, v1] = uv;
+  const P = [L[0], yA, L[1], R[0], yA, R[1], R[0], yB, R[1], L[0], yB, L[1]];
+  const U = [u0, v0, u1, v0, u1, v1, u0, v1];
+  const g = new THREE.BufferGeometry(), pos = [], uvs = [], nor = [];
+  for (const k of [0, 1, 2, 0, 2, 3]) { pos.push(P[k * 3], P[k * 3 + 1], P[k * 3 + 2]); uvs.push(U[k * 2], U[k * 2 + 1]); nor.push(nx, 0, nz); }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  part(key, g, { uv: 'keep', c, ...o });
+}
+function roofPoly(key, pts, y, c, o = {}) {
+  const contour = pts.map(p => new THREE.Vector2(p[0], p[1]));
+  const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+  const P = [], N = [], U = [];
+  for (const t of tris) {
+    let a = pts[t[0]], b = pts[t[1]], cc = pts[t[2]];
+    if ((b[1] - a[1]) * (cc[0] - a[0]) - (b[0] - a[0]) * (cc[1] - a[1]) < 0) [b, cc] = [cc, b];
+    for (const q of [a, b, cc]) { P.push(q[0], y, q[1]); N.push(0, 1, 0); U.push(q[0], q[1]); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  part(key, g, { uv: 'keep', c, ...o });
+}
+
+// A generic palazzo facade painter: rows of windows over an ashlar wall. Wm x Hm metres on a w x h canvas.
+function paintPalazzo(g, w, h, Wm, Hm, nb, cfg) {
+  const sx = w / Wm, sy = h / Hm, bw = Wm / nb, r_ = R_(cfg.seed || 7);
+  const X = (s) => s * sx, Y = (y) => h - y * sy;
+  const rect = (s0, y0, s1, y1, f) => { g.fillStyle = f; g.fillRect(X(s0), Y(y1), (s1 - s0) * sx, (y1 - y0) * sy); };
+  paintAshlar(g, w, h, Wm, Hm, cfg.course || 0.6, cfg.block || 1.2, cfg.base, cfg.joint, cfg.seed || 7, 2, 0.06);
+  // ground floor in heavier rustication
+  if (cfg.rustic) { g.fillStyle = 'rgba(40,28,15,0.16)'; g.fillRect(0, Y(cfg.rustic), w, cfg.rustic * sy); for (let y = 0; y < cfg.rustic; y += 0.6) rect(0, y, Wm, y + 0.07, 'rgba(50,35,20,0.5)'); }
+  for (const y of cfg.strings || []) { rect(0, y, Wm, y + 0.35, cfg.trim); rect(0, y, Wm, y + 0.07, 'rgba(40,30,20,0.4)'); }
+  const frame = (s, y0, y1, ww, fr, glass, ped, arch) => {
+    if (arch) {
+      const r = ww / 2, yc = y1 - r;
+      g.fillStyle = cfg.trim; g.fillRect(X(s - r - fr), Y(yc), (2 * r + 2 * fr) * sx, (yc - y0 + fr * 0.7) * sy);
+      g.beginPath(); g.ellipse(X(s), Y(yc), (r + fr) * sx, (r + fr) * sy, 0, PI, 0); g.fill();
+      g.fillStyle = glass; g.fillRect(X(s - r), Y(yc), 2 * r * sx, (yc - y0) * sy);
+      g.beginPath(); g.ellipse(X(s), Y(yc), r * sx, r * sy, 0, PI, 0); g.fill();
+      g.fillStyle = 'rgba(70,60,50,0.7)'; g.fillRect(X(s) - 1, Y(y1), 2, (y1 - y0) * sy); g.fillRect(X(s - r), Y((y0 + yc) / 2), 2 * r * sx, 2);
+      return;
+    }
+    rect(s - ww / 2 - fr, y0 - fr * 0.7, s + ww / 2 + fr, y1 + fr, cfg.trim);
+    rect(s - ww / 2, y0, s + ww / 2, y1, glass);
+    g.fillStyle = 'rgba(15,12,10,0.35)'; g.fillRect(X(s - ww / 2), Y(y1), ww * sx, 0.18 * sy);
+    g.fillStyle = 'rgba(60,40,30,0.5)'; g.fillRect(X(s) - 1, Y(y1), 2, (y1 - y0) * sy);
+    if (y1 - y0 > 2.4) g.fillRect(X(s - ww / 2), Y((y0 + y1) / 2 + 0.6), ww * sx, 2);
+    if (ped === 1) { g.fillStyle = cfg.trim; g.beginPath(); g.moveTo(X(s - ww / 2 - fr - 0.3), Y(y1 + fr)); g.lineTo(X(s), Y(y1 + fr + ww * 0.42)); g.lineTo(X(s + ww / 2 + fr + 0.3), Y(y1 + fr)); g.fill(); g.fillStyle = 'rgba(40,30,20,0.25)'; g.beginPath(); g.moveTo(X(s - ww / 2), Y(y1 + fr + 0.1)); g.lineTo(X(s), Y(y1 + fr + ww * 0.3)); g.lineTo(X(s + ww / 2), Y(y1 + fr + 0.1)); g.fill(); }
+    if (ped === 2) { g.fillStyle = cfg.trim; g.beginPath(); g.ellipse(X(s), Y(y1 + fr), (ww / 2 + fr + 0.3) * sx, ww * 0.3 * sy, 0, PI, 0); g.fill(); }
+  };
+  for (let i = 0; i < nb; i++) {
+    const s = (i + 0.5) * bw;
+    if (cfg.skipBay && cfg.skipBay.includes(i)) continue;
+    for (const row of cfg.rows) {
+      if (row.skip && row.skip.includes(i)) continue;
+      frame(s, row.y0, row.y1, row.w, row.fr || 0.22, row.glass || '#2e2824', row.ped ? (row.ped === 3 ? 1 + (i & 1) : row.ped) : 0, row.arch);
+      if (row.bal) { rect(s - row.w / 2 - 0.5, row.y0 - 0.9, s + row.w / 2 + 0.5, row.y0 - 0.05, cfg.trim); g.fillStyle = 'rgba(60,45,30,0.55)'; for (let k = -row.w / 2 - 0.4; k <= row.w / 2 + 0.4; k += 0.22) g.fillRect(X(s + k), Y(row.y0 - 0.15), 2, 0.7 * sy); rect(s - row.w / 2 - 0.55, row.y0 - 0.1, s + row.w / 2 + 0.55, row.y0, 'rgba(40,30,20,0.5)'); }
+    }
+  }
+  streaks(g, w, h, Math.round(Wm * 5), (cfg.seed || 7) + 3, 0.14, 180);
+  const gr = g.createLinearGradient(0, h, 0, h - 5 * sy); gr.addColorStop(0, 'rgba(30,24,16,0.28)'); gr.addColorStop(1, 'rgba(30,24,16,0)'); g.fillStyle = gr; g.fillRect(0, h - 5 * sy, w, 5 * sy);
+}
+
+// ====================================================================================================
+// 2. Fontana Pretoria and Palazzo delle Aquile
+// ====================================================================================================
+function ringWall(key, r0, r1, h, seg, M, c, cap = 0.12) {
+  lathe(key, [[r0, 0], [r1, 0], [r1, h], [r1 + cap, h], [r1 + cap, h + 0.14], [r0 - cap * 0.5, h + 0.14], [r0 - cap * 0.5, h], [r0, h], [r0, 0]].slice(0, 9), seg, { M, c });
+}
+function buildPretoria() {
+  CUR = 'Fontana Pretoria';
+  let sx = 0, sz = 0, n = 0;
+  for (const poly of (D.streets && D.streets.water) || []) {
+    const o = poly[0]; let x = 0, z = 0; const m = o.length / 2;
+    for (let i = 0; i < o.length; i += 2) { x += o[i]; z += o[i + 1]; }
+    x /= m; z /= m;
+    if (Math.hypot(x - 72, z - 26) < 30 && m > 8) { sx += x; sz += z; n++; }
+  }
+  const c = n ? [sx / n, sz / n] : [71, 25.6];
+  const gy = groundY(c[0], c[1]); BASEY = gy;
+  (KEEPOUT.circles || (KEEPOUT.circles = [])).push({ name: 'Fontana Pretoria', x: c[0], z: c[1], r: 12.2 });
+  const at = (x, y, z, nx = 0, nz = 1) => frame(c[0] + x, gy + y, c[1] + z, nx, nz);
+  const O = at(0, 0, 0);
+  const W = '#dcd8cb', Wd = '#c8c4b6';
+  // sunken floor and outer ring
+  cyl('marble', 11.0, 11.0, 0.25, 28, { M: O, c: '#c9c4b4' });
+  ringWall('marble', 10.1, 10.45, 0.85, 28, O, Wd);
+  ringWall('marble', 6.9, 7.2, 1.45, 24, O, Wd);
+  cyl('marble', 5.0, 5.0, 0.9, 20, { M: O, c: '#cfcabb' });
+  // radial stair flights
+  for (let k = 0; k < 4; k++) {
+    const a = k * PI / 2 + PI / 4, nx = Math.cos(a), nz = Math.sin(a);
+    for (let st = 0; st < 3; st++) {
+      const r = 10.9 - st * 1.1 - 0.4;
+      const M = frame(c[0] + nx * r, gy, c[1] + nz * r, nx, nz);
+      box('marble', 3.0, 0.3 + st * 0.35 + 0.05, 1.1, { M, c: '#d6d2c4', p: [0, 0, 0] });
+    }
+  }
+  // central fountain: three tiers
+  cyl('marble', 3.4, 3.7, 0.6, 16, { M: at(0, 0.9, 0), c: '#d3cfc0' });
+  lathe('marble', [[0, 0], [2.4, 0.1], [3.9, 0.45], [4.1, 0.8], [3.8, 0.8], [0, 0.4]], 18, { M: at(0, 1.5, 0), c: '#e0dccf' });
+  cyl('marble', 0.8, 1.2, 1.8, 10, { M: at(0, 1.9, 0), c: '#d8d4c6' });
+  lathe('marble', [[0, 0], [1.6, 0.1], [2.6, 0.45], [2.75, 0.75], [2.4, 0.75], [0, 0.35]], 16, { M: at(0, 3.5, 0), c: '#e0dccf' });
+  cyl('marble', 0.45, 0.75, 1.3, 8, { M: at(0, 3.9, 0), c: '#d8d4c6' });
+  lathe('marble', [[0, 0], [1.0, 0.1], [1.7, 0.35], [1.8, 0.6], [1.5, 0.6], [0, 0.3]], 14, { M: at(0, 5.0, 0), c: '#e0dccf' });
+  cyl('marble', 0.25, 0.4, 1.2, 8, { M: at(0, 5.3, 0), c: '#d8d4c6' });
+  sphere('marble', 0.55, { M: at(0, 6.9, 0), c: '#e0dccf', seg: 8 });
+  statue('marble', at(0, 6.9, 0), 1.6, {});
+  // statues: outer ring (facing out), inner ring, round the first basin
+  const ring = (cnt, r, y, hs, ped, off = 0) => {
+    for (let i = 0; i < cnt; i++) {
+      const a = off + i * 2 * PI / cnt, nx = Math.cos(a), nz = Math.sin(a);
+      const M = frame(c[0] + nx * r, gy + y, c[1] + nz * r, nx, nz);
+      box('marble', 0.55, ped, 0.55, { M, c: '#cdc8b8' });
+      statue('marble', mul(M, tr(0, ped, 0)), hs, {});
+    }
+  };
+  ring(20, 10.3, 0.85, 1.9, 0.6, 0.1);
+  ring(14, 7.05, 1.45, 1.7, 0.5, 0.2);
+  ring(8, 3.2, 1.5, 1.5, 0.4, 0.4);
+  // iron fence around the whole thing
+  {
+    const nn = 32, r = 12.0;
+    for (let i = 0; i < nn; i++) {
+      const a0 = i * 2 * PI / nn, a1 = (i + 1) * 2 * PI / nn, am = (a0 + a1) / 2;
+      const len = 2 * r * Math.sin(PI / nn) * 1.01;
+      const M = frame(c[0] + r * Math.cos(am), gy, c[1] + r * Math.sin(am), Math.cos(am), Math.sin(am));
+      rail(M, len, 1.45);
+      box('dark', 0.14, 1.6, 0.14, { M: frame(c[0] + r * Math.cos(a0), gy, c[1] + r * Math.sin(a0), 1, 0), c: '#26262b' });
+    }
+    ringWall('marble', 11.9, 12.1, 0.12, 32, O, '#bdb8a8', 0.04);
+  }
+}
+
+function buildAquile(ctx) {
+  CUR = 'Palazzo delle Aquile';
+  const b = byId('w28002543'); if (!b) return;
+  const pts = pairsOf(b.p), gy = minGround(pts); BASEY = gy;
+  const H = Math.min(26, relH(b, 24)), y0 = gy - 0.6, y1 = gy + H;
+  // front = the longest edge facing north (-z)
+  let best = 0, bl = 0;
+  for (let i = 0; i < pts.length; i++) { const e = edgeLR(pts, i); if (e.len > bl && e.nz < -0.5) { bl = e.len; best = i; } }
+  const nb = 11;
+  defMat('aqfront', mkTex(2048, 1024, (g, w, h) => paintPalazzo(g, w, h, bl, 24.4, nb, {
+    base: '#c9a56a', joint: '#8a6f3e', trim: '#e9e2d0', strings: [6.2, 13.3, 19.6], rustic: 6.2, course: 0.62, block: 1.3, seed: 77,
+    rows: [{ y0: 2.4, y1: 4.2, w: 1.0, fr: 0.2, skip: [5] }, { y0: 7.6, y1: 11.6, w: 1.4, fr: 0.28, ped: 3, bal: true, glass: '#3a2c26' }, { y0: 14.5, y1: 18.2, w: 1.3, fr: 0.25, glass: '#3a2c26' }, { y0: 20.4, y1: 21.9, w: 0.9, fr: 0.18 }],
+  })), [bl, 24.4]);
+  defMat('aqside', mkTex(512, 1024, (g, w, h) => paintPalazzo(g, w, h, bl / nb, 24.4, 1, {
+    base: '#c9a56a', joint: '#8a6f3e', trim: '#e9e2d0', strings: [6.2, 13.3, 19.6], rustic: 6.2, course: 0.62, block: 1.3, seed: 78,
+    rows: [{ y0: 2.4, y1: 4.2, w: 1.0, fr: 0.2 }, { y0: 7.6, y1: 11.6, w: 1.4, fr: 0.28, ped: 1, bal: true, glass: '#3a2c26' }, { y0: 14.5, y1: 18.2, w: 1.3, fr: 0.25, glass: '#3a2c26' }, { y0: 20.4, y1: 21.9, w: 0.9, fr: 0.18 }],
+  })), [bl / nb, 24.4]);
+  const Ht = 24.4;
+  for (let i = 0; i < pts.length; i++) {
+    const e = edgeLR(pts, i);
+    if (i === best) wallQuad('aqfront', e.L, e.R, y0, y1, [0, (y0 - gy) / Ht, 1, (y1 - gy) / Ht], '#ffffff');
+    else wallQuad('aqside', e.L, e.R, y0, y1, [0, (y0 - gy) / Ht, e.len / (bl / nb), (y1 - gy) / Ht], '#f2ebe0');
+    // cornice
+    const m = [(e.L[0] + e.R[0]) / 2, (e.L[1] + e.R[1]) / 2];
+    box('ashlar', e.len + 0.9, 1.1, 1.0, { p: [m[0] + e.nx * 0.45, y1 - 1.1, m[1] + e.nz * 0.45], ry: Math.atan2(-(e.R[1] - e.L[1]), e.R[0] - e.L[0]), c: '#d0b17a' });
+  }
+  roofPoly('flat', pts, y1 + 0.05, '#8d8a80', { noao: true });
+  ctx.skip.add(b.id);
+  // front details
+  const e = edgeLR(pts, best);
+  const mx = (e.L[0] + e.R[0]) / 2, mz = (e.L[1] + e.R[1]) / 2;
+  const F = (s, y, z) => mul(frame(mx, gy, mz, e.nx, e.nz), tr(s, y, z));
+  // steps along the front
+  for (let st = 0; st < 4; st++) box('ashlar', e.len + 1.0 - st * 0.0, 0.17 * (4 - st), 0.55, { M: F(0, 0, 0.5 + st * 0.55 + 0.275 - 0.0), c: '#cdbf9f' });
+  // portal with columns and balcony above
+  for (const sg of [-1, 1]) { cyl('marble', 0.3, 0.33, 4.6, 10, { M: F(sg * 1.9, 0.5, 0.9), c: '#d2cdbd' }); box('marble', 0.8, 0.4, 0.8, { M: F(sg * 1.9, 0.1, 0.9), c: '#d2cdbd' }); }
+  box('marble', 5.2, 0.6, 1.6, { M: F(0, 5.1, 0.8), c: '#d8d3c3' });
+  box('marble', 5.6, 0.3, 1.8, { M: F(0, 5.7, 0.9), c: '#d8d3c3' });
+  rail(F(0, 6.0, 1.7), 5.5, 1.0); rail(F(-2.8, 6.0, 0.9), 1.6, 1.0, { ry: PI / 2 }); rail(F(2.8, 6.0, 0.9), 1.6, 1.0, { ry: PI / 2 });
+  box('dark', 2.4, 4.0, 0.1, { M: F(0, 0.5, 0.12), c: '#2a2420', noao: true });
+  // balconies on the neighbouring piano nobile windows
+  const bw = bl / nb;
+  for (const k of [-2, -1, 1, 2]) { box('marble', 2.1, 0.22, 0.7, { M: F(-k * bw, 6.9, 0.35), c: '#d8d3c3' }); rail(F(-k * bw, 7.1, 0.65), 2.0, 0.85); }
+  // bell gable with the clock, left of centre as seen from the piazza
+  const gs = -bw * 2.5;
+  box('ashlar', 2.6, 1.8, 1.0, { M: F(gs, Ht - 0.2, 0.0), c: '#d6bb85' });
+  box('ashlar', 2.0, 2.2, 0.8, { M: F(gs, Ht + 1.4, 0.0), c: '#d6bb85' });
+  part('marble', shapeGeo(archShape(1.7, 1.9), 0.5), { M: F(gs, Ht + 3.4, -0.25), c: '#e0d8c6' });
+  cyl('marble', 0.7, 0.7, 0.12, 14, { M: mul(F(gs, Ht + 2.2, 0.45), new THREE.Matrix4().makeRotationX(PI / 2)), c: '#f0ead8' });
+  // eagle statue at the corner
+  const eR = e.R; box('marble', 0.8, 1.2, 0.8, { p: [eR[0], y1, eR[1]], c: '#d8d3c3' }); sphere('marble', 0.5, { p: [eR[0], y1 + 1.9, eR[1]], c: '#d8d3c3', ky: 1.2, seg: 6 });
+}
+
+
+// ---------- massing from lidar parts ----------
+// Extrude each lidar part of a building to its roof height with textured walls. wallFor(rel) -> {key, bw, th}
+function massing(b, wallFor, o = {}) {
+  const gy = minGround(pairsOf(b.p));
+  const gref = b.g !== undefined ? b.g : 0;
+  const parts = (b.parts && b.parts.length) ? b.parts.map(q => ({ pts: pairsOf(q[0]), rel: q[1] - gref })) : [{ pts: pairsOf(b.p), rel: relH(b, b.h) }];
+  const inP = (x, z, pts) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, zi] = pts[i], [xj, zj] = pts[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+  const out = [];
+  let hiIdx = 0; parts.forEach((q, i) => { if (q.rel > parts[hiIdx].rel) hiIdx = i; });
+  const hiRel = parts[hiIdx].rel;
+  if (o.cap) parts[hiIdx].rel = o.cap;
+  parts.forEach((pt, pi) => {
+    if (o.omit && o.omit(pt.pts)) { pt.omitted = true; return; }
+    const top = gy + pt.rel, wm = wallFor(pt.rel), pts = pt.pts;
+    for (let i = 0; i < pts.length; i++) {
+      const e = edgeLR(pts, i);
+      if (e.len < 0.05) continue;
+      const dx = (e.R[0] - e.L[0]) / e.len, dz = (e.R[1] - e.L[1]) / e.len;
+      const u0 = (e.L[0] * dx + e.L[1] * dz) / wm.bw;
+      wallQuad(wm.key, e.L, e.R, gy - 0.8, top, [u0, (gy - 0.8 - gy) / wm.th, u0 + e.len / wm.bw, pt.rel / wm.th], wm.c || '#ffffff');
+      // is this edge on the outside, or above a lower neighbour?
+      const mx = (e.L[0] + e.R[0]) / 2 + e.nx * 0.6, mz = (e.L[1] + e.R[1]) / 2 + e.nz * 0.6;
+      let nb = null; parts.forEach((q, qi) => { if (qi !== pi && !q.omitted && inP(mx, mz, q.pts)) nb = q; });
+      const exposed = !nb || nb.rel < pt.rel - 0.5;
+      out.push({ e, top, exposed, lowerBy: nb ? pt.rel - nb.rel : 99, rel: pt.rel });
+    }
+    roofPoly(o.roofKey || 'flat', pts, top + 0.04, o.roofC || '#8d8a80', { noao: true });
+  });
+  return { gy, parts, edges: out, hiRel, hiIdx };
+}
+function orientedBox(key, L, R, y, h, d, off, c) {
+  const dx = R[0] - L[0], dz = R[1] - L[1], l = Math.hypot(dx, dz);
+  if (l < 0.05) return;
+  const nx = -dz / l, nz = dx / l;
+  box(key, l, h, d, { p: [(L[0] + R[0]) / 2 + nx * off, y, (L[1] + R[1]) / 2 + nz * off], ry: Math.atan2(-dz, dx), c });
+}
+function merlons(key, L, R, y, c, step = 1.4, w = 0.7, h = 0.9, d = 0.55) {
+  const dx = R[0] - L[0], dz = R[1] - L[1], l = Math.hypot(dx, dz);
+  if (l < 1) return;
+  const nx = -dz / l, nz = dx / l, ry = Math.atan2(-dz, dx), n = Math.max(1, Math.floor(l / step));
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    box(key, w, h, d, { p: [L[0] + dx * t - nx * d * 0.5, y, L[1] + dz * t - nz * d * 0.5], ry, c });
+  }
+}
+
+// ====================================================================================================
+// 3. Teatro Massimo
+// ====================================================================================================
+function lion(M, c = '#3a3126') {
+  box('bronze', 0.95, 0.8, 1.7, { M, p: [0, 0.2, -0.2], c });
+  box('bronze', 0.9, 1.2, 0.75, { M, p: [0, 0.2, 0.55], c });
+  sphere('bronze', 0.5, { M, p: [0, 1.15, 0.8], c, ky: 1.05, seg: 6 });
+  sphere('bronze', 0.36, { M, p: [0, 1.15, 1.15], c, seg: 6 });
+  for (const sx of [-0.27, 0.27]) box('bronze', 0.24, 0.7, 0.3, { M, p: [sx, 0, 1.0], c });
+  box('bronze', 0.12, 0.12, 1.1, { M, p: [0.2, 0.55, -1.2], c, rx: -0.4 });
+}
+function corinthian(M, h, r, c) {
+  box('marble', r * 2.4, 0.45, r * 2.4, { M, c });
+  cyl('marble', r * 0.9, r, h - 2.0, 12, { M: mul(M, tr(0, 0.45, 0)), c });
+  lathe('marble', [[r * 0.9, 0], [r * 1.0, 0.25], [r * 1.35, 0.9], [r * 1.5, 1.35], [0, 1.35]], 12, { M: mul(M, tr(0, h - 1.55, 0)), c });
+  box('marble', r * 3.1, 0.22, r * 3.1, { M: mul(M, tr(0, h - 0.22, 0)), c });
+}
+function buildTeatro(ctx) {
+  CUR = 'Teatro Massimo';
+  const b = byId('w24937131'); if (!b) return;
+  const stoneC = '#d2bc92';
+  defMat('teWing', mkTex(512, 1024, (g, w, h) => paintPalazzo(g, w, h, 4.8, 24, 1, {
+    base: '#d8c196', joint: '#9b8460', trim: '#efe6d0', strings: [8.6, 19.4], rustic: 0, course: 0.7, block: 1.4, seed: 91,
+    rows: [{ y0: 2.4, y1: 7.6, w: 1.9, fr: 0.3, arch: true, glass: '#2c3a52' }, { y0: 11.0, y1: 16.6, w: 1.7, fr: 0.28, arch: true, glass: '#2c3a52' }, { y0: 21, y1: 22.2, w: 1.0, fr: 0.18 }],
+  })), [4.8, 24]);
+  defMat('tePlain', mkTex(512, 1024, (g, w, h) => paintPalazzo(g, w, h, 8, 24, 1, {
+    base: '#cdb88d', joint: '#9b8460', trim: '#e6dcc4', strings: [19.8], course: 0.7, block: 1.5, seed: 92,
+    rows: [{ y0: 6, y1: 8.6, w: 1.2, fr: 0.2 }, { y0: 13, y1: 15.6, w: 1.2, fr: 0.2 }],
+  })), [8, 24]);
+  const FN = [0.41, 0.912], fn = Math.hypot(FN[0], FN[1]);
+  const m = massing(b, rel => rel > 32 ? { key: 'tePlain', bw: 8, th: 24 } : { key: 'teWing', bw: 4.8, th: 24 }, {
+    roofKey: 'tile', roofC: '#d9b9a8', cap: 27,
+    omit: (pts) => { const c = centroid(pts); return (c[0] * FN[0] + c[1] * FN[1]) / fn - ((-353) * FN[0] + (-492) * FN[1]) / fn > 24; },
+  });
+  const gy = m.gy; BASEY = gy;
+  // cornice over every exposed edge of the lower parts
+  for (const ed of m.edges) if (ed.exposed && ed.rel < 32) orientedBox('ashlar', ed.e.L, ed.e.R, ed.top - 0.9, 0.9, 1.0, 0.4, '#d8c49c');
+  // dome on the highest part
+  const hi = m.parts[m.hiIdx];
+  const cen = centroid(hi.pts); let rr = 99; for (const p of hi.pts) rr = Math.min(rr, Math.hypot(p[0] - cen[0], p[1] - cen[1]));
+  const Rd = rr * 0.93, yb = gy + hi.rel, domeH = m.hiRel - hi.rel - 4.5;
+  const Cd = (y) => tr(cen[0], y, cen[1]);
+  cyl('ashlar', Rd * 1.04, Rd * 1.04, 1.4, 24, { M: Cd(yb - 0.1), c: '#d8c49c' });
+  const prof = []; for (let i = 0; i <= 8; i++) { const a = i * PI / 2 / 8; prof.push([Rd * Math.cos(a) * (i === 8 ? 0.001 : 1), 0.0 + Math.sin(a) * domeH]); }
+  lathe('lead', prof, 24, { M: Cd(yb + 1.2), c: '#c9cdc4' });
+  cyl('ashlar', 1.5, 1.7, 3.0, 10, { M: Cd(yb + 1.2 + domeH - 0.4), c: '#d6c39b' });
+  lathe('lead', [[1.7, 0], [1.2, 0.8], [0.1, 1.6]], 10, { M: Cd(yb + 1.2 + domeH + 2.4), c: '#c9cdc4' });
+  // portico, stairs, lions: local frame on the dome axis, +z toward the piazza
+  const f = [0.41, 0.912], fl = Math.hypot(f[0], f[1]); const nx = f[0] / fl, nz = f[1] / fl;
+  const F = (x, y, z) => mul(frame(cen[0], gy, cen[1], nx, nz), tr(x, y, z));
+  const t0 = -3.5;
+  const sf = 14.5, pf = 26.5;           // portico back / front planes
+  const PH = 3.6;                       // podium height
+  box('ashlar', 28, PH, pf - sf, { M: F(t0, 0, (pf + sf) / 2), c: '#cbb88f' });
+  for (let i = 0; i < 24; i++) box('ashlar', 22, PH * (24 - i) / 24, 0.53, { M: F(t0, 0, pf + 0.265 + i * 0.53 - 0.0), c: '#d6c7a2' });
+  // cheek walls beside the stairs, stepping down to a plinth at the foot that carries the lion
+  const cheek = [4.4, 3.9, 3.5, 3.2, 2.8];
+  for (const sg of [-1, 1]) cheek.forEach((h, i) => box('ashlar', 2.4, h, 2.6, { M: F(t0 + sg * 12.3, 0, pf + 1.3 + i * 2.6), c: '#cbb88f' }));
+  // red back wall of the portico with three doors
+  box('flat', 24, 12.4, 0.3, { M: F(t0, PH, sf + 0.2), c: '#5d3043', noao: true });
+  for (const x of [-6.5, 0, 6.5]) part('dark', shapeGeo(archShape(2.6, 6.2), 0.1), { M: F(t0 + x, PH, sf + 0.4), uv: 'keep', c: '#1f1a1a', noao: true });
+  for (const x of [-3.2, 3.2]) part('dark', shapeGeo(archShape(1.6, 4.2), 0.1), { M: F(t0 + x, PH + 3, sf + 0.4), uv: 'keep', c: '#40272f', noao: true });
+  // columns
+  const colH = 11.8, cy = PH;
+  const xs = [-10.5, -6.3, -2.1, 2.1, 6.3, 10.5];
+  for (const x of xs) corinthian(F(t0 + x, cy, pf - 1.2), colH, 0.78, '#d6c7a4');
+  for (const sg of [-1, 1]) for (const z of [pf - 5.2, pf - 9.2]) corinthian(F(t0 + sg * 10.5, cy, z), colH, 0.78, '#d6c7a4');
+  // entablature and pediment
+  const ey = cy + colH;
+  box('ashlar', 25.4, 1.2, pf - sf + 0.5, { M: F(t0, ey, (pf + sf) / 2 + 0.2), c: '#d9c9a5' });
+  box('ashlar', 26.2, 1.1, pf - sf + 0.8, { M: F(t0, ey + 1.2, (pf + sf) / 2 + 0.3), c: '#e0d1ae' });
+  const ped = new THREE.Shape(); ped.moveTo(-13.4, 0); ped.lineTo(13.4, 0); ped.lineTo(0, 4.8); ped.lineTo(-13.4, 0);
+  part('ashlar', shapeGeo(ped, pf - sf + 0.6), { M: F(t0, ey + 2.3, sf - 0.2), c: '#d9c9a5' });
+  // tympanum sculpture and acroteria
+  box('marble', 6, 1.4, 0.2, { M: F(t0, ey + 2.9, pf + 0.45), c: '#cbbd9b' });
+  for (const x of [-13.2, 13.2]) box('ashlar', 1.0, 1.4, 1.0, { M: F(t0 + x, ey + 2.3, pf), c: '#d9c9a5' });
+  box('ashlar', 1.2, 1.5, 1.0, { M: F(t0, ey + 7.1, pf - 0.2), c: '#d9c9a5' });
+  // bronze lions on the plinths at the foot of the stairs
+  for (const sg of [-1, 1]) lion(mul(F(t0 + sg * 12.3, 2.8, pf + 11.9), new THREE.Matrix4().makeScale(1.35, 1.35, 1.35)), '#5b4b36');
+  // garden wall / fence in front (low stone wall with iron)
+  ctx.skip.add(b.id);
+}
+
+// ====================================================================================================
+// 4. Cattedrale
+// ====================================================================================================
+function pointedPath(w, h, sh) {
+  const p = new THREE.Path(), r = w / 2;
+  p.moveTo(-r, 0); p.lineTo(-r, sh); p.quadraticCurveTo(-r, sh + (h - sh) * 0.85, 0, h); p.quadraticCurveTo(r, sh + (h - sh) * 0.85, r, sh); p.lineTo(r, 0); p.lineTo(-r, 0);
+  return p;
+}
+function paintCatBay(g, w, h, Wm, Hm) {
+  const sx = w / Wm, sy = h / Hm, X = (s) => s * sx, Y = (y) => h - y * sy;
+  paintAshlar(g, w, h, Wm, Hm, 0.55, 1.0, '#d3b684', '#8f7650', 131, 2, 0.06);
+  const rect = (a, b, c, d, f) => { g.fillStyle = f; g.fillRect(X(a), Y(d), (c - a) * sx, (d - b) * sy); };
+  const bays = Math.round(Wm / 3);
+  for (let i = 0; i < bays; i++) {
+    const cx = (i + 0.5) * Wm / bays, bw = Wm / bays;
+    // pointed blind arch, lighter border, inset darker
+    g.fillStyle = '#e4cc9b';
+    g.beginPath(); g.moveTo(X(cx - bw * 0.42), Y(0)); g.lineTo(X(cx - bw * 0.42), Y(6.6)); g.quadraticCurveTo(X(cx - bw * 0.42), Y(10.6), X(cx), Y(11.8)); g.quadraticCurveTo(X(cx + bw * 0.42), Y(10.6), X(cx + bw * 0.42), Y(6.6)); g.lineTo(X(cx + bw * 0.42), Y(0)); g.fill();
+    g.fillStyle = '#c3a674';
+    g.beginPath(); g.moveTo(X(cx - bw * 0.34), Y(0)); g.lineTo(X(cx - bw * 0.34), Y(6.6)); g.quadraticCurveTo(X(cx - bw * 0.34), Y(10.0), X(cx), Y(11.0)); g.quadraticCurveTo(X(cx + bw * 0.34), Y(10.0), X(cx + bw * 0.34), Y(6.6)); g.lineTo(X(cx + bw * 0.34), Y(0)); g.fill();
+    // narrow window
+    g.fillStyle = '#3a342d'; g.beginPath(); g.moveTo(X(cx - 0.32), Y(5.4)); g.lineTo(X(cx - 0.32), Y(8.2)); g.quadraticCurveTo(X(cx - 0.32), Y(9.0), X(cx), Y(9.6)); g.quadraticCurveTo(X(cx + 0.32), Y(9.0), X(cx + 0.32), Y(8.2)); g.lineTo(X(cx + 0.32), Y(5.4)); g.fill();
+    // frieze of small round arches under the cornice
+    for (let k = 0; k < 5; k++) { const ax = cx - bw * 0.4 + k * bw * 0.2 + bw * 0.1; g.fillStyle = '#8f7650'; g.beginPath(); g.arc(X(ax), Y(13.4), 0.32 * sx, PI, 0); g.fill(); g.fillRect(X(ax - 0.32), Y(13.4), 0.64 * sx, 0.8 * sy); }
+  }
+  rect(0, 12.1, Wm, 12.35, '#e4cc9b'); rect(0, 14.6, Wm, 15.4, '#dcc28e'); rect(0, 14.55, Wm, 14.7, 'rgba(60,40,20,0.5)');
+  // polychrome band
+  for (let x = 0; x < Wm; x += 0.5) rect(x, 14.0, x + 0.25, 14.4, '#6d5a40');
+  streaks(g, w, h, 60, 133, 0.12, 200);
+  const gr = g.createLinearGradient(0, h, 0, h - 4 * sy); gr.addColorStop(0, 'rgba(30,24,16,0.25)'); gr.addColorStop(1, 'rgba(30,24,16,0)'); g.fillStyle = gr; g.fillRect(0, h - 4 * sy, w, 4 * sy);
+}
+function paintTower(g, w, h) {
+  paintAshlar(g, w, h, 5.6, 11, 0.5, 0.9, '#d1b27e', '#8d744d', 141, 2, 0.06);
+  const sx = w / 5.6, sy = h / 11, X = (s) => s * sx, Y = (y) => h - y * sy;
+  for (let tier = 0; tier < 3; tier++) {
+    const y0 = 0.8 + tier * 3.5;
+    for (let k = 0; k < 2; k++) {
+      const cx = 1.9 + k * 1.8;
+      g.fillStyle = '#e0c690'; g.beginPath(); g.moveTo(X(cx - 0.62), Y(y0)); g.lineTo(X(cx - 0.62), Y(y0 + 1.7)); g.quadraticCurveTo(X(cx - 0.62), Y(y0 + 2.6), X(cx), Y(y0 + 2.9)); g.quadraticCurveTo(X(cx + 0.62), Y(y0 + 2.6), X(cx + 0.62), Y(y0 + 1.7)); g.lineTo(X(cx + 0.62), Y(y0)); g.fill();
+      g.fillStyle = tier === 2 ? '#2c2824' : '#51463a'; g.beginPath(); g.moveTo(X(cx - 0.42), Y(y0)); g.lineTo(X(cx - 0.42), Y(y0 + 1.7)); g.quadraticCurveTo(X(cx - 0.42), Y(y0 + 2.3), X(cx), Y(y0 + 2.6)); g.quadraticCurveTo(X(cx + 0.42), Y(y0 + 2.3), X(cx + 0.42), Y(y0 + 1.7)); g.lineTo(X(cx + 0.42), Y(y0)); g.fill();
+    }
+    g.fillStyle = '#dcc28e'; g.fillRect(0, Y(y0 + 3.3), w, 0.2 * sy);
+  }
+  streaks(g, w, h, 20, 142, 0.14, 120);
+}
+function buildCattedrale(ctx) {
+  CUR = 'Cattedrale';
+  const b = byId('w49750033'); if (!b) return;
+  defMat('catWall', mkTex(512, 1024, (g, w, h) => paintCatBay(g, w, h, 6, 16)), [6, 16]);
+  defMat('catTower', mkTex(256, 512, paintTower), [5.6, 11]);
+  const m = massing(b, rel => ({ key: 'catWall', bw: 6, th: 16 }), { roofKey: 'flat', roofC: '#9a9280', cap: 30 });
+  const gy = m.gy; BASEY = gy;
+  for (const ed of m.edges) if (ed.exposed) {
+    orientedBox('ashlar', ed.e.L, ed.e.R, ed.top - 0.2, 0.5, 0.9, 0.35, '#dcc28e');
+    merlons('ashlar', ed.e.R, ed.e.L, ed.top + 0.3, '#d5b985');
+  }
+  // central dome: octagonal drum + grey-green lead dome + lantern
+  const hi = m.parts[m.hiIdx];
+  const cen = centroid(hi.pts); let rr = 99; for (const p of hi.pts) rr = Math.min(rr, Math.hypot(p[0] - cen[0], p[1] - cen[1]));
+  const Rd = rr * 0.78, drumTop = gy + hi.rel, dH = m.hiRel - hi.rel - 9;
+  const Cd = (y) => tr(cen[0], y, cen[1]);
+  cyl('catWall', Rd, Rd * 1.0, 5.0, 8, { M: Cd(drumTop), c: '#ffffff', uv: 'world' });
+  cyl('ashlar', Rd * 1.1, Rd * 1.1, 0.8, 8, { M: Cd(drumTop + 4.4), c: '#dcc28e' });
+  const prof = []; for (let i = 0; i <= 8; i++) { const a = i * PI / 2 / 8; prof.push([Rd * 1.0 * Math.cos(a) * (i === 8 ? 0.001 : 1), Math.sin(a) * dH]); }
+  lathe('lead', prof, 16, { M: Cd(drumTop + 5.0), c: '#d4d8cf' });
+  cyl('ashlar', 1.6, 1.8, 3.2, 8, { M: Cd(drumTop + 5 + dH - 0.4), c: '#dcc28e' });
+  lathe('lead', [[1.9, 0], [1.4, 0.8], [0.05, 2.0]], 8, { M: Cd(drumTop + 5 + dH + 2.8), c: '#d4d8cf' });
+  // corner towers
+  const E = [0.891, -0.454], S = [0.454, 0.891], O = [-458, 152];
+  const L = (e, s) => [O[0] + e * E[0] + s * S[0], O[1] + e * E[1] + s * S[1]];
+  const ang = Math.atan2(-E[1], E[0]);
+  const tower = (e, s, H, spire) => {
+    const [x, z] = L(e, s), M = (y) => mul(tr(x, y, z), rotY(ang));
+    const y0 = gy;
+    box('ashlar', 6.6, 1.2, 6.6, { M: M(y0 - 0.8), c: '#c9ad7c' });
+    // shaft with painted arcades (4 sides via a box with world uv)
+    box('catTower', 5.6, H - 3, 5.6, { M: M(y0 + 0.4), c: '#ffffff' });
+    box('ashlar', 6.4, 0.7, 6.4, { M: M(y0 + H - 3.2), c: '#dcc28e' });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { cyl('ashlar', 0.45, 0.6, 3.2, 6, { M: mul(M(y0 + H - 2.7), tr(sx * 2.7, 0, sz * 2.7)), c: '#d5b985' }); cyl('ashlar', 0, 0.55, 1.8, 6, { M: mul(M(y0 + H + 0.5), tr(sx * 2.7, 0, sz * 2.7)), c: '#d5b985' }); }
+    box('ashlar', 4.2, 2.8, 4.2, { M: M(y0 + H - 2.0), c: '#d5b985' });
+    if (spire) { cyl('lead', 0, 2.5, spire, 8, { M: M(y0 + H + 0.8), c: '#b8bcb2', uv: 'world' }); sphere('lead', 0.3, { M: M(y0 + H + 0.8 + spire), c: '#b8bcb2', seg: 5 }); }
+    else { cyl('lead', 0, 2.4, 3.2, 8, { M: M(y0 + H + 0.8), c: '#b8bcb2', uv: 'world' }); }
+  };
+  tower(-49, -11.5, 31, 5); tower(-46, 17, 31, 5); tower(44, -9.5, 29, 3); tower(49, 10.5, 29, 3);
+  // south porch: three pointed arches under a gable, standing in front of the south aisle wall
+  {
+    const sP = 27.4, eC = -31.5, W = 21;
+    const [px, pz] = L(eC, sP);
+    const PM = frame(px, gy, pz, S[0], S[1]);    // local x along the facade, local z out of the porch
+    const arches = [[0, 6.2, 11.5, 6.5], [-7.4, 4.2, 9.2, 5.5], [7.4, 4.2, 9.2, 5.5]];
+    const out = new THREE.Shape(); out.moveTo(-W / 2, 0); out.lineTo(W / 2, 0); out.lineTo(W / 2, 14); out.lineTo(0, 19.5); out.lineTo(-W / 2, 14); out.lineTo(-W / 2, 0);
+    for (const [x, w, h, sh] of arches) { const hole = new THREE.Path(); hole.moveTo(x - w / 2, 0.03); hole.lineTo(x - w / 2, sh); hole.quadraticCurveTo(x - w / 2, sh + (h - sh) * 0.85, x, h); hole.quadraticCurveTo(x + w / 2, sh + (h - sh) * 0.85, x + w / 2, sh); hole.lineTo(x + w / 2, 0.03); hole.lineTo(x - w / 2, 0.03); out.holes.push(hole); }
+    part('ashlar', new THREE.ExtrudeGeometry(out, { depth: 1.1, bevelEnabled: false, curveSegments: 6 }), { M: PM, c: '#e0c791' });
+    // solid fill behind the screen and dark openings
+    box('ashlar', W, 14, 4.2, { M: mul(PM, tr(0, 0, -2.1)), c: '#dcc28e' });
+    for (const [x, w, h, sh] of arches) {
+      const sh2 = new THREE.Shape(); sh2.moveTo(x - w / 2, 0); sh2.lineTo(x - w / 2, sh); sh2.quadraticCurveTo(x - w / 2, sh + (h - sh) * 0.85, x, h); sh2.quadraticCurveTo(x + w / 2, sh + (h - sh) * 0.85, x + w / 2, sh); sh2.lineTo(x + w / 2, 0); sh2.lineTo(x - w / 2, 0);
+      part('dark', new THREE.ShapeGeometry(sh2), { M: mul(PM, tr(0, 0, 0.08)), uv: 'keep', c: '#3a3028', noao: true });
+    }
+    box('ashlar', W + 0.8, 0.6, 1.5, { M: mul(PM, tr(0, 14.0, 0.5)), c: '#e8d3a2' });
+    for (const x of [-3.1, 3.1, -9.5, 9.5, -5.1, 5.1]) cyl('marble', 0.2, 0.22, 6, 8, { M: mul(PM, tr(x, 0.2, 0.55)), c: '#d9d2c0' });
+    for (const sg of [-1, 1]) { cyl('ashlar', 0.8, 0.95, 15, 8, { M: mul(PM, tr(sg * (W / 2 + 0.2), 0, 0.2)), c: '#dcc28e' }); cyl('ashlar', 0, 1.0, 3.2, 8, { M: mul(PM, tr(sg * (W / 2 + 0.2), 15, 0.2)), c: '#d5b985' }); }
+    { const gs = new THREE.Shape(); gs.moveTo(-W / 2, 14); gs.lineTo(W / 2, 14); gs.lineTo(0, 19.5); gs.lineTo(-W / 2, 14); part('tile', shapeGeo(gs, 4.2), { M: mul(PM, tr(0, 0, -4.2)), c: '#d8b09a' }); }
+  }
+  ctx.skip.add(b.id);
+}
+
+// ====================================================================================================
+// 5. Porta Nuova and Porta Felice
+// ====================================================================================================
+function buildPortaNuova(ctx) {
+  CUR = 'Porta Nuova';
+  const b = byId('w815701117'); if (!b) return;
+  const pts = pairsOf(b.p), cen = centroid(pts), gy = minGround(pts); BASEY = gy;
+  // axis: through-passage along the Corso (ENE), as measured from the footprint's long edges
+  const ax = [0.907, -0.42];
+  const M0 = frame(cen[0], gy, cen[1], ax[0], ax[1]);
+  const W = 17.0, Dp = 13.6, H1 = 15.4, PW = 5.8, PH = 8.6;   // width across, depth along the passage, lower stage height
+  // lower stage with the arched passage cut right through (extruded shape with a hole)
+  const base = new THREE.Shape(); base.moveTo(-W / 2, 0); base.lineTo(W / 2, 0); base.lineTo(W / 2, H1); base.lineTo(-W / 2, H1); base.lineTo(-W / 2, 0);
+  const hole = archPath(PW, PH);
+  part('rustic', shapeGeo(base, Dp, hole), { M: mul(M0, tr(0, -0.6, -Dp / 2)), c: '#b9a58f' });
+  // outer arch ring and inner smaller arch
+  for (const sg of [-1, 1]) {
+    part('ashlar', shapeGeo(archShape(PW + 1.4, PH + 0.7), 0.3, archPath(PW, PH)), { M: mul(M0, tr(0, 0, sg * (Dp / 2 + 0.1) + (sg > 0 ? 0 : -0.3))), c: '#b9a28c' });
+    // medallions and string courses on both faces
+    for (const x of [-5.6, -2.8, 0, 2.8, 5.6]) cyl('marble', 0.9, 0.9, 0.25, 10, { M: mul(mul(M0, tr(x, H1 - 3.6, sg * (Dp / 2 + 0.05))), new THREE.Matrix4().makeRotationX(PI / 2 * sg)), c: '#d9cdb4' });
+    box('ashlar', W + 0.8, 0.9, 1.0, { M: mul(M0, tr(0, H1 - 1.2, sg * (Dp / 2 - 0.1))), c: '#c9ab8c' });
+  }
+  box('ashlar', W + 1.0, 0.9, Dp + 1.0, { M: mul(M0, tr(0, H1 - 0.3, 0)), c: '#cdb094' });
+  // dark vault interior floor/lights are provided by the tunnel walls
+  // second stage (plain, with small windows) and cornice
+  const H2 = H1 + 2.2;
+  box('ashlar', W - 0.4, 3.1, Dp - 0.4, { M: mul(M0, tr(0, H1 + 0.6, 0)), c: '#c9b49c' });
+  // loggia of five arches (front/back) and four on the sides
+  const LW = W - 2.0, LD = Dp - 2.0, yl = H1 + 3.7, LH = 6.2;
+  box('flat', LW - 0.6, LH, LD - 0.6, { M: mul(M0, tr(0, yl, 0)), c: '#c99b58', noao: true });
+  for (const sg of [-1, 1]) {
+    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; part('dark', shapeGeo(archShape(2.0, 4.4), 0.1), { M: mul(M0, tr(x, yl + 0.3, sg * (LD / 2 - 0.2))), uv: 'keep', c: '#4a2c20', noao: true }); }
+    for (let i = 0; i <= 5; i++) cyl('marble', 0.17, 0.2, 4.6, 8, { M: mul(M0, tr(-LW / 2 + i * LW / 5, yl + 0.2, sg * (LD / 2 + 0.2))), c: '#ece7d8' });
+    // arch ribs
+    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; box('marble', LW / 5, 0.5, 0.45, { M: mul(M0, tr(x, yl + 4.65, sg * (LD / 2 + 0.2))), c: '#ece7d8' }); }
+    // balustrade on the lower roof ledge
+    balus(mul(M0, tr(0, H1 + 0.6, sg * (Dp / 2 - 0.25))), W - 0.6, 1.1);
+    balus(mul(M0, tr(sg * (W / 2 - 0.25), H1 + 0.6, 0)), Dp - 0.6, 1.1, { ry: PI / 2 });
+    // side loggia arches
+    for (let i = 0; i < 4; i++) { const z = -LD / 2 + (i + 0.5) * LD / 4; part('dark', shapeGeo(archShape(1.8, 4.4), 0.1), { M: mul(mul(M0, rotY(PI / 2 * sg)), tr(z * sg, yl + 0.3, LW / 2 - 0.2 + 0.0)), uv: 'keep', c: '#4a2c20', noao: true }); }
+  }
+  box('ashlar', LW + 0.6, 0.6, LD + 0.6, { M: mul(M0, tr(0, yl + LH, 0)), c: '#dcc9a6' });
+  balus(mul(M0, tr(0, yl + LH + 0.6, LD / 2 + 0.2)), LW + 0.4, 1.0); balus(mul(M0, tr(0, yl + LH + 0.6, -LD / 2 - 0.2)), LW + 0.4, 1.0);
+  balus(mul(M0, tr(LW / 2 + 0.2, yl + LH + 0.6, 0)), LD + 0.4, 1.0, { ry: PI / 2 }); balus(mul(M0, tr(-LW / 2 - 0.2, yl + LH + 0.6, 0)), LD + 0.4, 1.0, { ry: PI / 2 });
+  // majolica pyramid roof, gilded lantern
+  const yp = yl + LH + 0.6, PHt = 8.2;
+  const pg = new THREE.CylinderGeometry(0, 1, 1, 4, 1, true); pg.rotateY(PI / 4); pg.translate(0, 0.5, 0);
+  part('majolica', pg, { M: mul(M0, tr(0, yp, 0)), s: [(LW - 3.4) / 2 / 0.7071, PHt, (LD - 3.0) / 2 / 0.7071] });
+  cyl('flat', 1.1, 1.3, 2.2, 8, { M: mul(M0, tr(0, yp + PHt - 0.2, 0)), c: '#b88a38', noao: true });
+  lathe('flat', [[1.3, 0], [0.9, 0.5], [0.1, 1.2]], 8, { M: mul(M0, tr(0, yp + PHt + 2.0, 0)), c: '#b88a38', noao: true });
+  box('flat', 0.1, 1.4, 0.1, { M: mul(M0, tr(0, yp + PHt + 3.1, 0)), c: '#b88a38', noao: true });
+  ctx.skip.add(b.id);
+}
+
+function pylon(M, W, Dp, H) {
+  const stone = '#e0ddd5', plaster = '#e4d2c0';
+  // core and plastered side walls
+  box('plaster', W, H * 0.62, Dp, { M, c: plaster });
+  box('marble', W - 1.0, H * 0.62 + 0.2, Dp + 0.3, { M, c: stone });
+  const yb = H * 0.62;
+  for (const sg of [-1, 1]) {
+    const f = (x, y, z) => mul(mul(M, rotY(sg > 0 ? 0 : PI)), tr(x, y, z));
+    const z = Dp / 2 + 0.15;
+    // marble facade panel with columns pairs flanking a niche above a fountain basin
+    for (const x of [-3.0, -1.8, 1.8, 3.0]) { cyl('marble', 0.28, 0.32, 6.2, 10, { M: f(x, 1.6, z + 0.3), c: '#ddd9cc' }); box('marble', 0.8, 0.5, 0.8, { M: f(x, 1.1, z + 0.3), c: '#d5d1c4' }); box('marble', 0.8, 0.45, 0.8, { M: f(x, 7.8, z + 0.3), c: '#d5d1c4' }); }
+    part('dark', shapeGeo(archShape(1.9, 4.2), 0.1), { M: f(0, 3.0, z + 0.05), uv: 'keep', c: '#4a4540', noao: true });
+    statue('marble', f(0, 3.0, z + 0.2), 2.3, {});
+    box('marble', W - 1.6, 1.0, 1.0, { M: f(0, 8.2, z + 0.2), c: '#e4e0d4' });          // entablature
+    box('marble', W - 1.2, 0.4, 1.3, { M: f(0, 9.2, z + 0.3), c: '#e9e5d9' });
+    box('marble', 2.8, 1.0, 1.4, { M: f(0, 0.0, z + 0.7), c: '#cfcbbd' });                // basin
+    lathe('marble', [[0, 0], [0.9, 0.1], [1.3, 0.4], [1.3, 0.55], [1.1, 0.55], [0, 0.25]], 10, { M: f(0, 0.9, z + 0.9), c: '#d9d5c8' });
+    for (const x of [-4.4, 4.4]) box('marble', 0.7, 6.8, 0.5, { M: f(x, 1.4, z + 0.2), c: '#dbd7ca' }); // outer pilasters
+    // upper storey: arched opening between volutes, balustrade
+    balus(f(0, 9.6, z + 1.1), W - 1.6, 1.0);
+    box('marble', W - 3.2, H - 10.6 - 2.0, Dp - 0.2, { M: M, p: [0, 9.6, 0], c: stone });
+    part('dark', shapeGeo(archShape(2.2, 4.0), 0.1), { M: f(0, 11.0, Dp / 2 - 0.1 + 0.25 + 0.0), uv: 'keep', c: '#3a2e28', noao: true });
+    box('marble', 3.2, 0.5, 0.5, { M: f(0, 10.4, z + 0.2), c: '#e4e0d4' });
+    for (const x of [-3.0, 3.0]) { box('marble', 1.4, 3.6, 0.6, { M: f(x, 10.0, z - 0.1), c: '#e4e0d4', rz: x < 0 ? 0.0 : 0.0 }); sphere('marble', 0.6, { M: f(x, 13.8, z), c: '#e4e0d4', seg: 6 }); }
+    // eagle crest: flat silhouette with spread wings
+    { const e = new THREE.Shape(); const P = [[0, 0], [0.5, 0.2], [1.0, 0.9], [1.9, 1.3], [2.5, 1.0], [2.2, 1.9], [1.3, 1.5], [0.7, 1.45], [0.5, 2.0], [0.25, 2.3], [0, 2.1], [-0.25, 2.3], [-0.5, 2.0], [-0.7, 1.45], [-1.3, 1.5], [-2.2, 1.9], [-2.5, 1.0], [-1.9, 1.3], [-1.0, 0.9], [-0.5, 0.2]];
+      e.moveTo(P[0][0], P[0][1]); for (const q of P.slice(1)) e.lineTo(q[0], q[1]);
+      part('marble', shapeGeo(e, 0.3), { M: f(0, H - 3.4, z - 0.15), c: '#e0dcd0' }); }
+    // corner urns
+    for (const x of [-W / 2 + 0.7, W / 2 - 0.7]) lathe('marble', [[0, 0], [0.4, 0], [0.5, 0.4], [0.3, 0.9], [0.1, 1.2], [0, 1.3]], 6, { M: f(x, yb, z - 0.9), c: '#dcd8cb' });
+  }
+}
+function buildPortaFelice(ctx) {
+  CUR = 'Porta Felice';
+  const pa = byId('r6309453.0'), pb = byId('r6309453.1');
+  const n = [0.88, -0.47];       // along the Corso, towards the sea
+  for (const b of [pa, pb]) {
+    if (!b) continue;
+    const pts = pairsOf(b.p), cen = centroid(pts), gy = minGround(pts); BASEY = gy;
+    const H = Math.min(23.5, Math.max(relH(b, 22.9), ...(b.parts || []).map(q => q[1] - b.g)));
+    const M = frame(cen[0], gy, cen[1], n[0], n[1]);
+    // pylon facade runs across the Corso: rotate so +z is the sea direction
+    pylon(M, 11.0, 10.6, H);
+    ctx.skip.add(b.id);
+  }
+}
+
+// ====================================================================================================
+// 6. San Cataldo
+// ====================================================================================================
+function buildSanCataldo(ctx) {
+  CUR = 'San Cataldo';
+  const b = byId('w86870896'); if (!b) return;
+  const pts = pairsOf(b.p), cen = centroid(pts), gy = minGround(pts); BASEY = gy;
+  defMat('scWall', mkTex(512, 1024, (g, w, h) => {
+    const Wm = 4.2, Hm = 12, sx = w / Wm, sy = h / Hm, X = (s) => s * sx, Y = (y) => h - y * sy;
+    paintAshlar(g, w, h, Wm, Hm, 0.5, 0.95, '#b5a37f', '#6e5f45', 151, 2, 0.08);
+    g.fillStyle = '#9a8a68'; g.beginPath(); g.moveTo(X(0.35), Y(0)); g.lineTo(X(0.35), Y(8.2)); g.arc(X(Wm / 2), Y(8.2), (Wm / 2 - 0.35) * sx, PI, 0); g.lineTo(X(Wm - 0.35), Y(0)); g.fill();
+    g.fillStyle = '#7d6e52'; g.beginPath(); g.moveTo(X(0.7), Y(0)); g.lineTo(X(0.7), Y(8.0)); g.arc(X(Wm / 2), Y(8.0), (Wm / 2 - 0.7) * sx, PI, 0); g.lineTo(X(Wm - 0.7), Y(0)); g.fill();
+    g.fillStyle = '#2d2a26'; g.beginPath(); g.moveTo(X(Wm / 2 - 0.6), Y(6.2)); g.lineTo(X(Wm / 2 - 0.6), Y(8.2)); g.arc(X(Wm / 2), Y(8.2), 0.6 * sx, PI, 0); g.lineTo(X(Wm / 2 + 0.6), Y(6.2)); g.fill();
+    g.strokeStyle = '#6a5a40'; g.lineWidth = 1; for (let k = -0.6; k <= 0.6; k += 0.3) { g.beginPath(); g.moveTo(X(Wm / 2 + k), Y(6.2)); g.lineTo(X(Wm / 2 + k), Y(8.6)); g.stroke(); }
+    streaks(g, w, h, 40, 152, 0.2, 260);
+    const gb = g.createLinearGradient(0, h, 0, h - 4 * sy); gb.addColorStop(0, 'rgba(25,20,14,0.4)'); gb.addColorStop(1, 'rgba(25,20,14,0)'); g.fillStyle = gb; g.fillRect(0, h - 4 * sy, w, 4 * sy);
+  }), [4.2, 12]);
+  const WH = 11.2;
+  const m = massing({ ...b, parts: null, r: gy + WH, g: gy, h: WH }, () => ({ key: 'scWall', bw: 4.2, th: 12 }), { roofKey: 'flat', roofC: '#8a8478' });
+  for (const ed of m.edges) { orientedBox('ashlar', ed.e.L, ed.e.R, WH + gy - 0.6, 0.6, 0.5, 0.2, '#a39274'); merlons('ashlar', ed.e.R, ed.e.L, WH + gy + 0.0, '#a39274', 0.9, 0.5, 0.6, 0.4); }
+  // three red domes in a row along the long axis
+  let ax = [1, 0], best = 0;
+  for (let i = 0; i < pts.length; i++) { const e = edgeLR(pts, i); if (e.len > best) { best = e.len; ax = [(e.R[0] - e.L[0]) / e.len, (e.R[1] - e.L[1]) / e.len]; } }
+  const ry = Math.atan2(-ax[1], ax[0]);
+  for (let i = -1; i <= 1; i++) {
+    const x = cen[0] + ax[0] * i * 3.9, z = cen[1] + ax[1] * i * 3.9, y = gy + WH;
+    cyl('ashlar', 1.9, 1.95, 1.2, 12, { p: [x, y, z], c: '#b5a37f' });
+    lathe('red', [[1.95, 0], [1.9, 0.7], [1.55, 1.7], [0.9, 2.4], [0.25, 2.7], [0, 2.75]], 12, { p: [x, y + 1.2, z], c: '#ffffff' });
+    // windows in the drum
+    for (let k = 0; k < 4; k++) { const a = k * PI / 2 + PI / 4; box('dark', 0.45, 0.6, 0.12, { p: [x + Math.cos(a) * 1.93, y + 0.3, z + Math.sin(a) * 1.93], ry: -a + PI / 2, c: '#2a2420', noao: true }); }
+    sphere('flat', 0.18, { p: [x, y + 4.0, z], c: '#8a7a5a', seg: 5, noao: true });
+  }
+  ctx.skip.add(b.id);
+}
+
+
+// ====================================================================================================
+// 7. Santa Caterina: stone church with the green and yellow chevron majolica dome behind Piazza Pretoria
+// ====================================================================================================
+function buildSantaCaterina(ctx) {
+  CUR = 'Santa Caterina';
+  const b = byId('w49750065'); if (!b) return;
+  defMat('scaWall', mkTex(512, 1024, (g, w, h) => paintPalazzo(g, w, h, 8, 24, 1, {
+    base: '#cfbb90', joint: '#9a8560', trim: '#e6dcc4', strings: [8.5, 16.5], course: 0.65, block: 1.4, seed: 161,
+    rows: [{ y0: 4.0, y1: 7.0, w: 1.2, fr: 0.22, ped: 1 }, { y0: 11.5, y1: 14.5, w: 1.3, fr: 0.22, arch: true, glass: '#2c3a52' }],
+  })), [8, 24]);
+  defMat('chev', mkTex(256, 128, (g, w, h) => {
+    g.fillStyle = '#e2c85c'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#4a8f5e';
+    for (let x = 0; x < w; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 16, h / 2); g.lineTo(x + 32, 0); g.lineTo(x + 32, h / 2 - 12); g.lineTo(x + 16, h - 12); g.lineTo(x, h / 2 - 12); g.fill(); }
+    noiseDots(g, w, h, 300, 2, 171, ['rgba(60,50,20,0.18)']);
+  }), [1, 1]);
+  const m = massing(b, () => ({ key: 'scaWall', bw: 8, th: 24 }), { roofKey: 'flat', roofC: '#8f8a7c', cap: 18 });
+  const gy = m.gy; BASEY = gy;
+  for (const ed of m.edges) if (ed.exposed) orientedBox('ashlar', ed.e.L, ed.e.R, ed.top - 0.7, 0.7, 0.8, 0.3, '#d8c49c');
+  const hi = m.parts[m.hiIdx], cen = centroid(hi.pts); let rr = 99; for (const p of hi.pts) rr = Math.min(rr, Math.hypot(p[0] - cen[0], p[1] - cen[1]));
+  const R = rr * 0.9, y0 = gy + hi.rel, Cd = (y) => tr(cen[0], y, cen[1]);
+  cyl('ashlar', R, R, 3.6, 12, { M: Cd(y0), c: '#d5c196' });
+  for (let k = 0; k < 8; k++) { const a = k * PI / 4; box('dark', 0.9, 1.8, 0.15, { p: [cen[0] + Math.cos(a) * (R + 0.02), y0 + 0.9, cen[1] + Math.sin(a) * (R + 0.02)], ry: -a + PI / 2, c: '#2a2420', noao: true }); }
+  cyl('ashlar', R * 1.08, R * 1.08, 0.5, 12, { M: Cd(y0 + 3.6), c: '#dcc9a0' });
+  const prof = []; for (let i = 0; i <= 8; i++) { const a = i * PI / 2 / 8; prof.push([R * Math.cos(a) * (i === 8 ? 0.001 : 1), Math.sin(a) * (m.hiRel - hi.rel - 4.1 - 1.8) * 1.0]); }
+  const dg = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 16);
+  part('chev', dg, { M: Cd(y0 + 4.1), uv: 'keep', uvk: [3, 3], c: '#ffffff', noao: true });
+  cyl('ashlar', 0.6, 0.7, 1.8, 8, { M: Cd(y0 + 4.1 + (m.hiRel - hi.rel - 4.1 - 1.8)), c: '#d8c49c' });
+}
+
+
+// ====================================================================================================
+// 8. Palazzo dei Normanni: the grey stone Torre Pisana with its blind arches and observatory domes
+// ====================================================================================================
+function buildNormanni() {
+  CUR = 'Palazzo dei Normanni';
+  const b = byId('r395010.0'); if (!b) return;
+  const pts = pairsOf(b.p), gy = minGround(pts); BASEY = gy;
+  // the long north-east front: pick the longest edge facing east or north-east
+  let best = null;
+  for (let i = 0; i < pts.length; i++) { const e = edgeLR(pts, i); if (e.nx > 0.3 && e.nz < -0.3 && (!best || e.len > best.len)) best = e; }
+  if (!best) return;
+  const TW = 15, TH = 33, TD = 7;
+  defMat('torre', mkTex(512, 1024, (g, w, h) => {
+    const sx = w / TW, sy = h / TH, X = (s) => s * sx, Y = (y) => h - y * sy;
+    paintAshlar(g, w, h, TW, TH, 0.6, 1.3, '#a29a8c', '#6d665a', 181, 2, 0.09);
+    const arch = (cx, y0, y1, bw, win) => {
+      g.strokeStyle = 'rgba(40,36,30,0.75)'; g.lineWidth = 3; g.fillStyle = 'rgba(70,64,56,0.22)';
+      g.beginPath(); g.moveTo(X(cx - bw / 2), Y(y0)); g.lineTo(X(cx - bw / 2), Y(y1 - bw * 0.55)); g.quadraticCurveTo(X(cx - bw / 2), Y(y1 - 0.1), X(cx), Y(y1)); g.quadraticCurveTo(X(cx + bw / 2), Y(y1 - 0.1), X(cx + bw / 2), Y(y1 - bw * 0.55)); g.lineTo(X(cx + bw / 2), Y(y0)); g.fill(); g.stroke();
+      if (win) { g.fillStyle = '#4a3a30'; g.fillRect(X(cx - 0.45), Y(y0 + win[1]), 0.9 * sx, (win[1] - win[0]) * sy); g.fillStyle = 'rgba(200,210,220,0.5)'; g.fillRect(X(cx - 0.3), Y(y0 + win[1] - 0.2), 0.6 * sx, (win[1] - win[0] - 0.5) * sy); }
+    };
+    for (const [y0, y1, bw, win] of [[2.5, 9.5, 3.6, [1.5, 3.8]], [11.0, 18.5, 4.2, [2.5, 4.6]], [21.5, 29.5, 3.6, [2.0, 4.4]]])
+      for (const cx of [3.0, 7.5, 12.0]) arch(cx, y0, y1, bw, win);
+    g.fillStyle = 'rgba(40,36,30,0.55)'; for (const y of [10.2, 20.6]) g.fillRect(0, Y(y), w, 3);
+    streaks(g, w, h, 60, 182, 0.2, 260);
+  }), [TW, TH]);
+  const mx = (best.L[0] + best.R[0]) / 2, mz = (best.L[1] + best.R[1]) / 2;
+  let gMax = -Infinity; for (const p of pts) gMax = Math.max(gMax, groundY(p[0], p[1]));
+  const yb = groundY(mx, mz) - 1.0, yt = gMax + 33.4, HT = yt - yb;
+  const M = frame(mx, yb, mz, best.nx, best.nz);
+  const right = [best.nz, -best.nx];
+  const pL = [mx - right[0] * TW / 2 + best.nx * 0.2, mz - right[1] * TW / 2 + best.nz * 0.2], pR = [mx + right[0] * TW / 2 + best.nx * 0.2, mz + right[1] * TW / 2 + best.nz * 0.2];
+  wallQuad('torre', pL, pR, yb, yt, [0, 1 - HT / TH, 1, 1], '#ffffff');
+  box('ashlar', TW, HT, TD, { M: mul(M, tr(0, 0, -TD / 2 + 0.2)), c: '#8d8578' });
+  box('ashlar', TW + 0.6, 0.8, TD + 0.6, { M: mul(M, tr(0, HT - 0.4, -TD / 2 + 0.2)), c: '#9a9285' });
+  for (const [x, r] of [[-4.0, 2.4], [1.5, 3.0], [5.8, 1.8]]) {
+    cyl('flat', r, r * 1.05, 0.8, 12, { M: mul(M, tr(x, HT + 0.4, -3)), c: '#8a7f70', noao: true });
+    lathe('flat', [[r * 1.0, 0], [r * 0.95, 0.5], [r * 0.7, 1.4], [r * 0.3, 2.0], [0, 2.1]].map(q => [q[0], q[1] * 1.15]), 12, { M: mul(M, tr(x, HT + 1.2, -3)), c: '#2e3036', noao: true });
+  }
+  for (const sg of [-1, 1]) box('ashlar', 0.6, 1.0, TD, { M: mul(M, tr(sg * (TW / 2 - 0.3), HT + 0.4, -TD / 2 + 0.2)), c: '#9a9285' });
+  box('ashlar', TW, 1.0, 0.6, { M: mul(M, tr(0, HT + 0.4, 0.0)), c: '#9a9285' });
+}
+
+// ====================================================================================================
+// entry points
+// ====================================================================================================
+const BUILDERS = [
+  ['Quattro Canti', buildQuattroCanti],
+  ['Fontana Pretoria', buildPretoria],
+  ['Palazzo delle Aquile', buildAquile],
+  ['Teatro Massimo', buildTeatro],
+  ['Cattedrale', buildCattedrale],
+  ['Porta Nuova', buildPortaNuova],
+  ['Porta Felice', buildPortaFelice],
+  ['San Cataldo', buildSanCataldo],
+  ['Santa Caterina', buildSantaCaterina],
+  ['Palazzo dei Normanni', buildNormanni],
+];
+
+const SKIP_IDS = ['w28002543', 'w24937131', 'w49750033', 'w815701117', 'r6309453.0', 'r6309453.1', 'w86870896', 'w49750065'];
+export function prepareLandmarks(ctx) { for (const id of SKIP_IDS) ctx.skip.add(id); }
+
+export function buildLandmarks(ctx) {
+  if (location.search.includes('nolm=1')) return;
+  const t0 = performance.now();
+  initMaterials();
+  for (const [name, fn] of BUILDERS) {
+    try { CUR = name; fn(ctx); } catch (e) { console.error('landmark ' + name + ' failed', e); }
+  }
+  const per = finish(ctx.scene);
+  const total = Object.values(STATS).reduce((a, b) => a + b, 0);
+  if (location.search.includes('lmstats')) console.log('landmarks build ms', Math.round(performance.now() - t0), 'triangles', Math.round(total), JSON.stringify(Object.fromEntries(Object.entries(STATS).map(([k, v]) => [k, Math.round(v)]))));
+  window.__landmarkTris = { total: Math.round(total), per: STATS };
+  window.__landmarkKeepout = KEEPOUT;
+}
