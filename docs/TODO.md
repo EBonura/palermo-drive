@@ -16,6 +16,15 @@
   needs quay/pier ground (the whole-city tiles should solve it).
 - Collision for Fontana Pretoria (`window.__landmarkKeepout`), Teatro stairs and lions, Cathedral porch.
 
+## Next up (owner + friends' ideas)
+
+- **Stadio Renzo Barbera** (Hubert's idea): model the stadium properly when the whole city loads, and make it
+  enterable: drive in through a gate, onto the running track/pitch, stands full of rosanero tifosi sprites.
+- **Switch vehicle** (Hubert's idea): 3 lape (Calessino + the current liveries, a cargo Ape, an Ape 50) and
+  3 motorbikes (a Vespa, a scooter like a Liberty/SH, a small motorbike), chosen in the Garage and maybe
+  swapped in the street; bikes need their own handling and rider sprite/model.
+- Edge-of-screen hint when the taxi destination is behind you.
+
 ## Later (not in the current pass)
 
 - **Traffic system**: moving cars, scooters and buses following the OSM road graph (one-ways, lanes,

@@ -51,14 +51,20 @@ SOURCES = [
          fix=[('poly', [[1360, 835], [1535, 835], [1540, 1365], [1360, 1365]]),
               ('poly', [[340, 1040], [462, 1040], [462, 1200], [340, 1200]]),
               ('poly', [[700, 1035], [952, 1035], [952, 1215], [700, 1215]])]),
-    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], split=2,
+    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], split=2, auto=True,
          title='Palermo, Palazzo Jung 01.jpg', dw=1920,
-         quad=[[95, 408], [1915, 292], [1915, 1074], [95, 1035]],
+         quad=[[95, 408], [1945, 288], [2414, 1084], [-183, 1029]],   # verticals through the vanishing point (925, -1443)
          fix=[('poly', [[790, 1005], [948, 1005], [948, 1132], [790, 1132]]),
               ('poly', [[0, 995], [240, 995], [240, 1100], [0, 1100]]),
               ('poly', [[1628, 995], [1920, 995], [1920, 1125], [1628, 1125]]),
               ('poly', [[1500, 560], [1560, 560], [1640, 1100], [1580, 1100]]),
               ('poly', [[205, 870], [255, 870], [250, 1090], [190, 1090]])]),
+    dict(key='biondo', bid='w143740363', name='Teatro Biondo (Via Roma)', wall=1, cover=[0.22, 0.78], v0=0.135,
+         title='Facciata del Teatro Biondo.jpg', dw=1920,
+         quad=[[0, 178], [1920, 186], [1920, 1385], [0, 1392]],
+         fix=[('poly', [[1335, 1100], [1480, 1100], [1480, 1235], [1335, 1235]]),
+              ('poly', [[380, 1120], [480, 1120], [480, 1235], [380, 1235]]),
+              ('poly', [[0, 1165], [540, 1165], [540, 1235], [0, 1235]])]),
 ]
 
 
@@ -206,7 +212,30 @@ def rectify(s, wi):
     src = (np.array(s['quad'], np.float32) * k)
     dst = np.array([[0, 0], [wp, 0], [wp, hp], [0, hp]], np.float32)
     M = cv2.getPerspectiveTransform(src, dst)
-    return cv2.warpPerspective(img, M, (wp, hp), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE), Lc
+    out = cv2.warpPerspective(img, M, (wp, hp), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    xa, xb, v0 = 0.0, 1.0, s.get('v0', 0)    # v0: drop the cluttered bottom; texture then covers v0..1 of the wall
+    if s.get('auto'):
+        # the wall quad reaches outside the photo: keep the largest block that is really photographed
+        ok = cv2.warpPerspective(np.full(img.shape[:2], 255, np.uint8), M, (wp, hp), flags=cv2.INTER_NEAREST,
+                                 borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        ok = cv2.erode(ok, np.ones((9, 9), np.uint8)) > 0
+        best = (0, xa, xb, v0)
+        for vv in np.arange(v0, .45, .02):
+            rows = ok[:int(round(hp * (1 - vv)))]
+            cols = rows.all(0)
+            i = 0
+            while i < wp:
+                if cols[i]:
+                    j = i
+                    while j < wp and cols[j]: j += 1
+                    area = (j - i) * (1 - vv)
+                    if area > best[0]: best = (area, i / wp, j / wp, vv)
+                    i = j
+                else:
+                    i += 1
+        _, xa, xb, v0 = best
+    h1 = int(round(hp * (1 - v0)))
+    return out[:h1, int(xa * wp):int(xb * wp)], (xa, xb, v0)
 
 
 def build():
@@ -215,7 +244,7 @@ def build():
     mp = {}; creds = []
     for s in SOURCES:
         wi = wall_info(D, s['bid'], s['wall'])
-        rect, Lc = rectify(s, wi)
+        rect, (xa, xb, v0) = rectify(s, wi)
         rect = correct(rect)
         m = meta_for(s)
         n = s.get('split', 1)
@@ -232,14 +261,14 @@ def build():
             cv2.imwrite(os.path.join(OUT, name), small, [cv2.IMWRITE_JPEG_QUALITY, 88])
             # u range of this piece, measured from the edge's start vertex. The image shows the quad left to right as
             # seen from outside; when the edge runs right-to-left for that viewer the image-left is at c1.
-            a, b = i / n, (i + 1) / n
+            a, b = xa + (xb - xa) * i / n, xa + (xb - xa) * (i + 1) / n
             if wi['flip']:
                 u0, u1 = c1 - (c1 - c0) * b, c1 - (c1 - c0) * a
             else:
                 u0, u1 = c0 + (c1 - c0) * a, c0 + (c1 - c0) * b
             credit = f"{m['author']}, {m['title']}, {m['lic']}, {m['url']}"
             mp.setdefault(s['bid'], []).append(dict(
-                wall=s['wall'], texture='assets/facades/photo/' + name, u0=round(u0, 4), u1=round(u1, 4), v0=0, v1=1,
+                wall=s['wall'], texture='assets/facades/photo/' + name, u0=round(u0, 4), u1=round(u1, 4), v0=round(v0, 3), v1=1,
                 flip=bool(wi['flip']), size=[fw, fh], license=m['lic'], credit=credit))
             log(f"{name}: {fw}x{fh}  {s['name']}  wall {wi['L']:.1f} x {wi['H']:.1f} m  flip={wi['flip']}  {m['lic']}")
         creds.append((s, m))
