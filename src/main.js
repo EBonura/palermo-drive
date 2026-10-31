@@ -9,6 +9,8 @@ import { buildContext } from './context.js';
 import { QUALITY, setupMobile } from './mobile.js';
 import { createVehicle } from './vehicle.js';
 import { setupUI } from './ui.js';
+import { createTraffic } from './traffic.js';
+import { createPedestrians } from './pedestrians.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -40,11 +42,15 @@ const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 40000);
 const SUN_DIR = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 26), -1.18);
 const sky = new Sky();
 sky.scale.setScalar(30000);
-sky.material.uniforms.turbidity.value = 2.2;
-sky.material.uniforms.rayleigh.value = 2.4;
-sky.material.uniforms.mieCoefficient.value = 0.005;
+sky.material.uniforms.turbidity.value = 1.4;
+sky.material.uniforms.rayleigh.value = 3.2;
+sky.material.uniforms.mieCoefficient.value = 0.003;
 sky.material.uniforms.mieDirectionalG.value = 0.84;
 sky.material.uniforms.sunPosition.value.copy(SUN_DIR);
+// The physical sky is far brighter than the city under our exposure, and ACES clips it to white.
+// Scale its output down so the zenith reads the saturated blue of a clear Palermo day.
+sky.material.fragmentShader = sky.material.fragmentShader.replace(
+  'gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * 0.42, 1.0 );');
 scene.add(sky);
 {
   // Ambient light and reflections come from a smooth sky gradient: capturing the Sky shader
@@ -237,6 +243,7 @@ const raisedMask = (() => {
   return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; return i >= 0 && j >= 0 && i < W && j < H && data[(j * W + i) * 4 + 3] > 127; };
 })();
 
+const MOUNTAIN_HAZE = new THREE.Color('#7297b4');
 if (D.far) { // hills around the Conca d'Oro, Monte Pellegrino
   const F = D.far, pos = new Float32Array(F.nx * F.nz * 3), col = new Float32Array(F.nx * F.nz * 3), idx = [];
   const c = new THREE.Color(), sand = new THREE.Color('#cdbb92'), plain = new THREE.Color('#b3a993'), grove = new THREE.Color('#7f8f5c'),
@@ -250,6 +257,9 @@ if (D.far) { // hills around the Conca d'Oro, Monte Pellegrino
     if (h < 2) c.copy(sand);
     else if (h < 90 && slope < 0.15) c.copy(plain).lerp(grove, noise * 0.6);
     else c.copy(scrub).lerp(rock, Math.min(1, slope * 1.4));
+    // Distant hills read as hazed blue in every long view of Palermo (style guide section 6).
+    const far = THREE.MathUtils.smoothstep(Math.hypot(x, z), 1500, 9000);
+    if (h > 2) c.lerp(MOUNTAIN_HAZE, far * (h > 90 ? 0.6 : 0.35));
     col.set([c.r, c.g, c.b], k * 3);
     if (i < F.nx - 1 && j < F.nz - 1) {
       const x1 = x + F.s, z1 = z + F.s;
@@ -339,6 +349,13 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 // ---------- player car (src/vehicle.js) ----------
 const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts });
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
+
+// ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
+// update(dt, camera) runs every frame while playing or on the title flyover; collidePlayer(car) runs
+// after each fixed physics step and may push the player (car.x/z/vx/vz) like a wall hit.
+const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D };
+const traffic = createTraffic(worldEnv);
+const pedestrians = createPedestrians({ ...worldEnv, traffic });
 
 // ---------- minimap ----------
 const MM_SCALE = 1; // px per metre on the baked map
@@ -442,7 +459,10 @@ let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (game.state === 'play') { for (acc += dt; acc >= STEP; acc -= STEP) physics(STEP); } else acc = 0;
+  if (game.state === 'play') {
+    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
+  } else acc = 0;
+  if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);

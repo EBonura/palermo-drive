@@ -57,32 +57,32 @@ export function logoSVG(u = 'a') {
 <svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Palermo Drive">
   <defs>
     <linearGradient id="${id('sun')}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffe98a"/><stop offset=".42" stop-color="#ff9a2e"/><stop offset=".78" stop-color="#ff3d86"/><stop offset="1" stop-color="#c21f9a"/>
+      <stop offset="0" stop-color="#ffe3a0"/><stop offset=".42" stop-color="#ff9a6a"/><stop offset=".78" stop-color="#ee5a9a"/><stop offset="1" stop-color="#b83a82"/>
     </linearGradient>
     <mask id="${id('slats')}" maskUnits="userSpaceOnUse" x="200" y="0" width="320" height="320">
       <rect x="200" y="0" width="320" height="320" fill="#fff"/>${slats}
     </mask>
     <radialGradient id="${id('halo')}" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#ff6a3d" stop-opacity=".7"/><stop offset=".6" stop-color="#ff2d95" stop-opacity=".2"/><stop offset="1" stop-color="#ff2d95" stop-opacity="0"/>
+      <stop offset="0" stop-color="#f5a9c9" stop-opacity=".45"/><stop offset=".6" stop-color="#e8559a" stop-opacity=".2"/><stop offset="1" stop-color="#e8559a" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="${id('sil')}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5a21a6"/><stop offset=".7" stop-color="#2c0d62"/><stop offset="1" stop-color="#1f0a4a"/>
+      <stop offset="0" stop-color="#3a1a2a"/><stop offset=".7" stop-color="#170b12"/><stop offset="1" stop-color="#0b0709"/>
     </linearGradient>
     <linearGradient id="${id('neon')}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffb347"/><stop offset=".5" stop-color="#ff4f8b"/><stop offset="1" stop-color="#ff2d95"/>
+      <stop offset="0" stop-color="#f5a9c9"/><stop offset=".5" stop-color="#f06fae"/><stop offset="1" stop-color="#e8559a"/>
     </linearGradient>
     <linearGradient id="${id('chrome')}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset=".38" stop-color="#ffe9b0"/><stop offset=".5" stop-color="#ffb347"/>
-      <stop offset=".52" stop-color="#ff6a3d"/><stop offset="1" stop-color="#ff2d95"/>
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".38" stop-color="#ffe3ef"/><stop offset=".5" stop-color="#f5a9c9"/>
+      <stop offset=".52" stop-color="#e8559a"/><stop offset="1" stop-color="#b8326f"/>
     </linearGradient>
-    <linearGradient id="${id('streakL')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff2d95" stop-opacity="0"/><stop offset="1" stop-color="#ffb347"/></linearGradient>
-    <linearGradient id="${id('streakR')}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#ff2d95" stop-opacity="0"/><stop offset="1" stop-color="#ffb347"/></linearGradient>
-    <linearGradient id="${id('hz')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff4f8b" stop-opacity="0"/><stop offset=".25" stop-color="#ff4f8b" stop-opacity=".8"/><stop offset=".75" stop-color="#ff4f8b" stop-opacity=".8"/><stop offset="1" stop-color="#ff4f8b" stop-opacity="0"/></linearGradient>
+    <linearGradient id="${id('streakL')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8559a" stop-opacity="0"/><stop offset="1" stop-color="#f5a9c9"/></linearGradient>
+    <linearGradient id="${id('streakR')}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#e8559a" stop-opacity="0"/><stop offset="1" stop-color="#f5a9c9"/></linearGradient>
+    <linearGradient id="${id('hz')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8559a" stop-opacity="0"/><stop offset=".25" stop-color="#e8559a" stop-opacity=".8"/><stop offset=".75" stop-color="#e8559a" stop-opacity=".8"/><stop offset="1" stop-color="#e8559a" stop-opacity="0"/></linearGradient>
     <filter id="${id('glow')}" x="-20%" y="-40%" width="140%" height="180%"><feGaussianBlur stdDeviation="9"/></filter>
     <filter id="${id('soft')}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter>
     <symbol id="${id('palm')}" viewBox="-14 -30 140 206" overflow="visible">
       <path d="M49 176 C53 132 45 92 56 42 L63 42 C56 92 64 132 64 176Z" fill="currentColor"/>
-      <g fill="currentColor" stroke="#ff8fc2" stroke-opacity=".45" stroke-width="1">
+      <g fill="currentColor" stroke="#f5a9c9" stroke-opacity=".5" stroke-width="1">
         <path d="M58 40 Q20 6 -12 62 Q24 30 58 40Z"/><path d="M58 40 Q22 -6 -6 14 Q30 4 58 40Z"/>
         <path d="M58 40 Q34 -22 14 -26 Q46 -12 58 40Z"/><path d="M58 40 Q50 -26 62 -34 Q72 -14 58 40Z"/>
         <path d="M58 40 Q82 -22 102 -26 Q70 -12 58 40Z"/><path d="M58 40 Q94 -6 122 14 Q86 4 58 40Z"/>
@@ -96,7 +96,7 @@ export function logoSVG(u = 'a') {
   <circle cx="360" cy="${SY}" r="${SR}" fill="url(#${id('sun')})" mask="url(#${id('slats')})"/>
 
   <!-- skyline: a great dome, the red domes of San Giovanni degli Eremiti, campanili, palms -->
-  <g fill="url(#${id('sil')})" stroke="#ff8fc2" stroke-width="1.4" stroke-opacity=".7">
+  <g fill="url(#${id('sil')})" stroke="#f5a9c9" stroke-width="1.4" stroke-opacity=".8">
     <path d="M276 268 V226 H318 V198 H402 V226 H444 V268Z"/>
     <path d="M318 198 C318 150 340 122 360 122 C380 122 402 150 402 198Z"/>
     <path d="M352 124 H368 V102 H352Z"/><path d="M349 102 Q360 82 371 102Z"/><path d="M359 86 H361 V68 H359Z"/><circle cx="360" cy="66" r="3.6"/>
@@ -110,18 +110,18 @@ export function logoSVG(u = 'a') {
     <path d="M500 268 V196 H516 V268Z"/><path d="M498 196 L508 168 L518 196Z"/>
     <path d="M516 268 V236 H586 V268Z"/>
   </g>
-  <use href="#${id('palm')}" x="42" y="82" width="116" height="170" style="color:#41168a"/>
-  <use href="#${id('palm')}" x="126" y="152" width="70" height="104" style="color:#5a24a8"/>
-  <use href="#${id('palm')}" x="566" y="92" width="112" height="164" style="color:#41168a"/>
-  <use href="#${id('palm')}" x="516" y="160" width="66" height="98" style="color:#5a24a8"/>
+  <use href="#${id('palm')}" x="42" y="82" width="116" height="170" style="color:#1a0d14"/>
+  <use href="#${id('palm')}" x="126" y="152" width="70" height="104" style="color:#2c1722"/>
+  <use href="#${id('palm')}" x="566" y="92" width="112" height="164" style="color:#1a0d14"/>
+  <use href="#${id('palm')}" x="516" y="160" width="66" height="98" style="color:#2c1722"/>
   <rect x="0" y="266" width="720" height="4" fill="url(#${id('hz')})"/>
 
   <!-- PALERMO: neon script -->
   <g transform="rotate(-5 360 300)" font-family="'Mr Dafoe','Brush Script MT',cursive" font-size="176" text-anchor="middle">
     <text x="360" y="322" fill="none" stroke="url(#${id('neon')})" stroke-width="22" stroke-linejoin="round" filter="url(#${id('glow')})" opacity=".95">Palermo</text>
-    <text x="360" y="324" fill="#2a0b4d" stroke="#2a0b4d" stroke-width="14" stroke-linejoin="round" transform="translate(3 5)" opacity=".7" filter="url(#${id('soft')})">Palermo</text>
+    <text x="360" y="324" fill="#0b0709" stroke="#0b0709" stroke-width="14" stroke-linejoin="round" transform="translate(3 5)" opacity=".7" filter="url(#${id('soft')})">Palermo</text>
     <text x="360" y="322" fill="none" stroke="url(#${id('neon')})" stroke-width="12" stroke-linejoin="round">Palermo</text>
-    <text x="360" y="322" fill="#fff6e6">Palermo</text>
+    <text x="360" y="322" fill="#ffffff">Palermo</text>
   </g>
 
   <!-- DRIVE: chrome racing sans with speed streaks -->
@@ -129,9 +129,9 @@ export function logoSVG(u = 'a') {
     <path d="M18 352 H138 L130 359 H18Z" fill="url(#${id('streakL')})"/><path d="M40 370 H150 L143 376 H40Z" fill="url(#${id('streakL')})"/><path d="M70 388 H146 L141 393 H70Z" fill="url(#${id('streakL')})"/>
     <path d="M702 352 H582 L590 359 H702Z" fill="url(#${id('streakR')})"/><path d="M680 370 H570 L577 376 H680Z" fill="url(#${id('streakR')})"/><path d="M650 388 H574 L579 393 H650Z" fill="url(#${id('streakR')})"/>
     <g transform="translate(360 404) skewX(-12) translate(-360 -404)" font-family="'Racing Sans One','Barlow Condensed',Impact,sans-serif" font-size="108" text-anchor="middle" letter-spacing="26">
-      <text x="368" y="410" fill="#14052b" stroke="#14052b" stroke-width="16" stroke-linejoin="round" opacity=".85">DRIVE</text>
-      <text x="360" y="404" fill="none" stroke="#2a0b4d" stroke-width="13" stroke-linejoin="round">DRIVE</text>
-      <text x="360" y="404" fill="none" stroke="#ff4f8b" stroke-width="5" stroke-linejoin="round">DRIVE</text>
+      <text x="368" y="410" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round" opacity=".85">DRIVE</text>
+      <text x="360" y="404" fill="none" stroke="#0b0709" stroke-width="13" stroke-linejoin="round">DRIVE</text>
+      <text x="360" y="404" fill="none" stroke="#e8559a" stroke-width="5" stroke-linejoin="round">DRIVE</text>
       <text x="360" y="404" fill="url(#${id('chrome')})">DRIVE</text>
     </g>
   </g>
