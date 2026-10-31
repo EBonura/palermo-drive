@@ -8,6 +8,7 @@
 //   w               style weights: bar n19 res pw (centro styles) and lib blk ins pal fish ind
 //   elig            true: weights are filtered by storey count and footprint (new zones); the centro zones keep their old behaviour
 //   fl              [[storeys, weight], ...] storey distribution used where the baked height is only the generic estimate
+//   flA             [small, medium, large] version of fl by footprint (< 100, 100 to 300, > 300 m2), from lidar (tools/district-calibrate.mjs); also used for buildings under 40 m2
 //   fh              floor-to-floor height in metres for those estimates
 //   gl              ground-floor mix for low/residential styles, [[tile, weight], ...]
 //   roof            multiplier on the chance of a pitched tile roof
@@ -98,7 +99,8 @@ export const ZONES = {
   // ---------------- north: Tommaso Natale, Sferracavallo, Mondello, Valdesi ----------------
   // Via Tommaso Natale (Street View): detached villas and low houses in walled gardens with pines and hedges, a few 4 to 6 storey blocks along the main road.
   tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.04, grime: 0.35, elig: true,
-    w: { pal: .24, res: .42, fish: .14, lib: .06, blk: .08, pw: .03 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9 },
+    w: { pal: .24, res: .42, fish: .14, lib: .06, blk: .08, pw: .03 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9,
+    flA: [[[1, 68], [2, 20], [3, 10], [4, 2]], [[1, 47], [2, 37], [3, 13], [4, 1]], [[1, 40], [2, 39], [3, 9], [4, 2], [7, 1], [8, 10]]] },
   // Sferracavallo: low whitewashed and pastel fishermen's houses around the harbour, flat roofs with a parapet, painted wooden doors.
   // Via Sferracavallo (Street View): 2 to 3 storey yellow-ochre and pale houses with flat roofs and concrete pilotis porches, the odd 8 storey tower.
   sferra: { plaster: ['#e6dcc4', '#dcc48c', '#e0b4a0', '#d6cfc0', '#e0c890', '#d9a89a', '#d8bc84', '#ece6d8', '#d8a890'], stone: ['#bba07a'], pStone: 0, grime: 0.4, elig: true,
@@ -139,9 +141,12 @@ export const ZONES = {
   rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
     w: { pal: .3, res: .32, blk: .14, pw: .04, fish: .12, n19: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
   periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true,
-    w: { pal: .32, res: .34, pw: .06, blk: .14, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7 },
+    w: { pal: .32, res: .34, pw: .06, blk: .14, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7,
+    // storeys of the lidar-measured buildings of this zone by footprint class (tools/district-calibrate.mjs): the unmeasured rest follows the same distribution
+    flA: [[[1, 63], [2, 21], [3, 10], [4, 2], [8, 1]], [[1, 41], [2, 38], [3, 13], [4, 2], [5, 1], [8, 3]], [[1, 40], [2, 26], [3, 13], [4, 5], [5, 2], [6, 3], [7, 2], [8, 9]]] },
   rural: { plaster: ['#e0d4b4', '#d8c8a8', '#e8e2d2', '#d2bda0', '#ece6d6', '#cdc6b2'], stone: ['#bba07a'], pStone: 0.1, grime: 0.4, elig: true,
-    w: { res: .5, fish: .5 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 3.0, roof: 1.2 },
+    w: { res: .5, fish: .5 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 3.0, roof: 1.2,
+    flA: [[[1, 62], [2, 21], [3, 10], [4, 5], [5, 2]], [[1, 45], [2, 30], [3, 16], [4, 6], [5, 1]], [[1, 32], [2, 29], [3, 25], [4, 5], [5, 2], [6, 2], [7, 3], [8, 3]]] },
   // La Favorita: country villas of the Bourbon park, ochre and pink plaster, red tile roofs.
   favorita: { plaster: ['#d8b88a', '#d6a890', '#e0cfa8', '#c9a070', '#dcc9a0', '#d0b08a', '#e4d6b4', '#c8a07a'], stone: ['#b09870'], pStone: 0.12, grime: 0.35, elig: true,
     w: { lib: .22, res: .46, n19: .16, bar: .06, fish: .1 }, fl: [[1, 2], [2, 4], [3, 2]], fh: 3.8, roof: 1.6 },
@@ -230,7 +235,8 @@ const pickW = (list, u) => { let t = 0; for (const e of list) t += e[1]; t *= u;
 // Storeys for a building whose baked height is only the generic estimate (3 to 6 floors, no lidar, no OSM levels).
 export function floorsAt(Z, cx, cz, area) {
   if (!Z.fl) return 0;
-  let n = pickW(Z.fl, hash(cx * 0.37 + 7.1, cz * 0.61 + 3.3));
+  let n = pickW(Z.flA ? Z.flA[area < 100 ? 0 : area < 300 ? 1 : 2] : Z.fl, hash(cx * 0.37 + 7.1, cz * 0.61 + 3.3));
+  if (Z.flA) return n; // lidar-calibrated already: no extra caps
   if (area < 70) n = Math.min(n, 3); else if (area < 130) n = Math.min(n, 5); else if (area < 220) n = Math.min(n, 8);
   return n;
 }
@@ -248,9 +254,9 @@ export function applyDistrictHeights(data, zoneFor) {
     const p = b.p; let cx = 0, cz = 0, a = 0, n = p.length / 2;
     for (let i = 0; i < p.length; i += 2) { cx += p[i]; cz += p[i + 1]; const j = (i + 2) % p.length; a += p[i] * p[j + 1] - p[j] * p[i + 1]; }
     cx /= n; cz /= n; a = Math.abs(a) / 2;
-    if (a < 40) continue;
     const Z = ZONES[zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9)];
     if (!Z || !Z.fl) continue;
+    if (a < 40 && !Z.flA) continue; // tiny buildings keep the baked height except where lidar says what they are (sheds and garages: 1 storey)
     const f = floorsAt(Z, cx, cz, a), fh = Z.fh || 3.2;
     b.h = Math.round((fh + 0.8 + (f - 1) * fh + 0.9) * 10) / 10; b.dh = f; // ground floor taller, plus parapet
   }
