@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 
 const REG = { x0: -3950, z0: -10750, x1: -2150, z1: -8650, res: 2 };   // metres, and metres per mask pixel
-const KEEP = [[-3010, -10165, 75], [-2500, -8960, 45]];                // piazza Mondello with the harbour front, piazza Valdesi: stay paved
+const KEEP = [[-3060, -10150, 80], [-2995, -10120, 45], [-2500, -8960, 45]];                // piazza Mondello with the harbour front, piazza Valdesi: stay paved
 const ROAD_MARGIN = 3.0, SAND_MARGIN = 14;                              // pavement kept this far from roads, and from the back of the beach (the promenade)
 let cv = null, ctx = null, tex = null;
 
