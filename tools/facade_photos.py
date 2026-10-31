@@ -347,7 +347,9 @@ def shot(out, query, budget=int(os.environ.get('VT', 60000))):
         subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '--headless=new', f'--user-data-dir={prof}',
                         '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars', '--window-size=1280,720',
                         f'--virtual-time-budget={budget}', f'--screenshot={out}', f'http://localhost:8790/?help=0&{query}'],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=240)
+    except subprocess.TimeoutExpired:
+        log('shot timed out', out)
     finally:
         shutil.rmtree(prof, ignore_errors=True)
 
