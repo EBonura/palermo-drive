@@ -235,19 +235,18 @@ function buildStadio() {
   { const sgn = Vv[0] < 0 ? 1 : -1, SV = [Vv[0] * sgn, Vv[1] * sgn], av = Math.atan2(SV[1], SV[0]);
     const wrap = (a) => { while (a > PI) a -= 2 * PI; while (a < -PI) a += 2 * PI; return a; };
     const pick = (centre, half) => { const o = []; for (let k = 0; k < N; k++) { const d = wrap(k / N * 2 * PI - centre); if (Math.abs(d) < half) o.push([d, k]); } o.sort((p, q) => p[0] - q[0]); return o.map(p => p[1]); };
-    const run = pick(av, 0.95), k2 = pick(av + PI, 0.7);
+    const run = pick(av, 0.95);
     const row = (t, h, kk) => kk.map(k => [I[k][0] + (O[k][0] - I[k][0]) * t, gI[k] + h, I[k][1] + (O[k][1] - I[k][1]) * t]);
     const outerRow = (h, kk, over) => kk.map(k => [O[k][0] + D[k][0] * over, gI[k] + h, O[k][1] + D[k][1] * over]);
     if (run.length > 3) {
-      const t0 = 0.30, h0 = 17.2, h1 = 24.6;
+      const t0 = 0.28, h0 = 20.5, h1 = 29.5;
       gridMesh('stRoofTop', [row(t0, h0 + 0.35, run), outerRow(h1 + 0.35, run, 6)], (i, j) => [j * 2, i * 4], {});
       gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true, c: '#555c60' });
       gridMesh('stTeal', [row(t0, h0 - 0.4, run), row(t0, h0 + 0.8, run)], (i, j) => [j, i], {});            // front fascia
-      gridMesh('stTeal', [outerRow(h1 - 0.3, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia
+      gridMesh('stTeal', [outerRow(h1 - 2.4, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia, the tall teal edge seen from the street
       for (let q = 0; q < run.length; q += 3) { const k = run[q]; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
     }
-    // the opposite long side (Tribuna Montepellegrino): a low teal canopy over the top rows only
-    if (k2.length > 3) gridMesh('stTeal', [row(0.72, 18.2, k2), row(1.02, 22.6, k2)], (i, j) => [j * 1.2, i * 3], {});
+    // the other long side (Tribuna Montepellegrino) and both ends are open to the sky in the satellite view: no roof there
   }
   // pitch and track, draped on the ground
   const SR = 7, rows = [];
