@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
   Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
+import { WORLD, hooks } from './core.js'; // world streaming (src/world.js), only with ?world=1
+import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
+import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
 import { buildProps } from './props.js';
 import { prepareLandmarks, buildLandmarks } from './landmarks.js';
@@ -109,62 +112,7 @@ const ROAD_COL = {
 const SIDEWALK = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service']);
 const DRIVABLE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'pedestrian']);
 
-// ---------- tiled ground materials (procedural, world-space UVs) ----------
-const TEX = {
-  asphalt: canvasTex(512, (g, S) => {
-    // Palermo asphalt is sun-bleached and patched, never black (style guide: base #7e7c76).
-    g.fillStyle = '#7e7c76'; g.fillRect(0, 0, S, S);
-    for (let i = 0; i < 6; i++) { // rectangular repair patches
-      g.fillStyle = `rgba(90,89,85,${rnd(0.35, 0.6)})`;
-      g.save(); g.translate(rnd(0, S), rnd(0, S)); g.rotate(rnd(-0.2, 0.2)); g.fillRect(0, 0, rnd(40, 160), rnd(30, 110)); g.restore();
-    }
-    for (let i = 0; i < 12; i++) { // stains
-      g.fillStyle = `rgba(${Math.random() < 0.6 ? '70,68,64' : '150,147,138'},${rnd(0.08, 0.2)})`;
-      g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(20, 90), rnd(15, 60), rnd(0, 3), 0, 7); g.fill();
-    }
-    speckle(g, S, 9000, ['#8c8a83', '#6c6a65', '#9a978f', '#74726c'], 1, 3);
-    g.strokeStyle = 'rgba(55,54,50,0.6)'; g.lineWidth = 1.5;
-    for (let i = 0; i < 5; i++) { // cracks
-      let x = rnd(0, S), y = rnd(0, S); g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 12; k++) { x += rnd(-14, 14); y += rnd(-14, 14); g.lineTo(x, y); } g.stroke();
-    }
-  }, 6),
-  balate: canvasTex(512, (g, S) => { // worn limestone slabs in running courses of irregular length
-    g.fillStyle = '#4f4a43'; g.fillRect(0, 0, S, S);
-    const rows = 5, h = S / rows;
-    for (let r = 0; r < rows; r++) {
-      let x = -rnd(0, 120);
-      while (x < S) {
-        const w = rnd(110, 230), v = rnd(-0.08, 0.08), base = [166, 158, 146].map(c => Math.round(c * (1 + v)));
-        g.fillStyle = `rgb(${base})`;
-        for (const dx of [0, S]) g.fillRect(x + 2 - dx, r * h + 2, w - 4, h - 4); // wraps horizontally
-        if (Math.random() < 0.2) { // cracked through
-          g.strokeStyle = 'rgba(60,55,50,0.6)'; g.lineWidth = 1.2; g.beginPath();
-          g.moveTo(x + rnd(10, w - 10), r * h + 2); g.lineTo(x + rnd(10, w - 10), r * h + h - 2); g.stroke();
-        }
-        x += w;
-      }
-    }
-    speckle(g, S, 5000, ['rgba(255,255,255,0.10)', 'rgba(0,0,0,0.09)'], 1, 3);
-    for (let i = 0; i < 5; i++) { g.fillStyle = `rgba(60,55,48,${rnd(0.06, 0.14)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 35), rnd(8, 25), 0, 0, 7); g.fill(); }
-  }, 3),
-  sidewalk: canvasTex(512, (g, S) => { // pale grey stone slabs
-    g.fillStyle = '#8d8e86'; g.fillRect(0, 0, S, S);
-    const n = 4, w = S / n;
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const v = rnd(-9, 9); g.fillStyle = `rgb(${[193, 195, 184].map(x => Math.round(x + v))})`;
-      g.fillRect(i * w + 2, j * w + 2, w - 4, w - 4);
-    }
-    speckle(g, S, 6000, ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.10)'], 1, 2);
-    for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(40,35,30,${rnd(0.05, 0.12)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 40), rnd(8, 30), 0, 0, 7); g.fill(); }
-  }, 2),
-  grass: canvasTex(256, (g, S) => {
-    g.fillStyle = '#6f8a45'; g.fillRect(0, 0, S, S);
-    speckle(g, S, 7000, ['#7f9a52', '#5f7a3a', '#8aa35c', '#6b7f40'], 1, 3);
-  }, 3),
-};
-
-{ // near terrain under everything: only visible past the street data and in gaps
+if (!WORLD) { // near terrain under everything: only visible past the street data and in gaps (world tiles bring their own terrain)
   const step = 10, nx = Math.ceil((NEAR.x1 - NEAR.x0) / step) + 1, nz = Math.ceil((NEAR.z1 - NEAR.z0) / step) + 1;
   const pos = new Float32Array(nx * nz * 3), idx = [];
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
@@ -180,69 +128,12 @@ const TEX = {
   scene.add(m);
 }
 
-// ---------- street geometry: asphalt, stone paving, raised sidewalks with curbs ----------
-// Triangulated street polygons have long triangles that would cut through the terrain between
-// their corners; split them until every edge is short enough to follow the lidar ground.
-const DRAPE_MAX = 5;
-function drape(buf, a, b, c, lift, col, m, depth = 0) {
-  const ab = a.distanceTo(b), bc = b.distanceTo(c), ca = c.distanceTo(a), longest = Math.max(ab, bc, ca);
-  if (longest > DRAPE_MAX && depth < 8) {
-    // split the longest edge; winding is preserved in both halves
-    if (longest === ab) { const d = a.clone().lerp(b, 0.5); drape(buf, a, d, c, lift, col, m, depth + 1); drape(buf, d, b, c, lift, col, m, depth + 1); }
-    else if (longest === bc) { const d = b.clone().lerp(c, 0.5); drape(buf, a, b, d, lift, col, m, depth + 1); drape(buf, a, d, c, lift, col, m, depth + 1); }
-    else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, depth + 1); drape(buf, d, b, c, lift, col, m, depth + 1); }
-    return;
-  }
-  for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, col, p.x / m, p.y / m);
-}
-const CURB = 0.15;
-const LAYERS = { asphalt: 0.0, paving: 0.01, water: -0.25, raised: CURB, green: CURB + 0.01 };
-if (D.streets) {
-  const white = new THREE.Color(1, 1, 1);
-  for (const [layer, lift] of Object.entries(LAYERS)) {
-    const buf = new Buf(), tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass }[layer];
-    const m = tex ? tex.metres : 1;
-    for (const poly of D.streets[layer]) {
-      const contour = pairs(poly[0]).map(p => new THREE.Vector2(p[0], p[1]));
-      const holes = poly.slice(1).map(h => pairs(h).map(p => new THREE.Vector2(p[0], p[1])));
-      let tris;
-      try { tris = THREE.ShapeUtils.triangulateShape(contour, holes); } catch (e) { continue; }
-      const all = contour.concat(...holes);
-      for (const t of tris) {
-        let [a, b, c] = t.map(i => all[i]);
-        if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
-        drape(buf, a, b, c, lift, white, m);
-      }
-    }
-    const mat = layer === 'water'
-      ? new THREE.MeshStandardMaterial({ color: '#2a6f8c', roughness: 0.1 })
-      : new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: layer === 'asphalt' ? 0.85 : 0.95 });
-    const mesh = buf.mesh(mat);
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-  }
-  // Curbs: the road is on the left of each line. Vertical face plus a stone top strip.
-  const curb = new Buf(), stone = new THREE.Color('#d6d1cb'), TOP = 0.28;
-  for (const flat of D.streets.curbs) {
-    const p = pairs(flat);
-    for (let i = 0; i < p.length - 1; i++) {
-      const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
-      if (len < 0.01) continue;
-      const nx = -dz / len, nz = dx / len; // towards the road
-      const ga = groundY(a[0], a[1]), gb = groundY(b[0], b[1]);
-      const A0 = [a[0], ga, a[1]], B0 = [b[0], gb, b[1]], A1 = [a[0], ga + CURB + 0.005, a[1]], B1 = [b[0], gb + CURB + 0.005, b[1]];
-      for (const q of [A0, B0, A1, B0, B1, A1]) curb.v(q[0], q[1], q[2], nx, 0, nz, stone, 0, 0, 0.8);
-      const Ai = [a[0] - nx * TOP, ga + CURB + 0.005, a[1] - nz * TOP], Bi = [b[0] - nx * TOP, gb + CURB + 0.005, b[1] - nz * TOP];
-      for (const q of [A1, B1, Ai, B1, Bi, Ai]) curb.v(q[0], q[1], q[2], 0, 1, 0, stone);
-    }
-  }
-  const curbMesh = curb.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
-  curbMesh.receiveShadow = true;
-  scene.add(curbMesh);
-}
+// ---------- street geometry (src/streets.js): asphalt, stone paving, raised sidewalks with curbs ----------
+if (D.streets && !WORLD) scene.add(buildStreets(D.streets));
 
 // Raised-ground lookup so the car bumps up onto sidewalks.
-const raisedMask = (() => {
+let world = null; // world streamer (src/world.js), only with ?world=1
+const centroRaised = (() => {
   if (!D.streets) return () => false;
   const [x0, z0, x1, z1] = D.streets.aoi, k = 2; // 0.5 m cells
   const cv = document.createElement('canvas'); cv.width = Math.ceil((x1 - x0) * k); cv.height = Math.ceil((z1 - z0) * k);
@@ -255,9 +146,11 @@ const raisedMask = (() => {
   const data = g.getImageData(0, 0, cv.width, cv.height).data, W = cv.width, H = cv.height;
   return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; return i >= 0 && j >= 0 && i < W && j < H && data[(j * W + i) * 4 + 3] > 127; };
 })();
+// world: tiles bring their own raised-ground masks next to the baked centro one
+const raisedMask = WORLD ? (x, z) => centroRaised(x, z) || (world !== null && world.raised(x, z)) : centroRaised;
 
 const MOUNTAIN_HAZE = new THREE.Color('#7297b4');
-if (D.far) { // hills around the Conca d'Oro, Monte Pellegrino
+if (D.far && !WORLD) { // (world.js builds its own far terrain) hills around the Conca d'Oro, Monte Pellegrino
   const F = D.far, pos = new Float32Array(F.nx * F.nz * 3), col = new Float32Array(F.nx * F.nz * 3), idx = [];
   const c = new THREE.Color(), sand = new THREE.Color('#cdbb92'), plain = new THREE.Color('#b3a993'), grove = new THREE.Color('#7f8f5c'),
     scrub = new THREE.Color('#77804f'), rock = new THREE.Color('#b9b0a1');
@@ -294,7 +187,7 @@ const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY });
 let freeCam = null;
 const ctx = { scene, renderer, skip: new Set(), raisedMask, CURB };
 prepareLandmarks(ctx);
-buildBuildings(ctx);
+if (!WORLD) buildBuildings(ctx); // world: buildings stream in per tile (src/world.js)
 buildLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
 const propsApi = buildProps(ctx) || {};
@@ -312,6 +205,7 @@ class Grid {
       }
   }
   query(x0, z0, x1, z1, fn) {
+    if (this.ext) this.ext.query(x0, z0, x1, z1, fn); // world: per-tile segments (src/world.js)
     const c = this.cell;
     for (let ix = Math.floor(x0 / c); ix <= Math.floor(x1 / c); ix++)
       for (let iz = Math.floor(z0 / c); iz <= Math.floor(z1 / c); iz++) { const a = this.m.get(this.key(ix, iz)); if (a) for (const s of a) fn(s); }
@@ -320,7 +214,7 @@ class Grid {
 
 const walls2d = new Grid(16);
 const addRing = flat => { const p = pairs(flat); for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); } };
-for (const b of D.buildings) { addRing(b.p); (b.holes || []).forEach(addRing); }
+if (!WORLD) for (const b of D.buildings) { addRing(b.p); (b.holes || []).forEach(addRing); } // world: walls come per tile
 // No wall along the coast: driving into the sea is allowed, and it's game over (src/sea.js).
 
 const streets = new Grid(30), roadVerts = [];
@@ -332,6 +226,10 @@ for (const r of D.roads) {
     if (DRIVABLE.has(r.k)) roadVerts.push([a[0], a[1], Math.atan2(b[0] - a[0], b[1] - a[1])]);
   }
 }
+
+// ---------- world streaming (src/world.js), only with ?world=1 ----------
+// Streams the whole-city tiles around the camera: terrain, streets, buildings, per-tile walls/road names/road vertices.
+if (WORLD) world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE });
 
 function closestOnSeg(px, pz, s) {
   const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz;
@@ -465,7 +363,7 @@ placeAt(0, 0);
     if (!q.has('hud')) document.querySelectorAll('.hud').forEach(e => e.style.display = 'none');
   }
 }
-if (location.search.includes('debug')) window.game = { car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
+if (location.search.includes('debug')) window.game = { world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
@@ -538,6 +436,7 @@ renderer.setAnimationLoop(now => {
   if (freeCam) freeCam();
   else if (game.state === 'title' && game.titleCam) game.titleCam(camera, now / 1000);
   else updateCamera(dt);
+  world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   drawMinimap();
   renderer.render(scene, camera);

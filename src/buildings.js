@@ -429,20 +429,22 @@ layer('g_rust_win', (g, r) => {
   dado(g, 50, .4);
 });
 
-// Build the 2D-array texture once.
-function buildAtlas() {
+// Build the 2D-array texture once (a generator that yields per layer, so the world streamer can warm it up in slices).
+function* buildAtlasIter() {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
   const g = cv.getContext('2d', { willReadFrequently: true });
   const data = new Uint8Array(T * T * 4 * LAYERS.length);
   const sheet = /[?&]atlas=1/.test(location.search) ? document.createElement('canvas') : null; // debug contact sheet
   if (sheet) { sheet.width = 8 * 160; sheet.height = Math.ceil(LAYERS.length / 8) * 160; sheet.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:#7a8a9a'; document.body.appendChild(sheet); }
-  LAYERS.forEach((L, i) => {
+  for (let i = 0; i < LAYERS.length; i++) {
+    const L = LAYERS[i];
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, T, T);
     L.fn(g, rng(9100 + i * 131));
     if (sheet) sheet.getContext('2d').drawImage(cv, (i % 8) * 160, ((i / 8) | 0) * 160, 160, 160);
     const px = g.getImageData(0, 0, T, T).data;
     for (let y = 0; y < T; y++) data.set(px.subarray(y * T * 4, (y + 1) * T * 4), (i * T + (T - 1 - y)) * T * 4); // flip: v = 1 is the top
-  });
+    yield;
+  }
   const tex = new THREE.DataArrayTexture(data, T, T, LAYERS.length);
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -471,6 +473,14 @@ function atlasMaterial(tex, cutout, photo) {
   m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
   return m;
 }
+
+// Atlas and materials are built once and shared by every call (the centro and each streamed world tile).
+let SHARED = null;
+function* sharedIter() {
+  if (!SHARED) { const atlas = yield* buildAtlasIter(); SHARED = { atlas, matMain: atlasMaterial(atlas, false), matRail: atlasMaterial(atlas, true) }; }
+  return SHARED;
+}
+export function* warmBuildings() { yield* sharedIter(); } // world.js: build the facade atlas ahead of the first tile
 
 // =====================================================================================
 // Geometry buffers
@@ -556,9 +566,9 @@ const REPEATABLE = new Set(['g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garag
 // =====================================================================================
 // Spatial lookups
 // =====================================================================================
-function buildLookups() {
+function buildLookups(data = D) {
   const BC = 30, bgrid = new Map(), binfo = [];
-  D.buildings.forEach((b, i) => {
+  data.buildings.forEach((b, i) => {
     const pts = pairs(b.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
     binfo.push({ pts, x0, z0, x1, z1 });
@@ -572,7 +582,7 @@ function buildLookups() {
     return false;
   };
   const RC = 24, rgrid = new Map();
-  for (const r of D.roads) {
+  for (const r of data.roads) {
     if (r.k === 'pier' || r.k === 'cycleway' || r.k === 'path') continue;
     const p = r.p, hw = r.w / 2;
     for (let i = 0; i + 3 < p.length; i += 2) {
@@ -648,15 +658,23 @@ function osmColour(v) { if (!v) return null; const c = NAMED[String(v).toLowerCa
 // =====================================================================================
 // Build
 // =====================================================================================
-export function buildBuildings(ctx) {
-  const { scene } = ctx;
+// buildBuildings(ctx, data = D) builds every building of `data` (the baked centro by default, or one world tile, which has the
+// same field names) and returns a Group (added to ctx.scene for the centro call). buildBuildingsIter is the same as a
+// generator that yields every few buildings so the world streamer (src/world.js) can spread a tile over several frames.
+export function buildBuildings(ctx, data = D) {
+  const group = new THREE.Group(), it = buildBuildingsIter(ctx, data, group);
+  while (!it.next().done);
+  return group;
+}
+export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
+  const tile = data !== D, scene = tile ? null : ctx.scene;
+  if (scene) scene.add(group);
   const t0 = performance.now();
-  const atlas = buildAtlas();
-  const matMain = atlasMaterial(atlas, false), matRail = atlasMaterial(atlas, true);
-  const { inBuilding, roadNear } = buildLookups();
+  const { matMain, matRail } = yield* sharedIter();
+  const { inBuilding, roadNear } = buildLookups(data);
   const white = new THREE.Color(1, 1, 1);
 
-  let chunks = new Map(); const CH = 400;
+  let chunks = new Map(); const CH = tile ? 250 : 400;
   const chunkOf = (x, z) => { const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { m: new GB(), r: new GB(), p: new GB() }); return c; };
   let matPhoto = null, photoData = null;
 
@@ -939,15 +957,16 @@ export function buildBuildings(ctx) {
   // ---------- all buildings ----------
   const grey = l => new THREE.Color(l, l, l);
   let meshesOut = [];
-  function run(photo) {
-    chunks = new Map();
+  function* run(photo) {
+    chunks = new Map(); let nb = 0;
     const tStart = performance.now();
     stats.styles = {}; stats.balconies = 0; stats.tanks = 0; stats.tiled = 0; stats.flat = 0; stats.specs = 0; stats.photo = 0; stats.osmCol = 0;
-    for (const b of D.buildings) {
+    for (const b of data.buildings) {
       if (ctx.skip.has(b.id)) continue;
+      if ((++nb & 7) === 0) yield;
       const r = rng(b.c * 7919 + 13);
       const solids = [];
-      const shift = b.r !== undefined && !HAS_NEAR ? -b.g : 0;
+      const shift = b.r !== undefined && !data.near ? -b.g : 0;
       const pts0 = pairs(b.p);
       if (b.r === undefined) {
         const street = Math.max(...pts0.map(p => groundY(p[0], p[1])));
@@ -993,24 +1012,25 @@ export function buildBuildings(ctx) {
       for (const [flat, holes, roofY] of solids) emitSolid(B, flat, holes, roofY);
     }
     let tris = 0, nm = 0;
-    for (const m of meshesOut) { scene.remove(m); m.geometry.dispose(); }
+    for (const m of meshesOut) { group.remove(m); m.geometry.dispose(); }
     meshesOut = [];
     for (const c of chunks.values()) {
       for (const [gb, mat, shadow] of [[c.m, matMain, true], [c.r, matRail, false], [c.p, matPhoto, true]]) {
         if (!gb.n || !mat) continue;
-        const m = gb.mesh(mat); m.castShadow = shadow; m.receiveShadow = true; m.matrixAutoUpdate = false; scene.add(m); meshesOut.push(m);
+        const m = gb.mesh(mat); m.castShadow = shadow; m.receiveShadow = true; m.matrixAutoUpdate = false; group.add(m); meshesOut.push(m);
         tris += gb.ni / 3; nm++;
       }
+      yield;
     }
-    window.__bld = { tris, meshes: nm, stats, ms: performance.now() - tStart };
-    console.log('[buildings]', JSON.stringify(window.__bld));
+    group.userData.tris = tris;
+    if (!tile) { window.__bld = { tris, meshes: nm, stats, ms: performance.now() - tStart }; console.log('[buildings]', JSON.stringify(window.__bld)); }
   }
-  run(null);
+  yield* run(null);
 
   // Photo-rectified facades (optional): assets/facades/photo/map.json = { buildingId: [{ wall, texture, u0, u1, v0, v1, credit }] }.
   // wall = index of the footprint edge in b.p (start vertex), u runs from that vertex to the next, v from the pavement (v0) to the
   // cornice (v1), with v = 0 at the bottom of the image. Loaded after the first build, then the buildings are rebuilt once.
-  (async () => {
+  if (!tile) (async () => { // (centro only: streamed tiles skip the photo facades for now)
     try {
       const resp = await fetch(new URLSearchParams(location.search).get('photomap') || 'assets/facades/photo/map.json', { cache: 'no-cache' });
       if (!resp.ok) return;
@@ -1035,9 +1055,10 @@ export function buildBuildings(ctx) {
       tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
       tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
       matPhoto = atlasMaterial(tex, false, true); photoData = { byId, tex };
-      run(photoData);
+      { const it = run(photoData); while (!it.next().done); }
     } catch (e) { /* no photo map: procedural facades only */ }
   })();
+  return group;
 }
 
 function calcFloors(S, Hw, lv, sp) {
