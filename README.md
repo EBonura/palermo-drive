@@ -22,6 +22,7 @@ then open http://localhost:8790. The baked map files are already in the repo. To
   available under the ODbL too.
 - Lidar DTM/DSM © Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale (CC BY 4.0).
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
+- Hills (Monte Pellegrino and the ridges around the city): TINITALY 1.1 DEM © INGV (Tarquini et al.), CC BY 4.0, https://doi.org/10.13127/tinitaly/1.1.
 - Car model and sounds: see `assets/CREDITS.md` (CC0).
 - three.js (MIT). Fonts: SIL Open Font License.
 

@@ -37,6 +37,16 @@ Licence (ODbL), https://www.openstreetmap.org/copyright.
 
 <!-- facade_photos:begin -->
 
+## World terrain data (world/, baked by `tools/tiles.py`)
+
+The ground heights of the whole-city tiles come from three open datasets. Nothing is shipped as a file here; the numbers are baked into `world/manifest.json` and `world/tiles/*.json` (`near` and `far` grids).
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| TINITALY 1.1 digital elevation model (10 m), used for Monte Pellegrino and the other hills | INGV, Istituto Nazionale di Geofisica e Vulcanologia (S. Tarquini et al.) | https://tinitaly.pi.ingv.it, https://doi.org/10.13127/tinitaly/1.1 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | resampled to 10 m and 100 m grids, shifted toward the lidar where both exist, blended with the other terrain sources |
+| PST-A lidar DTM (Regione Sicilia), rasters and point queries | Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale | http://wms.pcn.minambiente.it (WMS GetMap and GetFeatureInfo) | CC BY 4.0 | elevations decoded from the rendered layer, point queries above its 204 m clip, resampled to 10 m grids |
+| Terrarium terrain tiles (far grid outside the hills) | Mapzen / AWS Open Data (sources include SRTM) | https://registry.opendata.aws/terrain-tiles/ | open data, see the registry entry | resampled to a 100 m grid |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).
