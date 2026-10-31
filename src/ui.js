@@ -14,7 +14,8 @@ const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const S = {
   tapTouch: ['Tocca per iniziare', 'Tap to start'],
   tapKey: ['Premi per iniziare', 'Press to start'],
-  drive: ['Guida', 'Drive'],
+  drive: ['Guida libera', 'Free drive'],
+  turisti: ['Turisti affamati', 'Hungry tourists'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
   back: ['Indietro', 'Back'],
@@ -40,7 +41,7 @@ const S = {
   credAssets: ['Modelli e suoni', 'Models and sound'],
   credFonts: ['Caratteri', 'Fonts'],
   credThanks: ['Grazie per aver guidato', 'Thanks for driving'],
-  credStreet: ['Centro storico di Palermo', 'Palermo\'s historic centre'],
+  credStreet: ['Palermo, centro storico (clacson incluso)', 'Palermo\'s historic centre (horn included)'],
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -192,7 +193,7 @@ function creditsMarkdown(md) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ game, applySettings, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D }) {
+export function setupUI({ game, applySettings, missions, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
 
@@ -231,7 +232,8 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
   // main menu
   mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
-      <button class="pd-btn drive" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
+      <button class="pd-btn drive" data-nav data-do="turisti" type="button">${two('turisti')}${CHEV}</button>
+      <button class="pd-btn" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
@@ -400,6 +402,7 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     if (busy) return; busy = true;
     fade.classList.add('on');
     setTimeout(() => {
+      missions?.stop?.();
       placeAt(...proj(SPOTS[0][1], SPOTS[0][2])); game.state = 'title'; stack = []; go('menu'); fade.classList.remove('on'); busy = false;
     }, 420);
   }
@@ -420,7 +423,8 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
   }
   function act(name, el) {
     switch (name) {
-      case 'drive': return drive();
+      case 'drive': missions?.setMode?.('free'); return drive();
+      case 'turisti': missions?.setMode?.('turisti'); return drive();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
       case 'garage': return go('garage', { push: true });

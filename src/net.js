@@ -100,6 +100,7 @@ export function createNet(env) {
   let hiddenTimer = 0, sleeping = false, blocked = false;
   const remotes = new Map(), dying = [];
 
+  if (params.has('netdebug')) window.__net = { remotes, dying, get status() { return status; }, get count() { return count; } }; // TEMP
   // ---------- DOM ----------
   let pill = null, card = null;
   function ensureUI() {

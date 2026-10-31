@@ -22,7 +22,7 @@ const CLASS = { // rank decides priority, v is the free speed in m/s, w the spaw
 const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
 const R_SPAWN_MIN = 35, R_SPAWN_MAX = 215, R_FAR = 125, R_DESPAWN = 235, R_KEEP_UNSEEN = 95;
 const STEP = 1 / 30;
-const LANE_PER_CAR = 52; // metres of drivable lane per vehicle within 110 m of the camera
+const LANE_PER_CAR = 36; // metres of drivable lane per vehicle within 140 m of the camera
 
 // Vehicle types. L, W in metres, circ = collision circles [z offset, radius], mass relative to the player (1).
 const hatchCols = [['#f2f2f0', 30], ['#c3c6cb', 22], ['#6e7378', 16], ['#1f2124', 12], ['#b3241e', 9], ['#8fb3cc', 6], ['#3d5a45', 3]];
@@ -294,7 +294,7 @@ export function createTraffic(env) {
   function rebuildCandidates(cx, cz) {
     candEdges.length = 0; candCum.length = 0; let acc = 0, lane = 0;
     for (const e of EDGES) {
-      if (e.alive && !e.ped) { const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz; if (mx * mx + mz * mz < 110 * 110) lane += e.len * (e.w >= 8 ? 1.3 : 1); }
+      if (e.alive && !e.ped) { const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz; if (mx * mx + mz * mz < 140 * 140) lane += e.len * (e.w >= 8 ? 1.3 : 1); }
       if (!(ALIVE[0][e.id] || ALIVE[1][e.id] || ALIVE[2][e.id])) continue;
       const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = mx * mx + mz * mz;
       if (d2 < R_SPAWN_MIN * R_SPAWN_MIN || d2 > R_SPAWN_MAX * R_SPAWN_MAX) continue;
@@ -345,7 +345,7 @@ export function createTraffic(env) {
     vs.push(v); counts[name] = (counts[name] || 0) + 1;
     return true;
   }
-  let busCand = [], nextBus = 0, target = 30;
+  let busCand = [], nextBus = 0, target = 30, dbgDwell = 0;
   function rebuildBusCandidates(cx, cz) {
     busCand.length = 0;
     for (const pl of PLANS) for (let i = 0; i < pl.edges.length; i++) {
@@ -371,7 +371,7 @@ export function createTraffic(env) {
     extendRoute(v); vs.push(v); counts.bus = (counts.bus || 0) + 1;
     return true;
   }
-  function removeAt(i) { const v = vs[i]; counts[v.name]--; vs[i] = vs[vs.length - 1]; vs.pop(); }
+  function removeAt(i) { const v = vs[i]; v.dead = true; counts[v.name]--; vs[i] = vs[vs.length - 1]; vs.pop(); }
 
   // ---------- driving ----------
   // Do the two paths through the junction cross or merge? Each path is a polyline in-lane, through
@@ -446,7 +446,7 @@ export function createTraffic(env) {
     if (v.dwell > 0) { v.dwell -= dt; if (v.dwell <= 0) v.si++; v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
 
     let minI = 0, minGap = 1e9, blocker = null, exitSpace = 1e9;
-    const filt = ty.scooter && v.latT !== 0 && Math.abs(v.lat) > 1.0;
+    const filt = ty.scooter && v.filtO && Math.abs(v.lat) > 1.0;
     const interact = (gap, vl, o) => {
       const sStar = ty.s0 + Math.max(0, sp * ty.T + sp * (sp - vl) / sab), g = gap > 0.05 ? gap : 0.05;
       const term = -a * (sStar / g) * (sStar / g);
@@ -462,7 +462,7 @@ export function createTraffic(env) {
         const d = base + o.t;
         if (k === 0 && d <= 0) continue;
         if (k === 1 && o.v < 2 && o.t - o.ty.L / 2 < exitSpace) { exitSpace = o.t - o.ty.L / 2; v.exitO = o; } // free room past the node
-        if ((filt && !o.ty.scooter) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
+        if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
         interact(d - L2 - o.ty.L / 2, o.v, o);
       }
       base = k === 0 ? rem : base + route[k].len;
@@ -479,7 +479,7 @@ export function createTraffic(env) {
       const ofx = Math.sin(o.h), ofz = Math.cos(o.h), cj = ofx * fx + ofz * fz, sj = Math.abs(ofx * rx + ofz * rz), acj = Math.abs(cj);
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
-      if ((filt && !o.ty.scooter) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
+      if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
       if (cj < 0.45 && v.stuck > 3 && v.id < o.id) continue; // crossing or oncoming standoff: the lower id drives on
       interact(al - L2 - hl, (o.v) * cj, o);
     }
@@ -511,7 +511,7 @@ export function createTraffic(env) {
         if ((v.cur + k) % n === st.i) {
           const gap = d0 + st.t - L2 + 3.5;
           if (gap < -2) v.si++;
-          else if (gap < 70) { interact(gap, 0, null); if (sp < 0.25 && gap < 2.8) v.dwell = 6 + Math.random() * 6; }
+          else if (gap < 70) { interact(gap, 0, null); if (sp < 0.4 && gap < 4) { v.dwell = 6 + Math.random() * 6; dbgDwell++; } }
           break;
         }
         d0 = k === 0 ? rem : d0 + route[k].len; // distance to the start of route[k + 1]
@@ -520,14 +520,16 @@ export function createTraffic(env) {
     v.blocker = blocker; v.hold = hold; v.minGap = minGap; v.v0 = v0;
     // scooters slip past slow traffic where the road is wide enough
     if (ty.scooter) {
-      let want = 0;
-      if (blocker && blocker !== 'player' && !blocker.ty.scooter && minGap < 12 && blocker.v < 0.65 * v0 && e0.w >= 6) {
+      const fo = v.filtO;
+      if (fo) {
+        if ((fo.x - v.x) * fx + (fo.z - v.z) * fz < -(fo.ty.L / 2 + 1.5) || fo.dead) { v.filtO = null; v.latT = 0; }
+      } else if (blocker && blocker !== 'player' && !blocker.ty.scooter && minGap < 12 && blocker.v < 0.65 * v0 && e0.w >= 6) {
         const off = laneOff(e0, v), half = e0.w / 2 - 0.5;
+        let want = 0;
         if (Math.abs(off + 1.75) < half && (e0.ow || e0.w >= 8)) want = 1.75;
         else if (e0.ow && Math.abs(off - 1.75) < half) want = -1.75;
+        if (want) { v.latT = want; v.filtO = blocker; }
       }
-      if (want !== 0 || Math.abs(v.lat) < 0.2) v.latT = want;
-      else if (minGap > 4) v.latT = 0;
     }
     let acc = a * (1 - Math.pow(sp / v0, 4)) + minI;
     v.acc = clamp(acc, -9, a);
@@ -791,6 +793,7 @@ export function createTraffic(env) {
       frozen = true;
       camera.updateMatrixWorld = f => { camera.position.set(v.x + fx * 10 - fz * 1.2, groundY(v.x, v.z) + 3.4, v.z + fz * 10 + fx * 1.2); camera.lookAt(v.x, groundY(v.x, v.z) + 1.6, v.z); o(f); };
     }
+    console.log('TRAFFIC dwells ' + dbgDwell + ' plans ' + PLANS.length + ' planStops ' + PLANS.reduce((q, p) => q + p.stops.length, 0) + ' ' + PLANS.map(p => p.ref + ':' + p.edges.length + 'e/' + p.stops.length + 's').join(' '));
     console.log('TRAFFIC overlaps ' + JSON.stringify(ovk));
     console.log('TRAFFIC roots ' + JSON.stringify(roots));
     const rs = new Set();
