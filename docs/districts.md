@@ -112,9 +112,25 @@ in cream and pale ochre, lower grime) beside 1960s blocks; Fiera / Sampolo is 4 
 Photos: `Palazzina cinese 0001.JPG` (CC BY-SA 3.0). Country villas and farm buildings of the Bourbon park: 1 to 3 storeys, ochre and pink plaster,
 red tile roofs (multiplier 1.6), no shops. **(est.)**
 
+## Pass 2: checked against Street View (details in docs/faithfulness/buildings.md)
+
+- **New zones.** `avenue` (tall condo avenues, street rule 18 m: Strasburgo, Notarbartolo, Viale Lazio, Campania, Francia, Regione Siciliana, Leonardo da Vinci),
+  `calat` (old radial corsi, street rule 20 m: Calatafimi, Tukory, Pisani), `cruillas` (village core with blocks around it, replaces one `cep` seed). The street rules for
+  Principe di Paterno, Duca della Verdura, Sciuti, Villabianca and Empedocle Restivo stay `sacco`.
+- **Set-back fronts.** `buildings.js` gives the elig zones `reach` (`Z.front`, default 15 m): a wall with no street within 3.2 m still counts as a front if a street edge
+  lies within `reach` m along its normal with no building in between. This is what puts shops and balconies on Via Liberta's set-back blocks and on housing estates.
+- **Lidar-calibrated storeys.** `flA` on periph, rural and tn (see `tools/district-calibrate.mjs`), `insArea` on zen (insulae from 110 m2), dense pockets take the
+  `BLOCK_FL` table, buildings under 40 m2 get a storey count too in calibrated zones. `applyDistrictHeights` stores the zone (`b.dz`) next to `b.dh`; `buildings.js` uses
+  that choice unless a street rule moved the zone.
+- **Styles.** `pw` takes the zone palette in the new zones and is rare in the postwar belts; `pal` uses balcony columns on every other bay and half of its buildings get
+  the new `rail_g` (anodised aluminium and tinted glass); `ins` ground floors are pilotis and garage doors.
+- **Palettes.** Pale cream, off-white and grey-beige in the Liberta belt, the grid, the avenues, Resuttana, Fiera and Arenella; sand-ochre ZEN; yellow Noce; terracotta-orange
+  and cream Brancaccio; tufa stone Acquasanta.
+- **Debug.** `?bdbg` fills `window.__bldDbg` (per building zone, style, height source) and `window.__bldTris` (triangles per style).
+
 ## What is not done
 
-- No Mapillary, so the facade rhythm of Sferracavallo, ZEN, Uditore, Brancaccio and the Favorita is not checked against street-level photos.
+- The Favorita, Politeama proper, Valdesi, Fiera and Corso dei Mille were not checked against Street View in pass 2 (no usable capture at the points tried).
 - The Liberty style uses one palette family and a handful of tiles; the great set pieces (Villino Florio, Villa Igiea, Villa Malfitano,
   Villino Basile, Grand Hotel et des Palmes) are landmarks and belong in `landmarks-city.js`, not here.
 - Beach clubs on stilts, boats and nets are not modelled; the lido is cabins and decks only.

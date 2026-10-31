@@ -180,7 +180,7 @@ function buildStadio() {
   defMat('stSteel', 0, 0, [1, 1], null, { roughness: 0.6 });
   defMat('stLamp', 0, 0, [1, 1], null, { roughness: 1, emissive: new THREE.Color('#fff6d8'), emissiveIntensity: 0.9 });
   const PW = ob.w + 4, PH = ob.d + 4;
-  defMat('stPitch', 1024, Math.round(1024 * PH / PW), [1, 1], (g, w, h) => {   // the track is the red ground; lifted 0.4 m over the raised layer (street_raised sits about 0.35 m over the terrain mesh here) of the tile that would otherwise hide it
+  defMat('stPitch', 1024, Math.round(1024 * PH / PW), [1, 1], (g, w, h) => {   // the track is the red ground; lifted 0.8 m over the raised layer (street_raised sits about 0.35 m over the terrain mesh here) of the tile that would otherwise hide it
     const sx = w / PW, sy = h / PH, X = (m) => w / 2 + m * sx, Y = (m) => h / 2 + m * sy;
     g.fillStyle = '#b4584a'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 3000, 2, 507, ['rgba(80,30,20,0.18)', 'rgba(230,150,120,0.15)']);
     g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 2; for (const r of [-0.5, 0.5]) { }
@@ -230,10 +230,10 @@ function buildStadio() {
   }
   // pitch and track, draped on the ground
   const SR = 7, rows = [];
-  for (let s = 0; s <= SR; s++) { const f = s / SR; rows.push(I.map((p, k) => { const x = cx + (p[0] - cx) * f, z = cz + (p[1] - cz) * f; return [x, groundY(x, z) + 0.4, z]; })); }
+  for (let s = 0; s <= SR; s++) { const f = s / SR; rows.push(I.map((p, k) => { const x = cx + (p[0] - cx) * f, z = cz + (p[1] - cz) * f; return [x, groundY(x, z) + 0.8, z]; })); }
   gridMesh('stPitch', rows, (i, j, p) => { const dx = p[0] - ob.cx, dz = p[2] - ob.cz; return [(dx * U[0] + dz * U[1]) / PW + 0.5, (dx * Vv[0] + dz * Vv[1]) / PH + 0.5]; }, { wrap: true, noao: true });
   // goals
-  for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + 0.4, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
+  for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + 0.8, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
     bx('marble', Mg, -3.7, -3.6, 0, 2.44, 0, 0.12); bx('marble', Mg, 3.6, 3.7, 0, 2.44, 0, 0.12); bx('marble', Mg, -3.7, 3.7, 2.34, 2.44, 0, 0.12);
     bx('rail', Mg, -3.7, 3.7, 0, 2.4, -2.0, -1.9, { noao: true }); }
   // the gate: concrete floor and side walls through the lower tier, with a roof slab
