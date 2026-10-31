@@ -91,6 +91,9 @@ export class Kit {
   }
   // ops bound to a group, optionally inside a parent transform (x, y, z, rx, ry, rz): a sub-assembly such as the windscreen
   on(name, px = 0, py = 0, pz = 0, prx = 0, pry = 0, prz = 0) {
+    // the handlebar group is drawn in its own frame (0,0,0 = the middle of the bar, which turns with the steering): lift it onto the bar position
+    // so the group origin that addM() subtracts cancels out (without this the whole bar assembly sat 1 m below the vehicle)
+    if (name === 'bar' && this.g.bar && !px && !py && !pz) { const o = this.g.bar.o, k = 1 / this.s; px = o[0] * k; py = o[1] * k; pz = o[2] * k; }
     return this.onM(name, new THREE.Matrix4().compose(new THREE.Vector3(px, py, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(prx, pry, prz)), new THREE.Vector3(1, 1, 1)));
   }
   onM(name, parent) {
