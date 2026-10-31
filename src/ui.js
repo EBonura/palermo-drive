@@ -44,6 +44,7 @@ const S = {
   startQ: ['Da dove parti?', 'Where do you start?'],
   startLast: ['Ultima posizione', 'Last position'],
   startRandom: ['Casuale', 'Random'],
+  tabSpots: ['Luoghi', 'Places'], tabQuarters: ['Quartieri', 'Districts'],
   startGo: ['Parti', 'Go'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
   pauseBtn: ['Pausa', 'Pause'],
@@ -205,7 +206,7 @@ function creditsMarkdown(md) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ game, applySettings, missions, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D }) {
+export function setupUI({ game, applySettings, missions, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
 
@@ -309,6 +310,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
 
   mk('start', '', `<div class="pd-card pd-garage pd-start">
       <h2 class="pd-h" data-k="startQ" data-two></h2>
+      <div class="pd-seg pd-starttabs"><button class="pd-segb" data-nav data-do="tabSpots" aria-pressed="true" type="button"><span data-k="tabSpots"></span></button><button class="pd-segb" data-nav data-do="tabQuarters" aria-pressed="false" type="button"><span data-k="tabQuarters"></span></button></div>
       <div class="pd-stack pd-liveries pd-startlist"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button><button class="pd-btn sm drive" data-nav data-do="go" type="button">${two('startGo')}${CHEV}</button></div>
     </div>`);
@@ -461,6 +463,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       case 'turisti': startMode = 'turisti'; return go('start', { push: true });
       case 'favorita': startMode = 'favorita'; return go('start', { push: true });   // night mission, whole-city world only (src/missions.js)
       case 'go': return confirmStart();
+      case 'tabSpots': case 'tabQuarters': startTab = name === 'tabSpots' ? 'spots' : 'quarters'; return renderStart();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
       case 'garage': return go('garage', { push: true });
@@ -479,7 +482,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // ---- start picker ("Da dove parti?"): built from SPOTS (plus window.PALERMO_WORLD.landmarks when present) each time it opens ----
   const LAST_KEY = 'palermoDrive.last.v1';
   const readLast = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && Number.isFinite(v.x) && Number.isFinite(v.z) ? v : null; } catch (e) { return null; } };
-  let lastPos = readLast(), lastWrite = 0, startMode = 'free', startItems = [], startSel = 0, startWas = -1, lastPointer = 'mouse', spotItems = [];
+  let startTab = 'spots', lastPos = readLast(), lastWrite = 0, startMode = 'free', startItems = [], startSel = 0, startWas = -1, lastPointer = 'mouse', spotItems = [];
   function rememberPos(force) { // where you were driving, for "Ultima posizione"
     const c = vehicle && vehicle.car;
     if (!c || (game.state !== 'play' && game.state !== 'pause') || (!force && now() - lastWrite < 4000)) return;
@@ -504,7 +507,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function renderStart() {
     lastPos = readLast() || lastPos;
-    const spots = spotList();
+    const spots = startTab === 'spots' ? spotList() : QUARTIERI.map(([name, la, lo]) => { const [x, z] = proj(la, lo); return { name, x, z }; });
+    for (const b of screens.start.querySelectorAll('.pd-starttabs [data-do]')) b.setAttribute('aria-pressed', String((b.dataset.do === 'tabSpots') === (startTab === 'spots')));
     startItems = [...(lastPos ? [{ kind: 'last', x: lastPos.x, z: lastPos.z }] : []), { kind: 'random' }, ...spots.map(sp => ({ kind: 'spot', ...sp }))];
     startBox.innerHTML = startItems.map((it, i) => `<button class="pd-btn sm pd-liv" data-nav data-start="${i}" aria-pressed="false" type="button"><span class="pd-in"${it.kind === 'spot' ? '' : ` data-k="${it.kind === 'last' ? 'startLast' : 'startRandom'}" data-two`}>${it.kind === 'spot' ? esc(it.name) : ''}</span></button>`).join('');
     applyLang();
