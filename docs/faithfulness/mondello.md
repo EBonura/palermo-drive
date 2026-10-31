@@ -20,6 +20,7 @@ Valdesi (-2560,-8930), Partanna promontory (-2800,-10450).
 | Antico Stabilimento (Commons Alle Terrazze, 27 views) | cream-yellow Liberty pavilion on piles: central block with a pediment and three turret towers with crowns, finials and lightning rods; on the sides a long gallery of maroon and cream striped cabin fronts under a balustrade, a big plain two-storey block at the north end and a small box at the south end; long boardwalk to the colonnade gate | pavilion with two pyramid-capped towers, flat striped fascia on low sheds | `src/lmc-c.js` `buildStabilimento`: pediment block, three crowned towers with finials, striped galleries, north block with window rows |
 | Beach sand and rock | almost white, fine sand; Monte Gallo and Pellegrino pale grey-ochre limestone | pale tan sand, brown-grey rock | beach tint `#e4dbc2` and lighter sand texture in `src/world.js` and `src/streets.js`, lighter rock colours |
 | Plaster colours (piazza photos, Street View) | butter yellow, cream, pale pink, white; little grime | dull tan, grime 0.22 | `src/districts.js`: lighter, creamier `mondello` and `valdesi` palettes, grime 0.12 |
+| Distant villa quarter (aerials) | green canopy | grey-brown carpet at low detail | `src/world.js`: inside the garden region the low-detail terrain tints olive green instead of urban grey |
 | Piazza Mondello | paved, pots, blue posts | paved slabs (kept by the mask), few details | posts and pots on the quay front |
 
 ## Already close (checked, not changed)
@@ -31,7 +32,7 @@ Monte Pellegrino and Monte Gallo as masses framing the bay, the colonnade gate, 
 
 - Monte Gallo is a 300 m vertical limestone wall right behind the borgo; the terrain grid gives a smooth ramp (about 35 degrees). Terrain heights near the mountains belong to the terrain agent.
 - Ground at Piazza Mondello is 7 to 13 m above sea level in the grid, the real piazza is at the waterline with the cliff behind it. Same cause.
-- The 138 x 121 m polygon behind the quay (`w73411051`) is one OSM outline for a block of red-roofed buildings and yards; it renders as one large roof with teal stripes.
+- The 138 x 121 m polygon behind the quay (`w73411051`) is one OSM outline for a block of red-roofed buildings and yards; `chooseStyle` now gives such outlines in these zones the plain `res` style, but it still reads as one big block (it was still teal-striped in the last shot, possibly a cached facade).
 - Hotel La Torre footprint (`w73395786`, 54 points, a ring of wings) is still the generic building; the real one is a white block with blue balcony bands and a stone watchtower on the rock.
 - Beach width: the OSM sand polygon is 25 to 50 m, the real dry beach is wider in the middle of the bay (satellite: 50 to 80 m).
 - The Valdesi tower and the rocky headland at the south end, and the Addaura road under the cliffs towards Palermo, were not modelled specifically.

@@ -1365,8 +1365,10 @@ class _CleanWindow:
 
 # ----- road bench -----
 # Roads on a slope need ground that follows the road, not the hillside: a level bench along every drivable road (full weight across
-# the carriageway and its margins, easing back to the raw ground over BENCH_EASE metres) at a blurred copy of the ground height, so
-# a switchback is not a sawtooth of the ground's noise. It used to be carved by src/world.js at load time per tile, from the roads
+# the carriageway and its margins, easing back to the raw ground over BENCH_EASE metres) at the ground height under the road
+# centreline smoothed along the road (a median of 5 samples, then a Gaussian of BENCH_SIGMA metres), so a switchback is not a sawtooth
+# of the ground's noise but the road still sits where the lidar saw it. (The first version averaged 17 samples on rings of 20 and 45 m
+# around each road point, like the runtime bench: on a spur or a hairpin that mean is up to 10 m under the road itself.) It used to be carved by src/world.js at load time per tile, from the roads
 # clipped to that tile and from whichever neighbours happened to be loaded, so a tile with a bench next to one without had a 2 m
 # step along the border (Via Pietro Bonanno at x = 500) and neighbouring benches disagreed. Here it is a function of position:
 # roads are the whole OSM ways, the ground is the bake's own lattice, and it goes into the tile's near grid (5 m cells, `bench: 1`),
@@ -1378,6 +1380,24 @@ BENCH_EASE = 11.0
 BENCH_S = 5.0
 BENCH_PAD = 7        # lattice nodes (10 m) around the tile that the bench reads
 BENCH_MIN = 0.3
+
+
+BENCH_SIGMA = 9.0    # metres of Gaussian smoothing along the road
+
+
+def _along(h, step=3.0):
+    """Heights sampled every `step` metres along a road, made smooth: running median of 5, then a Gaussian of BENCH_SIGMA."""
+    import numpy as np
+    n = len(h)
+    if n < 3:
+        return h
+    pad = np.pad(h, 2, mode="edge")
+    med = np.median(np.stack([pad[k:k + n] for k in range(5)]), axis=0)
+    sig = BENCH_SIGMA / step
+    r = int(math.ceil(3 * sig))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sig) ** 2)
+    k /= k.sum()
+    return np.convolve(np.pad(med, r, mode="edge"), k, mode="valid")
 
 
 def _bench(i, j, Vp, pa0, pb0):
@@ -1418,7 +1438,8 @@ def _bench(i, j, Vp, pa0, pb0):
             continue
         half = max(rec["w"], 3) / 2
         flat, reach = half + 1.5, half + 1.5 + BENCH_EASE
-        part = ls.intersection(shapely.box(tx0 - reach - 2, tz0 - reach - 2, tx0 + T + reach + 2, tz0 + T + reach + 2))
+        m_ = BENCH_PAD * s - 2          # the lattice reaches this far outside the tile; the smoothing needs all of it
+        part = ls.intersection(shapely.box(tx0 - m_, tz0 - m_, tx0 + T + m_, tz0 + T + m_))
         for seg in ([part] if part.geom_type == "LineString" else list(getattr(part, "geoms", []))):
             if seg.geom_type != "LineString" or seg.is_empty:
                 continue
@@ -1426,7 +1447,7 @@ def _bench(i, j, Vp, pa0, pb0):
             c = np.asarray(seg.coords)[:, :2]
             if len(c) < 2:
                 continue
-            h = blur(c[:, 0], c[:, 1])
+            h = _along(B(c[:, 0], c[:, 1]))
             found = True
             for q in range(len(c) - 1):
                 ax, az, bx, bz = c[q, 0], c[q, 1], c[q + 1, 0], c[q + 1, 1]

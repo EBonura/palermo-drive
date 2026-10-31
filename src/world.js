@@ -16,6 +16,7 @@ import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
 import { QUALITY } from './mobile.js';
+import { GARDEN_REGION as GR } from './gardens.js';
 
 const T = 500;
 const nk = (i, j) => (i + 200) * 1000 + (j + 200);
@@ -75,7 +76,7 @@ class SegGrid {
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
   sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b0a58a'), grove: new THREE.Color('#8a8a58'), scrub: new THREE.Color('#686d45'),
-  rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
+  rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
   beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
   farm: new THREE.Color('#a8985f'), orchard: new THREE.Color('#6f8148'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
@@ -328,7 +329,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const noise = (Math.sin(x * 0.013 + z * 0.009) + Math.sin(x * 0.0037 - z * 0.013)) * 0.25 + 0.5;
         const n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5, slope = Math.hypot(dx, dz);
         terrainColor(_c, y, slope, noise, n2);
-        if (urban > 0) _c.lerp(C.urban, urban);
+        if (urban > 0) _c.lerp(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1 ? C.garden : C.urban, urban); // the villa quarters of Mondello read green from afar (src/gardens.js)
         if (tint) for (const a of tint) {
           if (x < a.x0 || x > a.x1 || z < a.z0 || z > a.z1 || !inPoly(a.pts, x, z)) continue;
           _c.lerp(a.col, a.s); // woods, scrub and lawns give way to bare limestone where the ground is steep
