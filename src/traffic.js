@@ -18,7 +18,7 @@ const CLASS = { // rank decides priority, v is the free speed in m/s, w the spaw
   unclassified: { r: 2, v: 10, w: 1.4 }, residential: { r: 2, v: 8.5, w: 1.5 }, living_street: { r: 1, v: 5.5, w: 0.6 },
   service: { r: 1, v: 5, w: 0.35 }, pedestrian: { r: 0, v: 2.8, w: 0.14 },
 };
-const TRANSIT = /^(Via Maqueda|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
+const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
 const BUS_AXES = /Roma|Maqueda|Vittorio Emanuele|Lincoln|Foro Italico|Cavour|Libert|Crispi|Volturno|Cala/;
 const R_SPAWN_MIN = 35, R_SPAWN_MAX = 215, R_FAR = 125, R_DESPAWN = 235, R_KEEP_UNSEEN = 95;
 const STEP = 1 / 30;
@@ -29,7 +29,7 @@ const TYPES = {
   panda: { model: 'panda', L: 3.65, W: 1.64, mass: 0.95, circ: [[1.0, 0.85], [-1.0, 0.85]], cols: hatchCols },
   punto: { model: 'punto', L: 4.06, W: 1.69, mass: 1.1, circ: [[1.2, 0.9], [-1.2, 0.9]], cols: hatchCols },
   smart: { model: 'smart', L: 2.69, W: 1.56, mass: 0.8, circ: [[0.55, 0.8], [-0.55, 0.8]], cols: hatchCols, rmin: 3.2 },
-  taxi: { model: 'taxi', L: 4.5, W: 1.78, mass: 1.3, circ: [[1.4, 0.95], [0, 0.95], [-1.4, 0.95]], cols: [['#ffffff', 1]], rmin: 4.8, transit: true },
+  taxi: { model: 'taxi', L: 4.5, W: 1.78, mass: 1.3, circ: [[1.4, 0.95], [0, 0.95], [-1.4, 0.95]], cols: [['#ffffff', 1]], rmin: 4.8 },
   van: { model: 'van', L: 4.45, W: 1.82, mass: 2.0, circ: [[1.3, 0.95], [0, 0.95], [-1.3, 0.95]], vf: 0.92, a: 2.0, rmin: 5.5, ped: true, minW: 3.5,
     cols: [['#f2f2f0', 70], ['#c3c6cb', 12], ['#8fb3cc', 8], ['#d8d2b8', 10]] },
   bus: { model: 'bus', L: 11.8, W: 2.5, mass: 11, circ: [[4.4, 1.3], [2.2, 1.3], [0, 1.3], [-2.2, 1.3], [-4.4, 1.3]], vf: 0.85, a: 1.4, b: 3.0, T: 1.3, s0: 2.5,
@@ -42,14 +42,15 @@ const TYPES = {
     cols: [['#e9e4d2', 3], ['#d6a24a', 2], ['#7fa3c0', 2], ['#4e7a4c', 2]] },
   apeFood: { model: 'apeFood', L: 3.2, W: 1.4, mass: 1.0, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.65, a: 1.3, rmin: 3.6, vcap: 8, ped: true,
     cols: [['#efe3c8', 3], ['#e8c46a', 2], ['#c2362c', 1]] },
-  carrozza: { model: 'carrozza', L: 6.7, W: 1.3, mass: 1.5, circ: [[2.6, 0.7], [0.8, 0.8], [-0.8, 0.8]], vf: 0.4, vcap: 2.7, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 6,
+  carrozza: { model: 'carrozza', L: 6.7, W: 1.3, mass: 1.5, circ: [[2.6, 0.7], [0.8, 0.8], [-0.8, 0.8]], vf: 0.4, vcap: 2.7, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 6, ped: true,
     cols: [['#5a3a24', 4], ['#2a2220', 2], ['#8a5a34', 3], ['#a9a49a', 1]] },
-  carretto: { model: 'carretto', L: 5.0, W: 1.6, mass: 1.2, circ: [[1.6, 0.7], [-0.1, 0.85], [-0.9, 0.85]], vf: 0.4, vcap: 2.3, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 5,
+  carretto: { model: 'carretto', L: 5.0, W: 1.6, mass: 1.2, circ: [[1.6, 0.7], [-0.1, 0.85], [-0.9, 0.85]], vf: 0.4, vcap: 2.3, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 5, ped: true,
     cols: [['#2e2a26', 2], ['#6a4a30', 2]] },
 };
 TYPES.vespaB = { ...TYPES.vespa, model: 'vespaB' };
 for (const t of Object.values(TYPES)) {
   Object.assign(t, { vf: 1, a: 2.6, b: 3.2, T: 0.95, s0: 1.6, rmin: 4.2, vcap: 99, minW: 0 }, { ...t });
+  t.cls = t.bus ? 2 : t.ped ? 1 : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable, 2 buses
 }
 
 const pickW = list => {
@@ -81,7 +82,7 @@ export function createTraffic(env) {
     const round = road.j === 'roundabout';
     const e = {
       id: EDGES.length, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
-      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, rev: -1, ok: true, bus: false,
+      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, rev: -1, bus: false,
       v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false,
     };
     if (round) e.v = Math.min(e.v, 6.5);
@@ -90,8 +91,6 @@ export function createTraffic(env) {
     EDGES.push(e); NOUT[a].push(e); NIN[b].push(e);
     return e;
   }
-  const comp = []; // union-find over nodes
-  const find = i => { while (comp[i] !== i) { comp[i] = comp[comp[i]]; i = comp[i]; } return i; };
   for (const r of D.roads) {
     const cls = CLASS[r.k]; if (!cls) continue;
     const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || '');
@@ -104,11 +103,35 @@ export function createTraffic(env) {
       if (f && g) { f.rev = g.id; g.rev = f.id; }
     }
   }
-  for (let i = 0; i < NX.length; i++) comp.push(i);
-  for (const e of EDGES) { const x = find(e.a), y = find(e.b); if (x !== y) comp[x] = y; }
-  const csize = new Map();
-  for (const e of EDGES) { const k = find(e.a); csize.set(k, (csize.get(k) || 0) + 1); }
-  for (const e of EDGES) e.ok = csize.get(find(e.a)) >= 24;
+  // Which edges a vehicle class may use, and which nodes still lead somewhere (into a big strongly
+  // connected part of the network): routes never enter one-way dead ends or isolated fragments.
+  const baseAllowed = (c, k) => k === 0 ? !c.ped : k === 1 ? true : c.bus;
+  const ALIVE = [0, 1, 2].map(k => {
+    const N = NX.length, idx = new Int32Array(N).fill(-1), low = new Int32Array(N), onst = new Uint8Array(N), comp = new Int32Array(N).fill(-1);
+    const st = [], sizes = []; let counter = 0;
+    for (let s0 = 0; s0 < N; s0++) {
+      if (idx[s0] >= 0) continue;
+      idx[s0] = low[s0] = counter++; st.push(s0); onst[s0] = 1;
+      const work = [[s0, 0]];
+      while (work.length) {
+        const top = work[work.length - 1], v = top[0], outs = NOUT[v];
+        if (top[1] < outs.length) {
+          const c = outs[top[1]++]; if (!baseAllowed(c, k)) continue;
+          const w = c.b;
+          if (idx[w] < 0) { idx[w] = low[w] = counter++; st.push(w); onst[w] = 1; work.push([w, 0]); }
+          else if (onst[w]) low[v] = Math.min(low[v], idx[w]);
+        } else {
+          if (low[v] === idx[v]) { let n = 0, w; do { w = st.pop(); onst[w] = 0; comp[w] = sizes.length; n++; } while (w !== v); sizes.push(n); }
+          work.pop();
+          if (work.length) { const pn = work[work.length - 1][0]; low[pn] = Math.min(low[pn], low[v]); }
+        }
+      }
+    }
+    const good = new Uint8Array(N), q = [];
+    for (let n = 0; n < N; n++) if (sizes[comp[n]] >= 40) { good[n] = 1; q.push(n); }
+    while (q.length) { const n = q.pop(); for (const c of NIN[n]) if (baseAllowed(c, k) && !good[c.a]) { good[c.a] = 1; q.push(c.a); } }
+    return good;
+  });
   for (const e of EDGES) { // junction box radius and give-way flags
     NBOX[e.b] = Math.max(NBOX[e.b], Math.min(5.5, e.w * 0.5 * 0.85));
     NBOX[e.a] = Math.max(NBOX[e.a], Math.min(5.5, e.w * 0.5 * 0.85));
@@ -158,12 +181,7 @@ export function createTraffic(env) {
   const counts = {};
   const agentsOut = [];
 
-  function allowed(c, ty) {
-    if (!c.ok) return false;
-    if (c.ped) return c.transit ? !!(ty.transit || ty.ped) : !!ty.ped;
-    if (ty.bus) return c.bus;
-    return c.w >= ty.minW;
-  }
+  const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.b] === 1 && (c.ped || c.w >= ty.minW);
   function pickNext(e, ty) {
     const outs = NOUT[e.b]; let tot = 0, any = null;
     const ws = [];
@@ -194,7 +212,7 @@ export function createTraffic(env) {
   function rebuildCandidates(cx, cz) {
     candEdges.length = 0; candCum.length = 0; let acc = 0;
     for (const e of EDGES) {
-      if (!e.ok) continue;
+      if (!(ALIVE[0][e.b] || ALIVE[1][e.b] || ALIVE[2][e.b])) continue;
       const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = mx * mx + mz * mz;
       if (d2 < R_SPAWN_MIN * R_SPAWN_MIN || d2 > R_SPAWN_MAX * R_SPAWN_MAX) continue;
       acc += e.len * e.pw; candEdges.push(e); candCum.push(acc);
@@ -205,7 +223,7 @@ export function createTraffic(env) {
     const c = counts;
     const room = k => (c[k] || 0) < CAPS[k];
     if (e.ped) {
-      if (e.transit) return room('bus') && Math.random() < 0.5 ? 'bus' : pickW([['taxi', 2], ['apePick', 2], ['van', 1]]);
+      if (e.transit) return room('bus') && Math.random() < 0.5 ? 'bus' : pickW([['apePick', 2], ['van', 1], ['vespa', 2]]);
       return pickW([['apeCrate', 3], ['apePick', 2], ['van', 3], ['apeFood', 1], ['vespa', 2]]);
     }
     const near = nearSite(NX[e.a], NZ[e.a]);
@@ -252,15 +270,14 @@ export function createTraffic(env) {
     if (SIG.has(n) && !green(n, e, time)) { v.why = 'sig'; return true; }
     if (NDEG[n] < 3) return false;
     if (v.wait > 9) return false;                                    // gridlock breaker
-    if (exitSpace < ty.L + 1.2 && v.wait < 6) { v.why = 'exit'; return true; }          // keep the box clear
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1], tc = en ? e.dx * en.dz - e.dz * en.dx : 0; // > 0: turning right, < 0: left
-    const eager = v.wait > 3.5;
+    const eager = v.wait > 2.5;
     for (let i = 0; i < occ.length; i++) {
       const o = occ[i]; if (o === v) continue;
       const oe = o.route[0];
       if (oe.b !== n) { // already past the node and still inside it
-        if (oe.a === n && o.t < 4.5 && oe !== en && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; return true; }
+        if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; return true; }
         continue;
       }
       if (oe === e) continue;
@@ -608,7 +625,9 @@ export function createTraffic(env) {
     const roots = {};
     for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
     console.log('TRAFFIC roots ' + JSON.stringify(roots));
-    const fr = vs.filter(v => v.stuck > 15 && !v.hold && !v.blocker).slice(0, 6).map(v => { const e = v.route[0]; return `${v.name}@${v.x | 0},${v.z | 0} rem=${(e.len - v.t).toFixed(1)} route=${v.route.length} outs=${NOUT[e.b].map(c => (c.ped ? 'P' : '') + (allowed(c, v.ty) ? 'ok' : 'no') + c.rank).join(',')} ins=${NIN[e.b].length} v0=${v.v0.toFixed(1)} v=${v.v.toFixed(2)} gap=${v.minGap.toFixed(1)} stopT=${v.stopT.toFixed(1)}`; });
+    const rs = new Set();
+    for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; if (!r.hold) rs.add(r); }
+    const fr = [...rs].slice(0, 6).map(v => { const e = v.route[0]; return `${v.name}@${v.x | 0},${v.z | 0} ${e.name}${e.ow ? '(1w)' : ''} rank${e.rank} rem=${(e.len - v.t).toFixed(1)} route=${v.route.length} outs=${NOUT[e.b].map(c => (c.ped ? 'P' : '') + (allowed(c, v.ty) ? 'ok' : 'no') + c.rank).join(',')} v0=${v.v0.toFixed(1)} v=${v.v.toFixed(2)} gap=${v.minGap.toFixed(1)} stopT=${v.stopT.toFixed(1)} stuck=${v.stuck.toFixed(0)} blk=${v.blocker}`; });
     console.log('TRAFFIC free ' + fr.join(' || '));
     console.log('TRAFFIC stuck: ' + dump.join(' || '));
     console.log('TRAFFIC ' + log.join(' | '));
