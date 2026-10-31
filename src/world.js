@@ -419,11 +419,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         for (const ring of poly) for (let i = 0; i < ring.length; i += 2) rg[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * RK, (ring[i + 1] - z0) * RK - y0);
         rg.fill('evenodd');
       }
-      const px = rg.getImageData(0, 0, RW, BAND).data, base = band * BAND * RW;
+      const img = rg.getImageData(0, 0, RW, BAND).data, px = new Uint32Array(img.buffer, img.byteOffset, RW * BAND), base = band * BAND * RW;
       for (let q = 0, n = RW * BAND; q < n; q++) {
-        const b = base + q;
-        if (px[q * 4] > 127) bitsR[b >> 3] |= 1 << (b & 7);
-        if (px[q * 4 + 1] > 127) bitsH[b >> 3] |= 1 << (b & 7);
+        if (px[q] === 0xff000000) continue; // opaque black: neither mask (little-endian RGBA)
+        const b = base + q, o = q * 4;
+        if (img[o] > 127) bitsR[b >> 3] |= 1 << (b & 7);
+        if (img[o + 1] > 127) bitsH[b >> 3] |= 1 << (b & 7);
       }
       yield;
     }
@@ -448,7 +449,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (v < 1.5) return;
     car.gripLoss = Math.max(car.gripLoss || 0, 0.3);
     bumpPhase += v * dt;
-    if (bumpPhase > 1.6) { bumpPhase = 0; car.hopV = Math.min(1.9, (car.hopV || 0) + 0.2 + 0.5 * Math.random() * Math.min(1, v / 12)); }
+    if (bumpPhase > 1.6) { bumpPhase = 0; car.hopV = Math.min(2.2, (car.hopV || 0) + 0.45 + 1.0 * Math.random() * Math.min(1, v / 12)); }
     const k = Math.exp(-0.12 * dt); car.vx *= k; car.vz *= k;
   }
 

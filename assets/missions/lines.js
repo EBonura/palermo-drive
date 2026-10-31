@@ -240,3 +240,133 @@ export const LATER = [
   { name: 'Via Ernesto Basile (stigghiola, Pagliarelli side)', lat: 38.0993011, lon: 13.3468323, note: 'Nominatim node of the road; far south of the box' },
   { name: 'Viale Regione Siciliana (stigghiola, Pagliarelli side)', lat: null, lon: null, note: 'no Nominatim result, coordinates still to find' },
 ];
+
+// =====================================================================================================================
+// NIGHT: everything below only exists after dark (src/missions.js reads game.time via the pedestrians module).
+// Palermitan and Italian lines are [text, gloss] pairs; "(?)" in the gloss = the Palermitan is a guess, owner please review.
+// =====================================================================================================================
+
+// ---- Easter egg "u spacciaturi": at night, stop for a few seconds in one of these places and a hooded guy walks up.
+// There is nothing to buy: you can only drive off. Zones are position-based (Zisa and Noce are outside the centro map,
+// they only matter when the whole-city tiles are on). Centres from OpenStreetMap via Nominatim (see places.md).
+export const SPACCIA = {
+  // the owner's line, keep exactly as written
+  hail: ['Ou curò, chi tti siaibbi?', 'Hey buddy, what do you need? (owner\'s spelling, kept as is)'],
+  // the driver's dismissive answers
+  driver: [
+    ['Nenti, nenti: sugnu fermu pi viriri u panorama.', 'Nothing, nothing: I am stopped to admire the view. (?)'],
+    ['Curò, ju sugnu lapista, nun sugnu cliente. Annamu.', 'Buddy, I am a lapa driver, not a customer. Let us go. (?)'],
+    ['Vossia sbagghiau persona: ju vegnu di missa.', 'You have the wrong person: I am coming from Mass. (?)'],
+    ['Grazzi, ma haiu già a me dosi di guai: a patenti.', 'Thanks, but I already have my dose of trouble: my licence. (?)'],
+    ['Staiu aspittannu a me cummari. Idda nun sapi ca ci sugnu ju.', 'I am waiting for my girlfriend. She does not know I am here. (?)'],
+  ],
+};
+export const SPACCIA_ZONES = [
+  { id: 'ballaro', name: 'Ballarò', lat: 38.1113556, lon: 13.3615778, r: 110 },
+  { id: 'vucciria', name: 'Vucciria', lat: 38.1181915, lon: 13.3652235, r: 90 },
+  { id: 'capo', name: 'Il Capo', lat: 38.1186189, lon: 13.3540701, r: 100 },
+  { id: 'zisa', name: 'Zisa', lat: 38.1167741, lon: 13.3410551, r: 170 },
+  { id: 'noce', name: 'Noce', lat: 38.1219451, lon: 13.3329544, r: 170 },
+];
+
+// ---- Night mission "A Favorita". Needs the whole-city tiles (?world=1): the Favorita is about 3.9 km north-west of Quattro Canti.
+// The client is a mild satire of a respectable man who is somewhere he claims not to be; the glam night folk on the avenue
+// are cheerful and in on the joke, and the joke is entirely on him.
+export const FAVORITA = {
+  // Viale Diana, snapped to the road centreline of the world tiles (Nominatim point 38.1485191, 13.3463992); (dx, dz) = road direction
+  dest: { name: 'Viale Diana, Favorita', addr: 'Parco della Favorita', lat: 38.148519, lon: 13.346399, dx: 0.757, dz: -0.653 },
+  client: {
+    flag: [
+      ['Psst! Lapista! Fermati... ma discretamente.', 'Psst! Driver! Stop... but discreetly. (?)'],
+      ['Ehi! Tassista! Ccà, ccà. No, nun guardari a mmia.', 'Hey! Taxi! Here, here. No, do not look at me. (?)'],
+    ],
+    board: [
+      ['Bonasira. Sugnu... un ispettori. Di... cosi. Pi lavoru.', 'Good evening. I am... an inspector. Of... things. For work. (?)'],
+      ['Chi bedda nuttata. Nuddu mi canusci, vero?', 'What a lovely night. Nobody knows me, right? (?)'],
+    ],
+    ask: [
+      ['Mi porti ai viali da Favorita. Pi... na passiata. Salutari: u medicu m\'ha ordinatu.', 'Take me to the avenues of the Favorita. For... a walk. Healthy: the doctor ordered it. (?)'],
+      ['Va ammirari i pini, ccà. Sunnu pini di valuri storicu.', 'I go to admire the pines there. They are of historical value. (?)'],
+      ['Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni di condominiu.', 'Something confidential. My wife thinks I am at a condominium meeting. (?)'],
+    ],
+    ambient: [
+      ['Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all\'occhi.', 'Why sunglasses at night? For... the moon. It hurts my eyes. (?)'],
+      ['Cchiù chianu! Mi pari ca mi talia tuttu u quartieri.', 'Slower! It feels like the whole neighbourhood is looking at me. (?)'],
+      ['Nun mi taliari nta u specchiettu, grazzi.', 'Do not look at me in the mirror, thanks. (?)'],
+      ['Si mi ricanuscinu mi rovinu: sugnu... cunsigghieri.', 'If they recognise me I am ruined: I am... a councillor. (?)'],
+      ['Chistu è un impermeabili. Perché? Pi... a pioggia.', 'This is a raincoat. Why? For... the rain. (?) (it is not raining)'],
+    ],
+    fast: [['Mi viniu u giramentu di testa... o è u rimorsu?', 'I feel dizzy... or is it remorse? (?)']],
+    drift: [['Mamma mia! Se mi vidi cu a lapa di traversu, mi runi a prima pagina!', 'Mamma mia! If they see me in a sideways lapa I make the front page! (?)']],
+    wheels: [['Du roti! Cu u me cori! Chiamati u cunfissuri!', 'Two wheels! With my heart! Call the confessor! (?)']],
+    miss: [['Nun m\'ammazzari, ca ancora haiu... tanti pini d\'ammirari!', 'Do not kill me, I still have... so many pines to admire! (?)']],
+    hitPed: [['Chi è, un testimoni? Nun m\'ha vistu nuddu, vero?', 'What, a witness? Nobody saw me, right? (?)']],
+    hitWall: [['Chi botta! Mi vagnu u... impermeabili.', 'What a bump! I am wetting my... raincoat. (?)']],
+    late: [['Prestu, prestu, ca fra picca mi veni u rimorsu! O me muggheri.', 'Hurry, hurry, soon remorse comes! Or my wife. (?)']],
+    arrive: [
+      ['Ecco, ecco, grazzi. Teni, e nun diri nenti a nuddu!', 'Here, here, thanks. Keep it, and tell nobody! (?)'],
+      ['Ti pregu, ti pregu: nun lu diri a nuddu. Ju ccà nun ci sugnu mai statu. Mai.', 'I beg you: tell nobody. I was never here. Never. (?)'],
+    ],
+    fail: [['Nun fa nenti, m\'addummannu a casa... a pedi... cu a cuscienza.', 'Never mind, I will go home... on foot... with my conscience. (?)']],
+    // the answer to the glam folk who greet him by name
+    caught: [['Bonasira... nun... nun ci canusciu, signurina.', 'Good evening... I do not... I do not know you, miss. (?)']],
+  },
+  // the driver, who sees everything and says it with a straight face
+  driver: {
+    board: [['Salutari, eh? Certu, certu. A Favorita è u postu giustu pi u cori.', 'Healthy, of course. The Favorita is the right place for the heart. (?)']],
+    depart: [['Cinturi? Nun serbi: ccà nuddu viri nenti.', 'Seatbelts? No need: nobody sees anything here. (?)']],
+    ask: [['Tranquillu, avvucatu: ju sugnu na tomba.', 'Relax, lawyer: I am a tomb. (?)']],
+    arrive: [
+      ['Sugnu na tomba, avvucatu. Ma u tassametru parla.', 'I am a tomb, lawyer. But the meter talks. (?)'],
+      ['Nun c\'è prublema. Ju ccà passu ogni notti: mi ricordu tutti i facci.', 'No problem. I pass here every night: I remember all the faces. (?)'],
+    ],
+  },
+  // the glam night folk greeting him; two of them know him, which is the whole joke
+  chorus: [
+    ['Buonasira, Cunsigghieri!', 'Good evening, Councillor! (?)'],
+    ['Talè, u signuri di sempri!', 'Look, the usual gentleman! (?)'],
+    ['Cunsigghieri, e i pini? Li ammirati sempri?', 'Councillor, and the pines? Still admiring them? (?)'],
+    ['Cumu va, Avvucatu? E a riunioni di condominiu?', 'How is it going, Lawyer? And the condominium meeting? (?)'],
+  ],
+};
+
+// ---- "Pollanche": vendors roasting corn cobs on charcoal at the Santuario di Santa Rosalia (Monte Pellegrino).
+// Position-based, only built when the lapa gets near (whole-city tiles). Santuario from Nominatim (38.1680111, 13.351843); the carts stand
+// beside the service road, snapped to the world tiles: (rx, rz) points from the cart to the road.
+export const POLLANCHE = {
+  cry: [
+    ['POLLANCHEEEE!', 'CORN ON THE COB! (the real street cry)'],
+    ['POLLANCHEEEE CAURE!', 'HOT CORN ON THE COB! (?)'],
+    ['Pollanche! Pollanche arrustuti!', 'Corn! Roasted corn! (?)'],
+  ],
+  serve: [
+    ['Teni, cu u sali e u limuni!', 'Here, with salt and lemon! (?)'],
+    ['Pi tia, ca è cavuda!', 'For you, it is hot! (?)'],
+  ],
+  sites: [
+    { id: 'santuario', name: 'Santuario di Santa Rosalia (Monte Pellegrino)', lat: 38.16809, lon: 13.351714, rx: -0.793, rz: -0.610, skin: 'coppola2' },
+    { id: 'tornante', name: 'Via Santuario, Monte Pellegrino', lat: 38.166878, lon: 13.349531, rx: 1.0, rz: -0.016, skin: 'nonno_gilet' },
+  ],
+};
+
+// ---- "Appartati": parked cars with steamed-up windows at Monte Pellegrino's lookouts and in quiet corners of the Favorita.
+// Strictly innuendo: a fogged car gently rocking, nobody visible. Flash the headlights or honk and the rocking stops,
+// the windows flash and a balloon yells. Lookouts from OpenStreetMap (tourism=viewpoint, amenity=parking), each snapped to the nearest
+// road of the world tiles and set on the verge: (dx, dz) = the road direction, the car is parked along it.
+export const APPARTATI = {
+  yell: [
+    ['Ma chi fari sunnu chisti?! Astuta, screanzatu!', 'What headlights are these?! Turn them off, rude one! (?)'],
+    ['Ma ti pari u modu?! Chista è na maccina privata!', 'Is that any way to behave?! This is a private car! (?)'],
+    ['Eh! Stavamu... cuntannu i stiddi!', 'Hey! We were... counting the stars! (?)'],
+    ['Stavamu sulu... ripassannu u codici stradali!', 'We were only... revising the highway code! (?)'],
+    ['Talè chi maleducatu! Cca c\'è genti ca parla!', 'Look at this rude guy! People are talking here! (?)'],
+  ],
+  sites: [
+    { id: 'palermoview', name: 'Palermo view (Via Pietro Bonanno)', lat: 38.152503, lon: 13.361140, dx: -0.756, dz: -0.655, col: '#8a2f3a' },
+    { id: 'upper', name: 'Via Padre Giordano Cascini', lat: 38.175436, lon: 13.361309, dx: 0.039, dz: 0.999, col: '#2f4a6b' },
+    { id: 'tornante', name: 'Via Santuario, Monte Pellegrino', lat: 38.166878, lon: 13.349531, dx: 0.016, dz: 1.0, col: '#6b6f78' },
+    { id: 'fante', name: 'Viale del Fante (Favorita)', lat: 38.150316, lon: 13.342227, dx: -0.405, dz: -0.914, col: '#3f6b4a' },
+    { id: 'bosco', name: 'Strada di servizio (Favorita)', lat: 38.151318, lon: 13.339685, dx: -0.887, dz: 0.461, col: '#c9c4b8' },
+    { id: 'matrimoni', name: 'Piazzale dei Matrimoni (Viale Ercole)', lat: 38.151393, lon: 13.347968, dx: 0.506, dz: 0.863, col: '#b8862a' },
+  ],
+};

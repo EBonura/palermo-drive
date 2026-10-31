@@ -11,7 +11,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { hooks } from '../src/core.js';
-import { buildBuildings } from '../src/buildings.js';
+const { buildBuildings } = await import('../src/' + (new URLSearchParams(location.search).get('impl') || 'buildings') + '.js');
 const q = new URLSearchParams(location.search);
 const v3 = (s, d) => (s || d).split(',').map(Number);
 const cam = v3(q.get('campos'), '0,40,60'), look = v3(q.get('look'), '0,10,0');

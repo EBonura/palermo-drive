@@ -2,7 +2,7 @@
 import {
   THREE, PI, bx, gridMesh, begin, end, setBase, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, archShape, rectShape, prism, pyramid, gable,
   mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, ringSegs, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
-  balus, rail, statue, horse, palm,
+  balus, rail, statue, horse, palm, crenel,
 } from './lmc-kit.js';
 import { FP } from './landmarks-city-data.js';
 
@@ -163,7 +163,7 @@ function buildStadio() {
   defMat('stAds', 256, 64, [16, 1.5], (g, w, h) => { const r = RNG(504), cols = ['#14161a', '#e46fa0', '#f2f2ee', '#2e6fb8', '#f0c437', '#14161a', '#e46fa0']; let x = 0; while (x < w) { const bw = 20 + r() * 30; g.fillStyle = cols[(r() * cols.length) | 0]; g.fillRect(x, 0, bw, h); g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(x + 4, 22, bw * 0.6, 5); g.fillRect(x + 4, 34, bw * 0.4, 4); x += bw; } }, { side: THREE.DoubleSide });
   defMat('stFacade', 256, 512, [12, 18], (g, w, h) => paintFacade(g, w, h, 12, 18, { base: '#d8d2c4', trim: '#bfb8a8', glass: '#2a8c93', seed: 505,
     bands: [{ y: 13.4, h: 3.6, c: '#2f9aa1' }, { y: 5.4, h: 0.5, c: '#a9a396' }], pil: { xs: [0, 6], w: 0.8, c: '#e9e4d8' },
-    rows: [{ y0: 1.2, y1: 4.2, n: 4, m: 1.5, w: 1.6, kind: 'rect', fr: 0.1, ped: false, glass: '#23262b' }, { y0: 7.0, y1: 10.5, n: 3, m: 2.2, w: 2.2, kind: 'rect', fr: 0.1, glass: '#23262b' }] }), { side: THREE.DoubleSide });
+    rows: [{ y0: 1.2, y1: 4.2, n: 4, m: 1.5, w: 1.6, kind: 'rect', fr: 0.1, ped: false, glass: '#59636b' }, { y0: 7.0, y1: 10.5, n: 3, m: 2.2, w: 2.2, kind: 'rect', fr: 0.1, glass: '#59636b' }] }), { side: THREE.DoubleSide });
   defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2b9ea3'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
   defMat('stSteel', 0, 0, [1, 1], null, { roughness: 0.6 });
   defMat('stLamp', 0, 0, [1, 1], null, { roughness: 1, emissive: new THREE.Color('#fff6d8'), emissiveIntensity: 0.9 });
@@ -246,3 +246,95 @@ export const STADIO = {
   walls: stadiumCollision(), gate: { x: GATE.x, z: -4204.6, to: -4167.4, halfW: GATE.halfW },
   build: buildStadio,
 };
+
+// ====================================================================================================
+// 3. Castello Utveggio on Monte Pellegrino: salmon-pink hotel castle, arcaded front, two crenellated end towers, round bastion at the foot
+// ====================================================================================================
+function skirtDown(key, M, w, d, lo, o = {}) { bx(key, M, -w / 2, w / 2, lo, 0.02, -d / 2, d / 2, o); }
+
+function buildUtveggio() {
+  initShared();
+  const pts = pairsOf(FP.utveggio.p), gr = groundRange(pts);
+  const gy = gr.hi + 0.3;
+  const nx = 0.985, nz = 0.17, cxw = -489.0, czw = -4019.4;
+  const M = frame(cxw, gy, czw, nx, nz);
+  begin(gy);
+  const LW = 46.5, WD = 19, H = 17;
+  defMat('utvWall', 256, 256, [8, 12], (g, w, h) => paintFacade(g, w, h, 8, 12, { base: '#dba892', trim: '#f0dfc6', glass: '#2d2f38', seed: 601, plinth: { h: 0.8, c: '#b98f7c' },
+    bands: [{ y: 5.2, h: 0.35, c: '#ecd3bc' }, { y: 10.4, h: 0.35, c: '#ecd3bc' }],
+    rows: [{ y0: 1.4, y1: 3.8, xs: [2, 6], w: 1.0, kind: 'rect' }, { y0: 6.6, y1: 9.0, xs: [2, 6], w: 1.0, kind: 'arch' }, { y0: 11.4, y1: 13.8, xs: [2, 6], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#7a5a4a' }));
+  defMat('utvFront', 1024, 512, [LW, 17], (g, w, h) => {
+    const xs = []; for (let i = 0; i < 12; i++) xs.push(2.0 + i * 3.6);
+    paintFacade(g, w, h, LW, 17, { base: '#dba892', trim: '#f0dfc6', glass: '#2d2f38', seed: 602, plinth: { h: 0.9, c: '#b98f7c' },
+      bands: [{ y: 5.6, h: 0.4, c: '#ecd3bc' }, { y: 11.4, h: 0.4, c: '#ecd3bc' }, { y: 15.8, h: 0.5, c: '#ecd3bc' }],
+      rows: [{ y0: 1.6, y1: 4.2, xs, w: 1.1, kind: 'rect' }, { y0: 6.6, y1: 10.2, xs: xs.slice(2, 10), w: 2.3, kind: 'arch', fr: 0.25, sill: false }, { y0: 6.8, y1: 9.4, xs: [xs[0], xs[1], xs[10], xs[11]], w: 1.1, kind: 'rect', shut: 'open' }, { y0: 12.2, y1: 14.8, xs, w: 1.1, kind: 'rect', shut: 'open' }], shut: '#7a5a4a' });
+  });
+  // foundation on the cliff
+  skirtDown('stone', M, LW + 2, WD + 3, -(gr.hi - gr.lo) - 3, { c: '#a89f8f' });
+  // main wing: front texture panel, solid body, cornice, crenellations
+  bx('utvWall', M, -LW / 2, LW / 2, 0, H, -WD / 2, WD / 2 - 0.02, { c: '#ffffff' });
+  panel('utvFront', LW, 17, { M: mul(M, tr(0, 0, WD / 2 + 0.01)), uvk: [1, 1] });
+  bx('flat', M, -LW / 2 - 0.4, LW / 2 + 0.4, H, H + 0.7, -WD / 2 - 0.4, WD / 2 + 0.5, { c: '#e5c4ae' });
+  crenel(mul(M, tr(0, H + 0.7, WD / 2 + 0.4)), LW + 0.8, { c: '#e0b9a2' }); crenel(mul(M, mul(rotY(PI), tr(0, H + 0.7, WD / 2 + 0.4))), LW + 0.8, { c: '#e0b9a2' });
+  // end towers
+  for (const sg of [-1, 1]) {
+    const Mt = mul(M, tr(sg * (LW / 2 - 4.2), 0, 1.5)), TH = 22.5;
+    bx('utvWall', Mt, -4.8, 4.8, 0, TH, -5.4, 5.4, { c: '#ffffff' });
+    bx('flat', Mt, -5.4, 5.4, TH, TH + 0.8, -6.0, 6.0, { c: '#e5c4ae' });
+    for (let q = 0; q < 4; q++) crenel(mul(Mt, mul(rotY(q * PI / 2), tr(0, TH + 0.8, q % 2 ? 5.9 : 5.5))), q % 2 ? 11.6 : 10.8, { c: '#e0b9a2' });
+  }
+  // the round bastion and the terrace wall at the foot (north-west blob of the footprint)
+  const bxw = -510.5, bzw = -3985.0, by = Math.max(gr.hi - 1.5, groundY(bxw, bzw));
+  cyl('stone', 12.5, 13.5, by - groundY(bxw, bzw) + 3.2, 16, { p: [bxw, groundY(bxw, bzw) - 1.5, bzw], c: '#b9ad98' });
+  lathe('stone', [[12.5, 0], [12.5, 0.9], [11.5, 0.9]], 16, { p: [bxw, by + 1.7, bzw], c: '#c9bda7' });
+  // a long retaining wall in front of the castle, with crenellated coping
+  const Mw = mul(M, tr(0, 0, WD / 2 + 7));
+  bx('stone', Mw, -LW / 2 + 2, LW / 2 - 6, -(gr.hi - gr.lo) - 3, 0.2, -1.0, 1.0, { c: '#b5aa96' });
+  crenel(mul(Mw, tr(0, 0.2, 1.0)), LW - 8, { c: '#c4b8a0' });
+  // roof terrace details
+  box('flat', 8, 2.4, 6, { M: mul(M, tr(-6, H + 0.7, -3)), c: '#d6b49e' });
+  return end('Castello Utveggio');
+}
+export const UTVEGGIO = { name: 'Castello Utveggio', x: -503, z: -4000, radius: 80, skipIds: [FP.utveggio.id], build: buildUtveggio };
+
+// ====================================================================================================
+// 4. Santuario di Santa Rosalia: ochre convent-church built against the cliff, with a clock gable and a stair up from the road
+// ====================================================================================================
+function buildSantuario() {
+  initShared();
+  const pts = pairsOf(FP.santuario.p), gr = groundRange(pts), ob = obb(pts);
+  const fr = facing(ob, 0.35, 1);
+  const gy = gr.hi + 0.2, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
+  begin(gy);
+  const W = fr.w + 3, Dp = fr.d, H = 13.2;
+  defMat('sanFront', 512, 256, [W, H], (g, w, h) => paintFacade(g, w, h, W, H, { base: '#e2bf7f', trim: '#f2e8cf', glass: '#2c333b', seed: 611, plinth: { h: 0.9, c: '#a9a08a' },
+    bands: [{ y: 4.7, h: 0.3, c: '#f0e0b8' }, { y: 9.2, h: 0.3, c: '#f0e0b8' }, { y: 12.9, h: 0.3, c: '#f0e0b8' }],
+    rows: [{ y0: 1.5, y1: 3.8, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }, { y0: 5.7, y1: 8.4, n: 4, m: 2.4, w: 1.1, kind: 'rect', ped: true, shut: 'open', balc: true }, { y0: 10.1, y1: 12.2, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
+  defMat('sanSide', 256, 256, [6, 12], (g, w, h) => paintFacade(g, w, h, 6, 12, { base: '#d9b77a', trim: '#efe3c4', glass: '#2c333b', seed: 612, rows: [{ y0: 1.5, y1: 3.8, xs: [3], w: 1.0, kind: 'rect' }, { y0: 6, y1: 8.4, xs: [3], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
+  skirtDown('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#a8a08e' });
+  bx('sanSide', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.02, {});
+  panel('sanFront', W, H, { M: mul(M, tr(0, 0, Dp / 2 + 0.01)) });
+  bx('flat', M, -W / 2 - 0.4, W / 2 + 0.4, H, H + 0.5, -Dp / 2 - 0.4, Dp / 2 + 0.5, { c: '#ecdcb4' });
+  gable('tile', 'sanSide', mul(M, tr(0, H + 0.5, -2)), W - 0.5, Dp - 4, 0, 2.2, { ov: 0.6 });
+  // stone portal and the clock gable over the entrance
+  const MP = mul(M, tr(W * 0.18, 0, Dp / 2 + 0.01));
+  bx('tufa', MP, -1.6, 1.6, 0, 4.6, 0, 0.5, { c: '#d9cfb4' });
+  archBay('tufa', 3.4, 5.2, 1.9, 3.4, 0.6, { M: mul(MP, tr(0, 0, 0.2)), c: '#d9cfb4' });
+  bx('dark', MP, -0.9, 0.9, 0, 2.7, 0.25, 0.4, { noao: true });
+  const MC = mul(M, tr(W * 0.18, H + 0.5, Dp / 2 - 2.6));
+  bx('sanSide', MC, -2.2, 2.2, 0, 5.6, -2.0, 2.0, {}); bx('flat', MC, -2.5, 2.5, 5.6, 6.0, -2.3, 2.3, { c: '#ecdcb4' });
+  pyramid('tile', 5.0, 4.6, 2.6, { M: mul(MC, tr(0, 6.0, 0)) });
+  box('marble', 1.5, 1.5, 0.15, { M: mul(MC, tr(0, 3.2, 2.05)), c: '#f2eee4' }); box('dark', 0.9, 1.2, 0.1, { M: mul(MC, tr(-1.2, 1.1, 2.05)), noao: true });
+  // stairs up from the road
+  for (let i = 0; i < 18; i++) bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -i * 0.38 - 0.02, -i * 0.38 + 0.18 + 0.0, Dp / 2 + 0.6 + i * 0.46, Dp / 2 + 0.6 + i * 0.46 + 0.5, { c: '#b5ad9b' });
+  bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -8, -0.05, Dp / 2 + 0.4, Dp / 2 + 8.8, { c: '#a9a190' });
+  // the cliff behind and beside the church: tilted rock slabs
+  const r_ = RNG(613);
+  for (let i = 0; i < 7; i++) {
+    const x = -W / 2 - 3 + i * 6.2, hh = 24 + r_() * 14, zz = -Dp / 2 - 2 - r_() * 4;
+    box('rock', 8 + r_() * 5, hh, 7 + r_() * 4, { M: mul(M, tr(x, -2, zz)), rx: -0.1 - r_() * 0.15, rz: (r_() - 0.5) * 0.25, ry: (r_() - 0.5) * 0.5, c: '#d6cdbd', noao: true });
+  }
+  for (const sg of [1]) for (let i = 0; i < 3; i++) box('rock', 9, 22 + i * 6, 9, { M: mul(M, tr(W / 2 + 3 + i * 4, -2, -Dp / 2 + 3 - i * 5)), rz: 0.15, ry: 0.3 * i, c: '#d6cdbd', noao: true });
+  return end('Santuario di Santa Rosalia');
+}
+export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };

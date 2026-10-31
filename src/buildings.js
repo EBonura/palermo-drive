@@ -899,7 +899,23 @@ function buildLookups(data = D) {
     }
     return { d: best, r: br };
   };
-  return { inBuilding, roadNear };
+  // Buildings whose footprint lies inside another building of about the same height (duplicate OSM outlines): drawing both
+  // gives coplanar walls and roofs that z-fight, so the smaller one is dropped.
+  const dupIds = new Set();
+  data.buildings.forEach((A, i) => {
+    const q = binfo[i], ring = q.pts; let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
+    const seen = new Set(), areaA = Math.abs(signedArea(ring)), hA = A.r !== undefined ? A.r : A.h;
+    for (let gx = Math.floor(q.x0 / BC); gx <= Math.floor(q.x1 / BC); gx++) for (let gz = Math.floor(q.z0 / BC); gz <= Math.floor(q.z1 / BC); gz++) for (const j of bgrid.get(gx * 100003 + gz) || []) {
+      if (j === i || seen.has(j)) continue; seen.add(j);
+      const Bq = data.buildings[j], rb = binfo[j]; if (A.holes || Bq.holes && Bq.holes.length) continue;
+      const hB = Bq.r !== undefined ? Bq.r : Bq.h; if (Math.abs(hA - hB) > 2) continue;
+      const areaB = Math.abs(signedArea(rb.pts)); if (areaA > areaB || (areaA === areaB && i < j)) continue;
+      if (!inPoly(rb.pts, cx, cz)) continue;
+      let inside = 0; for (const p of ring) if (inPoly(rb.pts, cx + (p[0] - cx) * 0.9, cz + (p[1] - cz) * 0.9)) inside++;
+      if (inside >= ring.length * 0.85) { dupIds.add(A.id); break; }
+    }
+  });
+  return { inBuilding, roadNear, dupIds };
 }
 
 const hh = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -962,7 +978,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   const t0 = performance.now();
   const { matMain, matRail } = yield* sharedIter();
   if (tile) applyDistrictHeights(data); // district-typical storeys where the baked height is only the generic estimate (idempotent; world.js may call it on tile load)
-  const { inBuilding, roadNear } = buildLookups(data);
+  const { inBuilding, roadNear, dupIds } = buildLookups(data);
   const white = new THREE.Color(1, 1, 1);
 
   let chunks = new Map(); const CH = tile ? 250 : 400;
@@ -1033,11 +1049,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   }
 
   // ---------- one solid (footprint extruded to a roof elevation) ----------
-  function emitSolid(B, flat, holes, roofY) {
+  function emitSolid(B, flat, holes, roofY, stack) {
     const S = B.S, r = B.r, ch = B.ch, gbuf = ch.m;
     const outerPts = pairs(flat);
     let lo = Infinity, hi = -Infinity;
     for (const p of outerPts) { const y = groundY(p[0], p[1]); lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    if (stack !== undefined) { lo = stack; hi = stack - 1.3; }
     roofY = Math.max(roofY, hi + 2.5);
     let area = signedArea(outerPts); if (area < 0) outerPts.reverse(); area = Math.abs(area);
 
@@ -1066,7 +1083,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     const parH = pitched ? 0 : S.parapet;
     const yTop = roofY - (pitched ? rise : parH);
     const sp = B.spec || NOSPEC;
-    const F = calcFloors(S, yTop - lo, B.lv, sp);
+    const F = stack !== undefined ? { g0: 0.3, nUp: Math.max(1, Math.round((yTop - lo - 0.3) / S.fh)) } : calcFloors(S, yTop - lo, B.lv, sp);
     let yg = lo + F.g0;
     if (yg < hi + 1.6 && F.nUp > 0) yg = Math.min(hi + 1.6, yTop - 1);
     const nUp = F.nUp, fh = nUp ? (yTop - yg) / nUp : 0;
@@ -1094,7 +1111,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const col = B.col, L = LID;
       const kc = t => (t === 0 && E.reflexA) || (t === 1 && E.reflexB) ? 0.86 : 1;
       const strip = (t0, t1, yb0, yb1, yt0, yt1, v0, v1, lay, k0, k1, u0, u1) => {
-        const x0 = ax + dx * t0, z0 = az + dz * t0, x1 = ax + dx * t1, z1 = az + dz * t1;
+        const so = stack !== undefined ? 0.03 : 0; // stacked volumes sit 3 cm proud of the base mass parapet below them
+        const x0 = ax + dx * t0 + nx * so, z0 = az + dz * t0 + nz * so, x1 = ax + dx * t1 + nx * so, z1 = az + dz * t1 + nz * so;
         const c0 = kc(t0), c1 = kc(t1), j0 = 0.95 + 0.1 * hh(x0, z0), j1 = 0.95 + 0.1 * hh(x1, z1);
         gbuf.q([x0, yb0, z0, u0, v0, k0 * c0 * j0], [x1, yb1, z1, u1, v0, k0 * c1 * j1], [x1, yt1, z1, u1, v1, k1 * c1 * j1], [x0, yt0, z0, u0, v1, k1 * c0 * j0], nx, 0, nz, lay, col);
       };
@@ -1127,7 +1145,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             if (W.portal && W.portal.bay === i && (W.portal.wall === undefined || (bm && W.portal.wall === bm.i))) lay = 'g_arch';
             addRun(lay); prev = lay;
           }
-        } else for (let i = 0; i < nb; i++) { const q = r(); addRun(q < 0.12 ? 'g_door2' : q < 0.25 ? 'g_win' : 'blank_g'); }
+        } else for (let i = 0; i < nb; i++) { const q = r(); addRun(stack !== undefined ? 'blank_g' : q < 0.12 ? 'g_door2' : q < 0.25 ? 'g_win' : 'blank_g'); }
         let i0 = 0;
         for (const run of runs) {
           const t0 = i0 / nb, t1 = (i0 + run.n) / nb;
@@ -1216,9 +1234,10 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
         let kind;
         if (ring.hole) kind = 'court';
+        else if (stack !== undefined) kind = 'back';
         else if (inBuilding(mx + nx * 0.6, mz + nz * 0.6) || inBuilding(mx + nx * 1.3, mz + nz * 1.3)) kind = 'party';
         else kind = roadNear(mx + nx * 2.2, mz + nz * 2.2).d < 3.2 ? 'street' : 'back';
-        edge({ ax: a[0], az: a[1], bx: b[0], bz: b[1], dx, dz, ux, uz, nx, nz, len, reflexA: crossA < -0.05, reflexB: crossB < -0.05, kind, ga: groundY(a[0], a[1]), gb: groundY(b[0], b[1]) });
+        edge({ ax: a[0], az: a[1], bx: b[0], bz: b[1], dx, dz, ux, uz, nx, nz, len, reflexA: crossA < -0.05, reflexB: crossB < -0.05, kind, ga: stack !== undefined ? stack + 0.3 : groundY(a[0], a[1]), gb: stack !== undefined ? stack + 0.3 : groundY(b[0], b[1]) });
       }
     }
 
@@ -1244,6 +1263,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if (Math.hypot(ra[0] - rb[0], ra[1] - rb[1]) > 0.05) gbuf.tUp(Eave(a), Rid(b, rb), Rid(a, ra), lay, B.roofCol);
       }
     }
+    return yTop;
   }
 
   // ---------- all buildings ----------
@@ -1254,7 +1274,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     const tStart = performance.now();
     stats.styles = {}; stats.balconies = 0; stats.tanks = 0; stats.tiled = 0; stats.flat = 0; stats.specs = 0; stats.photo = 0; stats.osmCol = 0;
     for (const b of data.buildings) {
-      if (ctx.skip.has(b.id)) continue;
+      if (ctx.skip.has(b.id) || dupIds.has(b.id)) continue;
       if ((++nb & 3) === 0) yield;
       const r = rng(b.c * 7919 + 13);
       const solids = [];
@@ -1279,7 +1299,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         else solids.push([b.p, b.holes, street + (nFl ? H0 : b.h)]);
       } else {
         if (!b.split) solids.push([b.p, b.holes, b.r + shift]);
-        for (const [poly, rr] of b.parts || []) solids.push([poly, null, rr + shift]);
+        // upper parts of an unsplit building stand on the base mass (their walls start at its roof, never coplanar with its own walls)
+        for (const [poly, rr] of b.parts || []) solids.push(b.split ? [poly, null, rr + shift] : [poly, null, rr + shift, true]);
       }
       let S = STYLES[key];
       if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
@@ -1310,7 +1331,10 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       if (S.ind) { B.terrLay = LID.roof_metal; B.pitchLay = LID.roof_metal; } else if (S.ruin) B.terrLay = LID.rubble; else if (Z.beach) { B.terrLay = LID.deck; B.pitchLay = LID.deck; }
       const flatTint = 0.88 + 0.2 * r();
       B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
-      for (const [flat, holes, roofY] of solids) emitSolid(B, flat, holes, roofY);
+      let stackY;
+      for (const [flat, holes, roofY, stacked] of solids) {
+        if (stacked) { if (stackY === undefined || roofY <= stackY + 0.4) continue; emitSolid(B, flat, holes, roofY, stackY); } else { const y = emitSolid(B, flat, holes, roofY); if (stackY === undefined && !b.split) stackY = y; }
+      }
     }
     let tris = 0, nm = 0;
     for (const m of meshesOut) { group.remove(m); m.geometry.dispose(); }
