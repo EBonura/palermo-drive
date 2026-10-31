@@ -1694,6 +1694,7 @@ export function buildProps(ctx) {
   const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
     signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
     shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
+  const WHITE_IC = new THREE.Color(1, 1, 1);
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   for (const [name, cells] of Object.entries(buckets)) {
     const M = MODELS[name], per = M.geo.attributes.position.count / 3;
@@ -1703,7 +1704,9 @@ export function buildProps(ctx) {
       for (let i = 0; i < n; i++) {
         q4.setFromAxisAngle(up, e.m[i * 5 + 3]); s3.setScalar(e.m[i * 5 + 4]);
         m4.compose(p3.set(e.m[i * 5], e.m[i * 5 + 1], e.m[i * 5 + 2]), q4, s3); im.setMatrixAt(i, m4);
-        if (M.tint) im.setColorAt(i, col.setRGB(e.c[i * 3], e.c[i * 3 + 1], e.c[i * 3 + 2]));
+        // [perf pass] every pooled mesh gets an instance colour (white when untinted): the shared materials otherwise flip between
+        // 'with / without instanceColor' from one mesh to the next and three re-derives the program parameters (a few MB of garbage per frame).
+        im.setColorAt(i, M.tint ? col.setRGB(e.c[i * 3], e.c[i * 3 + 1], e.c[i * 3 + 2]) : WHITE_IC);
       }
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();

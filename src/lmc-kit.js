@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundY, rng } from './core.js';
 
-export { THREE, groundY };
+export { groundY };
 export const PI = Math.PI;
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
