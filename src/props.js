@@ -3,6 +3,7 @@
 // bucketed into 300 m cells so frustum culling still works.
 import * as THREE from 'three';
 import { D, groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
+const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
 const C = h => new THREE.Color(h);
@@ -746,7 +747,7 @@ function makePhysics(env) {
       c.py = ground + low;
       if (c.vy < 0) c.vy = -c.vy * 0.28;
       c.vx *= 0.82; c.vz *= 0.82; c.w.multiplyScalar(0.7);
-      if (Math.abs(c.vy) < 1.1 && Math.hypot(c.vx, c.vz) < 2.2) c.settle = (c.settle || 0) + dt;
+      if (Math.abs(c.vy) < 1.1 && hyp2(c.vx, c.vz) < 2.2) c.settle = (c.settle || 0) + dt;
     }
     if (c.settle > 0.15) { // blend to the nearest resting pose
       c.vx *= 0.9; c.vz *= 0.9; c.vy = 0; c.w.set(0, 0, 0);
@@ -756,7 +757,7 @@ function makePhysics(env) {
       qd.setFromUnitVectors(axw, up); const target = qd.multiply(c.q.clone());
       c.q.slerp(target, 0.15);
       c.py += (ground + he[bi] - c.py) * 0.2;
-      if (best > 0.995 && Math.hypot(c.vx, c.vz) < 0.2) { // at rest: now a solid wreck
+      if (best > 0.995 && hyp2(c.vx, c.vz) < 0.2) { // at rest: now a solid wreck
         const ghost = c.sp.ghost; c.st = 'rest'; c.x = c.px; c.z = c.pz; c.circ = [[0, 0, Math.max(he[0], he[2]) * 0.8]]; c.sp = { kind: 'solid', c: c.circ, he: he, hc: c.sp.hc }; if (!ghost) gAdd(c);
         const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
       }
@@ -782,8 +783,8 @@ function makePhysics(env) {
           b.y = g0; b.vy = -b.vy * (k === 'bag' ? 0.3 : 0.25);
           const f = k === 'bottle' ? 0.985 : k === 'board' ? 0.9 : 0.7; b.vx *= f; b.vz *= f; b.spin *= 0.9;
           if (k === 'board') { b.tv *= 0.5; b.tilt += (Math.round(b.tilt / Math.PI) * Math.PI - b.tilt) * 0.3; }
-          if (k === 'bottle') { const sp = Math.hypot(b.vx, b.vz); b.roll += sp * dt / 0.035; if (sp > 0.05) b.rot = Math.atan2(b.vx, b.vz); if (sp < 0.12 && Math.abs(b.vy) < 0.5) b.rest = true; }
-          else if (Math.abs(b.vy) < 0.6 && Math.hypot(b.vx, b.vz) < 0.8) { b.rest = true; if (k === 'board') b.tilt = Math.round(b.tilt / Math.PI) * Math.PI; }
+          if (k === 'bottle') { const sp = hyp2(b.vx, b.vz); b.roll += sp * dt / 0.035; if (sp > 0.05) b.rot = Math.atan2(b.vx, b.vz); if (sp < 0.12 && Math.abs(b.vy) < 0.5) b.rest = true; }
+          else if (Math.abs(b.vy) < 0.6 && hyp2(b.vx, b.vz) < 0.8) { b.rest = true; if (k === 'board') b.tilt = Math.round(b.tilt / Math.PI) * Math.PI; }
         } else if (k === 'bottle') b.roll += 6 * dt;
         b.dirty = true; D2.dirty = true;
       }
@@ -811,7 +812,7 @@ function makePhysics(env) {
     if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); }
     if (DEB.bag.n || DEB.board.n || DEB.bottle.n || leaves.length) stepDebris(dt);
     if (broken.size && (++tick % 60) === 0 && camPos) {
-      for (const c of broken) if (simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && Math.hypot(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && Math.hypot(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
+      for (const c of broken) if (simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && hyp2(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && hyp2(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
     }
     const sn = Math.sin(pc.th), cs = Math.cos(pc.th);
     for (let sg = 1; sg >= -1; sg -= 2) {
@@ -825,7 +826,7 @@ function makePhysics(env) {
           for (const [ox, oz, r0] of c.circ) {
             const r = SCALE_R.has(c.model) ? r0 * ss : r0;
             const wx = c.x + (ox * cr + oz * sr) * (c.st === 'rest' ? 0 : 1), wz = c.z + (-ox * sr + oz * cr) * (c.st === 'rest' ? 0 : 1);
-            let nx = px - wx, nz = pz - wz, d = Math.hypot(nx, nz); const rs = PR + r;
+            let nx = px - wx, nz = pz - wz, d = hyp2(nx, nz); const rs = PR + r;
             if (d >= rs) continue;
             if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
             const arm = a * (cs * nx - sn * nz);
@@ -934,7 +935,7 @@ export function buildProps(ctx) {
           const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz;
           if (l2 < 0.01) continue;
           const t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2)), px = A[0] + dx * t, pz = A[1] + dz * t;
-          const d = Math.hypot(x - px, z - pz);
+          const d = hyp2(x - px, z - pz);
           if (d < maxd && (!best || d < best.d)) {
             const l = Math.sqrt(l2); let nx = dz / l, nz = -dx / l;
             if (inB(px + nx * 0.4, pz + nz * 0.4)) { nx = -nx; nz = -nz; }
@@ -979,7 +980,7 @@ export function buildProps(ctx) {
   for (const j of junctions) { const k = rkey(Math.floor(j.x / RC), Math.floor(j.z / RC)); let q = jgrid.get(k); if (!q) jgrid.set(k, q = []); q.push(j); }
   function nearJunction(x, z, r) {
     for (let i = Math.floor((x - r) / RC); i <= Math.floor((x + r) / RC); i++) for (let j = Math.floor((z - r) / RC); j <= Math.floor((z + r) / RC); j++) {
-      const a = jgrid.get(rkey(i, j)); if (a) for (const q of a) if (Math.hypot(q.x - x, q.z - z) < r) return q;
+      const a = jgrid.get(rkey(i, j)); if (a) for (const q of a) if (hyp2(q.x - x, q.z - z) < r) return q;
     }
     return null;
   }
@@ -990,7 +991,7 @@ export function buildProps(ctx) {
       const a = rgrid.get(rkey(i, j)); if (!a) continue;
       for (const s of a) {
         const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (l2 < 1e-6) continue;
-        const t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)), px = s[0] + dx * t, pz = s[1] + dz * t, d = Math.hypot(x - px, z - pz);
+        const t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)), px = s[0] + dx * t, pz = s[1] + dz * t, d = hyp2(x - px, z - pz);
         if (d < maxd && (!best || d < best.d)) { const l = Math.sqrt(l2); best = { d, px, pz, tx: dx / l, tz: dz / l, road: D.roads[s[4]] }; }
       }
     }
@@ -1007,7 +1008,7 @@ export function buildProps(ctx) {
   for (const r of D.roads) {
     const v = MARKET_RE.test(r.n || '') ? 2 : POOR_RE.test(r.n || '') ? 1 : 0; if (!v) continue;
     const p = pairs(r.p);
-    for (let i = 0; i < p.length - 1; i++) { const L = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); for (let s = 0; s <= L; s += 15) hotAdd(p[i][0] + (p[i + 1][0] - p[i][0]) * s / Math.max(L, 1e-6), p[i][1] + (p[i + 1][1] - p[i][1]) * s / Math.max(L, 1e-6), v); }
+    for (let i = 0; i < p.length - 1; i++) { const L = hyp2(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); for (let s = 0; s <= L; s += 15) hotAdd(p[i][0] + (p[i + 1][0] - p[i][0]) * s / Math.max(L, 1e-6), p[i][1] + (p[i + 1][1] - p[i][1]) * s / Math.max(L, 1e-6), v); }
     hotAdd(p[p.length - 1][0], p[p.length - 1][1], v);
   }
   const CLASS_SQ = { primary: 0.2, secondary: 0.3, tertiary: 0.5, unclassified: 0.55, residential: 0.65, living_street: 0.5, service: 0.75 };
@@ -1015,7 +1016,7 @@ export function buildProps(ctx) {
     let best = 0;
     for (let i = Math.floor((x - 110) / 100); i <= Math.floor((x + 110) / 100); i++) for (let j = Math.floor((z - 110) / 100); j <= Math.floor((z + 110) / 100); j++) {
       const a = hotGrid.get(hk(i, j)); if (!a) continue;
-      for (let q = 0; q < a.length; q += 3) { const d = Math.hypot(a[q] - x, a[q + 1] - z); const f = a[q + 2] === 2 ? (d < 45 ? 1 : d < 110 ? 0.8 : 0) : (d < 90 ? 0.85 : 0); if (f > best) best = f; }
+      for (let q = 0; q < a.length; q += 3) { const d = hyp2(a[q] - x, a[q + 1] - z); const f = a[q + 2] === 2 ? (d < 45 ? 1 : d < 110 ? 0.8 : 0) : (d < 90 ? 0.85 : 0); if (f > best) best = f; }
     }
     if (best >= 0.8) return best;
     const nr = nearRoad(x, z, 18);
@@ -1030,7 +1031,7 @@ export function buildProps(ctx) {
   function occHit(x, z, r) {
     for (let i = Math.floor((x - r - 3) / 4); i <= Math.floor((x + r + 3) / 4); i++) for (let j = Math.floor((z - r - 3) / 4); j <= Math.floor((z + r + 3) / 4); j++) {
       const a = occ.get(okey(i, j)); if (!a) continue;
-      for (let q = 0; q < a.length; q += 3) if (Math.hypot(a[q] - x, a[q + 1] - z) < a[q + 2] + r) return true;
+      for (let q = 0; q < a.length; q += 3) if (hyp2(a[q] - x, a[q + 1] - z) < a[q + 2] + r) return true;
     }
     return false;
   }
@@ -1054,7 +1055,7 @@ export function buildProps(ctx) {
   // ---------- 1. real OSM furniture
   const osm = P.items.filter(i => inBounds(i.x, i.z));
   const taken = (it, r) => { occAdd(it.x, it.z, r); };
-  const nearAny = (list, x, z, r) => list.some(q => Math.hypot(q.x - x, q.z - z) < r);
+  const nearAny = (list, x, z, r) => list.some(q => hyp2(q.x - x, q.z - z) < r);
   const lampsReal = [];
   const treeKind = (it) => {
     const s = (it.ge || '') + ' ' + (it.sp || '');
@@ -1114,7 +1115,7 @@ export function buildProps(ctx) {
       put('monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
     }
     if (k === 'fountain') {
-      if (Math.hypot(it.x, it.z) < 70 || Math.hypot(it.x - proj(38.1151, 13.3622)[0], it.z - proj(38.1151, 13.3622)[1]) < 50) continue; // landmarks handles Quattro Canti and Pretoria
+      if (hyp2(it.x, it.z) < 70 || hyp2(it.x - proj(38.1151, 13.3622)[0], it.z - proj(38.1151, 13.3622)[1]) < 50) continue; // landmarks handles Quattro Canti and Pretoria
       if (inB(it.x, it.z)) continue;
       put('fountain', it.x, gy(it.x, it.z), it.z, 0); occAdd(it.x, it.z, 2); continue;
     }
@@ -1130,7 +1131,7 @@ export function buildProps(ctx) {
     if (a.k !== 'tree_row') continue;
     const p = pairs(a.p);
     for (let i = 0; i < p.length - 1; i++) {
-      const A = p[i], B = p[i + 1], L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      const A = p[i], B = p[i + 1], L = hyp2(B[0] - A[0], B[1] - A[1]);
       for (let s = 2; s < L; s += 7) placeTree(A[0] + (B[0] - A[0]) * s / L, A[1] + (B[1] - A[1]) * s / L, pick(['orange', 'orange', 'tree', 'ficus']));
     }
   }
@@ -1143,7 +1144,7 @@ export function buildProps(ctx) {
     for (const it of osm) {
       if (it.k !== 'shop' || !awnTypes.has(it.shop) || rand() < 0.35) continue;
       const w = nearWall(it.x, it.z, 7); if (!w) continue;
-      if (placed.some(q => Math.hypot(q[0] - w.px, q[1] - w.pz) < 3.2)) continue;
+      if (placed.some(q => hyp2(q[0] - w.px, q[1] - w.pz) < 3.2)) continue;
       const ox = w.px + w.nx * 1.5, oz = w.pz + w.nz * 1.5;
       if (inB(ox, oz) || (asphalt(ox, oz) && !raisedMask(ox, oz) && !paving(ox, oz))) continue;   // no awnings over the carriageway
       const ey = groundY(w.px, w.pz) + (raisedMask(ox, oz) ? CURB : 0);
@@ -1171,7 +1172,7 @@ export function buildProps(ctx) {
     };
     for (const it of osm) {
       if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
-      if (done.some(d => Math.hypot(d[0] - it.x, d[1] - it.z) < 10)) continue;
+      if (done.some(d => hyp2(d[0] - it.x, d[1] - it.z) < 10)) continue;
       const nr = nearRoad(it.x, it.z, 5); if (!nr || !road(nr.px, nr.pz)) continue;
       if (nr.road.k === 'service' && rand() < 0.5) continue;
       zebra(nr.px, nr.pz, nr.tx, nr.tz);
@@ -1183,9 +1184,9 @@ export function buildProps(ctx) {
         const r = D.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
         const p = pairs(r.p); let idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx < 0) continue;
         const o = idx === 0 ? p[1] : idx === p.length - 1 ? p[p.length - 2] : p[idx + 1]; if (!o) continue;
-        const L = Math.hypot(o[0] - j.x, o[1] - j.z); if (L < 14) continue;
+        const L = hyp2(o[0] - j.x, o[1] - j.z); if (L < 14) continue;
         const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, cx = j.x + tx * 6.5, cz = j.z + tz * 6.5;
-        if (done.some(d => Math.hypot(d[0] - cx, d[1] - cz) < 12) || !road(cx, cz) || rand() < 0.35) continue;
+        if (done.some(d => hyp2(d[0] - cx, d[1] - cz) < 12) || !road(cx, cz) || rand() < 0.35) continue;
         zebra(cx, cz, tx, tz);
       }
     }
@@ -1197,14 +1198,14 @@ export function buildProps(ctx) {
 
   const QC5 = proj(38.1151, 13.3622);
   // ---------- 4. procedural street lamps
-  const lampNear = (x, z, r) => lampsReal.some(q => Math.hypot(q.x - x, q.z - z) < r) || occHit(x, z, r * 0.5);
+  const lampNear = (x, z, r) => lampsReal.some(q => hyp2(q.x - x, q.z - z) < r) || occHit(x, z, r * 0.5);
   {
     // tall pole lamps along the curbs of the wide streets
     const lampPts = [];
     for (const flat of D.streets.curbs) {
       const p = pairs(flat); let acc = R(0, 25);
       for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.01) continue;
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 0.01) continue;
         const nx = -dz / L, nz = dx / L;
         for (let s = acc; s < L; s += 34 + R(0, 8)) {
           const x = a[0] + dx * s / L - nx * 0.55, z = a[1] + dz * s / L - nz * 0.55;
@@ -1212,8 +1213,8 @@ export function buildProps(ctx) {
           if (!inBounds(x, z) || !raisedMask(x, z) || inB(x, z)) continue;
           const nr = nearRoad(x, z, 14); if (!nr || !(nr.road.k === 'primary' || nr.road.k === 'secondary' || nr.road.k === 'tertiary')) continue;
           if (nr.road.k === 'tertiary' && rand() < 0.45) continue;
-          if (lampNear(x, z, 20) || lampPts.some(q => Math.hypot(q[0] - x, q[1] - z) < 22) || nearWall(x, z, 0.5)) continue;
-          if (nearJunction(x, z, 4) || Math.hypot(x, z) < 45 || Math.hypot(x - QC5[0], z - QC5[1]) < 50) continue;
+          if (lampNear(x, z, 20) || lampPts.some(q => hyp2(q[0] - x, q[1] - z) < 22) || nearWall(x, z, 0.5)) continue;
+          if (nearJunction(x, z, 4) || hyp2(x, z) < 45 || hyp2(x - QC5[0], z - QC5[1]) < 50) continue;
           lampPts.push([x, z]);
           put('lamp_pole', x, gy(x, z), z, Math.atan2(nx, nz) + Math.PI / 2); occAdd(x, z, 0.5);
         }
@@ -1228,11 +1229,11 @@ export function buildProps(ctx) {
     for (const o of bl) {
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
-        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
         if (L < 7) continue;
         const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
         if (!inBounds(cxm, czm)) continue;
-        const dist = Math.hypot(cxm, czm), pk = Math.max(0.04, 0.5 - dist / 1700);
+        const dist = hyp2(cxm, czm), pk = Math.max(0.04, 0.5 - dist / 1700);
         let nx = dz / L, nz = -dx / L;
         if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         for (let s = R(3, 14); s < L - 3; s += R(22, 38)) {
@@ -1258,9 +1259,9 @@ export function buildProps(ctx) {
       const pts = pairs(a.p), area = Math.abs(signedArea(pts));
       if (area < 600 || area > 25000) continue;
       const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-      if (!inBounds(cx, cz) || Math.hypot(cx, cz) > 1100) continue;
+      if (!inBounds(cx, cz) || hyp2(cx, cz) > 1100) continue;
       for (let i = 0; i < pts.length; i++) {
-        const A = pts[i], B = pts[(i + 1) % pts.length], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 5) continue;
+        const A = pts[i], B = pts[(i + 1) % pts.length], L = hyp2(B[0] - A[0], B[1] - A[1]); if (L < 5) continue;
         const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
         const inward = inPoly(pts, A[0] + (-uz) * 1.5, A[1] + ux * 1.5) ? 1 : -1;
         for (let s = 3; s < L - 2; s += 24) {
@@ -1279,7 +1280,7 @@ export function buildProps(ctx) {
     for (const poly of D.streets.paving) {
       const ring = pairs(poly[0]);
       for (let i = 0; i < ring.length && n < cap; i++) {
-        const A = ring[i], B = ring[(i + 1) % ring.length], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 1) continue;
+        const A = ring[i], B = ring[(i + 1) % ring.length], L = hyp2(B[0] - A[0], B[1] - A[1]); if (L < 1) continue;
         const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
         for (let s = 0.5; s < L; s += 6.5) {
           const x = A[0] + ux * s, z = A[1] + uz * s;
@@ -1321,12 +1322,12 @@ export function buildProps(ctx) {
       const state = [rand() < 0.6, rand() < 0.6];
       let binGap = R(10, 40);
       for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.5) continue;
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 0.5) continue;
         const tx = dx / L, tz = dz / L, rx = -tz, rz = tx;   // right of travel
         for (let s = carry; s < L; s += 5.7) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s;
           if (!inBounds(cx, cz, 10)) continue;
-          const dC = Math.hypot(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500);
+          const dC = hyp2(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500);
           const jn = nearJunction(cx, cz, 8);
           for (let side = 0; side < 2; side++) {
             const sg = side ? -1 : 1, nx = rx * sg, nz = rz * sg;
@@ -1396,13 +1397,13 @@ export function buildProps(ctx) {
     for (const o of bl) {
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
-        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
         if (L < 6) continue;
         const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
         if (!inBounds(cxm, czm, 10)) continue;
         let nx = dz / L, nz = -dx / L;
         if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
-        const dist = Math.hypot(cxm, czm), pk = 0.075 * Math.max(0.2, 1 - dist / 1500);
+        const dist = hyp2(cxm, czm), pk = 0.075 * Math.max(0.2, 1 - dist / 1500);
         for (let s = R(1, 10); s < L - 1.5; s += R(18, 40)) {
           if (rand() > pk) continue;
           const x = A[0] + dx * s / L + nx * 0.62, z = A[1] + dz * s / L + nz * 0.62;
@@ -1417,7 +1418,7 @@ export function buildProps(ctx) {
     let a = 0;
     for (const [sx, sz] of spots) for (let t = 0; t < 400 && a < 14; t++) {
       const x = sx + R(-40, 40), z = sz + R(-40, 40);
-      if (inB(x, z) || !(paving(x, z) || raisedMask(x, z)) || occHit(x, z, 2.4) || nearWall(x, z, 2) || Math.hypot(x - sx, z - sz) < 14) continue;
+      if (inB(x, z) || !(paving(x, z) || raisedMask(x, z)) || occHit(x, z, 2.4) || nearWall(x, z, 2) || hyp2(x - sx, z - sz) < 14) continue;
       put(rand() < 0.65 ? 'apetaxi' : 'ape', x, gy(x, z), z, R(0, TAU)); occAdd(x, z, 2); a++;
     }
     stats.apetaxi = a;
@@ -1454,7 +1455,7 @@ export function buildProps(ctx) {
       const area = Math.abs(signedArea(pts)); if (area < 40 || area > 8000) continue;
       // principal axis from the longest edge
       let best = 0, ang = 0;
-      for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); if (l > best) { best = l; ang = Math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0]); } }
+      for (let i = 0; i < pts.length - 1; i++) { const l = hyp2(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); if (l > best) { best = l; ang = Math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0]); } }
       const ca = Math.cos(ang), sa = Math.sin(ang);
       const u = pts.map(p => p[0] * ca + p[1] * sa), v = pts.map(p => -p[0] * sa + p[1] * ca);
       const u0 = Math.min(...u), u1 = Math.max(...u), v0 = Math.min(...v), v1 = Math.max(...v);
@@ -1513,7 +1514,7 @@ export function buildProps(ctx) {
     for (const flat of D.streets.curbs) {
       const p = pairs(flat);
       for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 12) continue;
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 12) continue;
         const nx = -dz / L, nz = dx / L;
         for (let s = R(6, 20); s < L; s += R(11, 15)) {
           if (rand() > 0.35) continue;
@@ -1536,7 +1537,7 @@ export function buildProps(ctx) {
       if (a.k !== 'fence' || a.b === 'handrail') continue;
       const pts = pairs(a.p);
       for (let i = 0; i < pts.length - 1; i++) {
-        const A = pts[i], B = pts[i + 1], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 0.5 || L > 120) continue;
+        const A = pts[i], B = pts[i + 1], L = hyp2(B[0] - A[0], B[1] - A[1]); if (L < 0.5 || L > 120) continue;
         const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, n = Math.max(1, Math.round(L / 2.5));
         for (let k = 0; k < n; k++) {
           const x0 = A[0] + ux * L * k / n, z0 = A[1] + uz * L * k / n, x1 = A[0] + ux * L * (k + 1) / n, z1 = A[1] + uz * L * (k + 1) / n;
@@ -1609,7 +1610,7 @@ export function buildProps(ctx) {
     for (const o of bl) {
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
-        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
         if (L < 5) continue;
         const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2; if (!inBounds(cxm, czm, 8)) continue;
         let nx = dz / L, nz = -dx / L; if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
@@ -1644,7 +1645,7 @@ export function buildProps(ctx) {
     for (const flat of D.streets.curbs) {
       const p = pairs(flat);
       for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 4) continue;
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 4) continue;
         const nx = -dz / L, nz = dx / L;
         for (let s = RT(0, 10); s < L; s += RT(14, 34)) {
           const x = a[0] + dx * s / L, z = a[1] + dz * s / L; if (!inBounds(x, z, 8)) continue;
@@ -1660,7 +1661,7 @@ export function buildProps(ctx) {
       if (!MARKET_RE.test(r.n || '')) return;
       const p = pairs(r.p);
       for (let i = 0; i < p.length - 1; i++) {
-        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 1) continue;
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 1) continue;
         const tx = dx / L, tz = dz / L;
         for (let s = RT(1, 8); s < L; s += RT(7, 14)) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s; if (!inBounds(cx, cz, 8) || nearJunction(cx, cz, 5)) continue;
@@ -1720,7 +1721,8 @@ export function buildProps(ctx) {
   const cp = new THREE.Vector3(), prev = scene.onBeforeRender;
   scene.onBeforeRender = function (r, sc, camera, ...rest) {
     camera.getWorldPosition(cp);
-    for (const im of cellMeshes) { const b = im.boundingSphere; im.visible = Math.hypot(b.center.x - cp.x, b.center.y - cp.y, b.center.z - cp.z) - b.radius < im.userData.maxd; }
+    // [perf pass] sqrt instead of Math.hypot: hypot boxed a heap number per cell mesh per frame (~1300 meshes)
+    for (let i = 0; i < cellMeshes.length; i++) { const im = cellMeshes[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; im.visible = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius < im.userData.maxd; }
     phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };

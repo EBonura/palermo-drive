@@ -22,6 +22,7 @@ const CLASS = { // rank decides priority, v is the free speed in m/s, w the spaw
   unclassified: { r: 2, v: 10, w: 1.4 }, residential: { r: 2, v: 8.5, w: 1.5 }, living_street: { r: 1, v: 5.5, w: 0.6 },
   service: { r: 1, v: 5, w: 0.35 }, pedestrian: { r: 0, v: 2.8, w: 0.05 },
 };
+const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
 const R_SPAWN_MIN = 35, R_SPAWN_MAX = 215, R_FAR = 125, R_DESPAWN = 235, R_KEEP_UNSEEN = 150; // out of view: spawn within R_KEEP_UNSEEN, despawn beyond it
 const STEP = 1 / 30;
@@ -90,7 +91,7 @@ export function createTraffic(env) {
   };
   const EDGES = [];
   function addEdge(a, b, road, cls, ped, transit) {
-    const dx = NX[b] - NX[a], dz = NZ[b] - NZ[a], len = Math.hypot(dx, dz);
+    const dx = NX[b] - NX[a], dz = NZ[b] - NZ[a], len = hyp2(dx, dz);
     const round = road.j === 'roundabout';
     const e = {
       id: EDGES.length, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
@@ -109,7 +110,7 @@ export function createTraffic(env) {
     const p = r.p;
     for (let i = 0; i + 3 < p.length; i += 2) {
       const a = node(p[i], p[i + 1]), b = node(p[i + 2], p[i + 3]);
-      if (a === b || Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]) < 0.5) continue;
+      if (a === b || hyp2(p[i + 2] - p[i], p[i + 3] - p[i + 1]) < 0.5) continue;
       NDEG[a]++; NDEG[b]++;
       const f = r.o === -1 ? null : addEdge(a, b, r, cls, ped, transit), g = r.o === 1 ? null : addEdge(b, a, r, cls, ped, transit);
       if (f && g) { f.rev = g.id; g.rev = f.id; }
@@ -269,7 +270,7 @@ Object.assign(MODELS, buildPoliceModels());
   let time = 0, nextCand = 0, candCum = [], candEdges = [], candX = 1e9, candZ = 1e9, frames = 0;
   const frustum = new THREE.Frustum(), fm = new THREE.Matrix4(), fs = new THREE.Sphere(new THREE.Vector3(), 5), inv = new THREE.Matrix4();
   const SITES = [proj(38.1146, 13.3558), proj(38.1199, 13.3573), proj(38.115684, 13.361460)];
-  const nearSite = (x, z) => SITES.some(s => Math.hypot(s[0] - x, s[1] - z) < 280);
+  const nearSite = (x, z) => SITES.some(s => hyp2(s[0] - x, s[1] - z) < 280);
   const counts = {};
   let nextId = 0;
   const agentsOut = [];
@@ -302,7 +303,7 @@ Object.assign(MODELS, buildPoliceModels());
     else if (v.home && (v.x - v.home[0]) ** 2 + (v.z - v.home[1]) ** 2 > 90 * 90) { gx = v.home[0]; gz = v.home[1]; }
     else return;
     let lo = 1e9, hi = 0; const ds = [];
-    for (let i = 0; i < outs.length; i++) if (ws[i] > 0) { const d = ds[i] = Math.hypot(NX[outs[i].b] - gx, NZ[outs[i].b] - gz); if (d < lo) lo = d; if (d > hi) hi = d; }
+    for (let i = 0; i < outs.length; i++) if (ws[i] > 0) { const d = ds[i] = hyp2(NX[outs[i].b] - gx, NZ[outs[i].b] - gz); if (d < lo) lo = d; if (d > hi) hi = d; }
     for (let i = 0; i < outs.length; i++) if (ws[i] > 0) ws[i] *= away ? Math.exp(-(hi - ds[i]) / 40) : Math.exp(-(ds[i] - lo) / 30);
   }
   function extendRoute(v) {
@@ -360,12 +361,12 @@ Object.assign(MODELS, buildPoliceModels());
     const stub = { pref, ty };
     const off = laneOff(e, stub);
     const x = NX[e.a] + e.dx * t + e.rx * off, z = NZ[e.a] + e.dz * t + e.rz * off;
-    const dc = Math.hypot(x - camera.position.x, z - camera.position.z);
+    const dc = hyp2(x - camera.position.x, z - camera.position.z);
     if (dc < R_SPAWN_MIN) return false;
     if (dc < R_FAR && inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3)) return false;
     if (dc > R_KEEP_UNSEEN - 10 && !inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3)) return false; // would be culled at once
-    if (Math.hypot(x - car.x, z - car.z) < 18) return false;
-    for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return false;
+    if (hyp2(x - car.x, z - car.z) < 18) return false;
+    for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return false;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
       lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0,
@@ -390,11 +391,11 @@ Object.assign(MODELS, buildPoliceModels());
     const [pl, i] = list[(Math.random() * list.length) | 0], e = pl.edges[i], ty = TYPES[name];
     const t = ty.L * 0.5 + 1 + Math.random() * Math.max(0, e.len - ty.L - 2);
     const x = NX[e.a] + e.dx * t + e.rx * Math.min(e.w / 4, 2.6), z = NZ[e.a] + e.dz * t + e.rz * Math.min(e.w / 4, 2.6);
-    const dc = Math.hypot(x - camera.position.x, z - camera.position.z);
-    if (dc < R_SPAWN_MIN || Math.hypot(x - car.x, z - car.z) < 25) return false;
+    const dc = hyp2(x - camera.position.x, z - camera.position.z);
+    if (dc < R_SPAWN_MIN || hyp2(x - car.x, z - car.z) < 25) return false;
     if (dc < R_FAR && inView(x, groundY(x, z) + 1.5, z, 9)) return false;
     if (dc > R_KEEP_UNSEEN - 10 && !inView(x, groundY(x, z) + 1.5, z, 9)) return false;
-    for (const o of vs) if (Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 5) return false;
+    for (const o of vs) if (hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 5) return false;
     let si = 0; while (si < pl.stops.length && (pl.stops[si].i < i || (pl.stops[si].i === i && pl.stops[si].t < t + 8))) si++;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
@@ -651,7 +652,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (!ctx || ctx.state !== 'running' || a.vol <= 0) return;
     const now = ctx.currentTime;
     if (now - a.last < 0.8) return;
-    const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z), g = Math.max(0, 1 - d / 90);
+    const d = hyp2(v.x - camera.position.x, v.z - camera.position.z), g = Math.max(0, 1 - d / 90);
     if (g < 0.05) return;
     a.last = now;
     const f0 = v.ty.bus ? 185 : v.ty.scooter ? 520 : 330 + Math.random() * 70, beeps = Math.random() < 0.4 ? 2 : 1;
@@ -737,7 +738,7 @@ Object.assign(MODELS, buildPoliceModels());
     acc += Math.min(dt, 0.1);
     while (acc >= STEP) { acc -= STEP; stepAll(STEP); }
     cull(cx, cz);
-    if (time >= nextCand || Math.hypot(cx - candX, cz - candZ) > 40) { rebuildCandidates(cx, cz); nextCand = time + 0.7; }
+    if (time >= nextCand || hyp2(cx - candX, cz - candZ) > 40) { rebuildCandidates(cx, cz); nextCand = time + 0.7; }
     if (PLANS.length && (counts.bus || 0) < CAPS.bus && time >= nextBus) {
       nextBus = time + 1.2;
       rebuildBusCandidates(cx, cz);
@@ -772,7 +773,7 @@ Object.assign(MODELS, buildPoliceModels());
       f.vy -= G * dt; f.y += f.vy * dt;
       v.x += f.vx * dt; v.z += f.vz * dt;
       v.h += f.yaw * dt; v.pitch = (v.pitch || 0) + f.sp * dt; v.roll += f.sr * dt;
-      const speed = Math.hypot(f.vx, f.vz);
+      const speed = hyp2(f.vx, f.vz);
       if (f.y <= restY) {
         f.y = restY;
         if (f.vy < -1.8) { f.vy = -f.vy * 0.42; f.vx *= 0.72; f.vz *= 0.72; f.yaw *= 0.6; f.sp *= 0.5; f.sr *= 0.55; f.bounces++; }
@@ -787,7 +788,7 @@ Object.assign(MODELS, buildPoliceModels());
           const dx = o.x - v.x, dz = o.z - v.z, rr = (ty.L + o.ty.L) * 0.32;
           if (dx * dx + dz * dz > rr * rr) continue;
           f.hit.add(o.id);
-          const k = (o.ty.mass <= 1.3 ? 0.8 : 0.5) * (ty.mass >= 1.5 ? 1.1 : 1), d = Math.hypot(dx, dz) || 1;
+          const k = (o.ty.mass <= 1.3 ? 0.8 : 0.5) * (ty.mass >= 1.5 ? 1.1 : 1), d = hyp2(dx, dz) || 1;
           launch(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1);
           f.vx *= 0.55; f.vz *= 0.55;
           shoutAt(o); police.chaos(o.cop ? 'hitcop' : 'chain');
@@ -818,7 +819,7 @@ Object.assign(MODELS, buildPoliceModels());
       const cx = v.x + s * zo, cz = v.z + c * zo;
       walls2d.query(cx - r, cz - r, cx + r, cz + r, seg => {
         const q = closestOnSeg(v.x + s * zo, v.z + c * zo, seg);
-        const dx = v.x + s * zo - q[0], dz = v.z + c * zo - q[1], d = Math.hypot(dx, dz);
+        const dx = v.x + s * zo - q[0], dz = v.z + c * zo - q[1], d = hyp2(dx, dz);
         if (d < r && d > 1e-4) { v.x += dx / d * (r - d); v.z += dz / d * (r - d); }
       });
     }
@@ -835,7 +836,7 @@ Object.assign(MODELS, buildPoliceModels());
         const a = sg ? -PAX : PAX;
         for (let k = 0; k < ty.circ.length; k++) {
           const px = pc.x + sn * a, pz = pc.z + cs * a, zo = ty.circ[k][0], r = ty.circ[k][1];
-          let nx = px - (v.x + vsn * zo), nz = pz - (v.z + vcs * zo), d = Math.hypot(nx, nz);
+          let nx = px - (v.x + vsn * zo), nz = pz - (v.z + vcs * zo), d = hyp2(nx, nz);
           const rs = PR + r;
           if (d >= rs) continue;
           touched = true;
@@ -843,8 +844,8 @@ Object.assign(MODELS, buildPoliceModels());
           const pen = rs - d, mp = 1, mv = ty.mass, lx = cs, lz = -sn;
           const vn = (pc.vx + pc.w * a * lx - (vsn * v.v + v.ex)) * nx + (pc.vz + pc.w * a * lz - (vcs * v.v + v.ez)) * nz;
           if (vn < -4 && mv < 5) { // YEET: the vehicle is launched, the lapa only gets a light knock
-            const rel = -vn, sc = mv <= 1.3 ? 1 : 0.65, pv = Math.hypot(pc.vx, pc.vz) || 1;
-            let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = Math.hypot(ux, uz) || 1; ux /= um; uz /= um;
+            const rel = -vn, sc = mv <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
+            let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
             const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
             launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
             v.x -= nx * pen; v.z -= nz * pen;
@@ -865,7 +866,7 @@ Object.assign(MODELS, buildPoliceModels());
       }
       if (touched) {
         if (v.dp) gags.bump(v);
-        if (v.cop && Math.hypot(pc.vx, pc.vz) > 6) police.chaos('hitcop');
+        if (v.cop && hyp2(pc.vx, pc.vz) > 6) police.chaos('hitcop');
         if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; shoutAt(v); }
         v.stopT = Math.max(v.stopT, 1.0 + Math.random() * 0.8);
         wallPush(v);
@@ -884,9 +885,9 @@ Object.assign(MODELS, buildPoliceModels());
       if (edgeOk && !edgeOk((NX[e.a] + NX[e.b]) / 2, (NZ[e.a] + NZ[e.b]) / 2, e)) continue;
       const t = Math.min(e.len - 0.5, ty.L * 0.5 + 0.5 + Math.random() * Math.max(0, e.len - ty.L - 1)), pref = Math.random() < 0.55 ? 1 : -1;
       const off = laneOff(e, { pref, ty }), x = NX[e.a] + e.dx * t + e.rx * off, z = NZ[e.a] + e.dz * t + e.rz * off;
-      const dp = Math.hypot(x - car.x, z - car.z); if (dp < dmin || dp > dmax) continue;
-      if (Math.hypot(x - camera.position.x, z - camera.position.z) < R_SPAWN_MIN || inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3)) continue;
-      let clear = true; for (const o of vs) if (Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) { clear = false; break; }
+      const dp = hyp2(x - car.x, z - car.z); if (dp < dmin || dp > dmax) continue;
+      if (hyp2(x - camera.position.x, z - camera.position.z) < R_SPAWN_MIN || inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3)) continue;
+      let clear = true; for (const o of vs) if (hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) { clear = false; break; }
       if (!clear) continue;
       const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
         lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
@@ -914,7 +915,7 @@ Object.assign(MODELS, buildPoliceModels());
   }
   const fx = createBeacons(scene, camera);
   const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen,
-    spawnCop: (name, dmin, dmax, toward) => spawnOffscreen(name, dmin, dmax, toward ? (mx, mz, e) => Math.hypot(NX[e.b] - car.x, NZ[e.b] - car.z) < Math.hypot(NX[e.a] - car.x, NZ[e.a] - car.z) - 5 : null),
+    spawnCop: (name, dmin, dmax, toward) => spawnOffscreen(name, dmin, dmax, toward ? (mx, mz, e) => hyp2(NX[e.b] - car.x, NZ[e.b] - car.z) < hyp2(NX[e.a] - car.x, NZ[e.a] - car.z) - 5 : null),
     uturn(v) { // a police car heading away from the lapa swings round on a two-way road
       const e = v.route[0]; if (!e || e.rev < 0 || v.cop.mode !== 'road') return false;
       const r = EDGES[e.rev]; v.route = [r]; v.t = clamp(r.len - v.t, 0, r.len); v.pref = -v.pref; v.blocker = null; extendRoute(v); return true;
