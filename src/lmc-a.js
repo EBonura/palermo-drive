@@ -160,30 +160,33 @@ function stadiumCollision() {
 function buildStadio() {
   initShared();
   const fp = FP.stadio, outer = pairsOf(fp.p), hole = pairsOf(fp.holes[0]);
-  const ob = obb(hole), cx = ob.cx, cz = ob.cz, N = 96;
+  const ob = obb(hole), cx = ob.cx, cz = ob.cz, N = 120;
   const gc = groundY(cx, cz);
   begin(gc);
   const U = [ob.ux, ob.uz], Vv = [ob.vx, ob.vz];
-  // textures
+  // ---- textures. Real colours (Commons photos and the satellite view): teal-green and blue plastic seats, white concrete with teal roofs, rose concrete walkways.
   defMat('stSeats', 256, 256, [4, 4], (g, w, h) => {
-    g.fillStyle = '#7d7b76'; g.fillRect(0, 0, w, h); const r = RNG(501);
-    for (let row = 0; row < 5; row++) { const y = row * 51; g.fillStyle = '#9a978f'; g.fillRect(0, y, w, 13);
-      for (let s = 0; s < 8; s++) { const k = r(); g.fillStyle = k < 0.06 ? '#e0709e' : k < 0.12 ? '#20262b' : (k < 0.5 ? '#2f7d52' : '#37875a'); g.fillRect(s * 32 + 3, y + 15, 26, 33); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(s * 32 + 3, y + 44, 26, 4); } }
+    g.fillStyle = '#6d7d78'; g.fillRect(0, 0, w, h); const r = RNG(501);
+    for (let row = 0; row < 5; row++) { const y = row * 51; g.fillStyle = '#b7b2a6'; g.fillRect(0, y, w, 12);
+      for (let s = 0; s < 8; s++) { const k = r(); g.fillStyle = k < 0.07 ? '#c9d2d4' : k < 0.16 ? '#2f6f9a' : (k < 0.55 ? '#2c8f7f' : '#3aa08c'); g.fillRect(s * 32 + 3, y + 14, 26, 31); g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(s * 32 + 3, y + 41, 26, 4); } }
   }, { side: THREE.DoubleSide });
-  defMat('stConc', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#a8a59d'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 500, 2, 502, ['rgba(60,60,55,0.12)', 'rgba(240,240,230,0.12)']); g.fillStyle = 'rgba(40,40,40,0.25)'; g.fillRect(0, 60, w, 2); }, { side: THREE.DoubleSide });
-  defMat('stPink', 64, 64, [2, 2], (g, w, h) => { g.fillStyle = '#e7a2bb'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 100, 2, 503, ['rgba(120,60,80,0.15)']); }, { side: THREE.DoubleSide });
+  defMat('stConc', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#cfccc2'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 500, 2, 502, ['rgba(60,60,55,0.12)', 'rgba(250,250,240,0.14)']); g.fillStyle = 'rgba(40,40,40,0.22)'; g.fillRect(0, 60, w, 2); }, { side: THREE.DoubleSide });
+  defMat('stRing', 64, 64, [3, 3], (g, w, h) => { g.fillStyle = '#d4aaa0'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 160, 2, 503, ['rgba(120,60,60,0.16)', 'rgba(255,225,215,0.18)']); }, { side: THREE.DoubleSide });
   defMat('stAds', 256, 64, [16, 1.5], (g, w, h) => { const r = RNG(504), cols = ['#14161a', '#e46fa0', '#f2f2ee', '#2e6fb8', '#f0c437', '#14161a', '#e46fa0']; let x = 0; while (x < w) { const bw = 20 + r() * 30; g.fillStyle = cols[(r() * cols.length) | 0]; g.fillRect(x, 0, bw, h); g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(x + 4, 22, bw * 0.6, 5); g.fillRect(x + 4, 34, bw * 0.4, 4); x += bw; } }, { side: THREE.DoubleSide });
-  defMat('stFacade', 256, 512, [12, 18], (g, w, h) => paintFacade(g, w, h, 12, 18, { base: '#d8d2c4', trim: '#bfb8a8', glass: '#2a8c93', seed: 505,
-    bands: [{ y: 13.4, h: 3.6, c: '#2f9aa1' }, { y: 5.4, h: 0.5, c: '#a9a396' }], pil: { xs: [0, 6], w: 0.8, c: '#e9e4d8' },
-    rows: [{ y0: 1.2, y1: 4.2, n: 4, m: 1.5, w: 1.6, kind: 'rect', fr: 0.1, ped: false, glass: '#59636b' }, { y0: 7.0, y1: 10.5, n: 3, m: 2.2, w: 2.2, kind: 'rect', fr: 0.1, glass: '#59636b' }] }), { side: THREE.DoubleSide });
-  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2f8284'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
+  // outer facade: pale concrete with a pylon every bay, rows of dark openings, a blue-teal band under the eaves
+  defMat('stFacade', 256, 512, [13, 22], (g, w, h) => paintFacade(g, w, h, 13, 22, { base: '#dfdcd2', trim: '#c7c3b8', glass: '#35606c', seed: 505,
+    bands: [{ y: 17.2, h: 3.4, c: '#2e7f94' }, { y: 8.6, h: 0.5, c: '#bdb9ae' }], pil: { xs: [0, 6.5], w: 1.0, c: '#efede6' },
+    rows: [{ y0: 1.2, y1: 4.4, n: 3, m: 2.0, w: 1.6, kind: 'rect', fr: 0.1, glass: '#4a5560' }, { y0: 10.0, y1: 13.2, n: 3, m: 2.0, w: 2.2, kind: 'rect', fr: 0.1, glass: '#3f6a7a' }] }), { side: THREE.DoubleSide });
+  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2b8c88'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
+  defMat('stRoofTop', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#c3cdc8'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(70,90,85,0.25)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 509, ['rgba(255,255,255,0.12)']); }, { side: THREE.DoubleSide });
+  defMat('stRoofUnder', 0, 0, [1, 1], null, { roughness: 1, side: THREE.DoubleSide });
   defMat('stSteel', 0, 0, [1, 1], null, { roughness: 0.6 });
   defMat('stLamp', 0, 0, [1, 1], null, { roughness: 1, emissive: new THREE.Color('#fff6d8'), emissiveIntensity: 0.9 });
+  defMat('stFence', 64, 64, [1, 1], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#8f9498'; g.fillRect(0, 2, w, 3); g.fillRect(0, h - 5, w, 3); for (let x = 4; x < w; x += 8) g.fillRect(x, 0, 2, h); }, { alphaTest: 0.5, side: THREE.DoubleSide, noShadow: true });
   const PW = ob.w + 4, PH = ob.d + 4;
-  defMat('stPitch', 1024, Math.round(1024 * PH / PW), [1, 1], (g, w, h) => {   // the track is the red ground; lifted 0.8 m over the raised layer (street_raised sits about 0.35 m over the terrain mesh here) of the tile that would otherwise hide it
+  defMat('stPitch', 1024, Math.round(1024 * PH / PW), [1, 1], (g, w, h) => {   // the track (red, requested) round the grass; lifted 0.8 m over the raised layer (street_raised sits about 0.35 m over the terrain mesh here)
     const sx = w / PW, sy = h / PH, X = (m) => w / 2 + m * sx, Y = (m) => h / 2 + m * sy;
     g.fillStyle = '#b4584a'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 3000, 2, 507, ['rgba(80,30,20,0.18)', 'rgba(230,150,120,0.15)']);
-    g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 2; for (const r of [-0.5, 0.5]) { }
     const gx0 = -57.5, gx1 = 57.5, gy0 = -37, gy1 = 37;
     g.fillStyle = '#4a8a3c'; g.fillRect(X(gx0), Y(gy0), (gx1 - gx0) * sx, (gy1 - gy0) * sy);
     for (let i = 0; i < 16; i++) { g.fillStyle = i % 2 ? 'rgba(255,255,255,0.06)' : 'rgba(0,30,0,0.10)'; g.fillRect(X(-52.5 + i * 7), Y(-34), 7 * sx, 68 * sy); }
@@ -199,34 +202,52 @@ function buildStadio() {
     gI.push(groundY(I[k][0], I[k][1])); gO.push(groundY(O[k][0], O[k][1]));
   }
   const arc = [0]; for (let k = 1; k <= N; k++) arc.push(arc[k - 1] + Math.hypot(I[k % N][0] - I[k - 1][0], I[k % N][1] - I[k - 1][1]));
-  const PROF = [[0.0, 1.5], [0.03, 1.6], [0.40, 8.2], [0.46, 8.5], [0.52, 8.5], [0.53, 9.6], [0.93, 18.0], [1.0, 18.2]];
+  // two tiers (lower rake to a rose walkway at about 9 m, upper rake to the rim at about 21 m); t is the fraction of the way from the pitch wall to the outer wall
+  const PROF = [[0.0, 1.4], [0.03, 1.5], [0.36, 8.6], [0.42, 8.9], [0.50, 8.9], [0.51, 10.0], [0.93, 21.0], [1.0, 21.4]], HT = 22.0;
   const ST = PROF.map(([t, h]) => I.map((p, k) => [p[0] + (O[k][0] - p[0]) * t, gI[k] + h, p[1] + (O[k][1] - p[1]) * t]));
   const dist = PROF.map(() => new Array(N + 1).fill(0));
   for (let i = 1; i < PROF.length; i++) for (let k = 0; k < N; k++) dist[i][k] = dist[i - 1][k] + Math.hypot(ST[i][k][0] - ST[i - 1][k][0], ST[i][k][1] - ST[i - 1][k][1], ST[i][k][2] - ST[i - 1][k][2]);
   const gateCut = (a, b, c, d) => { const mx = (a[0] + b[0] + c[0] + d[0]) / 4, mz = (a[2] + b[2] + c[2] + d[2]) / 4, my = (a[1] + b[1] + c[1] + d[1]) / 4; return Math.abs(mx - GATE.x) < GATE.halfW + 0.9 && mz < cz - 30 && my - gc < 6.4; };
-  const seatUV = (i, j) => [arc[j] / 4, dist[i][j % N] / 4];
   const band = (i0, i1, key, skip) => gridMesh(key, ST.slice(i0, i1 + 1), (i, j) => [arc[j] / 4, dist[i0 + i][j % N] / 4], { wrap: true, skip: skip ? (i, j, a, b, c, d) => gateCut(a, b, c, d) : undefined });
-  band(0, 1, 'stSeats', true); band(1, 2, 'stSeats', true); band(2, 3, 'stConc', true); band(3, 4, 'stConc', true); band(4, 5, 'stConc'); band(5, 6, 'stSeats'); band(6, 7, 'stPink');
+  band(0, 1, 'stSeats', true); band(1, 2, 'stSeats', true); band(2, 3, 'stConc', true); band(3, 4, 'stRing', true); band(4, 5, 'stConc'); band(5, 6, 'stSeats'); band(6, 7, 'stConc');
+  // radial gangways (rose concrete) down both tiers, one every five samples
+  for (let k = 2; k < N; k += 5) for (const [i0, i1] of [[1, 2], [5, 6]]) {
+    const a = ST[i0][k], b = ST[i1][k], dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.hypot(dx, dy, dz);
+    if (Math.abs(a[0] - GATE.x) < GATE.halfW + 3 && a[2] < cz - 30) continue;
+    box('stRing', 1.3, 0.12, len, { p: [a[0], a[1] + 0.04, a[2]], ry: Math.atan2(dx, dz), rx: -Math.asin(dy / len), noao: true });
+  }
   // front wall with advertising boards
   gridMesh('stAds', [I.map((p, k) => [p[0], gI[k], p[1]]), I.map((p, k) => [p[0], gI[k] + 1.5, p[1]])], (i, j) => [arc[j] / 16, i], { wrap: true, skip: (i, j, a, b, c, d) => Math.abs((a[0] + b[0]) / 2 - GATE.x) < GATE.halfW + 0.3 && a[2] < cz - 30 });
   // outer facade: lower band (with the gate opening cut out) and an upper band that bridges the gate
-  const HF = (k) => gI[k] + 18.6;
+  const HF = (k) => gI[k] + HT;
   const fa = (y) => O.map((p, k) => [p[0], y(k), p[1]]);
   const ac = [0]; for (let k = 1; k <= N; k++) ac.push(ac[k - 1] + Math.hypot(O[k % N][0] - O[k - 1][0], O[k % N][1] - O[k - 1][1]));
-  gridMesh('stFacade', [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 12, i * 0.31], { wrap: true, skip: (i, j, a, b) => Math.abs((a[0] + b[0]) / 2 - GATE.x) < GATE.halfW + 1.0 && a[2] < cz - 30 });
-  gridMesh('stFacade', [fa(k => Math.max(gO[k], gI[k]) + 5.6), fa(HF)], (i, j) => [ac[j] / 12, 0.31 + i * 0.69], { wrap: true });
-  gridMesh('stPink', [fa(HF), fa(k => HF(k) + 0.9)], (i, j) => [ac[j] / 2, i], { wrap: true });
-  // ribs on the outside
-  for (let k = 0; k < N; k += 4) { const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.55, 0.55, 0, HF(k) - gO[k] + 0.8, 0, 0.7, { c: '#e9e4d8' }); }
-  // canopies over the two long sides (the near side higher and deeper), with white pylons
-  for (const sg of [1, -1]) {
-    const ks = []; for (let k = 0; k < N; k++) if (Math.abs(D[k][0] * Vv[0] + D[k][1] * Vv[1]) > 0.62 && Math.sign(D[k][0] * Vv[0] + D[k][1] * Vv[1]) === sg) ks.push(k);
-    if (ks.length < 3) continue;
-    const t0 = sg > 0 ? 0.36 : 0.60, h0 = sg > 0 ? 15.2 : 14.6, h1 = sg > 0 ? 20.2 : 19.4;
+  const FL = 0.27;   // v of the lower band's top in the facade texture
+  gridMesh('stFacade', [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 13, i * FL], { wrap: true, skip: (i, j, a, b) => Math.abs((a[0] + b[0]) / 2 - GATE.x) < GATE.halfW + 1.0 && a[2] < cz - 30 });
+  gridMesh('stFacade', [fa(k => Math.max(gO[k], gI[k]) + 5.6), fa(HF)], (i, j) => [ac[j] / 13, FL + i * (1 - FL)], { wrap: true });
+  gridMesh('stConc', [fa(HF), fa(k => HF(k) + 0.8)], (i, j) => [ac[j] / 2, i], { wrap: true });
+  // pylons on the outside (every 4th sample) and the teal eave ring round the whole rim
+  for (let k = 0; k < N; k += 4) { const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
+  const eaveIn = (k, d, dy) => [O[k][0] - D[k][0] * d, HF(k) + dy, O[k][1] - D[k][1] * d], eaveOut = (k, d, dy) => [O[k][0] + D[k][0] * d, HF(k) + dy, O[k][1] + D[k][1] * d];
+  gridMesh('stTeal', [O.map((p, k) => eaveIn(k, 3.5, 0.5)), O.map((p, k) => eaveOut(k, 3.2, -0.6))], (i, j) => [j * 1.2, i * 3], { wrap: true });
+  gridMesh('stTeal', [O.map((p, k) => eaveOut(k, 3.2, -0.6)), O.map((p, k) => eaveOut(k, 3.2, -1.6))], (i, j) => [j * 1.2, i], { wrap: true });
+  // the covered main stand (Tribuna, the long side towards Viale del Fante: the side of v = WSW): a deep cantilever roof, pale on top, dark underneath, a teal fascia and white pylons
+  { const sgn = Vv[0] < 0 ? 1 : -1, SV = [Vv[0] * sgn, Vv[1] * sgn], av = Math.atan2(SV[1], SV[0]);
+    const wrap = (a) => { while (a > PI) a -= 2 * PI; while (a < -PI) a += 2 * PI; return a; };
+    const pick = (centre, half) => { const o = []; for (let k = 0; k < N; k++) { const d = wrap(k / N * 2 * PI - centre); if (Math.abs(d) < half) o.push([d, k]); } o.sort((p, q) => p[0] - q[0]); return o.map(p => p[1]); };
+    const run = pick(av, 0.95), k2 = pick(av + PI, 0.7);
     const row = (t, h, kk) => kk.map(k => [I[k][0] + (O[k][0] - I[k][0]) * t, gI[k] + h, I[k][1] + (O[k][1] - I[k][1]) * t]);
-    gridMesh('stTeal', [row(t0, h0, ks), row(1.04, h1, ks)], (i, j) => [j * 1.5, i * 4], {});
-    gridMesh('stSteel', [row(1.04, h1 - 0.5, ks), row(1.04, h1 + 0.5, ks)], () => [0, 0], {}); // back fascia
-    for (let q = 0; q < ks.length; q += 3) { const k = ks[q]; bx('stSteel', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.5, 0.5, 0, gI[k] + h1 - gO[k] + 0.8, 1.6, 2.6, { c: '#e9e4d8' }); }
+    const outerRow = (h, kk, over) => kk.map(k => [O[k][0] + D[k][0] * over, gI[k] + h, O[k][1] + D[k][1] * over]);
+    if (run.length > 3) {
+      const t0 = 0.30, h0 = 17.2, h1 = 24.6;
+      gridMesh('stRoofTop', [row(t0, h0 + 0.35, run), outerRow(h1 + 0.35, run, 6)], (i, j) => [j * 2, i * 4], {});
+      gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true });
+      gridMesh('stTeal', [row(t0, h0 - 0.4, run), row(t0, h0 + 0.8, run)], (i, j) => [j, i], {});            // front fascia
+      gridMesh('stTeal', [outerRow(h1 - 0.3, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia
+      for (let q = 0; q < run.length; q += 3) { const k = run[q]; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
+    }
+    // the opposite long side (Tribuna Montepellegrino): a low teal canopy over the top rows only
+    if (k2.length > 3) gridMesh('stTeal', [row(0.72, 18.2, k2), row(1.02, 22.6, k2)], (i, j) => [j * 1.2, i * 3], {});
   }
   // pitch and track, draped on the ground
   const SR = 7, rows = [];
@@ -241,14 +262,24 @@ function buildStadio() {
   bx('stConc', tr(0, 0, 0), GATE.x - GATE.halfW, GATE.x + GATE.halfW, ym + 0.06, ym + 0.1, zo - 1, zi + 3, { noao: true });
   for (const sg of [-1, 1]) bx('stConc', tr(0, 0, 0), GATE.x + sg * GATE.halfW - 0.3 + (sg > 0 ? 0.3 : 0), GATE.x + sg * GATE.halfW + 0.3 + (sg > 0 ? 0.3 : 0), ym, ym + 6.2, zo - 1, zi + 3.5, { c: '#d2cfc6' });
   bx('stConc', tr(0, 0, 0), GATE.x - GATE.halfW - 0.3, GATE.x + GATE.halfW + 0.6, ym + 5.4, ym + 6.2, zo - 1.2, zi + 3.5, { c: '#d2cfc6' });
-  // floodlight towers on the four diagonals
+  // perimeter fence 13 m outside the wall (Via del Fante side shows the sponsor boards on it), with a gate pier at each turnstile bay
+  { const FO = 13;
+    for (let k = 0; k < N; k++) {
+      const k1 = (k + 1) % N, ax = O[k][0] + D[k][0] * FO, az = O[k][1] + D[k][1] * FO, bx_ = O[k1][0] + D[k1][0] * FO, bz = O[k1][1] + D[k1][1] * FO, l = Math.hypot(bx_ - ax, bz - az);
+      if (l < 0.5 || (Math.abs(ax - GATE.x) < GATE.halfW + 6 && az < cz - 30)) continue;
+      const y = Math.min(groundY(ax, az), groundY(bx_, bz)), Mf = frame((ax + bx_) / 2, y, (az + bz) / 2, -(bz - az) / l, (bx_ - ax) / l);
+      rail(Mf, l, 2.2, { c: '#cfd3d6' });
+      if (k % 2 === 0) panel('stAds', l, 1.0, { M: mul(Mf, tr(0, 0.9, 0.05)), uvk: [l / 16, 1] });
+    }
+  }
+  // floodlight towers beyond the four corners
   for (const [sa, sb] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
     let bk = 0, bd = -2; const tx = U[0] * 0.75 * sa + Vv[0] * 0.66 * sb, tz = U[1] * 0.75 * sa + Vv[1] * 0.66 * sb;
     for (let k = 0; k < N; k++) { const d = D[k][0] * tx + D[k][1] * tz; if (d > bd) { bd = d; bk = k; } }
-    const x = O[bk][0] + D[bk][0] * 7, z = O[bk][1] + D[bk][1] * 7, y = groundY(x, z), Mt = frame(x, y - 0.5, z, -D[bk][0], -D[bk][1]);
-    cyl('stSteel', 0.45, 0.8, 44, 8, { M: Mt, c: '#c9ccd0' });
-    bx('stSteel', Mt, -4.5, 4.5, 43, 44.4, -1.2, 0.2, { c: '#b9bcc0', noao: true });
-    for (let r = 0; r < 3; r++) for (let q = 0; q < 6; q++) bx('stLamp', Mt, -4.2 + q * 1.5, -3.2 + q * 1.5, 44.4 + r * 1.3, 45.4 + r * 1.3, 0.1, 0.5, { noao: true });
+    const x = O[bk][0] + D[bk][0] * 8, z = O[bk][1] + D[bk][1] * 8, y = groundY(x, z), Mt = frame(x, y - 0.5, z, -D[bk][0], -D[bk][1]);
+    cyl('stSteel', 0.4, 0.8, 52, 8, { M: Mt, c: '#e4e6e8' });
+    bx('stSteel', Mt, -4.8, 4.8, 50.5, 51.8, -1.2, 0.2, { c: '#cfd2d6', noao: true });
+    for (let r = 0; r < 3; r++) for (let q = 0; q < 7; q++) bx('stLamp', Mt, -4.5 + q * 1.5, -3.5 + q * 1.5, 51.8 + r * 1.3, 52.8 + r * 1.3, 0.1, 0.5, { noao: true });
   }
   return end('Stadio Renzo Barbera');
 }
