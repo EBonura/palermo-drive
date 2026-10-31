@@ -30,7 +30,7 @@ const C = h => new THREE.Color(h);
 const COL = {
   crumbOut: [C('#a7a49a'), C('#8d8a81'), C('#b4b0a4')], crumbIn: C('#6c6a65'),
   rim: C('#3a3836'), wall: C('#2b2a28'), floor: C('#1a1918'), centre: C('#121110'),
-  patchDark: [C('#55544f'), C('#5d5b55'), C('#4c4b47')], patchLight: [C('#8e8c84'), C('#97948b')], seam: C('#3d3c39'),
+  patchDark: [C('#6a6862'), C('#726f69'), C('#615f5a')], patchLight: [C('#9a978e'), C('#a29f96')], seam: C('#4a4844'),
   crack: C('#3b3936'), worn: C('#7b7a74'), mhFrame: C('#55514b'), mhCover: [C('#6a645b'), C('#5d5851')], mhGap: C('#232220'),
   water: C('#8a9aa6'),
 };
@@ -621,7 +621,7 @@ export function createRoadWear(env) {
     const size = rec.kind ? 0.25 : clamp((rec.r - 0.08) / 0.75, 0.05, 1.3), dep = clamp(rec.dep / 0.14, 0.4, 1.4);
     const I = size * dep * clamp(sp / 13, 0.12, 1.4) * k;
     if (I < 0.02) return;
-    const loss = clamp(0.01 + 0.045 * I, 0, 0.12), keep = 1 - loss;
+    const loss = clamp(0.01 + 0.04 * I, 0, 0.09), keep = 1 - loss;
     car.vx *= keep; car.vz *= keep; car.vf *= keep;
     car.w += (w.side * 0.4 + (Math.random() - 0.5) * 1.3) * Math.min(I, 1.3) * 1.5 * (wi === 0 ? 1.3 : 1);
     if (vehicle && vehicle.bump) vehicle.bump(I * 1.1, w.side, w.pitch);
@@ -648,6 +648,14 @@ export function createRoadWear(env) {
   let first = true;
   const api = {
     update(dt) {
+      if (location.search.includes('rwskid') && !window.__rwdone && window.game) { // TEMPDEBUG
+        window.__rwdone = 1; const g = window.game, k = g.keys, D = window.PALERMO_DATA; let best = null, bl = 0;
+        for (const r of D.roads) { if (r.k !== 'secondary' && r.k !== 'tertiary') continue; for (let i = 0; i < r.p.length - 2; i += 2) { const L = Math.hypot(r.p[i + 2] - r.p[i], r.p[i + 3] - r.p[i + 1]); if (L > bl) { bl = L; best = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3]]; } } }
+        const th = Math.atan2(best[2] - best[0], best[3] - best[1]);
+        Object.assign(car, { x: best[0], z: best[1], th, vx: Math.sin(th) * 18, vz: Math.cos(th) * 18, vf: 18, gear: 3, w: 0 });
+        for (let i = 0; i < 480; i++) { k.KeyW = i < 60; k.Space = i >= 100 && i < 300; k.KeyA = i >= 130 && i < 300; g.physics(1 / 120); api.collidePlayer(car, 1 / 120); if (i % 2 === 0) marks(1 / 60); }
+        k.Space = k.KeyA = k.KeyW = false; console.log('RWSKID ' + car.x + ' ' + car.z + ' ' + car.th);
+      }
       stream(first); first = false;
       marks(dt);
     },
@@ -663,6 +671,6 @@ export function createRoadWear(env) {
     _holes: () => [...cells.values()].flatMap(c => c.holes),
   };
   const initMs = performance.now() - T0;
-  window.__rw = api; api.t = { tMask, tRoads, initMs }; // TEMPDEBUG
+  window.__rw = api; api.t = { tMask, tRoads, initMs }; api._cr = crossings; api._mh = () => [...cells.values()].flatMap(c => c.mhs); // TEMPDEBUG
   return api;
 }

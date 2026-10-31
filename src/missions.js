@@ -317,7 +317,7 @@ function build(env) {
     return _p;
   }
   // mist puffs: camera-facing soft quads, pink, normal blending so they read on pale asphalt
-  const MIST_N = 40, MIST_STEP = 3.4;
+  const MIST_N = 44, MIST_STEP = 4;
   const mistGeo = new THREE.InstancedBufferGeometry();
   mistGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
   mistGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2)); mistGeo.setIndex([0, 1, 2, 0, 2, 3]);
@@ -328,7 +328,7 @@ function build(env) {
     transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uCol: { value: new THREE.Color('#ff3d9a') } },
     vertexShader: `attribute vec3 iPos; attribute vec3 iA; varying vec2 vUv; varying float vA;
       void main() { vec3 c = (viewMatrix * vec4(iPos, 1.0)).xyz; float ang = iA.z * 6.283; vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy;
-        gl_Position = projectionMatrix * vec4(c + vec3(q * iA.x, 0.0), 1.0); vUv = uv; vA = iA.y * smoothstep(1.5, 7.0, length(c)); }`,
+        gl_Position = projectionMatrix * vec4(c + vec3(q * iA.x, 0.0), 1.0); vUv = uv; vA = iA.y * smoothstep(1.0, 5.0, length(c)); }`,
     fragmentShader: `uniform vec3 uCol; varying vec2 vUv; varying float vA;
       void main() { float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard; float a = pow(1.0 - d, 1.5) * vA;
         vec3 c = mix(uCol, vec3(1.0, 0.85, 0.93), pow(1.0 - d, 3.0) * 0.7); gl_FragColor = vec4(c, a);
@@ -359,11 +359,11 @@ function build(env) {
     const front = (route.t % 2.4) / 2.4 * (MIST_N * MIST_STEP), pos = mPos.array, A = mA.array, tt = route.t;
     let n = 0;
     for (let i = 0; i < MIST_N; i++) {
-      const d = 6 + i * MIST_STEP, s = bs + d; if (s > route.len - 1) break;
-      const p = routeAt(s), w = 0.3 + 0.7 * Math.exp(-(((d - front) / 13) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.7);
+      const d = 4 + i * MIST_STEP, s = bs + d; if (s > route.len - 1) break;
+      const p = routeAt(s), w = 0.4 + 0.6 * Math.exp(-(((d - front) / 15) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.7);
       const gy = groundAt(p.x, p.z);
-      pos[n * 3] = p.x + Math.sin(tt * 1.3 + i) * 0.35; pos[n * 3 + 1] = gy + 0.5 + 0.7 * w + 0.25 * Math.sin(tt * 2.1 + i * 1.7); pos[n * 3 + 2] = p.z + Math.cos(tt * 1.1 + i * 1.3) * 0.35;
-      A[n * 3] = 2.7 + 2.0 * w; A[n * 3 + 1] = 0.7 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
+      pos[n * 3] = p.x + Math.sin(tt * 1.3 + i) * 0.35; pos[n * 3 + 1] = gy + 0.9 + 1.1 * w + 0.3 * Math.sin(tt * 2.1 + i * 1.7); pos[n * 3 + 2] = p.z + Math.cos(tt * 1.1 + i * 1.3) * 0.35;
+      A[n * 3] = 4.2 + 2.8 * w; A[n * 3 + 1] = 0.85 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
       n++;
     }
     mist.geometry.instanceCount = n; mPos.needsUpdate = mA.needsUpdate = true;

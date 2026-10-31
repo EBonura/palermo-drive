@@ -71,6 +71,7 @@ html.touch .pdn-pill .n{display:none}
 html.touch .pdn-card{bottom:auto;top:max(60px,calc(env(safe-area-inset-top) + 56px));width:min(330px,calc(100vw - 280px));min-width:250px;padding:10px 12px}
 html.touch .pdn-card small{display:none}
 @media (max-height:420px){html.touch .pdn-card b{font-size:15px}}
+@media (max-height:500px){.pdn-card{bottom:56px;padding:10px 12px}.pdn-card small{display:none}.pdn-card b{font-size:15px;margin-bottom:6px}.pdn-card input{padding:6px 10px}.pdn-card button{min-height:34px;padding:6px 10px}}
 `;
 
 export function createNet(env) {
@@ -343,7 +344,7 @@ export function createNet(env) {
       if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); r.model && r.model.root.remove(r.tag); }
       const map = tagTexture(name || '?');
       r.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
-      r.tag.scale.set(0.036 * map.image.width / map.image.height, 0.036, 1);
+      r.tag.scale.set(0.042 * map.image.width / map.image.height, 0.042, 1);
       r.tag.position.set(0, 2.55, 0); r.tag.renderOrder = 20;
       if (r.model) r.model.root.add(r.tag);
     }

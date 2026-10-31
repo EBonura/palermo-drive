@@ -536,7 +536,7 @@ export function createVehicle(env) {
   // pitch +1 front wheel (nose dips) / -1 rear. Bounces the body and camera; the caller handles speed, yaw, grip and tipping.
   function bump(s, side = 0, pitch = 0) {
     s = clamp(s, 0, 1.6);
-    car.hopV = Math.min(3, car.hopV + 0.35 + 1.0 * s);
+    car.hopV = Math.min(2.2, car.hopV + 0.35 + 1.0 * s);
     car.pitch += pitch * 0.035 * s; car.roll += side * 0.05 * s;
     cam.trauma = Math.max(cam.trauma, Math.min(0.85, 0.12 + 0.5 * s));
   }
