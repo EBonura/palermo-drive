@@ -1581,7 +1581,7 @@ export function buildProps(ctx) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im); meshOf[name + '|' + ckey] = im;
+      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im); meshOf[name + '|' + ckey] = im;
       scene.add(im); tris += per * n; meshes++; total += n; triBy[name] = (triBy[name] || 0) + per * n;
     }
   }

@@ -1,6 +1,6 @@
 // City landmarks, group A: Politeama Garibaldi (with its piazza monument), Stadio Renzo Barbera, Castello Utveggio, Santuario di Santa Rosalia.
 import {
-  THREE, PI, begin, end, setBase, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, archShape, rectShape, prism, pyramid, gable,
+  THREE, PI, bx, begin, end, setBase, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, archShape, rectShape, prism, pyramid, gable,
   mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, ringSegs, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
   balus, rail, statue, horse, palm,
 } from './lmc-kit.js';
@@ -35,10 +35,10 @@ function buildPolitea(ctx) {
     g.fillStyle = '#c9b88c'; g.fillRect(8, 10, w - 16, h - 20); g.strokeStyle = '#8a7650'; g.lineWidth = 3; g.strokeRect(8, 10, w - 16, h - 20);
     const r = RNG(412); g.fillStyle = '#eee3c4'; for (let x = 22; x < w - 20; x += 22) { const hh = 30 + r() * 38; g.fillRect(x, h - 16 - hh, 9, hh); g.beginPath(); g.arc(x + 4, h - 20 - hh, 6, 0, 7); g.fill(); g.fillRect(x - 4, h - 16 - hh * 0.6, 17, 5); }
   });
-  const STONE = '#e4d4aa', DK = '#2a2220';
+  const STONE = '#ffffff';
   const A0 = -PI / 2, A1 = PI / 2, SEG = 42;
   // ---- foundations and steps
-  box('tufa', 52, gr.hi - gr.lo + 1.5, 50, { M: mul(M, tr(0, -(gr.hi - gr.lo) - 1.5, 4)), c: '#b9a67c' });
+  bx('tufa', M, -27, 27, -(gr.hi - gr.lo) - 1.5, -0.03, -50, 33, { c: '#b9a67c' });
   // ---- ground arcade of the semicircle
   const NB = 21, R0 = 23.2, ARC_D = 3.6, BAYH = 7.6;
   arcWall('dark', R0 - ARC_D + 0.2, 0, BAYH, A0, A1, SEG, { M, c: '#4a3a30', noao: true });
@@ -61,39 +61,39 @@ function buildPolitea(ctx) {
   band('tufa', 19.6, 24.0, WY1, WY1 + 1.5, A0, A1, SEG, { M, c: '#e6d6ac' });
   band('tufa', 19.6, 24.5, WY1 + 1.5, WY1 + 1.9, A0, A1, SEG, { M, c: '#efe1ba' });
   // roof ring (terracotta) and the low lead dome
-  lathe('tile', [[24.2, 0], [22, 0.7], [16, 2.3], [14.5, 2.7]], 42, { M, p: [0, WY1 + 1.9, 0], t0: -PI / 2, tl: PI, c: '#e2a58a', noao: true });
+  lathe('tile', [[24.2, 0], [22, 0.7], [16, 2.3], [14.5, 2.7]], 42, { M, p: [0, WY1 + 1.9, 0], t0: -PI / 2, tl: PI, c: '#d8a48e', noao: true });
   cyl('stone', 14.5, 14.5, 3.2, 28, { M, p: [0, WY1 + 4.6, 0], c: '#cbbf9f' });
   lathe('lead', [[14.5, 0], [13.2, 1.4], [9.5, 3.2], [4, 4.3], [0.01, 4.6]], 28, { M, p: [0, WY1 + 7.8, 0], noao: true });
 
   // ---- central arch block with the quadriga
   const BW = 15.7, BZ1 = 26.9, BZ0 = 10.5, AH = 17.5;
   archBay('tufa', BW, AH, 8.4, 12.8, BZ1 - 22.4, { M: mul(M, tr(0, 0, 22.4)), c: STONE });
-  box('tufa', BW, AH, 22.4 - BZ0, { M: mul(M, tr(0, 0, BZ0)), c: STONE });
+  bx('tufa', M, -BW / 2, BW / 2, 0, AH, BZ0, 22.4, { c: STONE });
   box('dark', 8.2, 12.2, 0.3, { M: mul(M, tr(0, 0.1, 22.5)), c: '#1c1612', noao: true });
   for (const sg of [-1, 1]) {
     for (const [w, y0, h] of [[1.2, 2.2, 3.4], [1.2, 9.0, 3.4]]) box('dark', w, h, 0.25, { M: mul(M, tr(sg * 6.1, y0, BZ1 + 0.02)), c: '#37291f', noao: true });
     for (const x of [sg * 3.0, sg * 4.2]) { cyl('marble', 0.32, 0.36, 11.8, 8, { M: mul(M, tr(x, 0.3, BZ1 + 0.2)), c: '#f0e6c8' }); box('tufa', 0.9, 0.5, 0.9, { M: mul(M, tr(x, 12.1, BZ1 + 0.2)), c: STONE }); }
   }
-  box('tufa', BW + 1.6, 0.8, BZ1 - BZ0 + 0.9, { M: mul(M, tr(0, AH, BZ0)), c: '#eadcb8' });
-  box('tufa', BW + 0.4, 0.4, BZ1 - BZ0 + 0.3, { M: mul(M, tr(0, AH + 0.8, BZ0)), c: '#e0d0a4' });
+  bx('tufa', M, -BW / 2 - 0.8, BW / 2 + 0.8, AH, AH + 0.8, BZ0, BZ1 + 0.9, { c: '#eadcb8' });
+  bx('tufa', M, -BW / 2 - 0.2, BW / 2 + 0.2, AH + 0.8, AH + 1.2, BZ0, BZ1 + 0.3, { c: '#e0d0a4' });
   panel('polFrieze', BW, 4.4, { M: mul(M, tr(0, AH + 1.2, BZ1 + 0.02)), uvk: [1, 1] });
-  box('tufa', BW, 4.4, BZ1 - BZ0 - 0.2, { M: mul(M, tr(0, AH + 1.2, BZ0)), c: STONE });
-  box('tufa', BW + 1.2, 0.8, BZ1 - BZ0 + 0.7, { M: mul(M, tr(0, AH + 5.6, BZ0)), c: '#eadcb8' });
-  box('tufa', 12, 1.0, 5.2, { M: mul(M, tr(0, AH + 6.4, BZ1 - 6)), c: '#d9c89e' });
+  bx('tufa', M, -BW / 2, BW / 2, AH + 1.2, AH + 5.6, BZ0, BZ1 - 0.02, { c: STONE });
+  bx('tufa', M, -BW / 2 - 0.6, BW / 2 + 0.6, AH + 5.6, AH + 6.4, BZ0, BZ1 + 0.7, { c: '#eadcb8' });
+  bx('tufa', M, -6, 6, AH + 6.4, AH + 7.4, BZ1 - 8.6, BZ1 - 3.4, { c: '#d9c89e' });
   // the quadriga: four bronze horses abreast, a charioteer, and a horse-and-rider group on each corner
   const QY = AH + 7.4, MQ = mul(M, tr(0, QY, BZ1 - 6));
-  box('bronze', 3.6, 0.6, 3.2, { M: MQ, p: [0, 0.2, -2.4], c: '#3e4a3a' });
-  box('bronze', 2.6, 2.4, 0.5, { M: MQ, p: [0, 0.8, -3.7], c: '#3e4a3a' });
-  statue('bronze', mul(MQ, tr(0, 0.8, -2.4)), 3.4, { c: '#425040', noao: true });
-  for (let i = 0; i < 4; i++) horse(mul(MQ, tr((i - 1.5) * 1.1, 0, 0)), 1.45, { rear: i % 2 === 0, c: '#425040' });
-  for (const sg of [-1, 1]) { const Mh = mul(MQ, tr(sg * 6.0, 0, 0.6)); horse(Mh, 1.5, { c: '#425040', rear: true }); statue('bronze', mul(Mh, tr(0, 1.7, -0.1)), 2.3, { c: '#425040', noao: true }); }
+  box('bronze', 3.6, 0.6, 3.2, { M: MQ, p: [0, 0.2, -2.4], c: '#5d6b4f' });
+  box('bronze', 2.6, 2.4, 0.5, { M: MQ, p: [0, 0.8, -3.7], c: '#5d6b4f' });
+  statue('bronze', mul(MQ, tr(0, 0.8, -2.4)), 3.4, { c: '#6f7d5c', noao: true });
+  for (let i = 0; i < 4; i++) horse(mul(MQ, tr((i - 1.5) * 1.1, 0, 0)), 1.45, { rear: i % 2 === 0, c: '#6f7d5c' });
+  for (const sg of [-1, 1]) { const Mh = mul(MQ, tr(sg * 6.0, 0, 0.6)); horse(Mh, 1.5, { c: '#6f7d5c', rear: true }); statue('bronze', mul(Mh, tr(0, 1.7, -0.1)), 2.3, { c: '#6f7d5c', noao: true }); }
   // ---- stage house behind the colonnade
   const SW = 58.8, SZ0 = -1.0, SZ1 = -43.3;
-  box('polBack', SW, 29, SZ0 - SZ1, { M: mul(M, tr(0, 0, SZ1)), uvo: [0, 0], c: '#ffffff' });
-  box('polBack', 42.5, 22, 9.0, { M: mul(M, tr(0, 0, SZ1 - 9)), c: '#ffffff' });
-  box('stone', SW + 0.8, 1.0, SZ0 - SZ1 + 0.8, { M: mul(M, tr(0, 29, SZ1 - 0.4)), c: '#d0c3a0' });
-  box('tile', SW - 6, 1.4, SZ0 - SZ1 - 6, { M: mul(M, tr(0, 30, SZ1 + 3)), c: '#c28668' });
-  box('stone', 42.5, 0.8, 9.0, { M: mul(M, tr(0, 22, SZ1 - 9)), c: '#d0c3a0' });
+  bx('polBack', M, -SW / 2, SW / 2, 0, 29, SZ1, SZ0);
+  bx('polBack', M, -21.3, 21.3, 0, 22, SZ1 - 9, SZ1 + 0.1);
+  bx('stone', M, -SW / 2 - 0.4, SW / 2 + 0.4, 29, 30, SZ1 - 0.4, SZ0 + 0.4, { c: '#d0c3a0' });
+  bx('tile', M, -SW / 2 + 3, SW / 2 - 3, 30, 31.4, SZ1 + 3, SZ0 - 3, { c: '#c28668' });
+  bx('stone', M, -21.7, 21.7, 22, 22.8, SZ1 - 9.4, SZ1 + 0.1, { c: '#d0c3a0' });
   // ---- the monument in the piazza: stepped base, pedestal and statue, ringed by an iron railing
   const MZ = 49, MM = mul(M, tr(0, 0, MZ));
   for (let i = 0; i < 3; i++) cyl('marble', 7.2 - i * 1.0, 7.4 - i * 1.0, 0.25, 12, { M: MM, p: [0, -0.1 + i * 0.25 - 0.0, 0], c: '#cfc9bb' });

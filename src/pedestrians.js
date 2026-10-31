@@ -11,6 +11,10 @@
 //   centrelines, zebra strips and the building footprints. Cell classes: 0 blocked, 1 sidewalk/paving/piazza,
 //   2 minor carriageway or grass (allowed, disliked), 3 zebra crossing.
 // - Crowd: density map by place (markets, Maqueda, Cassaro, piazze), spawn/despawn in a disc around the camera.
+// - Night: after dark (window event 'pd-time' {hour, isNight, dusk}, or env.game.time; daytime when neither exists) a second
+//   density map and crowd mix take over: Piazza Sant'Anna and the Vucciria fill with young people standing and chatting in
+//   groups (zone 5), Ballaro and the Capo get a smaller evening crowd, vendors go home and tourists thin out. api.night() tells
+//   other modules (src/missions.js) whether it is night.
 import * as THREE from 'three';
 import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, buildAtlas } from '../assets/peds/sprites.js';
 
@@ -32,7 +36,7 @@ export function createPedestrians(env) {
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 420;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
-  if (!D.streets) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {} };
+  if (!D.streets) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
 
   // ======================================================================== walkability mask
   const [AX0, AZ0, AX1, AZ1] = D.streets.aoi;
@@ -147,13 +151,13 @@ export function createPedestrians(env) {
   // ======================================================================== density map (people per m2 of walkable ground)
   const DC = 8, DNX = Math.ceil((AX1 - AX0) / DC), DNZ = Math.ceil((AZ1 - AZ0) / DC);
   const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist, 4 match-day
-  const stamp = (x, z, r, v, zn) => {
+  const stamp = (x, z, r, v, zn, dn = dens, zo = zone) => {
     const i0 = Math.max(0, Math.floor((x - r - AX0) / DC)), i1 = Math.min(DNX - 1, Math.floor((x + r - AX0) / DC));
     const j0 = Math.max(0, Math.floor((z - r - AZ0) / DC)), j1 = Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       const d = Math.hypot(AX0 + (i + 0.5) * DC - x, AZ0 + (j + 0.5) * DC - z); if (d > r) continue;
       const f = 1 - d / r, vv = BASE + (v - BASE) * Math.min(1, f * 1.6), k = j * DNX + i;
-      if (vv > dens[k]) { dens[k] = vv; zone[k] = zn; }
+      if (vv > dn[k]) { dn[k] = vv; zo[k] = zn; }
     }
   };
   {
@@ -184,16 +188,46 @@ export function createPedestrians(env) {
       }
     }
   }
-  const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : dens[j * DNX + i]; };
-  const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : zone[j * DNX + i]; };
+  // after dark: quieter streets, an empty market, and the movida (zone 5) around Piazza Sant'Anna and the Vucciria
+  const densN = new Float32Array(dens.length), zoneN = zone.slice();
+  {
+    const SCN = [0.55, 0.6, 0.3, 0.45, 0.4, 1], KX = Math.cos(38.11572 * Math.PI / 180) * 111320, KZ = 110540, pr = (la, lo) => [(lo - 13.36126) * KX, -(la - 38.11572) * KZ];
+    for (let k = 0; k < dens.length; k++) densN[k] = Math.max(0.0025, dens[k] * SCN[zone[k]]);
+    const hotN = (la, lo, r, v, zn) => { const [x, z] = pr(la, lo); stamp(x, z, r, v, zn, densN, zoneN); };
+    hotN(38.1149181, 13.3651434, 80, 0.07, 5);      // side streets around Piazza Sant'Anna (Kalsa)
+    hotN(38.1149181, 13.3651434, 36, 0.24, 5);      // Piazza Sant'Anna: packed
+    hotN(38.1179401, 13.3649292, 55, 0.14, 5);      // Piazza Garraffello (Vucciria)
+    hotN(38.1176395, 13.363446, 40, 0.18, 5);       // Taverna Azzurra, Discesa Maccheronai
+    hotN(38.1113556, 13.3615778, 95, 0.10, 2);      // Ballaro: busy with the evening crowd
+    hotN(38.1186189, 13.3540701, 80, 0.06, 2);      // Capo
+  }
+  let nightCrowd = false;                                 // which map and mix are live (see setTime below)
+  const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : (nightCrowd ? densN : dens)[j * DNX + i]; };
+  const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : (nightCrowd ? zoneN : zone)[j * DNX + i]; };
   const MAXD = 0.14;
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
-  const VW = [0, 1, 2, 3, 4].map(z => VARIANTS.map(v => v.w[z]));   // crowd mix per zone, set in assets/peds/sprites.js
-  const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0));
+  const VW = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.w[z]));    // crowd mix per zone by day, set in assets/peds/sprites.js
+  const VWN = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.wn[z]));  // and after dark
+  const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0)), VWNsum = VWN.map(w => w.reduce((a, b) => a + b, 0));
   const WCV = VARIANTS.findIndex(v => v.id === 'wheelchair'), HEALV = VARIANTS.findIndex(v => v.id === 'healed'), CHAIRV = VARIANTS.findIndex(v => v.id === 'chair_empty');
   const chairs = [];                                      // empty wheelchairs left behind by the miracle (see heal())
-  const pickVariant = zn => { let r = Math.random() * VWsum[zn]; const w = VW[zn]; for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
-  const IDLE_RATE = [0.015, 0.03, 0.08, 0.05, 0.06];            // chance per second of stopping for a while
+  const pickVariant = zn => { const w = nightCrowd ? VWN[zn] : VW[zn]; let r = Math.random() * (nightCrowd ? VWNsum[zn] : VWsum[zn]); for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
+  const IDLE_RATE = [0.015, 0.03, 0.08, 0.05, 0.06, 0.12];            // chance per second of stopping for a while
+
+  // ======================================================================== time of day
+  // The day/night work publishes game.time {hour, isNight, dusk} and fires window 'pd-time' {hour, isNight, dusk}; both are read
+  // defensively and the default is daytime. nightCrowd flips the crowd map and mix; nightK (0..1) eases the sprites' light.
+  let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0;
+  const setCrowdNight = b => { if (b === nightCrowd) return; nightCrowd = b; targetT = 0; purgeT = 45; };
+  function setTime(t) {
+    if (!t || typeof t !== 'object') return;
+    if (Number.isFinite(t.hour)) hourNow = t.hour;
+    const night = typeof t.isNight === 'boolean' ? t.isNight : hourNow !== null ? (hourNow >= 19.5 || hourNow < 5.5) : false;
+    const d = t.dusk, lk = night ? 1 : typeof d === 'number' ? clamp(d, 0, 1) * 0.8 : d ? 0.5 : 0;
+    nightTarget = lk; setCrowdNight(night || lk >= 0.4);
+  }
+  addEventListener('pd-time', e => setTime(e.detail));
+  const AMB_D = new THREE.Color(0.66, 0.68, 0.72), AMB_N = new THREE.Color(0.4, 0.43, 0.56), SUN_D = new THREE.Color(0.62, 0.5, 0.36), SUN_N = new THREE.Color(0, 0, 0);
 
   // ======================================================================== sprite rendering
   const atlas = new THREE.CanvasTexture(buildAtlas());
@@ -287,8 +321,9 @@ export function createPedestrians(env) {
   const VX = F(CAP), VZ = F(CAP), VY = F(CAP), HOP = F(CAP), ROLL = F(CAP), RD = F(CAP), TMR = F(CAP), STEER = F(CAP), TRAV = F(CAP), NEXTT = F(CAP);
   const SHT = F(CAP), SHC = F(CAP), BRI = F(CAP), SIZE = F(CAP), REACT = F(CAP), WAITT = F(CAP), TFLY = F(CAP);
   const ST = U(CAP), VAR = U(CAP), ZN = U(CAP), CLS = U(CAP), TICK = U(CAP);
+  const LEAVE = F(CAP).fill(-1);                        // >= 0: fading out (a day crowd member going home at dusk, or the reverse at dawn)
   const MIR = F(CAP);                                   // team-bus miracle countdown (seconds left standing up), 0 when seated
-  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR];
+  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR, LEAVE];
   const removeAt = i => { const l = --N.n; if (i !== l) for (const a of copyArrs) a[i] = a[l]; };
 
   // sun direction (horizontal, towards the sun) from the scene's directional light, for the "am I in a building's shade" test
@@ -361,15 +396,30 @@ export function createPedestrians(env) {
     if (Math.hypot(x - car.x, z - car.z) < 3.5) return false;
     // not on top of someone else
     for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - x) < 0.5 && Math.abs(Z[j] - z) < 0.5) return false;
-    const i = N.n++, zn = zoneAt(x, z), vi = pickVariant(zn), v = VARIANTS[vi];
-    X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl;
+    const zn = zoneAt(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
+    if (chat) { atIdle = true; face = Math.random() * TAU; }
+    addAgent(x, z, cl, zn, atIdle, face, chat ? rand(25, 90) : rand(6, 40));
+    if (chat) {   // a few friends around, standing in a ring and chatting
+      const k = 1 + ((Math.random() * 3) | 0);
+      for (let m = 0; m < k && N.n < CAP; m++) {
+        const b = Math.random() * TAU, d = rand(0.8, 1.3), nx = x + Math.cos(b) * d, nz = z + Math.sin(b) * d;
+        if (cell(nx, nz) !== 1 || Math.hypot(nx - car.x, nz - car.z) < 3.5) continue;
+        let ok = true; for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - nx) < 0.5 && Math.abs(Z[j] - nz) < 0.5) { ok = false; break; }
+        if (ok) addAgent(nx, nz, 1, zn, true, Math.atan2(x - nx, z - nz) + rand(-0.4, 0.4), rand(25, 90));
+      }
+    }
+    return true;
+  }
+  function addAgent(x, z, cl, zn, atIdle, face, tmr) {
+    const i = N.n++, vi = pickVariant(zn), v = VARIANTS[vi];
+    X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl; LEAVE[i] = -1; MIR[i] = 0;
     TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8);
     THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = !started || jumpedNow ? 5 : 0;
-    VX[i] = VZ[i] = VY[i] = HOP[i] = ROLL[i] = 0; RD[i] = 1; TMR[i] = atIdle ? rand(6, 40) : 0; STEER[i] = Math.random() * 0.1; TRAV[i] = 0; NEXTT[i] = rand(10, 35);
+    VX[i] = VZ[i] = VY[i] = HOP[i] = ROLL[i] = 0; RD[i] = 1; TMR[i] = atIdle ? tmr : 0; STEER[i] = Math.random() * 0.1; TRAV[i] = 0; NEXTT[i] = rand(10, 35);
     SHC[i] = SHT[i] = inSun(x, z); BRI[i] = rand(0.92, 1.08); SIZE[i] = rand(0.96, 1.04); REACT[i] = -1; WAITT[i] = 0; TFLY[i] = 0;
     ST[i] = atIdle ? IDLE : WALK; TICK[i] = (Math.random() * 5) | 0;
     if (!atIdle) V[i] = V0[i];
-    return true;
+    return i;
   }
 
   // expected crowd from the density map over the walkable area around the camera
@@ -412,7 +462,7 @@ export function createPedestrians(env) {
     }
     if (st !== WALK) return;
     // sometimes stop and look around
-    if (Math.random() < IDLE_RATE[ZN[i]] * dt10 && cl === 1 && VAR[i] !== HEALV) { ST[i] = IDLE; TMR[i] = rand(3, 14); return; }
+    if (Math.random() < IDLE_RATE[ZN[i]] * dt10 && cl === 1 && VAR[i] !== HEALV) { ST[i] = IDLE; TMR[i] = ZN[i] === 5 ? rand(15, 60) : rand(3, 14); return; }
     const t = THT[i], ah = run(x, z, t, 3.2), pen = runPen;
     const ahead = cell(x + Math.sin(t) * 1.4, z + Math.cos(t) * 1.4);
     // about to step off the pavement onto a carriageway: wait for the traffic
@@ -540,6 +590,9 @@ export function createPedestrians(env) {
     const t0 = performance.now();
     dt = Math.min(dt, 0.05); frameNo++;
     cam = cam || camera;
+    { const gt = env.game && env.game.time; if (gt) setTime(gt); }
+    nightK += (nightTarget - nightK) * Math.min(1, 0.6 * dt);
+    spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
     updateScripted(dt, cam);
     cx = cam.position.x; cz = cam.position.z;
     cam.getWorldDirection(camQ); const fl = Math.hypot(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
@@ -555,6 +608,16 @@ export function createPedestrians(env) {
 
     // despawn the far ones, and retarget the crowd size twice a second
     for (let i = N.n - 1; i >= 0; i--) { if (Math.hypot(X[i] - cx, Z[i] - cz) > R + 14 || AGE[i] < -100) removeAt(i); }
+    // dusk or dawn: whoever does not belong to the new crowd leaves (unseen ones at once, visible ones dissolve after a while)
+    if (purgeT > 0) {
+      purgeT -= dt; const wt = nightCrowd ? VWN : VW;
+      for (let i = 0, left = 6; i < N.n && left > 0; i++) {
+        const vi = VAR[i]; if (LEAVE[i] >= 0 || vi === HEALV || vi === CHAIRV || MIR[i] > 0) continue;
+        let w = 0; for (let z = 0; z < 6; z++) w += wt[z][vi]; if (w > 0) continue;
+        const dx = X[i] - cx, dz = Z[i] - cz, d = Math.hypot(dx, dz) || 1, seen = d < 70 && (dx * camFwdX + dz * camFwdZ) / d > 0.15;
+        if (!seen || d > 55 || purgeT < 30) { LEAVE[i] = 1; left--; }
+      }
+    }
     targetT -= dt;
     if (targetT <= 0 || !started || jumped) { targetN = estimateTarget(); targetT = 0.5; stats.target = targetN; }
     // spawn (fill quickly when starting or after a jump, else a few per frame)
@@ -669,8 +732,9 @@ export function createPedestrians(env) {
         else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
       }
       A[i * 4] = dir * POSES + pose; A[i * 4 + 1] = VAR[i]; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
-      const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1);
-      B[i * 4] = fade; B[i * 4 + 1] = SHC[i]; B[i * 4 + 2] = BRI[i];
+      if (LEAVE[i] >= 0) { LEAVE[i] -= dt / 1.4; if (LEAVE[i] <= 0) AGE[i] = -999; }
+      const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1) * (LEAVE[i] >= 0 ? Math.max(0, LEAVE[i]) : 1);
+      B[i * 4] = fade; B[i * 4 + 1] = SHC[i] * (1 - nightK); B[i * 4 + 2] = BRI[i];
     }
     updateChairs(dt, cpx, cpz); const nc = writeChairs(n, cpx, cpz, fadeStart);
     aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true;
@@ -792,7 +856,7 @@ export function createPedestrians(env) {
       let pose = 0;
       if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; }
       sa[i * 4] = dir * POSES + pose; sa[i * 4 + 1] = c.v; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
-      sb[i * 4] = 1; sb[i * 4 + 1] = 0.8; sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (2 + leg) / 48 - 0.03 : 0;
+      sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (2 + leg) / 48 - 0.03 : 0;
     }
     sPos.needsUpdate = sA.needsUpdate = sB.needsUpdate = true;
     sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing;
@@ -801,7 +865,8 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
-  const api = { update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  { const q = params.get('time'); if (q !== null && q !== '' && Number.isFinite(+q)) setTime({ hour: +q }); }   // TEMP: ?time=21 until the day/night work lands
+  const api = { night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
 }

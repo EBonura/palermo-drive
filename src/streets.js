@@ -70,9 +70,19 @@ export const TEX = {
 // Triangulated street polygons have long triangles that would cut through the terrain between
 // their corners; split them until every edge is short enough to follow the lidar ground.
 const DRAPE_MAX = 5;
+// Only split a ground triangle when the ground under it actually bends (measured by the perf work: 2.33M -> 1.25M visible
+// triangles at Quattro Canti for a 0.05-0.08% pixel difference); very long triangles are split anyway.
+const FLAT_TOL = 0.04, SPLIT_ANYWAY = 40;
+function bends(a, b, c) {
+  const ga = groundY(a.x, a.y), gb = groundY(b.x, b.y), gc = groundY(c.x, c.y);
+  return Math.abs(groundY((a.x + b.x) / 2, (a.y + b.y) / 2) - (ga + gb) / 2) > FLAT_TOL
+    || Math.abs(groundY((b.x + c.x) / 2, (b.y + c.y) / 2) - (gb + gc) / 2) > FLAT_TOL
+    || Math.abs(groundY((c.x + a.x) / 2, (c.y + a.y) / 2) - (gc + ga) / 2) > FLAT_TOL
+    || Math.abs(groundY((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3) - (ga + gb + gc) / 3) > FLAT_TOL;
+}
 function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
   const ab = a.distanceTo(b), bc = b.distanceTo(c), ca = c.distanceTo(a), longest = Math.max(ab, bc, ca);
-  if (longest > max && depth < 8) {
+  if (longest > max && depth < 8 && (longest > SPLIT_ANYWAY || bends(a, b, c))) {
     // split the longest edge; winding is preserved in both halves
     if (longest === ab) { const d = a.clone().lerp(b, 0.5); drape(buf, a, d, c, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     else if (longest === bc) { const d = b.clone().lerp(c, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, a, d, c, lift, col, m, max, depth + 1); }
@@ -103,14 +113,17 @@ const WHITE = new THREE.Color(1, 1, 1);
 
 // opts: layers (names to build, default all of LAYERS), curbs (default true), offset (depth offset for streamed tiles).
 export function* streetsIter(streets, group, opts = {}) {
-  const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX; // opts.drape: longest triangle edge (m); streamed tiles use more
+  const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
   for (const layer of layers) {
     const polys = streets[layer];
     if (!polys || !polys.length) continue;
     const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand }[layer];
-    const buf = new Buf(), m = tex ? tex.metres : 1, lift = LAYERS[layer];
+    const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map();
     for (const poly of polys) {
+      // one mesh per chunk (opts.chunk metres, default 250; 0 = a single mesh, as the streamed world tiles want) so frustum culling helps
+      const ck = chunk ? Math.floor(poly[0][0] / chunk) * 100003 + Math.floor(poly[0][1] / chunk) : 0;
+      let buf = bufs.get(ck); if (!buf) bufs.set(ck, buf = new Buf());
       const contour = pairs(poly[0]).map(p => new THREE.Vector2(p[0], p[1]));
       const holes = poly.slice(1).map(h => pairs(h).map(p => new THREE.Vector2(p[0], p[1])));
       let tris3;
@@ -123,12 +136,14 @@ export function* streetsIter(streets, group, opts = {}) {
       }
       if ((++n & 7) === 0) yield;
     }
-    if (!buf.p.length) continue;
-    const mesh = buf.mesh(layerMaterial(layer, offset));
-    mesh.receiveShadow = true;
-    mesh.name = 'street_' + layer;
-    tris += buf.p.length / 9;
-    group.add(mesh);
+    for (const buf of bufs.values()) {
+      if (!buf.p.length) continue;
+      const mesh = buf.mesh(layerMaterial(layer, offset));
+      mesh.receiveShadow = true;
+      mesh.name = 'street_' + layer;
+      tris += buf.p.length / 9;
+      group.add(mesh);
+    }
     yield;
   }
   // Curbs: the road is on the left of each line. Vertical face plus a stone top strip.

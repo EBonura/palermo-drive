@@ -166,6 +166,7 @@ uniform sampler2D uNrm;
 uniform vec4 uBoxF;
 uniform vec4 uBoxC;
 uniform vec4 uClear;
+uniform vec3 uAmb;   // [day/night] src/daynight.js: scales the water colour and foam (1 by day, dark blue at night)
 varying vec3 vWorld;
 #include <fog_pars_fragment>
 
@@ -221,7 +222,7 @@ void main() {
   vec3 trans = exp(-vec3(0.55, 0.11, 0.075) * depth);                           // red goes first
   vec3 scat = mix(vec3(0.020, 0.50, 0.46), vec3(0.004, 0.085, 0.24), 1.0 - exp(-depth * 0.13));
   float lit = 0.62 + 0.55 * max(dot(N, uSunDir), 0.0);
-  vec3 body = (bed * trans * trans * exp(-depth * 0.3) + scat * (1.0 - exp(-depth * 0.5))) * lit;
+  vec3 body = (bed * trans * trans * exp(-depth * 0.3) + scat * (1.0 - exp(-depth * 0.5))) * lit * uAmb;
 
   // sky reflection (fresnel) and the sun glint path
   float ndv = max(dot(N, V), 0.0);
@@ -241,7 +242,7 @@ void main() {
   foam = max(foam * 0.9, (1.0 - smoothstep(0.0, 0.22, d)) * 0.85);
   float rings = smoothstep(0.80, 1.0, sin(d * 1.15 - uTime * 0.8 + n1 * 3.0)) * (1.0 - smoothstep(0.8, 7.0, d)) * smoothstep(0.35, 0.9, n2 + n1 * 0.5) * 0.35;
   foam = clamp(foam + rings, 0.0, 1.0);
-  col = mix(col, vec3(0.96, 0.98, 1.0) * (0.78 + 0.22 * lit), foam);
+  col = mix(col, vec3(0.96, 0.98, 1.0) * (0.78 + 0.22 * lit) * uAmb, foam);
 
   // soft waterline; clear glass round the drowning spot so the lapa can be seen going down
   float alpha = smoothstep(-0.1, 0.25, d);
@@ -468,7 +469,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     uSdfF: { value: fineTex }, uSdfC: { value: coarseTex }, uNrm: { value: nrmTex },
     uBoxF: { value: new THREE.Vector4(FINE.x0, FINE.z0, 1 / (rf.w / rf.k), 1 / (rf.h / rf.k)) },
     uBoxC: { value: new THREE.Vector4(COARSE.x0, COARSE.z0, 1 / (rc.w / rc.k), 1 / (rc.h / rc.k)) },
-    uClear: { value: new THREE.Vector4(0, 0, 14, 0) },
+    uClear: { value: new THREE.Vector4(0, 0, 14, 0) }, uAmb: { value: new THREE.Color(1, 1, 1) },
   }]);
   const waterMat = new THREE.ShaderMaterial({
     uniforms, vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, fog: true, transparent: true, depthWrite: true,

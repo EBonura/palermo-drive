@@ -671,7 +671,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group();
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18 });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, chunk: 0 });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     const low = yield* lowBuildings(t);
@@ -688,7 +688,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group();
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'green'], curbs: true, offset: true, drape: 9 });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'green'], curbs: true, offset: true, drape: 9, chunk: 0 });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
