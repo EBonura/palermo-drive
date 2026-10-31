@@ -3,9 +3,9 @@
 // playable box. Everything is merged into a few chunked meshes: windowed walls, flat grey roofs,
 // dark road ribbons draped on the coarse far terrain.
 import * as THREE from 'three';
-import { D, groundY, inNear, canvasTex, rng, signedArea } from './core.js';
+import { D, groundY, inNear, canvasTex, rng } from './core.js';
+import { decodeBuildings, chooseBuildings } from './context-select.js';
 
-const TRI_BUDGET = 270000;          // buildings; roads come on top (context total < 300k)
 const CHUNK = 1000;                 // metres per mesh chunk (frustum culling)
 const FLOOR_H = 3.3;
 const TEX_BAYS = 3, TEX_FLOORS = 4, BAY_M = 3.4;   // one facade texture tile: 3 bays x 4 floors
@@ -90,40 +90,6 @@ class Chunk {
   }
 }
 
-function decodeBuildings(data) {
-  const out = [];
-  for (const row of data) {
-    const ox = row[0], oz = row[1], pts = [];
-    let cx = 0, cz = 0;
-    for (let i = 4; i < row.length; i += 2) { const x = ox + row[i] / 10, z = oz + row[i + 1] / 10; pts.push([x, z]); cx += x; cz += z; }
-    const n = pts.length;
-    out.push({ ox, oz, h: row[2] / 2, k: row[3], pts, cx: cx / n, cz: cz / n, a: Math.abs(signedArea(pts)) });
-  }
-  return out;
-}
-
-// Replace a footprint by its minimum-area oriented rectangle (cheap far-field shape).
-function orientedBox(pts) {
-  let best = null;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i], q = pts[(i + 1) % pts.length];
-    const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz);
-    if (L < 1e-6) continue;
-    const ux = dx / L, uz = dz / L;
-    let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9;
-    for (const r of pts) { const u = (r[0] - p[0]) * ux + (r[1] - p[1]) * uz, v = -(r[0] - p[0]) * uz + (r[1] - p[1]) * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
-    const A = (u1 - u0) * (v1 - v0);
-    if (!best || A < best.A) best = { A, p, ux, uz, u0, u1, v0, v1 };
-  }
-  if (!best) return pts;
-  const { p, ux, uz, u0, u1, v0, v1 } = best;
-  const at = (u, v) => [p[0] + u * ux - v * uz, p[1] + u * uz + v * ux];
-  const r = [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)];
-  return signedArea(r) < 0 ? r.reverse() : r;
-}
-
-function triCost(nv) { return nv * 2 + (nv - 2); }
-
 export function buildContext(ctx) {
   const C = window.PALERMO_CONTEXT;
   if (!C) return;
@@ -133,22 +99,9 @@ export function buildContext(ctx) {
   // ----- choose what to draw -----
   const all = decodeBuildings(C.b);
   stats.candidates = all.length;
-  // Distance from the playable box (centred near the origin) drives importance: big and near first.
-  for (const b of all) {
-    const d = Math.hypot(b.cx - 20, b.cz + 70);
-    b.d = d;
-    b.far = d > 2600 ? 1 : 0;                       // far field gets rectangles
-    b.prio = (Math.sqrt(b.a) + 4) * (b.h + 6) / (1 + Math.pow(d / 1100, 1.8));
-  }
-  all.sort((a, b) => b.prio - a.prio);
-  const chosen = [];
-  let budget = TRI_BUDGET;
-  for (const b of all) {
-    if (b.far && b.pts.length > 4) b.pts = orientedBox(b.pts);
-    const c = triCost(b.pts.length);
-    if (c > budget) { if (budget < 40) break; continue; }
-    budget -= c; chosen.push(b);
-  }
+  // Importance ranking, far-field rectangles and the triangle budget live in context-select.js so the
+  // production build (tools/build) can prune the baked data with exactly the same rule.
+  const chosen = chooseBuildings(all);
 
   // ----- build chunks -----
   const wallC = new Map(), roofC = new Map();

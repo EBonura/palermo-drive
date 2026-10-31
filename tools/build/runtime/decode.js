@@ -1,0 +1,52 @@
+// Decoder for the PDB1 format written by tools/build/codec.mjs. Returns the original JS value.
+const P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6];
+export function decode(buf) {
+  let o = 4;
+  const rv = () => { let r = 0, m = 1, b; while ((b = buf[o++]) & 128) { r += (b & 127) * m; m *= 128; } return r + b * m; };
+  const sizes = [rv(), rv(), rv(), rv(), rv()];
+  const base = [], ends = [];
+  { let p = o; for (const s of sizes) { base.push(p); p += s; ends.push(p); } }
+  // streams: string table, tags, lengths, values, floats
+  let ps = base[0], pt = base[1], pl = base[2], pv = base[3], pf = base[4];
+  const rL = () => { let r = 0, m = 1, b; while ((b = buf[pl++]) & 128) { r += (b & 127) * m; m *= 128; } return r + b * m; };
+  const rV = () => { let r = 0, m = 1, b; while ((b = buf[pv++]) & 128) { r += (b & 127) * m; m *= 128; } r += b * m; return r & 1 ? -(r + 1) / 2 : r / 2; };
+  const dec = new TextDecoder();
+  const strs = [];
+  while (ps < ends[0]) { let r = 0, m = 1, b; while ((b = buf[ps++]) & 128) { r += (b & 127) * m; m *= 128; } r += b * m; strs.push(dec.decode(buf.subarray(ps, ps + r))); ps += r; }
+  const shapes = [], prev = [0, 0, 0], KIND = 'wrn';
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  function get() {
+    const t = buf[pt++];
+    switch (t) {
+      case 0: return null;
+      case 1: return false;
+      case 2: return true;
+      case 3: return rV();
+      case 4: case 5: case 6: case 7: case 8: case 9: return rV() / P10[t - 3];
+      case 10: { const v = dv.getFloat64(pf, true); pf += 8; return v; }
+      case 11: return strs[rL()];
+      case 12: { const n = rL(), a = []; for (let i = 0; i < n; i++) a.push(get()); return a; }
+      case 13: {
+        let id = rL(), keys;
+        if (id === 0) { const n = rL(); keys = []; for (let i = 0; i < n; i++) keys.push(strs[rL()]); shapes.push(keys); } else keys = shapes[id - 1];
+        const ob = {}; for (let i = 0; i < keys.length; i++) ob[keys[i]] = get(); return ob;
+      }
+      case 14: {
+        const n = rL(), mode = buf[pt++], d = mode & 7, stride = (mode >> 3) & 3, hs = ((mode >> 5) & 3) * 2, order = mode >> 7;
+        const q = [];
+        for (let i = 0; i < hs; i++) q.push(rV());
+        if (!stride) for (let i = hs; i < n; i++) q.push(rV());
+        else if (!order) for (let i = hs; i < n; i++) q.push(rV() + (i - stride >= hs ? q[i - stride] : 0));
+        else for (let i = hs; i < n; i++) { const a = i - stride >= hs ? q[i - stride] : 0; q.push(rV() + (i - 2 * stride >= hs ? 2 * a - q[i - 2 * stride] : a)); }
+        if (d) { const k = P10[d]; for (let i = 0; i < n; i++) q[i] /= k; }
+        return q;
+      }
+      case 15: {
+        const k = rL(), num = (prev[k] += rV()), sub = rL();
+        return KIND[k] + num + (sub ? '.' + (sub - 1) : '');
+      }
+    }
+    throw new Error('bad PDB1 tag ' + t);
+  }
+  return get();
+}
