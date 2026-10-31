@@ -64,7 +64,7 @@ baked data), say so in your final report instead of editing it. You may copy sma
   directional light. Use `MeshStandardMaterial` (or Lambert for very cheap props). Merge geometry and use
   `InstancedMesh`: thousands of separate meshes will kill the frame rate. Budget roughly: buildings
   under 1.5M triangles, props under 300k, landmarks under 150k, context under 300k.
-- Three.js r160 from the import map (`three`, `three/addons/...`).
+- Three.js r187 from the import map (`three`, `three/addons/...`), pinned in `tools/build/package.json` and `index.html`; the published site is built by `tools/build` (see `docs/PERF.md` for the rules that keep it small and fast: import `THREE` where you use it and never re-export the namespace, vColor is a vec4 in custom shaders, no `Math.hypot` in per-frame loops, no per-frame allocations).
 
 ## References
 
