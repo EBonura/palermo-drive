@@ -371,11 +371,12 @@ function build(env) {
       m.scale.setScalar(scale); m.renderOrder = order; return m;
     };
     arrow3d.add(mk('#120a0e', 1.14, THREE.BackSide, 50), mk('#ff4fa3', 1.0, THREE.FrontSide, 51));
-    arrow3d.scale.setScalar(0.7);
+    arrow3d.scale.setScalar(0.48);
   }
   arrow3d.visible = false; arrow3d.renderOrder = 50; scene.add(arrow3d);
   let arrowYaw = 0, arrowT = 0;
   const _ad = new THREE.Vector3(), _an = new THREE.Vector3(), _ax = new THREE.Vector3(), _am = new THREE.Matrix4();
+  const _arrowTilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.42);
   function updateArrow3d(dt, show, tx, tz) {
     arrow3d.visible = show;
     if (!show) return;
@@ -385,7 +386,7 @@ function build(env) {
     const want = Math.atan2(ax - car.x, az - car.z);
     let d = want - arrowYaw; d = Math.atan2(Math.sin(d), Math.cos(d));
     arrowYaw += d * Math.min(1, dt * 8);
-    arrow3d.position.set(car.x, groundY(car.x, car.z) + (car.lift || 0) + 2.6 + Math.sin(arrowT * 3) * 0.1, car.z);
+    arrow3d.position.set(car.x, groundY(car.x, car.z) + (car.lift || 0) + 3.1 + Math.sin(arrowT * 3) * 0.1, car.z);
     // Face the camera (y axis = towards the eye) and turn the chevron within that plane towards the route
     // heading projected onto it: straight on points up, a left turn points left, behind points down.
     // A flat arrow pointing along the road is foreshortened to a bar from the chase camera; this never is.
@@ -396,7 +397,7 @@ function build(env) {
     _ad.normalize();
     _ax.crossVectors(_an, _ad);
     _am.makeBasis(_ax, _an, _ad);
-    arrow3d.quaternion.setFromRotationMatrix(_am);
+    arrow3d.quaternion.setFromRotationMatrix(_am).multiply(_arrowTilt); // small roll shows the extruded thickness
   }
   let guideOn = false;
   function guideTo(x, z) { guideOn = true; if (Math.hypot(x - route.tx, z - route.tz) > 1) { route.tx = x; route.tz = z; route.cool = 0; route.pts = null; } }
