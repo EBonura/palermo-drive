@@ -26,6 +26,12 @@ const SPOTS = [
   ['Piazza Pretoria', 38.1151, 13.3622],
   ['La Cala', 38.1203, 13.3676],
   ['Stazione Centrale', 38.1092, 13.3655],
+  // More starting points (Nominatim/OSM positions). Keys 1-7 reach the first seven; the start picker lists all.
+  ['Vucciria (Piazza Garraffello)', 38.1179401, 13.3649292],
+  ['Piazza Marina', 38.1177752, 13.3686382],
+  ['Mercato del Capo', 38.1186189, 13.3540701],
+  ['Piazza Bellini', 38.1149189, 13.3625335],
+  ['Piazza San Domenico', 38.1188139, 13.3629446],
 ];
 
 // ---------- renderer / scene ----------
@@ -465,6 +471,7 @@ function applySettings() {
   scene.fog.density = 0.00014 / st.drawDistance;
   camera.far = 40000 * st.drawDistance; camera.updateProjectionMatrix();
   vehicle.setVolume?.(st.volume);
+  traffic.setVolume?.(st.volume);
   pedestrians.setQuality?.(st.quality);
   traffic.setQuality?.(st.quality);
   roadwear.setQuality?.(st.quality);

@@ -66,9 +66,8 @@ const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI)
 export function createTraffic(env) {
   const { scene, camera, car, groundY, walls2d, closestOnSeg, D } = env;
   const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const MAXV = +(location.search.match(/[?&]tn=(\d+)/) || [])[1] || (COARSE ? 42 : 95);
+  const MAXV = COARSE ? 42 : 95;
   const CAPS = { bus: COARSE ? 2 : 4, carrozza: COARSE ? 1 : 2, carretto: COARSE ? 0 : 1 };
-  const DEBUG = /[?&]trafficsim/.test(location.search);
 
   // ---------- road graph ----------
   const nodeIdx = new Map(), NX = [], NZ = [], NOUT = [], NIN = [], NDEG = [], NBOX = [], NOCC = [];
@@ -346,7 +345,7 @@ export function createTraffic(env) {
     vs.push(v); counts[name] = (counts[name] || 0) + 1;
     return true;
   }
-  let busCand = [], busStopCand = [], nextBus = 0, target = 30, dbgDwell = 0, dbgBus = 0, dbgStopsSeen = 0;
+  let busCand = [], busStopCand = [], nextBus = 0, target = 30;
   function rebuildBusCandidates(cx, cz) {
     busCand.length = 0; busStopCand.length = 0;
     for (const pl of PLANS) for (let i = 0; i < pl.edges.length; i++) {
@@ -371,7 +370,7 @@ export function createTraffic(env) {
       lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0,
       col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si, dwell: 0,
     };
-    extendRoute(v); vs.push(v); counts.bus = (counts.bus || 0) + 1; dbgBus++;
+    extendRoute(v); vs.push(v); counts.bus = (counts.bus || 0) + 1;
     return true;
   }
   function removeAt(i) { const v = vs[i]; v.dead = true; counts[v.name]--; vs[i] = vs[vs.length - 1]; vs.pop(); }
@@ -398,10 +397,10 @@ export function createTraffic(env) {
   }
   function mustHold(v, e, rem, exitSpace) {
     const n = e.b, ty = v.ty;
-    if (SIG.has(n) && !green(n, e, time)) { v.why = 'sig'; return true; }
+    if (SIG.has(n) && !green(n, e, time)) { return true; }
     if (NDEG[n] < 3) return false;
     if (v.wait > 9) return false;                                    // gridlock breaker
-    if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why = 'exit'; v.why2 = v.exitO; return true; } // keep the box clear, briefly
+    if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why2 = v.exitO; return true; } // keep the box clear, briefly
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1];
     const eager = v.wait > 2.5;
@@ -409,20 +408,20 @@ export function createTraffic(env) {
       const o = occ[i]; if (o === v) continue;
       const oe = o.route[0];
       if (oe.b !== n) { // already past the node and still inside it
-        if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why = 'leaving'; v.why2 = o; return true; }
+        if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why2 = o; return true; }
         continue;
       }
       if (oe === e) continue;
       const remO = oe.len - o.t, ot = o.route[1];
       if (remO > 3 && remO / Math.max(o.v, 2.5) > 3.8) continue;       // far away
       if (!pathsCross(e, en, oe, ot)) continue;                         // nothing to give way to
-      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why = 'inbox'; v.why2 = o; return true; } continue; } // it is in the box already
+      if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why2 = o; return true; } continue; } // it is in the box already
       if (eager) continue;
       const rightDot = oe.dx * e.rx + oe.dz * e.rz;
-      if (oe.rank > e.rank) { v.why = 'rank'; v.why2 = o; return true; }
+      if (oe.rank > e.rank) { v.why2 = o; return true; }
       if (oe.rank === e.rank) { // first come first served, the right-hand rule breaks ties
         const d = (remO / Math.max(o.v, 2.5) - o.wait) - (rem / Math.max(v.v, 2.5) - v.wait);
-        if (d < -0.4 || (d < 0.4 && (rightDot < -0.35 ? (oe.dx * e.rx + oe.dz * e.rz > -0.35 || o.id < v.id) : o.id < v.id && rightDot < 0.35))) { v.why = 'right'; v.why2 = o; return true; }
+        if (d < -0.4 || (d < 0.4 && (rightDot < -0.35 ? (oe.dx * e.rx + oe.dz * e.rz > -0.35 || o.id < v.id) : o.id < v.id && rightDot < 0.35))) { v.why2 = o; return true; }
       }
     }
     return false;
@@ -515,13 +514,13 @@ export function createTraffic(env) {
         if ((v.cur + k) % n === st.i) {
           const gap = d0 + st.t - L2 + 3.5;
           if (gap < -2) v.si++;
-          else if (gap < 70) { interact(gap, 0, null); if (sp < 0.4 && gap < 4) { v.dwell = 6 + Math.random() * 6; dbgDwell++; } }
+          else if (gap < 70) { interact(gap, 0, null); if (sp < 0.4 && gap < 4) { v.dwell = 6 + Math.random() * 6; } }
           break;
         }
         d0 = k === 0 ? rem : d0 + route[k].len; // distance to the start of route[k + 1]
       }
     }
-    v.blocker = blocker; v.hold = hold; v.minGap = minGap; v.v0 = v0;
+    v.blocker = blocker; v.hold = hold;
     if (!v.filtO) { // make room for a honking lapa: edge towards the kerb where the road allows
       let room = 0; if (v.hornT > 0) room = clamp(e0.w / 2 - 0.45 - ty.W / 2 - laneOff(e0, v), 0, 1.3);
       v.latT = room;
@@ -692,7 +691,6 @@ export function createTraffic(env) {
 
   let acc = 0;
   function update(dt, cam) {
-    if (frozen) return;
     frames++;
     cam = cam || camera;
     cam.updateMatrixWorld();
@@ -714,7 +712,6 @@ export function createTraffic(env) {
       while (tries-- > 0 && made > 0) if (trySpawn()) made--;
     }
     writeInstances();
-    if (DEBUG && !debugDone) { debugDone = true; runDebug(); }
   }
 
   // ---------- speech balloons ----------
@@ -732,7 +729,7 @@ export function createTraffic(env) {
   function stepFly(v, dt) {
     const f = v.fly, ty = v.ty;
     f.t += dt;
-    const restY = 0.5 * (Math.abs(Math.sin(v.roll)) * ty.W + Math.abs(Math.sin(v.pitch || 0)) * ty.L * 0.35);
+    const restY = 0.5 * (Math.abs(Math.sin(v.roll)) * ty.W * 0.9 + Math.abs(Math.sin(v.pitch || 0)) * ty.L * 0.2);
     if (f.phase === 0) { // in the air or sliding
       f.vy -= G * dt; f.y += f.vy * dt;
       v.x += f.vx * dt; v.z += f.vz * dt;
@@ -809,8 +806,8 @@ export function createTraffic(env) {
           if (vn < -4 && mv < 5) { // YEET: the vehicle is launched, the lapa only gets a light knock
             const rel = -vn, sc = mv <= 1.3 ? 1 : 0.65, pv = Math.hypot(pc.vx, pc.vz) || 1;
             let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = Math.hypot(ux, uz) || 1; ux /= um; uz /= um;
-            const hs = clamp(rel * 1.15 + 2, 5, 24) * sc;
-            launch(v, ux * hs, uz * hs, clamp(3.8 + rel * 0.5, 4.5, 11) * sc, 0);
+            const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
+            launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
             v.x -= nx * pen; v.z -= nz * pen;
             const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
             shoutAt(v); v.honkAt = time + 0.5;
@@ -833,83 +830,6 @@ export function createTraffic(env) {
         wallPush(v);
       }
     }
-  }
-
-  // ---------- debug (removed after tuning) ----------
-  let debugDone = false, frozen = false;
-  function runDebug() {
-    const cam = camera, cx = car.x, cz = car.z, log = [];
-    const car0 = [car.x, car.z]; car.x = 9000; car.z = 9000; // park the player out of the way for the flow test
-    cam.position.set(cx, 25, cz); cam.lookAt(cx, 0, cz + 1);
-    const mask = document.createElement('canvas'), [x0, z0, x1, z1] = D.streets.aoi;
-    mask.width = Math.ceil(x1 - x0); mask.height = Math.ceil(z1 - z0);
-    const g = mask.getContext('2d'); g.fillStyle = '#fff';
-    for (const layer of ['asphalt', 'paving']) for (const poly of D.streets[layer]) {
-      g.beginPath();
-      for (const ring of poly) for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo'](ring[i] - x0, ring[i + 1] - z0);
-      g.fill('evenodd');
-    }
-    const md = g.getImageData(0, 0, mask.width, mask.height).data, onRoad = (x, z) => { const i = (x - x0) | 0, j = (z - z0) | 0; return md[(j * mask.width + i) * 4 + 3] > 127; };
-    let tmax = 0, ttot = 0, tn = 0, off = 0, offN = 0, overl = 0, overlN = 0;
-    const types = {}, ovk = {}, ovs = [];
-    for (let s = 0; s < 1800; s++) {
-      const t0 = performance.now();
-      update(1 / 30, cam);
-      const dtm = performance.now() - t0; ttot += dtm; tn++; if (s > 60 && dtm > tmax) tmax = dtm;
-      if (s > 60) for (const v of vs) { offN++; if (!onRoad(v.x, v.z)) off++; }
-      if (s > 60) for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) {
-        const a = vs[i], b = vs[j]; if (Math.abs(a.x - b.x) > 6 || Math.abs(a.z - b.z) > 6) continue;
-        let hit = false;
-        for (const [za, ra] of a.ty.circ) for (const [zb, rb] of b.ty.circ)
-          if (Math.hypot(a.x + Math.sin(a.h) * za - b.x - Math.sin(b.h) * zb, a.z + Math.cos(a.h) * za - b.z - Math.cos(b.h) * zb) < (ra + rb) * 0.75) hit = true;
-        overlN++; if (hit) { overl++; const cj = Math.cos(a.h - b.h), k = (cj > 0.7 ? 'same' : cj < -0.7 ? 'opp' : 'cross') + (a.route[0] === b.route[0] ? '/sameEdge' : '') + (a.stuck > 20 || b.stuck > 20 ? '/ghost' : '') + (a.hold || b.hold ? '/hold' : '') + (a.ty.scooter || b.ty.scooter ? '/scooter' : ''); ovk[k] = (ovk[k] || 0) + 1; if (k === 'opp/hold' && ovs.length < 6 && s % 7 === 0) ovs.push(`${a.name}(${a.hold ? a.why : 'm'},v${a.v.toFixed(1)},${a.route[0].name}${a.route[0].ow ? '1w' : '2w'} w${a.route[0].w}) x ${b.name}(${b.hold ? b.why : 'm'},v${b.v.toFixed(1)},${b.route[0].name}${b.route[0].ow ? '1w' : '2w'}) @${a.x | 0},${a.z | 0}`); }
-      }
-      if (s % 150 === 149) {
-        let sp = 0, stuck = 0, wait = 0; const cause = {};
-        for (const v of vs) { sp += v.v; if (v.stuck > 20) stuck++; if (v.wait > 0.5) wait++; if (v.v < 0.5) { const k = v.hold ? 'H' + v.why : v.blocker ? 'follow' : 'free'; cause[k] = (cause[k] || 0) + 1; } }
-        log.push(`t=${((s + 1) / 30) | 0}s n=${vs.length}/${target} avgV=${(sp / Math.max(1, vs.length)).toFixed(1)} stuck20=${stuck} waiting=${wait} ms=${(ttot / tn).toFixed(2)} ${JSON.stringify(cause)}`);
-      }
-    }
-    car.x = car0[0]; car.z = car0[1];
-    for (const v of vs) types[v.name] = (types[v.name] || 0) + 1;
-    const dump = vs.filter(v => v.stuck > 15).slice(0, 14).map(v => `${v.name}@${v.x | 0},${v.z | 0} v=${v.v.toFixed(1)} v0=${v.v0.toFixed(1)} hold=${v.hold} wait=${v.wait.toFixed(0)} gap=${v.minGap.toFixed(1)} blk=${v.blocker ? (v.blocker === 'player' ? 'PLAYER' : v.blocker.name + '@' + (v.blocker.x | 0) + ',' + (v.blocker.z | 0)) : '-'} rem=${(v.route[0].len - v.t).toFixed(0)} e=${v.route[0].name}${v.route[0].ow ? '(1w)' : ''} ndeg=${NDEG[v.route[0].b]} routeN=${v.route.length}`);
-    const hv = vs.filter(v => v.hold && (v.why === 'inbox' || v.why === 'exit')).slice(0, 8).map(v => { const o = v.why2; return `${v.id}:${v.name}@${v.x | 0},${v.z | 0} why=${v.why} rem=${(v.route[0].len - v.t).toFixed(0)} node=${v.route[0].b} wait=${v.wait.toFixed(1)} ${o && v.why === 'inbox' ? `<- ${o.id}:${o.name}@${o.x | 0},${o.z | 0} v=${o.v.toFixed(1)} remO=${(o.route[0].len - o.t).toFixed(1)} onNode=${o.route[0].b} hold=${o.hold}/${o.why} blk=${o.blocker && o.blocker.id}` : ''}`; });
-    console.log('TRAFFIC holds ' + hv.join(' || '));
-    const wf = v => v.hold ? v.why2 : (v.blocker && v.blocker !== 'player' ? v.blocker : null);
-    const cycles = new Set();
-    for (const v of vs) { if (v.v > 0.5) continue; let r = v, n = 0; const path = []; while (r && n++ < 60) { if (path.includes(r)) { cycles.add(path.slice(path.indexOf(r)).map(q => `${q.id}:${q.name}(${q.hold ? q.why : 'f'})@${q.x | 0},${q.z | 0}`).join('>')); break; } path.push(r); r = wf(r); } }
-    console.log('TRAFFIC cycles ' + [...cycles].slice(0, 5).join(' || '));
-    const roots = {};
-    for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
-    console.log('TRAFFIC buses ' + vs.filter(v => v.plan).map(v => `${v.plan.ref}>${v.plan.to}@${v.x | 0},${v.z | 0},h${v.h.toFixed(2)} stop${v.si}/${v.plan.stops.length} dwell${v.dwell.toFixed(0)} v${v.v.toFixed(1)}`).join(' | '));
-    const camTarget = vs.find(v => v.name === (/trafficcam=(\w+)/.exec(location.search) || [])[1]);
-    if (camTarget) {
-      const o = camera.updateMatrixWorld.bind(camera), v = camTarget, fx = Math.sin(v.h), fz = Math.cos(v.h);
-      frozen = true;
-      camera.updateMatrixWorld = f => { camera.position.set(v.x + fx * 10 - fz * 1.2, groundY(v.x, v.z) + 3.4, v.z + fz * 10 + fx * 1.2); camera.lookAt(v.x, groundY(v.x, v.z) + 1.6, v.z); o(f); };
-    }
-    console.log('TRAFFIC busSpawned ' + dbgBus + ' dwells ' + dbgDwell + ' plans ' + PLANS.length + ' planStops ' + PLANS.reduce((q, p) => q + p.stops.length, 0) + ' ' + PLANS.map(p => p.ref + ':' + p.edges.length + 'e/' + p.stops.length + 's').join(' '));
-    { // player collision test: ram the nearest hatchback at 9 m/s
-      const tv = vs.find(v => v.name === 'panda' || v.name === 'punto'), sh = [];
-      if (tv) {
-        env.shout = (...a) => sh.push(a.length);
-        const fx = Math.sin(tv.h), fz = Math.cos(tv.h);
-        Object.assign(car, { x: tv.x - fx * 6, z: tv.z - fz * 6, th: tv.h, vx: fx * 9, vz: fz * 9, vf: 9, w: 0 });
-        const r0 = [tv.v, tv.x, tv.z];
-        for (let i = 0; i < 240; i++) { car.x += car.vx / 120; car.z += car.vz / 120; collidePlayer(car); if (i % 40 === 0) update(1 / 120, cam); }
-        console.log(`TRAFFIC ramtest carV=${Math.hypot(car.vx, car.vz).toFixed(1)} vfAfter=${car.vf.toFixed(1)} w=${car.w.toFixed(2)} target v ${r0[0].toFixed(1)}->${tv.v.toFixed(1)} stopT=${tv.stopT.toFixed(1)} moved=${Math.hypot(tv.x - r0[1], tv.z - r0[2]).toFixed(1)}m gapNow=${Math.hypot(car.x - tv.x, car.z - tv.z).toFixed(1)} shouts=${sh.length}`);
-      }
-    }
-    console.log('TRAFFIC ovsamples ' + ovs.join(' || '));
-    console.log('TRAFFIC overlaps ' + JSON.stringify(ovk));
-    console.log('TRAFFIC roots ' + JSON.stringify(roots));
-    const rs = new Set();
-    for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; if (!r.hold) rs.add(r); }
-    const fr = [...rs].slice(0, 6).map(v => { const e = v.route[0]; return `${v.name}@${v.x | 0},${v.z | 0} ${e.name}${e.ow ? '(1w)' : ''} rank${e.rank} rem=${(e.len - v.t).toFixed(1)} route=${v.route.length} outs=${NOUT[e.b].map(c => (c.ped ? 'P' : '') + (allowed(c, v.ty) ? 'ok' : 'no') + c.rank).join(',')} v0=${v.v0.toFixed(1)} v=${v.v.toFixed(2)} gap=${v.minGap.toFixed(1)} stopT=${v.stopT.toFixed(1)} stuck=${v.stuck.toFixed(0)} blk=${v.blocker}`; });
-    console.log('TRAFFIC free ' + fr.join(' || '));
-    console.log('TRAFFIC stuck: ' + dump.join(' || '));
-    console.log('TRAFFIC ' + log.join(' | '));
-    console.log(`TRAFFIC mean update ${(ttot / tn).toFixed(2)} ms, max ${tmax.toFixed(2)} ms, offAsphalt ${(100 * off / Math.max(1, offN)).toFixed(1)}%, overlapPairs ${overl} of ${overlN} pair-frames, graph nodes ${NX.length} edges ${EDGES.length}, types ${JSON.stringify(types)}`);
   }
 
   return {

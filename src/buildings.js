@@ -110,9 +110,9 @@ function ashlar(g, r, x0, y0, x1, y1, base, rowH = 32, bw = 64, dark = .26) {
       const xa = Math.max(x0, x), xb = Math.min(x1, x + bw);
       if (xb <= xa) continue;
       g.fillStyle = r() < .5 ? `rgba(255,245,220,${r() * .08})` : `rgba(90,65,35,${r() * .1})`; g.fillRect(xa, y, xb - xa, h);
-      g.fillStyle = `rgba(70,50,30,${dark})`; g.fillRect(xa, y, 2, h);
+      g.fillStyle = `rgba(70,50,30,${dark + .06})`; g.fillRect(xa, y, 3, h);
     }
-    g.fillStyle = `rgba(70,50,30,${dark + .08})`; g.fillRect(x0, y, x1 - x0, 2.5);
+    g.fillStyle = `rgba(70,50,30,${dark})`; g.fillRect(x0, y, x1 - x0, 2);
   }
 }
 function pilaster(g, x, w, base = '#f1ebdb') {
@@ -368,16 +368,16 @@ layer('pw_b', (g, r) => {
 });
 
 // ---- church / civic stone
-layer('ch_low', (g, r) => { ashlar(g, r, 0, 0, T, T, '#e8dcc0', 36, 72); dado(g, 50, .35); for (let i = 0; i < 4; i++) streak(g, r() * T, r() * 60, 120, 10, .12); });
+layer('ch_low', (g, r) => { ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72); dado(g, 50, .35); for (let i = 0; i < 4; i++) streak(g, r() * T, r() * 60, 120, 10, .12); });
 layer('ch_door', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e8dcc0', 36, 72);
+  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
   g.fillStyle = '#f2e9d0'; g.beginPath(); g.moveTo(60, T); g.lineTo(60, 120); g.quadraticCurveTo(128, 0, 196, 120); g.lineTo(196, T); g.fill();
   g.fillStyle = '#3a2a1e'; g.beginPath(); g.moveTo(76, T); g.lineTo(76, 126); g.quadraticCurveTo(128, 30, 180, 126); g.lineTo(180, T); g.fill();
   g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(126, 90, 4, T - 90);
   g.fillStyle = '#b9ae98'; g.fillRect(56, T - 10, 144, 10); dado(g, 40, .3);
 });
 layer('ch_mid', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e8dcc0', 36, 72);
+  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
   g.fillStyle = '#d8cba8'; g.beginPath(); g.moveTo(52, T); g.lineTo(52, 90); g.quadraticCurveTo(128, -20, 204, 90); g.lineTo(204, T); g.fill();
   g.fillStyle = '#e9dec3'; g.beginPath(); g.moveTo(62, T); g.lineTo(62, 94); g.quadraticCurveTo(128, -2, 194, 94); g.lineTo(194, T); g.fill();
   g.fillStyle = '#1d2227'; g.beginPath(); g.moveTo(112, 190); g.lineTo(112, 100); g.quadraticCurveTo(128, 60, 144, 100); g.lineTo(144, 190); g.fill();
@@ -385,7 +385,7 @@ layer('ch_mid', (g, r) => {
   for (let i = 0; i < 3; i++) streak(g, 60 + r() * 140, 100 + r() * 60, 100, 10, .14);
 });
 layer('ch_top', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e8dcc0', 36, 72);
+  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
   for (const x of [64, 192]) { g.fillStyle = '#d4c7a2'; g.beginPath(); g.moveTo(x - 24, 150); g.lineTo(x - 24, 90); g.arc(x, 90, 24, Math.PI, 0); g.lineTo(x + 24, 150); g.fill(); g.fillStyle = '#20262c'; g.beginPath(); g.moveTo(x - 16, 150); g.lineTo(x - 16, 92); g.arc(x, 92, 16, Math.PI, 0); g.lineTo(x + 16, 150); g.fill(); }
   band(g, T - 18, 10, '#f3ead2');
 });
@@ -393,7 +393,7 @@ layer('ch_top', (g, r) => {
 
 // ---- stone (exposed tufa) upper floors, arched / pedimented windows, rusticated ground floor
 function stoneUp(g, r, sh, kind) {
-  ashlar(g, r, 0, 0, T, T, '#e6dcc4', 32, 64, .22);
+  ashlar(g, r, 0, 0, T, T, '#e6e2d6', 32, 64, .22);
   band(g, T - 8, 5, '#efe6cf');
   if (kind === 'arch') {
     g.fillStyle = '#f2ead4'; g.beginPath(); g.moveTo(74, 214); g.lineTo(74, 80); g.arc(128, 80, 54, Math.PI, 0); g.lineTo(182, 214); g.fill();
@@ -423,7 +423,7 @@ layer('ped_up', (g, r) => {
   streak(g, 90, 8, 34, 9);
 });
 layer('g_rust_win', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e2d8bf', 36, 72, .3);
+  ashlar(g, r, 0, 0, T, T, '#e0dcd0', 36, 72, .3);
   win(g, 90, 92, 76, 84, { fr: 9, frc: '#d8cdb0', sill: false });
   g.strokeStyle = '#1e1e22'; g.lineWidth = 3.5; for (let x = 98; x < 166; x += 13) { g.beginPath(); g.moveTo(x, 92); g.lineTo(x, 176); g.stroke(); }
   dado(g, 50, .4);
@@ -839,7 +839,7 @@ export function buildBuildings(ctx) {
         const bmode = W.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || S.rail || 'rail_a';
         if (kind === 'street' && bmode !== 'none' && bw >= (W.balc ? 2.6 : 2.9) && nUp > 0) {
           if (bmode === 'cont') {
-            for (let f = 1; f <= (W.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), true, nb, rail);
+            for (let f = 1; f <= (W.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), true, Math.max(nb, Math.round((len - 1) / 1.3)), rail);
           } else {
             const upper = bmode === 'default' ? hh(ax * 1.3, az * 0.7) < S.balcUpper : bmode === 'every' || bmode === 'alt';
             for (let f = 1; f <= nUp; f++) {
@@ -977,7 +977,7 @@ export function buildBuildings(ctx) {
       else { const list = isStone ? Z.stone : Z.plaster; base = new THREE.Color(list[b.c % list.length]); }
       const grime = spec && spec.grime !== undefined ? spec.grime : Z.grime, gr = grime * r();
       const col = base.multiplyScalar(1.3 * (0.94 + 0.1 * r()) * (1 - 0.2 * gr));
-      col.lerp(grey((col.r + col.g + col.b) / 3), 0.28 * gr);
+      col.lerp(grey((col.r + col.g + col.b) / 3), 0.12 + 0.28 * gr);
       const stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15);
       const B = {
         S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || 0,
