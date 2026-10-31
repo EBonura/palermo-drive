@@ -843,6 +843,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // Move the player somewhere far: stream the destination in first, then place the car (placeAt snaps to the nearest road vertex).
     onTile(fn) { tileFns.add(fn); for (const t of fullSet) fn('full', t); return () => tileFns.delete(fn); },
     fullTiles() { return [...fullSet]; },
+    // Parsed data of tile (i, j) if it is resident or in the parsed-tile LRU (full or low detail), else null. Read-only (minimap).
+    tileData(i, j) { const k = nk(i, j), t = tiles.get(k); return (t && t.data) || cache.get(k) || null; },
     teleport(x, z, done) { tele = { x, z, done }; wantedTimer = 99; },
     update(dt, cam) {
       if (!M) { if (tasks.length) runTasks(CFG.budgetMs); return; }
