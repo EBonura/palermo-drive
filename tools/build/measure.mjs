@@ -104,6 +104,15 @@ if (QUERY.includes('debug')) {
     const s = await page.evaluate(() => new Promise(resolve => {
       const g = window.game, r = g.renderer, info = r.info, rt = [], dts = [];
       const orig = r.render.bind(r);
+      // ground truth across three.js versions: count the GL draw calls / triangles of every pass (shadow pass included).
+      // (renderer.info.render left the shadow pass out in r160 and counts it from r18x on.)
+      const gl = r.getContext(); let glCalls = 0, glTris = 0; const glOrig = {};
+      const tri = (mode, n) => mode === 4 ? n / 3 : mode === 5 || mode === 6 ? Math.max(0, n - 2) : 0;
+      for (const n of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced']) {
+        glOrig[n] = gl[n]; const f = gl[n].bind(gl);
+        gl[n] = n.endsWith('Instanced') ? (mode, a, b, c, inst) => { glCalls++; glTris += tri(mode, n === 'drawElementsInstanced' ? a : b) * (n === 'drawElementsInstanced' ? inst : c); return f(mode, a, b, c, inst); }
+          : (mode, a, b, c) => { glCalls++; glTris += tri(mode, n === 'drawElements' ? a : b); return f(mode, a, b, c); };
+      }
       let calls = 0, tris = 0, lines = 0, points = 0, frames = 0;
       r.render = (s, c) => { const a = performance.now(); orig(s, c); rt.push(performance.now() - a); };
       let last = performance.now(); const end = last + 3000;
@@ -111,10 +120,10 @@ if (QUERY.includes('debug')) {
         dts.push(now - last); last = now;
         if (info.render.calls) { calls += info.render.calls; tris += info.render.triangles; lines += info.render.lines; points += info.render.points; frames++; }
         if (now < end) requestAnimationFrame(tick); else {
-          r.render = orig;
+          r.render = orig; for (const n in glOrig) gl[n] = glOrig[n];
           const med = a => { const b = [...a].sort((x, y) => x - y); return b[b.length >> 1] || 0; };
           const p95 = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length * 0.95)] || 0; };
-          resolve({ calls: Math.round(calls / frames), triangles: Math.round(tris / frames), lines: Math.round(lines / frames), points: Math.round(points / frames),
+          resolve({ glCalls: Math.round(glCalls / frames), glTriangles: Math.round(glTris / frames), calls: Math.round(calls / frames), triangles: Math.round(tris / frames), lines: Math.round(lines / frames), points: Math.round(points / frames),
             geometries: info.memory.geometries, textures: info.memory.textures, programs: info.programs ? info.programs.length : 0,
             cpuRenderMsMedian: +med(rt).toFixed(2), cpuRenderMsP95: +p95(rt).toFixed(2), frameMsMedian: +med(dts.slice(5)).toFixed(2), frameMsP95: +p95(dts.slice(5)).toFixed(2), fps: +(1000 / med(dts.slice(5))).toFixed(1),
             pixelRatio: r.getPixelRatio(), drawBuf: [r.domElement.width, r.domElement.height] });

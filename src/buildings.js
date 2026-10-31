@@ -728,11 +728,11 @@ function atlasMaterial(tex, cutout, photo) {
         ${cutout ? 'diffuseColor.a *= tc.a;' : ''}
         // [day/night] lit windows: the dark bluish glass texels glow warm, a random share of them (uWin, 0 by day) one bay at a time
         vec3 winGlow = vec3(0.0);
-        ${photo ? '' : `if (uWin > 0.002 && lum < 0.16 && tc.b > tc.g * 1.09 && tc.b > tc.r * 1.25) {
+        ${photo || cutout ? '' : `if (uWin > 0.002 && lum < 0.16 && tc.b > tc.g * 1.09 && tc.b > tc.r * 1.5) {
           vec3 cid = vec3(floor(vTileUv), floor(vLayer + 0.5) + 37.0 * floor(vWp.x / 31.0) + 91.0 * floor(vWp.z / 29.0));
           float wh = fract(sin(dot(cid, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
           float tv = step(0.93, fract(wh * 7.31));
-          winGlow = mix(vec3(1.0, 0.6, 0.26), vec3(0.42, 0.58, 1.0), tv) * smoothstep(wh, wh + 0.05, uWin) * (1.6 + 2.2 * lum);
+          winGlow = mix(vec3(1.0, 0.5, 0.16), vec3(0.42, 0.58, 1.0), tv) * smoothstep(wh, wh + 0.05, uWin) * (0.9 + 2.4 * lum);
         }`}`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += winGlow;');
   };
@@ -1254,7 +1254,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     stats.styles = {}; stats.balconies = 0; stats.tanks = 0; stats.tiled = 0; stats.flat = 0; stats.specs = 0; stats.photo = 0; stats.osmCol = 0;
     for (const b of data.buildings) {
       if (ctx.skip.has(b.id)) continue;
-      if ((++nb & 7) === 0) yield;
+      if ((++nb & 3) === 0) yield;
       const r = rng(b.c * 7919 + 13);
       const solids = [];
       const shift = b.r !== undefined && !data.near ? -b.g : 0;
