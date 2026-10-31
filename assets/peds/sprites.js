@@ -63,6 +63,7 @@ function figure(g, v, dir, pose) {
       P(lx, hipY, 5, bot - hipY, legCol);
       if (isShorts) P(lx, hipY, 5, B.len, B.col);
       if (B.stripe) P(lx + (lx < 12 ? 0 : 4), hipY + 2, 1, bot - hipY - 4, B.stripe);
+      if (v.boots) P(lx - (lx < 12 ? 1 : 0), bot - 9, 6, 9, v.boots);
       P(lx - (lx < 12 ? 1 : 0), bot - 2, 6, 2, v.shoes);
     }
     P(11, hipY + 4, 1, FY - hipY - 6, sh(legCol, 0.6));
@@ -72,7 +73,11 @@ function figure(g, v, dir, pose) {
       if (isRobe) { P(12, hipY + 1, 1, hemY - hipY - 1, sh(B.col, 1.9)); }
     }
     // torso
-    P(x0, shY, tw, tor, top); P(x0, shY, 1, 1, '#0000'); g.clearRect(x0, shY, 1, 1); g.clearRect(x1, shY, 1, 1);
+    P(x0, shY, tw, tor, back && v.vest ? v.vest : top); g.clearRect(x0, shY, 1, 1); g.clearRect(x1, shY, 1, 1);
+    if (v.vest && !back) { P(x0, shY, 3, tor, v.vest); P(x1 - 2, shY, 3, tor, v.vest); }
+    if (v.stain) { P(x0 + 2, shY + 4, 3, 2, v.stain); P(x1 - 4, shY + 8, 3, 3, v.stain); P(x0 + 3, hipY - 3, 2, 2, v.stain); }
+    if (v.scarf) { P(x0 + 2, shY, tw - 4, 2, v.scarf[0]); for (let k = 0; k < 4; k++) P(back ? x0 + 3 : 11, shY + 2 + k * 2, 2, 2, v.scarf[k & 1 ? 0 : 1]); if (!back) P(11, shY + 10, 2, 1, v.scarf[0]); }
+    if (v.chain && !back) P(10, shY + 1, 4, 1, v.chain);
     if (v.shirt && !back) { P(10, shY, 4, 5, v.shirt); if (v.tie) P(12, shY + 1, 1, 6, v.tie); }
     if (v.collar && !back) { P(10, shY, 4, 2, v.collar === '#2f6b49' ? skin : v.collar); }
     else if (!back && !v.hood && !v.shirt) P(10, shY, 4, 1, skinD);
@@ -87,9 +92,10 @@ function figure(g, v, dir, pose) {
     const aL = sw === 1 ? 1 : 0, aR = sw === -1 ? 1 : 0; // the arm opposite the forward leg swings back (shorter)
     const arm = (ax, short, side) => {
       const len = armH - short;
-      if (v.sleeve === 'short') { P(ax, shY + 1, 3, 5, top); P(ax, shY + 6, 3, len - 5, skin); }
+      if (v.sleeve === 'short') { P(ax, shY + 1, 3, 5, top); if (v.trim) P(ax, shY + 5, 3, 1, v.trim); P(ax, shY + 6, 3, len - 5, skin); }
       else { P(ax, shY + 1, 3, len - 2, top); P(ax, shY + len - 1, 3, 2, skin); if (v.hood) P(ax, shY + len - 3, 3, 1, topD); }
       P(ax + (side < 0 ? 2 : 0), shY + 1, 1, len - 1, sh(top, 0.82));
+      if (v.sleeveStripe) P(ax + (side < 0 ? 0 : 2), shY + 1, 1, len - 3, v.sleeveStripe);
     };
     const aLx = x0 - 3, aRx = x1 + 1;
     const phone = v.phone && !back;
@@ -102,23 +108,29 @@ function figure(g, v, dir, pose) {
     if (v.bag) { P(aLx - 1, shY + armH - 1, 5, 7, v.bag); P(aLx, shY + armH - 2, 3, 1, sh(v.bag, 0.6)); P(aLx + 1, shY + armH + 1, 2, 3, sh(v.bag, 1.3)); }
     if (v.tote) { P(aLx - 1, shY + armH - 1, 5, 8, v.tote); P(aLx, shY + armH - 2, 3, 1, sh(v.tote, 0.6)); P(aLx + 1, shY + armH + 1, 3, 1, '#a8442c'); }
     if (v.purse) { P(aRx, shY + armH - 1, 4, 4, v.purse); }
+    if (v.bag2) { P(aRx, shY + armH - 1, 5, 7, v.bag2); P(aRx + 1, shY + armH - 2, 3, 1, sh(v.bag2, 0.6)); P(aRx + 1, shY + armH + 1, 2, 3, sh(v.bag2, 1.3)); }
+    if (v.helmetHand) { P(aRx - 1, shY + armH, 5, 4, v.helmetHand); P(aRx, shY + armH, 3, 1, sh(v.helmetHand, 1.1)); P(aRx - 1, shY + armH + 3, 5, 1, '#202026'); }
+    if (v.stroller) { const [c1, c2] = v.stroller; if (back) { P(x0 + 1, hipY + 1, tw - 2, 2, '#26262c'); } else { P(7, hipY + 2, 10, 4, c1); P(7, hipY + 6, 10, 1, sh(c1, 0.7)); P(8, hipY + 7, 8, FY - hipY - 10, c2); P(7, FY - 4, 3, 4, '#1c1c20'); P(14, FY - 4, 3, 4, '#1c1c20'); } }
     // head
     const hx0 = 12 - (hw >> 1);
     P(hx0, headTop, hw, head, skin); g.clearRect(hx0, headTop, 1, 1); g.clearRect(hx0 + hw - 1, headTop, 1, 1);
     P(hx0 + 1, headTop + head - 2, hw - 2, 2, sh(skin, 0.94)); P(10, shY - 1, 4, 1, skinD);
-    const hs = v.hairStyle || 'short';
+    const hs = v.hairStyle || 'short', fadeC = sh(skin, 0.62), sideC = hs === 'fade' ? fadeC : hair;
     if (back) { // hair covers the back of the head
-      P(hx0, headTop, hw, hs === 'bald' ? 4 : head - 2, hair); if (hs === 'long') P(hx0, headTop, hw, head + 4, hair);
+      P(hx0, headTop, hw, hs === 'bald' ? 4 : hs === 'fade' ? 4 : head - 2, hair); if (hs === 'fade') P(hx0, headTop + 4, hw, 3, fadeC);
+      if (hs === 'quiff') P(hx0 + 2, headTop - 1, hw - 4, 1, hair); if (hs === 'long') P(hx0, headTop, hw, head + 4, hair);
       if (hs === 'bun') P(10, headTop - 2, 4, 3, hair);
       if (hs === 'bald') { P(hx0, headTop + 3, 2, 4, hair); P(hx0 + hw - 2, headTop + 3, 2, 4, hair); }
     } else {
       const fr = hs === 'fringe' ? 4 : hs === 'bald' ? 0 : 3;
       if (hs !== 'bald') P(hx0, headTop, hw, fr, hair); else { P(hx0, headTop + 2, 2, 4, hair); P(hx0 + hw - 2, headTop + 2, 2, 4, hair); P(hx0 + 2, headTop, hw - 4, 1, sh(skin, 1.12)); }
-      if (hs !== 'bald') { P(hx0, headTop, 1, 6, hair); P(hx0 + hw - 1, headTop, 1, 6, hair); }
+      if (hs !== 'bald') { P(hx0, headTop, 1, 6, sideC); P(hx0 + hw - 1, headTop, 1, 6, sideC); }
+      if (hs === 'quiff' || hs === 'fade') { P(hx0 + 2, headTop - (hs === 'quiff' ? 1 : 0), hw - 4, 1, hair); P(hx0 + 3, headTop, 3, 1, sh(hair, 2.4)); }
       if (hs === 'long') { P(hx0 - 1, headTop + 2, 2, head + 3, hair); P(hx0 + hw - 1, headTop + 2, 2, head + 3, hair); }
       if (hs === 'bun') P(10, headTop - 2, 4, 3, hair);
       const ey = headTop + Math.round(head * 0.55);
-      if (v.glasses) { P(hx0 + 1, ey, hw - 2, 2, v.glasses); } else { P(hx0 + 2, ey, 2, 2, '#1a1414'); P(hx0 + hw - 4, ey, 2, 2, '#1a1414'); }
+      if (v.bigGlasses) { P(hx0, ey - 1, 5, 3, v.bigGlasses); P(hx0 + hw - 5, ey - 1, 5, 3, v.bigGlasses); P(hx0 + 5, ey - 1, hw - 10, 1, v.bigGlasses); }
+      else if (v.glasses) { P(hx0 + 1, ey, hw - 2, 2, v.glasses); } else { P(hx0 + 2, ey, 2, 2, '#1a1414'); P(hx0 + hw - 4, ey, 2, 2, '#1a1414'); }
       P(11, ey + 2, 2, 1, skinD); // nose shadow
       P(10, ey + 4, 4, 1, v.beard ? v.beard : sh(skin, 0.7));
       if (v.beard) { P(hx0, ey + 3, hw, head - (ey - headTop) - 3, v.beard); P(10, ey + 4, 4, 1, sh(skin, 0.8)); }
@@ -134,8 +146,10 @@ function figure(g, v, dir, pose) {
       const cc = dark ? sh(c, 0.75) : c;
       limb(P, hipX, hipY, fxn, FY - lift, 4, cc);
       if (isShorts) limb(P, hipX, hipY, hipX + (fxn - hipX) * B.len / leg, hipY + B.len, 4, dark ? sh(B.col, 0.75) : B.col);
+      if (v.boots) P(fxn - 2, FY - lift - 9, 5, 9, dark ? sh(v.boots, 0.75) : v.boots);
       P(fxn - 2, FY - lift - 2, 5, 2, dark ? sh(shoe, 0.75) : shoe);
     };
+    if (v.stroller) { const [c1, c2] = v.stroller; P(1, hipY + 5, 9, 6, c2); P(0, hipY + 2, 7, 4, c1); P(1, hipY + 2, 6, 1, sh(c1, 1.3)); P(7, hipY + 1, 5, 1, '#26262c'); P(9, hipY + 1, 1, 6, '#26262c'); P(1, FY - 4, 4, 4, '#1c1c20'); P(7, FY - 4, 4, 4, '#1c1c20'); P(2, FY - 3, 2, 2, '#8a8a90'); P(8, FY - 3, 2, 2, '#8a8a90'); }
     // far leg first
     limbs(2 * hipX - fx, sw === 0 ? 0 : 1, legCol, v.shoes, true);
     // far arm (behind torso)
@@ -156,7 +170,10 @@ function figure(g, v, dir, pose) {
     limbs(fx, sw === 0 ? 0 : 0, legCol, v.shoes, false);
     if (isSkirt || isRobe) { for (let y = hipY; y < Math.min(hemY, hipY + 5); y++) P(tx0 - 1, y, torW + 2, 1, B.col); }
     // torso
-    P(tx0, shY, torW, tor, top); g.clearRect(tx0, shY, 1, 1);
+    P(tx0, shY, torW, tor, v.vest || top); g.clearRect(tx0, shY, 1, 1);
+    if (v.stain) { P(tx0 + 2, shY + 4, 2, 2, v.stain); P(tx0 + 1, shY + 9, 3, 2, v.stain); }
+    if (v.scarf) { P(tx0, shY, torW, 2, v.scarf[0]); for (let k = 0; k < 4; k++) P(tx0 - 1, shY + 2 + k * 2, 2, 2, v.scarf[k & 1 ? 0 : 1]); }
+    if (v.chain) P(tx0, shY + 1, 1, 1, v.chain);
     if (v.shirt) P(tx0, shY, 1, 6, v.shirt);
     if (v.collar && v.collar !== v.top && v.collar !== '#2f6b49') P(tx0, shY, 2, 2, v.collar);
     if (v.belt) P(tx0, hipY - 1, torW, 1, v.belt);
@@ -173,10 +190,12 @@ function figure(g, v, dir, pose) {
     else {
       P(hx0 + 1, headTop, hwid - 1, 3, hair); P(hx0 + hwid - 4, headTop, 4, head - 3, hair);
       if (hs === 'fringe') P(hx0, headTop, 3, 5, hair);
+      if (hs === 'quiff') { P(hx0, headTop - 1, hwid - 3, 1, hair); P(hx0 + 1, headTop - 1, 2, 1, sh(hair, 2.4)); }
+      if (hs === 'fade') { P(hx0 + hwid - 4, headTop + 3, 4, 4, sh(skin, 0.62)); P(hx0 + 1, headTop, 3, 1, sh(hair, 2.4)); }
       if (hs === 'long') P(hx0 + hwid - 5, headTop, 5, head + 5, hair);
       if (hs === 'bun') P(hx0 + hwid - 2, headTop - 1, 4, 4, hair);
     }
-    P(hx0 + 1, ey, 1, 2, v.glasses || '#1a1414'); if (v.glasses) P(hx0 + 1, ey, 3, 2, v.glasses);
+    P(hx0 + 1, ey, 1, 2, v.glasses || '#1a1414'); if (v.glasses) P(hx0 + 1, ey, 3, 2, v.glasses); if (v.bigGlasses) P(hx0, ey - 1, 4, 3, v.bigGlasses);
     if (v.beard) P(hx0, ey + 2, 4, 3, v.beard);
     P(hx0, ey + 4, 2, 1, sh(skin, 0.7));
     hats(g, v, dir, hx0, hwid, headTop, head, P, false);
@@ -187,6 +206,8 @@ function figure(g, v, dir, pose) {
     if (v.tote) { const bx = armHandN - 3; P(bx, shY + armH - 1, 7, 8, v.tote); P(bx + 1, shY + armH - 2, 5, 1, sh(v.tote, 0.6)); P(bx + 1, shY + armH + 2, 4, 1, '#a8442c'); }
     if (v.briefcase) { const bx = armHandN - 3; P(bx, shY + armH, 7, 5, v.briefcase); P(bx + 2, shY + armH - 1, 3, 1, sh(v.briefcase, 0.6)); }
     if (v.purse) P(tx1 - 1, hipY - 1, 4, 5, v.purse);
+    if (v.bag2) { const bx = armHandN + 2; P(bx, shY + armH, 5, 6, v.bag2); P(bx + 1, shY + armH - 1, 3, 1, sh(v.bag2, 0.6)); }
+    if (v.helmetHand) { const bx = armHandN - 3; P(bx, shY + armH, 6, 4, v.helmetHand); P(bx, shY + armH + 3, 6, 1, '#202026'); }
   }
 }
 
@@ -207,9 +228,12 @@ function hats(g, v, dir, hx0, hw, headTop, head, P, back) {
   } else if (h.type === 'peaked') {
     if (side) { P(hx0, headTop - 2, hw + 1, 5, c); P(hx0 - 3, headTop + 2, 4, 1, '#0c0c10'); P(hx0 + 1, headTop + 1, hw - 1, 1, h.col2); P(hx0 + 1, headTop - 1, 1, 1, h.col2); }
     else { P(hx0 - 1, headTop - 2, hw + 2, 5, c); P(hx0 - 1, headTop + 1, hw + 2, 1, sh(c, 0.7)); if (!back) { P(hx0 + 1, headTop + 3, hw - 2, 1, '#0c0c10'); P(hx0 + hw / 2 - 1, headTop - 1, 2, 2, h.col2); } }
+  } else if (h.type === 'helmet') {
+    if (side) { P(hx0, headTop - 1, hw + 2, 5, c); P(hx0 + 1, headTop - 1, hw - 1, 1, sh(c, 1.1)); P(hx0 - 1, headTop + 2, 3, 1, '#2a2a30'); P(hx0 + hw - 2, headTop + 4, 3, 3, d); }
+    else { P(hx0 - 1, headTop - 1, hw + 2, 5, c); P(hx0, headTop - 1, hw, 1, sh(c, 1.1)); if (!back) P(hx0, headTop + 3, hw, 1, '#2a2a30'); }
   } else if (h.type === 'scarf') {
     if (side) { P(hx0 - 1, headTop - 1, hw + 1, 4, c); P(hx0 + hw - 4, headTop - 1, 5, head + 2, c); }
-    else { P(hx0 - 1, headTop - 1, hw + 2, back ? head : 5, c); P(hx0 - 1, headTop + 3, 2, 6, c); P(hx0 + hw - 1, headTop + 3, 2, 6, c); if (!back) { P(hx0 + 2, headTop + 3, 2, 1, v.hair); P(hx0 + hw - 4, headTop + 3, 2, 1, v.hair); } }
+    else { P(hx0 - 1, headTop - 1, hw + 2, back ? head : 5, c); if (h.col2 && !back) P(hx0, headTop + 3, hw, 1, h.col2); P(hx0 - 1, headTop + 3, 2, 6, c); P(hx0 + hw - 1, headTop + 3, 2, 6, c); if (!back) { P(hx0 + 2, headTop + 3, 2, 1, v.hair); P(hx0 + hw - 4, headTop + 3, 2, 1, v.hair); } }
   }
 }
 
