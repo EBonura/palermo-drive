@@ -521,5 +521,101 @@
   "fix": [],
   "todo": false,
   "v0": 0.14
+ },
+ {
+  "key": "malfitano",
+  "bid": "w250508063",
+  "name": "Villa Malfitano",
+  "wall": 7,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Villa Malfitano - Fa\u00e7ade .jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
+ },
+ {
+  "key": "zisa",
+  "bid": "w186187084",
+  "name": "Castello della Zisa (main front)",
+  "wall": 0,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "La Zisa (Palermo) 19 06 2026 31.jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
+ },
+ {
+  "key": "borsa",
+  "bid": "w182675995",
+  "name": "Grand Hotel Piazza Borsa (ex Cassa di Risparmio)",
+  "wall": 0,
+  "cover": [
+   0,
+   1
+  ],
+  "title": "Cassa di Risparmio (Palermo).jpg",
+  "dw": 1600,
+  "quad": [
+   [
+    0,
+    0
+   ],
+   [
+    1600,
+    0
+   ],
+   [
+    1600,
+    1200
+   ],
+   [
+    0,
+    1200
+   ]
+  ],
+  "fix": [],
+  "todo": true
  }
 ]

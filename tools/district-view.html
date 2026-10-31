@@ -31,7 +31,7 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.Mes
 const T = 500;
 let ids = q.get('tiles'); ids = ids ? ids.split(',') : null;
 if (!ids) { ids = []; const ti = Math.floor(look[0] / T), tj = Math.floor(look[2] / T); for (let i = ti - 1; i <= ti + 1; i++) for (let j = tj - 1; j <= tj + 1; j++) ids.push(i + '_' + j); }
-const asphalt = new THREE.MeshLambertMaterial({ color: '#7e7c76' }), sidewalk = new THREE.MeshLambertMaterial({ color: '#b9b5aa' });
+const asphalt = new THREE.MeshLambertMaterial({ color: '#7e7c76', side: THREE.DoubleSide }), sidewalk = new THREE.MeshLambertMaterial({ color: '#b9b5aa', side: THREE.DoubleSide });
 const stats = { tiles: 0, buildings: 0, tris: 0 };
 const t0 = performance.now();
 for (const id of ids) {

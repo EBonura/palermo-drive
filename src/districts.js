@@ -112,7 +112,7 @@ export const ZONES = {
   rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
     w: { pal: .34, res: .26, blk: .12, pw: .14, fish: .1, n19: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
   periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true,
-    w: { pal: .3, res: .3, pw: .16, blk: .1, fish: .1, n19: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.2, roof: 0.7 },
+    w: { pal: .3, res: .3, pw: .16, blk: .1, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7 },
   rural: { plaster: ['#e0d4b4', '#d8c8a8', '#e8e2d2', '#d2bda0', '#ece6d6', '#cdc6b2'], stone: ['#bba07a'], pStone: 0.1, grime: 0.4, elig: true,
     w: { res: .5, fish: .5 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 3.0, roof: 1.2 },
   // La Favorita: country villas of the Bourbon park, ochre and pink plaster, red tile roofs.

@@ -12,6 +12,9 @@ import * as THREE from 'three';
 import { proj } from './core.js';
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
+import { buildPoliceModels, makePoliceDecal } from '../assets/traffic/police-models.js';
+import { createPolice, createBeacons } from './police.js';   // wanted system, police chase, siren, HUD
+import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
 
 // ---------- tuning ----------
 const CLASS = { // rank decides priority, v is the free speed in m/s, w the spawn weight per metre
@@ -49,6 +52,15 @@ const TYPES = {
     cols: [['#2e2a26', 2], ['#6a4a30', 2]] },
 };
 TYPES.vespaB = { ...TYPES.vespa, model: 'vespaB' };
+TYPES.bus.hy = 3.6;
+// Police (src/police.js): copV is the speed they reach when boxing the lapa in off the road graph.
+TYPES.polizia = { model: 'polizia', L: 4.5, W: 1.78, mass: 1.3, circ: [[1.4, 0.95], [0, 0.95], [-1.4, 0.95]], cols: [['#f2f2f0', 1]], rmin: 4.8, copV: 25 };
+TYPES.carab = { ...TYPES.polizia, model: 'carab', cols: [['#1f2f5c', 1]] };
+TYPES.apePol = { model: 'apePol', L: 3.2, W: 1.4, mass: 0.9, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.75, a: 1.8, rmin: 3.6, vcap: 12, ped: true, copV: 12, cols: [['#e3ebf3', 1]] };
+// Lookouts and the team bus (src/gags.js)
+TYPES.monopattino = { model: 'monopattino', L: 1.2, W: 0.55, mass: 0.2, circ: [[0.3, 0.4], [-0.2, 0.4]], vf: 1.15, a: 3.0, T: 0.7, s0: 1.0, rmin: 2.2, scooter: true, ped: true, hy: 1.95,
+  cols: [['#c23b3b', 2], ['#2f6f9a', 2], ['#2a2a2c', 2], ['#d8c36a', 1], ['#5a7a4a', 1], ['#e8559a', 1]] };
+TYPES.teamBus = { ...TYPES.bus, model: 'teamBus', cols: [['#ee6aa6', 1]] };
 for (const t of Object.values(TYPES)) {
   Object.assign(t, { vf: 1, a: 2.6, b: 3.2, T: 0.95, s0: 1.6, rmin: 4.2, vcap: 99, minW: 0 }, { ...t });
   t.cls = t.bus ? 2 : t.ped ? 1 : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable, 2 buses
@@ -207,6 +219,7 @@ export function createTraffic(env) {
 
   // ---------- instanced meshes ----------
   const MODELS = buildModels(), MAT = makeMaterial();
+Object.assign(MODELS, buildPoliceModels());
   const CAP = MAXV + 16, MESH = {};
   for (const name of Object.keys(MODELS)) {
     const m = new THREE.InstancedMesh(MODELS[name], MAT, CAP);
@@ -216,9 +229,11 @@ export function createTraffic(env) {
     m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true;
     scene.add(m); MESH[name] = m;
   }
+  const DECAL = makePoliceDecal(MESH.apePol, CAP); scene.add(DECAL);   // the word POLIZIA on the lapino
+  const TEAM_ROW = ROWS.length; if (PLANS.length) ROWS.push({ ref: '', to: 'ROSANERO' });   // the team bus's LED board
   // LED destination boards: one atlas row per line, picked per instance
   const SIGN_ROW = new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1);
-  let SIGN = null;
+  let SIGN = null, SIGN_T = null;
   if (ROWS.length) {
     const cv = document.createElement('canvas'), W = 128, H = 16;
     cv.width = W * 2; cv.height = H * 2 * ROWS.length;
@@ -226,7 +241,7 @@ export function createTraffic(env) {
     tmp.width = W; tmp.height = H; g.imageSmoothingEnabled = false;
     ROWS.forEach((r, i) => {
       tg.fillStyle = '#080604'; tg.fillRect(0, 0, W, H);
-      const text = (r.ref + ' ' + r.to).toUpperCase().replace(/^(PARCHEGGIO|PIAZZALE|STAZIONE) /, m => m.slice(0, 4) + '. ');
+      const text = (r.ref + ' ' + r.to).trim().toUpperCase().replace(/^(PARCHEGGIO|PIAZZALE|STAZIONE) /, m => m.slice(0, 4) + '. ');
       let px = 11; tg.textBaseline = 'middle';
       do { tg.font = `bold ${px}px monospace`; px--; } while (tg.measureText(text).width > W - 6 && px > 6);
       tg.fillStyle = '#ffae1a'; tg.fillText(text, 3, H / 2 + 1);
@@ -243,6 +258,9 @@ export function createTraffic(env) {
     SIGN = new THREE.InstancedMesh(geo, mat, CAP);
     SIGN.instanceMatrix = MESH.bus.instanceMatrix; SIGN.count = 0; SIGN.frustumCulled = false;
     SIGN_ROW.setUsage(THREE.DynamicDrawUsage); scene.add(SIGN);
+    const geoT = busSignGeometry(); geoT.setAttribute('row', new THREE.InstancedBufferAttribute(new Float32Array(CAP).fill(TEAM_ROW), 1));
+    SIGN_T = new THREE.InstancedMesh(geoT, mat, CAP);
+    SIGN_T.instanceMatrix = MESH.teamBus.instanceMatrix; SIGN_T.count = 0; SIGN_T.frustumCulled = false; scene.add(SIGN_T);
   }
   for (const t of Object.values(TYPES)) t.colObjs = t.cols.map(([h, w]) => [new THREE.Color(h), w]);
 
@@ -255,9 +273,10 @@ export function createTraffic(env) {
   const counts = {};
   let nextId = 0;
   const agentsOut = [];
+  let police = null, gags = null;   // created at the end of createTraffic
 
   const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
-  function pickNext(e, ty) {
+  function pickNext(e, ty, v) {
     const outs = NOUT[e.b]; let tot = 0, any = null;
     const ws = [];
     for (const c of outs) {
@@ -269,10 +288,22 @@ export function createTraffic(env) {
       if (c.ped) w *= 0.4;
       ws.push(w); tot += w; any = c;
     }
+    if (v) { biasRoute(v, outs, ws); tot = 0; for (const w of ws) tot += w; }
     if (tot <= 0) return null;
     let r = Math.random() * tot;
     for (let i = 0; i < outs.length; i++) if ((r -= ws[i]) <= 0 && ws[i] > 0) return outs[i];
     return any;
+  }
+  // Route choice with an aim: police head for the lapa, scared lookouts away from it, lookouts at ease stay near their market.
+  function biasRoute(v, outs, ws) {
+    let gx, gz, away = false;
+    if (v.cop && v.cop.pursue) { gx = car.x; gz = car.z; }
+    else if (v.flee) { gx = car.x; gz = car.z; away = true; }
+    else if (v.home && (v.x - v.home[0]) ** 2 + (v.z - v.home[1]) ** 2 > 90 * 90) { gx = v.home[0]; gz = v.home[1]; }
+    else return;
+    let lo = 1e9, hi = 0; const ds = [];
+    for (let i = 0; i < outs.length; i++) if (ws[i] > 0) { const d = ds[i] = Math.hypot(NX[outs[i].b] - gx, NZ[outs[i].b] - gz); if (d < lo) lo = d; if (d > hi) hi = d; }
+    for (let i = 0; i < outs.length; i++) if (ws[i] > 0) ws[i] *= away ? Math.exp(-(hi - ds[i]) / 40) : Math.exp(-(ds[i] - lo) / 30);
   }
   function extendRoute(v) {
     const r = v.route;
@@ -285,7 +316,7 @@ export function createTraffic(env) {
       }
       return;
     }
-    while (r.length < 4) { const n = pickNext(r[r.length - 1], v.ty); if (!n) break; r.push(n); }
+    while (r.length < 4) { const n = pickNext(r[r.length - 1], v.ty, v); if (!n) break; r.push(n); }
   }
   const laneOff = (e, v) => e.ow ? (e.w < 7 ? 0.55 : v.pref * Math.min(e.w / 4, 2.6)) : Math.min(e.w / 4, 2.6);
 
@@ -353,10 +384,10 @@ export function createTraffic(env) {
       if (d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX && e.len > 14) { busCand.push([pl, i]); if (pl.stops.some(st => st.i > i && st.i <= i + 2)) busStopCand.push([pl, i]); }
     }
   }
-  function trySpawnBus() {
+  function trySpawnBus(name = 'bus') {
     if (!busCand.length) return false;
-    const list = busStopCand.length && Math.random() < 0.7 ? busStopCand : busCand; // most buses start a little before a stop
-    const [pl, i] = list[(Math.random() * list.length) | 0], e = pl.edges[i], ty = TYPES.bus;
+    const list = name === 'bus' && busStopCand.length && Math.random() < 0.7 ? busStopCand : busCand; // most buses start a little before a stop
+    const [pl, i] = list[(Math.random() * list.length) | 0], e = pl.edges[i], ty = TYPES[name];
     const t = ty.L * 0.5 + 1 + Math.random() * Math.max(0, e.len - ty.L - 2);
     const x = NX[e.a] + e.dx * t + e.rx * Math.min(e.w / 4, 2.6), z = NZ[e.a] + e.dz * t + e.rz * Math.min(e.w / 4, 2.6);
     const dc = Math.hypot(x - camera.position.x, z - camera.position.z);
@@ -366,12 +397,12 @@ export function createTraffic(env) {
     for (const o of vs) if (Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 5) return false;
     let si = 0; while (si < pl.stops.length && (pl.stops[si].i < i || (pl.stops[si].i === i && pl.stops[si].t < t + 8))) si++;
     const v = {
-      id: ++nextId, ty, name: 'bus', x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
+      id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
       lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0,
-      col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si, dwell: 0,
+      col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si: name === 'bus' ? si : pl.stops.length, dwell: 0,
     };
-    extendRoute(v); vs.push(v); counts.bus = (counts.bus || 0) + 1;
-    return true;
+    extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
+    return v;
   }
   function removeAt(i) { const v = vs[i]; v.dead = true; counts[v.name]--; vs[i] = vs[vs.length - 1]; vs.pop(); }
 
@@ -430,7 +461,8 @@ export function createTraffic(env) {
   function control(v, dt) {
     const ty = v.ty, route = v.route, e0 = route[0], rem = e0.len - v.t, L2 = ty.L / 2;
     const sp = v.v, a = ty.a, b = ty.b, sab = 2 * Math.sqrt(a * b);
-    let v0 = Math.min(e0.v * ty.vf * v.drv, ty.vcap);
+    const bo = v.boost || 1; // police and scared lookouts drive faster than the road allows
+    let v0 = Math.min(e0.v * ty.vf * v.drv * bo, ty.vcap * bo);
     const vbase = v0;
     let dist = rem;
     for (let k = 0; k + 1 < route.length; k++) {
@@ -438,13 +470,14 @@ export function createTraffic(env) {
       const ang = Math.acos(clamp(ek.dx * en.dx + ek.dz * en.dz, -1, 1));
       let vt = ang < 0.12 ? 99 : Math.max(3.2, vbase * (1 - 0.75 * Math.min(1, (ang - 0.12) / 1.3)));
       if (k === 0 && ek.slowJ) vt = Math.min(vt, ek.giveWay ? 5.5 : 7.5);
-      vt = Math.min(vt, en.v * ty.vf * 1.05, ty.vcap);
+      vt = Math.min(vt, en.v * ty.vf * 1.05 * bo, ty.vcap * bo);
       v0 = Math.min(v0, Math.sqrt(vt * vt + 6 * Math.max(0, dist - L2)));
       dist += en.len;
       if (dist > 70) break;
     }
     if (v.hornT > 0) { v.hornT -= dt; v0 *= 0.55; }
     v0 = Math.max(v0, 0.6);
+    if (v.hold2) { v.acc = v.hold2 === 2 ? -Math.min(b * 2.2, sp * 4 + 1) : -clamp(sp * 1.1 + 0.6, 0, 4.5); return; } // double-parked (src/gags.js): 1 pulling up, 2 stopped
     if (v.stopT > 0) { v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
     if (v.dwell > 0) { v.dwell -= dt; if (v.dwell <= 0) v.si++; v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
 
@@ -499,7 +532,7 @@ export function createTraffic(env) {
     }
     // junction: hold at the stop line when someone has priority, the light is red or the exit is blocked
     let hold = false;
-    if (rem < 40) hold = mustHold(v, e0, rem, exitSpace);
+    if (rem < 40 && !(v.cop && v.cop.pursue)) hold = mustHold(v, e0, rem, exitSpace); // sirens skip the stop lines
     if (hold) {
       const sg = rem - L2 - NBOX[e0.b];
       if (sg > -1.2 && sp * sp / (2 * Math.max(sg, 0.1)) < 6.5) interact(sg, 0, null);
@@ -544,10 +577,12 @@ export function createTraffic(env) {
 
   function integrate(v, dt) {
     if (v.fly) { stepFly(v, dt); return; }
+    if (v.cop && v.cop.mode === 'direct') { police.drive(v, dt); return; }   // boxing the lapa in, off the road graph
     const ty = v.ty, route = v.route;
     v.stopT = Math.max(0, v.stopT - dt);
     v.v = Math.max(0, v.v + (v.acc || 0) * dt);
     if (v.v < 0.25) v.stuck += dt; else if (v.v > 1) v.stuck = 0;
+    if (v.hold2) v.stuck = 0;
     // steer: pure pursuit on the lane line
     let e0 = route[0];
     v.lat += (v.latT - v.lat) * Math.min(1, 3 * dt);
@@ -575,7 +610,7 @@ export function createTraffic(env) {
     if (ty.scooter) v.roll += (clamp(-v.yaw * v.v * 0.05, -0.38, 0.38) - v.roll) * Math.min(1, 6 * dt);
     v.age += dt;
     // honks: the player is in the way, or a delayed one after a bump
-    if (v.v < 0.5 && v.blocker === 'player') {
+    if (v.v < 0.5 && !v.hold2 && (v.blocker === 'player' || (v.blocker && v.blocker.dp))) { // stuck behind the lapa or behind a double-parker
       v.blockT += dt;
       if (v.blockT > 2.2) { v.blockT = -1.2; honk(v); if (Math.random() < 0.5) shoutAt(v); }
     } else if (v.blockT > 0) v.blockT = 0; else if (v.blockT < 0) v.blockT = Math.min(0, v.blockT + dt);
@@ -588,7 +623,7 @@ export function createTraffic(env) {
     for (const e of touchedEdges) e.veh.length = 0;
     touchedEdges.length = 0;
     for (const v of vs) {
-      if (v.fly) continue;
+      if (v.fly || (v.cop && v.cop.mode === 'direct')) continue;
       const e = v.route[0];
       if (!e.veh.length) touchedEdges.push(e);
       e.veh.push(v);
@@ -652,20 +687,21 @@ export function createTraffic(env) {
   function stepAll(dt) {
     time += dt;
     buildOcc();
-    for (let i = 0; i < vs.length; i++) if (!vs[i].fly) control(vs[i], dt);
+    for (let i = 0; i < vs.length; i++) if (!vs[i].fly && !(vs[i].cop && vs[i].cop.mode === 'direct')) control(vs[i], dt);
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
   }
   function cull(cx, cz) {
     for (let i = vs.length - 1; i >= 0; i--) {
       const v = vs[i], dx = v.x - cx, dz = v.z - cz, d2 = dx * dx + dz * dz;
-      let kill = d2 > R_DESPAWN * R_DESPAWN;
+      const keep = v.cop && v.cop.keep;                      // police in a chase stay however far they are
+      let kill = !keep && d2 > R_DESPAWN * R_DESPAWN;
       const lat = Math.abs((v.x - NX[v.route[0].a]) * v.route[0].rx + (v.z - NZ[v.route[0].a]) * v.route[0].rz);
-      if (lat > 8) kill = true;
+      if (lat > 8 && !(v.cop && v.cop.mode === 'direct')) kill = true;
       if (!kill && (v.stuck > 35 || (!v.route[1] && v.stuck > 6) || v.age > 600)) {
         const vis = d2 < 45 * 45 || inView(v.x, 1, v.z, v.ty.L * 0.6);
         if (!vis || v.stuck > 140) kill = d2 > 30 * 30;
       }
-      if (!kill && d2 > R_KEEP_UNSEEN * R_KEEP_UNSEEN && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6 + 2)) kill = true;
+      if (!kill && !keep && d2 > R_KEEP_UNSEEN * R_KEEP_UNSEEN && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6 + 2)) kill = true;
       if (v.hide && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6)) kill = true;
       if (kill) removeAt(i);
     }
@@ -681,12 +717,13 @@ export function createTraffic(env) {
       A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
       A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
       A[o + 12] = v.x; A[o + 13] = groundY(v.x, v.z) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
-      if (v.plan) SIGN_ROW.array[n] = v.plan.row;
+      if (v.plan && v.name === 'bus') SIGN_ROW.array[n] = v.plan.row;
       const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
       for (const [zo, r] of v.ty.circ) agentsOut.push({ x: v.x + s * zo, z: v.z + c * zo, r });
     }
     for (const k in MESH) { const m = MESH[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
-    if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; }
+    if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
+    DECAL.count = MESH.apePol.count;
   }
 
   let acc = 0;
@@ -711,11 +748,12 @@ export function createTraffic(env) {
       let tries = deficit > 12 ? 40 : 6, made = deficit > 12 ? 10 : 2;
       while (tries-- > 0 && made > 0) if (trySpawn()) made--;
     }
+    fx.begin(); police.update(Math.min(dt, 0.1), fx); gags.update(Math.min(dt, 0.1), fx); fx.end();
     writeInstances();
   }
 
   // ---------- speech balloons ----------
-  const headY = v => groundY(v.x, v.z) + (v.fly ? v.fly.y : 0) + 1.4;
+  const headY = v => groundY(v.x, v.z) + (v.fly ? v.fly.y : 0) + (v.ty.hy || 1.4);
   const shoutAt = (v, text) => env.shout?.(v.x, headY(v), v.z, text, () => v.dead ? null : { x: v.x, y: headY(v), z: v.z });
 
   // ---------- yeet: a hit vehicle is launched, tumbles, bounces, slides, rights itself ----------
@@ -752,7 +790,7 @@ export function createTraffic(env) {
           const k = (o.ty.mass <= 1.3 ? 0.8 : 0.5) * (ty.mass >= 1.5 ? 1.1 : 1), d = Math.hypot(dx, dz) || 1;
           launch(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1);
           f.vx *= 0.55; f.vz *= 0.55;
-          shoutAt(o);
+          shoutAt(o); police.chaos(o.cop ? 'hitcop' : 'chain');
           break;
         }
       }
@@ -786,6 +824,7 @@ export function createTraffic(env) {
     }
   }
   function collidePlayer(pc) {
+    police.collide(pc);
     const sn = Math.sin(pc.th), cs = Math.cos(pc.th);
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i], ty = v.ty, dx = v.x - pc.x, dz = v.z - pc.z, reach = ty.L / 2 + 2.6;
@@ -810,7 +849,7 @@ export function createTraffic(env) {
             launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
             v.x -= nx * pen; v.z -= nz * pen;
             const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
-            shoutAt(v); v.honkAt = time + 0.5;
+            shoutAt(v); v.honkAt = time + 0.5; police.chaos(v.cop ? 'hitcop' : 'yeet');
             return;
           }
           const shP = mv / (mp + mv), shV = mp / (mp + mv);
@@ -825,6 +864,8 @@ export function createTraffic(env) {
         }
       }
       if (touched) {
+        if (v.dp) gags.bump(v);
+        if (v.cop && Math.hypot(pc.vx, pc.vz) > 6) police.chaos('hitcop');
         if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; shoutAt(v); }
         v.stopT = Math.max(v.stopT, 1.0 + Math.random() * 0.8);
         wallPush(v);
@@ -832,9 +873,58 @@ export function createTraffic(env) {
     }
   }
 
+  // ---------- police, lookouts, team bus, double parking: they steer ordinary vehicles through this small interface ----------
+  function spawnOffscreen(name, dmin, dmax, edgeOk) { // a new vehicle out of view, dmin..dmax metres from the lapa, on an edge edgeOk(midX, midZ, edge) accepts
+    if (!candEdges.length) return null;
+    const ty = TYPES[name], tot = candCum[candCum.length - 1];
+    for (let k = 0; k < 40; k++) {
+      let lo = 0, hi = candCum.length - 1; const r = Math.random() * tot;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (candCum[m] < r) lo = m + 1; else hi = m; }
+      const e = candEdges[lo]; if (!allowed(e, ty) || (ty.copV && e.ped)) continue;
+      if (edgeOk && !edgeOk((NX[e.a] + NX[e.b]) / 2, (NZ[e.a] + NZ[e.b]) / 2, e)) continue;
+      const t = Math.min(e.len - 0.5, ty.L * 0.5 + 0.5 + Math.random() * Math.max(0, e.len - ty.L - 1)), pref = Math.random() < 0.55 ? 1 : -1;
+      const off = laneOff(e, { pref, ty }), x = NX[e.a] + e.dx * t + e.rx * off, z = NZ[e.a] + e.dz * t + e.rz * off;
+      const dp = Math.hypot(x - car.x, z - car.z); if (dp < dmin || dp > dmax) continue;
+      if (Math.hypot(x - camera.position.x, z - camera.position.z) < R_SPAWN_MIN || inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3)) continue;
+      let clear = true; for (const o of vs) if (Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) { clear = false; break; }
+      if (!clear) continue;
+      const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
+        lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+      extendRoute(v);
+      if (v.route.length < 2 && e.len < 40) continue;
+      vs.push(v); counts[name] = (counts[name] || 0) + 1;
+      return v;
+    }
+    return null;
+  }
+  // put a vehicle that left the graph (police boxing in) back on the nearest edge pointing its way
+  function snap(v) {
+    let best = null, bs = 1e9, bt = 0; const fx = Math.sin(v.h), fz = Math.cos(v.h);
+    for (const e of EDGES) {
+      if (!allowed(e, v.ty)) continue;
+      const ax = NX[e.a], az = NZ[e.a], t = (v.x - ax) * e.dx + (v.z - az) * e.dz;
+      if (t < 0 || t > e.len) continue;
+      const cs = e.dx * fx + e.dz * fz; if (cs < 0.2) continue;
+      const al = Math.abs((v.x - ax) * e.rx + (v.z - az) * e.rz - laneOff(e, v)); if (al > 14) continue;
+      const sc = al + (1 - cs) * 8; if (sc < bs) { bs = sc; best = e; bt = t; }
+    }
+    if (!best) return false;
+    v.route = [best]; v.t = bt; v.lat = 0; v.latT = 0; v.wait = 0; v.stuck = 0; v.blocker = null; extendRoute(v);
+    return true;
+  }
+  const fx = createBeacons(scene, camera);
+  const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen,
+    spawnCop: (name, dmin, dmax) => spawnOffscreen(name, dmin, dmax, null),
+    spawnTeamBus() { rebuildBusCandidates(camera.position.x, camera.position.z); for (let k = 0; k < 12; k++) { const v = trySpawnBus('teamBus'); if (v) return v; } return null; },
+    removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
+  police = createPolice(env, T);
+  gags = createGags(env, T, police);
+  if (location.search.includes('debug')) window.__pd = { police, gags, T, vs, TYPES, counts }; // TEMP-DEBUG
+
   return {
     update, collidePlayer,
     agents: () => agentsOut,
-    setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; },
+    setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
+    bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); },   // called by pedestrians.js once it is built
   };
 }

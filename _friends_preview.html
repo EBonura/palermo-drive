@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#2b2530;font:600 13px system-ui;color:#f5a9c9}canvas{display:block}</style></head><body>
+<canvas id="c"></canvas>
+<script type="module">
+import { VARIANTS, buildAtlas, CELL_W, CELL_H, POSES } from './assets/peds/sprites.js';
+// Faces and hair from the two photos; outfits vary.
+const A = { skin: '#dcac8c', hair: '#3a2a20', hairStyle: 'quiff', glasses: '#2a221e', beard: '#6a5446', tw: 12 };
+const B = { skin: '#ecc2a4', hair: '#b8763e', hairStyle: 'long', glasses: '#4a3424', tw: 11, h: 1.86, leg: 21 };
+const outfits = {
+  'Giacca nera': { top: '#17151a', sleeve: 'long', collar: '#17151a', bottom: { type: 'trousers', col: '#3d5a86' }, shoes: '#1a1a1e' },
+  'Rosanero': { top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', scarf: ['#f1a7c1', '#17151a'], bottom: { type: 'trousers', col: '#17151a' }, shoes: '#eeeeee' },
+  'Mercato': { top: '#ecebe6', sleeve: 'long', apron: '#17151a', bottom: { type: 'trousers', col: '#26324a' }, shoes: '#17151a' },
+  'Tuta': { top: '#26324a', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#26324a', stripe: '#f0eee8' }, shoes: '#f0eee8' },
+  'Mondello': { top: '#f0eee8', sleeve: 'short', bottom: { type: 'shorts', col: '#3f9ab8', len: 8 }, shoes: '#a8684a', scarf: ['#f0eee8', '#d9443c'] },
+};
+// The atlas size is fixed at import, so render only these rows: empty the list and refill it.
+VARIANTS.length = 0;
+const base = 0, rows = [];
+for (const [who, face] of [['Amico 1', A], ['Amico 2', B]])
+  for (const [name, o] of Object.entries(outfits)) { VARIANTS.push({ id: 'friend_' + rows.length, ...o, ...face, speed: 1.1 }); rows.push(who + ' · ' + name); }
+const atlas = buildAtlas(), S = 4, cols = 4 * POSES;
+const c = document.getElementById('c'), g = c.getContext('2d');
+const colW = CELL_W * S + 6, rowsPer = 5;
+c.width = 2 * (cols * colW + 30); c.height = rowsPer * (CELL_H * S + 26) + 10;
+g.imageSmoothingEnabled = false;
+rows.forEach((label, i) => {
+  const col = i < rowsPer ? 0 : 1, r = i % rowsPer, ox = col * (cols * colW + 30) + 10, oy = r * (CELL_H * S + 26) + 22;
+  g.fillStyle = '#f5a9c9'; g.fillText(label + '   (front · back · left · right, walk cycle)', ox, oy - 6);
+  for (let k = 0; k < cols; k++) g.drawImage(atlas, k * CELL_W, (base + i) * CELL_H, CELL_W, CELL_H, ox + k * colW, oy, CELL_W * S, CELL_H * S);
+});
+</script></body></html>

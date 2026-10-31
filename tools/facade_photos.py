@@ -151,7 +151,7 @@ def fname(title):
 
 def fetch(width=2400):
     os.makedirs(SRC, exist_ok=True)
-    for s in SOURCES:
+    for s in json.load(open(os.path.join(OUT, 'sources.json'))):
         fn = fname(s['title']); path = os.path.join(SRC, fn)
         if os.path.exists(path) and os.path.exists(path + '.json'):
             continue
