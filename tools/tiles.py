@@ -254,8 +254,8 @@ def way_pts(e):
 
 
 def is_closed(e):
-    n = e.get("nodes") or []
-    return len(n) > 3 and n[0] == n[-1]
+    g = e.get("geometry") or []
+    return len(g) > 3 and g[0] == g[-1]
 
 
 def ring_of(e):
