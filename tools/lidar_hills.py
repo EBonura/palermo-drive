@@ -93,7 +93,7 @@ def fetch(threads=6):
 
 
 def sample(x, z):
-    """Bilinear height from the lattice; NaN unless all 4 neighbours were answered with a value."""
+    """Bilinear height from the lattice (NaN-aware: unanswered neighbours are dropped); NaN without enough data."""
     if "g" not in _cache:
         d = _load()
         ks = [tuple(int(v) for v in k.split(",")) for k in d]
@@ -112,9 +112,15 @@ def sample(x, z):
     u0 = np.clip(np.floor(u).astype(int), 0, g.shape[1] - 2)
     v0 = np.clip(np.floor(v).astype(int), 0, g.shape[0] - 2)
     fu, fv = u - u0, v - v0
-    h = (g[v0, u0] * (1 - fu) * (1 - fv) + g[v0, u0 + 1] * fu * (1 - fv)
-         + g[v0 + 1, u0] * (1 - fu) * fv + g[v0 + 1, u0 + 1] * fu * fv)
-    return np.where(ok, h, np.nan)
+    num = np.zeros(u.shape)
+    den = np.zeros(u.shape)
+    for dv, du, wgt in ((0, 0, (1 - fu) * (1 - fv)), (0, 1, fu * (1 - fv)), (1, 0, (1 - fu) * fv), (1, 1, fu * fv)):
+        c = g[v0 + dv, u0 + du]
+        good = np.isfinite(c)
+        num += np.where(good, c * wgt, 0.0)
+        den += np.where(good, wgt, 0.0)
+    # neighbours without an answer (the raster covers them, or no lidar) are left out; too little weight left means no data
+    return np.where(ok & (den >= 0.6), num / np.maximum(den, 1e-9), np.nan)
 
 
 if __name__ == "__main__":

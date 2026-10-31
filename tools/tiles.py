@@ -513,6 +513,15 @@ except Exception as _e:  # noqa: BLE001
     lr, RASTER_BLOCKS = None, set()
     print("lidar_raster unavailable:", _e)
 
+try:
+    import dem          # TINITALY 10 m DEM (tools/dem.py): the hills, where the lidar rasters saturate or do not reach
+    import lidar_hills  # lidar elevations above the 204 m raster saturation, from GetFeatureInfo (tools/lidar_hills.py)
+    if not os.path.exists(dem.RAW):
+        raise FileNotFoundError(dem.RAW)
+except Exception as _e:  # noqa: BLE001
+    dem = lidar_hills = None
+    print("hill DEM unavailable (terrain falls back to the far grid):", _e)
+
 WALL_CLEAR = 2.0     # sample points stay this far inside the walls (pixels are 2 m)
 MAX_SAMPLES = 300
 SPLIT_SPREAD = 5.0   # p90 - p10 of the roof samples above which a building gets height sections
@@ -1173,6 +1182,19 @@ def _write_tile(i, j):
 # ----------------------------------------------------------------------------------------------
 NEAR_STEP = 10.0     # metres between near-terrain samples
 NEAR_BLEND = 120.0   # lidar-vs-far-grid offset fades out over this distance beyond the raster coverage
+# Hills. Terrarium (the far grid's source) is 100 m off on Monte Pellegrino's slopes, the lidar rasters read nothing above 204 m,
+# so above HILL_LO..HILL_HI metres the terrain comes from TINITALY (10 m, tools/dem.py), pinned to the lidar wherever there is
+# lidar (rasters below 204 m, lidar_hills.py point queries above): TIN minus lidar is smoothed over HILL_BIAS_SIGMA metres and
+# added to the TIN, fading out HILL_BIAS_REACH metres away from the lidar so the DEM keeps its own shape where there is none.
+HILL_LO, HILL_HI = 80.0, 140.0
+HILL_BIAS_SIGMA = 40.0
+HILL_BIAS_REACH = 200.0
+
+
+def _smooth(lo, hi, v):
+    import numpy as np
+    t = np.clip((v - lo) / (hi - lo), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
 
 
 def far_interp(far):
@@ -1191,30 +1213,64 @@ def far_interp(far):
 
 
 def near_for(i, j):
-    """Per-tile DTM grid: the lidar raster where it has data, the far grid elsewhere, the offset between the
-    two fading out over NEAR_BLEND metres so the tile joins the coarse terrain without a step."""
+    """Per-tile DTM grid: the lidar where it has data, the TINITALY DEM (lidar-corrected) on the hills, the far grid elsewhere;
+    the offset to the far grid fades out over NEAR_BLEND metres beyond the data so the tile joins the coarse terrain without a step.
+    Everything is a function of position computed on a padded lattice, so neighbouring tiles agree on their shared border."""
+    import cv2
     import numpy as np
     import shapely
     if lr is None or not RASTER_BLOCKS:
         return None
     s = NEAR_STEP
     tx0, tz0 = i * T, j * T
+    hills = dem is not None
     pad = NEAR_BLEND + 2 * s
+    big = pad + (HILL_BIAS_REACH + 3 * HILL_BIAS_SIGMA if hills else 0)
     if not any((bi, bj) in RASTER_BLOCKS
                for bi in range(math.floor((tx0 - pad) / lr.BLOCK), math.floor((tx0 + T + pad) / lr.BLOCK) + 1)
-               for bj in range(math.floor((tz0 - pad) / lr.BLOCK), math.floor((tz0 + T + pad) / lr.BLOCK) + 1)):
+               for bj in range(math.floor((tz0 - pad) / lr.BLOCK), math.floor((tz0 + T + pad) / lr.BLOCK) + 1)) and not hills:
         return None
-    a0, a1 = round((tx0 - pad) / s), round((tx0 + T + pad) / s)
-    b0, b1 = round((tz0 - pad) / s), round((tz0 + T + pad) / s)
+    a0, a1 = round((tx0 - big) / s), round((tx0 + T + big) / s)
+    b0, b1 = round((tz0 - big) / s), round((tz0 + T + big) / s)
     WX, WZ = np.meshgrid(np.arange(a0, a1 + 1) * s, np.arange(b0, b1 + 1) * s)
-    dtm = lr.sample_dtm(WX, WZ, "bilinear")
+    far = G["far_f"]
+    farv = far(WX, WZ)
     on_land = shapely.contains_xy(G["land"], WX, WZ)
-    valid = ~np.isnan(dtm) & on_land
+    L = lr.sample_dtm(WX, WZ, "bilinear")
+    if hills:
+        Gh = lidar_hills.sample(WX, WZ)
+        L = np.where(np.isfinite(L), L, Gh)
+        N = dem.sample(WX, WZ)
+        wt = np.where(np.isfinite(N), _smooth(HILL_LO, HILL_HI, np.nan_to_num(N, nan=0.0)), 0.0)
+    else:
+        N, wt = None, np.zeros_like(farv)
+    valid_t = ~np.isnan(L) & on_land            # true lidar height known
+    off = np.where(valid_t, L - farv, 0.0)
+    valid = valid_t.copy()
+    if hills and (wt > 0.01).any():
+        has_n = np.isfinite(N) & on_land
+        both = valid_t & has_n
+        if both.any():
+            m = both.astype(np.float32)
+            sig = HILL_BIAS_SIGMA / s
+            num = cv2.GaussianBlur(np.where(both, L - np.nan_to_num(N), 0.0).astype(np.float32), (0, 0), sig)
+            den = cv2.GaussianBlur(m, (0, 0), sig)
+            c = np.where(den > 1e-3, num / np.maximum(den, 1e-3), 0.0)
+            dist = cv2.distanceTransform((~valid_t).astype(np.uint8), cv2.DIST_L2, 5) * s
+            c = c * (1 - _smooth(0.0, HILL_BIAS_REACH, dist))
+        else:
+            c = np.zeros_like(farv)
+        tin_only = (wt > 0.01) & has_n & ~valid_t
+        off = np.where(tin_only, wt * (np.nan_to_num(N) + c - farv), off)
+        valid |= tin_only
     if not valid.any():
         return None
-    far = G["far_f"]
-    off = np.where(valid, dtm - far(WX, WZ), 0.0)
-    vx, vz, vo = WX[valid], WZ[valid], off[valid]
+    # restrict the nearest-valid search to the tile plus the blend distance
+    k = int(round((big - pad) / s))
+    sl = (slice(k, -k or None), slice(k, -k or None)) if k else (slice(None), slice(None))
+    vx, vz, vo = WX[sl][valid[sl]], WZ[sl][valid[sl]], off[sl][valid[sl]]
+    if not len(vx):
+        return None
     # the tile's own lattice points (inclusive of both borders)
     ia0, ia1 = round(tx0 / s), round((tx0 + T) / s)
     ib0, ib1 = round(tz0 / s), round((tz0 + T) / s)
@@ -1224,9 +1280,9 @@ def near_for(i, j):
     bo = np.zeros(len(qx))
     for a in range(0, len(qx), 500):
         d = (qx[a:a + 500, None] - vx[None, :]) ** 2 + (qz[a:a + 500, None] - vz[None, :]) ** 2
-        k = d.argmin(axis=1)
-        best[a:a + 500] = np.sqrt(d[np.arange(len(k)), k])
-        bo[a:a + 500] = vo[k]
+        kk = d.argmin(axis=1)
+        best[a:a + 500] = np.sqrt(d[np.arange(len(kk)), kk])
+        bo[a:a + 500] = vo[kk]
     t = np.clip(best / NEAR_BLEND, 0, 1)
     fall = 1 - t * t * (3 - 2 * t)
     val = far(qx, qz) + bo * fall
