@@ -562,6 +562,7 @@ const SPECS = {
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
+  hedge: { kind: 'solid', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]] },
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
@@ -919,6 +920,7 @@ const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama
   valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
 const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1 };
 const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7 };   // share of cafes with tables outside
+const PLANE_TINT = new THREE.Color('#f3f0b4');   // plane trees on the Libertà: yellowish-green leaves
 const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
 // ------------------------------------------------------------------ building index (exact point test + nearest wall)
@@ -1135,12 +1137,12 @@ function* generate(S, BUD) {
     if (/Pinus/.test(s)) return 'pine';
     return wpick([['orange', 32], ['ficus', 18], ['tree', 30], ['palm_fan_a', 7], ['palm_fan_b', 4], ['palm_date_a', 4], ['pine', 5]]);
   };
-  const placeTree = (x, z, kind, canopy = 0.95) => {
+  const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
     if (!inBounds(x, z) || road(x, z) || inB(x, z)) return false;
     const r = { ficus: 3.2, tree: 2.2, orange: 1.4, pine: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
-    const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12));
+    const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
     put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6);
     return true;
   };
@@ -1776,7 +1778,7 @@ function* generate(S, BUD) {
       let sx0 = 1e9, sx1 = -1e9, sz0 = 1e9, sz1 = -1e9;
       for (const p of pts) { if (p[0] < sx0) sx0 = p[0]; if (p[0] > sx1) sx1 = p[0]; if (p[1] < sz0) sz0 = p[1]; if (p[1] > sz1) sz1 = p[1]; }
       const cx = (sx0 + sx1) / 2, cz = (sz0 + sz1) / 2, zn = zoneOf(cx, cz), packed = zn === 'lido' || zn === 'mondello';
-      const pU = packed ? 0.78 : 0.09, alongX = (sx1 - sx0) > (sz1 - sz0);
+      const pU = packed ? 0.5 : 0.07, alongX = (sx1 - sx0) > (sz1 - sz0);
       const ax0 = Math.max(sx0, S.x0), ax1 = Math.min(sx1, S.x1), az0 = Math.max(sz0, S.z0), az1 = Math.min(sz1, S.z1);
       if (ax1 <= ax0 || az1 <= az0) continue;
       const sA = alongX ? [ax0, ax1] : [az0, az1], sB = alongX ? [az0, az1] : [ax0, ax1];   // A runs along the shore, B across it
@@ -1828,7 +1830,28 @@ function* generate(S, BUD) {
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
             const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
             if (!inBounds(x, z) || (!raisedMask(x, z) && !paving(x, z))) continue;
-            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, 'tree', 1.35)) { if (front) st.palms++; else st.plane++; }
+            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, 'tree', 1.35, lib ? PLANE_TINT : null)) { if (front) st.palms++; else st.plane++; }
+          }
+        }
+      }
+    }
+
+    // the Libertà is lined with clipped hedges between the carriageway and the gardens
+    for (const r of S.roads) {
+      if (!AVENUE.test(r.n || '')) continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
+        const tx = dx / L, tz = dz / L;
+        for (let s = 1.5; s < L - 1.5; s += 3.1) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (nearJunction(cx, cz, 9)) continue;
+          for (const sg of [1, -1]) {
+            const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
+            const x = cx + nx * (e + 0.75), z = cz + nz * (e + 0.75);
+            if (!inBounds(x, z) || !(raisedMask(x, z) || paving(x, z)) || inB(x, z) || occHit(x, z, 0.7) || nearWall(x, z, 1.0)) continue;
+            put('hedge', x, gy(x, z), z, Math.atan2(-tz, tx), 1, C('#ffffff').multiplyScalar(RF(0.9, 1.08))); st.hedges = (st.hedges || 0) + 1;
           }
         }
       }
@@ -1866,7 +1889,7 @@ function* generate(S, BUD) {
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
   signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
-  beach_umbrella: 420, sunbed: 220, kiosk: 450 };
+  beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const MOBILE = !!QUALITY.mobile;
 const WHITE_IC = new THREE.Color(1, 1, 1);
 let ZEBRA_MAT = null, PANEL_MAT = null;

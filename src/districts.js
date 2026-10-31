@@ -115,10 +115,13 @@ export const ZONES = {
     gl: [['g_win', 2], ['g_door2', 2], ['g_garage', 1], ['fis_door', 1]] },
 
   // ---------------- Arenella, Acquasanta, Vergine Maria ----------------
-  acquasanta: { plaster: ['#d8c8a4', '#d0bc98', '#dccdaa', '#c9b08a', '#e0d4b8', '#c8a888', '#d6c0a0', '#ece6d6'], stone: ['#a98f68'], pStone: 0.1, grime: 0.5, elig: true,
-    w: { res: .4, fish: .24, pw: .14, lib: .1, n19: .08, pal: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1]], fh: 3.2, roof: 0.9 },
+  // Piazza Acquasanta (Street View): the old village is 3 storey tufa-ashlar and ochre palazzine with arched doors, wrought-iron balconies on brackets, green and
+  // dark wooden doors; postwar blocks only along the main road.
+  acquasanta: { plaster: ['#d8c8a4', '#d0bc98', '#dccdaa', '#c9b08a', '#e0d4b8', '#c8a888', '#d6c0a0', '#ece6d6'], stone: ['#c4b08c', '#b8a47e', '#cdbb98'], pStone: 0.5, grime: 0.5, elig: true,
+    w: { res: .3, n19: .3, fish: .1, pw: .03, lib: .1, pal: .1, blk: .07 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1]], fh: 3.2, roof: 0.9 },
+  // Via dell'Arenella (Street View): 4 to 5 storey cream and white blocks with continuous balconies and blue trim bands on a narrow street, walled villas between.
   arenella: { plaster: ['#ece6d8', '#e6dcc4', '#dcc9a0', '#d6cfc0', '#e0c0a8', '#c8d2d0', '#d8c8a4', '#f0ebe0'], stone: ['#a98f68'], pStone: 0.04, grime: 0.5, elig: true,
-    w: { fish: .5, res: .3, pw: .08, pal: .12 }, fl: [[1, 2], [2, 4], [3, 3], [4, 1]], fh: 3.0, roof: 0.6,
+    w: { fish: .14, res: .3, pw: .04, pal: .26, blk: .14, n19: .12 }, fl: [[1, 2], [2, 4], [3, 3], [4, 1]], fh: 3.0, roof: 0.6,
     gl: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
 
   // ---------------- port and industry ----------------
@@ -129,11 +132,11 @@ export const ZONES = {
 
   // ---------------- west and north-west: Uditore, Passo di Rigano, outskirts ----------------
   uditore: { plaster: ['#e6dcc0', '#e0d0b0', '#e8e2d2', '#d8c8a8', '#ece6d6', '#d9b890', '#cfc8b4', '#e0c8a8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
-    w: { pal: .36, blk: .2, res: .16, pw: .14, fish: .1, n19: .04 }, fl: [[2, 1], [3, 3], [4, 3], [5, 3], [6, 1.5]], fh: 3.1, roof: 0.5 },
+    w: { pal: .38, blk: .24, res: .18, pw: .04, fish: .1, n19: .04 }, fl: [[2, 1], [3, 3], [4, 3], [5, 3], [6, 1.5]], fh: 3.1, roof: 0.5 },
   rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
-    w: { pal: .34, res: .26, blk: .12, pw: .14, fish: .1, n19: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
+    w: { pal: .36, res: .28, blk: .16, pw: .06, fish: .1, n19: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
   periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true,
-    w: { pal: .3, res: .3, pw: .16, blk: .1, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7 },
+    w: { pal: .32, res: .34, pw: .06, blk: .14, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7 },
   rural: { plaster: ['#e0d4b4', '#d8c8a8', '#e8e2d2', '#d2bda0', '#ece6d6', '#cdc6b2'], stone: ['#bba07a'], pStone: 0.1, grime: 0.4, elig: true,
     w: { res: .5, fish: .5 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 3.0, roof: 1.2 },
   // La Favorita: country villas of the Bourbon park, ochre and pink plaster, red tile roofs.
@@ -170,7 +173,7 @@ const SEEDS_LL = [
   ['porto', 38.1245, 13.3705, 500], ['porto', 38.1300, 13.3680, 400], ['porto', 38.1354, 13.3630, 400],
   // ZEN, CEP, Borgo Nuovo
   ['zen', 38.1786, 13.3127, 600], ['zen', 38.1834, 13.3149, 600], ['zen', 38.1816, 13.3176, 450], ['zen', 38.1770, 13.3180, 400],
-  ['cep', 38.1300, 13.2983, 700], ['cep', 38.1428, 13.3217, 500], ['cep', 38.1103, 13.3265, 500],
+  ['cep', 38.1300, 13.2983, 700], ['cruillas', 38.1428, 13.3217, 420], ['cep', 38.1103, 13.3265, 500],
   // north
   ['tn', 38.1895, 13.2985, 800], ['tn', 38.1806, 13.2966, 700], ['tn', 38.1950, 13.3050, 600],
   ['sferra', 38.1990, 13.2830, 450], ['sferra', 38.2083, 13.2836, 450], ['sferra', 38.1930, 13.2831, 400],
@@ -194,7 +197,9 @@ export const SEEDS = SEEDS_LL.map(([z, la, lo, reach]) => { const p = proj(la, l
 // Streets that define a zone by themselves (matched against the nearest street's name, within `d` metres of its edge).
 const STREET_ZONES = [
   [/^Via della Libertà$|^Viale della Libertà$/, 'viaLib', 24],
-  [/Strasburgo|^Via Notarbartolo|^Via Principe di Paternò|^Viale del Fante|^Viale Francia|^Via Duca della Verdura|^Via Sciuti/, 'sacco', 16],
+  [/Strasburgo|^Via Notarbartolo|^Viale Lazio$|^Viale Campania$|^Viale Francia$|^Viale del Fante|^Viale Regione Siciliana|^Viale Leonardo da Vinci/, 'avenue', 18],
+  [/^Via Principe di Paternò|^Via Duca della Verdura|^Via Sciuti|^Via Marchese di Villabianca|^Via Empedocle Restivo/, 'sacco', 16],
+  [/^Corso Calatafimi$|^Corso Tukory$|^Corso Pisani$/, 'calat', 20],
   [/^Corso dei Mille$/, 'corsoMille', 22],
   [/^Via Oreto$/, 'oreto', 18],
 ];

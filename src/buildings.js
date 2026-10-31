@@ -457,6 +457,18 @@ layer('rail_c', (g, r) => { // 1960s balcony: solid painted parapet below, thin 
   for (let x = 8; x < T; x += 24) g.fillRect(x, 19, 4, 74);
   for (const x of [40 + r() * 40, 150 + r() * 60]) { g.fillStyle = '#4f7a3a'; g.beginPath(); g.arc(x, 82, 14, 0, 6.3); g.arc(x + 12, 76, 10, 0, 6.3); g.fill(); g.fillStyle = '#8a5a40'; g.fillRect(x - 10, 90, 22, 14); }
 });
+layer('rail_g', (g, r) => { // 1990s+ balcony: anodised aluminium frame, tinted glass panels, a low solid kerb (Lazio, Strasburgo, Uditore condos)
+  g.clearRect(0, 0, T, T);
+  g.fillStyle = '#e4e1d8'; g.fillRect(0, 214, T, T - 214); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(0, 214, T, 4);
+  g.fillStyle = '#8f9894'; g.fillRect(0, 10, T, 8); g.fillStyle = '#7d8682'; g.fillRect(0, 202, T, 12);
+  for (let x = 0; x < T; x += 64) {
+    const gr = g.createLinearGradient(x, 18, x + 64, 202); gr.addColorStop(0, '#9fb8b2'); gr.addColorStop(.5, '#7f9a98'); gr.addColorStop(1, '#a9bfba');
+    g.fillStyle = gr; g.fillRect(x + 3, 18, 58, 184);
+    g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.moveTo(x + 6, 190); g.lineTo(x + 34, 24); g.lineTo(x + 48, 24); g.lineTo(x + 18, 196); g.fill();
+    g.fillStyle = '#8f9894'; g.fillRect(x, 18, 4, 184);
+  }
+  g.fillStyle = '#8f9894'; g.fillRect(T - 4, 18, 4, 184);
+});
 layer('rail_l', (g) => { // Liberty ironwork: whiplash curves and lyre scrolls
   g.clearRect(0, 0, T, T); g.fillStyle = '#26262c'; g.strokeStyle = '#26262c';
   g.fillRect(0, 12, T, 9); g.fillRect(0, T - 22, T, 11);
@@ -838,11 +850,11 @@ const STYLES = {
   blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_d', 'blk_a', 'blk_b', 'blk_d', 'blk_c', 'blk_e'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
     ground: [['pw_shop', 3], ['g_shop_s', 2], ['g_pilot', 1.4], ['g_lobby', 1.6], ['g_garage', 1]] },
   // 1980s+ palazzina: one balcony per bay, glazed or solid parapets
-  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', balc: 'every', pitch: 0.18,
+  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', railAlt: 'rail_g', balc: 'every', pitch: 0.18,
     ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
   ins: { pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
-    ground: [['g_pilot', 3], ['zen_g', 3], ['g_garage', 1]] },
+    ground: [['g_pilot', 3], ['g_garage', 3], ['zen_g', 1.2], ['blank_g', .5]] },
   // fishermen's and summer houses: whitewash, painted wooden doors, pastel shutters
   fish: { pal: 'res', bay: 3.6, g0: 3.4, fh: 3.0, parapet: 0.55, corn: 0.0, nobile: false, up: ['fis_a', 'fis_win'], rail: 'rail_a', balc: 'none', pitch: 0.5,
     ground: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
@@ -918,6 +930,7 @@ function buildLookups(data = D) {
   return { inBuilding, roadNear, dupIds };
 }
 
+const BDBG = typeof location !== 'undefined' && /[?&]bdbg\b/.test(location.search); // ?bdbg: window.__bldDbg gets [id, x, z, zone, style, H, area, height source] per building (district checks)
 const hh = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 const pick = (list, r) => { let t = 0; for (const e of list) t += e[1]; t *= r(); for (const e of list) { t -= e[1]; if (t <= 0) return e[0]; } return list[0][0]; };
 const MAIN_ST = /Maqueda|Vittorio Emanuele|^Via Roma|Cavour|Libert|Ruggero Settimo|Mazzini|Butera|Alloro|Garibaldi|Cassaro/;
@@ -1164,7 +1177,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           }
         }
         // balconies on street fronts (per-spec pattern, otherwise palazzi styles get the default pattern)
-        const bmode = W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || S.rail || 'rail_a';
+        const bmode = W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || B.railAlt || S.rail || 'rail_a';
         if (kind === 'street' && bmode !== 'none' && bw >= (W.balc ? 2.6 : 2.9) && nUp > 0) {
           if (bmode === 'cont') {
             for (let f = 1; f <= (W.contFloors || S.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), W.balc ? true : f === 1, Math.max(nb, Math.round((len - 1) / 1.3)), rail);
@@ -1236,7 +1249,16 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if (ring.hole) kind = 'court';
         else if (stack !== undefined) kind = 'back';
         else if (inBuilding(mx + nx * 0.6, mz + nz * 0.6) || inBuilding(mx + nx * 1.3, mz + nz * 1.3)) kind = 'party';
-        else kind = roadNear(mx + nx * 2.2, mz + nz * 2.2).d < 3.2 ? 'street' : 'back';
+        else {
+          kind = roadNear(mx + nx * 2.2, mz + nz * 2.2).d < 3.2 ? 'street' : 'back';
+          // Set-back fronts: on the wide avenues and in the housing estates the facade stands behind a garden strip, a service lane or a parking row, and is still
+          // the front (shops, balconies). Look further out along the normal for a street, stopping at the first building in the way.
+          if (kind === 'back' && B.reach && len > 6) for (let t = 5; t <= B.reach; t += 4) {
+            const qx = mx + nx * t, qz = mz + nz * t;
+            if (inBuilding(qx, qz)) break;
+            if (roadNear(qx, qz).d < 1.2) { kind = 'street'; break; }
+          }
+        }
         edge({ ax: a[0], az: a[1], bx: b[0], bz: b[1], dx, dz, ux, uz, nx, nz, len, reflexA: crossA < -0.05, reflexB: crossB < -0.05, kind, ga: stack !== undefined ? stack + 0.3 : groundY(a[0], a[1]), gb: stack !== undefined ? stack + 0.3 : groundY(b[0], b[1]) });
       }
     }
@@ -1306,6 +1328,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       let S = STYLES[key];
       if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
       stats.styles[key] = (stats.styles[key] || 0) + 1;
+      if (BDBG) (window.__bldDbg = window.__bldDbg || []).push([b.id, Math.round(cx), Math.round(cz), zone, key, Math.round(H0 * 10) / 10, Math.round(area), b.r !== undefined ? 'L' : b.lv ? 'osm' : nFl ? 'dist' : 'gen']);
       if (key === 'ruin' && ruinAt.length < 8) ruinAt.push([Math.round(cx), Math.round(cz)]);
       // colour: spec table, then OSM building:colour, then the zone palette (stone or plaster)
       const isStone = key === 'church' || (spec && spec.stone !== undefined ? spec.stone : (key === 'bar' || key === 'res' || key === 'n19') && r() < Z.pStone * (key === 'bar' ? 1.3 : key === 'res' ? 1 : 0.5));
@@ -1313,7 +1336,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       let base;
       if (spec && spec.col) base = new THREE.Color(spec.col);
       else if (osm) { base = osm; stats.osmCol++; }
-      else if (key === 'pw') base = PAL.pw[b.c % PAL.pw.length].clone();
+      else if (key === 'pw' && !Z.elig) base = PAL.pw[b.c % PAL.pw.length].clone();
       else if (key === 'church') base = PAL.church[b.c % PAL.church.length].clone();
       else { const list = isStone ? Z.stone : Z.plaster; base = new THREE.Color(list[b.c % list.length]); }
       const grime = spec && spec.grime !== undefined ? spec.grime : Z.grime, gr = grime * r();
@@ -1322,8 +1345,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15);
       const B = {
         S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || nFl || 0,
-        up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
+        railAlt: S.railAlt && r() < 0.5 ? S.railAlt : null, up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
         spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone,
+        reach: Z.elig && !Z.shed ? (Z.front ?? 15) : 0,
         gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1,
       };
       if (B.photo) stats.photo++;
