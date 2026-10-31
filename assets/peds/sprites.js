@@ -65,6 +65,12 @@ export const VARIANTS = [
   { id: 'wheelchair', ...TRACK, leg: 14, chair: true, speed: 1.0 },
   { id: 'healed', ...TRACK, run: true, speed: 2.6 },
   { id: 'chair_empty', chair: 'empty', leg: 14, top: '#000', skin: '#000', hair: '#000', bottom: { type: 'trousers', col: '#2c3a55' }, shoes: '#000' },
+  // La Favorita and the lungomare: joggers (run animation) and dog walkers (the dog is drawn into the cell, see figure.js). Zero weight in the centro zones, profiles in src/pedestrians.js give them theirs.
+  { id: 'jogger', run: true, skin: '#c99872', hair: '#1c1614', hairStyle: 'short', top: '#d9443c', sleeve: 'short', bottom: { type: 'shorts', col: '#26324a', len: 8 }, shoes: '#f0eee8', speed: 2.4 },
+  { id: 'jogger2', run: true, skin: '#e0ae8c', hair: '#4a2a1a', hairStyle: 'bun', top: '#4fa9a0', sleeve: 'short', bottom: { type: 'trousers', col: '#26262e' }, shoes: '#e8553c', speed: 2.2 },
+  { id: 'dogwalker', dog: '#a8743c', skin: '#d0a081', hair: '#8c8c8c', hairStyle: 'short', top: '#5a7a58', sleeve: 'long', bottom: { type: 'trousers', col: '#4a4640' }, shoes: '#3a2c24', speed: 0.9 },
+  { id: 'dogwalker2', dog: '#ece6d8', stoop: 1, skin: '#d6a284', hair: '#c8c4bc', hairStyle: 'bun', top: '#b8607a', sleeve: 'long', bottom: { type: 'skirt', col: '#3a2f4a', len: 12 }, legCol: '#2f2b33', shoes: '#18161a', speed: 0.8 },
+  { id: 'dogwalker3', dog: '#2a2622', skin: '#c99872', hair: '#17120f', hairStyle: 'fade', top: '#3f6bb0', sleeve: 'short', bottom: { type: 'shorts', col: '#c9b99a', len: 9 }, shoes: '#eeeeee', speed: 1.0 },
   // ---- the night (src/pedestrians.js swaps the crowd mix after dark): young people with drinks, a DJ-ish guy, couples
   { id: 'nightboy', skin: '#d0a081', hair: '#1a1512', hairStyle: 'fade', top: '#1f2330', sleeve: 'short', chain: '#d9b44a', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#f0eee8', drink: { type: 'bottle', col: '#3f7a3a' }, speed: 1.0 },
   { id: 'nightboy2', skin: '#c99872', hair: '#2a1c14', hairStyle: 'quiff', top: '#f0eee8', sleeve: 'long', bottom: { type: 'trousers', col: '#4b6a96' }, shoes: '#6b4a30', drink: { type: 'glass', col: '#ee7a2a' }, speed: 1.0 },
@@ -107,6 +113,7 @@ const W = {
 };
 // Zones: [vicoli, main street, market, tourist, match-day, movida]. Zone 5 only exists after dark (Sant'Anna, Vucciria).
 // The night entries of W are the DAY weights of the night-only characters: zero. Their night weights are in NW below.
+Object.assign(W, { jogger: [0, 0, 0, 0, 0], jogger2: [0, 0, 0, 0, 0], dogwalker: [0, 0, 0, 0, 0], dogwalker2: [0, 0, 0, 0, 0], dogwalker3: [0, 0, 0, 0, 0] });
 Object.assign(W, { nightboy: [0, 0, 0, 0, 0], nightboy2: [0, 0, 0, 0, 0], nightgirl: [0, 0, 0, 0, 0], nightgirl2: [0, 0, 0, 0, 0], nightgirl3: [0, 0, 0, 0, 0], dj: [0, 0, 0, 0, 0], couple: [0, 0, 0, 0, 0], couple2: [0, 0, 0, 0, 0],
   hooded: [0, 0, 0, 0, 0], client: [0, 0, 0, 0, 0], glam1: [0, 0, 0, 0, 0], glam2: [0, 0, 0, 0, 0], glam3: [0, 0, 0, 0, 0] });
 const NW = { nightboy: [3, 5, 3, 3, 2, 14], nightboy2: [3, 5, 3, 3, 2, 12], nightgirl: [3, 5, 3, 3, 2, 14], nightgirl2: [3, 5, 3, 3, 2, 12], nightgirl3: [2, 4, 2, 2, 2, 8], dj: [0, 0.3, 0, 0, 0, 1.2], couple: [2, 3, 1, 3, 1, 6], couple2: [2, 3, 1, 3, 1, 6] };

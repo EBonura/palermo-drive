@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
   Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
-import { WORLD, hooks, rasterMask } from './core.js'; // world streaming (src/world.js), only with ?world=1
+import { hooks, rasterMask } from './core.js';
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
@@ -40,16 +40,14 @@ const SPOTS = [
   ['Mercato del Capo', 38.1186189, 13.3540701],
   ['Piazza Bellini', 38.1149189, 13.3625335],
   ['Piazza San Domenico', 38.1188139, 13.3629446],
-  // outside the centro (whole-city tiles; Nominatim positions)
-  ...(WORLD ? [
-    ['Politeama (Piazza Ruggero Settimo)', 38.1247846, 13.3559943],
-    ['Via della Libertà', 38.1387821, 13.3465045],
-    ['Porta Felice e Foro Italico', 38.1195699, 13.3713217],
-    ['Stadio Renzo Barbera', 38.1528194, 13.3420112],
-    ['La Favorita (Palazzina Cinese)', 38.1667781, 13.3303513],
-    ['Santuario di Santa Rosalia', 38.1680111, 13.3518430],
-    ['Mondello (la piazza)', 38.2077898, 13.3266288],
-  ] : []),
+  // outside the centro (Nominatim positions)
+  ['Politeama (Piazza Ruggero Settimo)', 38.1247846, 13.3559943],
+  ['Via della Libertà', 38.1387821, 13.3465045],
+  ['Porta Felice e Foro Italico', 38.1195699, 13.3713217],
+  ['Stadio Renzo Barbera', 38.1528194, 13.3420112],
+  ['La Favorita (Palazzina Cinese)', 38.1667781, 13.3303513],
+  ['Santuario di Santa Rosalia', 38.1680111, 13.3518430],
+  ['Mondello (la piazza)', 38.2077898, 13.3266288],
 ];
 
 // ---------- renderer / scene ----------
@@ -113,77 +111,28 @@ const ROAD_COL = {
 const SIDEWALK = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service']);
 const DRIVABLE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'pedestrian']);
 
-if (!WORLD) { // near terrain under everything: only visible past the street data and in gaps (world tiles bring their own terrain)
-  const step = 10, nx = Math.ceil((NEAR.x1 - NEAR.x0) / step) + 1, nz = Math.ceil((NEAR.z1 - NEAR.z0) / step) + 1;
-  const pos = new Float32Array(nx * nz * 3), idx = [];
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const x = Math.min(NEAR.x1, NEAR.x0 + i * step), z = Math.min(NEAR.z1, NEAR.z0 + j * step), k = j * nx + i;
-    pos.set([x, nearH(x, z) - 0.15, z], k * 3);
-    if (i < nx - 1 && j < nz - 1) idx.push(k, k + nx, k + 1, k + 1, k + nx, k + nx + 1);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setIndex(idx); geo.computeVertexNormals();
-  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#9c968a', roughness: 1 }));
-  m.receiveShadow = true;
-  scene.add(m);
-}
-
-// ---------- street geometry (src/streets.js): asphalt, stone paving, raised sidewalks with curbs ----------
-if (D.streets && !WORLD) scene.add(buildStreets(D.streets));
-
 // Raised-ground lookup so the car bumps up onto sidewalks.
-let world = null; // world streamer (src/world.js), only with ?world=1
+let world = null; // world streamer (src/world.js): the whole city in 500 m tiles
 // [perf pass] bit-packed tiled raster (core.js rasterMask): was a 4100 x 4060 px canvas + 66 MB RGBA read-back held for the whole session.
 const centroRaised = D.streets ? rasterMask([...D.streets.raised, ...D.streets.green], D.streets.aoi, 2) : () => false; // 0.5 m cells
 // world: tiles bring their own raised-ground masks next to the baked centro one
-const raisedMask = WORLD ? (x, z) => centroRaised(x, z) || (world !== null && world.raised(x, z)) : centroRaised;
+const raisedMask = (x, z) => centroRaised(x, z) || (world !== null && world.raised(x, z));
 
 const MOUNTAIN_HAZE = new THREE.Color('#7297b4');
-if (D.far && !WORLD) { // (world.js builds its own far terrain) hills around the Conca d'Oro, Monte Pellegrino
-  const F = D.far, pos = new Float32Array(F.nx * F.nz * 3), col = new Float32Array(F.nx * F.nz * 3), idx = [];
-  const c = new THREE.Color(), sand = new THREE.Color('#cdbb92'), plain = new THREE.Color('#b3a993'), grove = new THREE.Color('#7f8f5c'),
-    scrub = new THREE.Color('#77804f'), rock = new THREE.Color('#b9b0a1');
-  const H = (i, j) => F.h[Math.min(F.nz - 1, Math.max(0, j)) * F.nx + Math.min(F.nx - 1, Math.max(0, i))];
-  for (let j = 0; j < F.nz; j++) for (let i = 0; i < F.nx; i++) {
-    const k = j * F.nx + i, h = H(i, j), x = F.x0 + i * F.s, z = F.z0 + j * F.s;
-    pos.set([x, h - 0.6, z], k * 3);
-    const slope = Math.hypot(H(i + 1, j) - H(i - 1, j), H(i, j + 1) - H(i, j - 1)) / (2 * F.s);
-    const noise = (Math.sin(i * 1.7 + j * 0.9) + Math.sin(i * 0.37 - j * 1.3)) * 0.25 + 0.5;
-    if (h < 2) c.copy(sand);
-    else if (h < 90 && slope < 0.15) c.copy(plain).lerp(grove, noise * 0.6);
-    else c.copy(scrub).lerp(rock, Math.min(1, slope * 1.4));
-    // Distant hills read as hazed blue in every long view of Palermo (style guide section 6).
-    const far = THREE.MathUtils.smoothstep(Math.hypot(x, z), 1500, 9000);
-    if (h > 2) c.lerp(MOUNTAIN_HAZE, far * (h > 90 ? 0.6 : 0.35));
-    col.set([c.r, c.g, c.b], k * 3);
-    if (i < F.nx - 1 && j < F.nz - 1) {
-      const x1 = x + F.s, z1 = z + F.s;
-      if (inNear(x, z) && inNear(x1, z) && inNear(x, z1) && inNear(x1, z1)) continue;
-      idx.push(k, k + F.nx, k + 1, k + 1, k + F.nx, k + F.nx + 1);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setIndex(idx); geo.computeVertexNormals();
-  scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
-}
 
 // The sea surface, shoreline foam and the drowning game over live in src/sea.js.
-const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY });
+const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY, getWorld: () => world });
 
 // ---------- modules ----------
 let freeCam = null;
 const ctx = { scene, renderer, skip: new Set(), raisedMask, CURB };
 prepareLandmarks(ctx);
-if (!WORLD) buildBuildings(ctx); // world: buildings stream in per tile (src/world.js)
 buildLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
 const propsApi = buildProps(ctx) || {};
 // [perf pass] In the production build the far-city data (window.PALERMO_CONTEXT) arrives after the game has started (window.__pdLate, see
 // tools/build/runtime/loader.js); the far city is then built once the browser is idle. In the dev tree the data is there at once.
-if (WORLD && window.__pdLate) await window.__pdLate; // world mode hands the context group to the streamer, so wait for it
+if (window.__pdLate) await window.__pdLate; // the context group goes to the streamer, so wait for it
 let contextGroup = window.PALERMO_CONTEXT ? buildContext(ctx) : null; // world: hidden chunk by chunk where real tiles stand
 if (!contextGroup && window.__pdLate) window.__pdLate.then(() => (window.requestIdleCallback || setTimeout)(() => { contextGroup = buildContext(ctx); }, { timeout: 1500 }));
 
@@ -207,8 +156,6 @@ class Grid {
 }
 
 const walls2d = new Grid(16);
-const addRing = flat => { const p = pairs(flat); for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); } };
-if (!WORLD) for (const b of D.buildings) { addRing(b.p); (b.holes || []).forEach(addRing); } // world: walls come per tile
 // No wall along the coast: driving into the sea is allowed, and it's game over (src/sea.js).
 
 const streets = new Grid(30), roadVerts = [];
@@ -221,9 +168,9 @@ for (const r of D.roads) {
   }
 }
 
-// ---------- world streaming (src/world.js), only with ?world=1 ----------
+// ---------- world streaming (src/world.js) ----------
 // Streams the whole-city tiles around the camera: terrain, streets, buildings, per-tile walls/road names/road vertices.
-if (WORLD) world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE, context: contextGroup });
+world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE, context: contextGroup });
 
 function closestOnSeg(px, pz, s) {
   const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz;
@@ -257,7 +204,7 @@ const shouts = createShouts(camera);
 // Modules without env access (props) can raise a balloon with a 'pd-shout' event.
 addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text); });
 let horn; // created once game settings exist (volume)
-const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer (null with ?world=0), see docs/TILES.md for onTile
+const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
@@ -266,7 +213,7 @@ const mapMarkers = []; // { x, z, color, size } drawn on the minimap
 const mapRoute = []; // [x, z] points of the current route, drawn as a line on the minimap
 
 // ---------- minimap (src/minimap.js) ----------
-const minimap = createMinimap({ canvas: document.getElementById('mini'), car, world, D, DRIVABLE, mapMarkers, mapRoute });
+const minimap = createMinimap({ canvas: document.getElementById('mini'), car, world, DRIVABLE, mapMarkers, mapRoute });
 
 // ---------- HUD ----------
 const elStreet = document.getElementById('street'), elLand = document.getElementById('landmark'), elSpeed = document.getElementById('speed');
@@ -356,6 +303,7 @@ const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traff
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world });
 if (window.game) window.game.suca = suca;
+if (window.game) window.game.traffic = traffic;
 // with the streamed world, a far start spot has to load before the lapa can find a road there
 const placeStart = (x, z) => { try { placeAt(x, z); } catch (e) { /* no road yet */ } world?.teleport(x, z, () => placeAt(x, z)); };
 setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, proj, groundY, D });

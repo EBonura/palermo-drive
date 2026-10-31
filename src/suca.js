@@ -2,7 +2,7 @@
 // ~40 decals are stuck flat on ground-floor walls of the baked centro that face a drivable street (picked once from the building
 // footprints with a fixed seed, so everyone gets the same walls). Driving within 6 m of one collects it: it pops, greys out with a
 // check mark, and a toast says "SUCA 7/40". Collected ids persist in localStorage. One atlas texture, one merged mesh.
-// With ?world=1 only the centro tags exist, and each one hides while its tile has no buildings built.
+// Only the centro has tags, and each one hides while its tile has no buildings built.
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, inPoly, rng } from './core.js';
 import { QUALITY } from './mobile.js';

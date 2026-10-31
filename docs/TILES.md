@@ -37,7 +37,7 @@ coast. Everything is baked into square tiles that the game streams around the ca
   `buildLandmarks(ctx, tile)`, each returning a `THREE.Group` that `world.js` adds and later disposes.
 - Collision and the street index are per tile too.
 
-## Runtime as built (phase 1, `?world=1`): src/world.js, src/streets.js
+## Runtime as built (phase 1): src/world.js, src/streets.js
 
 - `main.js` creates `createWorld(...)` only with `?world=1`; the default game is untouched. With the flag, the centro's own buildings,
   streets, near terrain, far terrain and wall segments are skipped (tiles bring them); props, landmarks, pedestrians, traffic, roadwear,
@@ -61,7 +61,7 @@ coast. Everything is baked into square tiles that the game streams around the ca
 
 ## Default and per-tile hooks
 
-- The whole city is now the default; `?world=0` gives the old centro-only map (main.js creates the streamer unless that flag is set).
+- The whole city is the only map: there is no flag, main.js always creates the streamer (the owner wants no variants).
 - `world.onTile(fn)`: `fn('full', t)` when a tile reaches full detail, `fn('drop', t)` just before it leaves full detail (downgrade or release).
   New subscribers get `'full'` replayed for every tile already at full detail. Returns an unsubscribe function. `t.i`, `t.j` (tile indices,
   `T = 500` m), `t.k` (numeric key), `t.data` (the parsed tile: buildings, roads, streets, areas, labels, props, near).

@@ -16,6 +16,13 @@
   needs quay/pier ground (the whole-city tiles should solve it).
 - Collision for Fontana Pretoria (`window.__landmarkKeepout`), Teatro stairs and lions, Cathedral porch.
 
+## Faithfulness (owner, standing rule)
+
+- Every visual change is compared side by side with Google Maps satellite/Street View (look only) and photos of the same viewpoint.
+- After the current faithfulness round (ground, buildings, landmarks outside the centro): run an ADVERSARIAL review by a fresh agent that did
+  not do the work. It shoots a fixed set of viewpoints across the whole city, compares each with references, and lists everything still off
+  (missed places, wrong heights, colours, street furniture, land cover, landmarks). Then fix that list and re-shoot.
+
 ## Waiting on the owner
 
 - **Deploy the multiplayer/stats relay** on the new bonniestudiosdev@gmail.com GCP account (owner said "later"):

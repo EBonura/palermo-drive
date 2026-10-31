@@ -40,25 +40,58 @@ function edtPass(f, n, d, v, z) {
   k = 0;
   for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; const p = v[k]; d[q] = (q - p) * (q - p) + f[p]; }
 }
-// Distance (in cells) from every cell to the nearest cell where feat is 1.
-function edt(feat, w, h) {
-  const INF = 1e12, g = new Float32Array(w * h), n = Math.max(w, h);
+// Distance (in cells) from every cell to the nearest cell where feat is 1, written to g. A generator: it yields every few dozen
+// lines so the caller can spread a big field over several frames (see drive()).
+function* edtGen(feat, w, h, g) {
+  const INF = 1e12, n = Math.max(w, h);
   const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
   for (let x = 0; x < w; x++) {
     for (let y = 0; y < h; y++) f[y] = feat[y * w + x] ? 0 : INF;
     edtPass(f, h, d, v, z);
     for (let y = 0; y < h; y++) g[y * w + x] = d[y];
+    if ((x & 31) === 31) yield;
   }
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) f[x] = g[y * w + x];
     edtPass(f, w, d, v, z);
     for (let x = 0; x < w; x++) g[y * w + x] = Math.sqrt(d[x]);
+    if ((y & 31) === 31) yield;
   }
-  return g;
+}
+const scratchFor = n => ({ water: new Uint8Array(n), a: new Float32Array(n), b: new Float32Array(n) });
+// Signed distance (metres, + over water, - over land) of a land mask into out; sc = scratchFor(w * h).
+function* signedDistanceGen(m, maxD, out, sc) {
+  const { w, h, land } = m, water = sc.water, dW = sc.a, dL = sc.b, s = 1 / m.k;
+  for (let i = 0, n = w * h; i < n; i++) water[i] = land[i] ? 0 : 1;
+  yield* edtGen(land, w, h, dW);
+  yield* edtGen(water, w, h, dL);
+  for (let j = 0; j < h; j++) {
+    for (let i = 0, o = j * w; i < w; i++, o++) out[o] = clamp(land[o] ? -(dL[o] - 0.5) * s : (dW[o] - 0.5) * s, -maxD, maxD);
+    if ((j & 63) === 63) yield;
+  }
+  return out;
+}
+// Run a generator for about ms milliseconds; true when it has finished.
+function drive(gen, ms) {
+  const t0 = performance.now();
+  do { if (gen.next().done) return true; } while (performance.now() - t0 < ms);
+  return false;
+}
+const runAll = gen => { while (!gen.next().done); };
+
+// Shore features that a coastline polygon alone does not hold: quays and pontoons (raised ground by the water), piers.
+// Items: { k: 0 raised polygon [rings], 1 closed ring (flat), 2 polyline (flat) with width w, b: [x0, z0, x1, z1] }.
+function shoreItems(streets, areas, roads, keep) {
+  const out = [], bounds = flat => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < flat.length; i += 2) { if (flat[i] < a) a = flat[i]; if (flat[i] > c) c = flat[i]; if (flat[i + 1] < b) b = flat[i + 1]; if (flat[i + 1] > d) d = flat[i + 1]; } return [a, b, c, d]; };
+  for (const poly of (streets && streets.raised) || []) { const b = bounds(poly[0]); if (keep(b)) out.push({ k: 0, poly, b }); }
+  for (const a of areas || []) if (a.k === 'pier') { const b = bounds(a.p); if (keep(b)) out.push({ k: 1, p: a.p, b }); }
+  for (const r of roads || []) if (r.k === 'pier') { const b = bounds(r.p); if (keep(b)) out.push({ k: 2, p: r.p, w: Math.max(r.w || 5, 3), b }); }
+  return out;
 }
 
-// Paint the land of one box on a canvas (white = land) at k px per metre, return it as Uint8 (1 = land).
-function rasterLand(D, box, k) {
+// Paint the land of one box on a canvas (white = land) at k px per metre; land is the coastline ring (flat), islands extra rings,
+// items the shore features above. Returns { w, h, land: Uint8Array (1 = land), k, box }. outLand lets a caller reuse the buffer.
+function rasterLand(box, k, src, outLand) {
   const w = Math.ceil((box.x1 - box.x0) * k), h = Math.ceil((box.z1 - box.z0) * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d', { willReadFrequently: true });
@@ -66,28 +99,25 @@ function rasterLand(D, box, k) {
   g.setTransform(k, 0, 0, k, -box.x0 * k, -box.z0 * k);
   g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineJoin = 'round';
   const path = flat => { for (let i = 0; i < flat.length; i += 2) g[i ? 'lineTo' : 'moveTo'](flat[i], flat[i + 1]); };
-  const near = flat => { for (let i = 0; i < flat.length; i += 2) if (flat[i] > box.x0 - 20 && flat[i] < box.x1 + 20 && flat[i + 1] > box.z0 - 20 && flat[i + 1] < box.z1 + 20) return true; return false; };
-  g.beginPath(); path(D.land); g.closePath(); g.fill();
-  if (D.streets && D.streets.raised) { // quays and pontoons the coastline polygon doesn't include
-    for (const poly of D.streets.raised) {
-      if (!near(poly[0])) continue;
-      g.beginPath(); for (const ring of poly) { path(ring); g.closePath(); } g.fill('evenodd');
-    }
+  g.beginPath(); path(src.land); g.closePath(); g.fill();
+  for (const r of src.islands || []) { g.beginPath(); path(r); g.closePath(); g.fill(); }
+  for (const it of src.items || []) {
+    if (it.b[2] < box.x0 - 20 || it.b[0] > box.x1 + 20 || it.b[3] < box.z0 - 20 || it.b[1] > box.z1 + 20) continue;
+    if (it.k === 0) { g.beginPath(); for (const ring of it.poly) { path(ring); g.closePath(); } g.fill('evenodd'); }
+    else if (it.k === 1) { g.beginPath(); path(it.p); g.closePath(); g.fill(); }
+    else { g.lineWidth = it.w; g.beginPath(); path(it.p); g.stroke(); }
   }
-  for (const a of D.areas || []) if (a.k === 'pier' && near(a.p)) { g.beginPath(); path(a.p); g.closePath(); g.fill(); }
-  for (const r of D.roads || []) if (r.k === 'pier' && near(r.p)) { g.lineWidth = Math.max(r.w || 5, 3); g.beginPath(); path(r.p); g.stroke(); }
-  const px = g.getImageData(0, 0, w, h).data, land = new Uint8Array(w * h);
-  for (let i = 0; i < land.length; i++) land[i] = px[i * 4] > 127 ? 1 : 0;
+  const px = g.getImageData(0, 0, w, h).data, land = outLand && outLand.length >= w * h ? outLand : new Uint8Array(w * h);
+  for (let i = 0, n = w * h; i < n; i++) land[i] = px[i * 4] > 127 ? 1 : 0;
   return { w, h, land, k, box };
 }
 
-// Signed distance (metres, + over water, - over land) of a land mask, as a Float32 array.
-function signedDistance(m, maxD) {
-  const { w, h, land } = m, water = new Uint8Array(w * h);
-  for (let i = 0; i < water.length; i++) water[i] = land[i] ? 0 : 1;
-  const dW = edt(land, w, h), dL = edt(water, w, h), s = 1 / m.k, out = new Float32Array(w * h);
-  for (let i = 0; i < out.length; i++) out[i] = clamp(land[i] ? -(dL[i] - 0.5) * s : (dW[i] - 0.5) * s, -maxD, maxD);
-  return out;
+// Bilinear read of a signed-distance field (cell centres at +0.5); NaN outside it.
+function sampleField(f, x, z) {
+  const i = (x - f.x0) * f.k - 0.5, j = (z - f.z0) * f.k - 0.5;
+  if (i < 0 || j < 0 || i >= f.w - 1 || j >= f.h - 1) return NaN;
+  const i0 = i | 0, j0 = j | 0, fx = i - i0, fz = j - j0, o = j0 * f.w + i0, s = f.sdf;
+  return (s[o] * (1 - fx) + s[o + 1] * fx) * (1 - fz) + (s[o + f.w] * (1 - fx) + s[o + f.w + 1] * fx) * fz;
 }
 function halfTexture(sdf, w, h) {
   const u16 = new Uint16Array(w * h);
@@ -174,7 +204,8 @@ float shoreDist(vec2 p) {
   float c = texture2D(uSdfC, (p - uBoxC.xy) * uBoxC.zw).r;
   vec2 uf = (p - uBoxF.xy) * uBoxF.zw;
   float f = texture2D(uSdfF, clamp(uf, 0.0, 1.0)).r;
-  float inside = step(0.0, uf.x) * step(uf.x, 1.0) * step(0.0, uf.y) * step(uf.y, 1.0);
+  vec2 e = min(uf, 1.0 - uf) / (uBoxF.zw * 70.0);                 // metres to the window edge, in 70 m units: the fine field fades out there
+  float inside = clamp(min(e.x, e.y), 0.0, 1.0);
   return mix(c, f, inside * (1.0 - smoothstep(40.0, 80.0, f)));
 }
 
@@ -415,60 +446,44 @@ const SHOUTS = ['Minchia!', 'Mamma mia!', 'Bedda matri!', 'Aiuto!'];
 // ---------------------------------------------------------------------------------------------------------------
 // createSea
 // ---------------------------------------------------------------------------------------------------------------
-export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, groundY }) {
+export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, groundY, getWorld }) {
+  const T0 = performance.now();
   const sunDir = SUN_DIR.clone().normalize();
-  const landPairs = pairs(D.land);
+  const stats = { initMs: 0, setupMs: 0, coarseMs: 0, winBuilds: 0, winMs: 0, winLastMs: 0, items: 0 };
 
-  // -- fine and coarse distance fields, and a 1 m land mask for the gameplay test
-  const FINE = { x0: -250, z0: -2500, x1: 1650, z1: 500 }, COARSE = { x0: -9500, z0: -7000, x1: 12500, z1: 9500 }, GAME = { x0: 250, z0: -1100, x1: 1150, z1: 0 };
-  const fineK = MOBILE ? 1 / 3 : 1 / 2;
-  const rf = rasterLand(D, FINE, fineK), sdfFine = signedDistance(rf, 120);
-  const rc = rasterLand({ land: D.land }, COARSE, 1 / 44), sdfCoarse = signedDistance(rc, 3000);
-  const gm = rasterLand(D, GAME, 1);
-  const fineTex = halfTexture(sdfFine, rf.w, rf.h), coarseTex = halfTexture(sdfCoarse, rc.w, rc.h);
+  // Distance fields, all in metres from the shore (+ water, - land):
+  //  - coarse: the whole bbox of the city at 24 m (32 m on phones), built once from the manifest coastline (src/world.js, manifest.land + islands);
+  //  - fine: a 1.6 km window (1.2 km on phones) at 2 m (3 m) that follows the camera, rebuilt in slices of a few ms when the camera
+  //    leaves its middle. It also holds the quays, pontoons and piers of the tiles that have streamed in (harvested per tile below).
+  // Until the manifest is in nothing is built and the water stays hidden; the first coarse field takes a few frames.
+  const CK = MOBILE ? 1 / 32 : 1 / 24, WK = MOBILE ? 1 / 3 : 1 / 2, WSIZE = MOBILE ? 1200 : 1600, WW = Math.round(WSIZE * WK);
+  const dummy = halfTexture(new Float32Array([1000]), 1, 1);
+  let coarse = null, front = null, ready = false, world = null, landFlat = null, islandsFlat = [];
+  const extras = new Map();   // tile key -> shore items harvested when the tile reached full detail
+  let extrasDirty = false, extrasAt = 0;
 
-  // Is (x, z) open water? Exact at 1 m inside the harbour box, the coastline polygon elsewhere.
+  // Is (x, z) open water? Exact (a 2 m field, bilinear) near the camera, the coastline polygon elsewhere.
   function isWater(x, z) {
-    if (x >= GAME.x0 && x < GAME.x1 && z >= GAME.z0 && z < GAME.z1) return !gm.land[((z - GAME.z0) | 0) * gm.w + ((x - GAME.x0) | 0)];
-    return !inPoly(landPairs, x, z);
+    if (front) { const v = sampleField(front, x, z); if (v === v) return v > 0; }
+    if (world && world.manifest) return !world.isLand(x, z);
+    return !inPoly(pairsOf(D.land), x, z);
   }
-  // Signed distance to the shore (m, + over water) from the fine raster; large outside it.
+  let landPairsCache = null;
+  const pairsOf = flat => landPairsCache || (landPairsCache = pairs(flat));
+  // Signed distance to the shore (m, + over water): the fine window where the camera is, the coarse field elsewhere.
   function shoreAt(x, z) {
-    const i = (x - FINE.x0) * rf.k - 0.5, j = (z - FINE.z0) * rf.k - 0.5;
-    if (i < 0 || j < 0 || i >= rf.w - 1 || j >= rf.h - 1) return isWater(x, z) ? 500 : -500;
-    const i0 = i | 0, j0 = j | 0, fx = i - i0, fz = j - j0, o = j0 * rf.w + i0, s = sdfFine;
-    return (s[o] * (1 - fx) + s[o + 1] * fx) * (1 - fz) + (s[o + rf.w] * (1 - fx) + s[o + rf.w + 1] * fx) * fz;
+    if (front) { const v = sampleField(front, x, z); if (v === v) return v; }
+    if (coarse) { const v = sampleField(coarse, x, z); if (v === v) return v; return coarse.sdf[clamp(((z - coarse.z0) * coarse.k) | 0, 0, coarse.h - 1) * coarse.w + clamp(((x - coarse.x0) * coarse.k) | 0, 0, coarse.w - 1)]; }
+    return 1000;
   }
-
-  // The terrain meshes (near 10 m grid, far 150 m grid) are interpolated from coarse data, so their land-to-sea ramps
-  // poke through the water as beige or grey aprons along the quays and over the port basins. Sink the mesh vertices
-  // that stand in water; the land vertices (and everything that follows groundY) are untouched.
-  function shoreAny(x, z) {
-    const i = (x - FINE.x0) * rf.k - 0.5, j = (z - FINE.z0) * rf.k - 0.5;
-    if (i >= 0 && j >= 0 && i < rf.w - 1 && j < rf.h - 1) return shoreAt(x, z);
-    const ci = Math.floor((x - COARSE.x0) / 44), cj = Math.floor((z - COARSE.z0) / 44);
-    return ci >= 0 && cj >= 0 && ci < rc.w && cj < rc.h ? sdfCoarse[cj * rc.w + ci] : 1000;
-  }
-  try {
-    for (const o of scene.children) {
-      if (!o.isMesh || !o.geometry.index || !o.geometry.attributes.position) continue;
-      const pos = o.geometry.attributes.position, a = pos.array;
-      const isNear = D.near && Math.abs(a[0] - D.near.x0) < 0.01 && Math.abs(a[2] - D.near.z0) < 0.01 && pos.count > 10000;
-      const isFar = D.far && Math.abs(a[0] - D.far.x0) < 0.01 && Math.abs(a[2] - D.far.z0) < 0.01 && pos.count === D.far.nx * D.far.nz;
-      if (!isNear && !isFar) continue;
-      for (let i = 0; i < pos.count; i++) if (a[i * 3 + 1] > -3 && shoreAny(a[i * 3], a[i * 3 + 2]) > 1) a[i * 3 + 1] = -12;
-      pos.needsUpdate = true; o.geometry.computeVertexNormals(); o.geometry.computeBoundingSphere();
-    }
-  } catch (e) { console.warn('[sea] terrain tweak skipped', e); }
 
   // -- the water
   const nrmTex = makeWaterTexture(256);
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
     uTime: { value: 0 }, uSunDir: { value: sunDir }, uSunCol: { value: new THREE.Color(1.0, 0.86, 0.62) },
     uHorizon: { value: new THREE.Color('#a8cbe6') }, uZenith: { value: new THREE.Color('#3d7fc4') },
-    uSdfF: { value: fineTex }, uSdfC: { value: coarseTex }, uNrm: { value: nrmTex },
-    uBoxF: { value: new THREE.Vector4(FINE.x0, FINE.z0, 1 / (rf.w / rf.k), 1 / (rf.h / rf.k)) },
-    uBoxC: { value: new THREE.Vector4(COARSE.x0, COARSE.z0, 1 / (rc.w / rc.k), 1 / (rc.h / rc.k)) },
+    uSdfF: { value: dummy }, uSdfC: { value: dummy }, uNrm: { value: nrmTex },
+    uBoxF: { value: new THREE.Vector4(1e7, 1e7, 1e-6, 1e-6) }, uBoxC: { value: new THREE.Vector4(0, 0, 1e-6, 1e-6) },
     uClear: { value: new THREE.Vector4(0, 0, 14, 0) }, uAmb: { value: new THREE.Color(1, 1, 1) },
   }]);
   const waterMat = new THREE.ShaderMaterial({
@@ -476,8 +491,108 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -8, defines: MOBILE ? { LOW: 1 } : {},
   });
   const water = new THREE.Mesh(makeDisc(), waterMat);
-  water.position.y = SEA_Y; water.frustumCulled = false; water.renderOrder = -10;
+  water.position.y = SEA_Y; water.frustumCulled = false; water.renderOrder = -10; water.visible = false;
   scene.add(water);
+
+  // -- fields
+  const winTex = new THREE.DataTexture(new Uint16Array(WW * WW), WW, WW, THREE.RedFormat, THREE.HalfFloatType);
+  winTex.minFilter = winTex.magFilter = THREE.LinearFilter; winTex.wrapS = winTex.wrapT = THREE.ClampToEdgeWrapping; winTex.generateMipmaps = false; winTex.unpackAlignment = 1;
+  const bufs = [{ sdf: new Float32Array(WW * WW) }, { sdf: new Float32Array(WW * WW) }];
+  const winLand = new Uint8Array(WW * WW), winScratch = scratchFor(WW * WW), winU16 = new Uint16Array(WW * WW);
+  let flip = 0, build = null, buildSince = 0;
+
+  // Quays, pontoons and piers of a tile that just reached full detail, kept only where the coast is near (coarse field).
+  function harvest(t) {
+    const d = t.data; if (!d || !coarse || extras.has(t.k)) return;
+    const x0 = t.i * 500, z0 = t.j * 500; let coastal = false;
+    for (let a = 0; a <= 4 && !coastal; a++) for (let b = 0; b <= 4; b++) { const s = shoreAt(x0 + a * 125, z0 + b * 125); if (Math.abs(s) < 150) { coastal = true; break; } }
+    if (!coastal) { extras.set(t.k, null); return; }
+    const items = shoreItems(d.streets, d.areas, d.roads, b => { const cx = (b[0] + b[2]) / 2, cz = (b[1] + b[3]) / 2; return Math.abs(shoreAt(cx, cz)) < 130 + Math.hypot(b[2] - b[0], b[3] - b[1]) / 2; });
+    extras.set(t.k, items); stats.items += items.length;
+    if (items.length) { extrasDirty = true; extrasAt = performance.now(); }
+  }
+  function onTile(kind, t) { if (kind === 'full') harvest(t); }
+
+  const worldBox = () => { const b = world.manifest.bbox; return { x0: b[0], z0: b[1], x1: b[2], z1: b[3] }; };
+  function* setup() {
+    const t0 = performance.now(), M = world.manifest, box = worldBox();
+    landFlat = M.land; islandsFlat = M.islands || [];
+    const m = rasterLand(box, CK, { land: landFlat, islands: islandsFlat });
+    yield;
+    const sdf = new Float32Array(m.w * m.h);
+    yield* signedDistanceGen(m, 3000, sdf, scratchFor(m.w * m.h));
+    coarse = { x0: box.x0, z0: box.z0, w: m.w, h: m.h, k: CK, sdf };
+    uniforms.uSdfC.value = halfTexture(sdf, m.w, m.h);
+    uniforms.uBoxC.value.set(box.x0, box.z0, 1 / (m.w / CK), 1 / (m.h / CK));
+    ready = true; water.visible = true;
+    stats.coarseMs = performance.now() - t0;
+    world.onTile(onTile);   // replays 'full' for the tiles already in
+    yield;
+    yield* fleetFields();
+    try { placeBoats(); } catch (e) { console.warn('[sea] boats skipped', e); }
+  }
+
+  // The window: land (coastline + islands + harvested quays) rasterised, then the signed distance; the old window stays live meanwhile.
+  function* buildWindow(wx0, wz0) {
+    const t0 = performance.now(), box = { x0: wx0, z0: wz0, x1: wx0 + WSIZE, z1: wz0 + WSIZE }, items = [];
+    for (const list of extras.values()) if (list) for (const it of list) if (it.b[2] >= box.x0 - 20 && it.b[0] <= box.x1 + 20 && it.b[3] >= box.z0 - 20 && it.b[1] <= box.z1 + 20) items.push(it);
+    const m = rasterLand(box, WK, { land: landFlat, islands: islandsFlat, items }, winLand);
+    // the polygon only exists inside the bbox: outside it the nearest cell inside decides (land stays land, sea stays sea)
+    const bb = world.manifest.bbox, ix0 = Math.ceil((bb[0] - wx0) * WK), ix1 = Math.floor((bb[2] - wx0) * WK) - 1, iz0 = Math.ceil((bb[1] - wz0) * WK), iz1 = Math.floor((bb[3] - wz0) * WK) - 1;
+    if (ix0 > 0 || iz0 > 0 || ix1 < WW - 1 || iz1 < WW - 1) {
+      for (let j = 0; j < WW; j++) for (let i = 0; i < WW; i++) {
+        const si = clamp(i, ix0, ix1), sj = clamp(j, iz0, iz1);
+        if (si !== i || sj !== j) winLand[j * WW + i] = winLand[sj * WW + si];
+      }
+    }
+    yield;
+    const back = bufs[flip ^ 1];
+    yield* signedDistanceGen(m, 120, back.sdf, winScratch);
+    for (let j = 0; j < WW; j++) {
+      for (let i = 0, o = j * WW; i < WW; i++, o++) winU16[o] = THREE.DataUtils.toHalfFloat(back.sdf[o]);
+      if ((j & 31) === 31) yield;
+    }
+    winTex.image.data.set(winU16); winTex.needsUpdate = true;
+    uniforms.uSdfF.value = winTex; uniforms.uBoxF.value.set(wx0, wz0, 1 / WSIZE, 1 / WSIZE);
+    flip ^= 1; front = { x0: wx0, z0: wz0, w: WW, h: WW, k: WK, sdf: back.sdf };
+    stats.winBuilds++; stats.winLastMs = performance.now() - t0;
+  }
+  let job = null, centre = { x: 1e9, z: 1e9 };
+  function fieldsUpdate(camera) {
+    if (!world) { world = getWorld && getWorld(); if (!world) return; }
+    if (!world.manifest) return;
+    const budget = ready ? 2.5 : 10, t0 = performance.now();
+    if (!job && !ready) job = { gen: setup(), win: false };
+    if (!job && ready) {
+      const cp = camera.position, far = (cp.x - centre.x) ** 2 + (cp.z - centre.z) ** 2 > 330 * 330;
+      const now = performance.now();
+      if (!front || far || (extrasDirty && now - extrasAt > 700 && now - buildSince > 2500)) {
+        extrasDirty = false; buildSince = now; centre = { x: cp.x, z: cp.z };
+        job = { gen: buildWindow(Math.floor((cp.x - WSIZE / 2) / 16) * 16, Math.floor((cp.z - WSIZE / 2) / 16) * 16), win: true };
+      }
+    }
+    if (job) {
+      const isWin = job.win;
+      if (drive(job.gen, budget)) job = null;
+      stats[isWin ? 'winMs' : 'setupMs'] += performance.now() - t0;
+    }
+  }
+
+  // Small 2 m fields over the centro's basin and port for placing the boats (quay-accurate), built once with the coarse field.
+  const boatFields = [];
+  function* fleetFields() {
+    for (const box of [{ x0: 400, z0: -900, x1: 960, z1: -290 }, { x0: 40, z0: -1900, x1: 920, z1: -1000 }]) {
+      const items = shoreItems(D.streets, D.areas, D.roads, b => b[2] >= box.x0 - 20 && b[0] <= box.x1 + 20 && b[3] >= box.z0 - 20 && b[1] <= box.z1 + 20);
+      const m = rasterLand(box, 1 / 2, { land: landFlat, islands: islandsFlat, items });
+      const sdf = yield* signedDistanceGen(m, 120, new Float32Array(m.w * m.h), scratchFor(m.w * m.h));
+      boatFields.push({ x0: box.x0, z0: box.z0, w: m.w, h: m.h, k: 1 / 2, sdf });
+      yield;
+    }
+  }
+  function boatShore(x, z) {
+    for (const f of boatFields) { const v = sampleField(f, x, z); if (v === v) return v; }
+    return shoreAt(x, z);
+  }
 
   // -- boats (placed once, a moment after the first frame so loading stays quick)
   const boatMat = boatMaterial(), fleets = [];
@@ -498,7 +613,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     };
     const fits = (r, minShore) => { // the whole footprint is water with some room to the shore
       const f = [Math.sin(r.yaw), Math.cos(r.yaw)], s = [f[1], -f[0]];
-      for (const i of [-0.42, -0.25, 0, 0.25, 0.5]) for (const j of [-0.5, 0, 0.5]) if (shoreAt(r.x + f[0] * i * r.L + s[0] * j * r.B, r.z + f[1] * i * r.L + s[1] * j * r.B) < minShore) return false;
+      for (const i of [-0.42, -0.25, 0, 0.25, 0.5]) for (const j of [-0.5, 0, 0.5]) if (boatShore(r.x + f[0] * i * r.L + s[0] * j * r.B, r.z + f[1] * i * r.L + s[1] * j * r.B) < minShore) return false;
       return true;
     };
     const free = (r, pad = 0.5) => { const q = { ...r, L: r.L + pad, B: r.B + pad }; return !placed.some(p => overlap(q, p)); };
@@ -537,19 +652,19 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
         }
       }
     }
-    const spots = (n, tries, x0, x1, z0, z1, sMin, sMax, fn) => { let k = 0; for (let t = 0; t < tries && k < n; t++) { const x = x0 + rand() * (x1 - x0), z = z0 + rand() * (z1 - z0), s = shoreAt(x, z); if (s >= sMin && s <= sMax && fn(x, z)) k++; } };
+    const spots = (n, tries, x0, x1, z0, z1, sMin, sMax, fn) => { let k = 0; for (let t = 0; t < tries && k < n; t++) { const x = x0 + rand() * (x1 - x0), z = z0 + rand() * (z1 - z0), s = boatShore(x, z); if (s >= sMin && s <= sMax && fn(x, z)) k++; } };
     spots(6, 400, 460, 900, -820, -340, 9, 60, (x, z) => (rand() < 0.65 ? gozzo : yacht)(x, z, rand() * 6.28, 0.25)); // at anchor in the basin
     spots(7, 400, 560, 1500, -900, 100, 60, 280, (x, z) => (rand() < 0.75 ? gozzo : yacht)(x, z, rand() * 6.28, 0.35));     // off the Foro Italico
     // ferries alongside the quays of the port
     const ferries = [];
     for (let cz = -1800; cz < -1100; cz += 8) for (let cx = 130; cx < 820; cx += 8) {
-      const s0 = shoreAt(cx, cz); if (s0 < 12.5 || s0 > 22) continue;
+      const s0 = boatShore(cx, cz); if (s0 < 12.5 || s0 > 22) continue;
       for (let a = 0; a < 18; a++) {
         const yaw = a / 18 * Math.PI, r = { x: cx, z: cz, yaw, L: 136, B: 25 }, f = [Math.sin(yaw), Math.cos(yaw)], s = [f[1], -f[0]];
         let ok = true, touch = 0;
         for (let i = -5; i <= 5 && ok; i++) {
-          for (const j of [-0.5, 0, 0.5]) if (shoreAt(cx + f[0] * i * 13 + s[0] * j * 25, cz + f[1] * i * 13 + s[1] * j * 25) < 2.5) { ok = false; break; }
-          if (ok) for (const sg of [-1, 1]) if (shoreAt(cx + f[0] * i * 13 + s[0] * sg * 16, cz + f[1] * i * 13 + s[1] * sg * 16) < 5) touch++;
+          for (const j of [-0.5, 0, 0.5]) if (boatShore(cx + f[0] * i * 13 + s[0] * j * 25, cz + f[1] * i * 13 + s[1] * j * 25) < 2.5) { ok = false; break; }
+          if (ok) for (const sg of [-1, 1]) if (boatShore(cx + f[0] * i * 13 + s[0] * sg * 16, cz + f[1] * i * 13 + s[1] * sg * 16) < 5) touch++;
         }
         if (ok && touch >= 7) ferries.push({ ...r, touch, rank: touch + rand() * 3 });
       }
@@ -577,7 +692,6 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     }
     boatsReady = true;
   }
-  setTimeout(() => { try { placeBoats(); } catch (e) { console.warn('[sea] boats skipped', e); } }, 60);
 
   const _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
   function animateBoats(t) {
@@ -782,6 +896,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   let time = 0;
   function update(dt, camera = cam0) {
     time += dt;
+    fieldsUpdate(camera);
     uniforms.uTime.value = time;
     water.position.x = camera.position.x; water.position.z = camera.position.z;
     if (boatsReady) animateBoats(time);
@@ -799,7 +914,9 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     if (isWater(a.car.x, a.car.z)) startDrown(a);
   }
 
-  const api = { update, checkPlayer, isWater, shoreAt };
+  stats.initMs = performance.now() - T0;
+  const api = { update, checkPlayer, isWater, shoreAt, stats: () => ({ ...stats, windowReady: !!front, coarseReady: ready }) };
+  if (location.search.includes('debug')) window.__sea = api; // timings and field state for tests
   return api;
 }
 

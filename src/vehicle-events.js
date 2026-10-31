@@ -4,7 +4,7 @@
 //     the colour draining, the vehicle sounds muffled), goes black for a beat, and you wake up parked just outside the district, facing away,
 //     with the vehicle stripped to the bare frame and wheels (canvas, roof, doors, seats, lights, mirrors, stickers, tuning parts gone). It stays
 //     drivable. Five minutes of game time later everything is back. Purely cosmetic: garage ownership is untouched. Position based, so it only
-//     happens where the world streaming lets you drive (?world=1).
+//     happens where the world streaming lets you drive.
 //
 //  2. "CORSE CLANDESTINE". At night a crowd and scooters gather on Viale delle Scienze in front of the University. Stop at the start to join:
 //     you swap to a horse and sulky (calesse da corsa), race down the avenue against three rival sulkies with scooters escorting and honking
