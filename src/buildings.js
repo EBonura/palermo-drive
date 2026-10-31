@@ -937,7 +937,7 @@ function chooseStyle(b, H, area, zone, r, o = {}) {
   const special = b.hi || GRAND.test(name) || ['university', 'government', 'civic', 'museum', 'hotel', 'monastery', 'castle', 'public'].includes(b.t) || b.am === 'courthouse' || b.am === 'college';
   if (Z.elig && !special) {
     if (o.round && H > 5 && (Z.w.ind || Z.shed)) return 'silo';
-    if (Z.ruin && o.u < Z.ruin && !b.n && area > 40 && area < 700 && H < 19) return 'ruin';
+    if (Z.ruin && o.u < Z.ruin && !b.n && b.r === undefined && area > 40 && area < 700 && H < 19) return 'ruin';
     if (Z.shed && area > 600 && o.u2 < 0.85) return 'ind';
   }
   if (H < 5.2) {
@@ -981,7 +981,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   const { inBuilding, roadNear, dupIds } = buildLookups(data);
   const white = new THREE.Color(1, 1, 1);
 
-  let chunks = new Map(); const CH = tile ? 250 : 400;
+  let chunks = new Map(); const CH = 250; // [perf pass] was 400 for the centro: smaller chunks cull better (view and shadow pass): -16% triangles at Quattro Canti for +5% draw calls
   const chunkOf = (x, z) => { const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { m: new GB(), r: new GB(), p: new GB() }); return c; };
   let matPhoto = null, photoData = null;
 

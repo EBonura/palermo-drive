@@ -174,5 +174,27 @@
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Cassa di Risparmio (Palermo).jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Cassa_di_Risparmio_(Palermo).jpg"
   }
+ ],
+ "r1241799.0": [
+  {
+   "wall": 2,
+   "texture": "assets/facades/photo/giustizia.jpg",
+   "u0": 0,
+   "u1": 1,
+   "v0": 0,
+   "v1": 1,
+   "flip": false,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
+   "size": [
+    1024,
+    188
+   ],
+   "license": "CC0",
+   "credit": "Effems, Palazzo di Giustizia (Palermo) 19 06 2026 01.jpg, CC0, https://commons.wikimedia.org/wiki/File:Palazzo_di_Giustizia_(Palermo)_19_06_2026_01.jpg"
+  }
  ]
 }
