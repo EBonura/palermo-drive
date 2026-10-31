@@ -218,7 +218,7 @@ export function createPedestrians(env) {
   // ======================================================================== time of day
   // The day/night work publishes game.time {hour, isNight, dusk} and fires window 'pd-time' {hour, isNight, dusk}; both are read
   // defensively and the default is daytime. nightCrowd flips the crowd map and mix; nightK (0..1) eases the sprites' light.
-  let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0, purgeAt = 0;
+  let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0, purgeAt = 0, lastNight, lastIsNight;
   const setCrowdNight = b => { if (b === nightCrowd) return; nightCrowd = b; targetT = 0; purgeT = 45; };
   function setTime(t) {
     if (!t || typeof t !== 'object') return;
@@ -595,7 +595,7 @@ export function createPedestrians(env) {
     const t0 = performance.now();
     dt = Math.min(dt, 0.05); frameNo++;
     cam = cam || camera;
-    { const gt = gameRef && gameRef.time; if (gt) setTime(gt); }
+    { const gt = gameRef && gameRef.time; if (gt && (gt.night !== lastNight || gt.isNight !== lastIsNight)) { lastNight = gt.night; lastIsNight = gt.isNight; setTime(gt); } }   // only when it changes, so an event or a debug override is not undone every frame
     nightK += (nightTarget - nightK) * Math.min(1, 0.6 * dt);
     spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
     updateScripted(dt, cam);
@@ -875,7 +875,7 @@ export function createPedestrians(env) {
 
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
-  if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
+  if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
   const api = { bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
