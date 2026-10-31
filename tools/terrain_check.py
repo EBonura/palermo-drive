@@ -9,7 +9,8 @@ For every drivable road, sampled every STEP metres along the centreline, it repo
   mesh    the rendered terrain mesh sticks out above the road surface (the draped asphalt = groundY) by more than MESH_TOL across the
           carriageway or its kerb margin (full detail mesh), or by more than MESH_TOL_LOW with the 20 m low detail mesh
   bank    the ground rises more than BANK_TOL above the road edge within BANK_MARGIN metres beside the carriageway (the terrain hides
-          the road from a driver, or the road sits in a trench)
+          the road from a driver, or the road sits in a trench); where a road bench exists only the rise on top of the natural hillside's
+          own counts (an unshaped road: all of it)
   grade   longitudinal grade above GRADE_MAX over 6 m (a real street never does this)
   bump    the centreline height differs from its own +-BUMP_WIN metres running median by more than BUMP_TOL (a bump or a dip that a
           smooth road profile would not have)
@@ -39,7 +40,7 @@ MESH_DROP = 0.2          # src/world.js terrainMesh: vertices at groundY - 0.2
 
 STEP = 3.0
 MESH_TOL, MESH_TOL_LOW = 0.2, 0.6
-BANK_TOL, BANK_MARGIN = 0.6, 4.0
+BANK_TOL, BANK_MARGIN = 0.8, 4.0
 GRADE_MAX = 0.22
 BUMP_TOL, BUMP_WIN = 0.5, 12.0
 CROSS_MAX = 0.12
@@ -243,7 +244,7 @@ class World:
         if low and self.shaping:
             sh = self.get_shape(i, j)
             if sh is not None:
-                R = step * 0.6 + 1
+                R = step + 1
                 bm = self.bench_min(i, j, R)
                 x0, z0, s, nx, nz, _, _ = sh
                 ci = np.clip(np.round((X - x0) / s).astype(int), 0, nx - 1)
@@ -328,12 +329,16 @@ def check_road(W, r):
             if u <= half + 1.0:
                 m1 = W.mesh(qx, qz) - g
                 worst_mesh = np.maximum(worst_mesh, m1)
-            m2 = W.mesh(qx, qz, low=True) - g
-            worst_low = np.maximum(worst_low, m2)
+            if u <= half + 1.0:
+                worst_low = np.maximum(worst_low, W.mesh(qx, qz, low=True) - g)
             if u == half:
                 cross = np.maximum(cross, np.abs(g - hr) / max(half, 0.5))
             if u > half:
-                bank = np.maximum(bank, g - W.ground(cx + side * half * nx_, cz + side * half * nz_))
+                ex, ez = cx + side * half * nx_, cz + side * half * nz_
+                rise = g - W.ground(ex, ez)
+                if W.shaping:   # the bench may not make the wall beside the road steeper than the natural hillside
+                    rise = rise - np.maximum(W.base_h(qx, qz) - W.base_h(ex, ez), 0)
+                bank = np.maximum(bank, rise)
     for q in np.nonzero(worst_mesh > MESH_TOL)[0]:
         flags.append(("mesh", sd[q], float(worst_mesh[q]), cx[q], cz[q]))
     for q in np.nonzero(worst_low > MESH_TOL_LOW)[0]:
