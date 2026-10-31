@@ -326,6 +326,7 @@ export function initShared() {
   defMat('glass', 0, 0, [1, 1], null, { roughness: 0.25, metalness: 0 });
   defMat('rail', 64, 64, [1, 1], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#2a2a30'; g.fillRect(0, 2, w, 5); g.fillRect(0, h - 6, w, 5); for (let x = 4; x < w; x += 16) g.fillRect(x, 0, 3, h); }, { alphaTest: 0.5, side: THREE.DoubleSide, noShadow: true });
   defMat('balus', 64, 64, [1, 1], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#e4e0d3'; g.fillRect(0, 0, w, 9); g.fillRect(0, h - 8, w, 8); for (let x = 0; x < w; x += 16) { g.fillRect(x + 4, 9, 8, h - 17); g.fillRect(x + 2, 22, 12, 8); g.fillRect(x + 2, 38, 12, 6); } }, { alphaTest: 0.5, side: THREE.DoubleSide });
+  defMat('cren', 64, 32, [1.6, 0.8], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.fillRect(0, 8, w, h - 8); g.clearRect(32, 8, 32, 16); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, 8, w, 2); }, { alphaTest: 0.5, side: THREE.DoubleSide });
   defMat('palm', 64, 64, [1, 1], (g, w, h) => {
     g.clearRect(0, 0, w, h); g.fillStyle = '#4f7a3a'; g.strokeStyle = '#3d6a2c'; g.lineWidth = 1.5;
     for (let a = -1.2; a <= 1.2; a += 0.3) { g.beginPath(); g.moveTo(32, 62); g.quadraticCurveTo(32 + a * 20, 20, 32 + a * 30, 14 + Math.abs(a) * 14); g.stroke(); }
@@ -333,6 +334,8 @@ export function initShared() {
 }
 
 // ---------- ornaments ----------
+// crenellation panel along local x (centred), standing on y=0 of M, len x 0.8 m tall
+export function crenel(M, len, o = {}) { panel('cren', len, 0.8, { M, uvk: [len / 1.6, 1], ...o }); }
 export function balus(M, len, h, o = {}) { panel('balus', len, h, { M, uvk: [len / h, 1], ...o }); }
 export function rail(M, len, h, o = {}) { panel('rail', len, h, { M, uvk: [len / 0.5 * 0.5, 1], ...o }); }
 // small robed statue standing on y=0 in frame M; total height h
