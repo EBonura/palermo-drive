@@ -67,7 +67,7 @@ const PORT = server.address().port;
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: true,
   args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars', '--no-first-run', '--autoplay-policy=no-user-gesture-required',
-    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+    '--disable-frame-rate-limit', '--disable-gpu-vsync', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
   defaultViewport: null,
 });
 const page = await browser.newPage();
@@ -148,7 +148,6 @@ if (QUERY.includes('debug')) {
   }
 }
 const metrics = await page.metrics();
-const heapMB = +(await page.evaluate(() => performance.memory ? performance.memory.usedJSHeapSize / 1048576 : 0)).toFixed(1);
 const bld = await page.evaluate(() => window.__bld || null);
 
 const jsHeapMB = +(metrics.JSHeapUsedSize / 1048576).toFixed(1);
@@ -157,7 +156,7 @@ for (const [u, wire, raw] of stats.files) { const k = u.endsWith('.js') || u.end
 const report = {
   label: LABEL, root: path.relative(process.cwd(), ROOT) || '.', profile: PROFILE, net: NET, cpuThrottle: CPU, query: QUERY,
   wire: { requests: stats.requests, bytes: stats.bytes, rawBytes: stats.rawBytes, atReady: netAtLoad, byKind },
-  timing: { ...loadTiming, readyWallMs: tReadyWall }, jsHeapMB, heapMB, buildings: bld, samples, errors: errors.slice(0, 10),
+  timing: { ...loadTiming, readyWallMs: tReadyWall }, jsHeapMB, buildings: bld, samples, errors: errors.slice(0, 10),
   topFiles: stats.files.sort((a, b) => b[1] - a[1]).slice(0, 12),
   consoleTimeline: logs.filter(l => /\[/.test(l[1])).slice(0, 12),
 };

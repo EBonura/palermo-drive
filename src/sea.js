@@ -762,11 +762,11 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   function testStep(dt) {
     if (!testRefs) return dt;
     testFrame++;
-    const car = testRefs.car;
-    if (testFrame === 8) { const th = 0.5236; Object.assign(car, { x: 492.2, z: -423.6, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testGo = true; }
-    if (testGo && !S.on) { car.x += Math.sin(car.th) * 10 * dt; car.z += Math.cos(car.th) * 10 * dt; car.vf = 10; car.vx = Math.sin(car.th) * 10; car.vz = Math.cos(car.th) * 10; }
-    if (S.on && S.t >= TEST) return 0;
-    return 1 / 15;
+    const car = testRefs.car, th = 0.5236;
+    if (testFrame < 4) testRefs.vehicle.camState.init = false;
+    if (testFrame === 4) { Object.assign(car, { x: 489.5 + Math.sin(th) * 12, z: -427.5 + Math.cos(th) * 12, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testRefs.vehicle.camState.init = false; }
+    if (S.on) return S.t >= TEST ? 0 : 0.1;
+    return dt;
   }
   // TEMP-DEBUG-END
   function update(dt, camera = cam0) {

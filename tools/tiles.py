@@ -777,6 +777,32 @@ def parse_highways(files):
     return roads, car, ped, plazas
 
 
+def parse_places(files):
+    """Named stadiums, harbours, capes, districts ...: (name, x, z, size, kind). Only landmark candidates."""
+    out = []
+    for e in iter_elements(files):
+        t = e.get("tags") or {}
+        if not t.get("name"):
+            continue
+        kind = (t.get("place") or t.get("leisure") or t.get("harbour") and "harbour" or t.get("landuse")
+                or t.get("natural") or t.get("man_made") or t.get("tourism") or t.get("amenity") or t.get("historic") or "place")
+        if e["type"] == "node":
+            x, z = proj(e["lat"], e["lon"])
+            out.append((t["name"], x, z, 0.0, kind))
+            continue
+        pts = []
+        if e["type"] == "way":
+            pts = way_pts(e) if e.get("geometry") else []
+        else:
+            for m in e.get("members", []):
+                pts += [proj(g["lat"], g["lon"]) for g in m.get("geometry", [])]
+        if len(pts) >= 2:
+            xs, zs = [p[0] for p in pts], [p[1] for p in pts]
+            out.append((t["name"], (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2,
+                        (max(xs) - min(xs)) * (max(zs) - min(zs)), kind))
+    return out
+
+
 def parse_props(files):
     """Street furniture, same structure/field names as props-data.js (window.PALERMO_PROPS)."""
     items, areas = [], []
@@ -1225,28 +1251,29 @@ CURATED = [
     ("Cattedrale di Palermo", r"^Cattedrale|Cattedrale di Palermo|Duomo di Palermo|Cattedrale Metropolitana", None),
     ("Palazzo dei Normanni", r"Palazzo dei Normanni|Palazzo Reale", None),
     ("Stazione Centrale", r"Palermo Centrale|Stazione Centrale", None),
-    ("Stadio Renzo Barbera", r"Barbera|Stadio Renzo", None),
+    ("Stadio Renzo Barbera", r"Stadio Renzo Barbera", None),
     ("Parco della Favorita", r"Favorita", {"green", "forest"}),
     ("Mondello", r"Mondello", {"sand"}),
-    ("Charleston", r"Charleston", None),
-    ("Porto di Palermo", r"^Porto di Palermo|Porto$|^La Cala|Cala$", None),
+    ("Charleston", r"Charleston", None),   # not in OSM as of the 2026-10 extract
+    ("Porto di Palermo", r"^Porto di Palermo$", None),
+    ("La Cala", r"^La Cala$", None),
+    ("Porto di Mondello", r"^Porto di Mondello$", None),
     ("Castello della Zisa", r"Zisa", None),
     ("Orto Botanico", r"Orto Botanico", None),
     ("Foro Italico", r"Foro Italico", None),
     ("Villa Giulia", r"Villa Giulia", None),
     ("Giardino Inglese", r"Giardino Inglese", None),
-    ("Monte Pellegrino", r"Pellegrino|Santa Rosalia", None),
-    ("Capo Gallo", r"Capo Gallo", None),
-    ("Cala", r"^La Cala$|^Cala$", None),
+    ("Monte Pellegrino", r"^Monte Pellegrino$", None),
+    ("Capo Gallo", r"^Capo Gallo$", None),
     ("Ucciardone", r"Ucciardone", None),
     ("Castello a Mare", r"Castello a Mare", None),
     ("Fiera del Mediterraneo", r"Fiera del Mediterraneo", None),
     ("Cappella Palatina", r"Cappella Palatina", None),
-    ("Chiesa della Martorana", r"Martorana|Santa Maria dell'Ammiraglio", None),
+    ("Chiesa della Martorana", r"La Martorana|dell.Ammiraglio", None),
     ("Palazzo delle Aquile", r"Palazzo delle Aquile|Palazzo Pretorio", None),
-    ("Mercato di Ballarò", r"Ballar", None),
-    ("Mercato del Capo", r"Mercato del Capo", None),
-    ("Mercato della Vucciria", r"Vucciria", None),
+    ("Mercato di Ballarò", r"Mercato di Ballar|Mercari do Ballaro", None),
+    ("Mercato del Capo", r"Mercato del Capo|Mercari del Capo", None),
+    ("Mercato della Vucciria", r"^(La )?Vucciria$", None),
     ("Università di Palermo", r"Universit", None),
     ("Ospedale Civico", r"Ospedale Civico", None),
     ("Ospedale Villa Sofia", r"Villa Sofia", None),
@@ -1258,7 +1285,7 @@ AUTO_CHURCH_MIN = 700
 AUTO_MAX = 500
 
 
-def landmarks(buildings, area_names):
+def landmarks(buildings, area_names, places=()):
     cands = []   # (name, x, z, footprint, kind)
     for b in buildings:
         if b.get("n"):
@@ -1268,6 +1295,7 @@ def landmarks(buildings, area_names):
         if name:
             c = geom.representative_point()
             cands.append((name, c.x, c.y, geom.area, kind))
+    cands += list(places)
     out, found, missing, used = [], {}, [], set()
     for disp, rx, kinds in CURATED:
         pat = re.compile(rx, re.I)
@@ -1316,6 +1344,7 @@ def build(offline=False):
     coast, areas_raw, piers = parse_misc(files["misc"])
     roads, car, ped, plazas = parse_highways(files["hwy"])
     pitems, pareas = parse_props(files["props"])
+    places = parse_places(files.get("places", []))
     print(f"  {len(buildings)} buildings (heights: {stats}), {len(coast)} coast ways, {len(areas_raw)} areas, "
           f"{len(roads)} roads, {len(pitems)} props", flush=True)
 
@@ -1401,7 +1430,7 @@ def build(offline=False):
                 print(f"  {n}/{len(todo)}", flush=True)
     results.sort(key=lambda r: (int(r[0].split("_")[0]), int(r[0].split("_")[1])))
 
-    lm, found, missing = landmarks(buildings, area_recs)
+    lm, found, missing = landmarks(buildings, area_recs, [p for p in places if inside(p[1], p[2])])
 
     polys_land = sorted(polys_of(land), key=lambda p: -p.area)
     land_ring = ring_flat(polys_land[0].simplify(0.3).exterior.coords)
