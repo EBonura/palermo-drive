@@ -77,10 +77,10 @@ export function createRoadWear(env) {
   const gy = (x, z) => groundY(x, z) + LIFT;
 
   // ---------- exact asphalt raster: 0.5 m cells, 1 bit each, drawn in tiles so memory stays small ----------
-  const [AX0, AZ0, AX1, AZ1] = D.streets.aoi, S = 2, MW = Math.ceil((AX1 - AX0) * S), MH = Math.ceil((AZ1 - AZ0) * S);
+  const [AX0, AZ0, AX1, AZ1] = D.streets.aoi, S = 1, MW = Math.ceil((AX1 - AX0) * S), MH = Math.ceil((AZ1 - AZ0) * S);
   const mask = new Uint8Array((MW * MH + 7) >> 3);
   {
-    const TS = 1024, cv = document.createElement('canvas'); cv.width = cv.height = TS;
+    const TS = 2048, cv = document.createElement('canvas'); cv.width = cv.height = TS;
     const g = cv.getContext('2d', { willReadFrequently: true });
     const bb = polys => polys.map(poly => {
       const r = poly[0]; let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -88,7 +88,9 @@ export function createRoadWear(env) {
       return [poly, x0, z0, x1, z1];
     });
     const layers = { asphalt: bb(D.streets.asphalt), paving: bb(D.streets.paving), raised: bb(D.streets.raised), green: bb(D.streets.green) };
+    let TF = 0, TR = 0; window.__tm = [0, 0]; // TEMPDEBUG
     for (let ty = 0; ty < MH; ty += TS) for (let tx = 0; tx < MW; tx += TS) {
+      const tq = performance.now(); // TEMPDEBUG
       const wx0 = AX0 + tx / S, wz0 = AZ0 + ty / S, wx1 = wx0 + TS / S, wz1 = wz0 + TS / S;
       g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, TS, TS);
       for (const name of ['asphalt', 'paving', 'raised', 'green']) {
@@ -100,8 +102,10 @@ export function createRoadWear(env) {
           g.fill('evenodd');
         }
       }
+      TF += performance.now() - tq; const tr = performance.now(); // TEMPDEBUG
       const d = new Uint32Array(g.getImageData(0, 0, TS, TS).data.buffer), w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty);
       for (let j = 0; j < h; j++) for (let i = 0, o = j * TS; i < w; i++) if (d[o + i] !== 0 && (d[o + i] >>> 24) > 127) { const k = (ty + j) * MW + tx + i; mask[k >> 3] |= 1 << (k & 7); }
+      TR += performance.now() - tr; window.__tm = [TF, TR]; // TEMPDEBUG
     }
   }
   const tMask = performance.now() - T0; // TEMPDEBUG
@@ -112,15 +116,17 @@ export function createRoadWear(env) {
   };
 
   // ---------- helpers ----------
-  const vnoise = (x, z) => {   // smooth 0..1 value noise on a 70 m lattice: some streets are simply worse
-    const fx = x / 70, fz = z / 70, ix = Math.floor(fx), iz = Math.floor(fz);
+  const NL = 70, NW = 64, lattice = new Float32Array(NW * NW);   // smooth 0..1 value noise on a 70 m lattice: some streets are simply worse
+  for (let j = 0; j < NW; j++) for (let i = 0; i < NW; i++) lattice[j * NW + i] = hf(i, j, 5);
+  const vnoise = (x, z) => {
+    const fx = clamp(x / NL + 32, 0, NW - 1.01), fz = clamp(z / NL + 32, 0, NW - 1.01), ix = fx | 0, iz = fz | 0;
     let tx = fx - ix, tz = fz - iz; tx = tx * tx * (3 - 2 * tx); tz = tz * tz * (3 - 2 * tz);
-    const a = hf(ix, iz, 5), b = hf(ix + 1, iz, 5), c = hf(ix, iz + 1, 5), d = hf(ix + 1, iz + 1, 5);
+    const a = lattice[iz * NW + ix], b = lattice[iz * NW + ix + 1], c = lattice[(iz + 1) * NW + ix], d = lattice[(iz + 1) * NW + ix + 1];
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   };
   const neglect = (x, z) => {
     let m = 0.35 + 1.5 * vnoise(x, z) ** 1.3;
-    for (const [mx, mz, mr] of MARKETS) { const d = Math.hypot(x - mx, z - mz) / mr; m *= 1 + 1.6 * Math.exp(-d * d); }
+    for (const [mx, mz, mr] of MARKETS) { const dx = x - mx, dz = z - mz; if (dx * dx + dz * dz < 9 * mr * mr) { const d2 = (dx * dx + dz * dz) / (mr * mr); m *= 1 + 1.6 * Math.exp(-d2); } }
     return m;
   };
 
@@ -615,9 +621,9 @@ export function createRoadWear(env) {
     const size = rec.kind ? 0.25 : clamp((rec.r - 0.08) / 0.75, 0.05, 1.3), dep = clamp(rec.dep / 0.14, 0.4, 1.4);
     const I = size * dep * clamp(sp / 13, 0.12, 1.4) * k;
     if (I < 0.02) return;
-    const loss = clamp(0.012 + 0.11 * I, 0, 0.3), keep = 1 - loss;
+    const loss = clamp(0.01 + 0.045 * I, 0, 0.12), keep = 1 - loss;
     car.vx *= keep; car.vz *= keep; car.vf *= keep;
-    car.w += (w.side * 0.4 + (Math.random() - 0.5) * 1.3) * Math.min(I, 1.3) * 1.6 * (wi === 0 ? 1.3 : 1);
+    car.w += (w.side * 0.4 + (Math.random() - 0.5) * 1.3) * Math.min(I, 1.3) * 1.5 * (wi === 0 ? 1.3 : 1);
     if (vehicle && vehicle.bump) vehicle.bump(I * 1.1, w.side, w.pitch);
     if (I > 0.55 && sp > 8) { car.kickT = Math.max(car.kickT || 0, clamp((I - 0.4) * 0.9, 0, 1)); car.kickSgn = w.side || (Math.random() < 0.5 ? 1 : -1); }
     if (I > 0.8 && sp > 11) car.gripLoss = Math.max(car.gripLoss || 0, clamp(I - 0.5, 0.3, 1));
@@ -631,7 +637,7 @@ export function createRoadWear(env) {
       if (rec !== st.rec) {
         if (moving && st.cool <= 0) {
           if (rec) { impact(rec, i, 1); st.cool = 0.09; }
-          else if (st.rec.dep > 0.07) { impact(st.rec, i, 0.45); st.cool = 0.09; }   // climbing out
+          else if (st.rec.dep > 0.07) { impact(st.rec, i, 0.35); st.cool = 0.09; }   // climbing out
         }
         st.rec = rec;
       }

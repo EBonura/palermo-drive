@@ -25,6 +25,7 @@ export function createMissions(env) {
 
 function build(env) {
   const { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, game, vehicle, pedestrians, traffic, mapMarkers, shout } = env;
+  const mapRoute = env.mapRoute || [];
   const params = new URLSearchParams(location.search);
   const DRIVABLE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'pedestrian']);
   const groundAt = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
@@ -235,15 +236,137 @@ function build(env) {
     return b;
   }
 
-  // ------------------------------------------------------------------------------------ direction arrow above the lapa
-  const arrow = new THREE.Group(); arrow.visible = false; scene.add(arrow);
+  // ------------------------------------------------------------------------------------ route guidance: a mist trail on the road
+  // Graph from the drivable centrelines (vertices that coincide are joined; one-ways ignored, it is Palermo). Dijkstra from the
+  // lapa to the target, re-run when the target changes or the lapa leaves the route. The route is drawn as pink mist puffs rising off
+  // the road ahead of the lapa, with a pulse travelling forward every couple of seconds, and as a line on the minimap (mapRoute).
+  const G = { nodes: [], adj: [], main: null, edges: [] };
   {
-    const s = new THREE.Shape();
-    s.moveTo(0, 1.0); s.lineTo(0.66, -0.25); s.lineTo(0.24, -0.08); s.lineTo(0.24, -0.85); s.lineTo(-0.24, -0.85); s.lineTo(-0.24, -0.08); s.lineTo(-0.66, -0.25); s.closePath();
-    const g = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: false }); g.rotateX(Math.PI / 2); g.translate(0, 0.08, 0);
-    const a = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff4fa3, depthTest: false, toneMapped: false })); a.renderOrder = 11;
-    const o = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x0b0709, depthTest: false, toneMapped: false })); o.scale.set(1.28, 1.6, 1.28); o.renderOrder = 10;
-    arrow.add(o, a); arrow.scale.setScalar(0.36); arrow.rotation.order = 'YXZ';
+    const id = new Map(), key = (x, z) => Math.round(x * 4) + ',' + Math.round(z * 4);
+    const node = (x, z) => { const k = key(x, z); let i = id.get(k); if (i === undefined) { i = G.nodes.length; id.set(k, i); G.nodes.push([x, z]); G.adj.push([]); } return i; };
+    for (const r of D.roads) {
+      if (!DRIVABLE.has(r.k)) continue;
+      const p = r.p, f = r.k === 'pedestrian' ? 1.3 : 1;
+      let prev = node(p[0], p[1]);
+      for (let i = 2; i < p.length; i += 2) {
+        const n = node(p[i], p[i + 1]);
+        if (n !== prev) { const w = Math.hypot(G.nodes[n][0] - G.nodes[prev][0], G.nodes[n][1] - G.nodes[prev][1]); G.adj[prev].push([n, w * f]); G.adj[n].push([prev, w * f]); G.edges.push(prev, n); }
+        prev = n;
+      }
+    }
+    // the biggest connected piece is the road network proper (small islands would make unreachable targets)
+    const comp = new Int32Array(G.nodes.length).fill(-1), sizes = [];
+    for (let s = 0; s < G.nodes.length; s++) {
+      if (comp[s] >= 0) continue;
+      let c = 0; const st = [s]; comp[s] = sizes.length;
+      while (st.length) { const u = st.pop(); c++; for (const [v] of G.adj[u]) if (comp[v] < 0) { comp[v] = sizes.length; st.push(v); } }
+      sizes.push(c);
+    }
+    let best = 0; sizes.forEach((c, i) => { if (c > sizes[best]) best = i; });
+    G.main = comp.map(c => c === best);
+  }
+  // nearest edge (inside the main network) to a point: { a, b, x, z (the projection), da, db }
+  function nearestEdge(x, z) {
+    let best = null, bd = Infinity;
+    for (let e = 0; e < G.edges.length; e += 2) {
+      const a = G.edges[e], b = G.edges[e + 1]; if (!G.main[a]) continue;
+      const A = G.nodes[a], B = G.nodes[b], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz;
+      const t = l2 ? clamp(((x - A[0]) * dx + (z - A[1]) * dz) / l2, 0, 1) : 0, qx = A[0] + dx * t, qz = A[1] + dz * t, d = Math.hypot(x - qx, z - qz);
+      if (d < bd) { bd = d; best = { a, b, x: qx, z: qz, da: Math.hypot(qx - A[0], qz - A[1]), db: Math.hypot(qx - B[0], qz - B[1]) }; }
+    }
+    return best;
+  }
+  function findRoute(sx, sz, tx, tz) {
+    const s = nearestEdge(sx, sz), t = nearestEdge(tx, tz); if (!s || !t) return null;
+    const n = G.nodes.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
+    const push = (d, v) => { heap.push([d, v]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    dist[s.a] = s.da; dist[s.b] = s.db; push(s.da, s.a); push(s.db, s.b);
+    let bestCost = Infinity, endNode = -1;
+    while (heap.length) {
+      const [d, u] = pop(); if (d > dist[u]) continue; if (d >= bestCost) break;
+      if (u === t.a && d + t.da < bestCost) { bestCost = d + t.da; endNode = u; }
+      if (u === t.b && d + t.db < bestCost) { bestCost = d + t.db; endNode = u; }
+      for (const [v, w] of G.adj[u]) { const nd = d + w; if (nd < dist[v]) { dist[v] = nd; prev[v] = u; push(nd, v); } }
+    }
+    if (endNode < 0) return null;
+    const path = []; for (let u = endNode; u >= 0; u = prev[u]) path.push(u);
+    path.reverse();
+    const pts = [s.x, s.z];
+    for (const u of path) pts.push(G.nodes[u][0], G.nodes[u][1]);
+    pts.push(tx, tz);
+    return pts;
+  }
+  const route = { pts: null, cum: null, len: 0, cursor: 0, s0: 0, tx: 1e9, tz: 1e9, t: 0, cool: 0, check: 0 };
+  function setRoute(pts) {
+    route.pts = pts; route.cum = [0];
+    for (let i = 2; i < pts.length; i += 2) route.cum.push(route.cum[route.cum.length - 1] + Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]));
+    route.len = route.cum[route.cum.length - 1]; route.cursor = 0; route.s0 = 0;
+    mapRoute.length = 0;
+    for (let i = 0; i < pts.length; i += 2) if (i === 0 || i === pts.length - 2 || (i >> 1) % 2 === 0) mapRoute.push([pts[i], pts[i + 1]]);
+  }
+  function clearRoute() { route.pts = null; route.tx = route.tz = 1e9; mapRoute.length = 0; mist.geometry.instanceCount = 0; }
+  // position at arc length s along the route
+  const _p = { x: 0, z: 0 };
+  function routeAt(s) {
+    const c = route.cum, pts = route.pts; let i = clamp(route.cursor, 0, c.length - 2);
+    while (i > 0 && c[i] > s) i--;
+    while (i < c.length - 2 && c[i + 1] < s) i++;
+    const seg = c[i + 1] - c[i] || 1, u = clamp((s - c[i]) / seg, 0, 1);
+    _p.x = pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * u; _p.z = pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * u;
+    return _p;
+  }
+  // mist puffs: camera-facing soft quads, pink, normal blending so they read on pale asphalt
+  const MIST_N = 40, MIST_STEP = 3.4;
+  const mistGeo = new THREE.InstancedBufferGeometry();
+  mistGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
+  mistGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2)); mistGeo.setIndex([0, 1, 2, 0, 2, 3]);
+  const mPos = new THREE.InstancedBufferAttribute(new Float32Array(MIST_N * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const mA = new THREE.InstancedBufferAttribute(new Float32Array(MIST_N * 3), 3).setUsage(THREE.DynamicDrawUsage);   // size, alpha, seed
+  mistGeo.setAttribute('iPos', mPos); mistGeo.setAttribute('iA', mA); mistGeo.instanceCount = 0;
+  const mist = new THREE.Mesh(mistGeo, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uCol: { value: new THREE.Color('#ff3d9a') } },
+    vertexShader: `attribute vec3 iPos; attribute vec3 iA; varying vec2 vUv; varying float vA;
+      void main() { vec3 c = (viewMatrix * vec4(iPos, 1.0)).xyz; float ang = iA.z * 6.283; vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy;
+        gl_Position = projectionMatrix * vec4(c + vec3(q * iA.x, 0.0), 1.0); vUv = uv; vA = iA.y * smoothstep(1.5, 7.0, length(c)); }`,
+    fragmentShader: `uniform vec3 uCol; varying vec2 vUv; varying float vA;
+      void main() { float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard; float a = pow(1.0 - d, 1.5) * vA;
+        vec3 c = mix(uCol, vec3(1.0, 0.85, 0.93), pow(1.0 - d, 3.0) * 0.7); gl_FragColor = vec4(c, a);
+        #include <colorspace_fragment>
+      }`,
+  }));
+  mist.frustumCulled = false; mist.renderOrder = 7; scene.add(mist);
+  let guideOn = false;
+  function guideTo(x, z) { guideOn = true; if (Math.hypot(x - route.tx, z - route.tz) > 1) { route.tx = x; route.tz = z; route.cool = 0; route.pts = null; } }
+  function guideOff() { guideOn = false; clearRoute(); }
+  function updateGuide(dt) {
+    if (!guideOn) { if (mist.geometry.instanceCount) mist.geometry.instanceCount = 0; return; }
+    route.t += dt; route.cool -= dt; route.check -= dt;
+    if (!route.pts) {
+      if (route.cool <= 0) { route.cool = 0.8; const p = findRoute(car.x, car.z, route.tx, route.tz); if (p) setRoute(p); }
+      if (!route.pts) { mist.geometry.instanceCount = 0; return; }
+    }
+    // progress along the route and distance off it (search a window around the cursor)
+    const pts = route.pts, c = route.cum; let bd = Infinity, bs = route.s0;
+    for (let i = Math.max(0, route.cursor - 6); i < Math.min(c.length - 1, route.cursor + 40); i++) {
+      const ax = pts[i * 2], az = pts[i * 2 + 1], dx = pts[i * 2 + 2] - ax, dz = pts[i * 2 + 3] - az, l2 = dx * dx + dz * dz;
+      const u = l2 ? clamp(((car.x - ax) * dx + (car.z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(car.x - ax - dx * u, car.z - az - dz * u);
+      if (d < bd) { bd = d; bs = c[i] + u * Math.sqrt(l2); route.cursor = i; }
+    }
+    route.s0 = bs;
+    if (bd > 18 && route.cool <= 0) { route.pts = null; route.cool = 0.3; return; }   // left the route: find a new one
+    // puffs ahead of the lapa; a bright pulse runs forward every 2.4 s
+    const front = (route.t % 2.4) / 2.4 * (MIST_N * MIST_STEP), pos = mPos.array, A = mA.array, tt = route.t;
+    let n = 0;
+    for (let i = 0; i < MIST_N; i++) {
+      const d = 6 + i * MIST_STEP, s = bs + d; if (s > route.len - 1) break;
+      const p = routeAt(s), w = 0.3 + 0.7 * Math.exp(-(((d - front) / 13) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.7);
+      const gy = groundAt(p.x, p.z);
+      pos[n * 3] = p.x + Math.sin(tt * 1.3 + i) * 0.35; pos[n * 3 + 1] = gy + 0.5 + 0.7 * w + 0.25 * Math.sin(tt * 2.1 + i * 1.7); pos[n * 3 + 2] = p.z + Math.cos(tt * 1.1 + i * 1.3) * 0.35;
+      A[n * 3] = 2.7 + 2.0 * w; A[n * 3 + 1] = 0.7 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
+      n++;
+    }
+    mist.geometry.instanceCount = n; mPos.needsUpdate = mA.needsUpdate = true;
   }
 
   // ------------------------------------------------------------------------------------ minimap markers
@@ -327,7 +450,7 @@ function build(env) {
     const v = { o, pl, x: px, z: pz, gy, g, coal, glow, cid, cd: 0, ring: null, marker: null, shoutT: rand(2, 8), seed: Math.random() * 10 };
     v.ring = makeBeacon('#ff9d2e', 4.5, { beam: false }); v.ring.set(px + vx0 * 1.7, pz + vz0 * 1.7); v.ring.show(true);
     v.sx = px + vx0 * 1.7; v.sz = pz + vz0 * 1.7;
-    v.marker = addMarker(px, pz, '#ff9d2e', 5);
+    v.marker = addMarker(px, pz, '#ff7a1a', 4);
     return v;
   }
   for (const o of VENDORS) { try { vendors.push(buildVendor(o)); } catch (e) { console.warn('[missions] vendor', o.id, e); } }
@@ -434,7 +557,7 @@ function build(env) {
     f.limit = f.left = Math.max(40, (f.dist0 * 1.4 / 7.5 + 14) * Math.max(0.75, 1 - 0.03 * S.fares));
     f.phase = 'ride'; S.phase = 'ride';
     pickBeacon.show(false); dropMarker(pickMarker); pickMarker = null;
-    destBeacon.set(dest.x, dest.z); destBeacon.show(true); destMarker = addMarker(dest.x, dest.z, '#ffffff', 7);
+    destBeacon.set(dest.x, dest.z); destBeacon.show(true); destMarker = addMarker(dest.x, dest.z, '#ffd24a', 8);
     const tl = TOURIST.ask[f.nat] || TOURIST.ask.en;
     say(fmt(pick(tl), dest), seatPos, 0.2);
     say(pick(dest.meusa ? DRIVER.askMeusa : DRIVER.ask), driverPos, 1.8);
@@ -577,7 +700,7 @@ function build(env) {
       // coals breathe
       v.glow.material.opacity = 0.75 + 0.2 * Math.sin(v.seed * 7) * Math.sin(v.seed * 2.3);
       v.ring.u.uAlpha.value = v.cd > 0 ? 0.25 : 1;
-      v.marker.color = v.cd > 0 ? '#8a6a44' : '#ff9d2e';
+      v.marker.color = v.cd > 0 ? '#8a6a44' : '#ff7a1a';
       if (v.cd <= 0 && d < 4.5 && sp < 2.2) eatStigghiola(v);
       // street cries when the lapa is close
       v.shoutT -= dt;
@@ -593,19 +716,17 @@ function build(env) {
   function updateHud(dt) {
     const f = S.fare, on = S.mode === 'turisti';
     hud.classList.toggle('on', on);
-    if (!on) { arrow.visible = false; return; }
+    if (!on) return;
     let tx = 0, tz = 0, show = false;
     if (f && (S.phase === 'seek' || S.phase === 'board')) { tx = f.pick.x; tz = f.pick.z; show = true; }
     else if (f && S.phase === 'ride') { tx = f.dest.x; tz = f.dest.z; show = true; }
-    // 3D arrow above the lapa, 2D arrow in the card
-    arrow.visible = show && camera.position.distanceTo(_d.set(car.x, camera.position.y, car.z)) > 0 && (vehicle.camState ? vehicle.camState.mode !== 2 : true);
+    // small compass in the card (the road itself is guided by the mist trail)
     if (show) {
       const brg = Math.atan2(tx - car.x, tz - car.z);
-      arrow.position.set(car.x, groundY(car.x, car.z) + car.lift + 3.2 + Math.sin(now() * 3) * 0.1, car.z); arrow.rotation.y = brg; arrow.rotation.x = -0.75;
       camera.getWorldDirection(_d);
-      const rot = (Math.atan2(_d.x, _d.z) - brg) * 180 / Math.PI;
-      elArrow.style.transform = `rotate(${(-rot).toFixed(1)}deg)`;
+      elArrow.style.transform = `rotate(${(Math.atan2(_d.x, _d.z) - brg) * -180 / Math.PI}deg)`;
     }
+    if (show) guideTo(tx, tz); else guideOff();
     if ((hudAcc -= dt) > 0) return;
     hudAcc = 0.1;
     elFare.textContent = f && f.dest ? eur(Math.max(0, f.base + f.tips - f.claims)) : eur(0);
@@ -644,6 +765,7 @@ function build(env) {
     if (resultTimer > 0 && (resultTimer -= dt) <= 0) result.classList.remove('on');
     updateTalk(dt);
     updateHud(dt);
+    updateGuide(dt);
     if (pickMarker && S.fare) { pickMarker.x = S.fare.pick.x; pickMarker.z = S.fare.pick.z; }
   }
 
@@ -656,10 +778,11 @@ function build(env) {
     clearChars();
     S.mode = 'free'; S.phase = 'off'; api.mode = 'free';
     pickBeacon.show(false); destBeacon.show(false); dropMarker(pickMarker); dropMarker(destMarker); pickMarker = destMarker = null;
-    hud.classList.remove('on'); arrow.visible = false; result.classList.remove('on'); talkQ.length = 0;
+    hud.classList.remove('on'); guideOff(); result.classList.remove('on'); talkQ.length = 0;
   }
 
   const api = { mode: 'free', setMode, update, stop, state: S };
+  if (params.has('mdebug')) window.__m = { S, vendors, route, G, newFare, mapRoute, mist, mPos, mA }; // TEMP
   if (params.get('mode') === 'turisti') setMode('turisti');
   return api;
 }

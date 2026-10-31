@@ -32,5 +32,37 @@
    "license": "CC0",
    "credit": "Effems, Palazzo Gangi (Palermo) 14 07 2024 01.jpg, CC0, https://commons.wikimedia.org/wiki/File:Palazzo_Gangi_(Palermo)_14_07_2024_01.jpg"
   }
+ ],
+ "w279882476": [
+  {
+   "wall": 10,
+   "texture": "assets/facades/photo/jung_1.jpg",
+   "u0": 0.5,
+   "u1": 1.0,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "size": [
+    512,
+    368
+   ],
+   "license": "CC BY 4.0",
+   "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
+  },
+  {
+   "wall": 10,
+   "texture": "assets/facades/photo/jung_2.jpg",
+   "u0": 0.0,
+   "u1": 0.5,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "size": [
+    512,
+    368
+   ],
+   "license": "CC BY 4.0",
+   "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
+  }
  ]
 }
