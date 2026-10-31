@@ -363,6 +363,32 @@ function chairParts(g, v, dir, pose) {
   }
 }
 
+// A small dog on a lead beside the walker (drawn first, so the legs and the arm overlap it). Side view: ahead of the walker, trotting with the pose.
+function dogParts(g, v, dir, pose, hipY) {
+  const P = (x, y, w, h, c) => g.P(x, y, w, h, c), c = v.dog, t = T(c), dark = lum(c) < 0.25, nose = '#141214', ear = dark ? sh(c, 1.5) : t.d;
+  const step = [0, 2, 0, -2, 0][pose], lift = [0, 0, 2, 0, 2][pose], bob = pose === 2 || pose === 4 ? -1 : 0;
+  const lead = (x0, y0, x1, y1) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let k = 0; k <= n; k++) P(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), 1, 1, '#2a2018'); };
+  if (dir === LEFT) {
+    const by = FY - 24 + bob;
+    lead(7, by + 2, CX - 5, hipY + 16);
+    P(8 - step, FY - 12 + lift, 3, 12 - lift, t.d); P(18 + step, FY - 12 + lift, 3, 12 - lift, t.d);           // far legs
+    block(P, 5, by, 18, 10, c, 1, 2); P(5, by + 6, 18, 4, t.d);                                              // body
+    block(P, 0, by - 5, 9, 8, c, 1, 2); P(0, by - 1, 3, 4, dark ? sh(c, 1.6) : t.l); P(0, by - 2, 2, 2, nose); P(5, by - 3, 1, 1, '#141214');    // head, muzzle, nose, eye
+    P(5, by - 8, 3, 5, ear); P(23, by - 4 + (pose % 2 ? 1 : 0), 2, 6, c); P(24, by - 4, 1, 3, t.l);          // ear, tail
+    P(5 + step, FY - 12 - lift, 3, 12 + lift, c); P(19 - step, FY - 12 - lift, 3, 12 + lift, c);              // near legs
+    P(5 + step, FY - 2, 3, 2, t.dd); P(19 - step, FY - 2, 3, 2, t.dd);
+  } else {
+    const bx = 36, by = FY - 24 + bob, back = dir === BACK;
+    lead(bx + 3, by + 4, CX + 9, hipY + 14);
+    P(bx + 1, FY - 10 + lift * (pose === 1 || pose === 2 ? 1 : 0), 3, 10, t.d); P(bx + 6, FY - 10 + lift * (pose === 3 || pose === 4 ? 1 : 0), 3, 10, t.d);
+    block(P, bx, by + 7, 10, 10, c, 1, 2);                                                                    // chest or rump
+    block(P, bx + 1, by, 8, 8, c, 1, 2);
+    P(bx, by - 2, 2, 6, ear); P(bx + 8, by - 2, 2, 6, ear);
+    if (back) P(bx + 4, by - 6, 2, 8, c);                                                                       // tail up
+    else { P(bx + 2, by + 3, 1, 1, nose); P(bx + 7, by + 3, 1, 1, nose); P(bx + 3, by + 5, 4, 3, dark ? sh(c, 1.6) : t.l); P(bx + 4, by + 5, 2, 2, nose); }
+  }
+}
+
 // ---------- cell: draw, mirror for right, add the outline ----------
 // outline colour = a dark version of the neighbouring pixel (selective outline), light rim on the top-left edge and a shaded bottom-right
 const edgeK = [0.3, 0.28, 0.36];
@@ -393,6 +419,7 @@ export function cellData(v, dir, pose) {
     img.ox = -8; figure(img, v.pair[0], dir === RIGHT ? LEFT : dir, pose); img.ox = 8; figure(img, v.pair[1], dir === RIGHT ? LEFT : dir, sw(pose)); img.ox = 0;
   } else {
     const dd = dir === RIGHT ? LEFT : dir;
+    if (v.dog) dogParts(img, v, dd, pose, FY - (v.leg || 19) * 2);
     if (v.chair !== 'empty') figure(img, v, dd, pose);
     if (v.chair) chairParts(img, v, dd, pose);
   }

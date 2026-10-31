@@ -28,9 +28,9 @@ function sampler(g) {
 export const nearH = HAS_NEAR ? sampler(D.near) : () => 0;
 export const farH = D.far ? sampler(D.far) : () => 0;
 export const inNear = (x, z) => x >= NEAR.x0 && x <= NEAR.x1 && z >= NEAR.z0 && z <= NEAR.z1;
-// World streaming (src/world.js, only with ?world=1): hooks.ground(x, z) answers from the loaded tiles' near grids and the
+// World streaming (src/world.js): hooks.ground(x, z) answers from the loaded tiles' near grids and the
 // whole-city far grid, or returns undefined to fall through to the baked centro data below. hooks.bounds is the driveable box.
-export const WORLD = !/[?&]world=0/.test(location.search); // the whole city streams by default; ?world=0 is the old centro-only map
+export const WORLD = true; // the whole city always streams in tiles (kept for modules that still read it)
 export const hooks = { ground: null, bounds: D.bounds };
 export const groundY = (x, z) => {
   if (hooks.ground) { const y = hooks.ground(x, z); if (y !== undefined) return y; }

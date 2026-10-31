@@ -2,14 +2,15 @@
 // createTraffic(env) with env = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D }.
 // Returns { update(dt, camera), collidePlayer(car), agents(), setVolume(v) }.
 //
-// Design in one paragraph: D.roads become a directed graph (nodes are identical rounded coordinates,
-// one-ways respected). Each vehicle holds a short route of directed edges, follows the lane line of
+// Design in one paragraph: the road centrelines of the full-detail world tiles become a directed graph (src/traffic-graph.js: it
+// grows and shrinks with the tiles, borders join on the clipped endpoints, one-ways respected). Each vehicle holds a short route of directed edges, follows the lane line of
 // its current edge with pure pursuit, and brakes with the Intelligent Driver Model for leaders (found
 // along its route, in a forward corridor, and the player), corners, junction priority (rank of the road
-// class, then yield to the right) and optional traffic signals (D.signals). Vehicles are spawned out of
+// class, then yield to the right). Vehicles are spawned out of
 // view around the camera, despawned out of view, and drawn with one InstancedMesh per model.
 import * as THREE from 'three';
 import { proj } from './core.js';
+import { createGraph, CLASS } from './traffic-graph.js';
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { buildPoliceModels, makePoliceDecal } from '../assets/traffic/police-models.js';
@@ -17,16 +18,10 @@ import { createPolice, createBeacons } from './police.js';   // wanted system, p
 import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
 
 // ---------- tuning ----------
-const CLASS = { // rank decides priority, v is the free speed in m/s, w the spawn weight per metre
-  primary: { r: 5, v: 14, w: 3 }, secondary: { r: 4, v: 13, w: 3 }, tertiary: { r: 3, v: 11.5, w: 2.5 },
-  unclassified: { r: 2, v: 10, w: 1.4 }, residential: { r: 2, v: 8.5, w: 1.5 }, living_street: { r: 1, v: 5.5, w: 0.6 },
-  service: { r: 1, v: 5, w: 0.35 }, pedestrian: { r: 0, v: 2.8, w: 0.05 },
-};
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
-const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
 const R_SPAWN_MIN = 35, R_SPAWN_MAX = 215, R_FAR = 125, R_DESPAWN = 235, R_KEEP_UNSEEN = 150; // out of view: spawn within R_KEEP_UNSEEN, despawn beyond it
 const STEP = 1 / 30;
-const LANE_PER_CAR = 36; // metres of drivable lane per vehicle within 140 m of the camera
+const LANE_PER_CAR = 36; // metres of drivable lane (weighted by road class) per vehicle within 140 m of the camera
 
 // Vehicle types. L, W in metres, circ = collision circles [z offset, radius], mass relative to the player (1).
 const hatchCols = [['#f2f2f0', 30], ['#c3c6cb', 22], ['#6e7378', 16], ['#1f2124', 12], ['#b3241e', 9], ['#8fb3cc', 6], ['#3d5a45', 3]];
@@ -64,7 +59,7 @@ TYPES.monopattino = { model: 'monopattino', L: 1.2, W: 0.55, mass: 0.2, circ: [[
 TYPES.teamBus = { ...TYPES.bus, model: 'teamBus', cols: [['#ee6aa6', 1]] };
 for (const t of Object.values(TYPES)) {
   Object.assign(t, { vf: 1, a: 2.6, b: 3.2, T: 0.95, s0: 1.6, rmin: 4.2, vcap: 99, minW: 0 }, { ...t });
-  t.cls = t.bus ? 2 : t.ped ? 1 : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable, 2 buses
+  t.cls = t.bus ? 2 : t.ped ? (t.vcap < 15 || t.scooter ? 3 : 1) : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable (vans), 2 buses, 3 slow ones (apes, scooters, carts: no motorways)
 }
 
 const pickW = list => {
@@ -83,86 +78,20 @@ export function createTraffic(env) {
   const CAPS = { bus: COARSE ? 2 : 4, carrozza: COARSE ? 1 : 2, carretto: COARSE ? 0 : 1 };
 
   // ---------- road graph ----------
-  const nodeIdx = new Map(), NX = [], NZ = [], NOUT = [], NIN = [], NDEG = [], NBOX = [], NOCC = [];
-  const node = (x, z) => {
-    const k = x + ',' + z; let i = nodeIdx.get(k);
-    if (i === undefined) { i = NX.length; nodeIdx.set(k, i); NX.push(x); NZ.push(z); NOUT.push([]); NIN.push([]); NDEG.push(0); NBOX.push(2.5); NOCC.push(null); }
-    return i;
-  };
-  const EDGES = [];
-  function addEdge(a, b, road, cls, ped, transit) {
-    const dx = NX[b] - NX[a], dz = NZ[b] - NZ[a], len = hyp2(dx, dz);
-    const round = road.j === 'roundabout';
-    const e = {
-      id: EDGES.length, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
-      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, rev: -1, bus: false,
-      v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false,
-    };
-    if (round) e.v = Math.min(e.v, 6.5);
-    if (transit) e.v = 5;
-    e.bus = !ped && e.rank >= 3 && e.w >= 8 || transit;
-    EDGES.push(e); NOUT[a].push(e); NIN[b].push(e);
-    return e;
-  }
-  for (const r of D.roads) {
-    const cls = CLASS[r.k]; if (!cls) continue;
-    const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || '');
-    const p = r.p;
-    for (let i = 0; i + 3 < p.length; i += 2) {
-      const a = node(p[i], p[i + 1]), b = node(p[i + 2], p[i + 3]);
-      if (a === b || hyp2(p[i + 2] - p[i], p[i + 3] - p[i + 1]) < 0.5) continue;
-      NDEG[a]++; NDEG[b]++;
-      const f = r.o === -1 ? null : addEdge(a, b, r, cls, ped, transit), g = r.o === 1 ? null : addEdge(b, a, r, cls, ped, transit);
-      if (f && g) { f.rev = g.id; g.rev = f.id; }
-    }
-  }
-  // Which edges a vehicle class may use. A vehicle never U-turns, so an edge is only usable if, going
-  // forward, it reaches a big strongly connected part of the network: no routes into dead ends,
-  // one-way spurs or isolated fragments. (Tarjan over edges, then a reverse sweep.)
-  const baseAllowed = (c, k) => k === 0 ? !c.ped : k === 1 ? true : c.bus;
-  const ALIVE = [0, 1, 2].map(k => {
-    const N = EDGES.length, idx = new Int32Array(N).fill(-1), low = new Int32Array(N), onst = new Uint8Array(N), comp = new Int32Array(N).fill(-1);
-    const st = [], sizes = []; let counter = 0;
-    const succ = e => NOUT[e.b].filter(c => c.id !== e.rev && baseAllowed(c, k));
-    for (let s0 = 0; s0 < N; s0++) {
-      if (idx[s0] >= 0 || !baseAllowed(EDGES[s0], k)) continue;
-      idx[s0] = low[s0] = counter++; st.push(s0); onst[s0] = 1;
-      const work = [[s0, succ(EDGES[s0]), 0]];
-      while (work.length) {
-        const top = work[work.length - 1], v = top[0];
-        if (top[2] < top[1].length) {
-          const w = top[1][top[2]++].id;
-          if (idx[w] < 0) { idx[w] = low[w] = counter++; st.push(w); onst[w] = 1; work.push([w, succ(EDGES[w]), 0]); }
-          else if (onst[w]) low[v] = Math.min(low[v], idx[w]);
-        } else {
-          if (low[v] === idx[v]) { let n = 0, w; do { w = st.pop(); onst[w] = 0; comp[w] = sizes.length; n++; } while (w !== v); sizes.push(n); }
-          work.pop();
-          if (work.length) { const pn = work[work.length - 1][0]; low[pn] = Math.min(low[pn], low[v]); }
-        }
-      }
-    }
-    const good = new Uint8Array(N), q = [];
-    for (let n = 0; n < N; n++) if (comp[n] >= 0 && sizes[comp[n]] >= 40) { good[n] = 1; q.push(n); }
-    while (q.length) {
-      const c = EDGES[q.pop()];
-      for (const e of NIN[c.a]) if (e.id !== c.rev && baseAllowed(e, k) && !good[e.id]) { good[e.id] = 1; q.push(e.id); }
-    }
-    return good;
-  });
-  // optional traffic signals: D.signals = flat [x, z, ...] in local metres, snapped to the nearest junction
-  const SIG = new Set();
-  if (D.signals && D.signals.length) {
-    for (let i = 0; i + 1 < D.signals.length; i += 2) {
-      let best = -1, bd = 9;
-      for (let n = 0; n < NX.length; n++) if (NDEG[n] >= 3) { const d = (NX[n] - D.signals[i]) ** 2 + (NZ[n] - D.signals[i + 1]) ** 2; if (d < bd) { bd = d; best = n; } }
-      if (best >= 0) SIG.add(best);
-    }
-  }
+  // Tiles stream in and out (env.world.onTile); their roads are added in time slices and the vehicles on a dropped tile go with it.
+  const world = env.world;
+  const G = createGraph();
+  const { NX, NZ, NOUT, NIN, NDEG, NBOX, NOCC, EDGES } = G;
+  if (D.roads) G.setBaked(D.roads);   // the baked centro roads know the one-ways and roundabouts that the tile roads lack
+  const baseAllowed = G.baseAllowed;
+  const addQ = [], building = new Set();   // tiles waiting for their roads / being built
+  let graphDirty = false, dirtyAt = 0, stepping = null;
   // ---------- AMAT bus lines (OSM route relations, baked in assets/traffic/bus-routes.js) ----------
-  // Each route piece is matched onto the graph (nodes share rounded coordinates) into a plan: the
-  // directed edges in travel order, plus the stops that lie on it. Buses only run these plans.
+  // Each route piece is matched onto the graph into a plan: the directed edges in travel order, plus the stops that lie on it.
+  // Buses only run these plans. Plans are rebuilt whenever tiles under the routes come or go; a route that runs into a tile that
+  // is not loaded just ends there (the bus stops and is removed once nobody sees it). The routes are baked for the centro only.
   const findEdge = (a, b) => NOUT[a].find(c => c.b === b);
-  const nearestNode = (x, z) => { let best = -1, bd = 36; for (let n = 0; n < NX.length; n++) { const d = (NX[n] - x) ** 2 + (NZ[n] - z) ** 2; if (d < bd) { bd = d; best = n; } } return best; };
+  const findNode = (x, z) => G.nearestNode(x, z, 6, false);
   function gapPath(a, b) { // shortest hop path over any edges, to bridge a missing link in a route
     const prev = new Map([[a, null]]); let front = [a];
     for (let h = 0; h < 12 && front.length; h++) {
@@ -172,51 +101,56 @@ export function createTraffic(env) {
     }
     return null;
   }
-  for (const e of EDGES) e.alive = !!(ALIVE[0][e.id] || ALIVE[2][e.id]);
-  const PLANS = [], ROWS = [];
-  for (const r of BUS_ROUTES) {
-    let row = ROWS.findIndex(q => q.ref === r.ref && q.to === r.to);
-    if (row < 0) { row = ROWS.length; ROWS.push({ ref: r.ref, to: r.to }); }
-    const rstops = []; for (let i = 0; i + 1 < r.stops.length; i += 2) rstops.push([r.stops[i], r.stops[i + 1]]);
-    for (const pc of r.pieces) {
-      let edges = [];
-      const flush = () => { if (edges.length >= 6) PLANS.push({ ref: r.ref, to: r.to, row, edges, stops: [], rstops }); edges = []; };
-      let prevN = -1;
-      for (let i = 0; i + 1 < pc.length; i += 2) {
-        let n = nodeIdx.get(pc[i] + ',' + pc[i + 1]); if (n === undefined) n = nearestNode(pc[i], pc[i + 1]);
-        if (n < 0 || n === prevN) continue;
-        if (prevN >= 0) {
-          const e = findEdge(prevN, n);
-          if (e) edges.push(e);
-          else { const g = gapPath(prevN, n); if (g) edges.push(...g); else { flush(); } }
+  let PLANS = [];
+  const ROWS = [];
+  for (const r of BUS_ROUTES) if (ROWS.findIndex(q => q.ref === r.ref && q.to === r.to) < 0) ROWS.push({ ref: r.ref, to: r.to });
+  const BX0 = -1000, BX1 = 1030, BZ0 = -930, BZ1 = 1080;   // where the baked routes are
+  function rebuildPlans() {
+    const plans = [];
+    for (const r of BUS_ROUTES) {
+      const row = ROWS.findIndex(q => q.ref === r.ref && q.to === r.to);
+      const rstops = []; for (let i = 0; i + 1 < r.stops.length; i += 2) rstops.push([r.stops[i], r.stops[i + 1]]);
+      for (const pc of r.pieces) {
+        let edges = [];
+        const flush = () => { if (edges.length >= 6) plans.push({ ref: r.ref, to: r.to, row, edges, stops: [], rstops }); edges = []; };
+        let prevN = -1;
+        for (let i = 0; i + 1 < pc.length; i += 2) {
+          const n = findNode(pc[i], pc[i + 1]);
+          if (n < 0) { if (prevN >= 0) flush(); prevN = -1; continue; }   // not resident: the plan ends here
+          if (n === prevN) continue;
+          if (prevN >= 0) {
+            const e = findEdge(prevN, n);
+            if (e) edges.push(e);
+            else { const g = gapPath(prevN, n); if (g) edges.push(...g); else flush(); }
+          }
+          prevN = n;
         }
-        prevN = n;
+        flush();
       }
-      flush();
     }
-  }
-  for (const pl of PLANS) { // stops: the relation's own plus every OSM bus stop within a few metres of the line
-    const cand = pl.rstops.slice(); for (let i = 0; i + 1 < BUS_STOPS.length; i += 2) cand.push([BUS_STOPS[i], BUS_STOPS[i + 1]]);
-    const found = [];
-    for (const [sx, sz] of cand) {
-      let best = null, bd = 100;
-      for (let i = 0; i < pl.edges.length; i++) {
-        const e = pl.edges[i];
-        if (Math.abs(NX[e.a] - sx) > e.len + 12 && Math.abs(NX[e.b] - sx) > e.len + 12) continue;
-        const t = clamp((sx - NX[e.a]) * e.dx + (sz - NZ[e.a]) * e.dz, 0, e.len), d = (NX[e.a] + e.dx * t - sx) ** 2 + (NZ[e.a] + e.dz * t - sz) ** 2;
-        if (d < bd) { bd = d; best = { i, t: clamp(t, 3, Math.max(3, e.len - 3)) }; }
+    for (const pl of plans) { // stops: the relation's own plus every OSM bus stop within a few metres of the line
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+      for (const e of pl.edges) { x0 = Math.min(x0, NX[e.a]); x1 = Math.max(x1, NX[e.a]); z0 = Math.min(z0, NZ[e.a]); z1 = Math.max(z1, NZ[e.a]); }
+      const cand = pl.rstops.slice(); for (let i = 0; i + 1 < BUS_STOPS.length; i += 2) cand.push([BUS_STOPS[i], BUS_STOPS[i + 1]]);
+      const found = [];
+      for (const [sx, sz] of cand) {
+        if (sx < x0 - 30 || sx > x1 + 30 || sz < z0 - 30 || sz > z1 + 30) continue;
+        let best = null, bd = 100;
+        for (let i = 0; i < pl.edges.length; i++) {
+          const e = pl.edges[i];
+          if (Math.abs(NX[e.a] - sx) > e.len + 12 && Math.abs(NX[e.b] - sx) > e.len + 12) continue;
+          const t = clamp((sx - NX[e.a]) * e.dx + (sz - NZ[e.a]) * e.dz, 0, e.len), d = (NX[e.a] + e.dx * t - sx) ** 2 + (NZ[e.a] + e.dz * t - sz) ** 2;
+          if (d < bd) { bd = d; best = { i, t: clamp(t, 3, Math.max(3, e.len - 3)) }; }
+        }
+        if (best && bd < 100) found.push(best);
       }
-      if (best && bd < 100) found.push(best);
+      found.sort((a, b) => a.i - b.i || a.t - b.t);
+      for (const f of found) { const l = pl.stops[pl.stops.length - 1]; if (!l || l.i !== f.i || f.t - l.t > 20) pl.stops.push(f); }
+      pl.closed = pl.edges[pl.edges.length - 1].b === pl.edges[0].a;
+      delete pl.rstops;
     }
-    found.sort((a, b) => a.i - b.i || a.t - b.t);
-    for (const f of found) { const l = pl.stops[pl.stops.length - 1]; if (!l || l.i !== f.i || f.t - l.t > 20) pl.stops.push(f); }
-    pl.closed = pl.edges[pl.edges.length - 1].b === pl.edges[0].a;
-    delete pl.rstops;
+    PLANS = plans;
   }
-  const green = (n, e, t) => {
-    const ph = (t + n * 7.3) % 24, ax = Math.abs(e.dx) > Math.abs(e.dz) ? 0 : 1;
-    return ax === 0 ? ph < 10 : ph >= 12 && ph < 22;
-  };
 
   // ---------- instanced meshes ----------
   const MODELS = buildModels(), MAT = makeMaterial();
@@ -231,7 +165,7 @@ Object.assign(MODELS, buildPoliceModels());
     scene.add(m); MESH[name] = m;
   }
   const DECAL = makePoliceDecal(MESH.apePol, CAP); scene.add(DECAL);   // the word POLIZIA on the lapino
-  const TEAM_ROW = ROWS.length; if (PLANS.length) ROWS.push({ ref: '', to: 'ROSANERO' });   // the team bus's LED board
+  const TEAM_ROW = ROWS.length; if (BUS_ROUTES.length) ROWS.push({ ref: '', to: 'ROSANERO' });   // the team bus's LED board
   // LED destination boards: one atlas row per line, picked per instance
   const SIGN_ROW = new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1);
   let SIGN = null, SIGN_T = null;
@@ -276,7 +210,7 @@ Object.assign(MODELS, buildPoliceModels());
   const agentsOut = [];
   let police = null, gags = null;   // created at the end of createTraffic
 
-  const allowed = (c, ty) => baseAllowed(c, ty.cls) && ALIVE[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
+  const allowed = (c, ty) => baseAllowed(c, ty.cls) && G.alive[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
   function pickNext(e, ty, v) {
     const outs = NOUT[e.b]; let tot = 0, any = null;
     const ws = [];
@@ -313,6 +247,7 @@ Object.assign(MODELS, buildPoliceModels());
       while (r.length < 4) {
         let i = v.pidx + 1;
         if (i >= pl.edges.length) { if (!pl.closed) break; i = 0; }
+        if (pl.edges[i].dead) break;
         r.push(pl.edges[i]); v.pidx = i;
       }
       return;
@@ -322,17 +257,19 @@ Object.assign(MODELS, buildPoliceModels());
   const laneOff = (e, v) => e.ow ? (e.w < 7 ? 0.55 : v.pref * Math.min(e.w / 4, 2.6)) : Math.min(e.w / 4, 2.6);
 
   // ---------- spawning ----------
+  let candAcc = 0, candLane = 0, candCx = 0, candCz = 0;
+  const candVisit = e => { // one edge near the camera: counts towards the traffic target and the spawn lottery
+    if (!e.alive) return;
+    const mx = (NX[e.a] + NX[e.b]) / 2 - candCx, mz = (NZ[e.a] + NZ[e.b]) / 2 - candCz, d2 = mx * mx + mz * mz;
+    if (!e.ped && d2 < 140 * 140) candLane += e.len * e.den;
+    if (d2 < R_SPAWN_MIN * R_SPAWN_MIN || d2 > R_SPAWN_MAX * R_SPAWN_MAX) return;
+    candAcc += e.len * e.pw; candEdges.push(e); candCum.push(candAcc);
+  };
   function rebuildCandidates(cx, cz) {
-    candEdges.length = 0; candCum.length = 0; let acc = 0, lane = 0;
-    for (const e of EDGES) {
-      if (e.alive && !e.ped) { const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz; if (mx * mx + mz * mz < 140 * 140) lane += e.len * (e.w >= 8 ? 1.3 : 1); }
-      if (!(ALIVE[0][e.id] || ALIVE[1][e.id] || ALIVE[2][e.id])) continue;
-      const mx = (NX[e.a] + NX[e.b]) / 2 - cx, mz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = mx * mx + mz * mz;
-      if (d2 < R_SPAWN_MIN * R_SPAWN_MIN || d2 > R_SPAWN_MAX * R_SPAWN_MAX) continue;
-      acc += e.len * e.pw; candEdges.push(e); candCum.push(acc);
-    }
+    candEdges.length = 0; candCum.length = 0; candAcc = 0; candLane = 0; candCx = cx; candCz = cz;
+    G.eachEdgeNear(cx, cz, R_SPAWN_MAX, candVisit);
     candX = cx; candZ = cz;
-    target = clamp(Math.round(lane / LANE_PER_CAR), 18, MAXV);
+    target = clamp(Math.round(candLane / LANE_PER_CAR), 6, MAXV);
   }
   function chooseType(e) {
     const c = counts;
@@ -341,6 +278,7 @@ Object.assign(MODELS, buildPoliceModels());
       if (e.transit) return pickW([['apePick', 2], ['van', 1], ['vespa', 2]]);
       return pickW([['apeCrate', 3], ['apePick', 2], ['van', 3], ['apeFood', 1], ['vespa', 2]]);
     }
+    if (e.fast) return pickW([['panda', 24], ['punto', 22], ['smart', 4], ['taxi', 4], ['van', 8]]);
     const near = nearSite(NX[e.a], NZ[e.a]);
     const opts = [['panda', 24], ['punto', 22], ['smart', 8], ['taxi', 5], ['van', e.w >= 3.5 ? 7 : 0], ['vespa', 14], ['vespaB', 7],
       ['apePick', 2.5], ['apeCrate', 1.8], ['apeFood', 0.9]];
@@ -382,7 +320,7 @@ Object.assign(MODELS, buildPoliceModels());
     busCand.length = 0; busStopCand.length = 0;
     for (const pl of PLANS) for (let i = 0; i < pl.edges.length; i++) {
       const e = pl.edges[i], dx = (NX[e.a] + NX[e.b]) / 2 - cx, dz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = dx * dx + dz * dz;
-      if (d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX && e.len > 14) { busCand.push([pl, i]); if (pl.stops.some(st => st.i > i && st.i <= i + 2)) busStopCand.push([pl, i]); }
+      if (!e.dead && d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX && e.len > 14) { busCand.push([pl, i]); if (pl.stops.some(st => st.i > i && st.i <= i + 2)) busStopCand.push([pl, i]); }
     }
   }
   function trySpawnBus(name = 'bus') {
@@ -429,7 +367,6 @@ Object.assign(MODELS, buildPoliceModels());
   }
   function mustHold(v, e, rem, exitSpace) {
     const n = e.b, ty = v.ty;
-    if (SIG.has(n) && !green(n, e, time)) { return true; }
     if (NDEG[n] < 3) return false;
     if (v.wait > 9) return false;                                    // gridlock breaker
     if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why2 = v.exitO; return true; } // keep the box clear, briefly
@@ -695,7 +632,7 @@ Object.assign(MODELS, buildPoliceModels());
     for (let i = vs.length - 1; i >= 0; i--) {
       const v = vs[i], dx = v.x - cx, dz = v.z - cz, d2 = dx * dx + dz * dz;
       const keep = (v.cop && v.cop.keep) || (v.lifeEnd && d2 < 360 * 360);   // police in a chase stay however far they are; the team bus tours the city
-      let kill = !keep && d2 > R_DESPAWN * R_DESPAWN;
+      let kill = (!keep && d2 > R_DESPAWN * R_DESPAWN) || v.route[0].dead;
       const lat = Math.abs((v.x - NX[v.route[0].a]) * v.route[0].rx + (v.z - NZ[v.route[0].a]) * v.route[0].rz);
       if (lat > 8 && !(v.cop && v.cop.mode === 'direct')) kill = true;
       if (!kill && (v.stuck > 35 || (!v.route[1] && v.stuck > 6) || v.age > 600)) {
@@ -727,6 +664,39 @@ Object.assign(MODELS, buildPoliceModels());
     DECAL.count = MESH.apePol.count;
   }
 
+  // ---------- tiles: roads in as tiles reach full detail, out when they drop ----------
+  let plansDirty = false;
+  const touchesBuses = t => (t.i + 1) * 500 > BX0 && t.i * 500 < BX1 && (t.j + 1) * 500 > BZ0 && t.j * 500 < BZ1;
+  function killOnDeadEdges() {
+    for (let i = vs.length - 1; i >= 0; i--) { const r = vs[i].route; for (let k = 0; k < r.length; k++) if (r[k].dead) { removeAt(i); break; } }
+  }
+  world.onTile((kind, t) => {
+    const key = t.i + '_' + t.j;
+    if (kind === 'full') { if (t.data && t.data.roads && t.data.roads.length) addQ.push(t); return; }
+    const qi = addQ.indexOf(t); if (qi >= 0) addQ.splice(qi, 1);
+    if (stepping && stepping.key === key) stepping = null;
+    if (G.dropTile(key)) { killOnDeadEdges(); graphDirty = true; dirtyAt = time; if (touchesBuses(t)) plansDirty = true; }
+  });
+  let tileMs = 0;
+  function tiles(cx, cz) {
+    if (!stepping && addQ.length) { // nearest waiting tile first
+      let bi = 0, bd = 1e18;
+      for (let i = 0; i < addQ.length; i++) { const t = addQ[i], dx = (t.i + 0.5) * 500 - cx, dz = (t.j + 0.5) * 500 - cz, d = dx * dx + dz * dz; if (d < bd) { bd = d; bi = i; } }
+      const t = addQ.splice(bi, 1)[0];
+      stepping = G.addTile(t.i + '_' + t.j, t.data.roads, t.i * 500, t.j * 500); stepping.src = t;
+    }
+    if (stepping) {
+      const t0 = performance.now();
+      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { graphDirty = true; if (!dirtyAt || dirtyAt < time - 1) dirtyAt = time; if (touchesBuses(stepping.src)) plansDirty = true; stepping = null; }
+      tileMs = performance.now() - t0;
+    } else tileMs = 0;
+    // judge the new roads once the burst of tiles is in (or after a second at the latest)
+    if (graphDirty && !stepping && (!addQ.length || time - dirtyAt > 1.5)) {
+      G.recomputeAlive(); graphDirty = false; dirtyAt = 0; nextCand = 0;
+      if (plansDirty) { rebuildPlans(); plansDirty = false; }
+    }
+  }
+
   let acc = 0;
   function update(dt, cam) {
     frames++;
@@ -737,6 +707,7 @@ Object.assign(MODELS, buildPoliceModels());
     const cx = cam.position.x, cz = cam.position.z;
     acc += Math.min(dt, 0.1);
     while (acc >= STEP) { acc -= STEP; stepAll(STEP); }
+    tiles(cx, cz);
     cull(cx, cz);
     if (time >= nextCand || hyp2(cx - candX, cz - candZ) > 40) { rebuildCandidates(cx, cz); nextCand = time + 0.7; }
     if (PLANS.length && (counts.bus || 0) < CAPS.bus && time >= nextBus) {
@@ -758,7 +729,7 @@ Object.assign(MODELS, buildPoliceModels());
   const shoutAt = (v, text) => env.shout?.(v.x, headY(v), v.z, text, () => v.dead ? null : { x: v.x, y: headY(v), z: v.z });
 
   // ---------- yeet: a hit vehicle is launched, tumbles, bounces, slides, rights itself ----------
-  const G = 9.81;
+  const GRAV = 9.81;
   function launch(v, vx, vz, vy, chain) {
     const sg = () => Math.random() < 0.5 ? -1 : 1;
     v.fly = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + Math.random() * 4), sp: (Math.random() - 0.5) * 7, sr: sg() * (3 + Math.random() * 6),
@@ -770,7 +741,7 @@ Object.assign(MODELS, buildPoliceModels());
     f.t += dt;
     const restY = 0.5 * (Math.abs(Math.sin(v.roll)) * ty.W * 0.9 + Math.abs(Math.sin(v.pitch || 0)) * ty.L * 0.2);
     if (f.phase === 0) { // in the air or sliding
-      f.vy -= G * dt; f.y += f.vy * dt;
+      f.vy -= GRAV * dt; f.y += f.vy * dt;
       v.x += f.vx * dt; v.z += f.vz * dt;
       v.h += f.yaw * dt; v.pitch = (v.pitch || 0) + f.sp * dt; v.roll += f.sr * dt;
       const speed = hyp2(f.vx, f.vz);
@@ -901,14 +872,14 @@ Object.assign(MODELS, buildPoliceModels());
   // put a vehicle that left the graph (police boxing in) back on the nearest edge pointing its way
   function snap(v) {
     let best = null, bs = 1e9, bt = 0; const fx = Math.sin(v.h), fz = Math.cos(v.h);
-    for (const e of EDGES) {
-      if (!allowed(e, v.ty)) continue;
+    G.eachEdgeNear(v.x, v.z, 16, e => {
+      if (!allowed(e, v.ty)) return;
       const ax = NX[e.a], az = NZ[e.a], t = (v.x - ax) * e.dx + (v.z - az) * e.dz;
-      if (t < 0 || t > e.len) continue;
-      const cs = e.dx * fx + e.dz * fz; if (cs < 0.2) continue;
-      const al = Math.abs((v.x - ax) * e.rx + (v.z - az) * e.rz - laneOff(e, v)); if (al > 14) continue;
+      if (t < 0 || t > e.len) return;
+      const cs = e.dx * fx + e.dz * fz; if (cs < 0.2) return;
+      const al = Math.abs((v.x - ax) * e.rx + (v.z - az) * e.rz - laneOff(e, v)); if (al > 14) return;
       const sc = al + (1 - cs) * 8; if (sc < bs) { bs = sc; best = e; bt = t; }
-    }
+    });
     if (!best) return false;
     v.route = [best]; v.t = bt; v.lat = 0; v.latT = 0; v.wait = 0; v.stuck = 0; v.blocker = null; extendRoute(v);
     return true;
@@ -930,5 +901,18 @@ Object.assign(MODELS, buildPoliceModels());
     agents: () => agentsOut,
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
     bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); },   // called by pedestrians.js once it is built
+    // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.
+    //   nearestNode(x, z, maxDist = 60, drivable = true) -> node id or -1
+    //   nodePos(n) -> [x, z]
+    //   path(x0, z0, x1, z1) -> { pts: [x, z, ...], len (m), complete, nodes } | null: A* over drivable edges, one-ways respected; when the
+    //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
+    //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
+    //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
+    graph: {
+      nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
+      ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
+      get version() { return G.version; },
+      stats: () => ({ nodes: NX.length, edges: EDGES.length, tiles: G.tiles.size, vehicles: vs.length, tileMs }),
+    },
   };
 }

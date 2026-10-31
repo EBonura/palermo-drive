@@ -5,7 +5,7 @@
 //   2. the "appartati": cars parked at Monte Pellegrino's lookouts and in quiet corners of the Favorita, windows steamed up at night and
 //      the car gently rocking on its suspension. Strictly innuendo: the fog hides the glass, nobody is visible. If the lapa's headlights
 //      sweep over the car or the horn sounds nearby, the rocking stops, the windows flash and somebody yells. They need the whole-city
-//      tiles (?world=1), so they are built only when the lapa gets near.
+//      tiles, so they are built only when the lapa gets near.
 // createNightLife(h) -> { update(dt, allowed), inZone() }. h = { env, say, groundAt, findSpot, isNight, worldOn, driverPos }
 // (helpers from src/missions.js). Lines and places: assets/missions/lines.js (SPACCIA, SPACCIA_ZONES, APPARTATI).
 import * as THREE from 'three';

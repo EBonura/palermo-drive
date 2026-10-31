@@ -1,5 +1,5 @@
 // Pedestrians: 4-direction billboard sprites walking sidewalks, pedestrian streets and piazze. Owned by the pedestrian work.
-// createPedestrians(env) with env = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, traffic }.
+// createPedestrians(env) with env = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, traffic, world }.
 // Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
@@ -7,158 +7,214 @@
 // - Rendering: two InstancedBufferGeometry draws (sprites, blob shadows) fed by the same per-instance buffers.
 //   The vertex shader billboards around the vertical axis only; the CPU picks the atlas cell from the angle between
 //   the camera and the walking direction and from the walk phase.
-// - Walkability: a lazily built raster mask (0.5 m cells, 64 m tiles) made from the street polygons, the pedestrian
-//   centrelines, zebra strips and the building footprints. Cell classes: 0 blocked, 1 sidewalk/paving/piazza,
+// - Walkability: per full-detail world tile (world.onTile), a lazily drawn raster mask (0.5 m cells, 62.5 m blocks around the camera) made
+//   from the tile's street polygons, the minor roads and footways, zebra strips and the building footprints. Freed when the tile drops. Cell classes: 0 blocked, 1 sidewalk/paving/piazza,
 //   2 minor carriageway or grass (allowed, disliked), 3 zebra crossing.
-// - Crowd: density map by place (markets, Maqueda, Cassaro, piazze), spawn/despawn in a disc around the camera.
+// - Crowd: hand-stamped hot spots in the centro (markets, Maqueda, Cassaro, piazze) and, everywhere else, a profile per district (districts.js
+//   zoneAt): beachgoers at Mondello and the lido, shoppers on Via Liberta, locals and kids at the ZEN and CEP, joggers and dog walkers in the
+//   Favorita, a handful of pilgrims on Monte Pellegrino. People spawn and despawn in a disc around the camera, only on full-detail tiles.
 // - Night: after dark (window event 'pd-time' {hour, isNight, dusk}, or env.game.time; daytime when neither exists) a second
 //   density map and crowd mix take over: Piazza Sant'Anna and the Vucciria fill with young people standing and chatting in
 //   groups (zone 5), Ballaro and the Capo get a smaller evening crowd, vendors go home and tourists thin out. api.night() tells
 //   other modules (src/missions.js) whether it is night.
 import * as THREE from 'three';
+import { zoneAt as districtAt } from './districts.js';
 import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, SCALE, PACK, ATLAS_ROWS, buildAtlas } from '../assets/peds/sprites.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
-const TILE = 64, CPM = 2, TCELLS = TILE * CPM;          // tile size in metres, cells per metre, cells per tile side
+const CPM = 2;                                           // mask cells per metre
 const PX = 0.04;                                         // metres per design pixel of the variant data (adult 44 = 1.76 m); the 48x96 cells draw at PX / SCALE per texel
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
-const QUALITIES = { low: { cap: 120, R: 80 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
+const QUALITIES = { low: { cap: 100, R: 75 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
 const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return d; };
 
 export function createPedestrians(env) {
-  const { scene, camera, car, groundY, raisedMask, CURB, walls2d, D } = env;
+  const { scene, camera, car, groundY, raisedMask, CURB, walls2d, D, world } = env;   // world: the tile streamer (src/world.js), always present
   const params = new URLSearchParams(location.search);
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   let quality = QUALITIES[coarse ? 'low' : 'high'];
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 420;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
-  if (!D.streets) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
+  if (!world) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
 
-  // ======================================================================== walkability mask
-  const [AX0, AZ0, AX1, AZ1] = D.streets.aoi;
-  const NTX = Math.ceil((AX1 - AX0) / TILE) + 1, NTZ = Math.ceil((AZ1 - AZ0) / TILE) + 1;
-  const tileItems = new Array(NTX * NTZ);                // per tile: indices into items
-  const items = [];                                       // {g: pass, rings|line, w}
-  const addItem = (it, x0, z0, x1, z1) => {
-    const id = items.length; items.push(it);
-    const tx0 = Math.max(0, Math.floor((x0 - AX0) / TILE)), tx1 = Math.min(NTX - 1, Math.floor((x1 - AX0) / TILE));
-    const tz0 = Math.max(0, Math.floor((z0 - AZ0) / TILE)), tz1 = Math.min(NTZ - 1, Math.floor((z1 - AZ0) / TILE));
-    for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) { const k = tz * NTX + tx; (tileItems[k] || (tileItems[k] = [])).push(id); }
+  // ======================================================================== walkability mask (per world tile)
+  // One mask per full-detail world tile (500 m), made from that tile's own street polygons (paving, raised sidewalks, green, sand, water to
+  // avoid), its building footprints, the minor roads and footways, and zebra strips laid from the tile's crossing nodes. The tile is
+  // indexed when it reaches full detail (world.onTile 'full', one tile per frame) and freed when it drops. The 0.5 m cells are not
+  // rasterised up front: 62.5 m blocks are drawn on demand around the camera (so no 1000 x 1000 read-back stalls a frame), and blocks that
+  // fall far behind are freed. Cell classes: 0 blocked or no tile, 1 sidewalk/paving/piazza, 2 minor carriageway, grass or sand (allowed,
+  // disliked), 3 zebra.
+  const WTS = 500, BC = 125, BM = BC / CPM, DZ = 31.25;                 // world tile size, cells per block side, block size in metres, district cell
+  const wkey = (i, j) => (i + 512) * 1024 + (j + 512);
+  const wts = new Map(), pendingTiles = [];
+  let lwt = null;                                         // last tile looked up (agents cluster, so this hits almost always)
+  const wtAt = (x, z) => {
+    const w = lwt; if (w !== null && x >= w.x0 && x < w.x1 && z >= w.z0 && z < w.z1) return w;
+    const n = wts.get(wkey(Math.floor(x / WTS), Math.floor(z / WTS)));
+    if (n === undefined) return null; lwt = n; return n;
   };
   const bbox = flat => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < flat.length; i += 2) { const x = flat[i], z = flat[i + 1]; if (x < a) a = x; if (x > c) c = x; if (z < b) b = z; if (z > d) d = z; } return [a, b, c, d]; };
-  // passes: 0 class-2 fill, 1 class-1 fill, 2 class-3 fill, 3 erase
-  const addPoly = (g, rings) => { const b = bbox(rings[0]); addItem({ g, rings }, b[0], b[1], b[2], b[3]); };
-  const addLine = (g, p, w) => { const b = bbox(p), m = w / 2 + 1; addItem({ g, line: p, w }, b[0] - m, b[1] - m, b[2] + m, b[3] + m); };
-  for (const poly of D.streets.green) addPoly(0, poly);
-  for (const poly of D.streets.paving) addPoly(1, poly);
-  for (const poly of D.streets.raised) addPoly(1, poly);
-  for (const poly of D.streets.water) addPoly(3, poly);
-  for (const b of D.buildings) addPoly(3, b.holes && b.holes.length ? [b.p, ...b.holes] : [b.p]);
   const MINOR = new Set(['residential', 'living_street', 'service', 'unclassified']), WALKWAY = new Set(['pedestrian', 'footway', 'path', 'cycleway', 'pier']);
-  const roadSegs = new Map();                             // 32 m grid of carriageway segments for the zebra builder
-  const RG = 32, rgk = (i, j) => i * 100003 + j;
-  for (const r of D.roads) {
-    if (MINOR.has(r.k)) addLine(0, r.p, Math.min(r.w || 5, 5));
-    else if (WALKWAY.has(r.k)) addLine(1, r.p, Math.max(r.w || 2, 2));
-    if (r.k === 'pier' || WALKWAY.has(r.k) || r.k === 'cycleway') continue;
-    for (let i = 0; i + 3 < r.p.length; i += 2) {
-      const s = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w || 6];
-      for (let ix = Math.floor(Math.min(s[0], s[2]) / RG); ix <= Math.floor(Math.max(s[0], s[2]) / RG); ix++)
-        for (let iz = Math.floor(Math.min(s[1], s[3]) / RG); iz <= Math.floor(Math.max(s[1], s[3]) / RG); iz++) { const k = rgk(ix, iz); let a = roadSegs.get(k); if (!a) roadSegs.set(k, a = []); a.push(s); }
-    }
-  }
-  // zebra strips from the OSM crossing nodes, laid across the nearest carriageway
-  const P = window.PALERMO_PROPS || { items: [] };
-  const idleGrid = new Map(); const IG = 24;               // cafes, benches, bus stops: places where people stand around
-  for (const it of P.items) {
-    if (it.k === 'cafe' || it.k === 'bench' || it.k === 'busstop' || it.k === 'fountain' || it.k === 'monument') {
-      const k = rgk(Math.floor(it.x / IG), Math.floor(it.z / IG)); let a = idleGrid.get(k); if (!a) idleGrid.set(k, a = []); a.push(it);
-    }
-    if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
-    let best = null, bd = 6;
-    for (let ix = Math.floor((it.x - 6) / RG); ix <= Math.floor((it.x + 6) / RG); ix++) for (let iz = Math.floor((it.z - 6) / RG); iz <= Math.floor((it.z + 6) / RG); iz++) {
-      const a = roadSegs.get(rgk(ix, iz)); if (!a) continue;
-      for (const s of a) {
-        const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (!l2) continue;
-        const t = clamp(((it.x - s[0]) * dx + (it.z - s[1]) * dz) / l2, 0, 1), d = hyp2(it.x - s[0] - dx * t, it.z - s[1] - dz * t);
-        if (d < bd) { bd = d; best = [s[0] + dx * t, s[1] + dz * t, dx, dz, s[4]]; }
+  const RG = 32, rgk = (i, j) => i * 100003 + j, IG = 24;
+  const IDLE_KINDS = new Set(['cafe', 'bench', 'busstop', 'fountain', 'monument']);
+
+  // index a tile's data into a mask holder (nothing is rasterised yet)
+  function register(t) {
+    const d = t.data, st = d.streets || {}, x0 = t.i * WTS, z0 = t.j * WTS, nb = WTS * CPM / BC;
+    const w = { t, x0, z0, x1: x0 + WTS, z1: z0 + WTS, i: t.i, j: t.j, blocks: new Array(nb * nb).fill(null), bi: new Array(nb * nb).fill(null), bld: [], idle: new Map(), dz: new Uint8Array((WTS / DZ) * (WTS / DZ)).fill(255) };
+    // passes: 0 class-2 fill, 1 class-1 fill, 2 class-3 fill, 3 erase
+    const add = (it, bx, own) => {
+      it.a = bx[0]; it.b = bx[1]; it.c = bx[2]; it.d = bx[3];
+      const i0 = Math.max(0, Math.floor((bx[0] - x0) / BM)), i1 = Math.min(nb - 1, Math.floor((bx[2] - x0) / BM));
+      const j0 = Math.max(0, Math.floor((bx[1] - z0) / BM)), j1 = Math.min(nb - 1, Math.floor((bx[3] - z0) / BM));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * nb + i; (w.bi[k] || (w.bi[k] = [])).push(it); }
+      if (own) w.bld.push(it);
+    };
+    const poly = (g, rings, own) => add({ g, rings, line: null, w: 0 }, bbox(rings[0]), own);
+    const line = (g, p, wd) => { const b = bbox(p), m = wd / 2 + 1; add({ g, rings: null, line: p, w: wd }, [b[0] - m, b[1] - m, b[2] + m, b[3] + m], false); };
+    for (const p of st.green || []) poly(0, p, false);
+    for (const p of st.sand || []) poly(0, p, false);
+    for (const p of st.paving || []) poly(1, p, false);
+    for (const p of st.raised || []) poly(1, p, false);
+    for (const p of st.water || []) poly(3, p, false);
+    for (const b of d.buildings || []) poly(3, b.holes && b.holes.length ? [b.p, ...b.holes] : [b.p], true);
+    const roadSegs = new Map();                           // 32 m grid of carriageway segments for the zebra builder
+    for (const r of d.roads || []) {
+      if (r.tn) continue;                                 // tunnels
+      if (MINOR.has(r.k)) line(0, r.p, Math.min(r.w || 5, 5));
+      else if (WALKWAY.has(r.k)) line(1, r.p, Math.max(r.w || 2, 2));
+      if (r.k === 'pier' || WALKWAY.has(r.k) || r.k === 'track') continue;
+      for (let i = 0; i + 3 < r.p.length; i += 2) {
+        const s = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w || 6];
+        for (let ix = Math.floor(Math.min(s[0], s[2]) / RG); ix <= Math.floor(Math.max(s[0], s[2]) / RG); ix++)
+          for (let iz = Math.floor(Math.min(s[1], s[3]) / RG); iz <= Math.floor(Math.max(s[1], s[3]) / RG); iz++) { const k = rgk(ix, iz); let a = roadSegs.get(k); if (!a) roadSegs.set(k, a = []); a.push(s); }
       }
     }
-    if (!best) continue;
-    const l = hyp2(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5;
-    const cx = best[0], cz = best[1];
-    const ring = [cx + tx * hw + nx * hl, cz + tz * hw + nz * hl, cx - tx * hw + nx * hl, cz - tz * hw + nz * hl, cx - tx * hw - nx * hl, cz - tz * hw - nz * hl, cx + tx * hw - nx * hl, cz + tz * hw - nz * hl];
-    addPoly(2, [ring]);
+    for (const it of (d.props && d.props.items) || []) {
+      if (IDLE_KINDS.has(it.k)) { const k = rgk(Math.floor(it.x / IG), Math.floor(it.z / IG)); let a = w.idle.get(k); if (!a) w.idle.set(k, a = []); a.push(it); }
+      if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
+      let best = null, bd = 6;
+      for (let ix = Math.floor((it.x - 6) / RG); ix <= Math.floor((it.x + 6) / RG); ix++) for (let iz = Math.floor((it.z - 6) / RG); iz <= Math.floor((it.z + 6) / RG); iz++) {
+        const a = roadSegs.get(rgk(ix, iz)); if (!a) continue;
+        for (const s of a) {
+          const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (!l2) continue;
+          const u = clamp(((it.x - s[0]) * dx + (it.z - s[1]) * dz) / l2, 0, 1), dd = hyp2(it.x - s[0] - dx * u, it.z - s[1] - dz * u);
+          if (dd < bd) { bd = dd; best = [s[0] + dx * u, s[1] + dz * u, dx, dz, s[4]]; }
+        }
+      }
+      if (!best) continue;
+      const l = hyp2(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5, cx0 = best[0], cz0 = best[1];
+      poly(2, [[cx0 + tx * hw + nx * hl, cz0 + tz * hw + nz * hl, cx0 - tx * hw + nx * hl, cz0 - tz * hw + nz * hl, cx0 - tx * hw - nx * hl, cz0 - tz * hw - nz * hl, cx0 + tx * hw - nx * hl, cz0 + tz * hw - nz * hl]], false);
+    }
+    wts.set(wkey(t.i, t.j), w); lwt = null;
+    return w;
+  }
+  function unregister(t) {
+    const k = wkey(t.i, t.j), w = wts.get(k), pi = pendingTiles.indexOf(t);
+    if (pi >= 0) pendingTiles.splice(pi, 1);
+    if (!w) return;
+    wts.delete(k); lwt = null;
+    // whoever stands on the tile leaves with it (the despawn loop removes them)
+    for (let i = 0; i < N.n; i++) if (X[i] >= w.x0 && X[i] < w.x1 && Z[i] >= w.z0 && Z[i] < w.z1) AGE[i] = -999;
+    for (const c of chairs) if (c.x >= w.x0 && c.x < w.x1 && c.z >= w.z0 && c.z < w.z1) c.dead = true;
   }
 
-  const tiles = new Array(NTX * NTZ);
-  const tcv = document.createElement('canvas'); tcv.width = tcv.height = TCELLS;
+  const tcv = document.createElement('canvas'); tcv.width = tcv.height = BC;
   const tg = tcv.getContext('2d', { willReadFrequently: true });
   const PASS_COL = ['#00ff00', '#ff0000', '#0000ff'];
-  function buildTile(tx, tz) {
-    const t0 = performance.now();
-    const x0 = AX0 + tx * TILE, z0 = AZ0 + tz * TILE, list = tileItems[tz * NTX + tx] || [];
-    tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, TCELLS, TCELLS);
+  let curPass = 0;
+  const drawItem = it => {
+    tg.beginPath();
+    if (it.line) { const p = it.line; tg.lineWidth = it.w; tg.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) tg.lineTo(p[i], p[i + 1]); tg.stroke(); }
+    else { for (const ring of it.rings) { tg.moveTo(ring[0], ring[1]); for (let i = 2; i < ring.length; i += 2) tg.lineTo(ring[i], ring[i + 1]); tg.closePath(); } tg.fill('evenodd'); if (curPass === 3) tg.stroke(); }
+  };
+  function buildBlock(w, bx, bz) {
+    const t0 = performance.now(), nb = WTS * CPM / BC;
+    const x0 = w.x0 + bx * BM, z0 = w.z0 + bz * BM, list = w.bi[bz * nb + bx] || [];
+    tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, BC, BC);
     tg.setTransform(CPM, 0, 0, CPM, -x0 * CPM, -z0 * CPM); tg.lineJoin = 'round'; tg.lineCap = 'round';
     for (let pass = 0; pass < 4; pass++) {
+      curPass = pass;
       if (pass === 3) { tg.globalCompositeOperation = 'destination-out'; tg.strokeStyle = '#000'; tg.lineWidth = 0.9; tg.fillStyle = '#000'; }
       else { tg.fillStyle = PASS_COL[pass]; tg.strokeStyle = PASS_COL[pass]; }
-      for (const id of list) {
-        const it = items[id]; if (it.g !== pass) continue;
-        tg.beginPath();
-        if (it.line) {
-          const p = it.line; tg.lineWidth = it.w; tg.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) tg.lineTo(p[i], p[i + 1]); tg.stroke();
-        } else {
-          for (const ring of it.rings) { tg.moveTo(ring[0], ring[1]); for (let i = 2; i < ring.length; i += 2) tg.lineTo(ring[i], ring[i + 1]); tg.closePath(); }
-          tg.fill('evenodd'); if (pass === 3) tg.stroke();
+      for (let q = 0; q < list.length; q++) if (list[q].g === pass) drawItem(list[q]);
+      if (pass === 3) {   // footprints of the neighbouring tile that reach over the border into this block
+        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+          if ((!a && !b) || (a < 0 && bx > 0) || (a > 0 && bx < nb - 1) || (b < 0 && bz > 0) || (b > 0 && bz < nb - 1)) continue;
+          const n = wts.get(wkey(w.i + a, w.j + b)); if (!n) continue;
+          for (let q = 0; q < n.bld.length; q++) { const it = n.bld[q]; if (it.c >= x0 - 1 && it.a <= x0 + BM + 1 && it.d >= z0 - 1 && it.b <= z0 + BM + 1) drawItem(it); }
         }
       }
     }
-    const d = tg.getImageData(0, 0, TCELLS, TCELLS).data, m = new Uint8Array(TCELLS * TCELLS);
+    const d = tg.getImageData(0, 0, BC, BC).data, m = new Uint8Array(BC * BC);
     for (let i = 0, j = 3; i < m.length; i++, j += 4) {
       if (d[j] < 128) continue;
       const r = d[j - 3], g = d[j - 2], b = d[j - 1];
       m[i] = r >= g && r >= b ? 1 : b > g ? 3 : 2;
     }
-    tiles[tz * NTX + tx] = m; stats.tiles++; stats.tileMs += performance.now() - t0;
-    return m;
+    w.blocks[bz * nb + bx] = m; stats.tiles++; stats.tileMs += performance.now() - t0;
   }
-  // mask class at a world position; unbuilt tiles read as blocked and are queued
+  // mask class at a world position; tiles that are not at full detail, and blocks not drawn yet, read as blocked
   function cell(x, z) {
-    const fx = (x - AX0) * CPM, fz = (z - AZ0) * CPM;
-    if (fx < 0 || fz < 0) return 0;
-    const gx = fx | 0, gz = fz | 0, tx = gx >> 7, tz = gz >> 7;
-    if (tx >= NTX || tz >= NTZ) return 0;
-    const m = tiles[tz * NTX + tx];
-    if (!m) return 0;
-    return m[(gz & 127) * TCELLS + (gx & 127)];
+    const w = wtAt(x, z); if (w === null) return 0;
+    const gx = ((x - w.x0) * CPM) | 0, gz = ((z - w.z0) * CPM) | 0, bx = (gx / BC) | 0, bz = (gz / BC) | 0;
+    const m = w.blocks[bz * 8 + bx]; return m === null ? 0 : m[(gz - bz * BC) * BC + gx - bx * BC];
   }
-  const ensureTilesAround = (x, z, r, budgetMs) => {
-    const t0 = performance.now(); let built = 0;
-    const tx0 = Math.max(0, Math.floor((x - r - AX0) / TILE)), tx1 = Math.min(NTX - 1, Math.floor((x + r - AX0) / TILE));
-    const tz0 = Math.max(0, Math.floor((z - r - AZ0) / TILE)), tz1 = Math.min(NTZ - 1, Math.floor((z + r - AZ0) / TILE));
-    const need = [];
-    for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) if (!tiles[tz * NTX + tx]) need.push([hyp2(AX0 + (tx + 0.5) * TILE - x, AZ0 + (tz + 0.5) * TILE - z), tx, tz]);
-    need.sort((a, b) => a[0] - b[0]);
-    for (const [, tx, tz] of need) { if (built && performance.now() - t0 > budgetMs) break; buildTile(tx, tz); built++; }
-    return need.length - built;
-  };
-
+  // draw the blocks within r of (x, z), nearest first, until the time budget is spent (at least one when any is missing)
+  const mW = new Array(64).fill(null), mK = new Int32Array(64), mD = new Float32Array(64);
+  function ensureBlocks(x, z, r, budgetMs) {
+    const t0 = performance.now(), xe = x + r, ze = z + r; let n = 0, built = 0;
+    for (let pz = z - r; ; pz += BM) {
+      const zz = pz > ze ? ze : pz;
+      for (let px = x - r; ; px += BM) {
+        const xx = px > xe ? xe : px, w = wtAt(xx, zz);
+        if (w !== null && n < 64) {
+          const bx = ((xx - w.x0) / BM) | 0, bz = ((zz - w.z0) / BM) | 0, k = bz * 8 + bx;
+          if (w.blocks[k] === null) {
+            let dup = false; for (let q = 0; q < n; q++) if (mW[q] === w && mK[q] === k) { dup = true; break; }
+            if (!dup) { mW[n] = w; mK[n] = k; mD[n] = hyp2(w.x0 + (bx + 0.5) * BM - x, w.z0 + (bz + 0.5) * BM - z); n++; }
+          }
+        }
+        if (px >= xe) break;
+      }
+      if (pz >= ze) break;
+    }
+    while (n > 0) {
+      let bq = 0; for (let q = 1; q < n; q++) if (mD[q] < mD[bq]) bq = q;
+      if (built && performance.now() - t0 > budgetMs) break;
+      buildBlock(mW[bq], mK[bq] & 7, mK[bq] >> 3); built++;
+      n--; mW[bq] = mW[n]; mK[bq] = mK[n]; mD[bq] = mD[n];
+    }
+    for (let q = 0; q < 64; q++) mW[q] = null;
+    return n;
+  }
+  // free blocks that are far from the camera (a drive across the city must not keep every block it ever drew)
+  function evictBlocks(x, z, r) {
+    wts.forEach(w => {
+      for (let k = 0; k < w.blocks.length; k++) {
+        if (w.blocks[k] === null) continue;
+        if (hyp2(w.x0 + ((k & 7) + 0.5) * BM - x, w.z0 + ((k >> 3) + 0.5) * BM - z) > r) w.blocks[k] = null;
+      }
+    });
+  }
+  world.onTile((kind, t) => { if (kind === 'full') pendingTiles.push(t); else unregister(t); });
+  const idleAt = (x, z) => { const w = wtAt(x, z); return w === null ? undefined : w.idle.get(rgk(Math.floor(x / IG), Math.floor(z / IG))); };
   // ======================================================================== density map (people per m2 of walkable ground)
+  const [AX0, AZ0, AX1, AZ1] = D.streets.aoi;               // the baked centro: where the hand-stamped crowd hot spots live
   const DC = 8, DNX = Math.ceil((AX1 - AX0) / DC), DNZ = Math.ceil((AZ1 - AZ0) / DC);
-  const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist, 4 match-day
-  const stamp = (x, z, r, v, zn, dn = dens, zo = zone) => {
+  const BASE = 0.005, dens = new Float32Array(DNX * DNZ).fill(BASE), zone = new Uint8Array(DNX * DNZ), stD = new Uint8Array(DNX * DNZ);   // zones: 0 vicoli, 1 main street, 2 market, 3 tourist, 4 match-day
+  const stamp = (x, z, r, v, zn, dn = dens, zo = zone, fl = stD) => {
     const i0 = Math.max(0, Math.floor((x - r - AX0) / DC)), i1 = Math.min(DNX - 1, Math.floor((x + r - AX0) / DC));
     const j0 = Math.max(0, Math.floor((z - r - AZ0) / DC)), j1 = Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       const d = hyp2(AX0 + (i + 0.5) * DC - x, AZ0 + (j + 0.5) * DC - z); if (d > r) continue;
       const f = 1 - d / r, vv = BASE + (v - BASE) * Math.min(1, f * 1.6), k = j * DNX + i;
-      if (vv > dn[k]) { dn[k] = vv; zo[k] = zn; }
+      if (vv > dn[k]) { dn[k] = vv; zo[k] = zn; fl[k] = 1; }
     }
   };
   {
@@ -175,7 +231,7 @@ export function createPedestrians(env) {
     stamp(-450, -930, 120, 0.06, 4);           // Politeama / Via Liberta: match-day crowds in pink
     const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini/i;
     const FANS = /Ruggero Settimo|Mariano Stabile|Principe di Belmonte|Magliocco|Michele Amari|Liberta|Libert/i;
-    for (const r of D.roads) {
+    for (const r of D.roads || []) {
       let v = 0, zn = 0, rad = 14;
       if (r.n && FANS.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.03; zn = 4; rad = 20; }
       else if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
@@ -190,11 +246,11 @@ export function createPedestrians(env) {
     }
   }
   // after dark: quieter streets, an empty market, and the movida (zone 5) around Piazza Sant'Anna and the Vucciria
-  const densN = new Float32Array(dens.length), zoneN = zone.slice();
+  const densN = new Float32Array(dens.length), zoneN = zone.slice(), stN = stD.slice();
   {
     const SCN = [0.55, 0.6, 0.3, 0.45, 0.4, 1], KX = Math.cos(38.11572 * Math.PI / 180) * 111320, KZ = 110540, pr = (la, lo) => [(lo - 13.36126) * KX, -(la - 38.11572) * KZ];
     for (let k = 0; k < dens.length; k++) densN[k] = Math.max(0.0025, dens[k] * SCN[zone[k]]);
-    const hotN = (la, lo, r, v, zn) => { const [x, z] = pr(la, lo); stamp(x, z, r, v, zn, densN, zoneN); };
+    const hotN = (la, lo, r, v, zn) => { const [x, z] = pr(la, lo); stamp(x, z, r, v, zn, densN, zoneN, stN); };
     hotN(38.1149181, 13.3651434, 80, 0.07, 5);      // side streets around Piazza Sant'Anna (Kalsa)
     hotN(38.1149181, 13.3651434, 36, 0.24, 5);      // Piazza Sant'Anna: packed
     hotN(38.1179401, 13.3649292, 55, 0.14, 5);      // Piazza Garraffello (Vucciria)
@@ -203,17 +259,96 @@ export function createPedestrians(env) {
     hotN(38.1186189, 13.3540701, 80, 0.06, 2);      // Capo
   }
   let nightCrowd = false;                                 // which map and mix are live (see setTime below)
-  const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : (nightCrowd ? densN : dens)[j * DNX + i]; };
-  const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : (nightCrowd ? zoneN : zone)[j * DNX + i]; };
+  // ======================================================================== district crowds
+  // Outside the hand-stamped centro hot spots (above), the crowd comes from the district under the camera: districts.js zoneAt gives the
+  // neighbourhood, DPROF maps it to one of the profiles below, and a profile is a day/night density, how willing people are to walk on
+  // grass or sand, and a multiplier table over the variant weights of the base zone column (0 vicoli, 1 main street, 2 market, 3 tourist).
+  // Zone codes 0..5 are the stamped centro zones, 6 + n is profile n.
+  const GROUPS = {
+    market: ['vendor', 'vendor2', 'fruttivendolo', 'pescivendolo', 'macellaio'],
+    tour: ['tourist', 'tourist2', 'suora', 'priest', 'vigile', 'cameriere'],
+    beach: ['beach_m', 'beach_w', 'amico1_mondello', 'amico2_mondello'],
+    fans: ['tifoso', 'tifoso2', 'tifosa', 'tifoso_kid', 'tifoso_nonno', 'amico1_rosanero', 'amico2_rosanero'],
+    kids: ['kid', 'kid2', 'scuola', 'mamma'],
+    young: ['teen', 'teen2', 'ragazzo', 'ragazzo2', 'skinny', 'tuta', 'motorino', 'motorina'],
+    elders: ['nonna', 'nonna2', 'nonna3', 'nonno', 'nonno_gilet', 'coppola', 'coppola2'],
+    biz: ['suit', 'suit2', 'signora', 'signora2', 'shopper', 'borsa'],
+    law: ['carabiniere', 'vigile'],
+    run: ['jogger', 'jogger2'],
+    dogs: ['dogwalker', 'dogwalker2', 'dogwalker3'],
+  };
+  //          row: base zone column; day / night: people per m2 of walkable ground; g: [density factor on grass or sand, chance of stepping back off it, path penalty]
+  //          m: [[group or variant id, multiplier], ...]; add: absolute day weights; addN: absolute night weights
+  const PROFILES = {
+    main:   { row: 1, day: 0.012, night: 0.007, g: [0.35, 0.7, 0.7], m: [], add: { dogwalker: 0.4 }, addN: { dogwalker: 0.5 } },
+    vicoli: { row: 0, day: 0.006, night: 0.0035, g: [0.35, 0.7, 0.7], m: [['market', 0.3]], add: { dogwalker: 0.3 }, addN: { dogwalker: 0.3 } },
+    // Via della Liberta and the grid behind it: shoppers and office workers, no market, few tourists
+    lib:    { row: 1, day: 0.012, night: 0.006, g: [0.35, 0.7, 0.7], m: [['market', 0.08], ['tour', 0.35], ['shopper', 4], ['signora', 2], ['signora2', 2], ['borsa', 2], ['suit', 1.8], ['suit2', 1.8], ['fans', 0.5], ['young', 1.2]], add: { dogwalker: 0.5, jogger: 0.4 }, addN: { dogwalker: 0.6 } },
+    // working-class quarters of Noce, Zisa, Oreto, Brancaccio, Uditore, Rigano, the outskirts: locals, elders, kids
+    local:  { row: 0, day: 0.0065, night: 0.003, g: [0.4, 0.6, 0.6], m: [['tour', 0.12], ['law', 0.5], ['market', 0.35], ['biz', 0.55], ['kids', 1.4], ['elders', 1.4], ['fans', 0.8]], add: { dogwalker: 0.5 }, addN: { dogwalker: 0.4 } },
+    // ZEN: kids and teenagers outside, mopeds, no tourists, nobody in a suit
+    zen:    { row: 0, day: 0.008, night: 0.0045, g: [0.6, 0.35, 0.35], m: [['tour', 0.03], ['law', 0.3], ['biz', 0.2], ['market', 0.25], ['kids', 3], ['young', 2.6], ['elders', 0.9], ['mamma', 1.5], ['fans', 1.3]], add: {}, addN: {} },
+    // CEP and Borgo Nuovo: the same, a little calmer
+    cep:    { row: 0, day: 0.0065, night: 0.003, g: [0.5, 0.4, 0.4], m: [['tour', 0.05], ['law', 0.4], ['biz', 0.4], ['market', 0.3], ['kids', 2], ['young', 1.7], ['elders', 1.1], ['fans', 1]], add: { dogwalker: 0.3 }, addN: {} },
+    // Mondello: bathers in swimwear and straw hats, families, ice cream
+    beach:  { row: 3, day: 0.014, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
+    // the lido and the Mondello seafront in summer: packed
+    lido:   { row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 14], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
+    // Sferracavallo, Arenella, Acquasanta: fishing villages, seafront walkers
+    coast:  { row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
+    // La Favorita: joggers, dog walkers, families, pensioners
+    park:   { row: 0, day: 0.0055, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
+    // Monte Pellegrino and the countryside: a few pilgrims, hikers and a kiosk
+    rural:  { row: 3, day: 0.0013, night: 0.0003, g: [1, 0.03, 0.03], m: [['tour', 2], ['priest', 2], ['market', 0.3], ['biz', 0.1], ['beach', 0.2], ['kids', 0.4], ['fans', 0.1], ['young', 0.6], ['elders', 1.2]], add: { jogger: 0.6 }, addN: {} },
+    // the port, the shipyards and Brin: workers on foot, few strollers
+    port:   { row: 1, day: 0.004, night: 0.0015, g: [0.5, 0.5, 0.5], m: [['market', 0.2], ['tour', 0.4], ['kids', 0.3], ['biz', 0.6], ['tuta', 3], ['motorino', 2], ['fans', 0.4]], add: {}, addN: {} },
+  };
+  const PNAMES = Object.keys(PROFILES), NZ = 6 + PNAMES.length;
+  const DPROF = { corso: 'main', roma: 'main', centro: 'main', politeama: 'main', stazione: 'main', corsoMille: 'main', old: 'vicoli', alberg: 'vicoli', kalsa: 'vicoli', borgoV: 'vicoli',
+    noce: 'local', zisa: 'local', oreto: 'local', brancaccio: 'local', uditore: 'local', rigano: 'local', periph: 'local', tn: 'local', valdesi: 'local', viaLib: 'lib', sacco: 'lib', resut: 'lib', fiera: 'lib',
+    zen: 'zen', cep: 'cep', mondello: 'beach', lido: 'lido', sferra: 'coast', arenella: 'coast', acquasanta: 'coast', favorita: 'park', rural: 'rural', porto: 'port', brin: 'port' };
+  const PIDX = {}; for (const n in DPROF) PIDX[n] = PNAMES.indexOf(DPROF[n]);
+  const DEFP = PNAMES.indexOf('local');
+  const profDay = new Float32Array(PNAMES.length), profNight = new Float32Array(PNAMES.length);
+  PNAMES.forEach((n, p) => { profDay[p] = PROFILES[n].day; profNight[p] = PROFILES[n].night; });
   const MAXD = 0.14;
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
   const VW = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.w[z]));    // crowd mix per zone by day, set in assets/peds/sprites.js
   const VWN = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.wn[z]));  // and after dark
+  const GK = new Float32Array(NZ).fill(0.35), GE = new Float32Array(NZ).fill(0.7), GP = new Float32Array(NZ).fill(0.7);   // grass: density factor, chance of stepping back off it, path penalty per cell
+  GK[2] = 1; GE[2] = 0.1;
+  PNAMES.forEach(n => {
+    const P = PROFILES[n], mul = {};
+    for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? 1) * f;
+    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? 1) + (P.add[v.id] || 0)));
+    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? 1) + (P.addN[v.id] || 0)));
+    const z = VW.length - 1; GK[z] = P.g[0]; GE[z] = P.g[1]; GP[z] = P.g[2];
+  });
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0)), VWNsum = VWN.map(w => w.reduce((a, b) => a + b, 0));
   const WCV = VARIANTS.findIndex(v => v.id === 'wheelchair'), HEALV = VARIANTS.findIndex(v => v.id === 'healed'), CHAIRV = VARIANTS.findIndex(v => v.id === 'chair_empty');
+  const STRIDE = VARIANTS.map(v => v.run ? 3 : 1.5); STRIDE[HEALV] = 3.2;   // metres per walk cycle: runners take longer strides
   const chairs = [];                                      // empty wheelchairs left behind by the miracle (see heal())
   const pickVariant = zn => { const w = nightCrowd ? VWN[zn] : VW[zn]; let r = Math.random() * (nightCrowd ? VWNsum[zn] : VWsum[zn]); for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
-  const IDLE_RATE = [0.015, 0.03, 0.08, 0.05, 0.06, 0.12];            // chance per second of stopping for a while
+  const IDLE_RATE = new Float32Array(NZ).fill(0.03); IDLE_RATE.set([0.015, 0.03, 0.08, 0.05, 0.06, 0.12]);            // chance per second of stopping for a while
+  for (const n of ['park', 'beach', 'lido']) IDLE_RATE[6 + PNAMES.indexOf(n)] = 0.05;
+  // district of a spot, cached per 31 m cell of its tile (zoneAt scans every district seed)
+  const distAt = (x, z) => {
+    const w = wtAt(x, z); if (w === null) return DEFP;
+    const k = (((z - w.z0) / DZ) | 0) * (WTS / DZ) + (((x - w.x0) / DZ) | 0);
+    let p = w.dz[k]; if (p === 255) { const q = PIDX[districtAt(x, z, '', 999)]; w.dz[k] = p = q === undefined ? DEFP : q; }
+    return p;
+  };
+  // people per m2 and zone code at a spot: the centro hot spots where one is stamped, the district profile elsewhere
+  const densAt = (x, z) => {
+    const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC);
+    if (i >= 0 && j >= 0 && i < DNX && j < DNZ) { const k = j * DNX + i; if (nightCrowd ? stN[k] : stD[k]) return (nightCrowd ? densN : dens)[k]; }
+    const p = distAt(x, z); return nightCrowd ? profNight[p] : profDay[p];
+  };
+  const zoneCode = (x, z) => {
+    const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC);
+    if (i >= 0 && j >= 0 && i < DNX && j < DNZ) { const k = j * DNX + i; if (nightCrowd ? stN[k] : stD[k]) return (nightCrowd ? zoneN : zone)[k]; }
+    return 6 + distAt(x, z);
+  };
 
   // ======================================================================== time of day
   // The day/night work publishes game.time {hour, isNight, dusk} and fires window 'pd-time' {hour, isNight, dusk}; both are read
@@ -363,10 +498,10 @@ export function createPedestrians(env) {
     for (let d = 0.5; d <= maxd; d += 0.5) { x += sx; z += sz; const c = cell(x, z); if (!c) return d - 0.5; if (c === 2) runPen++; }
     return maxd;
   };
-  const bestHeading = (x, z, base, offs, maxd) => {
+  const bestHeading = (x, z, base, offs, maxd, pk) => {
     let best = base + Math.PI, bs = 0.4;
     for (const o of offs) {
-      const a = base + o, r = run(x, z, a, maxd), s = r - runPen * 0.7 - Math.abs(o) * 0.25 + Math.random() * 1.3;
+      const a = base + o, r = run(x, z, a, maxd), s = r - runPen * pk - Math.abs(o) * 0.25 + Math.random() * 1.3;
       if (r >= 1.5 && s > bs) { bs = s; best = a; }
     }
     return best;
@@ -384,7 +519,7 @@ export function createPedestrians(env) {
     if (!initial) { const dx = x - cx, dz = z - cz, l = hyp2(dx, dz) || 1; if ((dx * camFwdX + dz * camFwdZ) / l > 0.5 && r < R * 0.85) return false; }
     let atIdle = false, face = 0;
     if (Math.random() < 0.28) {               // cluster around a cafe, bench or bus stop
-      const ik = rgk(Math.floor(x / IG), Math.floor(z / IG)), arr = idleGrid.get(ik);
+      const arr = idleAt(x, z);
       if (arr) {
         const it = arr[(Math.random() * arr.length) | 0], b = Math.random() * TAU, d = rand(1.2, 2.6);
         const nx = it.x + Math.cos(b) * d, nz = it.z + Math.sin(b) * d;
@@ -395,13 +530,13 @@ export function createPedestrians(env) {
     if (!atIdle) {
       // streets get more people per m2 than open piazze (crowds line up along streets)
       let open = 0; for (let k = 0; k < 8; k++) if (cell(x + Math.cos(k * 0.785) * 5, z + Math.sin(k * 0.785) * 5)) open++;
-      const dn = densAt(x, z) * (cl === 2 ? (zoneAt(x, z) === 2 ? 1 : 0.35) : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
+      const dn = densAt(x, z) * (cl === 2 ? GK[zoneCode(x, z)] : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
       if (Math.random() * MAXD > dn) return false;
     }
     if (hyp2(x - car.x, z - car.z) < 3.5) return false;
     // not on top of someone else
     for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - x) < 0.5 && Math.abs(Z[j] - z) < 0.5) return false;
-    const zn = zoneAt(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
+    const zn = zoneCode(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
     if (chat) { atIdle = true; face = Math.random() * TAU; }
     addAgent(x, z, cl, zn, atIdle, face, chat ? rand(25, 90) : rand(6, 40));
     if (chat) {   // a few friends around, standing in a ring and chatting
@@ -418,7 +553,7 @@ export function createPedestrians(env) {
   function addAgent(x, z, cl, zn, atIdle, face, tmr) {
     const i = N.n++, vi = pickVariant(zn), v = VARIANTS[vi];
     X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl; LEAVE[i] = -1; MIR[i] = 0;
-    TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8);
+    TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8, GP[zn]);
     THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = !started || jumpedNow ? 5 : 0;
     VX[i] = VZ[i] = VY[i] = HOP[i] = ROLL[i] = 0; RD[i] = 1; TMR[i] = atIdle ? tmr : 0; STEER[i] = Math.random() * 0.1; TRAV[i] = 0; NEXTT[i] = rand(10, 35);
     SHC[i] = SHT[i] = inSun(x, z); BRI[i] = rand(0.92, 1.08); SIZE[i] = rand(0.96, 1.04); REACT[i] = -1; WAITT[i] = 0; TFLY[i] = 0;
@@ -432,7 +567,7 @@ export function createPedestrians(env) {
     const R = quality.R; let sum = 0; const S = 56;
     for (let k = 0; k < S; k++) {
       const a = Math.random() * TAU, r = R * Math.sqrt(Math.random()), x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r, c = cell(x, z);
-      if (c) sum += densAt(x, z) * (c === 2 ? (zoneAt(x, z) === 2 ? 1 : 0.35) : c === 3 ? 0.5 : 1);
+      if (c) sum += densAt(x, z) * (c === 2 ? GK[zoneCode(x, z)] : c === 3 ? 0.5 : 1);
     }
     const alt = camera.position.y - groundY(cx, cz), altK = clamp(1 - (alt - 40) / 200, 0.4, 1);
     return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK * 1.8));
@@ -473,8 +608,8 @@ export function createPedestrians(env) {
     // about to step off the pavement onto a carriageway: wait for the traffic
     if (cl === 1 && (ahead === 3 || ahead === 2) && WAITT[i] >= 0 && trafficNear(x + Math.sin(t) * 3.5, z + Math.cos(t) * 3.5, 1.5)) { ST[i] = WAIT; WAITT[i] = 0; return; }
     if (WAITT[i] < 0) WAITT[i] = Math.min(0, WAITT[i] + dt10);
-    const edge = ah < 2.2 || (cl === 1 && ahead === 2 && Math.random() < (ZN[i] === 2 ? 0.1 : 0.7));
-    if (edge) { THT[i] = bestHeading(x, z, t, TURN_OFFS, 6); TRAV[i] = 0; NEXTT[i] = rand(10, 35); NUDGE[i] = 0; return; }
+    const edge = ah < 2.2 || (cl === 1 && ahead === 2 && Math.random() < GE[ZN[i]]);
+    if (edge) { THT[i] = bestHeading(x, z, t, TURN_OFFS, 6, GP[ZN[i]]); TRAV[i] = 0; NEXTT[i] = rand(10, 35); NUDGE[i] = 0; return; }
     // random turn into a side street after a while
     if (TRAV[i] > NEXTT[i]) {
       TRAV[i] = 0; NEXTT[i] = rand(10, 35);
@@ -607,8 +742,12 @@ export function createPedestrians(env) {
 
     // tiles around the camera: all of them at once on the first frame or after a jump, otherwise on a time budget
     const jumped = hyp2(cx - lastCx, cz - lastCz) > 45;
-    if (!started || jumped) { ensureTilesAround(cx, cz, 70, 60); }
-    else ensureTilesAround(cx, cz, R + 25, 1.5);
+    if (pendingTiles.length) {   // index tiles that reached full detail, one per frame (all of them while the first crowd is being placed)
+      for (let n = !started || jumped ? 4 : 1; n > 0 && pendingTiles.length; n--) { const pt = pendingTiles.shift(); if (pt.data && !wts.has(wkey(pt.i, pt.j))) register(pt); }
+    }
+    if (!started || jumped) { ensureBlocks(cx, cz, 70, 60); }
+    else if ((frameNo & 3) === 0) ensureBlocks(cx, cz, R + 25, 1.5);
+    if ((frameNo & 127) === 0) evictBlocks(cx, cz, R + 190);
     lastCx = cx; lastCz = cz; jumpedNow = jumped;
 
     // despawn the far ones, and retarget the crowd size twice a second
@@ -669,7 +808,7 @@ export function createPedestrians(env) {
         if (st === IDLE && Math.abs(dh) > 0.01) TH[i] += clamp(dh, -2.5 * dt, 2.5 * dt);
         if (V[i] > 0.02) {
           const d = V[i] * dt, nx = x + Math.sin(TH[i]) * d, nz = z + Math.cos(TH[i]) * d;
-          if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; TRAV[i] += d; PH[i] += d / (VAR[i] === HEALV ? 3.2 : 1.5); }
+          if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; TRAV[i] += d; PH[i] += d / STRIDE[VAR[i]]; }
           else { V[i] = 0; STEER[i] = 0; THT[i] += (Math.random() < 0.5 ? 1 : -1) * 1.2; }
         }
         // keep a little distance from the others and from the lapa
@@ -718,8 +857,10 @@ export function createPedestrians(env) {
       }
 
       // ground height, eased so stepping onto a curb isn't a pop
-      const ty = groundY(X[i], Z[i]) + (raisedMask(X[i], Z[i]) ? CURB : 0);
-      Y[i] += (ty - Y[i]) * Math.min(1, 14 * dt);
+      if (((i + frameNo) & 1) === 0) {   // every other frame is plenty for the height (tile-aware groundY is the dearest call here)
+        const ty = groundY(X[i], Z[i]) + (raisedMask(X[i], Z[i]) ? CURB : 0);
+        Y[i] += (ty - Y[i]) * Math.min(1, 28 * dt);
+      }
     }
 
     // sun shading eases to its target
@@ -875,7 +1016,7 @@ export function createPedestrians(env) {
 
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
-  if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
+  if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, wts, quality: () => quality, knock, zoneCode, densAt, distAt, PNAMES, VW, VWN, VARIANTS };
   const api = { bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
