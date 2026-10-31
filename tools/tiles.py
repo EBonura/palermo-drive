@@ -215,9 +215,24 @@ _AMENITY_PROPS = {"waste_disposal", "waste_basket", "recycling", "bench", "fount
 _HW_SET = set(HIGHWAYS.split("|"))
 
 
+def _is_place(t):
+    """Named things worth a landmark entry that are not buildings or parks (stadiums, harbours, capes ...)."""
+    if not t.get("name"):
+        return False
+    return bool(t.get("place") or t.get("leisure") in ("stadium", "sports_centre", "marina")
+                or t.get("harbour") or t.get("landuse") in ("harbour", "port", "military")
+                or t.get("waterway") in ("dock", "boatyard") or t.get("natural") in ("bay", "peninsula", "cape", "peak", "beach")
+                or t.get("man_made") in ("lighthouse", "pier", "breakwater", "works")
+                or t.get("tourism") in ("attraction", "viewpoint", "theme_park", "museum")
+                or t.get("amenity") in ("theatre", "ferry_terminal", "restaurant", "bar", "nightclub", "university", "hospital")
+                or t.get("historic") in ("castle", "monument", "fort", "ruins", "archaeological_site"))
+
+
 def _way_cats(t):
     """Overpass-equivalent category membership of a way's tags."""
     cats = []
+    if _is_place(t):
+        cats.append("places")
     if "building" in t:
         cats.append("bld")
     if t.get("highway") in _HW_SET:
@@ -235,6 +250,8 @@ def _way_cats(t):
 
 def _rel_cats(t):
     cats = []
+    if _is_place(t):
+        cats.append("places")
     if "building" in t:
         cats.append("bld")
     if (t.get("natural") in ("wood", "beach", "water") or t.get("leisure") in ("park", "garden")
@@ -272,7 +289,7 @@ def pbf_extract():
     rels, member_ids = {}, set()
     for r in osmium.FileProcessor(PBF, osmium.osm.RELATION):
         t = r.tags
-        if not (t.get("building") or t.get("natural") or t.get("leisure") or t.get("landuse")):
+        if not (t.get("building") or t.get("natural") or t.get("leisure") or t.get("landuse") or t.get("name")):
             continue
         tg = tags_of(r)
         if not _rel_cats(tg):
@@ -285,19 +302,23 @@ def pbf_extract():
 
     # pass 2: node locations inside the margin box, plus the street-furniture nodes
     loc = {}
-    props = []
+    props, places = [], []
     for o in osmium.FileProcessor(PBF, osmium.osm.NODE):
         if not o.location.valid():
             continue
         lat, lon = o.location.lat, o.location.lon
         if s <= lat <= n and w <= lon <= e:
             loc[o.id] = (lat, lon)
-            if len(o.tags) and _node_is_prop(tags_of(o)):
-                props.append({"type": "node", "id": o.id, "lat": lat, "lon": lon, "tags": tags_of(o)})
+            if len(o.tags):
+                tg = tags_of(o)
+                if _node_is_prop(tg):
+                    props.append({"type": "node", "id": o.id, "lat": lat, "lon": lon, "tags": tg})
+                if _is_place(tg):
+                    places.append({"type": "node", "id": o.id, "lat": lat, "lon": lon, "tags": tg})
     log(f"{len(loc)} nodes in the box, {len(props)} furniture nodes")
 
     # pass 3: ways
-    out = {"bld": [], "hwy": [], "misc": [], "props": props}
+    out = {"bld": [], "hwy": [], "misc": [], "props": props, "places": places}
     member_geom = {}
 
     def geometry(refs):
@@ -346,7 +367,7 @@ def pbf_extract():
 
 
 def pbf_files():
-    cats = ("misc", "hwy", "bld", "props")
+    cats = ("misc", "hwy", "bld", "props", "places")
     fresh = all(pbf_cache_files(c) for c in cats) and all(
         os.path.getmtime(f) > os.path.getmtime(PBF) for c in cats for f in pbf_cache_files(c))
     if not fresh:

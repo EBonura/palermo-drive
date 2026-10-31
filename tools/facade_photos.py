@@ -4,7 +4,7 @@
     tools/.venv/bin/python tools/facade_photos.py fetch   # download the source photos + licence metadata
     tools/.venv/bin/python tools/facade_photos.py build   # rectify, clean, colour-correct, write textures,
                                                           # assets/facades/photo/map.json, assets/CREDITS.md block
-    tools/.venv/bin/python tools/facade_photos.py shots   # in-game screenshots of the same walls (needs the server)
+    tools/.venv/bin/python tools/facade_photos.py shots [key ...]  # in-game screenshots of the same walls (needs the server)
     tools/.venv/bin/python tools/facade_photos.py sheet   # contact sheet: photo | texture | in-game
 
 Needs numpy, pillow, opencv-python-headless (all in tools/.venv). Photos go to SRC (outside the repo, never executed).
@@ -190,7 +190,7 @@ def correct(img):
     f = img.astype(np.float32) / 255
     # partial gray-world white balance (sun-baked photos are warm)
     m = f.reshape(-1, 3).mean(0); g = m.mean()
-    gain = np.clip((g / m) ** 0.55, .8, 1.25)
+    gain = np.clip((g / m) ** 0.3, .85, 1.2)
     f = f * gain
     # flatten large-scale lighting (sun/shade gradients, sky glow) without touching the detail
     lum = f.mean(2)
@@ -200,9 +200,9 @@ def correct(img):
     # tone: percentile stretch to a mid-key range, slightly desaturated
     lo, hi = np.percentile(f, 1), np.percentile(f, 99.5)
     f = np.clip((f - lo) / max(hi - lo, 1e-3), 0, 1)
-    f = 0.05 + 0.88 * f ** 0.95
+    f = 0.07 + 0.93 * f ** 0.82       # the game's lighting multiplies the texture, so keep it a touch bright
     gray = f.mean(2, keepdims=True)
-    f = gray + (f - gray) * .92
+    f = gray + (f - gray) * 1.0
     return (np.clip(f, 0, 1) * 255).astype(np.uint8)
 
 
@@ -265,7 +265,11 @@ def build():
         p0, p1 = pc0 + xa * (pc1 - pc0), pc0 + xb * (pc1 - pc0)
         fullw, fullh = int(round(wi['L'] * ppm)), int(round(wi['H'] * ppm))
         padl = int(round(p0 * fullw)); padr = max(0, fullw - padl - rect.shape[1]); padb = max(0, fullh - rect.shape[0])
-        full = cv2.copyMakeBorder(rect, 0, padb, padl, padr, cv2.BORDER_REFLECT)
+        full = cv2.copyMakeBorder(rect, 0, 0, padl, padr, cv2.BORDER_REFLECT)       # sides: mirrored facade bays
+        if padb:                                                                  # bottom (cluttered, cropped): smooth plinth wash
+            band = cv2.copyMakeBorder(full, 0, padb, 0, 0, cv2.BORDER_REPLICATE)[-padb - 2:]
+            band = cv2.GaussianBlur(band, (0, 0), sigmaX=full.shape[1] / 40, sigmaY=0.1)
+            full = np.vstack([full, (band[2:] * .9).astype(np.uint8)])
         full = full[:fullh, :fullw]
         sc = min(TEXELS_PER_M, MAX_SIDE / max(wi['L'], wi['H'])) / ppm
         fw, fh = max(4, int(round(fullw * sc / 4)) * 4), max(4, int(round(fullh * sc / 4)) * 4)
@@ -310,20 +314,41 @@ def write_credits(creds):
 
 
 # ---------------------------------------------------------------- in-game shots + contact sheet
+def clear_distance(D, px, pz, n, want):
+    """How far in front of the wall point (px, pz) a camera can stand without a building in between (<= want)."""
+    near = []
+    for b in D['buildings']:
+        xs, zs = b['p'][0::2], b['p'][1::2]
+        if min(xs) - 5 < px + n[0] * want and max(xs) + 5 > px or True:
+            if max(xs) >= min(px, px + n[0] * want) - 2 and min(xs) <= max(px, px + n[0] * want) + 2 and \
+               max(zs) >= min(pz, pz + n[1] * want) - 2 and min(zs) <= max(pz, pz + n[1] * want) + 2:
+                near.append(b['p'])
+    d = 2.0
+    while d < want:
+        if any(point_in(px + n[0] * d, pz + n[1] * d, p) for p in near):
+            return max(d - 1.5, 6.0)
+        d += 1.0
+    return want
+
+
 def shots():
     D = load_data()
     os.makedirs(SHOTS, exist_ok=True)
     for s in SOURCES:
+        if len(sys.argv) > 2 and s['key'] not in sys.argv[2:]:
+            continue
         wi = wall_info(D, s['bid'], s['wall']); b = wi['b']
         c0, c1 = s['cover']
         f = (c0 + c1) / 2
         px = wi['a'][0] + (wi['e'][0] - wi['a'][0]) * f; pz = wi['a'][1] + (wi['e'][1] - wi['a'][1]) * f
-        d = max(wi['L'] * (c1 - c0), wi['H']) * 1.15 + 8
-        # a little off-axis so a corner building doesn't hide it
-        y0 = b['g'] + 5
+        want = max(wi['L'] * (c1 - c0), wi['H']) * 1.15 + 8
+        d = clear_distance(D, px, pz, wi['n'], want)
         cx, cz = px + wi['n'][0] * d, pz + wi['n'][1] * d
+        y0 = b['g'] + (4 if d >= want - .5 else 4 + (want - d) * .5)      # tight street: stand higher and look down
         q = f"campos={cx:.1f},{y0:.1f},{cz:.1f}&look={px:.1f},{b['g'] + wi['H'] * .45:.1f},{pz:.1f}"
         for tag, extra in (('photo', ''), ('proc', '&photomap=none')):   # photomap=none: procedural baseline
+            if os.environ.get('TAGS') and tag not in os.environ['TAGS'].split(','):
+                continue
             out = os.path.join(SHOTS, f"{s['key']}_{tag}.png")
             log('shot', s['key'], tag, q)
             subprocess.run([os.path.join(ROOT, 'tools/shot.sh'), out, q + extra], cwd=ROOT)

@@ -17,6 +17,7 @@ import { createShouts } from './shouts.js';
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
 import { createSea } from './sea.js';
+import { createRadio } from './radio.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -510,6 +511,7 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
+createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
 applySettings();
 document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
