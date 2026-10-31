@@ -1180,7 +1180,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         const bmode = W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || B.railAlt || S.rail || 'rail_a';
         if (kind === 'street' && bmode !== 'none' && bw >= (W.balc ? 2.6 : 2.9) && nUp > 0) {
           if (bmode === 'cont') {
-            for (let f = 1; f <= (W.contFloors || S.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), W.balc ? true : f === 1, Math.max(nb, Math.round((len - 1) / 1.3)), rail);
+            for (let f = 1; f <= (W.contFloors || S.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), (W.balc ? true : f === 1), Math.max(2, Math.round((len - 1) / 2.6)), rail); // [tri budget] slab brackets every 2.6 m, and only on the floor a pedestrian can see
           } else {
             const upper = bmode === 'default' ? hh(ax * 1.3, az * 0.7) < S.balcUpper : bmode === 'every' || bmode === 'alt';
             for (let f = 1; f <= nUp; f++) {
@@ -1202,8 +1202,10 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           gbuf.q([px0, yt, pz0, 0, 0, 1], [px1, yt, pz1, 1, 0, 1], [qx1, yt, qz1, 1, .3, 1], [qx0, yt, qz0, 0, .3, 1], 0, 1, 0, LB, sl);
           gbuf.q([px0, yb, pz0, 0, 0, .5], [px1, yb, pz1, 1, 0, .5], [qx1, yb, qz1, 1, .3, .5], [qx0, yb, qz0, 0, .3, .5], 0, -1, 0, LB, sl);
           gbuf.q([qx0, yb, qz0, 0, 0, .85], [qx1, yb, qz1, 1, 0, .85], [qx1, yt, qz1, 1, .1, .95], [qx0, yt, qz0, 0, .1, .95], nx, 0, nz, LB, sl);
-          gbuf.q([px0, yb, pz0, 0, 0, .8], [qx0, yb, qz0, .3, 0, .8], [qx0, yt, qz0, .3, .1, .9], [px0, yt, pz0, 0, .1, .9], -ux, 0, -uz, LB, sl);
-          gbuf.q([px1, yb, pz1, 0, 0, .8], [qx1, yb, qz1, .3, 0, .8], [qx1, yt, qz1, .3, .1, .9], [px1, yt, pz1, 0, .1, .9], ux, 0, uz, LB, sl);
+          if (w2 < 2.5) { // end caps of a long continuous slab are almost always hidden by the neighbouring wall or too small to read
+            gbuf.q([px0, yb, pz0, 0, 0, .8], [qx0, yb, qz0, .3, 0, .8], [qx0, yt, qz0, .3, .1, .9], [px0, yt, pz0, 0, .1, .9], -ux, 0, -uz, LB, sl);
+            gbuf.q([px1, yb, pz1, 0, 0, .8], [qx1, yb, qz1, .3, 0, .8], [qx1, yt, qz1, .3, .1, .9], [px1, yt, pz1, 0, .1, .9], ux, 0, uz, LB, sl);
+          }
           if (brackets) {
             const offs = nBr ? Array.from({ length: nBr + 1 }, (_, k) => -w2 + 0.3 + (2 * w2 - 0.6) * k / nBr) : [-w2 + 0.25, w2 - 0.25];
             for (const o of offs) {
