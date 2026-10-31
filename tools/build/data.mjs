@@ -65,7 +65,7 @@ function processStreets(S, eps, stats) {
   return out;
 }
 
-function pruneContext(C, log) {
+function pruneContext(C, log, ROOT) {
   return import(pathToFileURL(path.join(ROOT, 'src/context-select.js')).href).then(m => {
     if (!C || !Array.isArray(C.b)) return C;
     const all = m.decodeBuildings(C.b), n0 = all.length;
@@ -111,7 +111,7 @@ export async function buildDataBlobs({ ROOT, OUT, hash, prune = true, simplify =
     globals.PALERMO_DATA = { ...D, streets: processStreets(D.streets, simplify, st) };
     log(`  streets: ${st.before} -> ${st.after} vertices (simplify ${simplify} m, curbs rounded to 0.1 m)`);
   }
-  if (prune && globals.PALERMO_CONTEXT) globals.PALERMO_CONTEXT = await pruneContext(globals.PALERMO_CONTEXT, log);
+  if (prune && globals.PALERMO_CONTEXT) globals.PALERMO_CONTEXT = await pruneContext(globals.PALERMO_CONTEXT, log, ROOT);
 
   fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
   const buf = pack(globals, 'core', log);

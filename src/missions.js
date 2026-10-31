@@ -353,6 +353,51 @@ function build(env) {
       background: rgba(18,10,14,.7); padding: 1px 7px; border-radius: 6px; text-shadow: none; }
     html.pd-title #pm-toparrow { display: none !important; }`;
   document.head.appendChild(topCss);
+  topArrow.style.display = 'none'; // superseded by the 3D arrow below (kept only as a fallback element)
+
+  // 3D guide arrow hovering over the lapa. It points along the computed route ~32 m ahead (so it turns
+  // with the streets), or straight at the target until a route exists. Drawn on top of everything.
+  const arrow3d = new THREE.Group();
+  {
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 1.25); sh.lineTo(0.95, 0.05); sh.lineTo(0.38, 0.05); sh.lineTo(0.38, -1.0);
+    sh.lineTo(-0.38, -1.0); sh.lineTo(-0.38, 0.05); sh.lineTo(-0.95, 0.05); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.28, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 1 });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, 0, 0); // lies flat, tip towards -z after rotateX; flip to +z below
+    geo.rotateY(Math.PI);
+    // outline (inverted hull) first, pink body on top: with depthTest off, draw order decides
+    const mk = (color, scale, side, order) => {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, side, depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 }));
+      m.scale.setScalar(scale); m.renderOrder = order; return m;
+    };
+    arrow3d.add(mk('#120a0e', 1.14, THREE.BackSide, 50), mk('#ff4fa3', 1.0, THREE.FrontSide, 51));
+    arrow3d.scale.setScalar(0.7);
+  }
+  arrow3d.visible = false; arrow3d.renderOrder = 50; scene.add(arrow3d);
+  let arrowYaw = 0, arrowT = 0;
+  const _ad = new THREE.Vector3(), _an = new THREE.Vector3(), _ax = new THREE.Vector3(), _am = new THREE.Matrix4();
+  function updateArrow3d(dt, show, tx, tz) {
+    arrow3d.visible = show;
+    if (!show) return;
+    arrowT += dt;
+    let ax = tx, az = tz;
+    if (route.pts && route.len > 0) { const p = routeAt(Math.min(route.len, route.s0 + 32)); ax = p.x; az = p.z; }
+    const want = Math.atan2(ax - car.x, az - car.z);
+    let d = want - arrowYaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    arrowYaw += d * Math.min(1, dt * 8);
+    arrow3d.position.set(car.x, groundY(car.x, car.z) + (car.lift || 0) + 2.6 + Math.sin(arrowT * 3) * 0.1, car.z);
+    // Face the camera (y axis = towards the eye) and turn the chevron within that plane towards the route
+    // heading projected onto it: straight on points up, a left turn points left, behind points down.
+    // A flat arrow pointing along the road is foreshortened to a bar from the chase camera; this never is.
+    _ad.set(Math.sin(arrowYaw), 0, Math.cos(arrowYaw));
+    _an.copy(camera.position).sub(arrow3d.position).normalize();
+    _ad.addScaledVector(_an, -_ad.dot(_an));
+    if (_ad.lengthSq() < 1e-6) _ad.set(0, 1, 0).addScaledVector(_an, -_an.y); // heading straight at the camera
+    _ad.normalize();
+    _ax.crossVectors(_an, _ad);
+    _am.makeBasis(_ax, _an, _ad);
+    arrow3d.quaternion.setFromRotationMatrix(_am);
+  }
   let guideOn = false;
   function guideTo(x, z) { guideOn = true; if (Math.hypot(x - route.tx, z - route.tz) > 1) { route.tx = x; route.tz = z; route.cool = 0; route.pts = null; } }
   function guideOff() { guideOn = false; clearRoute(); }
@@ -733,12 +778,12 @@ function build(env) {
   function updateHud(dt) {
     const f = S.fare, on = S.mode === 'turisti';
     hud.classList.toggle('on', on);
-    if (!on) return;
+    if (!on) { arrow3d.visible = false; return; }
     let tx = 0, tz = 0, show = false;
     if (f && (S.phase === 'seek' || S.phase === 'board')) { tx = f.pick.x; tz = f.pick.z; show = true; }
     else if (f && S.phase === 'ride') { tx = f.dest.x; tz = f.dest.z; show = true; }
     // compass in the card plus the big arrow at the top of the screen
-    topArrow.classList.toggle('on', show && S.phase !== 'board');
+    updateArrow3d(dt, show && S.phase !== 'board', tx, tz);
     if (show) {
       const brg = Math.atan2(tx - car.x, tz - car.z);
       camera.getWorldDirection(_d);

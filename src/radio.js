@@ -230,11 +230,11 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 .pd-radio-btn .pd-slash { display: none; stroke: #e8559a; stroke-width: 3; }
 .pd-radio-btn.off { opacity: .7; box-shadow: inset 0 0 0 2px rgba(255,255,255,.4); }
 .pd-radio-btn.off .pd-slash { display: block; }
-.pd-radio-toast { position: fixed; z-index: 505; top: calc(max(8px, env(safe-area-inset-top)) + 58px + clamp(64px, 13vh, 92px)); /* below the taxi direction arrow */ left: 50%; transform: translate(-50%, -8px);
+.pd-radio-toast { position: fixed; z-index: 505; top: max(8px, env(safe-area-inset-top)); /* top-left; JS moves it under the mission panel */ left: max(10px, env(safe-area-inset-left)); transform: translate(0, -8px);
   width: max-content; max-width: min(340px, 64vw); box-sizing: border-box; padding: 7px 12px 8px 11px; border-radius: 9px; pointer-events: none;
   background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff; opacity: 0;
   font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .35s, transform .35s; }
-.pd-radio-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.pd-radio-toast.on { opacity: 1; transform: translate(0, 0); }
 .pd-radio-toast small { display: block; font: 800 9.5px/1 system-ui, -apple-system, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e8559a; margin-bottom: 3px; }
 .pd-radio-toast b { display: block; font-weight: 800; font-size: 14px; overflow-wrap: anywhere; }
 .pd-radio-toast span { display: block; font-weight: 500; font-size: 11.5px; opacity: .78; margin-top: 1px; overflow-wrap: anywhere; }
@@ -247,18 +247,23 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   document.body.appendChild(toast);
   let toastTimer = 0;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Keep the toast in the top-left corner, below the taxi mission panel when that's on screen.
+  function placeToast() {
+    const hud = document.querySelector('#pm-hud.on');
+    toast.style.top = hud ? `${Math.round(hud.getBoundingClientRect().bottom + 8)}px` : '';
+  }
   function hideToast() { clearTimeout(toastTimer); toast.classList.remove('on'); pendingToast = null; }
   function showToast(track) {
     if (game?.state !== 'play') { pendingToast = track; return; }   // the title and menus stay quiet; show it once driving
     pendingToast = null;
     toast.innerHTML = `<small>${T.now[lang()]}</small><b>${esc(track.title)}</b><span>${esc(track.by)} · ${esc(track.lic)}</span>`;
-    toast.classList.add('on');
+    placeToast(); toast.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), TOAST_MS);
   }
   function flash(msg) {
     if (game?.state !== 'play') return;
     toast.innerHTML = `<small>FM Palermo</small><b>${esc(msg[lang()])}</b>`;
-    toast.classList.add('on');
+    placeToast(); toast.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 1800);
   }
 

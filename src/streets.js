@@ -70,13 +70,13 @@ export const TEX = {
 // Triangulated street polygons have long triangles that would cut through the terrain between
 // their corners; split them until every edge is short enough to follow the lidar ground.
 const DRAPE_MAX = 5;
-function drape(buf, a, b, c, lift, col, m, depth = 0) {
+function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
   const ab = a.distanceTo(b), bc = b.distanceTo(c), ca = c.distanceTo(a), longest = Math.max(ab, bc, ca);
-  if (longest > DRAPE_MAX && depth < 8) {
+  if (longest > max && depth < 8) {
     // split the longest edge; winding is preserved in both halves
-    if (longest === ab) { const d = a.clone().lerp(b, 0.5); drape(buf, a, d, c, lift, col, m, depth + 1); drape(buf, d, b, c, lift, col, m, depth + 1); }
-    else if (longest === bc) { const d = b.clone().lerp(c, 0.5); drape(buf, a, b, d, lift, col, m, depth + 1); drape(buf, a, d, c, lift, col, m, depth + 1); }
-    else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, depth + 1); drape(buf, d, b, c, lift, col, m, depth + 1); }
+    if (longest === ab) { const d = a.clone().lerp(b, 0.5); drape(buf, a, d, c, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
+    else if (longest === bc) { const d = b.clone().lerp(c, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, a, d, c, lift, col, m, max, depth + 1); }
+    else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     return;
   }
   for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, col, p.x / m, p.y / m);
@@ -103,7 +103,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 
 // opts: layers (names to build, default all of LAYERS), curbs (default true), offset (depth offset for streamed tiles).
 export function* streetsIter(streets, group, opts = {}) {
-  const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset;
+  const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
   for (const layer of layers) {
     const polys = streets[layer];
@@ -119,7 +119,7 @@ export function* streetsIter(streets, group, opts = {}) {
       for (const t of tris3) {
         let [a, b, c] = t.map(i => all[i]);
         if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
-        drape(buf, a, b, c, lift, WHITE, m);
+        drape(buf, a, b, c, lift, WHITE, m, dmax);
       }
       if ((++n & 7) === 0) yield;
     }
