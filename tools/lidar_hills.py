@@ -73,6 +73,8 @@ def fetch(threads=6):
     cand = candidates()
     done = _load()
     todo = [c for c in cand if f"{c[0]},{c[1]}" not in done]
+    # Monte Pellegrino first (the owner's worst case), then outwards, so a run that is stopped early still has the mountain
+    todo.sort(key=lambda c: (c[0] * STEP + 500.0) ** 2 + (c[1] * STEP + 5400.0) ** 2)
     print(f"{len(cand)} lattice points need a query, {len(todo)} still to do", flush=True)
     lock = threading.Lock()
     t0 = time.time()
