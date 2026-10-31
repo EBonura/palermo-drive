@@ -119,6 +119,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
   // Instantiated with the full-detail tile that contains (x, z), their skipIds left out of that tile's generic buildings, disposed with the tile.
+  // per-tile hooks for the modules that live on full-detail tiles (traffic, pedestrians, props, road wear, minimap):
+  // fn('full', t) once a tile is at full detail (t.i, t.j, t.k, t.data), fn('drop', t) just before it leaves full detail
+  const tileFns = new Set(), fullSet = new Set();
+  const emit = (kind, t) => { if (kind === 'full') { if (fullSet.has(t)) return; fullSet.add(t); } else if (!fullSet.delete(t)) return; for (const f of tileFns) { try { f(kind, t); } catch (e) { console.error('[world] tile hook', e); } } };
   let CITY = [];
   import('./landmarks-city.js').then(m => { CITY = m.CITY_LANDMARKS || []; }).catch(e => console.warn('city landmarks', e));
   const cityIn = t => CITY.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j);
@@ -710,8 +714,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'bldFull', bg);
     setPart(t, 'bldLow', null);
     t.lod = 2;
+    emit('full', t);
   }
   function* downgrade(t) {
+    emit('drop', t);
     setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
@@ -724,6 +730,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     stash(t);
   }
   function release(t) {
+    emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);
@@ -834,6 +841,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     },
     bind(b) { binding = b; applyAt(); },
     // Move the player somewhere far: stream the destination in first, then place the car (placeAt snaps to the nearest road vertex).
+    onTile(fn) { tileFns.add(fn); for (const t of fullSet) fn('full', t); return () => tileFns.delete(fn); },
+    fullTiles() { return [...fullSet]; },
     teleport(x, z, done) { tele = { x, z, done }; wantedTimer = 99; },
     update(dt, cam) {
       if (!M) { if (tasks.length) runTasks(CFG.budgetMs); return; }
