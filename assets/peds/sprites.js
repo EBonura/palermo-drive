@@ -9,7 +9,7 @@ const hx = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parse
 const sh = (c, k) => { const [r, g, b] = hx(c); const f = v => Math.max(0, Math.min(255, Math.round(v * k))); return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join(''); };
 
 // ---------- the cast ----------
-// leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe.
+// leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe. Night extras: drink {type,col}, headphones, pocket, sparkle, hat types cap/hood, pair [a, b] (a couple).
 // the "falsi invalidi" gag: a tracksuit man in a wheelchair who leaps up and sprints off when the lapa comes near
 const TRACK = { tw: 13, skin: '#c99872', hair: '#6b645c', hairStyle: 'short', glasses: '#18161a', top: '#b83a2c', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#b83a2c', stripe: '#f0eee8' }, shoes: '#f0eee8' };
 export const VARIANTS = [
@@ -65,6 +65,25 @@ export const VARIANTS = [
   { id: 'wheelchair', ...TRACK, leg: 14, chair: true, speed: 1.0 },
   { id: 'healed', ...TRACK, run: true, speed: 2.6 },
   { id: 'chair_empty', chair: 'empty', leg: 14, top: '#000', skin: '#000', hair: '#000', bottom: { type: 'trousers', col: '#2c3a55' }, shoes: '#000' },
+  // ---- the night (src/pedestrians.js swaps the crowd mix after dark): young people with drinks, a DJ-ish guy, couples
+  { id: 'nightboy', skin: '#d0a081', hair: '#1a1512', hairStyle: 'fade', top: '#1f2330', sleeve: 'short', chain: '#d9b44a', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#f0eee8', drink: { type: 'bottle', col: '#3f7a3a' }, speed: 1.0 },
+  { id: 'nightboy2', skin: '#c99872', hair: '#2a1c14', hairStyle: 'quiff', top: '#f0eee8', sleeve: 'long', bottom: { type: 'trousers', col: '#4b6a96' }, shoes: '#6b4a30', drink: { type: 'glass', col: '#ee7a2a' }, speed: 1.0 },
+  { id: 'nightgirl', skin: '#e0ae8c', hair: '#2a1a14', hairStyle: 'long', top: '#d9443c', sleeve: 'short', bottom: { type: 'skirt', col: '#1d1d24', len: 9 }, legCol: '#e0ae8c', shoes: '#17151a', drink: { type: 'glass', col: '#ee7a2a' }, speed: 1.0 },
+  { id: 'nightgirl2', skin: '#d9a98a', hair: '#c8a03a', hairStyle: 'long', top: '#2f6bb0', sleeve: 'short', bottom: { type: 'trousers', col: '#17151a' }, shoes: '#f0eee8', drink: { type: 'glass', col: '#c8e07a' }, speed: 1.0 },
+  { id: 'nightgirl3', skin: '#cf9d7c', hair: '#3a2418', hairStyle: 'bun', top: '#e87aa0', sleeve: 'short', bottom: { type: 'skirt', col: '#f0eee8', len: 10 }, legCol: '#cf9d7c', shoes: '#f0eee8', drink: { type: 'bottle', col: '#8a5a2a' }, speed: 1.0 },
+  { id: 'dj', skin: '#c99872', hair: '#17120f', hairStyle: 'short', hat: { type: 'cap', col: '#17151a', back: true }, headphones: '#d9443c', glasses: '#18161a', top: '#17151a', sleeve: 'short', chain: '#d9b44a', bottom: { type: 'trousers', col: '#3a3a44' }, shoes: '#f0eee8', speed: 1.0 },
+  { id: 'couple', pair: [
+      { tw: 9, hw: 9, skin: '#d0a081', hair: '#1a1512', hairStyle: 'short', top: '#2f6b49', sleeve: 'short', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#eeeeee' },
+      { tw: 9, hw: 9, leg: 17, tor: 13, skin: '#e0ae8c', hair: '#2a1a14', hairStyle: 'long', top: '#e87aa0', sleeve: 'short', bottom: { type: 'skirt', col: '#35527d', len: 9 }, legCol: '#e0ae8c', shoes: '#f0eee8' }], leg: 19, speed: 0.8 },
+  { id: 'couple2', pair: [
+      { tw: 9, hw: 9, skin: '#c99872', hair: '#2a1c14', hairStyle: 'quiff', top: '#d9d4c6', sleeve: 'long', bottom: { type: 'trousers', col: '#35527d' }, shoes: '#6b4a30' },
+      { tw: 9, hw: 9, leg: 17, tor: 13, skin: '#d9a98a', hair: '#c8a03a', hairStyle: 'long', top: '#4fa9a0', sleeve: 'short', bottom: { type: 'trousers', col: '#17151a' }, shoes: '#f0eee8' }], leg: 19, speed: 0.8 },
+  // ---- scripted night characters (never in the crowd): the hooded guy of the Easter egg, the client of "A Favorita", the glam night folk of the avenue
+  { id: 'hooded', skin: '#c99872', hair: '#17120f', hat: { type: 'hood', col: '#2b2d36' }, top: '#2b2d36', sleeve: 'long', pocket: true, bottom: { type: 'trousers', col: '#17151a' }, shoes: '#f0eee8', speed: 1.1 },
+  { id: 'client', stoop: 1, skin: '#d4a584', hair: '#2a2420', hat: { type: 'straw', col: '#4a443a', col2: '#17151a' }, bigGlasses: '#0c0c10', top: '#b7a98a', collar: '#d8c9a2', sleeve: 'long', belt: '#6a5a3a', briefcase: '#17151a', bottom: { type: 'robe', col: '#b7a98a' }, shoes: '#2a2018', speed: 0.95 },
+  { id: 'glam1', skin: '#e0ae8c', hair: '#e6c34a', hairStyle: 'long', bigGlasses: '#18161a', top: '#c9ccd8', sparkle: '#ffffff', sleeve: 'short', bottom: { type: 'skirt', col: '#c9ccd8', len: 15 }, legCol: '#e0ae8c', shoes: '#d9443c', purse: '#d9443c', speed: 0.9 },
+  { id: 'glam2', skin: '#c99872', hair: '#17120f', hairStyle: 'long', top: '#d9443c', sparkle: '#ffd24a', sleeve: 'long', scarf: ['#f0eee8', '#e8559a'], bottom: { type: 'skirt', col: '#d9443c', len: 14 }, legCol: '#c99872', shoes: '#17151a', purse: '#17151a', speed: 0.9 },
+  { id: 'glam3', skin: '#d9a98a', hair: '#e8559a', hairStyle: 'long', glasses: '#18161a', top: '#d9b44a', sparkle: '#fff4e0', sleeve: 'short', chain: '#ffffff', bottom: { type: 'trousers', col: '#f0eee8' }, shoes: '#7a3ab8', speed: 0.9 },
 ];
 // Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
 const W = {
@@ -77,7 +96,22 @@ const W = {
   wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0],
   scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
 };
-VARIANTS.forEach(v => { v.w = W[v.id] || [1, 1, 1, 1, 1]; });
+// Zones: [vicoli, main street, market, tourist, match-day, movida]. Zone 5 only exists after dark (Sant'Anna, Vucciria).
+// The night entries of W are the DAY weights of the night-only characters: zero. Their night weights are in NW below.
+Object.assign(W, { nightboy: [0, 0, 0, 0, 0], nightboy2: [0, 0, 0, 0, 0], nightgirl: [0, 0, 0, 0, 0], nightgirl2: [0, 0, 0, 0, 0], nightgirl3: [0, 0, 0, 0, 0], dj: [0, 0, 0, 0, 0], couple: [0, 0, 0, 0, 0], couple2: [0, 0, 0, 0, 0],
+  hooded: [0, 0, 0, 0, 0], client: [0, 0, 0, 0, 0], glam1: [0, 0, 0, 0, 0], glam2: [0, 0, 0, 0, 0], glam3: [0, 0, 0, 0, 0] });
+const NW = { nightboy: [3, 5, 3, 3, 2, 14], nightboy2: [3, 5, 3, 3, 2, 12], nightgirl: [3, 5, 3, 3, 2, 14], nightgirl2: [3, 5, 3, 3, 2, 12], nightgirl3: [2, 4, 2, 2, 2, 8], dj: [0, 0.3, 0, 0, 0, 1.2], couple: [2, 3, 1, 3, 1, 6], couple2: [2, 3, 1, 3, 1, 6] };
+// everyone else after dark: day weight times this (default 1); vendors have gone home, tourists thin out
+const NIGHT_MULT = { vendor: 0, vendor2: 0, fruttivendolo: 0, pescivendolo: 0, macellaio: 0, scuola: 0, tourist: 0.3, tourist2: 0.3, beach_m: 0.1, beach_w: 0.1, kid: 0.1, kid2: 0.1, mamma: 0.15,
+  nonna: 0.25, nonna2: 0.25, nonna3: 0.25, nonno: 0.4, nonno_gilet: 0.4, coppola: 0.5, coppola2: 0.5, priest: 0.1, suora: 0.05, vigile: 0.2, suit: 0.3, suit2: 0.3, borsa: 0.8, signora: 0.7, signora2: 0.7,
+  shopper: 0.4, tifoso: 0.5, tifoso2: 0.5, tifosa: 0.5, tifoso_kid: 0.1, tifoso_nonno: 0.3, cameriere: 2, teen: 1.6, teen2: 1.6, ragazzo: 1.6, ragazzo2: 1.6, skinny: 1.8, tuta: 1.6, motorino: 1.5, motorina: 1.5,
+  carabiniere: 1.2, wheelchair: 0.1 };
+const Z5 = { teen: 5, teen2: 5, ragazzo: 5, ragazzo2: 5, skinny: 5, tuta: 3, motorina: 2, motorino: 2, borsa: 2, shopper: 1, cameriere: 1.5, tourist: 1, tourist2: 1, carabiniere: 0.5, signora: 0.5, signora2: 0.5 };
+VARIANTS.forEach(v => {
+  const w = W[v.id] || [1, 1, 1, 1, 1];
+  v.w = [...w, w[3]];                                                    // by day
+  v.wn = NW[v.id] || w.map((x, z) => x * (NIGHT_MULT[v.id] ?? 1)).concat([Z5[v.id] || 0]);   // after dark
+});
 export const ROWS = VARIANTS.length;
 
 // ---------- drawing ----------
@@ -150,6 +184,9 @@ function figure(g, v, dir, pose) {
       P(aLx + 3, headTop + head - 5, 3, 5, '#202026'); P(aLx + 4, headTop + head - 4, 1, 3, v.phone);
     } else arm(aLx, aL, -1);
     arm(aRx, aR, 1);
+    if (v.drink) { const d = v.drink; if (d.type === 'bottle') { P(aRx + 1, shY + armH - 8, 2, 8, d.col); P(aRx + 1, shY + armH - 11, 2, 3, sh(d.col, 1.35)); P(aRx + 1, shY + armH - 6, 2, 2, '#f0eee8'); } else { P(aRx, shY + armH - 6, 4, 6, d.col); P(aRx, shY + armH - 7, 4, 1, '#f0eee8'); P(aRx + 1, shY + armH - 5, 1, 3, sh(d.col, 1.3)); } }
+    if (v.pocket && !back) P(x0 + 2, shY + tor - 5, tw - 4, 3, sh(top, 0.78));
+    if (v.sparkle) { for (let k = 0; k < 7; k++) P(x0 + 1 + ((k * 5) % (tw - 2)), shY + 1 + ((k * 7) % (tor - 1)), 1, 1, v.sparkle); if (isSkirt) for (let k = 0; k < 5; k++) P(x0 - 1 + ((k * 7) % (tw + 2)), hipY + 2 + k * 2, 1, 1, v.sparkle); }
     if (v.briefcase) { P(aRx - 1, shY + armH, 5, 5, v.briefcase); P(aRx, shY + armH - 1, 3, 1, sh(v.briefcase, 0.6)); }
     if (v.bag) { P(aLx - 1, shY + armH - 1, 5, 7, v.bag); P(aLx, shY + armH - 2, 3, 1, sh(v.bag, 0.6)); P(aLx + 1, shY + armH + 1, 2, 3, sh(v.bag, 1.3)); }
     if (v.tote) { P(aLx - 1, shY + armH - 1, 5, 8, v.tote); P(aLx, shY + armH - 2, 3, 1, sh(v.tote, 0.6)); P(aLx + 1, shY + armH + 1, 3, 1, '#a8442c'); }
@@ -249,6 +286,8 @@ function figure(g, v, dir, pose) {
     // near arm in front of the torso
     if (v.phone) { limb(P, hipX, shY + 2, hipX - 4, shY + 7, 3, top); P(hipX - 5, shY + 1, 3, 4, skin); P(hx0 - 3, ey + 1, 3, 4, '#202026'); P(hx0 - 3, ey + 2, 1, 2, v.phone); P(hx0 - 2, shY - 1, 1, 1, skinD); }
     else sideArm(armHandN, false);
+    if (v.drink) { const d = v.drink, bx = armHandN - 3; if (d.type === 'bottle') { P(bx, shY + armH - 8, 2, 8, d.col); P(bx, shY + armH - 11, 2, 3, sh(d.col, 1.35)); } else { P(bx, shY + armH - 6, 4, 6, d.col); P(bx, shY + armH - 7, 4, 1, '#f0eee8'); } }
+    if (v.sparkle) for (let k = 0; k < 5; k++) P(tx0 + 1 + ((k * 3) % Math.max(1, torW - 2)), shY + 1 + ((k * 7) % (tor - 1)), 1, 1, v.sparkle);
     if (v.bag) { const bx = armHandN - 2; P(bx, shY + armH, 6, 7, v.bag); P(bx + 1, shY + armH - 1, 4, 1, sh(v.bag, 0.6)); P(bx + 2, shY + armH + 2, 2, 3, sh(v.bag, 1.3)); }
     if (v.tote) { const bx = armHandN - 3; P(bx, shY + armH - 1, 7, 8, v.tote); P(bx + 1, shY + armH - 2, 5, 1, sh(v.tote, 0.6)); P(bx + 1, shY + armH + 2, 4, 1, '#a8442c'); }
     if (v.briefcase) { const bx = armHandN - 3; P(bx, shY + armH, 7, 5, v.briefcase); P(bx + 2, shY + armH - 1, 3, 1, sh(v.briefcase, 0.6)); }
@@ -294,6 +333,11 @@ function limb(P, x0, y0, x1, y1, w, c) {
 }
 
 function hats(g, v, dir, hx0, hw, headTop, head, P, back) {
+  if (v.headphones) { // DJ headphones: band over the head, one cup on each ear
+    const hc = v.headphones, sd = dir === LEFT || dir === RIGHT;
+    if (sd) { P(hx0 + hw - 4, headTop + 3, 4, 5, hc); P(hx0 + 1, headTop - 1, hw - 2, 1, hc); }
+    else { P(hx0 - 2, headTop + 3, 3, 5, hc); P(hx0 + hw - 1, headTop + 3, 3, 5, hc); P(hx0 - 1, headTop - 1, hw + 2, 1, hc); }
+  }
   const h = v.hat; if (!h) return;
   const c = h.col, d = sh(c, 0.75), side = dir === LEFT || dir === RIGHT;
   if (h.type === 'flatcap') {
@@ -308,6 +352,13 @@ function hats(g, v, dir, hx0, hw, headTop, head, P, back) {
   } else if (h.type === 'helmet') {
     if (side) { P(hx0, headTop - 1, hw + 2, 5, c); P(hx0 + 1, headTop - 1, hw - 1, 1, sh(c, 1.1)); P(hx0 - 1, headTop + 2, 3, 1, '#2a2a30'); P(hx0 + hw - 2, headTop + 4, 3, 3, d); }
     else { P(hx0 - 1, headTop - 1, hw + 2, 5, c); P(hx0, headTop - 1, hw, 1, sh(c, 1.1)); if (!back) P(hx0, headTop + 3, hw, 1, '#2a2a30'); }
+  } else if (h.type === 'cap') {
+    if (side) { P(hx0, headTop - 1, hw + 1, 4, c); if (h.back) P(hx0 + hw - 1, headTop + 1, 4, 1, d); else P(hx0 - 3, headTop + 2, 4, 1, d); }
+    else { P(hx0 - 1, headTop - 1, hw + 2, 4, c); P(hx0 + 1, headTop - 1, hw - 2, 1, sh(c, 1.3)); if (!back && !h.back) P(hx0, headTop + 3, hw, 1, d); }
+  } else if (h.type === 'hood') {   // hood up, face in shadow
+    if (side) { P(hx0 - 1, headTop - 2, hw + 3, head + 2, c); P(hx0 - 1, headTop + 2, 3, 4, sh(c, 0.4)); P(hx0 - 1, headTop - 2, hw + 3, 1, sh(c, 1.25)); }
+    else if (back) { P(hx0 - 2, headTop - 2, hw + 4, head + 3, c); P(hx0 - 2, headTop - 2, hw + 4, 1, sh(c, 1.25)); }
+    else { P(hx0 - 2, headTop - 2, hw + 4, 5, c); P(hx0 - 2, headTop + 2, 3, head, c); P(hx0 + hw - 1, headTop + 2, 3, head, c); P(hx0 + 1, headTop + 2, hw - 2, 3, sh(c, 0.38)); P(hx0 - 2, headTop - 2, hw + 4, 1, sh(c, 1.25)); }
   } else if (h.type === 'scarf') {
     if (side) { P(hx0 - 1, headTop - 1, hw + 1, 4, c); P(hx0 + hw - 4, headTop - 1, 5, head + 2, c); }
     else { P(hx0 - 1, headTop - 1, hw + 2, back ? head : 5, c); if (h.col2 && !back) P(hx0, headTop + 3, hw, 1, h.col2); P(hx0 - 1, headTop + 3, 2, 6, c); P(hx0 + hw - 1, headTop + 3, 2, 6, c); if (!back) { P(hx0 + 2, headTop + 3, 2, 1, v.hair); P(hx0 + hw - 4, headTop + 3, 2, 1, v.hair); } }
@@ -322,7 +373,10 @@ function cell(v, dir, pose) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, CELL_W, CELL_H);
   if (dir === RIGHT) { g.translate(CELL_W, 0); g.scale(-1, 1); }
   const dd = dir === RIGHT ? LEFT : dir;
-  if (v.chair !== 'empty') figure(g, v, dd, pose);
+  if (v.pair) { // a couple: two small figures side by side, walking out of step
+    const sw = p => (p === 1 ? 3 : p === 3 ? 1 : p);
+    g.save(); g.translate(-4, 0); figure(g, v.pair[0], dd, pose); g.translate(8, 0); figure(g, v.pair[1], dd, sw(pose)); g.restore();
+  } else if (v.chair !== 'empty') figure(g, v, dd, pose);
   if (v.chair) chairParts(g, v, dd, pose);
   g.setTransform(1, 0, 0, 1, 0, 0);
   const img = g.getImageData(0, 0, CELL_W, CELL_H), d = img.data, W = CELL_W, H = CELL_H;
