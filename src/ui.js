@@ -475,7 +475,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
 
   // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js), with a slowly turning close view of the vehicle ----
-  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang, onExit: () => goBack() });
+  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang, onExit: () => goBack(), placeAt, proj });
   const flyCam = game.titleCam;
   const garageCam = (cam, sec) => garageUI.cam(cam, sec);
 
