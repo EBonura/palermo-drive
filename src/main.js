@@ -14,6 +14,7 @@ import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
+import { createRoadWear } from './roadwear.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -361,6 +362,8 @@ const shouts = createShouts(camera);
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout };
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
+// Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
+const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
 
 // ---------- minimap ----------
@@ -466,6 +469,7 @@ function applySettings() {
   vehicle.setVolume?.(st.volume);
   pedestrians.setQuality?.(st.quality);
   traffic.setQuality?.(st.quality);
+  roadwear.setQuality?.(st.quality);
 }
 const params = new URLSearchParams(location.search);
 // Screenshot/debug links skip the title screen.
@@ -483,10 +487,11 @@ const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (game.state === 'play') {
-    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
+    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
+  roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
 

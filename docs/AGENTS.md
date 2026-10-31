@@ -21,6 +21,7 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/pedestrians.js`, `assets/peds/` (and removing the static pedestrians from `src/props.js`) | pedestrian agent |
 | `src/missions.js`, `assets/missions/`, plus small additions to `src/pedestrians.js` (scripted characters) and `src/ui.js` (menu entries, copy/tone) | missions agent |
 | `server/`, `src/net.js`, plus a small model-builder export in `src/vehicle.js` | multiplayer agent |
+| `src/roadwear.js`, `assets/roadwear/`, plus small additions to `src/vehicle.js` (bump/jolt input, skid state) | road-wear agent |
 
 If you need something changed in a file you don't own (a new helper in core.js, a new field in the
 baked data), say so in your final report instead of editing it. You may copy small helpers into your own module.
