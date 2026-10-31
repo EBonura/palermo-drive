@@ -120,3 +120,10 @@ coast. Everything is baked into square tiles that the game streams around the ca
   `--out DIR` bakes elsewhere, `--publish-from DIR` installs an existing stage, `--tiles i_j,i_j` (with `--out`) bakes a few tiles for
   debugging. A stage can be tried in the game with `?worldurl=/data/world_stage/` before publishing. Never run `tiles.py` bare
   while the game is served: it empties `world/tiles/` first.
+
+## Ground update (see docs/faithfulness/ground.md)
+
+- bbox is now south 38.045, west 13.235, north 38.230, east 13.455 (the whole comune, 1119 tiles).
+- `areas[].k` also has `scrub, grass, rock, farm, orchard, cemetery, rail, dirt, pitch` (terrain tint only).
+- `roads[]` carry `o` (one-way 1/-1), `l`, `ms`, `j` as in bake.py, plus `cw` (real carriageway width).
+- Full-detail tiles build a `paint` part (`roadMarksIter` in src/streets.js: lane lines, edge lines, zebras), skipped inside the centro AOI.
