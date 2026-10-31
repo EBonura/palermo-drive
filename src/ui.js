@@ -4,7 +4,7 @@
 // units: 'kmh'|'mph', camera: 0..3 }) and then call applySettings().
 //
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
-// opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the pause menu, ?tt=SECONDS shifts the title flyover, ?lang=en|it.
+// opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the pause menu, ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES).
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -29,8 +29,10 @@ const S = {
   volume: ['Volume', 'Volume'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
-  cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cofano', 'Bonnet'], cam3: ['Dall\'alto', 'Top-down'],
+  cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
+  garage: ['La tua lapa', 'Your lapa'],
+  pickLivery: ['Scegli la livrea', 'Choose a livery'],
   pauseBtn: ['Pausa', 'Pause'],
   fullscreen: ['Schermo intero', 'Fullscreen'],
   credCreated: ['Creato da', 'Created by'],
@@ -202,10 +204,16 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
   if (Number.isFinite(saved.volume)) st.volume = clamp(saved.volume, 0, 1);
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
+  let livery = typeof saved.livery === 'string' ? saved.livery : null;
   let lang = ['it', 'en'].includes(params.get('lang')) ? params.get('lang') : ['it', 'en'].includes(saved.lang) ? saved.lang : 'it';
-  const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang })); } catch (e) { /* storage unavailable: fine */ } };
+  const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang, livery })); } catch (e) { /* storage unavailable: fine */ } };
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const baseFov = camera.fov;
+
+  if (params.has('fakeliv') && vehicle && !vehicle.LIVERIES) { // test stub until vehicle.js ships its own
+    vehicle.LIVERIES = [{ id: 'a', name_it: 'Crema e rosso', name_en: 'Cream and red' }, { id: 'b', name_it: 'Arancio', name_en: 'Orange' }, { id: 'c', name_it: 'Blu mare', name_en: 'Sea blue' }];
+    vehicle.setLivery = () => {};
+  }
 
   // ---- DOM ----
   const ui = h('div', '', null, { id: 'pd-ui' });
@@ -225,6 +233,7 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
+      <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav>
     <div class="pd-foot">Map data © OpenStreetMap contributors (ODbL) · Lidar © MASE Geoportale Nazionale (CC BY 4.0)</div>`);
@@ -268,6 +277,12 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
 
+  mk('garage', '', `<div class="pd-card pd-garage">
+      <h2 class="pd-h" data-k="garage" data-two></h2>
+      <div class="pd-stack pd-liveries"></div>
+      <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
+    </div>`);
+
   const pauseBtn = h('button', 'pd-pausebtn', ICON_PAUSE, { type: 'button', 'aria-label': 'Pausa / Pause' });
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
@@ -285,7 +300,8 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     const i = lang === 'it' ? 0 : 1;
     for (const e of ui.querySelectorAll('[data-k]')) {
       const s = S[e.dataset.k]; if (!s) continue;
-      e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
+      if (e.hasAttribute('data-sub')) e.innerHTML = `<span class="pd-l1">${esc(e.dataset.sub)}</span><span class="pd-l2">${esc(s[i])}</span>`;
+      else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
     }
     root.lang = lang;
     pauseBtn.setAttribute('aria-label', S.pauseBtn.join(' / '));
@@ -307,12 +323,14 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     if (cur && push) stack.push(cur);
     if (!push && !back) stack = [];
     if (cur) { const a = document.activeElement; if (a && screens[cur].contains(a)) lastFocus[cur] = a; }
+    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : flyCam;
     cur = name;
     for (const k in screens) screens[k].classList.toggle('on', k === name);
     lockUntil = now() + 260;
     syncState();
     if (name) {
       if (name === 'options') syncOptions();
+      if (name === 'menu' || name === 'garage') renderLiveries();
       let want = lastFocus[name];
       if (!want || !want.isConnected) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
       if (want && name !== 'title') want.focus({ preventScroll: true });
@@ -382,7 +400,7 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     if (busy) return; busy = true;
     fade.classList.add('on');
     setTimeout(() => {
-      game.state = 'title'; stack = []; go('menu'); fade.classList.remove('on'); busy = false;
+      placeAt(...proj(SPOTS[0][1], SPOTS[0][2])); game.state = 'title'; stack = []; go('menu'); fade.classList.remove('on'); busy = false;
     }, 420);
   }
   function restartAt(i) {
@@ -405,6 +423,7 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
       case 'drive': return drive();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
+      case 'garage': return go('garage', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
       case 'spots': return go('spots', { push: true });
@@ -412,11 +431,50 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     }
   }
 
+  // ---- garage: livery choice with a slowly turning close view of the lapa ----
+  // vehicle.LIVERIES / vehicle.setLivery come from vehicle.js and may arrive late: everything is guarded and re-checked.
+  const garageBtn = ui.querySelector('[data-garage]'), liveryBox = screens.garage.querySelector('.pd-liveries');
+  let liveryDone = false, liverySig = '';
+  const liveries = () => (vehicle && Array.isArray(vehicle.LIVERIES) ? vehicle.LIVERIES : []);
+  function renderLiveries() {
+    const list = liveries(), sig = list.map(l => l.id).join('|');
+    garageBtn.hidden = !(list.length && vehicle.setLivery);
+    if (sig === liverySig) return;
+    liverySig = sig;
+    if (!liveryDone && list.length) { // first time we see the list: apply the saved choice (or keep the default)
+      liveryDone = true;
+      if (livery && list.some(l => l.id === livery)) vehicle.setLivery?.(livery); else livery = null;
+    }
+    liveryBox.innerHTML = list.map(l => `<button class="pd-btn sm pd-liv" data-nav data-liv="${esc(l.id)}" aria-pressed="false" type="button"${l.color ? ` style="--sw:${esc(l.color)}"` : ''}><span class="pd-in"><span class="pd-l1">${esc(l.name_it)}</span><span class="pd-l2">${esc(l.name_en)}</span></span></button>`).join('');
+    markLivery(); applyLiveryLang();
+  }
+  function applyLiveryLang() { // primary language first, as everywhere else
+    const i = lang === 'it' ? 0 : 1, byId = Object.fromEntries(liveries().map(l => [l.id, l]));
+    for (const b of liveryBox.querySelectorAll('[data-liv]')) {
+      const l = byId[b.dataset.liv]; if (!l) continue;
+      const n = [l.name_it, l.name_en];
+      b.querySelector('.pd-l1').textContent = n[i] || n[1 - i]; b.querySelector('.pd-l2').textContent = n[1 - i] || '';
+    }
+  }
+  function markLivery() {
+    const cur = livery || (liveries()[0] && liveries()[0].id);
+    for (const b of liveryBox.querySelectorAll('[data-liv]')) b.setAttribute('aria-pressed', String(b.dataset.liv === cur));
+  }
+  function pickLivery(id) { livery = id; try { vehicle.setLivery?.(id); } catch (e) { /* vehicle.js not ready */ } save(); markLivery(); }
+  const flyCam = game.titleCam;
+  function garageCam(cam, sec) {
+    if (cam.fov !== 40) { cam.fov = 40; cam.updateProjectionMatrix(); }
+    const c = vehicle.car, a = sec * 0.32, gy = groundY(c.x, c.z);
+    cam.position.set(c.x + Math.sin(a) * 7, gy + 2.7 + Math.sin(sec * 0.23) * 0.4, c.z + Math.cos(a) * 7);
+    cam.lookAt(c.x, gy + 0.7, c.z);
+    cam.translateX(1.6); // lapa sits left of centre, the livery list on the right
+  }
+
   // ---- options ----
   let applyTimer = 0;
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
-    if (key === 'lang') { lang = value; applyLang(); }
+    if (key === 'lang') { lang = value; applyLang(); applyLiveryLang(); }
     else {
       st[key] = value;
       if (key === 'volume') vehicle?.setVolume?.(value);
@@ -544,6 +602,7 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     if (t === fsBtn) return fullscreen();
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
+    if (t.dataset.liv != null) return pickLivery(t.dataset.liv);
     if (t.dataset.spot != null) return restartAt(+t.dataset.spot);
     if (t.dataset.do) return act(t.dataset.do, t);
   });
@@ -566,11 +625,12 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
   }
 
   // ---- loop: state sync, gamepad, credits scroll ----
-  let lastT = now(), lastState = '';
+  let lastT = now(), lastState = '', nextLivCheck = 0;
   function tick(t) {
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
     if (game.state !== lastState) { lastState = game.state; syncState(); placePause(); }
     pollPad(t);
+    if (t > nextLivCheck) { nextLivCheck = t + 1000; renderLiveries(); }
     if (cur === 'credits' && t > rollPause) {
       if (Math.abs(roll.scrollTop - rollY) > 1.5) rollY = roll.scrollTop; // the user scrolled by hand
       rollY += dt * 34; roll.scrollTop = rollY;
@@ -600,9 +660,9 @@ export function setupUI({ game, applySettings, camera, renderer, scene, vehicle,
     if (want === 'pause') setTimeout(openPause, 50);
   } else {
     syncState();
-    go(['menu', 'options', 'credits', 'spots'].includes(want) ? want : want === 'none' ? null : 'title');
+    go(['menu', 'options', 'credits', 'spots', 'garage'].includes(want) ? want : want === 'none' ? null : 'title');
     if (want === 'options' || want === 'credits') stack = ['menu'];
-    if (want === 'spots') stack = ['menu'];
+    if (want === 'spots' || want === 'garage') stack = ['menu'];
   }
   lastState = game.state;
   requestAnimationFrame(tick);
