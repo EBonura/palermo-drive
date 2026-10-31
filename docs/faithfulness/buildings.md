@@ -1,0 +1,78 @@
+# Buildings outside the centro: faithfulness notes
+
+Pass 2 of the district work (zones, palettes, storeys, styles). Method: look at the real place (Google Maps satellite and Street View, for looking only; nothing
+from Google is stored in the repo or the game), shoot the same viewpoint in the game with a free camera, list the differences, fix the biggest, shoot again.
+Street View captures are May 2026 unless noted. In-game textures are all procedural, so no new credits were needed (`assets/CREDITS.md` unchanged).
+Screenshots stay out of the repo (they live in `/private/tmp/bld/shots`, before and after sheets are named in the report).
+
+Tools: `tools/district-view.html` (new `sunrel=1`: sun behind the camera, brighter exposure), `tools/district-shot.sh`, `tools/district-calibrate.mjs` (new, storey
+histograms from lidar per zone), `?bdbg` on any page that builds buildings (`window.__bldDbg` lists id, zone, style, height and height source per building,
+`window.__bldTris` triangles per style).
+
+## What was compared, what was off, what changed
+
+| Place (viewpoint) | Real (Street View) | Game before | Change |
+| --- | --- | --- | --- |
+| Via della Liberta at no. 83, looking west | 9 to 10 storey cream and grey block, stacked continuous balconies with thin metal rails, graffiti wall in front, plane trees; low 3 to 4 storey palazzine on the east side | same footprint drawn as a tan block with brown shutters, no balconies, no shops (see root cause below) | fronts set back behind a garden or lane now count as fronts, so balconies and shops appear; viaLib palette pale; `pw` almost gone from the belt |
+| Viale Lazio 38 | 7 to 8 storey cream and white condos, protruding balconies in stacked columns with glass and aluminium rails, brown tapparelle, palms | 4 to 5 storey grey-beige slabs, small windows, no balconies | new `avenue` zone (7 to 11 storeys, a few 12 to 14) on Strasburgo, Notarbartolo, Lazio, Campania, Francia, Regione Siciliana, Leonardo da Vinci; `pal` buildings get half their bays as balcony columns, half of them with the new glass and aluminium rail (`rail_g`) |
+| Via Olivio Sozzi (sacco grid) | 7 to 8 storey off-white blocks, balconies with solid soffits, narrow street | terracotta and orange heavy palette, shutters only | sacco palette mostly pale, `blk` 50 %, `pal` 22 %, `pw` 3 % |
+| Viale Strasburgo 404 (blurred capture) | 9 storey yellow-ochre block with stacked balconies next to white ones | n/a | covered by `avenue` |
+| Corso Calatafimi 468 | 4 to 5 storey 19th c palazzi, ochre and cream plaster, wrought-iron balconies, cafe and shops below | continuous-balcony postwar block style | new `calat` zone by street name (Calatafimi, Tukory, Pisani, 20 m): `n19` 50 % |
+| Piazza Noce | 5 to 6 storey yellow-ochre and tan blocks, small windows, shops with yellow signs | dark brown, no shops | yellow palette, `pw` 28 % to 10 %, set-back fronts |
+| Via Cruillas 113 and 313 | 2 to 3 storey old houses (ochre plaster, green shutters, dark wood doors, iron balconies on brackets) and, 150 m away, unfinished 1 to 2 storey self-built houses; 4 to 5 storey blocks around | seed was `cep` (public housing slabs) | new `cruillas` village zone; periph storeys recalibrated (below) |
+| Via Primo Carnera 10 (ZEN) | sand-ochre and tan plastered blocks, open pilotis passages, garage doors, deep balcony slabs, laundry, A/C | grey concrete, grime 0.8, ground floors bricked up | sand-ochre palette, grime 0.55, ground floor pilotis and garage doors, insulae allowed from 110 m2 (was 300, so only 5 of 80 buildings qualified) |
+| Piazza Acquasanta 14 | 3 storey tufa-ashlar and ochre palazzine, arched doors, wrought-iron balconies, green and dark wood doors | plain plaster `res` and `fish` | tufa stone palette, `pStone` 0.5, `n19` 30 %, `fish` 24 % to 10 % |
+| Via dell'Arenella 1 | 4 to 5 storey cream and white blocks, continuous balconies, blue trim bands | `fish` 50 % | `pal` 26 %, `blk` 14 %, `n19` 12 %, `fish` 14 % |
+| Via Sferracavallo 93 | 2 to 3 storey yellow-ochre and pale houses, flat roofs, pilotis porches, one blue-grey 8 storey tower | whitewash-heavy palette | ochre and yellow added to the palette, `blk` 8 % (the tower), `pw` 4 % |
+| Via Tommaso Natale 80 | villas and low houses in walled gardens with pines | `pal` 34 % | `res` 42 %, `pal` 24 %, `lib` 6 % (the walls are not modelled, see below) |
+| Via Mondello 34 | ochre and yellow villas with tile roofs, palms, walled gardens | already close | unchanged |
+| Piazza Uditore 5 | 1 to 2 storey rendered and rubble-stone borgata, crumbling plaster, 5 to 6 storey condos behind | `pal` 38 %, `blk` 24 %, no 1 storey | `res` 28 %, 1 to 6 storey table, `pStone` 0.14 |
+| Via Giulio Sarmiento (Brancaccio) | 4 to 6 storey cream and ochre blocks with stacked balconies, 3 storey terracotta-orange houses with tile roofs | `pw` 20 %, no orange | terracotta and orange plaster added, `pw` 6 %, `pal` 20 % |
+| Via Oreto 343 | worn 4 storey corner houses beside 6 storey ochre blocks with balconies | `pw` 24 % | `blk` 30 %, `pw` 6 % |
+| Via Anapo 69 (Bonagia) and Via Viperano (Resuttana) | 4 to 6 storey ochre condos with garages; 3 to 4 storey cream palazzine | would have become 1 to 2 storeys after the lidar recalibration | density rule keeps them tall (below) |
+| Via Principe di Paterno 4 and Piazza Castelnuovo | 5 storey ochre-stone palazzi behind low stone walls and hedges; neoclassical corner palazzo with iron balconies | politeama and sacco already close | not changed; walls and gardens are a props job |
+
+Not seen (Street View would not load, or only an indoor panorama): Politeama proper, Valdesi (open park at the viewpoint), Corso dei Mille (trees only), Fiera.
+Their zones are unchanged apart from the shared fixes.
+
+## Root causes found
+
+1. **Set-back facades were treated as backs.** A wall only counted as a street front if a road edge lay within 3.2 m of the point 2.2 m in front of it.
+   Along Via Liberta, in the ZEN and wherever there is a garden strip, service lane or parking row the facade stands 5 to 15 m back, so it got no shops, no
+   balconies and the blank-wall ground floor. `emitSolid` now looks further out along the normal (every 4 m up to `Z.front`, default 15 m in the `elig` zones)
+   and stops at the first building in the way. The centro zones are untouched (`reach` 0).
+2. **`pw` has no balconies** and ignored the zone palette (it used the centro grey-beige list). In the new zones it now uses the zone palette, and its weight was cut
+   in all postwar zones (nearly every Palermo condo has balconies; `blk` and `pal` have them).
+3. **Generic storeys were 1 to 2 floors too tall outside the dense belts, and tiny buildings kept the baked 3 to 6 floors.** Lidar covers only the east half of
+   the city; for the lidar-covered parts of periph, rural and tn the measured storey histogram is 40 to 65 % one floor, 25 to 40 % two, under 10 % four or more,
+   while the generic table gave a mean of 3.0. The generic buildings of those zones now use the measured histograms by footprint class (`flA`, produced by
+   `tools/district-calibrate.mjs`, rerun it after a rebake), applied to buildings under 40 m2 as well (sheds and garages, one storey). Dense pockets of large
+   footprints inside those zones (45 m neighbour count and footprint size, edge-corrected per tile) take a 3 to 7 storey block table instead, which keeps
+   Bonagia and Resuttana right. Net effect on the 18k generic periph buildings: 46 % one floor, 29 % two, 13 % three, 12 % four or more.
+4. **Colour.** Postwar belts were drawn in tan and terracotta; Street View shows cream, off-white and light grey-beige with ochre and orange as minorities. Zone
+   palettes were rebalanced by repeating the pale entries (the picker is `b.c % length`).
+
+## Unchanged by design
+
+Lidar heights, OSM `building:levels`, named, church, historic and typed buildings (the generic-estimate detection rule in `applyDistrictHeights` is as before), the
+photo facades and the landmark skip ids. A building near a street rule (avenue, calat, sacco) may take its storeys from the street zone's table; the others use the
+choice `applyDistrictHeights` stored in `b.dz` and `b.dh`.
+
+## Budget
+
+Triangles of the 9-tile `district-view` sets before to after: Via Liberta 524k to 588k (+12 %), Viale Lazio 411k to 486k (+18 %), Via Sozzi 469k to 583k
+(+24 %), Noce 499k to 546k (+9 %), Oreto +12 %, Corso dei Mille +13 %, ZEN 229k to 207k (-10 %), Tommaso Natale -5 %. The growth is the balconies and shop
+fronts on set-back facades. Already trimmed: bracket count on continuous balconies, end caps on long slabs, `pal` balconies on every other bay. The mobile
+`tricap` will demote the dense belt tiles slightly sooner than before.
+
+## Not done, and problems outside this area
+
+- Low boundary walls, hedges and front gardens (Via Principe di Paterno, Via Tommaso Natale, Mondello, Libertà side streets) are a big part of the real look; they
+  belong in props or `world.js` (walls from OSM `barrier=wall` and the building setbacks).
+- Sferracavallo's west half lies outside the baked bbox (lon < 13.285): Via Sferracavallo and the harbour are not in the world. The tile bake should extend west.
+- The CEP and Borgo Nuovo seeds are still my best guess from names; I could not confirm their extents. Via Cruillas is now its own zone.
+- Roofs: no new roof types. Real hillside houses have rebar stubs and unfinished top floors, not modelled.
+- Ground: every street in the game has a raised paved sidewalk band (light grey slabs) even in villa suburbs and ZEN where the real street has none; that is the
+  ground/streets agent's area.
+- Free-camera shots of far districts need 40 s or more of streaming; `tools/shot.sh` (20 s) shows empty ground there.
+- The headless Chrome and the shared in-app browser pane both made Street View slow (about 25 s per view); only 28 views were taken.
