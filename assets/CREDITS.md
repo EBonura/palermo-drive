@@ -49,3 +49,19 @@ Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 wo
 | `facades/photo/biondo.jpg` (Teatro Biondo (Via Roma)) | Facciata del Teatro Biondo.jpg | Luca.favorido | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 512 px max) |
 
 <!-- facade_photos:end -->
+
+## Car radio (src/radio.js, assets/music/)
+
+Eight tracks, details and the full attribution text in `music/CREDITS.md`. Re-encoded to MP3 for the web (loudness
+normalised, nothing else changed).
+
+| File | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Bushwick Tarantella | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | web re-encode |
+| Meatball Parade | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | web re-encode |
+| Tarantella (trad., arr. William Popp) | Air Force Strings, US Air Force Band | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain | web re-encode |
+| Funiculì, Funiculà (1903) | Ferruccio Giannini, Royal Marine Band of Italy (Victor) | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav | Public domain | web re-encode, mono |
+| Gran Marcia del Drago Sacro (1907) | Musica della R. Marina Italiana, cond. Sebastiano Matacena | https://commons.wikimedia.org/wiki/File:Gran_Marcia_del_Drago_Sacro_from_the_ballet_Brahma_by_Constantino_Dall%27Argine.ogg | Public domain | web re-encode, mono |
+| Gran Marcia trionfale, Aida | Musica della R. Marina Italiana (Fonotipia) | https://commons.wikimedia.org/wiki/File:Musica_della_R._Marina_Italiana_Aida_%28Verdi%29_Gran_Marcia_trionfale.mp3 | Public domain | web re-encode, mono |
+| Intermezzo, Cavalleria Rusticana (1904) | Victor Orchestra, cond. Walter B. Rogers | https://commons.wikimedia.org/wiki/File:PDP-CH_-_Victor_Orchestra_-_Walter_B._Rogers_-_Cavalleria_Rusticana_-_Intermezzo_-_Pietro_Mascagni_-_Victor-4184-b4050.flac | Public domain | web re-encode, mono |
+| Madreterra (Sicilian Region anthem) | Government of Sicily | https://commons.wikimedia.org/wiki/File:Inno_della_Regione_Siciliana_%C2%ABMadreterra%C2%BB.ogg | CC0 1.0 | web re-encode |

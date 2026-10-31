@@ -664,6 +664,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }
 
   function startDrown(a) {
+    console.log('[sea] startDrown', a.car.x, a.car.z); // TEMP-DEBUG
     const { car, game, placeAt, shout } = a;
     S.on = true; S.t = 0; S.game = game; S.car = car; S.placeAt = placeAt;
     S.x = car.x; S.z = car.z; S.vx = car.vx || 0; S.vz = car.vz || 0; S.bubbleAcc = 0; S.shown = false;
@@ -683,6 +684,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     S.root = null;
   }
   function endDrown() {
+    console.log('[sea] endDrown', new Error().stack.split('\n').slice(1,4).join('|')); // TEMP-DEBUG
     S.on = false; resetLapa();
     uniforms.uClear.value.w = 0;
     rings.forEach(m => { m.visible = false; });
@@ -761,10 +763,10 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     if (!testRefs) return dt;
     testFrame++;
     const car = testRefs.car;
-    if (testFrame === 40) { const th = 0.5236; Object.assign(car, { x: 479.5, z: -448, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testGo = true; }
+    if (testFrame === 8) { const th = 0.5236; Object.assign(car, { x: 492.2, z: -423.6, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testGo = true; }
     if (testGo && !S.on) { car.x += Math.sin(car.th) * 10 * dt; car.z += Math.cos(car.th) * 10 * dt; car.vf = 10; car.vx = Math.sin(car.th) * 10; car.vz = Math.cos(car.th) * 10; }
     if (S.on && S.t >= TEST) return 0;
-    return dt;
+    return 1 / 15;
   }
   // TEMP-DEBUG-END
   function update(dt, camera = cam0) {

@@ -37,14 +37,14 @@
   {
    "wall": 10,
    "texture": "assets/facades/photo/jung_1.jpg",
-   "u0": 0.5259,
-   "u1": 0.9023,
-   "v0": 0.0,
+   "u0": 0.5269,
+   "u1": 0.9121,
+   "v0": 0.07,
    "v1": 1,
    "flip": true,
    "size": [
     512,
-    488
+    444
    ],
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
@@ -52,14 +52,14 @@
   {
    "wall": 10,
    "texture": "assets/facades/photo/jung_2.jpg",
-   "u0": 0.1494,
-   "u1": 0.5259,
-   "v0": 0.0,
+   "u0": 0.1416,
+   "u1": 0.5269,
+   "v0": 0.07,
    "v1": 1,
    "flip": true,
    "size": [
     512,
-    488
+    444
    ],
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"

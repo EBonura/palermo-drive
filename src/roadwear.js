@@ -288,7 +288,7 @@ export function createRoadWear(env) {
         const o = side * track + Math.sin(wob) * 0.04, x = path[i * 2] - dz * o, z = path[i * 2 + 1] + dx * o;
         if (!onRoad(x, z) || env.raisedMask(x, z)) break;
         const u = i / (n - 1);
-        let a = kind === 'brake' ? Math.min(1, u * 3) * (0.55 + 0.25 * Math.sin(u * 9 + wob)) : Math.sin(u * Math.PI) ** 0.7 * 0.65;
+        let a = kind === 'brake' ? Math.min(1, u * 3) * (0.4 + 0.2 * Math.sin(u * 9 + wob)) : Math.sin(u * Math.PI) ** 0.7 * 0.5;
         a *= 0.8 + 0.2 * Math.sin(i * 1.7 + side * 4);
         pts.push(x, z, a); ok++;
       }
