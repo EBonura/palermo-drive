@@ -1590,6 +1590,12 @@ def near_for(i, j):
 
 
 def far_grid(elev, rect):
+    """The 100 m grid the game shows beyond the near grids (low detail distance, and before a tile has loaded).
+    Terrarium is 4 to 10 m off on the coastal plain (Piazza Mondello read 6 m, the lidar says 1 to 2 m) and 100 to 200 m off on the hills, so
+    where better data exists it is used: the lidar (point lattice of tools/lidar_hills.py, else the decoded raster) sampled at the node (a
+    3 x 3 box of +-15 m, not a 100 m average: the average smoothed Monte Gallo's wall and Pellegrino's cliffs into ramps), the TINITALY DEM
+    on the hills, Terrarium elsewhere. The lidar correction fades out over FAR_FADE nodes beyond the lidar belt."""
+    import cv2
     import numpy as np
     x0, z0, x1, z1 = rect
     x0 = math.floor((x0 - FAR_MARGIN) / FAR_STEP) * FAR_STEP
@@ -1597,19 +1603,45 @@ def far_grid(elev, rect):
     nx = int((x1 + FAR_MARGIN - x0) / FAR_STEP) + 2
     nz = int((z1 + FAR_MARGIN - z0) / FAR_STEP) + 2
     h = np.array([elev(*unproj(x0 + i * FAR_STEP, z0 + j * FAR_STEP)) for j in range(nz) for i in range(nx)], dtype=np.float64)
+    gx, gz = np.meshgrid(x0 + np.arange(nx) * FAR_STEP, z0 + np.arange(nz) * FAR_STEP)
+    offs = [(a, b) for a in (-15, 0, 15) for b in (-15, 0, 15)]
+
+    def box(fn):
+        v = np.stack([fn(gx + a, gz + b) for a, b in offs])
+        n = np.isfinite(v).sum(axis=0)
+        return np.where(n >= 5, np.nanmean(np.where(np.isfinite(v), v, np.nan), axis=0), np.nan), v
     if dem is not None:
-        # hills: replace Terrarium by the 10 m DEM averaged over each 100 m cell (a 5 x 5 box), weighted like near_for
-        gx, gz = np.meshgrid(x0 + np.arange(nx) * FAR_STEP, z0 + np.arange(nz) * FAR_STEP)
-        acc, cnt = np.zeros(gx.shape), np.zeros(gx.shape)
-        for ox in range(-50, 51, 25):
-            for oz in range(-50, 51, 25):
-                v = dem.sample(gx + ox, gz + oz)
-                acc += np.nan_to_num(v)
-                cnt += np.isfinite(v)
-        navg = np.where(cnt >= 13, acc / np.maximum(cnt, 1), np.nan)
-        w = np.where(np.isfinite(navg), _smooth(HILL_LO, HILL_HI, np.nan_to_num(navg)), 0.0).ravel()
-        h = h + w * (np.nan_to_num(navg).ravel() - h)
-    return {"x0": x0, "z0": z0, "s": FAR_STEP, "nx": nx, "nz": nz, "h": [int(round(v)) for v in h]}
+        tin, _ = box(dem.sample)
+        w = np.where(np.isfinite(tin), _smooth(HILL_LO, HILL_HI, np.nan_to_num(tin)), 0.0).ravel()
+        h = h + w * (np.nan_to_num(tin).ravel() - h)
+    h = h.reshape(nz, nx)
+    if lr is not None and RASTER_BLOCKS:
+        _, v = box(lambda x, z: lr.sample_dtm(x, z))
+        n = np.isfinite(v).sum(axis=0)
+        Lr = np.where(n >= 5, np.nanmedian(np.where(np.isfinite(v), v, np.nan), axis=0), np.nan)
+        L = Lr
+        if lidar_hills is not None:
+            Lg, _ = box(lambda x, z: lidar_hills.sample(x, z))
+            L = np.where(np.isfinite(Lg), Lg, Lr)
+        land = shapely_contains(G.get("land"), gx, gz) if G.get("land") is not None else np.ones(gx.shape, bool)
+        ok = np.isfinite(L) & land
+        if ok.any():
+            o = np.where(ok, L - h, 0.0).astype(np.float32)
+            m = ok.astype(np.float32)
+            den = cv2.GaussianBlur(m, (0, 0), 2.0)
+            osm = np.where(den > 1e-3, cv2.GaussianBlur(o, (0, 0), 2.0) / np.maximum(den, 1e-3), 0.0)
+            dist = cv2.distanceTransform((~ok).astype(np.uint8), cv2.DIST_L2, 5)
+            fade = 1 - _smooth(0.0, FAR_FADE, dist)
+            h = h + np.where(ok, o, osm * fade)
+    return {"x0": x0, "z0": z0, "s": FAR_STEP, "nx": nx, "nz": nz, "h": [round(float(v), 1) for v in h.ravel()]}
+
+
+def shapely_contains(land, gx, gz):
+    import shapely
+    return shapely.contains_xy(land, gx, gz)
+
+
+FAR_FADE = 4.0   # nodes (400 m)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1887,6 +1919,7 @@ def terrain_only(offline=True):
     bld = make_valid_list(foot)
     print(f"[{time.time() - t0:.0f}s] {len(bld)} footprints", flush=True)
     elev = load_terrarium(ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium"))
+    G["land"] = land
     far = far_grid(elev, rect)
     roads, _car, _ped, _plz = parse_highways(files["hwy"])
     G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for,
