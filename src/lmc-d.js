@@ -25,7 +25,7 @@ function rayFar(ring, cx, cz, dx, dz) {
   return best;
 }
 // the footprint's front: the box axis closest to the direction of the nearest road, and the frame on the wall in that direction (local +z outward)
-function front(key, gy) {
+function front(key) {
   const f = FP2[key], pts = pairsOf(f.p), holes = (f.holes || []).map(pairsOf), ob = obb(pts), c = centroid(pts), fc = f.face || [0, 1];
   let n = null;
   for (const [nx, nz] of [[ob.ux, ob.uz], [-ob.ux, -ob.uz], [ob.vx, ob.vz], [-ob.vx, -ob.vz]]) { const d = nx * fc[0] + nz * fc[1]; if (!n || d > n.d) n = { nx, nz, d }; }
@@ -33,7 +33,7 @@ function front(key, gy) {
   const hit = rayFar(pts, ob.cx, ob.cz, n.nx, n.nz);
   const x = ob.cx + n.nx * hit, z = ob.cz + n.nz * hit;
   const across = Math.abs(n.nx * ob.ux + n.nz * ob.uz) > 0.7 ? ob.d : ob.w;   // box extent along the front wall
-  return { pts, holes, ob, c, nx: n.nx, nz: n.nz, hit, across, M: frame(x, gy, z, n.nx, n.nz), x, z };
+  return { pts, holes, ob, c, nx: n.nx, nz: n.nz, hit, across, at: (y) => frame(x, y, z, n.nx, n.nz), x, z };
 }
 // storey facade texture: one bay of bayW metres, H metres tall, repeated along every wall (v starts at the base, see body())
 function facadeMat(key, bayW, H, spec, px = 40) {
@@ -41,7 +41,7 @@ function facadeMat(key, bayW, H, spec, px = 40) {
 }
 // the building mass: optional foundation, walls with the repeating facade (v aligned to the base), flat roof cap, cornice round every edge
 function body(key, bayW, H, pts, holes, y0, o = {}) {
-  if (o.lo !== undefined && o.lo < y0) prism('stone', pts, o.lo, y0, { holes, c: o.footC || '#a89c88' });
+  if (o.lo !== undefined && o.lo < y0) prism('stone', pts, o.lo, y0, { holes, c: o.footC || '#d8d0bc' });
   prism(key, pts, y0, y0 + H, { holes, uvo: [0, -y0 / H] });
   prism('flat', pts, y0 + H, y0 + H + 0.2, { holes, c: o.roof || '#8f8a82' });
   const rings = [pts, ...(o.holeCornice ? holes : [])];
@@ -77,7 +77,7 @@ function arcade(ring, y0, o = {}) {
 // ====================================================================================================
 function buildPovere() {
   initShared();
-  const F = front('povere', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 14.6;
+  const F = front('povere'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 14.6;
   begin(gy);
   facadeMat('apWall', 5.2, H, { base: '#cdb48a', trim: '#e9dcc0', glass: '#2b2724', seed: 951, plinth: { h: 1.3, c: '#a89478' }, grime: 1,
     bands: [{ y: 5.0, h: 0.3, c: '#e1d3b2' }, { y: 9.9, h: 0.3, c: '#e1d3b2' }, { y: 13.8, h: 0.7, c: '#e1d3b2' }],
@@ -87,7 +87,7 @@ function buildPovere() {
   let bays = 0;
   [...F.holes].sort((a, b) => b.length - a.length).slice(0, 3).forEach(h => { if (bays < 90) bays += arcade(h, gy, { bay: 4.0 }); });
   // the main portal: stone surround with a balcony, a pediment and the coat of arms
-  const M = F.M;
+  const M = F.at(gy);
   bx('tufa', M, -3.2, 3.2, 0, 8.2, 0, 0.9, { c: '#e8dcc0' });
   archBay('tufa', 3.6, 5.2, 2.2, 4.2, 0.5, { M: mul(M, tr(0, 0, 0.9)), c: '#d8c9a6' });
   bx('dark', M, -1.0, 1.0, 0, 3.7, 0.95, 1.0, { noao: true });
@@ -104,7 +104,7 @@ export const POVERE = { name: 'Albergo delle Povere', x: -1382, z: 633, radius: 
 // ====================================================================================================
 function buildGiustizia() {
   initShared();
-  const F = front('giustizia', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 25.2;
+  const F = front('giustizia'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 25.2;
   begin(gy);
   facadeMat('pgWall', 6.0, H, { base: '#dcd2bb', trim: '#ece4d0', glass: '#4a5a62', seed: 961, plinth: { h: 2.4, c: '#bcb29c' }, grime: 1,
     pil: { xs: [0, 6], w: 1.3, c: '#cfc5ae' }, bands: [{ y: 24.0, h: 1.2, c: '#cfc5ae' }],
@@ -112,7 +112,7 @@ function buildGiustizia() {
       { y0: 15.6, y1: 18.4, xs: [3.0], w: 2.2, kind: 'rect', fr: 0.1 }, { y0: 19.6, y1: 22.4, xs: [3.0], w: 2.2, kind: 'rect', fr: 0.1 }] }, 28);
   body('pgWall', 6.0, H, F.pts, F.holes, gy, { lo: gr.lo - 3, roof: '#b8b0a0', cc: '#cfc5ae', cornH: 1.2, cornD: 0.7 });
   // the entrance: a wide stair up to a glazed hall under a deep canopy
-  const M = F.M;
+  const M = F.at(gy);
   for (let i = 0; i < 5; i++) bx('stone', M, -9 - i * 0.3, 9 + i * 0.3, 0, 0.4 + i * 0.18, 0.5 + (4 - i) * 0.5, 4.5, { c: '#cfc7b4' });
   bx('flat', M, -9.5, 9.5, 8.2, 9.0, 0, 5.2, { c: '#d6ccb6' });
   for (const x of [-8.5, -4.2, 0, 4.2, 8.5]) bx('flat', M, x - 0.5, x + 0.5, 0, 8.2, 4.6, 5.1, { c: '#d6ccb6' });
@@ -126,13 +126,13 @@ export const GIUSTIZIA = { name: 'Palazzo di Giustizia', x: -806, z: -330, radiu
 // ====================================================================================================
 function buildNiscemi() {
   initShared(); ensureTrunk();
-  const F = front('niscemi', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 13.2;
+  const F = front('niscemi'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 13.2;
   begin(gy);
   facadeMat('nsWall', 4.6, H, { base: '#ecdfb9', trim: '#f7efd8', glass: '#2a2422', seed: 971, plinth: { h: 0.9, c: '#d8c89e' }, grime: 1,
     bands: [{ y: 4.5, h: 0.3, c: '#f4ead0' }, { y: 9.0, h: 0.3, c: '#f4ead0' }, { y: 12.4, h: 0.5, c: '#f4ead0' }],
     rows: [{ y0: 1.4, y1: 3.6, xs: [2.3], w: 1.1, kind: 'rect', fr: 0.16 }, { y0: 5.4, y1: 8.2, xs: [2.3], w: 1.2, kind: 'rect', ped: true, balc: true, shut: 'open' }, { y0: 9.9, y1: 11.9, xs: [2.3], w: 1.1, kind: 'rect', shut: 'open' }], shut: '#3a2f28' });
   body('nsWall', 4.6, H, F.pts, F.holes, gy, { lo: gr.lo - 1.5, roof: '#b6704f', cc: '#f4ead0' });
-  const M = F.M;   // the arched entrance and its balcony
+  const M = F.at(gy);   // the arched entrance and its balcony
   archBay('tufa', 3.4, 4.0, 2.0, 3.4, 0.5, { M: mul(M, tr(0, 0, 0.0)), c: '#f2e8c8' });
   bx('dark', M, -0.9, 0.9, 0, 3.0, 0.1, 0.18, { noao: true });
   bx('flat', M, -1.9, 1.9, 5.0, 5.4, 0, 1.0, { c: '#e8dcc0' });
@@ -150,7 +150,7 @@ export const NISCEMI = { name: 'Villa Niscemi', x: -2354, z: -5420, radius: 70, 
 // ====================================================================================================
 function buildCastelnuovo() {
   initShared();
-  const F = front('castelnuovo', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 12.4;
+  const F = front('castelnuovo'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 12.4;
   begin(gy);
   facadeMat('cnuWall', 5.0, H, { base: '#e6d4a0', trim: '#f6ecd0', glass: '#2a2624', seed: 981, plinth: { h: 0.9, c: '#cbb98a' }, grime: 1,
     bands: [{ y: 4.3, h: 0.3, c: '#f0e4c0' }, { y: 8.6, h: 0.3, c: '#f0e4c0' }, { y: 11.8, h: 0.6, c: '#f0e4c0' }],
@@ -162,7 +162,7 @@ export const CASTELNUOVO = { name: 'Villa Castelnuovo', x: -2314, z: -4742, radi
 
 function buildVerdura() {
   initShared();
-  const F = front('verdura', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 7.2, M = F.M;
+  const F = front('verdura'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 7.2, M = F.at(gy);
   begin(gy);
   defMat('vdWall', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#e2cf92'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 991, ['rgba(110,85,50,0.10)', 'rgba(255,250,220,0.10)']); streaks(g, w, h, 8, 992, 0.08, 60); });
   const W = F.across, D = Math.min(F.ob.d, F.ob.w);
@@ -196,7 +196,7 @@ export const VERDURA = { name: 'Teatro di Verdura (entrance pavilion)', x: -2362
 // ====================================================================================================
 function buildMaredolce() {
   initShared();
-  const F = front('maredolce', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 11.5;
+  const F = front('maredolce'), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 11.5;
   begin(gy);
   defMat('mdWall', 512, 256, [14, H], (g, w, h) => {
     const sx = w / 14, sy = h / H, X = (s) => s * sx, Y = (y) => h - y * sy;
@@ -263,7 +263,7 @@ export const TONNARA = { name: 'Tonnara Florio', x: 1162, z: -3971, radius: 70, 
 function buildPortaFelice(which) {
   return () => {
     initShared();
-    const k = 'portaFelice' + which, F = front(k, 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = which === 1 ? 17.2 : 19.8, M = F.M;
+    const k = 'portaFelice' + which, F = front(k, 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = which === 1 ? 17.2 : 19.8, M = F.at(gy);
     begin(gy);
     defMat('pfWall', 256, 256, [12, 20], (g, w, h) => {
       const sx = w / 12, sy = h / 20, X = (s) => s * sx, Y = (y) => h - y * sy;
@@ -276,10 +276,13 @@ function buildPortaFelice(which) {
       g.fillStyle = '#2b2420'; g.fillRect(X(4.8), Y(10.4), 2.4 * sx, 0.1 * sy); g.fillRect(X(5.0), Y(8.8), 2.0 * sx, 2.4 * sy);  // balcony window
       streaks(g, w, h, 20, 1022, 0.18, 120);
     });
-    const ob = F.ob, w = ob.w * 0.92, d = ob.d * 0.92;
-    box('stone', w + 1.4, 0.9, d + 1.4, { p: [ob.cx, gy - 0.4, ob.cz], ry: Math.atan2(ob.ux, ob.uz) + PI / 2, c: '#c9b690' });
-    prism('pfWall', F.pts, gy, gy + H, { uvo: [0, -gy / 20] });
+    const ob = F.ob, ry = Math.atan2(ob.ux, ob.uz) + PI / 2;
+    box('stone', ob.w + 1.4, 0.9, ob.d + 1.4, { p: [ob.cx, gy - 0.4, ob.cz], ry, c: '#c9b690' });
+    box('stone', ob.w, H, ob.d, { p: [ob.cx, gy, ob.cz], ry, c: '#d9bf98' });
     prism('flat', F.pts, gy + H, gy + H + 0.6, { c: '#cdb48c' });
+    // each face carries the painted baroque front (pilasters, doorway, balcony, statue niche), the road side the doorway
+    for (const [fx, fz, fw, hw] of [[ob.ux, ob.uz, ob.d, ob.w / 2], [-ob.ux, -ob.uz, ob.d, ob.w / 2], [ob.vx, ob.vz, ob.w, ob.d / 2], [-ob.vx, -ob.vz, ob.w, ob.d / 2]])
+      panel('pfWall', fw, H, { M: frame(ob.cx + fx * (hw + 0.02), gy, ob.cz + fz * (hw + 0.02), fx, fz), uvk: [1, 1] });
     // crowning: broken pediment with a finial on each face, volute shoulders
     const sh = new THREE.Shape(); sh.moveTo(-3.2, 0); sh.lineTo(3.2, 0); sh.lineTo(1.4, 1.8); sh.lineTo(-1.4, 1.8); sh.lineTo(-3.2, 0);
     part('flat', new THREE.ExtrudeGeometry(sh, { depth: 0.8, bevelEnabled: false }), { M: mul(M, tr(0, H + 0.6, -0.4)), c: '#d6b78f' });
@@ -296,7 +299,7 @@ export const PORTA_FELICE_2 = { name: 'Porta Felice, south pylon', x: 881, z: -4
 // ====================================================================================================
 function buildCappuccini() {
   initShared();
-  const F = front('cappuccini', 0), Fc = front('cappChiesa', 0), gr = groundRange([...F.pts, ...Fc.pts]), gy = gr.hi + 0.1, Hc = 12.0, Hh = 14.5;
+  const F = front('cappuccini'), Fc = front('cappChiesa'), gr = groundRange([...F.pts, ...Fc.pts]), gy = gr.hi + 0.1, Hc = 12.0, Hh = 14.5;
   begin(gy);
   facadeMat('cpWall', 4.4, Hc, { base: '#e4d4aa', trim: '#f2e8cc', glass: '#2a2624', seed: 1031, plinth: { h: 0.8, c: '#c8b88e' }, grime: 1,
     bands: [{ y: 4.3, h: 0.25, c: '#f0e4c0' }, { y: 8.4, h: 0.25, c: '#f0e4c0' }, { y: 11.4, h: 0.5, c: '#f0e4c0' }],
@@ -306,7 +309,7 @@ function buildCappuccini() {
   facadeMat('cpChurch', 5.0, Hh, { base: '#e6d6ae', trim: '#f4ead0', glass: '#2a2624', seed: 1032, plinth: { h: 1.0, c: '#c8b88e' }, grime: 1,
     bands: [{ y: 13.6, h: 0.8, c: '#f0e4c0' }], rows: [{ y0: 6.2, y1: 10.8, xs: [2.5], w: 1.3, kind: 'arch', fr: 0.18, sill: false }] });
   body('cpChurch', 5.0, Hh, Fc.pts, [], gy, { lo: gr.lo - 2, roof: '#a89a7a', cc: '#f0e4c0' });
-  const M = Fc.M, PW = Math.min(Fc.across * 0.7, 12);
+  const M = Fc.at(gy), PW = Math.min(Fc.across * 0.7, 12);
   for (let i = 0; i < 4; i++) cyl('marble', 0.4, 0.46, 8.2, 10, { M: mul(M, tr(-PW / 2 + 0.6 + i * (PW - 1.2) / 3, 0.4, 3.2)), c: '#efe6cc' });
   bx('flat', M, -PW / 2, PW / 2, 8.6, 9.6, 0, 3.8, { c: '#efe6cc' });
   const sh = new THREE.Shape(); sh.moveTo(-PW / 2, 0); sh.lineTo(PW / 2, 0); sh.lineTo(0, 2.0); sh.lineTo(-PW / 2, 0);
