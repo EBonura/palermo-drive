@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { D, HAS_NEAR, groundY, proj, pairs, signedArea, rng, inPoly } from './core.js';
 import SPECS from '../assets/facades/specs.js';
+import { NIGHT } from './daynight.js'; // [day/night] shared uniform: share of lit windows (0 by day)
+import { ZONES, zoneAt, floorsAt, applyDistrictHeights } from './districts.js';
 
 const T = 256;
 
@@ -712,17 +714,27 @@ function atlasMaterial(tex, cutout, photo) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout ? 0.45 : 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uTex = { value: tex };
+    sh.uniforms.uWin = NIGHT.win;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aLayer;\nvarying float vLayer;\nvarying vec2 vTileUv;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLayer = aLayer; vTileUv = uv;');
+      .replace('#include <common>', '#include <common>\nattribute float aLayer;\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLayer = aLayer; vTileUv = uv; vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nvarying float vLayer;\nvarying vec2 vTileUv;')
+      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nuniform float uWin;\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;')
       .replace('#include <color_fragment>', `
         vec4 tc = texture(uTex, vec3(vTileUv, floor(vLayer + 0.5)));
         float lum = dot(tc.rgb, vec3(0.3333));
         float vl = dot(vColor.rgb, vec3(0.3333)); // vColor is a vec4 since r180 (.rgb works on the old vec3 too)
         ${photo ? 'diffuseColor.rgb *= tc.rgb * vl * 0.9;' : 'diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor.rgb, smoothstep(0.15, 0.32, lum));'}
-        ${cutout ? 'diffuseColor.a *= tc.a;' : ''}`);
+        ${cutout ? 'diffuseColor.a *= tc.a;' : ''}
+        // [day/night] lit windows: the dark bluish glass texels glow warm, a random share of them (uWin, 0 by day) one bay at a time
+        vec3 winGlow = vec3(0.0);
+        ${photo ? '' : `if (uWin > 0.002 && lum < 0.16 && tc.b > tc.g * 1.09 && tc.b > tc.r * 1.25) {
+          vec3 cid = vec3(floor(vTileUv), floor(vLayer + 0.5) + 37.0 * floor(vWp.x / 31.0) + 91.0 * floor(vWp.z / 29.0));
+          float wh = fract(sin(dot(cid, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          float tv = step(0.93, fract(wh * 7.31));
+          winGlow = mix(vec3(1.0, 0.6, 0.26), vec3(0.42, 0.58, 1.0), tv) * smoothstep(wh, wh + 0.05, uWin) * (1.6 + 2.2 * lum);
+        }`}`)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += winGlow;');
   };
   m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
   return m;
@@ -817,8 +829,32 @@ const STYLES = {
     ground: [['ch_low', 6], ['ch_door', 1]] },
   low: { pal: 'res', bay: 4.0, g0: 99, fh: 3.3, parapet: 0.6, corn: 0.0, nobile: false, up: ['res_a'], rail: 'rail_a', balcUpper: 0, pitch: 0.4,
     ground: [['g_shop_s', 3], ['g_garage', 2], ['g_door2', 1.5], ['blank_g', 1]] },
+  // ---- district styles (see docs/districts.md) ----
+  // Liberty villino / palazzina: floral hoods, majolica frieze, whiplash ironwork, hipped tile roofs
+  lib: { pal: 'res', bay: 4.0, g0: 4.3, fh: 3.8, parapet: 0.8, corn: 0.5, nobile: true, up: ['lib_up_a', 'lib_up_b'], nob: ['lib_nob'], rail: 'rail_l', balcUpper: 0.5, pitch: 0.45,
+    ground: [['g_lib', 3], ['g_door', 1.5], ['g_win', 1.5], ['g_shop_s', 1]] },
+  // 1960s-70s apartment block (sacco di Palermo): continuous balconies on every floor, tapparelle, drop awnings, shops or a lobby below
+  blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_c', 'blk_d'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
+    ground: [['pw_shop', 3], ['g_shop_s', 2], ['g_pilot', 1.4], ['g_lobby', 1.6], ['g_garage', 1]] },
+  // 1980s+ palazzina: one balcony per bay, glazed or solid parapets
+  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_c', 'res_d', 'blk_d'], rail: 'rail_c', balc: 'every', pitch: 0.18,
+    ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
+  // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
+  ins: { pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
+    ground: [['g_pilot', 3], ['zen_g', 3], ['g_garage', 1]] },
+  // fishermen's and summer houses: whitewash, painted wooden doors, pastel shutters
+  fish: { pal: 'res', bay: 3.6, g0: 3.4, fh: 3.0, parapet: 0.55, corn: 0.0, nobile: false, up: ['fis_a', 'fis_win'], rail: 'rail_a', balc: 'none', pitch: 0.5,
+    ground: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
+  // sheds and warehouses (port, Brin, Corso dei Mille yards): corrugated or prefab walls, roller doors, metal roofs
+  ind: { pal: 'pw', bay: 6.0, g0: 99, fh: 4.5, parapet: 0.3, corn: 0.0, nobile: false, up: ['ind_a'], rail: 'rail_a', balc: 'none', pitch: 0.0, ind: true,
+    ground: [['ind_a', 4], ['ind_b', 2], ['ind_roll', 1.5]] },
+  silo: { pal: 'pw', bay: 4.0, g0: 99, fh: 4.0, parapet: 0.0, corn: 0.0, nobile: false, up: ['silo'], rail: 'rail_a', balc: 'none', pitch: 0.0, silo: true,
+    ground: [['silo', 1]] },
+  // bombed shell or rubble lot (Kalsa, Albergheria)
+  ruin: { pal: 'res', bay: 3.6, g0: 99, fh: 3.0, parapet: 0.0, corn: 0.0, nobile: false, up: ['ruin_wall'], rail: 'rail_a', balc: 'none', pitch: 0.0, ruin: true,
+    ground: [['ruin_wall', 1]] },
 };
-const REPEATABLE = new Set(['g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g']);
+const REPEATABLE = new Set(['g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a']);
 
 // =====================================================================================
 // Spatial lookups
@@ -870,41 +906,37 @@ const pick = (list, r) => { let t = 0; for (const e of list) t += e[1]; t *= r()
 const MAIN_ST = /Maqueda|Vittorio Emanuele|^Via Roma|Cavour|Libert|Ruggero Settimo|Mazzini|Butera|Alloro|Garibaldi|Cassaro/;
 const GRAND = /Palazzo|Villa|Teatro|Museo|Tribunale|Universit|Convento|Monastero|Collegio|Banco|Ospedale|Conservatorio|Liceo/;
 
-// Neighbourhood palettes, calibrated against Commons photos (Corso Vittorio Emanuele 2024, Via Roma, Ballaro, Albergheria,
-// Vucciria): the Corso/Maqueda fronts are cream, buff and pinkish plaster with stone frames; Via Roma is grey-beige; the old
-// quarters (Capo, Albergheria, Vucciria, Kalsa) show bare golden-brown tufa and heavily weathered, desaturated plaster.
-const ZONES = {
-  corso: { plaster: ['#e0d4b8', '#d6c6a6', '#cdbba0', '#d3b8a2', '#c7a58b', '#e4d9c2', '#c8b08c', '#d9c9a8', '#cfa890'], stone: ['#b79d74', '#c2aa82', '#a88e66', '#b8a07a'], pStone: 0.3, grime: 0.25,
-    w: { bar: .3, n19: .5, res: .08, pw: .12 } },
-  roma: { plaster: ['#cfc3ab', '#c4b59b', '#d2c7b0', '#bdae96', '#c9b79e', '#b9ad9b', '#d6cab4'], stone: ['#b5a68a', '#a89a80'], pStone: 0.2, grime: 0.3,
-    w: { bar: .15, n19: .5, res: .05, pw: .3 } },
-  old: { plaster: ['#cdb690', '#c8aa84', '#bf9f7c', '#d3c096', '#c49f7c', '#b9a587', '#d6c4a0', '#b98f72', '#c9b8a0', '#d0b9a2'], stone: ['#9d8560', '#a98f68', '#8f7a58', '#b49a74'], pStone: 0.45, grime: 0.6,
-    w: { bar: .06, n19: .16, res: .66, pw: .12 } },
-  liberta: { plaster: ['#e2d6bd', '#d8c4a0', '#d3a98f', '#c5b49c', '#c9a49a', '#e6dcc8', '#d9ccb0', '#bba898'], stone: ['#b9a07a'], pStone: 0.1, grime: 0.15,
-    w: { bar: .06, n19: .4, res: .2, pw: .34 } },
-  centro: { plaster: ['#dccfb2', '#d2c2a2', '#c9b79c', '#d0b49c', '#c4a288', '#e0d5bd', '#c4ac88', '#d6c6a4'], stone: ['#b09870', '#bfa67e', '#a58b64'], pStone: 0.3, grime: 0.4,
-    w: { bar: .1, n19: .3, res: .45, pw: .15 } },
+// Neighbourhood palettes, zone seeds and storey tables live in src/districts.js (documented in docs/districts.md).
+function zoneOf(cx, cz, near) { return zoneAt(cx, cz, near && near.r && near.r.n || '', near ? near.d : 1e9); }
+// A building style is only offered where it exists in real life: Liberty villini are low, sacco blocks are tall, ZEN insulae are big.
+const ELIG = {
+  bar: f => f <= 6, n19: f => f <= 6, res: f => f <= 5, pw: f => f >= 4, blk: f => f >= 5, pal: f => f >= 3 && f <= 7,
+  ins: (f, a) => f >= 4 && a > 300, lib: (f, a) => f <= 4 && a < 900, fish: f => f <= 3, ind: (f, a, Z) => Z.shed ? a > 180 : a > 500,
 };
-const ZONE_SEEDS = [ // [zone, lat, lon]
-  ['old', 38.1170, 13.3550], ['old', 38.1105, 13.3577], ['old', 38.1188, 13.3648], ['old', 38.1150, 13.3690], ['old', 38.1190, 13.3687], ['old', 38.1137, 13.3705],
-  ['liberta', 38.1265, 13.3545], ['liberta', 38.1235, 13.3575], ['roma', 38.1090, 13.3650], ['roma', 38.1125, 13.3635],
-  ['corso', 38.1157, 13.3613], ['corso', 38.1195, 13.3572], ['corso', 38.1148, 13.3562], ['corso', 38.1160, 13.3650],
-].map(([z, la, lo]) => { const p = proj(la, lo); return [z, p[0], p[1]]; });
-function zoneOf(cx, cz, near) {
-  const n = near && near.r && near.r.n || '';
-  if (/^Via Roma$/.test(n)) return 'roma';
-  if (/Maqueda|Vittorio Emanuele|Cassaro|Bologni|Pretoria|Verdi|Quattro Canti|San Domenico/.test(n)) return 'corso';
-  let best = 'centro', bd = 330 * 330;
-  for (const [z, x, zz] of ZONE_SEEDS) { const d = (cx - x) ** 2 + (cz - zz) ** 2; if (d < bd) { bd = d; best = z; } }
-  return best;
-}
-function chooseStyle(b, H, area, zone, r) {
+const STYLE_KEYS = ['bar', 'n19', 'res', 'pw', 'lib', 'blk', 'pal', 'ins', 'fish', 'ind'];
+function chooseStyle(b, H, area, zone, r, o = {}) {
   if (b.k === 'church' || b.t === 'church' || b.t === 'cathedral' || b.am === 'place_of_worship') return 'church';
-  if (H < 5.2) return 'low';
-  const name = b.n || '';
-  if (b.hi || GRAND.test(name) || ['university', 'government', 'civic', 'museum', 'hotel', 'monastery', 'castle', 'public'].includes(b.t) || b.am === 'courthouse' || b.am === 'college')
-    return r() < 0.6 ? 'bar' : 'n19';
-  const ZW = (ZONES[zone] || ZONES.centro).w;
+  const Z = ZONES[zone] || ZONES.centro, name = b.n || '';
+  const special = b.hi || GRAND.test(name) || ['university', 'government', 'civic', 'museum', 'hotel', 'monastery', 'castle', 'public'].includes(b.t) || b.am === 'courthouse' || b.am === 'college';
+  if (Z.elig && !special) {
+    if (o.round && H > 5 && (Z.w.ind || Z.shed)) return 'silo';
+    if (Z.ruin && o.u < Z.ruin && !b.n && area > 40 && area < 700 && H < 19) return 'ruin';
+    if (Z.shed && area > 600 && o.u2 < 0.85) return 'ind';
+  }
+  if (H < 5.2) {
+    if (Z.elig && !special) { const wf = Z.w.fish || 0; if (Z.shed && area > 250 && r() < 0.8) return 'ind'; if (r() < (wf ? Math.min(0.9, wf * 2.2 + 0.15) : 0.08)) return 'fish'; }
+    return 'low';
+  }
+  if (special) return r() < 0.6 ? 'bar' : 'n19';
+  const ZW = Z.w;
+  if (Z.elig) {
+    const f = o.fl || Math.max(1, Math.round((H - 1.7) / (Z.fh || 3.2)));
+    const ks = [], ws = []; let tot = 0;
+    for (const k of STYLE_KEYS) { const w0 = ZW[k] || 0; if (w0 <= 0 || (ELIG[k] && !ELIG[k](f, area, Z))) continue; const w1 = k === 'ind' && Z.shed && area > 600 ? w0 * 4 : w0; ks.push(k); ws.push(w1); tot += w1; }
+    if (!tot) return f >= 5 ? 'blk' : 'res';
+    let t = r() * tot; for (let i = 0; i < ks.length; i++) { t -= ws[i]; if (t <= 0) return ks[i]; }
+    return ks[ks.length - 1];
+  }
   const w = H >= 17 && zone !== 'corso' ? { ...ZW, pw: ZW.pw + .1, res: Math.max(0.05, ZW.res - .1) } : ZW;
   let t = r() * (w.bar + w.n19 + w.res + w.pw); for (const k of ['bar', 'n19', 'res', 'pw']) { t -= w[k]; if (t <= 0) return k; }
   return 'res';
@@ -928,6 +960,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   if (scene) scene.add(group);
   const t0 = performance.now();
   const { matMain, matRail } = yield* sharedIter();
+  if (tile) applyDistrictHeights(data); // district-typical storeys where the baked height is only the generic estimate (idempotent; world.js may call it on tile load)
   const { inBuilding, roadNear } = buildLookups(data);
   const white = new THREE.Color(1, 1, 1);
 
@@ -1017,7 +1050,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if ((q[0] - p[0]) * (s[1] - q[1]) - (q[1] - p[1]) * (s[0] - q[0]) < -0.02) { convex = false; break; }
       }
       const H0 = roofY - lo, prob = H0 < 9 ? 0.7 : H0 < 15 ? 0.38 : 0.2;
-      if (convex && r() < prob * (S.church ? 1.2 : 1)) pitched = true;
+      if (convex && r() < Math.min(0.95, prob * (S.church ? 1.2 : 1) * (B.pitchMul ?? 1))) pitched = true;
     }
     if (pitched) {
       let bl = 0;
@@ -1070,7 +1103,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         bm = bpEdge(ax, az, bx, bz);
         if (bm) { const w = B.spec && B.spec.walls && B.spec.walls[bm.i]; if (w) W = { ...sp, ...w }; if (B.photo) ph = B.photo[bm.i] || null; }
       }
-      if (kind === 'party' || len < 2.6) {
+      if (kind === 'party' && !S.silo || len < 2.6 && !S.silo) {
         strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? L.ch_low : L.blank, 0.72, 0.97, 0, len / 4);
       } else if (ph) {
         // photo-rectified facade: one quad from the pavement to the cornice
@@ -1078,14 +1111,15 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         ch.p.q([ax, foot0, az, U(bm.ta), ph.v0, 0.8], [bx, foot1, bz, U(bm.tb), ph.v0, 0.8], [bx, yTop, bz, U(bm.tb), ph.v1, 1], [ax, yTop, az, U(bm.ta), ph.v1, 1], nx, 0, nz, ph.layer, white);
       } else {
         const nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / (W.bay || S.bay))), bw = len / nb;
-        const upT = W.up || B.up, nobT = W.nob || B.nob || 'n19_nob', gmode = W.ground;
+        let upT = W.up || B.up; const nobT = W.nob || B.nob || 'n19_nob', gmode = W.ground;
+        if (S.alt && !W.up && hh(ax * 0.77 + 3, az * 1.31) < S.altP) upT = S.alt; // e.g. an exterior stairwell bay on a housing insulae
         // ground floor runs
         const runs = [];
         const addRun = lay => { const q = runs[runs.length - 1]; if (q && q.lay === lay && REPEATABLE.has(lay)) q.n++; else runs.push({ lay, n: 1 }); };
         if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.7 ? 'ch_door' : 'ch_low');
         else if (kind === 'street') {
           let prev = null;
-          const GL = GROUND_MODES[gmode] || S.ground;
+          const GL = GROUND_MODES[gmode] || B.gl || S.ground;
           for (let i = 0; i < nb; i++) {
             let lay = prev && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(GL, r);
             if (lay === prev && !REPEATABLE.has(lay)) lay = pick(GL, r);
@@ -1111,10 +1145,10 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           }
         }
         // balconies on street fronts (per-spec pattern, otherwise palazzi styles get the default pattern)
-        const bmode = W.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || S.rail || 'rail_a';
+        const bmode = W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || S.rail || 'rail_a';
         if (kind === 'street' && bmode !== 'none' && bw >= (W.balc ? 2.6 : 2.9) && nUp > 0) {
           if (bmode === 'cont') {
-            for (let f = 1; f <= (W.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), true, Math.max(nb, Math.round((len - 1) / 1.3)), rail);
+            for (let f = 1; f <= (W.contFloors || S.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), W.balc ? true : f === 1, Math.max(nb, Math.round((len - 1) / 1.3)), rail);
           } else {
             const upper = bmode === 'default' ? hh(ax * 1.3, az * 0.7) < S.balcUpper : bmode === 'every' || bmode === 'alt';
             for (let f = 1; f <= nUp; f++) {
@@ -1196,9 +1230,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         const k = B.roofK, V = i => [all[i].x, yTop, all[i].y, all[i].x / 3.5, all[i].y / 3.5, k];
         for (const t of tris) gbuf.tUp(V(t[0]), V(t[1]), V(t[2]), B.terrLay, B.roofCol);
       } catch (e) { /* skip broken ring */ }
-      roofProps(gbuf, outerPts, hp, yTop, area, r);
+      if (!S.ruin && !S.silo) roofProps(gbuf, outerPts, hp, yTop, area, r);
     } else {
-      const { ua, ub, vm } = ridge, lay = B.greyRoof ? LID.tiles_grey : LID.tiles, k = B.roofK;
+      const { ua, ub, vm } = ridge, lay = B.pitchLay ?? (B.greyRoof ? LID.tiles_grey : LID.tiles), k = B.roofK;
       const RP = p => { const u = p[0] * ax + p[1] * az, uc = Math.min(ub, Math.max(ua, u)); return [uc * ax - vm * az, uc * az + vm * ax, uc]; };
       const Eave = p => { const u = p[0] * ax + p[1] * az, v = -p[0] * az + p[1] * ax, uc = Math.min(ub, Math.max(ua, u)); return [p[0], yTop, p[1], u / 3, Math.hypot(u - uc, v - vm) * 1.15 / 3, k]; };
       const Rid = (p, q) => [q[0], roofY, q[1], q[2] / 3, 0, k];
@@ -1225,20 +1259,27 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const solids = [];
       const shift = b.r !== undefined && !data.near ? -b.g : 0;
       const pts0 = pairs(b.p);
-      if (b.r === undefined) {
+      let cx = 0, cz = 0, bestD = 1e9, near = null;
+      for (const p of pts0) { cx += p[0]; cz += p[1]; const q = roadNear(p[0], p[1]); if (q.d < bestD) { bestD = q.d; near = q; } }
+      cx /= pts0.length; cz /= pts0.length;
+      const area = Math.abs(signedArea(pts0));
+      let H0 = b.r !== undefined ? b.r - b.g : b.h;
+      const spec = SPECS[b.id] || null;
+      const zone = zoneOf(cx, cz, near), Z = ZONES[zone] || ZONES.centro;
+      // storeys: where the baked height is only the generic estimate, the district decides (same answer as applyDistrictHeights unless a street rule moved the zone)
+      let nFl = 0;
+      if (b.dh && b.r === undefined && !b.lv) { nFl = floorsAt(Z, cx, cz, area); if (nFl) { const fh = Z.fh || 3.2; H0 = fh + 0.8 + (nFl - 1) * fh + 0.9; } }
+      let round = false;
+      if (Z.elig && pts0.length >= 10 && area > 25) { let per = 0; for (let i = 0; i < pts0.length; i++) { const a = pts0[i], q = pts0[(i + 1) % pts0.length]; per += Math.hypot(q[0] - a[0], q[1] - a[1]); } round = 4 * Math.PI * area / (per * per) > 0.82; }
+      const key = spec && spec.style || chooseStyle(b, H0, area, zone, r, { fl: nFl, round, u: hh(cx * 1.7 + .3, cz * 2.3 + .7), u2: hh(cx * 0.9 + 5.1, cz * 1.9 + 1.3) });
+      if (b.r === undefined || key === 'ruin') {
         const street = Math.max(...pts0.map(p => groundY(p[0], p[1])));
-        solids.push([b.p, b.holes, street + b.h]);
+        if (key === 'ruin') solids.push([b.p, b.holes, street + 1.7 + 3.2 * hh(cz * 0.7, cx * 1.1)]); // a shell or a rubble lot, never a full building
+        else solids.push([b.p, b.holes, street + (nFl ? H0 : b.h)]);
       } else {
         if (!b.split) solids.push([b.p, b.holes, b.r + shift]);
         for (const [poly, rr] of b.parts || []) solids.push([poly, null, rr + shift]);
       }
-      let cx = 0, cz = 0, bestD = 1e9, near = null;
-      for (const p of pts0) { cx += p[0]; cz += p[1]; const q = roadNear(p[0], p[1]); if (q.d < bestD) { bestD = q.d; near = q; } }
-      cx /= pts0.length; cz /= pts0.length;
-      const area = Math.abs(signedArea(pts0)), H0 = b.r !== undefined ? b.r - b.g : b.h;
-      const spec = SPECS[b.id] || null;
-      const zone = zoneOf(cx, cz, near), Z = ZONES[zone] || ZONES.centro;
-      const key = spec && spec.style || chooseStyle(b, H0, area, zone, r);
       let S = STYLES[key];
       if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
       stats.styles[key] = (stats.styles[key] || 0) + 1;
@@ -1256,14 +1297,16 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       col.lerp(grey((col.r + col.g + col.b) / 3), 0.12 + 0.28 * gr);
       const stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15);
       const B = {
-        S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || 0,
+        S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || nFl || 0,
         up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
         spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone,
+        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1,
       };
       if (B.photo) stats.photo++;
       if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = 'st_up_' + sh; }
       if (spec && spec.win && spec.win !== 'rect' && WIN_TILES[spec.win]) { const [u, n] = WIN_TILES[spec.win](isStone, r() < 0.6 ? 'g' : 'b'); B.up = u; B.nob = n; }
       { const q = r(); B.terrLay = q < 0.16 ? LID.terrace_b : q < 0.27 ? LID.terrace_c : LID.terrace; }
+      if (S.ind) { B.terrLay = LID.roof_metal; B.pitchLay = LID.roof_metal; } else if (S.ruin) B.terrLay = LID.rubble; else if (Z.beach) { B.terrLay = LID.deck; B.pitchLay = LID.deck; }
       const flatTint = 0.88 + 0.2 * r();
       B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
       for (const [flat, holes, roofY] of solids) emitSolid(B, flat, holes, roofY);
@@ -1323,7 +1366,7 @@ function calcFloors(S, Hw, lv, sp) {
   if (Hw < g0 * 1.2) return { g0: Hw, nUp: 0 };
   if (sp && sp.floors) return { g0, nUp: Math.max(1, sp.floors - 1) };
   let nUp = Math.max(1, Math.round((Hw - g0) / S.fh));
-  if (lv > 1 && lv <= 9) { const f = (Hw - g0) / (lv - 1); if (f > S.fh * 0.7 && f < S.fh * 1.3) nUp = lv - 1; }
+  if (lv > 1 && lv <= 16) { const f = (Hw - g0) / (lv - 1); if (f > S.fh * 0.7 && f < S.fh * 1.3) nUp = lv - 1; }
   return { g0, nUp };
 }
 const NOSPEC = {};

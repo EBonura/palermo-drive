@@ -21,6 +21,7 @@ import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
+import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -64,32 +65,12 @@ sky.material.uniforms.rayleigh.value = 3.2;
 sky.material.uniforms.mieCoefficient.value = 0.003;
 sky.material.uniforms.mieDirectionalG.value = 0.84;
 sky.material.uniforms.sunPosition.value.copy(SUN_DIR);
-// The physical sky is far brighter than the city under our exposure, and ACES clips it to white.
-// Scale its output down so the zenith reads the saturated blue of a clear Palermo day.
-// [perf pass] r183 removed Sky's legacy gamma (retColor = pow(texColor, 1/(1.2+1.2*sunfade)), sunfade is 1 with the sun above the horizon, so 1/2.4); put it back so the sky keeps its look.
-sky.material.fragmentShader = sky.material.fragmentShader
-  .replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * 0.42, 1.0 );')
-  .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( pow( texColor, vec3( 1.0 / 2.4 ) ) * 0.42, 1.0 );');
+// [day/night] The sky shader patch (day look scaled by 0.42, twilight gradient, stars, moon) and the environment map now live in src/daynight.js.
 scene.add(sky);
-{
-  // Ambient light and reflections come from a smooth sky gradient: capturing the Sky shader
-  // itself bakes its HDR sun into blotches all over rough surfaces.
-  const geo = new THREE.SphereGeometry(100, 48, 24), col = [], c = new THREE.Color();
-  // Kept less saturated than the visible sky: shaded walls in Palermo read cool grey-brown, not blue.
-  const zenith = new THREE.Color('#8ea5bd'), horizon = new THREE.Color('#d8d4cb'), below = new THREE.Color('#8f7f68');
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i) / 100;
-    if (y >= 0) c.copy(horizon).lerp(zenith, Math.pow(y, 0.55)); else c.copy(horizon).lerp(below, Math.min(1, -y * 4));
-    col.push(c.r, c.g, c.b);
-  }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const envScene = new THREE.Scene();
-  envScene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
-  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(envScene, 0.04).texture;
-}
+// [day/night] The ambient/reflection map (a smooth sky gradient, re-baked as the sky changes) is made by src/daynight.js.
 
-scene.add(new THREE.HemisphereLight('#c9cfd4', '#9a8566', 0.4));
+const hemi = new THREE.HemisphereLight('#c9cfd4', '#9a8566', 0.4); // [day/night] colours/intensity are driven by src/daynight.js
+scene.add(hemi);
 const sun = new THREE.DirectionalLight('#ffe4bd', 2.9); // warm sun, the stone glows gold
 sun.castShadow = true;
 sun.shadow.mapSize.set(QUALITY.shadowMap, QUALITY.shadowMap);
@@ -373,6 +354,7 @@ if (location.search.includes('debug')) window.game = { world, car, keys, physics
 // to a function (camera, seconds) that moves the camera while not playing.
 const game = {
   state: 'title', titleCam: null,
+  time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
   settings: { quality: QUALITY.mobile ? 'low' : 'high', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
   pause() { if (this.state === 'play') this.state = 'pause'; },
@@ -415,6 +397,8 @@ const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
 createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
 applySettings();
+// [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
+const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
 document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
@@ -434,6 +418,7 @@ renderer.setAnimationLoop(now => {
   // world: the baked coastline only covers the centro, so outside it the manifest's land polygon decides what is dry
   if (game.state === 'play' && !(world && world.isLand(car.x, car.z))) sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
 
+  dayNight.update(dt); // advances the clock (play only) and relights everything; rewrites SUN_DIR
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);
   sun.target.position.copy(carPos);

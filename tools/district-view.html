@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>district view</title>
+<style>html,body{margin:0;background:#9cc4e8}canvas{display:block}</style>
+<!-- Stand-alone facade viewer for the district work: builds the real buildBuildings() on world tiles, flat ground, no other game modules.
+     /tools/district-view.html?campos=x,y,z&look=x,y,z[&tiles=i_j,i_j][&fov=60][&night=1]   (tiles default to the ones around the camera look point) -->
+<script src="../palermo-data.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { hooks } from '../src/core.js';
+import { buildBuildings } from '../src/buildings.js';
+const q = new URLSearchParams(location.search);
+const v3 = (s, d) => (s || d).split(',').map(Number);
+const cam = v3(q.get('campos'), '0,40,60'), look = v3(q.get('look'), '0,10,0');
+hooks.ground = () => 0;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.85;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#9cc4e8'); scene.fog = new THREE.Fog('#b9d2e6', 400, 1800);
+const camera = new THREE.PerspectiveCamera(+(q.get('fov') || 60), innerWidth / innerHeight, 0.5, 4000);
+camera.position.set(...cam); camera.lookAt(...look);
+scene.add(new THREE.HemisphereLight('#bcd4f0', '#8a7d6a', 1.15));
+const sun = new THREE.DirectionalLight('#fff1d6', 3.2); sun.position.set(look[0] - 300, look[1] + 230, look[2] + 160); sun.target.position.set(look[0], look[1], look[2]);
+sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); const sc = sun.shadow.camera; sc.left = -260; sc.right = 260; sc.top = 260; sc.bottom = -260; sc.near = 10; sc.far = 900; sun.shadow.bias = -0.0004;
+scene.add(sun, sun.target);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ color: '#8d8a80' })); ground.rotation.x = -Math.PI / 2; ground.position.set(look[0], -0.05, look[2]); ground.receiveShadow = true; scene.add(ground);
+const T = 500;
+let ids = q.get('tiles'); ids = ids ? ids.split(',') : null;
+if (!ids) { ids = []; const ti = Math.floor(look[0] / T), tj = Math.floor(look[2] / T); for (let i = ti - 1; i <= ti + 1; i++) for (let j = tj - 1; j <= tj + 1; j++) ids.push(i + '_' + j); }
+const asphalt = new THREE.MeshLambertMaterial({ color: '#7e7c76' }), sidewalk = new THREE.MeshLambertMaterial({ color: '#b9b5aa' });
+const stats = { tiles: 0, buildings: 0, tris: 0 };
+const t0 = performance.now();
+for (const id of ids) {
+  let d; try { const r = await fetch('../world/tiles/' + id + '.json'); if (!r.ok) continue; d = await r.json(); } catch (e) { continue; }
+  delete d.near; // flat ground, relative heights
+  const g = buildBuildings({ skip: new Set(), scene }, d);
+  scene.add(g); stats.tiles++; stats.buildings += d.buildings.length; stats.tris += g.userData.tris || 0;
+  for (const [layer, mat, y] of [['asphalt', asphalt, 0.02], ['raised', sidewalk, 0.12]]) {
+    for (const poly of d.streets[layer] || []) {
+      try {
+        const pts = ring => { const o = []; for (let i = 0; i < ring.length; i += 2) o.push(new THREE.Vector2(ring[i], -ring[i + 1])); return o; };
+        const shape = new THREE.Shape(pts(poly[0])); for (let k = 1; k < poly.length; k++) shape.holes.push(new THREE.Path(pts(poly[k])));
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat); m.rotation.x = -Math.PI / 2; m.scale.z = -1; m.position.y = y; m.receiveShadow = true; scene.add(m);
+      } catch (e) { /* skip bad ring */ }
+    }
+  }
+}
+renderer.render(scene, camera);
+document.title = 'READY ' + JSON.stringify(stats) + ' ' + Math.round(performance.now() - t0) + 'ms';
+console.log('[district-view] ' + document.title);
+</script>
