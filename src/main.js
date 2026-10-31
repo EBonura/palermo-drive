@@ -24,6 +24,7 @@ import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
+import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -264,61 +265,8 @@ const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
 const mapRoute = []; // [x, z] points of the current route, drawn as a line on the minimap
 
-// ---------- minimap ----------
-const MM_SCALE = 1; // px per metre on the baked map
-const mapCanvas = document.createElement('canvas');
-{
-  const [x0, z0, x1, z1] = D.bounds, pad = 200;
-  mapCanvas.width = Math.ceil((x1 - x0 + pad * 2) * MM_SCALE); mapCanvas.height = Math.ceil((z1 - z0 + pad * 2) * MM_SCALE);
-  mapCanvas.ox = x0 - pad; mapCanvas.oz = z0 - pad;
-  const g = mapCanvas.getContext('2d');
-  const tx = x => (x - mapCanvas.ox) * MM_SCALE, tz = z => (z - mapCanvas.oz) * MM_SCALE;
-  const path = flat => { g.beginPath(); for (let i = 0; i < flat.length; i += 2) g[i ? 'lineTo' : 'moveTo'](tx(flat[i]), tz(flat[i + 1])); };
-  g.fillStyle = '#3a8bb5'; g.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-  g.fillStyle = '#e4dccb'; path(D.land); g.closePath(); g.fill();
-  for (const a of D.areas) { g.fillStyle = { green: '#93b46a', water: '#3a8bb5', plaza: '#f2ead8', pier: '#bdbab2' }[a.k]; path(a.p); g.closePath(); g.fill(); }
-  g.lineCap = g.lineJoin = 'round';
-  for (const r of D.roads) { if (!DRIVABLE.has(r.k)) continue; g.strokeStyle = r.k === 'pedestrian' ? '#f6efe0' : '#ffffff'; g.lineWidth = r.w * MM_SCALE * 1.3; path(r.p); g.stroke(); }
-  g.fillStyle = '#b98f62';
-  for (const b of D.buildings) { path(b.p); g.closePath(); g.fill(); }
-}
-const mini = document.getElementById('mini').getContext('2d');
-function drawMinimap() {
-  const W = 200, zoom = 0.75;
-  mini.save();
-  mini.clearRect(0, 0, W, W);
-  mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
-  mini.translate(W / 2, W / 2);
-  mini.rotate(car.th - Math.PI);
-  mini.scale(zoom, zoom);
-  mini.drawImage(mapCanvas, -(car.x - mapCanvas.ox) * MM_SCALE, -(car.z - mapCanvas.oz) * MM_SCALE);
-  mini.restore();
-  // Markers from other modules (missions, stigghiulari, other players), drawn after restore() in plain
-  // screen space: rotate each offset by the same angle as the map (heading up), scale like the map.
-  // Off-map markers are pinned to the rim so the direction still reads.
-  const a = car.th - Math.PI, ca = Math.cos(a), sa = Math.sin(a), k = zoom * MM_SCALE;
-  const toMap = (x, z) => { const dx = (x - car.x) * k, dz = (z - car.z) * k; return [W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca]; };
-  if (mapRoute.length > 1) {
-    mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
-    mini.lineCap = mini.lineJoin = 'round';
-    for (const [w, c] of [[7, '#120a0e'], [4, '#e8559a']]) {
-      mini.strokeStyle = c; mini.lineWidth = w; mini.beginPath();
-      mapRoute.forEach(([x, z], i) => { const [px, pz] = toMap(x, z); i ? mini.lineTo(px, pz) : mini.moveTo(px, pz); });
-      mini.stroke();
-    }
-    mini.restore();
-  }
-  for (const m of mapMarkers) {
-    const dx = (m.x - car.x) * k, dz = (m.z - car.z) * k;
-    let px = dx * ca - dz * sa, pz = dx * sa + dz * ca;
-    const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
-    if (off) { px *= rim / r; pz *= rim / r; }
-    mini.fillStyle = m.color || '#e8559a'; mini.strokeStyle = '#000'; mini.lineWidth = 1.5;
-    mini.beginPath(); mini.arc(W / 2 + px, W / 2 + pz, off ? 4 : (m.size || 5), 0, Math.PI * 2); mini.fill(); mini.stroke();
-  }
-  mini.fillStyle = '#c41e2a'; mini.strokeStyle = '#fff'; mini.lineWidth = 2;
-  mini.beginPath(); mini.moveTo(W / 2, W / 2 - 9); mini.lineTo(W / 2 + 6, W / 2 + 7); mini.lineTo(W / 2 - 6, W / 2 + 7); mini.closePath(); mini.fill(); mini.stroke();
-}
+// ---------- minimap (src/minimap.js) ----------
+const minimap = createMinimap({ canvas: document.getElementById('mini'), car, world, D, DRIVABLE, mapMarkers, mapRoute });
 
 // ---------- HUD ----------
 const elStreet = document.getElementById('street'), elLand = document.getElementById('landmark'), elSpeed = document.getElementById('speed');
@@ -447,6 +395,6 @@ renderer.setAnimationLoop(now => {
   else updateCamera(dt);
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
-  drawMinimap();
+  minimap.draw(dt);
   renderer.render(scene, camera);
 });
