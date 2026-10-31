@@ -128,8 +128,8 @@ function buildCinese() {
   const gy = gr.hi + 0.1, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
   begin(gy);
   const W = Math.min(fr.w, 19), Dp = Math.min(fr.d, 15.5), PH = 4.2, H = 15.0;
-  defMat('cnWall', 256, 256, [8, 10.8], (g, w, h) => paintFacade(g, w, h, 8, 10.8, { base: '#e2845a', trim: '#f4d9b0', glass: '#243a2c', seed: 831, grime: 0,
-    bands: [{ y: 5.3, h: 0.35, c: '#f0c79a' }, { y: 10.4, h: 0.4, c: '#f0c79a' }], rows: [{ y0: 0.8, y1: 4.2, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }, { y0: 6.2, y1: 9.7, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }], shut: '#3d6a4a' }));
+  defMat('cnWall', 256, 256, [8, 10.8], (g, w, h) => paintFacade(g, w, h, 8, 10.8, { base: '#e9a45e', trim: '#f4d9b0', glass: '#243a2c', seed: 831, grime: 0,
+    bands: [{ y: 5.3, h: 1.1, c: '#d8664c' }, { y: 10.4, h: 1.2, c: '#d8664c' }], rows: [{ y0: 0.8, y1: 4.2, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }, { y0: 6.2, y1: 9.7, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }], shut: '#3d6a4a' }));
   defMat('cnBase', 256, 128, [10, 4.2], (g, w, h) => { paintAshlar(g, w, h, 10, 4.2, 0.6, 1.3, '#b9aab6', '#8a7c88', 832, 2, 0.06); g.fillStyle = '#a05a4a'; for (const cx of [1.5, 4.0, 6.5, 9.0]) { g.beginPath(); g.moveTo((cx - 0.7) * 25.6, h); g.lineTo((cx - 0.7) * 25.6, 56); g.arc(cx * 25.6, 56, 0.7 * 25.6, Math.PI, 0); g.lineTo((cx + 0.7) * 25.6, h); g.fill(); } });
   skirt('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 2.5, { c: '#b9aab6' });
   bx('cnBase', M, -W / 2, W / 2, 0, PH, -Dp / 2, Dp / 2);
@@ -165,7 +165,7 @@ function buildGymnasium() {
   const gy = gr.hi + 0.15, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
   begin(gy);
   const W = Math.min(fr.w, 23.5), Dp = Math.min(fr.d, 23), H = 11.8;
-  defMat('gymWall', 256, 256, [6, 6], (g, w, h) => { paintAshlar(g, w, h, 6, 6, 0.5, 1.2, '#e6bf86', '#b8935c', 841, 2, 0.05); }, {});
+  defMat('gymWall', 256, 256, [6, 6], (g, w, h) => { paintAshlar(g, w, h, 6, 6, 0.5, 1.2, '#e4ad6c', '#b98a52', 841, 2, 0.05); }, {});
   defMat('gymFront', 256, 128, [9, 5], (g, w, h) => { g.fillStyle = '#7e2f2c'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 842, ['rgba(255,255,255,0.05)']); g.fillStyle = '#2b1a14'; g.fillRect(100, 40, 56, 88); g.fillStyle = '#d6b078'; g.fillRect(96, 34, 64, 6); });
   skirt('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 2.5, { c: '#c2a67a' });
   bx('gymWall', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.1);
@@ -177,7 +177,7 @@ function buildGymnasium() {
   const PD = 4.2, MP = mul(M, tr(0, 0, Dp / 2));
   bx('gymFront', MP, -W / 2 + 4.5, W / 2 - 4.5, 0.4, H - 1.8, -0.02, 0.05, { noao: true });
   bx('flat', MP, -W / 2 + 3.4, W / 2 - 3.4, H - 1.8, H, 0, PD + 0.4, { c: '#e9c996' }); bx('flat', MP, -W / 2 + 3.0, W / 2 - 3.0, H, H + 0.6, -0.2, PD + 0.8, { c: '#f0d8aa' });
-  for (let i = 0; i < 4; i++) { const x = -W / 2 + 4.6 + i * (W - 9.2) / 3; cyl('gymWall', 0.62, 0.78, H - 2.4, 12, { M: mul(MP, tr(x, 0.5, PD)), c: '#f0cf9a' }); bx('flat', mul(MP, tr(x, 0, PD)), -0.95, 0.95, 0.0, 0.5, -0.95, 0.95, { c: '#e9c996' }); bx('flat', mul(MP, tr(x, 0, PD)), -1.0, 1.0, H - 1.9, H - 1.8, -1.0, 1.0, { c: '#f0d8aa' }); }
+  for (let i = 0; i < 4; i++) { const x = -W / 2 + 4.6 + i * (W - 9.2) / 3; cyl('gymWall', 0.62, 0.78, H - 2.4, 12, { M: mul(MP, tr(x, 0.5, PD)), c: '#f2c88c' }); bx('flat', mul(MP, tr(x, 0, PD)), -0.95, 0.95, 0.0, 0.5, -0.95, 0.95, { c: '#e9c996' }); bx('flat', mul(MP, tr(x, 0, PD)), -1.0, 1.0, H - 1.9, H - 1.8, -1.0, 1.0, { c: '#f0d8aa' }); }
   for (let i = 0; i < 5; i++) bx('stone', MP, -W * 0.3 - i * 0.2, W * 0.3 + i * 0.2, 0, 0.5 - i * 0.1, PD + 0.6 + i * 0.4, PD + 1.0 + i * 0.4 + 0.2, { c: '#cbbf9f' });
   for (const sg of [-1, 1]) { const Ms = mul(MP, tr(sg * (W * 0.3 + 1.4), 0, PD + 3.2)); bx('stone', Ms, -0.9, 0.9, 0, 1.2, -1.2, 1.2, { c: '#d8cdb2' }); bx('marble', Ms, -0.45, 0.45, 1.2, 2.1, 0.0, 1.5, { c: '#b8c0c8' }); bx('marble', Ms, -0.5, 0.5, 1.2, 1.8, -1.6, 0.4, { c: '#b8c0c8' }); }
   // the low red dome with its drum behind the portico

@@ -1867,6 +1867,7 @@ const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 4
   signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450 };
+const MOBILE = !!QUALITY.mobile;
 const WHITE_IC = new THREE.Color(1, 1, 1);
 let ZEBRA_MAT = null, PANEL_MAT = null;
 const zebraMat = () => ZEBRA_MAT ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
@@ -1897,7 +1898,7 @@ function* instantiate(res, parent, BUD) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = FAR[name] ?? 450;
+      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * (MOBILE ? 0.7 : 1);
       meshes.push(im); meshOf[name + '|' + ckey] = im; parent.add(im); tris += per * n; total += n;
     }
     if (BUD.over()) yield;
@@ -1914,7 +1915,6 @@ function* instantiate(res, parent, BUD) {
 }
 
 // ------------------------------------------------------------------ the module
-const MOBILE = !!QUALITY.mobile;
 const MARKET_OR_POOR = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria|Capo\b|Carini|Beati Paoli|Albergheria|Casa Professa|Divisi|Lattarini|Biscottari|Bandiera|Alloro|Cala\b|Sant'Agostino|Schioppettieri|Ponticello|Sant'Anna|Collegio di Maria|Marina/;
 
 // ctx: { scene, raisedMask, CURB }. Props now exist per tile only: call api.attachWorld(world) once the streamer exists; every tile that
@@ -1930,7 +1930,7 @@ export function buildProps(ctx) {
   const inBAny = (x, z) => { const t = tileIdx.get(tkey(Math.floor(x / T), Math.floor(z / T))); return t ? t.inB(x, z) : false; };
   const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
   const phys = makePhysics({ inB: inBAny, gy, scene });
-  const tstats = { tiles: 0, built: 0, instances: 0, tris: 0, ms: 0, msMax: 0, lamps: 0, queued: () => [...jobs.values()].filter(j => j.phase < 3).length };
+  const tstats = { tiles: 0, built: 0, instances: 0, tris: 0, ms: 0, msMax: 0, lamps: 0, stepMax: 0, cpu: 0, queued: () => [...jobs.values()].filter(j => j.phase < 3).length };
 
   // ---------- tile source
   const sandRings = d => { const a = (d.areas || []).filter(q => q.k === 'sand').map(q => q.p); return a.length ? a : ((d.streets && d.streets.sand) || []).map(p => p[0]); };
@@ -1980,7 +1980,7 @@ export function buildProps(ctx) {
       scene.add(job.group);
       job.lamps = inst.meshes.some(im => im.userData.kind === 'lamp_pole' || im.userData.kind === 'lamp_wall' || im.userData.kind === 'candelabra');
       tstats.built++; tstats.instances += inst.total; tstats.tris += inst.tris; tstats.lamps += job.lamps ? 1 : 0;
-      job.ms = performance.now() - job.t0; tstats.ms += job.ms; if (job.ms > tstats.msMax) tstats.msMax = job.ms;
+      job.ms = performance.now() - job.t0; tstats.ms += job.ms; tstats.cpu += job.cpu || 0; if (job.ms > tstats.msMax) tstats.msMax = job.ms;
       job.stats = res.stats; job.S = null; job.res = null; job.phase = 3;
       if (job.lamps) lampsChanged();
       return true;
@@ -1998,7 +1998,9 @@ export function buildProps(ctx) {
       for (const j of jobs.values()) if (j.phase < 3) { const dx = j.cx - cp.x, dz = j.cz - cp.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = j; } }
       if (!best) return;
       if (!best.t0) best.t0 = now;
-      if (!stepJob(best) || BUD.over()) return;
+      const s0 = performance.now(), fin = stepJob(best), s1 = performance.now();
+      best.cpu = (best.cpu || 0) + (s1 - s0); if (s1 - s0 > tstats.stepMax) tstats.stepMax = s1 - s0;
+      if (!fin || BUD.over()) return;
     }
   }
   // daynight lights lamps from the instanced meshes it finds; tell it when tiles bring or take lamps
