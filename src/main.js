@@ -13,6 +13,7 @@ import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
+import { createShouts } from './shouts.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -355,7 +356,9 @@ const { car, camState, placeAt, physics, updateCamera } = vehicle;
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
 // update(dt, camera) runs every frame while playing or on the title flyover; collidePlayer(car) runs
 // after each fixed physics step and may push the player (car.x/z/vx/vz) like a wall hit.
-const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D };
+// shout(x, y, z, text?) pops a swearing balloon over whoever the lapa just hit (src/shouts.js).
+const shouts = createShouts(camera);
+const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout };
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
@@ -440,7 +443,7 @@ placeAt(0, 0);
     if (!q.has('hud')) document.querySelectorAll('.hud').forEach(e => e.style.display = 'none');
   }
 }
-if (location.search.includes('debug')) window.game = { car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY };
+if (location.search.includes('debug')) window.game = { car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
@@ -485,6 +488,7 @@ renderer.setAnimationLoop(now => {
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
   net.update?.(dt);
+  shouts.update(game.state === 'pause' ? 0 : dt);
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);

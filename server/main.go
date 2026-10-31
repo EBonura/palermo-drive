@@ -114,10 +114,7 @@ func (p *player) kick(code websocket.StatusCode, reason string) {
 
 func (h *hub) join(base string, p *player) {
 	for n := 1; ; n++ {
-		key := base + "#" + string(rune('0'+n%10))
-		if n >= 10 {
-			key = base + "#" + itoa(n)
-		}
+		key := base + "#" + itoa(n)
 		r := h.rooms[key]
 		if r == nil {
 			r = &room{key: key, nextInfo: 1}

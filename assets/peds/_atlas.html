@@ -1,0 +1,7 @@
+<!doctype html><body style="margin:0;background:#8a9a7a"><script type="module">
+import { buildAtlas, VARIANTS } from './sprites.js';
+const t=performance.now(); const cv = buildAtlas(); document.title='atlas '+(performance.now()-t).toFixed(0)+' ms '+VARIANTS.length;
+const z = 3, params=new URLSearchParams(location.search), r0=+(params.get('r0')||0), r1=+(params.get('r1')||VARIANTS.length);
+const out=document.createElement('canvas'); out.width=cv.width*z; out.height=(r1-r0)*48*z; const g=out.getContext('2d'); g.imageSmoothingEnabled=false; g.drawImage(cv,0,r0*48,cv.width,(r1-r0)*48,0,0,out.width,out.height);
+document.body.appendChild(out); window.done = true;
+</script>
