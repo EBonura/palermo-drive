@@ -194,10 +194,8 @@ function pickWalls({ D, skip, drivable }) {
 export function createSuca({ scene, D, skip, drivable, mapMarkers, world = null }) {
   const tags = pickWalls({ D, skip, drivable }), N = tags.length;
   const rand = rng(4242);
-  for (const t of tags) {
-    t.y = Math.max(groundY(t.x, t.z), groundY(t.x + t.nx * 1.5, t.z + t.nz * 1.5)) + 1.55 + rand() * .4;
-    t.v = (rand() * 8) | 0;
-  }
+  const setY = t => { t.y = Math.max(groundY(t.x, t.z), groundY(t.x + t.nx * 1.5, t.z + t.nz * 1.5)) + t.h; };
+  for (const t of tags) { t.h = 1.55 + rand() * .4; t.v = (rand() * 8) | 0; setY(t); }
   let done = new Set();
   try { done = new Set((JSON.parse(localStorage.getItem(KEY)) || []).filter(id => tags.some(t => t.id === id))); } catch (e) { /* private mode */ }
 
@@ -280,7 +278,7 @@ export function createSuca({ scene, D, skip, drivable, mapMarkers, world = null 
       slow = .5;
       if (world) for (let i = 0; i < N; i++) {
         const T = world.manifest?.T || 500, t = world.tiles.get((Math.floor(tags[i].x / T) + 200) * 1000 + Math.floor(tags[i].z / T) + 200), on = t && !t.dead && t.lod >= 1 ? 1 : 0;
-        if (on !== shown[i]) { shown[i] = on; quad(i); geo.attributes.position.needsUpdate = true; }
+        if (on !== shown[i]) { shown[i] = on; setY(tags[i]); quad(i); geo.attributes.position.needsUpdate = true; }
       }
       syncMarkers(car);
     }

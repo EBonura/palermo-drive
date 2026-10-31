@@ -54,7 +54,7 @@ const DAYK = {
 const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'dome', 'amb']) k[f] = C(k[f]); return k; };
 const NIGHTK = { // Palermo after dark: saturated indigo sky, an orange light dome over the roofs, cool navy shadows, warm brown bounce from the streets
   sun: '#000000', sunI: 0, hemiS: '#2a3f88', hemiG: '#4e3420', hemiI: 0.6, fog: '#1c2358', fogK: 1.25, expo: 1.2,
-  envZ: '#142060', envH: '#703c1a', envB: '#3c2410', skyH: '#1c2a78', skyZ: '#071258', glow: '#5a6aa8', dome: '#7a3a12', amb: '#0c1530', win: 0.5,
+  envZ: '#142060', envH: '#703c1a', envB: '#3c2410', skyH: '#1c2a78', skyZ: '#071258', glow: '#5a6aa8', dome: '#a04c14', amb: '#0c1530', win: 0.5,
 };
 const KEYS = [
   K(0, { ...NIGHTK, win: 0.3 }),
@@ -68,7 +68,7 @@ const KEYS = [
   K(17.7, { sun: '#ffbe78', sunI: 2.6, hemiS: '#d4c8c8', hemiG: '#9a7c68', hemiI: 0.42, fog: '#c4bcc4', fogK: 1.2, expo: 0.88, envZ: '#869cc0', envH: '#e4c4aa', envB: '#8a7260', skyH: '#f0b894', skyZ: '#7d9fd0', amb: '#e8d8d0', win: 0 }),
   K(18.7, { sun: '#ff8f55', sunI: 1.5, hemiS: '#b9a5bb', hemiG: '#7c6460', hemiI: 0.38, fog: '#b6a6a9', fogK: 1.5, expo: 0.95, envZ: '#6a6e9e', envH: '#e5a28c', envB: '#6e5a5e', skyH: '#f2998a', skyZ: '#5a68a8', glow: '#ff8a5a', amb: '#c4a0a0', win: 0 }),
   K(19.25, { sun: '#e0607a', sunI: 0.3, hemiS: '#7a78a8', hemiG: '#5a3a30', hemiI: 0.46, fog: '#8a7c9e', fogK: 1.65, expo: 1.05, envZ: '#2f3a70', envH: '#a07c9e', envB: '#3a3040', skyH: '#a8749e', skyZ: '#26306a', glow: '#e86a7a', dome: '#6a3020', amb: '#5a5070', win: 0.2 }),
-  K(20.1, { sun: '#503060', sunI: 0, hemiS: '#3a58a8', hemiG: '#4a2c1a', hemiI: 0.55, fog: '#34407e', fogK: 1.5, expo: 1.12, envZ: '#1c2c78', envH: '#6a4430', envB: '#2e2018', skyH: '#4a4a98', skyZ: '#0e2080', glow: '#9a5a90', dome: '#a04a1c', amb: '#202c52', win: 0.45 }),
+  K(20.1, { sun: '#503060', sunI: 0, hemiS: '#3a58a8', hemiG: '#4a2c1a', hemiI: 0.55, fog: '#34407e', fogK: 1.5, expo: 1.12, envZ: '#1c2c78', envH: '#6a4430', envB: '#2e2018', skyH: '#3a4aa4', skyZ: '#0a1c7c', glow: '#9a5a90', dome: '#a04a1c', amb: '#202c52', win: 0.45 }),
   K(21.4, { ...NIGHTK }),
   K(24, { ...NIGHTK, win: 0.3 }),
 ];

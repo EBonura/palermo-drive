@@ -242,7 +242,7 @@ function buildStadio() {
 }
 
 export const STADIO = {
-  name: 'Stadio Renzo Barbera', x: -1666, z: -4097, radius: 140, skipIds: [FP.stadio.id], dropWalls: [FP.stadio.id],
+  name: 'Stadio Renzo Barbera', x: -1666, z: -4097, radius: 140, skipIds: [FP.stadio.id, 'w124120091'], dropWalls: [FP.stadio.id, 'w124120091'],
   walls: stadiumCollision(), gate: { x: GATE.x, z: -4204.6, to: -4167.4, halfW: GATE.halfW },
   build: buildStadio,
 };
