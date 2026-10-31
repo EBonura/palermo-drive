@@ -218,7 +218,7 @@ export function createPedestrians(env) {
   // ======================================================================== time of day
   // The day/night work publishes game.time {hour, isNight, dusk} and fires window 'pd-time' {hour, isNight, dusk}; both are read
   // defensively and the default is daytime. nightCrowd flips the crowd map and mix; nightK (0..1) eases the sprites' light.
-  let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0;
+  let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0, purgeAt = 0;
   const setCrowdNight = b => { if (b === nightCrowd) return; nightCrowd = b; targetT = 0; purgeT = 45; };
   function setTime(t) {
     if (!t || typeof t !== 'object') return;
@@ -613,12 +613,18 @@ export function createPedestrians(env) {
 
     // despawn the far ones, and retarget the crowd size twice a second
     for (let i = N.n - 1; i >= 0; i--) { if (hyp2(X[i] - cx, Z[i] - cz) > R + 14 || AGE[i] < -100) removeAt(i); }
-    // dusk or dawn: whoever does not belong to the new crowd leaves (unseen ones at once, visible ones dissolve after a while)
+    // dusk or dawn: the crowd turns over. Whoever is not in the new mix leaves, and the others leave in proportion to how much the new mix
+    // wants fewer of their kind (nonne at night, students by day), so the replacements spawn from the new weights. Unseen ones go at once,
+    // visible ones dissolve after a while.
     if (purgeT > 0) {
-      purgeT -= dt; const wt = nightCrowd ? VWN : VW;
-      for (let i = 0, left = 6; i < N.n && left > 0; i++) {
-        const vi = VAR[i]; if (LEAVE[i] >= 0 || vi === HEALV || vi === CHAIRV || MIR[i] > 0) continue;
-        let w = 0; for (let z = 0; z < 6; z++) w += wt[z][vi]; if (w > 0) continue;
+      purgeT -= dt;
+      const nw = nightCrowd ? VWN : VW, nsum = nightCrowd ? VWNsum : VWsum, ow = nightCrowd ? VW : VWN, osum = nightCrowd ? VWsum : VWNsum;
+      for (let k = 0, left = 6; k < 10 && left > 0 && N.n > 0; k++) {
+        const i = purgeAt = (purgeAt + 1) % N.n, vi = VAR[i];
+        if (LEAVE[i] >= 0 || vi === HEALV || vi === CHAIRV || MIR[i] > 0) continue;
+        const zn = ZN[i], oldShare = ow[zn][vi] / osum[zn], newShare = nw[zn][vi] / nsum[zn];
+        if (oldShare > 0 && newShare >= oldShare) continue;
+        if (oldShare > 0 && Math.random() < newShare / oldShare) continue;
         const dx = X[i] - cx, dz = Z[i] - cz, d = hyp2(dx, dz) || 1, seen = d < 70 && (dx * camFwdX + dz * camFwdZ) / d > 0.15;
         if (!seen || d > 55 || purgeT < 30) { LEAVE[i] = 1; left--; }
       }
