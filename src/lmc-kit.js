@@ -147,6 +147,28 @@ export function gable(roofKey, wallKey, M, w, d, y, rise, o = {}) {
   for (const zz of [-d / 2, d / 2 - 0.3]) extrude(wallKey, sh, 0.3, { M, p: [0, y, zz], c: o.wc });
 }
 
+
+// Quad grid: P is rows (i) of points (j) [x,y,z]; each cell (i,j)-(i+1,j+1) becomes two flat-shaded triangles.
+// o.wrap closes the j direction, o.flip reverses the winding, o.skip(i, j, a, b, c, d) drops a cell, uvf(i, j, p) -> [u, v].
+export function gridMesh(key, P, uvf, o = {}) {
+  const R = P.length, C = P[0].length, nc = o.wrap ? C : C - 1, pos = [], nor = [], uv = [];
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), N = new THREE.Vector3();
+  const tri = (p, q, r, up, uq, ur) => {
+    A.set(q[0] - p[0], q[1] - p[1], q[2] - p[2]); B.set(r[0] - p[0], r[1] - p[1], r[2] - p[2]); N.crossVectors(A, B).normalize();
+    for (const [pp, uu] of [[p, up], [q, uq], [r, ur]]) { pos.push(pp[0], pp[1], pp[2]); nor.push(N.x, N.y, N.z); uv.push(uu[0], uu[1]); }
+  };
+  for (let i = 0; i < R - 1; i++) for (let j = 0; j < nc; j++) {
+    const j1 = (j + 1) % C, a = P[i][j], b = P[i][j1], c = P[i + 1][j1], d = P[i + 1][j];
+    if (o.skip && o.skip(i, j, a, b, c, d)) continue;
+    const ua = uvf(i, j, a), ub = uvf(i, j + 1, b), uc = uvf(i + 1, j + 1, c), ud = uvf(i + 1, j, d);
+    if (o.flip) { tri(a, c, b, ua, uc, ub); tri(a, d, c, ua, ud, uc); } else { tri(a, b, c, ua, ub, uc); tri(a, c, d, ua, uc, ud); }
+  }
+  if (!pos.length) return;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  part(key, g, { uv: 'keep', ...o, skip: undefined });
+}
+
 // ---------- frames ----------
 export const mul = (a, b) => new THREE.Matrix4().multiplyMatrices(a, b);
 export const tr = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);

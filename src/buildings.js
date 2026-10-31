@@ -519,9 +519,9 @@ layer('g_lib', (g, r) => { // rusticated base, arched window with iron grille, c
 // ---- sacco di Palermo blocks (1960s-70s): continuous balconies, tapparelle, drop awnings, marble lobbies
 function blkTile(g, r, tcol, awn, extra) {
   plaster(g, r, '#e6e1d4', { peel: 0 });
-  shutterBox(g, 84, 22, 88);
-  win(g, 94, 48, 68, 168, { fr: 4, frc: '#cfc9b9', sill: false });
-  tapp(g, 90, 44, 76, 168 * (0.3 + 0.5 * r()), tcol);
+  shutterBox(g, 74, 22, 108);
+  win(g, 84, 48, 88, 168, { fr: 4, frc: '#cfc9b9', sill: false });
+  tapp(g, 80, 44, 96, 168 * (0.3 + 0.5 * r()), tcol);
   if (awn) awnDrop(g, 70, 46, 116, 150, awn);
   if (extra === 'ac') acUnit(g, 186, 70);
   if (extra === 'win') { win(g, 196, 90, 34, 50, { fr: 3, frc: '#cfc9b9', sill: false }); tapp(g, 194, 88, 38, 22, tcol); }
@@ -530,7 +530,8 @@ function blkTile(g, r, tcol, awn, extra) {
 }
 layer('blk_a', (g, r) => blkTile(g, r, '#8a6a4a', null, 'ac'));
 layer('blk_b', (g, r) => blkTile(g, r, '#e2dac2', null, 'win'));
-layer('blk_c', (g, r) => blkTile(g, r, '#5c7a58', r() < .5 ? '#d8741f' : '#2f6f4a', null));
+layer('blk_c', (g, r) => blkTile(g, r, '#5c7a58', '#c9803a', null));
+layer('blk_e', (g, r) => blkTile(g, r, '#8a6a4a', '#4f7a5c', 'ac'));
 layer('blk_d', (g, r) => blkTile(g, r, '#9a9a94', null, 'ac'));
 layer('g_pilot', (g, r) => { // open ground floor on pilotis: dark garage, two concrete columns, parked scooter
   plaster(g, r, '#e0dccf', { peel: 0 });
@@ -834,10 +835,10 @@ const STYLES = {
   lib: { pal: 'res', bay: 4.0, g0: 4.3, fh: 3.8, parapet: 0.8, corn: 0.5, nobile: true, up: ['lib_up_a', 'lib_up_b'], nob: ['lib_nob'], rail: 'rail_l', balcUpper: 0.5, pitch: 0.45,
     ground: [['g_lib', 3], ['g_door', 1.5], ['g_win', 1.5], ['g_shop_s', 1]] },
   // 1960s-70s apartment block (sacco di Palermo): continuous balconies on every floor, tapparelle, drop awnings, shops or a lobby below
-  blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_c', 'blk_d'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
+  blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_d', 'blk_a', 'blk_b', 'blk_d', 'blk_c', 'blk_e'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
     ground: [['pw_shop', 3], ['g_shop_s', 2], ['g_pilot', 1.4], ['g_lobby', 1.6], ['g_garage', 1]] },
   // 1980s+ palazzina: one balcony per bay, glazed or solid parapets
-  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_c', 'res_d', 'blk_d'], rail: 'rail_c', balc: 'every', pitch: 0.18,
+  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', balc: 'every', pitch: 0.18,
     ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
   ins: { pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,

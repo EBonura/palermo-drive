@@ -37,6 +37,8 @@ const S = {
   camera: ['Camera iniziale', 'Default camera'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
+  timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
+  timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'],
   startLast: ['Ultima posizione', 'Last position'],
@@ -216,6 +218,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
+  st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'afternoon'); // day/night clock (src/daynight.js reads these)
+  st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   let livery = typeof saved.livery === 'string' ? saved.livery : null;
   let lang = ['it', 'en'].includes(params.get('lang')) ? params.get('lang') : ['it', 'en'].includes(saved.lang) ? saved.lang : 'it';
   const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang, livery })); } catch (e) { /* storage unavailable: fine */ } };
@@ -260,6 +264,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
+    { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
+    { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Italiano'], ['en', null, 'English']] };
   OPTS.push(LANG_OPT);
@@ -537,7 +543,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       st[key] = value;
       if (key === 'volume') vehicle?.setVolume?.(value);
       if (key === 'camera' && game.state !== 'title') vehicle.camState.mode = value;
-      if (key === 'units') { /* main.js reads it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again
+      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }
