@@ -7,7 +7,7 @@
 //  - tower: round, sandy-tan rubble tower about 14 m tall with a crown of merlons, a single slit window high up
 //  - boats: wooden gozzi, white hulls with a red line, blue or yellow strakes, hauled out on the slipway or moored along the quay
 import * as THREE from 'three';
-import { PI, defMat, begin, end, box, bx, cyl, cone, prism, mul, tr, frame, groundY, initShared, RNG, noiseDots } from './lmc-kit.js';
+import { PI, defMat, begin, end, box, bx, cyl, sphere, prism, mul, tr, frame, groundY, initShared, RNG, noiseDots } from './lmc-kit.js';
 
 // landward edge of the sand [z, x] (from the OSM beach polygon, which is the back of the dry beach)
 const LAND = [[-10020, -3128], [-9980, -3137], [-9940, -3158], [-9900, -3159], [-9860, -3153], [-9820, -3147], [-9780, -3141], [-9740, -3128], [-9700, -3104],
@@ -44,6 +44,7 @@ function defMats() {
     g.strokeStyle = 'rgba(100,78,52,0.28)'; g.lineWidth = 1.2; for (let y = 6; y < h; y += 13) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 1); g.stroke(); }
   });
   defMat('mnHull', 0, 0, [1, 1], null, { roughness: 0.7 });
+  defMat('mnTerra', 64, 64, [1, 1], (g, w, h) => { g.fillStyle = '#b8643f'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 80, 2, 902, ['rgba(80,40,20,0.2)', 'rgba(240,190,150,0.2)']); });
 }
 
 // ====================================================================================================
@@ -155,6 +156,12 @@ function buildHarbour() {
   }
   // a few at anchor in the bay and by the mole
   for (let i = 0; i < 9; i++) gozzo(-2985 + rn() * 70, -0.1, -10060 + rn() * 55, rn() * 2 * PI, 5 + rn() * 2.5, HULLS[(rn() * HULLS.length) | 0], { cabin: rn() < 0.3 });
+  // the quay front: blue lamp posts and terracotta pots with oleander, as in the piazza photos
+  for (let q = 4, k = 0; q < 132; q += 9, k++) {
+    const x = -3052 + Dx * q - Nx * 2.2, z = -10084 + Dz * q - Nz * 2.2, y = groundY(x, z);
+    if (k % 2 === 0) lampPost(x, y, z, Math.atan2(-Nx, -Nz));
+    else { cyl('mnTerra', 0.5, 0.36, 0.7, 8, { p: [x, y, z], noao: true }); sphere('flat', 0.7, { p: [x, y + 1.1, z], c: '#4f7d3a', seg: 6, noao: true }); sphere('flat', 0.22, { p: [x + 0.3, y + 1.55, z + 0.2], c: '#e07a96', seg: 4, noao: true }); }
+  }
   // the pontile: a plain concrete jetty with a railing, out from the quay
   const px0 = -3004, pz0 = -10122, dx = 0.44, dz = 0.9, pl = 42, M = mul(tr(px0, 0, pz0), new THREE.Matrix4().makeRotationY(Math.atan2(dx, dz)));
   bx('marble', M, -1.8, 1.8, 0.2, 0.9, 0, pl, { c: '#bdb8a8', noao: true });
