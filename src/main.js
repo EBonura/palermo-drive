@@ -343,7 +343,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyC') camState.mode = (camState.mode + 1) % 4;
   if (e.code === 'KeyR') placeAt(car.x, car.z);
-  if (e.code === 'Slash' || e.code === 'F1') { const h = document.getElementById('help'); h.style.display = h.style.display === 'none' ? '' : 'none'; }
+  if (e.code === 'Slash' || e.code === 'F1') { document.getElementById('help').classList.toggle('show'); e.preventDefault(); }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= SPOTS.length) placeAt(...proj(SPOTS[n - 1][1], SPOTS[n - 1][2]));
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -456,7 +456,7 @@ placeAt(0, 0);
   if (spot >= 1 && spot <= SPOTS.length) placeAt(...proj(SPOTS[spot - 1][1], SPOTS[spot - 1][2]));
   if (turn) car.th += turn * Math.PI / 180;
   if (q.has('cam')) camState.mode = +q.get('cam') % 4;
-  if (q.has('help')) document.getElementById('help').style.display = 'none';
+  if (q.has('help')) document.getElementById('help').classList.remove('show');
   // ?campos=x,y,z&look=x,y,z pins a free camera (for screenshots); proj() gives x,z from lat/lon.
   if (q.has('campos')) {
     const [p, l] = ['campos', 'look'].map(k => (q.get(k) || '0,0,0').split(',').map(Number));
@@ -471,7 +471,7 @@ if (location.search.includes('debug')) window.game = { car, keys, physics, rende
 const game = {
   state: 'title', titleCam: null,
   settings: { quality: QUALITY.mobile ? 'low' : 'high', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
-  start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; },
+  start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
   pause() { if (this.state === 'play') this.state = 'pause'; },
   resume() { if (this.state === 'pause') { this.state = 'play'; last = performance.now(); } },
 };
@@ -489,6 +489,16 @@ function applySettings() {
   pedestrians.setQuality?.(st.quality);
   traffic.setQuality?.(st.quality);
   roadwear.setQuality?.(st.quality);
+}
+// First drive on a keyboard: say once where the controls are, then get out of the way.
+function showKeyHint() {
+  if (QUALITY.mobile || document.getElementById('keyhint')) return;
+  try { if (localStorage.getItem('palermoDrive.keyhint')) return; localStorage.setItem('palermoDrive.keyhint', '1'); } catch (e) { /* private mode: show it anyway */ }
+  const el = document.createElement('div');
+  el.id = 'keyhint';
+  el.textContent = 'Premi ? per i comandi · Press ? for controls';
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 700); }, 4500);
 }
 const params = new URLSearchParams(location.search);
 horn = createHorn({ keys, car, getVolume: () => game.settings.volume ?? 0.8 });

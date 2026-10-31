@@ -45,7 +45,7 @@ const T = {
 };
 
 const CSS = `
-.pdn-pill{position:fixed;z-index:30;right:16px;top:226px;display:flex;align-items:center;gap:7px;padding:5px 11px 5px 9px;border-radius:99px;
+.pdn-pill{position:fixed;z-index:30;right:226px;top:20px;display:flex;align-items:center;gap:7px;padding:5px 11px 5px 9px;border-radius:99px;
   font:700 12px/1 system-ui,-apple-system,sans-serif;color:#fff;background:rgba(13,7,9,.74);border:1.5px solid ${PINK_D};cursor:pointer;
   box-shadow:0 2px 8px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;max-width:200px;white-space:nowrap}
 .pdn-pill[hidden]{display:none}
@@ -66,7 +66,7 @@ html.pd-title .pdn-pill,html.pd-title .pdn-card{display:none!important}
 .pdn-card button{flex:1;font:700 14px system-ui,sans-serif;padding:9px 12px;border-radius:9px;border:1.5px solid ${PINK_D};background:transparent;color:#fff;cursor:pointer;min-height:40px}
 .pdn-card button.ok{background:${PINK_D};color:${BLACK}}
 .pdn-card button.lnk{flex:1 1 100%;border:0;min-height:0;padding:4px;font-weight:600;font-size:12px;opacity:.7;text-decoration:underline}
-html.touch .pdn-pill{right:max(12px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + clamp(76px,25vh,104px) + 6px);font-size:11px;padding:4px 9px 4px 8px}
+html.touch .pdn-pill{right:calc(max(12px,env(safe-area-inset-right)) + clamp(76px,25vh,104px) + 8px);top:max(10px,env(safe-area-inset-top));font-size:11px;padding:4px 9px 4px 8px}
 html.touch .pdn-pill .n{display:none}
 html.touch .pdn-card{bottom:auto;top:max(60px,calc(env(safe-area-inset-top) + 56px));width:min(330px,calc(100vw - 280px));min-width:250px;padding:10px 12px}
 html.touch .pdn-card small{display:none}
@@ -261,7 +261,7 @@ export function createNet(env) {
   }
   function sendState(now) {
     let b;
-    if (params.has('netdrive')) { const [cx, cz] = params.get('netdrive').split(',').map(Number), a = now / 1000 * 0.45; b = packState(cx + Math.cos(a) * 22, cz + Math.sin(a) * 22, -a, 10, 0.25, -0.12, 0.3, 1); ws.send(b); lastSend = now; return true; } // TEMP
+    if (params.has('netdrive')) { const [cx, cz] = params.get('netdrive').split(',').map(Number), a = now / 1000 * 0.3; b = packState(cx, cz + Math.sin(a) * 30, Math.cos(a) >= 0 ? 0 : Math.PI, 10 * Math.abs(Math.cos(a)), 0.2 * Math.cos(a * 3), -0.12, 0.3 * Math.sin(a * 2), 1); ws.send(b); lastSend = now; return true; } // TEMP
     b = packState(car.x, car.z, car.th, car.vf || 0, car.steer || 0, car.roll || 0, (car.tip || 0) * Math.sign(car.ay || 0),
       (car.nosAmt > 0.15 ? 1 : 0) | (car.braking ? 2 : 0) | (car.drift > 0.3 ? 4 : 0));
     if (lastSentState && b.every((v, i) => v === lastSentState[i])) return false;
