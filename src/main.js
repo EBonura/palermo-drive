@@ -43,7 +43,8 @@ const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
+renderer.shadowMap.type = +THREE.REVISION >= 182 ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.85;
 
@@ -65,8 +66,10 @@ sky.material.uniforms.mieDirectionalG.value = 0.84;
 sky.material.uniforms.sunPosition.value.copy(SUN_DIR);
 // The physical sky is far brighter than the city under our exposure, and ACES clips it to white.
 // Scale its output down so the zenith reads the saturated blue of a clear Palermo day.
-sky.material.fragmentShader = sky.material.fragmentShader.replace(
-  'gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * 0.42, 1.0 );');
+// [perf pass] r183 removed Sky's legacy gamma (retColor = pow(texColor, 1/(1.2+1.2*sunfade)), sunfade is 1 with the sun above the horizon, so 1/2.4); put it back so the sky keeps its look.
+sky.material.fragmentShader = sky.material.fragmentShader
+  .replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * 0.42, 1.0 );')
+  .replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( pow( texColor, vec3( 1.0 / 2.4 ) ) * 0.42, 1.0 );');
 scene.add(sky);
 {
   // Ambient light and reflections come from a smooth sky gradient: capturing the Sky shader
@@ -418,7 +421,7 @@ const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now; // never negative (headless virtual time)
   if (game.state === 'play') {
-    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); }
+    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */ }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);

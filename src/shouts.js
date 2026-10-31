@@ -36,8 +36,10 @@ export function createShouts(camera) {
   }
 
   function shout(x, y, z, text, follow) {
-    if (clock - lastAt < COOLDOWN) return; // a pile-up shouldn't fill the screen
-    lastAt = clock;
+    // Random insults are rate-limited so a pile-up doesn't fill the screen; scripted lines (the wheelchair
+    // miracle, vendors, tourists) always show.
+    if (!text && clock - lastAt < COOLDOWN) return;
+    if (!text) lastAt = clock;
     if (live.length >= MAX) live.shift().el.remove();
     const el = document.createElement('div');
     el.className = 'shout';

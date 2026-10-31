@@ -190,6 +190,8 @@ export function createPedestrians(env) {
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
   const VW = [0, 1, 2, 3, 4].map(z => VARIANTS.map(v => v.w[z]));   // crowd mix per zone, set in assets/peds/sprites.js
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0));
+  const WCV = VARIANTS.findIndex(v => v.id === 'wheelchair'), HEALV = VARIANTS.findIndex(v => v.id === 'healed'), CHAIRV = VARIANTS.findIndex(v => v.id === 'chair_empty');
+  const chairs = [];                                      // empty wheelchairs left behind by the miracle (see heal())
   const pickVariant = zn => { let r = Math.random() * VWsum[zn]; const w = VW[zn]; for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
   const IDLE_RATE = [0.015, 0.03, 0.08, 0.05, 0.06];            // chance per second of stopping for a while
 
@@ -409,7 +411,7 @@ export function createPedestrians(env) {
     }
     if (st !== WALK) return;
     // sometimes stop and look around
-    if (Math.random() < IDLE_RATE[ZN[i]] * dt10 && cl === 1) { ST[i] = IDLE; TMR[i] = rand(3, 14); return; }
+    if (Math.random() < IDLE_RATE[ZN[i]] * dt10 && cl === 1 && VAR[i] !== HEALV) { ST[i] = IDLE; TMR[i] = rand(3, 14); return; }
     const t = THT[i], ah = run(x, z, t, 3.2), pen = runPen;
     const ahead = cell(x + Math.sin(t) * 1.4, z + Math.cos(t) * 1.4);
     // about to step off the pavement onto a carriageway: wait for the traffic
@@ -452,7 +454,7 @@ export function createPedestrians(env) {
       if (Math.abs(lat) > 2.0) { if (REACT[i] > 0) REACT[i] = -1; continue; }
       if (REACT[i] === -2) continue;               // decided to stand its ground
       if (REACT[i] < 0) { // first notice
-        const v = VARIANTS[VAR[i]]; REACT[i] = Math.random() < (v.phone ? 0.55 : 0.18) ? -2 : rand(0.1, v.phone ? 0.5 : 0.35); continue;
+        const v = VARIANTS[VAR[i]]; REACT[i] = Math.random() < (v.phone ? 0.55 : v.chair ? 0 : 0.18) ? -2 : rand(0.1, v.phone ? 0.5 : 0.35); continue;
       }
       REACT[i] -= dt; if (REACT[i] > 0) continue;
       // hop sideways, away from the car's line
@@ -461,13 +463,50 @@ export function createPedestrians(env) {
       let dx = px, dz = pz, ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5);
       if (!ok) { dx = -px; dz = -pz; ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5); }
       if (!ok) { REACT[i] = -2; continue; }
+      if (VAR[i] === WCV) { heal(i, dx, dz); continue; }
       ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i], undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
     }
+  }
+
+  // The wheelchair gag: the rider leaps up (a dodge hop), the chair stays behind and he sprints off, then jogs.
+  function heal(i, dx, dz) {
+    if (chairs.length >= 10) chairs.shift();
+    chairs.push({ x: X[i], z: Z[i], y: Y[i], th: TH[i], vx: car.vx * 0.3 + dx * 0.8, vz: car.vz * 0.3 + dz * 0.8, t: 0, rd: dx * car.vz - dz * car.vx >= 0 ? 1 : -1, ph: 0, sh: SHC[i] });
+    VAR[i] = HEALV; ST[i] = DODGE; TMR[i] = 0; REACT[i] = -2; V0[i] = 6.2; V[i] = 0; VX[i] = dx * 6.2; VZ[i] = dz * 6.2; TH[i] = THT[i] = Math.atan2(dx, dz); NUDGE[i] = 0; WAITT[i] = -6;
+    const id = i; env.shout?.(X[i], Y[i] + 1.9, Z[i], 'U PALIEMMU \u00C8 MIRACULUSU!', () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }));
+  }
+  function updateChairs(dt, cx0, cz0) {
+    for (let k = chairs.length - 1; k >= 0; k--) {
+      const c = chairs[k]; c.t += dt;
+      const sp = Math.hypot(c.vx, c.vz);
+      if (sp > 0.05) {
+        const nx = c.x + c.vx * dt, nz = c.z + c.vz * dt;
+        if (cell(nx, nz)) { c.x = nx; c.z = nz; c.ph += sp * dt / 1.5; } else c.vx = c.vz = 0;
+        const kf = Math.exp(-1.3 * dt); c.vx *= kf; c.vz *= kf;
+      }
+      const d = Math.hypot(c.x - cx0, c.z - cz0);
+      if (d > quality.R + 14 || (c.t > 30 && d > 35) || c.t > 150) { chairs.splice(k, 1); continue; }
+      c.y += (groundY(c.x, c.z) + (raisedMask(c.x, c.z) ? CURB : 0) - c.y) * Math.min(1, 14 * dt);
+    }
+  }
+  function writeChairs(n, cpx, cpz, fadeStart) {
+    const pos = aPos.array, A = aA.array, B = aB.array; let k = 0;
+    for (const c of chairs) {
+      const i = n + k; if (i >= CAP) break; k++;
+      const dxc = cpx - c.x, dzc = cpz - c.z, dist = Math.hypot(dxc, dzc) || 1, wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
+      const s = wx * tx + wz * tz, cc = wx * tz - wz * tx, dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
+      const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
+      pos[i * 3] = c.x; pos[i * 3 + 1] = c.y; pos[i * 3 + 2] = c.z;
+      A[i * 4] = dir * POSES + (Math.hypot(c.vx, c.vz) > 0.15 ? Math.floor((c.ph % 1) * 4) & 3 : 0); A[i * 4 + 1] = CHAIRV; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
+      B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1;
+    }
+    return k;
   }
 
   const knockCbs = [];
   function knock(i, nx, nz) {
     for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
+    if (VAR[i] === WCV) { heal(i, nx, nz); return; }
     ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i], undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
     const sp = Math.min(Math.hypot(car.vx, car.vz), 16);
     const vy = 3.2 + sp * 0.12;
@@ -529,12 +568,13 @@ export function createPedestrians(env) {
         // turn towards the intended heading (+ wall nudge), speed follows
         const goal = THT[i] + NUDGE[i], dh = angDiff(goal, TH[i]);
         TH[i] += clamp(dh, -5 * dt, 5 * dt);
+        if (VAR[i] === HEALV && V0[i] > 2.7) V0[i] -= (V0[i] - 2.6) * Math.min(1, 0.35 * dt);
         const want = st === WALK ? V0[i] * Math.max(0.25, Math.cos(Math.min(1.4, Math.abs(dh)))) : 0;
         V[i] += clamp(want - V[i], -5 * dt, 3 * dt);
         if (st === IDLE && Math.abs(dh) > 0.01) TH[i] += clamp(dh, -2.5 * dt, 2.5 * dt);
         if (V[i] > 0.02) {
           const d = V[i] * dt, nx = x + Math.sin(TH[i]) * d, nz = z + Math.cos(TH[i]) * d;
-          if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; TRAV[i] += d; PH[i] += d / 1.5; }
+          if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; TRAV[i] += d; PH[i] += d / (VAR[i] === HEALV ? 3.2 : 1.5); }
           else { V[i] = 0; STEER[i] = 0; THT[i] += (Math.random() < 0.5 ? 1 : -1) * 1.2; }
         }
         // keep a little distance from the others and from the lapa
@@ -559,7 +599,7 @@ export function createPedestrians(env) {
         const nx = x + VX[i] * dt, nz = z + VZ[i] * dt;
         if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; } else { VX[i] = VZ[i] = 0; }
         HOP[i] = 4 * 0.42 * Math.min(1, u) * (1 - Math.min(1, u));
-        if (u >= 1) { ST[i] = IDLE; TMR[i] = rand(0.5, 1.1); HOP[i] = 0; THT[i] = TH[i] + rand(-0.7, 0.7); V[i] = 0; }
+        if (u >= 1) { HOP[i] = 0; if (VAR[i] === HEALV) { ST[i] = WALK; V[i] = V0[i]; STEER[i] = 0; } else { ST[i] = IDLE; TMR[i] = rand(0.5, 1.1); THT[i] = TH[i] + rand(-0.7, 0.7); V[i] = 0; } }
       } else if (st === FLY) {
         TMR[i] += dt;
         const nx = x + VX[i] * dt, nz = z + VZ[i] * dt;
@@ -605,14 +645,15 @@ export function createPedestrians(env) {
         dir = Math.abs(s) >= Math.abs(c) ? (s > 0 ? 0 : 1) : (c > 0 ? 3 : 2);
         if (st === DODGE) pose = 1;
         else if (V[i] < 0.12) pose = 0;
-        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
+        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
       }
       A[i * 4] = dir * POSES + pose; A[i * 4 + 1] = VAR[i]; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
       const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1);
       B[i * 4] = fade; B[i * 4 + 1] = SHC[i]; B[i * 4 + 2] = BRI[i];
     }
+    updateChairs(dt, cpx, cpz); const nc = writeChairs(n, cpx, cpz, fadeStart);
     aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true;
-    sprites.geometry.instanceCount = shadows.geometry.instanceCount = n;
+    sprites.geometry.instanceCount = shadows.geometry.instanceCount = n + nc;
     stats.count = n;
     const ms = performance.now() - t0; stats.ms = ms; stats.avgMs += (ms - stats.avgMs) * 0.05; if (ms > stats.maxMs) stats.maxMs = ms;
   }
