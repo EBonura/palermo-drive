@@ -222,10 +222,12 @@ export function createPedestrians(env) {
   function setTime(t) {
     if (!t || typeof t !== 'object') return;
     if (Number.isFinite(t.hour)) hourNow = t.hour;
-    const night = typeof t.isNight === 'boolean' ? t.isNight : hourNow !== null ? (hourNow >= 19.5 || hourNow < 5.5) : false;
-    const d = t.dusk, lk = night ? 1 : typeof d === 'number' ? clamp(d, 0, 1) * 0.8 : d ? 0.5 : 0;
-    nightTarget = lk; setCrowdNight(night || lk >= 0.4);
+    // game.time (src/daynight.js): night 0..1 (1 = dark), isNight, dusk 0..1; older shapes with only isNight/dusk/hour still work
+    const n = typeof t.night === 'number' ? clamp(t.night, 0, 1) : t.isNight === true ? 1 : typeof t.dusk === 'number' ? t.dusk * 0.5 : t.dusk ? 0.5 : 0;
+    const night = typeof t.isNight === 'boolean' ? t.isNight : n >= 0.5;
+    nightTarget = night ? Math.max(n, 0.9) : n; setCrowdNight(night || n >= 0.35);
   }
+  let gameRef = env.game || null;
   addEventListener('pd-time', e => setTime(e.detail));
   const AMB_D = new THREE.Color(0.66, 0.68, 0.72), AMB_N = new THREE.Color(0.4, 0.43, 0.56), SUN_D = new THREE.Color(0.62, 0.5, 0.36), SUN_N = new THREE.Color(0, 0, 0);
 
@@ -590,7 +592,7 @@ export function createPedestrians(env) {
     const t0 = performance.now();
     dt = Math.min(dt, 0.05); frameNo++;
     cam = cam || camera;
-    { const gt = env.game && env.game.time; if (gt) setTime(gt); }
+    { const gt = gameRef && gameRef.time; if (gt) setTime(gt); }
     nightK += (nightTarget - nightK) * Math.min(1, 0.6 * dt);
     spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
     updateScripted(dt, cam);
@@ -865,8 +867,7 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
-  { const q = params.get('time'); if (q !== null && q !== '' && Number.isFinite(+q)) setTime({ hour: +q }); }   // TEMP: ?time=21 until the day/night work lands
-  const api = { night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  const api = { bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
 }

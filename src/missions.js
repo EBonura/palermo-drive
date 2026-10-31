@@ -26,6 +26,7 @@ export function createMissions(env) {
 function build(env) {
   const { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, game, vehicle, pedestrians, traffic, mapMarkers, shout } = env;
   const mapRoute = env.mapRoute || [];
+  pedestrians.bindGame?.(game);   // the crowd reads game.time (day/night) from here
   const params = new URLSearchParams(location.search);
   const DRIVABLE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'pedestrian']);
   const groundAt = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);

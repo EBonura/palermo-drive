@@ -255,7 +255,7 @@ export function createPolice(env, T) {
     }
     seen = any;
     if (heat > 0) {
-      if (seen) unseenT = 0; else { unseenT += dt; if (unseenT > 4.5) heat -= dt * (ps.length ? 0.1 : 0.2); }
+      if (seen) unseenT = 0; else { unseenT += dt; if (unseenT > 4.5 && (ps.length || time > startT + 25)) heat -= dt * 0.1; } // cops that never found you let the heat go too
       if (heat <= 0) { heat = 0; toastT = 2.6; for (const v of ps) disengage(v); }
     }
     // box in: close cops with a line of sight leave the road graph and take a slot around the lapa
@@ -277,7 +277,7 @@ export function createPolice(env, T) {
     if (lv > 0 && time >= startT && time >= nextSpawn && ps.length < Math.min(MAXCOPS, lv)) {
       let lapini = 0; for (const v of ps) if (v.ty.model === 'apePol') lapini++;
       const name = lv >= 2 && lapini === 0 && Math.random() < 0.28 ? 'apePol' : Math.random() < 0.5 ? 'polizia' : 'carab';
-      const v = T.spawnCop(name, 75, 185);
+      const v = T.spawnCop(name, 70, 150);
       if (v) { makeCop(v, true); nextSpawn = time + 2.2; }
     }
     for (const v of ps) { // lost far behind and out of sight: replace with a closer one

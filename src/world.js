@@ -281,7 +281,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
       }
-      if ((j & 7) === 7) yield;
+      if ((j & 1) === 1) yield;
     }
     // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid) stay hidden
     const sk = [], at = (i, j) => (j * n + i);
@@ -399,7 +399,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- surface masks: raised ground (sidewalks, grass: the car bumps up onto them) and hard ground (asphalt, paving, raised) ----------
   // 0.5 m cells, bit-packed, drawn band by band into one canvas: raised+green in the red channel, asphalt+paving+raised in green.
   // Anything not hard (park ground, dirt, hillside) is off-road for drivePlayer().
-  const RK = 2, RW = T * RK, BAND = 250;
+  const RK = 2, RW = T * RK, BAND = 125;
   let rcv = null, rg = null;
   function* buildRaised(t) {
     const st = t.data.streets, ext = poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return [lo, hi]; };
@@ -489,7 +489,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const pts = [];
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 3));
-        for (let k = i === 0 ? 0 : 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; pts.push([x, z, blur(x, z)]); }
+        for (let k = i === 0 ? 0 : 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; pts.push([x, z, blur(x, z)]); if ((pts.length & 31) === 0) yield; }
       }
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1;
@@ -503,8 +503,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           const e = d <= flat ? 1 : 1 - smooth(flat, reach, d);
           best[c] = d; W[c] = e; WH[c] = e * (a[2] + (b[2] - a[2]) * tt);
         }
+        if ((++nr & 15) === 0) yield;
       }
-      if ((++nr & 3) === 0) yield;
     }
     t.shape = { x0, z0, s, nx, nz, W, WH };
   }
@@ -667,35 +667,35 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- LOD stages ----------
   function* buildLow(t) {
     if (t.want === 0) return;
-    yield* computeShape(t);
-    setPart(t, 'terrain', yield* terrainMesh(t, 2));
+    t.stage = 'shape'; yield* computeShape(t);
+    t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
-    const g = new THREE.Group();
+    const g = new THREE.Group(); t.stage = 'streetsLow';
     yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, chunk: 0 });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
-    const low = yield* lowBuildings(t);
+    t.stage = 'bldLow'; const low = yield* lowBuildings(t);
     if (t.want === 0) { disposeObj(low); return; }
     setPart(t, 'bldLow', low);
     t.lod = 1; stat.built++;
   }
   function* buildFull(t) {
     t.hasFull = true;
-    yield* registerPhysics(t);
+    t.stage = 'physics'; yield* registerPhysics(t);
     if (t.want < 2) return;
-    yield* buildRaised(t);
+    t.stage = 'masks'; yield* buildRaised(t);
     if (t.want < 2) return;
-    setPart(t, 'terrain', yield* terrainMesh(t, 1));
+    t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
-    const g = new THREE.Group();
+    const g = new THREE.Group(); t.stage = 'streetsHi';
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'green'], curbs: true, offset: true, drape: 9, chunk: 0 });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
-    { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
+    t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;
-    { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
+    t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
     if (t.want < 2) return;
-    const bg = new THREE.Group(), lms = cityIn(t);
+    t.stage = 'bldFull'; const bg = new THREE.Group(), lms = cityIn(t);
     const tctx = lms.length ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]) } : ctx;
     yield* buildBuildingsIter(tctx, t.data, bg);
     for (const l of lms) { // landmark models standing in for those generic buildings
@@ -786,7 +786,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (k.wait || k.done) continue;
       while (performance.now() - t0 < budget) {
         let r;
+        const s0 = performance.now();
         try { r = k.gen.next(); } catch (e) { console.error('[world] task', k.name, e); r = { done: true }; if (k.t.id) { k.t.failed = true; k.t.want = 0; } }
+        { const dtm = performance.now() - s0; if (dtm > 6 && k.t.id) { (stat.slow = stat.slow || []).push([+dtm.toFixed(1), k.t.id, k.t.stage]); if (stat.slow.length > 40) stat.slow.shift(); } }
         if (r.done) { k.done = true; if (k.t.id) k.t.task = null; break; }
         if (r.value && typeof r.value.then === 'function') { k.wait = r.value; r.value.then(() => { k.wait = null; }, () => { k.wait = null; }); break; }
       }
