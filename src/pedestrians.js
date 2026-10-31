@@ -18,7 +18,7 @@ const TAU = Math.PI * 2;
 const TILE = 64, CPM = 2, TCELLS = TILE * CPM;          // tile size in metres, cells per metre, cells per tile side
 const PX = 0.04;                                         // metres per sprite pixel (adult 44 px = 1.76 m)
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
-const QUALITIES = { low: { cap: 110, R: 80 }, medium: { cap: 220, R: 100 }, high: { cap: 340, R: 118 } };
+const QUALITIES = { low: { cap: 120, R: 80 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -376,7 +376,7 @@ export function createPedestrians(env) {
       if (c) sum += densAt(x, z) * (c === 2 ? 0.35 : c === 3 ? 0.5 : 1);
     }
     const alt = camera.position.y - groundY(cx, cz), altK = clamp(1 - (alt - 40) / 200, 0.4, 1);
-    return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK * 1.3));
+    return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK * 1.8));
   }
 
   // ======================================================================== behaviour
