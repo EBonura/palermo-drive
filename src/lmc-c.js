@@ -288,7 +288,7 @@ function buildIgiea() {
   initShared();
   const p = FP.igiea, pts = pairsOf(p.p), gr = groundRange(pts), gy = gr.hi + 0.1, H = 15.7;
   begin(gy);
-  defMat('igWall', 256, 256, [8, 15.7], (g, w, h) => paintFacade(g, w, h, 8, 15.7, { base: '#e9cfa6', trim: '#fbf1da', glass: '#2c2a2a', seed: 891, plinth: { h: 1.0, c: '#c8ad84' }, grime: 0,
+  defMat('igWall', 256, 256, [8, 15.7], (g, w, h) => paintFacade(g, w, h, 8, 15.7, { base: '#dba86a', trim: '#f3dfb8', glass: '#2c2a2a', seed: 891, plinth: { h: 1.0, c: '#c8ad84' }, grime: 0,
     bands: [{ y: 5.2, h: 0.35, c: '#f6e6c6' }, { y: 10.4, h: 0.35, c: '#f6e6c6' }], rows: [{ y0: 1.5, y1: 4.5, xs: [2, 6], w: 1.3, kind: 'arch', fr: 0.2, sill: false }, { y0: 6.2, y1: 9.6, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }, { y0: 11.5, y1: 14.2, xs: [2, 6], w: 1.1, kind: 'rect', shut: 'open' }], shut: '#5a7a5a' }));
   shell('igWall', pts, [], gy, H, { lo: gr.lo - 2, roof: '#a88068', cc: '#f0dcb8' });
   const o = obb(pts); const T = frame(o.cx + o.ux * 30, gy + H, o.cz + o.uz * 30, o.vx, o.vz);
@@ -303,15 +303,15 @@ function villino(name, fpk, wallSeed, base, trim, roofC, tower, H) {
     const pts = pairsOf(FP[fpk].p), gr = groundRange(pts), gy = gr.hi + 0.1;
     begin(gy);
     defMat('vl' + fpk, 256, 256, [6, H], (g, w, h) => paintFacade(g, w, h, 6, H, { base, trim, glass: '#2a2828', seed: wallSeed, grime: 0, plinth: { h: 0.9, c: '#b8a88a' },
-      bands: [{ y: 4.6, h: 0.3, c: trim }, { y: 9.2, h: 0.3, c: trim }], rows: [{ y0: 1.4, y1: 3.8, xs: [1.5, 4.5], w: 1.1, kind: 'arch', fr: 0.2 }, { y0: 5.5, y1: 8.4, xs: [1.5, 4.5], w: 1.1, kind: 'rect', ped: true, balc: true, shut: 'open' }, { y0: 10.0, y1: Math.min(H - 1.0, 12.6), xs: [1.5, 4.5], w: 1.0, kind: 'rect' }], shut: '#5a6a4a' }));
+      bands: [{ y: 4.6, h: 0.3, c: trim }, { y: 9.2, h: 0.3, c: trim }], rows: [{ y0: 1.4, y1: 3.8, xs: [1.5, 4.5], w: 1.1, kind: 'arch', fr: 0.2 }, { y0: 5.5, y1: 8.4, xs: [1.5, 4.5], w: 1.1, kind: 'rect', ped: true, balc: true, shut: 'open' }, { y0: 10.0, y1: Math.min(H - 1.0, 12.6), xs: [1.5, 4.5], w: 1.0, kind: 'rect' }], shut: '#3f6a4a' }));
     shell('vl' + fpk, pts, [], gy, H, { lo: gr.lo - 2, roof: roofC, cc: trim });
     const o = obb(pts), M = frame(o.cx + o.ux * (o.w / 2 - 2.2), gy + H, o.cz + o.uz * (o.w / 2 - 2.2), o.vx, o.vz);
     if (tower) { cyl('vl' + fpk, 2.2, 2.4, 6.0, 10, { M: mul(M, tr(0, -0.2, 0)) }); cone('tile', 3.0, 4.6, 10, { M: mul(M, tr(0, 5.8, 0)), c: roofC }); sphere('flat', 0.3, { M: mul(M, tr(0, 10.4, 0)), c: '#2a2a2a', seg: 5 }); }
     return end(name);
   };
 }
-export const FLORIO = { name: 'Villino Florio', x: -1542, z: -433, radius: 40, skipIds: [FP.florio.id], build: villino('Villino Florio', 'florio', 901, '#d8b78a', '#f1e4c8', '#8f6a58', true, 14.6) };
-export const IDA = { name: 'Villino Ida', x: -913, z: -1292, radius: 40, skipIds: [FP.ida.id, 'w229192664'], build: villino('Villino Ida', 'ida', 902, '#e5c9a0', '#f6ecd4', '#9a6a52', false, 14.6) };
+export const FLORIO = { name: 'Villino Florio', x: -1542, z: -433, radius: 40, skipIds: [FP.florio.id], build: villino('Villino Florio', 'florio', 901, '#bdb09a', '#e6dec9', '#6c6c66', true, 14.6) };   // grey-brown stone and slate in the photos
+export const IDA = { name: 'Villino Ida', x: -913, z: -1292, radius: 40, skipIds: [FP.ida.id, 'w229192664'], build: villino('Villino Ida', 'ida', 902, '#efe9db', '#fbf7ec', '#8a8a82', false, 14.6) };   // white plaster with green shutters
 
 // ====================================================================================================
 // Stazione Marittima (the port passenger terminal): long pale block with ribbon windows, a clock tower and a canopy on the quay side

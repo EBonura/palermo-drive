@@ -1238,6 +1238,108 @@ def far_interp(far):
     return f
 
 
+# ----- DTM cleaning -----
+# The decoded 2 m lidar DTM (tools/lidar_raster.py) matches the MASE point queries to 0.5 m rms, but the MASE DTM itself is a rough
+# ground model in town: plateaus with 1 to 4 m steps, pits at building footprints and dark halos around them (the ground
+# classification has no returns under roofs), a 3 m "pit" in a courtyard here and there. Sampled raw at 10 m that is a 5 to 10 m
+# bump or dip every 25 m in places like Acquasanta, where the real ground is a gentle slope, and roads drape on it. So before the
+# lattice is sampled the DTM is rebuilt from the pixels that can be trusted: footprints plus CLEAN_HALO metres are dropped, and the
+# rest goes through a robust (Cauchy weighted) Gaussian mean, which ignores outliers beyond CLEAN_C metres, fills the dropped
+# pixels from their surroundings and turns the plateaus into a smooth slope.
+CLEAN_PX = 2.0       # the raster pixel
+CLEAN_SIGMA = 3.0    # pixels (6 m) of the robust mean
+CLEAN_C = 0.8        # metres: residuals beyond this count for little
+CLEAN_HALO = 3.0     # metres around building footprints that are dropped
+CLEAN_ON = True
+
+
+def _footprint_mask(x0, z0, nx, nz):
+    """uint8 mask (nz, nx) of the 2 m grid at (x0, z0): building footprints plus CLEAN_HALO metres."""
+    import cv2
+    import numpy as np
+    import shapely
+    m = np.zeros((nz, nx), np.uint8)
+    tree, geoms = G.get("bld_tree"), G.get("bld_geoms")
+    if tree is None:
+        return m
+    box = shapely.box(x0, z0, x0 + nx * CLEAN_PX, z0 + nz * CLEAN_PX)
+    for k in tree.query(box):
+        for poly in polys_of(geoms[k]):
+            pts = np.round((np.asarray(poly.exterior.coords) - (x0, z0)) / CLEAN_PX * 16).astype(np.int32)
+            cv2.fillPoly(m, [pts], 1, shift=4)
+    r = int(round(CLEAN_HALO / CLEAN_PX))
+    if r > 0:
+        m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)))
+    return m
+
+
+def clean_dtm(x0, z0, nx, nz):
+    """Cleaned DTM on the 2 m grid whose pixel (r, c) has its centre at (x0 + (c + .5) * 2, z0 + (r + .5) * 2); NaN where the lidar has
+    no data. A pure function of position (the window only needs to be about 40 m wider than what is used), so tiles agree on borders."""
+    import cv2
+    import numpy as np
+    xs = x0 + (np.arange(nx) + 0.5) * CLEAN_PX
+    zs = z0 + (np.arange(nz) + 0.5) * CLEAN_PX
+    X, Z = np.meshgrid(xs, zs)
+    D = lr.sample_dtm(X, Z, "nearest").astype(np.float32)
+    have = np.isfinite(D)
+    if not have.any():
+        return D
+    if not CLEAN_ON:
+        return D
+    ok = have & (_footprint_mask(x0, z0, nx, nz) == 0)
+    Dz = np.where(have, D, 0).astype(np.float32)
+    okf = ok.astype(np.float32)
+    blur = lambda a, s: cv2.GaussianBlur(a, (0, 0), s, borderType=cv2.BORDER_REPLICATE)
+    out = np.full(D.shape, np.nan, np.float32)
+    cover = blur(have.astype(np.float32), 6.0) > 0.25
+    todo = cover.copy()
+    for sig in (CLEAN_SIGMA, 4 * CLEAN_SIGMA):
+        den = blur(okf, sig)
+        mu = np.where(den > 1e-3, blur(Dz * okf, sig) / np.maximum(den, 1e-3), np.nan)
+        for _ in range(4):
+            r = np.nan_to_num(D - mu, nan=0.0)
+            w = okf / (1.0 + (r / CLEAN_C) ** 2)
+            dw = blur(w, sig)
+            mu = np.where(dw > 1e-3, blur(Dz * w, sig) / np.maximum(dw, 1e-3), np.nan)
+        got = todo & np.isfinite(mu) & (blur(okf, sig) > 0.02)
+        out[got] = mu[got]
+        todo &= ~got
+        if not todo.any():
+            break
+    return out
+
+
+class _CleanWindow:
+    """Bilinear sampler of clean_dtm over a window, built once per near_for call."""
+
+    def __init__(self, x0, z0, x1, z1):
+        import numpy as np
+        self.x0 = math.floor(x0 / CLEAN_PX) * CLEAN_PX
+        self.z0 = math.floor(z0 / CLEAN_PX) * CLEAN_PX
+        self.nx = int(math.ceil((x1 - self.x0) / CLEAN_PX))
+        self.nz = int(math.ceil((z1 - self.z0) / CLEAN_PX))
+        self.a = clean_dtm(self.x0, self.z0, self.nx, self.nz)
+
+    def sample(self, x, z):
+        import numpy as np
+        fx = (np.asarray(x) - self.x0) / CLEAN_PX - 0.5
+        fz = (np.asarray(z) - self.z0) / CLEAN_PX - 0.5
+        i0, j0 = np.floor(fx).astype(int), np.floor(fz).astype(int)
+        tx, tz = fx - i0, fz - j0
+        acc = np.zeros(fx.shape)
+        ws = np.zeros(fx.shape)
+        for di, dj, w in ((0, 0, (1 - tx) * (1 - tz)), (1, 0, tx * (1 - tz)), (0, 1, (1 - tx) * tz), (1, 1, tx * tz)):
+            ii, jj = i0 + di, j0 + dj
+            inb = (ii >= 0) & (ii < self.nx) & (jj >= 0) & (jj < self.nz)
+            v = np.full(fx.shape, np.nan)
+            v[inb] = self.a[jj[inb], ii[inb]]
+            ok = np.isfinite(v)
+            acc += np.where(ok, v * w, 0)
+            ws += np.where(ok, w, 0)
+        return np.where(ws > 0.5, acc / np.maximum(ws, 1e-9), np.nan)
+
+
 def near_for(i, j):
     """Per-tile DTM grid: the lidar where it has data, the TINITALY DEM (lidar-corrected) on the hills, the far grid elsewhere;
     the offset to the far grid fades out over NEAR_BLEND metres beyond the data so the tile joins the coarse terrain without a step.
@@ -1262,7 +1364,7 @@ def near_for(i, j):
     far = G["far_f"]
     farv = far(WX, WZ)
     on_land = shapely.contains_xy(G["land"], WX, WZ)
-    L = lr.sample_dtm(WX, WZ, "bilinear")
+    L = _CleanWindow(WX.min() - 4, WZ.min() - 4, WX.max() + 4, WZ.max() + 4).sample(WX, WZ)
     if hills:
         Gh = lidar_hills.sample(WX, WZ)
         L = np.where(np.isfinite(L), L, Gh)
@@ -1573,6 +1675,82 @@ def build(offline=False):
     print(f"done in {time.time() - t0:.0f}s")
 
 
+def _terrain_one(ij):
+    """Worker of terrain_only: recompute one tile's near grid, patch it into the tile file when it changed (temp file + rename)."""
+    i, j = ij
+    path = os.path.join(WORLD_LIVE, "tiles", f"{i}_{j}.json")
+    try:
+        near = G["near_for"](i, j)
+        raw = open(path, "rb").read()
+        d = json.loads(raw)
+        if near == d.get("near"):
+            return (f"{i}_{j}", False)
+        if near:
+            d["near"] = near
+        else:
+            d.pop("near", None)
+        with open(path + ".part", "wb") as f:
+            f.write(json.dumps(d, separators=(",", ":"), ensure_ascii=False).encode())
+        os.replace(path + ".part", path)
+        return (f"{i}_{j}", True)
+    except Exception as ex:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return ("ERR", f"{i}_{j}", repr(ex))
+
+
+def terrain_only(offline=True):
+    """Rebuild only the ground: every tile's `near` grid is recomputed (near_for) and patched into the live tile file, nothing else
+    in the tile changes, and the manifest's far grid is rewritten when it changed. Building footprints for the DTM cleaning come from
+    the tiles themselves. Tiles written one at a time through a temp name + rename, so the served tree is never half written."""
+    import numpy as np
+    import shapely
+    from shapely.geometry import Polygon
+    t0 = time.time()
+    files = fetch_all(offline)
+    coast, _a, _p = parse_misc(files["misc"])
+    rect = world_rect()
+    land = build_land(coast, rect)
+    print(f"[{time.time() - t0:.0f}s] land {land.area / 1e6:.1f} km2", flush=True)
+    names = sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json"))
+    if ONLY:
+        names = [n for n in names if n in ONLY]
+    foot = []
+    for n in sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json")):
+        for b in json.load(open(os.path.join(WORLD_LIVE, "tiles", n + ".json")))["buildings"]:
+            p = b["p"]
+            ring = [(p[k], p[k + 1]) for k in range(0, len(p), 2)]
+            if len(ring) >= 3:
+                foot.append(Polygon(ring))
+    bld = make_valid_list(foot)
+    print(f"[{time.time() - t0:.0f}s] {len(bld)} footprints", flush=True)
+    elev = load_terrarium(ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium"))
+    far = far_grid(elev, rect)
+    G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for)
+    shapely.prepare(land)
+    mp_ = os.path.join(WORLD_LIVE, "manifest.json")
+    man = json.load(open(mp_))
+    if man.get("far") != far and not ONLY:
+        man["far"] = far
+        with open(mp_ + ".part", "w") as f:
+            json.dump(man, f, separators=(",", ":"), ensure_ascii=False)
+        os.replace(mp_ + ".part", mp_)
+        print("manifest far grid updated")
+    todo = [tuple(int(v) for v in n.split("_")) for n in names]
+    changed, errors = [], []
+    with mp.get_context("fork").Pool(max(1, (os.cpu_count() or 2) - 1)) as pool:
+        for n, r in enumerate(pool.imap_unordered(_terrain_one, todo, chunksize=2)):
+            if r[0] == "ERR":
+                errors.append(r)
+            elif r[1]:
+                changed.append(r[0])
+            if n % 100 == 0:
+                print(f"  {n}/{len(todo)}  ({len(changed)} changed)", flush=True)
+    print(f"terrain only: {len(changed)} of {len(todo)} tiles changed in {time.time() - t0:.0f}s")
+    if errors:
+        print("TILE ERRORS:", errors)
+
+
 def publish(stage, dest):
     """Copy only the tiles that differ from `dest` (world/) and then the manifest, each through a temp file + rename so
     a server (or the autopush smoke test) never sees a half-written file. Tiles go first, the manifest last."""
@@ -1620,7 +1798,12 @@ if __name__ == "__main__":
             raise SystemExit("--tiles is for debugging with --out, not with --publish")
     if PUBLISH:
         WORLD_LIVE, WORLD = WORLD, os.path.join(ROOT, "data", "world_stage")
-    if "--fetch-only" in sys.argv:
+    if "--terrain-only" in sys.argv:   # only the ground: patch every live tile's near grid (and the far grid), see terrain_only()
+        WORLD_LIVE = WORLD if "--out" in sys.argv else os.path.join(ROOT, "world")
+        USE_PBF = True
+        PARTIAL = False
+        terrain_only()
+    elif "--fetch-only" in sys.argv:
         fetch_all()
         ensure_terrarium()
         print("fetch done")
