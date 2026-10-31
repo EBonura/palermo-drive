@@ -78,6 +78,37 @@ coast. Everything is baked into square tiles that the game streams around the ca
 - **main.js**: the minimap draws only the baked centro (`mapCanvas`); needs per-tile map tiles (land/roads/buildings) drawn on demand.
 - **buildings.js**: streamed tiles skip the photo facades (`assets/facades/photo`); give them the same per-building-id lookup, and a shared
   zone table for neighbourhood colours beyond the centro.
-- **Data (tools/tiles.py)**: add `track` (and `bridleway`) to `HIGHWAYS`/`ROAD_WIDTH` so dirt tracks exist; fade the lidar-vs-far offset to
-  zero before the tile edge on the two sea-coast borders that step by 35 m and 248 m (`10_6|10_7`, `-14_-16|-14_-15`); Pellegrino above
-  ~200 m is the 100 m far grid resampled, not lidar (see the bench shaping above; finer DEM would help hairpins).
+- **Data (tools/tiles.py)**: done, see "Terrain and track data" below.
+
+## Terrain and track data (tools/tiles.py, tools/dem.py, tools/lidar_hills.py)
+
+- **Tracks.** `HIGHWAYS` / `ROAD_WIDTH` now include `track` (3.5 m) and `bridleway` (2.5 m). Both are baked into `roads[]` with
+  `k: "track"` (the width tells them apart) because `src/world.js` draws exactly `k === 'track'` as a dirt strip and also lists it in
+  `roadVerts`. They have no asphalt (not in `CARRIAGEWAY`), so they stay off the hard-surface mask. The OSM extract has about 530 ways
+  (all `highway=track`, no bridleways); the PBF cache must be re-extracted after changing `HIGHWAYS` (delete `data/city/pbf_hwy_*.json.gz`).
+- **Bbox-edge seams (`10_6|10_7`, `-14_-16|-14_-15`).** Root cause: the land polygon only exists inside the bbox rectangle, and
+  `near_for` clamped every point that is "not land" to -1.5 m. Tiles that straddle the east/west bbox edge got -1.5 m outside the
+  rectangle while their far-grid neighbour kept the real ground (34 m and 247 m): the 35 m and 248 m steps (and 32 / 25 / 20 / 8 m on
+  `10_x|11_x`). The clamp now only applies inside the rectangle. The ~1.5 m underwater step along the open coast (clamp -1.5 vs far grid 0) is left.
+- **Hills.** Terrarium (the far grid's source) is 100 to 200 m off on Monte Pellegrino's slopes (checked against lidar point queries
+  along the Pietro Bonanno road: bias -118 m, rms 127 m between 205 and 400 m) and the lidar rasters are blind above 204 m. The
+  terrain above 80 to 140 m (smooth blend, `HILL_LO`/`HILL_HI`) is now:
+  1. lidar where we have it: the decoded 2 m rasters below 204 m, and above that `tools/lidar_hills.py`, which asks the same WMS
+     `GetFeatureInfo` for the true height of the lidar pixel on a 20 m lattice (about 19.5 k queries, raw answers in
+     `data/dem_lidar_hills/points.json`, resumable). GetFeatureInfo is accurate to ~1 to 2 m (it is what the raster decoder is calibrated against);
+  2. elsewhere the TINITALY 10 m DEM (`tools/dem.py`, WCS GetCoverage, one 21 MB float32 GeoTIFF in `data/dem_tinitaly/`). TINITALY is a
+     triangulated surface (visible facets, rms ~12 m against lidar on the steep east face, +9 m high on average), so near the lidar the
+     difference (lidar minus TIN) is smoothed over 40 m and added to the TIN, fading out 200 m from the lidar;
+  3. the manifest far grid nodes in the hills are the TIN averaged over each 100 m cell (same blend), so distant Pellegrino matches.
+  Tiles with hill data get a 10 m `near` grid (before: lidar belt only), so Monte Pellegrino, Capo Gallo, Monreale and Billiemi have a
+  10 m ground and the road-bench shaping in `world.js` works from real heights. Everything is a function of position on a padded
+  lattice, so adjacent tiles agree on the shared border.
+- **Sources and licences.** TINITALY/01 v1.1, INGV (Tarquini et al.), CC BY 4.0, https://doi.org/10.13127/tinitaly/1.1 (WCS
+  http://tinitaly.pi.ingv.it/TINItaly_1_1/wcs). Lidar: Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale,
+  PST-A lidar Regione Sicilia, CC BY 4.0 (GetFeatureInfo of the same WMS the rasters come from). Credits are in the manifest
+  (`credits.hills`), `assets/CREDITS.md` and the README.
+- **Rebaking without disturbing a served tree.** `tools/.venv/bin/python -I tools/tiles.py --publish` bakes into `data/world_stage/`
+  and then copies only the tiles whose bytes changed plus the manifest into `world/`, every file through a temp name and `os.replace`.
+  `--out DIR` bakes elsewhere, `--publish-from DIR` installs an existing stage, `--tiles i_j,i_j` (with `--out`) bakes a few tiles for
+  debugging. A stage can be tried in the game with `?worldurl=/data/world_stage/` before publishing. Never run `tiles.py` bare
+  while the game is served: it empties `world/tiles/` first.
