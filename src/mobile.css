@@ -104,3 +104,16 @@ html.touch .rot {
   html.touch .nosbar-l { font-size: 9px; }
   html.touch .nosbar-t { height: 7px; }
 }
+
+/* One-time iPhone hint: Safari can't go fullscreen, the home-screen app can. */
+.a2hs { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 1001; max-width: min(92vw, 520px); padding: 10px 14px; border-radius: 12px; text-align: center;
+  background: rgba(11, 7, 9, .92); border: 1px solid #e8559a; color: #fff; font: 600 14px/1.35 system-ui, sans-serif;
+  box-shadow: 0 6px 24px rgba(232, 85, 154, .35); animation: a2hs-in .35s ease-out; }
+.a2hs b { color: #f5a9c9; margin-right: 4px; }
+.a2hs i { font-style: normal; color: #f5a9c9; }
+.a2hs small { display: block; margin-top: 3px; font-weight: 400; opacity: .75; font-size: 12px; }
+.a2hs-share { display: inline-block; width: 14px; height: 17px; vertical-align: -3px; margin: 0 2px;
+  border: 2px solid #f5a9c9; border-top: 0; border-radius: 0 0 3px 3px; position: relative; }
+.a2hs-share::before { content: ''; position: absolute; left: 4px; top: -8px; width: 2px; height: 12px; background: #f5a9c9; }
+@keyframes a2hs-in { from { opacity: 0; transform: translate(-50%, 12px); } }
