@@ -112,7 +112,8 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     pad('p-hb', 'Space', ICON.brake, 'FRENO'),
     pad('p-brake', 'KeyS', ICON.down, 'RETRO'),
     pad('p-gas', 'KeyW', ICON.up, 'GAS'),
-    pad('p-nos', 'ShiftLeft', ICON.nos, 'NOS'));
+    pad('p-nos', 'ShiftLeft', ICON.nos, 'NOS'),
+    pad('p-horn', 'KeyH', ICON.up, 'CLACSON'));
   const small = el('div', 'tc-small');
   const btn = (act, icon, label) => el('button', 'sbtn', icon, { 'data-act': act, 'aria-label': label, type: 'button' });
   const bCam = btn('cam', ICON.cam, 'Camera');

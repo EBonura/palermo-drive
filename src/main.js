@@ -15,6 +15,7 @@ import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
 import { createRoadWear } from './roadwear.js';
+import { createHorn } from './horn.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -288,7 +289,8 @@ const ctx = { scene, renderer, skip: new Set(), raisedMask, CURB };
 prepareLandmarks(ctx);
 buildBuildings(ctx);
 buildLandmarks(ctx);
-buildProps(ctx);
+// Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
+const propsApi = buildProps(ctx) || {};
 buildContext(ctx);
 
 // ---------- spatial grids ----------
@@ -342,7 +344,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyC') camState.mode = (camState.mode + 1) % 4;
   if (e.code === 'KeyR') placeAt(car.x, car.z);
-  if (e.code === 'KeyH') { const h = document.getElementById('help'); h.style.display = h.style.display === 'none' ? '' : 'none'; }
+  if (e.code === 'Slash' || e.code === 'F1') { const h = document.getElementById('help'); h.style.display = h.style.display === 'none' ? '' : 'none'; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= SPOTS.length) placeAt(...proj(SPOTS[n - 1][1], SPOTS[n - 1][2]));
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -359,6 +361,7 @@ const { car, camState, placeAt, physics, updateCamera } = vehicle;
 // after each fixed physics step and may push the player (car.x/z/vx/vz) like a wall hit.
 // shout(x, y, z, text?) pops a swearing balloon over whoever the lapa just hit (src/shouts.js).
 const shouts = createShouts(camera);
+let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout };
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
@@ -472,6 +475,7 @@ function applySettings() {
   roadwear.setQuality?.(st.quality);
 }
 const params = new URLSearchParams(location.search);
+horn = createHorn({ keys, car, getVolume: () => game.settings.volume ?? 0.8 });
 // Screenshot/debug links skip the title screen.
 if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = 'play';
 // ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
@@ -487,13 +491,14 @@ const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (game.state === 'play') {
-    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); }
+    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
+  horn.update(dt, game.state === 'play');
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);

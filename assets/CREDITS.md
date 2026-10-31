@@ -24,3 +24,13 @@ The engine sound is synthesised with Web Audio in `src/vehicle.js` (no sample). 
 | --- | --- | --- | --- | --- |
 | `audio/impact.wav` | Kenney | Starter Kit Racing, `audio/impact.ogg`, https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | converted to 22.05 kHz mono WAV |
 | `audio/skid.wav` | Landeplage (https://github.com/Landeplage), as shipped in Kenney's Starter Kit Racing | same repository, `audio/skid.ogg` | CC0 1.0 | converted to 22.05 kHz mono WAV, 50 ms crossfade at the loop point |
+
+## Traffic (src/traffic.js, assets/traffic/)
+
+All vehicle models are built in code (`assets/traffic/models.js`); no external model or texture is used.
+
+The AMAT bus lines in `assets/traffic/bus-routes.js` (line numbers, destinations, route geometry and the
+stops attached to each relation) are derived from OpenStreetMap bus route relations, fetched with Overpass and
+cached in `data/bus_routes_osm.json`; bus stop positions also come from `data/props_osm.json`. Baked by
+`assets/traffic/bake-bus.cjs`. Map data (c) OpenStreetMap contributors, available under the Open Database
+Licence (ODbL), https://www.openstreetmap.org/copyright.

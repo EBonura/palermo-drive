@@ -5,7 +5,8 @@
 // repeats with RepeatWrapping. Geometry is merged per 400 m chunk into one opaque mesh plus one
 // alpha-tested mesh (balcony railings).
 import * as THREE from 'three';
-import { D, HAS_NEAR, groundY, pairs, signedArea, rng, inPoly } from './core.js';
+import { D, HAS_NEAR, groundY, proj, pairs, signedArea, rng, inPoly } from './core.js';
+import SPECS from '../assets/facades/specs.js';
 
 const T = 256;
 
@@ -389,6 +390,45 @@ layer('ch_top', (g, r) => {
   band(g, T - 18, 10, '#f3ead2');
 });
 
+
+// ---- stone (exposed tufa) upper floors, arched / pedimented windows, rusticated ground floor
+function stoneUp(g, r, sh, kind) {
+  ashlar(g, r, 0, 0, T, T, '#e6dcc4', 32, 64, .22);
+  band(g, T - 8, 5, '#efe6cf');
+  if (kind === 'arch') {
+    g.fillStyle = '#f2ead4'; g.beginPath(); g.moveTo(74, 214); g.lineTo(74, 80); g.arc(128, 80, 54, Math.PI, 0); g.lineTo(182, 214); g.fill();
+    g.fillStyle = '#242a31'; g.beginPath(); g.moveTo(84, 214); g.lineTo(84, 82); g.arc(128, 82, 44, Math.PI, 0); g.lineTo(172, 214); g.fill();
+    g.fillStyle = '#d9d0bc'; g.fillRect(124, 40, 8, 8); g.fillStyle = '#c9bfa8'; g.fillRect(68, 214, 120, 7);
+    if (sh) { leaf(g, 48, 90, 24, 124, SH[sh]); leaf(g, 184, 90, 24, 124, SH[sh]); }
+  } else win(g, 88, 44, 80, 150, { sh, st: 'half', fr: 9, frc: '#efe6cf' });
+  streak(g, 100, 214, 36, 9); streak(g, 60, 0, 50, 14, .16);
+}
+layer('st_up_g', (g, r) => stoneUp(g, r, 'g', 'rect'));
+layer('st_up_b', (g, r) => stoneUp(g, r, 'b', 'rect'));
+layer('st_arch_up', (g, r) => stoneUp(g, r, null, 'arch'));
+function archUp(g, r, sh) {
+  plaster(g, r, '#e5dfd0'); band(g, T - 9, 6, '#f2ecdd');
+  g.fillStyle = '#f6f1e4'; g.beginPath(); g.moveTo(80, 220); g.lineTo(80, 84); g.arc(128, 84, 48, Math.PI, 0); g.lineTo(176, 220); g.fill();
+  g.fillStyle = '#2a3038'; g.beginPath(); g.moveTo(90, 220); g.lineTo(90, 86); g.arc(128, 86, 38, Math.PI, 0); g.lineTo(166, 220); g.fill();
+  g.fillStyle = '#e6e0d2'; g.fillRect(126, 48, 4, 172); g.fillRect(90, 130, 76, 3);
+  leaf(g, 54, 84, 24, 136, SH[sh]); leaf(g, 178, 84, 24, 136, SH[sh]);
+  streak(g, 100, 226, 28, 8); streak(g, 44, 0, 50, 12, .15);
+}
+layer('arch_up_g', (g, r) => archUp(g, r, 'g'));
+layer('arch_up_b', (g, r) => archUp(g, r, 'b'));
+layer('ped_up', (g, r) => {
+  plaster(g, r, '#e5dfd0'); band(g, T - 9, 6, '#f2ecdd');
+  ped(g, 82, 60, 92, r() < .5 ? 'tri' : 'seg');
+  win(g, 82, 64, 92, 150, { sh: 'b', st: 'open', fr: 8, sill: true });
+  streak(g, 90, 8, 34, 9);
+});
+layer('g_rust_win', (g, r) => {
+  ashlar(g, r, 0, 0, T, T, '#e2d8bf', 36, 72, .3);
+  win(g, 90, 92, 76, 84, { fr: 9, frc: '#d8cdb0', sill: false });
+  g.strokeStyle = '#1e1e22'; g.lineWidth = 3.5; for (let x = 98; x < 166; x += 13) { g.beginPath(); g.moveTo(x, 92); g.lineTo(x, 176); g.stroke(); }
+  dado(g, 50, .4);
+});
+
 // Build the 2D-array texture once.
 function buildAtlas() {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
@@ -412,7 +452,7 @@ function buildAtlas() {
   return tex;
 }
 
-function atlasMaterial(tex, cutout) {
+function atlasMaterial(tex, cutout, photo) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout ? 0.45 : 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uTex = { value: tex };
@@ -425,10 +465,10 @@ function atlasMaterial(tex, cutout) {
         vec4 tc = texture(uTex, vec3(vTileUv, floor(vLayer + 0.5)));
         float lum = dot(tc.rgb, vec3(0.3333));
         float vl = dot(vColor, vec3(0.3333));
-        diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor, smoothstep(0.15, 0.32, lum));
+        ${photo ? 'diffuseColor.rgb *= tc.rgb * vl * 0.9;' : 'diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor, smoothstep(0.15, 0.32, lum));'}
         ${cutout ? 'diffuseColor.a *= tc.a;' : ''}`);
   };
-  m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o');
+  m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
   return m;
 }
 
@@ -506,7 +546,7 @@ const STYLES = {
     ground: [['g_door2', 2], ['g_shop_s', 2.5], ['g_garage', 1.5], ['g_win', 2], ['g_door', 1], ['g_shop_o', 1]] },
   pw: { pal: 'pw', bay: 3.6, g0: 3.8, fh: 3.1, parapet: 0.7, corn: 0.0, nobile: false, up: ['pw_a', 'pw_b'], rail: 'rail_a', balcUpper: 0, pitch: 0.0,
     ground: [['pw_shop', 3], ['g_shop_s', 3], ['g_door2', 1.5], ['g_garage', 1]] },
-  church: { pal: 'church', bay: 5.0, g0: 5.2, fh: 6.4, parapet: 0.0, corn: 0.3, nobile: false, up: ['ch_mid'], church: true, pitch: 0.6,
+  church: { pal: 'church', rail: 'rail_a', bay: 5.0, g0: 5.2, fh: 6.4, parapet: 0.0, corn: 0.3, nobile: false, up: ['ch_mid'], church: true, pitch: 0.6,
     ground: [['ch_low', 6], ['ch_door', 1]] },
   low: { pal: 'res', bay: 4.0, g0: 99, fh: 3.3, parapet: 0.6, corn: 0.0, nobile: false, up: ['res_a'], rail: 'rail_a', balcUpper: 0, pitch: 0.4,
     ground: [['g_shop_s', 3], ['g_garage', 2], ['g_door2', 1.5], ['blank_g', 1]] },
@@ -563,19 +603,47 @@ const pick = (list, r) => { let t = 0; for (const e of list) t += e[1]; t *= r()
 const MAIN_ST = /Maqueda|Vittorio Emanuele|^Via Roma|Cavour|Libert|Ruggero Settimo|Mazzini|Butera|Alloro|Garibaldi|Cassaro/;
 const GRAND = /Palazzo|Villa|Teatro|Museo|Tribunale|Universit|Convento|Monastero|Collegio|Banco|Ospedale|Conservatorio|Liceo/;
 
-function chooseStyle(b, H, area, near, r) {
+// Neighbourhood palettes, calibrated against Commons photos (Corso Vittorio Emanuele 2024, Via Roma, Ballaro, Albergheria,
+// Vucciria): the Corso/Maqueda fronts are cream, buff and pinkish plaster with stone frames; Via Roma is grey-beige; the old
+// quarters (Capo, Albergheria, Vucciria, Kalsa) show bare golden-brown tufa and heavily weathered, desaturated plaster.
+const ZONES = {
+  corso: { plaster: ['#e0d4b8', '#d6c6a6', '#cdbba0', '#d3b8a2', '#c7a58b', '#e4d9c2', '#c8b08c', '#d9c9a8', '#cfa890'], stone: ['#b79d74', '#c2aa82', '#a88e66', '#b8a07a'], pStone: 0.3, grime: 0.25,
+    w: { bar: .3, n19: .5, res: .08, pw: .12 } },
+  roma: { plaster: ['#cfc3ab', '#c4b59b', '#d2c7b0', '#bdae96', '#c9b79e', '#b9ad9b', '#d6cab4'], stone: ['#b5a68a', '#a89a80'], pStone: 0.2, grime: 0.3,
+    w: { bar: .15, n19: .5, res: .05, pw: .3 } },
+  old: { plaster: ['#cdb690', '#c8aa84', '#bf9f7c', '#d3c096', '#c49f7c', '#b9a587', '#d6c4a0', '#b98f72', '#c9b8a0', '#d0b9a2'], stone: ['#9d8560', '#a98f68', '#8f7a58', '#b49a74'], pStone: 0.45, grime: 0.6,
+    w: { bar: .06, n19: .16, res: .66, pw: .12 } },
+  liberta: { plaster: ['#e2d6bd', '#d8c4a0', '#d3a98f', '#c5b49c', '#c9a49a', '#e6dcc8', '#d9ccb0', '#bba898'], stone: ['#b9a07a'], pStone: 0.1, grime: 0.15,
+    w: { bar: .06, n19: .4, res: .2, pw: .34 } },
+  centro: { plaster: ['#dccfb2', '#d2c2a2', '#c9b79c', '#d0b49c', '#c4a288', '#e0d5bd', '#c4ac88', '#d6c6a4'], stone: ['#b09870', '#bfa67e', '#a58b64'], pStone: 0.3, grime: 0.4,
+    w: { bar: .1, n19: .3, res: .45, pw: .15 } },
+};
+const ZONE_SEEDS = [ // [zone, lat, lon]
+  ['old', 38.1170, 13.3550], ['old', 38.1105, 13.3577], ['old', 38.1188, 13.3648], ['old', 38.1150, 13.3690], ['old', 38.1190, 13.3687], ['old', 38.1137, 13.3705],
+  ['liberta', 38.1265, 13.3545], ['liberta', 38.1235, 13.3575], ['roma', 38.1090, 13.3650], ['roma', 38.1125, 13.3635],
+  ['corso', 38.1157, 13.3613], ['corso', 38.1195, 13.3572], ['corso', 38.1148, 13.3562], ['corso', 38.1160, 13.3650],
+].map(([z, la, lo]) => { const p = proj(la, lo); return [z, p[0], p[1]]; });
+function zoneOf(cx, cz, near) {
+  const n = near && near.r && near.r.n || '';
+  if (/^Via Roma$/.test(n)) return 'roma';
+  if (/Maqueda|Vittorio Emanuele|Cassaro|Bologni|Pretoria|Verdi|Quattro Canti|San Domenico/.test(n)) return 'corso';
+  let best = 'centro', bd = 330 * 330;
+  for (const [z, x, zz] of ZONE_SEEDS) { const d = (cx - x) ** 2 + (cz - zz) ** 2; if (d < bd) { bd = d; best = z; } }
+  return best;
+}
+function chooseStyle(b, H, area, zone, r) {
   if (b.k === 'church' || b.t === 'church' || b.t === 'cathedral' || b.am === 'place_of_worship') return 'church';
   if (H < 5.2) return 'low';
-  const name = b.n || '', main = near && near.r && MAIN_ST.test(near.r.n || '');
+  const name = b.n || '';
   if (b.hi || GRAND.test(name) || ['university', 'government', 'civic', 'museum', 'hotel', 'monastery', 'castle', 'public'].includes(b.t) || b.am === 'courthouse' || b.am === 'college')
     return r() < 0.6 ? 'bar' : 'n19';
-  const w = main ? { bar: .38, n19: .45, res: .05, pw: .12 }
-    : H >= 17 ? { bar: .12, n19: .33, res: .27, pw: .28 }
-    : H >= 10 ? { bar: .08, n19: .24, res: .5, pw: .18 }
-    : { bar: .03, n19: .12, res: .75, pw: .10 };
-  let t = r(); for (const k in w) { t -= w[k]; if (t <= 0) return k; }
+  const ZW = (ZONES[zone] || ZONES.centro).w;
+  const w = H >= 17 && zone !== 'corso' ? { ...ZW, pw: ZW.pw + .1, res: Math.max(0.05, ZW.res - .1) } : ZW;
+  let t = r() * (w.bar + w.n19 + w.res + w.pw); for (const k of ['bar', 'n19', 'res', 'pw']) { t -= w[k]; if (t <= 0) return k; }
   return 'res';
 }
+const NAMED = { white: '#e6e3da', tan: '#c9ad82', beige: '#d6c9a8', yellow: '#dcc88a', red: '#b8705a', brown: '#9a7a5a', grey: '#b5b0a5', gray: '#b5b0a5', pink: '#d4a89a', orange: '#d49a6a' };
+function osmColour(v) { if (!v) return null; const c = NAMED[String(v).toLowerCase()] || v; try { return new THREE.Color(c); } catch (e) { return null; } }
 
 // =====================================================================================
 // Build
@@ -588,8 +656,9 @@ export function buildBuildings(ctx) {
   const { inBuilding, roadNear } = buildLookups();
   const white = new THREE.Color(1, 1, 1);
 
-  const chunks = new Map(); const CH = 400;
-  const chunkOf = (x, z) => { const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { m: new GB(), r: new GB() }); return c; };
+  let chunks = new Map(); const CH = 400;
+  const chunkOf = (x, z) => { const k = Math.floor(x / CH) + ',' + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { m: new GB(), r: new GB(), p: new GB() }); return c; };
+  let matPhoto = null, photoData = null;
 
   const stats = { styles: {}, balconies: 0, tanks: 0, tiled: 0, flat: 0 };
 
@@ -687,10 +756,26 @@ export function buildBuildings(ctx) {
     if (pitched) stats.tiled++; else stats.flat++;
     const parH = pitched ? 0 : S.parapet;
     const yTop = roofY - (pitched ? rise : parH);
-    const F = calcFloors(S, yTop - lo, B.lv);
+    const sp = B.spec || NOSPEC;
+    const F = calcFloors(S, yTop - lo, B.lv, sp);
     let yg = lo + F.g0;
     if (yg < hi + 1.6 && F.nUp > 0) yg = Math.min(hi + 1.6, yTop - 1);
     const nUp = F.nUp, fh = nUp ? (yTop - yg) / nUp : 0;
+    const hasNob = (S.nobile || sp.nobH) && nUp > 0;
+    const fh1 = hasNob ? Math.min(sp.nobH || fh, yTop - yg) : fh, fhU = nUp > 1 && hasNob ? (yTop - yg - fh1) / (nUp - 1) : fh;
+    const floorBase = f => yg + (f === 1 ? 0 : (hasNob ? fh1 + (f - 2) * fhU : (f - 1) * fh));
+    // footprint edge lookup for per-wall specs and photo facades (matches collinear edges of the building's own outline)
+    const bpEdge = (ax, az, bx, bz) => {
+      const P = B.bp; if (!P) return null;
+      for (let i = 0; i < P.length; i++) {
+        const p = P[i], q = P[(i + 1) % P.length], dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz; if (l2 < 1e-6) continue;
+        const l = Math.sqrt(l2), t = (x, z) => ((x - p[0]) * dx + (z - p[1]) * dz) / l2, off = (x, z) => Math.abs((x - p[0]) * dz - (z - p[1]) * dx) / l;
+        if (off(ax, az) > 0.45 || off(bx, bz) > 0.45) continue;
+        const ta = t(ax, az), tb = t(bx, bz); if (ta < -0.03 || ta > 1.03 || tb < -0.03 || tb > 1.03) continue;
+        return { i, ta, tb };
+      }
+      return null;
+    };
 
     const rings = [{ pts: outerPts, hole: false }];
     for (const h of holes || []) { const pts = pairs(h); if (signedArea(pts) > 0) pts.reverse(); rings.push({ pts, hole: true }); }
@@ -705,19 +790,31 @@ export function buildBuildings(ctx) {
         gbuf.q([x0, yb0, z0, u0, v0, k0 * c0 * j0], [x1, yb1, z1, u1, v0, k0 * c1 * j1], [x1, yt1, z1, u1, v1, k1 * c1 * j1], [x0, yt0, z0, u0, v1, k1 * c0 * j0], nx, 0, nz, lay, col);
       };
       const foot0 = E.ga - 0.3, foot1 = E.gb - 0.3;
+      let W = sp, ph = null, bm = null;
+      if ((B.spec && B.spec.walls) || B.photo) {
+        bm = bpEdge(ax, az, bx, bz);
+        if (bm) { const w = B.spec && B.spec.walls && B.spec.walls[bm.i]; if (w) W = { ...sp, ...w }; if (B.photo) ph = B.photo[bm.i] || null; }
+      }
       if (kind === 'party' || len < 2.6) {
-        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, L.blank, 0.72, 0.97, 0, len / 4);
+        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? L.ch_low : L.blank, 0.72, 0.97, 0, len / 4);
+      } else if (ph) {
+        // photo-rectified facade: one quad from the pavement to the cornice
+        const U = t => ph.u0 + (ph.u1 - ph.u0) * t;
+        ch.p.q([ax, foot0, az, U(bm.ta), ph.v0, 0.8], [bx, foot1, bz, U(bm.tb), ph.v0, 0.8], [bx, yTop, bz, U(bm.tb), ph.v1, 1], [ax, yTop, az, U(bm.ta), ph.v1, 1], nx, 0, nz, ph.layer, white);
       } else {
-        const nb = Math.max(1, Math.round(len / S.bay)), bw = len / nb;
+        const nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / (W.bay || S.bay))), bw = len / nb;
+        const upT = W.up || B.up, nobT = W.nob || B.nob || 'n19_nob', gmode = W.ground;
         // ground floor runs
         const runs = [];
         const addRun = lay => { const q = runs[runs.length - 1]; if (q && q.lay === lay && REPEATABLE.has(lay)) q.n++; else runs.push({ lay, n: 1 }); };
         if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.7 ? 'ch_door' : 'ch_low');
         else if (kind === 'street') {
           let prev = null;
+          const GL = GROUND_MODES[gmode] || S.ground;
           for (let i = 0; i < nb; i++) {
-            let lay = prev && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(S.ground, r);
-            if (lay === prev && !REPEATABLE.has(lay)) lay = pick(S.ground, r);
+            let lay = prev && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(GL, r);
+            if (lay === prev && !REPEATABLE.has(lay)) lay = pick(GL, r);
+            if (W.portal && W.portal.bay === i && (W.portal.wall === undefined || (bm && W.portal.wall === bm.i))) lay = 'g_arch';
             addRun(lay); prev = lay;
           }
         } else for (let i = 0; i < nb; i++) { const q = r(); addRun(q < 0.12 ? 'g_door2' : q < 0.25 ? 'g_win' : 'blank_g'); }
@@ -733,25 +830,32 @@ export function buildBuildings(ctx) {
             if (nUp >= 2) strip(0, 1, yg, yg, yg + fh * (nUp - 1), yg + fh * (nUp - 1), 0, nUp - 1, L.ch_mid, 0.95, 0.97, 0, nb);
             strip(0, 1, yg + fh * (nUp - 1), yg + fh * (nUp - 1), yTop, yTop, 0, 1, nUp >= 2 ? L.ch_top : L.ch_mid, 0.97, 0.93, 0, nb);
           } else {
-            let start = 1;
-            if (S.nobile && kind === 'street') { strip(0, 1, yg, yg, yg + fh, yg + fh, 0, 1, L[B.nob], 0.94, 0.98, 0, nb); start = 2; }
-            if (nUp >= start) strip(0, 1, yg + (start - 1) * fh, yg + (start - 1) * fh, yTop, yTop, 0, nUp - start + 1, L[B.up], 0.97, 0.93, 0, nb);
+            let start = 1, y0 = yg;
+            if (hasNob && kind === 'street') { strip(0, 1, yg, yg, yg + fh1, yg + fh1, 0, 1, L[nobT], 0.94, 0.98, 0, nb); start = 2; y0 = yg + fh1; }
+            if (nUp >= start) strip(0, 1, y0, y0, yTop, yTop, 0, nUp - start + 1, L[upT], 0.97, 0.93, 0, nb);
           }
         }
-        // balconies on street fronts of palazzi
-        if (kind === 'street' && S.rail && bw >= 2.9 && nUp > 0 && S.nobile) {
-          const upper = hh(ax * 1.3, az * 0.7) < S.balcUpper;
-          for (let f = 1; f <= nUp; f++) {
-            if (f > 1 && !upper) break;
-            for (let i = 0; i < nb; i++) {
-              if ((i === 0 && E.reflexA) || (i === nb - 1 && E.reflexB)) continue;
-              if (f > 1 && i % 2) continue;
-              balcony((i + 0.5) / nb, yg + (f - 1) * fh, bw, f === 1);
+        // balconies on street fronts (per-spec pattern, otherwise palazzi styles get the default pattern)
+        const bmode = W.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || S.rail || 'rail_a';
+        if (kind === 'street' && bmode !== 'none' && bw >= 2.6 && nUp > 0) {
+          if (bmode === 'cont') {
+            for (let f = 1; f <= (W.contFloors || 1) && f <= nUp; f++) balcony(0.5, floorBase(f), Math.max(0.8, len / 2 - 0.5), true, nb, rail);
+          } else {
+            const upper = bmode === 'default' ? hh(ax * 1.3, az * 0.7) < S.balcUpper : bmode === 'every' || bmode === 'alt';
+            for (let f = 1; f <= nUp; f++) {
+              if (f > 1 && !upper) break;
+              if (bmode === 'nobile' && f > 1) break;
+              for (let i = 0; i < nb; i++) {
+                if ((i === 0 && E.reflexA) || (i === nb - 1 && E.reflexB)) continue;
+                if (f > 1 && (bmode === 'default' || bmode === 'alt') && i % 2) continue;
+                if (bmode === 'alt' && f === 1 && i % 2) continue;
+                balcony((i + 0.5) / nb, floorBase(f), Math.min(1.55, bw * 0.36), f === 1, 0, rail);
+              }
             }
           }
         }
-        function balcony(t, yFloor, bw, brackets) {
-          const cx = ax + dx * t, cz = az + dz * t, w2 = Math.min(1.55, bw * 0.36), dp = 0.78, th = 0.16, yb = yFloor + 0.09, yt = yb + th;
+        function balcony(t, yFloor, w2, brackets, nBr, rl0) {
+          const cx = ax + dx * t, cz = az + dz * t, dp = 0.78, th = 0.16, yb = yFloor + 0.09, yt = yb + th;
           const px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
           const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = B.slab, LB = L.blank;
           gbuf.q([px0, yt, pz0, 0, 0, 1], [px1, yt, pz1, 1, 0, 1], [qx1, yt, qz1, 1, .3, 1], [qx0, yt, qz0, 0, .3, 1], 0, 1, 0, LB, sl);
@@ -759,10 +863,14 @@ export function buildBuildings(ctx) {
           gbuf.q([qx0, yb, qz0, 0, 0, .85], [qx1, yb, qz1, 1, 0, .85], [qx1, yt, qz1, 1, .1, .95], [qx0, yt, qz0, 0, .1, .95], nx, 0, nz, LB, sl);
           gbuf.q([px0, yb, pz0, 0, 0, .8], [qx0, yb, qz0, .3, 0, .8], [qx0, yt, qz0, .3, .1, .9], [px0, yt, pz0, 0, .1, .9], -ux, 0, -uz, LB, sl);
           gbuf.q([px1, yb, pz1, 0, 0, .8], [qx1, yb, qz1, .3, 0, .8], [qx1, yt, qz1, .3, .1, .9], [px1, yt, pz1, 0, .1, .9], ux, 0, uz, LB, sl);
-          if (brackets) for (const px of [[px0 + ux * 0.25, qx0 + ux * 0.25, pz0 + uz * 0.25, qz0 + uz * 0.25], [px1 - ux * 0.25, qx1 - ux * 0.25, pz1 - uz * 0.25, qz1 - uz * 0.25]]) {
-            for (const sgn of [1, -1]) gbuf.q([px[0], yb - 0.42, px[2], 0, 0, .4], [px[1], yb, px[3], .1, .1, .5], [px[0], yb, px[2], 0, .1, .5], [px[0], yb, px[2], 0, .1, .5], ux * sgn, 0, uz * sgn, L.blank, B.iron);
+          if (brackets) {
+            const offs = nBr ? Array.from({ length: nBr + 1 }, (_, k) => -w2 + 0.3 + (2 * w2 - 0.6) * k / nBr) : [-w2 + 0.25, w2 - 0.25];
+            for (const o of offs) {
+              const bx0 = cx + ux * o, bz0 = cz + uz * o, bx1 = bx0 + nx * dp, bz1 = bz0 + nz * dp;
+              for (const sgn of [1, -1]) gbuf.q([bx0, yb - 0.42, bz0, 0, 0, .4], [bx1, yb, bz1, .1, .1, .5], [bx0, yb, bz0, 0, .1, .5], [bx0, yb, bz0, 0, .1, .5], ux * sgn, 0, uz * sgn, L.blank, B.iron);
+            }
           }
-          const rl = L[S.rail], rb = yt, rt = yt + 1.0, ins = 0.05, rx0 = qx0 - nx * ins, rz0 = qz0 - nz * ins, rx1 = qx1 - nx * ins, rz1 = qz1 - nz * ins, wu = w2 * 2 / 1.6, du = dp / 1.6;
+          const rl = L[rl0], rb = yt, rt = yt + 1.0, ins = 0.05, rx0 = qx0 - nx * ins, rz0 = qz0 - nz * ins, rx1 = qx1 - nx * ins, rz1 = qz1 - nz * ins, wu = w2 * 2 / 1.6, du = dp / 1.6;
           ch.r.q([rx0, rb, rz0, 0, 0, 1], [rx1, rb, rz1, wu, 0, 1], [rx1, rt, rz1, wu, 1, 1], [rx0, rt, rz0, 0, 1, 1], nx, 0, nz, rl, white);
           ch.r.q([px0 + ux * ins, rb, pz0 + uz * ins, 0, 0, 1], [rx0 + ux * ins, rb, rz0 + uz * ins, du, 0, 1], [rx0 + ux * ins, rt, rz0 + uz * ins, du, 1, 1], [px0 + ux * ins, rt, pz0 + uz * ins, 0, 1, 1], -ux, 0, -uz, rl, white);
           ch.r.q([px1 - ux * ins, rb, pz1 - uz * ins, 0, 0, 1], [rx1 - ux * ins, rb, rz1 - uz * ins, du, 0, 1], [rx1 - ux * ins, rt, rz1 - uz * ins, du, 1, 1], [px1 - ux * ins, rt, pz1 - uz * ins, 0, 1, 1], ux, 0, uz, rl, white);
@@ -829,59 +937,122 @@ export function buildBuildings(ctx) {
   }
 
   // ---------- all buildings ----------
-  for (const b of D.buildings) {
-    if (ctx.skip.has(b.id)) continue;
-    const r = rng(b.c * 7919 + 13);
-    const solids = [];
-    const shift = b.r !== undefined && !HAS_NEAR ? -b.g : 0;
-    const pts0 = pairs(b.p);
-    if (b.r === undefined) {
-      const street = Math.max(...pts0.map(p => groundY(p[0], p[1])));
-      solids.push([b.p, b.holes, street + b.h]);
-    } else {
-      if (!b.split) solids.push([b.p, b.holes, b.r + shift]);
-      for (const [poly, rr] of b.parts || []) solids.push([poly, null, rr + shift]);
+  const grey = l => new THREE.Color(l, l, l);
+  let meshesOut = [];
+  function run(photo) {
+    chunks = new Map();
+    const tStart = performance.now();
+    stats.styles = {}; stats.balconies = 0; stats.tanks = 0; stats.tiled = 0; stats.flat = 0; stats.specs = 0; stats.photo = 0; stats.osmCol = 0;
+    for (const b of D.buildings) {
+      if (ctx.skip.has(b.id)) continue;
+      const r = rng(b.c * 7919 + 13);
+      const solids = [];
+      const shift = b.r !== undefined && !HAS_NEAR ? -b.g : 0;
+      const pts0 = pairs(b.p);
+      if (b.r === undefined) {
+        const street = Math.max(...pts0.map(p => groundY(p[0], p[1])));
+        solids.push([b.p, b.holes, street + b.h]);
+      } else {
+        if (!b.split) solids.push([b.p, b.holes, b.r + shift]);
+        for (const [poly, rr] of b.parts || []) solids.push([poly, null, rr + shift]);
+      }
+      let cx = 0, cz = 0, bestD = 1e9, near = null;
+      for (const p of pts0) { cx += p[0]; cz += p[1]; const q = roadNear(p[0], p[1]); if (q.d < bestD) { bestD = q.d; near = q; } }
+      cx /= pts0.length; cz /= pts0.length;
+      const area = Math.abs(signedArea(pts0)), H0 = b.r !== undefined ? b.r - b.g : b.h;
+      const spec = SPECS[b.id] || null;
+      const zone = zoneOf(cx, cz, near), Z = ZONES[zone] || ZONES.centro;
+      const key = spec && spec.style || chooseStyle(b, H0, area, zone, r);
+      let S = STYLES[key];
+      if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
+      stats.styles[key] = (stats.styles[key] || 0) + 1;
+      // colour: spec table, then OSM building:colour, then the zone palette (stone or plaster)
+      const isStone = key === 'church' || (spec && spec.stone !== undefined ? spec.stone : (key === 'bar' || key === 'res' || key === 'n19') && r() < Z.pStone * (key === 'bar' ? 1.3 : key === 'res' ? 1 : 0.5));
+      const osm = osmColour(b.col);
+      let base;
+      if (spec && spec.col) base = new THREE.Color(spec.col);
+      else if (osm) { base = osm; stats.osmCol++; }
+      else if (key === 'pw') base = PAL.pw[b.c % PAL.pw.length].clone();
+      else if (key === 'church') base = PAL.church[b.c % PAL.church.length].clone();
+      else { const list = isStone ? Z.stone : Z.plaster; base = new THREE.Color(list[b.c % list.length]); }
+      const grime = spec && spec.grime !== undefined ? spec.grime : Z.grime, gr = grime * r();
+      const col = base.multiplyScalar(1.3 * (0.94 + 0.1 * r()) * (1 - 0.2 * gr));
+      col.lerp(grey((col.r + col.g + col.b) / 3), 0.28 * gr);
+      const stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15);
+      const B = {
+        S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || 0,
+        up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
+        spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone,
+      };
+      if (B.photo) stats.photo++;
+      if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = 'st_up_' + sh; }
+      if (spec && spec.win && spec.win !== 'rect' && WIN_TILES[spec.win]) { const [u, n] = WIN_TILES[spec.win](isStone, r() < 0.6 ? 'g' : 'b'); B.up = u; B.nob = n; }
+      { const q = r(); B.terrLay = q < 0.16 ? LID.terrace_b : q < 0.27 ? LID.terrace_c : LID.terrace; }
+      const flatTint = 0.88 + 0.2 * r();
+      B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
+      for (const [flat, holes, roofY] of solids) emitSolid(B, flat, holes, roofY);
     }
-    let cx = 0, cz = 0, bestD = 1e9, near = null;
-    for (const p of pts0) { cx += p[0]; cz += p[1]; const q = roadNear(p[0], p[1]); if (q.d < bestD) { bestD = q.d; near = q; } }
-    cx /= pts0.length; cz /= pts0.length;
-    const area = Math.abs(signedArea(pts0)), H0 = b.r !== undefined ? b.r - b.g : b.h;
-    const key = chooseStyle(b, H0, area, near, r), S = STYLES[key];
-    stats.styles[key] = (stats.styles[key] || 0) + 1;
-    const pal = PAL[S.pal];
-    const col = pal[b.c % pal.length].clone().multiplyScalar(1.3 * (0.93 + 0.12 * r()));
-    const stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15);
-    const rk = 0.92 + 0.12 * r(), grey = S.church && r() < 0.35;
-    const B = {
-      S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || 0,
-      up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: grey, roofK: 1,
-    };
-    B.roofK = 1; { const q = r(); B.terrLay = q < 0.16 ? LID.terrace_b : q < 0.27 ? LID.terrace_c : LID.terrace; }
-    const flatTint = 0.88 + 0.2 * r();
-    B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
-    for (const [flat, holes, roofY] of solids) {
-      // tiles use their own tint, terraces the pale concrete one
-      emitSolid(B, flat, holes, roofY);
+    let tris = 0, nm = 0;
+    for (const m of meshesOut) { scene.remove(m); m.geometry.dispose(); }
+    meshesOut = [];
+    for (const c of chunks.values()) {
+      for (const [gb, mat, shadow] of [[c.m, matMain, true], [c.r, matRail, false], [c.p, matPhoto, true]]) {
+        if (!gb.n || !mat) continue;
+        const m = gb.mesh(mat); m.castShadow = shadow; m.receiveShadow = true; m.matrixAutoUpdate = false; scene.add(m); meshesOut.push(m);
+        tris += gb.ni / 3; nm++;
+      }
     }
-    void rk;
+    window.__bld = { tris, meshes: nm, stats, ms: performance.now() - tStart };
+    console.log('[buildings]', JSON.stringify(window.__bld));
   }
+  run(null);
 
-  let tris = 0, meshes = 0;
-  for (const c of chunks.values()) {
-    for (const [gb, mat, shadow] of [[c.m, matMain, true], [c.r, matRail, false]]) {
-      if (!gb.n) continue;
-      const m = gb.mesh(mat); m.castShadow = shadow; m.receiveShadow = true; m.matrixAutoUpdate = false; scene.add(m);
-      tris += gb.ni / 3; meshes++;
-    }
-  }
-  window.__bld = { tris, meshes, stats, ms: performance.now() - t0 };
-  console.log('[buildings]', JSON.stringify(window.__bld));
+  // Photo-rectified facades (optional): assets/facades/photo/map.json = { buildingId: [{ wall, texture, u0, u1, v0, v1, credit }] }.
+  // wall = index of the footprint edge in b.p (start vertex), u runs from that vertex to the next, v from the pavement (v0) to the
+  // cornice (v1), with v = 0 at the bottom of the image. Loaded after the first build, then the buildings are rebuilt once.
+  (async () => {
+    try {
+      const resp = await fetch('assets/facades/photo/map.json', { cache: 'no-cache' });
+      if (!resp.ok) return;
+      const map = await resp.json(), byId = {}, urls = [];
+      for (const id of Object.keys(map)) for (const e of map[id]) {
+        if (!D.buildings.some(b => b.id === id) || ctx.skip.has(id)) continue;
+        let u = e.texture; if (!/^(https?:|\/|assets\/)/.test(u)) u = 'assets/facades/photo/' + u;
+        let li = urls.indexOf(u); if (li < 0) { li = urls.length; urls.push(u); }
+        (byId[id] = byId[id] || {})[e.wall] = { layer: li, u0: e.u0 ?? 0, u1: e.u1 ?? 1, v0: e.v0 ?? 0, v1: e.v1 ?? 1 };
+      }
+      if (!urls.length) return;
+      const PS = 1024, cv = document.createElement('canvas'); cv.width = cv.height = PS;
+      const g = cv.getContext('2d', { willReadFrequently: true }), data = new Uint8Array(PS * PS * 4 * Math.min(urls.length, 32));
+      for (let i = 0; i < Math.min(urls.length, 32); i++) {
+        const img = new Image(); img.src = urls[i];
+        try { await img.decode(); } catch (e) { console.warn('[buildings] photo failed', urls[i]); continue; }
+        g.clearRect(0, 0, PS, PS); g.drawImage(img, 0, 0, PS, PS);
+        const px = g.getImageData(0, 0, PS, PS).data;
+        for (let y = 0; y < PS; y++) data.set(px.subarray(y * PS * 4, (y + 1) * PS * 4), (i * PS + (PS - 1 - y)) * PS * 4);
+      }
+      const tex = new THREE.DataArrayTexture(data, PS, PS, Math.min(urls.length, 32));
+      tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+      matPhoto = atlasMaterial(tex, false, true); photoData = { byId, tex };
+      run(photoData);
+    } catch (e) { /* no photo map: procedural facades only */ }
+  })();
 }
 
-function calcFloors(S, Hw, lv) {
-  const g0 = S.g0;
+function calcFloors(S, Hw, lv, sp) {
+  const g0 = sp && sp.g0 || S.g0;
   if (Hw < g0 * 1.2) return { g0: Hw, nUp: 0 };
+  if (sp && sp.floors) return { g0, nUp: Math.max(1, sp.floors - 1) };
   let nUp = Math.max(1, Math.round((Hw - g0) / S.fh));
   if (lv > 1 && lv <= 9) { const f = (Hw - g0) / (lv - 1); if (f > S.fh * 0.7 && f < S.fh * 1.3) nUp = lv - 1; }
   return { g0, nUp };
 }
+const NOSPEC = {};
+const GROUND_MODES = {
+  shops: [['g_shop_s', 3], ['g_shop_o', 2]], arcade: [['g_arch', 1]], blind: [['blank_g', 3], ['g_win', 1]], rustic: [['g_rust_win', 1]],
+};
+const WIN_TILES = { // window type -> [upper tile(s), nobile tile]
+  arch: (stone, sh) => [stone ? 'st_arch_up' : sh === 'b' ? 'arch_up_b' : 'arch_up_g', 'bar_nob_seg'],
+  ped: () => ['ped_up', 'n19_nob'],
+};
