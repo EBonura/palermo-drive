@@ -1333,6 +1333,16 @@ class _CleanWindow:
         self.nx = int(math.ceil((x1 - self.x0) / CLEAN_PX))
         self.nz = int(math.ceil((z1 - self.z0) / CLEAN_PX))
         self.a = clean_dtm(self.x0, self.z0, self.nx, self.nz)
+        self._fp = None
+
+    def footprint_at(self, x, z):
+        """True where (x, z) is inside a building footprint or its CLEAN_HALO."""
+        import numpy as np
+        if self._fp is None:
+            self._fp = _footprint_mask(self.x0, self.z0, self.nx, self.nz)
+        ii = np.clip(np.floor((np.asarray(x) - self.x0) / CLEAN_PX).astype(int), 0, self.nx - 1)
+        jj = np.clip(np.floor((np.asarray(z) - self.z0) / CLEAN_PX).astype(int), 0, self.nz - 1)
+        return self._fp[jj, ii] > 0
 
     def sample(self, x, z):
         import numpy as np
@@ -1472,10 +1482,22 @@ def near_for(i, j):
     far = G["far_f"]
     farv = far(WX, WZ)
     on_land = shapely.contains_xy(G["land"], WX, WZ)
-    L = _CleanWindow(WX.min() - 4, WZ.min() - 4, WX.max() + 4, WZ.max() + 4).sample(WX, WZ)
+    cw = _CleanWindow(WX.min() - 4, WZ.min() - 4, WX.max() + 4, WZ.max() + 4)
+    L = cw.sample(WX, WZ)
     if hills:
+        # the point lattice (tools/lidar_hills.py: exact DTM, from LATTICE_LO metres up) replaces the decoded raster wherever it has
+        # answers, since the raster is quantised there; lattice nodes under building footprints are dropped and refilled from their
+        # neighbours (the same unreliable DTM under roofs as in clean_dtm)
         Gh = lidar_hills.sample(WX, WZ)
-        L = np.where(np.isfinite(L), L, Gh)
+        has_g = np.isfinite(Gh)
+        if has_g.any():
+            good = has_g & ~cw.footprint_at(WX, WZ)
+            gf = good.astype(np.float32)
+            sg = 1.5
+            den = cv2.GaussianBlur(gf, (0, 0), sg, borderType=cv2.BORDER_REPLICATE)
+            fill = cv2.GaussianBlur(np.where(good, Gh, 0).astype(np.float32), (0, 0), sg, borderType=cv2.BORDER_REPLICATE) / np.maximum(den, 1e-3)
+            Gh = np.where(good, Gh, np.where(has_g & (den > 0.05), fill, np.nan))
+            L = np.where(np.isfinite(Gh), Gh, L)
         N = dem.sample(WX, WZ)
         wt = np.where(np.isfinite(N), _smooth(HILL_LO, HILL_HI, np.nan_to_num(N, nan=0.0)), 0.0)
     else:

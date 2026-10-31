@@ -28,6 +28,7 @@ import lidar_truth as lt  # noqa: E402
 ROOT = os.path.join(os.path.dirname(HERE), "data", "dem_lidar_hills")
 PTS = os.path.join(ROOT, "points_dtm.json")   # points.json (the first version) took the DSM band: canopy and roofs, not ground
 STEP = 20.0
+LATTICE_LO = 55.0   # metres (TINITALY height) above which the point lattice replaces the decoded raster
 WINDOW = (-6800.0, 5200.0, -12200.0, 8200.0)   # x0, x1, z0, z1 (the whole-city bbox, a little generous)
 
 _cache = {}
@@ -51,7 +52,9 @@ def candidates():
     fp[ok] = mask[r[ok], c[ok]]
     ld = lr.sample_dtm(gx, gz, "bilinear")
     tin = dem.sample(gx, gz)
-    need = fp & ~np.isfinite(ld) & np.isfinite(tin) & (tin > 150)
+    # above the raster's 204 m saturation (no decoded value), and from LATTICE_LO up where the raster does decode: there its 8-bit ramp is
+    # only good to a few metres and quantised (terraces on the slopes, dimples on the foothills), the point queries are exact
+    need = fp & np.isfinite(tin) & ((~np.isfinite(ld) & (tin > 150)) | (np.isfinite(ld) & (tin > LATTICE_LO) & (tin <= 150)))
     return [(int(a), int(b)) for a, b in zip(gi[need], gj[need])]
 
 

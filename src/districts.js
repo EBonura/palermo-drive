@@ -107,14 +107,14 @@ export const ZONES = {
     w: { fish: .3, res: .34, pal: .24, pw: .04, blk: .08 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2.5], [5, 1.5]], fh: 3.0, roof: 0.35,
     gl: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
   // Mondello village: Liberty villas, summer houses with deep eaves, pastel and cream plaster, blue trim.
-  mondello: { plaster: ['#e6d8a8', '#e4cdb4', '#d9c096', '#eadfc6', '#e8e0c8', '#d8b8a0', '#f0ebe0', '#d4cba8'], stone: ['#bba07a'], pStone: 0.03, grime: 0.22, elig: true,
+  mondello: { plaster: ['#f0e2a8', '#f0d6b4', '#e8cc96', '#f4ecd6', '#f1e8d0', '#e8bca4', '#f7f2e8', '#e6d8a8', '#f3dca0', '#f6e4d2'], stone: ['#c8ad84'], pStone: 0.03, grime: 0.12, elig: true,
     w: { lib: .3, res: .26, fish: .2, pal: .2, n19: .04 }, fl: [[1, 1], [2, 4], [3, 3], [4, 1.5]], fh: 3.1, roof: 1.5,
     gl: [['fis_door', 2], ['fis_win', 2], ['g_win', 2], ['g_garage', 1]] },
   // The Mondello beach front: cabins, clubs on stilts, summer kiosks.
   lido: { plaster: ['#f0ede4', '#ece8dc', '#f4f2ea', '#e0eae8'], stone: ['#bba07a'], pStone: 0, grime: 0.15, elig: true,
     w: { fish: .3, lib: .2, res: .5 }, fl: [[1, 4], [2, 2]], fh: 3.0, roof: 0.4, beach: true,
     gl: [['bch_a', 3], ['bch_b', 2], ['g_win', 1]] },
-  valdesi: { plaster: ['#e6dcc0', '#ece0c0', '#e4cdb4', '#eae4d4', '#d8c8a8', '#e0e0c8', '#d9c096', '#e8d6b4'], stone: ['#bba07a'], pStone: 0.04, grime: 0.22, elig: true,
+  valdesi: { plaster: ['#f0e4c0', '#f2e6c0', '#ecd2b4', '#f2ecdc', '#e6d6b0', '#e6e8d0', '#e8cc96', '#f2dcb4', '#f6efe2'], stone: ['#c8ad84'], pStone: 0.04, grime: 0.12, elig: true,
     w: { lib: .38, res: .26, pal: .2, fish: .1, n19: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 1.5]], fh: 3.2, roof: 1.4,
     gl: [['g_win', 2], ['g_door2', 2], ['g_garage', 1], ['fis_door', 1]] },
 

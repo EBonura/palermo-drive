@@ -57,7 +57,7 @@ function cabinBlocks(za, zb, seed, gap) {
     const f = shoreFrame(z), P = [landX(z) + 3.2 * f.nx, z + 3.2 * f.nz];
     if (Math.hypot(P[0] + 3043, P[1] + 9598) < 45) continue;                                        // the Stabilimento gate keeps its forecourt
     let tw = 0; while (tw < 70 && groundY(P[0] + f.nx * tw, P[1] + f.nz * tw) > 0.3) tw += 1;        // distance to the waterline
-    const n = Math.min(9, Math.floor((tw - 10) / 1.3)); if (n < 3) continue;
+    const n = Math.min(13, Math.floor((tw - 9) / 1.3)); if (n < 3) continue;
     const kA = KEYS[(rn() * KEYS.length) | 0], kB = rn() < 0.55 ? kA : KEYS[(rn() * KEYS.length) | 0];
     for (let r = 0; r < 2; r++) {
       const key = 'mnCab_' + (r ? kB : kA), off = (r ? 1 : -1) * 0.72;
@@ -72,15 +72,15 @@ function cabinBlocks(za, zb, seed, gap) {
     }
   }
 }
-function cabinLandmark(name, za, zb, seed, gap = 13) {
+function cabinLandmark(name, za, zb, seed, gap = 8) {
   const zc = (za + zb) / 2, xc = landX(zc) + 12;
   return { name, x: xc, z: zc, radius: Math.abs(zb - za) / 2 + 40, skipIds: [], build: () => { defMats(); cabinBlocks(za, zb, seed, gap); return end(name); } };
 }
 export const MN_CABINS = [
   cabinLandmark('Mondello cabins north', -9900, -9760, 931),
   cabinLandmark('Mondello cabins centre', -9560, -9400, 932),
-  cabinLandmark('Mondello cabins Valdesi 1', -9380, -9200, 933, 15),
-  cabinLandmark('Mondello cabins Valdesi 2', -9170, -9020, 934, 15),
+  cabinLandmark('Mondello cabins Valdesi 1', -9380, -9200, 933, 9),
+  cabinLandmark('Mondello cabins Valdesi 2', -9170, -9020, 934, 9),
 ];
 
 // ====================================================================================================
