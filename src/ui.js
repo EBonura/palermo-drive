@@ -228,17 +228,17 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // title
   mk('title', '', `<div class="pd-logo">${logoSVG('t')}</div>
     <div class="pd-tap" data-k="${coarse ? 'tapTouch' : 'tapKey'}" data-two></div>
-    <div class="pd-foot">Map data © OpenStreetMap contributors (ODbL) · Lidar © Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale (CC BY 4.0) · Terrain: AWS Terrain Tiles</div>`);
+`);
   // main menu
   mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
-      <button class="pd-btn drive" data-nav data-do="turisti" type="button">${two('turisti')}${CHEV}</button>
+      <button class="pd-btn drive" data-nav data-do="turisti" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('turisti')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav>
-    <div class="pd-foot">Map data © OpenStreetMap contributors (ODbL) · Lidar © MASE Geoportale Nazionale (CC BY 4.0)</div>`);
+`);
   // options
   const OPTS = [
     { key: 'quality', label: 'quality', type: 'seg', vals: [['low', 'low'], ['medium', 'medium'], ['high', 'high']] },

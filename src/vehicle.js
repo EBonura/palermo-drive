@@ -313,6 +313,7 @@ export function createVehicle(env) {
     x: 0, z: 0, th: 0, vx: 0, vz: 0, vf: 0, steer: 0, roll: 0, pitch: 0, lastVf: 0, lift: 0,
     w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosAmt: 0, nosOn: false, nosLock: false,
     psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu',
+    hop: 0, hopV: 0, gripLoss: 0, kickT: 0, kickSgn: 0, skid: 0,   // road wear: bounce spring, grip lost to a pothole, forced two-wheel lean, tyre scrub 0..1
   };
   let ticks = 0, seenTicks = 0, idleFrames = 99;
   let hitMag = 0, hitId = 0, nosStartId = 0;
@@ -324,7 +325,7 @@ export function createVehicle(env) {
   }
   function placeAt(x, z) {
     const v = nearestRoad(x, z);
-    Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0 });
+    Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0 });
     camState.init = false;
   }
 
@@ -467,7 +468,7 @@ export function createVehicle(env) {
     // ----- yaw -----
     const v1 = Math.hypot(car.vx, car.vz);
     const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
-    const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) / Math.max(Math.abs(vf), 3);
+    const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) / Math.max(Math.abs(vf), 3);
     const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap);
     let wT = wN;
     if (d > 0.01) {
@@ -492,7 +493,7 @@ export function createVehicle(env) {
       let psi = Math.atan2(car.vx, car.vz);
       const fwd = car.vx * sn + car.vz * cs >= 0;
       const e = wrap((fwd ? car.th : car.th + PI) - psi);
-      const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip), kG = lerp(T.kGrip, T.kDrift, d);
+      const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss), kG = lerp(T.kGrip, T.kDrift, d);
       const rMax = aCap / Math.max(v, 4);
       let dpsi = clamp(e * kG, -rMax, rMax) * dt;
       if (Math.abs(dpsi) > Math.abs(e)) dpsi = e;
@@ -518,13 +519,26 @@ export function createVehicle(env) {
     // Body sits on the terrain, plus cosmetic weight transfer: roll out of the corner, dive and squat.
     const lx = cs, lz = -sn;
     const side = (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
-    const tipT = clamp((Math.abs(car.ay) - T.tipA0) / T.tipA1, 0, 1) * sstep(7, 12, Math.abs(vf)) * (1 - 0.8 * d);
+    const tipT = Math.max(clamp((Math.abs(car.ay) - T.tipA0) / T.tipA1, 0, 1) * sstep(7, 12, Math.abs(vf)) * (1 - 0.8 * d), car.kickT);
     car.tip += (tipT - car.tip) * Math.min(1, (tipT > car.tip ? 7 : 4) * dt);
     const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side);
     const pitchT = clamp(-car.ax * 0.0075, -0.09, 0.09) - Math.atan(slope);
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
     car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);
+    // road wear (src/roadwear.js): bounce spring after a pothole, grip and forced lean fade, and how hard the rear tyres scrub
+    car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
+    car.gripLoss = Math.max(0, car.gripLoss - dt / 0.7); car.kickT = Math.max(0, car.kickT - dt / 0.9);
+    car.skid = vf > 3 ? Math.max(d * clamp((sa - 0.1) * 4, 0, 1), hb ? 0.9 : 0, brakeA >= T.brake && vf > 9 ? clamp((vf - 9) / 10, 0, 1) * 0.8 : 0) : 0;
+  }
+
+  // A wheel dropped into a pothole (src/roadwear.js): s = severity (about 0.1 small hole, 1 big hole at speed), side +1 left / -1 right,
+  // pitch +1 front wheel (nose dips) / -1 rear. Bounces the body and camera; the caller handles speed, yaw, grip and tipping.
+  function bump(s, side = 0, pitch = 0) {
+    s = clamp(s, 0, 1.6);
+    car.hopV += 0.5 + 1.5 * s;
+    car.pitch += pitch * 0.035 * s; car.roll += side * 0.05 * s;
+    cam.trauma = Math.max(cam.trauma, Math.min(0.85, 0.12 + 0.5 * s));
   }
 
   // ---------- sound ----------
@@ -676,7 +690,7 @@ export function createVehicle(env) {
     cam.roll += (rollT - cam.roll) * Math.min(1, 8 * dt);
 
     if (m === 2) { // bonnet
-      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + 1.55 + sy, car.z + f.z * 0.3 + sz);
+      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + car.hop * 0.7 + 1.55 + sy, car.z + f.z * 0.3 + sz);
       camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy), car.z + f.z * 20);
       camera.rotateZ(cam.roll + car.roll * 0.5);
       camState.init = true;
@@ -696,7 +710,7 @@ export function createVehicle(env) {
       if (t < 1) { const k = Math.max(0.15, t * 0.85); p.x = car.x + (p.x - car.x) * k; p.z = car.z + (p.z - car.z) * k; p.y += (1 - k) * 2.5; }
     }
     p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2);
-    camera.position.set(p.x + sx, p.y + sy, p.z + sz);
+    camera.position.set(p.x + sx, p.y + sy + (m === 3 ? 0 : car.hop * 0.6), p.z + sz);
     const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + 1.3, car.z));
     camera.lookAt(look);
     if (cam.roll) camera.rotateZ(cam.roll);
@@ -711,11 +725,12 @@ export function createVehicle(env) {
     if (hitMag > 0) { lastHitMag = hitMag; hitMag = 0; hitId++; car.pitch += clamp(lastHitMag * 0.003, 0, 0.05) * (car.vf > 0 ? 1 : -1); }
 
     const g = carRoot;
-    g.position.set(car.x, groundY(car.x, car.z) + car.lift, car.z); g.rotation.y = car.th;
+    g.position.set(car.x, groundY(car.x, car.z) + car.lift + car.hop, car.z); g.rotation.y = car.th;
     tilt.rotation.set(car.pitch, 0, car.roll);
     // two-wheel lean: tip about the outer rear wheel's contact line (left turn = ay > 0 = lean right, outer wheel on the right)
     {
-      const th = car.tip * T.tipMax * Math.sign(car.ay), px = -0.66 * Math.sign(car.ay);
+      const sg = Math.abs(car.ay) < 1 && car.kickT > 0 ? car.kickSgn : Math.sign(car.ay);
+      const th = car.tip * T.tipMax * sg, px = -0.66 * sg;
       lean.rotation.z = th; lean.position.set(px * (1 - Math.cos(th)), -px * Math.sin(th), 0);
     }
     const spin = (car.vf || 0) * dt / 0.23;
@@ -855,5 +870,5 @@ export function createVehicle(env) {
   }
 
   setLivery('blu');
-  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery, buildLapa };
+  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery, buildLapa, bump };
 }

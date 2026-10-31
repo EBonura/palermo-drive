@@ -1199,11 +1199,11 @@ export function buildProps(ctx) {
         const sq = squalor(cxm, czm);
         for (let s = RT(1, 14); s < L - 1; s += RT(28, 60)) {
           const u = rt();
-          if (u > 0.2 * sq * sq + 0.01) continue;
+          if (u > 0.28 * sq * sq + 0.01) continue;
           const [x, z] = wallSpot(A, nx, nz, s, L, dx, dz, 0.5);
           if (!free(x, z) || !lane(x, z) || nearJunction(x, z, 3.5) || !passable(x, z, nx, nz)) continue;
           const kind = rt();
-          if (kind < 0.55) { put('bag_pile' + Math.floor(rt() * 3), x, gy(x, z), z, RT(0, TAU), RT(0.8, 1.2)); st.piles++; occAdd(x, z, 0.6); }
+          if (kind < 0.55) { put('bag_pile' + Math.floor(rt() * 3), x, gy(x, z), z, RT(0, TAU), RT(1.0, 1.5)); st.piles++; occAdd(x, z, 0.6); }
           else if (kind < 0.62) {
             const m = wpick([['dump_mattress', 3], ['dump_fridge', 2], ['dump_chair', 3], ['dump_sofa', 2], ['dump_wreck', 2]]);
             const wall = m === 'dump_mattress' || m === 'dump_fridge';
@@ -1247,7 +1247,7 @@ export function buildProps(ctx) {
         for (let s = RT(1, 8); s < L; s += RT(7, 14)) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s; if (!inBounds(cx, cz, 8) || nearJunction(cx, cz, 5)) continue;
           for (const sg of [1, -1]) {
-            if (rt() > 0.55) continue;
+            if (rt() > 0.75) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 9, (x, z) => !inB(x, z)), e2 = march(cx, cz, -nx, -nz, 9, (x, z) => !inB(x, z));
             if (e < 1.4 || e + e2 < 4) continue;
             const d = e - 0.55, x = cx + nx * d, z = cz + nz * d;
@@ -1268,6 +1268,7 @@ export function buildProps(ctx) {
       put('litter_cafe', x, gy(x, z) + 0.012, z, RT(0, TAU), RT(0.8, 1.2)); st.cafeLitter++;
     }
     stats.rubbish = st;
+    if (location.search.includes('dbgtrash')) for (const m of ['bin_over', 'dump_mattress', 'dump_fridge', 'dump_sofa', 'dump_wreck', 'mwaste0', 'mcrates', 'cardboard']) { const o = []; for (const e of (buckets[m] || new Map()).values()) for (let i = 0; i < e.m.length; i += 5) if (Math.hypot(e.m[i], e.m[i + 2]) < 700) o.push([Math.round(e.m[i]), Math.round(e.m[i + 1]), Math.round(e.m[i + 2])]); console.log('DBGT', m, JSON.stringify(o.slice(0, 6))); }
   }
 
   // ---------- flush instances

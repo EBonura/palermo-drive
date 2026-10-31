@@ -1,6 +1,7 @@
 // Comic speech balloons for people and drivers yelling at the player. Owned by the core.
-// Other modules call env.shout(x, y, z) (a random line) or env.shout(x, y, z, text) when the lapa hits
-// someone; balloons follow that point on screen for a couple of seconds.
+// Other modules call env.shout(x, y, z, text?, follow?) when the lapa hits someone. (x, y, z) is the
+// speaker's head; the balloon's tail points at it. follow, if given, returns the current head position
+// ({x, y, z} or null once the speaker is gone) so the balloon stays on someone who dodges or goes flying.
 import * as THREE from 'three';
 
 // Supplied by the owner, born in Palermo: keep them exactly as written.
@@ -34,7 +35,7 @@ export function createShouts(camera) {
     return INSULTS[i];
   }
 
-  function shout(x, y, z, text) {
+  function shout(x, y, z, text, follow) {
     if (clock - lastAt < COOLDOWN) return; // a pile-up shouldn't fill the screen
     lastAt = clock;
     if (live.length >= MAX) live.shift().el.remove();
@@ -43,7 +44,7 @@ export function createShouts(camera) {
     el.textContent = text || pick();
     el.style.setProperty('--tilt', `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     layer.appendChild(el);
-    live.push({ el, p: new THREE.Vector3(x, y + 2.1, z), t: 0 });
+    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0 });
   }
 
   function update(dt) {
@@ -53,7 +54,9 @@ export function createShouts(camera) {
       const s = live[i];
       s.t += dt;
       if (s.t > LIFE) { s.el.remove(); live.splice(i, 1); continue; }
-      v.copy(s.p); v.y += s.t * 0.4; // drifts up a little
+      const f = s.follow?.();
+      if (f) s.p.set(f.x, f.y, f.z);
+      v.copy(s.p); v.y += 0.35 + s.t * 0.12; // just above the head, rising a touch
       v.project(camera);
       const behind = v.z > 1;
       s.el.style.display = behind ? 'none' : '';

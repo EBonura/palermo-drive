@@ -111,7 +111,7 @@ export const TOURIST = {
 export const DRIVER = {
   board: [
     ['Acchianati, acchianati! Amunì!', 'Climb in, climb in! Let\'s go!'],
-    ['Bedda matri, quanti siti! Stringitivi, ca semu supra a lapa!', 'Holy Mother, how many of you! Squeeze in, this is a lapa!'],
+    ['Bedda matri, quanti siti! Stringitivi, ca semu supra a lapa!', 'Holy Mother, how many of you! Squeeze in, this is a lapa! (?)'],
   ],
   depart: [
     ['Amunì!', 'Let\'s go!'],
@@ -128,28 +128,28 @@ export const DRIVER = {
   ],
   fast: [
     ['Talìa chi velocità! Sugnu u Schumacher di Bagheria!', 'Look at that speed! I am the Schumacher of Bagheria!'],
-    ['Chistu è u Gran Premiu di Mondellu!', 'This is the Mondello Grand Prix!'],
+    ['Chistu è u Gran Premiu di Mondellu!', 'This is the Mondello Grand Prix! (?)'],
   ],
   drift: [
     ['Mizzica, di traversu comu un pisci!', 'Damn, sideways like a fish!'],
-    ['Nta stu vicolu si fa accussì!', 'In this alley this is how it is done!'],
+    ['Nta stu vicolu si fa accussì!', 'In this alley this is how it is done! (?)'],
   ],
   wheels: [
-    ['Du roti sunnu abbastanza, chi mi servunu tri?', 'Two wheels are enough, why would I need three?'],
-    ['Equilibrio sicilianu!', 'Sicilian balance!'],
+    ['Du roti sunnu abbastanza, chi mi servunu tri?', 'Two wheels are enough, why would I need three? (?)'],
+    ['Equilibrio sicilianu!', 'Sicilian balance! (?)'],
   ],
   miss: [
     ['Pi un capiddu!', 'By a hair!'],
-    ['Talìa unni camina chistu!', 'Look where this one is walking!'],
+    ['Talìa unni camina chistu!', 'Look where this one is walking! (?)'],
   ],
   hitPed: [
     ['Ma unni ti metti, nta strata?!', 'Where do you stand, in the street?!'],
     ['Scusa, bedda, nun t\'avia vistu!', 'Sorry, beautiful, I had not seen you!'],
-    ['I pedoni a Palermu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.', 'Pedestrians in Palermo are like traffic lights: they exist, but nobody pays attention.'],
+    ['I pedoni a Palermu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.', 'Pedestrians in Palermo are like traffic lights: they exist, but nobody pays attention. (?)'],
   ],
   hitWall: [
-    ['U muru mi vinni \'ncontru, ju nun c\'entru!', 'The wall came at me, it is not my fault!'],
-    ['Chistu è un muru normanno: nun si move.', 'That is a Norman wall: it does not move.'],
+    ['U muru mi vinni \'ncontru, ju nun c\'entru!', 'The wall came at me, it is not my fault! (?)'],
+    ['Chistu è un muru normanno: nun si move.', 'That is a Norman wall: it does not move. (?)'],
   ],
   late: [
     ['Mi dispiaci, u traffico è traffico: accusa u Comune!', 'Sorry, traffic is traffic: blame the Comune!'],
@@ -162,20 +162,20 @@ export const DRIVER = {
   ],
   fail: [
     ['Nun mi dicissi nenti: ju sugnu in orariu... palermitanu!', 'Do not say anything: I am on time... Palermo time!'],
-    ['Cu avi pressa, parti prima.', 'Whoever is in a hurry should have left earlier.'],
+    ['Cu avi pressa, parti prima.', 'Whoever is in a hurry should have left earlier. (?)'],
   ],
   stig: [
     ['Chista è benzina vera!', 'That is real fuel!'],
     ['Stigghiola e nitro: Palermu \'n tavola!', 'Stigghiola and nitro: Palermo on a plate!'],
   ],
   ambient: [
-    ['Chi cavuru! Pari ca semu nta u furnu da focacceria.', 'What heat! It feels like we are in the focacceria\'s oven.'],
-    ['U parcheggiu? Doppu a Missa. In doppia fila, comu sempri.', 'Parking? After Mass. Double parked, as always.'],
+    ['Chi cavuru! Pari ca semu nta u furnu da focacceria.', 'What heat! It feels like we are in the focacceria\'s oven. (?)'],
+    ['U parcheggiu? Doppu a Missa. In doppia fila, comu sempri.', 'Parking? After Mass. Double parked, as always. (?)'],
     ['L\'AMAT? Passa quannu voli iddu.', 'The AMAT bus? It comes when it feels like it.'],
     ['Arancina! Arancina, no arancinu! U sapi tuttu u munnu.', 'Arancina, not arancino! The whole world knows that.'],
     ['I sensi unici? Sunnu suggerimenti.', 'One-way streets? They are suggestions.'],
     ['Viva Palermu e Santa Rosalia!', 'Long live Palermo and Santa Rosalia!'],
-    ['U russu du semaforu è un colore, nun un ordini.', 'The red of a traffic light is a colour, not an order.'],
+    ['U russu du semaforu è un colore, nun un ordini.', 'The red of a traffic light is a colour, not an order. (?)'],
     ['Talìa chi bedda jurnata!', 'Look what a beautiful day!'],
   ],
 };
@@ -183,13 +183,13 @@ export const DRIVER = {
 // street cries of the stigghiulari
 export const VENDOR = [
   ['Stigghiola! Stigghiolaaa!', 'Stigghiola! Stigghiolaaa!'],
-  ['Stigghiola caura!', 'Hot stigghiola!'],
-  ['Pigghiati a stigghiola, picciotti!', 'Get your stigghiola, kids!'],
-  ['Fumu e sapuri!', 'Smoke and flavour!'],
+  ['Stigghiola caura!', 'Hot stigghiola! (?)'],
+  ['Pigghiati a stigghiola, picciotti!', 'Get your stigghiola, kids! (?)'],
+  ['Fumu e sapuri!', 'Smoke and flavour! (?)'],
 ];
 export const VENDOR_SERVE = [
-  ['Teni, mangia ca è cavuda!', 'Here, eat, it is hot!'],
-  ['Pi tia, cu u limuni!', 'For you, with lemon!'],
+  ['Teni, mangia ca è cavuda!', 'Here, eat, it is hot! (?)'],
+  ['Pi tia, cu u limuni!', 'For you, with lemon! (?)'],
 ];
 
 // destinations: where the tourists want to eat. lat/lon from OpenStreetMap (see places.md)

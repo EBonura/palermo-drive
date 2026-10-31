@@ -80,8 +80,10 @@ html.touch .rot {
 
 /* HUD on phones in landscape: small, out of the way of the pads (steer bottom-left, gas/brake bottom-right) */
 @media (orientation: landscape) {
-  html.touch #where { top: max(8px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); max-width: 28vw; }
-  html.touch #street { font-size: 15px; }
+  /* under the minimap: same right edge and centre as #mini, just below it */
+  html.touch #where { top: calc(max(8px, env(safe-area-inset-top)) + clamp(76px, 25vh, 104px) + 6px); left: auto;
+    right: max(12px, env(safe-area-inset-right)); width: clamp(110px, 30vh, 150px); margin-right: calc((clamp(76px, 25vh, 104px) - clamp(110px, 30vh, 150px)) / 2); max-width: none; }
+  html.touch #street { font-size: 12px; padding: 3px 6px; }
   html.touch #landmark { font-size: 11px; }
   html.touch #mini { top: max(8px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: clamp(76px, 25vh, 104px); height: clamp(76px, 25vh, 104px); border-width: 2px; }
   html.touch #speed { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 14px); left: 50%; transform: translateX(-50%); font-size: 26px; text-align: center; }
