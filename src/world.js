@@ -308,30 +308,20 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
 
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
-    const useNear = !!t.nearS, step = t.shape && stride === 1 ? 5 : (useNear ? 10 : 25) * stride, n = Math.round(T / step) + 1; // 5 m under shaped road corridors so the mesh follows the bench
+    // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
+    const cell = t.nearStep || (t.shape ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
-    // Low detail (20 m or 50 m cells) cannot follow a road bench: on a steep hillside the coarse mesh would cover the road for hundreds of
-    // metres (the owner saw hidden roads under Monte Pellegrino). Vertices within reach of a bench are pulled down to its lowest height
-    // there, so the terrain never rises above a road; the trench this leaves beside it is far below what is visible at that distance.
-    const sh = t.shape, benchR = sh && stride > 1 ? step + 1 : 0;
-    const benchMin = (x, z) => {
-      const s = sh.s, R = benchR, W = sh.W, WH = sh.WH;
-      const i0 = Math.max(0, Math.ceil((x - R - sh.x0) / s)), i1 = Math.min(sh.nx - 1, Math.floor((x + R - sh.x0) / s));
-      const j0 = Math.max(0, Math.ceil((z - R - sh.z0) / s)), j1 = Math.min(sh.nz - 1, Math.floor((z + R - sh.z0) / s));
-      let m = 1e9;
-      for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) {
-        const c = jj * sh.nx + ii; if (W[c] < 0.999 || WH[c] >= m) continue;
-        const dx = sh.x0 + ii * s - x, dz = sh.z0 + jj * s - z; if (dx * dx + dz * dz <= R * R) m = WH[c];
-      }
-      return m;
-    };
+    // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
+    // owner saw hidden roads under Monte Pellegrino). On benched tiles each low detail vertex drops to the lowest ground within 5 m,
+    // so the terrain never rises above a road beside it; the notch this leaves is far below what is visible at that distance.
+    const lowEnv = t.benched && stride > 1;
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const x = x0 + i * step, z = z0 + j * step, k = (j * n + i) * 3;
         let y = g(x, z);
-        if (benchR) { const m = benchMin(x, z) - 0.3; if (m < y) y = m; }
+        if (lowEnv) for (let q = 0; q < 8; q++) { const a = q * 0.7853982, m = g(x + Math.cos(a) * 5, z + Math.sin(a) * 5); if (m < y) y = m; }
         const e = step;
         const dx = (g(x + e, z) - g(x - e, z)) / (2 * e), dz = (g(x, z + e) - g(x, z - e)) / (2 * e), l = Math.hypot(dx, 1, dz);
         pos[k] = x; pos[k + 1] = y - 0.2; pos[k + 2] = z; nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
@@ -541,7 +531,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const base = (x, z) => { const o = tiles.get(nk(Math.floor(x / T), Math.floor(z / T))); return o && o.nearS ? o.nearS(x, z) : farM(x, z); };
     let lo = 1e9, hi = -1e9;
     for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) { const y = base(t.i * T + i * T / 8, t.j * T + j * T / 8); lo = Math.min(lo, y); hi = Math.max(hi, y); }
-    if (t.nearS ? hi < 150 : hi - lo < 12) return; // lidar tiles are good below ~200 m; lidar-less ones only matter when hilly
+    if (t.nearS ? t.benched || hi < 150 : hi - lo < 12) return; // a bench baked into the near grid (tools/tiles.py) replaces this; the old rule stays for tiles of an older bake
     const blur = (x, z) => {
       let sum = base(x, z), n = 1;
       for (const r of [20, 45]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; sum += base(x + Math.cos(a) * r, z + Math.sin(a) * r); n++; }
@@ -708,7 +698,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
         t.data = d; stat.fetched++;
         applyDistrictHeights(d); // low and full detail agree on storeys, no height pop on LOD swap
-        if (d.near) t.nearS = gridSampler(d.near);
+        if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
         prepareTile(t);
       }).catch(e => { t.failed = true; stat.errors++; console.warn('[world] tile', t.id, e); })
         .finally(() => { inflight--; t.fetchP = null; t.fetchRes(); pump(); });
@@ -804,7 +794,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);
-    t.dead = true; t.nearS = null; t.lod = 0; t.hasFull = false;
+    t.dead = true; t.nearS = null; t.nearStep = 0; t.benched = false; t.lod = 0; t.hasFull = false;
     tiles.delete(t.k);
     if (lastG === t) lastG = null; if (lastR === t) lastR = null;
     farHole(t, false);

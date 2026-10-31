@@ -1,8 +1,9 @@
 """City-wide check of the ground under the roads, over the baked world tiles (no browser needed).
 
-It re-implements what src/world.js does with a tile's terrain: `groundY` (the tile's 10 m near grid, bilinear, else the manifest far
-grid, then the road bench of computeShape) and the rendered terrain mesh (triangles over a 5 m grid under shaped corridors or 10 m,
-20 m at low detail, every vertex at groundY - 0.2). Keep SHAPE_* in step with src/world.js.
+It re-implements what src/world.js does with a tile's terrain: `groundY` (the tile's near grid, bilinear, else the manifest far grid;
+the road bench is baked into the near grid by tools/tiles.py, `bench: 1`, 5 m cells; tiles with no near grid and some relief still get
+the runtime bench of computeShape, ported below) and the rendered terrain mesh (triangles over the near grid's cells, twice the cell at
+low detail, every vertex at groundY - 0.2, low detail vertices near a baked bench pulled to the lowest neighbour).
 
 For every drivable road, sampled every STEP metres along the centreline, it reports
 
@@ -120,6 +121,9 @@ class World:
         keys = ti * 100000 + tj
         for k in np.unique(keys):
             i, j = int(ti[keys == k][0]), int(tj[keys == k][0])
+            t = self.load(i, j) if (i, j) in self.tiles else None
+            if t and t["near"]:
+                continue       # benched at bake time (or not needing a bench)
             sh = self.get_shape(i, j)
             if sh is None:
                 continue
@@ -152,8 +156,7 @@ class World:
         gx, gz = np.meshgrid(i * T + np.arange(9) * T / 8, j * T + np.arange(9) * T / 8)
         b = self.base_h(gx, gz)
         lo, hi = b.min(), b.max()
-        has_near = t["near"] is not None
-        if (hi < 150) if has_near else (hi - lo < 12):
+        if t["near"] is not None or hi - lo < 12:
             return None
 
         def blur(x, z):
@@ -239,18 +242,13 @@ class World:
         return self.cache[k]
 
     def vertex_h(self, i, j, X, Z, step, low):
-        """Heights of the terrain mesh vertices of tile (i, j): groundY - 0.2, pulled below nearby benches at low detail."""
+        """Heights of the terrain mesh vertices of tile (i, j): groundY - 0.2; at low detail on a baked bench the lowest of the vertex and
+        its 8 neighbours 5 m away (src/world.js terrainMesh), so a coarse cell never rises above a road on the slope."""
         y = self.ground(X, Z)
-        if low and self.shaping:
-            sh = self.get_shape(i, j)
-            if sh is not None:
-                R = step + 1
-                bm = self.bench_min(i, j, R)
-                x0, z0, s, nx, nz, _, _ = sh
-                ci = np.clip(np.round((X - x0) / s).astype(int), 0, nx - 1)
-                cj = np.clip(np.round((Z - z0) / s).astype(int), 0, nz - 1)
-                m = bm[cj, ci] - 0.3
-                y = np.where(m < y, m, y)
+        t = self.load(i, j) if (i, j) in self.tiles else None
+        if low and t and t["near"] and t["near"].get("bench"):
+            for dx, dz in ((5, 0), (-5, 0), (0, 5), (0, -5), (5, 5), (-5, 5), (5, -5), (-5, -5)):
+                y = np.minimum(y, self.ground(X + dx, Z + dz))
         return y - MESH_DROP
 
     def mesh(self, x, z, low=False):
@@ -264,11 +262,10 @@ class World:
             i, j = int(ti[m][0]), int(tj[m][0])
             t = self.load(i, j) if (i, j) in self.tiles else None
             has_near = bool(t and t["near"])
-            shaped = self.shaping and self.get_shape(i, j) is not None
-            if low:
-                step = (10 if has_near else 25) * 2
-            else:
-                step = 5 if shaped else (10 if has_near else 25)
+            cell = t["near"]["s"] if has_near else 25
+            if not has_near and self.shaping and self.get_shape(i, j) is not None:
+                cell = 5     # runtime bench on a tile without near grid
+            step = cell * (2 if low else 1)
             fx, fz = (x[m] - i * T) / step, (z[m] - j * T) / step
             a, b = np.floor(fx).astype(int), np.floor(fz).astype(int)
             tx, tz = fx - a, fz - b
