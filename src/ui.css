@@ -293,3 +293,7 @@ html.touch #pd-ui:is([data-screen=start], [data-screen=garage], [data-screen=opt
 /* title tagline under the logo */
 .pd-tagline { margin-top: clamp(-18px, -2vh, -6px); font: 700 clamp(15px, 3.4vh, 26px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .14em;
   text-transform: uppercase; color: #fff4f9; text-align: center; text-shadow: 0 0 14px rgba(232,85,154,.85), 0 2px 0 rgba(10,6,9,.9); }
+
+/* start picker: Luoghi / Quartieri tabs */
+.pd-starttabs { margin: 0 12px 0 10px; }
+.pd-starttabs .pd-segb { min-height: clamp(36px, 7vh, 46px); font-size: clamp(13px, 2.8vh, 18px); }
