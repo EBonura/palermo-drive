@@ -63,7 +63,7 @@ export const TEX = {
     speckle(g, S, 7000, ['#7c8a4c', '#5a6e38', '#8c9356', '#667840', '#9a9560'], 1, 3);
   }, 3),
   sand: canvasTex(256, (g, S) => { // beaches of the world tiles (Mondello: pale, fine, slightly rippled sand)
-    g.fillStyle = '#d3c8ae'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#ddd3b9'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 26; i++) { // wind ripples and footprints-sized dimples
       g.fillStyle = `rgba(${Math.random() < 0.5 ? '190,172,132' : '236,226,196'},${rnd(0.08, 0.2)})`;
       g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(3, 8), rnd(-0.3, 0.3), 0, 7); g.fill();

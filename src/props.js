@@ -1878,6 +1878,26 @@ function* generate(S, BUD) {
         }
       }
     }
+    // d) the villa quarters of Mondello, Valdesi and Partanna (src/gardens.js turns their yards green): Aleppo and umbrella pines, palms, ficus,
+    // citrus and oleander between the houses, as on the aerial photos where the roofs sit in a dark green canopy; pavements and the piazzas stay clear
+    if (S.x1 > -3950 && S.x0 < -2150 && S.z1 > -10750 && S.z0 < -8650) {
+      const GK = [['pine', 20], ['palm_fan_a', 8], ['palm_fan_b', 6], ['palm_date_a', 6], ['ficus', 8], ['orange', 16], ['tree', 14], ['shrub', 12]];
+      const gpick = () => { let t = rf() * 104; for (const [v, w] of GK) { if ((t -= w) <= 0) return v; } return 'tree'; };
+      const KEEP = [[-3060, -10150, 85], [-2995, -10120, 50], [-2500, -8960, 45]];
+      let gn = 0;
+      for (let x = Math.max(S.x0, -3950); x < Math.min(S.x1, -2150) && gn < 700 * DEN; x += 8) {
+        if (BUD.over()) yield;
+        for (let z = Math.max(S.z0, -10750); z < Math.min(S.z1, -8650); z += 8) {
+          if (rf() > 0.17 * Math.min(1, DEN + 0.3)) continue;
+          const px = x + RF(-3.6, 3.6), pz = z + RF(-3.6, 3.6);
+          if (!inBounds(px, pz) || !raisedMask(px, pz) || road(px, pz) || inB(px, pz) || paving(px, pz) || groundY(px, pz) < 1.0) continue;
+          if (KEEP.some(k => hyp2(px - k[0], pz - k[1]) < k[2])) continue;
+          if (nearRoad(px, pz, 4.2)) continue;
+          if (placeTree(px, pz, gpick(), 1.0)) gn++;
+        }
+      }
+      st.gardenTrees = gn;
+    }
     stats.flavour = st;
   }
 
