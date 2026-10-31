@@ -177,7 +177,7 @@ function buildStadio() {
   defMat('stFacade', 256, 512, [13, 22], (g, w, h) => paintFacade(g, w, h, 13, 22, { base: '#dfdcd2', trim: '#c7c3b8', glass: '#35606c', seed: 505,
     bands: [{ y: 17.2, h: 3.4, c: '#2e7f94' }, { y: 8.6, h: 0.5, c: '#bdb9ae' }], pil: { xs: [0, 6.5], w: 1.0, c: '#efede6' },
     rows: [{ y0: 1.2, y1: 4.4, n: 3, m: 2.0, w: 1.6, kind: 'rect', fr: 0.1, glass: '#4a5560' }, { y0: 10.0, y1: 13.2, n: 3, m: 2.0, w: 2.2, kind: 'rect', fr: 0.1, glass: '#3f6a7a' }] }), { side: THREE.DoubleSide });
-  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#2b8c88'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
+  defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#287a78'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
   defMat('stRoofTop', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#c3cdc8'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(70,90,85,0.25)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 509, ['rgba(255,255,255,0.12)']); }, { side: THREE.DoubleSide });
   defMat('stRoofUnder', 0, 0, [1, 1], null, { roughness: 1, side: THREE.DoubleSide });
   defMat('stSteel', 0, 0, [1, 1], null, { roughness: 0.6 });
@@ -229,8 +229,8 @@ function buildStadio() {
   // pylons on the outside (every 4th sample) and the teal eave ring round the whole rim
   for (let k = 0; k < N; k += 4) { const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
   const eaveIn = (k, d, dy) => [O[k][0] - D[k][0] * d, HF(k) + dy, O[k][1] - D[k][1] * d], eaveOut = (k, d, dy) => [O[k][0] + D[k][0] * d, HF(k) + dy, O[k][1] + D[k][1] * d];
-  gridMesh('stTeal', [O.map((p, k) => eaveIn(k, 3.5, 0.5)), O.map((p, k) => eaveOut(k, 3.2, -0.6))], (i, j) => [j * 1.2, i * 3], { wrap: true });
-  gridMesh('stTeal', [O.map((p, k) => eaveOut(k, 3.2, -0.6)), O.map((p, k) => eaveOut(k, 3.2, -1.6))], (i, j) => [j * 1.2, i], { wrap: true });
+  gridMesh('stTeal', [O.map((p, k) => eaveIn(k, 1.2, 0.5)), O.map((p, k) => eaveOut(k, 2.6, -0.5))], (i, j) => [j * 1.2, i * 3], { wrap: true });
+  gridMesh('stTeal', [O.map((p, k) => eaveOut(k, 2.6, -0.5)), O.map((p, k) => eaveOut(k, 2.6, -1.4))], (i, j) => [j * 1.2, i], { wrap: true });
   // the covered main stand (Tribuna, the long side towards Viale del Fante: the side of v = WSW): a deep cantilever roof, pale on top, dark underneath, a teal fascia and white pylons
   { const sgn = Vv[0] < 0 ? 1 : -1, SV = [Vv[0] * sgn, Vv[1] * sgn], av = Math.atan2(SV[1], SV[0]);
     const wrap = (a) => { while (a > PI) a -= 2 * PI; while (a < -PI) a += 2 * PI; return a; };
@@ -241,7 +241,7 @@ function buildStadio() {
     if (run.length > 3) {
       const t0 = 0.30, h0 = 17.2, h1 = 24.6;
       gridMesh('stRoofTop', [row(t0, h0 + 0.35, run), outerRow(h1 + 0.35, run, 6)], (i, j) => [j * 2, i * 4], {});
-      gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true });
+      gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true, c: '#555c60' });
       gridMesh('stTeal', [row(t0, h0 - 0.4, run), row(t0, h0 + 0.8, run)], (i, j) => [j, i], {});            // front fascia
       gridMesh('stTeal', [outerRow(h1 - 0.3, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia
       for (let q = 0; q < run.length; q += 3) { const k = run[q]; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
@@ -268,7 +268,7 @@ function buildStadio() {
       const k1 = (k + 1) % N, ax = O[k][0] + D[k][0] * FO, az = O[k][1] + D[k][1] * FO, bx_ = O[k1][0] + D[k1][0] * FO, bz = O[k1][1] + D[k1][1] * FO, l = Math.hypot(bx_ - ax, bz - az);
       if (l < 0.5 || (Math.abs(ax - GATE.x) < GATE.halfW + 6 && az < cz - 30)) continue;
       const y = Math.min(groundY(ax, az), groundY(bx_, bz)), Mf = frame((ax + bx_) / 2, y, (az + bz) / 2, -(bz - az) / l, (bx_ - ax) / l);
-      rail(Mf, l, 2.2, { c: '#cfd3d6' });
+      panel('stFence', l, 2.2, { M: Mf, uvk: [l / 4, 1], c: '#d8dcde' });
       if (k % 2 === 0) panel('stAds', l, 1.0, { M: mul(Mf, tr(0, 0.9, 0.05)), uvk: [l / 16, 1] });
     }
   }
