@@ -530,7 +530,7 @@ function makePhysics(env) {
   const spawnBags = (c, n, dx, dz) => {
     for (let i = 0; i < n; i++) {
       const idx = bagN++ % bagPool.count, b = bags.find(q => q.idx === idx) || (bags[bags.length] = { idx });
-      Object.assign(b, { x: c.x + (Math.random() - 0.5) * 0.6, y: gy(c.x, c.z) + 0.8 + Math.random() * 0.5, z: c.z + (Math.random() - 0.5) * 0.6, vx: dx * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, vz: dz * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, rest: false, rot: Math.random() * 6, s: 0.8 + Math.random() * 0.5, owner: c });
+      Object.assign(b, { x: c.x + (Math.random() - 0.5) * 0.6, y: gy(c.x, c.z) + 0.8 + Math.random() * 0.5, z: c.z + (Math.random() - 0.5) * 0.6, vx: dx * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, vz: dz * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, rest: false, rot: Math.random() * 6, s: 0.6 + Math.random() * 0.35, owner: c });
       bagPool.setColorAt(idx, BAGC[(Math.random() * BAGC.length) | 0]); bagPool.instanceColor.needsUpdate = true;
     }
   };
@@ -1598,20 +1598,5 @@ export function buildProps(ctx) {
   const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, colliders: phys.count() };
   api.grid = phys.grid;
   if (location.search.includes('debug')) window.__props = Object.assign(api, { colls });
-  if (location.search.includes('proplist')) setTimeout(() => { const g = window.game; for (const m of ['tree', 'orange', 'ficus', 'palm_fan_a', 'bin_big', 'bin_over', 'scooter', 'lamp_pole', 'bollard', 'candelabra']) { const t = colls.filter(c => c.model === m && Math.hypot(c.x0 - g.car.x, c.z0 - g.car.z) > 20).sort((a, b) => Math.hypot(a.x0 - g.car.x, a.z0 - g.car.z) - Math.hypot(b.x0 - g.car.x, b.z0 - g.car.z))[0]; if (t) console.log('PROPLIST', m, t.x0.toFixed(1), t.y0.toFixed(1), t.z0.toFixed(1), t.rot0.toFixed(2)); } }, 1500);
-  if (location.search.includes('proptest=')) setTimeout(() => { // TEMP test harness
-    const q = new URLSearchParams(location.search), models = q.get('proptest').split(','), S = +(q.get('sp') || 14), g = window.game; if (!g) return;
-    const tg = colls.filter(c => models.includes(c.model) && Math.hypot(c.x0 - g.car.x, c.z0 - g.car.z) > 20).sort((a, b) => Math.hypot(a.x0 - g.car.x, a.z0 - g.car.z) - Math.hypot(b.x0 - g.car.x, b.z0 - g.car.z))[0];
-    if (!tg) { console.log('PROPTEST no target'); return; }
-    const ang = +(q.get('ang') || 0), dx = Math.sin(tg.rot0 + ang), dz = Math.cos(tg.rot0 + ang), th = Math.atan2(-dx, -dz), car = g.car;
-    console.log('PROPTEST target', tg.model, tg.x0, tg.z0);
-    car.x = tg.x0 + dx * 12; car.z = tg.z0 + dz * 12; car.th = th;
-    let i = 0, after = +(q.get('after') || 400);
-    for (; i < 900 && tg.st === 0; i++) { car.vx = Math.sin(th) * S; car.vz = Math.cos(th) * S; car.vf = S; car.x += car.vx / 120; car.z += car.vz / 120; api.collidePlayer(car, 1 / 120); }
-    console.log('PROPTEST hit after steps', i, 'carspeed', Math.hypot(car.vx, car.vz).toFixed(1));
-    for (let k = 0; k < after; k++) api.collidePlayer({ x: tg.x0 + dx * 40, z: tg.z0 + dz * 40, th: 0, vx: 0, vz: 0, vf: 0 }, 1 / 120);
-    car.x = tg.x0 + dx * 14; car.z = tg.z0 + dz * 14; car.vx = car.vz = car.vf = 0;
-    console.log('PROPTEST result', tg.st, JSON.stringify(api.stats));
-  }, 2500);
   return api;
 }
