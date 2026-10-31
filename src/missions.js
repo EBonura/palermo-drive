@@ -1,7 +1,8 @@
-// Game modes: "Turisti affamati" (tourist taxi runs to Palermo's eateries) and the stigghiulari (grill vendors with
-// smoke plumes and nitro refills). Owned by the missions work.
+// Game modes: "Turisti affamati" (tourist taxi runs to Palermo's eateries), the stigghiulari (grill vendors with smoke plumes and
+// nitro refills) and, after dark, "A Favorita" (a discreet client, needs the whole-city tiles ?world=1), the pollanche vendors on Monte
+// Pellegrino and the night gags of src/missions-night.js. Owned by the missions work.
 //
-// createMissions(env) -> { mode, setMode('free'|'turisti'), update(dt), stop() }
+// createMissions(env) -> { mode, setMode('free'|'turisti'|'favorita'), update(dt), stop() }
 //   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians,
 //          traffic, mapMarkers, placeAt, proj }
 // Flow of Turisti: a pink ring with a light beam marks where tourists wait -> stop inside it (speed near zero), they walk
@@ -9,7 +10,9 @@
 // destination ring -> fare + tips (speed, drifts, near misses, two wheels, stigghiola) minus claims (pedestrians, walls).
 // Speech uses env.shout (src/shouts.js). Lines and places live in assets/missions/lines.js (review copy: lines.md).
 import * as THREE from 'three';
-import { TOURIST, DRIVER, VENDOR, VENDOR_SERVE, DESTS, PICKUPS, VENDORS, NATIONS } from '../assets/missions/lines.js';
+import { TOURIST, DRIVER, VENDOR, VENDOR_SERVE, DESTS, PICKUPS, VENDORS, NATIONS, FAVORITA, POLLANCHE } from '../assets/missions/lines.js';
+import { WORLD } from './core.js';
+import { createNightLife } from './missions-night.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -33,6 +36,8 @@ function build(env) {
   const lang = () => (document.documentElement.lang === 'en' ? 'en' : 'it');
   const T = (it, en) => (lang() === 'en' ? en : it);
   const now = () => performance.now() / 1000;
+  const worldOn = () => WORLD || !!window.PALERMO_WORLD;                       // the whole-city tiles (Favorita, Monte Pellegrino) are streamed in
+  const isNight = () => !!(pedestrians.night && pedestrians.night().night);   // day/night via the pedestrians module (game.time), daytime if unknown
 
   // ------------------------------------------------------------------------------------ places
   const segs = [];
@@ -450,11 +455,18 @@ function build(env) {
     g.fillStyle = '#2f6b49'; g.fillRect(40, 132, 432, 6);
     V.sign = new THREE.CanvasTexture(cv); V.sign.colorSpace = THREE.SRGBColorSpace; V.sign.anisotropy = 4;
   }
+  function signTexture(text, col, line) {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const g = cv.getContext('2d');
+    g.fillStyle = '#eadfc2'; g.fillRect(0, 0, 512, 160); g.strokeStyle = col; g.lineWidth = 10; g.strokeRect(8, 8, 496, 144);
+    g.fillStyle = col; g.font = '700 84px "Arial Narrow", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 256, 84);
+    g.fillStyle = line; g.fillRect(40, 132, 432, 6);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  }
   const std = (c, r = 0.85, extra) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...extra });
   const M = {
     steel: std('#2a2624', 0.6, { metalness: 0.4 }), rust: std('#7a3b2a', 0.9), wood: std('#8a6a44', 0.9), pale: std('#d8c8a0', 0.9),
     coal: new THREE.MeshBasicMaterial({ color: 0xff6a22 }), skewer: std('#6b4a2b', 0.9), green: std('#4f7a3a', 0.9), pole: std('#bdbab2', 0.5, { metalness: 0.5 }),
-    sign: new THREE.MeshBasicMaterial({ map: V.sign, toneMapped: false }), umbrella: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }),
+    sign: new THREE.MeshBasicMaterial({ map: V.sign, toneMapped: false }), signCorn: new THREE.MeshBasicMaterial({ map: signTexture('POLLANCHE', '#a8680e', '#2f6b49'), toneMapped: false }), umbrella: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }),
   };
   const glowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -476,24 +488,28 @@ function build(env) {
   function buildVendor(o) {
     const pl = place(o);
     const sn = pl.road, side = sideSpot(sn, sn.w / 2 + 1.3);
-    const px = side.x, pz = side.z, theta = Math.atan2(sn.dx, sn.dz) + (side.s < 0 ? Math.PI : 0);
+    return buildVendorAt(o, pl, side.x, side.z, Math.atan2(sn.dx, sn.dz) + (side.s < 0 ? Math.PI : 0));
+  }
+  // kind 'pollanche': the same cart with corn cobs instead of skewers (Monte Pellegrino, whole-city tiles; see the pollanche block below)
+  function buildVendorAt(o, pl, px, pz, theta, kind) {
+    const corn = kind === 'pollanche';
     const gy = groundAt(px, pz);
     const g = new THREE.Group(); g.position.set(px, gy, pz); g.rotation.y = theta; scene.add(g);
     // brazier on legs (front = +x, the road side)
     box(0.55, 0.28, 1.1, M.steel, 0, 0.9, 0, g, true);
     for (const [lx, lz] of [[-0.22, -0.48], [0.22, -0.48], [-0.22, 0.48], [0.22, 0.48]]) cyl(0.03, 0.78, M.steel, lx, 0.39, lz, g);
     const coal = box(0.46, 0.04, 1.0, M.coal, 0, 1.03, 0, g);
-    const sk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.014, 0.014, 0.52, 5), M.skewer, 16), m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), col = new THREE.Color();
-    for (let i = 0; i < 16; i++) {
-      m4.compose(new THREE.Vector3(0.0, 1.08, -0.46 + i * 0.061), q, new THREE.Vector3(1, 1, 1)); sk.setMatrixAt(i, m4);
-      sk.setColorAt(i, col.set(i % 3 === 0 ? '#4f7a3a' : i % 3 === 1 ? '#7a4a2a' : '#8a5a34'));
+    const NSK = corn ? 9 : 16, sk = new THREE.InstancedMesh(corn ? new THREE.CylinderGeometry(0.045, 0.04, 0.42, 7) : new THREE.CylinderGeometry(0.014, 0.014, 0.52, 5), M.skewer, NSK), m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), col = new THREE.Color();
+    for (let i = 0; i < NSK; i++) {
+      m4.compose(new THREE.Vector3(0.0, corn ? 1.1 : 1.08, -0.46 + i * (corn ? 0.115 : 0.061)), q, new THREE.Vector3(1, 1, 1)); sk.setMatrixAt(i, m4);
+      sk.setColorAt(i, col.set(corn ? (i % 3 === 0 ? '#e2b92e' : i % 3 === 1 ? '#c98f22' : '#7a4a1e') : i % 3 === 0 ? '#4f7a3a' : i % 3 === 1 ? '#7a4a2a' : '#8a5a34'));
     }
     g.add(sk);
     // counter on the road side with the sign and a pile of skewers
     box(0.42, 0.05, 1.3, M.wood, 0.68, 0.86, 0, g, true);
     for (const lz of [-0.55, 0.55]) { cyl(0.03, 0.84, M.wood, 0.5, 0.42, lz, g); cyl(0.03, 0.84, M.wood, 0.86, 0.42, lz, g); }
     box(0.3, 0.07, 0.36, M.pale, 0.62, 0.92, -0.35, g); box(0.26, 0.05, 0.3, M.green, 0.66, 0.97, -0.3, g); box(0.2, 0.06, 0.4, M.skewer, 0.7, 0.93, 0.3, g);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.36), M.sign); sign.position.set(0.9, 0.62, 0); sign.rotation.y = Math.PI / 2; g.add(sign);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.36), corn ? M.signCorn : M.sign); sign.position.set(0.9, 0.62, 0); sign.rotation.y = Math.PI / 2; g.add(sign);
     // umbrella
     cyl(0.025, 2.3, M.pole, -0.15, 1.15, 0.0, g);
     const um = new THREE.Mesh(umbrellaGeo, M.umbrella); um.position.set(0.05, 2.35, 0); um.castShadow = true; g.add(um);
@@ -511,26 +527,26 @@ function build(env) {
       const c = [W(lx[0], lz[0]), W(lx[1], lz[0]), W(lx[1], lz[1]), W(lx[0], lz[1])];
       for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
     }
-    const v = { o, pl, x: px, z: pz, gy, g, coal, glow, cid, cd: 0, ring: null, marker: null, shoutT: rand(2, 8), seed: Math.random() * 10 };
+    const v = { o, pl, kind, x: px, z: pz, gy, g, coal, glow, cid, cd: 0, ring: null, marker: null, shoutT: rand(2, 8), seed: Math.random() * 10 };
     v.ring = makeBeacon('#ff9d2e', 4.5, { beam: false }); v.ring.set(px + vx0 * 1.7, pz + vz0 * 1.7); v.ring.show(true);
     v.sx = px + vx0 * 1.7; v.sz = pz + vz0 * 1.7;
-    v.marker = addMarker(px, pz, '#ff7a1a', 4);
+    v.marker = o.marker || addMarker(px, pz, '#ff7a1a', 4);
     return v;
   }
   for (const o of VENDORS) { try { vendors.push(buildVendor(o)); } catch (e) { console.warn('[missions] vendor', o.id, e); } }
 
   // smoke plumes: GPU-animated camera-facing quads, one instance per puff
   const PUFFS = 110, PLUME_H = 120;
-  let plume = null;
-  if (vendors.length) {
-    const n = vendors.length * PUFFS, geo = new THREE.InstancedBufferGeometry();
+  // pts: [{ x, y, z }], one smoke column each; returns { mesh, setY(i, y) } (the base height can follow terrain that streams in)
+  function makePlume(pts) {
+    const n = pts.length * PUFFS, geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2)); geo.setIndex([0, 1, 2, 0, 2, 3]);
     const base = new Float32Array(n * 3), seed = new Float32Array(n * 3);
-    vendors.forEach((v, vi) => { for (let i = 0; i < PUFFS; i++) { const k = vi * PUFFS + i; base.set([v.x, v.gy + 1.1, v.z], k * 3); seed.set([(i + Math.random() * 0.9) / PUFFS, Math.random(), Math.random()], k * 3); } });
-    geo.setAttribute('iBase', new THREE.InstancedBufferAttribute(base, 3)); geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 3)); geo.instanceCount = n;
+    pts.forEach((v, vi) => { for (let i = 0; i < PUFFS; i++) { const k = vi * PUFFS + i; base.set([v.x, v.y, v.z], k * 3); seed.set([(i + Math.random() * 0.9) / PUFFS, Math.random(), Math.random()], k * 3); } });
+    const iBase = new THREE.InstancedBufferAttribute(base, 3); geo.setAttribute('iBase', iBase); geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 3)); geo.instanceCount = n;
     const u = { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 } };
-    plume = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    const plume = new THREE.Mesh(geo, new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide,
       vertexShader: `
         attribute vec3 iBase; attribute vec3 iSeed; uniform float uTime; uniform float uH; uniform vec2 uWind;
@@ -560,6 +576,38 @@ function build(env) {
     plume.frustumCulled = false; plume.renderOrder = 6;
     plume.onBeforeRender = () => { u.uTime.value = now() % 5000; if (scene.fog) u.uFogD.value = scene.fog.density; };
     scene.add(plume);
+    return { mesh: plume, setY(vi, y) { for (let i = 0; i < PUFFS; i++) base[(vi * PUFFS + i) * 3 + 1] = y; iBase.needsUpdate = true; } };
+  }
+  const plumeStig = vendors.length ? makePlume(vendors.map(v => ({ x: v.x, y: v.gy + 1.1, z: v.z }))) : null;
+
+
+  // ------------------------------------------------------------------------------------ pollanche (corn on the cob), Monte Pellegrino
+  // Carts at the Santuario di Santa Rosalia, built like the stigghiulari: brazier, umbrella, a vendor sprite, a minimap marker, a smoke
+  // plume you can see from the city, "POLLANCHEEEE" now and then, and a nitro top-up when you stop. They live in the whole-city tiles,
+  // so they exist only with ?world=1: the plume and the marker at once, the cart and the vendor when the lapa comes within 420 m.
+  const polls = [];
+  let pollPlume = null;
+  if (worldOn()) {
+    for (const o of POLLANCHE.sites) {
+      const [px0, pz0] = env.proj(o.lat, o.lon);
+      polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#e8b92e', 4) });
+    }
+    pollPlume = makePlume(polls.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
+  }
+  let pollT = 0;
+  function updatePoll(dt) {
+    if (!polls.length) return;
+    pollT -= dt; if (pollT > 0) return;
+    pollT = 1.5;
+    polls.forEach((p, i) => {
+      const gy = groundAt(p.x, p.z);
+      if (Math.abs(gy - p.gy) > 0.25) { p.gy = gy; pollPlume.setY(i, gy + 1.1); if (p.v) p.v.g.position.y = gy; }   // terrain refines as tiles stream in
+      if (!p.built && Math.hypot(car.x - p.x, car.z - p.z) < 420) {
+        p.built = true;
+        try { const v = buildVendorAt({ ...p.o, marker: p.marker }, null, p.x, p.z, Math.atan2(p.o.rx, p.o.rz) - Math.PI / 2, 'pollanche'); vendors.push(v); p.v = v; }
+        catch (e) { console.warn('[missions] pollanche', p.o.id, e); }
+      }
+    });
   }
 
   // ------------------------------------------------------------------------------------ the Turisti mode
@@ -605,6 +653,7 @@ function build(env) {
   function clearChars() {
     const f = S.fare;
     if (f) for (const c of f.chars) pedestrians.remove(c.id);
+    if (f && f.glam) for (const g of f.glam) pedestrians.remove(g.id);
     S.fare = null;
   }
   const anyAboard = f => f.chars.some(c => c.seated);
@@ -612,6 +661,7 @@ function build(env) {
 
   function startRide() {
     const f = S.fare;
+    if (f.fav) return startFavRide(f);
     // destination: somewhere at a sensible distance from here
     let cands = D_PLACES.filter(d => d !== S.lastDest).map(d => ({ d, dist: Math.hypot(d.x - car.x, d.z - car.z) }));
     let pool = cands.filter(c => c.dist > 240 && c.dist < 1300);
@@ -633,8 +683,8 @@ function build(env) {
 
   function tip(f, amount, label) { f.tips += amount; toast('+' + eur(amount), label); }
   function claim(f, amount, label) { f.claims += amount; toast('-' + eur(amount), label, true); }
-  const tline = (f, key) => say(pick(TOURIST[key][f.nat] || TOURIST[key].en), seatPos, 0);
-  const dline = (key, delay = 1.4) => say(pick(DRIVER[key]), driverPos, delay);
+  const tline = (f, key) => say(pick(f.fav ? (FAVORITA.client[key] || FAVORITA.client.ambient) : (TOURIST[key][f.nat] || TOURIST[key].en)), seatPos, 0);
+  const dline = (key, delay = 1.4) => say(pick((S.fare && S.fare.fav && FAVORITA.driver[key]) || DRIVER[key]), driverPos, delay);
 
   let pedHits = 0, prevScrape = 0, prevSpeed = 0;
   if (pedestrians.onKnock) pedestrians.onKnock(() => { pedHits++; });
@@ -642,7 +692,7 @@ function build(env) {
   function updateSeek(dt, f) {
     const d = Math.hypot(car.x - f.pick.x, car.z - f.pick.z), sp = speed();
     const near = d < 110;
-    for (const c of f.chars) pedestrians.setBounce(c.id, near && !c.seated);
+    for (const c of f.chars) pedestrians.setBounce(c.id, near && !c.seated && !f.fav);
     if (d < pickBeacon.R && sp < 1.8) f.boardT += dt; else f.boardT = 0;
     if (f.boardT > 0.35) {
       f.phase = 'board'; S.phase = 'board'; f.doorT = 0;
@@ -673,6 +723,7 @@ function build(env) {
   }
   function updateRide(dt, f) {
     const sp = speed(), ev = f.ev;
+    if (f.fav && !f.glam && Math.hypot(car.x - FAV.x, car.z - FAV.z) < 450) spawnGlam(f);   // the avenue fills up as you get near
     f.left -= dt;
     for (const k in ev) if (ev[k] > 0) ev[k] = Math.max(0, ev[k] - dt);
     ev.drift = ev.drift || 0; ev.wheels = ev.wheels || 0; ev.miss = ev.miss || 0; ev.wall = ev.wall || 0; ev.ped = ev.ped || 0; ev.fast = ev.fast || 0; ev.chat = ev.chat === undefined ? rand(10, 18) : ev.chat;
@@ -702,7 +753,7 @@ function build(env) {
     // chatter and the stigghiola smell
     ev.chat -= dt;
     if (ev.chat <= 0) { ev.chat = rand(14, 24); tline(f, 'ambient'); dline('ambient', 1.8); }
-    if (f.wantsStig && !f.sniffed) for (const v of vendors) if (v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline(f, 'smell'); toast(T('Che profumo!', 'What a smell!'), T('I turisti vogliono una stigghiola', 'The tourists want a stigghiola')); break; }
+    if (f.wantsStig && !f.sniffed) for (const v of vendors) if (v.kind !== 'pollanche' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline(f, 'smell'); toast(T('Che profumo!', 'What a smell!'), T('I turisti vogliono una stigghiola', 'The tourists want a stigghiola')); break; }
     if (f.left < 12 && !f.lateSaid) { f.lateSaid = true; tline(f, 'late'); dline('late'); }
     // arrival or time out
     const d = Math.hypot(car.x - f.dest.x, car.z - f.dest.z);
@@ -711,6 +762,7 @@ function build(env) {
   }
 
   function finishFare(f, ok) {
+    if (f.fav) return finishFav(f, ok);
     f.phase = 'drop'; S.phase = 'drop'; S.gap = 5.5;
     destBeacon.show(false); dropMarker(destMarker); destMarker = null;
     // everyone out, walking towards the door of the place
@@ -743,7 +795,129 @@ function build(env) {
   }
   function updateDrop(dt) {
     S.gap -= dt;
-    if (S.gap <= 0) newFare();
+    if (S.gap <= 0) { if (S.fare && S.fare.fav) endFav(); else newFare(); }
+  }
+
+  // ------------------------------------------------------------------------------------ night mission "A Favorita"
+  // After dark, with the whole-city tiles on (?world=1: the Favorita is ~3.9 km north-west of Quattro Canti and only exists there), a client
+  // in sunglasses and a raincoat flags the lapa and asks, with a lot of innuendo and a lot of excuses, to be driven to Viale Diana in the
+  // Favorita. Cheeky satire: the glam night folk waiting along the avenue greet him by name and the joke is entirely on him. Pays well, and
+  // he begs you not to tell anyone. Starts from setMode('favorita') or by itself when you idle at night in free drive.
+  const FAV = (() => { const [x, z] = env.proj(FAVORITA.dest.lat, FAVORITA.dest.lon); return { ...FAVORITA.dest, x, z, vx: x, vz: z }; })();
+  let favCool = 20, favStopT = 0;
+  const segCross = (ax, az, bx, bz, w) => {
+    const d1x = bx - ax, d1z = bz - az, d2x = w[2] - w[0], d2z = w[3] - w[1], den = d1x * d2z - d1z * d2x;
+    if (Math.abs(den) < 1e-9) return false;
+    const t = ((w[0] - ax) * d2z - (w[1] - az) * d2x) / den, u = ((w[0] - ax) * d1z - (w[1] - az) * d1x) / den;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+  };
+  function pathClear(ax, az, bx, bz) {
+    let ok = true;
+    walls2d.query(Math.min(ax, bx) - 0.5, Math.min(az, bz) - 0.5, Math.max(ax, bx) + 0.5, Math.max(az, bz) + 0.5, w => { if (ok && segCross(ax, az, bx, bz, w)) ok = false; });
+    return ok;
+  }
+  // a free spot for a character, minD..maxD from the lapa, with a clear straight path to it; pavement preferred, ahead of the lapa if asked.
+  // Position-based on purpose: the baked road list only covers the centro, the streamed tiles do not appear in it.
+  function findSpot(minD, maxD, ahead) {
+    let best = null, bs = -Infinity;
+    for (let k = 0; k < 48; k++) {
+      const a = ahead ? car.th + rand(-0.9, 0.9) : rand(0, TAU), d = rand(minD, maxD), x = car.x + Math.sin(a) * d, z = car.z + Math.cos(a) * d;
+      const wd = wallDist(x, z); if (wd < 0.9 || !pathClear(car.x, car.z, x, z)) continue;
+      const sc = (raisedMask(x, z) ? 3 : 0) + Math.min(wd, 2.5) + rand(0, 0.6);
+      if (sc > bs) { bs = sc; best = { x, z }; }
+    }
+    return best;
+  }
+  const charHead = id => () => { const i = pedestrians.info(id); return i ? { x: i.x, y: i.y + 1.95, z: i.z } : { x: car.x, y: groundAt(car.x, car.z) + 2.4, z: car.z }; };
+  function favUnavailable() {
+    if (!worldOn()) return T('Serve il mondo intero: apri con ?world=1', 'Needs the whole-city world: open with ?world=1');
+    if (!isNight()) return T('Il cliente esce solo di notte', 'The client only comes out at night');
+    return '';
+  }
+  function newFavFare(ambient) {
+    clearChars();
+    const sp = findSpot(ambient ? 24 : 12, ambient ? 42 : 26, true) || findSpot(7, 30, false);
+    if (!sp) return false;
+    const id = pedestrians.spawnScripted('client', sp.x, sp.z); if (id < 0) return false;
+    pedestrians.face(id, car.x, car.z);
+    const f = { fav: true, ambient, pick: { x: sp.x, z: sp.z, name: T('Cliente in impermeabile', 'Client in a raincoat') }, nat: 'it', chars: [{ id, seated: false, slot: 0, walking: false, next: 0 }], phase: 'wait', dest: null,
+      base: 0, tips: 0, claims: 0, limit: 0, left: 0, ev: {}, wantsStig: false, stigDone: true, sniffed: true, lateSaid: false, boardT: 0, doorT: 0, glam: null };
+    S.fare = f; S.phase = 'seek';
+    pickBeacon.set(sp.x, sp.z); pickBeacon.show(true); dropMarker(pickMarker); pickMarker = addMarker(sp.x, sp.z, '#ff3d9a', 7);
+    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
+    toast(T('Un cliente ti fa segno', 'A client flags you down'), T('Discreto, molto discreto', 'Discreet, very discreet'));
+    say(pick(FAVORITA.client.flag), charHead(id), 0.8);
+    return true;
+  }
+  function startFavRide(f) {
+    f.dest = FAV; f.dist0 = Math.hypot(FAV.x - car.x, FAV.z - car.z);
+    f.base = Math.round((10 + f.dist0 / 70) * 2) / 2;                   // pays well: a long drive, and a night client
+    f.limit = f.left = Math.max(90, f.dist0 * 1.25 / 9 + 60);
+    f.phase = 'ride'; S.phase = 'ride';
+    pickBeacon.show(false); dropMarker(pickMarker); pickMarker = null;
+    destBeacon.set(FAV.x, FAV.z); destBeacon.show(true); destMarker = addMarker(FAV.x, FAV.z, '#ffd24a', 8);
+    say(pick(FAVORITA.client.ask), seatPos, 0.2);
+    say(pick(FAVORITA.driver.ask), driverPos, 2.6);
+    say(pick(FAVORITA.driver.depart), driverPos, 5);
+    toast(T('Alla Favorita!', 'To the Favorita!'), FAV.name);
+  }
+  // the glam night folk of the avenue: flashy outfits, fully clothed, cheerful, and in on the joke
+  function spawnGlam(f) {
+    f.glam = [];
+    const ids = ['glam1', 'glam2', 'glam3', 'glam3', 'glam1', 'glam2'], along = [-60, -42, -25, 18, 34, 56], nx = -FAV.dz, nz = FAV.dx;
+    ids.forEach((v, k) => {
+      const sd = k % 2 ? -1 : 1, off = 5.8 + (k % 3) * 0.7, x = FAV.x + FAV.dx * along[k] + nx * sd * off, z = FAV.z + FAV.dz * along[k] + nz * sd * off;
+      const id = pedestrians.spawnScripted(v, x, z); if (id < 0) return;
+      pedestrians.face(id, FAV.x + FAV.dx * along[k], FAV.z + FAV.dz * along[k]); f.glam.push({ id, along: along[k] });
+    });
+  }
+  function finishFav(f, ok) {
+    f.phase = 'drop'; S.phase = 'drop'; S.gap = ok ? 8 : 4;
+    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
+    const c = f.chars[0];
+    if (c) {   // out he gets and hurries off the road, away from the lapa
+      pedestrians.detach(c.id); c.seated = false;
+      const nx = -FAV.dz, nz = FAV.dx, sd = ((car.x - FAV.x) * nx + (car.z - FAV.z) * nz) >= 0 ? 1 : -1;
+      pedestrians.walkTo(c.id, car.x + nx * sd * 11, car.z + nz * sd * 11, ok ? 2.8 : 3.2);
+    }
+    if (ok) {
+      const bonus = Math.round(f.base * 0.3 * clamp(f.left / f.limit, 0, 1) * 2) / 2, disc = Math.round(f.base * 0.4 * 2) / 2;
+      f.tips += bonus + disc;
+      const total = Math.max(0, f.base + f.tips - f.claims); f.total = total; S.earned += total; S.fares++;
+      dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } }));
+      if (S.earned > S.best) { S.best = S.earned; try { localStorage.setItem(BEST_KEY, String(S.best)); } catch (e) { /* ignore */ } }
+      tline(f, 'arrive'); dline('arrive', 2.4);
+      const sorted = (f.glam || []).slice().sort((a, b) => Math.abs(a.along) - Math.abs(b.along));
+      sorted.slice(0, 3).forEach((g, i) => say(FAVORITA.chorus[(i + (Math.random() < 0.5 ? 0 : 1)) % FAVORITA.chorus.length], charHead(g.id), 3.6 + i * 1.5));
+      if (sorted.length) say(pick(FAVORITA.client.caught), c ? charHead(c.id) : seatPos, 8);
+      showResult(`<h3>${T('A Favorita!', 'A Favorita!')}</h3>
+        <div class="row"><span>${T('Corsa', 'Fare')}</span><span>${eur(f.base)}</span></div>
+        <div class="row"><span>${T('Mance', 'Tips')}</span><span>+ ${eur(f.tips - disc)}</span></div>
+        <div class="row"><span>${T('Silenzio (sulla parola)', 'Discretion (your word)')}</span><span>+ ${eur(disc)}</span></div>
+        <div class="row"><span>${T('Reclami', 'Complaints')}</span><span>- ${eur(f.claims)}</span></div>
+        <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
+      burst();
+    } else {
+      f.total = 0; tline(f, 'fail'); dline('fail', 2.0);
+      showResult(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('Il cliente scende e non paga', 'The client gets out and does not pay')}</span></div>`, 3);
+    }
+  }
+  function endFav() {
+    clearChars(); favCool = 90;
+    S.mode = 'free'; S.phase = 'off'; api.mode = 'free';
+    pickBeacon.show(false); destBeacon.show(false); dropMarker(pickMarker); dropMarker(destMarker); pickMarker = destMarker = null;
+    hud.classList.remove('on'); guideOff();
+  }
+  // free drive at night: idle for a few seconds somewhere the client can reach and he may flag you (once in a while)
+  function updateFavFlag(dt) {
+    favCool = Math.max(0, favCool - dt);
+    favStopT = speed() < 1.0 ? favStopT + dt : 0;
+    if (favStopT < 5 || favCool > 0 || !worldOn() || !isNight() || night.inZone()) return;
+    favStopT = 0;
+    const d = Math.hypot(car.x - FAV.x, car.z - FAV.z);
+    if (d < 400 || d > 9000 || Math.random() > 0.5) return;
+    favCool = 40;
+    if (newFavFare(true)) { S.mode = 'favorita'; api.mode = 'favorita'; }
   }
 
   // ------------------------------------------------------------------------------------ stigghiola
@@ -758,6 +932,12 @@ function build(env) {
       f.stigDone = true; tip(f, 6, T('Stigghiola per i turisti', 'Stigghiola for the tourists')); tline(f, 'eat');
     }
   }
+  function eatPollanche(v) {   // a small bonus: half a tank of nitro
+    v.cd = 45;
+    car.nos = Math.min(1, car.nos + 0.5); car.nosLock = false;
+    toast('POLLANCHE!', T('Un po\' di nitro', 'A bit of nitro'));
+    say(pick(POLLANCHE.serve), () => ({ x: v.x, y: v.gy + 0.2, z: v.z }), 0);
+  }
   function updateVendors(dt) {
     const sp = speed();
     for (const v of vendors) {
@@ -767,11 +947,11 @@ function build(env) {
       // coals breathe
       v.glow.material.opacity = 0.75 + 0.2 * Math.sin(v.seed * 7) * Math.sin(v.seed * 2.3);
       v.ring.u.uAlpha.value = v.cd > 0 ? 0.25 : 1;
-      v.marker.color = v.cd > 0 ? '#8a6a44' : '#ff7a1a';
-      if (v.cd <= 0 && d < 4.5 && sp < 2.2) eatStigghiola(v);
+      v.marker.color = v.cd > 0 ? '#8a6a44' : v.kind === 'pollanche' ? '#e8b92e' : '#ff7a1a';
+      if (v.cd <= 0 && d < 4.5 && sp < 2.2) (v.kind === 'pollanche' ? eatPollanche : eatStigghiola)(v);
       // street cries when the lapa is close
       v.shoutT -= dt;
-      if (v.shoutT <= 0 && d < 38) { v.shoutT = rand(7, 13); say(pick(VENDOR), () => ({ x: v.x, y: v.gy + 0.3, z: v.z }), 0); }
+      if (v.shoutT <= 0 && d < (v.kind === 'pollanche' ? 80 : 38)) { v.shoutT = rand(7, 13); say(pick(v.kind === 'pollanche' ? POLLANCHE.cry : VENDOR), () => ({ x: v.x, y: v.gy + 0.3, z: v.z }), 0); }
     }
     coalPulse();
   }
@@ -781,7 +961,7 @@ function build(env) {
   // ------------------------------------------------------------------------------------ hud
   const _d = new THREE.Vector3(); let hudAcc = 0;
   function updateHud(dt) {
-    const f = S.fare, on = S.mode === 'turisti';
+    const f = S.fare, on = S.mode !== 'free';
     hud.classList.toggle('on', on);
     if (!on) { arrow3d.visible = false; return; }
     let tx = 0, tz = 0, show = false;
@@ -798,7 +978,7 @@ function build(env) {
       const dist = Math.hypot(tx - car.x, tz - car.z);
       topArrowDist.textContent = dist < 1000 ? `${Math.round(dist / 10) * 10} m` : `${(dist / 1000).toFixed(1)} km`;
     }
-    if (show) guideTo(tx, tz); else guideOff();
+    if (show && !(f && f.fav)) guideTo(tx, tz); else guideOff();   // the Favorita is outside the baked road graph: the arrow points straight at it
     if ((hudAcc -= dt) > 0) return;
     hudAcc = 0.1;
     elFare.textContent = f && f.dest ? eur(Math.max(0, f.base + f.tips - f.claims)) : eur(0);
@@ -807,12 +987,12 @@ function build(env) {
     elTot.textContent = T('Incasso ', 'Total ') + eur(S.earned);
     const dist = f ? Math.hypot(tx - car.x, tz - car.z) : 0, ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
     if (S.phase === 'ride' && f) {
-      elLab.textContent = T('Portali a mangiare', 'Take them to eat'); elPlace.textContent = f.dest.name; elSub.textContent = f.dest.addr + '  ·  ' + ds;
+      elLab.textContent = f.fav ? T('Portalo alla Favorita', 'Take him to the Favorita') : T('Portali a mangiare', 'Take them to eat'); elPlace.textContent = f.dest.name; elSub.textContent = f.dest.addr + '  ·  ' + ds;
       const m = Math.max(0, f.left), mm = Math.floor(m / 60), ss = Math.floor(m % 60);
       elTime.textContent = mm + ':' + String(ss).padStart(2, '0'); elTime.classList.toggle('low', m < 12);
       elBarI.style.transform = `scaleX(${clamp(f.left / f.limit, 0, 1).toFixed(3)})`; elBar.classList.toggle('low', m < 12);
     } else if (S.phase === 'seek' || S.phase === 'board') {
-      elLab.textContent = T('Turisti in attesa', 'Tourists waiting'); elPlace.textContent = f.pick.name; elSub.textContent = T('Fermati nell\'anello rosa', 'Stop inside the pink ring') + '  ·  ' + ds;
+      elLab.textContent = f.fav ? T('Cliente in attesa', 'Client waiting') : T('Turisti in attesa', 'Tourists waiting'); elPlace.textContent = f.pick.name; elSub.textContent = T('Fermati nell\'anello rosa', 'Stop inside the pink ring') + '  ·  ' + ds;
       elTime.textContent = ''; elBarI.style.transform = 'scaleX(0)';
     } else {
       elLab.textContent = T('Arrivederci', 'Goodbye'); elPlace.textContent = f && f.dest ? f.dest.name : ''; elSub.textContent = ''; elTime.textContent = ''; elBarI.style.transform = 'scaleX(0)';
@@ -823,10 +1003,14 @@ function build(env) {
   function update(dt) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt;
-    updateVendors(dt);
-    if (S.mode === 'turisti') {
-      if (S.phase === 'off') newFare();
+    if (pendingMode && S.t > 2) { const m = pendingMode; pendingMode = null; setMode(m); }
+    updateVendors(dt); updatePoll(dt);
+    night.update(dt, !(S.fare && (S.phase === 'ride' || S.phase === 'board')));
+    if (S.mode === 'free') updateFavFlag(dt);
+    if (S.mode !== 'free') {
+      if (S.phase === 'off') { if (S.mode === 'turisti') newFare(); else if (!newFavFare(false)) { toast(T('Nessun posto per il cliente qui', 'No room for the client here')); stop(); } }
       const f = S.fare;
+      if (f && f.fav && f.ambient && S.phase === 'seek' && Math.hypot(car.x - f.pick.x, car.z - f.pick.z) > 150) { stop(); favCool = 60; return; }   // you drove off: he gives up
       if (f) {
         if (S.phase === 'seek') updateSeek(dt, f);
         else if (S.phase === 'board') updateBoard(dt, f);
@@ -842,9 +1026,12 @@ function build(env) {
   }
 
   function setMode(m) {
-    m = m === 'turisti' ? 'turisti' : 'free';
+    m = m === 'turisti' || m === 'favorita' ? m : 'free';
     if (m === S.mode) return;
-    if (m === 'free') stop(); else { S.mode = 'turisti'; S.phase = 'off'; api.mode = 'turisti'; }
+    if (m === 'free') { stop(); return; }
+    if (m === 'favorita') { const why = favUnavailable(); if (why) { toast(T('A Favorita non disponibile', 'A Favorita is not available'), why); return; } }
+    if (S.mode !== 'free') stop();
+    S.mode = m; S.phase = 'off'; api.mode = m;
   }
   // Driving into the sea (src/sea.js) ends the current ride like running out of time: no fare.
   addEventListener('pd-drowned', () => { const f = S.fare; if (f && S.phase === 'ride') finishFare(f, false); });
@@ -855,7 +1042,9 @@ function build(env) {
     hud.classList.remove('on'); guideOff(); result.classList.remove('on'); talkQ.length = 0;
   }
 
+  const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, state: S };
   if (params.get('mode') === 'turisti') setMode('turisti');
+  let pendingMode = params.get('mode') === 'favorita' ? 'favorita' : null;   // ?mode=favorita waits until the time of day is known
   return api;
 }
