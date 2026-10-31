@@ -764,8 +764,15 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     testFrame++;
     const car = testRefs.car, th = 0.5236;
     if (testFrame < 4) testRefs.vehicle.camState.init = false;
-    if (testFrame === 4) { Object.assign(car, { x: 489.5 + Math.sin(th) * 12, z: -427.5 + Math.cos(th) * 12, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testRefs.vehicle.camState.init = false; }
-    if (S.on) return S.t >= TEST ? 0 : 0.1;
+    if (testFrame === 4) {
+      let d = 0; while (d < 80 && !isWater(489.5 + Math.sin(th) * d, -427.5 + Math.cos(th) * d)) d += 0.5;
+      console.log('[sea] test water at', d);
+      d += 2.5;
+      Object.assign(car, { x: 489.5 + Math.sin(th) * d, z: -427.5 + Math.cos(th) * d, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testRefs.vehicle.camState.init = false;
+    }
+    if (S.on && S.shown) { const o = document.getElementById('sea-go'); o.style.transition = 'none'; o.firstElementChild.style.transition = 'none'; }
+    if (S.on && !S.pre) { S.pre = true; while (S.t < TEST) { stepDrown(0.04); stepPoints(spray, 0.04); stepPoints(bubbles, 0.04); } }
+    if (S.on) return 0;
     return dt;
   }
   // TEMP-DEBUG-END

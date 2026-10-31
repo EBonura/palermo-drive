@@ -1,0 +1,235 @@
+{
+ "label": "baseline",
+ "root": ".",
+ "profile": "desktop",
+ "net": "slow4g",
+ "cpuThrottle": 1,
+ "query": "debug",
+ "wire": {
+  "requests": 46,
+  "bytes": 3770037,
+  "rawBytes": 11193082,
+  "atReady": {
+   "requests": 46,
+   "bytes": 3770037,
+   "rawBytes": 11193082
+  },
+  "byKind": {
+   "html": {
+    "wire": 1806,
+    "raw": 4616,
+    "n": 1
+   },
+   "other": {
+    "wire": 9155,
+    "raw": 33683,
+    "n": 4
+   },
+   "js": {
+    "wire": 3282089,
+    "raw": 10677141,
+    "n": 29
+   },
+   "font": {
+    "wire": 77016,
+    "raw": 77016,
+    "n": 5
+   },
+   "img": {
+    "wire": 399971,
+    "raw": 400626,
+    "n": 7
+   }
+  }
+ },
+ "timing": {
+  "dcl": 19265,
+  "loaded": 20349,
+  "fcp": 408,
+  "loadingGone": 19265,
+  "firstDraw": 19420,
+  "readyWallMs": 19794
+ },
+ "jsHeapMB": 94.2,
+ "buildings": {
+  "tris": 1174364,
+  "meshes": 74,
+  "stats": {
+   "styles": {
+    "n19": 1680,
+    "bar": 757,
+    "church": 97,
+    "res": 1777,
+    "pw": 880,
+    "low": 576
+   },
+   "balconies": 18250,
+   "tanks": 6035,
+   "tiled": 783,
+   "flat": 6770,
+   "specs": 13,
+   "photo": 4,
+   "osmCol": 4
+  },
+  "ms": 246.69999998807907
+ },
+ "samples": [
+  {
+   "spot": "Quattro Canti",
+   "calls": 425,
+   "triangles": 2837956,
+   "lines": 0,
+   "points": 436,
+   "geometries": 276,
+   "textures": 31,
+   "programs": 48,
+   "cpuRenderMsMedian": 3.6,
+   "cpuRenderMsP95": 4.3,
+   "frameMsMedian": 4.3,
+   "frameMsP95": 5.2,
+   "fps": 232.6,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Teatro Massimo",
+   "calls": 497,
+   "triangles": 2823749,
+   "lines": 0,
+   "points": 436,
+   "geometries": 438,
+   "textures": 37,
+   "programs": 49,
+   "cpuRenderMsMedian": 3.9,
+   "cpuRenderMsP95": 5.3,
+   "frameMsMedian": 4.7,
+   "frameMsP95": 6.6,
+   "fps": 212.8,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "La Cala",
+   "calls": 528,
+   "triangles": 3414573,
+   "lines": 0,
+   "points": 436,
+   "geometries": 493,
+   "textures": 42,
+   "programs": 49,
+   "cpuRenderMsMedian": 4.5,
+   "cpuRenderMsP95": 5.9,
+   "frameMsMedian": 5.3,
+   "frameMsP95": 7,
+   "fps": 188.7,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Stazione",
+   "calls": 305,
+   "triangles": 2399937,
+   "lines": 0,
+   "points": 436,
+   "geometries": 521,
+   "textures": 42,
+   "programs": 49,
+   "cpuRenderMsMedian": 3.1,
+   "cpuRenderMsP95": 3.8,
+   "frameMsMedian": 3.8,
+   "frameMsP95": 4.7,
+   "fps": 263.2,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  }
+ ],
+ "errors": [],
+ "topFiles": [
+  [
+   "/palermo-data.js",
+   1592462,
+   5548605
+  ],
+  [
+   "/context-data.js",
+   1114380,
+   2825300
+  ],
+  [
+   "/build/three.module.js",
+   257952,
+   1272972
+  ],
+  [
+   "/assets/facades/photo/jung.jpg",
+   135012,
+   135012
+  ],
+  [
+   "/assets/facades/photo/biondo.jpg",
+   92065,
+   92065
+  ],
+  [
+   "/assets/facades/photo/riso.jpg",
+   84834,
+   84834
+  ],
+  [
+   "/assets/facades/photo/gangi.jpg",
+   45367,
+   45367
+  ],
+  [
+   "/props-data.js",
+   40323,
+   160277
+  ],
+  [
+   "/assets/ui/bonnie-studios.png",
+   35983,
+   35983
+  ],
+  [
+   "/src/props.js",
+   30058,
+   99548
+  ],
+  [
+   "/src/landmarks.js",
+   22668,
+   75591
+  ],
+  [
+   "/src/buildings.js",
+   22094,
+   70243
+  ]
+ ],
+ "consoleTimeline": [
+  [
+   19051,
+   "[buildings] {\"tris\":1175036,\"meshes\":70,\"stats\":{\"styles\":{\"n19\":1680,\"bar\":757,\"church\":97,\"res\":1777,\"pw\":880,\"low\":576},\"balconies\":18278,\"tanks\":6039,\"tiled\":783,\"flat\":6770,\"specs\":13,\"photo\":0,\""
+  ],
+  [
+   19450,
+   "[props] 11200 instances in 1557 meshes, 708k tris, 343 ms {\"signal\":27,\"busstop\":132,\"shelter\":21,\"bollard\":309,\"bin_big\":303,\"bags\":366,\"bench\":115,\"monument\":99,\"fountain\":7,\"palm_fan_c\":43,\"palm_fa"
+  ],
+  [
+   23139,
+   "[buildings] {\"tris\":1174364,\"meshes\":74,\"stats\":{\"styles\":{\"n19\":1680,\"bar\":757,\"church\":97,\"res\":1777,\"pw\":880,\"low\":576},\"balconies\":18250,\"tanks\":6035,\"tiled\":783,\"flat\":6770,\"specs\":13,\"photo\":4,\""
+  ]
+ ]
+}
