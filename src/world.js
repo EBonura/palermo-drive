@@ -75,7 +75,7 @@ class SegGrid {
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
   sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b0a58a'), grove: new THREE.Color('#8a8a58'), scrub: new THREE.Color('#686d45'),
-  rock: new THREE.Color('#b2aca0'), rockLo: new THREE.Color('#99948a'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#6a8a48'),
+  rock: new THREE.Color('#b2aca0'), rockLo: new THREE.Color('#99948a'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
   beach: new THREE.Color('#d5cab0'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
   farm: new THREE.Color('#a8985f'), orchard: new THREE.Color('#6f8148'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
@@ -579,7 +579,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (treeGeo) return treeGeo;
     const P = [], Nn = [], Cc = [], I = [];
     const col = (r, g, b) => new THREE.Color(r, g, b);
-    const trunk = col(0.36, 0.27, 0.19), leafA = col(0.24, 0.42, 0.22), leafB = col(0.3, 0.5, 0.26);
+    const trunk = col(0.3, 0.22, 0.15), leafA = col(0.14, 0.27, 0.13), leafB = col(0.19, 0.33, 0.15); // Aleppo and stone pines read dark, almost blue-green
     const cone = (y0, y1, rad, sides, c) => {
       const base = P.length / 3;
       for (let i = 0; i < sides; i++) {
@@ -613,7 +613,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const d = t.data, areas = (d.areas || []).filter(a => a.k === 'forest' || a.k === 'green').map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
-      return { pts, x0, z0, x1, z1, p: a.k === 'forest' ? 0.9 : 0.3 };
+      return { pts, x0, z0, x1, z1, p: a.k === 'forest' ? 0.9 : Math.min(x1 - x0, z1 - z0) > 160 ? 0.55 : 0.3 }; // a big park (the Favorita) is mostly trees
     });
     if (!areas.length) return null;
     // building footprints (bbox grid), so no tree grows through a house
@@ -638,7 +638,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const s = 0.75 + hash2(x + 1.9, z + 4.2) * 0.8;
         q.setFromAxisAngle(up, hash2(x, z + 9.1) * 6.28); sc.set(s, s * (0.9 + hash2(z, x) * 0.3), s); pos.set(x, groundY(x, z) - 0.1, z);
         m4.compose(pos, q, sc); mats.push(m4.clone());
-        const v = 0.8 + hash2(x - 5.5, z + 2.2) * 0.45; cols.push(col.setRGB(v, v * (0.95 + hash2(z, z) * 0.12), v * 0.9).clone());
+        const v = 0.7 + hash2(x - 5.5, z + 2.2) * 0.5; cols.push(col.setRGB(v * (1 + hash2(z, x) * 0.15), v * (0.95 + hash2(z, z) * 0.12), v * 0.85).clone());
       }
       yield;
     }

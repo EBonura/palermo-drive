@@ -24,7 +24,7 @@ const scene = new THREE.Scene(); scene.background = new THREE.Color('#9cc4e8'); 
 const camera = new THREE.PerspectiveCamera(+(q.get('fov') || 60), innerWidth / innerHeight, 0.5, 4000);
 camera.position.set(...cam); camera.lookAt(...look);
 scene.add(new THREE.HemisphereLight('#bcd4f0', '#8a7d6a', 1.15));
-const sun = new THREE.DirectionalLight('#fff1d6', 3.2); sun.position.set(look[0] - 300, look[1] + 230, look[2] + 160); sun.target.position.set(look[0], look[1], look[2]);
+const sun = new THREE.DirectionalLight('#fff1d6', 3.2); sun.position.set(look[0] - 300, look[1] + 230, look[2] + 160); if (q.get('sunrel')) { const dx = look[0] - cam[0], dz = look[2] - cam[2], l = Math.hypot(dx, dz) || 1; sun.position.set(look[0] - dx / l * 260 + dz / l * 120, look[1] + 230, look[2] - dz / l * 260 - dx / l * 120); } // sunrel=1: sun behind the camera so the facade in view is lit sun.target.position.set(look[0], look[1], look[2]);
 sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); const sc = sun.shadow.camera; sc.left = -260; sc.right = 260; sc.top = 260; sc.bottom = -260; sc.near = 10; sc.far = 900; sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ color: '#8d8a80' })); ground.rotation.x = -Math.PI / 2; ground.position.set(look[0], -0.05, look[2]); ground.receiveShadow = true; scene.add(ground);

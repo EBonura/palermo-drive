@@ -38,7 +38,7 @@ from bake import (KX, KZ, LAT0, LON0, area, building_height, flat, hash01, lidar
 CITY = os.path.join(ROOT, "data", "city")
 WORLD = os.path.join(ROOT, "world")
 T = 500
-BBOX_LL = (38.065, 13.285, 38.225, 13.420)  # s, w, n, e (docs/TILES.md)
+BBOX_LL = (38.045, 13.235, 38.230, 13.455)  # s, w, n, e (docs/TILES.md); Palermo's municipal boundary (OSM relation 39513) spans 38.0499..38.2246, 13.2422..13.4521
 UA = "palermo-drive-tiles/0.1 (hobby three.js game, OSM ODbL data; contact via github EBonura)"
 ENDPOINTS = ["https://z.overpass-api.de/api/interpreter", "https://overpass-api.de/api/interpreter"]
 
@@ -792,18 +792,24 @@ def parse_highways(files):
             r["tn"] = 1
         elif t.get("bridge") in ("yes", "viaduct", "movable"):
             r["br"] = 1
-        if hw in CARRIAGEWAY:   # what the paint needs (src/streets.js roadMarks): real carriageway width, lanes, one-way, roundabout
+        # Same fields and encoding as tools/bake.py (traffic reads o and j city-wide): o one-way (1 along the points, -1 against),
+        # l lanes, ms maxspeed, j junction. cw (real carriageway width, only when it differs from the class default) is for src/streets.js roadMarks.
+        ow = t.get("oneway")
+        if ow in ("yes", "true", "1") or t.get("junction") == "roundabout":
+            r["o"] = 1
+        elif ow == "-1":
+            r["o"] = -1
+        for tag, field in (("lanes", "l"), ("maxspeed", "ms")):
+            try:
+                r[field] = int(t[tag])
+            except (KeyError, ValueError):
+                pass
+        if t.get("junction"):
+            r["j"] = t["junction"]
+        if hw in CARRIAGEWAY:
             cw = round(width_of(t, CARRIAGEWAY[hw]), 1)
             if cw != CARRIAGEWAY[hw]:
                 r["cw"] = cw
-            try:
-                r["ln"] = int(t["lanes"])
-            except (KeyError, ValueError):
-                pass
-            if t.get("oneway") in ("yes", "-1", "true", "1") or t.get("junction") == "roundabout":
-                r["ow"] = 1
-            if t.get("junction") == "roundabout":
-                r["rb"] = 1
         roads.append((r, LineString(pts)))
         if tunnel:
             continue

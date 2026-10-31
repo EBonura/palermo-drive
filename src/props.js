@@ -513,7 +513,6 @@ const MATS = {
   const sb = new MB(), fr = C('#f1eee6');
   sb.box(-0.32, 0.2, -0.45, 0.32, 0.27, 0.5, fr, 0.8, 1, false);                  // mattress
   sb.face(fr, [[-0.32, 0.27, -0.45], [0.32, 0.27, -0.45], [0.32, 0.62, -0.78], [-0.32, 0.62, -0.78]], 0.95);   // back rest
-  for (const [x, z] of [[-0.3, -0.4], [0.3, -0.4], [-0.3, 0.45], [0.3, 0.45]]) sb.box(x - 0.015, 0, z - 0.015, x + 0.015, 0.2, z + 0.015, C('#8a8c8e'), 1, 1, false);
   def('sunbed', sb, { tint: true, dbl: true });
   const ks = new MB();   // lido kiosk: pale box with a striped awning over the hatch
   ks.box(-1.6, 0, -1.2, 1.6, 2.5, 1.2, C('#eadfc6'), 0.75, 1);
@@ -1934,6 +1933,7 @@ export function buildProps(ctx) {
   const tstats = { tiles: 0, built: 0, instances: 0, tris: 0, ms: 0, msMax: 0, lamps: 0, queued: () => [...jobs.values()].filter(j => j.phase < 3).length };
 
   // ---------- tile source
+  const sandRings = d => { const a = (d.areas || []).filter(q => q.k === 'sand').map(q => q.p); return a.length ? a : ((d.streets && d.streets.sand) || []).map(p => p[0]); };
   function tileSource(job) {
     const t = job.t, d = t.data, x0 = t.i * T, z0 = t.j * T, x1 = x0 + T, z1 = z0 + T;
     const nb = [], nroads = [];
@@ -1953,7 +1953,7 @@ export function buildProps(ctx) {
       x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
       idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
       roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [],
-      sand: (st.sand || []).map(p => p[0]).concat((d.areas || []).filter(a => a.k === 'sand').map(a => a.p)),
+      sand: sandRings(d),
       areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
     };
   }

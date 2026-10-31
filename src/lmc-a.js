@@ -324,10 +324,10 @@ function buildSantuario() {
   const gy = gr.hi + 0.2, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
   begin(gy);
   const W = fr.w + 3, Dp = fr.d, H = 13.2;
-  defMat('sanFront', 512, 256, [W, H], (g, w, h) => paintFacade(g, w, h, W, H, { base: '#e2bf7f', trim: '#f2e8cf', glass: '#2c333b', seed: 611, plinth: { h: 0.9, c: '#a9a08a' },
+  defMat('sanFront', 512, 256, [W, H], (g, w, h) => paintFacade(g, w, h, W, H, { base: '#ecca8c', trim: '#f8f1de', glass: '#2c333b', seed: 611, plinth: { h: 0.9, c: '#a9a08a' },
     bands: [{ y: 4.7, h: 0.3, c: '#f0e0b8' }, { y: 9.2, h: 0.3, c: '#f0e0b8' }, { y: 12.9, h: 0.3, c: '#f0e0b8' }],
-    rows: [{ y0: 1.5, y1: 3.8, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }, { y0: 5.7, y1: 8.4, n: 4, m: 2.4, w: 1.1, kind: 'rect', ped: true, shut: 'open', balc: true }, { y0: 10.1, y1: 12.2, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
-  defMat('sanSide', 256, 256, [6, 12], (g, w, h) => paintFacade(g, w, h, 6, 12, { base: '#d9b77a', trim: '#efe3c4', glass: '#2c333b', seed: 612, rows: [{ y0: 1.5, y1: 3.8, xs: [3], w: 1.0, kind: 'rect' }, { y0: 6, y1: 8.4, xs: [3], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
+    rows: [{ y0: 1.5, y1: 3.8, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }, { y0: 5.7, y1: 8.4, n: 4, m: 2.4, w: 1.1, kind: 'rect', ped: true, shut: 'open', balc: true }, { y0: 10.1, y1: 12.2, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }], shut: '#3f7050' }));
+  defMat('sanSide', 256, 256, [6, 12], (g, w, h) => paintFacade(g, w, h, 6, 12, { base: '#e6c486', trim: '#f4ead2', glass: '#2c333b', seed: 612, rows: [{ y0: 1.5, y1: 3.8, xs: [3], w: 1.0, kind: 'rect' }, { y0: 6, y1: 8.4, xs: [3], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
   skirtDown('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#a8a08e' });
   bx('sanSide', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.02, {});
   panel('sanFront', W, H, { M: mul(M, tr(0, 0, Dp / 2 + 0.01)) });
@@ -345,13 +345,14 @@ function buildSantuario() {
   // stairs up from the road
   for (let i = 0; i < 18; i++) bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -i * 0.38 - 0.02, -i * 0.38 + 0.18 + 0.0, Dp / 2 + 0.6 + i * 0.46, Dp / 2 + 0.6 + i * 0.46 + 0.5, { c: '#b5ad9b' });
   bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -8, -0.05, Dp / 2 + 0.4, Dp / 2 + 8.8, { c: '#a9a190' });
-  // the cliff behind and beside the church: tilted rock slabs
+  // the pale limestone cliff the sanctuary is cut into: a sheer wall behind and to the right, broken into blocks
+  cliffMat();
   const r_ = RNG(613);
-  for (let i = 0; i < 7; i++) {
-    const x = -W / 2 - 3 + i * 6.2, hh = 24 + r_() * 14, zz = -Dp / 2 - 2 - r_() * 4;
-    box('rock', 8 + r_() * 5, hh, 7 + r_() * 4, { M: mul(M, tr(x, -2, zz)), rx: -0.1 - r_() * 0.15, rz: (r_() - 0.5) * 0.25, ry: (r_() - 0.5) * 0.5, c: '#ffffff', noao: true });
+  for (let i = 0; i < 6; i++) {
+    const x = -W / 2 - 4 + i * (W + 14) / 5, hh = 46 + r_() * 22, zz = -Dp / 2 - 3.5 - r_() * 3;
+    box('cliff', 11 + r_() * 4, hh, 9 + r_() * 3, { M: mul(M, tr(x, -4, zz)), rx: -0.04 - r_() * 0.06, rz: (r_() - 0.5) * 0.08, ry: (r_() - 0.5) * 0.3, c: '#ffffff', noao: true });
   }
-  for (const sg of [1]) for (let i = 0; i < 3; i++) box('rock', 9, 22 + i * 6, 9, { M: mul(M, tr(W / 2 + 3 + i * 4, -2, -Dp / 2 + 3 - i * 5)), rz: 0.15, ry: 0.3 * i, c: '#ffffff', noao: true });
+  for (let i = 0; i < 3; i++) box('cliff', 10, 36 + i * 9, 12, { M: mul(M, tr(W / 2 + 4 + i * 4.5, -4, -Dp / 2 + 2 - i * 4)), rz: 0.05, ry: 0.25 * i, c: '#ffffff', noao: true });
   return end('Santuario di Santa Rosalia');
 }
 export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };
