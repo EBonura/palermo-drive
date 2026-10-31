@@ -39,47 +39,68 @@ export const ZONES = {
 
   // ---------------- Liberta, Politeama, the sacco di Palermo belt ----------------
   // Via della Liberta itself: Liberty villini and 19th c. palazzi among 7 to 10 storey blocks of the 1960s-70s.
-  viaLib: { plaster: ['#dcc9a2', '#d3a98a', '#e0d2b4', '#c8ab88', '#e6dcc6', '#d6b07a', '#d9b894', '#c0a68c', '#e0c58c', '#efe9dc', '#e8e0cc'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
-    w: { n19: .2, lib: .16, bar: .03, res: .04, blk: .42, pw: .1, pal: .05 }, fl: [[3, 1], [4, 2], [5, 2], [6, 2], [7, 3], [8, 3], [9, 2], [10, 1]], fh: 3.3, roof: 0.3 },
+  // Street View (May 2026): the postwar blocks are pale (cream, off-white, light grey-beige) with stacked continuous balconies, the older palazzi
+  // between them keep the ochre and salmon plaster.
+  viaLib: { plaster: ['#e8e2d2', '#dccaa0', '#e6dcc8', '#d6c8b0', '#ece7dc', '#d8c19a', '#dccdb6', '#cdc6b8', '#e0d0a8', '#efe9dc', '#d9b894', '#e4dccb'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
+    w: { n19: .18, lib: .14, bar: .03, res: .03, blk: .5, pw: .02, pal: .1 }, fl: [[3, 1], [4, 2], [5, 2], [6, 2], [7, 3], [8, 3], [9, 2.5], [10, 1.5]], fh: 3.3, roof: 0.3 },
   // The grid behind it (Notarbartolo, Strasburgo, Principe di Paterno): orange, cream and terracotta blocks with stacked continuous balconies.
-  sacco: { plaster: ['#d6a468', '#e0cfa8', '#d8b090', '#cfc4ae', '#c98f62', '#e6dcc4', '#dccb92', '#e8e2d2', '#bfa98a', '#d9a070', '#b07a5c', '#a8705a'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
-    w: { blk: .46, pal: .16, pw: .14, n19: .1, lib: .04, res: .1 }, fl: [[4, 1], [5, 2], [6, 3], [7, 3], [8, 3], [9, 2], [10, 1], [12, .4]], fh: 3.1, roof: 0.1 },
-  resut: { plaster: ['#e4d8b8', '#e0cfa8', '#d8c8a8', '#e8e2d2', '#d2bda0', '#e0b890', '#cfc4ae', '#d9d0b8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
-    w: { pal: .34, blk: .26, pw: .14, res: .18, lib: .04, n19: .04 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1.5], [8, .6]], fh: 3.1, roof: 0.2 },
-  fiera: { plaster: ['#e0d4b8', '#d8c8a8', '#e8e2d2', '#cfc4ae', '#d6b890', '#e4dcc8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.3, elig: true,
-    w: { blk: .3, pal: .25, pw: .2, n19: .1, ind: .06, res: .09 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2], [8, 1]], fh: 3.1, roof: 0.15 },
+  // Via Olivio Sozzi, Via Notarbartolo side streets (Street View): 7 to 9 storey off-white and cream blocks, protruding balconies, brown and orange
+  // tapparelle; the orange and terracotta blocks of the old reference are the minority.
+  sacco: { plaster: ['#e8e2d4', '#ded6c4', '#e6d9bc', '#d6cdb8', '#ece7dc', '#d2ccbe', '#dcc3a8', '#e2cd96', '#d9a874', '#e0dccf', '#c99a72', '#efe9de'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
+    w: { blk: .5, pal: .22, pw: .03, n19: .1, lib: .03, res: .12 }, fl: [[4, 1], [5, 2], [6, 3], [7, 3], [8, 3], [9, 2], [10, 1], [12, .4]], fh: 3.1, roof: 0.1 },
+  // The tall condo avenues of the same belt (Viale Strasburgo, Viale Lazio, Viale Campania, Notarbartolo): 7 to 11 storeys, several 10 to 14.
+  avenue: { plaster: ['#e8e2d4', '#ded6c4', '#e2d6b6', '#d6cdb8', '#ece7dc', '#d8c19a', '#cfc9bc', '#dcc3a8', '#e6d08c', '#e0dccf'], stone: ['#bba07a'], pStone: 0.02, grime: 0.3, elig: true,
+    w: { blk: .52, pal: .34, pw: .02, n19: .06, res: .06 }, fl: [[6, 1], [7, 3], [8, 3.5], [9, 3], [10, 2.5], [11, 1.5], [12, 1], [14, .4]], fh: 3.1, roof: 0.05 },
+  resut: { plaster: ['#e8e2d2', '#e6dcc0', '#ddd5c2', '#ece7dc', '#d6c8ac', '#e4c8a8', '#cfc9bc', '#dcd6c4'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
+    w: { pal: .34, blk: .32, pw: .04, res: .2, lib: .04, n19: .04 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1.5], [8, .6]], fh: 3.1, roof: 0.2 },
+  fiera: { plaster: ['#e8e2d4', '#ded6c4', '#ece7dc', '#d6cdb8', '#e0c8a0', '#e4dcc8', '#cfc9bc'], stone: ['#bba07a'], pStone: 0.02, grime: 0.3, elig: true,
+    w: { blk: .34, pal: .3, pw: .05, n19: .1, ind: .06, res: .15 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2], [8, 1]], fh: 3.1, roof: 0.15 },
 
   // ---------------- Borgo Vecchio, Noce, Zisa, Cuba ----------------
   borgoV: { plaster: ['#c9b48e', '#c4a67e', '#d0bc98', '#b99c7a', '#cfb08c', '#bfa88a', '#d6c4a0', '#b48f70', '#c4b8a4'], stone: ['#a98f68', '#9d8560'], pStone: 0.22, grime: 0.62, elig: true,
     w: { res: .5, n19: .22, pw: .13, blk: .1, bar: .03, lib: .02 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.4, roof: 0.4 },
-  noce: { plaster: ['#d0c4a8', '#c9b79c', '#d8c8a8', '#bfb09a', '#d2b890', '#c8a888', '#e0d4b8', '#b8a890'], stone: ['#a98f68'], pStone: 0.1, grime: 0.5, elig: true,
-    w: { pw: .28, blk: .24, res: .24, n19: .14, pal: .08, ind: .02 }, fl: [[3, 1], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.2, roof: 0.3 },
-  zisa: { plaster: ['#cbb890', '#c4ac84', '#d6c4a0', '#bfae94', '#d0b896', '#c8c0ac', '#b99c7a', '#d9ccb0'], stone: ['#a98f68', '#9d8560'], pStone: 0.3, grime: 0.6, elig: true,
-    w: { res: .38, pw: .22, blk: .14, n19: .1, ind: .1, pal: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.6, ruin: 0.02 },
+  // Piazza Noce (Street View): 5 to 6 storey blocks in yellow-ochre and pale tan, small windows, shops with yellow signs, few balconies.
+  noce: { plaster: ['#dcc58c', '#d8c090', '#e0d0a0', '#d2bc86', '#e4d6b0', '#d9ccb0', '#cfb98a', '#e6dcc0', '#d4c8ac'], stone: ['#a98f68'], pStone: 0.1, grime: 0.45, elig: true,
+    w: { pw: .1, blk: .28, res: .3, n19: .14, pal: .14, ind: .02 }, fl: [[3, 1], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.2, roof: 0.3 },
+  zisa: { plaster: ['#d2bf94', '#cbb68c', '#dccba8', '#c6b69c', '#d6c09c', '#cfc6b0', '#c2a682', '#dccfb4'], stone: ['#a98f68', '#9d8560'], pStone: 0.3, grime: 0.55, elig: true,
+    w: { res: .38, pw: .08, blk: .2, n19: .1, ind: .1, pal: .14 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.6, ruin: 0.02 },
 
   // ---------------- Stazione, Oreto, Brancaccio, Corso dei Mille ----------------
   stazione: { plaster: ['#d9c79a', '#d4c8a8', '#d2c7b0', '#c9b79e', '#dccdaa', '#d6cab4', '#c9b08a', '#d0b9a2'], stone: ['#b5a68a', '#a89a80'], pStone: 0.08, grime: 0.55, elig: true,
-    w: { n19: .4, pw: .22, blk: .18, res: .1, bar: .06, ind: .04 }, fl: [[4, 2], [5, 3], [6, 3], [7, 1.5]], fh: 3.6, roof: 0.15 },
-  oreto: { plaster: ['#cbb890', '#c8aa84', '#d0bc98', '#bfb29a', '#d4b890', '#c4a888', '#d8c8a8', '#b8aa94'], stone: ['#a98f68'], pStone: 0.12, grime: 0.62, elig: true,
-    w: { res: .42, pw: .24, blk: .16, n19: .08, ind: .06, pal: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.4 },
-  brancaccio: { plaster: ['#d4c4a0', '#cdb894', '#dccdaa', '#c4b49a', '#d8b894', '#c8c0aa', '#e0d4b8', '#bfa88a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true,
-    w: { res: .46, pw: .2, blk: .14, pal: .12, ind: .05, fish: .03 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .7]], fh: 3.2, roof: 0.5 },
-  corsoMille: { plaster: ['#d6a894', '#d8b09a', '#d4c4a4', '#c9a08a', '#d6b890', '#c8c0aa', '#dcc8a8', '#c4a088'], stone: ['#a98f68'], pStone: 0.05, grime: 0.62, elig: true,
-    w: { n19: .26, res: .3, pw: .18, blk: .12, ind: .08, pal: .06 }, fl: [[2, 1], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.6, roof: 0.3 },
+    w: { n19: .4, pw: .08, blk: .3, res: .1, bar: .06, ind: .04, pal: .06 }, fl: [[4, 2], [5, 3], [6, 3], [7, 1.5]], fh: 3.6, roof: 0.15 },
+  // Via Oreto (Street View): worn 4 storey plaster corners among 6 storey ochre blocks with balconies.
+  oreto: { plaster: ['#d2bf94', '#cfb088', '#d8c49e', '#c6b89e', '#dcc096', '#cbb08c', '#dccdac', '#c0b29a'], stone: ['#a98f68'], pStone: 0.12, grime: 0.6, elig: true,
+    w: { res: .42, pw: .06, blk: .3, n19: .08, ind: .06, pal: .08 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.4 },
+  brancaccio: { plaster: ['#dccba4', '#d4c09c', '#e0d2b0', '#cdbfa4', '#dcc09c', '#cfc8b2', '#e6dcc0', '#c8b496'], stone: ['#a98f68'], pStone: 0.05, grime: 0.5, elig: true,
+    w: { res: .46, pw: .06, blk: .2, pal: .2, ind: .05, fish: .03 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .7]], fh: 3.2, roof: 0.5 },
+  corsoMille: { plaster: ['#d6a894', '#d8b09a', '#dcc89a', '#c9a08a', '#dcc294', '#cfc8b2', '#e0d0ac', '#c8a48a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true,
+    w: { n19: .28, res: .32, pw: .05, blk: .16, ind: .08, pal: .1 }, fl: [[2, 1], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.6, roof: 0.3 },
 
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
-  zen: { plaster: ['#c9c6bc', '#bfbcb0', '#d0c8b4', '#cbb9a0', '#b8b5aa', '#d6cbb0', '#c6a898', '#aeb0a8'], stone: ['#b8b5aa'], pStone: 0, grime: 0.8, elig: true,
-    w: { ins: .72, pw: .08, res: .14, pal: .06 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2]], fh: 3.0, roof: 0 },
+  // Via Primo Carnera (Street View): the insulae are sand-ochre and tan, not grey; open pilotis passages and garage doors at ground level, deep balcony slabs,
+  // laundry and air conditioners on the faces.
+  zen: { plaster: ['#cdb48c', '#c6a87c', '#d2bc96', '#bfa27a', '#d6c4a2', '#c4ae8c', '#c9a98a', '#d8c9aa', '#c2b6a0'], stone: ['#b8a88a'], pStone: 0, grime: 0.75, elig: true,
+    w: { ins: .72, pw: .02, res: .14, pal: .12 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2]], fh: 3.0, roof: 0 },
   cep: { plaster: ['#d6c8a8', '#cbbfa6', '#d2b890', '#c8c4b4', '#bfb4a0', '#d8cdb4', '#c8a888', '#d0d0c4'], stone: ['#b8b0a0'], pStone: 0, grime: 0.65, elig: true,
-    w: { ins: .3, blk: .24, pw: .22, pal: .16, res: .08 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.1, roof: 0.05 },
+    w: { ins: .3, blk: .3, pw: .06, pal: .24, res: .1 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.1, roof: 0.05 },
+  // Via Cruillas (Street View): a village core of 2 to 3 storey old houses (ochre plaster, green shutters, dark wooden doors, wrought-iron balconies on
+  // brackets) with 4 to 5 storey yellow and cream blocks around it.
+  cruillas: { plaster: ['#d8c49a', '#d2b890', '#dccba8', '#c9b08c', '#d6c09c', '#cfc2a6', '#e0d4b4', '#c8a888'], stone: ['#b09a74', '#a98f68'], pStone: 0.2, grime: 0.55, elig: true,
+    w: { res: .36, n19: .14, pal: .2, blk: .14, pw: .04, fish: .06, lib: .04 }, fl: [[1, 1], [2, 4], [3, 3.5], [4, 2], [5, 2], [6, .5]], fh: 3.4, roof: 0.6 },
+  // Corso Calatafimi and the other old radial corsi (Tukory, Pisani): 4 to 5 storey 19th c palazzi, ochre and cream plaster, wrought-iron balconies,
+  // cafes and shops at street level, with postwar blocks scattered between them.
+  calat: { plaster: ['#d8c49a', '#d6b890', '#e0d0b0', '#c9a888', '#d0bc98', '#dcc8a0', '#c8b090', '#e4d8bc', '#d4a894'], stone: ['#b9a07a', '#a98f68'], pStone: 0.18, grime: 0.5, elig: true,
+    w: { n19: .5, res: .14, pw: .02, blk: .16, pal: .08, bar: .06, lib: .04 }, fl: [[3, 1], [4, 3], [5, 2.5], [6, 1]], fh: 3.9, roof: 0.1 },
 
   // ---------------- north: Tommaso Natale, Sferracavallo, Mondello, Valdesi ----------------
-  tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.02, grime: 0.35, elig: true,
-    w: { pal: .34, res: .34, fish: .16, blk: .08, pw: .08 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9 },
+  // Via Tommaso Natale (Street View): detached villas and low houses in walled gardens with pines and hedges, a few 4 to 6 storey blocks along the main road.
+  tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.04, grime: 0.35, elig: true,
+    w: { pal: .24, res: .42, fish: .14, lib: .06, blk: .08, pw: .03 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9 },
   // Sferracavallo: low whitewashed and pastel fishermen's houses around the harbour, flat roofs with a parapet, painted wooden doors.
-  sferra: { plaster: ['#ece6d8', '#e6dcc4', '#e0b4a0', '#d6cfc0', '#e8d6b4', '#d9a89a', '#e0c0a8', '#f0ebe0', '#d8a890'], stone: ['#bba07a'], pStone: 0, grime: 0.4, elig: true,
-    w: { fish: .34, res: .34, pal: .22, pw: .1 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2.5], [5, 1.5]], fh: 3.0, roof: 0.35,
+  // Via Sferracavallo (Street View): 2 to 3 storey yellow-ochre and pale houses with flat roofs and concrete pilotis porches, the odd 8 storey tower.
+  sferra: { plaster: ['#e6dcc4', '#dcc48c', '#e0b4a0', '#d6cfc0', '#e0c890', '#d9a89a', '#d8bc84', '#ece6d8', '#d8a890'], stone: ['#bba07a'], pStone: 0, grime: 0.4, elig: true,
+    w: { fish: .3, res: .34, pal: .24, pw: .04, blk: .08 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2.5], [5, 1.5]], fh: 3.0, roof: 0.35,
     gl: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
   // Mondello village: Liberty villas, summer houses with deep eaves, pastel and cream plaster, blue trim.
   mondello: { plaster: ['#e6d8a8', '#e4cdb4', '#d9c096', '#eadfc6', '#e8e0c8', '#d8b8a0', '#f0ebe0', '#d4cba8'], stone: ['#bba07a'], pStone: 0.03, grime: 0.22, elig: true,

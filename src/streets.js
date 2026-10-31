@@ -80,9 +80,9 @@ export const TEX = {
       g.fillStyle = dark ? `rgba(70,66,48,${rnd(0.05, 0.12)})` : `rgba(255,252,236,${rnd(0.08, 0.18)})`;
       wrap(() => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, 7); g.fill(); });
     }
-    for (let i = 0; i < 520; i++) { // scrub clumps: small dark olive blobs with a lighter tuft beside them
-      const x = rnd(0, S), y = rnd(0, S), r = rnd(2.5, 7);
-      g.fillStyle = `rgba(${Math.random() < 0.7 ? '62,76,44' : '92,86,52'},${rnd(0.22, 0.45)})`;
+    for (let i = 0; i < 900; i++) { // scrub clumps: small dark olive blobs with a lighter tuft beside them
+      const x = rnd(0, S), y = rnd(0, S), r = rnd(1.5, 4.5);
+      g.fillStyle = `rgba(${Math.random() < 0.7 ? '62,76,44' : '92,86,52'},${rnd(0.16, 0.34)})`;
       wrap(() => { g.beginPath(); g.ellipse(x, y, r, r * rnd(0.6, 1), rnd(0, 3), 0, 7); g.fill(); });
       g.fillStyle = 'rgba(255,248,214,0.18)';
       wrap(() => { g.beginPath(); g.ellipse(x + r * 0.9, y - r * 0.6, r * 0.6, r * 0.35, 0.4, 0, 7); g.fill(); });

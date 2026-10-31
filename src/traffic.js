@@ -913,6 +913,7 @@ Object.assign(MODELS, buildPoliceModels());
     //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
+    debug: { vs, police, gags },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
