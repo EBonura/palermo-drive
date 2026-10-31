@@ -286,7 +286,7 @@ function buildUtveggio() {
   const drop = Math.min(46, gr.hi - gr.lo + 14);
   crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 * 1.2 + 1.5, (WD / 2 + 2.5) * 1.3, drop, { spread: 1.55, seed: 3, jit: 0.2 });
   crag('cliff', mul(M, tr(-LW * 0.32, -4, -WD * 0.35)), 12, 9, drop * 0.7, { spread: 1.7, seed: 9, jit: 0.25, seg: 10 });
-  skirtDown('stone', M, LW + 2, WD + 3, -2.6, { c: '#b5ad9d' });
+  skirtDown('cliff', M, LW + 2, WD + 3, -2.6, { c: '#e8e4d8' });
   // main wing: front texture panel, solid body, cornice, crenellations
   bx('utvWall', M, -LW / 2, LW / 2, 0, H, -WD / 2, WD / 2 - 0.02, { c: '#ffffff' });
   panel('utvFront', LW, 17, { M: mul(M, tr(0, 0, WD / 2 + 0.01)), uvk: [1, 1] });
@@ -306,7 +306,7 @@ function buildUtveggio() {
   lathe('stone', [[12.5, 0], [12.5, 0.9], [11.5, 0.9]], 16, { p: [bxw, by + 1.7, bzw], c: '#c9bda7' });
   // a long retaining wall in front of the castle, with crenellated coping
   const Mw = mul(M, tr(0, 0, WD / 2 + 7));
-  bx('stone', Mw, -LW / 2 + 2, LW / 2 - 6, -(gr.hi - gr.lo) - 3, 0.2, -1.0, 1.0, { c: '#b5aa96' });
+  bx('cliff', Mw, -LW / 2 + 2, LW / 2 - 6, -(gr.hi - gr.lo) - 3, 0.2, -1.0, 1.0, { c: '#eeeadc' });
   crenel(mul(Mw, tr(0, 0.2, 1.0)), LW - 8, { c: '#c4b8a0' });
   // roof terrace details
   box('flat', 8, 2.4, 6, { M: mul(M, tr(-6, H + 0.7, -3)), c: '#d6b49e' });
@@ -328,7 +328,7 @@ function buildSantuario() {
     bands: [{ y: 4.7, h: 0.3, c: '#f0e0b8' }, { y: 9.2, h: 0.3, c: '#f0e0b8' }, { y: 12.9, h: 0.3, c: '#f0e0b8' }],
     rows: [{ y0: 1.5, y1: 3.8, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }, { y0: 5.7, y1: 8.4, n: 4, m: 2.4, w: 1.1, kind: 'rect', ped: true, shut: 'open', balc: true }, { y0: 10.1, y1: 12.2, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }], shut: '#3f7050' }));
   defMat('sanSide', 256, 256, [6, 12], (g, w, h) => paintFacade(g, w, h, 6, 12, { base: '#e6c486', trim: '#f4ead2', glass: '#2c333b', seed: 612, rows: [{ y0: 1.5, y1: 3.8, xs: [3], w: 1.0, kind: 'rect' }, { y0: 6, y1: 8.4, xs: [3], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
-  skirtDown('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#a8a08e' });
+  cliffMat(); skirtDown('cliff', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#e8e4d8' });
   bx('sanSide', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.02, {});
   panel('sanFront', W, H, { M: mul(M, tr(0, 0, Dp / 2 + 0.01)) });
   bx('flat', M, -W / 2 - 0.4, W / 2 + 0.4, H, H + 0.5, -Dp / 2 - 0.4, Dp / 2 + 0.5, { c: '#ecdcb4' });

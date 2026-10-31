@@ -341,6 +341,13 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     candelabra: { bulbs: [[0, 4.35, 0], ...[0, 1, 2, 3].map(i => [Math.cos(i * Math.PI / 2 + 0.78) * 0.4, 4.15, Math.sin(i * Math.PI / 2 + 0.78) * 0.4])], pools: [[0, 0, 0]], size: 1.5, r: 6.8, col: '#ffb050', k: 0.75 },
   };
   let lamps = null; // { halo: Points, haloMat, pools: InstancedMesh, poolMat, pos: Float32Array of bulb xyz }
+  // props.js builds lamps per tile as tiles stream in and out and says so with 'pd-lamps-changed': the glows are rebuilt from the scene (at most every 1.5 s)
+  let lampsStale = false, lampsAt = -9, fieldDone = false;
+  addEventListener('pd-lamps-changed', () => { lampsStale = true; });
+  function dropLamps() {
+    if (lamps && !lamps.none) { scene.remove(lamps.halo, lamps.pools); lamps.halo.geometry.dispose(); lamps.haloMat.dispose(); lamps.pools.geometry.dispose(); lamps.pools.dispose(); if (lamps.poolMat.map) lamps.poolMat.map.dispose(); lamps.poolMat.dispose(); }
+    lamps = null;
+  }
   function buildLamps() {
     const bulbs = [], bulbCol = [], bulbSize = [], poolM = [], poolC = [];
     const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), col = new THREE.Color();
@@ -364,7 +371,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     });
     // light field over the centro: red = lamps (soft discs), green = streets (soft bands). Sampled by the wash shader, so the ground and the
     // facades glow orange where lamps overlap and along every street, and only fall to navy far from them.
-    try {
+    if (!fieldDone) try { // the light field covers the baked centro only and is built once
+      fieldDone = true;
       const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
       const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
       const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
@@ -466,8 +474,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // recompiles the materials once), never on phones or on Low quality.
   let rl = null, rlTried = false, rlAcc = 0;
   function ensureRealLights() {
-    if (rlTried) return; rlTried = true;
-    if (MOBILE || st.quality === 'low' || !lamps || lamps.none) return;
+    if (rlTried || !lamps || lamps.none) return; rlTried = true;
+    if (MOBILE || st.quality === 'low') return;
     const pts = [0, 1].map(() => { const l = new THREE.PointLight('#ff9a3c', 0, 38, 1.5); l.castShadow = false; scene.add(l); return { l, tx: 0, ty: 0, tz: 0, k: 0 }; });
     const spot = new THREE.SpotLight('#fff0cf', 0, 42, 0.5, 0.75, 1.5); spot.castShadow = false; scene.add(spot, spot.target);
     rl = { pts, spot };
@@ -581,7 +589,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     NK.value.x = lampOn;
     if (car) NK.value.z = groundY(car.x, car.z); // street level near the player: the wash fades with height above it
     if (lampOn > 0.003) {
-      if (!lamps) { lamps = buildLamps(); ensureRealLights(); }
+      if (lampsStale && lamps && realNow - lampsAt > 1.5) dropLamps();
+      if (!lamps) { lamps = buildLamps(); lampsAt = realNow; lampsStale = false; ensureRealLights(); }
       if (lamps && !lamps.none) {
         lamps.halo.visible = lamps.pools.visible = true;
         renderer.getDrawingBufferSize(_sz);

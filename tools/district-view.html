@@ -17,7 +17,7 @@ const v3 = (s, d) => (s || d).split(',').map(Number);
 const cam = v3(q.get('campos'), '0,40,60'), look = v3(q.get('look'), '0,10,0');
 hooks.ground = () => 0;
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setSize(innerWidth, innerHeight); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.85;
+renderer.setSize(innerWidth, innerHeight); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = q.get('sunrel') ? 1.45 : 0.85; // sunrel=1 also brightens the viewer towards the in-game look
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene(); scene.background = new THREE.Color('#9cc4e8'); scene.fog = new THREE.Fog('#b9d2e6', 400, 1800);
