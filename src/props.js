@@ -1,8 +1,11 @@
-// Street props and vegetation: real OSM street furniture (props-data.js) plus procedural fill.
+// Street props and vegetation for the whole city: real OSM street furniture (tile.data.props, baked by tools/tiles.py) plus procedural fill
+// along the tile's roads, curbs, buildings and areas, per district (zoneAt). Built per tile when it reaches full detail, disposed when it drops.
 // Owned by the props work. Everything is vertex-coloured low-poly in shared InstancedMeshes,
-// bucketed into 300 m cells so frustum culling still works.
+// bucketed into 250 m cells so frustum culling still works.
 import * as THREE from 'three';
-import { D, groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
+import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
+import { zoneAt } from './districts.js';
+import { QUALITY } from './mobile.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -496,7 +499,30 @@ const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
 };
-const CELL = 300;
+
+// Beach (Mondello lido and the other sand strips): striped umbrella, sunbed, summer kiosk
+{
+  const um = new MB(), pole = C('#e9e6dc');
+  um.prism(0, 0, 0, 2.3, 0.025, 0.025, 4, pole);
+  const apex = [0, 2.55, 0], rr = 1.45, n = 8;
+  for (let i = 0; i < n; i++) {
+    const a0 = i / n * TAU + 0.2, a1 = (i + 1) / n * TAU + 0.2, k = i % 2 ? 0.42 : 1;
+    um.face(WHITE, [apex, [Math.cos(a0) * rr, 2.05, Math.sin(a0) * rr], [Math.cos(a1) * rr, 2.05, Math.sin(a1) * rr]].reverse(), k);
+  }
+  def('beach_umbrella', um, { tint: true, dbl: true });
+  const sb = new MB(), fr = C('#f1eee6');
+  sb.box(-0.32, 0.2, -0.45, 0.32, 0.27, 0.5, fr, 0.8, 1, false);                  // mattress
+  sb.face(fr, [[-0.32, 0.27, -0.45], [0.32, 0.27, -0.45], [0.32, 0.62, -0.78], [-0.32, 0.62, -0.78]], 0.95);   // back rest
+  for (const [x, z] of [[-0.3, -0.4], [0.3, -0.4], [-0.3, 0.45], [0.3, 0.45]]) sb.box(x - 0.015, 0, z - 0.015, x + 0.015, 0.2, z + 0.015, C('#8a8c8e'), 1, 1, false);
+  def('sunbed', sb, { tint: true, dbl: true });
+  const ks = new MB();   // lido kiosk: pale box with a striped awning over the hatch
+  ks.box(-1.6, 0, -1.2, 1.6, 2.5, 1.2, C('#eadfc6'), 0.75, 1);
+  ks.box(-1.7, 2.5, -1.3, 1.7, 2.65, 1.3, C('#b5654a'), 0.8, 1, false);
+  ks.box(-1.1, 0.95, 1.2, 1.1, 1.75, 1.23, C('#2c2b2e'), 1, 1, false);               // hatch
+  ks.box(-1.2, 0.9, 1.2, 1.2, 0.98, 1.6, C('#8b7455'), 0.9, 1, false);                // counter
+  for (let i = 0; i < 6; i++) { const x0 = -1.5 + i * 0.5, x1 = x0 + 0.5; ks.face(WHITE, [[x0, 2.25, 1.2], [x1, 2.25, 1.2], [x1, 1.95, 1.9], [x0, 1.95, 1.9]], i % 2 ? 0.45 : 1); }
+  def('kiosk', ks, { tint: true, dbl: true });
+}
 
 // ------------------------------------------------------------------ collision specs
 // c: circles [ox, oz, r] in model space (z forward). kind: veh (launchable), scooter, bin, tree, bend, solid.
@@ -536,6 +562,7 @@ const SPECS = {
   cabinet: { kind: 'solid', c: [[-0.3, 0, 0.3], [0.3, 0, 0.3]] },
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
+  kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
@@ -563,16 +590,18 @@ const SPECS = {
 };
 const SCALE_R = new Set(['ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 
+
 function makePhysics(env) {
-  const { colls, meshOf, inB, gy, scene } = env;
+  const { inB, gy, scene } = env;
+  let nColl = 0;
   const PR = 0.74, PAX = 0.72, I_YAW = 1.7, E = 0.25, G = 9.8;
   const up = new THREE.Vector3(0, 1, 0), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), vA = new THREE.Vector3(), vB = new THREE.Vector3(), sA = new THREE.Vector3();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const cellK = (x, z) => (Math.floor(x / 8) + 512) * 1024 + (Math.floor(z / 8) + 512);
+  const cellIJ = (i, j) => (i + 4096) * 8192 + (j + 4096);   // whole city: x within +-6.7 km, z within -12 .. +5.6 km
+  const cellK = (x, z) => cellIJ(Math.floor(x / 8), Math.floor(z / 8));
   const grid = new Map();
   const gAdd = c => { const k = cellK(c.x, c.z); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); c.gk = k; };
   const gDel = c => { const a = grid.get(c.gk); if (a) { const i = a.indexOf(c); if (i >= 0) a.splice(i, 1); } };
-  for (const c of colls) { c.im = meshOf[c.model + '|' + c.key]; if (c.im) gAdd(c); }
   let simT = 0, tick = 0, lastShout = -9, camPos = null;
   const dirty = new Set(), dyn = [], broken = new Set();
   const stats = { yeeted: 0, tipped: 0, trees: 0, bent: 0, scooters: 0 };
@@ -812,16 +841,16 @@ function makePhysics(env) {
     if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); }
     if (DEB.bag.n || DEB.board.n || DEB.bottle.n || leaves.length) stepDebris(dt);
     if (broken.size && (++tick % 60) === 0 && camPos) {
-      for (const c of broken) if (simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && hyp2(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && hyp2(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
+      for (const c of broken) if (!c.dead && simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && hyp2(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && hyp2(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
     }
     const sn = Math.sin(pc.th), cs = Math.cos(pc.th);
     for (let sg = 1; sg >= -1; sg -= 2) {
       const a = sg * PAX, px = pc.x + sn * a, pz = pc.z + cs * a;
       const i0 = Math.floor((px - 4) / 8), i1 = Math.floor((px + 4) / 8), j0 = Math.floor((pz - 4) / 8), j1 = Math.floor((pz + 4) / 8);
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-        const lst = grid.get((i + 512) * 1024 + (j + 512)); if (!lst) continue;
+        const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
         for (let q = lst.length - 1; q >= 0; q--) {
-          const c = lst[q]; if (!c || c.st === 'down' || c.st === 'fall' || c.st === 'fly' || c.st === 'gone') continue;
+          const c = lst[q]; if (!c || c.dead || c.st === 'down' || c.st === 'fall' || c.st === 'fly' || c.st === 'gone') continue;
           const cr = Math.cos(c.rot), sr = Math.sin(c.rot), ss = c.s;
           for (const [ox, oz, r0] of c.circ) {
             const r = SCALE_R.has(c.model) ? r0 * ss : r0;
@@ -868,41 +897,36 @@ function makePhysics(env) {
       leafPool.instanceMatrix.needsUpdate = true; if (!live) leafDirty = false;
     }
   }
-  return { collidePlayer, flush, stats, count: () => colls.length, grid };
+  // tiles bring and take their colliders (c.im is the tile's instanced mesh for that model and cell)
+  function add(list, meshOf) {
+    for (const c of list) { c.im = meshOf[c.model + '|' + c.key]; if (c.im) { gAdd(c); nColl++; } }
+  }
+  function remove(list) {
+    for (const c of list) {
+      c.dead = true; if (c.gk !== undefined) gDel(c);
+      const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
+      broken.delete(c); dirty.delete(c); if (c.im) { dirty.delete(c.im); moved.delete(c.im); } nColl--;
+    }
+    for (const k in DEB) { const D2 = DEB[k]; for (const b of D2.items) if (b.owner && b.owner.dead && !b.hidden) { b.owner = null; b.rest = true; b.hidden = true; b.dirty = true; D2.dirty = true; } }
+  }
+  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid };
 }
 
+// ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)
+// squalor 0..1 by zone where the centro's street-name rules do not apply
+const ZONE_SQ = { zen: 0.95, cep: 0.72, viaLib: 0.18, lido: 0.2, mondello: 0.25, sferra: 0.38, valdesi: 0.3, favorita: 0.3, rural: 0.3, brancaccio: 0.66, noce: 0.6, zisa: 0.6, borgoV: 0.7, oreto: 0.65, porto: 0.7, brin: 0.6, corsoMille: 0.55 };
+// "effective distance from the old centre" (m) outside 1.1 km: drives how thickly cars, scooters and lanterns are set
+const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama: 800, stazione: 900, noce: 1000, zisa: 1000, borgoV: 900, oreto: 1000, brancaccio: 1100, corsoMille: 1000, zen: 1000, cep: 1200, mondello: 1000, lido: 900, sferra: 1100,
+  valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
+const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1 };
+const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7 };   // share of cafes with tables outside
+const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
-export function buildProps(ctx) {
-  const t0 = performance.now();
-  const { scene, raisedMask, CURB } = ctx;
-  const P = window.PALERMO_PROPS || { items: [], areas: [], counts: {} };
-  const rand = rng(1868);
-  const R = (a, b) => a + rand() * (b - a);
-  const pick = arr => arr[Math.floor(rand() * arr.length)];
-  const wpick = (items) => { let t = items.reduce((s, i) => s + i[1], 0), r = rand() * t; for (const [v, w] of items) { if ((r -= w) <= 0) return v; } return items[0][0]; };
-  const [BX0, BZ0, BX1, BZ1] = D.bounds;
-  const inBounds = (x, z, m = 0) => x > BX0 + m && x < BX1 - m && z > BZ0 + m && z < BZ1 - m;
-  const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
-
-  // ---------- instance buckets
-  const colls = [];
-  const buckets = {};
-  const stats = {};
-  function put(model, x, y, z, rot = 0, s = 1, col = null) {
-    const m = MODELS[model]; if (!m) return;
-    const b = (buckets[model] ||= new Map()), key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL);
-    let e = b.get(key); if (!e) b.set(key, e = { m: [], c: [] });
-    e.m.push(x, y, z, rot, s);
-    if (m.tint) e.c.push(col ? col.r : 1, col ? col.g : 1, col ? col.b : 1);
-    stats[model] = (stats[model] || 0) + 1;
-    const sp = SPECS[model];
-    if (sp) colls.push({ model, key, i: e.m.length / 5 - 1, x, y, z, rot, s, sp, st: 0, im: null, circ: sp.c, x0: x, z0: z, y0: y, rot0: rot });
-  }
-
-  // ---------- buildings: exact point test + nearest wall
+// ------------------------------------------------------------------ building index (exact point test + nearest wall)
+function makeIndex(buildings) {
   const BC = 32, bgrid = new Map(), bl = [];
   const bkey = (ix, iz) => (ix + 512) * 1024 + (iz + 512);
-  for (const b of D.buildings) {
+  for (const b of buildings) {
     const outer = pairs(b.p), holes = (b.holes || []).map(pairs);
     let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const [x, z] of outer) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
@@ -946,20 +970,53 @@ export function buildProps(ctx) {
     }
     return best;
   }
+  return { bl, inB, nearWall };
+}
+
+// ------------------------------------------------------------------ one source of props = one 500 m tile
+// generate() is a generator: it yields now and then so the caller can spread the work over frames (BUD.over()).
+// S describes the tile: ctx, data layers (roads, curbs, asphalt, paving, sand, areas, P = OSM furniture), idx (building index), densities.
+function* generate(S, BUD) {
+  const { raisedMask, CURB } = S.ctx;
+  const P = S.P;
+  const rand = rng(S.seed);
+  const R = (a, b) => a + rand() * (b - a);
+  const pick = arr => arr[Math.floor(rand() * arr.length)];
+  const wpick = (items) => { let t = items.reduce((s, i) => s + i[1], 0), r = rand() * t; for (const [v, w] of items) { if ((r -= w) <= 0) return v; } return items[0][0]; };
+  const inBounds = S.inBounds, DEN = S.den;
+  const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
+
+  // ---------- instance buckets
+  const colls = [];
+  const buckets = {};
+  const stats = {};
+  const res = { buckets, colls, stats, decals: [], rails: null };
+  function put(model, x, y, z, rot = 0, s = 1, col = null) {
+    const m = MODELS[model]; if (!m) return;
+    const b = (buckets[model] ||= new Map()), key = Math.floor(x / S.cell) * 4096 + Math.floor(z / S.cell);
+    let e = b.get(key); if (!e) b.set(key, e = { m: [], c: [] });
+    e.m.push(x, y, z, rot, s);
+    if (m.tint) e.c.push(col ? col.r : 1, col ? col.g : 1, col ? col.b : 1);
+    stats[model] = (stats[model] || 0) + 1;
+    const sp = SPECS[model];
+    if (sp) colls.push({ model, key, i: e.m.length / 5 - 1, x, y, z, rot, s, sp, st: 0, im: null, circ: sp.c, x0: x, z0: z, y0: y, rot0: rot });
+  }
+
+  const bl = S.idx.bl, own = bl.slice(0, S.ownCount), inB = S.idx.inB, nearWall = S.idx.nearWall;
   const wallClear = (x, z, r) => !inB(x, z) && !nearWall(x, z, r);
 
   // ---------- street masks
   // [perf pass] bit-packed tiled raster (core.js rasterMask) instead of a 66 MB RGBA read-back per call
-  function mask(polys, k) { return rasterMask([polys], D.streets.aoi, k); }
-  const asphalt = D.streets ? mask(D.streets.asphalt, 2) : () => false;
-  const paving = D.streets ? mask(D.streets.paving, 1) : () => false;
+  function mask(polys, k) { return rasterMask([polys], S.aoi, k); }
+  const asphalt = mask(S.asphalt, 2); yield;
+  const paving = mask(S.paving, 1); yield;
   const road = (x, z) => asphalt(x, z) && !inB(x, z);
 
   // ---------- roads
   const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service']);
   const RC = 24, rgrid = new Map(), rkey = (i, j) => (i + 1024) * 2048 + (j + 1024);
   const juncs = new Map();
-  D.roads.forEach((r, ri) => {
+  S.roads.forEach((r, ri) => {
     if (!DRIVE.has(r.k)) return;
     const p = pairs(r.p);
     for (let i = 0; i < p.length - 1; i++) {
@@ -992,12 +1049,24 @@ export function buildProps(ctx) {
       for (const s of a) {
         const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (l2 < 1e-6) continue;
         const t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)), px = s[0] + dx * t, pz = s[1] + dz * t, d = hyp2(x - px, z - pz);
-        if (d < maxd && (!best || d < best.d)) { const l = Math.sqrt(l2); best = { d, px, pz, tx: dx / l, tz: dz / l, road: D.roads[s[4]] }; }
+        if (d < maxd && (!best || d < best.d)) { const l = Math.sqrt(l2); best = { d, px, pz, tx: dx / l, tz: dz / l, road: S.roads[s[4]] }; }
       }
     }
     return best;
   }
   const march = (cx, cz, nx, nz, maxd, pred) => { let d = 0; for (let s = 0.3; s <= maxd; s += 0.3) { if (!pred(cx + nx * s, cz + nz * s)) break; d = s; } return d; };
+
+  // ---------- districts: which zone a spot is in (cached per 40 m), and what that changes
+  const zcache = new Map();
+  function zoneOf(x, z) {
+    const k = Math.floor(x / 40) * 4096 + Math.floor(z / 40);
+    let v = zcache.get(k);
+    if (v === undefined) { const nr = nearRoad(x, z, 40); v = zoneAt(x, z, nr ? nr.road.n : '', nr ? Math.max(0, nr.d - nr.road.w / 2) : 99); zcache.set(k, v); }
+    return v;
+  }
+  const distEff = (x, z) => { const d = hyp2(x, z); return d < 1100 ? d : (ZONE_DIST[zoneOf(x, z)] ?? 1300); };   // beyond the centro the zone says how built-up it is
+  const zoneCars = r => ZONE_CARS[zoneOf(r.p[r.p.length >> 2 << 1], r.p[(r.p.length >> 2 << 1) + 1])] ?? 1;
+  const burntCar = (x, z) => zoneOf(x, z) === 'zen' && rand() < 0.07 ? C(pick(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'])) : null;
 
   // ---------- squalor: how run-down / market-busy a spot is (0..1). Markets and the old poor quarters are
   // found from street names; elsewhere it follows the road class (grand roads stay clean).
@@ -1005,7 +1074,7 @@ export function buildProps(ctx) {
   const POOR_RE = /Albergheria|Casa Professa|Divisi|Lattarini|Biscottari|Bandiera|Alloro|Cala\b|Sant'Agostino|Schioppettieri|Ponticello|Sant'Anna|Collegio di Maria|Marina/;
   const hotGrid = new Map(), hk = (i, j) => (i + 512) * 1024 + (j + 512);
   const hotAdd = (x, z, v) => { const k = hk(Math.floor(x / 100), Math.floor(z / 100)); let a = hotGrid.get(k); if (!a) hotGrid.set(k, a = []); a.push(x, z, v); };
-  for (const r of D.roads) {
+  for (const r of S.hotRoads) {
     const v = MARKET_RE.test(r.n || '') ? 2 : POOR_RE.test(r.n || '') ? 1 : 0; if (!v) continue;
     const p = pairs(r.p);
     for (let i = 0; i < p.length - 1; i++) { const L = hyp2(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); for (let s = 0; s <= L; s += 15) hotAdd(p[i][0] + (p[i + 1][0] - p[i][0]) * s / Math.max(L, 1e-6), p[i][1] + (p[i + 1][1] - p[i][1]) * s / Math.max(L, 1e-6), v); }
@@ -1020,13 +1089,14 @@ export function buildProps(ctx) {
     }
     if (best >= 0.8) return best;
     const nr = nearRoad(x, z, 18);
-    return Math.max(best, nr ? (CLASS_SQ[nr.road.k] ?? 0.4) : 0.35);
+    const base = nr ? (CLASS_SQ[nr.road.k] ?? 0.4) : 0.35, zs = ZONE_SQ[zoneOf(x, z)];
+    return Math.max(best, zs === undefined ? base : zs);
   }
   const binSites = [];
 
   // ---------- occupancy (avoid stacking props)
   const occ = new Map();
-  const okey = (i, j) => (i + 2048) * 4096 + (j + 2048);
+  const okey = (i, j) => (i + 8192) * 16384 + (j + 8192);
   const occAdd = (x, z, r) => { const k = okey(Math.floor(x / 4), Math.floor(z / 4)); let a = occ.get(k); if (!a) occ.set(k, a = []); a.push(x, z, r); };
   function occHit(x, z, r) {
     for (let i = Math.floor((x - r - 3) / 4); i <= Math.floor((x + r + 3) / 4); i++) for (let j = Math.floor((z - r - 3) / 4); j <= Math.floor((z + r + 3) / 4); j++) {
@@ -1076,6 +1146,7 @@ export function buildProps(ctx) {
     return true;
   };
   for (const it of osm) {
+    if (BUD.over()) yield;
     const k = it.k;
     if (k === 'tree') { placeTree(it.x, it.z, treeKind(it)); continue; }
     if (k === 'bollard') { if (!inB(it.x, it.z)) { put('bollard', it.x, gy(it.x, it.z), it.z); occAdd(it.x, it.z, 0.2); } continue; }
@@ -1181,7 +1252,7 @@ export function buildProps(ctx) {
     for (const j of junctions) {
       if (j.roads.size < 3 && j.n < 3) continue;
       for (const ri of j.roads) {
-        const r = D.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
+        const r = S.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
         const p = pairs(r.p); let idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx < 0) continue;
         const o = idx === 0 ? p[1] : idx === p.length - 1 ? p[p.length - 2] : p[idx + 1]; if (!o) continue;
         const L = hyp2(o[0] - j.x, o[1] - j.z); if (L < 14) continue;
@@ -1190,9 +1261,7 @@ export function buildProps(ctx) {
         zebra(cx, cz, tx, tz);
       }
     }
-    const m = zb.geo();
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
-    const mesh = new THREE.Mesh(m, mat); mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh);
+    if (nz) res.decals.push(zb.geo());
     stats.zebra_crossings = nz;;
   }
 
@@ -1202,7 +1271,8 @@ export function buildProps(ctx) {
   {
     // tall pole lamps along the curbs of the wide streets
     const lampPts = [];
-    for (const flat of D.streets.curbs) {
+    for (const flat of S.curbs) {
+      if (BUD.over()) yield;
       const p = pairs(flat); let acc = R(0, 25);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 0.01) continue;
@@ -1226,14 +1296,15 @@ export function buildProps(ctx) {
   {
     // wall lanterns on street-facing facades, denser towards Quattro Canti
     let n = 0;
-    for (const o of bl) {
+    for (const o of own) {
+      if (BUD.over()) yield;
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
         const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
         if (L < 7) continue;
         const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
         if (!inBounds(cxm, czm)) continue;
-        const dist = hyp2(cxm, czm), pk = Math.max(0.04, 0.5 - dist / 1700);
+        const dist = distEff(cxm, czm), pk = Math.max(0.04, 0.5 - dist / 1700) * DEN;
         let nx = dz / L, nz = -dx / L;
         if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         for (let s = R(3, 14); s < L - 3; s += R(22, 38)) {
@@ -1254,12 +1325,13 @@ export function buildProps(ctx) {
   // candelabra around the larger paved piazze
   {
     let n = 0;
-    for (const a of D.areas) {
+    for (const a of S.areas) {
+      if (BUD.over()) yield;
       if (a.k !== 'plaza') continue;
       const pts = pairs(a.p), area = Math.abs(signedArea(pts));
       if (area < 600 || area > 25000) continue;
       const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-      if (!inBounds(cx, cz) || hyp2(cx, cz) > 1100) continue;
+      if (!inBounds(cx, cz)) continue;
       for (let i = 0; i < pts.length; i++) {
         const A = pts[i], B = pts[(i + 1) % pts.length], L = hyp2(B[0] - A[0], B[1] - A[1]); if (L < 5) continue;
         const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
@@ -1277,7 +1349,7 @@ export function buildProps(ctx) {
   // ---------- 5. bollards where paved zones meet traffic
   {
     let n = 0, cap = 260;
-    for (const poly of D.streets.paving) {
+    for (const poly of S.paving) {
       const ring = pairs(poly[0]);
       for (let i = 0; i < ring.length && n < cap; i++) {
         const A = ring[i], B = ring[(i + 1) % ring.length], L = hyp2(B[0] - A[0], B[1] - A[1]); if (L < 1) continue;
@@ -1307,16 +1379,17 @@ export function buildProps(ctx) {
       if (!road(px, pz) || nearWall(px, pz, 0.12)) return false;
     }
     if (occHit(x, z, L * 0.4) || occHit(x + hx * L * 0.3, z + hz * L * 0.3, 1) || occHit(x - hx * L * 0.3, z - hz * L * 0.3, 1)) return false;
-    put(model, x, groundY(x, z), z, Math.atan2(hx, hz), R(0.99, 1.01), paint());
+    put(model, x, groundY(x, z), z, Math.atan2(hx, hz), R(0.99, 1.01), burntCar(x, z) || paint());
     occAdd(x, z, L * 0.36); occAdd(x + hx * L * 0.3, z + hz * L * 0.3, 0.9); occAdd(x - hx * L * 0.3, z - hz * L * 0.3, 0.9);
     carCount++; return true;
   };
   const MARKET = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria/;
   {
     const CAR_CLASSES = { residential: 0.62, tertiary: 0.5, secondary: 0.38, unclassified: 0.6, service: 0.3, living_street: 0.28, primary: 0.3 };
-    let bins = 0, stalls = 0, cap = 5000;
-    D.roads.forEach((r, ri) => {
-      const base = CAR_CLASSES[r.k]; if (!base) return;
+    let bins = 0, stalls = 0, cap = S.carCap;
+    for (let ri = 0; ri < S.roads.length; ri++) {
+      const r = S.roads[ri]; if (BUD.over()) yield;
+      const base = CAR_CLASSES[r.k] * zoneCars(r); if (!base) continue;
       const market = MARKET.test(r.n || '');
       const p = pairs(r.p); let carry = R(0, 5);
       const state = [rand() < 0.6, rand() < 0.6];
@@ -1327,7 +1400,7 @@ export function buildProps(ctx) {
         for (let s = carry; s < L; s += 5.7) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s;
           if (!inBounds(cx, cz, 10)) continue;
-          const dC = hyp2(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500);
+          const dC = distEff(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500) * DEN;
           const jn = nearJunction(cx, cz, 8);
           for (let side = 0; side < 2; side++) {
             const sg = side ? -1 : 1, nx = rx * sg, nz = rz * sg;
@@ -1378,7 +1451,7 @@ export function buildProps(ctx) {
         }
         carry = ((carry - L) % 5.7 + 5.7) % 5.7;
       }
-    });
+    }
     stats.cars_proc = carCount; stats.cassonetti_proc = bins; stats.stalls = stalls;
   }
 
@@ -1394,7 +1467,8 @@ export function buildProps(ctx) {
         occAdd(px, pz, 0.5); n++;
       }
     };
-    for (const o of bl) {
+    for (const o of own) {
+      if (BUD.over()) yield;
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
         const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
@@ -1403,7 +1477,7 @@ export function buildProps(ctx) {
         if (!inBounds(cxm, czm, 10)) continue;
         let nx = dz / L, nz = -dx / L;
         if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
-        const dist = hyp2(cxm, czm), pk = 0.075 * Math.max(0.2, 1 - dist / 1500);
+        const dist = distEff(cxm, czm), pk = 0.075 * Math.max(0.2, 1 - dist / 1500) * DEN;
         for (let s = R(1, 10); s < L - 1.5; s += R(18, 40)) {
           if (rand() > pk) continue;
           const x = A[0] + dx * s / L + nx * 0.62, z = A[1] + dz * s / L + nz * 0.62;
@@ -1416,7 +1490,7 @@ export function buildProps(ctx) {
     // Apetaxi at the cathedral, Quattro Canti and Teatro Massimo piazze
     const spots = [[38.11572, 13.36126], [38.1146, 13.3558], [38.1199, 13.3573], [38.1151, 13.3622]].map(s => proj(s[0], s[1]));
     let a = 0;
-    for (const [sx, sz] of spots) for (let t = 0; t < 400 && a < 14; t++) {
+    for (const [sx, sz] of spots) if (inBounds(sx, sz)) for (let t = 0; t < 400 && a < 14; t++) {
       const x = sx + R(-40, 40), z = sz + R(-40, 40);
       if (inB(x, z) || !(paving(x, z) || raisedMask(x, z)) || occHit(x, z, 2.4) || nearWall(x, z, 2) || hyp2(x - sx, z - sz) < 14) continue;
       put(rand() < 0.65 ? 'apetaxi' : 'ape', x, gy(x, z), z, R(0, TAU)); occAdd(x, z, 2); a++;
@@ -1431,7 +1505,7 @@ export function buildProps(ctx) {
     const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
     for (const it of osm) {
       if (it.k !== 'cafe') continue;
-      if (rand() > (it.out === 'yes' ? 1 : 0.45)) continue;
+      if (rand() > (it.out === 'yes' ? 1 : (CAFE_OUT[zoneOf(it.x, it.z)] ?? 0.45))) continue;
       const w = nearWall(it.x, it.z, 9); if (!w) continue;
       const tx = -w.nz, tz = w.nx, n = 1 + Math.floor(rand() * 3);
       let placed = 0;
@@ -1474,15 +1548,18 @@ export function buildProps(ctx) {
   {
     let n = 0;
     const kinds = [['tree', 26], ['ficus', 12], ['pine', 8], ['orange', 12], ['palm_fan_a', 6], ['palm_fan_b', 4], ['palm_fan_c', 3], ['palm_date_a', 3], ['palm_date_b', 2], ['shrub', 8]];
-    for (const a of D.areas) {
+    for (const a of S.areas) {
+      if (BUD.over()) yield;
       if (a.k !== 'green') continue;
       const pts = pairs(a.p); if (pts.length < 3) continue;
-      const area = Math.abs(signedArea(pts));
       const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
-      if (x1 < BX0 || x0 > BX1 || z1 < BZ0 || z0 > BZ1) continue;
+      const bx0 = Math.min(...xs), bx1 = Math.max(...xs), bz0 = Math.min(...zs), bz1 = Math.max(...zs);
+      const x0 = Math.max(bx0, S.x0), x1 = Math.min(bx1, S.x1), z0 = Math.max(bz0, S.z0), z1 = Math.min(bz1, S.z1);
+      if (x1 <= x0 || z1 <= z0) continue;
+      const area = Math.abs(signedArea(pts)) * Math.min(1, (x1 - x0) * (z1 - z0) / Math.max(1, (bx1 - bx0) * (bz1 - bz0)));   // the part inside this tile
       const dens = area > 4000 ? 1 / 220 : 1 / 130;
-      const want = Math.min(90, Math.floor(area * dens));
+      const want = Math.min(90, Math.floor(area * dens * DEN));
+      if (n >= S.treeCap) continue;
       for (let i = 0, tries = 0; i < want && tries < want * 5; tries++) {
         const x = R(x0, x1), z = R(z0, z1);
         if (!inPoly(pts, x, z)) continue;
@@ -1493,15 +1570,15 @@ export function buildProps(ctx) {
     stats.trees_green = n;
     // piazza palms: big paved squares with only a few trees get a loose ring
     let pn = 0;
-    for (const a of D.areas) {
+    for (const a of S.areas) {
+      if (BUD.over()) yield;
       if (a.k !== 'plaza') continue;
       const pts = pairs(a.p), area = Math.abs(signedArea(pts));
       if (area < 1500 || area > 30000) continue;
-      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-      if (!inBounds(cx, cz)) continue;
-      const want = Math.floor(area / 500);
       const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+      const x0 = Math.max(Math.min(...xs), S.x0), x1 = Math.min(Math.max(...xs), S.x1), z0 = Math.max(Math.min(...zs), S.z0), z1 = Math.min(Math.max(...zs), S.z1);
+      if (x1 <= x0 || z1 <= z0) continue;
+      const want = Math.floor(area / 500 * DEN * Math.min(1, (x1 - x0) * (z1 - z0) / Math.max(1, (Math.max(...xs) - Math.min(...xs)) * (Math.max(...zs) - Math.min(...zs)))));
       for (let i = 0, tries = 0; i < want && tries < want * 12; tries++) {
         const x = R(x0, x1), z = R(z0, z1);
         if (!inPoly(pts, x, z) || nearWall(x, z, 3.5)) continue;
@@ -1511,7 +1588,8 @@ export function buildProps(ctx) {
     stats.trees_piazza = pn;
     // street trees: sparse oranges / ficus on wide pavements of the bigger streets
     let sn = 0;
-    for (const flat of D.streets.curbs) {
+    for (const flat of S.curbs) {
+      if (BUD.over()) yield;
       const p = pairs(flat);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 12) continue;
@@ -1553,7 +1631,6 @@ export function buildProps(ctx) {
       }
     }
     if (segs) {
-      const m = new THREE.Mesh(mb.geo(), MATS.dbl); m.castShadow = true; m.receiveShadow = true; scene.add(m);
       const pp = [], uv = [];
       for (let i = 0; i < panels.length; i += 2) {
         const q = panels[i], len = panels[i + 1], u = len / 0.13, v = 1.05 / 0.13;
@@ -1561,11 +1638,7 @@ export function buildProps(ctx) {
       }
       const pg = new THREE.BufferGeometry();
       pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); pg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); pg.computeVertexNormals();
-      const cv = document.createElement('canvas'); cv.width = 8; cv.height = 8; const g = cv.getContext('2d');
-      g.fillStyle = '#26272b'; g.fillRect(3, 0, 2, 8); g.fillRect(0, 3, 8, 0);
-      const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = THREE.NearestFilter;
-      const pm = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, transparent: false, side: THREE.DoubleSide, roughness: 0.8 }));
-      pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
+      res.rails = { posts: mb.geo(), panels: pg };
     }
     stats.railing_spans = segs;
   }
@@ -1573,17 +1646,17 @@ export function buildProps(ctx) {
 
   // ---------- 11. rubbish: bag piles, cardboard, dumped junk, kerb litter, market waste (own rng, so nothing above moves)
   {
-    const rt = rng(7011), RT = (a, b) => a + rt() * (b - a);
+    const rt = rng(S.seed2), RT = (a, b) => a + rt() * (b - a);
     const st = { piles: 0, cardboard: 0, dumps: 0, litter: 0, market: 0, cafeLitter: 0 };
     const pileName = () => rt() < 0.14 ? 'bag_pile3' : 'bag_pile' + Math.floor(rt() * 3);
-    let megas = 0; const MEGA_CAP = 40;
+    let megas = 0; const MEGA_CAP = S.megaCap;
     const tryMega = (x, z, nx, nz) => {   // x,z on the wall line, n points out into the street
       if (megas >= MEGA_CAP) return false;
       const tx = -nz, tz = nx, px = x + nx * 0.3, pz = z + nz * 0.3;
       for (const u of [-2.6, 0, 2.6, 3.6]) for (const v of [0.3, 1.6, 3.0]) { const qx = px + tx * u + nx * v, qz = pz + tz * u + nz * v; if (inB(qx, qz) || !lane(qx, qz)) return false; }
       if (march(px, pz, nx, nz, 9, (a2, b2) => !inB(a2, b2)) < 5.6) return false;       // the lapa must still pass
       if (occHit(px + nx * 1.5, pz + nz * 1.5, 2.6) || nearJunction(px, pz, 7)) return false;
-      const burnt = rt() < 0.28, name = burnt ? 'mega_burnt' + Math.floor(rt() * 2) : 'mega' + Math.floor(rt() * 3);
+      const burnt = rt() < (zoneOf(px, pz) === 'zen' ? 0.6 : 0.28), name = burnt ? 'mega_burnt' + Math.floor(rt() * 2) : 'mega' + Math.floor(rt() * 3);
       put(name, px, gy(px, pz), pz, Math.atan2(nx, nz), RT(0.95, 1.1)); occAdd(px + nx * 1.5, pz + nz * 1.5, 2.8); megas++; st.mega = (st.mega || 0) + 1;
       return true;
     };
@@ -1607,7 +1680,8 @@ export function buildProps(ctx) {
       if (it.k === 'bin_big' && !inB(it.x, it.z) && rt() < 0.6) { const px = it.x + RT(-1.2, 1.2), pz = it.z + RT(-1.2, 1.2); if (free(px, pz) && lane(px, pz)) { put(pileName(), px, gy(px, pz), pz, RT(0, TAU)); occAdd(px, pz, 0.5); st.piles++; } }
     }
     // along building walls: loose piles, dumped junk, litter
-    for (const o of bl) {
+    for (const o of own) {
+      if (BUD.over()) yield;
       const ring = o.outer;
       for (let q = 0; q < ring.length; q++) {
         const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
@@ -1616,7 +1690,7 @@ export function buildProps(ctx) {
         let nx = dz / L, nz = -dx / L; if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         const sq = squalor(cxm, czm);
         for (let s = RT(1, 14); s < L - 1; s += RT(28, 60)) {
-          if (sq > 0.8 && rt() < 0.06) { const [mx, mz] = wallSpot(A, nx, nz, s, L, dx, dz, 0.0); if (tryMega(mx, mz, nx, nz)) continue; }
+          if (sq > 0.8 && rt() < (zoneOf(cxm, czm) === 'zen' ? 0.16 : 0.06)) { const [mx, mz] = wallSpot(A, nx, nz, s, L, dx, dz, 0.0); if (tryMega(mx, mz, nx, nz)) continue; }
           const u = rt();
           if (u > 0.55 * sq * sq + 0.02) continue;
           const [x, z] = wallSpot(A, nx, nz, s, L, dx, dz, 0.5);
@@ -1642,7 +1716,8 @@ export function buildProps(ctx) {
       put('cardboard', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + RT(-0.3, 0.3), RT(0.8, 1.1)); occAdd(x, z, 0.7); st.cardboard++;
     }
     // kerb litter in the gutter, thicker in the poor quarters
-    for (const flat of D.streets.curbs) {
+    for (const flat of S.curbs) {
+      if (BUD.over()) yield;
       const p = pairs(flat);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 4) continue;
@@ -1657,8 +1732,8 @@ export function buildProps(ctx) {
       }
     }
     // market streets: crates, cabbage leaves and cardboard against the walls
-    D.roads.forEach(r => {
-      if (!MARKET_RE.test(r.n || '')) return;
+    for (const r of S.roads) {
+      if (!MARKET_RE.test(r.n || '')) continue;
       const p = pairs(r.p);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 1) continue;
@@ -1678,7 +1753,7 @@ export function buildProps(ctx) {
           }
         }
       }
-    });
+    }
     // butts and paper outside the bars
     for (const it of osm) {
       if (it.k !== 'cafe' || rt() > 0.6) continue;
@@ -1690,14 +1765,125 @@ export function buildProps(ctx) {
     stats.rubbish = st;
   }
 
-  // ---------- flush instances
-  let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [], meshOf = {};
-  const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
-    signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
-    shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
-  const WHITE_IC = new THREE.Color(1, 1, 1);
+  // ---------- 12. district flavour (own rng, so nothing above moves)
+  {
+    const rf = rng(S.seed3), RF = (a, b) => a + rf() * (b - a), pickF = arr => arr[Math.floor(rf() * arr.length)];
+    const st = { umbrellas: 0, sunbeds: 0, kiosks: 0, plane: 0, palms: 0, lamps: 0, burnt: 0 };
+
+    // a) beaches: rows of striped umbrellas with two sunbeds each (packed at the Mondello lido, sparse on wild strips), summer kiosks on the edge
+    for (const ring of S.sand) {
+      if (BUD.over()) yield;
+      const pts = pairs(ring); if (pts.length < 3) continue;
+      let sx0 = 1e9, sx1 = -1e9, sz0 = 1e9, sz1 = -1e9;
+      for (const p of pts) { if (p[0] < sx0) sx0 = p[0]; if (p[0] > sx1) sx1 = p[0]; if (p[1] < sz0) sz0 = p[1]; if (p[1] > sz1) sz1 = p[1]; }
+      const cx = (sx0 + sx1) / 2, cz = (sz0 + sz1) / 2, zn = zoneOf(cx, cz), packed = zn === 'lido' || zn === 'mondello';
+      const pU = packed ? 0.78 : 0.09, alongX = (sx1 - sx0) > (sz1 - sz0);
+      const ax0 = Math.max(sx0, S.x0), ax1 = Math.min(sx1, S.x1), az0 = Math.max(sz0, S.z0), az1 = Math.min(sz1, S.z1);
+      if (ax1 <= ax0 || az1 <= az0) continue;
+      const sA = alongX ? [ax0, ax1] : [az0, az1], sB = alongX ? [az0, az1] : [ax0, ax1];   // A runs along the shore, B across it
+      for (let b = sB[0] + 3; b < sB[1]; b += 6.4) {
+        if (rf() < 0.12) continue;   // an aisle
+        for (let a = sA[0] + 2; a < sA[1] && st.umbrellas < 260 * DEN; a += 5.2) {
+          if (rf() > pU) continue;
+          const x = (alongX ? a : b) + RF(-0.4, 0.4), z = (alongX ? b : a) + RF(-0.4, 0.4);
+          if (!inBounds(x, z) || !inPoly(pts, x, z) || inB(x, z) || asphalt(x, z) || occHit(x, z, 1.2)) continue;
+          const y = groundY(x, z);
+          put('beach_umbrella', x, y, z, RF(0, TAU), RF(0.95, 1.12), C(pickF(BEACH_UMB))); st.umbrellas++;
+          const base = alongX ? 0 : Math.PI / 2, sc = C(pickF(['#f1eee6', '#f1eee6', '#e6d9b8', '#cfe3ee']));
+          for (const side of [-1, 1]) {
+            const sx = x + (alongX ? 0 : side * 0.95), sz = z + (alongX ? side * 0.95 : 0);
+            put('sunbed', sx, groundY(sx, sz), sz, base + RF(-0.25, 0.25), 1, sc); st.sunbeds++;
+          }
+          occAdd(x, z, 1.4);
+        }
+      }
+      // kiosks and cabins along the shore edge
+      let kk = 0;
+      for (let i = 0; i < pts.length && kk < 5; i += Math.max(1, Math.floor(pts.length / 14))) {
+        if (rf() > (packed ? 0.6 : 0.1)) continue;
+        const A = pts[i], dx = cx - A[0], dz = cz - A[1], dl = hyp2(dx, dz) || 1;
+        const x = A[0] + dx / dl * 3.2, z = A[1] + dz / dl * 3.2;
+        if (!inBounds(x, z) || !inPoly(pts, x, z) || inB(x, z) || road(x, z) || occHit(x, z, 2.4)) continue;
+        put('kiosk', x, groundY(x, z), z, Math.atan2(dx, dz), RF(0.95, 1.1), C(pickF(['#ffffff', '#f2ece0', '#e4eef0']))); occAdd(x, z, 2.4); st.kiosks++; kk++;
+      }
+    }
+
+    // b) planes along Via della Liberta and the other grand avenues of the 1960s grid; palms along the seafronts
+    const AVENUE = /^(Via|Viale) della Libertà$/, FRONT = /Regina Elena|Lungomare|Foro Italico|Piano di Gallo|Viale Marina|Lido/;
+    for (const r of S.roads) {
+      const nm = r.n || '';
+      const lib = AVENUE.test(nm), front = FRONT.test(nm) && DRIVE.has(r.k);
+      let grand = false;
+      if (!lib && !front && (r.k === 'primary' || r.k === 'secondary') && r.p.length >= 4) { const zn = zoneOf(r.p[0], r.p[1]); grand = zn === 'viaLib' || zn === 'sacco' || zn === 'resut'; }
+      if (!lib && !front && !grand) continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
+        const tx = dx / L, tz = dz / L;
+        for (let s = RF(1, 6); s < L; s += front ? 13 : lib ? 10.5 : 15) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (nearJunction(cx, cz, 7) && !front) continue;
+          for (const sg of [1, -1]) {
+            if (!lib && rf() > (front ? 0.7 : 0.5)) continue;
+            const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
+            const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
+            if (!inBounds(x, z) || (!raisedMask(x, z) && !paving(x, z))) continue;
+            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, 'tree', 1.35)) { if (front) st.palms++; else st.plane++; }
+          }
+        }
+      }
+    }
+
+    // c) street lamps on the residential grid (the procedural poles above only follow the primary to tertiary roads)
+    const rl = [];
+    for (const r of S.roads) {
+      if (r.k !== 'residential' && r.k !== 'unclassified' && r.k !== 'living_street') continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 8) continue;
+        const tx = dx / L, tz = dz / L;
+        for (let s = RF(4, 16); s < L; s += 34 + RF(0, 12)) {
+          if (rf() > 0.62 * Math.min(1, DEN + 0.25)) continue;
+          const cx = a[0] + tx * s, cz = a[1] + tz * s, sg = rf() < 0.5 ? 1 : -1, nx = -tz * sg, nz = tx * sg;
+          if (!inBounds(cx, cz)) continue;
+          const e = march(cx, cz, nx, nz, 9, road); if (e < 1) continue;
+          const x = cx + nx * (e + 0.55), z = cz + nz * (e + 0.55);
+          if (!inBounds(x, z) || !(raisedMask(x, z) || paving(x, z)) || inB(x, z) || nearWall(x, z, 0.6) || nearJunction(x, z, 5)) continue;
+          if (lampNear(x, z, 24) || rl.some(q => hyp2(q[0] - x, q[1] - z) < 24)) continue;
+          rl.push([x, z]); put('lamp_pole', x, gy(x, z), z, Math.atan2(nx, nz) + Math.PI / 2); occAdd(x, z, 0.5); st.lamps++;
+        }
+      }
+    }
+    stats.flavour = st;
+  }
+
+  return res;
+}
+
+// ------------------------------------------------------------------ instances -> meshes
+// How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
+const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+  signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+  shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
+  beach_umbrella: 420, sunbed: 220, kiosk: 450 };
+const WHITE_IC = new THREE.Color(1, 1, 1);
+let ZEBRA_MAT = null, PANEL_MAT = null;
+const zebraMat = () => ZEBRA_MAT ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
+const panelMat = () => {
+  if (PANEL_MAT) return PANEL_MAT;
+  const cv = document.createElement('canvas'); cv.width = 8; cv.height = 8; const g = cv.getContext('2d');
+  g.fillStyle = '#26272b'; g.fillRect(3, 0, 2, 8); g.fillRect(0, 3, 8, 0);
+  const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = THREE.NearestFilter;
+  return PANEL_MAT = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, transparent: false, side: THREE.DoubleSide, roughness: 0.8 });
+};
+
+// Turns the generated buckets into InstancedMeshes (one per model and 250 m cell) under `parent`.
+function* instantiate(res, parent, BUD) {
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-  for (const [name, cells] of Object.entries(buckets)) {
+  const meshes = [], meshOf = {}, geos = []; let tris = 0, total = 0;
+  for (const [name, cells] of Object.entries(res.buckets)) {
     const M = MODELS[name], per = M.geo.attributes.position.count / 3;
     for (const [ckey, e] of cells.entries()) {
       const n = e.m.length / 5;
@@ -1712,23 +1898,149 @@ export function buildProps(ctx) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im); meshOf[name + '|' + ckey] = im;
-      scene.add(im); tris += per * n; meshes++; total += n; triBy[name] = (triBy[name] || 0) + per * n;
+      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = FAR[name] ?? 450;
+      meshes.push(im); meshOf[name + '|' + ckey] = im; parent.add(im); tris += per * n; total += n;
+    }
+    if (BUD.over()) yield;
+  }
+  for (const g of res.decals) {
+    const m = new THREE.Mesh(g, zebraMat()); m.receiveShadow = true; parent.add(m); geos.push(g); tris += g.attributes.position.count / 3;
+  }
+  if (res.rails) {
+    const a = new THREE.Mesh(res.rails.posts, MATS.dbl); a.castShadow = true; a.receiveShadow = true; parent.add(a);
+    const b = new THREE.Mesh(res.rails.panels, panelMat()); b.castShadow = true; b.receiveShadow = true; parent.add(b);
+    geos.push(res.rails.posts, res.rails.panels); tris += (res.rails.posts.attributes.position.count + res.rails.panels.attributes.position.count) / 3;
+  }
+  return { meshes, meshOf, geos, tris, total };
+}
+
+// ------------------------------------------------------------------ the module
+const MOBILE = !!QUALITY.mobile;
+const MARKET_OR_POOR = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria|Capo\b|Carini|Beati Paoli|Albergheria|Casa Professa|Divisi|Lattarini|Biscottari|Bandiera|Alloro|Cala\b|Sant'Agostino|Schioppettieri|Ponticello|Sant'Anna|Collegio di Maria|Marina/;
+
+// ctx: { scene, raisedMask, CURB }. Props now exist per tile only: call api.attachWorld(world) once the streamer exists; every tile that
+// reaches full detail gets its props (parked cars, bins, rubbish, scooters, trees, lamps, benches, kiosks, stalls ...), built in slices of a few
+// ms per frame and disposed when the tile drops. The collidePlayer API (cars yeeted, rubbish bursting, trees felled) works on all of them.
+export function buildProps(ctx) {
+  const { scene, raisedMask, CURB } = ctx;
+  const T = 500;
+  let W = null, cull = [];
+  const jobs = new Map();       // tile key -> job
+  const tileIdx = new Map();    // tile (i * 4096 + j) -> building index of a built tile
+  const tkey = (i, j) => i * 4096 + j;
+  const inBAny = (x, z) => { const t = tileIdx.get(tkey(Math.floor(x / T), Math.floor(z / T))); return t ? t.inB(x, z) : false; };
+  const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
+  const phys = makePhysics({ inB: inBAny, gy, scene });
+  const tstats = { tiles: 0, built: 0, instances: 0, tris: 0, ms: 0, msMax: 0, lamps: 0, queued: () => [...jobs.values()].filter(j => j.phase < 3).length };
+
+  // ---------- tile source
+  function tileSource(job) {
+    const t = job.t, d = t.data, x0 = t.i * T, z0 = t.j * T, x1 = x0 + T, z1 = z0 + T;
+    const nb = [], nroads = [];
+    if (W) for (const o of W.tiles.values()) {
+      if (o === t || !o.data || Math.abs(o.i - t.i) > 1 || Math.abs(o.j - t.j) > 1) continue;
+      for (const b of o.data.buildings) {   // neighbours' houses that reach over the border keep cars out of them
+        const p = b.p; let a0 = 1e9, a1 = -1e9, c0 = 1e9, c1 = -1e9;
+        for (let i = 0; i < p.length; i += 2) { if (p[i] < a0) a0 = p[i]; if (p[i] > a1) a1 = p[i]; if (p[i + 1] < c0) c0 = p[i + 1]; if (p[i + 1] > c1) c1 = p[i + 1]; }
+        if (a1 > x0 - 6 && a0 < x1 + 6 && c1 > z0 - 6 && c0 < z1 + 6) nb.push(b);
+      }
+      for (const r of o.data.roads) if (r.n && MARKET_OR_POOR.test(r.n)) nroads.push(r);   // their street names still make this tile's edge scruffy
+    }
+    const k = t.i * 7919 + t.j * 104729, den = MOBILE ? 0.55 : 1;
+    const st = d.streets || {};
+    return {
+      ctx, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
+      x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
+      idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
+      roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [],
+      sand: (st.sand || []).map(p => p[0]).concat((d.areas || []).filter(a => a.k === 'sand').map(a => a.p)),
+      areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
+    };
+  }
+
+  // ---------- job steps
+  const BUD = { t: 0, over: () => performance.now() > BUD.t };
+  function stepJob(job) {   // true when finished
+    if (job.phase === 0) {
+      job.S = tileSource(job); job.gen = generate(job.S, BUD); job.phase = 1;
+      if (BUD.over()) return false;
+    }
+    if (job.phase === 1) {
+      const r = job.gen.next(); if (!r.done) return false;
+      job.res = r.value; job.gen = instantiate(job.res, job.group, BUD); job.phase = 2;
+      if (BUD.over()) return false;
+    }
+    if (job.phase === 2) {
+      const r = job.gen.next(); if (!r.done) return false;
+      const inst = r.value, res = job.res;
+      job.inst = inst; job.colls = res.colls; job.gen = null;
+      tileIdx.set(tkey(job.t.i, job.t.j), { inB: job.S.idx.inB });
+      phys.add(res.colls, inst.meshOf);
+      for (const im of inst.meshes) { im.visible = false; cull.push(im); }
+      scene.add(job.group);
+      job.lamps = inst.meshes.some(im => im.userData.kind === 'lamp_pole' || im.userData.kind === 'lamp_wall' || im.userData.kind === 'candelabra');
+      tstats.built++; tstats.instances += inst.total; tstats.tris += inst.tris; tstats.lamps += job.lamps ? 1 : 0;
+      job.ms = performance.now() - job.t0; tstats.ms += job.ms; if (job.ms > tstats.msMax) tstats.msMax = job.ms;
+      job.stats = res.stats; job.S = null; job.res = null; job.phase = 3;
+      if (job.lamps) lampsChanged();
+      return true;
+    }
+    return true;
+  }
+  const cp = new THREE.Vector3();
+  let lastPump = -1;
+  function pump(now) {
+    if (now - lastPump < 2) return;
+    lastPump = now;
+    BUD.t = now + (MOBILE ? 2.5 : 4);
+    for (;;) {
+      let best = null, bd = 1e18;
+      for (const j of jobs.values()) if (j.phase < 3) { const dx = j.cx - cp.x, dz = j.cz - cp.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = j; } }
+      if (!best) return;
+      if (!best.t0) best.t0 = now;
+      if (!stepJob(best) || BUD.over()) return;
     }
   }
-  const phys = makePhysics({ colls, meshOf, inB, gy, scene });
-  // Distance culling per cell mesh, decided before each render (shadow pass included).
-  const cp = new THREE.Vector3(), prev = scene.onBeforeRender;
+  // daynight lights lamps from the instanced meshes it finds; tell it when tiles bring or take lamps
+  let lampTimer = 0;
+  function lampsChanged() { clearTimeout(lampTimer); lampTimer = setTimeout(() => { try { dispatchEvent(new Event('pd-lamps-changed')); } catch (e) { /* no events */ } }, 300); }
+
+  function startTile(t) {
+    if (jobs.has(t.k) || !t.data) return;
+    const group = new THREE.Group(); group.name = 'props_' + t.i + '_' + t.j;
+    jobs.set(t.k, { t, k: t.k, phase: 0, group, cx: (t.i + 0.5) * T, cz: (t.j + 0.5) * T, t0: 0, lamps: false });
+    tstats.tiles++;
+  }
+  function dropTile(t) {
+    const job = jobs.get(t.k); if (!job) return;
+    jobs.delete(t.k);
+    if (job.gen && job.gen.return) job.gen.return();
+    if (job.phase === 3) {
+      phys.remove(job.colls); tileIdx.delete(tkey(t.i, t.j));
+      const gone = new Set(job.inst.meshes); cull = cull.filter(im => !gone.has(im));
+    }
+    scene.remove(job.group);
+    job.group.traverse(o => { if (o.isInstancedMesh) o.dispose(); });
+    if (job.inst) for (const g of job.inst.geos) g.dispose();
+    if (job.lamps) lampsChanged();
+  }
+  function attachWorld(world) {
+    W = world;
+    world.onTile((kind, t) => { if (kind === 'full') startTile(t); else dropTile(t); });
+  }
+
+  // Distance culling per cell mesh, decided before each render (shadow pass included); also where the tile jobs get their slice of time.
+  const prev = scene.onBeforeRender;
   scene.onBeforeRender = function (r, sc, camera, ...rest) {
     camera.getWorldPosition(cp);
-    // [perf pass] sqrt instead of Math.hypot: hypot boxed a heap number per cell mesh per frame (~1300 meshes)
-    for (let i = 0; i < cellMeshes.length; i++) { const im = cellMeshes[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; im.visible = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius < im.userData.maxd; }
+    pump(performance.now());
+    // [perf pass] sqrt instead of Math.hypot: hypot boxed a heap number per cell mesh per frame
+    for (let i = 0; i < cull.length; i++) { const im = cull[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; im.visible = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius < im.userData.maxd; }
     phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };
-  console.log(`[props] ${total} instances in ${meshes} meshes, ${Math.round(tris / 1000)}k tris, ${Math.round(performance.now() - t0)} ms`, JSON.stringify(stats), 'tris', JSON.stringify(Object.fromEntries(Object.entries(triBy).map(([k, v]) => [k, Math.round(v / 1000)]))), 'per', JSON.stringify(Object.fromEntries(Object.entries(MODELS).map(([k, v]) => [k, v.geo.attributes.position.count / 3]))));
-  const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, colliders: phys.count() };
+  const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, tileStats: tstats, attachWorld };
   api.grid = phys.grid;
-  if (location.search.includes('debug')) window.__props = Object.assign(api, { colls });
+  if (location.search.includes('debug')) window.__props = Object.assign(api, { jobs, phys });
   return api;
 }

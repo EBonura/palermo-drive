@@ -912,7 +912,7 @@ Object.assign(MODELS, buildPoliceModels());
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
       get version() { return G.version; },
-      stats: () => ({ nodes: NX.length, edges: EDGES.length, tiles: G.tiles.size, vehicles: vs.length, tileMs }),
+      stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, tileMs }; },
     },
   };
 }
