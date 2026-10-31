@@ -315,7 +315,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // Low detail (20 m or 50 m cells) cannot follow a road bench: on a steep hillside the coarse mesh would cover the road for hundreds of
     // metres (the owner saw hidden roads under Monte Pellegrino). Vertices within reach of a bench are pulled down to its lowest height
     // there, so the terrain never rises above a road; the trench this leaves beside it is far below what is visible at that distance.
-    const sh = t.shape, benchR = sh && stride > 1 ? step * 0.6 + 1 : 0;
+    const sh = t.shape, benchR = sh && stride > 1 ? step + 1 : 0;
     const benchMin = (x, z) => {
       const s = sh.s, R = benchR, W = sh.W, WH = sh.WH;
       const i0 = Math.max(0, Math.ceil((x - R - sh.x0) / s)), i1 = Math.min(sh.nx - 1, Math.floor((x + R - sh.x0) / s));
