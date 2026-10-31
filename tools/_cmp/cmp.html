@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#2b2530}canvas{display:block}</style></head><body><canvas id="c"></canvas>
+<script type="module">
+import * as OLD from './old-sprites.js';
+import { VARIANTS } from '../../assets/peds/sprites.js';
+import { cellData, CELL_W, CELL_H } from '../../assets/peds/figure.js';
+const ids = ['nonna','coppola','vendor','tourist','kid','teen','priest','carabiniere','signora','suit','nonno','borsa','tifoso','tifoso2','tuta','skinny','pescivendolo','shopper','mamma','cameriere','healed'];
+const oldAtlas = OLD.buildAtlas(), z = 4, nz = 2, cw = 100, tile = cw * 6 + 20, rowH = 220, per = 3;
+const c = document.getElementById('c'), g = c.getContext('2d'); c.width = tile * per; c.height = rowH * Math.ceil(ids.length / per) + 10; g.imageSmoothingEnabled = false;
+g.fillStyle = '#2b2530'; g.fillRect(0, 0, c.width, c.height);
+const tmp = document.createElement('canvas'); tmp.width = CELL_W; tmp.height = CELL_H; const tg = tmp.getContext('2d');
+ids.forEach((id, n) => {
+  const ox = (n % per) * tile + 6, oy = Math.floor(n / per) * rowH + 14, ov = OLD.VARIANTS.findIndex(v => v.id === id), nv = VARIANTS.find(v => v.id === id);
+  g.fillStyle = '#f5a9c9'; g.font = '600 12px system-ui'; g.fillText(id + '   old (left) | new (right): front, side, back', ox, oy - 3);
+  [[0, 1], [2, 1], [1, 0]].forEach(([d, p], k) => {
+    g.drawImage(oldAtlas, (d * OLD.POSES + p) * OLD.CELL_W, ov * OLD.CELL_H, OLD.CELL_W, OLD.CELL_H, ox + k * cw, oy, OLD.CELL_W * z, OLD.CELL_H * z);
+    const np = d === 1 ? 0 : p; tg.clearRect(0, 0, CELL_W, CELL_H); tg.putImageData(new ImageData(cellData(nv, d, np), CELL_W, CELL_H), 0, 0);
+    g.drawImage(tmp, ox + (k + 3) * cw, oy - 2, CELL_W * nz, CELL_H * nz);
+  });
+});
+</script></body></html>

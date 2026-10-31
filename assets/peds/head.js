@@ -226,7 +226,7 @@ export function headSide(g, v, ht, hw, hh, st, skin, c) {
     for (let j = 4; j <= ey - ht + 1; j++) add(ht + j, earX - 3, earX);
     if (st === 'fade' || st === 'quiff') { S.splice(S.findIndex(s => s[0] === ht + 5), 0); }
     paintHair(P, S, c, o);
-    if (st === 'fade' || st === 'quiff') for (let j = 5; j < hh - 2; j++) for (let x = Math.max(earX - 4, front(j)); x < backx(j); x++) if (hs(x, ht + j) < 0.5 - (j - 5) * 0.04) P(x, ht + j, 1, 1, mix(skin, c, 0.5));
+    if (st === 'fade' || st === 'quiff') for (let j = 5; j < ey - ht + 5; j++) for (let x = Math.max(earX - 1, front(j)); x < backx(j); x++) if (hs(x, ht + j) < 0.7 - (j - 5) * 0.08) P(x, ht + j, 1, 1, mix(skin, c, 0.5));
   }
   if (!hideEar) { P(earX, ey - 1, 4, 5, skin); P(earX, ey - 1, 1, 5, sh(skin, 0.9)); P(earX + 1, ey, 2, 3, sk.dd); P(earX + 1, ey + 3, 2, 1, sk.d); }
   if (st === 'long' || st === 'wavy') {            // falls behind the shoulder

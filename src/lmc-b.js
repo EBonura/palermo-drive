@@ -1,6 +1,6 @@
 // City landmarks, group B: the Arab-Norman monuments (Zisa, Cuba, San Giovanni degli Eremiti, Ponte dell'Ammiraglio) and Palazzo dei Normanni's front.
 import {
-  THREE, PI, bx, gridMesh, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, prism, pyramid, gable,
+  THREE, PI, bx, gridMesh, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, prism, pyramid, gable, shell,
   mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, groundY, initShared, ensureTrunk, paintAshlar, paintFacade, noiseDots, streaks, RNG,
   statue, palm, crenel, rail,
 } from './lmc-kit.js';
@@ -177,16 +177,7 @@ function buildNormanni() {
     bands: [{ y: 5.6, h: 0.3, c: '#e8cbb8' }, { y: 10.9, h: 0.3, c: '#e8cbb8' }, { y: 15.2, h: 0.6, c: '#e8cbb8' }],
     rows: [{ y0: 1.6, y1: 4.4, xs: [1.8, 5.4], w: 1.2, kind: 'rect', ped: true }, { y0: 6.6, y1: 9.8, xs: [1.8, 5.4], w: 1.2, kind: 'rect', ped: true, balc: true }, { y0: 11.8, y1: 14.4, xs: [1.8, 5.4], w: 1.1, kind: 'rect' }] }));
   defMat('norPortal', 128, 256, [5, 10], (g, w, h) => { paintAshlar(g, w, h, 5, 10, 0.4, 0.9, '#cfc3a6', '#8d8068', 742, 2, 0.05); g.fillStyle = '#231b16'; g.beginPath(); g.moveTo(34, 256); g.lineTo(34, 150); g.arc(64, 150, 30, Math.PI, 0); g.lineTo(94, 256); g.fill(); });
-  // the foundation hides the slope under the long side
-  bx('stone', tr(0, 0, 0), -760, -620, gr.lo - 3, gy - 0.1, 385, 610, { c: '#a89c88', noao: true });
-  prism('norWall', pts, gy, gy + WH, { holes });
-  prism('flat', pts, gy + WH, gy + WH + 0.15, { holes, c: '#8f8a82' });
-  // cornice and a fringe of parapet round every edge
-  for (let i = 0; i < pts.length; i++) {
-    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 1.5) continue;
-    const nx = -dz / l, nz = dx / l;   // winding-independent: centred box straddling the edge line
-    bx('flat', frame((A[0] + B[0]) / 2, gy + WH - 0.5, (A[1] + B[1]) / 2, nx, nz), -l / 2, l / 2, 0, 0.9, -0.55, 0.55, { c: '#e2c8b8' });
-  }
+  shell('norWall', pts, holes, gy, WH, { lo: gr.lo - 3, roof: '#8f8a82', cc: '#e2c8b8' });
   // the Piazza del Parlamento front: its centre is the Torre Pisana (centro module); a portal on the left wing
   const fa = [-639.3, 532.3], fb = [-684.1, 486.2], fl = Math.hypot(fb[0] - fa[0], fb[1] - fa[1]), fx = (fb[0] - fa[0]) / fl, fz = (fb[1] - fa[1]) / fl;
   const Mf = frame((fa[0] + fb[0]) / 2, gy, (fa[1] + fb[1]) / 2, 0.717, -0.697);
