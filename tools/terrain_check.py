@@ -31,8 +31,9 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 T = 500.0
-SHAPE_ROADS = {"primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "track"}
-DRIVE = SHAPE_ROADS | {"motorway", "motorway_link", "trunk", "trunk_link", "primary_link", "secondary_link", "tertiary_link"}
+DRIVE = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary",
+         "tertiary_link", "unclassified", "residential", "living_street", "service", "track"}
+SHAPE_ROADS = DRIVE
 SHAPE_EASE, SHAPE_S = 11.0, 2.0
 MESH_DROP = 0.2          # src/world.js terrainMesh: vertices at groundY - 0.2
 
@@ -220,6 +221,37 @@ class World:
         return (x0, z0, s, nx, nz, W, WH)
 
     # ---- the rendered terrain mesh ----
+    def bench_min(self, i, j, R):
+        """Per tile: the lowest road bench height within R metres of every bench cell neighbourhood (src/world.js terrainMesh, low detail)."""
+        import cv2
+        k = (i, j, R)
+        if k not in self.cache:
+            sh = self.get_shape(i, j)
+            if sh is None:
+                self.cache[k] = None
+            else:
+                x0, z0, s, nx, nz, W, WH = sh
+                h = np.where(W >= 0.999, WH, 1e9).astype(np.float32)
+                r = int(R // s)
+                ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+                self.cache[k] = cv2.erode(h, ker, borderValue=1e9)
+        return self.cache[k]
+
+    def vertex_h(self, i, j, X, Z, step, low):
+        """Heights of the terrain mesh vertices of tile (i, j): groundY - 0.2, pulled below nearby benches at low detail."""
+        y = self.ground(X, Z)
+        if low and self.shaping:
+            sh = self.get_shape(i, j)
+            if sh is not None:
+                R = step * 0.6 + 1
+                bm = self.bench_min(i, j, R)
+                x0, z0, s, nx, nz, _, _ = sh
+                ci = np.clip(np.round((X - x0) / s).astype(int), 0, nx - 1)
+                cj = np.clip(np.round((Z - z0) / s).astype(int), 0, nz - 1)
+                m = bm[cj, ci] - 0.3
+                y = np.where(m < y, m, y)
+        return y - MESH_DROP
+
     def mesh(self, x, z, low=False):
         """Height of the terrain triangles at (x, z): vertices at groundY - 0.2 on a grid anchored at the owning tile's corner."""
         x, z = np.broadcast_arrays(np.asarray(x, np.float64), np.asarray(z, np.float64))
@@ -240,10 +272,10 @@ class World:
             a, b = np.floor(fx).astype(int), np.floor(fz).astype(int)
             tx, tz = fx - a, fz - b
             X0, Z0 = i * T + a * step, j * T + b * step
-            ha = self.ground(X0, Z0) - MESH_DROP
-            hb = self.ground(X0, Z0 + step) - MESH_DROP
-            hc = self.ground(X0 + step, Z0) - MESH_DROP
-            hd = self.ground(X0 + step, Z0 + step) - MESH_DROP
+            ha = self.vertex_h(i, j, X0, Z0, step, low)
+            hb = self.vertex_h(i, j, X0, Z0 + step, step, low)
+            hc = self.vertex_h(i, j, X0 + step, Z0, step, low)
+            hd = self.vertex_h(i, j, X0 + step, Z0 + step, step, low)
             lower = tx + tz <= 1
             out[m] = np.where(lower, ha + tx * (hc - ha) + tz * (hb - ha), hd + (1 - tx) * (hb - hd) + (1 - tz) * (hc - hd))
         return out

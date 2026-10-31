@@ -640,6 +640,18 @@ export function createVehicle(env) {
   api.setStripped = b => { stripped = !!b; applyStrip(); };
   Object.defineProperty(api, 'stripped', { get: () => stripped });
   api.lockSwap = b => { swapLock = !!b; };
+  // line of sight over the building footprints: the garage camera uses it to swing round walls instead of through them
+  api.sightClear = (ax, az, bx, bz) => {
+    let ok = true;
+    walls2d.query(Math.min(ax, bx) - 0.5, Math.min(az, bz) - 0.5, Math.max(ax, bx) + 0.5, Math.max(az, bz) + 0.5, s => {
+      if (!ok) return;
+      const d1x = bx - ax, d1z = bz - az, d2x = s[2] - s[0], d2z = s[3] - s[1], den = d1x * d2z - d1z * d2x;
+      if (Math.abs(den) < 1e-9) return;
+      const ex = s[0] - ax, ez = s[1] - az, t = (ex * d2z - ez * d2x) / den, u = (ex * d1z - ez * d1x) / den;
+      if (t > 0 && t < 1 && u > 0 && u < 1) ok = false;
+    });
+    return ok;
+  };
   api.puff = puff;
   api.teleport = (x, z, th) => {
     Object.assign(car, { x, z, th, vx: 0, vz: 0, vf: 0, w: 0, slip: 0, drift: 0, dLatch: 0, psiDot: 0, psiPrev: th, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, steer: 0, sIn: 0 });

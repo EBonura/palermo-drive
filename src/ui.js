@@ -367,6 +367,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       if (name === 'start') renderStart();
       let want = lastFocus[name];
       if (!want || !want.isConnected) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
+      if (name === 'garage') want = garageUI.focusEl() || want;   // the garage focuses the current base (step 1) or tab (step 2)
       if (want && name !== 'title') want.focus({ preventScroll: true });
       if (name === 'credits') startRoll();
     } else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();

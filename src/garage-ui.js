@@ -367,6 +367,8 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
     applyLang() { if (entered) paintAll(); },
     // Esc / B: one step back; returns false at step 1 so the shell leaves the garage
     back() { return entered ? goBack() : false; },
+    // the control the shell focuses when the screen opens
+    focusEl() { return step === 1 ? elM1.querySelector(`[data-gx="base:${sel}"]`) : elTabs.querySelector('[aria-pressed=true]'); },
     tick(dt) { if (popT > 0) { popT -= dt; if (popT <= 0) keep(paintHead); } },
     // camera for the title state: a slow orbit close to the vehicle, moving in on what you are browsing
     cam(c, sec) {
@@ -374,11 +376,20 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
       if (c.fov !== 40) { c.fov = 40; c.updateProjectionMatrix(); }
       const car = vehicle.car, gy = groundY(car.x, car.z), k = car.kind === 'bike' ? 0.72 : car.kind === 'car' ? 1.18 : 1;
       const F = step === 2 && FOCUS[cat] ? FOCUS[cat] : { mode: 'orbit', d: 8.4, h: 3.0, ly: 0.75 };
-      cam.orbit += dt * 0.32;
-      const tgt = F.mode === 'rear' ? car.th + Math.PI + Math.sin(sec * 0.4) * 0.45 : F.mode === 'side' ? car.th + 1.25 + Math.sin(sec * 0.4) * 0.3 : cam.orbit;
+      if (!Q.has('gfix')) cam.orbit += dt * 0.32;   // ?gfix freezes the turn (screenshots)
+      const want = F.mode === 'rear' ? car.th + Math.PI + Math.sin(sec * 0.4) * 0.45 : F.mode === 'side' ? car.th + 1.25 + Math.sin(sec * 0.4) * 0.3 : cam.orbit;
+      // swing round walls: from the wanted angle, the nearest one with a clear line of sight to the vehicle (and a shorter lens if none)
+      const clear = (a, d) => !vehicle.sightClear || vehicle.sightClear(car.x, car.z, car.x + Math.sin(a) * d, car.z + Math.cos(a) * d);
+      const dd = F.d * k;
+      let goal = want, dist = dd;
+      if (!clear(want, dd)) {
+        let found = false;
+        for (let n = 1; n <= 12 && !found; n++) for (const sg of [1, -1]) { const a = want + sg * n * 0.26; if (clear(a, dd)) { goal = a; found = true; break; } }
+        if (!found) { dist = dd * 0.5; goal = want; for (let n = 0; n <= 12; n++) { const a = want + (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 0.26; if (clear(a, dist)) { goal = a; break; } } }
+      }
       const e = 1 - Math.exp(-3 * dt);
-      cam.a += wrapA(tgt - cam.a) * (F.mode === 'orbit' ? 1 : e); if (F.mode === 'orbit') cam.a = tgt;
-      cam.d += (F.d * k - cam.d) * e; cam.h += (F.h * (k < 1 ? 0.8 : 1) - cam.h) * e; cam.ly += (F.ly * (k < 1 ? 1.1 : 1) - cam.ly) * e;
+      cam.a += wrapA(goal - cam.a) * (F.mode === 'orbit' ? clamp(dt * 5, 0, 1) : e);
+      cam.d += (dist - cam.d) * e; cam.h += (F.h * (k < 1 ? 0.8 : 1) - cam.h) * e; cam.ly += (F.ly * (k < 1 ? 1.1 : 1) - cam.ly) * e;
       c.position.set(car.x + Math.sin(cam.a) * cam.d, gy + cam.h + Math.sin(sec * 0.23) * 0.2, car.z + Math.cos(cam.a) * cam.d);
       c.lookAt(car.x, gy + cam.ly, car.z);
       c.translateX(0.36 * cam.d);   // the vehicle sits left of centre, the panel on the right

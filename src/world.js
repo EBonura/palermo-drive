@@ -312,9 +312,26 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
+    // Low detail (20 m or 50 m cells) cannot follow a road bench: on a steep hillside the coarse mesh would cover the road for hundreds of
+    // metres (the owner saw hidden roads under Monte Pellegrino). Vertices within reach of a bench are pulled down to its lowest height
+    // there, so the terrain never rises above a road; the trench this leaves beside it is far below what is visible at that distance.
+    const sh = t.shape, benchR = sh && stride > 1 ? step * 0.6 + 1 : 0;
+    const benchMin = (x, z) => {
+      const s = sh.s, R = benchR, W = sh.W, WH = sh.WH;
+      const i0 = Math.max(0, Math.ceil((x - R - sh.x0) / s)), i1 = Math.min(sh.nx - 1, Math.floor((x + R - sh.x0) / s));
+      const j0 = Math.max(0, Math.ceil((z - R - sh.z0) / s)), j1 = Math.min(sh.nz - 1, Math.floor((z + R - sh.z0) / s));
+      let m = 1e9;
+      for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) {
+        const c = jj * sh.nx + ii; if (W[c] < 0.999 || WH[c] >= m) continue;
+        const dx = sh.x0 + ii * s - x, dz = sh.z0 + jj * s - z; if (dx * dx + dz * dz <= R * R) m = WH[c];
+      }
+      return m;
+    };
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
-        const x = x0 + i * step, z = z0 + j * step, y = g(x, z), k = (j * n + i) * 3;
+        const x = x0 + i * step, z = z0 + j * step, k = (j * n + i) * 3;
+        let y = g(x, z);
+        if (benchR) { const m = benchMin(x, z) - 0.3; if (m < y) y = m; }
         const e = step;
         const dx = (g(x + e, z) - g(x - e, z)) / (2 * e), dz = (g(x, z + e) - g(x, z - e)) / (2 * e), l = Math.hypot(dx, 1, dz);
         pos[k] = x; pos[k + 1] = y - 0.2; pos[k + 2] = z; nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
@@ -513,7 +530,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // at that height: full weight across the carriageway, easing back to the raw ground over SHAPE_EASE metres. The result is a pair of
   // grids (weight, weight*height) that tileGround() mixes in, so streets, curbs, props, buildings, the car and the terrain mesh all agree.
   // The target height depends only on position, so it is continuous across tile borders.
-  const SHAPE_ROADS = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service', 'track']);
+  const SHAPE_ROADS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'service', 'track']);
   const SHAPE_EASE = 11, SHAPE_S = 2;
   function* computeShape(t) {
     if (t.shaped) return;
