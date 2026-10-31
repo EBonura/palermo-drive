@@ -569,7 +569,8 @@ function build(env) {
           float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard;
           float a = smoothstep(1.0, 0.0, d) * vA;
           vec3 col = mix(vec3(0.30, 0.28, 0.27), vec3(0.80, 0.80, 0.82), smoothstep(0.0, 0.55, vT));
-          col *= uLight;   // smoke is lit by the sky: dark at night
+          col *= uLight;   // smoke is lit by the sky: dark at night, when only the glow of the coals lights its base
+          col += vec3(0.55, 0.24, 0.08) * (1.0 - uLight) * pow(1.0 - vT, 2.2);
           col = mix(col, uFog, 1.0 - exp(-uFogD * uFogD * vDist * vDist));
           gl_FragColor = vec4(col, a);
         }`,
