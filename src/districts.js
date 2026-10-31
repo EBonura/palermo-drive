@@ -165,6 +165,7 @@ const SEEDS_LL = [
   // the park
   ['favorita', 38.1620, 13.3378, 700], ['favorita', 38.1700, 13.3330, 700], ['favorita', 38.1590, 13.3430, 500], ['favorita', 38.1760, 13.3360, 700],
   // far corners and the countryside
+  ['rural', 38.1650, 13.3520, 1100], // Monte Pellegrino: the sanctuary's low convent, kiosks and huts, never apartment blocks
   ['rural', 38.0750, 13.3050, 3000], ['rural', 38.0750, 13.4050, 3000], ['rural', 38.2200, 13.3900, 3000], ['rural', 38.2200, 13.2900, 3000], ['rural', 38.1700, 13.2800, 1500],
 ];
 export const SEEDS = SEEDS_LL.map(([z, la, lo, reach]) => { const p = proj(la, lo); return [z, p[0], p[1], reach]; });
