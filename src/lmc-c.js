@@ -21,32 +21,45 @@ function buildStabilimento() {
   begin(0);
   defMat('mnYellow', 256, 256, [8, 8], (g, w, h) => paintFacade(g, w, h, 8, 8, { base: '#f0dc8c', trim: '#fff8e0', glass: '#6a2c2c', seed: 801, plinth: { h: 0.6, c: '#e7cf7c' }, grime: 0,
     bands: [{ y: 4.0, h: 0.3, c: '#fff4cf' }, { y: 7.6, h: 0.4, c: '#fff4cf' }], rows: [{ y0: 0.9, y1: 3.4, xs: [2, 6], w: 1.2, kind: 'arch', fr: 0.22, sill: false }, { y0: 4.8, y1: 7.1, xs: [2, 6], w: 1.1, kind: 'arch', fr: 0.2, sill: false }] }));
-  defMat('mnStripe', 128, 64, [5, 2.5], (g, w, h) => { g.fillStyle = '#f5efe2'; g.fillRect(0, 0, w, h); g.fillStyle = '#a8283a'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 8, h); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, h - 5, w, 5); });
+  defMat('mnStripe', 128, 64, [7, 4.4], (g, w, h) => { g.fillStyle = '#f0e6c8'; g.fillRect(0, 0, w, h); g.fillStyle = '#8a2a35'; for (let x = 0; x < w; x += 16) { g.fillRect(x, 8, 8, h - 8); } g.fillStyle = '#4a2028'; for (let x = 3; x < w; x += 16) g.fillRect(x, 26, 4, h - 26); g.fillStyle = '#e7d9a8'; g.fillRect(0, 0, w, 8); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, h - 5, w, 5); });
+  defMat('mnBlock', 256, 256, [14, 9], (g, w, h) => paintFacade(g, w, h, 14, 9, { base: '#ecdc9c', trim: '#fff4cf', glass: '#5a2a2c', seed: 804, grime: 0, rows: [{ y0: 0.9, y1: 3.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }, { y0: 4.9, y1: 7.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }] }));
   defMat('mnShed', 256, 128, [14, 5], (g, w, h) => paintFacade(g, w, h, 14, 5, { base: '#efe0a0', trim: '#fff4cf', glass: '#3a2a26', seed: 802, grime: 0, rows: [{ y0: 0.8, y1: 3.4, n: 5, m: 1.6, w: 1.5, kind: 'rect', fr: 0.1 }] }));
   defMat('deck', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#9a7d58'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { g.fillStyle = 'rgba(60,40,20,0.45)'; g.fillRect(0, y, w, 2); } noiseDots(g, w, h, 300, 2, 803, ['rgba(60,40,20,0.2)', 'rgba(220,190,140,0.2)']); });
   defMat('pile', 32, 32, [1, 1], (g, w, h) => { g.fillStyle = '#6a5a44'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(30,25,15,.5)'; for (let y = 0; y < h; y += 6) g.fillRect(0, y, w, 1.5); });
   const LEN = 112, DEP = 26;
   bx('deck', M, -LEN / 2, LEN / 2, deck - 0.4, deck, -DEP / 2, DEP / 2, { noao: true });
   for (let x = -LEN / 2 + 1; x <= LEN / 2; x += 5) for (const z of [-DEP / 2 + 0.6, DEP / 2 - 0.6]) cyl('pile', 0.28, 0.3, deck + 3.4, 5, { M: mul(M, tr(x, -3.4, z)), noao: true });
-  // central pavilion: two storeys, balustraded roof, two corner towers with caps
+  // central pavilion: two storeys, balustraded roof, two corner towers with crowns and finials, a taller rear tower
   const CW = 28, CD = 20, CH = 8.2;
   bx('mnYellow', M, -CW / 2, CW / 2, deck, deck + CH, -CD / 2 - 2, CD / 2 - 2);
   bx('flat', M, -CW / 2 - 0.4, CW / 2 + 0.4, deck + CH, deck + CH + 0.6, -CD / 2 - 2.4, CD / 2 - 1.6, { c: '#fff4cf' });
   for (let q = 0; q < 4; q++) balus(mul(M, mul(tr(0, deck + CH + 0.6, -2), mul(rotY(q * PI / 2), tr(0, 0, (q % 2 ? CW : CD) / 2 + 0.2)))), q % 2 ? CD : CW, 1.0);
-  for (const sg of [-1, 1]) {
-    const Mt = mul(M, tr(sg * (CW / 2 - 1.6), deck, CD / 2 - 4));
-    bx('mnYellow', Mt, -1.8, 1.8, 0, CH + 5.6, -1.8, 1.8); bx('flat', Mt, -2.2, 2.2, CH + 5.6, CH + 6.2, -2.2, 2.2, { c: '#fff4cf' });
-    pyramid('tile', 3.8, 3.8, 2.4, { M: mul(Mt, tr(0, CH + 6.2, 0)), c: '#d8c07a' }); sphere('flat', 0.35, { M: mul(Mt, tr(0, CH + 8.7, 0)), c: '#e8d9a0', seg: 6 });
-  }
+  // upper central block with the curved pediment (the big arched window bay of the real facade)
+  bx('mnYellow', M, -7, 7, deck + CH + 0.6, deck + CH + 4.2, -CD / 2 + 0.5, CD / 2 - 3.5);
+  bx('flat', M, -7.4, 7.4, deck + CH + 4.2, deck + CH + 4.7, -CD / 2 + 0.1, CD / 2 - 3.1, { c: '#fff4cf' });
+  for (const sg of [-1, 1]) { sphere('flat', 0.45, { M: mul(M, tr(sg * 6.6, deck + CH + 5.1, CD / 2 - 4)), c: '#f0cfa8', seg: 6 }); bx('flat', M, sg * 6.6 - 0.35, sg * 6.6 + 0.35, deck + CH + 4.7, deck + CH + 5.0, CD / 2 - 4.35, CD / 2 - 3.65, { c: '#fff4cf' }); }
+  const tower = (Mt, hgt, wd) => {
+    bx('mnYellow', Mt, -wd, wd, 0, hgt, -wd, wd); bx('flat', Mt, -wd - 0.4, wd + 0.4, hgt, hgt + 0.55, -wd - 0.4, wd + 0.4, { c: '#fff4cf' });
+    bx('flat', Mt, -wd * 0.7, wd * 0.7, hgt + 0.55, hgt + 1.9, -wd * 0.7, wd * 0.7, { c: '#efe0a8' });
+    for (const a of [-1, 1]) for (const b of [-1, 1]) { bx('flat', Mt, a * wd * 0.95 - 0.28, a * wd * 0.95 + 0.28, hgt + 0.55, hgt + 1.5, b * wd * 0.95 - 0.28, b * wd * 0.95 + 0.28, { c: '#fff4cf' }); sphere('flat', 0.26, { M: mul(Mt, tr(a * wd * 0.95, hgt + 1.65, b * wd * 0.95)), c: '#e2b69c', seg: 5 }); }
+    cyl('dark', 0.05, 0.07, 3.6, 4, { M: mul(Mt, tr(0, hgt + 1.9, 0)), noao: true }); sphere('flat', 0.22, { M: mul(Mt, tr(0, hgt + 3.0, 0)), c: '#d9b45a', seg: 5 });
+  };
+  for (const sg of [-1, 1]) tower(mul(M, tr(sg * (CW / 2 - 1.8), deck, CD / 2 - 4.2)), CH + 4.6, 1.9);
+  tower(mul(M, tr(0, deck, -CD / 2 + 0.6)), CH + 7.4, 2.4);
   box('dark', 4, 4.2, 0.2, { M: mul(M, tr(0, deck, CD / 2 - 1.9)), noao: true, c: '#4a2a22' });
-  // wings: low sheds with a red and white striped fascia and a sun deck on the roof
-  for (const sg of [-1, 1]) {
-    const x0 = sg * (CW / 2 + 0.6), x1 = sg * (LEN / 2 - 3), lo = Math.min(x0, x1), hi = Math.max(x0, x1);
-    bx('mnShed', M, lo, hi, deck, deck + 4.6, -2.0, 8.0);
-    bx('mnStripe', M, lo, hi, deck + 3.4, deck + 4.6, 8.01, 8.4);
-    bx('flat', M, lo - 0.3, hi + 0.3, deck + 4.6, deck + 5.0, -2.3, 8.3, { c: '#efe3b8' });
-    rail(mul(M, tr((lo + hi) / 2, deck + 5.0, 8.2)), hi - lo, 1.1, { c: '#ffffff' });
-  }
+  // wings, as on the photos: from the pavilion a long gallery of cabin fronts (maroon and cream stripes, doors) under a balustrade,
+  // ending on the south side in a small box; on the north side the gallery runs into the big plain two-storey block on piles.
+  const gal = (x0, x1) => {
+    const lo = Math.min(x0, x1), hi = Math.max(x0, x1);
+    bx('mnStripe', M, lo, hi, deck, deck + 4.4, -2.0, 7.0);
+    bx('flat', M, lo - 0.2, hi + 0.2, deck + 4.4, deck + 4.8, -2.2, 7.2, { c: '#efe3b8' });
+    balus(mul(M, tr((lo + hi) / 2, deck + 4.8, 7.0)), hi - lo, 0.9);
+  };
+  gal(CW / 2 + 0.6, LEN / 2 - 7); gal(-CW / 2 - 0.6, -CW / 2 - 17);
+  bx('mnShed', M, LEN / 2 - 7, LEN / 2, deck, deck + 5.4, -2.0, 7.0); bx('flat', M, LEN / 2 - 7.3, LEN / 2 + 0.3, deck + 5.4, deck + 5.9, -2.3, 7.3, { c: '#efe3b8' });
+  bx('mnBlock', M, -LEN / 2, -CW / 2 - 17, deck, deck + 9.0, -3.2, 9.0);
+  bx('flat', M, -LEN / 2 - 0.4, -CW / 2 - 16.6, deck + 9.0, deck + 9.55, -3.6, 9.4, { c: '#efe3b8' });
+  bx('flat', M, -LEN / 2 - 0.2, -CW / 2 - 16.8, deck + 9.55, deck + 10.0, -3.4, 9.2, { c: '#e9dcae' });
   // boardwalk to the beach gate
   const gx = -3043, gz = -9598, sx = ob.cx + fr.nx * (CD / 2 + 1), sz = ob.cz + fr.nz * (CD / 2 + 1), dl = Math.hypot(gx - sx, gz - sz), gnx = (gx - sx) / dl, gnz = (gz - sz) / dl;
   const MG = frame(sx, 0, sz, gnx, gnz);
