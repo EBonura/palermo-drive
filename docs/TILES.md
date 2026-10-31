@@ -67,6 +67,13 @@ coast. Everything is baked into square tiles that the game streams around the ca
   `T = 500` m), `t.k` (numeric key), `t.data` (the parsed tile: buildings, roads, streets, areas, labels, props, near).
 - `world.fullTiles()`: the tiles currently at full detail. `main.js` exposes the streamer as `world` (and on `window.game.world` with `?debug`).
 
+## Phase 2 status (2026-10-31)
+
+Done, all per tile through `world.onTile`, no centro-only path left: traffic (src/traffic-graph.js road graph, AMAT routes over the bbox),
+pedestrians (per-tile walkable blocks, district crowd profiles), props (per-tile generator, district tables, lamps feed daynight via
+`pd-lamps-changed`), road wear, sea (manifest land/islands shore field), minimap (src/minimap.js per-tile pieces). Still open: missions routing on
+`traffic.graph`, the far city LOD (context.js), photo facades are city-wide already. The list below is the original plan, kept for reference.
+
 ## Phase 2: what each module needs to become per-tile
 
 - **props.js**: takes `(ctx, tile)`; reads `tile.props` (`items`, `areas`, `counts`), `tile.streets` masks (asphalt/paving/raised rasters per

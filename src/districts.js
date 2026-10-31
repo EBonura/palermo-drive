@@ -42,15 +42,15 @@ export const ZONES = {
   // Via della Liberta itself: Liberty villini and 19th c. palazzi among 7 to 10 storey blocks of the 1960s-70s.
   // Street View (May 2026): the postwar blocks are pale (cream, off-white, light grey-beige) with stacked continuous balconies, the older palazzi
   // between them keep the ochre and salmon plaster.
-  viaLib: { plaster: ['#e8e2d2', '#dccaa0', '#e6dcc8', '#d6c8b0', '#ece7dc', '#d8c19a', '#dccdb6', '#cdc6b8', '#e0d0a8', '#efe9dc', '#d9b894', '#e4dccb'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
+  viaLib: { plaster: ['#ebe7dc', '#dccaa0', '#e6e0d2', '#d6cfc0', '#efebe2', '#d8c19a', '#e2dccf', '#cdc8bc', '#eae4d6', '#efe9dc', '#d9b894', '#e4e0d4', '#dcd6c8', '#e8e2d2'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
     w: { n19: .18, lib: .14, bar: .03, res: .03, blk: .5, pw: .02, pal: .1 }, fl: [[3, 1], [4, 2], [5, 2], [6, 2], [7, 3], [8, 3], [9, 2.5], [10, 1.5]], fh: 3.3, roof: 0.3 },
   // The grid behind it (Notarbartolo, Strasburgo, Principe di Paterno): orange, cream and terracotta blocks with stacked continuous balconies.
   // Via Olivio Sozzi, Via Notarbartolo side streets (Street View): 7 to 9 storey off-white and cream blocks, protruding balconies, brown and orange
   // tapparelle; the orange and terracotta blocks of the old reference are the minority.
-  sacco: { plaster: ['#e8e2d4', '#ded6c4', '#e6d9bc', '#d6cdb8', '#ece7dc', '#d2ccbe', '#dcc3a8', '#e2cd96', '#d9a874', '#e0dccf', '#c99a72', '#efe9de'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
+  sacco: { plaster: ['#ebe7dc', '#e4dfd2', '#e6d9bc', '#d6cfc0', '#efebe2', '#d2cdc0', '#dcc3a8', '#e2cd96', '#d9a874', '#e6e1d4', '#c99a72', '#efe9de', '#e2dccf', '#dcd6c8'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
     w: { blk: .5, pal: .22, pw: .03, n19: .1, lib: .03, res: .12 }, fl: [[4, 1], [5, 2], [6, 3], [7, 3], [8, 3], [9, 2], [10, 1], [12, .4]], fh: 3.1, roof: 0.1 },
   // The tall condo avenues of the same belt (Viale Strasburgo, Viale Lazio, Viale Campania, Notarbartolo): 7 to 11 storeys, several 10 to 14.
-  avenue: { plaster: ['#e8e2d4', '#ded6c4', '#e2d6b6', '#d6cdb8', '#ece7dc', '#d8c19a', '#cfc9bc', '#dcc3a8', '#e6d08c', '#e0dccf'], stone: ['#bba07a'], pStone: 0.02, grime: 0.3, elig: true,
+  avenue: { plaster: ['#ebe7dc', '#e4dfd2', '#e2d6b6', '#d6cfc0', '#efebe2', '#d8c19a', '#cfcabe', '#dcc3a8', '#e6d08c', '#e6e1d4', '#e2dccf', '#dcd6c8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.3, elig: true,
     w: { blk: .52, pal: .34, pw: .02, n19: .06, res: .06 }, fl: [[6, 1], [7, 3], [8, 3.5], [9, 3], [10, 2.5], [11, 1.5], [12, 1], [14, .4]], fh: 3.1, roof: 0.05 },
   resut: { plaster: ['#e8e2d2', '#e6dcc0', '#ddd5c2', '#ece7dc', '#d6c8ac', '#e4c8a8', '#cfc9bc', '#dcd6c4'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
     w: { pal: .34, blk: .32, pw: .04, res: .2, lib: .04, n19: .04 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1.5], [8, .6]], fh: 3.1, roof: 0.2 },
@@ -61,7 +61,7 @@ export const ZONES = {
   borgoV: { plaster: ['#c9b48e', '#c4a67e', '#d0bc98', '#b99c7a', '#cfb08c', '#bfa88a', '#d6c4a0', '#b48f70', '#c4b8a4'], stone: ['#a98f68', '#9d8560'], pStone: 0.22, grime: 0.62, elig: true,
     w: { res: .5, n19: .22, pw: .13, blk: .1, bar: .03, lib: .02 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.4, roof: 0.4 },
   // Piazza Noce (Street View): 5 to 6 storey blocks in yellow-ochre and pale tan, small windows, shops with yellow signs, few balconies.
-  noce: { plaster: ['#dcc58c', '#d8c090', '#e0d0a0', '#d2bc86', '#e4d6b0', '#d9ccb0', '#cfb98a', '#e6dcc0', '#d4c8ac'], stone: ['#a98f68'], pStone: 0.1, grime: 0.45, elig: true,
+  noce: { plaster: ['#dcc994', '#d8c49c', '#e2d4ae', '#d2c092', '#e6dcbc', '#dcd2b8', '#cfbf98', '#e8e0c8', '#d8ceb4'], stone: ['#a98f68'], pStone: 0.1, grime: 0.45, elig: true,
     w: { pw: .1, blk: .28, res: .3, n19: .14, pal: .14, ind: .02 }, fl: [[3, 1], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.2, roof: 0.3 },
   zisa: { plaster: ['#d2bf94', '#cbb68c', '#dccba8', '#c6b69c', '#d6c09c', '#cfc6b0', '#c2a682', '#dccfb4'], stone: ['#a98f68', '#9d8560'], pStone: 0.3, grime: 0.55, elig: true,
     w: { res: .38, pw: .08, blk: .2, n19: .1, ind: .1, pal: .14 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.6, ruin: 0.02 },
