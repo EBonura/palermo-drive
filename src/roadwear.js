@@ -14,6 +14,7 @@
 // speed loss, yaw kick, forced two-wheel lean and loss of grip. Dynamic tyre marks come from car.skid (vehicle.js).
 import * as THREE from 'three';
 import { pairs, rng } from './core.js';
+const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2, CELL = 96, LIFT = 0.04, UVM = 2.2, MARK_LIFT = 0.041;
 const SUNH = [-0.924, 0.381];   // horizontal direction towards the sun (WSW), as set in main.js
@@ -140,7 +141,7 @@ export function createRoadWear(env) {
     const ix = Math.floor(x / HG), iz = Math.floor(z / HG), reach = Math.ceil((r + 2.5) / HG);
     for (let a = -reach; a <= reach; a++) for (let b = -reach; b <= reach; b++) {
       const l = hgrid.get((ix + a) * 8192 + iz + b); if (!l) continue;
-      for (const o of l) if (Math.hypot(o[0] - x, o[1] - z) < o[2] + r) return true;
+      for (const o of l) if (hyp2(o[0] - x, o[1] - z) < o[2] + r) return true;
     }
     return false;
   };
@@ -182,7 +183,7 @@ export function createRoadWear(env) {
       const smp = [];   // x, z, tx, tz
       let next = 0;
       for (let i = 0; i < P.length - 1; i++) {
-        const [ax, az] = P[i], [bx, bz] = P[i + 1], L = Math.hypot(bx - ax, bz - az); if (L < 1e-3) continue;
+        const [ax, az] = P[i], [bx, bz] = P[i + 1], L = hyp2(bx - ax, bz - az); if (L < 1e-3) continue;
         const tx = (bx - ax) / L, tz = (bz - az) / L;
         let s = next;
         for (; s < L; s += 1) smp.push(ax + tx * s, az + tz * s, tx, tz);
@@ -283,7 +284,7 @@ export function createRoadWear(env) {
       const pts = []; let wob = R() * 6, ok = 0;
       for (let i = 0; i < n; i++) {
         const j0 = Math.max(0, i - 1), j1 = Math.min(n - 1, i + 1);
-        let dx = path[j1 * 2] - path[j0 * 2], dz = path[j1 * 2 + 1] - path[j0 * 2 + 1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        let dx = path[j1 * 2] - path[j0 * 2], dz = path[j1 * 2 + 1] - path[j0 * 2 + 1]; const l = hyp2(dx, dz) || 1; dx /= l; dz /= l;
         wob += 0.35;
         const o = side * track + Math.sin(wob) * 0.04, x = path[i * 2] - dz * o, z = path[i * 2 + 1] + dx * o;
         if (!onRoad(x, z) || env.raisedMask(x, z)) break;
@@ -296,12 +297,12 @@ export function createRoadWear(env) {
     }
   }
   const line = (x0, z0, x1, z1, step = 0.6) => {
-    const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(2, Math.round(L / step)), out = [];
+    const L = hyp2(x1 - x0, z1 - z0), n = Math.max(2, Math.round(L / step)), out = [];
     for (let i = 0; i <= n; i++) out.push(x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n);
     return out;
   };
   const bez = (p0, p1, p2, step = 0.6) => {
-    const L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), n = Math.max(4, Math.round(L / step)), out = [];
+    const L = hyp2(p1[0] - p0[0], p1[1] - p0[1]) + hyp2(p2[0] - p1[0], p2[1] - p1[1]), n = Math.max(4, Math.round(L / step)), out = [];
     for (let i = 0; i <= n; i++) { const t = i / n, a = (1 - t) * (1 - t), b = 2 * t * (1 - t), c = t * t; out.push(a * p0[0] + b * p1[0] + c * p2[0], a * p0[1] + b * p1[1] + c * p2[1]); }
     return out;
   };
@@ -311,7 +312,7 @@ export function createRoadWear(env) {
     const done = [];
     for (const it of (PR && PR.items) || []) {
       if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
-      if (done.some(d => Math.hypot(d[0] - it.x, d[1] - it.z) < 10)) continue;
+      if (done.some(d => hyp2(d[0] - it.x, d[1] - it.z) < 10)) continue;
       const si = sNear(it.x, it.z, 5); if (si < 0) continue;
       const tx = STX[si], tz = STZ[si], nx = -tz, nzz = tx;
       // nearest point on the centreline (project the node on the sample's tangent)
@@ -348,8 +349,8 @@ export function createRoadWear(env) {
         const arms = [];
         for (const dir of [-1, 1]) {
           let j = i + dir;
-          while (j >= 0 && j < P.length && Math.hypot(P[j][0] - P[i][0], P[j][1] - P[i][1]) < 4) j += dir;
-          if (j >= 0 && j < P.length) { const L = Math.hypot(P[j][0] - P[i][0], P[j][1] - P[i][1]); arms.push([(P[j][0] - P[i][0]) / L, (P[j][1] - P[i][1]) / L, r.w || 4, r.k]); }
+          while (j >= 0 && j < P.length && hyp2(P[j][0] - P[i][0], P[j][1] - P[i][1]) < 4) j += dir;
+          if (j >= 0 && j < P.length) { const L = hyp2(P[j][0] - P[i][0], P[j][1] - P[i][1]); arms.push([(P[j][0] - P[i][0]) / L, (P[j][1] - P[i][1]) / L, r.w || 4, r.k]); }
         }
         if (!arms.length) continue;
         const k = key(P[i][0], P[i][1]); let e = jm.get(k); if (!e) jm.set(k, e = { x: P[i][0], z: P[i][1], arms: [] });
@@ -418,7 +419,7 @@ export function createRoadWear(env) {
     const pt = (px, pz, nx, ny, nz, c, k) => B.v(px, gy(px, pz), pz, nx, ny, nz, c, k);
     for (let i = 0; i < n; i++) {
       const a = a0 + TAU * i / n, lx = Math.cos(a) * h.el, lz = Math.sin(a), wx = lx * cr - lz * sr, wz = lx * sr + lz * cr;
-      const rad = h.r * (0.78 + 0.44 * R()), ol = Math.hypot(wx, wz), ox = wx / ol, oz = wz / ol, sf = ox * SUNH[0] + oz * SUNH[1];   // sf +1: on the sunward (west) side
+      const rad = h.r * (0.78 + 0.44 * R()), ol = hyp2(wx, wz), ox = wx / ol, oz = wz / ol, sf = ox * SUNH[0] + oz * SUNH[1];   // sf +1: on the sunward (west) side
       const p1x = h.x + wx * rad, p1z = h.z + wz * rad, p2x = h.x + wx * rad * 0.68, p2z = h.z + wz * rad * 0.68;
       if (crumble) {
         const wcw = wc0 * (0.4 + 1.5 * R()), p0x = p1x + ox * wcw, p0z = p1z + oz * wcw;
@@ -448,7 +449,7 @@ export function createRoadWear(env) {
     const n = pts.length / step, ids = [];
     for (let i = 0; i < n; i++) {
       const j0 = Math.max(0, i - 1), j1 = Math.min(n - 1, i + 1);
-      let dx = pts[j1 * step] - pts[j0 * step], dz = pts[j1 * step + 1] - pts[j0 * step + 1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+      let dx = pts[j1 * step] - pts[j0 * step], dz = pts[j1 * step + 1] - pts[j0 * step + 1]; const l = hyp2(dx, dz) || 1; dx /= l; dz /= l;
       const w = typeof width === 'function' ? width(i, pts) : width, x = pts[i * step], z = pts[i * step + 1], a = alphaFn ? alphaFn(i, pts) : 1;
       const yl = groundY(x - dz * w, z + dx * w) + (alphaFn ? MARK_LIFT : LIFT + 0.004), yr = groundY(x + dz * w, z - dx * w) + (alphaFn ? MARK_LIFT : LIFT + 0.004);
       ids.push(B.v(x - dz * w, yl, z + dx * w, 0, 1, 0, col, 1, a), B.v(x + dz * w, yr, z - dx * w, 0, 1, 0, col, 1, a));
@@ -529,7 +530,7 @@ export function createRoadWear(env) {
       const R = high ? -1 : rad;
       queue = [];
       for (const c of cells.values()) {
-        const dx = Math.max(c.x0 - cp.x, 0, cp.x - (c.x0 + CELL)), dz = Math.max(c.z0 - cp.z, 0, cp.z - (c.z0 + CELL)), d = Math.hypot(dx, dz);
+        const dx = Math.max(c.x0 - cp.x, 0, cp.x - (c.x0 + CELL)), dz = Math.max(c.z0 - cp.z, 0, cp.z - (c.z0 + CELL)), d = hyp2(dx, dz);
         c.dist = d;
         if (d <= R) { if (!c.built) queue.push(c); } else if (c.built && (R < 0 || d > R + 70)) unload(c);
       }
@@ -564,7 +565,7 @@ export function createRoadWear(env) {
       if (sk > 0.12 && speed > 2.5 && !env.raisedMask(x, z)) {
         w.t += dt;
         if (w.has) {
-          const dx = x - w.px, dz = z - w.pz, l = Math.hypot(dx, dz);
+          const dx = x - w.px, dz = z - w.pz, l = hyp2(dx, dz);
           if (l > 0.16) {
             if (l < 3) {   // a long jump (teleport, respawn) starts a new line instead
               const i = dhead; dhead = (dhead + 1) % DN; dlive = Math.min(DN, dlive + 1);

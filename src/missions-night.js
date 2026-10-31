@@ -122,7 +122,7 @@ export function createNightLife(h) {
       if (night && s.cd <= 0 && s.state === 'rock' && d < 32 && d > 1) { if ((dx * fx + dz * fz) / d > 0.85) s.lit += dt; else s.lit = Math.max(0, s.lit - 2 * dt); if (s.lit > 0.5 || s.horn) disturb(s); }
       else if (s.state === 'rock') s.lit = Math.max(0, s.lit - 2 * dt);
       let target = night && s.state === 'rock' ? 1 : 0;
-      if (s.state === 'angry') { s.at += dt; s.flash = s.at < 2.6 ? Math.max(0, Math.sin(s.at * 15)) * Math.exp(-s.at * 0.55) : 0; if (s.at > 7 && d > 30) { s.state = 'calm'; s.at = 0; } else if (s.at > 16) { s.state = 'calm'; s.at = 0; } }
+      if (s.state === 'angry') { s.at += dt; s.flash = s.at < 2.6 ? Math.max(0, Math.sin(s.at * 15)) * Math.exp(-s.at * 0.55) : 0; if (s.at > 8 || (s.at > 5 && d > 30)) { s.state = 'calm'; s.at = 0; } }
       else if (s.state === 'calm') { s.at += dt; s.flash = 0; if (s.at > 4) s.state = 'rock'; }
       s.amp += (target - s.amp) * Math.min(1, (target ? 0.6 : 6) * dt);
       if (s.amp > 0.01) {   // gentle rocking on the suspension, a little uneven

@@ -17,6 +17,7 @@
 //   other modules (src/missions.js) whether it is night.
 import * as THREE from 'three';
 import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, SCALE, PACK, ATLAS_ROWS, buildAtlas } from '../assets/peds/sprites.js';
+const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
 const TILE = 64, CPM = 2, TCELLS = TILE * CPM;          // tile size in metres, cells per metre, cells per tile side
@@ -84,12 +85,12 @@ export function createPedestrians(env) {
       const a = roadSegs.get(rgk(ix, iz)); if (!a) continue;
       for (const s of a) {
         const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (!l2) continue;
-        const t = clamp(((it.x - s[0]) * dx + (it.z - s[1]) * dz) / l2, 0, 1), d = Math.hypot(it.x - s[0] - dx * t, it.z - s[1] - dz * t);
+        const t = clamp(((it.x - s[0]) * dx + (it.z - s[1]) * dz) / l2, 0, 1), d = hyp2(it.x - s[0] - dx * t, it.z - s[1] - dz * t);
         if (d < bd) { bd = d; best = [s[0] + dx * t, s[1] + dz * t, dx, dz, s[4]]; }
       }
     }
     if (!best) continue;
-    const l = Math.hypot(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5;
+    const l = hyp2(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5;
     const cx = best[0], cz = best[1];
     const ring = [cx + tx * hw + nx * hl, cz + tz * hw + nz * hl, cx - tx * hw + nx * hl, cz - tz * hw + nz * hl, cx - tx * hw - nx * hl, cz - tz * hw - nz * hl, cx + tx * hw - nx * hl, cz + tz * hw - nz * hl];
     addPoly(2, [ring]);
@@ -142,7 +143,7 @@ export function createPedestrians(env) {
     const tx0 = Math.max(0, Math.floor((x - r - AX0) / TILE)), tx1 = Math.min(NTX - 1, Math.floor((x + r - AX0) / TILE));
     const tz0 = Math.max(0, Math.floor((z - r - AZ0) / TILE)), tz1 = Math.min(NTZ - 1, Math.floor((z + r - AZ0) / TILE));
     const need = [];
-    for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) if (!tiles[tz * NTX + tx]) need.push([Math.hypot(AX0 + (tx + 0.5) * TILE - x, AZ0 + (tz + 0.5) * TILE - z), tx, tz]);
+    for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) if (!tiles[tz * NTX + tx]) need.push([hyp2(AX0 + (tx + 0.5) * TILE - x, AZ0 + (tz + 0.5) * TILE - z), tx, tz]);
     need.sort((a, b) => a[0] - b[0]);
     for (const [, tx, tz] of need) { if (built && performance.now() - t0 > budgetMs) break; buildTile(tx, tz); built++; }
     return need.length - built;
@@ -155,7 +156,7 @@ export function createPedestrians(env) {
     const i0 = Math.max(0, Math.floor((x - r - AX0) / DC)), i1 = Math.min(DNX - 1, Math.floor((x + r - AX0) / DC));
     const j0 = Math.max(0, Math.floor((z - r - AZ0) / DC)), j1 = Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const d = Math.hypot(AX0 + (i + 0.5) * DC - x, AZ0 + (j + 0.5) * DC - z); if (d > r) continue;
+      const d = hyp2(AX0 + (i + 0.5) * DC - x, AZ0 + (j + 0.5) * DC - z); if (d > r) continue;
       const f = 1 - d / r, vv = BASE + (v - BASE) * Math.min(1, f * 1.6), k = j * DNX + i;
       if (vv > dn[k]) { dn[k] = vv; zo[k] = zn; }
     }
@@ -183,7 +184,7 @@ export function createPedestrians(env) {
       if (!v) continue;
       const p = r.p;
       for (let i = 0; i + 3 < p.length; i += 2) {
-        const dx = p[i + 2] - p[i], dz = p[i + 3] - p[i + 1], l = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(l / 8));
+        const dx = p[i + 2] - p[i], dz = p[i + 3] - p[i + 1], l = hyp2(dx, dz), n = Math.max(1, Math.ceil(l / 8));
         for (let s = 0; s <= n; s++) stamp(p[i] + dx * s / n, p[i + 1] + dz * s / n, rad, v, zn);
       }
     }
@@ -336,7 +337,7 @@ export function createPedestrians(env) {
     if (!sunScanned) { sunScanned = true; scene.traverse(o => { if (o.isDirectionalLight && !sunLight) sunLight = o; }); }
     if (!sunLight) return;
     const dx = sunLight.position.x - sunLight.target.position.x, dy = sunLight.position.y - sunLight.target.position.y, dz = sunLight.position.z - sunLight.target.position.z;
-    const l = Math.hypot(dx, dz); if (l < 1e-3 || dy <= 0) return;
+    const l = hyp2(dx, dz); if (l < 1e-3 || dy <= 0) return;
     sunH = [dx / l, dz / l]; sunTan = dy / l;
     shadowUniforms.uSunDir.value.set(-sunH[0], -sunH[1]);
   };
@@ -380,14 +381,14 @@ export function createPedestrians(env) {
     const R = quality.R;
     const a = Math.random() * TAU, rmin = initial ? 8 : R * 0.45, r = Math.sqrt(rmin * rmin + Math.random() * (R * R - rmin * rmin));
     let x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-    if (!initial) { const dx = x - cx, dz = z - cz, l = Math.hypot(dx, dz) || 1; if ((dx * camFwdX + dz * camFwdZ) / l > 0.5 && r < R * 0.85) return false; }
+    if (!initial) { const dx = x - cx, dz = z - cz, l = hyp2(dx, dz) || 1; if ((dx * camFwdX + dz * camFwdZ) / l > 0.5 && r < R * 0.85) return false; }
     let atIdle = false, face = 0;
     if (Math.random() < 0.28) {               // cluster around a cafe, bench or bus stop
       const ik = rgk(Math.floor(x / IG), Math.floor(z / IG)), arr = idleGrid.get(ik);
       if (arr) {
         const it = arr[(Math.random() * arr.length) | 0], b = Math.random() * TAU, d = rand(1.2, 2.6);
         const nx = it.x + Math.cos(b) * d, nz = it.z + Math.sin(b) * d;
-        if (Math.hypot(nx - cx, nz - cz) < R && cell(nx, nz) === 1) { x = nx; z = nz; atIdle = true; face = Math.atan2(it.x - nx, it.z - nz) + rand(-0.6, 0.6); }
+        if (hyp2(nx - cx, nz - cz) < R && cell(nx, nz) === 1) { x = nx; z = nz; atIdle = true; face = Math.atan2(it.x - nx, it.z - nz) + rand(-0.6, 0.6); }
       }
     }
     const cl = cell(x, z); if (!cl) return false;
@@ -397,7 +398,7 @@ export function createPedestrians(env) {
       const dn = densAt(x, z) * (cl === 2 ? (zoneAt(x, z) === 2 ? 1 : 0.35) : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
       if (Math.random() * MAXD > dn) return false;
     }
-    if (Math.hypot(x - car.x, z - car.z) < 3.5) return false;
+    if (hyp2(x - car.x, z - car.z) < 3.5) return false;
     // not on top of someone else
     for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - x) < 0.5 && Math.abs(Z[j] - z) < 0.5) return false;
     const zn = zoneAt(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
@@ -407,7 +408,7 @@ export function createPedestrians(env) {
       const k = 1 + ((Math.random() * 3) | 0);
       for (let m = 0; m < k && N.n < CAP; m++) {
         const b = Math.random() * TAU, d = rand(0.8, 1.3), nx = x + Math.cos(b) * d, nz = z + Math.sin(b) * d;
-        if (cell(nx, nz) !== 1 || Math.hypot(nx - car.x, nz - car.z) < 3.5) continue;
+        if (cell(nx, nz) !== 1 || hyp2(nx - car.x, nz - car.z) < 3.5) continue;
         let ok = true; for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - nx) < 0.5 && Math.abs(Z[j] - nz) < 0.5) { ok = false; break; }
         if (ok) addAgent(nx, nz, 1, zn, true, Math.atan2(x - nx, z - nz) + rand(-0.4, 0.4), rand(25, 90));
       }
@@ -533,13 +534,13 @@ export function createPedestrians(env) {
   function updateChairs(dt, cx0, cz0) {
     for (let k = chairs.length - 1; k >= 0; k--) {
       const c = chairs[k]; c.t += dt;
-      const sp = Math.hypot(c.vx, c.vz);
+      const sp = hyp2(c.vx, c.vz);
       if (sp > 0.05) {
         const nx = c.x + c.vx * dt, nz = c.z + c.vz * dt;
         if (cell(nx, nz)) { c.x = nx; c.z = nz; c.ph += sp * dt / 1.5; } else c.vx = c.vz = 0;
         const kf = Math.exp(-1.3 * dt); c.vx *= kf; c.vz *= kf;
       }
-      const d = Math.hypot(c.x - cx0, c.z - cz0);
+      const d = hyp2(c.x - cx0, c.z - cz0);
       if (c.dead || (c.keep && c.t > 3.2) || d > quality.R + 14 || (!c.keep && ((c.t > 30 && d > 35) || c.t > 150))) { chairs.splice(k, 1); continue; }
       c.y += (groundY(c.x, c.z) + (raisedMask(c.x, c.z) ? CURB : 0) - c.y) * Math.min(1, 14 * dt);
     }
@@ -548,11 +549,11 @@ export function createPedestrians(env) {
     const pos = aPos.array, A = aA.array, B = aB.array; let k = 0;
     for (const c of chairs) {
       const i = n + k; if (i >= CAP) break; k++;
-      const dxc = cpx - c.x, dzc = cpz - c.z, dist = Math.hypot(dxc, dzc) || 1, wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
+      const dxc = cpx - c.x, dzc = cpz - c.z, dist = hyp2(dxc, dzc) || 1, wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
       const s = wx * tx + wz * tz, cc = wx * tz - wz * tx, dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
       const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = c.keep ? 0 : u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
       pos[i * 3] = c.x; pos[i * 3 + 1] = c.y; pos[i * 3 + 2] = c.z;
-      A[i * 4] = dir * POSES + (Math.hypot(c.vx, c.vz) > 0.15 ? Math.floor((c.ph % 1) * 4) & 3 : 0); A[i * 4 + 1] = CHAIRV; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
+      A[i * 4] = dir * POSES + (hyp2(c.vx, c.vz) > 0.15 ? Math.floor((c.ph % 1) * 4) & 3 : 0); A[i * 4 + 1] = CHAIRV; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
       B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1;
     }
     return k;
@@ -582,7 +583,7 @@ export function createPedestrians(env) {
     for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
     if (VAR[i] === WCV) { heal(i, nx, nz); return; }
     ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i], undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
-    const sp = Math.min(Math.hypot(car.vx, car.vz), 16);
+    const sp = Math.min(hyp2(car.vx, car.vz), 16);
     const vy = 3.2 + sp * 0.12;
     VX[i] = car.vx * 0.55 + nx * 2.6; VZ[i] = car.vz * 0.55 + nz * 2.6; VY[i] = vy; TFLY[i] = 2 * vy / 12;
     RD[i] = (car.vx * nz - car.vz * nx) >= 0 ? 1 : -1; ROLL[i] = 0; HOP[i] = 0.05; V[i] = 0;
@@ -599,26 +600,26 @@ export function createPedestrians(env) {
     spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
     updateScripted(dt, cam);
     cx = cam.position.x; cz = cam.position.z;
-    cam.getWorldDirection(camQ); const fl = Math.hypot(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
+    cam.getWorldDirection(camQ); const fl = hyp2(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
     if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; return; }
     if ((frameNo & 15) === 1) readSun();
 
     // tiles around the camera: all of them at once on the first frame or after a jump, otherwise on a time budget
-    const jumped = Math.hypot(cx - lastCx, cz - lastCz) > 45;
+    const jumped = hyp2(cx - lastCx, cz - lastCz) > 45;
     if (!started || jumped) { ensureTilesAround(cx, cz, 70, 60); }
     else ensureTilesAround(cx, cz, R + 25, 1.5);
     lastCx = cx; lastCz = cz; jumpedNow = jumped;
 
     // despawn the far ones, and retarget the crowd size twice a second
-    for (let i = N.n - 1; i >= 0; i--) { if (Math.hypot(X[i] - cx, Z[i] - cz) > R + 14 || AGE[i] < -100) removeAt(i); }
+    for (let i = N.n - 1; i >= 0; i--) { if (hyp2(X[i] - cx, Z[i] - cz) > R + 14 || AGE[i] < -100) removeAt(i); }
     // dusk or dawn: whoever does not belong to the new crowd leaves (unseen ones at once, visible ones dissolve after a while)
     if (purgeT > 0) {
       purgeT -= dt; const wt = nightCrowd ? VWN : VW;
       for (let i = 0, left = 6; i < N.n && left > 0; i++) {
         const vi = VAR[i]; if (LEAVE[i] >= 0 || vi === HEALV || vi === CHAIRV || MIR[i] > 0) continue;
         let w = 0; for (let z = 0; z < 6; z++) w += wt[z][vi]; if (w > 0) continue;
-        const dx = X[i] - cx, dz = Z[i] - cz, d = Math.hypot(dx, dz) || 1, seen = d < 70 && (dx * camFwdX + dz * camFwdZ) / d > 0.15;
+        const dx = X[i] - cx, dz = Z[i] - cz, d = hyp2(dx, dz) || 1, seen = d < 70 && (dx * camFwdX + dz * camFwdZ) / d > 0.15;
         if (!seen || d > 55 || purgeT < 30) { LEAVE[i] = 1; left--; }
       }
     }
@@ -632,11 +633,11 @@ export function createPedestrians(env) {
       if ((tries & 7) === 0 && performance.now() - ts > budget) break;
     }
     // slowly thin out when there are far too many (e.g. after the crowd density dropped)
-    if (N.n > targetN * 1.25 + 6) { let far = -1, fd = 0; for (let i = 0; i < N.n; i++) { const d = Math.hypot(X[i] - cx, Z[i] - cz); if (d > fd) { fd = d; far = i; } } if (far >= 0 && fd > R * 0.7) AGE[far] = -999; }
+    if (N.n > targetN * 1.25 + 6) { let far = -1, fd = 0; for (let i = 0; i < N.n; i++) { const d = hyp2(X[i] - cx, Z[i] - cz); if (d > fd) { fd = d; far = i; } } if (far >= 0 && fd > R * 0.7) AGE[far] = -999; }
     started = true;
 
     agents = env.traffic && env.traffic.agents ? env.traffic.agents() || [] : [];
-    carSpd = Math.hypot(car.vx, car.vz);
+    carSpd = hyp2(car.vx, car.vz);
     stepDodgeChecks(dt);
 
     // spatial hash
@@ -677,7 +678,7 @@ export function createPedestrians(env) {
         const cdx = X[i] - car.x, cdz = Z[i] - car.z;
         if (cdx * cdx + cdz * cdz < 16) {
           // distance to the lapa's centre line (3.2 m long)
-          const al = clamp(cdx * sfx + cdz * sfz, -1.2, 1.2), qx = cdx - sfx * al, qz = cdz - sfz * al, qd = Math.hypot(qx, qz);
+          const al = clamp(cdx * sfx + cdz * sfz, -1.2, 1.2), qx = cdx - sfx * al, qz = cdz - sfz * al, qd = hyp2(qx, qz);
           if (qd < 1.7 && qd > 1e-4) pushOut(i, qx / qd, qz / qd, (1.7 - qd) * (1.5 + carSpd * 0.25) * dt * (carSpd > 0.3 ? 1 : 0.3));
         }
         if (st === IDLE || st === WAIT) { V[i] = Math.max(0, V[i] - 4 * dt); }
@@ -722,7 +723,7 @@ export function createPedestrians(env) {
     const pos = aPos.array, A = aA.array, B = aB.array, n = N.n;
     const cpx = cam.position.x, cpz = cam.position.z, fadeStart = R + 12;
     for (let i = 0; i < n; i++) {
-      const x = X[i], z = Z[i], st = ST[i], dxc = cpx - x, dzc = cpz - z, dist = Math.hypot(dxc, dzc) || 1;
+      const x = X[i], z = Z[i], st = ST[i], dxc = cpx - x, dzc = cpz - z, dist = hyp2(dxc, dzc) || 1;
       pos[i * 3] = x; pos[i * 3 + 1] = Y[i] + HOP[i]; pos[i * 3 + 2] = z;
       let dir, pose;
       if (st >= FLY) { dir = 0; pose = st === FLY ? 1 : 0; }
@@ -751,7 +752,7 @@ export function createPedestrians(env) {
   const COFF = [-1.0, 0, 1.0], CR = 0.72, PR = 0.3;
   function collidePlayer(c) {
     const n = N.n; if (!n) return;
-    const spd = Math.hypot(c.vx, c.vz), sfx2 = Math.sin(c.th), sfz2 = Math.cos(c.th);
+    const spd = hyp2(c.vx, c.vz), sfx2 = Math.sin(c.th), sfz2 = Math.cos(c.th);
     for (let i = 0; i < n; i++) {
       const dx0 = X[i] - c.x, dz0 = Z[i] - c.z;
       if (dx0 > 3 || dx0 < -3 || dz0 > 3 || dz0 < -3 || ST[i] >= FLY) continue;
@@ -827,7 +828,7 @@ export function createPedestrians(env) {
     const order = [];
     for (const c of scripted.values()) {
       if (c.state === 'walk') {
-        const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz), step = c.speed * dt;
+        const dx = c.tx - c.x, dz = c.tz - c.z, d = hyp2(dx, dz), step = c.speed * dt;
         if (d <= step + 0.02) { c.x = c.tx; c.z = c.tz; c.state = 'stand'; const cb = c.cb; c.cb = null; if (cb) { try { cb(c.id); } catch (e) { /* ignore */ } } }
         else { c.x += dx / d * step; c.z += dz / d * step; c.ph += step / 1.5; c.th += clamp(angDiff(Math.atan2(dx, dz), c.th), -7 * dt, 7 * dt); }
       }
@@ -850,7 +851,7 @@ export function createPedestrians(env) {
     for (const c of order) {
       const v = VARIANTS[c.v], i = k++, seatedNow = c.att && c.seated, leg = v.leg || 19;
       if (!seatedNow) standing++;
-      const dxc = cpx - c.x, dzc = cpz - c.z, dist = Math.hypot(dxc, dzc) || 1;
+      const dxc = cpx - c.x, dzc = cpz - c.z, dist = hyp2(dxc, dzc) || 1;
       let y = seatedNow ? c.hipY - leg * PX * c.size : (c.att ? c.hipY : c.y);
       if (c.bounce && !c.att) y += Math.abs(Math.sin(scriptClock * 6 + c.id)) * 0.16;
       sp[i * 3] = c.x; sp[i * 3 + 1] = y; sp[i * 3 + 2] = c.z;
