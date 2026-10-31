@@ -154,7 +154,7 @@ function pickWalls({ D, skip, drivable }) {
     for (let i = 0; i < n; i++) {
       const a = pts[i], c = pts[(i + 1) % n], dx = c[0] - a[0], dz = c[1] - a[1], L = Math.hypot(dx, dz);
       if (L < 5) continue;
-      const sc = .85 + rand() * .3, hw = 1.5 * sc, margin = hw + .7;
+      const sc = .85 + rand() * .3, hw = 1.65 * sc, margin = hw + .7;
       if (L < 2 * margin + .5) continue;
       const u = margin + rand() * (L - 2 * margin), tx0 = dx / L, tz0 = dz / L;
       let nx = sa > 0 ? tz0 : -tz0, nz = sa > 0 ? -tx0 : tx0;

@@ -27,6 +27,7 @@ const m = await import('./src/landmarks-city.js?' + Date.now());
 const want = (Q.get('lm') || '').toLowerCase();
 for (const l of m.CITY_LANDMARKS) {
   if (want && !l.name.toLowerCase().includes(want)) continue;
+  if (l.walls && Q.has('walls')) { const w = typeof l.walls === 'function' ? l.walls() : l.walls; console.log('WALLS', l.name, w.length, JSON.stringify(w.filter(s => s[1] < -4160 && s[1] > -4215 && s[3] < -4160).map(s => s.map(v => Math.round(v * 10) / 10)))); }
   try { const t0 = performance.now(); const o = l.build({}); scene.add(o); console.log('LM', l.name, 'tris', o.userData.tris, 'ms', Math.round(performance.now() - t0)); } catch (e) { console.error('LM FAIL', l.name, e.stack); }
 }
 if (Q.has('az')) { const bb = new THREE.Box3(); scene.traverse(o => { if (o.isMesh && o !== gm) bb.expandByObject(o); }); const c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3()), d = Math.max(sz.x, sz.z, sz.y * 1.4) * num('zoom', 1.5), az = num('az', 0) * Math.PI / 180, el = num('el', 25) * Math.PI / 180; cam.position.set(c.x + Math.sin(az) * Math.cos(el) * d, c.y + Math.sin(el) * d, c.z + Math.cos(az) * Math.cos(el) * d); cam.lookAt(c.x, c.y - sz.y * 0.1, c.z); }
