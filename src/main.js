@@ -39,6 +39,16 @@ const SPOTS = [
   ['Mercato del Capo', 38.1186189, 13.3540701],
   ['Piazza Bellini', 38.1149189, 13.3625335],
   ['Piazza San Domenico', 38.1188139, 13.3629446],
+  // outside the centro (whole-city tiles; Nominatim positions)
+  ...(WORLD ? [
+    ['Politeama (Piazza Ruggero Settimo)', 38.1247846, 13.3559943],
+    ['Via della Libertà', 38.1387821, 13.3465045],
+    ['Porta Felice e Foro Italico', 38.1195699, 13.3713217],
+    ['Stadio Renzo Barbera', 38.1528194, 13.3420112],
+    ['La Favorita (Palazzina Cinese)', 38.1667781, 13.3303513],
+    ['Santuario di Santa Rosalia', 38.1680111, 13.3518430],
+    ['Mondello (la piazza)', 38.2077898, 13.3266288],
+  ] : []),
 ];
 
 // ---------- renderer / scene ----------

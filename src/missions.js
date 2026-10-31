@@ -837,7 +837,7 @@ function build(env) {
   }
   const charHead = id => () => { const i = pedestrians.info(id); return i ? { x: i.x, y: i.y + 1.95, z: i.z } : { x: car.x, y: groundAt(car.x, car.z) + 2.4, z: car.z }; };
   function favUnavailable() {
-    if (!worldOn()) return T('Serve il mondo intero: apri con ?world=1', 'Needs the whole-city world: open with ?world=1');
+    if (!worldOn()) return T('Serve il mondo intero: togli ?world=0', 'Needs the whole-city world: drop ?world=0');
     if (!isNight()) return T('Il cliente esce solo di notte', 'The client only comes out at night');
     return '';
   }
