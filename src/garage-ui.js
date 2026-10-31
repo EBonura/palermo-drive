@@ -4,7 +4,7 @@
 //   Step 2  CUSTOMISE: one tab per category (colour, wheels, stance, trim, exhaust, spoiler, neon, stickers, horn, extras), only what fits that base.
 //           Hovering or focusing an option previews it on the model; clicking an owned option fits it, clicking a new one asks to buy it.
 // Every base keeps its own setup (src/garage.js). Money comes from fares ("Turisti affamati" credits src/garage.js).
-// Test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon
+// Test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon&gfix&gat=LAT,LON
 import { garage, LIVERIES, PALETTE, categoriesFor, partOpts, partById, vehicleById, customLivery, parseLivery, lookKey } from './garage.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -135,7 +135,7 @@ const FOCUS = {
   stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
 };
 
-export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExit }) {
+export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExit, placeAt, proj }) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.append(style);
   const root = screen.querySelector('.gx-root');
   button.hidden = false;
@@ -359,6 +359,7 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
     enter() {
       entered = true; sel = Q.get('gveh') && vehicleById(Q.get('gveh')) ? vehicleById(Q.get('gveh')).id : garage.type; pending = null; hv = null; popT = 0;
       vehicle.setShowcase(true); cam.a = vehicle.car.th + 2.4; cam.orbit = cam.a;
+      if (Q.has('gat') && placeAt && proj) { const [la, lo] = Q.get('gat').split(',').map(Number); const [x, z] = proj(la, lo); placeAt(x, z); }   // test link: show the garage at a place
       step = 1; paintAll(); showPreview();
       if (Q.get('gstep') === '2' && garage.ownsVehicle(sel)) toStep(2);
     },
@@ -378,14 +379,24 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
       const F = step === 2 && FOCUS[cat] ? FOCUS[cat] : { mode: 'orbit', d: 8.4, h: 3.0, ly: 0.75 };
       if (!Q.has('gfix')) cam.orbit += dt * 0.32;   // ?gfix freezes the turn (screenshots)
       const want = F.mode === 'rear' ? car.th + Math.PI + Math.sin(sec * 0.4) * 0.45 : F.mode === 'side' ? car.th + 1.25 + Math.sin(sec * 0.4) * 0.3 : cam.orbit;
-      // swing round walls: from the wanted angle, the nearest one with a clear line of sight to the vehicle (and a shorter lens if none)
-      const clear = (a, d) => !vehicle.sightClear || vehicle.sightClear(car.x, car.z, car.x + Math.sin(a) * d, car.z + Math.cos(a) * d);
-      const dd = F.d * k;
-      let goal = want, dist = dd;
-      if (!clear(want, dd)) {
-        let found = false;
-        for (let n = 1; n <= 12 && !found; n++) for (const sg of [1, -1]) { const a = want + sg * n * 0.26; if (clear(a, dd)) { goal = a; found = true; break; } }
-        if (!found) { dist = dd * 0.5; goal = want; for (let n = 0; n <= 12; n++) { const a = want + (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 0.26; if (clear(a, dist)) { goal = a; break; } } }
+      // Pick a clear view: test the real camera position (after the sideways shift for the panel) with a fan of rays towards the vehicle,
+      // so no wall sits in front of the lens. Nearest clear angle to the wanted one, then a shorter lens, else the least blocked.
+      const dd = F.d * k, sc = vehicle.sightClear;
+      const blocked = (a, d) => {
+        if (!sc) return 0;
+        const sa = Math.sin(a), ca = Math.cos(a), px = car.x + sa * d + ca * 0.36 * d, pz = car.z + ca * d - sa * 0.36 * d;   // camera position
+        let n = 0;
+        if (!sc(car.x, car.z, px, pz)) n += 2;                                    // the vehicle itself is hidden
+        for (const t of [-0.5, -0.2, 0.2, 0.5]) { const tx = car.x + ca * t * d * 0.8, tz = car.z - sa * t * d * 0.8; if (!sc(px, pz, tx, tz)) n++; }   // a fan across the view
+        return n;
+      };
+      let goal = want, dist = dd, best = blocked(want, dd);
+      if (best > 0) {
+        search: for (const f of [1, 0.75, 0.55, 0.4]) for (let n = 0; n <= 12; n++) for (const sg of n ? [1, -1] : [1]) {
+          const a = want + sg * n * 0.26, b = blocked(a, dd * f) + (f < 1 ? 0.5 : 0);
+          if (b < best) { best = b; goal = a; dist = dd * f; }
+          if (best < 0.5) break search;
+        }
       }
       const e = 1 - Math.exp(-3 * dt);
       cam.a += wrapA(goal - cam.a) * (F.mode === 'orbit' ? clamp(dt * 5, 0, 1) : e);

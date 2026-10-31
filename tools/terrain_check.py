@@ -225,22 +225,6 @@ class World:
         return (x0, z0, s, nx, nz, W, WH)
 
     # ---- the rendered terrain mesh ----
-    def bench_min(self, i, j, R):
-        """Per tile: the lowest road bench height within R metres of every bench cell neighbourhood (src/world.js terrainMesh, low detail)."""
-        import cv2
-        k = (i, j, R)
-        if k not in self.cache:
-            sh = self.get_shape(i, j)
-            if sh is None:
-                self.cache[k] = None
-            else:
-                x0, z0, s, nx, nz, W, WH = sh
-                h = np.where(W >= 0.999, WH, 1e9).astype(np.float32)
-                r = int(R // s)
-                ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
-                self.cache[k] = cv2.erode(h, ker, borderValue=1e9)
-        return self.cache[k]
-
     def vertex_h(self, i, j, X, Z, step, low):
         """Heights of the terrain mesh vertices of tile (i, j): groundY - 0.2; at low detail on a baked bench the lowest of the vertex and
         its 8 neighbours 5 m away (src/world.js terrainMesh), so a coarse cell never rises above a road on the slope."""
@@ -311,8 +295,12 @@ def check_road(W, r):
     grade = np.abs(hr[k6:] - hr[:-k6]) / (k6 * ds)
     for q in np.nonzero(grade > GRADE_MAX)[0]:
         flags.append(("grade", sd[q], float(grade[q]), cx[q], cz[q]))
-    med = running_median(hr, max(1, round(BUMP_WIN / ds)))
-    for q in np.nonzero(np.abs(hr - med) > BUMP_TOL)[0]:
+    hw = max(1, round(BUMP_WIN / ds))
+    med = running_median(hr, hw)
+    dev = np.abs(hr - med)
+    dev[:hw] = 0       # a one-sided window at the ends of a polyline (tile borders) is biased on any slope
+    dev[len(dev) - hw:] = 0
+    for q in np.nonzero(dev > BUMP_TOL)[0]:
         flags.append(("bump", sd[q], float(hr[q] - med[q]), cx[q], cz[q]))
     # lateral
     worst_mesh = np.zeros(n)
