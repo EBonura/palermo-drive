@@ -413,7 +413,7 @@ function buildAtlas() {
 }
 
 function atlasMaterial(tex, cutout) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: THREE.DoubleSide, alphaTest: cutout ? 0.45 : 0 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout ? 0.45 : 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uTex = { value: tex };
     sh.vertexShader = sh.vertexShader
@@ -428,7 +428,6 @@ function atlasMaterial(tex, cutout) {
         diffuseColor.rgb *= tc.rgb * mix(vec3(vl * 1.15), vColor, smoothstep(0.15, 0.32, lum));
         ${cutout ? 'diffuseColor.a *= tc.a;' : ''}`);
   };
-  m.shadowSide = THREE.BackSide; // keep the shadow pass at one side per triangle
   m.customProgramCacheKey = () => 'bldg' + (cutout ? 'c' : 'o');
   return m;
 }
