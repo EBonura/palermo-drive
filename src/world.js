@@ -579,7 +579,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (treeGeo) return treeGeo;
     const P = [], Nn = [], Cc = [], I = [];
     const col = (r, g, b) => new THREE.Color(r, g, b);
-    const trunk = col(0.3, 0.22, 0.15), leafA = col(0.14, 0.27, 0.13), leafB = col(0.19, 0.33, 0.15); // Aleppo and stone pines read dark, almost blue-green
+    const trunk = col(0.07, 0.045, 0.03), leafA = col(0.035, 0.085, 0.04), leafB = col(0.05, 0.115, 0.05); // linear values // Aleppo and stone pines read dark, almost blue-green
     const cone = (y0, y1, rad, sides, c) => {
       const base = P.length / 3;
       for (let i = 0; i < sides; i++) {
