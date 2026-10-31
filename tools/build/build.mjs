@@ -7,7 +7,7 @@
 //   - the other runtime assets copied (tooling and source-only files skipped)
 // The development tree and its import map / dev server are never touched.
 //
-// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist
+// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist   --src=<project dir>
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,8 +17,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDataBlobs } from './data.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../..');
 const flag = (k, d) => { const a = process.argv.find(x => x === '--' + k || x.startsWith('--' + k + '=')); return a ? (a.includes('=') ? a.split('=')[1] : true) : d; };
+const ROOT = path.resolve(flag('src', path.resolve(HERE, '../..')));   // --src=<dir> builds another checkout of the project
 const DATA_MODE = flag('data', 'bin');
 const OUT = path.resolve(ROOT, flag('out', 'dist'));
 const hash = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 10);

@@ -253,6 +253,7 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 // ---------- player car (src/vehicle.js) ----------
 const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts });
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
+world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
 // update(dt, camera) runs every frame while playing or on the title flyover; collidePlayer(car) runs
