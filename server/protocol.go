@@ -1,6 +1,7 @@
 package main
 
 // Palermo Drive relay protocol, version 1. All messages are WebSocket binary frames, little endian.
+// (Statistics use a separate plain HTTP endpoint, POST /ping, see stats.go.)
 //
 // Client to server
 //   0x01 INFO   [type][livery u8][nameLen u8][name utf8, at most 64 bytes]   on join and when name or livery change

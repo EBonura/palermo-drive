@@ -44,7 +44,7 @@ export function createShouts(camera) {
     el.textContent = text || pick();
     el.style.setProperty('--tilt', `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     layer.appendChild(el);
-    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0 });
+    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0 });
   }
 
   function update(dt) {
@@ -63,7 +63,11 @@ export function createShouts(camera) {
       if (behind) continue;
       const x = (v.x + 1) / 2 * w, y = (1 - v.y) / 2 * h;
       const pop = Math.min(1, s.t / 0.12), fade = Math.min(1, (LIFE - s.t) / 0.3);
-      s.el.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%) rotate(var(--tilt)) scale(${(0.6 + 0.4 * pop).toFixed(2)})`;
+      // Sit beside the speaker, on the side away from the screen centre, so the face and the road stay
+      // visible; the side is chosen once so the balloon doesn't flip while it follows them.
+      if (!s.side) { s.side = x < w / 2 ? -1 : 1; s.el.classList.add(s.side < 0 ? 'left' : 'right'); }
+      const ox = s.side * 18, ax = s.side < 0 ? -100 : 0;
+      s.el.style.transform = `translate(${(x + ox).toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${(0.6 + 0.4 * pop).toFixed(2)})`;
       s.el.style.opacity = fade.toFixed(2);
     }
   }

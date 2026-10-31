@@ -336,6 +336,23 @@ function build(env) {
       }`,
   }));
   mist.frustumCulled = false; mist.renderOrder = 7; scene.add(mist);
+  // The owner found the mist cluttered the screen: the route is still computed (it feeds the minimap
+  // line) but the puffs are no longer drawn. Guidance is the big arrow at the top of the screen.
+  mist.visible = false;
+  const topArrow = document.createElement('div');
+  topArrow.id = 'pm-toparrow';
+  topArrow.innerHTML = '<svg viewBox="0 0 64 64"><path d="M32 4 L56 52 L32 40 L8 52 Z" fill="#e8559a" stroke="#120a0e" stroke-width="5" stroke-linejoin="round"/><path d="M32 4 L56 52 L32 40 L8 52 Z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg><b></b>';
+  document.body.appendChild(topArrow);
+  const topArrowSvg = topArrow.querySelector('svg'), topArrowDist = topArrow.querySelector('b');
+  const topCss = document.createElement('style');
+  topCss.textContent = `#pm-toparrow { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%);
+      z-index: 25; display: none; flex-direction: column; align-items: center; pointer-events: none; }
+    #pm-toparrow.on { display: flex; }
+    #pm-toparrow svg { width: clamp(44px, 9vh, 64px); height: clamp(44px, 9vh, 64px); filter: drop-shadow(0 2px 4px rgba(0,0,0,.6)); transition: transform .08s linear; }
+    #pm-toparrow b { margin-top: 2px; font: 800 clamp(12px, 2.4vh, 16px) 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff;
+      background: rgba(18,10,14,.7); padding: 1px 7px; border-radius: 6px; text-shadow: none; }
+    html.pd-title #pm-toparrow { display: none !important; }`;
+  document.head.appendChild(topCss);
   let guideOn = false;
   function guideTo(x, z) { guideOn = true; if (Math.hypot(x - route.tx, z - route.tz) > 1) { route.tx = x; route.tz = z; route.cool = 0; route.pts = null; } }
   function guideOff() { guideOn = false; clearRoute(); }
@@ -720,11 +737,16 @@ function build(env) {
     let tx = 0, tz = 0, show = false;
     if (f && (S.phase === 'seek' || S.phase === 'board')) { tx = f.pick.x; tz = f.pick.z; show = true; }
     else if (f && S.phase === 'ride') { tx = f.dest.x; tz = f.dest.z; show = true; }
-    // small compass in the card (the road itself is guided by the mist trail)
+    // compass in the card plus the big arrow at the top of the screen
+    topArrow.classList.toggle('on', show && S.phase !== 'board');
     if (show) {
       const brg = Math.atan2(tx - car.x, tz - car.z);
       camera.getWorldDirection(_d);
-      elArrow.style.transform = `rotate(${(Math.atan2(_d.x, _d.z) - brg) * -180 / Math.PI}deg)`;
+      const rot = `rotate(${(Math.atan2(_d.x, _d.z) - brg) * -180 / Math.PI}deg)`;
+      elArrow.style.transform = rot;
+      topArrowSvg.style.transform = rot;
+      const dist = Math.hypot(tx - car.x, tz - car.z);
+      topArrowDist.textContent = dist < 1000 ? `${Math.round(dist / 10) * 10} m` : `${(dist / 1000).toFixed(1)} km`;
     }
     if (show) guideTo(tx, tz); else guideOff();
     if ((hudAcc -= dt) > 0) return;

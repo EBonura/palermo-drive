@@ -261,12 +261,14 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 
 /* Speech balloons from src/shouts.js: comic style, readable on a phone. */
 .shouts { position: fixed; inset: 0; pointer-events: none; z-index: 40; overflow: hidden; }
-.shout { position: absolute; left: 0; top: 0; max-width: min(46vw, 260px); padding: 7px 11px 8px;
-  background: #fff; color: #120a0e; border: 3px solid #120a0e; border-radius: 16px;
+.shout { position: absolute; left: 0; top: 0; max-width: min(40vw, 240px); padding: 6px 10px 7px;
+  background: rgba(255,255,255,.72); color: #120a0e; border: 2.5px solid rgba(18,10,14,.85); border-radius: 16px;
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
   font: 800 clamp(13px, 2.4vw, 18px)/1.15 system-ui, sans-serif; text-align: center;
-  box-shadow: 4px 4px 0 #e8559a; will-change: transform, opacity; white-space: normal; }
-.shout::after { content: ''; position: absolute; left: 50%; bottom: -14px; margin-left: -6px;
-  border: 8px solid transparent; border-top: 12px solid #120a0e; border-bottom: 0; }
+  box-shadow: 3px 3px 0 rgba(232,85,154,.7); will-change: transform, opacity; white-space: normal; }
+.shout::after { content: ''; position: absolute; bottom: -12px; border: 7px solid transparent; border-top: 11px solid rgba(18,10,14,.85); border-bottom: 0; }
+.shout.right::after { left: 6px; transform: skewX(30deg); }   /* balloon to the right: tail points back left to the head */
+.shout.left::after { right: 6px; transform: skewX(-30deg); }
 
 /* ---------- start picker ---------- */
 .pd-s-start { justify-content: flex-end; }
@@ -278,3 +280,11 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 .pd-start .pd-h .pd-l2 { display: block; margin: 5px 0 0; }
 .pd-start .pd-h { white-space: normal; }
 html.touch #pd-ui:is([data-screen=start], [data-screen=garage], [data-screen=options], [data-screen=credits]) .pd-fsbtn.ok { display: none; }
+
+/* Studio credit on the title screen: "a game by" over the Bonnie Studios logo (white on transparent). */
+.pd-by { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+  padding: 8px 10px 10px; border-radius: 12px; background: rgba(11,7,9,.62); box-shadow: 0 0 0 1px rgba(232,85,154,.35); }
+.pd-by span { font: 600 clamp(10px, 1.8vh, 13px) 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .22em;
+  text-transform: uppercase; color: #f5a9c9; }
+.pd-by img { width: clamp(60px, 13vh, 110px); height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
