@@ -51,13 +51,13 @@ SOURCES = [
          fix=[('poly', [[1360, 835], [1535, 835], [1540, 1365], [1360, 1365]]),
               ('poly', [[340, 1040], [462, 1040], [462, 1200], [340, 1200]]),
               ('poly', [[700, 1035], [952, 1035], [952, 1215], [700, 1215]])]),
-    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], split=2, auto=True,
+    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], split=2, auto=True, v0=0.07,
          title='Palermo, Palazzo Jung 01.jpg', dw=1920,
          quad=[[95, 408], [1945, 288], [2414, 1084], [-183, 1029]],   # verticals through the vanishing point (925, -1443)
          fix=[('poly', [[790, 1005], [948, 1005], [948, 1132], [790, 1132]]),
               ('poly', [[0, 995], [240, 995], [240, 1100], [0, 1100]]),
               ('poly', [[1628, 995], [1920, 995], [1920, 1125], [1628, 1125]]),
-              ('poly', [[1500, 560], [1560, 560], [1640, 1100], [1580, 1100]]),
+              ('poly', [[1495, 555], [1565, 555], [1560, 610], [1640, 1100], [1596, 1100], [1530, 610]]),
               ('poly', [[205, 870], [255, 870], [250, 1090], [190, 1090]])]),
     dict(key='biondo', bid='w143740363', name='Teatro Biondo (Via Roma)', wall=1, cover=[0.22, 0.78], v0=0.135,
          title='Facciata del Teatro Biondo.jpg', dw=1920,
@@ -313,19 +313,18 @@ def shots():
         y0 = b['g'] + 5
         cx, cz = px + wi['n'][0] * d, pz + wi['n'][1] * d
         q = f"campos={cx:.1f},{y0:.1f},{cz:.1f}&look={px:.1f},{b['g'] + wi['H'] * .45:.1f},{pz:.1f}"
-        out = os.path.join(SHOTS, s['key'] + '_game.png')
-        log('shot', s['key'], q)
-        subprocess.run([os.path.join(ROOT, 'tools/shot.sh'), out, q], cwd=ROOT)
+        for tag, extra in (('photo', ''), ('proc', '&photomap=none')):   # photomap=none: procedural baseline
+            out = os.path.join(SHOTS, f"{s['key']}_{tag}.png")
+            log('shot', s['key'], tag, q)
+            subprocess.run([os.path.join(ROOT, 'tools/shot.sh'), out, q + extra], cwd=ROOT)
 
 
 def sheet():
     from PIL import ImageDraw
     D = load_data(); mp = json.load(open(os.path.join(OUT, 'map.json')))
-    cw, ch = 560, 330
+    cw, ch = 480, 290
     rows = []
     for s in SOURCES:
-        if s.get('split', 1) > 1 and s['key'] != s['key']:
-            continue
         m = meta_for(s)
         ph = cv2.imread(os.path.join(SRC, fname(s['title'])))
         k = ph.shape[1] / s['dw']
@@ -338,27 +337,29 @@ def sheet():
         # stitch split textures back together (in the order the viewer sees them)
         ims = [Image.open(os.path.join(ROOT, e['texture'])) for e in ents]
         if len(ims) > 1:
-            ims.sort(key=lambda im: 0)
             tw = sum(i.width for i in ims); tex = Image.new('RGB', (tw, ims[0].height)); x = 0
             order = sorted(range(len(ents)), key=lambda i: ents[i]['u0'], reverse=ents[0]['flip'])
             for i in order:
                 tex.paste(ims[i], (x, 0)); x += ims[i].width
         else:
             tex = ims[0]
-        gp = os.path.join(SHOTS, s['key'] + '_game.png')
-        game = Image.open(gp).convert('RGB') if os.path.exists(gp) else Image.new('RGB', (cw, ch), 'gray')
+        games = []
+        for tag in ('proc', 'photo'):
+            gp = os.path.join(SHOTS, f"{s['key']}_{tag}.png")
+            games.append(Image.open(gp).convert('RGB') if os.path.exists(gp) else Image.new('RGB', (cw, ch), 'gray'))
         cells = []
-        for im in (photo, tex, game):
+        for im in (photo, tex, *games):
             im = im.convert('RGB'); im.thumbnail((cw, ch)); c = Image.new('RGB', (cw, ch + 18), (30, 30, 30))
             c.paste(im, ((cw - im.width) // 2, 18 + (ch - im.height) // 2)); cells.append(c)
         d = [ImageDraw.Draw(c) for c in cells]
         d[0].text((4, 3), f"{s['name']}  |  photo ({m['lic']})", fill='white')
         d[1].text((4, 3), 'rectified texture (final size)', fill='white')
-        d[2].text((4, 3), 'in-game now (procedural)', fill='white')
-        row = Image.new('RGB', (cw * 3, ch + 18))
+        d[2].text((4, 3), 'in-game, procedural facade', fill='white')
+        d[3].text((4, 3), 'in-game, photo facade', fill='white')
+        row = Image.new('RGB', (cw * 4, ch + 18))
         for i, c in enumerate(cells): row.paste(c, (i * cw, 0))
         rows.append(row)
-    sh = Image.new('RGB', (cw * 3, (ch + 18) * len(rows)))
+    sh = Image.new('RGB', (cw * 4, (ch + 18) * len(rows)))
     for i, r in enumerate(rows): sh.paste(r, (0, i * (ch + 18)))
     sh.save(SHEET)
     log('wrote', SHEET, sh.size)

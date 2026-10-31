@@ -23,6 +23,11 @@
 - **Switch vehicle** (Hubert's idea): 3 lape (Calessino + the current liveries, a cargo Ape, an Ape 50) and
   3 motorbikes (a Vespa, a scooter like a Liberty/SH, a small motorbike), chosen in the Garage and maybe
   swapped in the street; bikes need their own handling and rider sprite/model.
+- **Tamarro tuning garage** (Hubert's ideas): "macchine tasce" (loud tuned small cars: lowered, big
+  exhausts, stickers, tinted windows, rims), SH-style big-wheel scooters (the Palermo classic; generic
+  look, no Honda badges), and modded Ape with spoilers (alettoni), underglow neon, chrome, spinners,
+  stickers, horn upgrades and subwoofers; parts and colours picked in the Garage, unlocked with fares.
+  Same vehicle system as the switch above, cosmetics as layered parts on each model.
 - Edge-of-screen hint when the taxi destination is behind you.
 
 ## Later (not in the current pass)

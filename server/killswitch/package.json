@@ -1,0 +1,12 @@
+{
+  "name": "palermo-drive-billing-killswitch",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Disables billing on the project when the budget is exceeded (Google's documented cost-cap pattern)",
+  "main": "index.js",
+  "engines": { "node": ">=20.0.0" },
+  "dependencies": {
+    "@google-cloud/billing": "^5.0.0",
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}

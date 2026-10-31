@@ -6,3 +6,7 @@ __pycache__/
 *.tmp.js
 .claude/
 .DS_Store
+# performance agent: build output and tool dependencies (dist/ is built by the Pages workflow)
+dist/
+node_modules/
+tools/build/.cache/

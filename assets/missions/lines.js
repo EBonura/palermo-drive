@@ -208,6 +208,9 @@ export const DESTS = [
     food_en: 'street food', food_de: 'Streetfood', food_fr: 'du street food' },
   { id: 'vucciria', name: 'Piazza Garraffello (Vucciria)', addr: 'Vucciria', lat: 38.1179401, lon: 13.3649292,
     food_en: 'street food', food_de: 'Streetfood', food_fr: 'du street food' },
+  // Suggested by Hubert; OSM/Nominatim: bar at Discesa Maccheronai 9, Vucciria.
+  { id: 'taverna', name: 'Taverna Azzurra', addr: 'Discesa Maccheronai 9, Vucciria', lat: 38.1176395, lon: 13.363446,
+    food_en: 'a drink at the old tavern', food_de: 'einen Drink in der alten Taverne', food_fr: 'un verre à la vieille taverne' },
 ];
 
 // where tourists wait (landmarks, the same coordinates as the teleport spots in main.js)

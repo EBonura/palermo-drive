@@ -1,0 +1,15 @@
+{
+  "name": "palermo-drive-build",
+  "private": true,
+  "type": "module",
+  "description": "Build pipeline (esbuild bundle, data codecs) and perf harness for Palermo Drive. Not used by the dev server.",
+  "scripts": {
+    "build": "node build.mjs",
+    "perf": "node ../perf/measure.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.187.0",
+    "puppeteer-core": "25.16.0"
+  }
+}
