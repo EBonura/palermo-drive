@@ -6,6 +6,13 @@
 //
 // Nothing happens (no DOM, no socket, no per-frame work) until a relay URL is set: RELAY_URL below, or ?relay=wss://host/ws
 // for testing. ?relay=off disables it. ?name=Foo sets the name for this page load only, ?room=xyz picks a private room.
+//
+// Two separate things talk to the relay:
+//  1. Anonymous play statistics: a random id kept in localStorage and a tiny HTTP POST (/ping) when a session starts, about
+//     every 3 minutes of active play, and when the page is hidden. No name, no IP is stored. The answer says whether
+//     multiplayer is open (the relay stops accepting WebSockets when it nears its monthly free-tier budget).
+//  2. The WebSocket, open only while the game is in 'play' (not on menus or pause), the tab is visible and the player did
+//     something in the last 2 minutes. Every open second counts against the relay's free-tier budget.
 import * as THREE from 'three';
 
 const RELAY_URL = ''; // wss://<cloud-run-host>/ws once the relay is deployed (see server/DEPLOY.md)
@@ -16,7 +23,11 @@ const PROTO = 1;
 const SEND_MS = 100;           // state send interval (only when something changed)
 const PING_MS = 10000;         // keep-alive when we have nothing to say
 const DEAD_MS = 30000;         // server sends something at least every 10 s
-const HIDDEN_MS = 20000;       // leave the relay when the tab has been in the background this long
+const HIDDEN_MS = 5000;        // leave the relay when the tab has been in the background this long
+const MENU_MS = 10000;         // ... or the game has been paused / on a menu this long
+const INPUT_MS = 120000;       // ... or the player has not touched anything this long
+const BEAT_S = 180;            // seconds of active play between stats pings
+const PID_KEY = 'palermoDrive.pid.v1'; // random anonymous player id
 const DELAY = 150;             // interpolation buffer, ms
 const EXTRAP = 250;            // longest extrapolation, ms
 const FADE = 0.5;              // seconds
@@ -95,9 +106,10 @@ export function createNet(env) {
   };
 
   // ---------- state ----------
-  let started = false, startT = 0, ws = null, status = 'idle', attempts = 0, retryT = 0, everOnline = false;
+  let started = false, ws = null, status = 'idle', attempts = 0, retryT = 0, everOnline = false;
+  let mp = null, promptShown = false, activeSec = 0, lastPlay = 0, lastInput = performance.now(), pingTimer = 0, pingTries = 0;
   let myId = -1, count = 0, lastRecv = 0, lastSend = 0, lastSentState = null, lastInfoKey = '', sendAcc = 0;
-  let hiddenTimer = 0, sleeping = false, blocked = false;
+  let hiddenTimer = 0, sleeping = false, blocked = false, pingBusy = false;
   const remotes = new Map(), dying = [];
 
   if (params.has('netdebug')) window.__net = { remotes, dying, get status() { return status; }, get count() { return count; } }; // TEMP
@@ -114,6 +126,7 @@ export function createNet(env) {
   }
   function renderPill() {
     if (!pill) return;
+    pill.hidden = !(mp === true || store.name);
     const t = lang();
     const cls = status === 'online' ? 'on' : status === 'connecting' ? 'try' : 'off';
     pill.className = 'pdn-pill ' + cls;
@@ -143,27 +156,63 @@ export function createNet(env) {
       e.preventDefault();
       const name = input.value.replace(/\s+/g, ' ').trim().slice(0, 16);
       if (!name) { input.focus(); return; }
-      store.name = name; store.offline = false; save(); closeCard(); infoDirty(); goOnline();
+      store.name = name; store.offline = false; sleeping = false; attempts = 0; save(); closeCard(); infoDirty(); renderPill();
     });
     card.querySelector('.no').addEventListener('click', () => {
-      if (!editing) { store.offline = true; save(); goOffline(); }
+      if (!editing) { store.offline = true; save(); renderPill(); }
       closeCard();
     });
     const lnk = card.querySelector('.lnk');
-    if (lnk) lnk.addEventListener('click', () => { store.offline = !store.offline; save(); closeCard(); store.offline ? goOffline() : goOnline(); });
+    if (lnk) lnk.addEventListener('click', () => { store.offline = !store.offline; sleeping = false; attempts = 0; save(); closeCard(); renderPill(); });
     if (matchMedia('(pointer:fine)').matches) input.focus();
   }
 
+  // ---------- anonymous statistics (HTTP) ----------
+  const pid = (() => {
+    let id = ''; try { id = localStorage.getItem(PID_KEY) || ''; } catch (e) { /* ignore */ }
+    if (!/^[0-9a-f]{16,40}$/.test(id)) {
+      const a = new Uint8Array(16); (crypto || window.crypto).getRandomValues(a);
+      id = [...a].map(b => b.toString(16).padStart(2, '0')).join('');
+      try { localStorage.setItem(PID_KEY, id); } catch (e) { /* private mode: a new id each visit */ }
+    }
+    return id;
+  })();
+  const pingUrl = (() => { try { const u = new URL(relayUrl); u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'; u.pathname = '/ping'; u.search = ''; return u.href; } catch (e) { return ''; } })();
+  function onPingAnswer(j) {
+    const was = mp; mp = !!(j && j.mp === 1); pingTries = 0;
+    if (mp && !was && !store.name && !store.offline && !promptShown) { promptShown = true; setTimeout(() => { if (!store.name && !store.offline && !card) openName(); }, 1200); }
+    if (mp !== was) { ensureUI(); renderPill(); }
+  }
+  function ping(ev, secs, beacon) {
+    if (!pingUrl) return;
+    const sent = Math.round(secs || 0), body = pid + ',' + ev + (sent ? ',' + sent : '');
+    if (beacon) { try { if (navigator.sendBeacon(pingUrl, new Blob([body], { type: 'text/plain' }))) return; } catch (e) { /* fall through */ } }
+    pingBusy = true; if (ev === 'b') activeSec -= sent;
+    fetch(pingUrl, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true, cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(j => { pingBusy = false; onPingAnswer(j); })
+      .catch(code => {
+        pingBusy = false; if (ev === 'b') activeSec += sent; // credit it with the next ping
+        if (code === 429) return;
+        mp = false; if (pill) renderPill();
+        // relay unreachable: keep trying quietly, 5 s, 10 s ... up to 5 minutes between tries
+        clearTimeout(pingTimer); pingTimer = setTimeout(() => ping('b', 0), Math.min(300000, 5000 * 2 ** Math.min(pingTries++, 6)));
+      });
+  }
+  for (const ev of ['keydown', 'pointerdown', 'touchstart']) addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
+  addEventListener('pagehide', () => { if (started) ping('e', activeSec, true); });
+
   // ---------- connection ----------
+  // The WebSocket exists only while this is true: multiplayer open, a name chosen, playing (not on a menu or paused),
+  // tab visible, recent input. update() opens and closes the socket to match.
   const wanted = () => !!store.name && !store.offline && started && !blocked;
-  function goOnline() { sleeping = false; attempts = 0; if (!ws) connect(); }
-  function goOffline() {
+  function closeWs() {
     clearTimeout(retryT); retryT = 0;
     if (ws) { const w = ws; ws = null; w.onclose = null; try { w.close(1000); } catch (e) { /* ignore */ } }
-    dropAll(); setStatus('off');
+    dropAll(); myId = -1; count = 0; setStatus('off');
   }
   function connect() {
-    if (ws || !wanted() || document.hidden) return;
+    if (ws || document.hidden) return;
     clearTimeout(retryT); retryT = 0;
     ensureUI(); setStatus('connecting');
     let s;
@@ -176,16 +225,17 @@ export function createNet(env) {
       if (ws !== s) return;
       ws = null; dropAll(); myId = -1; count = 0;
       if (e.code === 4001) { sleeping = true; setStatus('off'); return; } // idle kick: reconnect when the player drives again
-      setStatus(wanted() ? 'connecting' : 'off');
+      if (e.code === 4003) { mp = false; setStatus('off'); return; }       // monthly free-tier budget reached: single player, pings go on
+      setStatus('connecting');
       scheduleRetry(e.code === 4002 || e.code === 1001);
     };
   }
   function scheduleRetry(soon) {
-    if (!wanted() || retryT) return;
+    if (retryT) return;
     // 1 s, 2 s, 4 s ... capped at 30 s (60 s if the relay has never answered), with jitter
     const base = soon ? 500 : Math.min(everOnline ? 30000 : 60000, 1000 * 2 ** Math.min(attempts, 6));
     attempts++;
-    retryT = setTimeout(() => { retryT = 0; connect(); }, base * (0.75 + Math.random() * 0.5));
+    retryT = setTimeout(() => { retryT = 0; if (wanted() && !ws) connect(); }, base * (0.75 + Math.random() * 0.5));
     if (!soon && attempts > 1) setStatus('off');
   }
 
@@ -223,7 +273,7 @@ export function createNet(env) {
     const now = performance.now();
     switch (dv.getUint8(0)) {
       case 0x20: // WELCOME
-        if (dv.getUint8(1) !== PROTO) { blocked = true; goOffline(); return; } // incompatible relay: stay quiet
+        if (dv.getUint8(1) !== PROTO) { blocked = true; return; } // incompatible relay: closed by update(), stay quiet
         myId = dv.getUint8(2); attempts = 0; everOnline = true; setStatus('online'); break;
       case 0x21: count = dv.getUint8(1); renderPill(); break;
       case 0x22: { // INFO
@@ -365,8 +415,10 @@ export function createNet(env) {
   // A background tab keeps no connection open (an open WebSocket keeps the Cloud Run instance billed).
   document.addEventListener('visibilitychange', () => {
     clearTimeout(hiddenTimer); hiddenTimer = 0;
-    if (document.hidden) { hiddenTimer = setTimeout(() => { if (document.hidden && ws) goOffline(); }, HIDDEN_MS); }
-    else if (wanted() && !ws) { sleeping = false; goOnline(); }
+    if (document.hidden) {
+      hiddenTimer = setTimeout(() => { if (document.hidden && ws) closeWs(); }, HIDDEN_MS);
+      if (started && activeSec > 5) { ping('b', activeSec, true); activeSec = 0; }
+    }
   });
 
   return {
@@ -374,17 +426,22 @@ export function createNet(env) {
     openName: () => openName(),
     get online() { return status === 'online'; },
     update(dt) {
+      const now = performance.now();
+      if (game.state === 'play') lastPlay = now;
       if (!started) {
         if (game.state !== 'play') return;
-        started = true; startT = performance.now();
-        if (store.name && !store.offline) { ensureUI(); connect(); }
-        else if (!store.offline) setTimeout(() => { if (!store.name && !store.offline && !card) openName(); }, 1500);
-        else ensureUI();
+        started = true; lastInput = now; ping('s', 0);
+        if (store.name) { ensureUI(); renderPill(); }
         return;
       }
-      const now = performance.now();
+      if (params.has('netdrive')) lastInput = now; // TEMP
+      const live = now - lastPlay < MENU_MS && !document.hidden && now - lastInput < INPUT_MS;
+      if (live && game.state === 'play') { activeSec += dt; if (activeSec >= BEAT_S && !pingBusy) ping('b', activeSec); }
       // wake up after an idle kick as soon as the player drives again
-      if (sleeping && wanted() && game.state === 'play' && Math.abs(car.vf || 0) > 1) goOnline();
+      if (sleeping && game.state === 'play' && Math.abs(car.vf || 0) > 1) { sleeping = false; attempts = 0; }
+      const want = wanted() && mp === true && live && !sleeping;
+      if (want) { if (!ws && !retryT) connect(); }
+      else if (ws || retryT || status === 'connecting') closeWs();
 
       if (ws && ws.readyState === 1) {
         if (now - lastRecv > DEAD_MS) { try { ws.close(); } catch (e) { /* ignore */ } }

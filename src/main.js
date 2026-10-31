@@ -369,6 +369,7 @@ const pedestrians = createPedestrians({ ...worldEnv, traffic });
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
 const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
+const mapRoute = []; // [x, z] points of the current route, drawn as a line on the minimap
 
 // ---------- minimap ----------
 const MM_SCALE = 1; // px per metre on the baked map
@@ -398,17 +399,30 @@ function drawMinimap() {
   mini.rotate(car.th - Math.PI);
   mini.scale(zoom, zoom);
   mini.drawImage(mapCanvas, -(car.x - mapCanvas.ox) * MM_SCALE, -(car.z - mapCanvas.oz) * MM_SCALE);
-  // Markers from other modules (missions, stigghiulari, other players): positions relative to the
-  // car in the same rotated frame as the map; off-map ones are pinned to the rim as arrows.
+  mini.restore();
+  // Markers from other modules (missions, stigghiulari, other players), drawn after restore() in plain
+  // screen space: rotate each offset by the same angle as the map (heading up), scale like the map.
+  // Off-map markers are pinned to the rim so the direction still reads.
+  const a = car.th - Math.PI, ca = Math.cos(a), sa = Math.sin(a), k = zoom * MM_SCALE;
+  const toMap = (x, z) => { const dx = (x - car.x) * k, dz = (z - car.z) * k; return [W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca]; };
+  if (mapRoute.length > 1) {
+    mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
+    mini.lineCap = mini.lineJoin = 'round';
+    for (const [w, c] of [[7, '#120a0e'], [4, '#e8559a']]) {
+      mini.strokeStyle = c; mini.lineWidth = w; mini.beginPath();
+      mapRoute.forEach(([x, z], i) => { const [px, pz] = toMap(x, z); i ? mini.lineTo(px, pz) : mini.moveTo(px, pz); });
+      mini.stroke();
+    }
+    mini.restore();
+  }
   for (const m of mapMarkers) {
-    const dx = (m.x - car.x) * zoom * MM_SCALE, dz = (m.z - car.z) * zoom * MM_SCALE, a = car.th - Math.PI;
-    let px = dx * Math.cos(a) - dz * Math.sin(a), pz = dx * Math.sin(a) + dz * Math.cos(a);
+    const dx = (m.x - car.x) * k, dz = (m.z - car.z) * k;
+    let px = dx * ca - dz * sa, pz = dx * sa + dz * ca;
     const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
     if (off) { px *= rim / r; pz *= rim / r; }
     mini.fillStyle = m.color || '#e8559a'; mini.strokeStyle = '#000'; mini.lineWidth = 1.5;
-    mini.beginPath(); mini.arc(px, pz, off ? 4 : (m.size || 5), 0, Math.PI * 2); mini.fill(); mini.stroke();
+    mini.beginPath(); mini.arc(W / 2 + px, W / 2 + pz, off ? 4 : (m.size || 5), 0, Math.PI * 2); mini.fill(); mini.stroke();
   }
-  mini.restore();
   mini.fillStyle = '#c41e2a'; mini.strokeStyle = '#fff'; mini.lineWidth = 2;
   mini.beginPath(); mini.moveTo(W / 2, W / 2 - 9); mini.lineTo(W / 2 + 6, W / 2 + 7); mini.lineTo(W / 2 - 6, W / 2 + 7); mini.closePath(); mini.fill(); mini.stroke();
 }
@@ -483,7 +497,7 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 // ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
 // Both get the world, the player and the shell state. update(dt) runs every frame (missions only while
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
-const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, placeAt, proj });
+const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
 applySettings();

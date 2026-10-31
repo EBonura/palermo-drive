@@ -243,7 +243,7 @@ function build(env) {
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: false }); g.rotateX(Math.PI / 2); g.translate(0, 0.08, 0);
     const a = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff4fa3, depthTest: false, toneMapped: false })); a.renderOrder = 11;
     const o = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x0b0709, depthTest: false, toneMapped: false })); o.scale.set(1.28, 1.6, 1.28); o.renderOrder = 10;
-    arrow.add(o, a); arrow.scale.setScalar(0.5); arrow.rotation.order = 'YXZ';
+    arrow.add(o, a); arrow.scale.setScalar(0.36); arrow.rotation.order = 'YXZ';
   }
 
   // ------------------------------------------------------------------------------------ minimap markers
@@ -601,7 +601,7 @@ function build(env) {
     arrow.visible = show && camera.position.distanceTo(_d.set(car.x, camera.position.y, car.z)) > 0 && (vehicle.camState ? vehicle.camState.mode !== 2 : true);
     if (show) {
       const brg = Math.atan2(tx - car.x, tz - car.z);
-      arrow.position.set(car.x, groundY(car.x, car.z) + car.lift + 3.5 + Math.sin(now() * 3) * 0.12, car.z); arrow.rotation.y = brg; arrow.rotation.x = -0.75;
+      arrow.position.set(car.x, groundY(car.x, car.z) + car.lift + 3.2 + Math.sin(now() * 3) * 0.1, car.z); arrow.rotation.y = brg; arrow.rotation.x = -0.75;
       camera.getWorldDirection(_d);
       const rot = (Math.atan2(_d.x, _d.z) - brg) * 180 / Math.PI;
       elArrow.style.transform = `rotate(${(-rot).toFixed(1)}deg)`;
@@ -661,6 +661,5 @@ function build(env) {
 
   const api = { mode: 'free', setMode, update, stop, state: S };
   if (params.get('mode') === 'turisti') setMode('turisti');
-  if (params.has('mdebug')) window.__m = { S, vendors, car, newFare, P_PLACES, D_PLACES, snapRoad, finishFare };
   return api;
 }
