@@ -14,7 +14,9 @@ const touch = coarse || params.has('touch');
 // Phones: fewer pixels and a smaller shadow map. Desktop values are unchanged.
 export const QUALITY = { mobile: touch, pixelRatio: touch ? 1.25 : 2, shadowMap: touch ? 1024 : 4096 };
 
-const KEYS = ['KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space', 'ShiftLeft'];
+// Bulb-horn shape for the CLACSON pad.
+const HORN_ICON = '<svg viewBox="0 0 24 24"><path d="M3 10v4h3l7 5V5L6 10H3z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+const KEYS = ['KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space', 'ShiftLeft', 'KeyH'];
 
 const ICON = {
   left: '<svg viewBox="0 0 48 48"><path d="M28 10 14 24l14 14" /></svg>',
@@ -113,7 +115,7 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     pad('p-brake', 'KeyS', ICON.down, 'RETRO'),
     pad('p-gas', 'KeyW', ICON.up, 'GAS'),
     pad('p-nos', 'ShiftLeft', ICON.nos, 'NOS'),
-    pad('p-horn', 'KeyH', ICON.up, 'CLACSON'));
+    pad('p-horn', 'KeyH', HORN_ICON, 'CLACSON'));
   const small = el('div', 'tc-small');
   const btn = (act, icon, label) => el('button', 'sbtn', icon, { 'data-act': act, 'aria-label': label, type: 'button' });
   const bCam = btn('cam', ICON.cam, 'Camera');

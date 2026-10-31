@@ -444,6 +444,7 @@ export function createTraffic(env) {
       dist += en.len;
       if (dist > 70) break;
     }
+    if (v.hornT > 0) { v.hornT -= dt; v0 *= 0.55; }
     v0 = Math.max(v0, 0.6);
     if (v.stopT > 0) { v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
     if (v.dwell > 0) { v.dwell -= dt; if (v.dwell <= 0) v.si++; v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
@@ -521,6 +522,10 @@ export function createTraffic(env) {
       }
     }
     v.blocker = blocker; v.hold = hold; v.minGap = minGap; v.v0 = v0;
+    if (!v.filtO) { // make room for a honking lapa: edge towards the kerb where the road allows
+      let room = 0; if (v.hornT > 0) room = clamp(e0.w / 2 - 0.45 - ty.W / 2 - laneOff(e0, v), 0, 1.3);
+      v.latT = room;
+    }
     // scooters slip past slow traffic where the road is wide enough
     if (ty.scooter) {
       const fo = v.filtO;
@@ -539,6 +544,7 @@ export function createTraffic(env) {
   }
 
   function integrate(v, dt) {
+    if (v.fly) { stepFly(v, dt); return; }
     const ty = v.ty, route = v.route;
     v.stopT = Math.max(0, v.stopT - dt);
     v.v = Math.max(0, v.v + (v.acc || 0) * dt);
@@ -572,7 +578,7 @@ export function createTraffic(env) {
     // honks: the player is in the way, or a delayed one after a bump
     if (v.v < 0.5 && v.blocker === 'player') {
       v.blockT += dt;
-      if (v.blockT > 2.2) { v.blockT = -1.2; honk(v); if (Math.random() < 0.5) env.shout?.(v.x, groundY(v.x, v.z) + 1.6, v.z); }
+      if (v.blockT > 2.2) { v.blockT = -1.2; honk(v); if (Math.random() < 0.5) shoutAt(v); }
     } else if (v.blockT > 0) v.blockT = 0; else if (v.blockT < 0) v.blockT = Math.min(0, v.blockT + dt);
     if (v.honkAt > 0 && time >= v.honkAt) { v.honkAt = -1; honk(v); }
   }
@@ -583,6 +589,7 @@ export function createTraffic(env) {
     for (const e of touchedEdges) e.veh.length = 0;
     touchedEdges.length = 0;
     for (const v of vs) {
+      if (v.fly) continue;
       const e = v.route[0];
       if (!e.veh.length) touchedEdges.push(e);
       e.veh.push(v);
@@ -626,11 +633,27 @@ export function createTraffic(env) {
     }
   }
 
+  // ---------- the player's horn: vehicles ahead make room and sometimes answer ----------
+  addEventListener('pd-horn', ev => {
+    const d = ev.detail || {}, px = d.x ?? car.x, pz = d.z ?? car.z, r = d.r ?? 30, fx = Math.sin(car.th), fz = Math.cos(car.th);
+    for (const v of vs) {
+      if (v.fly) continue;
+      const dx = v.x - px, dz = v.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 > r * r || d2 < 1) continue;
+      const al = dx * fx + dz * fz, lt = dx * -fz + dz * fx;
+      if (al < 2 || Math.abs(lt) > 7) continue; // only those ahead of the lapa, roughly in its way
+      v.hornT = 3.2;
+      const roll = Math.random();
+      if (roll < 0.25) v.honkAt = time + 0.25 + Math.random() * 0.8;
+      else if (roll < 0.34) shoutAt(v);
+    }
+  });
+
   // ---------- step ----------
   function stepAll(dt) {
     time += dt;
     buildOcc();
-    for (let i = 0; i < vs.length; i++) control(vs[i], dt);
+    for (let i = 0; i < vs.length; i++) if (!vs[i].fly) control(vs[i], dt);
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
   }
   function cull(cx, cz) {
@@ -644,6 +667,7 @@ export function createTraffic(env) {
         if (!vis || v.stuck > 140) kill = d2 > 30 * 30;
       }
       if (!kill && d2 > R_KEEP_UNSEEN * R_KEEP_UNSEEN && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6 + 2)) kill = true;
+      if (v.hide && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6)) kill = true;
       if (kill) removeAt(i);
     }
   }
@@ -653,11 +677,11 @@ export function createTraffic(env) {
     agentsOut.length = 0;
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i], m = MESH[v.ty.model], n = m.count++;
-      const c = Math.cos(v.h), s = Math.sin(v.h), cr = Math.cos(v.roll), sr = Math.sin(v.roll), o = n * 16, A = m.instanceMatrix.array;
-      A[o] = c * cr; A[o + 1] = sr; A[o + 2] = -s * cr; A[o + 3] = 0;
-      A[o + 4] = -c * sr; A[o + 5] = cr; A[o + 6] = s * sr; A[o + 7] = 0;
-      A[o + 8] = s; A[o + 9] = 0; A[o + 10] = c; A[o + 11] = 0;
-      A[o + 12] = v.x; A[o + 13] = groundY(v.x, v.z); A[o + 14] = v.z; A[o + 15] = 1;
+      const c = Math.cos(v.h), s = Math.sin(v.h), cr = Math.cos(v.roll), sr = Math.sin(v.roll), pi = v.pitch || 0, cp = Math.cos(pi), sp = Math.sin(pi), o = n * 16, A = m.instanceMatrix.array;
+      A[o] = c * cr + s * sr * sp; A[o + 1] = sr * cp; A[o + 2] = -s * cr + c * sr * sp; A[o + 3] = 0;
+      A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
+      A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
+      A[o + 12] = v.x; A[o + 13] = groundY(v.x, v.z) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
       if (v.plan) SIGN_ROW.array[n] = v.plan.row;
       const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
       for (const [zo, r] of v.ty.circ) agentsOut.push({ x: v.x + s * zo, z: v.z + c * zo, r });
@@ -693,6 +717,64 @@ export function createTraffic(env) {
     if (DEBUG && !debugDone) { debugDone = true; runDebug(); }
   }
 
+  // ---------- speech balloons ----------
+  const headY = v => groundY(v.x, v.z) + (v.fly ? v.fly.y : 0) + 1.4;
+  const shoutAt = (v, text) => env.shout?.(v.x, headY(v), v.z, text, () => v.dead ? null : { x: v.x, y: headY(v), z: v.z });
+
+  // ---------- yeet: a hit vehicle is launched, tumbles, bounces, slides, rights itself ----------
+  const G = 9.81;
+  function launch(v, vx, vz, vy, chain) {
+    const sg = () => Math.random() < 0.5 ? -1 : 1;
+    v.fly = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + Math.random() * 4), sp: (Math.random() - 0.5) * 7, sr: sg() * (3 + Math.random() * 6),
+      bounces: 0, phase: 0, t: 0, chain, hit: new Set() };
+    v.v = 0; v.dwell = 0; v.filtO = null; v.stopT = 0; v.latT = 0;
+  }
+  function stepFly(v, dt) {
+    const f = v.fly, ty = v.ty;
+    f.t += dt;
+    const restY = 0.5 * (Math.abs(Math.sin(v.roll)) * ty.W + Math.abs(Math.sin(v.pitch || 0)) * ty.L * 0.35);
+    if (f.phase === 0) { // in the air or sliding
+      f.vy -= G * dt; f.y += f.vy * dt;
+      v.x += f.vx * dt; v.z += f.vz * dt;
+      v.h += f.yaw * dt; v.pitch = (v.pitch || 0) + f.sp * dt; v.roll += f.sr * dt;
+      const speed = Math.hypot(f.vx, f.vz);
+      if (f.y <= restY) {
+        f.y = restY;
+        if (f.vy < -1.8) { f.vy = -f.vy * 0.42; f.vx *= 0.72; f.vz *= 0.72; f.yaw *= 0.6; f.sp *= 0.5; f.sr *= 0.55; f.bounces++; }
+        else {
+          f.vy = 0; const k = Math.exp(-2.4 * dt); f.vx *= k; f.vz *= k; f.yaw *= Math.exp(-3 * dt); f.sp *= Math.exp(-5 * dt); f.sr *= Math.exp(-5 * dt);
+          if (speed < 0.6) { f.phase = 1; f.t = 0; v.roll = wrapPi(v.roll); v.pitch = wrapPi(v.pitch); }
+        }
+      }
+      if (f.y < 1.2 && speed > 5) { // chain reaction: hit another vehicle on the way
+        for (const o of vs) {
+          if (o === v || o.fly || f.hit.has(o.id) || f.chain >= 3 || o.ty.mass > 5) continue;
+          const dx = o.x - v.x, dz = o.z - v.z, rr = (ty.L + o.ty.L) * 0.32;
+          if (dx * dx + dz * dz > rr * rr) continue;
+          f.hit.add(o.id);
+          const k = (o.ty.mass <= 1.3 ? 0.8 : 0.5) * (ty.mass >= 1.5 ? 1.1 : 1), d = Math.hypot(dx, dz) || 1;
+          launch(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1);
+          f.vx *= 0.55; f.vz *= 0.55;
+          shoutAt(o);
+          break;
+        }
+      }
+      if (f.y <= restY + 0.01) wallPush(v);
+    } else if (f.phase === 1) { // lying there for a moment, then the driver rights it with a hop
+      const tilted = Math.abs(v.roll) > 0.35 || Math.abs(v.pitch) > 0.35;
+      if (f.t > (tilted ? 1.8 : 0.5)) { f.phase = 2; f.t = 0; f.r0 = v.roll; f.p0 = v.pitch; }
+    } else {
+      const u = Math.min(1, f.t / 0.7), e = u * u * (3 - 2 * u);
+      v.roll = f.r0 * (1 - e); v.pitch = f.p0 * (1 - e);
+      f.y = 0.45 * Math.sin(u * Math.PI);
+      if (u >= 1) {
+        v.fly = null; v.roll = 0; v.pitch = 0; v.v = 0; v.stopT = 0.4; v.stuck = 0; v.honkAt = time + 0.3;
+        const e0 = v.route[0], lat = Math.abs((v.x - NX[e0.a]) * e0.rx + (v.z - NZ[e0.a]) * e0.rz);
+        if (lat > 6) v.hide = true; // too far off the road: goes away once nobody is looking
+      }
+    }
+  }
+
   // ---------- the player ----------
   const PR = 0.74, PAX = 0.72, I_YAW = 1.7, E = 0.25;
   function wallPush(v) {
@@ -710,7 +792,7 @@ export function createTraffic(env) {
     const sn = Math.sin(pc.th), cs = Math.cos(pc.th);
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i], ty = v.ty, dx = v.x - pc.x, dz = v.z - pc.z, reach = ty.L / 2 + 2.6;
-      if (dx * dx + dz * dz > reach * reach) continue;
+      if (v.fly || dx * dx + dz * dz > reach * reach) continue;
       let touched = false;
       const vsn = Math.sin(v.h), vcs = Math.cos(v.h);
       for (let sg = 0; sg < 2; sg++) {
@@ -722,10 +804,20 @@ export function createTraffic(env) {
           if (d >= rs) continue;
           touched = true;
           if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
-          const pen = rs - d, mp = 1, mv = ty.mass, shP = mv / (mp + mv), shV = mp / (mp + mv);
-          pc.x += nx * pen * shP; pc.z += nz * pen * shP; v.x -= nx * pen * shV; v.z -= nz * pen * shV;
-          const lx = cs, lz = -sn;
+          const pen = rs - d, mp = 1, mv = ty.mass, lx = cs, lz = -sn;
           const vn = (pc.vx + pc.w * a * lx - (vsn * v.v + v.ex)) * nx + (pc.vz + pc.w * a * lz - (vcs * v.v + v.ez)) * nz;
+          if (vn < -4 && mv < 5) { // YEET: the vehicle is launched, the lapa only gets a light knock
+            const rel = -vn, sc = mv <= 1.3 ? 1 : 0.65, pv = Math.hypot(pc.vx, pc.vz) || 1;
+            let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = Math.hypot(ux, uz) || 1; ux /= um; uz /= um;
+            const hs = clamp(rel * 1.15 + 2, 5, 24) * sc;
+            launch(v, ux * hs, uz * hs, clamp(3.8 + rel * 0.5, 4.5, 11) * sc, 0);
+            v.x -= nx * pen; v.z -= nz * pen;
+            const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
+            shoutAt(v); v.honkAt = time + 0.5;
+            return;
+          }
+          const shP = mv / (mp + mv), shV = mp / (mp + mv);
+          pc.x += nx * pen * shP; pc.z += nz * pen * shP; v.x -= nx * pen * shV; v.z -= nz * pen * shV;
           if (vn < 0) {
             const arm = a * (lx * nx + lz * nz), j = -(1 + E) * vn / (1 / mp + 1 / mv + arm * arm / I_YAW);
             pc.vx += j / mp * nx; pc.vz += j / mp * nz; pc.w = clamp(pc.w + clamp(j * arm / I_YAW * 0.7, -1.6, 1.6), -3.2, 3.2);
@@ -736,7 +828,7 @@ export function createTraffic(env) {
         }
       }
       if (touched) {
-        if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; env.shout?.(v.x, groundY(v.x, v.z) + 1.6, v.z); }
+        if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; shoutAt(v); }
         v.stopT = Math.max(v.stopT, 1.0 + Math.random() * 0.8);
         wallPush(v);
       }
@@ -797,6 +889,17 @@ export function createTraffic(env) {
       camera.updateMatrixWorld = f => { camera.position.set(v.x + fx * 10 - fz * 1.2, groundY(v.x, v.z) + 3.4, v.z + fz * 10 + fx * 1.2); camera.lookAt(v.x, groundY(v.x, v.z) + 1.6, v.z); o(f); };
     }
     console.log('TRAFFIC busSpawned ' + dbgBus + ' dwells ' + dbgDwell + ' plans ' + PLANS.length + ' planStops ' + PLANS.reduce((q, p) => q + p.stops.length, 0) + ' ' + PLANS.map(p => p.ref + ':' + p.edges.length + 'e/' + p.stops.length + 's').join(' '));
+    { // player collision test: ram the nearest hatchback at 9 m/s
+      const tv = vs.find(v => v.name === 'panda' || v.name === 'punto'), sh = [];
+      if (tv) {
+        env.shout = (...a) => sh.push(a.length);
+        const fx = Math.sin(tv.h), fz = Math.cos(tv.h);
+        Object.assign(car, { x: tv.x - fx * 6, z: tv.z - fz * 6, th: tv.h, vx: fx * 9, vz: fz * 9, vf: 9, w: 0 });
+        const r0 = [tv.v, tv.x, tv.z];
+        for (let i = 0; i < 240; i++) { car.x += car.vx / 120; car.z += car.vz / 120; collidePlayer(car); if (i % 40 === 0) update(1 / 120, cam); }
+        console.log(`TRAFFIC ramtest carV=${Math.hypot(car.vx, car.vz).toFixed(1)} vfAfter=${car.vf.toFixed(1)} w=${car.w.toFixed(2)} target v ${r0[0].toFixed(1)}->${tv.v.toFixed(1)} stopT=${tv.stopT.toFixed(1)} moved=${Math.hypot(tv.x - r0[1], tv.z - r0[2]).toFixed(1)}m gapNow=${Math.hypot(car.x - tv.x, car.z - tv.z).toFixed(1)} shouts=${sh.length}`);
+      }
+    }
     console.log('TRAFFIC ovsamples ' + ovs.join(' || '));
     console.log('TRAFFIC overlaps ' + JSON.stringify(ovk));
     console.log('TRAFFIC roots ' + JSON.stringify(roots));

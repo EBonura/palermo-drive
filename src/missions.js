@@ -187,7 +187,7 @@ function build(env) {
   const BEAM_V = `varying float vH; void main() { vH = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
   const BEAM_F = `uniform float uTime; uniform vec3 uCol; uniform float uAlpha; varying float vH;
     void main() {
-      float a = smoothstep(0.0, 0.12, vH) * pow(1.0 - vH, 1.3) * 0.6 * (0.8 + 0.2 * sin(uTime * 2.0 + vH * 9.0));
+      float a = smoothstep(0.0, 0.12, vH) * pow(1.0 - vH, 1.2) * 0.55 * (0.8 + 0.2 * sin(uTime * 2.0 + vH * 9.0));
       gl_FragColor = vec4(uCol, a * uAlpha);
     }`;
   const beacons = [];
@@ -210,7 +210,7 @@ function build(env) {
     let beam = null;
     if (opt.beam !== false) {
       const H = opt.height || 90, bg = new THREE.CylinderGeometry(1.8, 1.3, H, 20, 1, true); bg.translate(0, H / 2, 0);
-      beam = new THREE.Mesh(bg, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+      beam = new THREE.Mesh(bg, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
       beam.frustumCulled = false; beam.renderOrder = 4; group.add(beam);
     }
     const b = {
@@ -218,7 +218,6 @@ function build(env) {
       set(x, z) {
         b.x = x; b.z = z;
         const p = geo.attributes.position.array;
-        const rv = (i, j) => { const f = i === 0 ? 0 : fr[i], a = (j / seg) * TAU; return [x + Math.cos(a) * f * R, z + Math.sin(a) * f * R]; };
         p.set([x, groundAt(x, z) + 0.14, z], 0);
         for (let i = 0; i < fr.length - 1; i++) for (let j = 0; j < seg; j++) {
           const a = (j / seg) * TAU, f = fr[i + 1], px = x + Math.cos(a) * f * R, pz = z + Math.sin(a) * f * R;
@@ -242,7 +241,7 @@ function build(env) {
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: false }); g.rotateX(Math.PI / 2); g.translate(0, 0.08, 0);
     const a = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff4fa3, depthTest: false, toneMapped: false })); a.renderOrder = 11;
     const o = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x0b0709, depthTest: false, toneMapped: false })); o.scale.set(1.28, 1.6, 1.28); o.renderOrder = 10;
-    arrow.add(o, a); arrow.scale.setScalar(0.85);
+    arrow.add(o, a); arrow.scale.setScalar(0.5); arrow.rotation.order = 'YXZ';
   }
 
   // ------------------------------------------------------------------------------------ minimap markers
@@ -313,7 +312,7 @@ function build(env) {
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9, fog: false }));
     glow.scale.set(2.0, 1.2, 1); glow.position.set(0, 1.15, 0); g.add(glow);
     // vendor
-    const vwx = px + (-sn.dz * -side.s) * 0, vx0 = Math.sin(theta + Math.PI / 2), vz0 = Math.cos(theta + Math.PI / 2);   // world direction of local +x
+    const vx0 = Math.sin(theta + Math.PI / 2), vz0 = Math.cos(theta + Math.PI / 2);   // world direction of local +x
     const cid = pedestrians.spawnScripted(o.skin || 'vendor', px - vx0 * 0.95, pz - vz0 * 0.95);
     if (cid >= 0) pedestrians.face(cid, px + vx0, pz + vz0);
     // collision: a small box around brazier and counter
@@ -600,7 +599,7 @@ function build(env) {
     arrow.visible = show && camera.position.distanceTo(_d.set(car.x, camera.position.y, car.z)) > 0 && (vehicle.camState ? vehicle.camState.mode !== 2 : true);
     if (show) {
       const brg = Math.atan2(tx - car.x, tz - car.z);
-      arrow.position.set(car.x, groundY(car.x, car.z) + car.lift + 3.3 + Math.sin(now() * 3) * 0.12, car.z); arrow.rotation.y = brg;
+      arrow.position.set(car.x, groundY(car.x, car.z) + car.lift + 3.5 + Math.sin(now() * 3) * 0.12, car.z); arrow.rotation.y = brg; arrow.rotation.x = -0.75;
       camera.getWorldDirection(_d);
       const rot = (Math.atan2(_d.x, _d.z) - brg) * 180 / Math.PI;
       elArrow.style.transform = `rotate(${(-rot).toFixed(1)}deg)`;
@@ -627,7 +626,7 @@ function build(env) {
 
   // ------------------------------------------------------------------------------------ main update
   function update(dt) {
-    dt = Math.min(dt, 0.1);
+    dt = clamp(dt, 0, 0.1);
     S.t += dt;
     updateVendors(dt);
     if (S.mode === 'turisti') {

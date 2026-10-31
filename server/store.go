@@ -26,7 +26,11 @@ type memStore struct {
 	m  map[string][]byte
 }
 
-func (s *memStore) Get(n string) ([]byte, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.m[n], nil }
+func (s *memStore) Get(n string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m[n], nil
+}
 func (s *memStore) Put(n string, d []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

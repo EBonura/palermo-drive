@@ -690,7 +690,7 @@ export function createPedestrians(env) {
   }
   const attOut = { x: 0, y: 0, z: 0, th: 0 };
   function updateScripted(dt, cam) {
-    scriptClock += dt;
+    dt = clamp(dt, 0, 0.05); scriptClock += dt;
     const cpx = cam.position.x, cpz = cam.position.z;
     const sp = sPos.array, sa = sA.array, sb = sB.array;
     let k = 0, seatedList = null;

@@ -4,13 +4,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +35,7 @@ type config struct {
 const (
 	closeIdle    websocket.StatusCode = 4001 // clients must not auto-reconnect until the player moves
 	closeRefresh websocket.StatusCode = 4002 // session limit reached, reconnect straight away
+	closeCap     websocket.StatusCode = 4003 // monthly free-tier cap reached: single player until the month rolls over
 )
 
 type player struct {
@@ -79,18 +80,15 @@ type room struct {
 
 type hub struct {
 	cfg   config
+	st    *Stats
 	mu    sync.Mutex
 	rooms map[string]*room
 	ips   map[string]int
 	total atomic.Int64
-
-	start                                    time.Time
-	bytesIn, bytesOut, msgsIn, msgsOut, drop atomic.Int64
-	joins                                    atomic.Int64
 }
 
-func newHub(cfg config) *hub {
-	return &hub{cfg: cfg, rooms: map[string]*room{}, ips: map[string]int{}, start: time.Now()}
+func newHub(cfg config, st *Stats) *hub {
+	return &hub{cfg: cfg, st: st, rooms: map[string]*room{}, ips: map[string]int{}}
 }
 
 func (p *player) send(msg []byte) {
@@ -288,6 +286,10 @@ func cleanRoom(s string) string {
 }
 
 func (h *hub) serveWS(w http.ResponseWriter, r *http.Request) {
+	if !h.st.allowWS() { // monthly free-tier cap: clients fall back to single player
+		http.Error(w, "multiplayer paused", http.StatusServiceUnavailable)
+		return
+	}
 	ip := clientIP(r)
 	h.mu.Lock()
 	if h.ips[ip] >= h.cfg.perIP || int(h.total.Load()) >= h.cfg.maxConns {
@@ -320,8 +322,8 @@ func (h *hub) serveWS(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	h.join(cleanRoom(r.URL.Query().Get("room")), p)
 	h.mu.Unlock()
-	h.joins.Add(1)
-	defer func() { h.leave(p); _ = c.CloseNow() }()
+	h.st.wsOpen()
+	defer func() { h.st.wsClose(); h.leave(p); _ = c.CloseNow() }()
 
 	go func() { // writer
 		for {
@@ -336,8 +338,7 @@ func (h *hub) serveWS(w http.ResponseWriter, r *http.Request) {
 					_ = c.CloseNow()
 					return
 				}
-				h.bytesOut.Add(int64(len(m) + 2))
-				h.msgsOut.Add(1)
+				h.st.addEgress(len(m) + 2 + 40) // payload, WebSocket header, rough TCP/TLS share
 			}
 		}
 	}()
@@ -353,8 +354,6 @@ func (h *hub) serveWS(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		h.bytesIn.Add(int64(len(data) + 6)) // 2 byte header + 4 byte mask on client frames
-		h.msgsIn.Add(1)
 		now := time.Now()
 		p.tokens += now.Sub(p.tokenTime).Seconds() * 25
 		if p.tokens > 40 {
@@ -427,25 +426,8 @@ func (h *hub) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *hub) stats(w http.ResponseWriter, _ *http.Request) {
-	h.mu.Lock()
-	rooms := map[string]int{}
-	players := 0
-	for k, r := range h.rooms {
-		rooms[k] = r.count
-		players += r.count
-	}
-	h.mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"uptimeSec": int(time.Since(h.start).Seconds()), "players": players, "rooms": rooms, "joins": h.joins.Load(),
-		"bytesIn": h.bytesIn.Load(), "bytesOut": h.bytesOut.Load(), "msgsIn": h.msgsIn.Load(), "msgsOut": h.msgsOut.Load(),
-	})
-}
-
-// closeAll tells every client to reconnect (SIGTERM during a deploy).
-func (h *hub) closeAll() {
+// closeAll disconnects every client (SIGTERM during a deploy, or the hard usage cap).
+func (h *hub) closeAll(code websocket.StatusCode, reason string) {
 	h.mu.Lock()
 	var ps []*player
 	for _, r := range h.rooms {
@@ -457,12 +439,19 @@ func (h *hub) closeAll() {
 	}
 	h.mu.Unlock()
 	for _, p := range ps {
-		p.kick(websocket.StatusGoingAway, "restart")
+		p.kick(code, reason)
 	}
 }
 
 func env(k, d string) string {
 	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
+}
+
+func envF(k string, d float64) float64 {
+	if v, err := strconv.ParseFloat(os.Getenv(k), 64); err == nil {
 		return v
 	}
 	return d
@@ -476,18 +465,41 @@ func main() {
 	flag.IntVar(&cfg.maxConns, "max-conns", 256, "total connection cap")
 	flag.IntVar(&cfg.perIP, "per-ip", 6, "connections per client IP")
 	flag.DurationVar(&cfg.idleTimeout, "idle-timeout", 45*time.Second, "close a connection that sends nothing for this long")
-	flag.DurationVar(&cfg.afkTimeout, "afk-timeout", 5*time.Minute, "close a connection that sends no position for this long")
+	flag.DurationVar(&cfg.afkTimeout, "afk-timeout", 3*time.Minute, "close a connection that sends no position for this long")
 	flag.DurationVar(&cfg.maxSession, "max-session", 55*time.Minute, "close sessions before Cloud Run's 60 minute request limit")
 	origins := flag.String("origins", env("ALLOWED_ORIGINS", "ebonura.github.io,localhost:*,127.0.0.1:*"), "comma separated allowed Origin hosts (patterns)")
 	filter := flag.Bool("filter", env("NAME_FILTER", "on") != "off", "small name block list")
+	dataDir := flag.String("data", env("DATA_DIR", ""), "persist stats in this directory (local runs, VM); on Cloud Run Firestore is used")
+	var sc statsCfg
+	flag.StringVar(&sc.key, "stats-key", os.Getenv("STATS_KEY"), "secret for GET /stats?key=... (empty disables /stats)")
+	flag.Float64Var(&sc.cpu, "cpu", envF("CPU", 1), "vCPUs of the Cloud Run instance (free tier accounting)")
+	flag.Float64Var(&sc.memGiB, "mem-gib", envF("MEM_GIB", 0.5), "memory of the instance in GiB (free tier accounting)")
+	capPct := flag.Float64("cap-pct", envF("CAP_PCT", 70), "stop accepting WebSockets at this percent of the monthly free tier")
+	hardPct := flag.Float64("hard-pct", envF("HARD_PCT", 85), "disconnect everybody at this percent")
+	egressMiB := flag.Float64("egress-free-mib", envF("EGRESS_FREE_MIB", 1024), "free egress per month in MiB (1024 in North American regions; 0 = ignore)")
 	flag.Parse()
 	cfg.filter = *filter
 	cfg.origins = strings.Split(*origins, ",")
+	sc.capPct, sc.hardPct, sc.egressFree = *capPct/100, *hardPct/100, int64(*egressMiB*1048576)
 
-	h := newHub(cfg)
+	var store Store = &memStore{}
+	switch {
+	case *dataDir != "":
+		store = fileStore{*dataDir}
+	case os.Getenv("K_SERVICE") != "": // running on Cloud Run
+		fs, err := newFirestoreStore()
+		if err != nil {
+			log.Printf("firestore unavailable, stats will not persist: %v", err)
+		} else {
+			store = fs
+		}
+	}
+	st := NewStats(store, sc)
+	h := newHub(cfg, st)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", h.serveWS)
-	mux.HandleFunc("/stats", h.stats)
+	mux.HandleFunc("/ping", st.servePing)
+	mux.HandleFunc("/stats", st.serveStats)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -496,7 +508,8 @@ func main() {
 		}
 		_, _ = w.Write([]byte("Palermo Drive relay\n"))
 	})
-	srv := &http.Server{Addr: *addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	counted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { st.addRequest(); mux.ServeHTTP(w, r) })
+	srv := &http.Server{Addr: *addr, Handler: counted, ReadHeaderTimeout: 10 * time.Second}
 
 	go func() {
 		t := time.NewTicker(cfg.tick)
@@ -507,6 +520,15 @@ func main() {
 			h.tick(now, n)
 		}
 	}()
+	go func() { // usage accounting, stats flush (at most once a minute) and the hard usage cap
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for now := range t.C {
+			if st.tick(now) {
+				h.closeAll(closeCap, "cap")
+			}
+		}
+	}()
 
 	done := make(chan struct{})
 	go func() {
@@ -514,7 +536,8 @@ func main() {
 		signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 		<-sig
 		log.Println("shutting down")
-		h.closeAll()
+		h.closeAll(websocket.StatusGoingAway, "restart")
+		st.Flush()
 		time.Sleep(500 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
