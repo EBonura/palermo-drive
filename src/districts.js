@@ -12,6 +12,7 @@
 //   gl              ground-floor mix for low/residential styles, [[tile, weight], ...]
 //   roof            multiplier on the chance of a pitched tile roof
 //   ruin            chance a small building is a bombed shell / rubble lot instead
+//   insArea         smallest footprint (m2) that may become a housing insula (default 300); front: how far (m) a facade may stand behind a garden strip or lane and still count as a street front
 
 const K = Math.cos(38.11572 * Math.PI / 180) * 111320; // same local projection as core.js (origin Quattro Canti)
 const proj = (la, lo) => [(lo - 13.36126) * K, -(la - 38.11572) * 110540];
@@ -71,7 +72,8 @@ export const ZONES = {
   // Via Oreto (Street View): worn 4 storey plaster corners among 6 storey ochre blocks with balconies.
   oreto: { plaster: ['#d2bf94', '#cfb088', '#d8c49e', '#c6b89e', '#dcc096', '#cbb08c', '#dccdac', '#c0b29a'], stone: ['#a98f68'], pStone: 0.12, grime: 0.6, elig: true,
     w: { res: .42, pw: .06, blk: .3, n19: .08, ind: .06, pal: .08 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.4 },
-  brancaccio: { plaster: ['#dccba4', '#d4c09c', '#e0d2b0', '#cdbfa4', '#dcc09c', '#cfc8b2', '#e6dcc0', '#c8b496'], stone: ['#a98f68'], pStone: 0.05, grime: 0.5, elig: true,
+  // Via Giulio Sarmiento (Street View): 4 to 6 storey cream and ochre blocks with stacked balconies and green rails, 3 storey terracotta-orange rendered houses with tile roofs.
+  brancaccio: { plaster: ['#dccba4', '#d4c09c', '#e0d2b0', '#cdbfa4', '#d9a272', '#cfc8b2', '#e6dcc0', '#d49a68', '#e8e0cc'], stone: ['#a98f68'], pStone: 0.05, grime: 0.5, elig: true,
     w: { res: .46, pw: .06, blk: .2, pal: .2, ind: .05, fish: .03 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .7]], fh: 3.2, roof: 0.5 },
   corsoMille: { plaster: ['#d6a894', '#d8b09a', '#dcc89a', '#c9a08a', '#dcc294', '#cfc8b2', '#e0d0ac', '#c8a48a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true,
     w: { n19: .28, res: .32, pw: .05, blk: .16, ind: .08, pal: .1 }, fl: [[2, 1], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.6, roof: 0.3 },
@@ -80,8 +82,8 @@ export const ZONES = {
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
   // Via Primo Carnera (Street View): the insulae are sand-ochre and tan, not grey; open pilotis passages and garage doors at ground level, deep balcony slabs,
   // laundry and air conditioners on the faces.
-  zen: { plaster: ['#cdb48c', '#c6a87c', '#d2bc96', '#bfa27a', '#d6c4a2', '#c4ae8c', '#c9a98a', '#d8c9aa', '#c2b6a0'], stone: ['#b8a88a'], pStone: 0, grime: 0.75, elig: true,
-    w: { ins: .72, pw: .02, res: .14, pal: .12 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2]], fh: 3.0, roof: 0 },
+  zen: { plaster: ['#cdb48c', '#c6a87c', '#d2bc96', '#bfa27a', '#d6c4a2', '#c4ae8c', '#c9a98a', '#d8c9aa', '#c2b6a0'], stone: ['#b8a88a'], pStone: 0, grime: 0.55, elig: true,
+    w: { ins: .72, pw: .02, res: .14, pal: .12 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2]], fh: 3.0, roof: 0, insArea: 110 },
   cep: { plaster: ['#d6c8a8', '#cbbfa6', '#d2b890', '#c8c4b4', '#bfb4a0', '#d8cdb4', '#c8a888', '#d0d0c4'], stone: ['#b8b0a0'], pStone: 0, grime: 0.65, elig: true,
     w: { ins: .3, blk: .3, pw: .06, pal: .24, res: .1 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.1, roof: 0.05 },
   // Via Cruillas (Street View): a village core of 2 to 3 storey old houses (ochre plaster, green shutters, dark wooden doors, wrought-iron balconies on
@@ -131,10 +133,11 @@ export const ZONES = {
     w: { ind: .74, res: .1, pw: .08, blk: .08 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 4.6, roof: 0.1, shed: true },
 
   // ---------------- west and north-west: Uditore, Passo di Rigano, outskirts ----------------
-  uditore: { plaster: ['#e6dcc0', '#e0d0b0', '#e8e2d2', '#d8c8a8', '#ece6d6', '#d9b890', '#cfc8b4', '#e0c8a8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
-    w: { pal: .38, blk: .24, res: .18, pw: .04, fish: .1, n19: .04 }, fl: [[2, 1], [3, 3], [4, 3], [5, 3], [6, 1.5]], fh: 3.1, roof: 0.5 },
+  // Piazza Uditore (Street View): the old borgata is 1 to 2 storey rendered and rubble-stone houses with crumbling plaster; 5 to 6 storey condos rise right behind it.
+  uditore: { plaster: ['#e6dcc0', '#e0d0b0', '#e8e2d2', '#d8c8a8', '#ece6d6', '#d9b890', '#cfc8b4', '#e0c8a8'], stone: ['#b8a888', '#a89a80'], pStone: 0.14, grime: 0.4, elig: true,
+    w: { pal: .3, blk: .18, res: .28, pw: .03, fish: .1, n19: .06, lib: .02 }, fl: [[1, 1], [2, 3], [3, 3], [4, 3], [5, 2.5], [6, 1.2]], fh: 3.1, roof: 0.6 },
   rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
-    w: { pal: .36, res: .28, blk: .16, pw: .06, fish: .1, n19: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
+    w: { pal: .3, res: .32, blk: .14, pw: .04, fish: .12, n19: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
   periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true,
     w: { pal: .32, res: .34, pw: .06, blk: .14, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7 },
   rural: { plaster: ['#e0d4b4', '#d8c8a8', '#e8e2d2', '#d2bda0', '#ece6d6', '#cdc6b2'], stone: ['#bba07a'], pStone: 0.1, grime: 0.4, elig: true,
