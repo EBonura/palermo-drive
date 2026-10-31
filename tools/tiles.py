@@ -1353,6 +1353,101 @@ class _CleanWindow:
         return np.where(ws > 0.5, acc / np.maximum(ws, 1e-9), np.nan)
 
 
+# ----- road bench -----
+# Roads on a slope need ground that follows the road, not the hillside: a level bench along every drivable road (full weight across
+# the carriageway and its margins, easing back to the raw ground over BENCH_EASE metres) at a blurred copy of the ground height, so
+# a switchback is not a sawtooth of the ground's noise. It used to be carved by src/world.js at load time per tile, from the roads
+# clipped to that tile and from whichever neighbours happened to be loaded, so a tile with a bench next to one without had a 2 m
+# step along the border (Via Pietro Bonanno at x = 500) and neighbouring benches disagreed. Here it is a function of position:
+# roads are the whole OSM ways, the ground is the bake's own lattice, and it goes into the tile's near grid (5 m cells, `bench: 1`),
+# so streets, props, buildings, the car and the terrain mesh all see the same surface. Tiles where it changes the ground by less than
+# BENCH_MIN metres keep the plain 10 m grid.
+BENCH_KINDS = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary",
+               "tertiary_link", "unclassified", "residential", "living_street", "service", "track"}
+BENCH_EASE = 11.0
+BENCH_S = 5.0
+BENCH_PAD = 7        # lattice nodes (10 m) around the tile that the bench reads
+BENCH_MIN = 0.3
+
+
+def _bench(i, j, Vp, pa0, pb0):
+    """Benched ground on the tile's 5 m grid from the padded 10 m lattice Vp (origin node pa0, pb0), or None when it hardly matters."""
+    import numpy as np
+    import shapely
+    s = NEAR_STEP
+    tx0, tz0 = i * T, j * T
+    nzp, nxp = Vp.shape
+
+    def B(x, z):
+        fx = np.clip((np.asarray(x) / s - pa0), 0, nxp - 1.001)
+        fz = np.clip((np.asarray(z) / s - pb0), 0, nzp - 1.001)
+        a, b = fx.astype(int), fz.astype(int)
+        tx, tz = fx - a, fz - b
+        return (Vp[b, a] * (1 - tx) + Vp[b, a + 1] * tx) * (1 - tz) + (Vp[b + 1, a] * (1 - tx) + Vp[b + 1, a + 1] * tx) * tz
+
+    def blur(x, z):
+        tot, n = B(x, z), 1
+        for r in (20, 45):
+            for k in range(8):
+                a = k * math.pi / 4
+                tot = tot + B(x + math.cos(a) * r, z + math.sin(a) * r)
+                n += 1
+        return tot / n
+
+    reach_max = 8 / 2 + 1.5 + BENCH_EASE + 4
+    win = shapely.box(tx0 - reach_max - 2, tz0 - reach_max - 2, tx0 + T + reach_max + 2, tz0 + T + reach_max + 2)
+    n = int(round(T / BENCH_S)) + 1
+    GX, GZ = np.meshgrid(tx0 + np.arange(n) * BENCH_S, tz0 + np.arange(n) * BENCH_S)
+    W = np.zeros((n, n))
+    WH = np.zeros((n, n))
+    best = np.full((n, n), 1e9)
+    found = False
+    for ri in G["road_tree"].query(win):
+        rec, ls = G["roads"][ri]
+        if rec["k"] not in BENCH_KINDS or rec.get("tn") or rec.get("br"):
+            continue
+        half = max(rec["w"], 3) / 2
+        flat, reach = half + 1.5, half + 1.5 + BENCH_EASE
+        part = ls.intersection(shapely.box(tx0 - reach - 2, tz0 - reach - 2, tx0 + T + reach + 2, tz0 + T + reach + 2))
+        for seg in ([part] if part.geom_type == "LineString" else list(getattr(part, "geoms", []))):
+            if seg.geom_type != "LineString" or seg.is_empty:
+                continue
+            seg = shapely.segmentize(seg, 3.0)
+            c = np.asarray(seg.coords)[:, :2]
+            if len(c) < 2:
+                continue
+            h = blur(c[:, 0], c[:, 1])
+            found = True
+            for q in range(len(c) - 1):
+                ax, az, bx, bz = c[q, 0], c[q, 1], c[q + 1, 0], c[q + 1, 1]
+                dx, dz = bx - ax, bz - az
+                l2 = dx * dx + dz * dz or 1.0
+                i0 = max(0, math.floor((min(ax, bx) - reach - tx0) / BENCH_S))
+                i1 = min(n - 1, math.ceil((max(ax, bx) + reach - tx0) / BENCH_S))
+                j0 = max(0, math.floor((min(az, bz) - reach - tz0) / BENCH_S))
+                j1 = min(n - 1, math.ceil((max(az, bz) + reach - tz0) / BENCH_S))
+                if i1 < i0 or j1 < j0:
+                    continue
+                px, pz = GX[j0:j1 + 1, i0:i1 + 1], GZ[j0:j1 + 1, i0:i1 + 1]
+                tt = np.clip(((px - ax) * dx + (pz - az) * dz) / l2, 0, 1)
+                d = np.hypot(px - ax - dx * tt, pz - az - dz * tt)
+                bsub = best[j0:j1 + 1, i0:i1 + 1]
+                ok = (d < reach) & (d < bsub)
+                if not ok.any():
+                    continue
+                e = np.where(d <= flat, 1.0, 1 - _smooth(flat, reach, d))
+                bsub[ok] = d[ok]
+                W[j0:j1 + 1, i0:i1 + 1][ok] = e[ok]
+                WH[j0:j1 + 1, i0:i1 + 1][ok] = (e * (h[q] + (h[q + 1] - h[q]) * tt))[ok]
+    if not found:
+        return None
+    base = B(GX, GZ)
+    out = base * (1 - W) + WH
+    if np.abs(out - base).max() < BENCH_MIN:
+        return None
+    return out
+
+
 def near_for(i, j):
     """Per-tile DTM grid: the lidar where it has data, the TINITALY DEM (lidar-corrected) on the hills, the far grid elsewhere;
     the offset to the far grid fades out over NEAR_BLEND metres beyond the data so the tile joins the coarse terrain without a step.
@@ -1415,7 +1510,8 @@ def near_for(i, j):
     # the tile's own lattice points (inclusive of both borders)
     ia0, ia1 = round(tx0 / s), round((tx0 + T) / s)
     ib0, ib1 = round(tz0 / s), round((tz0 + T) / s)
-    X, Z = np.meshgrid(np.arange(ia0, ia1 + 1) * s, np.arange(ib0, ib1 + 1) * s)
+    P = BENCH_PAD   # lattice nodes beyond the tile, for the road bench (it samples the ground up to 45 m around a road)
+    X, Z = np.meshgrid(np.arange(ia0 - P, ia1 + P + 1) * s, np.arange(ib0 - P, ib1 + P + 1) * s)
     qx, qz = X.ravel(), Z.ravel()
     best = np.full(len(qx), np.inf)
     bo = np.zeros(len(qx))
@@ -1434,10 +1530,20 @@ def near_for(i, j):
     in_rect = (qx >= rx0) & (qx <= rx1) & (qz >= rz0) & (qz <= rz1)
     land_q = shapely.contains_xy(G["land"], qx, qz) | ~in_rect
     val = np.where(land_q, val, np.minimum(val, -1.5))
-    if best.min() > NEAR_BLEND:
+    nxp, nzp = ia1 - ia0 + 1 + 2 * P, ib1 - ib0 + 1 + 2 * P
+    inner = np.zeros((nzp, nxp), bool)
+    inner[P:-P, P:-P] = True
+    if best[inner.ravel()].min() > NEAR_BLEND:
         return None
+    Vp = val.reshape(nzp, nxp)
+    own = Vp[P:-P, P:-P]
+    hb = _bench(i, j, Vp, ia0 - P, ib0 - P) if CLEAN_ON else None
+    if hb is not None:
+        bs = BENCH_S
+        return {"x0": ia0 * s, "z0": ib0 * s, "s": bs, "nx": int(round(T / bs)) + 1, "nz": int(round(T / bs)) + 1,
+                "h": [round(float(v), 1) for v in hb.ravel()], "bench": 1}
     return {"x0": ia0 * s, "z0": ib0 * s, "s": s, "nx": ia1 - ia0 + 1, "nz": ib1 - ib0 + 1,
-            "h": [round(float(v), 1) for v in val]}
+            "h": [round(float(v), 1) for v in own.ravel()]}
 
 
 def far_grid(elev, rect):
@@ -1739,7 +1845,9 @@ def terrain_only(offline=True):
     print(f"[{time.time() - t0:.0f}s] {len(bld)} footprints", flush=True)
     elev = load_terrarium(ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium"))
     far = far_grid(elev, rect)
-    G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for)
+    roads, _car, _ped, _plz = parse_highways(files["hwy"])
+    G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for,
+             roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]))
     shapely.prepare(land)
     mp_ = os.path.join(WORLD_LIVE, "manifest.json")
     man = json.load(open(mp_))

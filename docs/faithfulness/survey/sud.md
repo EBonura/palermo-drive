@@ -18,7 +18,7 @@ Terrain-over-road counts come from a ray cast in the running game: up to 70 road
 
 6. **[med] [coastline/sea]** (`su42, su43, su44, su45, su46`, conf game) Via Messina Marine and the south coast: the shore and sea appear only at the far right (su42, su44); real SS113 runs 10 to 50 m from the shore with a mix of port yards, villas and open sandy lots. Hard to judge without aerial; see ae18 and ae19 for the aerials.
 
-7. **[med] [ground/decals]** (`su06`, conf game) Corso dei Mille @85% (38.0976,13.3888?): a flat rectangular tan terrain-tint tile floats on the asphalt right in front of the camera (hard straight edges, fully opaque), as if a terrain tile intersects the street mesh. Also su31 (Via Sperone): a jagged tan patch lies on the carriageway.
+7. **[med] [ground/decals]** (`su06`, conf game) Corso dei Mille @85% (38.09059,13.41548): a flat rectangular tan terrain-tint tile floats on the asphalt right in front of the camera (hard straight edges, fully opaque), as if a terrain tile intersects the street mesh. Also su31 (Via Sperone): a jagged tan patch lies on the carriageway.
 
 8. **[med] [roads]** (`su21, su22, su34, su38, su45, su11, su23, su28`, conf game) Big blue puddle decals (hexagons of mirror-blue water) in the middle of the carriageway at 11:00 in a dry scene (su21, su22, su38, su45, su28). They read as holes full of water, and are 3 m wide. Real streets are dry. Use them rarely and only after rain.
 

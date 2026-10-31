@@ -4,6 +4,7 @@
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
 import { groundY, Buf, pairs, canvasTex, rnd, speckle } from './core.js';
+import { gardenDraw, gardenPatch } from './gardens.js';
 
 export const CURB = 0.15;
 
@@ -134,6 +135,7 @@ function layerMaterial(layer, offset) {
   mat = layer === 'water'
     ? new THREE.MeshStandardMaterial({ color: '#2a6f8c', roughness: 0.1 })
     : new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: layer === 'asphalt' ? 0.85 : 0.95 });
+  if (offset && layer === 'raised') gardenPatch(mat, TEX.grass);   // Mondello's villa yards are gardens, see src/gardens.js
   if (offset) { const [f, u] = POLY_OFFSET[layer]; mat.polygonOffset = true; mat.polygonOffsetFactor = f; mat.polygonOffsetUnits = u; }
   matCache.set(key, mat);
   return mat;
@@ -145,6 +147,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 export function* streetsIter(streets, group, opts = {}) {
   const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
+  if (offset) gardenDraw(streets);
   for (const layer of layers) {
     const polys = streets[layer];
     if (!polys || !polys.length) continue;
