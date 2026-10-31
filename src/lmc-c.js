@@ -243,10 +243,13 @@ function buildUcciardone() {
     bx('uccWall', Mw, -l / 2 - 0.4, l / 2 + 0.4, lo, hi + H, -0.85, 0.85);
     bx('flat', Mw, -l / 2 - 0.4, l / 2 + 0.4, hi + H, hi + H + 0.5, -1.15, 1.15, { c: '#d6c7a2' });
   }
+  const towers = [];
   for (let i = 0; i < n; i++) {
     const A = P[i], B = P[i + 1], C = P[(i + 2) % (n + 1)], ux = B[0] - A[0], uz = B[1] - A[1], vx = C[0] - B[0], vz = C[1] - B[1];
     const turn = Math.abs(Math.atan2(ux * vz - uz * vx, ux * vx + uz * vz));
     if (turn < 0.5 && (i % 4)) continue;
+    if (towers.some(t => Math.hypot(t[0] - B[0], t[1] - B[1]) < (turn > 0.9 ? 18 : 60))) continue;
+    towers.push(B);
     const gx = groundY(B[0], B[1]), r = turn > 0.9 ? 4.4 : 3.3;
     cyl('uccWall', r, r + 0.3, H + 5.5, 12, { p: [B[0], gx - 1.2, B[1]], c: '#ffffff' });
     cyl('flat', r + 0.5, r + 0.5, 0.6, 12, { p: [B[0], gx + H + 4.3, B[1]], c: '#d6c7a2' });

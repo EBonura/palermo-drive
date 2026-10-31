@@ -154,7 +154,7 @@ function beamTex() { // bright at the bottom (near the lamp), fading with distan
   const g = c.getContext('2d'), img = g.createImageData(w, h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const u = (x / (w - 1) - 0.5) * 2, v = 1 - y / (h - 1); // v: 0 at the lamp, 1 at the far end
-    const spread = 0.28 + 0.72 * v, lat = Math.exp(-(u * u) / (spread * spread) * 2.2), a = lat * Math.pow(1 - v, 1.6) * ss(0, 0.04, v);
+    const spread = 0.28 + 0.72 * v, lat = Math.exp(-(u * u) / (spread * spread) * 2.2), a = lat * Math.pow(1 - v, 0.95) * ss(0, 0.04, v);
     const i = (y * w + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(255 * a);
   }
   g.putImageData(img, 0, 0);

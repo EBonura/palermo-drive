@@ -18,6 +18,7 @@ const S = {
   tapKey: ['Premi per iniziare', 'Press to start'],
   drive: ['Guida libera', 'Free drive'],
   turisti: ['Turisti affamati', 'Hungry tourists'],
+  favorita: ['A Favorita (di notte)', 'To the Favorita (at night)'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
   back: ['Indietro', 'Back'],
@@ -249,6 +250,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="turisti" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('turisti')}${CHEV}</button>
+      ${/[?&]world=1/.test(location.search) || window.PALERMO_WORLD ? `<button class="pd-btn" data-nav data-do="favorita" type="button">${two('favorita')}${CHEV}</button>` : ''}
       <button class="pd-btn" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
@@ -456,6 +458,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     switch (name) {
       case 'drive': startMode = 'free'; return go('start', { push: true });
       case 'turisti': startMode = 'turisti'; return go('start', { push: true });
+      case 'favorita': startMode = 'favorita'; return go('start', { push: true });   // night mission, whole-city world only (src/missions.js)
       case 'go': return confirmStart();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
