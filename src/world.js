@@ -75,8 +75,8 @@ class SegGrid {
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
   sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b0a58a'), grove: new THREE.Color('#8a8a58'), scrub: new THREE.Color('#686d45'),
-  rock: new THREE.Color('#a8a090'), rockLo: new THREE.Color('#8f897b'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#6a8a48'),
-  beach: new THREE.Color('#dacca6'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
+  rock: new THREE.Color('#b2aca0'), rockLo: new THREE.Color('#99948a'), urban: new THREE.Color('#9c968a'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#6a8a48'),
+  beach: new THREE.Color('#d5cab0'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
   farm: new THREE.Color('#a8985f'), orchard: new THREE.Color('#6f8148'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
 };

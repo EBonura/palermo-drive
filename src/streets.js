@@ -61,7 +61,7 @@ export const TEX = {
     speckle(g, S, 7000, ['#7f9a52', '#5f7a3a', '#8aa35c', '#6b7f40'], 1, 3);
   }, 3),
   sand: canvasTex(256, (g, S) => { // beaches of the world tiles (Mondello: pale, fine, slightly rippled sand)
-    g.fillStyle = '#d9cba5'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#d3c8ae'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 26; i++) { // wind ripples and footprints-sized dimples
       g.fillStyle = `rgba(${Math.random() < 0.5 ? '190,172,132' : '236,226,196'},${rnd(0.08, 0.2)})`;
       g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(3, 8), rnd(-0.3, 0.3), 0, 7); g.fill();
@@ -252,7 +252,7 @@ export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true w
     const dx = x1 - x0, dz = z1 - z0, l = Math.sqrt(dx * dx + dz * dz); if (l < 0.01) return;
     const nx = -dz / l * hw, nz = dx / l * hw, c = PAINT, k = shade;
     const A = [x0 + nx, z0 + nz], B = [x0 - nx, z0 - nz], C2 = [x1 - nx, z1 - nz], D = [x1 + nx, z1 + nz];
-    for (const q of [A, B, C2, A, C2, D]) { P.push(q[0], groundY(q[0], q[1]) + 0.035, q[1]); N.push(0, 1, 0); Cc.push(c.r * k, c.g * k, c.b * k); }
+    for (const q of [A, C2, B, A, D, C2]) { P.push(q[0], groundY(q[0], q[1]) + 0.035, q[1]); N.push(0, 1, 0); Cc.push(c.r * k, c.g * k, c.b * k); }
     nq++;
   };
   // paints a line offset `off` m to the left of the centreline: dashed (dash, gap) or continuous in 6 m pieces
