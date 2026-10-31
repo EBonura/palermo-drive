@@ -14,7 +14,7 @@ const KEEPOUT = [[17, 0, 45], [82, 69, 55], [-456, 151, 75], [-478, 124, 60], [-
 // ---------- the atlas: 4 x 2 spray-paint variants, then the same 8 greyed out with a check ----------
 const CW = 512, CH = 256, COLS = 4, ROWS = 4;
 const VARIANTS = [
-  { fill: '#16161a', edge: null },
+  { fill: '#16161a', edge: '#d9d3c0' },
   { fill: '#16161a', edge: '#e9e4d2', ul: true },
   { fill: '#c9202d', edge: '#16161a' },
   { fill: '#c9202d', edge: null, crown: true },

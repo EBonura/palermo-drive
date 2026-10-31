@@ -53,8 +53,8 @@ const DAYK = {
 };
 const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'dome', 'amb']) k[f] = C(k[f]); return k; };
 const NIGHTK = { // Palermo after dark: saturated indigo sky, an orange light dome over the roofs, cool navy shadows, warm brown bounce from the streets
-  sun: '#000000', sunI: 0, hemiS: '#2a3f88', hemiG: '#5a3416', hemiI: 0.6, fog: '#1c2358', fogK: 1.25, expo: 1.2,
-  envZ: '#142060', envH: '#7a3c16', envB: '#3c2410', skyH: '#1c2a78', skyZ: '#071258', glow: '#5a6aa8', dome: '#7a3a12', amb: '#0c1530', win: 0.5,
+  sun: '#000000', sunI: 0, hemiS: '#2a3f88', hemiG: '#4e3420', hemiI: 0.6, fog: '#1c2358', fogK: 1.25, expo: 1.2,
+  envZ: '#142060', envH: '#703c1a', envB: '#3c2410', skyH: '#1c2a78', skyZ: '#071258', glow: '#5a6aa8', dome: '#7a3a12', amb: '#0c1530', win: 0.5,
 };
 const KEYS = [
   K(0, { ...NIGHTK, win: 0.3 }),
@@ -203,7 +203,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // now gets a few shader lines (chained onto its own onBeforeCompile): at night the walls take a warm glow that fades with height above
   // street level, the floodlit landmarks a stronger one, and up-facing ground turns glossy so it reflects the orange horizon of the env map.
   // One shared uniform block, no extra passes, a single branch that is skipped by day.
-  const NK = { value: new THREE.Vector4(0, 0.2, 0, 1) }; // x night amount (lamps on), y street bounce, z street level (m), w paving gloss
+  const NK = { value: new THREE.Vector4(0, 0.3, 0, 1) }; // x night amount (lamps on), y street bounce, z street level (m), w paving gloss
   const FLOOD = [ // [lat, lon, radius m, strength]
     [38.115684, 13.361460, 60, 0.8], [38.1199, 13.3573, 90, 1.0], [38.1146, 13.3558, 90, 1.0], [38.1112, 13.3540, 95, 0.9],
     [38.1151, 13.3622, 55, 0.85], [38.12865, 13.35672, 85, 0.9], [38.11052, 13.35243, 55, 0.9],
@@ -219,7 +219,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (uNightK.x > 0.002) {
       vec3 wpos = cameraPosition - vViewPosition * mat3(viewMatrix);
       vec3 wn = normalize(normal * mat3(viewMatrix));
-      float wall = 1.0 - abs(wn.y);
+      float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, wpos.y - uNightK.z);   // not on curbs and kerb faces
       float hb = max(wpos.y - uNightK.z, 0.0);
       float fl = 0.0;
       for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, length(wpos.xz - f.xy))); }
@@ -227,6 +227,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.5, 0.17) * uNightK.x * wash;
     }`;
   const seenMats = new Set();
+  vehicle?.rig?.root?.traverse(o => { if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) seenMats.add(m); }); // the player's lapa stays honestly lit
   function patchMaterials() {
     scene.traverse(o => {
       for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
@@ -547,6 +548,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     const headOn = ss(5, -4, altD);
     NIGHT.win.value = lampOn * P.win;
     NK.value.x = lampOn;
+    if (car) NK.value.z = groundY(car.x, car.z); // street level near the player: the wash fades with height above it
     if (lampOn > 0.003) {
       if (!lamps) { lamps = buildLamps(); ensureRealLights(); }
       if (lamps && !lamps.none) {
