@@ -66,7 +66,7 @@ function processStreets(S, eps, stats) {
 }
 
 function pruneContext(C, log) {
-  return import('../../src/context-select.js').then(m => {
+  return import(pathToFileURL(path.join(ROOT, 'src/context-select.js')).href).then(m => {
     if (!C || !Array.isArray(C.b)) return C;
     const all = m.decodeBuildings(C.b), n0 = all.length;
     const chosen = m.chooseBuildings(all);

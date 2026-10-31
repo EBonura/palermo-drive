@@ -475,9 +475,12 @@ function atlasMaterial(tex, cutout, photo) {
 }
 
 // Atlas and materials are built once and shared by every call (the centro and each streamed world tile).
-let SHARED = null;
+let SHARED = null, SHARING = false;
 function* sharedIter() {
-  if (!SHARED) { const atlas = yield* buildAtlasIter(); SHARED = { atlas, matMain: atlasMaterial(atlas, false), matRail: atlasMaterial(atlas, true) }; }
+  if (!SHARED) {
+    if (SHARING) { while (!SHARED) yield; } // another generator (the world warm-up) is already building it
+    else { SHARING = true; const atlas = yield* buildAtlasIter(); SHARED = { atlas, matMain: atlasMaterial(atlas, false), matRail: atlasMaterial(atlas, true) }; }
+  }
   return SHARED;
 }
 export function* warmBuildings() { yield* sharedIter(); } // world.js: build the facade atlas ahead of the first tile
