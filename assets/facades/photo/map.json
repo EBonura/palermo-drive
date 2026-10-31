@@ -37,14 +37,14 @@
   {
    "wall": 10,
    "texture": "assets/facades/photo/jung_1.jpg",
-   "u0": 0.5,
-   "u1": 1.0,
-   "v0": 0,
+   "u0": 0.5259,
+   "u1": 0.9023,
+   "v0": 0.0,
    "v1": 1,
    "flip": true,
    "size": [
     512,
-    368
+    488
    ],
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
@@ -52,17 +52,34 @@
   {
    "wall": 10,
    "texture": "assets/facades/photo/jung_2.jpg",
-   "u0": 0.0,
-   "u1": 0.5,
-   "v0": 0,
+   "u0": 0.1494,
+   "u1": 0.5259,
+   "v0": 0.0,
    "v1": 1,
    "flip": true,
    "size": [
     512,
-    368
+    488
    ],
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
+  }
+ ],
+ "w143740363": [
+  {
+   "wall": 1,
+   "texture": "assets/facades/photo/biondo.jpg",
+   "u0": 0.22,
+   "u1": 0.78,
+   "v0": 0.135,
+   "v1": 1,
+   "flip": true,
+   "size": [
+    512,
+    280
+   ],
+   "license": "CC0",
+   "credit": "Luca.favorido, Facciata del Teatro Biondo.jpg, CC0, https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg"
   }
  ]
 }

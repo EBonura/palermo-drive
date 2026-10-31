@@ -754,7 +754,21 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   // -- per-frame
   const _sz = new THREE.Vector2();
   let time = 0;
+  // TEMP-DEBUG-BEGIN scripted drive for screenshots: ?seatest=SECONDS_INTO_THE_DROWNING
+  const TEST = new URLSearchParams(location.search).has('seatest') ? +new URLSearchParams(location.search).get('seatest') : null;
+  let testRefs = null, testFrame = 0, testGo = false;
+  function testStep(dt) {
+    if (!testRefs) return dt;
+    testFrame++;
+    const car = testRefs.car;
+    if (testFrame === 40) { const th = 0.5236; Object.assign(car, { x: 479.5, z: -448, th, vf: 10, vx: Math.sin(th) * 10, vz: Math.cos(th) * 10 }); testGo = true; }
+    if (testGo && !S.on) { car.x += Math.sin(car.th) * 10 * dt; car.z += Math.cos(car.th) * 10 * dt; car.vf = 10; car.vx = Math.sin(car.th) * 10; car.vz = Math.cos(car.th) * 10; }
+    if (S.on && S.t >= TEST) return 0;
+    return dt;
+  }
+  // TEMP-DEBUG-END
   function update(dt, camera = cam0) {
+    if (TEST !== null) dt = testStep(dt); // TEMP-DEBUG
     time += dt;
     uniforms.uTime.value = time;
     water.position.x = camera.position.x; water.position.z = camera.position.z;
@@ -769,6 +783,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     }
   }
   function checkPlayer(a) {
+    if (TEST !== null && !testRefs) testRefs = a; // TEMP-DEBUG
     if (S.on || !a || !a.car || !a.game || a.game.state !== 'play') return;
     if (isWater(a.car.x, a.car.z)) startDrown(a);
   }

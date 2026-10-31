@@ -27,6 +27,7 @@ const HIDDEN_MS = 5000;        // leave the relay when the tab has been in the b
 const MENU_MS = 10000;         // ... or the game has been paused / on a menu this long
 const INPUT_MS = 120000;       // ... or the player has not touched anything this long
 const BEAT_S = 180;            // seconds of active play between stats pings
+const POLL_MS = 45000;         // while waiting for another multiplayer player to show up, ask this often
 const PID_KEY = 'palermoDrive.pid.v1'; // random anonymous player id
 const DELAY = 150;             // interpolation buffer, ms
 const EXTRAP = 250;            // longest extrapolation, ms
@@ -108,12 +109,11 @@ export function createNet(env) {
 
   // ---------- state ----------
   let started = false, ws = null, status = 'idle', attempts = 0, retryT = 0, everOnline = false;
-  let mp = null, promptShown = false, activeSec = 0, lastPlay = 0, lastInput = performance.now(), pingTimer = 0, pingTries = 0;
+  let mp = null, peers = 0, lastPingT = 0, promptShown = false, activeSec = 0, lastPlay = 0, lastInput = performance.now(), pingTimer = 0, pingTries = 0;
   let myId = -1, count = 0, lastRecv = 0, lastSend = 0, lastSentState = null, lastInfoKey = '', sendAcc = 0;
   let hiddenTimer = 0, sleeping = false, blocked = false, pingBusy = false;
   const remotes = new Map(), dying = [];
 
-  if (params.has('netdebug')) window.__net = { remotes, dying, get status() { return status; }, get count() { return count; } }; // TEMP
   // ---------- DOM ----------
   let pill = null, card = null;
   function ensureUI() {
@@ -157,14 +157,14 @@ export function createNet(env) {
       e.preventDefault();
       const name = input.value.replace(/\s+/g, ' ').trim().slice(0, 16);
       if (!name) { input.focus(); return; }
-      store.name = name; store.offline = false; sleeping = false; attempts = 0; save(); closeCard(); infoDirty(); renderPill();
+      store.name = name; store.offline = false; sleeping = false; attempts = 0; lastPingT = 0; save(); closeCard(); infoDirty(); renderPill();
     });
     card.querySelector('.no').addEventListener('click', () => {
       if (!editing) { store.offline = true; save(); renderPill(); }
       closeCard();
     });
     const lnk = card.querySelector('.lnk');
-    if (lnk) lnk.addEventListener('click', () => { store.offline = !store.offline; sleeping = false; attempts = 0; save(); closeCard(); renderPill(); });
+    if (lnk) lnk.addEventListener('click', () => { store.offline = !store.offline; sleeping = false; attempts = 0; lastPingT = 0; save(); closeCard(); renderPill(); });
     if (matchMedia('(pointer:fine)').matches) input.focus();
   }
 
@@ -179,19 +179,21 @@ export function createNet(env) {
     return id;
   })();
   const pingUrl = (() => { try { const u = new URL(relayUrl); u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'; u.pathname = '/ping'; u.search = ''; return u.href; } catch (e) { return ''; } })();
-  function onPingAnswer(j) {
+  function onPingAnswer(j, sentMP) {
     const was = mp; mp = !!(j && j.mp === 1); pingTries = 0;
+    peers = Math.max(0, ((j && j.on) | 0) - (sentMP ? 1 : 0)); // other players who want multiplayer right now
     if (mp && !was && !store.name && !store.offline && !promptShown) { promptShown = true; setTimeout(() => { if (!store.name && !store.offline && !card) openName(); }, 1200); }
     if (mp !== was) { ensureUI(); renderPill(); }
   }
   function ping(ev, secs, beacon) {
     if (!pingUrl) return;
-    const sent = Math.round(secs || 0), body = pid + ',' + ev + (sent ? ',' + sent : '');
+    const sent = Math.round(secs || 0), sentMP = wanted() ? 1 : 0, body = `${pid},${ev},${sent},${sentMP}`;
+    lastPingT = performance.now();
     if (beacon) { try { if (navigator.sendBeacon(pingUrl, new Blob([body], { type: 'text/plain' }))) return; } catch (e) { /* fall through */ } }
     pingBusy = true; if (ev === 'b') activeSec -= sent;
     fetch(pingUrl, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true, cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(j => { pingBusy = false; onPingAnswer(j); })
+      .then(j => { pingBusy = false; onPingAnswer(j, sentMP); })
       .catch(code => {
         pingBusy = false; if (ev === 'b') activeSec += sent; // credit it with the next ping
         if (code === 429) return;
@@ -262,7 +264,6 @@ export function createNet(env) {
   }
   function sendState(now) {
     let b;
-    if (params.has('netdrive')) { const [cx, cz] = params.get('netdrive').split(',').map(Number), a = now / 1000 * 0.3; b = packState(cx, cz + Math.sin(a) * 30, Math.cos(a) >= 0 ? 0 : Math.PI, 10 * Math.abs(Math.cos(a)), 0.2 * Math.cos(a * 3), -0.12, 0.3 * Math.sin(a * 2), 1); ws.send(b); lastSend = now; return true; } // TEMP
     b = packState(car.x, car.z, car.th, car.vf || 0, car.steer || 0, car.roll || 0, (car.tip || 0) * Math.sign(car.ay || 0),
       (car.nosAmt > 0.15 ? 1 : 0) | (car.braking ? 2 : 0) | (car.drift > 0.3 ? 4 : 0));
     if (lastSentState && b.every((v, i) => v === lastSentState[i])) return false;
@@ -435,12 +436,15 @@ export function createNet(env) {
         if (store.name) { ensureUI(); renderPill(); }
         return;
       }
-      if (params.has('netdrive')) lastInput = now; // TEMP
       const live = now - lastPlay < MENU_MS && !document.hidden && now - lastInput < INPUT_MS;
       if (live && game.state === 'play') { activeSec += dt; if (activeSec >= BEAT_S && !pingBusy) ping('b', activeSec); }
       // wake up after an idle kick as soon as the player drives again
       if (sleeping && game.state === 'play' && Math.abs(car.vf || 0) > 1) { sleeping = false; attempts = 0; }
-      const want = wanted() && mp === true && live && !sleeping;
+      const eligible = wanted() && mp === true && live && !sleeping;
+      // An open WebSocket costs free-tier time on the relay, so connect only while another multiplayer player is online
+      // (the ping answer says how many). While alone, ask again every 45 s.
+      if (eligible && peers === 0 && !ws && !pingBusy && now - lastPingT > POLL_MS) ping('b', 0);
+      const want = eligible && peers > 0;
       if (want) { if (!ws && !retryT) connect(); }
       else if (ws || retryT || status === 'connecting') closeWs();
 

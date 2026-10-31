@@ -37,9 +37,9 @@ const COL = {
 const K = { primary: 0, secondary: 1, tertiary: 2, unclassified: 3, residential: 4, service: 5, living_street: 6, pedestrian: 7 };
 // per class, per metre of centreline: holes, repair patches, cracks, manholes
 const DENS = {
-  primary: [0.04, 0.012, 0.025, 0.02], secondary: [0.06, 0.015, 0.03, 0.02], tertiary: [0.1, 0.02, 0.04, 0.03],
-  unclassified: [0.12, 0.02, 0.04, 0.02], residential: [0.18, 0.03, 0.05, 0.03], service: [0.15, 0.02, 0.05, 0.015],
-  living_street: [0.15, 0.02, 0.04, 0.02], pedestrian: [0.07, 0.01, 0.03, 0.01],
+  primary: [0.055, 0.012, 0.025, 0.02], secondary: [0.08, 0.015, 0.03, 0.02], tertiary: [0.14, 0.02, 0.04, 0.03],
+  unclassified: [0.16, 0.02, 0.04, 0.02], residential: [0.24, 0.03, 0.05, 0.03], service: [0.2, 0.02, 0.05, 0.015],
+  living_street: [0.2, 0.02, 0.04, 0.02], pedestrian: [0.09, 0.01, 0.03, 0.01],
 };
 const MARKETS = [[-60, 410, 110], [260, -220, 110], [-390, -245, 90]];   // Ballaro, Vucciria, Capo
 
@@ -76,7 +76,7 @@ export function createRoadWear(env) {
   if (!D.streets || !D.streets.aoi) return { update() {}, collidePlayer() {}, setQuality() {} };
   const gy = (x, z) => groundY(x, z) + LIFT;
 
-  // ---------- exact asphalt raster: 0.5 m cells, 1 bit each, drawn in tiles so memory stays small ----------
+  // ---------- exact asphalt raster: 1 m cells, 1 bit each, drawn in tiles so memory stays small ----------
   const [AX0, AZ0, AX1, AZ1] = D.streets.aoi, S = 1, MW = Math.ceil((AX1 - AX0) * S), MH = Math.ceil((AZ1 - AZ0) * S);
   const mask = new Uint8Array((MW * MH + 7) >> 3);
   {
@@ -88,9 +88,7 @@ export function createRoadWear(env) {
       return [poly, x0, z0, x1, z1];
     });
     const layers = { asphalt: bb(D.streets.asphalt), paving: bb(D.streets.paving), raised: bb(D.streets.raised), green: bb(D.streets.green) };
-    let TF = 0, TR = 0; window.__tm = [0, 0]; // TEMPDEBUG
     for (let ty = 0; ty < MH; ty += TS) for (let tx = 0; tx < MW; tx += TS) {
-      const tq = performance.now(); // TEMPDEBUG
       const wx0 = AX0 + tx / S, wz0 = AZ0 + ty / S, wx1 = wx0 + TS / S, wz1 = wz0 + TS / S;
       g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, TS, TS);
       for (const name of ['asphalt', 'paving', 'raised', 'green']) {
@@ -102,13 +100,10 @@ export function createRoadWear(env) {
           g.fill('evenodd');
         }
       }
-      TF += performance.now() - tq; const tr = performance.now(); // TEMPDEBUG
       const d = new Uint32Array(g.getImageData(0, 0, TS, TS).data.buffer), w = Math.min(TS, MW - tx), h = Math.min(TS, MH - ty);
       for (let j = 0; j < h; j++) for (let i = 0, o = j * TS; i < w; i++) if (d[o + i] !== 0 && (d[o + i] >>> 24) > 127) { const k = (ty + j) * MW + tx + i; mask[k >> 3] |= 1 << (k & 7); }
-      TR += performance.now() - tr; window.__tm = [TF, TR]; // TEMPDEBUG
     }
   }
-  const tMask = performance.now() - T0; // TEMPDEBUG
   const onRoad = (x, z) => {
     const i = ((x - AX0) * S) | 0, j = ((z - AZ0) * S) | 0;
     if (i < 0 || j < 0 || i >= MW || j >= MH) return false;
@@ -125,7 +120,7 @@ export function createRoadWear(env) {
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   };
   const neglect = (x, z) => {
-    let m = 0.35 + 1.5 * vnoise(x, z) ** 1.3;
+    let m = 0.75 + 1.1 * vnoise(x, z) ** 1.3;
     for (const [mx, mz, mr] of MARKETS) { const dx = x - mx, dz = z - mz; if (dx * dx + dz * dz < 9 * mr * mr) { const d2 = (dx * dx + dz * dz) / (mr * mr); m *= 1 + 1.6 * Math.exp(-d2); } }
     return m;
   };
@@ -204,7 +199,7 @@ export function createRoadWear(env) {
         // potholes
         if (R() < Math.min(0.9, dens[0] * ng)) {
           const u = R(); let rad;
-          if (u < 0.6) rad = 0.1 + R() * 0.15; else if (u < 0.86) rad = 0.25 + R() * 0.25; else if (u < 0.97) rad = 0.5 + R() * 0.3; else rad = 0.8 + R() * 0.5;
+          if (u < 0.6) rad = 0.11 + R() * 0.2; else if (u < 0.86) rad = 0.25 + R() * 0.25; else if (u < 0.97) rad = 0.5 + R() * 0.3; else rad = 0.8 + R() * 0.5;
           const off = lat(), px = x + nx * off, pz = z + nzz * off;
           const el = rad > 0.45 ? 1 + R() * 0.6 : 1 + R() * 0.2, rot = Math.atan2(tz, tx) + (R() - 0.5) * 0.8;
           const dep = 0.025 + 0.2 * Math.min(1, rad / 0.9) * (0.6 + 0.4 * R());
@@ -268,7 +263,6 @@ export function createRoadWear(env) {
       }
     }
   }
-  const tRoads = performance.now() - T0; // TEMPDEBUG
   const sNear = (x, z, r) => {   // nearest resampled road sample within r
     let best = -1, bd = r * r;
     const ix = Math.floor(x / SGC), iz = Math.floor(z / SGC), reach = Math.ceil(r / SGC);
@@ -412,6 +406,7 @@ export function createRoadWear(env) {
   const waterMat = new THREE.MeshStandardMaterial({ color: COL.water, roughness: 0.04, metalness: 0.85, envMapIntensity: 1.1, ...po(-5, -10) });
   const markMat = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, depthWrite: false, roughness: 1, metalness: 0, ...po(-6, -12) });
 
+  const TRI_CAP = 140000;   // resident wear triangles never go past this, whatever the density
   const QF = { low: 0.35, medium: 0.7, high: 1 }, RAD = { low: 110, medium: 160, high: 210 };
   let qf = 1, rad = 210, qname = 'high';
   const mix = (a, b, t) => new THREE.Color(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
@@ -541,7 +536,7 @@ export function createRoadWear(env) {
       queue.sort((a, b) => b.dist - a.dist);   // nearest last, popped first
     }
     const budget = first ? 40 : 3, t0 = performance.now();
-    while (queue.length && performance.now() - t0 < budget) {
+    while (queue.length && performance.now() - t0 < budget && totalTris < TRI_CAP) {
       const c = queue.pop(); if (c.built) continue;
       c.built = buildCell(c); totalTris += c.built.tris;
     }
@@ -648,14 +643,6 @@ export function createRoadWear(env) {
   let first = true;
   const api = {
     update(dt) {
-      if (location.search.includes('rwskid') && !window.__rwdone && window.game) { // TEMPDEBUG
-        window.__rwdone = 1; const g = window.game, k = g.keys, D = window.PALERMO_DATA; let best = null, bl = 0;
-        for (const r of D.roads) { if (r.k !== 'secondary' && r.k !== 'tertiary') continue; for (let i = 0; i < r.p.length - 2; i += 2) { const L = Math.hypot(r.p[i + 2] - r.p[i], r.p[i + 3] - r.p[i + 1]); if (L > bl) { bl = L; best = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3]]; } } }
-        const th = Math.atan2(best[2] - best[0], best[3] - best[1]);
-        Object.assign(car, { x: best[0], z: best[1], th, vx: Math.sin(th) * 18, vz: Math.cos(th) * 18, vf: 18, gear: 3, w: 0 });
-        for (let i = 0; i < 480; i++) { k.KeyW = i < 60; k.Space = i >= 100 && i < 300; k.KeyA = i >= 130 && i < 300; g.physics(1 / 120); api.collidePlayer(car, 1 / 120); if (i % 2 === 0) marks(1 / 60); }
-        k.Space = k.KeyA = k.KeyW = false; console.log('RWSKID ' + car.x + ' ' + car.z + ' ' + car.th);
-      }
       stream(first); first = false;
       marks(dt);
     },
@@ -668,9 +655,7 @@ export function createRoadWear(env) {
       dirty = true;
     },
     stats() { return { ...stats, cells: cells.size, built: [...cells.values()].filter(c => c.built).length, trisResident: totalTris, initMs: Math.round(initMs) }; },
-    _holes: () => [...cells.values()].flatMap(c => c.holes),
   };
   const initMs = performance.now() - T0;
-  window.__rw = api; api.t = { tMask, tRoads, initMs }; api._cr = crossings; api._mh = () => [...cells.values()].flatMap(c => c.mhs); // TEMPDEBUG
   return api;
 }
