@@ -6,11 +6,16 @@
 import { decode } from './decode.js';
 
 export async function loadBlobs(base, blobs, opts = {}) {
-  await Promise.all(blobs.map(async b => {
+  const get = async b => {
     const r = await fetch(base + b.file);
     if (!r.ok) throw new Error('data blob ' + b.file + ': ' + r.status);
     Object.assign(window, decode(new Uint8Array(await r.arrayBuffer())));
-  }));
+  };
+  await Promise.all(blobs.filter(b => !b.late).map(get));
+  // late blobs (the far city) start downloading once the critical data is in, so they never compete with it.
+  // main.js builds the far city when window.__pdLate resolves.
+  const late = blobs.filter(b => b.late);
+  if (late.length) window.__pdLate = Promise.all(late.map(get));
   if (opts.tiles) installTileShim();
 }
 

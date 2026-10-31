@@ -7,13 +7,14 @@ One command regenerates world/manifest.json and world/tiles/*.json:
     tools/.venv/bin/python tools/tiles.py --fetch-only only extract/download, no bake
     tools/.venv/bin/python tools/tiles.py --offline    Overpass path: bake from the cache, never touch the network
     tools/.venv/bin/python -I tools/tiles.py --publish bake into data/world_stage, then copy only changed tiles + manifest into world/
-    tools/.venv/bin/python -I tools/tiles.py --out DIR bake into DIR instead of world/
+    tools/.venv/bin/python -I tools/tiles.py --out DIR bake into DIR instead of world/ (then --publish-from DIR to install it)
 
 Default source is data/city/isole-latest.osm.pbf (Geofabrik, ODbL, needs `osmium` in the venv). It is read in
 three passes and cached as Overpass-shaped `out geom` files data/city/pbf_<cat>_NNN.json.gz (rebuilt when the
 PBF is newer). Delete those files to force a re-extract.
 Sources: OpenStreetMap contributors (ODbL), Regione Sicilia lidar via data/lidar.json (CC BY 4.0),
-AWS Terrarium tiles for the far terrain.
+AWS Terrarium tiles for the far terrain, INGV TINITALY 10 m DEM for the hills (tools/dem.py, CC BY 4.0) pinned to the lidar
+above its 204 m raster saturation (tools/lidar_hills.py).
 """
 import glob
 import gzip
@@ -446,6 +447,7 @@ CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over ter
 DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
+TIN_CREDIT = "TINITALY 1.1 DEM, INGV (Tarquini et al.), CC BY 4.0, doi:10.13127/tinitaly/1.1"
 LIDAR_CREDIT = ("Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale, "
                 "PST-A lidar Regione Sicilia, CC BY 4.0")
 
@@ -1524,9 +1526,11 @@ def build(offline=False):
         "T": T, "bbox": [round(v, 1) for v in rect],
         "tiles": {r[0]: {"b": r[1], "bytes": r[2]} for r in results},
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
-        "attribution": "Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles.",
-        "credits": {"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
-                    "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
+        "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
+                        + (", hills: " + TIN_CREDIT if dem is not None else "") + "."),
+        "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
+                         "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
+                        **({"hills": TIN_CREDIT} if dem is not None else {})),
     }
     if islands:
         manifest["islands"] = islands
@@ -1584,6 +1588,9 @@ if __name__ == "__main__":
     if "--out" in sys.argv:
         WORLD = os.path.abspath(sys.argv[sys.argv.index("--out") + 1])
     PUBLISH = "--publish" in sys.argv
+    if "--publish-from" in sys.argv:   # publish an already baked staging dir without baking again
+        publish(os.path.abspath(sys.argv[sys.argv.index("--publish-from") + 1]), os.path.join(ROOT, "world"))
+        sys.exit(0)
     if "--tiles" in sys.argv:
         ONLY = set(sys.argv[sys.argv.index("--tiles") + 1].split(","))
         if PUBLISH:

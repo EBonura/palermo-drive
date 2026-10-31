@@ -114,13 +114,24 @@ export async function buildDataBlobs({ ROOT, OUT, hash, prune = true, simplify =
   if (prune && globals.PALERMO_CONTEXT) globals.PALERMO_CONTEXT = await pruneContext(globals.PALERMO_CONTEXT, log, ROOT);
 
   fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
+  // The far-city data is only needed for the distant skyline: it goes in its own blob that the loader fetches after
+  // the game has started (window.__pdLate), so it is not on the critical path.
+  const lateKeys = ['PALERMO_CONTEXT'].filter(k => globals[k]);
+  const late = Object.fromEntries(lateKeys.map(k => [k, globals[k]]));
+  for (const k of lateKeys) delete globals[k];
   const buf = pack(globals, 'core', log);
   const name = `data/core.${hash(buf)}.bin`;
   fs.writeFileSync(path.join(OUT, name), buf);
-  log(`data ${name}: ${Object.keys(globals).join(', ')}: json ${kb(jsonBytes)} (${kb(jsonGz)} gzip) -> ${kb(buf.length)} (${kb(gz(buf))} gzip)`);
+  log(`data ${name}: ${Object.keys(globals).join(', ')}: json ${kb(jsonBytes)} (${kb(jsonGz)} gzip, all datasets) -> core ${kb(buf.length)} (${kb(gz(buf))} gzip)`);
+  const blobs = [{ file: name }];
+  if (lateKeys.length) {
+    const lbuf = pack(late, 'late', log), lname = `data/late.${hash(lbuf)}.bin`;
+    fs.writeFileSync(path.join(OUT, lname), lbuf);
+    blobs.push({ file: lname, late: true });
+    log(`data ${lname}: ${lateKeys.join(', ')}: ${kb(lbuf.length)} (${kb(gz(lbuf))} gzip), loaded after start`);
+  }
 
   // world tiles (optional)
-  const blobs = [{ file: name }];
   let tiles = false;
   const wdir = path.join(ROOT, 'world');
   if (fs.existsSync(path.join(wdir, 'manifest.json'))) {

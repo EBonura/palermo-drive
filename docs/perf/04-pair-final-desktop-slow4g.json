@@ -1,0 +1,251 @@
+{
+ "label": "final",
+ "root": "../../../../../../../../../private/tmp/claude-501/pd-perf/dist-final",
+ "profile": "desktop",
+ "net": "slow4g",
+ "cpuThrottle": 1,
+ "query": "debug&fixres",
+ "wire": {
+  "requests": 22,
+  "bytes": 2150277,
+  "rawBytes": 3485884,
+  "atReady": {
+   "requests": 22,
+   "bytes": 2150277,
+   "rawBytes": 3485884
+  },
+  "byKind": {
+   "html": {
+    "wire": 7837,
+    "raw": 29864,
+    "n": 1
+   },
+   "font": {
+    "wire": 77016,
+    "raw": 77016,
+    "n": 5
+   },
+   "js": {
+    "wire": 472009,
+    "raw": 1421333,
+    "n": 1
+   },
+   "other": {
+    "wire": 1550722,
+    "raw": 1914323,
+    "n": 12
+   },
+   "img": {
+    "wire": 42693,
+    "raw": 43348,
+    "n": 3
+   }
+  }
+ },
+ "timing": {
+  "dcl": 5317,
+  "loaded": 5318,
+  "fcp": 344,
+  "loadingGone": 10337,
+  "firstDraw": 10479,
+  "readyWallMs": 10592
+ },
+ "jsHeapMB": 87.1,
+ "buildings": {
+  "tris": 1194948,
+  "meshes": 159,
+  "stats": {
+   "styles": {
+    "n19": 1660,
+    "bar": 765,
+    "church": 97,
+    "res": 1745,
+    "pw": 765,
+    "blk": 67,
+    "low": 554,
+    "pal": 7,
+    "ruin": 17,
+    "ind": 25,
+    "lib": 40,
+    "fish": 20,
+    "silo": 1
+   },
+   "balconies": 19114,
+   "tanks": 5978,
+   "tiled": 703,
+   "flat": 6842,
+   "specs": 13,
+   "photo": 7,
+   "osmCol": 4
+  },
+  "ms": 257.5999999642372
+ },
+ "samples": [
+  {
+   "spot": "Quattro Canti",
+   "glCalls": 672,
+   "glTriangles": 1589018,
+   "calls": 673,
+   "triangles": 1591497,
+   "lines": 0,
+   "points": 436,
+   "geometries": 390,
+   "textures": 36,
+   "programs": 56,
+   "cpuRenderMsMedian": 3.8,
+   "cpuRenderMsP95": 4.5,
+   "frameMsMedian": 4.7,
+   "frameMsP95": 5.7,
+   "fps": 212.8,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Teatro Massimo",
+   "glCalls": 691,
+   "glTriangles": 1533569,
+   "calls": 692,
+   "triangles": 1536411,
+   "lines": 0,
+   "points": 436,
+   "geometries": 654,
+   "textures": 42,
+   "programs": 56,
+   "cpuRenderMsMedian": 4.3,
+   "cpuRenderMsP95": 6.1,
+   "frameMsMedian": 5.5,
+   "frameMsP95": 7.6,
+   "fps": 181.8,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "La Cala",
+   "glCalls": 856,
+   "glTriangles": 2177833,
+   "calls": 858,
+   "triangles": 2183934,
+   "lines": 0,
+   "points": 436,
+   "geometries": 816,
+   "textures": 47,
+   "programs": 56,
+   "cpuRenderMsMedian": 6.9,
+   "cpuRenderMsP95": 8.2,
+   "frameMsMedian": 8.5,
+   "frameMsP95": 10.2,
+   "fps": 117.6,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  },
+  {
+   "spot": "Stazione",
+   "glCalls": 384,
+   "glTriangles": 994621,
+   "calls": 384,
+   "triangles": 996735,
+   "lines": 0,
+   "points": 436,
+   "geometries": 855,
+   "textures": 47,
+   "programs": 56,
+   "cpuRenderMsMedian": 4.7,
+   "cpuRenderMsP95": 5.8,
+   "frameMsMedian": 6.2,
+   "frameMsP95": 11.2,
+   "fps": 161.3,
+   "pixelRatio": 1,
+   "drawBuf": [
+    1280,
+    720
+   ]
+  }
+ ],
+ "errors": [],
+ "notFound": [],
+ "topFiles": [
+  [
+   "/data/core.8134b17511.bin",
+   1050589,
+   1410923
+  ],
+  [
+   "/js/app.21d3092f7a.js",
+   472009,
+   1421333
+  ],
+  [
+   "/assets/facades/photo/borsa.webp",
+   88500,
+   88500
+  ],
+  [
+   "/assets/facades/photo/jung.webp",
+   85156,
+   85156
+  ],
+  [
+   "/assets/facades/photo/zisa.webp",
+   72862,
+   72862
+  ],
+  [
+   "/assets/facades/photo/riso.webp",
+   57564,
+   57564
+  ],
+  [
+   "/assets/facades/photo/palmes.webp",
+   50424,
+   50424
+  ],
+  [
+   "/assets/facades/photo/biondo.webp",
+   48854,
+   48854
+  ],
+  [
+   "/assets/facades/photo/giustizia.webp",
+   48198,
+   48198
+  ],
+  [
+   "/assets/ui/bonnie-studios.png",
+   35983,
+   35983
+  ],
+  [
+   "/assets/facades/photo/malfitano.webp",
+   26932,
+   26932
+  ],
+  [
+   "/assets/facades/photo/gangi.webp",
+   20558,
+   20558
+  ]
+ ],
+ "consoleTimeline": [
+  [
+   10033,
+   "[buildings] {\"tris\":1195564,\"meshes\":152,\"stats\":{\"styles\":{\"n19\":1660,\"bar\":765,\"church\":97,\"res\":1745,\"pw\":765,\"blk\":67,\"low\":554,\"pal\":7,\"ruin\":17,\"ind\":25,\"lib\":40,\"fish\":20,\"silo\":1},\"balconies\":"
+  ],
+  [
+   10379,
+   "[props] 7431 instances in 1287 meshes, 616k tris, 275 ms {\"signal\":27,\"busstop\":132,\"shelter\":21,\"bollard\":308,\"bin_big\":296,\"bags\":312,\"bench\":115,\"monument\":99,\"fountain\":7,\"palm_fan_c\":44,\"palm_fan"
+  ],
+  [
+   15870,
+   "[buildings] {\"tris\":1194948,\"meshes\":159,\"stats\":{\"styles\":{\"n19\":1660,\"bar\":765,\"church\":97,\"res\":1745,\"pw\":765,\"blk\":67,\"low\":554,\"pal\":7,\"ruin\":17,\"ind\":25,\"lib\":40,\"fish\":20,\"silo\":1},\"balconies\":"
+  ]
+ ]
+}
