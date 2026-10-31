@@ -6,10 +6,12 @@ cd "$(dirname "$0")/.."
 export GH_TOKEN="$(gh auth token --user EBonura)"
 
 smoke() {
-  for q in "" "spot=1&cam=0"; do
+  # desktop title, desktop driving, and a phone in landscape with the touch UI (low quality path)
+  for run in "1280,720|" "1280,720|spot=1&cam=0" "844,390|spot=2&touch"; do
+    size=${run%%|*}; q=${run#*|}
     P=$(mktemp -d "${TMPDIR:-/tmp}/pd-smoke.XXXXXX")
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --user-data-dir="$P" \
-      --use-angle=metal --enable-gpu --ignore-gpu-blocklist --window-size=1280,720 \
+      --use-angle=metal --enable-gpu --ignore-gpu-blocklist --window-size="$size" \
       --enable-logging=stderr --v=0 --virtual-time-budget=20000 --screenshot="$P/s.png" \
       "http://localhost:8790/?$q" 2>"$P.log"
     errs=$(grep -E 'Uncaught|ERROR:CONSOLE|SyntaxError|TypeError|ReferenceError' "$P.log" | grep 'localhost:8790' | grep -v 'computeBoundingSphere' | head -3)

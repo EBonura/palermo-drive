@@ -16,6 +16,7 @@ import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
+import { createSea } from './sea.js';
 
 const SPOTS = [
   ['Quattro Canti', 38.115684, 13.361460], // the crossing itself (17.5 m E of the projection origin)
@@ -279,9 +280,8 @@ if (D.far) { // hills around the Conca d'Oro, Monte Pellegrino
   scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
 }
 
-const sea = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshStandardMaterial({ color: '#1c5876', roughness: 0.12, metalness: 0 }));
-sea.rotation.x = -Math.PI / 2; sea.position.y = -0.2; sea.receiveShadow = true;
-scene.add(sea);
+// The sea surface, shoreline foam and the drowning game over live in src/sea.js.
+const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY });
 
 // ---------- modules ----------
 let freeCam = null;
@@ -314,14 +314,7 @@ class Grid {
 const walls2d = new Grid(16);
 const addRing = flat => { const p = pairs(flat); for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); } };
 for (const b of D.buildings) { addRing(b.p); (b.holes || []).forEach(addRing); }
-{ // coastline keeps the car out of the sea
-  const p = pairs(D.land), [bx0, bz0, bx1, bz1] = D.bounds;
-  for (let i = 0; i < p.length - 1; i++) {
-    const a = p[i], b = p[i + 1];
-    if (Math.max(a[0], b[0]) < bx0 - 50 || Math.min(a[0], b[0]) > bx1 + 50 || Math.max(a[1], b[1]) < bz0 - 50 || Math.min(a[1], b[1]) > bz1 + 50) continue;
-    walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]);
-  }
-}
+// No wall along the coast: driving into the sea is allowed, and it's game over (src/sea.js).
 
 const streets = new Grid(30), roadVerts = [];
 for (const r of D.roads) {
@@ -361,6 +354,8 @@ const { car, camState, placeAt, physics, updateCamera } = vehicle;
 // after each fixed physics step and may push the player (car.x/z/vx/vz) like a wall hit.
 // shout(x, y, z, text?) pops a swearing balloon over whoever the lapa just hit (src/shouts.js).
 const shouts = createShouts(camera);
+// Modules without env access (props) can raise a balloon with a 'pd-shout' event.
+addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text); });
 let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout };
 const traffic = createTraffic(worldEnv);
@@ -499,6 +494,9 @@ renderer.setAnimationLoop(now => {
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
   horn.update(dt, game.state === 'play');
+  // sea.update animates the water; checkPlayer ends the run when the lapa drives into the sea.
+  sea.update?.(dt, camera);
+  if (game.state === 'play') sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
 
   const carPos = vehicle.updateVisual(dt);
   sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);
