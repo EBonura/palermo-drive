@@ -9,15 +9,17 @@
 
 Needs numpy, pillow, opencv-python-headless (all in tools/.venv). Photos go to SRC (outside the repo, never executed).
 
-map.json: { buildingId: [ { wall, texture, u0, u1, v0, v1, flip, size, license, credit } ] }
-  buildingId  id in PALERMO_DATA.buildings
-  wall        index i of the footprint edge b.p[2i..2i+1] -> b.p[2i+2..2i+3] (wrapping), in the ORIGINAL ring order of
-              b.p (if the renderer reverses the ring to fix the winding, map the index accordingly)
-  u0, u1      fraction of that edge (0 at the start vertex, 1 at the end vertex) the texture covers, u0 < u1
-  v0, v1      fraction of the wall height (0 = ground g, 1 = roof r) the texture covers
-  flip        false: image x grows from u0 to u1 along the edge. true: the image seen from OUTSIDE has its left edge
-              at u1 (the edge runs right to left for a viewer in front of it), so mirror the u mapping
-  size        [w, h] pixels of the texture
+map.json (same convention src/buildings.js reads): { buildingId: [ { wall, texture, u0, u1, v0, v1, ... } ] }
+  wall        index i of the footprint edge b.p[2i..2i+1] -> next vertex, in the ORIGINAL ring order of b.p
+  u0, u1      texture u at the edge's start vertex and at its end vertex (1, 0 when the photographed wall reads right
+              to left for a viewer standing in front of it, i.e. the image must run end -> start)
+  v0, v1      texture v at the pavement and at the cornice (0 = bottom of the image); always 0 and 1 here
+  flip        informational: true when u0 > u1
+  photographed  [pu0, pu1, pv0]: the part of the wall that is really photographed (fractions of the edge from the start
+              vertex, and of the height from the ground). The rest of the texture is mirrored padding, so a partly
+              photographed facade still fits the whole wall.
+  size, license, credit   texture size in px, licence, full credit string
+Every texture has the same density (TEXELS_PER_M), capped at MAX_SIDE px on the long side.
 """
 import json, math, os, re, subprocess, sys, time, urllib.parse, urllib.request
 import cv2
@@ -30,12 +32,14 @@ OUT = os.path.join(ROOT, 'assets/facades/photo')
 SHOTS = '/private/tmp/claude-501/facade-src/shots'
 SHEET = os.path.join(OUT, 'contact-sheet.png')
 UA = {'User-Agent': 'PalermoDriveFacadeTool/0.1 (game prototype)'}
-MAX_SIDE = 512          # PS2-era: long side of every texture
+TEXELS_PER_M = 19.2     # PS2-era density: a 26.7 m palazzo gets 512 px
+MAX_SIDE = 1024         # cap for very long walls (buildings.js stores every photo in a 1024 x 1024 layer)
 MARK0, MARK1 = '<!-- facade_photos:begin -->', '<!-- facade_photos:end -->'
 
 # One entry per rectified facade. quad = the 4 corners of the facade plane in the photo as seen in a view
 # `dw` px wide (top-left, top-right, bottom-right, bottom-left). cover = [c0, c1] fraction of the footprint edge
-# (from its start vertex) that the quad spans. split = cut the result into n equal textures. fix = obstructions to
+# (from its start vertex) that the quad spans. auto = the quad reaches outside the photo, keep the largest photographed
+# block. v0 = drop that fraction of the wall height at the bottom (clutter). fix = obstructions to
 # paint out: ('poly', [pts]) or ('line', [pts], width), same view coordinates.
 SOURCES = [
     dict(key='riso', bid='w926546486', name='Palazzo Belmonte Riso (Corso Vittorio Emanuele)', wall=5, cover=[0, 1],
@@ -48,10 +52,12 @@ SOURCES = [
     dict(key='gangi', bid='r4779709.0', name='Palazzo Valguarnera-Gangi (Piazza Croce dei Vespri)', wall=8, cover=[0, 1],
          title='Palazzo Gangi (Palermo) 14 07 2024 01.jpg', dw=2000,
          quad=[[130, 190], [1680, 180], [1690, 1160], [135, 1180]],
-         fix=[('poly', [[1360, 835], [1535, 835], [1540, 1365], [1360, 1365]]),
+         fix=[('mirror', [[1362, 838], [1500, 838], [1500, 1165], [1362, 1165]], 1008),   # festival banner; the facade is symmetric about the portal
+              ('poly', [[1500, 838], [1540, 838], [1540, 1365], [1500, 1365]]),
+              ('poly', [[1362, 1165], [1540, 1165], [1540, 1365], [1362, 1365]]),
               ('poly', [[340, 1040], [462, 1040], [462, 1200], [340, 1200]]),
               ('poly', [[700, 1035], [952, 1035], [952, 1215], [700, 1215]])]),
-    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], split=2, auto=True, v0=0.07,
+    dict(key='jung', bid='w279882476', name='Palazzo Jung (Via Abramo Lincoln)', wall=10, cover=[0, 1], auto=True, v0=0.07,
          title='Palermo, Palazzo Jung 01.jpg', dw=1920,
          quad=[[95, 408], [1945, 288], [2414, 1084], [-183, 1029]],   # verticals through the vanishing point (925, -1443)
          fix=[('poly', [[790, 1005], [948, 1005], [948, 1132], [790, 1132]]),
@@ -159,12 +165,18 @@ def meta_for(s):
 
 # ---------------------------------------------------------------- image work
 def paint_out(img, s):
-    """Inpaint the obstructions (poles, signs, plants, wires) listed in s['fix']."""
+    """Remove the obstructions listed in s['fix']: ('mirror', poly, axis_x) copies the mirror image of a symmetric facade
+    over the polygon, ('poly', pts) / ('line', pts, width) are inpainted (OpenCV Telea)."""
     k = img.shape[1] / s['dw']
     mask = np.zeros(img.shape[:2], np.uint8)
     for f in s.get('fix', []):
         pts = (np.array(f[1], np.float32) * k).astype(np.int32)
-        if f[0] == 'poly':
+        if f[0] == 'mirror':
+            m = np.zeros(img.shape[:2], np.uint8); cv2.fillPoly(m, [pts], 255)
+            flip = cv2.warpAffine(img, np.float32([[-1, 0, 2 * f[2] * k], [0, 1, 0]]), (img.shape[1], img.shape[0]),
+                                  flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            img = np.where(m[..., None] > 0, flip, img)
+        elif f[0] == 'poly':
             cv2.fillPoly(mask, [pts], 255)
         else:
             cv2.polylines(mask, [pts], False, 255, max(1, int(f[2] * k)))
@@ -206,8 +218,7 @@ def rectify(s, wi):
     k = img.shape[1] / s['dw']
     c0, c1 = s['cover']
     Lc = wi['L'] * (c1 - c0)
-    W2 = 2 * MAX_SIDE
-    ppm = W2 / max(Lc, wi['H'])
+    ppm = min(2 * TEXELS_PER_M, 2 * MAX_SIDE / max(wi['L'], wi['H']))
     wp, hp = int(round(Lc * ppm)), int(round(wi['H'] * ppm))
     src = (np.array(s['quad'], np.float32) * k)
     dst = np.array([[0, 0], [wp, 0], [wp, hp], [0, hp]], np.float32)
@@ -247,30 +258,29 @@ def build():
         rect, (xa, xb, v0) = rectify(s, wi)
         rect = correct(rect)
         m = meta_for(s)
-        n = s.get('split', 1)
-        c0, c1 = s['cover']
-        for i in range(n):
-            x0, x1 = rect.shape[1] * i // n, rect.shape[1] * (i + 1) // n
-            piece = rect[:, x0:x1]
-            ph, pw = piece.shape[:2]
-            sc = MAX_SIDE / max(pw, ph)
-            fw, fh = max(4, int(round(pw * sc / 4)) * 4), max(4, int(round(ph * sc / 4)) * 4)
-            small = cv2.resize(piece, (fw, fh), interpolation=cv2.INTER_AREA)
-            small = cv2.addWeighted(small, 1.25, cv2.GaussianBlur(small, (0, 0), 1.0), -.25, 0)   # slight crunch
-            name = s['key'] + (f'_{i + 1}' if n > 1 else '') + '.jpg'
-            cv2.imwrite(os.path.join(OUT, name), small, [cv2.IMWRITE_JPEG_QUALITY, 88])
-            # u range of this piece, measured from the edge's start vertex. The image shows the quad left to right as
-            # seen from outside; when the edge runs right-to-left for that viewer the image-left is at c1.
-            a, b = xa + (xb - xa) * i / n, xa + (xb - xa) * (i + 1) / n
-            if wi['flip']:
-                u0, u1 = c1 - (c1 - c0) * b, c1 - (c1 - c0) * a
-            else:
-                u0, u1 = c0 + (c1 - c0) * a, c0 + (c1 - c0) * b
-            credit = f"{m['author']}, {m['title']}, {m['lic']}, {m['url']}"
-            mp.setdefault(s['bid'], []).append(dict(
-                wall=s['wall'], texture='assets/facades/photo/' + name, u0=round(u0, 4), u1=round(u1, 4), v0=round(v0, 3), v1=1,
-                flip=bool(wi['flip']), size=[fw, fh], license=m['lic'], credit=credit))
-            log(f"{name}: {fw}x{fh}  {s['name']}  wall {wi['L']:.1f} x {wi['H']:.1f} m  flip={wi['flip']}  {m['lic']}")
+        ppm = min(2 * TEXELS_PER_M, 2 * MAX_SIDE / max(wi['L'], wi['H']))
+        # where the photographed block sits on the wall, seen from outside (p = 0 at the viewer's left end)
+        c0, c1 = s['cover']; flip = wi['flip']
+        pc0, pc1 = (1 - c1, 1 - c0) if flip else (c0, c1)
+        p0, p1 = pc0 + xa * (pc1 - pc0), pc0 + xb * (pc1 - pc0)
+        fullw, fullh = int(round(wi['L'] * ppm)), int(round(wi['H'] * ppm))
+        padl = int(round(p0 * fullw)); padr = max(0, fullw - padl - rect.shape[1]); padb = max(0, fullh - rect.shape[0])
+        full = cv2.copyMakeBorder(rect, 0, padb, padl, padr, cv2.BORDER_REFLECT)
+        full = full[:fullh, :fullw]
+        sc = min(TEXELS_PER_M, MAX_SIDE / max(wi['L'], wi['H'])) / ppm
+        fw, fh = max(4, int(round(fullw * sc / 4)) * 4), max(4, int(round(fullh * sc / 4)) * 4)
+        small = cv2.resize(full, (fw, fh), interpolation=cv2.INTER_AREA)
+        small = cv2.addWeighted(small, 1.25, cv2.GaussianBlur(small, (0, 0), 1.0), -.25, 0)   # slight crunch
+        name = s['key'] + '.jpg'
+        cv2.imwrite(os.path.join(OUT, name), small, [cv2.IMWRITE_JPEG_QUALITY, 88])
+        # photographed range as fractions of the edge from its start vertex
+        u_a, u_b = (1 - p1, 1 - p0) if flip else (p0, p1)
+        credit = f"{m['author']}, {m['title']}, {m['lic']}, {m['url']}"
+        mp.setdefault(s['bid'], []).append(dict(
+            wall=s['wall'], texture='assets/facades/photo/' + name,
+            u0=1 if flip else 0, u1=0 if flip else 1, v0=0, v1=1, flip=bool(flip),
+            photographed=[round(u_a, 3), round(u_b, 3), round(v0, 3)], size=[fw, fh], license=m['lic'], credit=credit))
+        log(f"{name}: {fw}x{fh}  {s['name']}  wall {wi['L']:.1f} x {wi['H']:.1f} m  flip={flip}  photographed u {u_a:.2f}-{u_b:.2f} v>{v0:.2f}  {m['lic']}")
         creds.append((s, m))
     json.dump(mp, open(os.path.join(OUT, 'map.json'), 'w'), indent=1)
     write_credits(creds)
@@ -284,7 +294,7 @@ def write_credits(creds):
         seen.setdefault(m['title'], (s, m))
     rows = ['| Texture | Title | Author | Licence | Source | Changes |', '| --- | --- | --- | --- | --- | --- |']
     for s, m in creds:
-        tex = 'facades/photo/' + s['key'] + ('_N' if s.get('split', 1) > 1 else '') + '.jpg'
+        tex = 'facades/photo/' + s['key'] + '.jpg'
         lic = f"[{m['lic']}]({m['licurl']})" if m.get('licurl') else m['lic']
         rows.append(f"| `{tex}` ({s['name']}) | {m['title']} | {m['author']} | {lic} | {m['url']} | rectified and downscaled "
                     f"(perspective-corrected, obstructions painted out, colour-neutralised, {MAX_SIDE} px max) |")

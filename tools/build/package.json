@@ -5,7 +5,7 @@
   "description": "Build pipeline (esbuild bundle, data codecs) and perf harness for Palermo Drive. Not used by the dev server.",
   "scripts": {
     "build": "node build.mjs",
-    "perf": "node ../perf/measure.mjs"
+    "perf": "node measure.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

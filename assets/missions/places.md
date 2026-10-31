@@ -4,3 +4,4 @@ Destinations: Antica Focacceria San Francesco (Via Alessandro Paternostro 58, Ka
 Ke Palle (Via Maqueda 270), Nni Franco u Vastiddaru (Piazza Marina 2), Mercato di Ballarò (Piazza del Carmine), Mercato del Capo (Via Porta Carini), Piazza Garraffello (Vucciria).
 Stigghiulari: Piazza del Carmine (Ballarò), Mercato del Capo, Piazza Magione (Kalsa, stand-in: "Piazza della Kalsa" is about 40 m outside the box), Piazza Garraffello (Vucciria).
 Pickups: the seven landmark spots from main.js. Everything is in `lines.js` (DESTS, PICKUPS, VENDORS) with the outside-the-box places in LATER.
+- **Taverna Azzurra** (destination, suggested by Hubert): 38.1176395, 13.3634460, Discesa Maccheronai 9, Vucciria. Source: Nominatim/OSM (bar).

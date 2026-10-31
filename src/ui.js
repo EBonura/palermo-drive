@@ -28,6 +28,9 @@ const S = {
   low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
   draw: ['Distanza', 'Draw distance'],
   volume: ['Volume', 'Volume'],
+  musicVolume: ['Musica', 'Music'],
+  radio: ['Radio', 'Radio'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
@@ -207,6 +210,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   if (['low', 'medium', 'high'].includes(saved.quality)) st.quality = saved.quality;
   if (Number.isFinite(saved.drawDistance)) st.drawDistance = clamp(saved.drawDistance, 0.5, 1.5);
   if (Number.isFinite(saved.volume)) st.volume = clamp(saved.volume, 0, 1);
+  st.musicVolume = Number.isFinite(saved.musicVolume) ? clamp(saved.musicVolume, 0, 1) : (st.musicVolume ?? 0.5); // car radio (src/radio.js)
+  st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   let livery = typeof saved.livery === 'string' ? saved.livery : null;
@@ -248,6 +253,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     { key: 'quality', label: 'quality', type: 'seg', vals: [['low', 'low'], ['medium', 'medium'], ['high', 'high']] },
     { key: 'drawDistance', label: 'draw', type: 'slider', min: 0.5, max: 1.5, step: 0.1, fmt: v => Math.round(v * 100) + '%' },
     { key: 'volume', label: 'volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'musicVolume', label: 'musicVolume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
   ];
@@ -554,6 +561,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
     if (key === 'lang') { lang = value; applyLang(); applyLiveryLang(); }
+    else if (key === 'musicVolume' || key === 'radio') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
     else {
       st[key] = value;
       if (key === 'volume') vehicle?.setVolume?.(value);

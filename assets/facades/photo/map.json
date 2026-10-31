@@ -3,11 +3,16 @@
   {
    "wall": 5,
    "texture": "assets/facades/photo/riso.jpg",
-   "u0": 0.0,
-   "u1": 1.0,
+   "u0": 1,
+   "u1": 0,
    "v0": 0,
    "v1": 1,
    "flip": true,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
    "size": [
     512,
     392
@@ -20,14 +25,19 @@
   {
    "wall": 8,
    "texture": "assets/facades/photo/gangi.jpg",
-   "u0": 0.0,
-   "u1": 1.0,
+   "u0": 1,
+   "u1": 0,
    "v0": 0,
    "v1": 1,
    "flip": true,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
    "size": [
-    512,
-    336
+    492,
+    324
    ],
    "license": "CC0",
    "credit": "Effems, Palazzo Gangi (Palermo) 14 07 2024 01.jpg, CC0, https://commons.wikimedia.org/wiki/File:Palazzo_Gangi_(Palermo)_14_07_2024_01.jpg"
@@ -36,30 +46,20 @@
  "w279882476": [
   {
    "wall": 10,
-   "texture": "assets/facades/photo/jung_1.jpg",
-   "u0": 0.5269,
-   "u1": 0.9121,
-   "v0": 0.07,
+   "texture": "assets/facades/photo/jung.jpg",
+   "u0": 1,
+   "u1": 0,
+   "v0": 0,
    "v1": 1,
    "flip": true,
-   "size": [
-    512,
-    444
+   "photographed": [
+    0.139,
+    0.914,
+    0.07
    ],
-   "license": "CC BY 4.0",
-   "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
-  },
-  {
-   "wall": 10,
-   "texture": "assets/facades/photo/jung_2.jpg",
-   "u0": 0.1416,
-   "u1": 0.5269,
-   "v0": 0.07,
-   "v1": 1,
-   "flip": true,
    "size": [
-    512,
-    444
+    952,
+    344
    ],
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Palermo, Palazzo Jung 01.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg"
@@ -69,14 +69,19 @@
   {
    "wall": 1,
    "texture": "assets/facades/photo/biondo.jpg",
-   "u0": 0.22,
-   "u1": 0.78,
-   "v0": 0.135,
+   "u0": 1,
+   "u1": 0,
+   "v0": 0,
    "v1": 1,
    "flip": true,
+   "photographed": [
+    0.22,
+    0.78,
+    0.135
+   ],
    "size": [
-    512,
-    280
+    900,
+    320
    ],
    "license": "CC0",
    "credit": "Luca.favorido, Facciata del Teatro Biondo.jpg, CC0, https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg"
