@@ -1250,6 +1250,7 @@ CLEAN_PX = 2.0       # the raster pixel
 CLEAN_SIGMA = 3.0    # pixels (6 m) of the robust mean
 CLEAN_C = 0.8        # metres: residuals beyond this count for little
 CLEAN_HALO = 3.0     # metres around building footprints that are dropped
+CLEAN_CLOSE = 16.0   # metres: pits narrower than twice this are filled on flat ground
 CLEAN_ON = True
 
 
@@ -1307,6 +1308,18 @@ def clean_dtm(x0, z0, nx, nz):
         todo &= ~got
         if not todo.any():
             break
+    # pits narrower than 2 * CLEAN_CLOSE metres that survived (courtyards, basements, shaded halos) are filled up to their rim, on
+    # flat ground only: a closing would also fill real gullies and shave valley floors on slopes
+    k = int(round(CLEAN_CLOSE / CLEAN_PX))
+    if k > 0:
+        fill = np.where(np.isfinite(out), out, np.nanmedian(out)).astype(np.float32)
+        ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * k + 1, 2 * k + 1))
+        closed = cv2.erode(cv2.dilate(fill, ker), ker)
+        gy, gx = np.gradient(cv2.GaussianBlur(closed, (0, 0), 4.0), CLEAN_PX)   # slope of the filled surface, not of the pit walls
+        flat = 1.0 - np.clip((np.hypot(gx, gy) - 0.05) / 0.07, 0, 1)    # 1 below 5 % slope, 0 above 12 %
+        up = np.maximum(closed - fill, 0) * flat
+        out = np.where(np.isfinite(out), out + up, out)
+        out = np.where(np.isfinite(out), cv2.GaussianBlur(np.where(np.isfinite(out), out, fill), (0, 0), 1.5), out)
     return out
 
 

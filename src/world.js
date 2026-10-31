@@ -104,6 +104,30 @@ function terrainColor(out, h, slope, noise, n2 = 0.5) {
   return out;
 }
 
+// Terrain detail texture, triplanar on steep faces: the world-space (x, z) UVs smear along the fall line on cliffs (Monte Pellegrino), so
+// once the slope passes ~45 degrees the detail is also projected on the x/y and z/y planes and blended in by the normal.
+function terrainMaterial() {
+  const m = new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide });
+  const k = (1 / GROUND_TEX.terrain.metres).toFixed(6);
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;')
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+        vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+        { float ny = abs( normalize( vTpNrm ).y ), side = 1.0 - smoothstep( 0.55, 0.85, ny );
+          if ( side > 0.002 ) {
+            vec3 an = abs( normalize( vTpNrm ) );
+            vec4 tx = texture2D( map, vec2( vTpPos.z, vTpPos.y ) * ${k} ), tz = texture2D( map, vec2( vTpPos.x, vTpPos.y ) * ${k} );
+            sampledDiffuseColor = mix( sampledDiffuseColor, mix( tz, tx, an.x / ( an.x + an.z + 1e-4 ) ), side );
+          } }
+        diffuseColor *= sampledDiffuseColor;
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'terrain-triplanar';
+  return m;
+}
+
 // ---------- low-detail facade: one plain tile, two bays by two floors ----------
 let lowMats = null;
 function getLowMats() {
@@ -121,7 +145,7 @@ function getLowMats() {
   lowMats = {
     wall: new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.95 }),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
-    terrain: new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide }),
+    terrain: terrainMaterial(),
     far: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }), // the coarse far grid has no uvs
   };
   return lowMats;

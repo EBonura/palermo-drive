@@ -305,8 +305,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
 
   mk('garage', '', `<div class="pd-card pd-garage">
       <div class="gx-root"></div>
-      <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
-    </div>`);
+    </div>`);   // the garage draws its own Back / Done row (src/garage-ui.js): step 2 backs out to step 1
 
   mk('start', '', `<div class="pd-card pd-garage pd-start">
       <h2 class="pd-h" data-k="startQ" data-two></h2>
@@ -475,7 +474,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
 
   // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js), with a slowly turning close view of the vehicle ----
-  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang });
+  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang, onExit: () => goBack() });
   const flyCam = game.titleCam;
   const garageCam = (cam, sec) => garageUI.cam(cam, sec);
 
@@ -647,7 +646,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (game.state === 'play') { if (a === 'pause' || a === 'back') openPause(); return; }
     if (cur === 'title') { if (a === 'ok') go('menu'); return; }
     if (a === 'pause' && game.state === 'pause') return closePause();
-    if (a === 'back') { if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
+    if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
     if (a === 'ok') { const el = document.activeElement; if (cur && screens[cur] && el && el.closest && screens[cur].contains(el)) el.click(); return; }
     if (['up', 'down', 'left', 'right'].includes(a)) move(a);
   }
