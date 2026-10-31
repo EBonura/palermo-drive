@@ -850,7 +850,7 @@ const STYLES = {
   blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_d', 'blk_a', 'blk_b', 'blk_d', 'blk_c', 'blk_e'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
     ground: [['pw_shop', 3], ['g_shop_s', 2], ['g_pilot', 1.4], ['g_lobby', 1.6], ['g_garage', 1]] },
   // 1980s+ palazzina: one balcony per bay, glazed or solid parapets
-  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', railAlt: 'rail_g', balc: 'every', pitch: 0.18,
+  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', railAlt: 'rail_g', balc: 'alt', pitch: 0.18, // 'alt': balconies in stacked columns on every other bay (Viale Lazio), half the triangles of one per bay
     ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
   ins: { pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
@@ -1360,9 +1360,11 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const flatTint = 0.88 + 0.2 * r();
       B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
       let stackY;
+      const ni0 = BDBG ? B.ch.m.ni + B.ch.r.ni : 0;
       for (const [flat, holes, roofY, stacked] of solids) {
         if (stacked) { if (stackY === undefined || roofY <= stackY + 0.4) continue; emitSolid(B, flat, holes, roofY, stackY); } else { const y = emitSolid(B, flat, holes, roofY); if (stackY === undefined && !b.split) stackY = y; }
       }
+      if (BDBG) { const T = (window.__bldTris = window.__bldTris || {}); const o = T[key] || (T[key] = [0, 0]); o[0]++; o[1] += (B.ch.m.ni + B.ch.r.ni - ni0) / 3; }
     }
     let tris = 0, nm = 0;
     for (const m of meshesOut) { group.remove(m); m.geometry.dispose(); }
