@@ -19,13 +19,15 @@ const ENG = {
   tascia:     { f0: 58, fr: 215, o2: 2.0, o2g: 0.5, lfo0: 14, lfor: 84, depth: 0.2, am: 0.74, lp0: 700, lpr: 3400, pkf: 750, pkg: 9, rasp: 0.06, out: 0.4 },
 };
 // exhaust parts: louder, throatier, rougher
-const EXH = { '': [1, 1, 1, 0], marmitta: [1.3, 1.5, 0.92, 4], doppio: [1.6, 2.6, 0.84, 12] };   // [volume, rasp, pitch, distortion]
+const EXH = { '': [1, 1, 1, 0], marmitta: [1.3, 1.5, 0.92, 4], doppio: [1.6, 2.6, 0.84, 12], tromba: [1.9, 3.2, 0.78, 18], oro: [1.7, 2.8, 0.82, 14] };   // [volume, rasp, pitch, distortion]
 
 // Original horn melodies (Hz, 0 = rest), one step = `dt` seconds, looping while the key is held.
 const HORNS = {
   tarantella: { kind: 'notes', dt: 0.115, wave: 'square', notes: [440, 523, 659, 523, 440, 392, 440, 0, 587, 659, 784, 659, 587, 523, 587, 0, 440, 523, 659, 880, 784, 659, 523, 440, 392, 440, 494, 440, 0, 0] },
   fanfara: { kind: 'notes', dt: 0.14, wave: 'sawtooth', notes: [392, 0, 392, 523, 0, 523, 659, 0, 784, 784, 0, 659, 784, 1047, 1047, 1047, 0, 0] },
   camion: { kind: 'chord', wave: 'sawtooth', freqs: [98, 123.5, 147] },
+  mandolino: { kind: 'notes', dt: 0.07, wave: 'triangle', notes: [659, 659, 659, 659, 784, 784, 784, 784, 880, 880, 880, 880, 784, 784, 659, 659, 587, 587, 587, 587, 659, 659, 0, 0] },
+  bip: { kind: 'notes', dt: 0.12, wave: 'square', notes: [740, 740, 0, 740, 740, 0, 0, 0, 0] },
 };
 
 export function createVehicleAudio(env) {

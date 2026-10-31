@@ -35,12 +35,12 @@ function addWheel(K, W, style, rimOpt, M) {
     S.add(M.trim, cylX(r * 0.12, r * 0.12, w + 0.05, 8)); return;
   }
   S.add(MAT.tyre, cylX(r, r, w, style === 'bike' ? 14 : 16));
-  const rm = rimOpt === 'oro' ? MAT.gold : rimOpt === 'neri' ? MAT.black : (rimOpt === 'cromati' || rimOpt === 'spinner') ? MAT.chrome : null;
+  const rm = rimOpt === 'oro' ? MAT.gold : rimOpt === 'neri' ? MAT.black : (rimOpt === 'cromati' || rimOpt === 'spinner') ? MAT.chrome : rimOpt === 'rosa' ? PINKM : rimOpt === 'bianchi' ? MAT.white : null;
   const spokes = (mat, n = 3, len = 1.3, wd = 0.12) => { for (let k = 0; k < n; k++) S.add(mat, box(w + 0.03, r * wd, r * len), 0, 0, 0, k * PI / n); };
   if (rm) { // a chosen rim (a tuning part: it vanishes with the others when the vehicle is stripped, leaving the bare tyre)
     K.stage = 1;
     S.add(rimOpt === 'neri' ? MAT.dark : rm, cylX(r * (style === 'lapa' ? 0.78 : 0.72), r * (style === 'lapa' ? 0.78 : 0.72), w + 0.012, 14));
-    S.add(rm, cylX(r * 0.22, r * 0.22, w + 0.034, 10)); spokes(rm, style === 'car' ? 3 : 3, 1.36, 0.14);
+    S.add(rimOpt === 'bianchi' ? MAT.chrome : rm, cylX(r * 0.22, r * 0.22, w + 0.034, 10)); spokes(rimOpt === 'bianchi' ? MAT.chrome : rm, 3, 1.36, 0.14);
     if (rimOpt === 'neri') S.add(colMat('#f27aa8', 0.5, 0.2), tor(r * 0.7, r * 0.03, 4, 18).clone().rotateY(PI / 2), 0, 0, 0);
     K.stage = null;
   } else if (style === 'lapa') {
@@ -138,6 +138,7 @@ function buildCalessino(K, M, P, A) {
   }
   Object.assign(A, {
     kind: 'lapa', spoil: { y: 1.9, z: -1.6, w: 1.3, h: 0.16 }, neon: { x: 0.64, z0: -1.5, z1: 1.2, y: 0.24 }, glow: { w: 2.6, l: 4.0, z: -0.1 },
+    roof: { y: 2.04, z: 0.55, w: 0.9 }, rack: { y: 1.94, z: -0.7, w: 1.1, l: 1.2 },
     flank: { x: 0.655, y: 0.53, z: -0.85, l: 1.36, h: 0.4 }, top: null, back: { y: 0.95, z: -1.58, w: 0.9, h: 0.3 }, front: { y: 0.74, z: 1.43, w: 0.34, h: 0.34 },
     exh: [[0.32, 0.3, -1.6], [-0.32, 0.3, -1.6]], tails: [[-0.5, 0.64, -1.59], [0.5, 0.64, -1.59]], sub: { x: 0, y: 0.7, z: -1.8, w: 0.9, h: 0.4, d: 0.34 },
     seats: [{ x: -0.26, z: -1.1, y: 1.04 }, { x: 0.26, z: -1.1, y: 1.04 }], barK: 0.9, steerMax: 0.62, tipMax: 0.17, track: 0.66, rearTrack: 0.66, wheelR: 0.23, len: 3.1,
@@ -168,6 +169,7 @@ function buildCassone(K, M, P, A) {
   T.add(MAT.tail, box(0.12, 0.05, 0.03), 0.6, 0.64, -1.77); T.add(MAT.tail, box(0.12, 0.05, 0.03), -0.6, 0.64, -1.77);
   Object.assign(A, {
     kind: 'lapa', spoil: { y: 1.92, z: -0.2, w: 1.34, h: 0.14 }, neon: { x: 0.64, z0: -1.6, z1: 1.2, y: 0.24 }, glow: { w: 2.6, l: 4.2, z: -0.2 },
+    roof: { y: 1.9, z: 0.35, w: 1.1 }, rack: { y: 1.32, z: -1.0, w: 1.1, l: 1.3 },
     flank: { x: 0.69, y: 0.77, z: -0.97, l: 1.5, h: 0.26 }, top: null, back: { y: 0.77, z: -1.8, w: 0.9, h: 0.26 }, front: { y: 0.74, z: 1.43, w: 0.34, h: 0.34 },
     exh: [[0.32, 0.3, -1.72], [-0.32, 0.3, -1.72]], tails: [[-0.6, 0.64, -1.78], [0.6, 0.64, -1.78]], sub: { x: 0, y: 1.14, z: -1.12, w: 0.9, h: 0.5, d: 0.36, inBed: true },
     seats: [{ x: -0.26, z: -0.9, y: 0.7 }, { x: 0.26, z: -0.9, y: 0.7 }], barK: 0.9, steerMax: 0.62, tipMax: 0.2, track: 0.66, rearTrack: 0.66, wheelR: 0.23, len: 3.6,
@@ -193,6 +195,7 @@ function buildLapa50(K, M, P, A) {
   const k = s;
   Object.assign(A, {
     kind: 'lapa', spoil: { y: 1.7 * k, z: -1.42 * k, w: 1.2, h: 0.14 }, neon: { x: 0.57, z0: -1.25, z1: 1.0, y: 0.22 }, glow: { w: 2.3, l: 3.4, z: -0.1 },
+    roof: { y: 1.87, z: 0.34, w: 1.1 }, rack: { y: 1.65, z: -0.72, w: 1.1, l: 1.1 },   // the roof and rack anchors are in model units (the kit scales them)
     flank: { x: 0.675 * k, y: 1.06 * k, z: -0.72 * k, l: 1.0, h: 0.6 * k }, top: null, back: { y: 1.0 * k, z: -1.4 * k, w: 0.8, h: 0.5 * k }, front: { y: 0.74 * k, z: 1.43 * k, w: 0.3, h: 0.3 },
     exh: [[0.28, 0.28, -1.3], [-0.28, 0.28, -1.3]], tails: [[-0.52 * k, 0.7 * k, -1.39 * k], [0.52 * k, 0.7 * k, -1.39 * k]], sub: { x: 0, y: 0.62, z: -1.6, w: 0.8, h: 0.36, d: 0.3 },
     seats: [{ x: -0.22, z: -0.4, y: 0.75 }, { x: 0.22, z: -0.4, y: 0.75 }], barK: 0.9, steerMax: 0.66, tipMax: 0.2, track: 0.66 * k, rearTrack: 0.66 * k, wheelR: 0.23 * k, len: 2.7,
@@ -236,6 +239,7 @@ function buildVespa(K, M, P, A) {
   rider(D, { shirt: '#2f7a87', pants: '#3a4660', helmet: 'jet', helmetColor: '#f1efe8', hip: [0, 0.8, -0.38], sh: [0, 1.3, -0.26], head: [0, 1.5, -0.2], knee: [0.17, 0.78, 0.0], foot: [0.16, 0.27, 0.2], hand: [0.3, 1.06, 0.45] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 0.66, z: -0.97, w: 0.42, h: 0.12 }, neon: { x: 0.2, z0: -0.5, z1: 0.5, y: 0.15, bike: true }, glow: { w: 1.5, l: 2.6, z: 0 },
+    roof: { x: 0.17, y: 0.6, z: -0.88 }, tail: { y: 0.7, z: -0.95, w: 0.36 }, bag: { x: 0.24, y: 0.4, z: -0.8, l: 0.4, h: 0.26 }, screen: { y: 0.17, z: 0.08, w: 0.34 },
     flank: { x: 0.178, y: 0.43, z: -0.56, l: 0.62, h: 0.3 }, top: null, back: null, front: { y: 0.55, z: 0.45, w: 0.26, h: 0.26, tilt: true },
     exh: [[-0.2, 0.26, -0.96], [0.2, 0.26, -0.96]], tails: [[0, 0.5, -1.115]], sub: { x: 0, y: 0.5, z: -1.2, w: 0.5, h: 0.3, d: 0.26 },
     seats: [{ x: 0, z: -0.62, y: 0.82 }], barK: 1, steerMax: 0.45, tipMax: 0.62, track: 0, rearTrack: 0, wheelR: 0.2, len: 1.9,
@@ -270,6 +274,7 @@ function buildScooterone(K, M, P, A) {
   rider(D, { shirt: '#23262e', pants: '#4a5668', helmet: 'jet', helmetColor: '#1f2024', hip: [0, 0.9, -0.34], sh: [0, 1.46, -0.3], head: [0, 1.67, -0.26], knee: [0.17, 0.9, 0.12], foot: [0.16, 0.34, 0.26], hand: [0.3, 1.16, 0.4] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 1.26, z: -1.09, w: 0.4, h: 0.1 }, neon: { x: 0.22, z0: -0.6, z1: 0.55, y: 0.17, bike: true }, glow: { w: 1.6, l: 2.8, z: 0 },
+    roof: { x: 0.15, y: 1.24, z: -1.0 }, tail: { y: 1.24, z: -0.86, w: 0.36 }, bag: { x: 0.27, y: 0.45, z: -0.82, l: 0.42, h: 0.28 }, screen: { y: 0.3, z: 0.0, w: 0.36 },
     flank: { x: 0.205, y: 0.52, z: -0.62, l: 0.7, h: 0.32 }, top: null, back: null, front: { y: 0.52, z: 0.46, w: 0.28, h: 0.28, tilt: true },
     exh: [[0.2, 0.34, -1.05], [-0.2, 0.34, -1.05]], tails: [[0, 0.68, -1.065]], sub: { x: 0, y: 1.07, z: -1.1, w: 0.4, h: 0.3, d: 0.1, onBox: true },
     seats: [{ x: 0, z: -0.66, y: 0.94 }], barK: 1, steerMax: 0.45, tipMax: 0.58, track: 0, rearTrack: 0, wheelR: 0.26, len: 2.0,
@@ -303,6 +308,7 @@ function buildMotorino(K, M, P, A) {
   rider(D, { shirt: '#b0262a', pants: '#20242c', helmet: 'full', helmetColor: '#141418', hip: [0, 0.9, -0.4], sh: [0, 1.34, -0.12], head: [0, 1.5, -0.02], knee: [0.15, 0.78, 0.1], foot: [0.18, 0.36, -0.18], hand: [0.37, 1.04, 0.42] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 0.93, z: -0.84, w: 0.3, h: 0.1 }, neon: { x: 0.18, z0: -0.45, z1: 0.5, y: 0.2, bike: true }, glow: { w: 1.4, l: 2.6, z: 0 },
+    roof: { x: 0.12, y: 0.95, z: -0.88 }, tail: { y: 0.97, z: -0.86, w: 0.26 }, bag: { x: 0.2, y: 0.55, z: -0.7, l: 0.4, h: 0.24 }, screen: { y: 0.15, z: 0.2, w: 0.3 },
     flank: { x: 0.155, y: 0.85, z: 0.15, l: 0.5, h: 0.2 }, top: null, back: null, front: null,
     exh: [[-0.17, 0.36, -0.95], [0.17, 0.36, -0.95]], tails: [[0, 0.9, -0.875]], sub: { x: 0, y: 0.9, z: -0.88, w: 0.26, h: 0.22, d: 0.16 },
     seats: [{ x: 0, z: -0.5, y: 0.9 }], barK: 1, steerMax: 0.5, tipMax: 0.72, track: 0, rearTrack: 0, wheelR: 0.3, len: 1.9,
@@ -347,6 +353,7 @@ function buildTascia(K, M, P, A) {
   T.add(MAT.chrome, cylZ(0.07, 0.085, 0.22, 12, false), 0.5, 0.22, -1.88); T.add(MAT.dark, cylZ(0.05, 0.05, 0.24, 10, false), 0.5, 0.22, -1.88);
   Object.assign(A, {
     kind: 'car', spoil: { y: 1.03, z: -1.74, w: 1.3, h: 0.16 }, neon: { x: 0.72, z0: -1.5, z1: 1.5, y: 0.17 }, glow: { w: 2.9, l: 5.0, z: 0 },
+    roof: { y: 1.305, z: -0.02, w: 0.8 }, rack: { y: 1.305, z: -0.6, w: 0.9, l: 0.7 },
     flank: { x: 0.818, y: 0.42, z: -0.1, l: 1.6, h: 0.36 }, top: { y: 1.305, z: -0.4, w: 0.9, l: 1.0 }, hood: { y: 0.745, z: 1.05, w: 1.0, l: 0.8 }, back: { y: 0.7, z: -1.81, w: 1.2, h: 0.3 }, front: null,
     banner: { y: 1.1, z: 0.36, w: 1.16, h: 0.22 },
     exh: [[0.5, 0.22, -1.97], [-0.5, 0.22, -1.97]], tails: [[-0.52, 0.72, -1.8], [0.52, 0.72, -1.8]], sub: { x: 0, y: 0.95, z: -1.1, w: 0.9, h: 0.3, d: 0.4, inCabin: true },
@@ -420,14 +427,25 @@ function decalFlip(T, key, cx, cy, cz, w, h, face, flip) {
 function addParts(K, M, P, A) {
   const T = K.on('tilt');
   K.stage = 1;   // tuning parts vanish when the ZEN strips the vehicle
+  const D = (key, cx, cy, cz, w, h, face, flip) => decalFlip(T, key, cx, cy, cz, w, h, face, flip);
+  // --- suspension: the body sits lower or higher on its wheels (applied to the tilt group when the rig is built, see instantiate) ---
+  A.drop = P.stance ? (({ lapa: { basso: 0.05, raso: 0.1, alto: -0.08 }, car: { basso: 0.04, raso: 0.08, alto: -0.07 } })[A.kind] || {})[P.stance] || 0 : 0;
   // --- spoiler (alettone) ---
   const S = A.spoil;
   if (P.spoiler && S) {
-    if (P.spoiler === 'basso') {
+    const sp = P.spoiler;
+    if (sp === 'basso') {
       T.add(M.body, box(S.w, 0.035, 0.14), 0, S.y + 0.03, S.z, -0.1);
       for (const sx of [-1, 1]) T.add(MAT.black, box(0.03, 0.07, 0.16), sx * S.w / 2, S.y + 0.04, S.z);
+    } else if (sp === 'anatra') {   // ducktail: a short kicked-up lip on the tail
+      T.add(M.body, box(S.w * 0.96, 0.04, 0.2), 0, S.y + 0.07, S.z - 0.03, 0.4);
+      for (const sx of [-1, 1]) T.add(MAT.black, box(0.03, 0.1, 0.2), sx * S.w * 0.48, S.y + 0.05, S.z - 0.03, 0.4);
+    } else if (sp === 'biplano') {  // two stacked wings on tall end plates
+      const w = S.w * 1.1;
+      T.add(MAT.black, box(w, 0.04, 0.3), 0, S.y + 0.14, S.z, -0.1); T.add(PINKM, box(w, 0.035, 0.26), 0, S.y + 0.42, S.z - 0.03, -0.18);
+      for (const sx of [-1, 1]) { T.add(M.body, box(0.035, 0.5, 0.36), sx * w / 2, S.y + 0.28, S.z); T.limb(MAT.black, [sx * w * 0.3, S.y, S.z + 0.03], [sx * w * 0.3, S.y + 0.4, S.z], 0.04); }
     } else {
-      const big = P.spoiler === 'gigante', w = S.w * (big ? 1.14 : 1), h = S.h + (big ? 0.32 : 0.1), ch = big ? 0.4 : 0.26;
+      const big = sp === 'gigante', w = S.w * (big ? 1.14 : 1), h = S.h + (big ? 0.32 : 0.1), ch = big ? 0.4 : 0.26;
       T.add(MAT.black, box(w, 0.045, ch), 0, S.y + h, S.z, -0.14);
       if (big) { T.add(PINKM, box(w, 0.03, 0.16), 0, S.y + h + 0.13, S.z - 0.08, -0.5); }
       for (const sx of [-1, 1]) {
@@ -442,41 +460,116 @@ function addParts(K, M, P, A) {
     for (const sx of [-1, 1]) T.add(tube, box(0.045, 0.045, len), sx * N.x, N.y, mid);
     if (!N.bike) { T.add(tube, box(N.x * 2, 0.045, 0.045), 0, N.y, N.z0); T.add(tube, box(N.x * 2, 0.045, 0.045), 0, N.y, N.z1); }
   }
-  // --- chrome / gold trim ---
-  if (P.chrome && A.chrome) A.chrome(T, P.chrome === 'oro' ? MAT.gold : MAT.chrome);
+  // --- chrome / gold / black / pink trim ---
+  if (P.chrome && A.chrome) A.chrome(T, { cromo: MAT.chrome, oro: MAT.gold, nero: MAT.black, rosa: PINKM }[P.chrome] || MAT.chrome);
   // --- exhaust ---
   if (P.exhaust && A.exh) {
-    const k = A.kind === 'car' ? 1.15 : A.kind === 'bike' ? 0.85 : 0.9, n = P.exhaust === 'doppio' ? 2 : 1;
+    const ex = P.exhaust, k = A.kind === 'car' ? 1.15 : A.kind === 'bike' ? 0.85 : 0.9, n = ex === 'doppio' || ex === 'oro' ? 2 : 1, can = ex === 'oro' ? MAT.gold : MAT.chrome, dz = A.kind === 'car' ? 0.06 : 0;
     for (let i = 0; i < n; i++) {
       const [x, y, z] = A.exh[i];
-      T.add(MAT.chrome, cylZ(0.075 * k, 0.095 * k, 0.5 * k, 12), x, y, z + 0.12 * k + (A.kind === 'car' ? 0.06 : 0));
-      T.add(MAT.dark, cylZ(0.055 * k, 0.055 * k, 0.5 * k + 0.02, 10), x, y, z + 0.12 * k - 0.1 + (A.kind === 'car' ? 0.06 : 0));
-      if (n === 2) T.add(MAT.gold, tor(0.092 * k, 0.012, 4, 12), x, y, z - 0.12 * k + 0.12 * k, 0, 0, 0);
+      if (ex === 'tromba') {   // a big flared trumpet with a dark mouth
+        const zc = z + 0.2 * k + dz;
+        T.add(MAT.chrome, cylZ(0.06 * k, 0.21 * k, 0.62 * k, 14), x, y + 0.02, zc);
+        T.add(MAT.dark, cylZ(0.17 * k, 0.17 * k, 0.03, 12), x, y + 0.02, zc - 0.31 * k - 0.005);
+        T.add(MAT.gold, tor(0.2 * k, 0.012, 4, 14), x, y + 0.02, zc - 0.28 * k);
+        continue;
+      }
+      T.add(can, cylZ(0.075 * k, 0.095 * k, 0.5 * k, 12), x, y, z + 0.12 * k + dz);
+      T.add(MAT.dark, cylZ(0.055 * k, 0.055 * k, 0.5 * k + 0.02, 10), x, y, z + 0.12 * k - 0.1 + dz);
+      if (n === 2) T.add(ex === 'oro' ? MAT.chrome : MAT.gold, tor(0.092 * k, 0.012, 4, 12), x, y, z, 0, 0, 0);
     }
   }
   // --- stickers (original designs) ---
   const F = A.flank;
   if (P.stickers && F) {
-    const st = P.stickers, D = (key, cx, cy, cz, w, h, face, flip) => decalFlip(T, key, cx, cy, cz, w, h, face, flip);
+    const st = P.stickers;
     if (st === 'palermo') {
       D('palermo', F.x, F.y, F.z, Math.min(F.l, F.h * 5), Math.min(F.l, F.h * 5) / 5.12, 'x+'); D('palermo', -F.x, F.y, F.z, Math.min(F.l, F.h * 5), Math.min(F.l, F.h * 5) / 5.12, 'x-');
       if (A.back) D('palermo', 0, A.back.y, A.back.z, A.back.w, A.back.w / 5.12, 'z-');
       if (A.top) D('palermo', 0, A.top.y, A.top.z, A.top.l, A.top.l / 5.12, 'y+z');
-    } else if (st === 'rosanero') {
-      const l = F.l, h = l / 9.3;
-      D('stripe', F.x, F.y - F.h * 0.1, F.z, l, h * 1.3, 'x+'); D('stripe', -F.x, F.y - F.h * 0.1, F.z, l, h * 1.3, 'x-');
-      D('stripe', F.x, F.y + F.h * 0.12, F.z, l, h * 0.8, 'x+'); D('stripe', -F.x, F.y + F.h * 0.12, F.z, l, h * 0.8, 'x-');
-      if (A.top) for (const sx of [-0.14, 0.14]) D('stripe', sx, A.top.y, A.top.z, A.top.l, 0.12, 'y+z');
-      if (A.hood) for (const sx of [-0.14, 0.14]) D('stripe', sx, A.hood.y, A.hood.z, A.hood.l, 0.12, 'y+z');
+    } else if (st === 'rosanero' || st === 'scacchi') {
+      const key = st === 'scacchi' ? 'chequer' : 'stripe', l = F.l, h = l / 9.3;
+      D(key, F.x, F.y - F.h * 0.1, F.z, l, h * 1.3, 'x+'); D(key, -F.x, F.y - F.h * 0.1, F.z, l, h * 1.3, 'x-');
+      D(key, F.x, F.y + F.h * 0.12, F.z, l, h * 0.8, 'x+'); D(key, -F.x, F.y + F.h * 0.12, F.z, l, h * 0.8, 'x-');
+      if (A.top) for (const sx of [-0.14, 0.14]) D(key, sx, A.top.y, A.top.z, A.top.l, 0.12, 'y+z');
+      if (A.hood) for (const sx of [-0.14, 0.14]) D(key, sx, A.hood.y, A.hood.z, A.hood.l, 0.12, 'y+z');
     } else if (st === 'trinacria') {
       const hh = Math.min(F.h * 1.05, F.l / 1.42), ww = hh * 1.42;
       D('sun', F.x, F.y, F.z, ww, hh, 'x+'); D('sun', -F.x, F.y, F.z, ww, hh, 'x-');
       if (A.hood) D('sun', 0, A.hood.y, A.hood.z, 0.7, 0.7 / 1.42, 'y+');
-      if (A.front) D('sun', 0, A.front.y, A.front.z, A.front.w * 1.42, A.front.h, A.front.tilt ? 'z+' : 'z+');
+      if (A.front) D('sun', 0, A.front.y, A.front.z, A.front.w * 1.42, A.front.h, 'z+');
     } else if (st === 'fiamme') {
       const w = Math.min(F.l * 0.7, 1.3), hh = w * 0.24, z = F.z + F.l * 0.5 - w * 0.5 - 0.02;
       D('flames', F.x, F.y - F.h * 0.1, z, w, hh, 'x+'); D('flames', -F.x, F.y - F.h * 0.1, z, w, hh, 'x-', true);
+    } else if (st === 'numero') {   // a race-number roundel on both flanks, the bonnet and the tail
+      const d = Math.min(F.h * 1.35, F.l * 0.55, 0.5);
+      D('numero', F.x, F.y, F.z, d, d, 'x+'); D('numero', -F.x, F.y, F.z, d, d, 'x-');
+      if (A.hood) D('numero', 0, A.hood.y, A.hood.z, 0.5, 0.5, 'y+');
+      if (A.back) D('numero', 0, A.back.y, A.back.z, Math.min(d, A.back.w * 0.5), Math.min(d, A.back.w * 0.5), 'z-');
     }
+  }
+  // --- on the roof: loudspeaker horns, a lit taxi sign, or an aerial with a pink-and-black pennant ---
+  const R = A.roof;
+  if (P.roof && R) {
+    const r = P.roof;
+    if (r === 'antenna') {
+      const x = R.x != null ? R.x : (R.w || 1) * 0.42, top = R.y + 1.0;
+      T.tube(MAT.chrome, [x, R.y, R.z], [x, top, R.z], 0.009, 5); T.add(MAT.chrome, sph(0.02, 6, 5), x, top, R.z);
+      T.add(PINKM, box(0.012, 0.08, 0.2), x, top - 0.06, R.z - 0.11); T.add(MAT.black, box(0.012, 0.08, 0.12), x, top - 0.06, R.z - 0.27);
+      T.add(MAT.dark, cyl(0.03, 0.03, 0.04, 8), x, R.y + 0.02, R.z);
+    } else if (r === 'megafono') {
+      T.add(MAT.dark, box(0.62, 0.03, 0.24), 0, R.y + 0.015, R.z);
+      for (const sx of [-1, 1]) {
+        const hx = sx * 0.22, hy = R.y + 0.17, hz = R.z + 0.08;
+        T.add(MAT.alu, cylZ(0.13, 0.05, 0.34, 12), hx, hy, hz); T.add(MAT.dark, cylZ(0.11, 0.11, 0.02, 12), hx, hy, hz + 0.172);
+        T.add(MAT.black, cylZ(0.06, 0.06, 0.14, 10), hx, hy, hz - 0.2); T.add(MAT.dark, box(0.04, 0.15, 0.04), hx, R.y + 0.09, R.z);
+      }
+    } else if (r === 'insegna') {
+      T.add(MAT.lamp, box(0.56, 0.17, 0.2), 0, R.y + 0.115, R.z); T.add(MAT.dark, box(0.58, 0.02, 0.22), 0, R.y + 0.215, R.z);
+      for (const sx of [-1, 1]) T.add(MAT.dark, box(0.05, 0.03, 0.18), sx * 0.2, R.y + 0.015, R.z);
+      D('taxi', 0, R.y + 0.115, R.z + 0.102, 0.42, 0.42 * 110 / 300 * 1.1, 'z+'); D('taxi', 0, R.y + 0.115, R.z - 0.102, 0.42, 0.42 * 110 / 300 * 1.1, 'z-');
+    }
+  }
+  // --- load strapped on the roof rack (or heaped on the cargo bed) ---
+  const L = A.rack;
+  if (P.load && L) {
+    const u = Math.min(1, L.w / 1.1), y = L.y, ld = P.load;
+    if (ld === 'casse') {
+      const crate = (x, yy, z, w = 0.5, h = 0.28, d = 0.4) => { T.add(MAT.wood, box(w * u, h * u, d * u), x * u, yy, z); T.add(MAT.dark, box((w + 0.01) * u, 0.03, (d + 0.01) * u), x * u, yy + h * u / 2 - 0.02, z); };
+      const z0 = L.z, dz = Math.min(0.26, L.l * 0.22);
+      crate(-0.27, y + 0.14 * u, z0 + dz); crate(0.27, y + 0.14 * u, z0 + dz); crate(-0.27, y + 0.14 * u, z0 - dz); crate(0.27, y + 0.14 * u, z0 - dz);
+      crate(0, y + 0.42 * u, z0, 0.56, 0.28, 0.46);
+    } else if (ld === 'valigie') {
+      const cs = [colMat('#7a3b2a', 0.7), colMat('#2d4a6b', 0.7), colMat('#c9a23a', 0.7)], z0 = L.z;
+      T.add(cs[0], box(0.66 * u, 0.2 * u, 0.44 * u), 0, y + 0.1 * u, z0 + 0.12); T.add(cs[1], box(0.54 * u, 0.18 * u, 0.38 * u), 0.04 * u, y + 0.29 * u, z0 + 0.1, 0, 0.2);
+      T.add(cs[2], box(0.16 * u, 0.4 * u, 0.44 * u), -0.28 * u, y + 0.2 * u, z0 - 0.26);
+      for (const [x, yy, z] of [[0, y + 0.205 * u, z0 + 0.12], [0.04 * u, y + 0.385 * u, z0 + 0.1]]) T.add(MAT.dark, box(0.16, 0.025, 0.05), x, yy, z);
+      for (const sx of [-1, 1]) T.add(MAT.dark, box(0.03, 0.1, L.l * 0.92 + 0.02), sx * 0.34 * u, y + 0.02, z0);   // the rack rails
+    } else if (ld === 'materasso') {
+      const len = Math.min(L.l, 1.2), mat = colMat('#d7e0f2', 0.95), st = colMat('#8fa9d8', 0.95);
+      T.add(mat, box(0.84 * u, 0.16, len), 0, y + 0.1, L.z);
+      for (const z of [-0.36, -0.12, 0.12, 0.36]) T.add(st, box(0.85 * u, 0.162, 0.035), 0, y + 0.1, L.z + z * len / 1.1);
+      for (const z of [-0.3, 0.3]) T.add(MAT.dark, box(0.88 * u, 0.185, 0.035), 0, y + 0.1, L.z + z * len / 1.1);
+      for (const sx of [-1, 1]) T.add(MAT.dark, box(0.03, 0.03, L.l * 0.95), sx * 0.38 * u, y + 0.01, L.z);
+    }
+  }
+  // --- bike luggage: a top box on the tail rack, or saddlebags either side of the rear wheel ---
+  const TL = A.tail, BG = A.bag;
+  if (P.box === 'bauletto' && TL) {
+    const w = TL.w + 0.08;
+    T.add(M.body, box(w, 0.3, 0.44), 0, TL.y + 0.17, TL.z); T.add(M.trim || MAT.dark, box(w + 0.012, 0.03, 0.452), 0, TL.y + 0.31, TL.z); T.add(MAT.dark, box(w + 0.01, 0.03, 0.45), 0, TL.y + 0.03, TL.z);
+    T.add(MAT.chrome, box(0.16, 0.04, 0.012), 0, TL.y + 0.21, TL.z - 0.225);
+  }
+  if (P.box === 'borse' && BG) {
+    const leather = colMat('#4a3226', 0.85);
+    for (const sx of [-1, 1]) { T.add(leather, box(0.14, BG.h, BG.l), sx * BG.x, BG.y, BG.z); T.add(MAT.chrome, box(0.145, 0.03, 0.06), sx * BG.x, BG.y + BG.h * 0.2, BG.z + BG.l * 0.3); T.add(MAT.chrome, box(0.145, 0.03, 0.06), sx * BG.x, BG.y + BG.h * 0.2, BG.z - BG.l * 0.3); }
+  }
+  // --- windscreen on the handlebar (turns with the bar) ---
+  const SC = A.screen;
+  if (P.screen && SC) {
+    const B = K.on('bar'), tall = P.screen === 'alto', h = tall ? 0.34 : 0.17, y = SC.y + h / 2 * 0.9;
+    B.add(MAT.glass, box(SC.w, h, 0.012), 0, y, SC.z, -0.4); B.add(MAT.chrome, box(SC.w + 0.02, 0.015, 0.02), 0, SC.y, SC.z + 0.005);
+    for (const sx of [-1, 1]) B.add(MAT.chrome, box(0.012, h, 0.016), sx * SC.w / 2, y, SC.z, -0.4);
   }
   // --- subwoofer: a speaker box on the tail with a woofer cone that pulses (its own group, see rig.cone) ---
   if (P.sub && A.sub) {
@@ -494,7 +587,7 @@ export const NEON = Object.fromEntries([['rosa', '#ff2f9e'], ['ciano', '#18e6ff'
 // ===================================================================================================================
 // TEMPLATES AND RIGS
 // ===================================================================================================================
-const GEO_PARTS = ['spoiler', 'neon', 'chrome', 'rims', 'stickers', 'exhaust', 'sub'];   // the parts that change geometry (not the horn)
+const GEO_PARTS = ['spoiler', 'neon', 'chrome', 'rims', 'stickers', 'exhaust', 'sub', 'stance', 'roof', 'load', 'box', 'screen'];   // the parts that change geometry (not the horn)
 const tplKey = l => l.type + '|' + GEO_PARTS.map(k => l.parts[k] || '').join(',');
 const tplCache = new Map();
 function template(look) {
@@ -521,7 +614,7 @@ function instantiate(tpl, livery, local) {
   const map = local ? null : clonedSet(tpl.type, livery), mat = m => (map && map.get(m)) || m;
   const sp = tpl.spec, tp = sp.tiltPivot, A = tpl.A;
   const root = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group(), meshes = [];
-  root.add(lean); lean.add(tilt); tilt.position.set(tp[0], tp[1], tp[2]);
+  root.add(lean); lean.add(tilt); tilt.position.set(tp[0], tp[1] - (A.drop || 0), tp[2]);   // A.drop: lowered or lifted suspension
   const fill = (parent, list) => { if (!list) return; for (const b of list) { const m = new THREE.Mesh(b.geom, mat(b.mat)); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
   const Pm = { tilt }, stripObjs = [];
   const driver = Pm.driver = new THREE.Group(); tilt.add(driver);
