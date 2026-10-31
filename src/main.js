@@ -170,7 +170,7 @@ if (!WORLD) buildBuildings(ctx); // world: buildings stream in per tile (src/wor
 buildLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
 const propsApi = buildProps(ctx) || {};
-buildContext(ctx);
+const contextGroup = buildContext(ctx); // world: hidden chunk by chunk where real tiles stand
 
 // ---------- spatial grids ----------
 class Grid {
@@ -208,7 +208,7 @@ for (const r of D.roads) {
 
 // ---------- world streaming (src/world.js), only with ?world=1 ----------
 // Streams the whole-city tiles around the camera: terrain, streets, buildings, per-tile walls/road names/road vertices.
-if (WORLD) world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE });
+if (WORLD) world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE, context: contextGroup });
 
 function closestOnSeg(px, pz, s) {
   const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz;

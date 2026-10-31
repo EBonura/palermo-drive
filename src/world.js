@@ -376,7 +376,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const p = pairs(flat);
       for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; wallGrid.addSeg(t.k, [a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
     };
-    for (const b of d.buildings) { addRing(b.p); if (b.holes) b.holes.forEach(addRing); if ((++n & 63) === 0) yield; }
+    // city landmarks may swap a footprint's walls for their own (the stadium's gate, the Politeama railing)
+    const lms = cityIn(t), drop = new Set(lms.flatMap(l => l.dropWalls || []));
+    for (const b of d.buildings) { if (drop.has(b.id)) continue; addRing(b.p); if (b.holes) b.holes.forEach(addRing); if ((++n & 63) === 0) yield; }
+    for (const l of lms) for (const w of l.walls || []) wallGrid.addSeg(t.k, w, w[0], w[1], w[2], w[3]);
     for (const r of d.roads) {
       const p = pairs(r.p);
       for (let i = 0; i < p.length - 1; i++) {

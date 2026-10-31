@@ -15,7 +15,7 @@
 // Options screen; ?time=HH (also 19.5) freezes the clock for screenshots, ?timespeed=MINUTES_PER_DAY lets it run again.
 import * as THREE from 'three';
 import { QUALITY } from './mobile.js';
-import { groundY, proj } from './core.js';
+import { D, groundY, proj } from './core.js';
 import { MAT } from './vehicle-art.js';
 
 // Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
@@ -53,8 +53,8 @@ const DAYK = {
 };
 const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'dome', 'amb']) k[f] = C(k[f]); return k; };
 const NIGHTK = { // Palermo after dark: saturated indigo sky, an orange light dome over the roofs, cool navy shadows, warm brown bounce from the streets
-  sun: '#000000', sunI: 0, hemiS: '#2a3f88', hemiG: '#4e3420', hemiI: 0.6, fog: '#1c2358', fogK: 1.25, expo: 1.2,
-  envZ: '#142060', envH: '#703c1a', envB: '#3c2410', skyH: '#1c2a78', skyZ: '#071258', glow: '#5a6aa8', dome: '#a04c14', amb: '#0c1530', win: 0.5,
+  sun: '#000000', sunI: 0, hemiS: '#26385c', hemiG: '#3a3028', hemiI: 0.62, fog: '#18224a', fogK: 1.25, expo: 1.2,
+  envZ: '#16264e', envH: '#5a3a24', envB: '#34281c', skyH: '#1c3066', skyZ: '#0e1a44', glow: '#5a6aa8', dome: '#c8742a', amb: '#0c1530', win: 0.5,
 };
 const KEYS = [
   K(0, { ...NIGHTK, win: 0.3 }),
@@ -67,12 +67,13 @@ const KEYS = [
   K(16.5, {}),
   K(17.7, { sun: '#ffbe78', sunI: 2.6, hemiS: '#d4c8c8', hemiG: '#9a7c68', hemiI: 0.42, fog: '#c4bcc4', fogK: 1.2, expo: 0.88, envZ: '#869cc0', envH: '#e4c4aa', envB: '#8a7260', skyH: '#f0b894', skyZ: '#7d9fd0', amb: '#e8d8d0', win: 0 }),
   K(18.7, { sun: '#ff8f55', sunI: 1.5, hemiS: '#b9a5bb', hemiG: '#7c6460', hemiI: 0.38, fog: '#b6a6a9', fogK: 1.5, expo: 0.95, envZ: '#6a6e9e', envH: '#e5a28c', envB: '#6e5a5e', skyH: '#f2998a', skyZ: '#5a68a8', glow: '#ff8a5a', amb: '#c4a0a0', win: 0 }),
-  K(19.25, { sun: '#e0607a', sunI: 0.3, hemiS: '#7a78a8', hemiG: '#5a3a30', hemiI: 0.46, fog: '#8a7c9e', fogK: 1.65, expo: 1.05, envZ: '#2f3a70', envH: '#a07c9e', envB: '#3a3040', skyH: '#a8749e', skyZ: '#26306a', glow: '#e86a7a', dome: '#6a3020', amb: '#5a5070', win: 0.2 }),
-  K(20.1, { sun: '#503060', sunI: 0, hemiS: '#3a58a8', hemiG: '#4a2c1a', hemiI: 0.55, fog: '#34407e', fogK: 1.5, expo: 1.12, envZ: '#1c2c78', envH: '#6a4430', envB: '#2e2018', skyH: '#3a4aa4', skyZ: '#0a1c7c', glow: '#9a5a90', dome: '#a04a1c', amb: '#202c52', win: 0.45 }),
+  K(19.1, { sun: '#e0607a', sunI: 0.3, hemiS: '#6a74a0', hemiG: '#4a3a38', hemiI: 0.46, fog: '#7a7098', fogK: 1.65, expo: 1.05, envZ: '#26407a', envH: '#946a80', envB: '#3a3036', skyH: '#8a6a98', skyZ: '#22348a', glow: '#e07a70', dome: '#8a4a28', amb: '#5a5070', win: 0.2 }),
+  K(19.7, { sun: '#503060', sunI: 0, hemiS: '#34508a', hemiG: '#3c2c24', hemiI: 0.55, fog: '#2e4488', fogK: 1.5, expo: 1.12, envZ: '#1c3278', envH: '#6a4a38', envB: '#2c2220', skyH: '#2f58b0', skyZ: '#0e2a88', glow: '#5a5a98', dome: '#c8742a', amb: '#202c52', win: 0.45 }),
+  K(20.7, { sun: '#000000', sunI: 0, hemiS: '#2c4270', hemiG: '#382c24', hemiI: 0.58, fog: '#1e2c5c', fogK: 1.35, expo: 1.16, envZ: '#182c60', envH: '#5e4028', envB: '#30261e', skyH: '#243c78', skyZ: '#0e1e56', glow: '#3a4678', dome: '#c0682a', amb: '#141e3c', win: 0.5 }),
   K(21.4, { ...NIGHTK }),
   K(24, { ...NIGHTK, win: 0.3 }),
 ];
-const MOON = C('#7f98ff');
+const MOON = C('#8ea2d0');
 
 const P = { // the blended palette for the current hour (reused every frame)
   sun: new THREE.Color(), hemiS: new THREE.Color(), hemiG: new THREE.Color(), fog: new THREE.Color(), envZ: new THREE.Color(), envH: new THREE.Color(),
@@ -97,7 +98,8 @@ vec3 pdTwilight(vec3 d) {
   vec3 g = mix(uSkyH, uSkyZ, pow(h, 0.42));
   float s = max(dot(d, uSunV), 0.0);
   g += uGlow * (pow(s, 5.0) * 0.32 + pow(s, 34.0) * 0.42) * (1.0 - 0.55 * h);
-  g += uDome * exp(-abs(d.y) * 5.5) * (0.6 + 0.4 * clamp(d.z * 0.7 + 0.35, 0.0, 1.0));   // sodium light dome over the city, weaker on the sea side
+  float dm = max(uDome.r, max(uDome.g, uDome.b));   // sodium light dome over the city: the horizon turns amber (a mix, so it never goes mauve), weaker on the sea side
+  g = mix(g, uDome / max(dm, 0.001) * 0.5, exp(-abs(d.y) * 10.0) * clamp(dm * 1.5, 0.0, 0.8) * (0.6 + 0.4 * clamp(d.z * 0.7 + 0.35, 0.0, 1.0)));
   g += uGlow * 0.18 * exp(-abs(d.y) * 9.0);                                        // the horizon band is the brightest part
   g += vec3(1.0, 0.82, 0.6) * (smoothstep(0.99996, 0.999985, s) * 6.0 + pow(s, 900.0) * 1.2) * uSunVis;  // sun disc (while it is above the sea)
   if (uStars > 0.01 && d.y > 0.0) {
@@ -210,7 +212,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   ].map(([la, lo, r, k]) => { const [x, z] = proj(la, lo); return new THREE.Vector4(x, z, r, k); });
   const FL = { value: FLOOD.concat(Array.from({ length: 7 - FLOOD.length }, () => new THREE.Vector4(0, 0, 1, 0))) };
   NK.value.z = groundY(0, 0);
-  const WASH_DECL = 'uniform vec4 uNightK;\nuniform vec4 uFlood[7];\n';
+  const LT = { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, LB = { value: new THREE.Vector4(0, 0, 1, 1) }; // lamp/street light field (built the first time it gets dark)
+  LT.value.needsUpdate = true;
+  const WASH_DECL = 'uniform vec4 uNightK;\nuniform vec4 uFlood[7];\nuniform sampler2D uLampTex;\nuniform vec4 uLampBox;\n';
   const WASH_ROUGH = `
     #ifndef FLAT_SHADED
     if (uNightK.x > 0.002) { vec3 gn = normalize(vNormal) * mat3(viewMatrix); roughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.4), uNightK.x * uNightK.w * smoothstep(0.85, 0.97, gn.y)); }
@@ -219,12 +223,15 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (uNightK.x > 0.002) {
       vec3 wpos = cameraPosition - vViewPosition * mat3(viewMatrix);
       vec3 wn = normalize(normal * mat3(viewMatrix));
-      float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, wpos.y - uNightK.z);   // not on curbs and kerb faces
       float hb = max(wpos.y - uNightK.z, 0.0);
+      float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, hb);   // not on curbs and kerb faces
+      vec3 lf = texture2D(uLampTex, (wpos.xz - uLampBox.xy) * uLampBox.zw).rgb;   // r: street lamps, g: along the streets
+      float near = clamp(lf.r * 1.7 + lf.g * 0.9, 0.0, 1.7);
       float fl = 0.0;
       for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, length(wpos.xz - f.xy))); }
-      float wash = uNightK.y * wall * exp(-hb / 9.0) + fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;
-      totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.5, 0.17) * uNightK.x * wash;
+      float wash = uNightK.y * wall * exp(-hb / 9.0) * (0.3 + near) + fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;
+      float gnd = smoothstep(0.7, 0.92, wn.y) * exp(-hb / 2.5) * near;                 // streets and piazzas: amber-brown under and between the lamps
+      totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * vec3(1.0, 0.5, 0.15) * uNightK.x * (wash + gnd * 1.7);
     }`;
   const seenMats = new Set();
   vehicle?.rig?.root?.traverse(o => { if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) seenMats.add(m); }); // the player's lapa stays honestly lit
@@ -236,7 +243,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
         m.onBeforeCompile = function (sh, r) {
           if (prev) prev.call(this, sh, r);
-          sh.uniforms.uNightK = NK; sh.uniforms.uFlood = FL;
+          sh.uniforms.uNightK = NK; sh.uniforms.uFlood = FL; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
           sh.fragmentShader = sh.fragmentShader
             .replace('#include <common>', '#include <common>\n' + WASH_DECL)
             .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
@@ -354,6 +361,29 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         }
       }
     });
+    // light field over the centro: red = lamps (soft discs), green = streets (soft bands). Sampled by the wash shader, so the ground and the
+    // facades glow orange where lamps overlap and along every street, and only fall to navy far from them.
+    try {
+      const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
+      const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
+      const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
+      const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);
+      for (const r of D.roads) {
+        if (!DRIVE.has(r.k)) continue;
+        for (const [wk, a] of [[2.6, 0.16], [1.7, 0.16], [1.0, 0.16]]) {
+          g.strokeStyle = `rgba(0,255,0,${a})`; g.lineWidth = (r.w + 5) * wk * S; g.beginPath();
+          for (let i = 0; i < r.p.length; i += 2) g[i ? 'lineTo' : 'moveTo']((r.p[i] - X0) * S, (r.p[i + 1] - Z0) * S);
+          g.stroke();
+        }
+      }
+      for (let i = 0; i < poolM.length / 4; i++) {
+        const x = (poolM[i * 4] - X0) * S, z = (poolM[i * 4 + 2] - Z0) * S, rad = poolM[i * 4 + 3] * 1.1 * S, gr = g.createRadialGradient(x, z, 0, x, z, rad);
+        gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
+        g.fillStyle = gr; g.fillRect(x - rad, z - rad, rad * 2, rad * 2);
+      }
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+      LT.value = tex; LB.value.set(X0, Z0, 1 / (cv.width / S), 1 / (cv.height / S));
+    } catch (e) { console.warn('[daynight] lamp field skipped', e); }
     const n = bulbs.length / 3, np = poolM.length / 4;
     if (!n) return { none: true };
     const geo = new THREE.BufferGeometry();
@@ -556,7 +586,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         renderer.getDrawingBufferSize(_sz);
         lamps.haloMat.uniforms.uScale.value = _sz.y / (2 * Math.tan(camera.fov * DEG / 2));
         lamps.haloMat.uniforms.uAmt.value = lampOn * 1.15;
-        lamps.poolMat.opacity = lampOn * 0.6;
+        lamps.poolMat.opacity = lampOn * 0.5;
       }
     } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
     updateHeadlights(headOn);
