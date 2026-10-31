@@ -28,7 +28,14 @@ function sampler(g) {
 export const nearH = HAS_NEAR ? sampler(D.near) : () => 0;
 export const farH = D.far ? sampler(D.far) : () => 0;
 export const inNear = (x, z) => x >= NEAR.x0 && x <= NEAR.x1 && z >= NEAR.z0 && z <= NEAR.z1;
-export const groundY = (x, z) => inNear(x, z) ? nearH(x, z) : farH(x, z);
+// World streaming (src/world.js, only with ?world=1): hooks.ground(x, z) answers from the loaded tiles' near grids and the
+// whole-city far grid, or returns undefined to fall through to the baked centro data below. hooks.bounds is the driveable box.
+export const WORLD = /[?&]world=1/.test(location.search);
+export const hooks = { ground: null, bounds: D.bounds };
+export const groundY = (x, z) => {
+  if (hooks.ground) { const y = hooks.ground(x, z); if (y !== undefined) return y; }
+  return inNear(x, z) ? nearH(x, z) : farH(x, z);
+};
 
 
 // ---------- geometry helpers ----------

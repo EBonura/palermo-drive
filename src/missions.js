@@ -796,6 +796,8 @@ function build(env) {
     if (m === S.mode) return;
     if (m === 'free') stop(); else { S.mode = 'turisti'; S.phase = 'off'; api.mode = 'turisti'; }
   }
+  // Driving into the sea (src/sea.js) ends the current ride like running out of time: no fare.
+  addEventListener('pd-drowned', () => { const f = S.fare; if (f && S.phase === 'ride') finishFare(f, false); });
   function stop() {
     clearChars();
     S.mode = 'free'; S.phase = 'off'; api.mode = 'free';

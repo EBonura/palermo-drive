@@ -418,6 +418,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (game.state !== 'pause') return;
     game.resume(); go(null); gesture();
   }
+  // The sea's game-over "Menu" button asks the shell to go back to the title instead of reloading.
+  addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
     if (busy) return; busy = true;
     fade.classList.add('on');
@@ -658,11 +660,12 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function input(a) {
     if (busy) return;
+    if (game.state === 'over') return; // the sea's game-over overlay handles its own input
     if (game.state === 'play') { if (a === 'pause' || a === 'back') openPause(); return; }
     if (cur === 'title') { if (a === 'ok') go('menu'); return; }
     if (a === 'pause' && game.state === 'pause') return closePause();
     if (a === 'back') { if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
-    if (a === 'ok') { const el = document.activeElement; if (el && el.closest && screens[cur].contains(el)) el.click(); return; }
+    if (a === 'ok') { const el = document.activeElement; if (cur && screens[cur] && el && el.closest && screens[cur].contains(el)) el.click(); return; }
     if (['up', 'down', 'left', 'right'].includes(a)) move(a);
   }
   addEventListener('keydown', e => {

@@ -9,11 +9,10 @@
 //   --out file.json          also write the report there
 //
 // Sizes are wire bytes as sent by the local server with gzip level 6 (what Pages does within ~1%).
-import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import zlib from 'node:zlib';
 import puppeteer from 'puppeteer-core';
+import { startServer } from './serve.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const ROOT = path.resolve(arg('root', '.'));
@@ -33,36 +32,7 @@ const NETS = { // Lighthouse-style presets, bytes/s
   slow4g: { latency: 150, down: 1.6e6 / 8, up: 750e3 / 8 },
   '3g': { latency: 300, down: 0.4e6 / 8, up: 0.4e6 / 8 },
 };
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.wav': 'audio/wav',
-  '.woff2': 'font/woff2', '.glb': 'model/gltf-binary', '.webmanifest': 'application/manifest+json', '.md': 'text/markdown', '.bin': 'application/octet-stream',
-  '.wasm': 'application/wasm' };
-const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.glb', '.webmanifest', '.md', '.bin', '.txt']);
-
-const stats = { requests: 0, bytes: 0, rawBytes: 0, files: [] };
-const gzCache = new Map();
-const server = http.createServer((req, res) => {
-  let u = decodeURIComponent(req.url.split('?')[0]), base = ROOT;
-  const cdn = u.match(/^\/__cdn\/npm\/[^/]+@[^/]+\/(.*)$/);
-  if (cdn) { base = CDN; u = '/' + cdn[1]; }
-  if (u.endsWith('/')) u += 'index.html';
-  const file = path.join(base, u);
-  if (!file.startsWith(base) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('nf'); stats.requests++; stats.files.push([u, 0, 404]); return; }
-  const ext = path.extname(file).toLowerCase();
-  let body = fs.readFileSync(file), enc = null;
-  const raw = body.length;
-  if (COMPRESSIBLE.has(ext) && /gzip/.test(req.headers['accept-encoding'] || '')) {
-    const key = file + ':' + fs.statSync(file).mtimeMs;
-    if (!gzCache.has(key)) gzCache.set(key, zlib.gzipSync(body, { level: 6 }));
-    body = gzCache.get(key); enc = 'gzip';
-  }
-  const h = { 'content-type': MIME[ext] || 'application/octet-stream', 'content-length': body.length, 'cache-control': 'no-store', 'access-control-allow-origin': '*' };
-  if (enc) h['content-encoding'] = enc;
-  res.writeHead(200, h); res.end(body);
-  stats.requests++; stats.bytes += body.length; stats.rawBytes += raw; stats.files.push([u, body.length, raw]);
-});
-await new Promise(r => server.listen(0, '127.0.0.1', r));
-const PORT = server.address().port;
+const { server, stats, port: PORT } = await startServer(ROOT, CDN);
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: true,
@@ -157,6 +127,7 @@ const report = {
   label: LABEL, root: path.relative(process.cwd(), ROOT) || '.', profile: PROFILE, net: NET, cpuThrottle: CPU, query: QUERY,
   wire: { requests: stats.requests, bytes: stats.bytes, rawBytes: stats.rawBytes, atReady: netAtLoad, byKind },
   timing: { ...loadTiming, readyWallMs: tReadyWall }, jsHeapMB, buildings: bld, samples, errors: errors.slice(0, 10),
+  notFound: stats.files.filter(f => f[2] === 404).map(f => f[0]),
   topFiles: stats.files.sort((a, b) => b[1] - a[1]).slice(0, 12),
   consoleTimeline: logs.filter(l => /\[/.test(l[1])).slice(0, 12),
 };
