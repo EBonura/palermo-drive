@@ -245,7 +245,8 @@ CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over ter
 DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
-NEAR_NONE = None
+LIDAR_CREDIT = ("Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale, "
+                "PST-A lidar Regione Sicilia, CC BY 4.0")
 
 
 def way_pts(e):
@@ -301,12 +302,146 @@ def cx_cz(outer):
     return sum(p[0] for p in outer) / len(outer), sum(p[1] for p in outer) / len(outer)
 
 
+# ----------------------------------------------------------------------------------------------
+# Building heights from the dense lidar rasters (tools/lidar_raster.py)
+# ----------------------------------------------------------------------------------------------
+try:
+    import lidar_raster as lr
+    RASTER_BLOCKS = {tuple(int(v) for v in f[:-4].split("_"))
+                     for f in os.listdir(os.path.join(lr.ROOT, "dsm")) if f.endswith(".npz")}
+except Exception as _e:  # noqa: BLE001
+    lr, RASTER_BLOCKS = None, set()
+    print("lidar_raster unavailable:", _e)
+
+WALL_CLEAR = 2.0     # sample points stay this far inside the walls (pixels are 2 m)
+MAX_SAMPLES = 300
+SPLIT_SPREAD = 5.0   # p90 - p10 of the roof samples above which a building gets height sections
+
+
+def in_raster(outer):
+    if not RASTER_BLOCKS:
+        return False
+    xs, zs = [p[0] for p in outer], [p[1] for p in outer]
+    for x in (min(xs), max(xs)):
+        for z in (min(zs), max(zs)):
+            if (math.floor(x / lr.BLOCK), math.floor(z / lr.BLOCK)) in RASTER_BLOCKS:
+                return True
+    return False
+
+
+def gap_clusters(vals, gap=2.0):
+    """1D clustering: sorted values split where consecutive values are more than `gap` apart. Returns labels."""
+    order = sorted(range(len(vals)), key=lambda i: vals[i])
+    lab = [0] * len(vals)
+    c = 0
+    for a, b in zip(order, order[1:]):
+        if vals[b] - vals[a] > gap:
+            c += 1
+        lab[b] = c
+    return lab
+
+
+def raster_shape(outer, holes):
+    """Roof shape from the DSM (median over a grid of interior samples) minus the DTM under the building.
+
+    Same return as bake.lidar_shape: (roof, parts, split, ground), absolute elevations, or None when the
+    raster has too little data (then lidar.json / OSM estimates take over)."""
+    import numpy as np
+    import shapely
+    from shapely.geometry import Polygon
+    if lr is None or not in_raster(outer):
+        return None
+    pg = Polygon(outer, [h for h in holes if len(h) >= 3])
+    if not pg.is_valid:
+        pg = shapely.make_valid(pg)
+        pgs = polys_of(pg)
+        if not pgs:
+            return None
+        pg = max(pgs, key=lambda q: q.area)
+    inner = pg.buffer(-WALL_CLEAR)
+    if inner.is_empty:
+        inner = pg.buffer(-0.8)
+    minx, minz, maxx, maxz = (inner if not inner.is_empty else pg).bounds
+    A = (inner if not inner.is_empty else pg).area
+    step = max(2.0, math.sqrt(A / MAX_SAMPLES))
+    xs, zs = np.meshgrid(np.arange(minx + step / 2, maxx, step), np.arange(minz + step / 2, maxz, step))
+    xs, zs = xs.ravel(), zs.ravel()
+    if len(xs):
+        m = shapely.contains_xy(inner if not inner.is_empty else pg, xs, zs)
+        xs, zs = xs[m], zs[m]
+    if len(xs) == 0:
+        rp = pg.representative_point()
+        xs, zs = np.array([rp.x]), np.array([rp.y])
+    dsm = lr.sample_dsm(xs, zs)
+    dtm = lr.sample_dtm(xs, zs, "bilinear")
+    ok = ~np.isnan(dsm) & ~np.isnan(dtm)
+    n = len(xs)
+    if ok.sum() < max(1, 0.5 * n):
+        return None
+    xs, zs, dsm, dtm = xs[ok], zs[ok], dsm[ok].astype(float), dtm[ok].astype(float)
+    ground = float(np.median(dtm))
+    roofs = np.maximum(dsm, dtm + 2.5)
+    main = float(np.median(roofs))
+    nv = len(roofs)
+    spread = float(np.percentile(roofs, 90) - np.percentile(roofs, 10))
+    if nv < 3 or spread <= SPLIT_SPREAD:
+        return main, None, False, ground
+    # Height levels, each sample belongs to one; stray levels with very few samples are merged into the
+    # nearest bigger one, levels within 1.5 m of the main roof snap to it.
+    lab = np.array(gap_clusters(list(roofs), 2.5))
+    for _ in range(4):
+        counts = np.bincount(lab)
+        small = [c for c in range(len(counts)) if 0 < counts[c] < max(2, 0.08 * nv)]
+        if not small or len(small) == len(np.nonzero(counts)[0]):
+            break
+        med = {c: float(np.median(roofs[lab == c])) for c in range(len(counts)) if counts[c]}
+        big = [c for c in med if c not in small]
+        for c in small:
+            tgt = min(big, key=lambda b: abs(med[b] - med[c]))
+            lab[lab == c] = tgt
+    level = {}
+    for c in np.unique(lab):
+        r = float(np.median(roofs[lab == c]))
+        level[int(c)] = main if abs(r - main) < 1.5 else r
+    snapped = np.array([level[int(c)] for c in lab])
+    if len(set(round(v, 1) for v in snapped)) < 2:
+        return main, None, False, ground
+    # Cells: every location of the footprint takes the level of its nearest sample (Voronoi on a grid).
+    cell = 1.0 if pg.area <= 3000 else 2.0
+    bx0, bz0, bx1, bz1 = pg.bounds
+    cx, cz = np.meshgrid(np.arange(bx0 + cell / 2, bx1, cell), np.arange(bz0 + cell / 2, bz1, cell))
+    cx, cz = cx.ravel(), cz.ravel()
+    mm = shapely.contains_xy(pg, cx, cz)
+    cx, cz = cx[mm], cz[mm]
+    if len(cx) == 0:
+        return main, None, False, ground
+    nearest = np.empty(len(cx), np.int64)
+    for a in range(0, len(cx), 4000):
+        d = (cx[a:a + 4000, None] - xs[None, :]) ** 2 + (cz[a:a + 4000, None] - zs[None, :]) ** 2
+        nearest[a:a + 4000] = d.argmin(axis=1)
+    cell_level = snapped[nearest]
+    parts = []
+    split = not holes
+    for v in sorted(set(round(float(x), 1) for x in cell_level)):
+        if not split and v - main <= 3.5:
+            continue
+        sel = np.abs(cell_level - v) < 0.06
+        sq = shapely.box(cx[sel] - cell / 2, cz[sel] - cell / 2, cx[sel] + cell / 2, cz[sel] + cell / 2)
+        u = shapely.unary_union(sq).simplify(0.6).intersection(pg)
+        for q in polys_of(u):
+            if q.area > 2:
+                parts.append([flat([(round(a, 1), round(b, 1)) for a, b in q.exterior.coords[:-1]]), round(v, 1)])
+    if not parts:
+        return main, None, False, ground
+    return main, parts, split, ground
+
+
 def parse_buildings(files, lidar):
     """Same records as bake.py. Returns (buildings, labels) where each is a list of dicts with
     the tile-independent payload plus '_c' (centroid) and '_geom' (outer, holes) for streets."""
     from shapely.geometry import Polygon  # noqa: F401
     out, labels = [], []
-    stats = {"lidar": 0, "split": 0, "towers": 0}
+    stats = {"raster": 0, "lidar_json": 0, "estimate": 0, "split": 0, "towers": 0}
 
     def add(key, oid, tags, outer, holes):
         if len(outer) < 3:
@@ -322,17 +457,27 @@ def parse_buildings(files, lidar):
                 b[field] = tags[tag]
         if holes:
             b["holes"] = [flat(hh) for hh in holes if len(hh) >= 3]
-        shape = lidar_shape(lidar["b"].get(key), outer, holes) if lidar else None
+        shape = raster_shape(outer, holes)
+        src = "raster"
+        if not shape and lidar:
+            rec = lidar["b"].get(key)
+            if rec:  # a server change made some samples report surface == ground exactly: not measurements
+                rec = [None if isinstance(r, list) and r[1] == r[0] else r for r in rec]
+            shape = lidar_shape(rec, outer, holes)
+            src = "lidar_json"
         if shape:
             roof, parts, split, ground = shape
             b["r"] = round(roof, 1)
             b["g"] = round(ground, 1)
-            stats["lidar"] += 1
+            b["h"] = round(max(roof - ground, 2.5), 1)  # measured height replaces the estimate
+            stats[src] += 1
             if parts:
                 b["parts"] = parts
                 stats["split" if split else "towers"] += 1
                 if split:
                     b["split"] = 1
+        if not shape:
+            stats["estimate"] += 1
         if kind in ("church", "cathedral", "basilica", "chapel"):
             b["k"] = "church"
         cx, cz = cx_cz(outer)
@@ -758,56 +903,71 @@ def write_tile(ij):
 # ----------------------------------------------------------------------------------------------
 # Terrain
 # ----------------------------------------------------------------------------------------------
-def build_near(lidar, elev, land):
-    """Global lidar DTM grid (same construction as bake.near_terrain, faster land test)."""
+NEAR_STEP = 10.0     # metres between near-terrain samples
+NEAR_BLEND = 120.0   # lidar-vs-far-grid offset fades out over this distance beyond the raster coverage
+
+
+def far_interp(far):
+    """Bilinear sampler of the far grid (what the runtime sees where there is no near grid)."""
+    import numpy as np
+    h = np.array(far["h"], dtype=np.float64).reshape(far["nz"], far["nx"])
+
+    def f(x, z):
+        fx = np.clip((np.asarray(x) - far["x0"]) / far["s"], 0, far["nx"] - 1.001)
+        fz = np.clip((np.asarray(z) - far["z0"]) / far["s"], 0, far["nz"] - 1.001)
+        i0, j0 = fx.astype(int), fz.astype(int)
+        tx, tz = fx - i0, fz - j0
+        return (h[j0, i0] * (1 - tx) * (1 - tz) + h[j0, i0 + 1] * tx * (1 - tz)
+                + h[j0 + 1, i0] * (1 - tx) * tz + h[j0 + 1, i0 + 1] * tx * tz)
+    return f
+
+
+def near_for(i, j):
+    """Per-tile DTM grid: the lidar raster where it has data, the far grid elsewhere, the offset between the
+    two fading out over NEAR_BLEND metres so the tile joins the coarse terrain without a step."""
+    import numpy as np
     import shapely
-    x0, z0, step = lidar["tgrid"]
-    margin = 10
-    t = {tuple(map(int, k.split(","))): v for k, v in lidar["t"].items() if isinstance(v, (int, float))}
-    if not t:
+    if lr is None or not RASTER_BLOCKS:
         return None
-    ni = max(i for i, _ in t) + 1
-    nj = max(j for _, j in t) + 1
-    nx, nz = ni + 2 * margin, nj + 2 * margin
-    h = []
-    for J in range(-margin, nj + margin):
-        for I in range(-margin, ni + margin):
-            x, z = x0 + I * step, z0 + J * step
-            if not shapely.contains_xy(land, x, z):
-                h.append(round(min(elev(*unproj(x, z)), -1.5), 1))
-                continue
-            if (I, J) in t:
-                h.append(round(t[(I, J)], 1))
-                continue
-            acc = wsum = 0.0
-            for dj in range(-4, 5):
-                for di in range(-4, 5):
-                    v = t.get((I + di, J + dj))
-                    if v is not None:
-                        w = 1 / (di * di + dj * dj)
-                        acc += v * w
-                        wsum += w
-            h.append(round(acc / wsum if wsum else max(0.5, elev(*unproj(x, z))), 1))
-    return {"x0": x0 - margin * step, "z0": z0 - margin * step, "s": step, "nx": nx, "nz": nz, "h": h}
-
-
-def make_near_for(g):
-    if not g:
-        return lambda i, j: None
-    s = g["s"]
-
-    def near_for(i, j):
-        tx0, tz0 = i * T, j * T
-        i0 = max(0, math.floor((tx0 - g["x0"]) / s))
-        i1 = min(g["nx"] - 1, math.ceil((tx0 + T - g["x0"]) / s))
-        j0 = max(0, math.floor((tz0 - g["z0"]) / s))
-        j1 = min(g["nz"] - 1, math.ceil((tz0 + T - g["z0"]) / s))
-        if i0 > i1 or j0 > j1:
-            return None
-        return {"x0": round(g["x0"] + i0 * s, 1), "z0": round(g["z0"] + j0 * s, 1), "s": s,
-                "nx": i1 - i0 + 1, "nz": j1 - j0 + 1,
-                "h": [g["h"][J * g["nx"] + I] for J in range(j0, j1 + 1) for I in range(i0, i1 + 1)]}
-    return near_for
+    s = NEAR_STEP
+    tx0, tz0 = i * T, j * T
+    pad = NEAR_BLEND + 2 * s
+    if not any((bi, bj) in RASTER_BLOCKS
+               for bi in range(math.floor((tx0 - pad) / lr.BLOCK), math.floor((tx0 + T + pad) / lr.BLOCK) + 1)
+               for bj in range(math.floor((tz0 - pad) / lr.BLOCK), math.floor((tz0 + T + pad) / lr.BLOCK) + 1)):
+        return None
+    a0, a1 = round((tx0 - pad) / s), round((tx0 + T + pad) / s)
+    b0, b1 = round((tz0 - pad) / s), round((tz0 + T + pad) / s)
+    WX, WZ = np.meshgrid(np.arange(a0, a1 + 1) * s, np.arange(b0, b1 + 1) * s)
+    dtm = lr.sample_dtm(WX, WZ, "bilinear")
+    on_land = shapely.contains_xy(G["land"], WX, WZ)
+    valid = ~np.isnan(dtm) & on_land
+    if not valid.any():
+        return None
+    far = G["far_f"]
+    off = np.where(valid, dtm - far(WX, WZ), 0.0)
+    vx, vz, vo = WX[valid], WZ[valid], off[valid]
+    # the tile's own lattice points (inclusive of both borders)
+    ia0, ia1 = round(tx0 / s), round((tx0 + T) / s)
+    ib0, ib1 = round(tz0 / s), round((tz0 + T) / s)
+    X, Z = np.meshgrid(np.arange(ia0, ia1 + 1) * s, np.arange(ib0, ib1 + 1) * s)
+    qx, qz = X.ravel(), Z.ravel()
+    best = np.full(len(qx), np.inf)
+    bo = np.zeros(len(qx))
+    for a in range(0, len(qx), 500):
+        d = (qx[a:a + 500, None] - vx[None, :]) ** 2 + (qz[a:a + 500, None] - vz[None, :]) ** 2
+        k = d.argmin(axis=1)
+        best[a:a + 500] = np.sqrt(d[np.arange(len(k)), k])
+        bo[a:a + 500] = vo[k]
+    t = np.clip(best / NEAR_BLEND, 0, 1)
+    fall = 1 - t * t * (3 - 2 * t)
+    val = far(qx, qz) + bo * fall
+    land_q = shapely.contains_xy(G["land"], qx, qz)
+    val = np.where(land_q, val, np.minimum(val, -1.5))
+    if best.min() > NEAR_BLEND:
+        return None
+    return {"x0": ia0 * s, "z0": ib0 * s, "s": s, "nx": ia1 - ia0 + 1, "nz": ib1 - ib0 + 1,
+            "h": [round(float(v), 1) for v in val]}
 
 
 def far_grid(elev, rect):
@@ -922,7 +1082,7 @@ def build(offline=False):
     coast, areas_raw, piers = parse_misc(files["misc"])
     roads, car, ped, plazas = parse_highways(files["hwy"])
     pitems, pareas = parse_props(files["props"])
-    print(f"  {len(buildings)} buildings ({stats}), {len(coast)} coast ways, {len(areas_raw)} areas, "
+    print(f"  {len(buildings)} buildings (heights: {stats}), {len(coast)} coast ways, {len(areas_raw)} areas, "
           f"{len(roads)} roads, {len(pitems)} props", flush=True)
 
     land = build_land(coast, rect)
@@ -981,10 +1141,11 @@ def build(offline=False):
 
     # Terrain
     elev = load_terrarium(terra)
-    near = build_near(lidar, elev, land) if lidar else None
-    G["near_for"] = make_near_for(near)
     far = far_grid(elev, rect)
-    print(f"[{time.time() - t0:.0f}s] terrain done: near={'yes' if near else 'no'} far {far['nx']}x{far['nz']}", flush=True)
+    G["far_f"] = far_interp(far)
+    G["near_for"] = near_for
+    shapely.prepare(land)
+    print(f"[{time.time() - t0:.0f}s] far terrain {far['nx']}x{far['nz']}", flush=True)
 
     # Tiles
     os.makedirs(os.path.join(WORLD, "tiles"), exist_ok=True)
@@ -1013,7 +1174,9 @@ def build(offline=False):
         "T": T, "bbox": [round(v, 1) for v in rect],
         "tiles": {r[0]: {"b": r[1], "bytes": r[2]} for r in results},
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
-        "attribution": "Map data (c) OpenStreetMap contributors, ODbL; lidar Regione Sicilia / MASE CC BY 4.0; terrain AWS Terrarium",
+        "attribution": "Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles.",
+        "credits": {"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
+                    "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
     }
     if islands:
         manifest["islands"] = islands

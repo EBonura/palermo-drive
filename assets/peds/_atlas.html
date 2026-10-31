@@ -1,0 +1,5 @@
+<!doctype html><body style="margin:0;background:#8a9a7a"><script type="module">
+import { buildAtlas } from './sprites.js';
+const cv = buildAtlas(); const z = 3; cv.style.cssText = `image-rendering:pixelated;width:${cv.width*z}px;height:${cv.height*z}px`;
+document.body.appendChild(cv); window.done = true;
+</script>
