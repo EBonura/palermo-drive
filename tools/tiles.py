@@ -1269,7 +1269,7 @@ CURATED = [
     ("Castello a Mare", r"Castello a Mare", None),
     ("Fiera del Mediterraneo", r"Fiera del Mediterraneo", None),
     ("Cappella Palatina", r"Cappella Palatina", None),
-    ("Chiesa della Martorana", r"La Martorana|dell.Ammiraglio", None),
+    ("Chiesa della Martorana", r"\(La Martorana\)", None),
     ("Palazzo delle Aquile", r"Palazzo delle Aquile|Palazzo Pretorio", None),
     ("Mercato di Ballarò", r"Mercato di Ballar|Mercari do Ballaro", None),
     ("Mercato del Capo", r"Mercato del Capo|Mercari del Capo", None),
