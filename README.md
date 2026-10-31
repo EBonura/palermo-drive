@@ -1,6 +1,6 @@
 # Palermo Drive
 
-*Tre ruote, zero frecce, un solo clacson.* An irreverent driving game through Palermo in a lapa, in the browser. Play it at
+*3 ruote 2 frecce 1 clacson 0 dignità.* An irreverent driving game through Palermo in a lapa, in the browser. Play it at
 https://ebonura.github.io/palermo-drive/ (best on a phone in landscape, or desktop with WASD).
 
 Built with three.js. Buildings, streets and street furniture come from OpenStreetMap; building and
