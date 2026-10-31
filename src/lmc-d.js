@@ -125,7 +125,7 @@ export const GIUSTIZIA = { name: 'Palazzo di Giustizia', x: -806, z: -330, radiu
 // Villa Niscemi (Piana dei Colli): cream baroque villa with stone balconies, a low service wing with a balustraded terrace and orange pergola cloths.
 // ====================================================================================================
 function buildNiscemi() {
-  initShared();
+  initShared(); ensureTrunk();
   const F = front('niscemi', 0), gr = groundRange(F.pts), gy = gr.hi + 0.1, H = 13.2;
   begin(gy);
   facadeMat('nsWall', 4.6, H, { base: '#ecdfb9', trim: '#f7efd8', glass: '#2a2422', seed: 971, plinth: { h: 0.9, c: '#d8c89e' }, grime: 1,
