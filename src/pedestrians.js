@@ -3,7 +3,7 @@
 // Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
-// - Art: assets/peds/sprites.js draws 44 pixel-art characters x 4 directions x 4 poses onto one canvas atlas.
+// - Art: assets/peds/sprites.js draws the pixel-art characters (48x96 cells) x 4 directions x 5 poses onto one packed canvas atlas.
 // - Rendering: two InstancedBufferGeometry draws (sprites, blob shadows) fed by the same per-instance buffers.
 //   The vertex shader billboards around the vertical axis only; the CPU picks the atlas cell from the angle between
 //   the camera and the walking direction and from the walk phase.
@@ -16,11 +16,11 @@
 //   groups (zone 5), Ballaro and the Capo get a smaller evening crowd, vendors go home and tourists thin out. api.night() tells
 //   other modules (src/missions.js) whether it is night.
 import * as THREE from 'three';
-import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, buildAtlas } from '../assets/peds/sprites.js';
+import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, SCALE, PACK, ATLAS_ROWS, buildAtlas } from '../assets/peds/sprites.js';
 
 const TAU = Math.PI * 2;
 const TILE = 64, CPM = 2, TCELLS = TILE * CPM;          // tile size in metres, cells per metre, cells per tile side
-const PX = 0.04;                                         // metres per sprite pixel (adult 44 px = 1.76 m)
+const PX = 0.04;                                         // metres per design pixel of the variant data (adult 44 = 1.76 m); the 48x96 cells draw at PX / SCALE per texel
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
 const QUALITIES = { low: { cap: 120, R: 80 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
 
@@ -232,7 +232,8 @@ export function createPedestrians(env) {
   const AMB_D = new THREE.Color(0.66, 0.68, 0.72), AMB_N = new THREE.Color(0.4, 0.43, 0.56), SUN_D = new THREE.Color(0.62, 0.5, 0.36), SUN_N = new THREE.Color(0, 0, 0);
 
   // ======================================================================== sprite rendering
-  const atlas = new THREE.CanvasTexture(buildAtlas());
+  const halfRes = params.get('pedres') ? params.get('pedres') === 'half' : coarse;   // phones: half-resolution atlas (a quarter of the texture memory), ?pedres=full|half overrides
+  const atlas = new THREE.CanvasTexture(buildAtlas(halfRes));
   atlas.colorSpace = THREE.SRGBColorSpace; atlas.magFilter = THREE.NearestFilter; atlas.minFilter = THREE.LinearMipmapLinearFilter; atlas.anisotropy = 1;
   const quadPos = new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), quadUv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
   const aPos = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3).setUsage(THREE.DynamicDrawUsage);
@@ -247,11 +248,11 @@ export function createPedestrians(env) {
   };
   const spriteMat = new THREE.ShaderMaterial({
     fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: atlas }, uCell: { value: new THREE.Vector2(1 / COLS, 1 / ROWS) }, uPx: { value: PX },
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: atlas }, uCell: { value: new THREE.Vector2(1 / (COLS * PACK), 1 / ATLAS_ROWS) }, uPack: { value: PACK }, uCols: { value: COLS }, uPx: { value: PX / SCALE },
       uAmb: { value: new THREE.Color(0.66, 0.68, 0.72) }, uSun: { value: new THREE.Color(0.62, 0.5, 0.36) } }]),
     vertexShader: `
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB;
-      uniform vec2 uCell; uniform float uPx;
+      uniform vec2 uCell; uniform float uPx; uniform float uPack; uniform float uCols;
       varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_vertex>
       void main() {
@@ -259,11 +260,12 @@ export function createPedestrians(env) {
         vec2 t = cameraPosition.xz - iPos.xz; float l = length(t);
         t = l > 1e-4 ? t / l : vec2(0.0, 1.0);
         vec3 right = vec3(t.y, 0.0, -t.x);
-        vec2 loc = vec2(position.x * 24.0 * uPx * iA.z, position.y * 48.0 * uPx * iA.z - 2.0 * uPx * iA.z);
+        vec2 loc = vec2(position.x * ${CELL_W}.0 * uPx * iA.z, position.y * ${CELL_H}.0 * uPx * iA.z - 3.0 * uPx * iA.z);
         float c = cos(iA.w), s = sin(iA.w);
         vec2 r = vec2(c * loc.x - s * loc.y, s * loc.x + c * loc.y);
         vec3 wp = iPos + right * r.x + vec3(0.0, 1.0, 0.0) * r.y;
-        vUv = vec2((iA.x + uv.x) * uCell.x, 1.0 - (iA.y + 1.0 - uv.y) * uCell.y);
+        float vr = iA.y + 0.5, blk = floor(vr / uPack), sub = floor(vr - blk * uPack);
+        vUv = vec2((iA.x + sub * uCols + uv.x) * uCell.x, 1.0 - (blk + 1.0 - uv.y) * uCell.y);
         vFade = iB.x; vSun = iB.y; vBright = iB.z;
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
         gl_Position = projectionMatrix * mvPosition;
@@ -731,7 +733,7 @@ export function createPedestrians(env) {
         dir = Math.abs(s) >= Math.abs(c) ? (s > 0 ? 0 : 1) : (c > 0 ? 3 : 2);
         if (st === DODGE) pose = 1;
         else if (V[i] < 0.12) pose = 0;
-        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
+        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph + 1; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
       }
       A[i * 4] = dir * POSES + pose; A[i * 4 + 1] = VAR[i]; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
       if (LEAVE[i] >= 0) { LEAVE[i] -= dt / 1.4; if (LEAVE[i] <= 0) AGE[i] = -999; }
@@ -856,7 +858,7 @@ export function createPedestrians(env) {
       const s = wx * tx + wz * tz, cc = wx * tz - wz * tx;
       const dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
       let pose = 0;
-      if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; }
+      if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph + 1; }
       sa[i * 4] = dir * POSES + pose; sa[i * 4 + 1] = c.v; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
       sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (2 + leg) / 48 - 0.03 : 0;
     }

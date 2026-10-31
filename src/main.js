@@ -19,6 +19,7 @@ import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
+import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.js)
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
@@ -387,6 +388,8 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
+const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world });
+if (window.game) window.game.suca = suca;
 // with the streamed world, a far start spot has to load before the lapa can find a road there
 const placeStart = (x, z) => { try { placeAt(x, z); } catch (e) { /* no road yet */ } world?.teleport(x, z, () => placeAt(x, z)); };
 setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, proj, groundY, D });
@@ -405,6 +408,7 @@ renderer.setAnimationLoop(now => {
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
+  if (game.state === 'play') suca.update(dt, car);
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);

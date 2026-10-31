@@ -821,7 +821,9 @@ function build(env) {
   function findSpot(minD, maxD, ahead) {
     let best = null, bs = -Infinity;
     for (let k = 0; k < 48; k++) {
-      const a = ahead ? car.th + rand(-0.9, 0.9) : rand(0, TAU), d = rand(minD, maxD), x = car.x + Math.sin(a) * d, z = car.z + Math.cos(a) * d;
+      let x, z;
+      if (ahead) { const d = rand(minD, maxD), lat = (Math.random() < 0.5 ? 1 : -1) * rand(3.5, 6.5); x = car.x + Math.sin(car.th) * d + Math.cos(car.th) * lat; z = car.z + Math.cos(car.th) * d - Math.sin(car.th) * lat; }   // beside the road ahead
+      else { const a = rand(0, TAU), d = rand(minD, maxD); x = car.x + Math.sin(a) * d; z = car.z + Math.cos(a) * d; }
       const wd = wallDist(x, z); if (wd < 0.9 || !pathClear(car.x, car.z, x, z)) continue;
       const sc = (raisedMask(x, z) ? 3 : 0) + Math.min(wd, 2.5) + rand(0, 0.6);
       if (sc > bs) { bs = sc; best = { x, z }; }

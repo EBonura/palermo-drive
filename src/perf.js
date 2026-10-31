@@ -15,7 +15,8 @@ export function createPerf({ renderer, mobile }) {
   const STEP = 0.125;                            // quantise the ratio: fewer distinct buffer sizes
   let max = 1, ratio = 1, applied = 0;
   let ema = target, last = 0, warm = 120, hold = 0, goodSince = 0, raiseWait = 4000, lastRaise = -1e9;
-  const st = { lowers: 0, raises: 0 };
+  let probe = null, probeAt = 0, noLowerUntil = 0;   // a lowering step is checked ~2 s later: if the frame time did not improve we are CPU bound
+  const st = { lowers: 0, raises: 0, reverted: 0 };
   const params = new URLSearchParams(location.search);
   const off = params.has('fixres');              // ?fixres disables the adaptation (for benchmarks)
 
@@ -41,11 +42,17 @@ export function createPerf({ renderer, mobile }) {
       if (warm > 0) { warm--; return; }                                       // shader compiles, texture uploads
       ema += (dt - ema) * 0.06;
       if (hold > 0) { hold -= dt; return; }
-      if (ema > slow && ratio > floor + 1e-3) {
+      if (probe && now >= probeAt) {
+        if (ema > probe.ema * 0.93) { ratio = probe.ratio; st.reverted++; apply(); noLowerUntil = now + 30000; } // fewer pixels did not help: CPU bound, keep the sharp image
+        probe = null; goodSince = 0; return;
+      }
+      if (probe) return;
+      if (ema > slow && ratio > floor + 1e-3 && now >= noLowerUntil) {
         // proportional: cost scales with ratio^2, so aim at the target interval
+        probe = { ratio, ema }; probeAt = now + 2000;
         ratio = Math.max(floor, ratio * Math.min(0.95, Math.max(0.7, Math.sqrt(target / ema))));
         if (now - lastRaise < 10000) raiseWait = Math.min(raiseWait * 2, 120000); // we raised too eagerly: wait longer next time
-        st.lowers++; apply(); ema = target; hold = 1200; goodSince = 0;
+        st.lowers++; apply(); hold = 1200; goodSince = 0;
       } else if (ema < fast && ratio < max - 1e-3) {
         goodSince = goodSince || now;
         if (now - goodSince > raiseWait) {

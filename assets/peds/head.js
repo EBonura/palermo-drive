@@ -63,7 +63,7 @@ export function headFront(g, v, ht, hw, hh, back, skin, hairC) {
   P(CX - 1, ey + 1, 1, 3, sh(skin, 1.1)); P(CX, ey + 1, 1, 3, sk.d);      // nose bridge light, side shade
   P(CX - 2, ey + 3, 1, 1, sk.d); P(CX + 1, ey + 3, 1, 1, sk.d); P(CX - 1, ey + 4, 2, 1, sk.dd);
   P(CX - 5, ey + 3, 2, 1, mix(skin, '#e07a72', 0.3)); P(CX + 3, ey + 3, 2, 1, mix(skin, '#e07a72', 0.25));   // cheeks
-  const lip = mix(skin, '#b0484a', 0.6), lipD = mix(skin, '#5a2428', 0.75);
+  const lip = mix(skin, '#b0484a', 0.4), lipD = mix(skin, '#5a2428', 0.55);
   if (v.beard) {                                                          // full beard with a dithered top edge, the mouth left clear
     for (let j = ey + 3 - ht; j < hh; j++) {
       const h = hf(j), y = ht + j;
@@ -192,18 +192,18 @@ export function headSide(g, v, ht, hw, hh, st, skin, c) {
     const a = front(j), b = backx(j), y = ht + j; row(P, y, a, b, skin);
     P(a, y, 1, 1, sh(skin, 1.06)); if (j > hh * 0.62) row(P, y, b - 4, b, sk.d); if (j >= hh - 2) row(P, y, a + 1, b - 1, sk.d);
   }
-  // nose, brow, eye, mouth
+  // nose, brow, eye, mouth (placed on the profile of their own row)
   P(sx0 - 2, ey + 2, 2, 2, skin); P(sx0 - 1, ey + 1, 1, 1, skin); P(sx0 - 2, ey + 4, 3, 1, sk.d); P(sx0 - 1, ey + 3, 1, 1, sh(skin, 1.1));
   P(sx0, ey - 2, 1, 1, sk.d);
   const iris = v.eyes || '#3a2a20', browC = sh(v.beard || c, 0.85);
   P(sx0 + 1, ey - 3, 4, 1, browC); P(sx0 + 2, ey, 3, 1, INK); P(sx0 + 2, ey + 1, 1, 1, iris); P(sx0 + 3, ey + 1, 2, 1, WHITE);
   P(sx0 + 3, ey + 3, 2, 1, mix(skin, '#e07a72', 0.3));
-  const lip = mix(skin, '#b0484a', 0.6), lipD = mix(skin, '#5a2428', 0.75), my2 = my;
-  P(sx0, my2, 1, 1, lip); P(sx0 + 1, my2, 3, 1, lipD); P(sx0 + 1, my2 + 1, 2, 1, lip);
-  if (v.smile) P(sx0 + 4, my2 - 1, 1, 1, lipD);
+  const lip = mix(skin, '#b0484a', 0.4), lipD = mix(skin, '#5a2428', 0.55), my2 = my, mx = front(my - ht);
+  P(mx, my2, 1, 1, lip); P(mx + 1, my2, 3, 1, lipD); P(mx + 1, my2 + 1, 2, 1, lip);
+  if (v.smile) P(mx + 4, my2 - 1, 1, 1, lipD);
   if (v.beard) {
     for (let j = ey + 3 - ht; j < hh; j++) for (let x = front(j) - (j > ey - ht + 4 ? 0 : 0); x < backx(j) - (j < hh - 3 ? 4 : 0) + (j > hh - 6 ? 0 : 0); x++) { if (j === ey + 3 - ht && (x + j) & 1) continue; const n = hs(x, ht + j); P(x, ht + j, 1, 1, n < 0.2 ? sh(v.beard, 1.5) : n > 0.8 ? sh(v.beard, 0.8) : v.beard); }
-    P(sx0 + 1, my - 1, 3, 3, mix(skin, v.beard, 0.2)); P(sx0 + 1, my, 3, 1, lipD); P(sx0 + 1, my + 1, 2, 1, lip);
+    P(mx + 1, my - 1, 3, 3, mix(skin, v.beard, 0.2)); P(mx + 1, my, 3, 1, lipD); P(mx + 1, my + 1, 2, 1, lip);
   } else if (v.stubble) { const sc = mix(skin, v.stubble, 0.45); for (let j = ey + 3 - ht; j < hh; j++) for (let x = front(j) + 1; x < backx(j) - 4; x++) if (((x + j) & 1) === 0) P(x, ht + j, 1, 1, sc); }
   // hair
   const vol = { quiff: 6, bun: 1, curly: 4, long: 2, wavy: 2, slick: 2 }[st] || 1;
@@ -254,7 +254,7 @@ export function hat(g, v, dir, ht, hw, hh, st) {
     else { P(CX - 9, ht - 3, 18, 2, hc); P(CX - 9, ht - 1, 2, 5, hc); P(CX + 7, ht - 1, 2, 5, hc); for (const x of [CX - 11, CX + 6]) { P(x, ht + 3, 5, 8, hc); P(x + (x < CX ? 0 : 3), ht + 3, 2, 8, t.d); P(x + 1, ht + 4, 2, 2, t.l); } }
   }
   if (!hat) return;
-  const c = hat.col, t = T(c), c2 = hat.col2 || sh(c, 0.7), noise = (x, y, c0) => hs(x, y) < 0.3 ? sh(c0, 0.86) : hs(x + 9, y) > 0.85 ? sh(c0, 1.14) : c0;
+  const c = hat.col, t = T(c), c2 = hat.col2 || sh(c, 0.7), noise = (x, y, c0) => hs(x, y) < 0.25 ? sh(c0, 0.93) : hs(x + 9, y) > 0.88 ? sh(c0, 1.07) : c0;
   const dome = (y0, y1, half, base, tex = true) => { for (let y = y0; y <= y1; y++) { const h = half(y); for (let x = CX - h; x < CX + h; x++) P(x, y, 1, 1, tex ? noise(x, y, base) : base); P(CX + h - 3, y, 3, 1, sh(base, 0.8)); P(CX - h, y, 1, 1, sh(base, 1.18)); } };
   const sdome = (y0, y1, x0, x1, base, tex = true) => { for (let y = y0; y <= y1; y++) for (let x = x0(y); x < x1(y); x++) P(x, y, 1, 1, tex ? noise(x, y, base) : base); };
   switch (hat.type) {

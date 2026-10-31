@@ -1725,17 +1725,5 @@ export function buildProps(ctx) {
   const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, colliders: phys.count() };
   api.grid = phys.grid;
   if (location.search.includes('debug')) window.__props = Object.assign(api, { colls });
-  if (location.search.includes('proptest=')) setTimeout(() => { // TEMP test harness
-    const q = new URLSearchParams(location.search), models = q.get('proptest').split(','), S = +(q.get('sp') || 9), g = window.game; if (!g) return;
-    const px = +(q.get('px') || 0), pz = +(q.get('pz') || 0);
-    const tgs = colls.filter(c => models.includes(c.model) && c.st === 0).sort((a, b) => Math.hypot(a.x0 - px, a.z0 - pz) - Math.hypot(b.x0 - px, b.z0 - pz));
-    const tg = tgs[0]; if (!tg) { console.log('PROPTEST none'); return; }
-    const nx = Math.sin(tg.rot0), nz = Math.cos(tg.rot0), th = Math.atan2(-nx, -nz), car = g.car;
-    car.x = tg.x0 + nx * 9; car.z = tg.z0 + nz * 9; car.th = th;
-    let i = 0; for (; i < 600 && tg.st === 0; i++) { car.vx = Math.sin(th) * S; car.vz = Math.cos(th) * S; car.vf = S; car.x += car.vx / 120; car.z += car.vz / 120; api.collidePlayer(car, 1 / 120); }
-    for (let k = 0; k < +(q.get('after') || 40); k++) { car.x += car.vx / 120; car.z += car.vz / 120; api.collidePlayer(car, 1 / 120); }
-    car.vx = car.vz = car.vf = 0; car.x = tg.x0 + nx * 30; car.z = tg.z0 + nz * 30;
-    console.log('PROPTEST', tg.model, tg.x0.toFixed(1), tg.y0.toFixed(1), tg.z0.toFixed(1), tg.rot0.toFixed(2), tg.st, JSON.stringify(api.stats));
-  }, 2500);
   return api;
 }

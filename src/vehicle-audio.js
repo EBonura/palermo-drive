@@ -15,6 +15,7 @@ const ENG = {
   vespa:      { f0: 92, fr: 250, o2: 2.0, o2g: 0.28, lfo0: 9, lfor: 72, depth: 0.3, am: 0.66, lp0: 900, lpr: 4500, pkf: 1500, pkg: 8, rasp: 0.1, out: 0.3 },
   scooterone: { f0: 68, fr: 120, o2: 1.5, o2g: 0.22, lfo0: 5, lfor: 26, depth: 0.16, am: 0.8, lp0: 600, lpr: 2400, pkf: 650, pkg: 6, rasp: 0.03, out: 0.3 },
   motorino:   { f0: 76, fr: 300, o2: 2.0, o2g: 0.3, lfo0: 8, lfor: 66, depth: 0.28, am: 0.7, lp0: 900, lpr: 5200, pkf: 1300, pkg: 6, rasp: 0.08, out: 0.34 },
+  sulky:      { f0: 60, fr: 100, o2: 2, o2g: 0.2, lfo0: 4, lfor: 10, depth: 0.2, am: 0.7, lp0: 400, lpr: 800, pkf: 500, pkg: 2, rasp: 0, out: 0 },   // silent: the hooves are drawn in update()
   tascia:     { f0: 58, fr: 215, o2: 2.0, o2g: 0.5, lfo0: 14, lfor: 84, depth: 0.2, am: 0.74, lp0: 700, lpr: 3400, pkf: 750, pkg: 9, rasp: 0.06, out: 0.4 },
 };
 // exhaust parts: louder, throatier, rougher
@@ -59,7 +60,9 @@ export function createVehicleAudio(env) {
     if (a.started) return; a.started = true;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const ctx = a.ctx = new AC();
-    a.master = ctx.createGain(); a.master.gain.value = a.vol * 0.9; a.master.connect(ctx.destination);
+    a.master = ctx.createGain(); a.master.gain.value = a.vol * 0.9;
+    a.muffle = ctx.createBiquadFilter(); a.muffle.type = 'lowpass'; a.muffle.frequency.value = 22000; a.muffle.Q.value = 0.5;   // the ZEN fade muffles the vehicle sounds
+    a.master.connect(a.muffle); a.muffle.connect(ctx.destination);
     const load = name => fetch(new URL(`../assets/audio/${name}.wav`, import.meta.url).href).then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
     Promise.all([load('skid'), load('impact')]).then(([skid, imp]) => {
       const loop = (buf, type, f0) => {
@@ -81,6 +84,27 @@ export function createVehicleAudio(env) {
   for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, gesture, { passive: true });
 
   function setVoice(type, exhaust) { state.engType = type; state.exhaust = exhaust || ''; if (a.ready) buildEngine(); }
+  // k: 0 clear .. 1 fully muffled (vehicle sounds only)
+  function setMuffle(k) { if (a.muffle) a.muffle.frequency.setTargetAtTime(220 + 21780 * Math.pow(1 - clamp(k, 0, 1), 3), a.ctx.currentTime, 0.08); }
+  function honk(gain = 0.4, pitch = 1) {   // a short two-tone scooter beep (the escorts of the night race)
+    if (!a.ready || gain < 0.01) return;
+    const ctx = a.ctx, t = ctx.currentTime, g = ctx.createGain(), bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1150 * pitch; bp.Q.value = 1.3;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16 * a.vol * gain, t + 0.012); g.gain.setValueAtTime(0.16 * a.vol * gain, t + 0.16); g.gain.linearRampToValueAtTime(0, t + 0.2);
+    bp.connect(g); g.connect(a.master);
+    for (const f of [415, 520]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f * pitch; o.connect(bp); o.start(t); o.stop(t + 0.22); }
+  }
+  const hoof = { next: 0, n: 0 };
+  function clop(t, speed) {   // one hoof beat: a wooden tock and a dull thud
+    const ctx = a.ctx, g = ctx.createGain(), o = ctx.createOscillator(), n = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), ng = ctx.createGain();
+    const v = clamp(0.3 + speed / 60, 0.3, 0.65) * (hoof.n++ % 2 ? 0.8 : 1) * 0.6;   // hooves sit with the engine, under the music and SFX
+    o.type = 'sine'; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.07);
+    g.gain.setValueAtTime(v * 0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    n.buffer = a.noise; bp.type = 'bandpass'; bp.frequency.value = 1300 + (hoof.n % 3) * 250; bp.Q.value = 1.4;
+    ng.gain.setValueAtTime(v * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.connect(g); g.connect(a.master); n.connect(bp); bp.connect(ng); ng.connect(a.master);
+    o.start(t); o.stop(t + 0.1); n.start(t, Math.random() * 0.5); n.stop(t + 0.06);
+  }
   function setVolume(v) { a.vol = clamp(+v || 0, 0, 1); if (a.master) a.master.gain.value = a.vol * 0.9; }
   function impact(mag) {
     if (!a.ready) return;
@@ -95,6 +119,7 @@ export function createVehicleAudio(env) {
     if (!a.ready) return;
     if (engKey !== state.engType + '|' + state.exhaust) buildEngine();
     const E = a.engine; if (!E) return;
+    if (state.engType === 'sulky' && s.active && Math.abs(s.vf) > 0.8) { const t0 = a.ctx.currentTime; if (t0 >= hoof.next) { clop(t0, Math.abs(s.vf)); hoof.next = t0 + clamp(1.96 / Math.abs(s.vf), 0.09, 0.6); } }
     const t = a.ctx.currentTime, set = (p, v, tc = 0.06) => p.setTargetAtTime(v, t, tc);
     const { P, X } = E, rpm = s.rpm, thr = s.active ? Math.max(s.thr, s.nosAmt) : 0;
     const f1 = (P.f0 + P.fr * rpm + 18 * s.nosAmt) * X[2];
@@ -170,9 +195,9 @@ export function createVehicleAudio(env) {
   function bassUpdate(on, dt, x, z, boost) {
     bassOn = on;
     if (!a.ready) { bass.pulse = 0; return; }
-    if (!a.bassBus) { const ctx = a.ctx, lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180; lp.Q.value = 0.8; const g = ctx.createGain(); g.gain.value = 0.55; lp.connect(g); g.connect(a.master); a.bassBus = lp; a.bassGain = g; }
+    if (!a.bassBus) { const ctx = a.ctx, lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180; lp.Q.value = 0.8; const g = ctx.createGain(); g.gain.value = 0.4; lp.connect(g); g.connect(a.master); a.bassBus = lp; a.bassGain = g; }
     const ctx = a.ctx, t = ctx.currentTime;
-    a.bassGain.gain.setTargetAtTime(on ? 0.55 * (boost || 1) : 0, t, 0.1);
+    a.bassGain.gain.setTargetAtTime(on ? 0.4 * (boost || 1) : 0, t, 0.1);
     if (!on) { bass.next = 0; bass.pulse = 0; return; }
     const beat = 60 / BPM;
     if (!bass.next || bass.next < t - 0.5) { bass.next = t + 0.05; bass.beat = 0; }
@@ -188,5 +213,5 @@ export function createVehicleAudio(env) {
     if (bass.notified !== bass.last && t >= bass.last) { bass.notified = bass.last; dispatchEvent(new CustomEvent('pd-bass', { detail: { x, z, r: 40 } })); }
   }
 
-  return { a, start, gesture, setVoice, setVolume, impact, update, hornUpdate, bassUpdate, bass, get ready() { return a.ready; }, get vol() { return a.vol; }, HORNS, ENG, EXH };
+  return { a, start, gesture, setVoice, setVolume, setMuffle, honk, impact, update, hornUpdate, bassUpdate, bass, get ready() { return a.ready; }, get vol() { return a.vol; }, HORNS, ENG, EXH };
 }

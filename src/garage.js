@@ -19,7 +19,9 @@ export const VEHICLES = [
   { id: 'motorino', kind: 'bike', name_it: 'Motorino', name_en: 'Little motorbike', sub_it: 'Nudo, nervoso', sub_en: 'Naked and twitchy', price: 50 },
   { id: 'tascia', kind: 'car', name_it: 'Macchina tascia', name_en: 'Tamarro hatchback', sub_it: 'Bassa, rumorosa, tutta adesivi', sub_en: 'Low, loud, all stickers', price: 120 },
 ];
-export const vehicleById = id => VEHICLES.find(v => v.id === id) || VEHICLES[0];
+// Event-only vehicles: not in the garage, never saved as your vehicle (the "corse clandestine" night event swaps one in).
+export const EVENT_VEHICLES = [{ id: 'sulky', kind: 'horse', name_it: 'Calesse da corsa', name_en: 'Racing sulky', price: 0 }];
+export const vehicleById = id => VEHICLES.find(v => v.id === id) || EVENT_VEHICLES.find(v => v.id === id) || VEHICLES[0];
 
 // Paint schemes per vehicle. The Calessino keeps its three original liveries; the others share a "rosanero" (Palermo pink and black).
 // color is the swatch shown in the garage. Models read the matching entry in src/vehicle-models.js.
@@ -32,6 +34,7 @@ export const LIVERIES = {
   vespa: [P('menta', 'Verde menta', 'Mint green', '#8fd0b0'), P('crema', 'Crema', 'Cream', '#efe2bf'), P('rosso', 'Rosso', 'Red', '#c42f2a'), P('azzurro', 'Azzurro', 'Sky blue', '#5aa0d8'), ROSANERO],
   scooterone: [P('grigio', 'Grigio metallo', 'Metal grey', '#8e949b'), P('nero', 'Nero', 'Black', '#25262a'), P('perla', 'Bianco perla', 'Pearl white', '#f2f0ea'), P('rosso', 'Rosso', 'Red', '#c42f2a'), ROSANERO],
   motorino: [P('nero', 'Nero opaco', 'Matt black', '#2a2b2e'), P('rosso', 'Rosso', 'Red', '#c42f2a'), P('arancio', 'Arancio', 'Orange', '#ee7a1e'), P('verde', 'Verde acido', 'Acid green', '#9ad12e'), ROSANERO],
+  sulky: [P('baio', 'Baio', 'Bay', '#7a4a2a'), P('sauro', 'Sauro', 'Chestnut', '#a8582a'), P('morello', 'Morello', 'Black', '#26262a'), P('grigio', 'Grigio', 'Grey', '#aaaaaa')],
   tascia: [P('viola', 'Viola metallizzato', 'Metallic purple', '#7a3bc0'), P('arancio', 'Arancio sole', 'Sun orange', '#f07a14'), P('giallo', 'Giallo', 'Yellow', '#f2d020'), P('nero', 'Nero lucido', 'Gloss black', '#1b1b20'), ROSANERO],
 };
 export const defaultLivery = type => (LIVERIES[type] || LIVERIES.calessino)[0].id;
@@ -145,9 +148,9 @@ if (typeof addEventListener === 'function') addEventListener('pd-fare', e => { c
 
 // A look from outside (garage preview or a remote player): fills defaults and drops junk.
 export function cleanLook(l) {
-  const type = l && VEHICLES.some(v => v.id === l.type) ? l.type : 'calessino';
+  const type = l && (VEHICLES.some(v => v.id === l.type) || l.type === 'sulky') ? l.type : 'calessino';
   const list = LIVERIES[type], livery = l && list.some(x => x.id === l.livery) ? l.livery : list[0].id, parts = {};
-  if (l && l.parts) for (const p of PARTS) { const o = l.parts[p.id]; if (o && p.opts.some(x => x.id === o)) parts[p.id] = o; }
+  if (l && l.parts && type !== 'sulky') for (const p of PARTS) { const o = l.parts[p.id]; if (o && p.opts.some(x => x.id === o)) parts[p.id] = o; }
   return { type, livery, parts };
 }
 export const lookKey = l => `${l.type}|${l.livery}|${PARTS.map(p => (l.parts && l.parts[p.id]) || '').join(',')}`;
