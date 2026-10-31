@@ -360,10 +360,10 @@ function build(env) {
     let n = 0;
     for (let i = 0; i < MIST_N; i++) {
       const d = 4 + i * MIST_STEP, s = bs + d; if (s > route.len - 1) break;
-      const p = routeAt(s), w = 0.4 + 0.6 * Math.exp(-(((d - front) / 15) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.7);
+      const p = routeAt(s), w = 0.62 + 0.38 * Math.exp(-(((d - front) / 15) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.5);
       const gy = groundAt(p.x, p.z);
       pos[n * 3] = p.x + Math.sin(tt * 1.3 + i) * 0.35; pos[n * 3 + 1] = gy + 0.9 + 1.1 * w + 0.3 * Math.sin(tt * 2.1 + i * 1.7); pos[n * 3 + 2] = p.z + Math.cos(tt * 1.1 + i * 1.3) * 0.35;
-      A[n * 3] = 4.2 + 2.8 * w; A[n * 3 + 1] = 0.85 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
+      A[n * 3] = 5.0 + 2.5 * w; A[n * 3 + 1] = 1.0 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
       n++;
     }
     mist.geometry.instanceCount = n; mPos.needsUpdate = mA.needsUpdate = true;
@@ -782,7 +782,6 @@ function build(env) {
   }
 
   const api = { mode: 'free', setMode, update, stop, state: S };
-  if (params.has('mdebug')) window.__m = { S, vendors, route, G, newFare, mapRoute, mist, mPos, mA }; // TEMP
   if (params.get('mode') === 'turisti') setMode('turisti');
   return api;
 }

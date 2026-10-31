@@ -1,6 +1,6 @@
 # Palermo Drive
 
-A driving game through the centro storico of Palermo, in the browser. Play it at
+*Tre ruote, zero frecce, un solo clacson.* An irreverent driving game through Palermo in a lapa, in the browser. Play it at
 https://ebonura.github.io/palermo-drive/ (best on a phone in landscape, or desktop with WASD).
 
 Built with three.js. Buildings, streets and street furniture come from OpenStreetMap; building and

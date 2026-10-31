@@ -515,7 +515,7 @@ document.getElementById('loading').remove();
 let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now; // never negative (headless virtual time)
   if (game.state === 'play') {
     for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); }
   } else acc = 0;

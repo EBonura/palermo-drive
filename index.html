@@ -9,10 +9,10 @@
 <meta name="apple-mobile-web-app-title" content="Palermo Drive">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Palermo Drive</title>
-<meta name="description" content="Palermo Drive: un gioco di guida nel centro storico di Palermo, nel browser. A driving game through Palermo's historic centre.">
+<meta name="description" content="Palermo Drive: tre ruote, zero frecce, un solo clacson. Guida una lapa nel caos di Palermo. Three wheels, zero indicators, one horn.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Palermo Drive">
-<meta property="og:description" content="Guida nel centro storico di Palermo. A driving game through Palermo's historic centre.">
+<meta property="og:description" content="Tre ruote, zero frecce, un solo clacson. Three wheels, zero indicators, one horn.">
 <meta property="og:image" content="https://ebonura.github.io/palermo-drive/assets/ui/cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -44,11 +44,31 @@
   #help { bottom: 16px; right: 16px; font-size: 12px; line-height: 1.55; background: rgba(0,0,0,.35); padding: 8px 12px; border-radius: 8px; text-shadow: none; }
   #help b { display: inline-block; min-width: 46px; }
   #loading { inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #4a5560; text-shadow: none; }
+  /* Bonnie Studios boot splash, PS1 style: black, logo fades in, hold, fade out. Tap/any key skips. */
+  #bonnie { position: fixed; inset: 0; z-index: 2000; background: #000; display: flex; align-items: center; justify-content: center;
+    transition: opacity .5s ease; cursor: pointer; }
+  #bonnie img { width: min(42vmin, 340px); height: auto; opacity: 0; filter: blur(3px); image-rendering: auto;
+    animation: bonnie-in .9s ease-out .25s forwards; }
+  #bonnie::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .18;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,.06) 0 1px, transparent 1px 3px); }
+  #bonnie.out { opacity: 0; pointer-events: none; }
+  @keyframes bonnie-in { 0% { opacity: 0; filter: blur(3px); transform: scale(1.04); } 100% { opacity: 1; filter: blur(0); transform: scale(1); } }
 </style>
 <link rel="stylesheet" href="src/mobile.css">
 <link rel="stylesheet" href="src/ui.css">
 </head>
 <body>
+<div id="bonnie"><img src="assets/ui/bonnie-studios.png" alt="Bonnie Studios" width="512" height="512"></div>
+<script>
+  // Hold the splash ~2.6 s (the game keeps loading underneath), or skip on tap / key.
+  (function () {
+    var el = document.getElementById('bonnie'), done = false;
+    function out() { if (done) return; done = true; el.classList.add('out'); setTimeout(function () { el.remove(); }, 600); }
+    setTimeout(out, 2600);
+    el.addEventListener('pointerdown', out);
+    addEventListener('keydown', out, { once: true });
+  })();
+</script>
 <canvas id="view"></canvas>
 <div class="hud" id="loading">Costruendo Palermo…</div>
 <div class="hud" id="where"><div id="street"></div><div id="landmark"></div></div>
