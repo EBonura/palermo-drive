@@ -28,6 +28,14 @@ export const VARIANTS = [
   { id: 'borsa', skin: '#cf9b78', hair: '#5a3a28', hairStyle: 'bun', top: '#c43c36', sleeve: 'short', bottom: { type: 'trousers', col: '#4b6a96' }, shoes: '#f0f0ee', tote: '#d9cfae', speed: 1.15 },
   { id: 'ragazzo', skin: '#d0a081', hair: '#1a1512', hairStyle: 'short', top: '#2f6b49', sleeve: 'short', collar: '#2f6b49', bottom: { type: 'trousers', col: '#c9b99a' }, shoes: '#6b4a30', speed: 1.2 },
   { id: 'fruttivendolo', tw: 14, h: 1.74, skin: '#c2916c', hair: '#6b645c', hairStyle: 'short', top: '#3f6bb0', sleeve: 'long', apron: '#2f6b49', hat: { type: 'flatcap', col: '#8a7a5a' }, bottom: { type: 'trousers', col: '#4a4034' }, shoes: '#2c2622', speed: 0.9 },
+  { id: 'signora2', skin: '#d8a888', hair: '#8a6a3a', hairStyle: 'long', top: '#3f6bb0', sleeve: 'short', bottom: { type: 'skirt', col: '#3f6bb0', len: 10 }, legCol: '#d8a888', shoes: '#f0f0ee', purse: '#d9cfae', speed: 1.05 },
+  { id: 'suit2', skin: '#c98e6a', hair: '#d0ccc4', hairStyle: 'bald', top: '#6b6f78', sleeve: 'long', shirt: '#cfe0f0', tie: '#2f4f7a', bottom: { type: 'trousers', col: '#6b6f78' }, shoes: '#1a1a1a', speed: 1.3 },
+  { id: 'teen2', skin: '#e0b090', hair: '#c8a03a', hairStyle: 'long', top: '#f0eee8', sleeve: 'short', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#c43c36', phone: '#9fd8ff', speed: 1.25 },
+  { id: 'coppola2', skin: '#bf8a66', hair: '#9a9690', hat: { type: 'flatcap', col: '#3a3a40' }, top: '#6a7a58', sleeve: 'long', bottom: { type: 'trousers', col: '#33302c' }, shoes: '#2a2018', belt: '#2a2018', speed: 0.95 },
+  { id: 'ragazzo2', skin: '#c99872', hair: '#2a1c14', hairStyle: 'short', top: '#3f6bb0', sleeve: 'short', bottom: { type: 'trousers', col: '#2a2e38' }, shoes: '#eeeeee', speed: 1.2 },
+  { id: 'tourist2', skin: '#eec0a0', hair: '#d8b058', hairStyle: 'long', hat: { type: 'straw', col: '#e8dca8', col2: '#3f9ab8' }, top: '#d9443c', sleeve: 'short', glasses: '#1c1c20', bottom: { type: 'shorts', col: '#f0eee8', len: 8 }, shoes: '#a8684a', backpack: '#3a4a63', speed: 1.0 },
+  { id: 'kid2', leg: 11, tor: 9, head: 9, tw: 10, skin: '#d9a98a', hair: '#4a2a1a', hairStyle: 'long', top: '#e87aa0', sleeve: 'short', bottom: { type: 'shorts', col: '#f0eee8', len: 4 }, shoes: '#c43c36', speed: 1.45, bounce: true },
+  { id: 'vendor2', skin: '#cf9b78', hair: '#2a1a14', hairStyle: 'bun', top: '#b8382c', sleeve: 'short', apron: '#e9e4d6', bottom: { type: 'trousers', col: '#33302c' }, shoes: '#2c2622', speed: 0.95 },
 ];
 export const ROWS = VARIANTS.length;
 
