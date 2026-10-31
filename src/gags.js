@@ -4,6 +4,7 @@
 // traffic.bindPedestrians) and env.shout balloons.
 import { INSULTS } from './shouts.js';
 
+const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
 const MARKETS = [[-60, 410], [260, -220], [-390, -245]];         // Ballaro, Vucciria, Capo (same centres as the crowd density map)
@@ -30,7 +31,7 @@ export function createGags(env, T, police) {
         if (v.fleeUntil && time > v.fleeUntil) { v.flee = false; v.boost = 1; v.fleeUntil = 0; }
         continue;
       }
-      const d = Math.hypot(v.x - car.x, v.z - car.z);
+      const d = hyp(v.x - car.x, v.z - car.z);
       if (v.alarmAt) { if (time >= v.alarmAt) alarm(v); continue; }
       let copNear = false;
       for (const o of vs) if (o.cop && !o.fly && (o.x - v.x) ** 2 + (o.z - v.z) ** 2 < 65 * 65) { copNear = true; break; }
@@ -59,7 +60,7 @@ export function createGags(env, T, police) {
     }
     if (!bus) return;
     if (time > bus.lifeEnd) bus.hide = true;
-    const d = Math.hypot(bus.x - camera.position.x, bus.z - camera.position.z);
+    const d = hyp(bus.x - camera.position.x, bus.z - camera.position.z);
     if (d < 130 && time >= mirT) { mirT = time + 0.3; peds?.miracle?.(bus.x, bus.z, 11); }
     if (!busShouted && d < 30 && T.inView(bus.x, 1.5, bus.z, 6)) { busShouted = true; T.shoutAt(bus, 'FORZA PALERMO!'); }
   }
@@ -70,7 +71,7 @@ export function createGags(env, T, police) {
   const insult = () => { let s; do s = pick(INSULTS); while (s === lastInsult && INSULTS.length > 1); lastInsult = s; return s; };
   const right = v => [-Math.cos(v.h), Math.sin(v.h)];            // the driver's right-hand side in the world
   const say = (id, text) => {
-    const i = peds.info(id); if (!i || Math.hypot(i.x - camera.position.x, i.z - camera.position.z) > 80) return;   // nobody sees the far ones
+    const i = peds.info(id); if (!i || hyp(i.x - camera.position.x, i.z - camera.position.z) > 80) return;   // nobody sees the far ones
     env.shout?.(i.x, i.y + 1.9, i.z, text, () => { const k = peds.info(id); return k ? { x: k.x, y: k.y + 1.9, z: k.z } : null; });
   };
   const spawnDriver = (v, side) => { // side +1 = the kerb (right) side, -1 = the road side
@@ -89,7 +90,7 @@ export function createGags(env, T, police) {
       peds.setBounce(id, false);
       if (kind === 'break') {
         const i = peds.info(id); if (!i) continue;
-        const dx = i.x - car.x, dz = i.z - car.z, l = Math.hypot(dx, dz) || 1;
+        const dx = i.x - car.x, dz = i.z - car.z, l = hyp(dx, dz) || 1;
         peds.walkTo(id, i.x + dx / l * 9, i.z + dz / l * 9, 3.4, () => peds.remove(id));
         if (k > 0) say(id, insult());
       } else if (v) {
@@ -104,8 +105,8 @@ export function createGags(env, T, police) {
     for (const v of vs) {
       if (!CARS.has(v.name) || v.fly || v.cop || v.hold2 || v.dp || v.stopT > 0 || v.v < 2.5 || v.hide) continue;
       const e = v.route[0]; if (!e || e.ped || e.w < 7 || e.rank < 3 || e.len < 40 || v.t < 10 || e.len - v.t < 24) continue;
-      const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z); if (d < dmin || d > 110) continue;
-      let close = false; for (const s of dps) if (Math.hypot(s.a.x - v.x, s.a.z - v.z) < 70) close = true;
+      const d = hyp(v.x - camera.position.x, v.z - camera.position.z); if (d < dmin || d > 110) continue;
+      let close = false; for (const s of dps) if (hyp(s.a.x - v.x, s.a.z - v.z) < 70) close = true;
       if (!close) cands.push(v);
     }
     if (!cands.length) return;
@@ -118,7 +119,7 @@ export function createGags(env, T, police) {
   function findBlocked(s) {
     for (const o of vs) {
       if (o === s.a || o.fly || o.dp || o.cop || o.blocker !== s.a || o.v > 0.3 || o.ty.scooter || o.ty.cls === 2) continue;
-      if (Math.hypot(o.x - s.a.x, o.z - s.a.z) > 17) continue;
+      if (hyp(o.x - s.a.x, o.z - s.a.z) > 17) continue;
       return o;
     }
     return null;
@@ -126,7 +127,7 @@ export function createGags(env, T, police) {
   function stepScene(s, dt) {
     const a = s.a, b = s.b;
     if (s.state === 'done') return true;
-    const dc = Math.hypot(a.x - camera.position.x, a.z - camera.position.z);
+    const dc = hyp(a.x - camera.position.x, a.z - camera.position.z);
     if (s.state === 'leaving') {
       if (time > s.leaveAt || (!peds.info(s.ida) && !peds.info(s.idb)) || dc > 240) { release(s); dropDrivers(s); return true; }
       return false;
@@ -166,7 +167,7 @@ export function createGags(env, T, police) {
     } else if (time > s.offT && !toP) { peds.setBounce(s.ida, false); peds.setBounce(s.idb, false); }
     if (s.hornAt && s.state === 'argue') { // the lapa honked at them: one answers, then they amble off
       s.hornAt = 0; s.state = 'answer'; s.answerT = time + 2.4;
-      const ca = Math.hypot(ia.x - car.x, ia.z - car.z), cb = Math.hypot(ib.x - car.x, ib.z - car.z), id = ca < cb ? s.ida : s.idb;
+      const ca = hyp(ia.x - car.x, ia.z - car.z), cb = hyp(ib.x - car.x, ib.z - car.z), id = ca < cb ? s.ida : s.idb;
       peds.face(id, car.x, car.z); peds.setBounce(s.ida, false); peds.setBounce(s.idb, false);
       say(id, CAFFE);
     }

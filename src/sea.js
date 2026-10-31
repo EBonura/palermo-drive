@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 import { QUALITY } from './mobile.js';
-import { pairs, inPoly, rng } from './core.js';
+import { pairs, rng } from './core.js';
 
 const SEA_Y = -0.2;
 const MOBILE = !!QUALITY.mobile;
@@ -462,14 +462,12 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   const extras = new Map();   // tile key -> shore items harvested when the tile reached full detail
   let extrasDirty = false, extrasAt = 0;
 
-  // Is (x, z) open water? Exact (a 2 m field, bilinear) near the camera, the coastline polygon elsewhere.
+  // Is (x, z) open water? Exact (a 2 m field, bilinear) near the camera, the manifest coastline (world.isLand) elsewhere.
+  // Never true before the manifest is in: nobody drowns while the map is still loading.
   function isWater(x, z) {
     if (front) { const v = sampleField(front, x, z); if (v === v) return v > 0; }
-    if (world && world.manifest) return !world.isLand(x, z);
-    return !inPoly(pairsOf(D.land), x, z);
+    return !!(world && world.manifest) && !world.isLand(x, z);
   }
-  let landPairsCache = null;
-  const pairsOf = flat => landPairsCache || (landPairsCache = pairs(flat));
   // Signed distance to the shore (m, + over water): the fine window where the camera is, the coarse field elsewhere.
   function shoreAt(x, z) {
     if (front) { const v = sampleField(front, x, z); if (v === v) return v; }

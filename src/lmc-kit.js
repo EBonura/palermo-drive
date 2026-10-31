@@ -170,6 +170,22 @@ export function gridMesh(key, P, uvf, o = {}) {
   part(key, g, { uv: 'keep', ...o, skip: undefined });
 }
 
+
+// Rocky outcrop: a jittered frustum hanging below y=0 of the frame M (top ellipse rx x rz, widening by `spread` at depth `depth`).
+// Used for cliff footings under buildings on hillsides; flat-shaded, textured with the (rock-like) material `key`.
+export function crag(key, M, rx, rz, depth, o = {}) {
+  const seg = o.seg || 14, rows = o.rows || 4, spread = o.spread || 1.5, seed = o.seed || 1, jit = o.jit === undefined ? 0.14 : o.jit;
+  const g = new THREE.CylinderGeometry(1, 1, 1, seg, rows, true), pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = 0.5 - pos.getY(i), a = Math.atan2(pos.getZ(i), pos.getX(i)), f = 1 + (spread - 1) * y;   // y: 0 at the top ring, 1 at the bottom
+    const n = 1 + jit * (Math.sin(a * 3 + y * 5.1 + seed) * 0.6 + Math.sin(a * 7 + y * 2.3 + seed * 2.1) * 0.4) * Math.min(1, y * 3);
+    pos.setXYZ(i, Math.cos(a) * rx * f * n, (pos.getY(i) - 0.5) * depth, Math.sin(a) * rz * f * n);
+  }
+  const ng = g.toNonIndexed(); ng.computeVertexNormals();
+  const tm = DEFS[key].texM;
+  part(key, ng, { M, uv: 'keep', uvk: [PI * (rx + rz) * (1 + spread) / 2 / tm[0], depth / tm[1]], c: o.c, noao: o.noao });
+}
+
 // ---------- frames ----------
 export const mul = (a, b) => new THREE.Matrix4().multiplyMatrices(a, b);
 export const tr = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);

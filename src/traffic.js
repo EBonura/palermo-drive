@@ -675,9 +675,9 @@ Object.assign(MODELS, buildPoliceModels());
     if (kind === 'full') { if (t.data && t.data.roads && t.data.roads.length) addQ.push(t); return; }
     const qi = addQ.indexOf(t); if (qi >= 0) addQ.splice(qi, 1);
     if (stepping && stepping.key === key) stepping = null;
-    if (G.dropTile(key)) { killOnDeadEdges(); graphDirty = true; dirtyAt = time; if (touchesBuses(t)) plansDirty = true; }
+    if (G.dropTile(key)) { killOnDeadEdges(); if (!graphDirty) dirtyAt = time; graphDirty = true; if (touchesBuses(t)) plansDirty = true; }
   });
-  let tileMs = 0;
+  let tileMs = 0, aliveMs = 0, aliveMax = 0;
   function tiles(cx, cz) {
     if (!stepping && addQ.length) { // nearest waiting tile first
       let bi = 0, bd = 1e18;
@@ -687,13 +687,14 @@ Object.assign(MODELS, buildPoliceModels());
     }
     if (stepping) {
       const t0 = performance.now();
-      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { graphDirty = true; if (!dirtyAt || dirtyAt < time - 1) dirtyAt = time; if (touchesBuses(stepping.src)) plansDirty = true; stepping = null; }
+      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { if (!graphDirty) dirtyAt = time; graphDirty = true; if (touchesBuses(stepping.src)) plansDirty = true; stepping = null; }
       tileMs = performance.now() - t0;
     } else tileMs = 0;
     // judge the new roads once the burst of tiles is in (or after a second at the latest)
     if (graphDirty && !stepping && (!addQ.length || time - dirtyAt > 1.5)) {
-      G.recomputeAlive(); graphDirty = false; dirtyAt = 0; nextCand = 0;
+      const t0 = performance.now(); G.recomputeAlive(); graphDirty = false; nextCand = 0;
       if (plansDirty) { rebuildPlans(); plansDirty = false; }
+      aliveMs = performance.now() - t0; if (aliveMs > aliveMax) aliveMax = aliveMs;
     }
   }
 
@@ -912,7 +913,7 @@ Object.assign(MODELS, buildPoliceModels());
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
       get version() { return G.version; },
-      stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, tileMs }; },
+      stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, tileMs, aliveMs: +aliveMs.toFixed(1), aliveMax: +aliveMax.toFixed(1) }; },
     },
   };
 }
