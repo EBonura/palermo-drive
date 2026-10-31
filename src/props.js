@@ -1,0 +1,1126 @@
+// Street props and vegetation: real OSM street furniture (props-data.js) plus procedural fill.
+// Owned by the props work. Everything is vertex-coloured low-poly in shared InstancedMeshes,
+// bucketed into 300 m cells so frustum culling still works.
+import * as THREE from 'three';
+import { D, groundY, pairs, signedArea, rng, inPoly, proj } from './core.js';
+
+const TAU = Math.PI * 2;
+const C = h => new THREE.Color(h);
+const hash3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+
+// ------------------------------------------------------------------ geometry builder
+class MB {
+  constructor() { this.p = []; this.c = []; this.ctr = null; }
+  vert(v, col, kk) { this.p.push(v[0], v[1], v[2]); const k = (v[3] === undefined ? 1 : v[3]) * kk; this.c.push(col.r * k, col.g * k, col.b * k); }
+  // Polygon fan. With this.ctr set (convex solids) the winding is fixed to face away from it.
+  face(col, vs, kk = 1) {
+    if (this.ctr) {
+      const a = vs[0], b = vs[1], c = vs[2];
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+      const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      const mx = (a[0] + b[0] + c[0]) / 3 - this.ctr[0], my = (a[1] + b[1] + c[1]) / 3 - this.ctr[1], mz = (a[2] + b[2] + c[2]) / 3 - this.ctr[2];
+      if (nx * mx + ny * my + nz * mz < 0) vs = vs.slice().reverse();
+    }
+    for (let i = 1; i < vs.length - 1; i++) { this.vert(vs[0], col, kk); this.vert(vs[i], col, kk); this.vert(vs[i + 1], col, kk); }
+  }
+  // rect bottom [x0,z0,x1,z1] at y0, rect top at y1 (box when equal)
+  frust(y0, r0, y1, r1, col, k0 = 0.78, k1 = 1, bot = true) {
+    this.ctr = [(r0[0] + r0[2] + r1[0] + r1[2]) / 4, (y0 + y1) / 2, (r0[1] + r0[3] + r1[1] + r1[3]) / 4];
+    const b = [[r0[0], y0, r0[1], k0], [r0[2], y0, r0[1], k0], [r0[2], y0, r0[3], k0], [r0[0], y0, r0[3], k0]];
+    const t = [[r1[0], y1, r1[1], k1], [r1[2], y1, r1[1], k1], [r1[2], y1, r1[3], k1], [r1[0], y1, r1[3], k1]];
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; this.face(col, [b[i], b[j], t[j], t[i]]); }
+    this.face(col, t); if (bot) this.face(col, b);
+    this.ctr = null; return this;
+  }
+  box(x0, y0, z0, x1, y1, z1, col, k0, k1, bot) { return this.frust(y0, [x0, z0, x1, z1], y1, [x0, z0, x1, z1], col, k0, k1, bot); }
+  prism(cx, cz, y0, y1, r0, r1, seg, col, o = {}) {
+    const k0 = o.k0 ?? 0.75, k1 = o.k1 ?? 1, rot = o.rot ?? 0.3;
+    this.ctr = [cx, (y0 + y1) / 2, cz];
+    const ring = (y, r, k) => { const a = []; for (let i = 0; i < seg; i++) a.push([cx + Math.cos(rot + TAU * i / seg) * r, y, cz + Math.sin(rot + TAU * i / seg) * r, k]); return a; };
+    const b = ring(y0, r0, k0), t = ring(y1, r1, k1);
+    for (let i = 0; i < seg; i++) { const j = (i + 1) % seg; this.face(col, [b[i], b[j], t[j], t[i]]); }
+    if (r1 > 0 && o.cap !== false) this.face(col, t);
+    if (o.bot) this.face(col, b);
+    this.ctr = null; return this;
+  }
+  // cylinder along x (wheels)
+  cylX(cx, cy, cz, r, w, seg, col, k = 1, outer = 0) {
+    this.ctr = [cx, cy, cz];
+    const ring = x => { const a = []; for (let i = 0; i < seg; i++) a.push([x, cy + Math.sin(TAU * i / seg + 0.4) * r, cz + Math.cos(TAU * i / seg + 0.4) * r, 1]); return a; };
+    const l = ring(cx - w / 2), r2 = ring(cx + w / 2);
+    for (let i = 0; i < seg; i++) { const j = (i + 1) % seg; this.face(col, [l[i], l[j], r2[j], r2[i]], k); }
+    if (outer <= 0) this.face(col, l, k);
+    if (outer >= 0) this.face(col, r2, k);
+    this.ctr = null; return this;
+  }
+  // lumpy ellipsoid (shared-vertex jitter so it stays watertight); colour darkens towards the bottom
+  lump(cx, cy, cz, rx, ry, rz, col, detail = 1, jit = 0.16, kLow = 0.6, seed = 0) {
+    const g = new THREE.IcosahedronGeometry(1, detail).toNonIndexed(), pos = g.attributes.position;
+    const v = [];
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const j = 1 + (hash3(Math.round(x * 50) + seed, Math.round(y * 50), Math.round(z * 50)) - 0.5) * 2 * jit;
+      v.push([cx + x * rx * j, cy + y * ry * j, cz + z * rz * j, kLow + (1 - kLow) * (y * 0.5 + 0.5)]);
+    }
+    for (let i = 0; i < v.length; i += 3) { const tj = 0.86 + 0.28 * hash3(i * 0.37 + seed, seed * 1.7, i * 0.11); for (let k = 0; k < 3; k++) this.vert(v[i + k], col, tj); }
+    return this;
+  }
+  geo() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+}
+
+// ------------------------------------------------------------------ models
+const MODELS = {}; // name -> { geo, mat: 'std'|'dbl', tint }
+const def = (name, mb, o = {}) => { MODELS[name] = { geo: mb.geo(), mat: o.dbl ? 'dbl' : 'std', tint: !!o.tint }; };
+
+const GLASS = C('#262e35'), TYRE = C('#1a1a1c'), WHITE = C('#ffffff'), BLACKMET = C('#26262b');
+
+function car(name, { L, W, H, deck = 0.92, cab0 = -0.40, cab1 = 0.12, top0 = -0.34, top1 = -0.02, van = false, pickup = false }) {
+  const mb = new MB(), w = W / 2;
+  const hl = L / 2;
+  mb.frust(0.2, [-w, -hl, w, hl], deck, [-w + 0.05, -hl + 0.04, w - 0.05, hl - 0.07], WHITE, 0.8, 1);
+  if (pickup) {
+    mb.frust(deck, [-w + 0.05, hl * 0.05, w - 0.05, hl - 0.07], H, [-w + 0.1, hl * 0.2, w - 0.1, hl * 0.5], GLASS, 0.9, 1, false); // cab glass
+    mb.box(-w + 0.1, H - 0.05, hl * 0.2, w - 0.1, H, hl * 0.5, WHITE, 1, 1, false);
+    mb.box(-w + 0.04, deck, -hl + 0.04, w - 0.04, deck + 0.38, hl * 0.02, C('#cfcfc8'), 0.8, 1, false); // open bed
+  } else if (van) {
+    const z0 = -hl + 0.04, z1 = hl * 0.12;
+    mb.frust(deck, [-w + 0.02, z0, w - 0.02, z1], H - 0.05, [-w + 0.06, z0 + 0.02, w - 0.06, z1 - hl * 0.14], WHITE, 0.9, 1, false);
+    mb.box(-w + 0.06, H - 0.07, z0 + 0.02, w - 0.06, H, z1 - hl * 0.14, WHITE, 1, 1, false);
+    mb.frust(deck + 0.12, [-w + 0.03, z1 - hl * 0.5, w - 0.03, z1 - 0.02], H - 0.3, [-w + 0.06, z1 - hl * 0.4, w - 0.06, z1 - hl * 0.14], GLASS, 1, 1, false);
+  } else {
+    const a = [-w + 0.07, cab0 * L, w - 0.07, cab1 * L], b = [-w + 0.22, top0 * L, w - 0.22, top1 * L];
+    mb.frust(deck, a, H - 0.05, b, GLASS, 0.9, 1, false);
+    mb.box(b[0] - 0.02, H - 0.06, b[1] - 0.02, b[2] + 0.02, H, b[3] + 0.02, WHITE, 1, 1, false);
+  }
+  const lens = (z, y, col, dir) => { for (const s of [-1, 1]) mb.face(col, [[s * (w - 0.1), y, z * 1.002], [s * (w - 0.4), y, z * 1.002], [s * (w - 0.4), y + 0.14, z * 1.002], [s * (w - 0.1), y + 0.14, z * 1.002]], 1); };
+  mb.ctr = null;
+  const wz = L * 0.32;
+  for (const z of [-wz, wz]) for (const s of [-1, 1]) mb.cylX(s * (w - 0.17), 0.27, z, 0.27, 0.2, 6, TYRE, 1, s);
+  const m = mb.geo();
+  // lights as small plates (front pale, rear red), appended after
+  const lb = new MB();
+  for (const s of [-1, 1]) {
+    lb.face(C('#fff2c8'), [[s * (w - 0.08), 0.62, hl - 0.06], [s * (w - 0.38), 0.62, hl - 0.06], [s * (w - 0.38), 0.76, hl - 0.06], [s * (w - 0.08), 0.62 + 0.14, hl - 0.06]], 1);
+    lb.face(C('#c8281f'), [[s * (w - 0.08), 0.62, -hl + 0.12], [s * (w - 0.38), 0.62, -hl + 0.12], [s * (w - 0.38), 0.76, -hl + 0.12], [s * (w - 0.08), 0.76, -hl + 0.12]], 1);
+  }
+  MODELS[name] = { geo: m, mat: 'std', tint: true, lights: lb.geo() };
+}
+car('panda', { L: 3.65, W: 1.64, H: 1.55, deck: 0.95, cab0: -0.38, cab1: 0.14, top0: -0.33, top1: 0.0 });
+car('hatch', { L: 4.0, W: 1.74, H: 1.45, deck: 0.9, cab0: -0.40, cab1: 0.06, top0: -0.30, top1: -0.06 });
+car('micro', { L: 2.75, W: 1.55, H: 1.5, deck: 0.92, cab0: -0.42, cab1: 0.20, top0: -0.36, top1: 0.05 });
+car('van', { L: 4.45, W: 1.8, H: 1.85, deck: 0.95, van: true });
+car('pickup', { L: 4.4, W: 1.65, H: 1.8, deck: 0.85, pickup: true });
+
+// merge each car's light plates into its main geometry so one InstancedMesh draws it
+for (const n of ['panda', 'hatch', 'micro', 'van', 'pickup']) {
+  const m = MODELS[n];
+  const merged = new THREE.BufferGeometry();
+  for (const a of ['position', 'color']) {
+    const A = m.geo.attributes[a].array, B = m.lights.attributes[a].array, o = new Float32Array(A.length + B.length);
+    // lights are untinted-by-design: they get multiplied by the paint like everything else, which is fine
+    o.set(A); o.set(B, A.length); merged.setAttribute(a, new THREE.BufferAttribute(o, 3));
+  }
+  merged.computeVertexNormals(); m.geo = merged; delete m.lights;
+}
+
+// Vespa / Piaggio Beverly style scooter, front is +z
+{
+  const mb = new MB(), seat = C('#1d1d20');
+  mb.cylX(0, 0.2, 0.62, 0.2, 0.1, 5, TYRE, 1, 1); mb.cylX(0, 0.2, -0.62, 0.2, 0.12, 5, TYRE, 1, 1);
+  mb.box(-0.2, 0.26, -0.95, 0.2, 0.78, -0.12, WHITE, 0.75, 1, false);       // rear body
+  mb.box(-0.19, 0.24, -0.12, 0.19, 0.32, 0.4, WHITE, 0.8, 1, false);
+  mb.frust(0.3, [-0.2, 0.34, 0.2, 0.42], 1.0, [-0.17, 0.5, 0.17, 0.56], WHITE, 0.85, 1, false);      // leg shield
+  mb.box(-0.14, 0.78, -0.62, 0.14, 0.86, -0.02, seat, 0.9, 1, false);        // seat
+  mb.box(-0.34, 0.98, 0.42, 0.34, 1.05, 0.52, BLACKMET, 0.9, 1, false);      // handlebar
+  def('scooter', mb, { tint: true });
+}
+
+// Piaggio Ape (three-wheeler) and the tourist Ape Calessino
+function ape(name, calessino) {
+  const mb = new MB(), W = 0.7;
+  const body = calessino ? C('#e9dfc4') : C('#f0ede4');
+  mb.cylX(0, 0.2, 0.9, 0.2, 0.1, 6, TYRE); mb.cylX(-0.58, 0.2, -0.45, 0.2, 0.12, 6, TYRE, 1, -1); mb.cylX(0.58, 0.2, -0.45, 0.2, 0.12, 6, TYRE, 1, 1);
+  mb.frust(0.28, [-0.5, 0.45, 0.5, 1.2], 1.0, [-0.4, 0.55, 0.4, 1.0], body, 0.8, 1);          // cab front
+  mb.box(-0.5, 0.28, -1.0, 0.5, 0.85, 0.45, body, 0.8, 1);                                      // bed / seat box
+  if (calessino) {
+    for (const [x, z] of [[-0.55, 0.3], [0.55, 0.3], [-0.55, -0.9], [0.55, -0.9]]) mb.box(x - 0.025, 0.85, z - 0.025, x + 0.025, 1.9, z + 0.025, C('#3a3436'), 1, 1, false);
+    mb.frust(1.9, [-0.7, -1.1, 0.7, 0.4], 2.05, [-0.6, -1.0, 0.6, 0.3], C('#7b2230'), 0.7, 1);   // burgundy canopy
+    mb.box(-0.5, 0.85, -0.2, 0.5, 1.05, 0.15, C('#7b2230'), 1, 1, false);                       // seat cushion
+  } else {
+    mb.box(-0.5, 0.85, -1.0, 0.5, 1.5, 0.0, body, 0.8, 1);
+  }
+  def(name, mb, { tint: false });
+}
+ape('ape', false); ape('apetaxi', true);
+
+// Cassonetto (1100 l wheelie bin, dark green) and loose bin bags
+{
+  const mb = new MB(), green = C('#4b6a5a');
+  mb.frust(0.12, [-0.55, -0.62, 0.55, 0.62], 1.12, [-0.58, -0.66, 0.58, 0.66], green, 0.7, 1);
+  mb.frust(1.12, [-0.58, -0.66, 0.58, 0.66], 1.26, [-0.55, -0.4, 0.55, 0.66], C('#3b4f44'), 0.9, 1);   // sloped lid
+  for (const [u, y, s, col] of [[-0.3, 0.55, 0.3, '#d8d2c0'], [0.2, 0.8, 0.22, '#3a6f9a'], [0.35, 0.4, 0.25, '#c7a24a']]) // faded graffiti blotches
+    mb.face(C(col), [[0.5 + 0.12, y, u - s], [0.5 + 0.12, y + 0.2, u - s], [0.5 + 0.12, y + 0.2, u + s], [0.5 + 0.12, y, u + s]], 1);
+  def('bin_big', mb, { dbl: true });
+  const bags = new MB();
+  for (const [x, y, z, r, col] of [[0, 0.25, 0, 0.32, '#1c1c1f'], [0.4, 0.2, 0.15, 0.27, '#d9d8d0']])
+    bags.lump(x, y, z, r, r * 0.85, r, C(col), 0, 0.2, 0.7);
+  def('bags', bags);
+  const sm = new MB();
+  sm.prism(0, 0, 0.1, 0.85, 0.2, 0.23, 7, C('#3c4a42')); sm.prism(0, 0, 0.85, 0.9, 0.24, 0.24, 7, C('#222a26'));
+  def('bin_small', sm);
+}
+
+// Lamps
+{
+  const grey = C('#8c9094'), mb = new MB();
+  mb.prism(0, 0, 0, 0.5, 0.17, 0.12, 5, grey, { k0: 0.6 }); mb.prism(0, 0, 0.5, 8.6, 0.1, 0.07, 5, grey);
+  for (const s of [-1, 1]) {   // double curved arm
+    
+    mb.box(Math.min(0, s * 1.6), 8.9, -0.04, Math.max(0, s * 1.6), 9.0, 0.04, grey, 1, 1, false);
+    mb.box(s * 1.45 - 0.35, 8.82, -0.16, s * 1.45 + 0.35, 8.95, 0.16, C('#cfd3d5'), 0.8, 1, false);
+  }
+  def('lamp_pole', mb);
+  const wl = new MB(), blk = C('#232326'), glow = C('#f4e6b8');   // wall lantern on a curly bracket, wall is z=0, out is +z
+  wl.box(-0.025, 4.45, 0.0, 0.025, 4.52, 0.75, blk, 1, 1, false);
+  wl.frust(4.0, [-0.1, 0.62, 0.1, 0.82], 4.3, [-0.17, 0.57, 0.17, 0.87], glow, 1, 1, false);
+  wl.frust(4.3, [-0.17, 0.57, 0.17, 0.87], 4.42, [-0.04, 0.68, 0.04, 0.76], blk, 1, 1, false);
+  def('lamp_wall', wl);
+  // black candelabra post with globes (Piazza Pretoria style)
+  const cd = new MB();
+  cd.prism(0, 0, 0, 0.9, 0.22, 0.14, 8, blk, { k0: 0.7 }); cd.prism(0, 0, 0.9, 3.6, 0.07, 0.05, 6, blk);
+  cd.prism(0, 0, 3.6, 3.75, 0.12, 0.12, 8, blk);
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.78, dx = Math.cos(a), dz = Math.sin(a);
+    cd.box(dx * 0.35 - 0.02, 3.65, dz * 0.35 - 0.02, dx * 0.35 + 0.02, 3.95, dz * 0.35 + 0.02, blk, 1, 1);
+    cd.lump(dx * 0.4, 4.15, dz * 0.4, 0.17, 0.2, 0.17, C('#f1ede0'), 0, 0.05, 0.8);
+  }
+  cd.prism(0, 0, 3.75, 3.95, 0.04, 0.04, 6, blk); cd.lump(0, 4.35, 0, 0.18, 0.22, 0.18, C('#f1ede0'), 0, 0.05, 0.8);
+  def('candelabra', cd);
+}
+
+// Bollards, benches, hydrants, phone, post box, cabinet, signals, bus stop
+{
+  const mb = new MB();
+  mb.prism(0, 0, 0, 0.82, 0.09, 0.08, 5, C('#55585a'));
+  def('bollard', mb);
+  const bn = new MB(), wood = C('#8b6a45'), iron = C('#2a2c2e');   // bench facing +z
+  bn.box(-0.9, 0.42, -0.2, 0.9, 0.46, 0.22, wood, 0.9, 1); bn.box(-0.9, 0.55, -0.22, 0.9, 0.9, -0.17, wood, 0.9, 1);
+  for (const s of [-0.8, 0.8]) { bn.box(s - 0.03, 0, -0.2, s + 0.03, 0.42, 0.2, iron, 1, 1, false); bn.box(s - 0.03, 0.42, -0.24, s + 0.03, 0.9, -0.17, iron, 1, 1, false); }
+  def('bench', bn);
+  const hy = new MB(); hy.prism(0, 0, 0, 0.7, 0.07, 0.07, 6, C('#a8282a')); hy.lump(0, 0.74, 0, 0.1, 0.08, 0.1, C('#a8282a'), 0, 0, 0.9);
+  def('hydrant', hy);
+  const ph = new MB(); ph.box(-0.45, 0, -0.45, 0.45, 2.3, 0.45, C('#8a8f93'), 0.8, 1);
+  ph.face(C('#2a343a'), [[-0.3, 0.9, 0.46], [0.3, 0.9, 0.46], [0.3, 2.1, 0.46], [-0.3, 2.1, 0.46]]); def('phone', ph);
+  const pb = new MB(); pb.box(-0.2, 0.0, -0.2, 0.2, 0.9, 0.2, C('#b3262a'), 0.8, 1); pb.box(-0.23, 0.9, -0.23, 0.23, 1.15, 0.23, C('#b3262a'), 0.9, 1);
+  pb.box(-0.25, 1.0, 0.0, 0.25, 1.1, 0.24, C('#222'), 1, 1, false); def('postbox', pb);
+  const cb = new MB(); cb.box(-0.45, 0, -0.2, 0.45, 1.45, 0.2, C('#8d8f8e'), 0.8, 1); def('cabinet', cb);
+  const sg = new MB(); sg.prism(0, 0, 0, 3.4, 0.06, 0.05, 6, BLACKMET);   // traffic light, heads face +z
+  sg.box(-0.15, 3.0, 0.0, 0.15, 3.9, 0.22, BLACKMET, 1, 1);
+  for (const [y, col] of [[3.7, '#c93a2e'], [3.45, '#d9a623'], [3.2, '#3b9c58']]) sg.face(C(col), [[-0.06, y, 0.23], [0.06, y, 0.23], [0.06, y + 0.12, 0.23], [-0.06, y + 0.12, 0.23]]);
+  def('signal', sg);
+  const bs = new MB(); bs.prism(0, 0, 0, 2.7, 0.04, 0.04, 6, C('#7d8286'));
+  bs.box(-0.25, 2.2, -0.02, 0.25, 2.7, 0.02, C('#1f5aa8'), 1, 1); bs.face(C('#f0f0f0'), [[-0.14, 2.3, 0.025], [0.14, 2.3, 0.025], [0.14, 2.55, 0.025], [-0.14, 2.55, 0.025]]);
+  def('busstop', bs);
+  const sh = new MB();    // small glazed shelter, open to +z
+  sh.box(-1.4, 2.3, -0.5, 1.4, 2.4, 0.5, C('#5c6064'), 1, 1);
+  for (const x of [-1.35, 1.35]) sh.box(x - 0.03, 0, -0.45, x + 0.03, 2.3, -0.4, C('#5c6064'), 1, 1, false);
+  sh.box(-1.35, 0.5, -0.5, 1.35, 2.2, -0.45, C('#9db8c0'), 1, 1, false);
+  sh.box(-0.8, 0.42, -0.4, 0.8, 0.46, -0.05, C('#5c6064'), 1, 1);
+  def('shelter', sh);
+  const mn = new MB(), st = C('#cdc6b4');
+  mn.box(-0.7, 0, -0.7, 0.7, 1.2, 0.7, st, 0.7, 1); mn.box(-0.55, 1.2, -0.55, 0.55, 1.6, 0.55, st, 0.9, 1);
+  mn.prism(0, 0, 1.6, 3.0, 0.22, 0.14, 6, st); mn.lump(0, 3.15, 0, 0.17, 0.2, 0.15, st, 0, 0.08, 0.85);
+  mn.box(-0.3, 2.0, -0.05, -0.1, 2.3, 0.35, st, 1, 1);
+  def('monument', mn);
+  const fn = new MB(); fn.prism(0, 0, 0, 0.55, 1.5, 1.4, 10, C('#c4bfb0'));
+  fn.prism(0, 0, 0.5, 0.5, 1.2, 1.2, 10, C('#3a7c8c'), { cap: true });
+  fn.prism(0, 0, 0.5, 1.5, 0.22, 0.12, 8, C('#c4bfb0')); fn.prism(0, 0, 1.5, 1.6, 0.6, 0.5, 10, C('#c4bfb0'));
+  def('fountain', fn);
+}
+
+// Palms, ficus, pine, orange, generic broadleaf
+function fanPalm(name, H, bulge) {
+  const mb = new MB(), trunk = C('#8a7658'), r = 0.27;
+  mb.prism(0, 0, 0, H, r * 1.25, r * 0.85, 5, trunk, { k0: 0.6 });
+  
+  
+  // dead skirt
+  const dead = C('#8b7a4a'), g1 = C('#3f6a2a'), g2 = C('#7ca43e'), pet = C('#5a7a34');
+  const tri = (a, b, c, col, ka = 1, kb = 1, kc = 1) => { mb.vert([...a, ka], col, 1); mb.vert([...b, kb], col, 1); mb.vert([...c, kc], col, 1); };
+  for (let i = 0; i < 5; i++) {
+    const a = i * TAU / 5 + 0.2, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
+    tri([dx * 0.2, H + 0.1, dz * 0.2], [dx * 0.75 + px * 0.25, H - 0.85, dz * 0.75 + pz * 0.25], [dx * 0.75 - px * 0.25, H - 0.85, dz * 0.75 - pz * 0.25], dead);
+    tri([dx * 0.2, H + 0.1, dz * 0.2], [dx * 0.75 - px * 0.25, H - 0.85, dz * 0.75 - pz * 0.25], [dx * 0.75 + px * 0.25, H - 0.85, dz * 0.75 + pz * 0.25], dead);
+  }
+  const n = 9 + bulge;
+  for (let i = 0; i < n; i++) {
+    const a = i * TAU / n + (i % 2) * 0.17, dx = Math.cos(a), dz = Math.sin(a);
+    const up = 0.25 + (i % 3) * 0.25, len = 0.9 + (i % 3) * 0.08;
+    const A = [dx * len, H + 0.2 + up, dz * len];
+    tri([0, H + 0.2, 0], A, [dx * 0.5 - dz * 0.05, H + 0.2 + up * 0.5, dz * 0.5 + dx * 0.05], pet);
+    const drop = 0.55 + (i % 3) * 0.15, bl = 1.7 + (i % 2) * 0.25;
+    const tips = [];
+    for (let j = -2; j <= 2; j++) {
+      const ph = j * 0.5, ca = Math.cos(a + ph), sa = Math.sin(a + ph);
+      tips.push([A[0] + ca * bl, A[1] - drop - Math.abs(j) * 0.28 + 0.1, A[2] + sa * bl]);
+    }
+    for (let j = 0; j < 4; j += 1) { tri(A, tips[j], tips[j + 1], g1, 0.85, 1.15, 1.15); }
+  }
+  def(name, mb, { dbl: true, tint: true });
+}
+fanPalm('palm_fan_a', 9, 1); fanPalm('palm_fan_b', 13, 3); fanPalm('palm_fan_c', 6.5, 0);
+
+function datePalm(name, H) {
+  const mb = new MB(), trunk = C('#7b684b');
+  mb.prism(0, 0, 0, H, 0.5, 0.36, 6, trunk, { k0: 0.6 });
+  mb.lump(0, H + 0.1, 0, 0.55, 0.45, 0.55, C('#6c5a3a'), 0, 0.1, 0.7);
+  const col1 = C('#3f6428'), col2 = C('#86a548');
+  const n = 13;
+  for (let i = 0; i < n; i++) {
+    const a = i * TAU / n + (i % 2) * 0.1, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
+    const L = 2.6 + (i % 3) * 0.35, lift = i % 3 === 0 ? 1.0 : i % 3 === 1 ? 0.45 : 0.1;
+    let prev = null;
+    for (let s = 0; s <= 2; s++) {
+      const t = s / 2, h = L * t * 0.9, y = H + 0.3 + lift * 1.8 * t - 1.9 * t * t * (0.9 + lift * 0.2);
+      const wd = 0.5 * (1 - t * 0.75) * (s === 0 ? 0.3 : 1);
+      const cur = [[dx * h + px * wd, y - 0.1 * wd, dz * h + pz * wd], [dx * h - px * wd, y - 0.1 * wd, dz * h - pz * wd], [dx * h, y + 0.04, dz * h]];
+      if (prev) {
+        const k = 0.8 + 0.35 * t;
+        for (const [p, q, rr] of [[prev[0], prev[2], cur[0]], [prev[2], cur[2], cur[0]], [prev[2], prev[1], cur[1]], [prev[2], cur[1], cur[2]]]) {
+          mb.vert([...p, k], col1, 1); mb.vert([...q, k], col1, 1); mb.vert([...rr, k], col1, 1);
+        }
+      }
+      prev = cur;
+    }
+  }
+  def(name, mb, { dbl: true, tint: true });
+}
+datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
+
+{
+  const f = new MB();  // large Ficus macrophylla / microcarpa
+  f.prism(0, 0, 0, 3.0, 0.75, 0.5, 5, C('#6b5e4e'), { k0: 0.55 });
+  for (const [x, y, z, rx, ry, c, sd] of [[0, 5.3, 0, 4.2, 2.6, '#3f5d2d', 1], [2.8, 4.6, 0.7, 2.8, 2.0, '#486a32', 2], [-2.5, 4.4, -1.0, 2.8, 1.9, '#3a5629', 3], [0.4, 6.4, 1.8, 2.5, 1.7, '#4a6c33', 4], [-0.8, 4.2, 2.4, 2.4, 1.6, '#456536', 12]])
+    f.lump(x, y, z, rx, ry, rx, C(c), 0, 0.2, 0.55, sd);
+  def('ficus', f, { tint: true });
+  const o = new MB();   // bitter orange / citrus street tree
+  o.prism(0, 0, 0, 2.0, 0.14, 0.1, 5, C('#5b4a3a'), { k0: 0.6 });
+  o.lump(0, 3.0, 0, 1.7, 1.5, 1.7, C('#46703a'), 0, 0.2, 0.6, 5);
+  o.lump(0.6, 3.5, 0.3, 1.2, 1.1, 1.2, C('#527c40'), 0, 0.2, 0.7, 6);
+  o.lump(1.2, 2.5, 0.5, 0.2, 0.2, 0.2, C('#e48a1c'), 0, 0.1, 0.9);
+  def('orange', o, { tint: true });
+  const t = new MB();   // generic broadleaf (plane, carob, jacaranda...)
+  t.prism(0, 0, 0, 3.4, 0.2, 0.13, 5, C('#6e5a44'), { k0: 0.6 });
+  t.lump(0, 5.2, 0, 2.7, 2.3, 2.7, C('#587e3a'), 0, 0.2, 0.55, 7);
+  t.lump(1.4, 4.4, 0.6, 1.8, 1.5, 1.8, C('#648a40'), 0, 0.2, 0.6, 8);
+  t.lump(-1.3, 4.7, -0.5, 1.7, 1.5, 1.7, C('#527a38'), 0, 0.2, 0.6, 13);
+  def('tree', t, { tint: true });
+  const p = new MB();   // umbrella pine
+  p.prism(0, 0, 0, 7.0, 0.3, 0.2, 5, C('#7b5a42'), { k0: 0.55 });
+  p.lump(0, 8.0, 0, 3.9, 1.5, 3.9, C('#3d5b30'), 0, 0.2, 0.6, 9);
+  p.lump(1.8, 7.4, 0.8, 2.4, 1.1, 2.4, C('#456536'), 0, 0.2, 0.6, 10);
+  p.lump(-1.8, 7.5, -0.6, 2.4, 1.1, 2.4, C('#406132'), 0, 0.2, 0.6, 14);
+  def('pine', p, { tint: true });
+  const sh = new MB();    // oleander / flowering shrub and clipped hedge block
+  sh.lump(0, 0.9, 0, 1.0, 0.9, 1.0, C('#4d7438'), 0, 0.2, 0.6, 11);
+  for (const [x, y, z] of [[0.6, 1.4, 0.2], [-0.5, 1.2, 0.6]]) sh.lump(x, y, z, 0.28, 0.2, 0.28, C('#d96a8c'), 0, 0.2, 0.9);
+  def('shrub', sh, { tint: false });
+  const hd = new MB(); hd.box(-1.5, 0, -0.45, 1.5, 1.1, 0.45, C('#3f6a30'), 0.6, 1); def('hedge', hd, { tint: true });
+}
+
+// Market stall: table, crates of produce, square umbrella, tilted canopy; front is +z
+{
+  const mb = new MB();
+  mb.box(-1.0, 0.7, -0.4, 1.0, 0.76, 0.4, C('#8b7455'), 0.9, 1);
+  for (const x of [-0.9, 0.9]) mb.box(x - 0.03, 0, -0.35, x + 0.03, 0.7, 0.35, C('#5a4a38'), 1, 1, false);
+  const prod = ['#d9701f', '#c0392b', '#7aa23a', '#e0c13a', '#8a2f5a', '#5d8a35'];
+  for (let i = 0; i < 4; i++) { const x = -0.75 + i * 0.5; mb.box(x - 0.2, 0.76, -0.3, x + 0.2, 0.9, 0.3, C('#a98a5a'), 0.9, 1, false); mb.frust(0.9, [x - 0.18, -0.26, x + 0.18, 0.26], 1.0, [x - 0.1, -0.2, x + 0.1, 0.2], C(prod[i]), 0.9, 1, false); }
+  mb.prism(-1.0, 0.0, 0, 2.6, 0.03, 0.03, 4, C('#6d6d6d'));
+  def('stall_table', mb);
+  const um = new MB();
+  um.prism(0, 0, 0, 2.5, 0.03, 0.03, 4, C('#6d6d6d'));
+  um.frust(2.4, [-1.4, -1.4, 1.4, 1.4], 2.9, [-0.05, -0.05, 0.05, 0.05], WHITE, 0.9, 1, false);
+  def('umbrella', um, { tint: true, dbl: true });
+}
+
+// Cafe table with two chairs (front +z), and standing people in six fixed outfits
+{
+  const mb = new MB(), tb = C('#d9d4c6'), ch = C('#4b3a2c');
+  mb.prism(0, 0, 0.0, 0.7, 0.04, 0.04, 4, C('#2a2a2d'), { cap: false }); mb.prism(0, 0, 0.7, 0.74, 0.38, 0.38, 6, tb, { k0: 0.8 });
+  for (const s of [-1, 1]) {
+    mb.box(s * 0.62 - 0.2, 0.43, -0.2, s * 0.62 + 0.2, 0.48, 0.2, ch, 0.9, 1, false);
+    mb.box(s * 0.62 - 0.16, 0.0, -0.16, s * 0.62 + 0.16, 0.43, 0.16, ch, 1, 1, false);
+    mb.box(s * 0.62 - 0.2, 0.48, s > 0 ? -0.2 : 0.16, s * 0.62 + 0.2, 0.9, s > 0 ? -0.16 : 0.2, ch, 0.9, 1, false);
+  }
+  def('cafe_set', mb);
+  const OUT = [['#2f4f7a', '#2b2b30', '#d9a98a'], ['#b7402f', '#3a4254', '#e0b392'], ['#e8e2d2', '#5a5448', '#c98e6a'], ['#4a6b3a', '#26262a', '#8a5a3c'], ['#d9b032', '#3d4f6e', '#e5bd9c'], ['#8a8f96', '#1f1f23', '#b57a54']];
+  OUT.forEach(([shirt, pants, skin], i) => {
+    const p = new MB(), hair = C(['#2a1d14', '#3b2a1c', '#15110e', '#6b4a2a', '#9a9a98', '#1b1b1b'][i]);
+    p.box(-0.17, 0.0, -0.08, -0.02, 0.85, 0.08, C(pants), 0.8, 1, false); p.box(0.02, 0.0, -0.08, 0.17, 0.85, 0.08, C(pants), 0.8, 1, false);
+    p.frust(0.82, [-0.19, -0.1, 0.19, 0.1], 1.42, [-0.2, -0.1, 0.2, 0.1], C(shirt), 0.9, 1, false);
+    p.box(-0.27, 0.85, -0.05, -0.19, 1.4, 0.05, C(shirt), 0.9, 1, false); p.box(0.19, 0.85, -0.05, 0.27, 1.4, 0.05, C(shirt), 0.9, 1, false);
+    p.lump(0, 1.56, 0, 0.11, 0.13, 0.11, C(skin), 0, 0.03, 0.9); p.lump(0, 1.6, -0.02, 0.115, 0.1, 0.115, hair, 0, 0.03, 0.9);
+    def('person' + i, p);
+  });
+}
+
+// Shop awning, wall at z=0 and out is +z; two-tone stripes via vertex colour
+{
+  const mb = new MB();
+  const W = 3.0, n = 6, drop = 2.5, top = 3.2, out = 1.3;
+  for (let i = 0; i < n; i++) {
+    const x0 = -W / 2 + W * i / n, x1 = -W / 2 + W * (i + 1) / n, k = i % 2 ? 0.55 : 1;
+    mb.face(WHITE, [[x0, top, 0.02], [x1, top, 0.02], [x1, drop, out], [x0, drop, out]], k);
+    mb.face(WHITE, [[x0, drop, out], [x1, drop, out], [x1, drop - 0.25, out], [x0, drop - 0.25, out]], k);
+  }
+  mb.face(WHITE, [[-W / 2, top, 0.02], [-W / 2, drop, out], [-W / 2, drop, 0.02]], 0.7);
+  mb.face(WHITE, [[W / 2, top, 0.02], [W / 2, drop, 0.02], [W / 2, drop, out]], 0.7);
+  def('awning', mb, { dbl: true, tint: true });
+}
+
+// ------------------------------------------------------------------ materials / instancing
+const MATS = {
+  std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
+  dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
+};
+const CELL = 300;
+
+export function buildProps(ctx) {
+  const t0 = performance.now();
+  const { scene, raisedMask, CURB } = ctx;
+  const P = window.PALERMO_PROPS || { items: [], areas: [], counts: {} };
+  const rand = rng(1868);
+  const R = (a, b) => a + rand() * (b - a);
+  const pick = arr => arr[Math.floor(rand() * arr.length)];
+  const wpick = (items) => { let t = items.reduce((s, i) => s + i[1], 0), r = rand() * t; for (const [v, w] of items) { if ((r -= w) <= 0) return v; } return items[0][0]; };
+  const [BX0, BZ0, BX1, BZ1] = D.bounds;
+  const inBounds = (x, z, m = 0) => x > BX0 + m && x < BX1 - m && z > BZ0 + m && z < BZ1 - m;
+  const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
+
+  // ---------- instance buckets
+  const buckets = {};
+  const stats = {};
+  function put(model, x, y, z, rot = 0, s = 1, col = null) {
+    const m = MODELS[model]; if (!m) return;
+    const b = (buckets[model] ||= new Map()), key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL);
+    let e = b.get(key); if (!e) b.set(key, e = { m: [], c: [] });
+    e.m.push(x, y, z, rot, s);
+    if (m.tint) e.c.push(col ? col.r : 1, col ? col.g : 1, col ? col.b : 1);
+    stats[model] = (stats[model] || 0) + 1;
+  }
+
+  // ---------- buildings: exact point test + nearest wall
+  const BC = 32, bgrid = new Map(), bl = [];
+  const bkey = (ix, iz) => (ix + 512) * 1024 + (iz + 512);
+  for (const b of D.buildings) {
+    const outer = pairs(b.p), holes = (b.holes || []).map(pairs);
+    let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+    for (const [x, z] of outer) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+    const o = { outer, holes, x0, z0, x1, z1 }; bl.push(o);
+    for (let ix = Math.floor(x0 / BC); ix <= Math.floor(x1 / BC); ix++) for (let iz = Math.floor(z0 / BC); iz <= Math.floor(z1 / BC); iz++) {
+      const k = bkey(ix, iz); let a = bgrid.get(k); if (!a) bgrid.set(k, a = []); a.push(o);
+    }
+  }
+  const cellB = (x, z) => bgrid.get(bkey(Math.floor(x / BC), Math.floor(z / BC)));
+  function inB(x, z) {
+    const a = cellB(x, z); if (!a) return false;
+    for (const o of a) {
+      if (x < o.x0 || x > o.x1 || z < o.z0 || z > o.z1) continue;
+      if (inPoly(o.outer, x, z)) { let hole = false; for (const h of o.holes) if (inPoly(h, x, z)) { hole = true; break; } if (!hole) return true; }
+    }
+    return false;
+  }
+  // nearest wall edge within maxd: {d, px, pz, nx, nz} with n pointing away from the building
+  function nearWall(x, z, maxd) {
+    let best = null;
+    const i0 = Math.floor((x - maxd) / BC), i1 = Math.floor((x + maxd) / BC), j0 = Math.floor((z - maxd) / BC), j1 = Math.floor((z + maxd) / BC);
+    const seen = new Set();
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const a = bgrid.get(bkey(i, j)); if (!a) continue;
+      for (const o of a) {
+        if (seen.has(o)) continue; seen.add(o);
+        if (x < o.x0 - maxd || x > o.x1 + maxd || z < o.z0 - maxd || z > o.z1 + maxd) continue;
+        const ring = o.outer;
+        for (let q = 0; q < ring.length; q++) {
+          const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz;
+          if (l2 < 0.01) continue;
+          const t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2)), px = A[0] + dx * t, pz = A[1] + dz * t;
+          const d = Math.hypot(x - px, z - pz);
+          if (d < maxd && (!best || d < best.d)) {
+            const l = Math.sqrt(l2); let nx = dz / l, nz = -dx / l;
+            if (inB(px + nx * 0.4, pz + nz * 0.4)) { nx = -nx; nz = -nz; }
+            best = { d, px, pz, nx, nz };
+          }
+        }
+      }
+    }
+    return best;
+  }
+  const wallClear = (x, z, r) => !inB(x, z) && !nearWall(x, z, r);
+
+  // ---------- street masks
+  function mask(polys, k) {
+    const [x0, z0, x1, z1] = D.streets.aoi;
+    const W = Math.ceil((x1 - x0) * k), H = Math.ceil((z1 - z0) * k);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff';
+    for (const poly of polys) {
+      g.beginPath();
+      for (const ring of poly) { for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * k, (ring[i + 1] - z0) * k); g.closePath(); }
+      g.fill('evenodd');
+    }
+    const d = g.getImageData(0, 0, W, H).data, out = new Uint8Array(W * H);
+    for (let i = 0; i < out.length; i++) out[i] = d[i * 4 + 3] > 127 ? 1 : 0;
+    return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; return i >= 0 && j >= 0 && i < W && j < H && out[j * W + i] === 1; };
+  }
+  const asphalt = D.streets ? mask(D.streets.asphalt, 2) : () => false;
+  const paving = D.streets ? mask(D.streets.paving, 1) : () => false;
+  const road = (x, z) => asphalt(x, z) && !inB(x, z);
+
+  // ---------- roads
+  const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service']);
+  const RC = 24, rgrid = new Map(), rkey = (i, j) => (i + 1024) * 2048 + (j + 1024);
+  const juncs = new Map();
+  D.roads.forEach((r, ri) => {
+    if (!DRIVE.has(r.k)) return;
+    const p = pairs(r.p);
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i], b = p[i + 1], seg = [a[0], a[1], b[0], b[1], ri];
+      for (let ix = Math.floor(Math.min(a[0], b[0]) / RC); ix <= Math.floor(Math.max(a[0], b[0]) / RC); ix++)
+        for (let iz = Math.floor(Math.min(a[1], b[1]) / RC); iz <= Math.floor(Math.max(a[1], b[1]) / RC); iz++) {
+          const k = rkey(ix, iz); let q = rgrid.get(k); if (!q) rgrid.set(k, q = []); q.push(seg);
+        }
+    }
+    for (const v of [p[0], p[p.length - 1], ...p.slice(1, -1)]) {
+      const key = Math.round(v[0] * 10) + ',' + Math.round(v[1] * 10); let j = juncs.get(key);
+      if (!j) juncs.set(key, j = { x: v[0], z: v[1], roads: new Set(), n: 0 });
+      j.roads.add(ri); j.n++;
+    }
+  });
+  const junctions = [...juncs.values()].filter(j => j.roads.size >= 2 || j.n >= 3);
+  const jgrid = new Map();
+  for (const j of junctions) { const k = rkey(Math.floor(j.x / RC), Math.floor(j.z / RC)); let q = jgrid.get(k); if (!q) jgrid.set(k, q = []); q.push(j); }
+  function nearJunction(x, z, r) {
+    for (let i = Math.floor((x - r) / RC); i <= Math.floor((x + r) / RC); i++) for (let j = Math.floor((z - r) / RC); j <= Math.floor((z + r) / RC); j++) {
+      const a = jgrid.get(rkey(i, j)); if (a) for (const q of a) if (Math.hypot(q.x - x, q.z - z) < r) return q;
+    }
+    return null;
+  }
+  // nearest drivable centreline: {d, px, pz, tx, tz, road}
+  function nearRoad(x, z, maxd) {
+    let best = null;
+    for (let i = Math.floor((x - maxd) / RC); i <= Math.floor((x + maxd) / RC); i++) for (let j = Math.floor((z - maxd) / RC); j <= Math.floor((z + maxd) / RC); j++) {
+      const a = rgrid.get(rkey(i, j)); if (!a) continue;
+      for (const s of a) {
+        const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (l2 < 1e-6) continue;
+        const t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)), px = s[0] + dx * t, pz = s[1] + dz * t, d = Math.hypot(x - px, z - pz);
+        if (d < maxd && (!best || d < best.d)) { const l = Math.sqrt(l2); best = { d, px, pz, tx: dx / l, tz: dz / l, road: D.roads[s[4]] }; }
+      }
+    }
+    return best;
+  }
+  const march = (cx, cz, nx, nz, maxd, pred) => { let d = 0; for (let s = 0.3; s <= maxd; s += 0.3) { if (!pred(cx + nx * s, cz + nz * s)) break; d = s; } return d; };
+
+  // ---------- occupancy (avoid stacking props)
+  const occ = new Map();
+  const okey = (i, j) => (i + 2048) * 4096 + (j + 2048);
+  const occAdd = (x, z, r) => { const k = okey(Math.floor(x / 4), Math.floor(z / 4)); let a = occ.get(k); if (!a) occ.set(k, a = []); a.push(x, z, r); };
+  function occHit(x, z, r) {
+    for (let i = Math.floor((x - r - 3) / 4); i <= Math.floor((x + r + 3) / 4); i++) for (let j = Math.floor((z - r - 3) / 4); j <= Math.floor((z + r + 3) / 4); j++) {
+      const a = occ.get(okey(i, j)); if (!a) continue;
+      for (let q = 0; q < a.length; q += 3) if (Math.hypot(a[q] - x, a[q + 1] - z) < a[q + 2] + r) return true;
+    }
+    return false;
+  }
+
+  // pavement furniture: nudge off the carriageway onto the nearest bit of non-asphalt
+  function snapOff(x, z) {
+    if (inB(x, z)) return null;
+    if (!road(x, z)) return [x, z];
+    for (let r = 0.6; r <= 6; r += 0.6) for (let a = 0; a < 16; a++) {
+      const px = x + Math.cos(a * TAU / 16) * r, pz = z + Math.sin(a * TAU / 16) * r;
+      if (!asphalt(px, pz) && !inB(px, pz) && wallClear(px, pz, 0.25)) return [px, pz];
+    }
+    return null;
+  }
+
+  const PAINT = [['#f4f2ec', 28], ['#c9cdd0', 20], ['#8d9296', 13], ['#2a2b2f', 11], ['#f0f0ea', 6], ['#a8181f', 6], ['#27456f', 6], ['#8eb4cf', 4], ['#cdbf9f', 3], ['#4a5b4a', 1], ['#d4a017', 1], ['#5a5d63', 4]];
+  const paint = () => C(wpick(PAINT)).multiplyScalar(R(0.92, 1.05));
+  const CARS = [['panda', 36], ['hatch', 28], ['micro', 12], ['van', 8], ['pickup', 5]];
+  const SCOOT = ['#e8e6dc', '#2c2d31', '#b9bec2', '#a2201f', '#27456f', '#e6c040', '#6b7a58', '#d9d9d6'];
+
+  // ---------- 1. real OSM furniture
+  const osm = P.items.filter(i => inBounds(i.x, i.z));
+  const taken = (it, r) => { occAdd(it.x, it.z, r); };
+  const nearAny = (list, x, z, r) => list.some(q => Math.hypot(q.x - x, q.z - z) < r);
+  const lampsReal = [];
+  const treeKind = (it) => {
+    const s = (it.ge || '') + ' ' + (it.sp || '');
+    if (it.lt === 'palm' || /Phoenix|Washingtonia|Trachycarpus|Chamaerops|Livistona|Arecaceae/.test(s))
+      return /Phoenix/.test(s) ? pick(['palm_date_a', 'palm_date_b']) : pick(['palm_fan_a', 'palm_fan_b', 'palm_fan_c']);
+    if (/Ficus/.test(s)) return 'ficus';
+    if (/Citrus/.test(s)) return 'orange';
+    if (/Pinus/.test(s)) return 'pine';
+    return wpick([['orange', 32], ['ficus', 18], ['tree', 30], ['palm_fan_a', 7], ['palm_fan_b', 4], ['palm_date_a', 4], ['pine', 5]]);
+  };
+  const placeTree = (x, z, kind, canopy = 0.95) => {
+    if (!inBounds(x, z) || road(x, z) || inB(x, z)) return false;
+    const r = { ficus: 3.2, tree: 2.2, orange: 1.4, pine: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
+    if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
+    const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
+    const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12));
+    put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6);
+    return true;
+  };
+  for (const it of osm) {
+    const k = it.k;
+    if (k === 'tree') { placeTree(it.x, it.z, treeKind(it)); continue; }
+    if (k === 'bollard') { if (!inB(it.x, it.z)) { put('bollard', it.x, gy(it.x, it.z), it.z); occAdd(it.x, it.z, 0.2); } continue; }
+    if (k === 'bin_big') { if (!inB(it.x, it.z)) { const y = gy(it.x, it.z), a = R(0, TAU); put('bin_big', it.x, y, it.z, a); put('bags', it.x + Math.cos(a) * 0.9, y, it.z - Math.sin(a) * 0.9, R(0, TAU)); occAdd(it.x, it.z, 1); } continue; }
+    if (k === 'lamp') {
+      const w = nearWall(it.x, it.z, 3);
+      if (w && (it.mount === 'wall' || w.d < 1.5)) { const y = groundY(w.px, w.pz) + (raisedMask(w.px + w.nx, w.pz + w.nz) ? CURB : 0); put('lamp_wall', w.px, y, w.pz, Math.atan2(w.nx, w.nz)); lampsReal.push(it); }
+      else { const sp = snapOff(it.x, it.z); if (sp && !occHit(sp[0], sp[1], 0.3)) { put('lamp_pole', sp[0], gy(sp[0], sp[1]), sp[1], R(0, TAU)); occAdd(sp[0], sp[1], 0.4); lampsReal.push(it); } }
+      continue;
+    }
+    if (k === 'bench') {
+      const sp = snapOff(it.x, it.z); if (!sp) continue;
+      const w = nearWall(sp[0], sp[1], 3), rot = w ? Math.atan2(w.nx, w.nz) : (it.dir ? +it.dir * Math.PI / 180 : R(0, TAU));
+      put('bench', sp[0], gy(sp[0], sp[1]), sp[1], rot); occAdd(sp[0], sp[1], 0.8); continue;
+    }
+    if (k === 'bin_small') { const sp = snapOff(it.x, it.z); if (sp) put('bin_small', sp[0], gy(sp[0], sp[1]), sp[1]); continue; }
+    if (k === 'hydrant') { const sp = snapOff(it.x, it.z); if (sp) put('hydrant', sp[0], gy(sp[0], sp[1]), sp[1]); continue; }
+    if (k === 'phone') { const sp = snapOff(it.x, it.z); if (sp) { const w = nearWall(sp[0], sp[1], 3); put('phone', sp[0], gy(sp[0], sp[1]), sp[1], w ? Math.atan2(w.nx, w.nz) : 0); } continue; }
+    if (k === 'postbox') { const sp = snapOff(it.x, it.z); if (sp) put('postbox', sp[0], gy(sp[0], sp[1]), sp[1], R(0, TAU)); continue; }
+    if (k === 'street_cabinet') { const sp = snapOff(it.x, it.z); if (sp) { const w = nearWall(sp[0], sp[1], 3); put('cabinet', sp[0], gy(sp[0], sp[1]), sp[1], w ? Math.atan2(w.nx, w.nz) : R(0, TAU)); } continue; }
+    if (k === 'signal') {
+      const sp = snapOff(it.x, it.z); if (!sp) continue;
+      const nr = nearRoad(sp[0], sp[1], 14), rot = nr ? Math.atan2(nr.tx, nr.tz) + (rand() < 0.5 ? 0 : Math.PI) : R(0, TAU);
+      put('signal', sp[0], gy(sp[0], sp[1]), sp[1], rot); occAdd(sp[0], sp[1], 0.3); continue;
+    }
+    if (k === 'busstop') {
+      const sp = snapOff(it.x, it.z); if (!sp || occHit(sp[0], sp[1], 1)) continue;
+      const nr = nearRoad(sp[0], sp[1], 14), y = gy(sp[0], sp[1]);
+      put('busstop', sp[0], y, sp[1], nr ? Math.atan2(nr.tx, nr.tz) : 0);
+      occAdd(sp[0], sp[1], 1);
+      if (nr && rand() < 0.25 && wallClear(sp[0], sp[1], 1.6)) { const rr = Math.atan2(-nr.tz, nr.tx) ; put('shelter', sp[0] + nr.tz * 0.0, y, sp[1], Math.atan2(nr.px - sp[0], nr.pz - sp[1])); occAdd(sp[0], sp[1], 2); }
+      continue;
+    }
+    if (k === 'monument') {
+      if (it.tour === 'artwork' && it.support === 'ground' && !it.mem) continue;   // mosaics and the like
+      if (inB(it.x, it.z) || road(it.x, it.z)) continue;
+      put('monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
+    }
+    if (k === 'fountain') {
+      if (Math.hypot(it.x, it.z) < 70 || Math.hypot(it.x - proj(38.1151, 13.3622)[0], it.z - proj(38.1151, 13.3622)[1]) < 50) continue; // landmarks handles Quattro Canti and Pretoria
+      if (inB(it.x, it.z)) continue;
+      put('fountain', it.x, gy(it.x, it.z), it.z, 0); occAdd(it.x, it.z, 2); continue;
+    }
+    if (k === 'bikepark') { // motorcycle / bicycle parking: a few scooters
+      const nn = 3 + Math.floor(rand() * 3), a0 = R(0, Math.PI);
+      for (let i = 0; i < nn; i++) { const x = it.x + Math.cos(a0 + Math.PI / 2) * (i - nn / 2) * 0.8, z = it.z + Math.sin(a0 + Math.PI / 2) * (i - nn / 2) * 0.8; if (!inB(x, z)) put('scooter', x, gy(x, z), z, a0 + R(-0.25, 0.25), 1, C(pick(SCOOT))); }
+      continue;
+    }
+  }
+
+  // tree rows
+  for (const a of P.areas) {
+    if (a.k !== 'tree_row') continue;
+    const p = pairs(a.p);
+    for (let i = 0; i < p.length - 1; i++) {
+      const A = p[i], B = p[i + 1], L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      for (let s = 2; s < L; s += 7) placeTree(A[0] + (B[0] - A[0]) * s / L, A[1] + (B[1] - A[1]) * s / L, pick(['orange', 'orange', 'tree', 'ficus']));
+    }
+  }
+
+  // ---------- 2. shop awnings from real shop positions
+  {
+    const AW = ['#a8232a', '#2a5b3a', '#1f4f8a', '#d9a62a', '#d9d4c2', '#7a2a3a', '#2f6f8a'];
+    const awnTypes = new Set(['greengrocer', 'bakery', 'pastry', 'butcher', 'convenience', 'supermarket', 'clothes', 'shoes', 'florist', 'gift', 'variety_store', 'bag', 'tobacco', 'deli', 'seafood']);
+    const placed = [];
+    for (const it of osm) {
+      if (it.k !== 'shop' || !awnTypes.has(it.shop) || rand() < 0.35) continue;
+      const w = nearWall(it.x, it.z, 7); if (!w) continue;
+      if (placed.some(q => Math.hypot(q[0] - w.px, q[1] - w.pz) < 3.2)) continue;
+      const ox = w.px + w.nx * 1.5, oz = w.pz + w.nz * 1.5;
+      if (inB(ox, oz) || (asphalt(ox, oz) && !raisedMask(ox, oz) && !paving(ox, oz))) continue;   // no awnings over the carriageway
+      const ey = groundY(w.px, w.pz) + (raisedMask(ox, oz) ? CURB : 0);
+      put('awning', w.px + w.nx * 0.05, ey, w.pz + w.nz * 0.05, Math.atan2(w.nx, w.nz), 1, C(pick(AW)));
+      placed.push([w.px, w.pz]);
+    }
+  }
+
+  // ---------- 3. zebra crossings (decals) from OSM nodes plus junction arms
+  {
+    const zb = new MB(), col = C('#d9d7cc'), colw = C('#bdbcb2');
+    let nz = 0; const done = [];
+    const zebra = (cx, cz, tx, tz) => {
+      // stripes lie along the road (t) and are stacked across it (n)
+      const nx = -tz, nzz = tx;
+      const e1 = march(cx, cz, nx, nzz, 9, road), e2 = march(cx, cz, -nx, -nzz, 9, road);
+      if (e1 + e2 < 4.5 || e1 + e2 > 16) return;
+      for (let u = -e2 + 0.45; u <= e1 - 0.45; u += 0.95) {
+        const k = rand() < 0.2 ? 0.7 : 1, c = rand() < 0.2 ? colw : col;
+        const hw = 0.25, hl = 1.6;
+        const q = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([a, b]) => { const x = cx + tx * a + nx * (u + b), z = cz + tz * a + nzz * (u + b); return [x, groundY(x, z) + 0.025, z]; });
+        zb.face(c, [q[0], q[3], q[2], q[1]], k); // CCW viewed from above
+      }
+      nz++; done.push([cx, cz]);
+    };
+    for (const it of osm) {
+      if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
+      if (done.some(d => Math.hypot(d[0] - it.x, d[1] - it.z) < 10)) continue;
+      const nr = nearRoad(it.x, it.z, 5); if (!nr || !road(nr.px, nr.pz)) continue;
+      if (nr.road.k === 'service' && rand() < 0.5) continue;
+      zebra(nr.px, nr.pz, nr.tx, nr.tz);
+    }
+    // junction arms on real streets
+    for (const j of junctions) {
+      if (j.roads.size < 3 && j.n < 3) continue;
+      for (const ri of j.roads) {
+        const r = D.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
+        const p = pairs(r.p); let idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx < 0) continue;
+        const o = idx === 0 ? p[1] : idx === p.length - 1 ? p[p.length - 2] : p[idx + 1]; if (!o) continue;
+        const L = Math.hypot(o[0] - j.x, o[1] - j.z); if (L < 14) continue;
+        const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, cx = j.x + tx * 6.5, cz = j.z + tz * 6.5;
+        if (done.some(d => Math.hypot(d[0] - cx, d[1] - cz) < 12) || !road(cx, cz) || rand() < 0.35) continue;
+        zebra(cx, cz, tx, tz);
+      }
+    }
+    const m = zb.geo();
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
+    const mesh = new THREE.Mesh(m, mat); mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh);
+    stats.zebra_crossings = nz;;
+  }
+
+  const QC5 = proj(38.1151, 13.3622);
+  // ---------- 4. procedural street lamps
+  const lampNear = (x, z, r) => lampsReal.some(q => Math.hypot(q.x - x, q.z - z) < r) || occHit(x, z, r * 0.5);
+  {
+    // tall pole lamps along the curbs of the wide streets
+    const lampPts = [];
+    for (const flat of D.streets.curbs) {
+      const p = pairs(flat); let acc = R(0, 25);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.01) continue;
+        const nx = -dz / L, nz = dx / L;
+        for (let s = acc; s < L; s += 34 + R(0, 8)) {
+          const x = a[0] + dx * s / L - nx * 0.55, z = a[1] + dz * s / L - nz * 0.55;
+          acc = s - L;
+          if (!inBounds(x, z) || !raisedMask(x, z) || inB(x, z)) continue;
+          const nr = nearRoad(x, z, 14); if (!nr || !(nr.road.k === 'primary' || nr.road.k === 'secondary' || nr.road.k === 'tertiary')) continue;
+          if (nr.road.k === 'tertiary' && rand() < 0.45) continue;
+          if (lampNear(x, z, 20) || lampPts.some(q => Math.hypot(q[0] - x, q[1] - z) < 22) || nearWall(x, z, 0.5)) continue;
+          if (nearJunction(x, z, 4) || Math.hypot(x, z) < 45 || Math.hypot(x - QC5[0], z - QC5[1]) < 50) continue;
+          lampPts.push([x, z]);
+          put('lamp_pole', x, gy(x, z), z, Math.atan2(nx, nz) + Math.PI / 2); occAdd(x, z, 0.5);
+        }
+        acc = Math.max(0, acc);
+      }
+    }
+    stats.lamp_poles_proc = lampPts.length;
+  }
+  {
+    // wall lanterns on street-facing facades, denser towards Quattro Canti
+    let n = 0;
+    for (const o of bl) {
+      const ring = o.outer;
+      for (let q = 0; q < ring.length; q++) {
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        if (L < 7) continue;
+        const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
+        if (!inBounds(cxm, czm)) continue;
+        const dist = Math.hypot(cxm, czm), pk = Math.max(0.05, 0.62 - dist / 1700);
+        let nx = dz / L, nz = -dx / L;
+        if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
+        for (let s = R(3, 14); s < L - 3; s += R(22, 38)) {
+          if (rand() > pk) continue;
+          const x = A[0] + dx * s / L, z = A[1] + dz * s / L;
+          if (inB(x + nx * 0.5, z + nz * 0.5) || inB(x + nx * 2.2, z + nz * 2.2)) continue;
+          const ox = x + nx * 1.2, oz = z + nz * 1.2;
+          if (!asphalt(ox, oz) && !raisedMask(ox, oz) && !paving(ox, oz)) continue;
+          if (lampNear(x, z, 14)) continue;
+          put('lamp_wall', x, groundY(ox, oz) + (raisedMask(ox, oz) ? CURB : 0), z, Math.atan2(nx, nz));
+          occAdd(x, z, 6); n++;
+        }
+      }
+    }
+    stats.wall_lanterns_proc = n;
+  }
+
+  // candelabra around the larger paved piazze
+  {
+    let n = 0;
+    for (const a of D.areas) {
+      if (a.k !== 'plaza') continue;
+      const pts = pairs(a.p), area = Math.abs(signedArea(pts));
+      if (area < 600 || area > 25000) continue;
+      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      if (!inBounds(cx, cz) || Math.hypot(cx, cz) > 1100) continue;
+      for (let i = 0; i < pts.length; i++) {
+        const A = pts[i], B = pts[(i + 1) % pts.length], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 5) continue;
+        const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
+        const inward = inPoly(pts, A[0] + (-uz) * 1.5, A[1] + ux * 1.5) ? 1 : -1;
+        for (let s = 3; s < L - 2; s += 24) {
+          const x = A[0] + ux * s + (-uz) * inward * 1.4, z = A[1] + uz * s + ux * inward * 1.4;
+          if (!inBounds(x, z) || inB(x, z) || road(x, z) || nearWall(x, z, 0.8) || lampNear(x, z, 16)) continue;
+          put('candelabra', x, gy(x, z), z, R(0, TAU)); occAdd(x, z, 6); n++;
+        }
+      }
+    }
+    stats.candelabra = n;
+  }
+
+  // ---------- 5. bollards where paved zones meet traffic
+  {
+    let n = 0, cap = 260;
+    for (const poly of D.streets.paving) {
+      const ring = pairs(poly[0]);
+      for (let i = 0; i < ring.length && n < cap; i++) {
+        const A = ring[i], B = ring[(i + 1) % ring.length], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 1) continue;
+        const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
+        for (let s = 0.5; s < L; s += 6.5) {
+          const x = A[0] + ux * s, z = A[1] + uz * s;
+          if (!inBounds(x, z)) continue;
+          // road must be on one side only, within a metre
+          const a1 = asphalt(x - uz * 0.9, z + ux * 0.9), a2 = asphalt(x + uz * 0.9, z - ux * 0.9);
+          if (a1 === a2 || inB(x, z)) continue;
+          const sx = x + (a1 ? -uz : uz) * 0.1, sz = z + (a1 ? ux : -ux) * 0.1;
+          if (road(sx, sz) || occHit(sx, sz, 0.3) || nearWall(sx, sz, 0.4)) continue;
+          put('bollard', sx, groundY(sx, sz) + (raisedMask(sx, sz) ? CURB : 0.01), sz); occAdd(sx, sz, 0.3); n++;
+        }
+      }
+    }
+    stats.bollards_proc = n;
+  }
+
+  // ---------- 6. cars, cassonetti, market stalls along the carriageways
+  let carCount = 0;
+  const placeCar = (x, z, hx, hz) => {
+    const model = wpick(CARS), L = { panda: 3.65, hatch: 4.0, micro: 2.75, van: 4.45, pickup: 4.4 }[model];
+    const fx = hx * L / 2, fz = hz * L / 2, wx = -hz * 0.9, wz = hx * 0.9;
+    for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0]]) {
+      const px = x + fx * a + wx * b, pz = z + fz * a + wz * b;
+      if (!road(px, pz) || nearWall(px, pz, 0.12)) return false;
+    }
+    if (occHit(x, z, L * 0.4) || occHit(x + hx * L * 0.3, z + hz * L * 0.3, 1) || occHit(x - hx * L * 0.3, z - hz * L * 0.3, 1)) return false;
+    put(model, x, groundY(x, z), z, Math.atan2(hx, hz), R(0.99, 1.01), paint());
+    occAdd(x, z, L * 0.36); occAdd(x + hx * L * 0.3, z + hz * L * 0.3, 0.9); occAdd(x - hx * L * 0.3, z - hz * L * 0.3, 0.9);
+    carCount++; return true;
+  };
+  const MARKET = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria/;
+  {
+    const CAR_CLASSES = { residential: 0.62, tertiary: 0.5, secondary: 0.38, unclassified: 0.6, service: 0.3, living_street: 0.28, primary: 0.3 };
+    let bins = 0, stalls = 0, cap = 5000;
+    D.roads.forEach((r, ri) => {
+      const base = CAR_CLASSES[r.k]; if (!base) return;
+      const market = MARKET.test(r.n || '');
+      const p = pairs(r.p); let carry = R(0, 5);
+      const state = [rand() < 0.6, rand() < 0.6];
+      let binGap = R(10, 40);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.5) continue;
+        const tx = dx / L, tz = dz / L, rx = -tz, rz = tx;   // right of travel
+        for (let s = carry; s < L; s += 5.7) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (!inBounds(cx, cz, 10)) continue;
+          const dC = Math.hypot(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500);
+          const jn = nearJunction(cx, cz, 8);
+          for (let side = 0; side < 2; side++) {
+            const sg = side ? -1 : 1, nx = rx * sg, nz = rz * sg;
+            state[side] = state[side] ? rand() < 0.82 : rand() < 0.34;
+            const e = march(cx, cz, nx, nz, 9, road), e2 = march(cx, cz, -nx, -nz, 9, road);
+            if (e < 1.2) continue;
+            if (market) {
+              if (e + e2 > 3 && rand() < 0.45 && !jn) {
+                const d = e - 1.0, x = cx + nx * d, z = cz + nz * d;
+                if (wallClear(x, z, 0.5) && !occHit(x, z, 1.1)) {
+                  // stalls face the street centre line
+                  put('stall_table', x, groundY(x, z), z, Math.atan2(-nx, -nz)); occAdd(x, z, 1.1); stalls++;
+                  if (rand() < 0.75) put('umbrella', x, groundY(x, z), z, R(0, TAU), 1, C(pick(['#ece4ca', '#e8dfc0', '#2f6b49', '#2f5f93', '#b73a2c', '#d9a62a']))), occAdd(x, z, 1.1);
+                }
+              }
+              continue;
+            }
+            if (jn || carCount >= cap || e + e2 < 3.0 + 1.9) {
+              if (!(e + e2 >= 4.8)) continue;
+            }
+            if (jn || carCount >= cap) continue;
+            if (e + e2 - 1.75 < 2.7) continue;                 // a car must still be able to pass
+            if (rand() > thin * Math.min(1, base * 0.8)) { state[side] = false; continue; }
+            if (!state[side]) continue;
+            const d = e - 0.98, x = cx + nx * d, z = cz + nz * d;
+            const fwd = rand() < 0.88 ? (sg > 0 ? 1 : -1) : -(sg > 0 ? 1 : -1);
+            placeCar(x, z, tx * fwd, tz * fwd);
+          }
+          // cassonetti: groups at the kerb every so often
+          binGap -= 5.7;
+          if (binGap < 0 && !jn && r.k !== 'service') {
+            binGap = R(110, 260);
+            const side = rand() < 0.5 ? 1 : -1, nx = rx * side, nz = rz * side, e = march(cx, cz, nx, nz, 9, road);
+            if (e > 2.6) {
+              const nb = 1 + Math.floor(rand() * 3), d = e - 0.72;
+              let ok = 0;
+              for (let q = 0; q < nb; q++) {
+                const x = cx + nx * d + tx * q * 1.35, z = cz + nz * d + tz * q * 1.35;
+                if (!road(x + nx * 0.5, z + nz * 0.5) && !raisedMask(x + nx * 0.5, z + nz * 0.5)) { }
+                if (!wallClear(x, z, 0.7) || occHit(x, z, 0.8) || !road(x - nx * 0.7, z - nz * 0.7) && false) continue;
+                put('bin_big', x, groundY(x, z), z, Math.atan2(nx, nz) + Math.PI + R(-0.06, 0.06)); occAdd(x, z, 0.8); ok++; bins++;
+                if (rand() < 0.3) { put('bags', x + nx * 0.2 - tx * 0.4, groundY(x, z), z + nz * 0.2 - tz * 0.4, R(0, TAU), R(0.8, 1.1)); }
+              }
+              if (ok && rand() < 0.3) { const x = cx + nx * d - tx * 1.6, z = cz + nz * d - tz * 1.6; if (wallClear(x, z, 0.5) && !occHit(x, z, 0.7)) put('bags', x, groundY(x, z), z, R(0, TAU), R(0.8, 1.2)); }
+            }
+          }
+        }
+        carry = ((carry - L) % 5.7 + 5.7) % 5.7;
+      }
+    });
+    stats.cars_proc = carCount; stats.cassonetti_proc = bins; stats.stalls = stalls;
+  }
+
+  // ---------- 7. scooters along walls and kerbs, Ape taxis in the tourist piazze
+  {
+    let n = 0;
+    const park = (x, z, ax, az, count) => {
+      for (let q = 0; q < count; q++) {
+        const u = (q - (count - 1) / 2) * 0.85 + R(-0.1, 0.1), px = x + ax * u, pz = z + az * u;
+        if (inB(px, pz) || occHit(px, pz, 0.5) || nearWall(px, pz, 0.35)) continue;
+        if (!(road(px, pz) || raisedMask(px, pz) || paving(px, pz))) continue;
+        put('scooter', px, gy(px, pz), pz, Math.atan2(-az, ax) + Math.PI / 2 + R(-0.35, 0.35) + (rand() < 0.5 ? Math.PI : 0), 1, C(pick(SCOOT)));
+        occAdd(px, pz, 0.5); n++;
+      }
+    };
+    for (const o of bl) {
+      const ring = o.outer;
+      for (let q = 0; q < ring.length; q++) {
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        if (L < 6) continue;
+        const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
+        if (!inBounds(cxm, czm, 10)) continue;
+        let nx = dz / L, nz = -dx / L;
+        if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
+        const dist = Math.hypot(cxm, czm), pk = 0.075 * Math.max(0.2, 1 - dist / 1500);
+        for (let s = R(1, 10); s < L - 1.5; s += R(18, 40)) {
+          if (rand() > pk) continue;
+          const x = A[0] + dx * s / L + nx * 0.62, z = A[1] + dz * s / L + nz * 0.62;
+          if (nearJunction(x, z, 5)) continue;
+          park(x, z, dx / L, dz / L, 1 + Math.floor(rand() * rand() * 6));
+        }
+      }
+    }
+    stats.scooters_proc = n;
+    // Apetaxi at the cathedral, Quattro Canti and Teatro Massimo piazze
+    const spots = [[38.11572, 13.36126], [38.1146, 13.3558], [38.1199, 13.3573], [38.1151, 13.3622]].map(s => proj(s[0], s[1]));
+    let a = 0;
+    for (const [sx, sz] of spots) for (let t = 0; t < 400 && a < 14; t++) {
+      const x = sx + R(-40, 40), z = sz + R(-40, 40);
+      if (inB(x, z) || !(paving(x, z) || raisedMask(x, z)) || occHit(x, z, 2.4) || nearWall(x, z, 2) || Math.hypot(x - sx, z - sz) < 14) continue;
+      put(rand() < 0.65 ? 'apetaxi' : 'ape', x, gy(x, z), z, R(0, TAU)); occAdd(x, z, 2); a++;
+    }
+    stats.apetaxi = a;
+  }
+
+  // ---------- 7b. cafe tables at real cafe/bar/restaurant positions, and people on foot
+  {
+    let sets = 0, ppl = 0;
+    const UMB = ['#ece4ca', '#e8dfc0', '#2f6b49', '#2f5f93', '#b73a2c', '#d9d4c2'];
+    const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
+    const person = (x, z) => {
+      if (!walkable(x, z) || occHit(x, z, 0.5) || nearWall(x, z, 0.4)) return;
+      put('person' + Math.floor(rand() * 6), x, gy(x, z), z, R(0, TAU), R(0.94, 1.06)); occAdd(x, z, 0.45); ppl++;
+    };
+    for (const it of osm) {
+      if (it.k !== 'cafe') continue;
+      if (rand() > (it.out === 'yes' ? 1 : 0.45)) continue;
+      const w = nearWall(it.x, it.z, 9); if (!w) continue;
+      const tx = -w.nz, tz = w.nx, n = 1 + Math.floor(rand() * 3);
+      let placed = 0;
+      for (let i = 0; i < n; i++) {
+        const u = (i - (n - 1) / 2) * 2.3, x = w.px + w.nx * 1.5 + tx * u, z = w.pz + w.nz * 1.5 + tz * u;
+        if (!walkable(x, z) || occHit(x, z, 1.0) || nearWall(x, z, 1.0)) continue;
+        const rot = Math.atan2(w.nx, w.nz) + R(-0.4, 0.4);
+        put('cafe_set', x, gy(x, z), z, rot, 1); occAdd(x, z, 1.1); sets++; placed++;
+        if (rand() < 0.55) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.8, C(pick(UMB)));
+        if (rand() < 0.5) person(x + Math.cos(rot) * 1.0, z - Math.sin(rot) * 1.0 + 0.0);
+      }
+      if (placed && rand() < 0.5) person(w.px + w.nx * 3.2 + tx * R(-3, 3), w.pz + w.nz * 3.2 + tz * R(-3, 3));
+    }
+    // pedestrians strolling in the pedestrian streets and piazze near the centre
+    D.roads.forEach(r => {
+      if (r.k !== 'pedestrian' && r.k !== 'living_street') return;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 1) continue;
+        for (let s = R(2, 12); s < L; s += R(9, 20)) {
+          const cx = a[0] + dx * s / L, cz = a[1] + dz * s / L, dist = Math.hypot(cx, cz);
+          if (dist > 900 || rand() > 0.85 - dist / 1400) continue;
+          const nn = 1 + Math.floor(rand() * 3), side = rand() < 0.5 ? 1 : -1, off = R(1.2, 3.2);
+          for (let q = 0; q < nn; q++) person(cx - dz / L * off * side + dx / L * q * R(0.5, 1.2), cz + dx / L * off * side + dz / L * q * R(0.5, 1.2));
+        }
+      }
+    });
+    stats.cafe_sets = sets; stats.people = ppl;
+  }
+
+  // ---------- 8. OSM parking lots: fill with parked cars
+  {
+    let n = 0;
+    for (const a of P.areas) {
+      if (a.k !== 'parking' || a.ptype === 'multi-storey' || a.ptype === 'underground') continue;
+      const pts = pairs(a.p); if (pts.length < 4) continue;
+      const area = Math.abs(signedArea(pts)); if (area < 40 || area > 8000) continue;
+      // principal axis from the longest edge
+      let best = 0, ang = 0;
+      for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); if (l > best) { best = l; ang = Math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0]); } }
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const u = pts.map(p => p[0] * ca + p[1] * sa), v = pts.map(p => -p[0] * sa + p[1] * ca);
+      const u0 = Math.min(...u), u1 = Math.max(...u), v0 = Math.min(...v), v1 = Math.max(...v);
+      const wide = (v1 - v0) > 9;   // two rows of nose-in cars, else parallel
+      for (let uu = u0 + 1.3; uu < u1; uu += wide ? 2.5 : 5.3) for (let vv = v0 + 2.3; vv < v1; vv += wide ? 5.2 : 2.6) {
+        const x = uu * ca - vv * sa, z = uu * sa + vv * ca;
+        if (!inPoly(pts, x, z) || rand() < 0.28) continue;
+        const hx = wide ? -sa : ca, hz = wide ? ca : sa;
+        placeCar(x, z, hx * (rand() < 0.5 ? 1 : -1), hz * (rand() < 0.5 ? 1 : -1)) && n++;
+      }
+    }
+    stats.cars_lots = n;
+  }
+
+  // ---------- 9. vegetation: parks, green strips, piazza palms
+  {
+    let n = 0;
+    const kinds = [['tree', 26], ['ficus', 12], ['pine', 8], ['orange', 12], ['palm_fan_a', 6], ['palm_fan_b', 4], ['palm_fan_c', 3], ['palm_date_a', 3], ['palm_date_b', 2], ['shrub', 8]];
+    for (const a of D.areas) {
+      if (a.k !== 'green') continue;
+      const pts = pairs(a.p); if (pts.length < 3) continue;
+      const area = Math.abs(signedArea(pts));
+      const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+      if (x1 < BX0 || x0 > BX1 || z1 < BZ0 || z0 > BZ1) continue;
+      const dens = area > 4000 ? 1 / 220 : 1 / 130;
+      const want = Math.min(90, Math.floor(area * dens));
+      for (let i = 0, tries = 0; i < want && tries < want * 5; tries++) {
+        const x = R(x0, x1), z = R(z0, z1);
+        if (!inPoly(pts, x, z)) continue;
+        const kind = wpick(kinds);
+        if (placeTree(x, z, kind)) { i++; n++; }
+      }
+    }
+    stats.trees_green = n;
+    // piazza palms: big paved squares with only a few trees get a loose ring
+    let pn = 0;
+    for (const a of D.areas) {
+      if (a.k !== 'plaza') continue;
+      const pts = pairs(a.p), area = Math.abs(signedArea(pts));
+      if (area < 1500 || area > 30000) continue;
+      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      if (!inBounds(cx, cz)) continue;
+      const want = Math.floor(area / 500);
+      const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+      for (let i = 0, tries = 0; i < want && tries < want * 12; tries++) {
+        const x = R(x0, x1), z = R(z0, z1);
+        if (!inPoly(pts, x, z) || nearWall(x, z, 3.5)) continue;
+        if (placeTree(x, z, wpick([['palm_fan_a', 4], ['palm_fan_b', 3], ['palm_date_a', 2], ['ficus', 2], ['orange', 3]]))) { i++; pn++; }
+      }
+    }
+    stats.trees_piazza = pn;
+    // street trees: sparse oranges / ficus on wide pavements of the bigger streets
+    let sn = 0;
+    for (const flat of D.streets.curbs) {
+      const p = pairs(flat);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 12) continue;
+        const nx = -dz / L, nz = dx / L;
+        for (let s = R(6, 20); s < L; s += R(11, 15)) {
+          if (rand() > 0.35) continue;
+          const x = a[0] + dx * s / L - nx * 1.4, z = a[1] + dz * s / L - nz * 1.4;
+          if (!inBounds(x, z) || !raisedMask(x, z) || !raisedMask(x - nx * 1.4, z - nz * 1.4)) continue;   // wide pavements only
+          const nr = nearRoad(x, z, 16); if (!nr || !(nr.road.k === 'primary' || nr.road.k === 'secondary' || nr.road.k === 'tertiary')) continue;
+          if (nearJunction(x, z, 6) || lampNear(x, z, 3)) continue;
+          if (placeTree(x, z, wpick([['orange', 5], ['tree', 2], ['ficus', 2], ['palm_fan_a', 2]]))) sn++;
+        }
+      }
+    }
+    stats.trees_street = sn;
+  }
+
+  // ---------- 10. iron railings from OSM fences
+  {
+    const mb = new MB(), iron = C('#26272b'), panels = [];
+    let segs = 0;
+    for (const a of P.areas) {
+      if (a.k !== 'fence' || a.b === 'handrail') continue;
+      const pts = pairs(a.p);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const A = pts[i], B = pts[i + 1], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 0.5 || L > 120) continue;
+        const ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L, n = Math.max(1, Math.round(L / 2.5));
+        for (let k = 0; k < n; k++) {
+          const x0 = A[0] + ux * L * k / n, z0 = A[1] + uz * L * k / n, x1 = A[0] + ux * L * (k + 1) / n, z1 = A[1] + uz * L * (k + 1) / n;
+          const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+          if (!inBounds(mx, mz) || inB(mx, mz) || road(mx, mz)) continue;
+          const g0 = gy(x0, z0), g1 = gy(x1, z1), h = 1.3, t = 0.03;
+          mb.box(x0 - t, g0, z0 - t, x0 + t, g0 + h, z0 + t, iron, 0.8, 1, false);
+          const pan = [[x0, g0 + 0.2, z0], [x1, g1 + 0.2, z1], [x1, g1 + h - 0.05, z1], [x0, g0 + h - 0.05, z0]];
+          panels.push(pan, L / n);
+          mb.face(iron, [[x0, g0 + h - 0.1, z0], [x1, g1 + h - 0.1, z1], [x1, g1 + h, z1], [x0, g0 + h, z0]], 1);
+          segs++;
+        }
+      }
+    }
+    if (segs) {
+      const m = new THREE.Mesh(mb.geo(), MATS.dbl); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+      const pp = [], uv = [];
+      for (let i = 0; i < panels.length; i += 2) {
+        const q = panels[i], len = panels[i + 1], u = len / 0.13, v = 1.05 / 0.13;
+        for (const [a, b, c] of [[0, 1, 2], [0, 2, 3]]) for (const k of [a, b, c]) { pp.push(...q[k]); uv.push([0, u, u, 0][k], [0, 0, v, v][k]); }
+      }
+      const pg = new THREE.BufferGeometry();
+      pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); pg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); pg.computeVertexNormals();
+      const cv = document.createElement('canvas'); cv.width = 8; cv.height = 8; const g = cv.getContext('2d');
+      g.fillStyle = '#26272b'; g.fillRect(3, 0, 2, 8); g.fillRect(0, 3, 8, 0);
+      const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = THREE.NearestFilter;
+      const pm = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, transparent: false, side: THREE.DoubleSide, roughness: 0.8 }));
+      pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
+    }
+    stats.railing_spans = segs;
+  }
+
+  // ---------- flush instances
+  let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [];
+  const FAR = { cafe_set: 280, person0: 260, person1: 260, person2: 260, person3: 260, person4: 260, person5: 260, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+    signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+    shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+  for (const [name, cells] of Object.entries(buckets)) {
+    const M = MODELS[name], per = M.geo.attributes.position.count / 3;
+    for (const e of cells.values()) {
+      const n = e.m.length / 5;
+      const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n);
+      for (let i = 0; i < n; i++) {
+        q4.setFromAxisAngle(up, e.m[i * 5 + 3]); s3.setScalar(e.m[i * 5 + 4]);
+        m4.compose(p3.set(e.m[i * 5], e.m[i * 5 + 1], e.m[i * 5 + 2]), q4, s3); im.setMatrixAt(i, m4);
+        if (M.tint) im.setColorAt(i, col.setRGB(e.c[i * 3], e.c[i * 3 + 1], e.c[i * 3 + 2]));
+      }
+      im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.computeBoundingSphere();
+      im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
+      im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im);
+      scene.add(im); tris += per * n; meshes++; total += n; triBy[name] = (triBy[name] || 0) + per * n;
+    }
+  }
+  // Distance culling per cell mesh, decided before each render (shadow pass included).
+  const cp = new THREE.Vector3(), prev = scene.onBeforeRender;
+  scene.onBeforeRender = function (r, sc, camera, ...rest) {
+    camera.getWorldPosition(cp);
+    for (const im of cellMeshes) { const b = im.boundingSphere; im.visible = Math.hypot(b.center.x - cp.x, b.center.y - cp.y, b.center.z - cp.z) - b.radius < im.userData.maxd; }
+    prev.call(this, r, sc, camera, ...rest);
+  };
+  console.log(`[props] ${total} instances in ${meshes} meshes, ${Math.round(tris / 1000)}k tris, ${Math.round(performance.now() - t0)} ms`, JSON.stringify(stats), 'tris', JSON.stringify(Object.fromEntries(Object.entries(triBy).map(([k, v]) => [k, Math.round(v / 1000)]))), 'per', JSON.stringify(Object.fromEntries(Object.entries(MODELS).map(([k, v]) => [k, v.geo.attributes.position.count / 3]))));
+}

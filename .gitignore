@@ -1,0 +1,8 @@
+# raw downloads and caches (regenerate with tools/*.py)
+data/
+world/
+tools/.venv/
+__pycache__/
+*.tmp.js
+.claude/
+.DS_Store

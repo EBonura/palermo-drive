@@ -1,0 +1,106 @@
+/* Mobile layout, touch controls and the rotate-your-phone prompt. Owned by the mobile work.
+   Everything is scoped to html.touch (set by mobile.js on a coarse pointer, ?touch, or the first touch). */
+
+/* Overlay and controls do not exist for mouse users. */
+.tc, .rot { display: none; }
+
+html.touch, html.touch body {
+  height: 100vh; height: 100dvh;
+  position: fixed; inset: 0; width: 100%;
+  overflow: hidden; overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+html.touch canvas#view { touch-action: none; }
+html.touch #help { display: none !important; }
+
+html.touch .tc {
+  --pad: clamp(64px, 25vh, 108px);
+  --edge-l: max(10px, env(safe-area-inset-left));
+  --edge-r: max(10px, env(safe-area-inset-right));
+  --edge-b: max(10px, env(safe-area-inset-bottom));
+  display: block; position: fixed; inset: 0; z-index: 20; pointer-events: none;
+}
+.tc * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* pads: the transparent border enlarges the hit area, so neighbouring pads touch and a slide never falls in a gap */
+.tc .pad {
+  position: absolute; pointer-events: auto; box-sizing: border-box;
+  border: 5px solid transparent; background-clip: padding-box;
+  background-color: rgba(255,255,255,.2);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.18);
+  border-radius: 22px; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  transition: background-color .06s;
+}
+.tc .pad.on { background-color: rgba(255,255,255,.52); }
+.tc .pad i { display: block; width: 44%; max-width: 54px; }
+.tc svg { width: 100%; height: auto; display: block; fill: none; stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+.tc .pad b { font: 800 10px/1 system-ui, -apple-system, sans-serif; letter-spacing: .08em; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+
+.tc-steer .pad { bottom: var(--edge-b); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * 1.3); }
+.tc-steer .p-left { left: var(--edge-l); }
+.tc-steer .p-right { left: calc(var(--edge-l) + var(--pad) * 1.05); }
+
+.tc-drive .p-gas { right: var(--edge-r); bottom: var(--edge-b); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * 1.6); background-color: rgba(120,230,140,.28); }
+.tc-drive .p-gas.on { background-color: rgba(120,230,140,.6); }
+.tc-drive .p-brake { right: calc(var(--edge-r) + var(--pad) * 1.05); bottom: var(--edge-b); width: calc(var(--pad) * .95); height: calc(var(--pad) * .95); background-color: rgba(255,120,110,.26); }
+.tc-drive .p-brake.on { background-color: rgba(255,120,110,.58); }
+.tc-drive .p-hb { right: calc(var(--edge-r) + var(--pad) * 1.05); bottom: calc(var(--edge-b) + var(--pad) * .95); width: calc(var(--pad) * .95); height: calc(var(--pad) * .7); }
+.tc-drive .p-nos { right: var(--edge-r); bottom: calc(var(--edge-b) + var(--pad) * 1.6); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * .72); background-color: rgba(90,170,255,.3); }
+.tc-drive .p-nos.on { background-color: rgba(120,200,255,.7); }
+.tc-drive .p-nos i { width: 28%; }
+.tc-drive .p-hb i { width: 30%; }
+.tc-drive .p-brake i { width: 34%; }
+
+/* small buttons, top centre */
+.tc-small { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: none; }
+.tc .sbtn {
+  pointer-events: auto; width: 46px; height: 46px; padding: 11px; box-sizing: border-box; color: #fff;
+  border: 0; border-radius: 50%; background: rgba(0,0,0,.32); box-shadow: inset 0 0 0 2px rgba(255,255,255,.55);
+}
+.tc .sbtn.on { background: rgba(255,255,255,.5); }
+
+/* rotate-your-phone prompt: only in portrait on touch devices */
+html.touch .rot {
+  display: none; position: fixed; inset: 0; z-index: 1000; box-sizing: border-box;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: #1d2a36; color: #fff; text-align: center;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  touch-action: none;
+}
+@media (orientation: portrait) { html.touch .rot { display: flex; } }
+.rot[hidden] { display: none !important; }
+.rot-phone { width: 96px; height: 96px; animation: rot-turn 2.6s ease-in-out infinite; }
+.rot-phone svg { width: 100%; height: 100%; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; }
+.rot-t { text-wrap: balance; max-width: 18em; font: 700 22px/1.25 system-ui, -apple-system, sans-serif; }
+.rot-s { font: 400 15px/1.3 system-ui, -apple-system, sans-serif; opacity: .75; }
+@keyframes rot-turn { 0%, 15% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+
+/* HUD on phones in landscape: small, out of the way of the pads (steer bottom-left, gas/brake bottom-right) */
+@media (orientation: landscape) {
+  html.touch #where { top: max(8px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); max-width: 28vw; }
+  html.touch #street { font-size: 15px; }
+  html.touch #landmark { font-size: 11px; }
+  html.touch #mini { top: max(8px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: clamp(76px, 25vh, 104px); height: clamp(76px, 25vh, 104px); border-width: 2px; }
+  html.touch #speed { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 14px); left: 50%; transform: translateX(-50%); font-size: 26px; text-align: center; }
+  html.touch #speed small { font-size: 10px; }
+  html.touch #attrib { bottom: max(3px, env(safe-area-inset-bottom)); width: 34vw; white-space: normal; text-align: center; font-size: 7px; line-height: 1.25; opacity: .8; }
+}
+
+/* Nitro bar (created by vehicle.js): bottom centre on desktop, above the speed readout on phones */
+.nosbar { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); width: min(240px, 36vw); display: flex; align-items: center; gap: 8px; pointer-events: none; z-index: 5; }
+.nosbar[hidden] { display: none; }
+.nosbar-l { font: 800 11px/1 system-ui, -apple-system, sans-serif; letter-spacing: .12em; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.nosbar-t { flex: 1; height: 9px; border-radius: 5px; background: rgba(0,0,0,.4); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); overflow: hidden; display: block; }
+.nosbar-t i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, #2b7bff, #5fe0ff); }
+.nosbar.on .nosbar-t { box-shadow: inset 0 0 0 1.5px #fff, 0 0 10px 2px rgba(95,224,255,.75); }
+.nosbar.on .nosbar-t i { background: linear-gradient(90deg, #7fd6ff, #fff); }
+.nosbar.low .nosbar-t i { background: #c6473b; }
+.nosbar.full .nosbar-t { box-shadow: inset 0 0 0 1.5px #bff1ff, 0 0 8px rgba(95,224,255,.6); }
+@media (orientation: landscape) {
+  html.touch .nosbar { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 52px); width: min(160px, 24vw); }
+  html.touch .nosbar-l { font-size: 9px; }
+  html.touch .nosbar-t { height: 7px; }
+}
