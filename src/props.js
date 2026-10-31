@@ -375,6 +375,81 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
   def('awning', mb, { dbl: true, tint: true });
 }
 
+
+// Rubbish: overflowing cassonetto, bag piles, cardboard, bulky dumped items, litter, market waste
+{
+  const BAG = ['#1b1b1e', '#2a2a30', '#d8d7cf', '#3a6f9a', '#c7b05a', '#3d6a4a', '#17181b', '#b9b7ad'];
+  const heap = (mb, n, spread, y0, seed) => {
+    for (let i = 0; i < n; i++) {
+      const a = hash3(seed, i, 1) * TAU, rr = spread * Math.sqrt(hash3(seed, i, 2)), r = 0.22 + hash3(seed, i, 3) * 0.14;
+      const top = i >= n - 1 ? 0.28 : 0;
+      mb.lump(Math.cos(a) * rr * (top ? 0.3 : 1), y0 + r * 0.8 + top, Math.sin(a) * rr * (top ? 0.3 : 1), r * 1.15, r * 0.85, r, C(BAG[Math.floor(hash3(seed, i, 4) * BAG.length)]), 0, 0.22, 0.65, seed + i);
+    }
+  };
+  for (let v = 0; v < 3; v++) { const mb = new MB(); heap(mb, 3 + v, 0.5 + v * 0.1, 0, 31 + v * 7); def('bag_pile' + v, mb); }
+
+  const bo = new MB(), green = C('#4b6a5a');   // overflowing cassonetto, open lid at the back (-z)
+  bo.frust(0.12, [-0.55, -0.62, 0.55, 0.62], 1.12, [-0.58, -0.66, 0.58, 0.66], green, 0.7, 1);
+  const lid = C('#3b4f44');
+  bo.face(lid, [[-0.58, 1.12, -0.66], [0.58, 1.12, -0.66], [0.58, 1.75, -1.0], [-0.58, 1.75, -1.0]], 1);
+  bo.face(lid, [[-0.58, 1.75, -1.0], [0.58, 1.75, -1.0], [0.58, 1.12, -0.66], [-0.58, 1.12, -0.66]], 0.7);
+  heap(bo, 5, 0.42, 1.0, 71);
+  bo.lump(0.5, 0.35, 0.8, 0.28, 0.25, 0.28, C('#1c1c1f'), 0, 0.22, 0.65, 3); bo.lump(-0.3, 0.2, 0.85, 0.24, 0.2, 0.26, C('#d8d7cf'), 0, 0.22, 0.65, 4);
+  bo.face(C('#a98a5a'), [[-0.4, 0.05, 0.9], [0.1, 0.05, 1.05], [0.1, 0.05, 1.4], [-0.4, 0.05, 1.25]], 1);
+  def('bin_over', bo, { dbl: true });
+
+  const cb = new MB(), paper = C('#a98558'), paper2 = C('#b8966a');   // cardboard from the shops
+  cb.box(-0.45, 0, -0.3, 0.15, 0.5, 0.25, paper, 0.75, 1); cb.box(-0.4, 0.5, -0.25, 0.1, 0.85, 0.15, paper2, 0.85, 1); cb.box(0.2, 0, -0.2, 0.7, 0.35, 0.25, paper2, 0.75, 1);
+  cb.face(paper2, [[-0.5, 0.01, 0.4], [0.5, 0.01, 0.5], [0.5, 0.01, 0.95], [-0.45, 0.01, 0.8]], 1); cb.face(paper, [[0.55, 0.01, 0.15], [1.1, 0.01, 0.3], [1.0, 0.01, 0.7], [0.5, 0.01, 0.55]], 0.9);
+  cb.face(paper, [[-0.6, 0.02, -0.3], [-0.6, 1.0, -0.2], [-0.5, 1.0, 0.0], [-0.5, 0.02, -0.1]], 0.9);
+  def('cardboard', cb, { dbl: true });
+
+  const mt = new MB();    // mattress leaning on a wall (wall at z=0, out +z)
+  mt.frust(0, [-0.45, 0.5, 0.45, 0.7], 1.9, [-0.45, 0.05, 0.45, 0.25], C('#d8d0bb'), 0.85, 1);
+  for (const y of [0.4, 0.9, 1.4]) mt.face(C('#8c8470'), [[-0.45, y, 0.5 - y * 0.236 + 0.21], [0.45, y, 0.5 - y * 0.236 + 0.21], [0.45, y + 0.05, 0.5 - (y + 0.05) * 0.236 + 0.21], [-0.45, y + 0.05, 0.5 - (y + 0.05) * 0.236 + 0.21]], 1);
+  def('dump_mattress', mt);
+  const fr = new MB();    // dead fridge
+  fr.box(-0.32, 0, -0.32, 0.32, 1.65, 0.32, C('#e4e3dc'), 0.8, 1); fr.box(0.2, 0.9, 0.32, 0.26, 1.4, 0.38, C('#8a8a8a'), 1, 1, false); fr.box(-0.32, 1.1, 0.32, 0.32, 1.12, 0.325, C('#a9a8a0'), 1, 1, false);
+  def('dump_fridge', fr);
+  const chr = new MB(), wd = C('#6d4c30');
+  chr.box(-0.22, 0.42, -0.22, 0.22, 0.47, 0.22, wd, 0.9, 1); chr.box(-0.22, 0.47, -0.22, 0.22, 0.95, -0.18, wd, 0.9, 1);
+  for (const [x, z] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) chr.box(x - 0.02, 0, z - 0.02, x + 0.02, 0.42, z + 0.02, wd, 1, 1, false);
+  def('dump_chair', chr);
+  const sf = new MB(), fab = C('#7a3b3b');   // sofa on its back
+  sf.box(-0.9, 0.0, -0.4, 0.9, 0.45, 0.45, fab, 0.7, 1); sf.box(-0.9, 0.45, -0.4, 0.9, 0.9, -0.2, fab, 0.8, 1); sf.box(-0.9, 0.45, -0.4, -0.7, 0.7, 0.45, fab, 0.8, 1); sf.box(0.7, 0.45, -0.4, 0.9, 0.7, 0.45, fab, 0.8, 1);
+  def('dump_sofa', sf);
+  const wr = new MB();    // broken scooter lying on its side, no front wheel
+  wr.box(-0.5, 0.0, -0.2, 0.4, 0.3, 0.2, C('#9a2a2a'), 0.7, 1, false); wr.box(0.2, 0.0, -0.2, 0.55, 0.12, 0.2, C('#3a3a3e'), 0.9, 1, false);
+  wr.prism(-0.7, 0.05, 0, 0.12, 0.2, 0.2, 5, TYRE); wr.box(0.5, 0.1, -0.35, 0.6, 0.25, 0.35, BLACKMET, 1, 1, false); wr.box(-0.3, 0.3, -0.1, 0.0, 0.4, 0.1, C('#1d1d20'), 0.9, 1, false);
+  def('dump_wreck', wr, { dbl: true });
+
+  // litter clusters: papers, bottles, cans, butts. Flat quads and tiny boxes only.
+  const quad = (mb, x, z, w, d, rot, col) => { const c = Math.cos(rot), s = Math.sin(rot); const P = [[-w, -d], [w, -d], [w, d], [-w, d]].map(([a, b]) => [x + a * c - b * s, 0.015, z + a * s + b * c]); mb.face(col, P, 1); };
+  const litter = (name, n, kinds) => {
+    const mb = new MB();
+    for (let i = 0; i < n; i++) {
+      const x = (hash3(i, name.length, 5) - 0.5) * 1.6, z = (hash3(i, name.length, 6) - 0.5) * 0.9, rot = hash3(i, name.length, 7) * TAU, k = kinds[i % kinds.length];
+      if (k === 'paper') quad(mb, x, z, 0.1 + hash3(i, 1, 9) * 0.1, 0.07, rot, C(['#e6e3d8', '#cfd6dc', '#d9c9a0'][i % 3]));
+      else if (k === 'bottle') mb.box(x - 0.1, 0.0, z - 0.03, x + 0.1, 0.06, z + 0.03, C(['#9ec4d4', '#3f7a5a', '#d8d8d0'][i % 3]), 0.8, 1, false);
+      else if (k === 'can') mb.box(x - 0.04, 0.0, z - 0.04, x + 0.04, 0.12, z + 0.04, C(['#b8b8b2', '#b3262a', '#2f5f93'][i % 3]), 0.8, 1, false);
+      else if (k === 'butt') quad(mb, x, z, 0.022, 0.008, rot, C('#e9e5d8'));
+      else if (k === 'leaf') quad(mb, x, z, 0.14, 0.1, rot, C(['#5f8a3a', '#7aa04a', '#4c7a34'][i % 3]));
+      else if (k === 'crate') mb.box(x - 0.25, 0, z - 0.17, x + 0.25, 0.2, z + 0.17, C(['#b79a63', '#4f8a4a', '#c0472f'][i % 3]), 0.7, 1);
+      else if (k === 'peel') mb.lump(x, 0.04, z, 0.1, 0.05, 0.08, C(['#d98a2a', '#e0c13a', '#8a3a2a'][i % 3]), 0, 0.2, 0.8, i);
+    }
+    def(name, mb, { dbl: true });
+  };
+  litter('litter0', 7, ['paper', 'bottle', 'paper', 'can', 'paper', 'butt', 'paper']);
+  litter('litter1', 7, ['paper', 'paper', 'can', 'butt', 'paper', 'bottle', 'paper']);
+  litter('litter_cafe', 12, ['butt', 'butt', 'paper', 'butt', 'can', 'butt', 'paper', 'butt', 'butt', 'bottle', 'butt', 'paper']);
+  litter('mwaste0', 14, ['leaf', 'leaf', 'crate', 'paper', 'leaf', 'peel', 'leaf', 'crate', 'leaf', 'paper', 'peel', 'leaf', 'leaf', 'paper']);
+  litter('mwaste1', 12, ['crate', 'leaf', 'leaf', 'peel', 'paper', 'leaf', 'crate', 'peel', 'leaf', 'leaf', 'paper', 'leaf']);
+  const mc = new MB();   // stacked market crates
+  mc.box(-0.3, 0, -0.2, 0.3, 0.28, 0.2, C('#b79a63'), 0.7, 1); mc.box(-0.3, 0.28, -0.2, 0.3, 0.56, 0.2, C('#4f8a4a'), 0.8, 1); mc.box(-0.25, 0.56, -0.18, 0.3, 0.84, 0.2, C('#b79a63'), 0.85, 1);
+  mc.box(0.4, 0, -0.2, 0.9, 0.26, 0.2, C('#c0472f'), 0.7, 1);
+  def('mcrates', mc);
+}
+
 // ------------------------------------------------------------------ materials / instancing
 const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
@@ -517,6 +592,31 @@ export function buildProps(ctx) {
     return best;
   }
   const march = (cx, cz, nx, nz, maxd, pred) => { let d = 0; for (let s = 0.3; s <= maxd; s += 0.3) { if (!pred(cx + nx * s, cz + nz * s)) break; d = s; } return d; };
+
+  // ---------- squalor: how run-down / market-busy a spot is (0..1). Markets and the old poor quarters are
+  // found from street names; elsewhere it follows the road class (grand roads stay clean).
+  const MARKET_RE = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria|Capo\b|Carini|Beati Paoli/;
+  const POOR_RE = /Albergheria|Casa Professa|Divisi|Lattarini|Biscottari|Bandiera|Alloro|Cala\b|Sant'Agostino|Schioppettieri|Ponticello|Sant'Anna|Collegio di Maria|Marina/;
+  const hotGrid = new Map(), hk = (i, j) => (i + 512) * 1024 + (j + 512);
+  const hotAdd = (x, z, v) => { const k = hk(Math.floor(x / 100), Math.floor(z / 100)); let a = hotGrid.get(k); if (!a) hotGrid.set(k, a = []); a.push(x, z, v); };
+  for (const r of D.roads) {
+    const v = MARKET_RE.test(r.n || '') ? 2 : POOR_RE.test(r.n || '') ? 1 : 0; if (!v) continue;
+    const p = pairs(r.p);
+    for (let i = 0; i < p.length - 1; i++) { const L = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); for (let s = 0; s <= L; s += 15) hotAdd(p[i][0] + (p[i + 1][0] - p[i][0]) * s / Math.max(L, 1e-6), p[i][1] + (p[i + 1][1] - p[i][1]) * s / Math.max(L, 1e-6), v); }
+    hotAdd(p[p.length - 1][0], p[p.length - 1][1], v);
+  }
+  const CLASS_SQ = { primary: 0.2, secondary: 0.3, tertiary: 0.5, unclassified: 0.55, residential: 0.65, living_street: 0.5, service: 0.75 };
+  function squalor(x, z) {
+    let best = 0;
+    for (let i = Math.floor((x - 110) / 100); i <= Math.floor((x + 110) / 100); i++) for (let j = Math.floor((z - 110) / 100); j <= Math.floor((z + 110) / 100); j++) {
+      const a = hotGrid.get(hk(i, j)); if (!a) continue;
+      for (let q = 0; q < a.length; q += 3) { const d = Math.hypot(a[q] - x, a[q + 1] - z); const f = a[q + 2] === 2 ? (d < 45 ? 1 : d < 110 ? 0.8 : 0) : (d < 90 ? 0.85 : 0); if (f > best) best = f; }
+    }
+    if (best >= 0.8) return best;
+    const nr = nearRoad(x, z, 18);
+    return Math.max(best, nr ? (CLASS_SQ[nr.road.k] ?? 0.4) : 0.35);
+  }
+  const binSites = [];
 
   // ---------- occupancy (avoid stacking props)
   const occ = new Map();
@@ -727,7 +827,7 @@ export function buildProps(ctx) {
         if (L < 7) continue;
         const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2;
         if (!inBounds(cxm, czm)) continue;
-        const dist = Math.hypot(cxm, czm), pk = Math.max(0.05, 0.62 - dist / 1700);
+        const dist = Math.hypot(cxm, czm), pk = Math.max(0.04, 0.5 - dist / 1700);
         let nx = dz / L, nz = -dx / L;
         if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         for (let s = R(3, 14); s < L - 3; s += R(22, 38)) {
@@ -844,7 +944,7 @@ export function buildProps(ctx) {
             }
             if (jn || carCount >= cap) continue;
             if (e + e2 - 1.75 < 2.7) continue;                 // a car must still be able to pass
-            if (rand() > thin * Math.min(1, base * 0.8)) { state[side] = false; continue; }
+            if (rand() > thin * Math.min(1, base * 0.62)) { state[side] = false; continue; }
             if (!state[side]) continue;
             const d = e - 0.98, x = cx + nx * d, z = cz + nz * d;
             const fwd = rand() < 0.88 ? (sg > 0 ? 1 : -1) : -(sg > 0 ? 1 : -1);
@@ -862,7 +962,8 @@ export function buildProps(ctx) {
                 const x = cx + nx * d + tx * q * 1.35, z = cz + nz * d + tz * q * 1.35;
                 if (!road(x + nx * 0.5, z + nz * 0.5) && !raisedMask(x + nx * 0.5, z + nz * 0.5)) { }
                 if (!wallClear(x, z, 0.7) || occHit(x, z, 0.8) || !road(x - nx * 0.7, z - nz * 0.7) && false) continue;
-                put('bin_big', x, groundY(x, z), z, Math.atan2(nx, nz) + Math.PI + R(-0.06, 0.06)); occAdd(x, z, 0.8); ok++; bins++;
+                const over = hash3(x * 0.7, z * 0.7, 3) < 0.18 + 0.5 * squalor(x, z) * (r.k === 'primary' || r.k === 'secondary' ? 0.4 : 1);
+                put(over ? 'bin_over' : 'bin_big', x, groundY(x, z), z, Math.atan2(nx, nz) + Math.PI + R(-0.06, 0.06)); occAdd(x, z, 0.8); ok++; bins++; binSites.push([x, z, nx, nz, tx, tz, over]);
                 if (rand() < 0.3) { put('bags', x + nx * 0.2 - tx * 0.4, groundY(x, z), z + nz * 0.2 - tz * 0.4, R(0, TAU), R(0.8, 1.1)); }
               }
               if (ok && rand() < 0.3) { const x = cx + nx * d - tx * 1.6, z = cz + nz * d - tz * 1.6; if (wallClear(x, z, 0.5) && !occHit(x, z, 0.7)) put('bags', x, groundY(x, z), z, R(0, TAU), R(0.8, 1.2)); }
@@ -1063,9 +1164,115 @@ export function buildProps(ctx) {
     stats.railing_spans = segs;
   }
 
+
+  // ---------- 11. rubbish: bag piles, cardboard, dumped junk, kerb litter, market waste (own rng, so nothing above moves)
+  {
+    const rt = rng(7011), RT = (a, b) => a + rt() * (b - a);
+    const st = { piles: 0, cardboard: 0, dumps: 0, litter: 0, market: 0, cafeLitter: 0 };
+    const free = (x, z) => !inB(x, z) && !occHit(x, z, 0.55);
+    // a pile or dump must leave the carriageway passable: on a pavement, or at least 3 m of street across from it
+    const passable = (x, z, nx, nz) => raisedMask(x, z) || paving(x, z) || march(x, z, nx, nz, 5, (a, b) => !inB(a, b)) >= 3.1;
+    const lane = (x, z) => road(x, z) || raisedMask(x, z) || paving(x, z);
+    const wallSpot = (A, nx, nz, s, L, dx, dz, off) => { const x = A[0] + dx * s / L + nx * off, z = A[1] + dz * s / L + nz * off; return [x, z]; };
+    // piles beside the real and procedural cassonetti
+    for (const [x, z, nx, nz, tx, tz, over] of binSites) {
+      const sq = squalor(x, z);
+      if (rt() > (over ? 0.8 : 0.1 + 0.35 * sq)) continue;
+      const nn = 1 + (rt() < 0.3 * sq ? 1 : 0) + (over && rt() < 0.4 ? 1 : 0);
+      for (let q = 0; q < nn; q++) {
+        const px = x + tx * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nx * RT(-0.15, 0.35), pz = z + tz * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nz * RT(-0.15, 0.35);
+        if (!free(px, pz) || !lane(px, pz) || !passable(px, pz, nx, nz)) continue;
+        put('bag_pile' + Math.floor(rt() * 3), px, gy(px, pz), pz, RT(0, TAU), RT(0.85, 1.15)); occAdd(px, pz, 0.5); st.piles++;
+      }
+    }
+    for (const it of osm) {
+      if (it.k === 'bin_big' && !inB(it.x, it.z) && rt() < 0.6) { const px = it.x + RT(-1.2, 1.2), pz = it.z + RT(-1.2, 1.2); if (free(px, pz) && lane(px, pz)) { put('bag_pile' + Math.floor(rt() * 3), px, gy(px, pz), pz, RT(0, TAU)); occAdd(px, pz, 0.5); st.piles++; } }
+    }
+    // along building walls: loose piles, dumped junk, litter
+    for (const o of bl) {
+      const ring = o.outer;
+      for (let q = 0; q < ring.length; q++) {
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+        if (L < 5) continue;
+        const cxm = (A[0] + B[0]) / 2, czm = (A[1] + B[1]) / 2; if (!inBounds(cxm, czm, 8)) continue;
+        let nx = dz / L, nz = -dx / L; if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
+        const sq = squalor(cxm, czm);
+        for (let s = RT(1, 14); s < L - 1; s += RT(28, 60)) {
+          const u = rt();
+          if (u > 0.2 * sq * sq + 0.01) continue;
+          const [x, z] = wallSpot(A, nx, nz, s, L, dx, dz, 0.5);
+          if (!free(x, z) || !lane(x, z) || nearJunction(x, z, 3.5) || !passable(x, z, nx, nz)) continue;
+          const kind = rt();
+          if (kind < 0.55) { put('bag_pile' + Math.floor(rt() * 3), x, gy(x, z), z, RT(0, TAU), RT(0.8, 1.2)); st.piles++; occAdd(x, z, 0.6); }
+          else if (kind < 0.62) {
+            const m = wpick([['dump_mattress', 3], ['dump_fridge', 2], ['dump_chair', 3], ['dump_sofa', 2], ['dump_wreck', 2]]);
+            const wall = m === 'dump_mattress' || m === 'dump_fridge';
+            const px = wall ? x - nx * 0.25 : x + nx * 0.2, pz = wall ? z - nz * 0.25 : z + nz * 0.2;
+            put(m, px, gy(px, pz), pz, Math.atan2(nx, nz) + (wall ? 0 : RT(-0.6, 0.6)), 1); occAdd(px, pz, 0.8); st.dumps++;
+          } else if (kind < 0.78) { put('cardboard', x, gy(x, z), z, Math.atan2(nx, nz) + RT(-0.3, 0.3), RT(0.8, 1.1)); st.cardboard++; occAdd(x, z, 0.7); }
+          else { put('litter' + (rt() < 0.5 ? 0 : 1), x, gy(x, z) + 0.01, z, RT(0, TAU), RT(0.9, 1.3)); st.litter++; }
+        }
+      }
+    }
+    // cardboard left outside real shops
+    for (const it of osm) {
+      if (it.k !== 'shop' || rt() > 0.05 + 0.1 * squalor(it.x, it.z)) continue;
+      const w = nearWall(it.x, it.z, 8); if (!w) continue;
+      const x = w.px + w.nx * 0.55 + (-w.nz) * RT(-1.5, 1.5), z = w.pz + w.nz * 0.55 + w.nx * RT(-1.5, 1.5);
+      if (!free(x, z) || !lane(x, z) || !passable(x, z, w.nx, w.nz)) continue;
+      put('cardboard', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + RT(-0.3, 0.3), RT(0.8, 1.1)); occAdd(x, z, 0.7); st.cardboard++;
+    }
+    // kerb litter in the gutter, thicker in the poor quarters
+    for (const flat of D.streets.curbs) {
+      const p = pairs(flat);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 4) continue;
+        const nx = -dz / L, nz = dx / L;
+        for (let s = RT(0, 10); s < L; s += RT(14, 34)) {
+          const x = a[0] + dx * s / L, z = a[1] + dz * s / L; if (!inBounds(x, z, 8)) continue;
+          if (rt() > 0.02 + 0.2 * squalor(x, z) ** 2) continue;
+          const gx = x + nx * 0.3, gz = z + nz * 0.3;
+          if (!road(gx, gz) || occHit(gx, gz, 0.3)) continue;
+          put('litter' + (rt() < 0.5 ? 0 : 1), gx, groundY(gx, gz) + 0.012, gz, Math.atan2(dx, dz) + RT(-0.3, 0.3), RT(0.8, 1.2)); st.litter++;
+        }
+      }
+    }
+    // market streets: crates, cabbage leaves and cardboard against the walls
+    D.roads.forEach(r => {
+      if (!MARKET_RE.test(r.n || '')) return;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 1) continue;
+        const tx = dx / L, tz = dz / L;
+        for (let s = RT(1, 8); s < L; s += RT(7, 14)) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s; if (!inBounds(cx, cz, 8) || nearJunction(cx, cz, 5)) continue;
+          for (const sg of [1, -1]) {
+            if (rt() > 0.55) continue;
+            const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 9, (x, z) => !inB(x, z)), e2 = march(cx, cz, -nx, -nz, 9, (x, z) => !inB(x, z));
+            if (e < 1.4 || e + e2 < 4) continue;
+            const d = e - 0.55, x = cx + nx * d, z = cz + nz * d;
+            if (!free(x, z) || !lane(x, z)) continue;
+            const rot = Math.atan2(-nx, -nz) + RT(-0.4, 0.4), k = rt();
+            put(k < 0.45 ? 'mwaste' + Math.floor(rt() * 2) : k < 0.7 ? 'mcrates' : k < 0.85 ? 'cardboard' : 'bag_pile' + Math.floor(rt() * 3), x, gy(x, z) + (k < 0.45 ? 0.012 : 0), z, rot, RT(0.85, 1.15)); occAdd(x, z, 0.7); st.market++;
+            if (k < 0.45 && rt() < 0.6) { const x2 = x + tx * RT(-1.5, 1.5), z2 = z + tz * RT(-1.5, 1.5); if (free(x2, z2) && lane(x2, z2)) { put('mwaste' + Math.floor(rt() * 2), x2, gy(x2, z2) + 0.012, z2, RT(0, TAU), RT(0.8, 1.2)); st.market++; } }
+          }
+        }
+      }
+    });
+    // butts and paper outside the bars
+    for (const it of osm) {
+      if (it.k !== 'cafe' || rt() > 0.6) continue;
+      const w = nearWall(it.x, it.z, 9); if (!w) continue;
+      const x = w.px + w.nx * RT(0.7, 1.6) + (-w.nz) * RT(-2, 2), z = w.pz + w.nz * RT(0.7, 1.6) + w.nx * RT(-2, 2);
+      if (inB(x, z) || !lane(x, z)) continue;
+      put('litter_cafe', x, gy(x, z) + 0.012, z, RT(0, TAU), RT(0.8, 1.2)); st.cafeLitter++;
+    }
+    stats.rubbish = st;
+  }
+
   // ---------- flush instances
   let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [];
-  const FAR = { cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+  const FAR = { bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
     signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
     shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
