@@ -108,5 +108,71 @@
    "license": "CC BY 4.0",
    "credit": "HaguardDuNord, Grand Hotel et des Palmes (Palermo) - Fa\u00e7ade.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Grand_Hotel_et_des_Palmes_(Palermo)_-_Fa%C3%A7ade.jpg"
   }
+ ],
+ "w250508063": [
+  {
+   "wall": 7,
+   "texture": "assets/facades/photo/malfitano.jpg",
+   "u0": 0,
+   "u1": 1,
+   "v0": 0,
+   "v1": 1,
+   "flip": false,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
+   "size": [
+    472,
+    280
+   ],
+   "license": "CC BY 4.0",
+   "credit": "HaguardDuNord, Villa Malfitano - Fa\u00e7ade .jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Villa_Malfitano_-_Fa%C3%A7ade_.jpg"
+  }
+ ],
+ "w186187084": [
+  {
+   "wall": 6,
+   "texture": "assets/facades/photo/zisa.jpg",
+   "u0": 0,
+   "u1": 1,
+   "v0": 0,
+   "v1": 1,
+   "flip": false,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
+   "size": [
+    704,
+    412
+   ],
+   "license": "CC0",
+   "credit": "Effems, La Zisa (Palermo) 19 06 2026 31.jpg, CC0, https://commons.wikimedia.org/wiki/File:La_Zisa_(Palermo)_19_06_2026_31.jpg"
+  }
+ ],
+ "w182675995": [
+  {
+   "wall": 8,
+   "texture": "assets/facades/photo/borsa.jpg",
+   "u0": 1,
+   "u1": 0,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "photographed": [
+    0.0,
+    1.0,
+    0
+   ],
+   "size": [
+    852,
+    428
+   ],
+   "license": "CC BY 4.0",
+   "credit": "HaguardDuNord, Cassa di Risparmio (Palermo).jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Cassa_di_Risparmio_(Palermo).jpg"
+  }
  ]
 }

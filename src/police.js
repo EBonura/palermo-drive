@@ -57,7 +57,7 @@ export function createPolice(env, T) {
   const MAXCOPS = COARSE ? 3 : 5;
   const vs = T.vs;
   let heat = 0, unseenT = 0, seen = false, startT = 0, time = 0, tickT = 0, nextSpawn = 0, nextPatrol = 12;
-  let bustT = 0, busted = 0, grace = 0, night = false, peds = null, toastT = 0, copId = 0;
+  let armed = false, bustT = 0, busted = 0, grace = 0, night = false, peds = null, toastT = 0, copId = 0;
   const lastAt = {};
   const level = () => heat <= 0 ? 0 : Math.min(5, Math.ceil(heat - 1e-6));
   addEventListener('pd-time', e => { night = !!(e.detail && e.detail.isNight); });
@@ -97,7 +97,7 @@ export function createPolice(env, T) {
   }
   function engage(v) {
     const c = v.cop; c.pursue = true; c.keep = true; c.mode = 'road';
-    v.boost = 1.3 + 0.07 * level(); v.drv = 1.05;
+    v.boost = 1.5 + 0.07 * level(); v.drv = 1.05;
   }
   function disengage(v) {
     const c = v.cop; if (c.mode === 'direct') toRoad(v);
@@ -207,7 +207,7 @@ export function createPolice(env, T) {
     const lv = Math.max(1, level()), want = 20 * lv, fine = garage.debit(Math.min(want, garage.cash));
     const [it, en] = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0];
     card.innerHTML = `<h3>BECCATO!</h3><p>${it}<small>${en}</small></p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
-    card.classList.add('on'); busted = 4.2; grace = 9; heat = 0; bustT = 0; seen = false; unseenT = 0;
+    card.classList.add('on'); busted = 4.2; grace = 9; heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0;
     for (const v of pursuers()) disengage(v);
     try { dispatchEvent(new CustomEvent('pd-busted', { detail: { fine } })); } catch (e) { /* no events */ }
   }
@@ -252,11 +252,15 @@ export function createPolice(env, T) {
       c.los = d < 75 && los(v.x, v.z, car.x, car.z);
       if (c.los) any = true;
       c.noLosT = c.los ? 0 : c.noLosT + dt;
+      if (c.mode === 'road') { // heading away down a long road: turn round
+        c.awayT = d > (c.prevD ?? d) + 0.3 ? (c.awayT || 0) + dt : 0; c.prevD = d;
+        if (c.awayT > 1.8 && d > 25 && time > (c.uCool || 0)) { c.awayT = 0; c.uCool = time + 6; T.uturn(v); }
+      } else c.prevD = d;
     }
     seen = any;
     if (heat > 0) {
-      if (seen) unseenT = 0; else { unseenT += dt; if (unseenT > 4.5 && (ps.length || time > startT + 25)) heat -= dt * 0.1; } // cops that never found you let the heat go too
-      if (heat <= 0) { heat = 0; toastT = 2.6; for (const v of ps) disengage(v); }
+      if (seen) { unseenT = 0; armed = true; } else { unseenT += dt; if (unseenT > 4.5 && (armed || time > startT + 40)) heat -= dt * 0.1; } // cops that never found you let the heat go too
+      if (heat <= 0) { heat = 0; armed = false; toastT = 2.6; for (const v of ps) disengage(v); }
     }
     // box in: close cops with a line of sight leave the road graph and take a slot around the lapa
     let slot = 0;
@@ -277,7 +281,7 @@ export function createPolice(env, T) {
     if (lv > 0 && time >= startT && time >= nextSpawn && ps.length < Math.min(MAXCOPS, lv)) {
       let lapini = 0; for (const v of ps) if (v.ty.model === 'apePol') lapini++;
       const name = lv >= 2 && lapini === 0 && Math.random() < 0.28 ? 'apePol' : Math.random() < 0.5 ? 'polizia' : 'carab';
-      const v = T.spawnCop(name, 70, 150);
+      const v = T.spawnCop(name, 70, 135, true);
       if (v) { makeCop(v, true); nextSpawn = time + 2.2; }
     }
     for (const v of ps) { // lost far behind and out of sight: replace with a closer one

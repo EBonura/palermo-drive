@@ -914,7 +914,11 @@ Object.assign(MODELS, buildPoliceModels());
   }
   const fx = createBeacons(scene, camera);
   const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen,
-    spawnCop: (name, dmin, dmax) => spawnOffscreen(name, dmin, dmax, null),
+    spawnCop: (name, dmin, dmax, toward) => spawnOffscreen(name, dmin, dmax, toward ? (mx, mz, e) => Math.hypot(NX[e.b] - car.x, NZ[e.b] - car.z) < Math.hypot(NX[e.a] - car.x, NZ[e.a] - car.z) - 5 : null),
+    uturn(v) { // a police car heading away from the lapa swings round on a two-way road
+      const e = v.route[0]; if (!e || e.rev < 0 || v.cop.mode !== 'road') return false;
+      const r = EDGES[e.rev]; v.route = [r]; v.t = clamp(r.len - v.t, 0, r.len); v.pref = -v.pref; v.blocker = null; extendRoute(v); return true;
+    },
     spawnTeamBus() { rebuildBusCandidates(camera.position.x, camera.position.z); for (let k = 0; k < 12; k++) { const v = trySpawnBus('teamBus'); if (v) return v; } return null; },
     removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
   police = createPolice(env, T);

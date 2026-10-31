@@ -216,6 +216,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     lastEvent = -1;
   }
 
+  addEventListener('pd-time-set', () => { if (!forced && START_HOURS[st.timeStart] !== undefined) { seenStart = st.timeStart; jumpTo(START_HOURS[st.timeStart]); } });
+
   // ---- the sun's light
   const sunV = new THREE.Vector3(), moonV = new THREE.Vector3(), seaDir = new THREE.Vector3(), _c = new THREE.Color();
   const lightDir = SUN_DIR || new THREE.Vector3();
@@ -500,7 +502,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         renderer.getDrawingBufferSize(_sz);
         lamps.haloMat.uniforms.uScale.value = _sz.y / (2 * Math.tan(camera.fov * DEG / 2));
         lamps.haloMat.uniforms.uAmt.value = lampOn * 1.15;
-        lamps.poolMat.opacity = lampOn * 0.62;
+        lamps.poolMat.opacity = lampOn * 0.5;
       }
     } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
     updateHeadlights(headOn);

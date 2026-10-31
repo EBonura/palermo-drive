@@ -34,15 +34,15 @@ export const ZONES = {
   kalsa: { plaster: ['#c8b08a', '#bfa47e', '#cdb894', '#b99c7a', '#d0bc98', '#b48f70', '#c4ab8c', '#a89478'], stone: ['#9d8560', '#a98f68', '#8f7a58', '#b49a74'], pStone: 0.5, grime: 0.7, elig: true,
     w: { bar: .12, n19: .16, res: .5, pw: .08, blk: .06, lib: .04 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2]], fh: 3.9, ruin: 0.07, roof: 0.8 },
   // Albergheria and Ballaro: yellow-ochre and pale plaster, peeling, post-war infill and ruins.
-  alberg: { plaster: ['#c7a373', '#d0b07a', '#c0a07c', '#d8c48a', '#b99c78', '#cfa888', '#c4b090', '#d9c9a4'], stone: ['#a98f68', '#9d8560', '#b49a74'], pStone: 0.4, grime: 0.7, elig: true,
+  alberg: { plaster: ['#c7a373', '#d0b07a', '#c0a07c', '#d8c48a', '#b99c78', '#cfa888', '#c4b090', '#d9c9a4'], stone: ['#a08050', '#a98f68', '#9d8560', '#b49a74'], pStone: 0.4, grime: 0.7, elig: true,
     w: { bar: .06, n19: .12, res: .56, pw: .12, blk: .1, lib: .04 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.6, ruin: 0.06, roof: 0.8 },
 
   // ---------------- Liberta, Politeama, the sacco di Palermo belt ----------------
   // Via della Liberta itself: Liberty villini and 19th c. palazzi among 7 to 10 storey blocks of the 1960s-70s.
-  viaLib: { plaster: ['#dcc9a2', '#d3a98a', '#e0d2b4', '#c8ab88', '#e6dcc6', '#d6b07a', '#d9b894', '#c0a68c', '#e0c58c'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
+  viaLib: { plaster: ['#dcc9a2', '#d3a98a', '#e0d2b4', '#c8ab88', '#e6dcc6', '#d6b07a', '#d9b894', '#c0a68c', '#e0c58c', '#efe9dc', '#e8e0cc'], stone: ['#bba07a', '#c4aa84'], pStone: 0.1, grime: 0.3, elig: true,
     w: { n19: .2, lib: .16, bar: .03, res: .04, blk: .42, pw: .1, pal: .05 }, fl: [[3, 1], [4, 2], [5, 2], [6, 2], [7, 3], [8, 3], [9, 2], [10, 1]], fh: 3.3, roof: 0.3 },
   // The grid behind it (Notarbartolo, Strasburgo, Principe di Paterno): orange, cream and terracotta blocks with stacked continuous balconies.
-  sacco: { plaster: ['#d6a468', '#e0cfa8', '#d8b090', '#cfc4ae', '#c98f62', '#e6dcc4', '#dccb92', '#e8e2d2', '#bfa98a', '#d9a070'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
+  sacco: { plaster: ['#d6a468', '#e0cfa8', '#d8b090', '#cfc4ae', '#c98f62', '#e6dcc4', '#dccb92', '#e8e2d2', '#bfa98a', '#d9a070', '#b07a5c', '#a8705a'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
     w: { blk: .46, pal: .16, pw: .14, n19: .1, lib: .04, res: .1 }, fl: [[4, 1], [5, 2], [6, 3], [7, 3], [8, 3], [9, 2], [10, 1], [12, .4]], fh: 3.1, roof: 0.1 },
   resut: { plaster: ['#e4d8b8', '#e0cfa8', '#d8c8a8', '#e8e2d2', '#d2bda0', '#e0b890', '#cfc4ae', '#d9d0b8'], stone: ['#bba07a'], pStone: 0.02, grime: 0.28, elig: true,
     w: { pal: .34, blk: .26, pw: .14, res: .18, lib: .04, n19: .04 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1.5], [8, .6]], fh: 3.1, roof: 0.2 },
@@ -58,14 +58,14 @@ export const ZONES = {
     w: { res: .38, pw: .22, blk: .14, n19: .1, ind: .1, pal: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.6, ruin: 0.02 },
 
   // ---------------- Stazione, Oreto, Brancaccio, Corso dei Mille ----------------
-  stazione: { plaster: ['#cfc3ab', '#c4b59b', '#d2c7b0', '#bdae96', '#c9b79e', '#d6cab4', '#c9b08a', '#d0b9a2'], stone: ['#b5a68a', '#a89a80'], pStone: 0.08, grime: 0.55, elig: true,
-    w: { n19: .34, pw: .24, blk: .2, res: .12, bar: .06, ind: .04 }, fl: [[4, 2], [5, 3], [6, 3], [7, 1.5]], fh: 3.6, roof: 0.15 },
+  stazione: { plaster: ['#d9c79a', '#d4c8a8', '#d2c7b0', '#c9b79e', '#dccdaa', '#d6cab4', '#c9b08a', '#d0b9a2'], stone: ['#b5a68a', '#a89a80'], pStone: 0.08, grime: 0.55, elig: true,
+    w: { n19: .4, pw: .22, blk: .18, res: .1, bar: .06, ind: .04 }, fl: [[4, 2], [5, 3], [6, 3], [7, 1.5]], fh: 3.6, roof: 0.15 },
   oreto: { plaster: ['#cbb890', '#c8aa84', '#d0bc98', '#bfb29a', '#d4b890', '#c4a888', '#d8c8a8', '#b8aa94'], stone: ['#a98f68'], pStone: 0.12, grime: 0.62, elig: true,
     w: { res: .42, pw: .24, blk: .16, n19: .08, ind: .06, pal: .04 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.4 },
   brancaccio: { plaster: ['#d4c4a0', '#cdb894', '#dccdaa', '#c4b49a', '#d8b894', '#c8c0aa', '#e0d4b8', '#bfa88a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true,
     w: { res: .46, pw: .2, blk: .14, pal: .12, ind: .05, fish: .03 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .7]], fh: 3.2, roof: 0.5 },
-  corsoMille: { plaster: ['#cfc0a0', '#c8b894', '#d4c4a4', '#bfb09a', '#d6b890', '#c8c0aa', '#d8c8a8', '#c0a88a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.62, elig: true,
-    w: { res: .36, pw: .3, blk: .16, ind: .1, pal: .08 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.35 },
+  corsoMille: { plaster: ['#d6a894', '#d8b09a', '#d4c4a4', '#c9a08a', '#d6b890', '#c8c0aa', '#dcc8a8', '#c4a088'], stone: ['#a98f68'], pStone: 0.05, grime: 0.62, elig: true,
+    w: { n19: .26, res: .3, pw: .18, blk: .12, ind: .08, pal: .06 }, fl: [[2, 1], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.6, roof: 0.3 },
 
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
@@ -78,8 +78,8 @@ export const ZONES = {
   tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.02, grime: 0.35, elig: true,
     w: { pal: .34, res: .34, fish: .16, blk: .08, pw: .08 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9 },
   // Sferracavallo: low whitewashed and pastel fishermen's houses around the harbour, flat roofs with a parapet, painted wooden doors.
-  sferra: { plaster: ['#ece6d8', '#e6dcc4', '#dcc9a0', '#d6cfc0', '#e8d6b4', '#c8d2d0', '#e0c0a8', '#f0ebe0', '#d8e0d8'], stone: ['#bba07a'], pStone: 0, grime: 0.4, elig: true,
-    w: { fish: .66, res: .22, pal: .12 }, fl: [[1, 2], [2, 4], [3, 2], [4, .4]], fh: 3.0, roof: 0.35,
+  sferra: { plaster: ['#ece6d8', '#e6dcc4', '#e0b4a0', '#d6cfc0', '#e8d6b4', '#d9a89a', '#e0c0a8', '#f0ebe0', '#d8a890'], stone: ['#bba07a'], pStone: 0, grime: 0.4, elig: true,
+    w: { fish: .34, res: .34, pal: .22, pw: .1 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2.5], [5, 1.5]], fh: 3.0, roof: 0.35,
     gl: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
   // Mondello village: Liberty villas, summer houses with deep eaves, pastel and cream plaster, blue trim.
   mondello: { plaster: ['#e6d8a8', '#e4cdb4', '#d9c096', '#eadfc6', '#e8e0c8', '#d8b8a0', '#f0ebe0', '#d4cba8'], stone: ['#bba07a'], pStone: 0.03, grime: 0.22, elig: true,
@@ -102,7 +102,7 @@ export const ZONES = {
 
   // ---------------- port and industry ----------------
   porto: { plaster: ['#c4c6c2', '#b8bab4', '#d0cdc2', '#a9aca8', '#c9c2b0', '#d4ccb4', '#bdb8aa'], stone: ['#a9aca8'], pStone: 0, grime: 0.72, elig: true,
-    w: { ind: .56, pw: .2, n19: .1, blk: .06, res: .08 }, fl: [[1, 2], [2, 3], [3, 1.5], [4, 1], [5, 1], [6, .5]], fh: 4.2, roof: 0.1, shed: true },
+    w: { ind: .44, pw: .2, n19: .2, blk: .08, res: .08 }, fl: [[1, 2], [2, 3], [3, 1.5], [4, 1.5], [5, 1.5], [6, 1]], fh: 4.2, roof: 0.1, shed: true },
   brin: { plaster: ['#c4c6c2', '#b8bab4', '#d0cdc2', '#a9aca8', '#c9c2b0', '#d4ccb4', '#bdb8aa'], stone: ['#a9aca8'], pStone: 0, grime: 0.7, elig: true,
     w: { ind: .74, res: .1, pw: .08, blk: .08 }, fl: [[1, 3], [2, 3], [3, 1]], fh: 4.6, roof: 0.1, shed: true },
 
