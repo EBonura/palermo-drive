@@ -420,6 +420,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   const rf = rasterLand(D, FINE, fineK), sdfFine = signedDistance(rf, 120);
   const rc = rasterLand({ land: D.land }, COARSE, 1 / 44), sdfCoarse = signedDistance(rc, 3000);
   const gm = rasterLand(D, GAME, 1);
+  if (location.search.includes('seatest')) { const cs = (x, z) => sdfCoarse[Math.floor((z - COARSE.z0) / 44) * rc.w + Math.floor((x - COARSE.x0) / 44)]; console.log('[sea] coarse', rc.w, rc.h, [[1100, -900], [1500, -1500], [3000, -3000], [0, 0], [800, -500]].map(p => p.join(',') + '=' + cs(...p).toFixed(0)).join(' '), 'fine', [[1100, -900], [800, -500], [700, -1000]].map(p => sdfFine[Math.floor((p[1] - FINE.z0) * rf.k) * rf.w + Math.floor((p[0] - FINE.x0) * rf.k)].toFixed(0))); } // TEMP-DEBUG
   const fineTex = halfTexture(sdfFine, rf.w, rf.h), coarseTex = halfTexture(sdfCoarse, rc.w, rc.h);
 
   // Is (x, z) open water? Exact at 1 m inside the harbour box, the coastline polygon elsewhere.

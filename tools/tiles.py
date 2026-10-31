@@ -2,11 +2,14 @@
 
 One command regenerates world/manifest.json and world/tiles/*.json:
 
-    tools/.venv/bin/python tools/tiles.py              fetch (cached), then bake
-    tools/.venv/bin/python tools/tiles.py --fetch-only only download into data/city/
-    tools/.venv/bin/python tools/tiles.py --offline    bake from the cache, never touch the network
+    tools/.venv/bin/python tools/tiles.py              bake (extracts the PBF on first use)
+    tools/.venv/bin/python tools/tiles.py --overpass   use the Overpass API (cached per box in data/city/) instead
+    tools/.venv/bin/python tools/tiles.py --fetch-only only extract/download, no bake
+    tools/.venv/bin/python tools/tiles.py --offline    Overpass path: bake from the cache, never touch the network
 
-Raw Overpass answers are cached per sub-box in data/city/ (delete a file to refetch it).
+Default source is data/city/isole-latest.osm.pbf (Geofabrik, ODbL, needs `osmium` in the venv). It is read in
+three passes and cached as Overpass-shaped `out geom` files data/city/pbf_<cat>_NNN.json.gz (rebuilt when the
+PBF is newer). Delete those files to force a re-extract.
 Sources: OpenStreetMap contributors (ODbL), Regione Sicilia lidar via data/lidar.json (CC BY 4.0),
 AWS Terrarium tiles for the far terrain.
 """
