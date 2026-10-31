@@ -32,7 +32,8 @@ const NETS = { // Lighthouse-style presets, bytes/s
   slow4g: { latency: 150, down: 1.6e6 / 8, up: 750e3 / 8 },
   '3g': { latency: 300, down: 0.4e6 / 8, up: 0.4e6 / 8 },
 };
-const { server, stats, port: PORT } = await startServer(ROOT, CDN);
+const URL_ARG = arg('url', '');   // --url https://host/path/ measures a live site instead of a local folder (wire bytes from CDP)
+const { server, stats, port: PORT } = URL_ARG ? { server: { close() {} }, stats: { requests: 0, bytes: 0, rawBytes: 0, files: [] }, port: 0 } : await startServer(ROOT, CDN);
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: true,
@@ -75,7 +76,13 @@ await page.evaluateOnNewDocument(() => {
 });
 
 const t0 = Date.now();
-await page.goto(`http://127.0.0.1:${PORT}/?${QUERY}${PROFILE === 'phone' ? '&touch' : ''}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
+if (URL_ARG) { // account bytes from the network layer
+  const reqs = new Map();
+  await cdp.send('Network.enable');
+  cdp.on('Network.requestWillBeSent', e => reqs.set(e.requestId, e.request.url));
+  cdp.on('Network.loadingFinished', e => { const u = reqs.get(e.requestId) || '?'; stats.requests++; stats.bytes += e.encodedDataLength; stats.rawBytes += e.encodedDataLength; stats.files.push([new URL(u).pathname.replace(/^\/palermo-drive/, ''), e.encodedDataLength, e.encodedDataLength]); });
+}
+await page.goto(`${URL_ARG ? URL_ARG.replace(/\/?$/, '/') : `http://127.0.0.1:${PORT}/`}?${QUERY}${PROFILE === 'phone' ? '&touch' : ''}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
 await page.waitForFunction(() => window.__m && window.__m.loadingGone != null, { timeout: 600000, polling: 200 });
 const tReadyWall = Date.now() - t0;
 await new Promise(r => setTimeout(r, SETTLE)); // let async work (photo facades, audio) finish

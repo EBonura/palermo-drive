@@ -61,7 +61,7 @@ const res = await esbuild.build({
   stdin: { contents: entrySrc, resolveDir: ROOT, sourcefile: 'entry.js' },
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: true, treeShaking: true, legalComments: 'external', charset: 'utf8',
-  nodePaths: [path.join(HERE, 'node_modules')],
+  nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
   entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
@@ -115,6 +115,7 @@ function copyTree(src, dst) {
   }
 }
 copyTree(path.join(ROOT, 'assets'), path.join(OUT, 'assets'));
+if (fs.existsSync(path.join(ROOT, 'world'))) copyTree(path.join(ROOT, 'world'), path.join(OUT, 'world')); // whole-city tiles streamed by src/world.js (?world=1)
 fs.copyFileSync(path.join(ROOT, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 if (DATA_MODE === 'raw') for (const f of ['palermo-data.js', 'props-data.js', 'context-data.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));

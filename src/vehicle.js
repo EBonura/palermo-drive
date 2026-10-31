@@ -1,16 +1,19 @@
-// Player vehicle: a procedural Piaggio Ape Calessino (the Palermo "lapa"), handling, collision response, nitro, sound and chase camera. Owned by the driving work.
-// main.js owns input (env.keys), the world and the render loop; it calls physics(dt) at a fixed
-// 120 Hz, then updateVisual(dt) and updateCamera(dt) once per frame.
+// Player vehicle: seven vehicles (three lape, three two-wheelers, a tamarro hatchback), handling with drift/nitro/two-wheel lift
+// for the lape, leaning and wheelies for the bikes, tamarro tuning parts, synthesised engines, collision response and chase camera.
+// Owned by the driving work. Models are built in src/vehicle-models.js, sound in src/vehicle-audio.js, the saved look and wallet in src/garage.js.
+// main.js owns input (env.keys), the world and the render loop; it calls physics(dt) at a fixed 120 Hz, then updateVisual(dt) and
+// updateCamera(dt) once per frame.
 //
-// Handling is an arcade bicycle model tuned for fun on a keyboard or phone pads (feel inspired by
-// classic arcade street racers): lots of grip and a speed-sensitive steering lock for normal driving,
-// and a separate drift state (handbrake, brake-tap-and-turn, or a big slide) in which steering sets the
-// slip angle you hold instead of the yaw rate. Velocity is rotated towards the nose by a capped
-// "tyre" rate, so grip loss, slides and drifts all come from one rule. The lapa is tall, so it rolls a lot and
-// tips onto two wheels in hard fast turns (visual, plus a small grip penalty that stops it from tipping further).
+// Handling is an arcade bicycle model tuned for fun on a keyboard or phone pads (feel inspired by classic arcade street racers): lots of
+// grip and a speed-sensitive steering lock for normal driving, and a separate drift state (handbrake, brake-tap-and-turn, or a big slide)
+// in which steering sets the slip angle you hold instead of the yaw rate. Velocity is rotated towards the nose by a capped "tyre" rate, so
+// grip loss, slides and drifts all come from one rule. Lape are tall, so they roll a lot and tip onto two wheels in hard fast turns.
+// Bikes bank into corners instead, pop wheelies on a launch and can be high-sided by a big pothole. The car just grips more.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { D, groundY, hooks } from './core.js';
+import { garage, cleanLook, lookKey, LIVERIES as ALL_LIVERIES, VEHICLES } from './garage.js';
+import { buildVehicleModel, buildLocalRig, repaint, tickShared, geoKey } from './vehicle-models.js';
+import { createVehicleAudio } from './vehicle-audio.js';
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -19,7 +22,8 @@ const wrap = a => a - TAU * Math.floor((a + PI) / TAU);
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 // ---------- tuning ----------
-const T = {
+// BASE is the Calessino. Each vehicle overrides what makes it feel different (see PRESET).
+const BASE = {
   L: 1.85,           // wheelbase for the kinematic yaw rate, m
   lock: 0.72,        // full steering lock at standstill, rad
   lockV: 12,         // steering lock = lock / (1 + (v / lockV)^2), halved at 12 m/s
@@ -31,248 +35,55 @@ const T = {
   scrubSlip: 4.0,    // speed lost per unit of sin(slip angle) while sliding, m/s^2
   scrubDrift: 0.8,   // constant speed scrub while in drift state
   driftV: 5, brakeTurnV: 10,   // minimum speeds (m/s) for a handbrake drift and for a brake-tap drift
+  nG: 5,
   gearV: [0, 7, 12, 18.5, 24.5, 30],      // speed at the rev limiter in each gear, m/s (top about 108 km/h)
   gearA: [0, 9.2, 7.0, 5.2, 4.0, 3.1],    // peak engine acceleration in each gear, m/s^2
+  cvt: false,        // scooters: one smooth gear, rpm follows the throttle
   brake: 14, hbrake: 4.5, reverseV: 6, reverseA: 5,
   drag: 0.0012, roll: 0.35,
   nosTime: 3.4,      // seconds of boost from a full bar
   nosThrust: 6.0, nosTop: 1.17, nosTorque: 1.3,   // about 124 km/h flat out with nitro
   nosDriftFill: 0.24, nosSpeedFill: 0.04,
   tipA0: 8.5, tipA1: 3, tipMax: 0.17, tipGrip: 0.12,   // lateral accel where the inner wheels start to lift, range, max extra lean (rad), grip lost at full lift
-  rollGain: 0.0085, rollMax: 0.16,
+  rollGain: 0.0085, rollMax: 0.16, pitchK: 0.0075, pitchMax: 0.09,
+  bike: false, bankGain: 0, bankMax: 0.6, wheelie: 0, wheelV: 14,   // bikes: lean per m/s^2, max lean, max wheelie (rad), speed where it fades
+  R: 0.74, AXLE: 0.72,   // collision: two circles of radius R, AXLE metres ahead of and behind the centre
+  camK: 1, camH: 1.3, eye: 1.55,   // chase camera scale, look-at height, bonnet camera height
 };
-const R_CAR = 0.74, AXLE = 0.72;
+const PRESET = {
+  calessino: {},
+  // loaded cargo lapa: heavier, slower, tips sooner, long wheelbase
+  cassone: { L: 2.1, lock: 0.66, aGrip: 11, aDrift: 7.6, gearV: [0, 6, 10.5, 16, 21.5, 26], gearA: [0, 7.4, 5.7, 4.2, 3.2, 2.5], brake: 12, tipA0: 7.2, tipMax: 0.2, nosThrust: 5, AXLE: 0.82, camK: 1.12, camH: 1.5, eye: 1.62 },
+  // small, light and nimble, but weak and tippy
+  lapa50: { L: 1.55, lock: 0.82, aGrip: 11.5, aDrift: 7.8, gearV: [0, 6, 10, 15, 20, 25], gearA: [0, 8.4, 6.2, 4.6, 3.5, 2.7], tipA0: 7.4, tipMax: 0.2, R: 0.64, AXLE: 0.58, camK: 0.92, camH: 1.25, eye: 1.45, nosThrust: 5 },
+  // Vespa: quick off the line, leans, pops a wheelie, tops out at about 100 km/h
+  vespa: { bike: true, nG: 4, gearV: [0, 7, 13, 21, 28], gearA: [0, 9.6, 7.2, 5.2, 3.9], L: 1.2, lock: 0.55, aGrip: 11.5, aDrift: 8.2, kGrip: 18, tipGrip: 0, tipA0: 99, rollGain: 0, rollMax: 0, bankGain: 0.047, bankMax: 0.62, wheelie: 0.34, wheelV: 13, pitchK: 0.016, pitchMax: 0.17, R: 0.46, AXLE: 0.5, camK: 0.84, camH: 1.15, eye: 1.62, brake: 12.5, hbrake: 4, scrubSlip: 3.2 },
+  // big-wheel scooter: smooth CVT, stable, fast, hardly wheelies
+  scooterone: { bike: true, nG: 1, cvt: true, gearV: [0, 32], gearA: [0, 6.6], L: 1.4, lock: 0.5, aGrip: 12.5, aDrift: 8.8, kGrip: 18, tipGrip: 0, tipA0: 99, rollGain: 0, rollMax: 0, bankGain: 0.04, bankMax: 0.58, wheelie: 0.13, wheelV: 11, pitchK: 0.016, pitchMax: 0.15, R: 0.5, AXLE: 0.56, camK: 0.88, camH: 1.25, eye: 1.7, brake: 13.5, nosThrust: 6.4 },
+  // little naked bike: revvy, twitchy, big wheelies
+  motorino: { bike: true, nG: 5, gearV: [0, 8, 14, 20, 27, 34], gearA: [0, 11, 8.2, 6.2, 4.8, 3.8], L: 1.3, lock: 0.5, aGrip: 12.8, aDrift: 8.8, kGrip: 19, tipGrip: 0, tipA0: 99, rollGain: 0, rollMax: 0, bankGain: 0.05, bankMax: 0.72, wheelie: 0.62, wheelV: 17, pitchK: 0.018, pitchMax: 0.18, R: 0.44, AXLE: 0.52, camK: 0.84, camH: 1.15, eye: 1.55, brake: 14, nosThrust: 6.6, sigMax: 0.65 },
+  // tamarro hatchback: grippy, quick, flat, a long wheelbase for stability
+  tascia: { L: 2.4, lock: 0.62, aGrip: 15.5, aDrift: 10.8, kGrip: 18, gearV: [0, 8, 14, 21, 28, 35], gearA: [0, 9.8, 7.6, 5.8, 4.5, 3.6], tipA0: 99, tipMax: 0, tipGrip: 0, rollGain: 0.0042, rollMax: 0.08, pitchK: 0.006, R: 0.8, AXLE: 0.95, camK: 1.1, camH: 1.2, eye: 1.25, brake: 16, hbrake: 5.5, nosThrust: 6.4 },
+};
+const T = { ...BASE };
 const MODEL_LEN = 3.1;
-export const LIVERIES = [
-  { id: 'blu', name_it: 'Blu reale', name_en: 'Royal blue' },
-  { id: 'bianco', name_it: 'Bianco e bordeaux', name_en: 'White and burgundy' },
-  { id: 'carretto', name_it: 'Carretto siciliano', name_en: 'Sicilian cart' },
-];
+// the paint schemes of the current vehicle: [{ id, name_it, name_en, color }]; ui and net read this
+export const LIVERIES = ALL_LIVERIES.calessino;
 
 export function createVehicle(env) {
   const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts } = env;
   const baseFov = camera.fov;
+  const audio = createVehicleAudio({ keys });
 
-  // ---------- the lapa: a procedural Piaggio Ape Calessino ----------
-  // Origin on the ground under the middle of the vehicle, +z forward, +x left. About 3.1 m long, 1.4 m wide, 2.0 m tall.
-  // Hierarchy: carRoot (world position and yaw) > lean (tips onto two wheels in hard turns) > [tilt (body, rolls on its
-  // springs about PIV), wheels]. The front wheel sits in a fork group that steers.
-  const PIV = 0.45;
-  const carRoot = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group();
-  carRoot.add(lean); lean.add(tilt); tilt.position.y = PIV;
-  scene.add(carRoot);
-
-  // --- procedural textures ---
-  const rngOf = seed => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
-  function canvasTex(w, h, draw, repeat) {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    draw(c.getContext('2d'), w, h);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-    if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
-    return t;
-  }
-  const FOLK = { yellow: '#f2c200', red: '#d42a1f', blue: '#1c4fb8', green: '#1f9a4a', cream: '#fff0cf', orange: '#ec7a1c', dark: '#2a1a10' };
-  function flower(g, x, y, r, petal, centre, n = 8) {
-    for (let i = 0; i < n; i++) {
-      const a = i / n * TAU; g.fillStyle = petal; g.beginPath();
-      g.ellipse(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.4, r * 0.2, a, 0, TAU); g.fill();
-    }
-    g.fillStyle = centre; g.beginPath(); g.arc(x, y, r * 0.3, 0, TAU); g.fill();
-    g.fillStyle = FOLK.cream; g.beginPath(); g.arc(x, y, r * 0.12, 0, TAU); g.fill();
-  }
-  function scroll(g, x, y, r, col, dir) {
-    g.strokeStyle = col; g.lineWidth = Math.max(2, r * 0.2); g.lineCap = 'round'; g.beginPath();
-    for (let t = 0; t < 3.4 * PI; t += 0.12) { const rad = r * (1 - t / (3.8 * PI)); const px = x + dir * rad * Math.cos(t), py = y + rad * Math.sin(t); t === 0 ? g.moveTo(px, py) : g.lineTo(px, py); }
-    g.stroke();
-  }
-  function teeth(g, x, y, w, h, n, c1, c2, down) {
-    const tw = w / n;
-    for (let i = 0; i < n; i++) {
-      g.fillStyle = i % 2 ? c1 : c2; g.beginPath();
-      if (down) { g.moveTo(x + i * tw, y); g.lineTo(x + (i + 1) * tw, y); g.lineTo(x + (i + 0.5) * tw, y + h); }
-      else { g.moveTo(x + i * tw, y + h); g.lineTo(x + (i + 1) * tw, y + h); g.lineTo(x + (i + 0.5) * tw, y); }
-      g.fill();
-    }
-  }
-  // Hand-painted folk-art panel in the spirit of the Sicilian cart: bright fields, scrolls, flowers, borders.
-  function folkPanel(g, w, h, seed) {
-    const R = rngOf(seed), C = FOLK;
-    g.fillStyle = C.yellow; g.fillRect(0, 0, w, h);
-    const band = h * 0.14;
-    g.fillStyle = C.red; g.fillRect(0, 0, w, band * 0.5); g.fillRect(0, h - band * 0.5, w, band * 0.5);
-    teeth(g, 0, band * 0.5, w, band * 0.5, Math.round(w / 26), C.blue, C.cream, true);
-    teeth(g, 0, h - band, w, band * 0.5, Math.round(w / 26), C.green, C.cream, false);
-    const n = Math.max(2, Math.round(w / (h * 1.05))), pw = w / n, py = band * 1.15, ph = h - band * 2.3;
-    const fields = [C.red, C.blue, C.green, C.orange], petals = [C.yellow, C.cream, C.orange, C.red];
-    for (let i = 0; i < n; i++) {
-      const x = i * pw + pw * 0.06, fw = pw * 0.88, f = (i + (R() * 4 | 0)) % 4;
-      g.fillStyle = C.dark; g.fillRect(x - 3, py - 3, fw + 6, ph + 6);
-      g.fillStyle = fields[f]; g.fillRect(x, py, fw, ph);
-      g.strokeStyle = C.cream; g.lineWidth = 2; g.strokeRect(x + 5, py + 5, fw - 10, ph - 10);
-      const cx = x + fw / 2, cy = py + ph / 2, r = Math.min(fw, ph) * 0.34;
-      scroll(g, cx - r * 1.25, cy - r * 0.35, r * 0.55, C.cream, 1); scroll(g, cx + r * 1.25, cy + r * 0.35, r * 0.55, C.cream, -1);
-      flower(g, cx, cy, r, petals[f], f === 1 ? C.red : C.blue, 8 + (i % 2) * 4);
-      for (let k = 0; k < 6; k++) { g.fillStyle = k % 2 ? C.yellow : C.cream; g.beginPath(); g.arc(x + fw * (0.15 + 0.14 * k), py + ph * 0.1, 3, 0, TAU); g.arc(x + fw * (0.15 + 0.14 * k), py + ph * 0.9, 3, 0, TAU); g.fill(); }
-      if (i < n - 1) { // diamond chain between fields
-        for (let k = 0; k < 4; k++) { const dx = x + fw + pw * 0.06, dy = py + ph * (0.12 + 0.25 * k); g.fillStyle = k % 2 ? C.red : C.blue; g.beginPath(); g.moveTo(dx, dy - 7); g.lineTo(dx + 6, dy); g.lineTo(dx, dy + 7); g.lineTo(dx - 6, dy); g.fill(); }
-      }
-    }
-  }
-  const T_FOLK_REAR = canvasTex(512, 200, (g, w, h) => folkPanel(g, w, h, 11));
-  const T_FOLK_CAB = canvasTex(384, 190, (g, w, h) => folkPanel(g, w, h, 29));
-  const T_CHECK = canvasTex(64, 64, g => { for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#fdfbf2' : '#1c4fb8'; g.fillRect(x * 32, y * 32, 32, 32); } }, [1, 12]);
-  const T_CANVAS = canvasTex(128, 128, (g, w, h) => {
-    const R = rngOf(5); g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < w; i += 3) { g.fillStyle = `rgba(0,0,0,${0.05 + R() * 0.05})`; g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
-    for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(0,0,0,${R() * 0.06})`; g.fillRect(R() * w, R() * h, 2, 2); }
-  }, [2, 2]);
-  const T_WOOD = canvasTex(256, 128, (g, w, h) => {
-    const R = rngOf(3), n = 6, sh = h / n;
-    for (let i = 0; i < n; i++) {
-      const l = 36 + R() * 8; g.fillStyle = `hsl(28,62%,${l}%)`; g.fillRect(0, i * sh, w, sh);
-      for (let k = 0; k < 14; k++) { g.fillStyle = `rgba(60,30,10,${0.08 + R() * 0.1})`; g.fillRect(0, i * sh + R() * sh, w, 1); }
-      g.fillStyle = 'rgba(255,230,170,0.22)'; g.fillRect(0, i * sh + 2, w, 3);
-      g.fillStyle = '#2e1a0c'; g.fillRect(0, i * sh, w, 2);
-    }
-  });
-
-  // --- materials (livery changes recolour these in place) ---
-  const std = (c, r = 0.5, m = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
-  const mBody = std('#1d4fd0', 0.32, 0.15), mArch = std('#1d4fd0', 0.32, 0.15), mCabSide = std('#1d4fd0', 0.32, 0.15), mRearSide = std('#ffffff', 0.45);
-  const mRoof = std('#f3efe4', 0.9), mDoor = std('#f3efe4', 0.9), mPillar = std('#1d4fd0', 0.32, 0.15);
-  mRoof.map = mDoor.map = T_CANVAS; mRoof.side = THREE.DoubleSide;
-  const mChrome = std('#e4e8ec', 0.25, 0.6), mGlass = new THREE.MeshStandardMaterial({ color: '#8fb4c8', roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false });
-  const mPlastic = new THREE.MeshStandardMaterial({ color: '#dfe8ee', roughness: 0.2, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
-  const mTyre = std('#1a1a1c', 0.9), mWhite = std('#f3f1e8', 0.7), mSeat = std('#efe6cf', 0.8), mDark = std('#1d1c1e', 0.8), mFloor = std('#3a3430', 0.9);
-  const mLamp = new THREE.MeshStandardMaterial({ color: '#fff7dc', emissive: '#ffe9a8', emissiveIntensity: 0.55, roughness: 0.2 });
-  const mTail = new THREE.MeshStandardMaterial({ color: '#a01410', emissive: '#6a0a06', emissiveIntensity: 0.5, roughness: 0.4 });
-  const mWood = std('#ffffff', 0.45); mWood.map = T_WOOD;
-  const mShirt = std('#2c3a58', 0.9), mSkin = std('#c58b64', 0.8);
-  const LIV = {
-    blu:      { body: '#1d4fd0', arch: '#1d4fd0', roof: '#f3efe4', door: '#f3efe4', pillar: '#1d4fd0', cab: '#1d4fd0', rear: 'wood' },
-    bianco:   { body: '#f1efe8', arch: '#f1efe8', roof: '#7a1830', door: '#7a1830', pillar: '#f1efe8', cab: '#f1efe8', rear: 'wood' },
-    carretto: { body: '#f0c000', arch: '#d42a1f', roof: '#74182c', door: '#74182c', pillar: 'check', cab: 'folk', rear: 'folk' },
-  };
-  // Paints a set of the seven livery-dependent materials (the local car's, or a remote lapa's copies).
-  function paintLivery(M, id) {
-    const L = LIV[id]; if (!L) return false;
-    const paint = (m, c, map) => { m.color.set(map ? '#ffffff' : c); if (m.map !== (map || null)) { m.map = map || null; m.needsUpdate = true; } };
-    paint(M.body, L.body); paint(M.arch, L.arch);
-    paint(M.roof, L.roof, T_CANVAS); M.roof.color.set(L.roof); paint(M.door, L.door, T_CANVAS); M.door.color.set(L.door);
-    L.pillar === 'check' ? paint(M.pillar, null, T_CHECK) : paint(M.pillar, L.pillar);
-    L.cab === 'folk' ? paint(M.cab, null, T_FOLK_CAB) : paint(M.cab, L.cab);
-    paint(M.rear, null, L.rear === 'folk' ? T_FOLK_REAR : T_WOOD);
-    return true;
-  }
-  function setLivery(id) {
-    if (paintLivery({ body: mBody, arch: mArch, roof: mRoof, door: mDoor, pillar: mPillar, cab: mCabSide, rear: mRearSide }, id)) car.livery = id;
-  }
-
-  // --- geometry helpers ---
-  const G = {}; const gcache = (k, f) => G[k] || (G[k] = f());
-  const box = (w, h, d) => gcache(`b${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d));
-  const cyl = (r0, r1, h, s = 12, open = false, a0 = 0, a1 = TAU) => gcache(`c${r0},${r1},${h},${s},${open},${a0},${a1}`, () => new THREE.CylinderGeometry(r0, r1, h, s, 1, open, a0, a1));
-  const wheelGeo = (r, w, s = 14) => gcache(`w${r},${w},${s}`, () => cyl(r, r, w, s).clone().rotateZ(PI / 2));
-  function mesh(geo, mat, parent, x, y, z, shadow = true) {
-    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; parent.add(m); return m;
-  }
-  // body parts take car-frame coordinates; tilt sits at PIV so subtract it
-  const part = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = mesh(geo, mat, tilt, x, y - PIV, z); m.rotation.set(rx, ry, rz); return m; };
-
-  // lower body: dark underbody, cab tub, nose, rear body with side panels (wood or painted)
-  part(box(1.12, 0.1, 2.7), mDark, 0, 0.27, -0.1);
-  part(new THREE.BoxGeometry(1.3, 0.5, 0.9), [mCabSide, mCabSide, mBody, mBody, mBody, mBody], 0, 0.53, 0.35);
-  part(new THREE.BoxGeometry(1.3, 0.5, 1.5), [mRearSide, mRearSide, mFloor, mBody, mBody, mRearSide], 0, 0.53, -0.85);
-  part(box(1.0, 0.52, 0.4), mBody, 0, 0.74, 0.97);                                  // cowl
-  { const nose = part(cyl(0.5, 0.5, 0.52, 18), mBody, 0, 0.74, 1.0); nose.scale.set(1, 1, 0.82); }    // rounded nose
-  { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.014, 6, 24), mChrome); ring.rotation.x = PI / 2; ring.scale.set(1, 0.82, 1); ring.position.set(0, 1.0 - PIV, 1.0); ring.castShadow = true; tilt.add(ring); }
-  part(box(0.045, 0.46, 0.03), mChrome, 0, 0.78, 1.405);                            // chrome trim down the nose
-  for (const sx of [-1, 1]) {
-    part(new THREE.SphereGeometry(0.085, 10, 8), mLamp, sx * 0.27, 0.93, 1.355);
-    part(new THREE.TorusGeometry(0.09, 0.012, 6, 14), mChrome, sx * 0.27, 0.93, 1.34);
-    part(box(0.12, 0.05, 0.03), mTail, sx * 0.5, 0.64, -1.565);                       // tail lights
-    // rear wheel arches
-    const arch = part(cyl(0.285, 0.285, 0.2, 14, false, 0, PI).clone().rotateZ(PI / 2), mArch, sx * 0.66, 0.23, -0.7);
-    arch.material = mArch;
-  }
-  mArch.side = THREE.DoubleSide;
-  part(box(0.3, 0.1, 0.02), mWhite, 0, 0.45, -1.575);                               // number plate
-  part(box(1.0, 0.05, 0.12), mChrome, 0, 0.32, -1.58); part(box(0.95, 0.05, 0.1), mChrome, 0, 0.32, 1.1); // bumpers
-
-  // seats and driver
-  part(box(0.55, 0.28, 0.45), mSeat, 0, 0.92, 0.18); part(box(0.55, 0.42, 0.09), mSeat, 0, 1.2, -0.07);
-  part(box(1.12, 0.28, 0.5), mSeat, 0, 0.92, -1.2); part(box(1.12, 0.5, 0.09), mSeat, 0, 1.3, -1.48);
-  part(box(0.42, 0.5, 0.24), mShirt, 0, 1.28, 0.12).userData.driver = true;
-  { const h = part(new THREE.SphereGeometry(0.12, 10, 8), mSkin, 0, 1.68, 0.14); h.userData.driver = true; const c = part(box(0.26, 0.04, 0.2), mDark, 0, 1.78, 0.17); c.userData.driver = true; }
-  const driverParts = tilt.children.filter(m => m.userData.driver);
-
-  // windscreen, A-pillars, wiper and mirror (one group leaning back)
-  { const ws = new THREE.Group(); ws.position.set(0, 1.0 - PIV, 0.8); ws.rotation.x = -0.15; tilt.add(ws);
-    mesh(box(1.14, 0.7, 0.02), mGlass, ws, 0, 0.4, 0, false);
-    mesh(box(1.22, 0.04, 0.04), mChrome, ws, 0, 0.0, 0); mesh(box(1.22, 0.04, 0.04), mChrome, ws, 0, 0.78, 0);
-    mesh(box(0.025, 0.74, 0.022), mChrome, ws, 0, 0.4, 0.01);
-    for (const sx of [-1, 1]) { mesh(box(0.05, 1.0, 0.05), mPillar, ws, sx * 0.62, 0.5, 0); }
-    const wiper = mesh(box(0.5, 0.012, 0.012), mDark, ws, 0.2, 0.08, 0.02, false); wiper.rotation.z = 0.12;
-    const arm = mesh(box(0.012, 0.26, 0.012), mChrome, ws, 0.68, 0.3, 0.05, false); arm.rotation.z = -0.15;
-    mesh(box(0.14, 0.1, 0.02), mChrome, ws, 0.72, 0.46, 0.14);
-  }
-  // handlebar (turns with the front wheel)
-  const bar = new THREE.Group(); bar.position.set(0, 1.12 - PIV, 0.62); tilt.add(bar);
-  mesh(wheelGeo(0.015, 0.7, 8), mChrome, bar, 0, 0, 0, false); mesh(box(0.03, 0.2, 0.03), mChrome, bar, 0, -0.1, 0.0, false);
-  for (const sx of [-1, 1]) mesh(wheelGeo(0.022, 0.1, 8), mDark, bar, sx * 0.36, 0, 0, false);
-
-  // roof: canvas on a crowned, back-sloping panel, on chrome poles, with clear plastic at the back
-  { const rg = new THREE.BoxGeometry(1.5, 0.05, 2.45, 8, 1, 10), p = rg.attributes.position;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, p.getY(i) + z * 0.085 - x * x * 0.2 - (z > 0.9 ? (z - 0.9) * 0.15 : 0)); }
-    rg.computeVertexNormals();
-    part(rg, mRoof, 0, 1.97, -0.3);
-    part(box(1.36, 0.03, 0.5), mRoof, 0, 1.56, -1.6, -1.3);                      // rear canvas flap sloping down
-    part(box(1.5, 0.05, 0.03), mRoof, 0, 1.78, -1.52);                              // rear lip
-    part(box(1.1, 0.4, 0.015), mPlastic, 0, 1.5, -1.47, -0.25);                    // rear window
-  }
-  for (const sx of [-1, 1]) {
-    for (const z of [-1.45, -0.3]) part(cyl(0.017, 0.017, 1.1, 6), mChrome, sx * 0.66, 1.4, z);
-    part(box(0.012, 0.55, 1.1), mPlastic, sx * 0.715, 1.52, -0.88);                 // side windows
-    part(box(0.012, 0.3, 0.7), mPlastic, sx * 0.715, 1.6, 0.35);
-  }
-  // half doors (canvas on chrome frames, with hand-hold cut-outs)
-  for (const sx of [-1, 1]) for (const [z, len] of [[-0.9, 0.9], [0.33, 0.7]]) {
-    part(box(0.035, 0.4, len), mDoor, sx * 0.67, 0.99, z);
-    part(box(0.05, 0.03, len + 0.04), mChrome, sx * 0.67, 1.2, z);
-    part(box(0.05, 0.03, len + 0.04), mChrome, sx * 0.67, 0.79, z);
-    part(box(0.052, 0.07, 0.22), mDark, sx * 0.67, 1.08, z);
-  }
-
-  // --- wheels: small whitewalls with chrome hubcaps. Rear pair on the ground, front one in a steering fork ---
-  const wheelObjs = [];
-  function makeWheel(parent, x, y, z, front) {
-    const pivot = new THREE.Group(); pivot.position.set(x, y, z); parent.add(pivot);
-    const spin = new THREE.Group(); pivot.add(spin);
-    const r = 0.23, w = 0.15;
-    mesh(wheelGeo(r, w), mTyre, spin, 0, 0, 0); mesh(wheelGeo(r * 0.78, w + 0.012), mWhite, spin, 0, 0, 0, false);
-    mesh(wheelGeo(r * 0.4, w + 0.026, 10), mChrome, spin, 0, 0, 0, false); mesh(box(w + 0.03, 0.03, r * 0.5), mDark, spin, 0, 0, 0, false);
-    if (front) {
-      for (const sx of [-1, 1]) mesh(box(0.025, 0.55, 0.04), mChrome, pivot, sx * 0.1, 0.27, 0, false);
-      mesh(box(0.24, 0.04, 0.06), mChrome, pivot, 0, 0.5, 0, false);
-      const fender = mesh(cyl(0.275, 0.275, 0.2, 14, false, 0, PI).clone().rotateZ(PI / 2), mArch, pivot, 0, 0, 0);
-      void fender;
-    }
-    wheelObjs.push({ pivot, spin, front });
-  }
-  makeWheel(lean, 0, 0.23, 1.15, true);
-  makeWheel(lean, 0.66, 0.23, -0.7, false); makeWheel(lean, -0.66, 0.23, -0.7, false);
-  const model = { wheels: wheelObjs };
-
-  // brake lights (glow over the tail lights) and nitro exhaust flames
-  const brakeMat = new THREE.MeshBasicMaterial({ color: '#ff1a10', transparent: true, opacity: 0, depthWrite: false, fog: false });
-  for (const x of [-0.5, 0.5]) part(box(0.15, 0.07, 0.04), brakeMat, x, 0.64, -1.59, 0, 0, 0).castShadow = false;
-  const flames = [];
+  // ---------- the rig: the vehicle model currently driven (rebuilt when the vehicle or a geometry part changes) ----------
+  // rig.root (world position and yaw) > lean (tips or banks) > tilt (pitch, roll) > [driver, bar, wheels, parts]. See vehicle-models.js.
+  let rig = null, curLook = null, savedLook = null, previewing = false;
   const flameOuter = new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
   const flameInner = new THREE.MeshBasicMaterial({ color: '#bfe6ff', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-  for (const x of [-0.3, 0.3]) {
-    const mk = (r, h, mat) => { const g = new THREE.ConeGeometry(r, h, 10, 1, true); g.translate(0, h / 2, 0); g.rotateX(-PI / 2); const m = new THREE.Mesh(g, mat); m.position.set(x, 0.36 - PIV, -1.6); m.visible = false; m.frustumCulled = false; tilt.add(m); return m; };
-    flames.push([mk(0.1, 1, flameOuter), mk(0.05, 0.7, flameInner)]);
-  }
+  const flameGeo = (r, h) => { const g = new THREE.ConeGeometry(r, h, 10, 1, true); g.translate(0, h / 2, 0); g.rotateX(-PI / 2); return g; };
+  const FLAME_O = flameGeo(0.1, 1), FLAME_I = flameGeo(0.05, 0.7);
+  const brakeMat = new THREE.MeshBasicMaterial({ color: '#ff1a10', transparent: true, opacity: 0, depthWrite: false, fog: false });
+  const BRAKE_G = new THREE.BoxGeometry(0.15, 0.07, 0.04);
   const glowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -281,7 +92,8 @@ export function createVehicle(env) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   })();
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-  glow.position.set(0, 0.4 - PIV, -1.95); glow.visible = false; tilt.add(glow);
+  glow.visible = false;
+  let flames = [], rearZ = 0.7, rearTrack = 0.66, hornCustom = false;
 
 
   // tyre smoke: one Points object with a ring buffer of puffs
@@ -312,8 +124,10 @@ export function createVehicle(env) {
   const car = {
     x: 0, z: 0, th: 0, vx: 0, vz: 0, vf: 0, steer: 0, roll: 0, pitch: 0, lastVf: 0, lift: 0,
     w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosAmt: 0, nosOn: false, nosLock: false,
-    psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu',
-    hop: 0, hopV: 0, gripLoss: 0, kickT: 0, kickSgn: 0, skid: 0,   // road wear: bounce spring, grip lost to a pothole, forced two-wheel lean, tyre scrub 0..1
+    psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu', type: 'calessino', kind: 'lapa',
+    hop: 0, hopV: 0, gripLoss: 0, kickT: 0, kickSgn: 0, skid: 0,   // road wear: bounce spring, grip lost to a pothole, forced two-wheel lean / high-side, tyre scrub 0..1
+    lean: 0,           // signed visual lean -1..1 (lapa: tip * side, bike: bank). net.js sends this.
+    bank: 0, bankV: 0, wheelie: 0, hsT: 0, hsSgn: 0, hsCool: 0, spin: 0, bass: 0,   // bikes
   };
   let ticks = 0, seenTicks = 0, idleFrames = 99;
   let hitMag = 0, hitId = 0, nosStartId = 0;
@@ -325,7 +139,7 @@ export function createVehicle(env) {
   }
   function placeAt(x, z) {
     const v = nearestRoad(x, z);
-    Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0 });
+    Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, hsCool: 0 });
     camState.init = false;
   }
 
@@ -338,17 +152,17 @@ export function createVehicle(env) {
     const sn = Math.sin(car.th), cs = Math.cos(car.th);
     let touched = false;
     for (const sgn of [1, -1]) {
-      const a = AXLE * sgn;
+      const a = T.AXLE * sgn;
       const cx = car.x + sn * a, cz = car.z + cs * a;
       let px = 0, pz = 0;
-      walls2d.query(cx - R_CAR, cz - R_CAR, cx + R_CAR, cz + R_CAR, s => {
+      walls2d.query(cx - T.R, cz - T.R, cx + T.R, cz + T.R, s => {
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
-        if (d >= R_CAR) return;
+        if (d >= T.R) return;
         let nx, nz;
         if (d > 1e-4) { nx = dx / d; nz = dz / d; }
         else { const ex = s[2] - s[0], ez = s[3] - s[1], el = Math.hypot(ex, ez) || 1; nx = -ez / el; nz = ex / el; }
-        const push = R_CAR - d;
+        const push = T.R - d;
         px += nx * push; pz += nz * push;
         touched = true;
         // velocity of the contact point: translation plus yaw about the centre (lateral = l = (cs, -sn))
@@ -379,8 +193,15 @@ export function createVehicle(env) {
   // ---------- physics ----------
   const torque = r => r < 0.5 ? 0.7 + 0.6 * r : r < 0.82 ? 1 : 1 - 0.5 * (r - 0.82) / 0.18;
 
+  // Test links: ?drive=KeyW,KeyD holds those keys; &freeze=2.5 stops the simulation after 2.5 s of driving (for screenshots).
+  const qs = new URLSearchParams(location.search), freezeAt = qs.has('freeze') ? +qs.get('freeze') : -1;
+  const SIDECAM = qs.has('sidecam') ? +qs.get('sidecam') || 4.5 : 0;
+  let simT = 0, frozen = false;
+  if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
   function physics(dt) {
     ticks++;
+    if (frozen) return;
+    if (freezeAt >= 0 && (simT += dt) >= freezeAt) { frozen = true; console.warn('[veh]', JSON.stringify({ type: car.type, vf: +car.vf.toFixed(1), wheelie: +car.wheelie.toFixed(2), pitch: +car.pitch.toFixed(2), bank: +car.bank.toFixed(2), tip: +car.tip.toFixed(2), ay: +car.ay.toFixed(1), gear: car.gear })); }
     const up = keys.KeyW || keys.ArrowUp, down = keys.KeyS || keys.ArrowDown;
     const left = keys.KeyA || keys.ArrowLeft, right = keys.KeyD || keys.ArrowRight, hb = !!keys.Space;
     const nosKey = keys.ShiftLeft || keys.ShiftRight;
@@ -424,7 +245,7 @@ export function createVehicle(env) {
     if (car.shiftT > 0) car.shiftT -= dt;
     else {
       const r = Math.abs(vf) / (T.gearV[g] * vMul);
-      if (g < 5 && r > 0.95 && thrOn && vf > 0) { g++; car.shiftT = 0.1; }
+      if (g < T.nG && r > 0.95 && thrOn && vf > 0) { g++; car.shiftT = 0.1; }
       else if (g > 1 && r < 0.45) g--;
       car.gear = g;
     }
@@ -450,7 +271,7 @@ export function createVehicle(env) {
     vf = Math.abs(vf) <= resist ? 0 : vf - Math.sign(vf) * resist;
     // rpm for the gauge and the engine sound
     rr = Math.abs(vf) / (T.gearV[g] * vMul);
-    const rpmT = clamp(Math.max(0.16 + 0.12 * car.thr, rr), 0.14, 1.02) * (car.shiftT > 0 ? 0.88 : 1);
+    const rpmT = T.cvt ? clamp(0.3 + 0.45 * Math.max(car.thr, car.nosAmt) + 0.25 * rr, 0.14, 1.02) : clamp(Math.max(0.16 + 0.12 * car.thr, rr), 0.14, 1.02) * (car.shiftT > 0 ? 0.88 : 1);
     car.rpm += (rpmT - car.rpm) * Math.min(1, 14 * dt);
     car.ax += ((vf - car.lastVf) / dt - car.ax) * Math.min(1, 8 * dt);
     car.lastVf = vf;
@@ -469,7 +290,7 @@ export function createVehicle(env) {
     const v1 = Math.hypot(car.vx, car.vz);
     const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
     const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) / Math.max(Math.abs(vf), 3);
-    const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap);
+    const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap) * (1 - 0.5 * car.wheelie / (T.wheelie || 1));
     let wT = wN;
     if (d > 0.01) {
       const psiV = Math.atan2(car.vx, car.vz);
@@ -519,10 +340,30 @@ export function createVehicle(env) {
     // Body sits on the terrain, plus cosmetic weight transfer: roll out of the corner, dive and squat.
     const lx = cs, lz = -sn;
     const side = (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
-    const tipT = Math.max(clamp((Math.abs(car.ay) - T.tipA0) / T.tipA1, 0, 1) * sstep(7, 12, Math.abs(vf)) * (1 - 0.8 * d), car.kickT);
-    car.tip += (tipT - car.tip) * Math.min(1, (tipT > car.tip ? 7 : 4) * dt);
-    const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side);
-    const pitchT = clamp(-car.ax * 0.0075, -0.09, 0.09) - Math.atan(slope);
+    if (T.bike) {
+      // lean into the corner: a damped spring on the bank angle (so a pothole can kick it); wheelie from the throttle at low speed
+      const bt = clamp(car.ay * T.bankGain, -T.bankMax, T.bankMax) * sstep(1.5, 5, Math.abs(vf));
+      car.bankV += (-90 * (car.bank - bt) - 12 * car.bankV) * dt; car.bank += car.bankV * dt; car.bank = clamp(car.bank, -1.1, 1.1);
+      const wT = T.wheelie * Math.max(car.thr, car.nosAmt) * (car.gear <= 2 ? 1 : 0) * (1 - sstep(T.wheelV * 0.5, T.wheelV, vf)) * (vf > -0.5 && !car.braking ? 1 : 0) * (1 + 0.4 * car.nosAmt);
+      car.wheelie += (wT - car.wheelie) * Math.min(1, (wT > car.wheelie ? 4.5 : 2.5) * dt);
+      // high-side: a big pothole hit (roadwear sets kickT) dips the bike, then flicks it hard to the other side; it never falls over
+      car.hsCool -= dt;
+      if (car.hsT > 0) {
+        const t0 = car.hsT; car.hsT -= dt; car.gripLoss = Math.max(car.gripLoss, 0.55);
+        if (t0 > 0.8 && car.hsT <= 0.8) { car.bankV -= car.hsSgn * 7.5; car.w += -car.hsSgn * 1.4; car.vx *= 0.84; car.vz *= 0.84; car.hopV = Math.min(2.6, car.hopV + 1.2); cam.trauma = Math.max(cam.trauma, 0.85); }
+      } else if (car.kickT > 0.3 && vf > 7 && car.hsCool <= 0) {
+        car.hsT = 1.1; car.hsSgn = car.kickSgn || (Math.random() < 0.5 ? 1 : -1); car.hsCool = 2.5; car.bankV += car.hsSgn * 3.2;
+      }
+      car.tip += (car.wheelie / T.wheelie - car.tip) * Math.min(1, 8 * dt);   // "two wheels" for the missions bonus is the wheelie
+      car.lean = clamp(car.bank / T.bankMax, -1, 1);
+    } else {
+      const tipT = Math.max(clamp((Math.abs(car.ay) - T.tipA0) / T.tipA1, 0, 1) * sstep(7, 12, Math.abs(vf)) * (1 - 0.8 * d), car.kickT);
+      car.tip += (tipT - car.tip) * Math.min(1, (tipT > car.tip ? 7 : 4) * dt);
+      const sg = Math.abs(car.ay) < 1 && car.kickT > 0 ? car.kickSgn : Math.sign(car.ay);
+      car.lean = car.tip * sg;
+    }
+    const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side) * (T.bike ? 0.4 : 1);
+    const pitchT = clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(slope) - car.wheelie;
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
     car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);
@@ -530,7 +371,9 @@ export function createVehicle(env) {
     car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
     car.gripLoss = Math.max(0, car.gripLoss - dt / 0.7); car.kickT = Math.max(0, car.kickT - dt / 0.9);
     car.skid = vf > 3 ? Math.max(d * clamp((sa - 0.1) * 4, 0, 1), hb ? 0.9 : 0, brakeA >= T.brake && vf > 9 ? clamp((vf - 9) / 10, 0, 1) * 0.8 : 0) : 0;
+    car.spin += car.vf * dt / (rig ? rig.A.wheelR : 0.23);
   }
+
 
   // A wheel dropped into a pothole (src/roadwear.js): s = severity (about 0.1 small hole, 1 big hole at speed), side +1 left / -1 right,
   // pitch +1 front wheel (nose dips) / -1 rear. Bounces the body and camera; the caller handles speed, yaw, grip and tipping.
@@ -540,99 +383,6 @@ export function createVehicle(env) {
     car.pitch += pitch * 0.035 * s; car.roll += side * 0.05 * s;
     cam.trauma = Math.max(cam.trauma, Math.min(0.85, 0.12 + 0.5 * s));
   }
-
-  // ---------- sound ----------
-  // Web Audio, started on the first user gesture. Engine: looping sample whose pitch follows rpm.
-  // Skid and scrape: looping sample gated by slip. Impact: one-shot. Nitro: filtered noise whoosh.
-  const audio = { ctx: null, vol: 0.8, ready: false, started: false };
-  function startAudio() {
-    if (audio.started) return;
-    audio.started = true;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    const ctx = audio.ctx = new AC();
-    const master = audio.master = ctx.createGain(); master.gain.value = audio.vol * 0.9; master.connect(ctx.destination);
-    const load = name => fetch(new URL(`../assets/audio/${name}.wav`, import.meta.url).href)
-      .then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
-    Promise.all([load('skid'), load('impact')]).then(([skid, imp]) => {
-      const loop = (buf, filterType, f0) => {
-        const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-        const filt = ctx.createBiquadFilter(); filt.type = filterType; filt.frequency.value = f0;
-        const gain = ctx.createGain(); gain.gain.value = 0;
-        src.connect(filt); filt.connect(gain); gain.connect(master); src.start();
-        return { src, filt, gain };
-      };
-      audio.skid = loop(skid, 'lowpass', 5000);
-      // nitro: looped white noise through a band-pass
-      const nb = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), nd = nb.getChannelData(0);
-      for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-      audio.nos = loop(nb, 'bandpass', 1400); audio.nos.filt.Q.value = 0.7;
-      // Engine: a small buzzy single-cylinder two-stroke, synthesised. Two detuned oscillators (saw plus a square an
-      // octave up) through a resonant low-pass and a mid peak, chopped by a sawtooth LFO at the firing rate (the
-      // "putt putt" at idle that blurs into a buzz), plus a little high-passed exhaust rasp.
-      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), lfo = ctx.createOscillator();
-      o1.type = 'sawtooth'; o2.type = 'square'; lfo.type = 'sawtooth';
-      const g2 = ctx.createGain(); g2.gain.value = 0.35;
-      const mix = ctx.createGain(), lp = ctx.createBiquadFilter(), pk = ctx.createBiquadFilter(), am = ctx.createGain(), out = ctx.createGain();
-      lp.type = 'lowpass'; lp.Q.value = 2.5; pk.type = 'peaking'; pk.frequency.value = 900; pk.gain.value = 7; pk.Q.value = 1.2;
-      am.gain.value = 0.62; out.gain.value = 0;
-      const lg = ctx.createGain(); lg.gain.value = -0.34; lfo.connect(lg); lg.connect(am.gain);
-      o1.connect(mix); o2.connect(g2); g2.connect(mix); mix.connect(lp); lp.connect(pk); pk.connect(am); am.connect(out); out.connect(master);
-      const rasp = ctx.createBufferSource(); rasp.buffer = nb; rasp.loop = true;
-      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800; const ng = ctx.createGain(); ng.gain.value = 0;
-      rasp.connect(hp); hp.connect(ng); ng.connect(out);
-      for (const o of [o1, o2, lfo, rasp]) o.start();
-      audio.engine = { o1, o2, lfo, lp, out, ng };
-      audio.impact = imp;
-      audio.ready = true;
-    }).catch(err => console.warn('car audio failed to load', err));
-    document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend(); else ctx.resume(); });
-  }
-  function gesture() {
-    startAudio();
-    if (audio.ctx && audio.ctx.state === 'suspended' && !document.hidden) audio.ctx.resume();
-  }
-  for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, gesture, { passive: true });
-
-  function playImpact(mag) {
-    const a = audio; if (!a.ready) return;
-    const src = a.ctx.createBufferSource(); src.buffer = a.impact;
-    src.playbackRate.value = 0.8 + Math.random() * 0.3 - clamp(mag / 60, 0, 0.2);
-    const gn = a.ctx.createGain(); gn.gain.value = clamp(0.25 + mag / 18, 0.25, 1.2);
-    src.connect(gn); gn.connect(a.master); src.start();
-  }
-  let lastHitId = 0, lastHitT = 0;
-  function updateAudio(dt, active) {
-    const a = audio; if (!a.ready) return;
-    const t = a.ctx.currentTime, set = (p, v, tc = 0.06) => p.setTargetAtTime(v, t, tc);
-    const speed = Math.abs(car.vf);
-    // engine
-    const rpm = car.rpm, thr = active ? Math.max(car.thr, car.nosAmt) : 0;
-    const f1 = 62 + 175 * rpm + 18 * car.nosAmt;
-    set(a.engine.o1.frequency, f1, 0.03); set(a.engine.o2.frequency, f1 * 2.01, 0.03);
-    set(a.engine.lfo.frequency, 7 + 52 * rpm, 0.04);
-    set(a.engine.lp.frequency, 700 + 3500 * (0.3 + 0.7 * thr) * (0.4 + 0.6 * rpm), 0.06);
-    set(a.engine.out.gain, active ? 0.16 + 0.2 * thr + 0.08 * rpm : 0, 0.08);
-    set(a.engine.ng.gain, active ? 0.02 + 0.07 * thr * rpm : 0, 0.08);
-    // skid and scrape
-    const slide = clamp((Math.abs(car.slip) - 0.1) * 3, 0, 1) * clamp(speed / 8, 0, 1) * (car.drift > 0.2 ? 1 : 0.35);
-    const hbLock = keys.Space && speed > 5 ? 0.7 : 0;
-    const scrape = clamp(car.scrape / 25, 0, 0.5);
-    const sk = active ? Math.max(slide, hbLock, scrape) : 0;
-    set(a.skid.gain.gain, sk * 0.55, 0.05);
-    set(a.skid.src.playbackRate, scrape > slide ? 0.6 + 0.2 * scrape : 0.95 + 0.25 * clamp(speed / 40, 0, 1), 0.1);
-    set(a.skid.filt.frequency, scrape > slide ? 1800 : 6000, 0.1);
-    // nitro whoosh
-    set(a.nos.gain.gain, active ? car.nosAmt * 0.3 : 0, 0.06);
-    set(a.nos.filt.frequency, 900 + 1500 * car.nosAmt + speed * 20, 0.1);
-    // impacts
-    if (hitId !== lastHitId) {
-      lastHitId = hitId;
-      const now = performance.now();
-      if (lastHitMag > 1.5 && now - lastHitT > 120) { playImpact(lastHitMag); lastHitT = now; }
-    }
-  }
-  let lastHitMag = 0;
 
   // ---------- nitro bar (own DOM element, outside the HUD corners) ----------
   const nosEl = document.createElement('div');
@@ -660,6 +410,7 @@ export function createVehicle(env) {
     dt = clamp(dt, 0, 0.1);
     cam.t += dt;
     const m = camState.mode;
+    if (SIDECAM) { camera.position.set(car.x + Math.cos(car.th) * SIDECAM, groundY(car.x, car.z) + 0.9, car.z - Math.sin(car.th) * SIDECAM); camera.lookAt(car.x, groundY(car.x, car.z) + 0.8, car.z); camState.init = true; return; }
     const v = Math.hypot(car.vx, car.vz), sp01 = clamp(v / 32, 0, 1);
     if (hitId !== cam.lastHit) { cam.lastHit = hitId; cam.trauma = Math.max(cam.trauma, clamp(lastHitMag / 22, 0, 1) * 0.9); }
     if (nosStartId !== cam.lastNosId) { cam.lastNosId = nosStartId; cam.kick = 1; }
@@ -690,15 +441,15 @@ export function createVehicle(env) {
     cam.roll += (rollT - cam.roll) * Math.min(1, 8 * dt);
 
     if (m === 2) { // bonnet
-      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + car.hop * 0.7 + 1.55 + sy, car.z + f.z * 0.3 + sz);
+      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + car.hop * 0.7 + T.eye + sy, car.z + f.z * 0.3 + sz);
       camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy), car.z + f.z * 20);
       camera.rotateZ(cam.roll + car.roll * 0.5);
       camState.init = true;
-      for (const d of driverParts) d.visible = false;
+      if (rig) rig.driver.visible = false;
       return;
     }
-    for (const d of driverParts) d.visible = true;
-    const [dist0, h] = [[5.8, 2.7], [13, 7], null, [3, 130]][m];
+    if (rig) rig.driver.visible = true;
+    const [dist0, h] = [[5.8 * T.camK, 2.7 * T.camK], [13 * T.camK, 7 * T.camK], null, [3, 130]][m];
     const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 : 0);
     const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 : 0);
     if (!camState.init) { camState.pos.set(dx, dy, dz); camState.init = true; }
@@ -711,35 +462,85 @@ export function createVehicle(env) {
     }
     p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2);
     camera.position.set(p.x + sx, p.y + sy + (m === 3 ? 0 : car.hop * 0.6), p.z + sz);
-    const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + 1.3, car.z));
+    const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + T.camH, car.z));
     camera.lookAt(look);
     if (cam.roll) camera.rotateZ(cam.roll);
   }
 
+  // ---------- mounting a look (vehicle + livery + parts) ----------
+  function applyPreset(type) {
+    Object.assign(T, BASE, PRESET[type] || {});
+    car.gear = Math.min(car.gear, T.nG);
+  }
+  function mount(look) {
+    look = cleanLook(look);
+    const prev = rig;
+    if (prev && prev.type === look.type && prev.geo === geoKey(look)) { // only the paint or the horn changed: no rebuild
+      if (look.livery !== prev.livery) { repaint(look.type, look.livery); prev.livery = look.livery; }
+      curLook = look; car.livery = look.livery; hornCustom = !!look.parts.horn; audio.setVoice(look.type, look.parts.exhaust);
+      return;
+    }
+    rig = buildLocalRig(look); rig.geo = geoKey(look); curLook = look;
+    const tp = rig.tpl.spec.tiltPivot, A = rig.A;
+    // brake lights glow over the tail lamps; nitro flames and glow at the exhaust
+    for (const [x, y, z] of A.tails) { const m = new THREE.Mesh(BRAKE_G, brakeMat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.02); rig.tilt.add(m); }
+    flames = [];
+    const ex = A.kind === 'bike' ? A.exh.slice(0, 1) : A.exh;
+    for (const [x, y, z] of ex) {
+      const mk = (g, mat) => { const m = new THREE.Mesh(g, mat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.2); m.visible = false; m.frustumCulled = false; rig.tilt.add(m); return m; };
+      flames.push([mk(FLAME_O, flameOuter), mk(FLAME_I, flameInner)]);
+    }
+    const ez = Math.min(...ex.map(e => e[2])) - 0.35, ey = ex.reduce((s, e) => s + e[1], 0) / ex.length;
+    glow.position.set(0, ey - tp[1], ez - tp[2]); rig.tilt.add(glow);
+    scene.add(rig.root);
+    if (prev) prev.dispose();
+    rearZ = -Math.min(...rig.tpl.wheels.map(w => w.z)); rearTrack = A.rearTrack;
+    car.wheelPts = rig.tpl.wheels.map(w => ({ lx: w.x, fz: w.z, side: Math.abs(w.x) < 0.05 ? 0 : Math.sign(w.x), pitch: w.z > 0 ? 1 : -1 }));
+    car.type = look.type; car.kind = A.kind; car.livery = look.livery;
+    hornCustom = !!look.parts.horn; audio.setVoice(look.type, look.parts.exhaust);
+    applyPreset(look.type);
+    camState.init = false;
+  }
+  function syncSaved() { savedLook = garage.look(); if (!previewing) mount(savedLook); }
+  garage.onChange(syncSaved);
+  // The garage shows unsaved looks while you browse (and unowned parts): preview(look) shows one, preview(null) goes back to the saved look.
+  function preview(look) { if (look) { previewing = true; mount(look); } else { previewing = false; mount(savedLook); } }
+
+  // The default horn lives in src/horn.js and polls keys.KeyH. When a bought horn is fitted this module plays it instead, so KeyH
+  // reads false for the default horn while the real key state is kept here (the touch CLACSON pad and the keyboard both write keys.KeyH).
+  let rawH = !!keys.KeyH, hornTest = 0, showcase = false;
+  Object.defineProperty(keys, 'KeyH', { configurable: true, enumerable: true, get: () => (hornCustom ? false : rawH), set: v => { rawH = !!v; } });
+
+  let lastHitId = 0, lastHitT = 0, lastHitMag = 0;
+  function pollHit() {
+    if (hitId !== lastHitId) {
+      lastHitId = hitId;
+      const now = performance.now();
+      if (lastHitMag > 1.5 && now - lastHitT > 120) { audio.impact(lastHitMag); lastHitT = now; }
+    }
+  }
+
+  // Swap vehicle in the street: V on the keyboard, the swap button on the touch UI (mobile.js dispatches 'pd-swap'). Cycles through the owned vehicles.
+  function cycleVehicle() {
+    const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4) return;
+    garage.setVehicle(owned[(owned.findIndex(v => v.id === garage.type) + 1) % owned.length].id);
+  }
+  addEventListener('keydown', e => { if (e.code === 'KeyV' && !e.repeat && !e.ctrlKey && !e.metaKey) cycleVehicle(); });
+  addEventListener('pd-swap', cycleVehicle);
+
   // ---------- visual ----------
-  const _w = new THREE.Vector3();
+  const _pose = { pitch: 0, roll: 0, lean: 0, steer: 0, spin: 0, t: 0, lockRear: false }, _au = { rpm: 0, thr: 0, nosAmt: 0, active: false, vf: 0, slip: 0, drift: 0, hb: false, scrape: 0 };
   function updateVisual(dt) {
     // is the simulation running (not on the title screen or paused)?
     if (ticks !== seenTicks) { seenTicks = ticks; idleFrames = 0; } else idleFrames++;
     const active = idleFrames < 4;
     if (hitMag > 0) { lastHitMag = hitMag; hitMag = 0; hitId++; car.pitch += clamp(lastHitMag * 0.003, 0, 0.05) * (car.vf > 0 ? 1 : -1); }
 
-    const g = carRoot;
+    const g = rig.root, now = performance.now() / 1000;
     g.position.set(car.x, groundY(car.x, car.z) + car.lift + car.hop, car.z); g.rotation.y = car.th;
-    tilt.rotation.set(car.pitch, 0, car.roll);
-    // two-wheel lean: tip about the outer rear wheel's contact line (left turn = ay > 0 = lean right, outer wheel on the right)
-    {
-      const sg = Math.abs(car.ay) < 1 && car.kickT > 0 ? car.kickSgn : Math.sign(car.ay);
-      const th = car.tip * T.tipMax * sg, px = -0.66 * sg;
-      lean.rotation.z = th; lean.position.set(px * (1 - Math.cos(th)), -px * Math.sin(th), 0);
-    }
-    const spin = (car.vf || 0) * dt / 0.23;
-    for (const w of model.wheels) {
-      const locked = w.front ? false : (keys.Space && Math.abs(car.vf) > 1);
-      if (!locked) w.spin.rotation.x += spin;
-      if (w.front) w.pivot.rotation.y = car.steer;
-    }
-    bar.rotation.y = car.steer * 0.9;
+    const P = _pose; P.pitch = car.pitch; P.roll = car.roll; P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
+    rig.pose(P);
+    tickShared(now);
     brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : 0;
 
     // nitro flames
@@ -763,7 +564,7 @@ export function createVehicle(env) {
       while (smokeAcc >= 1) {
         smokeAcc -= 1;
         const sgn = Math.random() < 0.5 ? 1 : -1;
-        puff(car.x - sn * 0.7 + cs * 0.66 * sgn + (Math.random() - 0.5) * 0.3, g.position.y + 0.15, car.z - cs * 0.7 - sn * 0.66 * sgn + (Math.random() - 0.5) * 0.3,
+        puff(car.x - sn * rearZ + cs * rearTrack * sgn + (Math.random() - 0.5) * 0.3, g.position.y + 0.15, car.z - cs * rearZ - sn * rearTrack * sgn + (Math.random() - 0.5) * 0.3,
           car.vx * 0.25 + (Math.random() - 0.5) * 0.8, car.vz * 0.25 + (Math.random() - 0.5) * 0.8, 0.9 + Math.random() * 0.5);
       }
     }
@@ -781,7 +582,16 @@ export function createVehicle(env) {
       s.mat.uniforms.uScale.value = innerHeight * pr / (2 * Math.tan(camera.fov * PI / 360));
     }
 
-    updateAudio(dt, active);
+    // sound: engine, tyres, impacts, a bought horn, the subwoofer
+    const A = _au; A.rpm = car.rpm; A.thr = car.thr; A.nosAmt = car.nosAmt; A.active = active; A.vf = car.vf; A.slip = car.slip; A.drift = car.drift; A.hb = !!keys.Space; A.scrape = car.scrape;
+    audio.update(A);
+    pollHit();
+    hornTest = Math.max(0, hornTest - dt);
+    audio.hornUpdate(curLook.parts.horn || '', (rawH && active) || hornTest > 0, dt, car.x, car.z);
+    audio.bassUpdate(!!curLook.parts.sub && (active || showcase), dt, car.x, car.z);
+    const bp = curLook.parts.sub ? audio.bass.pulse : 0;
+    car.bass = bp;
+    if (rig.cone) { rig.cone.scale.set(1 + 0.12 * bp, 1 + 0.12 * bp, 1 + 0.9 * bp); rig.sub.scale.setScalar(1 + 0.025 * bp); if (bp > 0.3) cam.trauma = Math.max(cam.trauma, 0.05 * bp); }
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
@@ -794,81 +604,23 @@ export function createVehicle(env) {
   }
   let smokeAcc = 0;
 
-  function setVolume(v) {
-    audio.vol = clamp(+v || 0, 0, 1);
-    if (audio.master) audio.master.gain.value = audio.vol * 0.9;
-  }
+  function setVolume(v) { audio.setVolume(v); }
 
-  // ---------- remote lapas (src/net.js) ----------
-  // buildLapa(liveryId) returns a cheap copy of the model for another player: the same construction as above, merged
-  // into one mesh per material (about 35 draw calls instead of about 120), with its own livery materials, shared geometry,
-  // and the same group hierarchy as the local car. The caller poses it: root (position, yaw) > lean (tip) > tilt (pitch, roll),
-  // wheels[i].spin.rotation.x, wheels[i].pivot.rotation.y (front only: steer), bar.rotation.y. It never touches the local car.
-  let lapaTpl = null;
-  const lapaSkip = new Set([brakeMat, flameOuter, flameInner]);
-  function lapaTemplate() {
-    if (lapaTpl) return lapaTpl;
-    // read the model in its neutral pose, then put the live pose back
-    const saved = [tilt.rotation.clone(), lean.rotation.clone(), lean.position.clone(), bar.rotation.clone(), ...wheelObjs.map(w => [w.spin.rotation.clone(), w.pivot.rotation.clone()])];
-    tilt.rotation.set(0, 0, 0); lean.rotation.set(0, 0, 0); lean.position.set(0, 0, 0); bar.rotation.set(0, 0, 0);
-    for (const w of wheelObjs) { w.spin.rotation.set(0, 0, 0); w.pivot.rotation.set(0, 0, 0); }
-    carRoot.updateMatrixWorld(true);
-    const collect = (rootObj, refObj, skip) => {
-      const buckets = new Map(), inv = refObj.matrixWorld.clone().invert();
-      rootObj.traverse(m => {
-        if (!m.isMesh || (skip && skip(m))) return;
-        const rel = inv.clone().multiply(m.matrixWorld);
-        const mats = Array.isArray(m.material) ? m.material : [m.material];
-        mats.forEach((mat, mi) => {
-          if (lapaSkip.has(mat)) return;
-          let g = m.geometry.clone();
-          if (Array.isArray(m.material)) { // one slot of a multi-material box: keep only its triangles
-            const idx = [], ia = g.index.array;
-            for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start; i < gr.start + gr.count; i++) idx.push(ia[i]);
-            g.setIndex(idx);
-          }
-          g.clearGroups(); g.applyMatrix4(rel);
-          let b = buckets.get(mat); if (!b) buckets.set(mat, b = { mat, geoms: [], shadow: false });
-          b.geoms.push(g); b.shadow = b.shadow || (m.castShadow && !mat.transparent);
-        });
-      });
-      return [...buckets.values()].map(b => ({ mat: b.mat, shadow: b.shadow, geom: mergeGeometries(b.geoms) })).filter(b => b.geom);
-    };
-    const inBar = m => { for (let p = m.parent; p; p = p.parent) if (p === bar) return true; return false; };
-    const front = wheelObjs.find(w => w.front);
-    lapaTpl = {
-      tilt: collect(tilt, tilt, m => inBar(m)), bar: collect(bar, bar),
-      spin: collect(front.spin, front.spin), front: collect(front.pivot, front.pivot, m => { for (let p = m.parent; p; p = p.parent) if (p === front.spin) return true; return false; }),
-      wheels: wheelObjs.map(w => ({ pos: w.pivot.position.clone(), front: w.front })), barPos: bar.position.clone(), mats: {},
-    };
-    tilt.rotation.copy(saved[0]); lean.rotation.copy(saved[1]); lean.position.copy(saved[2]); bar.rotation.copy(saved[3]);
-    wheelObjs.forEach((w, i) => { w.spin.rotation.copy(saved[4 + i][0]); w.pivot.rotation.copy(saved[4 + i][1]); });
-    carRoot.updateMatrixWorld(true);
-    return lapaTpl;
-  }
-  function buildLapa(id) {
-    const tpl = lapaTemplate();
-    if (!LIV[id]) id = 'blu';
-    let map = tpl.mats[id];
-    if (!map) { // this livery's copies of the seven painted materials
-      const set = { body: mBody, arch: mArch, roof: mRoof, door: mDoor, pillar: mPillar, cab: mCabSide, rear: mRearSide };
-      const copy = {}; map = tpl.mats[id] = new Map();
-      for (const k in set) { copy[k] = set[k].clone(); map.set(set[k], copy[k]); }
-      paintLivery(copy, id);
-    }
-    const root = new THREE.Group(), lean2 = new THREE.Group(), tilt2 = new THREE.Group(), meshes = [];
-    root.add(lean2); lean2.add(tilt2); tilt2.position.y = PIV;
-    const add = (parent, list) => { for (const b of list) { const m = new THREE.Mesh(b.geom, map.get(b.mat) || b.mat); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
-    add(tilt2, tpl.tilt);
-    const bar2 = new THREE.Group(); bar2.position.copy(tpl.barPos); tilt2.add(bar2); add(bar2, tpl.bar);
-    const wheels = tpl.wheels.map(w => {
-      const pivot = new THREE.Group(), spin = new THREE.Group(); pivot.position.copy(w.pos); lean2.add(pivot); pivot.add(spin);
-      add(spin, tpl.spin); if (w.front) add(pivot, tpl.front);
-      return { pivot, spin, front: w.front };
-    });
-    return { root, lean: lean2, tilt: tilt2, bar: bar2, wheels, meshes, PIV, tipMax: T.tipMax };
-  }
+  // ---------- remote players (src/net.js) ----------
+  // buildVehicleModel({ type, livery, parts }) returns a rig for any vehicle (see src/vehicle-models.js): pose it with
+  // rig.pose({ pitch, roll, lean, steer, spin, t }) and add it to the scene. buildLapa(liveryId) is the old Calessino-only call.
+  const buildLapa = id => buildVehicleModel({ type: 'calessino', livery: id });
 
-  setLivery('blu');
-  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery, buildLapa, bump };
+  syncSaved();
+  const api = {
+    car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, buildLapa, buildVehicleModel, bump,
+    get LIVERIES() { return ALL_LIVERIES[curLook.type] || ALL_LIVERIES.calessino; },
+    VEHICLES, setLivery: id => garage.setLivery(id), garage, preview, look: () => curLook,
+    setShowcase: v => { showcase = !!v; },
+    testHorn: () => { hornTest = 1.6; },
+    unlockAudio: audio.gesture,
+    get rig() { return rig; }, get seats() { return rig.A.seats; }, audio,
+  };
+  if (qs.has('debug') || qs.has('pdveh')) window.pdVehicle = api;   // test hook
+  return api;
 }

@@ -1,6 +1,6 @@
 # raw downloads and caches (regenerate with tools/*.py)
 data/
-world/
+# world/ (tile manifest and tiles streamed by src/world.js) is published, so it is not ignored
 tools/.venv/
 __pycache__/
 *.tmp.js

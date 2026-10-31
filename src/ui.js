@@ -6,6 +6,8 @@
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
 // opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the pause menu, ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES).
 
+import { setupGarageUI } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
 // ---------------------------------------------------------------------------------------------
@@ -35,7 +37,7 @@ const S = {
   camera: ['Camera iniziale', 'Default camera'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
-  garage: ['La tua lapa', 'Your lapa'],
+  garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'],
   startLast: ['Ultima posizione', 'Last position'],
   startRandom: ['Casuale', 'Random'],
@@ -292,8 +294,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     </div>`);
 
   mk('garage', '', `<div class="pd-card pd-garage">
-      <h2 class="pd-h" data-k="garage" data-two></h2>
-      <div class="pd-stack pd-liveries"></div>
+      <div class="gx-root"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
 
@@ -344,13 +345,14 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (!push && !back) stack = [];
     if (cur) { const a = document.activeElement; if (a && screens[cur].contains(a)) lastFocus[cur] = a; }
     if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : name === 'start' ? startCam : flyCam;
+    if (cur === 'garage' && name !== 'garage') garageUI.leave();
+    if (name === 'garage' && cur !== 'garage') garageUI.enter();
     cur = name;
     for (const k in screens) screens[k].classList.toggle('on', k === name);
     lockUntil = now() + 260;
     syncState();
     if (name) {
       if (name === 'options') syncOptions();
-      if (name === 'menu' || name === 'garage') renderLiveries();
       if (name === 'spots') renderSpots();
       if (name === 'start') renderStart();
       let want = lastFocus[name];
@@ -459,44 +461,10 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     }
   }
 
-  // ---- garage: livery choice with a slowly turning close view of the lapa ----
-  // vehicle.LIVERIES / vehicle.setLivery come from vehicle.js and may arrive late: everything is guarded and re-checked.
-  const garageBtn = ui.querySelector('[data-garage]'), liveryBox = screens.garage.querySelector('.pd-liveries');
-  let liveryDone = false, liverySig = '';
-  const liveries = () => (vehicle && Array.isArray(vehicle.LIVERIES) ? vehicle.LIVERIES : []);
-  function renderLiveries() {
-    const list = liveries(), sig = list.map(l => l.id).join('|');
-    garageBtn.hidden = !(list.length && vehicle.setLivery);
-    if (sig === liverySig) return;
-    liverySig = sig;
-    if (!liveryDone && list.length) { // first time we see the list: apply the saved choice (or keep the default)
-      liveryDone = true;
-      if (livery && list.some(l => l.id === livery)) vehicle.setLivery?.(livery); else livery = null;
-    }
-    liveryBox.innerHTML = list.map(l => `<button class="pd-btn sm pd-liv" data-nav data-liv="${esc(l.id)}" aria-pressed="false" type="button"${l.color ? ` style="--sw:${esc(l.color)}"` : ''}><span class="pd-in"><span class="pd-l1">${esc(l.name_it)}</span><span class="pd-l2">${esc(l.name_en)}</span></span></button>`).join('');
-    markLivery(); applyLiveryLang();
-  }
-  function applyLiveryLang() { // primary language first, as everywhere else
-    const i = lang === 'it' ? 0 : 1, byId = Object.fromEntries(liveries().map(l => [l.id, l]));
-    for (const b of liveryBox.querySelectorAll('[data-liv]')) {
-      const l = byId[b.dataset.liv]; if (!l) continue;
-      const n = [l.name_it, l.name_en];
-      b.querySelector('.pd-l1').textContent = n[i] || n[1 - i]; b.querySelector('.pd-l2').textContent = n[1 - i] || '';
-    }
-  }
-  function markLivery() {
-    const cur = livery || (liveries()[0] && liveries()[0].id);
-    for (const b of liveryBox.querySelectorAll('[data-liv]')) b.setAttribute('aria-pressed', String(b.dataset.liv === cur));
-  }
-  function pickLivery(id) { livery = id; try { vehicle.setLivery?.(id); } catch (e) { /* vehicle.js not ready */ } save(); markLivery(); }
+  // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js), with a slowly turning close view of the vehicle ----
+  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang });
   const flyCam = game.titleCam;
-  function garageCam(cam, sec) {
-    if (cam.fov !== 40) { cam.fov = 40; cam.updateProjectionMatrix(); }
-    const c = vehicle.car, a = sec * 0.32, gy = groundY(c.x, c.z);
-    cam.position.set(c.x + Math.sin(a) * 7, gy + 2.7 + Math.sin(sec * 0.23) * 0.4, c.z + Math.cos(a) * 7);
-    cam.lookAt(c.x, gy + 0.7, c.z);
-    cam.translateX(1.6); // lapa sits left of centre, the livery list on the right
-  }
+  const garageCam = (cam, sec) => garageUI.cam(cam, sec);
 
   // ---- start picker ("Da dove parti?"): built from SPOTS (plus window.PALERMO_WORLD.landmarks when present) each time it opens ----
   const LAST_KEY = 'palermoDrive.last.v1';
@@ -563,7 +531,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   let applyTimer = 0;
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
-    if (key === 'lang') { lang = value; applyLang(); applyLiveryLang(); }
+    if (key === 'lang') { lang = value; applyLang(); garageUI.applyLang(); }
     else if (key === 'musicVolume' || key === 'radio') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
     else {
       st[key] = value;
@@ -697,7 +665,6 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       const i = +t.dataset.start, firstTouch = e.detail && lastPointer !== 'mouse' && startWas !== i;
       selectStart(i); return firstTouch ? undefined : confirmStart();
     }
-    if (t.dataset.liv != null) return pickLivery(t.dataset.liv);
     if (t.dataset.spot != null) return restartAt(+t.dataset.spot);
     if (t.dataset.do) return act(t.dataset.do, t);
   });
@@ -726,7 +693,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (game.state !== lastState) { lastState = game.state; syncState(); placePause(); }
     pollPad(t);
     rememberPos();
-    if (t > nextLivCheck) { nextLivCheck = t + 1000; renderLiveries(); }
+    garageUI.tick(dt);
     if (cur === 'credits' && t > rollPause) {
       if (Math.abs(roll.scrollTop - rollY) > 1.5) rollY = roll.scrollTop; // the user scrolled by hand
       rollY += dt * 34; roll.scrollTop = rollY;
