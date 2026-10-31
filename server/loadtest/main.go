@@ -26,7 +26,7 @@ func main() {
 	rooms := flag.Int("rooms", 1, "spread clients over this many named rooms")
 	flag.Parse()
 
-	var rx, tx, rxMsgs, txMsgs, visSum, visN atomic.Int64
+	var rx, tx, rxMsgs, txMsgs, visSum, visN, okClients atomic.Int64
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithTimeout(context.Background(), *dur+5*time.Second)
 	defer cancel()
@@ -42,6 +42,7 @@ func main() {
 				return
 			}
 			defer c.CloseNow()
+			okClients.Add(1)
 			c.SetReadLimit(2048)
 			name := fmt.Sprintf("Bot%02d", i)
 			info := append([]byte{0x01, byte(i % 3), byte(len(name))}, name...)
@@ -93,10 +94,11 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
-	pm := float64(*n) * dur.Minutes()
-	fmt.Printf("clients=%d side=%.0fm rooms=%d duration=%s\n", *n, *side, *rooms, *dur)
+	nc := int(okClients.Load())
+	pm := float64(nc) * dur.Minutes()
+	fmt.Printf("clients=%d side=%.0fm rooms=%d duration=%s\n", nc, *side, *rooms, *dur)
 	fmt.Printf("server->client: %.0f B per player-minute (%.1f kB/min, %.0f msgs/min), avg other players per frame %.1f\n",
 		float64(rx.Load())/pm, float64(rx.Load())/pm/1000, float64(rxMsgs.Load())/pm, float64(visSum.Load())/math.Max(1, float64(visN.Load())))
 	fmt.Printf("client->server: %.0f B per player-minute (%.1f kB/min, %.0f msgs/min)\n", float64(tx.Load())/pm, float64(tx.Load())/pm/1000, float64(txMsgs.Load())/pm)
-	fmt.Printf("server egress total: %.1f kB/s for %d clients\n", float64(rx.Load())/dur.Seconds()/1000, *n)
+	fmt.Printf("server egress total: %.1f kB/s for %d clients\n", float64(rx.Load())/dur.Seconds()/1000, nc)
 }

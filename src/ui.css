@@ -267,3 +267,11 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
   box-shadow: 4px 4px 0 #e8559a; will-change: transform, opacity; white-space: normal; }
 .shout::after { content: ''; position: absolute; left: 50%; bottom: -14px; margin-left: -6px;
   border: 8px solid transparent; border-top: 12px solid #120a0e; border-bottom: 0; }
+
+/* ---------- start picker ---------- */
+.pd-s-start { justify-content: flex-end; }
+.pd-start .pd-actions { gap: 10px; }
+.pd-start .pd-actions .pd-btn { min-width: 0; flex: 1 1 0; }
+.pd-btn.drive.sm { min-height: clamp(40px, 9vh, 54px); font-size: clamp(18px, 4.2vh, 26px); }
+#pd-ui[data-screen=start] .pd-scrim { opacity: 1; background: linear-gradient(270deg, rgba(10,6,9,.62) 0%, rgba(10,6,9,.3) 45%, rgba(10,6,9,0) 75%); }
+@media (max-aspect-ratio: 1/1) { .pd-s-start { align-items: flex-end; } }

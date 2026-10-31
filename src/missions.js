@@ -75,39 +75,39 @@ function build(env) {
   // ------------------------------------------------------------------------------------ DOM: hud, toasts, card
   const css = document.createElement('style');
   css.textContent = `
-  #pm-hud { position: fixed; z-index: 60; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 54px); transform: translateX(-50%); width: min(430px, 56vw);
+  #pm-hud { position: fixed; z-index: 60; left: max(10px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top)); width: min(280px, 32vw);
     pointer-events: none; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; display: none; text-transform: uppercase; }
   #pm-hud.on { display: block; }
-  .pm-card { position: relative; display: flex; align-items: center; gap: 12px; padding: 8px 16px 12px 12px; background: linear-gradient(90deg, rgba(11,7,9,.82), rgba(40,12,28,.78));
-    border-left: 6px solid #e8559a; transform: skewX(-8deg); box-shadow: 0 4px 18px rgba(0,0,0,.4); overflow: hidden; }
-  .pm-card > * { transform: skewX(8deg); }
-  .pm-arrow { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; background: rgba(232,85,154,.22); box-shadow: inset 0 0 0 2px #e8559a; display: flex; align-items: center; justify-content: center; }
-  .pm-arrow svg { width: 30px; height: 30px; filter: drop-shadow(0 0 5px rgba(255,79,163,.9)); }
+  .pm-card { position: relative; display: flex; align-items: center; gap: 8px; padding: 5px 10px 9px 8px; background: linear-gradient(90deg, rgba(11,7,9,.8), rgba(40,12,28,.74));
+    border-left: 5px solid #e8559a; transform: skewX(-6deg); box-shadow: 0 3px 12px rgba(0,0,0,.4); overflow: hidden; }
+  .pm-card > * { transform: skewX(6deg); }
+  .pm-arrow { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; background: rgba(232,85,154,.22); box-shadow: inset 0 0 0 2px #e8559a; display: flex; align-items: center; justify-content: center; }
+  .pm-arrow svg { width: 22px; height: 22px; filter: drop-shadow(0 0 4px rgba(255,79,163,.9)); }
   .pm-body { flex: 1 1 auto; min-width: 0; }
-  .pm-top { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 13px; letter-spacing: .2em; color: #f5a9c9; }
-  .pm-time { font: 400 24px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; }
+  .pm-top { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 10px; letter-spacing: .16em; color: #f5a9c9; }
+  .pm-time { font: 400 17px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; }
   .pm-time.low { color: #ff6a5a; animation: pm-blink .5s steps(2) infinite; }
-  .pm-place { font-weight: 700; font-size: 22px; line-height: 1.05; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pm-sub { font-weight: 600; font-size: 13px; letter-spacing: .14em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pm-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(255,255,255,.12); transform: none !important; }
+  .pm-place { font-weight: 700; font-size: 15px; line-height: 1.05; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pm-sub { font-weight: 600; font-size: 10px; letter-spacing: .1em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pm-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.12); transform: none !important; }
   .pm-bar i { display: block; height: 100%; width: 100%; transform-origin: left; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
   .pm-bar.low i { background: #ff4a3a; }
-  .pm-ledger { margin-top: 6px; display: flex; gap: 14px; align-items: baseline; justify-content: center; font-weight: 700; font-size: 15px; letter-spacing: .12em; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
-  .pm-fare { font: 400 26px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; text-shadow: 0 0 10px #e8559a, 0 2px 4px rgba(0,0,0,.8); }
-  .pm-pos { color: #ffd1e6; } .pm-neg { color: #ff8a7a; } .pm-total { color: #f5a9c9; }
-  .pm-toasts { position: fixed; z-index: 61; left: 50%; top: 34%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
-  .pm-toast { font-size: clamp(20px, 4.4vh, 34px); letter-spacing: .06em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1.5px #0b0709; paint-order: stroke fill;
+  .pm-ledger { margin: 4px 0 0 6px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+  .pm-fare { font: 400 16px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .03em; color: #fff; text-shadow: 0 0 8px #e8559a, 0 1px 3px rgba(0,0,0,.8); }
+  .pm-pos { color: #ffd1e6; } .pm-neg { color: #ff8a7a; } .pm-total { color: #f5a9c9; margin-left: auto; }
+  .pm-toasts { position: fixed; z-index: 61; left: 50%; top: 30%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
+  .pm-toast { font-size: clamp(16px, 3.6vh, 26px); letter-spacing: .06em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1.5px #0b0709; paint-order: stroke fill;
     text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); animation: pm-toast 1.9s ease-out forwards; transform: skewX(-8deg); }
   .pm-toast.neg { color: #ffb3a8; text-shadow: 0 0 14px #ff4a3a, 0 3px 6px rgba(0,0,0,.6); }
   .pm-toast small { display: block; font-size: .5em; letter-spacing: .14em; text-align: center; opacity: .9; }
-  .pm-result { position: fixed; z-index: 62; left: 50%; top: 24%; transform: translate(-50%, 0) skewX(-6deg); min-width: min(360px, 70vw); padding: 14px 24px 16px; text-align: center;
+  .pm-result { position: fixed; z-index: 62; left: 50%; top: 22%; transform: translate(-50%, 0) skewX(-6deg); min-width: min(300px, 60vw); padding: 10px 20px 12px; text-align: center;
     background: linear-gradient(180deg, rgba(11,7,9,.9), rgba(60,14,40,.88)); border: 2px solid #e8559a; box-shadow: 0 0 30px rgba(232,85,154,.5);
-    font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; text-transform: uppercase; pointer-events: none; opacity: 0; transition: opacity .25s; }
+    font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; text-transform: uppercase; pointer-events: none; opacity: 0; transition: opacity .35s; }
   .pm-result.on { opacity: 1; }
   .pm-result > * { transform: skewX(6deg); }
-  .pm-result h3 { margin: 0 0 6px; font: 400 clamp(22px, 5vh, 34px)/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; color: #fff; text-shadow: 0 0 12px #e8559a; }
-  .pm-result .row { display: flex; justify-content: space-between; gap: 24px; font-weight: 600; font-size: clamp(14px, 3vh, 19px); letter-spacing: .12em; }
-  .pm-result .tot { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(18px, 4vh, 26px); font-weight: 700; color: #f5a9c9; }
+  .pm-result h3 { margin: 0 0 6px; font: 400 clamp(18px, 4.2vh, 28px)/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; color: #fff; text-shadow: 0 0 12px #e8559a; }
+  .pm-result .row { display: flex; justify-content: space-between; gap: 24px; font-weight: 600; font-size: clamp(12px, 2.6vh, 16px); letter-spacing: .12em; }
+  .pm-result .tot { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(15px, 3.4vh, 22px); font-weight: 700; color: #f5a9c9; }
   .pm-confetti { position: fixed; z-index: 63; left: 50%; top: 52%; width: 0; height: 0; pointer-events: none; }
   .pm-confetti i { position: absolute; left: 0; top: 0; width: 9px; height: 14px; animation: pm-conf 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
   @keyframes pm-conf { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
@@ -116,7 +116,7 @@ function build(env) {
   .pm-flash { position: fixed; inset: 0; z-index: 59; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(255,160,60,.0), rgba(255,120,40,.45)); opacity: 0; }
   .pm-flash.on { animation: pm-flash .7s ease-out; }
   @keyframes pm-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
-  @media (max-height: 520px) { #pm-hud { width: min(380px, 44vw); } .pm-arrow { width: 36px; height: 36px; } .pm-arrow svg { width: 24px; height: 24px; } .pm-place { font-size: 18px; } .pm-fare { font-size: 21px; } .pm-ledger { font-size: 13px; } }
+  @media (max-height: 520px) { #pm-hud { width: min(250px, 30vw); } .pm-arrow { width: 30px; height: 30px; } .pm-place { font-size: 13px; } .pm-card { padding: 4px 8px 8px 6px; } }
   `;
   document.head.appendChild(css);
   const mkEl = (cls, html, parent = document.body, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; };
@@ -167,8 +167,8 @@ function build(env) {
     shout(p.x, p.y, p.z, q.text);
     lastTalk = talkClock;
   }
-  const driverPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift + 0.4, z: car.z });
-  const seatPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift + 0.9, z: car.z });
+  const driverPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift - 0.3, z: car.z });
+  const seatPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift - 0.1, z: car.z });
 
   // ------------------------------------------------------------------------------------ beacons: ground ring + light beam
   const RING_V = `attribute vec2 aP; varying vec2 vP; void main() { vP = aP; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -183,12 +183,14 @@ function build(env) {
       float a = rim * 0.95 + halo * (0.45 + 0.25 * wave) + inner * (0.14 + 0.10 * wave) + rip;
       vec3 c = mix(uCol, vec3(1.0), clamp(rim * 0.55 + halo * 0.25 + rip, 0.0, 1.0));
       gl_FragColor = vec4(c, clamp(a, 0.0, 1.0) * uAlpha);
+      #include <colorspace_fragment>
     }`;
   const BEAM_V = `varying float vH; void main() { vH = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
   const BEAM_F = `uniform float uTime; uniform vec3 uCol; uniform float uAlpha; varying float vH;
     void main() {
       float a = smoothstep(0.0, 0.12, vH) * pow(1.0 - vH, 1.2) * 0.55 * (0.8 + 0.2 * sin(uTime * 2.0 + vH * 9.0));
       gl_FragColor = vec4(uCol, a * uAlpha);
+      #include <colorspace_fragment>
     }`;
   const beacons = [];
   function makeBeacon(col, R, opt = {}) {
@@ -331,7 +333,7 @@ function build(env) {
   for (const o of VENDORS) { try { vendors.push(buildVendor(o)); } catch (e) { console.warn('[missions] vendor', o.id, e); } }
 
   // smoke plumes: GPU-animated camera-facing quads, one instance per puff
-  const PUFFS = 80, PLUME_H = 110;
+  const PUFFS = 110, PLUME_H = 120;
   let plume = null;
   if (vendors.length) {
     const n = vendors.length * PUFFS, geo = new THREE.InstancedBufferGeometry();
@@ -347,23 +349,23 @@ function build(env) {
         attribute vec3 iBase; attribute vec3 iSeed; uniform float uTime; uniform float uH; uniform vec2 uWind;
         varying vec2 vUv; varying float vA; varying float vT; varying float vDist;
         void main() {
-          float age = fract(uTime / 26.0 + iSeed.x);
+          float age = fract(uTime / 30.0 + iSeed.x);
           vec3 p = iBase + vec3(0.0, age * uH, 0.0);
           p.xz += uWind * (age * age * uH) + vec2(sin(uTime * 0.4 + iSeed.y * 6.28), cos(uTime * 0.33 + iSeed.z * 6.28)) * (0.4 + age * 6.0);
-          float size = mix(0.9, 19.0, pow(age, 0.62)) * (0.75 + 0.5 * iSeed.y);
+          float size = mix(2.0, 40.0, pow(age, 0.5)) * (0.75 + 0.5 * iSeed.y);
           vec3 c = (viewMatrix * vec4(p, 1.0)).xyz;
           float ang = iSeed.z * 6.283 + uTime * (0.08 + iSeed.y * 0.1);
           vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy;
           gl_Position = projectionMatrix * vec4(c + vec3(q * size, 0.0), 1.0);
           vDist = length(c); vUv = uv; vT = age;
-          vA = smoothstep(0.0, 0.05, age) * pow(1.0 - age, 1.35) * 0.6 * smoothstep(2.5, 15.0, vDist);
+          vA = smoothstep(0.0, 0.05, age) * pow(1.0 - age, 1.1) * 0.9 * smoothstep(2.5, 15.0, vDist);
         }`,
       fragmentShader: `
         uniform vec3 uFog; uniform float uFogD; varying vec2 vUv; varying float vA; varying float vT; varying float vDist;
         void main() {
           float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard;
-          float a = pow(1.0 - d, 1.4) * vA;
-          vec3 col = mix(vec3(0.34, 0.31, 0.30), vec3(0.9, 0.9, 0.92), smoothstep(0.0, 0.55, vT));
+          float a = smoothstep(1.0, 0.0, d) * vA;
+          vec3 col = mix(vec3(0.30, 0.28, 0.27), vec3(0.80, 0.80, 0.82), smoothstep(0.0, 0.55, vT));
           col = mix(col, uFog, 1.0 - exp(-uFogD * uFogD * vDist * vDist));
           gl_FragColor = vec4(col, a);
         }`,
@@ -520,7 +522,7 @@ function build(env) {
   }
 
   function finishFare(f, ok) {
-    f.phase = 'drop'; S.phase = 'drop'; S.gap = 5;
+    f.phase = 'drop'; S.phase = 'drop'; S.gap = 5.5;
     destBeacon.show(false); dropMarker(destMarker); destMarker = null;
     // everyone out, walking towards the door of the place
     const d = f.dest, dx = d.vx - d.x, dz = d.vz - d.z, dl = Math.hypot(dx, dz) || 1, step = ok ? Math.min(dl, 7) : 9;
@@ -541,12 +543,12 @@ function build(env) {
         <div class="row"><span>${T('Corsa', 'Fare')}</span><span>${eur(f.base)}</span></div>
         <div class="row"><span>${T('Mance', 'Tips')}</span><span>+ ${eur(f.tips)}</span></div>
         <div class="row"><span>${T('Reclami', 'Complaints')}</span><span>- ${eur(f.claims)}</span></div>
-        <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
+        <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 3.4);
       if (f.total >= f.base * 1.4) burst();
     } else {
       f.total = 0;
       tline(f, 'fail'); dline('fail', 2.0);
-      showResult(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('I turisti scendono e non pagano', 'The tourists get out and do not pay')}</span></div>`, 3.8);
+      showResult(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('I turisti scendono e non pagano', 'The tourists get out and do not pay')}</span></div>`, 3);
     }
   }
   function updateDrop(dt) {

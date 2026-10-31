@@ -457,6 +457,295 @@ const MATS = {
 };
 const CELL = 300;
 
+// ------------------------------------------------------------------ collision specs
+// c: circles [ox, oz, r] in model space (z forward). kind: veh (launchable), scooter, bin, tree, bend, solid.
+// thr: closing speed in m/s above which the thing breaks, flies or falls. he/hc: body half extents and centre height for flights.
+const CAR_HE = (W, L) => [W / 2, 0.75, L / 2];
+const SPECS = {
+  panda: { kind: 'veh', c: [[0, 1.0, 0.85], [0, -1.0, 0.85]], m: 0.95, thr: 4.2, he: CAR_HE(1.64, 3.65), hc: 0.75 },
+  hatch: { kind: 'veh', c: [[0, 1.2, 0.9], [0, -1.2, 0.9]], m: 1.1, thr: 4.2, he: CAR_HE(1.74, 4.0), hc: 0.75 },
+  micro: { kind: 'veh', c: [[0, 0.55, 0.8], [0, -0.55, 0.8]], m: 0.8, thr: 3.8, he: CAR_HE(1.55, 2.75), hc: 0.75 },
+  van: { kind: 'veh', c: [[0, 1.3, 0.95], [0, 0, 0.95], [0, -1.3, 0.95]], m: 2.0, thr: 6.0, he: [0.9, 0.95, 2.2], hc: 0.95 },
+  pickup: { kind: 'veh', c: [[0, 1.3, 0.85], [0, 0, 0.85], [0, -1.3, 0.85]], m: 1.3, thr: 5.0, he: [0.83, 0.9, 2.2], hc: 0.9 },
+  ape: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 0.9, 1.5], hc: 0.9 },
+  apetaxi: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 1.0, 1.5], hc: 1.0 },
+  scooter: { kind: 'scooter', c: [[0, 0.35, 0.4], [0, -0.35, 0.4]], m: 0.28, thr: 1.2, fly: 7.5, he: [0.35, 0.55, 0.9], hc: 0.55 },
+  bin_big: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.6, bags: 4 },
+  bin_over: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.2, bags: 9 },
+  bin_small: { kind: 'bend', c: [[0, 0, 0.24]], thr: 3, tilt: 1.57, H: 0.9 },
+  ficus: { kind: 'tree', c: [[0, 0, 0.8]], thr: 13.9, H: 6, crown: 4 },
+  tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 5, crown: 2.7 },
+  orange: { kind: 'tree', c: [[0, 0, 0.22]], thr: 8.3, H: 3.5, crown: 1.7 },
+  pine: { kind: 'tree', c: [[0, 0, 0.36]], thr: 11, H: 8, crown: 3.9 },
+  palm_fan_a: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 9, crown: 2.5 },
+  palm_fan_b: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 13, crown: 2.5 },
+  palm_fan_c: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.0, H: 6.5, crown: 2.5 },
+  palm_date_a: { kind: 'tree', c: [[0, 0, 0.45]], thr: 11, H: 5, crown: 2.5 },
+  palm_date_b: { kind: 'tree', c: [[0, 0, 0.42]], thr: 11, H: 7.5, crown: 2.5 },
+  lamp_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 7, tilt: 1.05, H: 9 },
+  candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
+  signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
+  bollard: { kind: 'bend', c: [[0, 0, 0.13]], thr: 5.5, tilt: 1.5, H: 0.8 },
+  busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 6.5, tilt: 1.0, H: 2.7 },
+  bench: { kind: 'solid', c: [[-0.7, 0, 0.32], [0.7, 0, 0.32]] },
+  stall_table: { kind: 'solid', c: [[-0.65, 0, 0.5], [0.65, 0, 0.5]] },
+  cafe_set: { kind: 'solid', c: [[0, 0, 0.55]] },
+  hydrant: { kind: 'solid', c: [[0, 0, 0.18]] },
+  phone: { kind: 'solid', c: [[0, 0, 0.5]] },
+  cabinet: { kind: 'solid', c: [[-0.3, 0, 0.3], [0.3, 0, 0.3]] },
+  postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
+  monument: { kind: 'solid', c: [[0, 0, 0.85]] },
+  fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
+};
+const SCALE_R = new Set(['ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
+
+function makePhysics(env) {
+  const { colls, meshOf, inB, gy, scene } = env;
+  const PR = 0.74, PAX = 0.72, I_YAW = 1.7, E = 0.25, G = 9.8;
+  const up = new THREE.Vector3(0, 1, 0), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), vA = new THREE.Vector3(), vB = new THREE.Vector3(), sA = new THREE.Vector3();
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const cellK = (x, z) => (Math.floor(x / 8) + 512) * 1024 + (Math.floor(z / 8) + 512);
+  const grid = new Map();
+  const gAdd = c => { const k = cellK(c.x, c.z); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); c.gk = k; };
+  const gDel = c => { const a = grid.get(c.gk); if (a) { const i = a.indexOf(c); if (i >= 0) a.splice(i, 1); } };
+  for (const c of colls) { c.im = meshOf[c.model + '|' + c.key]; if (c.im) gAdd(c); }
+  let simT = 0, tick = 0, lastShout = -9, camPos = null;
+  const dirty = new Set(), dyn = [], broken = new Set();
+  const stats = { yeeted: 0, tipped: 0, trees: 0, bent: 0, scooters: 0 };
+
+  // ---- debris pools: bin bags and leaves
+  const mkPool = (geo, n, castShadow) => {
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: false, roughness: 0.9, side: THREE.DoubleSide }), n);
+    im.frustumCulled = false; im.castShadow = castShadow; im.receiveShadow = true; im.count = n;
+    mA.makeScale(0, 0, 0); for (let i = 0; i < n; i++) { im.setMatrixAt(i, mA); im.setColorAt(i, new THREE.Color(1, 1, 1)); }
+    scene.add(im); return im;
+  };
+  const bagGeo = (() => { const g = new THREE.IcosahedronGeometry(0.2, 0); g.scale(1.15, 0.8, 1); return g; })();
+  const leafGeo = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-0.12, 0, -0.08, 0.12, 0, -0.08, 0.12, 0, 0.1, -0.12, 0, -0.08, 0.12, 0, 0.1, -0.12, 0, 0.1], 3)); g.computeVertexNormals(); return g; })();
+  const bagPool = mkPool(bagGeo, 220, false), leafPool = mkPool(leafGeo, 420, false);
+  const bags = [], leaves = [];
+  let bagN = 0, leafN = 0;
+  const BAGC = ['#1b1b1e', '#2a2a30', '#d8d7cf', '#3a6f9a', '#c7b05a', '#3d6a4a'].map(h => new THREE.Color(h));
+  const LEAFC = ['#4a7a30', '#5f8a3a', '#7aa04a', '#3f6a2a'].map(h => new THREE.Color(h));
+  const spawnBags = (c, n, dx, dz) => {
+    for (let i = 0; i < n; i++) {
+      const idx = bagN++ % bagPool.count, b = bags.find(q => q.idx === idx) || (bags[bags.length] = { idx });
+      Object.assign(b, { x: c.x + (Math.random() - 0.5) * 0.6, y: gy(c.x, c.z) + 0.8 + Math.random() * 0.5, z: c.z + (Math.random() - 0.5) * 0.6, vx: dx * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, vz: dz * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, rest: false, rot: Math.random() * 6, s: 0.8 + Math.random() * 0.5, owner: c });
+      bagPool.setColorAt(idx, BAGC[(Math.random() * BAGC.length) | 0]); bagPool.instanceColor.needsUpdate = true;
+    }
+  };
+  const spawnLeaves = (c, dx, dz) => {
+    const sp = c.sp, n = 16;
+    for (let i = 0; i < n; i++) {
+      const idx = leafN++ % leafPool.count, a = Math.random() * 6.283, r = Math.random() * sp.crown * c.s * 0.7;
+      let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
+      Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: 0.9 + Math.random() * 0.8 });
+      leafPool.setColorAt(idx, LEAFC[(Math.random() * LEAFC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
+    }
+  };
+
+  // ---- poses
+  const baseMatrix = (c, m) => m.compose(vA.set(c.x0, c.y0, c.z0), qA.setFromAxisAngle(up, c.rot0), sA.setScalar(c.s));
+  function tiltMatrix(c, m) {
+    const sn = Math.sin(c.ang), a = vB.set(c.dz, 0, -c.dx);
+    qB.setFromAxisAngle(up, c.rot0); qA.setFromAxisAngle(a, c.ang).multiply(qB);
+    return m.compose(vA.set(c.x0 + c.dx * (c.slide || 0) * sn, c.y0 + (c.lift || 0) * sn, c.z0 + c.dz * (c.slide || 0) * sn), qA, sA.setScalar(c.s));
+  }
+  function flyMatrix(c, m) {
+    qA.copy(c.q); m.compose(vA.set(c.px, c.py, c.pz), qA, sA.setScalar(c.s));
+    return m.multiply(mB.makeTranslation(0, -c.sp.hc, 0));
+  }
+  function poseInstance(c) {
+    if (c.st === 0) baseMatrix(c, mA); else if (c.st === 'fall' || c.st === 'down') tiltMatrix(c, mA); else flyMatrix(c, mA);
+    c.im.setMatrixAt(c.i, mA); dirty.add(c.im);
+  }
+  const moved = new Set();
+  const touch = c => { if (!moved.has(c.im)) { moved.add(c.im); c.im.boundingSphere.radius += 45; } broken.add(c); c.tb = simT; dirty.add(c); };
+
+  // ---- state changes
+  function startFall(c, nx, nz, vc, target, o = {}) {   // n points from obstacle to car; thing falls away from the car
+    const dx = -nx, dz = -nz;
+    Object.assign(c, { st: 'fall', dx, dz, ang: 0, av: 0.6 + vc * 0.12, tgt: target, slide: o.slide || 0, lift: o.lift || 0 });
+    gDel(c); dyn.push(c); touch(c);
+  }
+  function yeet(c, nx, nz, vc, pc) {
+    const sp = c.sp, mv = sp.m * 0.6, e = 0.55, vo = vc * (1 + e) / (1 + mv) * 1.25;
+    // fly from the current pose
+    if (c.st === 0) { c.q = new THREE.Quaternion().setFromAxisAngle(up, c.rot0); c.px = c.x0; c.py = c.y0 + sp.hc * c.s; c.pz = c.z0; }
+    Object.assign(c, { st: 'fly', vx: -nx * vo + pc.vx * 0.25, vz: -nz * vo + pc.vz * 0.25, vy: clamp(2.6 + vc * 0.32, 3, 9) * (sp.kind === 'scooter' ? 1.2 : 1), settle: 0 });
+    const k = clamp(vc * 0.35, 1, 5);
+    c.w = new THREE.Vector3((Math.random() - 0.5) * k * 1.6 + nz * k * 0.8, (Math.random() - 0.5) * k * 1.2, (Math.random() - 0.5) * k * 1.6 - nx * k * 0.8);
+    gDel(c); if (!dyn.includes(c)) dyn.push(c); touch(c); stats.yeeted++;
+    // player loses momentum
+    const dv = vc * (1 - mv * e) / (1 + mv), loss = vc - dv;
+    pc.vx += nx * loss; pc.vz += nz * loss; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
+    if (simT - lastShout > 1.2) { lastShout = simT; try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: c.py || c.y0 + 1, z: c.z } })); } catch (err) { /* no events */ } }
+  }
+  function solid(pc, c, nx, nz, pen, arm) {
+    pc.x += nx * pen; pc.z += nz * pen;
+    const vn = pc.vx * nx + pc.vz * nz;
+    if (vn < 0) {
+      const j = -(1 + E) * vn / (1 + arm * arm / I_YAW);
+      pc.vx += j * nx; pc.vz += j * nz; pc.w = clamp((pc.w || 0) + clamp(j * arm / I_YAW * 0.7, -1.6, 1.6), -3.2, 3.2);
+      pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
+    }
+  }
+  const slow = (pc, nx, nz, f) => { const vn = pc.vx * nx + pc.vz * nz; if (vn < 0) { pc.vx -= vn * nx * f; pc.vz -= vn * nz * f; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th); } };
+
+  function hit(pc, c, nx, nz, pen, arm) {
+    const sp = c.sp, vc = -(pc.vx * nx + pc.vz * nz);
+    switch (sp.kind) {
+      case 'veh':
+        if (c.st === 0 && vc >= sp.thr) { yeet(c, nx, nz, vc, pc); return; }
+        break;
+      case 'scooter':
+        if (c.st === 0 && vc >= (sp.fly)) { yeet(c, nx, nz, vc, pc); return; }
+        if (c.st === 0 && vc >= sp.thr) {
+          // topple sideways, away from the side the lapa came from
+          const rx = Math.cos(c.rot), rz = -Math.sin(c.rot), side = (nx * rx + nz * rz) > 0 ? -1 : 1;
+          startFall(c, rx * side * -1 * -1, rz * side * -1 * -1, vc, 1.5, { lift: 0.3, slide: 0.2 });
+          c.dx = rx * side; c.dz = rz * side; stats.scooters++; slow(pc, nx, nz, 0.15); return;
+        }
+        break;
+      case 'bin':
+        if (c.st === 0 && vc >= sp.thr) {
+          startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, -nx, -nz); stats.tipped++; slow(pc, nx, nz, 0.12); return;
+        }
+        break;
+      case 'tree':
+        if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
+        break;
+      case 'bend':
+        if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
+        break;
+      default: break;
+    }
+    solid(pc, c, nx, nz, pen, arm);
+  }
+
+  // ---- dynamics
+  const qd = new THREE.Quaternion(), ax = new THREE.Vector3(), mm = new THREE.Matrix4();
+  function stepFly(c, dt) {
+    c.vy -= G * dt;
+    let nx = c.px + c.vx * dt, nz = c.pz + c.vz * dt;
+    if (inB(nx, nz)) { c.vx *= -0.3; c.vz *= -0.3; nx = c.px; nz = c.pz; }
+    c.px = nx; c.pz = nz; c.py += c.vy * dt;
+    const wl = c.w.length();
+    if (wl > 1e-4) { qd.setFromAxisAngle(ax.copy(c.w).multiplyScalar(1 / wl), wl * dt); c.q.premultiply(qd); }
+    const he = c.sp.he; mm.makeRotationFromQuaternion(c.q); const e = mm.elements;
+    const low = Math.abs(e[1]) * he[0] + Math.abs(e[5]) * he[1] + Math.abs(e[9]) * he[2];
+    const ground = gy(c.px, c.pz);
+    if (c.py - low < ground) {
+      c.py = ground + low;
+      if (c.vy < 0) c.vy = -c.vy * 0.28;
+      c.vx *= 0.82; c.vz *= 0.82; c.w.multiplyScalar(0.7);
+      if (Math.abs(c.vy) < 1.1 && Math.hypot(c.vx, c.vz) < 2.2) c.settle = (c.settle || 0) + dt;
+    }
+    if (c.settle > 0.15) { // blend to the nearest resting pose
+      c.vx *= 0.9; c.vz *= 0.9; c.vy = 0; c.w.set(0, 0, 0);
+      let best = 0, sg = 1, bi = 1;
+      for (let k = 0; k < 3; k++) { const v = Math.abs(e[k * 4 + 1]); if (v > best) { best = v; bi = k; sg = Math.sign(e[k * 4 + 1]) || 1; } }
+      const axw = vA.set(e[bi * 4], e[bi * 4 + 1], e[bi * 4 + 2]).multiplyScalar(sg);
+      qd.setFromUnitVectors(axw, up); const target = qd.multiply(c.q.clone());
+      c.q.slerp(target, 0.15);
+      c.py += (ground + he[bi] - c.py) * 0.2;
+      if (best > 0.995 && Math.hypot(c.vx, c.vz) < 0.2) { // at rest: now a solid wreck
+        c.st = 'rest'; c.x = c.px; c.z = c.pz; c.circ = [[0, 0, Math.max(he[0], he[2]) * 0.8]]; c.sp = { kind: 'solid', c: c.circ, he: he, hc: c.sp.hc }; gAdd(c);
+        const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
+      }
+    }
+    dirty.add(c);
+  }
+  function stepFall(c, dt) {
+    c.av += (3.2 + 5 * Math.sin(c.ang + 0.15)) * dt; c.ang += c.av * dt;
+    if (c.ang >= c.tgt) { c.ang = c.tgt; c.st = 'down'; const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1); }
+    dirty.add(c);
+  }
+  function stepDebris(dt) {
+    for (const b of bags) {
+      if (b.rest) continue;
+      b.vy -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+      if (inB(b.x, b.z)) { b.x -= b.vx * dt; b.z -= b.vz * dt; b.vx *= -0.3; b.vz *= -0.3; }
+      const g0 = gy(b.x, b.z) + 0.12;
+      if (b.y < g0) { b.y = g0; b.vy = -b.vy * 0.3; b.vx *= 0.7; b.vz *= 0.7; if (Math.abs(b.vy) < 0.6 && Math.hypot(b.vx, b.vz) < 0.8) b.rest = true; }
+      b.dirty = true; bagDirty = true;
+    }
+    for (const l of leaves) {
+      if (l.age >= l.life) continue;
+      l.age += dt; l.vy += (-2.2 - l.vy * 1.6) * dt; l.vx *= 1 - 0.8 * dt; l.vz *= 1 - 0.8 * dt;
+      l.x += l.vx * dt; l.y += l.vy * dt; l.z += l.vz * dt; l.rot += l.spin * dt;
+      const g0 = gy(l.x, l.z) + 0.03; if (l.y < g0) { l.y = g0; l.vy = 0; l.spin *= 0.9; l.vx *= 0.8; l.vz *= 0.8; }
+      leafDirty = true;
+    }
+  }
+  let bagDirty = false, leafDirty = false;
+
+  function reset(c) {
+    broken.delete(c); const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
+    if (c.st === 'rest' || c.st === 0 || c.gk !== undefined) gDel(c);
+    c.st = 0; c.x = c.x0; c.z = c.z0; c.sp = SPECS[c.model]; c.circ = c.sp.c; gAdd(c);
+    for (const b of bags) if (b.owner === c) { b.owner = null; b.rest = true; b.y = -500; b.dirty = true; bagDirty = true; }
+    baseMatrix(c, mA); c.im.setMatrixAt(c.i, mA); dirty.add(c.im);
+  }
+
+  function collidePlayer(pc, dt = 1 / 120) {
+    simT += dt;
+    if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); }
+    if (bags.length || leaves.length) stepDebris(dt);
+    if (broken.size && (++tick % 60) === 0 && camPos) {
+      for (const c of broken) if (simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && Math.hypot(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && Math.hypot(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
+    }
+    const sn = Math.sin(pc.th), cs = Math.cos(pc.th);
+    for (let sg = 1; sg >= -1; sg -= 2) {
+      const a = sg * PAX, px = pc.x + sn * a, pz = pc.z + cs * a;
+      const i0 = Math.floor((px - 4) / 8), i1 = Math.floor((px + 4) / 8), j0 = Math.floor((pz - 4) / 8), j1 = Math.floor((pz + 4) / 8);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const lst = grid.get((i + 512) * 1024 + (j + 512)); if (!lst) continue;
+        for (let q = lst.length - 1; q >= 0; q--) {
+          const c = lst[q]; if (!c || c.st === 'down' || c.st === 'fall' || c.st === 'fly') continue;
+          const cr = Math.cos(c.rot), sr = Math.sin(c.rot), ss = c.s;
+          for (const [ox, oz, r0] of c.circ) {
+            const r = SCALE_R.has(c.model) ? r0 * ss : r0;
+            const wx = c.x + (ox * cr + oz * sr) * (c.st === 'rest' ? 0 : 1), wz = c.z + (-ox * sr + oz * cr) * (c.st === 'rest' ? 0 : 1);
+            let nx = px - wx, nz = pz - wz, d = Math.hypot(nx, nz); const rs = PR + r;
+            if (d >= rs) continue;
+            if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
+            const arm = a * (cs * nx - sn * nz);
+            hit(pc, c, nx, nz, rs - d, arm);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // called once per rendered frame: writes the matrices of everything that moved
+  function flush(cam) {
+    camPos = cam;
+    if (dirty.size) {
+      for (const d of dirty) { if (d.isInstancedMesh) d.instanceMatrix.needsUpdate = true; else poseInstance(d); }
+      for (const d of dirty) if (d.isInstancedMesh) d.instanceMatrix.needsUpdate = true;
+      dirty.clear();
+    }
+    if (bagDirty) {
+      for (const b of bags) { if (!b.dirty) continue; b.dirty = false; mA.compose(vA.set(b.x, b.y, b.z), qA.setFromAxisAngle(up, b.rot), sA.setScalar(b.s)); bagPool.setMatrixAt(b.idx, mA); }
+      bagPool.instanceMatrix.needsUpdate = true; bagDirty = false;
+    }
+    if (leafDirty) {
+      let live = false;
+      for (const l of leaves) {
+        if (l.age >= l.life) { if (!l.gone) { l.gone = true; mA.makeScale(0, 0, 0); leafPool.setMatrixAt(l.idx, mA); live = true; } continue; }
+        l.gone = false; live = true;
+        qB.setFromEuler(new THREE.Euler(l.age * 3 + l.rot, l.rot, l.age * 2)); mA.compose(vA.set(l.x, l.y, l.z), qB, sA.setScalar(l.s * Math.min(1, (l.life - l.age) * 2)));
+        leafPool.setMatrixAt(l.idx, mA);
+      }
+      leafPool.instanceMatrix.needsUpdate = true; if (!live) leafDirty = false;
+    }
+  }
+  return { collidePlayer, flush, stats, count: () => colls.length };
+}
+
+
 export function buildProps(ctx) {
   const t0 = performance.now();
   const { scene, raisedMask, CURB } = ctx;
@@ -470,6 +759,7 @@ export function buildProps(ctx) {
   const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
 
   // ---------- instance buckets
+  const colls = [];
   const buckets = {};
   const stats = {};
   function put(model, x, y, z, rot = 0, s = 1, col = null) {
@@ -479,6 +769,8 @@ export function buildProps(ctx) {
     e.m.push(x, y, z, rot, s);
     if (m.tint) e.c.push(col ? col.r : 1, col ? col.g : 1, col ? col.b : 1);
     stats[model] = (stats[model] || 0) + 1;
+    const sp = SPECS[model];
+    if (sp) colls.push({ model, key, i: e.m.length / 5 - 1, x, y, z, rot, s, sp, st: 0, im: null, circ: sp.c, x0: x, z0: z, y0: y, rot0: rot });
   }
 
   // ---------- buildings: exact point test + nearest wall
@@ -1268,18 +1560,17 @@ export function buildProps(ctx) {
       put('litter_cafe', x, gy(x, z) + 0.012, z, RT(0, TAU), RT(0.8, 1.2)); st.cafeLitter++;
     }
     stats.rubbish = st;
-    if (location.search.includes('dbgtrash')) for (const m of ['bin_over', 'dump_mattress', 'dump_fridge', 'dump_sofa', 'dump_wreck', 'mwaste0', 'mcrates', 'cardboard']) { const o = []; for (const e of (buckets[m] || new Map()).values()) for (let i = 0; i < e.m.length; i += 5) if (Math.hypot(e.m[i], e.m[i + 2]) < 700) o.push([Math.round(e.m[i]), Math.round(e.m[i + 1]), Math.round(e.m[i + 2])]); console.log('DBGT', m, JSON.stringify(o.slice(0, 6))); }
   }
 
   // ---------- flush instances
-  let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [];
+  let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [], meshOf = {};
   const FAR = { bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
     signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
     shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   for (const [name, cells] of Object.entries(buckets)) {
     const M = MODELS[name], per = M.geo.attributes.position.count / 3;
-    for (const e of cells.values()) {
+    for (const [ckey, e] of cells.entries()) {
       const n = e.m.length / 5;
       const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n);
       for (let i = 0; i < n; i++) {
@@ -1290,16 +1581,30 @@ export function buildProps(ctx) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im);
+      im.userData.maxd = FAR[name] ?? 450; cellMeshes.push(im); meshOf[name + '|' + ckey] = im;
       scene.add(im); tris += per * n; meshes++; total += n; triBy[name] = (triBy[name] || 0) + per * n;
     }
   }
+  const phys = makePhysics({ colls, meshOf, inB, gy, scene });
   // Distance culling per cell mesh, decided before each render (shadow pass included).
   const cp = new THREE.Vector3(), prev = scene.onBeforeRender;
   scene.onBeforeRender = function (r, sc, camera, ...rest) {
     camera.getWorldPosition(cp);
     for (const im of cellMeshes) { const b = im.boundingSphere; im.visible = Math.hypot(b.center.x - cp.x, b.center.y - cp.y, b.center.z - cp.z) - b.radius < im.userData.maxd; }
+    phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };
   console.log(`[props] ${total} instances in ${meshes} meshes, ${Math.round(tris / 1000)}k tris, ${Math.round(performance.now() - t0)} ms`, JSON.stringify(stats), 'tris', JSON.stringify(Object.fromEntries(Object.entries(triBy).map(([k, v]) => [k, Math.round(v / 1000)]))), 'per', JSON.stringify(Object.fromEntries(Object.entries(MODELS).map(([k, v]) => [k, v.geo.attributes.position.count / 3]))));
+  const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, colliders: phys.count() };
+  if (location.search.includes('debug')) window.__props = Object.assign(api, { colls });
+  if (location.search.includes('proptest=')) setTimeout(() => { // TEMP test harness
+    const q = new URLSearchParams(location.search), models = q.get('proptest').split(','), S = +(q.get('sp') || 14), g = window.game; if (!g) return;
+    const tg = colls.filter(c => models.includes(c.model) && Math.hypot(c.x0 - g.car.x, c.z0 - g.car.z) > 20).sort((a, b) => Math.hypot(a.x0 - g.car.x, a.z0 - g.car.z) - Math.hypot(b.x0 - g.car.x, b.z0 - g.car.z))[0];
+    if (!tg) { console.log('PROPTEST no target'); return; }
+    const ang = +(q.get('ang') || 0), dx = Math.sin(tg.rot0 + ang), dz = Math.cos(tg.rot0 + ang), th = Math.atan2(-dx, -dz), car = g.car;
+    let n = 0; console.log('PROPTEST target', tg.model, tg.x0, tg.z0);
+    const f = () => { if (n++ === 0) { car.x = tg.x0 + dx * 12; car.z = tg.z0 + dz * 12; car.th = th; } if (n < 200 && tg.st === 0) { car.vx = Math.sin(th) * S; car.vz = Math.cos(th) * S; car.vf = S; for (let k = 0; k < 4; k++) { car.x += car.vx / 240; car.z += car.vz / 240; api.collidePlayer(car, 1 / 240); } } else if (n < 400) for (let k = 0; k < 2; k++) api.collidePlayer({ x: 9999, z: 9999, th: 0, vx: 0, vz: 0, vf: 0 }, 1 / 120); requestAnimationFrame(f); };
+    f(); setTimeout(() => console.log('PROPTEST result', tg.st, JSON.stringify(api.stats)), 6000);
+  }, 2500);
+  return api;
 }

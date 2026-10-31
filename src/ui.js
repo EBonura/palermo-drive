@@ -33,6 +33,10 @@ const S = {
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   garage: ['La tua lapa', 'Your lapa'],
+  startQ: ['Da dove parti?', 'Where do you start?'],
+  startLast: ['Ultima posizione', 'Last position'],
+  startRandom: ['Casuale', 'Random'],
+  startGo: ['Parti', 'Go'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
   pauseBtn: ['Pausa', 'Pause'],
   fullscreen: ['Schermo intero', 'Fullscreen'],
@@ -275,7 +279,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // landmark picker
   mk('spots', '', `<div class="pd-card">
       <h2 class="pd-h" data-k="pickSpot" data-two></h2>
-      <div class="pd-grid spots">${SPOTS.map((s, i) => `<button class="pd-btn sm" data-nav data-spot="${i}" type="button"><span class="pd-in">${esc(s[0])}</span></button>`).join('')}</div>
+      <div class="pd-grid spots"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
 
@@ -283,6 +287,12 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       <h2 class="pd-h" data-k="garage" data-two></h2>
       <div class="pd-stack pd-liveries"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
+    </div>`);
+
+  mk('start', '', `<div class="pd-card pd-garage pd-start">
+      <h2 class="pd-h" data-k="startQ" data-two></h2>
+      <div class="pd-stack pd-liveries pd-startlist"></div>
+      <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button><button class="pd-btn sm drive" data-nav data-do="go" type="button">${two('startGo')}${CHEV}</button></div>
     </div>`);
 
   const pauseBtn = h('button', 'pd-pausebtn', ICON_PAUSE, { type: 'button', 'aria-label': 'Pausa / Pause' });
@@ -325,7 +335,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (cur && push) stack.push(cur);
     if (!push && !back) stack = [];
     if (cur) { const a = document.activeElement; if (a && screens[cur].contains(a)) lastFocus[cur] = a; }
-    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : flyCam;
+    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : name === 'start' ? startCam : flyCam;
     cur = name;
     for (const k in screens) screens[k].classList.toggle('on', k === name);
     lockUntil = now() + 260;
@@ -333,6 +343,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (name) {
       if (name === 'options') syncOptions();
       if (name === 'menu' || name === 'garage') renderLiveries();
+      if (name === 'spots') renderSpots();
+      if (name === 'start') renderStart();
       let want = lastFocus[name];
       if (!want || !want.isConnected) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
       if (want && name !== 'title') want.focus({ preventScroll: true });
@@ -391,7 +403,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function openPause() {
     if (game.state !== 'play' || busy) return;
-    game.pause(); stack = []; go('pause');
+    rememberPos(true); game.pause(); stack = []; go('pause');
     for (const k in screens) delete lastFocus[k];
   }
   function closePause() {
@@ -402,15 +414,16 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (busy) return; busy = true;
     fade.classList.add('on');
     setTimeout(() => {
+      rememberPos(true);
       missions?.stop?.();
       placeAt(...proj(SPOTS[0][1], SPOTS[0][2])); game.state = 'title'; stack = []; go('menu'); fade.classList.remove('on'); busy = false;
     }, 420);
   }
   function restartAt(i) {
-    const s = SPOTS[i]; if (!s || busy) return; busy = true;
+    const s = spotList()[i]; if (!s || busy) return; busy = true;
     fade.classList.add('on');
     setTimeout(() => {
-      placeAt(...proj(s[1], s[2]));
+      placeAt(s.x, s.z);
       game.resume(); go(null);
       requestAnimationFrame(() => requestAnimationFrame(() => { fade.classList.remove('on'); busy = false; }));
     }, 360);
@@ -423,8 +436,9 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function act(name, el) {
     switch (name) {
-      case 'drive': missions?.setMode?.('free'); return drive();
-      case 'turisti': missions?.setMode?.('turisti'); return drive();
+      case 'drive': startMode = 'free'; return go('start', { push: true });
+      case 'turisti': startMode = 'turisti'; return go('start', { push: true });
+      case 'go': return confirmStart();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
       case 'garage': return go('garage', { push: true });
@@ -472,6 +486,67 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     cam.position.set(c.x + Math.sin(a) * 7, gy + 2.7 + Math.sin(sec * 0.23) * 0.4, c.z + Math.cos(a) * 7);
     cam.lookAt(c.x, gy + 0.7, c.z);
     cam.translateX(1.6); // lapa sits left of centre, the livery list on the right
+  }
+
+  // ---- start picker ("Da dove parti?"): built from SPOTS (plus window.PALERMO_WORLD.landmarks when present) each time it opens ----
+  const LAST_KEY = 'palermoDrive.last.v1';
+  const readLast = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && Number.isFinite(v.x) && Number.isFinite(v.z) ? v : null; } catch (e) { return null; } };
+  let lastPos = readLast(), lastWrite = 0, startMode = 'free', startItems = [], startSel = 0, startWas = -1, lastPointer = 'mouse', spotItems = [];
+  function rememberPos(force) { // where you were driving, for "Ultima posizione"
+    const c = vehicle && vehicle.car;
+    if (!c || (game.state !== 'play' && game.state !== 'pause') || (!force && now() - lastWrite < 4000)) return;
+    lastWrite = now(); lastPos = { x: c.x, z: c.z };
+    try { localStorage.setItem(LAST_KEY, JSON.stringify(lastPos)); } catch (e) { /* storage unavailable */ }
+  }
+  addEventListener('pagehide', () => rememberPos(true));
+  function spotList() {
+    const out = [], seen = new Set();
+    const add = (name, x, z) => { if (name && Number.isFinite(x) && Number.isFinite(z) && !seen.has(name)) { seen.add(name); out.push({ name, x, z }); } };
+    for (const sp of SPOTS) { const [x, z] = proj(sp[1], sp[2]); add(sp[0], x, z); }
+    const W = window.PALERMO_WORLD && window.PALERMO_WORLD.landmarks;
+    for (const e of Array.isArray(W) ? W : W && typeof W === 'object' ? Object.values(W) : []) {
+      if (Array.isArray(e)) { const [x, z] = proj(e[1], e[2]); add(e[0], x, z); }
+      else if (e) { const nm = e.name || e.n || e.name_it; if (Number.isFinite(e.lat) && Number.isFinite(e.lon)) { const [x, z] = proj(e.lat, e.lon); add(nm, x, z); } else add(nm, e.x, e.z); }
+    }
+    return out;
+  }
+  function renderSpots() { // pause menu: restart at a landmark
+    spotItems = spotList();
+    screens.spots.querySelector('.pd-grid').innerHTML = spotItems.map((sp, i) => `<button class="pd-btn sm" data-nav data-spot="${i}" type="button"><span class="pd-in">${esc(sp.name)}</span></button>`).join('');
+  }
+  function renderStart() {
+    lastPos = readLast() || lastPos;
+    const spots = spotList();
+    startItems = [...(lastPos ? [{ kind: 'last', x: lastPos.x, z: lastPos.z }] : []), { kind: 'random' }, ...spots.map(sp => ({ kind: 'spot', ...sp }))];
+    startBox.innerHTML = startItems.map((it, i) => `<button class="pd-btn sm pd-liv" data-nav data-start="${i}" aria-pressed="false" type="button"><span class="pd-in"${it.kind === 'spot' ? '' : ` data-k="${it.kind === 'last' ? 'startLast' : 'startRandom'}" data-two`}>${it.kind === 'spot' ? esc(it.name) : ''}</span></button>`).join('');
+    applyLang();
+    selectStart(startItems.findIndex(it => it.kind === 'last') >= 0 ? 0 : startItems.findIndex(it => it.kind === 'spot'));
+    lastFocus.start = startBox.querySelector(`[data-start="${startSel}"]`);
+  }
+  function selectStart(i) {
+    startSel = i; const it = startItems[i]; if (!it) return;
+    for (const b of startBox.querySelectorAll('[data-start]')) b.setAttribute('aria-pressed', String(+b.dataset.start === i));
+    if (it.kind !== 'random') { try { placeAt(it.x, it.z); } catch (e) { /* no road yet */ } } // the lapa appears there during the preview
+    if (game.state === 'title') game.titleCam = it.kind === 'random' ? flyCam : startCam;
+  }
+  function confirmStart() {
+    if (busy) return;
+    let it = startItems[startSel]; if (!it) return;
+    if (it.kind === 'random') { const sp = startItems.filter(x => x.kind === 'spot'); it = sp[Math.floor(Math.random() * sp.length)] || it; }
+    missions?.setMode?.(startMode);
+    if (it.x != null) placeAt(it.x, it.z);
+    drive();
+  }
+  const startBox = screens.start.querySelector('.pd-startlist');
+  startBox.addEventListener('pointerdown', e => { lastPointer = e.pointerType; startWas = startSel; });
+  startBox.addEventListener('focusin', e => { const b = e.target.closest('[data-start]'); if (b && +b.dataset.start !== startSel) selectStart(+b.dataset.start); });
+  startBox.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const b = e.target.closest('[data-start]'); if (b && document.activeElement !== b) b.focus({ preventScroll: true }); } });
+  function startCam(cam, sec) { // overhead orbit around the chosen spot, the lapa parked there
+    if (cam.fov !== 50) { cam.fov = 50; cam.updateProjectionMatrix(); }
+    const c = vehicle.car, gy = groundY(c.x, c.z), a = sec * 0.2 + 0.8;
+    cam.position.set(c.x + Math.sin(a) * 38, gy + 42, c.z + Math.cos(a) * 38);
+    cam.lookAt(c.x, gy + 2, c.z);
+    cam.translateX(10); // spot sits left of centre, the list on the right
   }
 
   // ---- options ----
@@ -606,6 +681,10 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (t === fsBtn) return fullscreen();
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
+    if (t.dataset.start != null) { // mouse and keyboard start straight away; a first touch only selects and previews
+      const i = +t.dataset.start, firstTouch = e.detail && lastPointer !== 'mouse' && startWas !== i;
+      selectStart(i); return firstTouch ? undefined : confirmStart();
+    }
     if (t.dataset.liv != null) return pickLivery(t.dataset.liv);
     if (t.dataset.spot != null) return restartAt(+t.dataset.spot);
     if (t.dataset.do) return act(t.dataset.do, t);
@@ -634,6 +713,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
     if (game.state !== lastState) { lastState = game.state; syncState(); placePause(); }
     pollPad(t);
+    rememberPos();
     if (t > nextLivCheck) { nextLivCheck = t + 1000; renderLiveries(); }
     if (cur === 'credits' && t > rollPause) {
       if (Math.abs(roll.scrollTop - rollY) > 1.5) rollY = roll.scrollTop; // the user scrolled by hand
@@ -664,9 +744,9 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (want === 'pause') setTimeout(openPause, 50);
   } else {
     syncState();
-    go(['menu', 'options', 'credits', 'spots', 'garage'].includes(want) ? want : want === 'none' ? null : 'title');
+    go(['menu', 'options', 'credits', 'spots', 'garage', 'start'].includes(want) ? want : want === 'none' ? null : 'title');
     if (want === 'options' || want === 'credits') stack = ['menu'];
-    if (want === 'spots' || want === 'garage') stack = ['menu'];
+    if (want === 'spots' || want === 'garage' || want === 'start') stack = ['menu'];
   }
   lastState = game.state;
   requestAnimationFrame(tick);
