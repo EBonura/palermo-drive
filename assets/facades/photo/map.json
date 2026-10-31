@@ -86,5 +86,27 @@
    "license": "CC0",
    "credit": "Luca.favorido, Facciata del Teatro Biondo.jpg, CC0, https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg"
   }
+ ],
+ "w278478513": [
+  {
+   "wall": 2,
+   "texture": "assets/facades/photo/palmes.jpg",
+   "u0": 1,
+   "u1": 0,
+   "v0": 0,
+   "v1": 1,
+   "flip": true,
+   "photographed": [
+    0.1,
+    0.9,
+    0.14
+   ],
+   "size": [
+    1024,
+    344
+   ],
+   "license": "CC BY 4.0",
+   "credit": "HaguardDuNord, Grand Hotel et des Palmes (Palermo) - Fa\u00e7ade.jpg, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Grand_Hotel_et_des_Palmes_(Palermo)_-_Fa%C3%A7ade.jpg"
+  }
  ]
 }

@@ -495,30 +495,31 @@
   "name": "Grand Hotel et des Palmes (Via Mariano Stabile)",
   "wall": 2,
   "cover": [
-   0,
-   1
+   0.1,
+   0.9
   ],
   "title": "Grand Hotel et des Palmes (Palermo) - Fa\u00e7ade.jpg",
   "dw": 1600,
   "quad": [
    [
-    0,
-    0
+    294,
+    305
+   ],
+   [
+    1293,
+    305
    ],
    [
     1600,
-    0
-   ],
-   [
-    1600,
-    1200
+    965
    ],
    [
     0,
-    1200
+    965
    ]
   ],
   "fix": [],
-  "todo": true
+  "todo": false,
+  "v0": 0.14
  }
 ]

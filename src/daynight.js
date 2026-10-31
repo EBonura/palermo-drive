@@ -1,0 +1,517 @@
+// Day/night cycle. Owned by the day/night work.
+//
+//   const dn = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
+//   dn.update(dt)   // every frame, before the camera is placed and the frame rendered
+//
+// game.time = { hour 0..24, isNight, night 0..1 (0 day, 1 dark), dusk 0..1 (twilight, peaks as the sun touches the horizon),
+//               day 1-night, sunUp, speed (game hours per real second) } is rewritten every frame. A 'pd-time' window event
+// { hour, isNight, night, dusk } fires every two game minutes (and on a time jump) for modules that want to react.
+//
+// Drives: sun/moon direction and colour (SUN_DIR is the live light direction, mutated in place), the physical sky (patched so it
+// hands over to a pink-lilac twilight gradient, stars and a moon), fog, hemisphere light, exposure, the sky-gradient environment
+// map (re-baked only while its colours move), the sea shader, street lamps (halo points + ground pools, no real lights), lit
+// windows (a uniform read by the facade shader in buildings.js), the player's headlights and tail lamps, a clock under the minimap.
+// Settings (game.settings.timeStart 'morning'|'afternoon'|'sunset'|'night', timeSpeed 'off'|'slow'|'normal'|'fast') come from the
+// Options screen; ?time=HH (also 19.5) freezes the clock for screenshots, ?timespeed=MINUTES_PER_DAY lets it run again.
+import * as THREE from 'three';
+import { QUALITY } from './mobile.js';
+import { groundY } from './core.js';
+import { MAT } from './vehicle-art.js';
+
+// Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
+export const NIGHT = { win: { value: 0 } };
+
+const { clamp, lerp } = THREE.MathUtils;
+const ss = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }; // GLSL smoothstep(e0, e1, x); e0 > e1 reverses it
+const DEG = Math.PI / 180;
+
+export const START_HOURS = { morning: 8.5, afternoon: 16.5, sunset: 18.5, night: 22.5 };
+export const DAY_MINUTES = { off: 0, slow: 48, normal: 24, fast: 8 }; // real minutes per game day
+const DEFAULT_START = 'afternoon', DEFAULT_SPEED = 'normal';
+
+// ------------------------------------------------------------------------------------------------ sun and moon
+// Palermo (38.1 N), declination +5 degrees (spring/early autumn): sunrise 6:15, sunset 18:45, 60 degrees at noon.
+// 16:30 puts the sun 26 degrees up in the WSW, which is the look the game had before it had a clock.
+const LAT = 38.1 * DEG, DEC = 5 * DEG, NOON = 12.5;
+function sunVector(hour, out) { // x east, y up, z south
+  const H = (hour - NOON) * 15 * DEG;
+  const sinAlt = Math.sin(LAT) * Math.sin(DEC) + Math.cos(LAT) * Math.cos(DEC) * Math.cos(H);
+  const alt = Math.asin(sinAlt), az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(LAT) - Math.tan(DEC) * Math.cos(LAT)); // az: from south, towards west
+  out.set(-Math.sin(az) * Math.cos(alt), sinAlt, Math.cos(az) * Math.cos(alt));
+  return alt;
+}
+
+// ------------------------------------------------------------------------------------------------ the palette over the day
+// One keyframe per phase; everything between is blended (linear colour space). Hours are local clock time.
+//  sun/sunI: direct light.  hemi*: sky/ground ambient.  fog/fogK: haze colour and density multiplier.  expo: tone-map exposure.
+//  env*: the gradient baked into the reflection/ambient map.  skyH/skyZ/glow: the twilight sky (horizon, zenith, glow round the sun).
+//  amb: multiplier on the sea body colour.  win: share of windows that may be lit.
+const C = h => new THREE.Color(h);
+const DAYK = {
+  sun: '#ffe4bd', sunI: 2.9, hemiS: '#c9cfd4', hemiG: '#9a8566', hemiI: 0.4, fog: '#a9c4da', fogK: 1, expo: 0.85,
+  envZ: '#8ea5bd', envH: '#d8d4cb', envB: '#8f7f68', skyH: '#a8cbe6', skyZ: '#3d7fc4', glow: '#ffd9a0', amb: '#ffffff', win: 0,
+};
+const K = (h, o) => { const k = { h, ...DAYK, ...o }; for (const f of ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'amb']) k[f] = C(k[f]); return k; };
+const NIGHTK = {
+  sun: '#000000', sunI: 0, hemiS: '#2b3a6a', hemiG: '#1c2030', hemiI: 0.55, fog: '#141a36', fogK: 1.4, expo: 1.15,
+  envZ: '#1a2548', envH: '#2b365f', envB: '#0b0b12', skyH: '#1a2250', skyZ: '#060b22', glow: '#5a6aa0', amb: '#0b1226', win: 0.5,
+};
+const KEYS = [
+  K(0, { ...NIGHTK, win: 0.3 }),
+  K(3.5, { ...NIGHTK, win: 0.12 }),
+  K(4.9, { ...NIGHTK, win: 0.2 }),
+  K(5.6, { sun: '#7a6a98', sunI: 0.15, hemiS: '#5a6490', hemiG: '#3a3440', hemiI: 0.5, fog: '#6a6a92', fogK: 1.5, expo: 1.08, envZ: '#34407a', envH: '#8a7e9a', envB: '#2a2630', skyH: '#8878a0', skyZ: '#242f6a', glow: '#c08aa0', amb: '#3a3c58', win: 0.25 }),
+  K(6.25, { sun: '#ffb585', sunI: 1.4, hemiS: '#b4a8bc', hemiG: '#7a6660', hemiI: 0.38, fog: '#c0aab6', fogK: 1.45, expo: 0.95, envZ: '#7088b8', envH: '#e6b49c', envB: '#74605e', skyH: '#f4b196', skyZ: '#5f7cbc', glow: '#ff9c6a', amb: '#c9a8a0', win: 0 }),
+  K(7.4, { sun: '#ffd4a0', sunI: 2.6, hemiS: '#c2cbd4', hemiG: '#968068', hemiI: 0.4, fog: '#b6c4d6', fogK: 1.15, expo: 0.87, envZ: '#869fbd', envH: '#dccdb8', envB: '#8c7c66', amb: '#e8dcd0' }),
+  K(9, {}),
+  K(16.5, {}),
+  K(17.7, { sun: '#ffbe78', sunI: 2.6, hemiS: '#d4c8c8', hemiG: '#9a7c68', hemiI: 0.42, fog: '#c4bcc4', fogK: 1.2, expo: 0.88, envZ: '#869cc0', envH: '#e4c4aa', envB: '#8a7260', skyH: '#f0b894', skyZ: '#7d9fd0', amb: '#e8d8d0', win: 0 }),
+  K(18.7, { sun: '#ff8f55', sunI: 1.5, hemiS: '#b9a5bb', hemiG: '#7c6460', hemiI: 0.38, fog: '#b6a6a9', fogK: 1.5, expo: 0.95, envZ: '#6a6e9e', envH: '#e5a28c', envB: '#6e5a5e', skyH: '#f2998a', skyZ: '#5a68a8', glow: '#ff8a5a', amb: '#c4a0a0', win: 0 }),
+  K(19.25, { sun: '#e0607a', sunI: 0.3, hemiS: '#7a78a8', hemiG: '#4a4458', hemiI: 0.42, fog: '#8a7c9e', fogK: 1.65, expo: 1.05, envZ: '#2f3a70', envH: '#a07c9e', envB: '#3a3040', skyH: '#a8749e', skyZ: '#26306a', glow: '#e86a7a', amb: '#5a5070', win: 0.2 }),
+  K(20.1, { sun: '#503060', sunI: 0, hemiS: '#3c4a7c', hemiG: '#2a2a3c', hemiI: 0.5, fog: '#2a3052', fogK: 1.6, expo: 1.1, envZ: '#18204a', envH: '#3a4070', envB: '#14141c', skyH: '#3a4078', skyZ: '#0b1130', glow: '#8a5a90', amb: '#1c2440', win: 0.45 }),
+  K(21.4, { ...NIGHTK }),
+  K(24, { ...NIGHTK, win: 0.3 }),
+];
+const MOON = C('#a9bbff');
+
+const P = { // the blended palette for the current hour (reused every frame)
+  sun: new THREE.Color(), hemiS: new THREE.Color(), hemiG: new THREE.Color(), fog: new THREE.Color(), envZ: new THREE.Color(), envH: new THREE.Color(),
+  envB: new THREE.Color(), skyH: new THREE.Color(), skyZ: new THREE.Color(), glow: new THREE.Color(), amb: new THREE.Color(),
+  sunI: 0, hemiI: 0, fogK: 1, expo: 0.85, win: 0,
+};
+const COLS = ['sun', 'hemiS', 'hemiG', 'fog', 'envZ', 'envH', 'envB', 'skyH', 'skyZ', 'glow', 'amb'], NUMS = ['sunI', 'hemiI', 'fogK', 'expo', 'win'];
+function palette(hour) {
+  let i = 0; while (i < KEYS.length - 2 && hour >= KEYS[i + 1].h) i++;
+  const a = KEYS[i], b = KEYS[i + 1], t = clamp((hour - a.h) / (b.h - a.h), 0, 1), e = t * t * (3 - 2 * t);
+  for (const c of COLS) P[c].copy(a[c]).lerp(b[c], e);
+  for (const n of NUMS) P[n] = lerp(a[n], b[n], e);
+}
+
+// ------------------------------------------------------------------------------------------------ the sky shader
+const SKY_UNIFORMS = `
+uniform float uMix; uniform float uTime; uniform float uStars; uniform float uSunVis;
+uniform vec3 uSkyH; uniform vec3 uSkyZ; uniform vec3 uGlow; uniform vec3 uSunV; uniform vec3 uMoonV; uniform float uMoon;
+float pdHash(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+vec3 pdTwilight(vec3 d) {
+  float h = clamp(d.y, 0.0, 1.0);
+  vec3 g = mix(uSkyH, uSkyZ, pow(h, 0.42));
+  float s = max(dot(d, uSunV), 0.0);
+  g += uGlow * (pow(s, 5.0) * 0.32 + pow(s, 34.0) * 0.42) * (1.0 - 0.55 * h);
+  g += uGlow * 0.18 * exp(-abs(d.y) * 9.0);                                        // the horizon band is the brightest part
+  g += vec3(1.0, 0.82, 0.6) * (smoothstep(0.99996, 0.999985, s) * 6.0 + pow(s, 900.0) * 1.2) * uSunVis;  // sun disc (while it is above the sea)
+  if (uStars > 0.01 && d.y > 0.0) {
+    vec3 q = d * 130.0, id = floor(q), f = fract(q) - 0.5;
+    float hh = pdHash(id);
+    if (hh > 0.962) {
+      vec3 off = vec3(pdHash(id + 1.7), pdHash(id + 3.1), pdHash(id + 5.3)) - 0.5;
+      float dist = length(f - off * 0.6);
+      float tw = 0.78 + 0.22 * sin(uTime * (1.3 + hh * 3.0) + hh * 60.0);
+      float b = (1.0 - smoothstep(0.0, 0.32, dist)) * (0.35 + (hh - 0.962) * 26.0) * tw;
+      g += mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), pdHash(id + 9.1)) * b * uStars * smoothstep(0.0, 0.18, d.y);
+    }
+  }
+  if (uMoon > 0.01) {
+    float m = dot(d, uMoonV);
+    vec3 side = normalize(cross(uMoonV, vec3(0.0, 1.0, 0.0)));
+    vec3 up2 = cross(side, uMoonV);
+    vec2 lc = vec2(dot(d - uMoonV * m, side), dot(d - uMoonV * m, up2)) / 0.024;
+    float disc = (1.0 - smoothstep(0.92, 1.0, length(lc))) * step(0.0, m);
+    float maria = 0.78 + 0.22 * sin(lc.x * 5.0 + sin(lc.y * 4.0) * 1.6) * sin(lc.y * 3.0 - lc.x * 2.0);
+    g += (vec3(1.0, 0.97, 0.88) * 2.4 * maria * disc + vec3(0.55, 0.65, 1.0) * (pow(max(m, 0.0), 70.0) * 0.16 + pow(max(m, 0.0), 700.0) * 0.4)) * uMoon;
+  }
+  return g;
+}
+`;
+function patchSky(sky) {
+  const u = sky.material.uniforms;
+  Object.assign(u, {
+    uMix: { value: 0 }, uTime: { value: 0 }, uStars: { value: 0 }, uSunVis: { value: 1 }, uMoon: { value: 0 },
+    uSkyH: { value: new THREE.Color() }, uSkyZ: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() },
+    uSunV: { value: new THREE.Vector3(0, 1, 0) }, uMoonV: { value: new THREE.Vector3(0, -1, 0) },
+  });
+  // The physical sky is far brighter than the city under our exposure and ACES clips it to white: scale its output down (0.42) so the
+  // zenith reads the saturated blue of a clear Palermo day. r183 dropped Sky's legacy gamma (retColor = pow(texColor, ...)); put it back.
+  const m = /gl_FragColor = vec4\( ([^;]*?), 1\.0 \);/.exec(sky.material.fragmentShader);
+  if (!m) { console.warn('[daynight] sky shader not recognised, leaving the day sky alone'); return; }
+  const expr = m[1], day = expr.includes('0.42') ? expr : (expr.includes('texColor') && !expr.includes('pow') ? 'pow( texColor, vec3( 1.0 / 2.4 ) )' : expr) + ' * 0.42';
+  sky.material.fragmentShader = SKY_UNIFORMS + sky.material.fragmentShader.replace(m[0],
+    `vec3 dayCol = ${day};
+     vec3 dirN = normalize( vWorldPosition - cameraPosition );
+     gl_FragColor = vec4( uMix > 0.001 ? mix( dayCol, pdTwilight( dirN ), uMix ) : dayCol, 1.0 );`);
+  sky.material.needsUpdate = true;
+}
+
+// ------------------------------------------------------------------------------------------------ small textures
+function radial(stops, size = 64) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  for (const [t, col] of stops) gr.addColorStop(t, col);
+  g.fillStyle = gr; g.fillRect(0, 0, size, size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function beamTex() { // bright at the bottom (near the lamp), fading with distance and sideways
+  const w = 64, h = 128, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const u = (x / (w - 1) - 0.5) * 2, v = 1 - y / (h - 1); // v: 0 at the lamp, 1 at the far end
+    const spread = 0.28 + 0.72 * v, lat = Math.exp(-(u * u) / (spread * spread) * 2.2), a = lat * Math.pow(1 - v, 1.6) * ss(0, 0.04, v);
+    const i = (y * w + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(255 * a);
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+const HALO_VERT = `
+attribute float aSize; attribute vec3 aCol; uniform float uScale; uniform float uAmt; varying vec3 vC; varying float vA;
+#include <fog_pars_vertex>
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  float dist = max(length(mvPosition.xyz), 0.5);
+  float px = aSize * uScale / dist;
+  mvPosition.xyz *= 1.0 - 0.45 / dist;                    // pulled 0.45 m towards the eye so the lamp housing does not swallow its own glow
+  gl_Position = projectionMatrix * mvPosition;
+  gl_PointSize = clamp(px, 2.5, 110.0);
+  vA = uAmt * min(1.0, px / 2.5 + 0.25);
+  vC = aCol;
+  #include <fog_vertex>
+}`;
+const HALO_FRAG = `
+varying vec3 vC; varying float vA;
+#include <fog_pars_fragment>
+void main() {
+  float r = length(gl_PointCoord - 0.5) * 2.0;
+  float a = (exp(-r * r * 16.0) + exp(-r * r * 3.8) * 0.42) * (1.0 - smoothstep(0.78, 1.0, r));
+  gl_FragColor = vec4(vC * a * vA, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  #ifdef USE_FOG
+  gl_FragColor.rgb *= exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );   // additive light fades with the haze (mixing to the fog colour would paint a square)
+  #endif
+}`;
+
+// ------------------------------------------------------------------------------------------------ createDayNight
+export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle }) {
+  const params = new URLSearchParams(location.search);
+  const MOBILE = QUALITY.mobile;
+  const st = game.settings;
+  patchSky(sky);
+  const U = sky.material.uniforms;
+
+  // ---- the clock
+  const qTime = params.get('time'), qSpeed = params.get('timespeed');
+  const forced = qTime !== null && qTime !== '' && Number.isFinite(+qTime);
+  let startKey = START_HOURS[st.timeStart] !== undefined ? st.timeStart : DEFAULT_START;
+  st.timeStart = startKey; if (!(st.timeSpeed in DAY_MINUTES)) st.timeSpeed = DEFAULT_SPEED;
+  let hour = forced ? ((+qTime % 24) + 24) % 24 : START_HOURS[startKey];
+  let vis = hour; // the hour the lighting shows: eases to `hour` after a jump so the sky sweeps instead of popping
+  let jump = null; // { from, delta, t }
+  let seenStart = st.timeStart, seenState = game.state;
+  const minutesPerDay = () => (forced && qSpeed === null ? 0 : qSpeed !== null && Number.isFinite(+qSpeed) ? +qSpeed : DAY_MINUTES[st.timeSpeed] ?? 24);
+  const time = game.time = Object.assign(game.time || {}, { hour, isNight: false, night: 0, dusk: 0, day: 1, sunUp: true, speed: 0 }); // keep the object main.js created: modules may hold it already
+
+  function jumpTo(h) {
+    hour = ((h % 24) + 24) % 24;
+    let d = hour - vis; d = ((d + 36) % 24) - 12; // shortest way round
+    jump = { from: vis, delta: d, t: 0 };
+    lastEvent = -1;
+  }
+
+  // ---- the sun's light
+  const sunV = new THREE.Vector3(), moonV = new THREE.Vector3(), seaDir = new THREE.Vector3(), _c = new THREE.Color();
+  const lightDir = SUN_DIR || new THREE.Vector3();
+
+  // ---- environment map: a gradient sphere baked to a PMREM, re-baked only while its colours move
+  const envGeo = new THREE.SphereGeometry(100, 32, 16), envCol = new Float32Array(envGeo.attributes.position.count * 3);
+  envGeo.setAttribute('color', new THREE.BufferAttribute(envCol, 3));
+  const envScene = new THREE.Scene();
+  envScene.add(new THREE.Mesh(envGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  let envRT = null, lastBake = -1e9;
+  const baked = { Z: new THREE.Color(-1, 0, 0), H: new THREE.Color(), B: new THREE.Color() };
+  function bakeEnv(now) {
+    const pos = envGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) / 100;
+      // Kept less saturated than the visible sky: shaded walls in Palermo read cool grey-brown, not blue.
+      if (y >= 0) _c.copy(P.envH).lerp(P.envZ, Math.pow(y, 0.55)); else _c.copy(P.envH).lerp(P.envB, Math.min(1, -y * 4));
+      envCol[i * 3] = _c.r; envCol[i * 3 + 1] = _c.g; envCol[i * 3 + 2] = _c.b;
+    }
+    envGeo.attributes.color.needsUpdate = true;
+    const prev = envRT;
+    envRT = pmrem.fromScene(envScene, 0.04);
+    scene.environment = envRT.texture;
+    if (prev) prev.dispose();
+    baked.Z.copy(P.envZ); baked.H.copy(P.envH); baked.B.copy(P.envB); lastBake = now;
+  }
+  const colDiff = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+
+  // ---- the sea shader's uniforms (found by name, src/sea.js keeps them)
+  let seaU = null, seaTries = 0;
+  const DAY_SEA_H = C('#a8cbe6'), DAY_SEA_Z = C('#3d7fc4'), _seaSun = new THREE.Color();
+
+  // ---- clock element under the street name
+  let clockEl = null, clockShown = '';
+  try {
+    const where = document.getElementById('where');
+    if (where) {
+      const css = document.createElement('style');
+      css.textContent = '#pd-clock{margin-top:4px;font:600 12px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;opacity:.78;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.7)}' +
+        '#pd-clock i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:0;background:#ffd36a;box-shadow:0 0 6px #ffd36a}#pd-clock i.n{background:#c8d4ff;box-shadow:inset -2px -1px 0 #5a6aa0,0 0 6px #aab8ff}' +
+        'html.touch #pd-clock{font-size:10px;margin-top:2px}';
+      document.head.appendChild(css);
+      clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; where.appendChild(clockEl);
+    }
+  } catch (e) { /* no HUD: fine */ }
+  function showClock() {
+    if (!clockEl) return;
+    const m = Math.floor(vis * 60) % 1440, s = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + (time.sunUp ? 'd' : 'n');
+    if (s === clockShown) return;
+    clockShown = s;
+    clockEl.innerHTML = `<i class="${time.sunUp ? '' : 'n'}"></i>${s.slice(0, 5)}`;
+  }
+
+  // ------------------------------------------------------------------------------------------ street lamps
+  // Bulb positions are read from the instanced lamp meshes (src/props.js tags them userData.kind) the first time it gets dark.
+  // Glow = one Points object (halos, also seen from far away as city lights); light on the ground = one additive InstancedMesh of
+  // flat quads. No real lights for them. Local bulb offsets mirror the models in props.js.
+  const LAMP_KINDS = {
+    lamp_pole: { bulbs: [[-1.45, 8.74, 0], [1.45, 8.74, 0]], pools: [[-1.45, 0, 0], [1.45, 0, 0]], size: 3.4, r: 8.5, col: '#ffc474', k: 1.0 },
+    lamp_wall: { bulbs: [[0, 4.15, 0.74]], pools: [[0, 0, 1.9]], size: 1.9, r: 5.2, col: '#ffcf8c', k: 0.85 },
+    candelabra: { bulbs: [[0, 4.35, 0], ...[0, 1, 2, 3].map(i => [Math.cos(i * Math.PI / 2 + 0.78) * 0.4, 4.15, Math.sin(i * Math.PI / 2 + 0.78) * 0.4])], pools: [[0, 0, 0]], size: 1.35, r: 5.8, col: '#ffe0b0', k: 0.75 },
+  };
+  let lamps = null; // { halo: Points, haloMat, pools: InstancedMesh, poolMat, pos: Float32Array of bulb xyz }
+  function buildLamps() {
+    const bulbs = [], bulbCol = [], bulbSize = [], poolM = [], poolC = [];
+    const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), col = new THREE.Color();
+    let hashK = 0;
+    scene.traverse(o => {
+      if (!o.isInstancedMesh) return;
+      const kind = LAMP_KINDS[o.userData.kind]; if (!kind) return;
+      const base = new THREE.Color(kind.col);
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, m); m.decompose(p, q, s);
+        const wob = 0.8 + 0.2 * Math.abs(Math.sin((p.x * 12.9898 + p.z * 78.233) * 43758.5453 + (hashK++)));   // each lamp a little different
+        for (const b of kind.bulbs) {
+          v.set(b[0] * s.x, b[1] * s.y, b[2] * s.z).applyQuaternion(q).add(p);
+          bulbs.push(v.x, v.y, v.z); bulbCol.push(base.r * wob, base.g * wob, base.b * wob); bulbSize.push(kind.size * (0.9 + 0.2 * wob));
+        }
+        for (const b of kind.pools) {
+          v.set(b[0] * s.x, 0, b[2] * s.z).applyQuaternion(q).add(p);
+          poolM.push(v.x, p.y + 0.07, v.z, kind.r * (0.9 + 0.2 * wob)); poolC.push(base.r * kind.k * wob, base.g * kind.k * wob, base.b * kind.k * wob);
+        }
+      }
+    });
+    const n = bulbs.length / 3, np = poolM.length / 4;
+    if (!n) return { none: true };
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(bulbs, 3));
+    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(bulbCol, 3));
+    geo.setAttribute('aSize', new THREE.Float32BufferAttribute(bulbSize, 1));
+    const haloMat = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 600 }, uAmt: { value: 0 } }]),
+      vertexShader: HALO_VERT, fragmentShader: HALO_FRAG, fog: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const halo = new THREE.Points(geo, haloMat); halo.frustumCulled = false; halo.renderOrder = 5; halo.visible = false;
+    scene.add(halo);
+    const pg = new THREE.PlaneGeometry(2, 2); pg.rotateX(-Math.PI / 2);
+    const poolMat = new THREE.MeshBasicMaterial({
+      map: radial([[0, 'rgba(255,255,255,0.95)'], [0.25, 'rgba(255,255,255,0.55)'], [0.6, 'rgba(255,255,255,0.14)'], [1, 'rgba(255,255,255,0)']], 128),
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+    });
+    const pools = new THREE.InstancedMesh(pg, poolMat, np); pools.frustumCulled = false; pools.renderOrder = 4; pools.visible = false;
+    for (let i = 0; i < np; i++) {
+      m.makeScale(poolM[i * 4 + 3], 1, poolM[i * 4 + 3]).setPosition(poolM[i * 4], poolM[i * 4 + 1], poolM[i * 4 + 2]);
+      pools.setMatrixAt(i, m); pools.setColorAt(i, col.setRGB(poolC[i * 3], poolC[i * 3 + 1], poolC[i * 3 + 2]));
+    }
+    pools.instanceMatrix.needsUpdate = true; pools.instanceColor.needsUpdate = true;
+    scene.add(pools);
+    console.log(`[daynight] ${n} lamp glows, ${np} light pools`);
+    return { halo, haloMat, pools, poolMat, pos: new Float32Array(bulbs), n };
+  }
+
+  // ------------------------------------------------------------------------------------------ the player's lights
+  // Cheap: two soft cones and two ground decals riding the car's heading, tail glow via the shared lamp materials.
+  const beamT = beamTex();
+  const beamGroup = new THREE.Group(); beamGroup.visible = false;
+  const ground = new THREE.BufferGeometry();
+  ground.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 1, -0.5, 0, 1], 3));
+  ground.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  ground.setIndex([0, 2, 1, 0, 3, 2]);
+  const decalMat = new THREE.MeshBasicMaterial({ map: beamT, color: '#ffe9b8', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
+  const coneLen = 13, coneGeo = new THREE.ConeGeometry(2.4, coneLen, 18, 1, true);
+  coneGeo.translate(0, -coneLen / 2, 0); coneGeo.rotateX(-Math.PI / 2); // apex at the origin, opening towards +z
+  { const pos = coneGeo.attributes.position, cc = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) { const t = clamp(pos.getZ(i) / coneLen, 0, 1), a = (1 - t) * (1 - t) * 0.9; cc[i * 3] = cc[i * 3 + 1] = cc[i * 3 + 2] = a; }
+    coneGeo.setAttribute('color', new THREE.BufferAttribute(cc, 3)); }
+  const coneMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: '#ffeccc', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0 });
+  const heads = [0, 1].map(() => {
+    const pivot = new THREE.Group(), cone = new THREE.Mesh(coneGeo, coneMat), decal = new THREE.Mesh(ground, decalMat);
+    cone.scale.set(0.55, 0.55, 1); cone.frustumCulled = false; decal.frustumCulled = false; pivot.add(cone); beamGroup.add(pivot);
+    const floor = new THREE.Group(); floor.add(decal); beamGroup.add(floor);
+    return { pivot, floor, decal };
+  });
+  scene.add(beamGroup);
+  function updateHeadlights(on) {
+    if (!car) return;
+    beamGroup.visible = on > 0.01;
+    if (!beamGroup.visible) return;
+    decalMat.opacity = on * 0.8; coneMat.opacity = on * 0.1;
+    const rig = vehicle?.rig, len = rig?.tpl?.spec?.len ?? 3.1, kind = car.kind || 'lapa';
+    const bike = kind === 'bike', hx = bike ? 0 : kind === 'car' ? 0.52 : 0.27, hy = bike ? 0.95 : kind === 'car' ? 0.62 : 0.88, hz = len * 0.43;
+    const sn = Math.sin(car.th), cs = Math.cos(car.th), gy = groundY(car.x, car.z) + (car.lift || 0);
+    heads.forEach((h, i) => {
+      const side = bike ? 0 : i ? 1 : -1;
+      h.pivot.visible = h.floor.visible = !(bike && i);
+      const lx = hx * side, ox = car.x + cs * lx + sn * hz, oz = car.z - sn * lx + cs * hz;
+      const yaw = car.th + side * 0.045;
+      h.pivot.position.set(ox, gy + hy, oz); h.pivot.rotation.set(0.09, yaw, 0, 'YXZ');
+      h.floor.position.set(ox + sn * 0.2, gy + 0.09, oz + cs * 0.2); h.floor.rotation.set(0, yaw, 0);
+      h.floor.scale.set(bike ? 3.4 : 3.8, 1, 15);
+    });
+  }
+  let lampMatOn = -1;
+  function setVehicleLamps(on) { // headlamp glass and tail lamps are shared vehicle materials
+    if (Math.abs(on - lampMatOn) < 0.01) return;
+    lampMatOn = on;
+    MAT.lamp.emissiveIntensity = 0.55 + 3.4 * on; MAT.tail.emissiveIntensity = 0.5 + 1.1 * on;
+  }
+
+  // ------------------------------------------------------------------------------------------ a handful of real lights (desktop only)
+  // Two point lights ride the nearest street lamps and one spot the car's nose. Added the first time it gets dark (adding a light
+  // recompiles the materials once), never on phones or on Low quality.
+  let rl = null, rlTried = false, rlAcc = 0;
+  function ensureRealLights() {
+    if (rlTried) return; rlTried = true;
+    if (MOBILE || st.quality === 'low' || !lamps || lamps.none) return;
+    const pts = [0, 1].map(() => { const l = new THREE.PointLight('#ffc98a', 0, 34, 1.6); l.castShadow = false; scene.add(l); return { l, tx: 0, ty: 0, tz: 0, k: 0 }; });
+    const spot = new THREE.SpotLight('#fff0cf', 0, 42, 0.5, 0.75, 1.5); spot.castShadow = false; scene.add(spot, spot.target);
+    rl = { pts, spot };
+  }
+  function updateRealLights(dt, lampOn, headOn) {
+    if (!rl) return;
+    rlAcc -= dt;
+    if (rlAcc <= 0 && car && lamps && !lamps.none) { // re-pick the two closest bulbs a few times a second
+      rlAcc = 0.25;
+      const a = lamps.pos; let b0 = -1, d0 = 1e9, b1 = -1, d1 = 1e9;
+      for (let i = 0; i < lamps.n; i++) {
+        const dx = a[i * 3] - car.x, dz = a[i * 3 + 2] - car.z, d = dx * dx + dz * dz;
+        if (d < d0) { b1 = b0; d1 = d0; b0 = i; d0 = d; } else if (d < d1) { b1 = i; d1 = d; }
+      }
+      [[b0, d0], [b1, d1]].forEach(([b, d], i) => { const p = rl.pts[i]; if (b < 0) return; p.tx = a[b * 3]; p.ty = a[b * 3 + 1] - 0.4; p.tz = a[b * 3 + 2]; p.k = 1 - ss(28, 52, Math.sqrt(d)); });
+    }
+    const f = 1 - Math.exp(-dt * 6);
+    for (const p of rl.pts) {
+      if (p.l.intensity === 0 && p.k === 0) { p.l.position.set(p.tx, p.ty, p.tz); }
+      p.l.position.x += (p.tx - p.l.position.x) * f; p.l.position.y += (p.ty - p.l.position.y) * f; p.l.position.z += (p.tz - p.l.position.z) * f;
+      p.l.intensity = 38 * lampOn * p.k;
+    }
+    if (car) {
+      const sn = Math.sin(car.th), cs = Math.cos(car.th), gy = groundY(car.x, car.z);
+      rl.spot.position.set(car.x + sn * 1.3, gy + 0.9, car.z + cs * 1.3); rl.spot.target.position.set(car.x + sn * 14, gy - 0.2, car.z + cs * 14);
+      rl.spot.intensity = 90 * headOn;
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------ per frame
+  let lastEvent = -1, realNow = 0, firstFrame = true;
+  const _sz = new THREE.Vector2();
+  function dispatch() {
+    lastEvent = hour;
+    dispatchEvent(new CustomEvent('pd-time', { detail: { hour, isNight: time.isNight, night: time.night, dusk: time.dusk } }));
+  }
+
+  function update(dt) {
+    realNow += dt;
+    // -- settings and state changes
+    if (!forced && st.timeStart !== seenStart) { seenStart = st.timeStart; if (START_HOURS[seenStart] !== undefined) jumpTo(START_HOURS[seenStart]); }
+    if (game.state === 'play' && seenState === 'title' && !forced && !firstFrame) { const h = START_HOURS[st.timeStart]; if (h !== undefined && Math.abs(((hour - h + 36) % 24) - 12) > 0.05) jumpTo(h); }
+    seenState = game.state;
+    // -- advance (the game clock only runs while playing: pause and the title screen freeze it)
+    const mpd = minutesPerDay();
+    time.speed = mpd > 0 ? 24 / (mpd * 60) : 0;
+    if (game.state === 'play' && time.speed > 0) { hour = (hour + dt * time.speed) % 24; if (!jump) vis = hour; }
+    if (jump) {
+      jump.t = Math.min(1, jump.t + dt / 1.3); const e = jump.t * jump.t * (3 - 2 * jump.t);
+      vis = (jump.from + jump.delta * e + 48) % 24;
+      if (jump.t >= 1) { jump = null; vis = hour; }
+    }
+
+    // -- sun, moon, palette
+    const alt = sunVector(vis, sunV);
+    moonV.copy(sunV).negate();
+    palette(vis);
+    const altD = alt / DEG;
+    const night = ss(2.5, -9.5, altD);                // 0 in daylight, 1 once the sun is 9 degrees under
+    const dusk = Math.exp(-Math.pow((altD + 2) / 6.5, 2));     // peaks as the sun meets the sea
+    const sunUp = altD > -0.6;
+    time.hour = vis; time.night = night; time.day = 1 - night; time.dusk = dusk; time.isNight = night > 0.5; time.sunUp = sunUp;
+    const moonI = 0.62 * ss(-1, -9, altD) * ss(0.02, 0.14, moonV.y);
+    const wS = P.sunI / 2.9, wM = moonI / 0.62 * 0.75;
+    lightDir.copy(sunV).multiplyScalar(wS + 1e-4).addScaledVector(moonV, wM);
+    if (lightDir.lengthSq() < 1e-8) lightDir.copy(moonV);
+    lightDir.normalize();
+    seaDir.copy(lightDir);
+    if (lightDir.y < 0.07) { const h = Math.hypot(lightDir.x, lightDir.z) || 1, k = Math.sqrt(1 - 0.0049) / h; lightDir.set(lightDir.x * k, 0.07, lightDir.z * k); } // never grazing: keeps shadows sane
+    sun.color.copy(P.sun).multiplyScalar(wS + 1e-4).addScaledVector(MOON, wM * 0.62).multiplyScalar(1 / (wS + wM * 0.62 + 1e-4));
+    sun.intensity = P.sunI + moonI;
+
+    hemi.color.copy(P.hemiS); hemi.groundColor.copy(P.hemiG); hemi.intensity = P.hemiI;
+    renderer.toneMappingExposure = P.expo;
+    const base = 0.00014 / (st.drawDistance || 1);
+    scene.fog.color.copy(P.fog); scene.fog.density = base * P.fogK;
+    if (scene.background && scene.background.isColor) scene.background.copy(P.fog);
+
+    // sky
+    const mixG = ss(11, 3, altD);
+    U.sunPosition.value.copy(sunV);
+    U.uMix.value = Math.max(mixG, night); U.uTime.value = realNow;
+    U.uSkyH.value.copy(P.skyH); U.uSkyZ.value.copy(P.skyZ); U.uGlow.value.copy(P.glow);
+    U.uSunV.value.copy(sunV); U.uSunVis.value = ss(-2.5, 0.5, altD);
+    U.uMoonV.value.copy(moonV); U.uMoon.value = ss(-3, -11, altD) * ss(0, 0.08, moonV.y);
+    U.uStars.value = ss(-6, -15, altD);
+
+    // environment map
+    {
+      const need = firstFrame || colDiff(baked.Z, P.envZ) + colDiff(baked.H, P.envH) + colDiff(baked.B, P.envB) > 0.012;
+      if (need && (firstFrame || realNow - lastBake > (MOBILE ? 1.4 : 0.55))) bakeEnv(realNow);
+    }
+
+    // sea
+    if (!seaU && seaTries < 600) {
+      seaTries++;
+      scene.traverse(o => { if (!seaU && o.material && o.material.uniforms && o.material.uniforms.uSunDir && o.material.uniforms.uHorizon) seaU = o.material.uniforms; });
+    }
+    if (seaU) {
+      seaU.uSunDir.value.copy(seaDir);
+      _seaSun.copy(P.sun).multiplyScalar(Math.min(1, P.sunI / 2.5)).add(_c.copy(MOON).multiplyScalar(0.45 * moonI / 0.62));
+      seaU.uSunCol.value.copy(_seaSun);
+      seaU.uHorizon.value.copy(DAY_SEA_H).lerp(P.skyH, Math.max(mixG, night)); seaU.uZenith.value.copy(DAY_SEA_Z).lerp(P.skyZ, Math.max(mixG, night));
+      if (seaU.uAmb) seaU.uAmb.value.copy(P.amb);
+    }
+
+    // lamps, windows, vehicle lights
+    const lampOn = ss(3.5, -6.5, altD);                       // street lamps fade in from the moment the sun touches the sea
+    const headOn = ss(5, -4, altD);
+    NIGHT.win.value = lampOn * P.win;
+    if (lampOn > 0.003) {
+      if (!lamps) { lamps = buildLamps(); ensureRealLights(); }
+      if (lamps && !lamps.none) {
+        lamps.halo.visible = lamps.pools.visible = true;
+        renderer.getDrawingBufferSize(_sz);
+        lamps.haloMat.uniforms.uScale.value = _sz.y / (2 * Math.tan(camera.fov * DEG / 2));
+        lamps.haloMat.uniforms.uAmt.value = lampOn * 1.15;
+        lamps.poolMat.opacity = lampOn * 0.62;
+      }
+    } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
+    updateHeadlights(headOn);
+    setVehicleLamps(headOn);
+    updateRealLights(dt, lampOn, headOn);
+
+    showClock();
+    if (lastEvent < 0 || ((hour - lastEvent + 24) % 24) >= 2 / 60) dispatch();   // every two game minutes
+    firstFrame = false;
+  }
+
+  update(0); // first frame: everything in place before the title flyover renders
+  return { update, time, jumpTo, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow) };
+}
