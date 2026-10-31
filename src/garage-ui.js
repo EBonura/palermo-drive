@@ -130,7 +130,7 @@ const CSS = `
 
 // camera focus for the category being browsed: where to look from
 const FOCUS = {
-  wheels: { mode: 'side', d: 3.1, h: 0.75, ly: 0.35 }, stance: { mode: 'side', d: 5.2, h: 0.8, ly: 0.4 }, trim: { mode: 'orbit', d: 6.4, h: 1.7, ly: 0.7 },
+  wheels: { mode: 'side', d: 5.4, h: 1.1, ly: 0.4 }, stance: { mode: 'side', d: 5.2, h: 0.8, ly: 0.4 }, trim: { mode: 'orbit', d: 6.4, h: 1.7, ly: 0.7 },
   spoiler: { mode: 'rear', d: 5.6, h: 1.9, ly: 0.9 }, exhaust: { mode: 'rear', d: 5.0, h: 1.0, ly: 0.45 }, extra: { mode: 'rear', d: 6.4, h: 2.4, ly: 1.0 },
   stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
 };
