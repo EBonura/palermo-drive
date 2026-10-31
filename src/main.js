@@ -171,6 +171,7 @@ for (const r of D.roads) {
 // ---------- world streaming (src/world.js) ----------
 // Streams the whole-city tiles around the camera: terrain, streets, buildings, per-tile walls/road names/road vertices.
 world = createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE, context: contextGroup });
+propsApi.attachWorld?.(world); // street props are built per tile as it reaches full detail (src/props.js)
 
 function closestOnSeg(px, pz, s) {
   const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz;

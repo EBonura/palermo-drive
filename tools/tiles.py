@@ -66,10 +66,10 @@ def query_for(cat, b):
         body = f'way["highway"~"^({HIGHWAYS})$"]({bb});'
     elif cat == "misc":
         body = (f'way["natural"="coastline"]({bb});'
-                f'way["leisure"~"^(park|garden)$"]({bb});relation["leisure"~"^(park|garden)$"]({bb});'
-                f'way["landuse"~"^(grass|forest|village_green|meadow)$"]({bb});'
-                f'relation["landuse"~"^(grass|forest|village_green|meadow)$"]({bb});'
-                f'way["natural"~"^(wood|beach|water)$"]({bb});relation["natural"~"^(wood|beach|water)$"]({bb});'
+                f'way["leisure"~"^(park|garden|golf_course|pitch|track|beach_resort)$"]({bb});relation["leisure"~"^(park|garden|golf_course|pitch|track|beach_resort)$"]({bb});'
+                f'way["landuse"~"^(grass|forest|village_green|meadow|recreation_ground|flowerbed|farmland|farmyard|allotments|orchard|vineyard|plant_nursery|cemetery|railway|brownfield|construction|quarry|landfill|greenfield)$"]({bb});'
+                f'relation["landuse"~"^(grass|forest|village_green|meadow|recreation_ground|flowerbed|farmland|farmyard|allotments|orchard|vineyard|plant_nursery|cemetery|railway|brownfield|construction|quarry|landfill|greenfield)$"]({bb});'
+                f'way["natural"~"^(wood|beach|sand|water|scrub|heath|grassland|fell|bare_rock|scree|rock|shingle|cliff)$"]({bb});relation["natural"~"^(wood|beach|sand|water|scrub|heath|grassland|fell|bare_rock|scree|rock|shingle|cliff)$"]({bb});'
                 f'way["man_made"~"^(pier|breakwater)$"]({bb});')
     elif cat == "props":
         body = (f'node["natural"="tree"]({bb});way["natural"="tree_row"]({bb});'
@@ -221,6 +221,22 @@ _AMENITY_PROPS = {"waste_disposal", "waste_basket", "recycling", "bench", "fount
                   "restaurant", "ice_cream", "pub", "fast_food"}
 _HW_SET = set(HIGHWAYS.split("|"))
 
+# Land cover that tints the terrain (src/world.js reads areas[].k). Only sand/green/water also become street layers.
+NATURAL_COVER = {"wood": "forest", "beach": "sand", "sand": "sand", "water": "water", "scrub": "scrub", "heath": "scrub",
+                 "grassland": "grass", "fell": "grass", "bare_rock": "rock", "scree": "rock", "rock": "rock",
+                 "shingle": "rock", "cliff": "rock"}
+LANDUSE_COVER = {"forest": "forest", "grass": "green", "village_green": "green", "recreation_ground": "green", "flowerbed": "green",
+                 "meadow": "grass", "farmland": "farm", "farmyard": "farm", "allotments": "farm", "orchard": "orchard",
+                 "vineyard": "orchard", "plant_nursery": "farm", "cemetery": "cemetery", "railway": "rail",
+                 "brownfield": "dirt", "construction": "dirt", "quarry": "dirt", "landfill": "dirt", "greenfield": "dirt"}
+LEISURE_COVER = {"park": "green", "garden": "green", "golf_course": "green", "pitch": "pitch", "track": "dirt",
+                 "beach_resort": "sand"}
+
+
+def cover_kind(t):
+    """Area kind of a closed way / multipolygon from its tags, or None."""
+    return (NATURAL_COVER.get(t.get("natural")) or LANDUSE_COVER.get(t.get("landuse")) or LEISURE_COVER.get(t.get("leisure")))
+
 
 def _is_place(t):
     """Named things worth a landmark entry that are not buildings or parks (stadiums, harbours, capes ...)."""
@@ -244,8 +260,7 @@ def _way_cats(t):
         cats.append("bld")
     if t.get("highway") in _HW_SET:
         cats.append("hwy")
-    if (t.get("natural") in ("coastline", "wood", "beach", "water") or t.get("leisure") in ("park", "garden")
-            or t.get("landuse") in ("grass", "forest", "village_green", "meadow")
+    if (t.get("natural") == "coastline" or cover_kind(t)
             or t.get("man_made") in ("pier", "breakwater")):
         cats.append("misc")
     a = t.get("amenity")
@@ -261,8 +276,7 @@ def _rel_cats(t):
         cats.append("places")
     if "building" in t:
         cats.append("bld")
-    if (t.get("natural") in ("wood", "beach", "water") or t.get("leisure") in ("park", "garden")
-            or t.get("landuse") in ("grass", "forest", "village_green", "meadow")):
+    if cover_kind(t):
         cats.append("misc")
     return cats
 
@@ -720,16 +734,7 @@ def parse_misc(files):
     from shapely.geometry import LineString, Polygon
     coast, areas, piers = [], [], []
 
-    def kind_of(t):
-        if t.get("natural") == "beach":
-            return "sand"
-        if t.get("natural") == "water":
-            return "water"
-        if t.get("landuse") in ("forest",) or t.get("natural") == "wood":
-            return "forest"
-        if t.get("leisure") in ("park", "garden") or t.get("landuse") in ("grass", "village_green", "meadow"):
-            return "green"
-        return None
+    kind_of = cover_kind
 
     for e in iter_elements(files):
         t = e.get("tags") or {}
