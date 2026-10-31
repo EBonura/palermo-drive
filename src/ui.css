@@ -289,3 +289,7 @@ html.touch #pd-ui:is([data-screen=start], [data-screen=garage], [data-screen=opt
 .pd-by span { font: 600 clamp(10px, 1.8vh, 13px) 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .22em;
   text-transform: uppercase; color: #f5a9c9; }
 .pd-by img { width: clamp(60px, 13vh, 110px); height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+
+/* title tagline under the logo */
+.pd-tagline { margin-top: clamp(-18px, -2vh, -6px); font: 700 clamp(15px, 3.4vh, 26px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .14em;
+  text-transform: uppercase; color: #fff4f9; text-align: center; text-shadow: 0 0 14px rgba(232,85,154,.85), 0 2px 0 rgba(10,6,9,.9); }

@@ -243,6 +243,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
 
   // title
   mk('title', '', `<div class="pd-logo">${logoSVG('t')}</div>
+    <div class="pd-tagline">3 ruote 2 frecce 1 clacson 0 dignità</div>
     <div class="pd-by"><span>a game by</span><img src="assets/ui/bonnie-studios.png" alt="Bonnie Studios" width="512" height="512"></div>
     <div class="pd-tap" data-k="${coarse ? 'tapTouch' : 'tapKey'}" data-two></div>
 `);
