@@ -10,7 +10,8 @@
 // view around the camera, despawned out of view, and drawn with one InstancedMesh per model.
 import * as THREE from 'three';
 import { proj } from './core.js';
-import { buildModels, makeMaterial } from '../assets/traffic/models.js';
+import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
+import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
 
 // ---------- tuning ----------
 const CLASS = { // rank decides priority, v is the free speed in m/s, w the spawn weight per metre
@@ -19,7 +20,6 @@ const CLASS = { // rank decides priority, v is the free speed in m/s, w the spaw
   service: { r: 1, v: 5, w: 0.35 }, pedestrian: { r: 0, v: 2.8, w: 0.14 },
 };
 const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;                 // pedestrian-tagged but buses and taxis run here
-const BUS_AXES = /Roma|Maqueda|Vittorio Emanuele|Lincoln|Foro Italico|Cavour|Libert|Crispi|Volturno|Cala/;
 const R_SPAWN_MIN = 35, R_SPAWN_MAX = 215, R_FAR = 125, R_DESPAWN = 235, R_KEEP_UNSEEN = 95;
 const STEP = 1 / 30;
 
@@ -33,7 +33,7 @@ const TYPES = {
   van: { model: 'van', L: 4.45, W: 1.82, mass: 2.0, circ: [[1.3, 0.95], [0, 0.95], [-1.3, 0.95]], vf: 0.92, a: 2.0, rmin: 5.5, ped: true, minW: 3.5,
     cols: [['#f2f2f0', 70], ['#c3c6cb', 12], ['#8fb3cc', 8], ['#d8d2b8', 10]] },
   bus: { model: 'bus', L: 11.8, W: 2.5, mass: 11, circ: [[4.4, 1.3], [2.2, 1.3], [0, 1.3], [-2.2, 1.3], [-4.4, 1.3]], vf: 0.85, a: 1.4, b: 3.0, T: 1.3, s0: 2.5,
-    rmin: 9.5, vcap: 11, bus: true, transit: true, minW: 6, cols: [['#d9531c', 5], ['#e0701f', 3], ['#c8401a', 2]] },
+    rmin: 9.5, vcap: 11, bus: true, transit: true, minW: 6, cols: [['#f2c316', 5], ['#e9b80d', 3], ['#f5cf3b', 2]] },
   vespa: { model: 'vespa', L: 1.8, W: 0.7, mass: 0.28, circ: [[0.5, 0.45], [-0.4, 0.45]], vf: 1.08, a: 3.4, T: 0.7, s0: 1.2, rmin: 2.8, scooter: true, ped: true,
     cols: [['#c8301f', 3], ['#2f6f9a', 3], ['#e6e2d0', 3], ['#2a2a2c', 3], ['#5a7a4a', 1], ['#d9a21f', 1], ['#bcbcbc', 2]] },
   apePick: { model: 'apePick', L: 3.2, W: 1.4, mass: 0.8, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.75, a: 1.5, rmin: 3.6, vcap: 9, ped: true,
@@ -145,6 +145,60 @@ export function createTraffic(env) {
       if (best >= 0) SIG.add(best);
     }
   }
+  // ---------- AMAT bus lines (OSM route relations, baked in assets/traffic/bus-routes.js) ----------
+  // Each route piece is matched onto the graph (nodes share rounded coordinates) into a plan: the
+  // directed edges in travel order, plus the stops that lie on it. Buses only run these plans.
+  const findEdge = (a, b) => NOUT[a].find(c => c.b === b);
+  const nearestNode = (x, z) => { let best = -1, bd = 36; for (let n = 0; n < NX.length; n++) { const d = (NX[n] - x) ** 2 + (NZ[n] - z) ** 2; if (d < bd) { bd = d; best = n; } } return best; };
+  function gapPath(a, b) { // shortest hop path over any edges, to bridge a missing link in a route
+    const prev = new Map([[a, null]]); let front = [a];
+    for (let h = 0; h < 12 && front.length; h++) {
+      const nf = [];
+      for (const n of front) for (const c of NOUT[n]) if (!prev.has(c.b)) { prev.set(c.b, c); if (c.b === b) { const out = []; for (let e = c; e; e = prev.get(e.a)) out.unshift(e); return out; } nf.push(c.b); }
+      front = nf;
+    }
+    return null;
+  }
+  const PLANS = [], ROWS = [];
+  for (const r of BUS_ROUTES) {
+    let row = ROWS.findIndex(q => q.ref === r.ref && q.to === r.to);
+    if (row < 0) { row = ROWS.length; ROWS.push({ ref: r.ref, to: r.to }); }
+    const rstops = []; for (let i = 0; i + 1 < r.stops.length; i += 2) rstops.push([r.stops[i], r.stops[i + 1]]);
+    for (const pc of r.pieces) {
+      let edges = [];
+      const flush = () => { if (edges.length >= 6) PLANS.push({ ref: r.ref, to: r.to, row, edges, stops: [], rstops }); edges = []; };
+      let prevN = -1;
+      for (let i = 0; i + 1 < pc.length; i += 2) {
+        let n = nodeIdx.get(pc[i] + ',' + pc[i + 1]); if (n === undefined) n = nearestNode(pc[i], pc[i + 1]);
+        if (n < 0 || n === prevN) continue;
+        if (prevN >= 0) {
+          const e = findEdge(prevN, n);
+          if (e) edges.push(e);
+          else { const g = gapPath(prevN, n); if (g) edges.push(...g); else { flush(); } }
+        }
+        prevN = n;
+      }
+      flush();
+    }
+  }
+  for (const pl of PLANS) { // stops: the relation's own plus every OSM bus stop within a few metres of the line
+    const cand = pl.rstops.slice(); for (let i = 0; i + 1 < BUS_STOPS.length; i += 2) cand.push([BUS_STOPS[i], BUS_STOPS[i + 1]]);
+    const found = [];
+    for (const [sx, sz] of cand) {
+      let best = null, bd = 100;
+      for (let i = 0; i < pl.edges.length; i++) {
+        const e = pl.edges[i];
+        if (Math.abs(NX[e.a] - sx) > e.len + 12 && Math.abs(NX[e.b] - sx) > e.len + 12) continue;
+        const t = clamp((sx - NX[e.a]) * e.dx + (sz - NZ[e.a]) * e.dz, 0, e.len), d = (NX[e.a] + e.dx * t - sx) ** 2 + (NZ[e.a] + e.dz * t - sz) ** 2;
+        if (d < bd) { bd = d; best = { i, t: clamp(t, 3, Math.max(3, e.len - 3)) }; }
+      }
+      if (best && bd < 100) found.push(best);
+    }
+    found.sort((a, b) => a.i - b.i || a.t - b.t);
+    for (const f of found) { const l = pl.stops[pl.stops.length - 1]; if (!l || l.i !== f.i || f.t - l.t > 20) pl.stops.push(f); }
+    pl.closed = pl.edges[pl.edges.length - 1].b === pl.edges[0].a;
+    delete pl.rstops;
+  }
   const green = (n, e, t) => {
     const ph = (t + n * 7.3) % 24, ax = Math.abs(e.dx) > Math.abs(e.dz) ? 0 : 1;
     return ax === 0 ? ph < 10 : ph >= 12 && ph < 22;
@@ -160,6 +214,34 @@ export function createTraffic(env) {
     m.instanceColor.setUsage(THREE.DynamicDrawUsage);
     m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true;
     scene.add(m); MESH[name] = m;
+  }
+  // LED destination boards: one atlas row per line, picked per instance
+  const SIGN_ROW = new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1);
+  let SIGN = null;
+  if (ROWS.length) {
+    const cv = document.createElement('canvas'), W = 128, H = 16;
+    cv.width = W * 2; cv.height = H * 2 * ROWS.length;
+    const g = cv.getContext('2d'), tmp = document.createElement('canvas'), tg = tmp.getContext('2d');
+    tmp.width = W; tmp.height = H; g.imageSmoothingEnabled = false;
+    ROWS.forEach((r, i) => {
+      tg.fillStyle = '#080604'; tg.fillRect(0, 0, W, H);
+      const text = (r.ref + ' ' + r.to).toUpperCase().replace(/^(PARCHEGGIO|PIAZZALE|STAZIONE) /, m => m.slice(0, 4) + '. ');
+      let px = 11; tg.textBaseline = 'middle';
+      do { tg.font = `bold ${px}px monospace`; px--; } while (tg.measureText(text).width > W - 6 && px > 6);
+      tg.fillStyle = '#ffae1a'; tg.fillText(text, 3, H / 2 + 1);
+      g.drawImage(tmp, 0, i * H * 2, W * 2, H * 2);
+    });
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float row;')
+        .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv.y = ( ${ROWS.length}.0 - row - 1.0 + uv.y ) / ${ROWS.length}.0;\n#endif`);
+    };
+    mat.customProgramCacheKey = () => 'bus-led-' + ROWS.length;
+    const geo = busSignGeometry(); geo.setAttribute('row', SIGN_ROW);
+    SIGN = new THREE.InstancedMesh(geo, mat, CAP);
+    SIGN.instanceMatrix = MESH.bus.instanceMatrix; SIGN.count = 0; SIGN.frustumCulled = false;
+    SIGN_ROW.setUsage(THREE.DynamicDrawUsage); scene.add(SIGN);
   }
   for (const t of Object.values(TYPES)) t.colObjs = t.cols.map(([h, w]) => [new THREE.Color(h), w]);
 
@@ -193,6 +275,15 @@ export function createTraffic(env) {
   }
   function extendRoute(v) {
     const r = v.route;
+    if (v.plan) {
+      const pl = v.plan;
+      while (r.length < 4) {
+        let i = v.pidx + 1;
+        if (i >= pl.edges.length) { if (!pl.closed) break; i = 0; }
+        r.push(pl.edges[i]); v.pidx = i;
+      }
+      return;
+    }
     while (r.length < 4) { const n = pickNext(r[r.length - 1], v.ty); if (!n) break; r.push(n); }
   }
   const laneOff = (e, v) => e.ow ? (e.w < 7 ? 0.55 : v.pref * Math.min(e.w / 4, 2.6)) : Math.min(e.w / 4, 2.6);
@@ -212,13 +303,12 @@ export function createTraffic(env) {
     const c = counts;
     const room = k => (c[k] || 0) < CAPS[k];
     if (e.ped) {
-      if (e.transit) return room('bus') && Math.random() < 0.5 ? 'bus' : pickW([['apePick', 2], ['van', 1], ['vespa', 2]]);
+      if (e.transit) return pickW([['apePick', 2], ['van', 1], ['vespa', 2]]);
       return pickW([['apeCrate', 3], ['apePick', 2], ['van', 3], ['apeFood', 1], ['vespa', 2]]);
     }
     const near = nearSite(NX[e.a], NZ[e.a]);
     const opts = [['panda', 24], ['punto', 22], ['smart', 8], ['taxi', 5], ['van', e.w >= 3.5 ? 7 : 0], ['vespa', 14], ['vespaB', 7],
       ['apePick', 2.5], ['apeCrate', 1.8], ['apeFood', 0.9]];
-    if (e.bus && room('bus')) opts.push(['bus', BUS_AXES.test(e.name) ? 11 : 4]);
     if (room('carrozza') && near) opts.push(['carrozza', 4]);
     if (room('carretto') && Math.random() < (near ? 0.04 : 0.006)) return 'carretto';
     return pickW(opts);
@@ -249,6 +339,32 @@ export function createTraffic(env) {
     extendRoute(v);
     if (v.route.length < 2 && e.len < 40) return false;
     vs.push(v); counts[name] = (counts[name] || 0) + 1;
+    return true;
+  }
+  let busCand = [], nextBus = 0;
+  function rebuildBusCandidates(cx, cz) {
+    busCand.length = 0;
+    for (const pl of PLANS) for (let i = 0; i < pl.edges.length; i++) {
+      const e = pl.edges[i], dx = (NX[e.a] + NX[e.b]) / 2 - cx, dz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = dx * dx + dz * dz;
+      if (d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX && e.len > 14) busCand.push([pl, i]);
+    }
+  }
+  function trySpawnBus() {
+    if (!busCand.length) return false;
+    const [pl, i] = busCand[(Math.random() * busCand.length) | 0], e = pl.edges[i], ty = TYPES.bus;
+    const t = ty.L * 0.5 + 1 + Math.random() * Math.max(0, e.len - ty.L - 2);
+    const x = NX[e.a] + e.dx * t + e.rx * Math.min(e.w / 4, 2.6), z = NZ[e.a] + e.dz * t + e.rz * Math.min(e.w / 4, 2.6);
+    const dc = Math.hypot(x - camera.position.x, z - camera.position.z);
+    if (dc < R_SPAWN_MIN || Math.hypot(x - car.x, z - car.z) < 25) return false;
+    if (dc < R_FAR && inView(x, groundY(x, z) + 1.5, z, 9)) return false;
+    for (const o of vs) if (Math.hypot(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 5) return false;
+    let si = 0; while (si < pl.stops.length && (pl.stops[si].i < i || (pl.stops[si].i === i && pl.stops[si].t < t + 8))) si++;
+    const v = {
+      id: ++nextId, ty, name: 'bus', x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
+      lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0,
+      col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si, dwell: 0,
+    };
+    extendRoute(v); vs.push(v); counts.bus = (counts.bus || 0) + 1;
     return true;
   }
   function removeAt(i) { const v = vs[i]; counts[v.name]--; vs[i] = vs[vs.length - 1]; vs.pop(); }
@@ -307,6 +423,7 @@ export function createTraffic(env) {
     }
     v0 = Math.max(v0, 0.6);
     if (v.stopT > 0) { v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
+    if (v.dwell > 0) { v.dwell -= dt; if (v.dwell <= 0) v.si++; v.acc = -Math.min(b * 2.2, sp * 4 + 1); return; }
 
     let minI = 0, minGap = 1e9, blocker = null, exitSpace = 1e9;
     const filt = ty.scooter && v.latT !== 0 && Math.abs(v.lat) > 1.0;
@@ -366,6 +483,20 @@ export function createTraffic(env) {
       if (sp < 0.5 && sg < 4) v.wait += dt;
     } else v.wait = 0;
     if (!route[1] && rem < 60) interact(rem - L2 - 0.4, 0, null); // end of the road
+    if (v.plan) { // the next bus stop on the line: pull up with the front door at the pole, wait, go on
+      const pl = v.plan, n = pl.edges.length;
+      let st = pl.stops[v.si];
+      while (st && st.i < v.cur) st = pl.stops[++v.si];
+      if (st) for (let k = 0, d0 = -v.t; k < 3 && k < route.length; k++) {
+        if ((v.cur + k) % n === st.i) {
+          const gap = d0 + st.t - L2 + 3.5;
+          if (gap < -2) v.si++;
+          else if (gap < 70) { interact(gap, 0, null); if (sp < 0.25 && gap < 2.8) v.dwell = 6 + Math.random() * 6; }
+          break;
+        }
+        d0 = k === 0 ? rem : d0 + route[k].len; // distance to the start of route[k + 1]
+      }
+    }
     v.blocker = blocker; v.hold = hold; v.minGap = minGap; v.v0 = v0;
     // scooters slip past slow traffic where the road is wide enough
     if (ty.scooter) {
@@ -407,7 +538,7 @@ export function createTraffic(env) {
     // progress along the route
     let t = (v.x - NX[e0.a]) * e0.dx + (v.z - NZ[e0.a]) * e0.dz;
     for (let g = 0; g < 2 && t > e0.len - 0.3 && route[1]; g++) {
-      route.shift(); extendRoute(v); e0 = route[0];
+      route.shift(); if (v.plan) { v.cur = (v.cur + 1) % v.plan.edges.length; if (v.cur === 0) v.si = 0; } extendRoute(v); e0 = route[0];
       t = (v.x - NX[e0.a]) * e0.dx + (v.z - NZ[e0.a]) * e0.dz;
     }
     v.t = t;
@@ -416,7 +547,7 @@ export function createTraffic(env) {
     // honks: the player is in the way, or a delayed one after a bump
     if (v.v < 0.5 && v.blocker === 'player') {
       v.blockT += dt;
-      if (v.blockT > 2.2) { v.blockT = -1.2; honk(v); }
+      if (v.blockT > 2.2) { v.blockT = -1.2; honk(v); if (Math.random() < 0.5) env.shout?.(v.x, groundY(v.x, v.z) + 1.6, v.z); }
     } else if (v.blockT > 0) v.blockT = 0; else if (v.blockT < 0) v.blockT = Math.min(0, v.blockT + dt);
     if (v.honkAt > 0 && time >= v.honkAt) { v.honkAt = -1; honk(v); }
   }
@@ -502,14 +633,17 @@ export function createTraffic(env) {
       A[o + 4] = -c * sr; A[o + 5] = cr; A[o + 6] = s * sr; A[o + 7] = 0;
       A[o + 8] = s; A[o + 9] = 0; A[o + 10] = c; A[o + 11] = 0;
       A[o + 12] = v.x; A[o + 13] = groundY(v.x, v.z); A[o + 14] = v.z; A[o + 15] = 1;
+      if (v.plan) SIGN_ROW.array[n] = v.plan.row;
       const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
       for (const [zo, r] of v.ty.circ) agentsOut.push({ x: v.x + s * zo, z: v.z + c * zo, r });
     }
     for (const k in MESH) { const m = MESH[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
+    if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; }
   }
 
   let acc = 0;
   function update(dt, cam) {
+    if (frozen) return;
     frames++;
     cam = cam || camera;
     cam.updateMatrixWorld();
@@ -520,6 +654,11 @@ export function createTraffic(env) {
     while (acc >= STEP) { acc -= STEP; stepAll(STEP); }
     cull(cx, cz);
     if (time >= nextCand || Math.hypot(cx - candX, cz - candZ) > 40) { rebuildCandidates(cx, cz); nextCand = time + 0.7; }
+    if (PLANS.length && (counts.bus || 0) < CAPS.bus && time >= nextBus) {
+      nextBus = time + 1.2;
+      rebuildBusCandidates(cx, cz);
+      for (let k = 0; k < 8; k++) if (trySpawnBus()) break;
+    }
     const deficit = MAXV - vs.length;
     if (deficit > 0) {
       let tries = deficit > 12 ? 40 : 6, made = deficit > 12 ? 10 : 2;
@@ -572,7 +711,7 @@ export function createTraffic(env) {
         }
       }
       if (touched) {
-        if (v.stopT <= 0) v.honkAt = time + 0.35 + Math.random() * 0.3;
+        if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; env.shout?.(v.x, groundY(v.x, v.z) + 1.6, v.z); }
         v.stopT = Math.max(v.stopT, 1.0 + Math.random() * 0.8);
         wallPush(v);
       }
@@ -580,7 +719,7 @@ export function createTraffic(env) {
   }
 
   // ---------- debug (removed after tuning) ----------
-  let debugDone = false;
+  let debugDone = false, frozen = false;
   function runDebug() {
     const cam = camera, cx = car.x, cz = car.z, log = [];
     const car0 = [car.x, car.z]; car.x = 9000; car.z = 9000; // park the player out of the way for the flow test
@@ -625,6 +764,13 @@ export function createTraffic(env) {
     console.log('TRAFFIC cycles ' + [...cycles].slice(0, 5).join(' || '));
     const roots = {};
     for (const v of vs) if (v.stuck > 15) { let r = v, n = 0; while (r.blocker && r.blocker !== 'player' && n++ < 40) r = r.blocker; const k = (r.blocker === 'player' ? 'PLAYER' : r.hold ? 'hold:' + r.why : 'free') + ' rank' + r.route[0].rank + ' deg' + NDEG[r.route[0].b]; roots[k] = (roots[k] || 0) + 1; }
+    console.log('TRAFFIC buses ' + vs.filter(v => v.plan).map(v => `${v.plan.ref}>${v.plan.to}@${v.x | 0},${v.z | 0},h${v.h.toFixed(2)} stop${v.si}/${v.plan.stops.length} dwell${v.dwell.toFixed(0)} v${v.v.toFixed(1)}`).join(' | '));
+    const camTarget = vs.find(v => v.name === (/trafficcam=(\w+)/.exec(location.search) || [])[1]);
+    if (camTarget) {
+      const o = camera.updateMatrixWorld.bind(camera), v = camTarget, fx = Math.sin(v.h), fz = Math.cos(v.h);
+      frozen = true;
+      camera.updateMatrixWorld = f => { camera.position.set(v.x + fx * 11 - fz * 5, groundY(v.x, v.z) + 3.2, v.z + fz * 11 + fx * 5); camera.lookAt(v.x, groundY(v.x, v.z) + 1.6, v.z); o(f); };
+    }
     console.log('TRAFFIC overlaps ' + JSON.stringify(ovk));
     console.log('TRAFFIC roots ' + JSON.stringify(roots));
     const rs = new Set();

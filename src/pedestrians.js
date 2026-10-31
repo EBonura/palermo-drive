@@ -32,7 +32,7 @@ export function createPedestrians(env) {
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 420;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
-  if (!D.streets) return { update() {}, collidePlayer() {}, setQuality() {}, stats };
+  if (!D.streets) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {} };
 
   // ======================================================================== walkability mask
   const [AX0, AZ0, AX1, AZ1] = D.streets.aoi;
@@ -164,9 +164,9 @@ export function createPedestrians(env) {
     hot(38.1199, 13.3573, 85, 0.05, 3);        // Teatro Massimo
     hot(38.1146, 13.3558, 70, 0.04, 3);       // Cattedrale
     hot(38.1092, 13.3655, 60, 0.03, 1);        // Stazione
-    stamp(-60, 410, 105, 0.08, 2);             // Ballaro
-    stamp(260, -220, 110, 0.08, 2);            // Vucciria / Garraffello
-    stamp(-390, -245, 90, 0.06, 2);            // Capo
+    stamp(-60, 410, 105, 0.14, 2);             // Ballaro
+    stamp(260, -220, 110, 0.14, 2);            // Vucciria / Garraffello
+    stamp(-390, -245, 90, 0.1, 2);            // Capo
     stamp(-450, -930, 120, 0.06, 4);           // Politeama / Via Liberta: match-day crowds in pink
     const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini/i;
     const FANS = /Ruggero Settimo|Mariano Stabile|Principe di Belmonte|Magliocco|Michele Amari|Liberta|Libert/i;
@@ -174,7 +174,7 @@ export function createPedestrians(env) {
       let v = 0, zn = 0, rad = 14;
       if (r.n && FANS.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.03; zn = 4; rad = 20; }
       else if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
-      else if (r.n && MARKET.test(r.n)) { v = 0.07; zn = 2; rad = 18; }
+      else if (r.n && MARKET.test(r.n)) { v = 0.12; zn = 2; rad = 18; }
       else if (r.k === 'pedestrian') { v = 0.02; zn = 1; rad = 12; }
       if (!v) continue;
       const p = r.p;
@@ -186,7 +186,7 @@ export function createPedestrians(env) {
   }
   const densAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? BASE : dens[j * DNX + i]; };
   const zoneAt = (x, z) => { const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC); return i < 0 || j < 0 || i >= DNX || j >= DNZ ? 0 : zone[j * DNX + i]; };
-  const MAXD = 0.08;
+  const MAXD = 0.14;
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
   const VW = [0, 1, 2, 3, 4].map(z => VARIANTS.map(v => v.w[z]));   // crowd mix per zone, set in assets/peds/sprites.js
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0));
@@ -214,9 +214,10 @@ export function createPedestrians(env) {
     vertexShader: `
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB;
       uniform vec2 uCell; uniform float uPx;
-      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright;
+      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_vertex>
       void main() {
+        vY = position.y; vClip = iB.w;   // iB.w: hide the lower part of the sprite (seated passengers show no legs); 0 for the crowd
         vec2 t = cameraPosition.xz - iPos.xz; float l = length(t);
         t = l > 1e-4 ? t / l : vec2(0.0, 1.0);
         vec3 right = vec3(t.y, 0.0, -t.x);
@@ -232,9 +233,10 @@ export function createPedestrians(env) {
       }`,
     fragmentShader: `
       uniform sampler2D map; uniform vec3 uAmb; uniform vec3 uSun;
-      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright;
+      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_fragment>
       void main() {
+        if (vY < vClip) discard;
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
         if (vFade < ign) discard;
         vec4 c = texture2D(map, vUv);
@@ -350,7 +352,7 @@ export function createPedestrians(env) {
     if (!atIdle) {
       // streets get more people per m2 than open piazze (crowds line up along streets)
       let open = 0; for (let k = 0; k < 8; k++) if (cell(x + Math.cos(k * 0.785) * 5, z + Math.sin(k * 0.785) * 5)) open++;
-      const dn = densAt(x, z) * (cl === 2 ? 0.35 : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
+      const dn = densAt(x, z) * (cl === 2 ? (zoneAt(x, z) === 2 ? 1 : 0.35) : cl === 3 ? 0.5 : 1) * (2.1 - open * 0.17);
       if (Math.random() * MAXD > dn) return false;
     }
     if (Math.hypot(x - car.x, z - car.z) < 3.5) return false;
@@ -372,7 +374,7 @@ export function createPedestrians(env) {
     const R = quality.R; let sum = 0; const S = 56;
     for (let k = 0; k < S; k++) {
       const a = Math.random() * TAU, r = R * Math.sqrt(Math.random()), x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r, c = cell(x, z);
-      if (c) sum += densAt(x, z) * (c === 2 ? 0.35 : c === 3 ? 0.5 : 1);
+      if (c) sum += densAt(x, z) * (c === 2 ? (zoneAt(x, z) === 2 ? 1 : 0.35) : c === 3 ? 0.5 : 1);
     }
     const alt = camera.position.y - groundY(cx, cz), altK = clamp(1 - (alt - 40) / 200, 0.4, 1);
     return Math.min(quality.cap, Math.round(sum / S * Math.PI * R * R * altK * 1.8));
@@ -413,7 +415,7 @@ export function createPedestrians(env) {
     // about to step off the pavement onto a carriageway: wait for the traffic
     if (cl === 1 && (ahead === 3 || ahead === 2) && WAITT[i] >= 0 && trafficNear(x + Math.sin(t) * 3.5, z + Math.cos(t) * 3.5, 1.5)) { ST[i] = WAIT; WAITT[i] = 0; return; }
     if (WAITT[i] < 0) WAITT[i] = Math.min(0, WAITT[i] + dt10);
-    const edge = ah < 2.2 || (cl === 1 && ahead === 2 && Math.random() < 0.7);
+    const edge = ah < 2.2 || (cl === 1 && ahead === 2 && Math.random() < (ZN[i] === 2 ? 0.1 : 0.7));
     if (edge) { THT[i] = bestHeading(x, z, t, TURN_OFFS, 6); TRAV[i] = 0; NEXTT[i] = rand(10, 35); NUDGE[i] = 0; return; }
     // random turn into a side street after a while
     if (TRAV[i] > NEXTT[i]) {
@@ -459,12 +461,14 @@ export function createPedestrians(env) {
       let dx = px, dz = pz, ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5);
       if (!ok) { dx = -px; dz = -pz; ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5); }
       if (!ok) { REACT[i] = -2; continue; }
-      ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2;
+      ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i]);
     }
   }
 
+  const knockCbs = [];
   function knock(i, nx, nz) {
-    ST[i] = FLY; TMR[i] = 0;
+    for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
+    ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i]);
     const sp = Math.min(Math.hypot(car.vx, car.vz), 16);
     const vy = 3.2 + sp * 0.12;
     VX[i] = car.vx * 0.55 + nx * 2.6; VZ[i] = car.vz * 0.55 + nz * 2.6; VY[i] = vy; TFLY[i] = 2 * vy / 12;
@@ -477,6 +481,7 @@ export function createPedestrians(env) {
     const t0 = performance.now();
     dt = Math.min(dt, 0.05); frameNo++;
     cam = cam || camera;
+    updateScripted(dt, cam);
     cx = cam.position.x; cz = cam.position.z;
     cam.getWorldDirection(camQ); const fl = Math.hypot(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
@@ -633,8 +638,106 @@ export function createPedestrians(env) {
     }
   }
 
+  // ======================================================================== scripted characters (missions)
+  // A few extra sprites steered by another module (src/missions.js), drawn with the same atlas and shader as the crowd.
+  //   spawnScripted(variant, x, z) -> id     variant: index into VARIANTS or its id ('tourist', 'vendor'...); -1 when full
+  //   walkTo(id, x, z, speed, onArrive)      straight-line walk (no pathfinding: keep it short), speed in m/s
+  //   face(id, x, z)                         turn towards a point
+  //   attachTo(id, fn, { seated, blend })    fn(out) fills out.x/out.y/out.z/out.th each frame (out.y = hip height when seated);
+  //                                          a seated sprite shows no legs. blend: seconds to hop from where it stands to the seat
+  //   detach(id)                             back to standing on the ground where it is
+  //   setBounce(id, on)                      jump up and down on the spot (hailing a taxi)
+  //   info(id) -> { x, y, z, state }         state: 'stand' | 'walk' | 'seat'
+  //   remove(id); near(x, z, r) -> crowd members within r; onKnock(fn(x, z, variant)) when the lapa sends a crowd member flying
+  const SC = 48;
+  const sPos = new THREE.InstancedBufferAttribute(new Float32Array(SC * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  const sA = new THREE.InstancedBufferAttribute(new Float32Array(SC * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const sB = new THREE.InstancedBufferAttribute(new Float32Array(SC * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const mkGeoS = () => {
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(quadPos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(quadUv, 2));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    g.setAttribute('iPos', sPos); g.setAttribute('iA', sA); g.setAttribute('iB', sB);
+    g.instanceCount = 0; return g;
+  };
+  const sSprites = new THREE.Mesh(mkGeoS(), spriteMat); sSprites.frustumCulled = false; sSprites.renderOrder = 2; scene.add(sSprites);
+  const sShadows = new THREE.Mesh(mkGeoS(), shadowMat); sShadows.frustumCulled = false; sShadows.renderOrder = 1; scene.add(sShadows);
+  const scripted = new Map(); let nextScriptId = 1, scriptClock = 0;
+  const vIndex = v => typeof v === 'number' ? v : Math.max(0, VARIANTS.findIndex(x => x.id === v));
+  const groundAt = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
+  function spawnScripted(variant, x, z) {
+    if (scripted.size >= SC) return -1;
+    const id = nextScriptId++, v = vIndex(variant);
+    scripted.set(id, { id, v, x, z, y: groundAt(x, z), th: Math.random() * TAU, size: 1, state: 'stand', tx: x, tz: z, speed: 1.2, ph: Math.random(), cb: null,
+      att: null, seated: false, blend: 0, bt: 0, from: null, hip: 0, bounce: false });
+    return id;
+  }
+  const scriptedGet = id => scripted.get(id);
+  function walkTo(id, x, z, speed, cb) { const c = scripted.get(id); if (!c) return; c.state = 'walk'; c.tx = x; c.tz = z; c.speed = speed || (VARIANTS[c.v].speed || 1.1); c.cb = cb || null; }
+  function face(id, x, z) { const c = scripted.get(id); if (c) c.th = Math.atan2(x - c.x, z - c.z); }
+  function attachTo(id, fn, o) {
+    const c = scripted.get(id); if (!c) return;
+    o = o || {}; c.att = fn; c.seated = !!o.seated; c.blend = o.blend || 0; c.bt = 0; c.from = c.blend ? { x: c.x, y: c.y, z: c.z } : null; c.state = 'seat';
+  }
+  function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - ((VARIANTS[c.v].leg || 19) * PX) : c.y; }
+  function setBounce(id, on) { const c = scripted.get(id); if (c) c.bounce = !!on; }
+  function remove(id) { scripted.delete(id); }
+  function info(id) { const c = scripted.get(id); return c ? { x: c.x, y: c.y, z: c.z, state: c.state } : null; }
+  function near(x, z, r) {
+    let n = 0; const r2 = r * r;
+    for (let i = 0; i < N.n; i++) { if (ST[i] >= FLY) continue; const dx = X[i] - x, dz = Z[i] - z; if (dx * dx + dz * dz < r2) n++; }
+    return n;
+  }
+  const attOut = { x: 0, y: 0, z: 0, th: 0 };
+  function updateScripted(dt, cam) {
+    scriptClock += dt;
+    const cpx = cam.position.x, cpz = cam.position.z;
+    const sp = sPos.array, sa = sA.array, sb = sB.array;
+    let k = 0, seatedList = null;
+    const order = [];
+    for (const c of scripted.values()) {
+      if (c.state === 'walk') {
+        const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz), step = c.speed * dt;
+        if (d <= step + 0.02) { c.x = c.tx; c.z = c.tz; c.state = 'stand'; const cb = c.cb; c.cb = null; if (cb) { try { cb(c.id); } catch (e) { /* ignore */ } } }
+        else { c.x += dx / d * step; c.z += dz / d * step; c.ph += step / 1.5; c.th += clamp(angDiff(Math.atan2(dx, dz), c.th), -7 * dt, 7 * dt); }
+      }
+      if (c.att) {
+        c.att(attOut);
+        let ax = attOut.x, az = attOut.z, ay = attOut.y;
+        if (c.from && c.blend > 0) { // hop from where it stood into the seat
+          c.bt += dt; const u = Math.min(1, c.bt / c.blend), e = u * u * (3 - 2 * u);
+          ax = c.from.x + (ax - c.from.x) * e; az = c.from.z + (az - c.from.z) * e; ay = c.from.y + (ay - c.from.y) * e + Math.sin(u * Math.PI) * 0.35;
+          if (u >= 1) c.from = null;
+        }
+        c.x = ax; c.z = az; c.hipY = ay; c.th = attOut.th;
+      } else {
+        const ty = groundAt(c.x, c.z); c.y += (ty - c.y) * Math.min(1, 14 * dt);
+      }
+      order.push(c);
+    }
+    order.sort((a, b) => (a.state === 'seat' && a.seated) - (b.state === 'seat' && b.seated));   // standing first: only those get a ground shadow
+    let standing = 0;
+    for (const c of order) {
+      const v = VARIANTS[c.v], i = k++, seatedNow = c.att && c.seated, leg = v.leg || 19;
+      if (!seatedNow) standing++;
+      const dxc = cpx - c.x, dzc = cpz - c.z, dist = Math.hypot(dxc, dzc) || 1;
+      let y = seatedNow ? c.hipY - leg * PX * c.size : (c.att ? c.hipY : c.y);
+      if (c.bounce && !c.att) y += Math.abs(Math.sin(scriptClock * 6 + c.id)) * 0.16;
+      sp[i * 3] = c.x; sp[i * 3 + 1] = y; sp[i * 3 + 2] = c.z;
+      const wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
+      const s = wx * tx + wz * tz, cc = wx * tz - wz * tx;
+      const dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
+      let pose = 0;
+      if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph === 0 ? 1 : ph === 1 ? 2 : ph === 2 ? 3 : 2; }
+      sa[i * 4] = dir * POSES + pose; sa[i * 4 + 1] = c.v; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
+      sb[i * 4] = 1; sb[i * 4 + 1] = 0.8; sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (2 + leg) / 48 - 0.03 : 0;
+    }
+    sPos.needsUpdate = sA.needsUpdate = sB.needsUpdate = true;
+    sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing;
+  }
+
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, tiles, quality: () => quality, knock, items };
-  return { update, collidePlayer, setQuality, stats };
+  return { update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, onKnock: f => { knockCbs.push(f); } };
 }

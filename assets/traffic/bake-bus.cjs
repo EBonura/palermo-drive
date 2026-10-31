@@ -1,6 +1,6 @@
 // Bakes the AMAT bus routes (OpenStreetMap, ODbL) into assets/traffic/bus-routes.js.
 // Inputs (Overpass JSON, cached in data/): bus_routes_osm.json ("out geom" of route=bus relations),
-// optional bus_stops_osm.json (highway=bus_stop nodes). Run: node assets/traffic/bake-bus.cjs
+// plus the bus stop nodes in data/props_osm.json. Run: node assets/traffic/bake-bus.cjs
 const fs = require('fs'), path = require('path');
 global.window = {}; require(path.join(__dirname, '../../palermo-data.js'));
 const D = window.PALERMO_DATA, [bx0, bz0, bx1, bz1] = D.bounds;
@@ -12,7 +12,8 @@ const rels = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/bus_rou
   .filter(r => /AMAT/i.test(r.tags.network || '') || /AMAT/i.test(r.tags.operator || ''))
   .filter(r => r.members.some(m => m.type === 'way'));
 let stopsAll = [];
-try { stopsAll = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/bus_stops_osm.json'))).elements.map(n => proj(n.lat, n.lon)).filter(inside); } catch (e) { /* optional */ }
+// highway=bus_stop nodes: reuse the props agent's OSM extract (data/props_osm.json, same Overpass source)
+try { stopsAll = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/props_osm.json'))).elements.filter(n => n.tags && n.tags.highway === 'bus_stop' && n.lat).map(n => proj(n.lat, n.lon)).filter(inside); } catch (e) { /* optional */ }
 const out = [];
 for (const r of rels) {
   const ways = r.members.filter(m => m.type === 'way' && m.geometry && m.geometry.length > 1).map(m => m.geometry.map(g => proj(g.lat, g.lon)));
@@ -40,7 +41,7 @@ for (const r of rels) {
   }
   const keep = clipped.filter(p => { let l = 0; for (let i = 1; i < p.length; i++) l += dist(p[i], p[i - 1]); return l > 150; });
   if (!keep.length) continue;
-  const stops = r.members.filter(m => m.type === 'node' && m.role === 'stop' && m.lat).map(m => proj(m.lat, m.lon)).filter(inside);
+  const stops = r.members.filter(m => m.type === 'node' && /^(stop|platform)/.test(m.role) && m.lat).map(m => proj(m.lat, m.lon)).filter(inside);
   out.push({ ref: r.tags.ref || '', to: r.tags.to || r.tags.name || '', from: r.tags.from || '', loop: (r.tags.from || 'a') === (r.tags.to || 'b'), pieces: keep, stops });
 }
 const flat = p => p.flatMap(q => q);

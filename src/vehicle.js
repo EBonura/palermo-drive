@@ -9,6 +9,7 @@
 // "tyre" rate, so grip loss, slides and drifts all come from one rule. The lapa is tall, so it rolls a lot and
 // tips onto two wheels in hard fast turns (visual, plus a small grip penalty that stops it from tipping further).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { D, groundY } from './core.js';
 
 const PI = Math.PI, TAU = PI * 2;
@@ -152,15 +153,19 @@ export function createVehicle(env) {
     bianco:   { body: '#f1efe8', arch: '#f1efe8', roof: '#7a1830', door: '#7a1830', pillar: '#f1efe8', cab: '#f1efe8', rear: 'wood' },
     carretto: { body: '#f0c000', arch: '#d42a1f', roof: '#74182c', door: '#74182c', pillar: 'check', cab: 'folk', rear: 'folk' },
   };
-  function setLivery(id) {
-    const L = LIV[id]; if (!L) return;
+  // Paints a set of the seven livery-dependent materials (the local car's, or a remote lapa's copies).
+  function paintLivery(M, id) {
+    const L = LIV[id]; if (!L) return false;
     const paint = (m, c, map) => { m.color.set(map ? '#ffffff' : c); if (m.map !== (map || null)) { m.map = map || null; m.needsUpdate = true; } };
-    paint(mBody, L.body); paint(mArch, L.arch);
-    paint(mRoof, L.roof, T_CANVAS); mRoof.color.set(L.roof); paint(mDoor, L.door, T_CANVAS); mDoor.color.set(L.door);
-    L.pillar === 'check' ? paint(mPillar, null, T_CHECK) : paint(mPillar, L.pillar);
-    L.cab === 'folk' ? paint(mCabSide, null, T_FOLK_CAB) : paint(mCabSide, L.cab);
-    paint(mRearSide, null, L.rear === 'folk' ? T_FOLK_REAR : T_WOOD);
-    car.livery = id;
+    paint(M.body, L.body); paint(M.arch, L.arch);
+    paint(M.roof, L.roof, T_CANVAS); M.roof.color.set(L.roof); paint(M.door, L.door, T_CANVAS); M.door.color.set(L.door);
+    L.pillar === 'check' ? paint(M.pillar, null, T_CHECK) : paint(M.pillar, L.pillar);
+    L.cab === 'folk' ? paint(M.cab, null, T_FOLK_CAB) : paint(M.cab, L.cab);
+    paint(M.rear, null, L.rear === 'folk' ? T_FOLK_REAR : T_WOOD);
+    return true;
+  }
+  function setLivery(id) {
+    if (paintLivery({ body: mBody, arch: mArch, roof: mRoof, door: mDoor, pillar: mPillar, cab: mCabSide, rear: mRearSide }, id)) car.livery = id;
   }
 
   // --- geometry helpers ---
@@ -779,6 +784,76 @@ export function createVehicle(env) {
     if (audio.master) audio.master.gain.value = audio.vol * 0.9;
   }
 
+  // ---------- remote lapas (src/net.js) ----------
+  // buildLapa(liveryId) returns a cheap copy of the model for another player: the same construction as above, merged
+  // into one mesh per material (about 35 draw calls instead of about 120), with its own livery materials, shared geometry,
+  // and the same group hierarchy as the local car. The caller poses it: root (position, yaw) > lean (tip) > tilt (pitch, roll),
+  // wheels[i].spin.rotation.x, wheels[i].pivot.rotation.y (front only: steer), bar.rotation.y. It never touches the local car.
+  let lapaTpl = null;
+  const lapaSkip = new Set([brakeMat, flameOuter, flameInner]);
+  function lapaTemplate() {
+    if (lapaTpl) return lapaTpl;
+    // read the model in its neutral pose, then put the live pose back
+    const saved = [tilt.rotation.clone(), lean.rotation.clone(), lean.position.clone(), bar.rotation.clone(), ...wheelObjs.map(w => [w.spin.rotation.clone(), w.pivot.rotation.clone()])];
+    tilt.rotation.set(0, 0, 0); lean.rotation.set(0, 0, 0); lean.position.set(0, 0, 0); bar.rotation.set(0, 0, 0);
+    for (const w of wheelObjs) { w.spin.rotation.set(0, 0, 0); w.pivot.rotation.set(0, 0, 0); }
+    carRoot.updateMatrixWorld(true);
+    const collect = (rootObj, refObj, skip) => {
+      const buckets = new Map(), inv = refObj.matrixWorld.clone().invert();
+      rootObj.traverse(m => {
+        if (!m.isMesh || (skip && skip(m))) return;
+        const rel = inv.clone().multiply(m.matrixWorld);
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        mats.forEach((mat, mi) => {
+          if (lapaSkip.has(mat)) return;
+          let g = m.geometry.clone();
+          if (Array.isArray(m.material)) { // one slot of a multi-material box: keep only its triangles
+            const idx = [], ia = g.index.array;
+            for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start; i < gr.start + gr.count; i++) idx.push(ia[i]);
+            g.setIndex(idx);
+          }
+          g.clearGroups(); g.applyMatrix4(rel);
+          let b = buckets.get(mat); if (!b) buckets.set(mat, b = { mat, geoms: [], shadow: false });
+          b.geoms.push(g); b.shadow = b.shadow || (m.castShadow && !mat.transparent);
+        });
+      });
+      return [...buckets.values()].map(b => ({ mat: b.mat, shadow: b.shadow, geom: mergeGeometries(b.geoms) })).filter(b => b.geom);
+    };
+    const inBar = m => { for (let p = m.parent; p; p = p.parent) if (p === bar) return true; return false; };
+    const front = wheelObjs.find(w => w.front);
+    lapaTpl = {
+      tilt: collect(tilt, tilt, m => inBar(m)), bar: collect(bar, bar),
+      spin: collect(front.spin, front.spin), front: collect(front.pivot, front.pivot, m => { for (let p = m.parent; p; p = p.parent) if (p === front.spin) return true; return false; }),
+      wheels: wheelObjs.map(w => ({ pos: w.pivot.position.clone(), front: w.front })), barPos: bar.position.clone(), mats: {},
+    };
+    tilt.rotation.copy(saved[0]); lean.rotation.copy(saved[1]); lean.position.copy(saved[2]); bar.rotation.copy(saved[3]);
+    wheelObjs.forEach((w, i) => { w.spin.rotation.copy(saved[4 + i][0]); w.pivot.rotation.copy(saved[4 + i][1]); });
+    carRoot.updateMatrixWorld(true);
+    return lapaTpl;
+  }
+  function buildLapa(id) {
+    const tpl = lapaTemplate();
+    if (!LIV[id]) id = 'blu';
+    let map = tpl.mats[id];
+    if (!map) { // this livery's copies of the seven painted materials
+      const set = { body: mBody, arch: mArch, roof: mRoof, door: mDoor, pillar: mPillar, cab: mCabSide, rear: mRearSide };
+      const copy = {}; map = tpl.mats[id] = new Map();
+      for (const k in set) { copy[k] = set[k].clone(); map.set(set[k], copy[k]); }
+      paintLivery(copy, id);
+    }
+    const root = new THREE.Group(), lean2 = new THREE.Group(), tilt2 = new THREE.Group(), meshes = [];
+    root.add(lean2); lean2.add(tilt2); tilt2.position.y = PIV;
+    const add = (parent, list) => { for (const b of list) { const m = new THREE.Mesh(b.geom, map.get(b.mat) || b.mat); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
+    add(tilt2, tpl.tilt);
+    const bar2 = new THREE.Group(); bar2.position.copy(tpl.barPos); tilt2.add(bar2); add(bar2, tpl.bar);
+    const wheels = tpl.wheels.map(w => {
+      const pivot = new THREE.Group(), spin = new THREE.Group(); pivot.position.copy(w.pos); lean2.add(pivot); pivot.add(spin);
+      add(spin, tpl.spin); if (w.front) add(pivot, tpl.front);
+      return { pivot, spin, front: w.front };
+    });
+    return { root, lean: lean2, tilt: tilt2, bar: bar2, wheels, meshes, PIV, tipMax: T.tipMax };
+  }
+
   setLivery('blu');
-  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery };
+  return { car, camState, placeAt, physics, updateVisual, updateCamera, setVolume, LIVERIES, setLivery, buildLapa };
 }
