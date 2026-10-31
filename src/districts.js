@@ -233,10 +233,18 @@ const hash = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.54
 const pickW = (list, u) => { let t = 0; for (const e of list) t += e[1]; t *= u; for (const e of list) { t -= e[1]; if (t <= 0) return e[0]; } return list[list.length - 1][0]; };
 
 // Storeys for a building whose baked height is only the generic estimate (3 to 6 floors, no lidar, no OSM levels).
-export function floorsAt(Z, cx, cz, area) {
+// Apartment fabric inside a lidar-calibrated zone: the lidar-covered parts of periph, rural and tn are low-rise suburb, but dense pockets of large footprints
+// (Bonagia, Resuttana, Via Anapo: 5 to 6 storey condos; Street View) stand among them. `dens` is the number of neighbouring buildings within 45 m.
+const BLOCK_FL = [[3, 2], [4, 3], [5, 3], [6, 2], [7, .6]];
+export function floorsAt(Z, cx, cz, area, dens = 0) {
   if (!Z.fl) return 0;
-  let n = pickW(Z.flA ? Z.flA[area < 100 ? 0 : area < 300 ? 1 : 2] : Z.fl, hash(cx * 0.37 + 7.1, cz * 0.61 + 3.3));
-  if (Z.flA) return n; // lidar-calibrated already: no extra caps
+  const u = hash(cx * 0.37 + 7.1, cz * 0.61 + 3.3);
+  if (Z.flA) {
+    const s = Math.min(1, Math.max(0, (dens - 12) / 18)), big = Math.min(1, Math.max(0, (area - 110) / 220));
+    if (hash(cx * 0.91 + 1.7, cz * 1.13 + 9.1) < s * (0.35 + 0.65 * big)) return pickW(BLOCK_FL, u);
+    return pickW(Z.flA[area < 100 ? 0 : area < 300 ? 1 : 2], u); // lidar-calibrated already: no extra caps
+  }
+  let n = pickW(Z.fl, u);
   if (area < 70) n = Math.min(n, 3); else if (area < 130) n = Math.min(n, 5); else if (area < 220) n = Math.min(n, 8);
   return n;
 }
@@ -247,6 +255,21 @@ const DONE = new WeakSet();
 export function applyDistrictHeights(data, zoneFor) {
   if (!data || !data.buildings || DONE.has(data)) return;
   DONE.add(data);
+  let dens = null; // lazily: centroid grid of the tile, for the density of calibrated zones
+  const density = (cx, cz) => {
+    const C = 45;
+    if (!dens) {
+      const g = new Map(); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+      for (const b of data.buildings) { const p = b.p; let x = 0, z = 0; const n = p.length / 2; for (let i = 0; i < p.length; i += 2) { x += p[i]; z += p[i + 1]; } x /= n; z /= n;
+        const k = Math.floor(x / C) * 100003 + Math.floor(z / C); let l = g.get(k); if (!l) g.set(k, l = []); l.push(x, z); x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      dens = { g, x0, x1, z0, z1 };
+    }
+    let c = 0; const gx = Math.floor(cx / C), gz = Math.floor(cz / C);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const l = dens.g.get((gx + i) * 100003 + gz + j); if (l) for (let q = 0; q < l.length; q += 2) if ((l[q] - cx) ** 2 + (l[q + 1] - cz) ** 2 < C * C) c++; }
+    // the disc may be cut by the tile edge: scale up by the visible fraction (the centroid extent stands in for the tile)
+    const fx = (Math.min(cx + C, dens.x1) - Math.max(cx - C, dens.x0)) / (2 * C), fz = (Math.min(cz + C, dens.z1) - Math.max(cz - C, dens.z0)) / (2 * C);
+    return (c - 1) / Math.max(0.3, Math.min(1, fx) * Math.min(1, fz));
+  };
   for (const b of data.buildings) {
     if (b.r !== undefined || b.lv || b.t || b.k || b.hi || b.n || b.am || b.dh) continue;
     const pat = (b.h - 1) / 3.4;
@@ -257,7 +280,7 @@ export function applyDistrictHeights(data, zoneFor) {
     const Z = ZONES[zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9)];
     if (!Z || !Z.fl) continue;
     if (a < 40 && !Z.flA) continue; // tiny buildings keep the baked height except where lidar says what they are (sheds and garages: 1 storey)
-    const f = floorsAt(Z, cx, cz, a), fh = Z.fh || 3.2;
-    b.h = Math.round((fh + 0.8 + (f - 1) * fh + 0.9) * 10) / 10; b.dh = f; // ground floor taller, plus parapet
+    const f = floorsAt(Z, cx, cz, a, Z.flA ? density(cx, cz) : 0), fh = Z.fh || 3.2;
+    b.h = Math.round((fh + 0.8 + (f - 1) * fh + 0.9) * 10) / 10; b.dh = f; b.dz = zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9); // ground floor taller, plus parapet; dz: the zone that chose it
   }
 }

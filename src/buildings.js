@@ -1314,7 +1314,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const zone = zoneOf(cx, cz, near), Z = ZONES[zone] || ZONES.centro;
       // storeys: where the baked height is only the generic estimate, the district decides (same answer as applyDistrictHeights unless a street rule moved the zone)
       let nFl = 0;
-      if (b.dh && b.r === undefined && !b.lv) { nFl = floorsAt(Z, cx, cz, area); if (nFl) { const fh = Z.fh || 3.2; H0 = fh + 0.8 + (nFl - 1) * fh + 0.9; } }
+      if (b.dh && b.r === undefined && !b.lv) { nFl = b.dz === zone ? b.dh : floorsAt(Z, cx, cz, area); if (nFl) { const fh = Z.fh || 3.2; H0 = fh + 0.8 + (nFl - 1) * fh + 0.9; } }
       let round = false;
       if (Z.elig && pts0.length >= 10 && area > 25) { let per = 0; for (let i = 0; i < pts0.length; i++) { const a = pts0[i], q = pts0[(i + 1) % pts0.length]; per += Math.hypot(q[0] - a[0], q[1] - a[1]); } round = 4 * Math.PI * area / (per * per) > 0.82; }
       const key = spec && spec.style || chooseStyle(b, H0, area, zone, r, { fl: nFl, round, u: hh(cx * 1.7 + .3, cz * 2.3 + .7), u2: hh(cx * 0.9 + 5.1, cz * 1.9 + 1.3) });
