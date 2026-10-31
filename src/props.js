@@ -2,7 +2,7 @@
 // Owned by the props work. Everything is vertex-coloured low-poly in shared InstancedMeshes,
 // bucketed into 300 m cells so frustum culling still works.
 import * as THREE from 'three';
-import { D, groundY, pairs, signedArea, rng, inPoly, proj } from './core.js';
+import { D, groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
 
 const TAU = Math.PI * 2;
 const C = h => new THREE.Color(h);
@@ -378,25 +378,65 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
 
 // Rubbish: overflowing cassonetto, bag piles, cardboard, bulky dumped items, litter, market waste
 {
-  const BAG = ['#1b1b1e', '#2a2a30', '#d8d7cf', '#3a6f9a', '#c7b05a', '#3d6a4a', '#17181b', '#b9b7ad'];
-  const heap = (mb, n, spread, y0, seed) => {
+  // Palermo's heaps: mostly black, grey and translucent white bags, with blue, pink, green and orange supermarket bags
+  const BAGP = [['#1b1b1e', 9], ['#2a2a30', 5], ['#17181b', 5], ['#3a3d44', 3], ['#e1e2dc', 8], ['#eceae2', 6], ['#c9d6de', 4], ['#9fc0d8', 3], ['#d9a0b0', 2], ['#a9d0a8', 2], ['#d9892a', 2], ['#d9c15a', 1], ['#3a6f9a', 2]];
+  const BURNP = [['#0f0e0d', 9], ['#191816', 8], ['#24221f', 6], ['#33302b', 4], ['#4f4b44', 3], ['#6a655c', 2], ['#7a3a1f', 1]];
+  const pickP = (pal, h) => { let t = 0; for (const [, w] of pal) t += w; let r = h * t; for (const [c, w] of pal) { if ((r -= w) <= 0) return c; } return pal[0][0]; };
+  // n lumps on an elliptical mound centred at (ox, oz) on the ground y0, peak height h
+  const mound = (mb, n, ox, oz, rx, rz, h, y0, seed, pal = BAGP, rmin = 0.22, rmax = 0.38) => {
     for (let i = 0; i < n; i++) {
-      const a = hash3(seed, i, 1) * TAU, rr = spread * Math.sqrt(hash3(seed, i, 2)), r = 0.22 + hash3(seed, i, 3) * 0.14;
-      const top = i >= n - 1 ? 0.28 : 0;
-      mb.lump(Math.cos(a) * rr * (top ? 0.3 : 1), y0 + r * 0.8 + top, Math.sin(a) * rr * (top ? 0.3 : 1), r * 1.15, r * 0.85, r, C(BAG[Math.floor(hash3(seed, i, 4) * BAG.length)]), 0, 0.22, 0.65, seed + i);
+      const a = hash3(seed, i, 1) * TAU, rr = Math.sqrt(hash3(seed, i, 2)) * 0.95, r = rmin + hash3(seed, i, 3) * (rmax - rmin);
+      const x = ox + Math.cos(a) * rx * rr, z = oz + Math.sin(a) * rz * rr, y = y0 + r * 0.65 + h * Math.pow(1 - rr * rr, 0.9);
+      mb.lump(x, y, z, r * 1.2, r * 0.85, r, C(pickP(pal, hash3(seed, i, 4))), 0, 0.24, 0.6, seed + i);
     }
   };
-  for (let v = 0; v < 3; v++) { const mb = new MB(); heap(mb, 3 + v, 0.5 + v * 0.1, 0, 31 + v * 7); def('bag_pile' + v, mb); }
+  const bottlesOn = (mb, n, ox, oz, spread, seed) => {
+    for (let i = 0; i < n; i++) {
+      const x = ox + (hash3(seed, i, 7) - 0.5) * spread * 2, z = oz + (hash3(seed, i, 8) - 0.5) * spread, a = hash3(seed, i, 9) * 3;
+      const c = Math.cos(a) * 0.1, sn = Math.sin(a) * 0.1;
+      mb.face(C(['#9ec4d4', '#3f7a5a', '#d8d8d0', '#7a4a22'][i % 4]), [[x - c, 0.05, z - sn - 0.03], [x + c, 0.05, z + sn - 0.03], [x + c, 0.05, z + sn + 0.03], [x - c, 0.05, z - sn + 0.03]], 1);
+    }
+  };
+  for (let v = 0; v < 3; v++) { const mb = new MB(); mound(mb, 5 + v * 2, 0, 0, 0.55 + v * 0.2, 0.5 + v * 0.15, 0.4 + v * 0.15, 0, 31 + v * 7); bottlesOn(mb, 2 + v, 0, 0, 0.9 + v * 0.3, 5 + v); def('bag_pile' + v, mb, { dbl: true }); }
+  { const mb = new MB(); mound(mb, 13, 0, 0, 1.2, 0.95, 0.85, 0, 91, BAGP, 0.24, 0.4); mb.box(0.6, 0, 0.2, 1.2, 0.45, 0.7, C('#a98558'), 0.75, 1); bottlesOn(mb, 5, 0, 0, 1.4, 17); def('bag_pile3', mb, { dbl: true }); }
 
-  const bo = new MB(), green = C('#4b6a5a');   // overflowing cassonetto, open lid at the back (-z)
+  const bo = new MB(), green = C('#4b6a5a');   // overflowing cassonetto, open lid at the back (-z), heap taller than the bin
   bo.frust(0.12, [-0.55, -0.62, 0.55, 0.62], 1.12, [-0.58, -0.66, 0.58, 0.66], green, 0.7, 1);
   const lid = C('#3b4f44');
   bo.face(lid, [[-0.58, 1.12, -0.66], [0.58, 1.12, -0.66], [0.58, 1.75, -1.0], [-0.58, 1.75, -1.0]], 1);
   bo.face(lid, [[-0.58, 1.75, -1.0], [0.58, 1.75, -1.0], [0.58, 1.12, -0.66], [-0.58, 1.12, -0.66]], 0.7);
-  heap(bo, 5, 0.42, 1.0, 71);
-  bo.lump(0.5, 0.35, 0.8, 0.28, 0.25, 0.28, C('#1c1c1f'), 0, 0.22, 0.65, 3); bo.lump(-0.3, 0.2, 0.85, 0.24, 0.2, 0.26, C('#d8d7cf'), 0, 0.22, 0.65, 4);
+  mound(bo, 11, 0, -0.05, 0.55, 0.5, 0.85, 1.0, 71, BAGP, 0.2, 0.34);
+  mound(bo, 6, 0.1, 0.95, 0.9, 0.5, 0.3, 0, 77, BAGP, 0.2, 0.32);
   bo.face(C('#a98a5a'), [[-0.4, 0.05, 0.9], [0.1, 0.05, 1.05], [0.1, 0.05, 1.4], [-0.4, 0.05, 1.25]], 1);
   def('bin_over', bo, { dbl: true });
+
+  // Signature mega-piles: wall at z=0, out +z. Two dark bins swallowed by a mound taller than they are, spilling
+  // across the pavement, with crates, boxes and bulky junk dumped alongside. The burnt ones are black and scorched.
+  const megaPile = (name, seed, burnt, extra) => {
+    const mb = new MB(), pal = burnt ? BURNP : BAGP;
+    const binCols = burnt ? ['#2a2622', '#1f1c19'] : ['#4b6a5a', '#3d4248'];
+    [-0.95, 0.45].forEach((x, k) => { mb.frust(0.12, [x - 0.55, 0.15, x + 0.55, 1.4], 1.12, [x - 0.58, 0.12, x + 0.58, 1.44], C(binCols[k]), 0.7, 1); });
+    mound(mb, 18, -0.25, 0.8, 1.7, 0.75, 1.05, 1.0, seed, pal, 0.24, 0.4);       // on and around the bins
+    mound(mb, 20, 0.1, 1.7, 2.3, 1.0, 0.7, 0, seed + 50, pal, 0.22, 0.4);        // sprawl in front
+    mound(mb, 8, 0, 2.5, 2.6, 0.6, 0.1, 0, seed + 99, pal, 0.14, 0.24);          // spill fringe
+    const card = burnt ? '#3a342c' : '#a98558';
+    mb.box(1.7, 0, 0.5, 2.4, 0.5, 1.1, C(card), 0.75, 1); mb.box(1.8, 0.5, 0.6, 2.3, 0.85, 1.05, C(burnt ? '#2c2822' : '#b8966a'), 0.85, 1);
+    mb.box(-2.4, 0, 0.9, -1.8, 0.35, 1.5, C(card), 0.75, 1);
+    mb.face(C(card), [[-1.6, 0.012, 2.2], [-0.6, 0.012, 2.4], [-0.5, 0.012, 3.0], [-1.7, 0.012, 2.8]], 1);
+    bottlesOn(mb, 6, 0, 2.2, 2.0, seed);
+    if (!burnt) { mb.box(-2.2, 0, 1.8, -1.6, 0.26, 2.1, C('#b79a63'), 0.7, 1); mb.box(-2.15, 0.26, 1.82, -1.65, 0.52, 2.08, C('#4f8a4a'), 0.8, 1); }
+    if (extra === 'mattress') { mb.frust(0, [2.6, 0.55, 3.5, 0.75], 1.7, [2.6, 0.08, 3.5, 0.28], C('#d8d0bb'), 0.85, 1); }
+    if (extra === 'fridge') { mb.box(2.6, 0, 0.3, 3.25, 1.7, 0.95, C(burnt ? '#2a2723' : '#e4e3dc'), 0.8, 1); mb.box(-3.0, 0, 1.3, -2.6, 0.47, 1.7, C('#6d4c30'), 0.9, 1); mb.box(-3.0, 0.47, 1.3, -2.6, 0.95, 1.36, C('#6d4c30'), 0.9, 1); }
+    if (extra === 'sofa') { mb.box(2.4, 0, 0.3, 3.9, 0.45, 1.2, C(burnt ? '#26221e' : '#7a3b3b'), 0.7, 1); mb.box(2.4, 0.45, 0.3, 3.9, 0.95, 0.5, C(burnt ? '#26221e' : '#7a3b3b'), 0.8, 1); }
+    if (burnt) { // scorch mark on the ground and a few glowing embers
+      const P = []; for (let i = 0; i < 10; i++) { const a = i * TAU / 10, rr = 2.4 + hash3(seed, i, 3) * 1.0; P.push([Math.cos(a) * rr * 1.15 - 0.1, 0.013, 1.5 + Math.sin(a) * rr * 0.7]); }
+      mb.face(C('#0c0b0a'), P.slice().reverse(), 1);
+      for (const [x, y, z] of [[0.3, 0.3, 1.9], [-0.6, 0.5, 1.4], [0.9, 0.2, 2.3]]) mb.lump(x, y, z, 0.1, 0.06, 0.1, C('#b5421c'), 0, 0.1, 0.9, seed);
+    }
+    def(name, mb, { dbl: true });
+  };
+  megaPile('mega0', 211, false, ''); megaPile('mega1', 233, false, 'mattress'); megaPile('mega2', 257, false, 'fridge');
+  megaPile('mega_burnt0', 281, true, 'sofa'); megaPile('mega_burnt1', 303, true, '');
 
   const cb = new MB(), paper = C('#a98558'), paper2 = C('#b8966a');   // cardboard from the shops
   cb.box(-0.45, 0, -0.3, 0.15, 0.5, 0.25, paper, 0.75, 1); cb.box(-0.4, 0.5, -0.25, 0.1, 0.85, 0.15, paper2, 0.85, 1); cb.box(0.2, 0, -0.2, 0.7, 0.35, 0.25, paper2, 0.75, 1);
@@ -496,6 +536,29 @@ const SPECS = {
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
+  // rubbish: soft things burst into debris, loose junk is launched like a light prop
+  bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
+  bag_pile0: { kind: 'bags', c: [[0, 0, 0.75]], thr: 0.9, n: 3, slow: 0.03 },
+  bag_pile1: { kind: 'bags', c: [[0, 0, 0.8]], thr: 0.9, n: 4, slow: 0.04 },
+  bag_pile2: { kind: 'bags', c: [[0, 0, 0.85]], thr: 0.9, n: 5, slow: 0.05 },
+  bag_pile3: { kind: 'bags', c: [[0, 0, 1.1]], thr: 0.9, n: 7, slow: 0.07, remain: 0.25 },
+  mega0: { kind: 'bags', c: [[0, 1.0, 1.5]], thr: 0.9, n: 16, slow: 0.14, mega: true, remain: 0.4 },
+  mega1: { kind: 'bags', c: [[0, 1.0, 1.5]], thr: 0.9, n: 16, slow: 0.14, mega: true, remain: 0.4 },
+  mega2: { kind: 'bags', c: [[0, 1.0, 1.5]], thr: 0.9, n: 16, slow: 0.14, mega: true, remain: 0.4 },
+  mega_burnt0: { kind: 'bags', c: [[0, 1.0, 1.5]], thr: 0.9, n: 14, slow: 0.14, mega: true, remain: 0.5 },
+  mega_burnt1: { kind: 'bags', c: [[0, 1.0, 1.5]], thr: 0.9, n: 14, slow: 0.14, mega: true, remain: 0.5 },
+  cardboard: { kind: 'board', c: [[0.1, 0.2, 0.75]], thr: 0.9 },
+  litter0: { kind: 'bits', c: [[0, 0, 0.8]], thr: 1.6, bottles: 2 },
+  litter1: { kind: 'bits', c: [[0, 0, 0.8]], thr: 1.6, bottles: 2 },
+  litter_cafe: { kind: 'bits', c: [[0, 0, 0.8]], thr: 1.6 },
+  mwaste0: { kind: 'bits', c: [[0, 0, 0.9]], thr: 1.6, bottles: 1 },
+  mwaste1: { kind: 'bits', c: [[0, 0, 0.9]], thr: 1.6, bottles: 1 },
+  mcrates: { kind: 'object', c: [[0.2, 0, 0.6]], thr: 1.2, m: 0.5, he: [0.5, 0.42, 0.25], hc: 0.42, ghost: true },
+  dump_mattress: { kind: 'object', c: [[0, 0.4, 0.55]], thr: 0.9, m: 0.6, he: [0.45, 0.95, 0.2], hc: 0.95, ghost: true },
+  dump_fridge: { kind: 'object', c: [[0, 0, 0.45]], thr: 3.2, m: 1.2, he: [0.32, 0.83, 0.32], hc: 0.83, ghost: true },
+  dump_chair: { kind: 'object', c: [[0, 0, 0.3]], thr: 0.9, m: 0.2, he: [0.22, 0.47, 0.22], hc: 0.47, ghost: true },
+  dump_sofa: { kind: 'object', c: [[0, 0, 0.9]], thr: 2.5, m: 1.0, he: [0.9, 0.45, 0.4], hc: 0.45, ghost: true },
+  dump_wreck: { kind: 'object', c: [[0, 0, 0.6]], thr: 1.6, m: 0.3, he: [0.6, 0.2, 0.35], hc: 0.2, ghost: true },
 };
 const SCALE_R = new Set(['ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 
@@ -513,25 +576,52 @@ function makePhysics(env) {
   const dirty = new Set(), dyn = [], broken = new Set();
   const stats = { yeeted: 0, tipped: 0, trees: 0, bent: 0, scooters: 0 };
 
-  // ---- debris pools: bin bags and leaves
-  const mkPool = (geo, n, castShadow) => {
+  // ---- debris pools: bags, cardboard sheets, bottles (all stay until their owner resets), leaves and litter bits (expire)
+  const mkPool = (geo, n, castShadow, tinted = true) => {
     const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: false, roughness: 0.9, side: THREE.DoubleSide }), n);
     im.frustumCulled = false; im.castShadow = castShadow; im.receiveShadow = true; im.count = n;
-    mA.makeScale(0, 0, 0); for (let i = 0; i < n; i++) { im.setMatrixAt(i, mA); im.setColorAt(i, new THREE.Color(1, 1, 1)); }
+    mA.makeScale(0, 0, 0); for (let i = 0; i < n; i++) { im.setMatrixAt(i, mA); if (tinted) im.setColorAt(i, new THREE.Color(1, 1, 1)); }
     scene.add(im); return im;
   };
+  const rnd = Math.random, r2 = (a, b) => a + rnd() * (b - a);
   const bagGeo = (() => { const g = new THREE.IcosahedronGeometry(0.2, 0); g.scale(1.15, 0.8, 1); return g; })();
+  const boardGeo = new THREE.BoxGeometry(0.7, 0.025, 0.5);
+  const bottleGeo = (() => { const g = new THREE.CylinderGeometry(0.035, 0.035, 0.24, 5); g.rotateZ(Math.PI / 2); return g; })();   // lies along x
   const leafGeo = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-0.12, 0, -0.08, 0.12, 0, -0.08, 0.12, 0, 0.1, -0.12, 0, -0.08, 0.12, 0, 0.1, -0.12, 0, 0.1], 3)); g.computeVertexNormals(); return g; })();
-  const bagPool = mkPool(bagGeo, 220, false), leafPool = mkPool(leafGeo, 420, false);
-  const bags = [], leaves = [];
-  let bagN = 0, leafN = 0;
-  const BAGC = ['#1b1b1e', '#2a2a30', '#d8d7cf', '#3a6f9a', '#c7b05a', '#3d6a4a'].map(h => new THREE.Color(h));
+  const leafPool = mkPool(leafGeo, 700, false);
+  const leaves = []; let leafN = 0;
+  const BAGC = ['#1b1b1e', '#2a2a30', '#d8d9d4', '#e6e6e0', '#9fc0d8', '#d9a0b0', '#9ec9a0', '#d9892a', '#c9c3b0', '#3a6f9a', '#17181b'].map(h => new THREE.Color(h));
+  const BOARDC = ['#a98558', '#b8966a', '#9a7a4e'].map(h => new THREE.Color(h));
+  const BOTC = ['#9ec4d4', '#3f7a5a', '#d8d8d0', '#7a4a22'].map(h => new THREE.Color(h));
   const LEAFC = ['#4a7a30', '#5f8a3a', '#7aa04a', '#3f6a2a'].map(h => new THREE.Color(h));
-  const spawnBags = (c, n, dx, dz) => {
+  const BITC = ['#e6e3d8', '#cfd6dc', '#d9c9a0', '#b8966a', '#e9e5d8', '#9ec4d4'].map(h => new THREE.Color(h));
+  const mkDebris = (geo, n, kind, cast) => ({ im: mkPool(geo, n, cast), items: [], n: 0, dirty: false, kind, cols: kind === 'bag' ? BAGC : kind === 'board' ? BOARDC : BOTC });
+  const DEB = { bag: mkDebris(bagGeo, 560, 'bag', false), board: mkDebris(boardGeo, 160, 'board', false), bottle: mkDebris(bottleGeo, 140, 'bottle', false) };
+  const spawnDeb = (kind, c, init) => {
+    const D2 = DEB[kind], idx = D2.n++ % D2.im.count; let it = D2.items.find(q => q.idx === idx); if (!it) D2.items.push(it = { idx });
+    Object.assign(it, { rest: false, hidden: false, owner: c, tilt: 0, tv: 0, spin: 0, roll: 0, rot: rnd() * 6.28, s: 1 }, init);
+    D2.im.setColorAt(idx, D2.cols[(rnd() * D2.cols.length) | 0]); D2.im.instanceColor.needsUpdate = true; D2.dirty = true; return it;
+  };
+  // bursts fly away from the lapa: (nx,nz) points from the prop to the car, v is the car's velocity
+  const burstV = (nx, nz, vc, k, pc) => [-nx * vc * k + pc.vx * 0.3 + (rnd() - 0.5) * 3, -nz * vc * k + pc.vz * 0.3 + (rnd() - 0.5) * 3];
+  const spawnBags = (c, n, nx, nz, vc = 3, pc = { vx: 0, vz: 0 }, small = false) => {
     for (let i = 0; i < n; i++) {
-      const idx = bagN++ % bagPool.count, b = bags.find(q => q.idx === idx) || (bags[bags.length] = { idx });
-      Object.assign(b, { x: c.x + (Math.random() - 0.5) * 0.6, y: gy(c.x, c.z) + 0.8 + Math.random() * 0.5, z: c.z + (Math.random() - 0.5) * 0.6, vx: dx * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, vz: dz * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 3, rest: false, rot: Math.random() * 6, s: 0.6 + Math.random() * 0.35, owner: c });
-      bagPool.setColorAt(idx, BAGC[(Math.random() * BAGC.length) | 0]); bagPool.instanceColor.needsUpdate = true;
+      const [vx, vz] = burstV(nx, nz, vc, 0.35 + rnd() * 0.5, pc);
+      spawnDeb('bag', c, { x: c.x + (rnd() - 0.5) * 1.2, y: gy(c.x, c.z) + 0.5 + rnd() * 0.7, z: c.z + (rnd() - 0.5) * 1.2, vx, vy: 2 + rnd() * 3.5, vz, s: small ? r2(0.45, 0.8) : r2(0.6, 0.95), spin: (rnd() - 0.5) * 8 });
+    }
+  };
+  const spawnBoards = (c, n, nx, nz, vc, pc) => {
+    for (let i = 0; i < n; i++) { const [vx, vz] = burstV(nx, nz, vc, 0.3 + rnd() * 0.4, pc); spawnDeb('board', c, { x: c.x + (rnd() - 0.5), y: gy(c.x, c.z) + 0.4 + rnd() * 0.6, z: c.z + (rnd() - 0.5), vx, vy: 2 + rnd() * 3, vz, tv: (rnd() - 0.5) * 14, tilt: rnd() * 3, spin: (rnd() - 0.5) * 7, s: r2(0.7, 1.2) }); }
+  };
+  const spawnBottles = (c, n, nx, nz, vc, pc) => {
+    for (let i = 0; i < n; i++) { const [vx, vz] = burstV(nx, nz, vc, 0.5 + rnd() * 0.6, pc); spawnDeb('bottle', c, { x: c.x + (rnd() - 0.5) * 0.8, y: gy(c.x, c.z) + 0.3, z: c.z + (rnd() - 0.5) * 0.8, vx, vy: 1 + rnd() * 2.5, vz, s: 1 }); }
+  };
+  const spawnBits = (c, n, nx, nz, vc, pc) => {   // light litter puffs up and flutters down
+    for (let i = 0; i < n; i++) {
+      const idx = leafN++ % leafPool.count; let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
+      const [vx, vz] = burstV(nx, nz, vc, 0.3 + rnd() * 0.5, pc);
+      Object.assign(l, { x: c.x + (rnd() - 0.5), y: gy(c.x, c.z) + 0.2, z: c.z + (rnd() - 0.5), vx, vy: 1.5 + rnd() * 3, vz, rot: rnd() * 6, spin: (rnd() - 0.5) * 12, age: 0, life: 3 + rnd() * 2.5, s: r2(0.5, 0.9), gone: false });
+      leafPool.setColorAt(idx, BITC[(rnd() * BITC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
     }
   };
   const spawnLeaves = (c, dx, dz) => {
@@ -539,13 +629,14 @@ function makePhysics(env) {
     for (let i = 0; i < n; i++) {
       const idx = leafN++ % leafPool.count, a = Math.random() * 6.283, r = Math.random() * sp.crown * c.s * 0.7;
       let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
-      Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: 0.9 + Math.random() * 0.8 });
+      Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: 0.9 + Math.random() * 0.8, gone: false });
       leafPool.setColorAt(idx, LEAFC[(Math.random() * LEAFC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
     }
   };
 
   // ---- poses
   const baseMatrix = (c, m) => m.compose(vA.set(c.x0, c.y0, c.z0), qA.setFromAxisAngle(up, c.rot0), sA.setScalar(c.s));
+  const goneMatrix = (c, m) => { const k = c.sp.remain || 0; return m.compose(vA.set(c.x0, c.y0, c.z0), qA.setFromAxisAngle(up, c.rot0), k ? sA.set(c.s * 1.1, c.s * k, c.s * 1.1) : sA.set(0, 0, 0)); };
   function tiltMatrix(c, m) {
     const sn = Math.sin(c.ang), a = vB.set(c.dz, 0, -c.dx);
     qB.setFromAxisAngle(up, c.rot0); qA.setFromAxisAngle(a, c.ang).multiply(qB);
@@ -556,7 +647,7 @@ function makePhysics(env) {
     return m.multiply(mB.makeTranslation(0, -c.sp.hc, 0));
   }
   function poseInstance(c) {
-    if (c.st === 0) baseMatrix(c, mA); else if (c.st === 'fall' || c.st === 'down') tiltMatrix(c, mA); else flyMatrix(c, mA);
+    if (c.st === 0) baseMatrix(c, mA); else if (c.st === 'gone') goneMatrix(c, mA); else if (c.st === 'fall' || c.st === 'down') tiltMatrix(c, mA); else flyMatrix(c, mA);
     c.im.setMatrixAt(c.i, mA); dirty.add(c.im);
   }
   const moved = new Set();
@@ -592,6 +683,18 @@ function makePhysics(env) {
   }
   const slow = (pc, nx, nz, f) => { const vn = pc.vx * nx + pc.vz * nz; if (vn < 0) { pc.vx -= vn * nx * f; pc.vz -= vn * nz * f; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th); } };
 
+  function junk(pc, c, nx, nz, vc) {
+    const sp = c.sp;
+    if (sp.kind === 'object') { yeet(c, nx, nz, vc, pc); stats.junk = (stats.junk || 0) + 1; return; }
+    c.st = 'gone'; gDel(c); touch(c); stats.junk = (stats.junk || 0) + 1;
+    if (sp.kind === 'bags') {
+      spawnBags(c, sp.n, nx, nz, vc, pc, true);
+      if (sp.mega) { spawnBoards(c, 3, nx, nz, vc, pc); spawnBottles(c, 4, nx, nz, vc, pc); spawnBits(c, 14, nx, nz, vc, pc); }
+      else if (rnd() < 0.5) spawnBits(c, 4, nx, nz, vc, pc);
+      slow(pc, nx, nz, sp.slow || 0.04);
+    } else if (sp.kind === 'board') { spawnBoards(c, 3, nx, nz, vc, pc); slow(pc, nx, nz, 0.03); }
+    else { spawnBits(c, 9, nx, nz, vc, pc); if (sp.bottles) spawnBottles(c, sp.bottles, nx, nz, vc, pc); }
+  }
   function hit(pc, c, nx, nz, pen, arm) {
     const sp = c.sp, vc = -(pc.vx * nx + pc.vz * nz);
     switch (sp.kind) {
@@ -609,8 +712,12 @@ function makePhysics(env) {
         break;
       case 'bin':
         if (c.st === 0 && vc >= sp.thr) {
-          startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, -nx, -nz); stats.tipped++; slow(pc, nx, nz, 0.12); return;
+          startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
         }
+        break;
+      case 'bags': case 'board': case 'bits': case 'object':
+        if (c.st === 0 && vc >= sp.thr) { junk(pc, c, nx, nz, vc); return; }
+        if (sp.kind !== 'object') return;    // soft: the lapa just drives through rubbish below the threshold
         break;
       case 'tree':
         if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
@@ -650,7 +757,7 @@ function makePhysics(env) {
       c.q.slerp(target, 0.15);
       c.py += (ground + he[bi] - c.py) * 0.2;
       if (best > 0.995 && Math.hypot(c.vx, c.vz) < 0.2) { // at rest: now a solid wreck
-        c.st = 'rest'; c.x = c.px; c.z = c.pz; c.circ = [[0, 0, Math.max(he[0], he[2]) * 0.8]]; c.sp = { kind: 'solid', c: c.circ, he: he, hc: c.sp.hc }; gAdd(c);
+        const ghost = c.sp.ghost; c.st = 'rest'; c.x = c.px; c.z = c.pz; c.circ = [[0, 0, Math.max(he[0], he[2]) * 0.8]]; c.sp = { kind: 'solid', c: c.circ, he: he, hc: c.sp.hc }; if (!ghost) gAdd(c);
         const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
       }
     }
@@ -662,13 +769,24 @@ function makePhysics(env) {
     dirty.add(c);
   }
   function stepDebris(dt) {
-    for (const b of bags) {
-      if (b.rest) continue;
-      b.vy -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
-      if (inB(b.x, b.z)) { b.x -= b.vx * dt; b.z -= b.vz * dt; b.vx *= -0.3; b.vz *= -0.3; }
-      const g0 = gy(b.x, b.z) + 0.12;
-      if (b.y < g0) { b.y = g0; b.vy = -b.vy * 0.3; b.vx *= 0.7; b.vz *= 0.7; if (Math.abs(b.vy) < 0.6 && Math.hypot(b.vx, b.vz) < 0.8) b.rest = true; }
-      b.dirty = true; bagDirty = true;
+    for (const k in DEB) {
+      const D2 = DEB[k];
+      for (const b of D2.items) {
+        if (b.rest || b.hidden) continue;
+        b.vy -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+        if (inB(b.x, b.z)) { b.x -= b.vx * dt; b.z -= b.vz * dt; b.vx *= -0.3; b.vz *= -0.3; }
+        const g0 = gy(b.x, b.z) + (k === 'bag' ? 0.1 * b.s : k === 'board' ? 0.02 : 0.035);
+        if (k === 'board') b.tilt += b.tv * dt;
+        b.rot += b.spin * dt;
+        if (b.y < g0) {
+          b.y = g0; b.vy = -b.vy * (k === 'bag' ? 0.3 : 0.25);
+          const f = k === 'bottle' ? 0.985 : k === 'board' ? 0.9 : 0.7; b.vx *= f; b.vz *= f; b.spin *= 0.9;
+          if (k === 'board') { b.tv *= 0.5; b.tilt += (Math.round(b.tilt / Math.PI) * Math.PI - b.tilt) * 0.3; }
+          if (k === 'bottle') { const sp = Math.hypot(b.vx, b.vz); b.roll += sp * dt / 0.035; if (sp > 0.05) b.rot = Math.atan2(b.vx, b.vz); if (sp < 0.12 && Math.abs(b.vy) < 0.5) b.rest = true; }
+          else if (Math.abs(b.vy) < 0.6 && Math.hypot(b.vx, b.vz) < 0.8) { b.rest = true; if (k === 'board') b.tilt = Math.round(b.tilt / Math.PI) * Math.PI; }
+        } else if (k === 'bottle') b.roll += 6 * dt;
+        b.dirty = true; D2.dirty = true;
+      }
     }
     for (const l of leaves) {
       if (l.age >= l.life) continue;
@@ -678,20 +796,20 @@ function makePhysics(env) {
       leafDirty = true;
     }
   }
-  let bagDirty = false, leafDirty = false;
+  let leafDirty = false;
 
   function reset(c) {
     broken.delete(c); const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
     if (c.st === 'rest' || c.st === 0 || c.gk !== undefined) gDel(c);
     c.st = 0; c.x = c.x0; c.z = c.z0; c.sp = SPECS[c.model]; c.circ = c.sp.c; gAdd(c);
-    for (const b of bags) if (b.owner === c) { b.owner = null; b.rest = true; b.y = -500; b.dirty = true; bagDirty = true; }
+    for (const k in DEB) for (const b of DEB[k].items) if (b.owner === c) { b.owner = null; b.rest = true; b.hidden = true; b.dirty = true; DEB[k].dirty = true; }
     baseMatrix(c, mA); c.im.setMatrixAt(c.i, mA); dirty.add(c.im);
   }
 
   function collidePlayer(pc, dt = 1 / 120) {
     simT += dt;
     if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); }
-    if (bags.length || leaves.length) stepDebris(dt);
+    if (DEB.bag.n || DEB.board.n || DEB.bottle.n || leaves.length) stepDebris(dt);
     if (broken.size && (++tick % 60) === 0 && camPos) {
       for (const c of broken) if (simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && Math.hypot(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && Math.hypot(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
     }
@@ -702,7 +820,7 @@ function makePhysics(env) {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
         const lst = grid.get((i + 512) * 1024 + (j + 512)); if (!lst) continue;
         for (let q = lst.length - 1; q >= 0; q--) {
-          const c = lst[q]; if (!c || c.st === 'down' || c.st === 'fall' || c.st === 'fly') continue;
+          const c = lst[q]; if (!c || c.st === 'down' || c.st === 'fall' || c.st === 'fly' || c.st === 'gone') continue;
           const cr = Math.cos(c.rot), sr = Math.sin(c.rot), ss = c.s;
           for (const [ox, oz, r0] of c.circ) {
             const r = SCALE_R.has(c.model) ? r0 * ss : r0;
@@ -727,9 +845,16 @@ function makePhysics(env) {
       for (const d of dirty) if (d.isInstancedMesh) d.instanceMatrix.needsUpdate = true;
       dirty.clear();
     }
-    if (bagDirty) {
-      for (const b of bags) { if (!b.dirty) continue; b.dirty = false; mA.compose(vA.set(b.x, b.y, b.z), qA.setFromAxisAngle(up, b.rot), sA.setScalar(b.s)); bagPool.setMatrixAt(b.idx, mA); }
-      bagPool.instanceMatrix.needsUpdate = true; bagDirty = false;
+    for (const k in DEB) {
+      const D2 = DEB[k]; if (!D2.dirty) continue;
+      for (const b of D2.items) {
+        if (!b.dirty) continue; b.dirty = false;
+        if (b.hidden) { mA.makeScale(0, 0, 0); D2.im.setMatrixAt(b.idx, mA); continue; }
+        qA.setFromAxisAngle(up, b.rot);
+        if (k === 'board') qA.multiply(qB.setFromAxisAngle(vB.set(1, 0, 0), b.tilt)); else if (k === 'bottle') qA.multiply(qB.setFromAxisAngle(vB.set(1, 0, 0), b.roll));
+        mA.compose(vA.set(b.x, b.y, b.z), qA, sA.setScalar(b.s)); D2.im.setMatrixAt(b.idx, mA);
+      }
+      D2.im.instanceMatrix.needsUpdate = true; D2.dirty = false;
     }
     if (leafDirty) {
       let live = false;
@@ -823,20 +948,8 @@ export function buildProps(ctx) {
   const wallClear = (x, z, r) => !inB(x, z) && !nearWall(x, z, r);
 
   // ---------- street masks
-  function mask(polys, k) {
-    const [x0, z0, x1, z1] = D.streets.aoi;
-    const W = Math.ceil((x1 - x0) * k), H = Math.ceil((z1 - z0) * k);
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const g = cv.getContext('2d'); g.fillStyle = '#fff';
-    for (const poly of polys) {
-      g.beginPath();
-      for (const ring of poly) { for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * k, (ring[i + 1] - z0) * k); g.closePath(); }
-      g.fill('evenodd');
-    }
-    const d = g.getImageData(0, 0, W, H).data, out = new Uint8Array(W * H);
-    for (let i = 0; i < out.length; i++) out[i] = d[i * 4 + 3] > 127 ? 1 : 0;
-    return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; return i >= 0 && j >= 0 && i < W && j < H && out[j * W + i] === 1; };
-  }
+  // [perf pass] bit-packed tiled raster (core.js rasterMask) instead of a 66 MB RGBA read-back per call
+  function mask(polys, k) { return rasterMask([polys], D.streets.aoi, k); }
   const asphalt = D.streets ? mask(D.streets.asphalt, 2) : () => false;
   const paving = D.streets ? mask(D.streets.paving, 1) : () => false;
   const road = (x, z) => asphalt(x, z) && !inB(x, z);
@@ -1461,6 +1574,18 @@ export function buildProps(ctx) {
   {
     const rt = rng(7011), RT = (a, b) => a + rt() * (b - a);
     const st = { piles: 0, cardboard: 0, dumps: 0, litter: 0, market: 0, cafeLitter: 0 };
+    const pileName = () => rt() < 0.14 ? 'bag_pile3' : 'bag_pile' + Math.floor(rt() * 3);
+    let megas = 0; const MEGA_CAP = 40;
+    const tryMega = (x, z, nx, nz) => {   // x,z on the wall line, n points out into the street
+      if (megas >= MEGA_CAP) return false;
+      const tx = -nz, tz = nx, px = x + nx * 0.3, pz = z + nz * 0.3;
+      for (const u of [-2.6, 0, 2.6, 3.6]) for (const v of [0.3, 1.6, 3.0]) { const qx = px + tx * u + nx * v, qz = pz + tz * u + nz * v; if (inB(qx, qz) || !lane(qx, qz)) return false; }
+      if (march(px, pz, nx, nz, 9, (a2, b2) => !inB(a2, b2)) < 6.2) return false;       // the lapa must still pass
+      if (occHit(px + nx * 1.5, pz + nz * 1.5, 2.6) || nearJunction(px, pz, 7)) return false;
+      const burnt = rt() < 0.28, name = burnt ? 'mega_burnt' + Math.floor(rt() * 2) : 'mega' + Math.floor(rt() * 3);
+      put(name, px, gy(px, pz), pz, Math.atan2(nx, nz), RT(0.95, 1.1)); occAdd(px + nx * 1.5, pz + nz * 1.5, 2.8); megas++; st.mega = (st.mega || 0) + 1;
+      return true;
+    };
     const free = (x, z) => !inB(x, z) && !occHit(x, z, 0.55);
     // a pile or dump must leave the carriageway passable: on a pavement, or at least 3 m of street across from it
     const passable = (x, z, nx, nz) => raisedMask(x, z) || paving(x, z) || march(x, z, nx, nz, 5, (a, b) => !inB(a, b)) >= 3.1;
@@ -1474,11 +1599,11 @@ export function buildProps(ctx) {
       for (let q = 0; q < nn; q++) {
         const px = x + tx * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nx * RT(-0.15, 0.35), pz = z + tz * (q ? RT(-1.7, 1.7) : RT(-0.9, 0.9)) + nz * RT(-0.15, 0.35);
         if (!free(px, pz) || !lane(px, pz) || !passable(px, pz, nx, nz)) continue;
-        put('bag_pile' + Math.floor(rt() * 3), px, gy(px, pz), pz, RT(0, TAU), RT(0.85, 1.15)); occAdd(px, pz, 0.5); st.piles++;
+        put(pileName(), px, gy(px, pz), pz, RT(0, TAU), RT(0.85, 1.15)); occAdd(px, pz, 0.5); st.piles++;
       }
     }
     for (const it of osm) {
-      if (it.k === 'bin_big' && !inB(it.x, it.z) && rt() < 0.6) { const px = it.x + RT(-1.2, 1.2), pz = it.z + RT(-1.2, 1.2); if (free(px, pz) && lane(px, pz)) { put('bag_pile' + Math.floor(rt() * 3), px, gy(px, pz), pz, RT(0, TAU)); occAdd(px, pz, 0.5); st.piles++; } }
+      if (it.k === 'bin_big' && !inB(it.x, it.z) && rt() < 0.6) { const px = it.x + RT(-1.2, 1.2), pz = it.z + RT(-1.2, 1.2); if (free(px, pz) && lane(px, pz)) { put(pileName(), px, gy(px, pz), pz, RT(0, TAU)); occAdd(px, pz, 0.5); st.piles++; } }
     }
     // along building walls: loose piles, dumped junk, litter
     for (const o of bl) {
@@ -1490,12 +1615,13 @@ export function buildProps(ctx) {
         let nx = dz / L, nz = -dx / L; if (inB(cxm + nx * 0.5, czm + nz * 0.5)) { nx = -nx; nz = -nz; }
         const sq = squalor(cxm, czm);
         for (let s = RT(1, 14); s < L - 1; s += RT(28, 60)) {
+          if (sq > 0.8 && rt() < 0.02) { const [mx, mz] = wallSpot(A, nx, nz, s, L, dx, dz, 0.0); if (tryMega(mx, mz, nx, nz)) continue; }
           const u = rt();
           if (u > 0.28 * sq * sq + 0.01) continue;
           const [x, z] = wallSpot(A, nx, nz, s, L, dx, dz, 0.5);
           if (!free(x, z) || !lane(x, z) || nearJunction(x, z, 3.5) || !passable(x, z, nx, nz)) continue;
           const kind = rt();
-          if (kind < 0.55) { put('bag_pile' + Math.floor(rt() * 3), x, gy(x, z), z, RT(0, TAU), RT(1.0, 1.5)); st.piles++; occAdd(x, z, 0.6); }
+          if (kind < 0.55) { put(pileName(), x, gy(x, z), z, RT(0, TAU), RT(1.0, 1.5)); st.piles++; occAdd(x, z, 0.6); }
           else if (kind < 0.62) {
             const m = wpick([['dump_mattress', 3], ['dump_fridge', 2], ['dump_chair', 3], ['dump_sofa', 2], ['dump_wreck', 2]]);
             const wall = m === 'dump_mattress' || m === 'dump_fridge';
@@ -1542,10 +1668,11 @@ export function buildProps(ctx) {
             if (rt() > 0.75) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 9, (x, z) => !inB(x, z)), e2 = march(cx, cz, -nx, -nz, 9, (x, z) => !inB(x, z));
             if (e < 1.4 || e + e2 < 4) continue;
+            if (rt() < 0.14) { if (tryMega(cx + nx * e, cz + nz * e, -nx, -nz)) continue; }
             const d = e - 0.55, x = cx + nx * d, z = cz + nz * d;
             if (!free(x, z) || !lane(x, z)) continue;
             const rot = Math.atan2(-nx, -nz) + RT(-0.4, 0.4), k = rt();
-            put(k < 0.45 ? 'mwaste' + Math.floor(rt() * 2) : k < 0.7 ? 'mcrates' : k < 0.85 ? 'cardboard' : 'bag_pile' + Math.floor(rt() * 3), x, gy(x, z) + (k < 0.45 ? 0.012 : 0), z, rot, RT(0.85, 1.15)); occAdd(x, z, 0.7); st.market++;
+            put(k < 0.45 ? 'mwaste' + Math.floor(rt() * 2) : k < 0.7 ? 'mcrates' : k < 0.85 ? 'cardboard' : pileName(), x, gy(x, z) + (k < 0.45 ? 0.012 : 0), z, rot, RT(0.85, 1.15)); occAdd(x, z, 0.7); st.market++;
             if (k < 0.45 && rt() < 0.6) { const x2 = x + tx * RT(-1.5, 1.5), z2 = z + tz * RT(-1.5, 1.5); if (free(x2, z2) && lane(x2, z2)) { put('mwaste' + Math.floor(rt() * 2), x2, gy(x2, z2) + 0.012, z2, RT(0, TAU), RT(0.8, 1.2)); st.market++; } }
           }
         }
@@ -1564,7 +1691,7 @@ export function buildProps(ctx) {
 
   // ---------- flush instances
   let tris = 0, meshes = 0, total = 0; const triBy = {}, cellMeshes = [], meshOf = {};
-  const FAR = { bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+  const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
     signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
     shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200 };
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();

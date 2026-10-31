@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
   Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
-import { WORLD, hooks } from './core.js'; // world streaming (src/world.js), only with ?world=1
+import { WORLD, hooks, rasterMask } from './core.js'; // world streaming (src/world.js), only with ?world=1
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
@@ -44,6 +44,8 @@ const SPOTS = [
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
+// [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
+if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
 const perf = createPerf({ renderer, mobile: QUALITY.mobile }); // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
@@ -119,19 +121,8 @@ if (D.streets && !WORLD) scene.add(buildStreets(D.streets));
 
 // Raised-ground lookup so the car bumps up onto sidewalks.
 let world = null; // world streamer (src/world.js), only with ?world=1
-const centroRaised = (() => {
-  if (!D.streets) return () => false;
-  const [x0, z0, x1, z1] = D.streets.aoi, k = 2; // 0.5 m cells
-  const cv = document.createElement('canvas'); cv.width = Math.ceil((x1 - x0) * k); cv.height = Math.ceil((z1 - z0) * k);
-  const g = cv.getContext('2d'); g.fillStyle = '#fff';
-  for (const layer of ['raised', 'green']) for (const poly of D.streets[layer]) {
-    g.beginPath();
-    for (const ring of poly) for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * k, (ring[i + 1] - z0) * k);
-    g.fill('evenodd');
-  }
-  const data = g.getImageData(0, 0, cv.width, cv.height).data, W = cv.width, H = cv.height;
-  return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; return i >= 0 && j >= 0 && i < W && j < H && data[(j * W + i) * 4 + 3] > 127; };
-})();
+// [perf pass] bit-packed tiled raster (core.js rasterMask): was a 4100 x 4060 px canvas + 66 MB RGBA read-back held for the whole session.
+const centroRaised = D.streets ? rasterMask([...D.streets.raised, ...D.streets.green], D.streets.aoi, 2) : () => false; // 0.5 m cells
 // world: tiles bring their own raised-ground masks next to the baked centro one
 const raisedMask = WORLD ? (x, z) => centroRaised(x, z) || (world !== null && world.raised(x, z)) : centroRaised;
 
@@ -396,7 +387,9 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
-setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt, SPOTS, proj, groundY, D });
+// with the streamed world, a far start spot has to load before the lapa can find a road there
+const placeStart = (x, z) => { try { placeAt(x, z); } catch (e) { /* no road yet */ } world?.teleport(x, z, () => placeAt(x, z)); };
+setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, proj, groundY, D });
 createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).

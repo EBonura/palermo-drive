@@ -5,5 +5,6 @@
 //   build   uses only THREE and groundY, which it imports from src/core.js itself; ctx is unused
 //   walls / dropWalls  optional collision changes, see the report: walls are [x0,z0,x1,z1] segments to add, dropWalls are building ids whose footprint walls should not be registered
 import { POLITEAMA, STADIO, UTVEGGIO, SANTUARIO } from './lmc-a.js';
+import { ZISA, CUBA, EREMITI, PONTE, NORMANNI } from './lmc-b.js';
 
-export const CITY_LANDMARKS = [POLITEAMA, STADIO, UTVEGGIO, SANTUARIO];
+export const CITY_LANDMARKS = [POLITEAMA, STADIO, UTVEGGIO, SANTUARIO, ZISA, CUBA, EREMITI, PONTE, NORMANNI];

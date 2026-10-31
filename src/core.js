@@ -92,3 +92,37 @@ export function speckle(g, S, n, cols, r0, r1) {
 export function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 // [perf pass] indexed reads instead of array destructuring: this runs millions of times at startup (props placement masks).
 export function inPoly(pts, x, z) { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const p = pts[i], q = pts[j], xi = p[0], zi = p[1], xj = q[0], zj = q[1]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; }
+
+// [perf pass] Rasterise polygon layers into a bit-packed mask, one 1024 px tile at a time.
+// The old way drew the whole map on one canvas (4100 x 4060 px at k = 2) and kept its RGBA read-back alive:
+// ~66 MB of heap, close to the 16 M px canvas limit of iOS Safari. This keeps 1 bit per cell (about 2 MB) and a 4 MB scratch canvas.
+// layers: array of polygon lists (each polygon = [outerRing, hole, ...], flat [x, z, ...]); aoi: [x0, z0, x1, z1]; k: cells per metre.
+// Returns (x, z) => boolean, same answers as the old canvas version (even-odd fill per polygon, alpha > 127).
+export function rasterMask(layers, aoi, k) {
+  const [x0, z0, x1, z1] = aoi, W = Math.ceil((x1 - x0) * k), H = Math.ceil((z1 - z0) * k), TS = 1024;
+  const bits = new Uint8Array((W * H + 7) >> 3);
+  const items = [];
+  for (const polys of layers) for (const poly of polys) {
+    const r = poly[0]; let a = 1e9, b = 1e9, c = -1e9, d = -1e9;
+    for (let i = 0; i < r.length; i += 2) { const x = (r[i] - x0) * k, z = (r[i + 1] - z0) * k; if (x < a) a = x; if (x > c) c = x; if (z < b) b = z; if (z > d) d = z; }
+    items.push([poly, a, b, c, d]);
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = TS;
+  const g = cv.getContext('2d');   // GPU canvas on purpose: same rasteriser (and edge pixels) as the old whole-map canvas
+  for (let ty = 0; ty < H; ty += TS) for (let tx = 0; tx < W; tx += TS) {
+    g.clearRect(0, 0, TS, TS); g.fillStyle = '#fff';
+    let any = false;
+    for (const [poly, a, b, c, d] of items) {
+      if (c < tx - 2 || a > tx + TS + 2 || d < ty - 2 || b > ty + TS + 2) continue;
+      g.beginPath();
+      for (const ring of poly) for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * k - tx, (ring[i + 1] - z0) * k - ty);
+      g.fill('evenodd'); any = true;
+    }
+    if (!any) continue;
+    const w = Math.min(TS, W - tx), h = Math.min(TS, H - ty), px = new Uint32Array(g.getImageData(0, 0, w, h).data.buffer);
+    for (let j = 0; j < h; j++) for (let i = 0, o = j * w; i < w; i++) {
+      if ((px[o + i] >>> 24) > 127) { const n = (ty + j) * W + tx + i; bits[n >> 3] |= 1 << (n & 7); }
+    }
+  }
+  return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; if (i < 0 || j < 0 || i >= W || j >= H) return false; const n = j * W + i; return (bits[n >> 3] >> (n & 7) & 1) === 1; };
+}

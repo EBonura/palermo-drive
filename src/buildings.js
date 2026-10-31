@@ -1269,6 +1269,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   // ---------- all buildings ----------
   const grey = l => new THREE.Color(l, l, l);
   let meshesOut = [];
+  const ruinAt = []; // debug: where the first few ruins are (district-view prints them)
   function* run(photo) {
     chunks = new Map(); let nb = 0;
     const tStart = performance.now();
@@ -1305,6 +1306,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       let S = STYLES[key];
       if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
       stats.styles[key] = (stats.styles[key] || 0) + 1;
+      if (key === 'ruin' && ruinAt.length < 8) ruinAt.push([Math.round(cx), Math.round(cz)]);
       // colour: spec table, then OSM building:colour, then the zone palette (stone or plaster)
       const isStone = key === 'church' || (spec && spec.stone !== undefined ? spec.stone : (key === 'bar' || key === 'res' || key === 'n19') && r() < Z.pStone * (key === 'bar' ? 1.3 : key === 'res' ? 1 : 0.5));
       const osm = osmColour(b.col);
@@ -1347,7 +1349,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       }
       yield;
     }
-    group.userData.tris = tris;
+    group.userData.tris = tris; group.userData.styles = stats.styles; group.userData.ruins = ruinAt;
     if (!tile) { window.__bld = { tris, meshes: nm, stats, ms: performance.now() - tStart }; console.log('[buildings]', JSON.stringify(window.__bld)); }
   }
   yield* run(null);

@@ -259,7 +259,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       const css = document.createElement('style');
       css.textContent = '#pd-clock{margin-top:4px;font:600 12px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;opacity:.78;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.7)}' +
         '#pd-clock i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:0;background:#ffd36a;box-shadow:0 0 6px #ffd36a}#pd-clock i.n{background:#c8d4ff;box-shadow:inset -2px -1px 0 #5a6aa0,0 0 6px #aab8ff}' +
-        'html.touch #pd-clock{font-size:10px;margin-top:2px}';
+        'html.touch #pd-clock{position:fixed;top:max(10px,env(safe-area-inset-top));right:calc(max(12px,env(safe-area-inset-right)) + clamp(76px,25vh,104px) + 10px);margin:0;font-size:11px}';
       document.head.appendChild(css);
       clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; where.appendChild(clockEl);
     }
@@ -506,6 +506,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       }
     } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
     updateHeadlights(headOn);
+    if (car) car.tailGlow = headOn;
     setVehicleLamps(headOn);
     updateRealLights(dt, lampOn, headOn);
 
