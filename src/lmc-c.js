@@ -289,7 +289,7 @@ function buildIgiea() {
   begin(gy);
   defMat('igWall', 256, 256, [8, 15.7], (g, w, h) => paintFacade(g, w, h, 8, 15.7, { base: '#e9cfa6', trim: '#fbf1da', glass: '#2c2a2a', seed: 891, plinth: { h: 1.0, c: '#c8ad84' }, grime: 0,
     bands: [{ y: 5.2, h: 0.35, c: '#f6e6c6' }, { y: 10.4, h: 0.35, c: '#f6e6c6' }], rows: [{ y0: 1.5, y1: 4.5, xs: [2, 6], w: 1.3, kind: 'arch', fr: 0.2, sill: false }, { y0: 6.2, y1: 9.6, xs: [2, 6], w: 1.2, kind: 'rect', shut: 'open', balc: true }, { y0: 11.5, y1: 14.2, xs: [2, 6], w: 1.1, kind: 'rect', shut: 'open' }], shut: '#5a7a5a' }));
-  shell('igWall', pts, [], gy, H, { lo: gr.lo - 2, roof: '#b9705a', cc: '#f0dcb8' });
+  shell('igWall', pts, [], gy, H, { lo: gr.lo - 2, roof: '#a88068', cc: '#f0dcb8' });
   const o = obb(pts); const T = frame(o.cx + o.ux * 30, gy + H, o.cz + o.uz * 30, o.vx, o.vz);
   bx('igWall', T, -3.4, 3.4, 0, 9, -3.4, 3.4); bx('flat', T, -3.8, 3.8, 9, 9.5, -3.8, 3.8, { c: '#f0dcb8' }); pyramid('tile', 8, 8, 4.0, { M: mul(T, tr(0, 9.5, 0)), c: '#c8705a' });
   return end('Villa Igiea');

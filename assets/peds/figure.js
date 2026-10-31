@@ -9,7 +9,7 @@ import { headFront, hairBack, headSide, hat, headHalf } from './head.js';
 export { CELL_W, CELL_H };
 export const SCALE = 2, POSES = 5, DIRS = 4, COLS = POSES * DIRS, PACK = 4;
 export const FRONT = 0, BACK = 1, LEFT = 2, RIGHT = 3;
-const FY = 93, CX = 24;
+const FY = 101, CX = 24;
 const GOLD = '#d9b44a';
 
 // carried and worn things that hang from a hand; (x, y) is the hand, view 'f' front/back, 's' side
@@ -56,11 +56,10 @@ function figure(g, v, dir, pose) {
   // a forearm with optional tattoo ink and wrist bands, x/y of its top left, w wide
   const forearm = (x, y, w, h, s) => {
     block(P, x, y, w, h, skin, 1, 1);
-    if (tattoo) { const ink = mix(skin, tattoo, 0.7); for (let k = 0; k < h - 3; k++) { const n = hs(k, 7), xx = x + 1 + (k * 2 + (s < 0 ? 1 : 0)) % (w - 1); P(xx, y + 1 + k, n < 0.5 ? 2 : 1, 1, ink); if (k % 4 === 0) P(x + (s < 0 ? 0 : 1), y + 1 + k, w - 1, 1, ink); } }
-    if (bracelet) { bracelet.forEach((bc, i) => P(x - 0, y + h - 5 + i * 2, w, 1 + (i === 0 ? 1 : 0), bc)); }
+    if (tattoo) { const ink = mix(skin, tattoo, 0.9); for (let k = 1; k < h - 4; k++) { if (k % 3 === 1) P(x, y + k, w, 1, ink); else P(x + (k * 5) % 3, y + k, 2, 1, ink); } }
   };
   const hand = (x, y, w, s, grip) => {                                      // x,y top left of the hand, w wide, 6 tall
-    P(x, y, w, 6, skin); P(x, y, 1, 6, sh(skin, 1.08)); P(x + w - 1, y, 1, 6, sk.d); P(x, y + 5, w, 1, sk.d);
+    P(x, y, w, 6, skin); if (bracelet) bracelet.forEach((bc, i) => P(x - 1, y - 2 + i * 2, w + 2, i === 0 ? 2 : 1, bc)); P(x, y + 2, 1, 4, sh(skin, 1.08)); P(x + w - 1, y, 1, 6, sk.d); P(x, y + 5, w, 1, sk.d);
     if (!grip) { P(x + 1, y + 3, 1, 3, sk.d); P(x + 3, y + 3, 1, 3, sk.d); } else P(x, y + 2, w, 1, sk.d);
     P(s < 0 ? x + w - 1 : x, y + 1, 1, 3, sk.d);                           // thumb edge
   };
@@ -79,7 +78,7 @@ function figure(g, v, dir, pose) {
         if (!isShorts) {
           Q(kx + 1, ky, kw - 3, 1, lt.d); Q(kx + 2, ky + 3, kw - 4, 1, lt.d); Q(kx + 1, ky - 1, kw - 3, 1, lt.l);
           Q(tx + 1, hipY + 8, 2, 1, lt.d); Q(tx + tw2 - 4, hipY + 12, 2, 1, lt.d); Q(kx, ay - 3, kw, 1, lt.d); Q(kx, ay - 2, kw, 1, lt.dd);
-          if (B.jeans) { Q(tx + 2, hipY + 6, tw2 - 5, 10, sh(legCol, 1.14)); for (let y = hipY + 2; y < ay - 2; y += 3) { const [ox, ow] = lx(y); P(s < 0 ? ox + 1 : ox + ow - 2, y, 1, 1, '#c9a24a'); } }
+          if (B.jeans) { Q(tx + 2, hipY + 6, tw2 - 5, 10, sh(legCol, 1.14)); for (let y = hipY + 2; y < ay - 2; y += 4) { const [ox, ow] = lx(y); P(s < 0 ? ox + 1 : ox + ow - 2, y, 1, 1, '#c9a24a'); } }
         } else { Q(kx + 1, ky - 2, kw - 3, 1, lt.d); P(kx + 2, ay - 4, 2, 2, sk.d); }
         if (back) Q(tx, hipY + 14, tw2, 1, lt.d);
       }
@@ -273,10 +272,10 @@ function figure(g, v, dir, pose) {
         : { ex: sx - Math.round(5 * k), ey: sy + 12, wx: sx - Math.round(11 * k), wy: sy + 21 };
     };
     const sideArm = (a, dark, near) => {
-      const j = armJ(a), c = dark ? sh(top, 0.7) : top, sc = dark ? sh(skin, 0.75) : skin, tc = T(c);
+      const j = armJ(a), c = dark ? sh(top, 0.7) : sh(top, 1.07), sc = dark ? sh(skin, 0.75) : skin, tc = T(c);
       limb(P, sx, sy, j.ex, j.ey, 6, 5, c); if (v.sleeveStripe) { Q(sx - 2, sy + 1, 1, 12, v.sleeveStripe); }
       if (sleeveLong) { limb(P, j.ex, j.ey, j.wx, j.wy - 5, 5, 4, c); Q(j.wx - 2, j.wy - 8, 4, 1, tc.d); P(j.wx - 2, j.wy - 6, 4, 2, tc.d); }
-      else { P(j.ex - 3, j.ey - 5, 6, 1, v.trim || tc.d); limb(P, j.ex, j.ey, j.wx, j.wy - 5, 4, 4, sc); if (tattoo && !dark) { const ink = mix(skin, tattoo, 0.7); for (let k = 0; k < 7; k++) P(j.ex + (j.wx - j.ex) * k / 7 - 1 + (k % 2), j.ey + 1 + k * 1.2, 2, 1, ink); } }
+      else { P(j.ex - 3, j.ey - 5, 6, 1, v.trim || tc.d); limb(P, j.ex, j.ey, j.wx, j.wy - 5, 4, 4, sc); if (tattoo && !dark) { const ink = mix(skin, tattoo, 0.9); for (let k = 0; k < 9; k++) P(j.ex + (j.wx - j.ex) * k / 9 - 2 + (k % 3 === 0 ? 0 : k % 2), j.ey + 1 + k * 1.5, k % 3 === 0 ? 4 : 2, 1, ink); } }
       if (bracelet && !dark) bracelet.forEach((bc, i) => P(j.wx - 2, j.wy - 8 + i * 2, 4, 1 + (i === 0 ? 1 : 0), bc));
       P(j.wx - 2, j.wy - 5, 4, 6, sc); P(j.wx - 2, j.wy - 5, 1, 6, dark ? sc : sh(skin, 1.08)); P(j.wx + 1, j.wy - 3, 1, 4, dark ? sh(sc, 0.8) : sk.d); P(j.wx - 2, j.wy + 1, 4, 1, dark ? sh(sc, 0.8) : sk.d);
       return j;
@@ -354,7 +353,7 @@ function chairParts(g, v, dir, pose) {
     else { P(8, HY + 2, 6, 4, frame); P(34, HY + 2, 6, 4, frame); P(8, HY + 2, 6, 1, '#6a6a72'); P(34, HY + 2, 6, 1, '#6a6a72'); }
   } else {
     if (!empty) {
-      g.clr(0, HY, 48, 96 - HY);
+      g.clr(0, HY, 48, CELL_H - HY);
       block(P, hipX - 18, HY - 2, 22, 8, B.col, 1, 2); block(P, hipX - 18, HY + 6, 8, 16, B.col, 1, 2); block(P, hipX - 22, FY - 8, 12, 5, v.shoes, 1, 1); P(hipX - 22, FY - 4, 12, 2, '#3a3a40');
       P(hipX + 8, shY + 6, 4, HY - shY + 8, dark); P(hipX + 10, shY + 4, 8, 2, dark); P(hipX - 16, HY + 6, 24, 2, dark); P(hipX - 20, HY + 6, 6, 2, frame);
     } else {

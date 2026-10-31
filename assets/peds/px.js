@@ -1,6 +1,6 @@
 // Software pixel canvas and colour helpers for the pedestrian sprite generator (no DOM needed, so the art also renders under node).
 // Owned by the pedestrian work. Cells are CELL_W x CELL_H RGBA buffers; everything is drawn with integer rectangles.
-export const CELL_W = 48, CELL_H = 96;
+export const CELL_W = 48, CELL_H = 104;
 
 const hexRGB = new Map();
 export const rgb = c => { let v = hexRGB.get(c); if (!v) { v = [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; hexRGB.set(c, v); } return v; };

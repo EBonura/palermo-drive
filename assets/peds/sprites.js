@@ -10,6 +10,8 @@ export { CELL_W, CELL_H, SCALE, POSES, DIRS, COLS, PACK, FRONT, BACK, LEFT, RIGH
 // leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe. Night extras: drink {type,col}, headphones, pocket, sparkle, hat types cap/hood, pair [a, b] (a couple).
 // the "falsi invalidi" gag: a tracksuit man in a wheelchair who leaps up and sprints off when the lapa comes near
 const TRACK = { tw: 13, skin: '#c99872', hair: '#6b645c', hairStyle: 'short', glasses: '#18161a', top: '#b83a2c', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#b83a2c', stripe: '#f0eee8' }, shoes: '#f0eee8' };
+const AMICO1 = { skin: '#dcac8c', hair: '#3a2a20', hairStyle: 'quiff', glasses: '#1c1a1e', stubble: '#4a382c', smile: 2, eyes: '#4a3424', tw: 12 };
+const AMICO2 = { skin: '#ecc2a4', hair: '#b8763e', hairStyle: 'wavy', glasses: '#5a3a1e', glassStyle: 'round', tortoise: true, smile: 1, eyes: '#5a6a4a', tw: 10, leg: 21, tor: 14, tattoo: '#3a4a5a', bracelet: ['#d9443c', '#f0eee8', '#2a3f6b'] };
 export const VARIANTS = [
   { id: 'nonna', leg: 17, tor: 14, head: 9, stoop: 1, h: 1.6, skin: '#d6a284', hair: '#bdb8b0', hat: { type: 'scarf', col: '#222025' }, top: '#2a2830', sleeve: 'long',
     bottom: { type: 'skirt', col: '#25232a', len: 12 }, legCol: '#2f2b33', shoes: '#18161a', bag: '#5d8a4a', speed: 0.85 },
@@ -82,6 +84,15 @@ export const VARIANTS = [
   { id: 'glam1', skin: '#e0ae8c', hair: '#e6c34a', hairStyle: 'long', bigGlasses: '#18161a', top: '#c9ccd8', sparkle: '#ffffff', sleeve: 'short', bottom: { type: 'skirt', col: '#c9ccd8', len: 15 }, legCol: '#e0ae8c', shoes: '#d9443c', purse: '#d9443c', speed: 0.9 },
   { id: 'glam2', skin: '#c99872', hair: '#17120f', hairStyle: 'long', top: '#d9443c', sparkle: '#ffd24a', sleeve: 'long', scarf: ['#f0eee8', '#e8559a'], bottom: { type: 'skirt', col: '#d9443c', len: 14 }, legCol: '#c99872', shoes: '#17151a', purse: '#17151a', speed: 0.9 },
   { id: 'glam3', skin: '#d9a98a', hair: '#e8559a', hairStyle: 'long', glasses: '#18161a', top: '#d9b44a', sparkle: '#fff4e0', sleeve: 'short', chain: '#ffffff', bottom: { type: 'trousers', col: '#f0eee8' }, shoes: '#7a3ab8', speed: 0.9 },
+  // ---- cameo friends of the author (rare): faces and hair copied from photos, outfits vary. amico1: quiff, rectangular dark glasses, light stubble.
+  // amico2: tall and slim, long wavy copper hair, round tortoiseshell glasses, forearm tattoos and wrist bracelets.
+  ...[['giacca', { top: '#17151a', sleeve: 'long', zip: true, bottom: { type: 'trousers', col: '#3d5a86', jeans: true }, shoes: '#e8e6e0' }],
+      ['rosanero', { top: '#f1a7c1', trim: '#17151a', collar: '#17151a', sleeve: 'short', scarf: ['#f1a7c1', '#17151a'], bottom: { type: 'trousers', col: '#26324a', jeans: true }, shoes: '#eeeeee' }],
+      ['mercato', { top: '#ecebe6', sleeve: 'short', apron: '#1d1b20', bottom: { type: 'trousers', col: '#26324a' }, shoes: '#17151a' }],
+      ['tuta', { top: '#26324a', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#26324a', stripe: '#f0eee8' }, shoes: '#f0eee8' }],
+      ['mondello', { top: '#f0eee8', sleeve: 'short', bottom: { type: 'shorts', col: '#3f9ab8', len: 8 }, shoes: '#a8684a' }]].flatMap(([k, o]) => [
+    { id: 'amico1_' + k, ...AMICO1, ...o, speed: 1.1 },
+    { id: 'amico2_' + k, ...AMICO2, ...o, speed: 1.1 }]),
 ];
 // Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
 const W = {
@@ -105,6 +116,13 @@ const NIGHT_MULT = { vendor: 0, vendor2: 0, fruttivendolo: 0, pescivendolo: 0, m
   shopper: 0.4, tifoso: 0.5, tifoso2: 0.5, tifosa: 0.5, tifoso_kid: 0.1, tifoso_nonno: 0.3, cameriere: 2, teen: 1.6, teen2: 1.6, ragazzo: 1.6, ragazzo2: 1.6, skinny: 1.8, tuta: 1.6, motorino: 1.5, motorina: 1.5,
   carabiniere: 1.2, wheelchair: 0.1 };
 const Z5 = { teen: 5, teen2: 5, ragazzo: 5, ragazzo2: 5, skinny: 5, tuta: 3, motorina: 2, motorino: 2, borsa: 2, shopper: 1, cameriere: 1.5, tourist: 1, tourist2: 1, carabiniere: 0.5, signora: 0.5, signora2: 0.5 };
+// cameo friends: rare everywhere, a little commoner where their outfit fits (rosanero on match days, apron at the market, summer at the sea-ish tourist zone)
+for (const n of [1, 2]) {
+  Object.assign(W, { ['amico' + n + '_giacca']: [0.12, 0.15, 0.1, 0.12, 0.1], ['amico' + n + '_rosanero']: [0.1, 0.12, 0.05, 0.08, 0.5], ['amico' + n + '_mercato']: [0.1, 0.02, 0.45, 0.02, 0],
+    ['amico' + n + '_tuta']: [0.12, 0.12, 0.08, 0.05, 0.1], ['amico' + n + '_mondello']: [0.05, 0.12, 0.05, 0.4, 0.05] });
+  Object.assign(NW, { ['amico' + n + '_giacca']: [0.2, 0.3, 0.1, 0.2, 0.2, 1], ['amico' + n + '_tuta']: [0.2, 0.3, 0.1, 0.1, 0.2, 0.7], ['amico' + n + '_rosanero']: [0.08, 0.1, 0.03, 0.05, 0.3, 0.3] });
+  Object.assign(NIGHT_MULT, { ['amico' + n + '_mercato']: 0, ['amico' + n + '_mondello']: 0.15 });
+}
 VARIANTS.forEach(v => {
   const w = W[v.id] || [1, 1, 1, 1, 1];
   v.w = [...w, w[3]];                                                    // by day
