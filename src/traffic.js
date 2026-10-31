@@ -104,18 +104,20 @@ export function createTraffic(env) {
   let PLANS = [];
   const ROWS = [];
   for (const r of BUS_ROUTES) if (ROWS.findIndex(q => q.ref === r.ref && q.to === r.to) < 0) ROWS.push({ ref: r.ref, to: r.to });
-  const BX0 = -1000, BX1 = 1030, BZ0 = -930, BZ1 = 1080;   // where the baked routes are
-  function rebuildPlans() {
-    const plans = [];
+  function* planJob() {   // a generator: the caller steps it a little each frame (the routes now cover the whole city)
+    const plans = []; let t0 = performance.now();
+    const tired = () => performance.now() - t0 > 1.5;
     for (const r of BUS_ROUTES) {
       const row = ROWS.findIndex(q => q.ref === r.ref && q.to === r.to);
       const rstops = []; for (let i = 0; i + 1 < r.stops.length; i += 2) rstops.push([r.stops[i], r.stops[i + 1]]);
       for (const pc of r.pieces) {
         let edges = [];
         const flush = () => { if (edges.length >= 6) plans.push({ ref: r.ref, to: r.to, row, edges, stops: [], rstops }); edges = []; };
-        let prevN = -1;
+        let prevN = -1, lti = 1e9, ltj = 1e9, res = false;
         for (let i = 0; i + 1 < pc.length; i += 2) {
-          const n = findNode(pc[i], pc[i + 1]);
+          const ti = Math.floor(pc[i] / 500), tj = Math.floor(pc[i + 1] / 500);
+          if (ti !== lti || tj !== ltj) { lti = ti; ltj = tj; res = G.tiles.has(ti + '_' + tj); }
+          const n = res ? findNode(pc[i], pc[i + 1]) : -1;
           if (n < 0) { if (prevN >= 0) flush(); prevN = -1; continue; }   // not resident: the plan ends here
           if (n === prevN) continue;
           if (prevN >= 0) {
@@ -126,9 +128,11 @@ export function createTraffic(env) {
           prevN = n;
         }
         flush();
+        if (tired()) { yield; t0 = performance.now(); }
       }
     }
-    for (const pl of plans) { // stops: the relation's own plus every OSM bus stop within a few metres of the line
+    for (const pl of plans) {
+      if (tired()) { yield; t0 = performance.now(); } // stops: the relation's own plus every OSM bus stop within a few metres of the line
       let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
       for (const e of pl.edges) { x0 = Math.min(x0, NX[e.a]); x1 = Math.max(x1, NX[e.a]); z0 = Math.min(z0, NZ[e.a]); z1 = Math.max(z1, NZ[e.a]); }
       const cand = pl.rstops.slice(); for (let i = 0; i + 1 < BUS_STOPS.length; i += 2) cand.push([BUS_STOPS[i], BUS_STOPS[i + 1]]);
@@ -665,8 +669,7 @@ Object.assign(MODELS, buildPoliceModels());
   }
 
   // ---------- tiles: roads in as tiles reach full detail, out when they drop ----------
-  let plansDirty = false;
-  const touchesBuses = t => (t.i + 1) * 500 > BX0 && t.i * 500 < BX1 && (t.j + 1) * 500 > BZ0 && t.j * 500 < BZ1;
+  let plansDirty = false, planGen = null;   // bus plans are rebuilt (in slices) after any change of the road graph
   function killOnDeadEdges() {
     for (let i = vs.length - 1; i >= 0; i--) { const r = vs[i].route; for (let k = 0; k < r.length; k++) if (r[k].dead) { removeAt(i); break; } }
   }
@@ -675,7 +678,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (kind === 'full') { if (t.data && t.data.roads && t.data.roads.length) addQ.push(t); return; }
     const qi = addQ.indexOf(t); if (qi >= 0) addQ.splice(qi, 1);
     if (stepping && stepping.key === key) stepping = null;
-    if (G.dropTile(key)) { killOnDeadEdges(); if (!graphDirty) dirtyAt = time; graphDirty = true; if (touchesBuses(t)) plansDirty = true; }
+    if (G.dropTile(key)) { killOnDeadEdges(); if (!graphDirty) dirtyAt = time; graphDirty = true; plansDirty = true; planGen = null; }
   });
   let tileMs = 0, aliveMs = 0, aliveMax = 0;
   function tiles(cx, cz) {
@@ -683,19 +686,20 @@ Object.assign(MODELS, buildPoliceModels());
       let bi = 0, bd = 1e18;
       for (let i = 0; i < addQ.length; i++) { const t = addQ[i], dx = (t.i + 0.5) * 500 - cx, dz = (t.j + 0.5) * 500 - cz, d = dx * dx + dz * dz; if (d < bd) { bd = d; bi = i; } }
       const t = addQ.splice(bi, 1)[0];
-      stepping = G.addTile(t.i + '_' + t.j, t.data.roads, t.i * 500, t.j * 500); stepping.src = t;
+      stepping = G.addTile(t.i + '_' + t.j, t.data.roads, t.i * 500, t.j * 500); stepping.src = t; planGen = null;
     }
     if (stepping) {
       const t0 = performance.now();
-      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { if (!graphDirty) dirtyAt = time; graphDirty = true; if (touchesBuses(stepping.src)) plansDirty = true; stepping = null; }
+      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { if (!graphDirty) dirtyAt = time; graphDirty = true; plansDirty = true; planGen = null; stepping = null; }
       tileMs = performance.now() - t0;
     } else tileMs = 0;
     // judge the new roads once the burst of tiles is in (or after a second at the latest)
     if (graphDirty && !stepping && (!addQ.length || time - dirtyAt > 1.5)) {
       const t0 = performance.now(); G.recomputeAlive(); graphDirty = false; nextCand = 0;
-      if (plansDirty) { rebuildPlans(); plansDirty = false; }
       aliveMs = performance.now() - t0; if (aliveMs > aliveMax) aliveMax = aliveMs;
     }
+    if (plansDirty && !stepping && !addQ.length && !graphDirty) { planGen = planJob(); plansDirty = false; }
+    if (planGen && !stepping && planGen.next().done) planGen = null;
   }
 
   let acc = 0;
@@ -913,7 +917,7 @@ Object.assign(MODELS, buildPoliceModels());
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
       get version() { return G.version; },
-      stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, tileMs, aliveMs: +aliveMs.toFixed(1), aliveMax: +aliveMax.toFixed(1) }; },
+      stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, plans: PLANS.length, buses: counts.bus || 0, tileMs, aliveMs: +aliveMs.toFixed(1), aliveMax: +aliveMax.toFixed(1) }; },
     },
   };
 }
