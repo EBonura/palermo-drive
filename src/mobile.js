@@ -76,6 +76,27 @@ export function setupMobile({ keys, camState, renderer, camera }) {
   function lockLandscape() {
     try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* unsupported (iOS) */ }
   }
+  // The title tap / Drive / Resume dispatch 'pd-gesture' inside the user's tap, which is the only
+  // moment browsers allow fullscreen. Android: real fullscreen plus landscape lock. iPhone Safari has
+  // no fullscreen for pages, only "Add to Home Screen" (manifest + apple-mobile-web-app-capable),
+  // so iPhone users get a one-time hint instead.
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+  const iOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  addEventListener('pd-gesture', () => {
+    if (!(QUALITY.mobile || enabled) || standalone) return;
+    if (fsSupported && !isFull()) goFullscreen();
+    else if (iOS && !fsSupported) showHomeScreenHint();
+  });
+  function showHomeScreenHint() {
+    try { if (localStorage.getItem('palermoDrive.a2hs')) return; localStorage.setItem('palermoDrive.a2hs', '1'); } catch (e) { /* private mode */ }
+    const hint = el('div', 'a2hs', `
+      <b>Schermo intero</b> tocca <span class="a2hs-share"></span> Condividi e poi <i>Aggiungi alla schermata Home</i>
+      <small>Full screen: tap Share, then Add to Home Screen</small>`);
+    hint.addEventListener('pointerdown', () => hint.remove());
+    document.body.appendChild(hint);
+    setTimeout(() => hint.remove(), 9000);
+  }
+
   function toggleFullscreen() {
     if (isFull()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     else goFullscreen();

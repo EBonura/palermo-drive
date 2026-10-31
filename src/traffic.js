@@ -343,9 +343,7 @@ export function createTraffic(env) {
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
       if ((filt && !o.ty.scooter) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
-      if (cj < 0.45) { // crossing or oncoming: the junction rules decide, except for a stationary crosser blocking the way
-        if (cj < -0.45 || o.v > 0.4 || (v.stuck > 3 && v.id < o.id)) continue;
-      }
+      if (cj < 0.45 && v.stuck > 3 && v.id < o.id) continue; // crossing or oncoming standoff: the lower id drives on
       interact(al - L2 - hl, (o.v) * cj, o);
     }
     { // the player
