@@ -10,3 +10,6 @@ __pycache__/
 dist/
 node_modules/
 tools/build/.cache/
+*.orig
+*.tmp.mjs
+*.tmp.js
