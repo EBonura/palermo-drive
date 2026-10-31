@@ -83,6 +83,7 @@ type statsCfg struct {
 	memGiB     float64
 	capPct     float64 // stop accepting WebSockets at this share of the free tier
 	hardPct    float64 // disconnect everybody at this share
+	vm         bool    // running on a VM, not Cloud Run: only the egress allowance is accounted
 	egressFree int64   // free egress bytes per month (1 GiB, North America only), 0 = do not account for it
 }
 
@@ -412,9 +413,15 @@ func (s *Stats) share(u *Usage) (frac float64, which string) {
 	cands := []struct {
 		f float64
 		n string
-	}{
-		{u.BusySec / s.capSeconds(), "instance time"},
-		{float64(u.Requests) / freeReqs, "requests"},
+	}{}
+	if !s.cfg.vm {
+		cands = append(cands, struct {
+			f float64
+			n string
+		}{u.BusySec / s.capSeconds(), "instance time"}, struct {
+			f float64
+			n string
+		}{float64(u.Requests) / freeReqs, "requests"})
 	}
 	if s.cfg.egressFree > 0 {
 		cands = append(cands, struct {

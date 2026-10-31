@@ -598,7 +598,7 @@ def raster_shape(outer, holes):
             continue
         sel = np.abs(cell_level - v) < 0.06
         sq = shapely.box(cx[sel] - cell / 2, cz[sel] - cell / 2, cx[sel] + cell / 2, cz[sel] + cell / 2)
-        u = shapely.unary_union(sq).simplify(0.6).intersection(pg)
+        u = I(poly_only(shapely.unary_union(sq).simplify(0.6)), pg)
         for q in polys_of(u):
             if q.area > 2:
                 parts.append([flat([(round(a, 1), round(b, 1)) for a, b in q.exterior.coords[:-1]]), round(v, 1)])
@@ -924,7 +924,7 @@ def chunked(geom, tx0, tz0):
             hits = [pg[i] for i in tree.query(cell)]
             if not hits:
                 continue
-            piece = unary_union([h.intersection(cell) for h in hits])
+            piece = poly_only(unary_union([I(h, cell) for h in hits]))
             for p in polys_of(piece):
                 if p.area < 0.5:
                     continue
@@ -940,6 +940,41 @@ def query_geoms(tree, geoms, rect):
     return [geoms[i] for i in tree.query(rect)]
 
 
+def poly_only(g):
+    """Polygonal part of a geometry (overlay results can carry stray lines/points)."""
+    from shapely.geometry import MultiPolygon, Polygon
+    if g is None or g.is_empty:
+        return Polygon()
+    if isinstance(g, (Polygon, MultiPolygon)):
+        return g
+    ps = polys_of(g)
+    return MultiPolygon(ps) if ps else Polygon()
+
+
+def _ov(op, a, b):
+    import shapely
+    if a.is_empty:
+        return a
+    if b.is_empty:
+        return a if op == "difference" else b
+    try:
+        return poly_only(getattr(a, op)(b))
+    except shapely.errors.GEOSException:
+        pass
+    try:
+        return poly_only(getattr(shapely, op)(a.buffer(0), b.buffer(0)))
+    except shapely.errors.GEOSException:
+        return poly_only(getattr(shapely, op)(a, b, grid_size=0.05))
+
+
+def D(a, b):
+    return _ov("difference", a, b)
+
+
+def I(a, b):  # noqa: E743
+    return _ov("intersection", a, b)
+
+
 def streets_for_tile(tx0, tz0):
     import shapely
     from shapely.geometry import LineString, box
@@ -948,31 +983,29 @@ def streets_for_tile(tx0, tz0):
     R = box(tx0 - MARGIN, tz0 - MARGIN, tx0 + T + MARGIN, tz0 + T + MARGIN)
     empty = {"asphalt": [], "paving": [], "raised": [], "green": [], "water": [], "sand": [], "curbs": [],
              "aoi": [tx0, tz0, tx0 + T, tz0 + T]}
-    land = G["land"].intersection(R)
+    land = I(G["land"], R)
     if land.is_empty:
         return empty
-    bl = unary_union(query_geoms(G["bld_tree"], G["bld_geoms"], R))
-    space = land.difference(bl) if not bl.is_empty else land
+    bl = poly_only(unary_union(query_geoms(G["bld_tree"], G["bld_geoms"], R)))
+    space = D(land, bl)
 
     def layer(tree, geoms):
         hits = query_geoms(tree, geoms, R)
-        return unary_union([h.intersection(R) for h in hits]) if hits else shapely.Polygon()
+        return poly_only(unary_union([I(h, R) for h in hits])) if hits else shapely.Polygon()
 
     car = layer(G["car_tree"], G["car_geoms"])
     ped = layer(G["ped_tree"], G["ped_geoms"])
-    asphalt = car.intersection(space)
-    paving = ped.intersection(space).difference(asphalt)
-    water = layer(G["water_tree"], G["water_geoms"]).intersection(space).difference(asphalt)
-    sand = layer(G["sand_tree"], G["sand_geoms"]).intersection(space).difference(asphalt).difference(paving).difference(water)
-    green = (layer(G["green_tree"], G["green_geoms"]).intersection(space).difference(asphalt)
-             .difference(paving).difference(water).difference(sand))
+    asphalt = I(car, space)
+    paving = D(I(ped, space), asphalt)
+    water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
+    sand = D(D(D(I(layer(G["sand_tree"], G["sand_geoms"]), space), asphalt), paving), water)
+    green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
     if bl.is_empty:
         raised = shapely.Polygon()
     else:
         zone = bl.buffer(URBAN_REACH, quad_segs=2)
-        raised = (space.intersection(zone).difference(asphalt).difference(paving).difference(green)
-                  .difference(water).difference(sand))
-        raised = raised.buffer(-0.15).buffer(0.15)
+        raised = D(D(D(D(D(I(space, zone), asphalt), paving), green), water), sand)
+        raised = poly_only(raised.buffer(-0.15).buffer(0.15))
 
     curbs = []
     touch = unary_union([raised, green]).buffer(0.3)
@@ -988,7 +1021,7 @@ def streets_for_tile(tx0, tz0):
     out = {"aoi": empty["aoi"]}
     for name, geom in (("asphalt", asphalt), ("paving", paving), ("raised", raised), ("green", green),
                        ("water", water), ("sand", sand)):
-        g = geom.intersection(tile) if not geom.is_empty else geom
+        g = I(geom, tile)
         out[name] = chunked(g, tx0, tz0) if not g.is_empty else []
     out["curbs"] = curbs
     return {k: out[k] for k in ("asphalt", "paving", "raised", "green", "water", "sand", "curbs", "aoi")}
@@ -1022,12 +1055,12 @@ def tile_payload(i, j):
             roads.append({"w": 5, "k": "pier", "p": [round(c, 1) for pt in part.coords for c in pt[:2]]})
 
     areas = []
-    landt = G["land"].intersection(tile)
+    landt = I(G["land"], tile)
     for ai in G["area_tree"].query(tile):
         kind, geom = G["areas"][ai]
-        g = geom.intersection(tile)
+        g = I(geom, tile)
         if kind != "pier":
-            g = g.intersection(landt)
+            g = I(g, landt)
         for p in polys_of(g):
             if p.area < 2:
                 continue
@@ -1059,6 +1092,15 @@ def tile_payload(i, j):
 
 def write_tile(ij):
     i, j = ij
+    try:
+        return _write_tile(i, j)
+    except Exception as ex:  # noqa: BLE001  one bad tile must not stop the bake
+        import traceback
+        traceback.print_exc()
+        return ("ERR", f"{i}_{j}", repr(ex))
+
+
+def _write_tile(i, j):
     d = tile_payload(i, j)
     if d is None:
         return None
@@ -1327,10 +1369,12 @@ def build(offline=False):
     todo = [(i, j) for i in range(i0, i1 + 1) for j in range(j0, j1 + 1)
             if not land.disjoint(shapely.box(i * T, j * T, (i + 1) * T, (j + 1) * T))]
     print(f"[{time.time() - t0:.0f}s] baking {len(todo)} candidate tiles", flush=True)
-    results = []
+    results, errors = [], []
     with mp.get_context("fork").Pool(max(1, (os.cpu_count() or 2) - 1)) as pool:
         for n, r in enumerate(pool.imap_unordered(write_tile, todo, chunksize=2)):
-            if r:
+            if r and r[0] == "ERR":
+                errors.append(r)
+            elif r:
                 results.append(r)
             if n % 50 == 0:
                 print(f"  {n}/{len(todo)}", flush=True)
@@ -1361,6 +1405,8 @@ def build(offline=False):
     print("biggest tiles (raw KB, gzip KB, buildings):")
     for r in sorted(results, key=lambda r: -r[2])[:10]:
         print(f"  {r[0]:>8}  {r[2] / 1e3:7.0f}  {r[3] / 1e3:6.0f}  {r[1]:5d}  {r[4]}")
+    if errors:
+        print("TILE ERRORS:", errors)
     print("landmarks:", len(lm), "| curated found:", len(found), "| missing:", missing)
     print(f"done in {time.time() - t0:.0f}s")
 

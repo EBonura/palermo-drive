@@ -472,6 +472,7 @@ func main() {
 	dataDir := flag.String("data", env("DATA_DIR", ""), "persist stats in this directory (local runs, VM); on Cloud Run Firestore is used")
 	var sc statsCfg
 	flag.StringVar(&sc.key, "stats-key", os.Getenv("STATS_KEY"), "secret for GET /stats?key=... (empty disables /stats)")
+	flag.BoolVar(&sc.vm, "vm", os.Getenv("VM") == "1", "running on a VM instead of Cloud Run: skip the instance-time and request accounting")
 	flag.Float64Var(&sc.cpu, "cpu", envF("CPU", 1), "vCPUs of the Cloud Run instance (free tier accounting)")
 	flag.Float64Var(&sc.memGiB, "mem-gib", envF("MEM_GIB", 0.5), "memory of the instance in GiB (free tier accounting)")
 	capPct := flag.Float64("cap-pct", envF("CAP_PCT", 70), "stop accepting WebSockets at this percent of the monthly free tier")
