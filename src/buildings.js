@@ -948,6 +948,7 @@ function chooseStyle(b, H, area, zone, r, o = {}) {
   if (b.k === 'church' || b.t === 'church' || b.t === 'cathedral' || b.am === 'place_of_worship') return 'church';
   const Z = ZONES[zone] || ZONES.centro, name = b.n || '';
   const special = b.hi || GRAND.test(name) || ['university', 'government', 'civic', 'museum', 'hotel', 'monastery', 'castle', 'public'].includes(b.t) || b.am === 'courthouse' || b.am === 'college';
+  if (area > 2500 && !special && (zone === 'mondello' || zone === 'valdesi' || zone === 'lido')) return H < 5.2 ? 'low' : 'res'; // one OSM outline for a whole block of houses and yards: plain houses, not a 130 m fishermen's row
   if (Z.elig && !special) {
     if (o.round && H > 5 && (Z.w.ind || Z.shed)) return 'silo';
     if (Z.ruin && o.u < Z.ruin && !b.n && b.r === undefined && area > 40 && area < 700 && H < 19) return 'ruin';
