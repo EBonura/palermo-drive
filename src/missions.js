@@ -569,9 +569,11 @@ function build(env) {
 
   const SEAT_X = [-0.26, 0.26], SEAT_Z = -1.1, SEAT_Y = 1.04;
   const seatFn = i => out => {
-    const sn = Math.sin(car.th), cs = Math.cos(car.th), lx = SEAT_X[i % 2];
-    out.x = car.x + sn * SEAT_Z + cs * lx; out.z = car.z + cs * SEAT_Z - sn * lx;
-    out.y = groundY(car.x, car.z) + car.lift + SEAT_Y + Math.sin(now() * 17 + i) * 0.012 * clamp(Math.hypot(car.vx, car.vz) / 10, 0, 1); out.th = car.th;
+    // Seats come from the vehicle being driven (src/vehicle.js: lape have two on the bench, bikes have one pillion seat); the constants are the fallback.
+    const vs = vehicle && vehicle.seats, sv = vs && vs.length ? vs[i % vs.length] : null;
+    const sn = Math.sin(car.th), cs = Math.cos(car.th), lx = sv ? sv.x : SEAT_X[i % 2], sz = sv ? sv.z : SEAT_Z, sy = sv ? sv.y : SEAT_Y;
+    out.x = car.x + sn * sz + cs * lx; out.z = car.z + cs * sz - sn * lx;
+    out.y = groundY(car.x, car.z) + car.lift + sy + Math.sin(now() * 17 + i) * 0.012 * clamp(Math.hypot(car.vx, car.vz) / 10, 0, 1); out.th = car.th;
   };
   const natPick = () => { let r = Math.random() * NATIONS.reduce((a, n) => a + n[1], 0); for (const [k, w] of NATIONS) if ((r -= w) <= 0) return k; return 'en'; };
   const TOURIST_POOL = ['tourist', 'tourist2', 'tourist', 'tourist2', 'borsa', 'signora2', 'teen2', 'suit2', 'kid2', 'teen'];
@@ -723,6 +725,7 @@ function build(env) {
       f.bonus = bonus;
       const total = Math.max(0, f.base + f.tips - f.claims);
       f.total = total; S.earned += total; S.fares++;
+      dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } }));   // hook for the Garage wallet (src/garage.js)
       if (S.earned > S.best) { S.best = S.earned; try { localStorage.setItem(BEST_KEY, String(S.best)); } catch (e) { /* ignore */ } }
       tline(f, 'arrive'); dline('arrive', 2.0);
       showResult(`<h3>${esc(d.name)}</h3>
