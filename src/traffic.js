@@ -923,7 +923,6 @@ Object.assign(MODELS, buildPoliceModels());
     removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
   police = createPolice(env, T);
   gags = createGags(env, T, police);
-  if (location.search.includes('debug')) window.__pd = { police, gags, T, vs, TYPES, counts }; // TEMP-DEBUG
 
   return {
     update, collidePlayer,
