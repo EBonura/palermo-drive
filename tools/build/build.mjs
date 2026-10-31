@@ -7,7 +7,7 @@
 //   - the other runtime assets copied (tooling and source-only files skipped)
 // The development tree and its import map / dev server are never touched.
 //
-// Flags: --data=raw|bin (default bin)   --no-prune (keep every context building)   --out=dist
+// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,10 +28,10 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(path.join(OUT, 'js'), { recursive: true });
 
 // ---------- 1. data ----------
-let dataBlobs = [];   // [{ file: 'data/x.[hash].bin', globals: [...] }] decoded by js/boot-data before the game modules run
-const busStub = {};
+let dataBlobs = [], hasTiles = false;   // blobs are decoded (runtime/loader.js) before the game modules run
 if (DATA_MODE === 'bin') {
-  dataBlobs = await buildDataBlobs({ ROOT, OUT, hash, prune: !flag('no-prune', false), log: console.log });
+  const simp = flag('simplify', '0.06');
+  ({ blobs: dataBlobs, tiles: hasTiles } = await buildDataBlobs({ ROOT, OUT, hash, prune: !flag('no-prune', false), simplify: +simp, log: console.log }));
 }
 
 // ---------- 2. JS bundle ----------
@@ -47,7 +47,7 @@ const plugin = {
     b.onResolve({ filter: /^pd-boot-data$/ }, () => ({ path: 'pd-boot-data', namespace: 'pd' }));
     b.onLoad({ filter: /.*/, namespace: 'pd' }, () => ({
       contents: `import { loadBlobs } from ${JSON.stringify(path.join(HERE, 'runtime/loader.js'))};\n` +
-        `await loadBlobs(new URL('../', import.meta.url).href, ${JSON.stringify(dataBlobs)});\n`,
+        `await loadBlobs(new URL('../', import.meta.url).href, ${JSON.stringify(dataBlobs)}, { tiles: ${hasTiles} });\n`,
       resolveDir: ROOT, loader: 'js',
     }));
     // Baked data that modules import as ES modules (assets/traffic/bus-routes.js) comes out of the decoded blobs.

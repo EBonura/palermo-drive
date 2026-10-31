@@ -10,7 +10,7 @@
 // tips onto two wheels in hard fast turns (visual, plus a small grip penalty that stops it from tipping further).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { D, groundY } from './core.js';
+import { D, groundY, hooks } from './core.js';
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -370,7 +370,7 @@ export function createVehicle(env) {
       car.x += px; car.z += pz;
     }
     car.w = clamp(car.w, -3.2, 3.2);
-    const [x0, z0, x1, z1] = D.bounds;
+    const [x0, z0, x1, z1] = hooks.bounds; // world streaming (src/world.js) widens this to the whole city; defaults to D.bounds
     if (car.x < x0 || car.x > x1) { car.x = clamp(car.x, x0, x1); car.vx = 0; }
     if (car.z < z0 || car.z > z1) { car.z = clamp(car.z, z0, z1); car.vz = 0; }
     return touched;
