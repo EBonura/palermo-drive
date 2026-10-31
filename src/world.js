@@ -465,7 +465,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.shaped = true;
     const roads = t.data.roads.filter(r => SHAPE_ROADS.has(r.k) && !r.tn && !r.br);
     if (!roads.length) return;
-    const base = t.nearS || farM;
+    // unshaped ground at any position, from whichever tile owns it (a tile's own grid clamps at its edge, which would put a step in the bench at tile borders)
+    const base = (x, z) => { const o = tiles.get(nk(Math.floor(x / T), Math.floor(z / T))); return o && o.nearS ? o.nearS(x, z) : farM(x, z); };
     let lo = 1e9, hi = -1e9;
     for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) { const y = base(t.i * T + i * T / 8, t.j * T + j * T / 8); lo = Math.min(lo, y); hi = Math.max(hi, y); }
     if (t.nearS ? hi < 150 : hi - lo < 12) return; // lidar tiles are good below ~200 m; lidar-less ones only matter when hilly

@@ -429,6 +429,260 @@ layer('g_rust_win', (g, r) => {
   dado(g, 50, .4);
 });
 
+// ---- district layers: Liberty villas, 1960s-70s "sacco di Palermo" blocks, ZEN insulae, fishermen's houses, sheds and silos, ruins, beach clubs.
+// Colours here stay light and neutral where the zone palette should tint them (see the atlas shader); shutters, awnings and ironwork are painted at full colour.
+Object.assign(SH, { l: ['#4f7a9e', '#3a5c7a'], w: ['#ebe7dc', '#cfc9ba'], d: ['#6a4a30', '#4a3220'], p: ['#6f8f62', '#566f4c'], s: ['#9a8466', '#7c6a50'] });
+function tapp(g, x, y, w, h, col) { // roller blind (tapparella): slats, dark gaps, bottom bar
+  g.fillStyle = col; g.fillRect(x, y, w, h);
+  g.fillStyle = 'rgba(0,0,0,.26)'; for (let yy = y + 4; yy < y + h - 4; yy += 6) g.fillRect(x, yy, w, 2);
+  g.fillStyle = 'rgba(255,255,255,.1)'; for (let yy = y + 6; yy < y + h - 4; yy += 6) g.fillRect(x, yy, w, 1);
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x, y + h - 5, w, 5); g.fillRect(x, y, 3, h); g.fillRect(x + w - 3, y, 3, h);
+}
+function awnDrop(g, x, y, w, h, c1, c2 = '#f2eee4') { // vertical drop awning (tenda a caduta), striped, scalloped hem
+  const n = 8, sw = w / n;
+  for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? c2 : c1; g.fillRect(x + i * sw, y, sw + .5, h); g.beginPath(); g.arc(x + i * sw + sw / 2, y + h, sw / 2, 0, Math.PI); g.fill(); }
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, y, w, 5); g.fillStyle = 'rgba(0,0,0,.1)'; g.fillRect(x + w - 6, y, 6, h);
+}
+function acUnit(g, x, y) { g.fillStyle = '#eceae4'; g.fillRect(x, y, 44, 24); g.fillStyle = '#9a9a94'; g.fillRect(x + 4, y + 8, 36, 2.5); g.fillRect(x + 4, y + 14, 36, 2.5); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x, y + 24, 44, 4); }
+function shutterBox(g, x, y, w, h = 22) { g.fillStyle = '#d9d3c4'; g.fillRect(x, y, w, h); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x, y + h, w, 4); g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(x, y, w, 2); }
+
+layer('rail_c', (g, r) => { // 1960s balcony: solid painted parapet below, thin iron bars above, flower pots
+  g.clearRect(0, 0, T, T);
+  g.fillStyle = '#e9e5db'; g.fillRect(0, 100, T, T - 100);
+  g.fillStyle = '#f6f3ea'; g.fillRect(0, 92, T, 10); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 102, T, 5);
+  g.fillStyle = 'rgba(70,60,50,.1)'; for (let i = 0; i < 5; i++) g.fillRect(r() * T, 108 + r() * 120, 30 + r() * 60, 40);
+  g.fillStyle = '#34343a'; g.fillRect(0, 10, T, 9);
+  for (let x = 8; x < T; x += 24) g.fillRect(x, 19, 4, 74);
+  for (const x of [40 + r() * 40, 150 + r() * 60]) { g.fillStyle = '#4f7a3a'; g.beginPath(); g.arc(x, 82, 14, 0, 6.3); g.arc(x + 12, 76, 10, 0, 6.3); g.fill(); g.fillStyle = '#8a5a40'; g.fillRect(x - 10, 90, 22, 14); }
+});
+layer('rail_l', (g) => { // Liberty ironwork: whiplash curves and lyre scrolls
+  g.clearRect(0, 0, T, T); g.fillStyle = '#26262c'; g.strokeStyle = '#26262c';
+  g.fillRect(0, 12, T, 9); g.fillRect(0, T - 22, T, 11);
+  for (let x = 0; x < T; x += 64) {
+    g.lineWidth = 5; g.beginPath(); g.moveTo(x + 2, 21); g.lineTo(x + 2, T - 22); g.stroke();
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(x + 32, 40); g.bezierCurveTo(x + 62, 60, x + 8, 120, x + 32, 150); g.bezierCurveTo(x + 50, 175, x + 48, 205, x + 30, 214); g.stroke();
+    g.beginPath(); g.moveTo(x + 32, 40); g.bezierCurveTo(x + 2, 60, x + 56, 120, x + 32, 150); g.bezierCurveTo(x + 14, 175, x + 16, 205, x + 34, 214); g.stroke();
+    g.beginPath(); g.arc(x + 32, 36, 6, 0, 6.3); g.fill();
+    g.lineWidth = 3; g.beginPath(); g.arc(x + 32, 224, 9, 0, 6.3); g.stroke();
+  }
+});
+
+// ---- Liberty (stile floreale): ornate stucco frames, whiplash lintels, polychrome bands, wooden doors
+function libFrame(g, x, y, w, h, c = '#f4eedc') { // window with a segmental floral hood
+  g.fillStyle = c; g.beginPath(); g.moveTo(x - 12, y + h + 6); g.lineTo(x - 12, y - 2); g.quadraticCurveTo(x + w / 2, y - 40, x + w + 12, y - 2); g.lineTo(x + w + 12, y + h + 6); g.fill();
+  g.fillStyle = 'rgba(60,45,30,.3)'; g.beginPath(); g.moveTo(x - 4, y + h); g.lineTo(x - 4, y + 2); g.quadraticCurveTo(x + w / 2, y - 24, x + w + 4, y + 2); g.lineTo(x + w + 4, y + h); g.fill();
+  g.fillStyle = '#f9f4e6'; for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(x + w * (0.1 + 0.2 * i), y - 12 + Math.sin(i / 4 * 3.14) * -8, 4, 0, 6.3); g.fill(); }
+}
+layer('lib_up_a', (g, r) => {
+  plaster(g, r, '#e8dfca', { peel: 0 });
+  g.fillStyle = '#f3ecd8'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); g.fillStyle = 'rgba(60,45,30,.25)'; g.fillRect(14, 0, 3, T); g.fillRect(T - 17, 0, 3, T);
+  libFrame(g, 88, 70, 80, 130);
+  win(g, 88, 70, 80, 130, { sh: 'g', st: 'open', fr: 5, frc: '#f3ecd8', sill: false });
+  g.fillStyle = '#c9a24a'; g.fillRect(0, 12, T, 6); g.fillStyle = '#4f7a6a'; for (let x = 4; x < T; x += 22) { g.beginPath(); g.arc(x + 8, 30, 6, 0, 6.3); g.fill(); } // majolica frieze
+  g.fillStyle = '#f1eadb'; g.fillRect(0, T - 14, T, 14); streak(g, 98, 205, 40, 9); streak(g, 160, 205, 40, 8);
+});
+layer('lib_up_b', (g, r) => { // twin arched windows on a slender column (bifora)
+  plaster(g, r, '#e8dfca', { peel: 1 });
+  g.fillStyle = '#f3ecd8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  for (const x of [66, 146]) {
+    g.fillStyle = '#f5efde'; g.beginPath(); g.moveTo(x - 8, 210); g.lineTo(x - 8, 100); g.arc(x + 22, 100, 30, Math.PI, 0); g.lineTo(x + 52, 210); g.fill();
+    g.fillStyle = '#26303a'; g.beginPath(); g.moveTo(x, 210); g.lineTo(x, 102); g.arc(x + 22, 102, 22, Math.PI, 0); g.lineTo(x + 44, 210); g.fill();
+    g.fillStyle = '#e6dfcf'; g.fillRect(x + 20, 102, 3, 108);
+  }
+  g.fillStyle = '#d8cfb8'; g.fillRect(122, 96, 8, 120); g.fillStyle = '#f2ebd8'; g.fillRect(118, 90, 16, 8);
+  g.fillStyle = '#4f7a6a'; for (let x = 4; x < T; x += 22) { g.beginPath(); g.arc(x + 8, 30, 5, 0, 6.3); g.fill(); }
+  band(g, T - 9, 6, '#f2ecdd'); streak(g, 76, 210, 40, 9);
+});
+layer('lib_nob', (g, r) => { // piano nobile: tall window under a carved hood, garland
+  plaster(g, r, '#e8dfca', { peel: 0 });
+  g.fillStyle = '#f3ecd8'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T);
+  libFrame(g, 78, 66, 100, 168, '#f6f0df');
+  win(g, 78, 66, 100, 168, { sh: 'g', st: 'open', fr: 6, frc: '#f6f0df', sill: false });
+  g.strokeStyle = '#6f8a5a'; g.lineWidth = 4; g.beginPath(); g.moveTo(40, 24); g.quadraticCurveTo(128, 60, 216, 24); g.stroke();
+  g.fillStyle = '#c9a24a'; g.fillRect(0, 6, T, 5);
+  band(g, T - 8, 5, '#f1ead8'); streak(g, 90, 236, 20, 9);
+});
+layer('g_lib', (g, r) => { // rusticated base, arched window with iron grille, carved doorway
+  ashlar(g, r, 0, 0, T, T, '#e2dac6', 34, 68, .3);
+  g.fillStyle = '#d7ceb6'; g.beginPath(); g.moveTo(40, T); g.lineTo(40, 112); g.arc(128, 112, 88, Math.PI, 0); g.lineTo(216, T); g.fill();
+  g.fillStyle = '#4a3322'; g.beginPath(); g.moveTo(54, T); g.lineTo(54, 116); g.arc(128, 116, 74, Math.PI, 0); g.lineTo(202, T); g.fill();
+  g.fillStyle = '#8a7a5a'; g.beginPath(); g.arc(128, 100, 54, Math.PI, 0); g.lineTo(182, 118); g.lineTo(74, 118); g.fill();
+  g.fillStyle = '#1d242a'; g.beginPath(); g.arc(128, 104, 46, Math.PI, 0); g.lineTo(174, 118); g.lineTo(82, 118); g.fill();
+  g.strokeStyle = '#c9a24a'; g.lineWidth = 3; for (let x = 92; x < 170; x += 14) { g.beginPath(); g.moveTo(x, 118); g.lineTo(x, 66); g.stroke(); }
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(126, 130, 4, T - 130);
+  g.fillStyle = '#b9ae98'; g.fillRect(34, T - 10, 188, 10); dado(g, 40, .35);
+});
+
+// ---- sacco di Palermo blocks (1960s-70s): continuous balconies, tapparelle, drop awnings, marble lobbies
+function blkTile(g, r, tcol, awn, extra) {
+  plaster(g, r, '#e6e1d4', { peel: 0 });
+  shutterBox(g, 84, 22, 88);
+  win(g, 94, 48, 68, 168, { fr: 4, frc: '#cfc9b9', sill: false });
+  tapp(g, 90, 44, 76, 168 * (0.3 + 0.5 * r()), tcol);
+  if (awn) awnDrop(g, 70, 46, 116, 150, awn);
+  if (extra === 'ac') acUnit(g, 186, 70);
+  if (extra === 'win') { win(g, 196, 90, 34, 50, { fr: 3, frc: '#cfc9b9', sill: false }); tapp(g, 194, 88, 38, 22, tcol); }
+  g.fillStyle = '#f0ede4'; g.fillRect(0, T - 20, T, 20); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(0, T - 20, T, 3);
+  for (let i = 0; i < 3; i++) streak(g, 20 + r() * 216, 0, 90 + r() * 60, 6 + r() * 10, .12);
+}
+layer('blk_a', (g, r) => blkTile(g, r, '#8a6a4a', null, 'ac'));
+layer('blk_b', (g, r) => blkTile(g, r, '#e2dac2', null, 'win'));
+layer('blk_c', (g, r) => blkTile(g, r, '#5c7a58', r() < .5 ? '#d8741f' : '#2f6f4a', null));
+layer('blk_d', (g, r) => blkTile(g, r, '#9a9a94', null, 'ac'));
+layer('g_pilot', (g, r) => { // open ground floor on pilotis: dark garage, two concrete columns, parked scooter
+  plaster(g, r, '#e0dccf', { peel: 0 });
+  g.fillStyle = '#d6d2c6'; g.fillRect(0, 0, T, 34);
+  const gr = g.createLinearGradient(0, 34, 0, T); gr.addColorStop(0, '#16130f'); gr.addColorStop(1, '#3a342c'); g.fillStyle = gr; g.fillRect(24, 34, 208, T - 34);
+  g.fillStyle = 'rgba(200,190,160,.35)'; g.fillRect(104, 150, 60, 106);
+  g.fillStyle = '#c9c5b8'; g.fillRect(0, 34, 24, T - 34); g.fillRect(232, 34, 24, T - 34);
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(20, 34, 4, T - 34); g.fillRect(232, 34, 4, T - 34);
+  g.fillStyle = '#4a4a4e'; g.fillRect(46, 214, 40, 22); g.fillRect(52, 200, 28, 14); // scooter silhouette
+  dado(g, 40, .3);
+});
+layer('g_lobby', (g, r) => { // marble-clad entrance hall, glass doors, brass plates, canopy
+  plaster(g, r, '#e0dccf', { peel: 0 });
+  g.fillStyle = '#ddd8cc'; g.fillRect(48, 36, 160, T - 36); g.fillStyle = 'rgba(80,70,60,.15)'; for (let y = 50; y < T; y += 40) g.fillRect(48, y, 160, 2); for (let x = 88; x < 208; x += 40) g.fillRect(x, 36, 2, T - 36);
+  g.fillStyle = '#2a323a'; g.fillRect(74, 70, 108, T - 70); g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(74, 200); g.lineTo(120, 70); g.lineTo(150, 70); g.lineTo(74, 240); g.fill();
+  g.fillStyle = '#9a9a94'; g.fillRect(126, 70, 4, T - 70); g.fillRect(74, 70, 108, 4);
+  g.fillStyle = '#c9a24a'; g.fillRect(194, 110, 10, 40); g.fillStyle = '#d6d2c6'; g.fillRect(40, 24, 176, 12); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(40, 36, 176, 4);
+  g.fillStyle = '#b9b4a6'; g.fillRect(40, T - 10, 176, 10); dado(g, 30, .25);
+});
+
+// ---- ZEN / large housing insulae: prefab concrete, ribbon windows, exterior stairwells, graffiti
+function concrete(g, r, base = '#cfcdc6') {
+  g.fillStyle = base; g.fillRect(0, 0, T, T);
+  softNoise(g, r, 6, '255,255,250', .22); softNoise(g, r, 9, '60,56,50', .24); softNoise(g, r, 3, '50,46,40', .2, 2.4);
+  for (let i = 0; i < 1400; i++) { g.fillStyle = r() < .5 ? 'rgba(60,56,50,.1)' : 'rgba(255,255,255,.12)'; g.fillRect(r() * T, r() * T, 1.5, 1.5); }
+  g.fillStyle = 'rgba(40,36,32,.3)'; g.fillRect(0, 0, 3, T); g.fillRect(0, T - 3, T, 3); // panel joints
+}
+layer('zen_a', (g, r) => { // ribbon window with aluminium roller blind, rust streaks
+  concrete(g, r);
+  g.fillStyle = '#a9a69d'; g.fillRect(26, 70, 204, 84); const gr = g.createLinearGradient(0, 74, 0, 150); gr.addColorStop(0, '#56646e'); gr.addColorStop(1, '#262c32'); g.fillStyle = gr; g.fillRect(32, 76, 192, 72);
+  g.fillStyle = '#a9a69d'; g.fillRect(94, 76, 4, 72); g.fillRect(158, 76, 4, 72);
+  tapp(g, 100, 70, 54, 36 + r() * 30, '#b8b2a2');
+  g.fillStyle = 'rgba(120,70,40,.35)'; for (let i = 0; i < 4; i++) g.fillRect(30 + r() * 190, 154, 4 + r() * 4, 30 + r() * 60);
+  streak(g, 128, 156, 90, 160, .08);
+});
+layer('zen_b', (g, r) => { // recessed loggia: dark gap behind a concrete rail, laundry
+  concrete(g, r, '#c8c5bc');
+  g.fillStyle = '#26221e'; g.fillRect(24, 40, 208, 150); g.fillStyle = 'rgba(190,180,150,.2)'; g.fillRect(34, 50, 70, 130);
+  g.fillStyle = '#d4d0c6'; g.fillRect(14, 186, 228, 22); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(14, 208, 228, 6);
+  g.strokeStyle = '#4a4a4e'; g.lineWidth = 2; g.beginPath(); g.moveTo(34, 76); g.lineTo(220, 82); g.stroke();
+  const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2']; for (let i = 0; i < 5; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(44 + i * 34, 78 + i * .8, 16 + r() * 8, 26 + r() * 24); }
+  for (let i = 0; i < 3; i++) streak(g, 30 + r() * 190, 214, 40, 12, .16);
+});
+layer('zen_stair', (g, r) => { // exterior stairwell: concrete frame, diagonal flights, rail
+  concrete(g, r, '#c4c1b8');
+  g.fillStyle = '#1e1c1a'; g.fillRect(40, 20, 176, T - 40);
+  g.fillStyle = 'rgba(200,190,160,.18)'; g.fillRect(44, 24, 168, 90);
+  g.strokeStyle = '#b8b4a8'; g.lineWidth = 10; g.beginPath(); g.moveTo(44, T - 30); g.lineTo(212, 110); g.stroke();
+  g.lineWidth = 3; g.strokeStyle = '#3a3a3e'; g.beginPath(); g.moveTo(44, T - 70); g.lineTo(212, 70); g.stroke();
+  g.fillStyle = '#b8b4a8'; g.fillRect(40, 120, 176, 10); g.fillRect(40, T - 36, 176, 10);
+  g.fillStyle = '#d4d0c6'; g.fillRect(0, 0, 40, T); g.fillRect(216, 0, 40, T); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(36, 20, 4, T - 40);
+});
+layer('zen_g', (g, r) => { // ground floor: bricked-up and shuttered, spray tags
+  concrete(g, r, '#c6c3ba');
+  g.fillStyle = '#7a7a76'; g.fillRect(30, 60, 196, T - 60); rollShutter(g, r, 36, 66, 184, T - 66, '#76766f');
+  for (let i = 0; i < 3; i++) { g.fillStyle = ['#d8741f', '#2f6aa8', '#c8423a', '#e8e0c0'][(r() * 4) | 0]; g.beginPath(); g.moveTo(50 + r() * 120, 90 + r() * 90); g.bezierCurveTo(80 + r() * 120, 60 + r() * 100, 100 + r() * 100, 130 + r() * 80, 70 + r() * 150, 150 + r() * 70); g.lineWidth = 6; g.strokeStyle = g.fillStyle; g.stroke(); }
+  dado(g, 40, .4);
+});
+
+// ---- fishermen's houses and summer houses: whitewash, painted wood doors, pastel shutters
+function fisBase(g, r, base = '#ece6d6') { plaster(g, r, base, { peel: r() < .5 ? 1 : 0 }); g.fillStyle = 'rgba(60,70,90,.14)'; g.fillRect(0, T - 46, T, 46); }
+layer('fis_door', (g, r) => {
+  fisBase(g, r);
+  const dc = ['#2f5f8a', '#3f7a5a', '#8a5a3a', '#b0442e'][(r() * 4) | 0];
+  g.fillStyle = '#f6f2e6'; g.fillRect(84, 78, 88, T - 78); g.fillStyle = dc; g.fillRect(92, 86, 72, T - 86);
+  g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(98, 94, 26, 60); g.fillRect(132, 94, 26, 60); g.fillRect(98, 164, 26, 60); g.fillRect(132, 164, 26, 60);
+  g.fillStyle = '#c9a24a'; g.fillRect(124, 160, 8, 6);
+  win(g, 192, 108, 38, 56, { sh: 'l', st: 'closed', fr: 3, sill: true });
+  g.fillStyle = '#c8c0a8'; g.fillRect(80, T - 8, 96, 8);
+});
+layer('fis_win', (g, r) => {
+  fisBase(g, r);
+  win(g, 38, 92, 56, 90, { sh: 'l', st: 'open', fr: 5, frc: '#f8f4ea' });
+  win(g, 150, 92, 56, 90, { sh: r() < .5 ? 'l' : 'g', st: 'half', fr: 5, frc: '#f8f4ea' });
+  g.strokeStyle = '#666'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(10, 40); g.lineTo(246, 48); g.stroke();
+  const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2']; for (let i = 0; i < 5; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(24 + i * 44, 42 + i, 16 + r() * 8, 22 + r() * 16); }
+});
+layer('fis_a', (g, r) => { // upper floor: shutters, small iron balcony painted on
+  fisBase(g, r, '#eee8d8');
+  win(g, 94, 60, 68, 126, { sh: r() < .5 ? 'l' : 'p', st: 'half', fr: 5, frc: '#f8f4ea', sill: false });
+  g.fillStyle = '#d8d0bc'; g.fillRect(60, 190, 136, 10); g.fillStyle = '#26262c'; g.fillRect(64, 152, 128, 4); for (let x = 68; x < 190; x += 10) g.fillRect(x, 152, 3, 38);
+  g.fillStyle = '#c0392b'; g.beginPath(); g.arc(84, 146, 8, 0, 6.3); g.arc(170, 143, 7, 0, 6.3); g.fill();
+});
+
+// ---- industrial sheds, silos
+layer('ind_a', (g, r) => { // corrugated sheet cladding, band of windows, rust at the foot
+  g.fillStyle = '#c9cbc8'; g.fillRect(0, 0, T, T);
+  for (let x = 0; x < T; x += 10) { g.fillStyle = x % 20 ? 'rgba(255,255,255,.35)' : 'rgba(40,44,48,.22)'; g.fillRect(x, 0, 5, T); }
+  softNoise(g, r, 6, '255,255,250', .2); softNoise(g, r, 8, '60,56,50', .26); softNoise(g, r, 3, '120,70,40', .3, 2.4);
+  const gr = g.createLinearGradient(0, T - 70, 0, T); gr.addColorStop(0, 'rgba(120,70,40,0)'); gr.addColorStop(1, 'rgba(110,64,36,.45)'); g.fillStyle = gr; g.fillRect(0, T - 70, T, 70);
+  g.fillStyle = '#2a3036'; g.fillRect(20, 18, 216, 26); g.fillStyle = 'rgba(160,190,210,.35)'; g.fillRect(24, 22, 208, 8);
+  g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 0, T, 3);
+});
+layer('ind_b', (g, r) => { // prefab concrete panels and a roller door with hazard stripe
+  concrete(g, r, '#c9c7c0'); g.fillStyle = 'rgba(30,28,24,.25)'; for (let x = 0; x < T; x += 128) g.fillRect(x, 0, 3, T);
+  rollShutter(g, r, 52, 74, 152, T - 74, '#8a8e92');
+  g.fillStyle = '#d8b020'; for (let x = 52; x < 204; x += 24) { g.beginPath(); g.moveTo(x, T); g.lineTo(x + 12, T); g.lineTo(x + 24, T - 14); g.lineTo(x + 12, T - 14); g.fill(); }
+  g.fillStyle = '#e8e4d8'; g.fillRect(100, 40, 56, 22); g.fillStyle = '#c8423a'; g.fillRect(106, 46, 44, 10);
+});
+layer('ind_roll', (g, r) => { // loading bays
+  g.fillStyle = '#d4d2cb'; g.fillRect(0, 0, T, T); softNoise(g, r, 6, '255,255,250', .18); softNoise(g, r, 8, '60,56,50', .22);
+  for (const x of [10, 134]) rollShutter(g, r, x, 60, 112, T - 60, r() < .5 ? '#7a7e70' : '#8c8a84');
+  g.fillStyle = '#2a2a2a'; g.fillRect(0, 56, T, 6); dado(g, 30, .3);
+});
+layer('silo', (g, r) => { // slip-formed concrete silo: pale, horizontal pour joints, vertical weathering
+  g.fillStyle = '#dcdad2'; g.fillRect(0, 0, T, T);
+  for (let y = 12; y < T; y += 32) { g.fillStyle = 'rgba(40,36,30,.25)'; g.fillRect(0, y, T, 2); }
+  softNoise(g, r, 6, '255,255,250', .2); softNoise(g, r, 5, '60,56,50', .24); softNoise(g, r, 3, '50,46,40', .3, 3);
+  for (let i = 0; i < 10; i++) streak(g, r() * T, 0, 120 + r() * 120, 3 + r() * 8, .2);
+});
+layer('roof_metal', (g, r) => { // corrugated roof sheet
+  g.fillStyle = '#a9aeb0'; g.fillRect(0, 0, T, T);
+  for (let y = 0; y < T; y += 16) { g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(0, y, T, 5); g.fillStyle = 'rgba(30,34,38,.28)'; g.fillRect(0, y + 8, T, 5); }
+  softNoise(g, r, 6, '255,255,250', .2); softNoise(g, r, 8, '110,70,44', .3); softNoise(g, r, 12, '40,40,40', .2);
+});
+
+// ---- ruins and bombed gaps (Kalsa, Albergheria): bare tufa and brick, black openings, weeds
+layer('ruin_wall', (g, r) => {
+  ashlar(g, r, 0, 0, T, T, '#d6c7a4', 30, 58, .34);
+  for (let i = 0; i < 6; i++) { g.fillStyle = r() < .6 ? 'rgba(150,80,60,.35)' : 'rgba(40,34,28,.28)'; g.fillRect(r() * T, r() * T, 20 + r() * 40, 14 + r() * 28); } // brick patches and soot
+  g.fillStyle = '#e4d8bb'; g.fillRect(0, 0, 90 + r() * 60, 26 + r() * 40);
+  for (const x of [40, 152]) { g.fillStyle = '#100e0c'; g.beginPath(); g.moveTo(x, 214); g.lineTo(x, 100); g.lineTo(x + 26, 84); g.lineTo(x + 60, 100 + r() * 14); g.lineTo(x + 56, 214); g.fill(); }
+  g.fillStyle = '#4f7a3a'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(r() * T, 214 + r() * 40, 6 + r() * 12, 0, 6.3); g.fill(); }
+  for (let i = 0; i < 4; i++) streak(g, r() * T, r() * 60, 130, 12, .2); dado(g, 50, .4);
+});
+layer('rubble', (g, r) => {
+  g.fillStyle = '#9a9488'; g.fillRect(0, 0, T, T);
+  for (let i = 0; i < 700; i++) { const k = r(); g.fillStyle = k < .4 ? 'rgba(60,54,46,.45)' : k < .75 ? 'rgba(200,190,160,.5)' : 'rgba(150,80,60,.4)'; g.fillRect(r() * T, r() * T, 2 + r() * 8, 2 + r() * 6); }
+  g.fillStyle = '#5f8a3a'; for (let i = 0; i < 22; i++) { g.beginPath(); g.arc(r() * T, r() * T, 3 + r() * 9, 0, 6.3); g.fill(); }
+  softNoise(g, r, 6, '40,36,30', .3);
+});
+
+// ---- beach clubs and summer cabins (Mondello lido)
+layer('bch_a', (g, r) => { // white wooden cabin, teal trim, louvred door
+  g.fillStyle = '#f0ede4'; g.fillRect(0, 0, T, T); for (let x = 0; x < T; x += 22) { g.fillStyle = 'rgba(60,70,80,.1)'; g.fillRect(x, 0, 2, T); }
+  softNoise(g, r, 6, '255,255,250', .2); softNoise(g, r, 8, '60,70,80', .15);
+  g.fillStyle = '#2f8f9a'; g.fillRect(0, 0, T, 16); g.fillRect(0, T - 18, T, 18);
+  g.fillStyle = '#2f8f9a'; g.fillRect(84, 52, 88, T - 70); g.fillStyle = '#f4f2ea'; g.fillRect(92, 60, 72, T - 86);
+  g.fillStyle = 'rgba(47,143,154,.55)'; for (let y = 66; y < T - 30; y += 10) g.fillRect(96, y, 64, 4);
+});
+layer('bch_b', (g, r) => { // cabana front: striped awning over an open counter
+  g.fillStyle = '#ece8dc'; g.fillRect(0, 0, T, T); softNoise(g, r, 6, '255,255,250', .2);
+  const c1 = r() < .5 ? '#2f6f9a' : '#d8741f';
+  for (let i = 0; i < 12; i++) { g.fillStyle = i % 2 ? '#f6f4ec' : c1; g.fillRect(i * 21.4, 20, 21.5, 52); g.beginPath(); g.arc(i * 21.4 + 10.7, 72, 10.7, 0, Math.PI); g.fill(); }
+  g.fillStyle = '#2a2622'; g.fillRect(22, 92, 212, 120); g.fillStyle = 'rgba(230,200,140,.35)'; g.fillRect(30, 100, 196, 36);
+  g.fillStyle = '#d9d0bc'; g.fillRect(14, 212, 228, 14); g.fillStyle = '#2f8f9a'; g.fillRect(0, T - 18, T, 18);
+});
+layer('deck', (g, r) => { // timber deck roofs and terraces
+  g.fillStyle = '#a58a66'; g.fillRect(0, 0, T, T);
+  for (let y = 0; y < T; y += 21) { g.fillStyle = 'rgba(40,28,16,.5)'; g.fillRect(0, y, T, 2); }
+  for (let i = 0; i < 400; i++) { g.fillStyle = r() < .5 ? 'rgba(255,240,210,.12)' : 'rgba(40,28,16,.14)'; g.fillRect(r() * T, r() * T, 8 + r() * 30, 1.5); }
+  softNoise(g, r, 6, '255,245,220', .2); softNoise(g, r, 8, '50,34,20', .22);
+});
+
 // Build the 2D-array texture once (a generator that yields per layer, so the world streamer can warm it up in slices).
 function* buildAtlasIter() {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
