@@ -170,7 +170,11 @@ if (!WORLD) buildBuildings(ctx); // world: buildings stream in per tile (src/wor
 buildLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
 const propsApi = buildProps(ctx) || {};
-const contextGroup = buildContext(ctx); // world: hidden chunk by chunk where real tiles stand
+// [perf pass] In the production build the far-city data (window.PALERMO_CONTEXT) arrives after the game has started (window.__pdLate, see
+// tools/build/runtime/loader.js); the far city is then built once the browser is idle. In the dev tree the data is there at once.
+if (WORLD && window.__pdLate) await window.__pdLate; // world mode hands the context group to the streamer, so wait for it
+let contextGroup = window.PALERMO_CONTEXT ? buildContext(ctx) : null; // world: hidden chunk by chunk where real tiles stand
+if (!contextGroup && window.__pdLate) window.__pdLate.then(() => (window.requestIdleCallback || setTimeout)(() => { contextGroup = buildContext(ctx); }, { timeout: 1500 }));
 
 // ---------- spatial grids ----------
 class Grid {
