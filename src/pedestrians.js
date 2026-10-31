@@ -297,9 +297,9 @@ export function createPedestrians(env) {
     // Sferracavallo, Arenella, Acquasanta: fishing villages, seafront walkers
     coast:  { row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
     // La Favorita: joggers, dog walkers, families, pensioners
-    park:   { row: 0, day: 0.0055, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
+    park:   { row: 0, def: 0.22, day: 0.0035, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
     // Monte Pellegrino and the countryside: a few pilgrims, hikers and a kiosk
-    rural:  { row: 3, day: 0.0013, night: 0.0003, g: [1, 0.03, 0.03], m: [['tour', 2], ['priest', 2], ['market', 0.3], ['biz', 0.1], ['beach', 0.2], ['kids', 0.4], ['fans', 0.1], ['young', 0.6], ['elders', 1.2]], add: { jogger: 0.6 }, addN: {} },
+    rural:  { row: 3, def: 0.6, day: 0.0013, night: 0.0003, g: [1, 0.03, 0.03], m: [['tour', 2], ['priest', 2], ['market', 0.3], ['biz', 0.1], ['beach', 0.2], ['kids', 0.4], ['fans', 0.1], ['young', 0.6], ['elders', 1.2]], add: { jogger: 0.6 }, addN: {} },
     // the port, the shipyards and Brin: workers on foot, few strollers
     port:   { row: 1, day: 0.004, night: 0.0015, g: [0.5, 0.5, 0.5], m: [['market', 0.2], ['tour', 0.4], ['kids', 0.3], ['biz', 0.6], ['tuta', 3], ['motorino', 2], ['fans', 0.4]], add: {}, addN: {} },
   };
@@ -320,8 +320,9 @@ export function createPedestrians(env) {
   PNAMES.forEach(n => {
     const P = PROFILES[n], mul = {};
     for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? 1) * f;
-    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? 1) + (P.add[v.id] || 0)));
-    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? 1) + (P.addN[v.id] || 0)));
+    const dm = P.def ?? 1;   // def: multiplier for every variant the table does not name (a park is mostly joggers and dogs, not the whole city)
+    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0)));
+    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0)));
     const z = VW.length - 1; GK[z] = P.g[0]; GE[z] = P.g[1]; GP[z] = P.g[2];
   });
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0)), VWNsum = VWN.map(w => w.reduce((a, b) => a + b, 0));
