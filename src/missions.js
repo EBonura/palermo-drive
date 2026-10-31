@@ -1044,6 +1044,7 @@ function build(env) {
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, state: S };
+  if (params.has('debug')) window.__missions = { S, FAV, polls, api, night };
   if (params.get('mode') === 'turisti') setMode('turisti');
   let pendingMode = params.get('mode') === 'favorita' ? 'favorita' : null;   // ?mode=favorita waits until the time of day is known
   return api;

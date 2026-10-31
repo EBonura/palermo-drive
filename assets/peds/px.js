@@ -57,6 +57,7 @@ export function limb(P, x0, y0, x1, y1, w0, w1, c, o = {}) {
   for (let y = y0; y <= y1; y++) {
     const f = (y - y0) / n, xc = x0 + (x1 - x0) * f, w = Math.max(2, Math.round(w0 + (w1 - w0) * f)), xl = Math.round(xc - w / 2);
     P(xl, y, w, 1, c);
+    if (o.stripe) P(o.sx < 0 ? xl + 1 : xl + w - 3, y, 2, 1, o.stripe);
     if (w >= 4) { P(xl, y, 1, 1, l); P(xl + w - 1, y, 1, 1, d); if (w >= 7) P(xl + w - 2, y, 1, 1, d); }
   }
 }

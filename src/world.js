@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
 import { streetsIter } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
+import { applyDistrictHeights } from './districts.js';
 import { QUALITY } from './mobile.js';
 
 const T = 500;
@@ -633,6 +634,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       // (the production build serves the .bin twin through a fetch shim, tools/build/runtime/loader.js: always go through r.json())
       fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
         t.data = d; stat.fetched++;
+        applyDistrictHeights(d); // low and full detail agree on storeys, no height pop on LOD swap
         if (d.near) t.nearS = gridSampler(d.near);
         prepareTile(t);
       }).catch(e => { t.failed = true; stat.errors++; console.warn('[world] tile', t.id, e); })

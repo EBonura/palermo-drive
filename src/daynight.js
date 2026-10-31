@@ -357,7 +357,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (!car) return;
     beamGroup.visible = on > 0.01;
     if (!beamGroup.visible) return;
-    decalMat.opacity = on * 0.8; coneMat.opacity = on * 0.1;
+    decalMat.opacity = on * 1.0; coneMat.opacity = on * 0.1;
     const rig = vehicle?.rig, len = rig?.tpl?.spec?.len ?? 3.1, kind = car.kind || 'lapa';
     const bike = kind === 'bike', hx = bike ? 0 : kind === 'car' ? 0.52 : 0.27, hy = bike ? 0.95 : kind === 'car' ? 0.62 : 0.88, hz = len * 0.43;
     const sn = Math.sin(car.th), cs = Math.cos(car.th), gy = groundY(car.x, car.z) + (car.lift || 0);
@@ -368,7 +368,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       const yaw = car.th + side * 0.045;
       h.pivot.position.set(ox, gy + hy, oz); h.pivot.rotation.set(0.09, yaw, 0, 'YXZ');
       h.floor.position.set(ox + sn * 0.2, gy + 0.09, oz + cs * 0.2); h.floor.rotation.set(0, yaw, 0);
-      h.floor.scale.set(bike ? 3.4 : 3.8, 1, 15);
+      h.floor.scale.set(bike ? 3.8 : 4.4, 1, 17);
     });
   }
   let lampMatOn = -1;
