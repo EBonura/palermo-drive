@@ -63,6 +63,8 @@ compact binary format) and publishes it to GitHub Pages.
 - Lidar DTM/DSM © Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale, CC BY 4.0.
 - Hills (Monte Pellegrino and the ridges around the city): TINITALY 1.1 DEM © INGV (Tarquini et al.), CC BY 4.0,
   https://doi.org/10.13127/tinitaly/1.1.
+- Building volumes and heights: Comune di Palermo, Carta Tecnica Comunale, Unita' Volumetriche (2013), CC BY 4.0 IT,
+  https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: CC BY 4.0, CC0 and public domain tracks, full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.

@@ -135,12 +135,15 @@ pedestrians (per-tile walkable blocks, district crowd profiles), props (per-tile
 - `roads[]` carry `o` (one-way 1/-1), `l`, `ms`, `j` as in bake.py, plus `cw` (real carriageway width).
 - Full-detail tiles build a `paint` part (`roadMarksIter` in src/streets.js: lane lines, edge lines, zebras), skipped inside the centro AOI.
 
-## Footprint gap filling (in progress)
+## Footprint gap filling and survey heights (done, see docs/sources/comune-ctc-buildings.md)
 
-Goal: add a second building-footprint source where OSM is incomplete (Brancaccio, Oreto, Uditore, Cruillas, ZEN, Mondello: 13 to 23 % ground coverage). Work stopped early; nothing is integrated.
+The second footprint source is the Comune's Carta Tecnica Comunale (Unita' Volumetriche, 2013). `tools/footprints.py` writes `data/footprints_osm_heights.json`
+and `data/footprints_extra.json` (git-ignored); `parse_buildings` in `tools/tiles.py` reads both when they exist:
 
-- **Leading candidate: Microsoft GlobalMLBuildingFootprints (Bing imagery ML footprints)**, licence CDLA Permissive 2.0 (https://cdla.dev/permissive-2-0/, no share-alike, keep the licence notice and credit Microsoft). Italy has per-building height estimates (-1 where missing), which `tiles.py` could use as `height`. Files: quadkey-partitioned geojsonl in `dataset-links.csv` (https://bfppub.blob.core.windows.net/%24web/2026-08-13/dataset-links.csv). Not yet downloaded or checked over the six districts.
-- **Alternative: Overture Maps buildings theme** (release 2026-10-21.0, `s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings/type=building/`), ODbL (OSM is already ODbL here, so share-alike adds nothing new). Query by bbox with DuckDB (`pip install duckdb` was added to `tools/.venv`, harmless to the bake). The first probe over the whole bbox was too slow over S3 and was killed; use a smaller bbox per district or the Microsoft files directly.
-- **Not evaluated:** Regione Siciliana CTR / SITR, Comune di Palermo SIT (no endpoint tried yet).
-- **Downloaded:** nothing (`data/footprints_src/` is empty). `tools/tiles.py` is unmodified, and `tools/footprints.py` does not exist yet.
-- **Plan left to do:** `tools/footprints.py` downloads the chosen source, drops anything overlapping an OSM building (IoU / area overlap), slivers and sheds, simplifies, and writes `data/footprints_extra.json` (ids `x<source id>`, heights where the source has them); a guarded hook in `parse_buildings` calls the existing `add()` for each record only if the file exists (so lidar raster heights and the generic estimate in `building_height` apply as for OSM); then coverage per district before/after and aerial shots from a `data/world_stage_fp/` dry run. `assets/CREDITS.md` still needs the entry once a source is integrated.
+- Extra buildings (1,526; the ones with lidar get the lidar roof) go through the normal `add()`.
+- OSM buildings with no lidar roof (48,368) and the extra ones without one take the survey's eave elevation `r`, foot `g`, `h = r - g` and `parts`/`split`,
+  the same fields a lidar building has, so `applyDistrictHeights` leaves them alone and the world uses absolute elevations like it does for lidar.
+  They also carry `e: 1` (eave): a pitched roof in `emitSolid` (src/buildings.js) then stands on top of the eave instead of eating into it.
+  A lidar roof always wins.
+- Microsoft footprints were not used (at most 1 % of land in three districts). Overture was not used.
+
