@@ -95,7 +95,7 @@ export function createGraph() {
     const e = {
       id: 0, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
       rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast,
-      v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, alive: false, dead: false, seg: false, tile, q: 0,
+      br: road.br, v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, alive: false, dead: false, seg: false, tile, q: 0,
     };
     if (round) e.v = Math.min(e.v, 6.5);
     if (transit) e.v = 5;
@@ -116,7 +116,7 @@ export function createGraph() {
     const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || ''), p = r.p;
     flagsOf(r, tmp);
     const o = tmp.o === undefined ? (cls.ow ? 1 : 0) : tmp.o, round = tmp.j === 'roundabout';
-    const road = { w: r.w, n: r.n, o, ms: r.ms };
+    const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0 };
     for (let i = 0; i + 3 < p.length; i += 2) {
       const dxx = p[i + 2] - p[i], dzz = p[i + 3] - p[i + 1];
       if (dxx * dxx + dzz * dzz < 0.25) continue;

@@ -22,6 +22,7 @@ import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
 import { createFarCity } from './context.js';
 import { GARDEN_REGION as GR } from './gardens.js';
+import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 
 const T = 500;
 const nk = (i, j) => (i + 200) * 1000 + (j + 200);
@@ -168,6 +169,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
+  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); setStructRoot(root);
   let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null, wantedOnce = false, visPending = 1, farMissing = 0;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
@@ -190,7 +192,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     M = m;
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
-    hooks.ground = tileGround;
+    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : carve(x, z, y); }; // + the river trenches and tunnel cuttings (src/bridges.js)
+    hooks.level = levelY; hooks.fall = carTick;
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
@@ -321,7 +324,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
-    const cell = t.nearStep || (t.shape ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;
+    const cell = t.nearStep || (t.shape || tileCarved(t.k) ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
@@ -521,7 +524,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // Off the surfaced network (park ground, dirt tracks, hillside): less grip, a bumpy ride, a bit of drag. Called every physics step.
   let bumpPhase = 0;
   function drivePlayer(car, dt) {
-    if (maskAt(car.x, car.z, 'hard') !== false) return;
+    if (maskAt(car.x, car.z, 'hard') !== false || car.deck) return;   // (a bridge deck or a tunnel floor is hard ground whatever the street layers under it say)
     const v = Math.hypot(car.vx, car.vz);
     if (v < 1.5) return;
     car.gripLoss = Math.max(car.gripLoss || 0, 0.3);
@@ -722,6 +725,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function prepareTile(t) {
     const d = t.data;
     if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
+    registerStructs(d, t.k);
     t.urban = Math.min(1, (d.buildings.length) / 160) * 0.8;
     t.tint = (d.areas || []).filter(a => COVER[a.k]).sort((a, b) => COVER[a.k][2] - COVER[b.k][2]).map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -790,10 +794,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'bldFull', bg);
     setPart(t, 'bldLow', null);
     t.lod = 2;
-    emit('full', t);
+    onTileFull(t.k); emit('full', t);
   }
   function* downgrade(t) {
-    emit('drop', t);
+    onTileDrop(t.k); emit('drop', t);
     setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
@@ -806,7 +810,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     stash(t);
   }
   function release(t) {
-    emit('drop', t);
+    onTileDrop(t.k); unregisterStructs(t.k); emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);

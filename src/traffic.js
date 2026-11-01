@@ -10,6 +10,7 @@
 // view around the camera, despawned out of view, and drawn with one InstancedMesh per model.
 import * as THREE from 'three';
 import { proj } from './core.js';
+import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
 import { createGraph, CLASS } from './traffic-graph.js';
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
@@ -658,7 +659,7 @@ Object.assign(MODELS, buildPoliceModels());
       A[o] = c * cr + s * sr * sp; A[o + 1] = sr * cp; A[o + 2] = -s * cr + c * sr * sp; A[o + 3] = 0;
       A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
       A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
-      A[o + 12] = v.x; A[o + 13] = groundY(v.x, v.z) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
+      A[o + 12] = v.x; const dk = v.route[0] && v.route[0].br ? topY(v.x, v.z) : NaN; A[o + 13] = (dk === dk ? dk : groundY(v.x, v.z)) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
       if (v.plan && v.name === 'bus') SIGN_ROW.array[n] = v.plan.row;
       const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
       for (const [zo, r] of v.ty.circ) agentsOut.push({ x: v.x + s * zo, z: v.z + c * zo, r });
@@ -794,6 +795,7 @@ Object.assign(MODELS, buildPoliceModels());
     for (const [zo, r] of v.ty.circ) {
       const cx = v.x + s * zo, cz = v.z + c * zo;
       walls2d.query(cx - r, cz - r, cx + r, cz + r, seg => {
+        if (seg.lv !== undefined) return;   // a parapet or tunnel wall on its own level (src/bridges.js)
         const q = closestOnSeg(v.x + s * zo, v.z + c * zo, seg);
         const dx = v.x + s * zo - q[0], dz = v.z + c * zo - q[1], d = hyp2(dx, dz);
         if (d < r && d > 1e-4) { v.x += dx / d * (r - d); v.z += dz / d * (r - d); }
