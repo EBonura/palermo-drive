@@ -17,6 +17,9 @@ export const INSULTS = [
   'A patente nni patatini attruvasti?',
   "Si t'annagghiu ti ruimpu u culu",
   'Ti rumpu i cuinna!',
+  'U paliaimmu è miraculusu!',
+  "Mancu cu'u lignu!!",
+  'Pigghialu stu nummaro i taigga',
 ];
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
