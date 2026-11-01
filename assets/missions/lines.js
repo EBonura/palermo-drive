@@ -196,7 +196,7 @@ export const VENDOR_SERVE = [
 export const DESTS = [
   { id: 'focacceria', name: 'Antica Focacceria San Francesco', addr: 'Via Alessandro Paternostro 58, Kalsa', lat: 38.1163329, lon: 13.3661444, meusa: true,
     food_en: 'panelle, arancine and the spleen sandwich', food_de: 'Panelle, Arancine und das Milzbrötchen', food_fr: 'des panelle, des arancine et le sandwich à la rate' },
-  { id: 'nino', name: 'Nino u Ballerino', addr: 'Corso Calatafimi, Porta Nuova', lat: 38.1115964, lon: 13.3517307, meusa: true,
+  { id: 'nino', name: 'Nino u Ballerino', addr: 'Corso Finocchiaro Aprile 76', lat: 38.1187009, lon: 13.3490904, meusa: true,
     food_en: 'the spleen sandwich', food_de: 'das Milzbrötchen', food_fr: 'le sandwich à la rate' },
   { id: 'kepalle', name: 'Ke Palle', addr: 'Via Maqueda 270', lat: 38.11769, lon: 13.3600809,
     food_en: 'the fancy arancine', food_de: 'die feinen Arancine', food_fr: 'les arancine' },
@@ -234,7 +234,6 @@ export const VENDORS = [
 
 // real places that are outside today's drivable box, for later
 export const LATER = [
-  { name: 'Nino \'u Ballerino, Corso Finocchiaro Aprile 76', lat: 38.1187009, lon: 13.3490904, note: 'about 80 m outside the box' },
   { name: 'Piazza della Kalsa', lat: 38.1158659, lon: 13.3735872, note: 'about 40 m outside the box (stigghiola vendor, Kalsa)' },
   { name: 'Antica Friggitoria Chiluzzo, Via Torremuzza', lat: 38.1163042, lon: 13.373051, note: 'just outside the box (panelle, Kalsa)' },
   { name: 'Via Ernesto Basile (stigghiola, Pagliarelli side)', lat: 38.0993011, lon: 13.3468323, note: 'Nominatim node of the road; far south of the box' },
