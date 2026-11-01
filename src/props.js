@@ -919,6 +919,7 @@ const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama
   valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
 const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1 };
 const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7 };   // share of cafes with tables outside
+const OLIVE_TINT = new THREE.Color('#a9b48a');    // olive groves: grey-green leaves
 const PLANE_TINT = new THREE.Color('#f3f0b4');   // plane trees on the Libertà: yellowish-green leaves
 const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
@@ -1128,6 +1129,12 @@ function* generate(S, BUD) {
   const nearAny = (list, x, z, r) => list.some(q => hyp2(q.x - x, q.z - z) < r);
   const lampsReal = [];
   const treeKind = (it) => {
+    // trees from the lidar crowns, the CTR points and the Urban Atlas lattice (tools/greenery.py): a kind hint `kd`, a crown radius `r` and a height `h` when measured
+    if (it.kd === 'tall') return pick(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a']);
+    if (it.kd === 'fruit' || it.kd === 'citrus') return 'orange';
+    if (it.kd === 'olive') return 'tree';
+    if (it.kd === 'pine') return 'pine';
+    if (it.r && !it.ge && !it.sp) return it.r < 2.1 ? 'orange' : it.r > 4.2 ? 'ficus' : 'tree';
     const s = (it.ge || '') + ' ' + (it.sp || '');
     if (it.lt === 'palm' || /Phoenix|Washingtonia|Trachycarpus|Chamaerops|Livistona|Arecaceae/.test(s))
       return /Phoenix/.test(s) ? pick(['palm_date_a', 'palm_date_b']) : pick(['palm_fan_a', 'palm_fan_b', 'palm_fan_c']);
@@ -1148,7 +1155,11 @@ function* generate(S, BUD) {
   for (const it of osm) {
     if (BUD.over()) yield;
     const k = it.k;
-    if (k === 'tree') { placeTree(it.x, it.z, treeKind(it)); continue; }
+    if (k === 'tree') {
+      const kd = treeKind(it), isPalm = kd.startsWith('palm');
+      const cs = it.r ? (isPalm && it.h ? Math.max(0.6, Math.min(1.6, it.h / (SPECS[kd] ? SPECS[kd].H : 9))) : Math.max(0.55, Math.min(2.4, it.r / (SPECS[kd] ? SPECS[kd].crown : 2.7)))) : 0.95;
+      placeTree(it.x, it.z, kd, cs, it.kd === 'olive' ? OLIVE_TINT : null); continue;
+    }
     if (k === 'bollard') { if (!inB(it.x, it.z)) { put('bollard', it.x, gy(it.x, it.z), it.z); occAdd(it.x, it.z, 0.2); } continue; }
     if (k === 'bin_big') { if (!inB(it.x, it.z)) { const y = gy(it.x, it.z), a = R(0, TAU); put('bin_big', it.x, y, it.z, a); put('bags', it.x + Math.cos(a) * 0.9, y, it.z - Math.sin(a) * 0.9, R(0, TAU)); occAdd(it.x, it.z, 1); } continue; }
     if (k === 'lamp') {
