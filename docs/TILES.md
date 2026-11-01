@@ -164,35 +164,38 @@ and `data/footprints_extra.json` (git-ignored); `parse_buildings` in `tools/tile
 - Outlines are simplified 0.2 m. The park footpaths and stairs of dataset 281 (`pedestrian_areas`) are not drawn yet.
 - `src/main.js` no longer ORs the baked centro slab (`D.streets.raised`) into the raised mask.
 
-### Pedestrian streets: OSM highway=pedestrian wins (tools/tiles.py `PED_STREETS`, `ped_roadlike`)
+### Pedestrian streets: OSM highway=pedestrian, decided by the real surface (tools/tiles.py `PED_STREETS`, `ped_roadlike`, `PED_STONE`)
 
-The 2016 decree list is incomplete, so every OSM `highway=pedestrian` way (not `area=yes`) turns the Comune platform within `RS_PED_REACH` (8 m) of its line
-into stone `paving`, wall to wall: no asphalt, no kerbs, no pavement bands (paving is flat and hard ground, so cars still drive on it; the road graph and the
-pedestrian mask are unchanged and the crowd walks on paving). Where the Comune has no polygon the way's own width (7 m) is the zone. Two kinds of OSM
-road stay asphalt inside such a zone: every ordinary OSM road (cross streets and the like, `keep` lanes), and pedestrian ways OSM also tags as a road
-with traffic (`ped_roadlike`: `psv=yes`, a `lanes` tag, `maxspeed` of 30 or more or `IT:urban`, or `sidewalk=both/left/right/yes`). `RS_PED_ASPHALT` lists
-names to force back to asphalt (empty). The bake log prints the lists below.
+Owner rule: "whatever is in real life". Every OSM `highway=pedestrian` way (not `area=yes`) is looked at one by one:
 
-Drawn as paving (way lengths in m, 20.4 km in all; the 6.3 km of unnamed ways are short links and squares): Via Maqueda 1391, Via Vittorio Emanuele 1020,
-Via Ruggero Settimo 356, Viale Regina Elena 351, Piazza Giuseppe Verdi 284, Via Bara All'Olivella 270, Via Pietro Novelli 266, Via Bandiera 260,
-Via Principe di Belmonte 259, Via Giovanni Battista Pagano 248, Piazzetta Bagnasco 242, Via Principe di Granatelli 227, Discesa dei Giudici 219,
-Piazza Sant'Oliva 218, Via Schiavuzzo 187, Via Generale Magliocco 186, Via Rosolino Pilo 182, Piazza Antonio Zanca 177, Via Bottai 167, Piazza Ruggero Settimo 166,
-Piazza Castelnuovo 165, Via Francesco Riso 164, Piazza San Domenico 157, Via Merlo 157, Via Orologio 151, Piazza Domenico Peranni 147, Via Giovan Battista Guccia 146,
-Discesa Maccheronai 139, Piazza Marina 137, Via Castrofilippo 135, Via Alessandro Paternostro 119, Via Pantelleria 119, Piazza Vittorio Emanuele 115, Via Monterey 111,
-Via Monteleone 107, Via Emerico Amari 106, Vicolo dei Corrieri 105, Via Roma 105, Via Ruggero Mastrangelo 105, Vicolo Palagonia all'Alloro 105, Piazzetta Porta Reale 98,
-Via Di Stefano 97, Vicolo Castelnuovo 95, Vicolo della Neve all'Alloro 92, Via dello Spasimo 92, Vicolo Teatro Bellini 92, and 50 shorter ones (under 90 m each).
+- `ped_roadlike(tags)` (OSM also tags it as a road with traffic: `psv=yes`, a `lanes` tag, `maxspeed` of 30 or more or `IT:urban`, or `sidewalk=both/left/right/yes`): asphalt road.
+- `surface=asphalt`: asphalt carriageway with kerbs and pavements, built like any road (the Comune carriageway near the OSM line, pavement bands, and what is left of the
+  platform within `RS_PED_REACH` (8 m) of the line becomes pavement, so the street is wall to wall). Via Maqueda is this case; Mapillary 2021 (`ce04 ce05 ce27`) agrees.
+- `surface=paving_stones / sett / stone / cobblestone / unhewn_cobblestone / granite`: stone `paving` wall to wall (the Comune platform within 8 m of the line, or the
+  way's own width where the Comune has no polygon), flat, no kerbs, no pavement bands; cars can drive on it, the crowd walks on it.
+- No `surface` tag, or another one (`compacted`, `concrete`, `fine_gravel`, `paved`): stone paving too (the pedestrian rule), listed separately in the bake log.
+- The 2016 decree list (`pedestrian` layer of road_surfaces) still paves its streets, unless an `surface=asphalt` way runs through them.
+- In any stone zone every ordinary OSM road (cross streets, bus lanes) keeps its asphalt lanes. `RS_PED_ASPHALT` forces names to asphalt (empty).
 
-Stay asphalt although tagged pedestrian (road-like): Via Emerico Amari 388, Via Vittorio Emanuele 334, Via Matteo Bonello 167, Via Benedettini 127,
+The bake log prints the lists (way lengths in m). Asphalt because of `surface=asphalt` (5.8 km): Via Maqueda 1391, Via Vittorio Emanuele 1020, Via Ruggero Settimo 356,
+Viale Regina Elena 298, Via Principe di Granatelli 186, Via Rosolino Pilo 182, Piazza Ruggero Settimo 166, Via Pietro Novelli 164, Piazza Domenico Peranni 147,
+Via Giovan Battista Guccia 146, Via Emerico Amari 106, Vicolo dei Corrieri 105, Via Roma 105, Piazzetta Porta Reale 98, Cortile Acquasanta 82, Via San Marciano 79,
+Piazza Castelnuovo 75, Chiasso Collegiomaria 66, Via Matteo Sclafani 64, Via Ernesto Paci 63, Via Giuseppe Mazzini 62, Via Giusto Ferraro 58, Via Quintino Sella 53,
+Piazza Borsa 51 and smaller. Asphalt because of road tags (1.3 km): Via Emerico Amari 388, Via Vittorio Emanuele 334, Via Matteo Bonello 167, Via Benedettini 127,
 Corso Vittorio Emanuele 117, Via Isnello 55, Corso Calatafimi 48.
 
-What the tags say for the two streets asked about (checked in `data/city/pbf_hwy_*`, nothing guessed):
-- **Corso Vittorio Emanuele, Quattro Canti to the Cattedrale** (named Via Vittorio Emanuele in OSM there) is a chain of `highway=pedestrian` ways with different
-  tags. From the Cattedrale towards the Quattro Canti: the first ways (about x -565 to -486) have `psv=yes`, `lanes=2` or `sidewalk=both` and `maxspeed=50`: asphalt;
-  the stretch around x -440 to -340 has only `motor_vehicle=no/permit`: paving; from about x -247 to the crossing `sidewalk=both`: asphalt again. So the street changes
-  surface three times along its length, as the tags do. A way tagged `highway=pedestrian` + `psv=yes` + `lanes=2` is a bus street, not a promenade.
-- **Via Vittorio Emanuele near Porta Felice**: the pedestrian way there (`motor_vehicle=permit`, `lane_markings=no`, no psv) is paving; its neighbours are
-  `highway=residential`, `lanes=2`, ZTL: asphalt.
+Stone with a stone `surface` tag (`paving_stones` 3.4 km, `sett` 3.3 km, `unhewn_cobblestone` 0.2 km): Via Principe di Belmonte, Piazza Giuseppe Verdi, Piazzetta Bagnasco,
+Via Generale Magliocco, Piazza Vittorio Emanuele, Vicolo Palagonia all'Alloro, Discesa dei Giudici, Via Azalea, Via Simone di Bologna, Via Giovanni Lucifora, Piazza Sant'Anna,
+Via dell'Immacolatella, Via Sant'Anna, Via Alessandro Paternostro, Via Antonio Montinaro, Via San Vigo, Via Giorgio Montisoro, Vicolo Valguarnera, Piazzetta Delle Dogane,
+Piazza Croce dei Vespri, Via Bara All'Olivella, Via Bottai, Via Francesco Riso, Piazza San Domenico, Via Merlo, Via Orologio, Discesa Maccheronai, Piazza Marina, Via Castrofilippo,
+Via Monterey, Via Monteleone, Vicolo Castelnuovo, Via dello Spasimo, Via Chiavettieri, Via Piccola Teatro Santa Cecilia, Salita Santa Caterina, Via Principe di Resuttano,
+Piazza All'Olivella, Piazza di Resuttano, Piazza Carlo Maria Ventimiglia, Piazza Aragona, Vicolo Gulì, Via Spinuzza, Vicolo della Neve all'Alloro, Via Pantelleria.
 
-Doubt for the owner: every one of these ways, Via Maqueda included, carries `surface=asphalt` (not `paving_stones`), and `vehicle=permit` in the ZTL; the 2021 Mapillary
-photos (docs/faithfulness/survey/mapillary.md, finding 8, `ce04 ce05 ce27`) show Via Maqueda south of the crossing as an asphalt road with a white edge line and
-kerbs. The rule above follows the owner's instruction (highway=pedestrian is stone), not those tags. To put Maqueda back: `RS_PED_ASPHALT = ("Via Maqueda",)` and rebake.
+Stone by the pedestrian rule, no `surface` tag (6.2 km, 3.4 km of it unnamed short links and squares): Via Bandiera, Via Giovanni Battista Pagano, Piazza Sant'Oliva, Via Schiavuzzo,
+Piazza Antonio Zanca, acquedotto storico, Via Ruggero Mastrangelo, Via Di Stefano, Piazza Castelnuovo (part), Piazzetta del Noviziato, Vicolo Teatro Bellini, Via Tavola Tonda,
+Vicolo Santa Chiara, Cortile Lo Verde Zisa, Piazza Sett'Angeli, Vicolo Tunisi, Viale Regina Elena (part), Vicolo Bara sulle Mura Dell'Itria, Via Magnisi, Vicolo Cacciatore,
+Via Eroi e Martiri di Nassiriya, Cortile Due Palme, Piazza San Pio. Another surface tag (`compacted` 1.0 km, `concrete` Passaggio P.L.1, `fine_gravel` 0.2 km, all unnamed or a passage): stone.
+
+Corso Vittorio Emanuele (named Via Vittorio Emanuele in OSM between the Quattro Canti and the Cattedrale) is a chain of pedestrian-tagged ways: the ones with `psv=yes`,
+`lanes`, `maxspeed=50` or `sidewalk=both` are road-like asphalt, and the rest say `surface=asphalt`, so the whole stretch is asphalt. Near Porta Felice the pedestrian way
+(`motor_vehicle=permit`, `surface=asphalt`) is asphalt like its residential neighbours.
