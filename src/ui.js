@@ -312,7 +312,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     </div>`;
   mk('options', '', `<div class="pd-card">
       <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2>${rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')}</div>
-      <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}</div>
+      <div class="pd-scrollwrap">
+        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}</div>
+        <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
+        <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
+      </div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
   // credits
@@ -323,15 +327,15 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <h2 class="pd-h" data-k="menu"></h2>
       <div class="pd-stack pd-sidelist">
         <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
-        <button class="pd-btn sm" data-nav data-do="changeStart" type="button">${two('changeStart')}${CHEV}</button>
+        <button class="pd-btn sm pd-grp" data-nav data-do="changeStart" type="button">${two('changeStart')}${CHEV}</button>
         <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
-        <button class="pd-btn sm" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}${CHEV}</button>
+        <button class="pd-btn sm pd-grp" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
         <div class="pd-sideradio">
           <button class="pd-btn sm pd-radnext" data-nav data-do="radioNext" type="button"><span class="pd-in"><span class="pd-l1"><span data-k="radio"></span></span><span class="pd-l2 pd-radsub"></span></span></button>
           <button class="pd-segb pd-radpwr" data-nav data-do="radioPower" type="button" aria-pressed="true">${ICON_NOTE}<span>ON</span></button>
         </div>
-        <button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}${CHEV}</button>
-        <button class="pd-btn sm" data-nav data-do="quit" type="button"><span class="pd-in"><span class="pd-l1" data-k="quit"></span><span class="pd-l2 pd-quitsub" data-k="quitBusy" hidden></span></span>${CHEV}</button>
+        <button class="pd-btn sm pd-grp pd-quit" data-nav data-do="quit" type="button"><span class="pd-in"><span class="pd-l1" data-k="quit"></span><span class="pd-l2 pd-quitsub" data-k="quitBusy" hidden></span></span>${CHEV}</button>
       </div>
       <div class="pd-quick">
         <button class="pd-qbtn" data-nav data-do="qCam" type="button">${ICON_CAM}<span data-k="qCam"></span></button>
@@ -673,10 +677,25 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       const v = clamp(Math.round((o.min + t * (o.max - o.min)) / o.step) * o.step, o.min, o.max);
       setOpt(o.key, +v.toFixed(2), false);
     };
-    let drag = false;
-    sl.addEventListener('pointerdown', e => { drag = true; sl.setPointerCapture(e.pointerId); sl.focus({ preventScroll: true }); fromEvent(e); e.preventDefault(); });
-    sl.addEventListener('pointermove', e => { if (drag) fromEvent(e); });
-    const end = () => { drag = false; };
+    // Mouse and pen grab the slider at once. A finger first has to prove it is going sideways: a vertical swipe is left to the browser
+    // (the slider is touch-action: pan-y), so it scrolls the options list instead of moving the slider. A tap still sets the value.
+    let drag = false, id = -1, x0 = 0, y0 = 0, moved = false;
+    sl.addEventListener('pointerdown', e => {
+      sl.focus({ preventScroll: true });
+      if (e.pointerType !== 'touch') { drag = true; sl.setPointerCapture(e.pointerId); fromEvent(e); e.preventDefault(); return; }
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; moved = false;
+    });
+    sl.addEventListener('pointermove', e => {
+      if (drag) return fromEvent(e);
+      if (e.pointerId !== id) return;
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) { drag = true; sl.setPointerCapture(e.pointerId); fromEvent(e); }
+      else if (Math.abs(dy) > 7) id = -1; // going vertical: the list scrolls
+    });
+    const end = e => {
+      if (e.type === 'pointerup' && !drag && e.pointerId === id && now() - lastListScroll > 160) fromEvent(e); // a tap, not the end of a fling
+      drag = false; id = -1;
+    };
     sl.addEventListener('pointerup', end); sl.addEventListener('pointercancel', end);
   }
   function stepSlider(el, dir) {
@@ -684,6 +703,36 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     setOpt(o.key, +clamp(st[o.key] + dir * o.step, o.min, o.max).toFixed(2), false);
   }
   OPTS.forEach(o => { if (o.type === 'slider') sliderEvents(screens.options.querySelector(`[data-opt="${o.key}"]`), o); });
+  // The options list is a scroll area with a rail you can see and drag, a fade and a "more below" arrow while there is more.
+  let lastListScroll = 0;
+  (() => {
+    const wrap = screens.options.querySelector('.pd-scrollwrap'), list = wrap.querySelector('.pd-grid');
+    const rail = wrap.querySelector('.pd-rail'), thumb = wrap.querySelector('.pd-railthumb'), more = wrap.querySelector('.pd-more');
+    let th = 0, room = 0;
+    function sync() {
+      const max = list.scrollHeight - list.clientHeight, can = max > 2;
+      wrap.classList.toggle('can-scroll', can);
+      if (!can) return;
+      const rh = rail.clientHeight; th = Math.max(52, rh * list.clientHeight / list.scrollHeight); room = Math.max(1, rh - th);
+      thumb.style.height = th + 'px'; thumb.style.transform = `translateY(${list.scrollTop / max * room}px)`;
+      wrap.classList.toggle('more-below', list.scrollTop < max - 4); wrap.classList.toggle('more-above', list.scrollTop > 4);
+    }
+    list.addEventListener('scroll', () => { lastListScroll = now(); sync(); }, { passive: true });
+    new ResizeObserver(sync).observe(list);
+    new MutationObserver(sync).observe(screens.options, { attributes: true, attributeFilter: ['class'] }); // opening the screen
+    rail.addEventListener('wheel', e => { list.scrollTop += e.deltaY; e.preventDefault(); }, { passive: false });
+    more.addEventListener('click', () => list.scrollBy({ top: list.clientHeight * .8, behavior: 'smooth' }));
+    let grab = null;
+    rail.addEventListener('pointerdown', e => {
+      rail.setPointerCapture(e.pointerId); e.preventDefault();
+      const tr = thumb.getBoundingClientRect(), onThumb = e.clientY >= tr.top && e.clientY <= tr.bottom;
+      grab = onThumb ? e.clientY - tr.top : th / 2; // a press on the bare rail centres the handle there and keeps dragging
+      move(e);
+    });
+    const move = e => { if (grab != null) list.scrollTop = (e.clientY - rail.getBoundingClientRect().top - grab) / room * (list.scrollHeight - list.clientHeight); };
+    rail.addEventListener('pointermove', move);
+    rail.addEventListener('pointerup', () => { grab = null; }); rail.addEventListener('pointercancel', () => { grab = null; });
+  })();
 
   // ---- credits roll ----
   let assetsHTML = '', assetsLoaded = false, rollPause = 0, rollY = 0;
