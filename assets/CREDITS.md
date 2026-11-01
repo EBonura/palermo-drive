@@ -47,6 +47,12 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | PST-A lidar DTM (Regione Sicilia), rasters and point queries | Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale | http://wms.pcn.minambiente.it (WMS GetMap and GetFeatureInfo) | CC BY 4.0 | elevations decoded from the rendered layer, point queries above its 204 m clip, resampled to 10 m grids |
 | Terrarium terrain tiles (far grid outside the hills) | Mapzen / AWS Open Data (sources include SRTM) | https://registry.opendata.aws/terrain-tiles/ | open data, see the registry entry | resampled to a 100 m grid |
 
+## Building heights and extra footprints (world/, baked by `tools/tiles.py` from `tools/footprints.py`)
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Unita' Volumetriche, Carta Tecnica Comunale (2013, published 2021): eave heights and foot elevations, and the buildings OpenStreetMap lacks | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294 | CC BY 4.0 IT (https://creativecommons.org/licenses/by/4.0/deed.it) | volume polygons projected to game metres, merged into buildings, matched to OSM buildings; used where no lidar roof exists |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).
