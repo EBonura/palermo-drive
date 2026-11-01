@@ -8,9 +8,8 @@
 //   so nothing is decoded up front. Nothing is requested before the radio is switched on: a track's file is only
 //   fetched when it starts to play, and the next one starts loading in the last PRELOAD seconds of the current
 //   one (so the crossfade is instant). A slot that has faded out drops its file again.
-// - Files: the Alamia e Sperandeo tracks exist as Opus in WebM (.webm, about 48 kbps) and as HE-AAC in .m4a (about 40 kbps,
-//   for browsers that cannot play Opus in WebM, e.g. older iOS Safari); both have their index up front so playback
-//   starts while they download. Which one is used is decided once with canPlayType.
+// - Files: the Alamia e Sperandeo tracks are HE-AAC in .m4a (about 40 kbps), which every browser plays, iOS Safari included;
+//   the index is up front so playback starts while they download.
 // - Keys (in play): M = next track, N = radio on/off. The on-screen controls (next track, on/off) are in the in-game side menu (src/ui.js),
 //   which uses the API returned here: next(), toggle(), enabled, current.
 // - Settings live in game.settings (musicVolume 0..1, radio 'on'|'off') and in localStorage under
@@ -21,7 +20,7 @@
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const BASE = new URL('../assets/music/', import.meta.url).href;
 
-// file (or id: <id>.webm / <id>.m4a), title, author, licence (shown in the "now playing" toast).
+// file (or id: <id>.m4a), title, author, licence (shown in the "now playing" toast).
 // Credits for every track: assets/music/CREDITS.md.
 const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l.
   ['abbiamo-arrivato', 'Abbiamo Arrivato'],
@@ -108,13 +107,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
   let bag = [], last = -1, upcoming = null, pendingToast = null;
-  // Opus in WebM where the browser says it can (smaller), HE-AAC in .m4a otherwise. Decided on first use, no request involved.
-  let opus = null;
-  const srcOf = track => {
-    if (track.file) return BASE + track.file;
-    if (opus === null) opus = !!new Audio().canPlayType('audio/webm; codecs="opus"');
-    return BASE + track.id + (opus ? '.webm' : '.m4a');
-  };
+  const srcOf = track => BASE + (track.file || track.id + '.m4a');
 
   function buildGraph() {
     if (ctx) return;

@@ -24,8 +24,7 @@ Songs by Alamia e Sperandeo, rights holder Seamusica S.r.l. (https://www.seamusi
 permission of the rights holders. Each source URL is the track's own YouTube page on the rights holder's channel,
 as written in the comment tag of the file we received.
 
-Changes made to every track: re-encoded for the web (Opus in WebM, about 48 kbps, as `<id>.webm`, and HE-AAC in
-M4A, about 40 kbps, as `<id>.m4a`, for browsers that cannot play Opus in WebM), loudness normalised to about -17 LUFS,
+Changes made to every track: re-encoded for the web (HE-AAC in M4A, about 40 kbps, as `<id>.m4a`), loudness normalised to about -17 LUFS,
 leading silence trimmed, metadata reduced to title and artist. Nothing else was changed (no edits, no cuts).
 
 | Title (file id) | Artists | Rights holder | Permission | Source | Changes |
