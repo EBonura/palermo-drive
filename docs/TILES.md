@@ -268,3 +268,20 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
 - **Comune green** (`data/verges.json`, 2,090 polygons): in `streets_for_tile` every class is drawn as the `green` layer (grass at kerb height, the car bumps up onto it); medians and islands are cut out
   of the asphalt first, since the Comune polygons win over the road derived from the street survey (Viale della Liberta's medians are real grass strips now).
 - **Not used:** `data/tree_rows.json` (the rows are made of trees already in `trees.json`) and `data/veg_areas.json` (only its class survives, as `kd` on a tree).
+
+## Transit: buses, tram, fountains (tools/tram.py, tools/transit_bake.py, assets/traffic/bake-bus.cjs, src/trams.js)
+
+- **Buses.** `assets/traffic/bake-bus.cjs` now reads `data/bus_routes.json` (AMAT GTFS, 67 routes) instead of the OSM relations: the busiest pattern of each direction (132 patterns, shapes
+  thinned to 2 m), so the 27 routes OSM lacked run, including the 806 to Mondello (and N1 to N7, 516, 606 ...); the OSM relations stay as the fallback. Stops: all 1,594 GTFS stops plus the OSM bus
+  stops more than 8 m from one (the buses' stop list). 481 GTFS stops have no OSM stop within 40 m and become named `busstop` props in the tiles. `bus-routes.js` shrinks from 317 to 226 KB.
+- **Tram** (data/tram.json: OSM tracks, AMAT stops and timetable, 4 lines, 93 track chains, 74 stops): per tile `tram = {r rails, s stops with platform line, o poles}` and the railing in
+  `fences`. `src/trams.js` draws the rails (a ballast strip with two rails, above whatever street layer the track lies in), the platforms with glass shelters and benches, dark red catenary
+  poles (instanced) and the wire (one line mesh over every track not in the carriageway), and runs the trams: three articulated modules following the line path, as many trams per direction as the
+  headway asks for (at most five, 12 in all: L1 3.1 min, L2 to L4 about 6.5 min), slowing to every stop, 9 s there, and starting the other way at the end of the line. They are solid: the lapa
+  bounces off a module (circle test in `hooks.fall`) and a tram brakes for a car on the track within 14 m ahead.
+- **Design values, not data:** the catenary pole spacing (30 m, on the median between a pair of tracks, else 2.3 m beside the track) and the railing (1.1 m black iron railing, 1.9 m outside each
+  rail on median and roadside stretches, gaps at stops, crossings and between the two tracks): OSM and the GTFS have neither, the Mapillary photos only show the look. Tram speed 9 m/s is a game value.
+- **Fountains.** `water` props (OSM `drinking_water`, 130 nodes, which were baked but never drawn) are now a green cast-iron fontanella on the pavement; the Comune list adds the 150 entries
+  that have no OSM node within 25 m (fontane use the existing fountain model).
+- **Not done:** trams do not run on the title screen, no tram sound or bell, the platform shelters are plain, pedestrians do not board, `data/tram.json` stretches `street` (tram in the carriageway)
+  are only 0.2 km so no mixed traffic handling, trams have no headlights.

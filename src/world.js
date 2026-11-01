@@ -23,6 +23,7 @@ import { applyDistrictHeights } from './districts.js';
 import { createFarCity } from './context.js';
 import { GARDEN_REGION as GR } from './gardens.js';
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
+import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 
 const T = 500;
@@ -195,6 +196,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
     hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : carve(x, z, y); }; // + the river trenches and tunnel cuttings (src/bridges.js)
     hooks.level = levelY; hooks.fall = carTick;
+    initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
@@ -782,6 +784,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (mk) setPart(t, 'paint', mk);
     }
     t.stage = 'fences'; { const fg = yield* buildFences(t.data.fences, t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }
+    t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;
     t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
@@ -800,7 +803,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function* downgrade(t) {
     onTileDrop(t.k); emit('drop', t);
-    setPart(t, 'bldFull', null); setPart(t, 'fences', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
+    setPart(t, 'bldFull', null); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
