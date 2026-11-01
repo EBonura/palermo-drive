@@ -141,14 +141,14 @@ function decorAtlas() {
       g.beginPath(); g.moveTo(376, 28); g.lineTo(470, 28); g.lineTo(470, 56); g.lineTo(376, 70); g.closePath(); g.stroke();                                          // saw
       for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(392 + i * 16, 90); g.lineTo(392 + i * 16, 150); g.stroke(); }                                            // screwdrivers
       g.beginPath(); g.arc(70, 190, 26, 0, TAU); g.stroke(); g.beginPath(); g.arc(150, 190, 18, 0, TAU); g.stroke(); g.strokeRect(210, 166, 90, 40);                // hose coil, spool, a box
-      g.fillStyle = '#b3261e'; g.fillRect(330, 176, 160, 30); g.fillStyle = '#f6efe0'; g.font = `700 22px ${FONT}`; g.textAlign = 'center'; g.fillText('CHI PIGLIA, RIPORTA', 410, 198);
+      g.fillStyle = '#b3261e'; g.fillRect(330, 176, 160, 30); g.fillStyle = '#f6efe0'; g.font = `700 22px ${FONT}`; g.textAlign = 'center'; g.fillText('CHI PIGLIA, RIPORTA', 410, 198, 150);
       g.restore(); }
     // painted sign over the shutter
     { const [x, y, sw, sh] = ATLAS.sign; g.save(); g.translate(x, y);
       g.fillStyle = '#d6c9ac'; g.fillRect(0, 0, sw, sh);
       g.strokeStyle = '#8a2a22'; g.lineWidth = 5; g.strokeRect(8, 8, sw - 16, sh - 16); g.lineWidth = 2; g.strokeRect(16, 16, sw - 32, sh - 32);
-      g.fillStyle = '#8a2a22'; g.textAlign = 'center'; g.font = `900 58px ${FONT}`; g.fillText('OFFICINA  ZU TURIDDU', sw / 2, 72);
-      g.font = `700 26px ${FONT}`; g.fillText('GOMME  ·  FRENI  ·  FRIZIONI  ·  SI RIPARA TUTTO', sw / 2, 104);
+      g.fillStyle = '#8a2a22'; g.textAlign = 'center'; g.font = `900 58px ${FONT}`; g.fillText('OFFICINA RU ZIU TURIDDU', sw / 2, 72, sw - 48);   // the last argument squeezes the text to fit inside the border
+      g.font = `700 26px ${FONT}`; g.fillText('GOMME  ·  FRENI  ·  FRIZIONI  ·  SI RIPARA TUTTO', sw / 2, 104, sw - 48);
       for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(214,201,172,${0.5 + R() * 0.4})`; g.beginPath(); g.ellipse(R() * sw, 18 + R() * (sh - 36), 3 + R() * 8, 2 + R() * 4, R() * 3, 0, TAU); g.fill(); }   // paint flaking off
       g.restore(); }
     // calendar: a sea view, a month with most of the days crossed out
@@ -181,8 +181,8 @@ function decorAtlas() {
     // a note taped to the wall
     { const [x, y, nw, nh] = ATLAS.note; g.save(); g.translate(x, y);
       g.fillStyle = '#f2edd8'; g.fillRect(8, 6, nw - 16, nh - 12); g.fillStyle = 'rgba(200,190,150,0.8)'; g.fillRect(nw / 2 - 20, 0, 40, 14);
-      g.fillStyle = '#17131a'; g.textAlign = 'center'; g.font = `900 40px ${FONT}`; g.fillText('SI PAGA PRIMA', nw / 2, 60);
-      g.font = `32px ${HAND}`; g.fillStyle = '#b3261e'; g.fillText('il credito è morto', nw / 2, 100);
+      g.fillStyle = '#17131a'; g.textAlign = 'center'; g.font = `900 40px ${FONT}`; g.fillText('SI PAGA PRIMA', nw / 2, 60, nw - 28);
+      g.font = `32px ${HAND}`; g.fillStyle = '#b3261e'; g.fillText('il credito è morto', nw / 2, 100, nw - 28);
       g.restore(); }
   });
 }

@@ -13,7 +13,7 @@ import { buildOfficina } from './garage-officina.js';
 import { canvasTex, soft } from './garage-kit.js';
 
 export const GARAGES = [
-  { id: 'officina', name_it: 'Officina di Zu Turiddu', name_en: 'Zu Turiddu\'s workshop', unlock: () => true, build: buildOfficina },
+  { id: 'officina', name_it: 'Officina ru ziu Turiddu', name_en: 'Uncle Turiddu\'s workshop', unlock: () => true, build: buildOfficina },
   // { id: 'tamarro', name_it: 'Garage tamarro', name_en: 'Tamarro garage', unlock: g => g.ownsPart('neon', 'rosa'), build: buildTamarro },   // neon, pink and black floor, speakers
 ];
 export const availableGarages = () => GARAGES.filter(d => d.unlock(garage));
