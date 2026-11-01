@@ -132,7 +132,7 @@ pedestrians (per-tile walkable blocks, district crowd profiles), props (per-tile
 
 - bbox is now south 38.045, west 13.235, north 38.230, east 13.455 (the whole comune, 1119 tiles).
 - `areas[].k` also has `scrub, grass, rock, farm, orchard, cemetery, rail, dirt, pitch` (terrain tint only).
-- `roads[]` carry `o` (one-way 1/-1), `l`, `ms`, `j` as in bake.py, plus `cw` (real carriageway width).
+- `roads[]` carry `o` (one-way 1/-1), `l`, `ms`, `j` as in bake.py, plus `cw` (real carriageway width) and `pk` (parking lanes, two characters: left and right of the way direction; `p` parallel, `q` perpendicular, `d` diagonal, `n` none, `-` not said; from the OSM `parking:lane:*`, `parking:*`, `parking:condition:*` and the old `parking:lane` tags, `tiles.parking_lanes`; only 19 ways of Palermo carry any, 28 road records).
 - Full-detail tiles build a `paint` part (`roadMarksIter` in src/streets.js: lane lines, edge lines, zebras), skipped inside the centro AOI.
 
 ## Footprint gap filling and survey heights (done, see docs/sources/comune-ctc-buildings.md)
@@ -304,3 +304,18 @@ Only colour values derived from the Regione Siciliana SITR orthophotos (ATA 2012
 
 The near and far grids use TINITALY everywhere and pin it to the lidar and to the Comune survey's building foot elevations (hold-out error 2.9 m rms against 6.9 m before; details in docs/faithfulness/terrain.md).
 Bridge decks, tunnel floors and the river trenches follow automatically (their end heights are baked from the same ground); the Ponte Corleone valley is the real 12 m deep one.
+
+### Parked cars and the bus (board items p9 and p8)
+
+The untextured white block cars of `src/props.js` are gone. Parked cars are the traffic's own models (`assets/traffic/models.js`: panda, punto, smart, van; `buildParkedModels` is the same four with a lighter wheel hub, 364 triangles instead of 452), drawn with the traffic material
+(instance colour tints the paint only), in the traffic's colour mix. Placement (props section 6b, per tile when it reaches full detail): runs of cars nose to tail along the kerb, with now and then a gap, on both sides of the residential streets,
+avenues and secondary roads, thinner towards the outskirts and the rural zones; one side only where the carriageway is too narrow for two rows and a car passing (a gap of 2.7 m is always left). OSM parking tags (`pk`) win where
+they exist (`n` none, `q` / `d` nose-in or diagonal). Never on a bridge or in a tunnel (`br`, `tn`), within 6 m of a junction (also keeps side streets and driveways clear), within 3.2 m of a crossing (marked or not),
+within 12 m of a bus stop (OSM and the AMAT list), or within 2.7 m of a tram rail. The cars are instanced per model in 100 m cells, drawn to 110 m and cast shadows to 60 m. A garage door cannot be told from the plan, so only the junction rule protects driveways.
+
+Hit below 4 m/s of closing speed a parked car is pushed (the overlap is shared by mass); at 4 m/s and more it is launched exactly like a traffic car (`launch` / `stepFly` of `src/traffic.js` copied into `src/props.js`: same speeds, spin, bounces, chain reaction onto the next parked
+car, the driver's balloon that follows the car), then lies there and rights itself with a hop where it landed. It then stands parked again (and can be hit again). The cars the lapa moved are kept for the session by slot (tile and
+original spot, `PARKED_MOVED`), so they are still there when the tile is built again; every random draw of 6b comes from a generator seeded by tile and road, taken the same whether a slot is filled or not, which is what keeps the slots stable.
+
+Buses (`TYPES.bus` in `src/traffic.js`, mass 11): pushed like any vehicle but they barely budge (below about 14 m/s of closing speed a hit shares the overlap 11 to 1 and the lapa bounces off); above that (`yeetV`) the bus is knocked over: a short hop (0.3 of the car launch), it rocks onto its side instead of tumbling, lies 1.8 s and rights itself;
+the lapa loses half the closing speed. The bus driver shouts and the police see it, as with any yeeted vehicle.
