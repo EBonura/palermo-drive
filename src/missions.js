@@ -106,15 +106,19 @@ function build(env) {
     if (!shout || !line) return;
     talkQ.push({ at: talkClock + delay, text: Array.isArray(line) ? line[0] : line, pos });
   }
+  // a fare (phases board / ride / drop, src/event-fares.js) puts the balloons in focus: only the passenger (seatPos) speaks, one line at a time
+  const fareTalk = () => !!S.ev && (S.phase === 'board' || S.phase === 'ride' || S.phase === 'drop');
   function updateTalk(dt) {
     talkClock += dt;
-    if (!talkQ.length || talkClock - lastTalk < 0.55) return;
+    const focus = fareTalk(); shout?.focus?.(focus);
+    if (!talkQ.length || talkClock - lastTalk < (focus ? 2.2 : 0.55)) return;
     const i = talkQ.findIndex(q => q.at <= talkClock);
     if (i < 0) return;
     const q = talkQ.splice(i, 1)[0];
     if (talkClock - q.at > 5) return;
+    if (focus && q.pos !== seatPos) return;
     const p = q.pos();
-    shout(p.x, p.y, p.z, q.text);
+    shout(p.x, p.y, p.z, q.text, undefined, focus ? { pax: true } : undefined);
     lastTalk = talkClock;
   }
   const driverPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift - 0.3, z: car.z });

@@ -21,6 +21,8 @@ export const INSULTS = [
   "Mancu cu'u lignu!!",
   'Pigghialu stu nummaro i taigga',
 ];
+// Said now and then by someone the lapa sends flying, or who leaps out of its way (src/pedestrians.js). Owner's line, as written.
+export const FLEW = 'Minchia vulavu';
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
 
@@ -29,7 +31,11 @@ export function createShouts(camera) {
   layer.className = 'shouts';
   document.body.appendChild(layer);
   const live = [], v = new THREE.Vector3();
-  let last = -1, lastAt = -Infinity, clock = 0;
+  let last = -1, lastAt = -Infinity, clock = 0, focused = false;
+  // the passenger's balloon: rosanero, so it stands out from the street's insults
+  const style = document.createElement('style');
+  style.textContent = '.shout.pax { background: rgba(232,85,154,.94); color: #fff; } .shout.pax::after { border-top-color: rgba(232,85,154,.94); }';
+  document.head.appendChild(style);
 
   function pick() {
     let i;
@@ -38,19 +44,28 @@ export function createShouts(camera) {
     return INSULTS[i];
   }
 
-  function shout(x, y, z, text, follow) {
+  function shout(x, y, z, text, follow, opts) {
+    // During a fare (focus) only the passenger talks: one pink balloon at a time, everything else is dropped.
+    const pax = !!opts?.pax;
+    if (focused && !pax) return;
+    if (pax) for (let i = live.length - 1; i >= 0; i--) if (live[i].pax) { live[i].el.remove(); live.splice(i, 1); }
     // Random insults are rate-limited so a pile-up doesn't fill the screen; scripted lines (the wheelchair
     // miracle, vendors, tourists) always show.
     if (!text && clock - lastAt < COOLDOWN) return;
     if (!text) lastAt = clock;
     if (live.length >= MAX) live.shift().el.remove();
     const el = document.createElement('div');
-    el.className = 'shout';
+    el.className = pax ? 'shout pax' : 'shout';
     el.textContent = text || pick();
     el.style.setProperty('--tilt', `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     layer.appendChild(el);
-    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0 });
+    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0, pax });
   }
+  // focus(true) when a fare starts: clears the other balloons and keeps them away until focus(false)
+  shout.focus = on => {
+    on = !!on; if (on === focused) return; focused = on;
+    if (on) for (let i = live.length - 1; i >= 0; i--) if (!live[i].pax) { live[i].el.remove(); live.splice(i, 1); }
+  };
 
   function update(dt) {
     clock += dt;
