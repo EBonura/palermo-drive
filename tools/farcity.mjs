@@ -45,7 +45,7 @@ function bakeTile(d, i0, j0) {
   for (const b of d.buildings) {
     const p = b.p; let ax = 1e9, az = 1e9, bx = -1e9, bz = -1e9;
     for (let k = 0; k < p.length; k += 2) { ax = Math.min(ax, p[k]); bx = Math.max(bx, p[k]); az = Math.min(az, p[k + 1]); bz = Math.max(bz, p[k + 1]); }
-    const h = Math.max(3, b.r !== undefined && b.g !== undefined ? b.r - b.g : b.h), col = PLASTER[b.c % PLASTER.length], v = 0.92 + ((b.c >> 4) % 9) * 0.02;
+    const h = Math.max(3, b.r !== undefined && b.g !== undefined ? b.r - b.g : b.h), col0 = PLASTER[b.c % PLASTER.length], col = b.rc ? col0.map((c, i) => Math.round(0.5 * c + 0.5 * parseInt(b.rc.slice(2 * i, 2 * i + 2), 16))) : col0, v = 0.92 + ((b.c >> 4) % 9) * 0.02;
     for (let sz = Math.floor((az - z0) / step); sz <= Math.floor((bz - z0) / step); sz++) {
       const z = z0 + (sz + 0.5) * step, cz = Math.floor(sz / SUB); if (cz < 0 || cz >= N) continue;
       for (let sx = Math.floor((ax - x0) / step); sx <= Math.floor((bx - x0) / step); sx++) {

@@ -188,6 +188,7 @@ function tilesPaint(g, r, base) {
   for (let i = 0; i < 6; i++) streak(g, r() * T, r() * T, 70, 14, .15);
 }
 layer('tiles', (g, r) => tilesPaint(g, r, ['#b5623f', '#c06c45', '#a95a3a', '#b9663f', '#c4784f']));
+const RC = new THREE.Color(), ROOF_BASE_FLAT = new THREE.Color('#d3ccbf'), ROOF_BASE_TILE = new THREE.Color('#7d7f80');   // roof tints: the photo colour over the base colour of the roof texture
 layer('tiles_grey', (g, r) => tilesPaint(g, r, ['#7d7f80', '#85878a', '#74777a', '#8a8b88']));
 layer('rail_a', g => { // plain iron verticals on a transparent tile
   g.clearRect(0, 0, T, T); g.fillStyle = '#26262c';
@@ -1284,8 +1285,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const N = outerPts.length;
       for (let i = 0; i < N; i++) {
         const a = outerPts[i], b = outerPts[(i + 1) % N], ra = RP(a), rb = RP(b);
-        gbuf.tUp(Eave(a), Eave(b), Rid(b, rb), lay, B.roofCol);
-        if (Math.hypot(ra[0] - rb[0], ra[1] - rb[1]) > 0.05) gbuf.tUp(Eave(a), Rid(b, rb), Rid(a, ra), lay, B.roofCol);
+        gbuf.tUp(Eave(a), Eave(b), Rid(b, rb), lay, B.roofColP || B.roofCol);
+        if (Math.hypot(ra[0] - rb[0], ra[1] - rb[1]) > 0.05) gbuf.tUp(Eave(a), Rid(b, rb), Rid(a, ra), lay, B.roofColP || B.roofCol);
       }
     }
     return yTop;
@@ -1362,6 +1363,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       if (S.ind) { B.terrLay = LID.roof_metal; B.pitchLay = LID.roof_metal; } else if (S.ruin) B.terrLay = LID.rubble; else if (Z.beach) { B.terrLay = LID.deck; B.pitchLay = LID.deck; }
       const flatTint = 0.88 + 0.2 * r();
       B.roofCol = new THREE.Color(flatTint, flatTint * 0.97, flatTint * 0.92);
+      if (b.rc && !S.ind && !S.ruin && !Z.beach && key !== 'church') { // the roof colour of the 2012-13 orthophoto (derived colour only): grey and dusty tan, not terracotta
+        RC.set('#' + b.rc);
+        const tint = (c0, base) => new THREE.Color(Math.min(1.8, Math.max(0.35, c0.r / base.r)), Math.min(1.8, Math.max(0.35, c0.g / base.g)), Math.min(1.8, Math.max(0.35, c0.b / base.b)));
+        B.terrLay = LID.terrace; B.pitchLay = LID.tiles_grey;
+        B.roofCol = tint(RC, ROOF_BASE_FLAT).multiplyScalar(0.97 + 0.06 * r()); B.roofColP = tint(RC, ROOF_BASE_TILE).multiplyScalar(0.97 + 0.06 * r());
+      }
       let stackY;
       const ni0 = BDBG ? B.ch.m.ni + B.ch.r.ni : 0;
       for (const [flat, holes, roofY, stacked] of solids) {

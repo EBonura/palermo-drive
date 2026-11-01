@@ -72,6 +72,7 @@ compact binary format) and publishes it to GitHub Pages.
 - Green areas (medians, islands, flowerbeds): Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0.
 - Bus and tram routes, stops and timetables: AMAT Palermo S.p.A. open data, GTFS feed published by the Comune di Palermo (opendata.comune.palermo.it), CC BY 4.0. Tram line geometry follows OpenStreetMap (ODbL), as in the feed itself.
 - Public drinking fountains: Comune di Palermo open data, "Dataset della dislocazione delle fontanelle per acqua potabile (AMAP)", data supplied by AMAP S.p.A., CC BY 4.0.
+- Roof and ground colours derived from the Regione Siciliana SITR Ortofoto ATA 2012-2013 (Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica), CC BY 4.0. Colours were extracted and rebalanced; no imagery is included.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks; Terrorage (used with permission) plays outside the Krust pub. Full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.

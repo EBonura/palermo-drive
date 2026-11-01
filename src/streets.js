@@ -125,8 +125,9 @@ function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
     else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     return;
   }
-  for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, col, p.x / m, p.y / m);
+  for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
 }
+let TINT = null;   // opts.tint(layer) -> (x, z) -> THREE.Color: the colours of the orthophotos relative to the layer's own texture (tile.gt, src/world.js)
 export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, green: CURB + 0.01 };
 // World tiles are seen from far away: pull each layer towards the camera in depth so 0.15 m of lift doesn't z-fight at 1 km.
 const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], green: [-5, -5] };
@@ -158,6 +159,7 @@ export function* streetsIter(streets, group, opts = {}) {
     if (!polys || !polys.length) continue;
     const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
     const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map();
+    TINT = opts.tint ? opts.tint(layer) : null;
     for (const poly of polys) {
       // one mesh per chunk (opts.chunk metres, default 250; 0 = a single mesh, as the streamed world tiles want) so frustum culling helps
       const ck = chunk ? Math.floor(poly[0][0] / chunk) * 100003 + Math.floor(poly[0][1] / chunk) : 0;
@@ -184,6 +186,7 @@ export function* streetsIter(streets, group, opts = {}) {
     }
     yield;
   }
+  TINT = null;
   // Curbs: the road is on the left of each line. Vertical face plus a stone top strip.
   if (opts.curbs !== false && streets.curbs && streets.curbs.length) {
     const curb = new Buf(), stone = new THREE.Color('#d6d1cb'), TOP = 0.28;
