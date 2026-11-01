@@ -13,11 +13,9 @@
 // to say it took care of it, else the page reloads). A window event 'pd-drowned' ({ x, z }) tells missions to fail the run.
 import * as THREE from 'three';
 const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
-import { QUALITY } from './mobile.js';
 import { pairs, rng } from './core.js';
 
 const SEA_Y = -0.2;
-const MOBILE = !!QUALITY.mobile;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
@@ -166,7 +164,7 @@ function makeWaterTexture(S) {
   }
   const t = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
-  t.generateMipmaps = true; t.anisotropy = MOBILE ? 2 : 8; t.needsUpdate = true;
+  t.generateMipmaps = true; t.anisotropy = 4; t.needsUpdate = true;
   return t;
 }
 
@@ -452,11 +450,11 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   const stats = { initMs: 0, setupMs: 0, coarseMs: 0, winBuilds: 0, winMs: 0, winLastMs: 0, items: 0 };
 
   // Distance fields, all in metres from the shore (+ water, - land):
-  //  - coarse: the whole bbox of the city at 24 m (32 m on phones), built once from the manifest coastline (src/world.js, manifest.land + islands);
-  //  - fine: a 1.6 km window (1.2 km on phones) at 2 m (3 m) that follows the camera, rebuilt in slices of a few ms when the camera
+  //  - coarse: the whole bbox of the city at 32 m, built once from the manifest coastline (src/world.js, manifest.land + islands);
+  //  - fine: a 1.2 km window at 3 m that follows the camera, rebuilt in slices of a few ms when the camera
   //    leaves its middle. It also holds the quays, pontoons and piers of the tiles that have streamed in (harvested per tile below).
   // Until the manifest is in nothing is built and the water stays hidden; the first coarse field takes a few frames.
-  const CK = MOBILE ? 1 / 32 : 1 / 24, WK = MOBILE ? 1 / 3 : 1 / 2, WSIZE = MOBILE ? 1200 : 1600, WW = Math.round(WSIZE * WK);
+  const CK = 1 / 32, WK = 1 / 3, WSIZE = 1200, WW = Math.round(WSIZE * WK);
   const dummy = halfTexture(new Float32Array([1000]), 1, 1);
   let coarse = null, front = null, ready = false, world = null, landFlat = null, islandsFlat = [];
   const extras = new Map();   // tile key -> shore items harvested when the tile reached full detail
@@ -486,7 +484,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }]);
   const waterMat = new THREE.ShaderMaterial({
     uniforms, vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, fog: true, transparent: true, depthWrite: true,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -8, defines: MOBILE ? { LOW: 1 } : {},
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -8, defines: { LOW: 1 },
   });
   const water = new THREE.Mesh(makeDisc(), waterMat);
   water.position.y = SEA_Y; water.frustumCulled = false; water.renderOrder = -10; water.visible = false;

@@ -5,7 +5,6 @@
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
 import { zoneAt } from './districts.js';
-import { QUALITY } from './mobile.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -1436,17 +1435,16 @@ function* generate(S, BUD) {
             binGap = R(110, 260);
             const side = rand() < 0.5 ? 1 : -1, nx = rx * side, nz = rz * side, e = march(cx, cz, nx, nz, 9, road);
             if (e > 2.6) {
-              const nb = 1 + Math.floor(rand() * 3), d = e - 0.72;
+              const nb = 1 + Math.floor(rand() * 3), d = e + 0.85;   // past the kerb, on the pavement
               let ok = 0;
               for (let q = 0; q < nb; q++) {
                 const x = cx + nx * d + tx * q * 1.35, z = cz + nz * d + tz * q * 1.35;
-                if (!road(x + nx * 0.5, z + nz * 0.5) && !raisedMask(x + nx * 0.5, z + nz * 0.5)) { }
-                if (!wallClear(x, z, 0.7) || occHit(x, z, 0.8) || !road(x - nx * 0.7, z - nz * 0.7) && false) continue;
+                if (road(x, z) || !raisedMask(x, z) || !wallClear(x, z, 0.7) || occHit(x, z, 0.8)) continue;   // only where there is pavement room
                 const over = hash3(x * 0.7, z * 0.7, 3) < 0.18 + 0.5 * squalor(x, z) * (r.k === 'primary' || r.k === 'secondary' ? 0.4 : 1);
-                put(over ? 'bin_over' : 'bin_big', x, groundY(x, z), z, Math.atan2(nx, nz) + Math.PI + R(-0.06, 0.06)); occAdd(x, z, 0.8); ok++; bins++; binSites.push([x, z, nx, nz, tx, tz, over]);
-                if (rand() < 0.3) { put('bags', x + nx * 0.2 - tx * 0.4, groundY(x, z), z + nz * 0.2 - tz * 0.4, R(0, TAU), R(0.8, 1.1)); }
+                put(over ? 'bin_over' : 'bin_big', x, gy(x, z), z, Math.atan2(nx, nz) + Math.PI + R(-0.06, 0.06)); occAdd(x, z, 0.8); ok++; bins++; binSites.push([x, z, nx, nz, tx, tz, over]);
+                if (rand() < 0.3) { put('bags', x + nx * 0.2 - tx * 0.4, gy(x, z), z + nz * 0.2 - tz * 0.4, R(0, TAU), R(0.8, 1.1)); }
               }
-              if (ok && rand() < 0.3) { const x = cx + nx * d - tx * 1.6, z = cz + nz * d - tz * 1.6; if (wallClear(x, z, 0.5) && !occHit(x, z, 0.7)) put('bags', x, groundY(x, z), z, R(0, TAU), R(0.8, 1.2)); }
+              if (ok && rand() < 0.3) { const x = cx + nx * d - tx * 1.6, z = cz + nz * d - tz * 1.6; if (wallClear(x, z, 0.5) && !occHit(x, z, 0.7)) put('bags', x, gy(x, z), z, R(0, TAU), R(0.8, 1.2)); }
             }
           }
         }
@@ -1910,7 +1908,6 @@ const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 4
   signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
-const MOBILE = !!QUALITY.mobile;
 const WHITE_IC = new THREE.Color(1, 1, 1);
 let ZEBRA_MAT = null, PANEL_MAT = null;
 const zebraMat = () => ZEBRA_MAT ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
@@ -1921,6 +1918,9 @@ const panelMat = () => {
   const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = THREE.NearestFilter;
   return PANEL_MAT = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, transparent: false, side: THREE.DoubleSide, roughness: 0.8 });
 };
+
+// One profile for every device (docs/PERF.md): prop density, draw distance factor and the per-frame build budget (ms).
+const PDEN = 0.8, PFAR = 0.85, PBUD = 3;
 
 // Turns the generated buckets into InstancedMeshes (one per model and 250 m cell) under `parent`.
 function* instantiate(res, parent, BUD) {
@@ -1941,7 +1941,7 @@ function* instantiate(res, parent, BUD) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * (MOBILE ? 0.7 : 1);
+      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * PFAR;
       meshes.push(im); meshOf[name + '|' + ckey] = im; parent.add(im); tris += per * n; total += n;
     }
     if (BUD.over()) yield;
@@ -1989,7 +1989,7 @@ export function buildProps(ctx) {
       }
       for (const r of o.data.roads) if (r.n && MARKET_OR_POOR.test(r.n)) nroads.push(r);   // their street names still make this tile's edge scruffy
     }
-    const k = t.i * 7919 + t.j * 104729, den = MOBILE ? 0.55 : 1;
+    const k = t.i * 7919 + t.j * 104729, den = PDEN;
     const st = d.streets || {};
     return {
       ctx, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
@@ -2035,7 +2035,7 @@ export function buildProps(ctx) {
   function pump(now) {
     if (now - lastPump < 2) return;
     lastPump = now;
-    BUD.t = now + (MOBILE ? 2.5 : 4);
+    BUD.t = now + PBUD;
     for (;;) {
       let best = null, bd = 1e18;
       for (const j of jobs.values()) if (j.phase < 3) { const dx = j.cx - cp.x, dz = j.cz - cp.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = j; } }

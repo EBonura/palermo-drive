@@ -1,21 +1,23 @@
 // World streaming (?world=1): the whole of Palermo and Mondello, baked by tools/tiles.py into world/manifest.json and
 // world/tiles/i_j.json (500 m tiles, same field names as PALERMO_DATA). Format and plan: docs/TILES.md.
 //
-// Rings around the camera, per tile ("lod"):
+// Rings around the camera, per tile ("lod"). One profile for every device (docs/PERF.md): only the render scale follows the screen.
 //   2  full detail  (< rFull)  terrain at 10 m, all street layers + curbs, src/buildings.js facades, wall collision, road names,
 //                              raised-ground mask for the car
 //   1  low detail   (< rLow)   terrain at 20 m, asphalt/paving/sand/water, simple extruded buildings with one plain facade texture
-//   0  nothing                 the far terrain (this file, from the manifest's coarse grid) shows through; tiles with terrain
-//                              punch a hole in it. The old context city (src/context.js) is hidden wherever tiles are loaded.
+//   0  far city                the far terrain (this file, from the manifest's coarse grid) plus the baked boxes of src/context.js
+//                              (assets/world/far.bin, no tile download) out to the fog; tiles with terrain punch a hole in the far
+//                              terrain, tiles with buildings hide their boxes. Every tile in range is always covered by one of the three.
 // Everything heavy is a generator stepped by a per-frame time budget (update()), nearest tile first, so streaming never
 // hitches; fetches are limited to a few at a time, nearest first; parsed tiles that leave the radius sit in a small LRU;
-// a hard cap on resident triangles shrinks the rings (phones). Geometry is disposed when parts go; materials are shared.
+// a budget of resident triangles decides who gets what (updateWanted): the tile under the car first, then low detail everywhere in
+// its ring, then full detail nearest first. Geometry is disposed when parts go; materials are shared.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
 import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
-import { QUALITY } from './mobile.js';
+import { createFarCity } from './context.js';
 import { GARDEN_REGION as GR } from './gardens.js';
 
 const T = 500;
@@ -24,15 +26,16 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 
 // ---------- configuration (URL overrides for tuning: rfull, rlow, tricap) ----------
 const Q = new URLSearchParams(location.search);
-const MOBILE = !!QUALITY.mobile;
 const CFG = {
-  rFull: +Q.get('rfull') || (MOBILE ? 380 : 650),
-  rLow: +Q.get('rlow') || (MOBILE ? 1300 : 2200),
+  rFull: +Q.get('rfull') || 450,
+  rLow: +Q.get('rlow') || 1400,
+  guard: 150,                             // tiles this close to the camera always get full detail (walls and the raised-ground mask only exist there)
   hyst: 120,
-  triCap: +Q.get('tricap') || (MOBILE ? 650e3 : 2.8e6),
-  conc: MOBILE ? 3 : 4,
-  budgetMs: +Q.get('wbudget') || (MOBILE ? 2 : 3.5),
-  keepData: MOBILE ? 4 : 10,
+  triCap: +Q.get("tricap") || 1.2e6,
+  conc: 3,
+  budgetMs: +Q.get('wbudget') || 2,
+  keepData: 6,
+  farFog: 1.25,                           // far boxes are built out to farFog / fog density metres (the fog hides what is beyond)
   base: Q.get('worldurl') || 'world/',
 };
 
@@ -154,12 +157,12 @@ function getLowMats() {
 const PLASTER = ['#dccfb2', '#d2c2a2', '#c9b79c', '#d0b49c', '#c4a288', '#e0d5bd', '#c4ac88', '#d6c6a4', '#cfc3ab', '#d9c9a8'].map(c => new THREE.Color(c));
 const ROOFS = ['#b4aa9c', '#a69d90', '#bdb4a4', '#9d958a'].map(c => new THREE.Color(c)), TERRACOTTA = new THREE.Color('#a8654c');
 
-export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE, context }) {
+export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE }) {
   const root = new THREE.Group(); root.name = 'world'; scene.add(root);
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  let M = null, farM = () => 0, world = null, landPoly = null;
+  let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
   // Instantiated with the full-detail tile that contains (x, z), their skipIds left out of that tile's generic buildings, disposed with the tile.
@@ -186,6 +189,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
     buildFar();
+    farCity = createFarCity({ root, F: M.far, T, nk, url: new URL('assets/world/far.bin', document.baseURI).href, mat: getLowMats().roof });
+    farCity.load().then(() => { wantedTimer = 99; }); // the budget needs the far triangle counts
     // warm the facade atlas in slices while the first tiles download
     const warm = warmBuildings(); tasks.push({ t: { d: -1 }, gen: warm, wait: null, name: 'atlas' });
     wantedTimer = 99;
@@ -288,7 +293,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const estimate = (t, lod) => {
     const b = t.meta ? t.meta.b : 0;
     const have = (n, f) => t.tris[n] !== undefined ? t.tris[n] : f;
-    if (lod === 0) return 0;
+    if (lod === 0) return farCity ? farCity.tris(t.k) : 0; // the baked boxes the tile shows while it has no buildings of its own
     const low = have('terrain', 1800) + have('streets', 2500 + b * 8) + have('bldLow', b * 45);
     return lod === 1 ? low : have('terrain', 5400) + have('streets', 2500 + b * 8) + have('streetsHi', 8000 + b * 40) + have('trees', 0) + have('bldFull', b * 230);
   };
@@ -463,7 +468,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- surface masks: raised ground (sidewalks, grass: the car bumps up onto them) and hard ground (asphalt, paving, raised) ----------
   // 0.5 m cells, bit-packed, drawn band by band into one canvas: raised+green in the red channel, asphalt+paving+raised in green.
   // Anything not hard (park ground, dirt, hillside) is off-road for drivePlayer().
-  const RK = 2, RW = T * RK, BAND = 125;
+  const RK = 2, RW = T * RK, BAND = 50;
   let rcv = null, rg = null;
   function* buildRaised(t) {
     const st = t.data.streets, ext = poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return [lo, hi]; };
@@ -659,8 +664,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (let cx = Math.floor(x0 / BC); cx <= Math.floor(x1 / BC); cx++) for (let cz = Math.floor(z0 / BC); cz <= Math.floor(z1 / BC); cz++) { const k = cx * 100003 + cz; let l = bg.get(k); if (!l) bg.set(k, l = []); l.push(e); }
     }
     const inBld = (x, z) => { const l = bg.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false; for (const e of l) if (x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1 && inPoly(e.pts, x, z)) return true; return false; };
-    const SP = MOBILE ? 17 : 11, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-    const mats = [], cols = [], MAX = MOBILE ? 900 : 2400;
+    const SP = 14, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    const mats = [], cols = [], MAX = 1400;
     for (let gz = t.j * T; gz < (t.j + 1) * T; gz += SP) {
       for (let gx = t.i * T; gx < (t.i + 1) * T; gx += SP) {
         const x = gx + hash2(gx, gz) * SP, z = gz + hash2(gz + 7.1, gx - 3.3) * SP;
@@ -822,6 +827,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const x0 = t.i * T, z0 = t.j * T, dx = Math.max(x0 - x, 0, x - (x0 + T)), dz = Math.max(z0 - z, 0, z - (z0 + T));
     return Math.hypot(dx, dz);
   }
+  // Budget allocation. Every tile in range is always covered: the baked far boxes cost a few hundred triangles and never go away, so
+  // a tile that gets nothing better is not a hole. Order of grants: (1) tiles within `guard` of the camera get full detail whatever it
+  // costs, because wall collision and the raised-ground mask only exist there; (2) every tile of the low detail ring gets low detail,
+  // nearest first, while the budget lasts; (3) full detail goes to the nearest tiles of the full ring, nearest first, until the next one
+  // does not fit. Tiles that already have a level get 8 % of slack, so the estimate shifting as real triangle counts come in does not
+  // make them flap. The far boxes outside the list count against the budget too (the ring that is not in the list, within the fog).
   function updateWanted(fx, fz) {
     const R = Math.ceil((CFG.rLow + CFG.hyst) / T) + 1, ci = Math.floor(fx / T), cj = Math.floor(fz / T);
     const list = [];
@@ -830,21 +841,40 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const t = getTile(i, j); t.d = rectDist(fx, fz, t); list.push(t);
     }
     list.sort((a, b) => a.d - b.d);
-    const inList = new Set(list);
+    const inList = new Set(list), inKeys = new Set();
     for (const t of tiles.values()) if (!inList.has(t)) { t.want = 0; t.d = rectDist(fx, fz, t); }
+    // overview (the title flyover): only the tile under the camera gets full detail, so the budget goes to the low detail ring
+    const rFull = world.overview ? 1 : CFG.rFull, guard = world.overview ? 1 : CFG.guard;
     let est = 0;
-    // overview (the title flyover): only the tile under the camera gets full detail, so the triangle cap goes to the low detail ring
-    const rFull = world.overview ? 1 : CFG.rFull;
     for (const t of list) {
-      let w = t.d < rFull + (t.lod === 2 ? CFG.hyst : 0) ? 2 : t.d < CFG.rLow + (t.lod >= 1 ? CFG.hyst : 0) ? 1 : 0;
-      // hard cap on resident triangles: demote what does not fit (nearest tiles claim their budget first)
-      while (w > 0 && est + estimate(t, w) > CFG.triCap) w--;
-      est += estimate(t, w);
-      t.want = w;
+      inKeys.add(t.k); t.want = 0;
+      t.dw = t.d < rFull + (t.lod === 2 ? CFG.hyst : 0) ? 2 : t.d < CFG.rLow + (t.lod >= 1 ? CFG.hyst : 0) ? 1 : 0;
+      est += estimate(t, 0);
+    }
+    if (farCity) est += farCity.trisAround(fx, fz, farRadius(), inKeys);
+    for (const t of list) if (t.d < guard) { t.want = 2; est += estimate(t, 2) - estimate(t, 0); }
+    for (const t of list) {
+      if (t.dw < 1 || t.want >= 1) continue;
+      const dl = estimate(t, 1) - estimate(t, 0);
+      if (est + dl <= CFG.triCap * (t.lod >= 1 ? 1.08 : 1)) { t.want = 1; est += dl; }
+    }
+    for (const t of list) {
+      if (t.dw < 2 || t.want >= 2) continue;
+      const dl = estimate(t, 2) - estimate(t, t.want);
+      if (est + dl > CFG.triCap * (t.lod === 2 ? 1.08 : 1)) break;
+      t.want = 2; est += dl;
     }
     for (const t of tiles.values()) ensureTask(t);
+    ensureFarTask(fx, fz);
     pump();
     world.estTris = est;
+  }
+  const farRadius = () => Math.min(14000, CFG.farFog / Math.max(1e-6, scene.fog ? scene.fog.density : 0.00014));
+  // one task at a time keeps the far chunks around the camera built (src/context.js sync); it sits behind the tile work in the queue
+  function ensureFarTask(fx, fz) {
+    if (!farCity || (farTask && !farTask.done)) return;
+    farTask = { t: { d: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius()); contextDirty = true; })(), wait: null, name: 'far' };
+    tasks.push(farTask);
   }
   function ensureTask(t) {
     if (t.task || t.dead) return;
@@ -874,21 +904,15 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (tasks.some(k => k.done)) tasks = tasks.filter(k => !k.done);
   }
 
-  // ---------- context city (src/context.js): hide its chunks wherever real tiles are standing ----------
+  // ---------- far city (src/context.js): its boxes of a tile are hidden once the tile has real buildings ----------
   let contextDirty = false;
-  const ctxMeshes = [];
-  if (context) context.traverse(o => {
-    if (!o.isMesh) return;
-    o.geometry.computeBoundingBox();
-    const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());
-    ctxMeshes.push({ o, x: c.x, z: c.z });
-  });
+  const farHidden = new Set();
   function refreshContext() {
     contextDirty = false;
-    for (const m of ctxMeshes) {
-      const t = tiles.get(nk(Math.floor(m.x / T), Math.floor(m.z / T)));
-      m.o.visible = !(t && (t.parts.bldLow || t.parts.bldFull));
-    }
+    if (!farCity) return;
+    farHidden.clear();
+    for (const t of tiles.values()) if (t.parts.bldLow || t.parts.bldFull) farHidden.add(t.k);
+    farCity.hide(farHidden);
   }
 
   // ---------- public ----------
@@ -897,6 +921,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     manifest: null,
     estTris: 0,
     overview: false, // set by main.js while the title is up: see updateWanted
+    get farCity() { return farCity; },
     raised,
     drivePlayer,
     // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.
@@ -941,7 +966,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       return { tiles: tiles.size, lod0: by[0], lod1: by[1], lod2: by[2], tris, estTris: world.estTris, queued: tasks.length, pending: pending.length, inflight, cache: cache.size,
         walls: wallGrid.m.size, roadVerts: roadVerts.length, ...stat, avgWork: stat.workSum / Math.max(1, stat.frames), kbFetched: Math.round(stat.bytes / 1024),
         heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
-        drawCalls: renderer.info.render.calls, rendTris: renderer.info.render.triangles };
+        drawCalls: renderer.info.render.calls, rendTris: renderer.info.render.triangles, far: farCity ? farCity.stats() : null };
     },
     resetStats() { stat.frames = 0; stat.workSum = 0; stat.workMax = 0; stat.hitches = 0; },
     tiles, cfg: CFG,

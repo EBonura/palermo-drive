@@ -1,32 +1,19 @@
 // A local-colour event that changes the player's vehicle. Owned by the driving work; created by src/vehicle.js, updated from its updateVisual().
 //
-//  THE ZEN GAG. Drive into the ZEN (San Filippo Neri, north-west Palermo) and, a few seconds later, the screen darkens (a vignette closing in,
-//  the colour draining, the vehicle sounds muffled), goes black for a beat, and you wake up parked just outside the district, facing away,
-//  with the vehicle stripped to the bare frame and wheels (canvas, roof, doors, seats, lights, mirrors, stickers, tuning parts gone). It stays
-//  drivable. Five minutes of game time later everything is back. Purely cosmetic: garage ownership is untouched. Position based, so it only
-//  happens where the world streaming lets you drive.
+//  THE GANG BLOCK (the old ZEN gag, now played anywhere the danger level says so: src/danger.js decides when, docs/danger.md). A few seconds
+//  after a gang takes the road the screen darkens (a vignette closing in, the colour draining, the vehicle sounds muffled), goes black for a
+//  beat, and you wake up parked just outside the area, facing away, with the vehicle stripped to the bare frame and wheels (canvas, roof, doors,
+//  seats, lights, mirrors, stickers, tuning parts gone) and some of the wallet gone. It stays drivable. Five minutes of game time later
+//  everything is back. Garage ownership is untouched. Position based, so it only happens where the world streaming lets you drive.
 //
-// The night "Corse clandestine" race moved to src/races.js (the shared race system of the free-roam events). Test links: ?zenfast, ?zenfreeze=fade|black|wake.
+// The night "Corse clandestine" race moved to src/races.js (the shared race system of the free-roam events).
+// Test links: ?danger=5 (force the level), ?dangerfast (a block within seconds, fast sequence), ?dangerfreeze=fade|black|wake&dangerk=0.5.
 
-const PI = Math.PI, TAU = PI * 2;
+import { garage } from './garage.js';
+import { createDanger, dangerAt, wakeSpot, cashLoss, toast, covered } from './danger.js';
+
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const Q = new URLSearchParams(location.search);
-
-// ---------- places (metres in the game's projection: x east, z south) ----------
-// The ZEN: Via Costante Girardengo, Via Fausto Coppi, Via Rocky Marciano and Via Primo Carnera are its streets in the OSM data.
-const ZEN = [[-4260, -7720], [-3640, -7720], [-3640, -6740], [-4260, -6740]];
-const ZEN_C = [-3950, -7230];
-
-function polyDist(poly, x, z) { // distance to the outline
-  let best = Infinity;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const ax = poly[j][0], az = poly[j][1], bx = poly[i][0], bz = poly[i][1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
-    const t = l2 ? clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
-    if (d < best) best = d;
-  }
-  return best;
-}
-function inPoly(poly, x, z) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; }
 
 const CSS = `
 .vz-fade { position: fixed; inset: 0; z-index: 450; pointer-events: none; opacity: 0; --r: 120; display: flex; align-items: center; justify-content: center;
@@ -42,64 +29,59 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
   const log = (...a) => { if (Q.has('evlog')) console.warn('[ev]', ...a); };
   let gameT = 0, frozen = false;   // seconds of simulated play: every timer below runs on it, so a pause freezes everything
   const view = document.getElementById('view');
-  let evBusy = false;   // a free-roam event runs (src/missions.js): the ZEN gag waits so that an event in the ZEN stays playable
+  let evBusy = false;   // a free-roam event runs (src/missions.js): no gang blocks while it does, so an event in a bad area stays playable
   addEventListener('pd-event-busy', e => { evBusy = !!e.detail; });
+  const lang = () => (document.documentElement.lang === 'en' ? 'en' : 'it');
+  const T = (it, en) => (lang() === 'en' ? en : it);
+  const danger = createDanger({ car });
 
-  // =============================================================================================== the ZEN
+  // =============================================================================================== the gang block
   const vz = el('vz-fade', '<b>...</b>');
-  const Z = { state: 'out', t: 0, restoreAt: -1, cool: 0, wokeBalloon: false };
-  const ZEN_LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaio, pulitu pulitu!', 'Bentornato! Pi furtuna c\'è u telaio.'];
-  const ZS = Q.has('zenfast') ? 0.15 : 1, FADE = 3.2 * ZS, BLACK = 1.5 * ZS, WAKE = 2.4 * ZS, GRACE = 2.5 * ZS;   // zenfast: a test link that plays the sequence in a fraction of the time
-  const zf = Q.get('zenfreeze'), zk = +Q.get('zenk') || 0.5;   // test: freeze in state zf (fade|black|wake) once it is zk of the way through
+  const Z = { state: 'out', t: 0, restoreAt: -1, wokeBalloon: false, lv: 1 };
+  const LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaio, pulitu pulitu!', 'Bentornato! Pi furtuna c\'è u telaio.'];
+  const ZS = Q.has('dangerfast') ? +Q.get('dangerfast') || 0.15 : 1, FADE = 3.2 * ZS, BLACK = 1.5 * ZS, WAKE = 2.4 * ZS;   // dangerfast: a test link that plays the sequence in a fraction (0.15, or dangerfast=1 for the real length) of the time
+  const zf = Q.get('dangerfreeze'), zk = +Q.get('dangerk') || 0.5;   // test: freeze in state zf (fade|black|wake) once it is zk of the way through
   function zenVisual(level, dots) { // level 0 clear .. 1 black
     vz.classList.toggle('on', level > 0.002); vz.classList.toggle('dots', !!dots);
     vz.style.setProperty('--r', (120 - 150 * level).toFixed(1));
     if (view) view.style.filter = level > 0.002 ? `grayscale(${Math.min(1, level * 1.4).toFixed(2)}) brightness(${(1 - 0.45 * level).toFixed(2)})` : '';
     audio.setMuffle(level);
   }
-  function zenTeleport() {
-    // nearest road point well outside the district; wake up there, facing away from the ZEN
-    let best = null, bd = Infinity;
-    for (let i = 0; i < roadVerts.length; i++) {
-      const v = roadVerts[i], d = (v[0] - car.x) ** 2 + (v[1] - car.z) ** 2;
-      if (d < bd && !inPoly(ZEN, v[0], v[1]) && polyDist(ZEN, v[0], v[1]) > 22) { bd = d; best = v; }
-    }
-    let x, z, th;
-    if (best) { x = best[0]; z = best[1]; th = best[2]; }
-    else { // roads not loaded: a point 40 m outside the outline, straight away from the centre
-      const dx = car.x - ZEN_C[0], dz = car.z - ZEN_C[1], l = Math.hypot(dx, dz) || 1; x = car.x; z = car.z;
-      for (let k = 0; k < 400 && (inPoly(ZEN, x, z) || polyDist(ZEN, x, z) < 40); k++) { x += dx / l * 5; z += dz / l * 5; }
-      th = Math.atan2(dx, dz);
-    }
-    const ax = x - ZEN_C[0], az = z - ZEN_C[1];   // face away from the centre
-    if (Math.sin(th) * ax + Math.cos(th) * az < 0) th += PI;
+  function zenTeleport() { // wake up on a road just outside the area, facing away from it
+    const [x, z, th] = wakeSpot(roadVerts, car.x, car.z);
     api.teleport(x, z, th);
   }
   function zenUpdate(dt) {
     if (car.type === 'sulky') return;
     if (zf && Z.state === zf && Z.t >= zk * ({ fade: FADE, black: BLACK, wake: WAKE }[zf])) { frozen = true; return; }
-    Z.cool = Math.max(0, Z.cool - dt);
     switch (Z.state) {
       case 'out':
-        if (Z.cool <= 0 && !evBusy && inPoly(ZEN, car.x, car.z)) { Z.state = 'in'; Z.t = 0; log('zen in'); }
-        break;
-      case 'in':
-        if (evBusy || !inPoly(ZEN, car.x, car.z)) { Z.state = 'out'; break; }
-        if ((Z.t += dt) >= GRACE) { Z.state = 'fade'; Z.t = 0; log('zen fade'); }
+        if (danger.update(dt, evBusy)) {
+          Z.state = 'fade'; Z.t = 0; Z.lv = dangerAt(car.x, car.z); log('block fade, level', Z.lv);
+          toast(T('Ti hanno visto…', 'They\'ve spotted you…'), T('Meglio se avevi premuto sull\'acceleratore', 'You should have floored it'), true);
+        }
         break;
       case 'fade': {
+        if (evBusy || covered()) { Z.state = 'out'; zenVisual(0); break; }   // an event or a transition took over: the gang lets you go
         Z.t += dt; const k = clamp(Z.t / FADE, 0, 1); zenVisual(k * k * (3 - 2 * k));
-        if (Z.t >= FADE) { Z.state = 'black'; Z.t = 0; zenVisual(1, true); api.holdSim(true); zenTeleport(); api.setStripped(true); log('zen black, woke at', Math.round(car.x), Math.round(car.z), 'th', car.th.toFixed(2), 'inside?', inPoly(ZEN, car.x, car.z)); Z.restoreAt = gameT + 300; Z.wokeBalloon = false; }
+        if (Z.t >= FADE) {
+          Z.state = 'black'; Z.t = 0; zenVisual(1, true); api.holdSim(true);
+          Z.lost = garage.debit(cashLoss(Z.lv, garage.cash));
+          zenTeleport(); api.setStripped(true); log('block black, woke at', Math.round(car.x), Math.round(car.z), 'th', car.th.toFixed(2), 'lost', Z.lost);
+          Z.restoreAt = gameT + 300; Z.wokeBalloon = false;
+        }
         break;
       }
       case 'black':
-        if ((Z.t += dt) >= BLACK) { Z.state = 'wake'; Z.t = 0; api.holdSim(false); zenVisual(1, false); }
+        if ((Z.t += dt) >= BLACK) { Z.state = 'wake'; Z.t = 0; api.holdSim(false); zenVisual(1, false); Z.toasted = false; }
         break;
       case 'wake': {
         Z.t += dt; const k = 1 - clamp(Z.t / WAKE, 0, 1); zenVisual(k * k * (3 - 2 * k));
+        if (!Z.toasted && Z.t > WAKE * 0.45) { Z.toasted = true;   // once the screen has cleared enough to read it
+          toast(T('Ti futtieru tutti cuasi!', 'They nicked all your stuff!'), Z.lost > 0 ? T(`Ti hanno alleggerito di € ${Z.lost}`, `They lightened you by € ${Z.lost}`) : T('Per fortuna eri al verde', 'Lucky you were broke'), true); }
         if (!Z.wokeBalloon && Z.t > 1.1) { Z.wokeBalloon = true; const sn = Math.sin(car.th), cs = Math.cos(car.th); const x = car.x + cs * 3.2 + sn * 2, z = car.z - sn * 3.2 + cs * 2;
-          dispatchEvent(new CustomEvent('pd-shout', { detail: { x, y: groundY(x, z) + 1.75, z, text: ZEN_LINES[Math.floor(Math.random() * ZEN_LINES.length)] } })); }
-        if (Z.t >= WAKE) { log('zen done'); Z.state = 'out'; Z.cool = 20; zenVisual(0); }
+          dispatchEvent(new CustomEvent('pd-shout', { detail: { x, y: groundY(x, z) + 1.75, z, text: LINES[Math.floor(Math.random() * LINES.length)] } })); }
+        if (Z.t >= WAKE) { log('block done'); Z.state = 'out'; zenVisual(0); }
         break;
       }
     }
@@ -117,6 +99,6 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
       if (frozen) return;
       zenUpdate(dt);
     },
-    state: () => ({ zen: Z.state }),
+    state: () => ({ block: Z.state, level: danger.level() }),
   };
 }

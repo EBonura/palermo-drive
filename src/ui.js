@@ -45,10 +45,11 @@ const S = {
   radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
+  physics: ['Guida (test)', 'Handling (test)'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade (sfera)', 'Arcade (sphere)'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
+  timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
@@ -189,7 +190,23 @@ function readSaved() {
 function inline(s) {
   return esc(s).replace(/`([^`]*)`/g, '$1')
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/(^|[\s(])(https?:\/\/[^\s,)<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, (m, pre, u) => {
+      let tail = '';   // keep brackets and commas that belong to the address (Commons file names), give back what closes the sentence
+      while (/[),.;:]$/.test(u) && (!u.endsWith(')') || (u.match(/\(/g) || []).length < (u.match(/\)/g) || []).length)) { tail = u.slice(-1) + tail; u = u.slice(0, -1); }
+      return `${pre}<a href="${u}" target="_blank" rel="noopener">${urlLabel(u)}</a>${tail}`;
+    });
+}
+// credits are for players: drop file paths from row titles and headings ("facades/photo/riso.jpg (Palazzo Riso)" -> "Palazzo Riso")
+const creditName = s => s.replace(/^`?[\w./-]+\.(jpg|png|webp|mp3|wav|ogg|glb|js)`?\s*\((.+)\)$/i, '$2');
+const creditHead = s => s.replace(/\s*\([^)]*[/.][^)]*\)\s*$/, '');
+// a bare URL as readable text: decoded, no scheme, Commons files by name, long paths shortened (the link keeps the full address)
+function urlLabel(u) {
+  let s = u.replace(/&amp;/g, '&'); try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
+  s = s.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  const f = s.match(/^commons\.wikimedia\.org\/wiki\/File:(.+)$/);
+  if (f) s = 'Wikimedia Commons: ' + f[1].replace(/_/g, ' ');
+  else if (s.length > 48) s = s.slice(0, 46) + '…';
+  return s.replace(/[<>"]/g, '');
 }
 function creditsMarkdown(md) {
   const out = []; let head = null;
@@ -202,12 +219,12 @@ function creditsMarkdown(md) {
       const find = re => head.findIndex(x => re.test(x));
       const [iA, iL, iS, iC] = [find(/author/i), find(/licen/i), find(/source/i), find(/change/i)];
       const who = [iA, iL].filter(i => i > 0).map(i => cells[i]).filter(Boolean).join(' · ');
-      out.push(`<p><b>${inline(cells[0])}</b>${inline(who)}${iS > 0 ? `<small>${inline(cells[iS])}</small>` : ''}${iC > 0 && cells[iC] && !/^none$/i.test(cells[iC]) ? `<small>${inline(cells[iC])}</small>` : ''}</p>`);
+      out.push(`<p><b>${inline(creditName(cells[0]))}</b>${inline(who)}${iS > 0 ? `<small>${inline(cells[iS])}</small>` : ''}${iC > 0 && cells[iC] && !/^none$/i.test(cells[iC]) ? `<small>${inline(cells[iC])}</small>` : ''}</p>`);
       continue;
     }
     head = null;
-    if (!line || /^# /.test(line)) continue;
-    if (/^##+ /.test(line)) out.push(`<h3 style="font-size:.8em;margin-top:3vh">${inline(line.replace(/^#+ /, ''))}</h3>`);
+    if (!line || /^# /.test(line) || /^<!--.*-->$/.test(line)) continue;   // markers left by tools/facade_photos.py
+    if (/^##+ /.test(line)) out.push(`<h3 style="font-size:.8em;margin-top:3vh">${inline(creditHead(line.replace(/^#+ /, '')))}</h3>`);
     else out.push(`<p>${inline(line.replace(/^[-*] /, ''))}</p>`);
   }
   return out.join('');
@@ -230,8 +247,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
-  st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'afternoon'); // day/night clock (src/daynight.js reads these)
+  st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
+  // handling test: classic or sphere physics (src/vehicle.js); a ?physics= link wins over the saved choice
+  st.physics = params.has('physics') ? (params.get('physics') === 'sphere' ? 'sphere' : 'classic') : ['classic', 'sphere'].includes(saved.physics) ? saved.physics : 'classic';
+  vehicle?.setPhysics?.(st.physics);
   let livery = typeof saved.livery === 'string' ? saved.livery : null;
   let lang = ['it', 'en'].includes(params.get('lang')) ? params.get('lang') : ['it', 'en'].includes(saved.lang) ? saved.lang : 'it';
   const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang, livery })); } catch (e) { /* storage unavailable: fine */ } };
@@ -276,7 +296,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
+    { key: 'physics', label: 'physics', type: 'seg', vals: [['classic', 'phClassic'], ['sphere', 'phSphere']] },
     { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
+    { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Italiano'], ['en', null, 'English']] };
@@ -387,7 +409,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     game.noRender = false; // the start map is opaque: main.js skips drawing the world under it
     syncState();
     if (name) {
-      if (name === 'options') syncOptions();
+      if (name === 'options') { if (game.time) st.timeNow = Math.round(game.time.hour * 2) / 2 % 24; syncOptions(); } // the time slider opens on the current game time
       if (name === 'start') openStart();
       if (name === 'side') syncSide();
       if (name === 'collections') renderCollections();
@@ -403,8 +425,16 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   // The camera behind the screens: the flyover on the title, the garage's turntable (also from the side menu), the normal chase camera otherwise.
   function setCam(name) {
-    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : flyCam;
-    else if (game.state === 'pause') { if (name === 'garage') game.titleCam = garageCam; else if (game.titleCam) { game.titleCam = null; leaveTitleCam(); } }
+    const fromGarage = cur === 'garage' && name !== 'garage';   // the turntable eases back out to the flyover or the chase camera
+    if (game.state === 'title') { if (name === 'garage') game.titleCam = garageCam; else if (fromGarage) easeOut((c, sec) => flyCam(c, sec), flyCam); else game.titleCam = flyCam; }
+    else if (game.state === 'pause') {
+      if (name === 'garage') game.titleCam = garageCam;
+      else if (fromGarage) easeOut((c, sec, dt) => vehicle.updateCamera(dt), null);
+      else if (game.titleCam) { game.titleCam = null; leaveTitleCam(); }
+    }
+  }
+  function easeOut(next, after) {
+    game.titleCam = (cam, sec) => { if (garageUI.camOut(cam, sec, next)) { game.titleCam = after; if (!after) leaveTitleCam(); } };
   }
 
   // ---- title flyover ----
@@ -480,6 +510,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function closePause() {
     if (game.state !== 'pause') return;
     game.resume(); go(null); gesture();
+    if (game.titleCam) { game.titleCam = null; leaveTitleCam(); }   // the garage camera may still be easing out
   }
   // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
@@ -609,7 +640,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (key === 'volume') vehicle?.setVolume?.(value);
       if (key === 'camera' && game.state !== 'title') vehicle.camState.mode = value;
       if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again
-      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'timeNow') dispatchEvent(new CustomEvent('pd-time-hour', { detail: value }));
+      if (key === 'physics') vehicle?.setPhysics?.(value);
+      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'physics') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }

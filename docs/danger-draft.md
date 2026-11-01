@@ -1,3 +1,5 @@
+> **Superseded by [danger.md](danger.md).** This was the draft the final levels started from; the owner's calls are in danger.md and the game reads src/danger-data.js.
+
 # Danger level draft per game area
 
 Draft for the owner to review and adjust by hand. Nothing is built from it yet. Level 5 means the area is the most likely to be blocked by gangs in the game (and has the fewest police), level 1 the least. The "Your level" column is empty on purpose: fill it in, and the draft level only matters where you leave it alone.
