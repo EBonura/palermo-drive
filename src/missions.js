@@ -25,6 +25,7 @@ import { createCalls, KIND_COLOR } from './event-calls.js';
 import { createFares } from './event-fares.js';
 import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
+import { createPubs } from './pubs.js';
 import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { transition } from './transition.js';
@@ -481,9 +482,9 @@ function build(env) {
   }
 
   // ------------------------------------------------------------------------------------ events
-  const prog = { fares: 0, food: {}, races: {}, earned: 0 };
-  try { const p = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'); if (p && typeof p === 'object') { if (Number.isFinite(p.fares)) prog.fares = p.fares; if (p.food && typeof p.food === 'object') prog.food = p.food; if (p.races && typeof p.races === 'object') prog.races = p.races; } } catch (e) { /* storage unavailable */ }
-  const saveProg = () => { try { localStorage.setItem(PROG_KEY, JSON.stringify({ fares: prog.fares, food: prog.food, races: prog.races })); } catch (e) { /* ignore */ } };
+  const prog = { fares: 0, food: {}, races: {}, pubs: {}, earned: 0 };
+  try { const p = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'); if (p && typeof p === 'object') { if (Number.isFinite(p.fares)) prog.fares = p.fares; if (p.food && typeof p.food === 'object') prog.food = p.food; if (p.races && typeof p.races === 'object') prog.races = p.races; if (p.pubs && typeof p.pubs === 'object') prog.pubs = p.pubs; } } catch (e) { /* storage unavailable */ }
+  const saveProg = () => { try { localStorage.setItem(PROG_KEY, JSON.stringify({ fares: prog.fares, food: prog.food, races: prog.races, pubs: prog.pubs })); } catch (e) { /* ignore */ } };
   let session = 0;
   const S = { ev: null, phase: 'off', t: 0 };
   const speed = () => Math.hypot(car.vx, car.vz);
@@ -511,8 +512,10 @@ function build(env) {
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
   // the shell asks for the pins in the language it shows
-  const events = () => slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) }));
-  const progress = () => ({ food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
+  let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
+  const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) })),
+    ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
+  const progress = () => ({ pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
 
   const X = {
     scene, camera, car, vehicle, pedestrians, traffic, params, world: env.world, groundAt, T, lang, now, isNight, hud, eur, speed, say, driverPos, seatPos, seatFn, toast,
@@ -529,6 +532,7 @@ function build(env) {
   const calls = X.calls = createCalls(X);
   calls.setSlots(slots);
   const fares = createFares(X), food = createFood(X), races = createRaces(X);
+  pubs = createPubs(X, { game });
   races.buildSlots(slots.filter(s => s.kind === 'race'));
   for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
 
@@ -540,13 +544,15 @@ function build(env) {
     talkQ.length = 0;
     if (slot.kind === 'fare' || slot.kind === 'urgent') fares.start(slot);
     else if (slot.kind === 'food') food.start(slot);
+    else if (slot.kind === 'pub') pubs.start(slot);
     else races.start(slot);
   }
   function endEvent(ok, aborted) {
     const ev = S.ev; if (!ev) return;
-    fares.stop(); food.stop();
+    fares.stop(); food.stop(); pubs.stop();
     if (aborted && ev.slot.kind === 'race') races.stop();
     if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
+    if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
     ev.slot.coolUntil = now() + (ok ? (ev.slot.kind === 'race' ? 12 : 150) : 40);
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: false }));
     calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); destBeacon.show(false);
@@ -602,16 +608,17 @@ function build(env) {
   function update(dt) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt; hudUsed = false; aim.on = false;
-    if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
+    if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
     updateVendors(dt); updatePoll(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
-    const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle);
+    const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
     if (idle) {
-      if (evSlot && evSlot.testReady && S.t > evSlot.testReady && params.has('auto') && (evSlot.kind === 'race' || evSlot.callers.length)) { const s = evSlot; evSlot = null; startEvent(s); }
+      if (evSlot && evSlot.testReady && S.t > evSlot.testReady && params.has('auto') && (evSlot.kind === 'race' || evSlot.kind === 'pub' || evSlot.callers.length)) { const s = evSlot; evSlot = null; startEvent(s); }
       else if (accepted) startEvent(accepted);
       else if (raceGo) startEvent(raceGo);
-    } else { fares.update(dt); food.update(dt); }
+      else if (pubGo) startEvent(pubGo);
+    } else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); }
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
@@ -629,6 +636,6 @@ function build(env) {
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S };
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, X };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, X };
   return api;
 }

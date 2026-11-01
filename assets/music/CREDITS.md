@@ -61,3 +61,11 @@ leading silence trimmed, metadata reduced to title and artist. Nothing else was 
 | Una Storia Osè (`una-storia-ose`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | used with permission of the rights holders | https://www.youtube.com/watch?v=jgTvbsjmHNQ | re-encoded (Opus and HE-AAC), loudness normalised |
 | Via Pitrè (`via-pitre`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | used with permission of the rights holders | https://www.youtube.com/watch?v=4IKpMnQRLvY | re-encoded (Opus and HE-AAC), loudness normalised |
 | Vucciria (`vucciria`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | used with permission of the rights holders | https://www.youtube.com/watch?v=xjldjsJ5f_c | re-encoded (Opus and HE-AAC), loudness normalised |
+
+## Terrorage
+
+The house song of the Krust pub: it is not on the car radio, it only plays near the pub's door (src/pubs.js, loaded only when the lapa is close). Used with the permission of the band.
+
+| Title (file) | Artist | Permission | Changes |
+| --- | --- | --- | --- |
+| Terrorage (`terrorage.m4a`) | Terrorage | used with permission of the band | re-encoded (HE-AAC in M4A, about 40 kbps), loudness normalised to about -17 LUFS, metadata reduced to title and artist; no edits, no cuts |
