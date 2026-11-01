@@ -26,6 +26,7 @@ import { createFares } from './event-fares.js';
 import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
 import { createPubs } from './pubs.js';
+import { createAchievements } from './achievements.js';
 import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { transition } from './transition.js';
@@ -512,10 +513,11 @@ function build(env) {
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
   // the shell asks for the pins in the language it shows
+  const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
   let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
   const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) })),
     ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
-  const progress = () => ({ pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
+  const progress = () => ({ secrets: secrets.list(), pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
 
   const X = {
     scene, camera, car, vehicle, pedestrians, traffic, params, world: env.world, groundAt, T, lang, now, isNight, hud, eur, speed, say, driverPos, seatPos, seatFn, toast,
@@ -609,7 +611,7 @@ function build(env) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt; hudUsed = false; aim.on = false;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
-    updateVendors(dt); updatePoll(dt);
+    updateVendors(dt); updatePoll(dt); secrets.update(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
@@ -636,6 +638,6 @@ function build(env) {
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S };
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, X };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X };
   return api;
 }
