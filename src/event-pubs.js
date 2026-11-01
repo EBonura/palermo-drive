@@ -30,8 +30,14 @@ function itemGeo(shape) {
     P.push(col(new THREE.BoxGeometry(0.66, 0.66, 0.03).translate(0, 0.4, 0), '#2a2a30'), col(new THREE.CylinderGeometry(0.31, 0.31, 0.02, 20).rotateX(Math.PI / 2).translate(0.12, 0.46, 0.02), '#0c0c0e'), col(new THREE.CylinderGeometry(0.1, 0.1, 0.022, 14).rotateX(Math.PI / 2).translate(0.12, 0.46, 0.022), '#d94abf'));
   } else if (shape === 'keg') {   // a steel beer keg with two bands
     P.push(col(new THREE.CylinderGeometry(0.27, 0.27, 0.62, 14).translate(0, 0.31, 0), '#aeb4ba'), col(new THREE.TorusGeometry(0.27, 0.03, 6, 16).rotateX(Math.PI / 2).translate(0, 0.08, 0), '#6c7278'), col(new THREE.TorusGeometry(0.27, 0.03, 6, 16).rotateX(Math.PI / 2).translate(0, 0.54, 0), '#6c7278'), col(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8).translate(0, 0.65, 0), '#2a2a2e'));
+  } else if (shape === 'guitar') {   // an electric guitar leaning up, body and neck
+    P.push(col(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 14).scale(1, 1, 1.25).rotateX(Math.PI / 2).translate(0, 0.3, 0), '#c8312a'), col(new THREE.CylinderGeometry(0.15, 0.15, 0.085, 12).rotateX(Math.PI / 2).translate(0, 0.52, 0), '#c8312a'), col(new THREE.BoxGeometry(0.07, 0.6, 0.05).translate(0, 0.9, 0), '#7a4a22'), col(new THREE.BoxGeometry(0.1, 0.14, 0.05).translate(0, 1.26, 0), '#2a2a2e'), col(new THREE.BoxGeometry(0.12, 0.04, 0.1).translate(0, 0.32, 0.03), '#d8d4c8'));
+  } else if (shape === 'mug') {   // a glass beer mug with a foam head and a handle
+    P.push(col(new THREE.CylinderGeometry(0.17, 0.15, 0.4, 12).translate(0, 0.2, 0), '#e8a82a'), col(new THREE.CylinderGeometry(0.175, 0.175, 0.1, 12).translate(0, 0.45, 0), '#f6f2e4'), col(new THREE.TorusGeometry(0.1, 0.03, 6, 10, Math.PI).rotateZ(-Math.PI / 2).translate(0.17, 0.22, 0), '#d8dce0'));
+  } else if (shape === 'barrel') {   // half-barrel of a table: wood staves, iron hoops
+    P.push(col(new THREE.CylinderGeometry(0.34, 0.3, 0.7, 14).translate(0, 0.35, 0), '#8a5e30'), col(new THREE.CylinderGeometry(0.36, 0.36, 0.05, 14).translate(0, 0.72, 0), '#b88a50'), col(new THREE.TorusGeometry(0.32, 0.025, 6, 14).rotateX(Math.PI / 2).translate(0, 0.14, 0), '#3a3a3e'), col(new THREE.TorusGeometry(0.325, 0.025, 6, 14).rotateX(Math.PI / 2).translate(0, 0.56, 0), '#3a3a3e'));
   } else P.push(col(new THREE.SphereGeometry(0.4, 10, 8).translate(0, 0.5, 0), '#e0b84a'));
-  const g = mergeGeometries(P); g.translate(0, 0.62, 0); const k = shape === 'vinyl' ? 2.1 : 1.5; g.scale(k, k, k); return g;
+  const g = mergeGeometries(P); g.translate(0, 0.62, 0); const k = shape === 'vinyl' ? 2.1 : shape === 'guitar' ? 1.2 : 1.5; g.scale(k, k, k); return g;
 }
 
 export function createErrand(X) {
