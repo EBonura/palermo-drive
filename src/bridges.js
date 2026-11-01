@@ -120,7 +120,7 @@ export function registerStructs(d, key) {
   byTile.set(key, mine);
 }
 
-export const tileCarved = key => { const m = byTile.get(key); if (!m) return false; for (const id of m) { const st = S.get(id); if (st && st.carve) return true; } return false; };   // the terrain mesh of this tile needs fine cells
+export const tileCarved = key => { const m = byTile.get(key); if (!m) return 0; let r = 0; for (const id of m) { const st = S.get(id); if (st && st.carve) r = Math.max(r, st.rec.k === 't' ? 2 : 1); } return r; };   // 0 none, 1 river trench (5 m cells), 2 tunnel cutting (2.5 m cells)   // the terrain mesh of this tile needs fine cells
 
 export function unregisterStructs(key) {
   const mine = byTile.get(key); if (!mine) return;
@@ -345,7 +345,7 @@ function buildDeck(st) {
   }
   return g;
 }
-let matTun = null;
+let matTun = null, matLamp = null;
 function buildTunnel(st) {
   const r = st.rec, g = new THREE.Group(); g.name = 'struct_' + r.id;
   const p = r.p, L = st.L, step = 4, n = Math.max(2, Math.ceil(L / step) + 1), hw = r.w / 2 - 0.3, buf = new Buf(), road = new Buf(), M = TEX.asphalt.metres;
@@ -363,7 +363,7 @@ function buildTunnel(st) {
   const white = new THREE.Color(1, 1, 1), wallC = new THREE.Color('#b5b0a2'), band = new THREE.Color('#8d897d'), ceil = new THREE.Color('#7e7a70');
   for (let i = 0; i + 1 < n; i++) {
     const a = P[i], b = P[i + 1], A = (q, o, y) => [q.x + q.nx * o, y, q.z + q.nz * o];
-    quad(road, A(a, -hw, a.y + 0.01), A(b, -hw, b.y + 0.01), A(b, hw, b.y + 0.01), A(a, hw, a.y + 0.01), 0, 1, 0, white, [-hw / M, a.s / M, -hw / M, b.s / M, hw / M, b.s / M, hw / M, a.s / M]);
+    quad(road, A(a, -hw, a.y + 0.01), A(a, hw, a.y + 0.01), A(b, hw, b.y + 0.01), A(b, -hw, b.y + 0.01), 0, 1, 0, white, [-hw / M, a.s / M, hw / M, a.s / M, hw / M, b.s / M, -hw / M, b.s / M]);
     for (const sg of [1, -1]) { // lining of both sides, from the floor to the top (in the cut: up to the ground)
       const o = hw * sg, ty0 = a.top, ty1 = b.top;
       quad(buf, A(a, o, a.y), A(b, o, b.y), A(b, o, ty1), A(a, o, ty0), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
@@ -371,10 +371,31 @@ function buildTunnel(st) {
     }
     if (a.cov && b.cov) quad(buf, A(a, -hw, a.y + TUN_H), A(a, hw, a.y + TUN_H), A(b, hw, b.y + TUN_H), A(b, -hw, b.y + TUN_H), 0, -1, 0, ceil, null, 0.8);
   }
+  // portals: a frame (two piers and a lintel) where the cut becomes covered, and a row of ceiling lamps inside
+  const lamps = new Buf(), lampC = new THREE.Color('#ffe2a8');
+  for (let i = 0; i < n; i++) {
+    const q = P[i], prev = P[i - 1], next = P[i + 1];
+    for (const [edge, nb] of [[prev && !prev.cov && q.cov, 1], [next && !next.cov && q.cov, -1]]) {
+      if (!edge) continue;
+      const fx = q.tx * nb, fz = q.tz * nb;   // from the portal into the tunnel
+      const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep
+        const c = (o, y, d) => [q.x + q.nx * o - fx * d, y, q.z + q.nz * o - fz * d];
+        for (const [a2, b2, c2, d2, nx, ny, nz] of [[c(x0, y0, 0), c(x1, y0, 0), c(x1, y1, 0), c(x0, y1, 0), -fx, 0, -fz], [c(x0, y1, 0), c(x1, y1, 0), c(x1, y1, -0.9), c(x0, y1, -0.9), 0, 1, 0]]) quad(buf, a2, b2, c2, d2, nx, ny, nz, band, null, 1);
+      };
+      box(-hw - 1.0, -hw + 0.1, q.y, q.y + TUN_H + 1.1); box(hw - 0.1, hw + 1.0, q.y, q.y + TUN_H + 1.1);   // piers
+      box(-hw - 1.0, hw + 1.0, q.y + TUN_H, q.y + TUN_H + 1.1);                                              // lintel
+    }
+    if (q.cov && i % 3 === 1) for (const o of [-hw * 0.45, hw * 0.45]) {   // lamps every 12 m, two rows
+      const c = (a2, b2) => [q.x + q.nx * (o + a2) + q.tx * b2, q.y + TUN_H - 0.05, q.z + q.nz * (o + a2) + q.tz * b2];
+      quad(lamps, c(-0.25, -0.5), c(0.25, -0.5), c(0.25, 0.5), c(-0.25, 0.5), 0, -1, 0, lampC, null, 1);
+    }
+  }
+  if (!matLamp) matLamp = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   if (!matTun) matTun = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
   mats();
   const mt = buf.mesh(matTun), mr = road.mesh(matAsph); mt.castShadow = true; mt.receiveShadow = true; mr.receiveShadow = true;
   g.add(mt, mr);
+  if (lamps.p.length) g.add(lamps.mesh(matLamp));
   return g;
 }
 
