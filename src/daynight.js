@@ -14,7 +14,6 @@
 // Settings (game.settings.timeStart 'morning'|'afternoon'|'sunset'|'night', timeSpeed 'off'|'slow'|'normal'|'fast') come from the
 // Options screen; ?time=HH (also 19.5) freezes the clock for screenshots, ?timespeed=MINUTES_PER_DAY lets it run again.
 import * as THREE from 'three';
-import { QUALITY } from './mobile.js';
 import { D, groundY, proj } from './core.js';
 import { MAT } from './vehicle-art.js';
 
@@ -25,9 +24,9 @@ const { clamp, lerp } = THREE.MathUtils;
 const ss = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }; // GLSL smoothstep(e0, e1, x); e0 > e1 reverses it
 const DEG = Math.PI / 180;
 
-export const START_HOURS = { morning: 8.5, afternoon: 16.5, sunset: 18.5, night: 22.5 };
-export const DAY_MINUTES = { off: 0, slow: 48, normal: 24, fast: 8 }; // real minutes per game day
-const DEFAULT_START = 'afternoon', DEFAULT_SPEED = 'normal';
+export const START_HOURS = { morning: 7, afternoon: 16.5, sunset: 18.5, night: 22.5 };
+export const DAY_MINUTES = { off: 0, slow: 96, normal: 48, fast: 16 }; // real minutes per game day
+const DEFAULT_START = 'morning', DEFAULT_SPEED = 'normal';
 
 // ------------------------------------------------------------------------------------------------ sun and moon
 // Palermo (38.1 N), declination +5 degrees (spring/early autumn): sunrise 6:15, sunset 18:45, 60 degrees at noon.
@@ -195,7 +194,6 @@ void main() {
 // ------------------------------------------------------------------------------------------------ createDayNight
 export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle }) {
   const params = new URLSearchParams(location.search);
-  const MOBILE = QUALITY.mobile;
   const st = game.settings;
   patchSky(sky);
   const U = sky.material.uniforms;
@@ -275,6 +273,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     lastEvent = -1;
   }
 
+  addEventListener('pd-time-hour', e => { if (!forced && Number.isFinite(+e.detail)) jumpTo(+e.detail); }); // the Options time slider (src/ui.js)
   addEventListener('pd-time-set', () => { if (!forced && START_HOURS[st.timeStart] !== undefined) { seenStart = st.timeStart; jumpTo(START_HOURS[st.timeStart]); } });
 
   // ---- the sun's light
@@ -469,13 +468,13 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     MAT.lamp.emissiveIntensity = 0.55 + 3.4 * on; MAT.tail.emissiveIntensity = 0.5 + 1.1 * on;
   }
 
-  // ------------------------------------------------------------------------------------------ a handful of real lights (desktop only)
+  // ------------------------------------------------------------------------------------------ a handful of real lights
   // Two point lights ride the nearest street lamps and one spot the car's nose. Added the first time it gets dark (adding a light
-  // recompiles the materials once), never on phones or on Low quality.
+  // recompiles the materials once), never on Low quality.
   let rl = null, rlTried = false, rlAcc = 0;
   function ensureRealLights() {
     if (rlTried || !lamps || lamps.none) return; rlTried = true;
-    if (MOBILE || st.quality === 'low') return;
+    if (st.quality === 'low') return;
     const pts = [0, 1].map(() => { const l = new THREE.PointLight('#ff9a3c', 0, 38, 1.5); l.castShadow = false; scene.add(l); return { l, tx: 0, ty: 0, tz: 0, k: 0 }; });
     const spot = new THREE.SpotLight('#fff0cf', 0, 42, 0.5, 0.75, 1.5); spot.castShadow = false; scene.add(spot, spot.target);
     rl = { pts, spot };
@@ -566,7 +565,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     // environment map
     {
       const need = firstFrame || colDiff(baked.Z, P.envZ) + colDiff(baked.H, P.envH) + colDiff(baked.B, P.envB) > 0.012;
-      if (need && (firstFrame || realNow - lastBake > (MOBILE ? 1.4 : 0.55))) bakeEnv(realNow);
+      if (need && (firstFrame || realNow - lastBake > 1)) bakeEnv(realNow);
     }
 
     // sea

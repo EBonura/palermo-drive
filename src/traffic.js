@@ -73,9 +73,9 @@ const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI)
 
 export function createTraffic(env) {
   const { scene, camera, car, groundY, walls2d, closestOnSeg, D } = env;
-  const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const MAXV = COARSE ? 42 : 95;
-  const CAPS = { bus: COARSE ? 2 : 4, carrozza: COARSE ? 1 : 2, carretto: COARSE ? 0 : 1 };
+  // one profile for every device (docs/PERF.md): same traffic on desktop and phone
+  const MAXV = 60;
+  const CAPS = { bus: 3, carrozza: 2, carretto: 1 };
 
   // ---------- road graph ----------
   // Tiles stream in and out (env.world.onTile); their roads are added in time slices and the vehicles on a dropped tile go with it.
@@ -690,7 +690,7 @@ Object.assign(MODELS, buildPoliceModels());
     }
     if (stepping) {
       const t0 = performance.now();
-      if (G.stepTile(stepping, COARSE ? 1.5 : 2.5)) { if (!graphDirty) dirtyAt = time; graphDirty = true; plansDirty = true; planGen = null; stepping = null; }
+      if (G.stepTile(stepping, 2)) { if (!graphDirty) dirtyAt = time; graphDirty = true; plansDirty = true; planGen = null; stepping = null; }
       tileMs = performance.now() - t0;
     } else tileMs = 0;
     // judge the new roads once the burst of tiles is in (or after a second at the latest)

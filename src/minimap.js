@@ -9,7 +9,6 @@
 // Each frame is just a few drawImage calls of the pieces around the car (no getImageData, no per-frame tile rebuilds). A piece
 // is painted slightly before it scrolls into view (margin PRE metres). The view widens a little at speed (zoom-out).
 //
-import { QUALITY } from './mobile.js';
 
 const W = 200; // canvas size in px (the CSS size varies, see ui/mobile css)
 const T = 500; // tile size in metres (docs/TILES.md)
@@ -20,8 +19,7 @@ const EXTRA_ROADS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link',
 
 export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRoute }) {
   const mini = canvas.getContext('2d');
-  const MOBILE = !!QUALITY.mobile;
-  const RES = MOBILE ? 192 : 384, S = RES / T, CAP = MOBILE ? 14 : 24; // px per tile side, px per metre, pieces kept
+  const RES = 256, S = RES / T, CAP = 18; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
   const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0 };
 

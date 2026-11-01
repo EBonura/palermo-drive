@@ -135,14 +135,26 @@ const FOCUS = {
   stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
 };
 
+// ---- the garage camera: a turntable around the vehicle that never goes through a wall ----
+// The camera is a point on a ring around the vehicle (azimuth, radius, height), each driven by a critically damped spring so nothing can pop.
+// Walls: once per position the free distance is measured in 72 directions with the same building walls the chase camera uses (vehicle.sightClear).
+// Where a wall is near the radius shrinks and the camera rises, looking ahead along the turn so it is already there when the wall arrives. Where the
+// ring is closed by walls (a narrow street) the orbit becomes a slow sway across the largest open arc.
+const NA = 72, MAXR = 13, WALL_GAP = 0.9, SHIFT = 0.36, SHIFT_A = Math.atan(SHIFT), SHIFT_K = Math.hypot(1, SHIFT), TURN = 0.32;
+const ease = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+const newRig = () => ({ fresh: true, sec: -1, age: 0, t: 0, theta: 0, psi: 0, phi: { x: 0, v: 0 }, r: { x: 8, v: 0 }, h: { x: 3, v: 0 }, ly: { x: 0.7, v: 0 }, reach: null, reachKey: '', reachT: 0, side: 0, start: null, out: null });
+// critically damped spring: x follows goal, v is kept between frames; exact for any dt
+const spring = (s, goal, w, dt) => { const e = Math.exp(-w * dt), d = s.x - goal, t = s.v + w * d; s.x = goal + (d + t * dt) * e; s.v = (s.v - w * t * dt) * e; };
+const angTo = (from, to) => from + wrapA(to - from);
+
 export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExit, placeAt, proj }) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.append(style);
   const root = screen.querySelector('.gx-root');
   button.hidden = false;
   const Q = new URLSearchParams(location.search);   // test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon
-  let step = 1, sel = garage.type, cat = 'paint', pending = null, hv = null, popMsg = '', popT = 0, entered = false, camSec = 0, lastPtr = 'mouse', downSel = null;
+  let step = 1, sel = garage.type, cat = 'paint', pending = null, hv = null, popMsg = '', popT = 0, entered = false, lastPtr = 'mouse', downSel = null;
   const lastCat = {};
-  const cam = { a: 0, orbit: 0, d: 7, h: 2.7, ly: 0.7 };
+  const cam = newRig();
   const li = () => getLang() === 'it' ? 0 : 1;
   const tr = k => S[k][li()];
   const nm = o => li() === 0 ? o.name_it : o.name_en;
@@ -355,10 +367,130 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
   root.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { if (hv) browse(null); caption(null); } });
   garage.onChange(() => { if (entered) { paintAll(); } });   // a fare paid while the garage is open updates the wallet
 
+  // ---- the garage camera (see the notes above newRig) ----
+  const setFov = (c, f) => { if (Math.abs(c.fov - f) > 0.005) { c.fov = f; c.updateProjectionMatrix(); } };
+  const frameDt = sec => { const dt = cam.sec < 0 ? 0 : clamp(sec - cam.sec, 0, 0.1); cam.sec = sec; return dt; };
+  // free distance from the vehicle in every direction, by bisecting the line of sight over the building walls
+  function clearAlong(x, z, a) {
+    const sc = vehicle.sightClear, sx = Math.sin(a), cz = Math.cos(a);
+    let lo = 0, hi = MAXR;
+    if (!sc || sc(x, z, x + sx * hi, z + cz * hi)) return hi;
+    for (let n = 0; n < 9; n++) { const m = (lo + hi) / 2; if (sc(x, z, x + sx * m, z + cz * m)) lo = m; else hi = m; }
+    return lo;
+  }
+  function measure(x, z) {
+    const out = new Float32Array(NA);
+    for (let i = 0; i < NA; i++) out[i] = clearAlong(x, z, i / NA * Math.PI * 2);
+    return out;
+  }
+  // the largest run of directions that are open at the wanted radius (shrunk by two samples each side, so the lens keeps off the corners)
+  function openArc(reach, floor, ref) {
+    const step = Math.PI * 2 / NA, ok = i => reach[(i + NA) % NA] - WALL_GAP >= floor;
+    const e = []; let all = true;
+    for (let i = 0; i < NA; i++) { e[i] = ok(i - 2) && ok(i - 1) && ok(i) && ok(i + 1) && ok(i + 2); if (!ok(i)) all = false; }
+    if (all) return null;   // no wall in the way: a full turn
+    const here = Math.round(wrapA(ref) / step), best = { score: -1 };
+    for (let s = 0; s < NA; s++) {
+      if (!e[s] || e[(s + NA - 1) % NA]) continue;
+      let n = 0; while (n < NA && e[(s + n) % NA]) n++;
+      const mid = s + (n - 1) / 2, off = Math.abs(wrapA((mid - here) * step)) / step, inside = Math.abs(wrapA((mid - here) * step)) <= (n - 1) / 2 * step;
+      const score = n + (inside ? 40 : -off);   // stay in the arc we are in; otherwise the longest one, nearer ones first
+      if (score > best.score) { best.score = score; best.c = mid * step; best.A = (n - 1) / 2 * step; }
+    }
+    if (best.score >= 0) return best;
+    let m = 0; for (let i = 1; i < NA; i++) if (reach[i] > reach[m]) m = i;   // closed in on every side: face the way with the most room
+    return { c: m * step, A: 0, shut: true };
+  }
+  // where the camera should be this frame; springs carry it there. init: start settled on the goal (the entry blend does the travelling).
+  function rigPose(c, sec, dt, init) {
+    const car = vehicle.car, gy = groundY(car.x, car.z), k = car.kind === 'bike' ? 0.72 : car.kind === 'car' ? 1.18 : 1, kh = k < 1 ? 0.8 : 1;
+    const F = step === 2 && FOCUS[cat] ? FOCUS[cat] : { mode: 'orbit', d: 8.4, h: 3.0, ly: 0.75 };
+    const R = F.d * k * SHIFT_K, floor = R * 0.5;
+    const key = Math.round(car.x * 4) + ',' + Math.round(car.z * 4);
+    cam.age += dt;
+    if (!cam.reach || key !== cam.reachKey || sec < cam.reachT || sec - cam.reachT > (cam.age < 4 ? 0.3 : 1.5)) { cam.reach = measure(car.x, car.z); cam.reachKey = key; cam.reachT = sec; }   // often at first: the walls are still being built as the camera comes in
+    const reach = cam.reach, step1 = Math.PI * 2 / NA;
+    const ref = init && cam.start ? Math.atan2(cam.start.p.x - car.x, cam.start.p.z - car.z) : cam.phi.x;
+    const arc = openArc(reach, floor, ref);
+    // the azimuth we would like
+    let want;
+    if (F.mode === 'orbit') {
+      if (!arc) { cam.arcC = null; cam.theta = init ? ref : cam.theta + (Q.has('gfix') || cam.start ? 0 : dt * TURN); want = cam.theta; }
+      else {
+        if (init) cam.phi.x = ref;
+        if (init || cam.arcC == null || Math.abs(wrapA(arc.c - cam.arcC)) > 0.15) cam.psi = Math.asin(clamp(wrapA(cam.phi.x - arc.c) / Math.max(arc.A, 0.05), -1, 1));   // a new arc: carry on from where we are
+        else if (!Q.has('gfix') && !cam.start) cam.psi += dt * Math.min(0.5, TURN / Math.max(arc.A, 0.15));
+        want = arc.c + arc.A * Math.sin(cam.psi); cam.arcC = arc.c;
+        cam.theta = cam.phi.x;
+      }
+    } else {
+      const w0 = (F.mode === 'rear' ? car.th + Math.PI + Math.sin(sec * 0.4) * 0.45 : car.th + 1.25 + Math.sin(sec * 0.4) * 0.3) + SHIFT_A;
+      if (!arc) want = w0;
+      else {   // outside the open arc: its nearer end. Straight across from the arc's middle either end is as near, so keep the end we were at rather than flipping over the walls.
+        const d = wrapA(w0 - arc.c);
+        if (Math.abs(d) <= arc.A) want = w0;
+        else { if (Math.abs(d) < Math.PI - 0.4 || !cam.side) cam.side = Math.sign(d); want = arc.c + cam.side * arc.A; }
+      }
+      cam.theta = cam.phi.x;
+    }
+    if (init) { cam.phi.x = want; cam.phi.v = 0; cam.theta = want; }
+    else { spring(cam.phi, angTo(cam.phi.x, want), F.mode === 'orbit' ? 3 : 2.4, dt); cam.phi.v = clamp(cam.phi.v, -0.7, 0.7); }
+    // radius: the least free distance over the span about to be swept (looking ahead along the turn), inside the open arc
+    const v = cam.phi.v, lead = 2.5;
+    let behind = Math.max(0, -v) * lead, ahead = Math.max(0, v) * lead;
+    if (arc && !arc.shut) { const c0 = angTo(cam.phi.x, arc.c); if (cam.phi.x >= c0 - arc.A && cam.phi.x <= c0 + arc.A) { behind = Math.min(behind, cam.phi.x - (c0 - arc.A)); ahead = Math.min(ahead, c0 + arc.A - cam.phi.x); } }   // no looking past the end of the arc: we turn back there
+    const lo = cam.phi.x - 0.12 - behind, hi = cam.phi.x + 0.12 + ahead;
+    let free = MAXR;
+    for (let i = Math.floor(lo / step1); i <= Math.ceil(hi / step1); i++) free = Math.min(free, reach[((i % NA) + NA) % NA]);
+    const rT = Math.min(R, Math.max(free - WALL_GAP, 2.2));
+    const hT = F.h * kh + clamp((R - rT) / R, 0, 0.5) * 3.5, lyT = F.ly * (k < 1 ? 1.1 : 1);
+    if (init) { cam.r.x = rT; cam.r.v = 0; cam.h.x = hT; cam.h.v = 0; cam.ly.x = lyT; cam.ly.v = 0; }
+    else { spring(cam.r, rT, 2.5, dt); spring(cam.h, hT, 3, dt); spring(cam.ly, lyT, 3, dt); }
+    // the pose; a last check on the line to the vehicle in case a wall slipped in between measurements
+    const sc = vehicle.sightClear, phi = cam.phi.x;
+    let r = cam.r.x;
+    if (sc && !sc(car.x, car.z, car.x + Math.sin(phi) * (r + 0.3), car.z + Math.cos(phi) * (r + 0.3))) { let a = 1.5, b = r; for (let n = 0; n < 8; n++) { const m = (a + b) / 2; if (sc(car.x, car.z, car.x + Math.sin(phi) * (m + 0.3), car.z + Math.cos(phi) * (m + 0.3))) a = m; else b = m; } r = a; }
+    const px = car.x + Math.sin(phi) * r, pz = car.z + Math.cos(phi) * r, y = gy + cam.h.x + Math.sin(sec * 0.23) * 0.2;
+    // aim from the point the camera would have without the sideways shift (the vehicle sits left of centre, the panel on the right), then move to the real one
+    const a = phi - SHIFT_A, d = r / SHIFT_K;
+    setFov(c, 40);
+    c.position.set(car.x + Math.sin(a) * d, y, car.z + Math.cos(a) * d);
+    c.lookAt(car.x, gy + cam.ly.x, car.z);
+    c.position.set(px, Math.max(y, groundY(px, pz) + 1), pz);
+  }
+  // how long the ease takes: longer for a wide sweep round the vehicle, and from the flyover (far) it is a straight climb or drop
+  function plan(o, a, b) {
+    const car = vehicle.car, ax = a.x - car.x, az = a.z - car.z, bx = b.x - car.x, bz = b.z - car.z, far = Math.max(Math.hypot(ax, az), Math.hypot(bx, bz));
+    o.far = far > 30;
+    o.T = o.far ? clamp(1.4 + far / 300, 2, 3.5) : 1.2 + Math.min(Math.abs(wrapA(Math.atan2(bx, bz) - Math.atan2(ax, az))), Math.PI) * 0.5;
+  }
+  // pose a -> pose b at u (0..1). Far apart (the flyover): straight, the camera comes in over the roofs and drops last, or climbs first and leaves last.
+  // Close by (the chase camera): round the vehicle, so the path stays on the open side of the walls, with the radius held inside the free distance.
+  function mix(c, a, b, u, far, rise) {
+    const e = ease(u);
+    if (far) {
+      const sh = ease(rise ? (u - 0.3) / 0.7 : u / 0.75), sv = ease(rise ? u / 0.7 : (u - 0.3) / 0.7);
+      c.position.set(a.p.x + (b.p.x - a.p.x) * sh, a.p.y + (b.p.y - a.p.y) * sv, a.p.z + (b.p.z - a.p.z) * sh);
+    } else {
+      const car = vehicle.car, ax = a.p.x - car.x, az = a.p.z - car.z, bx = b.p.x - car.x, bz = b.p.z - car.z;
+      const ra = Math.hypot(ax, az), rb = Math.hypot(bx, bz), pa = Math.atan2(ax, az), phi = pa + wrapA(Math.atan2(bx, bz) - pa) * e;
+      let r = ra + (rb - ra) * e;
+      r += (Math.min(r, Math.max(clearAlong(car.x, car.z, phi) - WALL_GAP, 2.6)) - r) * ease(u * 5);   // held inside the free distance, gradually so the start does not jump
+      c.position.set(car.x + Math.sin(phi) * r, a.p.y + (b.p.y - a.p.y) * e, car.z + Math.cos(phi) * r);
+    }
+    if (far) {   // keep the vehicle in view on the way: look at it in mid-flight, and take up the end orientation late
+      const car = vehicle.car, q = c.quaternion.clone();
+      c.lookAt(car.x, groundY(car.x, car.z) + 0.8, car.z);
+      const look = c.quaternion.clone();
+      c.quaternion.copy(q.copy(a.q).slerp(look, ease(u * 2))).slerp(b.q, ease((u - 0.4) / 0.6));
+    } else c.quaternion.copy(a.q).slerp(b.q, e);
+    setFov(c, a.fov + (b.fov - a.fov) * e);
+  }
+
   return {
     enter() {
       entered = true; sel = Q.get('gveh') && vehicleById(Q.get('gveh')) ? vehicleById(Q.get('gveh')).id : garage.type; pending = null; hv = null; popT = 0;
-      vehicle.setShowcase(true); cam.a = vehicle.car.th + 2.4; cam.orbit = cam.a;
+      vehicle.setShowcase(true); cam.fresh = true; cam.out = null; cam.sec = -1; cam.age = 0; cam.reach = null; cam.arcC = null;
       if (Q.has('gat') && placeAt && proj) { const [la, lo] = Q.get('gat').split(',').map(Number); const [x, z] = proj(la, lo); placeAt(x, z); }   // test link: show the garage at a place
       step = 1; paintAll(); showPreview();
       if (Q.get('gstep') === '2' && garage.ownsVehicle(sel)) toStep(2);
@@ -371,39 +503,33 @@ export function setupGarageUI({ screen, button, vehicle, groundY, getLang, onExi
     // the control the shell focuses when the screen opens
     focusEl() { return step === 1 ? elM1.querySelector(`[data-gx="base:${sel}"]`) : elTabs.querySelector('[aria-pressed=true]'); },
     tick(dt) { if (popT > 0) { popT -= dt; if (popT <= 0) keep(paintHead); } },
-    // camera for the title state: a slow orbit close to the vehicle, moving in on what you are browsing
+    // camera for the title state and the side menu: a slow orbit close to the vehicle, moving in on what you are browsing. Called every frame while the
+    // garage is open; it eases in from wherever the camera was (the flyover, the chase camera).
     cam(c, sec) {
-      const dt = clamp(sec - camSec, 0, 0.1); camSec = sec;
-      if (c.fov !== 40) { c.fov = 40; c.updateProjectionMatrix(); }
-      const car = vehicle.car, gy = groundY(car.x, car.z), k = car.kind === 'bike' ? 0.72 : car.kind === 'car' ? 1.18 : 1;
-      const F = step === 2 && FOCUS[cat] ? FOCUS[cat] : { mode: 'orbit', d: 8.4, h: 3.0, ly: 0.75 };
-      if (!Q.has('gfix')) cam.orbit += dt * 0.32;   // ?gfix freezes the turn (screenshots)
-      const want = F.mode === 'rear' ? car.th + Math.PI + Math.sin(sec * 0.4) * 0.45 : F.mode === 'side' ? car.th + 1.25 + Math.sin(sec * 0.4) * 0.3 : cam.orbit;
-      // Pick a clear view: test the real camera position (after the sideways shift for the panel) with a fan of rays towards the vehicle,
-      // so no wall sits in front of the lens. Nearest clear angle to the wanted one, then a shorter lens, else the least blocked.
-      const dd = F.d * k, sc = vehicle.sightClear;
-      const blocked = (a, d) => {
-        if (!sc) return 0;
-        const sa = Math.sin(a), ca = Math.cos(a), px = car.x + sa * d + ca * 0.36 * d, pz = car.z + ca * d - sa * 0.36 * d;   // camera position
-        let n = 0;
-        if (!sc(car.x, car.z, px, pz)) n += 2;                                    // the vehicle itself is hidden
-        for (const t of [-0.5, -0.2, 0.2, 0.5]) { const tx = car.x + ca * t * d * 0.8, tz = car.z - sa * t * d * 0.8; if (!sc(px, pz, tx, tz)) n++; }   // a fan across the view
-        return n;
-      };
-      let goal = want, dist = dd, best = blocked(want, dd);
-      if (best > 0) {
-        search: for (const f of [1, 0.75, 0.55, 0.4]) for (let n = 0; n <= 12; n++) for (const sg of n ? [1, -1] : [1]) {
-          const a = want + sg * n * 0.26, b = blocked(a, dd * f) + (f < 1 ? 0.5 : 0);
-          if (b < best) { best = b; goal = a; dist = dd * f; }
-          if (best < 0.5) break search;
-        }
-      }
-      const e = 1 - Math.exp(-3 * dt);
-      cam.a += wrapA(goal - cam.a) * (F.mode === 'orbit' ? clamp(dt * 5, 0, 1) : e);
-      cam.d += (dist - cam.d) * e; cam.h += (F.h * (k < 1 ? 0.8 : 1) - cam.h) * e; cam.ly += (F.ly * (k < 1 ? 1.1 : 1) - cam.ly) * e;
-      c.position.set(car.x + Math.sin(cam.a) * cam.d, gy + cam.h + Math.sin(sec * 0.23) * 0.2, car.z + Math.cos(cam.a) * cam.d);
-      c.lookAt(car.x, gy + cam.ly, car.z);
-      c.translateX(0.36 * cam.d);   // the vehicle sits left of centre, the panel on the right
+      const dt = frameDt(sec), first = cam.fresh;
+      if (first) { cam.fresh = false; cam.start = { t: 0, p: c.position.clone(), q: c.quaternion.clone(), fov: c.fov }; }
+      rigPose(c, sec, dt, first);
+      const s0 = cam.start;
+      if (!s0) return;
+      const rig = { p: c.position.clone(), q: c.quaternion.clone(), fov: c.fov };
+      if (first) plan(s0, s0.p, rig.p);
+      s0.t += dt;
+      if (s0.t >= s0.T) cam.start = null; else mix(c, s0, rig, s0.t / s0.T, s0.far, false);
+    },
+    // the way out, while the garage is closed: the turntable keeps going and the camera eases from it to the one the next screen wants
+    // (next(c, sec, dt) writes that one). Returns true once it has arrived.
+    camOut(c, sec, next) {
+      const dt = frameDt(sec), init = cam.fresh;
+      cam.fresh = false;
+      rigPose(c, sec, dt, init);
+      const from = { p: c.position.clone(), q: c.quaternion.clone(), fov: c.fov };
+      next(c, sec, dt);
+      const to = { p: c.position.clone(), q: c.quaternion.clone(), fov: c.fov };
+      if (!cam.out) { cam.out = { t: 0 }; plan(cam.out, from.p, to.p); }
+      cam.out.t += dt;
+      if (cam.out.t >= cam.out.T) return true;
+      mix(c, from, to, cam.out.t / cam.out.T, cam.out.far, true);
+      return false;
     },
   };
 }

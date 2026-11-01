@@ -35,8 +35,7 @@ const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; el
 export function createPedestrians(env) {
   const { scene, camera, car, groundY, raisedMask, CURB, walls2d, D, world } = env;   // world: the tile streamer (src/world.js), always present
   const params = new URLSearchParams(location.search);
-  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  let quality = QUALITIES[coarse ? 'low' : 'high'];
+  let quality = QUALITIES.medium; // the default tier on every device (main.js applySettings sets it from the options)
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 420;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
@@ -369,7 +368,7 @@ export function createPedestrians(env) {
   const AMB_D = new THREE.Color(0.66, 0.68, 0.72), AMB_N = new THREE.Color(0.4, 0.43, 0.56), SUN_D = new THREE.Color(0.62, 0.5, 0.36), SUN_N = new THREE.Color(0, 0, 0);
 
   // ======================================================================== sprite rendering
-  const halfRes = params.get('pedres') ? params.get('pedres') === 'half' : coarse;   // phones: half-resolution atlas (a quarter of the texture memory), ?pedres=full|half overrides
+  const halfRes = params.get('pedres') ? params.get('pedres') === 'half' : true;   // half-resolution atlas on every device (a quarter of the texture memory: 7 MB instead of 29), ?pedres=full|half overrides
   const atlas = new THREE.CanvasTexture(buildAtlas(halfRes));
   atlas.colorSpace = THREE.SRGBColorSpace; atlas.magFilter = THREE.NearestFilter; atlas.minFilter = THREE.LinearMipmapLinearFilter; atlas.anisotropy = 1;
   const quadPos = new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), quadUv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
@@ -464,7 +463,11 @@ export function createPedestrians(env) {
   const ST = U(CAP), VAR = U(CAP), ZN = U(CAP), CLS = U(CAP), TICK = U(CAP);
   const LEAVE = F(CAP).fill(-1);                        // >= 0: fading out (a day crowd member going home at dusk, or the reverse at dawn)
   const MIR = F(CAP);                                   // team-bus miracle countdown (seconds left standing up), 0 when seated
-  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR, LEAVE];
+  const BUS = U(CAP);                                   // 1: waiting at a bus stop (moans about the bus when the lapa drives by)
+  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR, LEAVE, BUS];
+  // Supplied by the owner, born in Palermo: keep them exactly as written.
+  const BUS_LINES = ["minchia avi ru uri c'aspiattu", "quannu passò l'uittimu?"];
+  let busT = 3;
   const removeAt = i => { const l = --N.n; if (i !== l) for (const a of copyArrs) a[i] = a[l]; };
 
   // sun direction (horizontal, towards the sun) from the scene's directional light, for the "am I in a building's shade" test
@@ -518,13 +521,13 @@ export function createPedestrians(env) {
     const a = Math.random() * TAU, rmin = initial ? 8 : R * 0.45, r = Math.sqrt(rmin * rmin + Math.random() * (R * R - rmin * rmin));
     let x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
     if (!initial) { const dx = x - cx, dz = z - cz, l = hyp2(dx, dz) || 1; if ((dx * camFwdX + dz * camFwdZ) / l > 0.5 && r < R * 0.85) return false; }
-    let atIdle = false, face = 0;
+    let atIdle = false, face = 0, bus = false;
     if (Math.random() < 0.28) {               // cluster around a cafe, bench or bus stop
       const arr = idleAt(x, z);
       if (arr) {
         const it = arr[(Math.random() * arr.length) | 0], b = Math.random() * TAU, d = rand(1.2, 2.6);
         const nx = it.x + Math.cos(b) * d, nz = it.z + Math.sin(b) * d;
-        if (hyp2(nx - cx, nz - cz) < R && cell(nx, nz) === 1) { x = nx; z = nz; atIdle = true; face = Math.atan2(it.x - nx, it.z - nz) + rand(-0.6, 0.6); }
+        if (hyp2(nx - cx, nz - cz) < R && cell(nx, nz) === 1) { x = nx; z = nz; atIdle = true; bus = it.k === 'busstop'; face = Math.atan2(it.x - nx, it.z - nz) + rand(-0.6, 0.6); }
       }
     }
     const cl = cell(x, z); if (!cl) return false;
@@ -540,6 +543,7 @@ export function createPedestrians(env) {
     const zn = zoneCode(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
     if (chat) { atIdle = true; face = Math.random() * TAU; }
     addAgent(x, z, cl, zn, atIdle, face, chat ? rand(25, 90) : rand(6, 40));
+    if (bus) BUS[N.n - 1] = 1;
     if (chat) {   // a few friends around, standing in a ring and chatting
       const k = 1 + ((Math.random() * 3) | 0);
       for (let m = 0; m < k && N.n < CAP; m++) {
@@ -553,6 +557,7 @@ export function createPedestrians(env) {
   }
   function addAgent(x, z, cl, zn, atIdle, face, tmr) {
     const i = N.n++, vi = pickVariant(zn), v = VARIANTS[vi];
+    BUS[i] = 0;
     X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl; LEAVE[i] = -1; MIR[i] = 0;
     TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8, GP[zn]);
     THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = !started || jumpedNow ? 5 : 0;
@@ -736,6 +741,12 @@ export function createPedestrians(env) {
     spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
     updateScripted(dt, cam);
     cx = cam.position.x; cz = cam.position.z;
+    // someone waiting at a bus stop moans when the lapa comes by (the nearest within 20 m, now and then)
+    if (gameRef?.state === 'play' && (busT -= dt) <= 0) {
+      busT = 1.2; let best = -1, bd = 400;
+      for (let i = 0; i < N.n; i++) if (BUS[i] && ST[i] === IDLE) { const d = (X[i] - cx) ** 2 + (Z[i] - cz) ** 2; if (d < bd) { bd = d; best = i; } }
+      if (best >= 0 && Math.random() < 0.35) { busT = rand(9, 16); const id = best; env.shout?.(X[id], Y[id] + 1.9, Z[id], BUS_LINES[(Math.random() * BUS_LINES.length) | 0], () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] })); }
+    }
     cam.getWorldDirection(camQ); const fl = hyp2(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
     if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; return; }

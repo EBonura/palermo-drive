@@ -9,6 +9,7 @@
 // plays the siren and shows the rosanero HUD.
 import * as THREE from 'three';
 import { garage } from './garage.js';
+import { dangerAt } from './danger.js';
 
 const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -54,12 +55,13 @@ const BUSTED_LINES = [
 
 export function createPolice(env, T) {
   const { camera, car, walls2d, raisedMask } = env;
-  const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const MAXCOPS = COARSE ? 3 : 5;
+  const MAXCOPS = 4;
   const vs = T.vs;
   let heat = 0, unseenT = 0, seen = false, startT = 0, time = 0, tickT = 0, nextSpawn = 0, nextPatrol = 12;
   let armed = false, bustT = 0, busted = 0, grace = 0, night = false, peds = null, toastT = 0, copId = 0;
   const lastAt = {};
+  const PATROL = [1, 0.75, 0.45, 0.15, 0.03];   // chance that a calm-streets patrol check spawns a car, by danger level 1..5
+  const PF = location.search.includes('policefast') ? 0.05 : 1, stat = { rolls: 0, passes: 0, spawns: 0 };   // test link: ?policefast checks 20x as often
   const level = () => heat <= 0 ? 0 : Math.min(5, Math.ceil(heat - 1e-6));
   addEventListener('pd-time', e => { night = !!(e.detail && e.detail.isNight); });
 
@@ -294,9 +296,13 @@ export function createPolice(env, T) {
     }
     // a couple of patrol cars in the normal traffic when all is calm
     if (lv === 0 && busted <= 0 && time >= nextPatrol) {
-      nextPatrol = time + 25 + Math.random() * 30;
+      nextPatrol = time + (25 + Math.random() * 30) * PF;
       let n = 0; for (const v of vs) if (v.cop) n++;
-      if (n < (COARSE ? 1 : 2)) { const v = T.spawnCop(Math.random() < 0.5 ? 'polizia' : 'carab', 90, 200); if (v) makeCop(v, false); }
+      stat.rolls++;
+      if (Math.random() < PATROL[dangerAt(car.x, car.z) - 1]) {   // fewer patrols the more dangerous the area (src/danger.js)
+        stat.passes++;
+        if (n < 2) { const v = T.spawnCop(Math.random() < 0.5 ? 'polizia' : 'carab', 90, 200); if (v) { makeCop(v, false); stat.spawns++; } }
+      }
     }
   }
   const LB = { polizia: [0, 1.62, 0.32], carab: [0, 1.62, 0.32], apePol: [0.42, 1.78, 0.3] }; // [z, height, half width] of the light bar per model
@@ -334,9 +340,10 @@ export function createPolice(env, T) {
   // the lapa is frozen while the busted card is up (120 Hz hook from traffic.collidePlayer)
   function collide(pc) { if (busted > 0) { pc.vx = pc.vz = pc.w = pc.vf = 0; } }
 
+  if (location.search.includes('debug')) window.pdPolice = { stat, vs };   // test hook
   return {
     update, drive, chaos, collide, isCop, makeCop, engage,
-    heat: () => heat, level, isNight: () => night,
+    stat, heat: () => heat, level, isNight: () => night,
     bindPedestrians(api) { peds = api; api.onKnock?.(() => chaos('knock')); },
     setVolume(v) { au.vol = clamp(+v || 0, 0, 1); if (au.master) au.master.gain.value = au.vol * 0.16; },
   };

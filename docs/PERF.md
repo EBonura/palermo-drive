@@ -43,6 +43,65 @@ Live check on the real GitHub Pages site after the last deploy (`docs/perf/06-li
 | 4 three.js r187 (bundle grew by 40 KB gzip: r187 is bigger) | 1.91 MB | 17 | 9.8 s | 15.0 s |
 | 5 rendering and startup work, far city and photos off the critical path, webp photos | 2.15 MB total, 1.25 MB before first frame | 23 | 8.1 s | 12.7 s |
 
+## One profile for every device, and the far city (LOD pass)
+
+The owner's rule: desktop and phone show exactly the same graphics. Only the render scale follows the screen (`QUALITY.pixelRatio` in `src/mobile.js`: 1.25 on touch, 2 elsewhere, and `perf.js` still aims at 30 fps on touch and 60 on desktop). Everything else is one set of numbers, tuned on the phone test (844x390, touch, CDP CPU x4, `?fixres`) and then shared. The old per-device branches (`QUALITY.mobile`, `QUALITY.shadowMap`, `(pointer: coarse)` in the files below) are gone.
+
+| what | value (every device) | was phone / desktop | why |
+| --- | --- | --- | --- |
+| `world.js` rFull | 450 m | 380 / 650 | full detail is about 175k triangles per dense tile; 450 m keeps the 4 tiles round Quattro Canti (the worst case, the spawn) in |
+| rLow | 1400 m | 1300 / 2200 | past that the far boxes look the same at phone resolution |
+| guard | 150 m | none | tiles this close to the camera always get full detail (walls and the raised-ground mask exist only there) |
+| triCap | 1.2 M resident | 650k / 2.8 M | low tiles are cheap to draw (about 22k each, frustum culled); going from 750k to 1.3 M cost under 1 ms of main thread at x4. The expensive things are full tiles and the shadow pass |
+| conc, budgetMs, keepData | 3, 2 ms, 6 tiles | 3, 2, 4 / 4, 3.5, 10 | 2 ms and 50 row mask bands keep a x4 slowdown from stepping more than 5 ms at a time |
+| trees (pines per tile) | 14 m spacing, 1400 max | 17 m, 900 / 11 m, 2400 | |
+| props | density 0.8, draw distance x0.85, build budget 3 ms | 0.55, x0.7, 2.5 / 1, x1, 4 | 1.0 vs 0.55 was inside the noise (+90 draw calls, 90k triangles); 0.8 keeps the streets lived in |
+| shadows | 1024 map in the default tier (medium), 2048 in high, none in low | 1024 / 4096 | +3 ms of main thread and about +480k GL triangles at Quattro Canti at x4, the biggest single item. Kept: shadows are most of what makes the streets look right |
+| default tier | medium (Options still offers low / medium / high; the saved choice wins) | low / high | medium = shadows, peds 240 within 100 m, pixel ratio ceiling 1.5, the two real night lights |
+| anisotropy cap | 4 | 4 / none | `main.js` (all textures), `sea.js`, `suca.js` |
+| sea | `LOW` shader (two wave layers, no weed), coarse field 32 m, fine window 1.2 km at 3 m | LOW, 32 m, 1.2 km at 3 m / full shader, 24 m, 1.6 km at 2 m | the water covers a big share of the screen on the coast: the fragment cost is the one to keep low |
+| pedestrian atlas | half resolution (7 MB, was 29 MB) | half / full | |
+| suca atlas | 0.625 scale, budget 0.9 ms | 0.5, 0.6 / 0.75, 1.2 | |
+| minimap pieces | 256 px per tile, 18 kept | 192, 14 / 384, 24 | |
+| day/night | env map re-bake at most once a second; the real night lights follow the quality tier only (no longer "never on phones") | 1.4 s / 0.55 s | |
+
+Not touched (not my files, still branch on `(pointer: coarse)`, so they are device differences left over): `src/traffic.js` (MAXV 42 vs 95, buses/carrozze/carretti caps, graph step budget), `src/police.js` (MAXCOPS 3 vs 5), `src/gags.js` (market gags 2 vs 3, one vs two dumped peds). They change how many cars and cops you see.
+
+### The far city (`src/context.js`, `tools/farcity.mjs`, `assets/world/far.bin`)
+
+The old context city (OSM buildings of the old playable box, 1 km chunks, hidden by the tile under the chunk centre) never filled the band between the low detail ring and the horizon: it only reached about 5 km east-west, was pruned to 17k buildings, and a chunk disappeared as soon as the tile under its centre had buildings, so it also punched holes. It is replaced.
+
+- Bake: `node tools/farcity.mjs` reads `world/tiles/*.json`, applies the same district heights the game applies, rasterises footprints on a 20 m grid (a cell is built when 4 of 9 samples are inside a building), snaps heights to 11 storey classes, closes one-cell gaps, merges cells whose classes differ by at most one into rectangles, drops lone one-cell houses of one or two storeys, and keeps only the walls a neighbour does not hide. One flat colour per box (48 k-means colours of the plaster the low ring uses). Result: 82k buildings become 19,916 boxes in 604 tiles, 8.6 triangles per box, 172k triangles in all (155k within 9 km of Quattro Canti), 1.8 s to bake.
+- Download: one file, 143 KB raw, 63 KB gzip (the context data it replaces was 368 KB gzip). It is fetched after the manifest and counted as queued work, so the loading screen waits for it. It does not fetch any tile.
+- Runtime: boxes are extruded on the far terrain (same triangulation as the far mesh, 6 m skirt), 4 x 4 tiles (2 km) per mesh, so about 25 draw calls reach the horizon. The material is the low detail roof material (vertex colours, no texture), so no new shader program. Chunks are built within 1.25 / fog density (8.9 km at the default fog) of the camera in 256 box slices behind the tile work, dropped 1.5 km beyond. A tile's boxes leave the chunk's index range once the tile has low or full buildings and come back when it is released.
+- Cost per dense tile: 120 to 140 boxes, about 1,000 triangles (a low tile is about 22k, a full one about 175k). The whole layer within the fog is about 155k resident triangles, of which the frustum draws about a third.
+- To rebake after a tile rebake: `node tools/farcity.mjs`. `--stats` prints counts only; `--cell`, `--tol`, `--close`, `--minc` change the merge (cell 16 gives 30k boxes and 260k triangles).
+- `index.html` still loads `context-data.js` (2.8 MB, 368 KB gzip in the build) and `tools/build/data.mjs` still prunes it; nothing reads it any more. Removing the script tag saves that download (for the lead).
+
+### Budget allocation (`updateWanted` in `src/world.js`)
+
+Every tile in range is always covered: the far boxes cost a few hundred triangles and never go away, so a tile that gets nothing better is not a hole. Grants, in order, against `triCap` (far boxes count too): (1) tiles within `guard` of the camera get full detail whatever it costs; (2) every tile of the low detail ring gets low detail, nearest first, while the budget lasts; (3) full detail goes to the nearest tiles of the full ring, nearest first, until the next one does not fit. Tiles that already hold a level get 8 % slack so the estimate shifting as real counts arrive does not make them flap. The title (`world.overview`) still gives full detail only to the tile under the camera.
+
+At Quattro Canti, where four dense tiles meet, step 1 alone takes 700k of the 1.2 M; step 2 then gives low detail to about 15 tiles and the far boxes cover the rest. Before, the same spot on the phone profile spent all 650k on four full tiles and left the ring bare.
+
+### Measurements (same machine, same route, `?fixres`, phone = 844x390 DPR 3 touch x4 CPU, desktop = 1280x720)
+
+Route: Quattro Canti to Politeama to Via della Liberta, kinematic at 14 m/s (200 s), everything else running. "Main ms" is CDP TaskDuration per frame. Both profiles are vsync bound at 16.7 ms on this Mac, so frame time says little; main ms and triangles are the numbers to read.
+
+| | desktop before | desktop after | phone before | phone after |
+| --- | --- | --- | --- | --- |
+| title: loading screen up (cold, cache off) | 6.3 s | 5.6 s | 13.2 s | 15.4 s |
+| title at reveal: tiles full / low / none, GL triangles, draw calls | 1/73/0, 1.19 M, 484 | 1/35/0, 1.03 M, 353 | 1/17/0, 0.78 M, 337 | 1/35/0, 1.06 M, 355 |
+| GL triangles per frame, drive median / max | 1.66 M / 2.31 M | 1.04 M / 1.50 M | 0.28 M / 0.93 M (horizon bare) | 1.07 M / 1.47 M |
+| draw calls, median / max | 757 / 889 | 476 / 571 | 195 / 416 | 488 / 587 |
+| main thread ms per frame | 4.8 | 3.5 | 9.1 | 14.6 |
+| render() CPU ms p50 / p95 | 2.8 / 3.8 | 1.9 / 3.0 | 3.7 / 6.3 | 7.6 / 11.4 |
+| frames over 50 ms | 2 | 0 | 0 | 3 |
+| streamer work over 8 ms (count) | 5 | 5 | 36 | 65 |
+| JS heap, max | 709 MB | 339 MB | 456 MB | 434 MB |
+
+What got worse: the phone now does what the desktop used to approach (a shadow pass, 4 full tiles plus a low ring and a horizon), so its main thread is 60 % busier at x4 (14.6 of 16.7 ms), and it has about twice as many streamer steps over 8 ms (more tiles are fetched and parsed; a dense tile parse is the largest step). The lever if a real phone struggles: default tier low (no shadows, about -3.5 ms and -480k triangles), or `triCap` / `rFull` through the URL (`?tricap=`, `?rfull=`) to test.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.

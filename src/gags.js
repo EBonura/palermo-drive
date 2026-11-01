@@ -16,7 +16,6 @@ const CARS = new Set(['panda', 'punto', 'smart', 'taxi', 'van']);
 export function createGags(env, T, police) {
   const { car, camera } = env;
   const vs = T.vs;
-  const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   let peds = null, time = 0, tickT = 0;
 
   // ======================================================================== lookouts (picciotti on monopattini)
@@ -38,7 +37,7 @@ export function createGags(env, T, police) {
       if (d < 190 && (copNear || police.heat() > 0)) v.alarmAt = time + rand(0.1, 1.4);
     }
     // keep a few around while the player is near a market
-    const want = marketNear(car.x, car.z, 250) ? (COARSE ? 2 : 3) : 0;
+    const want = marketNear(car.x, car.z, 250) ? 2 : 0;
     if (n < want && time >= nextLook) {
       nextLook = time + 2.5;
       const v = T.spawnOffscreen('monopattino', 40, 200, (mx, mz) => !!marketNear(mx, mz, 110));
@@ -100,7 +99,7 @@ export function createGags(env, T, police) {
     }
   }
   function newScene(dmin = 38) {
-    if (!peds || dps.length >= (COARSE ? 1 : 2)) return;
+    if (!peds || dps.length >= 2) return;
     const cands = [];
     for (const v of vs) {
       if (!CARS.has(v.name) || v.fly || v.cop || v.hold2 || v.dp || v.stopT > 0 || v.v < 2.5 || v.hide) continue;
