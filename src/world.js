@@ -389,9 +389,11 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (skip.has(b.id)) continue;
       if ((++nb & 15) === 0) yield;
       solids.length = 0;
+      let sh = d.near ? 0 : -b.g; // survey heights (e): eave above the lowest ground under the building, see buildings.js
+      if (b.e) { let lo = Infinity; for (let i = 0; i < b.p.length; i += 2) lo = Math.min(lo, groundY(b.p[i], b.p[i + 1])); sh = lo - b.g; }
       if (b.r === undefined) solids.push([b.p, null]);
-      else if (!b.split) solids.push([b.p, b.r + (d.near ? 0 : -b.g)]);
-      else for (const [poly, rr] of b.parts || []) solids.push([poly, rr + (d.near ? 0 : -b.g)]);
+      else if (!b.split) solids.push([b.p, b.r + sh]);
+      else for (const [poly, rr] of b.parts || []) solids.push([poly, rr + sh]);
       for (const [flat, roofAbs] of solids) {
         const pts = pairs(flat); if (pts.length < 3) continue;
         let area = signedArea(pts); if (Math.abs(area) < 12) continue;

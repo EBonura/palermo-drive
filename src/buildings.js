@@ -1095,7 +1095,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     }
     if (pitched) stats.tiled++; else stats.flat++;
     const parH = pitched ? 0 : S.parapet;
-    const yTop = roofY - (pitched ? rise : parH);
+    const yTop = roofY - (pitched ? (B.eave ? 0 : rise) : parH); // baked roof = ridge (lidar); survey heights (e) are eaves, the ridge stands on top
     const sp = B.spec || NOSPEC;
     const F = stack !== undefined ? { g0: 0.3, nUp: Math.max(1, Math.round((yTop - lo - 0.3) / S.fh)) } : calcFloors(S, yTop - lo, B.lv, sp);
     let yg = lo + F.g0;
@@ -1304,8 +1304,10 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       if ((++nb & 3) === 0) yield;
       const r = rng(b.c * 7919 + 13);
       const solids = [];
-      const shift = b.r !== undefined && !data.near ? -b.g : 0;
       const pts0 = pairs(b.p);
+      // survey heights (e): the foot elevation is the Comune's, the game's ground off the lidar rasters can be several metres off (SRTM reads roofs), so stand the eave on the lowest ground under the building
+      let shift = b.r !== undefined && !data.near ? -b.g : 0;
+      if (b.e) { let lo = Infinity; for (const p of pts0) lo = Math.min(lo, groundY(p[0], p[1])); shift = lo - b.g; }
       let cx = 0, cz = 0, bestD = 1e9, near = null;
       for (const p of pts0) { cx += p[0]; cz += p[1]; const q = roadNear(p[0], p[1]); if (q.d < bestD) { bestD = q.d; near = q; } }
       cx /= pts0.length; cz /= pts0.length;
@@ -1351,7 +1353,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         railAlt: S.railAlt && r() < 0.5 ? S.railAlt : null, up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
         spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone,
         reach: Z.elig && !Z.shed ? (Z.front ?? 15) : 0,
-        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1,
+        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e,
       };
       if (B.photo) stats.photo++;
       if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = 'st_up_' + sh; }

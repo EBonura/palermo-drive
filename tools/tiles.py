@@ -461,6 +461,7 @@ CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over ter
 DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
+CTC_CREDIT = "Building volumes and heights: Comune di Palermo, Carta Tecnica Comunale, Unita' Volumetriche (2013), CC BY 4.0 IT"
 TIN_CREDIT = "TINITALY 1.1 DEM, INGV (Tarquini et al.), CC BY 4.0, doi:10.13127/tinitaly/1.1"
 LIDAR_CREDIT = ("Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale, "
                 "PST-A lidar Regione Sicilia, CC BY 4.0")
@@ -662,14 +663,29 @@ def raster_shape(outer, holes):
     return main, parts, split, ground
 
 
+CTC_HEIGHTS = os.path.join(ROOT, "data", "footprints_osm_heights.json")   # tools/footprints.py, see docs/sources/comune-ctc-buildings.md
+CTC_EXTRA = os.path.join(ROOT, "data", "footprints_extra.json")
+CTC_ON = os.path.exists(CTC_HEIGHTS)
+
+
+def ctc_shape(rec):
+    """(roof, parts, split, ground) from a Carta Tecnica Comunale record, in the same form as raster_shape: absolute elevations.
+    The record's `parts` hold heights relative to the foot. The roof is the eave (a pitched roof gets its rise on top at runtime, flag `e`)."""
+    g = rec["g"]
+    roof = rec["r"] if "r" in rec else g + rec["h"]
+    parts = [[p, round(g + h, 1)] for p, h in rec["parts"]] if rec.get("parts") else None
+    return roof, parts, bool(parts and rec.get("split")), g
+
+
 def parse_buildings(files, lidar):
     """Same records as bake.py. Returns (buildings, labels) where each is a list of dicts with
     the tile-independent payload plus '_c' (centroid) and '_geom' (outer, holes) for streets."""
     from shapely.geometry import Polygon  # noqa: F401
     out, labels = [], []
-    stats = {"raster": 0, "lidar_json": 0, "estimate": 0, "split": 0, "towers": 0}
+    stats = {"raster": 0, "lidar_json": 0, "ctc": 0, "ctc_extra": 0, "estimate": 0, "split": 0, "towers": 0}
+    ctc = json.load(open(CTC_HEIGHTS)) if os.path.exists(CTC_HEIGHTS) else {}
 
-    def add(key, oid, tags, outer, holes):
+    def add(key, oid, tags, outer, holes, ctc_rec=None):
         if len(outer) < 3:
             return
         fp = abs(area(outer))
@@ -691,6 +707,11 @@ def parse_buildings(files, lidar):
                 rec = [None if isinstance(r, list) and r[1] == r[0] else r for r in rec]
             shape = lidar_shape(rec, outer, holes)
             src = "lidar_json"
+        ctc_rec = ctc_rec or ctc.get(key)
+        if not shape and ctc_rec:   # measured eave heights where there is no lidar roof (the survey is from 2013)
+            shape = ctc_shape(ctc_rec)
+            src = "ctc_extra" if key[0] == "x" else "ctc"
+            b["e"] = 1
         if shape:
             roof, parts, split, ground = shape
             b["r"] = round(roof, 1)
@@ -726,6 +747,9 @@ def parse_buildings(files, lidar):
             inners = member_rings(e, "inner")
             for k, (o, ins) in enumerate(zip(outers, assign_inners(outers, inners) if outers else [])):
                 add(f"r{e['id']}.{k}", e["id"], tags, o, ins)
+    if os.path.exists(CTC_EXTRA):   # buildings the Comune's survey has and OSM lacks (already cut against the OSM footprints)
+        for rec in json.load(open(CTC_EXTRA))["buildings"]:
+            add(rec["id"], rec["oid"], rec["tags"], rec["outer"], rec.get("holes", []), rec)
     return out, labels, stats
 
 
@@ -1846,10 +1870,11 @@ def build(offline=False):
         "tiles": {r[0]: {"b": r[1], "bytes": r[2]} for r in results},
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
-                        + (", hills: " + TIN_CREDIT if dem is not None else "") + "."),
+                        + (", hills: " + TIN_CREDIT if dem is not None else "")
+                        + (". " + CTC_CREDIT if CTC_ON else "") + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
-                        **({"hills": TIN_CREDIT} if dem is not None else {})),
+                        **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {})),
     }
     if islands:
         manifest["islands"] = islands
