@@ -34,7 +34,8 @@ const TYPES = {
   van: { model: 'van', L: 4.45, W: 1.82, mass: 2.0, circ: [[1.3, 0.95], [0, 0.95], [-1.3, 0.95]], vf: 0.92, a: 2.0, rmin: 5.5, ped: true, minW: 3.5,
     cols: [['#f2f2f0', 70], ['#c3c6cb', 12], ['#8fb3cc', 8], ['#d8d2b8', 10]] },
   bus: { model: 'bus', L: 11.8, W: 2.5, mass: 11, circ: [[4.4, 1.3], [2.2, 1.3], [0, 1.3], [-2.2, 1.3], [-4.4, 1.3]], vf: 0.85, a: 1.4, b: 3.0, T: 1.3, s0: 2.5,
-    rmin: 9.5, vcap: 11, bus: true, transit: true, minW: 6, cols: [['#f2c316', 5], ['#e9b80d', 3], ['#f5cf3b', 2]] },
+    rmin: 9.5, vcap: 11, bus: true, transit: true, minW: 6, cols: [['#f2c316', 5], ['#e9b80d', 3], ['#f5cf3b', 2]],
+    yeetV: 14, yeetK: 0.3, yeetJ: 0.5 },   // heavy: pushed like the rest (it barely budges), but only knocked over (tipped, a short hop) above 14 m/s of closing speed; the lapa loses 0.5 of it
   vespa: { model: 'vespa', L: 1.8, W: 0.7, mass: 0.28, circ: [[0.5, 0.45], [-0.4, 0.45]], vf: 1.08, a: 3.4, T: 0.7, s0: 1.2, rmin: 2.8, scooter: true, ped: true,
     cols: [['#c8301f', 3], ['#2f6f9a', 3], ['#e6e2d0', 3], ['#2a2a2c', 3], ['#5a7a4a', 1], ['#d9a21f', 1], ['#bcbcbc', 2]] },
   apePick: { model: 'apePick', L: 3.2, W: 1.4, mass: 0.8, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.75, a: 1.5, rmin: 3.6, vcap: 9, ped: true,
@@ -736,9 +737,9 @@ Object.assign(MODELS, buildPoliceModels());
 
   // ---------- yeet: a hit vehicle is launched, tumbles, bounces, slides, rights itself ----------
   const GRAV = 9.81;
-  function launch(v, vx, vz, vy, chain) {
+  function launch(v, vx, vz, vy, chain, tame = 1) {   // tame < 1: a heavy vehicle (bus) rocks over rather than tumbling
     const sg = () => Math.random() < 0.5 ? -1 : 1;
-    v.fly = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + Math.random() * 4), sp: (Math.random() - 0.5) * 7, sr: sg() * (3 + Math.random() * 6),
+    v.fly = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + Math.random() * 4) * tame, sp: (Math.random() - 0.5) * 7 * tame, sr: sg() * (3 + Math.random() * 6) * tame,
       bounces: 0, phase: 0, t: 0, chain, hit: new Set() };
     v.v = 0; v.dwell = 0; v.filtO = null; v.stopT = 0; v.latT = 0;
   }
@@ -821,13 +822,14 @@ Object.assign(MODELS, buildPoliceModels());
           if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
           const pen = rs - d, mp = 1, mv = ty.mass, lx = cs, lz = -sn;
           const vn = (pc.vx + pc.w * a * lx - (vsn * v.v + v.ex)) * nx + (pc.vz + pc.w * a * lz - (vcs * v.v + v.ez)) * nz;
-          if (vn < -4 && mv < 5) { // YEET: the vehicle is launched, the lapa only gets a light knock
-            const rel = -vn, sc = mv <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
+          const heavy = mv >= 5;   // a bus: knocked over only by a real hit (ty.yeetV), a short hop, tipping rather than tumbling
+          if (vn < -(heavy ? ty.yeetV || 1e9 : 4)) { // YEET: the vehicle is launched, the lapa only gets a light knock
+            const rel = -vn, sc = heavy ? ty.yeetK : mv <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
             let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
             const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
-            launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
+            launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0, heavy ? 0.35 : 1);
             v.x -= nx * pen; v.z -= nz * pen;
-            const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
+            const j = (ty.yeetJ || 0.1) * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
             shoutAt(v); v.honkAt = time + 0.5; police.chaos(v.cop ? 'hitcop' : 'yeet');
             return;
           }

@@ -830,6 +830,36 @@ def ped_roadlike(t):
             or t.get("sidewalk") in ("both", "left", "right", "yes"))
 
 
+PK_OFF = {"no", "no_parking", "no_stopping", "no_standing", "separate", "none"}
+PK_ON = {"lane", "street_side", "on_kerb", "half_on_kerb", "shoulder", "yes", "marked", "parallel", "perpendicular", "diagonal"}
+PK_ORI = {"parallel": "p", "perpendicular": "q", "diagonal": "d"}
+
+
+def parking_lanes(t):
+    """Parking on each side of a way from the OSM parking:* tags, as two characters (left, right of the way direction): p parallel, q perpendicular,
+    d diagonal, n none (no parking or stopping, or a lot of its own: separate), - nothing said. '' when no side says anything. Side tags win over both."""
+    out = []
+    for side in ("left", "right"):
+        code = "-"
+        for key in (f"parking:lane:{side}", f"parking:{side}", f"parking:condition:{side}", "parking:lane:both", "parking:both", "parking:condition:both"):
+            v = t.get(key)
+            if v is None:
+                continue
+            if v in PK_OFF:
+                code = "n"
+            elif v in PK_ON:
+                ori = t.get(f"parking:{side}:orientation") or t.get("parking:both:orientation") or t.get(f"parking:lane:{side}:orientation") or v
+                code = PK_ORI.get(ori, "p")
+            else:
+                continue
+            break
+        if code == "-" and t.get("parking:lane") in ("left", "right", "both", "no"):   # the old single tag
+            pl = t["parking:lane"]
+            code = "n" if pl == "no" or (pl != "both" and pl != side) else PK_ORI.get(t.get("parking:orientation", ""), "p")
+        out.append(code)
+    return "" if out == ["-", "-"] else "".join(out)
+
+
 def parse_highways(files):
     from shapely.geometry import LineString, Polygon
     from streets import width_of
@@ -872,6 +902,9 @@ def parse_highways(files):
                 pass
         if t.get("junction"):
             r["j"] = t["junction"]
+        pk = parking_lanes(t)
+        if pk:
+            r["pk"] = pk   # parking lanes left / right of the way direction (src/props.js parked cars)
         if hw in CARRIAGEWAY:
             cw = round(width_of(t, CARRIAGEWAY[hw]), 1)
             if cw != CARRIAGEWAY[hw]:
