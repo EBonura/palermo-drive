@@ -65,6 +65,14 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | --- | --- | --- | --- | --- |
 | Carta Tecnica Regionale 1:10.000, edition 2012-13: dividing walls, dry-stone walls, retaining walls, fences | Regione Siciliana | https://www.sitr.regione.sicilia.it/download/download-carta-tecnica-regionale-10000/ | CC BY 4.0 | lines clipped to the tiles, dropped where OSM has the same wall, on buildings and on roads; heights chosen by kind |
 
+## Trees and green areas (world/, baked by `tools/tiles.py` from `tools/greenery.py`)
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Isolated trees, hedges (CTR 1:10.000, ed. 2012-13) | Regione Siciliana | https://www.sitr.regione.sicilia.it | CC BY 4.0 | points and lines baked into tiles, sizes from the lidar |
+| Urban Atlas Street Tree Layer 2018 | Copernicus Land Monitoring Service, European Environment Agency (EEA) | https://land.copernicus.eu/local/urban-atlas | free, full and open, source acknowledged | canopy polygons turned into thinned tree positions |
+| Perimetrazione aree verdi (medians, islands, verges, flowerbeds) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=278 | CC BY 4.0 | polygons reprojected and drawn as grass over the street layers |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).

@@ -1,8 +1,7 @@
 """Walls and fences for the world tiles (tools/tiles.py calls load_barriers once and tile_fences per tile).
 
 Two sources, merged:
-  * OpenStreetMap barrier ways (cache category `bar`): wall, retaining_wall, city_wall, fence, guard_rail, jersey_barrier (hedges are
-    vegetation and left to the greenery step). 3,297 ways, 118 km of walls, 50 km of fences, 28 km of retaining walls.
+  * OpenStreetMap barrier ways (cache category `bar`): wall, retaining_wall, city_wall, fence, guard_rail, jersey_barrier (hedges are kind h, drawn as green walls). 3,297 ways, 118 km of walls, 50 km of fences, 28 km of retaining walls.
   * Regione Siciliana CTR 1:10,000 (data/walls.json, docs/sources/ctr-sicilia.md): E003 wall, E002 fence, E004 dry-stone wall, E005
     retaining wall. 46,894 lines, 3,300 km: mostly field boundaries, so a line is kept when it is within 20 m of a carriageway (`st`) or
     within 30 m of a building. The survey is 2003 with a 2012 patch and only 1:10,000: a CTR line that lies within 3 m of an OSM barrier
@@ -21,9 +20,9 @@ import zlib
 from shapely.geometry import LineString, box
 from shapely.ops import unary_union
 
-OSM_KIND = {"wall": "w", "retaining_wall": "r", "city_wall": "c", "fence": "f", "guard_rail": "g", "jersey_barrier": "j"}
-CTR_KIND = {"wall": "w", "drystone": "d", "retaining": "r", "fence": "f"}
-HEIGHT = {"w": (1.8, 2.6), "d": (1.0, 1.5), "r": (0, 0), "c": (5.5, 7.0), "j": (0.8, 0.8), "f": (1.3, 1.8), "g": (0.75, 0.75)}
+OSM_KIND = {"hedge": "h", "wall": "w", "retaining_wall": "r", "city_wall": "c", "fence": "f", "guard_rail": "g", "jersey_barrier": "j"}
+CTR_KIND = {"hedge": "h", "wall": "w", "drystone": "d", "retaining": "r", "fence": "f"}
+HEIGHT = {"h": (1.0, 1.8), "w": (1.8, 2.6), "d": (1.0, 1.5), "r": (0, 0), "c": (5.5, 7.0), "j": (0.8, 0.8), "f": (1.3, 1.8), "g": (0.75, 0.75)}
 FENCE_STYLE = {"railing": 0, "metal": 0, "bars": 0, "wood": 1, "wooden": 1, "palisade": 1, "chain_link": 2, "wire": 2, "barbed_wire": 2, "wire_fence": 2}
 NEAR_BUILDING = 30.0
 DEDUP = 3.0

@@ -470,7 +470,9 @@ DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
 CTR_WALLS = os.path.join(ROOT, "data", "walls.json")   # Regione Siciliana CTR walls and fences, tools/fences.py
-CTR_CREDIT = "Walls and fences: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0"
+CTR_CREDIT = "Walls, fences and trees: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0"
+UA_CREDIT = "Contains modified Copernicus Land Monitoring Service information: Urban Atlas Street Tree Layer 2018, European Environment Agency (EEA)"
+VERDE_CREDIT = "Green areas: Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0"
 RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
 RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of ground within URBAN_REACH of a building is raised pavement
 PED_STONE = ("paving_stones", "sett", "stone", "cobblestone", "unhewn_cobblestone", "granite", "cobblestone:flattened")
@@ -1216,9 +1218,18 @@ def streets_for_tile(tx0, tz0):
         pedz = unary_union([rs("plaza"), D(rs("pedestrian"), layer(G["asph_tree"], G["asph_geoms"])), ped, pstreet])
         paving = I(pedz, space)
         asphalt = D(I(carr, space), paving)
+        # Comune green (aree verdi): the medians and islands of the Comune are not road, so they are cut out of the asphalt; every class is
+        # grass (the `green` layer, kerb height) unless it is paving or water
+        gv_idx = G["gv_tree"].query(R)
+        gv_all = poly_only(unary_union([I(G["gv_geoms"][k], R) for k in gv_idx])) if len(gv_idx) else shapely.Polygon()
+        gv_cut = poly_only(unary_union([I(G["gv_geoms"][k], R) for k in gv_idx if G["gv_cls"][k] in ("median", "island")])) if len(gv_idx) else shapely.Polygon()
+        if not gv_cut.is_empty:
+            asphalt = D(asphalt, gv_cut)
         water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
         sand = D(D(D(I(layer(G["sand_tree"], G["sand_geoms"]), space), asphalt), paving), water)
         green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
+        if not gv_all.is_empty:
+            green = poly_only(unary_union([green, D(D(D(D(I(gv_all, space), asphalt), paving), water), sand)]))
         taken = unary_union([asphalt, paving, green, water, sand])
         raised = D(I(pave, space), taken)
         verge = D(D(I(verg, space), taken), raised)
@@ -1939,6 +1950,13 @@ def build(offline=False):
     for a in pareas:
         if inside(*a["_c"]):
             tile_pareas.setdefault("%d_%d" % tile_of(*a["_c"]), []).append(a)
+    import greenery
+    n_crown = greenery.apply_osm_crowns(os.path.join(ROOT, "data", "trees_osm_crowns.json"), tile_props, T)
+    tt = greenery.tile_trees(os.path.join(ROOT, "data", "trees.json"), T)
+    for key, items in tt.items():
+        tile_props.setdefault(key, []).extend(items)
+    print(f"  greenery: {sum(len(v) for v in tt.values())} trees in {len(tt)} tiles, {n_crown} OSM trees sized", flush=True)
+    verges = greenery.load_verges(os.path.join(ROOT, "data", "verges.json"))
     buildings = kept
 
     # Shapely layers for the street computation.
@@ -1969,7 +1987,8 @@ def build(offline=False):
              roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]),
              pier_geoms=piers, pier_tree=tree(piers),
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
-             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct,
+             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct, gv_geoms=[g for g, _ in verges], gv_cls=[c for _, c in verges],
+             gv_tree=shapely.STRtree([g for g, _ in verges]) if verges else shapely.STRtree([Polygon()]),
              fence_items=fitems, fence_tree=shapely.STRtree([f["g"] for f in fitems]) if fitems else None)
 
     if RS_ON:
@@ -2062,11 +2081,11 @@ def build(offline=False):
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
-                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + "."),
+                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
                         **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
-                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {})),
+                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT}),
     }
     if islands:
         manifest["islands"] = islands

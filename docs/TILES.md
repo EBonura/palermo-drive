@@ -256,3 +256,15 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
   gap stays open for the session (`broken` ids survive a tile reloading). Slower, a fence is a wall. `hooks.tick` moves the flying pieces from the same physics step. `?nofences` hides
   all of it (debug).
 - **Not done:** gates (OSM `barrier=gate`) are left open, hedges are in the greenery step, wall textures are flat colour, and pedestrians do not react to a smashed fence.
+
+## Trees, hedges and Comune green (tools/greenery.py, tools/fences.py, src/props.js)
+
+- **Trees.** `data/trees.json` (lidar crowns, CTR points, the Urban Atlas lattice) goes into each tile's `props.items` as `{k: 'tree', x, z, r?, h?, kd?}` and is placed by the existing
+  props generator (not on a road or a building, breakable like the OSM trees). Kept: lidar and CTR trees up to 320 a tile (biggest crowns first), the Urban Atlas lattice thinned to one tree
+  per 36 m cell and at most 90 a tile (126,159 invented positions become about 16,000), trees inside an OSM forest or scrub area are left to the forest instancing. 41,250 trees in 880 tiles.
+  `kd` picks the model (tall: palms, fruit and citrus: orange tree, olive: grey-green broadleaf, pine), `r` and `h` scale it to the measured crown; 135 OSM trees got a crown radius and height
+  from the lidar (`data/trees_osm_crowns.json`).
+- **Hedges** (OSM `barrier=hedge` and CTR siepi, 810 lines) are green solid blocks 1.0 to 1.8 m high in `src/fences.js` (kind `h`).
+- **Comune green** (`data/verges.json`, 2,090 polygons): in `streets_for_tile` every class is drawn as the `green` layer (grass at kerb height, the car bumps up onto it); medians and islands are cut out
+  of the asphalt first, since the Comune polygons win over the road derived from the street survey (Viale della Liberta's medians are real grass strips now).
+- **Not used:** `data/tree_rows.json` (the rows are made of trees already in `trees.json`) and `data/veg_areas.json` (only its class survives, as `kd` on a tree).
