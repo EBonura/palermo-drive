@@ -2,7 +2,7 @@
 // slot (src/missions.js builds them from src/event-places.js and the baked src/event-routes.js). A character is spawned only when the lapa is
 // near, bounces and shouts from the kerb; stop next to them to accept. Races have no caller: src/races.js puts the racers at the start line.
 // createCalls(X) -> { slots, setSlots(list), update(dt, allowed) -> accepted slot | null, release(slot), clear(), hideBeacon() }
-import { CALL } from '../assets/missions/lines.js';
+import { CALL, FRIEND } from '../assets/missions/lines.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -10,6 +10,7 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const TOURIST_POOL = ['tourist', 'tourist2', 'tourist', 'tourist2', 'borsa', 'signora2', 'teen2', 'kid2'];
 const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 'ragazzo', 'ragazzo2', 'nonno', 'coppola', 'teen'];
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
+const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
 const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff' };
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8;
@@ -29,6 +30,7 @@ export function createCalls(X) {
     if (s.kind === 'food') return OWNER_POOL[s.num % OWNER_POOL.length];
     if (s.kind === 'urgent') return pick(['suit', 'suit2', 'borsa', 'ragazzo', 'signora2']);
     if (s.sub === 'pulle') return night ? 'client' : pick(TOURIST_POOL);
+    if (s.sub !== 'tourist' && Math.random() < FRIEND_CHANCE) return 'amico' + (1 + (Math.random() < 0.5 ? 0 : 1)) + '_' + pick(FRIEND_OUTFITS);
     if (night && Math.random() < 0.7) return pick(NIGHT_POOL);
     return s.sub === 'tourist' ? pick(TOURIST_POOL) : pick(LOCAL_POOL);
   }
@@ -37,14 +39,20 @@ export function createCalls(X) {
       const sp = X.sideSpot({ x: s.x, z: s.z, dx: s.dx, dz: s.dz, w: s.w }, s.w / 2 + 1.5);
       s.kerb = { x: sp.x, z: sp.z };
     }
-    const id = pedestrians.spawnScripted(variantFor(s), s.kerb.x, s.kerb.z); if (id < 0) return;
+    const v = variantFor(s), id = pedestrians.spawnScripted(v, s.kerb.x, s.kerb.z); if (id < 0) return;
+    s.friend = v.startsWith('amico') ? v.slice(0, 6) : null;   // 'amico1' / 'amico2': their own lines, here and in the ride (src/event-fares.js)
     pedestrians.face(id, s.x, s.z);
     s.callers.push(id); s.shoutT = rand(1, 4);
   }
   function despawn(s) { for (const id of s.callers) pedestrians.remove(id); s.callers.length = 0; }
   function lineFor(s) {
+    if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
     const L = s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
+    return pickLine(L, s);
+  }
+  function pickLine(L, s) {
     const l = pick(L), txt = Array.isArray(l) ? (X.lang() === 'en' && l[1] ? l[1] : l[0]) : l;
+    if (!s) return txt;
     return s.kind === 'food' ? txt.replace('{items}', X.ITEMS[s.item][X.lang()]) : txt;
   }
 

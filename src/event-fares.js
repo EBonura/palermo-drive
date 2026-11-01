@@ -3,7 +3,7 @@
 // (src/event-routes.js) before the clock runs out, drop. Pay = fare by distance + a tip that grows with speed (time left) + small tips for
 // drifts, two wheels and close calls. Hitting pedestrians or cars costs nothing. Pay goes to the Garage wallet through 'pd-fare' (src/garage.js).
 // createFares(X) -> { start(slot), update(dt), stop(), active(), stigghiola() }; X is the context built in src/missions.js.
-import { TOURIST, DRIVER, FAVORITA, PULLE, URGENT_LINES, NATIONS } from '../assets/missions/lines.js';
+import { TOURIST, DRIVER, FAVORITA, PULLE, URGENT_LINES, NATIONS, FRIEND } from '../assets/missions/lines.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -20,7 +20,7 @@ export function createFares(X) {
   const natPick = () => { let r = Math.random() * NATIONS.reduce((a, n) => a + n[1], 0); for (const [k, w] of NATIONS) if ((r -= w) <= 0) return k; return 'en'; };
   const tline = (key, delay = 0) => {
     if (!f) return;
-    const L = f.pulleNight ? (FAVORITA.client[key] || FAVORITA.client.ambient) : f.urgent ? (URGENT_LINES[key] || []) : f.sub === 'tourist' || f.sub === 'pulle' ? (TOURIST[key] && (TOURIST[key][f.nat] || TOURIST[key].en)) : null;
+    const L = f.friend ? (FRIEND[f.friend][key] || null) : f.pulleNight ? (FAVORITA.client[key] || FAVORITA.client.ambient) : f.urgent ? (URGENT_LINES[key] || []) : f.sub === 'tourist' || f.sub === 'pulle' ? (TOURIST[key] && (TOURIST[key][f.nat] || TOURIST[key].en)) : null;
     if (L && L.length) say(pick(L), seatPos, delay);
   };
   const dline = (key, delay = 1.4) => {
@@ -36,7 +36,7 @@ export function createFares(X) {
     const [destId, len, flat] = pick(opts); lastDest = destId;
     const dest = X.destInfo(destId);
     const pts = flat;
-    f = { slot, sub, urgent, nat: natPick(), pulleNight: sub === 'pulle' && night, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
+    f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
       base: 0, tips: 0, limit: 0, left: 0, ev: {}, wantsStig: sub === 'tourist' && Math.random() < 0.45, stigDone: false, sniffed: false, lateSaid: false, glam: null, discretion: 0 };
     slot.callers = [];
     // a second tourist sometimes

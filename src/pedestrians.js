@@ -439,7 +439,7 @@ export function createPedestrians(env) {
         vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);
         vec4 c = vNear > 0.5 ? cn : cf;
         if (c.a < 0.4) discard;
-        c.rgb *= c.rgb;   // the atlases hold sRGB in 5 bits per channel: back to linear (squared is close enough)
+        c.rgb = pow(c.rgb, vec3(2.2));   // the atlases hold sRGB in 5 bits per channel: back to linear
         gl_FragColor = vec4(c.rgb * (uAmb + uSun * vSun) * vBright, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

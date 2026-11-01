@@ -37,7 +37,7 @@ const halfW = (f, hh, y) => { const k = headKnots(f, hh, 0); for (let i = 1; i <
 function faceDeco(sp, f, hy, hz, S, skin) {
   const hh = sp.hhU, ey = f.eyeY - 0.35, eg = f.eyeGap, m = 1 / S;
   const white = ci('#efe9e0'), iris = ci(f.eyeCol), pupil = 0x15110f, lid = mixc(skin, '#2a1a14', 0.7), browC = ci(f.browCol), lipC = ci(f.lipCol), mouthC = mixc(skin, '#4a1f1f', 0.65);
-  const stub = f.stubble ? ci(f.stubble) : -1, sd = f.stubbleD, nostr = mixc(skin, '#3a1a14', 0.5), blush = mixc(skin, '#e07a7a', 0.38), wrink = mixc(skin, '#6a3a2a', 0.28);
+  const stub = f.stubble ? mixc(skin, f.stubble, 0.62) : -1, sd = f.stubbleD, nostr = mixc(skin, '#3a1a14', 0.5), blush = mixc(skin, '#e07a7a', 0.38), wrink = mixc(skin, '#6a3a2a', 0.28);
   const ew = 0.95 * f.eyeSize * (f.eyeShape === 'wide' ? 1.12 : f.eyeShape === 'narrow' ? 1.05 : 1), eh = (f.eyeShape === 'round' ? 0.68 : f.eyeShape === 'wide' ? 0.8 : f.eyeShape === 'narrow' ? 0.4 : 0.52) * f.eyeSize, tilt = f.eyeTilt;
   const myy = -2.75 + f.mouthY, mw = f.mouthW / 2, bt = Math.max(f.browThick, m * 1.1), by = ey + 1.5 + f.browY, bl = 1.25 * f.eyeSize + 0.25;
   const ewE = Math.max(ew, 0.62 * m * 3.2), ehE = Math.max(eh, 0.55 * m * 2.0);
@@ -107,6 +107,21 @@ function drawHair(c, sp, f, hy, hz, S) {
     cap(st === 'buzz' ? 0.18 : 0.42, hl, 1.2, -1.9);
     if (st === 'quiff') { c.blob(0.2, top - 0.2, hz + 1.5, fw * 0.78, 1.55, 3.0, { ...o, bias: 0.05 }); c.blob(0.4, top + 0.1, hz + 0.3, fw * 0.6, 1.2, 2.5, { ...o, bias: 0.12 }); }
     if (st === 'comb') c.blob(-0.6, top - 0.4, hz + 0.5, fw * 0.8, 0.9, 3.4, o);
+  } else if (st === 'swept') {   // short at the sides, longer on top and brushed up and back, the forehead clear
+    cap(0.4, 3.1, 1.1, -1.9);
+    c.blob(0.0, top - 0.35, hz + 0.5, fw * 0.62, 1.3, 3.0, { ...o, bias: 0.05 });
+  } else if (st === 'curlylong') {   // shoulder-length waves with curled ends, parted, falling past the ears
+    cap(0.5, 2.2, 0.1, -1.0, 0, (x, z) => (x > 0.3 ? 0.4 : -0.4));
+    const bottom = hy - hh / 2 - 3.6;
+    c.sweep([[hy + 1.5, fw + 0.6, 2.2, 0, hz - fw * 0.8], [hy - 1.5, fw + 0.8, 2.3, 0, hz - fw * 0.85], [bottom + 1.2, fw + 0.6, 1.8, 0, hz - fw * 0.85], [bottom, fw + 0.2, 1.2, 0, hz - fw * 0.9]], { ...o, part: 7 });
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 7; k++) {
+        const yy = hy + 1.6 - k * 1.45, ww = 1.45 - k * 0.05, xx = s * (fw + 0.55 + ((k * 7 + (s > 0 ? 3 : 0)) % 3) * 0.28);
+        c.blob(xx, yy, hz - 0.5 - (k & 1) * 0.55, ww, 1.45, 1.55, { ...o, bias: (hs(k, s + 5) - 0.5) * 0.34, part: 6 });
+      }
+    }
+    for (let k = 0; k < 7; k++) c.blob(-fw * 0.9 + k * fw * 0.3, bottom + 0.3 - (k & 1) * 0.5, hz - fw * 0.95 - 0.2, 1.25, 1.3, 1.2, { ...o, bias: (hs(k, 9) - 0.5) * 0.3, part: 6 });
+    c.blob(1.2, top - 0.2, hz + 0.9, 1.7, 0.9, 1.5, { ...o, bias: 0.15, part: 6 }); c.blob(-1.6, top - 0.5, hz + 0.6, 1.5, 0.8, 1.3, { ...o, bias: -0.05, part: 6 });
   } else if (st === 'bun') {
     cap(0.42, 2.0, 0.9, -1.7); c.blob(0, top - 0.3, hz - 2.2, 2.0, 1.9, 2.0, o); c.blob(0, top - 0.8, hz - 2.2, 2.3, 0.6, 2.3, { ...o, bias: -0.1 });
   } else if (st === 'ponytail') {
@@ -301,7 +316,7 @@ export function drawCharacter(c, sp, pose) {
     c.blob(wr[0], wr[1] - 0.9, wr[2] + 0.2, 1.4, 1.5, 1.4, { col: skin, style: SK, part: sOpt.part + 1 });
     if (sp.ring && side > 0) c.blob(wr[0], wr[1] - 1.7, wr[2] + 0.3, 1.42, 0.3, 1.42, { col: ci('#e8d48a'), style: HD, part: sOpt.part + 1 });
     // shoulder cap hides the seam
-    c.blob(s0[0] * 0.97, sY + 0.1, s0[2], 1.95, 1.85, 1.95, { col: sleeveLong || sp.sleeve === 'short' ? sc : skin, style: sleeveLong || sp.sleeve === 'short' ? 0 : SK, part: sOpt.part });
+    c.blob(s0[0] * 0.97, sY - 0.1, s0[2], 1.85, 1.7, 1.85, { col: sleeveLong || sp.sleeve === 'short' ? sc : skin, style: sleeveLong || sp.sleeve === 'short' ? 0 : SK, part: sOpt.part });
   }
   // ----- carried things and extras
   carried(c, sp, hands, hipY, tor, pose, fem, run);
@@ -401,17 +416,19 @@ function drawBeard(c, sp, f, hy, hz, hh, S) {
 
 function drawGlasses(c, sp, f, hy, hz, S) {
   const g = sp.glasses, fr = ci(g.frame || '#18161a'), eg = f.eyeGap, ey = hy + f.eyeY - 0.35 + 0.05, m = 1 / S;
-  const big = g.style === 'big', round = g.style === 'round', lw = (big ? 1.75 : round ? 1.55 : 1.62) * (0.9 + f.eyeSize * 0.1), lh = big ? 1.6 : round ? 1.55 : 1.2, rim = Math.max(g.rim || 0.4, m * 1.05), n = round ? 2 : 4;
+  const big = g.style === 'big', round = g.style === 'round', lw = (g.w || (big ? 1.75 : round ? 1.55 : 1.62)) * (0.9 + f.eyeSize * 0.1), lh = g.h || (big ? 1.6 : round ? 1.55 : 1.2), rim = Math.max(g.rim || 0.4, m * 1.05), n = round ? 2 : 4;
   const zf = hz - 0.45 + halfW(f, sp.hhU, f.eyeY - 0.35) * 1.08 + 0.45 + 0.35;
-  const tort = g.tortoise, tcol = ci('#8a4a1c'), tdark = ci('#2a1a14');
-  const ring = (x0) => (mx, my) => {
-    const u = (mx - x0) / (lw - rim), v = (my - ey) / (lh - rim), d = n === 2 ? u * u + v * v : u * u * u * u + v * v * v * v;
+  const tort = g.tortoise, tcol = ci(g.tcol || '#9a5a24'), tdark = ci('#2a1a14');
+  // the outline of a lens: an ellipse for round frames, a rectangle with rounded corners for the others
+  const outline = x0 => { const k = [], N = round || big ? 12 : 8; for (let i = 0; i <= N; i++) { const t = -1 + 2 * i / N, e = round ? Math.sqrt(Math.max(0, 1 - t * t)) : big ? Math.sqrt(Math.max(0, 1 - Math.pow(Math.abs(t), 3))) : 1 - 0.3 * Math.pow(Math.max(0, (Math.abs(t) - 0.62) / 0.38), 2); k.push([ey + t * lh, Math.max(0.2, lw * e), 0.35, x0, zf]); } return k; };
+  const ring = x0 => (mx, my) => {
+    const u = (mx - x0) / (lw - rim), v = (my - ey) / (lh - rim), d = n === 2 ? u * u + v * v : Math.pow(Math.abs(u), 3) + Math.pow(Math.abs(v), 3);
     if (d < 1) return g.tint ? ci(g.tint) : -2;
-    if (tort) return hs((mx * S) | 0, (my * S) | 0) < 0.42 + (my > ey ? 0.18 : 0) ? tdark : tcol;
+    if (tort) return hs(Math.floor(mx * 1.6 + 40) * 3, Math.floor(my * 1.6 + 40) * 5 + (mx < x0 ? 1 : 0)) < 0.45 ? tdark : tcol;
     return -1;
   };
   for (const s of [-1, 1]) {
-    c.sweep([[ey - lh, lw, 0.35, s * eg, zf], [ey + lh, lw, 0.35, s * eg, zf]], { col: fr, style: HD, n, part: 50 + (s > 0 ? 1 : 0), deco: ring(s * eg) });
+    c.sweep(outline(s * eg), { col: fr, style: HD, n: 2, part: 50 + (s > 0 ? 1 : 0), deco: ring(s * eg) });
     // temple arm from the outer edge back to the ear
     const ez = hz - 0.4, x0 = s * (eg + lw - 0.1);
     c.sweep([[ey + 0.55 + rim * 0.5, 0.28, (zf - ez) / 2, x0 + s * 0.15, (zf + ez) / 2], [ey + 0.55 - rim * 0.5, 0.28, (zf - ez) / 2, x0 + s * 0.15, (zf + ez) / 2]], { col: tort ? tcol : fr, style: HD, n: 4, part: 52, deco: undefined });
