@@ -53,6 +53,12 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | --- | --- | --- | --- | --- |
 | Unita' Volumetriche, Carta Tecnica Comunale (2013, published 2021): eave heights and foot elevations, and the buildings OpenStreetMap lacks | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294 | CC BY 4.0 IT (https://creativecommons.org/licenses/by/4.0/deed.it) | volume polygons projected to game metres, merged into buildings, matched to OSM buildings; used where no lidar roof exists |
 
+## Street surfaces (world/, baked by `tools/tiles.py` from `tools/road_surfaces.py`)
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Perimetrazione Area Stradale (dataset 280), Area di Circolazione Pedonale (281), Le aree pedonali (850, decree list) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280, `=281`, `=850` | CC BY 4.0 | reprojected to game metres and shifted 1.5 m east to the OSM roads; split into carriageway, pavement, verge and pedestrian-street polygons by width rules; combined with OSM road lines |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).

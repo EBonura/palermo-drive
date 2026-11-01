@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
   Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
-import { hooks, rasterMask } from './core.js';
+import { hooks } from './core.js';
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
@@ -143,10 +143,9 @@ const DRIVABLE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'r
 
 // Raised-ground lookup so the car bumps up onto sidewalks.
 let world = null; // world streamer (src/world.js): the whole city in 500 m tiles
-// [perf pass] bit-packed tiled raster (core.js rasterMask): was a 4100 x 4060 px canvas + 66 MB RGBA read-back held for the whole session.
-const centroRaised = D.streets ? rasterMask([...D.streets.raised, ...D.streets.green], D.streets.aoi, 2) : () => false; // 0.5 m cells
-// world: tiles bring their own raised-ground masks next to the baked centro one
-const raisedMask = (x, z) => centroRaised(x, z) || (world !== null && world.raised(x, z));
+// the tiles bring the raised-ground masks (src/world.js buildRaised); the baked centro's own street slab (D.streets.raised) is no longer used: the centro's tiles
+// have the Comune's pavements, a slab of "everything near a building" would make the car climb onto courtyards
+const raisedMask = (x, z) => world !== null && world.raised(x, z);
 
 const MOUNTAIN_HAZE = new THREE.Color('#7297b4');
 

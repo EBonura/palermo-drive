@@ -455,12 +455,19 @@ CARRIAGEWAY = {  # drivable asphalt widths when OSM has no width/lanes (streets.
     "residential": 5.5, "living_street": 4.5, "service": 3.5,
 }
 PEDESTRIAN = {"pedestrian": 7, "footway": 2.5}   # cycleway/path stay centreline-only, as before
-URBAN_REACH = 24.0   # ground within this distance of a building and not road/green/... is raised pavement
+URBAN_REACH = 24.0   # (only without data/road_surfaces.json) ground within this distance of a building and not road/green/... is raised pavement
 MARGIN = 30.0        # metres computed beyond each tile so street polygons line up across borders
 CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over terrain, cull well)
 DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
+RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
+RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of ground within URBAN_REACH of a building is raised pavement
+RS_PED_ASPHALT = ()   # street names that stay asphalt although OSM says highway=pedestrian (Mapillary and OSM surface=asphalt say Via Maqueda is one: see docs/TILES.md)
+RS_PED_REACH = 8.0   # metres each side of an OSM pedestrian street line that count as the street (the Comune platform inside that is the whole street, wall to wall)
+RS_SLACK = 2.5       # metres of carriageway kept beyond half the OSM road width on each side (OSM lines sit 1 to 2 m off the survey)
+RS_SIMPLIFY = 0.2   # metres: street polygon outlines are thinned this much (the Comune survey is 1:2000)
+RS_CREDIT = "Street surfaces: Comune di Palermo, Perimetrazione area stradale and Aree pedonali, CC BY 4.0"
 CTC_CREDIT = "Building volumes and heights: Comune di Palermo, Carta Tecnica Comunale, Unita' Volumetriche (2013), CC BY 4.0 IT"
 TIN_CREDIT = "TINITALY 1.1 DEM, INGV (Tarquini et al.), CC BY 4.0, doi:10.13127/tinitaly/1.1"
 LIDAR_CREDIT = ("Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale, "
@@ -790,10 +797,22 @@ def parse_misc(files):
     return coast, areas, piers
 
 
+PED_STREETS = []   # (line, tags, width) of every OSM highway=pedestrian way (not area), for the pedestrian zones of streets_for_tile
+
+
+def ped_roadlike(t):
+    """A highway=pedestrian way that OSM also tags as a road with traffic: a bus lane (psv), lanes, a speed limit of 30 or more, or
+    sidewalks of its own (the sidewalk is then the pavement and the way is the carriageway)."""
+    ms = str(t.get("maxspeed", ""))
+    return (t.get("psv") in ("yes", "designated") or "lanes" in t or ms == "IT:urban" or (ms.isdigit() and int(ms) >= 30)
+            or t.get("sidewalk") in ("both", "left", "right", "yes"))
+
+
 def parse_highways(files):
     from shapely.geometry import LineString, Polygon
     from streets import width_of
     roads, car, ped, plazas = [], [], [], []
+    PED_STREETS.clear()
     for e in iter_elements(files):
         t = e.get("tags") or {}
         hw = t.get("highway")
@@ -835,11 +854,13 @@ def parse_highways(files):
             if cw != CARRIAGEWAY[hw]:
                 r["cw"] = cw
         roads.append((r, LineString(pts)))
+        if hw == "pedestrian" and not tunnel:
+            PED_STREETS.append((LineString(pts), t, r["w"]))
         if tunnel:
             continue
         if hw in CARRIAGEWAY:
             car.append(LineString(pts).buffer(width_of(t, CARRIAGEWAY[hw]) / 2, quad_segs=4))
-        elif hw in PEDESTRIAN:
+        elif hw in PEDESTRIAN and not (RS_ON and hw == "pedestrian"):   # pedestrian streets come from the decree list (road_surfaces)
             ped.append(LineString(pts).buffer(width_of(t, PEDESTRIAN[hw]) / 2, quad_segs=4))
     return roads, car, ped, plazas
 
@@ -1089,6 +1110,36 @@ def I(a, b):  # noqa: E743
     return _ov("intersection", a, b)
 
 
+RS_LAYERS = ("carriageway", "pavement", "verge", "plaza", "pedestrian", "platform")
+
+
+def load_road_surfaces():
+    """data/road_surfaces.json -> {layer: (geoms, STRtree)} in game metres. Shoulders (motorway hard shoulder) count as carriageway."""
+    import shapely
+    from shapely.geometry import Polygon
+    d = json.load(open(RS_PATH))
+    out = {}
+    for name in RS_LAYERS:
+        geoms = []
+        for rec in d[name]:
+            ring = list(zip(rec["p"][0::2], rec["p"][1::2]))
+            if len(ring) < 3:
+                continue
+            holes = [list(zip(h[0::2], h[1::2])) for h in rec.get("h", []) if len(h) >= 6]
+            g = Polygon(ring, holes)
+            if not g.is_valid:
+                g = shapely.make_valid(g)
+                if g.is_empty:
+                    continue
+            if name == "verge" and rec.get("k") == "shoulder":
+                out.setdefault("shoulder", []).append(g)
+            else:
+                geoms.append(g)
+        out[name] = geoms
+    out.setdefault("shoulder", [])
+    return {k: (v, shapely.STRtree(v)) for k, v in out.items()}
+
+
 def streets_for_tile(tx0, tz0):
     import shapely
     from shapely.geometry import LineString, box
@@ -1109,17 +1160,51 @@ def streets_for_tile(tx0, tz0):
 
     car = layer(G["car_tree"], G["car_geoms"])
     ped = layer(G["ped_tree"], G["ped_geoms"])
-    asphalt = I(car, space)
-    paving = D(I(ped, space), asphalt)
-    water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
-    sand = D(D(D(I(layer(G["sand_tree"], G["sand_geoms"]), space), asphalt), paving), water)
-    green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
-    if bl.is_empty:
-        raised = shapely.Polygon()
+    verge = shapely.Polygon()
+    if "rs" in G:
+        # Comune street polygons (tools/road_surfaces.py): the carriageway is asphalt, pavement bands are the raised layer, the strip beyond
+        # them where no building stands is the verge; squares, car parks and decreed pedestrian streets are paving. Ground in none of
+        # these is private land (courtyards, gardens, lots) and stays terrain.
+        def rs(name):
+            geoms, tr = G["rs"][name]
+            hits = [geoms[i] for i in tr.query(R)]
+            return poly_only(unary_union([I(h, R) for h in hits])) if hits else shapely.Polygon()
+        carr, pave, verg = rs("carriageway"), rs("pavement"), rs("verge")
+        tz = layer(G["tunnel_tree"], G["tunnel_geoms"])
+        if not tz.is_empty:   # the Comune polygons do not skip tunnels: the ground above one is no street (a surface road crossing it is put back)
+            carr = unary_union([D(carr, tz), I(car, tz)])
+            pave, verg = D(pave, tz), D(verg, tz)
+        # The Comune polygon is the whole street space, medians and promenades included (Viale della Liberta, a tree-lined avenue between two
+        # roadways, is one polygon). Asphalt is only what lies near an OSM road line; the rest is a median or island: raised, like a pavement.
+        lanes = layer(G["lane_tree"], G["lane_geoms"])
+        island = D(carr, lanes) if not lanes.is_empty else shapely.Polygon()
+        carr = I(carr, lanes) if not lanes.is_empty else carr
+        pave = unary_union([pave, island])
+        carr = unary_union([carr, rs("shoulder")])
+        pstreet = D(layer(G["pz_tree"], G["pz_geoms"]), layer(G["keep_tree"], G["keep_geoms"]))
+        pedz = unary_union([rs("plaza"), rs("pedestrian"), ped, pstreet])
+        paving = I(pedz, space)
+        asphalt = D(I(carr, space), paving)
+        water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
+        sand = D(D(D(I(layer(G["sand_tree"], G["sand_geoms"]), space), asphalt), paving), water)
+        green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
+        taken = unary_union([asphalt, paving, green, water, sand])
+        raised = D(I(pave, space), taken)
+        verge = D(D(I(verg, space), taken), raised)
+        raised, verge = poly_only(raised.buffer(-0.05).buffer(0.05)), poly_only(verge.buffer(-0.05).buffer(0.05))
+        asphalt, raised, verge, paving = (poly_only(g.simplify(RS_SIMPLIFY)) for g in (asphalt, raised, verge, paving))   # the survey is 1:2000
     else:
-        zone = bl.buffer(URBAN_REACH, quad_segs=2)
-        raised = D(D(D(D(D(I(space, zone), asphalt), paving), green), water), sand)
-        raised = poly_only(raised.buffer(-0.15).buffer(0.15))
+        asphalt = I(car, space)
+        paving = D(I(ped, space), asphalt)
+        water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
+        sand = D(D(D(I(layer(G["sand_tree"], G["sand_geoms"]), space), asphalt), paving), water)
+        green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
+        if bl.is_empty:
+            raised = shapely.Polygon()
+        else:
+            zone = bl.buffer(URBAN_REACH, quad_segs=2)
+            raised = D(D(D(D(D(I(space, zone), asphalt), paving), green), water), sand)
+            raised = poly_only(raised.buffer(-0.15).buffer(0.15))
 
     curbs = []
     touch = unary_union([raised, green]).buffer(0.3)
@@ -1133,12 +1218,12 @@ def streets_for_tile(tx0, tz0):
                         curbs.append([round(c, 1) for pt in g.coords for c in pt[:2]])
 
     out = {"aoi": empty["aoi"]}
-    for name, geom in (("asphalt", asphalt), ("paving", paving), ("raised", raised), ("green", green),
+    for name, geom in (("asphalt", asphalt), ("paving", paving), ("raised", raised), ("verge", verge), ("green", green),
                        ("water", water), ("sand", sand)):
         g = I(geom, tile)
         out[name] = chunked(g, tx0, tz0) if not g.is_empty else []
     out["curbs"] = curbs
-    return {k: out[k] for k in ("asphalt", "paving", "raised", "green", "water", "sand", "curbs", "aoi")}
+    return {k: out[k] for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs", "aoi") if k != "verge" or out[k]}
 
 
 def clip_line(ls, tile):
@@ -1193,7 +1278,7 @@ def tile_payload(i, j):
         counts[a["k"]] = counts.get(a["k"], 0) + 1
 
     st = streets_for_tile(tx0, tz0)
-    has_streets = any(st[k] for k in ("asphalt", "paving", "raised", "green", "water", "sand", "curbs"))
+    has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs"))
     near = G["near_for"](i, j)
     if not (blds or roads or areas or pitems or pareas or labels or has_streets or near):
         return None
@@ -1760,6 +1845,7 @@ def make_valid_list(geoms):
 def build(offline=False):
     import shapely
     from shapely.geometry import LineString, Polygon
+    from shapely.ops import unary_union
     t0 = time.time()
     files = fetch_all(offline)
     terra = ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium")
@@ -1830,6 +1916,41 @@ def build(offline=False):
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
              tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas)
 
+    if RS_ON:
+        G["rs"] = load_road_surfaces()
+        tun = [ls.buffer(max(rec["w"], 6) / 2 + 6, quad_segs=2) for rec, ls in roads if rec.get("tn")]
+        G.update(tunnel_geoms=tun, tunnel_tree=tree(tun))
+        lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
+                 for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]
+        G.update(lane_geoms=lanes, lane_tree=tree(lanes))
+        # OSM highway=pedestrian wins over the Comune carriageway: the whole platform near the line is stone paving, no asphalt, no kerbs
+        # (the 2016 decree list is incomplete). Ways OSM also tags as a road with traffic (ped_roadlike) and every ordinary OSM road keep
+        # their asphalt lanes, so a bus lane or a cross street stays a road.
+        plat_g, plat_t = G["rs"]["platform"]
+        pz, keep, named = [], [], {}
+        for ls, t, w in PED_STREETS:
+            if ped_roadlike(t) or t.get("name") in RS_PED_ASPHALT:
+                keep.append(ls.buffer(max(w * 0.6, 3.0) / 2 + 0.5, quad_segs=4))
+                named.setdefault(("asphalt", t.get("name", "(unnamed)")), 0)
+                named[("asphalt", t.get("name", "(unnamed)"))] += ls.length
+                continue
+            reach = ls.buffer(RS_PED_REACH, quad_segs=4)
+            zone = [plat_g[i] for i in plat_t.query(reach)]
+            z = I(unary_union(zone), reach) if zone else shapely.Polygon()
+            pz.append(unary_union([z, ls.buffer(w / 2, quad_segs=4)]))
+            named.setdefault(("paving", t.get("name", "(unnamed)")), 0)
+            named[("paving", t.get("name", "(unnamed)"))] += ls.length
+        for rec, ls in roads:
+            if not rec.get("tn") and rec["k"] in CARRIAGEWAY:
+                keep.append(ls.buffer((rec.get("cw") or CARRIAGEWAY[rec["k"]]) / 2 + 0.5, quad_segs=4))
+        G.update(pz_geoms=pz, pz_tree=tree(pz), keep_geoms=keep, keep_tree=tree(keep))
+        G["ped_named"] = named
+        for kind in ("paving", "asphalt"):
+            top = sorted(((m, n) for (k, n), m in named.items() if k == kind), reverse=True)
+            print(f"  OSM pedestrian streets drawn as {kind} ({sum(m for m, _ in top) / 1000:.1f} km): "
+                  + ", ".join(f"{n} {m:.0f}" for m, n in top if m >= 40), flush=True)
+        print(f"[{time.time() - t0:.0f}s] road surfaces: " + ", ".join(f"{k} {len(v[0])}" for k, v in G["rs"].items()) + f", {len(tun)} tunnels", flush=True)
+
     # Terrain
     elev = load_terrarium(terra)
     far = far_grid(elev, rect)
@@ -1871,10 +1992,11 @@ def build(offline=False):
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
-                        + (". " + CTC_CREDIT if CTC_ON else "") + "."),
+                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
-                        **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {})),
+                        **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
+                        **({"streets": RS_CREDIT} if RS_ON else {})),
     }
     if islands:
         manifest["islands"] = islands

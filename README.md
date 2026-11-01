@@ -65,6 +65,8 @@ compact binary format) and publishes it to GitHub Pages.
   https://doi.org/10.13127/tinitaly/1.1.
 - Building volumes and heights: Comune di Palermo, Carta Tecnica Comunale, Unita' Volumetriche (2013), CC BY 4.0 IT,
   https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294.
+- Street surfaces: Comune di Palermo, Perimetrazione area stradale and Aree pedonali (open data), CC BY 4.0,
+  https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks; Terrorage (used with permission) plays outside the Krust pub. Full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.
