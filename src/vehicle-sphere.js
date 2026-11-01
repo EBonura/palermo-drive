@@ -34,8 +34,10 @@ const TUNE = {
 
 export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit }) {
   let P = { ...BASE };
-  const S = { y: 0, vy: 0, vb: 0, ready: false, px: 0, pz: 0, kerb: 0, slopeF: 0, side: 0, grad: 0, hbPrev: false, hit: 0 };
+  const S = { y: 0, vy: 0, vb: 0, ready: false, px: 0, pz: 0, kerb: 0, slopeF: 0, side: 0, grad: 0, hbPrev: false, hit: 0, air: false, fv: 0 };
 
+  // the ground under the ball: the terrain, or a bridge deck / tunnel floor (src/bridges.js hooks.level) that the ball is on or a step below
+  const gY = (x, z) => { if (hooks.level && S.ready) { const y = hooks.level(x, z, S.y); if (y === y) return y; } return groundY(x, z); };
   function tune(type) { P = { ...BASE, ...(TUNE[type] || {}) }; }
   function reset() { S.ready = false; S.vy = S.vb = 0; }
 
@@ -43,7 +45,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
   // ground averaged along the heading (a tile edge or a lidar step becomes a short ramp) and a kerb ramp from the raised-ground mask
   function surface(dt, sn, cs) {
     const x = car.x, z = car.z;
-    const g = (groundY(x, z) * 2 + groundY(x + sn * 0.6, z + cs * 0.6) + groundY(x - sn * 0.6, z - cs * 0.6)) * 0.25;
+    const g = (gY(x, z) * 2 + gY(x + sn * 0.6, z + cs * 0.6) + gY(x - sn * 0.6, z - cs * 0.6)) * 0.25;
     const r = 0.5, lx = cs, lz = -sn;
     const n = (raisedMask(x, z) ? 1 : 0) + (raisedMask(x + sn * r, z + cs * r) ? 1 : 0) + (raisedMask(x - sn * r, z - cs * r) ? 1 : 0) + (raisedMask(x + lx * r, z + lz * r) ? 1 : 0) + (raisedMask(x - lx * r, z - lz * r) ? 1 : 0);
     const kt = CURB * sstep(0, 1, n / 5);
@@ -51,14 +53,14 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     return g + S.kerb;
   }
   // slope under the axles (kerbs included, for the tilt of the body) and the real ground gradient (for the slope limit)
-  const surf = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
+  const surf = (x, z) => gY(x, z) + (raisedMask(x, z) ? CURB : 0);
   function tilt(sn, cs) {
     const lx = cs, lz = -sn, x = car.x, z = car.z;
     const fA = 1.2, sA = 0.8;
     S.slopeF = (surf(x + sn * fA, z + cs * fA) - surf(x - sn * fA, z - cs * fA)) / (2 * fA);
     S.side = (surf(x + lx * sA, z + lz * sA) - surf(x - lx * sA, z - lz * sA)) / (2 * sA);
-    const gf = (groundY(x + sn * fA, z + cs * fA) - groundY(x - sn * fA, z - cs * fA)) / (2 * fA);
-    const gs = (groundY(x + lx * sA, z + lz * sA) - groundY(x - lx * sA, z - lz * sA)) / (2 * sA);
+    const gf = (gY(x + sn * fA, z + cs * fA) - gY(x - sn * fA, z - cs * fA)) / (2 * fA);
+    const gs = (gY(x + lx * sA, z + lz * sA) - gY(x - lx * sA, z - lz * sA)) / (2 * sA);
     return [gf, gs];
   }
 
@@ -72,12 +74,15 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
       const a = T.AXLE * sgn, cx = car.x + sn * a, cz = car.z + cs * a;
       let px = 0, pz = 0;
       walls2d.query(cx - T.R, cz - T.R, cx + T.R, cz + T.R, s => {
+        if (s.lv !== undefined && (Math.abs(S.y - s.lv) > 2.6 || S.air)) return;   // a parapet or tunnel wall on another level (the road under a deck, a car in the air)
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
         let nx, nz;
         if (d > 1e-4) { nx = dx / d; nz = dz / d; }
         else { const ex = s[2] - s[0], ez = s[3] - s[1], el = Math.hypot(ex, ez) || 1; nx = -ez / el; nz = ex / el; }
+        // a jump bridge (the Ponte Corleone, LANDMARK_ZONES in src/bridges.js): fast enough and fairly square on, the parapet is vaulted and the car flies
+        if (s.jump && Math.hypot(car.vx, car.vz) > 11 && -(car.vx * nx + car.vz * nz) > 4.5) { S.air = true; S.fv = 2.5; return; }
         px += nx * (T.R - d); pz += nz * (T.R - d);
         touched = true;
         const vn = car.vx * nx + car.vz * nz;
@@ -166,7 +171,12 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
 
     // ----- height: the ball sticks to the surface; a seam in the data (a tile edge) or a kerb becomes a quick ramp, never a pop -----
     const h = surface(dt, sn, cs);
-    if (!S.ready || Math.abs(h - S.y) > 4 || Math.hypot(car.x - S.px, car.z - S.pz) > 4) { S.y = h; S.vy = 0; S.ready = true; }
+    if (S.air) { // in the air (a vaulted parapet): free fall until the ground is there
+      S.fv -= 22 * dt; S.y += S.fv * dt;
+      if (S.y <= h) { S.y = h; S.air = false; if (S.fv < -6) car.hopV = Math.min(1.2, car.hopV + 0.6); S.fv = 0; }
+      S.vy = 0;
+    } else if (S.ready && car.deck > 1.5 && h < S.y - 2.5) { S.air = true; S.fv = 0; }   // drove off the end of a deck: fall, do not snap
+    else if (!S.ready || Math.abs(h - S.y) > 4 || Math.hypot(car.x - S.px, car.z - S.pz) > 4) { S.y = h; S.vy = 0; S.ready = true; }
     else {
       const lim = (Math.hypot(car.vx, car.vz) * (S.grad + 0.35) + 2.5) * dt, y0 = S.y;
       S.y += clamp(h - S.y, -lim, lim);
@@ -176,6 +186,8 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     }
     S.px = car.x; S.pz = car.z;
     car.lift = S.y - groundY(car.x, car.z);
+    car.deck = hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
+    if (hooks.fall) hooks.fall(car, S);
     if (S.hit > 0) { if (onHit) onHit(S.hit); S.hit = 0; }
   }
 

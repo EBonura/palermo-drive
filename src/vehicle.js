@@ -160,6 +160,8 @@ export function createVehicle(env) {
   // impulse (small bounce, tangential friction so the car scrapes along instead of stopping, a bit of
   // yaw) and a position push. Called on sub-steps of at most 0.35 m so nothing can tunnel.
   const I_YAW = 1.7;
+  // ground under the classic model's car: the terrain, or the bridge deck / tunnel floor it is on (hooks.level, src/bridges.js); car.deck is its height over the terrain
+  const gB = (x, z) => { if (hooks.level && car.deck) { const y = hooks.level(x, z, groundY(car.x, car.z) + car.deck + 0.3); if (y === y) return y; } return groundY(x, z); };
   function collide() {
     const sn = Math.sin(car.th), cs = Math.cos(car.th);
     let touched = false;
@@ -168,9 +170,12 @@ export function createVehicle(env) {
       const cx = car.x + sn * a, cz = car.z + cs * a;
       let px = 0, pz = 0;
       walls2d.query(cx - T.R, cz - T.R, cx + T.R, cz + T.R, s => {
+        if (s.lv !== undefined && (Math.abs(groundY(car.x, car.z) + (car.deck || 0) - s.lv) > 2.6 || car.vault > 0)) return;   // a parapet or tunnel wall on another level, or a car in the air
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
+        // a jump bridge (LANDMARK_ZONES in src/bridges.js): fast and fairly square on, the parapet is vaulted and the car flies off the deck
+        if (s.jump && Math.hypot(car.vx, car.vz) > 11 && (car.vx * dx + car.vz * dz) / d < -4.5) { car.vault = 2.5; car.dfv = 2.5; return; }
         let nx, nz;
         if (d > 1e-4) { nx = dx / d; nz = dz / d; }
         else { const ex = s[2] - s[0], ez = s[3] - s[1], el = Math.hypot(ex, ez) || 1; nx = -ez / el; nz = ex / el; }
@@ -280,7 +285,7 @@ export function createVehicle(env) {
     if (hb) brakeA += T.hbrake * (SPHERE ? 0.45 : 1);   // sphere: the handbrake is mostly a yaw flick and a grip cut, not a brake
     const coast = (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf;
     // Gravity along the slope: the Cassaro really does climb towards Porta Nuova.
-    const slope = (groundY(car.x + sn * 1.2, car.z + cs * 1.2) - groundY(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
+    const slope = (gB(car.x + sn * 1.2, car.z + cs * 1.2) - gB(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
     vf += (aDrive - 9.81 * slope) * dt;
     const resist = (brakeA + coast) * dt;
     vf = Math.abs(vf) <= resist ? 0 : vf - Math.sign(vf) * resist;
@@ -358,7 +363,7 @@ export function createVehicle(env) {
 
     // Body sits on the terrain, plus cosmetic weight transfer: roll out of the corner, dive and squat.
     const lx = cs, lz = -sn;
-    const side = SPHERE ? sphere.state.side : (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
+    const side = SPHERE ? sphere.state.side : (gB(car.x + lx * 0.8, car.z + lz * 0.8) - gB(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
     if (T.bike) {
       // lean into the corner: a damped spring on the bank angle (so a pothole can kick it); wheelie from the throttle at low speed
       const bt = clamp(car.ay * T.bankGain, -T.bankMax, T.bankMax) * sstep(1.5, 5, Math.abs(vf));
@@ -385,7 +390,20 @@ export function createVehicle(env) {
     const pitchT = clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
-    if (!SPHERE) car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);   // the sphere model sets car.lift itself
+    if (!SPHERE) {   // the sphere model sets car.lift (and car.deck) itself
+      // a bridge deck or tunnel floor under the car (hooks.level): car.deck is its height over the terrain; leaving it sideways or off the end is a free fall
+      const gb = groundY(car.x, car.z), tele = car.px !== undefined && Math.hypot(car.x - car.px, car.z - car.pz) > 6;   // placed somewhere new: take the highest deck there
+      const d0 = tele ? 0 : (car.deck || 0), ly = hooks.level ? hooks.level(car.x, car.z, tele ? 1e9 : gb + d0 + 0.3) : NaN, tgt = ly === ly ? ly - gb : 0;
+      car.px = car.x; car.pz = car.z;
+      if (tele) car.deck = tgt;
+      if (car.vault > 0) car.vault -= dt;
+      if (tele) { car.dfv = 0; car.vault = 0; car.lift = car.deck + (raisedMask(car.x, car.z) ? CURB : 0); }
+      else if (tgt >= d0 - 0.6 && !(car.vault > 1.8)) { car.deck = d0 + (tgt - d0) * Math.min(1, 20 * dt); car.dfv = 0; }
+      else { car.dfv = (car.dfv || 0) - 22 * dt; car.deck = Math.max(tgt, d0 + car.dfv * dt); if (car.deck <= tgt + 0.01) { car.dfv = 0; car.vault = 0; } }
+      if (Math.abs(car.deck) < 0.002) car.deck = 0;
+      car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) + car.deck - car.lift) * Math.min(1, 25 * dt);
+      if (hooks.fall) hooks.fall(car, { y: gb + car.deck, air: (car.dfv || 0) < -1 && car.deck > tgt + 0.5 });
+    }
     // road wear (src/roadwear.js): bounce spring after a pothole, grip and forced lean fade, and how hard the rear tyres scrub
     car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
     car.gripLoss = Math.max(0, car.gripLoss - dt / 0.7); car.kickT = Math.max(0, car.kickT - dt / 0.9);
@@ -417,6 +435,7 @@ export function createVehicle(env) {
   function wallHit(x0, z0, x1, z1) {
     let tMin = 1;
     walls2d.query(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), s => {
+      if (s.lv !== undefined) return;   // parapets and tunnel walls never block the camera
       const rx = x1 - x0, rz = z1 - z0, sx = s[2] - s[0], sz = s[3] - s[1], den = rx * sz - rz * sx;
       if (Math.abs(den) < 1e-9) return;
       const t = ((s[0] - x0) * sz - (s[1] - z0) * sx) / den, u = ((s[0] - x0) * rz - (s[1] - z0) * rx) / den;
@@ -445,7 +464,7 @@ export function createVehicle(env) {
     const ca = m === 2 ? car.th : cam.ang;
     const f = _c.set(Math.sin(ca), 0, Math.cos(ca));
 
-    const gy = groundY(car.x, car.z);
+    const gy0 = groundY(car.x, car.z), gy = gy0 + (car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js)
     // field of view: speed, nitro punch
     const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6;
     cam.fov += (fovT - cam.fov) * Math.min(1, 7 * dt);
@@ -460,8 +479,8 @@ export function createVehicle(env) {
     cam.roll += (rollT - cam.roll) * Math.min(1, 8 * dt);
 
     if (m === 2) { // bonnet
-      camera.position.set(car.x + f.x * 0.3 + sx, gy + car.lift + car.hop * 0.7 + T.eye + sy, car.z + f.z * 0.3 + sz);
-      camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy), car.z + f.z * 20);
+      camera.position.set(car.x + f.x * 0.3 + sx, gy0 + car.lift + car.hop * 0.7 + T.eye + sy, car.z + f.z * 0.3 + sz);
+      camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy0), car.z + f.z * 20);
       camera.rotateZ(cam.roll + car.roll * 0.5);
       camState.init = true;
       if (rig) rig.driver.visible = false;
@@ -479,7 +498,7 @@ export function createVehicle(env) {
       const t = wallHit(car.x, car.z, p.x, p.z);
       if (t < 1) { const k = Math.max(0.15, t * 0.85); p.x = car.x + (p.x - car.x) * k; p.z = car.z + (p.z - car.z) * k; p.y += (1 - k) * 2.5; }
     }
-    p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2);
+    p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2 + (car.deck || 0));   // (on a deck the camera stays above the deck, in a tunnel under the roof)
     camera.position.set(p.x + sx, p.y + sy + (m === 3 ? 0 : car.hop * 0.6), p.z + sz);
     const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + T.camH, car.z));
     camera.lookAt(look);

@@ -199,3 +199,40 @@ Via Eroi e Martiri di Nassiriya, Cortile Due Palme, Piazza San Pio. Another surf
 Corso Vittorio Emanuele (named Via Vittorio Emanuele in OSM between the Quattro Canti and the Cattedrale) is a chain of pedestrian-tagged ways: the ones with `psv=yes`,
 `lanes`, `maxspeed=50` or `sidewalk=both` are road-like asphalt, and the rest say `surface=asphalt`, so the whole stretch is asphalt. Near Porta Felice the pedestrian way
 (`motor_vehicle=permit`, `surface=asphalt`) is asphalt like its residential neighbours.
+
+## Bridges, viaducts and tunnels (tools/structures.py, src/bridges.js)
+
+Audit of what was there: `tiles.py` baked only a `br`/`tn` flag on the road (nothing was extracted for waterways, barriers or `man_made=bridge`), the road was draped on the
+ground model, so a bridge was a strip of asphalt on a smooth far-grid hill (no deck, no parapets, no piers, no river, no trench), tunnels were removed from the street layers and
+the hill covered them, the car followed the terrain only (one height per x, z), and traffic ignored all of it. `computeShape` also skipped `br` and `tn` roads.
+
+Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `layer`; culverts, `building_passage` and structures under 12 m (tunnels 20 m) are skipped):
+
+- **Data.** The PBF cache has two new categories: `wtr` (waterway river, stream, canal, drain, ditch, brook: 63 ways) and `bar` (barriers, for the walls step). `tools/structures.py`
+  writes one record per structure into `tile.structs` of every tile it touches: `{id, k 'b'|'t', p centreline, w deck width, cw carriageway, ly layer, n, hw, ow, f, rv river lines
+  within 200 m, rw river width, dep metres from the deck to the river bed, ov flyover, y0, y1}`. `dep` is relative (TINITALY valley depth: shoulders at the ends minus the bed under the
+  deck), `y0`/`y1` are the ground heights at the two ends as the game will show them (tile near grid, else far grid), written after the tiles are baked (`add_heights`). 191 bridges
+  (43 over water, 54 flyovers), 84 tunnels. Street layers lose the ground under water-crossing decks (`cut`), so no road is draped in the trench.
+- **Runtime** (`src/bridges.js`, wired in `src/world.js`): per structure, one copy by id. At tile parse: the deck or tunnel floor becomes a *level* (`hooks.level(x, z, yRef)`, the highest
+  surface not more than a step above yRef), the river trench and tunnel cuttings are carved into `hooks.ground` (`carve`; terrain cells are 5 m on tiles that have a trench), parapets
+  and tunnel walls go into the wall grid tagged with their height (`seg.lv`: they only stop a car on that level; the camera, traffic and sight lines ignore them). At full detail: deck slab,
+  asphalt with edge and centre lines, kerbs, pavements, parapets, piers every 30 m, abutments; the river (bed strip and water) under a bridge; tunnel floor, lining and ceiling.
+  Deck heights are linear between `y0` and `y1`; a flyover climbs 5.4 m with 28 m ramps; a long viaduct never goes under the ground; a tunnel under a hill is level, one under flat
+  ground dips so that the ground is a roof everywhere (4 m steps, ramps at 10 %), with an open cutting at the mouths.
+- **Cars.** `car.deck` is the height of the deck or floor above the terrain (negative in a tunnel); `car.lift` includes it, so everything that adds `lift` to `groundY` (missions, mounts)
+  follows. Both driving models use it (`src/vehicle.js` classic, `src/vehicle-sphere.js`); driving off a deck is a free fall; the camera stays above the deck and under a tunnel roof.
+  Traffic on a road flagged `br` (graph edges carry it) is placed on the highest deck; pedestrians do not walk on decks (the street layers are cut there).
+- **Not done:** rail bridges (railways are not extracted), a `man_made=bridge` footprint, lamps and lane paint on tunnel floors, pedestrians on decks, tunnel portal frames,
+  `layer` stacking beyond two levels at one point.
+
+### The Ponte Corleone and the secret "Bba ieccati ru baby luna"
+
+Baby Luna is the bar of OSM way 81030476 (`amenity=bar`) at game (-1565, 2818), at the Ponte Corleone, also called Ponte Oreto, which carries Viale Regione Siciliana over the Oreto river
+(PalermoToday and Giornale di Sicilia name the bar and the bridge together; one article calls the same bridge "ponte Oreto"). It is two OSM ways with `bridge=yes`, `layer=1`, 145 m each:
+`81030481` (-1414, 2894 to -1522, 2795) and `81030484` (-1531, 2805 to -1425, 2903), ids `b81030481` and `b81030484`, 36 to 49 m from the bar. The Via Oreto street has its own, different
+bridge further east (`b828370088`, 153 m at about 750, 1450). The river is the OSM `waterway=river` line, 14 m wide, 12.6 m under the deck (TIN valley depth), with a carved trench and water.
+
+Trigger: `LANDMARK_ZONES` in `src/bridges.js` (`{ id: 'baby-luna-jump', structs: ['b81030481', 'b81030484'], minFall: 4, jump: true }`). The parapets of those two decks can be vaulted: speed
+over 11 m/s and 4.5 m/s straight into the parapet and the car goes over (`seg.jump`; every other parapet in the city stays solid). The event fires once per fall, when the car has dropped
+`minFall` metres within 6 s of leaving the deck, as `window` event `pd-landmark` with `detail = { id: 'baby-luna-jump', label, x, z, y, fall }`, and to the listeners of
+`onLandmarkEvent(fn)` (exported by `src/bridges.js`, returns an unsubscribe function). An achievements module only has to listen for `pd-landmark` and check `detail.id`.
