@@ -196,6 +196,8 @@ export function drawCharacter(c, sp, pose) {
   const AMP = run ? 1.75 : bounce ? 0.85 : sp.slow ? 0.7 : 1;
   let wp = pose === 0 || pose === 5 ? IDLE : WALK[pose];
   if (sp.chair) wp = { l: [86, 86], r: [86, 86], al: 20, ar: 20 };
+  const sit = pose === 6 || pose === 7;   // on the ground, knees up
+  if (sit) wp = { l: [100, 50], r: [113, 57], al: 12, ar: 12 };
   if (AMP !== 1 && wp !== IDLE) wp = lerpPose(IDLE, wp, AMP);
   // leg FK
   const hipJ = leg - 1, Lt = (hipJ - 2.1) * 0.5, Ls = (hipJ - 2.1) * 0.5, hx = 2.35 + (fem ? 0.1 : 0);
@@ -295,7 +297,8 @@ export function drawCharacter(c, sp, pose) {
   const armPose = (side) => {
     const near = side > 0, ap = near ? wp.al : wp.ar;
     let p1 = ap * AMP * 0 + ap, elb = run ? 85 : 10 + Math.abs(ap) * 0.45;
-    if (pose === 5 && near) { p1 = 55; elb = 118; }                                 // the drink: forearm raised to the mouth
+    if ((pose === 5 || pose === 7) && near) { p1 = 55; elb = 118; }                 // the drink: forearm raised to the mouth
+    else if (pose === 6) { if (near) { p1 = sp.drink ? 28 : 18; elb = sp.drink ? 80 : 40; } else { p1 = 14; elb = 36; } }   // sitting: a drink held at the chest, or a hand on the knee
     else if (sp.hold && near) { p1 = 22; elb = 70; }
     if (sp.phoneUp && side < 0) { p1 = 50; elb = 105; }
     return [p1, elb];
@@ -455,8 +458,8 @@ function carried(c, sp, hands, hipY, tor, pose, fem, run) {
   if (sp.bag) hang('bag', sp.bag, hl); if (sp.tote) hang('tote', sp.tote, hl); if (sp.purse) hang('purse', sp.purse, hl); if (sp.briefcase) hang('briefcase', sp.briefcase, hl);
   if (sp.bag2) hang('bag', sp.bag2, hr); if (sp.helmetHand) hang('helmet', sp.helmetHand, hl);
   if (sp.drink) {
-    const hnd = pose === 5 ? hl : hr, [x, y, z] = hnd.wr;
-    if (pose === 5) { const kind = sp.drink.type; if (kind === 'bottle') { box(x, y + 1.2, z + 0.9, 1.3, 4.2, 1.3, sp.drink.col, { style: HD, n: 2, part: 61 }); box(x, y + 3.5, z + 1.6, 0.7, 1.6, 0.7, shade(ci(sp.drink.col), 1.1), { style: HD, n: 2, part: 61 }); } else { box(x, y + 1.6, z + 0.8, 2.2, 3.6, 2.2, sp.drink.col, { n: 2, style: HD, part: 61 }); box(x, y + 3.5, z + 0.8, 2.3, 0.5, 2.3, '#f0ece4', { n: 2, part: 62 }); } }
+    const raised = pose === 5 || pose === 6 || pose === 7, hnd = raised ? hl : hr, [x, y, z] = hnd.wr;
+    if (raised) { const kind = sp.drink.type; if (kind === 'bottle') { box(x, y + 1.2, z + 0.9, 1.3, 4.2, 1.3, sp.drink.col, { style: HD, n: 2, part: 61 }); box(x, y + 3.5, z + 1.6, 0.7, 1.6, 0.7, shade(ci(sp.drink.col), 1.1), { style: HD, n: 2, part: 61 }); } else { box(x, y + 1.6, z + 0.8, 2.2, 3.6, 2.2, sp.drink.col, { n: 2, style: HD, part: 61 }); box(x, y + 3.5, z + 0.8, 2.3, 0.5, 2.3, '#f0ece4', { n: 2, part: 62 }); } }
     else hang(sp.drink.type, sp.drink.col, hnd);
   }
   if (sp.backpack) {

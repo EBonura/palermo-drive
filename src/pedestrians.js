@@ -23,7 +23,7 @@
 import { FLEW } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
-import { VARIANTS, CELL_W, CELL_H, GROUND, POSES, variantsOf } from '../assets/peds/sprites.js';
+import { VARIANTS, CELL_W, CELL_H, GROUND, POSES, CELLS_PER_ENTRY, POSE_SIT, POSE_SIT_SIP, variantsOf } from '../assets/peds/sprites.js';
 import { createPedAtlas } from '../assets/peds/atlas.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
@@ -501,7 +501,7 @@ export function createPedestrians(env) {
     lodK = H * 0.5 * cam.projectionMatrix.elements[5] * (PX / 3); lodFrame++; lodFwdX = camFwdX; lodFwdZ = camFwdZ; lodCx = cam.position.x; lodCz = cam.position.z;
   }
   function lodPick(v, dir, pose, dist, size, prevNear) {
-    const m = dir === 3 ? 4096 : 0, c6 = dir === 3 ? 2 : dir; let cid = c6 * 6 + pose;
+    const m = dir === 3 ? 4096 : 0, c6 = dir === 3 ? 2 : dir; let cid = c6 * POSES + pose;
     if (!atlas.farDone[v]) { atlas.prioritise(v); if (rendererRef) atlas.buildNow(rendererRef, v); }
     lodNear = false;
     if (hasNear) {
@@ -509,12 +509,12 @@ export function createPedestrians(env) {
       if (tp >= (prevNear ? NEAR_OUT : NEAR_IN)) {
         if (lodSee && tp >= NEAR_IN * 0.95 && atlas.farDone[v]) atlas.want(v, dist);
         if (atlas.nearReady(v)) {
-          let a = atlas.nearIdx[v * 18 + cid]; if (a < 0) { cid = c6 * 6; a = atlas.nearIdx[v * 18 + cid]; }
+          let a = atlas.nearIdx[v * CELLS_PER_ENTRY + cid]; if (a < 0) { cid = c6 * POSES; a = atlas.nearIdx[v * CELLS_PER_ENTRY + cid]; }
           if (a >= 0) { lodNear = true; lodX = (a % atlas.nearCol) * atlas.NCW + m + 8192; lodY = Math.floor(a / atlas.nearCol) * atlas.NCH; return; }
         }
       }
     }
-    let a = atlas.farIdx[v][cid]; if (a < 0) { cid = c6 * 6; a = atlas.farIdx[v][cid]; }
+    let a = atlas.farIdx[v][cid]; if (a < 0) { cid = c6 * POSES; a = atlas.farIdx[v][cid]; }
     lodX = (a % atlas.farCol) * atlas.FCW + m; lodY = Math.floor(a / atlas.farCol) * atlas.FCH;
   }
   function lodEnd(dt) {
@@ -1042,6 +1042,7 @@ export function createPedestrians(env) {
   function setBounce(id, on) { const c = scripted.get(id); if (c) c.bounce = !!on; }
   function remove(id) { scripted.delete(id); }
   // A named group at a spot (a crowd in front of a pub, a gang at a bench): spawnCrowd({ x, z, radius, count, mix, props }) -> array of ids
+  //   pose: 'sit' puts them on the ground (knees up, hands on the knees or a drink in one hand, sipping now and then); only people who can sit are picked (those with a drink, the young everyday types)
   //   mix: { family or type id: weight, ... } over the families below or any type id ('nonna', 'metal_long'...); default everyday people. props: 'beer' picks people who hold a bottle
   //   or a pint (the night and metal looks do) and has them sip now and then. People stand in small knots facing one another and do not move; removeCrowd(ids) takes them away again.
   //   Needs the near scripted slots (96 in all, shared with the missions), so keep groups to a dozen or so. Members already placed are not moved if the call runs short of room.
@@ -1050,9 +1051,10 @@ export function createPedestrians(env) {
     young: GROUPS.young, elders: GROUPS.elders, fans: GROUPS.fans, tourists: GROUPS.tour, locals: ['coppola', 'coppola2', 'nonno', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'suit'], beach: GROUPS.beach, market: GROUPS.market,
   };
   function spawnCrowd(o) {
-    const out = [], R = Math.max(1, o.radius || 4), want = Math.max(1, o.count | 0 || 6), beer = o.props === 'beer';
+    const out = [], R = Math.max(1, o.radius || 4), want = Math.max(1, o.count | 0 || 6), beer = o.props === 'beer', sit = o.pose === 'sit';
     const mix = o.mix && Object.keys(o.mix).length ? o.mix : { locals: 1 }, pool = [], wts = [];
     for (const k of Object.keys(mix)) for (const id of FAMILIES[k] || [k]) for (const vi of variantsOf(id)) { if (beer && !VARIANTS[vi].drink && Object.keys(mix).some(q => FAMILIES[q] && FAMILIES[q].some(i => variantsOf(i).some(j => VARIANTS[j].drink)))) continue; pool.push(vi); wts.push(mix[k] / (FAMILIES[k] ? FAMILIES[k].length : 1)); }
+    if (sit) { const sp2 = pool.filter(vi => VARIANTS[vi].sit); if (sp2.length) { for (let k = pool.length - 1; k >= 0; k--) if (!VARIANTS[pool[k]].sit) { pool.splice(k, 1); wts.splice(k, 1); } } }
     if (!pool.length) return out;
     const sum = wts.reduce((a, b) => a + b, 0), spots = [];
     const knots = Math.max(1, Math.round(want / 4));
@@ -1070,7 +1072,7 @@ export function createPedestrians(env) {
       }
       if (!ok) continue;
       const id = spawnScripted(vi, px, pz); if (id < 0) break;
-      const c = scripted.get(id); c.th = Math.atan2(kn[0] - px, kn[1] - pz) + (Math.random() - 0.5) * 0.9; c.size = 0.97 + Math.random() * 0.06; c.drinking = beer && !!VARIANTS[vi].drink; c.crowd = true;
+      const c = scripted.get(id); c.th = Math.atan2(kn[0] - px, kn[1] - pz) + (Math.random() - 0.5) * 0.9; c.size = 0.97 + Math.random() * 0.06; c.drinking = beer && !!VARIANTS[vi].drink; c.crowd = true; c.sit = sit && !!VARIANTS[vi].sit;
       out.push(id);
     }
     return out;
@@ -1123,7 +1125,8 @@ export function createPedestrians(env) {
       const dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
       let pose = 0;
       if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph + 1; }
-      if (c.drinking && pose === 0 && VARIANTS[c.v].drink && ((lodClock + c.id * 2.31) % 6.1) < 1.7) pose = 5;
+      if (c.sit && VARIANTS[c.v].sit) pose = c.drinking && VARIANTS[c.v].drink && ((lodClock + c.id * 2.31) % 6.1) < 1.7 ? POSE_SIT_SIP : POSE_SIT;
+      else if (c.drinking && pose === 0 && VARIANTS[c.v].drink && ((lodClock + c.id * 2.31) % 6.1) < 1.7) pose = 5;
       lodSee = dxc * camFwdX + dzc * camFwdZ < 0;
       lodPick(c.v, dir, pose, dist, c.size, c.nr); c.nr = lodNear; sa[i * 4] = lodX; sa[i * 4 + 1] = lodY; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
       sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (GROUND + leg - 1.3) / CELL_H : 0;
