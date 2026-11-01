@@ -20,8 +20,18 @@ function itemGeo(shape) {
       const x = -0.2 + i * 0.2, z = -0.1 + j * 0.2;
       P.push(col(new THREE.CylinderGeometry(0.05, 0.055, 0.28, 8).translate(x, 0.5, z), '#1f6b3a'), col(new THREE.CylinderGeometry(0.02, 0.05, 0.1, 8).translate(x, 0.69, z), '#1f6b3a'), col(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 8).translate(x, 0.76, z), '#e0b84a'));
     }
+  } else if (shape === 'bottle') {   // three amber bottles with black labels in a cardboard case
+    P.push(col(new THREE.BoxGeometry(0.6, 0.25, 0.3).translate(0, 0.12, 0), '#a9803f'));
+    for (let i = 0; i < 3; i++) { const x = -0.18 + i * 0.18; P.push(col(new THREE.CylinderGeometry(0.06, 0.065, 0.34, 8).translate(x, 0.42, 0), '#9a5a14'), col(new THREE.CylinderGeometry(0.025, 0.06, 0.12, 8).translate(x, 0.65, 0), '#9a5a14'), col(new THREE.BoxGeometry(0.13, 0.14, 0.135).translate(x, 0.4, 0), '#161212'), col(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 8).translate(x, 0.73, 0), '#d8b848')); }
+  } else if (shape === 'flask') {   // a straw-bound wine flask with red wine
+    P.push(col(new THREE.SphereGeometry(0.28, 12, 10).scale(1, 1.1, 1).translate(0, 0.32, 0), '#7a1822'), col(new THREE.CylinderGeometry(0.06, 0.1, 0.3, 8).translate(0, 0.74, 0), '#7a1822'), col(new THREE.CylinderGeometry(0.075, 0.075, 0.06, 8).translate(0, 0.92, 0), '#d8b848'),
+      col(new THREE.CylinderGeometry(0.3, 0.3, 0.3, 12).translate(0, 0.12, 0), '#c8a45a'), col(new THREE.TorusGeometry(0.29, 0.025, 6, 14).rotateX(Math.PI / 2).translate(0, 0.3, 0), '#8a6a30'));
+  } else if (shape === 'vinyl') {   // a record leaning out of its sleeve
+    P.push(col(new THREE.BoxGeometry(0.66, 0.66, 0.03).translate(0, 0.4, 0), '#2a2a30'), col(new THREE.CylinderGeometry(0.31, 0.31, 0.02, 20).rotateX(Math.PI / 2).translate(0.12, 0.46, 0.02), '#0c0c0e'), col(new THREE.CylinderGeometry(0.1, 0.1, 0.022, 14).rotateX(Math.PI / 2).translate(0.12, 0.46, 0.022), '#d94abf'));
+  } else if (shape === 'keg') {   // a steel beer keg with two bands
+    P.push(col(new THREE.CylinderGeometry(0.27, 0.27, 0.62, 14).translate(0, 0.31, 0), '#aeb4ba'), col(new THREE.TorusGeometry(0.27, 0.03, 6, 16).rotateX(Math.PI / 2).translate(0, 0.08, 0), '#6c7278'), col(new THREE.TorusGeometry(0.27, 0.03, 6, 16).rotateX(Math.PI / 2).translate(0, 0.54, 0), '#6c7278'), col(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8).translate(0, 0.65, 0), '#2a2a2e'));
   } else P.push(col(new THREE.SphereGeometry(0.4, 10, 8).translate(0, 0.5, 0), '#e0b84a'));
-  const g = mergeGeometries(P); g.translate(0, 0.62, 0); g.scale(1.5, 1.5, 1.5); return g;
+  const g = mergeGeometries(P); g.translate(0, 0.62, 0); const k = shape === 'vinyl' ? 2.1 : 1.5; g.scale(k, k, k); return g;
 }
 
 export function createErrand(X) {
@@ -75,7 +85,7 @@ export function createErrand(X) {
     const v = e.venue;
     if (e.got === 0) { say(pick(e.E.none), headOf, 0); finish(false); return; }
     homeBeacon.set(v.slot.x, v.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(v.slot.x, v.slot.z, '#6bbf59', 8);
-    hud.toast(T('Riportale da ' + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + e.item.it);
+    hud.toast(T((e.item.art === 'le' ? 'Riportale da ' : 'Riportali da ') + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + e.item.it);
   }
 
   function finish(ok) {
@@ -87,7 +97,7 @@ export function createErrand(X) {
     say(pick(e.E.thanks), headOf, 0.6);
     X.pubs?.cheer(e.venue);
     hud.result(`<h3>${esc(e.venue.def.name)}</h3>
-      <div class="row"><span>${T('Riportate', 'Brought back')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
+      <div class="row"><span>${T(e.item.art === 'le' ? 'Riportate' : 'Riportati', 'Brought back')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
       ${bonus ? `<div class="row"><span>${T('Tutte quante!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
       <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
@@ -118,11 +128,11 @@ export function createErrand(X) {
       else {
         const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
         const m = Math.max(0, e.left);
-        hud.set({ label: T('Cerca le ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
+        hud.set({ label: T('Cerca ' + e.item.art + ' ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
       }
     } else if (e.phase === 'return') {
       X.aim(v.slot.x, v.slot.z, true);
-      hud.set({ label: T('Riportale indietro', 'Take them back'), title: v.def.name, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: v.slot });
+      hud.set({ label: T(e.item.art === 'le' ? 'Riportale indietro' : 'Riportali indietro', 'Take them back'), title: v.def.name, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: v.slot });
       if (Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else {
       X.aim(0, 0, false);

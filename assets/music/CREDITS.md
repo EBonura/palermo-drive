@@ -64,8 +64,8 @@ leading silence trimmed, metadata reduced to title and artist. Nothing else was 
 
 ## Terrorage
 
-The house song of the Krust pub: it is not on the car radio, it only plays near the pub's door (src/pubs.js, loaded only when the lapa is close). Used with the permission of the band.
+The house song of the Krust pub: it is not on the car radio, it only plays at the pub's door, audible within about 28 m (src/pubs.js, loaded only when the lapa is within 90 m). Used with the permission of the band.
 
 | Title (file) | Artist | Permission | Changes |
 | --- | --- | --- | --- |
-| Terrorage (`terrorage.m4a`) | Terrorage | used with permission of the band | re-encoded (HE-AAC in M4A, about 40 kbps), loudness normalised to about -17 LUFS, metadata reduced to title and artist; no edits, no cuts |
+| DIY Violence (`terrorage.m4a`) | Terrorage | used with permission of the band | re-encoded (HE-AAC in M4A, about 40 kbps), loudness normalised to about -17 LUFS, metadata reduced to title (DIY Violence) and artist (Terrorage); no edits, no cuts |
