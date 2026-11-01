@@ -67,7 +67,9 @@ compact binary format) and publishes it to GitHub Pages.
   https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294.
 - Street surfaces: Comune di Palermo, Perimetrazione area stradale and Aree pedonali (open data), CC BY 4.0,
   https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280.
-- Walls and fences (and the thinned CTR lines the tiles use): Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0.
+- Walls, fences, hedges and trees: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0.
+- Trees: Contains modified Copernicus Land Monitoring Service information: Urban Atlas Street Tree Layer 2018, European Environment Agency (EEA).
+- Green areas (medians, islands, flowerbeds): Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks; Terrorage (used with permission) plays outside the Krust pub. Full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.

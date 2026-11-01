@@ -17,6 +17,7 @@ const KIND = {
   r: { th: 0.5, col: ['#a8a397', '#9c978b', '#b0aa9c'] },
   c: { th: 1.3, col: ['#b9a070', '#b09768'] },
   j: { th: 0.55, col: ['#b9b7ae'] },
+  h: { th: 0.95, col: ['#4c6b34', '#44622f', '#55723a', '#3e5c2d'] },   // hedges: a green block (solid)
 };
 const rnd01 = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
 
