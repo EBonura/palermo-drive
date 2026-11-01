@@ -278,7 +278,7 @@ export function buildOfficina({ vehicle, day = true } = {}) {
     if (face === 'z') dec.grid([cx - w / 2, cy - h / 2, cz], [w, 0, 0], [0, h, 0], 3, 3, '#ffffff', [u0, v0, u1, v1]);
     else dec.grid([cx, cy - h / 2, cz + w / 2], [0, 0, -w], [0, h, 0], 3, 3, '#ffffff', [u0, v0, u1, v1]);   // facing +x (left wall)
   };
-  quad('sign', (DX0 + DX1) / 2, 3.42, Z0 + 0.015, 2.7, 0.675);
+  quad('sign', (DX0 + DX1) / 2, 3.36, Z0 + 0.015, 2.0, 0.5);   // just above the shutter box (2.7 to 3.1 m), low enough for the turntable camera to see it whole
   quad('saint', 1.6, 1.95, Z0 + 0.03, 0.62, 0.78);
   quad('cal', 2.62, 1.88, Z0 + 0.02, 0.5, 0.75);
   quad('peg', X0 + 0.02, 1.95, -2.55, 3.2, 1.6, 'x');
