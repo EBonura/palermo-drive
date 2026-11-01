@@ -80,6 +80,12 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | AMAT Palermo GTFS feed (bus routes and stops, tram lines, stops and timetables), edition 20260825-20261031 | AMAT Palermo S.p.A., published by the Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1807 | CC BY 4.0 IT (tram lines georeferenced on OpenStreetMap, ODbL) | shapes thinned to 2 m, busiest pattern of each direction, tram paths matched to OSM tracks |
 | Drinking fountains (AMAP list, 2019) | Comune di Palermo, AMAP S.p.A. | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1249 | CC BY 4.0 IT | those without an OSM node within 25 m become props |
 
+## Roof and ground colours (world/, baked by `tools/tiles.py` from `tools/colours.py`)
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Ortofoto Regione Siciliana ATA 2012-2013 (15 cm and 25 cm): only colour values derived from it, no imagery | Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica, Nodo Regionale S.I.T.R. | https://www.sitr.regione.sicilia.it/geoportale/it/metadata/details/608 | CC BY 4.0 (as stated by the service record) | one colour per roof and one relative tint per 20 m ground cell, extracted, shadow-filtered and colour-rebalanced |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).

@@ -472,6 +472,7 @@ FAR_MARGIN = 3000
 CTR_WALLS = os.path.join(ROOT, "data", "walls.json")   # Regione Siciliana CTR walls and fences, tools/fences.py
 CTR_CREDIT = "Walls, fences and trees: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0"
 UA_CREDIT = "Contains modified Copernicus Land Monitoring Service information: Urban Atlas Street Tree Layer 2018, European Environment Agency (EEA)"
+COLOUR_CREDIT = "Roof and ground colours derived from the Regione Siciliana SITR Ortofoto ATA 2012-2013 (Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica), CC BY 4.0. Colours were extracted and rebalanced; no imagery is included"
 TRANSIT_CREDIT = "Bus and tram routes, stops and timetables: AMAT Palermo S.p.A. open data (GTFS, Comune di Palermo), CC BY 4.0; tram geometry follows OpenStreetMap (ODbL). Drinking fountains: Comune di Palermo / AMAP S.p.A. open data, CC BY 4.0"
 VERDE_CREDIT = "Green areas: Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0"
 RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
@@ -689,6 +690,9 @@ CTC_EXTRA = os.path.join(ROOT, "data", "footprints_extra.json")
 CTC_ON = os.path.exists(CTC_HEIGHTS)
 
 
+ROOF_RC = {}   # building id -> roof colour of the orthophoto (tools/colours.py), filled in build()
+
+
 def ctc_shape(rec):
     """(roof, parts, split, ground) from a Carta Tecnica Comunale record, in the same form as raster_shape: absolute elevations.
     The record's `parts` hold heights relative to the foot. The roof is the eave (a pitched roof gets its rise on top at runtime, flag `e`)."""
@@ -715,6 +719,8 @@ def parse_buildings(files, lidar):
         h = building_height(oid, tags, fp)
         kind = tags.get("building", "yes")
         b = {"id": key, "h": round(h, 1), "c": int(hash01(oid + 7) * 1000), "p": flat(outer)}
+        if key in ROOF_RC:
+            b["rc"] = ROOF_RC[key]
         for tag, field in TAG_FIELDS:
             if tags.get(tag) and not (tag == "building" and tags[tag] == "yes"):
                 b[field] = tags[tag]
@@ -1347,6 +1353,8 @@ def tile_payload(i, j):
         out["fences"] = fn
     if tr:
         out["tram"] = tr
+    if G["tile_gt"].get(key):
+        out["gt"] = G["tile_gt"][key]
     if near:
         out["near"] = near
     return out
@@ -1917,6 +1925,10 @@ def build(offline=False):
     rect = world_rect()
     print(f"[{time.time() - t0:.0f}s] parsing OSM", flush=True)
 
+    import colours
+    ROOF_RC.update(colours.roof_colours(os.path.join(ROOT, "data", "roof_colours.json")))
+    tile_gt = colours.ground_tints(os.path.join(ROOT, "data", "ground_colours.json"))
+    print(f"  colours: {len(ROOF_RC)} roof colours, ground tints for {len(tile_gt)} tiles", flush=True)
     buildings, labels, stats = parse_buildings(files["bld"], lidar)
     coast, areas_raw, piers = parse_misc(files["misc"])
     roads, car, ped, plazas = parse_highways(files["hwy"])
@@ -1999,7 +2011,7 @@ def build(offline=False):
              roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]),
              pier_geoms=piers, pier_tree=tree(piers),
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
-             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct, tram=TRAM, gv_geoms=[g for g, _ in verges], gv_cls=[c for _, c in verges],
+             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct, tram=TRAM, tile_gt=tile_gt, gv_geoms=[g for g, _ in verges], gv_cls=[c for _, c in verges],
              gv_tree=shapely.STRtree([g for g, _ in verges]) if verges else shapely.STRtree([Polygon()]),
              fence_items=fitems, fence_tree=shapely.STRtree([f["g"] for f in fitems]) if fitems else None)
 
@@ -2093,11 +2105,11 @@ def build(offline=False):
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
-                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + ". " + TRANSIT_CREDIT + "."),
+                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + ". " + TRANSIT_CREDIT + ". " + COLOUR_CREDIT + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
                         **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
-                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT, "transit": TRANSIT_CREDIT}),
+                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT, "transit": TRANSIT_CREDIT, "colours": COLOUR_CREDIT}),
     }
     if islands:
         manifest["islands"] = islands
