@@ -1,18 +1,21 @@
-// Pedestrian sprite atlas, drawn pixel by pixel in code (no external art). Owned by the pedestrian work.
-// This file is the cast (VARIANTS, spawn weights). The drawing lives in figure.js / head.js / px.js.
-// Each variant is a block of 20 cells of 48x96 px: 4 directions (front, back, left, right) x 5 poses
-// (idle, step A, passing A, step B, passing B). Right is the mirror of left. Feet stand on pixel row 93.
-// Blocks are packed PACK per atlas row so the atlas stays under 4096 px wide however many variants there are.
-import { CELL_W, CELL_H, SCALE, POSES, DIRS, COLS, PACK, FRONT, BACK, LEFT, RIGHT, cellData, buildAtlasData } from './figure.js';
-export { CELL_W, CELL_H, SCALE, POSES, DIRS, COLS, PACK, FRONT, BACK, LEFT, RIGHT, cellData };
+// The cast of the pedestrian crowd. Owned by the pedestrian work.
+// TYPES are the Palermitan kinds of people (nonna, market vendor, tourist, rosanero fan, metalhead...) with their outfits and crowd weights per zone; the
+// parametric character model (model.js) and the generator (people.js) turn each type into several different people, and VARIANTS is that list (the cast).
+// Drawing lives in model.js / raster.js, the atlases in atlas.js.
+import { makePerson, hashStr } from './people.js';
+import { CELL_U } from './raster.js';
+export const CELL_W = CELL_U.w, CELL_H = CELL_U.h, GROUND = CELL_U.ground;
+export const POSES = 6, DIRS = 4, DIRS_DRAWN = 3;   // poses: idle, four walking, drink; directions: front, back, left, right (right is the mirror of left)
+export const POSE_DRINK = 5;
+export const FRONT = 0, BACK = 1, LEFT = 2, RIGHT = 3;
 
-// ---------- the cast ----------
 // leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe. Night extras: drink {type,col}, headphones, pocket, sparkle, hat types cap/hood, pair [a, b] (a couple).
 // the "falsi invalidi" gag: a tracksuit man in a wheelchair who leaps up and sprints off when the lapa comes near
 const TRACK = { tw: 13, skin: '#c99872', hair: '#6b645c', hairStyle: 'short', glasses: '#18161a', top: '#b83a2c', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#b83a2c', stripe: '#f0eee8' }, shoes: '#f0eee8' };
-const AMICO1 = { skin: '#dcac8c', hair: '#3a2a20', hairStyle: 'quiff', glasses: '#1c1a1e', stubble: '#4a382c', smile: 2, eyes: '#4a3424', tw: 12 };
-const AMICO2 = { skin: '#ecc2a4', hair: '#b8763e', hairStyle: 'wavy', glasses: '#5a3a1e', glassStyle: 'round', tortoise: true, smile: 1, eyes: '#5a6a4a', tw: 10, leg: 21, tor: 14, tattoo: '#3a4a5a', bracelet: ['#d9443c', '#f0eee8', '#2a3f6b'] };
-export const VARIANTS = [
+const AMICO1 = { skin: '#dcac8c', hair: '#2a1c14', hairStyle: 'quiff', glasses: { frame: '#1c1a1e', style: 'rect' }, stubble: '#4a382c', tw: 12, face: { fw: 4.05, jaw: 0.35, cheek: 0.25, chinW: 0.5, eyeGap: 1.95, eyeSize: 0.95, browThick: 0.75, browTilt: 0.06, noseLen: 1.4, mouthW: 3, smile: 0.35, eyeCol: '#4a3424', stubbleD: 0.55, age: 0.25 } };
+const AMICO2 = { skin: '#ecc2a4', hair: '#b8763e', hairStyle: 'curly', hairLong: true, hairLen: 3, glasses: { frame: '#5a3a1e', style: 'round', tortoise: true }, tw: 10, leg: 21, tor: 14, tattoo: '#3a4a5a', tattooForearm: true, bracelet: ['#d9443c', '#f0eee8', '#2a3f6b'],
+  face: { fw: 4.0, jaw: 0.25, cheek: 0.3, chinW: 0.3, eyeGap: 2.0, eyeSize: 1.0, browThick: 0.45, noseLen: 1.4, mouthW: 2.8, smile: 0.15, eyeCol: '#5a6a4a', age: 0.2, freckles: true } };
+const TYPES = [
   { id: 'nonna', leg: 17, tor: 14, head: 9, stoop: 1, h: 1.6, skin: '#d6a284', hair: '#bdb8b0', hat: { type: 'scarf', col: '#222025' }, top: '#2a2830', sleeve: 'long',
     bottom: { type: 'skirt', col: '#25232a', len: 12 }, legCol: '#2f2b33', shoes: '#18161a', bag: '#5d8a4a', speed: 0.85 },
   { id: 'coppola', hair: '#7a6a58', hat: { type: 'flatcap', col: '#6d6a5e' }, skin: '#cf9d78', top: '#c9d4e0', sleeve: 'short', bottom: { type: 'trousers', col: '#4a4640' }, shoes: '#3a2c24', belt: '#2a2018', speed: 1.1 },
@@ -90,6 +93,19 @@ export const VARIANTS = [
   { id: 'glam1', skin: '#e0ae8c', hair: '#e6c34a', hairStyle: 'long', bigGlasses: '#18161a', top: '#c9ccd8', sparkle: '#ffffff', sleeve: 'short', bottom: { type: 'skirt', col: '#c9ccd8', len: 15 }, legCol: '#e0ae8c', shoes: '#d9443c', purse: '#d9443c', speed: 0.9 },
   { id: 'glam2', skin: '#c99872', hair: '#17120f', hairStyle: 'long', top: '#d9443c', sparkle: '#ffd24a', sleeve: 'long', scarf: ['#f0eee8', '#e8559a'], bottom: { type: 'skirt', col: '#d9443c', len: 14 }, legCol: '#c99872', shoes: '#17151a', purse: '#17151a', speed: 0.9 },
   { id: 'glam3', skin: '#d9a98a', hair: '#e8559a', hairStyle: 'long', glasses: '#18161a', top: '#d9b44a', sparkle: '#fff4e0', sleeve: 'short', chain: '#ffffff', bottom: { type: 'trousers', col: '#f0eee8' }, shoes: '#7a3ab8', speed: 0.9 },
+  // ---- the metal look (pubs at night, src/pedestrians.js spawnCrowd): long or curly hair, beards, band tees with made-up logos, vests with patches, leather, ripped black jeans, combat boots, tattoos
+  { id: 'metal_long', age: 'young', hairStyle: 'long', hair: '#1c1614', top: '#17151a', sleeve: 'short', print: { col: '#d9d4c6', kind: 'letters', w: 8, h: 6, back: true, seed: 3 }, tattoo: '#2a3a4a', sleeveTattoo: true, tattooForearm: true, bracelet: ['#1a1a1e', '#8a8a92'],
+    bottom: { type: 'trousers', col: '#17151a', ripped: true }, boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'bottle', col: '#3f7a3a' }, speed: 0.95, gen: true, styles: [['long', 4], ['wavy', 2], ['ponytail', 1.5], ['curly', 1.5]], beardP: 0.7 },
+  { id: 'metal_vest', age: 'adult', hairStyle: 'ponytail', top: '#17151a', vest: '#3a4f6e', vestOver: true, patches: true, sleeve: 'short', print: { col: '#c8c4bc', kind: 'skull', w: 8, h: 6, seed: 5 }, tattoo: '#2a3a4a', sleeveTattoo: true, ring: true, bracelet: ['#1a1a1e', '#8a8a92'],
+    bottom: { type: 'trousers', col: '#17151a', ripped: true }, boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'glass', col: '#ee9a2a' }, speed: 0.95, gen: true, styles: [['long', 3], ['ponytail', 3], ['bald', 1.2], ['curly', 1.5]], beardP: 0.8 },
+  { id: 'metal_leather', age: 'adult', hairStyle: 'long', top: '#1c1a1e', sleeve: 'long', zip: true, shirt: '#17151a', print: { col: '#b8382c', kind: 'stripe', w: 8, h: 5, seed: 1 }, neckTattoo: true, tattoo: '#2a3a4a', ring: true,
+    bottom: { type: 'trousers', col: '#17151a', ripped: true }, boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'bottle', col: '#8a5a2a' }, speed: 0.95, gen: true, styles: [['long', 3], ['wavy', 2], ['short', 1], ['comb', 1]], beardP: 0.6 },
+  { id: 'metal_bald', age: 'adult', hairStyle: 'bald', top: '#17151a', sleeve: 'short', print: { col: '#d9d4c6', kind: 'letters', w: 9, h: 6, seed: 9 }, tattoo: '#2a3a4a', sleeveTattoo: true, tattooForearm: true, neckTattoo: true, tw: 13, earring: true,
+    bottom: { type: 'trousers', col: '#26324a', jeans: true }, boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'glass', col: '#ee9a2a' }, speed: 0.95, gen: true, styles: [['bald', 5], ['buzz', 1.5]], beardP: 0.95 },
+  { id: 'metal_f', age: 'young', sex: 'f', hairStyle: 'long', hair: '#17120f', top: '#17151a', sleeve: 'short', print: { col: '#d9d4c6', kind: 'skull', w: 7, h: 5, seed: 2 }, tattoo: '#2a3a4a', sleeveTattoo: true, earring: true, bracelet: ['#1a1a1e', '#8a8a92'],
+    bottom: { type: 'skirt', col: '#17151a', len: 8 }, legCol: '#2a2430', boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'bottle', col: '#3f7a3a' }, speed: 0.95, gen: true, styles: [['long', 4], ['wavy', 2], ['ponytail', 1.5], ['bob', 1]] },
+  { id: 'metal_f2', age: 'young', sex: 'f', hairStyle: 'wavy', top: '#17151a', vest: '#17151a', vestOver: true, sleeve: 'short', print: { col: '#c8c4bc', kind: 'letters', w: 7, h: 5, seed: 7 }, earring: true, tattoo: '#2a3a4a', sleeveTattoo: true,
+    bottom: { type: 'trousers', col: '#17151a', ripped: true }, boots: '#1a1a1e', shoes: '#1a1a1e', drink: { type: 'glass', col: '#ee9a2a' }, speed: 0.95, gen: true, styles: [['wavy', 3], ['long', 3], ['bun', 1]] },
   // ---- cameo friends of the author (rare): faces and hair copied from photos, outfits vary. amico1: quiff, rectangular dark glasses, light stubble.
   // amico2: tall and slim, long wavy copper hair, round tortoiseshell glasses, forearm tattoos and wrist bracelets.
   ...[['giacca', { top: '#17151a', sleeve: 'long', zip: true, bottom: { type: 'trousers', col: '#3d5a86', jeans: true }, shoes: '#e8e6e0' }],
@@ -97,9 +113,18 @@ export const VARIANTS = [
       ['mercato', { top: '#ecebe6', sleeve: 'short', apron: '#1d1b20', bottom: { type: 'trousers', col: '#26324a' }, shoes: '#17151a' }],
       ['tuta', { top: '#26324a', sleeve: 'long', sleeveStripe: '#f0eee8', chain: '#d9b44a', bottom: { type: 'trousers', col: '#26324a', stripe: '#f0eee8' }, shoes: '#f0eee8' }],
       ['mondello', { top: '#f0eee8', sleeve: 'short', bottom: { type: 'shorts', col: '#3f9ab8', len: 8 }, shoes: '#a8684a' }]].flatMap(([k, o]) => [
-    { id: 'amico1_' + k, ...AMICO1, ...o, speed: 1.1 },
-    { id: 'amico2_' + k, ...AMICO2, ...o, speed: 1.1 }]),
+    { id: 'amico1_' + k, ...AMICO1, ...o, speed: 1.1, gen: false },
+    { id: 'amico2_' + k, ...AMICO2, ...o, speed: 1.1, gen: false }]),
 ];
+
+// who is who: sex (default m) and age group (default adult); varyTop / varyBottom let the generator change the colours of the generic everyday types
+const FEMALE = new Set(['nonna', 'nonna2', 'nonna3', 'signora', 'signora2', 'borsa', 'tifosa', 'shopper', 'motorina', 'mamma', 'beach_w', 'suora', 'teen2', 'kid2', 'jogger2', 'dogwalker2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'glam1', 'glam2', 'vendor2', 'metal_f', 'metal_f2']);
+const AGE = { kid: 'kid', kid2: 'kid', tifoso_kid: 'kid', scuola: 'kid', teen: 'teen', teen2: 'teen', ragazzo: 'young', ragazzo2: 'young', skinny: 'young', tuta: 'young', motorino: 'young', motorina: 'young', nightboy: 'young', nightboy2: 'young', nightgirl: 'young', nightgirl2: 'young', nightgirl3: 'young', dj: 'young', tifoso: 'young', tifosa: 'young', jogger: 'young', jogger2: 'young', hooded: 'young', glam1: 'young', glam2: 'young', glam3: 'young',
+  nonna: 'old', nonna2: 'old', nonna3: 'old', nonno: 'old', nonno_gilet: 'old', coppola: 'old', coppola2: 'old', tifoso_nonno: 'old', dogwalker2: 'old', client: 'old', priest: 'old', suit2: 'old', beach_m: 'young', beach_w: 'young', cameriere: 'young', mamma: 'adult' };
+const VARY_TOP = new Set(['tourist', 'tourist2', 'teen', 'teen2', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'signora2', 'kid', 'kid2', 'shopper', 'mamma', 'motorino', 'motorina', 'skinny', 'nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'jogger', 'jogger2', 'dogwalker', 'dogwalker3', 'beach_w']);
+const VARY_BOTTOM = new Set(['teen', 'ragazzo', 'ragazzo2', 'motorino', 'skinny', 'nightboy2', 'nightgirl2', 'dogwalker', 'kid']);
+for (const t of TYPES) { if (FEMALE.has(t.id)) t.sex = 'f'; if (!t.age) t.age = AGE[t.id] || 'adult'; if (VARY_TOP.has(t.id)) t.varyTop = true; if (VARY_BOTTOM.has(t.id)) t.varyBottom = true; if (t.id.startsWith('amico')) t.age = 'young'; }
+
 // Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
 const W = {
   nonna: [6, 3, 8, 1.5, 2], coppola: [6, 4, 6, 2, 2], vendor: [0.5, 1, 9, 0.5, 0.3], tourist: [2, 6, 2, 12, 2], kid: [4, 3, 4, 3, 2], teen: [5, 6, 4, 4, 4], priest: [1, 1, 0.5, 3, 0.3],
@@ -123,25 +148,38 @@ const NIGHT_MULT = { vendor: 0, vendor2: 0, fruttivendolo: 0, pescivendolo: 0, m
   shopper: 0.4, tifoso: 0.5, tifoso2: 0.5, tifosa: 0.5, tifoso_kid: 0.1, tifoso_nonno: 0.3, cameriere: 2, teen: 1.6, teen2: 1.6, ragazzo: 1.6, ragazzo2: 1.6, skinny: 1.8, tuta: 1.6, motorino: 1.5, motorina: 1.5,
   carabiniere: 1.2, wheelchair: 0.1 };
 const Z5 = { teen: 5, teen2: 5, ragazzo: 5, ragazzo2: 5, skinny: 5, tuta: 3, motorina: 2, motorino: 2, borsa: 2, shopper: 1, cameriere: 1.5, tourist: 1, tourist2: 1, carabiniere: 0.5, signora: 0.5, signora2: 0.5 };
-// cameo friends: rare everywhere, a little commoner where their outfit fits (rosanero on match days, apron at the market, summer at the sea-ish tourist zone)
+// metal look: a few at night, the pubs ask for them by name; cameo friends: rare everywhere, a little commoner where their outfit fits (rosanero on match days, apron at the market, summer at the sea-ish tourist zone)
 for (const n of [1, 2]) {
   Object.assign(W, { ['amico' + n + '_giacca']: [0.12, 0.15, 0.1, 0.12, 0.1], ['amico' + n + '_rosanero']: [0.1, 0.12, 0.05, 0.08, 0.5], ['amico' + n + '_mercato']: [0.1, 0.02, 0.45, 0.02, 0],
     ['amico' + n + '_tuta']: [0.12, 0.12, 0.08, 0.05, 0.1], ['amico' + n + '_mondello']: [0.05, 0.12, 0.05, 0.4, 0.05] });
   Object.assign(NW, { ['amico' + n + '_giacca']: [0.2, 0.3, 0.1, 0.2, 0.2, 1], ['amico' + n + '_tuta']: [0.2, 0.3, 0.1, 0.1, 0.2, 0.7], ['amico' + n + '_rosanero']: [0.08, 0.1, 0.03, 0.05, 0.3, 0.3] });
   Object.assign(NIGHT_MULT, { ['amico' + n + '_mercato']: 0, ['amico' + n + '_mondello']: 0.15 });
 }
-VARIANTS.forEach(v => {
-  const w = W[v.id] || [1, 1, 1, 1, 1];
-  v.w = [...w, w[3]];                                                    // by day
-  v.wn = NW[v.id] || w.map((x, z) => x * (NIGHT_MULT[v.id] ?? 1)).concat([Z5[v.id] || 0]);   // after dark
-});
-export const ROWS = VARIANTS.length;
+Object.assign(NW, { metal_long: [0.15, 0.25, 0.1, 0.1, 0.1, 0.9], metal_vest: [0.12, 0.2, 0.08, 0.08, 0.08, 0.7], metal_leather: [0.1, 0.2, 0.08, 0.08, 0.08, 0.6], metal_bald: [0.08, 0.15, 0.05, 0.05, 0.05, 0.5], metal_f: [0.1, 0.18, 0.06, 0.06, 0.06, 0.5], metal_f2: [0.1, 0.18, 0.06, 0.06, 0.06, 0.5] });
+for (const id of ['metal_long', 'metal_vest', 'metal_leather', 'metal_bald', 'metal_f', 'metal_f2']) W[id] = [0, 0, 0, 0, 0];
 
-export const ATLAS_COLS = COLS * PACK, ATLAS_ROWS = Math.ceil(ROWS / PACK);
-// Draw the atlas onto a canvas. half = true halves the resolution (24x48 cells) for phones: a quarter of the memory.
-export function buildAtlas(half = false) {
-  const { data, w, h } = buildAtlasData(VARIANTS, half ? 0.5 : 1);
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  cv.getContext('2d').putImageData(new ImageData(data, w, h), 0, 0);
-  return cv;
+// ---------- the cast ----------
+// Every type becomes n different people (more for the common types), each built once by the generator with a fixed seed so the crowd looks the same on every load.
+// A cast entry is the spec of one person plus what the crowd needs: id (its type), w / wn (day and night weights per zone, already divided by the entries of the type), n.
+export const CAST_SIZE = 84;   // entries shared out by crowd weight; the minimums below come on top
+const ENTRY_MIN = { beach_m: 4, beach_w: 4, vendor: 3, vendor2: 3, fruttivendolo: 2, pescivendolo: 2, macellaio: 2, tifoso: 3, tifoso2: 3, tifosa: 3, tifoso_kid: 2, tifoso_nonno: 2, jogger: 2, jogger2: 2, dogwalker: 2, dogwalker2: 2, dogwalker3: 2, metal_long: 3, metal_vest: 3, metal_leather: 3, metal_bald: 2, metal_f: 3, metal_f2: 2, nightboy: 2, nightboy2: 2, nightgirl: 2, nightgirl2: 2, nightgirl3: 2, wheelchair: 1 };
+const wsum = id => { const w = W[id] || [1, 1, 1, 1, 1], n = NW[id] || w.map((x, z) => x * (NIGHT_MULT[id] ?? 1)); return w.reduce((a, b) => a + b, 0) + n.reduce((a, b) => a + b, 0) * 0.6; };
+export const VARIANTS = [];
+{
+  const tot = TYPES.reduce((a, t) => a + wsum(t.id), 0);
+  for (const t of TYPES) {
+    const n = t.gen === false || t.chair ? 1 : t.pair ? 2 : Math.max(ENTRY_MIN[t.id] || 1, Math.min(5, Math.round(CAST_SIZE * wsum(t.id) / tot)));
+    const w = W[t.id] || [1, 1, 1, 1, 1], wz = [...w, w[3]], wn = NW[t.id] || w.map((x, z) => x * (NIGHT_MULT[t.id] ?? 1)).concat([Z5[t.id] || 0]);
+    for (let k = 0; k < n; k++) {
+      const seed = hashStr(t.id) + k * 7919;
+      let sp;
+      if (t.pair) sp = { ...t, pair: t.pair.map((p, i) => makePerson({ ...p, sex: i ? 'f' : 'm', age: 'young', gen: true }, k + i, seed + i * 101)), skin: '#000', top: '#000', bottom: { type: 'trousers', col: '#000' }, shoes: '#000', hair: '#000' };
+      else sp = makePerson(t, k, seed);
+      sp.n = n; sp.w = wz.map(x => x / n); sp.wn = wn.map(x => x / n);
+      VARIANTS.push(sp);
+    }
+  }
 }
+export const ROWS = VARIANTS.length;
+export const variantIndex = id => VARIANTS.findIndex(v => v.id === id);
+export const variantsOf = id => { const r = []; for (let i = 0; i < VARIANTS.length; i++) if (VARIANTS[i].id === id) r.push(i); return r; };

@@ -3,7 +3,10 @@
 // Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
-// - Art: assets/peds/sprites.js draws the pixel-art characters (48x96 cells) x 4 directions x 5 poses onto one packed canvas atlas.
+// - Art: assets/peds/ draws the characters with a small software rasteriser from a parametric model (assets/peds/model.js): every person is a spec (face, hair, outfit)
+//   made by the generator (people.js) from a type of the cast (sprites.js: nonna, vendor, tourist, metalhead...). Cells are 24 x 54 design units, 3 directions x 6 poses.
+//   Two 16-bit atlases (assets/peds/atlas.js): the whole cast at 1 texel per unit (far), built a few cells per frame, and a few slots at 3 texels per unit (near)
+//   for the people close enough to the camera for the extra detail to show, built on demand and recycled.
 // - Rendering: two InstancedBufferGeometry draws (sprites, blob shadows) fed by the same per-instance buffers.
 //   The vertex shader billboards around the vertical axis only; the CPU picks the atlas cell from the angle between
 //   the camera and the walking direction and from the walk phase.
@@ -19,12 +22,13 @@
 //   other modules (src/missions.js) whether it is night.
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
-import { VARIANTS, ROWS, COLS, POSES, DIRS, CELL_W, CELL_H, SCALE, PACK, ATLAS_ROWS, buildAtlas } from '../assets/peds/sprites.js';
+import { VARIANTS, CELL_W, CELL_H, GROUND, POSES, variantsOf } from '../assets/peds/sprites.js';
+import { createPedAtlas } from '../assets/peds/atlas.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
 const CPM = 2;                                           // mask cells per metre
-const PX = 0.04;                                         // metres per design pixel of the variant data (adult 44 = 1.76 m); the 48x96 cells draw at PX / SCALE per texel
+const PX = 0.04;                                         // metres per design unit (adult 44 = 1.76 m); far cells have one texel per unit, near cells three
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
 const QUALITIES = { low: { cap: 100, R: 75 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
 
@@ -39,7 +43,7 @@ export function createPedestrians(env) {
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 420;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
-  if (!world) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
+  if (!world) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, spawnCrowd: () => [], removeCrowd() {}, crowdFamilies: () => [], walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
 
   // ======================================================================== walkability mask (per world tile)
   // One mask per full-detail world tile (500 m), made from that tile's own street polygons (paving, raised sidewalks, green, sand, water to
@@ -320,15 +324,26 @@ export function createPedestrians(env) {
     const P = PROFILES[n], mul = {};
     const dm = P.def ?? 1;   // def: multiplier on every variant (a park is mostly joggers and dogs, not the whole city); the table multiplies on top
     for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? dm) * f;
-    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0)));
-    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0)));
+    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0) / v.n));
+    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0) / v.n));
     const z = VW.length - 1; GK[z] = P.g[0]; GE[z] = P.g[1]; GP[z] = P.g[2];
   });
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0)), VWNsum = VWN.map(w => w.reduce((a, b) => a + b, 0));
   const WCV = VARIANTS.findIndex(v => v.id === 'wheelchair'), HEALV = VARIANTS.findIndex(v => v.id === 'healed'), CHAIRV = VARIANTS.findIndex(v => v.id === 'chair_empty');
   const STRIDE = VARIANTS.map(v => v.run ? 3 : 1.5); STRIDE[HEALV] = 3.2;   // metres per walk cycle: runners take longer strides
   const chairs = [];                                      // empty wheelchairs left behind by the miracle (see heal())
-  const pickVariant = zn => { const w = nightCrowd ? VWN[zn] : VW[zn]; let r = Math.random() * (nightCrowd ? VWNsum[zn] : VWsum[zn]); for (let i = 0; i < w.length; i++) if ((r -= w[i]) <= 0) return i; return 0; };
+  // a person of the crowd mix; entries the far atlas has not drawn yet are asked for first and replaced by one that is ready (a few frames at the start)
+  const pickVariant = zn => {
+    const w = nightCrowd ? VWN[zn] : VW[zn], sum = nightCrowd ? VWNsum[zn] : VWsum[zn];
+    for (let tries = 0; tries < 12; tries++) {
+      let r = Math.random() * sum, i = 0; for (; i < w.length; i++) if ((r -= w[i]) <= 0) break;
+      if (i >= w.length) i = 0;
+      if (atlas.farDone[i]) return i;
+      atlas.prioritise(i);
+    }
+    for (let i = 0; i < w.length; i++) if (atlas.farDone[i] && w[i] > 0) return i;
+    return -1;
+  };
   const IDLE_RATE = new Float32Array(NZ).fill(0.03); IDLE_RATE.set([0.015, 0.03, 0.08, 0.05, 0.06, 0.12]);            // chance per second of stopping for a while
   for (const n of ['park', 'beach', 'lido']) IDLE_RATE[6 + PNAMES.indexOf(n)] = 0.05;
   // district of a spot, cached per 31 m cell of its tile (zoneAt scans every district seed)
@@ -368,9 +383,11 @@ export function createPedestrians(env) {
   const AMB_D = new THREE.Color(0.66, 0.68, 0.72), AMB_N = new THREE.Color(0.4, 0.43, 0.56), SUN_D = new THREE.Color(0.62, 0.5, 0.36), SUN_N = new THREE.Color(0, 0, 0);
 
   // ======================================================================== sprite rendering
-  const halfRes = params.get('pedres') ? params.get('pedres') === 'half' : true;   // half-resolution atlas on every device (a quarter of the texture memory: 7 MB instead of 29), ?pedres=full|half overrides
-  const atlas = new THREE.CanvasTexture(buildAtlas(halfRes));
-  atlas.colorSpace = THREE.SRGBColorSpace; atlas.magFilter = THREE.NearestFilter; atlas.minFilter = THREE.LinearMipmapLinearFilter; atlas.anisotropy = 1;
+  let rendererRef = null;                                  // the renderer reaches us through onBeforeRender (main.js does not hand it over); atlas uploads wait for it
+  const NEAR_CELLS = params.has('pednear') ? Math.max(0, +params.get('pednear') | 0) * 16 : (matchMedia('(pointer: coarse)').matches ? 128 : 240);   // near atlas size in cells (about 16 per person); ?pednear=n people
+  const atlas = createPedAtlas(VARIANTS, { nearCells: Math.max(NEAR_CELLS, 18) });
+  const hasNear = NEAR_CELLS > 0;
+  stats.atlas = atlas.stats;
   const quadPos = new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), quadUv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
   const aPos = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const aA = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4).setUsage(THREE.DynamicDrawUsage);   // column, row, size, roll
@@ -384,46 +401,54 @@ export function createPedestrians(env) {
   };
   const spriteMat = new THREE.ShaderMaterial({
     fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: atlas }, uCell: { value: new THREE.Vector2(1 / (COLS * PACK), 1 / ATLAS_ROWS) }, uPack: { value: PACK }, uCols: { value: COLS }, uPx: { value: PX / SCALE },
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { mapFar: { value: atlas.far }, mapNear: { value: atlas.near }, uFarSz: { value: new THREE.Vector2(atlas.farW, atlas.farH) }, uNearSz: { value: new THREE.Vector2(atlas.nearW, atlas.nearH) }, uPx: { value: PX },
       uAmb: { value: new THREE.Color(0.66, 0.68, 0.72) }, uSun: { value: new THREE.Color(0.62, 0.5, 0.36) } }]),
     vertexShader: `
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB;
-      uniform vec2 uCell; uniform float uPx; uniform float uPack; uniform float uCols;
-      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
+      uniform vec2 uFarSz; uniform vec2 uNearSz; uniform float uPx;
+      varying vec2 vUvF; varying vec2 vUvN; varying float vNear; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_vertex>
       void main() {
         vY = position.y; vClip = iB.w;   // iB.w: hide the lower part of the sprite (seated passengers show no legs); 0 for the crowd
         vec2 t = cameraPosition.xz - iPos.xz; float l = length(t);
         t = l > 1e-4 ? t / l : vec2(0.0, 1.0);
         vec3 right = vec3(t.y, 0.0, -t.x);
-        vec2 loc = vec2(position.x * ${CELL_W}.0 * uPx * iA.z, position.y * ${CELL_H}.0 * uPx * iA.z - 3.0 * uPx * iA.z);
+        vec2 loc = vec2(position.x * ${CELL_W}.0 * uPx * iA.z, position.y * ${CELL_H}.0 * uPx * iA.z - ${GROUND}.0 * uPx * iA.z);
         float c = cos(iA.w), s = sin(iA.w);
         vec2 r = vec2(c * loc.x - s * loc.y, s * loc.x + c * loc.y);
         vec3 wp = iPos + right * r.x + vec3(0.0, 1.0, 0.0) * r.y;
-        float vr = iA.y + 0.5, blk = floor(vr / uPack), sub = floor(vr - blk * uPack);
-        vUv = vec2((iA.x + sub * uCols + uv.x) * uCell.x, 1.0 - (blk + 1.0 - uv.y) * uCell.y);
+        // iA.x: texel x of the cell + 4096 when mirrored + 8192 when it lives in the near atlas; iA.y: texel y of the cell
+        float code = iA.x, near = step(8192.0, code); code -= near * 8192.0; float mir = step(4096.0, code); code -= mir * 4096.0;
+        float ux = mix(uv.x, 1.0 - uv.x, mir);
+        vUvF = (vec2(code, iA.y) + vec2(ux * ${CELL_W}.0, (1.0 - uv.y) * ${CELL_H}.0)) / uFarSz;
+        vUvN = (vec2(code, iA.y) + vec2(ux * ${CELL_W * 3}.0, (1.0 - uv.y) * ${CELL_H * 3}.0)) / uNearSz;
+        vNear = near;
         vFade = iB.x; vSun = iB.y; vBright = iB.z;
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
     fragmentShader: `
-      uniform sampler2D map; uniform vec3 uAmb; uniform vec3 uSun;
-      varying vec2 vUv; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
+      uniform sampler2D mapFar; uniform sampler2D mapNear; uniform vec3 uAmb; uniform vec3 uSun;
+      varying vec2 vUvF; varying vec2 vUvN; varying float vNear; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_fragment>
       void main() {
         if (vY < vClip) discard;
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
         if (vFade < ign) discard;
-        vec4 c = texture2D(map, vUv);
+        vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);
+        vec4 c = vNear > 0.5 ? cn : cf;
         if (c.a < 0.4) discard;
+        c.rgb *= c.rgb;   // the atlases hold sRGB in 5 bits per channel: back to linear (squared is close enough)
         gl_FragColor = vec4(c.rgb * (uAmb + uSun * vSun) * vBright, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
         #include <fog_fragment>
       }`,
   });
+  spriteMat.uniforms.mapFar.value = atlas.far; spriteMat.uniforms.mapNear.value = atlas.near;   // UniformsUtils.merge clones textures: the atlases must be the very ones the uploads go into
   const sprites = new THREE.Mesh(mkGeo(), spriteMat); sprites.frustumCulled = false; sprites.renderOrder = 2; scene.add(sprites);
+  sprites.onBeforeRender = r => { rendererRef = r; };
   // soft blob shadow lying on the ground, pushed away from the sun
   const shadowUniforms = { uSunDir: { value: new THREE.Vector2(0.92, -0.38) } };
   const shadowMat = new THREE.ShaderMaterial({
@@ -460,11 +485,44 @@ export function createPedestrians(env) {
   const X = F(CAP), Z = F(CAP), Y = F(CAP), TH = F(CAP), THT = F(CAP), NUDGE = F(CAP), V = F(CAP), V0 = F(CAP), PH = F(CAP), AGE = F(CAP);
   const VX = F(CAP), VZ = F(CAP), VY = F(CAP), HOP = F(CAP), ROLL = F(CAP), RD = F(CAP), TMR = F(CAP), STEER = F(CAP), TRAV = F(CAP), NEXTT = F(CAP);
   const SHT = F(CAP), SHC = F(CAP), BRI = F(CAP), SIZE = F(CAP), REACT = F(CAP), WAITT = F(CAP), TFLY = F(CAP);
-  const ST = U(CAP), VAR = U(CAP), ZN = U(CAP), CLS = U(CAP), TICK = U(CAP);
+  const ST = U(CAP), VAR = U(CAP), ZN = U(CAP), CLS = U(CAP), TICK = U(CAP), NEARF = U(CAP);
   const LEAVE = F(CAP).fill(-1);                        // >= 0: fading out (a day crowd member going home at dusk, or the reverse at dawn)
   const MIR = F(CAP);                                   // team-bus miracle countdown (seconds left standing up), 0 when seated
   const BUS = U(CAP);                                   // 1: waiting at a bus stop (moans about the bus when the lapa drives by)
-  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, MIR, LEAVE, BUS];
+  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, NEARF, MIR, LEAVE, BUS];
+  // ======================================================================== level of detail
+  // The near atlas has three texels per design unit; it only helps when a near texel covers about a screen pixel or more, so the people close enough for that
+  // (this depends on the screen: a phone at 1.25 pixel ratio gets about 8 m, a desktop at 1.5 about 17 m) ask for a near slot of their cast entry, and use it once built.
+  let lodX = 0, lodY = 0, lodSee = true, lodNear = false, lodK = 1, lodFrame = 0, lodClock = 0, lodFwdX = 0, lodFwdZ = 1, lodCx = 0, lodCz = 0;
+  const NEAR_IN = 0.8, NEAR_OUT = 0.6;
+  function lodBegin(cam) {
+    const H = rendererRef ? rendererRef.domElement.height : innerHeight * devicePixelRatio;
+    lodK = H * 0.5 * cam.projectionMatrix.elements[5] * (PX / 3); lodFrame++; lodFwdX = camFwdX; lodFwdZ = camFwdZ; lodCx = cam.position.x; lodCz = cam.position.z;
+  }
+  function lodPick(v, dir, pose, dist, size, prevNear) {
+    const m = dir === 3 ? 4096 : 0, c6 = dir === 3 ? 2 : dir; let cid = c6 * 6 + pose;
+    if (!atlas.farDone[v]) { atlas.prioritise(v); if (rendererRef) atlas.buildNow(rendererRef, v); }
+    lodNear = false;
+    if (hasNear) {
+      const tp = lodK * size / dist;
+      if (tp >= (prevNear ? NEAR_OUT : NEAR_IN)) {
+        if (lodSee && tp >= NEAR_IN * 0.95 && atlas.farDone[v]) atlas.want(v, dist);
+        if (atlas.nearReady(v)) {
+          let a = atlas.nearIdx[v * 18 + cid]; if (a < 0) { cid = c6 * 6; a = atlas.nearIdx[v * 18 + cid]; }
+          if (a >= 0) { lodNear = true; lodX = (a % atlas.nearCol) * atlas.NCW + m + 8192; lodY = Math.floor(a / atlas.nearCol) * atlas.NCH; return; }
+        }
+      }
+    }
+    let a = atlas.farIdx[v][cid]; if (a < 0) { cid = c6 * 6; a = atlas.farIdx[v][cid]; }
+    lodX = (a % atlas.farCol) * atlas.FCW + m; lodY = Math.floor(a / atlas.farCol) * atlas.FCH;
+  }
+  function lodEnd(dt) {
+    lodClock += dt;
+    if ((lodFrame & 3) === 0) atlas.settle();
+    const nr = atlas.stats.farBuilt, boot = atlas.pending() > 0 && !started;
+    atlas.pump(rendererRef, 2, boot ? 10 : nr < 400 ? 4 : 1.2);
+  }
+
   // Supplied by the owner, born in Palermo: keep them exactly as written.
   const BUS_LINES = ["minchia avi ru uri c'aspiattu", "quannu passò l'uittimu?"];
   let busT = 3;
@@ -542,7 +600,7 @@ export function createPedestrians(env) {
     for (let j = 0; j < N.n; j++) if (Math.abs(X[j] - x) < 0.5 && Math.abs(Z[j] - z) < 0.5) return false;
     const zn = zoneCode(x, z), chat = nightCrowd && zn === 5 && cl === 1 && !atIdle && Math.random() < 0.75;
     if (chat) { atIdle = true; face = Math.random() * TAU; }
-    addAgent(x, z, cl, zn, atIdle, face, chat ? rand(25, 90) : rand(6, 40));
+    if (addAgent(x, z, cl, zn, atIdle, face, chat ? rand(25, 90) : rand(6, 40)) < 0) return false;
     if (bus) BUS[N.n - 1] = 1;
     if (chat) {   // a few friends around, standing in a ring and chatting
       const k = 1 + ((Math.random() * 3) | 0);
@@ -556,7 +614,8 @@ export function createPedestrians(env) {
     return true;
   }
   function addAgent(x, z, cl, zn, atIdle, face, tmr) {
-    const i = N.n++, vi = pickVariant(zn), v = VARIANTS[vi];
+    const vi = pickVariant(zn); if (vi < 0) return -1;
+    const i = N.n++, v = VARIANTS[vi];
     BUS[i] = 0;
     X[i] = x; Z[i] = z; Y[i] = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); VAR[i] = vi; ZN[i] = zn; CLS[i] = cl; LEAVE[i] = -1; MIR[i] = 0;
     TH[i] = atIdle ? face : bestHeading(x, z, Math.random() * TAU, [0, 0.4, -0.4, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, 3.1], 8, GP[zn]);
@@ -694,7 +753,7 @@ export function createPedestrians(env) {
       const s = wx * tx + wz * tz, cc = wx * tz - wz * tx, dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
       const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = c.keep ? 0 : u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
       pos[i * 3] = c.x; pos[i * 3 + 1] = c.y; pos[i * 3 + 2] = c.z;
-      A[i * 4] = dir * POSES + (hyp2(c.vx, c.vz) > 0.15 ? Math.floor((c.ph % 1) * 4) & 3 : 0); A[i * 4 + 1] = CHAIRV; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
+      lodPick(CHAIRV, dir, hyp2(c.vx, c.vz) > 0.15 ? (Math.floor((c.ph % 1) * 4) & 3) + 1 : 0, dist, 1, false); A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
       B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1;
     }
     return k;
@@ -739,6 +798,7 @@ export function createPedestrians(env) {
     { const gt = gameRef && gameRef.time; if (gt && (gt.night !== lastNight || gt.isNight !== lastIsNight)) { lastNight = gt.night; lastIsNight = gt.isNight; setTime(gt); } }   // only when it changes, so an event or a debug override is not undone every frame
     nightK += (nightTarget - nightK) * Math.min(1, 0.6 * dt);
     spriteMat.uniforms.uAmb.value.copy(AMB_D).lerp(AMB_N, nightK); spriteMat.uniforms.uSun.value.copy(SUN_D).lerp(SUN_N, nightK);
+    lodBegin(cam);
     updateScripted(dt, cam);
     cx = cam.position.x; cz = cam.position.z;
     // someone waiting at a bus stop moans when the lapa comes by (the nearest within 20 m, now and then)
@@ -749,7 +809,7 @@ export function createPedestrians(env) {
     }
     cam.getWorldDirection(camQ); const fl = hyp2(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
-    if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; return; }
+    if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; lodEnd(dt); return; }
     if ((frameNo & 15) === 1) readSun();
 
     // tiles around the camera: all of them at once on the first frame or after a jump, otherwise on a time budget
@@ -892,15 +952,18 @@ export function createPedestrians(env) {
         const s = wx * tx + wz * tz, c = wx * tz - wz * tx;     // c > 0: walking to the right on screen
         dir = Math.abs(s) >= Math.abs(c) ? (s > 0 ? 0 : 1) : (c > 0 ? 3 : 2);
         if (st === DODGE) pose = 1;
-        else if (V[i] < 0.12) pose = 0;
-        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph + 1; if (VARIANTS[VAR[i]].bounce && pose === 2) pose = 2; }
+        else if (V[i] < 0.12) { pose = 0; if (VARIANTS[VAR[i]].drink && ((lodClock + i * 1.913) % 7.3) < 1.7) pose = 5; }   // idle: now and then a sip
+        else { const ph = Math.floor((PH[i] % 1) * 4) & 3; pose = VAR[i] === WCV ? ph : ph + 1; }
       }
-      A[i * 4] = dir * POSES + pose; A[i * 4 + 1] = VAR[i]; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
+      lodSee = dxc * camFwdX + dzc * camFwdZ < 0;
+      lodPick(VAR[i], dir, pose, dist, SIZE[i], NEARF[i]); NEARF[i] = lodNear;
+      A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
       if (LEAVE[i] >= 0) { LEAVE[i] -= dt / 1.4; if (LEAVE[i] <= 0) AGE[i] = -999; }
       const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1) * (LEAVE[i] >= 0 ? Math.max(0, LEAVE[i]) : 1);
       B[i * 4] = fade; B[i * 4 + 1] = SHC[i] * (1 - nightK); B[i * 4 + 2] = BRI[i];
     }
     updateChairs(dt, cpx, cpz); const nc = writeChairs(n, cpx, cpz, fadeStart);
+    lodEnd(dt);
     aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true;
     sprites.geometry.instanceCount = shadows.geometry.instanceCount = n + nc;
     stats.count = n;
@@ -939,7 +1002,7 @@ export function createPedestrians(env) {
   //   setBounce(id, on)                      jump up and down on the spot (hailing a taxi)
   //   info(id) -> { x, y, z, state }         state: 'stand' | 'walk' | 'seat'
   //   remove(id); near(x, z, r) -> crowd members within r; onKnock(fn(x, z, variant)) when the lapa sends a crowd member flying
-  const SC = 48;
+  const SC = 96;
   const sPos = new THREE.InstancedBufferAttribute(new Float32Array(SC * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const sA = new THREE.InstancedBufferAttribute(new Float32Array(SC * 4), 4).setUsage(THREE.DynamicDrawUsage);
   const sB = new THREE.InstancedBufferAttribute(new Float32Array(SC * 4), 4).setUsage(THREE.DynamicDrawUsage);
@@ -953,7 +1016,11 @@ export function createPedestrians(env) {
   const sSprites = new THREE.Mesh(mkGeoS(), spriteMat); sSprites.frustumCulled = false; sSprites.renderOrder = 2; scene.add(sSprites);
   const sShadows = new THREE.Mesh(mkGeoS(), shadowMat); sShadows.frustumCulled = false; sShadows.renderOrder = 1; scene.add(sShadows);
   const scripted = new Map(); let nextScriptId = 1, scriptClock = 0;
-  const vIndex = v => typeof v === 'number' ? v : Math.max(0, VARIANTS.findIndex(x => x.id === v));
+  const vIndex = v => {   // a type id picks one of its people at random (a named one, like 'amico1_giacca', has just one)
+    if (typeof v === 'number') return v;
+    const l = variantsOf(v); const i = l.length ? l[(Math.random() * l.length) | 0] : 0;
+    atlas.buildNow(rendererRef, i); return i;
+  };
   const groundAt = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
   function spawnScripted(variant, x, z) {
     if (scripted.size >= SC) return -1;
@@ -969,9 +1036,44 @@ export function createPedestrians(env) {
     const c = scripted.get(id); if (!c) return;
     o = o || {}; c.att = fn; c.seated = !!o.seated; c.blend = o.blend || 0; c.bt = 0; c.from = c.blend ? { x: c.x, y: c.y, z: c.z } : null; c.state = 'seat';
   }
-  function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - ((VARIANTS[c.v].leg || 19) * PX) : c.y; }
+  function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - (((VARIANTS[c.v].leg || 19) - 1) * PX) : c.y; }
   function setBounce(id, on) { const c = scripted.get(id); if (c) c.bounce = !!on; }
   function remove(id) { scripted.delete(id); }
+  // A named group at a spot (a crowd in front of a pub, a gang at a bench): spawnCrowd({ x, z, radius, count, mix, props }) -> array of ids
+  //   mix: { family or type id: weight, ... } over the families below or any type id ('nonna', 'metal_long'...); default everyday people. props: 'beer' picks people who hold a bottle
+  //   or a pint (the night and metal looks do) and has them sip now and then. People stand in small knots facing one another and do not move; removeCrowd(ids) takes them away again.
+  //   Needs the near scripted slots (96 in all, shared with the missions), so keep groups to a dozen or so. Members already placed are not moved if the call runs short of room.
+  const FAMILIES = {
+    metal: ['metal_long', 'metal_vest', 'metal_leather', 'metal_bald', 'metal_f', 'metal_f2'], night: ['nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'dj'],
+    young: GROUPS.young, elders: GROUPS.elders, fans: GROUPS.fans, tourists: GROUPS.tour, locals: ['coppola', 'coppola2', 'nonno', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'suit'], beach: GROUPS.beach, market: GROUPS.market,
+  };
+  function spawnCrowd(o) {
+    const out = [], R = Math.max(1, o.radius || 4), want = Math.max(1, o.count | 0 || 6), beer = o.props === 'beer';
+    const mix = o.mix && Object.keys(o.mix).length ? o.mix : { locals: 1 }, pool = [], wts = [];
+    for (const k of Object.keys(mix)) for (const id of FAMILIES[k] || [k]) for (const vi of variantsOf(id)) { if (beer && !VARIANTS[vi].drink && Object.keys(mix).some(q => FAMILIES[q] && FAMILIES[q].some(i => variantsOf(i).some(j => VARIANTS[j].drink)))) continue; pool.push(vi); wts.push(mix[k] / (FAMILIES[k] ? FAMILIES[k].length : 1)); }
+    if (!pool.length) return out;
+    const sum = wts.reduce((a, b) => a + b, 0), spots = [];
+    const knots = Math.max(1, Math.round(want / 4));
+    for (let k = 0; k < knots; k++) { const a = Math.random() * TAU, d = R * Math.sqrt(Math.random()); spots.push([o.x + Math.cos(a) * d, o.z + Math.sin(a) * d]); }
+    for (let n = 0; n < want; n++) {
+      let r = Math.random() * sum, j = 0; for (; j < wts.length - 1; j++) if ((r -= wts[j]) <= 0) break;
+      const vi = pool[j];
+      let px = 0, pz = 0, ok = false;
+      const kn = spots[n % knots];
+      for (let t = 0; t < 14 && !ok; t++) {
+        const a = Math.random() * TAU, d = 0.9 + Math.random() * 0.7 + t * 0.12; px = kn[0] + Math.cos(a) * d; pz = kn[1] + Math.sin(a) * d;
+        if (hyp2(px - o.x, pz - o.z) > R + 1.5) continue;
+        if (wtAt(px, pz) !== null && !cell(px, pz) && !o.anywhere) continue;
+        ok = true; for (const id2 of out) { const c2 = scripted.get(id2); if (c2 && (c2.x - px) ** 2 + (c2.z - pz) ** 2 < 0.55) { ok = false; break; } }
+      }
+      if (!ok) continue;
+      const id = spawnScripted(vi, px, pz); if (id < 0) break;
+      const c = scripted.get(id); c.th = Math.atan2(kn[0] - px, kn[1] - pz) + (Math.random() - 0.5) * 0.9; c.size = 0.97 + Math.random() * 0.06; c.drinking = beer && !!VARIANTS[vi].drink; c.crowd = true;
+      out.push(id);
+    }
+    return out;
+  }
+  function removeCrowd(ids) { for (const id of ids || []) scripted.delete(id); }
   function info(id) { const c = scripted.get(id); return c ? { x: c.x, y: c.y, z: c.z, state: c.state } : null; }
   function near(x, z, r) {
     let n = 0; const r2 = r * r;
@@ -1011,7 +1113,7 @@ export function createPedestrians(env) {
       const v = VARIANTS[c.v], i = k++, seatedNow = c.att && c.seated, leg = v.leg || 19;
       if (!seatedNow) standing++;
       const dxc = cpx - c.x, dzc = cpz - c.z, dist = hyp2(dxc, dzc) || 1;
-      let y = seatedNow ? c.hipY - leg * PX * c.size : (c.att ? c.hipY : c.y);
+      let y = seatedNow ? c.hipY - (leg - 1) * PX * c.size : (c.att ? c.hipY : c.y);
       if (c.bounce && !c.att) y += Math.abs(Math.sin(scriptClock * 6 + c.id)) * 0.16;
       sp[i * 3] = c.x; sp[i * 3 + 1] = y; sp[i * 3 + 2] = c.z;
       const wx = Math.sin(c.th), wz = Math.cos(c.th), tx = dxc / dist, tz = dzc / dist;
@@ -1019,8 +1121,10 @@ export function createPedestrians(env) {
       const dir = Math.abs(s) >= Math.abs(cc) ? (s > 0 ? 0 : 1) : (cc > 0 ? 3 : 2);
       let pose = 0;
       if (c.state === 'walk') { const ph = Math.floor((c.ph % 1) * 4) & 3; pose = ph + 1; }
-      sa[i * 4] = dir * POSES + pose; sa[i * 4 + 1] = c.v; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
-      sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (2 + leg) / 48 - 0.03 : 0;
+      if (c.drinking && pose === 0 && VARIANTS[c.v].drink && ((lodClock + c.id * 2.31) % 6.1) < 1.7) pose = 5;
+      lodSee = dxc * camFwdX + dzc * camFwdZ < 0;
+      lodPick(c.v, dir, pose, dist, c.size, c.nr); c.nr = lodNear; sa[i * 4] = lodX; sa[i * 4 + 1] = lodY; sa[i * 4 + 2] = c.size; sa[i * 4 + 3] = 0;
+      sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (GROUND + leg - 1.3) / CELL_H : 0;
     }
     sPos.needsUpdate = sA.needsUpdate = sB.needsUpdate = true;
     sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing;
@@ -1029,7 +1133,8 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, wts, quality: () => quality, knock, zoneCode, densAt, distAt, PNAMES, VW, VWN, VARIANTS };
-  const api = { bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  const api = { spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  if (params.has('debug')) { window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
 }
