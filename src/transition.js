@@ -77,7 +77,7 @@ function play(ms, dir) { // resolves when the flip is done
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-async function run(work, { cover = 560, reveal = 560, hold = 380, lapa = true } = {}) {
+async function run(work, { cover = 560, reveal = 560, hold = 250, lapa = true } = {}) {
   ensure(); layout();
   root.classList.add('on'); root.classList.toggle('lapa', false);
   await play(cover, 1);

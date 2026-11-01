@@ -475,32 +475,34 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // ---- actions ----
   function leaveTitleCam() { if (camera.fov !== baseFov) { camera.fov = baseFov; camera.updateProjectionMatrix(); } }
   function gesture() { window.dispatchEvent(new Event('pd-gesture')); vehicle?.unlockAudio?.(); }
-  const frames = n => new Promise(r => { const f = () => (--n > 0 ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
-  // Wait until the streamer has nothing left to fetch or build around the camera (or maxMs), so loading never shows after the reveal.
+  // Wait until everything the camera can see is built (world.visiblePending() is 0 for two frames, so a frame is drawn after the last
+  // build) or maxMs. The rest of the ring keeps building behind the reveal. The first two frames are skipped: they still carry the
+  // numbers of the camera's old position.
   function settle(maxMs = 7000) {
     return new Promise(res => {
-      if (!world || !world.stats) return res();
-      const t0 = now(); let calm = 0;
+      if (!world || !world.visiblePending) return res();
+      const t0 = now(); let calm = 0, n = 0;
       const poll = () => {
-        const w = world.stats();
-        calm = w.queued + w.pending + w.inflight === 0 ? calm + 1 : 0;
-        if (calm >= 3 || now() - t0 > maxMs) res(); else setTimeout(poll, 150);
+        calm = ++n > 2 && world.visiblePending() === 0 ? calm + 1 : 0;
+        if (calm >= 2 || now() - t0 > maxMs) res(); else requestAnimationFrame(poll);
       };
-      setTimeout(poll, 450); // the streamer needs a moment to see the new camera position
-    }).then(() => frames(2));
+      requestAnimationFrame(poll);
+    });
+  // The streamer gets most of every frame while the transition covers the screen (world.hurry): the hitches are not seen.
+  const hurried = async work => { if (world) world.hurry = true; try { return await work(); } finally { if (world) world.hurry = false; } };
   }
   // Menu or picker to the game, or a new start point from the side menu: cover, place the lapa, wait for the world, reveal.
   function startAt(x, z) {
     if (busy) return; busy = true; gesture();
     const fromTitle = game.state === 'title';
-    transition(async () => {
+    transition(() => hurried(async () => {
       if (!fromTitle) missions?.stop?.();
       await placeAt(x, z); // main.js: places the lapa and resolves once the start tile is at full detail
       leaveTitleCam(); game.titleCam = null;
       if (fromTitle) game.start(); else game.resume();
       stack = []; go(null);
       await settle();
-    }).catch(() => {}).then(() => { busy = false; });
+    })).catch(() => {}).then(() => { busy = false; });
   }
   function openPause() {
     if (game.state !== 'play' || busy) return;
@@ -516,12 +518,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
     if (busy) return; busy = true;
-    transition(async () => {
+    transition(() => hurried(async () => {
       missions?.stop?.();
       game.state = 'title'; stack = []; go('menu');
       await placeAt(...proj(SPOTS[0][1], SPOTS[0][2]));
-      await settle(2500); // the flyover keeps the streamer busy, so do not wait for it to go quiet
-    }).catch(() => {}).then(() => { busy = false; });
+      await settle(2500); // the flyover keeps moving the view, so do not wait long for it to be complete
+    })).catch(() => {}).then(() => { busy = false; });
   }
   function fullscreen() {
     try {

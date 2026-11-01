@@ -353,13 +353,16 @@ applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
-// The loading screen stays up until the city around the first view is built, so the title never shows tiles popping in. The flyover clock
-// holds at 0 meanwhile (a moving camera keeps the streamer busy); the wait is capped so a slow phone still gets in.
+// The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title
+// never shows tiles popping in; the rest of the ring keeps building behind it. The flyover clock holds at 0 meanwhile (a moving camera
+// would bring new tiles into view), and world.hurry lets the streamer use most of each frame while the screen is covered. The wait is
+// capped so a slow phone still gets in.
 let titleT0 = -1;
+if (world) world.hurry = true;
 (function waitForCity(t0 = performance.now(), calm = 0) {
-  const s = world?.stats?.();
-  calm = !s || (s.lod1 + s.lod2 > 0 && s.queued + s.pending + s.inflight === 0) ? calm + 1 : 0;
-  if (calm < 3 && performance.now() - t0 < 25000) return setTimeout(() => waitForCity(t0, calm), 150);
+  calm = !world || world.visiblePending() === 0 ? calm + 1 : 0;
+  if (calm < 2 && performance.now() - t0 < 25000) return requestAnimationFrame(() => waitForCity(t0, calm));
+  if (world) world.hurry = false;
   const el = document.getElementById('loading');
   titleT0 = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 500);
 })();
