@@ -78,6 +78,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
+        if (s.fn && hooks.breakFence) { const nn = d > 1e-4 ? [dx / d, dz / d] : [0, 0], vs = -(car.vx * nn[0] + car.vz * nn[1]); if (vs > 0 && hooks.breakFence(s, vs, nn[0], nn[1], car)) return; }   // a fence panel: smashed above a speed (src/fences.js)
         let nx, nz;
         if (d > 1e-4) { nx = dx / d; nz = dz / d; }
         else { const ex = s[2] - s[0], ez = s[3] - s[1], el = Math.hypot(ex, ez) || 1; nx = -ez / el; nz = ex / el; }
@@ -191,6 +192,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     car.lift = S.y - groundY(car.x, car.z);
     car.deck = hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
     if (hooks.fall) hooks.fall(car, S);
+    if (hooks.tick) hooks.tick(dt);   // smashed fence panels in flight (src/fences.js)
     if (S.hit > 0) { if (onHit) onHit(S.hit); S.hit = 0; }
   }
 

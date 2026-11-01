@@ -22,6 +22,7 @@ import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights } from './districts.js';
 import { createFarCity } from './context.js';
 import { GARDEN_REGION as GR } from './gardens.js';
+import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 
 const T = 500;
@@ -169,7 +170,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); setStructRoot(root);
+  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); setStructRoot(root); initFences({ wall: wallGrid, scene: root });
   let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null, wantedOnce = false, visPending = 1, farMissing = 0;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
@@ -780,6 +781,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (t.want < 2) { if (mk) disposeObj(mk); return; }
       if (mk) setPart(t, 'paint', mk);
     }
+    t.stage = 'fences'; { const fg = yield* buildFences(t.data.fences, t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;
     t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
@@ -798,7 +800,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function* downgrade(t) {
     onTileDrop(t.k); emit('drop', t);
-    setPart(t, 'bldFull', null); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
+    setPart(t, 'bldFull', null); setPart(t, 'fences', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
@@ -810,7 +812,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     stash(t);
   }
   function release(t) {
-    onTileDrop(t.k); unregisterStructs(t.k); emit('drop', t);
+    onTileDrop(t.k); unregisterStructs(t.k); dropFences(t.k); emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);

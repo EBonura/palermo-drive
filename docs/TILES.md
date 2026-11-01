@@ -236,3 +236,23 @@ Trigger: `LANDMARK_ZONES` in `src/bridges.js` (`{ id: 'baby-luna-jump', structs:
 over 11 m/s and 4.5 m/s straight into the parapet and the car goes over (`seg.jump`; every other parapet in the city stays solid). The event fires once per fall, when the car has dropped
 `minFall` metres within 6 s of leaving the deck, as `window` event `pd-landmark` with `detail = { id: 'baby-luna-jump', label, x, z, y, fall }`, and to the listeners of
 `onLandmarkEvent(fn)` (exported by `src/bridges.js`, returns an unsubscribe function). An achievements module only has to listen for `pd-landmark` and check `detail.id`.
+
+## Walls and fences (tools/fences.py, src/fences.js)
+
+Audit: `tiles.py` extracted no barrier ways at all (only bollards and lift gates as props), so every garden wall, parcel wall, fence, retaining wall and the city walls were missing
+from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared but unused.
+
+- **Sources, merged per tile** (`tile.fences = [{k, h, s, p}]`): OSM `barrier=wall|retaining_wall|city_wall|fence|guard_rail|jersey_barrier` (new cache category `bar`: 2,802 lines, 118 km of
+  walls, 50 km of fences, 28 km of retaining walls; hedges, chains and gates are not drawn, hedges belong to the greenery step) and the CTR lines (46,063 lines: wall `w`, dry-stone `d`,
+  retaining `r`, fence `f`). A CTR line is kept when it lies within 20 m of a carriageway (`st`) or within 30 m of a building (the rest are field boundaries, 3,300 km), is dropped where
+  an OSM barrier is within 3 m, and is cut away on building outlines (0.6 m), on the carriageway and under bridge decks. The ground truth of the CTR is 2003 with a 2012 patch at 1:10,000.
+- **Heights and materials** (the CTR has none): OSM `height` when tagged, else wall 1.8 to 2.6 m, dry-stone 1.0 to 1.5 m, fence 1.3 to 1.8 m, guard rail 0.75 m, concrete barrier 0.8 m,
+  city wall 5.5 to 7 m; a retaining wall is as high as the ground differs on its two sides (plus 0.3 m, at least 1.4 m). Walls are vertex-coloured limestone and plaster tones, 0.35 m
+  thick (0.55 dry-stone, 0.5 retaining, 1.3 city wall); fences are 2.5 m panels with an alpha-tested texture: railing (dark bars), wooden, or mesh (OSM `fence_type` decides, else a hash).
+- **Runtime** (`src/fences.js`, wired in `src/world.js` buildFull and downgrade): per full tile one merged wall mesh plus at most three instanced fence meshes (at most 1,400 panels a
+  tile, OSM first). All pieces go into the wall grid, so cars, traffic and pedestrians are stopped by walls and by intact fences. Walls are solid at any speed.
+- **Fences break.** The two collide() functions (`src/vehicle.js`, `src/vehicle-sphere.js`) ask `hooks.breakFence(seg, speedIntoIt, nx, nz, car)`: at 3 m/s and more the panel is smashed (it
+  flies off as a spinning piece, ten in the air at a time per fence style, gone after six seconds), the car loses a fifth of its speed into the fence, window event `pd-fence` fires, and the
+  gap stays open for the session (`broken` ids survive a tile reloading). Slower, a fence is a wall. `hooks.tick` moves the flying pieces from the same physics step. `?nofences` hides
+  all of it (debug).
+- **Not done:** gates (OSM `barrier=gate`) are left open, hedges are in the greenery step, wall textures are flat colour, and pedestrians do not react to a smashed fence.
