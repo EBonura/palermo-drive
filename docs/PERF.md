@@ -102,6 +102,27 @@ Route: Quattro Canti to Politeama to Via della Liberta, kinematic at 14 m/s (200
 
 What got worse: the phone now does what the desktop used to approach (a shadow pass, 4 full tiles plus a low ring and a horizon), so its main thread is 60 % busier at x4 (14.6 of 16.7 ms), and it has about twice as many streamer steps over 8 ms (more tiles are fetched and parsed; a dense tile parse is the largest step). The lever if a real phone struggles: default tier low (no shadows, about -3.5 ms and -480k triangles), or `triCap` / `rFull` through the URL (`?tricap=`, `?rfull=`) to test.
 
+### Reveal when the view is built, not the whole ring (`visiblePending` in `src/world.js`)
+
+The loading screen (`waitForCity` in `src/main.js`) and the start checkerboard (`settle` in `src/ui.js`) used to wait until the streamer was idle over the whole ring around the camera, including tiles behind it. Now `world.visiblePending()` counts what the camera can see and still needs: tiles whose box meets the camera frustum widened by 80 m (or lying within 220 m of the focus, so the tile under the car always counts) that are below the detail they want, plus far city chunks in view that are not built (and 1 until the manifest, the first allocation and `far.bin` are in). Computed once per frame at the end of `world.update`. Both places lift after two frames at 0 (one frame is drawn after the last build); caps are 25 s (loading) and 7 s / 2.5 s (start / back to the menu). The first-check delay (450 ms) and the 150 ms polls are gone, and the minimum hold in `transition.js` went from 380 to 250 ms.
+
+Order of work follows the same flag (`markView`): visible tiles nearest first, then the rest of the ring nearest first (tasks and fetches both sort on `pd`); the far chunk task goes ahead of the invisible tiles while chunks in view are missing, and `sync` in `src/context.js` picks visible chunks first. `world.overview` is now a setter that asks for a new allocation at once: leaving the title used to wait for the next 0.5 s tick before the ring got its full tiles, so the first reveal could show tiles popping in.
+
+`world.hurry` (set by `waitForCity` and by `startAt` / `quit` in `ui.js` while the screen is covered) raises the per-frame build budget from 2 ms to `cfg.hurryMs` (12 ms, `?whurry=` to tune): the hitches are under the checkerboard. It is the bigger half of the gain on the phone: counter alone, phone cold load 16.0 s to 12.3 s; with hurry 6.7 s.
+
+Cold load, cache off, local server (source tree, not the bundle), `?help=0`. "Start" = click on the spot in the list to the moment the squares start flipping out (cover 0.8 s included). Before = the commit this was built on, after = this change. One run each, noise is a few tenths of a second (desktop) and about 0.5 s (phone).
+
+| | desktop before | desktop after | phone before | phone after |
+| --- | --- | --- | --- | --- |
+| first loading screen up | 5.4 s | 1.9 s | 16.0 s | 6.7 s |
+| start, Teatro Massimo (near) | 2.8 s | 1.2 s | 6.5 s | 2.8 s |
+| start, Mondello (far) | 2.8 s | 1.2 s | 7.2 s | 2.8 s |
+| start, Monte Pellegrino (far) | 2.5 s | 1.1 s | 6.6 s | 2.0 s |
+
+Pop-in check (`vis` per frame sampled in the page, screenshots at the reveal and 2.5 s and 7 s later from the same camera; the title camera is frozen at its first position for the comparison): the counter stays at 0 after the reveal on the title (frozen camera), Teatro Massimo and Monte Pellegrino, desktop and phone. The static scene (terrain, buildings, streets) is identical between the frames; only pedestrians, traffic, the HUD and the clock change. With the title flyover running, the counter shows 1 now and then: a low detail tile at the edge of the ring (1.4 km, where the far boxes stand in until it is built) flipping in and out of range, and the tile under the camera going to full detail as the flyover passes over it (as before). The rest of the ring (the tiles behind and beside the camera) keeps building after the reveal.
+
+Worse or unchanged: the main thread is blocked for up to 12 ms a frame while covered (the lapa spinner may stutter, not measured); a short stretch right after the reveal still has the rest of the ring building at the normal 2 ms budget, so the full ring is complete later than the reveal (1.6 s on the phone for Mondello, measured). Props, pedestrians and traffic are not in the counter (they appear around the player as they always did).
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.

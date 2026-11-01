@@ -116,17 +116,34 @@ export function createFarCity({ root, F, T, nk, url, mat }) {
     for (const k of hidden) if (!keys.has(k)) { hidden.delete(k); const e = dir.get(k); if (e) dirty.add(e.c); }
     for (const c of dirty) { const ch = chunks.get(c); if (ch) applyHidden(ch); }
   }
+  const dist = (key, fx, fz) => { const ci = Math.floor(key / 1000) - 100, cj = key % 1000 - 100, x0 = ci * CH * T, z0 = cj * CH * T, s = CH * T; return Math.hypot(Math.max(x0 - fx, 0, fx - x0 - s), Math.max(z0 - fz, 0, fz - z0 - s)); };
+  const bounds = (key, fn) => { const x0 = (Math.floor(key / 1000) - 100) * CH * T, z0 = (key % 1000 - 100) * CH * T; return fn(x0, z0, x0 + CH * T, z0 + CH * T); };
   // Keep the chunks within R of (fx, fz) built, drop the ones beyond R + 1.5 km. A generator: the caller runs it in slices.
-  function* sync(fx, fz, R) {
+  // seen(x0, z0, x1, z1): optional, true for a chunk the camera can see; those are built first (nearest first), then the others.
+  function* sync(fx, fz, R, seen) {
     if (!loaded) return;
-    const dist = key => { const ci = Math.floor(key / 1000) - 100, cj = key % 1000 - 100, x0 = ci * CH * T, z0 = cj * CH * T, s = CH * T; return Math.hypot(Math.max(x0 - fx, 0, fx - x0 - s), Math.max(z0 - fz, 0, fz - z0 - s)); };
-    for (const [key, ch] of chunks) if (dist(key) > R + 1500) { ch.mesh.removeFromParent(); ch.geo.dispose(); chunks.delete(key); }
-    const todo = []; for (const key of byChunk.keys()) if (!chunks.has(key)) { const d = dist(key); if (d <= R) todo.push([d, key]); }
-    todo.sort((a, b) => a[0] - b[0]);
-    for (const [, key] of todo) { if (chunks.has(key)) continue; yield* buildChunk(key); yield; }
+    for (const [key, ch] of chunks) if (dist(key, fx, fz) > R + 1500) { ch.mesh.removeFromParent(); ch.geo.dispose(); chunks.delete(key); }
+    for (;;) {
+      let best = -1, bs = Infinity;
+      for (const key of byChunk.keys()) {
+        if (chunks.has(key)) continue;
+        const d = dist(key, fx, fz); if (d > R) continue;
+        const s = d + (seen && !bounds(key, seen) ? 1e6 : 0);
+        if (s < bs) { bs = s; best = key; }
+      }
+      if (best < 0) return;
+      yield* buildChunk(best); yield;
+    }
+  }
+  // chunks within R of (fx, fz) that are not built yet and that seen(x0, z0, x1, z1) says are in view
+  function missing(fx, fz, R, seen) {
+    if (!loaded) return 0;
+    let n = 0;
+    for (const key of byChunk.keys()) if (!chunks.has(key) && dist(key, fx, fz) <= R && bounds(key, seen)) n++;
+    return n;
   }
   return {
-    load, sync, hide,
+    load, sync, hide, missing,
     get loaded() { return loaded; }, get failed() { return failed; },
     // triangles the tile's boxes cost while they are shown (0 where the tile has no buildings or the file is not in)
     tris(k) { const e = dir.get(k); return e ? e.tris : 0; },

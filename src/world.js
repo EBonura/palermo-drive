@@ -12,6 +12,9 @@
 // hitches; fetches are limited to a few at a time, nearest first; parsed tiles that leave the radius sit in a small LRU;
 // a budget of resident triangles decides who gets what (updateWanted): the tile under the car first, then low detail everywhere in
 // its ring, then full detail nearest first. Geometry is disposed when parts go; materials are shared.
+// Build order and readiness follow the camera (markView): tiles the camera can see (its frustum plus a margin for turning, and everything
+// close) are built before the rest of the ring, and visiblePending() counts what those tiles and the far city chunks in view still need,
+// so the loading screen and the start transition lift as soon as the view is complete instead of waiting for the whole ring.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
 import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
@@ -34,6 +37,9 @@ const CFG = {
   triCap: +Q.get("tricap") || 1.2e6,
   conc: 3,
   budgetMs: +Q.get('wbudget') || 2,
+  hurryMs: +Q.get('whurry') || 12,        // per-frame build budget while a loading screen or the start transition covers the game (world.hurry)
+  viewMargin: 80,                         // metres the camera frustum is widened by when deciding what is in view (the car may turn)
+  viewNear: 220,                          // tiles this close to the focus count as in view whichever way the camera points
   keepData: 6,
   farFog: 1.25,                           // far boxes are built out to farFog / fog density metres (the fog hides what is beyond)
   base: Q.get('worldurl') || 'world/',
@@ -162,7 +168,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null;
+  let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null, wantedOnce = false, visPending = 1, farMissing = 0;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
   // Instantiated with the full-detail tile that contains (x, z), their skipIds left out of that tile's generic buildings, disposed with the tile.
@@ -192,7 +198,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     farCity = createFarCity({ root, F: M.far, T, nk, url: new URL('assets/world/far.bin', document.baseURI).href, mat: getLowMats().roof });
     farCity.load().then(() => { wantedTimer = 99; }); // the budget needs the far triangle counts
     // warm the facade atlas in slices while the first tiles download
-    const warm = warmBuildings(); tasks.push({ t: { d: -1 }, gen: warm, wait: null, name: 'atlas' });
+    const warm = warmBuildings(); tasks.push({ t: { pd: -1 }, gen: warm, wait: null, name: 'atlas' });
     wantedTimer = 99;
     world.manifest = M;
   }).catch(e => console.error('[world] manifest failed', e));
@@ -284,7 +290,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const k = nk(i, j); let t = tiles.get(k);
     if (!t) {
       t = { i, j, k, id: i + '_' + j, cx: (i + 0.5) * T, cz: (j + 0.5) * T, meta: M.tiles[i + '_' + j], want: 0, lod: 0, d: 1e9, data: null, nearS: null, parts: {}, tris: {}, task: null,
-        fetchP: null, fetchRes: null, failed: false, hasFull: false, raised: null, hard: undefined, shape: null, shaped: false, tint: null, dead: false, urban: 0 };
+        fetchP: null, fetchRes: null, failed: false, hasFull: false, vis: false, pd: 1e9, top: -1, raised: null, hard: undefined, shape: null, shaped: false, tint: null, dead: false, urban: 0 };
       tiles.set(k, t);
     }
     return t;
@@ -700,7 +706,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function pump() {
     for (let i = pending.length - 1; i >= 0; i--) if (pending[i].want === 0) { const t = pending[i]; pending.splice(i, 1); t.fetchP = null; t.fetchRes(); }
     while (inflight < CFG.conc && pending.length) {
-      let bi = 0; for (let i = 1; i < pending.length; i++) if (pending[i].d < pending[bi].d) bi = i;
+      let bi = 0; for (let i = 1; i < pending.length; i++) if (pending[i].pd < pending[bi].pd) bi = i;
       const t = pending.splice(bi, 1)[0]; inflight++;
       // (the production build serves the .bin twin through a fetch shim, tools/build/runtime/loader.js: always go through r.json())
       fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
@@ -842,6 +848,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     list.sort((a, b) => a.d - b.d);
     const inList = new Set(list), inKeys = new Set();
+    wantedOnce = true;
     for (const t of tiles.values()) if (!inList.has(t)) { t.want = 0; t.d = rectDist(fx, fz, t); }
     // overview (the title flyover): only the tile under the camera gets full detail, so the budget goes to the low detail ring
     const rFull = world.overview ? 1 : CFG.rFull, guard = world.overview ? 1 : CFG.guard;
@@ -864,6 +871,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (est + dl > CFG.triCap * (t.lod === 2 ? 1.08 : 1)) break;
       t.want = 2; est += dl;
     }
+    markView();
     for (const t of tiles.values()) ensureTask(t);
     ensureFarTask(fx, fz);
     pump();
@@ -873,7 +881,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // one task at a time keeps the far chunks around the camera built (src/context.js sync); it sits behind the tile work in the queue
   function ensureFarTask(fx, fz) {
     if (!farCity || (farTask && !farTask.done)) return;
-    farTask = { t: { d: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius()); contextDirty = true; })(), wait: null, name: 'far' };
+    farTask = { t: { pd: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius(), seenBox); contextDirty = true; })(), wait: null, name: 'far' };
     tasks.push(farTask);
   }
   function ensureTask(t) {
@@ -885,10 +893,42 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.task = task; tasks.push(task);
   }
 
+  // ---------- what the camera sees: build order and the reveal counter ----------
+  // markView (every frame, it is a few hundred box tests): flags the tiles the camera can see, and orders the work visible tiles first,
+  // nearest first, then the rest of the ring nearest first (pd, the priority of tasks and fetches). A tile is in view when it is within
+  // viewNear of the focus (so the tile under the car always is) or its box meets the camera frustum widened by viewMargin.
+  // visiblePending counts, at the end of the frame, the in-view tiles that are below the detail they want plus the far city chunks in view
+  // that are not built (and 1 until the manifest, the first allocation and the far city file are in): 0 means everything on screen is built.
+  const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4(), _bb = new THREE.Box3(), _v0 = new THREE.Vector3(), _v1 = new THREE.Vector3();
+  function seenBox(x0, z0, x1, z1, top = 200) { _v0.set(x0, -10, z0); _v1.set(x1, top, z1); return _fr.intersectsBox(_bb.set(_v0, _v1)); }
+  function markView() {
+    camera.updateMatrixWorld();
+    _fr.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for (const p of _fr.planes) p.constant += CFG.viewMargin;
+    for (const t of tiles.values()) {
+      if (t.top < 0) t.top = Math.max(farM(t.cx, t.cz), farM(t.cx - 250, t.cz - 250), farM(t.cx + 250, t.cz - 250), farM(t.cx - 250, t.cz + 250), farM(t.cx + 250, t.cz + 250)) + 80;
+      t.d = rectDist(focus.x, focus.z, t);
+      t.vis = t.d < CFG.viewNear || seenBox(t.i * T, t.j * T, (t.i + 1) * T, (t.j + 1) * T, t.top);
+      t.pd = t.vis ? t.d : t.d + 1e4;
+    }
+    if (farTask && !farTask.done) farTask.t.pd = farMissing > 0 ? 4e3 : 5e4; // the far chunks in view go before the tiles out of view
+  }
+  function countPending() {
+    let n = 0;
+    if (!M || !wantedOnce || (farCity && !farCity.loaded && !farCity.failed)) n++;
+    for (const t of tiles.values()) {
+      if (!t.vis || t.dead || t.want === 0) continue;
+      if (t.failed && !t.data && !cache.has(t.k)) continue;
+      if (t.lod < t.want || (t.want === 1 && t.hasFull)) n++;
+    }
+    farMissing = farCity ? farCity.missing(focus.x, focus.z, farRadius(), seenBox) : 0;
+    return n + farMissing;
+  }
+
   // ---------- scheduler ----------
   function runTasks(budget) {
     const t0 = performance.now();
-    tasks.sort((a, b) => a.t.d - b.t.d);
+    tasks.sort((a, b) => a.t.pd - b.t.pd);
     for (const k of tasks) {
       if (k.wait || k.done) continue;
       while (performance.now() - t0 < budget) {
@@ -916,11 +956,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
 
   // ---------- public ----------
-  let binding = null, tele = null;
+  let binding = null, tele = null, overviewOn = false;
   world = {
     manifest: null,
     estTris: 0,
-    overview: false, // set by main.js while the title is up: see updateWanted
+    // set by main.js while the title is up (see updateWanted); a change asks for a new allocation at once, so leaving the title does not wait for the next 0.5 s tick
+    get overview() { return overviewOn; }, set overview(v) { if (v !== overviewOn) { overviewOn = v; wantedTimer = 99; } },
+    hurry: false,    // set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
     get farCity() { return farCity; },
     raised,
     drivePlayer,
@@ -935,10 +977,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     onTile(fn) { tileFns.add(fn); for (const t of fullSet) fn('full', t); return () => tileFns.delete(fn); },
     fullTiles() { return [...fullSet]; },
     // Parsed data of tile (i, j) if it is resident or in the parsed-tile LRU (full or low detail), else null. Read-only (minimap).
+    // How many in-view tiles and far chunks still need building (markView above); 0 = everything the camera can see is built.
+    // Computed at the end of update(), so call it after a frame or two when the camera has just moved.
+    visiblePending() { return visPending; },
     tileData(i, j) { const k = nk(i, j), t = tiles.get(k); return (t && t.data) || cache.get(k) || null; },
     teleport(x, z, done) { tele = { x, z, done }; wantedTimer = 99; },
     update(dt, cam) {
-      if (!M) { if (tasks.length) runTasks(CFG.budgetMs); return; }
+      if (!M) { if (tasks.length) runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs); return; }
       const t0 = performance.now();
       const f = tele || cam.position;
       focus.x = f.x; focus.z = f.z;
@@ -947,8 +992,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         wantedTimer = 0; lastWanted.x = focus.x; lastWanted.z = focus.z;
         updateWanted(focus.x, focus.z);
       }
+      markView();
       pump();
-      runTasks(CFG.budgetMs);
+      runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs);
       for (const t of tiles.values()) if (!t.task && !t.dead) ensureTask(t);
       if (tele) {
         const t = tiles.get(nk(Math.floor(tele.x / T), Math.floor(tele.z / T)));
@@ -956,6 +1002,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       }
       farUpdate();
       if (contextDirty) refreshContext();
+      visPending = countPending();
       const w = performance.now() - t0;
       stat.frames++; stat.work = w; stat.workSum += w; if (w > stat.workMax) stat.workMax = w; if (w > 8) stat.hitches++;
       if (overlay) overlayUpdate(dt);
@@ -985,7 +1032,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function overlayUpdate(dt) {
     if ((ot += dt) < 0.5) return; ot = 0;
     const s = world.stats();
-    overlay.textContent = `tiles ${s.lod2}/${s.lod1}/${s.lod0}  tris ${(s.tris / 1e3) | 0}k  queue ${s.queued}  net ${s.inflight}+${s.pending}\nwork ${s.work.toFixed(1)}ms max ${s.workMax.toFixed(1)}  heap ${s.heapMB ?? '?'}MB`;
+    overlay.textContent = `tiles ${s.lod2}/${s.lod1}/${s.lod0}  tris ${(s.tris / 1e3) | 0}k  queue ${s.queued}  net ${s.inflight}+${s.pending}  vis ${visPending}\nwork ${s.work.toFixed(1)}ms max ${s.workMax.toFixed(1)}  heap ${s.heapMB ?? '?'}MB`;
   }
   return world;
 }
