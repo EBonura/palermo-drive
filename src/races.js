@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { Kit, box, sph } from './vehicle-kit.js';
 import { buildModels, makeMaterial } from '../assets/traffic/models.js';
+import { SPEED_SCALE as SS } from './vehicle.js';   // the player's speed scale (?speed=): opponents' speeds and accelerations follow it
 
 const PI = Math.PI;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -30,14 +31,14 @@ function makeTrack(T) {
     tx[i] = (raw[seg + 1][0] - raw[seg][0]) / l; tz[i] = (raw[seg + 1][1] - raw[seg][1]) / l;
   }
   const W = T.closed ? (i => (i % N + N) % N) : (i => clamp(i, 0, N - 1));
-  // corner speed from the heading change over +-3 samples, then braking distance backwards (a = 7 m/s2), a few passes round a loop
+  // corner speed from the heading change over +-3 samples, then braking distance backwards (a = 7 m/s2, times SS), a few passes round a loop
   for (let i = 0; i < N; i++) {
     const a = Math.atan2(tx[W(i - 3)], tz[W(i - 3)]), b = Math.atan2(tx[W(i + 3)], tz[W(i + 3)]);
     let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d));
-    vcap[i] = clamp(Math.sqrt(9 / Math.max(Math.abs(d) / (6 * ds), 1e-3)), 7, 60);
+    vcap[i] = clamp(Math.sqrt(9 * SS / Math.max(Math.abs(d) / (6 * ds), 1e-3)), 7, 60 * SS);
   }
   for (let pass = 0; pass < (T.closed ? 3 : 1); pass++) for (let i = N - 1 + (T.closed ? N : 0); i >= 0; i--) {
-    const j = W(i), k = W(i + 1); vcap[j] = Math.min(vcap[j], Math.sqrt(vcap[k] * vcap[k] + 2 * 7 * ds));
+    const j = W(i), k = W(i + 1); vcap[j] = Math.min(vcap[j], Math.sqrt(vcap[k] * vcap[k] + 2 * 7 * SS * ds));
   }
   const A = { x: 0, z: 0, tx: 0, tz: 1, cap: 60 };
   const trk = {
@@ -83,7 +84,7 @@ const TUNED = [
   { spoiler: 'biplano', rims: 'neri', stance: 'basso', exhaust: 'oro', neon: 'verde', stickers: 'numero' },
 ];
 const SCOOTER_TYPES = ['vespa', 'motorino', 'scooterone'];
-const VMAX = { car: 27.5, lapa: 22.5, scooter: 25, carrozza: 18.5, sulky: 22.5 };
+const VMAX = { car: 27.5 * SS, lapa: 22.5 * SS, scooter: 25 * SS, carrozza: 18.5 * SS, sulky: 22.5 * SS };
 
 export function createRaces(X) {
   const { scene, camera, car, vehicle, hud, T, groundAt, speed } = X;
@@ -307,10 +308,10 @@ export function createRaces(X) {
         if (!r.done) {
           const gap = r.total - R.total, rub = gap < -60 ? 1.08 : gap > 70 ? 0.93 : 1, look = trk.at(r.s + 14).cap;
           const vt = Math.min(r.vmax * rub, look * 1.05) * (0.96 + 0.04 * Math.sin(R.t * 0.8 + r.wob));
-          r.v += clamp(vt - r.v, -9 * dt, (r.kind === 'carrozza' ? 4 : 7) * dt);
+          r.v += clamp(vt - r.v, -9 * SS * dt, (r.kind === 'carrozza' ? 4 : 7) * SS * dt);
           r.total += r.v * dt; r.s = r.total;
           if (r.total >= R.finishS) { r.done = true; r.doneT = R.t; r.order = ++R.order; }
-        } else { r.v = Math.max(0, r.v - 8 * dt); r.total += r.v * dt; r.s = r.total; }
+        } else { r.v = Math.max(0, r.v - 8 * SS * dt); r.total += r.v * dt; r.s = r.total; }
       } else r.v = 0;
       const lat = r.lat + Math.sin(R.t * 0.5 + r.wob) * 0.5 * Math.min(1, r.v / 8), a = trk.at(r.s);
       const x = a.x - a.tz * lat, z = a.z + a.tx * lat; r.x = x; r.z = z; r.spin += r.v * dt / (r.rig.A ? (r.rig.A.wheelR || 0.3) : 0.5);
