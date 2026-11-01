@@ -251,6 +251,10 @@ def _is_place(t):
                 or t.get("historic") in ("castle", "monument", "fort", "ruins", "archaeological_site"))
 
 
+WATERWAYS = {"river", "stream", "canal", "drain", "ditch", "brook"}   # lines under bridges (Oreto, Papireto, culverts); cat "wtr"
+BARRIERS = {"wall", "fence", "retaining_wall", "city_wall", "hedge", "guard_rail", "gate", "handrail", "chain", "jersey_barrier", "cable_barrier"}   # cat "bar"
+
+
 def _way_cats(t):
     """Overpass-equivalent category membership of a way's tags."""
     cats = []
@@ -263,6 +267,10 @@ def _way_cats(t):
     if (t.get("natural") == "coastline" or cover_kind(t)
             or t.get("man_made") in ("pier", "breakwater")):
         cats.append("misc")
+    if t.get("waterway") in WATERWAYS:
+        cats.append("wtr")
+    if t.get("barrier") in BARRIERS or t.get("historic") == "citywalls":
+        cats.append("bar")
     a = t.get("amenity")
     if (t.get("natural") == "tree_row" or a in ("parking", "fountain", "marketplace", "bicycle_parking",
                                                    "motorcycle_parking")):
@@ -339,7 +347,7 @@ def pbf_extract():
     log(f"{len(loc)} nodes in the box, {len(props)} furniture nodes")
 
     # pass 3: ways
-    out = {"bld": [], "hwy": [], "misc": [], "props": props, "places": places}
+    out = {"bld": [], "hwy": [], "misc": [], "props": props, "places": places, "wtr": [], "bar": []}
     member_geom = {}
 
     def geometry(refs):
@@ -388,7 +396,7 @@ def pbf_extract():
 
 
 def pbf_files():
-    cats = ("misc", "hwy", "bld", "props", "places")
+    cats = ("misc", "hwy", "bld", "props", "places", "wtr", "bar")
     fresh = all(pbf_cache_files(c) for c in cats) and all(
         os.path.getmtime(f) > os.path.getmtime(PBF) for c in cats for f in pbf_cache_files(c))
     if not fresh:
@@ -798,6 +806,7 @@ def parse_misc(files):
     return coast, areas, piers
 
 
+STRUCTS = []       # (line, tags, 'b'|'t', carriageway width) of every OSM bridge and tunnel way, see tools/structures.py
 PED_STREETS = []   # (line, tags, width) of every OSM highway=pedestrian way (not area), for the pedestrian zones of streets_for_tile
 
 
@@ -814,6 +823,7 @@ def parse_highways(files):
     from streets import width_of
     roads, car, ped, plazas = [], [], [], []
     PED_STREETS.clear()
+    STRUCTS.clear()
     for e in iter_elements(files):
         t = e.get("tags") or {}
         hw = t.get("highway")
@@ -857,6 +867,10 @@ def parse_highways(files):
         roads.append((r, LineString(pts)))
         if hw == "pedestrian" and not tunnel:
             PED_STREETS.append((LineString(pts), t, r["w"]))
+        brg = t.get("bridge") in ("yes", "viaduct", "movable", "aqueduct") and not tunnel
+        if (brg or t.get("tunnel") == "yes") and hw in ROAD_WIDTH and hw not in ("track", "bridleway") and not closed:
+            cwd = width_of(t, CARRIAGEWAY[hw]) if hw in CARRIAGEWAY else PEDESTRIAN.get(hw, ROAD_WIDTH[hw])
+            STRUCTS.append((LineString(pts), dict(t, _id=e["id"]), "b" if brg else "t", cwd))
         if tunnel:
             continue
         if hw in CARRIAGEWAY:
@@ -864,6 +878,17 @@ def parse_highways(files):
         elif hw in PEDESTRIAN and not (RS_ON and hw == "pedestrian"):   # pedestrian streets come from the decree list (road_surfaces)
             ped.append(LineString(pts).buffer(width_of(t, PEDESTRIAN[hw]) / 2, quad_segs=4))
     return roads, car, ped, plazas
+
+
+def parse_waterways(files):
+    """[(LineString, tags)] of OSM waterway lines (rivers, streams, drains), for structures.py."""
+    from shapely.geometry import LineString
+    out = []
+    for e in iter_elements(files):
+        t = e.get("tags") or {}
+        if e["type"] == "way" and e.get("geometry") and t.get("waterway") in WATERWAYS and len(e["geometry"]) >= 2:
+            out.append((LineString(way_pts(e)), t))
+    return out
 
 
 def parse_places(files):
@@ -1196,6 +1221,9 @@ def streets_for_tile(tx0, tz0):
         raised = D(I(pave, space), taken)
         verge = D(D(I(verg, space), taken), raised)
         raised, verge = poly_only(raised.buffer(-0.05).buffer(0.05)), poly_only(verge.buffer(-0.05).buffer(0.05))
+        cut = layer(G["cut_tree"], G["cut_geoms"])   # bridge decks (src/bridges.js draws them) take the road off the ground under them
+        if not cut.is_empty:
+            asphalt, raised, verge, paving = (D(g, cut) for g in (asphalt, raised, verge, paving))
         asphalt, raised, verge, paving = (poly_only(g.simplify(RS_SIMPLIFY)) for g in (asphalt, raised, verge, paving))   # the survey is 1:2000
     else:
         asphalt = I(car, space)
@@ -1284,10 +1312,12 @@ def tile_payload(i, j):
     st = streets_for_tile(tx0, tz0)
     has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs"))
     near = G["near_for"](i, j)
-    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near):
+    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near or G["tile_struct"].get(key)):
         return None
     out = {"buildings": blds, "roads": roads, "streets": st, "areas": areas, "labels": labels,
            "props": {"items": pitems, "areas": pareas, "counts": counts}}
+    if G["tile_struct"].get(key):
+        out["structs"] = G["tile_struct"][key]
     if near:
         out["near"] = near
     return out
@@ -1863,6 +1893,12 @@ def build(offline=False):
     roads, car, ped, plazas = parse_highways(files["hwy"])
     pitems, pareas = parse_props(files["props"])
     places = parse_places(files.get("places", []))
+    import structures
+    structs = structures.build_structures(STRUCTS, parse_waterways(files.get("wtr", [])), roads, dem)
+    tile_struct = {}
+    for rec in structs:
+        for key in structures.tiles_of(rec, T):
+            tile_struct.setdefault(key, []).append(rec)
     print(f"  {len(buildings)} buildings (heights: {stats}), {len(coast)} coast ways, {len(areas_raw)} areas, "
           f"{len(roads)} roads, {len(pitems)} props", flush=True)
 
@@ -1918,12 +1954,14 @@ def build(offline=False):
              roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]),
              pier_geoms=piers, pier_tree=tree(piers),
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
-             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas)
+             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct)
 
     if RS_ON:
         G["rs"] = load_road_surfaces()
         tun = [ls.buffer(max(rec["w"], 6) / 2 + 6, quad_segs=2) for rec, ls in roads if rec.get("tn")]
         G.update(tunnel_geoms=tun, tunnel_tree=tree(tun))
+        cuts = [LineString(zip(r["p"][0::2], r["p"][1::2])).buffer(r["w"] / 2 + 0.6, quad_segs=2) for r in structs if r["k"] == "b" and not r.get("ov")]
+        G.update(cut_geoms=cuts, cut_tree=tree(cuts))
         lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
                  for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]
         G.update(lane_geoms=lanes, lane_tree=tree(lanes))
@@ -1996,6 +2034,7 @@ def build(offline=False):
                 print(f"  {n}/{len(todo)}", flush=True)
     results.sort(key=lambda r: (int(r[0].split("_")[0]), int(r[0].split("_")[1])))
 
+    structures.add_heights(WORLD, structs, G["far_f"], T)
     lm, found, missing = landmarks(buildings, area_recs, [p for p in places if inside(p[1], p[2])])
 
     polys_land = sorted(polys_of(land), key=lambda p: -p.area)
