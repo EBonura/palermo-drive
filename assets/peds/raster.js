@@ -100,25 +100,32 @@ export class Cell {
         if (d === -2) continue; if (d !== -1) { base = d; T = tonesOf(d, style); }
       }
       zb[idx] = sz; bb[idx] = base; pb[idx] = part;
-      cb[idx] = T[dot > 0.52 ? 3 : dot > 0.02 ? 2 : dot > -0.42 ? 1 : 0];
+      cb[idx] = T[dot > 0.76 ? 3 : dot > 0.1 ? 2 : dot > -0.4 ? 1 : 0];
     }
   }
   // flat filled rectangle in model xy at depth z (for decals that must be exact: a stripe, a badge); front views only
   // Turn the G-buffer into RGBA bytes with the outline. edge = unit depth step that counts as "in front of".
   finish(out, thr = 1.1) {
-    const W = this.W, H = this.H, zb = this.zb, cb = this.cb, bb = this.bb, pb = this.pb, S = this.S, th = thr, ER = EDGE >> 16, EG = (EDGE >> 8) & 255, EB = EDGE & 255;
+    const W = this.W, H = this.H, zb = this.zb, cb = this.cb, bb = this.bb, pb = this.pb, th = thr, ER = EDGE >> 16, EG = (EDGE >> 8) & 255, EB = EDGE & 255;
+    const halo = this.S < 2;   // the far cells get a two pixel outline (one inside, one outside): it keeps the silhouette readable at a distance, where the mip chain thins everything
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const k = y * W + x, o = k * 4;
-      if (zb[k] < -1e8) { out[o] = ER; out[o + 1] = EG; out[o + 2] = EB; out[o + 3] = 0; continue; }
-      let col = cb[k], edge = 0;
       const L = x > 0 ? k - 1 : -1, R = x < W - 1 ? k + 1 : -1, U = y > 0 ? k - W : -1, D = y < H - 1 ? k + W : -1;
+      if (zb[k] < -1e8) {
+        let nb = -1;
+        if (halo) nb = L >= 0 && zb[L] > -1e8 ? L : R >= 0 && zb[R] > -1e8 ? R : U >= 0 && zb[U] > -1e8 ? U : D >= 0 && zb[D] > -1e8 ? D : -1;
+        if (nb >= 0) { const t = tonesOf(bb[nb], 0)[0]; out[o] = (t >> 16) * 0.45; out[o + 1] = ((t >> 8) & 255) * 0.45; out[o + 2] = (t & 255) * 0.45; out[o + 3] = 255; }
+        else { out[o] = ER; out[o + 1] = EG; out[o + 2] = EB; out[o + 3] = 0; }
+        continue;
+      }
+      let col = cb[k], edge = 0;
       if (L < 0 || R < 0 || U < 0 || D < 0 || zb[L] < -1e8 || zb[R] < -1e8 || zb[U] < -1e8 || zb[D] < -1e8) edge = 2;
       else {
         const z = zb[k], p = pb[k];
         if ((pb[L] !== p && zb[L] > z + th) || (pb[R] !== p && zb[R] > z + th) || (pb[U] !== p && zb[U] > z + th) || (pb[D] !== p && zb[D] > z + th)) edge = 1;
       }
       if (edge) {
-        const t = tonesOf(bb[k], 0)[0], kk = edge === 2 ? 0.72 : 0.9;   // silhouette: the deep shade, a little darker; an inner edge: the deep shade
+        const t = tonesOf(bb[k], 0)[0], kk = edge === 2 ? (halo ? 0.6 : 0.72) : 0.9;   // silhouette: the deep shade, darker; an inner edge: the deep shade
         col = pack((t >> 16) * kk, ((t >> 8) & 255) * kk, (t & 255) * kk);
       }
       out[o] = col >> 16; out[o + 1] = (col >> 8) & 255; out[o + 2] = col & 255; out[o + 3] = 255;
