@@ -60,7 +60,7 @@ The owner's rule: desktop and phone show exactly the same graphics. Only the ren
 | default tier | medium (Options still offers low / medium / high; the saved choice wins) | low / high | medium = shadows, peds 240 within 100 m, pixel ratio ceiling 1.5, the two real night lights |
 | anisotropy cap | 4 | 4 / none | `main.js` (all textures), `sea.js`, `suca.js` |
 | sea | `LOW` shader (two wave layers, no weed), coarse field 32 m, fine window 1.2 km at 3 m | LOW, 32 m, 1.2 km at 3 m / full shader, 24 m, 1.6 km at 2 m | the water covers a big share of the screen on the coast: the fragment cost is the one to keep low |
-| pedestrian atlas | half resolution (7 MB, was 29 MB) | half / full | |
+| pedestrian atlases | far: whole cast at 1 texel per design unit, 6.2 MB (8.3 with mips); near: 3 texels per unit for the people close to the camera, 3.7 MB phone / 5.6 MB desktop (see the pedestrian sprites section) | half / full | |
 | suca atlas | 0.625 scale, budget 0.9 ms | 0.5, 0.6 / 0.75, 1.2 | |
 | minimap pieces | 256 px per tile, 18 kept | 192, 14 / 384, 24 | |
 | day/night | env map re-bake at most once a second; the real night lights follow the quality tier only (no longer "never on phones") | 1.4 s / 0.55 s | |
@@ -122,6 +122,29 @@ Cold load, cache off, local server (source tree, not the bundle), `?help=0`. "St
 Pop-in check (`vis` per frame sampled in the page, screenshots at the reveal and 2.5 s and 7 s later from the same camera; the title camera is frozen at its first position for the comparison): the counter stays at 0 after the reveal on the title (frozen camera), Teatro Massimo and Monte Pellegrino, desktop and phone. The static scene (terrain, buildings, streets) is identical between the frames; only pedestrians, traffic, the HUD and the clock change. With the title flyover running, the counter shows 1 now and then: a low detail tile at the edge of the ring (1.4 km, where the far boxes stand in until it is built) flipping in and out of range, and the tile under the camera going to full detail as the flyover passes over it (as before). The rest of the ring (the tiles behind and beside the camera) keeps building after the reveal.
 
 Worse or unchanged: the main thread is blocked for up to 12 ms a frame while covered (the lapa spinner may stutter, not measured); a short stretch right after the reveal still has the rest of the ring building at the normal 2 ms budget, so the full ring is complete later than the reveal (1.6 s on the phone for Mondello, measured). Props, pedestrians and traffic are not in the counter (they appear around the player as they always did).
+
+## Pedestrian sprites at 3x (assets/peds, src/pedestrians.js)
+
+The crowd is no longer 75 hand-drawn variants but a cast of 153 generated people (types in `assets/peds/sprites.js`, faces and hair from `people.js`, drawn by a small software rasteriser, `raster.js` + `model.js`: swept solids shaded in four tones, pixel decals for eyes, brows, mouth, stubble, then the outline pass). Same 4 directions (right is the mirrored left) and the same walk cycle, plus a drink pose; same billboard shader, one draw call for the crowd and one for the scripted characters.
+
+LOD (`assets/peds/atlas.js`, 16-bit RGB5_A1 textures filled on the GPU one cell at a time with `copyTextureToTexture`, so no big CPU copy stays):
+- far atlas: every cell of the cast at 24 x 54 texels (today's resolution), built after start at 1.2 to 10 ms per frame, entries that are about to spawn first. 2,373 cells, 3.08 Mtexel, 6.2 MB (8.3 MB with the mip chain).
+- near atlas: cells at 72 x 162 (3x), filled for a cast entry only when a person of it stands close enough that one near texel covers at least 0.8 screen pixels (leaves at 0.6): that depends on the screen height and the camera lens, so a phone at pixel ratio 1.25 gets about 8 m and a desktop at 1.5 about 17 m, no per-device look switch. LRU slots, 128 cells on touch devices (3.4 MB) and 240 on desktop (5.6 MB, about 15 people), nearest filtered, no mips. At most 2 ms of cell drawing per frame (0.3 to 0.4 ms per near cell on this Mac, 1.4 ms at x4).
+- the CPU puts the texel origin of the cell into the instance data, so a person can switch between the two atlases frame by frame; the fragment shader samples both and picks.
+
+Measured before and after (`cap.mjs` style run: spot, `?fixres&debug`, 6 s of frames, CDP TaskDuration; desktop 1280x720 DPR 1, phone 844x390 DPR 3 touch, 4x CPU):
+
+| | before | after |
+| --- | --- | --- |
+| pedestrian texture memory, desktop (incl. mips) | 7.6 MB RGBA8 (10.1) | 6.2 MB far (8.3) + 5.6 MB near = 13.9 MB |
+| pedestrian texture memory, phone (incl. mips) | same (7.6, 10.1) | 6.2 far (8.3) + 3.4 near = 11.7 MB |
+| main ms per frame, phone x4: market / Mondello / Politeama / stadium | 13.6 / 12.0 / 12.3 / 10.5 | 11.7 / 11.3 / 11.2 / 10.4 |
+| main ms per frame, desktop | 2.5 / 2.7 / 3.0 / 2.6 | 2.6 / 2.3 / 3.2 / 2.7 |
+| draw calls (market, Mondello, Politeama, stadium), both profiles | 540 / 496 / 597 / 426 | 540 / 494 / 592 / 426 |
+| pedestrian update, phone avg ms | 0.65 / 0.41 / 0.52 / 0.39 | 1.0 / 0.57 / 0.53 / 0.42 (includes the LOD pick and the cell drawing) |
+| start: atlas build | blocking, 0.9 to 1.1 s at x4 | none on the loading path; 1.1 s of drawing spread over the first seconds at x4 (0.2 s desktop) |
+
+Notes. The variation between before and after is inside the machine noise listed above; the point is that it did not get worse. Near cells are drawn on the main thread (a worker would need a second bundle entry in `tools/build`, not done). The near atlas capacity is a memory cap, not a look difference (`?pednear=n` sets it as a number of people, `?pednear=0` turns the near LOD off). The pedestrian module gets the renderer from `onBeforeRender` of the sprite mesh (main.js does not pass it), and `UniformsUtils.merge` clones textures, so the atlases are assigned to the material uniforms after the merge.
 
 ## Pipeline
 
