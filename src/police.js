@@ -9,7 +9,7 @@
 // plays the siren and shows the rosanero HUD.
 import * as THREE from 'three';
 import { garage } from './garage.js';
-import { dangerAt } from './danger.js';
+import { dangerAt, areaAt, covered } from './danger.js';
 
 const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -156,7 +156,18 @@ export function createPolice(env, T) {
   // ---------- HUD ----------
   const css = document.createElement('style');
   css.textContent = `
-  #pd-wanted { position: fixed; z-index: 58; left: max(10px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 84px); display: none; pointer-events: none;
+  #pd-status { position: fixed; z-index: 58; left: max(10px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 84px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+  #pd-hood { display: none; flex-direction: column; padding: 4px 11px 6px 9px; transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.78), rgba(40,12,28,.7));
+    border-left: 3px solid var(--hc, #f5a9c9); box-shadow: 0 2px 10px rgba(0,0,0,.35); font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }
+  #pd-hood.on { display: flex; }
+  #pd-hood > * { transform: skewX(6deg); }
+  #pd-hood .ph-n { font-size: 13px; letter-spacing: .06em; line-height: 1.05; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  #pd-hood .ph-r { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+  #pd-hood .ph-t { font: 600 9px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.7); white-space: nowrap; }
+  #pd-hood .ph-p { display: flex; gap: 3px; }
+  #pd-hood .ph-p i { width: 9px; height: 9px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
+  #pd-hood .ph-p i.f { background: var(--hc, #f5a9c9); box-shadow: 0 0 5px var(--hc, #f5a9c9); }
+  #pd-wanted { position: relative; display: none; pointer-events: none;
     align-items: center; gap: 7px; padding: 4px 11px 8px 7px; transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.82), rgba(40,12,28,.76));
     border-left: 3px solid #e8559a; box-shadow: 0 2px 10px rgba(0,0,0,.4); font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; overflow: hidden; }
   #pd-wanted.on { display: flex; }
@@ -172,7 +183,7 @@ export function createPolice(env, T) {
   #pd-wanted .pw-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); transform: none; }
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
   #pd-wanted.clear .pw-t { color: #fff; text-shadow: 0 0 8px #e8559a; }
-  html.touch #pd-wanted { top: calc(max(8px, env(safe-area-inset-top)) + 70px); transform-origin: left top; scale: .86; }
+  html.touch #pd-status { top: calc(max(8px, env(safe-area-inset-top)) + 70px); transform-origin: left top; scale: .86; }
   #pd-busted { position: fixed; z-index: 70; left: 50%; top: 24%; transform: translate(-50%, 0) skewX(-6deg) scale(.92); min-width: min(330px, 70vw); max-width: 88vw; padding: 12px 22px 14px; text-align: center; pointer-events: none; opacity: 0;
     transition: opacity .25s, transform .25s; background: linear-gradient(90deg, rgba(11,7,9,.92), rgba(48,12,32,.9)); border-top: 4px solid #e8559a; border-bottom: 4px solid #1a1114; box-shadow: 0 6px 30px rgba(0,0,0,.55), 0 0 0 2px #e8559a; color: #fff;
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
@@ -186,11 +197,28 @@ export function createPolice(env, T) {
   const hud = document.createElement('div');
   hud.id = 'pd-wanted';
   hud.innerHTML = `<svg class="pw-ico" viewBox="0 0 24 24"><g class="d"><path class="b1" d="M5 18a7 7 0 0 1 7-9v9z" fill="#f08cb4"/><path class="b2" d="M19 18a7 7 0 0 0-7-9v9z" fill="#1a1114"/></g><rect x="3" y="18" width="18" height="3" rx="1" fill="#e8559a"/><path d="M12 2v3M4.5 5.5l2 2M19.5 5.5l-2 2" stroke="#f5a9c9" stroke-width="1.6" stroke-linecap="round"/></svg><div><div class="pw-t">SBIRRI</div><div class="pw-pips"><i></i><i></i><i></i><i></i><i></i></div></div><div class="pw-bar"><b></b></div>`;
-  document.body.appendChild(hud);
+  // top-left status stack: the wanted line (only when the police care) above the neighbourhood's danger line (always, while driving)
+  const status = document.createElement('div'); status.id = 'pd-status'; document.body.appendChild(status);
+  status.appendChild(hud);
+  const hood = document.createElement('div'); hood.id = 'pd-hood';
+  hood.innerHTML = '<div class="ph-n"></div><div class="ph-r"><span class="ph-t">Pericolosità quartiere</span><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div>';
+  status.appendChild(hood);
+  const elHN = hood.querySelector('.ph-n'), hPips = [...hood.querySelectorAll('.ph-p i')];
+  const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
+  let hdOn = null, hdName = '', hdLv = -1;
+  function drawHood() {
+    const on = !covered();
+    if (on !== hdOn) { hdOn = on; hood.classList.toggle('on', on); }
+    if (!on) return;
+    const name = areaAt(car.x, car.z) || 'Palermo', lv = dangerAt(car.x, car.z);
+    if (name !== hdName) { hdName = name; elHN.textContent = name; }
+    if (lv !== hdLv) { hdLv = lv; hPips.forEach((p, i) => p.classList.toggle('f', i < lv)); hood.style.setProperty('--hc', HOOD_C[lv - 1] || HOOD_C[0]); }
+  }
   const elT = hud.querySelector('.pw-t'), pips = [...hud.querySelectorAll('.pw-pips i')], elBar = hud.querySelector('.pw-bar b');
   let hLevel = -1, hSeen = null, hText = '', hBar = -1;
   function drawHud() {
     const lv = level(), shown = lv > 0 || toastT > 0;
+    drawHood();
     if (hud.classList.contains('on') !== shown) hud.classList.toggle('on', shown);
     if (!shown) return;
     const txt = toastT > 0 && lv === 0 ? 'SEMINATI!' : seen ? 'SBIRRI!' : startT > time && !pursuers().length ? 'OCCHIO…' : 'FUORI VISTA…';
