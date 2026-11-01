@@ -35,7 +35,7 @@ const S = {
   collections: ['Collezioni', 'Collections'],
   radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio', 'Radio'],
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
-  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
+  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
   quality: ['Grafica', 'Graphics'],
   low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
@@ -592,7 +592,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     colRows.innerHTML = bar(S.colSuca[i], sp && sp.found, sp && sp.total, S.colSeen[i])
       + bar(S.colFood[i], mp && mp.food && mp.food.done, mp && mp.food && mp.food.total)
       + bar(S.colRaces[i], mp && mp.races && mp.races.won, mp && mp.races && mp.races.total)
-      + bar(S.colFares[i], mp && mp.fares, 0);
+      + bar(S.colFares[i], mp && mp.fares, 0)
+      + (mp && mp.secrets && mp.secrets.length ? `<div class="pd-colh pd-sech"><span>${S.colSecrets[i]}</span><b>${mp.secrets.filter(x => x.on).length} / ${mp.secrets.length}</b></div>`   // secrets: a locked card shows only "???" (src/achievements.js)
+        + mp.secrets.map(x => `<div class="pd-col pd-sec ${x.on ? 'on' : 'lock'}"><div class="pd-colh"><span>${x.on ? esc(x.title[i]) : '???'}</span><b>${x.on ? '\u2605' : ''}</b></div>${x.on ? `<div class="pd-colnote">${esc(x.note[i])}</div>` : ''}</div>`).join('') : '');
   }
 
   // ---- start picker ("Da dove parti?"): the city map or a list grouped by quartiere. Both start through startAt(). ----
