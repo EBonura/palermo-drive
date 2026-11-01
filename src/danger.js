@@ -62,7 +62,7 @@ export function createDanger({ car }) {
       const x = car.x, z = car.z, lv = dangerAt(x, z), id = upl(x, z);
       // entering an area with a different level: its name and the level, once you have been in it a moment
       seenT = id === seen ? seenT + dt : 0; seen = id;
-      if (seenT > 1.5 && (id || FORCED) && lv !== shown && !busy && !covered()) { shown = lv; dangerToast(NAMES[id] || 'Palermo', lv); }
+      // the neighbourhood and its level are always on screen now (the status stack in src/police.js), so no entry toast
       cool = Math.max(0, cool - dt);
       if ((t += dt) < CHECK) return false;
       t = 0;
