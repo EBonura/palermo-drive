@@ -1,28 +1,43 @@
-// Game modes: "Turisti affamati" (tourist taxi runs to Palermo's eateries), the stigghiulari (grill vendors with smoke plumes and
-// nitro refills) and, after dark, "A Favorita" (a discreet client in the Favorita), the pollanche vendors on Monte
-// Pellegrino and the night gags of src/missions-night.js. Owned by the missions work.
+// Free roam: the objectives of the world, plus the stigghiulari (grill vendors with smoke plumes and nitro refills), the pollanche vendors on
+// Monte Pellegrino and the night gags of src/missions-night.js. Owned by the missions work.
 //
-// createMissions(env) -> { mode, setMode('free'|'turisti'|'favorita'), update(dt), stop() }
-//   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians,
-//          traffic, mapMarkers, placeAt, proj }
-// Flow of Turisti: a pink ring with a light beam marks where tourists wait -> stop inside it (speed near zero), they walk
-// over and hop into the back seat -> they name a place to eat -> drive there before the clock runs out and stop in the
-// destination ring -> fare + tips (speed, drifts, near misses, two wheels, stigghiola) minus claims (pedestrians, walls).
-// Speech uses env.shout (src/shouts.js). Lines and places live in assets/missions/lines.js (review copy: lines.md).
+// There are no modes any more. Events start when people call the lapa: a character waves and shouts from the kerb (src/event-calls.js); stop next
+// to them to accept. Every event place is a slot built from src/event-places.js (lat/lon, owner-editable) and src/event-routes.js (baked by
+// assets/missions/snap-places.mjs: road points, taxi routes, hunt items, race tracks).
+//   fares (src/event-fares.js)  tourists in the centro, regular taxi rides, "a pulle" (Viale Diana, the old A Favorita), urgent long runs; timer + tip
+//   food (src/event-food.js)    "Benny ha perso le sue pizzette": hunt, scooter chase, bring them back; one event type for many places
+//   races (src/races.js)        sprint and lap races with a grid start, plus the night Corse clandestine
+// The overlay is src/event-hud.js (top centre). Screen changes go through src/transition.js.
+//
+// createMissions(env) -> { mode ('free'), setMode() (no-op, kept for compatibility), update(dt), stop(), events(), progress(), busy() }
+//   events() -> [{ id, kind: 'fare'|'urgent'|'food'|'race', name, x, z, night? }]  (x, z: a road point next to the caller; the start map pins them)
+//   progress() -> { food: { done, total }, races: { won, total }, fares }   (localStorage 'palermoDrive.events.v1')
+//   busy() -> true while an event runs
+//   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, world, placeAt, proj }
+// Test links: ?event=food:benny | fare:qc | urgent:u-stadio | race:olimpo puts the lapa at that event (add &auto to accept at once; race:corse forces night).
+// Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
 import * as THREE from 'three';
-import { TOURIST, DRIVER, VENDOR, VENDOR_SERVE, DESTS, PICKUPS, VENDORS, NATIONS, FAVORITA, POLLANCHE } from '../assets/missions/lines.js';
+import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, POLLANCHE, FAVORITA } from '../assets/missions/lines.js';
 import { WORLD } from './core.js';
 import { createNightLife } from './missions-night.js';
+import { createEventHud } from './event-hud.js';
+import { createCalls, KIND_COLOR } from './event-calls.js';
+import { createFares } from './event-fares.js';
+import { createFood } from './event-food.js';
+import { createRaces } from './races.js';
+import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES } from './event-places.js';
+import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
+import { transition } from './transition.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
 const eur = v => '€ ' + v.toFixed(2).replace('.', ',');
-const BEST_KEY = 'palermoDrive.turisti.best.v1';
+const PROG_KEY = 'palermoDrive.events.v1';
 
 export function createMissions(env) {
-  const api = { mode: 'free', setMode() {}, update() {}, stop() {} };
+  const api = { mode: 'free', setMode() {}, update() {}, stop() {}, events: () => [], progress: () => ({ food: { done: 0, total: 0 }, races: { won: 0, total: 0 }, fares: 0 }), busy: () => false };
   try { return build(env); } catch (e) { console.error('[missions] disabled:', e); return api; }
 }
 
@@ -38,6 +53,7 @@ function build(env) {
   const now = () => performance.now() / 1000;
   const worldOn = () => WORLD || !!window.PALERMO_WORLD;                       // the whole-city tiles (Favorita, Monte Pellegrino) are streamed in
   const isNight = () => !!(pedestrians.night && pedestrians.night().night);   // day/night via the pedestrians module (game.time), daytime if unknown
+
 
   // ------------------------------------------------------------------------------------ places
   const segs = [];
@@ -76,85 +92,12 @@ function build(env) {
     const [vx, vz] = env.proj(o.lat, o.lon), sn = snapRoad(vx, vz);
     return { ...o, ...extra, vx, vz, x: sn.x, z: sn.z, road: sn };
   };
-  const P_PLACES = PICKUPS.map(o => place(o));
-  const D_PLACES = DESTS.map(o => place(o));
 
-  // ------------------------------------------------------------------------------------ DOM: hud, toasts, card
-  const css = document.createElement('style');
-  css.textContent = `
-  #pm-hud { position: fixed; z-index: 60; left: max(10px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top)); width: min(280px, 32vw);
-    pointer-events: none; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; display: none; text-transform: uppercase; }
-  #pm-hud.on { display: block; }
-  .pm-card { position: relative; display: flex; align-items: center; gap: 8px; padding: 5px 10px 9px 8px; background: linear-gradient(90deg, rgba(11,7,9,.8), rgba(40,12,28,.74));
-    border-left: 5px solid #e8559a; transform: skewX(-6deg); box-shadow: 0 3px 12px rgba(0,0,0,.4); overflow: hidden; }
-  .pm-card > * { transform: skewX(6deg); }
-  .pm-arrow { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; background: rgba(232,85,154,.22); box-shadow: inset 0 0 0 2px #e8559a; display: flex; align-items: center; justify-content: center; }
-  .pm-arrow svg { width: 22px; height: 22px; filter: drop-shadow(0 0 4px rgba(255,79,163,.9)); }
-  .pm-body { flex: 1 1 auto; min-width: 0; }
-  .pm-top { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 10px; letter-spacing: .16em; color: #f5a9c9; }
-  .pm-time { font: 400 17px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; }
-  .pm-time.low { color: #ff6a5a; animation: pm-blink .5s steps(2) infinite; }
-  .pm-place { font-weight: 700; font-size: 15px; line-height: 1.05; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pm-sub { font-weight: 600; font-size: 10px; letter-spacing: .1em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pm-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.12); transform: none !important; }
-  .pm-bar i { display: block; height: 100%; width: 100%; transform-origin: left; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
-  .pm-bar.low i { background: #ff4a3a; }
-  .pm-ledger { margin: 4px 0 0 6px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
-  .pm-fare { font: 400 16px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .03em; color: #fff; text-shadow: 0 0 8px #e8559a, 0 1px 3px rgba(0,0,0,.8); }
-  .pm-pos { color: #ffd1e6; } .pm-neg { color: #ff8a7a; } .pm-total { color: #f5a9c9; margin-left: auto; }
-  .pm-toasts { position: fixed; z-index: 61; left: 50%; top: 30%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
-  .pm-toast { font-size: clamp(16px, 3.6vh, 26px); letter-spacing: .06em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1.5px #0b0709; paint-order: stroke fill;
-    text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); animation: pm-toast 1.9s ease-out forwards; transform: skewX(-8deg); }
-  .pm-toast.neg { color: #ffb3a8; text-shadow: 0 0 14px #ff4a3a, 0 3px 6px rgba(0,0,0,.6); }
-  .pm-toast small { display: block; font-size: .5em; letter-spacing: .14em; text-align: center; opacity: .9; }
-  .pm-result { position: fixed; z-index: 62; left: 50%; top: 22%; transform: translate(-50%, 0) skewX(-6deg); min-width: min(300px, 60vw); padding: 10px 20px 12px; text-align: center;
-    background: linear-gradient(180deg, rgba(11,7,9,.9), rgba(60,14,40,.88)); border: 2px solid #e8559a; box-shadow: 0 0 30px rgba(232,85,154,.5);
-    font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; text-transform: uppercase; pointer-events: none; opacity: 0; transition: opacity .35s; }
-  .pm-result.on { opacity: 1; }
-  .pm-result > * { transform: skewX(6deg); }
-  .pm-result h3 { margin: 0 0 6px; font: 400 clamp(18px, 4.2vh, 28px)/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; color: #fff; text-shadow: 0 0 12px #e8559a; }
-  .pm-result .row { display: flex; justify-content: space-between; gap: 24px; font-weight: 600; font-size: clamp(12px, 2.6vh, 16px); letter-spacing: .12em; }
-  .pm-result .tot { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(15px, 3.4vh, 22px); font-weight: 700; color: #f5a9c9; }
-  .pm-confetti { position: fixed; z-index: 63; left: 50%; top: 52%; width: 0; height: 0; pointer-events: none; }
-  .pm-confetti i { position: absolute; left: 0; top: 0; width: 9px; height: 14px; animation: pm-conf 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
-  @keyframes pm-conf { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
-  @keyframes pm-toast { 0% { opacity: 0; transform: translateY(14px) scale(.7) skewX(-8deg); } 12% { opacity: 1; transform: translateY(0) scale(1.08) skewX(-8deg); } 20% { transform: scale(1) skewX(-8deg); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-24px) skewX(-8deg); } }
-  @keyframes pm-blink { 50% { opacity: .35; } }
-  .pm-flash { position: fixed; inset: 0; z-index: 59; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(255,160,60,.0), rgba(255,120,40,.45)); opacity: 0; }
-  .pm-flash.on { animation: pm-flash .7s ease-out; }
-  @keyframes pm-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
-  @media (max-height: 520px) { #pm-hud { width: min(250px, 30vw); } .pm-arrow { width: 30px; height: 30px; } .pm-place { font-size: 13px; } .pm-card { padding: 4px 8px 8px 6px; } }
-  `;
-  document.head.appendChild(css);
-  const mkEl = (cls, html, parent = document.body, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; };
-  const hud = mkEl('', `<div class="pm-card">
-      <div class="pm-arrow"><svg viewBox="0 0 24 24"><path d="M12 1.5 L21 20 L12 15.5 L3 20 Z" fill="#ff4fa3" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
-      <div class="pm-body"><div class="pm-top"><span class="pm-lab"></span><span class="pm-time"></span></div><div class="pm-place"></div><div class="pm-sub"></div></div>
-      <div class="pm-bar"><i></i></div></div>
-    <div class="pm-ledger"><span class="pm-fare"></span><span class="pm-pos"></span><span class="pm-neg"></span><span class="pm-total"></span></div>`);
-  hud.id = 'pm-hud';
-  const elArrow = hud.querySelector('.pm-arrow svg'), elLab = hud.querySelector('.pm-lab'), elTime = hud.querySelector('.pm-time'), elPlace = hud.querySelector('.pm-place'),
-    elSub = hud.querySelector('.pm-sub'), elBar = hud.querySelector('.pm-bar'), elBarI = elBar.querySelector('i'), elFare = hud.querySelector('.pm-fare'),
-    elPos = hud.querySelector('.pm-pos'), elNeg = hud.querySelector('.pm-neg'), elTot = hud.querySelector('.pm-total');
-  const toastBox = mkEl('pm-toasts'), result = mkEl('pm-result'), confetti = mkEl('pm-confetti'), flash = mkEl('pm-flash');
-  function toast(text, sub, neg) {
-    const e = mkEl('pm-toast' + (neg ? ' neg' : ''), esc(text) + (sub ? `<small>${esc(sub)}</small>` : ''), toastBox);
-    while (toastBox.children.length > 3) toastBox.firstChild.remove();
-    setTimeout(() => e.remove(), 1950);
-  }
-  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-  function burst() {
-    const cols = ['#e8559a', '#f5a9c9', '#ffd24a', '#fff4e0', '#6bbf59', '#ff8a3a'];
-    for (let i = 0; i < 30; i++) {
-      const e = mkEl('', '', confetti, 'i'), a = rand(0, TAU), d = rand(90, 260);
-      e.style.background = pick(cols);
-      e.style.setProperty('--dx', Math.cos(a) * d + 'px'); e.style.setProperty('--dy', (Math.sin(a) * d * 0.7 - 80) + 'px'); e.style.setProperty('--rot', rand(-540, 540) + 'deg');
-      setTimeout(() => e.remove(), 1300);
-    }
-    flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
-  }
-  let resultTimer = 0;
-  function showResult(html, secs) { result.innerHTML = html; result.classList.add('on'); resultTimer = secs; }
+  // ------------------------------------------------------------------------------------ the event overlay (src/event-hud.js)
+  const hud = createEventHud({ camera, car });
+  let hudUsed = false;
+  const hudSetRaw = hud.set; hud.set = o => { hudUsed = true; hudSetRaw(o); };   // a module that wants the card calls set() every frame, otherwise it is hidden
+  const toast = hud.toast, burst = hud.burst;
 
   // ------------------------------------------------------------------------------------ speech (env.shout)
   const talkQ = []; let talkClock = 0, lastTalk = -9;
@@ -242,79 +185,20 @@ function build(env) {
     return b;
   }
 
-  // ------------------------------------------------------------------------------------ route guidance: a mist trail on the road
-  // Graph from the drivable centrelines (vertices that coincide are joined; one-ways ignored, it is Palermo). Dijkstra from the
-  // lapa to the target, re-run when the target changes or the lapa leaves the route. The route is drawn as pink mist puffs rising off
-  // the road ahead of the lapa, with a pulse travelling forward every couple of seconds, and as a line on the minimap (mapRoute).
-  const G = { nodes: [], adj: [], main: null, edges: [] };
-  {
-    const id = new Map(), key = (x, z) => Math.round(x * 4) + ',' + Math.round(z * 4);
-    const node = (x, z) => { const k = key(x, z); let i = id.get(k); if (i === undefined) { i = G.nodes.length; id.set(k, i); G.nodes.push([x, z]); G.adj.push([]); } return i; };
-    for (const r of D.roads) {
-      if (!DRIVABLE.has(r.k)) continue;
-      const p = r.p, f = r.k === 'pedestrian' ? 1.3 : 1;
-      let prev = node(p[0], p[1]);
-      for (let i = 2; i < p.length; i += 2) {
-        const n = node(p[i], p[i + 1]);
-        if (n !== prev) { const w = Math.hypot(G.nodes[n][0] - G.nodes[prev][0], G.nodes[n][1] - G.nodes[prev][1]); G.adj[prev].push([n, w * f]); G.adj[n].push([prev, w * f]); G.edges.push(prev, n); }
-        prev = n;
-      }
-    }
-    // the biggest connected piece is the road network proper (small islands would make unreachable targets)
-    const comp = new Int32Array(G.nodes.length).fill(-1), sizes = [];
-    for (let s = 0; s < G.nodes.length; s++) {
-      if (comp[s] >= 0) continue;
-      let c = 0; const st = [s]; comp[s] = sizes.length;
-      while (st.length) { const u = st.pop(); c++; for (const [v] of G.adj[u]) if (comp[v] < 0) { comp[v] = sizes.length; st.push(v); } }
-      sizes.push(c);
-    }
-    let best = 0; sizes.forEach((c, i) => { if (c > sizes[best]) best = i; });
-    G.main = comp.map(c => c === best);
-  }
-  // nearest edge (inside the main network) to a point: { a, b, x, z (the projection), da, db }
-  function nearestEdge(x, z) {
-    let best = null, bd = Infinity;
-    for (let e = 0; e < G.edges.length; e += 2) {
-      const a = G.edges[e], b = G.edges[e + 1]; if (!G.main[a]) continue;
-      const A = G.nodes[a], B = G.nodes[b], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz;
-      const t = l2 ? clamp(((x - A[0]) * dx + (z - A[1]) * dz) / l2, 0, 1) : 0, qx = A[0] + dx * t, qz = A[1] + dz * t, d = Math.hypot(x - qx, z - qz);
-      if (d < bd) { bd = d; best = { a, b, x: qx, z: qz, da: Math.hypot(qx - A[0], qz - A[1]), db: Math.hypot(qx - B[0], qz - B[1]) }; }
-    }
-    return best;
-  }
-  function findRoute(sx, sz, tx, tz) {
-    const s = nearestEdge(sx, sz), t = nearestEdge(tx, tz); if (!s || !t) return null;
-    const n = G.nodes.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), heap = [];
-    const push = (d, v) => { heap.push([d, v]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
-    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
-    dist[s.a] = s.da; dist[s.b] = s.db; push(s.da, s.a); push(s.db, s.b);
-    let bestCost = Infinity, endNode = -1;
-    while (heap.length) {
-      const [d, u] = pop(); if (d > dist[u]) continue; if (d >= bestCost) break;
-      if (u === t.a && d + t.da < bestCost) { bestCost = d + t.da; endNode = u; }
-      if (u === t.b && d + t.db < bestCost) { bestCost = d + t.db; endNode = u; }
-      for (const [v, w] of G.adj[u]) { const nd = d + w; if (nd < dist[v]) { dist[v] = nd; prev[v] = u; push(nd, v); } }
-    }
-    if (endNode < 0) return null;
-    const path = []; for (let u = endNode; u >= 0; u = prev[u]) path.push(u);
-    path.reverse();
-    const pts = [s.x, s.z];
-    for (const u of path) pts.push(G.nodes[u][0], G.nodes[u][1]);
-    pts.push(tx, tz);
-    return pts;
-  }
-  const route = { pts: null, cum: null, len: 0, cursor: 0, s0: 0, tx: 1e9, tz: 1e9, t: 0, cool: 0, check: 0 };
+  // ------------------------------------------------------------------------------------ guidance
+  // A route is a baked polyline (src/event-routes.js) of flat x,z. The big arrow over the lapa points ~32 m ahead along it, so it turns with the
+  // streets, and the minimap draws it (mapRoute). Without a route the arrow points straight at the target.
+  const route = { pts: null, cum: null, len: 0, cursor: 0, s0: 0 };
   function setRoute(pts) {
     route.pts = pts; route.cum = [0];
     for (let i = 2; i < pts.length; i += 2) route.cum.push(route.cum[route.cum.length - 1] + Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]));
     route.len = route.cum[route.cum.length - 1]; route.cursor = 0; route.s0 = 0;
     mapRoute.length = 0;
-    for (let i = 0; i < pts.length; i += 2) if (i === 0 || i === pts.length - 2 || (i >> 1) % 2 === 0) mapRoute.push([pts[i], pts[i + 1]]);
+    for (let i = 0; i < pts.length; i += 2) mapRoute.push([pts[i], pts[i + 1]]);
   }
-  function clearRoute() { route.pts = null; route.tx = route.tz = 1e9; mapRoute.length = 0; mist.geometry.instanceCount = 0; }
-  // position at arc length s along the route
+  function clearRoute() { route.pts = null; mapRoute.length = 0; }
   const _p = { x: 0, z: 0 };
-  function routeAt(s) {
+  function routeAt(s) {   // position at arc length s along the route
     const c = route.cum, pts = route.pts; let i = clamp(route.cursor, 0, c.length - 2);
     while (i > 0 && c[i] > s) i--;
     while (i < c.length - 2 && c[i + 1] < s) i++;
@@ -322,44 +206,8 @@ function build(env) {
     _p.x = pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * u; _p.z = pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * u;
     return _p;
   }
-  // mist puffs: camera-facing soft quads, pink, normal blending so they read on pale asphalt
-  const MIST_N = 44, MIST_STEP = 4;
-  const mistGeo = new THREE.InstancedBufferGeometry();
-  mistGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
-  mistGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2)); mistGeo.setIndex([0, 1, 2, 0, 2, 3]);
-  const mPos = new THREE.InstancedBufferAttribute(new Float32Array(MIST_N * 3), 3).setUsage(THREE.DynamicDrawUsage);
-  const mA = new THREE.InstancedBufferAttribute(new Float32Array(MIST_N * 3), 3).setUsage(THREE.DynamicDrawUsage);   // size, alpha, seed
-  mistGeo.setAttribute('iPos', mPos); mistGeo.setAttribute('iA', mA); mistGeo.instanceCount = 0;
-  const mist = new THREE.Mesh(mistGeo, new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uCol: { value: new THREE.Color('#ff3d9a') } },
-    vertexShader: `attribute vec3 iPos; attribute vec3 iA; varying vec2 vUv; varying float vA;
-      void main() { vec3 c = (viewMatrix * vec4(iPos, 1.0)).xyz; float ang = iA.z * 6.283; vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * position.xy;
-        gl_Position = projectionMatrix * vec4(c + vec3(q * iA.x, 0.0), 1.0); vUv = uv; vA = iA.y * smoothstep(1.0, 5.0, length(c)); }`,
-    fragmentShader: `uniform vec3 uCol; varying vec2 vUv; varying float vA;
-      void main() { float d = length(vUv * 2.0 - 1.0); if (d > 1.0) discard; float a = pow(1.0 - d, 1.5) * vA;
-        vec3 c = mix(uCol, vec3(1.0, 0.85, 0.93), pow(1.0 - d, 3.0) * 0.7); gl_FragColor = vec4(c, a);
-        #include <colorspace_fragment>
-      }`,
-  }));
-  mist.frustumCulled = false; mist.renderOrder = 7; scene.add(mist);
-  // The owner found the mist cluttered the screen: the route is still computed (it feeds the minimap
-  // line) but the puffs are no longer drawn. Guidance is the big arrow at the top of the screen.
-  mist.visible = false;
-  const topArrow = document.createElement('div');
-  topArrow.id = 'pm-toparrow';
-  topArrow.innerHTML = '<svg viewBox="0 0 64 64"><path d="M32 4 L56 52 L32 40 L8 52 Z" fill="#e8559a" stroke="#120a0e" stroke-width="5" stroke-linejoin="round"/><path d="M32 4 L56 52 L32 40 L8 52 Z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg><b></b>';
-  document.body.appendChild(topArrow);
-  const topArrowSvg = topArrow.querySelector('svg'), topArrowDist = topArrow.querySelector('b');
-  const topCss = document.createElement('style');
-  topCss.textContent = `#pm-toparrow { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%);
-      z-index: 25; display: none; flex-direction: column; align-items: center; pointer-events: none; }
-    #pm-toparrow.on { display: flex; }
-    #pm-toparrow svg { width: clamp(44px, 9vh, 64px); height: clamp(44px, 9vh, 64px); filter: drop-shadow(0 2px 4px rgba(0,0,0,.6)); transition: transform .08s linear; }
-    #pm-toparrow b { margin-top: 2px; font: 800 clamp(12px, 2.4vh, 16px) 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff;
-      background: rgba(18,10,14,.7); padding: 1px 7px; border-radius: 6px; text-shadow: none; }
-    html.pd-title #pm-toparrow { display: none !important; }`;
-  document.head.appendChild(topCss);
-  topArrow.style.display = 'none'; // superseded by the 3D arrow below (kept only as a fallback element)
+  const guide = { path: setRoute, off: clearRoute };
+  const aim = { on: false, x: 0, z: 0 };
 
   // 3D guide arrow hovering over the lapa. It points along the computed route ~32 m ahead (so it turns
   // with the streets), or straight at the target until a route exists. Drawn on top of everything.
@@ -405,37 +253,22 @@ function build(env) {
     _am.makeBasis(_ax, _an, _ad);
     arrow3d.quaternion.setFromRotationMatrix(_am).multiply(_arrowTilt); // small roll shows the extruded thickness
   }
-  let guideOn = false;
-  function guideTo(x, z) { guideOn = true; if (Math.hypot(x - route.tx, z - route.tz) > 1) { route.tx = x; route.tz = z; route.cool = 0; route.pts = null; } }
-  function guideOff() { guideOn = false; clearRoute(); }
-  function updateGuide(dt) {
-    if (!guideOn) { if (mist.geometry.instanceCount) mist.geometry.instanceCount = 0; return; }
-    route.t += dt; route.cool -= dt; route.check -= dt;
-    if (!route.pts) {
-      if (route.cool <= 0) { route.cool = 0.8; const p = findRoute(car.x, car.z, route.tx, route.tz); if (p) setRoute(p); }
-      if (!route.pts) { mist.geometry.instanceCount = 0; return; }
-    }
-    // progress along the route and distance off it (search a window around the cursor)
-    const pts = route.pts, c = route.cum; let bd = Infinity, bs = route.s0;
-    for (let i = Math.max(0, route.cursor - 6); i < Math.min(c.length - 1, route.cursor + 40); i++) {
-      const ax = pts[i * 2], az = pts[i * 2 + 1], dx = pts[i * 2 + 2] - ax, dz = pts[i * 2 + 3] - az, l2 = dx * dx + dz * dz;
-      const u = l2 ? clamp(((car.x - ax) * dx + (car.z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(car.x - ax - dx * u, car.z - az - dz * u);
-      if (d < bd) { bd = d; bs = c[i] + u * Math.sqrt(l2); route.cursor = i; }
-    }
+  // progress along the route: a window around the cursor, the whole line when the lapa has been moved
+  function updateGuide() {
+    if (!route.pts) return;
+    const pts = route.pts, c = route.cum, n = c.length - 1;
+    const scan = (i0, i1) => {
+      let bd = Infinity, bs = route.s0;
+      for (let i = i0; i < i1; i++) {
+        const ax = pts[i * 2], az = pts[i * 2 + 1], dx = pts[i * 2 + 2] - ax, dz = pts[i * 2 + 3] - az, l2 = dx * dx + dz * dz;
+        const u = l2 ? clamp(((car.x - ax) * dx + (car.z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(car.x - ax - dx * u, car.z - az - dz * u);
+        if (d < bd) { bd = d; bs = c[i] + u * Math.sqrt(l2); route.cursor = i; }
+      }
+      return [bd, bs];
+    };
+    let [bd, bs] = scan(Math.max(0, route.cursor - 6), Math.min(n, route.cursor + 40));
+    if (bd > 60) [bd, bs] = scan(0, n);
     route.s0 = bs;
-    if (bd > 18 && route.cool <= 0) { route.pts = null; route.cool = 0.3; return; }   // left the route: find a new one
-    // puffs ahead of the lapa; a bright pulse runs forward every 2.4 s
-    const front = (route.t % 2.4) / 2.4 * (MIST_N * MIST_STEP), pos = mPos.array, A = mA.array, tt = route.t;
-    let n = 0;
-    for (let i = 0; i < MIST_N; i++) {
-      const d = 4 + i * MIST_STEP, s = bs + d; if (s > route.len - 1) break;
-      const p = routeAt(s), w = 0.62 + 0.38 * Math.exp(-(((d - front) / 15) ** 2)), fade = Math.pow(1 - i / MIST_N, 0.5);
-      const gy = groundAt(p.x, p.z);
-      pos[n * 3] = p.x + Math.sin(tt * 1.3 + i) * 0.35; pos[n * 3 + 1] = gy + 0.9 + 1.1 * w + 0.3 * Math.sin(tt * 2.1 + i * 1.7); pos[n * 3 + 2] = p.z + Math.cos(tt * 1.1 + i * 1.3) * 0.35;
-      A[n * 3] = 5.0 + 2.5 * w; A[n * 3 + 1] = 1.0 * w * fade; A[n * 3 + 2] = (i * 0.37) % 1;
-      n++;
-    }
-    mist.geometry.instanceCount = n; mPos.needsUpdate = mA.needsUpdate = true;
   }
 
   // ------------------------------------------------------------------------------------ minimap markers
@@ -615,201 +448,8 @@ function build(env) {
     });
   }
 
-  // ------------------------------------------------------------------------------------ the Turisti mode
-  const S = { mode: 'free', phase: 'off', earned: 0, fares: 0, best: 0, lastPick: null, lastDest: null, fare: null, gap: 0, t: 0 };
-  try { S.best = +localStorage.getItem(BEST_KEY) || 0; } catch (e) { /* storage unavailable */ }
-  const pickBeacon = makeBeacon('#ff3d9a', 7.5), destBeacon = makeBeacon('#ffb3d9', 8.5);
-  let pickMarker = null, destMarker = null;
 
-  const SEAT_X = [-0.26, 0.26], SEAT_Z = -1.1, SEAT_Y = 1.04;
-  const seatFn = i => out => {
-    // Seats come from the vehicle being driven (src/vehicle.js: lape have two on the bench, bikes have one pillion seat); the constants are the fallback.
-    const vs = vehicle && vehicle.seats, sv = vs && vs.length ? vs[i % vs.length] : null;
-    const sn = Math.sin(car.th), cs = Math.cos(car.th), lx = sv ? sv.x : SEAT_X[i % 2], sz = sv ? sv.z : SEAT_Z, sy = sv ? sv.y : SEAT_Y;
-    out.x = car.x + sn * sz + cs * lx; out.z = car.z + cs * sz - sn * lx;
-    out.y = groundY(car.x, car.z) + car.lift + sy + Math.sin(now() * 17 + i) * 0.012 * clamp(Math.hypot(car.vx, car.vz) / 10, 0, 1); out.th = car.th;
-  };
-  const natPick = () => { let r = Math.random() * NATIONS.reduce((a, n) => a + n[1], 0); for (const [k, w] of NATIONS) if ((r -= w) <= 0) return k; return 'en'; };
-  const TOURIST_POOL = ['tourist', 'tourist2', 'tourist', 'tourist2', 'borsa', 'signora2', 'teen2', 'suit2', 'kid2', 'teen'];
-  const speed = () => Math.hypot(car.vx, car.vz);
-  const fmt = (tpl, d) => tpl.replace('{place}', d.name).replace('{food_en}', d.food_en).replace('{food_de}', d.food_de).replace('{food_fr}', d.food_fr);
-
-  function newFare() {
-    clearChars();
-    let cands = P_PLACES.filter(p => p !== S.lastPick).map(p => ({ p, d: Math.hypot(p.x - car.x, p.z - car.z) })).sort((a, b) => a.d - b.d);
-    let pool = cands.filter(c => c.d > 90 && c.d < 800);
-    if (!pool.length) pool = cands.filter(c => c.d > 40);
-    if (!pool.length) pool = cands;
-    const pickP = pool[(Math.random() * Math.min(3, pool.length)) | 0].p;
-    S.lastPick = pickP;
-    const nat = natPick(), count = Math.random() < 0.4 ? 2 : 1;
-    const f = { pick: pickP, nat, chars: [], phase: 'wait', dest: null, base: 0, tips: 0, claims: 0, limit: 0, left: 0, ev: {}, wantsStig: Math.random() < 0.45, stigDone: false, sniffed: false, lateSaid: false, boardT: 0, doorT: 0 };
-    const sp = sideSpot(pickP.road, pickP.road.w / 2 + 1.4);
-    for (let i = 0; i < count; i++) {
-      const ox = pickP.road.dx * (i ? 0.9 : -0.3), oz = pickP.road.dz * (i ? 0.9 : -0.3);
-      const id = pedestrians.spawnScripted(pick(TOURIST_POOL), sp.x + ox, sp.z + oz);
-      if (id >= 0) { pedestrians.face(id, pickP.x, pickP.z); f.chars.push({ id, seated: false, slot: i, walking: false, next: 0 }); }
-    }
-    S.fare = f; S.phase = 'seek';
-    pickBeacon.set(pickP.x, pickP.z); pickBeacon.show(true); dropMarker(pickMarker); pickMarker = addMarker(pickP.x, pickP.z, '#ff3d9a', 7);
-    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
-    toast(T('Turisti in attesa!', 'Tourists waiting!'), pickP.name);
-  }
-  function clearChars() {
-    const f = S.fare;
-    if (f) for (const c of f.chars) pedestrians.remove(c.id);
-    if (f && f.glam) for (const g of f.glam) pedestrians.remove(g.id);
-    S.fare = null;
-  }
-  const anyAboard = f => f.chars.some(c => c.seated);
-  const allAboard = f => f.chars.length && f.chars.every(c => c.seated);
-
-  function startRide() {
-    const f = S.fare;
-    if (f.fav) return startFavRide(f);
-    // destination: somewhere at a sensible distance from here
-    let cands = D_PLACES.filter(d => d !== S.lastDest).map(d => ({ d, dist: Math.hypot(d.x - car.x, d.z - car.z) }));
-    let pool = cands.filter(c => c.dist > 240 && c.dist < 1300);
-    if (!pool.length) pool = cands.filter(c => c.dist > 120);
-    if (!pool.length) pool = cands;
-    const dest = pick(pool).d; f.dest = dest; S.lastDest = dest;
-    f.dist0 = Math.hypot(dest.x - car.x, dest.z - car.z);
-    f.base = Math.round((5 + f.dist0 / 90) * 2) / 2;
-    f.limit = f.left = Math.max(40, (f.dist0 * 1.4 / 7.5 + 14) * Math.max(0.75, 1 - 0.03 * S.fares));
-    f.phase = 'ride'; S.phase = 'ride';
-    pickBeacon.show(false); dropMarker(pickMarker); pickMarker = null;
-    destBeacon.set(dest.x, dest.z); destBeacon.show(true); destMarker = addMarker(dest.x, dest.z, '#ffd24a', 8);
-    const tl = TOURIST.ask[f.nat] || TOURIST.ask.en;
-    say(fmt(pick(tl), dest), seatPos, 0.2);
-    say(pick(dest.meusa ? DRIVER.askMeusa : DRIVER.ask), driverPos, 1.8);
-    say(pick(DRIVER.depart), driverPos, 3.6);
-    toast(T('Si va a mangiare!', 'Off to eat!'), dest.name);
-  }
-
-  function tip(f, amount, label) { f.tips += amount; toast('+' + eur(amount), label); }
-  function claim(f, amount, label) { f.claims += amount; toast('-' + eur(amount), label, true); }
-  const tline = (f, key) => say(pick(f.fav ? (FAVORITA.client[key] || FAVORITA.client.ambient) : (TOURIST[key][f.nat] || TOURIST[key].en)), seatPos, 0);
-  const dline = (key, delay = 1.4) => say(pick((S.fare && S.fare.fav && FAVORITA.driver[key]) || DRIVER[key]), driverPos, delay);
-
-  let pedHits = 0, prevScrape = 0, prevSpeed = 0;
-  if (pedestrians.onKnock) pedestrians.onKnock(() => { pedHits++; });
-
-  function updateSeek(dt, f) {
-    const d = Math.hypot(car.x - f.pick.x, car.z - f.pick.z), sp = speed();
-    const near = d < 110;
-    for (const c of f.chars) pedestrians.setBounce(c.id, near && !c.seated && !f.fav);
-    if (d < pickBeacon.R && sp < 1.8) f.boardT += dt; else f.boardT = 0;
-    if (f.boardT > 0.35) {
-      f.phase = 'board'; S.phase = 'board'; f.doorT = 0;
-      for (const c of f.chars) pedestrians.setBounce(c.id, false);
-    }
-  }
-  function updateBoard(dt, f) {
-    const sp = speed(), d = Math.hypot(car.x - f.pick.x, car.z - f.pick.z);
-    const sn = Math.sin(car.th), cs = Math.cos(car.th);
-    for (const c of f.chars) {
-      if (c.seated) continue;
-      const info = pedestrians.info(c.id); if (!info) continue;
-      const side = ((info.x - car.x) * cs - (info.z - car.z) * sn) >= 0 ? 1 : -1;   // + : the lapa's left
-      const tx = car.x + sn * -1.0 + cs * side * 1.0, tz = car.z + cs * -1.0 - sn * side * 1.0;
-      c.next -= dt;
-      if (c.next <= 0) { pedestrians.walkTo(c.id, tx, tz, 2.6); c.next = 0.25; }
-      if (Math.hypot(info.x - tx, info.z - tz) < 0.6) {
-        c.seated = true; pedestrians.attachTo(c.id, seatFn(c.slot), { seated: true, blend: 0.4 });
-        if (c.slot === 0) { tline(f, 'board'); dline('board', 1.6); }
-      }
-    }
-    if (allAboard(f)) { f.doorT += dt; if (f.doorT > 0.35) startRide(); return; }
-    // the lapa pulls away before everyone is in
-    if (sp > 3.5 && d > 3) {
-      if (anyAboard(f)) { for (const c of f.chars.filter(c => !c.seated)) { pedestrians.remove(c.id); } f.chars = f.chars.filter(c => c.seated); startRide(); }
-      else { f.phase = 'wait'; S.phase = 'seek'; f.boardT = 0; for (const c of f.chars) pedestrians.walkTo(c.id, f.pick.x, f.pick.z, 1.5); }
-    }
-  }
-  function updateRide(dt, f) {
-    const sp = speed(), ev = f.ev;
-    if (f.fav && !f.glam && Math.hypot(car.x - FAV.x, car.z - FAV.z) < 450) spawnGlam(f);   // the avenue fills up as you get near
-    f.left -= dt;
-    for (const k in ev) if (ev[k] > 0) ev[k] = Math.max(0, ev[k] - dt);
-    ev.drift = ev.drift || 0; ev.wheels = ev.wheels || 0; ev.miss = ev.miss || 0; ev.wall = ev.wall || 0; ev.ped = ev.ped || 0; ev.fast = ev.fast || 0; ev.chat = ev.chat === undefined ? rand(10, 18) : ev.chat;
-    // tips
-    f.driftAcc = (car.drift > 0.55 && sp > 7) ? (f.driftAcc || 0) + dt : Math.max(0, (f.driftAcc || 0) - dt * 2);
-    if (f.driftAcc >= 1) { f.driftAcc = 0; tip(f, 1.5, T('Derapata!', 'Drift!')); if (Math.random() < 0.5) { tline(f, 'drift'); dline('drift'); } }
-    f.wheelAcc = (car.tip > 0.55 && sp > 7) ? (f.wheelAcc || 0) + dt : 0;
-    if (f.wheelAcc >= 0.6 && ev.wheels <= 0) { ev.wheels = 3; f.wheelAcc = 0; tip(f, 2, T('Su due ruote!', 'Two wheels!')); tline(f, 'wheels'); dline('wheels'); }
-    f.speedAcc = sp > 21 ? (f.speedAcc || 0) + dt : 0;
-    if (f.speedAcc >= 4) { f.speedAcc = 0; tip(f, 1, T('Pedale a tavoletta', 'Pedal to the metal')); if (ev.fast <= 0) { ev.fast = 20; tline(f, 'fast'); dline('fast'); } }
-    if (sp > 8 && ev.miss <= 0) {
-      let hit = false;
-      const ag = traffic && traffic.agents ? traffic.agents() || [] : [];
-      for (const a of ag) { const d = Math.hypot(a.x - car.x, a.z - car.z) - (a.r || 1.2); if (d > 0.55 && d < 1.2) { hit = true; break; } }
-      if (!hit && pedestrians.near && pedestrians.near(car.x + car.vx * 0.25, car.z + car.vz * 0.25, 1.5) > 0) hit = true;
-      if (hit) { ev.miss = 1.6; tip(f, 1, T('Per un pelo!', 'Close call!')); if (Math.random() < 0.5) { tline(f, 'miss'); dline('miss'); } }
-    }
-    // claims
-    if (car.scrape > 5 && prevScrape <= 5 && ev.wall <= 0 && prevSpeed > 5) {
-      ev.wall = 1.2; claim(f, prevSpeed > 12 ? 2 : 1, T('Muro!', 'Wall!')); tline(f, 'hitWall'); dline('hitWall');
-    }
-    prevScrape = car.scrape; prevSpeed = sp;
-    if (pedHits > 0) {
-      pedHits = 0;
-      if (ev.ped <= 0) { ev.ped = 1.0; tline(f, 'hitPed'); dline('hitPed', 1.8); } // the passengers comment, the fare stays (owner: hitting people costs nothing)
-    }
-    // chatter and the stigghiola smell
-    ev.chat -= dt;
-    if (ev.chat <= 0) { ev.chat = rand(14, 24); tline(f, 'ambient'); dline('ambient', 1.8); }
-    if (f.wantsStig && !f.sniffed) for (const v of vendors) if (v.kind !== 'pollanche' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline(f, 'smell'); toast(T('Che profumo!', 'What a smell!'), T('I turisti vogliono una stigghiola', 'The tourists want a stigghiola')); break; }
-    if (f.left < 12 && !f.lateSaid) { f.lateSaid = true; tline(f, 'late'); dline('late'); }
-    // arrival or time out
-    const d = Math.hypot(car.x - f.dest.x, car.z - f.dest.z);
-    if (d < destBeacon.R && sp < 2.0) return finishFare(f, true);
-    if (f.left <= 0) return finishFare(f, false);
-  }
-
-  function finishFare(f, ok) {
-    if (f.fav) return finishFav(f, ok);
-    f.phase = 'drop'; S.phase = 'drop'; S.gap = 5.5;
-    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
-    // everyone out, walking towards the door of the place
-    const d = f.dest, dx = d.vx - d.x, dz = d.vz - d.z, dl = Math.hypot(dx, dz) || 1, step = ok ? Math.min(dl, 7) : 9;
-    f.chars.forEach((c, i) => {
-      pedestrians.detach(c.id); c.seated = false;
-      const tx = ok ? d.x + dx / dl * step + i * 0.8 : car.x + Math.sin(car.th + 1.2 + i) * 9, tz = ok ? d.z + dz / dl * step : car.z + Math.cos(car.th + 1.2 + i) * 9;
-      pedestrians.walkTo(c.id, tx, tz, ok ? 2.2 : 3.2);
-    });
-    if (ok) {
-      const bonus = Math.round(f.base * 0.6 * clamp(f.left / f.limit, 0, 1) * 2) / 2;
-      if (bonus > 0) f.tips += bonus;
-      f.bonus = bonus;
-      const total = Math.max(0, f.base + f.tips - f.claims);
-      f.total = total; S.earned += total; S.fares++;
-      dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } }));   // hook for the Garage wallet (src/garage.js)
-      if (S.earned > S.best) { S.best = S.earned; try { localStorage.setItem(BEST_KEY, String(S.best)); } catch (e) { /* ignore */ } }
-      tline(f, 'arrive'); dline('arrive', 2.0);
-      showResult(`<h3>${esc(d.name)}</h3>
-        <div class="row"><span>${T('Corsa', 'Fare')}</span><span>${eur(f.base)}</span></div>
-        <div class="row"><span>${T('Mance', 'Tips')}</span><span>+ ${eur(f.tips)}</span></div>
-        <div class="row"><span>${T('Reclami', 'Complaints')}</span><span>- ${eur(f.claims)}</span></div>
-        <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 3.4);
-      if (f.total >= f.base * 1.4) burst();
-    } else {
-      f.total = 0;
-      tline(f, 'fail'); dline('fail', 2.0);
-      showResult(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('I turisti scendono e non pagano', 'The tourists get out and do not pay')}</span></div>`, 3);
-    }
-  }
-  function updateDrop(dt) {
-    S.gap -= dt;
-    if (S.gap <= 0) { if (S.fare && S.fare.fav) endFav(); else newFare(); }
-  }
-
-  // ------------------------------------------------------------------------------------ night mission "A Favorita"
-  // After dark, (the Favorita is ~3.9 km north-west of Quattro Canti), a client
-  // in sunglasses and a raincoat flags the lapa and asks, with a lot of innuendo and a lot of excuses, to be driven to Viale Diana in the
-  // Favorita. Cheeky satire: the glam night folk waiting along the avenue greet him by name and the joke is entirely on him. Pays well, and
-  // he begs you not to tell anyone. Starts from setMode('favorita') or by itself when you idle at night in free drive.
-  const FAV = (() => { const [x, z] = env.proj(FAVORITA.dest.lat, FAVORITA.dest.lon); return { ...FAVORITA.dest, x, z, vx: x, vz: z }; })();
-  let favCool = 20, favStopT = 0;
+  // ------------------------------------------------------------------------------------ spots for characters
   const segCross = (ax, az, bx, bz, w) => {
     const d1x = bx - ax, d1z = bz - az, d2x = w[2] - w[0], d2z = w[3] - w[1], den = d1x * d2z - d1z * d2x;
     if (Math.abs(den) < 1e-9) return false;
@@ -835,96 +475,80 @@ function build(env) {
     }
     return best;
   }
+
+  // ------------------------------------------------------------------------------------ events
+  const prog = { fares: 0, food: {}, races: {}, earned: 0 };
+  try { const p = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'); if (p && typeof p === 'object') { if (Number.isFinite(p.fares)) prog.fares = p.fares; if (p.food && typeof p.food === 'object') prog.food = p.food; if (p.races && typeof p.races === 'object') prog.races = p.races; } } catch (e) { /* storage unavailable */ }
+  const saveProg = () => { try { localStorage.setItem(PROG_KEY, JSON.stringify({ fares: prog.fares, food: prog.food, races: prog.races })); } catch (e) { /* ignore */ } };
+  let session = 0;
+  const S = { ev: null, phase: 'off', t: 0 };
+  const speed = () => Math.hypot(car.vx, car.vz);
+  const dline = (key, delay = 1.4) => say(pick(DRIVER[key]), driverPos, delay);
   const charHead = id => () => { const i = pedestrians.info(id); return i ? { x: i.x, y: i.y + 1.95, z: i.z } : { x: car.x, y: groundAt(car.x, car.z) + 2.4, z: car.z }; };
-  function favUnavailable() {
-    if (!isNight()) return T('Il cliente esce solo di notte', 'The client only comes out at night');
-    return '';
+  const SEAT_X = [-0.26, 0.26], SEAT_Z = -1.1, SEAT_Y = 1.04;
+  const seatFn = i => out => {
+    // Seats come from the vehicle being driven (src/vehicle.js: lape have two on the bench, bikes have one pillion seat); the constants are the fallback.
+    const vs = vehicle && vehicle.seats, sv = vs && vs.length ? vs[i % vs.length] : null;
+    const sn = Math.sin(car.th), cs = Math.cos(car.th), lx = sv ? sv.x : SEAT_X[i % 2], sz = sv ? sv.z : SEAT_Z, sy = sv ? sv.y : SEAT_Y;
+    out.x = car.x + sn * sz + cs * lx; out.z = car.z + cs * sz - sn * lx;
+    out.y = groundY(car.x, car.z) + car.lift + sy + Math.sin(now() * 17 + i) * 0.012 * clamp(speed() / 10, 0, 1); out.th = car.th;
+  };
+  const destBeacon = makeBeacon('#ffb3d9', 8.5); destBeacon.beam.scale.set(0.35, 1, 0.35);   // thin: a wide column fills half the screen when the lapa stops in the ring
+  const destInfo = id => {
+    const d = DESTS.find(x => x.id === id) || TAXI_DESTS.find(x => x.id === id) || (id === PULLE_DEST.id ? PULLE_DEST : null);
+    const s = SNAP['dest:' + id], [vx, vz] = env.proj(d.lat, d.lon);
+    return { ...d, id, x: s[0], z: s[1], dx: s[2], dz: s[3], vx, vz };
+  };
+  const URGENT_DEF = Object.fromEntries(URGENT.map(u => ['urgent:' + u.id, u]));
+  const slots = [];
+  const mkSlot = (o, key) => { const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
+  FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
+  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name }, 'fare:' + f.id));
+  URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
+  for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
+  // the shell asks for the pins in the language it shows
+  const events = () => slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) }));
+  const progress = () => ({ food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
+
+  const X = {
+    scene, camera, car, vehicle, pedestrians, traffic, params, world: env.world, groundAt, T, lang, now, isNight, hud, eur, speed, say, driverPos, seatPos, seatFn, toast,
+    makeBeacon, addMarker, dropMarker, guide, destBeacon, destMarker: null, vendors, charHead, ITEMS, ROUTES, HUNT, TRACKS, URGENT_DEF, destInfo, transition, phone: !!(window.matchMedia && matchMedia('(pointer: coarse)').matches),
+    URGENT_TIGHT: Object.fromEntries(URGENT.map(u => ['urgent:' + u.id, u.tight])), FAVORITA_FLAG: FAVORITA.client.flag,
+    sideSpot,
+    aim: (x, z, on) => { aim.x = x; aim.z = z; aim.on = on; },
+    setPhase: p => { S.phase = p; },
+    earned: () => session,
+    addFare(total, what) { session += total; if (what !== 'food') { prog.fares++; saveProg(); } dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } })); },   // the Garage wallet listens (src/garage.js)
+    addRaceResult(id, won) { if (won) prog.races[id] = 1; else if (!prog.races[id]) prog.races[id] = 2; saveProg(); },
+    endEvent: (ok, aborted) => endEvent(ok, aborted),
+  };
+  const calls = X.calls = createCalls(X);
+  calls.setSlots(slots);
+  const fares = createFares(X), food = createFood(X), races = createRaces(X);
+  races.buildSlots(slots.filter(s => s.kind === 'race'));
+  for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
+
+  function startEvent(slot) {
+    if (S.ev) return;
+    calls.release(slot);
+    S.ev = { slot };
+    dispatchEvent(new CustomEvent('pd-event-busy', { detail: true }));   // src/vehicle-events.js: the ZEN gag waits
+    talkQ.length = 0;
+    if (slot.kind === 'fare' || slot.kind === 'urgent') fares.start(slot);
+    else if (slot.kind === 'food') food.start(slot);
+    else races.start(slot);
   }
-  function newFavFare(ambient) {
-    clearChars();
-    const sp = findSpot(ambient ? 24 : 12, ambient ? 42 : 26, true) || findSpot(7, 30, false);
-    if (!sp) return false;
-    const id = pedestrians.spawnScripted('client', sp.x, sp.z); if (id < 0) return false;
-    pedestrians.face(id, car.x, car.z);
-    const f = { fav: true, ambient, pick: { x: sp.x, z: sp.z, name: T('Cliente in impermeabile', 'Client in a raincoat') }, nat: 'it', chars: [{ id, seated: false, slot: 0, walking: false, next: 0 }], phase: 'wait', dest: null,
-      base: 0, tips: 0, claims: 0, limit: 0, left: 0, ev: {}, wantsStig: false, stigDone: true, sniffed: true, lateSaid: false, boardT: 0, doorT: 0, glam: null };
-    S.fare = f; S.phase = 'seek';
-    pickBeacon.set(sp.x, sp.z); pickBeacon.show(true); dropMarker(pickMarker); pickMarker = addMarker(sp.x, sp.z, '#ff3d9a', 7);
-    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
-    toast(T('Un cliente ti fa segno', 'A client flags you down'), T('Discreto, molto discreto', 'Discreet, very discreet'));
-    say(pick(FAVORITA.client.flag), charHead(id), 0.8);
-    return true;
+  function endEvent(ok, aborted) {
+    const ev = S.ev; if (!ev) return;
+    fares.stop(); food.stop();
+    if (aborted && ev.slot.kind === 'race') races.stop();
+    if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
+    ev.slot.coolUntil = now() + (ok ? (ev.slot.kind === 'race' ? 12 : 150) : 40);
+    dispatchEvent(new CustomEvent('pd-event-busy', { detail: false }));
+    calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); destBeacon.show(false);
   }
-  function startFavRide(f) {
-    f.dest = FAV; f.dist0 = Math.hypot(FAV.x - car.x, FAV.z - car.z);
-    f.base = Math.round((10 + f.dist0 / 70) * 2) / 2;                   // pays well: a long drive, and a night client
-    f.limit = f.left = Math.max(90, f.dist0 * 1.25 / 9 + 60);
-    f.phase = 'ride'; S.phase = 'ride';
-    pickBeacon.show(false); dropMarker(pickMarker); pickMarker = null;
-    destBeacon.set(FAV.x, FAV.z); destBeacon.show(true); destMarker = addMarker(FAV.x, FAV.z, '#ffd24a', 8);
-    say(pick(FAVORITA.client.ask), seatPos, 0.2);
-    say(pick(FAVORITA.driver.ask), driverPos, 2.6);
-    say(pick(FAVORITA.driver.depart), driverPos, 5);
-    toast(T('Alla Favorita!', 'To the Favorita!'), FAV.name);
-  }
-  // the glam night folk of the avenue: flashy outfits, fully clothed, cheerful, and in on the joke
-  function spawnGlam(f) {
-    f.glam = [];
-    const ids = ['glam1', 'glam2', 'glam3', 'glam3', 'glam1', 'glam2'], along = [-60, -42, -25, 18, 34, 56], nx = -FAV.dz, nz = FAV.dx;
-    ids.forEach((v, k) => {
-      const sd = k % 2 ? -1 : 1, off = 5.8 + (k % 3) * 0.7, x = FAV.x + FAV.dx * along[k] + nx * sd * off, z = FAV.z + FAV.dz * along[k] + nz * sd * off;
-      const id = pedestrians.spawnScripted(v, x, z); if (id < 0) return;
-      pedestrians.face(id, FAV.x + FAV.dx * along[k], FAV.z + FAV.dz * along[k]); f.glam.push({ id, along: along[k] });
-    });
-  }
-  function finishFav(f, ok) {
-    f.phase = 'drop'; S.phase = 'drop'; S.gap = ok ? 8 : 4;
-    destBeacon.show(false); dropMarker(destMarker); destMarker = null;
-    const c = f.chars[0];
-    if (c) {   // out he gets and hurries off the road, away from the lapa
-      pedestrians.detach(c.id); c.seated = false;
-      const nx = -FAV.dz, nz = FAV.dx, sd = ((car.x - FAV.x) * nx + (car.z - FAV.z) * nz) >= 0 ? 1 : -1;
-      pedestrians.walkTo(c.id, car.x + nx * sd * 11, car.z + nz * sd * 11, ok ? 2.8 : 3.2);
-    }
-    if (ok) {
-      const bonus = Math.round(f.base * 0.3 * clamp(f.left / f.limit, 0, 1) * 2) / 2, disc = Math.round(f.base * 0.4 * 2) / 2;
-      f.tips += bonus + disc;
-      const total = Math.max(0, f.base + f.tips - f.claims); f.total = total; S.earned += total; S.fares++;
-      dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } }));
-      if (S.earned > S.best) { S.best = S.earned; try { localStorage.setItem(BEST_KEY, String(S.best)); } catch (e) { /* ignore */ } }
-      tline(f, 'arrive'); dline('arrive', 2.4);
-      const sorted = (f.glam || []).slice().sort((a, b) => Math.abs(a.along) - Math.abs(b.along));
-      sorted.slice(0, 3).forEach((g, i) => say(FAVORITA.chorus[(i + (Math.random() < 0.5 ? 0 : 1)) % FAVORITA.chorus.length], charHead(g.id), 3.6 + i * 1.5));
-      if (sorted.length) say(pick(FAVORITA.client.caught), c ? charHead(c.id) : seatPos, 8);
-      showResult(`<h3>${T('A Favorita!', 'A Favorita!')}</h3>
-        <div class="row"><span>${T('Corsa', 'Fare')}</span><span>${eur(f.base)}</span></div>
-        <div class="row"><span>${T('Mance', 'Tips')}</span><span>+ ${eur(f.tips - disc)}</span></div>
-        <div class="row"><span>${T('Silenzio (sulla parola)', 'Discretion (your word)')}</span><span>+ ${eur(disc)}</span></div>
-        <div class="row"><span>${T('Reclami', 'Complaints')}</span><span>- ${eur(f.claims)}</span></div>
-        <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
-      burst();
-    } else {
-      f.total = 0; tline(f, 'fail'); dline('fail', 2.0);
-      showResult(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('Il cliente scende e non paga', 'The client gets out and does not pay')}</span></div>`, 3);
-    }
-  }
-  function endFav() {
-    clearChars(); favCool = 90;
-    S.mode = 'free'; S.phase = 'off'; api.mode = 'free';
-    pickBeacon.show(false); destBeacon.show(false); dropMarker(pickMarker); dropMarker(destMarker); pickMarker = destMarker = null;
-    hud.classList.remove('on'); guideOff();
-  }
-  // free drive at night: idle for a few seconds somewhere the client can reach and he may flag you (once in a while)
-  function updateFavFlag(dt) {
-    favCool = Math.max(0, favCool - dt);
-    favStopT = speed() < 1.0 ? favStopT + dt : 0;
-    if (favStopT < 5 || favCool > 0 || !worldOn() || !isNight() || night.inZone()) return;
-    favStopT = 0;
-    const d = Math.hypot(car.x - FAV.x, car.z - FAV.z);
-    if (d < 400 || d > 9000 || Math.random() > 0.5) return;
-    favCool = 40;
-    if (newFavFare(true)) { S.mode = 'favorita'; api.mode = 'favorita'; }
-  }
+  // Driving into the sea (src/sea.js) ends the current ride like running out of time: no fare.
+  addEventListener('pd-drowned', () => fares.drowned());
 
   // ------------------------------------------------------------------------------------ stigghiola
   function eatStigghiola(v) {
@@ -933,10 +557,7 @@ function build(env) {
     toast('STIGGHIOLA!', T('Nitro pieno', 'Nitro refilled')); burst();
     say(pick(VENDOR_SERVE), () => ({ x: v.x, y: v.gy + 0.2, z: v.z }), 0);
     dline('stig', 2.0);
-    const f = S.fare;
-    if (f && f.phase === 'ride' && f.wantsStig && !f.stigDone) {
-      f.stigDone = true; tip(f, 6, T('Stigghiola per i turisti', 'Stigghiola for the tourists')); tline(f, 'eat');
-    }
+    fares.stigghiola();
   }
   function eatPollanche(v) {   // a small bonus: half a tank of nitro
     v.cd = 45;
@@ -964,94 +585,46 @@ function build(env) {
   let coalT = 0;
   function coalPulse() { coalT = now(); M.coal.color.setRGB(1, 0.32 + 0.16 * Math.sin(coalT * 6.3) * Math.sin(coalT * 2.1), 0.1); }
 
-  // ------------------------------------------------------------------------------------ hud
-  const _d = new THREE.Vector3(); let hudAcc = 0;
-  function updateHud(dt) {
-    const f = S.fare, on = S.mode !== 'free';
-    hud.classList.toggle('on', on);
-    if (!on) { arrow3d.visible = false; return; }
-    let tx = 0, tz = 0, show = false;
-    if (f && (S.phase === 'seek' || S.phase === 'board')) { tx = f.pick.x; tz = f.pick.z; show = true; }
-    else if (f && S.phase === 'ride') { tx = f.dest.x; tz = f.dest.z; show = true; }
-    // compass in the card plus the big arrow at the top of the screen
-    updateArrow3d(dt, show && S.phase !== 'board', tx, tz);
-    if (show) {
-      const brg = Math.atan2(tx - car.x, tz - car.z);
-      camera.getWorldDirection(_d);
-      const rot = `rotate(${(Math.atan2(_d.x, _d.z) - brg) * -180 / Math.PI}deg)`;
-      elArrow.style.transform = rot;
-      topArrowSvg.style.transform = rot;
-      const dist = Math.hypot(tx - car.x, tz - car.z);
-      topArrowDist.textContent = dist < 1000 ? `${Math.round(dist / 10) * 10} m` : `${(dist / 1000).toFixed(1)} km`;
-    }
-    if (show && !(f && f.fav)) guideTo(tx, tz); else guideOff();   // the Favorita is outside the baked road graph: the arrow points straight at it
-    if ((hudAcc -= dt) > 0) return;
-    hudAcc = 0.1;
-    elFare.textContent = f && f.dest ? eur(Math.max(0, f.base + f.tips - f.claims)) : eur(0);
-    elPos.textContent = f && f.tips ? '+' + f.tips.toFixed(2).replace('.', ',') : '';
-    elNeg.textContent = f && f.claims ? '-' + f.claims.toFixed(2).replace('.', ',') : '';
-    elTot.textContent = T('Incasso ', 'Total ') + eur(S.earned);
-    const dist = f ? Math.hypot(tx - car.x, tz - car.z) : 0, ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
-    if (S.phase === 'ride' && f) {
-      elLab.textContent = f.fav ? T('Portalo alla Favorita', 'Take him to the Favorita') : T('Portali a mangiare', 'Take them to eat'); elPlace.textContent = f.dest.name; elSub.textContent = f.dest.addr + '  ·  ' + ds;
-      const m = Math.max(0, f.left), mm = Math.floor(m / 60), ss = Math.floor(m % 60);
-      elTime.textContent = mm + ':' + String(ss).padStart(2, '0'); elTime.classList.toggle('low', m < 12);
-      elBarI.style.transform = `scaleX(${clamp(f.left / f.limit, 0, 1).toFixed(3)})`; elBar.classList.toggle('low', m < 12);
-    } else if (S.phase === 'seek' || S.phase === 'board') {
-      elLab.textContent = f.fav ? T('Cliente in attesa', 'Client waiting') : T('Turisti in attesa', 'Tourists waiting'); elPlace.textContent = f.pick.name; elSub.textContent = T('Fermati nell\'anello rosa', 'Stop inside the pink ring') + '  ·  ' + ds;
-      elTime.textContent = ''; elBarI.style.transform = 'scaleX(0)';
-    } else {
-      elLab.textContent = T('Arrivederci', 'Goodbye'); elPlace.textContent = f && f.dest ? f.dest.name : ''; elSub.textContent = ''; elTime.textContent = ''; elBarI.style.transform = 'scaleX(0)';
-    }
+  // ------------------------------------------------------------------------------------ test links: ?event=kind:id
+  const wantEv = params.get('event');
+  let evSlot = null, evPlaced = false;
+  async function placeAtEvent(slot) {
+    const th = Math.atan2(slot.dx, slot.dz);
+    await new Promise(res => { const t = setTimeout(res, 15000); if (env.world) env.world.teleport(slot.x, slot.z, () => { clearTimeout(t); res(); }); else res(); });
+    vehicle.teleport(slot.x - slot.dz * slot.w * 0.18, slot.z + slot.dx * slot.w * 0.18, th);
   }
 
   // ------------------------------------------------------------------------------------ main update
   function update(dt) {
     dt = clamp(dt, 0, 0.1);
-    S.t += dt;
-    if (pendingMode && S.t > 2) { const m = pendingMode; pendingMode = null; setMode(m); }
+    S.t += dt; hudUsed = false; aim.on = false;
+    if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
     updateVendors(dt); updatePoll(dt);
-    night.update(dt, !(S.fare && (S.phase === 'ride' || S.phase === 'board')));
-    if (S.mode === 'free') updateFavFlag(dt);
-    if (S.mode !== 'free') {
-      if (S.phase === 'off') { if (S.mode === 'turisti') newFare(); else if (!newFavFare(false)) { toast(T('Nessun posto per il cliente qui', 'No room for the client here')); stop(); } }
-      const f = S.fare;
-      if (f && f.fav && f.ambient && S.phase === 'seek' && Math.hypot(car.x - f.pick.x, car.z - f.pick.z) > 150) { stop(); favCool = 60; return; }   // you drove off: he gives up
-      if (f) {
-        if (S.phase === 'seek') updateSeek(dt, f);
-        else if (S.phase === 'board') updateBoard(dt, f);
-        else if (S.phase === 'ride') updateRide(dt, f);
-        else if (S.phase === 'drop') updateDrop(dt);
-      }
-    }
-    if (resultTimer > 0 && (resultTimer -= dt) <= 0) result.classList.remove('on');
+    night.update(dt, !S.ev);
+    const idle = !S.ev;
+    const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle);
+    if (idle) {
+      if (evSlot && evSlot.testReady && S.t > evSlot.testReady && params.has('auto') && (evSlot.kind === 'race' || evSlot.callers.length)) { const s = evSlot; evSlot = null; startEvent(s); }
+      else if (accepted) startEvent(accepted);
+      else if (raceGo) startEvent(raceGo);
+    } else { fares.update(dt); food.update(dt); }
     updateTalk(dt);
-    updateHud(dt);
-    updateGuide(dt);
-    if (pickMarker && S.fare) { pickMarker.x = S.fare.pick.x; pickMarker.z = S.fare.pick.z; }
+    hud.update(dt);
+    if (!hudUsed) hud.hide();
+    updateGuide();
+    updateArrow3d(dt, aim.on && S.phase !== 'board' && S.phase !== 'finish' && S.phase !== 'done', aim.x, aim.z);
   }
 
-  function setMode(m) {
-    m = m === 'turisti' || m === 'favorita' ? m : 'free';
-    if (m === S.mode) return;
-    if (m === 'free') { stop(); return; }
-    if (m === 'favorita') { const why = favUnavailable(); if (why) { toast(T('A Favorita non disponibile', 'A Favorita is not available'), why); return; } }
-    if (S.mode !== 'free') stop();
-    S.mode = m; S.phase = 'off'; api.mode = m;
-  }
-  // Driving into the sea (src/sea.js) ends the current ride like running out of time: no fare.
-  addEventListener('pd-drowned', () => { const f = S.fare; if (f && S.phase === 'ride') finishFare(f, false); });
+  function setMode() { /* no modes any more: kept so older callers keep working */ }
+  // stop(): end whatever runs (the shell calls it when leaving the game or changing the start point)
   function stop() {
-    clearChars();
-    S.mode = 'free'; S.phase = 'off'; api.mode = 'free';
-    pickBeacon.show(false); destBeacon.show(false); dropMarker(pickMarker); dropMarker(destMarker); pickMarker = destMarker = null;
-    hud.classList.remove('on'); guideOff(); result.classList.remove('on'); talkQ.length = 0;
+    if (S.ev) endEvent(false, true);
+    else { races.stop(); }
+    calls.clear(); guide.off(); aim.on = false; hud.clear(); talkQ.length = 0;
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
-  const api = { mode: 'free', setMode, update, stop, state: S };
-  if (params.has('debug')) window.__missions = { S, FAV, polls, api, night };
-  if (params.get('mode') === 'turisti') setMode('turisti');
-  let pendingMode = params.get('mode') === 'favorita' ? 'favorita' : null;   // ?mode=favorita waits until the time of day is known
+  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, X };
   return api;
 }

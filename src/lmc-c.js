@@ -70,31 +70,55 @@ function buildStabilimento() {
 }
 export const STABILIMENTO = { name: 'Antico Stabilimento Balneare di Mondello', x: -2990, z: -9604, radius: 100, skipIds: [FP.mondelloStab.id], build: buildStabilimento };
 
-// the Liberty entrance gate on the beach: two slender towers joined by a curved colonnade
+// the Liberty entrance gate on the beach: two slender towers joined by a curved colonnade that bows towards the sea, a taller pair of pylons with a low
+// curved pediment in the middle (Commons: Mondello BW 2012-10-09 14-18-56 and the 1957 postcard). It faces along the boardwalk that leads from it to the
+// pavilion (same line as buildStabilimento uses), the towers stand side by side ACROSS that line, 22 m apart, and the colonnade ends meet their land side.
 function buildMondelloGate() {
   initShared();
-  const gx = -3043, gz = -9598, nx = 0.9996, nz = -0.03;   // faces the sea (east)
+  const gx = -3043, gz = -9598, ob = obb(pairsOf(FP.mondelloStab.p)), fr = facing(ob, -1, 0.35), px = ob.cx + fr.nx * 11, pz = ob.cz + fr.nz * 11, dl = Math.hypot(px - gx, pz - gz);
+  const nx = (px - gx) / dl, nz = (pz - gz) / dl;   // towards the sea and the pavilion
   const gy = Math.max(groundY(gx, gz), 0.6), M = frame(gx, gy, gz, nx, nz);
   begin(gy);
-  defMat('mnTower', 128, 256, [3.2, 9], (g, w, h) => { paintFacade(g, w, h, 3.2, 9, { base: '#f2e6b4', trim: '#fff8e0', glass: '#3a2a26', seed: 811, grime: 0, bands: [{ y: 6.6, h: 0.5, c: '#fff4cf' }, { y: 8.6, h: 0.3, c: '#d9c88a' }], rows: [{ y0: 4.0, y1: 6.0, xs: [1.6], w: 0.9, kind: 'rect', fr: 0.1 }] }); g.fillStyle = '#2a2a2a'; for (let q = 0; q < 6; q++) g.fillRect(0, 150 + q * 8, w, 4); });
+  defMat('mnTower', 128, 256, [3.2, 9], (g, w, h) => { paintFacade(g, w, h, 3.2, 9, { base: '#f2e6b4', trim: '#fff8e0', glass: '#3a2a26', seed: 811, grime: 0, bands: [{ y: 6.6, h: 0.5, c: '#fff4cf' }, { y: 8.6, h: 0.3, c: '#d9c88a' }], rows: [{ y0: 4.0, y1: 6.0, xs: [1.6], w: 0.9, kind: 'rect', fr: 0.1 }] }); g.fillStyle = '#2a2a2a'; for (let q = 0; q < 6; q++) g.fillRect(0, 150 + q * 8, w, 4); })
+  const TX = 11, Rx = 10.2, S = 5.5, A = 0.4 * PI;
+  // local frame: +z towards the sea, +x along the shore; the arc's middle is the most seaward point, its ends 3.8 m back
+  const arc = (a) => [Rx * Math.sin(a), -S * (1 - Math.cos(a))];
+  const towerZ = arc(A)[1] - 0.2;
   for (const sg of [-1, 1]) {
-    const Mt = mul(M, tr(0, 0, sg * 11));
+    const Mt = mul(M, tr(sg * TX, 0, towerZ));
     bx('mnTower', Mt, -1.6, 1.6, 0, 9.0, -1.6, 1.6);
     bx('flat', Mt, -2.0, 2.0, 9.0, 9.4, -2.0, 2.0, { c: '#fff4cf' });
     lathe('flat', [[1.6, 0], [2.0, 0.8], [1.2, 1.8], [0.5, 2.8], [0.01, 3.3]], 10, { M: mul(Mt, tr(0, 9.4, 0)), c: '#f4ecc4', noao: true });
     sphere('flat', 0.25, { M: mul(Mt, tr(0, 12.8, 0)), c: '#c9a24a', seg: 5 });
   }
-  const N = 8;
-  for (let i = 0; i <= N; i++) {
-    const a = -PI * 0.42 + i * PI * 0.84 / N, zc = Math.sin(a) * 8.0 * (11 / 8) * 0.9, xc = -(1 - Math.cos(a)) * 3.5 * 1.0;
-    cyl('marble', 0.28, 0.32, 4.4, 8, { M: mul(M, tr(xc, 0, zc)), c: '#f4ecc4' });
-    bx('flat', mul(M, tr(xc, 0, zc)), -0.5, 0.5, 4.4, 4.9, -0.5, 0.5, { c: '#fff4cf' });
+  // supports from the tower inwards: two slender columns, then the tall pylon either side of the middle opening
+  const xs = [3.0, 6.0, 8.3], posts = [];
+  for (const sg of [-1, 1]) for (const x of xs) { const a = sg * Math.asin(x / Rx), q = arc(a); posts.push({ x: q[0], z: q[1], pylon: x === 3.0 }); }
+  posts.push({ x: arc(-A)[0], z: arc(-A)[1], end: true }, { x: arc(A)[0], z: arc(A)[1], end: true });
+  posts.sort((p, q) => p.x - q.x);
+  for (const p of posts) {
+    const Mp = mul(M, tr(p.x, 0, p.z));
+    if (p.end) continue;
+    if (p.pylon) {
+      bx('flat', Mp, -0.6, 0.6, 0, 6.4, -0.6, 0.6, { c: '#f4ecc4' });
+      bx('flat', Mp, -0.8, 0.8, 6.4, 6.9, -0.8, 0.8, { c: '#fff4cf' });
+      sphere('flat', 0.42, { M: mul(Mp, tr(0, 7.3, 0)), c: '#f0cfa8', seg: 6 });
+      cyl('dark', 0.05, 0.07, 3.4, 4, { M: mul(Mp, tr(0, 7.6, 0)), noao: true });
+    } else {
+      cyl('marble', 0.28, 0.32, 4.4, 8, { M: Mp, c: '#f4ecc4' });
+      bx('flat', Mp, -0.5, 0.5, 4.4, 4.9, -0.5, 0.5, { c: '#fff4cf' });
+    }
   }
-  for (let i = 0; i < N; i++) {
-    const a0 = -PI * 0.42 + i * PI * 0.84 / N, a1 = a0 + PI * 0.84 / N, z0 = Math.sin(a0) * 8 * 11 / 8 * 0.9, z1 = Math.sin(a1) * 8 * 11 / 8 * 0.9, x0 = -(1 - Math.cos(a0)) * 3.5, x1 = -(1 - Math.cos(a1)) * 3.5;
-    const l = Math.hypot(z1 - z0, x1 - x0), a = Math.atan2(z1 - z0, x1 - x0);
-    bx('flat', mul(M, mul(tr((x0 + x1) / 2, 4.9, (z0 + z1) / 2), rotY(-a + PI / 2))), -l / 2, l / 2, 0, 0.5, -0.45, 0.45, { c: '#fff4cf' });
-    balus(mul(M, mul(tr((x0 + x1) / 2, 5.4, (z0 + z1) / 2), rotY(-a + PI / 2 + PI / 2 * 0))), l, 0.9, { ry: 0 });
+  for (let i = 0; i < posts.length - 1; i++) {
+    const p = posts[i], q = posts[i + 1], dx = q.x - p.x, dz = q.z - p.z, l = Math.hypot(dx, dz), phi = Math.atan2(-dz, dx), Mm = (y) => mul(M, mul(tr((p.x + q.x) / 2, y, (p.z + q.z) / 2), rotY(phi)));
+    if (p.x < 0 && q.x > 0) {   // middle opening: a low curved pediment between the two pylons
+      bx('flat', mul(M, tr(0, 0, 0)), p.x + 0.5, q.x - 0.5, 4.4, 4.9, -0.45, 0.45, { c: '#fff4cf' });
+      const sh = new THREE.Shape(); sh.moveTo(p.x + 0.5, 0); sh.lineTo(q.x - 0.5, 0); sh.quadraticCurveTo(0, 3.4, p.x + 0.5, 0);
+      part('flat', new THREE.ExtrudeGeometry(sh, { depth: 0.6, bevelEnabled: false, curveSegments: 8 }), { M: mul(M, tr(0, 6.4, -0.3)), c: '#fff4cf' });
+      continue;
+    }
+    bx('flat', Mm(4.4), -l / 2, l / 2, 0, 0.5, -0.45, 0.45, { c: '#fff4cf' });
+    balus(Mm(4.9), l, 0.9);
   }
   return end('Mondello gate');
 }
