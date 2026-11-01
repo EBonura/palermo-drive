@@ -20,6 +20,7 @@
 //   density map and crowd mix take over: Piazza Sant'Anna and the Vucciria fill with young people standing and chatting in
 //   groups (zone 5), Ballaro and the Capo get a smaller evening crowd, vendors go home and tourists thin out. api.night() tells
 //   other modules (src/missions.js) whether it is night.
+import { FLEW } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
 import { VARIANTS, CELL_W, CELL_H, GROUND, POSES, variantsOf } from '../assets/peds/sprites.js';
@@ -720,7 +721,7 @@ export function createPedestrians(env) {
       if (!ok) { dx = -px; dz = -pz; ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5); }
       if (!ok) { REACT[i] = -2; continue; }
       if (VAR[i] === WCV) { heal(i, dx, dz); continue; }
-      ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i], undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
+      ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i], Math.random() < 0.3 ? FLEW : undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
     }
   }
 
@@ -782,10 +783,11 @@ export function createPedestrians(env) {
   function knock(i, nx, nz) {
     for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
     if (VAR[i] === WCV) { heal(i, nx, nz); return; }
-    ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i], undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
-    const sp = Math.min(hyp2(car.vx, car.vz), 16);
-    const vy = 3.2 + sp * 0.12;
-    VX[i] = car.vx * 0.55 + nx * 2.6; VZ[i] = car.vz * 0.55 + nz * 2.6; VY[i] = vy; TFLY[i] = 2 * vy / 12;
+    ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i], Math.random() < 0.4 ? FLEW : undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
+    // launched like a yeeted car (src/traffic.js): high, far and spinning, scaled by the lapa's speed
+    const sp = Math.min(hyp2(car.vx, car.vz), 22);
+    const vy = Math.min(12.5, Math.max(5.5, 4.5 + sp * 0.55));
+    VX[i] = car.vx * 0.9 + nx * 3; VZ[i] = car.vz * 0.9 + nz * 3; VY[i] = vy; TFLY[i] = 2 * vy / 12;
     RD[i] = (car.vx * nz - car.vz * nx) >= 0 ? 1 : -1; ROLL[i] = 0; HOP[i] = 0.05; V[i] = 0;
   }
 
@@ -912,10 +914,10 @@ export function createPedestrians(env) {
         if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; } else { VX[i] *= -0.2; VZ[i] *= -0.2; }
         VY[i] -= 12 * dt; HOP[i] += VY[i] * dt;
         const k = Math.exp(-0.8 * dt); VX[i] *= k; VZ[i] *= k;
-        ROLL[i] = RD[i] * (2.5 * Math.PI) * Math.min(1, TMR[i] / Math.max(0.2, TFLY[i]));
+        ROLL[i] = RD[i] * Math.PI * (0.5 + 2 * Math.max(1, Math.round(1 + 1.5 * TFLY[i]))) * Math.min(1, TMR[i] / Math.max(0.2, TFLY[i]));   // whole turns, ending on the side (LIE)
         if (HOP[i] <= 0) {
           HOP[i] = 0;
-          if (VY[i] < -2) { VY[i] = -VY[i] * 0.25; VX[i] *= 0.5; VZ[i] *= 0.5; } // one small bounce
+          if (VY[i] < -2) { VY[i] = -VY[i] * 0.3; VX[i] *= 0.5; VZ[i] *= 0.5; } // a bounce or two
           else { ST[i] = LIE; TMR[i] = rand(1.4, 2.4); ROLL[i] = RD[i] * Math.PI / 2; }
         }
       } else if (st === LIE) {
