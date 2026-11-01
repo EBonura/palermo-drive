@@ -9,12 +9,15 @@
 // in which steering sets the slip angle you hold instead of the yaw rate. Velocity is rotated towards the nose by a capped "tyre" rate, so
 // grip loss, slides and drifts all come from one rule. Lape are tall, so they roll a lot and tip onto two wheels in hard fast turns.
 // Bikes bank into corners instead, pop wheelies on a launch and can be high-sided by a big pothole. The car just grips more.
+// ?physics=sphere swaps the yaw, grip, movement and wall part for the rolling-ball model in src/vehicle-sphere.js (same inputs and car fields).
+// ?speed=N scales every vehicle's speed and acceleration (default 1.5, 1 is the original feel); see SPEED_SCALE.
 import * as THREE from 'three';
 import { D, groundY, hooks } from './core.js';
 import { garage, cleanLook, lookKey, LIVERIES as ALL_LIVERIES, VEHICLES } from './garage.js';
 import { buildVehicleModel, buildLocalRig, repaint, tickShared, geoKey } from './vehicle-models.js';
 import { createVehicleAudio } from './vehicle-audio.js';
 import { createVehicleEvents } from './vehicle-events.js';
+import { createSphere } from './vehicle-sphere.js';
 import { QUALITY } from './mobile.js';
 
 const PI = Math.PI, TAU = PI * 2;
@@ -69,6 +72,10 @@ const PRESET = {
   // tamarro hatchback: grippy, quick, flat, a long wheelbase for stability
   tascia: { L: 2.4, lock: 0.62, aGrip: 15.5, aDrift: 10.8, kGrip: 18, gearV: [0, 8, 14, 21, 28, 35], gearA: [0, 9.8, 7.6, 5.8, 4.5, 3.6], tipA0: 99, tipMax: 0, tipGrip: 0, rollGain: 0.0042, rollMax: 0.08, pitchK: 0.006, R: 0.8, AXLE: 0.95, camK: 1.1, camH: 1.2, eye: 1.25, brake: 16, hbrake: 5.5, nosThrust: 6.4 },
 };
+// Owner request: everything faster. SPEED_SCALE multiplies top speeds, engine and nitro acceleration; braking, coasting drag, grip and the speed-sensitive
+// steering lock scale with it so the handling keeps its character (see applyPreset). ?speed=1 gives the original feel. races.js reads it for the opponents.
+export const SPEED_SCALE = +new URLSearchParams(location.search).get('speed') || 1.5;
+const SS = SPEED_SCALE;
 const T = { ...BASE };
 const MODEL_LEN = 3.1;
 // the paint schemes of the current vehicle: [{ id, name_it, name_en, color }]; ui and net read this
@@ -145,6 +152,7 @@ export function createVehicle(env) {
     const v = nearestRoad(x, z);
     Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, hsCool: 0 });
     camState.init = false;
+    sphere.reset();
   }
 
   // ---------- collision ----------
@@ -201,6 +209,9 @@ export function createVehicle(env) {
   const qs = new URLSearchParams(location.search), freezeAt = qs.has('freeze') ? +qs.get('freeze') : -1;
   const SIDECAM = qs.has('sidecam') ? +qs.get('sidecam') || 4.5 : 0;
   let simT = 0, frozen = false;
+  // ?physics=sphere: the sphere model (src/vehicle-sphere.js) replaces the yaw, grip, movement and wall response below; everything else is shared
+  let SPHERE = qs.get('physics') === 'sphere';   // switchable at run time: api.setPhysics('classic' | 'sphere')
+  const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; } });
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
   function physics(dt) {
     ticks++;
@@ -237,7 +248,7 @@ export function createVehicle(env) {
     if (vf > T.driftV && (hb || brakeTurn)) car.dLatch = 0.35;
     car.dLatch = Math.max(0, car.dLatch - dt);
     let dT = 0;
-    if (vf > T.driftV && (car.dLatch > 0 || (sa > 0.24 && !against))) dT = 1;
+    if (vf > T.driftV && (car.dLatch > 0 || (sa > (SPHERE ? 0.42 : 0.24) && !against))) dT = 1;
     car.drift += (dT - car.drift) * Math.min(1, (dT > car.drift ? 10 : 5) * dt);
     const d = car.drift;
 
@@ -266,8 +277,8 @@ export function createVehicle(env) {
       if (vf > 0.6) { brakeA = T.brake; car.braking = true; }
       else if (vf > -T.reverseV) { aDrive = -T.reverseA; car.gear = g = 1; }
     }
-    if (hb) brakeA += T.hbrake;
-    const coast = (thrOn ? 0 : 1.1) + T.roll + T.drag * vf * vf;
+    if (hb) brakeA += T.hbrake * (SPHERE ? 0.45 : 1);   // sphere: the handbrake is mostly a yaw flick and a grip cut, not a brake
+    const coast = (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf;
     // Gravity along the slope: the Cassaro really does climb towards Porta Nuova.
     const slope = (groundY(car.x + sn * 1.2, car.z + cs * 1.2) - groundY(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
     vf += (aDrive - 9.81 * slope) * dt;
@@ -283,59 +294,63 @@ export function createVehicle(env) {
     // nitro bar: burns while boosting, refills with speed and (a lot) with drifting
     if (nosWant) car.nos = Math.max(0, car.nos - dt / T.nosTime);
     else {
-      const sp01 = clamp(vf / 28, 0, 1);
+      const sp01 = clamp(vf / (28 * SS), 0, 1);
       car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 10, 0, 1)) * dt);
     }
 
     // rebuild world velocity after the drive forces
     car.vx = sn * vf + cs * vl; car.vz = cs * vf - sn * vl;
 
-    // ----- yaw -----
-    const v1 = Math.hypot(car.vx, car.vz);
-    const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
-    const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) / Math.max(Math.abs(vf), 3);
-    const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap) * (1 - 0.5 * car.wheelie / (T.wheelie || 1));
-    let wT = wN;
-    if (d > 0.01) {
-      const psiV = Math.atan2(car.vx, car.vz);
-      if (v1 > 3) car.psiDot += (wrap(psiV - car.psiPrev) / dt - car.psiDot) * Math.min(1, 25 * dt); else car.psiDot = 0;
-      car.psiPrev = psiV;
-      let sigT;
-      if (against) sigT = 0;                                   // counter-steer: straighten up
-      else if (sIn !== 0) sigT = car.sIn * T.sigMax;           // steering into the slide sets the angle
-      else sigT = car.slip * (1 - (up ? 0.45 : 1.1) * dt);     // hands off: the angle holds, then fades
-      const wD = car.psiDot + 5.5 * wrap(sigT - car.slip);
-      wT = lerp(wN, clamp(wD, -2.8, 2.8), d);
-    } else car.psiPrev = Math.atan2(car.vx, car.vz);
-    car.w += (wT - car.w) * Math.min(1, (d > 0.5 ? 9 : 12) * dt);
-    car.th += car.w * dt;
-    car.steer += (clamp(car.sIn * 0.5 - car.slip * 0.8 * d, -0.62, 0.62) - car.steer) * Math.min(1, 12 * dt);
+    if (SPHERE) sphere.step(dt, { hb, d, against });
+    else {
+      // ----- yaw -----
+      const v1 = Math.hypot(car.vx, car.vz);
+      const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
+      const wCap = T.aGrip * 0.92 * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) / Math.max(Math.abs(vf), 3);
+      const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L, -wCap, wCap) * (1 - 0.5 * car.wheelie / (T.wheelie || 1));
+      let wT = wN;
+      if (d > 0.01) {
+        const psiV = Math.atan2(car.vx, car.vz);
+        if (v1 > 3) car.psiDot += (wrap(psiV - car.psiPrev) / dt - car.psiDot) * Math.min(1, 25 * dt); else car.psiDot = 0;
+        car.psiPrev = psiV;
+        let sigT;
+        if (against) sigT = 0;                                   // counter-steer: straighten up
+        else if (sIn !== 0) sigT = car.sIn * T.sigMax;           // steering into the slide sets the angle
+        else sigT = car.slip * (1 - (up ? 0.45 : 1.1) * dt);     // hands off: the angle holds, then fades
+        const wD = car.psiDot + 5.5 * wrap(sigT - car.slip);
+        wT = lerp(wN, clamp(wD, -2.8, 2.8), d);
+      } else car.psiPrev = Math.atan2(car.vx, car.vz);
+      car.w += (wT - car.w) * Math.min(1, (d > 0.5 ? 9 : 12) * dt);
+      car.th += car.w * dt;
+      car.steer += (clamp(car.sIn * 0.5 - car.slip * 0.8 * d, -0.62, 0.62) - car.steer) * Math.min(1, 12 * dt);
 
-    // ----- grip: rotate the velocity towards the nose at a capped rate, scrub speed while sliding -----
-    sn = Math.sin(car.th); cs = Math.cos(car.th);
-    let v = Math.hypot(car.vx, car.vz);
-    if (v > 0.3) {
-      let psi = Math.atan2(car.vx, car.vz);
-      const fwd = car.vx * sn + car.vz * cs >= 0;
-      const e = wrap((fwd ? car.th : car.th + PI) - psi);
-      const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss), kG = lerp(T.kGrip, T.kDrift, d);
-      const rMax = aCap / Math.max(v, 4);
-      let dpsi = clamp(e * kG, -rMax, rMax) * dt;
-      if (Math.abs(dpsi) > Math.abs(e)) dpsi = e;
-      psi += dpsi;
-      v = Math.max(0, v - (T.scrubDrift * d + T.scrubSlip * Math.abs(Math.sin(e))) * dt);
-      car.vx = Math.sin(psi) * v; car.vz = Math.cos(psi) * v;
-    }
+      // ----- grip: rotate the velocity towards the nose at a capped rate, scrub speed while sliding -----
+      sn = Math.sin(car.th); cs = Math.cos(car.th);
+      let v = Math.hypot(car.vx, car.vz);
+      if (v > 0.3) {
+        let psi = Math.atan2(car.vx, car.vz);
+        const fwd = car.vx * sn + car.vz * cs >= 0;
+        const e = wrap((fwd ? car.th : car.th + PI) - psi);
+        const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss), kG = lerp(T.kGrip, T.kDrift, d);
+        const rMax = aCap / Math.max(v, 4);
+        let dpsi = clamp(e * kG, -rMax, rMax) * dt;
+        if (Math.abs(dpsi) > Math.abs(e)) dpsi = e;
+        psi += dpsi;
+        v = Math.max(0, v - (T.scrubDrift * d + T.scrubSlip * Math.abs(Math.sin(e))) * dt);
+        car.vx = Math.sin(psi) * v; car.vz = Math.cos(psi) * v;
+      }
 
-    // ----- move with sub-steps, then collide -----
-    const n = Math.min(10, Math.ceil(v * dt / 0.35));
-    const sdt = dt / n;
-    let touched = false;
-    for (let i = 0; i < n; i++) {
-      car.x += car.vx * sdt; car.z += car.vz * sdt;
-      if (collide()) touched = true;
+      // ----- move with sub-steps, then collide -----
+      const n = Math.min(10, Math.ceil(v * dt / 0.35));
+      const sdt = dt / n;
+      let touched = false;
+      for (let i = 0; i < n; i++) {
+        car.x += car.vx * sdt; car.z += car.vz * sdt;
+        if (collide()) touched = true;
+      }
+      car.scrape = touched ? Math.hypot(car.vx, car.vz) : 0;
+
     }
-    car.scrape = touched ? Math.hypot(car.vx, car.vz) : 0;
 
     sn = Math.sin(car.th); cs = Math.cos(car.th);
     car.vf = car.vx * sn + car.vz * cs;
@@ -343,7 +358,7 @@ export function createVehicle(env) {
 
     // Body sits on the terrain, plus cosmetic weight transfer: roll out of the corner, dive and squat.
     const lx = cs, lz = -sn;
-    const side = (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
+    const side = SPHERE ? sphere.state.side : (groundY(car.x + lx * 0.8, car.z + lz * 0.8) - groundY(car.x - lx * 0.8, car.z - lz * 0.8)) / 1.6;
     if (T.bike) {
       // lean into the corner: a damped spring on the bank angle (so a pothole can kick it); wheelie from the throttle at low speed
       const bt = clamp(car.ay * T.bankGain, -T.bankMax, T.bankMax) * sstep(1.5, 5, Math.abs(vf));
@@ -367,10 +382,10 @@ export function createVehicle(env) {
       car.lean = car.tip * sg;
     }
     const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side) * (T.bike ? 0.4 : 1);
-    const pitchT = clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(slope) - car.wheelie;
+    const pitchT = clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
-    car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);
+    if (!SPHERE) car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) - car.lift) * Math.min(1, 25 * dt);   // the sphere model sets car.lift itself
     // road wear (src/roadwear.js): bounce spring after a pothole, grip and forced lean fade, and how hard the rear tyres scrub
     car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
     car.gripLoss = Math.max(0, car.gripLoss - dt / 0.7); car.kickT = Math.max(0, car.kickT - dt / 0.9);
@@ -415,7 +430,7 @@ export function createVehicle(env) {
     cam.t += dt;
     const m = camState.mode;
     if (SIDECAM) { camera.position.set(car.x + Math.cos(car.th) * SIDECAM, groundY(car.x, car.z) + 0.9, car.z - Math.sin(car.th) * SIDECAM); camera.lookAt(car.x, groundY(car.x, car.z) + 0.8, car.z); camState.init = true; return; }
-    const v = Math.hypot(car.vx, car.vz), sp01 = clamp(v / 32, 0, 1);
+    const v = Math.hypot(car.vx, car.vz), sp01 = clamp(v / (32 * SS), 0, 1);
     if (hitId !== cam.lastHit) { cam.lastHit = hitId; cam.trauma = Math.max(cam.trauma, clamp(lastHitMag / 22, 0, 1) * 0.9); }
     if (nosStartId !== cam.lastNosId) { cam.lastNosId = nosStartId; cam.kick = 1; }
     cam.trauma = Math.max(0, cam.trauma - 1.6 * dt);
@@ -479,6 +494,12 @@ export function createVehicle(env) {
   }
   function applyPreset(type) {
     Object.assign(T, BASE, PRESET[type] || {});
+    if (SS !== 1) {   // speeds and accelerations x SS; braking, resistance, tyre force and tip thresholds (all accelerations) x SS too, drag per speed squared / SS, steering lock speed x SS
+      T.gearV = T.gearV.map(v => v * SS); T.gearA = T.gearA.map(a => a * SS);
+      for (const k of ['nosThrust', 'brake', 'hbrake', 'reverseV', 'reverseA', 'roll', 'aGrip', 'aDrift', 'scrubSlip', 'scrubDrift', 'tipA0', 'tipA1', 'lockV', 'wheelV']) T[k] *= SS;
+      for (const k of ['drag', 'rollGain', 'bankGain', 'pitchK']) T[k] /= SS;   // lean and dive follow the (now larger) accelerations, so the look stays
+    }
+    sphere.tune(type);
     car.gear = Math.min(car.gear, T.nG);
   }
   function mount(look) {
@@ -656,7 +677,14 @@ export function createVehicle(env) {
   api.teleport = (x, z, th) => {
     Object.assign(car, { x, z, th, vx: 0, vz: 0, vf: 0, w: 0, slip: 0, drift: 0, dLatch: 0, psiDot: 0, psiPrev: th, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, steer: 0, sIn: 0 });
     camState.init = false;
+    sphere.reset();
   };
+  // Live switch between the bicycle model ('classic') and the rolling-ball model ('sphere'); position, heading and speed carry over.
+  api.setPhysics = mode => {
+    const on = mode === 'sphere'; if (on === SPHERE) return;
+    SPHERE = on; sphere.reset(); car.psiPrev = Math.atan2(car.vx, car.vz); car.psiDot = 0; car.hop = car.hopV = 0;
+  };
+  api.physicsMode = () => SPHERE ? 'sphere' : 'classic';
   events = createVehicleEvents({ scene, camera, car, groundY, roadVerts, api, audio, mobile: QUALITY });
   api.events = events;
   if (qs.has('debug') || qs.has('pdveh')) window.pdVehicle = api;   // test hook
