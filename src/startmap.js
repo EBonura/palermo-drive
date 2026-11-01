@@ -417,10 +417,14 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
 
   return {
     show() {
-      shown = true; resize(); closePop();
+      shown = true; closePop();
       events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins();
       evBtn.setAttribute('aria-pressed', String(showEvents));
-      prepManifest(); limits(); fit(); clampView(); applyLang(); load(); mark();
+      prepManifest(); applyLang(); load();
+      // the screen may still be hidden or mid-transition when this runs: fit and centre only once the map has a real size
+      let tries = 0;
+      const place = () => { W = 0; resize(); if (!W && shown && tries++ < 60) { requestAnimationFrame(place); return; } limits(); fit(); clampView(); mark(); };
+      place();
     },
     hide() { shown = false; closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } },
     resize,
