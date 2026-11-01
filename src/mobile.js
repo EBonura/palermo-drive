@@ -60,7 +60,9 @@ export function setupMobile({ keys, camState, renderer, camera }) {
   const rotate = el('div', 'rot', `
     <div class="rot-phone"><svg viewBox="0 0 64 64"><rect x="20" y="6" width="24" height="52" rx="5" /><path d="M29 11h6" /><circle cx="32" cy="52" r="1.6" /></svg></div>
     <div class="rot-t">Ruota il telefono in orizzontale</div>
-    <div class="rot-s">Turn your phone sideways to drive</div>`);
+    <div class="rot-s">Turn your phone sideways to drive</div>
+    <div class="rot-h">Se la pagina non gira (succede aprendo il link da Instagram o Facebook), aprila nel browser del telefono: menu &#8942; o &#8943;, poi "Apri nel browser".<br>
+      <span>If the page doesn't rotate (it happens inside Instagram or Facebook), open it in your phone's browser: menu &#8942; or &#8943;, then "Open in browser".</span></div>`);
   rotate.hidden = true;
 
   const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
