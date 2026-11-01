@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
@@ -1395,6 +1396,15 @@ NEAR_BLEND = 120.0   # lidar-vs-far-grid offset fades out over this distance bey
 HILL_LO, HILL_HI = 80.0, 140.0
 HILL_BIAS_SIGMA = 40.0
 HILL_BIAS_REACH = 200.0
+# t8: outside the lidar belt the ground is TINITALY too (Terrarium reads roofs and treetops: +5.7 m against the survey's foot elevations at 2 000
+# buildings, TIN +2.2 m with rms 4.3), pinned to what is known: the lidar where there is some, and the Comune survey's building foot elevations
+# (tools/footprints.py: `g` of every CTR-height building, 72 k points, accurate to 1.4 m rms against the lidar) elsewhere. The residual (control
+# minus TIN) is smoothed over CTR_SIGMA metres, trusted in proportion to how many points fed it and faded out CTR_REACH metres from the last one.
+CTR_SIGMA = 45.0
+CTR_REACH = 220.0
+CTR_WEIGHT = 0.4          # a survey point counts as this fraction of a lidar cell in the smoothing
+COAST_FLOOR, COAST_REACH = 1.0, 80.0   # the DEM reads 0 to 2 m on the shore where the old ground said 1 to 3: land within COAST_REACH of the sea keeps at least this, so the shore line does not move
+CTR_HOLDOUT = os.environ.get("T8_HOLDOUT") == "1"   # test: leave out every tenth survey point so the result can be checked against it
 
 
 def _smooth(lo, hi, v):
@@ -1700,7 +1710,7 @@ def near_for(i, j):
             Gh = np.where(good, Gh, np.where(has_g & (den > 0.05), fill, np.nan))
             L = np.where(np.isfinite(Gh), Gh, L)
         N = dem.sample(WX, WZ)
-        wt = np.where(np.isfinite(N), _smooth(HILL_LO, HILL_HI, np.nan_to_num(N, nan=0.0)), 0.0)
+        wt = np.where(np.isfinite(N), 1.0, 0.0)   # TINITALY wherever it has data (t8)
     else:
         N, wt = None, np.zeros_like(farv)
     valid_t = ~np.isnan(L) & on_land            # true lidar height known
@@ -1709,14 +1719,38 @@ def near_for(i, j):
     if hills and (wt > 0.01).any():
         has_n = np.isfinite(N) & on_land
         both = valid_t & has_n
-        if both.any():
-            m = both.astype(np.float32)
+        # control points beyond the lidar: the survey's building foot elevations (t8)
+        cnum = np.zeros(farv.shape, np.float32)
+        cw_ = np.zeros(farv.shape, np.float32)
+        P = G.get("ctr")
+        if P is not None and len(P):
+            sel = (P[:, 0] >= WX.min()) & (P[:, 0] <= WX.max()) & (P[:, 1] >= WZ.min()) & (P[:, 1] <= WZ.max())
+            Q = P[sel]
+            if len(Q):
+                ci = np.clip(np.rint((Q[:, 0] - WX.min()) / s).astype(int), 0, WX.shape[1] - 1)
+                cj = np.clip(np.rint((Q[:, 1] - WZ.min()) / s).astype(int), 0, WX.shape[0] - 1)
+                Nq = N[cj, ci]
+                ok_q = np.isfinite(Nq) & has_n[cj, ci] & ~valid_t[cj, ci]
+                np.add.at(cnum, (cj[ok_q], ci[ok_q]), (CTR_WEIGHT * (Q[ok_q, 2] - Nq[ok_q])).astype(np.float32))
+                np.add.at(cw_, (cj[ok_q], ci[ok_q]), CTR_WEIGHT)
+        ctrl = both | (cw_ > 0)
+        if ctrl.any():
+            m = both.astype(np.float32) + cw_
             sig = HILL_BIAS_SIGMA / s
-            num = cv2.GaussianBlur(np.where(both, L - np.nan_to_num(N), 0.0).astype(np.float32), (0, 0), sig)
-            den = cv2.GaussianBlur(m, (0, 0), sig)
+            sig_c = CTR_SIGMA / s
+            num = cv2.GaussianBlur(np.where(both, L - np.nan_to_num(N), 0.0).astype(np.float32) + cnum, (0, 0), sig_c)
+            den = cv2.GaussianBlur(m, (0, 0), sig_c)
             c = np.where(den > 1e-3, num / np.maximum(den, 1e-3), 0.0)
-            dist = cv2.distanceTransform((~valid_t).astype(np.uint8), cv2.DIST_L2, 5) * s
-            c = c * (1 - _smooth(0.0, HILL_BIAS_REACH, dist))
+            conf = np.clip(den / 0.1, 0, 1)
+            if both.any():   # near the lidar its own, tighter smoothing decides
+                numL = cv2.GaussianBlur(np.where(both, L - np.nan_to_num(N), 0.0).astype(np.float32), (0, 0), sig)
+                denL = cv2.GaussianBlur(both.astype(np.float32), (0, 0), sig)
+                cL = np.where(denL > 1e-3, numL / np.maximum(denL, 1e-3), 0.0)
+                wL = np.clip(denL / 0.5, 0, 1)
+                c, conf = cL * wL + c * conf * (1 - wL), 1.0
+            dist = cv2.distanceTransform((~(valid_t | (cw_ > 0))).astype(np.uint8), cv2.DIST_L2, 5) * s
+            reach = np.where(valid_t, HILL_BIAS_REACH, CTR_REACH)
+            c = c * conf * (1 - _smooth(0.0, 1.0, dist / np.maximum(reach, 1)))
         else:
             c = np.zeros_like(farv)
         tin_only = (wt > 0.01) & has_n & ~valid_t
@@ -1746,6 +1780,13 @@ def near_for(i, j):
     t = np.clip(best / NEAR_BLEND, 0, 1)
     fall = 1 - t * t * (3 - 2 * t)
     val = far(qx, qz) + bo * fall
+    # the shore: tin_only ground (no lidar) near the sea is not allowed below COAST_FLOOR (distance to the sea measured on the window's land mask)
+    coast = cv2.distanceTransform(on_land.astype(np.uint8), cv2.DIST_L2, 5) * s
+    ci = np.clip(np.rint(qx / s).astype(int) - a0, 0, WX.shape[1] - 1)
+    cj = np.clip(np.rint(qz / s).astype(int) - b0, 0, WX.shape[0] - 1)
+    cd = coast[cj, ci]
+    lid_q = valid_t[cj, ci]
+    val = np.where((~lid_q) & (cd > 0), np.maximum(val, COAST_FLOOR * (1 - _smooth(0.0, COAST_REACH, cd))), val)
     # The land polygon only exists inside the bbox rectangle, so "not land" means sea only there. Outside it (the tiles that
     # straddle the bbox edge) the clamp would drop real ground to -1.5 m while the neighbouring far-grid tile stays at its true
     # height: the 35 m and 248 m steps on 10_6|10_7 and -14_-16|-14_-15. Outside the rectangle the far grid decides, as before.
@@ -1792,9 +1833,9 @@ def far_grid(elev, rect):
         return np.where(n >= 5, np.nanmean(np.where(np.isfinite(v), v, np.nan), axis=0), np.nan), v
     if dem is not None:
         tin, _ = box(dem.sample)
-        w = np.where(np.isfinite(tin), _smooth(HILL_LO, HILL_HI, np.nan_to_num(tin)), 0.0).ravel()
-        h = h + w * (np.nan_to_num(tin).ravel() - h)
+        h = np.where(np.isfinite(tin).ravel(), np.nan_to_num(tin).ravel(), h)   # TINITALY everywhere it has data (t8), Terrarium only beyond it
     h = h.reshape(nz, nx)
+
     if lr is not None and RASTER_BLOCKS:
         _, v = box(lambda x, z: lr.sample_dtm(x, z))
         n = np.isfinite(v).sum(axis=0)
@@ -1813,6 +1854,31 @@ def far_grid(elev, rect):
             dist = cv2.distanceTransform((~ok).astype(np.uint8), cv2.DIST_L2, 5)
             fade = 1 - _smooth(0.0, FAR_FADE, dist)
             h = h + np.where(ok, o, osm * fade)
+    if dem is not None and G.get("ctr") is not None and len(G["ctr"]):
+        P = G["ctr"]
+        fi, fj = (P[:, 0] - x0) / FAR_STEP, (P[:, 1] - z0) / FAR_STEP
+        okp = (fi >= 0) & (fi < nx - 1.001) & (fj >= 0) & (fj < nz - 1.001)
+        if lr is not None and RASTER_BLOCKS:
+            okp &= ~np.isfinite(lr.sample_dtm(P[:, 0], P[:, 1]))     # where the lidar is, it decides
+        P, fi, fj = P[okp], fi[okp], fj[okp]
+        ii, jj = fi.astype(int), fj.astype(int)
+        tx, tz = fi - ii, fj - jj
+        hp = h[jj, ii] * (1 - tx) * (1 - tz) + h[jj, ii + 1] * tx * (1 - tz) + h[jj + 1, ii] * (1 - tx) * tz + h[jj + 1, ii + 1] * tx * tz
+        num = np.zeros((nz, nx), np.float32)
+        wsum = np.zeros((nz, nx), np.float32)
+        np.add.at(num, (np.rint(fj).astype(int), np.rint(fi).astype(int)), (P[:, 2] - hp).astype(np.float32))
+        np.add.at(wsum, (np.rint(fj).astype(int), np.rint(fi).astype(int)), 1.0)
+        sg = CTR_SIGMA * 2 / FAR_STEP
+        dn = cv2.GaussianBlur(wsum, (0, 0), sg)
+        cc = np.where(dn > 1e-4, cv2.GaussianBlur(num, (0, 0), sg) / np.maximum(dn, 1e-4), 0.0)
+        conf = np.clip(dn / 0.35, 0, 1)
+        dist = cv2.distanceTransform((wsum == 0).astype(np.uint8), cv2.DIST_L2, 5) * FAR_STEP
+        h = h + cc * conf * (1 - _smooth(0.0, CTR_REACH * 2, dist))
+    if dem is not None and G.get("land") is not None:
+        landn = shapely_contains(G["land"], gx, gz)
+        cd = cv2.distanceTransform(landn.astype(np.uint8), cv2.DIST_L2, 5) * FAR_STEP
+        lidn = (np.isfinite(L) if (lr is not None and RASTER_BLOCKS) else np.zeros(h.shape, bool))
+        h = np.where(landn & ~lidn & (cd > 0) & (cd <= COAST_REACH * 1.5), np.maximum(h, COAST_FLOOR), h)
     return {"x0": x0, "z0": z0, "s": FAR_STEP, "nx": nx, "nz": nz, "h": [round(float(v), 1) for v in h.ravel()]}
 
 
@@ -1914,6 +1980,7 @@ def make_valid_list(geoms):
 
 
 def build(offline=False):
+    import numpy as np
     import shapely
     from shapely.geometry import LineString, Polygon
     from shapely.ops import unary_union
@@ -1982,6 +2049,14 @@ def build(offline=False):
     TRAM = trm.Tram() if os.path.exists(trm.PATH) else None
     verges = greenery.load_verges(os.path.join(ROOT, "data", "verges.json"))
     buildings = kept
+    # t8: the survey's foot elevations are the ground truth the DEM is pinned to outside the lidar (see CTR_SIGMA)
+    ctr_all = [(b["id"], b["_c"][0], b["_c"][1], b["g"]) for b in buildings if b.get("e") and "g" in b]
+    hold = [r for r in ctr_all if CTR_HOLDOUT and zlib.crc32(r[0].encode()) % 10 == 0]
+    ctr = [r for r in ctr_all if r not in hold] if hold else ctr_all
+    G["ctr"] = np.array([(x, z, g) for _, x, z, g in ctr], dtype=np.float64)
+    if hold:
+        json.dump([{"id": i, "x": x, "z": z, "g": g} for i, x, z, g in hold], open(os.path.join(ROOT, "data", "t8_holdout.json"), "w"))
+    print(f"  terrain control: {len(ctr)} survey foot elevations" + (f" ({len(hold)} held out)" if hold else ""), flush=True)
 
     # Shapely layers for the street computation.
     polys = [Polygon(b["_g"][0], b["_g"][1]) for b in buildings]
@@ -2169,10 +2244,12 @@ def terrain_only(offline=True):
     names = sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json"))
     if ONLY:
         names = [n for n in names if n in ONLY]
-    foot = []
+    foot, ctr_pts = [], []
     for n in sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json")):
         for b in json.load(open(os.path.join(WORLD_LIVE, "tiles", n + ".json")))["buildings"]:
             p = b["p"]
+            if b.get("e") and "g" in b:
+                ctr_pts.append((sum(p[0::2]) / (len(p) // 2), sum(p[1::2]) / (len(p) // 2), b["g"]))
             ring = [(p[k], p[k + 1]) for k in range(0, len(p), 2)]
             if len(ring) >= 3:
                 foot.append(Polygon(ring))
@@ -2180,6 +2257,7 @@ def terrain_only(offline=True):
     print(f"[{time.time() - t0:.0f}s] {len(bld)} footprints", flush=True)
     elev = load_terrarium(ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium"))
     G["land"] = land
+    G["ctr"] = np.array(ctr_pts, dtype=np.float64).reshape(-1, 3)
     far = far_grid(elev, rect)
     roads, _car, _ped, _plz = parse_highways(files["hwy"])
     G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for,
@@ -2204,6 +2282,15 @@ def terrain_only(offline=True):
             if n % 100 == 0:
                 print(f"  {n}/{len(todo)}  ({len(changed)} changed)", flush=True)
     print(f"terrain only: {len(changed)} of {len(todo)} tiles changed in {time.time() - t0:.0f}s")
+    import structures
+    if not ONLY:   # the end heights and the river floors of the bridges and tunnels follow the ground
+        recs = {}
+        for n in sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json")):
+            raw = open(os.path.join(WORLD_LIVE, "tiles", n + ".json"), "rb").read()
+            if b'"structs"' in raw:
+                for r in json.loads(raw).get("structs", []):
+                    recs[r["id"]] = r
+        structures.add_heights(WORLD_LIVE, list(recs.values()), G["far_f"], T)
     if errors:
         print("TILE ERRORS:", errors)
 

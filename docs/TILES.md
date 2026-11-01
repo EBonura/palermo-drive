@@ -210,7 +210,7 @@ Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `l
 
 - **Data.** The PBF cache has two new categories: `wtr` (waterway river, stream, canal, drain, ditch, brook: 63 ways) and `bar` (barriers, for the walls step). `tools/structures.py`
   writes one record per structure into `tile.structs` of every tile it touches: `{id, k 'b'|'t', p centreline, w deck width, cw carriageway, ly layer, n, hw, ow, f, rv river lines
-  within 200 m, rw river width, dep metres from the deck to the river bed, ov flyover, y0, y1}`. `dep` is relative (TINITALY valley depth: shoulders at the ends minus the bed under the
+  within 200 m, rw river width, rf per river vertex the lowest ground across the valley floor (rv is then cut into pieces of about 8 m), dep metres from the deck to the river bed, ov flyover, y0, y1}`. `dep` is relative (TINITALY valley depth: shoulders at the ends minus the bed under the
   deck), `y0`/`y1` are the ground heights at the two ends as the game will show them (tile near grid, else far grid), written after the tiles are baked (`add_heights`). 191 bridges
   (43 over water, 54 flyovers), 84 tunnels. Street layers lose the ground under water-crossing decks (`cut`), so no road is draped in the trench.
 - **Runtime** (`src/bridges.js`, wired in `src/world.js`): per structure, one copy by id. At tile parse: the deck or tunnel floor becomes a *level* (`hooks.level(x, z, yRef)`, the highest
@@ -299,3 +299,8 @@ Only colour values derived from the Regione Siciliana SITR orthophotos (ATA 2012
   (`tintFn` in `src/world.js`, `opts.tint` in `src/streets.js`): a relative tint, it varies what the game already draws. Cells seen only in shadow are neutral.
 - **Caveats:** the photos are 2012-13 (about 13 years old); outlines and photo disagree by metres; the ground classes of the orthophoto data were computed on the street layers before the Comune
   streets (`court` is now plain terrain), which only matters as a relative tint.
+
+### Ground outside the lidar (t8)
+
+The near and far grids use TINITALY everywhere and pin it to the lidar and to the Comune survey's building foot elevations (hold-out error 2.9 m rms against 6.9 m before; details in docs/faithfulness/terrain.md).
+Bridge decks, tunnel floors and the river trenches follow automatically (their end heights are baked from the same ground); the Ponte Corleone valley is the real 12 m deep one.

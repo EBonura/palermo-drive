@@ -77,3 +77,19 @@ Left:
 1. The blue strips were not positively identified; the likely cause (sky through cracks at tile borders, skirt was 8 m) is fixed. The pale "paving" pads around Pellegrino houses and the spruce trees are streets.js / props (streetscape agent), not terrain.
 2. The dark gash on one Pellegrino face seen in a distant view was not located.
 
+
+## Outside the lidar belt: TINITALY plus the survey's foot elevations (board item t8, 2026-11-01)
+
+Finding (again): away from the lidar rasters the ground was Terrarium (SRTM at 38 m, which reads roofs and treetops), 5.7 m too high against the Comune's building foot elevations
+(`g` of the CTR heights, 72 k points that agree with the lidar to 1.4 m rms), 15 to 22 m too high at the Ponte Corleone valley. Fix in `tools/tiles.py` (`far_grid`, `near_for`):
+
+- **Base:** TINITALY (10 m, `tools/dem.py`) everywhere it has data (it was blended in only above 80 to 140 m); Terrarium only beyond it. Every tile with TIN data now has a near grid (899 tiles, was 763).
+- **Pinned to what is known:** the lidar where present, as before (its residual to the TIN smoothed over 40 m, faded over 200 m); beyond it the 49,047 survey foot elevations of buildings that have no lidar
+  roof (`CTR_*` constants): residual smoothed over 45 m, trusted in proportion to how many points fed it, faded out 220 m from the last one. One residual field, so lidar and survey agree across the seam.
+- **Shore:** land within 80 m of the sea and outside the lidar keeps at least 1.0 m, so the shoreline does not move (the cells between -1.4 and 0.4 m: 6,270 before, 6,296 after).
+- **Check, hold-out** (`T8_HOLDOUT=1` leaves out every tenth survey point): on 4,879 points the pipeline never saw, ground minus survey foot: bias +5.72 m, rms 6.93, 55 % off by more than 5 m before; bias +1.09 m,
+  rms 2.89, p90 4.4 m, 7.7 % off by more than 5 m after. In the lidar belt, Mondello, Monte Pellegrino and the hills the ground did not change (Quattro Canti 13.2, Piazza Mondello 2.4, Santuario 156.6, Via Oreto 22.6).
+- Road check (`tools/terrain_check.py`, 2,355 km): mesh 10.7 to 9.8 km flagged, cross 42.8 to 41.8, bank 4.5 to 4.4, meshlow 10.6 to 10.5, bump 1.36 to 1.34, grade 50.6 to 51.2.
+- Known: TIN itself reads 2 m above the survey on average and has local errors of 5 to 10 m in steep or built-up pockets; at Baby Luna the survey says 72 m, TIN and the result 61.6 (the bridge deck follows the ground, so it sits
+  consistently with its roads). The seam at the lidar belt edge is a 200 m fade, visible only as a gentle slope change.
+- **Rivers under bridges after t8:** the ground now holds the TIN valley, so the old bed (deck minus `dep`, computed when the tile loaded) was above the valley floor over most of the 200 m window and the water was skipped as hanging. The bake now cuts every river line into pieces of about 8 m and stores `rf` (lowest ground across the valley floor at each vertex, in the tile's own frame; `structures.river_floor`, written by `add_heights`, which `--terrain-only` now re-runs too). `src/bridges.js` digs the bed `RIVER_DIG` (0.9 m) under that floor, never above the old deck-based bed, and the water sits 0.4 m above the bed. The floor cannot be measured at load: the river runs over tiles that have not streamed in yet.
