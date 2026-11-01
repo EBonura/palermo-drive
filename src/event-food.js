@@ -83,6 +83,8 @@ export function createFood(X) {
     const rem = c2[c2.length - 1], s0 = Math.min(70, rem * 0.15);
     e.chase = { pts, cum: c2, len: rem, s: s0, v: 0, spin: 0, drops: [], next: 0, rig, ended: false, cool: 0, bump: 0, voiced: 0 };
     for (let k = 1; k <= CHASE_N; k++) e.chase.drops.push(s0 + (rem - s0 - 40) * k / CHASE_N);
+    chaseAt(e.chase, s0, _o); e.chase.x = _o.x; e.chase.z = _o.z;   // a position from the start, for the arrow and the voice
+    X.guide.path(pts);                                                 // the escape route: the arrow follows it and the minimap draws it
     e.left = rem / SCOOTER_V + 14;
     hud.toast(T('Un motorino scappa con il resto!', 'A scooter runs off with the rest!'), T('Inseguilo', 'Chase it'));
     say(pick(FOOD.thief)[0], () => ({ x: e.chase.x, y: groundAt(e.chase.x, e.chase.z) + 2.2, z: e.chase.z }), 0.4);
@@ -123,7 +125,7 @@ export function createFood(X) {
   }
   function startReturn() {
     if (e.chase && !e.chase.ended) { scene.remove(e.chase.rig.root); e.chase.rig.dispose?.(); e.chase.ended = true; }
-    e.phase = 'return'; X.setPhase('return');
+    e.phase = 'return'; X.setPhase('return'); X.guide.off();
     for (const it of e.items) if (!it.got && it.marker) { X.dropMarker(it.marker); it.marker = null; }
     // what is left on the road is gone
     for (const it of e.items) if (!it.got) it.got = true;
@@ -178,6 +180,7 @@ export function createFood(X) {
     } else if (e.phase === 'chase') {
       e.left -= dt; updateChase(dt);
       if (!e) return;
+      if (e.chase.ended) { X.guide.off(); const nl = nearestLeft(); X.aim(nl.x, nl.z, true); } else X.aim(e.chase.x, e.chase.z, true);
       hud.set({ label: T('Insegui il motorino', 'Chase the scooter'), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: e.slot.name, time: Math.ceil(Math.max(0, e.left)) + 's', low: e.left < 8, frac: null, target: e.chase.ended ? nearestLeft() : e.chase });
     } else if (e.phase === 'return') {
       X.aim(e.slot.x, e.slot.z, true);
@@ -195,6 +198,7 @@ export function createFood(X) {
     scene.remove(e.mesh, e.beams); e.mesh.geometry.dispose(); e.mesh.dispose?.(); e.beams.dispose?.();
     if (e.chase && !e.chase.ended) { scene.remove(e.chase.rig.root); e.chase.rig.dispose?.(); }
     homeBeacon.show(false); if (e.homeMarker) X.dropMarker(e.homeMarker);
+    X.guide.off();
     e = null;
   }
   return { start, update, stop, active: () => !!e, get got() { return e ? e.got : 0; }, get items() { return e ? e.items : []; }, get state() { return e; } };
