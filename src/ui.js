@@ -11,6 +11,7 @@
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
 import { setupGarageUI } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
 
@@ -399,7 +400,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (cur && push) stack.push(cur);
     if (!push && !back) stack = [];
     if (cur) { const a = document.activeElement; if (a && screens[cur].contains(a)) lastFocus[cur] = a; }
-    setCam(name);
+    setCam();
     if (cur === 'garage' && name !== 'garage') garageUI.leave();
     if (name === 'garage' && cur !== 'garage') garageUI.enter();
     if (cur === 'start' && name !== 'start') startMap.hide();
@@ -420,21 +421,25 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (name === 'credits') startRoll();
     } else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   }
+  // The camera behind the screens: the flyover on the title, the normal chase camera in the side menu (the garage has a camera of its own)
+  function setCam() {
+    if (game.state === 'title') game.titleCam = flyCam;
+    else if (game.state === 'pause' && game.titleCam) { game.titleCam = null; leaveTitleCam(); }
+  }
   function goBack() {
+    if (cur === 'garage') return leaveGarage();
     if (stack.length) go(stack.pop(), { back: true });
   }
-  // The camera behind the screens: the flyover on the title, the garage's turntable (also from the side menu), the normal chase camera otherwise.
-  function setCam(name) {
-    const fromGarage = cur === 'garage' && name !== 'garage';   // the turntable eases back out to the flyover or the chase camera
-    if (game.state === 'title') { if (name === 'garage') game.titleCam = garageCam; else if (fromGarage) easeOut((c, sec) => flyCam(c, sec), flyCam); else game.titleCam = flyCam; }
-    else if (game.state === 'pause') {
-      if (name === 'garage') game.titleCam = garageCam;
-      else if (fromGarage) easeOut((c, sec, dt) => vehicle.updateCamera(dt), null);
-      else if (game.titleCam) { game.titleCam = null; leaveTitleCam(); }
-    }
+  // The garage is a place of its own (src/garage-scene.js): in and out go through the checkerboard. While it is open main.js draws the garage
+  // instead of the city and does not simulate it, so the street (title flyover or driving, camera, position, heading) is exactly as it was on the way out.
+  const garageFrames = n => new Promise(r => { const f = () => (--n > 0 ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });   // a few drawn frames, so the garage's shaders and textures are up before the reveal
+  function enterGarage() {
+    if (busy) return; busy = true; gesture();
+    transition(async () => { go('garage', { push: true }); await garageFrames(3); }).catch(() => {}).then(() => { busy = false; });
   }
-  function easeOut(next, after) {
-    game.titleCam = (cam, sec) => { if (garageUI.camOut(cam, sec, next)) { game.titleCam = after; if (!after) leaveTitleCam(); } };
+  function leaveGarage() {
+    if (busy) return; busy = true;
+    transition(async () => { if (stack.length) go(stack.pop(), { back: true }); await garageFrames(2); }).catch(() => {}).then(() => { busy = false; });
   }
 
   // ---- title flyover ----
@@ -471,6 +476,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     cam.position.set(px, groundY(px, pz) + ph + Math.sin(sec * 0.31) * 1.6, pz);
     cam.lookAt(lx, groundY(lx, lz) + lh, lz);
   };
+  const flyCam = game.titleCam;
 
   // ---- actions ----
   function leaveTitleCam() { if (camera.fov !== baseFov) { camera.fov = baseFov; camera.updateProjectionMatrix(); } }
@@ -488,9 +494,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       };
       requestAnimationFrame(poll);
     });
+  }
   // The streamer gets most of every frame while the transition covers the screen (world.hurry): the hitches are not seen.
   const hurried = async work => { if (world) world.hurry = true; try { return await work(); } finally { if (world) world.hurry = false; } };
-  }
   // Menu or picker to the game, or a new start point from the side menu: cover, place the lapa, wait for the world, reveal.
   function startAt(x, z) {
     if (busy) return; busy = true; gesture();
@@ -510,9 +516,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     for (const k in screens) delete lastFocus[k];
   }
   function closePause() {
-    if (game.state !== 'pause') return;
+    if (game.state !== 'pause' || cur === 'garage') return;
     game.resume(); go(null); gesture();
-    if (game.titleCam) { game.titleCam = null; leaveTitleCam(); }   // the garage camera may still be easing out
   }
   // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
@@ -539,7 +544,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'mapgo': return startMap.startSelected();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
-      case 'garage': return go('garage', { push: true });
+      case 'garage': return enterGarage();
       case 'collections': return go('collections', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
@@ -553,10 +558,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     }
   }
 
-  // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js), with a slowly turning close view of the vehicle ----
-  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), vehicle, groundY, getLang: () => lang, onExit: () => goBack(), placeAt, proj });
-  const flyCam = game.titleCam;
-  const garageCam = (cam, sec) => garageUI.cam(cam, sec);
+  // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js) in their own scene (src/garage-scene.js) ----
+  const garageScene = createGarageScene({ renderer, vehicle, game });
+  const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), scene: garageScene, getLang: () => lang, onExit: () => goBack() });
 
   // ---- side menu: radio row, the busy warning, the fullscreen button ----
   const radNext = screens.side.querySelector('.pd-radnext'), radPwr = screens.side.querySelector('.pd-radpwr'), radSub = screens.side.querySelector('.pd-radsub');
