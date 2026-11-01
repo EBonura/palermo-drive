@@ -118,6 +118,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false };
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
+  let outer = 1;   // duckFor(k): other music nearby (a pub's song, src/pubs.js) turns the radio down without touching the player's volume
   let bag = [], last = -1, upcoming = null;
   const srcOf = track => BASE + (track.file || track.id + '.m4a');
 
@@ -145,7 +146,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   }
 
   function applyGains(dt) {
-    const m = enabled ? volume * 0.9 * duck : 0;
+    const m = enabled ? volume * 0.9 * duck * outer : 0;
     if (useGain) {
       const t = ctx.currentTime;
       master.gain.setTargetAtTime(m, t, 0.12);
@@ -509,6 +510,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 
   instance = {
     next, toggle, setEnabled, setVolume, unlock,
+    duckFor(k) { outer = 1 - 0.88 * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full)
     get enabled() { return enabled; },
     get volume() { return volume; },
     get current() { return slots[cur].playing ? slots[cur].track : null; },
