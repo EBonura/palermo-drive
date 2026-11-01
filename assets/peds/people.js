@@ -1,6 +1,6 @@
 // The character model's parameters, their defaults, and the random generator that fills in a person from a type (nonna, vendor, tourist, metal...).
 // The same fields drive the Garage driver creator, so every field here is a plain value (numbers, hex strings, small option names).
-import { ci, mixc } from './raster.js';
+import { ci, mixc, lumi, hexOf } from './raster.js';
 
 // ---------- the option lists (the creator shows these; the generator draws from them) ----------
 export const SKINS = ['#f1cdb0', '#ecc2a4', '#e3b99a', '#dcac8c', '#d6a284', '#cf9d7c', '#c99872', '#c2916c', '#bf8a66', '#b8744c', '#9a6a48', '#7a4e34', '#5e3a28'];
@@ -10,10 +10,10 @@ export const BEARDS = ['', 'stubble', 'moustache', 'goatee', 'chinstrap', 'full'
 export const GLASSES = ['', 'rect', 'round', 'big'];
 export const EYE_COLS = ['#2a1a10', '#4a3424', '#5a6a4a', '#4a6a8a', '#6a7a82'];
 export const TOP_TYPES = ['tee', 'polo', 'shirt', 'jacket', 'hoodie'];
-export const FACE_RANGES = {   // [min, max, default] of the continuous face fields, for the creator's sliders
-  fw: [3.9, 4.8, 4.35], jaw: [0, 1, 0.5], cheek: [0, 1, 0.5], chinW: [0, 0.9, 0.4], eyeGap: [1.55, 2.4, 1.95], eyeSize: [0.8, 1.3, 1], eyeTilt: [-0.25, 0.3, 0.05], eyeY: [-0.5, 0.6, 0],
-  browThick: [0.3, 0.95, 0.55], browTilt: [-0.25, 0.3, 0.05], browArch: [0, 0.35, 0.12], browY: [-0.3, 0.4, 0], noseLen: [0.8, 1.9, 1.3], noseW: [0.7, 1.3, 1], noseY: [-0.4, 0.4, 0],
-  mouthW: [2.2, 3.7, 3], mouthY: [-0.4, 0.4, 0], lip: [0.1, 0.9, 0.4], smile: [-0.6, 1, 0.15], earSize: [0.8, 1.3, 1], earOut: [0, 1, 0.4] };
+export const FACE_RANGES = {   // [min, max, default] of the continuous face fields, for the creator's sliders. Faces are drawn on a head that is then scaled up: big eyes, small nose and mouth
+  fw: [4.1, 5.1, 4.6], jaw: [0, 1, 0.5], cheek: [0, 1, 0.55], chinW: [0, 0.9, 0.45], eyeGap: [2.0, 2.9, 2.4], eyeSize: [1.1, 1.7, 1.4], eyeTilt: [-0.25, 0.3, 0.05], eyeY: [-0.5, 0.6, -0.1],
+  browThick: [0.3, 0.85, 0.5], browTilt: [-0.25, 0.3, 0.05], browArch: [0, 0.35, 0.12], browY: [-0.3, 0.4, 0], noseLen: [0.5, 1.4, 0.85], noseW: [0.6, 1.1, 0.85], noseY: [-0.4, 0.4, 0],
+  mouthW: [1.8, 3.4, 2.5], mouthY: [-0.4, 0.4, 0], lip: [0.1, 0.8, 0.3], smile: [-0.4, 1, 0.25], earSize: [0.8, 1.3, 1.0], earOut: [0, 1, 0.4] };
 
 const D = (v, d) => v === undefined ? d : v;
 
@@ -27,6 +27,7 @@ export function finalize(sp) {
   if (sp.glasses && typeof sp.glasses === 'string') sp.glasses = { frame: sp.glasses, style: sp.glassStyle || 'rect', tortoise: !!sp.tortoise };
   if (sp.bigGlasses && !sp.glasses) sp.glasses = { frame: sp.bigGlasses, style: 'big' };
   sp.hhU = D(sp.head, 10) * 1.1;
+  punch(sp);
   sp.hairStyle = sp.hairStyle || 'short';
   sp.bottom = sp.bottom || { type: 'trousers', col: '#2a2e38' };
   sp.sleeve = sp.sleeve || 'short';
@@ -93,3 +94,14 @@ export function makePerson(t, k, seed) {
   return finalize(sp);
 }
 const TOPS = [['#f0eee8', 3], ['#3f9ab8', 2], ['#d9443c', 2], ['#2f6b49', 2], ['#e0b42f', 2], ['#4a4f5a', 2], ['#e87aa0', 1.5], ['#4fa9a0', 2], ['#3f6bb0', 3], ['#c8b78e', 1.5], ['#17151a', 2], ['#c43c36', 1.5], ['#7a8a62', 1], ['#6a7a98', 1.5]];
+
+// more colour: everyday clothes get more saturated, near-black ones a little blue so the shading still shows (the nonna and the metal look stay dark)
+const sat = (c, k) => { const v = ci(c), r = v >> 16, g = (v >> 8) & 255, b = v & 255, m = (r + g + b) / 3; const f = x => Math.max(0, Math.min(255, Math.round(m + (x - m) * k))); return '#' + [f(r), f(g), f(b)].map(x => x.toString(16).padStart(2, '0')).join(''); };
+const lift = c => lumi(c) < 0.13 ? hexOf(mixc(c, '#3b4262', 0.2)) : sat(c, lumi(c) > 0.85 ? 1 : 1.28);
+function punch(sp) {
+  if (sp._punched) return; sp._punched = true;
+  if (sp.top) sp.top = lift(sp.top);
+  if (sp.bottom && sp.bottom.col && sp.bottom.type !== 'robe') sp.bottom = { ...sp.bottom, col: lift(sp.bottom.col) };
+  if (sp.bottom && sp.bottom.type === 'robe') sp.bottom = { ...sp.bottom, col: lift(sp.bottom.col) };
+  if (sp.shoes && lumi(sp.shoes) < 0.1) sp.shoes = hexOf(mixc(sp.shoes, '#3b4262', 0.18));
+}

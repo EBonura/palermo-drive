@@ -3,9 +3,9 @@
 // A character is a handful of solids (swept cross-sections for limbs, torso, head; ellipsoids for hands, hair curls, noses) seen from one of
 // four sides, orthographically, and drawn into a G-buffer cell (depth, colour, part id). Shading is a four-tone cel ramp from one light, with
 // pixel decals for faces, and a last pass puts the pixel-art outline on the silhouette and wherever one part stands clearly in front of another.
-// Units are design units (1 unit = 4 cm, an adult is 44) and S pixels per unit: S = 3 for the near cells, S = 1 for the far ones.
+// Units are design units (1 unit = about 4.4 cm, an adult is 37) and S pixels per unit: S = 3 for the near cells, S = 1 for the far ones.
 // Model axes: x to the viewer's right when the figure faces the viewer, y up, z forward (the way the figure looks).
-export const CELL_U = { w: 24, h: 54, ground: 3 };      // cell size in units; the feet stand 3 units above the bottom edge
+export const CELL_U = { w: 28, h: 44, ground: 3 };      // cell size in units; the feet stand 3 units above the bottom edge (an adult is about 37 units tall: a big head on a short body)
 
 // ---------- colours ----------
 const hexMap = new Map();
@@ -25,10 +25,11 @@ const toneCache = new Map();
 export function tonesOf(base, style = 0) {
   const key = base * 4 + style; let t = toneCache.get(key); if (t) return t;
   const R = base >> 16, G = (base >> 8) & 255, B = base & 255;
-  if (style === 1) t = [pack(R * 0.6, G * 0.44, B * 0.45), pack(R * 0.84, G * 0.72, B * 0.71), base, pack(R * 1.05 + 12, G * 1.07 + 10, B * 1.08 + 8)];
-  else if (style === 2) t = [shade(base, 0.52), shade(base, 0.76), base, shade(base, 1.27)];
-  else if (style === 3) t = [shade(base, 0.45), shade(base, 0.72), base, shade(base, 1.5)];
-  else t = [shade(base, 0.55), shade(base, 0.78), base, shade(base, 1.26)];
+  // shadows slide towards blue-violet, highlights towards warm yellow: the flat ramp of hand-made pixel art
+  if (style === 1) t = [pack(R * 0.62, G * 0.46, B * 0.52), pack(R * 0.86, G * 0.7, B * 0.72), base, pack(R * 1.04 + 12, G * 1.06 + 10, B * 1.04 + 8)];
+  else if (style === 2) t = [pack(R * 0.46, G * 0.46, B * 0.62), pack(R * 0.72, G * 0.7, B * 0.86), base, pack(R * 1.2 + 26, G * 1.2 + 22, B * 1.1 + 14)];
+  else if (style === 3) t = [pack(R * 0.42, G * 0.42, B * 0.58), pack(R * 0.68, G * 0.68, B * 0.84), base, pack(R * 1.4 + 40, G * 1.4 + 38, B * 1.3 + 36)];
+  else t = [pack(R * 0.48, G * 0.48, B * 0.64), pack(R * 0.74, G * 0.72, B * 0.88), base, pack(R * 1.2 + 24, G * 1.2 + 22, B * 1.08 + 12)];
   toneCache.set(key, t); return t;
 }
 const EDGE = 0x14101a;
@@ -42,20 +43,20 @@ export class Cell {
     this.S = S; this.W = CELL_U.w * S; this.H = CELL_U.h * S; this.ox = this.W / 2; this.oy = (CELL_U.h - CELL_U.ground) * S;
     const n = this.W * this.H;
     this.zb = new Float32Array(n).fill(-1e9); this.cb = new Int32Array(n); this.bb = new Int32Array(n); this.pb = new Uint8Array(n);
-    this.mox = 0; this.part = 1; this.reset(dir);
+    this.mox = 0; this.ms = 1; this.part = 1; this.reset(dir);
   }
   // clear for another view (cells are reused: they are big)
   reset(dir) {
     this.zb.fill(-1e9); this.pb.fill(0);
     const phi = dir === 1 ? Math.PI : dir === 2 ? Math.PI / 2 : 0;
-    this.vc = Math.round(Math.cos(phi)); this.vs = Math.round(Math.sin(phi)); this.swap = this.vs !== 0; this.dir = dir; this.mox = 0;
+    this.vc = Math.round(Math.cos(phi)); this.vs = Math.round(Math.sin(phi)); this.swap = this.vs !== 0; this.dir = dir; this.mox = 0; this.ms = 1;
   }
   // Swept solid. kn: [[y, a, b, cx, cz], ...] half widths along x and z of a (super)ellipse cross-section centred on (cx, cz) at height y, linearly interpolated.
   // o: { col, n: 2 | 4 exponent, style, part, bias, deco(x, y, z) -> colour | -1 default | -2 skip }
   sweep(kn, o) {
-    const c = this.vc, s = this.vs, sw = this.swap, len = kn.length, K = new Float64Array(len * 5);
+    const c = this.vc, s = this.vs, sw = this.swap, len = kn.length, K = new Float64Array(len * 5), ms = this.ms;
     const ord = kn.slice().sort((p, q) => p[0] - q[0]);
-    for (let i = 0; i < len; i++) { const k = ord[i], cx = (k[3] || 0) + this.mox, cz = k[4] || 0; K[i * 5] = k[0]; K[i * 5 + 1] = sw ? k[2] : k[1]; K[i * 5 + 2] = sw ? k[1] : k[2]; K[i * 5 + 3] = cx * c - cz * s; K[i * 5 + 4] = cx * s + cz * c; }
+    for (let i = 0; i < len; i++) { const k = ord[i], cx = (k[3] || 0) * ms + this.mox, cz = (k[4] || 0) * ms; K[i * 5] = k[0] * ms; K[i * 5 + 1] = (sw ? k[2] : k[1]) * ms; K[i * 5 + 2] = (sw ? k[1] : k[2]) * ms; K[i * 5 + 3] = cx * c - cz * s; K[i * 5 + 4] = cx * s + cz * c; }
     const S = this.S, oy = this.oy, y0 = K[0], y1 = K[(len - 1) * 5];
     const j0 = Math.max(0, Math.ceil(oy - y1 * S - 0.5)), j1 = Math.min(this.H - 1, Math.floor(oy - y0 * S - 0.5));
     let q = len - 2;
@@ -71,7 +72,7 @@ export class Cell {
   // Ellipsoid with radii rx (x), ry (y), rz (z) at (cx, cy, cz)
   blob(cx, cy, cz, rx, ry, rz, o) {
     const c = this.vc, s = this.vs, sw = this.swap, S = this.S, oy = this.oy;
-    cx += this.mox; const scx = cx * c - cz * s, scz = cx * s + cz * c, RA = sw ? rz : rx, RB = sw ? rx : rz;
+    const ms = this.ms; cx = cx * ms + this.mox; cy *= ms; cz *= ms; rx *= ms; ry *= ms; rz *= ms; const scx = cx * c - cz * s, scz = cx * s + cz * c, RA = sw ? rz : rx, RB = sw ? rx : rz;
     const j0 = Math.max(0, Math.ceil(oy - (cy + ry) * S - 0.5)), j1 = Math.min(this.H - 1, Math.floor(oy - (cy - ry) * S - 0.5));
     for (let j = j0; j <= j1; j++) {
       const ym = (oy - j - 0.5) / S, t = (ym - cy) / ry, k2 = 1 - t * t; if (k2 <= 0) continue;
@@ -96,25 +97,25 @@ export class Cell {
       const dot = (fx * LX + fy * LY + fz * LZ) / Math.sqrt(fx * fx + fy * fy + fz * fz) + bias;
       let base = base0, T = T0;
       if (deco) {
-        const Xv = scx + u * A, Zv = sz, mx = Xv * vc + Zv * vs, mz = -Xv * vs + Zv * vc, d = deco(mx - this.mox, ym, mz, dot);
+        const Xv = scx + u * A, Zv = sz, mx = Xv * vc + Zv * vs, mz = -Xv * vs + Zv * vc, d = deco((mx - this.mox) / this.ms, ym / this.ms, mz / this.ms, dot);
         if (d === -2) continue; if (d !== -1) { base = d; T = tonesOf(d, style); }
       }
       zb[idx] = sz; bb[idx] = base; pb[idx] = part;
-      cb[idx] = T[dot > 0.76 ? 3 : dot > 0.1 ? 2 : dot > -0.4 ? 1 : 0];
+      cb[idx] = T[dot > 0.84 ? 3 : dot > 0.0 ? 2 : dot > -0.6 ? 1 : 0];
     }
   }
   // flat filled rectangle in model xy at depth z (for decals that must be exact: a stripe, a badge); front views only
   // Turn the G-buffer into RGBA bytes with the outline. edge = unit depth step that counts as "in front of".
   finish(out, thr = 1.1) {
     const W = this.W, H = this.H, zb = this.zb, cb = this.cb, bb = this.bb, pb = this.pb, th = thr, ER = EDGE >> 16, EG = (EDGE >> 8) & 255, EB = EDGE & 255;
-    const halo = this.S < 2;   // the far cells get a two pixel outline (one inside, one outside): it keeps the silhouette readable at a distance, where the mip chain thins everything
+    const halo = true;   // a closed outline: one pixel inside and one outside, dark. It keeps the silhouette readable at a distance, where the mip chain thins everything
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const k = y * W + x, o = k * 4;
       const L = x > 0 ? k - 1 : -1, R = x < W - 1 ? k + 1 : -1, U = y > 0 ? k - W : -1, D = y < H - 1 ? k + W : -1;
       if (zb[k] < -1e8) {
         let nb = -1;
         if (halo) nb = L >= 0 && zb[L] > -1e8 ? L : R >= 0 && zb[R] > -1e8 ? R : U >= 0 && zb[U] > -1e8 ? U : D >= 0 && zb[D] > -1e8 ? D : -1;
-        if (nb >= 0) { const t = tonesOf(bb[nb], 0)[0]; out[o] = (t >> 16) * 0.45; out[o + 1] = ((t >> 8) & 255) * 0.45; out[o + 2] = (t & 255) * 0.45; out[o + 3] = 255; }
+        if (nb >= 0) { const t = tonesOf(bb[nb], 0)[0]; out[o] = (t >> 16) * 0.32; out[o + 1] = ((t >> 8) & 255) * 0.32; out[o + 2] = (t & 255) * 0.4; out[o + 3] = 255; }
         else { out[o] = ER; out[o + 1] = EG; out[o + 2] = EB; out[o + 3] = 0; }
         continue;
       }
@@ -125,7 +126,7 @@ export class Cell {
         if ((pb[L] !== p && zb[L] > z + th) || (pb[R] !== p && zb[R] > z + th) || (pb[U] !== p && zb[U] > z + th) || (pb[D] !== p && zb[D] > z + th)) edge = 1;
       }
       if (edge) {
-        const t = tonesOf(bb[k], 0)[0], kk = edge === 2 ? (halo ? 0.6 : 0.72) : 0.9;   // silhouette: the deep shade, darker; an inner edge: the deep shade
+        const t = tonesOf(bb[k], 0)[0], kk = edge === 2 ? 0.55 : 0.85;   // silhouette: the deep shade, darker; an inner edge: the deep shade
         col = pack((t >> 16) * kk, ((t >> 8) & 255) * kk, (t & 255) * kk);
       }
       out[o] = col >> 16; out[o + 1] = (col >> 8) & 255; out[o + 2] = col & 255; out[o + 3] = 255;

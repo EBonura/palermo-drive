@@ -5,6 +5,7 @@ import { Cell, ci, mixc, shade, lumi, hs, tonesOf } from './raster.js';
 
 const rad = Math.PI / 180, SK = 1, HR = 2, HD = 3;   // tone styles: skin, hair, hard
 const SOLE_DARK = 0x2a2624;
+export const HK = 1.45, LK = 0.58, TK = 0.64;   // chibi proportions: the head (drawn in head units, then scaled by HK), the legs and the torso of the old 44 unit design shrink or grow by these
 
 // ---------- the walk cycle: thigh pitch, knee bend, arm pitch (degrees, forward positive) for the near (x+) and far (x-) side ----------
 const WALK = [
@@ -14,7 +15,7 @@ const WALK = [
   { l: [-20, 16], r: [26, 3], al: 26, ar: -24 },
   { l: [14, 52], r: [-3, 0], al: 6, ar: -6 }];
 const lerpPose = (a, b, t) => ({ l: [a.l[0] + (b.l[0] - a.l[0]) * t, a.l[1] + (b.l[1] - a.l[1]) * t], r: [a.r[0] + (b.r[0] - a.r[0]) * t, a.r[1] + (b.r[1] - a.r[1]) * t], al: a.al + (b.al - a.al) * t, ar: a.ar + (b.ar - a.ar) * t });
-const IDLE = { l: [0, 0], r: [0, 0], al: 2, ar: -2 };
+const IDLE = { l: [0, 0], r: [0, 0], al: 3, ar: -3 };
 
 const D = (v, d) => v === undefined ? d : v;
 
@@ -39,7 +40,7 @@ function faceDeco(sp, f, hy, hz, S, skin) {
   const white = ci('#efe9e0'), iris = ci(f.eyeCol), pupil = 0x15110f, lid = mixc(skin, '#2a1a14', 0.7), browC = ci(f.browCol), lipC = ci(f.lipCol), mouthC = mixc(skin, '#4a1f1f', 0.65);
   const stub = f.stubble ? mixc(skin, f.stubble, 0.62) : -1, sd = f.stubbleD, nostr = mixc(skin, '#3a1a14', 0.5), blush = mixc(skin, '#e07a7a', 0.38), wrink = mixc(skin, '#6a3a2a', 0.28);
   const ew = 0.95 * f.eyeSize * (f.eyeShape === 'wide' ? 1.12 : f.eyeShape === 'narrow' ? 1.05 : 1), eh = (f.eyeShape === 'round' ? 0.68 : f.eyeShape === 'wide' ? 0.8 : f.eyeShape === 'narrow' ? 0.4 : 0.52) * f.eyeSize, tilt = f.eyeTilt;
-  const myy = -2.75 + f.mouthY, mw = f.mouthW / 2, bt = Math.max(f.browThick, m * 1.1), by = ey + 1.5 + f.browY, bl = 1.25 * f.eyeSize + 0.25;
+  const myy = -2.3 + f.mouthY, mw = f.mouthW / 2, bt = Math.max(f.browThick, m * 1.1), by = ey + 1.5 + f.browY, bl = 1.25 * f.eyeSize + 0.25;
   const ewE = Math.max(ew, 0.62 * m * 3.2), ehE = Math.max(eh, 0.55 * m * 2.0);
   return (mx, my, mz) => {
     const x = mx, y = my - hy, z = mz - hz, ax = x < 0 ? -x : x;
@@ -50,7 +51,9 @@ function faceDeco(sp, f, hy, hz, S, skin) {
       if (ex * ex + eyr * eyr < 1) {
         if (eyr > 0.35) return lid;
         const ir = (dx * dx) / (0.5 * 0.5) + (dy * dy) / ((Math.min(0.62, ehE * 0.95)) ** 2);
-        if (ir < 0.28) return pupil; if (ir < 1) return iris; return white;
+        if (ir < 0.28) return pupil;
+        if (ir < 1) return (dx < -0.12 && dx > -0.5 && dy > 0.02 && ehE > 0.5) ? white : iris;
+        return white;
       }
       // brows
       const bdx = ax - eg, yb = by + f.browTilt * bdx + f.browArch * (1 - (bdx / bl) * (bdx / bl));
@@ -67,7 +70,7 @@ function faceDeco(sp, f, hy, hz, S, skin) {
         if (dm < 0 && dm > -f.lip * 0.75 * (1 - ax / mw * 0.5)) return lipC;
       }
       // nostrils, and the dimples of a smile
-      const ny = -1.85 + f.noseY - 0.55;
+      const ny = -1.45 + f.noseY - 0.5;
       if (ax > 0.35 && ax < 0.85 && Math.abs(y - ny) < Math.max(0.28, m * 0.9) && z > 2.5) return nostr;
       if (f.smile > 0.7 && ax > mw + 0.1 && ax < mw + 0.55 && Math.abs(y - (ym + 0.2)) < 0.5) return wrink;
       if (f.blush && ax > 2.0 && ax < 3.4 && y < ey - 0.6 && y > ey - 2.0 && (hs((mx * S) | 0, (my * S) | 0) < 0.55)) return blush;
@@ -89,11 +92,12 @@ function drawHair(c, sp, f, hy, hz, S) {
   if (st === 'bald' || (sp.hat && (sp.hat.type === 'scarf' || sp.hat.type === 'helmet' || sp.hat.type === 'hood' || sp.hat.type === 'beanie'))) return;
   const hc = ci(col), o = { col: hc, style: HR, part: 6 };
   const cap = (grow, hl, side, nape, xo, extra) => {
+    grow *= 0.7;
     const knots = headKnots(f, hh, grow, side - 1.6).map(k => [k[0] + hy, k[1], k[2], k[3], k[4] + hz]);
     knots.push([hy + hh / 2 + grow * 0.6, 0.4, 0.5, 0, hz - 0.45]);
-    c.sweep(knots, { ...o, deco: (mx, my, mz) => {
+    c.sweep(knots, { ...o, bias: 0.1, deco: (mx, my, mz) => {
       const x = mx, y = my - hy, z = mz - hz, ax = x < 0 ? -x : x;
-      const yf = hl - 1.5 * (ax / fw) * (ax / fw) + (extra ? extra(x, z) : 0);
+      const yf = hl - 1.5 * (ax / fw) * (ax / fw) + (extra ? extra(x, z) : 0) + 0.38 * Math.sin(ax * 3.4 + 1);   // a scalloped hairline
       let thr; if (z > 0.7) thr = yf; else if (z > -1.4) { const q = (z + 1.4) / 2.1; thr = side * (1 - q) + yf * q; } else thr = nape;
       if (y < thr) return -2;
       if (st === 'fade' && y < 1.9 && z < 1.5) return mixc(col, sp.skin, 0.38 + 0.2 * ((y < 0.2) ? 1 : 0));   // faded sides: skin showing through
@@ -102,14 +106,15 @@ function drawHair(c, sp, f, hy, hz, S) {
     } });
   };
   const top = hy + hh / 2;
+  const crown = (n = 3) => { for (let k = 0; k < n; k++) { const q = hs(k + 3, hc & 255), a = (k / n - 0.3) * 2.4; c.blob(Math.sin(a) * fw * 0.5, top - 0.9 - Math.abs(Math.sin(a)) * 0.5, hz + Math.cos(a) * 1.0 - 0.8, 1.7 + q * 0.4, 1.2, 1.9, { ...o, bias: 0.16 + q * 0.1, part: 6 }); } };
   if (st === 'short' || st === 'fade' || st === 'buzz' || st === 'quiff' || st === 'fringe' || st === 'comb') {
     const hl = st === 'fringe' ? 1.1 : st === 'quiff' ? 2.7 : 2.3;
-    cap(st === 'buzz' ? 0.18 : 0.42, hl, 1.2, -1.9);
+    cap(st === 'buzz' ? 0.18 : 0.42, hl, 0.5, -3.4); if (st !== 'buzz') crown(st === 'fade' ? 2 : 3);
     if (st === 'quiff') { c.blob(0.2, top - 0.2, hz + 1.5, fw * 0.78, 1.55, 3.0, { ...o, bias: 0.05 }); c.blob(0.4, top + 0.1, hz + 0.3, fw * 0.6, 1.2, 2.5, { ...o, bias: 0.12 }); }
     if (st === 'comb') c.blob(-0.6, top - 0.4, hz + 0.5, fw * 0.8, 0.9, 3.4, o);
   } else if (st === 'swept') {   // short at the sides, longer on top and brushed up and back, the forehead clear
-    cap(0.4, 3.1, 1.1, -1.9);
-    c.blob(0.0, top - 0.35, hz + 0.5, fw * 0.62, 1.3, 3.0, { ...o, bias: 0.05 });
+    cap(0.4, 3.1, 0.6, -3.2);
+    c.blob(0.0, top - 0.25, hz + 0.4, fw * 0.82, 0.8, 3.5, { ...o, bias: 0.08 });
   } else if (st === 'curlylong') {   // shoulder-length waves with curled ends, parted, falling past the ears
     cap(0.5, 2.2, 0.1, -1.0, 0, (x, z) => (x > 0.3 ? 0.4 : -0.4));
     const bottom = hy - hh / 2 - 3.6;
@@ -123,14 +128,17 @@ function drawHair(c, sp, f, hy, hz, S) {
     for (let k = 0; k < 7; k++) c.blob(-fw * 0.9 + k * fw * 0.3, bottom + 0.3 - (k & 1) * 0.5, hz - fw * 0.95 - 0.2, 1.25, 1.3, 1.2, { ...o, bias: (hs(k, 9) - 0.5) * 0.3, part: 6 });
     c.blob(1.2, top - 0.2, hz + 0.9, 1.7, 0.9, 1.5, { ...o, bias: 0.15, part: 6 }); c.blob(-1.6, top - 0.5, hz + 0.6, 1.5, 0.8, 1.3, { ...o, bias: -0.05, part: 6 });
   } else if (st === 'bun') {
-    cap(0.42, 2.0, 0.9, -1.7); c.blob(0, top - 0.3, hz - 2.2, 2.0, 1.9, 2.0, o); c.blob(0, top - 0.8, hz - 2.2, 2.3, 0.6, 2.3, { ...o, bias: -0.1 });
+    cap(0.42, 2.0, 0.6, -3.0); c.blob(0, top - 0.3, hz - 2.2, 2.0, 1.9, 2.0, o); c.blob(0, top - 0.8, hz - 2.2, 2.3, 0.6, 2.3, { ...o, bias: -0.1 });
   } else if (st === 'ponytail') {
-    cap(0.42, 2.0, 0.9, -1.7); for (let i = 0; i < 6; i++) c.blob(0, hy + 0.8 - i * 1.5, hz - fw * 1.05 - i * 0.2, 1.2 - i * 0.07, 1.1, 1.3, o);
+    cap(0.42, 2.0, 0.6, -3.0); for (let i = 0; i < 6; i++) c.blob(0, hy + 0.8 - i * 1.5, hz - fw * 1.05 - i * 0.2, 1.2 - i * 0.07, 1.1, 1.3, o);
   } else if (st === 'long' || st === 'bob' || st === 'wavy') {
-    cap(0.45, 1.8, 0.2, -1.2);
-    const bottom = st === 'bob' ? hy - hh / 2 - 0.2 : hy - hh / 2 - 6.2 - (sp.hairLen || 0);
-    c.sweep([[hy + 1.2, fw + 0.6, 2.0, 0, hz - fw * 0.82], [hy - 1.5, fw + 0.9, 2.1, 0, hz - fw * 0.85], [bottom + 1.5, fw + 0.9 + (st === 'wavy' ? 0.4 : 0), 1.8, 0, hz - fw * 0.85 - 0.2], [bottom, fw + 0.5, 1.2, 0, hz - fw * 0.9]], { ...o, part: 7, deco: st === 'wavy' ? (mx, my) => ((((my * 3.1) + Math.sin(mx * 1.3) * 1.2) % 2.4) < 0.5 ? mixc(col, '#000000', 0.18) : -1) : undefined });
-    for (const s of [-1, 1]) c.sweep([[hy + 1.7, 0.7, 1.9, s * (fw + 0.25), hz - 0.2], [hy - 0.2, 1.0, 1.9, s * (fw + 0.35), hz - 0.5], [bottom + 0.5 + (st === 'bob' ? 1.5 : 0), 0.9, 1.7, s * (fw + 0.1), hz - 0.8]], { ...o, part: 7 + (s > 0 ? 1 : 0) });
+    cap(0.45, 1.8, 0.2, -1.2); crown(3);
+    const bottom = st === 'bob' ? hy - hh / 2 + 0.8 : hy - hh / 2 - 2.4 - (sp.hairLen || 0), wv = st === 'wavy' ? 0.6 : 0.15;
+    // the back: a rounded mass that narrows to uneven tips
+    c.sweep([[hy + 1.2, fw + 0.3, 1.5, 0, hz - fw * 0.75], [hy - 1.5, fw + 0.5, 1.5, 0, hz - fw * 0.8], [bottom + 2.0, fw + 0.4 + wv * 0.5, 1.4, 0, hz - fw * 0.8], [bottom + 0.8, fw * 0.75, 1.0, 0, hz - fw * 0.85], [bottom, fw * 0.4, 0.6, 0, hz - fw * 0.85]], { ...o, part: 7 });
+    for (let k = 0; k < 4; k++) c.blob((k - 1.5) * fw * 0.5, bottom + 0.8 - (k & 1) * 0.8, hz - fw * 0.85, 1.5, 1.5, 1.1, { ...o, bias: (hs(k, hc & 255) - 0.5) * 0.3, part: 6 });
+    // locks framing the face: chains of blobs, a little wavy
+    for (const sd of [-1, 1]) for (let k = 0; k < 5; k++) { const yy = hy + 1.5 - k * (bottom < hy - hh / 2 ? 1.5 : 1.0), r = 1.4 - k * 0.07; if (yy < bottom + 0.8) break; c.blob(sd * (fw + 0.3 + Math.sin(k * 1.4 + (sd > 0 ? 1 : 0)) * wv), yy, hz - 0.2 - k * 0.1, r, 1.25, 1.5, { ...o, bias: (hs(k + 7, sd + 2) - 0.5) * 0.3, part: 7 + (sd > 0 ? 1 : 0) }); }
   } else if (st === 'curly') {
     cap(0.5, 2.2, 1.0, -0.8);
     const n = sp.curls || 44, long = sp.hairLong !== false;
@@ -173,10 +181,10 @@ function drawHat(c, sp, f, hy, hz) {
       c.sweep(k, { ...o, deco: (mx, my, mz) => { const x = mx, y = my - hy, z = mz - hz, ax = x < 0 ? -x : x; if (z > 0.8 && ax < fw * 0.9 && y < hh * 0.5 - 0.7) return -2; return -1; } }); break;
     }
     case 'scarf': {   // a headscarf, knotted under the chin
-      const k = headKnots(f, hh, 0.7, -hh / 2 + 0.3).map(q => [q[0] + hy, q[1], q[2] + 0.1, q[3], q[4] + hz]); k.push([hy + hh / 2 + 0.7, 0.4, 0.5, 0, hz - 0.45]);
+      const k = headKnots(f, hh, 0.3, -hh / 2 + 0.3).map(q => [q[0] + hy, q[1], q[2] + 0.1, q[3], q[4] + hz]); k.push([hy + hh / 2 + 0.3, 1.2, 1.4, 0, hz - 0.45]);
       c.sweep(k, { ...o, deco: (mx, my, mz) => {
         const x = mx, y = my - hy, z = mz - hz, ax = x < 0 ? -x : x;
-        if (z > 0.3 && (ax / (fw * 0.78)) ** 2 + ((y + 0.7) / (hh * 0.47)) ** 2 < 1) return -2;
+        if (z > 0.3 && (ax / (fw * 0.94)) ** 2 + ((y + 0.3) / (hh * 0.5)) ** 2 < 1) return -2;
         return h.col2 && ((Math.floor(mx * 2.2) + Math.floor(my * 2.2)) & 1) ? col2 : -1;
       } });
       c.blob(0, hy - hh / 2 - 0.1, hz + 1.2, 1.6, 1.0, 1.2, { ...o, part: 12 }); break;
@@ -190,7 +198,7 @@ function pitchDir(p, side, ab) { const r = p * rad; return [side * Math.sin(ab *
 
 export function drawCharacter(c, sp, pose) {
   const S = c.S, f = sp.face, run = !!sp.run, bounce = !!sp.bounce;
-  const leg = D(sp.leg, 19), tor = D(sp.tor, 14), hh = sp.hhU, tw = D(sp.tw, 12), stoop = D(sp.stoop, 0);
+  const leg = D(sp.leg, 19) * LK, tor = D(sp.tor, 14) * TK, hh = sp.hhU, tw = D(sp.tw, 12), stoop = D(sp.stoop, 0);
   const skin = ci(sp.skin), skT = tonesOf(skin, SK), top = ci(sp.top), B = sp.bottom, isRobe = B.type === 'robe', isSkirt = B.type === 'skirt', isShorts = B.type === 'shorts';
   const legCol = isRobe ? ci(B.col) : isSkirt ? ci(sp.legCol || sp.skin) : isShorts ? skin : ci(B.col), shoeC = ci(sp.shoes), sleeveLong = sp.sleeve !== 'short', fem = !!sp.fem;
   const AMP = run ? 1.75 : bounce ? 0.85 : sp.slow ? 0.7 : 1;
@@ -200,13 +208,14 @@ export function drawCharacter(c, sp, pose) {
   if (sit) wp = { l: [100, 50], r: [113, 57], al: 12, ar: 12 };
   if (AMP !== 1 && wp !== IDLE) wp = lerpPose(IDLE, wp, AMP);
   // leg FK
-  const hipJ = leg - 1, Lt = (hipJ - 2.1) * 0.5, Ls = (hipJ - 2.1) * 0.5, hx = 2.35 + (fem ? 0.1 : 0);
+  const hipJ = leg - 1, Lt = (hipJ - 2.1) * 0.5, Ls = (hipJ - 2.1) * 0.5, hx = 3.0 + (fem ? 0.1 : 0);
   const ank = [], kne = [];
   for (const [i, side] of [[0, 1], [1, -1]]) {
     const [th, kb] = i === 0 ? wp.l : wp.r;
     const a1 = th * rad, a2 = (th - kb) * rad;
     const kz = Math.sin(a1) * Lt, ky = -Math.cos(a1) * Lt, az = kz + Math.sin(a2) * Ls, ay = ky - Math.cos(a2) * Ls;
-    kne[i] = [side * hx, ky, kz]; ank[i] = [side * hx, ay, az];
+    const spl = sit || sp.chair ? 0 : 1.1 * Math.min(1, Math.abs(th) / 24);   // the feet step a little apart
+    kne[i] = [side * (hx + spl * 0.5), ky, kz]; ank[i] = [side * (hx + spl), ay, az];
   }
   const reach = Math.min(ank[0][1], ank[1][1]);
   const bob = (pose === 2 || pose === 4) && !sp.chair ? (run ? 0.9 : 0.35) : 0, hipY = 2.1 - reach + bob + (sp.chair ? 2.4 : 0);   // the lowest ankle stands on the ground
@@ -223,21 +232,21 @@ export function drawCharacter(c, sp, pose) {
       if (B.type === 'trousers' && (hs((my * 2) | 0, 3) < 0 && 0)) return -1;
       return -1;
     } : undefined;
-    limb(c, h, k, 2.75, 2.35, 2.7, 2.35, legCol, { part: 20 + i * 2, style: isShorts ? SK : 0, deco: dec, cut: isShorts ? { at: 0.5 + (B.len || 8) * 0.07, col: ci(B.col) } : null, fold: B.type === 'trousers' });
-    limb(c, k, a, 2.4, 1.8, 2.35, 1.8, legCol, { part: 21 + i * 2, style: isShorts ? SK : 0, fold: B.type === 'trousers', cuff: B.type === 'trousers', ripped: B.ripped ? skin : -1, skin: B.ripped ? sp.skin : undefined });
+    limb(c, h, k, 3.3, 2.8, 3.2, 2.8, legCol, { part: 20 + i * 2, style: isShorts ? SK : 0, deco: dec, cut: isShorts ? { at: 0.5 + (B.len || 8) * 0.07, col: ci(B.col) } : null, fold: B.type === 'trousers' });
+    limb(c, k, a, 2.9, 2.2, 2.8, 2.2, legCol, { part: 21 + i * 2, style: isShorts ? SK : 0, fold: B.type === 'trousers', cuff: B.type === 'trousers', ripped: B.ripped ? skin : -1, skin: B.ripped ? sp.skin : undefined });
     // boots on top of the trousers
-    if (sp.boots) limb(c, [a[0], a[1] + 4.2, a[2] - 0.2], a, 2.45, 2.2, 2.5, 2.2, ci(sp.boots), { part: 24 });
+    if (sp.boots) limb(c, [a[0], a[1] + 3.2, a[2] - 0.2], a, 3.0, 2.7, 3.0, 2.7, ci(sp.boots), { part: 24 });
 
     // shoe
     const sx = a[0], sy = a[1] - 2.1, sz = a[2], big = i === 0 ? 1 : 0;
     const stC = tonesOf(shoeC, HD), light = lumi(shoeC) > 0.6, sole = light ? 0xc9c4b8 : mixc(shoeC, '#000000', 0.55);
-    c.sweep([[sy, 1.7, 2.7, sx, sz + 1.5], [sy + 0.9, 2.15, 3.3, sx, sz + 1.5], [sy + 2.3, 2.0, 2.7, sx, sz + 1.0], [sy + 3.4, 1.9, 1.9, sx, sz + 0.1]],
+    c.sweep([[sy, 2.1, 3.2, sx, sz + 1.7], [sy + 1.0, 2.6, 3.9, sx, sz + 1.7], [sy + 2.6, 2.4, 3.2, sx, sz + 1.2], [sy + 3.7, 2.3, 2.3, sx, sz + 0.2]],
       { col: shoeC, style: HD, part: 25 + i, deco: (mx, my, mz) => my < sy + 0.95 ? sole : (my > sy + 1.6 && mz > sz + 2.2 + 0.0 && my < sy + 2.5 && (Math.floor(mz * 2.5) & 1)) ? shade(shoeC, 1.35) : -1 });
   }
 
   // ----- skirt or robe
   if (isSkirt || isRobe) {
-    const hem = isRobe ? 2.8 : Math.max(2.8, hipY + 1 - (B.len || 9) * 1.3 - 1), sway = pose === 1 || pose === 2 ? 0.45 : pose === 3 || pose === 4 ? -0.45 : 0, w0 = tw * 0.33, w1 = w0 + (isRobe ? 2.6 : 2.2 + (B.flare || 0)), bc = ci(B.col);
+    const hem = isRobe ? 2.8 : Math.max(2.8, hipY - (B.len || 9) * 0.58), sway = pose === 1 || pose === 2 ? 0.45 : pose === 3 || pose === 4 ? -0.45 : 0, w0 = tw * 0.33, w1 = w0 + (isRobe ? 2.6 : 2.2 + (B.flare || 0)), bc = ci(B.col);
     c.sweep([[hem, w1, w1 * 0.8, 0, sway + 0.2], [hem + (hipY + 1 - hem) * 0.3, w0 + (w1 - w0) * 0.55, (w0 + (w1 - w0) * 0.55) * 0.78, 0, sway * 0.6 + 0.1], [hipY + 1, w0, w0 * 0.72, 0, 0]],
       { col: bc, part: 14, deco: (mx, my, mz) => { if (my < hem + 1.0) return shade(bc, 0.7); if (B.pattern === 'flower' && hs((mx * 1.2) | 0, (my * 1.2 + mz) | 0) < 0.22) return ci(B.col2 || '#f0eee8'); return ((Math.floor((mx + 30) * 1.7)) & 3) === 0 ? shade(bc, 0.9) : -1; } });
   }
@@ -276,13 +285,13 @@ export function drawCharacter(c, sp, pose) {
   // vest and apron as shells over the torso front/back
   if (vest !== -1 && sp.vestOver) c.sweep(kn.map(k => [k[0], k[1] + 0.25, k[2] + 0.25, k[3], k[4]]), { col: vest, part: 16, n: 4, deco: (mx, my, mz) => { if (c.dir !== 1 && Math.abs(mx) < 1.9 && mz > 0) return -2; if (c.dir === 1 && sp.patches && my > hipY + 3 && my < shY - 1 && hs(Math.floor(mx / 2.2) + 9, Math.floor((my - hipY) / 2.2) + 3) < 0.45 && Math.abs(mx) < chW - 1) return ci(['#b8382c', '#d9d4c6', '#6a7a98', '#c8a03a'][(Math.floor(mx / 2.2) * 7 + Math.floor((my - hipY) / 2.2) * 3 + 40) & 3]); return -1; } });
   if (apron !== -1) {
-    const ya = hipY + tor * 0.74, yb = hipY - Math.min(12, 6 + (sp.apronLen || 6)), ac = apron;
+    const ya = hipY + tor * 0.74, yb = Math.max(3, hipY - 6 - (sp.apronLen || 0) * 0.3), ac = apron;
     c.sweep([[yb, hipW + 0.7, 0.8, 0, dep * 0.86 + 0.5 + zl(yb)], [ya, chW * 0.62 + 0.3, 0.8, 0, dep * 0.95 + 0.7 + zl(ya)], [ya + 0.8, chW * 0.45, 0.6, 0, dep * 0.95 + 0.7 + zl(ya)]], { col: ac, part: 17, n: 4, deco: (mx, my, mz) => (my < yb + 0.9 ? shade(ac, 0.8) : my > ya - 0.5 && Math.abs(mx) > chW * 0.28 ? -2 : (hs((mx * 1.3) | 0, (my * 1.3) | 0) < 0.04 ? shade(ac, 0.75) : -1)) });
     if (c.dir === 1) c.sweep([[ya + 0.2, chW * 0.8, 0.5, 0, -dep - 0.2], [ya + 0.9, chW * 0.8, 0.5, 0, -dep - 0.2]], { col: shade(ac, 0.85), part: 17 });   // the strap across the back
   }
   // neck, collar, scarf
   const neckY = shY + 0.5;
-  c.sweep([[neckY - 0.5, 2.0, 1.9, 0, zl(neckY)], [neckY + 1.8, 1.85, 1.8, 0, zl(neckY + 1.8) + 0.2]], { col: skin, style: SK, part: 18, deco: (mx, my, mz, d) => (c.dir === 0 && sp.neckTattoo && Math.abs(mx) < 1.5 && my > neckY + 0.2 && ((my * 3 | 0) & 1) ? mixc(skin, sp.tattoo || '#3a4a5a', 0.85) : -1) });
+  c.sweep([[neckY - 0.5, 2.6, 2.4, 0, zl(neckY)], [neckY + 1.8, 2.4, 2.3, 0, zl(neckY + 1.8) + 0.2]], { col: skin, style: SK, part: 18, deco: (mx, my, mz, d) => (c.dir === 0 && sp.neckTattoo && Math.abs(mx) < 1.5 && my > neckY + 0.2 && ((my * 3 | 0) & 1) ? mixc(skin, sp.tattoo || '#3a4a5a', 0.85) : -1) });
   if (collarC !== -1) c.sweep([[neckY - 0.7, 2.7, 2.5, 0, zl(neckY)], [neckY + 0.7, 2.5, 2.3, 0, zl(neckY + 0.7)]], { col: collarC, part: 19, deco: (mx, my, mz) => (c.dir !== 1 && mz > 1.2 && Math.abs(mx) < 0.9 && my > neckY - 0.2 ? -2 : -1) });
   if (sp.hood) c.sweep([[neckY - 0.9, 3.6, 3.3, 0, zl(neckY) - 0.5], [neckY + 1.4, 3.2, 3.0, 0, zl(neckY + 1) - 0.8]], { col: top, part: 19 });
   if (sp.scarf) {
@@ -293,10 +302,10 @@ export function drawCharacter(c, sp, pose) {
   if (sp.headphones && 0) { /* below, with the head */ }
 
   // ----- arms
-  const aw = tw * 0.36 + 1.3, sY = shY - 0.9, Lu = tor * 0.43, Lf = tor * 0.4;
+  const aw = tw * 0.36 + 1.7, sY = shY - 1.0, Lu = tor * 0.46, Lf = tor * 0.44;
   const armPose = (side) => {
     const near = side > 0, ap = near ? wp.al : wp.ar;
-    let p1 = ap * AMP * 0 + ap, elb = run ? 85 : 10 + Math.abs(ap) * 0.45;
+    let p1 = ap * AMP * 0 + ap, elb = run ? 85 : 30 + Math.abs(ap) * 0.55;
     if ((pose === 5 || pose === 7) && near) { p1 = 55; elb = 118; }                 // the drink: forearm raised to the mouth
     else if (pose === 6) { if (near) { p1 = sp.drink ? 28 : 18; elb = sp.drink ? 80 : 40; } else { p1 = 14; elb = 36; } }   // sitting: a drink held at the chest, or a hand on the knee
     else if (sp.hold && near) { p1 = 22; elb = 70; }
@@ -305,40 +314,41 @@ export function drawCharacter(c, sp, pose) {
   };
   const hands = [];
   for (const side of [-1, 1]) {
-    const [p1, elb] = armPose(side), ab = side > 0 ? 5 : 5, s0 = [side * aw, sY, zl(sY) + (c.dir === 2 ? 0 : 0)];
+    const [p1, elb] = armPose(side), ab = 9, s0 = [side * aw, sY, zl(sY) + (c.dir === 2 ? 0 : 0)];
     const d1 = pitchDir(p1, side, ab), el = [s0[0] + d1[0] * Lu, s0[1] + d1[1] * Lu, s0[2] + d1[2] * Lu];
     const d2 = pitchDir(p1 + elb, side, ab * 0.5), wr = [el[0] + d2[0] * Lf, el[1] + d2[1] * Lf, el[2] + d2[2] * Lf];
     const sleeveEnd = sleeveLong ? 1.0 : 0.46, sc = ci(sp.sleeveCol || sp.top);
     const tattoo = sp.tattoo ? ci(sp.tattoo) : -1, braceletC = sp.bracelet;
     const sOpt = { part: side > 0 ? 30 : 32, deco: null };
     // upper arm: sleeve (or skin)
-    limb(c, s0, el, 1.95, 1.75, 1.95, 1.75, sleeveEnd > 0.9 || true ? sc : skin, { part: sOpt.part, style: sp.sleeve === 'none' ? SK : 0, tattooSleeve: sp.sleeveTattoo && sp.sleeve === 'short' ? tattoo : -1, skinFrom: sp.sleeve === 'short' ? 0.5 : sp.sleeve === 'none' ? 0 : 1.1, skin, stripe: sp.sleeveStripe ? ci(sp.sleeveStripe) : -1, side, trimC: trim });
+    limb(c, s0, el, 2.4, 2.15, 2.4, 2.15, sleeveEnd > 0.9 || true ? sc : skin, { part: sOpt.part, style: sp.sleeve === 'none' ? SK : 0, tattooSleeve: sp.sleeveTattoo && sp.sleeve === 'short' ? tattoo : -1, skinFrom: sp.sleeve === 'short' ? 0.5 : sp.sleeve === 'none' ? 0 : 1.1, skin, stripe: sp.sleeveStripe ? ci(sp.sleeveStripe) : -1, side, trimC: trim });
     // forearm
-    limb(c, el, wr, 1.7, 1.4, 1.7, 1.4, sleeveLong && sp.sleeve !== 'none' ? sc : skin, { part: sOpt.part + 1, style: sleeveLong && sp.sleeve !== 'none' ? 0 : SK, skinFrom: sleeveLong ? 0.8 : 0, skin, tattooSleeve: tattoo !== -1 && sp.tattooForearm ? tattoo : -1, stripe: sp.sleeveStripe ? ci(sp.sleeveStripe) : -1, side, cuff: sleeveLong, braceletC });
+    limb(c, el, wr, 2.1, 1.8, 2.1, 1.8, sleeveLong && sp.sleeve !== 'none' ? sc : skin, { part: sOpt.part + 1, style: sleeveLong && sp.sleeve !== 'none' ? 0 : SK, skinFrom: sleeveLong ? 0.8 : 0, skin, tattooSleeve: tattoo !== -1 && sp.tattooForearm ? tattoo : -1, stripe: sp.sleeveStripe ? ci(sp.sleeveStripe) : -1, side, cuff: sleeveLong, braceletC });
     hands[side > 0 ? 0 : 1] = { wr, d: d2 };
-    c.blob(wr[0], wr[1] - 0.9, wr[2] + 0.2, 1.4, 1.5, 1.4, { col: skin, style: SK, part: sOpt.part + 1 });
-    if (sp.ring && side > 0) c.blob(wr[0], wr[1] - 1.7, wr[2] + 0.3, 1.42, 0.3, 1.42, { col: ci('#e8d48a'), style: HD, part: sOpt.part + 1 });
+    c.blob(wr[0], wr[1] - 1.1, wr[2] + 0.3, 2.0, 2.1, 1.9, { col: skin, style: SK, part: sOpt.part + 1 });
+    if (sp.ring && side > 0) c.blob(wr[0], wr[1] - 2.0, wr[2] + 0.4, 2.0, 0.35, 1.95, { col: ci('#e8d48a'), style: HD, part: sOpt.part + 1 });
     // shoulder cap hides the seam
-    c.blob(s0[0] * 0.97, sY - 0.1, s0[2], 1.85, 1.7, 1.85, { col: sleeveLong || sp.sleeve === 'short' ? sc : skin, style: sleeveLong || sp.sleeve === 'short' ? 0 : SK, part: sOpt.part });
+    c.blob(s0[0] * 0.97, sY - 0.1, s0[2], 2.35, 2.1, 2.35, { col: sleeveLong || sp.sleeve === 'short' ? sc : skin, style: sleeveLong || sp.sleeve === 'short' ? 0 : SK, part: sOpt.part });
   }
   // ----- carried things and extras
   carried(c, sp, hands, hipY, tor, pose, fem, run);
   // ----- head
-  const headY = neckY + 1.1 + hh / 2, hz = zl(headY) + 0.2 + (stoop ? 0.8 : 0);
+  const headYr = neckY + 0.5 + hh * HK / 2, hzr = zl(headYr) + 0.4 + (stoop ? 1.0 : 0);
+  c.ms = HK; const headY = headYr / HK, hz = hzr / HK, SH = S * HK;   // from here on everything is drawn in head units and scaled up
   const hk = headKnots(f, hh, 0).map(k => [k[0] + headY, k[1], k[2], k[3], k[4] + hz]);
-  c.sweep(hk, { col: skin, style: SK, part: 40, deco: faceDeco(sp, f, headY, hz, S, skin) });
+  c.sweep(hk, { col: skin, style: SK, part: 40, bias: 0.22, deco: faceDeco(sp, f, headY, hz, SH, skin) });
   // ears
   const eaY = headY - 0.35, earW = f.earSize;
-  for (const s of [-1, 1]) c.blob(s * (halfW(f, hh, -0.35) - 0.05 + 0.2), eaY, hz - 0.5, 0.55 + f.earOut * 0.5, 1.3 * earW, 0.95 * earW, { col: skin, style: SK, part: 41 });
+  for (const s of [-1, 1]) c.blob(s * (halfW(f, hh, -0.35) - 0.1 + 0.1), eaY, hz - 0.5, 0.4 + f.earOut * 0.35, 1.0 * earW, 0.8 * earW, { col: skin, style: SK, part: 41 });
   // nose: a wedge on the face
-  const nz = hz - 0.45 + (halfW(f, hh, -1.3) * 1.08 + 0.45) - 0.3, nY = headY - 1.3 + f.noseY;
-  c.blob(0, nY, nz, 0.62 * f.noseW + 0.15, 1.25, 0.6 + f.noseLen * 0.55, { col: skin, style: SK, part: 42, bias: 0.04 });
-  c.blob(0, nY - 0.6, nz + f.noseLen * 0.4, 0.8 * f.noseW + 0.1, 0.6, 0.55 + f.noseLen * 0.22, { col: skin, style: SK, part: 42 });
+  const nz = hz - 0.45 + (halfW(f, hh, -1.3) * 1.08 + 0.45) - 0.3, nY = headY - 1.0 + f.noseY;
+  c.blob(0, nY + 0.15, nz, 0.5 * f.noseW + 0.12, 0.8, 0.45 + f.noseLen * 0.5, { col: skin, style: SK, part: 42, bias: 0.04 });
+  c.blob(0, nY - 0.35, nz + f.noseLen * 0.3, 0.62 * f.noseW + 0.1, 0.45, 0.45 + f.noseLen * 0.2, { col: skin, style: SK, part: 42 });
   // beard
-  drawBeard(c, sp, f, headY, hz, hh, S);
+  drawBeard(c, sp, f, headY, hz, hh, SH);
   // glasses
-  if (sp.glasses) drawGlasses(c, sp, f, headY, hz, S);
-  drawHair(c, { ...sp, hhU: hh }, f, headY, hz, S);
+  if (sp.glasses) drawGlasses(c, sp, f, headY, hz, SH);
+  drawHair(c, { ...sp, hhU: hh }, f, headY, hz, SH);
   drawHat(c, sp, f, headY, hz);
   if (sp.headphones) {
     const hp = ci(sp.headphones), hw2 = halfW(f, hh, 0) + 0.6;
@@ -346,6 +356,7 @@ export function drawCharacter(c, sp, pose) {
     c.sweep([[headY + hh / 2 + 0.3, hw2 + 0.1, 0.5, 0, hz - 0.5], [headY + 1.5, hw2 + 0.9, 0.5, 0, hz - 0.5]], { col: 0x1a1a1e, part: 43 });
   }
   if (sp.earring) for (const s of [-1, 1]) c.blob(s * (halfW(f, hh, -0.35) + 0.6), eaY - 1.3, hz - 0.3, 0.3, 0.7, 0.3, { col: ci('#d8d8e0'), style: HD, part: 44 });
+  c.ms = 1;
 }
 
 function printBand(pr, mx, my, col, base) {   // a made-up chunky band logo: letters as blocks and a skull-ish blob, in pixel-hash noise
@@ -419,7 +430,7 @@ function drawBeard(c, sp, f, hy, hz, hh, S) {
 
 function drawGlasses(c, sp, f, hy, hz, S) {
   const g = sp.glasses, fr = ci(g.frame || '#18161a'), eg = f.eyeGap, ey = hy + f.eyeY - 0.35 + 0.05, m = 1 / S;
-  const big = g.style === 'big', round = g.style === 'round', lw = (g.w || (big ? 1.75 : round ? 1.55 : 1.62)) * (0.9 + f.eyeSize * 0.1), lh = g.h || (big ? 1.6 : round ? 1.55 : 1.2), rim = Math.max(g.rim || 0.4, m * 1.05), n = round ? 2 : 4;
+  const big = g.style === 'big', round = g.style === 'round', lw = (g.w || (big ? 1.75 : round ? 1.55 : 1.62)) * (0.9 + f.eyeSize * 0.1), lh = g.h || (big ? 1.7 : round ? 1.65 : 1.35), rim = Math.max((g.rim || 0.4) * 0.7, m * 1.05), n = round ? 2 : 4;
   const zf = hz - 0.45 + halfW(f, sp.hhU, f.eyeY - 0.35) * 1.08 + 0.45 + 0.35;
   const tort = g.tortoise, tcol = ci(g.tcol || '#9a5a24'), tdark = ci('#2a1a14');
   // the outline of a lens: an ellipse for round frames, a rectangle with rounded corners for the others
@@ -486,6 +497,7 @@ function drawDog(c, sp, pose) {
   }
 }
 function drawChair(c, sp, pose) {
+  c.ms = 0.8;
   const empty = sp.chair === 'empty', dark = 0x2e2e34, frame = 0x4a4a52, cush = 0x2f3f6a, spin = pose === 0 ? 0 : (pose - 1) * 0.8;
   const hy = empty ? 8.5 : 12.5;
   for (const s of [-1, 1]) {
@@ -499,6 +511,7 @@ function drawChair(c, sp, pose) {
   c.sweep([[hy - 1.0, 4.2, 4.6, 0, 0.6], [hy - 0.1, 4.2, 4.6, 0, 0.6]], { col: cush, part: 82, n: 4 });   // the cushion
   c.sweep([[hy - 0.1, 4.2, 0.6, 0, -4.0], [hy + 8.0, 4.2, 0.6, 0, -4.2]], { col: cush, part: 82, n: 4 });   // the backrest
   for (const s of [-1, 1]) c.sweep([[hy + 7.4, 0.4, 1.4, s * 4.2, -5.4], [hy + 8.2, 0.4, 1.4, s * 4.2, -5.4]], { col: frame, part: 81 });
+  c.ms = 1;
 }
 function drawStroller(c, sp) {
   const [c1, c2] = sp.stroller.map(ci), z0 = 9.5;
