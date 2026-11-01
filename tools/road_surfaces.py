@@ -67,7 +67,7 @@ SHOULDER_W = {"motorway": 3.0}      # hard shoulder (asphalt-like), motorways on
 PLAZA_FAR = 10.0                    # carriageway further than this from every OSM centreline, in blobs wider than 2 * PLAZA_OPEN, is a square or car park
 PLAZA_OPEN = 4.0
 PLAZA_CLASSES = ("urban", "local", "arterial")
-SIDEWALK_MAX_HALF = 4.0             # a mapped sidewalk line is the middle of a pavement at most this half-width (m)
+SIDEWALK_MAX_HALF = 1.5             # a mapped sidewalk line is the middle of a pavement, taken at most 3 m wide (Mapillary: narrow pavements)
 MIN_CARRIAGE = 4.5                  # a street narrower than this plus two bands has no pavement (alley, vicolo)
 NEAR_BUILDING = 8.0                 # a polygon edge within this distance of a building gets a pavement, otherwise a verge
 OSM_CLASS = {"motorway": "motorway", "motorway_link": "motorway", "trunk": "arterial", "trunk_link": "arterial",
@@ -643,8 +643,8 @@ def build(args):
                              "pedestrian_areas": "Comune dataset 281: z path (park/estate footpaths), stairs, crossing"}},
         "counts": {k: len(v) for k, v in layers.items()} | {"pedestrian": len(ped_recs), "pedestrian_areas": len(pedestrian_areas)},
         "under_construction_ha": round(construction.area / 1e4, 2) if not construction.is_empty else 0,
-        "osm_km_total": {k: round(v / 1e3, 2) for k, v in total_len.items()},
-        "osm_km_outside_comune_polygons": {k: round(v / 1e3, 2) for k, v in uncovered.items()},
+        "pedestrian_osm_km": {st: round(sum(e["m"] for e in ped_review if e["status"] == st) / 1e3, 2)
+                              for st in ("decreed", "osm_only", "road_in_comune", "asphalt_override")},
         "pedestrian_review": ped_review[:120],
         "decree_rows": len(decree),
         "decree_unmatched": [d["name"] for d in decree if not d["osm_names"]],
@@ -825,10 +825,47 @@ def report(args, result, st):
             f"pavement {d['pavement']} ha; raised {d['game_raised']} ha -> {d['raised_fate_pct']}")
         overlay(args, name, cx, cz, W, B, derived, W["raised"])
 
+    if args.citywide:
+        rep["citywide"] = citywide_fate(result, log)
+        log(f"citywide: {rep['citywide']}")
     with open(os.path.join(args.report, "report.json"), "w") as f:
         json.dump(rep, f, indent=1)
     log(f"report in {args.report}")
     return rep
+
+
+def citywide_fate(result, log):
+    """Where today's raised slab (all 1,119 baked tiles) lands in the proposed layers. Tile chunks are disjoint, so tile sums add up."""
+    layers = [("carriageway", from_records(result["carriageway"])), ("pavement", from_records(result["pavement"])),
+              ("verge_shoulder", from_records(result["verge"])), ("pedestrian_paving", from_records(result["pedestrian"] + result["plaza"]))]
+    trees = [(name, shapely.STRtree(g), g) for name, g in layers]
+    tot = {name: 0.0 for name, _ in layers} | {"ground_within_3m_of_building": 0.0, "ground_open": 0.0}
+    raised_total = 0.0
+    files = sorted(glob.glob(os.path.join(WORLD_TILES, "*.json")))
+    for n, path in enumerate(files):
+        with open(path) as f:
+            d = json.load(f)
+        pg = [Polygon([(c[0][i], c[0][i + 1]) for i in range(0, len(c[0]), 2)], [[(h[i], h[i + 1]) for i in range(0, len(h), 2)] for h in c[1:]])
+              for c in d["streets"]["raised"]]
+        if not pg:
+            continue
+        rest = clean(unary_union([g.buffer(0) for g in pg]), 0.1)
+        raised_total += rest.area
+        for name, tree, geoms in trees:
+            hits = [geoms[i] for i in tree.query(rest)]
+            if not hits:
+                continue
+            g = unary_union(hits)
+            tot[name] += tiles.I(rest, g).area
+            rest = tiles.D(rest, g)
+        bl = [Polygon([(b["p"][i], b["p"][i + 1]) for i in range(0, len(b["p"]), 2)]) for b in d["buildings"]]
+        near3 = unary_union(bl).buffer(3.0) if bl else Polygon()
+        tot["ground_within_3m_of_building"] += tiles.I(rest, near3).area
+        tot["ground_open"] += tiles.D(rest, near3).area
+        if n % 200 == 0:
+            log(f"  citywide {n}/{len(files)}")
+    return {"raised_ha": round(raised_total / 1e4, 1), "fate_ha": {k: round(v / 1e4, 1) for k, v in tot.items()},
+            "fate_pct": {k: round(100 * v / max(raised_total, 1), 1) for k, v in tot.items()}}
 
 
 def street_widths(st, derived, platform, names):
@@ -901,6 +938,8 @@ def main():
     ap.add_argument("--csv", help="aree_pedonali.csv (dataset 850)")
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--report", help="write report.json and overlay PNGs here")
+    ap.add_argument("--citywide", action="store_true", help="with --report: also the fate of the raised slab over all baked tiles (slow)")
+    ap.add_argument("--citywide-only", action="store_true", help="add only the citywide slab numbers to an existing report.json")
     ap.add_argument("--report-only", action="store_true", help="skip the build, read --out and only write the report")
     args = ap.parse_args()
     if args.download:
@@ -911,6 +950,17 @@ def main():
 
     def log(msg):
         print(f"[{time.time() - t0:5.0f}s] {msg}", flush=True)
+    if args.citywide_only:
+        with open(args.out) as f:
+            result = json.load(f)
+        path = os.path.join(args.report, "report.json")
+        with open(path) as f:
+            rep = json.load(f)
+        rep["citywide"] = citywide_fate(result, log)
+        with open(path, "w") as f:
+            json.dump(rep, f, indent=1)
+        log(f"citywide: {rep['citywide']}")
+        return
     if args.report_only:
         with open(args.out) as f:
             result = json.load(f)
