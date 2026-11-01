@@ -170,6 +170,9 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     sn = Math.sin(car.th); cs = Math.cos(car.th);
 
     // ----- height: the ball sticks to the surface; a seam in the data (a tile edge) or a kerb becomes a quick ramp, never a pop -----
+    if (hooks.level && (!S.ready || Math.hypot(car.x - S.px, car.z - S.pz) > 4)) { // placed somewhere new (a mission, ?at=): take the highest deck or floor there
+      const y = hooks.level(car.x, car.z, 1e9); if (y === y) { S.y = y; S.vy = 0; S.fv = 0; S.air = false; S.ready = true; }
+    }
     const h = surface(dt, sn, cs);
     if (S.air) { // in the air (a vaulted parapet): free fall until the ground is there
       S.fv -= 22 * dt; S.y += S.fv * dt;
