@@ -173,7 +173,7 @@ html.pd-title :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: hidd
 .pd-segb:focus { outline: none; }
 .pd-kb .pd-segb:focus, .pd-kb .pd-slider:focus { outline: 3px solid #fff; outline-offset: 2px; }
 
-.pd-slider { position: relative; height: clamp(42px, 9.6vh, 54px); cursor: pointer; touch-action: none; outline: none; }
+.pd-slider { position: relative; height: clamp(42px, 9.6vh, 54px); cursor: pointer; touch-action: pan-y; outline: none; }
 .pd-track { position: absolute; left: 8px; right: 8px; top: 50%; height: 14px; margin-top: -7px; border-radius: 3px; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 2px rgba(255,255,255,.2); transform: skewX(-11deg); overflow: hidden; }
 .pd-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: linear-gradient(90deg, var(--pd-amber), var(--pd-orange), var(--pd-pink)); }
 .pd-thumb { position: absolute; top: 50%; width: 18px; height: 34px; margin: -17px 0 0 -9px; border-radius: 3px; background: #fff; box-shadow: 0 0 14px rgba(232,85,154,.8), 0 2px 6px rgba(0,0,0,.5); transform: skewX(-11deg); }
@@ -329,9 +329,14 @@ html.touch .pd-mp-hint { display: none; }
   box-shadow: inset 3px 0 0 var(--pd-pink), -16px 0 44px rgba(8,2,20,.55); transform: translateX(104%); transition: transform .32s cubic-bezier(.2,.8,.2,1); touch-action: pan-y; }
 .pd-s-side.on .pd-side { transform: none; }
 .pd-side .pd-h { flex: 0 0 auto; font-size: clamp(22px, 5.4vh, 34px); }
-.pd-sidelist { flex: 0 0 auto; gap: clamp(5px, 1.2vh, 9px); padding-right: 6px; }
+.pd-sidelist { flex: 0 0 auto; gap: clamp(5px, 1.3vh, 10px); padding-right: 6px; --pd-gg: clamp(7px, 2vh, 18px); }
 .pd-side .pd-btn.sm { flex: 0 0 auto; min-height: clamp(36px, 8vh, 52px); font-size: clamp(17px, 3.9vh, 24px); }
 .pd-side .pd-btn .pd-chev { flex: 0 0 auto; }
+/* Riprendi is the big one, then three groups: the game, the settings and radio, and the way out */
+.pd-side .pd-btn.drive.sm { min-height: clamp(44px, 10.5vh, 72px); font-size: clamp(22px, 5.2vh, 34px); }
+.pd-side .pd-grp { margin-top: var(--pd-gg); }
+.pd-side .pd-quit::before { background: linear-gradient(180deg, var(--pd-violet), var(--pd-pink)); }
+.pd-side .pd-quit:not(:hover):not(:focus):not(.pd-hot) { background: rgba(10,6,9,.5); box-shadow: inset 0 0 0 2px rgba(245,169,201,.2); color: rgba(255,255,255,.82); }
 .pd-quitsub { text-transform: none; letter-spacing: .08em; color: var(--pd-amber); }
 .pd-quitsub[hidden] { display: none; }
 .pd-sideradio { display: flex; gap: 6px; }
@@ -355,6 +360,25 @@ html.touch .pd-mp-hint { display: none; }
 #pd-ui[data-st=pause] .pd-s-options .pd-card { width: min(92vw, 430px); height: 100%; max-height: none; border-radius: 0; padding: calc(var(--pad-t) + 6px) var(--pad-r) var(--pad-b) 22px; }
 #pd-ui[data-st=pause] .pd-s-options .pd-card::before { display: none; }
 #pd-ui[data-st=pause] .pd-s-options .pd-grid { grid-template-columns: 1fr; flex: 1 1 auto; min-height: 0; }
+/* the options list is a scroll area: a chunky rail you can drag, a fade and a bouncing arrow while there is more below */
+.pd-scrollwrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; gap: 6px; }
+.pd-scrollwrap .pd-grid { flex: 1 1 auto; min-width: 0; min-height: 0; padding-right: 8px; overscroll-behavior: contain; scrollbar-width: none; }
+.pd-scrollwrap .pd-grid::-webkit-scrollbar { display: none; }
+.pd-scrollwrap.more-below .pd-grid { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 52px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 52px), transparent); }
+.pd-scrollwrap.more-below.more-above .pd-grid { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px, #000 calc(100% - 52px), transparent); mask-image: linear-gradient(180deg, transparent 0, #000 22px, #000 calc(100% - 52px), transparent); }
+.pd-scrollwrap:not(.more-below).more-above .pd-grid { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px); mask-image: linear-gradient(180deg, transparent 0, #000 22px); }
+.pd-rail { display: none; position: relative; flex: 0 0 auto; width: 26px; margin: 2px 0; padding: 0 4px; cursor: pointer; touch-action: none; }
+.pd-rail::before { content: ''; position: absolute; left: 4px; right: 4px; top: 0; bottom: 0; border-radius: 9px; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(245,169,201,.38); }
+.pd-railthumb { position: absolute; left: 4px; right: 4px; top: 0; min-height: 52px; border-radius: 9px; background: linear-gradient(180deg, var(--pd-amber), var(--pd-pink)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.85), 0 0 14px rgba(232,85,154,.7), 0 2px 6px rgba(0,0,0,.5); }
+.pd-railthumb::after { content: ''; position: absolute; left: 5px; right: 5px; top: 50%; height: 12px; margin-top: -6px; background: repeating-linear-gradient(180deg, rgba(18,10,14,.65) 0 2px, transparent 2px 5px); }
+.pd-scrollwrap.can-scroll .pd-rail { display: block; }
+.pd-more { display: none; position: absolute; left: calc((100% - 32px) / 2 - 26px); bottom: 2px; width: 52px; height: 30px; padding: 0; border: 0; border-radius: 15px; cursor: pointer; color: var(--pd-ink); -webkit-appearance: none; appearance: none; touch-action: manipulation;
+  background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.8), 0 0 16px rgba(232,85,154,.7), 0 3px 8px rgba(0,0,0,.5); animation: pd-more 1.1s ease-in-out infinite; }
+.pd-more svg { width: 18px; height: 12px; display: block; margin: 0 auto; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.pd-more:focus { outline: none; }
+.pd-scrollwrap.more-below .pd-more { display: block; }
+@keyframes pd-more { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) { .pd-more { animation: none; } }
 #pd-ui[data-st=pause] .pd-s-options .pd-head { flex-direction: column; align-items: stretch; gap: 8px; }
 #pd-ui[data-st=pause] .pd-s-options .pd-lang { width: 100%; }
 .pd-s-collections { justify-content: flex-end; }
@@ -366,11 +390,16 @@ html.touch .pd-mp-hint { display: none; }
 .pd-colnote { margin-top: 4px; font: 600 clamp(10px, 2.2vh, 13px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.62); }
 .pd-colbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); }
 @media (max-height: 460px) {
-  .pd-side { gap: 4px; padding-top: calc(var(--pad-t) + 2px); }
-  .pd-sidelist { gap: 4px; }
-  .pd-side .pd-btn.sm { min-height: 34px; font-size: 17px; }
+  .pd-side { gap: 5px; padding-top: calc(var(--pad-t) + 2px); }
+  .pd-side .pd-h { font-size: 22px; }
+  .pd-sidelist { gap: 5px; --pd-gg: 7px; }
+  .pd-side .pd-btn.sm { min-height: 33px; font-size: 17px; }
+  .pd-side .pd-btn.drive.sm { min-height: 44px; font-size: 24px; }
   .pd-side .pd-l2 { font-size: 10px; }
-  .pd-quick { gap: 4px; } .pd-qbtn { min-height: 40px; }
+  .pd-quick { gap: 4px; } .pd-qbtn { min-height: 38px; }
+  #pd-ui[data-st=pause] .pd-s-options .pd-head { flex-direction: row; align-items: center; gap: 10px; }
+  #pd-ui[data-st=pause] .pd-s-options .pd-head .pd-h .pd-l2 { display: none; }
+  #pd-ui[data-st=pause] .pd-s-options .pd-lang { flex: 1 1 auto; width: auto; min-width: 0; }
   .pd-sbar .pd-h .pd-l2 { display: none; }
   .pd-sl .pd-btn { min-height: 34px; }
 }
