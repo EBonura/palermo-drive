@@ -463,6 +463,7 @@ FAR_STEP = 100
 FAR_MARGIN = 3000
 RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
 RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of ground within URBAN_REACH of a building is raised pavement
+PED_STONE = ("paving_stones", "sett", "stone", "cobblestone", "unhewn_cobblestone", "granite", "cobblestone:flattened")
 RS_PED_ASPHALT = ()   # street names that stay asphalt although OSM says highway=pedestrian (Mapillary and OSM surface=asphalt say Via Maqueda is one: see docs/TILES.md)
 RS_PED_REACH = 8.0   # metres each side of an OSM pedestrian street line that count as the street (the Comune platform inside that is the whole street, wall to wall)
 RS_SLACK = 2.5       # metres of carriageway kept beyond half the OSM road width on each side (OSM lines sit 1 to 2 m off the survey)
@@ -1181,8 +1182,11 @@ def streets_for_tile(tx0, tz0):
         carr = I(carr, lanes) if not lanes.is_empty else carr
         pave = unary_union([pave, island])
         carr = unary_union([carr, rs("shoulder")])
+        azl = layer(G["az_tree"], G["az_geoms"])
+        if not azl.is_empty:
+            pave = unary_union([pave, azl])
         pstreet = D(layer(G["pz_tree"], G["pz_geoms"]), layer(G["keep_tree"], G["keep_geoms"]))
-        pedz = unary_union([rs("plaza"), rs("pedestrian"), ped, pstreet])
+        pedz = unary_union([rs("plaza"), D(rs("pedestrian"), layer(G["asph_tree"], G["asph_geoms"])), ped, pstreet])
         paving = I(pedz, space)
         asphalt = D(I(carr, space), paving)
         water = D(I(layer(G["water_tree"], G["water_geoms"]), space), asphalt)
@@ -1923,29 +1927,40 @@ def build(offline=False):
         lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
                  for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]
         G.update(lane_geoms=lanes, lane_tree=tree(lanes))
-        # OSM highway=pedestrian wins over the Comune carriageway: the whole platform near the line is stone paving, no asphalt, no kerbs
-        # (the 2016 decree list is incomplete). Ways OSM also tags as a road with traffic (ped_roadlike) and every ordinary OSM road keep
-        # their asphalt lanes, so a bus lane or a cross street stays a road.
+        # OSM highway=pedestrian beats the Comune carriageway unless the way is a road in reality: the whole platform near the line is stone
+        # paving, no asphalt, no kerbs (the 2016 decree list is incomplete). What decides is the OSM `surface` tag ("whatever is in real life"):
+        #   surface=asphalt                        -> asphalt carriageway with kerbs and pavements, as for any road (Via Maqueda: Mapillary 2021 agrees)
+        #   paving_stones, sett, stone, cobblestone -> stone paving wall to wall
+        #   no surface tag, or another one          -> stone paving (the pedestrian rule), listed separately in the log
+        # Ways OSM also tags as a road with traffic (ped_roadlike) and every ordinary OSM road keep their asphalt lanes, so a bus lane or a
+        # cross street stays a road inside a stone zone.
         plat_g, plat_t = G["rs"]["platform"]
-        pz, keep, named = [], [], {}
+        pz, keep, asph, az, named = [], [], [], [], {}
         for ls, t, w in PED_STREETS:
-            if ped_roadlike(t) or t.get("name") in RS_PED_ASPHALT:
-                keep.append(ls.buffer(max(w * 0.6, 3.0) / 2 + 0.5, quad_segs=4))
-                named.setdefault(("asphalt", t.get("name", "(unnamed)")), 0)
-                named[("asphalt", t.get("name", "(unnamed)"))] += ls.length
+            nm, sf = t.get("name", "(unnamed)"), t.get("surface")
+            if ped_roadlike(t) or nm in RS_PED_ASPHALT or sf == "asphalt":
+                b = ls.buffer(max(w, 6.0) / 2 + 0.5, quad_segs=4)
+                keep.append(b)
+                asph.append(b)
+                reach = ls.buffer(RS_PED_REACH, quad_segs=4)    # the street between the facades: what is not carriageway is pavement
+                zone = [plat_g[i] for i in plat_t.query(reach)]
+                if zone:
+                    az.append(I(unary_union(zone), reach))
+                why = "asphalt (road tags)" if ped_roadlike(t) else "asphalt (surface=asphalt)"
+                named[(why, nm)] = named.get((why, nm), 0) + ls.length
                 continue
             reach = ls.buffer(RS_PED_REACH, quad_segs=4)
             zone = [plat_g[i] for i in plat_t.query(reach)]
             z = I(unary_union(zone), reach) if zone else shapely.Polygon()
             pz.append(unary_union([z, ls.buffer(w / 2, quad_segs=4)]))
-            named.setdefault(("paving", t.get("name", "(unnamed)")), 0)
-            named[("paving", t.get("name", "(unnamed)"))] += ls.length
+            why = "stone (surface=%s)" % sf if sf in PED_STONE else "stone (no surface tag)" if not sf else "stone (surface=%s, rule)" % sf
+            named[(why, nm)] = named.get((why, nm), 0) + ls.length
         for rec, ls in roads:
             if not rec.get("tn") and rec["k"] in CARRIAGEWAY:
                 keep.append(ls.buffer((rec.get("cw") or CARRIAGEWAY[rec["k"]]) / 2 + 0.5, quad_segs=4))
-        G.update(pz_geoms=pz, pz_tree=tree(pz), keep_geoms=keep, keep_tree=tree(keep))
+        G.update(pz_geoms=pz, pz_tree=tree(pz), keep_geoms=keep, keep_tree=tree(keep), asph_geoms=asph, asph_tree=tree(asph), az_geoms=az, az_tree=tree(az))
         G["ped_named"] = named
-        for kind in ("paving", "asphalt"):
+        for kind in sorted({k for k, _ in named}):
             top = sorted(((m, n) for (k, n), m in named.items() if k == kind), reverse=True)
             print(f"  OSM pedestrian streets drawn as {kind} ({sum(m for m, _ in top) / 1000:.1f} km): "
                   + ", ".join(f"{n} {m:.0f}" for m, n in top if m >= 40), flush=True)
