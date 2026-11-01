@@ -294,7 +294,7 @@ if (location.search.includes('debug')) window.game = { perf, world, car, keys, p
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
 const game = {
-  state: 'title', titleCam: null, noRender: false,
+  state: 'title', titleCam: null, noRender: false, garage: null, // garage: set while the Garage is open (src/garage-scene.js): its own scene, the city is neither simulated nor drawn
   time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
   settings: { quality: 'medium', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
@@ -370,7 +370,13 @@ let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   perf.frame(now); // [perf pass]
-  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now; // never negative (headless virtual time)
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); const away = now - last; last = now; // never negative (headless virtual time)
+  if (game.garage) { // the Garage: draw its scene and nothing else, so the street is exactly as it was when we come back (the flyover clock is held too)
+    if (titleT0 >= 0) titleT0 += Math.max(0, away);
+    acc = 0; game.garage.frame(dt, now / 1000);
+    renderer.render(game.garage.scene, game.garage.camera);
+    return;
+  }
   if (game.state === 'play') {
     for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */ }
   } else acc = 0;
