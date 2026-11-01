@@ -400,7 +400,158 @@ function buildWdMagione() {
   return F.finish();
 }
 
-const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione };
+// ---------------------------------------------------------------------------------------------------------------------------------- Lizard
+// Via Grande Lattarini 22 (Restaurant Guru night photo, June 2023): a grey-beige stucco ground floor, one opening about two people wide, a grey roller-shutter box
+// over it and, under that, a black fascia with LIZARD in rough, chalky, hand-drawn off-white capitals; a floodlight on top; a glass door in a dark frame with a
+// "Free WiFi Zone" sticker, a pale blue and a deep red curtain inside; the number 22 on the right pilaster; cream FORST parasols, round tables and red and blue
+// folding chairs on the lane.
+function lizSign() {
+  const [c, g] = canvas(420, 100);
+  g.fillStyle = '#15110e'; g.fillRect(0, 0, 420, 100); g.strokeStyle = '#2a2420'; g.lineWidth = 6; g.strokeRect(3, 3, 414, 94);
+  g.fillStyle = '#e9e4d2'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  // chalky, a little crooked: each letter on its own, with a ragged second stroke
+  const L = 'LIZARD', x0 = 70, dx = 56;
+  for (let i = 0; i < L.length; i++) {
+    g.save(); g.translate(x0 + i * dx, 52 + (rnd() - 0.5) * 4); g.rotate((rnd() - 0.5) * 0.12); g.font = '700 74px "Marker Felt", "Chalkduster", "Comic Sans MS", Impact, sans-serif'; g.scale(0.82, 1);
+    g.fillText(L[i], 0, 0); g.globalAlpha = 0.5; g.strokeStyle = '#e9e4d2'; g.lineWidth = 1.6; g.strokeText(L[i], 1.5, 1); g.restore();
+  }
+  speck(g, 420, 100, 700, 0.5, '#15110e', '#9a948a');
+  return texOf(c, 4);
+}
+function lizWall() {
+  const P = wallPaint(5.6, 5.4, { base: '#8e8573', courses: 0, plinth: 0, speck: 8000, dark: '#40382c', light: '#c8bfa8' }), { g } = P;
+  for (let i = 0; i < 400; i++) rectM(P, -2.8 + rnd() * 5.6, rnd() * 5.4, 0.06 + rnd() * 0.2, 0.04 + rnd() * 0.1, rnd() < 0.5 ? 'rgba(60,52,40,.12)' : 'rgba(200,190,170,.1)');
+  rectM(P, -1.1, 0, 2.2, 2.65, '#1a1410');                                                 // the opening, the door quad covers it
+  rectM(P, -1.55, 3.3, 3.1, 0.6, '#7d7566'); for (let m = 0; m < 0.6; m += 0.08) rectM(P, -1.55, 3.3 + m, 3.1, 0.015, 'rgba(0,0,0,.25)');   // roller-shutter box
+  rectM(P, 1.45, 0, 0.5, 3.6, '#a09784'); rectM(P, 1.5, 3.0, 0.22, 0.28, '#d8d2c0'); g.fillStyle = '#2a2a2a'; g.font = '700 20px Arial'; g.textAlign = 'center'; g.fillText('22', P.x(1.61), P.y(3.08));   // pilaster and the number
+  return texOf(P.c);
+}
+function lizDoor() {
+  const [c, g] = canvas(220, 265);
+  g.fillStyle = '#d8d4c8'; g.fillRect(0, 0, 220, 265);                                         // the back wall
+  g.fillStyle = '#5a3a24'; g.fillRect(8, 40, 74, 150); for (let r = 0; r < 4; r++) for (let u = 0; u < 5; u++) { g.fillStyle = ['#c8a050', '#9ac8a0', '#a8483a', '#e0d8c0'][(r + u) % 4]; g.fillRect(14 + u * 14, 50 + r * 34, 8, 22); }   // bottle shelves on the left
+  g.fillStyle = '#7ab8d8'; g.fillRect(84, 20, 40, 190); for (let u = 0; u < 40; u += 6) { g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(84 + u, 20, 2, 190); }   // the pale blue curtain
+  g.fillStyle = '#8a1620'; g.fillRect(150, 10, 52, 215); for (let u = 0; u < 52; u += 7) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(150 + u, 10, 3, 215); }   // the deep red curtain
+  g.fillStyle = '#e8e4d8'; g.fillRect(8, 190, 74, 60);                                         // the white bar counter
+  g.fillStyle = 'rgba(255,230,170,.18)'; g.fillRect(0, 0, 220, 265);
+  g.fillStyle = '#0e0e0e'; g.fillRect(100, 0, 6, 265); g.fillRect(0, 0, 220, 8);                // door frame
+  g.fillStyle = '#f2f2ee'; g.fillRect(166, 70, 40, 56); g.fillStyle = '#2a60b0'; g.beginPath(); g.arc(186, 92, 11, 0, TAU); g.fill(); g.fillStyle = '#fff'; g.font = '700 9px Arial'; g.textAlign = 'center'; g.fillText('WiFi', 186, 96); g.fillStyle = '#222'; g.fillText('FREE ZONE', 186, 116);   // the sticker
+  return texOf(c);
+}
+function buildLizard() {
+  const F = new Front();
+  F.quad(lizWall(), 0, 0, 0.03, 5.6, 5.4, { offset: 2, glow: 0.08 });
+  F.quad(lizDoor(), 0, 0, 0.1, 2.2, 2.65, { basic: true });
+  F.box(-1.15, 0, 0.1, 0.1, 2.7, 0.12, '#0e0e0e'); F.box(1.15, 0, 0.1, 0.1, 2.7, 0.12, '#0e0e0e'); F.box(0, 2.62, 0.1, 2.4, 0.1, 0.12, '#0e0e0e');
+  F.box(0, 2.7, 0.08, 3.1, 0.64, 0.1, '#0c0a08'); F.quad(lizSign(), 0, 2.74, 0.14, 2.95, 0.6, { glow: 0.5, offset: 1 });
+  // the floodlight over the door and the warm spill from the opening
+  F.box(0, 4.2, 0.12, 0.3, 0.22, 0.3, '#2a2a2a'); F.light(0, 4.0, 0.4, 2.6, '#fff2d0', 0.95); F.light(0, 1.3, 0.4, 3.2, '#ffd8a0', 0.55);
+  // cream square parasols with the beer brand on the valance, round tables, red and blue folding chairs on the lane
+  F.parasol(-1.9, 2.2, '#efe8d2', 1.35); F.parasol(2.0, 2.8, '#efe8d2', 1.35);
+  for (const [tx, tz, a, b] of [[-1.9, 2.2, '#b82a2a', '#2a52b8'], [2.0, 2.8, '#2a52b8', '#b82a2a'], [-2.8, 3.6, '#b82a2a', '#b82a2a']]) { F.table(tx, tz, 0.4, 0.74, '#2a2420', '#d6d0c2'); F.chair(tx - 0.58, tz, Math.PI / 2, a); F.chair(tx + 0.58, tz, -Math.PI / 2, b); }
+  F.pool(0, 1.7, 3.2, '#ffb870', 0.4);
+  return F.finish();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------- Monkey
+// Piazza Sant'Anna 19 (refs/monkey ddg_2, ddg_0): a small narrow doorway in a faded ochre-yellow plaster front with peeling patches that show grey stone and a dark
+// grey stone base course, a dark wooden door covered in posters, a small green-framed sign above, a big white window panel on the left, half-barrel tables on
+// pallet-plank benches against the wall, pots of plants on the stone paving.
+function monkeySign() {
+  const [c, g] = canvas(300, 120);
+  g.fillStyle = '#e8dcb4'; g.fillRect(0, 0, 300, 120); g.strokeStyle = '#2a5a3a'; g.lineWidth = 14; g.strokeRect(7, 7, 286, 106);
+  g.fillStyle = '#1e1a14'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 56px Impact, "Arial Black", sans-serif'; g.fillText('MONKEY', 150, 62);
+  g.fillStyle = '#2a5a3a'; g.fillRect(40, 96, 220, 4);
+  speck(g, 300, 120, 400, 0.3, '#5a4a30', '#fff');
+  return texOf(c, 4);
+}
+function monkeyWall() {
+  const P = wallPaint(4.8, 4.8, { base: '#d8b25a', courses: 0, plinth: 0.9, plinthColor: '#5c5a56', speck: 6000, dark: '#8a6a24', light: '#f4dc98' }), { g } = P;
+  // peeling patches: grey stone showing through the plaster
+  for (let k = 0; k < 14; k++) { const cx = -2.3 + rnd() * 4.6, cy = 1.0 + rnd() * 3.4, r = 0.12 + rnd() * 0.38; g.fillStyle = rnd() < 0.7 ? 'rgba(150,146,134,.85)' : 'rgba(110,104,92,.8)'; g.beginPath(); for (let a = 0; a < 7; a++) { const rr = r * (0.6 + rnd() * 0.6), ang = a / 7 * TAU; g.lineTo(P.x(cx + Math.cos(ang) * rr), P.y(cy + Math.sin(ang) * rr)); } g.closePath(); g.fill(); }
+  rectM(P, -0.7, 0, 1.4, 2.55, '#241a12');                                             // the doorway
+  rectM(P, -0.6, 0.1, 1.2, 2.35, '#3a2818'); for (let i = 0; i < 4; i++) rectM(P, -0.55 + i * 0.28, 0.9 + (i % 2) * 0.5, 0.22, 0.34, ['#e8e8e0', '#f0d85a', '#4a90d0', '#e8e8e0'][i]);   // posters
+  rectM(P, -2.35, 0.9, 1.3, 2.2, '#efefea'); g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(P.x(-2.35), P.y(3.1), 1.3 * P.PX, 2); g.fillRect(P.x(-1.05) - 2, P.y(3.1), 2, 2.2 * P.PX);   // the white window panel
+  rectM(P, 1.0, 0.9, 1.3, 2.4, '#4a4a46'); for (let m = 0; m < 2.4; m += 0.09) rectM(P, 1.0, 0.9 + m, 1.3, 0.015, 'rgba(0,0,0,.35)');   // a pull-down shutter on the right
+  return texOf(P.c);
+}
+function buildMonkey() {
+  const F = new Front();
+  F.quad(monkeyWall(), 0, 0, 0.03, 4.8, 4.8, { offset: 2, glow: 0.06 });
+  F.box(0, 2.6, 0.09, 1.5, 0.08, 0.14, '#6a5a44');
+  F.quad(monkeySign(), 0, 2.72, 0.1, 1.2, 0.48, { glow: 0.45, offset: 1 });
+  F.box(-0.78, 0, 0.1, 0.08, 2.6, 0.14, '#2a2a2a'); F.box(0.78, 0, 0.1, 0.08, 2.6, 0.14, '#2a2a2a');
+  F.box(-1.1, 0.9, 0.12, 1.5, 0.05, 0.3, '#8a8478');                                      // a stone sill under the white panel
+  // a wall lantern, and the warm light of the doorway
+  F.box(1.0, 3.0, 0.1, 0.08, 0.3, 0.08, '#202020'); F.box(1.0, 2.75, 0.17, 0.16, 0.26, 0.16, '#202020'); F.box(1.0, 2.78, 0.26, 0.1, 0.2, 0.02, '#ffcf7a'); F.light(1.0, 2.9, 0.4, 1.8, '#ffb15a', 0.9);
+  F.light(0, 1.3, 0.4, 2.6, '#ff9050', 0.55);
+  // half-barrel tables on pallet benches along the wall, a closed parasol, potted plants
+  for (const [bx, bz] of [[-1.5, 1.0], [1.7, 1.2], [0.2, 2.6]]) {
+    F.cyl(bx, 0, bz, 0.42, 0.78, '#8a5e30', 14, 0.47); F.cyl(bx, 0.78, bz, 0.48, 0.05, '#b88a50', 14); F.cyl(bx, 0.3, bz, 0.5, 0.04, '#3a3a3e', 14); F.cyl(bx, 0.62, bz, 0.5, 0.04, '#3a3a3e', 14);
+    F.box(bx, 0, bz + 0.8, 1.3, 0.38, 0.32, '#b08a56');
+  }
+  F.cyl(2.5, 0, 2.4, 0.03, 2.5, '#d8d4c8', 6); F.push(new THREE.ConeGeometry(0.2, 2.0, 6).translate(2.5, 2.3, 2.4), '#e8e2d0');
+  for (const [px, pz, h] of [[-2.4, 0.5, 0.9], [2.4, 0.6, 0.7], [-1.0, 3.2, 0.8]]) { F.cyl(px, 0, pz, 0.26, 0.42, '#a8643c', 10, 0.2); F.push(new THREE.SphereGeometry(0.36, 8, 6).scale(1, h, 1).translate(px, 0.42 + 0.3, pz), '#3f7a3a'); }
+  F.pool(0, 1.8, 3.2, '#ffa060', 0.45);
+  return F.finish();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------- Sanlorenzo Mercato
+// Via San Lorenzo 288 (refs/sanlorenzo ddg_4, site photos): a converted warehouse, beige stone slabs round a long dark glazed front, thin white serif capitals
+// "SANLORENZO" over "MERCATO" on a dark plate, warm light and hanging lamps behind the glass, a red awning inside, blue and yellow bunting and string lights on
+// the front, picnic tables and plastic chairs on the covered terrace, a ribbed grey roof edge.
+function slSign() {
+  const [c, g] = canvas(640, 150);
+  g.fillStyle = '#141416'; g.fillRect(0, 0, 640, 150); g.strokeStyle = '#2a2a2e'; g.lineWidth = 6; g.strokeRect(3, 3, 634, 144);
+  g.fillStyle = '#f2f0e8'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '400 70px Georgia, "Times New Roman", serif'; g.fillText('S A N L O R E N Z O', 320, 62);
+  g.strokeStyle = '#f2f0e8'; g.lineWidth = 2; g.beginPath(); g.moveTo(190, 112); g.lineTo(255, 112); g.moveTo(385, 112); g.lineTo(450, 112); g.stroke();
+  g.font = '400 26px Georgia, serif'; g.fillText('M E R C A T O', 320, 112);
+  return texOf(c, 4);
+}
+function slGlass() {
+  const [c, g] = canvas(840, 320), gr = g.createLinearGradient(0, 0, 0, 320);
+  gr.addColorStop(0, '#3a2a1a'); gr.addColorStop(0.5, '#a8743a'); gr.addColorStop(1, '#d8a460'); g.fillStyle = gr; g.fillRect(0, 0, 840, 320);
+  g.fillStyle = '#7a3a22'; g.fillRect(0, 60, 840, 12);                                          // roof beam inside
+  for (let u = 0; u < 7; u++) { g.fillStyle = '#ffe8b0'; g.beginPath(); g.arc(70 + u * 117, 100, 9, 0, TAU); g.fill(); g.strokeStyle = 'rgba(255,230,160,.6)'; g.lineWidth = 2; g.beginPath(); g.moveTo(70 + u * 117, 72); g.lineTo(70 + u * 117, 92); g.stroke(); }   // hanging lamps
+  g.fillStyle = '#b02a22'; g.beginPath(); g.moveTo(520, 120); g.lineTo(760, 120); g.lineTo(790, 170); g.lineTo(490, 170); g.closePath(); g.fill();   // the red awning of the butcher
+  g.fillStyle = '#f2e8d0'; g.font = '700 14px Georgia, serif'; g.textAlign = 'center'; g.fillText('CARNEZZERIA', 640, 156);
+  g.fillStyle = '#e0c898'; g.fillRect(0, 230, 840, 90); for (let u = 0; u < 20; u++) { g.fillStyle = u & 1 ? '#2a2420' : '#e8e0cc'; g.fillRect(u * 42, 290, 42, 30); }   // counters and a checkerboard floor
+  for (let i = 0; i < 40; i++) { g.fillStyle = ['#2a2a2a', '#d8c8a8', '#6a3a22'][i % 3]; g.beginPath(); g.arc(30 + rnd() * 780, 190 + rnd() * 60, 7 + rnd() * 5, 0, TAU); g.fill(); }   // people, as dark shapes
+  return texOf(c);
+}
+function slBunting() {
+  const [c, g] = canvas(800, 70); g.strokeStyle = '#3a3a3a'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, 6); g.quadraticCurveTo(400, 30, 800, 6); g.stroke();
+  for (let i = 0; i < 24; i++) { const x = 16 + i * 33, y = 6 + Math.sin(i / 24 * Math.PI) * 17; g.fillStyle = i % 2 ? '#f0c830' : '#2a62c8'; g.beginPath(); g.moveTo(x - 11, y); g.lineTo(x + 11, y); g.lineTo(x, y + 28); g.closePath(); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function slWall() {
+  const P = wallPaint(10, 5.6, { base: '#c9b79c', courses: 0, plinth: 0, speck: 9000, dark: '#6a5a40', light: '#f0e6cc' }), { g } = P;
+  for (let r = 0; r < 12; r++) for (let u = -5 - (r & 1 ? 0.6 : 0); u < 5; u += 1.2) { g.strokeStyle = 'rgba(80,66,44,.25)'; g.lineWidth = 2; g.strokeRect(P.x(u), P.y(0.5 * (r + 1)), 1.2 * P.PX, 0.5 * P.PX); }
+  rectM(P, -4.3, 0.35, 8.6, 3.35, '#0e0e10');                                                 // the glazed front (the quad covers it)
+  rectM(P, -4.5, 3.7, 9.0, 0.2, '#8a8070'); rectM(P, -4.5, 0.2, 9.0, 0.18, '#8a8070');       // sill and lintel
+  // the ribbed grey roof edge
+  rectM(P, -5, 5.0, 10, 0.6, '#7d8286'); for (let u = -5; u < 5; u += 0.25) rectM(P, u, 5.0, 0.04, 0.6, 'rgba(0,0,0,.28)');
+  return texOf(P.c);
+}
+function buildSanlorenzo() {
+  const F = new Front();
+  F.quad(slWall(), 0, 0, 0.03, 10, 5.6, { offset: 2, glow: 0.08 });
+  F.quad(slGlass(), 0, 0.4, 0.07, 8.4, 3.2, { basic: true });
+  for (let i = -3; i <= 3; i++) F.box(i * 1.2, 0.35, 0.1, 0.07, 3.35, 0.1, '#1a1a1c');            // mullions
+  F.box(0, 3.65, 0.1, 8.6, 0.08, 0.1, '#1a1a1c'); F.box(0, 0.32, 0.1, 8.6, 0.08, 0.1, '#1a1a1c');
+  F.box(0, 3.95, 0.08, 4.4, 1.0, 0.1, '#0c0c0e'); F.quad(slSign(), 0, 4.0, 0.14, 4.2, 0.9, { glow: 0.45, offset: 1 });
+  F.quad(slBunting(), 0, 3.1, 1.0, 8.4, 0.74, { alpha: true, rough: 1 });
+  // string lights along the front, a warm halo for the glass
+  for (let i = -4; i <= 4; i++) F.light(i * 1.0, 3.35 - Math.abs(i) * 0.02, 0.9, 0.7, '#ffd890', 0.75);
+  F.light(-2.6, 1.8, 0.4, 4.4, '#ffb060', 0.5); F.light(2.6, 1.8, 0.4, 4.4, '#ffb060', 0.5);
+  // picnic tables and plastic chairs on the covered terrace, a rack of bikes
+  for (const [tx, tz] of [[-3.0, 2.2], [0.0, 2.4], [3.0, 2.2]]) { F.box(tx, 0.72, tz, 1.8, 0.05, 0.8, '#b08a56'); for (const dz of [-0.62, 0.62]) F.box(tx, 0.42, tz + dz, 1.8, 0.05, 0.28, '#b08a56'); F.box(tx - 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); F.box(tx + 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); }
+  for (const [cx, cz, ry] of [[-1.6, 3.6, 0.2], [-0.8, 3.7, -0.2], [1.5, 3.7, 0.3], [2.2, 3.5, -0.3]]) F.chair(cx, cz, ry, '#d8d4c8');
+  F.pool(0, 2.2, 5.2, '#ffa860', 0.4);
+  return F.finish();
+}
+
+const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo };
 
 export function buildFront(kind) {
   const b = BUILDERS[kind]; if (!b) return null;

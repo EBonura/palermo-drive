@@ -19,6 +19,9 @@ export const ITEMS = {
   fiaschi: { it: 'fiaschi di Sangue di Sicilia', en: 'flasks of Sangue di Sicilia', art: 'i', shape: 'flask' },
   dischi: { it: 'dischi in vinile', en: 'vinyl records', art: 'i', shape: 'vinyl' },
   fusti: { it: 'fusti di birra', en: 'beer kegs', art: 'i', shape: 'keg' },
+  chitarre: { it: 'chitarre', en: 'guitars', art: 'le', shape: 'guitar' },
+  boccali: { it: 'boccali di birra', en: 'beer mugs', art: 'i', shape: 'mug' },
+  barili: { it: 'barili dei tavoli', en: 'table barrels', art: 'i', shape: 'barrel' },
 };
 
 // Start-map and list points of interest that are not a pub: [name, lat, lon], appended to SPOTS in src/main.js (see the report of the pubs work).
@@ -101,6 +104,52 @@ export const PUBS = [
       start: ['Cerca i fusti di birra!', 'Find the beer kegs!'],
       thanks: [['Sei un grande! Siediti sul prato e bevi!', 'You are great! Sit on the lawn and drink!'], ['Evviva! La piazza è salva!', 'Hooray! The piazza is saved!']],
       none: [['Niente fusti? Allora si beve acqua sul prato.', 'No kegs? Then we drink water on the lawn.']],
+    },
+  },
+
+  // ---- Via Grande Lattarini: one opening with a roller-shutter box, a black fascia with "LIZARD" in chalky hand-drawn capitals, cream FORST parasols on the lane
+  {
+    id: 'lizard', name: 'Lizard', sub: 'Via Grande Lattarini 22', real: true,
+    lat: 38.1157014, lon: 13.364589, onStreet: 'Lattarini', src: 'OpenStreetMap node 10737357579 (amenity=pub, addr:housenumber=22); front after the Restaurant Guru night photo (June 2023), docs/pubs.md section 5',
+    front: 'lizard', open: [17, 2],
+    crowd: { mix: { young: 0.5, night: 0.35, tourists: 0.15 }, props: 'beer', night: 10, day: 2, r: 2.8 },
+    caller: 'nightgirl3',
+    errand: {
+      item: 'chitarre', n: 8, window: [18, 6], who: 'Il batterista', pay: 2.5, bonus: 12,
+      call: [['Ao! Il furgone della band ha perso le chitarre per strada!', 'Hey! The band\'s van dropped the guitars on the road!'], ['Aiuto! Stasera c\'è il concerto e le chitarre sono sparite!', 'Help! Tonight is the gig and the guitars are gone!'], ['Lapista! Senza chitarre è solo karaoke!', 'Driver! Without guitars it is just karaoke!']],
+      start: ['Cerca le chitarre!', 'Find the guitars!'],
+      thanks: [['Ti metto in lista, entri gratis per sempre!', 'I will put you on the list, you get in free forever!'], ['Sei il nostro roadie! Un applauso!', 'You are our roadie! A round of applause!']],
+      none: [['Niente chitarre? Allora stasera si fa il silenzio.', 'No guitars? Then tonight we do silence.']],
+    },
+  },
+  // ---- Piazza Sant'Anna: a narrow ochre doorway with peeling plaster, barrel-top tables against the wall, the whole piazza turns into an open-air pub at night
+  {
+    id: 'monkey', name: 'Monkey', sub: 'Piazza Sant\'Anna 19', real: true,
+    lat: 38.1149842, lon: 13.3653171, src: 'OpenStreetMap node 3396245909 (amenity=bar, addr:housenumber=19); front after docs/pubs.md section 6',
+    front: 'monkey', open: [10, 2],
+    crowd: { mix: { young: 0.5, night: 0.3, tourists: 0.2 }, props: 'beer', night: 12, day: 3, r: 4 },
+    caller: 'ragazzo2',
+    errand: {
+      item: 'barili', n: 8, window: [18, 6], who: 'Il cameriere', pay: 2.5, bonus: 12,
+      call: [['Ao! I barili dei tavoli sono rotolati giù per la piazza!', 'Hey! The table barrels rolled down the piazza!'], ['Aiuto! Il Monkey è senza tavoli, riportami i barili!', 'Help! The Monkey has no tables, bring me the barrels!'], ['Lapista! Non si può bere in piedi tutta la sera!', 'Driver! You cannot drink standing up all evening!']],
+      start: ['Cerca i barili dei tavoli!', 'Find the table barrels!'],
+      thanks: [['Grazie! Ti porto una Paulaner, offre la casa!', 'Thanks! I will bring you a Paulaner, on the house!'], ['Sei un mito! I tavoli sono salvi!', 'You are a legend! The tables are saved!']],
+      none: [['Niente barili? Stasera si beve in piedi.', 'No barrels? Tonight we drink standing.']],
+    },
+  },
+  // ---- San Lorenzo, far to the north: a converted market hall behind a dark glazed front, thin white serif capitals "SANLORENZO / MERCATO", warm light and string lights
+  {
+    id: 'sanlorenzo', name: 'Sanlorenzo Mercato', sub: 'Via San Lorenzo 288', real: true,
+    lat: 38.1653202, lon: 13.3176098, onStreet: 'San Lorenzo', src: 'OpenStreetMap node 9201943017 (amenity=food_court); front after docs/pubs.md section 4',
+    front: 'sanlorenzo', open: [11, 24],
+    crowd: { mix: { locals: 0.4, young: 0.4, tourists: 0.2 }, props: 'beer', night: 12, day: 4, r: 3.4 },
+    caller: 'vendor',
+    errand: {
+      item: 'boccali', n: 8, window: [18, 6], who: 'Il birraio', pay: 2.5, bonus: 12,
+      call: [['Aiuto! I boccali sono finiti per strada, e ne servono trecento al giorno!', 'Help! The mugs ended up on the road, and we need three hundred a day!'], ['Ao! Senza boccali la birra artigianale non si serve!', 'Hey! Without mugs the craft beer cannot be served!'], ['Lapista! Mi hanno portato via i boccali dal carrello!', 'Driver! They took the mugs off my cart!']],
+      start: ['Cerca i boccali di birra!', 'Find the beer mugs!'],
+      thanks: [['Sei un tesoro! Stasera la prima birra è per te!', 'You are a treasure! Tonight the first beer is yours!'], ['Salvati i boccali! Brindiamo al Mercato!', 'Mugs saved! A toast to the Mercato!']],
+      none: [['Niente boccali? Si beve dalla bottiglia, allora.', 'No mugs? Then we drink from the bottle.']],
     },
   },
 ];
