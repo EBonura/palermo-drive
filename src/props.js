@@ -216,6 +216,10 @@ ape('ape', false); ape('apetaxi', true);
   bn.box(-0.9, 0.42, -0.2, 0.9, 0.46, 0.22, wood, 0.9, 1); bn.box(-0.9, 0.55, -0.22, 0.9, 0.9, -0.17, wood, 0.9, 1);
   for (const s of [-0.8, 0.8]) { bn.box(s - 0.03, 0, -0.2, s + 0.03, 0.42, 0.2, iron, 1, 1, false); bn.box(s - 0.03, 0.42, -0.24, s + 0.03, 0.9, -0.17, iron, 1, 1, false); }
   def('bench', bn);
+  const fw = new MB();   // a Palermo fontanella: a green cast-iron column with a tap and a stone foot
+  fw.box(-0.26, 0, -0.26, 0.26, 0.14, 0.26, C('#8d9094'), 0.8, 1); fw.prism(0, 0, 0.14, 0.9, 0.15, 0.11, 8, C('#2f4a3a'));
+  fw.prism(0, 0, 1.0, 1.08, 0.17, 0.17, 8, C('#2f4a3a')); fw.box(-0.035, 0.66, 0.1, 0.035, 0.74, 0.3, C('#b8bdc0'), 1, 1); fw.box(-0.2, 0.4, 0.12, 0.2, 0.44, 0.34, C('#7d8286'), 1, 1);
+  def('fontanella', fw);
   const hy = new MB(); hy.prism(0, 0, 0, 0.7, 0.07, 0.07, 6, C('#a8282a')); hy.lump(0, 0.74, 0, 0.1, 0.08, 0.1, C('#a8282a'), 0, 0, 0.9);
   def('hydrant', hy);
   const ph = new MB(); ph.box(-0.45, 0, -0.45, 0.45, 2.3, 0.45, C('#8a8f93'), 0.8, 1);
@@ -538,6 +542,7 @@ const SPECS = {
   bin_big: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.6, bags: 4 },
   bin_over: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.2, bags: 9 },
   bin_small: { kind: 'bend', c: [[0, 0, 0.24]], thr: 3, tilt: 1.57, H: 0.9 },
+  fontanella: { kind: 'bend', c: [[0, 0, 0.26]], thr: 5, tilt: 1.3, H: 1.1 },
   ficus: { kind: 'tree', c: [[0, 0, 0.8]], thr: 13.9, H: 6, crown: 4 },
   tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 5, crown: 2.7 },
   orange: { kind: 'tree', c: [[0, 0, 0.22]], thr: 8.3, H: 3.5, crown: 1.7 },
@@ -1195,6 +1200,10 @@ function* generate(S, BUD) {
       if (it.tour === 'artwork' && it.support === 'ground' && !it.mem) continue;   // mosaics and the like
       if (inB(it.x, it.z) || road(it.x, it.z)) continue;
       put('monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
+    }
+    if (k === 'water') { // a drinking tap (OSM drinking_water and the Comune's fontanelle list): on the pavement
+      const sp = snapOff(it.x, it.z); if (!sp || occHit(sp[0], sp[1], 0.4)) continue;
+      put('fontanella', sp[0], gy(sp[0], sp[1]), sp[1], R(0, TAU)); occAdd(sp[0], sp[1], 0.4); continue;
     }
     if (k === 'fountain') {
       if (hyp2(it.x, it.z) < 70 || hyp2(it.x - proj(38.1151, 13.3622)[0], it.z - proj(38.1151, 13.3622)[1]) < 50) continue; // landmarks handles Quattro Canti and Pretoria

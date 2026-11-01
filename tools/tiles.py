@@ -472,6 +472,7 @@ FAR_MARGIN = 3000
 CTR_WALLS = os.path.join(ROOT, "data", "walls.json")   # Regione Siciliana CTR walls and fences, tools/fences.py
 CTR_CREDIT = "Walls, fences and trees: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0"
 UA_CREDIT = "Contains modified Copernicus Land Monitoring Service information: Urban Atlas Street Tree Layer 2018, European Environment Agency (EEA)"
+TRANSIT_CREDIT = "Bus and tram routes, stops and timetables: AMAT Palermo S.p.A. open data (GTFS, Comune di Palermo), CC BY 4.0; tram geometry follows OpenStreetMap (ODbL). Drinking fountains: Comune di Palermo / AMAP S.p.A. open data, CC BY 4.0"
 VERDE_CREDIT = "Green areas: Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0"
 RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
 RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of ground within URBAN_REACH of a building is raised pavement
@@ -1325,6 +1326,7 @@ def tile_payload(i, j):
     st = streets_for_tile(tx0, tz0)
     has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs"))
     near = G["near_for"](i, j)
+    tr, rail = (G["tram"].tile(tx0, tz0, T) if G.get("tram") is not None else (None, []))
     fn = []
     if G.get("fence_tree") is not None:
         import fences as fnc
@@ -1333,14 +1335,18 @@ def tile_payload(i, j):
         carr_g, carr_t = G["rs"]["carriageway"] if "rs" in G else ([], shapely.STRtree([]))
         fn = fnc.tile_fences(tx0, tz0, T, G["fence_items"], G["fence_tree"], G["bld_geoms"], G["bld_tree"], cutg, carr_g, carr_t, I, D, poly_only)
 
-    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near or G["tile_struct"].get(key) or fn):
+    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near or G["tile_struct"].get(key) or fn or tr or rail):
         return None
     out = {"buildings": blds, "roads": roads, "streets": st, "areas": areas, "labels": labels,
            "props": {"items": pitems, "areas": pareas, "counts": counts}}
     if G["tile_struct"].get(key):
         out["structs"] = G["tile_struct"][key]
+    if rail:
+        fn = rail + fn
     if fn:
         out["fences"] = fn
+    if tr:
+        out["tram"] = tr
     if near:
         out["near"] = near
     return out
@@ -1956,6 +1962,12 @@ def build(offline=False):
     for key, items in tt.items():
         tile_props.setdefault(key, []).extend(items)
     print(f"  greenery: {sum(len(v) for v in tt.values())} trees in {len(tt)} tiles, {n_crown} OSM trees sized", flush=True)
+    import transit_bake
+    for src in (transit_bake.busstop_items(os.path.join(ROOT, "data", "bus_routes.json"), T), transit_bake.fountain_items(os.path.join(ROOT, "data", "fountains.json"), T)):
+        for key, items in src.items():
+            tile_props.setdefault(key, []).extend(items)
+    import tram as trm
+    TRAM = trm.Tram() if os.path.exists(trm.PATH) else None
     verges = greenery.load_verges(os.path.join(ROOT, "data", "verges.json"))
     buildings = kept
 
@@ -1987,7 +1999,7 @@ def build(offline=False):
              roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]),
              pier_geoms=piers, pier_tree=tree(piers),
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
-             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct, gv_geoms=[g for g, _ in verges], gv_cls=[c for _, c in verges],
+             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct, tram=TRAM, gv_geoms=[g for g, _ in verges], gv_cls=[c for _, c in verges],
              gv_tree=shapely.STRtree([g for g, _ in verges]) if verges else shapely.STRtree([Polygon()]),
              fence_items=fitems, fence_tree=shapely.STRtree([f["g"] for f in fitems]) if fitems else None)
 
@@ -2081,11 +2093,11 @@ def build(offline=False):
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
-                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + "."),
+                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + ". " + TRANSIT_CREDIT + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
                         **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
-                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT}),
+                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT, "transit": TRANSIT_CREDIT}),
     }
     if islands:
         manifest["islands"] = islands
