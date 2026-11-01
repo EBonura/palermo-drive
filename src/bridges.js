@@ -29,6 +29,7 @@ export const LANDMARK_ZONES = [
 const listeners = new Set();
 export const onLandmarkEvent = fn => { listeners.add(fn); return () => listeners.delete(fn); };
 
+const RIVER_DIG = 0.9;                 // metres the river channel is cut under the floor of the valley
 const RISE = 5.4, RAMP = 28;           // flyovers: clearance above the road below, and the length of each ramp
 const SLAB = 0.9, KERB = 0.15, PARAPET_H = 1.0, SIDEWALK = 1.2, PARAPET_W = 0.5;
 const CELL = 24;
@@ -111,7 +112,9 @@ export function registerStructs(d, key) {
     const chans = [];
     if (r.k === 'b' && r.rv) {
       const depth = r.dep || 5, bed = (r.y0 + r.y1) / 2 - SLAB - depth;
-      for (const rv of r.rv) chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r));
+      if (!r.rf) r.rv = r.rv.map(v => densify(v, 8));   // (the bake cuts the lines into pieces and measures the floor under each vertex: rf)
+      r.rv.forEach((rv, li) => chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r, r.rf ? r.rf[li] : null)));
+      st.bed = Math.min(...chans.map(c => c.bedY[c.si]));
     } else if (r.k === 't') chans.push(makeChannel(r.id, p, r.w, 0, st, TUN_COVER, 'tunnel', r));
     st.chans = chans;
     for (const c of chans) { st.carve = true; gridAdd(chanGrid, c.bx0, c.bz0, c.bx1, c.bz1, c); }
@@ -136,20 +139,30 @@ export function unregisterStructs(key) {
 }
 
 // ---------- the terrain trench ----------
-function makeChannel(id, flat, width, bed, st, thr, kind, rec) {
-  const n = flat.length / 2, cum = new Float32Array(n), bedY = new Float32Array(n);
+function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf) {
+  const n = flat.length / 2, cum = new Float32Array(n), bedY = new Float32Array(n), bedOld = new Float32Array(n);
   for (let k = 1; k < n; k++) cum[k] = cum[k - 1] + hh(flat[2 * k] - flat[2 * k - 2], flat[2 * k + 1] - flat[2 * k - 1]);
   const hw = kind === 'river' ? width / 2 + 1.2 : width / 2 + 0.6;
   let sc = 0;
   if (kind === 'river') { // the crossing: where the river line passes the deck centreline
     let best = 1e9; const rp = rec.p;
     for (let k = 0; k < n; k++) { const dd = distSegs(rp, flat[2 * k], flat[2 * k + 1]); if (dd < best) { best = dd; sc = cum[k]; } }
-    for (let k = 0; k < n; k++) { const d = Math.abs(cum[k] - sc); bedY[k] = bed + Math.max(0, d - 30) * 0.05 + Math.max(0, d - 150) * 0.3; }   // the valley shallows out slowly, then closes at the ends of the window
+    // bed: dug RIVER_DIG under the floor of the ground as it is (the DEM has its own valley since t8, and the river runs along its bottom), and never
+    // above the old rule: DEP under the deck at the crossing, shallowing out slowly and closing at the ends of the window (where the ground is a plain
+    // or a lidar DTM that lost the valley under the deck, this is what makes the trench)
+    for (let k = 0; k < n; k++) {
+      const d = Math.abs(cum[k] - sc), a = flat[2 * Math.max(0, k - 1)], b = flat[2 * Math.min(n - 1, k + 1)], c = flat[2 * Math.max(0, k - 1) + 1], e = flat[2 * Math.min(n - 1, k + 1) + 1];
+      const l = hh(b - a, e - c) || 1, nx = -(e - c) / l, nz = (b - a) / l, x = flat[2 * k], z = flat[2 * k + 1], o = Math.max(2, width / 2);
+      const floor = rf ? rf[k] : Math.min(rawGround(x, z), rawGround(x + nx * o, z + nz * o), rawGround(x - nx * o, z - nz * o));
+      bedOld[k] = bed + Math.max(0, d - 30) * 0.05 + Math.max(0, d - 150) * 0.3;
+      bedY[k] = Math.min(floor - RIVER_DIG, bedOld[k]);
+    }
   }
   const m = hw + 30;
   let bx0 = 1e9, bz0 = 1e9, bx1 = -1e9, bz1 = -1e9;
   for (let k = 0; k < n; k++) { bx0 = Math.min(bx0, flat[2 * k]); bx1 = Math.max(bx1, flat[2 * k]); bz0 = Math.min(bz0, flat[2 * k + 1]); bz1 = Math.max(bz1, flat[2 * k + 1]); }
-  return { id, kind, pts: flat, n, cum, bedY, hw, thr, st, bx0: bx0 - m, bz0: bz0 - m, bx1: bx1 + m, bz1: bz1 + m, sc };
+  let si = 0; if (kind === 'river') for (let k = 0; k < n; k++) if (Math.abs(cum[k] - sc) < Math.abs(cum[si] - sc)) si = k;
+  return { id, kind, pts: flat, n, cum, bedY, bedOld, hw, thr, st, bx0: bx0 - m, bz0: bz0 - m, bx1: bx1 + m, bz1: bz1 + m, sc, si };
 }
 function distSegs(flat, x, z) {
   let best = 1e9;
@@ -305,7 +318,7 @@ function buildDeck(st) {
   }
   // piers
   if (r.k === 'b' && !r.f && st.L > 40 && !r.ov) {
-    const bed = r.rv ? (r.y0 + r.y1) / 2 - SLAB - (r.dep || 5) : null, np = Math.max(1, Math.round(st.L / 30)) ;
+    const bed = r.rv && st.bed !== undefined ? st.bed : null, np = Math.max(1, Math.round(st.L / 30)) ;
     for (let i = 1; i < np + 0; i++) {
       const s = st.L * i / np, k = (() => { let q = 1; while (q < n - 1 && st.cum[q] < s) q++; return q; })();
       const t = (s - st.cum[k - 1]) / ((st.cum[k] - st.cum[k - 1]) || 1), x = p[2 * k - 2] + (p[2 * k] - p[2 * k - 2]) * t, z = p[2 * k - 1] + (p[2 * k + 1] - p[2 * k - 1]) * t;
@@ -326,22 +339,21 @@ function buildDeck(st) {
   g.add(mc, ma);
   // the river: a bed strip and the water, under the deck
   if (r.rv) {
-    const bed = (r.y0 + r.y1) / 2 - SLAB - (r.dep || 5), water = new Buf(), bedb = new Buf();
+    const water = new Buf(), bedb = new Buf();
     for (const rv of r.rv) {
       const m = rv.length / 2;
       for (let k = 0; k + 1 < m; k++) {
         const ax = rv[2 * k], az = rv[2 * k + 1], bx = rv[2 * k + 2], bz = rv[2 * k + 3], l = hh(bx - ax, bz - az) || 1, nx = -(bz - az) / l, nz = (bx - ax) / l;
         const ca = chanBed(st, rv, k), cb = chanBed(st, rv, k + 1), hw = r.rw * 0.4;
-        if (rawGround(ax, az) < ca + 1.2 || rawGround(bx, bz) < cb + 1.2) continue;   // past the end of the trench the water would hang in the air
+        if (waterHangs(ax, az, ca) || waterHangs(bx, bz, cb)) continue;   // past the end of the trench the water would hang in the air
         const w = new THREE.Color(1, 1, 1);
-        quad(water, [ax + nx * hw, ca + 0.7, az + nz * hw], [bx + nx * hw, cb + 0.7, bz + nz * hw], [bx - nx * hw, cb + 0.7, bz - nz * hw], [ax - nx * hw, ca + 0.7, az - nz * hw], 0, 1, 0, w, [0, 0, 1, 0, 1, 1, 0, 1]);
+        quad(water, [ax + nx * hw, ca + WATER_UP, az + nz * hw], [bx + nx * hw, cb + WATER_UP, bz + nz * hw], [bx - nx * hw, cb + WATER_UP, bz - nz * hw], [ax - nx * hw, ca + WATER_UP, az - nz * hw], 0, 1, 0, w, [0, 0, 1, 0, 1, 1, 0, 1]);
         const hb = r.rw / 2 + 1.0;
         quad(bedb, [ax + nx * hb, ca + 0.04, az + nz * hb], [bx + nx * hb, cb + 0.04, bz + nz * hb], [bx - nx * hb, cb + 0.04, bz - nz * hb], [ax - nx * hb, ca + 0.04, az - nz * hb], 0, 1, 0, w);
       }
     }
     const mw = water.mesh(matWater), mb = bedb.mesh(matBed); mw.renderOrder = 2; mb.receiveShadow = true;
     g.add(mb, mw);
-    void bed;
   }
   return g;
 }
@@ -399,6 +411,8 @@ function buildTunnel(st) {
   return g;
 }
 
+const WATER_UP = 0.4;
+const waterHangs = (x, z, bedY) => !(rawGround(x, z) >= bedY + 0.15);   // the ground is not above the bed here: the river is not dug into anything
 function chanBed(st, rv, k) {
   const c = (st.chans || []).find(q => q.pts === rv); return c ? c.bedY[k] : 0;
 }
@@ -445,3 +459,6 @@ export function carTick(car, ball) { // called by the sphere model every step wi
 
 export const structStats = () => ({ n: S.size, levels: levelGrid.size, chans: chanGrid.size });
 export const dbgStruct = id => S.get(id);
+
+// debug: per loaded river bridge, how many of its water segments near the deck would be drawn (rule 'new' = this file, 'old' = before t8)
+export const waterReport = rule => { const out = []; for (const [id, st] of S) { if (!st.chans || !st.rec.rv) continue; let n = 0, tot = 0; for (const c of st.chans) for (let k = 0; k + 1 < c.n; k++) { const mx = (c.pts[2 * k] + c.pts[2 * k + 2]) / 2, mz = (c.pts[2 * k + 1] + c.pts[2 * k + 3]) / 2; if (distSegs(st.rec.p, mx, mz) > 25) continue; tot++; const hang = rule === 'old' ? (rawGround(c.pts[2 * k], c.pts[2 * k + 1]) < c.bedOld[k] + 1.2 || rawGround(c.pts[2 * k + 2], c.pts[2 * k + 3]) < c.bedOld[k + 1] + 1.2) : (waterHangs(c.pts[2 * k], c.pts[2 * k + 1], c.bedY[k]) || waterHangs(c.pts[2 * k + 2], c.pts[2 * k + 3], c.bedY[k + 1])); if (!hang) n++; } out.push({ id, n, tot }); } return out; };
