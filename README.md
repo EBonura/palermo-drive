@@ -66,7 +66,7 @@ compact binary format) and publishes it to GitHub Pages.
 - Building volumes and heights: Comune di Palermo, Carta Tecnica Comunale, Unita' Volumetriche (2013), CC BY 4.0 IT,
   https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1294.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
-- Radio music: CC BY 4.0, CC0 and public domain tracks, full attribution in `assets/music/CREDITS.md`.
+- Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks, full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.
 - Vehicles, characters and textures are drawn in code. Sound effects are CC0, see `assets/CREDITS.md`.
 - three.js (MIT). Fonts: SIL Open Font License.

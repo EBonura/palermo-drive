@@ -5,7 +5,12 @@
 //
 // - Starts on the first user gesture (window event 'pd-gesture', or the first pointer / key press).
 // - Streams with two <audio> elements routed through Web Audio gain nodes (iOS ignores element.volume),
-//   so nothing is decoded up front.
+//   so nothing is decoded up front. Nothing is requested before the radio is switched on: a track's file is only
+//   fetched when it starts to play, and the next one starts loading in the last PRELOAD seconds of the current
+//   one (so the crossfade is instant). A slot that has faded out drops its file again.
+// - Files: the Alamia e Sperandeo tracks exist as Opus in WebM (.webm, about 48 kbps) and as HE-AAC in .m4a (about 40 kbps,
+//   for browsers that cannot play Opus in WebM, e.g. older iOS Safari); both have their index up front so playback
+//   starts while they download. Which one is used is decided once with canPlayType.
 // - Keys (in play): M = next track, N = radio on/off. The on-screen controls (next track, on/off) are in the in-game side menu (src/ui.js),
 //   which uses the API returned here: next(), toggle(), enabled, current.
 // - Settings live in game.settings (musicVolume 0..1, radio 'on'|'off') and in localStorage under
@@ -16,15 +21,52 @@
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const BASE = new URL('../assets/music/', import.meta.url).href;
 
-// file, title, author, licence (shown in the "now playing" toast). `kind` is only for humans reading this list.
+// file (or id: <id>.webm / <id>.m4a), title, author, licence (shown in the "now playing" toast).
+// Credits for every track: assets/music/CREDITS.md.
+const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l.
+  ['abbiamo-arrivato', 'Abbiamo Arrivato'],
+  ['acqua-di-cielo', 'Acqua Di Cielo'],
+  ['broadway-un-sogno-americano', 'Broadway (Un Sogno Americano)'],
+  ['brutti-sporchi-e-monelli', 'Brutti, Sporchi E Monelli'],
+  ['cachi', 'Cachi'],
+  ['canzoncine-per-bambini', 'Canzoncine Per Bambini'],
+  ['ciauru-ro-mari', 'Ciauru Ro Mari'],
+  ['cu-dici-ca-lu-carceri-e-galera', 'Cu dici ca lu carceri è galera'],
+  ['discorsi-di-taverna', 'Discorsi Di Taverna'],
+  ['inno-del-palermo', 'Inno Del Palermo'],
+  ['lonorevole', 'L\'onorevole'],
+  ['la-bicicletta', 'La Bicicletta'],
+  ['la-farmacia', 'La Farmacia'],
+  ['la-partita', 'La Partita'],
+  ['la-punta', 'La Punta'],
+  ['la-scampagnata', 'La Scampagnata'],
+  ['malacarne', 'Malacarne'],
+  ['mare-mare', 'Mare Mare'],
+  ['minchia-pititto', 'Minchia Pititto'],
+  ['passeggiando-in-un-ponticello', 'Passeggiando In Un Ponticello'],
+  ['passeggiata-alla-marina', 'Passeggiata Alla Marina'],
+  ['rap-ghiaccio', 'Rap Ghiaccio'],
+  ['sai-che-ti-dico', 'Sai Che Ti Dico'],
+  ['tirituppiti', 'Tirituppiti'],
+  ['tram-elettrico', 'Tram Elettrico'],
+  ['trazzieri', 'Trazzieri'],
+  ['tutti-per-la-press', 'Tutti Per La Press'],
+  ['una-giornata-qualunque', 'Una Giornata Qualunque'],
+  ['una-storia-disonesta', 'Una Storia Disonesta'],
+  ['una-storia-ose', 'Una Storia Osè'],
+  ['via-pitre', 'Via Pitrè'],
+  ['vucciria', 'Vucciria'],
+].map(([id, title]) => ({ id, title, by: 'Alamia e Sperandeo', lic: 'Seamusica S.r.l., used with permission' }));
 export const TRACKS = [
   { file: 'bushwick-tarantella.mp3', title: 'Bushwick Tarantella', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
   { file: 'tarantella-air-force-strings.mp3', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band', lic: 'Public domain' },
   { file: 'funiculi-funicula-banda.mp3', title: 'Funiculì, Funiculà (1903)', by: 'F. Giannini, Royal Marine Band of Italy', lic: 'Public domain' },
   { file: 'meatball-parade.mp3', title: 'Meatball Parade', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
+  ...ALAMIA,
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out
+const PRELOAD = 30;       // start loading the next track when this many seconds of the current one are left
 const SKIP_FADE = 1.2;    // seconds when the player skips or switches on
 const OFF_FADE = 0.5;
 const DUCK = { play: 1, pause: 0.22, title: 0.6, over: 0.3 };
@@ -61,11 +103,18 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   let ctx = null, master = null, useGain = false;
   const slots = [0, 1].map(() => {
     const el = new Audio();
-    el.preload = 'auto'; el.loop = false; el.setAttribute('playsinline', '');
-    return { el, node: null, gain: null, track: null, level: 0, target: 0, fade: 1, playing: false };
+    el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', '');
+    return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false };
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
-  let bag = [], last = -1, pendingToast = null;
+  let bag = [], last = -1, upcoming = null, pendingToast = null;
+  // Opus in WebM where the browser says it can (smaller), HE-AAC in .m4a otherwise. Decided on first use, no request involved.
+  let opus = null;
+  const srcOf = track => {
+    if (track.file) return BASE + track.file;
+    if (opus === null) opus = !!new Audio().canPlayType('audio/webm; codecs="opus"');
+    return BASE + track.id + (opus ? '.webm' : '.m4a');
+  };
 
   function buildGraph() {
     if (ctx) return;
@@ -106,6 +155,27 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     return tracks[last];
   }
 
+  // ---- loading: the current track, and the next one in its last PRELOAD seconds ----
+  function load(s, track) {
+    if (s.loaded === track) return;   // already requested (preloaded): keep the buffered data
+    s.loaded = track;
+    s.el.preload = 'auto';
+    s.el.src = srcOf(track);
+  }
+  function release(s) {   // drop the file and abort a download that is still running
+    if (!s.loaded) return;
+    s.loaded = null;
+    s.el.removeAttribute('src');
+    s.el.preload = 'none';
+    s.el.load();
+  }
+  function preloadNext() {
+    const idle = slots[cur ^ 1];
+    if (idle.playing) return;   // still fading out
+    if (!upcoming) upcoming = pick();
+    load(idle, upcoming);
+  }
+
   // ---- playback ----
   function playTrack(fadeSec) {
     if (!started || !enabled) return;
@@ -113,9 +183,11 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     const old = slots[cur];
     cur ^= 1;
     const s = slots[cur];
-    const track = pick();
+    const track = upcoming || pick();
+    upcoming = null;
+    if (s.loaded !== track) release(s);
     s.track = track; s.level = 0; s.target = 1; s.fade = fadeSec; s.playing = true;
-    s.el.src = BASE + track.file;
+    load(s, track);
     const p = s.el.play();
     if (p && p.catch) p.catch(err => {
       if (err && err.name === 'NotAllowedError') { blocked = true; s.playing = false; s.target = 0; }  // retry on the next gesture
@@ -124,7 +196,6 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (old.playing) { old.target = 0; old.fade = fadeSec; }
     lastSwitch = performance.now();
     showToast(track);
-    // warm the connection for nothing: tracks are streamed, the next one is only requested when it starts
   }
   function trackFailed(s) {
     if (s !== slots[cur]) return;
@@ -133,7 +204,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   }
   for (const s of slots) {
     s.el.addEventListener('playing', () => { if (s === slots[cur]) failures = 0; });
-    s.el.addEventListener('error', () => trackFailed(s));
+    s.el.addEventListener('error', () => { if (s.loaded) trackFailed(s); });   // not for a src that was just removed
     s.el.addEventListener('ended', () => { if (s === slots[cur] && s.playing) playTrack(0.2); });
   }
   function stopAll(fadeSec) {
@@ -268,13 +339,16 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         const step = dt / Math.max(0.05, s.fade);
         s.level = s.level < s.target ? Math.min(s.target, s.level + step) : Math.max(s.target, s.level - step);
       }
-      if (s.playing && s.target === 0 && s.level === 0) { s.playing = false; s.el.pause(); }
+      if (s.playing && s.target === 0 && s.level === 0) { s.playing = false; s.el.pause(); release(s); }
     }
     applyGains(dt);
     const c = slots[cur];
     if (started && enabled && c.playing && !blocked) {   // run-out: start the next one early enough to overlap
       const d = c.el.duration;
-      if (Number.isFinite(d) && d > XFADE * 2 && c.el.currentTime >= d - XFADE && now - lastSwitch > 2000) playTrack(XFADE);
+      if (Number.isFinite(d) && d > XFADE * 2) {
+        if (c.el.currentTime >= d - XFADE && now - lastSwitch > 2000) playTrack(XFADE);
+        else if (c.el.currentTime >= d - PRELOAD) preloadNext();
+      }
     }
     if (state !== prevState) {
       prevState = state;
