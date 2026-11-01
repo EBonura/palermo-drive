@@ -73,6 +73,13 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Urban Atlas Street Tree Layer 2018 | Copernicus Land Monitoring Service, European Environment Agency (EEA) | https://land.copernicus.eu/local/urban-atlas | free, full and open, source acknowledged | canopy polygons turned into thinned tree positions |
 | Perimetrazione aree verdi (medians, islands, verges, flowerbeds) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=278 | CC BY 4.0 | polygons reprojected and drawn as grass over the street layers |
 
+## Buses, trams and fountains (assets/traffic/bus-routes.js, assets/traffic/tram-lines.js, world/)
+
+| Data | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| AMAT Palermo GTFS feed (bus routes and stops, tram lines, stops and timetables), edition 20260825-20261031 | AMAT Palermo S.p.A., published by the Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1807 | CC BY 4.0 IT (tram lines georeferenced on OpenStreetMap, ODbL) | shapes thinned to 2 m, busiest pattern of each direction, tram paths matched to OSM tracks |
+| Drinking fountains (AMAP list, 2019) | Comune di Palermo, AMAP S.p.A. | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=1249 | CC BY 4.0 IT | those without an OSM node within 25 m become props |
+
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
 Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).
