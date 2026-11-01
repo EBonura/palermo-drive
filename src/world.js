@@ -324,7 +324,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
-    const cell = t.nearStep || (t.shape || tileCarved(t.k) ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
+    const tc = tileCarved(t.k), cell = tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
