@@ -5,8 +5,9 @@
 import { makePerson, hashStr } from './people.js';
 import { CELL_U } from './raster.js';
 export const CELL_W = CELL_U.w, CELL_H = CELL_U.h, GROUND = CELL_U.ground;
-export const POSES = 6, DIRS = 4, DIRS_DRAWN = 3;   // poses: idle, four walking, drink; directions: front, back, left, right (right is the mirror of left)
-export const POSE_DRINK = 5;
+export const POSES = 8, DIRS = 4, DIRS_DRAWN = 3;   // poses: idle, four walking, drink, sit (on the ground, knees up), sit and sip; directions: front, back, left, right (right is the mirror of left)
+export const POSE_DRINK = 5, POSE_SIT = 6, POSE_SIT_SIP = 7;
+export const CELLS_PER_ENTRY = DIRS_DRAWN * POSES;   // cell number inside an entry = direction * POSES + pose
 export const FRONT = 0, BACK = 1, LEFT = 2, RIGHT = 3;
 
 // leg/tor/head are heights in px (adult 19/14/10), tw torso width. bottom.type: trousers | shorts | skirt | robe. Night extras: drink {type,col}, headphones, pocket, sparkle, hat types cap/hood, pair [a, b] (a couple).
@@ -122,6 +123,7 @@ const TYPES = [
 const FEMALE = new Set(['nonna', 'nonna2', 'nonna3', 'signora', 'signora2', 'borsa', 'tifosa', 'shopper', 'motorina', 'mamma', 'beach_w', 'suora', 'teen2', 'kid2', 'jogger2', 'dogwalker2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'glam1', 'glam2', 'vendor2', 'metal_f', 'metal_f2']);
 const AGE = { kid: 'kid', kid2: 'kid', tifoso_kid: 'kid', scuola: 'kid', teen: 'teen', teen2: 'teen', ragazzo: 'young', ragazzo2: 'young', skinny: 'young', tuta: 'young', motorino: 'young', motorina: 'young', nightboy: 'young', nightboy2: 'young', nightgirl: 'young', nightgirl2: 'young', nightgirl3: 'young', dj: 'young', tifoso: 'young', tifosa: 'young', jogger: 'young', jogger2: 'young', hooded: 'young', glam1: 'young', glam2: 'young', glam3: 'young',
   nonna: 'old', nonna2: 'old', nonna3: 'old', nonno: 'old', nonno_gilet: 'old', coppola: 'old', coppola2: 'old', tifoso_nonno: 'old', dogwalker2: 'old', client: 'old', priest: 'old', suit2: 'old', beach_m: 'young', beach_w: 'young', cameriere: 'young', mamma: 'adult' };
+const SIT_TYPES = new Set(['teen', 'teen2', 'ragazzo', 'ragazzo2', 'skinny', 'tuta', 'motorino', 'motorina', 'tifoso', 'tifosa', 'beach_m', 'beach_w', 'tourist', 'tourist2']);
 const VARY_TOP = new Set(['tourist', 'tourist2', 'teen', 'teen2', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'signora2', 'kid', 'kid2', 'shopper', 'mamma', 'motorino', 'motorina', 'skinny', 'nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'jogger', 'jogger2', 'dogwalker', 'dogwalker3', 'beach_w']);
 const VARY_BOTTOM = new Set(['teen', 'ragazzo', 'ragazzo2', 'motorino', 'skinny', 'nightboy2', 'nightgirl2', 'dogwalker', 'kid']);
 for (const t of TYPES) { if (FEMALE.has(t.id)) t.sex = 'f'; if (!t.age) t.age = AGE[t.id] || 'adult'; if (VARY_TOP.has(t.id)) t.varyTop = true; if (VARY_BOTTOM.has(t.id)) t.varyBottom = true; if (t.id.startsWith('amico')) t.age = 'young'; }
@@ -177,6 +179,7 @@ export const VARIANTS = [];
       if (t.pair) sp = { ...t, pair: t.pair.map((p, i) => makePerson({ ...p, sex: i ? 'f' : 'm', age: 'young', gen: true }, k + i, seed + i * 101)), skin: '#000', top: '#000', bottom: { type: 'trousers', col: '#000' }, shoes: '#000', hair: '#000' };
       else sp = makePerson(t, k, seed);
       sp.n = n; sp.w = wz.map(x => x / n); sp.wn = wn.map(x => x / n);
+      sp.sit = !sp.pair && !sp.dog && !sp.chair && !sp.stroller && !t.run && !(t.hat && (t.hat.type === 'peaked' || t.hat.type === 'helmet')) && (!!sp.drink || SIT_TYPES.has(t.id));   // can sit on the ground (spawnCrowd pose 'sit'): people with a drink and the young everyday types
       VARIANTS.push(sp);
     }
   }
