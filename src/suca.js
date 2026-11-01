@@ -2,15 +2,16 @@
 // Tags go on walls that face a drivable street, across the whole city: each world tile that reaches full detail (world.onTile) picks its
 // own from its building footprints and roads with a fixed seed (the same walls for everyone), denser in popular areas (src/districts.js
 // zones: centro, Borgo Vecchio, ZEN), and drops them when it unloads. 800A uses the same eight spray styles as SUCA. Driving within 7 m of
-// one collects it: it pops, greys out with a check mark, and a toast says "SUCA 7/340". Collected ids persist in localStorage.
+// one collects it: the paint burns away (a noise dissolve with a glowing pink and amber edge, driven per tag by the `dis` vertex attribute)
+// and leaves the greyed ghost with a check mark underneath, flecks of paint burst off the wall, a chime plays and the toast bounces
+// ("SUCA 7/340"). Collected ids persist in localStorage.
 // One atlas texture, one mesh for every live tag (rebuilt when a tile comes or goes). progress() is { found, total }: total counts the
 // tags of every tile the player has seen so far (kept in localStorage), so it grows as the city streams in.
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, inPoly, rng } from './core.js';
 import { zoneAt } from './districts.js';
-import { QUALITY } from './mobile.js';
 
-const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, POP = 0.55, CAP = 1024, T = 500, BUDGET = QUALITY.mobile ? 0.6 : 1.2, WORDS = ['SUCA', '800A'];
+const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, T = 500, BUDGET = 0.9, WORDS = ['SUCA', '800A'];
 // Never on the big landmarks (x, z, r): Quattro Canti, Pretoria, Aquile, Cattedrale, Teatro Massimo, Normanni, Porta Nuova, Martorana, Santa Caterina.
 // The city landmark models (landmarks-city.js) and the manifest landmarks are added when they have loaded.
 const KEEPOUT = [[17, 0, 45], [82, 69, 55], [-456, 151, 75], [-478, 124, 60], [-358, -491, 80], [-700, 502, 95], [-752, 396, 50], [141, 108, 40], [118, 27, 45], [157, 12, 45]];
@@ -18,6 +19,8 @@ const KEEPOUT = [[17, 0, 45], [82, 69, 55], [-456, 151, 75], [-478, 124, 60], [-
 const TIER = { old: 3, alberg: 3, kalsa: 3, corso: 3, roma: 3, politeama: 3, centro: 3, borgoV: 3, zen: 3, rural: 0, favorita: 0,
   noce: 2, zisa: 2, stazione: 2, cep: 2, viaLib: 2, sacco: 2, avenue: 2, resut: 2, cruillas: 2, calat: 2, oreto: 2, brancaccio: 2, corsoMille: 2 };
 const QUOTA = [1, 4, 9, 18], SPACE = [260, 170, 110, 70];
+// the collect effect, seconds since the tag was collected: a punch (0 to PUNCH), the dissolve (D0 to D0 + DD), then the ghost settles (until DUR)
+const DUR = 1.4, D0 = .12, DD = 1.15, PUNCH = .22, EDGE = .22, NFLECK = 48, NDRIP = 6, NP = 360;
 
 // ---------- the atlas: 4 x 2 spray-paint variants of each word, then the same 16 greyed out with a check ----------
 const CW = 512, CH = 256, COLS = 4, ROWS = 8;
@@ -94,7 +97,7 @@ function paintTag(g, V, r, word) {
 }
 
 function makeAtlas() {
-  const k = QUALITY.mobile ? .5 : .75, cv = document.createElement('canvas'), cw = CW * k, ch = CH * k;
+  const k = .625, cv = document.createElement('canvas'), cw = CW * k, ch = CH * k;
   cv.width = cw * COLS; cv.height = ch * ROWS;
   const g = cv.getContext('2d', { willReadFrequently: true });
   for (let w = 0; w < 2; w++) for (let v = 0; v < VARIANTS.length; v++) {
@@ -112,10 +115,74 @@ function makeAtlas() {
     g.restore();
   }
   const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.premultiplyAlpha = true; tex.anisotropy = QUALITY.mobile ? 2 : 8;
+  tex.colorSpace = THREE.SRGBColorSpace; tex.premultiplyAlpha = true; tex.anisotropy = 4;
   return tex;
 }
 
+// ---------- the collect shader: the tag material with a per-quad dissolve ----------
+// vDis is the time since the collect over DUR (0 = untouched). A noise field m (0 to 1, leaning left to right) is eaten by a front: where it has
+// passed the paint is gone and the greyed cell of the atlas (four rows below) shows instead; just behind the front the paint glows pink, amber
+// and white-hot (added after the lighting, so it also burns at night). The first moments light up the whole tag.
+const f3 = n => n.toFixed(3);
+const DISSOLVE = `
+vec3 pdGlow = vec3(0.);
+if (vDis > 0.) {
+  float dp = clamp((vDis * ${f3(DUR)} - ${f3(D0)}) / ${f3(DD)}, 0., 1.);
+  vec2 cell = vMapUv * vec2(${COLS}., ${ROWS}.), cu = fract(cell), q = cu * vec2(9., 4.5) + floor(cell) * 13.7;
+  float n = .55 * pdNoise(q) + .3 * pdNoise(q * 2.1 + 7.) + .15 * pdNoise(q * 4.3 + 3.);
+  float m = clamp((n * .7 + cu.x * .3 - .1) / .78, 0., 1.);
+  float x = (dp * ${f3(1 + EDGE)} - m) / ${f3(EDGE)};
+  float eat = smoothstep(.9, 1., x), heat = smoothstep(0., .45, x) * (1. - smoothstep(.88, 1., x));
+  vec3 hot = mix(mix(vec3(.81, .09, .32), vec3(1., .42, .05), smoothstep(.1, .6, x)), vec3(1., .72, .3), smoothstep(.85, .98, x));
+  float lit = 1. - smoothstep(0., .12, vDis);
+  vec4 ghost = texture2D(map, vMapUv + vec2(0., -${f3(4 / ROWS)}));
+  pdGlow = (hot * heat * 1.3 + vec3(1., .55, .15) * lit * .9) * diffuseColor.a * (1. - eat);
+  diffuseColor = mix(diffuseColor, ghost, eat);
+}
+#include <alphamap_fragment>`;
+const NOISE = `
+varying float vDis;
+float pdHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float pdNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(pdHash(i), pdHash(i + vec2(1., 0.)), f.x), mix(pdHash(i + vec2(0., 1.)), pdHash(i + vec2(1., 1.)), f.x), f.y);
+}
+#include <common>`;
+function dissolve(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', 'attribute float dis;\nvarying float vDis;\n#include <common>').replace('#include <begin_vertex>', 'vDis = dis;\n#include <begin_vertex>');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', NOISE).replace('#include <alphamap_fragment>', DISSOLVE).replace('#include <opaque_fragment>', 'outgoingLight += pdGlow;\n#include <opaque_fragment>');
+  };
+}
+
+// ---------- the paint flecks: one Points mesh, a ring of NP particles flown entirely in the vertex shader ----------
+// Each particle carries where it starts (position), its launch velocity (aV), when it starts and how long it lives, its size in metres and
+// whether it is a drip (aT) and its colour (aC). The shader works out where it is from uTime, so a collect only writes a few array slots.
+const FLECK_VS = `
+attribute vec3 aV; attribute vec4 aT; attribute vec3 aC;
+uniform float uTime, uPx;
+varying vec3 vC; varying float vA, vK;
+void main() {
+  float age = uTime - aT.x;
+  if (age < 0. || age > aT.y) { gl_Position = vec4(2., 2., 2., 1.); gl_PointSize = 0.; return; }
+  float drip = step(.5, aT.w), k = mix(2.6, .0001, drip), g = mix(9., 1.6, drip), u = age / aT.y;
+  vec3 p = position + aV * ((1. - exp(-k * age)) / k);
+  p.y -= .5 * g * age * age;
+  vec4 mv = modelViewMatrix * vec4(p, 1.);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = clamp(aT.z * (1. - .45 * u) * projectionMatrix[1][1] * uPx / max(-mv.z, .5), 2., 46.);
+  vC = aC; vK = drip; vA = 1. - smoothstep(.6, 1., u);
+}`;
+const FLECK_FS = `
+varying vec3 vC; varying float vA, vK;
+void main() {
+  vec2 e = (gl_PointCoord - .5) * 2.; e.x *= 1. + 1.4 * vK;
+  float a = (1. - smoothstep(.62, 1., length(e))) * vA;
+  if (a < .02) discard;
+  gl_FragColor = vec4(vC, a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
 
 // ---------- placement: one world tile at a time, as a generator the update loop runs in small slices ----------
 const gridAdd = (m, cell, x0, z0, x1, z1, item) => {
@@ -215,7 +282,7 @@ function* pickTile(t, { skip, drivable, keepAll }) {
 }
 
 // ---------- the collectible ----------
-export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) {
+export function createSuca({ scene, drivable, mapMarkers, skip, world = null, getVolume = () => .8 }) {
   const L = [], done = new Set(), seen = {}, cache = new Map(), queue = [], active = new Set(); // L: live tags of the tiles at full detail
   let seenTotal = 0, ready = false, keepAll = KEEPOUT.slice(), skipAll = new Set(skip), job = null, dirty = false, manifestDone = false;
   try { const a = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(a)) for (const id of a) done.add(id); } catch (e) { /* private mode */ }
@@ -224,10 +291,18 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
   import('./landmarks-city.js').then(m => { for (const l of m.CITY_LANDMARKS || []) { keepAll.push([l.x, l.z, (l.radius || 40) + 15]); for (const id of l.skipIds || []) skipAll.add(id); } }).catch(() => {}).then(() => { ready = true; });
 
   const pos = new Float32Array(CAP * 12), nor = new Float32Array(CAP * 12), uv = new Float32Array(CAP * 8), col = new Float32Array(CAP * 12).fill(1), idx = new Uint16Array(CAP * 6);
+  const dis = new Float32Array(CAP * 4); // per vertex: seconds since collected over DUR, 0 for a tag at rest (read by the dissolve shader)
   for (let i = 0; i < CAP; i++) idx.set([0, 1, 2, 0, 2, 3].map(j => j + i * 4), i * 6);
+  const QS = [-1, -1, 1, -1, 1, 1, -1, 1];
   function quad(i, s = 1) {
     const t = L[i], w = t.hw * s, h = w / 2, cx = t.x + t.nx * OFF, cz = t.z + t.nz * OFF, tx = t.nz, tz = -t.nx;
-    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], k) => pos.set([cx + tx * a * w, t.y + b * h, cz + tz * a * w], i * 12 + k * 3));
+    for (let k = 0; k < 4; k++) { const a = QS[k * 2], b = QS[k * 2 + 1], o = i * 12 + k * 3; pos[o] = cx + tx * a * w; pos[o + 1] = t.y + b * h; pos[o + 2] = cz + tz * a * w; }
+  }
+  // the collect animation of tag i at `a` seconds after the collect (a < 0: at rest): the punch scales the quad, the dissolve runs in the shader
+  function fx(i, a) {
+    quad(i, a < 0 ? 1 : 1 + .09 * Math.sin(Math.PI * Math.min(1, a / PUNCH)));
+    const d = a < 0 ? 0 : Math.max(a / DUR, 1e-4);
+    dis[i * 4] = dis[i * 4 + 1] = dis[i * 4 + 2] = dis[i * 4 + 3] = d;
   }
   function cell(i) {
     const t = L[i], c = t.v % COLS, r = Math.floor(t.v / COLS) + 2 * t.w + (done.has(t.id) && t.pop === undefined ? 4 : 0);
@@ -238,10 +313,12 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('dis', new THREE.BufferAttribute(dis, 1).setUsage(THREE.DynamicDrawUsage));
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.setDrawRange(0, 0);
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e5); // vertices move: never cull the one mesh
   const mat = new THREE.MeshLambertMaterial({ map: makeAtlas(), vertexColors: true, transparent: true, premultipliedAlpha: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  dissolve(mat);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'suca'; mesh.renderOrder = 2; mesh.frustumCulled = false;
   scene.add(mesh);
@@ -251,11 +328,70 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
     dirty = false;
     if (L.length > CAP) L.length = CAP;
     for (let i = 0; i < L.length; i++) {
-      const t = L[i]; quad(i); cell(i);
+      const t = L[i]; fx(i, t.pop === undefined ? -1 : t.pop); cell(i);
       for (let k = 0; k < 4; k++) { nor.set([t.nx, 0, t.nz], i * 12 + k * 3); col.set([1, 1, 1], i * 12 + k * 3); }
     }
     geo.setDrawRange(0, L.length * 6);
-    for (const a of ['position', 'normal', 'uv', 'color']) geo.attributes[a].needsUpdate = true;
+    for (const a of ['position', 'normal', 'uv', 'color', 'dis']) geo.attributes[a].needsUpdate = true;
+  }
+
+  // the flecks: spawn writes a few slots of the ring, the vertex shader does the flying (see FLECK_VS)
+  const fP = new Float32Array(NP * 3), fV = new Float32Array(NP * 3), fT = new Float32Array(NP * 4).fill(-1e6), fC = new Float32Array(NP * 3);
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(fP, 3).setUsage(THREE.DynamicDrawUsage));
+  pg.setAttribute('aV', new THREE.BufferAttribute(fV, 3).setUsage(THREE.DynamicDrawUsage));
+  pg.setAttribute('aT', new THREE.BufferAttribute(fT, 4).setUsage(THREE.DynamicDrawUsage));
+  pg.setAttribute('aC', new THREE.BufferAttribute(fC, 3).setUsage(THREE.DynamicDrawUsage));
+  pg.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e5);
+  const fu = { uTime: { value: 0 }, uPx: { value: 400 } };
+  const flecks = new THREE.Points(pg, new THREE.ShaderMaterial({ uniforms: fu, vertexShader: FLECK_VS, fragmentShader: FLECK_FS, transparent: true, depthWrite: false, fog: false }));
+  flecks.name = 'suca-flecks'; flecks.renderOrder = 3; flecks.frustumCulled = false; flecks.visible = false;
+  const px = new THREE.Vector2();
+  flecks.onBeforeRender = r => { r.getDrawingBufferSize(px); fu.uPx.value = px.y * .5; }; // point size in pixels from the world size
+  scene.add(flecks);
+  const PAL = VARIANTS.map(v => [new THREE.Color(v.fill), new THREE.Color(v.edge || v.fill)]);
+  const SPARK = ['#ffb347', '#e8559a', '#fff1c2'].map(c => new THREE.Color(c));
+  let clock = 0, head = 0, fxEnd = 0;
+  function emit(t) {
+    const tx = t.nz, tz = -t.nx, pal = PAL[t.v];
+    for (let k = 0; k < NFLECK + NDRIP; k++, head = (head + 1) % NP) {
+      const drip = k >= NFLECK, ux = .12 + .76 * Math.random(), s = (ux - .5) * 2 * t.hw, o = head * 3, o4 = head * 4;
+      // the flecks leave where the dissolve front passes that part of the tag (about when the paint there is eaten)
+      const m = (.25 + .3 * ux) / .78, delay = Math.max(0, D0 + (m + EDGE * .5) / (1 + EDGE) * DD + (Math.random() - .5) * .18 + (drip ? .12 : 0));
+      const r = Math.random(), c = r < .46 ? pal[0] : r < .64 ? pal[1] : SPARK[(Math.random() * 3) | 0];
+      fP[o] = t.x + t.nx * .12 + tx * s; fP[o + 1] = t.y + (drip ? -.2 * t.hw : (Math.random() - .4) * t.hw * .5); fP[o + 2] = t.z + t.nz * .12 + tz * s;
+      const out = drip ? .04 : 1.1 + Math.random() * 3.6, side = drip ? 0 : (Math.random() - .5) * 3.4;
+      fV[o] = t.nx * out + tx * side; fV[o + 1] = drip ? -.05 : -.3 + Math.random() * 3; fV[o + 2] = t.nz * out + tz * side;
+      fT[o4] = clock + delay; fT[o4 + 1] = drip ? 1 + Math.random() * .5 : .55 + Math.random() * .55;
+      fT[o4 + 2] = drip ? .11 : r < .64 ? .09 + Math.random() * .14 : .07 + Math.random() * .08; fT[o4 + 3] = drip ? 1 : 0;
+      fC[o] = c.r; fC[o + 1] = c.g; fC[o + 2] = c.b;
+    }
+    for (const a of ['position', 'aV', 'aT', 'aC']) pg.attributes[a].needsUpdate = true;
+    fxEnd = clock + 3; flecks.visible = true;
+  }
+
+  // a short reward sound: a spray hiss and two rising notes (own AudioContext, made on the first collect, so after a key press)
+  let au = null, noise = null;
+  function chime() {
+    try {
+      if (!au) {
+        const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+        au = new AC(); noise = au.createBuffer(1, au.sampleRate * .4, au.sampleRate);
+        const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (au.state === 'suspended') au.resume();
+      const v = getVolume(); if (au.state !== 'running' || !(v > 0)) return;
+      const t = au.currentTime, out = au.createGain(); out.gain.value = .2 * v; out.connect(au.destination);
+      const hiss = au.createBufferSource(), band = au.createBiquadFilter(), env = au.createGain();
+      hiss.buffer = noise; band.type = 'bandpass'; band.Q.value = .8; band.frequency.setValueAtTime(2600, t); band.frequency.exponentialRampToValueAtTime(7500, t + .38);
+      env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(.55, t + .03); env.gain.exponentialRampToValueAtTime(.001, t + .4);
+      hiss.connect(band); band.connect(env); env.connect(out); hiss.start(t);
+      [[784, 0], [1175, .09]].forEach(([f, dt]) => {
+        const o = au.createOscillator(), e = au.createGain(); o.type = 'triangle'; o.frequency.value = f;
+        e.gain.setValueAtTime(0, t + dt); e.gain.linearRampToValueAtTime(.7, t + dt + .012); e.gain.exponentialRampToValueAtTime(.001, t + dt + .45);
+        o.connect(e); e.connect(out); o.start(t + dt); o.stop(t + dt + .5);
+      });
+    } catch (e) { /* no audio */ }
   }
   // a tile's picks become live tags: height from the ground along the wall, a hand above the pavement
   function addTile(t, picks) {
@@ -293,8 +429,13 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
 .pd-suca-toast { position: fixed; z-index: 506; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); transform: translate(0, -8px);
   width: max-content; max-width: min(340px, 64vw); box-sizing: border-box; padding: 7px 12px 8px 11px; border-radius: 9px; pointer-events: none;
   background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff; opacity: 0;
-  font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .3s, transform .3s; }
+  font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .3s, transform .3s; transform-origin: 0 50%; }
 .pd-suca-toast.on { opacity: 1; transform: translate(0, 0); }
+.pd-suca-toast.bump { animation: pd-suca-bump .55s cubic-bezier(.2, 1.5, .4, 1); }
+.pd-suca-toast.bump b { animation: pd-suca-num .55s ease-out; transform-origin: 0 50%; }
+@keyframes pd-suca-bump { 0% { transform: scale(.9); } 28% { transform: scale(1.16); box-shadow: 0 0 22px rgba(232,85,154,.85); } 100% { transform: scale(1); box-shadow: 0 0 0 rgba(232,85,154,0); } }
+@keyframes pd-suca-num { 0% { transform: scale(1); } 25% { transform: scale(1.4); color: #ffb347; } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pd-suca-toast.bump, .pd-suca-toast.bump b { animation: none; } }
 .pd-suca-toast small { display: block; font: 800 9.5px/1 system-ui, -apple-system, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e8559a; margin-bottom: 3px; }
 .pd-suca-toast b { display: block; font-weight: 800; font-size: 15px; letter-spacing: .04em; }
 @media (max-height: 460px) { .pd-suca-toast { font-size: 11px; padding: 5px 10px 6px 9px; max-width: min(300px, 46vw); } .pd-suca-toast b { font-size: 13px; } }
@@ -311,8 +452,9 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
     let top = 8;
     for (const el of document.querySelectorAll('#pm-hud.on, .pd-radio-toast.on')) top = Math.max(top, el.getBoundingClientRect().bottom + 8);
     toast.style.top = top > 8 ? `${Math.round(top)}px` : '';
-    toast.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 2200);
+    toast.classList.remove('bump'); void toast.offsetWidth; // restart the bounce when a second tag follows closely
+    toast.classList.add('on', 'bump');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on', 'bump'), 2600);
   }
 
   // minimap: only the uncollected tags the map can show (~100 m), so the rim isn't a string of dots
@@ -330,7 +472,7 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
     done.add(t.id);
     try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) { /* private mode */ }
     t.pop = 0;
-    showToast(t.word);
+    showToast(t.word); emit(t); chime();
   }
 
   let slow = 0;
@@ -354,21 +496,21 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null }) 
     }
     if (dirty) rebuild();
     if ((slow -= dt) <= 0) { slow = .5; syncMarkers(car); }
+    clock += dt; fu.uTime.value = clock;
+    if (flecks.visible && clock > fxEnd) flecks.visible = false;
     let pop = false;
     for (let i = 0; i < L.length; i++) {
       const t = L[i];
       if (t.pop !== undefined) {
-        const a = t.pop + dt, f = Math.min(1, a / POP), k = 1 + 1.4 * (1 - f);
-        quad(i, 1 + .3 * Math.sin(Math.PI * f));
-        for (let v = 0; v < 4; v++) col.set([k, k, k], i * 12 + v * 3);
-        if (f >= 1) { t.pop = undefined; cell(i); geo.attributes.uv.needsUpdate = true; } else t.pop = a;
+        const a = t.pop + dt;
+        if (a >= DUR) { t.pop = undefined; fx(i, -1); cell(i); geo.attributes.uv.needsUpdate = true; } else { t.pop = a; fx(i, a); }
         pop = true; continue;
       }
       if (done.has(t.id)) continue;
       const dx = car.x - t.x, dz = car.z - t.z;
       if (dx * dx + dz * dz < R_COLLECT * R_COLLECT && dx * t.nx + dz * t.nz > 0) collect(i);
     }
-    if (pop) geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
+    if (pop) geo.attributes.position.needsUpdate = geo.attributes.dis.needsUpdate = true;
   }
 
   return { update, tags: L, progress, get count() { return done.size; }, get total() { return progress().total; }, has: id => done.has(id), mesh };

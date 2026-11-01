@@ -25,7 +25,7 @@ const CSS = `
 .ev-bar.low i { background: #ff4a3a; } .ev-bar.off { display: none; }
 .ev-ledger { margin: 3px 0 0 8px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: #ffd1e6; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .ev-toasts { position: fixed; z-index: 61; left: 50%; top: 30%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
-.ev-toast { font-size: clamp(16px, 3.6vh, 26px); letter-spacing: .06em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1.5px #0b0709; paint-order: stroke fill;
+.ev-toast { text-align: center; font-size: clamp(16px, 3.6vh, 26px); letter-spacing: .06em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1.5px #0b0709; paint-order: stroke fill;
   text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); animation: ev-toast 1.9s ease-out forwards; transform: skewX(-8deg); }
 .ev-toast.neg { color: #ffb3a8; text-shadow: 0 0 14px #ff4a3a, 0 3px 6px rgba(0,0,0,.6); }
 .ev-toast small { display: block; font-size: .5em; letter-spacing: .14em; text-align: center; opacity: .9; }
@@ -68,7 +68,9 @@ export function createEventHud({ camera, car }) {
   let target = null, resultT = 0, countT = 0, cache = '';
   const _d = new THREE.Vector3();
 
-  return {
+  addEventListener('pd-toast', e => { const d = e.detail || {}; api.toast(d.text, d.sub, d.neg); });   // other modules (src/danger.js) show a toast without owning the HUD
+
+  const api = {
     // text is written only when it changed (called a few times per second at most)
     set(o) {
       root.classList.add('on');
@@ -109,4 +111,5 @@ export function createEventHud({ camera, car }) {
       }
     },
   };
+  return api;
 }

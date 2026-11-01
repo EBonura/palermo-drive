@@ -86,7 +86,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
 const perf = createPerf({ renderer, mobile: QUALITY.mobile });
-if (QUALITY.mobile) { const maxA = renderer.capabilities.getMaxAnisotropy(); renderer.capabilities.getMaxAnisotropy = () => Math.min(4, maxA); } // [perf pass] phones: cap anisotropic filtering at 4x whatever the modules ask for // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
+{ const maxA = renderer.capabilities.getMaxAnisotropy(); renderer.capabilities.getMaxAnisotropy = () => Math.min(4, maxA); } // [perf pass] cap anisotropic filtering at 4x whatever the modules ask for, on every device // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
 renderer.shadowMap.type = +THREE.REVISION >= 182 ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -117,7 +117,7 @@ const hemi = new THREE.HemisphereLight('#c9cfd4', '#9a8566', 0.4); // [day/night
 scene.add(hemi);
 const sun = new THREE.DirectionalLight('#ffe4bd', 2.9); // warm sun, the stone glows gold
 sun.castShadow = true;
-sun.shadow.mapSize.set(QUALITY.shadowMap, QUALITY.shadowMap);
+sun.shadow.mapSize.set(1024, 1024); // the default tier (medium) on every device
 Object.assign(sun.shadow.camera, { left: -160, right: 160, top: 160, bottom: -160, near: 1, far: 700 });
 sun.shadow.bias = -0.0003;
 sun.shadow.normalBias = 0.5;
@@ -296,14 +296,14 @@ if (location.search.includes('debug')) window.game = { perf, world, car, keys, p
 const game = {
   state: 'title', titleCam: null, noRender: false,
   time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
-  settings: { quality: QUALITY.mobile ? 'low' : 'high', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
+  settings: { quality: 'medium', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
   pause() { if (this.state === 'play') this.state = 'pause'; },
   resume() { if (this.state === 'pause') { this.state = 'play'; last = performance.now(); } },
 };
 // One place where options touch the renderer; ui.js calls it after changing game.settings.
 function applySettings() {
-  const st = game.settings, tier = { low: [1, 0], medium: [1.5, 1024], high: [2, QUALITY.shadowMap] }[st.quality] || [2, 4096];
+  const st = game.settings, tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[st.quality] || [2, 2048];
   perf.setMax(Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio)); // [perf pass] ceiling; perf.js adapts below it
   renderer.shadowMap.enabled = tier[1] > 0;
   if (tier[1] && sun.shadow.mapSize.x !== tier[1]) { sun.shadow.mapSize.set(tier[1], tier[1]); sun.shadow.map?.dispose(); sun.shadow.map = null; }
@@ -335,7 +335,7 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
-const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world });
+const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
 if (window.game) window.game.traffic = traffic;
 // With the streamed world, a far start spot has to load before the lapa can find a road there. Returns a Promise that resolves once the start

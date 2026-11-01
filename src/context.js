@@ -1,215 +1,141 @@
-// Low-detail context city beyond the playable area. Owned by the context work.
-// Data comes from context-data.js (tools/context.py): OSM buildings and major roads around the
-// playable box. Everything is merged into a few chunked meshes: windowed walls, flat grey roofs,
-// dark road ribbons draped on the coarse far terrain.
+// Far city: the whole map beyond the low detail ring, as flat-coloured boxes. Owned by the context work.
+// tools/farcity.mjs bakes assets/world/far.bin from the world tiles: per 500 m tile the footprints are rasterised on a coarse grid, cells of
+// similar height merged into rectangles, each rectangle one box (one colour, only the walls a neighbour does not hide). Here the boxes
+// are extruded on the far terrain, 4 x 4 tiles (2 km) per mesh so the frustum culls them and one draw call covers a chunk. A tile's
+// boxes are shown until the tile has real buildings (low or full detail, src/world.js), then its index range drops out of the chunk's draw range.
+// Nothing here fetches tiles: the whole layer is one small file, so the horizon costs a few triangles per tile, not a tile download.
 import * as THREE from 'three';
-import { D, groundY, inNear, canvasTex, rng } from './core.js';
-import { decodeBuildings, chooseBuildings } from './context-select.js';
 
-const CHUNK = 1000;                 // metres per mesh chunk (frustum culling)
-const FLOOR_H = 3.3;
-const TEX_BAYS = 3, TEX_FLOORS = 4, BAY_M = 3.4;   // one facade texture tile: 3 bays x 4 floors
-const TILE_W = TEX_BAYS * BAY_M, TILE_H = TEX_FLOORS * FLOOR_H;
+const HQ = [3, 5, 7.5, 10.5, 14, 18, 23, 30, 40, 55, 75]; // height classes, same table as tools/farcity.mjs
+const SKIRT = 6;            // boxes reach this far below the lowest ground under them (the far grid is 100 m, real ground differs)
+const CH = 4;               // tiles per chunk side
+const WALL = 0.75;          // plain plaster vs the low detail facade texture (windows darken it on average)
+const ROOF = new THREE.Color().setRGB(0.69, 0.66, 0.61, THREE.SRGBColorSpace);
 
-// ---------- ground under context objects ----------
-// Same triangulation as the far terrain mesh in main.js (and its 0.6 m drop), so ribbons and
-// wall bases sit on the real surface instead of the bilinear approximation.
-const F = D.far;
-function farSurface(x, z) {
-  if (!F) return 0;
-  const fx = Math.max(0, Math.min(F.nx - 1.001, (x - F.x0) / F.s)), fz = Math.max(0, Math.min(F.nz - 1.001, (z - F.z0) / F.s));
-  const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, n = F.nx, h = F.h;
-  const h00 = h[j * n + i], h10 = h[j * n + i + 1], h01 = h[(j + 1) * n + i], h11 = h[(j + 1) * n + i + 1];
-  const y = tx + tz <= 1 ? h00 + (h10 - h00) * tx + (h01 - h00) * tz : h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
-  return y - 0.6;
+// ground under far boxes: same triangulation as the far terrain mesh (world.js buildFar) and its 0.6 m drop
+function farSurface(F) {
+  const n = F.nx, h = F.h;
+  return (x, z) => {
+    const fx = Math.max(0, Math.min(F.nx - 1.001, (x - F.x0) / F.s)), fz = Math.max(0, Math.min(F.nz - 1.001, (z - F.z0) / F.s));
+    const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j;
+    const h00 = h[j * n + i], h10 = h[j * n + i + 1], h01 = h[(j + 1) * n + i], h11 = h[(j + 1) * n + i + 1];
+    return (tx + tz <= 1 ? h00 + (h10 - h00) * tx + (h01 - h00) * tz : h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz)) - 0.6;
+  };
 }
-const ground = (x, z) => inNear(x, z) ? groundY(x, z) : farSurface(x, z);
 
-// ---------- facade texture: rows of windows, white-ish so plaster colour comes from vertices ----------
-function facadeTexture() {
-  const t = canvasTex(128, (g, S) => {
-    g.fillStyle = '#f1eee7'; g.fillRect(0, 0, S, S);
-    const bw = S / TEX_BAYS, fh = S / TEX_FLOORS;
-    for (let f = 0; f < TEX_FLOORS; f++) {
-      // slab / balcony line at each floor level
-      g.fillStyle = '#d3cfc6'; g.fillRect(0, f * fh + fh - 6, S, 5);
-      g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, f * fh + fh - 1, S, 1);
-      for (let b = 0; b < TEX_BAYS; b++) {
-        const x = b * bw + bw * 0.24, y = f * fh + fh * 0.16, w = bw * 0.52, h = fh * 0.62;
-        g.fillStyle = '#e4e0d6'; g.fillRect(x - 3, y - 3, w + 6, h + 6);        // frame / surround
-        g.fillStyle = '#3f4a55'; g.fillRect(x, y, w, h);                        // glass
-        g.fillStyle = '#6f7d88'; g.fillRect(x, y, w, h * 0.3);                  // sky reflection
-        if ((f + b * 2) % 3 === 0) { g.fillStyle = '#7a6d56'; g.fillRect(x, y, w, h * 0.45); } // shutter half down
-        g.fillStyle = '#aeb0ad'; g.fillRect(x - 5, y + h + 3, w + 10, 4);      // balcony rail
+// The old context city (OSM buildings of the playable box, src/context-select.js) is gone: the far city covers the whole map. main.js still
+// calls this; it returns an empty group.
+export function buildContext() { const g = new THREE.Group(); g.name = 'context'; return g; }
+
+// root: where the chunk meshes go; F: the manifest's far grid; nk(i, j): the streamer's tile key; mat: a vertex-colour material
+export function createFarCity({ root, F, T, nk, url, mat }) {
+  const ground = farSurface(F);
+  const dir = new Map();      // tile key -> { k, i, j, off, n, tris }
+  const byChunk = new Map();  // chunk key -> [tile entries]
+  const chunks = new Map();   // chunk key -> built chunk
+  const hidden = new Set();
+  let cols = null, pal = null, loaded = false, failed = false, loading = null, buildMs = 0, built = 0;
+  const ck = (ci, cj) => (ci + 100) * 1000 + (cj + 100);
+
+  function load() {
+    if (loading) return loading;
+    return loading = fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then(ab => {
+      const u8 = new Uint8Array(ab), dv = new DataView(ab);
+      if (String.fromCharCode(u8[0], u8[1], u8[2], u8[3]) !== 'PFC2') throw new Error('bad far city file');
+      const cell = u8[4], nc = u8[5], nt = dv.getUint16(6, true), nb = dv.getUint32(8, true);
+      let o = 12;
+      pal = []; for (let c = 0; c < nc; c++, o += 3) { const w = new THREE.Color().setRGB(u8[o] / 255, u8[o + 1] / 255, u8[o + 2] / 255, THREE.SRGBColorSpace); pal.push({ wall: w.clone().multiplyScalar(WALL), roof: ROOF.clone().lerp(w, 0.2) }); }
+      let off = 0;
+      for (let t = 0; t < nt; t++, o += 6) {
+        const i = dv.getInt16(o, true), j = dv.getInt16(o + 2, true), n = dv.getUint16(o + 4, true);
+        const e = { k: nk(i, j), i, j, off, n, tris: 0, c: ck(Math.floor(i / CH), Math.floor(j / CH)) };
+        off += n; dir.set(e.k, e);
+        let a = byChunk.get(e.c); if (!a) byChunk.set(e.c, a = []); a.push(e);
       }
-    }
-    // subtle streaks so large walls aren't clinical
-    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(60,50,40,${0.02 + Math.random() * 0.04})`; g.fillRect(Math.random() * S, 0, 2 + Math.random() * 6, S); }
-  }, TILE_W);
-  t.anisotropy = 4;
-  return t;
-}
-
-// ---------- palettes ----------
-const hex = h => new THREE.Color(h);
-const WALLS = {
-  res: ['#dcd6c8', '#d2c4a4', '#cba66f', '#aaa7a0', '#cfa898', '#d9c58f', '#e2ddd0', '#c9b896', '#b9b2a4'].map(hex),
-  ind: ['#b8b6b0', '#d6d6d2', '#a9b1b5', '#c4bfb2'].map(hex),
-  low: ['#dcd2bd', '#d8c490', '#cfa985', '#e0dbcf', '#c2b8a2'].map(hex),
-  villa: ['#e4d6b8', '#d9a98e', '#d3b27a', '#c9c1a8'].map(hex),
-  civic: ['#bfa982', '#d8ccb2', '#c9b896', '#ddd8cc'].map(hex),
-};
-const ROOFS = ['#bdbab3', '#c8c5be', '#aeaba4', '#d2cfc8', '#a7a49f', '#b7b3ab', '#c4a89a'].map(hex);
-const SHED_ROOFS = ['#cfd3d3', '#b9bec1', '#d8d8d4', '#a5aaad'].map(hex);
-const KIND_PAL = ['res', 'ind', 'low', 'villa', 'civic', 'ind'];
-
-// ---------- merged-geometry builder ----------
-class Chunk {
-  constructor() { this.p = []; this.n = []; this.c = []; this.uv = []; this.i = []; this.tris = 0; }
-  quad(a, b, c, d, nx, ny, nz, col, uv) { // vertices a..d in order, uv = [[u,v]x4]
-    const o = this.p.length / 3;
-    for (let k = 0; k < 4; k++) {
-      const v = [a, b, c, d][k];
-      this.p.push(v[0], v[1], v[2]); this.n.push(nx, ny, nz);
-      const s = k < 2 ? col.bot : col.top; // darker at the foot
-      this.c.push(s.r, s.g, s.b); this.uv.push(uv[k][0], uv[k][1]);
-    }
-    this.i.push(o, o + 1, o + 2, o, o + 2, o + 3); this.tris += 2;
-  }
-  mesh(mat) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
-    g.setIndex(this.i);
-    g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, mat);
-    m.matrixAutoUpdate = false; m.updateMatrix();
-    return m;
-  }
-}
-
-export function buildContext(ctx) {
-  const C = window.PALERMO_CONTEXT;
-  if (!C) return;
-  const scene = ctx.scene;
-  const stats = { buildings: 0, tris: 0, roadTris: 0, candidates: 0 };
-
-  // ----- choose what to draw -----
-  const all = decodeBuildings(C.b);
-  stats.candidates = all.length;
-  // Importance ranking, far-field rectangles and the triangle budget live in context-select.js so the
-  // production build (tools/build) can prune the baked data with exactly the same rule.
-  const chosen = chooseBuildings(all);
-
-  // ----- build chunks -----
-  const wallC = new Map(), roofC = new Map();
-  const get = (m, cx, cz) => { const k = cx * 4096 + cz; let c = m.get(k); if (!c) m.set(k, c = new Chunk()); return c; };
-  const col = { top: new THREE.Color(), bot: new THREE.Color() }, rc = { top: new THREE.Color(), bot: new THREE.Color() };
-  for (const b of chosen) {
-    const r = rng((b.ox * 73856093) ^ (b.oz * 19349663) ^ b.pts.length);
-    const pts = b.pts, n = pts.length;
-    // ground from the footprint corners (+ centre); walls stand on the lowest point
-    let gmin = 1e9;
-    for (const p of pts) gmin = Math.min(gmin, ground(p[0], p[1]));
-    gmin = Math.min(gmin, ground(b.cx, b.cz));
-    gmin = Math.max(gmin, 0.6);               // port sheds shouldn't sit under the sea
-    const yBase = gmin - 1.5, yTop = gmin + b.h;
-    const wcs = WALLS[KIND_PAL[b.k]] || WALLS.res;
-    const base = wcs[(r() * wcs.length) | 0], j = 0.94 + r() * 0.12;
-    col.top.copy(base).multiplyScalar(j); col.bot.copy(col.top).multiplyScalar(0.86);
-    const cx = Math.floor(b.cx / CHUNK), cz = Math.floor(b.cz / CHUNK);
-    const wc = get(wallC, cx, cz), rcn = get(roofC, cx, cz);
-    const uOff = r() * 5;
-    let u = uOff;
-    const vTop = (yTop - yBase) / TILE_H;
-    for (let i = 0; i < n; i++) {
-      const p = pts[i], q = pts[(i + 1) % n];
-      const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz);
-      if (L < 0.2) continue;
-      // footprint is CCW in (x, z): outward normal is (dz, -dx)
-      const nx = dz / L, nz = -dx / L;
-      const u1 = u + L / TILE_W;
-      // quad order q-bot, p-bot, p-top, q-top winds so the face looks along (dz, -dx)
-      wc.quad([q[0], yBase, q[1]], [p[0], yBase, p[1]], [p[0], yTop, p[1]], [q[0], yTop, q[1]], nx, 0, nz, col,
-        [[u1, 0], [u, 0], [u, vTop], [u1, vTop]]);
-      u = u1;
-    }
-    // roof
-    const roofCols = b.k === 1 || b.k === 5 ? SHED_ROOFS : ROOFS;
-    const rb = roofCols[(r() * roofCols.length) | 0];
-    rc.top.copy(rb).multiplyScalar(0.95 + r() * 0.1); rc.bot.copy(rc.top);
-    const o = rcn.p.length / 3;
-    for (const p of pts) { rcn.p.push(p[0], yTop, p[1]); rcn.n.push(0, 1, 0); rcn.c.push(rc.top.r, rc.top.g, rc.top.b); rcn.uv.push(0, 0); }
-    if (n === 4) {
-      const tri = [[0, 1, 2], [0, 2, 3]];
-      for (const t of tri) pushUp(rcn, o, pts, t);
-    } else {
-      const contour = pts.map(p => new THREE.Vector2(p[0], p[1]));
-      const tris = THREE.ShapeUtils.triangulateShape(contour, []);
-      for (const t of tris) pushUp(rcn, o, pts, t);
-    }
-    stats.buildings++;
+      cols = {}; for (const name of ['x', 'z', 'w', 'd', 'q', 'c', 'm']) { cols[name] = u8.subarray(o, o + nb); o += nb; }
+      cols.cell = cell;
+      for (const e of dir.values()) { let tr = 0; for (let b = e.off; b < e.off + e.n; b++) { const m = cols.m[b]; tr += 2 + 2 * ((m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1)); } e.tris = tr; }
+      loaded = true;
+    }).catch(e => { failed = true; console.warn('[far city]', e); });
   }
 
-  const wallTex = facadeTexture();
-  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, vertexColors: true, roughness: 1, metalness: 0 });
-  const roofMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
-  const group = new THREE.Group(); group.name = 'context';
-  for (const c of wallC.values()) { group.add(c.mesh(wallMat)); stats.tris += c.tris; }
-  for (const c of roofC.values()) { group.add(c.mesh(roofMat)); stats.tris += c.i.length / 3; }
-
-  // ----- roads -----
-  const roadMat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, color: '#7a7873', polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
-  const WIDTH = [22, 18, 13, 11, 9];
-  const roadChunks = new Map();
-  for (const row of C.r) {
-    const w = WIDTH[row[0]] || 9, ox = row[1], oz = row[2];
-    let pts = [];
-    for (let i = 3; i < row.length; i += 2) pts.push([ox + row[i] / 10, oz + row[i + 1] / 10]);
-    pts = resample(pts, 45);
-    if (pts.length < 2) continue;
-    const cx = Math.floor(pts[0][0] / CHUNK), cz = Math.floor(pts[0][1] / CHUNK);
-    const rcn = get(roadChunks, cx, cz);
-    let prevL = null, prevR = null;
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-      let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
-      const lx = pts[i][0] + tz * w / 2, lz = pts[i][1] - tx * w / 2, rx = pts[i][0] - tz * w / 2, rz = pts[i][1] + tx * w / 2;
-      const L3 = [lx, ground(lx, lz) + 0.35, lz], R3 = [rx, ground(rx, rz) + 0.35, rz];
-      if (prevL) {
-        const o = rcn.p.length / 3;
-        rcn.p.push(...prevL, ...prevR, ...R3, ...L3);
-        for (let k = 0; k < 4; k++) { rcn.n.push(0, 1, 0); rcn.c.push(1, 1, 1); rcn.uv.push(0, 0); }
-        // ensure upward-facing
-        const ax = prevR[0] - prevL[0], az = prevR[2] - prevL[2], bx = R3[0] - prevL[0], bz = R3[2] - prevL[2];
-        if (az * bx - ax * bz > 0) rcn.i.push(o, o + 1, o + 2, o, o + 2, o + 3); else rcn.i.push(o, o + 2, o + 1, o, o + 3, o + 2);
-        stats.roadTris += 2;
+  // one 2 km chunk: all its tiles' boxes in one geometry, index ranges per tile
+  function* buildChunk(key) {
+    const t0 = performance.now(), tiles = byChunk.get(key), { x: bx, z: bz, w: bw, d: bd, q: bq, c: bc, m: bm, cell } = cols;
+    let nv = 0, ni = 0;
+    for (const e of tiles) for (let b = e.off; b < e.off + e.n; b++) { const m = bm[b], s = (m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1); nv += 4 + 4 * s; ni += 6 + 6 * s; }
+    const pos = new Float32Array(nv * 3), nor = new Int8Array(nv * 4), col = new Float32Array(nv * 3), idx = new Uint32Array(ni), ranges = [];
+    let v = 0, ii = 0, nbx = 0;
+    const quad = (ax, ay, az, bx2, by, bz2, y1, y0, nx, ny, nz, c) => { // wall: bottom edge a->b, normal given; or roof when y0 === null
+      const o = v * 3;
+      pos[o] = ax; pos[o + 1] = y0; pos[o + 2] = az; pos[o + 3] = bx2; pos[o + 4] = y0; pos[o + 5] = bz2;
+      pos[o + 6] = bx2; pos[o + 7] = y1; pos[o + 8] = bz2; pos[o + 9] = ax; pos[o + 10] = y1; pos[o + 11] = az;
+      for (let k = 0; k < 4; k++) { nor[(v + k) * 4] = nx * 127; nor[(v + k) * 4 + 1] = ny * 127; nor[(v + k) * 4 + 2] = nz * 127; col[o + k * 3] = c.r; col[o + k * 3 + 1] = c.g; col[o + k * 3 + 2] = c.b; }
+      idx[ii++] = v; idx[ii++] = v + 1; idx[ii++] = v + 2; idx[ii++] = v; idx[ii++] = v + 2; idx[ii++] = v + 3; v += 4;
+    };
+    for (const e of tiles) {
+      const start = ii, x0 = e.i * T, z0 = e.j * T;
+      for (let b = e.off; b < e.off + e.n; b++) {
+        const xa = x0 + bx[b] * cell, za = z0 + bz[b] * cell, xb = Math.min(x0 + T, xa + bw[b] * cell), zb = Math.min(z0 + T, za + bd[b] * cell), m = bm[b], p = pal[bc[b]];
+        const g = Math.min(ground(xa, za), ground(xb, za), ground(xa, zb), ground(xb, zb), ground((xa + xb) / 2, (za + zb) / 2));
+        const top = g + HQ[bq[b]], bot = g - SKIRT;
+        // roof: (xa,za) (xa,zb) (xb,zb) (xb,za) wound so the normal is +y (the quad helper takes a bottom edge, so write it by hand)
+        { const o = v * 3;
+          pos[o] = xa; pos[o + 1] = top; pos[o + 2] = za; pos[o + 3] = xa; pos[o + 4] = top; pos[o + 5] = zb; pos[o + 6] = xb; pos[o + 7] = top; pos[o + 8] = zb; pos[o + 9] = xb; pos[o + 10] = top; pos[o + 11] = za;
+          for (let k = 0; k < 4; k++) { nor[(v + k) * 4 + 1] = 127; col[o + k * 3] = p.roof.r; col[o + k * 3 + 1] = p.roof.g; col[o + k * 3 + 2] = p.roof.b; }
+          idx[ii++] = v; idx[ii++] = v + 1; idx[ii++] = v + 2; idx[ii++] = v; idx[ii++] = v + 2; idx[ii++] = v + 3; v += 4; }
+        if (m & 1) quad(xb, 0, za, xa, 0, za, top, bot, 0, 0, -1, p.wall);
+        if (m & 2) quad(xb, 0, zb, xb, 0, za, top, bot, 1, 0, 0, p.wall);
+        if (m & 4) quad(xa, 0, zb, xb, 0, zb, top, bot, 0, 0, 1, p.wall);
+        if (m & 8) quad(xa, 0, za, xa, 0, zb, top, bot, -1, 0, 0, p.wall);
+        if ((++nbx & 255) === 0) yield;
       }
-      prevL = L3; prevR = R3;
+      ranges.push({ k: e.k, start, count: ii - start });
     }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 4, true));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const live = idx.slice(); geo.setIndex(new THREE.BufferAttribute(live, 1));
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, mat); mesh.name = 'farcity_' + key; mesh.matrixAutoUpdate = false;
+    const ch = { key, mesh, geo, master: idx, live, ranges, tris: 0, ni };
+    chunks.set(key, ch); root.add(mesh); built++; buildMs += performance.now() - t0;
+    applyHidden(ch);
   }
-  for (const c of roadChunks.values()) group.add(c.mesh(roadMat));
 
-  group.frustumCulled = true;
-  scene.add(group);
-  window.__contextStats = stats;
-  console.info('context:', JSON.stringify(stats), 'tri total', stats.tris + stats.roadTris);
-  return group;
-}
-
-function pushUp(chunk, o, pts, t) {
-  const a = pts[t[0]], b = pts[t[1]], c = pts[t[2]];
-  if ((b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) < 0) chunk.i.push(o + t[0], o + t[2], o + t[1]);
-  else chunk.i.push(o + t[0], o + t[1], o + t[2]);
-}
-
-function resample(pts, step) {
-  const out = [pts[0]];
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / step));
-    for (let k = 1; k <= n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  function applyHidden(ch) {
+    let n = 0;
+    for (const r of ch.ranges) if (!hidden.has(r.k)) { ch.live.set(ch.master.subarray(r.start, r.start + r.count), n); n += r.count; }
+    ch.geo.setDrawRange(0, n); ch.geo.index.needsUpdate = true; ch.mesh.visible = n > 0; ch.tris = n / 3;
   }
-  return out;
+  // keys: the Set of tile keys that have real buildings now (low or full detail)
+  function hide(keys) {
+    const dirty = new Set();
+    for (const k of keys) if (!hidden.has(k)) { hidden.add(k); const e = dir.get(k); if (e) dirty.add(e.c); }
+    for (const k of hidden) if (!keys.has(k)) { hidden.delete(k); const e = dir.get(k); if (e) dirty.add(e.c); }
+    for (const c of dirty) { const ch = chunks.get(c); if (ch) applyHidden(ch); }
+  }
+  // Keep the chunks within R of (fx, fz) built, drop the ones beyond R + 1.5 km. A generator: the caller runs it in slices.
+  function* sync(fx, fz, R) {
+    if (!loaded) return;
+    const dist = key => { const ci = Math.floor(key / 1000) - 100, cj = key % 1000 - 100, x0 = ci * CH * T, z0 = cj * CH * T, s = CH * T; return Math.hypot(Math.max(x0 - fx, 0, fx - x0 - s), Math.max(z0 - fz, 0, fz - z0 - s)); };
+    for (const [key, ch] of chunks) if (dist(key) > R + 1500) { ch.mesh.removeFromParent(); ch.geo.dispose(); chunks.delete(key); }
+    const todo = []; for (const key of byChunk.keys()) if (!chunks.has(key)) { const d = dist(key); if (d <= R) todo.push([d, key]); }
+    todo.sort((a, b) => a[0] - b[0]);
+    for (const [, key] of todo) { if (chunks.has(key)) continue; yield* buildChunk(key); yield; }
+  }
+  return {
+    load, sync, hide,
+    get loaded() { return loaded; }, get failed() { return failed; },
+    // triangles the tile's boxes cost while they are shown (0 where the tile has no buildings or the file is not in)
+    tris(k) { const e = dir.get(k); return e ? e.tris : 0; },
+    // all far triangles within R of the point that are not in `skip` (a Set of tile keys): the part of the budget the far ring holds
+    trisAround(fx, fz, R, skip) {
+      let n = 0;
+      for (const e of dir.values()) { if (skip.has(e.k)) continue; const x = (e.i + 0.5) * T - fx, z = (e.j + 0.5) * T - fz; if (x * x + z * z < R * R) n += e.tris; }
+      return n;
+    },
+    stats() { let tris = 0, boxes = 0; for (const ch of chunks.values()) tris += ch.tris; for (const e of dir.values()) boxes += e.n; return { loaded, chunks: chunks.size, built, buildMs: +buildMs.toFixed(0), tris, boxes, tiles: dir.size }; },
+  };
 }
