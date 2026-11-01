@@ -25,11 +25,12 @@ import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
 import { VARIANTS, CELL_W, CELL_H, GROUND, POSES, CELLS_PER_ENTRY, POSE_SIT, POSE_SIT_SIP, variantsOf } from '../assets/peds/sprites.js';
 import { createPedAtlas } from '../assets/peds/atlas.js';
+import { LK } from '../assets/peds/model.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
 const CPM = 2;                                           // mask cells per metre
-const PX = 0.04;                                         // metres per design unit (adult 44 = 1.76 m); far cells have one texel per unit, near cells three
+const PX = 0.0438;                                       // metres per design unit (an adult is about 37 units = 1.6 m: big head, short body); far cells have one texel per unit, near cells three
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
 const QUALITIES = { low: { cap: 100, R: 75 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
 
@@ -385,7 +386,7 @@ export function createPedestrians(env) {
 
   // ======================================================================== sprite rendering
   let rendererRef = null;                                  // the renderer reaches us through onBeforeRender (main.js does not hand it over); atlas uploads wait for it
-  const NEAR_CELLS = params.has('pednear') ? Math.max(0, +params.get('pednear') | 0) * 16 : (matchMedia('(pointer: coarse)').matches ? 128 : 240);   // near atlas size in cells (about 16 per person); ?pednear=n people
+  const NEAR_CELLS = params.has('pednear') ? Math.max(0, +params.get('pednear') | 0) * 16 : (matchMedia('(pointer: coarse)').matches ? 136 : 238);   // near atlas size in cells (about 16 per person); ?pednear=n people
   const atlas = createPedAtlas(VARIANTS, { nearCells: Math.max(NEAR_CELLS, 18) });
   const hasNear = NEAR_CELLS > 0;
   stats.atlas = atlas.stats;
@@ -1038,7 +1039,7 @@ export function createPedestrians(env) {
     const c = scripted.get(id); if (!c) return;
     o = o || {}; c.att = fn; c.seated = !!o.seated; c.blend = o.blend || 0; c.bt = 0; c.from = c.blend ? { x: c.x, y: c.y, z: c.z } : null; c.state = 'seat';
   }
-  function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - (((VARIANTS[c.v].leg || 19) - 1) * PX) : c.y; }
+  function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - (((VARIANTS[c.v].leg || 19) * LK - 1) * PX) : c.y; }
   function setBounce(id, on) { const c = scripted.get(id); if (c) c.bounce = !!on; }
   function remove(id) { scripted.delete(id); }
   // A named group at a spot (a crowd in front of a pub, a gang at a bench): spawnCrowd({ x, z, radius, count, mix, props }) -> array of ids
@@ -1114,7 +1115,7 @@ export function createPedestrians(env) {
     order.sort((a, b) => (a.state === 'seat' && a.seated) - (b.state === 'seat' && b.seated));   // standing first: only those get a ground shadow
     let standing = 0;
     for (const c of order) {
-      const v = VARIANTS[c.v], i = k++, seatedNow = c.att && c.seated, leg = v.leg || 19;
+      const v = VARIANTS[c.v], i = k++, seatedNow = c.att && c.seated, leg = (v.leg || 19) * LK;
       if (!seatedNow) standing++;
       const dxc = cpx - c.x, dzc = cpz - c.z, dist = hyp2(dxc, dzc) || 1;
       let y = seatedNow ? c.hipY - (leg - 1) * PX * c.size : (c.att ? c.hipY : c.y);
