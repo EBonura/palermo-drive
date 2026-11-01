@@ -5,7 +5,7 @@ import { ci, mixc } from './raster.js';
 // ---------- the option lists (the creator shows these; the generator draws from them) ----------
 export const SKINS = ['#f1cdb0', '#ecc2a4', '#e3b99a', '#dcac8c', '#d6a284', '#cf9d7c', '#c99872', '#c2916c', '#bf8a66', '#b8744c', '#9a6a48', '#7a4e34', '#5e3a28'];
 export const HAIR_COLS = ['#17120f', '#2a1c14', '#4a2a1a', '#6b4426', '#8a6a3a', '#c8a03a', '#d8b058', '#a8452a', '#b8763e', '#9a9690', '#dcd8d0', '#e8559a', '#3a7ad0'];
-export const HAIR_STYLES = ['bald', 'buzz', 'short', 'fade', 'quiff', 'fringe', 'comb', 'bun', 'ponytail', 'bob', 'long', 'wavy', 'curly', 'monk'];
+export const HAIR_STYLES = ['bald', 'buzz', 'short', 'fade', 'quiff', 'fringe', 'comb', 'bun', 'ponytail', 'bob', 'long', 'wavy', 'curly', 'monk', 'swept', 'curlylong'];
 export const BEARDS = ['', 'stubble', 'moustache', 'goatee', 'chinstrap', 'full'];
 export const GLASSES = ['', 'rect', 'round', 'big'];
 export const EYE_COLS = ['#2a1a10', '#4a3424', '#5a6a4a', '#4a6a8a', '#6a7a82'];

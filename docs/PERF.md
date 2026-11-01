@@ -146,6 +146,8 @@ Measured before and after (`cap.mjs` style run: spot, `?fixres&debug`, 6 s of fr
 
 Notes. The variation between before and after is inside the machine noise listed above; the point is that it did not get worse. Near cells are drawn on the main thread (a worker would need a second bundle entry in `tools/build`, not done). The near atlas capacity is a memory cap, not a look difference (`?pednear=n` sets it as a number of people, `?pednear=0` turns the near LOD off). The pedestrian module gets the renderer from `onBeforeRender` of the sprite mesh (main.js does not pass it), and `UniformsUtils.merge` clones textures, so the atlases are assigned to the material uniforms after the merge.
 
+Stage 2 changes to the same sprites (no cost change, the atlases are the same size): the cel ramp now puts a flat front on the base tone and keeps the light tone for surfaces tilted towards the light (before, every front was the light tone, which made people pale at 10 to 30 m); the far cells get a two pixel outline (one inside, one outside, 0.6 of the deep shade) so the silhouette survives the mip chain; the sprite shader decodes with `pow(c, 2.2)` instead of squaring. Compare `midrange-before-stage1-stage2.png` in the stage 2 shots.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.
