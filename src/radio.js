@@ -21,11 +21,7 @@ export const TRACKS = [
   { file: 'bushwick-tarantella.mp3', title: 'Bushwick Tarantella', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
   { file: 'tarantella-air-force-strings.mp3', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band', lic: 'Public domain' },
   { file: 'funiculi-funicula-banda.mp3', title: 'Funiculì, Funiculà (1903)', by: 'F. Giannini, Royal Marine Band of Italy', lic: 'Public domain' },
-  { file: 'gran-marcia-del-drago-sacro.mp3', title: 'Gran Marcia del Drago Sacro (1907)', by: 'Musica della R. Marina Italiana', lic: 'Public domain' },
   { file: 'meatball-parade.mp3', title: 'Meatball Parade', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
-  { file: 'aida-gran-marcia-trionfale.mp3', title: 'Gran Marcia trionfale, Aida', by: 'Musica della R. Marina Italiana', lic: 'Public domain' },
-  { file: 'cavalleria-intermezzo.mp3', title: 'Intermezzo, Cavalleria Rusticana', by: 'Victor Orchestra, W. B. Rogers', lic: 'Public domain' },
-  { file: 'madreterra.mp3', title: 'Madreterra (inno della Regione Siciliana)', by: 'Regione Siciliana', lic: 'CC0' },
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out
