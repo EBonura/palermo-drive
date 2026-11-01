@@ -370,3 +370,46 @@ export const APPARTATI = {
     { id: 'matrimoni', name: 'Piazzale dei Matrimoni (Viale Ercole)', lat: 38.151393, lon: 13.347968, dx: 0.506, dz: 0.863, col: '#b8862a' },
   ],
 };
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Free roam events (src/missions.js, src/event-*.js, src/races.js). Lines are [text, gloss] pairs or plain strings; {items} is the lost food.
+// What the people on the kerb shout to call the lapa.
+export const CALL = {
+  tourist: [['Taxi! Taxi! Over here!', ''], ['Hello! Excuse me! Are you free?', ''], ['Hey! Driver! Please, please!', ''], ['Is that a taxi? Please be a taxi!', '']],
+  taxi: [['Taxi! Ao, taxi!', ''], ['Fermati, fermati!', 'Stop, stop!'], ['Lapista! Mi porti?', 'Driver! Can you take me?'], ['Ehi! Libero?!', 'Hey! Free?!']],
+  // hotel-concierge tourists, by day: they have been told to ask for "a pulle" and have no idea what it is
+  pulle: [['Excuse me! Do you know "a pulle"? The hotel man winked a lot.', ''], ['Hello! We need "a pulle". Is it far? Is it a restaurant?', ''], ['Taxi! "A pulle", please! Everybody says it with a smile!', '']],
+  food: [['Aiutooo! Mi sono scappate le {items}!', 'Heeelp! My {items} ran away!'], ['Fermati! Le {items} sono volate via!', 'Stop! The {items} flew off!'], ['Ao! Aiutami! Ho perso le {items}!', 'Hey! Help me! I lost the {items}!']],
+  race: [['Chi vince, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati qua e corri con noi!', 'Stop here and race with us!'], ['Tre, due, uno... quasi!', 'Three, two, one... almost!']],
+};
+// "A pulle" by day: the tourists in the back seat. By night the client is the discreet one of FAVORITA (above).
+export const PULLE = {
+  ask: [
+    ['Please take us to "a pulle". The man at the hotel winked at us. Twice.', ''],
+    ['Is "a pulle" nice? He said it is very popular with the locals. After dark. And before dark.', ''],
+    ['Viale Diana, please! He said it is a lovely walk among the pines. He was laughing a lot.', ''],
+  ],
+  driver: [
+    ['Ah! "A pulle"! Certu, certu... mi dispiaci ma ju sugnu na tomba.', 'Ah! "A pulle"! Of course, of course... sorry, I am a tomb. (?)'],
+    ['Viale Diana? Bona scelta pi vidiri i pini. Gli alberi, picciotti, solu gli alberi.', 'Viale Diana? Good choice to see the pines. The trees, kids, only the trees. (?)'],
+  ],
+  arrive: [
+    ['Oh! It is... very busy. And everybody is waving at us. Is it a festival?', ''],
+    ['Everyone here is so friendly! Why are they all looking at the councillor?', ''],
+  ],
+  fail: [['We will walk. Is it far? We will ask that nice lady in the sparkly dress.', '']],
+};
+// Urgent passengers, once they are on board
+export const URGENT_LINES = {
+  board: [['Vai vai vai! Non fermarti ai semafori!', 'Go go go! Do not stop at the lights!'], ['Presto! Ho i minuti contati!', 'Quick! I have minutes to spare, no more!']],
+  driver: [['Tranquillo, ci penso io. Tenetevi forte!', 'Relax, I will handle it. Hold on tight!'], ['Il tassametro è già in quarta!', 'The meter is already in fourth gear!']],
+  late: [['Ci siamo quasi?! Il tempo sta finendo!', 'Are we nearly there?! Time is running out!']],
+  arrive: [['Ce l\'ho fatta! Tieni, tieni tutto!', 'I made it! Here, keep it all!']],
+  fail: [['No, no, no... l\'ho perso!', 'No, no, no... I missed it!']],
+};
+// The owner when the lost food is brought back / the scooter thief
+export const FOOD = {
+  thief: [['Ahahah! Chi li vuole? Prendetemi!', 'Hahaha! Who wants them? Catch me!'], ['Beep beep! Sono mie, ora!', 'Beep beep! They are mine now!']],
+  thanks: [['Grazie, grazie! Sei un angelo con tre ruote!', 'Thank you, thank you! You are an angel with three wheels!'], ['Mi hai salvato la giornata! Ti offro qualcosa!', 'You saved my day! Let me treat you!']],
+  none: [['Niente?! Pazienza... torna quando hai più fortuna.', 'Nothing?! Never mind... come back when you are luckier.']],
+};

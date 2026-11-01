@@ -6,8 +6,8 @@
 // - Starts on the first user gesture (window event 'pd-gesture', or the first pointer / key press).
 // - Streams with two <audio> elements routed through Web Audio gain nodes (iOS ignores element.volume),
 //   so nothing is decoded up front.
-// - Keys (in play): M = next track, N = radio on/off. Touch: a round button right of the small buttons at the
-//   top centre (tap = next track, long press = radio on/off). Desktop: right of the pause button.
+// - Keys (in play): M = next track, N = radio on/off. The on-screen controls (next track, on/off) are in the in-game side menu (src/ui.js),
+//   which uses the API returned here: next(), toggle(), enabled, current.
 // - Settings live in game.settings (musicVolume 0..1, radio 'on'|'off') and in localStorage under
 //   palermoDrive.settings.v1, next to the shell's own keys. src/ui.js shows them in Options and fires the
 //   window event 'pd-music-setting' when one changes.
@@ -39,7 +39,6 @@ const T = {   // [italiano, english]
   now: ['In onda', 'Now playing'],
   off: ['Radio spenta', 'Radio off'],
   on: ['Radio accesa', 'Radio on'],
-  btn: ['Radio: tocca per cambiare brano, tieni premuto per spegnere', 'Radio: tap for next track, hold to turn off'],
 };
 
 let instance = null;
@@ -160,7 +159,6 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
       if (on) { playTrack(SKIP_FADE); }
       else { stopAll(OFF_FADE); hideToast(); flash(T.off); }
     }
-    syncButton();
   }
   const toggle = () => setEnabled(!enabled);
   function setVolume(v, save = true) {
@@ -216,21 +214,10 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     else if (e.code === 'KeyN') toggle();
   });
 
-  // ---- "now playing" toast: near-black panel, rosanero accent, top centre under the small buttons ----
+  // ---- "now playing" toast: near-black panel, rosanero accent, top left beside the menu button ----
   const style = document.createElement('style');
   style.textContent = `
-.pd-radio-btn { position: fixed; z-index: 510; top: max(8px, env(safe-area-inset-top)); left: calc(50% + 35px); width: 46px; height: 46px; padding: 0;
-  border: 0; border-radius: 50%; display: none; align-items: center; justify-content: center; color: #fff; cursor: pointer; touch-action: manipulation;
-  background: rgba(11,7,9,.42); box-shadow: inset 0 0 0 2px rgba(232,85,154,.85); -webkit-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent;
-  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: background .12s, opacity .2s; }
-.pd-radio-btn.show { display: flex; }
-.pd-radio-btn:active { background: rgba(232,85,154,.55); }
-@media (hover: hover) { .pd-radio-btn:hover { background: rgba(11,7,9,.65); } }
-.pd-radio-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
-.pd-radio-btn .pd-slash { display: none; stroke: #e8559a; stroke-width: 3; }
-.pd-radio-btn.off { opacity: .7; box-shadow: inset 0 0 0 2px rgba(255,255,255,.4); }
-.pd-radio-btn.off .pd-slash { display: block; }
-.pd-radio-toast { position: fixed; z-index: 505; top: max(8px, env(safe-area-inset-top)); /* top-left; JS moves it under the mission panel */ left: max(10px, env(safe-area-inset-left)); transform: translate(0, -8px);
+.pd-radio-toast { position: fixed; z-index: 505; top: max(8px, env(safe-area-inset-top)); /* top-left, right of the menu button; JS moves it under the mission panel */ left: calc(max(10px, env(safe-area-inset-left)) + 56px); transform: translate(0, -8px);
   width: max-content; max-width: min(340px, 64vw); box-sizing: border-box; padding: 7px 12px 8px 11px; border-radius: 9px; pointer-events: none;
   background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff; opacity: 0;
   font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .35s, transform .35s; }
@@ -267,47 +254,11 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 1800);
   }
 
-  // ---- touch / mouse button ----
-  const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'pd-radio-btn';
-  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/><path class="pd-slash" d="M3 21L21 3"/></svg>';
-  document.body.appendChild(btn);
-  let holdTimer = 0, held = false;
-  btn.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    held = false; clearTimeout(holdTimer);
-    holdTimer = setTimeout(() => { held = true; toggle(); }, 550);
-  });
-  const cancelHold = () => clearTimeout(holdTimer);
-  btn.addEventListener('pointerup', cancelHold); btn.addEventListener('pointercancel', cancelHold); btn.addEventListener('pointerleave', cancelHold);
-  btn.addEventListener('click', e => { e.stopPropagation(); if (held) { held = false; return; } started ? next() : unlock(); btn.blur(); });
-  btn.addEventListener('contextmenu', e => e.preventDefault());
-  function syncButton() {
-    btn.classList.toggle('off', !enabled);
-    const label = T.btn[lang()];
-    btn.setAttribute('aria-label', label); btn.title = label;
-  }
-  syncButton();
-
-  // sits right of the touch controls' small buttons (camera / reset / fullscreen) when they exist, else right of the pause button
-  let placeAt = 0;
-  function place(force) {
-    const now = performance.now();
-    if (!force && now - placeAt < 800) return;
-    placeAt = now;
-    const small = document.querySelector('.tc-small');
-    const r = small && small.getBoundingClientRect();
-    if (r && r.width > 0) { btn.style.left = Math.round(r.right + 12) + 'px'; btn.style.top = Math.round(r.top) + 'px'; }
-    else { btn.style.left = ''; btn.style.top = ''; }
-  }
-  window.addEventListener('resize', () => place(true));
-  window.addEventListener('orientationchange', () => setTimeout(() => place(true), 250));
-
   // ---- the shell changed a setting in Options ----
   window.addEventListener('pd-music-setting', () => {
     if (Number.isFinite(settings.musicVolume)) volume = clamp(settings.musicVolume, 0, 1);
     const on = settings.radio !== 'off';
-    if (on !== enabled) { enabled = on; if (started) { if (on) playTrack(SKIP_FADE); else stopAll(OFF_FADE); } syncButton(); }
+    if (on !== enabled) { enabled = on; if (started) { if (on) playTrack(SKIP_FADE); else stopAll(OFF_FADE); } }
   });
 
   // ---- main tick: fades, ducking, auto-advance, button and toast visibility ----
@@ -331,10 +282,9 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     }
     if (state !== prevState) {
       prevState = state;
-      btn.classList.toggle('show', state === 'play');
-      if (state === 'play') { place(true); if (pendingToast && started && enabled && slots[cur].track === pendingToast) showToast(pendingToast); else pendingToast = null; }
+      if (state === 'play') { if (pendingToast && started && enabled && slots[cur].track === pendingToast) showToast(pendingToast); else pendingToast = null; }
       else toast.classList.remove('on');
-    } else if (state === 'play') place(false);
+    }
   }
   const timer = setInterval(tick, 100);
   tick();
@@ -346,7 +296,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     get current() { return slots[cur].playing ? slots[cur].track : null; },
     tracks,
     debug: () => ({ useGain, ctx: ctx && ctx.state, levels: slots.map(s => +s.level.toFixed(2)), duck: +duck.toFixed(2), master: master ? +master.gain.value.toFixed(3) : null, vols: slots.map(s => s.el.volume), started, blocked, failures }),
-    destroy() { clearInterval(timer); stopAll(0.1); for (const s of slots) s.el.pause(); btn.remove(); toast.remove(); style.remove(); instance = null; },
+    destroy() { clearInterval(timer); stopAll(0.1); for (const s of slots) s.el.pause(); toast.remove(); style.remove(); instance = null; },
   };
   return instance;
 }

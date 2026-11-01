@@ -1,12 +1,18 @@
-// Title screen, menus, options, credits, pause. Owned by the game-shell work.
-// game.state: 'title' | 'play' | 'pause'; call game.start(), game.pause(), game.resume().
+// Title screen, main menu, options, credits, the start picker (map and list) and the in-game side menu. Owned by the game-shell work.
+// game.state: 'title' | 'play' | 'pause'; call game.start(), game.pause(), game.resume(). 'pause' is the side menu: the simulation is stopped, the
+// world keeps drawing behind the panel so option changes show at once. Menu to game, game to menu and a new start point all go through
+// transition() (src/transition.js), which stays covered until the world around the start has streamed in.
 // Change game.settings ({ quality: 'low'|'medium'|'high', drawDistance: 0.5..1.5, volume: 0..1,
 // units: 'kmh'|'mph', camera: 0..3 }) and then call applySettings().
 //
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
-// opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the pause menu, ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES).
+// opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the side menu (?ui=collections the Collezioni
+// card, ?ui=start the picker, &view=list its list), ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES),
+// ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
 import { setupGarageUI } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
+import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -16,17 +22,20 @@ const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const S = {
   tapTouch: ['Tocca per iniziare', 'Tap to start'],
   tapKey: ['Premi per iniziare', 'Press to start'],
-  drive: ['Guida libera', 'Free drive'],
-  turisti: ['Turisti affamati', 'Hungry tourists'],
-  favorita: ['A Favorita (di notte)', 'To the Favorita (at night)'],
+  drive: ['Guida', 'Drive'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
   back: ['Indietro', 'Back'],
-  paused: ['In pausa', 'Paused'],
+  menu: ['Menu', 'Menu'],
   resume: ['Riprendi', 'Resume'],
-  restart: ['Riparti da un luogo', 'Restart at a landmark'],
-  quit: ['Esci al titolo', 'Quit to title'],
-  pickSpot: ['Scegli un luogo', 'Choose a landmark'],
+  changeStart: ['Cambia partenza', 'Change start'],
+  quit: ['Esci al menu', 'Back to menu'],
+  quitBusy: ['Lasci l\'evento in corso', 'You drop the current event'],
+  collections: ['Collezioni', 'Collections'],
+  radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio', 'Radio'],
+  qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
+  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
+  colNone: ['Ancora niente', 'Nothing yet'],
   quality: ['Grafica', 'Graphics'],
   low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
   draw: ['Distanza', 'Draw distance'],
@@ -42,12 +51,9 @@ const S = {
   timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'],
-  startLast: ['Ultima posizione', 'Last position'],
-  startRandom: ['Casuale', 'Random'],
-  tabSpots: ['Luoghi', 'Places'], tabQuarters: ['Quartieri', 'Districts'],
-  startGo: ['Parti', 'Go'],
+  tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
-  pauseBtn: ['Pausa', 'Pause'],
+  menuBtn: ['Menu', 'Menu'],
   fullscreen: ['Schermo intero', 'Fullscreen'],
   credCreated: ['Creato da', 'Created by'],
   credData: ['Dati e mappe', 'Data and maps'],
@@ -164,7 +170,11 @@ function h(tag, cls, html, attrs) {
   return e;
 }
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const ICON_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4.2" height="15" rx="1"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1"/></svg>';
+const ICON_MENU = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+const ICON_CAM = '<svg viewBox="0 0 48 48"><path d="M8 17h8l3-5h10l3 5h8v21H8z" /><circle cx="24" cy="26" r="6" /></svg>';
+const ICON_RESET = '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" /><path d="M10 8v9h9" /></svg>';
+const ICON_SWAP = '<svg viewBox="0 0 48 48"><path d="M10 18h26M28 10l8 8-8 8M38 32H12M20 24l-8 8 8 8" /></svg>';
+const ICON_NOTE = '<svg viewBox="0 0 24 24"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg>';
 const ICON_FULL = '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>';
 const ICON_EXIT = '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>';
 const CHEV = '<svg class="pd-chev" viewBox="0 0 12 18"><path d="M2 2l8 7-8 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -206,7 +216,7 @@ function creditsMarkdown(md) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ game, applySettings, missions, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
+export function setupUI({ game, applySettings, missions, suca, getRadio, world, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
 
@@ -235,7 +245,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
 
   // ---- DOM ----
   const ui = h('div', '', null, { id: 'pd-ui' });
-  const scrim = h('div', 'pd-scrim'), dim = h('div', 'pd-dim'), fade = h('div', 'pd-fade');
+  const scrim = h('div', 'pd-scrim'), dim = h('div', 'pd-dim');
   ui.append(scrim, dim);
 
   const two = (key, extra = '') => `<span class="pd-in" data-k="${key}" data-two ${extra}></span>`;
@@ -251,11 +261,9 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // main menu
   mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
-      <button class="pd-btn drive" data-nav data-do="turisti" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('turisti')}${CHEV}</button>
-      <button class="pd-btn" data-nav data-do="favorita" type="button">${two('favorita')}${CHEV}</button>
-      <button class="pd-btn" data-nav data-do="drive" type="button">${two('drive')}${CHEV}</button>
-      <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
+      <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+      <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav>
 `);
@@ -287,19 +295,32 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // credits
   mk('credits', '', `<div class="pd-roll"><div class="pd-rollin"></div></div>
     <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>`);
-  // pause
-  mk('pause', '', `<div class="pd-card narrow">
-      <h2 class="pd-h" data-k="paused" data-two></h2>
-      <div class="pd-stack">
-        <button class="pd-btn" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
-        <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
-        <button class="pd-btn" data-nav data-do="spots" type="button">${two('restart')}${CHEV}</button>
-        <button class="pd-btn" data-nav data-do="quit" type="button">${two('quit')}${CHEV}</button>
-      </div></div>`);
-  // landmark picker
-  mk('spots', '', `<div class="pd-card">
-      <h2 class="pd-h" data-k="pickSpot" data-two></h2>
-      <div class="pd-grid spots"></div>
+  // in-game side menu: slides in from the right while the game keeps drawing behind it
+  mk('side', '', `<div class="pd-side" role="dialog">
+      <h2 class="pd-h" data-k="menu"></h2>
+      <div class="pd-stack pd-sidelist">
+        <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="changeStart" type="button">${two('changeStart')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
+        <div class="pd-sideradio">
+          <button class="pd-btn sm pd-radnext" data-nav data-do="radioNext" type="button"><span class="pd-in"><span class="pd-l1"><span data-k="radio"></span></span><span class="pd-l2 pd-radsub"></span></span></button>
+          <button class="pd-segb pd-radpwr" data-nav data-do="radioPower" type="button" aria-pressed="true">${ICON_NOTE}<span>ON</span></button>
+        </div>
+        <button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="quit" type="button"><span class="pd-in"><span class="pd-l1" data-k="quit"></span><span class="pd-l2 pd-quitsub" data-k="quitBusy" hidden></span></span>${CHEV}</button>
+      </div>
+      <div class="pd-quick">
+        <button class="pd-qbtn" data-nav data-do="qCam" type="button">${ICON_CAM}<span data-k="qCam"></span></button>
+        <button class="pd-qbtn" data-nav data-do="qReset" type="button">${ICON_RESET}<span data-k="qReset"></span></button>
+        <button class="pd-qbtn" data-nav data-do="qSwap" type="button">${ICON_SWAP}<span data-k="qSwap"></span></button>
+        <button class="pd-qbtn pd-qfull" data-nav data-do="qFull" type="button">${ICON_FULL}<span data-k="qFull"></span></button>
+      </div>
+    </div>`);
+  // collections: what the player has found or won so far
+  mk('collections', '', `<div class="pd-card narrow pd-coll">
+      <h2 class="pd-h" data-k="collections" data-two></h2>
+      <div class="pd-colrows"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
 
@@ -307,20 +328,22 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       <div class="gx-root"></div>
     </div>`);   // the garage draws its own Back / Done row (src/garage-ui.js): step 2 backs out to step 1
 
-  mk('start', '', `<div class="pd-card pd-garage pd-start">
+  // start picker: the map fills the screen, or a list grouped by quartiere docks on the right
+  mk('start', '', `<div class="pd-mp" data-view="map"></div>
+    <div class="pd-sbar">
+      <button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button>
       <h2 class="pd-h" data-k="startQ" data-two></h2>
-      <div class="pd-seg pd-starttabs"><button class="pd-segb" data-nav data-do="tabSpots" aria-pressed="true" type="button"><span data-k="tabSpots"></span></button><button class="pd-segb" data-nav data-do="tabQuarters" aria-pressed="false" type="button"><span data-k="tabQuarters"></span></button></div>
-      <div class="pd-stack pd-liveries pd-startlist"></div>
-      <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button><button class="pd-btn sm drive" data-nav data-do="go" type="button">${two('startGo')}${CHEV}</button></div>
-    </div>`);
+      <div class="pd-seg pd-starttabs"><button class="pd-segb" data-nav data-do="viewMap" aria-pressed="true" type="button"><span data-k="tabMap"></span></button><button class="pd-segb" data-nav data-do="viewList" aria-pressed="false" type="button"><span data-k="tabList"></span></button></div>
+    </div>
+    <div class="pd-sl pd-card"><div class="pd-stack pd-liveries pd-startlist"></div></div>`);
 
-  const pauseBtn = h('button', 'pd-pausebtn', ICON_PAUSE, { type: 'button', 'aria-label': 'Pausa / Pause' });
+  const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
   const onFs = () => { fsBtn.innerHTML = document.fullscreenElement || document.webkitFullscreenElement ? ICON_EXIT : ICON_FULL; };
   document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
   if (params.has('campos') && !params.has('hud')) ui.hidden = true; // free-camera screenshots: no shell on top
-  ui.append(pauseBtn, fsBtn, fade);
+  ui.append(menuBtn, fsBtn);
   document.body.append(ui);
   ui.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }); // keep mobile.js's page lockdown off our scrolling
   ui.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
@@ -335,8 +358,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
     }
     root.lang = lang;
-    pauseBtn.setAttribute('aria-label', S.pauseBtn.join(' / '));
-    buildCredits();
+    menuBtn.setAttribute('aria-label', S.menuBtn[i]);
+    buildCredits(); syncRadio(); startMap?.applyLang();
   }
 
   // ---- state and screen management ----
@@ -354,19 +377,22 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (cur && push) stack.push(cur);
     if (!push && !back) stack = [];
     if (cur) { const a = document.activeElement; if (a && screens[cur].contains(a)) lastFocus[cur] = a; }
-    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : name === 'start' ? startCam : flyCam;
+    setCam(name);
     if (cur === 'garage' && name !== 'garage') garageUI.leave();
     if (name === 'garage' && cur !== 'garage') garageUI.enter();
+    if (cur === 'start' && name !== 'start') startMap.hide();
     cur = name;
     for (const k in screens) screens[k].classList.toggle('on', k === name);
     lockUntil = now() + 260;
+    game.noRender = false; // the start map is opaque: main.js skips drawing the world under it
     syncState();
     if (name) {
       if (name === 'options') syncOptions();
-      if (name === 'spots') renderSpots();
-      if (name === 'start') renderStart();
+      if (name === 'start') openStart();
+      if (name === 'side') syncSide();
+      if (name === 'collections') renderCollections();
       let want = lastFocus[name];
-      if (!want || !want.isConnected) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
+      if (!want || !want.isConnected || !want.offsetParent) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
       if (name === 'garage') want = garageUI.focusEl() || want;   // the garage focuses the current base (step 1) or tab (step 2)
       if (want && name !== 'title') want.focus({ preventScroll: true });
       if (name === 'credits') startRoll();
@@ -374,6 +400,11 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function goBack() {
     if (stack.length) go(stack.pop(), { back: true });
+  }
+  // The camera behind the screens: the flyover on the title, the garage's turntable (also from the side menu), the normal chase camera otherwise.
+  function setCam(name) {
+    if (game.state === 'title') game.titleCam = name === 'garage' ? garageCam : flyCam;
+    else if (game.state === 'pause') { if (name === 'garage') game.titleCam = garageCam; else if (game.titleCam) { game.titleCam = null; leaveTitleCam(); } }
   }
 
   // ---- title flyover ----
@@ -414,42 +445,52 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // ---- actions ----
   function leaveTitleCam() { if (camera.fov !== baseFov) { camera.fov = baseFov; camera.updateProjectionMatrix(); } }
   function gesture() { window.dispatchEvent(new Event('pd-gesture')); vehicle?.unlockAudio?.(); }
-  function drive() {
+  const frames = n => new Promise(r => { const f = () => (--n > 0 ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
+  // Wait until the streamer has nothing left to fetch or build around the camera (or maxMs), so loading never shows after the reveal.
+  function settle(maxMs = 7000) {
+    return new Promise(res => {
+      if (!world || !world.stats) return res();
+      const t0 = now(); let calm = 0;
+      const poll = () => {
+        const w = world.stats();
+        calm = w.queued + w.pending + w.inflight === 0 ? calm + 1 : 0;
+        if (calm >= 3 || now() - t0 > maxMs) res(); else setTimeout(poll, 150);
+      };
+      setTimeout(poll, 450); // the streamer needs a moment to see the new camera position
+    }).then(() => frames(2));
+  }
+  // Menu or picker to the game, or a new start point from the side menu: cover, place the lapa, wait for the world, reveal.
+  function startAt(x, z) {
     if (busy) return; busy = true; gesture();
-    fade.classList.add('on');
-    setTimeout(() => {
-      leaveTitleCam(); game.start(); go(null);
-      requestAnimationFrame(() => requestAnimationFrame(() => { fade.classList.remove('on'); busy = false; }));
-    }, 420);
+    const fromTitle = game.state === 'title';
+    transition(async () => {
+      if (!fromTitle) missions?.stop?.();
+      await placeAt(x, z); // main.js: places the lapa and resolves once the start tile is at full detail
+      leaveTitleCam(); game.titleCam = null;
+      if (fromTitle) game.start(); else game.resume();
+      stack = []; go(null);
+      await settle();
+    }).catch(() => {}).then(() => { busy = false; });
   }
   function openPause() {
     if (game.state !== 'play' || busy) return;
-    rememberPos(true); game.pause(); stack = []; go('pause');
+    game.pause(); stack = []; go('side');
     for (const k in screens) delete lastFocus[k];
   }
   function closePause() {
     if (game.state !== 'pause') return;
     game.resume(); go(null); gesture();
   }
-  // The sea's game-over "Menu" button asks the shell to go back to the title instead of reloading.
+  // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
     if (busy) return; busy = true;
-    fade.classList.add('on');
-    setTimeout(() => {
-      rememberPos(true);
+    transition(async () => {
       missions?.stop?.();
-      placeAt(...proj(SPOTS[0][1], SPOTS[0][2])); game.state = 'title'; stack = []; go('menu'); fade.classList.remove('on'); busy = false;
-    }, 420);
-  }
-  function restartAt(i) {
-    const s = spotList()[i]; if (!s || busy) return; busy = true;
-    fade.classList.add('on');
-    setTimeout(() => {
-      placeAt(s.x, s.z);
-      game.resume(); go(null);
-      requestAnimationFrame(() => requestAnimationFrame(() => { fade.classList.remove('on'); busy = false; }));
-    }, 360);
+      game.state = 'title'; stack = []; go('menu');
+      await placeAt(...proj(SPOTS[0][1], SPOTS[0][2]));
+      await settle(2500); // the flyover keeps the streamer busy, so do not wait for it to go quiet
+    }).catch(() => {}).then(() => { busy = false; });
   }
   function fullscreen() {
     try {
@@ -459,18 +500,23 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   }
   function act(name, el) {
     switch (name) {
-      case 'drive': startMode = 'free'; return go('start', { push: true });
-      case 'turisti': startMode = 'turisti'; return go('start', { push: true });
-      case 'favorita': startMode = 'favorita'; return go('start', { push: true });   // night mission, whole-city world only (src/missions.js)
-      case 'go': return confirmStart();
-      case 'tabSpots': case 'tabQuarters': startTab = name === 'tabSpots' ? 'spots' : 'quarters'; return renderStart();
+      case 'drive': return go('start', { push: true });
+      case 'changeStart': return go('start', { push: true });
+      case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
+      case 'mapgo': return startMap.startSelected();
       case 'options': return go('options', { push: true });
       case 'credits': return go('credits', { push: true });
       case 'garage': return go('garage', { push: true });
+      case 'collections': return go('collections', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
-      case 'spots': return go('spots', { push: true });
       case 'quit': return quit();
+      case 'radioNext': getRadio?.()?.next(); return setTimeout(syncRadio, 300);
+      case 'radioPower': getRadio?.()?.toggle(); return syncRadio();
+      case 'qCam': vehicle.camState.mode = (vehicle.camState.mode + 1) % 4; vehicle.camState.init = false; return;
+      case 'qReset': return vehicle.placeAt(vehicle.car.x, vehicle.car.z);
+      case 'qSwap': return dispatchEvent(new CustomEvent('pd-swap'));
+      case 'qFull': return fullscreen();
     }
   }
 
@@ -479,67 +525,78 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   const flyCam = game.titleCam;
   const garageCam = (cam, sec) => garageUI.cam(cam, sec);
 
-  // ---- start picker ("Da dove parti?"): built from SPOTS (plus window.PALERMO_WORLD.landmarks when present) each time it opens ----
-  const LAST_KEY = 'palermoDrive.last.v1';
-  const readLast = () => { try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && Number.isFinite(v.x) && Number.isFinite(v.z) ? v : null; } catch (e) { return null; } };
-  let startTab = 'spots', lastPos = readLast(), lastWrite = 0, startMode = 'free', startItems = [], startSel = 0, startWas = -1, lastPointer = 'mouse', spotItems = [];
-  function rememberPos(force) { // where you were driving, for "Ultima posizione"
-    const c = vehicle && vehicle.car;
-    if (!c || (game.state !== 'play' && game.state !== 'pause') || (!force && now() - lastWrite < 4000)) return;
-    lastWrite = now(); lastPos = { x: c.x, z: c.z };
-    try { localStorage.setItem(LAST_KEY, JSON.stringify(lastPos)); } catch (e) { /* storage unavailable */ }
+  // ---- side menu: radio row, the busy warning, the fullscreen button ----
+  const radNext = screens.side.querySelector('.pd-radnext'), radPwr = screens.side.querySelector('.pd-radpwr'), radSub = screens.side.querySelector('.pd-radsub');
+  const quitSub = screens.side.querySelector('.pd-quitsub');
+  function syncRadio() {
+    const r = getRadio?.(), on = r ? r.enabled : st.radio !== 'off';
+    radPwr.setAttribute('aria-pressed', String(on));
+    radPwr.querySelector('span').textContent = on ? 'ON' : 'OFF';
+    radSub.textContent = on && r && r.current ? r.current.title : '';
   }
-  addEventListener('pagehide', () => rememberPos(true));
-  function spotList() {
-    const out = [], seen = new Set();
-    const add = (name, x, z) => { if (name && Number.isFinite(x) && Number.isFinite(z) && !seen.has(name)) { seen.add(name); out.push({ name, x, z }); } };
-    for (const sp of SPOTS) { const [x, z] = proj(sp[1], sp[2]); add(sp[0], x, z); }
-    const W = window.PALERMO_WORLD && window.PALERMO_WORLD.landmarks;
-    for (const e of Array.isArray(W) ? W : W && typeof W === 'object' ? Object.values(W) : []) {
-      if (Array.isArray(e)) { const [x, z] = proj(e[1], e[2]); add(e[0], x, z); }
-      else if (e) { const nm = e.name || e.n || e.name_it; if (Number.isFinite(e.lat) && Number.isFinite(e.lon)) { const [x, z] = proj(e.lat, e.lon); add(nm, x, z); } else add(nm, e.x, e.z); }
-    }
-    return out;
+  function syncSide() {
+    syncRadio();
+    quitSub.hidden = !missions?.busy?.();
+    screens.side.querySelector('.pd-qfull').hidden = !canFull;
   }
-  function renderSpots() { // pause menu: restart at a landmark
-    spotItems = spotList();
-    screens.spots.querySelector('.pd-grid').innerHTML = spotItems.map((sp, i) => `<button class="pd-btn sm" data-nav data-spot="${i}" type="button"><span class="pd-in">${esc(sp.name)}</span></button>`).join('');
+
+  // ---- collections: SUCA / 800A tags, food events, races, fares ----
+  const colRows = screens.collections.querySelector('.pd-colrows'), fakeProg = params.has('fakeprogress');
+  const sucaProgress = () => suca?.progress?.() || (fakeProg ? { found: 14, total: 60 } : null);
+  const missionProgress = () => missions?.progress?.() || (fakeProg ? { food: { done: 1, total: 4 }, races: { won: 2, total: 5 }, fares: 7 } : null);
+  function renderCollections() {
+    const i = lang === 'it' ? 0 : 1, sp = sucaProgress(), mp = missionProgress();
+    const bar = (label, done, total, note) => `<div class="pd-col"><div class="pd-colh"><span>${esc(label)}</span><b>${done == null ? '-' : total ? `${done} / ${total}` : done}</b></div>${total ? `<div class="pd-colbar"><i style="width:${Math.round(clamp(done / total, 0, 1) * 100)}%"></i></div>` : ''}${note ? `<div class="pd-colnote">${esc(note)}</div>` : ''}</div>`;
+    // the SUCA total only counts tags in tiles seen so far (it grows as the city streams in), hence the note
+    colRows.innerHTML = bar(S.colSuca[i], sp && sp.found, sp && sp.total, S.colSeen[i])
+      + bar(S.colFood[i], mp && mp.food && mp.food.done, mp && mp.food && mp.food.total)
+      + bar(S.colRaces[i], mp && mp.races && mp.races.won, mp && mp.races && mp.races.total)
+      + bar(S.colFares[i], mp && mp.fares, 0);
   }
-  function renderStart() {
-    lastPos = readLast() || lastPos;
-    const spots = startTab === 'spots' ? spotList() : QUARTIERI.map(([name, la, lo]) => { const [x, z] = proj(la, lo); return { name, x, z }; });
-    for (const b of screens.start.querySelectorAll('.pd-starttabs [data-do]')) b.setAttribute('aria-pressed', String((b.dataset.do === 'tabSpots') === (startTab === 'spots')));
-    startItems = [...(lastPos ? [{ kind: 'last', x: lastPos.x, z: lastPos.z }] : []), { kind: 'random' }, ...spots.map(sp => ({ kind: 'spot', ...sp }))];
-    startBox.innerHTML = startItems.map((it, i) => `<button class="pd-btn sm pd-liv" data-nav data-start="${i}" aria-pressed="false" type="button"><span class="pd-in"${it.kind === 'spot' ? '' : ` data-k="${it.kind === 'last' ? 'startLast' : 'startRandom'}" data-two`}>${it.kind === 'spot' ? esc(it.name) : ''}</span></button>`).join('');
-    applyLang();
-    selectStart(startItems.findIndex(it => it.kind === 'last') >= 0 ? 0 : startItems.findIndex(it => it.kind === 'spot'));
-    lastFocus.start = startBox.querySelector(`[data-start="${startSel}"]`);
-  }
-  function selectStart(i) {
-    startSel = i; const it = startItems[i]; if (!it) return;
-    for (const b of startBox.querySelectorAll('[data-start]')) b.setAttribute('aria-pressed', String(+b.dataset.start === i));
-    if (it.kind !== 'random') { try { placeAt(it.x, it.z); } catch (e) { /* no road yet */ } } // the lapa appears there during the preview
-    if (game.state === 'title') game.titleCam = it.kind === 'random' ? flyCam : startCam;
-  }
-  function confirmStart() {
-    if (busy) return;
-    let it = startItems[startSel]; if (!it) return;
-    if (it.kind === 'random') { const sp = startItems.filter(x => x.kind === 'spot'); it = sp[Math.floor(Math.random() * sp.length)] || it; }
-    missions?.setMode?.(startMode);
-    if (it.x != null) placeAt(it.x, it.z);
-    drive();
-  }
+
+  // ---- start picker ("Da dove parti?"): the city map or a list grouped by quartiere. Both start through startAt(). ----
+  const QX = QUARTIERI.map(([name, la, lo]) => { const [x, z] = proj(la, lo); return { name, x, z }; });
+  const SP = SPOTS.map(sp => { // each start point belongs to the nearest quartiere
+    const [x, z] = proj(sp[1], sp[2]); let q = null, bd = Infinity;
+    for (const c of QX) { const d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z); if (d < bd) { bd = d; q = c; } }
+    return { name: sp[0], x, z, q: q ? q.name : '' };
+  });
+  let startView = params.get('view') === 'list' ? 'list' : 'map', listDone = false;
   const startBox = screens.start.querySelector('.pd-startlist');
-  startBox.addEventListener('pointerdown', e => { lastPointer = e.pointerType; startWas = startSel; });
-  startBox.addEventListener('focusin', e => { const b = e.target.closest('[data-start]'); if (b && +b.dataset.start !== startSel) selectStart(+b.dataset.start); });
-  startBox.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const b = e.target.closest('[data-start]'); if (b && document.activeElement !== b) b.focus({ preventScroll: true }); } });
-  function startCam(cam, sec) { // overhead orbit around the chosen spot, the lapa parked there
-    if (cam.fov !== 50) { cam.fov = 50; cam.updateProjectionMatrix(); }
-    const c = vehicle.car, gy = groundY(c.x, c.z), a = sec * 0.2 + 0.8;
-    cam.position.set(c.x + Math.sin(a) * 60, gy + 78, c.z + Math.cos(a) * 60);
-    cam.lookAt(c.x, gy + 2, c.z);
-    cam.translateX(14); // spot sits left of centre, the list on the right
+  const fakeEvents = params.has('fakeevents') && !missions?.events ? [ // test stub until the events work lands
+    { id: 'f1', kind: 'fare', name: 'Turisti in Piazza Pretoria', x: 150, z: 20 }, { id: 'f2', kind: 'food', name: 'Benny e le pizzette', x: -480, z: -120 },
+    { id: 'f3', kind: 'race', name: 'Corsa su Viale Regione Siciliana', x: 1800, z: 700, night: true }, { id: 'f4', kind: 'urgent', name: 'Aeroporto, di corsa!', x: -9000, z: 300 },
+    { id: 'f5', kind: 'food', name: 'Arancine a Mondello', x: -2700, z: -10000 }, { id: 'f6', kind: 'fare', name: 'Turisti al Foro Italico', x: 700, z: -250, night: true }] : null;
+  const startMap = createStartMap({
+    host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
+    getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
+    getEvents: () => fakeEvents || missions?.events?.() || [],
+    onStart: (x, z) => startAt(x, z),
+  });
+  if (params.has('mapdebug')) window.__pdMap = startMap;
+  function setView(v) {
+    startView = v;
+    screens.start.dataset.view = v;
+    for (const b of screens.start.querySelectorAll('.pd-starttabs [data-do]')) b.setAttribute('aria-pressed', String((b.dataset.do === 'viewMap') === (v === 'map')));
+    game.noRender = cur === 'start' && v === 'map';
+    if (v === 'map') startMap.show(); else { startMap.hide(); renderList(); }
   }
+  function openStart() { setView(startView); if (startView === 'map') lastFocus.start = screens.start.querySelector('.pd-starttabs [aria-pressed=true]'); }
+  function renderList() {
+    if (!listDone) {
+      listDone = true;
+      const by = new Map(QX.map(q => [q.name, []])); SP.forEach((s, i) => by.get(s.q)?.push([s, i]));
+      const order = QX.map((q, i) => [q, i]).sort((a, b) => (a[0].x * a[0].x + a[0].z * a[0].z) - (b[0].x * b[0].x + b[0].z * b[0].z));
+      startBox.innerHTML = order.map(([q, i]) => `<button class="pd-btn sm pd-qh" data-nav data-pt="q:${i}" type="button"><span class="pd-in">${esc(q.name)}</span>${CHEV}</button>`
+        + by.get(q.name).map(([s, j]) => `<button class="pd-btn sm pd-poi" data-nav data-pt="s:${j}" type="button"><span class="pd-in">${esc(s.name)}</span></button>`).join('')).join('');
+    }
+    lastFocus.start = startBox.querySelector('[data-pt]');
+  }
+  function startFromList(pt) {
+    const [k, i] = pt.split(':'), it = (k === 'q' ? QX : SP)[+i];
+    if (it) startAt(it.x, it.z);
+  }
+  if (startView === 'list') screens.start.dataset.view = 'list'; else screens.start.dataset.view = 'map';
 
   // ---- options ----
   let applyTimer = 0;
@@ -626,6 +683,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     if (cur === 'credits') { rollPause = now() + 3500; if (dir === 'up' || dir === 'down') { roll.scrollBy({ top: dir === 'up' ? -90 : 90 }); return; } }
     const items = focusables(), a = document.activeElement;
     if (!items.length) return;
+    if (cur === 'side' && items.includes(a) && sideMove(dir, a)) return;
     if (!items.includes(a)) { items[0].focus({ preventScroll: true }); return; }
     if (a.classList.contains('pd-slider') && (dir === 'left' || dir === 'right')) { stepSlider(a, dir === 'left' ? -1 : 1); return; }
     const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -641,16 +699,28 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     }
     if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
   }
+  // The side menu is one column (Up/Down walk it in order, the radio row and the quick buttons are rows for Left/Right), not a spatial grid.
+  function sideMove(dir, a) {
+    const col = [...screens.side.querySelectorAll('.pd-sidelist > .pd-btn, .pd-radnext, .pd-qbtn:first-child')].filter(e => e.offsetParent !== null);
+    const row = a.closest('.pd-quick') ? [...screens.side.querySelectorAll('.pd-qbtn')].filter(e => e.offsetParent !== null) : a.closest('.pd-sideradio') ? [screens.side.querySelector('.pd-radnext'), screens.side.querySelector('.pd-radpwr')] : null;
+    const i = row ? row.indexOf(a) : -1;
+    if (dir === 'left' || dir === 'right') { if (row) row[clamp(i + (dir === 'left' ? -1 : 1), 0, row.length - 1)].focus({ preventScroll: true }); return true; }
+    const at = a.closest('.pd-quick') ? col.length - 1 : a === screens.side.querySelector('.pd-radpwr') ? col.indexOf(screens.side.querySelector('.pd-radnext')) : col.indexOf(a);
+    const n = col[clamp(at + (dir === 'up' ? -1 : 1), 0, col.length - 1)];
+    if (n) n.focus({ preventScroll: true });
+    return true;
+  }
   function input(a) {
     if (busy) return;
     if (game.state === 'over') return; // the sea's game-over overlay handles its own input
     if (game.state === 'play') { if (a === 'pause' || a === 'back') openPause(); return; }
     if (cur === 'title') { if (a === 'ok') go('menu'); return; }
     if (a === 'pause' && game.state === 'pause') return closePause();
-    if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
+    if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (cur === 'start' && startView === 'map' && startMap.closePop()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
     if (a === 'ok') { const el = document.activeElement; if (cur && screens[cur] && el && el.closest && screens[cur].contains(el)) el.click(); return; }
-    if (['up', 'down', 'left', 'right'].includes(a)) move(a);
+    if (['up', 'down', 'left', 'right'].includes(a)) { if (cur === 'start' && startView === 'map') startMap.key(MAPKEY[a]); else move(a); }
   }
+  const MAPKEY = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const a = KEYMAP[e.code];
@@ -659,6 +729,10 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
       return;
     }
     e.stopImmediatePropagation(); // no driving shortcuts while a menu is up
+    if (cur === 'start' && !busy) { // the picker: L swaps map and list; on the map arrows pan, +/- zoom, Tab walks the pins, E toggles events
+      if (e.code === 'KeyL') { e.preventDefault(); setKb(true); return setView(startView === 'map' ? 'list' : 'map'); }
+      if (startView === 'map' && startMap.key(e.code, e.shiftKey)) { e.preventDefault(); setKb(true); return; }
+    }
     if (e.code === 'Tab' || e.code.startsWith('F') && e.code.length <= 3) return;
     e.preventDefault(); setKb(true);
     if (cur === 'title') { if (!e.repeat && e.code !== 'Escape') input('ok'); return; }
@@ -670,17 +744,14 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   // pointer: one delegated click handler (click, not pointerdown, so a tap never lands on the next screen)
   ui.addEventListener('click', e => {
     if (busy || (e.detail && now() < lockUntil)) return; // pointer taps right after a screen change are ignored; keyboard clicks (detail 0) are not
+    if (e.target === screens.side) return closePause(); // a tap beside the panel closes it
     const t = e.target.closest ? e.target.closest('button, .pd-s-title') : null;
     if (!t) return;
-    if (t === pauseBtn) return openPause();
+    if (t === menuBtn) return openPause();
     if (t === fsBtn) return fullscreen();
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
-    if (t.dataset.start != null) { // mouse and keyboard start straight away; a first touch only selects and previews
-      const i = +t.dataset.start, firstTouch = e.detail && lastPointer !== 'mouse' && startWas !== i;
-      selectStart(i); return firstTouch ? undefined : confirmStart();
-    }
-    if (t.dataset.spot != null) return restartAt(+t.dataset.spot);
+    if (t.dataset.pt != null) return startFromList(t.dataset.pt);
     if (t.dataset.do) return act(t.dataset.do, t);
   });
 
@@ -705,9 +776,8 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   let lastT = now(), lastState = '', nextLivCheck = 0;
   function tick(t) {
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
-    if (game.state !== lastState) { lastState = game.state; syncState(); placePause(); }
+    if (game.state !== lastState) { lastState = game.state; syncState(); }
     pollPad(t);
-    rememberPos();
     garageUI.tick(dt);
     if (cur === 'credits' && t > rollPause) {
       if (Math.abs(roll.scrollTop - rollY) > 1.5) rollY = roll.scrollTop; // the user scrolled by hand
@@ -716,18 +786,7 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
     requestAnimationFrame(tick);
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden && game.state === 'play') openPause(); });
-
-  // pause button sits left of mobile.js's small-button group (camera / reset / fullscreen) at the top centre
-  function placePause() {
-    const g = document.querySelector('.tc-small');
-    if (g && g.getBoundingClientRect().width > 0) {
-      const r = g.getBoundingClientRect();
-      ui.style.setProperty('--pd-pause-left', (r.left - 12 - 23) + 'px');
-      ui.style.setProperty('--pd-pause-top', r.top + 'px');
-    } else { ui.style.removeProperty('--pd-pause-left'); ui.style.removeProperty('--pd-pause-top'); }
-  }
-  addEventListener('resize', placePause); addEventListener('orientationchange', () => setTimeout(placePause, 200));
-  setTimeout(placePause, 300);
+  addEventListener('resize', () => { if (cur === 'start' && startView === 'map') startMap.resize(); });
 
   // ---- boot ----
   applyLang();
@@ -736,11 +795,11 @@ export function setupUI({ game, applySettings, missions, camera, renderer, scene
   if (game.state === 'play') {
     syncState(); lastState = 'play';
     if (want === 'pause') setTimeout(openPause, 50);
+    if (want === 'collections') setTimeout(() => { openPause(); go('collections', { push: true }); }, 50);
   } else {
     syncState();
-    go(['menu', 'options', 'credits', 'spots', 'garage', 'start'].includes(want) ? want : want === 'none' ? null : 'title');
-    if (want === 'options' || want === 'credits') stack = ['menu'];
-    if (want === 'spots' || want === 'garage' || want === 'start') stack = ['menu'];
+    go(['menu', 'options', 'credits', 'garage', 'start'].includes(want) ? want : want === 'none' ? null : 'title');
+    if (want === 'options' || want === 'credits' || want === 'garage' || want === 'start') stack = ['menu'];
   }
   lastState = game.state;
   requestAnimationFrame(tick);

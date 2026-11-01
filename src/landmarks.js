@@ -156,7 +156,7 @@ let READY = false;
 function initMaterials() {
   if (READY) return; READY = true;
   defMat('ashlar', mkTex(512, 512, (g, w, h) => paintAshlar(g, w, h, 3.2, 3.2, 0.4, 0.85, '#d2bd96', '#8a7656', 11)), [3.2, 3.2]);
-  defMat('rustic', mkTex(512, 512, (g, w, h) => paintAshlar(g, w, h, 3.3, 3.3, 0.55, 1.1, '#c4ab82', '#4e3f2e', 12, 5, 0.1)), [3.3, 3.3]);
+  defMat('rustic', mkTex(512, 512, (g, w, h) => paintAshlar(g, w, h, 3.3, 3.3, 0.55, 1.1, '#c6baa2', '#5a4e3d', 12, 5, 0.1)), [3.3, 3.3]);
   defMat('plaster', mkTex(256, 256, (g, w, h) => {
     g.fillStyle = '#e8dccb'; g.fillRect(0, 0, w, h);
     noiseDots(g, w, h, 900, 2.5, 21, ['rgba(120,90,60,0.08)', 'rgba(255,255,255,0.10)']); streaks(g, w, h, 40, 22, 0.08, 120);
@@ -913,38 +913,63 @@ function buildCattedrale(ctx) {
 function buildPortaNuova(ctx) {
   CUR = 'Porta Nuova';
   const b = byId('w815701117'); if (!b) return;
-  const pts = pairsOf(b.p), cen = centroid(pts), gy = minGround(pts); BASEY = gy;
-  // axis: through-passage along the Corso (ENE), as measured from the footprint's long edges
+  // ground at the gate: the road under the arch is at 35.5 m in the streamed world tile (src/world.js); groundY() at start-up still answers from the old baked
+  // centro grid (38.2 m here), which left the whole gate floating 2.7 m above the road, so the base is pinned to the tile's height
+  const gy = 35.5; BASEY = gy;
+  // axis: through-passage along the Corso (ENE), as measured from the footprint's long edges. The OSM footprint is 18 x 18 m and runs from 7.3 m behind to
+  // 10.7 m ahead of its centroid along the axis, so the model is centred on the footprint box, 0.4 m off to the side so the passage lies on the road
+  // (the piers' collision in src/lmc-gates.js uses the same box)
   const ax = [0.907, -0.42];
-  const M0 = frame(cen[0], gy, cen[1], ax[0], ax[1]);
-  const W = 17.0, Dp = 13.6, H1 = 15.4, PW = 5.8, PH = 8.6;   // width across, depth along the passage, lower stage height
+  const M0 = frame(-750.8, gy, 395.6, ax[0], ax[1]);
+  // Proportions read off the Commons photos (Porta Nuova facade, close view) with the 18 m footprint width as the scale, so about +-1 m (no published height was found):
+  // rusticated arch storey 12 m, plain storey with windows and the eagle 5.4 m, loggia 5.7 m, cornice and balustrade, majolica pyramid 3.4 m (the real roof is low-pitched, base 11.4 m), lantern and finial 5 m: about 33 m
+  const W = 18.0, Dp = 18.0, H1 = 12.2, PW = 5.8, PH = 8.6;   // width across, depth along the passage, rusticated storey height
   // lower stage with the arched passage cut right through (extruded shape with a hole)
   const base = new THREE.Shape(); base.moveTo(-W / 2, 0); base.lineTo(W / 2, 0); base.lineTo(W / 2, H1); base.lineTo(-W / 2, H1); base.lineTo(-W / 2, 0);
   const hole = archPath(PW, PH);
-  part('rustic', shapeGeo(base, Dp, hole), { M: mul(M0, tr(0, -0.6, -Dp / 2)), c: '#b9a58f' });
+  part('rustic', shapeGeo(base, Dp, hole), { M: mul(M0, tr(0, -0.6, -Dp / 2)), c: '#d6cab2' });
   // outer arch ring and inner smaller arch
   for (const sg of [-1, 1]) {
     part('ashlar', shapeGeo(archShape(PW + 1.4, PH + 0.7), 0.3, archPath(PW, PH)), { M: mul(M0, tr(0, 0, sg * (Dp / 2 + 0.1) + (sg > 0 ? 0 : -0.3))), c: '#b9a28c' });
-    // medallions and string courses on both faces
-    for (const x of [-5.6, -2.8, 0, 2.8, 5.6]) cyl('marble', 0.9, 0.9, 0.25, 10, { M: mul(mul(M0, tr(x, H1 - 3.6, sg * (Dp / 2 + 0.05))), new THREE.Matrix4().makeRotationX(PI / 2 * sg)), c: '#d9cdb4' });
+    // the four Moors (atlantes) on their brackets either side of the arch, and the keystone
+    for (const x of [-PW / 2 - 1.55, -PW / 2 - 3.6, PW / 2 + 1.55, PW / 2 + 3.6]) {
+      const Ms = mul(M0, mul(tr(x, 0, sg * (Dp / 2 + 0.45)), new THREE.Matrix4().makeRotationY(sg > 0 ? 0 : PI)));
+      const st = '#c2b293', sd = '#a99a7c';
+      box('ashlar', 1.3, 0.9, 0.9, { M: mul(Ms, tr(0, 4.9, -0.2)), c: sd });                          // bracket with a grotesque mask
+      box('ashlar', 1.15, 2.7, 0.8, { M: mul(Ms, tr(0, 5.8, -0.05)), c: st });                        // torso
+      sphere('ashlar', 0.46, { M: mul(Ms, tr(0, 9.0, 0.05)), c: st, seg: 6 });                        // head
+      box('ashlar', 1.0, 0.4, 0.8, { M: mul(Ms, tr(0, 9.35, -0.1)), c: sd });                         // the cap on his head
+      for (const a of [-1, 1]) box('ashlar', 0.38, 1.7, 0.4, { M: mul(Ms, tr(a * 0.62, 6.6, 0.2)), c: st, rz: a * 0.25 });   // arms folded across
+    }
+    box('ashlar', 1.3, 1.8, 0.7, { M: mul(M0, tr(0, PH - 0.9, sg * (Dp / 2 + 0.3))), c: '#c9b79a' });
+    // the plain storey: two windows with pediments, the imperial eagle between them and a shield at each end (as on the photos), and the string course
+    const Mn = (x, y, z) => mul(mul(M0, rotY(sg > 0 ? 0 : PI)), tr(x, y, z)), zn = Dp / 2 - 0.2 + 0.05, yN = H1 + 0.6;
+    for (const x of [-2.7, 2.7]) {
+      box('marble', 1.5, 2.9, 0.2, { M: Mn(x, yN + 1.2, zn), c: '#d8ceb6' });
+      box('dark', 0.95, 2.2, 0.2, { M: Mn(x, yN + 1.55, zn + 0.05), c: '#4a3326', noao: true });
+      box('marble', 1.9, 0.35, 0.35, { M: Mn(x, yN + 4.1, zn), c: '#d8ceb6' });
+    }
+    box('marble', 0.5, 1.1, 0.14, { M: Mn(0, yN + 1.6, zn), c: '#cfc7b0' });                                   // eagle: body and spread wings
+    for (const a of [-1, 1]) box('marble', 1.1, 0.4, 0.14, { M: Mn(a * 0.7, yN + 2.3, zn), c: '#cfc7b0', rz: a * 0.35 });
+    for (const x of [-5.4, 5.4]) box('marble', 1.1, 1.5, 0.16, { M: Mn(x, yN + 1.6, zn), c: '#d9cdb4' });   // shields
     box('ashlar', W + 0.8, 0.9, 1.0, { M: mul(M0, tr(0, H1 - 1.2, sg * (Dp / 2 - 0.1))), c: '#c9ab8c' });
   }
   box('ashlar', W + 1.0, 0.9, Dp + 1.0, { M: mul(M0, tr(0, H1 - 0.3, 0)), c: '#cdb094' });
   // dark vault interior floor/lights are provided by the tunnel walls
   // second stage (plain, with small windows) and cornice
   const H2 = H1 + 2.2;
-  box('ashlar', W - 0.4, 3.1, Dp - 0.4, { M: mul(M0, tr(0, H1 + 0.6, 0)), c: '#c9b49c' });
+  box('ashlar', W - 0.4, 5.4, Dp - 0.4, { M: mul(M0, tr(0, H1 + 0.6, 0)), c: '#cfc0a6' });
   // loggia of five arches (front/back) and four on the sides
-  const LW = W - 2.0, LD = Dp - 2.0, yl = H1 + 3.7, LH = 6.2;
+  const LW = W - 2.0, LD = Dp - 2.0, yl = H1 + 6.2, LH = 5.7;
   box('flat', LW - 0.6, LH, LD - 0.6, { M: mul(M0, tr(0, yl, 0)), c: '#c99b58', noao: true });
   for (const sg of [-1, 1]) {
-    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; part('dark', shapeGeo(archShape(2.0, 4.4), 0.1), { M: mul(M0, tr(x, yl + 0.3, sg * (LD / 2 - 0.2))), uv: 'keep', c: '#4a2c20', noao: true }); }
-    for (let i = 0; i <= 5; i++) cyl('marble', 0.17, 0.2, 4.6, 8, { M: mul(M0, tr(-LW / 2 + i * LW / 5, yl + 0.2, sg * (LD / 2 + 0.2))), c: '#ece7d8' });
+    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; part('dark', shapeGeo(archShape(2.0, 4.2), 0.1), { M: mul(M0, tr(x, yl + 0.3, sg * (LD / 2 - 0.2))), uv: 'keep', c: '#4a2c20', noao: true }); }
+    for (let i = 0; i <= 5; i++) cyl('marble', 0.17, 0.2, 4.4, 8, { M: mul(M0, tr(-LW / 2 + i * LW / 5, yl + 0.2, sg * (LD / 2 + 0.2))), c: '#ece7d8' });
     // arch ribs
-    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; box('marble', LW / 5, 0.5, 0.45, { M: mul(M0, tr(x, yl + 4.65, sg * (LD / 2 + 0.2))), c: '#ece7d8' }); }
+    for (let i = 0; i < 5; i++) { const x = -LW / 2 + (i + 0.5) * LW / 5; box('marble', LW / 5, 0.5, 0.45, { M: mul(M0, tr(x, yl + 4.5, sg * (LD / 2 + 0.2))), c: '#ece7d8' }); }
     // balustrade on the lower roof ledge
-    balus(mul(M0, tr(0, H1 + 0.6, sg * (Dp / 2 - 0.25))), W - 0.6, 1.1);
-    balus(mul(M0, tr(sg * (W / 2 - 0.25), H1 + 0.6, 0)), Dp - 0.6, 1.1, { ry: PI / 2 });
+    balus(mul(M0, tr(0, H1 + 6.0, sg * (Dp / 2 - 0.25))), W - 0.6, 1.1);
+    balus(mul(M0, tr(sg * (W / 2 - 0.25), H1 + 6.0, 0)), Dp - 0.6, 1.1, { ry: PI / 2 });
     // side loggia arches
     for (let i = 0; i < 4; i++) { const z = -LD / 2 + (i + 0.5) * LD / 4; part('dark', shapeGeo(archShape(1.8, 4.4), 0.1), { M: mul(mul(M0, rotY(PI / 2 * sg)), tr(z * sg, yl + 0.3, LW / 2 - 0.2 + 0.0)), uv: 'keep', c: '#4a2c20', noao: true }); }
   }
@@ -952,12 +977,14 @@ function buildPortaNuova(ctx) {
   balus(mul(M0, tr(0, yl + LH + 0.6, LD / 2 + 0.2)), LW + 0.4, 1.0); balus(mul(M0, tr(0, yl + LH + 0.6, -LD / 2 - 0.2)), LW + 0.4, 1.0);
   balus(mul(M0, tr(LW / 2 + 0.2, yl + LH + 0.6, 0)), LD + 0.4, 1.0, { ry: PI / 2 }); balus(mul(M0, tr(-LW / 2 - 0.2, yl + LH + 0.6, 0)), LD + 0.4, 1.0, { ry: PI / 2 });
   // majolica pyramid roof, gilded lantern
-  const yp = yl + LH + 0.6, PHt = 8.2;
+  const yp = yl + LH + 0.6, PHt = 3.4;
   const pg = new THREE.CylinderGeometry(0, 1, 1, 4, 1, true); pg.rotateY(PI / 4); pg.translate(0, 0.5, 0);
-  part('majolica', pg, { M: mul(M0, tr(0, yp, 0)), s: [(LW - 3.4) / 2 / 0.7071, PHt, (LD - 3.0) / 2 / 0.7071] });
-  cyl('flat', 1.1, 1.3, 2.2, 8, { M: mul(M0, tr(0, yp + PHt - 0.2, 0)), c: '#b88a38', noao: true });
-  lathe('flat', [[1.3, 0], [0.9, 0.5], [0.1, 1.2]], 8, { M: mul(M0, tr(0, yp + PHt + 2.0, 0)), c: '#b88a38', noao: true });
-  box('flat', 0.1, 1.4, 0.1, { M: mul(M0, tr(0, yp + PHt + 3.1, 0)), c: '#b88a38', noao: true });
+  part('majolica', pg, { M: mul(M0, tr(0, yp, 0)), s: [(LW - 4.6) / 2 / 0.7071, PHt, (LD - 4.6) / 2 / 0.7071] });
+  cyl('ashlar', 1.25, 1.35, 2.4, 8, { M: mul(M0, tr(0, yp + PHt - 0.2, 0)), c: '#d6c7a4' });
+  for (let k = 0; k < 8; k++) { const a = k * PI / 4 + PI / 8; box('dark', 0.6, 1.3, 0.1, { M: mul(M0, tr(Math.cos(a) * 1.33, yp + PHt + 0.5, Math.sin(a) * 1.33)), ry: -a + PI / 2, c: '#3a2a20', noao: true }); }
+  lathe('flat', [[1.45, 0], [1.2, 0.5], [0.5, 1.1], [0.1, 1.4]], 8, { M: mul(M0, tr(0, yp + PHt + 2.2, 0)), c: '#b88a38', noao: true });
+  box('flat', 0.1, 1.6, 0.1, { M: mul(M0, tr(0, yp + PHt + 3.5, 0)), c: '#b88a38', noao: true });
+  box('flat', 0.9, 0.35, 0.08, { M: mul(M0, tr(0, yp + PHt + 4.6, 0)), c: '#b88a38', noao: true });          // the gilded eagle on the spire
   ctx.skip.add(b.id);
 }
 
