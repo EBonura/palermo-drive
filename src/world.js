@@ -534,7 +534,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const base = (x, z) => { const o = tiles.get(nk(Math.floor(x / T), Math.floor(z / T))); return o && o.nearS ? o.nearS(x, z) : farM(x, z); };
     let lo = 1e9, hi = -1e9;
     for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) { const y = base(t.i * T + i * T / 8, t.j * T + j * T / 8); lo = Math.min(lo, y); hi = Math.max(hi, y); }
-    if (t.nearS ? t.benched || hi < 150 : hi - lo < 12) return; // a bench baked into the near grid (tools/tiles.py) replaces this; the old rule stays for tiles of an older bake
+    if (t.nearS || hi - lo < 12) return; // near grids carry the bench baked by tools/tiles.py; only tiles without one are shaped here
     const blur = (x, z) => {
       let sum = base(x, z), n = 1;
       for (const r of [20, 45]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; sum += base(x + Math.cos(a) * r, z + Math.sin(a) * r); n++; }
@@ -701,7 +701,6 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
         t.data = d; stat.fetched++;
         applyDistrictHeights(d); // low and full detail agree on storeys, no height pop on LOD swap
-        if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
         prepareTile(t);
       }).catch(e => { t.failed = true; stat.errors++; console.warn('[world] tile', t.id, e); })
         .finally(() => { inflight--; t.fetchP = null; t.fetchRes(); pump(); });
@@ -709,6 +708,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function prepareTile(t) {
     const d = t.data;
+    if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
     t.urban = Math.min(1, (d.buildings.length) / 160) * 0.8;
     t.tint = (d.areas || []).filter(a => COVER[a.k]).sort((a, b) => COVER[a.k][2] - COVER[b.k][2]).map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -719,7 +719,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* ensureData(t) {
     if (t.data) return true;
     const c = cache.get(t.k);
-    if (c) { cache.delete(t.k); t.data = c; return true; }
+    if (c) { cache.delete(t.k); t.data = c; if (t.tint === null) prepareTile(t); return true; } // a tile released earlier comes back without its near grid and tint
     if (t.failed) return false;
     yield fetchTile(t);
     return !!t.data;

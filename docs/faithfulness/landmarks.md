@@ -51,3 +51,29 @@ Not added (no verifiable footprint or no reference in the time): Villa Trabia (O
 - Models place everything relative to `groundRange` of the footprint; new models use `front(key)` (box axis facing the nearest road) and repeating facade textures with v aligned to the base (`body()` in lmc-d.js).
 - Landmark `skipIds` hide only the generic mesh; collision walls of the generic footprints stay (so models stay inside their footprints).
 - Seen in the logs, not mine: `src/sea.js` ring shader uses the reserved word `patch` as a variable name (GLSL error "Illegal use of reserved word" at line ~163 of the fragment shader, appears in strict-validation Chrome runs).
+
+## City gates (src/lmc-gates.js, Porta Nuova model in src/landmarks.js, Mondello gate in src/lmc-c.js)
+
+Checked against the it.wikipedia list of the Renaissance gates (Mura di Palermo), Commons categories "City gates in Palermo" and each gate's own category, and the OSM extract. Photos in /private/tmp/claude-501/palermo-gates/refs/ (not in the repo).
+
+| gate | what it really is | done |
+| --- | --- | --- |
+| Porta Nuova | rusticated limestone arch 5.8 m wide under a two-storey tower, four Moors beside the arch, loggia, majolica pyramid | drivable arch; model re-centred on its 18 x 18 m OSM footprint, pale stone, Moors; passage kept open by `PORTA_NUOVA` (see collision) |
+| Porta dei Greci | round arch (about 5.6 m wide, 6.4 m high) through a plastered 19 m block with red and green pointed windows and a group of pointed lights, flanked by wings | rebuilt over the whole OSM strip w49683271, drivable |
+| Porta Sant'Agata | rough Norman wall with a pointed arch (3.6 m wide) at the foot of the Piazza Porta Sant'Agata | new wall and arch, drivable; position from Commons geotags and Wikidata, no OSM object (a few metres of error) |
+| Porta Carini | NOT an arch: two baroque pylons with urns facing across Via Porta Carini (OSM has both as small footprints) | two pylon models, street open |
+| Porta Felice | two pylons, no lintel (lmc-d.js) | unchanged |
+| Porta di Vicari (S. Antonino), Porta Reale | corner pylons of ordinary blocks, no arch | not modelled |
+| Porta Mazzara, Porta Montalto | ruined wall with a pointed arch inside a fenced courtyard, not a street | skipped |
+| Porta dei Leoni (Favorita), Ingresso monumentale di via Roma | two stone pylons with lions; two curved palazzi without an arch | skipped |
+| "Porta Garibaldi" | does not exist in Palermo (Catania, Milan, Marsala have one); Garibaldi's Mille attacked the demolished Porta Termini | nothing to build |
+
+Collision: world.js lets a landmark carry `dropWalls` (building ids whose footprint walls are not registered) and `walls` ([x0,z0,x1,z1] segments). The gates use that, nothing in main.js, world.js or the bake changed. Porta Nuova: footprint dropped, two pier rectangles (18 m deep, 6.1 m each side of the 5.8 m passage). Porta dei Greci: the 29-vertex palace ring is dropped and its outline re-registered with the passage cut out (the ring is clipped by the passage corridor on both sides, so the passage walls and the wings stay). Porta Sant'Agata has no footprint, so only its two pier rectangles exist. Checked by driving the lapa at each gate from 25 m away at several lateral offsets: it goes through between about -2 and +2 m of the centreline and stops at the piers and wings (/private/tmp/claude-501/palermo-gates/pier.mjs).
+
+OSM issues: Porta Nuova's footprint (w815701117) covers the street and its estimated height is 11.2 m against a real 30 m or more; Porta dei Greci is part of the whole Palazzo Forcella De Seta footprint (one ring, 29 vertices, with the OSM `tunnel=building_passage` road crossing it and vertices exactly at the tunnel ends); Porta Sant'Agata has no building or wall object; Porta Carini's pylons are tiny buildings with estimated heights (10.3 and 13.5 m, modelled at 13 m each).
+
+## Charleston gate, Mondello (lmc-c.js `buildMondelloGate`)
+
+The two entrance towers stood in a line along the direction the gate faces (22 m apart east-west, one in front of the other on a shore that runs north-south), the colonnade ran the same way and its lintels were turned a quarter turn. Now (Commons: Mondello BW 2012-10-09 14-18-56, the 1957 postcard, Antico Stabilimento Balneare di Mondello): the gate faces along the boardwalk to the pavilion, the towers stand side by side across it 22 m apart, the colonnade bows towards the sea between them (ends 3.8 m back, ends meeting the towers' land side), two slender columns each side, a taller pylon with a ball finial on each side of the middle opening and a low curved pediment between them. The position (-3043, -9598) is unchanged. The pavilion front is turned about 22 degrees from that line (it follows the OSM pier footprint), so the boardwalk meets it slightly off square.
+
+Cost (triangles per instance): Porta dei Greci 788, Porta Sant'Agata 256, each Carini pylon 544, Mondello gate 724 (it was about the same), Porta Nuova about 900 more than before (the eight Moors, roughly 3.6k in all). Test scripts and the before/after/reference sheets are in /private/tmp/claude-501/palermo-gates/ (`shots/cmp_*.jpg`).

@@ -4,8 +4,8 @@
 // Controls (landscape): left thumb has two big adjacent steering pads (A / D), the right thumb has
 // a tall accelerate pad (W), a brake/reverse pad (S) and a handbrake pad (Space) and a nitro pad (ShiftLeft) above the gas. Every pad tracks
 // its pointer by position, so a thumb can slide from one pad to its neighbour without lifting.
-// The pads write into the same `keys` map as the keyboard. Small buttons: camera, back on road
-// (keydown KeyR) and fullscreen. ?touch forces the touch UI on a desktop browser (for testing).
+// The pads write into the same `keys` map as the keyboard. Camera, back on the road, swap vehicle and fullscreen are in the in-game
+// side menu (src/ui.js), not on the screen. ?touch forces the touch UI on a desktop browser (for testing).
 const params = typeof location === 'object' ? new URLSearchParams(location.search) : new URLSearchParams();
 const coarse = typeof matchMedia === 'function' && (matchMedia('(pointer: coarse)').matches ||
   (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches));
@@ -25,11 +25,6 @@ const ICON = {
   down: '<svg viewBox="0 0 48 48"><path d="M10 18l14 14 14-14" /></svg>',
   nos: '<svg viewBox="0 0 48 48"><path d="M27 5 12 27h10l-3 16 17-24H26z" /></svg>',
   brake: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="13" /><path d="M24 15v11M24 31v2" /></svg>',
-  cam: '<svg viewBox="0 0 48 48"><path d="M8 17h8l3-5h10l3 5h8v21H8z" /><circle cx="24" cy="26" r="6" /></svg>',
-  reset: '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" /><path d="M10 8v9h9" /></svg>',
-  full: '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>',
-  swap: '<svg viewBox="0 0 48 48"><path d="M10 18h26M28 10l8 8-8 8M38 32H12M20 24l-8 8 8 8" /></svg>',
-  exit: '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>',
 };
 
 function el(tag, cls, html, attrs) {
@@ -100,11 +95,6 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     setTimeout(() => hint.remove(), 9000);
   }
 
-  function toggleFullscreen() {
-    if (isFull()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else goFullscreen();
-  }
-
   // ---- touch controls ----
   const ui = el('div', 'tc');
   const pad = (cls, key, icon, label) => el('div', 'pad ' + cls, `<i>${icon}</i>${label ? `<b>${label}</b>` : ''}`, { 'data-key': key });
@@ -117,22 +107,7 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     pad('p-gas', 'KeyW', ICON.up, 'GAS'),
     pad('p-nos', 'ShiftLeft', ICON.nos, 'NOS'),
     pad('p-horn', 'KeyH', HORN_ICON, 'CLACSON'));
-  const small = el('div', 'tc-small');
-  const btn = (act, icon, label) => el('button', 'sbtn', icon, { 'data-act': act, 'aria-label': label, type: 'button' });
-  const bCam = btn('cam', ICON.cam, 'Camera');
-  const bReset = btn('reset', ICON.reset, 'Back on the road');
-  const bFull = btn('full', ICON.full, 'Fullscreen');
-  const bSwap = btn('swap', ICON.swap, 'Swap vehicle');   // cycles through the vehicles you own (src/vehicle.js listens for pd-swap)
-  small.append(bCam, bReset, bSwap);
-  if (fsSupported) small.append(bFull);
-  ui.append(steer, drive, small);
-
-  const ACTIONS = {
-    cam() { camState.mode = (camState.mode + 1) % 4; },
-    reset() { dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r' })); dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r' })); },
-    swap() { dispatchEvent(new CustomEvent('pd-swap')); },
-    full: toggleFullscreen,
-  };
+  ui.append(steer, drive);
 
   // pointerId -> key currently under that finger (null while it is over nothing)
   const fingers = new Map();
@@ -155,18 +130,12 @@ export function setupMobile({ keys, camState, renderer, camera }) {
   function onDown(e) {
     if (!enabled) return;
     if (e.pointerType === 'mouse' && !params.has('touch')) return;
-    const t = e.target.closest && e.target.closest('.pad, .sbtn');
+    const t = e.target.closest && e.target.closest('.pad');
     if (!t || !ui.contains(t)) return;
     e.preventDefault();
-    if (t.classList.contains('pad')) {
-      fingers.set(e.pointerId, padAt(e.clientX, e.clientY) || t.dataset.key);
-      sync();
-      if (!isFull() && fsSupported) lockLandscape(); // only succeeds in fullscreen on Android, harmless otherwise
-    } else {
-      t.classList.add('on');
-      setTimeout(() => t.classList.remove('on'), 120);
-      ACTIONS[t.dataset.act]();
-    }
+    fingers.set(e.pointerId, padAt(e.clientX, e.clientY) || t.dataset.key);
+    sync();
+    if (!isFull() && fsSupported) lockLandscape(); // only succeeds in fullscreen on Android, harmless otherwise
   }
   function onMove(e) {
     if (!fingers.has(e.pointerId)) return;
@@ -191,7 +160,7 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     addEventListener('orientationchange', releaseAll);
     document.addEventListener('visibilitychange', releaseAll);
     rotate.addEventListener('pointerdown', e => { e.preventDefault(); if (fsSupported) goFullscreen(); });
-    const onFs = () => { bFull.innerHTML = isFull() ? ICON.exit : ICON.full; if (isFull()) lockLandscape(); };
+    const onFs = () => { if (isFull()) lockLandscape(); };
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('webkitfullscreenchange', onFs);
   }

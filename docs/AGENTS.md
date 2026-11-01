@@ -2,7 +2,9 @@
 
 Goal: an irreverent, edgy driving game soaked in Palermitan culture (GTA/taxi spirit, you drive a lapa), set in the most faithful PS2-era rendition of Palermo we can build in three.js
 (textured low/mid-poly, 256 to 512 px tiled procedural textures, vertex-colour AO, baked detail).
-Faithfulness to the real city beats everything else. No mission/objective gameplay; the driving feel and the game shell (title, options, credits) are in scope.
+Faithfulness to the real city beats everything else. One mode only, free roaming: you pick a start point (map or list) and drive, and objectives
+(fares, taxi challenges, collection events, races) are scattered across the map by area. The shell is a main menu and one in-game side menu,
+with checkerboard transitions that also hide loading.
 
 ## Layout and ownership
 

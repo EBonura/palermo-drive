@@ -41,6 +41,7 @@ const QUARTIERI = [
   ['Falsomiele', 38.089746, 13.357153], ['Chiavelli', 38.082498, 13.368055], ['Guadagna', 38.098424, 13.368817], ['Settecannoli', 38.10056, 13.38309],
   ['Romagnolo', 38.104641, 13.388605], ['Brancaccio', 38.095578, 13.383682], ['Ciaculli', 38.078302, 13.401197], ['Roccella', 38.092384, 13.410641],
   ['Bandita', 38.097383, 13.416877], ['Acqua dei Corsari', 38.091611, 13.430685], ['Pomara', 38.084645, 13.43419], ['Croce Verde', 38.069522, 13.417503],
+  ['Monte Pellegrino', 38.1600, 13.3545], ['Parco della Favorita', 38.1620, 13.3330], // groupings for the start picker (no OSM place node of their own)
 ];
 
 const SPOTS = [
@@ -293,7 +294,7 @@ if (location.search.includes('debug')) window.game = { perf, world, car, keys, p
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
 const game = {
-  state: 'title', titleCam: null,
+  state: 'title', titleCam: null, noRender: false,
   time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
   settings: { quality: QUALITY.mobile ? 'low' : 'high', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
@@ -337,10 +338,17 @@ const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world });
 if (window.game) window.game.suca = suca;
 if (window.game) window.game.traffic = traffic;
-// with the streamed world, a far start spot has to load before the lapa can find a road there
-const placeStart = (x, z) => { try { placeAt(x, z); } catch (e) { /* no road yet */ } world?.teleport(x, z, () => placeAt(x, z)); };
-setupUI({ game, applySettings, missions, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
-createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key
+// With the streamed world, a far start spot has to load before the lapa can find a road there. Returns a Promise that resolves once the start
+// tile is at full detail and the lapa stands on its road (or after 12 s, so a shell transition never stays covered for ever).
+const placeStart = (x, z) => new Promise(done => {
+  try { placeAt(x, z); } catch (e) { /* no road yet */ }
+  if (!world) return done();
+  const t = setTimeout(done, 12000);
+  world.teleport(x, z, () => { placeAt(x, z); clearTimeout(t); done(); });
+});
+let radio = null;
+setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
+radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
@@ -372,10 +380,10 @@ renderer.setAnimationLoop(now => {
   sun.target.position.copy(carPos);
 
   if (freeCam) freeCam();
-  else if (game.state === 'title' && game.titleCam) game.titleCam(camera, now / 1000);
+  else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, now / 1000); // flyover on the title, the garage turntable from the side menu
   else updateCamera(dt);
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);
-  renderer.render(scene, camera);
+  if (!game.noRender) renderer.render(scene, camera); // the start picker's map is opaque: nothing to draw under it
 });

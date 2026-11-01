@@ -515,3 +515,130 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Talè chi maleducatu! Cca c'è genti ca parla!  
   _Look at this rude guy! People are talking here! (?)_
 
+## Free roam events: callers, "a pulle" tourists, urgent passengers, food sellers
+
+### call: tourist
+
+- Taxi! Taxi! Over here!  
+  __
+- Hello! Excuse me! Are you free?  
+  __
+- Hey! Driver! Please, please!  
+  __
+- Is that a taxi? Please be a taxi!  
+  __
+
+### call: taxi
+
+- Taxi! Ao, taxi!  
+  __
+- Fermati, fermati!  
+  _Stop, stop!_
+- Lapista! Mi porti?  
+  _Driver! Can you take me?_
+- Ehi! Libero?!  
+  _Hey! Free?!_
+
+### call: pulle
+
+- Excuse me! Do you know "a pulle"? The hotel man winked a lot.  
+  __
+- Hello! We need "a pulle". Is it far? Is it a restaurant?  
+  __
+- Taxi! "A pulle", please! Everybody says it with a smile!  
+  __
+
+### call: food
+
+- Aiutooo! Mi sono scappate le {items}!  
+  _Heeelp! My {items} ran away!_
+- Fermati! Le {items} sono volate via!  
+  _Stop! The {items} flew off!_
+- Ao! Aiutami! Ho perso le {items}!  
+  _Hey! Help me! I lost the {items}!_
+
+### call: race
+
+- Chi vince, paga! Amunì!  
+  _Winner buys! Let's go!_
+- Fermati qua e corri con noi!  
+  _Stop here and race with us!_
+- Tre, due, uno... quasi!  
+  _Three, two, one... almost!_
+
+### a pulle by day: ask
+
+- Please take us to "a pulle". The man at the hotel winked at us. Twice.  
+  __
+- Is "a pulle" nice? He said it is very popular with the locals. After dark. And before dark.  
+  __
+- Viale Diana, please! He said it is a lovely walk among the pines. He was laughing a lot.  
+  __
+
+### a pulle by day: driver
+
+- Ah! "A pulle"! Certu, certu... mi dispiaci ma ju sugnu na tomba.  
+  _Ah! "A pulle"! Of course, of course... sorry, I am a tomb. (?)_
+- Viale Diana? Bona scelta pi vidiri i pini. Gli alberi, picciotti, solu gli alberi.  
+  _Viale Diana? Good choice to see the pines. The trees, kids, only the trees. (?)_
+
+### a pulle by day: arrive
+
+- Oh! It is... very busy. And everybody is waving at us. Is it a festival?  
+  __
+- Everyone here is so friendly! Why are they all looking at the councillor?  
+  __
+
+### a pulle by day: fail
+
+- We will walk. Is it far? We will ask that nice lady in the sparkly dress.  
+  __
+
+### urgent: board
+
+- Vai vai vai! Non fermarti ai semafori!  
+  _Go go go! Do not stop at the lights!_
+- Presto! Ho i minuti contati!  
+  _Quick! I have minutes to spare, no more!_
+
+### urgent: driver
+
+- Tranquillo, ci penso io. Tenetevi forte!  
+  _Relax, I will handle it. Hold on tight!_
+- Il tassametro è già in quarta!  
+  _The meter is already in fourth gear!_
+
+### urgent: late
+
+- Ci siamo quasi?! Il tempo sta finendo!  
+  _Are we nearly there?! Time is running out!_
+
+### urgent: arrive
+
+- Ce l'ho fatta! Tieni, tieni tutto!  
+  _I made it! Here, keep it all!_
+
+### urgent: fail
+
+- No, no, no... l'ho perso!  
+  _No, no, no... I missed it!_
+
+### food: thief
+
+- Ahahah! Chi li vuole? Prendetemi!  
+  _Hahaha! Who wants them? Catch me!_
+- Beep beep! Sono mie, ora!  
+  _Beep beep! They are mine now!_
+
+### food: thanks
+
+- Grazie, grazie! Sei un angelo con tre ruote!  
+  _Thank you, thank you! You are an angel with three wheels!_
+- Mi hai salvato la giornata! Ti offro qualcosa!  
+  _You saved my day! Let me treat you!_
+
+### food: none
+
+- Niente?! Pazienza... torna quando hai più fortuna.  
+  _Nothing?! Never mind... come back when you are luckier._
+
