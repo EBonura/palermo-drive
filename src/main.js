@@ -22,6 +22,7 @@ import { createHorn } from './horn.js';
 import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.js)
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
+import { POI_SPOTS } from './pub-places.js';
 import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
@@ -79,6 +80,7 @@ const SPOTS = [
   ['Piazza Sant\'Anna', 38.1149181, 13.3651434],
   ['Stazione Notarbartolo', 38.1315626, 13.3408256],
 ];
+SPOTS.push(...POI_SPOTS); // points of interest from the pubs work (Piazza Magione), src/pub-places.js
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('view');

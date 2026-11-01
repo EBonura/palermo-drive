@@ -130,5 +130,5 @@ Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https:/
 
 ## Terrorage
 
-One song, "Terrorage" (`music/terrorage.m4a`), played near the Krust pub (src/pubs.js). Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in `music/CREDITS.md`.
+One song, "DIY Violence" by Terrorage (`music/terrorage.m4a`), played at the door of the Krust pub (src/pubs.js). Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in `music/CREDITS.md`.
 
