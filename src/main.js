@@ -234,7 +234,7 @@ world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car 
 // shout(x, y, z, text?) pops a swearing balloon over whoever the lapa just hit (src/shouts.js).
 const shouts = createShouts(camera);
 // Modules without env access (props) can raise a balloon with a 'pd-shout' event.
-addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text); });
+addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text, d.follow); });   // follow: a parked car in the air keeps its balloon (src/props.js)
 let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
 const traffic = createTraffic(worldEnv);

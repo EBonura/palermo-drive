@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
 import { zoneAt } from './districts.js';
+import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
+import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -83,53 +85,10 @@ const def = (name, mb, o = {}) => { MODELS[name] = { geo: mb.geo(), mat: o.dbl ?
 
 const GLASS = C('#262e35'), TYRE = C('#1a1a1c'), WHITE = C('#ffffff'), BLACKMET = C('#26262b');
 
-function car(name, { L, W, H, deck = 0.92, cab0 = -0.40, cab1 = 0.12, top0 = -0.34, top1 = -0.02, van = false, pickup = false }) {
-  const mb = new MB(), w = W / 2;
-  const hl = L / 2;
-  mb.frust(0.2, [-w, -hl, w, hl], deck, [-w + 0.05, -hl + 0.04, w - 0.05, hl - 0.07], WHITE, 0.8, 1);
-  if (pickup) {
-    mb.frust(deck, [-w + 0.05, hl * 0.05, w - 0.05, hl - 0.07], H, [-w + 0.1, hl * 0.2, w - 0.1, hl * 0.5], GLASS, 0.9, 1, false); // cab glass
-    mb.box(-w + 0.1, H - 0.05, hl * 0.2, w - 0.1, H, hl * 0.5, WHITE, 1, 1, false);
-    mb.box(-w + 0.04, deck, -hl + 0.04, w - 0.04, deck + 0.38, hl * 0.02, C('#cfcfc8'), 0.8, 1, false); // open bed
-  } else if (van) {
-    const z0 = -hl + 0.04, z1 = hl * 0.12;
-    mb.frust(deck, [-w + 0.02, z0, w - 0.02, z1], H - 0.05, [-w + 0.06, z0 + 0.02, w - 0.06, z1 - hl * 0.14], WHITE, 0.9, 1, false);
-    mb.box(-w + 0.06, H - 0.07, z0 + 0.02, w - 0.06, H, z1 - hl * 0.14, WHITE, 1, 1, false);
-    mb.frust(deck + 0.12, [-w + 0.03, z1 - hl * 0.5, w - 0.03, z1 - 0.02], H - 0.3, [-w + 0.06, z1 - hl * 0.4, w - 0.06, z1 - hl * 0.14], GLASS, 1, 1, false);
-  } else {
-    const a = [-w + 0.07, cab0 * L, w - 0.07, cab1 * L], b = [-w + 0.22, top0 * L, w - 0.22, top1 * L];
-    mb.frust(deck, a, H - 0.05, b, GLASS, 0.9, 1, false);
-    mb.box(b[0] - 0.02, H - 0.06, b[1] - 0.02, b[2] + 0.02, H, b[3] + 0.02, WHITE, 1, 1, false);
-  }
-  const lens = (z, y, col, dir) => { for (const s of [-1, 1]) mb.face(col, [[s * (w - 0.1), y, z * 1.002], [s * (w - 0.4), y, z * 1.002], [s * (w - 0.4), y + 0.14, z * 1.002], [s * (w - 0.1), y + 0.14, z * 1.002]], 1); };
-  mb.ctr = null;
-  const wz = L * 0.32;
-  for (const z of [-wz, wz]) for (const s of [-1, 1]) mb.cylX(s * (w - 0.17), 0.27, z, 0.27, 0.2, 6, TYRE, 1, s);
-  const m = mb.geo();
-  // lights as small plates (front pale, rear red), appended after
-  const lb = new MB();
-  for (const s of [-1, 1]) {
-    lb.face(C('#fff2c8'), [[s * (w - 0.08), 0.62, hl - 0.06], [s * (w - 0.38), 0.62, hl - 0.06], [s * (w - 0.38), 0.76, hl - 0.06], [s * (w - 0.08), 0.62 + 0.14, hl - 0.06]], 1);
-    lb.face(C('#c8281f'), [[s * (w - 0.08), 0.62, -hl + 0.12], [s * (w - 0.38), 0.62, -hl + 0.12], [s * (w - 0.38), 0.76, -hl + 0.12], [s * (w - 0.08), 0.76, -hl + 0.12]], 1);
-  }
-  MODELS[name] = { geo: m, mat: 'std', tint: true, lights: lb.geo() };
-}
-car('panda', { L: 3.65, W: 1.64, H: 1.55, deck: 0.95, cab0: -0.38, cab1: 0.14, top0: -0.33, top1: 0.0 });
-car('hatch', { L: 4.0, W: 1.74, H: 1.45, deck: 0.9, cab0: -0.40, cab1: 0.06, top0: -0.30, top1: -0.06 });
-car('micro', { L: 2.75, W: 1.55, H: 1.5, deck: 0.92, cab0: -0.42, cab1: 0.20, top0: -0.36, top1: 0.05 });
-car('van', { L: 4.45, W: 1.8, H: 1.85, deck: 0.95, van: true });
-car('pickup', { L: 4.4, W: 1.65, H: 1.8, deck: 0.85, pickup: true });
-
-// merge each car's light plates into its main geometry so one InstancedMesh draws it
-for (const n of ['panda', 'hatch', 'micro', 'van', 'pickup']) {
-  const m = MODELS[n];
-  const merged = new THREE.BufferGeometry();
-  for (const a of ['position', 'color']) {
-    const A = m.geo.attributes[a].array, B = m.lights.attributes[a].array, o = new Float32Array(A.length + B.length);
-    // lights are untinted-by-design: they get multiplied by the paint like everything else, which is fine
-    o.set(A); o.set(B, A.length); merged.setAttribute(a, new THREE.BufferAttribute(o, 3));
-  }
-  merged.computeVertexNormals(); m.geo = merged; delete m.lights;
+// Parked cars are the traffic cars' own models (windows, wheels, lamps, a body colour tinted per instance), drawn with the traffic material.
+{
+  const TM = buildParkedModels();
+  for (const n of ['panda', 'punto', 'smart', 'van']) MODELS[n] = { geo: TM[n], mat: 'veh', tint: true };
 }
 
 // Vespa / Piaggio Beverly style scooter, front is +z
@@ -501,6 +460,7 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
 const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
+  veh: makeMaterial(),   // the traffic material: instance colour tints only the paintwork
 };
 
 // Beach (Mondello lido and the other sand strips): striped umbrella, sunbed, summer kiosk
@@ -527,15 +487,15 @@ const MATS = {
 }
 
 // ------------------------------------------------------------------ collision specs
-// c: circles [ox, oz, r] in model space (z forward). kind: veh (launchable), scooter, bin, tree, bend, solid.
+// c: circles [ox, oz, r] in model space (z forward). kind: park (a parked car), veh (launchable), scooter, bin, tree, bend, solid.
 // thr: closing speed in m/s above which the thing breaks, flies or falls. he/hc: body half extents and centre height for flights.
 const CAR_HE = (W, L) => [W / 2, 0.75, L / 2];
 const SPECS = {
-  panda: { kind: 'veh', c: [[0, 1.0, 0.85], [0, -1.0, 0.85]], m: 0.95, thr: 4.2, he: CAR_HE(1.64, 3.65), hc: 0.75 },
-  hatch: { kind: 'veh', c: [[0, 1.2, 0.9], [0, -1.2, 0.9]], m: 1.1, thr: 4.2, he: CAR_HE(1.74, 4.0), hc: 0.75 },
-  micro: { kind: 'veh', c: [[0, 0.55, 0.8], [0, -0.55, 0.8]], m: 0.8, thr: 3.8, he: CAR_HE(1.55, 2.75), hc: 0.75 },
-  van: { kind: 'veh', c: [[0, 1.3, 0.95], [0, 0, 0.95], [0, -1.3, 0.95]], m: 2.0, thr: 6.0, he: [0.9, 0.95, 2.2], hc: 0.95 },
-  pickup: { kind: 'veh', c: [[0, 1.3, 0.85], [0, 0, 0.85], [0, -1.3, 0.85]], m: 1.3, thr: 5.0, he: [0.83, 0.9, 2.2], hc: 0.9 },
+  // parked cars: yeeted like the traffic (src/traffic.js launch / stepFly), at 4 m/s of closing speed; below that they are pushed. L, W as the traffic type.
+  panda: { kind: 'park', c: [[0, 1.0, 0.85], [0, -1.0, 0.85]], m: 0.95, thr: 4, L: 3.65, W: 1.64 },
+  punto: { kind: 'park', c: [[0, 1.2, 0.9], [0, -1.2, 0.9]], m: 1.1, thr: 4, L: 4.06, W: 1.69 },
+  smart: { kind: 'park', c: [[0, 0.55, 0.8], [0, -0.55, 0.8]], m: 0.8, thr: 4, L: 2.69, W: 1.56 },
+  van: { kind: 'park', c: [[0, 1.3, 0.95], [0, 0, 0.95], [0, -1.3, 0.95]], m: 2.0, thr: 4, L: 4.45, W: 1.82 },
   ape: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 0.9, 1.5], hc: 0.9 },
   apetaxi: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 1.0, 1.5], hc: 1.0 },
   scooter: { kind: 'scooter', c: [[0, 0.35, 0.4], [0, -0.35, 0.4]], m: 0.28, thr: 1.2, fly: 7.5, he: [0.35, 0.55, 0.9], hc: 0.55 },
@@ -601,6 +561,7 @@ function makePhysics(env) {
   const PR = 0.74, PAX = 0.72, I_YAW = 1.7, E = 0.25, G = 9.8;
   const up = new THREE.Vector3(0, 1, 0), mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), vA = new THREE.Vector3(), vB = new THREE.Vector3(), sA = new THREE.Vector3();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
   const cellIJ = (i, j) => (i + 4096) * 8192 + (j + 4096);   // whole city: x within +-6.7 km, z within -12 .. +5.6 km
   const cellK = (x, z) => cellIJ(Math.floor(x / 8), Math.floor(z / 8));
   const grid = new Map();
@@ -680,11 +641,21 @@ function makePhysics(env) {
     qA.copy(c.q); m.compose(vA.set(c.px, c.py, c.pz), qA, sA.setScalar(c.s));
     return m.multiply(mB.makeTranslation(0, -c.sp.hc, 0));
   }
+  // a parked car in the air or tumbling: yaw h, pitch and roll as the traffic writes them (src/traffic.js writeInstances)
+  function parkMatrix(c, m) {
+    const h = c.h, cc = Math.cos(h), s = Math.sin(h), cr = Math.cos(c.roll), sr = Math.sin(c.roll), pi = c.pitch, cp = Math.cos(pi), sp = Math.sin(pi), e = m.elements;
+    e[0] = cc * cr + s * sr * sp; e[1] = sr * cp; e[2] = -s * cr + cc * sr * sp; e[3] = 0;
+    e[4] = -cc * sr + s * cr * sp; e[5] = cr * cp; e[6] = s * sr + cc * cr * sp; e[7] = 0;
+    e[8] = s * cp; e[9] = -sp; e[10] = cc * cp; e[11] = 0;
+    e[12] = c.x; e[13] = gy(c.x, c.z) + c.fl.y; e[14] = c.z; e[15] = 1;
+    return m;
+  }
   function poseInstance(c) {
-    if (c.st === 0) baseMatrix(c, mA); else if (c.st === 'gone') goneMatrix(c, mA); else if (c.st === 'fall' || c.st === 'down') tiltMatrix(c, mA); else flyMatrix(c, mA);
+    if (c.st === 0) baseMatrix(c, mA); else if (c.st === 'gone') goneMatrix(c, mA); else if (c.st === 'fall' || c.st === 'down') tiltMatrix(c, mA); else if (c.st === 'pfly') parkMatrix(c, mA); else flyMatrix(c, mA);
     c.im.setMatrixAt(c.i, mA); dirty.add(c.im);
   }
   const moved = new Set();
+  const grow = c => { if (!moved.has(c.im)) { moved.add(c.im); c.im.boundingSphere.radius += 60; } dirty.add(c); };   // the mesh's culling sphere has to cover where the car may go
   const touch = c => { if (!moved.has(c.im)) { moved.add(c.im); c.im.boundingSphere.radius += 45; } broken.add(c); c.tb = simT; dirty.add(c); };
 
   // ---- state changes
@@ -705,6 +676,84 @@ function makePhysics(env) {
     const dv = vc * (1 - mv * e) / (1 + mv), loss = vc - dv;
     pc.vx += nx * loss; pc.vz += nz * loss; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
     if (simT - lastShout > 1.2) { lastShout = simT; try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: c.py || c.y0 + 1, z: c.z } })); } catch (err) { /* no events */ } }
+  }
+  // ---- parked cars: the traffic's yeet (src/traffic.js launch / stepFly), then they stay where they land
+  const shoutAt = c => {
+    try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: gy(c.x, c.z) + 1.4, z: c.z, follow: () => c.dead ? null : { x: c.x, y: gy(c.x, c.z) + (c.fl ? c.fl.y : 0) + 1.4, z: c.z } } })); } catch (err) { /* no events */ }
+  };
+  const keepSlot = c => PARKED_MOVED.set(c.slot, { x: c.x, z: c.z, h: c.st === 'pfly' ? c.h : c.rot });
+  function startParkFly(c, vx, vz, vy, chain) {
+    const sg = () => rnd() < 0.5 ? -1 : 1;
+    c.st = 'pfly'; gDel(c); if (!dyn.includes(c)) dyn.push(c);
+    c.fl = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + rnd() * 4), sp: (rnd() - 0.5) * 7, sr: sg() * (3 + rnd() * 6), bounces: 0, phase: 0, t: 0, chain, hit: new Set() };
+    c.h = c.rot; c.pitch = 0; c.roll = 0; grow(c); stats.yeeted++;
+  }
+  function launchPark(c, nx, nz, rel, pc, pen) {
+    const sc = c.sp.m <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
+    let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
+    const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
+    startParkFly(c, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
+    c.x -= nx * pen; c.z -= nz * pen;
+    const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
+    shoutAt(c);
+  }
+  // below the launch speed a parked car is pushed (the lapa and the car share the overlap by mass), unless a wall is behind it
+  function nudgePark(c, nx, nz, pen, arm, pc) {
+    const mv = c.sp.m, shV = 1 / (1 + mv), shP = mv / (1 + mv), x = c.x - nx * pen * shV, z = c.z - nz * pen * shV;
+    if (inB(x, z)) { solid(pc, c, nx, nz, pen, arm); return; }
+    solid(pc, c, nx, nz, pen * shP, arm);
+    c.x = x; c.z = z; c.x0 = x; c.z0 = z; c.y0 = gy(x, z);
+    const k = cellK(x, z); if (k !== c.gk) { gDel(c); gAdd(c); }
+    grow(c); keepSlot(c);
+  }
+  function stepPark(c, dt) {
+    const f = c.fl, sp = c.sp;
+    f.t += dt;
+    const restY = 0.5 * (Math.abs(Math.sin(c.roll)) * sp.W * 0.9 + Math.abs(Math.sin(c.pitch)) * sp.L * 0.2);
+    if (f.phase === 0) {   // in the air or sliding
+      f.vy -= G * dt; f.y += f.vy * dt;
+      c.x += f.vx * dt; c.z += f.vz * dt;
+      c.h += f.yaw * dt; c.pitch += f.sp * dt; c.roll += f.sr * dt;
+      const speed = hyp2(f.vx, f.vz);
+      if (f.y <= restY) {
+        f.y = restY;
+        if (f.vy < -1.8) { f.vy = -f.vy * 0.42; f.vx *= 0.72; f.vz *= 0.72; f.yaw *= 0.6; f.sp *= 0.5; f.sr *= 0.55; f.bounces++; }
+        else {
+          f.vy = 0; const k = Math.exp(-2.4 * dt); f.vx *= k; f.vz *= k; f.yaw *= Math.exp(-3 * dt); f.sp *= Math.exp(-5 * dt); f.sr *= Math.exp(-5 * dt);
+          if (speed < 0.6) { f.phase = 1; f.t = 0; c.roll = wrapPi(c.roll); c.pitch = wrapPi(c.pitch); }
+        }
+      }
+      if (f.y < 1.2 && speed > 5 && f.chain < 3) {   // chain reaction: it hits the next parked car on the way
+        const i0 = Math.floor(c.x / 8), j0 = Math.floor(c.z / 8);
+        hunt: for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
+          const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
+          for (const o of lst) {
+            if (o === c || o.st !== 0 || o.sp.kind !== 'park' || f.hit.has(o)) continue;
+            const dx = o.x - c.x, dz = o.z - c.z, rr = (sp.L + o.sp.L) * 0.32;
+            if (dx * dx + dz * dz > rr * rr) continue;
+            f.hit.add(o);
+            const k = (o.sp.m <= 1.3 ? 0.8 : 0.5) * (sp.m >= 1.5 ? 1.1 : 1), d = hyp2(dx, dz) || 1;
+            startParkFly(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1);
+            f.vx *= 0.55; f.vz *= 0.55; shoutAt(o);
+            break hunt;
+          }
+        }
+      }
+      if (inB(c.x, c.z)) { c.x -= f.vx * dt; c.z -= f.vz * dt; f.vx *= -0.3; f.vz *= -0.3; }   // houses stop it
+    } else if (f.phase === 1) {   // lying there for a moment, then it rights itself with a hop (and stays where it is)
+      if (f.t > (Math.abs(c.roll) > 0.35 || Math.abs(c.pitch) > 0.35 ? 1.8 : 0.5)) { f.phase = 2; f.t = 0; f.r0 = c.roll; f.p0 = c.pitch; }
+    } else {
+      const u = Math.min(1, f.t / 0.7), e = u * u * (3 - 2 * u);
+      c.roll = f.r0 * (1 - e); c.pitch = f.p0 * (1 - e); f.y = 0.45 * Math.sin(u * Math.PI);
+      if (u >= 1) {   // parked again, here: it can be hit once more, and it is still here when its tile is built again
+        c.st = 0; c.fl = null; c.roll = 0; c.pitch = 0; c.rot = c.rot0 = wrapPi(c.h);
+        c.x0 = c.x; c.z0 = c.z; c.y0 = gy(c.x, c.z); gAdd(c);
+        const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
+        keepSlot(c); dirty.add(c);
+        return;
+      }
+    }
+    dirty.add(c);
   }
   function solid(pc, c, nx, nz, pen, arm) {
     pc.x += nx * pen; pc.z += nz * pen;
@@ -734,6 +783,10 @@ function makePhysics(env) {
     switch (sp.kind) {
       case 'veh':
         if (c.st === 0 && vc >= sp.thr) { yeet(c, nx, nz, vc, pc); return; }
+        break;
+      case 'park':
+        if (c.st === 0 && vc >= sp.thr) { launchPark(c, nx, nz, vc, pc, pen); return; }
+        if (c.st === 0) { nudgePark(c, nx, nz, pen, arm, pc); return; }
         break;
       case 'scooter':
         if (c.st === 0 && vc >= (sp.fly)) { yeet(c, nx, nz, vc, pc); return; }
@@ -842,7 +895,7 @@ function makePhysics(env) {
 
   function collidePlayer(pc, dt = 1 / 120) {
     simT += dt;
-    if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); }
+    if (dyn.length) for (let k = dyn.length - 1; k >= 0; k--) { const c = dyn[k]; if (c.st === 'fly') stepFly(c, dt); else if (c.st === 'fall') stepFall(c, dt); else if (c.st === 'pfly') stepPark(c, dt); }
     if (DEB.bag.n || DEB.board.n || DEB.bottle.n || leaves.length) stepDebris(dt);
     if (broken.size && (++tick % 60) === 0 && camPos) {
       for (const c of broken) if (!c.dead && simT - c.tb > 25 && c.st !== 'fly' && c.st !== 'fall' && hyp2(c.x0 - camPos.x, c.z0 - camPos.z) > 80 && hyp2(c.x - camPos.x, c.z - camPos.z) > 80) reset(c);
@@ -854,7 +907,7 @@ function makePhysics(env) {
       for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
         const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
         for (let q = lst.length - 1; q >= 0; q--) {
-          const c = lst[q]; if (!c || c.dead || c.st === 'down' || c.st === 'fall' || c.st === 'fly' || c.st === 'gone') continue;
+          const c = lst[q]; if (!c || c.dead || c.st === 'down' || c.st === 'fall' || c.st === 'fly' || c.st === 'pfly' || c.st === 'gone') continue;
           const cr = Math.cos(c.rot), sr = Math.sin(c.rot), ss = c.s;
           for (const [ox, oz, r0] of c.circ) {
             const r = SCALE_R.has(c.model) ? r0 * ss : r0;
@@ -907,6 +960,7 @@ function makePhysics(env) {
   }
   function remove(list) {
     for (const c of list) {
+      if (c.st === 'pfly') keepSlot(c);   // a car in the air when its tile goes: it comes back where it was
       c.dead = true; if (c.gk !== undefined) gDel(c);
       const i = dyn.indexOf(c); if (i >= 0) dyn.splice(i, 1);
       broken.delete(c); dirty.delete(c); if (c.im) { dirty.delete(c.im); moved.delete(c.im); } nColl--;
@@ -979,6 +1033,12 @@ function makeIndex(buildings) {
   return { bl, inB, nearWall };
 }
 
+// Parked cars: instanced in 100 m cells (a 500 m tile is hundreds of them: the distance cull has to be fine), and the ones the lapa moved are
+// remembered for the session by their slot (tile and original spot): tile key + ':' + x + ',' + z  ->  { x, z, h } where they stand now.
+const CELL_OF = { panda: 100, punto: 100, smart: 100, van: 100 };
+const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60 };   // beyond this a parked car's mesh stops drawing into the shadow map (the shadow pass doubles what it draws)
+const PARKED_MOVED = new Map();
+
 // ------------------------------------------------------------------ one source of props = one 500 m tile
 // generate() is a generator: it yields now and then so the caller can spread the work over frames (BUD.over()).
 // S describes the tile: ctx, data layers (roads, curbs, asphalt, paving, sand, areas, P = OSM furniture), idx (building index), densities.
@@ -999,13 +1059,17 @@ function* generate(S, BUD) {
   const res = { buckets, colls, stats, decals: [], rails: null };
   function put(model, x, y, z, rot = 0, s = 1, col = null) {
     const m = MODELS[model]; if (!m) return;
-    const b = (buckets[model] ||= new Map()), key = Math.floor(x / S.cell) * 4096 + Math.floor(z / S.cell);
+    const sp = SPECS[model], park = sp && sp.kind === 'park', slot = park ? S.tk + ':' + Math.round(x) + ',' + Math.round(z) : null;
+    if (park) {   // a parked car the lapa knocked somewhere stays there for the session, also when its tile is built again
+      const mv = PARKED_MOVED.get(slot), my = mv ? gy(mv.x, mv.z) : NaN;
+      if (mv && my === my) { x = mv.x; z = mv.z; y = my; rot = mv.h; }
+    }
+    const b = (buckets[model] ||= new Map()), cell = CELL_OF[model] || S.cell, key = Math.floor(x / cell) * 4096 + Math.floor(z / cell);
     let e = b.get(key); if (!e) b.set(key, e = { m: [], c: [] });
     e.m.push(x, y, z, rot, s);
     if (m.tint) e.c.push(col ? col.r : 1, col ? col.g : 1, col ? col.b : 1);
     stats[model] = (stats[model] || 0) + 1;
-    const sp = SPECS[model];
-    if (sp) colls.push({ model, key, i: e.m.length / 5 - 1, x, y, z, rot, s, sp, st: 0, im: null, circ: sp.c, x0: x, z0: z, y0: y, rot0: rot });
+    if (sp) colls.push({ model, key, i: e.m.length / 5 - 1, x, y, z, rot, s, sp, st: 0, im: null, circ: sp.c, x0: x, z0: z, y0: y, rot0: rot, slot });
   }
 
   const bl = S.idx.bl, own = bl.slice(0, S.ownCount), inB = S.idx.inB, nearWall = S.idx.nearWall;
@@ -1125,7 +1189,14 @@ function* generate(S, BUD) {
 
   const PAINT = [['#f4f2ec', 28], ['#c9cdd0', 20], ['#8d9296', 13], ['#2a2b2f', 11], ['#f0f0ea', 6], ['#a8181f', 6], ['#27456f', 6], ['#8eb4cf', 4], ['#cdbf9f', 3], ['#4a5b4a', 1], ['#d4a017', 1], ['#5a5d63', 4]];
   const paint = () => C(wpick(PAINT)).multiplyScalar(R(0.92, 1.05));
-  const CARS = [['panda', 36], ['hatch', 28], ['micro', 12], ['van', 8], ['pickup', 5]];
+  // the traffic's own cars and colours (src/traffic.js TYPES: panda, punto, smart, van)
+  const CARS = [['panda', 36], ['punto', 30], ['smart', 14], ['van', 8]];
+  const HATCH_COLS = [['#f2f2f0', 30], ['#c3c6cb', 22], ['#6e7378', 16], ['#1f2124', 12], ['#b3241e', 9], ['#8fb3cc', 6], ['#3d5a45', 3]];
+  const VAN_COLS = [['#f2f2f0', 70], ['#c3c6cb', 12], ['#8fb3cc', 8], ['#d8d2b8', 10]];
+  const carPaint = model => C(wpick(model === 'van' ? VAN_COLS : HATCH_COLS)).multiplyScalar(R(0.94, 1.04));
+  // the same picks from given random numbers (0..1), for the cars that have to come out the same each time their tile is built
+  const pickBy = (list, u) => { let t = 0; for (const c of list) t += c[1]; u *= t; for (const [v, w] of list) { if ((u -= w) <= 0) return v; } return list[0][0]; };
+  const paintBy = (model, u, shade) => C(pickBy(model === 'van' ? VAN_COLS : HATCH_COLS, u)).multiplyScalar(0.94 + shade * 0.1);
   const SCOOT = ['#e8e6dc', '#2c2d31', '#b9bec2', '#a2201f', '#27456f', '#e6c040', '#6b7a58', '#d9d9d6'];
 
   // ---------- 1. real OSM furniture
@@ -1245,6 +1316,7 @@ function* generate(S, BUD) {
   }
 
   // ---------- 3. zebra crossings (decals) from OSM nodes plus junction arms
+  const zebras = [];   // where they are: no car parks on a crossing (6b)
   {
     const zb = new MB(), col = C('#d9d7cc'), colw = C('#bdbcb2');
     let nz = 0; const done = [];
@@ -1259,10 +1331,12 @@ function* generate(S, BUD) {
         const q = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([a, b]) => { const x = cx + tx * a + nx * (u + b), z = cz + tz * a + nzz * (u + b); return [x, groundY(x, z) + 0.025, z]; });
         zb.face(c, [q[0], q[3], q[2], q[1]], k); // CCW viewed from above
       }
-      nz++; done.push([cx, cz]);
+      nz++; done.push([cx, cz]); zebras.push([cx, cz]);
     };
     for (const it of osm) {
-      if (it.k !== 'crossing' || it.cr === 'unmarked' || it.den === 'unmarked') continue;
+      if (it.k !== 'crossing') continue;
+      zebras.push([it.x, it.z]);   // marked or not: nobody parks on a crossing
+      if (it.cr === 'unmarked' || it.den === 'unmarked') continue;
       if (done.some(d => hyp2(d[0] - it.x, d[1] - it.z) < 10)) continue;
       const nr = nearRoad(it.x, it.z, 5); if (!nr || !road(nr.px, nr.pz)) continue;
       if (nr.road.k === 'service' && rand() < 0.5) continue;
@@ -1391,28 +1465,28 @@ function* generate(S, BUD) {
 
   // ---------- 6. cars, cassonetti, market stalls along the carriageways
   let carCount = 0;
-  const placeCar = (x, z, hx, hz) => {
-    const model = wpick(CARS), L = { panda: 3.65, hatch: 4.0, micro: 2.75, van: 4.45, pickup: 4.4 }[model];
-    const fx = hx * L / 2, fz = hz * L / 2, wx = -hz * 0.9, wz = hx * 0.9;
-    for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0]]) {
+  // one car, footprint (body and four corners) wholly on asphalt, off the walls and the other props; (hx, hz) is where its nose points
+  const placeCar = (x, z, hx, hz, model = wpick(CARS), paint = null) => {
+    const sp = SPECS[model], L = sp.L, W = sp.W;
+    const fx = hx * L / 2, fz = hz * L / 2, wx = -hz * (W / 2 + 0.08), wz = hx * (W / 2 + 0.08);
+    for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const px = x + fx * a + wx * b, pz = z + fz * a + wz * b;
       if (!road(px, pz) || nearWall(px, pz, 0.12)) return false;
     }
     if (occHit(x, z, L * 0.4) || occHit(x + hx * L * 0.3, z + hz * L * 0.3, 1) || occHit(x - hx * L * 0.3, z - hz * L * 0.3, 1)) return false;
-    put(model, x, groundY(x, z), z, Math.atan2(hx, hz), R(0.99, 1.01), burntCar(x, z) || paint());
+    put(model, x, groundY(x, z), z, Math.atan2(hx, hz), 1, paint || burntCar(x, z) || carPaint(model));
     occAdd(x, z, L * 0.36); occAdd(x + hx * L * 0.3, z + hz * L * 0.3, 0.9); occAdd(x - hx * L * 0.3, z - hz * L * 0.3, 0.9);
     carCount++; return true;
   };
   const MARKET = /Ballar|Vucciria|Caracciolo|Chiappara|Maccheronai|Garraffello|Cassari|Argenteria/;
   {
     const CAR_CLASSES = { residential: 0.62, tertiary: 0.5, secondary: 0.38, unclassified: 0.6, service: 0.3, living_street: 0.28, primary: 0.3 };
-    let bins = 0, stalls = 0, cap = S.carCap;
+    let bins = 0, stalls = 0;
     for (let ri = 0; ri < S.roads.length; ri++) {
       const r = S.roads[ri]; if (BUD.over()) yield;
       const base = CAR_CLASSES[r.k] * zoneCars(r); if (!base) continue;
       const market = MARKET.test(r.n || '');
       const p = pairs(r.p); let carry = R(0, 5);
-      const state = [rand() < 0.6, rand() < 0.6];
       let binGap = R(10, 40);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 0.5) continue;
@@ -1420,11 +1494,9 @@ function* generate(S, BUD) {
         for (let s = carry; s < L; s += 5.7) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s;
           if (!inBounds(cx, cz, 10)) continue;
-          const dC = distEff(cx, cz), thin = Math.max(0.3, 1.15 - dC / 1500) * DEN;
           const jn = nearJunction(cx, cz, 8);
           for (let side = 0; side < 2; side++) {
             const sg = side ? -1 : 1, nx = rx * sg, nz = rz * sg;
-            state[side] = state[side] ? rand() < 0.82 : rand() < 0.34;
             const e = march(cx, cz, nx, nz, 9, road), e2 = march(cx, cz, -nx, -nz, 9, road);
             if (e < 1.2) continue;
             if (market) {
@@ -1438,16 +1510,6 @@ function* generate(S, BUD) {
               }
               continue;
             }
-            if (jn || carCount >= cap || e + e2 < 3.0 + 1.9) {
-              if (!(e + e2 >= 4.8)) continue;
-            }
-            if (jn || carCount >= cap) continue;
-            if (e + e2 - 1.75 < 2.7) continue;                 // a car must still be able to pass
-            if (rand() > thin * Math.min(1, base * 0.62)) { state[side] = false; continue; }
-            if (!state[side]) continue;
-            const d = e - 0.98, x = cx + nx * d, z = cz + nz * d;
-            const fwd = rand() < 0.88 ? (sg > 0 ? 1 : -1) : -(sg > 0 ? 1 : -1);
-            placeCar(x, z, tx * fwd, tz * fwd);
           }
           // cassonetti: groups at the kerb every so often
           binGap -= 5.7;
@@ -1471,7 +1533,97 @@ function* generate(S, BUD) {
         carry = ((carry - L) % 5.7 + 5.7) % 5.7;
       }
     }
-    stats.cars_proc = carCount; stats.cassonetti_proc = bins; stats.stalls = stalls;
+    stats.cassonetti_proc = bins; stats.stalls = stalls;
+  }
+
+  // ---------- 6b. parked cars along the kerbs
+  // Nose to tail, as on the real streets: runs of cars with an empty space now and then, on both sides of the residential streets and the avenues, on one
+  // side where the carriageway is too narrow for two rows and a car passing between them. OSM parking:lane / parking:both (tiles bake them as r.pk, the
+  // left and the right of the way: n none, p parallel, q perpendicular, d diagonal) win where they exist; elsewhere parallel, thinner towards the
+  // outskirts. Never: on bridges or in tunnels, within 6 m of a junction (side streets and driveways keep clear), on a crossing, near a bus stop,
+  // on tram tracks. They are the traffic's cars (see SPECS: pushed when nudged, launched like the traffic when hit).
+  {
+    const PK_CLASS = { primary: 0.55, secondary: 0.72, tertiary: 0.82, unclassified: 0.78, residential: 0.9, living_street: 0.5, service: 0.35 };
+    const PK_CAP = Math.round(900 * S.den / 0.8);
+    const stops = P.items.filter(i => i.k === 'busstop').map(i => [i.x, i.z]);
+    for (let i = 0; i + 1 < BUS_STOPS.length; i += 2) { const x = BUS_STOPS[i], z = BUS_STOPS[i + 1]; if (x > S.x0 - 40 && x < S.x1 + 40 && z > S.z0 - 40 && z < S.z1 + 40) stops.push([x, z]); }
+    const rails = [];   // tram rail segments near the tile
+    for (const ln of S.tram || []) for (let i = 0; i + 3 < ln.length; i += 2) {
+      const ax = ln[i], az = ln[i + 1], bx = ln[i + 2], bz = ln[i + 3];
+      if (Math.max(ax, bx) > S.x0 - 20 && Math.min(ax, bx) < S.x1 + 20 && Math.max(az, bz) > S.z0 - 20 && Math.min(az, bz) < S.z1 + 20) rails.push([ax, az, bx, bz]);
+    }
+    const nearList = (list, x, z, r) => { for (const q of list) if (hyp2(q[0] - x, q[1] - z) < r) return true; return false; };
+    const nearRail = (x, z, r) => {
+      for (const q of rails) {
+        const dx = q[2] - q[0], dz = q[3] - q[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - q[0]) * dx + (z - q[1]) * dz) / l2));
+        if (hyp2(x - q[0] - dx * t, z - q[1] - dz * t) < r) return true;
+      }
+      return false;
+    };
+    const blocked = (x, z, hx, hz, L) => {   // the car's centre and its two ends
+      for (const k of [0, -0.45, 0.45]) {
+        const px = x + hx * L * k, pz = z + hz * L * k;
+        if (nearJunction(px, pz, 6) || nearList(zebras, px, pz, 3.2) || nearList(stops, px, pz, 12) || (rails.length && nearRail(px, pz, 2.7))) return true;
+      }
+      return false;
+    };
+    let n = 0;
+    for (let ri = 0; ri < S.roads.length && carCount < PK_CAP; ri++) {
+      const r = S.roads[ri]; if (BUD.over()) yield;
+      const cls = PK_CLASS[r.k]; if (!cls || r.br || r.tn) continue;
+      const p = pairs(r.p); if (p.length < 2) continue;
+      const cum = [0]; for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + hyp2(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]));
+      const len = cum[cum.length - 1]; if (len < 8) continue;
+      let seg = 0;
+      const at = sv => {
+        sv = Math.max(0, Math.min(len, sv));
+        while (seg > 0 && cum[seg] > sv) seg--;
+        while (seg < p.length - 2 && cum[seg + 1] < sv) seg++;
+        const a = p[seg], b = p[seg + 1], l = cum[seg + 1] - cum[seg] || 1, u = (sv - cum[seg]) / l;
+        return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+      };
+      const mid = at(len / 2), occ = Math.min(0.93, cls * Math.min(1.3, zoneCars(r)) * Math.max(0.6, Math.min(1, 1.2 - distEff(mid[0], mid[1]) / 4000)) * 1.05);
+      const pStay = 0.93, pStart = Math.min(0.9, occ * (1 - pStay) / Math.max(0.05, 1 - occ));
+      // Every random number here comes from a generator seeded by the tile and the road, and every slot takes the same draws and the same step whether
+      // it is filled or not: a tile built again (its neighbours may differ this time: walls, other tiles' props) puts the same cars on the same spots,
+      // which is what lets a car the lapa moved be found again (PARKED_MOVED).
+      const pk = r.pk || '--', r0 = rng(S.seed3 + ri * 7919), only = r0() < 0.5 ? 1 : -1;   // on a narrow street one side takes the cars
+      for (const sg of [1, -1]) {
+        const tag = pk[sg > 0 ? 1 : 0], mode = tag === '-' ? 'p' : tag;
+        if (mode === 'n') continue;
+        const rs = rng(S.seed3 + ri * 7919 + (sg > 0 ? 1 : 2));
+        let run = rs() < occ, s = 0.5 + rs() * 3.5;
+        while (s < len - 2 && carCount < PK_CAP) {
+          const rm = rs(), rrun = rs(), rflip = rs(), rgap = rs(), rcol = rs(), rshade = rs(), rburn = rs();
+          const model = pickBy(CARS, rm), sp = SPECS[model], L = sp.L, W = sp.W;
+          const pitch = mode === 'q' ? W + 0.8 : mode === 'd' ? (W + 0.7) * 1.41 : L + 0.4;
+          const step = pitch + (mode === 'p' ? rgap * 0.5 : 0);
+          const sc = s + pitch / 2; if (sc > len) break;
+          run = run ? rrun < pStay : rrun < pStart;
+          if (!run) { s += mode === 'p' ? L * 0.85 : pitch; continue; }
+          const c = at(sc), A = at(sc - L * 0.45), B = at(sc + L * 0.45), cl = hyp2(B[0] - A[0], B[1] - A[1]) || 1;
+          const tx = (B[0] - A[0]) / cl, tz = (B[1] - A[1]) / cl, nx = -tz * sg, nz = tx * sg;   // sg 1: right of travel
+          s += step;
+          if (!inBounds(c[0], c[1])) continue;
+          const e = march(c[0], c[1], nx, nz, 9, road), e2 = march(c[0], c[1], -nx, -nz, 9, road);
+          const wide = e + e2 - 2 * (W + 0.3) >= 2.7;   // room for a row of cars each side and a car between
+          if ((!wide && sg !== only && tag === '-') || e < W / 2 + 0.4) { run = false; continue; }
+          let hx, hz, d, ext;
+          const oneway = r.o ? (r.o > 0 ? 1 : -1) : 0;
+          let f = oneway || (sg > 0 ? 1 : -1); if (rflip < 0.06) f = -f;
+          if (mode === 'q') { hx = nx; hz = nz; d = e - L / 2 - 0.25; ext = L + 0.5; }
+          else if (mode === 'd') { hx = (nx + tx * f) * 0.7071; hz = (nz + tz * f) * 0.7071; d = e - (L + W) * 0.35 - 0.25; ext = (L + W) * 0.71 + 0.3; }
+          else { hx = tx * f; hz = tz * f; d = e - W / 2 - 0.17; ext = W + 0.3; }
+          if (e + e2 - ext < 2.7) { run = false; continue; }   // a car must still be able to pass
+          const x = c[0] + nx * d, z = c[1] + nz * d;
+          const paint = (rburn < 0.07 && zoneOf(x, z) === 'zen') ? C(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'][Math.floor(rcol * 4) % 4])
+            : paintBy(model, rcol, rshade);
+          if (blocked(x, z, hx, hz, L) || !placeCar(x, z, hx, hz, model, paint)) { run = false; continue; }
+          n++;
+        }
+      }
+    }
+    stats.parked = n; stats.cars_proc = carCount;
   }
 
   // ---------- 7. scooters along walls and kerbs, Ape taxis in the tourist piazze
@@ -1542,10 +1694,11 @@ function* generate(S, BUD) {
   // ---------- 8. OSM parking lots: fill with parked cars
   {
     let n = 0;
-    for (const a of P.areas) {
-      if (a.k !== 'parking' || a.ptype === 'multi-storey' || a.ptype === 'underground') continue;
-      const pts = pairs(a.p); if (pts.length < 4) continue;
-      const area = Math.abs(signedArea(pts)); if (area < 40 || area > 8000) continue;
+    P.areas.forEach((a, ai) => {
+      if (a.k !== 'parking' || a.ptype === 'multi-storey' || a.ptype === 'underground') return;
+      const pts = pairs(a.p); if (pts.length < 4) return;
+      const area = Math.abs(signedArea(pts)); if (area < 40 || area > 8000) return;
+      const rl = rng(S.seed2 + 77 + ai * 131);   // as in 6b: the same cars on the same spots every time the tile is built
       // principal axis from the longest edge
       let best = 0, ang = 0;
       for (let i = 0; i < pts.length - 1; i++) { const l = hyp2(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); if (l > best) { best = l; ang = Math.atan2(pts[i + 1][1] - pts[i][1], pts[i + 1][0] - pts[i][0]); } }
@@ -1554,12 +1707,13 @@ function* generate(S, BUD) {
       const u0 = Math.min(...u), u1 = Math.max(...u), v0 = Math.min(...v), v1 = Math.max(...v);
       const wide = (v1 - v0) > 9;   // two rows of nose-in cars, else parallel
       for (let uu = u0 + 1.3; uu < u1; uu += wide ? 2.5 : 5.3) for (let vv = v0 + 2.3; vv < v1; vv += wide ? 5.2 : 2.6) {
+        const rEmpty = rl(), rm = rl(), rcol = rl(), rshade = rl(), rf1 = rl(), rf2 = rl();
         const x = uu * ca - vv * sa, z = uu * sa + vv * ca;
-        if (!inPoly(pts, x, z) || rand() < 0.28) continue;
-        const hx = wide ? -sa : ca, hz = wide ? ca : sa;
-        placeCar(x, z, hx * (rand() < 0.5 ? 1 : -1), hz * (rand() < 0.5 ? 1 : -1)) && n++;
+        if (!inPoly(pts, x, z) || rEmpty < 0.28) continue;
+        const hx = wide ? -sa : ca, hz = wide ? ca : sa, model = pickBy(CARS, rm);
+        placeCar(x, z, hx * (rf1 < 0.5 ? 1 : -1), hz * (rf2 < 0.5 ? 1 : -1), model, paintBy(model, rcol, rshade)) && n++;
       }
-    }
+    });
     stats.cars_lots = n;
   }
 
@@ -1925,7 +2079,7 @@ function* generate(S, BUD) {
 // ------------------------------------------------------------------ instances -> meshes
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
-  signal: 350, busstop: 300, bin_big: 380, panda: 500, hatch: 500, micro: 500, van: 500, pickup: 500, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+  signal: 350, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
@@ -1961,7 +2115,7 @@ function* instantiate(res, parent, BUD) {
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
-      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * PFAR;
+      im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * PFAR; if (SHADOW_D[name]) im.userData.shadowd = SHADOW_D[name];
       meshes.push(im); meshOf[name + '|' + ckey] = im; parent.add(im); tris += per * n; total += n;
     }
     if (BUD.over()) yield;
@@ -1999,7 +2153,7 @@ export function buildProps(ctx) {
   const sandRings = d => { const a = (d.areas || []).filter(q => q.k === 'sand').map(q => q.p); return a.length ? a : ((d.streets && d.streets.sand) || []).map(p => p[0]); };
   function tileSource(job) {
     const t = job.t, d = t.data, x0 = t.i * T, z0 = t.j * T, x1 = x0 + T, z1 = z0 + T;
-    const nb = [], nroads = [];
+    const nb = [], nroads = [], tram = (d.tram && d.tram.r ? d.tram.r.map(q => q.p) : []);
     if (W) for (const o of W.tiles.values()) {
       if (o === t || !o.data || Math.abs(o.i - t.i) > 1 || Math.abs(o.j - t.j) > 1) continue;
       for (const b of o.data.buildings) {   // neighbours' houses that reach over the border keep cars out of them
@@ -2007,12 +2161,13 @@ export function buildProps(ctx) {
         for (let i = 0; i < p.length; i += 2) { if (p[i] < a0) a0 = p[i]; if (p[i] > a1) a1 = p[i]; if (p[i + 1] < c0) c0 = p[i + 1]; if (p[i + 1] > c1) c1 = p[i + 1]; }
         if (a1 > x0 - 6 && a0 < x1 + 6 && c1 > z0 - 6 && c0 < z1 + 6) nb.push(b);
       }
+      if (o.data.tram && o.data.tram.r) for (const q of o.data.tram.r) tram.push(q.p);   // tracks over the border keep cars off the tile's edge too
       for (const r of o.data.roads) if (r.n && MARKET_OR_POOR.test(r.n)) nroads.push(r);   // their street names still make this tile's edge scruffy
     }
     const k = t.i * 7919 + t.j * 104729, den = PDEN;
     const st = d.streets || {};
     return {
-      ctx, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
+      ctx, tk: t.k, tram, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
       x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
       idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
       roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [],
@@ -2100,7 +2255,7 @@ export function buildProps(ctx) {
     camera.getWorldPosition(cp);
     pump(performance.now());
     // [perf pass] sqrt instead of Math.hypot: hypot boxed a heap number per cell mesh per frame
-    for (let i = 0; i < cull.length; i++) { const im = cull[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; im.visible = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius < im.userData.maxd; }
+    for (let i = 0; i < cull.length; i++) { const im = cull[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius; im.visible = d < im.userData.maxd; if (im.userData.shadowd) im.castShadow = d < im.userData.shadowd; }
     phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };

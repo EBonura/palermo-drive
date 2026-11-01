@@ -66,7 +66,15 @@ class MB {
 const TYRE = col('#151517'), HUB = col('#a7aaae'), DARK = col('#222326'), GLASS = col('#27343d'), WHITE = col('#ffffff'),
   LAMP = col('#f1eedd'), TAIL = col('#9a1b1b'), SKIN = col('#c79a74'), BLACK = col('#161617');
 
+let LITE_WHEELS = false;   // parked cars (buildParkedModels): the hub is only the disc on the outer face, not a second cylinder
 function wheel(b, x, z, r, w = 0.2, seg = 8) {
+  if (LITE_WHEELS) {
+    b.cyl(x, r, z, r, w, TYRE, 0, seg);
+    const xo = x + Math.sign(x) * (w / 2 + 0.012), rr = r * 0.58, ring = [];
+    for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2 + Math.PI / seg; ring.push([xo, r + Math.cos(a) * rr, z + Math.sin(a) * rr]); }
+    b.face(ring, [x, r, z], HUB, 0);
+    return;
+  }
   b.cyl(x, r, z, r, w, TYRE, 0, seg);
   b.cyl(x + Math.sign(x) * 0.012, r, z, r * 0.58, w, HUB, 0, seg);
 }
@@ -307,6 +315,12 @@ export function buildModels() {
     apePick: g(apePick('')), apeCrate: g(apePick('crates')), apeFood: g(apeFood()),
     carrozza: carrozza(), carretto: carretto(),
   };
+}
+
+// The four cars that also stand parked along the kerbs (src/props.js: hundreds of them), a fifth lighter in triangles (wheel hubs).
+export function buildParkedModels() {
+  LITE_WHEELS = true;
+  try { const g = b => b.geometry ? b.geometry() : b; return { panda: g(hatch(PANDA)), punto: g(hatch(PUNTO)), smart: g(hatch(SMART)), van: g(van()) }; } finally { LITE_WHEELS = false; }
 }
 
 // One material for every vehicle. Vertex colour gives the fixed parts; the instance colour only
