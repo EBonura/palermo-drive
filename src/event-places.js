@@ -32,7 +32,7 @@ export const FOOD_PLACES = [
   { id: 'benny', name: 'Pizzeria da Benny', who: 'Benny', g: 'm', item: 'pizzette', real: true, lat: 38.119748, lon: 13.350613, onStreet: 'Via Goethe', src: OSM + ' (node 4617236492 "Pizza Goethe", Via Goethe); owner confirmed it is Benny\'s, 2026-11-01' },
   // --- famous real places (OpenStreetMap features)
   { id: 'focacceria', name: 'Antica Focacceria San Francesco', who: 'La Focacceria San Francesco', g: 'f', item: 'panelle', real: true, lat: 38.116333, lon: 13.366144, src: OSM + ' (node 269456078)' },
-  { id: 'nino', name: 'Nino u Ballerino', who: 'Nino u Ballerino', g: 'm', item: 'meusa', real: true, lat: 38.111607, lon: 13.351735, src: OSM + ' (way 279885598, Corso Calatafimi)' },
+  { id: 'nino', name: 'Nino u Ballerino', who: 'Nino u Ballerino', g: 'm', item: 'meusa', real: true, lat: 38.1187009, lon: 13.3490904, src: 'Corso Finocchiaro Aprile 76; owner confirmed the place, 2026-11-01' },
   { id: 'kepalle', name: 'Ke Palle', who: 'Ke Palle', g: 'm', item: 'arancine', real: true, lat: 38.11769, lon: 13.360081, src: OSM + ' (node 5476723060, Via Maqueda 270)' },
   { id: 'franco', name: 'Nni Franco u Vastiddaru', who: 'Franco u Vastiddaru', g: 'm', item: 'crocche', real: true, lat: 38.11788, lon: 13.367101, src: OSM + ' (node 2498795220, Piazza Marina 2)' },
   { id: 'cappello', name: 'Pasticceria Cappello', who: 'La Pasticceria Cappello', g: 'f', item: 'setteveli', real: true, lat: 38.124743, lon: 13.353277, src: OSM + ' (node 1768879217, Via Niccolò Garzilli 19)' },
