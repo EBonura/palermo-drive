@@ -1,4 +1,4 @@
-// Street surfaces: asphalt, stone paving, raised sidewalks with curbs, grass, sand and water, draped on the terrain.
+// Street surfaces: asphalt, stone paving, raised sidewalks with curbs, road verges, grass, sand and water, draped on the terrain.
 // Moved out of main.js so the centro map (D.streets) and the streamed world tiles (src/world.js) build the same way.
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
@@ -57,6 +57,11 @@ export const TEX = {
     speckle(g, S, 6000, ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.10)'], 1, 2);
     for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(40,35,30,${rnd(0.05, 0.12)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 40), rnd(8, 30), 0, 0, 7); g.fill(); }
   }, 2),
+  verge: canvasTex(256, (g, S) => { // the strip between kerb-less asphalt and the fields: trodden dry grass, grit and dust
+    g.fillStyle = '#8b8461'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '120,112,78' : '150,138,98'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
+    speckle(g, S, 7000, ['#9a9170', '#7b7452', '#a39a78', '#6f6a4c', '#85805a'], 1, 3);
+  }, 3),
   grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is olive with dry straw patches
     g.fillStyle = '#6b7c43'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(${Math.random() < 0.6 ? '150,140,86' : '70,92,50'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 50), rnd(10, 34), rnd(0, 3), 0, 7); g.fill(); }
@@ -122,16 +127,16 @@ function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
   }
   for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, col, p.x / m, p.y / m);
 }
-export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, water: -0.25, raised: CURB, green: CURB + 0.01 };
+export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, green: CURB + 0.01 };
 // World tiles are seen from far away: pull each layer towards the camera in depth so 0.15 m of lift doesn't z-fight at 1 km.
-const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], green: [-5, -5] };
+const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], green: [-5, -5] };
 
 const matCache = new Map();
 function layerMaterial(layer, offset) {
   const key = layer + (offset ? '+' : '');
   let mat = matCache.get(key);
   if (mat) return mat;
-  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand }[layer];
+  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
   mat = layer === 'water'
     ? new THREE.MeshStandardMaterial({ color: '#2a6f8c', roughness: 0.1 })
     : new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: layer === 'asphalt' ? 0.85 : 0.95 });
@@ -151,7 +156,7 @@ export function* streetsIter(streets, group, opts = {}) {
   for (const layer of layers) {
     const polys = streets[layer];
     if (!polys || !polys.length) continue;
-    const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand }[layer];
+    const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
     const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map();
     for (const poly of polys) {
       // one mesh per chunk (opts.chunk metres, default 250; 0 = a single mesh, as the streamed world tiles want) so frustum culling helps
