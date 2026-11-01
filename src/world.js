@@ -833,8 +833,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const inList = new Set(list);
     for (const t of tiles.values()) if (!inList.has(t)) { t.want = 0; t.d = rectDist(fx, fz, t); }
     let est = 0;
+    // overview (the title flyover): only the tile under the camera gets full detail, so the triangle cap goes to the low detail ring
+    const rFull = world.overview ? 1 : CFG.rFull;
     for (const t of list) {
-      let w = t.d < CFG.rFull + (t.lod === 2 ? CFG.hyst : 0) ? 2 : t.d < CFG.rLow + (t.lod >= 1 ? CFG.hyst : 0) ? 1 : 0;
+      let w = t.d < rFull + (t.lod === 2 ? CFG.hyst : 0) ? 2 : t.d < CFG.rLow + (t.lod >= 1 ? CFG.hyst : 0) ? 1 : 0;
       // hard cap on resident triangles: demote what does not fit (nearest tiles claim their budget first)
       while (w > 0 && est + estimate(t, w) > CFG.triCap) w--;
       est += estimate(t, w);
@@ -894,6 +896,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   world = {
     manifest: null,
     estTris: 0,
+    overview: false, // set by main.js while the title is up: see updateWanted
     raised,
     drivePlayer,
     // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.

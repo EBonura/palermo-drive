@@ -353,7 +353,16 @@ applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
-document.getElementById('loading').remove();
+// The loading screen stays up until the city around the first view is built, so the title never shows tiles popping in. The flyover clock
+// holds at 0 meanwhile (a moving camera keeps the streamer busy); the wait is capped so a slow phone still gets in.
+let titleT0 = -1;
+(function waitForCity(t0 = performance.now(), calm = 0) {
+  const s = world?.stats?.();
+  calm = !s || (s.lod1 + s.lod2 > 0 && s.queued + s.pending + s.inflight === 0) ? calm + 1 : 0;
+  if (calm < 3 && performance.now() - t0 < 25000) return setTimeout(() => waitForCity(t0, calm), 150);
+  const el = document.getElementById('loading');
+  titleT0 = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 500);
+})();
 let last = performance.now(), acc = 0;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
@@ -380,8 +389,9 @@ renderer.setAnimationLoop(now => {
   sun.target.position.copy(carPos);
 
   if (freeCam) freeCam();
-  else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, now / 1000); // flyover on the title, the garage turntable from the side menu
+  else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu
   else updateCamera(dt);
+  if (world) world.overview = game.state === 'title';
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);
