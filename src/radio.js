@@ -16,11 +16,14 @@
 //   palermoDrive.settings.v1, next to the shell's own keys. src/ui.js shows them in Options and fires the
 //   window event 'pd-music-setting' when one changes.
 // - Ducks under the pause menu and the title screen. Credits for every track: assets/music/CREDITS.md.
+// - The radio widget (top left, always there: title, driving, side menu): a spinning CD, live spectrum bars from an AnalyserNode tapped on
+//   the slot outputs (a side branch, nothing is routed through it), title and credits, next / on-off buttons. It collapses to the bars and
+//   a chevron a few seconds after the last track change or tap, and a track change opens it again.
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const BASE = new URL('../assets/music/', import.meta.url).href;
 
-// file (or id: <id>.m4a), title, author, licence (shown in the "now playing" toast).
+// file (or id: <id>.m4a), title, author, licence (shown in the radio widget).
 // Credits for every track: assets/music/CREDITS.md.
 const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l.
   ['abbiamo-arrivato', 'Abbiamo Arrivato'],
@@ -69,13 +72,22 @@ const PRELOAD = 30;       // start loading the next track when this many seconds
 const SKIP_FADE = 1.2;    // seconds when the player skips or switches on
 const OFF_FADE = 0.5;
 const DUCK = { play: 1, pause: 0.22, title: 0.6, over: 0.3 };
-const TOAST_MS = 5200;
+const OPEN_MS = 6500;     // the widget stays open this long after a track change, then folds to the bars
+const TAP_MS = 4500;      // ... and this long after a tap or hover
+const BARS = 11;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 const T = {   // [italiano, english]
   now: ['In onda', 'Now playing'],
   off: ['Radio spenta', 'Radio off'],
-  on: ['Radio accesa', 'Radio on'],
+  fm: ['FM Palermo', 'FM Palermo'],
+  idle: ['Tocca per ascoltare', 'Tap to listen'],
+  idleSub: ['Musica del Sud Italia', 'Southern Italian music'],
+  offSub: ['Accendila col tasto', 'Switch on with the button'],
+  next: ['Cambia brano', 'Next track'],
+  power: ['Radio accesa o spenta', 'Radio on or off'],
+  open: ['Apri la radio', 'Open the radio'],
+  fold: ['Chiudi la radio', 'Fold the radio'],
 };
 
 let instance = null;
@@ -99,14 +111,14 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   const lang = () => (readSaved().lang === 'en' ? 1 : 0);
 
   // ---- audio graph ----
-  let ctx = null, master = null, useGain = false;
+  let ctx = null, master = null, useGain = false, analyser = null, freq = null;
   const slots = [0, 1].map(() => {
     const el = new Audio();
     el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', '');
     return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false };
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
-  let bag = [], last = -1, upcoming = null, pendingToast = null;
+  let bag = [], last = -1, upcoming = null;
   const srcOf = track => BASE + (track.file || track.id + '.m4a');
 
   function buildGraph() {
@@ -123,7 +135,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         s.node.connect(s.gain); s.gain.connect(master);
       }
       useGain = true;
-    } catch (e) { ctx = null; useGain = false; }   // fall back to element.volume (desktop browsers)
+      try {   // spectrum tap: a dead-end branch off the slot outputs (before the master volume and ducking), it changes nothing that is heard
+        analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.55;
+        freq = new Uint8Array(analyser.frequencyBinCount);
+        for (const s of slots) s.gain.connect(analyser);
+        const mute = ctx.createGain(); mute.gain.value = 0; analyser.connect(mute); mute.connect(ctx.destination);   // some browsers only run an analyser that reaches the output; this branch is silent
+      } catch (e) { analyser = null; freq = null; }
+    } catch (e) { ctx = null; useGain = false; analyser = null; freq = null; }   // fall back to element.volume (desktop browsers)
   }
 
   function applyGains(dt) {
@@ -188,7 +206,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     });
     if (old.playing) { old.target = 0; old.fade = fadeSec; }
     lastSwitch = performance.now();
-    showToast(track);
+    onTrack(track);
   }
   function trackFailed(s) {
     if (s !== slots[cur]) return;
@@ -217,7 +235,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     enabled = on;
     if (started) {
       if (on) { playTrack(SKIP_FADE); }
-      else { stopAll(OFF_FADE); hideToast(); flash(T.off); }
+      else { stopAll(OFF_FADE); sync(); open(TAP_MS); }
     }
   }
   const toggle = () => setEnabled(!enabled);
@@ -274,45 +292,186 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     else if (e.code === 'KeyN') toggle();
   });
 
-  // ---- "now playing" toast: near-black panel, rosanero accent, top left beside the menu button ----
+  // ---- the radio widget: CD, spectrum bars, title and credits, next / on-off, folds to bars + chevron ----
   const style = document.createElement('style');
   style.textContent = `
-.pd-radio-toast { position: fixed; z-index: 505; top: max(8px, env(safe-area-inset-top)); /* top-left, right of the menu button; JS moves it under the mission panel */ left: calc(max(10px, env(safe-area-inset-left)) + 56px); transform: translate(0, -8px);
-  width: max-content; max-width: min(340px, 64vw); box-sizing: border-box; padding: 7px 12px 8px 11px; border-radius: 9px; pointer-events: none;
-  background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff; opacity: 0;
-  font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .35s, transform .35s; }
-.pd-radio-toast.on { opacity: 1; transform: translate(0, 0); }
-.pd-radio-toast small { display: block; font: 800 9.5px/1 system-ui, -apple-system, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e8559a; margin-bottom: 3px; }
-.pd-radio-toast b { display: block; font-weight: 800; font-size: 14px; overflow-wrap: anywhere; }
-.pd-radio-toast span { display: block; font-weight: 500; font-size: 11.5px; opacity: .78; margin-top: 1px; overflow-wrap: anywhere; }
-@media (max-height: 460px) { .pd-radio-toast { font-size: 11px; padding: 5px 10px 6px 9px; max-width: min(300px, 46vw); } .pd-radio-toast b { font-size: 12px; } .pd-radio-toast span { font-size: 10px; } }
+.pd-radio { position: fixed; z-index: 505; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); height: 46px; display: flex; align-items: center; pointer-events: none;
+  --pr-tw: clamp(104px, 20vw, 168px); font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; color: #fff; text-transform: none; transition: left .3s ease, opacity .25s ease, transform .25s ease, visibility 0s; }
+#pd-ui[data-st=play] ~ .pd-radio { left: calc(max(10px, env(safe-area-inset-left)) + var(--pd-menu-inset, 56px)); }   /* right of the menu button, which only exists while driving */
+#pd-ui[hidden] ~ .pd-radio { display: none; }
+/* the map picker and Options use the whole top left (back button, title, card): the widget steps aside there */
+#pd-ui:is([data-screen=start], [data-screen=options]) ~ .pd-radio { opacity: 0; visibility: hidden; transform: translateY(-10px); transition: left .3s ease, opacity .2s ease, transform .2s ease, visibility 0s .2s; }
+.pr-card { position: relative; pointer-events: auto; display: flex; align-items: center; height: 46px; padding: 0 4px 0 10px; box-sizing: border-box; cursor: pointer;
+  transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.86), rgba(40,12,28,.8)); border-left: 5px solid #e8559a; box-shadow: 0 3px 12px rgba(0,0,0,.4);
+  transition: height .3s ease; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.pr-card > * { transform: skewX(6deg); }
+.pd-radio.min .pr-card { height: 34px; }
+.pr-ext { flex: none; display: flex; align-items: center; gap: 8px; margin-right: 8px; max-width: calc(var(--pr-tw) + 132px); overflow: hidden; opacity: 1;
+  transition: max-width .35s ease, margin .35s ease, opacity .25s ease, visibility 0s; }
+.pd-radio.min .pr-ext { max-width: 0; margin-right: 0; opacity: 0; visibility: hidden; transition: max-width .35s ease, margin .35s ease, opacity .2s ease, visibility 0s .35s; }
+/* the CD: the disc turns, the glint and the hub stay put */
+.pr-cd { position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.4), 0 0 10px rgba(232,85,154,.55); transition: filter .4s; }
+.pr-cd i { position: absolute; inset: 0; border-radius: 50%; animation: pr-spin 2.1s linear infinite; animation-play-state: paused;
+  background: repeating-radial-gradient(circle, rgba(11,7,9,0) 0 2px, rgba(11,7,9,.17) 2px 3px),
+    conic-gradient(from 20deg, #f5a9c9, #fff 8%, #e8559a 20%, #8a3a62 33%, #f5a9c9 45%, #fff 56%, #e8559a 70%, #8a3a62 82%, #f5a9c9); }
+.pr-cd::before { content: ''; position: absolute; z-index: 1; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #0b0709; box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
+.pr-cd::after { content: ''; position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: linear-gradient(135deg, rgba(255,255,255,.4), rgba(255,255,255,0) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,.14)); }
+.pd-radio[data-mode=on] .pr-cd i { animation-play-state: running; }
+.pd-radio:not([data-mode=on]) .pr-cd { filter: grayscale(.85) brightness(.65); box-shadow: 0 0 0 1.5px rgba(255,255,255,.28); }
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+.pr-text { flex: none; width: var(--pr-tw); min-width: 0; }
+.pr-lab { display: block; margin-bottom: 2px; font-weight: 600; font-size: 9px; line-height: 1; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; white-space: nowrap; }
+.pr-line { overflow: hidden; white-space: nowrap; }
+.pr-line > i { display: inline-block; font-style: normal; }
+.pr-t > i { font-weight: 700; font-size: 15px; line-height: 1.12; letter-spacing: .03em; }
+.pr-s > i { font-weight: 600; font-size: 11px; line-height: 1.2; letter-spacing: .04em; opacity: .8; }
+.pr-line.mq > i { animation: pr-mq var(--md, 9s) ease-in-out 1.2s infinite; }
+.pd-radio.min .pr-line.mq > i { animation-play-state: paused; }
+@keyframes pr-mq { 0%, 15% { transform: translateX(0); } 50%, 65% { transform: translateX(var(--sx)); } 100% { transform: translateX(0); } }
+.pr-btn { position: relative; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.4); cursor: pointer; touch-action: manipulation; -webkit-appearance: none; appearance: none; transition: background .12s; }
+.pr-btn::before { content: ''; position: absolute; inset: -3px; }
+.pr-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.pr-next svg path:first-child { fill: currentColor; }
+.pr-btn:active { background: rgba(255,255,255,.4); }
+@media (hover: hover) { .pr-btn:hover { background: rgba(255,255,255,.2); } }
+.pr-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.pr-pwr[aria-pressed=true] { background: rgba(232,85,154,.36); box-shadow: inset 0 0 0 1.5px #e8559a, 0 0 8px rgba(232,85,154,.6); }
+.pr-bars { flex: none; display: block; width: 48px; height: 26px; margin-right: 2px; }
+.pr-chev { width: 26px; height: 34px; border-radius: 6px; background: none; box-shadow: none; }
+.pr-chev svg { width: 14px; height: 14px; transition: transform .3s ease; transform: rotate(180deg); }
+.pd-radio.min .pr-chev svg { transform: rotate(0); }
+@media (hover: hover) { .pr-chev:hover { background: rgba(255,255,255,.12); } }
+@media (prefers-reduced-motion: reduce) { .pr-cd i, .pr-line.mq > i { animation: none; } .pr-card, .pr-ext, .pd-radio { transition: none; } }
 `;
   document.head.appendChild(style);
 
-  const toast = document.createElement('div');
-  toast.className = 'pd-radio-toast'; toast.setAttribute('role', 'status'); toast.setAttribute('aria-live', 'polite');
-  document.body.appendChild(toast);
-  let toastTimer = 0;
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  // Keep the toast in the top-left corner, below the taxi mission panel when that's on screen.
-  function placeToast() {
-    const hud = document.querySelector('#pm-hud.on');
-    toast.style.top = hud ? `${Math.round(hud.getBoundingClientRect().bottom + 8)}px` : '';
+  const ICON = {
+    next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7z"/><path d="M19 5v14"/></svg>',
+    power: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>',
+  };
+  const box = document.createElement('div');
+  // pd-radio-toast + on: src/suca.js stacks its graffiti toast under any '.pd-radio-toast.on', which keeps that toast clear of this widget
+  box.className = 'pd-radio pd-radio-toast on';
+  box.setAttribute('role', 'group');
+  box.innerHTML = `<div class="pr-card">
+    <div class="pr-ext"><div class="pr-cd"><i></i></div>
+      <div class="pr-text" aria-live="polite"><small class="pr-lab"></small><div class="pr-line pr-t"><i></i></div><div class="pr-line pr-s"><i></i></div></div>
+      <button class="pr-btn pr-next" type="button">${ICON.next}</button><button class="pr-btn pr-pwr" type="button">${ICON.power}</button></div>
+    <canvas class="pr-bars"></canvas>
+    <button class="pr-btn pr-chev" type="button">${ICON.chev}</button></div>`;
+  document.body.appendChild(box);
+  const $ = sel => box.querySelector(sel);
+  const el = { card: $('.pr-card'), lab: $('.pr-lab'), t: $('.pr-t'), s: $('.pr-s'), next: $('.pr-next'), pwr: $('.pr-pwr'), chev: $('.pr-chev'), cv: $('.pr-bars') };
+  // the shell stops touch events for its own buttons so the page lockdown (double-tap guard) leaves them alone; same here
+  for (const ev of ['touchstart', 'touchmove', 'touchend']) box.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
+
+  // open / folded: a track change or a tap opens it for a while, then it folds to the bars and a chevron
+  let exp = true, hover = false, evBusy = false, armed = false, foldTimer = 0, lastKey = '', lastLang = 0;
+  function applyExp() {
+    const min = !exp || evBusy;
+    box.classList.toggle('min', min);
+    el.chev.setAttribute('aria-expanded', String(!min));
+    el.chev.setAttribute('aria-label', T[min ? 'open' : 'fold'][lastLang]); el.chev.title = el.chev.getAttribute('aria-label');
+    if (!min) fitLines();
   }
-  function hideToast() { clearTimeout(toastTimer); toast.classList.remove('on'); pendingToast = null; }
-  function showToast(track) {
-    if (game?.state !== 'play') { pendingToast = track; return; }   // the title and menus stay quiet; show it once driving
-    pendingToast = null;
-    toast.innerHTML = `<small>${T.now[lang()]}</small><b>${esc(track.title)}</b><span>${esc(track.by)} · ${esc(track.lic)}</span>`;
-    placeToast(); toast.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), TOAST_MS);
+  function arm(ms) { clearTimeout(foldTimer); if (!armed) return; foldTimer = setTimeout(() => { if (!hover) { exp = false; applyExp(); } }, ms); }
+  function open(ms = OPEN_MS) { exp = true; applyExp(); arm(ms); }
+  el.card.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b === el.chev) { if (exp && !evBusy) { exp = false; applyExp(); clearTimeout(foldTimer); } else open(TAP_MS); }
+    else if (b === el.next) { next(); open(TAP_MS); }
+    else if (b === el.pwr) { toggle(); open(TAP_MS); }
+    else if (!exp) open(TAP_MS);
+    else arm(TAP_MS);
+    if (b) b.blur();   // a focused button would take the space bar (handbrake) as a click
+  });
+  el.card.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { hover = true; clearTimeout(foldTimer); } });
+  el.card.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hover = false; if (exp) arm(TAP_MS); } });
+
+  // text: label, title, credits. A line that is wider than its box scrolls slowly there and back.
+  function setLine(line, text) { const i = line.firstChild; i.textContent = text; line.title = text; line.classList.remove('mq'); }
+  function fitLine(line) {
+    const over = line.firstChild.offsetWidth - line.clientWidth;
+    if (over > 2) { line.style.setProperty('--sx', `-${over + 6}px`); line.style.setProperty('--md', `${(over / 24 + 6).toFixed(1)}s`); void line.offsetWidth; line.classList.add('mq'); }
   }
-  function flash(msg) {
-    if (game?.state !== 'play') return;
-    toast.innerHTML = `<small>FM Palermo</small><b>${esc(msg[lang()])}</b>`;
-    placeToast(); toast.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 1800);
+  function fitLines() { if (!box.classList.contains('min')) { fitLine(el.t); fitLine(el.s); } }
+  function render(mode, track, l) {
+    const on = mode === 'on';
+    el.lab.textContent = on ? T.now[l] : T.fm[l];
+    setLine(el.t, on ? track.title : mode === 'off' ? T.off[l] : T.idle[l]);
+    setLine(el.s, on ? `${track.by} · ${track.lic}` : mode === 'off' ? T.offSub[l] : T.idleSub[l]);
+    box.dataset.mode = mode;
+    box.setAttribute('aria-label', `${T.fm[l]}: ${el.t.title}`);
+    el.next.setAttribute('aria-label', T.next[l]); el.next.title = T.next[l];
+    el.pwr.setAttribute('aria-label', T.power[l]); el.pwr.title = T.power[l]; el.pwr.setAttribute('aria-pressed', String(mode !== 'off'));
+    lastLang = l; applyExp();
   }
+  function sync() {   // 10 Hz, from tick(): touches the DOM only when something changed
+    const l = langNow();
+    const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
+    const track = mode === 'on' ? slots[cur].track : null;
+    const key = `${mode}|${track ? track.title : ''}|${l}`;
+    if (key !== lastKey) { lastKey = key; render(mode, track, l); }
+    if (!armed && !document.getElementById('loading')) { armed = true; arm(OPEN_MS); }   // the first fold waits for the loading screen to go
+    // keep it folded where it would run into something: the event card (top centre) on screens under 1200 wide, the side menu on screens under 760
+    const busy = (innerWidth < 1200 && !!document.querySelector('#ev-hud.on')) || (innerWidth < 760 && game?.state === 'pause');
+    if (busy !== evBusy) { evBusy = busy; applyExp(); }
+    if (mode === 'on') kick();
+  }
+  function onTrack() { sync(); if (!armed) { exp = true; applyExp(); } else open(OPEN_MS); }
+
+  // spectrum: 11 bars from the analyser (log-spaced bins), drawn on a 48 x 26 canvas about every other frame; the loop stops once the bars have settled
+  const CW = 48, CH = 26, BW = 3, BGAP = 1.5;
+  const g2 = el.cv.getContext('2d');
+  const lv = new Float32Array(BARS), pk = new Float32Array(BARS);
+  const edges = [1]; for (let i = 1; i <= BARS; i++) edges.push(Math.max(edges[i - 1] + 1, Math.round(Math.pow(72, i / BARS))));
+  let raf = 0, lastDraw = 0, grad = null, dpr = 0;
+  function sizeCanvas() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    el.cv.width = Math.round(CW * dpr); el.cv.height = Math.round(CH * dpr);
+    g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    grad = g2.createLinearGradient(0, 0, 0, CH);
+    grad.addColorStop(0, '#ffd1e6'); grad.addColorStop(.45, '#f06fae'); grad.addColorStop(1, '#8a3a62');
+  }
+  sizeCanvas();
+  window.addEventListener('resize', () => { if ((window.devicePixelRatio || 1) !== dpr) { sizeCanvas(); kick(); } });
+  function frame(now) {
+    raf = 0;
+    if (document.hidden) return;
+    if (now - lastDraw < 30) { raf = requestAnimationFrame(frame); return; }
+    lastDraw = now;
+    const live = started && enabled && !blocked && slots[cur].playing && (!ctx || ctx.state === 'running');
+    let sum = 0;
+    if (live && analyser) analyser.getByteFrequencyData(freq);
+    for (let i = 0; i < BARS; i++) {
+      let v = 0;
+      if (live && analyser) {
+        let a = 0; const lo = edges[i], hi = edges[i + 1];
+        for (let k = lo; k < hi; k++) a += freq[k];
+        v = a / (hi - lo) / 255;
+        v = Math.min(1, v * (0.85 + 0.6 * i / (BARS - 1)));   // the top of the spectrum is quiet in music: lift it a little
+        v = v * v * 0.95;
+      } else if (live) v = 0.25 + 0.2 * Math.sin(now / 170 + i * 1.7) * Math.sin(now / 410 + i);   // no Web Audio: a gentle stand-in
+      v = Math.min(1, v);
+      lv[i] += (v - lv[i]) * (v > lv[i] ? 0.7 : 0.2);
+      pk[i] = Math.max(lv[i], pk[i] - 0.03);
+      sum += lv[i] + pk[i];
+    }
+    g2.clearRect(0, 0, CW, CH);
+    g2.globalAlpha = live || sum > 0.5 ? 1 : 0.4;
+    for (let i = 0; i < BARS; i++) {
+      const x = i * (BW + BGAP), h = Math.max(2, Math.round(lv[i] * CH));
+      g2.fillStyle = grad; g2.fillRect(x, CH - h, BW, h);
+      if (pk[i] > 0.08) { g2.fillStyle = '#fff'; g2.fillRect(x, Math.max(0, CH - Math.round(pk[i] * CH) - 2.5), BW, 1.5); }
+    }
+    if (live || sum > 0.4) raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!raf && !document.hidden) raf = requestAnimationFrame(frame); }
+  kick();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
 
   // ---- the shell changed a setting in Options ----
   window.addEventListener('pd-music-setting', () => {
@@ -322,7 +481,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   });
 
   // ---- main tick: fades, ducking, auto-advance, button and toast visibility ----
-  let lastTick = performance.now(), prevState = null;
+  let lastTick = performance.now();
   function tick() {
     const now = performance.now(), dt = Math.min(0.5, (now - lastTick) / 1000); lastTick = now;
     const state = game?.state || 'play';
@@ -343,11 +502,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         else if (c.el.currentTime >= d - PRELOAD) preloadNext();
       }
     }
-    if (state !== prevState) {
-      prevState = state;
-      if (state === 'play') { if (pendingToast && started && enabled && slots[cur].track === pendingToast) showToast(pendingToast); else pendingToast = null; }
-      else toast.classList.remove('on');
-    }
+    sync();
   }
   const timer = setInterval(tick, 100);
   tick();
@@ -359,7 +514,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     get current() { return slots[cur].playing ? slots[cur].track : null; },
     tracks,
     debug: () => ({ useGain, ctx: ctx && ctx.state, levels: slots.map(s => +s.level.toFixed(2)), duck: +duck.toFixed(2), master: master ? +master.gain.value.toFixed(3) : null, vols: slots.map(s => s.el.volume), started, blocked, failures }),
-    destroy() { clearInterval(timer); stopAll(0.1); for (const s of slots) s.el.pause(); toast.remove(); style.remove(); instance = null; },
+    destroy() { clearInterval(timer); cancelAnimationFrame(raf); clearTimeout(foldTimer); stopAll(0.1); for (const s of slots) s.el.pause(); box.remove(); style.remove(); instance = null; },
   };
   return instance;
 }
