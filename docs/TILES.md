@@ -285,3 +285,17 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
   that have no OSM node within 25 m (fontane use the existing fountain model).
 - **Not done:** trams do not run on the title screen, no tram sound or bell, the platform shelters are plain, pedestrians do not board, `data/tram.json` stretches `street` (tram in the carriageway)
   are only 0.2 km so no mixed traffic handling, trams have no headlights.
+
+## Roof and ground colours (tools/colours.py; docs/sources/sitr-orthophoto-colours.md)
+
+Only colour values derived from the Regione Siciliana SITR orthophotos (ATA 2012-13) are used; no imagery is stored, copied or embedded.
+
+- **Roofs.** `rc` ("rrggbb", chroma pulled in 15 % because the picture shows sun-lit surfaces, not albedo) on the 62,448 buildings whose confidence is 0.35 or more; the other 19,500 keep the zone
+  palette. The runtime (`src/buildings.js`) puts the colour on the roof as a tint over the roof texture: flat roofs use the plain terrace texture, pitched ones the grey tile texture, so the colour
+  is the photo's and not terracotta unless the photo says so (churches, industrial sheds, ruins and beach buildings keep their own); the low-detail ring (`src/world.js`) uses the same colour and
+  `tools/farcity.mjs` mixes it half and half into the far boxes. The median roof is dusty tan (176, 167, 152); ZEN and the new quarters come out concrete grey.
+- **Ground.** `gt = {t, a}` per tile (932 tiles): two 25 x 25 grids of 20 m cells, two hex digits a cell (lightness, warmth, 88 = neutral), `t` for terrain (courts, bare ground, green) and `a`
+  for hard surfaces (asphalt, paving, pavement), both relative to the city median of their group. Applied bilinearly as a multiplier on the terrain vertex colours and on the street layers' vertex colours
+  (`tintFn` in `src/world.js`, `opts.tint` in `src/streets.js`): a relative tint, it varies what the game already draws. Cells seen only in shadow are neutral.
+- **Caveats:** the photos are 2012-13 (about 13 years old); outlines and photo disagree by metres; the ground classes of the orthophoto data were computed on the street layers before the Comune
+  streets (`court` is now plain terrain), which only matters as a relative tint.

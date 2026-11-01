@@ -164,6 +164,7 @@ function getLowMats() {
   return lowMats;
 }
 const PLASTER = ['#dccfb2', '#d2c2a2', '#c9b79c', '#d0b49c', '#c4a288', '#e0d5bd', '#c4ac88', '#d6c6a4', '#cfc3ab', '#d9c9a8'].map(c => new THREE.Color(c));
+const _lr = new THREE.Color();
 const ROOFS = ['#b4aa9c', '#a69d90', '#bdb4a4', '#9d958a'].map(c => new THREE.Color(c)), TERRACOTTA = new THREE.Color('#a8654c');
 
 export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, roadVerts, DRIVABLE }) {
@@ -331,6 +332,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
+    const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
     // owner saw hidden roads under Monte Pellegrino). On benched tiles each low detail vertex drops to the lowest ground within 5 m,
     // so the terrain never rises above a road beside it; the notch this leaves is far below what is visible at that distance.
@@ -353,6 +355,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
           break;
         }
+        if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
       }
@@ -422,7 +425,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         }
         try {
           const contour = pts.map(p => new THREE.Vector2(p[0], p[1])), tris = THREE.ShapeUtils.triangulateShape(contour, []);
-          const rcol = (roof - gmin < 9 && (b.c & 3) === 0) ? TERRACOTTA : ROOFS[b.c % ROOFS.length];
+          const rcol = b.rc ? _lr.set('#' + b.rc) : (roof - gmin < 9 && (b.c & 3) === 0) ? TERRACOTTA : ROOFS[b.c % ROOFS.length];   // b.rc: the orthophoto roof colour
           for (const tr of tris) {
             let [a, bq, c] = tr.map(i => pts[i]);
             if ((bq[1] - a[1]) * (c[0] - a[0]) - (bq[0] - a[0]) * (c[1] - a[1]) < 0) [bq, c] = [c, bq];
@@ -725,10 +728,24 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         .finally(() => { inflight--; t.fetchP = null; t.fetchRes(); pump(); });
     }
   }
+  // ---------- ground colours relative to the city's own (tile.gt): two 25 x 25 grids of 20 m cells, two hex digits a cell: lightness, warmth ----------
+  const GT_STEP = { t: 0.04, a: 0.015 }, _gt = new THREE.Color();
+  const decodeTint = str => { if (!str) return null; const a = new Uint8Array(1250); for (let i = 0; i < 1250; i++) a[i] = parseInt(str[i], 16); return a; };
+  function tintFn(t, grp) { // -> (x, z) -> Color multiplier (shared object), or null
+    const g = t.gt && t.gt[grp]; if (!g) return null;
+    const x0 = t.i * T, z0 = t.j * T, st = GT_STEP[grp];
+    return (x, z) => {
+      const fx = Math.max(0, Math.min(23.999, (x - x0) / 20 - 0.5)), fz = Math.max(0, Math.min(23.999, (z - z0) / 20 - 0.5)), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, k = (j * 25 + i) * 2;
+      const l = (g[k] * (1 - tx) + g[k + 2] * tx) * (1 - tz) + (g[k + 50] * (1 - tx) + g[k + 52] * tx) * tz, w = (g[k + 1] * (1 - tx) + g[k + 3] * tx) * (1 - tz) + (g[k + 51] * (1 - tx) + g[k + 53] * tx) * tz;
+      const f = Math.exp((l - 8) * 0.045), dw = (w - 8) * st;
+      return _gt.setRGB(Math.min(1.45, f * Math.exp(dw / 2)), f, Math.min(1.45, f * Math.exp(-dw / 2)));
+    };
+  }
   function prepareTile(t) {
     const d = t.data;
     if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
     registerStructs(d, t.k);
+    t.gt = d.gt ? { t: decodeTint(d.gt.t), a: decodeTint(d.gt.a) } : null;   // relative ground colours from the orthophotos (tools/colours.py)
     t.urban = Math.min(1, (d.buildings.length) / 160) * 0.8;
     t.tint = (d.areas || []).filter(a => COVER[a.k]).sort((a, b) => COVER[a.k][2] - COVER[b.k][2]).map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -757,7 +774,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, chunk: 0 });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, chunk: 0, tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
@@ -774,7 +791,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'verge', 'green'], curbs: true, offset: true, drape: 9, chunk: 0 });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'verge', 'green'], curbs: true, offset: true, drape: 9, chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
