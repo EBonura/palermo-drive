@@ -121,3 +121,8 @@ Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https:/
 | Una Storia Osè | Alamia e Sperandeo | https://www.youtube.com/watch?v=jgTvbsjmHNQ | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
 | Via Pitrè | Alamia e Sperandeo | https://www.youtube.com/watch?v=4IKpMnQRLvY | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
 | Vucciria | Alamia e Sperandeo | https://www.youtube.com/watch?v=xjldjsJ5f_c | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
+
+## Terrorage
+
+One song, "Terrorage" (`music/terrorage.m4a`), played near the Krust pub (src/pubs.js). Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in `music/CREDITS.md`.
+
