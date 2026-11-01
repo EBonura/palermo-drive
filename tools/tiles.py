@@ -469,6 +469,8 @@ CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over ter
 DENSIFY = 8
 FAR_STEP = 100
 FAR_MARGIN = 3000
+CTR_WALLS = os.path.join(ROOT, "data", "walls.json")   # Regione Siciliana CTR walls and fences, tools/fences.py
+CTR_CREDIT = "Walls and fences: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0"
 RS_PATH = os.path.join(ROOT, "data", "road_surfaces.json")   # tools/road_surfaces.py, see docs/sources/comune-road-surfaces.md
 RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of ground within URBAN_REACH of a building is raised pavement
 PED_STONE = ("paving_stones", "sett", "stone", "cobblestone", "unhewn_cobblestone", "granite", "cobblestone:flattened")
@@ -1312,12 +1314,22 @@ def tile_payload(i, j):
     st = streets_for_tile(tx0, tz0)
     has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs"))
     near = G["near_for"](i, j)
-    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near or G["tile_struct"].get(key)):
+    fn = []
+    if G.get("fence_tree") is not None:
+        import fences as fnc
+        from shapely.ops import unary_union
+        cutg = unary_union([G["cut_geoms"][k] for k in G["cut_tree"].query(tile)]) if "cut_tree" in G and len(G["cut_tree"].query(tile)) else None
+        carr_g, carr_t = G["rs"]["carriageway"] if "rs" in G else ([], shapely.STRtree([]))
+        fn = fnc.tile_fences(tx0, tz0, T, G["fence_items"], G["fence_tree"], G["bld_geoms"], G["bld_tree"], cutg, carr_g, carr_t, I, D, poly_only)
+
+    if not (blds or roads or areas or pitems or pareas or labels or has_streets or near or G["tile_struct"].get(key) or fn):
         return None
     out = {"buildings": blds, "roads": roads, "streets": st, "areas": areas, "labels": labels,
            "props": {"items": pitems, "areas": pareas, "counts": counts}}
     if G["tile_struct"].get(key):
         out["structs"] = G["tile_struct"][key]
+    if fn:
+        out["fences"] = fn
     if near:
         out["near"] = near
     return out
@@ -1895,6 +1907,9 @@ def build(offline=False):
     places = parse_places(files.get("places", []))
     import structures
     structs = structures.build_structures(STRUCTS, parse_waterways(files.get("wtr", [])), roads, dem)
+    import fences as fnc
+    fitems = fnc.load_barriers(iter_elements(files.get("bar", [])), os.path.join(ROOT, "data", "walls.json"), proj)
+    print(f"  fences: {len(fitems)} barrier lines (OSM {sum(1 for f in fitems if f['src'] == 0)}, CTR {sum(1 for f in fitems if f['src'])})", flush=True)
     tile_struct = {}
     for rec in structs:
         for key in structures.tiles_of(rec, T):
@@ -1954,7 +1969,8 @@ def build(offline=False):
              roads=roads, road_tree=shapely.STRtree([r[1] for r in roads]),
              pier_geoms=piers, pier_tree=tree(piers),
              areas=[(k, g) for k, g, _ in area_recs], area_tree=tree([g for _, g, _ in area_recs]),
-             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct)
+             tile_bld=tile_bld, tile_lab=tile_lab, tile_props=tile_props, tile_pareas=tile_pareas, tile_struct=tile_struct,
+             fence_items=fitems, fence_tree=shapely.STRtree([f["g"] for f in fitems]) if fitems else None)
 
     if RS_ON:
         G["rs"] = load_road_surfaces()
@@ -2046,11 +2062,11 @@ def build(offline=False):
         "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
-                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + "."),
+                        + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + "."),
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
                         **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
-                        **({"streets": RS_CREDIT} if RS_ON else {})),
+                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {})),
     }
     if islands:
         manifest["islands"] = islands

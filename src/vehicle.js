@@ -174,6 +174,7 @@ export function createVehicle(env) {
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
+        if (s.fn && hooks.breakFence) { const nn = d > 1e-4 ? [dx / d, dz / d] : [0, 0], vs = -(car.vx * nn[0] + car.vz * nn[1]); if (vs > 0 && hooks.breakFence(s, vs, nn[0], nn[1], car)) return; }   // a fence panel: smashed above a speed (src/fences.js)
         // a jump bridge (LANDMARK_ZONES in src/bridges.js): fast and fairly square on, the parapet is vaulted and the car flies off the deck
         if (s.jump && Math.hypot(car.vx, car.vz) > 11 && (car.vx * dx + car.vz * dz) / d < -4.5) { car.vault = 2.5; car.dfv = 2.5; return; }
         let nx, nz;
@@ -403,6 +404,7 @@ export function createVehicle(env) {
       if (Math.abs(car.deck) < 0.002) car.deck = 0;
       car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) + car.deck - car.lift) * Math.min(1, 25 * dt);
       if (hooks.fall) hooks.fall(car, { y: gb + car.deck, air: (car.dfv || 0) < -1 && car.deck > tgt + 0.5 });
+      if (hooks.tick) hooks.tick(dt);   // smashed fence panels in flight (src/fences.js)
     }
     // road wear (src/roadwear.js): bounce spring after a pothole, grip and forced lean fade, and how hard the rear tyres scrub
     car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
