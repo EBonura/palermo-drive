@@ -22,6 +22,7 @@ import { createHorn } from './horn.js';
 import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.js)
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
+import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
@@ -349,6 +350,7 @@ const placeStart = (x, z) => new Promise(done => {
 let radio = null;
 setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
+watchVersion(game);
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });

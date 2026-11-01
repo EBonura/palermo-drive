@@ -102,7 +102,11 @@ html = html.replace('</body>', `<script type="module" src="js/${appName}"></scri
 // minify the inline splash script
 html = html.replace(/<script>([\s\S]*?)<\/script>/, (m, code) => `<script>${esbuild.transformSync(code, { minify: true }).code.trim()}</script>`);
 html = html.replace(/\n\s*\n+/g, '\n');
+// release id (src/version.js): the page carries it, version.json says what is live; any change to the page, the bundle or the data names changes it
+const version = hash(Buffer.from(html));
+mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}">`, 'the <head> tag');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version }));
 
 // ---------- 5. static files ----------
 const SKIP_DIR = new Set(['cover-src', '_test', 'node_modules']);
