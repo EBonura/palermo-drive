@@ -314,6 +314,10 @@ Only colour values derived from the Regione Siciliana SITR orthophotos (ATA 2012
 The near and far grids use TINITALY everywhere and pin it to the lidar and to the Comune survey's building foot elevations (hold-out error 2.9 m rms against 6.9 m before; details in docs/faithfulness/terrain.md).
 Bridge decks, tunnel floors and the river trenches follow automatically (their end heights are baked from the same ground); the Ponte Corleone valley is the real 12 m deep one.
 
+### Hills outside the first TIN window (t7) and the Pellegrino shade (t6)
+
+`tools/dem.py` now fetches TINITALY for the whole play area (E 869400..892200, N 4218200..4242200), so the 222 tiles that had no near grid (the west hills, an east strip) have a 10 m one pinned the same way as the rest (t8). Details, checks and the size cost: docs/faithfulness/terrain.md. The steep-face fill of the far and tile terrain materials (`FAR_FILL`, `TERRAIN_FILL` in `src/world.js`) lightens the black wedges between Pellegrino's blocks.
+
 ### Parked cars and the bus (board items p9 and p8)
 
 The untextured white block cars of `src/props.js` are gone. Parked cars are the traffic's own models (`assets/traffic/models.js`: panda, punto, smart, van; `buildParkedModels` is the same four with a lighter wheel hub, 364 triangles instead of 452), drawn with the traffic material

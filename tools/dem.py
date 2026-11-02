@@ -7,7 +7,7 @@ Served by INGV's WCS 2.0.1 (GeoServer); one GetCoverage request returns the whol
 Why: the lidar rasters (tools/lidar_raster.py) are decoded from a rendered picture whose 8-bit ramp saturates at ~204 m and
 is only a few metres accurate above ~100 m, so Monte Pellegrino (to 606 m) fell back on the 100 m far grid.
 
-Files (data/dem_tinitaly/, gitignored): tin_raw.tif (float32, -9999 = sea / no data).
+Files (data/dem_tinitaly/, gitignored): tin_raw.tif (float32, -9999 = sea / no data; window E 869400..892200, N 4218200..4242200 since t7).
 
     python3 -I tools/dem.py fetch      download tin_raw.tif (once, ~21 MB)
 Library use (tools/.venv/bin/python -I): `import dem; dem.sample(x, z)` -> metres, NaN where the DEM has no data.
@@ -27,7 +27,7 @@ RAW = os.path.join(ROOT, "tin_raw.tif")
 WCS = "http://tinitaly.pi.ingv.it/TINItaly_1_1/wcs"
 UA = "palermo-drive-tiles/0.1 (hobby three.js game; TINITALY CC BY 4.0)"
 # UTM 32N window that covers the city bbox (the zone's grid is rotated ~2.7 deg against the local frame)
-E0, E1, N0, N1 = 874000, 890000, 4220000, 4242000
+E0, E1, N0, N1 = 869400, 892200, 4218200, 4242200   # t7: the whole play area (every world tile plus 600 m); the first window (874000..890000, 4220000..4242000) left the western hills without a near grid
 CREDIT = "TINITALY 1.1 DEM, INGV (Tarquini et al.), CC BY 4.0, doi:10.13127/tinitaly/1.1"
 NODATA = -9999.0
 

@@ -138,14 +138,29 @@ function terrainMaterial() {
             sampledDiffuseColor = mix( sampledDiffuseColor, mix( tz, tx, an.x / ( an.x + an.z + 1e-4 ) ), side );
           } }
         diffuseColor *= sampledDiffuseColor;
-      #endif`);
+      #endif`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill';
   return m;
 }
 
 // ---------- low-detail facade: one plain tile, two bays by two floors ----------
 let lowMats = null;
+// The 100 m far terrain: smooth normals from the grid, so the steep faces of Monte Pellegrino that look away from the sun are lit by the sky alone and read as black wedges between the
+// bright full-detail blocks (board item t6). A fill proportional to steepness (FAR_FILL times the surface colour on a vertical face of the far mesh, TERRAIN_FILL on the textured tile terrain, nothing on level ground) keeps the shade readable.
+const FAR_FILL = 1.1, TERRAIN_FILL = 0.4;
+function farMaterial() {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFarNy;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
+  };
+  m.customProgramCacheKey = () => 'far-fill';
+  return m;
+}
 function getLowMats() {
   if (lowMats) return lowMats;
   const tex = canvasTex(128, (g, S) => {
@@ -162,7 +177,7 @@ function getLowMats() {
     wall: new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.95 }),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
     terrain: terrainMaterial(),
-    far: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }), // the coarse far grid has no uvs
+    far: farMaterial(), // the coarse far grid has no uvs
   };
   return lowMats;
 }
