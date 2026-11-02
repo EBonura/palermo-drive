@@ -98,15 +98,15 @@ export function createErrand(X) {
   function finish(ok) {
     e.phase = 'done'; e.thanks = 5.5; X.setPhase('done');
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { hud.result(`<h3>${T('Niente da riportare', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
+    if (!ok) { hud.result(`<h3>${T('Nienti ri puoitari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * e.E.pay * 2) / 2, bonus = e.got >= e.total ? e.E.bonus : 0, total = base + bonus; e.pay = total;
     X.addFare(total, 'food');   // 'food' (not a fare): the pay counts in the wallet but not in the ride count
     say(pick(e.E.thanks), headOf, 0.6);
     X.pubs?.cheer(e.venue);
     hud.result(`<h3>${esc(e.venue.def.name)}</h3>
-      <div class="row"><span>${T(e.item.art === 'le' ? 'Riportate' : 'Riportati', 'Brought back')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
+      <div class="row"><span>${T('Puoitati narrè', 'Brought back')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
-      ${bonus ? `<div class="row"><span>${T('Tutte quante!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
+      ${bonus ? `<div class="row"><span>${T('Tutti quanti!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
       <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
     hud.burst();
   }
@@ -135,11 +135,11 @@ export function createErrand(X) {
       else {
         const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
         const m = Math.max(0, e.left);
-        hud.set({ label: T('Cerca ' + e.item.art + ' ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
+        hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
       }
     } else if (e.phase === 'return') {
       X.aim(v.slot.x, v.slot.z, true);
-      hud.set({ label: T(e.item.art === 'le' ? 'Riportale indietro' : 'Riportali indietro', 'Take them back'), title: v.def.name, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: v.slot });
+      hud.set({ label: T('Puoitali narrè', 'Take them back'), title: v.def.name, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: v.slot });
       if (Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else {
       X.aim(0, 0, false);

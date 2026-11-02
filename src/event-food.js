@@ -67,7 +67,7 @@ export function createFood(X) {
     e.total = e.items.length;
     X.calls.hideBeacon();
     X.setPhase('hunt');
-    hud.toast(T('Cerca ' + item.it + '!', 'Find the ' + item.en + '!'), slot.name);
+    hud.toast(T('Attruova ' + item.it + '!', 'Find the ' + item.en + '!'), slot.name);
   }
 
   function nearestLeft() {
@@ -83,21 +83,21 @@ export function createFood(X) {
     setItems(e.mesh, e.beams, e.items);
     if (e.got === 0) { say(pick(FOOD.none)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0); finish(false); return; }
     homeBeacon.set(e.slot.x, e.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(e.slot.x, e.slot.z, '#6bbf59', 8);
-    hud.toast(T('Riportale da ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + e.item.it);
+    hud.toast(T('Puoitali a ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + e.item.it);
   }
 
   function finish(ok) {
     e.phase = 'done'; e.thanks = 5.5; X.setPhase('done');
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { hud.result(`<h3>${T('Niente da riportare', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
+    if (!ok) { hud.result(`<h3>${T('Nienti ri puoitari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * 1.5 * 2) / 2, bonus = e.got >= e.total ? 10 : 0;
     const total = base + bonus; e.pay = total;
     X.addFare(total, 'food');
     say(pick(FOOD.thanks)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0.6);
     hud.result(`<h3>${esc(e.slot.name)}</h3>
-      <div class="row"><span>${T('Ritrovate', 'Found')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
+      <div class="row"><span>${T('Attruvati', 'Found')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
-      ${bonus ? `<div class="row"><span>${T('Tutte quante!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
+      ${bonus ? `<div class="row"><span>${T('Tutti quanti!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
       <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
     hud.burst();
   }
@@ -127,10 +127,10 @@ export function createFood(X) {
       if (e.left <= 0 || (e.huntGot >= HUNT_N && rest === 0)) { startReturn(); return; }
       const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
       const m = Math.max(0, e.left);
-      hud.set({ label: T('Cerca ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + HUNT_N, sub: e.slot.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / HUNT_TIME, target: nl });
+      hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + HUNT_N, sub: e.slot.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / HUNT_TIME, target: nl });
     } else if (e.phase === 'return') {
       X.aim(e.slot.x, e.slot.z, true);
-      hud.set({ label: T('Riportale indietro', 'Take them back'), title: e.slot.who, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: e.slot });
+      hud.set({ label: T('Puoitali narrè', 'Take them back'), title: e.slot.who, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: e.slot });
       if (Math.hypot(car.x - e.slot.x, car.z - e.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else if (e.phase === 'done') {
       X.aim(0, 0, false);

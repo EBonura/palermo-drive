@@ -375,35 +375,35 @@ export const APPARTATI = {
 // What the people on the kerb shout to call the lapa.
 export const CALL = {
   tourist: [['Taxi! Taxi! Over here!', ''], ['Hello! Excuse me! Are you free?', ''], ['Hey! Driver! Please, please!', ''], ['Is that a taxi? Please be a taxi!', '']],
-  taxi: [['Taxi! Ao, taxi!', ''], ['Fermati, fermati!', 'Stop, stop!'], ['Lapista! Mi porti?', 'Driver! Can you take me?'], ['Ehi! Libero?!', 'Hey! Free?!']],
+  taxi: [['Taxi! Ao, taxi!', ''], ['Fermati, fermati!', 'Stop, stop!'], ['Lapista! Mi puoiti?', 'Driver! Can you take me?'], ['Ehi! Libiru?!', 'Hey! Free?!']],
   // hotel-concierge tourists, by day: they have been told to ask for "a pulle" and have no idea what it is
   pulle: [['Excuse me! Do you know "a pulle"? The hotel man winked a lot.', ''], ['Hello! We need "a pulle". Is it far? Is it a restaurant?', ''], ['Taxi! "A pulle", please! Everybody says it with a smile!', '']],
-  food: [['Aiutooo! Mi sono scappate le {items}!', 'Heeelp! My {items} ran away!'], ['Fermati! Le {items} sono volate via!', 'Stop! The {items} flew off!'], ['Ao! Aiutami! Ho perso le {items}!', 'Hey! Help me! I lost the {items}!']],
+  food: [['Aiutooo! Mi sunnu scappati i {items}!', 'Heeelp! My {items} ran away!'], ['Fermati! I {items} sunnu vulati via!', 'Stop! The {items} flew off!'], ['Ao! Aiutami! Haiu pirdutu i {items}!', 'Hey! Help me! I lost the {items}!']],
   // the two rave missions (src/event-rave.js): the sound man at the centro sociale ExKarcere, and the friend at the rave. Palermitan, written by an agent: for the owner to correct.
   rave: [['Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!', 'Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!'], ['Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!', 'Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!'], ['Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!', 'No speakers, no rave! Take this stuff and run, but carefully!']],
   leaf: [["Psst cucì, a'gghiri nni Cipressi p'accattari... vabbé u sai, runami un passaggio amunì", 'Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on'], ['Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.', 'We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention.']],
-  race: [['Chi vince, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati qua e corri con noi!', 'Stop here and race with us!'], ['Tre, due, uno... quasi!', 'Three, two, one... almost!']],
+  race: [['Cu vinci, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati ccà e cuorri cu nuatri!', 'Stop here and race with us!'], ['Tri, dui, unu... cuasi!', 'Three, two, one... almost!']],
 };
 // Two pals of the lapista (the cameo friends of the cast, ids amico1_* and amico2_*) who sometimes wave the lapa down for a ride. Same shape as the other
 // passenger lines: [Italian or Sicilian, English]. They never use a name and say nothing about how anybody looks.
 export const FRIEND = {
   amico1: {
-    hail: [['Lapista! Fermati! Ti offro ’na stigghiola... a metà.', 'Driver! Stop! I will buy you a stigghiola... half of one.'], ['Ehi, amunì! Mi dai ’nu passaggio? Pago dopo!', 'Hey, come on! A lift? I pay later!'], ['Talìa chi coincidenza! Libero?', 'Look at that, what luck! Free?'], ['Fratè! Mi porti? Ho lasciato il motorino a casa!', 'Brother! Can you take me? I left the scooter at home!']],
-    board: [['Bedda matri, ’sta cosa va sul serio!', 'Holy mother, this thing is for real!'], ['Parti pure, io mi reggo al tetto.', 'Go ahead, I will hold on to the roof.']],
-    ambient: [['Sai che qui l’aria è sempre buona? Dopo le tre.', 'You know the air here is always nice? After three o’clock.'], ['Io lo dico sempre: la tangenziale è un’opinione.', 'I always say it: the ring road is an opinion.'], ['Se vedi un bar aperto, fai finta di niente.', 'If you see an open bar, pretend you did not.']],
-    drift: [['Minchia! Ancora, ancora!', 'Wow! Again, again!']], wheels: [['Su due ruote! Mi è passata la sonnolenza!', 'On two wheels! My sleepiness is gone!']],
-    fast: [['Vai, vai! Fai finta che sia ’u Giro!', 'Go, go! Pretend it is the Giro!']], miss: [['Per un capello! Ti devo una granita.', 'By a hair! I owe you a granita.']],
-    hitWall: [['Era il muro che è comparso, eh!', 'The wall came out of nowhere, right!']], hitPed: [['Scusate! Scusate tutti! Siamo di fretta!', 'Sorry! Sorry everyone! We are in a hurry!']],
-    late: [['Facciamo ’na cosa: arriviamo.', 'Let us do this: we arrive.']], arrive: [['Perfetto! Ti pago... la prossima volta. Scherzo, tieni!', 'Perfect! I will pay you... next time. Kidding, here!']], fail: [['Vabbè, c’è sempre domani.', 'Oh well, there is always tomorrow.']],
+    hail: [['Lapista! Fermati! Ti offru ’na stigghiola... a metà.', 'Driver! Stop! I will buy you a stigghiola... half of one.'], ['Ehi, amunì! Mi runi ’nu passaggiu? Pagu doppu!', 'Hey, come on! A lift? I pay later!'], ['Talìa chi cuincidienza! Libiru?', 'Look at that, what luck! Free?'], ['Fratì! Mi puoiti? Haiu lassatu u motorinu a casa!', 'Brother! Can you take me? I left the scooter at home!']],
+    board: [['Biedda matri, ’sta cosa va ’ntô seriu!', 'Holy mother, this thing is for real!'], ['Paiti puru, iu mi riggu ô tettu.', 'Go ahead, I will hold on to the roof.']],
+    ambient: [['Sai ca ccà l’aria è sempri buona? Doppu i tri.', 'You know the air here is always nice? After three o’clock.'], ['Iu u dicu sempri: a tangenziali è n’opinioni.', 'I always say it: the ring road is an opinion.'], ['Si viri ’nu bar apiertu, fai finta ri nienti.', 'If you see an open bar, pretend you did not.']],
+    drift: [['Minchia! Arrè, arrè!', 'Wow! Again, again!']], wheels: [['Supra dui ruoti! M’è passata a sunnulenza!', 'On two wheels! My sleepiness is gone!']],
+    fast: [['Va’, va’! Fai finta ca è ’u Giro!', 'Go, go! Pretend it is the Giro!']], miss: [['Pi ’nu capiddu! Ti haiu a dari ’na granita.', 'By a hair! I owe you a granita.']],
+    hitWall: [['Era u muru ca spuntau, eh!', 'The wall came out of nowhere, right!']], hitPed: [['Scusati! Scusati a tutti! Siemu ri fretta!', 'Sorry! Sorry everyone! We are in a hurry!']],
+    late: [['Facemu ’na cosa: arrivamu.', 'Let us do this: we arrive.']], arrive: [['Perfettu! Ti pagu... a prossima vota. Scherzu, teni!', 'Perfect! I will pay you... next time. Kidding, here!']], fail: [['Vabbè, c’è sempri rumani.', 'Oh well, there is always tomorrow.']],
   },
   amico2: {
-    hail: [['Ehi! Lapista! Posso salire? Ho le gambe lunghe, ma mi adatto.', 'Hey! Driver! Can I get in? My legs are long, but I will manage.'], ['Fermati un attimo! Ti racconto una cosa mentre andiamo.', 'Stop a moment! I will tell you something on the way.'], ['Amunì, amunì! Mi dai ’nu strappo?', 'Come on! Can I have a ride?'], ['Scusa, sei libero? Giuro che non rubo il posto a nessuno.', 'Sorry, are you free? I swear I will not take anyone’s seat.']],
-    board: [['Un po’ stretto, ma ha il suo fascino.', 'A bit tight, but it has its charm.'], ['Vai tranquillo. Io mi piego in due.', 'Take it easy. I will fold in half.']],
-    ambient: [['Lo sai che a Palermo il semaforo è un consiglio?', 'You know that in Palermo the traffic light is a suggestion?'], ['Ho visto un gatto con una Vespa, ieri. Giuro.', 'I saw a cat on a Vespa yesterday. I swear.'], ['Qui ogni strada ha il suo profumo: panelle o scappamento.', 'Every street here has its smell: panelle or exhaust.']],
-    drift: [['Ahahah! Questa la racconto!', 'Hahaha! I am telling this one!']], wheels: [['Due ruote! Sembra di volare!', 'Two wheels! It feels like flying!']],
-    fast: [['Vai! Sono già in ritardo in anticipo!', 'Go! I am already early for being late!']], miss: [['Ma l’hai visto?! Era a un dito!', 'Did you see that?! It was a finger away!']],
-    hitWall: [['Tutto a posto! Il muro si è spostato.', 'All good! The wall moved.']], hitPed: [['Oh! Mi dispiace! Buona giornata!', 'Oh! Sorry! Have a good day!']],
-    late: [['Ce la facciamo, ce la facciamo... forse.', 'We will make it, we will make it... maybe.']], arrive: [['Grazie mille! Offro io il caffè. Dopo.', 'Thanks a lot! My treat for the coffee. Later.']], fail: [['Pazienza, ci vado a piedi. Lungo come sono...', 'Never mind, I will walk. Tall as I am...']],
+    hail: [['Ehi! Lapista! Puozzu acchianari? Haiu i gammi lunghi, ma m’adattu.', 'Hey! Driver! Can I get in? My legs are long, but I will manage.'], ['Fermati ’n attimu! Ti cuntu ’na cosa mentri annamu.', 'Stop a moment! I will tell you something on the way.'], ['Amunì, amunì! Mi runi ’nu strappu?', 'Come on! Can I have a ride?'], ['Scusa, si libiru? Giuru ca un arrobbu u postu a nuddu.', 'Sorry, are you free? I swear I will not take anyone’s seat.']],
+    board: [['’Nu pocu strittu, ma havi u so fascinu.', 'A bit tight, but it has its charm.'], ['Va’ tranquillu. Iu mi chiegu ’n dui.', 'Take it easy. I will fold in half.']],
+    ambient: [['U sai ca a Palermu u semaforu è ’nu cunsigghiu?', 'You know that in Palermo the traffic light is a suggestion?'], ['Vitti ’nu gattu cu ’na Vespa, ajeri. Giuru.', 'I saw a cat on a Vespa yesterday. I swear.'], ['Ccà ogni strata havi u so ciauru: panelle o scappamentu.', 'Every street here has its smell: panelle or exhaust.']],
+    drift: [['Ahahah! Chista a cuntu!', 'Hahaha! I am telling this one!']], wheels: [['Dui ruoti! Pari ri vulari!', 'Two wheels! It feels like flying!']],
+    fast: [['Va’! Sugnu già ’n ritardu ’n anticipu!', 'Go! I am already early for being late!']], miss: [['Ma u vidisti?! Era a ’nu ditu!', 'Did you see that?! It was a finger away!']],
+    hitWall: [['Tuttu a postu! U muru si spustau.', 'All good! The wall moved.']], hitPed: [['Oh! Mi dispiaci! Bona iurnata!', 'Oh! Sorry! Have a good day!']],
+    late: [['Ci la facemu, ci la facemu... fuorsi.', 'We will make it, we will make it... maybe.']], arrive: [['Grazie mille! Offru iu u cafè. Doppu.', 'Thanks a lot! My treat for the coffee. Later.']], fail: [['Pacienza, ci vaiu a peri. Lungu comu sugnu...', 'Never mind, I will walk. Tall as I am...']],
   },
 };
 // "A pulle" by day: the tourists in the back seat. By night the client is the discreet one of FAVORITA (above).
@@ -433,8 +433,8 @@ export const URGENT_LINES = {
 };
 // The owner when the lost food is brought back
 export const FOOD = {
-  thanks: [['Grazie, grazie! Sei un angelo con tre ruote!', 'Thank you, thank you! You are an angel with three wheels!'], ['Mi hai salvato la giornata! Ti offro qualcosa!', 'You saved my day! Let me treat you!']],
-  none: [['Niente?! Pazienza... torna quando hai più fortuna.', 'Nothing?! Never mind... come back when you are luckier.']],
+  thanks: [['Grazie, grazie! Si ’n’angilu cu tri ruoti!', 'Thank you, thank you! You are an angel with three wheels!'], ['M’ha saivatu a iurnata! Ti offru quarchi cosa!', 'You saved my day! Let me treat you!']],
+  none: [['Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
 };
 
 // The rave missions: toasts, results and what people say. Palermitan, written by an agent (for the owner to correct); [Sicilian, English].
@@ -445,4 +445,18 @@ export const RAVE_LINES = {
   hit: [['Crac! Attientu a li casse!', 'Crack! Mind the speakers!'], ['Ahia! Sunnu dilicati, ti l’haiu dittu!', 'Ouch! They are delicate, I told you!']],
   leafThanks: [['Ahhh, chi biedda ciauru r’allegria! Grazie, amicu.', 'Ahhh, what a lovely smell of cheer! Thanks, friend.']],
   leafNone: [['Nienti?! Pacienza, ci piensamu nuatri.', 'Nothing?! Never mind, we will see to it ourselves.']],
+  // the friend riding along in the lapa on "Fuogghi allegri" (src/event-rave.js); Palermitan drafts for the owner to correct
+  friend: {
+    board: [['Amunì, amunì, ca è tardu!', 'Come on, come on, it is late!'], ['Paiti, paiti, ca ni stannu aspittannu!', 'Go, go, they are waiting for us!']],
+    ambient: [['Chi biedda sirata, eh?', 'Nice night, eh?'], ['A lapa curri buona, eh!', 'The lapa runs well, eh!'], ['Ci semu cuasi?', 'Are we nearly there?']],
+    hitWall: [['Ohi! Ma unni talii?!', 'Ow! Where are you looking?!'], ['Chianu, chianu, ca mi rumpi i uossa!', 'Easy, you will break my bones!']],
+    hitPed: [['Ma chi fai, i pirsuni un si tuccanu!', 'What are you doing, you do not touch people!']],
+    crash: [['Maronna! Mi stava cariennu ri ’nterra!', 'Madonna! I nearly fell out!'], ['Un c’è bisuognu ri ammazzarini, eh!', 'No need to get us killed, eh!']],
+    fast: [['Curri, curri! Ma un ni ammazzari!', 'Go, go! But do not get us killed!']],
+    leaf: [['Chista è buona!', 'This one is good!'], ['N’autra, n’autra! Talìa ddà!', 'Another one! Look there!']],
+    arrive: [['Ccà semu. Talìa ’ntô giru, ma senza fari scena.', 'Here we are. Look around, but no fuss.']],
+    hand: [['Ecculu, u me cumpari! Fermati ccà.', 'There is my pal! Stop here.']],
+    off: [['Uora sì ca s’abballa! Ni viremu ô rave!', 'Now we dance! See you at the rave!']],
+    fail: [['Basta, scinnu! A pieri fazzu cchiù prestu.', 'Enough, I am getting out! Walking is quicker.']],
+  },
 };

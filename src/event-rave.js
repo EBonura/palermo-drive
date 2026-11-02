@@ -27,8 +27,9 @@ function leafGeo() {
 }
 
 export function createRaveEvents(X, rave) {
-  const { scene, car, pedestrians, T, hud, eur, speed, say, groundAt } = X;
-  let e = null;
+  const { scene, car, pedestrians, T, hud, eur, speed, say, groundAt, seatPos, seatFn } = X;
+  let e = null, pedHit = false;
+  if (pedestrians.onKnock) pedestrians.onKnock(() => { pedHit = true; });
   const beamGeo = new THREE.CylinderGeometry(0.3, 0.5, 60, 8, 1, true).translate(0, 30, 0);
   const beamMat = new THREE.MeshBasicMaterial({ color: '#7ad65a', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
   const itemMat = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -99,21 +100,62 @@ export function createRaveEvents(X, rave) {
   }
 
   // ---------------------------------------------------------------- 2. the leaves
+  // The friend at the rave (the caller) rides along in the lapa: boards like a fare's passenger (the seat of src/missions.js), stays on through the hunt, and gets off with the pal at the end.
+  // Pay, clocks and the leash are the ones the mission always had; the clock starts when the friend is in.
   function startLeaf(slot) {
     const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf'], limit = R[1] / 9 + 60;
-    e = { kind: 'leaf', slot, phase: 'go', len: R[1], limit, left: limit, anchor: { x: L[0], z: L[1], name: RAVE.leaf.name }, items: [], got: 0, total: 0, t: 0, thanks: 0, pay: 0, contact: -1 };
-    X.calls.hideBeacon(); X.setPhase('go'); X.guide.path(R[2]);
+    e = { kind: 'leaf', slot, phase: 'board', len: R[1], limit, left: limit, anchor: { x: L[0], z: L[1], name: RAVE.leaf.name }, items: [], got: 0, total: 0, t: 0, thanks: 0, pay: 0, contact: -1,
+      fr: { id: slot.callers[0] !== undefined ? slot.callers[0] : -1, seated: false, next: 0, t: 0, chat: 12, prevScrape: 0, prevSpeed: 0, cool: 0, fast: 0 }, leave: 0 };
+    slot.callers = [];
+    if (e.fr.id < 0 || !pedestrians.info(e.fr.id)) e.fr.id = pedestrians.spawnScripted('nightboy2', car.x + Math.cos(car.th) * 2.4, car.z - Math.sin(car.th) * 2.4);
+    X.calls.hideBeacon(); X.setPhase('board');
+    hud.toast(T('Si paiti!', 'Off we go!'), T('I fuogghi allegri', 'The happy leaves'));
+  }
+  function fsay(key, delay = 0) { const L = RL.friend[key]; if (e && e.fr && L && L.length) say(pick(L), seatPos, delay); }
+  function seatFriend() {
+    const F = e.fr; F.seated = true; pedHit = false; pedestrians.attachTo(F.id, seatFn(0), { seated: true, blend: 0.4 });
+    const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf'];
+    e.phase = 'go'; e.left = e.limit; X.setPhase('ride'); X.guide.path(R[2]);
     X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8);
-    hud.toast(T('Va’ a via Cipressi', 'Go to via Cipressi'), T('I fuogghi allegri', 'The happy leaves'));
+    hud.toast(T('Va’ a via Cipressi', 'Go to via Cipressi'), T('I fuogghi allegri', 'The happy leaves')); fsay('board', 0.4);
+  }
+  // the friend gets out and walks (ok: to the pal; else away from the lapa)
+  function friendOff(ok) {
+    const F = e.fr; if (!F || F.id < 0) return;
+    pedestrians.detach(F.id); F.seated = false;
+    if (ok && e.contact >= 0 && pedestrians.info(e.contact)) { const c = pedestrians.info(e.contact); pedestrians.walkTo(F.id, c.x + 0.9, c.z + 0.3, 2.4); }
+    else pedestrians.walkTo(F.id, car.x + Math.sin(car.th + 1.5) * 9, car.z + Math.cos(car.th + 1.5) * 9, 3.2);
+  }
+  function updateBoard(dt) {
+    const F = e.fr; F.t += dt;
+    const info = F.id >= 0 ? pedestrians.info(F.id) : null;
+    if (!info) { F.id = -1; e.left = e.limit; X.setPhase('ride'); const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf']; e.phase = 'go'; X.guide.path(R[2]); X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8); return; }
+    const sn = Math.sin(car.th), cs = Math.cos(car.th), side = ((info.x - car.x) * cs - (info.z - car.z) * sn) >= 0 ? 1 : -1;
+    const tx = car.x + sn * -1.0 + cs * side * 1.0, tz = car.z + cs * -1.0 - sn * side * 1.0;
+    F.next -= dt; if (F.next <= 0) { pedestrians.walkTo(F.id, tx, tz, 2.8); F.next = 0.25; }
+    // in at the door, or at once when the lapa pulls away (the friend must not be left behind)
+    if (Math.hypot(info.x - tx, info.z - tz) < 0.6 || F.t > 4 || (speed() > 3.5 && Math.hypot(car.x - e.slot.x, car.z - e.slot.z) > 12)) seatFriend();
+    X.aim(0, 0, false);
+    hud.set({ label: T('Acchianunu', 'Boarding'), title: e.anchor.name, sub: '', time: '', frac: null, target: null });
+  }
+  // the friend on the way: chatter, a knock, a hard hit
+  function friendTick(dt) {
+    const F = e.fr; if (!F.seated || e.phase === 'done') return;
+    const sp = speed(); F.cool -= dt; F.fast -= dt; F.chat -= dt;
+    if (car.scrape > 5 && F.prevScrape <= 5 && F.prevSpeed > 5 && F.cool <= 0) { F.cool = 3; fsay(F.prevSpeed > 14 ? 'crash' : 'hitWall'); }
+    else if (pedHit && F.cool <= 0) { F.cool = 3; fsay('hitPed', 0.4); }
+    F.prevScrape = car.scrape; F.prevSpeed = sp; pedHit = false;
+    if (sp > 21 && F.fast <= 0) { F.fast = 25; fsay('fast'); }
+    if (F.chat <= 0) { F.chat = 14 + Math.random() * 10; if (e.phase !== 'done') fsay('ambient'); }
   }
   function startHunt() {
     const H = X.HUNT.leaf.hunt, n = Math.min(7, H.length / 2);
-    e.phase = 'hunt'; e.left = HUNT_TIME; X.setPhase('hunt'); X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null;
+    e.phase = 'hunt'; e.left = HUNT_TIME; X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null;
     e.mesh = new THREE.InstancedMesh(leafGeo(), itemMat, n); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, n); e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     scene.add(e.mesh, e.beams);
     for (let i = 0; i < n; i++) { const x = H[i * 2], z = H[i * 2 + 1], y = groundAt(x, z); e.items.push({ x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#7ad65a', 5) }); }
     e.total = n; setItems();
-    hud.toast(T('Attruova i fuogghi allegri!', 'Find the happy leaves!'), RAVE.leaf.name);
+    hud.toast(T('Attruova i fuogghi allegri!', 'Find the happy leaves!'), RAVE.leaf.name); fsay('arrive', 0.6);
   }
   function setItems() {
     for (let i = 0; i < e.items.length; i++) {
@@ -127,26 +169,28 @@ export function createRaveEvents(X, rave) {
   function nearestLeft() { let b = null, bd = 1e12; for (const it of e.items) if (!it.got) { const d = (it.x - car.x) ** 2 + (it.z - car.z) ** 2; if (d < bd) { bd = d; b = it; } } return b || e.anchor; }
   function startHand() {
     const L = SNAP['rave:leaf'];
-    e.phase = 'hand'; e.left = HAND_TIME; X.setPhase('hand');
+    e.phase = 'hand'; e.left = HAND_TIME;
     for (const it of e.items) if (it.marker) { X.dropMarker(it.marker); it.marker = null; }
     for (const it of e.items) if (!it.got) it.got = true; setItems();
     const sp = X.sideSpot({ x: L[0], z: L[1], dx: L[2], dz: L[3], w: L[4] }, L[4] / 2 + 1.6);
     e.contact = pedestrians.spawnScripted('nightboy2', sp.x, sp.z); if (e.contact >= 0) { pedestrians.face(e.contact, L[0], L[1]); pedestrians.setBounce?.(e.contact, true); }
     homeBeacon.set(L[0], L[1]); homeBeacon.show(true); e.homeMarker = X.addMarker(L[0], L[1], '#6bbf59', 8);
-    hud.toast(T('Portali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves'));
+    hud.toast(T('Portali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves')); fsay('hand', 0.8);
   }
   function collectLeaf() {
     for (const it of e.items) {
       if (it.got) continue;
       if ((it.x - car.x) ** 2 + (it.z - car.z) ** 2 < R_PICK2) {
         it.got = true; e.got++; if (it.marker) { X.dropMarker(it.marker); it.marker = null; }
-        hud.toast('+1', T('Fuogghi ', 'Leaves ') + e.got + '/' + e.total);
+        hud.toast('+1', T('Fuogghi ', 'Leaves ') + e.got + '/' + e.total); if (e.got % 2 === 1) fsay('leaf', 0.3);
         for (let k = 0; k < 3; k++) X.vehicle.puff(it.x + (Math.random() - 0.5), it.y + 0.8, it.z + (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), 0.5);
       }
     }
   }
   function updateLeaf(dt) {
     const A = e.anchor;
+    if (e.phase === 'board') { updateBoard(dt); return; }
+    friendTick(dt);
     if (e.phase === 'go') {
       e.left -= dt; X.aim(A.x, A.z, true);
       if (e.left <= 0) { finishLeaf(false, 'late'); return; }
@@ -164,14 +208,21 @@ export function createRaveEvents(X, rave) {
       hud.set({ label: T('Portali ô cumpari', 'Take them to the pal'), title: A.name, sub: e.got + ' ' + T('fuogghi', 'leaves'), time: mmss(Math.max(0, e.left)), low: e.left < 15, frac: e.left / HAND_TIME, target: A });
     } else {
       X.aim(0, 0, false); hud.set({ label: e.pay > 0 ? T('Grazie!', 'Thank you!') : T('Finiu', 'Over'), title: A.name, sub: '', time: '', frac: null, target: null });
+      if (e.pay > 0 && !e.leave && e.thanks < 2.2) { e.leave = 1; leaveTogether(); }
       if ((e.thanks -= dt) <= 0) X.endEvent(e.pay > 0);
     }
   }
+  // the friend and the pal walk off together along the kerb
+  function leaveTogether() {
+    const L = SNAP['rave:leaf'], x = L[0] + L[2] * 16, z = L[1] + L[3] * 16, c = pedestrians.info(e.contact), f = e.fr && pedestrians.info(e.fr.id);
+    if (c) pedestrians.walkTo(e.contact, x, z, 1.6); if (f) pedestrians.walkTo(e.fr.id, x + 0.8, z + 0.3, 1.7);
+  }
   function finishLeaf(ok, why) {
     e.phase = 'done'; e.thanks = ok ? 5 : 3.6; X.setPhase('done'); X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null; homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { hud.result(`<h3>${why === 'none' ? T('Nienti da purtari', 'Nothing to bring') : T('Taiddu assai!', 'Far too late!')}</h3>`, 3); if (why === 'none') say(pick(RL.leafNone), X.driverPos, 0.3); return; }
+    if (!ok) { friendOff(false); fsay('fail', 0.5); hud.result(`<h3>${why === 'none' ? T('Nienti da purtari', 'Nothing to bring') : T('Taiddu assai!', 'Far too late!')}</h3>`, 3); if (why === 'none') say(pick(RL.leafNone), X.driverPos, 2.6); return; }
+    friendOff(true); fsay('off', 0.6);
     const L = SNAP['rave:leaf'], base = Math.round((6 + e.got * 3.5) * 2) / 2, bonus = e.got >= e.total ? 10 : 0, total = base + bonus; e.pay = total; X.addFare(total, 'food');
-    say(pick(RL.leafThanks), headAt(L[0], L[1], 2.4), 0.5);
+    say(pick(RL.leafThanks), headAt(L[0], L[1], 2.4), 3);
     hud.result(`<h3>${T('Fuogghi allegri', 'Happy leaves')}</h3>
       <div class="row"><span>${T('Purtati', 'Brought')}</span><span>${e.got} / ${e.total}</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
@@ -189,9 +240,12 @@ export function createRaveEvents(X, rave) {
     if (e.mesh) { scene.remove(e.mesh, e.beams); e.mesh.geometry.dispose(); e.mesh.dispose?.(); e.beams.dispose?.(); }
     if (e.cargo) { scene.remove(e.cargo); e.cargo.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
     if (e.contact >= 0) pedestrians.remove(e.contact);
+    if (e.fr && e.fr.id >= 0) { pedestrians.detach(e.fr.id); pedestrians.remove(e.fr.id); }
     homeBeacon.show(false); if (e.homeMarker) X.dropMarker(e.homeMarker);
     X.destBeacon.show(false); if (X.destMarker) { X.dropMarker(X.destMarker); X.destMarker = null; }
     X.guide.off(); e = null;
   }
-  return { start, update, stop, active: () => !!e, get state() { return e; } };
+  // the leash ended the mission (src/missions.js failEvent): the friend gets out and complains
+  function leashed() { if (e && e.kind === 'leaf' && e.fr && e.fr.seated) { friendOff(false); fsay('fail', 0.8); } }
+  return { start, update, stop, leashed, active: () => !!e, get state() { return e; } };
 }
