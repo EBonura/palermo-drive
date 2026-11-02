@@ -322,6 +322,24 @@ html.touch #pd-ui:is([data-screen=start], [data-screen=garage], [data-screen=opt
 .pd-mp-ps { margin-top: 3px; font: 600 clamp(11px, 2.4vh, 14px)/1.1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
 .pd-mp-ps:empty { display: none; }
 .pd-mp-pop .pd-btn { margin-top: 9px; width: 100%; min-height: clamp(40px, 8.4vh, 50px); }
+/* the list a cluster badge opens: rows of pins (kind colour, name, quarter or kind), scrolls inside the map, a gentle "Zoom in here" under it */
+.pd-mp-cl { position: absolute; left: 0; top: 0; z-index: 5; width: min(268px, 76vw); padding: 8px 8px 10px; border-radius: 6px; --tx: 50%;
+  background: linear-gradient(180deg, #1c1218, #0e080b); box-shadow: inset 0 0 0 2px rgba(245,169,201,.55), 0 8px 26px rgba(0,0,0,.5); }
+.pd-mp-cl[hidden] { display: none; }
+.pd-mp-cl::after { content: ''; position: absolute; bottom: -9px; left: var(--tx); margin-left: -9px; border: 9px solid transparent; border-top: 9px solid #0e080b; border-bottom: 0; }
+.pd-mp-cl.below::after { bottom: auto; top: -9px; border-top: 0; border-bottom: 9px solid #1c1218; }
+.pd-mp-clt { padding: 0 4px 6px; font: 700 clamp(14px, 3.2vh, 18px)/1.05 var(--pd-cond); letter-spacing: .12em; text-transform: uppercase; color: var(--pd-amber); }
+.pd-mp-cll { display: flex; flex-direction: column; gap: 3px; max-height: var(--cl-h, 200px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.pd-mp-row { flex: none; display: flex; align-items: center; gap: 9px; width: 100%; min-height: 40px; padding: 5px 9px; border: 0; border-radius: 4px; cursor: pointer; text-align: left; color: #fff;
+  background: rgba(255,255,255,.07); font: 600 clamp(13px, 3vh, 17px)/1.1 var(--pd-cond); letter-spacing: .05em; text-transform: uppercase; touch-action: manipulation; -webkit-appearance: none; appearance: none; }
+.pd-mp-row i { flex: none; width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }
+.pd-mp-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-mp-row em { flex: none; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: normal; font-size: .76em; letter-spacing: .1em; color: var(--pd-amber); }
+.pd-mp-row:focus { outline: none; }
+.pd-kb .pd-mp-row:focus { outline: 3px solid #fff; outline-offset: -2px; }
+html.touch .pd-mp-row { min-height: 44px; }
+@media (hover: hover) { .pd-mp-row:hover { background: rgba(232,85,154,.4); } }
+.pd-mp-cl .pd-btn { margin-top: 8px; width: 100%; min-height: clamp(38px, 8vh, 48px); }
 .pd-mp-hint { position: absolute; z-index: 2; left: var(--pad-l); bottom: var(--pad-b); padding: 4px 10px; border-radius: 4px; background: rgba(11,7,9,.7); color: #fff; font: 600 12px/1.2 var(--pd-cond); letter-spacing: .08em; pointer-events: none; }
 html.touch .pd-mp-hint { display: none; }
 
@@ -416,7 +434,7 @@ html.touch .pd-mp-hint { display: none; }
 .pd-ig:hover, .pd-ig:focus-visible { background: rgba(232,85,154,.32); }
 .pd-ig svg { color: #e8559a; flex: none; }
 .pd-ig b { display: block; font: 700 clamp(12px, 2.4vh, 15px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .03em; }
-.pd-ig small { display: block; font: 500 clamp(10px, 2vh, 12px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; opacity: .8; }
+.pd-ig small { display: block; max-width: min(34vw, 240px); font: 500 clamp(10px, 2vh, 12px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; opacity: .8; }
 .pd-by { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
   padding: 8px 10px 10px; border-radius: 12px; background: rgba(11,7,9,.62); box-shadow: 0 0 0 1px rgba(232,85,154,.35); }

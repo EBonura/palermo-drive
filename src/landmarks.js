@@ -471,6 +471,11 @@ function buildQuattroCanti() {
     box('marble', 0.7, 0.8, 0.4, { M: at(0, 14.6, 0.1), c: '#d8d2c0' }); sphere('marble', 0.38, { M: at(0, 14.95, 0.3), seg: 6, c: '#d8d2c0' });
     for (const sg of [-1, 1]) { sphere('marble', 0.2, { M: at(sg * 0.95, 14.7, 0.2), seg: 5, c: '#cfc9b8' }); sphere('marble', 0.17, { M: at(sg * 1.55, 14.55, 0.2), seg: 5, c: '#cfc9b8' }); }
     sphere('marble', 0.55, { M: at(0, 21.15, 0.3), ky: 0.55, seg: 6, c: '#e8e4d8' }); angel('marble', at(0, 21.3, 0.3), 0.95, { c: WHITE });
+    // the stone faces at the corners of both niches, joined to the one over the middle by swags of fruit, as in the photographs (review 2, item 3)
+    for (const [yc, ws] of [[14.9, 1.65], [20.85, 1.35]]) for (const sg of [-1, 1]) {
+      box('marble', 0.42, 0.5, 0.3, { M: at(sg * ws, yc - 0.3, 0.14), c: '#d2ccba' }); sphere('marble', 0.23, { M: at(sg * ws, yc + 0.08, 0.28), seg: 6, c: '#d8d2c0' });
+      for (let k = 1; k < 7; k++) { const t = k / 7, y = yc - 0.05 - 0.5 * Math.sin(PI * t); sphere('marble', 0.14 + 0.04 * Math.sin(PI * t), { M: at(sg * (ws * (1 - t) + 0.15 * t), y, 0.2), seg: 5, c: k % 2 ? '#cfc9b8' : '#dcd6c4' }); }
+    }
     // ---- the side bays: balconies and balustrades under the windows, the pediments and the angels on them
     for (const sg of [-1, 1]) {
       const s = sg * 3.95;

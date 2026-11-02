@@ -4,7 +4,7 @@
 //     it from the world tiles, the tiles themselves are far too big to fetch for an overview); the centro's building footprints are D.buildings.
 // Pan (drag), pinch zoom, mouse wheel, +/- buttons. Start points are pins (spots); tap one for a popup with "Parti da qui". A second layer shows
 // the events from missions.events() with their own icons and a show/hide toggle. Pins that would overlap on screen (the Quattro Canti have a dozen places and events within 400 m) are merged
-// into one numbered badge; tap it to zoom in on them, they come apart as the map zooms. Redraws only when something changed.
+// into one numbered badge; tap it for a list of the pins under it (tap one for its start popup, or "Zoom in here" for one modest zoom step), they come apart as the map zooms. Redraws only when something changed.
 //
 //   const map = createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart });
 //   map.show() / map.hide()      the screen opened / closed (loads the data on first use)
@@ -23,7 +23,7 @@ const EV_KEY = 'palermoDrive.mapEvents';
 const L = {
   here: ['Parti da qui', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], night: ['di notte', 'at night'],
-  zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'],
+  zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
 const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd' };
@@ -41,15 +41,18 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
     <div class="pd-mp-pop" hidden><div class="pd-mp-pt"></div><div class="pd-mp-ps"></div>
       <button class="pd-btn sm drive" type="button" data-nav data-do="mapgo"><span class="pd-in"><span class="pd-l1" data-t="here"></span><span class="pd-l2" data-t="here2"></span></span></button></div>
+    <div class="pd-mp-cl" hidden><div class="pd-mp-clt"></div><div class="pd-mp-cll" role="list"></div>
+      <button class="pd-btn sm" type="button" data-nav data-map="clzoom"><span class="pd-in"><span class="pd-l1" data-t="zinh"></span><span class="pd-l2" data-t="zinh2"></span></span></button></div>
     <div class="pd-mp-hint"></div>`;
   const cv = host.querySelector('.pd-mp-cv'), g = cv.getContext('2d');
   const pop = host.querySelector('.pd-mp-pop'), popT = pop.querySelector('.pd-mp-pt'), popS = pop.querySelector('.pd-mp-ps'), hint = host.querySelector('.pd-mp-hint');
   const evBtn = host.querySelector('.pd-mp-ev');
+  const clEl = host.querySelector('.pd-mp-cl'), clT = clEl.querySelector('.pd-mp-clt'), clList = clEl.querySelector('.pd-mp-cll');
   const li = () => getLang() === 'it' ? 0 : 1;
 
   // ---------- state ----------
   let W = 0, H = 0, dpr = 1, k = 0.03, vx = 0, vz = 0, kMin = 0.01, shown = false, dirty = false, raf = 0;
-  let sel = null, events = [], showEvents = true, evTick = 0, popW = 0, popH = 0, ptrKind = 'mouse';
+  let sel = null, cl = null, events = [], showEvents = true, evTick = 0, popW = 0, popH = 0, clW = 0, clH = 0, ptrKind = 'mouse';
   try { showEvents = localStorage.getItem(EV_KEY) !== '0'; } catch (e) { /* private mode */ }
   const pins = []; // reused: { x, z, kind: 'spot'|'event', ref }
   let M = null, landPath = null, terrain = null, terrainJob = null, built = null, data = null, loading = false, bldPath = null, haveBld = false;
@@ -175,6 +178,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     vx = clamp(vx, b[0], b[2]); vz = clamp(vz, b[1], b[3]);
   }
   function zoomAt(f, px, py) { // keep the world point under (px, py) fixed
+    closeCl();
     const wx = vx + (px - W / 2) / k, wz = vz + (py - H / 2) / k;
     k = clamp(k * f, kMin, K_MAX); vx = wx - (px - W / 2) / k; vz = wz - (py - H / 2) / k;
     clampView(); mark();
@@ -279,11 +283,37 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     g.fillStyle = '#fff'; g.font = "700 14px 'Barlow Condensed', system-ui, sans-serif"; g.fillText(String(n), 0, 0.5);
     g.restore();
   }
-  function zoomToCluster(c) { // tap on a badge: centre on its pins and zoom until they come apart (or as far as the map goes)
-    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
-    for (const p of c.m) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
-    const fit = Math.min((W - 120) / Math.max(1, x1 - x0), (H - 160) / Math.max(1, z1 - z0));
-    k = clamp(Math.max(k * 2, Math.min(fit, k * 6)), kMin, K_MAX); vx = (x0 + x1) / 2; vz = (z0 + z1) / 2; clampView(); mark();
+  // Tap on a badge: a popup lists the pins under it (tap one to open its own start popup) with a "Zoom in" button that takes a modest step towards them
+  // (the map no longer jumps to fit them all). The list scrolls inside the room the map has; it stays on its world point when the map is panned and closes when it is zoomed.
+  const kindColour = p => p.kind === 'spot' ? '#e8559a' : KIND[p.ref.kind] || '#ffc83d';
+  function openCluster(c) {
+    closePop();
+    let wx = 0, wz = 0; for (const p of c.m) { wx += p.x; wz += p.z; } wx /= c.m.length; wz /= c.m.length;
+    const items = c.m.slice().sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'spot' ? -1 : 1) || String(itemOf(a).name).localeCompare(String(itemOf(b).name)));
+    cl = { m: items, wx, wz }; fillCl(); clEl.hidden = false;
+    // the list takes the room there is on the roomier side of the badge (the phone's landscape map is under 300 px high), at least two rows, at most 300 px
+    clList.style.setProperty('--cl-h', '400px'); const fixed = clEl.offsetHeight - clList.offsetHeight, by = sy(wz) - 12;
+    clList.style.setProperty('--cl-h', clamp(Math.max(by - 56 - 28, H - by - 30) - fixed, 88, 300) + 'px');
+    clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); mark();
+  }
+  function fillCl() {
+    if (!cl) return;
+    const n = cl.m.length;
+    clT.textContent = n + ' ' + (n === 1 ? L.place1 : L.places)[li()];
+    clList.innerHTML = cl.m.map((p, i) => { const it = itemOf(p); return `<button class="pd-mp-row" type="button" role="listitem" data-nav data-i="${i}"><i style="background:${kindColour(p)}"></i><span>${esc(it.name)}</span>${it.sub ? `<em>${esc(it.sub)}</em>` : ''}</button>`; }).join('');
+  }
+  function closeCl() { if (!cl) return false; cl = null; clEl.hidden = true; mark(); return true; }
+  function placeCl() {
+    if (!cl || clEl.hidden) return;
+    const x = sx(cl.wx), y = sy(cl.wz) - 12, up = 20, top = y - up - clH - 8 < 56;
+    const px = clamp(x, clW / 2 + 8, W - clW / 2 - 8), py = top ? y + 18 : y - up - 8;
+    clEl.style.transform = `translate(${Math.round(px - clW / 2)}px, ${Math.round(clamp(top ? py : py - clH, 4, Math.max(4, H - clH - 4)))}px)`;
+    clEl.style.setProperty('--tx', clamp(x - (px - clW / 2), 16, clW - 16) + 'px');
+    clEl.classList.toggle('below', top);
+  }
+  function zoomCluster() { // the button: one modest step, centred on the pins under the badge
+    if (!cl) return; const { wx, wz } = cl; closeCl();
+    k = clamp(k * 1.8, kMin, K_MAX); vx = wx; vz = wz; clampView(); mark();
   }
   function drawPins() {
     const sz = clamp(0.8 + k * 1.2, 0.8, 1.15);
@@ -342,7 +372,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (terrainJob) { if (terrainJob(5)) { terrainJob = null; } dirty = true; }
     if (M && !data) load();
     if (dirty) draw();
-    placePop();
+    placePop(); placeCl();
     if (terrainJob || !M || !data) schedule();
   }
 
@@ -356,11 +386,11 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     pop.classList.toggle('below', top);
   }
   function openPop(item, focus) {
-    sel = item; fillPop(); pop.hidden = false;
+    closeCl(); sel = item; fillPop(); pop.hidden = false;
     popW = pop.offsetWidth; popH = pop.offsetHeight; placePop(); mark();
     if (focus) pop.querySelector('button').focus({ preventScroll: true });
   }
-  function closePop() { if (!sel) return false; sel = null; pop.hidden = true; mark(); return true; }
+  function closePop() { const c = closeCl(); if (!sel) return c; sel = null; pop.hidden = true; mark(); return true; }
   function fillPop() {
     if (!sel) return;
     popT.textContent = sel.name;
@@ -407,18 +437,20 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     ptrs.delete(e.pointerId); pinch = 0;
     if (tap && !tap.moved && e.type === 'pointerup' && performance.now() - tap.t < 700) {
       const hit = pick(tap.x, tap.y, ptrKind === 'mouse' ? 18 : 26);
-      if (hit && hit.m) { closePop(); zoomToCluster(hit); } else if (hit) openPop(itemOf(hit), false); else closePop();
+      if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop();
     }
     tap = null;
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)), e.offsetX, e.offsetY); }, { passive: false });
   cv.addEventListener('dblclick', e => zoomAt(2, e.offsetX, e.offsetY));
+  clList.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.pd-mp-row'); if (!b || !cl) return; const p = cl.m[+b.dataset.i]; if (p) openPop(itemOf(p), false); });
   host.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('[data-map]'); if (!b) return;
     if (b.dataset.map === 'zin') zoomAt(1.6, W / 2, H / 2);
     else if (b.dataset.map === 'zout') zoomAt(1 / 1.6, W / 2, H / 2);
     else if (b.dataset.map === 'events') toggleEvents();
+    else if (b.dataset.map === 'clzoom') zoomCluster();
   });
   function toggleEvents(v) {
     showEvents = v === undefined ? !showEvents : v; evBtn.setAttribute('aria-pressed', String(showEvents));
@@ -439,7 +471,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   function applyLang() {
     for (const e of host.querySelectorAll('[data-t]')) {
       const key = e.dataset.t, i = li();
-      if (key === 'here2') e.textContent = L.here[1 - i];
+      if (key === 'here2' || key === 'zinh2') e.textContent = L[key.slice(0, -1)][1 - i];
       else if (e.dataset.a) e.setAttribute('aria-label', L[key][i]);
       else e.textContent = L[key][i];
     }
@@ -447,6 +479,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     hint.textContent = L.hint[li()];
     host.querySelector('.pd-mp-pop .pd-l1').textContent = L.here[li()];
     if (sel) { sel = itemOf({ kind: sel.kind, ref: sel.ref, x: sel.x, z: sel.z }); fillPop(); }
+    if (cl) { fillCl(); clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); }
     mark();
   }
 
@@ -464,7 +497,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     hide() { shown = false; closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } },
     resize,
     applyLang,
-    isOpenPop: () => !!sel,
+    isOpenPop: () => !!sel || !!cl,
     closePop,
     key(code, shift) {
       const step = 60;

@@ -23,7 +23,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 | 9 | `.gitignore` had no rule for key files, env files or logs | Low | Fixed |
 | 10 | `tools/autopush.sh` commits and pushes everything to the public repo with no secret check | Medium | Fixed (guard added) |
 | 11 | Saved driver picture was taken from localStorage as any address | Low | Fixed |
-| 12 | GitHub-side settings: Dependabot off, secret scanning and push protection unknown, no branch protection, no private reporting | Medium | **Open** (owner, repository settings) |
+| 12 | GitHub-side settings: Dependabot, secret scanning, push protection and private reporting were off or unknown; no branch protection | Medium | **Fixed** by the owner on 2026-11-02 and read back with `gh api`: Dependabot alerts and security updates, secret scanning, push protection and private vulnerability reporting are on. `main` stays unprotected on purpose (autopush). |
 | 13 | Relay server: Go 1.22 is out of support, unpinned container images, stats key in the URL query | Low | **Open** |
 | 14 | HTML injection through OSM names, credits, URL parameters and saved data | none found (one shared `esc()` now) | Info |
 | 15 | Third-party scripts and CDN: pinned, but without Subresource Integrity, in the dev tree only | Low | Open (Info) |
