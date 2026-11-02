@@ -45,7 +45,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return d; };
 
 export function createPedestrians(env) {
-  const { scene, camera, car, groundY, raisedMask, CURB, walls2d, D, world } = env;   // world: the tile streamer (src/world.js), always present
+  const { scene, camera, car, groundY, raisedMask, CURB, walls2d, D, world, props } = env;   // world: the tile streamer (src/world.js), always present
   const params = new URLSearchParams(location.search);
   // The people are drawn from layers of the Universal LPC Spritesheet Character Generator plus our own painted details, prebuilt into one atlas by tools/lpc/build.mjs
   // (assets/peds/lpc, credits in assets/peds/lpc/CREDITS.md). ?pedgen draws them with the generated renderer of assets/peds (raster.js, model.js, atlas.js) instead.
@@ -337,8 +337,8 @@ export function createPedestrians(env) {
   const WEAR = {
     street: { add: { summer: 0.12 } },                                                                   // anywhere in summer: tank tops, short shorts, sandals, sun hats
     resort: { add: { swim: 0.25, summer: 0.3 } },                                                        // the seafront villages and Mondello's streets: half dressed for the sea
-    lido:   { add: { swim: 0.9, summer: 0.15 } },                                                        // the lido: mostly swimwear
-    sand:   { m: [['summer', 0.2], ['biz', 0.05], ['beach', 0.15]], add: { swim: 2.2, summer: 0.1 } },                    // the sand of a beach: swimsuits, trunks, towels
+    lido:   { add: { swim: 3.5, summer: 0.1 } },                                                         // the lido: about three in four in swimwear (the rest are kids, the odd teen and a few in summer clothes)
+    sand:   { m: [['summer', 0.1], ['biz', 0.05], ['beach', 0.05], ['tour', 0.4], ['young', 0.4], ['elders', 0.3]], add: { swim: 9, summer: 0.05 } },   // the sand of a beach: nearly every adult in trunks, a bikini or a one-piece (kids and the odd teen stay dressed); was 2.2 and two in three
     opera:  { m: [['tour', 0.55], ['biz', 3.5], ['young', 0.7], ['kids', 0.4], ['summer', 0], ['market', 0.2]] },   // the Teatro Massimo: jackets, ties and good dresses
     match:  { m: [['fans', 2.2], ['summer', 0.3], ['biz', 0.3]] },                                         // the Barbera: rosanero shirts and scarves
   };
@@ -360,7 +360,7 @@ export function createPedestrians(env) {
     // Mondello: bathers in swimwear and straw hats, families, ice cream
     beach:  { wear: 'resort', row: 3, day: 0.011, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
     // the lido and the Mondello seafront in summer: packed
-    lido:   { wear: 'lido', row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 14], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
+    lido:   { wear: 'lido', row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 5], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
     // Sferracavallo, Arenella, Acquasanta: fishing villages, seafront walkers
     coast:  { wear: 'resort', row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
     // La Favorita: joggers, dog walkers, families, pensioners
@@ -1268,6 +1268,7 @@ export function createPedestrians(env) {
   // where the shadow would be. A sunbather sits on a towel (drawn into the sit pose of the swimmers) facing the sea. By day only: the target follows the sun (beachK), at night nobody
   // is there. Water means the coastline of the manifest (world.isLand) where the walkability mask has no ground (no pier, quay or road), and no further than 26 m from a beach's sand.
   // The lapa (the player's, on land or on the water) scares them: they hop away, or get knocked flying like the crowd (splash, a bounce or two, floating on their side, back up).
+  const BEACH_BULKY = new Set(['sunbed']), BEACH_POLE = new Set(['beach_umbrella', 'umbrella']);
   const BWATER = 26, BMAXW = 28, BMAXS = 16, BTOT = 64, bathers = [], splashes = [];
   let beachK = 0, beachT = 0, beachProbe = 0, swimVars = null, beachFresh = true;
   const BEACH_OFF = NOBEACH || params.get('bathers') === '0';
@@ -1299,6 +1300,7 @@ export function createPedestrians(env) {
     if (dc > R * 0.95 || dc < 5) return false;
     if (wantSun) {   // on the sand: inside the polygon, where the crowd's mask says it is walkable and flat (class 2)
       if (!inRing(near.ring, x, z) || cell(x, z) !== 2 || !free(x, z, 1.7)) return false;
+      if (props?.nearModel && (props.nearModel(x, z, 1.7, BEACH_BULKY) || props.nearModel(x, z, 0.9, BEACH_POLE))) return false;   // not through a sunbed or an umbrella pole
       let th = Math.random() * TAU, best = 0;   // towards the sea: the direction with water furthest ahead
       for (let k = 0; k < 8; k++) { const t = k * TAU / 8 + 0.3; let r = 0; for (let q = 6; q <= 24; q += 6) if (!world.isLand(x + Math.sin(t) * q, z + Math.cos(t) * q)) { r = 30 - q; break; } if (r > best) { best = r; th = t; } }
       addBather(x, z, 3, vi, th, 0); const b = bathers[bathers.length - 1]; b.y = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); return true;
