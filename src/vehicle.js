@@ -20,6 +20,7 @@ import { createVehicleEvents } from './vehicle-events.js';
 import { createSphere } from './vehicle-sphere.js';
 import { QUALITY } from './mobile.js';
 import { vp } from './viewport.js';
+import { createCameraClear } from './camera-clear.js';   // the chase camera stays under tunnel roofs, gate vaults and flyover decks
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -435,6 +436,7 @@ export function createVehicle(env) {
 
   // ---------- camera ----------
   const camState = { mode: 0, init: false, pos: new THREE.Vector3() };
+  const camClear = createCameraClear({ scene, groundY });
   const cam = { pull: 1, ang: 0, fov: baseFov, trauma: 0, kick: 0, nosEnv: 0, roll: 0, t: 0, lastNosId: 0, lastHit: 0, look: new THREE.Vector3(), up: new THREE.Vector3() };
   function wallHit(x0, z0, x1, z1) {
     let tMin = 1;
@@ -505,7 +507,9 @@ export function createVehicle(env) {
       cam.pull += (kT - cam.pull) * (kT < cam.pull ? 1 : Math.min(1, 5 * dt));   // in at once, back out over a fraction of a second: a pole going by is a nudge, not a jolt
       if (cam.pull < 0.995) { const k = cam.pull; p.x = car.x + (p.x - car.x) * k; p.z = car.z + (p.z - car.z) * k; p.y += (1 - k) * 2.5; }
     }
-    p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2 + (car.deck || 0));   // (on a deck the camera stays above the deck, in a tunnel under the roof)
+    if (m !== 3 && !car.flying) camClear.apply(p, car, gy, dt, Math.abs(sy) + car.hop * 0.6);   // under the roof of a tunnel, a gate or a flyover (src/camera-clear.js)
+    const lvC = car.flying || !hooks.level ? NaN : hooks.level(p.x, p.z, gy + 1.2);   // the deck or tunnel floor under the camera itself: the car may be out of the tunnel while the camera is still in it, or the other way round
+    p.y = Math.max(p.y, (lvC === lvC ? lvC : groundY(p.x, p.z) + (car.flying ? 0 : car.deck || 0)) + 1.2);   // (on a deck the camera stays above the deck, in a tunnel under the roof)
     camera.position.set(p.x + sx, p.y + sy + (m === 3 ? 0 : car.hop * 0.6), p.z + sz);
     const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + T.camH, car.z));
     camera.lookAt(look);
