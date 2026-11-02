@@ -70,16 +70,16 @@ for (const v of PUBS) {
       const A = net.nodes[e.a], B = net.nodes[e.b], n = Math.max(1, Math.round(e.l / 20));
       for (let k = 0; k <= n; k++) {
         const t = k / n, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t, d = Math.hypot(x - s.x, z - s.z);
-        if (d >= 55 && d <= (v.errand.radius || 250)) cands.push({ x, z, d, ang: Math.atan2(z - s.z, x - s.x) });
+        if (d >= 40 && d <= (v.errand.radius || 170)) cands.push({ x, z, d, ang: Math.atan2(z - s.z, x - s.x) });
       }
     }
-    const chosen = [], far = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d), radii = [90, 150, 220];
+    const chosen = [], far = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d), radii = [60, 100, 150];   // close together: the hunt stays within about 170 m of the door
     for (let k = 0; k < N; k++) {
       const a0 = -Math.PI + (k / N) * 2 * Math.PI, a1 = a0 + 2 * Math.PI / N, want = radii[k % 3];
-      const inSec = cands.filter(c => c.ang >= a0 && c.ang < a1 && far(c, 45));
+      const inSec = cands.filter(c => c.ang >= a0 && c.ang < a1 && far(c, 38));
       if (inSec.length) { inSec.sort((p, q) => Math.abs(p.d - want) - Math.abs(q.d - want)); chosen.push(inSec[Math.min(inSec.length - 1, Math.floor(rnd() * 2))]); }
     }
-    for (let spacing = 45; chosen.length < N && spacing >= 20; spacing -= 10) {
+    for (let spacing = 38; chosen.length < N && spacing >= 18; spacing -= 10) {
       const rest = cands.filter(c => far(c, spacing)); rest.sort(() => rnd() - 0.5);
       while (chosen.length < N && rest.length) { const c = rest.pop(); if (far(c, spacing)) chosen.push(c); }
     }
