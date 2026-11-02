@@ -1098,7 +1098,11 @@ function makeIndex(buildings) {
 // Parked cars: instanced in 100 m cells (a 500 m tile is hundreds of them: the distance cull has to be fine), and the ones the lapa moved are
 // remembered for the session by their slot (tile and original spot): tile key + ':' + x + ',' + z  ->  { x, z, h } where they stand now.
 const CELL_OF = { panda: 100, punto: 100, smart: 100, van: 100 };
-const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60 };   // beyond this a parked car's mesh stops drawing into the shadow map (the shadow pass doubles what it draws)
+// beyond this distance (m, to the cell's nearest instance) a mesh stops drawing into the shadow map (the shadow pass doubles what it draws). Parked cars at 60 m; [perf pass] so do the
+// things narrower than about a metre (their shadow is one to three texels of the 1024 map there, 0.31 m each, and the cell is still drawn), and the ones up to two metres at 80 m.
+const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60,
+  bollard: 60, hydrant: 60, phone: 60, postbox: 60, cabinet: 60, bin_small: 60, fontanella: 60, litter0: 60, litter1: 60, litter_cafe: 60, cardboard: 60, mwaste0: 60, mwaste1: 60, mcrates: 60, busstop: 60,
+  bag_pile0: 80, bag_pile1: 80, bag_pile2: 80, bag_pile3: 80, bin_big: 80, bin_over: 80, scooter: 80, cafe_set: 80, bench: 80, stall_table: 80 };
 const PARKED_MOVED = new Map();
 // The traffic's side (src/traffic.js): parked cars as obstacles beside its lanes, and what happens when a vehicle runs into one.
 //   near(x, z, r, out)  fills `out` (the caller's own scratch array) with the parked cars (standing, not flying) in the grid cells within r and returns how many: car.x, car.z, car.rot (nose direction), car.sp.L / W / m / c
@@ -2171,7 +2175,7 @@ function* instantiate(res, parent, BUD) {
     const M = MODELS[name], per = M.geo.attributes.position.count / 3;
     for (const [ckey, e] of cells.entries()) {
       const n = e.m.length / 5;
-      const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n);
+      const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n); im.matrixAutoUpdate = false;   // [perf pass] a cell never moves (its instances do, through the instance matrices); a frozen matrix is not composed and multiplied every frame
       for (let i = 0; i < n; i++) {
         q4.setFromAxisAngle(up, e.m[i * 5 + 3]); s3.setScalar(e.m[i * 5 + 4]);
         m4.compose(p3.set(e.m[i * 5], e.m[i * 5 + 1], e.m[i * 5 + 2]), q4, s3); im.setMatrixAt(i, m4);
@@ -2188,11 +2192,11 @@ function* instantiate(res, parent, BUD) {
     if (BUD.over()) yield;
   }
   for (const g of res.decals) {
-    const m = new THREE.Mesh(g, zebraMat()); m.receiveShadow = true; parent.add(m); geos.push(g); tris += g.attributes.position.count / 3;
+    const m = new THREE.Mesh(g, zebraMat()); m.matrixAutoUpdate = false; m.receiveShadow = true; parent.add(m); geos.push(g); tris += g.attributes.position.count / 3;
   }
   if (res.rails) {
-    const a = new THREE.Mesh(res.rails.posts, MATS.dbl); a.castShadow = true; a.receiveShadow = true; parent.add(a);
-    const b = new THREE.Mesh(res.rails.panels, panelMat()); b.castShadow = true; b.receiveShadow = true; parent.add(b);
+    const a = new THREE.Mesh(res.rails.posts, MATS.dbl); a.matrixAutoUpdate = false; a.castShadow = true; a.receiveShadow = true; parent.add(a);
+    const b = new THREE.Mesh(res.rails.panels, panelMat()); b.matrixAutoUpdate = false; b.castShadow = true; b.receiveShadow = true; parent.add(b);
     geos.push(res.rails.posts, res.rails.panels); tris += (res.rails.posts.attributes.position.count + res.rails.panels.attributes.position.count) / 3;
   }
   return { meshes, meshOf, geos, tris, total };
@@ -2294,7 +2298,7 @@ export function buildProps(ctx) {
 
   function startTile(t) {
     if (jobs.has(t.k) || !t.data) return;
-    const group = new THREE.Group(); group.name = 'props_' + t.i + '_' + t.j;
+    const group = new THREE.Group(); group.name = 'props_' + t.i + '_' + t.j; group.matrixAutoUpdate = false;   // at the origin for good: frozen, so the children are not forced to recompute their world matrices every frame
     jobs.set(t.k, { t, k: t.k, phase: 0, group, cx: (t.i + 0.5) * T, cz: (t.j + 0.5) * T, t0: 0, lamps: false });
     tstats.tiles++;
   }

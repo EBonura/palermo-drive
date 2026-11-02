@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { garage } from './garage.js';
 import { dangerAt, areaAt, covered } from './danger.js';
+import { vp } from './viewport.js';
 
 const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -38,7 +39,7 @@ export function createBeacons(scene, camera) {
     },
     end() {
       g.setDrawRange(0, n); aP.needsUpdate = aC.needsUpdate = aS.needsUpdate = true;
-      mat.uniforms.uScale.value = camera.projectionMatrix.elements[5] * innerHeight * 0.5 * Math.min(devicePixelRatio || 1, 2);
+      mat.uniforms.uScale.value = camera.projectionMatrix.elements[5] * vp.h * 0.5 * Math.min(vp.dpr, 2);
     },
   };
 }

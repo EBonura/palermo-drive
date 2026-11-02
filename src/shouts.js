@@ -3,6 +3,7 @@
 // speaker's head; the balloon's tail points at it. follow, if given, returns the current head position
 // ({x, y, z} or null once the speaker is gone) so the balloon stays on someone who dodges or goes flying.
 import * as THREE from 'three';
+import { vp } from './viewport.js';
 
 // Supplied by the owner, born in Palermo: keep them exactly as written.
 export const INSULTS = [
@@ -69,7 +70,7 @@ export function createShouts(camera) {
 
   function update(dt) {
     clock += dt;
-    const w = innerWidth, h = innerHeight;
+    const w = vp.w, h = vp.h;
     for (let i = live.length - 1; i >= 0; i--) {
       const s = live[i];
       s.t += dt;
