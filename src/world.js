@@ -133,7 +133,7 @@ function terrainMaterial() {
     sh.uniforms.paveMap = { value: GROUND_TEX.balate };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap;' + TILING_GLSL)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
         { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
@@ -157,7 +157,7 @@ function terrainMaterial() {
       .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-hz';
   return m;
 }
 
@@ -178,18 +178,21 @@ const NORMAL_NOFLIP = () => THREE.ShaderChunk.normal_fragment_begin.replace('gl_
 const HAZE_GLSL = `
 float hzD = distance( cameraPosition, HZPOS ), hzY = HZPOS.y;
 float hz = min( 0.78, ( 0.1 + 0.3 * smoothstep( 30.0, 260.0, hzY ) ) * smoothstep( 300.0, 2500.0, hzD ) + 0.34 * smoothstep( 2000.0, 8500.0, hzD ) * smoothstep( 10.0, 120.0, hzY ) ) * smoothstep( 1.0, 4.0, hzY );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( ${HAZE.r.toFixed(5)}, ${HAZE.g.toFixed(5)}, ${HAZE.b.toFixed(5)} ), hz );`;
+float hzK = smoothstep( 150.0, 400.0, hzY ) * smoothstep( 2500.0, 4500.0, hzD ) * ( 1.0 - smoothstep( 6000.0, 9500.0, hzD ) );   // tall ground far away (Monte Pellegrino from the seafront): the sun overexposed its pale limestone and the fog whitened it into the sky, so it drops to a darker silhouette with less fog on it
+hzFog = 1.0 - 0.6 * hzK;
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( ${HAZE.r.toFixed(5)}, ${HAZE.g.toFixed(5)}, ${HAZE.b.toFixed(5)} ), hz ) * ( 1.0 - 0.66 * hzK );`;
+const FOG_HZ = THREE.ShaderChunk.fog_fragment.replace('vFogDepth * vFogDepth', 'vFogDepth * vFogDepth * hzFog * hzFog');   // the stock fog with its depth scaled by hzFog (set in HAZE_GLSL, 1 everywhere else)
 function farMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y; vFarPos = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0; varying float vFarNy; varying vec3 vFarPos;').replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
       .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
   };
-  m.customProgramCacheKey = () => 'far-fill-haze-nf';
+  m.customProgramCacheKey = () => 'far-fill-haze-nf-hz';
   return m;
 }
 function getLowMats() {
