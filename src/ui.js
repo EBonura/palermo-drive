@@ -282,6 +282,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
+  st.coords = saved.coords === 'on' ? 'on' : 'off';
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice

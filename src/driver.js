@@ -49,7 +49,7 @@ function undress(rec) {
   dressed.delete(rec);
 }
 function dressTo(rig) {
-  const tp = rig.tpl.spec.tiltPivot, s = tp[1] / 0.45, k = PX * s, w = CELL.w * k, h = CELL.h * k;   // the lapae scale their whole model (the Lapa 50 by 0.86) and pivot at 0.45 m of it
+  const tp = rig.tpl.spec.tiltPivot, s = rig.kind === 'lapa' ? tp[1] / 0.45 : 1, k = PX * s, w = CELL.w * k, h = CELL.h * k;   // the lapae scale their whole model (the Lapa 50 by 0.86) and pivot at 0.45 m of it
   const geo = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0), uv = geo.attributes.uv;
   const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false;
