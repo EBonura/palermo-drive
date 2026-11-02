@@ -103,7 +103,7 @@ export function createFares(X) {
     f.wheelAcc = (car.tip > 0.55 && sp > 7) ? (f.wheelAcc || 0) + dt : 0;
     if (f.wheelAcc >= 0.6 && ev.wheels <= 0) { ev.wheels = 3; f.wheelAcc = 0; tip(2, T('Supra dui ruoti!', 'Two wheels!')); tline('wheels'); dline('wheels'); }
     f.speedAcc = sp > 21 ? (f.speedAcc || 0) + dt : 0;
-    if (f.speedAcc >= 4) { f.speedAcc = 0; tip(1, T('Pidali a tavulietta', 'Pedal to the metal')); if (ev.fast <= 0) { ev.fast = 20; tline('fast'); dline('fast'); } }
+    if (f.speedAcc >= 4) { f.speedAcc = 0; tip(1, T('Pidali a tavuliatta', 'Pedal to the metal')); if (ev.fast <= 0) { ev.fast = 20; tline('fast'); dline('fast'); } }
     if (sp > 8 && ev.miss <= 0) {
       let hit = false;
       const ag = X.traffic && X.traffic.agents ? X.traffic.agents() || [] : [];
@@ -184,7 +184,7 @@ export function createFares(X) {
     const tgt = f.phase === 'ride' ? f.dest : f.slot, dist = Math.hypot(tgt.x - car.x, tgt.z - car.z), ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
     if (f.phase === 'ride') {
       const m = Math.max(0, f.left);
-      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puoitali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : f.sub === 'nightc' ? T('Cliente ri nuttata', 'Night client') : T('Cuoisa in taxi', 'Taxi ride'),
+      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puaittali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : f.sub === 'nightc' ? T('Cliente ri nuttata', 'Night client') : T('Cuoisa in taxi', 'Taxi ride'),
         title: f.dest.name, sub: (f.dest.addr ? f.dest.addr + '  ·  ' : '') + ds, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 12, frac: f.left / f.limit,
         target: f.dest, ledger: [T('Cuoisa ', 'Fare ') + eur(f.base + f.tips), T('Ncassu ', 'Total ') + eur(X.earned())] });
       X.aim(f.dest.x, f.dest.z, true);

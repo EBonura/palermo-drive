@@ -22,7 +22,7 @@ const K_MAX = 1.4;                     // px per metre at full zoom (a street is
 const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
-  here: ['Parti da qui', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
+  here: ['Amunì, parti ri ccà', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],

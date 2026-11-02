@@ -12,15 +12,15 @@ export const FANS = {
     ['Scinni ra ieiba, cuinnutu!', 'Get off the grass, you fool!'],
     ['L’aibitru! Unni è l’aibitru?!', 'The referee! Where is the referee?!'],
     ['Cu fu ca lu fici trasiri?!', 'Who let him in?!'],
-    ['Ma chi è, u nuovu puoitieri?!', 'What, is he the new goalkeeper?!'],
+    ['Ma chi è, u nuovu puaittieri?!', 'What, is he the new goalkeeper?!'],
   ],
   // the background shouting while he stays
   idle: [
     ['Nesci ra ccà, scimunitu!', 'Get out of here, you fool!'],
     ['Cu ti runau a patenti?!', 'Who gave you your licence?!'],
     ['Pagai u biglietto pi vidiri chistu?!', 'I paid for a ticket to see this?!'],
-    ['A matri ro puoitieri lu sapi?!', 'Does the goalkeeper’s mother know?!'],
-    ['Puoitieri, to matri ti chiama!', 'Goalkeeper, your mother is calling you!'],
+    ['A matri ro puaittieri lu sapi?!', 'Does the goalkeeper’s mother know?!'],
+    ['Puaittieri, to matri ti chiama!', 'Goalkeeper, your mother is calling you!'],
     ['Mi rumpisti a partita!', 'You ruined my match!'],
     ['Cacciatilu ri ccà!', 'Throw him out!'],
     ['Ma chi voli ’stu lapista?!', 'What does this lapa driver want?!'],
@@ -54,8 +54,8 @@ export const FANS = {
   ],
   miss: [
     ['Fora! Pi ’nu pilu!', 'Wide! By a hair!'],
-    ['Era sulu ri spinciri ’nta puoita!', 'He only had to push it in!'],
-    ['Sbagghiasti puoita, cuinnutu!', 'Wrong goal, you fool!'],
+    ['Era sulu ri spinciri ’nta puaitta!', 'He only had to push it in!'],
+    ['Sbagghiasti puaitta, cuinnutu!', 'Wrong goal, you fool!'],
     ['Ma unni tira?!', 'Where is he shooting?!'],
   ],
   near: [
@@ -90,7 +90,7 @@ export const COMMENT = {
   fast: [['A lapa curri forti, ma senza palluni!', 'The lapa runs fast, but without the ball!']],
   near: [['A lapa s’avvicina ô palluni...', 'The lapa closes in on the ball...']],
   hit: [['Tocca u palluni! Chi cuntrollu!', 'He touches the ball! What control!'], ['Cauci ô palluni! Cu la capìu?', 'A kick at the ball! Who saw that coming?']],
-  tense: [['Attenzioni! Tira ’nta puoita...', 'Careful! Shot at goal...'], ['U palluni è vicinu ê rete...', 'The ball is close to the net...']],
+  tense: [['Attenzioni! Tira ’nta puaitta...', 'Careful! Shot at goal...'], ['U palluni è vicinu ê rete...', 'The ball is close to the net...']],
   goalHome: [['GOL ro Palermu! O forsi ri chiddu cû lapa?', 'Palermo goal! Or the one with the lapa?']],
   goalAway: [['GOL! E stavota ’ntô latu sbagghiatu!', 'GOAL! And this time at the wrong end!']],
   miss: [['Fora! Pi ’nu pilu!', 'Wide! By a hair!']],

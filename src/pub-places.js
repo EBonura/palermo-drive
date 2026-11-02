@@ -134,9 +134,9 @@ export const PUBS = [
     caller: 'ragazzo2',
     errand: {
       item: 'barili', n: 8, window: [18, 6], who: 'Il cameriere', pay: 2.5, bonus: 12,
-      call: [['Ao! I varrili ri tavuli sunnu ruzzuliati ’ngiù pâ chiazza!', 'Hey! The table barrels rolled down the piazza!'], ['Aiutu! U Monkey è sienza tavuli, puoitami i varrili!', 'Help! The Monkey has no tables, bring me the barrels!'], ['Lapista! Un si po viviri ’n peri tutta a sira!', 'Driver! You cannot drink standing up all evening!']],
+      call: [['Ao! I varrili ri tavuli sunnu ruzzuliati ’ngiù pâ chiazza!', 'Hey! The table barrels rolled down the piazza!'], ['Aiutu! U Monkey è sienza tavuli, puaittami i varrili!', 'Help! The Monkey has no tables, bring me the barrels!'], ['Lapista! Un si po viviri ’n peri tutta a sira!', 'Driver! You cannot drink standing up all evening!']],
       start: ['Attruova i varrili ri tavuli!', 'Find the table barrels!'],
-      thanks: [['Grazie! Ti puoitu ’na Paulaner, offri a casa!', 'Thanks! I will bring you a Paulaner, on the house!'], ['Si ’nu mitu! I tavuli sunnu saivi!', 'You are a legend! The tables are saved!']],
+      thanks: [['Grazie! Ti puaittu ’na Paulaner, offri a casa!', 'Thanks! I will bring you a Paulaner, on the house!'], ['Si ’nu mitu! I tavuli sunnu saivi!', 'You are a legend! The tables are saved!']],
       none: [['Nienti varrili? Stasira si vivi ’n peri.', 'No barrels? Tonight we drink standing.']],
     },
   },
@@ -149,7 +149,7 @@ export const PUBS = [
     caller: 'vendor',
     errand: {
       item: 'boccali', n: 8, window: [18, 6], who: 'Il birraio', pay: 2.5, bonus: 12,
-      call: [['Aiutu! I buccali sunnu finuti ’nta strata, e ni sieivunu trecientu o iornu!', 'Help! The mugs ended up on the road, and we need three hundred a day!'], ['Ao! Sienza buccali a birra artigianali un si sieivi!', 'Hey! Without mugs the craft beer cannot be served!'], ['Lapista! M’annu puoitatu via i buccali ro carrellu!', 'Driver! They took the mugs off my cart!']],
+      call: [['Aiutu! I buccali sunnu finuti ’nta strata, e ni sieivunu trecientu o iornu!', 'Help! The mugs ended up on the road, and we need three hundred a day!'], ['Ao! Sienza buccali a birra artigianali un si sieivi!', 'Hey! Without mugs the craft beer cannot be served!'], ['Lapista! M’annu puaittatu via i buccali ro carrellu!', 'Driver! They took the mugs off my cart!']],
       start: ['Attruova i buccali ri birra!', 'Find the beer mugs!'],
       thanks: [['Si ’nu tisoru! Stasira a prima birra è pi tia!', 'You are a treasure! Tonight the first beer is yours!'], ['Saivati i buccali! Brindamu ô Mircatu!', 'Mugs saved! A toast to the Mercato!']],
       none: [['Nienti buccali? Si vivi ra buttiglia, allura.', 'No mugs? Then we drink from the bottle.']],
