@@ -27,6 +27,9 @@ export const ITEMS = {
 // Start-map and list points of interest that are not a pub: [name, lat, lon], appended to SPOTS in src/main.js (see the report of the pubs work).
 export const POI_SPOTS = [
   ['Piazza Magione', 38.113241, 13.369435],
+  // b2: Sferracavallo (already inside the baked area, west of Mondello; the quartiere centre in main.js names the picker group): the square and the harbour, on OSM road points
+  ['Sferracavallo (la piazza)', 38.198219, 13.276741],
+  ['Sferracavallo (il porticciolo)', 38.199316, 13.276098],
 ];
 
 export const PUBS = [
