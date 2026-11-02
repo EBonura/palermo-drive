@@ -23,11 +23,11 @@ const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
   here: ['Parti da qui', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
-  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], night: ['di notte', 'at night'],
+  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
-const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a' };
+const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e' };
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
 const C = {
@@ -36,7 +36,7 @@ const C = {
   roadA: ['#e8559a', '#ffe2ef'], roadB: ['#cdb98f', '#fffdf6'], roadC: ['#ddd0b2', '#ffffff'],
 };
 
-export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart }) {
+export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart, eventButton }) {
   host.innerHTML = `<canvas class="pd-mp-cv" aria-hidden="true"></canvas>
     <button class="pd-mp-ev" type="button" data-nav data-map="events" aria-pressed="true"><i></i><span data-t="events"></span></button>
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
@@ -351,6 +351,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     else if (e.kind === 'pub') { g.fillStyle = '#fff8e0'; g.fillRect(-6, -22, 10, 12); g.strokeStyle = '#0b0709'; g.lineWidth = 2; g.beginPath(); g.arc(5, -16, 3.4, -1.5, 1.5); g.stroke(); g.fillStyle = '#7a4a12'; g.fillRect(-6, -22, 10, 4); }
     else if (e.kind === 'rave') { for (let i = 0; i < 4; i++) g.fillRect(-9 + i * 5, -14 - (i % 2 ? 7 : 4), 3.2, (i % 2 ? 14 : 8)); }
     else if (e.kind === 'leaf') { g.beginPath(); g.ellipse(0, -14, 4.5, 9, 0.6, 0, 7); g.fill(); }
+    else if (e.kind === 'horns') { g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(-8, -24); g.quadraticCurveTo(-8, -12, 0, -11); g.quadraticCurveTo(8, -12, 8, -24); g.stroke(); }
     else if (e.kind === 'race') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) & 1) g.fillRect(-9 + i * 4.5, -25 + j * 4.5, 4.5, 4.5); }
     if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
     if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
@@ -396,6 +397,9 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (!sel) return;
     popT.textContent = sel.name;
     popS.textContent = sel.sub;
+    const lab = sel.kind === 'event' && eventButton ? eventButton(sel.ref) : null;   // a mission at the wrong time of day: the button says the clock will change
+    pop.querySelector('.pd-l1').textContent = lab ? lab[0] : L.here[li()];
+    const l2 = pop.querySelector('.pd-l2'); if (l2) l2.textContent = lab ? lab[1] : L.here[1 - li()];
   }
   function pick(px, py, thr) { // a pin, or a cluster badge ({ m: [pins] })
     layout();
