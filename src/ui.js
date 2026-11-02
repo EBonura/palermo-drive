@@ -280,18 +280,19 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <div class="pd-tagline">3 ruote 2 frecce 1 clacson 0 dignità</div>
     <div class="pd-by"><span>a game by</span><img src="assets/ui/bonnie-studios.png" alt="Bonnie Studios" width="512" height="512"></div>
     <div class="pd-tap" data-k="${coarse ? 'tapTouch' : 'tapKey'}" data-two></div>
+    <div class="pd-vslot"></div>
 `);
   // main menu
   const IG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>';
   const igLink = (h, k) => `<a class="pd-ig" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer">${IG}<span><b>@${h}</b><small data-k="${k}"></small></span></a>`;
-  mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
+  mk('menu', '', `<div class="pd-mbody"><div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
-    </nav>
-    <div class="pd-igs">${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div>
+    </nav></div>
+    <div class="pd-mfoot"><div class="pd-igs">${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div><div class="pd-vslot"></div></div>
 `);
   // options
   const OPTS = [
