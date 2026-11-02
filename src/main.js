@@ -245,7 +245,7 @@ const stadium = createStadium(worldEnv);
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
-const markets = createMarkets({ ...worldEnv, proj }); markets.bindPedestrians(pedestrians);
+const markets = createMarkets({ ...worldEnv, proj, props: propsApi }); markets.bindPedestrians(pedestrians);
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
 const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap

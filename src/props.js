@@ -539,7 +539,7 @@ const SPECS = {
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
-  hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 2.6, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 2.6 m/s and leaves a gap for the session
+  hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 2.6, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 1.8 m/s (effective, see src/fences.js) and leaves a gap for the session
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
@@ -609,7 +609,7 @@ function makePhysics(env) {
   const spawnDeb = (kind, c, init) => {
     const D2 = DEB[kind], idx = D2.n++ % D2.im.count; let it = D2.items.find(q => q.idx === idx); if (!it) D2.items.push(it = { idx });
     Object.assign(it, { rest: false, hidden: false, owner: c, tilt: 0, tv: 0, spin: 0, roll: 0, rot: rnd() * 6.28, s: 1 }, init);
-    D2.im.setColorAt(idx, D2.cols[(rnd() * D2.cols.length) | 0]); D2.im.instanceColor.needsUpdate = true; D2.dirty = true; return it;
+    D2.im.setColorAt(idx, init.col || D2.cols[(rnd() * D2.cols.length) | 0]); D2.im.instanceColor.needsUpdate = true; D2.dirty = true; return it;
   };
   // bursts fly away from the lapa: (nx,nz) points from the prop to the car, v is the car's velocity
   const burstV = (nx, nz, vc, k, pc) => [-nx * vc * k + pc.vx * 0.3 + (rnd() - 0.5) * 3, -nz * vc * k + pc.vz * 0.3 + (rnd() - 0.5) * 3];
@@ -678,19 +678,32 @@ function makePhysics(env) {
     Object.assign(c, { st: 'fall', dx, dz, ang: 0, av: 0.6 + vc * 0.12, tgt: target, slide: o.slide || 0, lift: o.lift || 0 });
     gDel(c); dyn.push(c); touch(c);
   }
-  function yeet(c, nx, nz, vc, pc) {
-    const sp = c.sp, mv = sp.m * 0.6, e = 0.55, vo = vc * (1 + e) / (1 + mv) * 1.25;
+  // sets c flying away from the car with a spin (n points from the thing to the car, vc is the closing speed); o scales it for a loose piece: v speed, up lift, spin, side random sideways speed
+  const SCOOT = { up: 1.2 };
+  function launch(c, nx, nz, vc, pc, o = {}) {
+    const sp = c.sp, mv = sp.m * 0.6, e = 0.55, vo = vc * (1 + e) / (1 + mv) * 1.25 * (o.v || 1), sd = o.side || 0;
     // fly from the current pose
     if (c.st === 0) { c.q = new THREE.Quaternion().setFromAxisAngle(up, c.rot0); c.px = c.x0; c.py = c.y0 + sp.hc * c.s; c.pz = c.z0; }
-    Object.assign(c, { st: 'fly', vx: -nx * vo + pc.vx * 0.25, vz: -nz * vo + pc.vz * 0.25, vy: clamp(2.6 + vc * 0.32, 3, 9) * (sp.kind === 'scooter' ? 1.2 : 1), settle: 0 });
-    const k = clamp(vc * 0.35, 1, 5);
+    Object.assign(c, { st: 'fly', vx: -nx * vo + pc.vx * 0.25 + (Math.random() - 0.5) * sd, vz: -nz * vo + pc.vz * 0.25 + (Math.random() - 0.5) * sd, vy: clamp(2.6 + vc * 0.32, 3, 9) * (o.up || 1), settle: 0 });
+    const k = clamp(vc * 0.35, 1, 5) * (o.spin || 1);
     c.w = new THREE.Vector3((Math.random() - 0.5) * k * 1.6 + nz * k * 0.8, (Math.random() - 0.5) * k * 1.2, (Math.random() - 0.5) * k * 1.6 - nx * k * 0.8);
+  }
+  function yeet(c, nx, nz, vc, pc) {
+    const sp = c.sp, mv = sp.m * 0.6, e = 0.55;
+    launch(c, nx, nz, vc, pc, sp.kind === 'scooter' ? SCOOT : undefined);
     gDel(c); if (!dyn.includes(c)) dyn.push(c); touch(c); stats.yeeted++;
     // player loses momentum
     const dv = vc * (1 - mv * e) / (1 + mv), loss = vc - dv;
     pc.vx += nx * loss; pc.vz += nz * loss; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
     if (simT - lastShout > 1.2) { lastShout = simT; try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: c.py || c.y0 + 1, z: c.z } })); } catch (err) { /* no events */ } }
   }
+  // A loose piece that is not a tile prop (a market stall's frame, canopy and crates, src/markets.js): p = { im, i, x0, y0, z0, rot0, s, sp: { m, he, hc, ghost } }, an instance of any
+  // InstancedMesh. Thrown like a yeeted object (same speeds and spin, o scales them), it lands and lies where it falls: it is never put back, and nothing hits it again.
+  function throwPiece(p, nx, nz, vc, pc, o) {
+    launch(p, nx, nz, vc, pc, o); if (!dyn.includes(p)) dyn.push(p); grow(p); stats.yeeted++;
+  }
+  // a lump of loose goods (an orange, a fish, a ham): one of the bag pool's balls, s times a bag, in a colour; it lies where it lands
+  const lump = (x, y, z, vx, vy, vz, s, col) => spawnDeb('bag', null, { x, y, z, vx, vy, vz, s, spin: (rnd() - 0.5) * 9, col });
   // ---- parked cars: the traffic's yeet (src/traffic.js launch / stepFly), then they stay where they land
   const shoutAt = c => {
     try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: gy(c.x, c.z) + 1.4, z: c.z, follow: () => c.dead ? null : { x: c.x, y: gy(c.x, c.z) + (c.fl ? c.fl.y : 0) + 1.4, z: c.z } } })); } catch (err) { /* no events */ }
@@ -1048,7 +1061,7 @@ function makePhysics(env) {
     }
     return tMin;
   }
-  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid, occlude };
+  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid, occlude, throwPiece, lump };
 }
 
 // ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)
@@ -2397,7 +2410,7 @@ export function buildProps(ctx) {
     phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };
-  const api = { collidePlayer: phys.collidePlayer, occlude: phys.occlude, stats: phys.stats, tileStats: tstats, attachWorld };
+  const api = { collidePlayer: phys.collidePlayer, occlude: phys.occlude, stats: phys.stats, tileStats: tstats, attachWorld, throwPiece: phys.throwPiece, lump: phys.lump };   // throwPiece, lump: loose pieces for src/markets.js
   api.grid = phys.grid;
   if (location.search.includes('debug')) window.__props = Object.assign(api, { jobs, phys });
   return api;
