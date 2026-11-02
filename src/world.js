@@ -25,6 +25,7 @@ import { GARDEN_REGION as GR } from './gardens.js';
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
+import { CENTRO_LANDMARKS } from './landmarks.js';   // the centro landmark models: built here, when the tiles under them have loaded
 
 const T = 500;
 const nk = (i, j) => (i + 200) * 1000 + (j + 200);
@@ -832,6 +833,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     stash(t);
   }
   function release(t) {
+    for (const l of CENTRO_LANDMARKS) if (t.parts['lm:' + l.name]) lmPending.add(l);   // built again when the tile comes back
     onTileDrop(t.k); unregisterStructs(t.k); dropFences(t.k); emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
@@ -901,7 +903,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     markView();
     for (const t of tiles.values()) ensureTask(t);
-    ensureFarTask(fx, fz);
+    ensureFarTask(fx, fz); ensureLmTask();
     pump();
     world.estTris = est;
   }
@@ -911,6 +913,47 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (!farCity || (farTask && !farTask.done)) return;
     farTask = { t: { pd: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius(), seenBox); contextDirty = true; })(), wait: null, name: 'far' };
     tasks.push(farTask);
+  }
+  // ---------- centro landmarks (src/landmarks.js): a model is built once the tile it stands on is loaded and the tiles its footprint reaches into are too (or are not coming), so
+  // the heights it reads are the streamed ground; the group is kept with the anchor tile ('lm:' part) through its detail changes and built again after a release ----------
+  const lmPending = new Set(CENTRO_LANDMARKS), lmSince = new Map();
+  let lmTask = null;
+  const lmAnchor = l => tiles.get(nk(Math.floor(l.x / T), Math.floor(l.z / T)));
+  function lmReady(l, now) {
+    const a = lmAnchor(l); if (!a || a.dead || a.lod < 1) return 0;   // 0: its tile is not there yet
+    if (!lmSince.has(l)) lmSince.set(l, now);
+    if (now - lmSince.get(l) > 8000) return 2;
+    for (let i = Math.floor((l.x - l.radius) / T); i <= Math.floor((l.x + l.radius) / T); i++) for (let j = Math.floor((l.z - l.radius) / T); j <= Math.floor((l.z + l.radius) / T); j++) {
+      if (!M.tiles[i + '_' + j]) continue;
+      const n = tiles.get(nk(i, j));
+      if (n && n.lod < 1 && n.want > 0 && !n.failed) return 1;   // a neighbour is on its way
+    }
+    return 2;
+  }
+  function* lmJob() {
+    for (;;) {
+      let waiting = false;
+      for (const l of [...lmPending]) {
+        const r = lmReady(l, performance.now());
+        if (r === 1) { waiting = true; continue; }
+        if (r === 0) continue;
+        const a = lmAnchor(l);
+        let g = null; try { g = l.build(ctx); } catch (e) { console.error('[world] landmark', l.name, e); }
+        lmPending.delete(l); lmSince.delete(l);
+        if (g && a && !a.dead && a.lod >= 1) setPart(a, 'lm:' + l.name, g, g.userData.tris || 0); else if (g) disposeObj(g);
+        yield;
+      }
+      if (!waiting) break;
+      yield new Promise(r => setTimeout(r, 250));
+    }
+    lmTask.done = true; lmTask = null;
+  }
+  function ensureLmTask() {
+    if (lmTask || !lmPending.size) return;
+    let any = false; for (const l of lmPending) { const a = lmAnchor(l); if (a && !a.dead && a.lod >= 1) { any = true; break; } }
+    if (!any) return;
+    lmTask = { t: { pd: 4e4 }, gen: lmJob(), wait: null, name: 'landmarks' };
+    tasks.push(lmTask);
   }
   function ensureTask(t) {
     if (t.task || t.dead) return;
