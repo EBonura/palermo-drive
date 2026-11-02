@@ -215,6 +215,40 @@ function apeBase(b, cabBody) {
   b.box(-0.1, 0.1, 0.62, 0.72, 1.17, 1.24, LAMP);
   b.box(-0.3, 0.3, 0.3, 0.45, 1.05, 1.15, DARK);
 }
+// The fruit seller: crates stepped up towards the back with oranges, lemons, tomatoes and melons on top, a striped parasol, a chalkboard.
+function apeFrutta() {
+  const b = new MB(); apeBase(b, WHITE);
+  b.box(-0.72, 0.72, 0.4, 0.46, -1.58, -0.12, col('#6a5a45'));
+  const wood = col('#a9783a'), fruit = [col('#e8892a'), col('#e9d23a'), col('#c8372a'), col('#5e9a3a'), col('#f0a32e'), col('#d6c136')];
+  const tiers = [[-0.28, 0.46, 0.3], [-0.78, 0.46, 0.5], [-1.28, 0.46, 0.7]];   // z centre, y0, height of the stack
+  let k = 0;
+  for (const [z, y0, h] of tiers) for (const x of [-0.37, 0.37]) {
+    b.box(x - 0.33, x + 0.33, y0, y0 + h, z - 0.22, z + 0.22, wood);                      // the crates
+    b.box(x - 0.34, x + 0.34, y0 + h * 0.5 - 0.02, y0 + h * 0.5 + 0.02, z - 0.23, z + 0.23, col('#7a5226'));   // a slat
+    for (const dz of [-0.11, 0.11]) for (const dx of [-0.17, 0.17]) b.box(x + dx - 0.12, x + dx + 0.12, y0 + h, y0 + h + 0.13, z + dz - 0.09, z + dz + 0.09, fruit[(k++) % fruit.length]);
+  }
+  b.box(-0.18, 0.18, 0.46, 0.78, -1.5, -1.42, col('#c9b7a0'));
+  for (const sx of [-1, 1]) b.box(sx * 0.7 - 0.02, sx * 0.7 + 0.02, 0.46, 1.9, -1.5, -1.46, col('#6e5a3c'));   // poles
+  b.cyl(0, 2.2, -0.85, 1.25, 0.06, col('#d8372a'), 0, 12, 'y'); b.cyl(0, 2.25, -0.85, 0.8, 0.06, col('#f1ece0'), 0, 12, 'y'); b.cyl(0, 2.3, -0.85, 0.35, 0.06, col('#d8372a'), 0, 12, 'y');   // the parasol
+  b.box(-0.03, 0.03, 0.46, 2.2, -0.88, -0.82, col('#6e5a3c'));                                           // its pole
+  b.box(0.745, 0.76, 0.75, 1.2, -1.2, -0.45, col('#2d3a2f'));                                            // chalkboard (kerb side)
+  return b;
+}
+// Sfincione and pane e panelle: a cream kitchen box, a stack of trays under a glass lid, a red and yellow awning, a loudspeaker on the roof.
+function apeSfincione() {
+  const b = new MB(); apeBase(b, WHITE);
+  b.box(-0.72, 0.72, 0.4, 0.46, -1.58, -0.12, DARK);
+  b.prism([-0.73, 0.73, -1.58, -0.14], 0.46, [-0.7, 0.7, -1.55, -0.16], 1.5, col('#f4ecd6'), 1);
+  b.box(-0.74, 0.74, 1.5, 1.58, -1.6, -0.1, col('#e0a82a'));
+  b.box(-0.6, 0.6, 1.58, 1.62, -1.5, -0.2, col('#9cc4cf'));                                               // glass lid
+  for (let i = 0; i < 3; i++) b.box(-0.55, 0.55, 1.62 + i * 0.1, 1.68 + i * 0.1, -1.45, -0.25, i % 2 ? col('#c9531f') : col('#d8742a'));   // trays of sfincione
+  b.box(0.74, 0.745, 0.95, 1.4, -1.45, -0.3, col('#2b2e2a'));                                             // hatch
+  for (let i = 0; i < 5; i++) b.hexa([[-0.74, 1.4, -1.45 + i * 0.28], [-0.74, 1.4, -1.2 + i * 0.28], [-0.74, 1.38, -1.2 + i * 0.28], [-0.74, 1.38, -1.45 + i * 0.28],
+    [-1.35, 1.14, -1.45 + i * 0.28], [-1.35, 1.14, -1.2 + i * 0.28], [-1.35, 1.12, -1.2 + i * 0.28], [-1.35, 1.12, -1.45 + i * 0.28]], i % 2 ? col('#e0a82a') : col('#c42a2a'), 0);   // the awning
+  b.box(-1.15, -0.74, 0.92, 0.97, -1.3, -0.4, col('#9a9a96'));                                           // counter
+  horn(b, 0, 1.98, -0.9);
+  return b;
+}
 function apePick(load) {
   const b = new MB(); apeBase(b, WHITE);
   b.box(-0.72, 0.72, 0.4, 0.46, -1.58, -0.12, col('#6a5a45'));
@@ -233,6 +267,15 @@ function apePick(load) {
   }
   return b;
 }
+// A roof loudspeaker: a post, a driver box and a horn flaring towards the front (the vendors' Apes call out of it, src/vendors.js)
+function horn(b, x, y, z) {
+  const g = col('#8c8f94'), d = col('#26272a');
+  b.box(x - 0.04, x + 0.04, y, y + 0.14, z - 0.04, z + 0.04, d);
+  b.box(x - 0.12, x + 0.12, y + 0.14, y + 0.34, z - 0.22, z - 0.02, d);
+  b.hexa([[x - 0.1, y + 0.16, z - 0.02], [x + 0.1, y + 0.16, z - 0.02], [x + 0.1, y + 0.32, z - 0.02], [x - 0.1, y + 0.32, z - 0.02],
+    [x - 0.28, y + 0.06, z + 0.5], [x + 0.28, y + 0.06, z + 0.5], [x + 0.28, y + 0.42, z + 0.5], [x - 0.28, y + 0.42, z + 0.5]], g, 0);
+  b.box(x - 0.22, x + 0.22, y + 0.12, y + 0.36, z + 0.5, z + 0.52, d);
+}
 function apeFood() {
   const b = new MB(); apeBase(b, WHITE);
   b.box(-0.72, 0.72, 0.4, 0.46, -1.58, -0.12, DARK);
@@ -242,7 +285,7 @@ function apeFood() {
   for (let i = 0; i < 6; i++) b.hexa([[-0.74, 1.62, -1.45 + i * 0.26], [-0.74, 1.62, -1.2 + i * 0.26], [-0.74, 1.6, -1.2 + i * 0.26], [-0.74, 1.6, -1.45 + i * 0.26],
     [-1.4, 1.38, -1.45 + i * 0.26], [-1.4, 1.38, -1.2 + i * 0.26], [-1.4, 1.36, -1.2 + i * 0.26], [-1.4, 1.36, -1.45 + i * 0.26]], i % 2 ? WHITE : col('#c42a2a'), 0);
   b.box(-1.2, -0.74, 0.95, 1.0, -1.35, -0.4, col('#9a9a96'));                                     // counter
-  b.box(-0.08, 0.08, 2.03, 2.2, -0.75, -0.55, DARK); b.box(-0.2, 0.2, 2.2, 2.35, -0.9, -0.4, DARK); // loudspeaker
+  horn(b, 0, 2.03, -1.05);   // roof loudspeaker
   b.box(0.745, 0.76, 1.0, 1.5, -1.35, -0.45, col('#2d3a2f'));                                       // menu board
   return b;
 }
@@ -266,17 +309,19 @@ function horse(b, z0, plume) {
   b.box(-0.17, 0.17, 1.1, 1.8, zf - 0.28, zf - 0.12, col('#2a1c14'));    // collar
   if (plume) { b.box(-0.03, 0.03, 2.2, 2.55, zf + 0.34, zf + 0.4, col('#c0262c')); b.box(-0.2, 0.2, 1.74, 1.8, z0 + 0.3, zf - 0.6, col('#c0262c')); }
 }
-function carrozza() {
+// tour: the carrozza of the tourist loop (src/carrozze.js): no modelled coachman (a sprite sits on the box), the hood folded behind the seat so the passengers sit in the open, red plume, brass lamps
+function carrozza(tour = false) {
   const b = new MB(), blk = col('#17171a'), red = col('#6e1a22');
-  horse(b, 2.55, false);
+  horse(b, 2.55, tour);
   b.box(-0.55, 0.55, 0.5, 0.56, -1.2, 1.3, blk);                              // chassis
   b.prism([-0.52, 0.52, -1.1, 1.3], 0.56, [-0.55, 0.55, -1.1, 1.3], 1.15, blk);  // body
   b.box(-0.5, 0.5, 1.15, 1.45, -1.0, 0.25, red);                                // passenger seat
   b.box(-0.5, 0.5, 1.15, 1.85, -1.05, -0.9, red);                               // back rest
-  b.wedge(-0.52, 0.52, 1.5, -1.12, 2.2, 0.05, 1.95, blk, 0, 0.04);             // folded canopy
+  if (tour) b.wedge(-0.5, 0.5, 1.3, -1.32, 2.05, -1.04, 1.7, blk, 0, 0.03); else b.wedge(-0.52, 0.52, 1.5, -1.12, 2.2, 0.05, 1.95, blk, 0, 0.04);   // folded canopy
   b.box(-0.45, 0.45, 1.15, 1.5, 0.55, 1.15, col('#2d2118'));                    // coachman's box
-  b.box(-0.14, 0.14, 1.5, 1.95, 0.7, 0.95, blk); b.box(-0.1, 0.1, 1.95, 2.18, 0.74, 0.92, SKIN);  // driver
-  b.cyl(0, 2.2, 0.83, 0.12, 0.22, blk, 0, 6, 'y'); b.cyl(0, 2.2, 0.83, 0.17, 0.03, blk, 0, 6, 'y');
+  if (!tour) { b.box(-0.14, 0.14, 1.5, 1.95, 0.7, 0.95, blk); b.box(-0.1, 0.1, 1.95, 2.18, 0.74, 0.92, SKIN);  // driver
+    b.cyl(0, 2.2, 0.83, 0.12, 0.22, blk, 0, 6, 'y'); b.cyl(0, 2.2, 0.83, 0.17, 0.03, blk, 0, 6, 'y'); }
+  if (tour) for (const s of [1, -1]) { b.box(s * 0.5 - 0.04, s * 0.5 + 0.04, 1.5, 1.78, 0.5, 0.6, col('#e0b64a')); b.box(s * 0.5 - 0.03, s * 0.5 + 0.03, 1.78, 1.84, 0.51, 0.59, col('#fff2b0')); }   // brass lamps on the box
   for (const s of [1, -1]) {
     b.cyl(s * 0.6, 0.66, -0.5, 0.66, 0.06, red, 0, 12); b.cyl(s * 0.6, 0.66, -0.5, 0.1, 0.1, blk, 0, 6);
     b.cyl(s * 0.6, 0.46, 1.0, 0.46, 0.06, red, 0, 10); b.cyl(s * 0.6, 0.46, 1.0, 0.08, 0.1, blk, 0, 6);
@@ -312,8 +357,8 @@ export function buildModels() {
   return {
     panda: g(hatch(PANDA)), punto: g(hatch(PUNTO)), smart: g(hatch(SMART)), taxi: g(taxi()), van: g(van()), bus: g(bus()),
     vespa: g(scooter(true)), vespaB: g(scooter(false)),
-    apePick: g(apePick('')), apeCrate: g(apePick('crates')), apeFood: g(apeFood()),
-    carrozza: carrozza(), carretto: carretto(),
+    apePick: g(apePick('')), apeCrate: g(apePick('crates')), apeFood: g(apeFood()), apeFrutta: g(apeFrutta()), apeSfincione: g(apeSfincione()),
+    carrozza: carrozza(), carrozzaTour: carrozza(true), carretto: carretto(),
   };
 }
 

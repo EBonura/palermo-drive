@@ -36,7 +36,7 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
           case 'hold': { const hd2 = a[2] === 'r' ? hands.r : hands.l; if (pose >= 6) break; const x = hd2.x, y = hd2.y; if (a[0] === 'bag') X.bag(f, x, y + 1, a[1]); else if (a[0] === 'purse') X.purse(f, x, y + 1, a[1]); else if (a[0] === 'briefcase') X.briefcase(f, x, y + 1, a[1]); else if (a[0] === 'helmet') X.helmetHand(f, x, y - 2, a[1]); else if (a[0] === 'phone') X.phone(f, x, y - 2); break; }
           case 'drink': { const hnd = dir === 'left' || dir === 'right' ? hands.l : hands.r; if (sipPose) X.sip(f, A, hnd, skinRGB, a[0], a[1]); else if (a[0] === 'glass') X.glass(f, hnd.x, hnd.y, a[1]); else X.bottle(f, hnd.x, hnd.y, a[1]); break; }
           case 'dog': X.dog(f, A, a[0], pose); break; case 'stroller': X.stroller(f, A, a[0], a[1]); break;
-          case 'fazzoletto': X.fazzoletto(f, A, a[0]); break; case 'flatCap': X.flatCap(f, A, a[0]); break; case 'peakedCap': X.peakedCap(f, A, a[0], a[1]); break; case 'strawHat': X.strawHat(f, A, a[0], a[1]); break; case 'helmet': X.helmet(f, A, a[0]); break; case 'cap': X.dark_cap(f, A, a[0]); break;
+          case 'fazzoletto': X.fazzoletto(f, A, a[0]); break; case 'flatCap': X.flatCap(f, A, a[0]); break; case 'topHat': X.topHat(f, A, a[0]); break; case 'peakedCap': X.peakedCap(f, A, a[0], a[1]); break; case 'strawHat': X.strawHat(f, A, a[0], a[1]); break; case 'helmet': X.helmet(f, A, a[0]); break; case 'cap': X.dark_cap(f, A, a[0]); break;
           default: break;
         }
       }
