@@ -2418,12 +2418,16 @@ def terrain_only(offline=True):
     names = sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json"))
     if ONLY:
         names = [n for n in names if n in ONLY]
-    foot, ctr_pts = [], []
+    foot, ctr_pts, hold_pts = [], [], []
     for n in sorted(f[:-5] for f in os.listdir(os.path.join(WORLD_LIVE, "tiles")) if f.endswith(".json")):
         for b in json.load(open(os.path.join(WORLD_LIVE, "tiles", n + ".json")))["buildings"]:
             p = b["p"]
             if b.get("e") and "g" in b:
-                ctr_pts.append((sum(p[0::2]) / (len(p) // 2), sum(p[1::2]) / (len(p) // 2), b["g"]))
+                pt = (sum(p[0::2]) / (len(p) // 2), sum(p[1::2]) / (len(p) // 2), b["g"])
+                if CTR_HOLDOUT and zlib.crc32(b["id"].encode()) % 10 == 0:   # same hold-out as build(): every tenth survey point is left out and written to data/t8_holdout.json
+                    hold_pts.append((b["id"],) + pt)
+                else:
+                    ctr_pts.append(pt)
             ring = [(p[k], p[k + 1]) for k in range(0, len(p), 2)]
             if len(ring) >= 3:
                 foot.append(Polygon(ring))
@@ -2432,6 +2436,8 @@ def terrain_only(offline=True):
     elev = load_terrarium(ensure_terrarium() if not offline else os.path.join(ROOT, "data", "terrarium"))
     G["land"] = land
     G["ctr"] = np.array(ctr_pts, dtype=np.float64).reshape(-1, 3)
+    if hold_pts:
+        json.dump([{"id": i, "x": x, "z": z, "g": g} for i, x, z, g in hold_pts], open(os.path.join(ROOT, "data", "t8_holdout.json"), "w"))
     far = far_grid(elev, rect)
     roads, _car, _ped, _plz = parse_highways(files["hwy"])
     G.update(land=land, bld_geoms=bld, bld_tree=shapely.STRtree(bld), far_f=far_interp(far), near_for=near_for,
