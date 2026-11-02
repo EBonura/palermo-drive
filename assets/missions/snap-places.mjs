@@ -1,11 +1,11 @@
 // Bakes src/event-routes.js from src/event-places.js and assets/missions/lines.js, using the world tiles (world/tiles/*.json).
 //   node assets/missions/snap-places.mjs            (about a minute; prints the resolved places)
 // For every event place: the nearest drivable road point (and the road's direction, width and name), the baked taxi routes, the hunt items and the
-// scooter chase route of every food place, and the race tracks. Nothing here runs in the game.
+// hunt items of every food place (ten, close together: the scooter chase was taken out), and the race tracks. Nothing here runs in the game.
 import fs from 'fs';
 import path from 'path';
 import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, proj } from './roadnet.mjs';
-import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES } from '../../src/event-places.js';
+import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE } from '../../src/event-places.js';
 import { DESTS } from './lines.js';
 
 const net = loadNet();
@@ -24,7 +24,7 @@ function place(id, lat, lon, name) {
 const flat = P => P.flatMap(p => [r1(p[0]), r1(p[1])]);
 const nodeOf = s => nodeNear(net, s);
 
-// ---- food places: snapped point, hunt items around it, a chase route through the neighbourhood
+// ---- food places: snapped point and the hunt items around it, ten of them within about 200 m, in a loop of the neighbourhood
 const pointsAround = (cx, cz, r0, r1_) => {
   const out = [];
   for (const e of net.edges) {
@@ -39,28 +39,22 @@ const pointsAround = (cx, cz, r0, r1_) => {
 };
 for (const f of FOOD_PLACES) {
   const s = place('food:' + f.id, f.lat, f.lon, f.onStreet);
-  const rnd = rng(hash(f.id)), N = 12, cands = pointsAround(s.x, s.z, 70, 430), chosen = [];
+  const rnd = rng(hash(f.id)), N = 10, cands = pointsAround(s.x, s.z, 50, 230), chosen = [];
   const near = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d);
-  const radii = [150, 280, 380];
+  const radii = [80, 130, 190];
   for (let k = 0; k < N; k++) {
     const a0 = -Math.PI + (k / N) * 2 * Math.PI, a1 = a0 + 2 * Math.PI / N, want = radii[k % 3];
-    const inSec = cands.filter(c => c.ang >= a0 && c.ang < a1 && near(c, 45));
+    const inSec = cands.filter(c => c.ang >= a0 && c.ang < a1 && near(c, 40));
     if (inSec.length) { inSec.sort((p, q) => Math.abs(p.d - want) - Math.abs(q.d - want)); chosen.push(inSec[Math.min(inSec.length - 1, Math.floor(rnd() * 2))]); }
   }
-  for (let spacing = 45; chosen.length < N && spacing >= 20; spacing -= 10) {
+  for (let spacing = 40; chosen.length < N && spacing >= 20; spacing -= 10) {
     const rest = cands.filter(c => near(c, spacing)); rest.sort(() => rnd() - 0.5);
     while (chosen.length < N && rest.length) { const c = rest.pop(); if (near(c, spacing)) chosen.push(c); }
   }
-  // chase route: through the neighbourhood, passing close to the shop
-  let chase = null;
-  for (let tries = 0; tries < 24 && !chase; tries++) {
-    const th = rnd() * Math.PI * 2, R = 380 + tries * 12, F = snap(net, s.x + Math.cos(th) * R, s.z + Math.sin(th) * R), G = snap(net, s.x - Math.cos(th) * R, s.z - Math.sin(th) * R);
-    const p = route(net, nodeOf(F), nodeOf(G)); if (!p) continue;
-    const P = pts(net, p), L = plen(P);
-    if (L > 800 && L < 2200) chase = simplify(P, 3);
-  }
-  HUNT[f.id] = { hunt: flat(chosen.map(c => [c.x, c.z])), chase: chase ? flat(chase) : [] };
-  console.log(f.id.padEnd(14), 'items', chosen.length, 'chase', chase ? Math.round(plen(chase)) + ' m' : 'NONE');
+  // the order the items are taken in: nearest neighbour from the place, so the baked list reads as a tour of the quarter
+  const tour = []; { let cur = { x: s.x, z: s.z }; const left = chosen.slice(); while (left.length) { let bi = 0, bd = 1e12; left.forEach((c, i) => { const d = Math.hypot(c.x - cur.x, c.z - cur.z); if (d < bd) { bd = d; bi = i; } }); cur = left.splice(bi, 1)[0]; tour.push(cur); } }
+  HUNT[f.id] = { hunt: flat(tour.map(c => [c.x, c.z])) };
+  console.log(f.id.padEnd(14), 'items', tour.length, 'farthest', Math.round(Math.max(...tour.map(c => Math.hypot(c.x - s.x, c.z - s.z)))), 'm');
 }
 
 // ---- fares
@@ -93,6 +87,23 @@ for (const u of URGENT) {
   const r = routeBetween('urgent:' + u.id, 'dest:' + u.to);
   ROUTES['urgent:' + u.id] = r ? [[u.to, Math.round(r.len), flat(r.pts)]] : [];
   console.log('urgent', u.id.padEnd(14), r ? Math.round(r.len) + ' m' : 'NO ROUTE');
+}
+
+// ---- the rave missions: the centro sociale, the rave site, Via Cipressi; the route between them; the leaves around Via Cipressi
+for (const k of ['karcere', 'site', 'leaf']) { const r = RAVE[k]; place('rave:' + k, r.lat, r.lon, r.onStreet); }
+for (const [id, a, b] of [['rave:karcere', 'rave:karcere', 'rave:site'], ['rave:leaf', 'rave:site', 'rave:leaf']]) {
+  const r = routeBetween(a, b); ROUTES[id] = r ? [[b.slice(5), Math.round(r.len), flat(r.pts)]] : [];
+  console.log(id.padEnd(14), r ? Math.round(r.len) + ' m' : 'NO ROUTE');
+}
+{
+  const s = SNAP['rave:leaf'], cx = s[0], cz = s[1], rnd = rng(hash('leaf')), chosen = [], N = 7;
+  const cands = pointsAround(cx, cz, 25, 150).filter(c => c.w >= 4);
+  const near = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d);
+  cands.sort(() => rnd() - 0.5);
+  for (const c of cands) { if (chosen.length >= N) break; if (near(c, 38)) chosen.push(c); }
+  const tour = []; { let cur = { x: cx, z: cz }; const left = chosen.slice(); while (left.length) { let bi = 0, bd = 1e12; left.forEach((c, i) => { const d = Math.hypot(c.x - cur.x, c.z - cur.z); if (d < bd) { bd = d; bi = i; } }); cur = left.splice(bi, 1)[0]; tour.push(cur); } }
+  HUNT.leaf = { hunt: flat(tour.map(c => [c.x, c.z])) };
+  console.log('leaf items', tour.length, 'farthest', Math.round(Math.max(...tour.map(c => Math.hypot(c.x - cx, c.z - cz)))), 'm');
 }
 
 // ---- race tracks
@@ -141,7 +152,7 @@ for (const r of RACES) {
 const out = `// GENERATED by assets/missions/snap-places.mjs from src/event-places.js and the world tiles. Do not edit by hand: edit event-places.js and run the script again.
 // SNAP[id] = [x, z, dx, dz, width, road name]: the drivable road point of a place, with the road direction.
 // ROUTES[id] = [[destination id, length m, flat x,z polyline], ...]: baked taxi routes (the guide arrow follows them).
-// HUNT[food id] = { hunt: flat x,z of the lost items, chase: flat x,z of the scooter's route }.
+// HUNT[food id] = { hunt: flat x,z of the lost items }.
 // TRACKS[race id] = { closed, w, len, pts: flat x,z of the racing line }.
 export const SNAP = ${JSON.stringify(SNAP)};
 export const ROUTES = ${JSON.stringify(ROUTES)};

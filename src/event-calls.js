@@ -12,7 +12,7 @@ const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
 const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
-const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff' };
+const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a' };
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8;
 export const KIND_COLOR = COLORS;
 
@@ -28,6 +28,8 @@ export function createCalls(X) {
   function variantFor(s) {
     const night = X.isNight();
     if (s.kind === 'food') return OWNER_POOL[s.num % OWNER_POOL.length];
+    if (s.kind === 'rave') return 'dj';
+    if (s.kind === 'leaf') return 'nightboy2';
     if (s.kind === 'urgent') return pick(['suit', 'suit2', 'borsa', 'ragazzo', 'signora2']);
     if (s.sub === 'pulle') return night ? 'client' : pick(TOURIST_POOL);
     if (s.sub !== 'tourist' && Math.random() < FRIEND_CHANCE) return 'amico' + (1 + (Math.random() < 0.5 ? 0 : 1)) + '_' + pick(FRIEND_OUTFITS);
@@ -47,7 +49,7 @@ export function createCalls(X) {
   function despawn(s) { for (const id of s.callers) pedestrians.remove(id); s.callers.length = 0; }
   function lineFor(s) {
     if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
-    const L = s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
+    const L = s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
     return pickLine(L, s);
   }
   function pickLine(L, s) {

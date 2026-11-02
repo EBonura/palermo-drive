@@ -379,6 +379,9 @@ export const CALL = {
   // hotel-concierge tourists, by day: they have been told to ask for "a pulle" and have no idea what it is
   pulle: [['Excuse me! Do you know "a pulle"? The hotel man winked a lot.', ''], ['Hello! We need "a pulle". Is it far? Is it a restaurant?', ''], ['Taxi! "A pulle", please! Everybody says it with a smile!', '']],
   food: [['Aiutooo! Mi sono scappate le {items}!', 'Heeelp! My {items} ran away!'], ['Fermati! Le {items} sono volate via!', 'Stop! The {items} flew off!'], ['Ao! Aiutami! Ho perso le {items}!', 'Hey! Help me! I lost the {items}!']],
+  // the two rave missions (src/event-rave.js): the sound man at the centro sociale ExKarcere, and the friend at the rave. Palermitan, written by an agent: for the owner to correct.
+  rave: [['Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma chianu chianu, ca sunnu delicate!', 'Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!'], ['Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!', 'Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!'], ['Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!', 'No speakers, no rave! Take this stuff and run, but carefully!']],
+  leaf: [['Psst... ci vo ’nu giru a via Cipressi: i fuogghi allegri. Tu u sai.', 'Psst... there is a run to via Cipressi: the happy leaves. You know.'], ['Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.', 'We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention.']],
   race: [['Chi vince, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati qua e corri con noi!', 'Stop here and race with us!'], ['Tre, due, uno... quasi!', 'Three, two, one... almost!']],
 };
 // Two pals of the lapista (the cameo friends of the cast, ids amico1_* and amico2_*) who sometimes wave the lapa down for a ride. Same shape as the other
@@ -428,9 +431,18 @@ export const URGENT_LINES = {
   arrive: [['Ce l\'ho fatta! Tieni, tieni tutto!', 'I made it! Here, keep it all!']],
   fail: [['No, no, no... l\'ho perso!', 'No, no, no... I missed it!']],
 };
-// The owner when the lost food is brought back / the scooter thief
+// The owner when the lost food is brought back
 export const FOOD = {
-  thief: [['Ahahah! Chi li vuole? Prendetemi!', 'Hahaha! Who wants them? Catch me!'], ['Beep beep! Sono mie, ora!', 'Beep beep! They are mine now!']],
   thanks: [['Grazie, grazie! Sei un angelo con tre ruote!', 'Thank you, thank you! You are an angel with three wheels!'], ['Mi hai salvato la giornata! Ti offro qualcosa!', 'You saved my day! Let me treat you!']],
   none: [['Niente?! Pazienza... torna quando hai più fortuna.', 'Nothing?! Never mind... come back when you are luckier.']],
+};
+
+// The rave missions: toasts, results and what people say. Palermitan, written by an agent (for the owner to correct); [Sicilian, English].
+export const RAVE_LINES = {
+  thanks: [['Bravu! Uora sì ca s’abballa!', 'Well done! Now we dance!'], ['Casse sani sani! Si u miegghiu lapista ra città!', 'Speakers safe and sound! You are the best driver in the city!']],
+  broken: [['Chi sfaciddu! I casse sunnu rutte... u rave finisci prima ri accuminciari.', 'What a mess! The speakers are broken... the rave is over before it starts.']],
+  late: [['Taiddu assai! A genti si ni iu a casa.', 'Far too late! The people have gone home.']],
+  hit: [['Crac! Attientu a li casse!', 'Crack! Mind the speakers!'], ['Ahia! Sunnu delicate, ti l’haiu dittu!', 'Ouch! They are delicate, I told you!']],
+  leafThanks: [['Ahhh, chi biedda ciauru r’allegria! Grazie, amicu.', 'Ahhh, what a lovely smell of cheer! Thanks, friend.']],
+  leafNone: [['Nienti?! Pacienza, ci piensamu nuatri.', 'Nothing?! Never mind, we will see to it ourselves.']],
 };
