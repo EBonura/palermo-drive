@@ -16,6 +16,7 @@ import { createGraph, CLASS } from './traffic-graph.js';
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { buildPoliceModels, makePoliceDecal } from '../assets/traffic/police-models.js';
+import { makeCarrettoDecal } from '../assets/traffic/carretto-art.js';   // the painted boards of the Sicilian cart
 import { createPolice, createBeacons } from './police.js';   // wanted system, police chase, siren, HUD
 import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
 import { createCarrozze } from './carrozze.js';                 // the tourist carrozze: their loop, coachman and passengers
@@ -53,7 +54,7 @@ const TYPES = {
     cols: [['#efe3c8', 3], ['#e8c46a', 2], ['#c2362c', 1]] },
   carrozza: { model: 'carrozzaTour', hy: 2.5, L: 6.7, W: 1.3, mass: 1.5, circ: [[2.6, 0.7], [0.8, 0.8], [-0.8, 0.8]], vf: 0.4, vcap: 2.7, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 6, ped: true,
     cols: [['#5a3a24', 4], ['#2a2220', 2], ['#8a5a34', 3], ['#a9a49a', 1]] },
-  carretto: { model: 'carretto', L: 5.0, W: 1.6, mass: 1.2, circ: [[1.6, 0.7], [-0.1, 0.85], [-0.9, 0.85]], vf: 0.4, vcap: 2.3, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 5, ped: true,
+  carretto: { model: 'carretto', hy: 2.9, L: 5.9, W: 1.9, mass: 1.2, circ: [[1.9, 0.7], [0.0, 0.85], [-0.85, 0.85]], vf: 0.4, vcap: 2.3, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 5, ped: true,
     cols: [['#2e2a26', 2], ['#6a4a30', 2]] },
 };
 TYPES.vespaB = { ...TYPES.vespa, model: 'vespaB' };
@@ -178,6 +179,7 @@ Object.assign(MODELS, buildPoliceModels());
     scene.add(m); MESH[name] = m;
   }
   const DECAL = makePoliceDecal(MESH.apePol, CAP); scene.add(DECAL);   // the word POLIZIA on the lapino
+  const CART_DECAL = makeCarrettoDecal(MESH.carretto, CAP); scene.add(CART_DECAL);   // the painted boards of the Sicilian cart
   const TEAM_ROW = ROWS.length; if (BUS_ROUTES.length) ROWS.push({ ref: '', to: 'ROSANERO' });   // the team bus's LED board
   // LED destination boards: one atlas row per line, picked per instance
   const SIGN_ROW = new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1);
@@ -296,7 +298,6 @@ Object.assign(MODELS, buildPoliceModels());
     const near = nearSite(NX[e.a], NZ[e.a]);
     const opts = [['panda', 24], ['punto', 22], ['smart', 8], ['taxi', 5], ['van', e.w >= 3.5 ? 7 : 0], ['vespa', 14], ['vespaB', 7],
       ['apePick', 2.2], ['apeCrate', 1.4], ['apeFrutta', 1.6], ['apeFood', 1.1], ['apeSfincione', 1.1]];   // the carrozze are not here: they run their own loop (tourPlan below)
-    if (room('carretto') && Math.random() < (near ? 0.04 : 0.006)) return 'carretto';
     return pickW(opts);
   }
   function inView(x, y, z, r) { fs.center.set(x, y, z); fs.radius = r; return frustum.intersectsSphere(fs); }
@@ -727,7 +728,7 @@ Object.assign(MODELS, buildPoliceModels());
     }
     for (const k in MESH) { const m = MESH[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
-    DECAL.count = MESH.apePol.count;
+    DECAL.count = MESH.apePol.count; CART_DECAL.count = MESH.carretto.count;
   }
 
   // ---------- tiles: roads in as tiles reach full detail, out when they drop ----------
@@ -917,7 +918,11 @@ Object.assign(MODELS, buildPoliceModels());
 
   // ---------- the tourist carrozze (src/carrozze.js): a closed loop between the Cattedrale, the Quattro Canti and the Teatro Massimo ----------
   // Out along the shortest way the horse may take, back by other streets where there are any (else the same street's other lane). Found in the resident graph when asked for, kept until the graph changes.
-  const TOUR_STOPS = [proj(38.1146, 13.3558), proj(38.115684, 13.36146), proj(38.1199, 13.3573)];
+  // Two loops of the same kind: the carrozze (Cattedrale, Quattro Canti, Teatro Massimo) and the Sicilian cart's, short, in the market quarter: Piazza Sant'Anna (the Ballaro side), Piazza Garraffello and Piazza Caracciolo (the Vucciria). Ballaro's own node cannot be a stop: the graph only lets you leave it.
+  const TOURS = {
+    carrozza: { stops: [proj(38.1146, 13.3558), proj(38.115684, 13.36146), proj(38.1199, 13.3573)], pl: null, ver: -1 },
+    carretto: { stops: [proj(38.1149181, 13.3651434), proj(38.1179401, 13.3649292), proj(38.1183, 13.3637)], pl: null, ver: -1 },
+  };
   function shortest(a, b, ty, banned) {   // Dijkstra over the edges a carrozza may use, skipping the banned edge ids; the edges in order, or null
     const dist = new Map([[a, 0]]), prev = new Map(), open = [[0, a]];
     while (open.length) {
@@ -930,11 +935,11 @@ Object.assign(MODELS, buildPoliceModels());
     if (!prev.has(b)) return null;
     const out = []; for (let e = prev.get(b); e; e = prev.get(e.a)) out.unshift(e); return out;
   }
-  let tourPl = null, tourVer = -1;
-  function tourPlan() {
-    if (tourPl && tourVer === G.version && !tourPl.edges.some(e => e.dead)) return tourPl;
-    tourPl = null; tourVer = G.version;
-    const ty = TYPES.carrozza, ns = TOUR_STOPS.map(p => G.nearestNode(p[0], p[1], 70, false));
+  function tourPlan(kind = 'carrozza') {
+    const T_ = TOURS[kind];
+    if (T_.pl && T_.ver === G.version && !T_.pl.edges.some(e => e.dead)) return T_.pl;
+    T_.pl = null; T_.ver = G.version;
+    const ty = TYPES[kind], ns = T_.stops.map(p => G.nearestNode(p[0], p[1], 70, false));
     if (ns.some(n => n < 0) || ns[0] === ns[1] || ns[1] === ns[2]) return null;
     const out = [...(shortest(ns[0], ns[1], ty) || []), ...(shortest(ns[1], ns[2], ty) || [])];
     if (out.length < 4) return null;
@@ -942,17 +947,17 @@ Object.assign(MODELS, buildPoliceModels());
     const back = shortest(ns[2], ns[0], ty, ban) || [...(shortest(ns[2], ns[1], ty) || []), ...(shortest(ns[1], ns[0], ty) || [])];
     const edges = [...out, ...back];
     if (back.length < 2 || edges[edges.length - 1].b !== edges[0].a) return null;
-    return (tourPl = { edges, stops: [], closed: true, row: 0 });
+    return (T_.pl = { edges, stops: [], closed: true, row: 0 });
   }
-  function spawnTour() {   // a carrozza on the loop, out of view
-    const pl = tourPlan(); if (!pl) return null;
+  function spawnTour(kind = 'carrozza') {   // a carrozza (or the Sicilian cart) on its loop, out of view
+    const pl = tourPlan(kind); if (!pl) return null;
     const cands = [], cx = camera.position.x, cz = camera.position.z;
     for (let i = 0; i < pl.edges.length; i++) {
       const e = pl.edges[i], dx = (NX[e.a] + NX[e.b]) / 2 - cx, dz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = dx * dx + dz * dz;
       if (!e.dead && e.len > 14 && d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX) cands.push([pl, i]);
     }
     if (!cands.length) return null;
-    for (let k = 0; k < 8; k++) { const v = trySpawnBus('carrozza', cands); if (v) { v.tour = true; return v; } }
+    for (let k = 0; k < 8; k++) { const v = trySpawnBus(kind, cands); if (v) { v.tour = true; return v; } }
     return null;
   }
   const baseY = v => { const dk = v.route[0] && v.route[0].br ? topY(v.x, v.z) : NaN; return (dk === dk ? dk : groundY(v.x, v.z)) + (v.fly ? v.fly.y : 0); };   // where the vehicle's wheels are (bridge decks too)
@@ -1023,7 +1028,7 @@ Object.assign(MODELS, buildPoliceModels());
     //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
-    debug: { vs, police, gags, carrozze, vendors, tourPlan, TYPES },   // ?debug probes
+    debug: { vs, police, gags, carrozze, vendors, tourPlan, TYPES, G, TOURS, shortest },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },

@@ -330,27 +330,82 @@ function carrozza(tour = false) {
   b.box(-0.03, 0.03, 1.55, 1.85, 1.21, 1.27, col('#e0b64a'));                   // lantern
   const g = b.geometry(); g.translate(0, 0, -1.9); return g;
 }
-function carretto() {
-  const b = new MB(), yel = col('#e3b324'), red = col('#b3201a'), blue = col('#2a5b9a'), grn = col('#2f7a46'), blk = col('#17171a');
-  horse(b, 2.2, true);
-  b.box(-0.68, 0.68, 0.82, 0.9, -1.15, 1.0, yel);                                // floor
-  for (const s of [1, -1]) {
-    b.box(s * 0.68 - 0.03, s * 0.68 + 0.03, 0.9, 1.4, -1.15, 1.0, yel);
-    const x = s * 0.72;
-    b.box(x - 0.015, x + 0.015, 0.98, 1.32, -1.05, -0.5, red); b.box(x - 0.02, x + 0.02, 1.05, 1.25, -0.95, -0.6, blue);
-    b.box(x - 0.015, x + 0.015, 0.98, 1.32, -0.4, 0.15, grn); b.box(x - 0.02, x + 0.02, 1.05, 1.25, -0.3, 0.05, yel);
-    b.box(x - 0.015, x + 0.015, 0.98, 1.32, 0.25, 0.9, red); b.box(x - 0.02, x + 0.02, 1.05, 1.25, 0.35, 0.8, blue);
-    b.cyl(s * 0.82, 0.72, -0.1, 0.72, 0.07, yel, 0, 12); b.cyl(s * 0.82, 0.72, -0.1, 0.55, 0.075, red, 0, 12);
-    b.cyl(s * 0.82, 0.72, -0.1, 0.12, 0.12, blk, 0, 6);
-    b.box(s * 0.82 - 0.04, s * 0.82 + 0.04, 0.12, 1.32, -0.13, -0.07, yel); b.box(s * 0.82 - 0.04, s * 0.82 + 0.04, 0.69, 0.75, -0.8, 0.6, yel);
-    b.box(s * 0.4 - 0.025, s * 0.4 + 0.025, 0.95, 1.0, 1.0, 2.2, blk);          // shafts
-  }
-  b.box(-0.6, 0.6, 1.4, 1.46, -1.15, -1.05, red);
-  b.box(-0.3, 0.3, 1.0, 1.35, 0.4, 0.9, col('#8a1f1a'));                          // driver's bench
-  b.box(-0.12, 0.12, 1.35, 1.8, 0.45, 0.7, col('#24323f')); b.box(-0.09, 0.09, 1.8, 2.02, 0.48, 0.67, SKIN);
-  b.box(-0.17, 0.17, 2.02, 2.1, 0.44, 0.72, blk);
-  const g = b.geometry(); g.translate(0, 0, -1.5); return g;
+// ---------- the carretto siciliano (c6): a painted Sicilian cart with a decorated horse ----------
+// Yellow wheels with red spokes, a yellow box with its side boards, front and back painted in the decal (carrettoDecalGeometry, texture in assets/traffic/carretto-art.js),
+// a carved red and blue undercarriage, and a horse in a plumed headdress, red pompons, a blue saddle cloth and brass bells. About 1.7k triangles. A carrettiere (LPC sprite) sits on the bench.
+const CT = { y0: 0.86, z0: -1.2, z1: 1.0, hw: 0.64, wy: 0.72, wz: -0.08, wx: 0.84, HZ: 2.35, SH: -1.75 };   // floor height, body ends, half width, wheel centre and radius, horse start, the shift that centres the model
+function ringSeg(b, x, cy, cz, r0, r1, a0, a1, t, c) {   // a piece of a wheel's rim, between radii r0 and r1 and angles a0 and a1, 2t thick across x
+  const pt = (xx, r, a) => [xx, cy + Math.cos(a) * r, cz + Math.sin(a) * r];
+  b.hexa([pt(x - t, r0, a0), pt(x - t, r0, a1), pt(x - t, r1, a1), pt(x - t, r1, a0), pt(x + t, r0, a0), pt(x + t, r0, a1), pt(x + t, r1, a1), pt(x + t, r1, a0)], c, 0);
 }
+function spoke(b, x, cy, cz, r0, r1, a, w, t, c) {   // a straight spoke from radius r0 to r1 at angle a, w wide, 2t thick
+  const ca = Math.cos(a), sa = Math.sin(a), tx = -sa * w, tz = ca * w, pt = (xx, r, k) => [xx, cy + ca * r + tx * k, cz + sa * r + tz * k];
+  b.hexa([pt(x - t, r0, -1), pt(x - t, r0, 1), pt(x - t, r1, 1), pt(x - t, r1, -1), pt(x + t, r0, -1), pt(x + t, r0, 1), pt(x + t, r1, 1), pt(x + t, r1, -1)], c, 0);
+}
+function cartWheel(b, x, cy, cz, r, yel, red) {
+  const n = 10, ink = col('#16161a');
+  for (let i = 0; i < n; i++) { const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2; ringSeg(b, x, cy, cz, r * 0.86, r, a0, a1 + 0.02, 0.05, yel); ringSeg(b, x, cy, cz, r * 0.78, r * 0.86, a0, a1 + 0.02, 0.03, red); }
+  for (let i = 0; i < 6; i++) spoke(b, x, cy, cz, 0.08, r * 0.82, i / 6 * Math.PI * 2 + 0.26, 0.032, 0.03, red);
+  b.cyl(x, cy, cz, 0.1, 0.2, yel, 0, 8); b.cyl(x + Math.sign(x) * 0.1, cy, cz, 0.05, 0.05, red, 0, 6); b.cyl(x, cy, cz, 0.03, 0.4, ink, 0, 5);
+}
+function carretto() {
+  const b = new MB(), yel = col('#eab81c'), red = col('#c0261c'), blue = col('#274f94'), grn = col('#2c7a45'), blk = col('#17171a'), wood = col('#7a4a26'), gold = col('#e0b64a'), wht = col('#f3efe2');
+  const { y0, z0, z1, hw, wy, wz, wx, HZ } = CT;
+  horse(b, HZ, true);
+  // the horse's finery: a tall plume of three feathers on the poll, red pompons down the neck, a blue saddle cloth with a yellow edge, brass bells on a red sash, blinkers
+  const zf = HZ + 1.6;
+  b.box(-0.05, 0.05, 2.2, 2.85, zf + 0.3, zf + 0.42, red); b.box(-0.04, 0.04, 2.5, 3.1, zf + 0.22, zf + 0.34, wht); b.box(-0.035, 0.035, 2.4, 2.95, zf + 0.42, zf + 0.54, yel);
+  for (const s2 of [1, -1]) { b.wedge(s2 * 0.1 - 0.025, s2 * 0.1 + 0.025, 2.2, zf + 0.3, 2.3, zf + 0.42, 2.7, red, 0, 0); b.wedge(s2 * 0.2 - 0.02, s2 * 0.2 + 0.02, 2.18, zf + 0.3, 2.26, zf + 0.42, 2.55, wht, 0, 0); }
+  b.box(-0.09, 0.09, 2.14, 2.24, zf + 0.3, zf + 0.46, red);
+  for (let i = 0; i < 4; i++) b.box(-0.045, 0.045, 1.98 - i * 0.14, 2.06 - i * 0.14, zf - 0.16 - i * 0.1, zf - 0.07 - i * 0.1, red);
+  b.box(-0.3, 0.3, 1.6, 1.74, HZ + 0.5, HZ + 1.1, blue); b.box(-0.3, 0.3, 1.58, 1.62, HZ + 0.5, HZ + 1.1, yel); b.box(-0.31, 0.31, 1.52, 1.6, HZ + 0.5, HZ + 0.56, red);
+  for (const s of [1, -1]) { b.box(s * 0.3 - 0.015, s * 0.3 + 0.015, 1.2, 1.5, HZ + 0.7, HZ + 0.76, red); b.box(s * 0.3 - 0.03, s * 0.3 + 0.03, 1.12, 1.2, HZ + 0.69, HZ + 0.77, gold); b.box(s * 0.12 - 0.02, s * 0.12 + 0.02, 1.9, 2.0, zf + 0.5, zf + 0.58, blk); }
+  b.box(-0.04, 0.04, 1.74, 1.82, HZ + 0.7, HZ + 0.78, gold);
+  // body: floor, side boards that lean out, a back board and the dashboard in front, rails on top
+  b.box(-hw, hw, y0 - 0.06, y0, z0, z1, yel);
+  for (const s of [1, -1]) {
+    b.hexa([[s * (hw - 0.04), y0, z0], [s * (hw - 0.04), y0, z1], [s * (hw + 0.02), y0, z1], [s * (hw + 0.02), y0, z0], [s * (hw + 0.05), y0 + 0.52, z0], [s * (hw + 0.05), y0 + 0.52, z1], [s * (hw + 0.11), y0 + 0.52, z1], [s * (hw + 0.11), y0 + 0.52, z0]], yel, 0);
+    b.box(s * (hw + 0.1) - 0.045, s * (hw + 0.1) + 0.045, y0 + 0.5, y0 + 0.58, z0 - 0.03, z1 + 0.03, red);          // top rail
+    for (const z of [z0, z1]) b.box(s * (hw + 0.08) - 0.06, s * (hw + 0.08) + 0.06, y0 - 0.04, y0 + 0.56, z - 0.07, z + 0.07, red);   // corner posts
+    b.box(s * (hw + 0.02) - 0.02, s * (hw + 0.02) + 0.02, y0 - 0.14, y0 - 0.06, z0 + 0.1, z1 - 0.1, blue);          // the carved skirt under the boards
+    for (let k = 0; k < 7; k++) b.box(s * (hw + 0.02) - 0.025, s * (hw + 0.02) + 0.025, y0 - 0.2, y0 - 0.12, z0 + 0.18 + k * 0.3, z0 + 0.34 + k * 0.3, k % 2 ? red : grn);
+    b.box(s * wx - 0.04, s * wx + 0.04, wy - 0.05, wy + 0.05, wz - 0.07, wz + 0.07, blk);                             // axle ends
+    b.box(s * 0.4 - 0.025, s * 0.4 + 0.025, y0 + 0.08, y0 + 0.14, z1, HZ + 0.9, wood);                                // shafts to the horse
+    cartWheel(b, s * wx, wy, wz, 0.72, yel, red);
+  }
+  b.box(-hw - 0.1, hw + 0.1, y0 - 0.02, y0 + 0.5, z0 - 0.07, z0 - 0.02, yel);                                          // back board
+  b.box(-hw - 0.1, hw + 0.1, y0 + 0.5, y0 + 0.58, z0 - 0.09, z0 - 0.0, red);
+  b.box(-hw - 0.1, hw + 0.1, y0 - 0.02, y0 + 0.5, z1 + 0.02, z1 + 0.07, yel);                                          // dashboard
+  b.box(-hw - 0.1, hw + 0.1, y0 + 0.5, y0 + 0.58, z1 + 0.0, z1 + 0.09, red);
+  b.box(-0.12, 0.12, y0 - 0.16, y0 - 0.06, z0 + 0.05, z1 - 0.05, red);                                                 // central beam
+  b.box(-0.07, 0.07, y0 - 0.12, y0 - 0.04, wz - 0.04, wz + 0.04, blk); b.box(-wx, wx, wy - 0.03, wy + 0.03, wz - 0.03, wz + 0.03, blk);   // axle
+  b.box(-0.5, 0.5, y0 + 0.2, y0 + 0.26, z1 - 0.5, z1 - 0.1, wood);                                                      // the carrettiere's plank
+  b.box(-0.5, 0.5, y0 + 0.26, y0 + 0.56, z1 - 0.1, z1 - 0.05, wood);
+  b.box(-0.2, 0.2, y0 + 0.02, y0 + 0.5, z0 + 0.35, z0 + 0.7, col('#b9892b')); b.box(-0.18, 0.18, y0 + 0.5, y0 + 0.62, z0 + 0.38, z0 + 0.66, col('#8a1f1a'));   // crates and a sack on the floor
+  const g = b.geometry(); g.translate(0, 0, CT.SH); return g;
+}
+// Where the painted boards go: the two sides, the dashboard facing the horse and the back board. uv rects (u0, v0, u1, v1) of the 512 x 256 texture, v up.
+export const CARRETTO_UV = { side: [0, 0.5, 1, 1], front: [0, 0, 0.5, 0.5], back: [0.5, 0, 1, 0.5] };
+export function carrettoDecalGeometry() {
+  const { y0, z0, z1, hw } = CT, p = [], uv = [], n = [];
+  const quad = (a, bb, c, d, r, flip, nx, ny, nz) => {   // a b c d counter-clockwise seen from the normal side; uv from rect r (a bottom left, b bottom right ...)
+    const [u0, v0, u1, v1] = r, U = flip ? [u1, u0, u0, u1] : [u0, u1, u1, u0], V = [v0, v0, v1, v1];
+    for (const k of [0, 1, 2, 0, 2, 3]) { const q = [a, bb, c, d][k]; p.push(q[0], q[1], q[2] + CT.SH); uv.push(U[k], V[k]); n.push(nx, ny, nz); }
+  };
+  for (const s of [1, -1]) {
+    const fx = h => hw + 0.02 + 0.09 * h / 0.52 + 0.012, ya = y0 + 0.04, yb = y0 + 0.46, x0 = s * fx(0.04), x1 = s * fx(0.46), e = 0, za = z0 + 0.08, zb = z1 - 0.08, nn = Math.hypot(0.09, 0.52), nx = s * 0.52 / nn, ny = -0.09 / nn;
+    // the board leans out: its outer face goes from x0 (bottom) to x1 (top); looking at it from outside the front (+z) is on the left for the +x side
+    if (s > 0) quad([x0 + e, ya, zb], [x0 + e, ya, za], [x1 + e, yb, za], [x1 + e, yb, zb], CARRETTO_UV.side, true, nx, ny, 0);
+    else quad([x0 + e, ya, za], [x0 + e, ya, zb], [x1 + e, yb, zb], [x1 + e, yb, za], CARRETTO_UV.side, false, nx, ny, 0);
+  }
+  quad([-hw - 0.04, y0 + 0.02, z1 + 0.098], [hw + 0.04, y0 + 0.02, z1 + 0.098], [hw + 0.04, y0 + 0.46, z1 + 0.098], [-hw - 0.04, y0 + 0.46, z1 + 0.098], CARRETTO_UV.front, false, 0, 0, 1);
+  quad([hw + 0.04, y0 + 0.02, z0 - 0.078], [-hw - 0.04, y0 + 0.02, z0 - 0.078], [-hw - 0.04, y0 + 0.46, z0 - 0.078], [hw + 0.04, y0 + 0.46, z0 - 0.078], CARRETTO_UV.back, false, 0, 0, -1);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('normal', new THREE.Float32BufferAttribute(n, 3));
+  return g;
+}
+export const CARRETTO = CT;
+export const carrettoModel = () => carretto();   // the cart and its horse as one geometry (the standing one, src/carretto.js, uses it too)
 
 export function buildModels() {
   const g = b => b.geometry ? b.geometry() : b;
