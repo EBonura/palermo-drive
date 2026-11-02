@@ -192,6 +192,7 @@ export function createPolice(env, T) {
   #pd-busted > * { transform: skewX(6deg); }
   #pd-busted h3 { margin: 0 0 6px; font-weight: 400; font-size: clamp(24px, 6vh, 42px); line-height: 1; letter-spacing: .08em; text-shadow: 0 0 14px #e8559a, 0 3px 0 #1a1114; }
   #pd-busted p { margin: 0; font: 700 clamp(13px, 2.9vh, 18px)/1.25 system-ui, sans-serif; }
+  html.pd-title #pd-busted { display: none; }
   #pd-busted small { display: block; margin-top: 2px; font: 600 clamp(11px, 2.3vh, 14px)/1.2 system-ui, sans-serif; opacity: .75; }
   #pd-busted .fine { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(16px, 3.6vh, 24px); letter-spacing: .1em; color: #f5a9c9; }`;
   document.head.appendChild(css);
@@ -218,7 +219,7 @@ export function createPolice(env, T) {
   const elT = hud.querySelector('.pw-t'), pips = [...hud.querySelectorAll('.pw-pips i')], elBar = hud.querySelector('.pw-bar b');
   let hLevel = -1, hSeen = null, hText = '', hBar = -1;
   function drawHud() {
-    const lv = level(), shown = lv > 0 || toastT > 0;
+    const lv = level(), shown = (lv > 0 || toastT > 0) && !covered();
     drawHood();
     if (hud.classList.contains('on') !== shown) hud.classList.toggle('on', shown);
     if (!shown) return;
@@ -350,6 +351,8 @@ export function createPolice(env, T) {
 
   function update(dt, fx) {
     time += dt;
+    // back on the menu the chase is over: no wanted line and no siren behind the title screen, and nothing waiting on the next drive
+    if (heat > 0 && document.documentElement.classList.contains('pd-title')) { heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0; toastT = 0; for (const v of pursuers()) disengage(v); }
     if (toastT > 0) toastT -= dt;
     if (busted > 0) { busted -= dt; if (busted <= 0) card.classList.remove('on'); }
     if (grace > 0) grace -= dt;
@@ -369,7 +372,7 @@ export function createPolice(env, T) {
   // the lapa is frozen while the busted card is up (120 Hz hook from traffic.collidePlayer)
   function collide(pc) { if (busted > 0) { pc.vx = pc.vz = pc.w = pc.vf = 0; } }
 
-  if (location.search.includes('debug')) window.pdPolice = { stat, vs };   // test hook
+  if (location.search.includes('debug')) window.pdPolice = { stat, vs, chaos, level };   // test hook
   return {
     update, drive, chaos, collide, isCop, makeCop, engage,
     stat, heat: () => heat, level, isNight: () => night,
