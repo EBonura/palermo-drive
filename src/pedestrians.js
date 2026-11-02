@@ -95,7 +95,7 @@ export function createPedestrians(env) {
     for (const p of st.paving || []) poly(1, p, false);
     for (const p of st.raised || []) poly(1, p, false);
     for (const p of st.water || []) poly(3, p, false);
-    for (const b of d.buildings || []) poly(3, b.holes && b.holes.length ? [b.p, ...b.holes] : [b.p], true);
+    for (const b of d.buildings || []) if (!b.yb) poly(3, b.holes && b.holes.length ? [b.p, ...b.holes] : [b.p], true);
     const roadSegs = new Map();                           // 32 m grid of carriageway segments for the zebra builder
     for (const r of d.roads || []) {
       if (r.tn) continue;                                 // tunnels
@@ -238,17 +238,17 @@ export function createPedestrians(env) {
     hot(38.1199, 13.3573, 85, 0.05, 3);        // Teatro Massimo
     hot(38.1146, 13.3558, 70, 0.04, 3);       // Cattedrale
     hot(38.1092, 13.3655, 60, 0.03, 1);        // Stazione
-    stamp(-60, 410, 105, 0.14, 2);             // Ballaro
-    stamp(260, -220, 110, 0.14, 2);            // Vucciria / Garraffello
-    stamp(-390, -245, 90, 0.1, 2);            // Capo
+    stamp(-20, 450, 150, 0.2, 2);              // Ballaro (the stall lines of src/markets.js run from Casa Professa to Via Chiappara al Carmine)
+    stamp(300, -255, 120, 0.2, 2);             // Vucciria / Garraffello / Caracciolo
+    stamp(-440, -215, 150, 0.17, 2);           // Capo: Via Sant'Agostino, Beati Paoli, Porta Carini
     stamp(-450, -930, 120, 0.06, 4);           // Politeama / Via Liberta: match-day crowds in pink
-    const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini/i;
+    const MAIN = /Maqueda|Vittorio Emanuele|Via Roma/i, MARKET = /Ballar|Albergheria|Bandiera|Sant'Agostino|Beati Paoli|Maccheronai|Chiavettieri|Garraffello|Materassai|Tavola Tonda|Caracciolo|Lattarini|Chiappara|Casa Professa|Cassari|Argenteria|Coltellieri|Cappuccinelle|Porta Carini/i;
     const FANS = /Ruggero Settimo|Mariano Stabile|Principe di Belmonte|Magliocco|Michele Amari|Liberta|Libert/i;
     for (const r of D.roads || []) {
       let v = 0, zn = 0, rad = 14;
       if (r.n && FANS.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.03; zn = 4; rad = 20; }
       else if (r.n && MAIN.test(r.n)) { v = r.k === 'pedestrian' ? 0.05 : 0.025; zn = 1; rad = 22; }
-      else if (r.n && MARKET.test(r.n)) { v = 0.12; zn = 2; rad = 18; }
+      else if (r.n && MARKET.test(r.n)) { v = 0.17; zn = 2; rad = 18; }
       else if (r.k === 'pedestrian') { v = 0.02; zn = 1; rad = 12; }
       if (!v) continue;
       const p = r.p;

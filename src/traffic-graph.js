@@ -21,6 +21,8 @@ export const CLASS = { // r: priority rank, v: free speed in m/s, w: spawn weigh
   service: { r: 1, v: 5, w: 0.35, d: 0.2 }, pedestrian: { r: 0, v: 2.8, w: 0.05, d: 0 },
 };
 const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/; // pedestrian-tagged but buses and taxis run here
+// The market lanes (stall lines on both sides, src/markets.js): no vehicle drives through them, the crowd and the stalls have them
+const MARKET_ST = /^(Piazza Ballar.|Piazzetta Ballar.|Via Chiappara al Carmine|Via Casa Professa|Discesa Maccheronai|Via Argenteria (Nuova|Vecchia)|Via Cassari|Via Materassai|Via Coltellieri|Via Chiavettieri|Piazza Garraffello|Via Garraffello|Piazza Caracciolo|Via Sant'Agostino|Via Beati Paoli|Via Cappuccinelle|Via Porta Carini)$/;
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b);
 const TS = 500;                 // tile size, as in src/world.js
 const NUDGE = [0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4];
@@ -113,6 +115,7 @@ export function createGraph() {
   const tmp = { o: undefined, j: undefined };
   function addRoad(tile, r) {
     const cls = CLASS[r.k]; if (!cls || r.tn) return;
+    if (MARKET_ST.test(r.n || '')) return;
     const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || ''), p = r.p;
     flagsOf(r, tmp);
     const o = tmp.o === undefined ? (cls.ow ? 1 : 0) : tmp.o, round = tmp.j === 'roundabout';
