@@ -190,46 +190,71 @@ function readSaved() {
 // ---------------------------------------------------------------------------------------------
 // credits.md -> html (assets/CREDITS.md is written by the driving agent and read at runtime)
 // ---------------------------------------------------------------------------------------------
-function inline(s) {
-  return esc(s).replace(/`([^`]*)`/g, '$1')
-    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, (m, pre, u) => {
-      let tail = '';   // keep brackets and commas that belong to the address (Commons file names), give back what closes the sentence
+// the line under the author's name; also the first line of assets/CREDITS.md and README.md, which the roll skips
+const MOTTO = 'Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli';
+// one pass over the raw text: the few markdown pieces we use become elements, every other character goes through esc()
+// (code, **bold**, <https://autolink>, [label](url), a bare URL, a backslash escape, an &amp; style entity); only http(s) addresses ever become links
+const MD_INLINE = /`([^`]*)`|\*\*(.+?)\*\*|<(https?:[^\s<>]+)>|\[([^\]]+)\]\(((?:[^\s()]|\([^\s()]*\))*)\)|(https?:\/\/[^\s<>"]+)|\\([\\`*_\[\]()|<>#])|&(amp|lt|gt|quot|apos|#39);/g;
+const ENTITY = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" };
+// a relative link in CREDITS.md (the music and sprite credits shipped beside it) points at that file's place on this site; anything else off-site stays text
+const hrefOf = (u, base) => { if (/^https?:/i.test(u)) return u; try { const r = new URL(u, base); return r.origin === base.origin ? r.href : null; } catch (e) { return null; } };
+const anchor = (u, label) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+function inline(s, base) {
+  let out = '', at = 0;
+  for (const m of s.matchAll(MD_INLINE)) {
+    out += esc(s.slice(at, m.index)); at = m.index + m[0].length;
+    if (m[1] != null) out += esc(m[1]);
+    else if (m[2] != null) out += `<strong>${esc(m[2])}</strong>`;
+    else if (m[3] != null) out += anchor(m[3], urlLabel(m[3]));
+    else if (m[4] != null) { const h = hrefOf(m[5], base); out += h ? anchor(h, m[4]) : esc(m[4]); }
+    else if (m[6] != null) {
+      let u = m[6], tail = '';   // keep brackets and commas that belong to the address (Commons file names), give back what closes the sentence
       while (/[),.;:]$/.test(u) && (!u.endsWith(')') || (u.match(/\(/g) || []).length < (u.match(/\)/g) || []).length)) { tail = u.slice(-1) + tail; u = u.slice(0, -1); }
-      return `${pre}<a href="${u}" target="_blank" rel="noopener">${urlLabel(u)}</a>${tail}`;
-    });
+      if (m.index && !/[\s(]/.test(s[m.index - 1])) out += esc(m[6]);   // mid-word, not an address
+      else { out += anchor(u, urlLabel(u)); at = m.index + u.length; }
+    } else if (m[7] != null) out += esc(m[7]);
+    else out += esc(ENTITY[m[8]]);
+  }
+  return out + esc(s.slice(at));
 }
-// credits are for players: drop file paths from row titles and headings ("facades/photo/riso.jpg (Palazzo Riso)" -> "Palazzo Riso")
-const creditName = s => s.replace(/^`?[\w./-]+\.(jpg|png|webp|mp3|wav|ogg|glb|js)`?\s*\((.+)\)$/i, '$2');
+// credits are for players: drop file paths from row titles and headings ("facades/photo/riso.jpg (Palazzo Riso)" and "Impact sound (audio/impact.wav)" -> the name)
+const creditName = s => s.replace(/^`?[\w./-]+\.(?:jpg|png|webp|mp3|wav|ogg|m4a|glb|js)`?\s*\((.+)\)$/i, '$1')
+  .replace(/\s*\(`?[\w./-]+\.(?:jpg|png|webp|mp3|wav|ogg|m4a|glb|js)`?\)$/i, '');
 const creditHead = s => s.replace(/\s*\([^)]*[/.][^)]*\)\s*$/, '');
-// a bare URL as readable text: decoded, no scheme, Commons files by name, long paths shortened (the link keeps the full address)
+// a bare URL as readable text: decoded, no scheme, Commons files by name, YouTube by name, long addresses by site (the link keeps the full address)
 function urlLabel(u) {
-  let s = u.replace(/&amp;/g, '&').replace(/&#39;/g, "'"); try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
+  let s = u; try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
   s = s.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
   const f = s.match(/^commons\.wikimedia\.org\/wiki\/File:(.+)$/);
-  if (f) s = 'Wikimedia Commons: ' + f[1].replace(/_/g, ' ');
-  else if (s.length > 48) s = s.slice(0, 46) + '…';
-  return s.replace(/[<>"]/g, '');
+  if (f) s = 'Wikimedia Commons: ' + f[1].replace(/_/g, ' ').replace(/\s*\.(jpe?g|png|ogg|wav|webp)$/i, '');
+  else if (/^youtube\.com\/watch/.test(s)) s = 'YouTube';
+  else if (s.length > 48) s = s.split('/')[0];
+  return s;
 }
-function creditsMarkdown(md) {
-  const out = []; let head = null;
-  for (const raw of md.split(/\r?\n/)) {
+function creditsMarkdown(md, base) {
+  const out = []; let head = null, para = [];
+  const inl = s => inline(s, base), flush = () => { if (para.length) out.push(`<p>${inl(para.join(' '))}</p>`); para = []; };   // a wrapped paragraph is one <p>
+  for (const raw of md.replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/)) {   // markers left by tools/facade_photos.py and notes for the repo, on a line of their own or not
     const line = raw.trim();
     if (line.startsWith('|')) {
-      const cells = line.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      flush();
+      const cells = line.replace(/\\\|/g, '\u0001').replace(/^\||\|$/g, '').split('|').map(c => c.trim().replace(/\u0001/g, '\\|'));   // \| stays inside its cell
       if (!head) { head = cells; continue; }
       if (cells.every(c => /^:?-{3,}:?$/.test(c))) continue;
       const find = re => head.findIndex(x => re.test(x));
       const [iA, iL, iS, iC] = [find(/author/i), find(/licen/i), find(/source/i), find(/change/i)];
       const who = [iA, iL].filter(i => i > 0).map(i => cells[i]).filter(Boolean).join(' · ');
-      out.push(`<p><b>${inline(creditName(cells[0]))}</b>${inline(who)}${iS > 0 ? `<small>${inline(cells[iS])}</small>` : ''}${iC > 0 && cells[iC] && !/^none$/i.test(cells[iC]) ? `<small>${inline(cells[iC])}</small>` : ''}</p>`);
+      out.push(`<p><b>${inl(creditName(cells[0]))}</b>${inl(who)}${iS > 0 ? `<small>${inl(cells[iS])}</small>` : ''}${iC > 0 && cells[iC] && !/^none$/i.test(cells[iC]) ? `<small>${inl(cells[iC])}</small>` : ''}</p>`);
       continue;
     }
     head = null;
-    if (!line || /^# /.test(line) || /^<!--.*-->$/.test(line)) continue;   // markers left by tools/facade_photos.py
-    if (/^##+ /.test(line)) out.push(`<h3 style="font-size:.8em;margin-top:3vh">${inline(creditHead(line.replace(/^#+ /, '')))}</h3>`);
-    else out.push(`<p>${inline(line.replace(/^[-*] /, ''))}</p>`);
+    if (!line || /^# /.test(line) || /^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flush(); continue; }
+    if (line.replace(/^\*\*|\*\*$/g, '') === MOTTO) { flush(); continue; }   // shown under the author's name instead
+    if (/^##+ /.test(line)) { flush(); out.push(`<h3 style="font-size:.8em;margin-top:3vh">${inl(creditHead(line.replace(/^#+ /, '')))}</h3>`); }
+    else if (/^[-*] /.test(line)) { flush(); out.push(`<p>${inl(line.slice(2))}</p>`); }
+    else para.push(line);
   }
+  flush();
   return out.join('');
 }
 
@@ -750,7 +775,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1, T = k => `${esc(S[k][i])}<small>${esc(S[k][1 - i])}</small>`;
     rollIn.innerHTML = `
       <div class="pd-logo">${logoSVG('c')}</div>
-      <h3>${T('credCreated')}</h3><div class="pd-big">Emanuele Bonura</div>
+      <h3>${T('credCreated')}</h3><div class="pd-big">Emanuele Bonura</div><p class="pd-motto">${esc(MOTTO)}</p>
       <h3>${T('credData')}</h3>
       <p><b>Map data © OpenStreetMap contributors</b>ODbL · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">openstreetmap.org/copyright</a></p>
       <p><b>Lidar DTM/DSM</b>© Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale (CC BY 4.0)</p>
@@ -766,7 +791,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function loadAssetCredits() {
     if (assetsLoaded) return; assetsLoaded = true;
     let url; try { url = new URL('../assets/CREDITS.md', import.meta.url); } catch (e) { url = 'assets/CREDITS.md'; }
-    fetch(url).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(md => { assetsHTML = creditsMarkdown(md); buildCredits(); })
+    fetch(url).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(md => { assetsHTML = creditsMarkdown(md, new URL(url, location.href)); buildCredits(); })
       .catch(() => { assetsLoaded = false; });
   }
   function startRoll() { loadAssetCredits(); roll.scrollTop = rollY = Number(params.get('rs')) || 0; rollPause = now() + 1200; }

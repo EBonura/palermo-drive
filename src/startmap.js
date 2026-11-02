@@ -17,6 +17,7 @@ import { esc } from './esc.js';
 const ASSET = new URL('../assets/ui/startmap.json', import.meta.url).href;
 const CELL = 1000;                     // metres per road/area cell
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const OPEN_SPAN = 6000;               // metres across the shorter side of the map when it opens
 const K_MAX = 1.4;                     // px per metre at full zoom (a street is wide)
 const EV_KEY = 'palermoDrive.mapEvents';
 
@@ -161,12 +162,10 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
 
   // ---------- view ----------
   const sx = x => (x - vx) * k + W / 2, sy = z => (z - vz) * k + H / 2;
-  function fit() {
-    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
-    for (const s of spots) { x0 = Math.min(x0, s.x); x1 = Math.max(x1, s.x); z0 = Math.min(z0, s.z); z1 = Math.max(z1, s.z); }
-    const bw = Math.max(1500, x1 - x0) * 1.2, bh = Math.max(1500, z1 - z0) * 1.2, top = Math.min(90, H * 0.2); // the top bar covers the upper edge
-    k = clamp(Math.min(W / bw, (H - top) / bh), kMin, K_MAX);
-    vx = (x0 + x1) / 2; vz = (z0 + z1) / 2 - top / 2 / k;
+  function fit() { // opens on the city centre (the world origin is the Quattro Canti), not on the middle of all the pins, which sits far north towards Mondello
+    const top = Math.min(90, H * 0.2);   // the top bar covers the upper edge
+    k = clamp(Math.min(W, H - top) / OPEN_SPAN, kMin, K_MAX);
+    vx = 0; vz = -top / 2 / k;
   }
   function limits() {
     const b = (M && M.bbox) || [-11000, -12600, 8200, 7800];
