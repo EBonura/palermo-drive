@@ -610,6 +610,7 @@ function addWings(T, M, A) {
     for (const sx of [-1, 1]) T.add(i > 2 ? PINKM : MAT.white, box(len, 0.17 * sc, 0.022), sx * (x0 + Math.cos(a) * len / 2), y0 + Math.sin(a) * len / 2, z0 - 0.014 * i, 0, 0, sx * a);
   }
   for (const sx of [-1, 1]) T.add(MAT.dark, box(0.2, 0.16, 0.12), sx * (x0 - 0.02), y0 - 0.02, z0 + 0.04);   // the harness
+  A.wing = { x: x0 + Math.cos(0.95 - 2 * 0.34) * LEN[2] * sc, y: y0 + Math.sin(0.95 - 2 * 0.34) * LEN[2] * sc, z: z0 - 0.028 };   // the tip of the longest feather (right wing, mirrored for the left): where src/vehicle-trails.js starts a ribbon
 }
 export const NEON = Object.fromEntries([['rosa', '#ff2f9e'], ['ciano', '#18e6ff'], ['verde', '#37ff6a'], ['viola', '#9b4dff'], ['ambra', '#ffb020'], ['arcobaleno', '#18e6ff']]);
 

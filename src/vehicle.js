@@ -20,6 +20,7 @@ import { createVehicleEvents } from './vehicle-events.js';
 import { createSphere } from './vehicle-sphere.js';
 import { createWater, WET_TOP, WET_GRIP } from './vehicle-water.js';   // floats: drive on the sea (src/vehicle-water.js)
 import { createAir, CAP as AIR_CAP } from './vehicle-air.js';   // wings: fly (src/vehicle-air.js)
+import { createTrails } from './vehicle-trails.js';   // vapour from the wing tips while flying (src/vehicle-trails.js)
 import { QUALITY } from './mobile.js';
 import { vp } from './viewport.js';
 import { createCameraClear } from './camera-clear.js';   // the chase camera stays under tunnel roofs, gate vaults and flyover decks
@@ -224,6 +225,7 @@ export function createVehicle(env) {
   let SPHERE = qs.get('physics') !== 'classic';   // switchable at run time: api.setPhysics('classic' | 'sphere')
   const water = createWater({ car, sea });
   const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; }, waterAt: water.floorAt });
+  const trails = createTrails({ scene });
   const air = createAir({ car, keys, groundY, floorAt: sphere.floorAt, roofAt: (x, z) => world ? world.roofAt(x, z) : NaN, detailAt: (x, z) => world ? world.detailAt(x, z) : 2, isWater: water.isWater, onEvent: (kind, a, b, x, z) => airEvent(kind, a, b, x, z) });
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
   let prevFlying = false;
@@ -701,6 +703,7 @@ export function createVehicle(env) {
     if (rig.cone) { rig.cone.scale.set(1 + 0.12 * bp, 1 + 0.12 * bp, 1 + 0.9 * bp); rig.sub.scale.setScalar(1 + 0.025 * bp); if (bp > 0.3) cam.trauma = Math.max(cam.trauma, 0.05 * bp); }
 
     if (events) events.update(dt, active);
+    trails.update(dt, car, rig, camera, air.state.rest);   // (resting on a roof is driving, not flying)
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
