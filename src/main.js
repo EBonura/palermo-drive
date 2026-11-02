@@ -17,6 +17,7 @@ import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
+import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
 import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
@@ -240,6 +241,7 @@ const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, close
 const stadium = createStadium(worldEnv);
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
+const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
 const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
@@ -396,7 +398,7 @@ renderer.setAnimationLoop(now => {
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
   if (game.state === 'play') suca.update(dt, car);
-  if (game.state === 'play') stadium.update(dt);
+  if (game.state === 'play') { stadium.update(dt); carretto.update(dt); }
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);

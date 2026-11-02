@@ -74,9 +74,11 @@
   between camera and walking direction, 2-3 frame walk cycle), original pixel-style art drawn in code,
   several body/clothing variants (nonne in black, market vendors, tourists, kids), instanced for cost.
   Replace today's static low-poly pedestrians in src/props.js with the same sprites.
-- **Carretto siciliano**: the painted Sicilian cart (yellow/red wheels, carved and painted panels with
-  chivalric scenes, plumed horse harness) as a hero prop, parked near the Cattedrale/Quattro Canti and
-  as a slow horse-drawn vehicle in the traffic system.
+- DONE: **Carretto siciliano** (board item c6): the painted Sicilian cart, yellow wheels with red spokes, side boards with a duel of paladins, the harbour under Monte Pellegrino and Etna, a Trinacria dashboard and a
+  VIVA PALERMO back board (one 512 x 256 canvas drawn in code, assets/traffic/carretto-art.js), a bay horse with a plume, pompons, a blue saddle cloth and brass bells (model in assets/traffic/models.js, about 1.7k triangles).
+  Two ways to meet it: standing (src/carretto.js: one at the Cattedrale garden, one at the corner of Piazza Pretoria, solid for the lapa, with an LPC carrettiere sitting on the plank; `?cartat=x,z,th;...` moves them) and
+  as the one slow cart of the traffic (src/carrozze.js and src/traffic.js tourPlan('carretto'): a loop Piazza Sant'Anna, Piazza Garraffello, Piazza Caracciolo, 1.3 km, one at a time, calls "U carrettu sicilianu, signuri!").
+  The loop only exists while those tiles are in the road graph (a start at the Quattro Canti has it, a start 300 m east of the Vucciria does not). Ballaro's own graph node cannot be a stop (the graph lets you leave it, not come back).
 - DONE: **Lapa (Piaggio Ape)** variety in the traffic: the fruit seller's Ape (crates stepped up with oranges, lemons, melons, a striped parasol), the sfincione Ape and the pane e panelle Ape
   with a horn loudspeaker on the roof that calls out now and then (src/vendors.js: a short line in the speech balloon, one at a time, 9 s apart at least, 30 to 70 s per vehicle). Open: parked ones.
 - DONE: **Horse carriages** (carrozze) for tourists: a closed loop Cattedrale, Quattro Canti, Teatro Massimo found in the road graph (traffic.js tourPlan), at most two carriages on it, each with an

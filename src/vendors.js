@@ -8,6 +8,7 @@ export const LINES = {
   apeFood: ['Panelle e crocchè, càvuri càvuri!', 'Pani e panelle! Pani e panelle!', 'Cu voli i panelle? Sunnu càvudi!'],
   apeFrutta: ['Aranci duci, aranci!', 'Frutta frisca! Bedda frutta frisca!', 'Chi bedda frutta, signura! Pigghiatilla!'],
   carrozza: ['Giru in carrozza, signuri! Giru in carrozza!', 'Cu voli fari u giru? Quattru Canti e Tiatru!'],
+  carretto: ['U carrettu sicilianu, signuri! Beddu comu u suli!', 'Taliati i pitturi, taliati! Orlandu e i paladini!', 'Fatevi a fotografia cu u carrettu, signuri!'],
 };
 const GAP = 9, RANGE = [8, 46];
 
