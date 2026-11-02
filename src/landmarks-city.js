@@ -6,6 +6,7 @@
 //   walls / dropWalls  optional collision changes, see the report: walls are [x0,z0,x1,z1] segments to add, dropWalls are building ids whose footprint walls should not be registered
 import { POLITEAMA, STADIO, UTVEGGIO, SANTUARIO } from './lmc-a.js';
 import { ZISA, PONTE } from './lmc-b.js';
+import { FLOATING_DOCK } from './lmc-port.js';   // board item n10
 import { CUBA, EREMITI, NORMANNI, STAZIONE_MARITTIMA } from './lmc-e.js';   // board item c4: rebuilt on the streamed ground, with collision
 
 import { POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, PORTA_FELICE_1, PORTA_FELICE_2, CAPPUCCINI } from './lmc-d.js';
@@ -17,6 +18,7 @@ export const CITY_LANDMARKS = [
   POLITEAMA, STADIO, UTVEGGIO, SANTUARIO, ZISA, CUBA, EREMITI, PONTE, NORMANNI,
   STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, CINESE, GYMNASIUM, VILLA_GIULIA_GATE, TEATRO_GARIBALDI, UCCIARDONE, FIERA_GATE, IGIEA, FLORIO, IDA, STAZIONE_MARITTIMA,
   POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, PORTA_FELICE_1, PORTA_FELICE_2, CAPPUCCINI,
+  FLOATING_DOCK,
   ...MONDELLO_LANDMARKS,
   ...GATES,
 ];

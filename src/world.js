@@ -26,6 +26,7 @@ import { initFences, buildFences, dropFences } from './fences.js';   // walls an
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 import { pitchGround, pitchDepth } from './stadium-ground.js';
+import { initQuays, registerQuays, unregisterQuays, carve as carveQuay, tileQuays, buildQuayMeshes, disposeQuayMeshes } from './quays.js';   // the harbour's quays (board item n10)
 import { CENTRO_LANDMARKS } from './landmarks.js';   // the centro landmark models: built here, when the tiles under them have loaded
 
 const T = 500;
@@ -89,10 +90,10 @@ class SegGrid {
 
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
-  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b0a58a'), grove: new THREE.Color('#8a8a58'), scrub: new THREE.Color('#686d45'),
+  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b3a685'), grove: new THREE.Color('#a39a68'), scrub: new THREE.Color('#8d8458'),   // dry open ground: ochre, straw and khaki (board item n5); only the irrigated greens below stay green
   rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
-  beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#a79d6c'),
-  farm: new THREE.Color('#a8985f'), orchard: new THREE.Color('#6f8148'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
+  beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#b5a26a'),
+  farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
 };
 // OSM land cover (tools/tiles.py areas[].k) that tints the terrain: colour, strength and priority (first match wins, lower = stronger claim)
@@ -106,8 +107,8 @@ const _c = new THREE.Color(), _r = new THREE.Color(), HAZE = new THREE.Color('#7
 function terrainColor(out, h, slope, noise, n2 = 0.5) {
   if (h < 1.6) { out.copy(C.shore).lerp(C.sand, 0.25 * noise); return out; } // rocky or built-up shore; beaches are OSM sand polygons
   const hill = smooth(55, 130, h), steep = smooth(0.14, 0.4, slope);
-  // lowland: dry grass, straw and olive-green patches; hills: dark olive scrub with dry tan clearings
-  out.copy(C.plain).lerp(C.grove, noise * 0.55).lerp(C.dry, n2 * 0.35);
+  // lowland: dry grass, straw and ochre patches; hills: khaki scrub with dry tan clearings (nothing here is lawn green: that is the OSM and Comune green set)
+  out.copy(C.plain).lerp(C.grove, noise * 0.5).lerp(C.dry, n2 * 0.4);
   _r.copy(C.scrub).lerp(C.dry, n2 * 0.4).lerp(C.grove, noise * 0.2);
   out.lerp(_r, Math.max(hill, steep * 0.8));
   // limestone: grey-ochre, paler on the high ledges, with faint strata bands
@@ -174,7 +175,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); setStructRoot(root); initFences({ wall: wallGrid, scene: root });
+  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); initQuays({ wallGrid }); setStructRoot(root); initFences({ wall: wallGrid, scene: root });
   let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null, wantedOnce = false, visPending = 1, farMissing = 0;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].
@@ -197,7 +198,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     M = m;
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
-    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : pitchGround(x, z, carve(x, z, y)); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js)
+    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : pitchGround(x, z, carveQuay(x, z, carve(x, z, y))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js)
     hooks.level = levelY; hooks.fall = carTick;
     initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -253,7 +254,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(gi * 1.7 + gj * 0.9) + Math.sin(gi * 0.37 - gj * 1.3)) * 0.25 + 0.5;
         terrainColor(_c, y, Math.hypot(dx, dz), noise);
-        if (y > 2) _c.lerp(HAZE, y > 90 ? 0.3 : 0.1); // distant hills read hazed blue (style guide section 6); the scene fog does the rest
+        { // distant mountains read hazed blue #7297b4 (style guide section 6, board item n9): more with height and with distance from the city, the scene fog does the rest
+          const dc = Math.hypot(pos[k], pos[k + 2]);
+          if (y > 2) _c.lerp(HAZE, Math.min(0.78, 0.1 + 0.3 * smooth(30, 260, y) + 0.34 * smooth(2000, 8500, dc) * smooth(10, 120, y)));
+        }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
       }
       const idx = new Uint16Array((vx - 1) * (vz - 1) * 6);
@@ -330,7 +334,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
-    const tc = tileCarved(t.k), cell = tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
+    const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
     const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
@@ -357,6 +361,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
           break;
         }
+        if (stride > 1 && y > 100) _c.lerp(HAZE, 0.42 * smooth(100, 420, y));   // the low detail ring (beyond 450 m): the high ground starts to blue (board item n9)
         if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
@@ -746,7 +751,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function prepareTile(t) {
     const d = t.data;
     if (d.near) { t.nearS = gridSampler(d.near); t.nearStep = d.near.s; t.benched = !!d.near.bench; }
-    registerStructs(d, t.k);
+    registerStructs(d, t.k); registerQuays(d, t.k);
     t.gt = d.gt ? { t: decodeTint(d.gt.t), a: decodeTint(d.gt.a) } : null;   // relative ground colours from the orthophotos (tools/colours.py)
     t.urban = Math.min(1, (d.buildings.length) / 160) * 0.8;
     t.tint = (d.areas || []).filter(a => COVER[a.k]).sort((a, b) => COVER[a.k][2] - COVER[b.k][2]).map(a => {
@@ -802,6 +807,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (t.want < 2) { if (mk) disposeObj(mk); return; }
       if (mk) setPart(t, 'paint', mk);
     }
+    t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) setPart(t, 'quays', qg); }
     t.stage = 'fences'; { const fg = yield* buildFences(t.data.fences, t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }
     t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
@@ -824,7 +830,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function* downgrade(t) {
     onTileDrop(t.k); emit('drop', t);
-    setPart(t, 'bldFull', null); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
+    setPart(t, 'bldFull', null); setPart(t, 'quays', null); disposeQuayMeshes(t.k); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
@@ -837,7 +843,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function release(t) {
     for (const l of CENTRO_LANDMARKS) if (t.parts['lm:' + l.name]) lmPending.add(l);   // built again when the tile comes back
-    onTileDrop(t.k); unregisterStructs(t.k); dropFences(t.k); emit('drop', t);
+    onTileDrop(t.k); unregisterStructs(t.k); unregisterQuays(t.k); dropFences(t.k); emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined;
     stash(t);
