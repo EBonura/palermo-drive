@@ -19,7 +19,8 @@ import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
 import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
-import { applyDistrictHeights } from './districts.js';
+import { applyDistrictHeights, zoneAt } from './districts.js';
+import { treeGeo as makeTreeGeo } from './treegeo.js';
 import { createFarCity } from './context.js';
 import { GARDEN_REGION as GR } from './gardens.js';
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
@@ -93,12 +94,12 @@ const C = {
   sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b3a685'), grove: new THREE.Color('#a39a68'), scrub: new THREE.Color('#8d8458'),   // dry open ground: ochre, straw and khaki (board item n5); only the irrigated greens below stay green
   rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
   beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#b5a26a'),
-  farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
+  farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), olive: new THREE.Color('#939a66'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
 };
 // OSM land cover (tools/tiles.py areas[].k) that tints the terrain: colour, strength and priority (first match wins, lower = stronger claim)
 const COVER = {
-  sand: [C.beach, 0.92, 0], pitch: [C.pitch, 0.9, 1], rock: [C.rock, 0.9, 2], forest: [C.forest, 0.85, 3], orchard: [C.orchard, 0.8, 4],
+  sand: [C.beach, 0.92, 0], pitch: [C.pitch, 0.9, 1], rock: [C.rock, 0.9, 2], forest: [C.forest, 0.85, 3], orchard: [C.orchard, 0.8, 4], olive: [C.olive, 0.8, 4],
   green: [C.green, 0.85, 5], scrub: [C.scrub, 0.85, 6], cemetery: [C.cemetery, 0.7, 7], farm: [C.farm, 0.8, 8], dirt: [C.dirt, 0.85, 9],
   rail: [C.rail, 0.8, 10], grass: [C.dry, 0.8, 11],
 };
@@ -675,47 +676,15 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
 
   // ---------- trees: cheap instanced pines in forest areas, a few in parks (full-detail tiles only) ----------
-  let treeGeo = null;
+  // n4: the woods are Aleppo pines (light olive, irregular) with stone pines (dark umbrellas) among them, mostly in the Favorita and at Mondello (src/treegeo.js); one instanced mesh each
+  const STONE_SHARE = { favorita: 0.5, mondello: 0.4, valdesi: 0.4, lido: 0.4, sferra: 0.25 };
   const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
-  function getTreeGeo() {
-    if (treeGeo) return treeGeo;
-    const P = [], Nn = [], Cc = [], I = [];
-    const col = (r, g, b) => new THREE.Color(r, g, b);
-    const trunk = col(0.07, 0.045, 0.03), leafA = col(0.035, 0.085, 0.04), leafB = col(0.05, 0.115, 0.05); // linear values // Aleppo and stone pines read dark, almost blue-green
-    const cone = (y0, y1, rad, sides, c) => {
-      const base = P.length / 3;
-      for (let i = 0; i < sides; i++) {
-        const a0 = i / sides * 6.2832, a1 = (i + 1) / sides * 6.2832, am = (a0 + a1) / 2, nx = Math.cos(am), nz = Math.sin(am), ny = rad / (y1 - y0);
-        const l = Math.hypot(nx, ny, nz), k = P.length / 3;
-        P.push(Math.cos(a0) * rad, y0, Math.sin(a0) * rad, Math.cos(a1) * rad, y0, Math.sin(a1) * rad, 0, y1, 0);
-        for (let q = 0; q < 3; q++) { Nn.push(nx / l, ny / l, nz / l); Cc.push(c.r * (q === 2 ? 1.1 : 0.85), c.g * (q === 2 ? 1.1 : 0.85), c.b * (q === 2 ? 1.1 : 0.85)); }
-        I.push(k, k + 2, k + 1);
-      }
-    };
-    const prism = (y0, y1, rad, c) => {
-      for (let i = 0; i < 4; i++) {
-        const a0 = i / 4 * 6.2832 + 0.785, a1 = (i + 1) / 4 * 6.2832 + 0.785, am = (a0 + a1) / 2, k = P.length / 3;
-        P.push(Math.cos(a0) * rad, y0, Math.sin(a0) * rad, Math.cos(a1) * rad, y0, Math.sin(a1) * rad, Math.cos(a1) * rad, y1, Math.sin(a1) * rad, Math.cos(a0) * rad, y1, Math.sin(a0) * rad);
-        for (let q = 0; q < 4; q++) { Nn.push(Math.cos(am), 0, Math.sin(am)); Cc.push(c.r, c.g, c.b); }
-        I.push(k, k + 2, k + 1, k, k + 3, k + 2);
-      }
-    };
-    prism(0, 2.2, 0.28, trunk);
-    cone(1.6, 6.2, 2.1, 7, leafA);
-    cone(4.2, 8.6, 1.5, 7, leafB);
-    treeGeo = new THREE.BufferGeometry();
-    treeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
-    treeGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(Nn), 3));
-    treeGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
-    treeGeo.setIndex(new THREE.BufferAttribute(new Uint16Array(I), 1));
-    return treeGeo;
-  }
   const hash2 = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
   function* buildTrees(t) {
     const d = t.data, areas = (d.areas || []).filter(a => a.k === 'forest' || a.k === 'green').map(a => {
       const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
-      return { pts, x0, z0, x1, z1, p: a.k === 'forest' ? 0.9 : Math.min(x1 - x0, z1 - z0) > 160 ? 0.55 : 0.3 }; // a big park (the Favorita) is mostly trees
+      return { pts, x0, z0, x1, z1, p: a.k === 'forest' ? 0.9 : Math.min(x1 - x0, z1 - z0) > 400 ? 0.55 : 0 }; // only a really big park (the Favorita) is a wood; the town parks (Foro Italico, the villas) get their trees from src/props.js, by species (n4)
     });
     if (!areas.length) return null;
     // building footprints (bbox grid), so no tree grows through a house
@@ -728,7 +697,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     const inBld = (x, z) => { const l = bg.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false; for (const e of l) if (x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1 && inPoly(e.pts, x, z)) return true; return false; };
     const SP = 14, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-    const mats = [], cols = [], MAX = 1400;
+    const mats = [], cols = [], smats = [], scols = [], MAX = 1400;
     for (let gz = t.j * T; gz < (t.j + 1) * T; gz += SP) {
       for (let gx = t.i * T; gx < (t.i + 1) * T; gx += SP) {
         const x = gx + hash2(gx, gz) * SP, z = gz + hash2(gz + 7.1, gx - 3.3) * SP;
@@ -736,20 +705,24 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         for (const a of areas) if (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1 && a.p > pr && inPoly(a.pts, x, z)) pr = a.p;
         if (pr === 0 || hash2(x * 1.3, z * 0.7) > pr) continue;
         if (maskAt(x, z, 'hard') === true || inBld(x, z)) continue;
-        if (mats.length >= MAX) break;
-        const s = 0.75 + hash2(x + 1.9, z + 4.2) * 0.8;
+        if (mats.length + smats.length >= MAX) break;
+        const s = 0.75 + hash2(x + 1.9, z + 4.2) * 0.8, stone = hash2(x * 0.7 + 3.3, z * 1.3 - 8.1) < (STONE_SHARE[zoneAt(x, z, '', 1e9)] ?? 0.08);
         q.setFromAxisAngle(up, hash2(x, z + 9.1) * 6.28); sc.set(s, s * (0.9 + hash2(z, x) * 0.3), s); pos.set(x, groundY(x, z) - 0.1, z);
-        m4.compose(pos, q, sc); mats.push(m4.clone());
-        const v = 0.7 + hash2(x - 5.5, z + 2.2) * 0.5; cols.push(col.setRGB(v * (1 + hash2(z, x) * 0.15), v * (0.95 + hash2(z, z) * 0.12), v * 0.85).clone());
+        m4.compose(pos, q, sc); (stone ? smats : mats).push(m4.clone());
+        const v = 0.78 + hash2(x - 5.5, z + 2.2) * 0.4; (stone ? scols : cols).push(col.setRGB(v * (1 + hash2(z, x) * 0.12), v * (0.96 + hash2(z, z) * 0.1), v * 0.9).clone());
       }
       yield;
     }
-    if (!mats.length) return null;
-    const mesh = new THREE.InstancedMesh(getTreeGeo(), treeMat, mats.length);
-    mats.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, cols[i]); });
-    mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; mesh.name = 'trees';
-    if (mesh.computeBoundingSphere) mesh.computeBoundingSphere(); else mesh.frustumCulled = false;
-    const g = new THREE.Group(); g.add(mesh); g.userData.tris = mats.length * 22;
+    if (!mats.length && !smats.length) return null;
+    const g = new THREE.Group(); g.userData.tris = 0;
+    for (const [name, ms, cs] of [['aleppo', mats, cols], ['stone', smats, scols]]) {
+      if (!ms.length) continue;
+      const geo = makeTreeGeo(name), mesh = new THREE.InstancedMesh(geo, treeMat, ms.length);
+      ms.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, cs[i]); });
+      mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; mesh.name = 'trees_' + name;
+      if (mesh.computeBoundingSphere) mesh.computeBoundingSphere(); else mesh.frustumCulled = false;
+      g.add(mesh); g.userData.tris += ms.length * geo.attributes.position.count / 3;
+    }
     return g;
   }
 
