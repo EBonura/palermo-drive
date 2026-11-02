@@ -9,8 +9,9 @@
 // Test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon&gfix (still camera) &gnight / &gday (the workshop's light); &gstep=driver&gtab=clothes opens the driver screen (&gdrv=rnd: a random driver)
 import { driver } from './driver.js';
 import { garage, LIVERIES, PALETTE, categoriesFor, partOpts, partById, vehicleById, customLivery, parseLivery } from './garage.js';
+import { esc } from './esc.js';
 
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 const eur = v => '€ ' + (Math.round(v * 2) / 2).toString().replace('.', ',');
 
 const S = {
