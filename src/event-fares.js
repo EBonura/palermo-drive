@@ -49,7 +49,7 @@ export function createFares(X) {
     if (urgent) { f.base = Math.round((8 + len / 90) * 2) / 2; f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18; }
     else if (sub === 'pulle') { f.base = Math.round((9 + len / 70) * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
     else { f.base = Math.round((4 + len / 110) * 2) / 2; f.limit = f.left = len / 8.4 + 22; }
-    hud.toast(urgent ? T('Corri!', 'Hurry!') : T('Si parte!', 'Off we go!'), dest.name);
+    hud.toast(urgent ? T('Curri!', 'Hurry!') : T('Si paiti!', 'Off we go!'), dest.name);
     X.setPhase('board');
   }
 
@@ -99,17 +99,17 @@ export function createFares(X) {
     ev.drift = ev.drift || 0; ev.wheels = ev.wheels || 0; ev.miss = ev.miss || 0; ev.wall = ev.wall || 0; ev.ped = ev.ped || 0; ev.fast = ev.fast || 0; ev.chat = ev.chat === undefined ? rand(10, 18) : ev.chat;
     // small tips
     f.driftAcc = (car.drift > 0.55 && sp > 7) ? (f.driftAcc || 0) + dt : Math.max(0, (f.driftAcc || 0) - dt * 2);
-    if (f.driftAcc >= 1) { f.driftAcc = 0; tip(1.5, T('Derapata!', 'Drift!')); if (Math.random() < 0.5) { tline('drift'); dline('drift'); } }
+    if (f.driftAcc >= 1) { f.driftAcc = 0; tip(1.5, T('Sciddicata!', 'Drift!')); if (Math.random() < 0.5) { tline('drift'); dline('drift'); } }
     f.wheelAcc = (car.tip > 0.55 && sp > 7) ? (f.wheelAcc || 0) + dt : 0;
-    if (f.wheelAcc >= 0.6 && ev.wheels <= 0) { ev.wheels = 3; f.wheelAcc = 0; tip(2, T('Su due ruote!', 'Two wheels!')); tline('wheels'); dline('wheels'); }
+    if (f.wheelAcc >= 0.6 && ev.wheels <= 0) { ev.wheels = 3; f.wheelAcc = 0; tip(2, T('Supra dui ruoti!', 'Two wheels!')); tline('wheels'); dline('wheels'); }
     f.speedAcc = sp > 21 ? (f.speedAcc || 0) + dt : 0;
-    if (f.speedAcc >= 4) { f.speedAcc = 0; tip(1, T('Pedale a tavoletta', 'Pedal to the metal')); if (ev.fast <= 0) { ev.fast = 20; tline('fast'); dline('fast'); } }
+    if (f.speedAcc >= 4) { f.speedAcc = 0; tip(1, T('Pidali a tavulietta', 'Pedal to the metal')); if (ev.fast <= 0) { ev.fast = 20; tline('fast'); dline('fast'); } }
     if (sp > 8 && ev.miss <= 0) {
       let hit = false;
       const ag = X.traffic && X.traffic.agents ? X.traffic.agents() || [] : [];
       for (const a of ag) { const d = Math.hypot(a.x - car.x, a.z - car.z) - (a.r || 1.2); if (d > 0.55 && d < 1.2) { hit = true; break; } }
       if (!hit && pedestrians.near && pedestrians.near(car.x + car.vx * 0.25, car.z + car.vz * 0.25, 1.5) > 0) hit = true;
-      if (hit) { ev.miss = 1.6; tip(1, T('Per un pelo!', 'Close call!')); if (Math.random() < 0.5) { tline('miss'); dline('miss'); } }
+      if (hit) { ev.miss = 1.6; tip(1, T('Pi nu pilu!', 'Close call!')); if (Math.random() < 0.5) { tline('miss'); dline('miss'); } }
     }
     // walls and people only make the passengers talk, they cost nothing
     if (car.scrape > 5 && prevScrape <= 5 && ev.wall <= 0 && prevSpeed > 5) { ev.wall = 1.2; tline('hitWall'); dline('hitWall'); }
@@ -117,7 +117,7 @@ export function createFares(X) {
     if (pedHits > 0) { pedHits = 0; if (ev.ped <= 0) { ev.ped = 1.0; tline('hitPed'); dline('hitPed', 1.8); } }
     ev.chat -= dt;
     if (ev.chat <= 0) { ev.chat = rand(14, 24); if (!f.urgent) { tline('ambient'); dline('ambient', 1.8); } }
-    if (f.wantsStig && !f.sniffed) for (const v of X.vendors) if (v.kind !== 'pollanche' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline('smell'); toast(T('Che profumo!', 'What a smell!'), T('I turisti vogliono una stigghiola', 'The tourists want a stigghiola')); break; }
+    if (f.wantsStig && !f.sniffed) for (const v of X.vendors) if (v.kind !== 'pollanche' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline('smell'); toast(T('Chi prufumu!', 'What a smell!'), T('I turisti vonnu na stigghiola', 'The tourists want a stigghiola')); break; }
     if (f.left < 12 && !f.lateSaid) { f.lateSaid = true; tline('late'); dline('late'); }
     const d = Math.hypot(car.x - f.dest.x, car.z - f.dest.z);
     if (d < X.destBeacon.R && sp < 2.0) return finish(true);
@@ -147,7 +147,7 @@ export function createFares(X) {
     if (!ok) {
       tline('fail'); dline('fail', 2.0);
       if (f.sub === 'pulle' && !f.pulleNight) say(pick(PULLE.fail), seatPos, 0.5);
-      hud.result(`<h3>${T('Tempo scaduto!', 'Time is up!')}</h3><div class="row"><span>${T('I passeggeri scendono e non pagano', 'The passengers get out and do not pay')}</span></div>`, 3);
+      hud.result(`<h3>${T('Tiempu scadutu!', 'Time is up!')}</h3><div class="row"><span>${T('I passiggeri scinnunu e un pàganu', 'The passengers get out and do not pay')}</span></div>`, 3);
       f.total = 0; return;
     }
     // tip by speed: the more of the clock is left, the bigger it is; a streak of small tips came on the way
@@ -164,11 +164,11 @@ export function createFares(X) {
       if (f.pulleNight && sorted.length && f.chars[0]) say(pick(FAVORITA.client.caught), X.charHead(f.chars[0].id), 8);
     }
     hud.result(`<h3>${esc(d.name)}</h3>
-      <div class="row"><span>${T('Corsa', 'Fare')}</span><span>${eur(f.base)}</span></div>
-      <div class="row"><span>${T('Mancia veloce', 'Speed tip')}</span><span>+ ${eur(speedTip)}</span></div>
-      <div class="row"><span>${T('Mance', 'Tips')}</span><span>+ ${eur(f.tips)}</span></div>
-      ${discretion ? `<div class="row"><span>${T('Silenzio (sulla parola)', 'Discretion (your word)')}</span><span>+ ${eur(discretion)}</span></div>` : ''}
-      <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
+      <div class="row"><span>${T('Cuoisa', 'Fare')}</span><span>${eur(f.base)}</span></div>
+      <div class="row"><span>${T('Mancia lesta', 'Speed tip')}</span><span>+ ${eur(speedTip)}</span></div>
+      <div class="row"><span>${T('Manci', 'Tips')}</span><span>+ ${eur(f.tips)}</span></div>
+      ${discretion ? `<div class="row"><span>${T('Silenziu (a palora)', 'Discretion (your word)')}</span><span>+ ${eur(discretion)}</span></div>` : ''}
+      <div class="row tot"><span>${T('Tutali', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
     if (total >= f.base * 1.4) hud.burst();
   }
 
@@ -184,12 +184,12 @@ export function createFares(X) {
     const tgt = f.phase === 'ride' ? f.dest : f.slot, dist = Math.hypot(tgt.x - car.x, tgt.z - car.z), ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
     if (f.phase === 'ride') {
       const m = Math.max(0, f.left);
-      hud.set({ label: f.urgent ? T('Urgente!', 'Urgent!') : f.sub === 'tourist' ? T('Portali a mangiare', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : T('Corsa in taxi', 'Taxi ride'),
+      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puoitali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : T('Cuoisa in taxi', 'Taxi ride'),
         title: f.dest.name, sub: (f.dest.addr ? f.dest.addr + '  ·  ' : '') + ds, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 12, frac: f.left / f.limit,
-        target: f.dest, ledger: [T('Corsa ', 'Fare ') + eur(f.base + f.tips), T('Incasso ', 'Total ') + eur(X.earned())] });
+        target: f.dest, ledger: [T('Cuoisa ', 'Fare ') + eur(f.base + f.tips), T('Ncassu ', 'Total ') + eur(X.earned())] });
       X.aim(f.dest.x, f.dest.z, true);
-    } else if (f.phase === 'board') { hud.set({ label: T('Salgono', 'Boarding'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
-    else { hud.set({ label: T('Arrivederci', 'Goodbye'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
+    } else if (f.phase === 'board') { hud.set({ label: T('Acchianunu', 'Boarding'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
+    else { hud.set({ label: T('Ni viremu', 'Goodbye'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
   }
 
   function stop(why) {
@@ -200,7 +200,7 @@ export function createFares(X) {
     f = null;
   }
   // the stigghiola vendor (src/missions.js) fed the tourists
-  function stigghiola() { if (f && f.phase === 'ride' && f.wantsStig && !f.stigDone) { f.stigDone = true; tip(6, T('Stigghiola per i turisti', 'Stigghiola for the tourists')); tline('eat'); } }
+  function stigghiola() { if (f && f.phase === 'ride' && f.wantsStig && !f.stigDone) { f.stigDone = true; tip(6, T('Stigghiola pê turisti', 'Stigghiola for the tourists')); tline('eat'); } }
   // sea: ends the ride like running out of time
   function drowned() { if (f && f.phase === 'ride') finish(false); }
   return { start, update, stop, active: () => !!f, stigghiola, drowned, get state() { return f; } };
