@@ -339,6 +339,12 @@ Read the migration guide r160 to r187. What actually broke here:
 - `src/main.js` / `index.html` (lead): edits I made are marked `[perf pass]`: PCFShadowMap/Sky patch for r182+, `perf` hooks (import, `createPerf`, `applySettings`, loop, `game.perf`), `checkShaderErrors` in production, anisotropy cap, `renderer.compile`, `centroRaised` via `rasterMask`, deferred far city (`if (WORLD && window.__pdLate) await ...`, a top-level await), import map version. The `raisedMask`/`mapCanvas` minimap canvas: `mapCanvas` is 2.4 k x 2.4 k px, fine.
 - `tools/tiles.py`, `world/`: emit coordinates at 0.1 m (already) and keep field names stable; the codec adapts to any JSON, but a tile format change that nests numbers inside objects (instead of flat arrays) compresses 3-4x worse.
 
+## Chase camera under ceilings (src/camera-clear.js)
+
+The high camera (7 m up, 13 m back) went through gate vaults, flyover decks and the stadium's entrance roof; the chase camera now keeps the line from the car to itself, and itself, under whatever hangs over them. Ceilings are read from the landmark and bridge/tunnel meshes already in the scene (downward-facing triangles near the car, binned in 16 m tiles a little each frame under 0.8 ms, rasterised to 1 m cells on first use), nothing is registered or baked, and `?noclear` switches it off.
+
+Cost per frame inside `updateCamera` (`window.__camClear.stats()` with `?debug`), phone profile (844x390, DPR 3, 4x CPU slowdown, `?fixres`), camera driving through each place for 6 s: stadium entrance 0.056 ms average (0.8 ms worst, the budgeted indexing chunk), Ballaro 0.017 ms (no indexed group within 170 m), Quattro Canti 0.040 ms. Main ms per frame with and without (`?noclear`, three alternating pairs, medians): 14.26 / 14.27, 16.78 / 17.63, 13.75 / 14.38, that is inside the noise of the shared Mac. The index holds 406 triangles for the stadium and 2854 at Quattro Canti; a tile rasterises in well under a millisecond.
+
 ## Measuring
 
 ```
