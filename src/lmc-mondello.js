@@ -129,11 +129,12 @@ const HULLS = [
   ['#2c4f94', '#f2eee2', '#c8342c'], ['#8b3a2c', '#f2eee2', '#2c61a8'], ['#2c61a8', '#efe9d6', '#e0b52c'], ['#c8342c', '#f4f0e6', '#2c61a8'],
   ['#2f6f87', '#f0ead8', '#c8342c'], ['#1f3f7a', '#eadfc6', '#d6402e'], ['#a8442c', '#f2eee2', '#e0b52c'],
 ];
+const TOWER_Q = [-3070, -10109.5];
 function buildHarbour() {
   defMats(); begin(0);
   const rn = RNG(951);
-  // the tower: on the promenade at the north end of the beach
-  const tx = -3126, tz = -10038, ty = groundY(tx, tz) - 0.3;
+  // the tower: Torre della Tonnara, at the corner of the harbour front where the quay road starts (Wikidata Q113555961, 38.207179 13.326199; five photos of one Mapillary sequence looking at it from 30 to 90 m put it within about 3 m of that point; OSM maps it as the round notch in the w73411051 outline, not as w73411068, which is a 7 m square building 90 m away)
+  const tx = TOWER_Q[0], tz = TOWER_Q[1], ty = groundY(tx, tz) - 0.3;
   cyl('mnStone', 4.3, 4.9, 13.2, 16, { p: [tx, ty, tz] });
   cyl('mnStone', 4.9, 4.4, 0.9, 16, { p: [tx, ty + 12.6, tz], noao: true });                       // corbelled crown
   for (let i = 0; i < 12; i++) { const a = i / 12 * 2 * PI; box('mnStone', 1.1, 0.8, 0.8, { p: [tx + Math.cos(a) * 4.7, ty + 13.5, tz + Math.sin(a) * 4.7], ry: -a + PI / 2, noao: true }); }
@@ -168,7 +169,7 @@ function buildHarbour() {
   for (let z = 2; z < pl; z += 6) for (const sg of [-1, 1]) cyl('mnStone', 0.22, 0.26, 3.2, 5, { M, p: [sg * 1.6, -2.6, z], noao: true });
   return end('Mondello harbour');
 }
-export const MN_HARBOUR = { name: 'Mondello harbour and tower', x: -3010, z: -10090, radius: 130, skipIds: ['w73411068'], build: buildHarbour };
+export const MN_HARBOUR = { name: 'Mondello harbour and tower', x: -3010, z: -10090, radius: 130, skipIds: [], build: buildHarbour };
 
 
 // ====================================================================================================
@@ -216,7 +217,7 @@ function defMqMats() {
     streaks(g, w, h, 8, 972, 0.12, 120);
   });
 }
-const PLASTER = ['#f1dfb4', '#ecbfa8', '#f1d487', '#f6f2e6', '#dfae7d', '#e6b49a', '#f3e6c4', '#efc9a0'];
+const PLASTER = ['#f4efe4', '#f1e2bd', '#f6f2e6', '#f8f5ee', '#e9cf9c', '#efd2bd', '#f3e6c4', '#f5eee0'];   // the harbour front photos (Mapillary 2019, Commons): mostly white and cream, a pale yellow, one ochre, one pale pink, no orange
 function buildQuayRow() {
   defMqMats();
   const pts = pairsOf(QUAY_RING), gr = groundRange(pts), gy = gr.hi + 0.1, H = 9.4, rn = RNG(981);
@@ -231,8 +232,14 @@ function buildQuayRow() {
     for (let k = 0; k < n; k++) {
       const t0 = k / n, t1 = (k + 1) / n, len = L / n, cx = A[0] + dx * (t0 + t1) / 2, cz = A[1] + dz * (t0 + t1) / 2;
       const col = PLASTER[Math.floor(rn() * PLASTER.length)];
-      panel('mqFacade', len, H, { M: frame(cx + nx * 0.03, gy, cz + nz * 0.03, nx, nz), uvk: [len / 3, 1], c: col, noao: false });
-      if (rn() < 0.4) {   // a rooftop room, set back from the front, and a water tank
+      const atTower = Math.hypot(cx - TOWER_Q[0], cz - TOWER_Q[1]) < 7.5;   // the tower stands here: no house front, no rooftop room (rn() is still drawn so the other houses keep their colours)
+      if (!atTower) panel('mqFacade', len, H, { M: frame(cx + nx * 0.03, gy, cz + nz * 0.03, nx, nz), uvk: [len / 3, 1], c: col, noao: false });
+      if (!atTower && nx * 0.63 + nz * 0.78 > 0.55 && Math.hypot(cx - TOWER_Q[0], cz - TOWER_Q[1]) < 95) {   // the street side of the row near the tower: cafe terraces on the pavement, a white umbrella and a pot of oleander in front of each house (Mapillary 2019: umbrellas, planters and tables in front of every shop along the road)
+        const ux = cx + nx * 3.4, uz = cz + nz * 3.4, uy = groundY(ux, uz) + 0.02, px = cx + nx * 1.5 + (dx / L) * 2.6, pz = cz + nz * 1.5 + (dz / L) * 2.6;
+        cyl('flat', 0.03, 0.04, 2.5, 4, { p: [ux, uy, uz], c: '#7b7468', noao: true }); cyl('flat', 0.05, 1.6, 0.5, 8, { p: [ux, uy + 2.3, uz], c: '#f3f0e6', noao: true }); cyl('flat', 0.5, 0.5, 0.05, 6, { p: [ux, uy + 0.75, uz + 0.9], c: '#e9e4d6', noao: true });
+        cyl('mnTerra', 0.4, 0.3, 0.6, 6, { p: [px, groundY(px, pz) + 0.02, pz], noao: true }); sphere('flat', 0.55, { p: [px, groundY(px, pz) + 0.95, pz], c: '#4f7d3a', seg: 5, noao: true });
+      }
+      if (rn() < 0.4 && !atTower) {   // a rooftop room, set back from the front, and a water tank
         const rx = cx - nx * 2.3, rz = cz - nz * 2.3, M2 = frame(rx, gy + H + 0.15, rz, nx, nz);
         if (inRing(pts, rx, rz)) { bx('mqWall', M2, -1.6, 1.6, 0, 2.7, -1.4, 1.4, { c: col }); bx('flat', M2, -1.8, 1.8, 2.7, 2.9, -1.6, 1.6, { c: '#d8d2c4', noao: true }); }
       }
