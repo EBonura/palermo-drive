@@ -623,13 +623,6 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - No, no, no... l'ho perso!  
   _No, no, no... I missed it!_
 
-### food: thief
-
-- Ahahah! Chi li vuole? Prendetemi!  
-  _Hahaha! Who wants them? Catch me!_
-- Beep beep! Sono mie, ora!  
-  _Beep beep! They are mine now!_
-
 ### food: thanks
 
 - Grazie, grazie! Sei un angelo con tre ruote!  

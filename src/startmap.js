@@ -22,11 +22,11 @@ const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
   here: ['Parti da qui', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
-  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], night: ['di notte', 'at night'],
+  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
-const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd' };
+const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a' };
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
 const C = {
@@ -350,6 +350,8 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     else if (e.kind === 'urgent') { g.fillRect(-1.6, -21, 3.2, 8); g.fillRect(-1.8, -10.5, 3.6, 3.6); }
     else if (e.kind === 'food') { g.beginPath(); g.moveTo(-6, -22); g.lineTo(6, -22); g.lineTo(0, -8); g.closePath(); g.fillStyle = '#7a2a12'; g.fill(); g.fillStyle = '#ffe9a0'; g.beginPath(); g.arc(-1, -18, 1.6, 0, 7); g.arc(2, -16, 1.4, 0, 7); g.fill(); }
     else if (e.kind === 'pub') { g.fillStyle = '#fff8e0'; g.fillRect(-6, -22, 10, 12); g.strokeStyle = '#0b0709'; g.lineWidth = 2; g.beginPath(); g.arc(5, -16, 3.4, -1.5, 1.5); g.stroke(); g.fillStyle = '#7a4a12'; g.fillRect(-6, -22, 10, 4); }
+    else if (e.kind === 'rave') { for (let i = 0; i < 4; i++) g.fillRect(-9 + i * 5, -14 - (i % 2 ? 7 : 4), 3.2, (i % 2 ? 14 : 8)); }
+    else if (e.kind === 'leaf') { g.beginPath(); g.ellipse(0, -14, 4.5, 9, 0.6, 0, 7); g.fill(); }
     else if (e.kind === 'race') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) & 1) g.fillRect(-9 + i * 4.5, -25 + j * 4.5, 4.5, 4.5); }
     if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
     if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }

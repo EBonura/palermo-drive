@@ -203,5 +203,5 @@ export function createFares(X) {
   function stigghiola() { if (f && f.phase === 'ride' && f.wantsStig && !f.stigDone) { f.stigDone = true; tip(6, T('Stigghiola per i turisti', 'Stigghiola for the tourists')); tline('eat'); } }
   // sea: ends the ride like running out of time
   function drowned() { if (f && f.phase === 'ride') finish(false); }
-  return { start, update, stop, active: () => !!f, stigghiola, drowned };
+  return { start, update, stop, active: () => !!f, stigghiola, drowned, get state() { return f; } };
 }

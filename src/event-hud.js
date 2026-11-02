@@ -44,6 +44,13 @@ const CSS = `
 .ev-count.on { display: block; animation: ev-pop .9s ease-out; } .ev-count small { display: block; font-size: .16em; letter-spacing: .2em; -webkit-text-stroke: 0; }
 .ev-conf { position: fixed; z-index: 63; left: 50%; top: 52%; width: 0; height: 0; pointer-events: none; }
 .ev-conf i { position: absolute; left: 0; top: 0; width: 9px; height: 14px; animation: ev-conf 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
+.ev-leash { position: fixed; z-index: 61; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 84px); transform: translateX(-50%) skewX(-6deg); min-width: min(300px, 62vw); padding: 6px 18px 8px; text-align: center; display: none; pointer-events: none;
+  background: linear-gradient(180deg, rgba(60,10,8,.92), rgba(110,18,14,.9)); border: 2px solid #ff4a3a; box-shadow: 0 0 26px rgba(255,74,58,.55); color: #fff; text-transform: uppercase;
+  font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; animation: ev-leash .9s ease-in-out infinite; }
+.ev-leash.on { display: block; } .ev-leash > * { display: block; transform: skewX(6deg); }
+.ev-leash b { font: 400 clamp(20px, 5vh, 34px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; }
+.ev-leash small { font-weight: 600; font-size: clamp(11px, 2.4vh, 14px); letter-spacing: .14em; opacity: .92; }
+@keyframes ev-leash { 50% { box-shadow: 0 0 40px rgba(255,74,58,.95); } }
 .ev-flash { position: fixed; inset: 0; z-index: 59; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(255,160,60,.0), rgba(255,120,40,.45)); opacity: 0; }
 .ev-flash.on { animation: ev-flash .7s ease-out; }
 @keyframes ev-conf { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
@@ -59,7 +66,7 @@ const CSS = `
 .ev-edge small { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-weight: 700; font-size: 13px; letter-spacing: .08em; color: #fff; white-space: nowrap; text-shadow: 0 0 4px #0b0709, 0 1px 3px #0b0709; }
 @keyframes ev-edge { 50% { transform: scale(1.14); } }
 @media (max-height: 520px) { .ev-edge { width: 38px; height: 38px; margin: -19px 0 0 -19px; } .ev-edge small { font-size: 11px; } }
-html.pd-title .ev-edge, html.pd-title #ev-hud, html.pd-title .ev-toasts, html.pd-title .ev-result, html.pd-title .ev-count { display: none !important; }
+html.pd-title .ev-edge, html.pd-title #ev-hud, html.pd-title .ev-toasts, html.pd-title .ev-result, html.pd-title .ev-count, html.pd-title .ev-leash { display: none !important; }
 `;
 
 
@@ -75,7 +82,8 @@ export function createEventHud({ camera, car, groundY }) {
   const q = s => root.querySelector(s);
   const elArrow = q('.ev-arrow'), elArrowSvg = q('.ev-arrow svg'), elLab = q('.ev-lab'), elTime = q('.ev-time'), elTitle = q('.ev-title'), elSub = q('.ev-sub'), elBar = q('.ev-bar'), elBarI = q('.ev-bar i'), elLedger = q('.ev-ledger');
   const edge = mk('ev-edge', '<svg viewBox="0 0 24 24"><path d="M12 1.5 L21 20 L12 15.5 L3 20 Z" fill="#ff4fa3" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><small></small>'), edgeSvg = edge.querySelector('svg'), edgeLab = edge.querySelector('small');
-  const toasts = mk('ev-toasts'), result = mk('ev-result'), conf = mk('ev-conf'), flash = mk('ev-flash'), count = mk('ev-count');
+  const toasts = mk('ev-toasts'), result = mk('ev-result'), conf = mk('ev-conf'), flash = mk('ev-flash'), count = mk('ev-count'), leashEl = mk('ev-leash', '<b></b><small></small>');
+  const leashB = leashEl.querySelector('b'), leashS = leashEl.querySelector('small');
   let target = null, resultT = 0, countT = 0, cache = '';
   const _d = new THREE.Vector3(), _p = new THREE.Vector3();
   let edgeText = '', edgeOn = false;
@@ -115,8 +123,10 @@ export function createEventHud({ camera, car, groundY }) {
       if (o.frac != null) elBarI.style.transform = `scaleX(${Math.min(1, Math.max(0, o.frac)).toFixed(3)})`;
       elLedger.innerHTML = o.ledger ? o.ledger.map(t => `<span>${esc(t)}</span>`).join('') : '';
     },
+    // the leash (src/missions.js): a red banner while the lapa is too far from the mission area, with the seconds left; leash(false) hides it
+    leash(on, big, sub) { if (!on) { leashEl.classList.remove('on'); return; } if (leashB.textContent !== big) leashB.textContent = big; if (leashS.textContent !== sub) leashS.textContent = sub; leashEl.classList.add('on'); },
     hide() { root.classList.remove('on'); setEdge(false); target = null; cache = ''; },
-    clear() { root.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
+    clear() { root.classList.remove('on'); leashEl.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
     count(big, sub) { count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     toast(text, sub, neg) {
       const e = mk('ev-toast' + (neg ? ' neg' : ''), esc(text) + (sub ? `<small>${esc(sub)}</small>` : ''), toasts);

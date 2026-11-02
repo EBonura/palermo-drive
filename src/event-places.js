@@ -151,3 +151,16 @@ export const RACES = [
   { id: 'corse', name: 'Corse clandestine', en: 'Night street race', kind: 'sprint', night: true, sulky: true, track: [[-815, 1000], [-868, 1057], [-910, 1106], [-1000, 1209], [-1108, 1336], [-1212, 1445]],
     opp: ['sulky:sauro', 'sulky:morello', 'sulky:grigio'], prize: [60, 25, 10], crowd: true },
 ];
+
+// ---------------------------------------------------------------------------------------------------------------- the rave missions
+// "Casse per il rave" starts at the centro sociale ExKarcere (Via San Basilio 17, Albergheria; address from questoapp.com/places-to-visit/palermo/centro-sociale-ex-karcere and
+// livesicilia.it/centro-sociale-exkarcere-sospeso-lo-sgombero; the street's position from OpenStreetMap Nominatim, "Via San Basilio, La Loggia, Palermo", 38.11887, 13.36104;
+// the house number is not on the map, the game puts the door on that street) and ends at the rave on Monte Pellegrino: a terrace 45 m east of the first hairpin of Via Pietro Bonanno
+// (the road up to the Santuario), 5.7 km of road from the Karcere, on open scrub below the road so that the stage is seen from it. The slope there has 7 to 10 m of relief over any
+// 24 m (the flatter spots higher up the road, 5 to 6 m, are 8.6 to 10.8 km away: too long for a delivery), so the game cuts a terrace with a retaining wall. "Foglie allegre"
+// starts at the rave and sends you to Via Cipressi (OpenStreetMap way, Palermo, the end near the Cuba) for the leaves. Notes and sources: docs/rave.md.
+export const RAVE = {
+  karcere: { id: 'karcere', name: 'Centro sociale ExKarcere', lat: 38.1188723, lon: 13.3610391, onStreet: 'San Basilio', who: 'Il tecnico delle casse' },
+  site: { id: 'site', name: 'Rave sul Pellegrino', lat: 38.1569358, lon: 13.3682830, onStreet: 'Bonanno' },
+  leaf: { id: 'leaf', name: 'Via Cipressi', lat: 38.1115405, lon: 13.3394977, onStreet: 'Cipressi' },
+};

@@ -5,7 +5,7 @@
 // to them to accept. Every event place is a slot built from src/event-places.js (lat/lon, owner-editable) and src/event-routes.js (baked by
 // assets/missions/snap-places.mjs: road points, taxi routes, hunt items, race tracks).
 //   fares (src/event-fares.js)  tourists in the centro, regular taxi rides, "a pulle" (Viale Diana, the old A Favorita), urgent long runs; timer + tip
-//   food (src/event-food.js)    "Benny ha perso le sue pizzette": hunt, scooter chase, bring them back; one event type for many places
+//   food (src/event-food.js)    "Benny ha perso le sue pizzette": hunt the items close by, bring them back; one event type for many places
 //   races (src/races.js)        sprint and lap races with a grid start, plus the night Corse clandestine
 // The overlay is src/event-hud.js (top centre). Screen changes go through src/transition.js.
 //
@@ -26,8 +26,10 @@ import { createFares } from './event-fares.js';
 import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
 import { createPubs } from './pubs.js';
+import { createRave } from './rave.js';
+import { createRaveEvents } from './event-rave.js';
 import { createAchievements } from './achievements.js';
-import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES } from './event-places.js';
+import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { transition } from './transition.js';
 
@@ -511,6 +513,9 @@ function build(env) {
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
   FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name }, 'fare:' + f.id));
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
+  // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area.
+  mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: () => { const a = SNAP['rave:karcere'], b = SNAP['rave:site']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 650 }; } }, 'rave:karcere');
+  mkSlot({ id: 'leaf:rave', kind: 'leaf', sub: 'leaf', name: 'Fuogghi allegri', night: true, leash: () => { const a = SNAP['rave:site'], b = SNAP['rave:leaf']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 700 }; } }, 'rave:site');
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
@@ -533,7 +538,8 @@ function build(env) {
   };
   const calls = X.calls = createCalls(X);
   calls.setSlots(slots);
-  const fares = createFares(X), food = createFood(X), races = createRaces(X);
+  const rave = createRave({ scene, camera, game, pedestrians, groundY: groundAt, proj: env.proj, isNight, walls2d });   // the rave on Pellegrino: stage, lights, crowd and music at night
+  const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave);
   pubs = createPubs(X, { game });
   races.buildSlots(slots.filter(s => s.kind === 'race'));
   for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
@@ -547,17 +553,18 @@ function build(env) {
     if (slot.kind === 'fare' || slot.kind === 'urgent') fares.start(slot);
     else if (slot.kind === 'food') food.start(slot);
     else if (slot.kind === 'pub') pubs.start(slot);
+    else if (slot.kind === 'rave' || slot.kind === 'leaf') raves.start(slot);
     else races.start(slot);
   }
   function endEvent(ok, aborted) {
     const ev = S.ev; if (!ev) return;
-    fares.stop(); food.stop(); pubs.stop();
+    fares.stop(); food.stop(); pubs.stop(); raves.stop();
     if (aborted && ev.slot.kind === 'race') races.stop();
     if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
     if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
     ev.slot.coolUntil = now() + (ok ? (ev.slot.kind === 'race' ? 12 : 150) : 40);
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: false }));
-    calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); destBeacon.show(false);
+    calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); hud.leash(false); leash.out = false; leash.t = LEASH_T; destBeacon.show(false);
   }
   // Driving into the sea (src/sea.js) ends the current ride like running out of time: no fare.
   addEventListener('pd-drowned', () => fares.drowned());
@@ -597,6 +604,36 @@ function build(env) {
   let coalT = 0;
   function coalPulse() { coalT = now(); M.coal.color.setRGB(1, 0.32 + 0.16 * Math.sin(coalT * 6.3) * Math.sin(coalT * 2.1), 0.1); }
 
+  // ------------------------------------------------------------------------------------ the leash (every event)
+  // Each event has an area (a ride: the corridor from the pick-up to the destination; the food and pub hunts: the place; a race: its track; the rave missions say their own, slot.leash()).
+  // Leave it by more than the radius and the HUD tells you to come back, with a countdown; the countdown runs out and the mission is over (a failure: no pay, the usual result card).
+  const LEASH_T = 20, LEASH_BACK = 45;   // seconds to come back; metres of margin to be counted as back inside
+  const leash = { t: LEASH_T, out: false };
+  const segDist = (px, pz, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz, t = l2 ? clamp(((px - a[0]) * dx + (pz - a[1]) * dz) / l2, 0, 1) : 0; return Math.hypot(px - a[0] - dx * t, pz - a[1] - dz * t); };
+  function leashArea(s) {
+    if (s.leash) return s.leash();
+    if (s.kind === 'fare' || s.kind === 'urgent') { const d = fares.state && fares.state.dest; return { a: [s.x, s.z], b: d ? [d.x, d.z] : [s.x, s.z], r: 520 }; }
+    if (s.kind === 'race') { const T0 = TRACKS[s.def.id], p = T0 && T0.pts; if (p && p.length > 1) { let cx = 0, cz = 0; for (let i = 0; i < p.length; i += 2) { cx += p[i]; cz += p[i + 1]; } cx /= p.length / 2; cz /= p.length / 2; let r = 0; for (let i = 0; i < p.length; i += 2) r = Math.max(r, Math.hypot(p[i] - cx, p[i + 1] - cz)); return { a: [cx, cz], b: [cx, cz], r: r + 320 }; } }
+    return { a: [s.x, s.z], b: [s.x, s.z], r: s.kind === 'pub' ? 480 : 520 };
+  }
+  function failEvent() {   // too far for too long: the card, a short pause, then the event is over like any failed one
+    const ev = S.ev; if (!ev || ev.failT > 0) return;
+    ev.failT = 3.6; leash.t = LEASH_T; leash.out = false; hud.leash(false); aim.on = false; S.phase = 'done';
+    hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("T'alluntanasti truappu", 'You went too far away')}</span></div>`, 3.2);
+    say(pick(LEASH_LINES), driverPos, 0.2);
+  }
+  const LEASH_LINES = [['Unni stai iennu?! Era ri dda banna!', 'Where are you going?! It was somewhere else!'], ['Vabbè, lassamu piaiddiri. Un mi puazzu firari i nuddu.', 'Fine, I give up. You cannot count on anyone.']];
+  function updateLeash(dt) {
+    const ev = S.ev; if (!ev || S.phase === 'done' || ev.failT > 0) { if (leash.out) { leash.out = false; leash.t = LEASH_T; hud.leash(false); } return; }
+    const A = leashArea(ev.slot), d = segDist(car.x, car.z, A.a, A.b);
+    if (!leash.out && d > A.r) { leash.out = true; leash.t = LEASH_T; hud.toast(T('Tonna arreri!', 'Come back!'), T('Si fora zuana', 'You are out of the area')); }
+    else if (leash.out && d < A.r - LEASH_BACK) { leash.out = false; leash.t = LEASH_T; hud.leash(false); }
+    if (!leash.out) return;
+    leash.t -= dt;
+    hud.leash(true, T('Tonna arreri! ', 'Come back! ') + Math.max(0, Math.ceil(leash.t)), T('Ti nni isti truappu luntanu', 'You are too far from the mission') + ' · ' + Math.round(Math.max(0, d - A.r + LEASH_BACK) / 10) * 10 + ' m');
+    if (leash.t <= 0) failEvent();
+  }
+
   // ------------------------------------------------------------------------------------ test links: ?event=kind:id
   const wantEv = params.get('event');
   let evSlot = null, evPlaced = false;
@@ -611,7 +648,7 @@ function build(env) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt; hudUsed = false; aim.on = false;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
-    updateVendors(dt); updatePoll(dt); secrets.update(dt);
+    updateVendors(dt); updatePoll(dt); secrets.update(dt); rave.update(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
@@ -620,7 +657,8 @@ function build(env) {
       else if (accepted) startEvent(accepted);
       else if (raceGo) startEvent(raceGo);
       else if (pubGo) startEvent(pubGo);
-    } else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); }
+    } else if (S.ev.failT > 0) { if ((S.ev.failT -= dt) <= 0) endEvent(false, S.ev.slot.kind === 'race'); }
+    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); updateLeash(dt); }
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
@@ -638,6 +676,6 @@ function build(env) {
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S };
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves };
   return api;
 }

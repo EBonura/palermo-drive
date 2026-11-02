@@ -26,8 +26,9 @@ waves or shouts from the kerb (Benny outside the pizzeria, racers revving at the
   Favorita mission): timer plus tip; the tip grows with speed. Hitting pedestrians or other cars does **not** reduce the pay. Pay goes to
   Garage unlocks as today.
 - **Urgent long fares**: rare passengers who must cross the city fast (airport, hospital, stadium before kick-off) with a tight timer.
-- **Food collect/chase events**: "Benny ha perso le sue pizzette! Aiutalo a ritrovarle". Two phases: a timed hunt for about a dozen items in the
-  streets nearby, then a chase after a runaway scooter dropping the rest; bring them back. The same event type runs for many food places:
+- **Food collect events**: "Benny ha perso le sue pizzette! Aiutalo a ritrovarle". Two phases: a timed hunt for ten items lying close together in the
+  streets nearby (within about 200 m of the place), then bring them back. (The runaway scooter that used to drop some of them was removed.)
+  **The leash** (every event, src/missions.js): leave the mission's area by more than its radius (a ride: 520 m round the line from pick-up to destination; the food and pub hunts: round the place; a race: round its track) and a red banner counts 20 seconds down; if you do not come back the mission is over, a failure with no pay and the usual result card. The same event type runs for many food places:
   Benny (Via Goethe), some famous real places taken from OpenStreetMap, and invented Palermitan-style places used to spread events evenly
   across the map. Each place has its own item (pizzette, arancine, panelle, cannoli...).
 - **Races**: grid start, 3/2/1/VIA!. Sprints A to B on Viale Regione Siciliana; lap races at the Universita and on Viale dell'Olimpo.
