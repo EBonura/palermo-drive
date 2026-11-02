@@ -3,7 +3,9 @@
 // holds the hype) and a fan calls it out in a balloon, points go on a small card, a euro or two reach the wallet (the Garage listens to 'pd-fare') with a cooldown, the best score is saved,
 // and the ball goes back to the centre. The goal frames stay solid for the lapa (walls in src/lmc-a.js): the ball does not use them, it goes through the mouth and the net.
 // Cheap on purpose: one mesh, one shadow disc, no allocation per frame, nothing runs while the lapa is away from the pitch.
-// createBall({ scene, car, shout, seat, boost }) -> { update(dt, on), score }
+// createBall({ scene, car, shout, seat, boost, react }) -> { update(dt, on), score, goals, tension }
+//   react (src/stadium.js, all optional): hit(speed) the lapa struck the ball, goal(side) side 0 = the +u end, 1 = the other, miss(kind) 'post', 'near' (hit the end line close to the posts), 'wide', 'bar' (over it).
+//   tension: 0..1, how close the ball is to a goal and how fast it is going there (the crowd's sound rises with it).
 import * as THREE from 'three';
 import { FP } from './landmarks-city-data.js';
 import { PITCH_Y } from './stadium-ground.js';
@@ -29,7 +31,7 @@ const CSS = `
 html.pd-title .st-card, html.pd-title .st-gol { display: none !important; }
 `;
 
-export function createBall({ scene, car, shout, seat, boost }) {
+export function createBall({ scene, car, shout, seat, boost, react = {} }) {
   const ob = obb((() => { const f = FP.stadio.holes[0], o = []; for (let i = 0; i < f.length; i += 2) o.push([f[i], f[i + 1]]); return o; })());
   const ux = ob.ux, uz = ob.uz, vx_ = ob.vx, vz_ = ob.vz, cx = ob.cx, cz = ob.cz;
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
@@ -48,11 +50,12 @@ export function createBall({ scene, car, shout, seat, boost }) {
   const axis = new THREE.Vector3();
 
   // state (plain numbers: nothing is allocated per frame)
-  let bx = cx, by = SURF + R, bz = cz, vx = 0, vy = 0, vz = 0, active = false, gol = 0, appear = 0, goals = 0, points = 0, streak = 0, lastGoalT = -1e9, lastPayT = -1e9, clock = 0, outT = 0;
+  let tension = 0, hitT = -1e9, missT = -1e9, over = false, side = 0, bx = cx, by = SURF + R, bz = cz, vx = 0, vy = 0, vz = 0, active = false, gol = 0, appear = 0, goals = 0, points = 0, streak = 0, lastGoalT = -1e9, lastPayT = -1e9, clock = 0, outT = 0;
   const reset = () => { bx = cx; bz = cz; by = SURF + R + 0.01; vx = vy = vz = 0; gol = 0; appear = 0; };
 
   // the pitch edge: a rectangle in the pitch's own frame (u along the pitch, v across). The side boards are at HV, the end lines at HU, except in the goal mouth where the ball goes on into the net
   const HV = 35.2, HU = 51.6, NET = 54.2;
+  const miss = kind => { if (clock - missT < 1.5) return; missT = clock; react.miss?.(kind); };
   function wall() {
     const u = (bx - cx) * ux + (bz - cz) * uz, v = (bx - cx) * vx_ + (bz - cz) * vz_;
     let nu = u, nv = v, hit = false, nxu = 0, nxv = 0;
@@ -62,11 +65,11 @@ export function createBall({ scene, car, shout, seat, boost }) {
     if (!hit) return;
     bx = cx + ux * nu + vx_ * nv; bz = cz + uz * nu + vz_ * nv;
     const wx = ux * nxu + vx_ * nxv, wz = uz * nxu + vz_ * nxv, l = Math.hypot(wx, wz) || 1, nx = wx / l, nz = wz / l, vn = vx * nx + vz * nz;
-    if (vn < 0) { vx -= 1.7 * vn * nx; vz -= 1.7 * vn * nz; }
+    if (vn < 0) { vx -= 1.7 * vn * nx; vz -= 1.7 * vn * nz; if (vn < -9 && nxu && lim === HU) miss(Math.abs(nv) < MOUTH + 7 ? 'near' : 'wide'); }
   }
   function posts(px, pz) {
     const dx = bx - px, dz = bz - pz, d = Math.hypot(dx, dz), m = R + 0.14;
-    if (d < m && by - SURF < BAR + 0.2) { const nx = dx / (d || 1), nz = dz / (d || 1); bx = px + nx * m; bz = pz + nz * m; const vn = vx * nx + vz * nz; if (vn < 0) { vx -= 1.6 * vn * nx; vz -= 1.6 * vn * nz; } }
+    if (d < m && by - SURF < BAR + 0.2) { const nx = dx / (d || 1), nz = dz / (d || 1); bx = px + nx * m; bz = pz + nz * m; const vn = vx * nx + vz * nz; if (vn < 0) { vx -= 1.6 * vn * nx; vz -= 1.6 * vn * nz; if (vn < -6) miss('post'); } }
   }
   function lapa(cxp, czp) {   // one of the two circles that stand for the lapa's body
     const dx = bx - cxp, dz = bz - czp, d = Math.hypot(dx, dz), m = R + 1.1;
@@ -74,7 +77,7 @@ export function createBall({ scene, car, shout, seat, boost }) {
     const nx = dx / (d || 1), nz = dz / (d || 1), sp = Math.hypot(car.vx, car.vz);
     bx = cxp + nx * m; bz = czp + nz * m;
     const rvn = (vx - car.vx) * nx + (vz - car.vz) * nz;
-    if (rvn < 0) { vx += -1.9 * rvn * nx; vz += -1.9 * rvn * nz; vx += car.vx * 0.35; vz += car.vz * 0.35; vy = Math.max(vy, Math.min(7, 1.2 + sp * 0.22)); }
+    if (rvn < 0) { if (rvn < -2.5 && clock - hitT > 0.5) { hitT = clock; react.hit?.(-rvn); } vx += -1.9 * rvn * nx; vz += -1.9 * rvn * nz; vx += car.vx * 0.35; vz += car.vz * 0.35; vy = Math.max(vy, Math.min(7, 1.2 + sp * 0.22)); }
   }
 
   function scored() {
@@ -84,9 +87,9 @@ export function createBall({ scene, car, shout, seat, boost }) {
     let pay = 0; if (clock - lastPayT >= PAY_COOLDOWN) { lastPayT = clock; pay = PAY; dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: PAY } })); }
     const it = lang() === 0;
     banner.innerHTML = `GOL!<small>+${add} ${it ? 'punti' : 'points'}${pay ? ' · +€ ' + pay : ''}${streak ? ' · ' + (it ? 'serie ' : 'streak ') + (streak + 1) : ''}</small>`; banner.classList.remove('on'); void banner.offsetWidth; banner.classList.add('on');
-    boost(7);
+    boost(7); react.goal?.(side);
     const s = seat(); if (s) shout(s[0], s[1], s[2], GOL_CHANTS[(Math.random() * GOL_CHANTS.length) | 0]);
-    dispatchEvent(new CustomEvent('pd-stadium-goal', { detail: { n: goals, points, add } }));
+    dispatchEvent(new CustomEvent('pd-stadium-goal', { detail: { n: goals, points, add, side } }));
     showCard();
   }
   let cardKey = '';
@@ -106,14 +109,16 @@ export function createBall({ scene, car, shout, seat, boost }) {
       lapa(car.x + Math.sin(car.th) * 0.9, car.z + Math.cos(car.th) * 0.9); lapa(car.x - Math.sin(car.th) * 0.9, car.z - Math.cos(car.th) * 0.9);
       for (let s = -1; s <= 1; s += 2) for (let t = -1; t <= 1; t += 2) posts(cx + ux * LINE * s + vx_ * MOUTH * t, cz + uz * LINE * s + vz_ * MOUTH * t);
       const u = (bx - cx) * ux + (bz - cz) * uz, v = (bx - cx) * vx_ + (bz - cz) * vz_;
-      if (Math.abs(u) > LINE && Math.abs(v) < MOUTH - 0.1 && by - SURF < BAR + R * 0.4) scored();
+      if (Math.abs(u) > LINE && Math.abs(v) < MOUTH - 0.1) {
+        if (by - SURF < BAR + R * 0.4) { side = u > 0 ? 0 : 1; scored(); } else if (!over) { over = true; miss('bar'); }
+      } else if (Math.abs(u) < LINE - 1) over = false;
     } else { vx *= 0.97; vz *= 0.97; }
     wall();
   }
 
   function update(dt, on) {
     if (!on) {   // away from the pitch: nothing runs, the ball is put back for the next visit; the card goes
-      if (active) { active = false; mesh.visible = shadow.visible = false; card.classList.remove('on'); banner.classList.remove('on'); reset(); goals = 0; points = 0; streak = 0; cardKey = ''; }
+      tension = 0; over = false; if (active) { active = false; mesh.visible = shadow.visible = false; card.classList.remove('on'); banner.classList.remove('on'); reset(); goals = 0; points = 0; streak = 0; cardKey = ''; }
       return;
     }
     if (!active) { active = true; reset(); mesh.visible = shadow.visible = true; card.classList.add('on'); showCard(); }
@@ -121,6 +126,11 @@ export function createBall({ scene, car, shout, seat, boost }) {
     if (gol > 0) { gol -= dt; if (gol <= 0) { reset(); appear = 0.0001; } }
     if (appear > 0 && appear < 1) appear = Math.min(1, appear + dt * 2.5);
     const n = Math.ceil(dt / 0.01), h = dt / n; for (let i = 0; i < n; i++) step(h);
+    {   // tension: near a goal mouth and heading for it
+      const u = (bx - cx) * ux + (bz - cz) * uz, v = (bx - cx) * vx_ + (bz - cz) * vz_, su = u > 0 ? 1 : -1, toward = (vx * ux + vz * uz) * su;
+      const t = gol > 0 ? 0 : Math.max(0, 1 - (LINE - Math.abs(u)) / 32) * Math.max(0, 1 - Math.max(0, Math.abs(v) - MOUTH) / 20) * Math.min(1, 0.35 + Math.max(0, toward) / 16);
+      tension += (t - tension) * Math.min(1, dt * 3);
+    }
     if (!(bx === bx) || !(bz === bz) || Math.abs(bx - cx) > 90 || Math.abs(bz - cz) > 90) reset();   // safety: nothing may leave the stadium or turn into NaN
     // draw: roll on the axis across the motion, the shadow follows on the pitch
     const sp = Math.hypot(vx, vz);
@@ -129,5 +139,5 @@ export function createBall({ scene, car, shout, seat, boost }) {
     mesh.position.set(bx, by, bz); mesh.scale.setScalar(sc);
     const hgt = by - R - SURF; shadow.position.set(bx, SURF + 0.03, bz); shadow.scale.setScalar(R * (1.05 - Math.min(0.5, hgt / 14)) * sc); shadow.material.opacity = 0.38 * (1 - Math.min(0.7, hgt / 10));
   }
-  return { update, get score() { return points; }, get goals() { return goals; }, get state() { return { bx, by, bz, vx, vy, vz, gol, active }; }, set(x, y, z, a, b, c) { bx = x; by = y; bz = z; vx = a; vy = b; vz = c; } };
+  return { update, get tension() { return tension; }, get score() { return points; }, get goals() { return goals; }, get state() { return { bx, by, bz, vx, vy, vz, gol, active }; }, set(x, y, z, a, b, c) { bx = x; by = y; bz = z; vx = a; vy = b; vz = c; } };
 }
