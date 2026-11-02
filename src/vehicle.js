@@ -9,7 +9,7 @@
 // in which steering sets the slip angle you hold instead of the yaw rate. Velocity is rotated towards the nose by a capped "tyre" rate, so
 // grip loss, slides and drifts all come from one rule. Lape are tall, so they roll a lot and tip onto two wheels in hard fast turns.
 // Bikes bank into corners instead, pop wheelies on a launch and can be high-sided by a big pothole. The car just grips more.
-// ?physics=sphere swaps the yaw, grip, movement and wall part for the rolling-ball model in src/vehicle-sphere.js (same inputs and car fields).
+// The rolling-ball model in src/vehicle-sphere.js is the default for the yaw, grip, movement and wall part (same inputs and car fields); ?physics=classic gets the bicycle model.
 // ?speed=N scales every vehicle's speed and acceleration (default 1.5, 1 is the original feel); see SPEED_SCALE.
 import * as THREE from 'three';
 import { D, groundY, hooks } from './core.js';
@@ -216,8 +216,8 @@ export function createVehicle(env) {
   const qs = new URLSearchParams(location.search), freezeAt = qs.has('freeze') ? +qs.get('freeze') : -1;
   const SIDECAM = qs.has('sidecam') ? +qs.get('sidecam') || 4.5 : 0;
   let simT = 0, frozen = false;
-  // ?physics=sphere: the sphere model (src/vehicle-sphere.js) replaces the yaw, grip, movement and wall response below; everything else is shared
-  let SPHERE = qs.get('physics') === 'sphere';   // switchable at run time: api.setPhysics('classic' | 'sphere')
+  // the sphere model (src/vehicle-sphere.js, the default) replaces the yaw, grip, movement and wall response below; everything else is shared
+  let SPHERE = qs.get('physics') !== 'classic';   // switchable at run time: api.setPhysics('classic' | 'sphere')
   const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; } });
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
   function physics(dt) {

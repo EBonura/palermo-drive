@@ -47,7 +47,7 @@ const S = {
   radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
-  physics: ['Guida (test)', 'Handling (test)'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade (sfera)', 'Arcade (sphere)'],
+  physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
@@ -252,9 +252,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
-  // handling test: classic or sphere physics (src/vehicle.js); a ?physics= link wins over the saved choice
-  st.physics = params.has('physics') ? (params.get('physics') === 'sphere' ? 'sphere' : 'classic') : ['classic', 'sphere'].includes(saved.physics) ? saved.physics : 'classic';
-  vehicle?.setPhysics?.(st.physics);
+  // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice
+  st.handling = params.has('physics') ? (params.get('physics') === 'classic' ? 'classic' : 'sphere') : saved.handling === 'classic' ? 'classic' : 'sphere';   // the sphere is the default; the key is new so an old saved 'classic' default does not stick
+  vehicle?.setPhysics?.(st.handling);
   let livery = typeof saved.livery === 'string' ? saved.livery : null;
   let lang = ['it', 'en'].includes(params.get('lang')) ? params.get('lang') : ['it', 'en'].includes(saved.lang) ? saved.lang : 'it';
   const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang, livery })); } catch (e) { /* storage unavailable: fine */ } };
@@ -302,7 +302,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
-    { key: 'physics', label: 'physics', type: 'seg', vals: [['classic', 'phClassic'], ['sphere', 'phSphere']] },
+    { key: 'handling', label: 'physics', type: 'seg', vals: [['sphere', 'phSphere'], ['classic', 'phClassic']] },
     { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
@@ -659,8 +659,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (key === 'camera' && game.state !== 'title') vehicle.camState.mode = value;
       if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again
       if (key === 'timeNow') dispatchEvent(new CustomEvent('pd-time-hour', { detail: value }));
-      if (key === 'physics') vehicle?.setPhysics?.(value);
-      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'physics') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'handling') vehicle?.setPhysics?.(value);
+      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }
