@@ -1,0 +1,120 @@
+Raw output of the tests in tools/p2p, run on one Mac (Chrome headless, one window per player, real public signalling, everything on the same machine).
+Repeated 'WebSocket ... 429' console lines (one default Nostr relay rate limiting us) and 'player ... ready' lines are left out.
+
+=== join-nostr (join.mjs: a player enters a room where another already is; times in ms from the room join to the first state seen; the first trial is cold, later ones reuse the kept connection)
+kind nostr: A in cell -3,0 (1 room); B far away
+{"k":0,"join":8909,"peerJoinMs":313,"firstStateMs":316,"errs":0}
+{"k":1,"join":16559,"peerJoinMs":9,"firstStateMs":10,"errs":0}
+{"k":2,"join":24208,"peerJoinMs":6,"firstStateMs":7,"errs":0}
+{"k":3,"join":31875,"peerJoinMs":6,"firstStateMs":6,"errs":0}
+{"k":4,"join":39524,"peerJoinMs":6,"firstStateMs":7,"errs":0}
+{"k":5,"join":46674,"peerJoinMs":10,"firstStateMs":11,"errs":0}
+seen 6/6; first-state ms min 6 median 10 max 316
+relays A [["wss://relay.piazza.today",1],["wss://relay.agentry.com",1],["wss://relay.layer.systems",1]] errs [] []
+
+=== join-torrent (join.mjs: a player enters a room where another already is; times in ms from the room join to the first state seen; the first trial is cold, later ones reuse the kept connection)
+kind torrent: A in cell -3,0 (1 room); B far away
+{"k":0,"join":8736,"peerJoinMs":323,"firstStateMs":326,"errs":0}
+{"k":1,"join":16377,"peerJoinMs":10,"firstStateMs":11,"errs":0}
+{"k":2,"join":24034,"peerJoinMs":9,"firstStateMs":10,"errs":0}
+{"k":3,"join":31701,"peerJoinMs":9,"firstStateMs":10,"errs":0}
+seen 4/4; first-state ms min 10 median 11 max 326
+relays A [["wss://open.ftorrent.com",1],["wss://tracker.webtorrent.dev",1],["wss://tracker.openwebtorrent.com",1]] errs [] []
+
+=== join-mqtt (join.mjs: a player enters a room where another already is; times in ms from the room join to the first state seen; the first trial is cold, later ones reuse the kept connection)
+kind mqtt: A in cell -3,0 (1 room); B far away
+{"k":0,"join":9461,"peerJoinMs":379,"firstStateMs":382,"errs":0}
+{"k":1,"join":17644,"peerJoinMs":5,"firstStateMs":6,"errs":0}
+{"k":2,"join":25344,"peerJoinMs":10054,"firstStateMs":10055,"errs":1}
+{"k":3,"join":43226,"peerJoinMs":10030,"firstStateMs":10033,"errs":1}
+seen 4/4; first-state ms min 6 median 10033 max 10055
+relays A [["wss://broker.emqx.io:8084/mqtt",1],["wss://public:public@public.cloud.shiftr.io",1],["wss://broker.hivemq.com:8884/mqtt",1]] errs [
+
+=== cold.mjs (two bot pages, brand new room, no game, no page CSP)
+nostr: connected 6/6, failed 0; ms from page load to first peer: min 211 median 270 p90 343 max 343; join errors logged 0; all: 211 260 266 270 274 343
+torrent: connected 6/6, failed 0; ms from page load to first peer: min 353 median 409 p90 423 max 423; join errors logged 0; all: 353 368 380 409 411 423
+mqtt: connected 6/6, failed 0; ms from page load to first peer: min 242 median 262 p90 298 max 298; join errors logged 0; all: 242 249 261 262 273 298
+
+=== border.mjs (B drives east at 14 m/s across the border at x=-1500; A and C parked; near mode: cell 500 m, margin 150 m, hysteresis 60 m)
+{"t":8818,"x":-2186,"rooms":"-5,0:0","drawn":"","peers":0}
+{"t":14799,"x":-2102,"rooms":"-5,0:0 -4,0:1","drawn":"Carlo","peers":1}
+{"t":20800,"x":-2018,"rooms":"-5,0:0 -4,0:1","drawn":"Carlo","peers":1}
+{"t":26800,"x":-1934,"rooms":"-5,0:0 -4,0:1","drawn":"Carlo","peers":1}
+{"t":32800,"x":-1850,"rooms":"-5,0:0 -4,0:1","drawn":"Carlo","peers":1}
+{"t":38800,"x":-1766,"rooms":"-4,0:1","drawn":"Carlo","peers":1}
+{"t":44799,"x":-1682,"rooms":"-4,0:1","drawn":"Carlo","peers":1}
+{"t":50803,"x":-1598,"rooms":"-4,0:1 -3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":56803,"x":-1514,"rooms":"-4,0:1 -3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":62799,"x":-1430,"rooms":"-4,0:1 -3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":68803,"x":-1347,"rooms":"-4,0:1 -3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":74803,"x":-1263,"rooms":"-3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":80802,"x":-1179,"rooms":"-3,0:2","drawn":"Anna+Carlo","peers":2}
+{"t":86803,"x":-1095,"rooms":"-3,0:2 -2,0:0","drawn":"Anna+Carlo","peers":2}
+{"t":92802,"x":-1011,"rooms":"-3,0:2 -2,0:0","drawn":"Anna+Carlo","peers":2}
+{"t":98802,"x":-927,"rooms":"-3,0:2 -2,0:0","drawn":"Anna+Carlo","peers":2}
+{"t":104802,"x":-843,"rooms":"-3,0:2 -2,0:0","drawn":"Anna+Carlo","peers":2}
+{"t":110801,"x":-759,"rooms":"-2,0:0","drawn":"","peers":0}
+{"t":116801,"x":-675,"rooms":"-2,0:0","drawn":"","peers":0}
+{"t":122801,"x":-600,"rooms":"-2,0:0 -1,0:0","drawn":"","peers":0}
+{"t":128800,"x":-600,"rooms":"-2,0:0 -1,0:0","drawn":"","peers":0}
+B appearances/drops per peer [["Xz5H",{"first":1,"drop":1}],["onq4",{"first":1,"drop":1}]]
+B events [[719,"join","-1,-1",null,null],[719,"join","-1,0",null,null],[719,"join","0,-1",null,null],[719,"join","0,0",null,null],[4885,"join","-5,0",null,null],[4885,"leave","-1,-1",null,null],[4886,"leave","-1,0",null,null],[4886,"leave","0,-1",null,null],[4886,"leave","0,0",null,null],[11521,"join","-4,0",null,null],[11698,"peerJoin","-4,0","Xz5H",178],[11700,"firstState","-4,0","Xz5H",178],[37184,"leave","-5,0",null,null],[47467,"join","-3,0",null,null],[47473,"peerJoin","-3,0","Xz5H",6],[47642,"peerJoin","-3,0","onq4",175],[47643,"firstState","-3,0","onq4",176],[73100,"leave","-4,0",null,null],[83316,"join","-2,0",null,null],[108898,"leave","-3,0",null,null],[110414,"drop",null,"Xz5H","left"],[110414,"drop",null,"onq4","left"],[118631,"join","-1,0",null,null]]
+connections (pcs/open) A 1 1 B 0 0 C 1 1 | B rx dup 0 bad 0 errs [
+
+=== scale-base-desktop (scale.mjs)
+N=0 desktop: me sees 0/0 (all connected after never); bots see peers [] bot join errors 0
+  frame ms mean 16.7 p50 16.7 p95 16.7 p99 16.8 (60 fps); script 202 ms/s, task 238 ms/s; heap 249 MB; nodes 2048
+
+=== scale-desktop-2 (scale.mjs)
+N=2 desktop: me sees 2/2 (all connected after 6.6 s from load); bots see peers [2,2] bot join errors 0
+  frame ms mean 16.7 p50 16.7 p95 16.7 p99 16.8 (60 fps); script 192 ms/s, task 226 ms/s; heap 281 MB; nodes 2113
+  webrtc pcs 2 open 2; up 2.3 KB/s, down 2.3 KB/s (data channels); on the wire incl. headers up 3.5 down 3.6 KB/s; app: {"txMsgs":374,"txBytes":4814,"rxMsgs":375,"rxBytes":4863,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":2,"peers":2}
+
+=== scale-desktop-8 (scale.mjs)
+N=8 desktop: me sees 8/8 (all connected after 7.5 s from load); bots see peers [8,8,8,8,8,8,8,8] bot join errors 0
+  frame ms mean 16.7 p50 16.7 p95 16.7 p99 16.8 (60 fps); script 247 ms/s, task 286 ms/s; heap 246 MB; nodes 2092
+  webrtc pcs 8 open 8; up 9.0 KB/s, down 9.1 KB/s (data channels); on the wire incl. headers up 14.1 down 14.2 KB/s; app: {"txMsgs":1491,"txBytes":19287,"rxMsgs":1505,"rxBytes":19517,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":8,"peers":8}
+
+=== scale-desktop-16 (scale.mjs)
+N=16 desktop: me sees 16/16 (all connected after 9.1 s from load); bots see peers [16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16] bot join errors 0
+  frame ms mean 16.7 p50 16.7 p95 16.8 p99 16.8 (60 fps); script 274 ms/s, task 312 ms/s; heap 285 MB; nodes 2127
+  webrtc pcs 16 open 16; up 18.1 KB/s, down 18.2 KB/s (data channels); on the wire incl. headers up 28.4 down 28.5 KB/s; app: {"txMsgs":2982,"txBytes":38606,"rxMsgs":3011,"rxBytes":39053,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":16,"peers":16}
+
+=== scale-desktop-30 (scale.mjs)
+N=30 desktop: me sees 30/30 (all connected after 17.1 s from load); bots see peers [30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30] bot join errors 0
+  frame ms mean 16.6 p50 16.7 p95 16.7 p99 16.8 (60 fps); script 269 ms/s, task 303 ms/s; heap 446 MB; nodes 2163
+  webrtc pcs 30 open 30; up 34.0 KB/s, down 34.0 KB/s (data channels); on the wire incl. headers up 53.4 down 53.4 KB/s; app: {"txMsgs":5579,"txBytes":72255,"rxMsgs":5624,"rxBytes":72952,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":30,"peers":30}
+
+=== scale-base-phone (scale.mjs)
+N=0 phone 844x390 cpu x4: me sees 0/0 (all connected after never); bots see peers [] bot join errors 0
+  frame ms mean 21.4 p50 16.7 p95 33.4 p99 33.4 (47 fps); script 880 ms/s, task 995 ms/s; heap 380 MB; nodes 2062
+
+=== scale-phone-2 (scale.mjs)
+N=2 phone 844x390 cpu x4: me sees 2/2 (all connected after 20.1 s from load); bots see peers [2,2] bot join errors 0
+  frame ms mean 22.9 p50 16.7 p95 33.4 p99 50.0 (44 fps); script 892 ms/s, task 1008 ms/s; heap 343 MB; nodes 2057
+  webrtc pcs 2 open 2; up 1.9 KB/s, down 2.3 KB/s (data channels); on the wire incl. headers up 3.1 down 3.5 KB/s; app: {"txMsgs":320,"txBytes":4112,"rxMsgs":378,"rxBytes":4902,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":2,"peers":2}
+
+=== scale-phone-8 (scale.mjs)
+N=8 phone 844x390 cpu x4: me sees 8/8 (all connected after 20.6 s from load); bots see peers [8,8,8,8,8,8,8,8] bot join errors 0
+  frame ms mean 25.4 p50 16.8 p95 33.4 p99 50.0 (39 fps); script 902 ms/s, task 1012 ms/s; heap 322 MB; nodes 2093
+  webrtc pcs 8 open 8; up 7.5 KB/s, down 9.2 KB/s (data channels); on the wire incl. headers up 12.3 down 14.2 KB/s; app: {"txMsgs":1239,"txBytes":16011,"rxMsgs":1524,"rxBytes":19764,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":8,"peers":8}
+
+=== scale-phone-16 (scale.mjs)
+N=16 phone 844x390 cpu x4: me sees 16/16 (all connected after 24.3 s from load); bots see peers [16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16] bot join errors 0
+  frame ms mean 29.0 p50 33.3 p95 33.5 p99 50.0 (34 fps); script 925 ms/s, task 1024 ms/s; heap 346 MB; nodes 2094
+  webrtc pcs 16 open 16; up 15.9 KB/s, down 18.7 KB/s (data channels); on the wire incl. headers up 25.7 down 29.0 KB/s; app: {"txMsgs":2599,"txBytes":33627,"rxMsgs":3087,"rxBytes":40041,"rxDropped":0,"rxDup":0,"rxBad":0,"joins":5,"leaves":4,"drawn":16,"peers":16}
+
+=== fuzz.mjs (hostile messages through the real handlers)
+markup name                        {"threw":0,"name":"<img src=x onerr","livery":0,"rxBad":0,"rxDropped":0,"drawn":0,"newBad":0}
+control + bidi + zero width        {"threw":0,"name":"AevilxB","livery":0,"rxBad":0,"rxDropped":0,"drawn":0,"newBad":0}
+emoji + long name (kept to 16)     {"threw":0,"name":"AevilxB","livery":0,"rxBad":1,"rxDropped":0,"drawn":0,"newBad":1}
+name length field lies             {"threw":0,"name":"AevilxB","livery":0,"rxBad":2,"rxDropped":0,"drawn":0,"newBad":1}
+name over 64 bytes                 {"threw":0,"name":"AevilxB","livery":0,"rxBad":3,"rxDropped":0,"drawn":0,"newBad":1}
+livery out of range                {"threw":0,"name":"AevilxB","livery":0,"rxBad":4,"rxDropped":0,"drawn":0,"newBad":1}
+invalid utf-8                      {"threw":0,"name":"����","livery":0,"rxBad":4,"rxDropped":0,"drawn":0,"newBad":0}
+not bytes                          {"threw":0,"name":"����","livery":0,"rxBad":10,"rxDropped":0,"drawn":0,"newBad":6}
+wrong state sizes                  {"threw":0,"name":"����","livery":0,"rxBad":13,"rxDropped":0,"drawn":0,"newBad":3}
+wrong type byte                    {"threw":0,"name":"����","livery":0,"rxBad":15,"rxDropped":0,"drawn":0,"newBad":2}
+position beyond +-20 km            {"threw":0,"name":"����","livery":0,"rxBad":16,"rxDropped":0,"drawn":0,"newBad":1}
+state of a peer without info       {"threw":0,"name":"����","livery":0,"rxBad":16,"rxDropped":0,"drawn":0,"newBad":0}
+flood of 500 states from one peer in one go (last build): 440 dropped by the rate limit, 60 passed (they carried position zero, outside the accepted range, so counted as bad)

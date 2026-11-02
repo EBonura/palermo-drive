@@ -161,6 +161,16 @@ export function createDrunk({ game, car, camera, missions }) {
     toast(name + (n > 1 ? '  ×' + n : ''), sub);
   }
 
+  // A drink offered by another player (src/p2p/p2p.js): no pub needed and nothing to pay here (the giver paid). Returns false when the stack is full.
+  function gift(name) {
+    if (game.state !== 'play') return false;
+    if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi chiù.', 'No more for you.']), true); return false; }
+    units += 1; count += 1;
+    const n = Math.ceil(units);
+    toast(name + (n > 1 ? '  ×' + n : ''), pick(LINES[Math.min(LINES.length, n) - 1]));
+    return true;
+  }
+
   function reset() { units = 0; shown = 0; count = 0; cool = 0; still = 0; noted = ''; visible = false; spot = null; for (const k in perks) delete perks[k]; }
 
   // ------------------------------------------------------------------ per frame
@@ -264,5 +274,5 @@ export function createDrunk({ game, car, camera, missions }) {
     renderer.setRenderTarget(rtOld); renderer.render(post.scn, post.cam);
   }
 
-  return { update, render, reset, drink, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
+  return { update, render, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
 }
