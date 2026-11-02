@@ -81,4 +81,4 @@
   with crates, the "pane e panelle" and "sfincione" street-food Ape, loudspeaker on the roof), parked
   and later in traffic.
 - **Horse carriages** (carrozze) for tourists around the Cattedrale and Teatro Massimo.
-- **Prop collision**: parked cars, bins, scooters, trees and lamps are drive-through today.
+- **Prop collision**: done (board item p5), see the table in docs/TILES.md, "What the lapa does to props". Open: no planters exist yet; garage doors are not known to the parked-car placement.
