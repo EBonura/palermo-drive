@@ -415,6 +415,66 @@ export const NIGHT_CLIENTS = {
       arrive: [['Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.', 'We are here, pal. Say hello to... nobody. But the meter talks.']],
     },
   },
+  // "U cuinnutu" (docs/cuinnutu.md), day or night: a man who is trying to stay calm and is failing, going to the Hotel Eufemia in Isola delle Femmine, "that's it". A nod to a local story:
+  // no name, nothing about anybody but "me muggheri", nothing explicit. The joke is on his nerves and on the driver's deadpan. `ped` is his sprite (a daytime suit, src/event-calls.js),
+  // `seq` makes his `ambient` lines come in this order instead of at random (src/event-fares.js), `stages` say a key once when the hotel is that many metres away, `label` is the HUD title.
+  // Palermitan drafts for the owner to correct (docs/palermitan-review.md); the glosses are ours.
+  cuinnutu: {
+    ped: 'suit', seq: true, label: ['Cliente nirvusu', 'Nervous client'],
+    stages: [[600, 'near'], [300, 'near2'], [110, 'close']],
+    client: {
+      flag: [
+        ['Lapista! Runami un passaggiu, amunì! Sugnu calmissimu, eh!', 'Driver! Give me a lift, come on! I am very calm, eh!'],
+        ['Ehi, tu! Fermati, ca haiu pressa... ma sugnu calmu!', 'Hey, you! Stop, I am in a hurry... but I am calm!'],
+        ['Lapista! Ccà! Nenti ri gravi, mi ci vo sulu un passaggiu!', 'Driver! Here! Nothing serious, I only need a lift!'],
+      ],
+      board: [
+        ['Bongiornu. Sugnu calmu. Calmissimu. Talìa, un mi trema mancu a manu.', 'Good day. I am calm. Very calm. Look, my hand is not even shaking.'],
+        ['Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nenti.', 'Do not worry, I am calm. Talk if you like, I hear nothing.'],
+      ],
+      ask: [
+        ['Mi puaitti all’Hotel Eufemia, all’Isula ri Fìmmini. Cucì, basta.', 'Take me to the Hotel Eufemia, in Isola delle Femmine. That is it.'],
+        ['Hotel Eufemia, all’Isula ri Fìmmini. Nenti ri chiù, nenti ri menu. Cucì.', 'Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it.'],
+        ['Amunì all’Hotel Eufemia. Un ti spiegu nenti, tantu sugnu calmu.', 'Let us go to the Hotel Eufemia. I will not explain, I am calm anyway.'],
+      ],
+      // in this order, one every fifteen seconds or so
+      ambient: [
+        ['Un mumentu, talìu u cillulari... nenti. Megghiu accussì.', 'One moment, I check the phone... nothing. Better that way.'],
+        ['Ju sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì.', 'I am calm, but you keep at it, eh? Faster, come on.'],
+        ['Cuntrollu n’autra vota u cillulari. Nenti. Cchiù nenti c’è, cchiù mi preoccupu.', 'I check the phone again. Nothing. The more nothing there is, the more I worry.'],
+        ['Dimmi na cosa: si ti dicu ca sugnu tranquillu, ti pari ca è viaru?', 'Tell me something: if I say I am calm, does it seem true to you?'],
+        ['Ju un ci vaiu pi cuntrullari nenti, eh. Ci vaiu... pi ripusarimi.', 'I am not going there to check anything, eh. I am going... to rest.'],
+        ['Cchiù prestu, pi favuri! No pirchì... sulu pirchì sì.', 'Faster, please! Not for any reason... just because.'],
+        ['U cillulari è quasi scarricu. Un fa nenti. Un fa nenti.', 'The phone is almost flat. Never mind. Never mind.'],
+      ],
+      near: [['Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nenti!', 'Wait, slowly! Slowly, slowly... I do not want to know anything!']],
+      near2: [['Rallenta... no, un rallintari. Sì, rallenta. Un mi puazzu firari i nuddu, mancu ri mia.', 'Slow down... no, do not. Yes, slow down. I cannot trust anybody, not even myself.']],
+      close: [['Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Forsi.', 'Stop here... no, keep going... no, stop. Wait for me, I will be a minute. Maybe.']],
+      fast: [['Maronna! Cchiù araciu... no, un araciu... boh! Sugnu calmu!', 'Madonna! Slower... no, not slower... who knows! I am calm!']],
+      drift: [['Ohi! Mi veni ’nu svinimiaintu! Ma sugnu calmu!', 'Ohi! I am going to faint! But I am calm!']],
+      wheels: [['Du roti! Sugnu calmu! Sugnu calmu!', 'Two wheels! I am calm! I am calm!']],
+      miss: [['Araciu, ca haiu già truappi pinsiari!', 'Easy, I already have too many thoughts!']],
+      hitPed: [['Chi fu? Un mi ci mettiri puru chistu, ca sugnu calmu!', 'What was that? Do not add this one too, I am calm!']],
+      hitWall: [['Chi botta! Un fa nenti, sugnu calmu... sugnu calmu...', 'What a bump! Never mind, I am calm... I am calm...']],
+      late: [['Curri, ca mi veni l’ansia! Sugnu calmu, ma curri!', 'Hurry, my anxiety is coming! I am calm, but hurry!']],
+      arrive: [
+        ['Teni ’sti picciuli. Aspettami ccà... no, un aspittari. Anzi sì. Anzi... accumpagnami.', 'Take this money. Wait for me here... no, do not wait. Actually yes. Actually... come with me.'],
+        ['Grazzi. Va beni, trasu. Tu aspetta ccà. O veni cu mia? Accumpagnami, va.', 'Thanks. Fine, I am going in. You wait here. Or come with me? Come with me, go on.'],
+        ['Teni i picciuli. Sugnu calmu, talìa: mi trema sulu a facci.', 'Keep the money. I am calm, look: only my face is shaking.'],
+      ],
+      fail: [['Un fa nenti, ci vaiu a pedi. Tantu sugnu calmu.', 'Never mind, I will go on foot. I am calm anyway.']],
+    },
+    driver: {
+      board: [['Bongiornu. All’Isula ri Fìmmini, allura.', 'Good day. To Isola delle Femmine, then.']],
+      depart: [['Annamu. Calmi, calmi.', 'Let us go. Nice and calm.']],
+      ask: [['Hotel Eufemia, certu. Calmissimu.', 'Hotel Eufemia, sure. Very calm.']],
+      ambient: [['Certu. Calmissimu.', 'Sure. Very calm.'], ['Mmh.', 'Mm.'], ['Chi ti pozzu diri.', 'What can I tell you.']],
+      near: [['Rallentu. Pi mia è uguali.', 'Slowing down. It is all the same to me.']],
+      near2: [['Ci semu quasi.', 'Nearly there.']],
+      close: [['Mi fermu unni voi tu.', 'I will stop wherever you like.']],
+      arrive: [['Ti aspettu ccà. U tassametru, però, un aspetta.', 'I will wait here. The meter, though, does not.']],
+    },
+  },
 };
 
 // ---- The horns mission (src/event-horns.js, docs/horns.md): the citizen in Piazza Pretoria hands the lapa a huge pair of horns, and the lapa takes them under the Arco di Cutò. It rests on the real

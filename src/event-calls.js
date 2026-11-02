@@ -31,7 +31,7 @@ export function createCalls(X) {
     if (s.kind === 'rave') return 'dj';
     if (s.kind === 'leaf') return 'nightboy2';
     if (s.kind === 'horns') return pick(['nonno', 'coppola', 'shopper', 'suit']);
-    if (s.nc) return 'client';
+    if (s.nc) return NIGHT_CLIENTS[s.nc].ped || 'client';   // 'ped': a night client who also calls by day wears something else
     if (s.kind === 'urgent') return pick(['suit', 'suit2', 'borsa', 'ragazzo', 'signora2']);
     if (s.sub === 'pulle') return night ? 'client' : pick(TOURIST_POOL);
     if (s.sub !== 'tourist' && Math.random() < FRIEND_CHANCE) return 'amico' + (1 + (Math.random() < 0.5 ? 0 : 1)) + '_' + pick(FRIEND_OUTFITS);
