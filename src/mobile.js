@@ -16,7 +16,7 @@ export const QUALITY = { mobile: touch, pixelRatio: touch ? 1.25 : 2 };
 
 // Bulb-horn shape for the CLACSON pad.
 const HORN_ICON = '<svg viewBox="0 0 24 24"><path d="M3 10v4h3l7 5V5L6 10H3z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
-const KEYS = ['KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space', 'ShiftLeft', 'KeyH'];
+const KEYS = ['KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space', 'ShiftLeft', 'KeyH', 'KeyF'];
 
 const ICON = {
   left: '<svg viewBox="0 0 48 48"><path d="M28 10 14 24l14 14" /></svg>',
@@ -25,6 +25,7 @@ const ICON = {
   down: '<svg viewBox="0 0 48 48"><path d="M10 18l14 14 14-14" /></svg>',
   nos: '<svg viewBox="0 0 48 48"><path d="M27 5 12 27h10l-3 16 17-24H26z" /></svg>',
   brake: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="13" /><path d="M24 15v11M24 31v2" /></svg>',
+  wing: '<svg viewBox="0 0 48 48"><path d="M6 30c4-1 8-5 10-10 2 3 3 6 3 9 2-2 4-6 4-10 3 3 4 7 3 11 4-1 7-4 9-9 1 5-1 11-5 14-5 3-14 3-24-5z" /></svg>',
 };
 
 function el(tag, cls, html, attrs) {
@@ -112,7 +113,8 @@ export function setupMobile({ keys, camState, renderer, camera }) {
     pad('p-brake', 'KeyS', ICON.down, 'RETRO'),
     pad('p-gas', 'KeyW', ICON.up, 'GAS'),
     pad('p-nos', 'ShiftLeft', ICON.nos, 'NOS'),
-    pad('p-horn', 'KeyH', HORN_ICON, 'CLACSON'));
+    pad('p-horn', 'KeyH', HORN_ICON, 'CLACSON'),
+    pad('p-fly', 'KeyF', ICON.wing, 'VOLA'));   // only shown with wings fitted (html.pd-wings, src/vehicle.js)
   ui.append(steer, drive);
 
   // pointerId -> key currently under that finger (null while it is over nothing)

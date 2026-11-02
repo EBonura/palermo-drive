@@ -99,6 +99,10 @@ const fontPre = [...css.matchAll(/url\("?([^)"]*(?:mr-dafoe|racing-sans-one)[^)"
 const preloads = [...fontPre, `<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.filter(b => !b.late).map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
 html = html.replace('<link rel="manifest"', preloads.join('\n') + '\n<link rel="manifest"');
 html = html.replace('</body>', `<script type="module" src="js/${appName}"></script>\n</body>`);
+// the loading tips (src/loading-tips.js): a classic deferred script with no imports that runs before the bundle has arrived, so it is a small file of its own, minified, hashed
+const tipsMin = esbuild.transformSync(fs.readFileSync(path.join(ROOT, 'src/loading-tips.js'), 'utf8'), { minify: true, target: ['chrome90', 'safari15'] }).code, tipsName = `tips.${hash(Buffer.from(tipsMin))}.js`;
+fs.writeFileSync(path.join(OUT, 'js', tipsName), tipsMin);
+mustReplace(/<script src="src\/loading-tips\.js" defer><\/script>/, `<script src="js/${tipsName}" defer></script>`, 'the loading tips script');
 // minify the inline splash script
 html = html.replace(/<script>([\s\S]*?)<\/script>/, (m, code) => `<script>${esbuild.transformSync(code, { minify: true }).code.trim()}</script>`);
 html = html.replace(/\n\s*\n+/g, '\n');

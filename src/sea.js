@@ -1,6 +1,6 @@
 // The sea: water surface, shoreline foam, boats and the drown-in-the-sea game over. Owned by the sea work.
 //
-// createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY }) -> { update(dt, camera), checkPlayer({ car, game, vehicle, placeAt, shout }), isWater(x, z) }
+// createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY }) -> { update(dt, camera), checkPlayer({ car, game, vehicle, placeAt, shout }), isWater(x, z), wake(car, dt), dip(x, z, speed) }
 //
 // Water: one camera-following disc (~3.5k triangles, one draw call). The fragment shader does everything from three
 // small textures: a signed distance to the shore (fine 2 m raster round the harbour and the coast, coarse raster for the
@@ -15,7 +15,7 @@ import * as THREE from 'three';
 const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 import { pairs, rng } from './core.js';
 
-const SEA_Y = -0.2;
+export const SEA_Y = -0.2;   // the water surface (src/vehicle-water.js floats on it)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
@@ -806,6 +806,32 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     } catch (e) { /* no audio: fine */ }
   }
 
+  // A lapa on floats (src/vehicle-water.js): foam trailing from the stern, a bow wave and spray when fast, a splash on the way in. The same particles as the drowning splash.
+  let wakeAcc = 0;
+  function wake(car, dt) {
+    const sp = Math.abs(car.vf || 0), sn = Math.sin(car.th), cs = Math.cos(car.th), w = car.wet || 0;
+    wakeAcc += dt * (4 + sp * 1.5) * w;
+    while (wakeAcc >= 1) {
+      wakeAcc -= 1;
+      for (const sg of [-1, 1]) {
+        emit(spray, { x: car.x - sn * 1.5 + cs * 0.55 * sg, y: SEA_Y + 0.05, z: car.z - cs * 1.5 - sn * 0.55 * sg, vx: cs * sg * (0.5 + sp * 0.035) + car.vx * 0.08, vy: 0, vz: -sn * sg * (0.5 + sp * 0.035) + car.vz * 0.08,
+          life: 1.5, s0: 0.5, s1: 1.5 + sp * 0.05, a0: 0.5, drag: 1.1, r: 0.96, gc: 0.98, b: 1 });
+        if (sp > 5) emit(spray, { x: car.x + sn * 1.5 + cs * 0.5 * sg, y: SEA_Y + 0.15, z: car.z + cs * 1.5 - sn * 0.5 * sg, vx: cs * sg * (0.6 + Math.random() * 0.8) + car.vx * 0.2, vy: 1.4 + Math.random() * 1.6 + sp * 0.04, vz: -sn * sg * (0.6 + Math.random() * 0.8) + car.vz * 0.2,
+          life: 0.7 + Math.random() * 0.4, s0: 0.14 + Math.random() * 0.1, s1: 0.1, a0: 0.85, g: 9.8, r: 0.92, gc: 0.97, b: 1 });
+      }
+    }
+  }
+  function dip(x, z, speed, vx = 0, vz = 0) {   // the lapa lands on the water on its floats: spray and a thump, no rings and no game over
+    const n = 18 + Math.min(40, speed * 1.6);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.283, h = 0.5 + Math.random() * (1.2 + speed * 0.05), up = 1.8 + Math.random() * (3 + speed * 0.1);
+      emit(spray, { x: x + Math.cos(a) * 0.4, y: SEA_Y + 0.1, z: z + Math.sin(a) * 0.4, vx: Math.cos(a) * h + vx * 0.1, vy: up, vz: Math.sin(a) * h + vz * 0.1,
+        life: 0.7 + Math.random() * 0.6, s0: 0.12 + Math.random() * 0.12, s1: 0.1, a0: 0.9, g: 9.8, r: 0.92, gc: 0.97, b: 1 });
+    }
+    for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283, h = 0.3 + Math.random() * 1.2; emit(spray, { x: x + Math.cos(a) * 0.7, y: SEA_Y + 0.2, z: z + Math.sin(a) * 0.7, vx: Math.cos(a) * h, vy: 0.8 + Math.random() * 1.4, vz: Math.sin(a) * h, life: 1 + Math.random() * 0.6, s0: 0.8, s1: 2.6, a0: 0.45, g: 1.2, drag: 0.8, r: 0.96, gc: 0.98, b: 1 }); }
+    splashSound(Math.min(speed, 12) * 0.5);
+  }
+
   function startDrown(a) {
     const { car, game, placeAt, shout } = a;
     S.on = true; S.t = 0; S.game = game; S.car = car; S.placeAt = placeAt;
@@ -914,11 +940,12 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }
   function checkPlayer(a) {
     if (S.on || !a || !a.car || !a.game || a.game.state !== 'play') return;
+    if (a.car.floats || a.car.flying) return;   // floats (src/vehicle-water.js) keep the lapa on the surface; a flying one is above it, and drowns only when it touches down
     if (isWater(a.car.x, a.car.z)) startDrown(a);
   }
 
   stats.initMs = performance.now() - T0;
-  const api = { update, checkPlayer, isWater, shoreAt, stats: () => ({ ...stats, windowReady: !!front, coarseReady: ready }) };
+  const api = { update, checkPlayer, isWater, shoreAt, wake, dip, stats: () => ({ ...stats, windowReady: !!front, coarseReady: ready }) };
   if (location.search.includes('debug')) window.__sea = api; // timings and field state for tests
   return api;
 }

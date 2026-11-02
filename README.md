@@ -29,7 +29,7 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
   their sfincione and panelle, and AMAT buses and trams run their real routes.
 - **Stadio Renzo Barbera:** drive in through the gate and onto the pitch, under stands full of rosanero tifosi.
 - **The garage:** the Officina ru ziu Turiddu. Pick a vehicle, paint and tune it, and make your own driver ("Il tuo autista"), who then
-  sits in the lapa. It is all saved in your browser.
+  sits in the lapa. It is all saved in your browser. The dearest parts are the floats (drive on the sea) and the wings (fly).
 - Collect the SUCA and 800A tags sprayed on walls all over town, outrun the police, and watch the neighbourhood's danger level.
 
 ## Controls
@@ -39,6 +39,7 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 | Drive | WASD or arrow keys | pads on both sides |
 | Handbrake | Space | FRENO |
 | Nitro | Shift | NOS |
+| Fly (hold to climb, needs the wings) | F | VOLA |
 | Horn | H | CLACSON |
 | Menu | Esc or P | the button top left |
 | Radio | M next track, N on/off | in the menu |

@@ -33,6 +33,7 @@ import { CENTRO_LANDMARKS } from './landmarks.js';   // the centro landmark mode
 const T = 500;
 const nk = (i, j) => (i + 200) * 1000 + (j + 200);
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function inFlat(f, x, z) { let c = false; for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2) { const zi = f[i + 1], zj = f[j + 1]; if ((zi > z) !== (zj > z) && x < (f[j] - f[i]) * (z - zi) / (zj - zi) + f[i]) c = !c; } return c; }   // point in a flat [x, z, ...] ring, no allocation (roofAt)
 
 // ---------- configuration (URL overrides for tuning: rfull, rlow, tricap) ----------
 const Q = new URLSearchParams(location.search);
@@ -571,16 +572,41 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
 
   // ---------- physics: wall segments, street names, road vertices (full-detail tiles only) ----------
+  // Roofs, for the flying lapa (src/vehicle-air.js): per full-detail tile, the footprints with the height of their roof, in a 24 m grid (roofAt below).
+  // The height is the one lowBuildings extrudes to; a wall segment carries it as seg.top, so a flying car clears a wall only above its roof.
+  const RC = 24, rk = (ix, iz) => ix * 100003 + iz;
+  function roofTops(b, d) {   // [[flat ring, top]] of one building: its roof elevation per solid
+    let sh = d.near ? 0 : -b.g;
+    if (b.e) { let lo = Infinity; for (let i = 0; i < b.p.length; i += 2) lo = Math.min(lo, groundY(b.p[i], b.p[i + 1])); sh = lo - b.g; }
+    const solids = b.r === undefined ? [[b.p, null]] : !b.split ? [[b.p, b.r + sh]] : (b.parts || []).map(([poly, rr]) => [poly, rr + sh]), out = [];
+    for (const [flat, roofAbs] of solids) {
+      let gmax = -1e9; for (let i = 0; i < flat.length; i += 2) gmax = Math.max(gmax, groundY(flat[i], flat[i + 1]));
+      out.push([flat, Math.max(roofAbs === null ? gmax + b.h : roofAbs, gmax + 2.5)]);
+    }
+    return out;
+  }
   function* registerPhysics(t) {
     const d = t.data; let n = 0;
-    const addRing = flat => {
+    const roofs = t.roofs = new Map(), tops = new Map();   // roofs: cell -> records; tops: building id -> highest roof
+    const addRing = (flat, top) => {
       const p = pairs(flat);
-      for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; wallGrid.addSeg(t.k, [a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
+      for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], seg = [a[0], a[1], b[0], b[1]]; seg.top = top; wallGrid.addSeg(t.k, seg, a[0], a[1], b[0], b[1]); }
     };
     // city landmarks may swap a footprint's walls for their own (the stadium's gate, the Politeama railing)
     const lms = cityIn(t).concat(CENTRO_LANDMARKS.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j)), drop = new Set(lms.flatMap(l => l.dropWalls || []));   // (the centro landmarks only bring walls: their models are built by lmJob)
-    for (const b of d.buildings) { if (drop.has(b.id) || b.yb) continue; addRing(b.p); if (b.holes) b.holes.forEach(addRing); if ((++n & 63) === 0) yield; }
-    for (const l of lms) for (const w of l.walls || []) wallGrid.addSeg(t.k, w, w[0], w[1], w[2], w[3]);
+    for (const b of d.buildings) {
+      const rt = b.yb ? [] : roofTops(b, d);
+      let top = -1e9; for (const [flat, h] of rt) {
+        top = Math.max(top, h);
+        let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (let i = 0; i < flat.length; i += 2) { x0 = Math.min(x0, flat[i]); x1 = Math.max(x1, flat[i]); z0 = Math.min(z0, flat[i + 1]); z1 = Math.max(z1, flat[i + 1]); }
+        const rec = { x0, z0, x1, z1, flat, holes: b.holes, h: h - 0.9 };   // 0.9: the parapet; a flat roof is walked on under it
+        for (let ix = Math.floor(x0 / RC); ix <= Math.floor(x1 / RC); ix++) for (let iz = Math.floor(z0 / RC); iz <= Math.floor(z1 / RC); iz++) { const k = rk(ix, iz); let a = roofs.get(k); if (!a) roofs.set(k, a = []); a.push(rec); }
+      }
+      tops.set(b.id, top);
+      if (drop.has(b.id) || b.yb) { if ((++n & 63) === 0) yield; continue; }
+      addRing(b.p, top); if (b.holes) b.holes.forEach(h => addRing(h, top)); if ((++n & 63) === 0) yield;
+    }
+    for (const l of lms) { let top = -1e9; for (const id of l.dropWalls || []) top = Math.max(top, tops.get(id) ?? -1e9); for (const w of l.walls || []) { w.top = top > -1e9 ? top : groundY(w[0], w[1]) + 25; wallGrid.addSeg(t.k, w, w[0], w[1], w[2], w[3]); } }
     for (const r of d.roads) {
       const p = pairs(r.p);
       for (let i = 0; i < p.length - 1; i++) {
@@ -593,6 +619,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function unregisterPhysics(t) {
     if (!t.phys) return;
+    t.roofs = null;
     wallGrid.removeTile(t.k); nameGrid.removeTile(t.k);
     let w = 0; for (let r = 0; r < roadVerts.length; r++) if (roadVerts[r].t !== t.k) roadVerts[w++] = roadVerts[r];
     roadVerts.length = w;
@@ -953,7 +980,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (mk) setPart(t, 'paint', mk);
     }
     t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) setPart(t, 'quays', qg); }
-    t.stage = 'fences'; { const fg = yield* buildFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences), t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }
+    t.stage = 'fences'; { const fg = yield* buildFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences), t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate)
     t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;
@@ -1202,6 +1229,22 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     get farCity() { return farCity; },
     raised,
     drivePlayer, surfaceAt,
+    // For the flying lapa (src/vehicle-air.js). roofAt: height of the roof you can land on at (x, z) (the highest one, courtyards excluded), or NaN when there is none or the tile is not at full detail.
+    // detailAt: 2 when the tile under (x, z) is at full detail with its walls registered (landing is safe there), else lower.
+    roofAt(x, z) {
+      const t = tiles.get(nk(Math.floor(x / T), Math.floor(z / T)));
+      if (t === undefined || t.roofs === null || t.roofs === undefined) return NaN;
+      const a = t.roofs.get(rk(Math.floor(x / RC), Math.floor(z / RC)));
+      let best = NaN;
+      if (a !== undefined) for (let i = 0; i < a.length; i++) {
+        const r = a[i];
+        if (x < r.x0 || x > r.x1 || z < r.z0 || z > r.z1 || !(best !== best || r.h > best) || !inFlat(r.flat, x, z)) continue;
+        if (r.holes) { let hole = false; for (const h of r.holes) if (inFlat(h, x, z)) { hole = true; break; } if (hole) continue; }
+        best = r.h;
+      }
+      return best;
+    },
+    detailAt(x, z) { const t = tiles.get(nk(Math.floor(x / T), Math.floor(z / T))); return t !== undefined && t.lod === 2 && t.phys ? 2 : t !== undefined ? t.lod : 0; },
     // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.
     isLand(x, z) {
       if (!landPoly) return false;

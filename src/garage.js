@@ -113,6 +113,10 @@ export const PARTS = [
   { id: 'screen', name_it: 'Cupolino', name_en: 'Windscreen', kinds: BIKE, opts: [
     O('basso', 'Cupolino basso', 'Flyscreen', 14), O('alto', 'Cupolino alto', 'Tall screen', 20)] },
   { id: 'sub', name_it: 'Subwoofer', name_en: 'Subwoofer', opts: [O('sub', 'Subwoofer', 'Subwoofer', 35)] },
+  // The two endgame upgrades (floats: drive on the sea, src/vehicle-water.js; wings: fly, src/vehicle-air.js). Far dearer than anything else (the next dearest part is 55, the dearest vehicle 120),
+  // so they take real play to earn. Fitted like any part (per base), so "None" switches them off. hint_*: the line under the section name in the Garage.
+  { id: 'swim', name_it: 'Mare', name_en: 'Sea', hint_it: 'Guida sull\'acqua', hint_en: 'Drive on the sea', opts: [O('galleggianti', 'Galleggianti e fuoribordo', 'Floats and outboard', 250)] },
+  { id: 'fly', name_it: 'Cielo', name_en: 'Sky', hint_it: 'Tieni F per salire', hint_en: 'Hold F to climb', opts: [O('ali', 'Ali', 'Wings', 600)] },
 ];
 export const partById = id => PARTS.find(p => p.id === id);
 const fits = (x, v) => (!x.kinds || x.kinds.includes(v.kind)) && (!x.only || x.only.includes(v.id)) && !(x.not && x.not.includes(v.id));
@@ -132,6 +136,7 @@ export const CATEGORIES = [
   { id: 'stickers', name_it: 'Adesivi', name_en: 'Stickers', parts: ['stickers'] },
   { id: 'horn', name_it: 'Clacson', name_en: 'Horn', parts: ['horn'] },
   { id: 'extra', name_it: 'Extra', name_en: 'Extras', parts: ['roof', 'load', 'box', 'screen', 'sub'] },
+  { id: 'upgrade', name_it: 'Mare e cielo', name_en: 'Sea and sky', parts: ['swim', 'fly'] },
 ];
 // the tabs a base shows: paint always, the others only when something fits
 export const categoriesFor = typeId => CATEGORIES.filter(c => c.paint || c.parts.some(p => partOpts(p, typeId).length));

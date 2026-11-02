@@ -18,6 +18,8 @@ import { buildVehicleModel, buildLocalRig, repaint, tickShared, geoKey } from '.
 import { createVehicleAudio } from './vehicle-audio.js';
 import { createVehicleEvents } from './vehicle-events.js';
 import { createSphere } from './vehicle-sphere.js';
+import { createWater, WET_TOP, WET_GRIP } from './vehicle-water.js';   // floats: drive on the sea (src/vehicle-water.js)
+import { createAir, CAP as AIR_CAP } from './vehicle-air.js';   // wings: fly (src/vehicle-air.js)
 import { QUALITY } from './mobile.js';
 import { vp } from './viewport.js';
 import { createCameraClear } from './camera-clear.js';   // the chase camera stays under tunnel roofs, gate vaults and flyover decks
@@ -84,7 +86,7 @@ const MODEL_LEN = 3.1;
 export const LIVERIES = ALL_LIVERIES.calessino;
 
 export function createVehicle(env) {
-  const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock } = env;   // viewBlock(x0, z0, x1, z1): where tall props hide the car from the chase camera (props.js occlude), optional
+  const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock, sea, world } = env;   // viewBlock(x0, z0, x1, z1): where tall props hide the car from the chase camera (props.js occlude), optional
   const baseFov = camera.fov;
   const audio = createVehicleAudio({ keys });
 
@@ -154,7 +156,7 @@ export function createVehicle(env) {
     const v = th === undefined ? nearestRoad(x, z) : [x, z, th];
     Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, hsCool: 0 });
     camState.init = false;
-    sphere.reset();
+    sphere.reset(); air.reset(); water.reset();
   }
 
   // ---------- collision ----------
@@ -173,6 +175,7 @@ export function createVehicle(env) {
       let px = 0, pz = 0;
       walls2d.query(cx - T.R, cz - T.R, cx + T.R, cz + T.R, s => {
         if (s.lv !== undefined && (Math.abs(groundY(car.x, car.z) + (car.deck || 0) - s.lv) > 2.6 || car.vault > 0)) return;   // a parapet or tunnel wall on another level, or a car in the air
+        if (car.flying && s.lv === undefined && car.fy > (s.top !== undefined ? s.top : groundY((s[0] + s[2]) * 0.5, (s[1] + s[3]) * 0.5) + 4) - 1.2) return;   // flying: a wall stops the lapa only below its top (as in src/vehicle-sphere.js)
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
@@ -219,8 +222,11 @@ export function createVehicle(env) {
   let simT = 0, frozen = false;
   // the sphere model (src/vehicle-sphere.js, the default) replaces the yaw, grip, movement and wall response below; everything else is shared
   let SPHERE = qs.get('physics') !== 'classic';   // switchable at run time: api.setPhysics('classic' | 'sphere')
-  const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; } });
+  const water = createWater({ car, sea });
+  const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; }, waterAt: water.floorAt });
+  const air = createAir({ car, keys, groundY, floorAt: sphere.floorAt, roofAt: (x, z) => world ? world.roofAt(x, z) : NaN, detailAt: (x, z) => world ? world.detailAt(x, z) : 2, isWater: water.isWater, onEvent: (kind, a, b, x, z) => airEvent(kind, a, b, x, z) });
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
+  let prevFlying = false;
   function physics(dt) {
     ticks++;
     if (frozen || holdSimFlag) return;
@@ -260,10 +266,15 @@ export function createVehicle(env) {
     car.drift += (dT - car.drift) * Math.min(1, (dT > car.drift ? 10 : 5) * dt);
     const d = car.drift;
 
+    // ----- floats and wings (src/vehicle-water.js, src/vehicle-air.js): how wet we are, and the height while we fly -----
+    water.step(dt);
+    if (car.wings || car.flying) air.step(dt, SPHERE ? sphere.state.y : groundY(car.x, car.z) + car.lift);
+    const wet = car.wet || 0, flying = !!car.flying;
+
     // ----- longitudinal -----
     const thrOn = up || nosWant;
     let g = car.gear;
-    const vMul = 1 + (T.nosTop - 1) * nm;
+    const vMul = (1 + (T.nosTop - 1) * nm) * (1 - (1 - WET_TOP) * wet);   // on the water the gears top out lower
     let aDrive = 0, brakeA = 0;
     if (car.shiftT > 0) car.shiftT -= dt;
     else {
@@ -287,10 +298,12 @@ export function createVehicle(env) {
     }
     if (hb) brakeA += T.hbrake * (SPHERE ? 0.45 : 1);   // sphere: the handbrake is mostly a yaw flick and a grip cut, not a brake
     if (car.gripLoss > 0) { aDrive *= 1 - 0.4 * car.gripLoss; brakeA *= 1 - 0.5 * car.gripLoss; }   // e6: gravel, sand and grass (src/world.js drivePlayer) and potholes: the tyres spin and lock before they bite
-    const coast = (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf;
+    // in the air nothing rolls or brakes the engine, so the speed holds when the throttle is let go; on the water what is above the water top speed is dragged off
+    const coast = flying ? 0.25 + 0.5 * T.drag * vf * vf : (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf + wet * 0.55 * Math.max(0, Math.abs(vf) - WET_TOP * T.gearV[T.nG]);
     // Gravity along the slope: the Cassaro really does climb towards Porta Nuova.
-    const slope = (gB(car.x + sn * 1.2, car.z + cs * 1.2) - gB(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
+    const slope = flying ? 0 : (gB(car.x + sn * 1.2, car.z + cs * 1.2) - gB(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
     vf += (aDrive - 9.81 * slope) * dt;
+    if (flying && car.agl > 3 && vf > AIR_CAP) vf -= (vf - AIR_CAP) * Math.min(1, 4 * dt);   // the tile streamer cannot build the city faster than this (measured, see CAP in src/vehicle-air.js)
     const resist = (brakeA + coast) * dt;
     vf = Math.abs(vf) <= resist ? 0 : vf - Math.sign(vf) * resist;
     // rpm for the gauge and the engine sound
@@ -340,7 +353,7 @@ export function createVehicle(env) {
         let psi = Math.atan2(car.vx, car.vz);
         const fwd = car.vx * sn + car.vz * cs >= 0;
         const e = wrap((fwd ? car.th : car.th + PI) - psi);
-        const aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss), kG = lerp(T.kGrip, T.kDrift, d);
+        const wetG = 1 - WET_GRIP * wet, aCap = lerp(T.aGrip, T.aDrift, d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) * wetG, kG = lerp(T.kGrip, T.kDrift, d) * wetG;
         const rMax = aCap / Math.max(v, 4);
         let dpsi = clamp(e * kG, -rMax, rMax) * dt;
         if (Math.abs(dpsi) > Math.abs(e)) dpsi = e;
@@ -390,13 +403,16 @@ export function createVehicle(env) {
       const sg = Math.abs(car.ay) < 1 && car.kickT > 0 ? car.kickSgn : Math.sign(car.ay);
       car.lean = car.tip * sg;
     }
-    const rollT = clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side) * (T.bike ? 0.4 : 1);
-    const pitchT = clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
+    // in the air the lapa banks into its turns (a left turn rolls it left, the other way round to a lapa on the road) and its nose follows the climb
+    const rollT = flying ? -car.sIn * 0.5 : clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side) * (T.bike ? 0.4 : 1);
+    const pitchT = flying ? -clamp(car.fvy * 0.03, -0.5, 0.42) : clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
     if (!SPHERE) {   // the sphere model sets car.lift (and car.deck) itself
       // a bridge deck or tunnel floor under the car (hooks.level): car.deck is its height over the terrain; leaving it sideways or off the end is a free fall
-      const gb = groundY(car.x, car.z), tele = car.px !== undefined && Math.hypot(car.x - car.px, car.z - car.pz) > 6;   // placed somewhere new: take the highest deck there
+      const gb = groundY(car.x, car.z);
+      if (prevFlying && !flying && hooks.level) { const l = hooks.level(car.x, car.z, car.fy + 1.2); if (l === l) car.deck = l - gb; }   // touched down on a bridge deck: the deck logic below takes over from its height
+      const tele = car.px !== undefined && Math.hypot(car.x - car.px, car.z - car.pz) > 6;   // placed somewhere new: take the highest deck there
       const d0 = tele ? 0 : (car.deck || 0), ly = hooks.level ? hooks.level(car.x, car.z, tele ? 1e9 : gb + d0 + 0.3) : NaN, tgt = ly === ly ? ly - gb : 0;
       car.px = car.x; car.pz = car.z;
       if (tele) car.deck = tgt;
@@ -405,10 +421,15 @@ export function createVehicle(env) {
       else if (tgt >= d0 - 0.6 && !(car.vault > 1.8)) { car.deck = d0 + (tgt - d0) * Math.min(1, 20 * dt); car.dfv = 0; }
       else { car.dfv = (car.dfv || 0) - 22 * dt; car.deck = Math.max(tgt, d0 + car.dfv * dt); if (car.deck <= tgt + 0.01) { car.dfv = 0; car.vault = 0; } }
       if (Math.abs(car.deck) < 0.002) car.deck = 0;
-      car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) + car.deck - car.lift) * Math.min(1, 25 * dt);
+      const wf = water.floorAt(car.x, car.z);   // wings and floats (the sphere model does this itself): on floats the body rides the water, in flight the height is the air module's
+      if (wf === wf && wf > gb && !flying) car.lift += (wf - gb - car.lift) * Math.min(1, 12 * dt);
+      else car.lift += ((raisedMask(car.x, car.z) ? CURB : 0) + car.deck - car.lift) * Math.min(1, 25 * dt);
+      if (flying) { car.lift = car.fy - gb; car.deck = 0; car.dfv = 0; car.vault = 0; }
       if (hooks.fall) hooks.fall(car, { y: gb + car.deck, air: (car.dfv || 0) < -1 && car.deck > tgt + 0.5 });
       if (hooks.tick) hooks.tick(dt);   // smashed fence panels in flight (src/fences.js)
     }
+    if (!flying) car.agl = 0;
+    prevFlying = flying;
     // road wear (src/roadwear.js): bounce spring after a pothole, grip and forced lean fade, and how hard the rear tyres scrub
     car.hopV += (-170 * car.hop - 8 * car.hopV) * dt; car.hop += car.hopV * dt;
     car.gripLoss = Math.max(0, car.gripLoss - dt / 0.7); car.kickT = Math.max(0, car.kickT - dt / 0.9);
@@ -416,6 +437,22 @@ export function createVehicle(env) {
     car.spin += car.vf * dt / (rig ? rig.A.wheelR : 0.23);
   }
 
+
+  // events of the air module (src/vehicle-air.js): a hop and dust on take-off and touch-down, the driver's line as a balloon
+  function airEvent(kind, a, b, x, z) {
+    if (kind === 'say') {
+      dispatchEvent(new CustomEvent('pd-shout', { detail: { x: car.x, y: groundY(car.x, car.z) + car.lift + 2.7, z: car.z, text: a, follow: () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift + 2.7, z: car.z }) } }));
+      return;
+    }
+    const hit = kind === 'land' ? a : 1;
+    car.hopV = Math.min(2.6, car.hopV + 0.5 + 0.12 * hit);
+    cam.trauma = Math.max(cam.trauma, kind === 'land' ? clamp(0.1 + hit / 22, 0, 0.7) : 0.2);
+    if (b !== 'water' && !(kind === 'up' && car.wet > 0.5)) {   // dust at the wheels
+      const y = groundY(car.x, car.z) + car.lift + 0.15, sn = Math.sin(car.th), cs = Math.cos(car.th);
+      for (let i = 0; i < 10; i++) { const sg = i % 2 ? 1 : -1, r = 0.3 + Math.random() * 0.5; puff(car.x - sn * rearZ + cs * rearTrack * sg, y, car.z - cs * rearZ - sn * rearTrack * sg, cs * sg * r * 2 + (Math.random() - 0.5), -sn * sg * r * 2 + (Math.random() - 0.5), 1.0 + Math.random() * 0.8); }
+    }
+    if (kind === 'land' && hit > 8) { car.vx *= 0.7; car.vz *= 0.7; }   // a hard landing (fast and steep) costs speed, never the lapa
+  }
 
   // A wheel dropped into a pothole (src/roadwear.js): s = severity (about 0.1 small hole, 1 big hole at speed), side +1 left / -1 right,
   // pitch +1 front wheel (nose dips) / -1 rear. Bounces the body and camera; the caller handles speed, yaw, grip and tipping.
@@ -470,7 +507,7 @@ export function createVehicle(env) {
     const ca = m === 2 ? car.th : cam.ang;
     const f = _c.set(Math.sin(ca), 0, Math.cos(ca));
 
-    const gy0 = groundY(car.x, car.z), gy = gy0 + (car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js)
+    const gy0 = groundY(car.x, car.z), gy = gy0 + (car.flying || car.wet > 0.02 ? car.lift : car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js); in the air or on the water the body's own height
     // field of view: speed, nitro punch
     const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6;
     cam.fov += (fovT - cam.fov) * Math.min(1, 7 * dt);
@@ -494,13 +531,14 @@ export function createVehicle(env) {
     }
     if (rig) rig.driver.visible = true;
     const [dist0, h] = [[5.8 * T.camK, 2.7 * T.camK], [13 * T.camK, 7 * T.camK], null, [3, 130]][m];
-    const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 : 0);
-    const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 : 0);
+    const hi = car.flying ? sstep(0, 25, car.agl) : 0;   // up in the air the camera backs off a little, to show the city under the wings
+    const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 + hi * 3.5 : 0);
+    const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 + hi * 1.6 : 0);
     if (!camState.init) { camState.pos.set(dx, dy, dz); camState.init = true; }
     const kh = 1 - Math.exp(-(m === 3 ? 3 : 22) * dt), kv = 1 - Math.exp(-(m === 3 ? 3 : 6) * dt);
     camState.pos.x += (dx - camState.pos.x) * kh; camState.pos.z += (dz - camState.pos.z) * kh; camState.pos.y += (dy - camState.pos.y) * kv;
     const p = _p.copy(camState.pos);
-    if (m !== 3) {
+    if (m !== 3 && !(car.flying && car.agl > 8)) {   // (up in the air the walls and trunks below do not matter)
       let t = wallHit(car.x, car.z, p.x, p.z);
       if (viewBlock) t = Math.min(t, viewBlock(car.x, car.z, p.x, p.z));   // trunks, poles, kiosks: the same pull-in as a wall
       const kT = t < 1 ? Math.max(0.15, t * 0.85) : 1;
@@ -563,7 +601,12 @@ export function createVehicle(env) {
     applyPreset(look.type);
     camState.init = false;
   }
-  function syncSaved() { savedLook = garage.look(); if (!previewing) mount(savedLook); }
+  function syncSaved() {
+    savedLook = garage.look(); if (!previewing) mount(savedLook);
+    car.wings = !!savedLook.parts.fly; car.floats = !!savedLook.parts.swim;   // what the lapa on the road wears (not the look the Garage previews)
+    document.documentElement.classList.toggle('pd-wings', car.wings);          // the touch pad VOLA shows only with wings (src/mobile.css)
+    if (!car.wings) air.reset();
+  }
   garage.onChange(syncSaved);
   // The garage shows unsaved looks while you browse (and unowned parts): preview(look) shows one, preview(null) goes back to the saved look.
   function preview(look) { if (look) { previewing = true; mount(look); } else { previewing = false; mount(savedLook); } }
@@ -584,7 +627,7 @@ export function createVehicle(env) {
 
   // Swap vehicle in the street: V on the keyboard, the swap button on the touch UI (mobile.js dispatches 'pd-swap'). Cycles through the owned vehicles.
   function cycleVehicle() {
-    const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4 || swapLock) return;
+    const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4 || swapLock || car.flying || car.wet > 0.2) return;   // (not in the air or on the water: the next one may have no wings or floats)
     garage.setVehicle(owned[(owned.findIndex(v => v.id === garage.type) + 1) % owned.length].id);
   }
   addEventListener('keydown', e => { if (e.code === 'KeyV' && !e.repeat && !e.ctrlKey && !e.metaKey) cycleVehicle(); });
@@ -599,8 +642,9 @@ export function createVehicle(env) {
     if (hitMag > 0) { lastHitMag = hitMag; hitMag = 0; hitId++; car.pitch += clamp(lastHitMag * 0.003, 0, 0.05) * (car.vf > 0 ? 1 : -1); }
 
     const g = rig.root, now = performance.now() / 1000;
-    g.position.set(car.x, groundY(car.x, car.z) + car.lift + car.hop, car.z); g.rotation.y = car.th;
-    const P = _pose; P.speed = Math.abs(car.vf); P.pitch = car.pitch; P.roll = car.roll; P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
+    const wv = car.wet || 0;   // floats: the body bobs and sways on the water
+    g.position.set(car.x, groundY(car.x, car.z) + car.lift + car.hop + wv * 0.07 * Math.sin(now * 2.3), car.z); g.rotation.y = car.th;
+    const P = _pose; P.speed = Math.abs(car.vf); P.pitch = car.pitch + wv * 0.03 * Math.sin(now * 1.7); P.roll = car.roll + wv * 0.04 * Math.sin(now * 1.3 + 1); P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
     rig.pose(P);
     tickShared(now);
     brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : (car.tailGlow || 0) * 0.45; // tail lamps stay dimly lit at night (src/daynight.js sets car.tailGlow)
@@ -704,10 +748,11 @@ export function createVehicle(env) {
     return ok;
   };
   api.puff = puff;
+  api.air = air; api.water = water;   // test hooks and the wake (src/main.js)
   api.teleport = (x, z, th) => {
     Object.assign(car, { x, z, th, vx: 0, vz: 0, vf: 0, w: 0, slip: 0, drift: 0, dLatch: 0, psiDot: 0, psiPrev: th, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, steer: 0, sIn: 0 });
     camState.init = false;
-    sphere.reset();
+    sphere.reset(); air.reset(); water.reset();
   };
   // Live switch between the bicycle model ('classic') and the rolling-ball model ('sphere'); position, heading and speed carry over.
   api.setPhysics = mode => {
@@ -715,6 +760,7 @@ export function createVehicle(env) {
     SPHERE = on; sphere.reset(); car.psiPrev = Math.atan2(car.vx, car.vz); car.psiDot = 0; car.hop = car.hopV = 0;
   };
   api.physicsMode = () => SPHERE ? 'sphere' : 'classic';
+  api.fly = () => ({ wings: !!car.wings, floats: !!car.floats, flying: !!car.flying, agl: car.agl, y: car.fy, wet: car.wet });
   events = createVehicleEvents({ scene, camera, car, groundY, roadVerts, api, audio, mobile: QUALITY });
   api.events = events;
   if (qs.has('debug') || qs.has('pdveh')) window.pdVehicle = api;   // test hook

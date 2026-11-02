@@ -201,6 +201,7 @@ function writeInstances() {
 const R_CAR = 0.78, R_TRAM = 1.5;
 function collideTrams(car) {
   car0 = car;
+  if (car.agl > 3) return;   // flying over it (src/vehicle-air.js)
   const sn = Math.sin(car.th), cs = Math.cos(car.th);
   for (const T of trams) {
     if (Math.abs(T.x0 - car.x) > 40 || Math.abs(T.z0 - car.z) > 40) continue;

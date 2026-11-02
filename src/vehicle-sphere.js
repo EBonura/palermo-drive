@@ -10,6 +10,7 @@
 // of snagging on it. The ball rolls on a smoothed surface (ground averaged over the footprint plus a kerb ramp), so kerbs, tile edges
 // and bumps become a soft rise of the body, never a stop. Steep ground acts like a wall (a slope limit) and the body is tilted to the
 // slope under its axles. The rest of the game still reads and writes the same car fields (x, z, vx, vz, th, w, vf, lift, ...).
+import { WET_GRIP } from './vehicle-water.js';
 const PI = Math.PI;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const wrap = a => a - 2 * PI * Math.floor((a + PI) / (2 * PI));
@@ -32,12 +33,22 @@ const TUNE = {
   tascia: { kGrip: 14, kSlide: 2.4, wDrift: 1.3, hbKick: 0.85, keep: 0.9, e: 0.1, mu: 0.08, resp: 13, bumpK: 0.7, slopeMax: 0.85, wMul: 1 },
 };
 
-export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit }) {
+export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit, waterAt }) {   // waterAt(x, z): the height of the water a lapa on floats rides on, else NaN (src/vehicle-water.js)
   let P = { ...BASE };
   const S = { y: 0, vy: 0, vb: 0, ready: false, px: 0, pz: 0, kerb: 0, slopeF: 0, side: 0, grad: 0, hbPrev: false, hit: 0, air: false, fv: 0 };
 
   // the ground under the ball: the terrain, or a bridge deck / tunnel floor (src/bridges.js hooks.level) that the ball is on or a step below
-  const gY = (x, z) => { if (hooks.level && S.ready) { const y = hooks.level(x, z, S.y); if (y === y) return y; } return groundY(x, z); };
+  const gY = (x, z) => {
+    if (hooks.level && S.ready) { const y = hooks.level(x, z, S.y); if (y === y) return y; }
+    const g = groundY(x, z), w = waterAt ? waterAt(x, z) : NaN;
+    return w > g ? w : g;   // floats: over the sea the ground is the water's surface
+  };
+  // the ground, a deck or the water under (x, z) for something at height yRef (the flying lapa lands on it), see src/vehicle-air.js
+  const floorAt = (x, z, yRef) => {
+    if (hooks.level) { const y = hooks.level(x, z, yRef); if (y === y) return y; }
+    const g = groundY(x, z), w = waterAt ? waterAt(x, z) : NaN;
+    return w > g ? w : g;
+  };
   function tune(type) { P = { ...BASE, ...(TUNE[type] || {}) }; }
   function reset() { S.ready = false; S.vy = S.vb = 0; }
 
@@ -75,6 +86,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
       let px = 0, pz = 0;
       walls2d.query(cx - T.R, cz - T.R, cx + T.R, cz + T.R, s => {
         if (s.lv !== undefined && (Math.abs(S.y - s.lv) > 2.6 || S.air)) return;   // a parapet or tunnel wall on another level (the road under a deck, a car in the air)
+        if (car.flying && s.lv === undefined && S.y > (s.top !== undefined ? s.top : groundY((s[0] + s[2]) * 0.5, (s[1] + s[3]) * 0.5) + 4) - 1.2) return;   // a flying lapa clears a wall above its top (a roof, a fence, src/world.js); a roof is walked on 0.9 m under it
         const [qx, qz] = closestOnSeg(cx + px, cz + pz, s);
         const dx = cx + px - qx, dz = cz + pz - qz, d = Math.hypot(dx, dz);
         if (d >= T.R) return;
@@ -136,8 +148,9 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     sn = Math.sin(car.th); cs = Math.cos(car.th);
     vf = car.vx * sn + car.vz * cs; vl = car.vx * cs - car.vz * sn;
     {
-      const kG = P.kGrip + (P.kSlide - P.kGrip) * d;
-      const aCap = (T.aGrip + (T.aDrift - T.aGrip) * d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss);
+      const wetG = 1 - WET_GRIP * (car.wet || 0);   // on the water the lapa slides (src/vehicle-water.js)
+      const kG = (P.kGrip + (P.kSlide - P.kGrip) * d) * wetG;
+      const aCap = (T.aGrip + (T.aDrift - T.aGrip) * d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) * wetG;
       const dv = Math.min(Math.abs(vl), Math.min(Math.abs(vl) * kG, aCap) * dt);
       if (dv > 0) {
         const keep = P.keep + (P.keepD - P.keep) * d, vl0 = Math.abs(vl);
@@ -154,7 +167,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     const [gf, gs] = tilt(sn, cs);
     const gx = gf * sn + gs * cs, gz = gf * cs - gs * sn, m = Math.hypot(gx, gz);
     S.grad = m;
-    if (m > P.slopeMax) {
+    if (m > P.slopeMax && !car.flying) {
       const ux = gx / m, uz = gz / m, ex = m - P.slopeMax, up = car.vx * ux + car.vz * uz;
       car.vx -= ux * 9.81 * Math.min(ex * 3, 1.5) * dt; car.vz -= uz * 9.81 * Math.min(ex * 3, 1.5) * dt;
       if (up > 0) { const k = Math.min(1, 14 * dt * clamp(ex / 0.15, 0, 1)); car.vx -= ux * up * k; car.vz -= uz * up * k; }
@@ -188,13 +201,14 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
       // a quick rise against the slow trend (a kerb edge, a step; not a steady climb) jolts the body a little; heavier vehicles jolt more
       if (S.vy - S.vb > 0.8) car.hopV = Math.min(1.2, car.hopV + (S.vy - S.vb - 0.8) * 6 * dt * P.bumpK);
     }
+    if (car.flying) { S.y = car.fy; S.vy = S.vb = S.fv = 0; S.air = false; S.ready = true; }   // in flight the height is src/vehicle-air.js's
     S.px = car.x; S.pz = car.z;
     car.lift = S.y - groundY(car.x, car.z);
-    car.deck = hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
+    car.deck = car.flying ? 0 : hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
     if (hooks.fall) hooks.fall(car, S);
     if (hooks.tick) hooks.tick(dt);   // smashed fence panels in flight (src/fences.js)
     if (S.hit > 0) { if (onHit) onHit(S.hit); S.hit = 0; }
   }
 
-  return { step, tune, reset, state: S };
+  return { step, tune, reset, state: S, floorAt };
 }
