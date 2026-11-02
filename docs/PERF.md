@@ -148,6 +148,20 @@ Notes. The variation between before and after is inside the machine noise listed
 
 Stage 2 changes to the same sprites (no cost change, the atlases are the same size): the cel ramp now puts a flat front on the base tone and keeps the light tone for surfaces tilted towards the light (before, every front was the light tone, which made people pale at 10 to 30 m); the far cells get a two pixel outline (one inside, one outside, 0.6 of the deep shade) so the silhouette survives the mip chain; the sprite shader decodes with `pow(c, 2.2)` instead of squaring. Compare `midrange-before-stage1-stage2.png` in the stage 2 shots.
 
+### Pedestrians from the LPC layers (assets/peds/lpc, tools/lpc)
+
+The people are no longer drawn at load time. `node tools/lpc/build.mjs` composes every cast entry (assets/peds/sprites.js) from layers of the Universal LPC Spritesheet Character Generator (body, head, hair, beard, shirt, apron, trousers, shoes...), recoloured with the generator's own palettes, paints our details on top (`tools/lpc/extras.mjs`: caps, fazzoletto, glasses, stubble, band logos, tattoos, vest patches, scarves, bags, bottles, the sip arm, dog, pram, wheelchair), crops all frames to one 38x55 px cell and packs them into `assets/peds/lpc/atlas.png` with `index.json`. At runtime `assets/peds/lpc/atlas.js` fetches both, packs the pixels to 16 bit (RGB 5-5-5 + 1 bit alpha) and uploads one mipmapped texture; there is one level of detail (LPC art is made for about 3.5 cm per pixel, the density the far cells of the generated renderer had) and no CPU drawing at all. `?pedgen` brings the generated renderer back.
+
+| | stage 4 (generated, far + near) | LPC atlas |
+| --- | --- | --- |
+| pedestrian texture memory (incl. mips) | 6.84 MB far (9.16) + 5.28 MB near = 12.1 MB (14.4) | 10.63 MB (14.25), 2,014 x 2,640, 2,529 cells for 153 entries |
+| on the wire | nothing (drawn at load) | atlas.png 727 KB + index.json 27 KB |
+| drawing at load and while walking | 0.2 s (desktop) / 1.1 s (x4) of cell drawing spread over the first seconds, 0.4 ms per near cell | none; one PNG decode and a 5.3 Mpixel pack once (measured with the load) |
+| main ms per frame, desktop / phone x4, Politeama | 3.6 / 10.6 | 4.4 / 11.9 (machine noise and other scene changes between the runs) |
+| draw calls | unchanged | unchanged |
+
+Cells: 3 directions (right is the mirror of left) x poses 0 idle, 1 to 4 walk (run for the joggers), 5 a drink held (drinkers), 6 sit and 7 sit and sip (only the people with a drink can sit). To stay at today's memory the cell is 38 px wide (the couples are cropped to it), sitting cells are lifted 2 px to the standing ground line and the cast keeps sit cells for drinkers only. Credits and the licence note are in `assets/peds/lpc/CREDITS.md` and `LICENSE.md`.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.
