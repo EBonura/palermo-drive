@@ -535,7 +535,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (jump) {
       jump.t = Math.min(1, jump.t + dt / 1.3); const e = jump.t * jump.t * (3 - 2 * jump.t);
       vis = (jump.from + jump.delta * e + 48) % 24;
-      if (jump.t >= 1) { jump = null; vis = hour; }
+      if (jump.t >= 1) { jump = null; vis = hour; lastEvent = -1; }   // tell the others again when it lands: with the clock frozen no 'pd-time' would follow the stale one sent as it left
     }
 
     // -- sun, moon, palette
