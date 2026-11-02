@@ -243,7 +243,7 @@ const shouts = createShouts(camera);
 addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text, d.follow); });   // follow: a parked car in the air keeps its balloon (src/props.js)
 let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
-const stadium = createStadium(worldEnv);
+const stadium = createStadium({ ...worldEnv, vehicle });
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic, props: propsApi });
 const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
@@ -358,6 +358,7 @@ if (window.game) window.game.suca = suca;
 const drunk = createDrunk({ game, car, camera, missions });
 if (window.game) window.game.drunk = drunk;
 if (window.game) window.game.traffic = traffic;
+traffic.bindClock(game.time);   // the knife-grinders work from 07:30 to 20:00 (src/arrotini.js)
 // With the streamed world, a far start spot has to load before the lapa can find a road there. Returns a Promise that resolves once the start
 // tile is at full detail and the lapa stands on its road (or after 12 s, so a shell transition never stays covered for ever).
 const placeStart = (x, z) => new Promise(done => {

@@ -21,6 +21,7 @@ import { createPolice, createBeacons } from './police.js';   // wanted system, p
 import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
 import { createCarrozze } from './carrozze.js';                 // the tourist carrozze: their loop, coachman and passengers
 import { createVendors } from './vendors.js';                   // the Apes and carrozze that call out now and then
+import { createArrotini } from './arrotini.js';             // the knife-grinders: several, each on a loop of his own in a quarter of the city, by day only
 
 // ---------- tuning ----------
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
@@ -67,7 +68,7 @@ TYPES.apePol = { model: 'apePol', L: 3.2, W: 1.4, mass: 0.9, circ: [[0.8, 0.78],
 TYPES.monopattino = { model: 'monopattino', L: 1.2, W: 0.55, mass: 0.2, circ: [[0.3, 0.4], [-0.2, 0.4]], vf: 1.15, a: 3.0, T: 0.7, s0: 1.0, rmin: 2.2, scooter: true, ped: true, hy: 1.95,
   cols: [['#c23b3b', 2], ['#2f6f9a', 2], ['#2a2a2c', 2], ['#d8c36a', 1], ['#5a7a4a', 1], ['#e8559a', 1]] };
 TYPES.teamBus = { ...TYPES.bus, model: 'teamBus', cols: [['#ee6aa6', 1]] };
-TYPES.arrotino = { ...TYPES.apeCrate, cols: [['#c2362c', 1]], vcap: 7 };   // l'arrotino, the knife-grinder (src/city-audio.js): an Ape that roams with its loudspeaker
+TYPES.arrotino = { ...TYPES.apeCrate, cols: [['#c2362c', 1]], vcap: 7 };   // l'arrotino, the knife-grinder (src/arrotini.js, his loudspeaker is src/city-audio.js): an Ape that goes round a loop of its own
 for (const t of Object.values(TYPES)) {
   Object.assign(t, { vf: 1, a: 2.6, b: 3.2, T: 0.95, s0: 1.6, rmin: 4.2, vcap: 99, minW: 0 }, { ...t });
   t.cls = t.bus ? 2 : t.ped ? (t.vcap < 15 || t.scooter ? 3 : 1) : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable (vans), 2 buses, 3 slow ones (apes, scooters, carts: no motorways)
@@ -225,14 +226,14 @@ Object.assign(MODELS, buildPoliceModels());
   let nextId = 0;
   const agentsOut = [];
   const PK_OBS = [], PK_NEAR = [], PK_NEAR2 = [];   // scratch: the parked cars beside a vehicle's lane
-  let police = null, gags = null;   // created at the end of createTraffic
+  let police = null, gags = null, arrotini = null;   // created at the end of createTraffic
 
   const allowed = (c, ty) => baseAllowed(c, ty.cls) && G.alive[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
   function pickNext(e, ty, v) {
     const outs = NOUT[e.b]; let tot = 0, any = null;
-    const ws = [];
+    const ws = [], guided = v && v.rt && !v.rt.lost;   // a knife-grinder on his loop may take any road of it that the class allows, alive or not: near the edge of the resident tiles the graph has dead ends that are not real
     for (const c of outs) {
-      if (c.id === e.rev || !allowed(c, ty)) { ws.push(0); continue; }
+      if (c.id === e.rev || !(guided ? baseAllowed(c, ty.cls) : allowed(c, ty))) { ws.push(0); continue; }
       const cos = e.dx * c.dx + e.dz * c.dz;
       let w = ty.bus ? 1 : c.pw;
       w *= cos > 0.9 ? 2.2 : cos > 0.3 ? 1.0 : cos > -0.3 ? 0.9 : 0.35;
@@ -240,7 +241,7 @@ Object.assign(MODELS, buildPoliceModels());
       if (c.ped) w *= 0.4;
       ws.push(w); tot += w; any = c;
     }
-    if (v) { biasRoute(v, outs, ws); tot = 0; for (const w of ws) tot += w; }
+    if (v) { biasRoute(v, outs, ws); if (guided && v.rt.lost) for (let i = 0; i < outs.length; i++) if (ws[i] > 0 && !allowed(outs[i], ty)) ws[i] = 0; tot = 0; for (const w of ws) tot += w; }   // (a knife-grinder who has lost his loop roams like the rest)
     if (tot <= 0) return null;
     let r = Math.random() * tot;
     for (let i = 0; i < outs.length; i++) if ((r -= ws[i]) <= 0 && ws[i] > 0) return outs[i];
@@ -248,6 +249,7 @@ Object.assign(MODELS, buildPoliceModels());
   }
   // Route choice with an aim: police head for the lapa, scared lookouts away from it, lookouts at ease stay near their market.
   function biasRoute(v, outs, ws) {
+    if (v.rt && arrotini) { arrotini.guide(v, outs, ws); return; }   // a knife-grinder keeps to his loop (src/arrotini.js)
     let gx, gz, away = false;
     if (v.cop && v.cop.pursue) { gx = car.x; gz = car.z; }
     else if (v.flee) { gx = car.x; gz = car.z; away = true; }
@@ -766,7 +768,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (planGen && !stepping && planGen.next().done) planGen = null;
   }
 
-  let acc = 0, roamer = null, nextRoam = 60 + Math.random() * 120;
+  let acc = 0;
   function update(dt, cam) {
     frames++;
     cam = cam || camera;
@@ -789,8 +791,7 @@ Object.assign(MODELS, buildPoliceModels());
       let tries = deficit > 12 ? 40 : 6, made = deficit > 12 ? 10 : 2;
       while (tries-- > 0 && made > 0) if (trySpawn()) made--;
     }
-    if (roamer && roamer.dead) { roamer = null; nextRoam = time + 150 + Math.random() * 210; }   // l'arrotino: one roams around the lapa; when it is gone (culled, a tile dropped) a new one is sent in from a few streets away
-    if (!roamer && time >= nextRoam) { roamer = spawnOffscreen('arrotino', 120, 210); if (roamer) roamer.roam = true; else nextRoam = time + 4; }
+    arrotini.update(Math.min(dt, 0.1));   // the knife-grinders: where each one is on his loop, and one that comes within range takes shape on the road (src/arrotini.js)
     fx.begin(); police.update(Math.min(dt, 0.1), fx); gags.update(Math.min(dt, 0.1), fx); fx.end();
     carrozze.update(Math.min(dt, 0.1)); vendors.update(Math.min(dt, 0.1));
     writeInstances();
@@ -989,6 +990,18 @@ Object.assign(MODELS, buildPoliceModels());
     }
     return null;
   }
+  function spawnAt(name, e, t, init) { // a new vehicle on edge e, t metres along it, not in the lapa's way nor in view close by (the knife-grinders take shape on their loops, src/arrotini.js); init(v) runs before its route is built
+    const ty = TYPES[name]; if (!allowed(e, ty)) return null;
+    const pref = Math.random() < 0.55 ? 1 : -1, off = laneOff(e, { pref, ty }), x = NX[e.a] + e.dx * t + e.rx * off, z = NZ[e.a] + e.dz * t + e.rz * off;
+    const dc = hyp2(x - camera.position.x, z - camera.position.z);
+    if (dc < R_SPAWN_MIN || hyp2(x - car.x, z - car.z) < 18 || (dc < R_FAR && inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3))) return null;
+    for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return null;
+    const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
+      lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+    if (init) init(v);
+    extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
+    return v;
+  }
   // put a vehicle that left the graph (police boxing in) back on the nearest edge pointing its way
   function snap(v) {
     let best = null, bs = 1e9, bt = 0; const fx = Math.sin(v.h), fz = Math.cos(v.h);
@@ -1005,7 +1018,7 @@ Object.assign(MODELS, buildPoliceModels());
     return true;
   }
   const fx = createBeacons(scene, camera);
-  const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen,
+  const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen, spawnAt,
     spawnCop: (name, dmin, dmax, toward) => spawnOffscreen(name, dmin, dmax, toward ? (mx, mz, e) => hyp2(NX[e.b] - car.x, NZ[e.b] - car.z) < hyp2(NX[e.a] - car.x, NZ[e.a] - car.z) - 5 : null),
     uturn(v) { // a police car heading away from the lapa swings round on a two-way road
       const e = v.route[0]; if (!e || e.rev < 0 || v.cop.mode !== 'road') return false;
@@ -1019,11 +1032,12 @@ Object.assign(MODELS, buildPoliceModels());
   addEventListener('pd-fence', e => police.chaos((e.detail && e.detail.kind) || 'fence'));   // a smashed fence panel, garden wall or hedge (src/fences.js, src/props.js): a little chaos   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
   gags = createGags(env, T, police);
   const carrozze = createCarrozze(env, T), vendors = createVendors(env, T);
+  arrotini = createArrotini(T, { NX, NZ, NOUT, nearestNode: G.nearestNode });
 
   return {
     update, collidePlayer,
     agents: () => agentsOut,
-    vehicles: vs, roamer: () => roamer,   // src/city-audio.js: the vehicles to hear, and the knife-grinder
+    vehicles: vs, arrotini: arrotini.list, bindClock: arrotini.bindClock,   // src/city-audio.js: the vehicles to hear, and the knife-grinders (each on duty has x, z, h and v, his vehicle once he is near enough to have one); bindClock(game.time): they work from 07:30 to 20:00
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
     bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
     // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.
@@ -1033,7 +1047,7 @@ Object.assign(MODELS, buildPoliceModels());
     //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
-    debug: { vs, police, gags, carrozze, vendors, tourPlan, TYPES, G, TOURS, shortest },   // ?debug probes
+    debug: { vs, police, gags, carrozze, vendors, arrotini, tourPlan, TYPES, G, TOURS, shortest },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
