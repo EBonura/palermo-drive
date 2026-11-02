@@ -9,6 +9,7 @@
 // createNightLife(h) -> { update(dt, allowed), inZone() }. h = { env, say, groundAt, findSpot, isNight, worldOn, driverPos }
 // (helpers from src/missions.js). Lines and places: assets/missions/lines.js (SPACCIA, SPACCIA_ZONES, APPARTATI).
 import * as THREE from 'three';
+import { createNotes } from './pub-notes.js';
 import { SPACCIA, SPACCIA_ZONES, APPARTATI } from '../assets/missions/lines.js';
 
 const TAU = Math.PI * 2;
@@ -101,6 +102,15 @@ export function createNightLife(h) {
   }
   addEventListener('pd-horn', e => { const d = e.detail; if (!d) return; for (const s of sites) if (s.built && isNight() && Math.hypot(s.x - d.x, s.z - d.z) < 45) s.horn = true; });
 
+  // hearts floating out of a rocking car, seen from nearby: the notes effect of src/pub-notes.js with a heart in its first atlas cell
+  const heartAtlas = () => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d');
+    const heart = () => { g.beginPath(); g.moveTo(64, 112); g.bezierCurveTo(8, 72, 12, 16, 46, 16); g.bezierCurveTo(56, 16, 62, 24, 64, 34); g.bezierCurveTo(66, 24, 72, 16, 82, 16); g.bezierCurveTo(116, 16, 120, 72, 64, 112); g.closePath(); };
+    g.lineJoin = 'round'; g.strokeStyle = '#120a0a'; g.lineWidth = 9; heart(); g.stroke(); g.fillStyle = '#fff'; heart(); g.fill();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2; return t;
+  };
+  const HEART_OPTS = { glyphs: [0], atlas: heartAtlas, tints: [[1, 0.13, 0.25], [1, 0.3, 0.55], [1, 0.45, 0.65]] };
+
   function disturb(s) {
     s.state = 'angry'; s.at = 0; s.cd = 40; s.lit = 0; s.horn = false;
     const head = () => ({ x: s.x, y: s.gy + 2.1, z: s.z });
@@ -125,10 +135,12 @@ export function createNightLife(h) {
       if (s.state === 'angry') { s.at += dt; s.flash = s.at < 2.6 ? Math.max(0, Math.sin(s.at * 15)) * Math.exp(-s.at * 0.55) : 0; if (s.at > 8 || (s.at > 5 && d > 30)) { s.state = 'calm'; s.at = 0; } }
       else if (s.state === 'calm') { s.at += dt; s.flash = 0; if (s.at > 4) s.state = 'rock'; }
       s.amp += (target - s.amp) * Math.min(1, (target ? 0.6 : 6) * dt);
-      if (s.amp > 0.01) {   // gentle rocking on the suspension, a little uneven
+      if (d < 150 && !s.hearts) s.hearts = createNotes(scene, HEART_OPTS);
+      if (s.hearts) { s.hearts.update(dt, d < 150 ? s.amp : 0, s.x, s.gy + 1.7, s.z, Math.cos(s.th) * 0.3, -Math.sin(s.th) * 0.3); if (d > 220 && !s.hearts.alive) { s.hearts.dispose(); s.hearts = null; } }
+      if (s.amp > 0.01) {   // rocking on the suspension, unmistakable and a little uneven
         s.ph += dt * TAU * 2.3;
         const w = Math.sin(s.ph) * 0.9 + Math.sin(s.ph * 0.37) * 0.4;
-        s.body.rotation.z = w * 0.016 * s.amp; s.body.rotation.x = Math.sin(s.ph * 0.5 + 1) * 0.006 * s.amp; s.body.position.y = Math.abs(w) * 0.012 * s.amp;
+        s.body.rotation.z = w * 0.05 * s.amp; s.body.rotation.x = Math.sin(s.ph * 0.5 + 1) * 0.018 * s.amp; s.body.position.y = Math.abs(w) * 0.07 * s.amp;
       } else { s.body.rotation.z = s.body.rotation.x = 0; s.body.position.y = 0; }
       for (const m of s.glass) { m.opacity = 0.3 + 0.62 * s.fog; m.emissiveIntensity = 0.1 + 0.35 * s.fog + 1.9 * s.flash; }
     }
