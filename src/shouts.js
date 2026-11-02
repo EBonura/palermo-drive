@@ -5,6 +5,8 @@
 // opts.crowd: a fan in the stands of the Barbera (src/stadium.js): a smaller balloon with its own cap and a pool of elements, so a stand full of them never pushes the street's out.
 import * as THREE from 'three';
 import { vp } from './viewport.js';
+import { areaAt } from './danger.js';
+import { MARKETS } from './markets-data.js';
 
 // Supplied by the owner, born in Palermo: keep them exactly as written.
 export const INSULTS = [
@@ -30,7 +32,24 @@ export const INSULTS = [
   "To matri sbatti l'uava chì minni",
   "T'annagghiù ti rugnu na timpulata ti fazzu a bbiriri u papa vistutu i comuniuani",
   "A vo' viriri Paliaimmu illuminata?",
+  'Ou ma sì spanatu i cieivvieddu?',
+  'Shumaker arrivò',
+  "Fumatilla n'avutra",
+  'Cuscì ciaicchi aggaddu?',
+  'Bba iaccati!',
 ];
+// The owner's lines that belong to a place: the ZEN, Mondello's sand and the three markets, the last two by day. placeLine(x, z, sand) -> one of them at that spot, or null anywhere else.
+const ZEN_LINES = ['Cutiaddu? Pistuala?'], MARKET_LINES = ['Si sta muriannu ra faaameee', 'Signora i limoni signoraaaaaaaahhhhh'];
+const MONDELLO_LINES = ['Buongioinno da Mondello!', "Non ce n'è! Non ce n'è!", 'Coccobellooooooo', "Chessobelle polla', pollancheeee!"];
+let hourNow = 12;
+addEventListener('pd-time', e => { if (Number.isFinite(e.detail?.hour)) hourNow = e.detail.hour; });
+export function placeLine(x, z, sand) {   // sand: the spot is on a beach (the crowd knows, src/pedestrians.js); only then Mondello's lines
+  const of = L => L[(Math.random() * L.length) | 0], area = areaAt(x, z);
+  if (area === 'ZEN') return of(ZEN_LINES);
+  if (sand && area === 'Mondello' && hourNow > 6.5 && hourNow < 20.5) return of(MONDELLO_LINES);
+  if (hourNow > 6.5 && hourNow < 20.5) for (const m of MARKETS) if ((x - m.cx) ** 2 + (z - m.cz) ** 2 < (m.r * 0.7) ** 2) return of(MARKET_LINES);
+  return null;
+}
 // Said now and then by someone the lapa sends flying, or who leaps out of its way (src/pedestrians.js). Owner's line, as written.
 export const FLEW = 'Minchia vulavu';
 
@@ -52,8 +71,9 @@ export function createShouts(camera) {
     + ' .shout.crowd { max-width: min(24vw, 128px); padding: 2px 5px 3px; border-width: 1.5px; font-size: clamp(9px, 1.4vw, 11px); box-shadow: 1px 1px 0 rgba(232,85,154,.7); backdrop-filter: none; -webkit-backdrop-filter: none; }';
   document.head.appendChild(style);
 
-  function pick() {
+  function pick(x, z) {
     if (Math.random() < RARE_CHANCE) return RARE;
+    if (Math.random() < 0.3) { const l = placeLine(x, z); if (l) return l; }
     let i;
     do i = Math.floor(Math.random() * INSULTS.length); while (INSULTS.length > 1 && i === last);
     last = i;
@@ -75,7 +95,7 @@ export function createShouts(camera) {
     if (n >= (crowd ? CROWD_MAX : MAX)) drop(oldest);
     const el = (crowd && spare.pop()) || document.createElement('div');
     el.className = pax ? 'shout pax' : crowd ? 'shout crowd' : 'shout';
-    el.textContent = text || pick();
+    el.textContent = text || pick(x, z);
     el.style.setProperty('--tilt', `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     layer.appendChild(el);
     live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0, pax, crowd, life: crowd ? CROWD_LIFE : LIFE });
