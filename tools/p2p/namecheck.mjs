@@ -14,5 +14,7 @@ try {
   console.log('after Enter, card still open:', await page.evaluate(() => !!document.querySelector('[role=dialog] input')));
   if (await page.evaluate(() => !!document.querySelector('[role=dialog] input'))) await page.evaluate(() => document.querySelector('[role=dialog] input').parentElement.querySelector('button').click()); await sleep(1500);
   console.log('after', JSON.stringify(await page.evaluate(() => ({ card: !!document.querySelector('[role=dialog] input'), rooms: window.__p2p.rooms.size, saved: localStorage.getItem('palermoDrive.net.v1') }))));
+  // the Garage saves a new name and fires pd-name (src/garage-ui.js on main)
+  console.log('pd-name', JSON.stringify(await page.evaluate(() => { localStorage.setItem('palermoDrive.net.v1', JSON.stringify({ name: 'Zio Pino', offline: false })); dispatchEvent(new CustomEvent('pd-name')); return window.__p2p.name(); })));
   await page.screenshot({ path: process.argv[2] || '/tmp/name.png' });
 } finally { await h.close(); }

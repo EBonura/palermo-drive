@@ -181,7 +181,7 @@ Next steps if you want to go on, in order: (1) a real test with two phones, one 
 
 ## Other things noticed
 
-- First visit without `?name=` or a saved name: a stopgap name card appears (the relay client's words, saved under the same key, so the two clients share a name) and no room is joined until the player has typed one. It is a placeholder for a proper character creation screen, which the owner wants in the main game (asked of the main session). `tools/p2p/namecheck.mjs` checks it.
+- First visit without `?name=` or a saved name: a stopgap name card appears (the relay client's words, saved under the same key, so the two clients share a name) and no room is joined until the player has typed one. It is a placeholder: the main game now has a name field on the Garage's driver screen (main, commit 69b747a), which saves the same key and fires a `pd-name` event; `p2p.js` listens for it like `src/net.js` does. That commit is not merged into this branch (tested here by firing the event by hand). `tools/p2p/namecheck.mjs` checks it.
 - Typing into a text box over the running game hits `src/ui.js`'s key handler first: it is a window capture listener that opens the pause menu on Escape and on the letter P, so a name with a P in it ("Peppe", "Paolo") would open the menu and lose the letter. The p2p name card gets in front of it (its listener is registered earlier). The relay client's card in `src/net.js` stops the keys only at the card, which is later in the event path; I did not test it, but it probably has the same problem.
 
 - `src/ui.js` pauses the game when the page becomes hidden. Normal and sensible, but it means a player in a background window sends nothing (my tests were silent for a while because of this).
