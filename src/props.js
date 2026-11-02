@@ -1061,7 +1061,15 @@ function makePhysics(env) {
     }
     return tMin;
   }
-  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid, occlude, throwPiece, lump };
+  // is there a prop of one of these models (a Set) within r metres of a spot: the crowd of the beaches keeps its sunbathers off the sunbeds and the umbrella poles (src/pedestrians.js)
+  function nearModel(x, z, r, models) {
+    for (let i = Math.floor((x - r) / 8); i <= Math.floor((x + r) / 8); i++) for (let j = Math.floor((z - r) / 8); j <= Math.floor((z + r) / 8); j++) {
+      const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
+      for (let q = 0; q < lst.length; q++) { const c = lst[q]; if (c && !c.dead && c.st === 0 && models.has(c.model) && (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z) < r * r) return true; }
+    }
+    return false;
+  }
+  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid, occlude, throwPiece, lump, nearModel };
 }
 
 // ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)

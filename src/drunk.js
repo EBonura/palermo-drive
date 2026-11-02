@@ -1,12 +1,16 @@
-// Alcohol. Stop at a pub's door after dark (src/pubs.js) or at the rave's terrace at night (src/rave.js) and a Vivi button appears (key B, or a tap on the phone). A drink costs
+// Alcohol. Stop at a pub's door after dark (src/pubs.js) or on the rave's dance floor at night (src/rave.js) and a Vivi button appears (key B, or a tap on the phone). A drink costs
 // a couple of euros from the Garage wallet (src/garage.js debit; the rave is free once the speakers are in, because the lapa brought them, and a pub is free for the rest of the night
-// after its errand is brought home, as its thanks promise). Each drink stacks, and the screen
-// wobbles: a slow roll and sway of the picture and a breathing zoom, growing from a gentle sway at one drink to properly silly at six. It wears off over a few minutes of play,
-// is cleared when the game goes back to the menu and is never saved. The wobble is the picture only: steering and physics are untouched, and the camera is changed just for the
-// render and put back straight after (apply / restore in src/main.js), so no other module ever sees it. It costs a handful of multiplications a frame.
-// createDrunk({ game, car, camera, missions }) -> { update(dt), apply(dt), restore(), reset(), drink(), units, level, spot, price }
+// after its errand is brought home, as its thanks promise). Each drink stacks, and the screen goes: a slow roll and sway of the camera, and (the part that makes it unmistakable) a screen-space
+// shader pass: the whole picture ripples and swims, breathes in and out, blurs in pulses every few seconds and, from three drinks, sees double. It is plain from the first drink and properly
+// silly at six. It wears off over a few minutes of play, is cleared when the game goes back to the menu and is never saved. The wobble is the picture only: steering and physics are untouched,
+// and the camera is changed just for the render and put back straight after (render below, called from src/main.js), so no other module ever sees it.
+// Sober play costs exactly nothing: until the first drink there is no render target and no extra draw, the scene goes to the canvas as ever; while drunk the scene is drawn to a render target
+// (the size of the drawing buffer, 4x multisampled, half float so the sun and the lamps are still HDR) and one full-screen triangle with the shader brings it to the canvas, applying the
+// renderer's tone mapping and colour space there (they are skipped for a render target); the target is freed again a moment after the last drink wears off.
+// createDrunk({ game, car, camera, missions }) -> { update(dt), render(renderer, scene, camera, skip), reset(), drink(), setUnits(n), units, level, spot, price }
 //   missions: the missions api (src/missions.js), for its pubs (doors) and its rave; both are optional, without them there is simply nothing to drink at.
-//   Test links: ?debug puts it on window.game.drunk. Reduced motion (prefers-reduced-motion) keeps a much gentler, slower and zoom-free version of the same wobble.
+//   Test links: ?debug puts it on window.game.drunk (setUnits(n) stacks n drinks at once). Reduced motion (prefers-reduced-motion) keeps a much gentler version: a slow soft blur and a slight, slow roll,
+//   with no rippling, no zoom, no sway and no double vision.
 import * as THREE from 'three';
 import { garage } from './garage.js';
 
@@ -17,9 +21,10 @@ const WEAR = 75;            // seconds of play for one drink to wear off (a stac
 // Where a pub pours: near its door (a little more than the 7 m of the 'pd-pub-stop' event of src/pubs.js) or near the road point that its errand ends at (src/pub-routes.js).
 // Some doors sit in pedestrian piazzas with buildings between them and the road, so the lapa gets only so close (measured by driving at each door from eight sides): they have a wider reach.
 const DOOR_R = 9, ROAD_R = 12, REACH = { taverna: 14, magione: 16, monkey: 16 };
-const RAVE_R = 55;          // metres from the middle of the terrace: its retaining wall is 16 m out and the road above it (where the speakers are delivered) 43 m
+const RAVE_R = 55;          // metres from the middle of the dance floor: its rim is 15 m out, the place where the speakers are delivered 11 m, the track to it leaves Viale Ercole 58 m away
 const STILL = 1.5, GO = 3;  // m/s: standing still counts below STILL (for 0.4 s), the button goes away above GO
-const ROLL = 0.14, YAW = 0.06, PITCH = 0.025, ZOOM = 0.04, SIDE = 0.45;   // the wobble at full strength: radians, a fraction of the field of view, metres
+const ROLL = 0.16, YAW = 0.06, PITCH = 0.025, ZOOM = 0.04, SIDE = 0.45;   // the camera wobble at full strength: radians, a fraction of the field of view, metres
+const IDLE = 2;             // seconds sober before the render target is freed
 
 // What a pub pours (the drink of its own errand where there is one) and what the rave has; [palermitan, english] pairs are for the owner to correct.
 const DRINK = { krust: 'Moretti', whisky: 'Whisky', taverna: 'Zibibbu', punkfunk: 'Birra', magione: 'Birra', lizard: 'Birra', monkey: 'Paulaner', sanlorenzo: 'Birra artigianali' };
@@ -46,6 +51,39 @@ const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the
 const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1 };
 const FREE_PUB = ['Offri a casa, comu ti dissi!', 'On the house, as I told you!'];
 const GONE = ['Ti passau!', 'It wore off!'], GONE_SUB = ['Torni a vidiri una strata sula.', 'You see just one road again.'];
+
+// The picture of a drunk: ripples, a swirl and a breathing zoom (uWave), a blur in pulses (uBlur, a radius as a fraction of the picture height), a second image (uGhost, its offset) and a dimming
+// of the edges (uVig). The target wraps mirrored, so the edge of the picture never smears however far it is pushed.
+const VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+const FRAG = `
+uniform sampler2D tDiffuse; uniform float uTime, uAspect, uWave, uBlur, uGhost, uVig; varying vec2 vUv;
+void main() {
+  vec2 c = vUv - 0.5, a = vec2(uAspect, 1.0);
+  float r2 = dot(c * a, c * a), t = uTime;
+  float ang = uWave * 0.07 * sin(t * 0.5) * (0.4 + r2 * 2.0);
+  c = mat2(cos(ang), sin(ang), -sin(ang), cos(ang)) * c;
+  c *= 1.0 - 0.03 * uWave - uWave * (0.045 * sin(t * 0.63) + 0.05 * r2 * sin(t * 0.77 + 1.0));
+  vec2 uv = c + 0.5;
+  uv.x += uWave * (0.011 * sin(uv.y * 10.0 + t * 1.9) + 0.005 * sin(uv.y * 23.0 - t * 2.9));
+  uv.y += uWave * (0.010 * sin(uv.x * 8.0 + t * 1.5) + 0.004 * sin(uv.x * 19.0 + t * 2.3));
+  vec3 col = texture2D(tDiffuse, uv).rgb;
+  if (uBlur > 0.0004) {
+    vec2 s = vec2(uBlur / uAspect, uBlur); float rot = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2832;
+    for (int i = 0; i < 8; i++) {
+      float f = (float(i) + 0.5) / 8.0, q = rot + float(i) * 2.39996;
+      col += texture2D(tDiffuse, uv + vec2(cos(q), sin(q)) * sqrt(f) * s).rgb;
+    }
+    col /= 9.0;
+  }
+  if (uGhost > 0.0004) {
+    vec2 o = vec2(cos(t * 0.45), 0.4 * sin(t * 0.63 + 1.0)) * uGhost;
+    col = mix(col, texture2D(tDiffuse, uv + o).rgb, 0.5) ;
+  }
+  col *= 1.0 - uVig * smoothstep(0.25, 0.95, sqrt(r2));
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
 
 const CSS = `
 #pd-drink { position: fixed; z-index: 40; left: 50%; bottom: 76px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; }
@@ -158,12 +196,11 @@ export function createDrunk({ game, car, camera, missions }) {
     }
   }
 
-  // ------------------------------------------------------------------ the wobble, in the camera's own frame (src/main.js: apply just before the render, restore just after it)
-  function apply() {
+  // ------------------------------------------------------------------ the wobble: the camera's own frame, then the screen pass (src/main.js calls render instead of renderer.render)
+  function apply(k) {
     saved = false;
-    if (shown <= 0.002 || game.state !== 'play') return;
     sp.copy(camera.position); sq.copy(camera.quaternion); sf = camera.fov; saved = true;
-    const k = shown, a = calm ? 0.25 : 1, t = clock * (calm ? 0.6 : 1);
+    const a = calm ? 0.25 : 1, t = clock * (calm ? 0.6 : 1);
     const lurch = calm ? 0 : k * k * k * Math.sin(t * 1.35 + 0.4);   // only the stack of several drinks gets the quicker second beat
     const roll = a * k * (ROLL * (0.65 * Math.sin(t * 0.55) + 0.35 * Math.sin(t * 0.93 + 1.7)) + 0.03 * lurch);
     const yaw = a * k * (YAW * Math.sin(t * 0.37 + 0.6) + 0.02 * k * lurch);
@@ -182,5 +219,51 @@ export function createDrunk({ game, car, camera, missions }) {
     if (camera.fov !== sf) { camera.fov = sf; camera.updateProjectionMatrix(); }
   }
 
-  return { update, apply, restore, reset, drink, price: PRICE, get units() { return units; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
+  // the render target and the full-screen pass, made at the first drink and dropped IDLE seconds after the last one wore off
+  let post = null, idleAt = 0;
+  const sz = new THREE.Vector2();
+  function makePost(renderer) {
+    const hf = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
+    const target = new THREE.WebGLRenderTarget(4, 4, { type: hf ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: 4, depthBuffer: true, generateMipmaps: false });
+    target.texture.wrapS = target.texture.wrapT = THREE.MirroredRepeatWrapping;
+    const uniforms = { tDiffuse: { value: target.texture }, uTime: { value: 0 }, uAspect: { value: 1.78 }, uWave: { value: 0 }, uBlur: { value: 0 }, uGhost: { value: 0 }, uVig: { value: 0 } };
+    const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); quad.frustumCulled = false;
+    const scn = new THREE.Scene(); scn.add(quad);
+    return { target, uniforms, mat, quad, scn, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
+  }
+  function dropPost() { idleAt = 0; if (!post) return; post.target.dispose(); post.mat.dispose(); post.quad.geometry.dispose(); post = null; }
+  const smooth = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
+
+  // Draws the frame: the plain way when sober (nothing extra at all), through the target and the shader pass while drunk. Returns nothing.
+  function render(renderer, scene, cam, skip) {
+    if (skip || game.state !== 'play' || shown <= 0.002) {
+      if (post && shown <= 0.002) { const now = performance.now(); if (!idleAt) idleAt = now; else if (now - idleAt > IDLE * 1000) dropPost(); }
+      renderer.render(scene, cam);
+      return;
+    }
+    idleAt = 0;
+    // a floor under the first drink so it reads at once, then the stack takes it to full
+    const k = shown, lvl = 0.5 + 0.5 * k, t = clock * (calm ? 0.6 : 1);
+    apply(k);
+    if (!post) post = makePost(renderer);
+    renderer.getDrawingBufferSize(sz);
+    if (post.target.width !== sz.x || post.target.height !== sz.y) post.target.setSize(sz.x, sz.y);
+    // the blur comes in pulses: every few seconds the picture goes soft for a moment, more often and deeper with more drinks
+    const wave = Math.sin(t * 0.8 + 0.7 * Math.sin(t * 0.23)), pulse = smooth(0.62 - 0.35 * k, 0.97, wave);
+    const u = post.uniforms;
+    u.uTime.value = t; u.uAspect.value = sz.x / sz.y;
+    if (calm) { u.uWave.value = 0; u.uGhost.value = 0; u.uBlur.value = pulse * 0.0035 * lvl; u.uVig.value = 0; }
+    else {
+      u.uWave.value = lvl;
+      u.uBlur.value = pulse * (0.004 + 0.014 * k) + 0.0012 * k;
+      u.uGhost.value = smooth(0.4, 0.75, k) * (0.45 + 0.55 * smooth(-0.2, 0.7, Math.sin(t * 0.37 + 2))) * (0.004 + 0.018 * k);   // double vision from about three drinks, coming and going
+      u.uVig.value = 0.5 * k * k * (0.5 + 0.5 * pulse);
+    }
+    const rtOld = renderer.getRenderTarget();
+    renderer.setRenderTarget(post.target); renderer.render(scene, cam); restore();
+    renderer.setRenderTarget(rtOld); renderer.render(post.scn, post.cam);
+  }
+
+  return { update, render, reset, drink, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
 }

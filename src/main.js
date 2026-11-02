@@ -245,7 +245,7 @@ let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
 const stadium = createStadium(worldEnv);
 const traffic = createTraffic(worldEnv);
-const pedestrians = createPedestrians({ ...worldEnv, traffic });
+const pedestrians = createPedestrians({ ...worldEnv, traffic, props: propsApi });
 const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
 const markets = createMarkets({ ...worldEnv, proj, props: propsApi }); markets.bindPedestrians(pedestrians);
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
@@ -444,5 +444,5 @@ renderer.setAnimationLoop(now => {
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);
-  if (!game.noRender) { if (!freeCam) drunk.apply(); renderer.render(scene, camera); drunk.restore(); } // the start picker's map is opaque: nothing to draw under it; the wobble of a drink is on the camera for the render only
+  if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; the wobble of a drink is on the camera for the render only
 });
