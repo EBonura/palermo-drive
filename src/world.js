@@ -95,7 +95,7 @@ const C = {
   rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#72844b'),
   beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#b5a26a'),
   farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), olive: new THREE.Color('#939a66'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
-  dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'),
+  dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'), pave: new THREE.Color('#d9d2c2'),
 };
 // OSM land cover (tools/tiles.py areas[].k) that tints the terrain: colour, strength and priority (first match wins, lower = stronger claim)
 const COVER = {
@@ -127,9 +127,10 @@ function terrainMaterial() {
   const m = new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   const k = (1 / GROUND_TEX.terrain.metres).toFixed(6);
   m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;' + TILING_GLSL)
+    sh.uniforms.paveMap = { value: GROUND_TEX.balate };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap;' + TILING_GLSL)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
         { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
@@ -143,14 +144,17 @@ function terrainMaterial() {
             vec3 an = abs( normalize( vTpNrm ) );
             vec4 tx = texture2D( map, vec2( vTpPos.z, vTpPos.y ) * ${k} ), tz = texture2D( map, vec2( vTpPos.x, vTpPos.y ) * ${k} );
             sampledDiffuseColor = mix( sampledDiffuseColor, mix( tz, tx, an.x / ( an.x + an.z + 1e-4 ) ), side );
-          } }
+          }
+          // built-up ground the tile data has no paving polygon for (squares, courtyards, yards between blocks): worn limestone slabs, the same texture as the street paving layer
+          if ( vPave > 0.01 ) sampledDiffuseColor = mix( sampledDiffuseColor, vec4( texture2D( paveMap, vTpPos.xz * ${(1 / GROUND_TEX.balate.metres).toFixed(6)} ).rgb * 1.25, 1.0 ), vPave * ( 1.0 - side ) );
+        }
         diffuseColor *= sampledDiffuseColor;
       #endif`)
       .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
       .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave';
   return m;
 }
 
@@ -372,12 +376,66 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     contextDirty = true;
   }
 
+  // ---------- paving of built-up ground (board item 4) ----------
+  // Where the tile data has no paving polygon, the terrain between blocks (a square, a courtyard, the yard of a housing estate) was drawn as the pale blotchy ground of the open country.
+  // A 5 m field over the tile and 50 m beyond it (the neighbours' buildings count, so a tile border shows no seam) gives the distance to the nearest wall and how crowded the walls are
+  // within 45 m; terrainMesh paves the ground that is both close to walls and in a built-up quarter, unless a land cover polygon (park, wood, sand, field) says otherwise.
+  const PV_C = 5, PV_M = 50, PV_N = Math.round((T + 2 * PV_M) / PV_C) + 1;
+  function paveField(t) {
+    const x0 = t.i * T - PV_M, z0 = t.j * T - PV_M, n = PV_N, seed = new Uint8Array(n * n), x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C;
+    let any = 0;
+    const mark = (ax, az, bx, bz) => {
+      const len = Math.hypot(bx - ax, bz - az), k = Math.max(1, Math.ceil(len / (PV_C * 0.5)));
+      for (let q = 0; q <= k; q++) {
+        const x = ax + (bx - ax) * q / k, z = az + (bz - az) * q / k, i = Math.round((x - x0) / PV_C), j = Math.round((z - z0) / PV_C);
+        if (i >= 0 && j >= 0 && i < n && j < n) { seed[j * n + i] = 1; any++; }
+      }
+    };
+    const ring = (p) => {
+      const m = p.length >> 1; if (m < 3) return;
+      let lx = 1e9, hx = -1e9, lz = 1e9, hz = -1e9;
+      for (let q = 0; q < m; q++) { const x = p[2 * q], z = p[2 * q + 1]; if (x < lx) lx = x; if (x > hx) hx = x; if (z < lz) lz = z; if (z > hz) hz = z; }
+      if (hx < x0 || lx > x1 || hz < z0 || lz > z1) return;
+      for (let q = 0; q < m; q++) { const r = (q + 1) % m; mark(p[2 * q], p[2 * q + 1], p[2 * r], p[2 * r + 1]); }
+    };
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
+      if (d && d.buildings) for (const b of d.buildings) { if (b.yb) continue; ring(b.p); if (b.holes) for (const h of b.holes) ring(h); }
+    }
+    if (!any) return null;
+    // distance to the nearest wall cell (chamfer, metres)
+    const dist = new Float32Array(n * n).fill(1e4), D2 = PV_C * Math.SQRT2;
+    for (let q = 0; q < n * n; q++) if (seed[q]) dist[q] = 0;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const q = j * n + i; let v = dist[q];
+      if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
+      dist[q] = v;
+    }
+    for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
+      const q = j * n + i; let v = dist[q];
+      if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
+      dist[q] = v;
+    }
+    // crowding: share of the cells within 45 m that hold a wall (summed-area table)
+    const S = new Int32Array((n + 1) * (n + 1)), dens = new Float32Array(n * n), R = 9;
+    for (let j = 0; j < n; j++) { let row = 0; for (let i = 0; i < n; i++) { row += seed[j * n + i]; S[(j + 1) * (n + 1) + i + 1] = S[j * (n + 1) + i + 1] + row; } }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - R), b = Math.min(n, i + R + 1), c = Math.max(0, j - R), e = Math.min(n, j + R + 1);
+      dens[j * n + i] = (S[e * (n + 1) + b] - S[c * (n + 1) + b] - S[e * (n + 1) + a] + S[c * (n + 1) + a]) / ((b - a) * (e - c));
+    }
+    return { x0, z0, n, dist, dens };
+  }
+  const paveAt = (f, a, x, z) => {   // bilinear sample of one of the field arrays
+    const fx = Math.min(f.n - 1.001, Math.max(0, (x - f.x0) / PV_C)), fz = Math.min(f.n - 1.001, Math.max(0, (z - f.z0) / PV_C)), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, q = j * f.n + i;
+    return (a[q] * (1 - tx) + a[q + 1] * tx) * (1 - tz) + (a[q + f.n] * (1 - tx) + a[q + f.n + 1] * tx) * tz;
+  };
+
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2);
+    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), pvf = paveField(t);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
@@ -396,11 +454,17 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5, slope = Math.hypot(dx, dz);
         terrainColor(_c, y, slope, noise, n2);
         if (urban > 0) _c.lerp(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1 ? C.garden : C.urban, urban); // the villa quarters of Mondello read green from afar (src/gardens.js)
+        let covered = false;
         if (tint) for (const a of tint) {
           if (x < a.x0 || x > a.x1 || z < a.z0 || z > a.z1 || !inPoly(a.pts, x, z)) continue;
+          covered = true;
           _c.lerp(a.col, a.s); // woods, scrub and lawns give way to bare limestone where the ground is steep
           if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
           break;
+        }
+        if (pvf && !covered && y > 1.6 && !(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1)) {   // built-up ground with no paving polygon and no land cover over it
+          const w = (1 - smooth(28, 70, paveAt(pvf, pvf.dist, x, z))) * smooth(0.06, 0.16, paveAt(pvf, pvf.dens, x, z)) * (1 - smooth(0.16, 0.34, slope));
+          if (w > 0.004) { pav[j * n + i] = w; _c.lerp(C.pave, w * 0.9); }
         }
         if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
@@ -416,7 +480,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const nb = n * n, total = nb + sk.length;
     const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
     P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; });
+    const PA = new Float32Array(total); PA.set(pav);
+    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; });
     const idx = [];
     for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
@@ -429,6 +494,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(Cc, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
+    geo.setAttribute('aPave', new THREE.BufferAttribute(PA, 1));
     geo.setIndex(new THREE.BufferAttribute(total < 65536 ? new Uint16Array(idx) : new Uint32Array(idx), 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
     m.userData.tris = idx.length / 3;

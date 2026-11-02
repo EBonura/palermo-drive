@@ -9,14 +9,25 @@ import { FP } from './landmarks-city-data.js';
 import { PITCH_Y } from './stadium-ground.js';
 import { buildCrowd } from './stadium-crowd.js';
 
-// pale grey limestone of the Pellegrino cliffs (shared by the Utveggio footing and the Santuario backdrop)
+// grey-ochre limestone of the Pellegrino cliffs (shared by the Utveggio footing and the Santuario backdrop): mottled ochre and lichen-grey patches, short horizontal bedding cracks with a pale lip
+// under each, a few vertical joints and dark scrub specks. No long vertical streaks (they read as wood grain).
 function cliffMat() {
-  defMat('cliff', 256, 256, [7, 7], (g, w, h) => {
-    g.fillStyle = '#a8a69c'; g.fillRect(0, 0, w, h); const r = RNG(391);
-    noiseDots(g, w, h, 1500, 4, 392, ['rgba(70,66,58,0.22)', 'rgba(228,224,210,0.28)', 'rgba(130,126,112,0.2)']);
-    g.strokeStyle = 'rgba(52,48,42,0.32)'; g.lineWidth = 2;
-    for (let i = 0; i < 16; i++) { g.beginPath(); let x = r() * w, y = 0; g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (r() - 0.5) * 16; y += 30 + r() * 20; g.lineTo(x, y); } g.stroke(); }
-    streaks(g, w, h, 24, 393, 0.16, 160, '60,54,44');
+  defMat('cliff', 256, 256, [9, 9], (g, w, h) => {
+    const r = RNG(391), wrap = (fn) => { for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+    g.fillStyle = '#c3bba7'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 34; i++) {   // soft patches: ochre weathering, grey lichen, pale fresh rock
+      const x = r() * w, y = r() * h, rx = 14 + r() * 40, ry = 8 + r() * 22, c = i % 3 === 0 ? '184,156,104' : i % 3 === 1 ? '120,116,106' : '236,230,212', a = 0.08 + r() * 0.1;
+      wrap(() => { g.fillStyle = `rgba(${c},${a})`; g.beginPath(); g.ellipse(x, y, rx, ry, (r() - 0.5) * 0.3, 0, 7); g.fill(); });
+    }
+    noiseDots(g, w, h, 1800, 3, 392, ['rgba(80,74,64,0.16)', 'rgba(238,232,214,0.30)', 'rgba(140,132,114,0.20)']);
+    for (let i = 0; i < 16; i++) {   // bedding cracks: short, nearly horizontal, with a pale lip below
+      let x = r() * w, y = r() * h; const len = 30 + r() * 80; g.lineCap = 'round';
+      const pts = [[x, y]]; for (let k = 0; k < 6; k++) { x += len / 6; y += (r() - 0.5) * 5; pts.push([x, y]); }
+      for (const [dy, col, lw] of [[2, 'rgba(236,230,212,0.30)', 2.4], [0, 'rgba(52,47,40,0.42)', 1.4]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); pts.forEach((q, k) => k ? g.lineTo(q[0], q[1] + dy) : g.moveTo(q[0], q[1] + dy)); g.stroke(); }
+    }
+    g.strokeStyle = 'rgba(52,47,40,0.30)'; g.lineWidth = 1.1;
+    for (let i = 0; i < 12; i++) { const x = r() * w, y = r() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y + 8 + r() * 22); g.stroke(); }   // short vertical joints
+    for (let i = 0; i < 40; i++) { const x = r() * w, y = r() * h, s = 1.5 + r() * 2.5; g.fillStyle = `rgba(${r() < 0.5 ? '84,90,58' : '108,96,62'},${0.22 + r() * 0.2})`; g.beginPath(); g.ellipse(x, y, s, s * 0.7, 0, 0, 7); g.fill(); }   // scrub in the ledges
   });
 }
 
@@ -301,6 +312,12 @@ export const STADIO = {
 // ====================================================================================================
 // 3. Castello Utveggio on Monte Pellegrino: salmon-pink hotel castle, arcaded front, two crenellated end towers, round bastion at the foot
 // ====================================================================================================
+// lowest ground (world y) under the local rectangle u0..u1 x v0..v1 of the frame M, so a footing can be rooted below the slope in front of a building
+function lowestGround(M, u0, u1, v0, v1) {
+  const q = new THREE.Vector3(); let lo = Infinity;
+  for (let i = 0; i <= 6; i++) for (let j = 0; j <= 6; j++) { q.set(u0 + (u1 - u0) * i / 6, 0, v0 + (v1 - v0) * j / 6).applyMatrix4(M); lo = Math.min(lo, groundY(q.x, q.z)); }
+  return lo;
+}
 function skirtDown(key, M, w, d, lo, o = {}) { bx(key, M, -w / 2, w / 2, lo, 0.02, -d / 2, d / 2, o); }
 
 function buildUtveggio() {
@@ -322,9 +339,9 @@ function buildUtveggio() {
   });
   // the grey limestone crag the castle sits on, with a stone retaining base just under the walls
   cliffMat();
-  const drop = Math.min(46, gr.hi - gr.lo + 14);
-  crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 * 1.2 + 1.5, (WD / 2 + 2.5) * 1.3, drop, { spread: 1.55, seed: 3, jit: 0.2 });
-  crag('cliff', mul(M, tr(-LW * 0.32, -4, -WD * 0.35)), 12, 9, drop * 0.7, { spread: 1.7, seed: 9, jit: 0.25, seg: 10 });
+  const lowFront = lowestGround(M, -LW / 2 - 8, LW / 2 + 8, -WD / 2 - 6, WD / 2 + 34), drop = Math.min(120, gy - lowFront + 6);   // rooted below the slope in front, so no underside hangs in the air
+  crag('cliff', mul(M, tr(0, -1.2, 0)), LW / 2 * 1.2 + 1.5, (WD / 2 + 2.5) * 1.3, drop, { spread: 1.55, seed: 3, jit: 0.24, rough: 0.1, rows: 9, seg: 22, cap: true });
+  crag('cliff', mul(M, tr(-LW * 0.32, -4, -WD * 0.35)), 12, 9, drop * 0.7, { spread: 1.7, seed: 9, jit: 0.28, seg: 14, rough: 0.1, rows: 8, cap: true });
   skirtDown('cliff', M, LW + 2, WD + 3, -2.6, { c: '#e8e4d8' });
   // main wing: front texture panel, solid body, cornice, crenellations
   bx('utvWall', M, -LW / 2, LW / 2, 0, H, -WD / 2, WD / 2 - 0.02, { c: '#ffffff' });
@@ -343,9 +360,10 @@ function buildUtveggio() {
   crag('cliff', tr(bxw, by + 1.7 - 1.5, bzw), 12.6, 12.6, by - groundY(bxw, bzw) + 6, { spread: 1.35, seed: 5, jit: 0.1 });
   cyl('stone', 12.5, 12.6, 3.2, 16, { p: [bxw, by - 1.5, bzw], c: '#b9ad98' });
   lathe('stone', [[12.5, 0], [12.5, 0.9], [11.5, 0.9]], 16, { p: [bxw, by + 1.7, bzw], c: '#c9bda7' });
-  // a long retaining wall in front of the castle, with crenellated coping
+  // a retaining wall in front of the castle with crenellated coping, standing on a rock footing that reaches down to the slope below it (a box that deep was a sheer prism)
   const Mw = mul(M, tr(0, 0, WD / 2 + 7));
-  bx('cliff', Mw, -LW / 2 + 2, LW / 2 - 6, -(gr.hi - gr.lo) - 3, 0.2, -1.0, 1.0, { c: '#eeeadc' });
+  bx('cliff', Mw, -LW / 2 + 2, LW / 2 - 6, -5, 0.2, -1.0, 1.0, { c: '#eeeadc' });
+  crag('cliff', mul(Mw, tr(-2, -3, 0)), (LW - 8) / 2 - 1, 4.2, Math.max(8, gy - lowestGround(Mw, -LW / 2 + 2, LW / 2 - 6, -4, 22) + 6), { spread: 1.9, seed: 14, jit: 0.3, rough: 0.12, seg: 20, rows: 8, cap: true });
   crenel(mul(Mw, tr(0, 0.2, 1.0)), LW - 8, { c: '#c4b8a0' });
   // roof terrace details
   box('flat', 8, 2.4, 6, { M: mul(M, tr(-6, H + 0.7, -3)), c: '#d6b49e' });
@@ -384,14 +402,14 @@ function buildSantuario() {
   // stairs up from the road
   for (let i = 0; i < 18; i++) bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -i * 0.38 - 0.02, -i * 0.38 + 0.18 + 0.0, Dp / 2 + 0.6 + i * 0.46, Dp / 2 + 0.6 + i * 0.46 + 0.5, { c: '#b5ad9b' });
   bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -8, -0.05, Dp / 2 + 0.4, Dp / 2 + 8.8, { c: '#a9a190' });
-  // the pale limestone cliff the sanctuary is cut into: a sheer wall behind and to the right, broken into blocks
+  // the grey-ochre limestone cliff the sanctuary is cut into: rock towers behind and to the right, rooted deep in the hillside (they used to be boxes whose underside hung over the road)
   cliffMat();
-  const r_ = RNG(613);
+  const r_ = RNG(613), root = gy - lowestGround(M, -W / 2 - 14, W / 2 + 20, -Dp / 2 - 16, Dp / 2 + 14) + 8;
   for (let i = 0; i < 6; i++) {
-    const x = -W / 2 - 4 + i * (W + 14) / 5, hh = 46 + r_() * 22, zz = -Dp / 2 - 3.5 - r_() * 3;
-    box('cliff', 11 + r_() * 4, hh, 9 + r_() * 3, { M: mul(M, tr(x, -4, zz)), rx: -0.04 - r_() * 0.06, rz: (r_() - 0.5) * 0.08, ry: (r_() - 0.5) * 0.3, c: '#ffffff', noao: true });
+    const x = -W / 2 - 4 + i * (W + 14) / 5, hh = 46 + r_() * 22, zz = -Dp / 2 - 4 - r_() * 3;
+    crag('cliff', mul(M, tr(x, hh, zz)), 10.5 + r_() * 3, 7 + r_() * 2, hh + root, { spread: 1.25, seed: 20 + i * 3, jit: 0.3, rough: 0.14, seg: 18, rows: 12, cap: true, noao: true });
   }
-  for (let i = 0; i < 3; i++) box('cliff', 10, 36 + i * 9, 12, { M: mul(M, tr(W / 2 + 4 + i * 4.5, -4, -Dp / 2 + 2 - i * 4)), rz: 0.05, ry: 0.25 * i, c: '#ffffff', noao: true });
+  for (let i = 0; i < 3; i++) { const hh = 36 + i * 9; crag('cliff', mul(M, tr(W / 2 + 4 + i * 4.5, hh, -Dp / 2 + 2 - i * 4)), 9, 8, hh + root, { spread: 1.25, seed: 50 + i * 4, jit: 0.3, rough: 0.14, seg: 16, rows: 12, cap: true, noao: true }); }
   return end('Santuario di Santa Rosalia');
 }
 export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };
