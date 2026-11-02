@@ -247,9 +247,10 @@ export function createVehicle(env) {
     car.slip = v0 > 2 && vf > 0.5 ? clamp(Math.atan2(-vl, vf), -1.4, 1.4) : 0;   // + = nose left of the velocity
 
     // ----- nitro -----
-    if (!nosKey) car.nosLock = false;
-    const nosWant = !!nosKey && car.nos > 0.002 && !car.nosLock && vf > -1;
-    if (nosKey && car.nos <= 0.002) car.nosLock = true;
+    const nosFree = car.flying && car.agl > 1;   // up in the air the nitro never runs out (src/vehicle-air.js)
+    if (!nosKey || nosFree) car.nosLock = false;
+    const nosWant = !!nosKey && (nosFree || (car.nos > 0.002 && !car.nosLock)) && vf > -1;
+    if (nosKey && !nosFree && car.nos <= 0.002) car.nosLock = true;
     if (nosWant && !car.nosOn) nosStartId++;
     car.nosOn = nosWant;
     car.nosAmt += ((nosWant ? 1 : 0) - car.nosAmt) * Math.min(1, (nosWant ? 12 : 3) * dt);
@@ -314,7 +315,7 @@ export function createVehicle(env) {
     car.lastVf = vf;
 
     // nitro bar: burns while boosting, refills with speed and (a lot) with drifting
-    if (nosWant) car.nos = Math.max(0, car.nos - dt / T.nosTime);
+    if (nosWant && !nosFree) car.nos = Math.max(0, car.nos - dt / T.nosTime);
     else {
       const sp01 = clamp(vf / (28 * SS), 0, 1);
       car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 10, 0, 1)) * dt);
@@ -703,7 +704,7 @@ export function createVehicle(env) {
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
-    const q = Math.round(car.nos * 200) / 200;
+    const q = car.flying && car.agl > 1 ? 1 : Math.round(car.nos * 200) / 200;   // the bar reads full while the nitro is free in the air
     if (q !== nosShown) { nosShown = q; nosFill.style.transform = `scaleX(${q})`; }
     nosEl.classList.toggle('on', car.nosAmt > 0.3);
     nosEl.classList.toggle('low', car.nos < 0.15 && car.nosAmt < 0.3);
