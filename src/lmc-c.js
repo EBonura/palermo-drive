@@ -349,20 +349,3 @@ function villino(name, fpk, wallSeed, base, trim, roofC, tower, H) {
 }
 export const FLORIO = { name: 'Villino Florio', x: -1542, z: -433, radius: 40, skipIds: [FP.florio.id], build: villino('Villino Florio', 'florio', 901, '#bdb09a', '#e6dec9', '#6c6c66', true, 14.6) };   // grey-brown stone and slate in the photos
 export const IDA = { name: 'Villino Ida', x: -913, z: -1292, radius: 40, skipIds: [FP.ida.id, 'w229192664'], build: villino('Villino Ida', 'ida', 902, '#efe9db', '#fbf7ec', '#8a8a82', false, 14.6) };   // white plaster with green shutters
-
-// ====================================================================================================
-// Stazione Marittima (the port passenger terminal): long pale block with ribbon windows, a clock tower and a canopy on the quay side
-// ====================================================================================================
-function buildStazioneMarittima() {
-  initShared();
-  const pts = pairsOf(FP.stazioneMarittima.p), gr = groundRange(pts), ob = obb(pts), gy = gr.hi + 0.1, H = 16.4;
-  begin(gy);
-  defMat('smWall', 256, 256, [12, 16.4], (g, w, h) => paintFacade(g, w, h, 12, 16.4, { base: '#ddd5c4', trim: '#f2ede0', glass: '#35505e', seed: 911, grime: 0, plinth: { h: 1.2, c: '#b6ad9a' },
-    bands: [{ y: 5.4, h: 0.5, c: '#efe9d8' }, { y: 10.8, h: 0.5, c: '#efe9d8' }, { y: 15.8, h: 0.6, c: '#efe9d8' }], rows: [{ y0: 1.8, y1: 4.6, n: 3, m: 2, w: 2.4, kind: 'arch', fr: 0.2 }, { y0: 6.6, y1: 9.8, n: 3, m: 2, w: 2.0, kind: 'rect', ped: true }, { y0: 11.8, y1: 14.8, n: 3, m: 2, w: 2.0, kind: 'rect' }] }));
-  shell('smWall', pts, [], gy, H, { lo: gr.lo - 1.5, roof: '#a39e92', cc: '#eee7d4' });
-  const T = frame(ob.cx, gy + H, ob.cz, ob.vx, ob.vz);
-  bx('smWall', T, -4.2, 4.2, 0, 10.5, -4.2, 4.2); bx('flat', T, -4.8, 4.8, 10.5, 11.1, -4.8, 4.8, { c: '#eee7d4' }); pyramid('tile', 9, 9, 3.4, { M: mul(T, tr(0, 11.1, 0)), c: '#a9795f' });
-  box('marble', 2.2, 2.2, 0.15, { M: mul(T, tr(0, 6.0, 4.3)), c: '#f4f1e6' });
-  return end('Stazione Marittima');
-}
-export const STAZIONE_MARITTIMA = { name: 'Stazione Marittima', x: 441, z: -1250, radius: 70, skipIds: [FP.stazioneMarittima.id], build: buildStazioneMarittima };

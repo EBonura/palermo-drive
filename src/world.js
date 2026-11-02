@@ -811,6 +811,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const tctx = lms.length ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]) } : ctx;
     yield* buildBuildingsIter(tctx, t.data, bg);
     for (const l of lms) { // landmark models standing in for those generic buildings
+      // a model reads the ground under its whole footprint: wait (8 s at most) for the tiles round it that are on their way, so it stands on the streamed ground and not on the far grid
+      for (let t0 = performance.now(); t.want >= 2 && performance.now() - t0 < 8000 && lmNeighboursPending(l);) yield new Promise(r => setTimeout(r, 200));
       try { const o = l.build(ctx); if (o) { bg.add(o); yield; } } catch (e) { console.error('[world] landmark', l.name, e); }
     }
     if (t.want < 2) { disposeObj(bg); return; }
@@ -954,6 +956,14 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (!any) return;
     lmTask = { t: { pd: 4e4 }, gen: lmJob(), wait: null, name: 'landmarks' };
     tasks.push(lmTask);
+  }
+  function lmNeighboursPending(l) {
+    for (let i = Math.floor((l.x - l.radius) / T); i <= Math.floor((l.x + l.radius) / T); i++) for (let j = Math.floor((l.z - l.radius) / T); j <= Math.floor((l.z + l.radius) / T); j++) {
+      if (!M.tiles[i + '_' + j]) continue;
+      const n = tiles.get(nk(i, j));
+      if (n && n.lod < 1 && n.want > 0 && !n.failed) return true;
+    }
+    return false;
   }
   function ensureTask(t) {
     if (t.task || t.dead) return;
