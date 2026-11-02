@@ -19,6 +19,7 @@ import { createVehicleAudio } from './vehicle-audio.js';
 import { createVehicleEvents } from './vehicle-events.js';
 import { createSphere } from './vehicle-sphere.js';
 import { QUALITY } from './mobile.js';
+import { vp } from './viewport.js';
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -634,8 +635,8 @@ export function createVehicle(env) {
         s.vel[i * 3] *= 0.97; s.vel[i * 3 + 2] *= 0.97;
       }
       s.pts.geometry.attributes.position.needsUpdate = true; s.pts.geometry.attributes.aLife.needsUpdate = true; s.pts.geometry.attributes.aSize.needsUpdate = true;
-      const cv = document.getElementById('view'), pr = cv && cv.clientHeight ? cv.height / cv.clientHeight : 1;
-      s.mat.uniforms.uScale.value = innerHeight * pr / (2 * Math.tan(camera.fov * PI / 360));
+      const cv = document.getElementById('view'), pr = cv && vp.h ? cv.height / vp.h : 1;   // the canvas is as tall as the window (renderer.setSize(innerWidth, innerHeight) in main.js)
+      s.mat.uniforms.uScale.value = vp.h * pr / (2 * Math.tan(camera.fov * PI / 360));
     }
 
     // sound: engine, tyres, impacts, a bought horn, the subwoofer

@@ -690,11 +690,18 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }
 
   const _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
-  function animateBoats(t) {
+  // [perf pass] a boat's heave, pitch and roll are a few centimetres and degrees: further than 500 m nobody sees them move at 30 Hz, so a far boat is
+  // recomputed every 4th frame, one beyond 2 km every 8th (the matrix still comes from the absolute time, so it is the same motion, only sampled less often)
+  let boatFrame = 0;
+  function animateBoats(t, camera) {
+    const cx = camera.position.x, cz = camera.position.z, reclass = (boatFrame & 15) === 0; boatFrame++;
     for (const { kind, arr, mesh } of fleets) {
       const big = kind === 'ferry', amp = big ? 0.15 : kind === 'buoy' ? 1.6 : 1;
       for (let i = 0; i < arr.length; i++) {
-        const b = arr[i], w = t * b.f + b.phase;
+        const b = arr[i];
+        if (reclass || b.k === undefined) { const dx = b.x - cx, dz = b.z - cz, d2 = dx * dx + dz * dz; b.k = d2 < 250000 ? 1 : d2 < 4000000 ? 4 : 8; }
+        if (b.k > 1 && ((boatFrame + i) % b.k) !== 0) continue;
+        const w = t * b.f + b.phase;
         const heave = (Math.sin(w * 1.1) * 0.05 + Math.sin(w * 0.63 + 1.7) * 0.03) * amp;
         const pitch = Math.sin(w * 0.9 + 0.6) * 0.018 * amp, roll = Math.sin(w * 0.75) * 0.03 * amp;
         const yaw = b.yaw + (b.swing ? Math.sin(t * 0.07 * b.f + b.phase) * b.swing : 0);
@@ -895,7 +902,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     fieldsUpdate(camera);
     uniforms.uTime.value = time;
     water.position.x = camera.position.x; water.position.z = camera.position.z;
-    if (boatsReady) animateBoats(time);
+    if (boatsReady) animateBoats(time, camera);
     renderer.getDrawingBufferSize(_sz);
     const sc = _sz.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
     spray.mat.uniforms.uScale.value = sc; bubbles.mat.uniforms.uScale.value = sc;

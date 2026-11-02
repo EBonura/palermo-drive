@@ -250,11 +250,12 @@ const minimap = createMinimap({ canvas: document.getElementById('mini'), car, wo
 
 // ---------- HUD ----------
 const elStreet = document.getElementById('street'), elLand = document.getElementById('landmark'), elSpeed = document.getElementById('speed');
-let hudTimer = 0;
+let hudTimer = 0, hudSpd = -1, hudUnit = '', hudStreet = '', hudLand = '';
 function updateHud(dt) {
-  const v = Math.abs(car.vf || 0) * 3.6;
-  elSpeed.firstChild.nodeValue = Math.round(game.settings.units === 'mph' ? v * 0.6214 : v);
-  elSpeed.lastChild.textContent = game.settings.units === 'mph' ? 'mph' : 'km/h';
+  const v = Math.abs(car.vf || 0) * 3.6, mph = game.settings.units === 'mph', n = Math.round(mph ? v * 0.6214 : v), u = mph ? 'mph' : 'km/h';
+  // [perf pass] text only when it changes: a DOM write every frame, even of the same string, restyles the page (about 0.4 ms a frame at 4x CPU)
+  if (n !== hudSpd) { hudSpd = n; elSpeed.firstChild.nodeValue = n; }
+  if (u !== hudUnit) { hudUnit = u; elSpeed.lastChild.textContent = u; }
   if ((hudTimer -= dt) > 0) return;
   hudTimer = 0.25;
   let best = null, bd = Infinity;
@@ -262,10 +263,10 @@ function updateHud(dt) {
     const [qx, qz] = closestOnSeg(car.x, car.z, s), d = Math.hypot(car.x - qx, car.z - qz) - s[5] / 2;
     if (d < bd) { bd = d; best = s[4]; }
   });
-  elStreet.textContent = best && bd < 8 ? best : '';
+  { const t = best && bd < 8 ? best : ''; if (t !== hudStreet) { hudStreet = t; elStreet.textContent = t; } }
   let lm = null, ld = Infinity;
   for (const l of D.labels) { const d = Math.hypot(l.x - car.x, l.z - car.z) / l.r; if (d < 1 && d < ld) { ld = d; lm = l.n; } }
-  elLand.textContent = lm || '';
+  { const t = lm || ''; if (t !== hudLand) { hudLand = t; elLand.textContent = t; } }
 }
 
 // ---------- loop ----------
@@ -291,6 +292,8 @@ placeAt(0, 0);
     };
     if (!q.has('hud')) document.querySelectorAll('.hud').forEach(e => e.style.display = 'none');
   }
+  // ?clean: the picture only, no HUD, menu, minimap or toasts (the share images, assets/ui/make-cover.sh)
+  if (q.has('clean')) { const st = document.createElement('style'); st.textContent = 'body > :not(#view) { visibility: hidden !important; }'; document.head.appendChild(st); }
 }
 if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------

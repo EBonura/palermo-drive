@@ -4,6 +4,7 @@
 //   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the compass or null), ledger ([text, ...]) })
 //   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
 import * as THREE from 'three';
+import { vp } from './viewport.js';
 
 const CSS = `
 #ev-hud { position: fixed; z-index: 60; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); width: min(360px, 54vw); display: none;
@@ -76,16 +77,17 @@ export function createEventHud({ camera, car, groundY }) {
   const toasts = mk('ev-toasts'), result = mk('ev-result'), conf = mk('ev-conf'), flash = mk('ev-flash'), count = mk('ev-count');
   let target = null, resultT = 0, countT = 0, cache = '';
   const _d = new THREE.Vector3(), _p = new THREE.Vector3();
-  let edgeText = '';
+  let edgeText = '', edgeOn = false;
+  const setEdge = on => { if (on !== edgeOn) { edgeOn = on; edge.classList.toggle('on', on); } };   // a class write every frame restyles the page even when nothing changes
   // the arrow at the edge of the screen: where the target is in the camera's own frame (x right, y up, the view down -z); on the screen it needs no arrow, off it or behind it the arrow sits where the
   // direction to it meets the border of the screen (inset from the card at the top and the touch pads at the bottom)
   function edgeArrow() {
-    const W = innerWidth, H = innerHeight, touch = document.documentElement.classList.contains('touch'), top = 96, bot = touch ? Math.max(top + 80, H * 0.38) : H - 64, mx = 40;
+    const W = vp.w, H = vp.h, touch = document.documentElement.classList.contains('touch'), top = 96, bot = touch ? Math.max(top + 80, H * 0.38) : H - 64, mx = 40;
     _p.set(target.x, (groundY ? groundY(target.x, target.z) : car.y || 0) + 1.5, target.z).applyMatrix4(camera.matrixWorldInverse);
     let dx, dy;
     if (_p.z < -0.5) {   // in front: its place on the screen
       const f = 1 / Math.tan(camera.fov * Math.PI / 360), nx = _p.x / -_p.z * f / camera.aspect, ny = _p.y / -_p.z * f;
-      if (Math.abs(nx) < 0.9 && ny < 0.82 && ny > -0.78) { edge.classList.remove('on'); return; }
+      if (Math.abs(nx) < 0.9 && ny < 0.82 && ny > -0.78) { setEdge(false); return; }
       dx = nx; dy = -ny;
     } else { dx = _p.x / Math.max(1, Math.abs(_p.z)) * 2; dy = 1; }   // behind: at the bottom, towards the side it is on
     const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
@@ -94,7 +96,7 @@ export function createEventHud({ camera, car, groundY }) {
     edgeSvg.style.rotate = `${(Math.atan2(dx, -dy) * 180 / Math.PI).toFixed(1)}deg`;
     const d = Math.hypot(target.x - car.x, target.z - car.z), txt = d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d / 10) * 10 + ' m';
     if (txt !== edgeText) { edgeText = txt; edgeLab.textContent = txt; }
-    edge.classList.add('on');
+    setEdge(true);
   }
 
   addEventListener('pd-toast', e => { const d = e.detail || {}; api.toast(d.text, d.sub, d.neg); });   // other modules (src/danger.js) show a toast without owning the HUD
@@ -112,8 +114,8 @@ export function createEventHud({ camera, car, groundY }) {
       if (o.frac != null) elBarI.style.transform = `scaleX(${Math.min(1, Math.max(0, o.frac)).toFixed(3)})`;
       elLedger.innerHTML = o.ledger ? o.ledger.map(t => `<span>${esc(t)}</span>`).join('') : '';
     },
-    hide() { root.classList.remove('on'); edge.classList.remove('on'); target = null; cache = ''; },
-    clear() { root.classList.remove('on'); edge.classList.remove('on'); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
+    hide() { root.classList.remove('on'); setEdge(false); target = null; cache = ''; },
+    clear() { root.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
     count(big, sub) { count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     toast(text, sub, neg) {
       const e = mk('ev-toast' + (neg ? ' neg' : ''), esc(text) + (sub ? `<small>${esc(sub)}</small>` : ''), toasts);
@@ -134,7 +136,7 @@ export function createEventHud({ camera, car, groundY }) {
     update(dt) {
       if (resultT > 0 && (resultT -= dt) <= 0) result.classList.remove('on');
       if (countT > 0 && (countT -= dt) <= 0) count.classList.remove('on');
-      if (!target) edge.classList.remove('on'); else edgeArrow();
+      if (!target) setEdge(false); else edgeArrow();
       if (target) {
         camera.getWorldDirection(_d);
         elArrowSvg.style.transform = `rotate(${(Math.atan2(_d.x, _d.z) - Math.atan2(target.x - car.x, target.z - car.z)) * -180 / Math.PI}deg)`;
