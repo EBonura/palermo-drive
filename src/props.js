@@ -539,7 +539,7 @@ const SPECS = {
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
-  hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 2.6, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 1.8 m/s (effective, see src/fences.js) and leaves a gap for the session
+  hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 1.8, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 1.8 m/s (effective, see src/fences.js) and leaves a gap for the session
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
@@ -863,7 +863,7 @@ function makePhysics(env) {
         if (c.st === 0 && vc >= sp.thr && simT - (c.tsoft || -9) > 1) { c.tsoft = simT; spawnLeaves(c, -nx, -nz); stats.soft = (stats.soft || 0) + 1; }
         slow(pc, nx, nz, 0.012); return;
       case 'hedge':   // a clipped hedge block: bursts into a puff of leaves and a few clumps, the gap stays for the session (the tile puts it back gone when it loads again)
-        if (c.st === 0 && vc >= sp.thr) {
+        if (c.st === 0 && Math.hypot(vc, 0.55 * Math.sqrt(Math.max(0, pc.vx * pc.vx + pc.vz * pc.vz - vc * vc))) >= sp.thr) {   // effective speed: the glancing part counts too
           c.st = 'gone'; gDel(c); goneHedge.add(hedgeKey(c)); poseInstance(c);
           spawnLeaves(c, -nx, -nz, 30, 1); spawnLeaves(c, -nx, -nz, 7, 2.6); slow(pc, nx, nz, 0.12); stats.hedges = (stats.hedges || 0) + 1;
           try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: c.x, z: c.z, kind: 'hedge' } })); } catch (err) { /* no events */ }
