@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { proj } from './core.js';
 import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
+import { parked } from './props.js';   // the cars parked along the kerbs: obstacles to steer round, and to run into
 import { createGraph, CLASS } from './traffic-graph.js';
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
@@ -214,6 +215,7 @@ Object.assign(MODELS, buildPoliceModels());
   const counts = {};
   let nextId = 0;
   const agentsOut = [];
+  const PK_OBS = [], PK_NEAR = [], PK_NEAR2 = [];   // scratch: the parked cars beside a vehicle's lane
   let police = null, gags = null;   // created at the end of createTraffic
 
   const allowed = (c, ty) => baseAllowed(c, ty.cls) && G.alive[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
@@ -474,6 +476,34 @@ Object.assign(MODELS, buildPoliceModels());
         }
       }
     }
+    // parked cars (src/props.js) beside the lane: steer round them (psh: the sideways shift that clears all of them, towards the edge's right when positive),
+    // stop short of them when there is not room for it. All in the frame of the edge the vehicle is on (a vehicle that is turning at a junction would see the
+    // cars of the cross street straight ahead); the cars of the next edge count once it is on it.
+    let psh = 0;
+    if (!e0.br) {   // (a bridge deck is above them)
+      let ub = 1e9, lb = -1e9, cg = 1e9, ok = false;
+      const obs = PK_OBS; obs.length = 0;
+      const ax = NX[e0.a], az = NZ[e0.a], vl = (v.x - ax) * e0.rx + (v.z - az) * e0.rz, rr = reach + L2 + 5;
+      const nc = parked.near(v.x + fx * rr * 0.5, v.z + fz * rr * 0.5, rr * 0.5 + 6, PK_NEAR);
+      for (let ci = 0; ci < nc; ci++) {
+        const c = PK_NEAR[ci], pL = c.sp.L, pW = c.sp.W, oa = (c.x - ax) * e0.dx + (c.z - az) * e0.dz, al = oa - v.t;
+        if (oa < -pL / 2 || oa > e0.len + pL / 2 || al > reach + L2 + pL / 2 || al < -(L2 + pL / 2)) continue;
+        const lt = (c.x - ax) * e0.rx + (c.z - az) * e0.rz - vl, ofx = Math.sin(c.rot), ofz = Math.cos(c.rot), cj = Math.abs(ofx * e0.dx + ofz * e0.dz), sj = Math.abs(ofx * e0.rx + ofz * e0.rz);
+        const need = sj * pL / 2 + cj * pW / 2 + ty.W / 2;   // lateral distance that just clears it (plus MARGIN below)
+        if (Math.abs(lt) >= need + 2.5) continue;
+        obs.push(lt, need); if (Math.abs(lt) < need && al > 0.5) cg = Math.min(cg, al - L2 - (cj * pL / 2 + sj * pW / 2));
+      }
+      for (let mi = 0; mi < 3; mi++) {   // as much room as it can have (0.35 m), down to a scrape
+        const margin = 0.35 - mi * 0.225; ub = 1e9; lb = -1e9;
+        for (let i = 0; i < obs.length; i += 2) { const lt = obs[i], need = obs[i + 1] + margin; if (lt >= 0) ub = Math.min(ub, lt - need); else lb = Math.max(lb, lt + need); }
+        if (lb <= ub && Math.abs(clamp(0, lb, ub)) <= 2.4) { psh = clamp(0, lb, ub); ok = true; break; }
+      }
+      if (obs.length && !ok) {   // no room for it: crawl past on the best line, and what it touches gets pushed aside (bumpParked), never launched at this speed
+        psh = clamp(lb > ub ? (lb + ub) / 2 : clamp(0, lb, ub), -2.4, 2.4);
+        if (cg < 6) v0 = Math.min(v0, 4.5);
+      }
+      if (psh !== 0 && !e0.ow) psh = Math.max(psh, ty.W / 2 + 0.1 - (laneOff(e0, v) + v.lat));   // a two-way road: keep to its own half, the oncoming traffic needs the other
+    }
     // junction: hold at the stop line when someone has priority, the light is red or the exit is blocked
     let hold = false;
     if (rem < 40 && !(v.cop && v.cop.pursue)) hold = mustHold(v, e0, rem, exitSpace); // sirens skip the stop lines
@@ -502,6 +532,7 @@ Object.assign(MODELS, buildPoliceModels());
       let room = 0; if (v.hornT > 0) room = clamp(e0.w / 2 - 0.45 - ty.W / 2 - laneOff(e0, v), 0, 1.3);
       v.latT = room;
     }
+    if (psh !== 0) v.latT = clamp(v.lat + psh, -2.4, 2.4);
     // scooters slip past slow traffic where the road is wide enough
     if (ty.scooter) {
       const fo = v.filtO;
@@ -633,6 +664,30 @@ Object.assign(MODELS, buildPoliceModels());
     buildOcc();
     for (let i = 0; i < vs.length; i++) if (!vs[i].fly && !(vs[i].cop && vs[i].cop.mode === 'direct')) control(vs[i], dt);
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
+    for (let i = 0; i < vs.length; i++) if (!vs[i].fly) bumpParked(vs[i]);
+  }
+  // a vehicle that does run into a parked car (it came out of a turn, was boxed in, the police ram): the car is pushed, or launched at 4 m/s and more, and the
+  // vehicle loses speed. Quiet: no police chaos, the lapa did not do it.
+  function bumpParked(v) {
+    if (v.route[0].br) return;
+    const ty = v.ty, s = Math.sin(v.h), c = Math.cos(v.h), circ = ty.circ;
+    const nc = parked.near(v.x, v.z, ty.L / 2 + 3.5, PK_NEAR2);
+    for (let ci = 0; ci < nc; ci++) {
+      const pc = PK_NEAR2[ci], ps = Math.sin(pc.rot), pcs = Math.cos(pc.rot), pcirc = pc.sp.c;
+      next: for (let i = 0; i < circ.length; i++) {
+        const zo = circ[i][0], r = circ[i][1], cx = v.x + s * zo, cz = v.z + c * zo;
+        for (let j = 0; j < pcirc.length; j++) {
+          const pzo = pcirc[j][1], pr = pcirc[j][2];
+          let nx = cx - (pc.x + ps * pzo), nz = cz - (pc.z + pcs * pzo), d = hyp2(nx, nz);
+          const rs = r + pr; if (d >= rs) continue;
+          if (d < 1e-4) { nx = -s; nz = -c; d = 1e-4; } else { nx /= d; nz /= d; }
+          const pen = rs - d, vvx = s * v.v + v.ex, vvz = c * v.v + v.ez, rel = Math.max(0, -(vvx * nx + vvz * nz));
+          const res = parked.bump(pc, nx, nz, pen, rel, vvx, vvz, ty.mass, true), k = pc.sp.m / (ty.mass + pc.sp.m);
+          if (res) { v.x += nx * pen * k; v.z += nz * pen * k; v.v *= res === 2 ? 0.55 : 0.9; if (res === 2) v.honkAt = time + 0.3; }
+          break next;   // one contact per parked car and step
+        }
+      }
+    }
   }
   function cull(cx, cz) {
     for (let i = vs.length - 1; i >= 0; i--) {
@@ -903,6 +958,7 @@ Object.assign(MODELS, buildPoliceModels());
     spawnTeamBus() { rebuildBusCandidates(camera.position.x, camera.position.z); for (let k = 0; k < 12; k++) { const v = trySpawnBus('teamBus'); if (v) return v; } return null; },
     removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
   police = createPolice(env, T);
+  addEventListener('pd-yeet', e => police.chaos((e.detail && e.detail.kind) || 'yeet'));   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
   gags = createGags(env, T, police);
 
   return {

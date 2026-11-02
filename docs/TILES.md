@@ -319,3 +319,36 @@ original spot, `PARKED_MOVED`), so they are still there when the tile is built a
 
 Buses (`TYPES.bus` in `src/traffic.js`, mass 11): pushed like any vehicle but they barely budge (below about 14 m/s of closing speed a hit shares the overlap 11 to 1 and the lapa bounces off); above that (`yeetV`) the bus is knocked over: a short hop (0.3 of the car launch), it rocks onto its side instead of tumbling, lies 1.8 s and rights itself;
 the lapa loses half the closing speed. The bus driver shouts and the police see it, as with any yeeted vehicle.
+
+### Parked cars and traffic, and what the lapa does to props (board items p5 and the parked-car loose ends)
+
+**Traffic and parked cars** (`parked` in `src/props.js`, used by `src/traffic.js`): a traffic or police car no longer drives through a parked one.
+- Swerve: every vehicle looks, in the frame of the edge it is on, at the parked cars beside its lane within its reach (6 m + 1.4 x speed). It shifts sideways to clear them (0.35 m to spare, down to a scrape), never past the centre line of a two-way road, and goes back to its lane once past.
+- Crawl: where the cars leave no room at all (a street the placement judged wide enough but the lane geometry does not fit, a landed wreck) it slows to 4.5 m/s and takes the best line.
+- Bump: whatever it then touches is pushed aside, the overlap shared by mass (a car moves half). A launch needs a ram, 7 m/s and a mass at least the parked car's (a scooter never launches one), and it raises no police chaos. The police in a chase go through the same check.
+- Streets: the placement now keeps two lanes open on a two-way street (4.6 m between the rows; a one-way street keeps 2.7 m), so a narrow two-way street has cars on one side only, or none.
+- Measured (40 s at La Cala and in the Via Zisa quarter, `trafficpark.mjs`): traffic samples overlapping a parked car 13 % and 26 % before, 0.2 % and 0.7 % now.
+- Chaos: launching a parked car (or chaining one) raises the same police chaos as launching a traffic car (`pd-yeet` event, kinds `yeet` and `chain`, same limits).
+- The Ape and the Apetaxi props are parked-car yeets now (same launch, tumble, balloon and shout, they stand where they land). Their positions are placed from the tile's global random stream, so unlike the cars they are not remembered when the tile is built again.
+
+**What the lapa does to props** (`SPECS` in `src/props.js`; the speeds are the closing speed along the contact normal, m/s). Light things are knocked flying with the same yeet, balloon and shout rule as the other flying props (one balloon per 1.2 s), lie where they land and are put back by the tile after 25 s when the lapa is more than 80 m away.
+Heavy things are solid or bend; a bent post stays down until its tile is rebuilt.
+
+| kind | what it is | below | at speed |
+| --- | --- | --- | --- |
+| bin_big, bin_over (cassonetti) | light | solid up to 2.2 to 2.6, then tips and spills bags | 6: the whole bin flies (bags too) |
+| bin_small | light | bends at 3 | 5.5: flies |
+| busstop sign | light | solid, bends at 4.5 | 8: torn out and flies |
+| scooter | light | topples at 1.2 | 7.5: flies |
+| bench | light | solid | 3.5: flies |
+| cafe_set (table and plastic chairs), umbrella over it, stall_table | light | solid | 2.2 to 2.5: fly (the table and its parasol go together) |
+| sunbed, beach_umbrella | light | solid | 1.5 / 2.5: fly |
+| litter, bags, cardboard, rubbish piles | soft | burst into debris at 0.9 to 1.6 | |
+| lamp_pole, candelabra, signal (traffic light), fontanella | heavy, bend | solid | bend over at 6.5 to 7.5 (fontanella 5) |
+| bollard | heavy, bend | solid | bends at 5.5 |
+| trees and palms | heavy | solid | fall at 8 to 14 (by trunk size), in a shower of leaves |
+| shrub | soft | none: the lapa goes through, slowed | 2.5: a puff of leaves |
+| fountain, monument, kiosk, hydrant, phone, postbox, cabinet, hedge, bus shelter | heavy, solid | solid | never |
+| planters | none exist in the world yet | | |
+
+Cars parked along the kerb: see the section above (pushed below 4 m/s, launched from 4).
