@@ -297,6 +297,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   const pmrem = new THREE.PMREMGenerator(renderer);
   let envRT = null, lastBake = -1e9;
   const baked = { Z: new THREE.Color(-1, 0, 0), H: new THREE.Color(), B: new THREE.Color() };
+  renderer.domElement.addEventListener('webglcontextrestored', () => { baked.Z.r = -1; lastBake = -1e9; });   // a lost GL context takes the bake with it (phones can do this in the background), and the colours alone would not ask for a new one
   function bakeEnv(now) {
     const pos = envGeo.attributes.position;
     for (let i = 0; i < pos.count; i++) {

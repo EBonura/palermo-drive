@@ -960,7 +960,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
     if (t.want < 2) return;
     t.stage = 'bldFull'; const bg = new THREE.Group(), lms = cityIn(t);
-    const tctx = lms.length ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]) } : ctx;
+    const occ = hooks.occ?.begin(t);   // the lean renderer: the building solids of this tile become its occluder grid (src/engine-lean.js)
+    const tctx = lms.length || occ ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]), onSolid: occ?.add } : ctx;
     yield* buildBuildingsIter(tctx, t.data, bg);
     for (const l of lms) { // landmark models standing in for those generic buildings
       // a model reads the ground under its whole footprint: wait (8 s at most) for the tiles round it that are on their way, so it stands on the streamed ground and not on the far grid
@@ -972,8 +973,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'bldLow', null);
     t.lod = 2;
     onTileFull(t.k); emit('full', t);
+    if (occ) hooks.occ.end(t, occ);
   }
   function* downgrade(t) {
+    hooks.occ?.drop(t);
     onTileDrop(t.k); emit('drop', t);
     setPart(t, 'bldFull', null); setPart(t, 'quays', null); disposeQuayMeshes(t.k); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.sandb = undefined; t.gsegs = null; t.hasFull = false;

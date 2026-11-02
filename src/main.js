@@ -31,6 +31,7 @@ import { watchVersion } from './version.js'; // "new version" button on the titl
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
+import { createLeanEngine } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
 
 // Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
 // (plus Noce and Zisa from Nominatim, which have no place node).
@@ -369,6 +370,7 @@ const coords = createCoords({ game, car, camera, groundY });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
+if (params.get('engine') !== 'off') { const lean = createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }); if (window.game) window.game.lean = lean; }   // ?engine=off draws as three.js does on its own (for comparing)
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
 // The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title
 // never shows tiles popping in; the rest of the ring keeps building behind it. The flyover clock holds at 0 meanwhile (a moving camera

@@ -1206,6 +1206,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     for (const p of outerPts) { const y = groundY(p[0], p[1]); lo = Math.min(lo, y); hi = Math.max(hi, y); }
     if (stack !== undefined) { lo = stack; hi = stack - 1.3; }
     roofY = Math.max(roofY, hi + 2.5);
+    if (stack === undefined && ctx.onSolid) ctx.onSolid(flat, holes, roofY);   // the lean renderer: this solid stands on the ground, walls up to roofY: it hides what is behind it (src/engine-lean.js)
     let area = signedArea(outerPts); if (area < 0) outerPts.reverse(); area = Math.abs(area);
 
     // convex small footprints may get a hipped tile roof
