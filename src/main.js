@@ -17,6 +17,7 @@ import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
+import { createMarkets } from './markets.js';   // Ballaro, the Vucciria and the Capo as living markets: stall lines along the real streets, awnings, crates, vendors
 import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
 import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
 import { createRoadWear } from './roadwear.js';
@@ -242,6 +243,7 @@ const stadium = createStadium(worldEnv);
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
+const markets = createMarkets({ ...worldEnv, proj }); markets.bindPedestrians(pedestrians);
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
 const roadwear = createRoadWear({ ...worldEnv, vehicle });
 const mapMarkers = []; // { x, z, color, size } drawn on the minimap
@@ -297,7 +299,7 @@ placeAt(0, 0);
   // ?clean: the picture only, no HUD, menu, minimap or toasts (the share images, assets/ui/make-cover.sh)
   if (q.has('clean')) { const st = document.createElement('style'); st.textContent = 'body > :not(#view) { visibility: hidden !important; }'; document.head.appendChild(st); }
 }
-if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, shout: shouts.shout };
+if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, markets, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
@@ -398,7 +400,7 @@ renderer.setAnimationLoop(now => {
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
   if (game.state === 'play') suca.update(dt, car);
-  if (game.state === 'play') { stadium.update(dt); carretto.update(dt); }
+  if (game.state === 'play') { stadium.update(dt); carretto.update(dt); markets.update(dt); }
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);

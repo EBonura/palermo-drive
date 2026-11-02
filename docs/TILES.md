@@ -329,9 +329,11 @@ The only stops are a pedestrian and a pothole cluster at the hairpin at (308, -3
 
 **Favorita**: a 689 m path (a `cycleway` in OSM) and a 450 m run straight across the lawn completed without a stop (maximum 4 m off the line, 15 m/s).
 
-**ZEN** (`tools/zen_portals.py`): the OSM footprints close every court of the insulae with a building or a wall, so none of 51 courts of 250 m2 or more (63,000 m2) could be reached. 53 buildings are cut by a 6.4 m wide passage from the court to the street (a building split in two keeps its fields, ids get `.1` and `.2`),
-and the wall and fence lines across the passages are cut; three passes leave no pocket in the ZEN. Patched tiles: `-10_-15`, `-9_-14`, `-9_-15`, `-9_-16`, `-8_-14`, `-8_-15`, `-8_-16`, `-7_-15`, `-7_-16`, `-7_-14` (walls only). A rebake of those tiles brings the closed courts back: run the script again (`--apply`).
-The six largest courts were driven into automatically (all reached).
+**ZEN** (`tools/zen_portals.py`): the OSM footprints close every court of the insulae with a building or a wall, so none of 51 courts of 250 m2 or more (63,000 m2) could be reached. In reality the insulae are entered through ground-floor passages (androni, pilotis),
+so each court gets a passage 6.4 m wide cut to the nearest street: the building keeps its upper floors. It is split into the parts left and right of the gap (full height, collision as before) and a bridge volume over the gap, a record with `yb: 4` (the volume starts 4 m above the ground):
+`src/buildings.js` draws it from that height and gives it an underside (`tDown`), `src/world.js` registers no walls for it and `src/pedestrians.js` no footprint. Ids get `.1`, `.2` for the parts and `.b` for the bridge. Walls and fences get a 6 m gate gap and nothing more.
+60 buildings are cut (37 bridge volumes) in 10 tiles: `-10_-15`, `-9_-14`, `-9_-15`, `-9_-16`, `-8_-14`, `-8_-15`, `-8_-16`, `-7_-14` (walls only), `-7_-15`, `-7_-16`; three fenced lots away from the insulae stay closed. A rebake of those tiles brings the closed courts back: run the script again (`--apply`).
+Driven through, both ways, with the automatic driver at 4 m/s: six of the archways (all 12 runs reach the far side once the start is outside the building).
 
 ### Sferracavallo (board item b2): already inside the baked area
 

@@ -287,6 +287,132 @@ layer('pw_shop', (g, r) => {
   dado(g, 24, .25);
 });
 
+// ---- shopfront variety (board item 2): a bar, a tabaccheria, a bakery, a greengrocer with goods outside, a palazzo portone, a chemist, and the market fronts with the shutter rolled up.
+// Text is drawn with the canvas font; the atlas is painted once at load.
+function lettering(g, txt, x, y, size, col, w) {
+  g.save(); g.translate(x, y); g.scale(-1, 1);   // the facade strips run their u against the reading direction: paint the lettering mirrored so it reads right on the wall
+  g.font = `bold ${size}px "Arial Narrow", Arial, Helvetica, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(txt, 0, 0, w); g.restore();
+}
+function glassFront(g, x, y, w, h, lit = '#e8c88a', dark = '#6a4a2c') {   // a shop window: warm interior behind dark metal frames
+  g.fillStyle = '#3a342c'; g.fillRect(x - 5, y - 5, w + 10, h + 10);
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, lit); gr.addColorStop(1, dark);
+  g.fillStyle = gr; g.fillRect(x, y, w, h);
+  g.fillStyle = 'rgba(190,210,230,.17)'; g.beginPath(); g.moveTo(x, y + h * .6); g.lineTo(x + w * .55, y); g.lineTo(x + w * .8, y); g.lineTo(x, y + h * .95); g.fill();
+}
+function stripedAwning(g, x, y, w, h, c0, c1, scallop = 8) {
+  const n = Math.round(w / 18), sw = w / n;
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = i % 2 ? c1 : c0; g.fillRect(x + i * sw, y, sw, h);
+    g.beginPath(); g.arc(x + i * sw + sw / 2, y + h, sw / 2, 0, Math.PI); g.fill();
+  }
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, y + h - 5, w, 5); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x, y, w, 3);
+}
+function crateRow(g, r, x0, x1, y, h, cols) {   // crates of produce standing in front of a shop: wooden box, heap on top
+  for (let x = x0; x + 34 <= x1; x += 38) {
+    g.fillStyle = '#9a7c4c'; g.fillRect(x, y + h * .45, 34, h * .55); g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x, y + h * .45, 34, 3); g.fillRect(x, y + h * .75, 34, 2);
+    g.fillStyle = cols[(r() * cols.length) | 0]; g.beginPath(); g.moveTo(x + 2, y + h * .5); g.quadraticCurveTo(x + 17, y - 2, x + 32, y + h * .5); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(x + 8, y + h * .3, 5, 3);
+  }
+}
+const PRODUCE = ['#e0771c', '#c8301c', '#e8c82a', '#5d8a35', '#7a2c60', '#d84a1c', '#8aaa38'];
+layer('g_bar', (g, r) => {   // caffe / bar: sign, green-white awning, warm glass front with the counter and the bottle shelf, a chalkboard on the pavement
+  plaster(g, r, '#e0d9c6', { peel: 0 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  g.fillStyle = '#5a1f26'; g.fillRect(24, 14, 208, 40); g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(24, 14, 208, 3);
+  lettering(g, 'BAR', 128, 36, 34, '#f1e6c0', 190);
+  stripedAwning(g, 22, 58, 212, 26, '#2f6a45', '#efe9d8');
+  glassFront(g, 28, 96, 128, 128, '#f0d090', '#7a5a34');
+  g.fillStyle = '#2a1e16'; g.fillRect(28, 186, 128, 38); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(28, 186, 128, 3);   // the counter
+  for (let i = 0; i < 9; i++) { g.fillStyle = ['#2a6a4a', '#8a2a24', '#c8a838', '#3a5a8a', '#d8d4c4'][i % 5]; g.fillRect(36 + i * 13, 132, 7, 18 + (i % 3) * 4); }   // bottles on the shelf
+  g.fillStyle = '#c8c4b8'; g.fillRect(58, 166, 40, 18); g.fillStyle = '#8a8a86'; g.fillRect(66, 158, 24, 8);                         // espresso machine
+  g.fillStyle = '#2a2420'; g.fillRect(168, 96, 62, 128); g.fillStyle = 'rgba(210,225,240,.2)'; g.fillRect(172, 100, 54, 120); g.fillStyle = '#c8c0a0'; g.fillRect(172, 156, 3, 18);   // glass door
+  g.fillStyle = '#1c1c1c'; g.fillRect(206, 184, 40, 56); g.fillStyle = 'rgba(255,255,255,.75)'; for (let i = 0; i < 5; i++) g.fillRect(210, 190 + i * 9, 20 + (i * 7) % 12, 2);   // the chalkboard menu
+  g.fillStyle = '#b9ae98'; g.fillRect(12, 236, 232, 20); dado(g, 30, .3);
+});
+layer('g_tabacchi', (g, r) => {   // tabaccheria: the navy plate with the white T, the lotto board, a window of posters, a glass door
+  plaster(g, r, '#d8d1c0', { peel: 1 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  g.fillStyle = '#16213c'; g.fillRect(28, 14, 76, 76); g.strokeStyle = '#d8d4c4'; g.lineWidth = 3; g.strokeRect(32, 18, 68, 68);
+  lettering(g, 'T', 66, 54, 62, '#f4f1e8', 60);
+  g.fillStyle = '#c8281e'; g.fillRect(118, 20, 110, 28); lettering(g, 'LOTTO', 173, 34, 22, '#f4f1e8', 100);
+  g.fillStyle = '#e8c830'; g.fillRect(118, 52, 110, 26); lettering(g, 'SUPERENALOTTO', 173, 65, 14, '#2a2420', 104);
+  glassFront(g, 28, 104, 100, 122, '#cfc7b0', '#8a7e64');
+  for (let i = 0; i < 6; i++) { g.fillStyle = ['#d8302a', '#2a5aa8', '#e8c830', '#f2eee4', '#3a8a4a', '#d8702a'][i]; g.fillRect(36 + (i % 3) * 30, 112 + ((i / 3) | 0) * 50, 24, 42); }   // posters and lottery slips
+  g.fillStyle = '#2a2420'; g.fillRect(142, 104, 86, 122); g.fillStyle = 'rgba(210,225,240,.22)'; g.fillRect(146, 108, 78, 114); g.fillStyle = '#b8b09a'; g.fillRect(150, 150, 3, 22);
+  g.fillStyle = '#16213c'; g.fillRect(190, 112, 30, 16); lettering(g, 'SALI', 205, 120, 10, '#f4f1e8', 26);
+  g.fillStyle = '#b9ae98'; g.fillRect(12, 236, 232, 20); dado(g, 30, .35);
+});
+layer('g_pane', (g, r) => {   // panificio: cream plate with the name, a big lit window with loaves and trays, a wooden door
+  plaster(g, r, '#e6dbc0', { peel: 0 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  g.fillStyle = '#7a4a22'; g.fillRect(26, 14, 204, 44); g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(26, 14, 204, 3);
+  lettering(g, 'PANIFICIO', 128, 37, 30, '#f6e2a8', 190);
+  glassFront(g, 24, 74, 150, 150, '#fbe6a8', '#c08a44');
+  for (const y of [112, 156, 198]) { g.fillStyle = '#6a4a2a'; g.fillRect(24, y, 150, 5); }
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 6; i++) { const x = 34 + i * 24 + (row % 2) * 8, y = [100, 144, 186][row]; g.fillStyle = ['#b8742a', '#c88a3a', '#9a5a22', '#d8a458'][(i + row) % 4]; g.beginPath(); g.ellipse(x + 8, y + 6, 11, 7, 0, 0, 6.3); g.fill(); g.fillStyle = 'rgba(255,230,160,.45)'; g.fillRect(x + 2, y + 1, 7, 2); }
+  g.fillStyle = '#4a2c18'; g.fillRect(186, 74, 46, 150); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(190, 80, 38, 66); g.fillRect(190, 152, 38, 66); g.fillStyle = '#c9a24a'; g.fillRect(193, 148, 6, 5);
+  g.fillStyle = '#b9ae98'; g.fillRect(12, 236, 232, 20); dado(g, 30, .3);
+});
+layer('g_bottega', (g, r) => {   // alimentari / frutta e verdura: shutter half up, a small awning, crates of produce on the pavement
+  plaster(g, r, '#e0d6bc', { peel: 1 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  g.fillStyle = '#2f5a35'; g.fillRect(24, 12, 208, 36); lettering(g, 'FRUTTA E VERDURA', 128, 30, 20, '#f1e6c0', 196);
+  g.fillStyle = '#6c6c6a'; g.fillRect(26, 52, 204, 20); g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = 55; y < 70; y += 4) g.fillRect(26, y, 204, 2);   // the shutter rolled up under its box
+  g.fillStyle = '#241c14'; g.fillRect(26, 72, 204, 128);
+  for (let i = 0; i < 7; i++) { g.fillStyle = PRODUCE[(r() * PRODUCE.length) | 0]; g.fillRect(34 + i * 28, 90 + (i % 2) * 22, 20, 16); }   // shelves inside
+  g.fillStyle = 'rgba(255,220,140,.4)'; g.fillRect(26, 72, 204, 6);
+  stripedAwning(g, 22, 80, 212, 22, '#d8721c', '#efe9d8');
+  crateRow(g, r, 20, 240, 196, 52, PRODUCE);
+  g.fillStyle = '#b9ae98'; g.fillRect(12, 244, 232, 12); dado(g, 24, .3);
+});
+layer('g_portone', (g, r) => {   // palazzo portone: ashlar jambs, a round arch with a carved keystone, two tall studded leaves shut
+  plaster(g, r, '#ddd4be', { peel: 0 });
+  ashlar(g, r, 0, 0, 56, T, '#ece4cf', 30, 56); ashlar(g, r, 200, 0, T, T, '#ece4cf', 30, 56);
+  g.fillStyle = '#d4c9ae'; g.beginPath(); g.moveTo(52, T); g.lineTo(52, 112); g.arc(128, 112, 76, Math.PI, 0); g.lineTo(204, T); g.fill();   // the arch ring
+  g.fillStyle = '#f2ead4'; g.fillRect(114, 22, 28, 28); g.fillStyle = 'rgba(60,45,30,.4)'; g.fillRect(114, 22, 2, 28); g.fillRect(140, 22, 2, 28);   // keystone
+  g.fillStyle = '#3a2418'; g.beginPath(); g.moveTo(64, T); g.lineTo(64, 116); g.arc(128, 116, 64, Math.PI, 0); g.lineTo(192, T); g.fill();   // the wood
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(126, 56, 4, T - 56);
+  for (const x of [72, 134]) for (let y = 112; y < T - 14; y += 24) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x, y, 50, 18); g.fillStyle = '#b8924a'; for (const dx of [8, 24, 40]) g.fillRect(x + dx, y + 6, 3, 3); }   // panels and studs
+  g.fillStyle = '#c9a24a'; g.fillRect(116, 150, 6, 22); g.fillRect(134, 150, 6, 22);                                                                      // ring handles
+  g.fillStyle = '#d8d0b8'; g.fillRect(206, 120, 30, 42); g.fillStyle = '#4a4a46'; for (let i = 0; i < 4; i++) g.fillRect(212, 126 + i * 8, 18, 4);          // the buzzer plate
+  g.fillStyle = '#b9ae98'; g.fillRect(40, T - 10, 176, 10); dado(g, 40, .35);
+});
+layer('g_farm', (g, r) => {   // farmacia: white plate with the green letters, the green cross, a window of boxes, a glass door
+  plaster(g, r, '#dcd8cc', { peel: 0 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 12, T); g.fillRect(T - 12, 0, 12, T);
+  g.fillStyle = '#f4f2ea'; g.fillRect(24, 14, 208, 46); g.strokeStyle = '#8a8a82'; g.lineWidth = 2; g.strokeRect(24, 14, 208, 46);
+  lettering(g, 'FARMACIA', 150, 38, 30, '#1f8a46', 140);
+  g.fillStyle = '#1f9a4c'; g.fillRect(36, 22, 14, 30); g.fillRect(28, 30, 30, 14);   // the cross
+  glassFront(g, 28, 80, 112, 146, '#dce8e4', '#8aa098');
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 5; i++) { g.fillStyle = ['#f4f2ea', '#3a78b8', '#1f8a46', '#e8e4d8', '#d8302a'][(i + row) % 5]; g.fillRect(36 + i * 20, 92 + row * 42, 14, 26); }
+  g.fillStyle = '#6a6a66'; g.fillRect(28, 124, 112, 3); g.fillRect(28, 166, 112, 3);
+  g.fillStyle = '#2a2a28'; g.fillRect(154, 80, 76, 146); g.fillStyle = 'rgba(210,230,236,.26)'; g.fillRect(158, 84, 68, 138); g.fillStyle = '#c8c8c0'; g.fillRect(162, 146, 3, 24);
+  g.fillStyle = '#b9ae98'; g.fillRect(12, 236, 232, 20); dado(g, 30, .3);
+});
+function marketFront(g, r, o) {   // the shutter rolled up, the front open to the street: goods on shelves and hooks, bulbs, crates on the ground
+  plaster(g, r, '#dcd2ba', { peel: 1 });
+  g.fillStyle = '#efe9d8'; g.fillRect(0, 0, 10, T); g.fillRect(T - 10, 0, 10, T);
+  g.fillStyle = o.sign; g.fillRect(22, 14, 212, 32); lettering(g, o.name, 128, 30, 20, '#f4ecd0', 200);
+  g.fillStyle = '#6c6c6a'; g.fillRect(22, 50, 212, 22); g.fillStyle = 'rgba(0,0,0,.32)'; for (let y = 53; y < 70; y += 4) g.fillRect(22, y, 212, 2);   // the rolled shutter
+  g.fillStyle = '#4b4b49'; g.fillRect(22, 70, 212, 4);
+  g.fillStyle = '#1e1812'; g.fillRect(22, 74, 212, 150);
+  const gr = g.createLinearGradient(0, 74, 0, 224); gr.addColorStop(0, 'rgba(255,214,140,.45)'); gr.addColorStop(1, 'rgba(120,80,40,.1)'); g.fillStyle = gr; g.fillRect(22, 74, 212, 150);
+  for (let i = 0; i < 9; i++) { g.fillStyle = '#fff0bc'; g.fillRect(30 + i * 24, 78, 6, 6); }   // string of bulbs
+  o.inside(g, r);
+  if (o.awn) stripedAwning(g, 18, 84, 220, 22, o.awn[0], o.awn[1]);
+  o.front(g, r);
+  g.fillStyle = '#b9ae98'; g.fillRect(10, 244, 236, 12); dado(g, 24, .3);
+}
+layer('g_mk_a', (g, r) => marketFront(g, r, { name: 'FRUTTA', sign: '#2f5a35', awn: ['#c8281e', '#efe9d8'],
+  inside: (g, r) => { for (let row = 0; row < 3; row++) for (let i = 0; i < 8; i++) { g.fillStyle = PRODUCE[(r() * PRODUCE.length) | 0]; g.fillRect(30 + i * 26, 120 + row * 26, 20, 16); } },
+  front: (g, r) => crateRow(g, r, 16, 244, 196, 54, PRODUCE) }));
+layer('g_mk_b', (g, r) => marketFront(g, r, { name: 'MACELLERIA', sign: '#7a1f24', awn: null,
+  inside: (g, r) => { g.fillStyle = '#d8d4c8'; g.fillRect(30, 190, 196, 34); for (let i = 0; i < 10; i++) { g.fillStyle = ['#8a3a2c', '#c46a58', '#7a2c24', '#b85a48'][i % 4]; const x = 36 + i * 19, l = 36 + (i % 3) * 14; g.fillRect(x, 92, 8, l); g.fillStyle = '#e8e0d0'; g.fillRect(x + 3, 88, 2, 6); } for (let i = 0; i < 4; i++) { g.fillStyle = '#e6c866'; g.beginPath(); g.ellipse(52 + i * 46, 206, 16, 8, 0, 0, 6.3); g.fill(); } },
+  front: (g, r) => { g.fillStyle = '#efe9d8'; g.fillRect(24, 214, 208, 30); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(24, 240, 208, 4); for (let i = 0; i < 6; i++) { g.fillStyle = ['#b83030', '#c85048', '#e8a8a0'][i % 3]; g.fillRect(34 + i * 33, 218, 26, 14); } } }));
+layer('g_mk_c', (g, r) => marketFront(g, r, { name: 'PESCHERIA', sign: '#1f4a72', awn: ['#2a5aa0', '#efe9d8'],
+  inside: (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = ['#b8c4cc', '#6c8ca8', '#d8604a', '#e8a8a0'][i % 4]; g.beginPath(); g.ellipse(46 + i * 24, 150 + (i % 2) * 10, 12, 5, 0, 0, 6.3); g.fill(); } g.fillStyle = 'rgba(210,230,240,.35)'; g.fillRect(30, 178, 196, 30); },
+  front: (g, r) => { g.fillStyle = '#dfe9ee'; g.fillRect(22, 206, 212, 38); g.fillStyle = '#f4f8fa'; g.fillRect(24, 206, 208, 6); for (let i = 0; i < 9; i++) { g.fillStyle = ['#b8c4cc', '#6c8ca8', '#d8604a', '#e8a8a0', '#8aa0b0'][i % 5]; g.beginPath(); g.ellipse(40 + i * 22, 218 + (i % 3) * 6, 10, 4, 0, 0, 6.3); g.fill(); } } }));
+
 // ---- upper floors: baroque palazzo
 function barUp(g, r, sh) {
   plaster(g, r, '#e6dcc6');
@@ -798,6 +924,15 @@ class GB {
     this.ni = j;
   }
   // triangle facing upwards
+  tDown(p0, p1, p2, layerIdx, col) {   // like tUp, facing down (the underside of an archway volume)
+    let nx = (p1[1] - p0[1]) * (p2[2] - p0[2]) - (p1[2] - p0[2]) * (p2[1] - p0[1]);
+    let ny = (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2]);
+    let nz = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    if (ny > 0) { [p1, p2] = [p2, p1]; nx = -nx; ny = -ny; nz = -nz; }
+    const a = this.v(p0, nx, ny, nz, col, layerIdx), b = this.v(p1, nx, ny, nz, col, layerIdx), c = this.v(p2, nx, ny, nz, col, layerIdx);
+    this.I[this.ni++] = a; this.I[this.ni++] = b; this.I[this.ni++] = c;
+  }
   tUp(p0, p1, p2, layerIdx, col) {
     let nx = (p1[1] - p0[1]) * (p2[2] - p0[2]) - (p1[2] - p0[2]) * (p2[1] - p0[1]);
     let ny = (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2]);
@@ -854,10 +989,10 @@ const STYLES = {
   pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', railAlt: 'rail_g', balc: 'alt', pitch: 0.18, // 'alt': balconies in stacked columns on every other bay (Viale Lazio), half the triangles of one per bay
     ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
-  ins: { pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
+  ins: { noShops: true, pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
     ground: [['g_pilot', 3], ['g_garage', 3], ['zen_g', 1.2], ['blank_g', .5]] },
   // fishermen's and summer houses: whitewash, painted wooden doors, pastel shutters
-  fish: { pal: 'res', bay: 3.6, g0: 3.4, fh: 3.0, parapet: 0.55, corn: 0.0, nobile: false, up: ['fis_a', 'fis_win'], rail: 'rail_a', balc: 'none', pitch: 0.5,
+  fish: { noShops: true, pal: 'res', bay: 3.6, g0: 3.4, fh: 3.0, parapet: 0.55, corn: 0.0, nobile: false, up: ['fis_a', 'fis_win'], rail: 'rail_a', balc: 'none', pitch: 0.5,
     ground: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
   // sheds and warehouses (port, Brin, Corso dei Mille yards): corrugated or prefab walls, roller doors, metal roofs
   ind: { pal: 'pw', bay: 6.0, g0: 99, fh: 4.5, parapet: 0.3, corn: 0.0, nobile: false, up: ['ind_a'], rail: 'rail_a', balc: 'none', pitch: 0.0, ind: true,
@@ -868,7 +1003,7 @@ const STYLES = {
   ruin: { pal: 'res', bay: 3.6, g0: 99, fh: 3.0, parapet: 0.0, corn: 0.0, nobile: false, up: ['ruin_wall'], rail: 'rail_a', balc: 'none', pitch: 0.0, ruin: true,
     ground: [['ruin_wall', 1]] },
 };
-const REPEATABLE = new Set(['g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a']);
+const REPEATABLE = new Set(['g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
 
 // =====================================================================================
 // Spatial lookups
@@ -1153,7 +1288,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.7 ? 'ch_door' : 'ch_low');
         else if (kind === 'street') {
           let prev = null;
-          const GL = GROUND_MODES[gmode] || B.gl || S.ground;
+          const GL = GROUND_MODES[gmode] || B.gl || groundMix(S, B);
           for (let i = 0; i < nb; i++) {
             let lay = prev && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(GL, r);
             if (lay === prev && !REPEATABLE.has(lay)) lay = pick(GL, r);
@@ -1267,6 +1402,14 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       }
     }
 
+    // ----- e6: the underside of an archway volume (a bridge over a ground-floor passage, `yb` in the tile data) -----
+    if (B.arch && stack !== undefined) {
+      try {
+        const contour = outerPts.map(p => new THREE.Vector2(p[0], p[1])), tris = THREE.ShapeUtils.triangulateShape(contour, []);
+        for (const t of tris) gbuf.tDown([outerPts[t[0]][0], stack, outerPts[t[0]][1], 0, 0, 0.8], [outerPts[t[1]][0], stack, outerPts[t[1]][1], 1, 0, 0.8], [outerPts[t[2]][0], stack, outerPts[t[2]][1], 0, 1, 0.8], LID.terrace, B.slab);
+      } catch (e) { /* skip */ }
+    }
+
     // ----- roof -----
     if (!pitched) {
       const hp = rings.slice(1).map(h => h.pts);
@@ -1352,8 +1495,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const B = {
         S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || nFl || 0,
         railAlt: S.railAlt && r() < 0.5 ? S.railAlt : null, up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
-        spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone,
+        spec, bp: spec && spec.walls || photo && photo.byId[b.id] ? pts0 : null, photo: photo && photo.byId[b.id] || null, stoneWall: isStone, arch: !!b.yb,
         reach: Z.elig && !Z.shed ? (Z.front ?? 15) : 0,
+        sn: near && near.r && near.r.n || '', sc: near && near.r && near.r.k || '',   // the street it stands on (ground-floor mix)
         gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e,
       };
       if (B.photo) stats.photo++;
@@ -1372,7 +1516,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       let stackY;
       const ni0 = BDBG ? B.ch.m.ni + B.ch.r.ni : 0;
       for (const [flat, holes, roofY, stacked] of solids) {
-        if (stacked) { if (stackY === undefined || roofY <= stackY + 0.4) continue; emitSolid(B, flat, holes, roofY, stackY); } else { const y = emitSolid(B, flat, holes, roofY); if (stackY === undefined && !b.split) stackY = y; }
+        if (b.yb) { let g = -1e9; for (const p of pts0) g = Math.max(g, groundY(p[0], p[1])); emitSolid(B, flat, holes, roofY, g + b.yb); }   // e6: a bridge over a passage: starts yb metres above the ground, nothing below it
+        else if (stacked) { if (stackY === undefined || roofY <= stackY + 0.4) continue; emitSolid(B, flat, holes, roofY, stackY); } else { const y = emitSolid(B, flat, holes, roofY); if (stackY === undefined && !b.split) stackY = y; }
       }
       if (BDBG) { const T = (window.__bldTris = window.__bldTris || {}); const o = T[key] || (T[key] = [0, 0]); o[0]++; o[1] += (B.ch.m.ni + B.ch.r.ni - ni0) / 3; }
     }
@@ -1444,6 +1589,26 @@ function calcFloors(S, Hw, lv, sp) {
   return { g0, nUp };
 }
 const NOSPEC = {};
+// Ground-floor variety (board item 2). The style's own table stays as the base (arches on the baroque fronts, pilotis on the housing), and what the street adds to it
+// depends on the street the facade stands on: the market lanes get their open fronts (shutter up), the main commercial streets glazed shops, bars, a tabaccheria, a
+// chemist, a bakery, the side streets portoni and the odd bottega, the minor lanes hardly anything. One list per style and kind of street, built once.
+const MARKET_FRONT = /Ballar|Chiappara|Casa Professa|Maccheronai|Argenteria|Cassari|Materassai|Coltellieri|Chiavettieri|Garraffello|Caracciolo|Sant'Agostino|Beati Paoli|Cappuccinelle|Porta Carini/;
+const SHOP_EXTRA = {
+  market: { k: 0.2, sh: 0.3, add: [['g_mk_a', 3], ['g_mk_b', 2], ['g_mk_c', 1.6], ['g_bottega', 1.4], ['g_shop_o', 0.8], ['g_pane', 0.5], ['g_portone', 0.7], ['g_bar', 0.6]] },
+  main: { k: 0.8, sh: 0.55, add: [['pw_shop', 1.6], ['g_bar', 1.5], ['g_tabacchi', 0.8], ['g_farm', 0.6], ['g_pane', 0.55], ['g_portone', 1.1], ['g_shop_o', 0.6]] },
+  side: { k: 1, sh: 0.8, add: [['g_portone', 1.7], ['g_bar', 0.45], ['g_bottega', 0.7], ['g_pane', 0.35], ['g_tabacchi', 0.35], ['g_farm', 0.15]] },
+  minor: { k: 1, add: [['g_portone', 0.7], ['g_bottega', 0.3]] },
+};
+const MIX_CACHE = new Map();
+function groundMix(S, B) {
+  if (S.church || S.ind || S.silo || S.ruin || S.noShops) return S.ground;
+  const nm = B.sn || '', cl = B.sc || '';
+  const ctx = MARKET_FRONT.test(nm) ? 'market' : MAIN_ST.test(nm) || cl === 'primary' || cl === 'secondary' || cl === 'tertiary' || cl === 'pedestrian' ? 'main' : cl === 'residential' || cl === 'living_street' || cl === 'unclassified' ? 'side' : 'minor';
+  let m = MIX_CACHE.get(S); if (!m) MIX_CACHE.set(S, m = {});
+  if (m[ctx]) return m[ctx];
+  const E = SHOP_EXTRA[ctx];
+  return m[ctx] = [...S.ground.map(([l, w]) => [l, w * E.k * (l === 'g_shop_s' || l === 'g_garage' ? (E.sh ?? 1) : 1)]), ...E.add];   // the shutters-down shops thin out: it is daytime
+}
 const GROUND_MODES = {
   shops: [['g_shop_s', 3], ['g_shop_o', 2]], arcade: [['g_arch', 1]], blind: [['blank_g', 3], ['g_win', 1]], rustic: [['g_rust_win', 1]],
 };

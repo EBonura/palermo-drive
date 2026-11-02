@@ -49,7 +49,7 @@ const CFG = {
   viewNear: 220,                          // tiles this close to the focus count as in view whichever way the camera points
   keepData: 6,
   farFog: 1.25,                           // far boxes are built out to farFog / fog density metres (the fog hides what is beyond)
-  base: Q.get('worldurl') || 'world/',
+  base: (() => { const w = Q.get('worldurl'); try { const u = new URL(w, location.href); return w && (u.origin === location.origin || /^(localhost|127\.0\.0\.1)$/.test(u.hostname)) ? w : 'world/'; } catch (e) { return 'world/'; } })(),   // a link must not make the game load a stranger's world (docs/SECURITY.md 6): this site or localhost only
 };
 
 // ---------- grids ----------
@@ -509,7 +509,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     };
     // city landmarks may swap a footprint's walls for their own (the stadium's gate, the Politeama railing)
     const lms = cityIn(t).concat(CENTRO_LANDMARKS.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j)), drop = new Set(lms.flatMap(l => l.dropWalls || []));   // (the centro landmarks only bring walls: their models are built by lmJob)
-    for (const b of d.buildings) { if (drop.has(b.id)) continue; addRing(b.p); if (b.holes) b.holes.forEach(addRing); if ((++n & 63) === 0) yield; }
+    for (const b of d.buildings) { if (drop.has(b.id) || b.yb) continue; addRing(b.p); if (b.holes) b.holes.forEach(addRing); if ((++n & 63) === 0) yield; }
     for (const l of lms) for (const w of l.walls || []) wallGrid.addSeg(t.k, w, w[0], w[1], w[2], w[3]);
     for (const r of d.roads) {
       const p = pairs(r.p);

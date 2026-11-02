@@ -17,7 +17,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 | 3 | Workflow gave `pages: write` and `id-token: write` to the build job; actions pinned by moving tag | Low | Fixed |
 | 4 | `?relay=` made the game talk to any server named in a link | Medium (once the relay is live) | Fixed |
 | 5 | `?photomap=` made the game load pictures and a map from any server named in a link | Low | Fixed |
-| 6 | `?worldurl=` makes the game load world data from any server named in a link | Medium | **Open** (street agent's file, exact lines below) |
+| 6 | `?worldurl=` makes the game load world data from any server named in a link | Medium | **Fixed** (`src/world.js`: this site or localhost only) |
 | 7 | `assets/ui/cover.html?mode=` was reflected into `innerHTML` | Medium (but the page is not published) | Fixed |
 | 8 | No Content-Security-Policy on the published page | Low (defence in depth) | Fixed (meta tag in the build) |
 | 9 | `.gitignore` had no rule for key files, env files or logs | Low | Fixed |
@@ -103,9 +103,9 @@ happens to them:
 - **`?relay=wss://host/ws`** (`net.js`). Medium once the relay is live, because a link could send the player's name, position and anonymous id to any server and show that server's "players". **Fixed**: honoured on
   localhost only; `?relay=off` still works everywhere. `RELAY_URL` is empty today, so on the public site multiplayer is off and nothing connects.
 - **`?photomap=`** (`buildings.js:1410`): a map file naming pictures to draw on facades. **Fixed**: used only when it is on the same origin (a test link may still name another file of the site).
-- **`?worldurl=`** (`src/world.js:52` `base: Q.get('worldurl') || 'world/',` and the user at line 234 `const url = p => new URL(CFG.base + p, document.baseURI).href;`). **Open, Medium.** A link
+- **`?worldurl=`** (`src/world.js:52` `base: Q.get('worldurl') || 'world/',` and the user at line 234 `const url = p => new URL(CFG.base + p, document.baseURI).href;`). **Fixed** (Medium before). A link
   `…/palermo-drive/?worldurl=https://attacker.example/world/` makes the game fetch the manifest and every tile from the attacker. The data is JSON (no script runs, names go through the safe paths above), so
-  the damage is misleading content and memory or CPU abuse (an enormous tile), not code execution. `world.js` is the street agent's file, so I did not edit it. Suggested one-line change for line 52:
+  the damage is misleading content and memory or CPU abuse (an enormous tile), not code execution. Fixed in `src/world.js` with this change on the `base` line:
   `base: (() => { const w = Q.get('worldurl'); try { const u = new URL(w, location.href); return w && (u.origin === location.origin || /^(localhost|127\.0\.0\.1)$/.test(u.hostname)) ? w : 'world/'; } catch (e) { return 'world/'; } })(),`
   (same site or a local server, for the dev workflow).
 - `src/vehicle.js` and `src/vehicle-sphere.js`: read; no network, storage or HTML use, nothing to list.
