@@ -7,6 +7,8 @@ map and survey data, and you roam it freely, picking up whoever waves at you fro
 
 **Play:** https://ebonura.github.io/palermo-drive/ (on a phone, turn it to landscape)
 
+Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
+
 ## What you can do
 
 - Drive anywhere: from the Quattro Canti to Mondello, up Monte Pellegrino to Santa Rosalia, out to the ZEN and Brancaccio.

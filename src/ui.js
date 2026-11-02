@@ -51,7 +51,7 @@ const S = {
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  igMe: ['Segui questo gioco', 'Follow this game'], igStudio: ['Lo studio: soprattutto PS1', 'The studio: mostly PS1'],
+  igMe: ['Segui il creatore del gioco', 'Follow the game\'s creator'], igStudio: ['Segui lo studio, principalmente sviluppo per PlayStation 1', 'Follow the studio, mostly PlayStation 1 development'],
   coords: ['Coordinate (debug)', 'Coordinates (debug)'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],

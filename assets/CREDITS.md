@@ -1,5 +1,7 @@
 # Asset credits (driving)
 
+**Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli**
+
 The player vehicles (three lape, three two-wheelers and a tamarro hatchback, with all tuning parts and sticker designs) are built procedurally in `src/vehicle-models.js` and `src/vehicle-art.js`; the Calessino "lapa" was the first (in `src/vehicle.js`), including the
 three livery textures (royal blue, white and burgundy, and the hand-painted Sicilian cart folk-art pattern, all
 drawn on canvases in code). No external model or texture is used for it.
