@@ -32,17 +32,23 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const THREE_DIR = path.join(fs.realpathSync(path.join(HERE, 'node_modules')), 'three');
 
-const launch = () => puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const opened = new Set();
+const launch = async () => { const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] }); opened.add(b); b.on('disconnected', () => console.log('  [browser disconnected]', new Date().toISOString(), 'pid', b.process()?.pid, 'exit', b.process()?.exitCode, b.process()?.signalCode)); return b; };
+// a run that fails must not leave its browsers behind on a machine shared with other work
+process.on('uncaughtException', async e => { console.error(e); for (const b of opened) await b.close().catch(() => {}); process.exit(1); });
+process.on('unhandledRejection', async e => { console.error(e); for (const b of opened) await b.close().catch(() => {}); process.exit(1); });
 async function open(browser, port, name, extra = '', init, play = true, before) {
   const [, x, z, th] = SPOTS[name];
   const page = await browser.newPage();
   await page.setViewport(DESKTOP ? { width: 1280, height: 720, deviceScaleFactor: 1 } : { width: 844, height: 390, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   await page.setRequestInterception(true);
   page.on('request', r => { const m = r.url().match(/^https:\/\/cdn\.jsdelivr\.net(\/npm\/.*)$/); m ? r.continue({ url: `http://127.0.0.1:${port}/__cdn${m[1]}` }) : r.continue(); });
+  page.on('error', e => console.log('  [page crashed]', e.message.slice(0, 200)));
   page.on('pageerror', e => console.log('  [pageerror]', e.message.slice(0, 300)));
   page.on('console', m => { if (m.type() === 'error' || /GL_INVALID|GL Driver Message|WebGL:/.test(m.text())) console.log('  [console]', m.text().slice(0, 300)); });
   if (init) await page.evaluateOnNewDocument(init);
   if (before) await before(page);
+  page.setDefaultNavigationTimeout(+arg('loadtimeout', 300000));
   await page.goto(`http://127.0.0.1:${port}/?help=0${play ? `&play&at=${x},${z},${th}` : ''}&fixres&debug${extra ? '&' + extra : ''}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.game && !document.getElementById('loading'), { timeout: +arg('loadtimeout', 300000), polling: 250 });
   return page;
