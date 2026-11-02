@@ -213,89 +213,14 @@ ape('ape', false); ape('apetaxi', true);
   def('fountain', fn);
 }
 
-// Palms, ficus, pine, orange, generic broadleaf
-function fanPalm(name, H, bulge) {
-  const mb = new MB(), trunk = C('#8a7658'), r = 0.27;
-  mb.prism(0, 0, 0, H, r * 1.25, r * 0.85, 5, trunk, { k0: 0.6 });
-  
-  
-  // dead skirt
-  const dead = C('#8b7a4a'), g1 = C('#3f6a2a'), g2 = C('#7ca43e'), pet = C('#5a7a34');
-  const tri = (a, b, c, col, ka = 1, kb = 1, kc = 1) => { mb.vert([...a, ka], col, 1); mb.vert([...b, kb], col, 1); mb.vert([...c, kc], col, 1); };
-  for (let i = 0; i < 5; i++) {
-    const a = i * TAU / 5 + 0.2, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
-    tri([dx * 0.2, H + 0.1, dz * 0.2], [dx * 0.75 + px * 0.25, H - 0.85, dz * 0.75 + pz * 0.25], [dx * 0.75 - px * 0.25, H - 0.85, dz * 0.75 - pz * 0.25], dead);
-    tri([dx * 0.2, H + 0.1, dz * 0.2], [dx * 0.75 - px * 0.25, H - 0.85, dz * 0.75 - pz * 0.25], [dx * 0.75 + px * 0.25, H - 0.85, dz * 0.75 + pz * 0.25], dead);
-  }
-  const n = 9 + bulge;
-  for (let i = 0; i < n; i++) {
-    const a = i * TAU / n + (i % 2) * 0.17, dx = Math.cos(a), dz = Math.sin(a);
-    const up = 0.25 + (i % 3) * 0.25, len = 0.9 + (i % 3) * 0.08;
-    const A = [dx * len, H + 0.2 + up, dz * len];
-    tri([0, H + 0.2, 0], A, [dx * 0.5 - dz * 0.05, H + 0.2 + up * 0.5, dz * 0.5 + dx * 0.05], pet);
-    const drop = 0.55 + (i % 3) * 0.15, bl = 1.7 + (i % 2) * 0.25;
-    const tips = [];
-    for (let j = -2; j <= 2; j++) {
-      const ph = j * 0.5, ca = Math.cos(a + ph), sa = Math.sin(a + ph);
-      tips.push([A[0] + ca * bl, A[1] - drop - Math.abs(j) * 0.28 + 0.1, A[2] + sa * bl]);
-    }
-    for (let j = 0; j < 4; j += 1) { tri(A, tips[j], tips[j + 1], g1, 0.85, 1.15, 1.15); }
-  }
-  def(name, mb, { dbl: true, tint: true });
-}
-fanPalm('palm_fan_a', 9, 1); fanPalm('palm_fan_b', 13, 3); fanPalm('palm_fan_c', 6.5, 0);
-
-function datePalm(name, H) {
-  const mb = new MB(), trunk = C('#7b684b');
-  mb.prism(0, 0, 0, H, 0.5, 0.36, 6, trunk, { k0: 0.6 });
-  mb.lump(0, H + 0.1, 0, 0.55, 0.45, 0.55, C('#6c5a3a'), 0, 0.1, 0.7);
-  const col1 = C('#3f6428'), col2 = C('#86a548');
-  const n = 13;
-  for (let i = 0; i < n; i++) {
-    const a = i * TAU / n + (i % 2) * 0.1, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
-    const L = 2.6 + (i % 3) * 0.35, lift = i % 3 === 0 ? 1.0 : i % 3 === 1 ? 0.45 : 0.1;
-    let prev = null;
-    for (let s = 0; s <= 2; s++) {
-      const t = s / 2, h = L * t * 0.9, y = H + 0.3 + lift * 1.8 * t - 1.9 * t * t * (0.9 + lift * 0.2);
-      const wd = 0.5 * (1 - t * 0.75) * (s === 0 ? 0.3 : 1);
-      const cur = [[dx * h + px * wd, y - 0.1 * wd, dz * h + pz * wd], [dx * h - px * wd, y - 0.1 * wd, dz * h - pz * wd], [dx * h, y + 0.04, dz * h]];
-      if (prev) {
-        const k = 0.8 + 0.35 * t;
-        for (const [p, q, rr] of [[prev[0], prev[2], cur[0]], [prev[2], cur[2], cur[0]], [prev[2], prev[1], cur[1]], [prev[2], cur[1], cur[2]]]) {
-          mb.vert([...p, k], col1, 1); mb.vert([...q, k], col1, 1); mb.vert([...rr, k], col1, 1);
-        }
-      }
-      prev = cur;
-    }
-  }
-  def(name, mb, { dbl: true, tint: true });
-}
-datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
+// Palms, ficus, pine, orange, generic broadleaf: all in src/treegeo.js (canopies of overlapping clumps, forked trunks, fan and date palms with arching fronds); the palms are double sided (fronds are single sheets)
+for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']) MODELS[n] = { geo: treeGeo(n), mat: 'dbl', tint: true };
 
 {
-  const f = new MB();  // large Ficus macrophylla / microcarpa
-  f.prism(0, 0, 0, 3.0, 0.75, 0.5, 5, C('#6b5e4e'), { k0: 0.55 });
-  for (const [x, y, z, rx, ry, c, sd] of [[0, 5.3, 0, 4.2, 2.6, '#3f5d2d', 1], [2.8, 4.6, 0.7, 2.8, 2.0, '#486a32', 2], [-2.5, 4.4, -1.0, 2.8, 1.9, '#3a5629', 3], [0.4, 6.4, 1.8, 2.5, 1.7, '#4a6c33', 4], [-0.8, 4.2, 2.4, 2.4, 1.6, '#456536', 12]])
-    f.lump(x, y, z, rx, ry, rx, C(c), 0, 0.2, 0.55, sd);
-  def('ficus', f, { tint: true });
-  const o = new MB();   // bitter orange / citrus street tree
-  o.prism(0, 0, 0, 2.0, 0.14, 0.1, 5, C('#5b4a3a'), { k0: 0.6 });
-  o.lump(0, 3.0, 0, 1.7, 1.5, 1.7, C('#46703a'), 0, 0.2, 0.6, 5);
-  o.lump(0.6, 3.5, 0.3, 1.2, 1.1, 1.2, C('#527c40'), 0, 0.2, 0.7, 6);
-  o.lump(1.2, 2.5, 0.5, 0.2, 0.2, 0.2, C('#e48a1c'), 0, 0.1, 0.9);
-  def('orange', o, { tint: true });
-  const t = new MB();   // generic broadleaf (plane, carob, jacaranda...)
-  t.prism(0, 0, 0, 3.4, 0.2, 0.13, 5, C('#6e5a44'), { k0: 0.6 });
-  t.lump(0, 5.2, 0, 2.7, 2.3, 2.7, C('#587e3a'), 0, 0.2, 0.55, 7);
-  t.lump(1.4, 4.4, 0.6, 1.8, 1.5, 1.8, C('#648a40'), 0, 0.2, 0.6, 8);
-  t.lump(-1.3, 4.7, -0.5, 1.7, 1.5, 1.7, C('#527a38'), 0, 0.2, 0.6, 13);
-  def('tree', t, { tint: true });
-  const p = new MB();   // umbrella pine
-  p.prism(0, 0, 0, 7.0, 0.3, 0.2, 5, C('#7b5a42'), { k0: 0.55 });
-  p.lump(0, 8.0, 0, 3.9, 1.5, 3.9, C('#3d5b30'), 0, 0.2, 0.6, 9);
-  p.lump(1.8, 7.4, 0.8, 2.4, 1.1, 2.4, C('#456536'), 0, 0.2, 0.6, 10);
-  p.lump(-1.8, 7.5, -0.6, 2.4, 1.1, 2.4, C('#406132'), 0, 0.2, 0.6, 14);
-  def('pine', p, { tint: true });
+  MODELS.ficus = { geo: treeGeo('ficus'), mat: 'std', tint: true };      // large Ficus macrophylla / microcarpa
+  MODELS.orange = { geo: treeGeo('orange'), mat: 'std', tint: true };    // bitter orange / citrus street tree
+  MODELS.tree = { geo: treeGeo('tree'), mat: 'std', tint: true };        // generic broadleaf (carob, holm oak, olive, jacaranda...)
+  MODELS.pine = { geo: treeGeo('stone'), mat: 'std', tint: true };       // umbrella pine
   MODELS.plane = { geo: treeGeo('plane'), mat: 'std', tint: true };      // n4: the plane tree (Via della Liberta, the old avenues)
   MODELS.aleppo = { geo: treeGeo('aleppo'), mat: 'std', tint: true };    // n4: the Aleppo pine (the hills, Monte Gallo, the Favorita)
   const sh = new MB();    // oleander / flowering shrub and clipped hedge block
@@ -2142,26 +2067,28 @@ function* generate(S, BUD) {
 
     // b) planes along Via della Liberta and the other grand avenues of the 1960s grid; palms along the seafronts
     const AVENUE = /^(Via|Viale) della Libertà$/, FRONT = /Regina Elena|Lungomare|Foro Italico|Piano di Gallo|Viale Marina|Lido/;
+    // Streets whose real canopy closes over the carriageway, read off the Mapillary photos of the faithfulness survey (round 2: po02 and po31 planes and jacaranda, zi08 and zi09 plane rows, su13 pollarded planes, su18 broadleaves, pt10 plane and ficus, pt12 ficus); the same planting is carried along the whole named street, which the photos do not show: [name, tree, scale, spacing in m]
+    const CANOPY = [[/Ruggero Settimo|^Viale Lazio$|^Viale Michelangelo$|Imperatore Federico/, 'plane', 1.55, 11], [/Ernesto Basile/, 'plane', 1.15, 11], [/Filippo Paruta/, 'tree', 1.55, 10], [/Domenico Costantino/, 'ficus', 1.1, 14]];
     for (const r of S.roads) {
       const nm = r.n || '';
-      const lib = AVENUE.test(nm), front = FRONT.test(nm) && DRIVE.has(r.k);
+      const lib = AVENUE.test(nm), front = FRONT.test(nm) && DRIVE.has(r.k), can = !lib && !front ? CANOPY.find(c => c[0].test(nm)) : null;
       let grand = false;
-      if (!lib && !front && (r.k === 'primary' || r.k === 'secondary') && r.p.length >= 4) { const zn = zoneOf(r.p[0], r.p[1]); grand = zn === 'viaLib' || zn === 'sacco' || zn === 'resut'; }
-      if (!lib && !front && !grand) continue;
+      if (!lib && !front && !can && (r.k === 'primary' || r.k === 'secondary') && r.p.length >= 4) { const zn = zoneOf(r.p[0], r.p[1]); grand = zn === 'viaLib' || zn === 'sacco' || zn === 'resut'; }
+      if (!lib && !front && !grand && !can) continue;
       if (BUD.over()) yield;
       const p = pairs(r.p);
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
         const tx = dx / L, tz = dz / L;
-        for (let s = RF(1, 6); s < L; s += front ? 13 : lib ? 10.5 : 15) {
+        for (let s = can ? 1 + 5 * hash3(a[0], a[1], i) : RF(1, 6); s < L; s += front ? 13 : lib ? 10.5 : can ? can[3] : 15) {   // (the canopy streets take no number from the flavour generator, so nothing after them moves)
           const cx = a[0] + tx * s, cz = a[1] + tz * s;
           if (nearJunction(cx, cz, 7) && !front) continue;
           for (const sg of [1, -1]) {
-            if (!lib && rf() > (front ? 0.7 : 0.5)) continue;
+            if (!lib && !can && rf() > (front ? 0.7 : 0.5)) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
             const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
-            if (!inBounds(x, z) || (!raisedMask(x, z) && !paving(x, z))) continue;
-            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, lib || grand ? 'plane' : 'tree', lib ? 0.95 : 0.9, null)) { if (front) st.palms++; else st.plane++; }
+            if (!inBounds(x, z) || (!can && !raisedMask(x, z) && !paving(x, z))) continue;
+            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : can ? placeTree(x, z, can[1], can[2], null) : placeTree(x, z, lib || grand ? 'plane' : 'tree', lib ? 1.45 : 0.9, null)) { if (front) st.palms++; else st.plane++; }
           }
         }
       }
