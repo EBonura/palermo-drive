@@ -1273,7 +1273,7 @@ function buildNormanni() {
   const TW = 15, TH = 33, TD = 7;
   defMat('torre', mkTex(512, 1024, (g, w, h) => {
     const sx = w / TW, sy = h / TH, X = (s) => s * sx, Y = (y) => h - y * sy;
-    paintAshlar(g, w, h, TW, TH, 0.6, 1.3, '#a29a8c', '#6d665a', 181, 2, 0.09);
+    paintAshlar(g, w, h, TW, TH, 0.6, 1.3, '#c6a874', '#8a7048', 181, 2, 0.09);
     const arch = (cx, y0, y1, bw, win) => {
       g.strokeStyle = 'rgba(40,36,30,0.75)'; g.lineWidth = 3; g.fillStyle = 'rgba(70,64,56,0.22)';
       g.beginPath(); g.moveTo(X(cx - bw / 2), Y(y0)); g.lineTo(X(cx - bw / 2), Y(y1 - bw * 0.55)); g.quadraticCurveTo(X(cx - bw / 2), Y(y1 - 0.1), X(cx), Y(y1)); g.quadraticCurveTo(X(cx + bw / 2), Y(y1 - 0.1), X(cx + bw / 2), Y(y1 - bw * 0.55)); g.lineTo(X(cx + bw / 2), Y(y0)); g.fill(); g.stroke();
@@ -1291,8 +1291,9 @@ function buildNormanni() {
   const right = [best.nz, -best.nx];
   const pL = [mx - right[0] * TW / 2 + best.nx * 0.2, mz - right[1] * TW / 2 + best.nz * 0.2], pR = [mx + right[0] * TW / 2 + best.nx * 0.2, mz + right[1] * TW / 2 + best.nz * 0.2];
   wallQuad('torre', pL, pR, yb, yt, [0, 1 - HT / TH, 1, 1], '#ffffff');
-  box('ashlar', TW, HT, TD, { M: mul(M, tr(0, 0, -TD / 2 + 0.2)), c: '#8d8578' });
-  box('ashlar', TW + 0.6, 0.8, TD + 0.6, { M: mul(M, tr(0, HT - 0.4, -TD / 2 + 0.2)), c: '#9a9285' });
+  box('ashlar', TW, HT, TD, { M: mul(M, tr(0, 0, -TD / 2 + 0.2)), c: '#b49a6c' });
+  box('ashlar', TW + 0.6, 0.8, TD + 0.6, { M: mul(M, tr(0, HT - 0.4, -TD / 2 + 0.2)), c: '#c9ae7c' });
+  merlons('ashlar', pR, pL, yt + 0.4, '#d3b988', 1.5, 0.8, 1.1, 0.5);   // the pointed merlons of the Norman roofline (square here)
   for (const [x, r] of [[-4.0, 2.4], [1.5, 3.0], [5.8, 1.8]]) {
     cyl('flat', r, r * 1.05, 0.8, 12, { M: mul(M, tr(x, HT + 0.4, -3)), c: '#8a7f70', noao: true });
     lathe('flat', [[r * 1.0, 0], [r * 0.95, 0.5], [r * 0.7, 1.4], [r * 0.3, 2.0], [0, 2.1]].map(q => [q[0], q[1] * 1.15]), 12, { M: mul(M, tr(x, HT + 1.2, -3)), c: '#2e3036', noao: true });
