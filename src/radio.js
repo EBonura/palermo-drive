@@ -119,6 +119,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false };
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
+  let ambient = 1;   // duckAmbient(k): the city's own voices (the knife-grinder's loudspeaker, src/city-audio.js) turn the radio down a little; apart from outer so a pub's song does not undo it
   let outer = 1;   // duckFor(k): other music nearby (a pub's song, src/pubs.js) turns the radio down without touching the player's volume
   let bag = [], last = -1, upcoming = null;
   const srcOf = track => BASE + (track.file || track.id + '.m4a');
@@ -147,7 +148,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   }
 
   function applyGains(dt) {
-    const m = enabled ? volume * 0.9 * duck * outer : 0;
+    const m = enabled ? volume * 0.9 * duck * outer * ambient : 0;
     if (useGain) {
       const t = ctx.currentTime;
       master.gain.setTargetAtTime(m, t, 0.12);
@@ -581,6 +582,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     },
     get takenOver() { return !!taken; },
     duckFor(k, depth = 0.88) { outer = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full); depth 1 silences the radio at k = 1 (the stadium)
+    duckAmbient(k, depth = 0.4) { ambient = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (nothing loud in the street) .. 1; depth 0.4 takes the radio down to 60 % at k = 1
     get duck() { return duck; },   // 1 while driving, lower under the pause menu and the title (the stadium's sound follows it)
     get context() { return ctx; },   // the radio's AudioContext (null until the first tap): src/stadium-audio.js builds the Barbera's sound on it, so it starts with the game's own first gesture
     get sfxVolume() { return Number.isFinite(settings.volume) ? settings.volume : 0.8; },   // the Options volume (effects), as the horn reads it

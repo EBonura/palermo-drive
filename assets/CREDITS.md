@@ -20,12 +20,15 @@ No attribution is required, credit is given anyway.
 
 ## Audio
 
-The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Audio, src/vehicle-audio.js --> (no sample). The tyre and impact sounds are:
+The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Audio, src/vehicle-audio.js --> (no sample), and so are the traffic rumble, the cars passing by and the beeps of the traffic's horns<!-- src/city-audio.js -->. The recordings are:
 
 | File | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | Impact sound (`audio/impact.wav`) | Kenney | Starter Kit Racing<!-- audio/impact.ogg -->, https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | converted to 22.05 kHz mono WAV |
 | Tyre skid sound (`audio/skid.wav`) | Landeplage (https://github.com/Landeplage), as shipped in Kenney's Starter Kit Racing | same repository<!-- audio/skid.ogg --> | CC0 1.0 | converted to 22.05 kHz mono WAV, 50 ms crossfade at the loop point |
+| L'arrotino's loudspeaker announcement (`audio/arrotino.m4a`) | Camelia.boban | ["Donne, è arrivato l'arrotino"](https://commons.wikimedia.org/wiki/File:Donne,_%C3%A8_arrivato_l%27arrotino.mp3), Wikimedia Commons (own work, recorded in the Monteverde quarter of Rome, 16 November 2022) | CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/) | converted to mono 24 kHz AAC and levelled; the loudspeaker sound is a filter applied while it plays<!-- src/city-audio.js -->, and the clip is looped with gaps. The clip and these edits stay CC BY-SA 4.0 |
+| Car horns in the traffic (`audio/horns.m4a`) | keweldog ["car horn.wav"](https://freesound.org/people/keweldog/sounds/182474/), DeVern ["Car Horn Honk.wav"](https://freesound.org/people/DeVern/sounds/349922/), wanaki ["Car Horn_Irritated driver stuck in traffic.wav"](https://freesound.org/people/wanaki/sounds/569613/), csnmedia ["La cucaracha car Horn.wav"](https://freesound.org/people/csnmedia/sounds/388276/) | freesound.org | CC0 1.0 | seven horns cut from the four recordings (from the site's preview files), levelled and joined into one mono AAC file |
+| The market quarter's voices (`audio/mercato.m4a`) | SUPERORI, ["mercato 1.wav"](https://freesound.org/people/SUPERORI/sounds/158419/) (a market in Palermo, Ballaro and Vucciria) | freesound.org | CC0 1.0 | filtered, levelled, a two second crossfade so that it loops, mono AAC |
 
 ## Traffic (src/traffic.js, assets/traffic/)
 
