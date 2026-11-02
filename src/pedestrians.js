@@ -20,9 +20,13 @@
 //   density map and crowd mix take over: Piazza Sant'Anna and the Vucciria fill with young people standing and chatting in
 //   groups (zone 5), Ballaro and the Capo get a smaller evening crowd, vendors go home and tourists thin out. api.night() tells
 //   other modules (src/missions.js) whether it is night.
+// - Clothing by place: WEAR below says how an area kind dresses (swimwear on the sand, summer clothes in the streets, jackets at the Teatro Massimo, rosanero shirts round the Barbera);
+//   PROFILES name their kind, and a district, a PLACES circle or the sand next to the sea (beaches, found from the tiles' sand polygons) picks the profile.
+// - Beaches: bathers wade, swim and chat in the shallows, sunbathers sit on towels on the sand (section "the beaches"). They share the crowd's sprite draw, and by day only.
 import { FLEW } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
+import { pitchCentre } from './stadium-ground.js';
 import { VARIANTS as ALL_VARIANTS, CELL_W as CELL_W0, CELL_H as CELL_H0, GROUND as GROUND0, POSES, CELLS_PER_ENTRY, POSE_SIT, POSE_SIT_SIP } from '../assets/peds/sprites.js';
 import { LPC_CELL, LPC_GROUND, LPC_PX, LPC_HIP } from '../assets/peds/lpc/cast.js';
 import { createLpcAtlas } from '../assets/peds/lpc/atlas.js';
@@ -76,6 +80,33 @@ export function createPedestrians(env) {
   const RG = 32, rgk = (i, j) => i * 100003 + j, IG = 24;
   const IDLE_KINDS = new Set(['cafe', 'bench', 'busstop', 'fountain', 'monument']);
 
+  // ---- beaches: the sand polygons of the tiles in full detail (streets.sand, 150 m2 or more). One that has water within 9 m of its edge is a beach (coastal, probed one polygon a frame
+  // against the coastline of the manifest, world.isLand). The crowd on and beside a beach dresses for it (the 'shore' profile, see distAt), the bathers and sunbathers use them ("the beaches").
+  const beachAll = [], beachQ = [], NOBEACH = params.has('nobeach');
+  const SEA_Y = -0.2;                                                    // the surface of the sea (SEA_Y of src/sea.js)
+  const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { if ((r[i + 1] > z) !== (r[j + 1] > z) && x < (r[j] - r[i]) * (z - r[i + 1]) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; } return c; };
+  const ringDist = (r, x, z) => {
+    let best = 1e9;
+    for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+      const ax = r[j], az = r[j + 1], dx = r[i] - ax, dz = r[i + 1] - az, l2 = dx * dx + dz * dz, u = l2 > 0 ? clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1) : 0, d = hyp2(x - ax - dx * u, z - az - dz * u);
+      if (d < best) best = d;
+    }
+    return best;
+  };
+  const sandDist = (b, x, z, far) => (x < b.a - far || x > b.c + far || z < b.b - far || z > b.d + far) ? 1e9 : inRing(b.ring, x, z) ? 0 : ringDist(b.ring, x, z);   // metres from a beach's sand (0 on it)
+  let nearRec = null;
+  const nearBeach = (x, z, maxD) => {   // the distance to the nearest coastal beach within maxD (1e9 when none); nearRec is that beach
+    let best = 1e9; nearRec = null;
+    for (let k = 0; k < beachAll.length; k++) { const b = beachAll[k]; if (b.coastal !== true) continue; const d = sandDist(b, x, z, maxD); if (d < best && d <= maxD) { best = d; nearRec = b; } }
+    return best;
+  };
+  const ringArea = r => { let a = 0; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) a += r[j] * r[i + 1] - r[i] * r[j + 1]; return Math.abs(a) / 2; };
+  const seaProbe = b => {   // coastal: water within 9 m of the edge, looking from eight points of the ring in four directions
+    const r = b.ring, nPt = r.length / 2, M = world.manifest; b.coastal = false; if (!M) return;
+    for (let k = 0; k < 8 && !b.coastal; k++) { const i = (((k * nPt / 8) | 0) % nPt) * 2; for (let a = 0; a < 4; a++) if (!world.isLand(r[i] + Math.cos(a * 1.571) * 9, r[i + 1] + Math.sin(a * 1.571) * 9)) { b.coastal = true; break; } }
+    if (b.coastal) b.w.dz.fill(255);   // the districts of the tile's cells are looked up again, now that this one is a beach
+  };
+
   // index a tile's data into a mask holder (nothing is rasterised yet)
   function register(t) {
     const d = t.data, st = d.streets || {}, x0 = t.i * WTS, z0 = t.j * WTS, nb = WTS * CPM / BC;
@@ -124,6 +155,13 @@ export function createPedestrians(env) {
       const l = hyp2(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5, cx0 = best[0], cz0 = best[1];
       poly(2, [[cx0 + tx * hw + nx * hl, cz0 + tz * hw + nz * hl, cx0 - tx * hw + nx * hl, cz0 - tz * hw + nz * hl, cx0 - tx * hw - nx * hl, cz0 - tz * hw - nz * hl, cx0 + tx * hw - nx * hl, cz0 + tz * hw - nz * hl]], false);
     }
+    w.sand = [];
+    if (!NOBEACH) for (const p of st.sand || []) {
+      const ring = p[0]; if (!ring || ring.length < 8) continue;
+      const ar = ringArea(ring); if (ar < 150) continue;
+      const bb = bbox(ring), b = { ring, a: bb[0], b: bb[1], c: bb[2], d: bb[3], area: ar, coastal: null, alive: true, w };
+      w.sand.push(b); beachAll.push(b); beachQ.push(b);
+    }
     wts.set(wkey(t.i, t.j), w); lwt = null;
     return w;
   }
@@ -132,6 +170,7 @@ export function createPedestrians(env) {
     if (pi >= 0) pendingTiles.splice(pi, 1);
     if (!w) return;
     wts.delete(k); lwt = null;
+    for (const b of w.sand) { b.alive = false; const q = beachAll.indexOf(b); if (q >= 0) beachAll.splice(q, 1); }
     // whoever stands on the tile leaves with it (the despawn loop removes them)
     for (let i = 0; i < N.n; i++) if (X[i] >= w.x0 && X[i] < w.x1 && Z[i] >= w.z0 && Z[i] < w.z1) AGE[i] = -999;
     for (const c of chairs) if (c.x >= w.x0 && c.x < w.x1 && c.z >= w.z0 && c.z < w.z1) c.dead = true;
@@ -289,7 +328,22 @@ export function createPedestrians(env) {
     law: ['carabiniere', 'vigile'],
     run: ['jogger', 'jogger2'],
     dogs: ['dogwalker', 'dogwalker2', 'dogwalker3'],
+    swim: ['swim_m', 'swim_w', 'swim_w2'],           // trunks, bikinis and one-piece suits (adults)
+    summer: ['summer_m', 'summer_w'],                // tank tops, short shorts, sandals, sun hats
   };
+  // Clothing by place. An area kind says how its people dress: m multiplies the weight of a group of the cast (GROUPS), add gives a group a share of its own by day, as a fraction of what
+  // everyone else adds up to (0.5 = a third of the people), spread over the group's types. A profile names its kind with wear: (default 'street'); the stamped hot spots take 'street'
+  // too, and the Teatro Massimo's own kind is set on its cells by retag() below. After dark the shares stay out (swimwear and sun hats go home), the multipliers stay.
+  const WEAR = {
+    street: { add: { summer: 0.12 } },                                                                   // anywhere in summer: tank tops, short shorts, sandals, sun hats
+    resort: { add: { swim: 0.25, summer: 0.3 } },                                                        // the seafront villages and Mondello's streets: half dressed for the sea
+    lido:   { add: { swim: 0.9, summer: 0.15 } },                                                        // the lido: mostly swimwear
+    sand:   { m: [['summer', 0.2], ['biz', 0.05], ['beach', 0.15]], add: { swim: 2.2, summer: 0.1 } },                    // the sand of a beach: swimsuits, trunks, towels
+    opera:  { m: [['tour', 0.55], ['biz', 3.5], ['young', 0.7], ['kids', 0.4], ['summer', 0], ['market', 0.2]] },   // the Teatro Massimo: jackets, ties and good dresses
+    match:  { m: [['fans', 2.2], ['summer', 0.3], ['biz', 0.3]] },                                         // the Barbera: rosanero shirts and scarves
+  };
+  // Circles of ground that set the profile of the district they lie in (the clothing of the crowd around them): { x, z, r, profile }
+  const PLACES = [{ x: pitchCentre.x, z: pitchCentre.z, r: 260, profile: 'stadium' }];   // the Renzo Barbera, home of Palermo FC
   //          row: base zone column; day / night: people per m2 of walkable ground; g: [density factor on grass or sand, chance of stepping back off it, path penalty]
   //          m: [[group or variant id, multiplier], ...]; add: absolute day weights; addN: absolute night weights
   const PROFILES = {
@@ -304,29 +358,35 @@ export function createPedestrians(env) {
     // CEP and Borgo Nuovo: the same, a little calmer
     cep:    { row: 0, day: 0.0065, night: 0.003, g: [0.5, 0.4, 0.4], m: [['tour', 0.05], ['law', 0.4], ['biz', 0.4], ['market', 0.3], ['kids', 2], ['young', 1.7], ['elders', 1.1], ['fans', 1]], add: { dogwalker: 0.3 }, addN: {} },
     // Mondello: bathers in swimwear and straw hats, families, ice cream
-    beach:  { row: 3, day: 0.011, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
+    beach:  { wear: 'resort', row: 3, day: 0.011, night: 0.004, g: [1, 0.05, 0.1], m: [['tour', 0.35], ['law', 0.3], ['biz', 0.3], ['beach', 9], ['kids', 2.5], ['elders', 0.5], ['fans', 0], ['market', 0.4], ['young', 1.2]], add: { jogger: 0.8, dogwalker: 0.6 }, addN: { dogwalker: 0.8 } },
     // the lido and the Mondello seafront in summer: packed
-    lido:   { row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 14], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
+    lido:   { wear: 'lido', row: 3, day: 0.026, night: 0.006, g: [1, 0.03, 0.1], m: [['tour', 0.2], ['law', 0.3], ['biz', 0.2], ['beach', 14], ['kids', 3.5], ['elders', 0.4], ['fans', 0], ['market', 0.5], ['young', 1.5]], add: { jogger: 0.6 }, addN: {} },
     // Sferracavallo, Arenella, Acquasanta: fishing villages, seafront walkers
-    coast:  { row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
+    coast:  { wear: 'resort', row: 0, day: 0.0065, night: 0.003, g: [0.8, 0.2, 0.3], m: [['tour', 0.4], ['law', 0.4], ['biz', 0.45], ['beach', 3], ['elders', 1.6], ['pescivendolo', 3], ['macellaio', 0], ['fruttivendolo', 0.2], ['fans', 0.8]], add: { dogwalker: 0.6, jogger: 0.5 }, addN: { dogwalker: 0.4 } },
     // La Favorita: joggers, dog walkers, families, pensioners
     park:   { row: 0, def: 0.22, day: 0.0028, night: 0.0012, g: [1, 0.04, 0.05], m: [['market', 0], ['tour', 0.25], ['law', 0.2], ['biz', 0.1], ['kids', 1.6], ['elders', 1.4], ['young', 1.1], ['fans', 0.3], ['tuta', 3], ['scuola', 0.2]], add: { jogger: 7, jogger2: 6, dogwalker: 7, dogwalker2: 6, dogwalker3: 4 }, addN: { dogwalker: 1.2, dogwalker2: 1, jogger: 0.4 } },
     // Monte Pellegrino and the countryside: a few pilgrims, hikers and a kiosk
     rural:  { row: 3, def: 0.6, day: 0.0013, night: 0.0003, g: [1, 0.03, 0.03], m: [['tour', 2], ['priest', 2], ['market', 0.3], ['biz', 0.1], ['beach', 0.2], ['kids', 0.4], ['fans', 0.1], ['young', 0.6], ['elders', 1.2]], add: { jogger: 0.6 }, addN: {} },
     // the port, the shipyards and Brin: workers on foot, few strollers
     port:   { row: 1, day: 0.004, night: 0.0015, g: [0.5, 0.5, 0.5], m: [['market', 0.2], ['tour', 0.4], ['kids', 0.3], ['biz', 0.6], ['tuta', 3], ['motorino', 2], ['fans', 0.4]], add: {}, addN: {} },
+    // the sand of a beach, wherever the tiles have a sand polygon touching the sea (see "the beaches"): beachgoers in swimwear, families, kids
+    shore:  { wear: 'sand', row: 3, day: 0.02, night: 0.003, g: [1, 0.02, 0.05], m: [['tour', 0.3], ['law', 0.2], ['market', 0.2], ['beach', 3], ['kids', 2], ['elders', 0.4], ['fans', 0], ['young', 1.2]], add: { jogger: 0.5, dogwalker: 0.4 }, addN: { dogwalker: 0.5 } },
+    // the Teatro Massimo's square (the cells of its hot spot are retagged): opera goers and smart tourists
+    opera:  { wear: 'opera', row: 3, day: 0.03, night: 0.02, g: [0.35, 0.7, 0.7], m: [], add: {}, addN: {} },
+    // round the Renzo Barbera: fans in rosanero, by day and night
+    stadium: { wear: 'match', row: 4, day: 0.008, night: 0.005, g: [0.5, 0.5, 0.5], m: [['market', 0.1], ['tour', 0.3]], add: {}, addN: {} },
   };
   const PNAMES = Object.keys(PROFILES), NZ = 6 + PNAMES.length;
   const DPROF = { corso: 'main', roma: 'main', centro: 'main', politeama: 'main', stazione: 'main', corsoMille: 'main', old: 'vicoli', alberg: 'vicoli', kalsa: 'vicoli', borgoV: 'vicoli',
     noce: 'local', zisa: 'local', oreto: 'local', brancaccio: 'local', uditore: 'local', rigano: 'local', periph: 'local', tn: 'local', valdesi: 'local', viaLib: 'lib', sacco: 'lib', resut: 'lib', fiera: 'lib',
     zen: 'zen', cep: 'cep', mondello: 'beach', lido: 'lido', sferra: 'coast', arenella: 'coast', acquasanta: 'coast', favorita: 'park', rural: 'rural', porto: 'port', brin: 'port' };
   const PIDX = {}; for (const n in DPROF) PIDX[n] = PNAMES.indexOf(DPROF[n]);
-  const DEFP = PNAMES.indexOf('local');
+  const DEFP = PNAMES.indexOf('local'), SHOREP = PNAMES.indexOf('shore');
   const profDay = new Float32Array(PNAMES.length), profNight = new Float32Array(PNAMES.length);
   // [crowd pass] the owner asked for far more people on the street, by day above all, in the suburbs as much as the centre: every district profile and every hot spot is scaled up,
   // and a smooth curve over the hour (todK below) takes the crowd down at night and up to its peak in the early afternoon.
   const PK = +params.get('pedk') || 1;   // ?pedk=k scales the whole crowd (tests); ?pedk=0.4 is about the crowd before this pass
-  const DAYMUL = { main: 2.2, vicoli: 3, lib: 4, local: 7, zen: 4.5, cep: 6, beach: 2.2, lido: 1.6, coast: 5, park: 3.5, rural: 4, port: 5 };   // the suburbs gain most: they were nearly empty
+  const DAYMUL = { main: 2.2, vicoli: 3, lib: 4, local: 7, zen: 4.5, cep: 6, beach: 2.2, lido: 1.6, coast: 5, park: 3.5, rural: 4, port: 5, shore: 1.6, opera: 1, stadium: 4 };   // the suburbs gain most: they were nearly empty
   const HOTD = 1.75 * PK, HOTN = 1.7 * PK;                                                                                                   // the hand-stamped hot spots of the centro
   PNAMES.forEach((n, p) => { const m = (DAYMUL[n] || 3) * PK; profDay[p] = PROFILES[n].day * m; profNight[p] = PROFILES[n].night * m * 0.9; });
   const MAXD = 0.14;
@@ -335,15 +395,35 @@ export function createPedestrians(env) {
   const VWN = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.wn[z]));  // and after dark
   const GK = new Float32Array(NZ).fill(0.35), GE = new Float32Array(NZ).fill(0.7), GP = new Float32Array(NZ).fill(0.7);   // grass: density factor, chance of stepping back off it, path penalty per cell
   GK[2] = 1; GE[2] = 0.1;
+  // dress a row of weights (VW / VWN) for an area kind of WEAR: the multipliers, then (by day) the shares of the groups
+  const applyWear = (row, kind, night) => {
+    const K = WEAR[kind]; if (!K || params.has('nobeach')) return;
+    if (K.m) for (const [g, f] of K.m) for (const id of GROUPS[g] || [g]) for (let i = 0; i < VARIANTS.length; i++) if (VARIANTS[i].id === id) row[i] *= f;
+    if (K.add && !night) {
+      let base = 0; for (let i = 0; i < row.length; i++) base += row[i];
+      for (const g in K.add) { const ids = GROUPS[g]; for (let i = 0; i < VARIANTS.length; i++) if (ids.includes(VARIANTS[i].id)) row[i] += K.add[g] * base / ids.length / VARIANTS[i].n; }
+    }
+  };
+  for (let z = 0; z < 5; z++) applyWear(VW[z], 'street', false);
   PNAMES.forEach(n => {
     const P = PROFILES[n], mul = {};
     const dm = P.def ?? 1;   // def: multiplier on every variant (a park is mostly joggers and dogs, not the whole city); the table multiplies on top
     for (const [g, f] of P.m) for (const id of GROUPS[g] || [g]) mul[id] = (mul[id] ?? dm) * f;
-    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0) / v.n));
-    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0) / v.n));
+    VW.push(VARIANTS.map(v => v.w[P.row] * (mul[v.id] ?? dm) + (P.add[v.id] || 0) / v.n)); applyWear(VW[VW.length - 1], P.wear || 'street', false);
+    VWN.push(VARIANTS.map(v => v.wn[P.row] * (mul[v.id] ?? dm) + (P.addN[v.id] || 0) / v.n)); applyWear(VWN[VWN.length - 1], P.wear || 'street', true);
     const z = VW.length - 1; GK[z] = P.g[0]; GE[z] = P.g[1]; GP[z] = P.g[2];
   });
   const VWsum = VW.map(w => w.reduce((a, b) => a + b, 0)), VWNsum = VWN.map(w => w.reduce((a, b) => a + b, 0));
+  // a stamped hot spot of the centro takes the clothing of a profile: its cells of zone 3 (tourist) get the profile's zone code, day and night
+  const retag = (la, lo, r, profile) => {
+    if (params.has('nobeach')) return;
+    const KX = Math.cos(38.11572 * Math.PI / 180) * 111320, KZ = 110540, x = (lo - 13.36126) * KX, z = -(la - 38.11572) * KZ, code = 6 + PNAMES.indexOf(profile);
+    for (let j = Math.max(0, Math.floor((z - r - AZ0) / DC)); j <= Math.min(DNZ - 1, Math.floor((z + r - AZ0) / DC)); j++) for (let i = Math.max(0, Math.floor((x - r - AX0) / DC)); i <= Math.min(DNX - 1, Math.floor((x + r - AX0) / DC)); i++) {
+      if (hyp2(AX0 + (i + 0.5) * DC - x, AZ0 + (j + 0.5) * DC - z) > r) continue;
+      const k = j * DNX + i; if (stD[k] && zone[k] === 3) zone[k] = code; if (stN[k] && zoneN[k] === 3) zoneN[k] = code;
+    }
+  };
+  retag(38.1199, 13.3573, 85, 'opera');                  // Teatro Massimo
   const WCV = VARIANTS.findIndex(v => v.id === 'wheelchair'), HEALV = VARIANTS.findIndex(v => v.id === 'healed'), CHAIRV = VARIANTS.findIndex(v => v.id === 'chair_empty');
   const STRIDE = VARIANTS.map(v => v.run ? 3 : 1.5); STRIDE[HEALV] = 3.2;   // metres per walk cycle: runners take longer strides
   const chairs = [];                                      // empty wheelchairs left behind by the miracle (see heal())
@@ -365,7 +445,13 @@ export function createPedestrians(env) {
   const distAt = (x, z) => {
     const w = wtAt(x, z); if (w === null) return DEFP;
     const k = (((z - w.z0) / DZ) | 0) * (WTS / DZ) + (((x - w.x0) / DZ) | 0);
-    let p = w.dz[k]; if (p === 255) { const q = PIDX[districtAt(x, z, '', 999)]; w.dz[k] = p = q === undefined ? DEFP : q; }
+    let p = w.dz[k]; if (p === 255) {
+      const q = PIDX[districtAt(x, z, '', 999)]; p = q === undefined ? DEFP : q;
+      // the clothing of the place beats the district's: a circle of PLACES (the Barbera), or the sand of a beach and the strip of ground next to it
+      const qx = w.x0 + (((x - w.x0) / DZ) | 0) * DZ + DZ / 2, qz = w.z0 + (((z - w.z0) / DZ) | 0) * DZ + DZ / 2;
+      if (!NOBEACH) { for (const pl of PLACES) if (hyp2(qx - pl.x, qz - pl.z) < pl.r) p = PNAMES.indexOf(pl.profile); if (nearBeach(qx, qz, 22) <= 22) p = SHOREP; }
+      w.dz[k] = p;
+    }
     return p;
   };
   // people per m2 and zone code at a spot: the centro hot spots where one is stamped, the district profile elsewhere
@@ -428,14 +514,17 @@ export function createPedestrians(env) {
       varying vec2 vUvF; varying vec2 vUvN; varying float vNear; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
       #include <fog_pars_vertex>
       void main() {
-        vY = position.y; vClip = iB.w;   // iB.w: hide the lower part of the sprite (seated passengers show no legs); 0 for the crowd
+        // iB.w: hide the lower part of the sprite below this fraction of its height (seated passengers show no legs); 0 for the crowd. Below -1 it is a bather: -(10 + d), d metres
+        // of the figure under the water (negative: lifted out of it), which sinks the sprite by d and hides it below the surface unless it is rolled over (see "the beaches")
+        float sub = iB.w < -1.0 ? -iB.w - 10.0 : 0.0;
+        vY = position.y; vClip = iB.w < -1.0 ? (iA.w == 0.0 && sub > 0.0 ? (${GROUND}.0 + sub / (uPx * iA.z)) / ${CELL_H}.0 : 0.0) : iB.w;
         vec2 t = cameraPosition.xz - iPos.xz; float l = length(t);
         t = l > 1e-4 ? t / l : vec2(0.0, 1.0);
         vec3 right = vec3(t.y, 0.0, -t.x);
         vec2 loc = vec2(position.x * ${CELL_W}.0 * uPx * iA.z, position.y * ${CELL_H}.0 * uPx * iA.z - ${GROUND}.0 * uPx * iA.z);
         float c = cos(iA.w), s = sin(iA.w);
         vec2 r = vec2(c * loc.x - s * loc.y, s * loc.x + c * loc.y);
-        vec3 wp = iPos + right * r.x + vec3(0.0, 1.0, 0.0) * r.y;
+        vec3 wp = iPos + right * r.x + vec3(0.0, 1.0, 0.0) * (r.y - sub);
         // iA.x: texel x of the cell + 4096 when mirrored + 8192 when it lives in the near atlas; iA.y: texel y of the cell
         float code = iA.x, near = step(8192.0, code); code -= near * 8192.0; float mir = step(4096.0, code); code -= mir * 4096.0;
         float ux = mix(uv.x, 1.0 - uv.x, mir);
@@ -469,30 +558,44 @@ export function createPedestrians(env) {
   const sprites = new THREE.Mesh(mkGeo(), spriteMat); sprites.frustumCulled = false; sprites.renderOrder = 2; scene.add(sprites);
   sprites.onBeforeRender = r => { rendererRef = r; };
   // soft blob shadow lying on the ground, pushed away from the sun
-  const shadowUniforms = { uSunDir: { value: new THREE.Vector2(0.92, -0.38) } };
+  const shadowUniforms = { uSunDir: { value: new THREE.Vector2(0.92, -0.38) }, uT: { value: 0 } };
   const shadowMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, shadowUniforms]),
     vertexShader: `
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB; uniform vec2 uSunDir;
-      varying vec2 vP; varying float vA;
+      varying vec2 vP; varying float vA; varying float vRip; varying float vPh;
       #include <fog_pars_vertex>
       void main() {
         vec2 q = vec2(position.x * 2.0, position.y * 2.0 - 1.0);
-        vec2 along = uSunDir, across = vec2(-uSunDir.y, uSunDir.x);
-        vec2 off = (along * q.y * 0.85 + across * q.x * 0.5) * iA.z + along * 0.3;
-        vec3 wp = vec3(iPos.x + off.x, iPos.y + 0.03, iPos.z + off.y);
-        vP = q; vA = iB.x * mix(0.14, 0.5, iB.y) * (iA.w == 0.0 ? 1.0 : 0.6);
+        vec3 wp;
+        vRip = 0.0; vPh = 0.0;
+        if (iB.w < -1.0) {
+          // a bather (iB.w below -1, see the sprite shader): a ring of ripples on the water instead of a shadow, iB.z metres wide, at iPos.y, the level of the sea
+          vec2 off = vec2(q.y, q.x) * iB.z * 0.9;   // (swapped, so the ring faces up like the shadow does)
+          wp = vec3(iPos.x + off.x, iPos.y + 0.04, iPos.z + off.y);
+          vA = iB.x; vRip = 1.0; vPh = fract(iPos.x * 0.37 + iPos.z * 0.61);
+        } else {
+          vec2 along = uSunDir, across = vec2(-uSunDir.y, uSunDir.x);
+          vec2 off = (along * q.y * 0.85 + across * q.x * 0.5) * iA.z + along * 0.3;
+          wp = vec3(iPos.x + off.x, iPos.y + 0.03, iPos.z + off.y);
+          vA = iB.x * mix(0.14, 0.5, iB.y) * (iA.w == 0.0 ? 1.0 : 0.6);
+        }
+        vP = q;
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
     fragmentShader: `
-      varying vec2 vP; varying float vA;
+      uniform float uT;
+      varying vec2 vP; varying float vA; varying float vRip; varying float vPh;
       #include <fog_pars_fragment>
       void main() {
         float d = dot(vP, vP); if (d > 1.0) discard;
-        gl_FragColor = vec4(0.05, 0.04, 0.06, vA * (1.0 - d));
+        if (vRip > 0.5) {
+          float r = sqrt(d), k = fract(r * 1.7 - uT * 0.45 + vPh), ring = smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.12, 0.34, k));
+          gl_FragColor = vec4(0.95, 0.99, 1.0, ring * (1.0 - r * r) * vA);
+        } else gl_FragColor = vec4(0.05, 0.04, 0.06, vA * (1.0 - d));
         #include <fog_fragment>
       }`,
   });
@@ -829,7 +932,7 @@ export function createPedestrians(env) {
     }
     cam.getWorldDirection(camQ); const fl = hyp2(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
-    if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; lodEnd(dt); return; }
+    if (quality.cap <= 0) { sprites.geometry.instanceCount = shadows.geometry.instanceCount = 0; bathers.length = 0; lodEnd(dt); return; }
     if ((frameNo & 15) === 1) readSun();
 
     // tiles around the camera: all of them at once on the first frame or after a jump, otherwise on a time budget
@@ -983,9 +1086,10 @@ export function createPedestrians(env) {
       B[i * 4] = fade; B[i * 4 + 1] = SHC[i] * (1 - nightK); B[i * 4 + 2] = BRI[i];
     }
     updateChairs(dt, cpx, cpz); const nc = writeChairs(n, cpx, cpz, fadeStart);
+    updateBeach(dt, cpx, cpz); const nb = writeBeach(n + nc, cpx, cpz, fadeStart);
     lodEnd(dt);
     aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true;
-    sprites.geometry.instanceCount = shadows.geometry.instanceCount = n + nc;
+    sprites.geometry.instanceCount = shadows.geometry.instanceCount = n + nc + nb;
     stats.count = n;
     const ms = performance.now() - t0; stats.ms = ms; stats.avgMs += (ms - stats.avgMs) * 0.05; if (ms > stats.maxMs) stats.maxMs = ms;
   }
@@ -993,6 +1097,7 @@ export function createPedestrians(env) {
   // ======================================================================== the lapa meets a pedestrian (runs at 120 Hz)
   const COFF = [-1.0, 0, 1.0], CR = 0.72, PR = 0.3;
   function collidePlayer(c) {
+    collideBeach(c);
     const n = N.n; if (!n) return;
     const spd = hyp2(c.vx, c.vz), sfx2 = Math.sin(c.th), sfz2 = Math.cos(c.th);
     for (let i = 0; i < n; i++) {
@@ -1068,7 +1173,7 @@ export function createPedestrians(env) {
   //   Needs the near scripted slots (96 in all, shared with the missions), so keep groups to a dozen or so. Members already placed are not moved if the call runs short of room.
   const FAMILIES = {
     metal: ['metal_long', 'metal_vest', 'metal_leather', 'metal_bald', 'metal_f', 'metal_f2'], night: ['nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'dj'],
-    young: GROUPS.young, elders: GROUPS.elders, fans: GROUPS.fans, tourists: GROUPS.tour, locals: ['coppola', 'coppola2', 'nonno', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'suit'], beach: GROUPS.beach, market: GROUPS.market,
+    young: GROUPS.young, elders: GROUPS.elders, fans: GROUPS.fans, tourists: GROUPS.tour, swim: GROUPS.swim, summer: GROUPS.summer, locals: ['coppola', 'coppola2', 'nonno', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'suit'], beach: GROUPS.beach, market: GROUPS.market,
   };
   function spawnCrowd(o) {
     const out = [], R = Math.max(1, o.radius || 4), want = Math.max(1, o.count | 0 || 6), beer = o.props === 'beer', sit = o.pose === 'sit';
@@ -1155,11 +1260,218 @@ export function createPedestrians(env) {
     sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing;
   }
 
+
+  // ======================================================================== the beaches
+  // Bathers in the shallows next to a beach, and sunbathers on the sand. They are not in the crowd's arrays (the mask there keeps people out of water): this is a small list of their own,
+  // written after the crowd and the chairs into the same instance buffers, so the sprites, the shadows and the draw calls are the crowd's. A bather stands, wades, swims or chats with a
+  // friend, up to the waist or the neck in the water: the shader sinks the sprite by `depth` and hides it below the surface (iB.w, see the sprite shader), and puts a ring of ripples
+  // where the shadow would be. A sunbather sits on a towel (drawn into the sit pose of the swimmers) facing the sea. By day only: the target follows the sun (beachK), at night nobody
+  // is there. Water means the coastline of the manifest (world.isLand) where the walkability mask has no ground (no pier, quay or road), and no further than 26 m from a beach's sand.
+  // The lapa (the player's, on land or on the water) scares them: they hop away, or get knocked flying like the crowd (splash, a bounce or two, floating on their side, back up).
+  const BWATER = 26, BMAXW = 28, BMAXS = 16, BTOT = 64, bathers = [], splashes = [];
+  let beachK = 0, beachT = 0, beachProbe = 0, swimVars = null, beachFresh = true;
+  const BEACH_OFF = NOBEACH || params.get('bathers') === '0';
+  const waterAt = (x, z) => world.manifest !== null && !world.isLand(x, z) && cell(x, z) === 0;
+  const swimPool = () => {
+    if (swimVars) return swimVars;
+    const m = [], f = [], f2 = []; for (const id of GROUPS.swim) for (const vi of variantsOf(id)) (id === 'swim_m' ? m : id === 'swim_w' ? f : f2).push(vi);
+    return (swimVars = { m, f, f2 });
+  };
+  const pickSwimmer = () => {
+    const P = swimPool(), r = Math.random(), a = r < 0.45 ? P.m : r < 0.75 ? P.f : P.f2;
+    if (!a.length) return -1;
+    const vi = a[(Math.random() * a.length) | 0]; return atlas.farDone[vi] ? vi : -1;
+  };
+  const splash = (x, z, r) => { if (splashes.length < 12) splashes.push({ x, z, t: 0, r }); };
+  // 0 stand, 1 wade, 2 swim, 3 sunbather; st: 0 as it is, 1 hopping aside, 2 flying, 3 lying, 4 getting up
+  function addBather(x, z, kind, v, th, depth) {
+    bathers.push({ x, z, kind, v, th, tt: th, depth, st: 0, age: 0, leave: -1, hop: 0, vx: 0, vz: 0, vy: 0, roll: 0, rd: 1, tmr: 0, tf: 0, react: -1, ph: Math.random(), size: rand(0.97, 1.03), chk: Math.random() * 0.4, spl: rand(5, 18), jump: -1, bob: Math.random() * 6, y: 0, water: kind < 3, nr: false, chat: false, stall: 0, depthT: 0 });
+  }
+  const free = (x, z, r) => { for (const b of bathers) if ((b.x - x) ** 2 + (b.z - z) ** 2 < r * r) return false; return hyp2(x - car.x, z - car.z) > 3.5; };
+  function spawnBather(cpx, cpz, needSun, needWater) {
+    let near = null, nn = 0;
+    for (const b of beachAll) { if (b.coastal !== true) continue; const dx = Math.max(b.a - cpx, 0, cpx - b.c), dz = Math.max(b.b - cpz, 0, cpz - b.d); if (hyp2(dx, dz) < quality.R + 20 && Math.random() * ++nn < 1) near = b; }
+    if (!near) return false;
+    const vi = pickSwimmer(); if (vi < 0) return false;
+    const R = quality.R, ring = near.ring, i = ((Math.random() * ring.length / 2) | 0) * 2, wantSun = needSun && (!needWater || Math.random() < 0.4);
+    const a = Math.random() * TAU, d = wantSun ? rand(0, 22) : rand(3, 24);
+    const x = ring[i] + Math.cos(a) * d, z = ring[i + 1] + Math.sin(a) * d, dc = hyp2(x - cpx, z - cpz);
+    if (dc > R * 0.95 || dc < 5) return false;
+    if (wantSun) {   // on the sand: inside the polygon, where the crowd's mask says it is walkable and flat (class 2)
+      if (!inRing(near.ring, x, z) || cell(x, z) !== 2 || !free(x, z, 1.7)) return false;
+      let th = Math.random() * TAU, best = 0;   // towards the sea: the direction with water furthest ahead
+      for (let k = 0; k < 8; k++) { const t = k * TAU / 8 + 0.3; let r = 0; for (let q = 6; q <= 24; q += 6) if (!world.isLand(x + Math.sin(t) * q, z + Math.cos(t) * q)) { r = 30 - q; break; } if (r > best) { best = r; th = t; } }
+      addBather(x, z, 3, vi, th, 0); const b = bathers[bathers.length - 1]; b.y = groundY(x, z) + (raisedMask(x, z) ? CURB : 0); return true;
+    }
+    const sd = sandDist(near, x, z, BWATER + 2);
+    if (sd > BWATER || !waterAt(x, z) || !free(x, z, 1.2)) return false;
+    const r = Math.random(), mode = r < 0.3 ? 0 : r < 0.55 ? 1 : r < 0.75 ? 2 : 4;
+    const depth = mode === 2 ? rand(1.0, 1.1) : clamp(0.4 + sd * 0.03 + rand(0, 0.35), 0.4, 0.95);
+    if (mode === 2 && sd < 6) return false;
+    if (mode === 4) {   // two or three friends in a ring, up to the waist, chatting
+      const k = 2 + ((Math.random() * 2) | 0), a0 = Math.random() * TAU; let placed = 0;
+      for (let m = 0; m < k; m++) {
+        const t = a0 + m * TAU / k, nx = x + Math.cos(t) * 0.95, nz = z + Math.sin(t) * 0.95, v2 = m ? pickSwimmer() : vi;
+        if (v2 < 0 || !free(nx, nz, 0.7) || !waterAt(nx, nz)) continue;
+        addBather(nx, nz, 0, v2, Math.atan2(x - nx, z - nz) + rand(-0.4, 0.4), depth + rand(-0.1, 0.1)); bathers[bathers.length - 1].chat = true; placed++;
+      }
+      return placed > 0;
+    }
+    addBather(x, z, mode, vi, Math.random() * TAU, depth); return true;
+  }
+  // the lapa (or whatever drives through the sea) comes at a bather: after a moment's notice most of them hop aside; the rest stand their ground
+  function scatterCheck(dt) {
+    const c2 = car.vx * car.vx + car.vz * car.vz; if (c2 < 12) return;
+    const cs = Math.sqrt(c2), ux = car.vx / cs, uz = car.vz / cs;
+    for (const b of bathers) {
+      if (b.st !== 0) continue;
+      const rx = b.x - car.x, rz = b.z - car.z;
+      if (rx * rx + rz * rz > 22 * 22) { if (b.react > 0) b.react = -1; continue; }
+      const along = rx * ux + rz * uz; if (along < 0.5 || along > cs * 1.7 + 4) { if (b.react > 0) b.react = -1; continue; }
+      const lat = rx * uz - rz * ux; if (Math.abs(lat) > 2.2) { if (b.react > 0) b.react = -1; continue; }
+      if (b.react === -2) continue;
+      if (b.react < 0) { b.react = Math.random() < 0.15 ? -2 : rand(0.1, 0.4); continue; }
+      b.react -= dt; if (b.react > 0) continue;
+      const sg = lat >= 0 ? 1 : -1, px = uz * sg, pz = -ux * sg, ok = (dx, dz) => (b.water ? waterAt(b.x + dx * 1.3, b.z + dz * 1.3) && waterAt(b.x + dx * 2.5, b.z + dz * 2.5) : cell(b.x + dx * 1.3, b.z + dz * 1.3) > 0 && cell(b.x + dx * 2.5, b.z + dz * 2.5) > 0);
+      let dx = px, dz = pz; if (!ok(dx, dz)) { dx = -px; dz = -pz; if (!ok(dx, dz)) { b.react = -2; continue; } }
+      b.st = 1; b.tmr = 0; b.vx = dx * 5.2; b.vz = dz * 5.2; b.th = b.tt = Math.atan2(dx, dz); b.react = -2;
+      if (b.water) splash(b.x, b.z, 1);
+      env.shout?.(b.x, b.y + 1.9, b.z, Math.random() < 0.3 ? FLEW : undefined, () => ({ x: b.x, y: (b.water ? SEA_Y : b.y) + 1.9, z: b.z }));
+    }
+  }
+  function knockBather(b, nx, nz) {
+    for (const f of knockCbs) { try { f(b.x, b.z, b.v); } catch (e) { /* listener failed: keep playing */ } }
+    b.st = 2; b.tmr = 0; b.chat = false; if (b.water) splash(b.x, b.z, 1.6);
+    env.shout?.(b.x, (b.water ? SEA_Y : b.y) + 1.9, b.z, Math.random() < 0.4 ? FLEW : undefined, () => ({ x: b.x, y: (b.water ? SEA_Y : b.y) + 1.9, z: b.z }));
+    const sp = Math.min(hyp2(car.vx, car.vz), 22), vy = Math.min(12.5, Math.max(5.5, 4.5 + sp * 0.55));   // like the crowd: high, far and spinning, by the lapa's speed
+    b.vx = car.vx * 0.9 + nx * 3; b.vz = car.vz * 0.9 + nz * 3; b.vy = vy; b.tf = 2 * vy / 12; b.rd = (car.vx * nz - car.vz * nx) >= 0 ? 1 : -1; b.roll = 0; b.hop = 0.05;
+  }
+  const flyOk = (x, z) => waterAt(x, z) || cell(x, z) > 0;
+  function updateBeach(dt, cpx, cpz) {
+    if (BEACH_OFF || !beachAll.length || quality.cap <= 0) { bathers.length = 0; splashes.length = 0; return; }
+    if (beachProbe-- <= 0) { beachProbe = 1; const b = beachQ.shift(); if (b && b.alive) seaProbe(b); }
+    shadowMat.uniforms.uT.value = lodClock;
+    // how many by the sun: nobody before 8 or after 21, the peak from 11 to 17, nobody at night. Without a clock (no day/night work) it is always day
+    const h = hourNow, k = nightCrowd ? 0 : (h === null ? 1 : clamp((h - 8.2) / 2.8, 0, 1) * clamp((20.8 - h) / 3.4, 0, 1)) * (1 - nightK);
+    beachK += (k - beachK) * Math.min(1, 0.7 * dt);
+    const R = quality.R, wantW = Math.round(BMAXW * beachK), wantS = Math.round(BMAXS * beachK);
+    let nW = 0, nS = 0; for (const b of bathers) if (b.leave < 0) { if (b.kind === 3) nS++; else nW++; }
+    if ((beachT -= dt) <= 0 && (nW < wantW || nS < wantS)) {
+      beachT = 0.12; const burst = beachFresh || jumpedNow, t0 = performance.now();
+      for (let tries = 0; tries < (burst ? 160 : 10) && bathers.length < BTOT - 4 && (nW < wantW || nS < wantS); tries++) {
+        const before = bathers.length;
+        if (spawnBather(cpx, cpz, nS < wantS, nW < wantW)) { nW = 0; nS = 0; for (const b of bathers) if (b.leave < 0) { if (b.kind === 3) nS++; else nW++; } for (let q = before; q < bathers.length; q++) bathers[q].age = burst ? 5 : 0; }
+        if ((tries & 3) === 3 && performance.now() - t0 > 1.2) break;
+      }
+      if (bathers.length) beachFresh = false;
+    }
+    if (nW > wantW + (wantW ? 1 : 0) || nS > wantS + (wantS ? 1 : 0)) {   // the sun goes in (or the count drops): the furthest one leaves, one at a time
+      let far = null, fd = 0; for (const b of bathers) if (b.leave < 0 && (nW > wantW + (wantW ? 1 : 0) ? b.kind < 3 : b.kind === 3)) { const d = hyp2(b.x - cpx, b.z - cpz); if (d > fd) { fd = d; far = b; } }
+      if (far && Math.random() < dt * 2) far.leave = 1;
+    }
+    scatterCheck(dt);
+    for (let i = bathers.length - 1; i >= 0; i--) {
+      const b = bathers[i]; b.age += dt; b.bob += dt;
+      if (b.leave >= 0 && (b.leave -= dt / 1.2) <= 0) { bathers.splice(i, 1); continue; }
+      if (hyp2(b.x - cpx, b.z - cpz) > R + 14) { bathers.splice(i, 1); continue; }
+      if (b.st === 0) {
+        if (b.kind === 3) { if (Math.random() < dt * 0.02) b.tt = b.th + rand(-0.4, 0.4); b.th += angDiff(b.tt, b.th) * Math.min(1, 2 * dt); }
+        else {
+          // every quarter second or so: is the water still there one step ahead (and the beach near)? if not, turn round
+          if ((b.chk -= dt) <= 0) {
+            b.chk = 0.25 + Math.random() * 0.1;
+            const sp = b.kind === 1 ? 0.55 : b.kind === 2 ? 0.45 : 0, ax = b.x + Math.sin(b.th) * (sp * 0.4 + 1), az = b.z + Math.cos(b.th) * (sp * 0.4 + 1);
+            const sd = nearRecDist(ax, az);
+            if (sp > 0 && !(sd <= BWATER && waterAt(ax, az))) { b.tt = b.th + Math.PI + rand(-0.8, 0.8); b.th = b.tt; b.stall = 0.4; }
+            else if (!b.chat && Math.random() < 0.06) b.tt = b.th + rand(-1.2, 1.2);
+            if (b.kind === 0 && !b.chat && Math.random() < 0.05) { b.kind = Math.random() < 0.5 ? 1 : 0; }
+            b.depthT = b.kind === 2 ? clamp(sd > 6 ? 1.05 : 0.8, 0.8, 1.1) : clamp(0.4 + sd * 0.03, 0.4, 0.95);
+          }
+          if (b.depthT) b.depth += (b.depthT - b.depth) * Math.min(1, 0.8 * dt);
+          const mv = b.kind === 1 ? 0.55 : b.kind === 2 ? 0.45 : 0;
+          b.th += angDiff(b.tt, b.th) * Math.min(1, 2.5 * dt);
+          if (mv > 0 && !(b.stall > 0)) { b.x += Math.sin(b.th) * mv * dt; b.z += Math.cos(b.th) * mv * dt; b.ph += mv * dt / 1.3; } else if (b.stall > 0) b.stall -= dt;
+          // now and then a splash: two or three jumps with the arms up, and rings round the feet
+          if (b.kind <= 1 && !b.chat && b.jump < 0 && (b.spl -= dt) <= 0) { b.spl = rand(7, 22); b.jump = 0; }
+          if (b.jump >= 0) { b.jump += dt; const u = b.jump / 0.42; b.hop = 0.26 * Math.abs(Math.sin(u * Math.PI)); if (Math.floor(u) !== Math.floor(u - dt / 0.42)) splash(b.x, b.z, 0.8); if (u >= 3) { b.jump = -1; b.hop = 0; } }
+          if (b.kind === 2 && (b.ph % 1) < 0.5 && Math.random() < dt * 0.9) splash(b.x + Math.sin(b.th) * 0.5, b.z + Math.cos(b.th) * 0.5, 0.5);
+        }
+      } else if (b.st === 1) {          // hopping aside, with a splash
+        b.tmr += dt; const u = b.tmr / 0.5; b.x += b.vx * dt; b.z += b.vz * dt; b.hop = 4 * 0.42 * Math.min(1, u) * (1 - Math.min(1, u));
+        if (u >= 1) { b.hop = 0; b.st = 0; b.vx = b.vz = 0; b.react = -1; b.chk = 0; if (b.water) splash(b.x, b.z, 1.2); }
+      } else if (b.st === 2) {          // knocked flying
+        b.tmr += dt; const nx = b.x + b.vx * dt, nz = b.z + b.vz * dt;
+        if (flyOk(nx, nz)) { b.x = nx; b.z = nz; } else { b.vx *= -0.2; b.vz *= -0.2; }
+        b.vy -= 12 * dt; b.hop += b.vy * dt; const kk = Math.exp(-0.8 * dt); b.vx *= kk; b.vz *= kk;
+        b.roll = b.rd * Math.PI * (0.5 + 2 * Math.max(1, Math.round(1 + 1.5 * b.tf))) * Math.min(1, b.tmr / Math.max(0.2, b.tf));
+        if (b.hop <= 0) {
+          b.hop = 0; b.water = waterAt(b.x, b.z); if (!b.water) b.y = groundY(b.x, b.z) + (raisedMask(b.x, b.z) ? CURB : 0);
+          if (b.water) splash(b.x, b.z, b.vy < -2 ? 1.6 : 1.2);
+          if (b.vy < -2) { b.vy = -b.vy * 0.3; b.vx *= 0.5; b.vz *= 0.5; } else { b.st = 3; b.tmr = rand(1.4, 2.4); b.roll = b.rd * Math.PI / 2; }
+        }
+      } else if (b.st === 3) {          // floating (or lying) on its side
+        b.tmr -= dt; const kk = Math.exp(-5 * dt); b.vx *= kk; b.vz *= kk; const nx = b.x + b.vx * dt, nz = b.z + b.vz * dt; if (flyOk(nx, nz)) { b.x = nx; b.z = nz; }
+        if (b.tmr <= 0) { b.st = 4; b.tmr = 0; }
+      } else {                          // getting up: back to wading if it is in the water, otherwise it walks off the sand (fades)
+        b.tmr += dt; const u = Math.min(1, b.tmr / 0.45); b.roll = b.rd * Math.PI / 2 * (1 - u * u); b.hop = 0.25 * Math.sin(u * Math.PI);
+        if (u >= 1) { b.st = 0; b.roll = 0; b.hop = 0; b.react = -1; b.kind = b.water ? 1 : 0; b.tt = b.th = Math.random() * TAU; b.depth = b.water ? 0.5 : 0; b.chk = 0; if (!b.water) b.leave = 1; }
+      }
+      if (b.kind === 3 && b.st === 0) b.hop = 0;
+    }
+    for (let i = splashes.length - 1; i >= 0; i--) if ((splashes[i].t += dt) > 1.3) splashes.splice(i, 1);
+  }
+  const nearRecDist = (x, z) => nearBeach(x, z, BWATER + 2);
+  // the instances after the crowd's and the chairs': bathers, then the splash rings (a ring without a sprite: the sprite is made too small to see)
+  function writeBeach(n, cpx, cpz, fadeStart) {
+    const pos = aPos.array, A = aA.array, B = aB.array; let k = 0;
+    for (const b of bathers) {
+      const i = n + k; if (i >= CAP - 14) break; k++;
+      const dxc = cpx - b.x, dzc = cpz - b.z, dist = hyp2(dxc, dzc) || 1, wet = b.water;
+      let dir, pose;
+      if (b.st >= 2) { dir = 0; pose = b.st === 2 ? 1 : 0; }
+      else {
+        const wx = Math.sin(b.th), wz = Math.cos(b.th), tx = dxc / dist, tz = dzc / dist, s = wx * tx + wz * tz, c = wx * tz - wz * tx;
+        dir = Math.abs(s) >= Math.abs(c) ? (s > 0 ? 0 : 1) : (c > 0 ? 3 : 2);
+        pose = b.kind === 3 ? POSE_SIT : b.st === 1 || b.jump >= 0 ? 1 : b.kind >= 1 ? (Math.floor((b.ph % 1) * 4) & 3) + 1 : 0;
+      }
+      const bob = wet && b.st < 2 ? Math.sin(b.bob * (b.kind === 2 ? 2.6 : 1.5)) * (b.kind === 2 ? 0.07 : 0.03) : 0, lift = b.hop, de = b.st < 2 ? b.depth + bob - lift : 0.001 - lift;   // de: metres of the figure under the water
+      pos[i * 3] = b.x; pos[i * 3 + 1] = wet ? SEA_Y : b.y + lift; pos[i * 3 + 2] = b.z;
+      lodSee = dxc * camFwdX + dzc * camFwdZ < 0;
+      lodPick(b.v, dir, pose, dist, b.size, b.nr); b.nr = lodNear;
+      A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = b.size; A[i * 4 + 3] = b.roll;
+      const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(b.age / 1, 0, 1) * (b.leave >= 0 ? Math.max(0, b.leave) : 1);
+      B[i * 4] = fade; B[i * 4 + 1] = (wet ? 0.8 : 0.6) * (1 - nightK); B[i * 4 + 2] = 1; B[i * 4 + 3] = wet ? -(10 + de) : 0;
+    }
+    for (const s of splashes) {
+      const i = n + k; if (i >= CAP) break; k++;
+      const u = s.t / 1.3, dist = hyp2(cpx - s.x, cpz - s.z);
+      pos[i * 3] = s.x; pos[i * 3 + 1] = SEA_Y; pos[i * 3 + 2] = s.z;
+      A[i * 4] = 0; A[i * 4 + 1] = 0; A[i * 4 + 2] = 0.0001; A[i * 4 + 3] = 0;
+      B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1) * (1 - u) * 0.9; B[i * 4 + 1] = 0; B[i * 4 + 2] = (0.5 + 2.2 * u) * s.r; B[i * 4 + 3] = -10;
+    }
+    return k;
+  }
+  // the lapa against the bathers and sunbathers (runs at 120 Hz with the crowd's): the same three circles, the same speed threshold
+  function collideBeach(c) {
+    if (!bathers.length) return;
+    const spd = hyp2(c.vx, c.vz), sfx2 = Math.sin(c.th), sfz2 = Math.cos(c.th);
+    for (const b of bathers) {
+      const dx0 = b.x - c.x, dz0 = b.z - c.z;
+      if (dx0 > 3 || dx0 < -3 || dz0 > 3 || dz0 < -3 || b.st >= 2) continue;
+      for (let k = 0; k < 3; k++) {
+        const dx = b.x - (c.x + sfx2 * COFF[k]), dz = b.z - (c.z + sfz2 * COFF[k]), d2 = dx * dx + dz * dz, rr = CR + PR;
+        if (d2 >= rr * rr) continue;
+        if (spd > 2.2) { const d = Math.sqrt(d2) || 0.01; knockBather(b, dx / d, dz / d); c.vx -= c.vx * 0.025; c.vz -= c.vz * 0.025; }
+        break;
+      }
+    }
+  }
+
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, wts, quality: () => quality, knock, zoneCode, densAt, distAt, PNAMES, VW, VWN, VARIANTS };
   const api = { spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
-  if (params.has('debug')) { window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
+  if (params.has('debug')) { window.__peds.beach = { bathers, splashes, beachAll, waterAt, nearBeach, sandDist, knockBather, k: () => beachK }; window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;
 }
