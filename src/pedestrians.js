@@ -23,7 +23,7 @@
 // - Clothing by place: WEAR below says how an area kind dresses (swimwear on the sand, summer clothes in the streets, jackets at the Teatro Massimo, rosanero shirts round the Barbera);
 //   PROFILES name their kind, and a district, a PLACES circle or the sand next to the sea (beaches, found from the tiles' sand polygons) picks the profile.
 // - Beaches: bathers wade, swim and chat in the shallows, sunbathers sit on towels on the sand (section "the beaches"). They share the crowd's sprite draw, and by day only.
-import { FLEW } from './shouts.js';
+import { FLEW, placeLine } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
 import { pitchCentre } from './stadium-ground.js';
@@ -647,7 +647,7 @@ export function createPedestrians(env) {
 
   // Supplied by the owner, born in Palermo: keep them exactly as written.
   const BUS_LINES = ["minchia avi ru uri c'aspiattu", "quannu passò l'uittimu?"];
-  let busT = 3;
+  let busT = 3, placeT = 6;
   const removeAt = i => { const l = --N.n; if (i !== l) for (const a of copyArrs) a[i] = a[l]; };
 
   // sun direction (horizontal, towards the sun) from the scene's directional light, for the "am I in a building's shade" test
@@ -929,6 +929,13 @@ export function createPedestrians(env) {
       busT = 1.2; let best = -1, bd = 400;
       for (let i = 0; i < N.n; i++) if (BUS[i] && ST[i] === IDLE) { const d = (X[i] - cx) ** 2 + (Z[i] - cz) ** 2; if (d < bd) { bd = d; best = i; } }
       if (best >= 0 && Math.random() < 0.35) { busT = rand(9, 16); const id = best; env.shout?.(X[id], Y[id] + 1.9, Z[id], BUS_LINES[(Math.random() * BUS_LINES.length) | 0], () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] })); }
+    }
+    // in the ZEN, in the markets and on Mondello's sand by day someone near the lapa calls out now and then, the lines of the place (src/shouts.js)
+    if (gameRef?.state === 'play' && (placeT -= dt) <= 0) {
+      placeT = 2; let best = -1, bd = 1225;
+      for (let i = 0; i < N.n; i++) if (ST[i] === IDLE || ST[i] === WALK) { const d = (X[i] - cx) ** 2 + (Z[i] - cz) ** 2; if (d > 25 && d < bd) { bd = d; best = i; } }
+      if (best >= 0) { const id = best, line = placeLine(X[id], Z[id], distAt(X[id], Z[id]) === SHOREP);
+        if (line && Math.random() < 0.5) { placeT = rand(8, 18); env.shout?.(X[id], Y[id] + 1.9, Z[id], line, () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] })); } }
     }
     cam.getWorldDirection(camQ); const fl = hyp2(camQ.x, camQ.z); if (fl > 0.05) { camFwdX = camQ.x / fl; camFwdZ = camQ.z / fl; }
     const R = quality.R;
