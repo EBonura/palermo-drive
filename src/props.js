@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
 import { zoneAt } from './districts.js';
+import { speciesFor, SP } from './species.js';
+import { treeGeo } from './treegeo.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
@@ -293,6 +295,8 @@ datePalm('palm_date_a', 5); datePalm('palm_date_b', 7.5);
   p.lump(1.8, 7.4, 0.8, 2.4, 1.1, 2.4, C('#456536'), 0, 0.2, 0.6, 10);
   p.lump(-1.8, 7.5, -0.6, 2.4, 1.1, 2.4, C('#406132'), 0, 0.2, 0.6, 14);
   def('pine', p, { tint: true });
+  MODELS.plane = { geo: treeGeo('plane'), mat: 'std', tint: true };      // n4: the plane tree (Via della Liberta, the old avenues)
+  MODELS.aleppo = { geo: treeGeo('aleppo'), mat: 'std', tint: true };    // n4: the Aleppo pine (the hills, Monte Gallo, the Favorita)
   const sh = new MB();    // oleander / flowering shrub and clipped hedge block
   sh.lump(0, 0.9, 0, 1.0, 0.9, 1.0, C('#4d7438'), 0, 0.2, 0.6, 11);
   for (const [x, y, z] of [[0.6, 1.4, 0.2], [-0.5, 1.2, 0.6]]) sh.lump(x, y, z, 0.28, 0.2, 0.28, C('#d96a8c'), 0, 0.2, 0.9);
@@ -508,6 +512,8 @@ const SPECS = {
   tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 5, crown: 2.7 },
   orange: { kind: 'tree', c: [[0, 0, 0.22]], thr: 8.3, H: 3.5, crown: 1.7 },
   pine: { kind: 'tree', c: [[0, 0, 0.36]], thr: 11, H: 8, crown: 3.9 },
+  plane: { kind: 'tree', c: [[0, 0, 0.36]], thr: 12, H: 7, crown: 3.4 },
+  aleppo: { kind: 'tree', c: [[0, 0, 0.3]], thr: 10, H: 8.5, crown: 2.6 },
   palm_fan_a: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 9, crown: 2.5 },
   palm_fan_b: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 13, crown: 2.5 },
   palm_fan_c: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.0, H: 6.5, crown: 2.5 },
@@ -558,7 +564,7 @@ const SPECS = {
   dump_sofa: { kind: 'object', c: [[0, 0, 0.9]], thr: 2.5, m: 1.0, he: [0.9, 0.45, 0.4], hc: 0.45, ghost: true },
   dump_wreck: { kind: 'object', c: [[0, 0, 0.6]], thr: 1.6, m: 0.3, he: [0.6, 0.2, 0.35], hc: 0.2, ghost: true },
 };
-const SCALE_R = new Set(['shrub', 'ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
+const SCALE_R = new Set(['shrub', 'ficus', 'tree', 'orange', 'pine', 'plane', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 
 
 function makePhysics(env) {
@@ -1006,7 +1012,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'candelabra', 'signal', 'busstop']);
+  const TALL = new Set(['kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'orange', 'pine', 'plane', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'candelabra', 'signal', 'busstop']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1040,8 +1046,6 @@ const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama
   valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
 const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1 };
 const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7 };   // share of cafes with tables outside
-const OLIVE_TINT = new THREE.Color('#a9b48a');    // olive groves: grey-green leaves
-const PLANE_TINT = new THREE.Color('#f3f0b4');   // plane trees on the Libertà: yellowish-green leaves
 const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
 // ------------------------------------------------------------------ building index (exact point test + nearest wall)
@@ -1275,24 +1279,23 @@ function* generate(S, BUD) {
   const taken = (it, r) => { occAdd(it.x, it.z, r); };
   const nearAny = (list, x, z, r) => list.some(q => hyp2(q.x - x, q.z - z) < r);
   const lampsReal = [];
-  const treeKind = (it) => {
-    // trees from the lidar crowns, the CTR points and the Urban Atlas lattice (tools/greenery.py): a kind hint `kd`, a crown radius `r` and a height `h` when measured
-    if (it.kd === 'tall') return pick(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a']);
-    if (it.kd === 'fruit' || it.kd === 'citrus') return 'orange';
-    if (it.kd === 'olive') return 'tree';
-    if (it.kd === 'pine') return 'pine';
-    if (it.r && !it.ge && !it.sp) return it.r < 2.1 ? 'orange' : it.r > 4.2 ? 'ficus' : 'tree';
-    const s = (it.ge || '') + ' ' + (it.sp || '');
-    if (it.lt === 'palm' || /Phoenix|Washingtonia|Trachycarpus|Chamaerops|Livistona|Arecaceae/.test(s))
-      return /Phoenix/.test(s) ? pick(['palm_date_a', 'palm_date_b']) : pick(['palm_fan_a', 'palm_fan_b', 'palm_fan_c']);
-    if (/Ficus/.test(s)) return 'ficus';
-    if (/Citrus/.test(s)) return 'orange';
-    if (/Pinus/.test(s)) return 'pine';
-    return wpick([['orange', 32], ['ficus', 18], ['tree', 30], ['palm_fan_a', 7], ['palm_fan_b', 4], ['palm_date_a', 4], ['pine', 5]]);
+  // n4: the species of a tree from where it stands (src/species.js): explicit OSM / register species first, then the crown kind, then the mix of the place
+  const landList = (S.areas || []).filter(a => a.k === 'orchard' || a.k === 'olive' || a.k === 'farm' || a.k === 'forest' || a.k === 'scrub').map(a => {
+    const pts = pairs(a.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+    for (const q of pts) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < z0) z0 = q[1]; if (q[1] > z1) z1 = q[1]; }
+    return { k: a.k, pts, x0, z0, x1, z1 };
+  });
+  const landAt = (x, z) => { for (const a of landList) if (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1 && inPoly(a.pts, x, z)) return a.k; return ''; };
+  const TINTS = {}, tintOf = hex => hex ? (TINTS[hex] ||= new THREE.Color(hex)) : null;
+  const treeSpec = (x, z, it = null) => {
+    const code = speciesFor(x, z, groundY(x, z), zoneOf(x, z), it, landList.length ? landAt(x, z) : '');
+    const [model, hex] = SP[code];
+    const m = model === 'palm_date' ? 'palm_date_b' : model === 'palm_fan' ? pick(['palm_fan_a', 'palm_fan_b']) : model;   // two fan palms and one date palm: every model is one more draw call per cell
+    return { m, t: tintOf(hex), code };
   };
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
     if (!inBounds(x, z) || road(x, z) || inB(x, z)) return false;
-    const r = { ficus: 3.2, tree: 2.2, orange: 1.4, pine: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
+    const r = { ficus: 3.2, tree: 2.2, orange: 1.4, pine: 2, plane: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
     const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
@@ -1303,9 +1306,13 @@ function* generate(S, BUD) {
     if (BUD.over()) yield;
     const k = it.k;
     if (k === 'tree') {
-      const kd = treeKind(it), isPalm = kd.startsWith('palm');
+      if (it.kd === 'fruit') {   // a CTR orchard symbol stands for a few trees of the grove (the Conca d'Oro citrus, the olive and almond orchards of the hills): a short irregular row of four
+        for (const [dx, dz] of [[0, 0], [6.5, 2], [-4.5, 6], [2.5, -6.5]]) { const x = it.x + dx, z = it.z + dz, sq = treeSpec(x, z, it); placeTree(x, z, sq.m, 0.85, sq.t); }
+        continue;
+      }
+      const sp = treeSpec(it.x, it.z, it), kd = sp.m, isPalm = kd.startsWith('palm');
       const cs = it.r ? (isPalm && it.h ? Math.max(0.6, Math.min(1.6, it.h / (SPECS[kd] ? SPECS[kd].H : 9))) : Math.max(0.55, Math.min(2.4, it.r / (SPECS[kd] ? SPECS[kd].crown : 2.7)))) : 0.95;
-      placeTree(it.x, it.z, kd, cs, it.kd === 'olive' ? OLIVE_TINT : null); continue;
+      placeTree(it.x, it.z, kd, cs, sp.t); continue;
     }
     if (k === 'bollard') { if (!inB(it.x, it.z)) { put('bollard', it.x, gy(it.x, it.z), it.z); occAdd(it.x, it.z, 0.2); } continue; }
     if (k === 'bin_big') { if (!inB(it.x, it.z)) { const y = gy(it.x, it.z), a = R(0, TAU); put('bin_big', it.x, y, it.z, a); put('bags', it.x + Math.cos(a) * 0.9, y, it.z - Math.sin(a) * 0.9, R(0, TAU)); occAdd(it.x, it.z, 1); } continue; }
@@ -1365,7 +1372,7 @@ function* generate(S, BUD) {
     const p = pairs(a.p);
     for (let i = 0; i < p.length - 1; i++) {
       const A = p[i], B = p[i + 1], L = hyp2(B[0] - A[0], B[1] - A[1]);
-      for (let s = 2; s < L; s += 7) placeTree(A[0] + (B[0] - A[0]) * s / L, A[1] + (B[1] - A[1]) * s / L, pick(['orange', 'orange', 'tree', 'ficus']));
+      for (let s = 2; s < L; s += 7) { const x = A[0] + (B[0] - A[0]) * s / L, z = A[1] + (B[1] - A[1]) * s / L, sp = treeSpec(x, z, { r: 3 }); placeTree(x, z, sp.m, 1, sp.t); }
     }
   }
 
@@ -1791,7 +1798,6 @@ function* generate(S, BUD) {
   // ---------- 9. vegetation: parks, green strips, piazza palms
   {
     let n = 0;
-    const kinds = [['tree', 26], ['ficus', 12], ['pine', 8], ['orange', 12], ['palm_fan_a', 6], ['palm_fan_b', 4], ['palm_fan_c', 3], ['palm_date_a', 3], ['palm_date_b', 2], ['shrub', 8]];
     for (const a of S.areas) {
       if (BUD.over()) yield;
       if (a.k !== 'green') continue;
@@ -1807,11 +1813,57 @@ function* generate(S, BUD) {
       for (let i = 0, tries = 0; i < want && tries < want * 5; tries++) {
         const x = R(x0, x1), z = R(z0, z1);
         if (!inPoly(pts, x, z)) continue;
-        const kind = wpick(kinds);
-        if (placeTree(x, z, kind)) { i++; n++; }
+        const sp = treeSpec(x, z);
+        if (placeTree(x, z, rand() < 0.08 ? 'shrub' : sp.m, 1, sp.t)) { i++; n++; }
       }
     }
     stats.trees_green = n;
+    // n4: groves. The CTR orchards (citrus in the Conca d'Oro) and olive groves, baked as land cover, are planted: one tree per ~100 m2 up to a cap per tile, species from src/species.js
+    let gv = 0;
+    const gvCap = Math.round(300 * DEN);
+    for (const a of S.areas) {
+      if (a.k !== 'orchard' && a.k !== 'olive') continue;
+      if (BUD.over()) yield;
+      if (gv >= gvCap) break;
+      const pts = pairs(a.p); if (pts.length < 3) continue;
+      const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+      const bx0 = Math.min(...xs), bx1 = Math.max(...xs), bz0 = Math.min(...zs), bz1 = Math.max(...zs);
+      const x0 = Math.max(bx0, S.x0), x1 = Math.min(bx1, S.x1), z0 = Math.max(bz0, S.z0), z1 = Math.min(bz1, S.z1);
+      if (x1 <= x0 || z1 <= z0) continue;
+      const area = Math.abs(signedArea(pts)) * Math.min(1, (x1 - x0) * (z1 - z0) / Math.max(1, (bx1 - bx0) * (bz1 - bz0)));
+      const want = Math.min(gvCap - gv, Math.floor(area / 100 * DEN));
+      for (let i = 0, tries = 0; i < want && tries < want * 4; tries++) {
+        const x = R(x0, x1), z = R(z0, z1);
+        if (!inPoly(pts, x, z) || road(x, z) || raisedMask(x, z) || paving(x, z)) continue;
+        const sp = treeSpec(x, z);
+        if (placeTree(x, z, sp.m, a.k === 'orchard' ? 1.15 : 0.95, sp.t)) { i++; gv++; }
+      }
+    }
+    stats.trees_groves = gv;
+    // n4: oleanders on the medians of the avenues (Viale Regione Siciliana, the Libertà, Corso Calatafimi...): the narrow green and verge strips of the street layer beside those roads (the Comune draws Viale Regione Siciliana's median as a verge), one shrub in about 12 m2, now and then a plane tree
+    {
+      const MEDIAN_RE = /Regione Siciliana|Libert|Calatafimi|Corso dei Mille|Strasburgo|Notarbartolo|Viale Lazio|Viale Francia|Viale Campania|Leonardo da Vinci|Viale del Fante/;
+      let mn = 0;
+      for (const poly of S.green) {
+        if (BUD.over()) yield;
+        if (mn >= 220 * DEN) break;
+        const pts = pairs(poly[0]); if (pts.length < 4) continue;
+        let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+        for (const q of pts) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < z0) z0 = q[1]; if (q[1] > z1) z1 = q[1]; }
+        let per = 0; for (let q = 0; q < pts.length; q++) per += hyp2(pts[(q + 1) % pts.length][0] - pts[q][0], pts[(q + 1) % pts.length][1] - pts[q][1]);
+        const ar = Math.abs(signedArea(pts));
+        if (Math.max(x1 - x0, z1 - z0) < 14 || 2 * ar / Math.max(per, 1) > 9) continue;   // a median is a long strip (mean width under 9 m)
+        const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, nr = nearRoad(cx, cz, 40);
+        if (!nr || !MEDIAN_RE.test(nr.road.n || '')) continue;
+        const want = Math.min(60, Math.floor(ar / 12));
+        for (let i = 0, tries = 0; i < want && tries < want * 5; tries++) {
+          const x = R(x0, x1), z = R(z0, z1);
+          if (!inPoly(pts, x, z) || !S.inBounds(x, z)) continue;
+          if (rand() < 0.08 ? placeTree(x, z, 'plane', 0.8, null) : placeTree(x, z, 'shrub', R(0.9, 1.4), null)) { i++; mn++; }
+        }
+      }
+      stats.trees_median = mn;
+    }
     // piazza palms: big paved squares with only a few trees get a loose ring
     let pn = 0;
     for (const a of S.areas) {
@@ -1826,7 +1878,8 @@ function* generate(S, BUD) {
       for (let i = 0, tries = 0; i < want && tries < want * 12; tries++) {
         const x = R(x0, x1), z = R(z0, z1);
         if (!inPoly(pts, x, z) || nearWall(x, z, 3.5)) continue;
-        if (placeTree(x, z, wpick([['palm_fan_a', 4], ['palm_fan_b', 3], ['palm_date_a', 2], ['ficus', 2], ['orange', 3]]))) { i++; pn++; }
+        const sp = treeSpec(x, z, rand() < 0.5 ? { kd: 'tall' } : null);
+        if (placeTree(x, z, sp.m, 1, sp.t)) { i++; pn++; }
       }
     }
     stats.trees_piazza = pn;
@@ -1844,7 +1897,8 @@ function* generate(S, BUD) {
           if (!inBounds(x, z) || !raisedMask(x, z) || !raisedMask(x - nx * 1.4, z - nz * 1.4)) continue;   // wide pavements only
           const nr = nearRoad(x, z, 16); if (!nr || !(nr.road.k === 'primary' || nr.road.k === 'secondary' || nr.road.k === 'tertiary')) continue;
           if (nearJunction(x, z, 6) || lampNear(x, z, 3)) continue;
-          if (placeTree(x, z, wpick([['orange', 5], ['tree', 2], ['ficus', 2], ['palm_fan_a', 2]]))) sn++;
+          const sp = treeSpec(x, z, { r: 2.6 });
+          if (placeTree(x, z, sp.m, 1, sp.t)) sn++;
         }
       }
     }
@@ -2073,7 +2127,7 @@ function* generate(S, BUD) {
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
             const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
             if (!inBounds(x, z) || (!raisedMask(x, z) && !paving(x, z))) continue;
-            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, 'tree', 1.35, lib ? PLANE_TINT : null)) { if (front) st.palms++; else st.plane++; }
+            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : placeTree(x, z, lib || grand ? 'plane' : 'tree', lib ? 0.95 : 0.9, null)) { if (front) st.palms++; else st.plane++; }
           }
         }
       }
@@ -2151,7 +2205,7 @@ function* generate(S, BUD) {
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
   signal: 350, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
-  shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
+  shrub: 350, ficus: 1300, tree: 1000, orange: 800, pine: 1100, plane: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
 let ZEBRA_MAT = null, PANEL_MAT = null;
@@ -2241,7 +2295,7 @@ export function buildProps(ctx) {
       ctx, tk: t.k, tram, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
       x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
       idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
-      roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [],
+      roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [], green: (st.green || []).concat(st.verge || []),
       sand: sandRings(d),
       areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
     };

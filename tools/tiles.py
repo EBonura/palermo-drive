@@ -2202,6 +2202,29 @@ def build(offline=False):
         area_recs.append((kind, geom, name))
         if kind in kind_geoms:
             kind_geoms[kind].append(geom)
+    # board item n4: the CTR's fruit orchards (frutteto, citrus: the Conca d'Oro groves) and olive groves (data/veg_areas.json, docs/sources/ctr-sicilia.md) are land cover too, so the
+    # ground reads as a grove and src/props.js plants citrus and olive trees in them. The survey is from 2003 and the city has grown over some: what lies within 8 m of an OSM building goes.
+    vp = os.path.join(ROOT, "data", "veg_areas.json")
+    if os.path.exists(vp):
+        from shapely.geometry import Polygon as _VP
+        bt_ = shapely.STRtree(bld_geoms)
+        nveg = 0
+        for a in json.load(open(vp))["areas"]:
+            kd_ = {"orchard": "orchard", "citrus": "orchard", "olive": "olive"}.get(a["c"])
+            if not kd_:
+                continue
+            p_ = a["p"]
+            g = _VP([(p_[k], p_[k + 1]) for k in range(0, len(p_), 2)], [[(h[k], h[k + 1]) for k in range(0, len(h), 2)] for h in a.get("holes", [])])
+            g = shapely.make_valid(g) if not g.is_valid else g
+            hit = bt_.query(g)
+            if len(hit):
+                g = g.difference(unary_union([bld_geoms[k].buffer(8, quad_segs=2) for k in hit]))
+            g = g.simplify(1.5)
+            if g.is_empty or g.area < 800:
+                continue
+            area_recs.append((kd_, g, None))
+            nveg += 1
+        print(f"  CTR orchards and olive groves: {nveg} areas", flush=True)
     if BEACH_STRIP is not None and not BEACH_STRIP.is_empty:   # the sand the coast was pushed out over (widen_beach)
         kind_geoms["sand"].append(BEACH_STRIP)
         area_recs.append(("sand", BEACH_STRIP, None))
