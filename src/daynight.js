@@ -88,9 +88,11 @@ function palette(hour) {
 }
 
 // ------------------------------------------------------------------------------------------------ the sky shader
+// day sky targets (style guide section 6): horizon #8ac8f7, zenith #3a7ebf; in the shader's own (pre-tone-mapping) space, calibrated against the rendered pixels
+const DAY_SKY_H = '#6cc2fb', DAY_SKY_Z = '#1a58b0';
 const SKY_UNIFORMS = `
 uniform float uMix; uniform float uTime; uniform float uStars; uniform float uSunVis;
-uniform vec3 uSkyH; uniform vec3 uSkyZ; uniform vec3 uGlow; uniform vec3 uDome; uniform vec3 uSunV; uniform vec3 uMoonV; uniform float uMoon;
+uniform vec3 uDayH; uniform vec3 uDayZ; uniform float uDayG; uniform vec3 uSkyH; uniform vec3 uSkyZ; uniform vec3 uGlow; uniform vec3 uDome; uniform vec3 uSunV; uniform vec3 uMoonV; uniform float uMoon;
 float pdHash(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
 vec3 pdTwilight(vec3 d) {
   float h = clamp(d.y, 0.0, 1.0);
@@ -128,6 +130,7 @@ function patchSky(sky) {
   const u = sky.material.uniforms;
   Object.assign(u, {
     uMix: { value: 0 }, uTime: { value: 0 }, uStars: { value: 0 }, uSunVis: { value: 1 }, uMoon: { value: 0 },
+    uDayH: { value: new THREE.Color(DAY_SKY_H) }, uDayZ: { value: new THREE.Color(DAY_SKY_Z) }, uDayG: { value: 0.4 },
     uSkyH: { value: new THREE.Color() }, uSkyZ: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uDome: { value: new THREE.Color() },
     uSunV: { value: new THREE.Vector3(0, 1, 0) }, uMoonV: { value: new THREE.Vector3(0, -1, 0) },
   });
@@ -139,6 +142,12 @@ function patchSky(sky) {
   sky.material.fragmentShader = SKY_UNIFORMS + sky.material.fragmentShader.replace(m[0],
     `vec3 dayCol = ${day};
      vec3 dirN = normalize( vWorldPosition - cameraPosition );
+     { // x2: the physical sky reads pale grey-white (zenith 199, 207, 216 at 30 degrees up); the style guide wants a saturated clean blue, zenith #3a7ebf to horizon #8ac8f7. Blend towards that
+       // gradient, less in the glow round the sun (the physical sky keeps the sun's halo), and more the higher the camera is (uDayG), so street level changes little
+       vec3 dg = mix( uDayH, uDayZ, pow( clamp( dirN.y, 0.0, 1.0 ), 0.45 ) );
+       float sc = max( dot( dirN, uSunV ), 0.0 );
+       dayCol = mix( dayCol, dg, uDayG * ( 1.0 - 0.85 * pow( sc, 10.0 ) ) );
+     }
      gl_FragColor = vec4( uMix > 0.001 ? mix( dayCol, pdTwilight( dirN ), uMix ) : dayCol, 1.0 );`);
   sky.material.needsUpdate = true;
 }
@@ -550,7 +559,11 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     hemi.color.copy(P.hemiS); hemi.groundColor.copy(P.hemiG); hemi.intensity = P.hemiI;
     renderer.toneMappingExposure = P.expo;
     const base = 0.00014 / (st.drawDistance || 1);
-    scene.fog.color.copy(P.fog); scene.fog.density = base * P.fogK;
+    // x2: from a high camera the same ground-level haze piles up over kilometres of air and flattens the city (title flyover, aerial shots): thin it with the height above the ground
+    // (nothing below 30 m, 0.8 at the 100 m of the title flyover, 0.3 at 650 m) and let the day sky go bluer with it; the driving cameras (3 to 15 m) keep the old haze
+    const camH = Math.max(0, camera.position.y - groundY(camera.position.x, camera.position.z));
+    scene.fog.color.copy(P.fog); scene.fog.density = base * P.fogK / (1 + Math.max(0, camH - 30) / 260);
+    U.uDayG.value = lerp(0.4, 0.92, ss(20, 120, camH));
     if (scene.background && scene.background.isColor) scene.background.copy(P.fog);
 
     // sky

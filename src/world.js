@@ -128,9 +128,15 @@ function terrainMaterial() {
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm;' + TILING_GLSL)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+        { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
+          // and two octaves of value noise (260 m and 90 m) vary the brightness of the ground like patches of drier and denser scrub
+          vec2 uvB = vec2( 0.8387 * vMapUv.x - 0.5446 * vMapUv.y, 0.5446 * vMapUv.x + 0.8387 * vMapUv.y ) * 0.311 + vec2( 0.37, 0.61 );
+          sampledDiffuseColor.rgb *= mix( vec3( 1.0 ), texture2D( map, uvB ).rgb * 1.2, 0.75 );
+          sampledDiffuseColor.rgb *= ( 0.9 + 0.28 * tvn( vTpPos.xz / 260.0 ) ) * ( 0.95 + 0.12 * tvn( vTpPos.xz / 90.0 + 7.3 ) );
+        }
         { float ny = abs( normalize( vTpNrm ).y ), side = 1.0 - smoothstep( 0.55, 0.85, ny );
           if ( side > 0.002 ) {
             vec3 an = abs( normalize( vTpNrm ) );
@@ -139,10 +145,11 @@ function terrainMaterial() {
           } }
         diffuseColor *= sampledDiffuseColor;
       #endif`)
+      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
       .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile';
   return m;
 }
 
@@ -151,6 +158,12 @@ let lowMats = null;
 // The 100 m far terrain: smooth normals from the grid, so the steep faces of Monte Pellegrino that look away from the sun are lit by the sky alone and read as black wedges between the
 // bright full-detail blocks (board item t6). A fill proportional to steepness (FAR_FILL times the surface colour on a vertical face of the far mesh, TERRAIN_FILL on the textured tile terrain, nothing on level ground) keeps the shade readable.
 const FAR_FILL = 1.1, TERRAIN_FILL = 0.4;
+// The tile skirts (a 30 m drop along every tile border, against cracks) are double-sided like the rest of the terrain, and three.js flips the normal of a back face, so a skirt seen
+// from its back lit as a face pointing down and drew a dark line along the tile border. The terrain and far shaders light every face with its own vertex normal.
+const TILING_GLSL = `
+float tvh( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+float tvn( vec2 p ) { vec2 i = floor( p ), f = fract( p ); f = f * f * ( 3.0 - 2.0 * f ); return mix( mix( tvh( i ), tvh( i + vec2( 1.0, 0.0 ) ), f.x ), mix( tvh( i + vec2( 0.0, 1.0 ) ), tvh( i + vec2( 1.0, 1.0 ) ), f.x ), f.y ); }`;
+const NORMAL_NOFLIP = () => THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0');
 // Distant mountains read hazed blue #7297b4 (style guide section 6, board item n9): more with height and, now, with the real distance from the camera, in the shader of every
 // terrain material (full detail, low detail ring and the far mesh), so a hill that is half in one and half in another has no seam and nothing is tinted up close.
 // The vertex colours carry no haze any more. `pos` is a world position (the terrain meshes sit at the origin), the scene fog does the rest.
@@ -164,10 +177,11 @@ function farMaterial() {
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y; vFarPos = position;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
+      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
       .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
   };
-  m.customProgramCacheKey = () => 'far-fill-haze';
+  m.customProgramCacheKey = () => 'far-fill-haze-nf';
   return m;
 }
 function getLowMats() {
