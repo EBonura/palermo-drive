@@ -104,11 +104,12 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     }
     groupOk = new Uint8Array(groups.length); groupParent = Int32Array.from(gp); groupKids = Int32Array.from(gk);
     if (boxes.length < leaves.length * 5) boxes = new Float32Array(leaves.length * 8);
-    for (let n = 0; n < leaves.length; n++) { boxes[n * 5] = NaN; const l = leaves[n]; const bb = boxFor(l, n); if (!bb) boxQueue.push(n); }
+    subQueue.length = 0;
+    for (let n = 0; n < leaves.length; n++) { boxes[n * 5] = NaN; const l = leaves[n]; const bb = boxFor(l, n); if (!bb) boxQueue.push(n); if (l.userData.leanSub === undefined) subQueue.push(l); }
     st.leaves = leaves.length; st.groups = groups.length; st.always = always.length;
     staticsDirty = true;
   }
-  const _box = new THREE.Box3();
+  const _box = new THREE.Box3(), _m = new THREE.Matrix4(), subQueue = [], st_ = { subs: 0 };
   function boxFor(l, n, again) {   // the world box of a leaf, kept on the leaf (the lists are rebuilt several times a second while tiles stream in); a big geometry's box is computed later, a little at a time, and the leaf stays visible until then
     const o = n * 5; let c = l.userData.leanBox;
     if (!c || again) {
@@ -117,9 +118,48 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       else { if (!geo.boundingBox) { if (geo.attributes.position && geo.attributes.position.count > 8000) return false; geo.computeBoundingBox(); } b = geo.boundingBox; }
       _box.copy(b); _box.applyMatrix4(l.matrixWorld);
       c = l.userData.leanBox = [_box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y];
+      if (again) { l.userData.leanSub = undefined; l.userData.leanJob = null; l.userData.leanLast = 0; subQueue.push(l); }
     }
     boxes[o] = c[0]; boxes[o + 1] = c[1]; boxes[o + 2] = c[2]; boxes[o + 3] = c[3]; boxes[o + 4] = c[4];
     return true;
+  }
+  // A single box round a 250 m chunk or a whole market catches one open street and the lot is drawn. So big leaves also get boxes per part of their area, each grown to hold whole triangles
+  // or instances (none of them is cut, so there is no gap between them), and a leaf is hidden when every part is. The far terrain and far city change their index ranges as tiles come and go: they keep the one box.
+  const SUB_MIN = 96, SUB_DIV = 5, SUB_TRIS = 1500, MAX_TRIS_STEP = 40000;   // under SUB_TRIS triangles a draw costs less than testing its parts
+  function subBoxes(l, budget) {
+    const u = l.userData, geo = l.geometry, pos = geo.attributes.position;
+    if (!pos || !pos.array || u.leanSub !== undefined) return budget;
+    const c = u.leanBox, tris = (geo.index ? geo.index.count : pos.count) / 3 * (l.isInstancedMesh ? l.count : 1);
+    if (!c || tris < SUB_TRIS || (c[2] - c[0] < SUB_MIN && c[3] - c[1] < SUB_MIN) || /^(far_|farcity)/.test(l.name)) { u.leanSub = null; return budget; }
+    let J = u.leanJob;
+    if (!J) J = u.leanJob = { i: 0, cell: Math.max(32, Math.max(c[2] - c[0], c[3] - c[1]) / SUB_DIV), m: new Map() };
+    const m = J.m, cell = J.cell, add = (cx, cz, x0, z0, x1, z1, y) => {
+      const k = Math.floor(cx / cell) * 65536 + Math.floor(cz / cell); let b = m.get(k);
+      if (!b) m.set(k, [x0, z0, x1, z1, y]);
+      else { if (x0 < b[0]) b[0] = x0; if (z0 < b[1]) b[1] = z0; if (x1 > b[2]) b[2] = x1; if (z1 > b[3]) b[3] = z1; if (y > b[4]) b[4] = y; }
+    };
+    const P = pos.array, st = pos.itemSize, idx = geo.index ? geo.index.array : null;
+    if (l.isInstancedMesh) {
+      const A = l.instanceMatrix.array, gb = geo.boundingBox, n = l.count;
+      for (; J.i < n; J.i++) {
+        const o = J.i * 16; _m.fromArray(A, o); _box.copy(gb).applyMatrix4(_m);
+        add((_box.min.x + _box.max.x) / 2, (_box.min.z + _box.max.z) / 2, _box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y);
+      }
+    } else {
+      const me = l.matrixWorld.elements, ox = me[12], oy = me[13], oz = me[14];
+      if (me[0] !== 1 || me[5] !== 1 || me[10] !== 1 || me[1] || me[2] || me[4] || me[6] || me[8] || me[9]) { u.leanSub = null; u.leanJob = null; return budget; }
+      const dr = geo.drawRange, n = idx ? idx.length : pos.count, end = Math.min(n, dr.start + (dr.count === Infinity ? n : dr.count));
+      if (!J.i) J.i = dr.start;
+      for (; J.i + 2 < end && budget > 0; J.i += 3, budget--) {
+        const a = idx ? idx[J.i] : J.i, b = idx ? idx[J.i + 1] : J.i + 1, d = idx ? idx[J.i + 2] : J.i + 2;
+        const ax = P[a * st], ay = P[a * st + 1], az = P[a * st + 2], bx = P[b * st], by = P[b * st + 1], bz = P[b * st + 2], dx = P[d * st], dy = P[d * st + 1], dz = P[d * st + 2];
+        add((ax + bx + dx) / 3 + ox, (az + bz + dz) / 3 + oz, Math.min(ax, bx, dx) + ox, Math.min(az, bz, dz) + oz, Math.max(ax, bx, dx) + ox, Math.max(az, bz, dz) + oz, Math.max(ay, by, dy) + oy);
+      }
+      if (J.i + 2 < end) return budget;
+    }
+    const F = new Float32Array(m.size * 5); let q = 0; for (const b of m.values()) { F[q] = b[0]; F[q + 1] = b[1]; F[q + 2] = b[2]; F[q + 3] = b[3]; F[q + 4] = b[4]; q += 5; }
+    u.leanSub = F; u.leanJob = null; st_.subs++;
+    return budget;
   }
   function boxStep() {   // the big ones, about a tile's worth of vertices a frame
     let left = 60000;
@@ -129,6 +169,10 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       boxFor(l, n);
     }
     st.pendingBoxes = boxQueue.length;
+    if (on.occ) {
+      let budget = MAX_TRIS_STEP;
+      while (subQueue.length && budget > 0) { const l = subQueue[subQueue.length - 1]; budget = subBoxes(l, budget); if (l.userData.leanSub !== undefined) subQueue.pop(); }
+    }
   }
   function structureChanged() {
     for (let n = 0; n < groups.length; n++) {
@@ -184,8 +228,8 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     st.steps = steps;
   }
   // 0 visible, 1 behind the walls, 2 outside the fan
-  function test(o) {
-    const x0 = boxes[o], z0 = boxes[o + 1], x1 = boxes[o + 2], z1 = boxes[o + 3], top = boxes[o + 4];
+  function test(B, o) {
+    const x0 = B[o], z0 = B[o + 1], x1 = B[o + 2], z1 = B[o + 3], top = B[o + 4];
     const nx = camX < x0 ? x0 : camX > x1 ? x1 : camX, nz = camZ < z0 ? z0 : camZ > z1 ? z1 : camZ, ndx = nx - camX, ndz = nz - camZ, d0 = Math.sqrt(ndx * ndx + ndz * ndz);
     if (d0 < 1) return 0;
     let lo = Infinity, hi = -Infinity, behind = 0, far = 0;
@@ -219,7 +263,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     if (cam !== camera || api.bypass) return;
     const t0 = performance.now();
     if (!groups.length || structureChanged()) rebuild();
-    if (boxQueue.length) boxStep();
+    if (boxQueue.length || subQueue.length) boxStep();
     groupOk[0] = 1;
     for (let n = 1; n < groups.length; n++) groupOk[n] = groups[n].visible && groupOk[groupParent[n]] ? 1 : 0;
     if (on.occ) {
@@ -239,7 +283,14 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
         const o = n * 5;
         if (fanOK && boxes[o] === boxes[o]) {
           tested++;
-          const v = test(o);
+          let v = test(boxes, o);
+          if (v === 0) {   // the whole box is in view: is any part of it?
+            const F = l.userData.leanSub;
+            if (F) {   // the part that was visible last frame goes first: it usually still is
+              const U = l.userData, last = U.leanLast | 0;
+              if (test(F, last) !== 0) { v = 1; for (let q = 0; q < F.length; q += 5) if (q !== last && test(F, q) === 0) { v = 0; U.leanLast = q; break; } }
+            }
+          }
           if (v === 1) { hid++; hiddenNow.push(l); continue; }
           if (v === 2) { out++; hiddenNow.push(l); continue; }
         }
@@ -356,7 +407,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   const api = {
     bypass: false,   // set by the bench: one render exactly as without this module (the whole scene, three's own shadow pass)
     parts: on,
-    stats: () => ({ ...st }),
+    stats: () => ({ ...st, subs: st_.subs, subPending: subQueue.length }),
     hiddenNow,
     debug: { recN, recD, recS, grids, leaves: () => leaves, always: () => always, pose },
   };
