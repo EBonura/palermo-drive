@@ -110,7 +110,8 @@ function finish(parent) {
     if (!BINS[k].length) continue;
     const merged = mergeGeometries(BINS[k], false);
     const m = MATS[k];
-    const mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...m.opts });
+    const { noShadow, ...mo } = m.opts;   // noShadow is ours (castShadow below), not a material parameter
+    const mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo });
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = !m.opts.noShadow; mesh.receiveShadow = true; mesh.name = 'landmarks-' + k;
     parent.add(mesh); out[k] = merged.attributes.position.count / 3;
