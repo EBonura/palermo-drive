@@ -64,9 +64,9 @@ export const TEX = {
     for (let i = 0; i < 5; i++) { g.fillStyle = `rgba(30,28,25,${rnd(0.06, 0.14)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 36), rnd(6, 20), 0, 0, 7); g.fill(); }
   }, 2),
   verge: canvasTex(256, (g, S) => { // the strip between kerb-less asphalt and the fields: trodden dry grass, grit and dust
-    g.fillStyle = '#9a8d62'; g.fillRect(0, 0, S, S);
-    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '128,114,72' : '160,142,92'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
-    speckle(g, S, 7000, ['#aa9c70', '#867a52', '#b3a67a', '#7a6e4a', '#938558'], 1, 3);
+    g.fillStyle = '#8a8372'; g.fillRect(0, 0, S, S);   // dusty grey-brown urban dirt, not beach sand-yellow: it reads as the trodden ground beside a kerb
+    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '104,98,84' : '140,131,112'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
+    speckle(g, S, 7000, ['#9a937f', '#736c5a', '#a39c88', '#675f4e', '#8a8370'], 1, 3);
   }, 3),
   grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is olive with dry straw patches
     g.fillStyle = '#6b7c43'; g.fillRect(0, 0, S, S);

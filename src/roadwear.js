@@ -22,6 +22,7 @@ import { pairs, rng, rasterMask } from './core.js';
 import { zoneAt } from './districts.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
+const HVIS = 0.8;   // drawn size of a hole relative to its collision size (collidePlayer and holeAt are unchanged)
 const TAU = Math.PI * 2, CELL = 100, TS = 500, LIFT = 0.04, UVM = 2.2, MARK_LIFT = 0.041;
 const SUNH = [-0.924, 0.381];   // horizontal direction towards the sun (WSW), as set in main.js
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -35,11 +36,11 @@ const C = h => new THREE.Color(h);
 
 // colours (hex, converted to linear by THREE.Color)
 const COL = {
-  crumbOut: [C('#a7a49a'), C('#8d8a81'), C('#b4b0a4')], crumbIn: C('#6c6a65'),
-  rim: C('#3a3836'), wall: C('#2b2a28'), floor: C('#1a1918'), centre: C('#121110'),
-  patchDark: [C('#6a6862'), C('#726f69'), C('#615f5a')], patchLight: [C('#9a978e'), C('#a29f96')], seam: C('#4a4844'),
-  crack: C('#3b3936'), worn: C('#7b7a74'), mhFrame: C('#55514b'), mhCover: [C('#6a645b'), C('#5d5851')], mhGap: C('#232220'),
-  water: C('#8a9aa6'),
+  crumbOut: [C('#8f8c84'), C('#7f7c75'), C('#96928a')], crumbIn: C('#67645f'),   // holes read as shallow worn asphalt: base-course grey, not black pits
+  rim: C('#4d4a46'), wall: C('#42403c'), floor: C('#4c4945'), centre: C('#47443f'),
+  patchDark: [C('#6a6862'), C('#726f69'), C('#615f5a')], patchLight: [C('#9a978e'), C('#a29f96')], seam: C('#55524e'),
+  crack: C('#4a4844'), worn: C('#7b7a74'), mhFrame: C('#55514b'), mhCover: [C('#6a645b'), C('#5d5851')], mhGap: C('#232220'),
+  water: C('#5d6165'),
 };
 // per class, per metre of centreline: holes, repair patches, cracks, manholes
 const DENS = {
@@ -395,7 +396,7 @@ export function createRoadWear(env) {
   })();
   const po = (f, u) => ({ polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: u });
   const wearMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grain, roughness: 0.92, metalness: 0, ...po(-4, -8) });
-  const waterMat = new THREE.MeshStandardMaterial({ color: COL.water, roughness: 0.04, metalness: 0.85, envMapIntensity: 1.1, ...po(-5, -10) });
+  const waterMat = new THREE.MeshStandardMaterial({ color: COL.water, roughness: 0.12, metalness: 0.4, envMapIntensity: 0.6, ...po(-5, -10) });
   const markMat = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, depthWrite: false, roughness: 1, metalness: 0, ...po(-6, -12) });
 
   const TRI_CAP = 140000;   // resident wear triangles never go past this, whatever the density
@@ -410,7 +411,7 @@ export function createRoadWear(env) {
     const pt = (px, pz, nx, ny, nz, c, k) => B.v(px, gy(px, pz), pz, nx, ny, nz, c, k);
     for (let i = 0; i < n; i++) {
       const a = a0 + TAU * i / n, lx = Math.cos(a) * h.el, lz = Math.sin(a), wx = lx * cr - lz * sr, wz = lx * sr + lz * cr;
-      const rad = h.r * (0.78 + 0.44 * R()), ol = hyp2(wx, wz), ox = wx / ol, oz = wz / ol, sf = ox * SUNH[0] + oz * SUNH[1];   // sf +1: on the sunward (west) side
+      const rad = h.r * HVIS * (0.78 + 0.44 * R()), ol = hyp2(wx, wz), ox = wx / ol, oz = wz / ol, sf = ox * SUNH[0] + oz * SUNH[1];   // sf +1: on the sunward (west) side
       const p1x = h.x + wx * rad, p1z = h.z + wz * rad, p2x = h.x + wx * rad * 0.68, p2z = h.z + wz * rad * 0.68;
       if (crumble) {
         const wcw = wc0 * (0.4 + 1.5 * R()), p0x = p1x + ox * wcw, p0z = p1z + oz * wcw;
@@ -496,8 +497,8 @@ export function createRoadWear(env) {
       const cc = B.v(b.x, gy(b.x, b.z) - 0.008, b.z, 0, 1, 0, col, 1);
       for (let i = 0; i < n; i++) B.t(ids[i], cc, ids[(i + 1) % n]);
     }
-    for (const m of cell.marks) if (m.q < qf) strip(M, m.pts, 3, m.w * 0.5, MARK_COL, (i, p) => p[i * 3 + 2]);
-    for (const p of cell.polish) if (p.q < qf) strip(M, p.pts, 2, p.w, MARK_COL, () => p.a);
+    for (const m of cell.marks) if (m.q < qf) strip(M, m.pts, 3, m.w * 0.5, MARK_COL, (i, p) => p[i * 3 + 2] * 0.45);   // baked skids at under half strength
+    for (const p of cell.polish) if (p.q < qf) strip(M, p.pts, 2, p.w, MARK_COL, () => p.a * 0.7);
     const out = { meshes: [], tris: B.tris + W.tris + M.tris };
     const mw = B.mesh(wearMat), mwa = W.mesh(waterMat), mm = M.mesh(markMat);
     if (mm) mm.renderOrder = 1;
@@ -505,7 +506,7 @@ export function createRoadWear(env) {
     for (const m of [mw, mwa, mm]) if (m) { scene.add(m); out.meshes.push(m); }
     return out;
   }
-  const MARK_COL = C('#0c0b0c');
+  const MARK_COL = C('#1c1b1b');
 
   // ---------- streaming: tiles come and go with the streamer, cells with the camera ----------
   function unload(cell) {
