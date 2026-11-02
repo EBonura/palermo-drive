@@ -9,11 +9,11 @@ export const proj = (lat, lon) => [(lon - LON0) * KX, -(lat - LAT0) * KZ];
 export const unproj = (x, z) => [LAT0 - z / KZ, LON0 + x / KX];
 export const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street']);
 
-export function loadNet() {
+export function loadNet(opts = {}) {   // opts.extra: a RegExp of street names that are added even when not drivable in the tiles (pedestrian ways such as Via Maqueda); the default is the plain network
   const dir = path.join(ROOT, 'world/tiles'), roads = [], blds = new Map();
   for (const f of fs.readdirSync(dir)) {
     const t = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-    for (const r of t.roads) if (DRIVE.has(r.k) && r.p.length >= 4) roads.push(r);
+    for (const r of t.roads) if ((DRIVE.has(r.k) || (opts.extra && opts.extra.test(r.n || ''))) && r.p.length >= 4) roads.push(r);
     blds.set(f.replace('.json', ''), t.buildings.map(b => b.p));
   }
   const id = new Map(), nodes = [], adj = [], edges = [];

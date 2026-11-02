@@ -3,7 +3,7 @@
 // (src/event-routes.js) before the clock runs out, drop. Pay = fare by distance + a tip that grows with speed (time left) + small tips for
 // drifts, two wheels and close calls. Hitting pedestrians or cars costs nothing. Pay goes to the Garage wallet through 'pd-fare' (src/garage.js).
 // createFares(X) -> { start(slot), update(dt), stop(), active(), stigghiola() }; X is the context built in src/missions.js.
-import { TOURIST, DRIVER, FAVORITA, PULLE, URGENT_LINES, NATIONS, FRIEND } from '../assets/missions/lines.js';
+import { TOURIST, DRIVER, FAVORITA, NIGHT_CLIENTS, PULLE, URGENT_LINES, NATIONS, FRIEND } from '../assets/missions/lines.js';
 import { esc } from './esc.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -21,11 +21,11 @@ export function createFares(X) {
   const natPick = () => { let r = Math.random() * NATIONS.reduce((a, n) => a + n[1], 0); for (const [k, w] of NATIONS) if ((r -= w) <= 0) return k; return 'en'; };
   const tline = (key, delay = 0) => {
     if (!f) return;
-    const L = f.friend ? (FRIEND[f.friend][key] || null) : f.pulleNight ? (FAVORITA.client[key] || FAVORITA.client.ambient) : f.urgent ? (URGENT_LINES[key] || []) : f.sub === 'tourist' || f.sub === 'pulle' ? (TOURIST[key] && (TOURIST[key][f.nat] || TOURIST[key].en)) : null;
+    const L = f.friend ? (FRIEND[f.friend][key] || null) : f.cl ? (f.cl.client[key] || f.cl.client.ambient) : f.urgent ? (URGENT_LINES[key] || []) : f.sub === 'tourist' || f.sub === 'pulle' ? (TOURIST[key] && (TOURIST[key][f.nat] || TOURIST[key].en)) : null;
     if (L && L.length) say(pick(L), seatPos, delay);
   };
   const dline = (key, delay = 1.4) => {
-    const L = f && f.pulleNight ? FAVORITA.driver[key] : f && f.urgent && key === 'board' ? URGENT_LINES.driver : null;
+    const L = f && f.cl ? f.cl.driver[key] : f && f.urgent && key === 'board' ? URGENT_LINES.driver : null;
     const src = L || DRIVER[key]; if (src) say(pick(src), driverPos, delay);
   };
   function tip(amount, label) { f.tips += amount; toast('+' + eur(amount), label); }
@@ -37,7 +37,7 @@ export function createFares(X) {
     const [destId, len, flat] = pick(opts); lastDest = destId;
     const dest = X.destInfo(destId);
     const pts = flat;
-    f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
+    f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, cl: slot.nc ? NIGHT_CLIENTS[slot.nc] : sub === 'pulle' && night ? FAVORITA : null, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
       base: 0, tips: 0, limit: 0, left: 0, ev: {}, wantsStig: sub === 'tourist' && Math.random() < 0.45, stigDone: false, sniffed: false, lateSaid: false, glam: null, discretion: 0 };
     slot.callers = [];
     // a second tourist sometimes
@@ -47,7 +47,7 @@ export function createFares(X) {
     }
     // pay and clock
     if (urgent) { f.base = Math.round((8 + len / 90) * 2) / 2; f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18; }
-    else if (sub === 'pulle') { f.base = Math.round((9 + len / 70) * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
+    else if (sub === 'pulle' || sub === 'nightc') { f.base = Math.round((9 + len / 70) * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
     else { f.base = Math.round((4 + len / 110) * 2) / 2; f.limit = f.left = len / 8.4 + 22; }
     hud.toast(urgent ? T('Curri!', 'Hurry!') : T('Si paiti!', 'Off we go!'), dest.name);
     X.setPhase('board');
@@ -59,8 +59,8 @@ export function createFares(X) {
     X.guide.path(f.pts);
     X.destBeacon.set(f.dest.x, f.dest.z); X.destBeacon.show(true); X.destMarker = X.addMarker(f.dest.x, f.dest.z, '#ffd24a', 8);
     if (f.urgent) { say(pick(X.URGENT_DEF[f.slot.id].say), seatPos, 0.2); tline('board', 2.2); dline('board', 3.6); }
-    else if (f.sub === 'pulle') {
-      if (f.pulleNight) { say(pick(FAVORITA.client.ask), seatPos, 0.2); say(pick(FAVORITA.driver.ask), driverPos, 2.6); say(pick(FAVORITA.driver.depart), driverPos, 5); }
+    else if (f.sub === 'pulle' || f.sub === 'nightc') {
+      if (f.cl) { say(pick(f.cl.client.ask), seatPos, 0.2); say(pick(f.cl.driver.ask), driverPos, 2.6); say(pick(f.cl.driver.depart), driverPos, 5); }
       else { say(pick(PULLE.ask), seatPos, 0.2); say(pick(PULLE.driver), driverPos, 2.8); }
     } else if (f.sub === 'tourist') {
       say(fmtTpl(pick(TOURIST.ask[f.nat] || TOURIST.ask.en), f.dest), seatPos, 0.2);
@@ -153,7 +153,7 @@ export function createFares(X) {
     // tip by speed: the more of the clock is left, the bigger it is; a streak of small tips came on the way
     const frac = clamp(f.left / f.limit, 0, 1), speedTip = Math.round(f.base * (f.urgent ? 1.4 : 0.9) * frac * 2) / 2;
     let discretion = 0;
-    if (f.sub === 'pulle') discretion = Math.round(f.base * 0.4 * 2) / 2;
+    if (f.sub === 'pulle' || f.sub === 'nightc') discretion = Math.round(f.base * 0.4 * 2) / 2;
     const total = f.base + f.tips + speedTip + discretion;
     f.total = total; X.addFare(total);
     tline('arrive'); dline('arrive', 2.0);
@@ -184,7 +184,7 @@ export function createFares(X) {
     const tgt = f.phase === 'ride' ? f.dest : f.slot, dist = Math.hypot(tgt.x - car.x, tgt.z - car.z), ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
     if (f.phase === 'ride') {
       const m = Math.max(0, f.left);
-      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puoitali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : T('Cuoisa in taxi', 'Taxi ride'),
+      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puoitali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : f.sub === 'nightc' ? T('Cliente ri nuttata', 'Night client') : T('Cuoisa in taxi', 'Taxi ride'),
         title: f.dest.name, sub: (f.dest.addr ? f.dest.addr + '  ·  ' : '') + ds, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 12, frac: f.left / f.limit,
         target: f.dest, ledger: [T('Cuoisa ', 'Fare ') + eur(f.base + f.tips), T('Ncassu ', 'Total ') + eur(X.earned())] });
       X.aim(f.dest.x, f.dest.z, true);

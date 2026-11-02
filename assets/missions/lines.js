@@ -329,6 +329,130 @@ export const FAVORITA = {
   ],
 };
 
+// ---- Two more night clients, the same system as FAVORITA above (src/event-fares.js uses `client` and `driver` of whichever applies): a man who asks for Via Lincoln and a man who asks for
+// Via Bandiera, both winking ("vabbé u sai") and both in a hurry not to be seen. The joke is on the client's embarrassment only: nothing explicit, nobody at the destination is
+// described or mocked (the person he goes to see in Via Bandiera is only named, offstage). Palermitan drafts for the owner to correct (docs/palermitan-review.md); the glosses are ours.
+export const NIGHT_CLIENTS = {
+  lincoln: {
+    client: {
+      flag: [
+        ['Psst! Lapista! Ccà... ma senza fari scena.', 'Psst! Driver! Here... but no fuss.'],
+        ['Ehi! Pi favuri, cu discriziuni. Haiu a gghiri ’nta na stratuzza.', 'Hey! Please, discreetly. I have to go to a little street.'],
+      ],
+      board: [
+        ['Bonasira. Sugnu un... tecnicu ri... cosi. Pi lavoru.', 'Good evening. I am a... technician of... things. For work.'],
+        ['Mi raccumannu: un parrari, ca mi canusci tuttu u quartieri.', 'Please do not talk, the whole neighbourhood knows me.'],
+      ],
+      ask: [
+        ['Via Lincoln. Vabbé, u sai... pi na cosa.', 'Via Lincoln. Well, you know... for a thing.'],
+        ['Mi porti a via Lincoln. Haiu a... cuntrullari na cosa ri famigghia.', 'Take me to Via Lincoln. I have to... check a family matter.'],
+        ['Via Lincoln, e un ti scurdari: ccà un ci sugnu mai statu.', 'Via Lincoln, and do not forget: I have never been there.'],
+      ],
+      ambient: [
+        ['Chi viernu ca fa... mi mettu u cappeddu ’nta facci.', 'What a winter... I pull my hat over my face.'],
+        ['Cchiù chianu, ca mi talianu tutti.', 'Slower, everyone is looking at me.'],
+        ['Un taliari ’nta u specchiettu, pi favuri.', 'Do not look in the mirror, please.'],
+        ['Sugnu... in missioni pi cuntu ra parrocchia.', 'I am on a mission for the parish.'],
+      ],
+      fast: [['Mamma mia, mi scappa u cappeddu! E a cuscienza!', 'Mamma mia, my hat is flying off! And my conscience!']],
+      drift: [['Ohi! Si mi viri u parrinu accussì, mi scumunica!', 'Ohi! If the priest sees me like this he excommunicates me!']],
+      wheels: [['Du roti! Chiamati a me muggheri... no, lassati stari!', 'Two wheels! Call my wife... no, leave it!']],
+      miss: [['Chianu! Haiu ancora tanti cosi ri fari!', 'Easy! I still have so many things to do!']],
+      hitPed: [['Ma cu è? Un lu canusciu, ci l’aiuru!', 'Who is that? I do not know him, I swear it!']],
+      hitWall: [['Chi botta! Mi cariu u cappeddu!', 'What a bump! My hat fell off!']],
+      late: [['Curri, ca si fa tardu e mi viri a luna!', 'Hurry, it is getting late and the moon sees me!']],
+      arrive: [
+        ['Ecco, ecco. Teni, e... vabbé u sai: nuddu sapi nenti.', 'Here, here. Keep it, and... well, you know: nobody knows anything.'],
+        ['Grazzi, amicu. Tu un m’ha vistu. Mai.', 'Thanks, friend. You did not see me. Never.'],
+      ],
+      fail: [['Nun fa nenti, ci vaiu a pedi... cu u cappeddu ’n testa.', 'Never mind, I will go on foot... with my hat on.']],
+    },
+    driver: {
+      board: [['Tranquillu, cumpari. Via Lincoln, certu. Pi... a cosa.', 'Relax, pal. Via Lincoln, of course. For... the thing.']],
+      depart: [['Annamu, annamu, ca a nuttata è longa.', 'Let us go, let us go, the night is long.']],
+      ask: [['A mia nuddu m’ha ittu nenti.', 'Nobody told me anything.']],
+      arrive: [['Bonanuttata, cumpari. Ma u tassametru parla.', 'Good night, pal. But the meter talks.']],
+    },
+  },
+  bandiera: {
+    client: {
+      flag: [
+        ['Psst, lapista! Accustati, ma cu garbu.', 'Psst, driver! Pull over, but gently.'],
+        ['Ehi! Ccà! Haiu a gghiri... vabbé u sai unni.', 'Hey! Here! I have to go... well, you know where.'],
+      ],
+      board: [
+        ['Bonasira. Mi porti a via Bandiera? Nni Nicoletta a Trimmutura, vabbé u sai.', 'Good evening. Take me to Via Bandiera? To Nicoletta a Trimmutura’s, well, you know.'],
+        ['Un parrari assai, eh? Nicoletta mi spetta, vabbé u sai.', 'Do not talk much, eh? Nicoletta is expecting me, well, you know.'],
+      ],
+      ask: [
+        ['Via Bandiera, nni Nicoletta a Trimmutura. Vabbé u sai, no? Ci haiu a purtari i cannola.', 'Via Bandiera, to Nicoletta a Trimmutura’s. Well, you know, right? I have to bring her the cannoli.'],
+        ['Nni Nicoletta a Trimmutura, via Bandiera. Chi dici? Ca è n’autru seculu? Ma chi dici, mi spetta! Vabbé u sai.', 'To Nicoletta a Trimmutura’s, Via Bandiera. What do you say? That it is another century? Come on, she is expecting me! Well, you know.'],
+        ['Nun ti dugnu autri spiegazioni, vabbé u sai.', 'I will give you no more explanations, well, you know.'],
+      ],
+      ambient: [
+        ['Mi raccumannu: cu me muggheri nenti. Vabbé u sai.', 'Not a word to my wife. Well, you know.'],
+        ['Nni Nicoletta ci vaiu pi... affari. Riceve ancora, eh, ju u sacciu.', 'I go to Nicoletta’s for... business. She is still receiving, eh, I know it.'],
+        ['Chi calurusa sta nuttata, eh? Mi senti u cori...', 'Quite a warm night, eh? My heart...'],
+        ['Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci.', 'Look, they know me: I put the newspaper over my face.'],
+      ],
+      fast: [['Cchiù chianu, ca mi veni u mal ri mari!', 'Slower, I am getting seasick!']],
+      drift: [['Maronna! Si u sapi me suoru mi scumunica ’ntô luocu!', 'Madonna! If my sister finds out she excommunicates me on the spot!']],
+      wheels: [['Du roti! U me cori un regi!', 'Two wheels! My heart cannot take it!']],
+      miss: [['Chianu! Nicoletta mi spetta, vabbé u sai!', 'Easy! Nicoletta is waiting for me, well, you know!']],
+      hitPed: [['Un fu cuorpa mia! Un m’ha vistu nuddu!', 'It was not my fault! Nobody saw me!']],
+      hitWall: [['Ahia! Mi cariru i cannola!', 'Ouch! The cannoli fell!']],
+      late: [['Prestu, ca i cannola s’ammuscianu!', 'Hurry, the cannoli are going soft!']],
+      arrive: [
+        ['Ecco, ecco: grazzi. Teni, e vabbé u sai: muto.', 'Here, here: thanks. Keep it, and well, you know: mum.'],
+        ['Mi raccumannu: nuddu sapi nenti. Salutami... vabbé u sai.', 'Please: nobody knows anything. Say hello for me to... well, you know.'],
+      ],
+      fail: [['Nun fa nenti, ci vaiu a pedi... cu i cannola ’n manu.', 'Never mind, I will go on foot... with the cannoli in my hand.']],
+    },
+    driver: {
+      board: [['Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu.', 'Via Bandiera, well, you know. I am blind and deaf.'], ['Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita.', 'To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime.']],
+      depart: [['Chianu chianu, ca i cannola un si spezzanu.', 'Gently, gently, so the cannoli do not break.']],
+      ask: [['Nenti ri nenti, cumpari. Mutu.', 'Nothing about nothing, pal. Mum.']],
+      arrive: [['Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.', 'We are here, pal. Say hello to... nobody. But the meter talks.']],
+    },
+  },
+};
+
+// ---- The horns mission (src/event-horns.js, docs/horns.md): the citizen in Piazza Pretoria hands the lapa a huge pair of horns, and the lapa takes them under the Arco di Cutò. It rests on the real
+// Palermo saying that nobody passes under the arch of Cutò without scratching their head (the horns). The saying is general and points at nobody; so do all the lines. Palermitan drafts.
+export const HORNS_LINES = {
+  // both blanks stay bleeped, on screen and in sound: the balloons from the street while the horns are on
+  bip: [['Dottò BIP, lei è un BIP!', 'Doctor BEEP, you are a BEEP!']],
+  notme: [["Un u rissi iu, u rissi n'autru.", 'It was not me who said it, it was someone else.']],
+  call: [
+    ['Psst! Lapista! Vinni ccà, ca t’haiu a dari na cosa!', 'Psst! Driver! Come here, I have something to give you!'],
+    ['Amunì, ca è na missioni ri paisi: i cuorna!', 'Come on, it is a town mission: the horns!'],
+  ],
+  give: [
+    ['Teni ’sti cuorna, mettitilli ’ncapu e vai ô Cutò.', 'Take these horns, put them on and go to the Cutò.'],
+    ['Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa!', 'Nobody passes under the arch of Cutò without scratching their head!'],
+  ],
+  go: [
+    ['Camina, camina, ca l’arcu è ddà ’nfunnu.', 'Keep going, the arch is down there.'],
+    ['Attentu ca sunnu larghi, eh!', 'Careful, they are wide, eh!'],
+  ],
+  scrape: [
+    ['Craaaac! Un ci passanu!', 'Craaack! They will not fit!'],
+    ['Aaaahia! Sunnu truappu larghi!', 'Aaaahia! They are far too wide!'],
+  ],
+  head: [
+    ['Gràttiti a testa, ca ci stai passannu!', 'Scratch your head, you are going through!'],
+    ['Visti? Sutta l’arcu ri Cutò un si passa senza grattarisi a testa!', 'See? Under the arch of Cutò nobody passes without scratching their head!'],
+  ],
+  careful: [['Ma chi fai, ci addummanni u permissu?', 'What are you doing, asking permission?']],
+  careless: [['Chianu, un c’è premura! I cuorna!', 'Easy, no hurry! The horns!']],
+  passers: [
+    ['Ahahah! Talìa chi cuorna!', 'Hahaha! Look at those horns!'],
+    ['Gràttiti a testa, ca ti pizzica!', 'Scratch your head, it itches!'],
+    ['Ahahah! Bravu!', 'Hahaha! Well done!'],
+  ],
+  fail: [['Vabbè, i cuorna mi li pigghiu iu.', 'Fine, I will take the horns back myself.']],
+};
+
 // ---- "Pollanche": vendors roasting corn cobs on charcoal at the Santuario di Santa Rosalia (Monte Pellegrino).
 // Position-based, only built when the lapa gets near (whole-city tiles). Santuario from Nominatim (38.1680111, 13.351843); the carts stand
 // beside the service road, snapped to the world tiles: (rx, rz) points from the cart to the road.

@@ -13,6 +13,7 @@
 //   events() -> [{ id, kind: 'fare'|'urgent'|'food'|'race', name, x, z, night? }]  (x, z: a road point next to the caller; the start map pins them)
 //   progress() -> { food: { done, total }, races: { won, total }, fares }   (localStorage 'palermoDrive.events.v1')
 //   busy() -> true while an event runs
+//   status(id) -> { done, tried, best }, ready(id) -> [x, z, th] (the caller is there at once and accepts without a drive-off first): used by the Missioni screen (src/ui.js); the done events are also kept in prog.done
 //   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, world, placeAt, proj }
 // Test links: ?event=food:benny | fare:qc | urgent:u-stadio | race:olimpo puts the lapa at that event (add &auto to accept at once; race:corse forces night).
 // Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
@@ -28,8 +29,9 @@ import { createRaces } from './races.js';
 import { createPubs } from './pubs.js';
 import { createRave } from './rave.js';
 import { createRaveEvents } from './event-rave.js';
+import { createHornsEvents } from './event-horns.js';
 import { createAchievements } from './achievements.js';
-import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE } from './event-places.js';
+import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { transition } from './transition.js';
 
@@ -485,9 +487,9 @@ function build(env) {
   }
 
   // ------------------------------------------------------------------------------------ events
-  const prog = { fares: 0, food: {}, races: {}, pubs: {}, earned: 0 };
-  try { const p = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'); if (p && typeof p === 'object') { if (Number.isFinite(p.fares)) prog.fares = p.fares; if (p.food && typeof p.food === 'object') prog.food = p.food; if (p.races && typeof p.races === 'object') prog.races = p.races; if (p.pubs && typeof p.pubs === 'object') prog.pubs = p.pubs; } } catch (e) { /* storage unavailable */ }
-  const saveProg = () => { try { localStorage.setItem(PROG_KEY, JSON.stringify({ fares: prog.fares, food: prog.food, races: prog.races, pubs: prog.pubs })); } catch (e) { /* ignore */ } };
+  const prog = { fares: 0, food: {}, races: {}, pubs: {}, done: {}, earned: 0 };   // done: id -> { n, best } for every event that was paid (the Missioni screen); food, races and pubs keep their own maps too
+  try { const p = JSON.parse(localStorage.getItem(PROG_KEY) || 'null'); if (p && typeof p === 'object') { if (Number.isFinite(p.fares)) prog.fares = p.fares; if (p.food && typeof p.food === 'object') prog.food = p.food; if (p.races && typeof p.races === 'object') prog.races = p.races; if (p.pubs && typeof p.pubs === 'object') prog.pubs = p.pubs; if (p.done && typeof p.done === 'object') prog.done = p.done; } } catch (e) { /* storage unavailable */ }
+  const saveProg = () => { try { localStorage.setItem(PROG_KEY, JSON.stringify({ fares: prog.fares, food: prog.food, races: prog.races, pubs: prog.pubs, done: prog.done })); } catch (e) { /* ignore */ } };
   let session = 0;
   const S = { ev: null, phase: 'off', t: 0 };
   const speed = () => Math.hypot(car.vx, car.vz);
@@ -503,7 +505,7 @@ function build(env) {
   };
   const destBeacon = makeBeacon('#ffb3d9', 8.5); destBeacon.beam.scale.set(0.35, 1, 0.35);   // thin: a wide column fills half the screen when the lapa stops in the ring
   const destInfo = id => {
-    const d = DESTS.find(x => x.id === id) || TAXI_DESTS.find(x => x.id === id) || (id === PULLE_DEST.id ? PULLE_DEST : null);
+    const d = DESTS.find(x => x.id === id) || TAXI_DESTS.find(x => x.id === id) || (id === PULLE_DEST.id ? PULLE_DEST : null) || (FARE_SPOTS.find(f => f.dest && f.dest.id === id) || {}).dest;
     const s = SNAP['dest:' + id], [vx, vz] = env.proj(d.lat, d.lon);
     return { ...d, id, x: s[0], z: s[1], dx: s[2], dz: s[3], vx, vz };
   };
@@ -511,17 +513,30 @@ function build(env) {
   const slots = [];
   const mkSlot = (o, key) => { const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
-  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name }, 'fare:' + f.id));
+  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.nc ? { nc: f.nc, night: true } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area.
   mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: () => { const a = SNAP['rave:karcere'], b = SNAP['rave:site']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 650 }; } }, 'rave:karcere');
   mkSlot({ id: 'leaf:rave', kind: 'leaf', sub: 'leaf', name: 'Fuogghi allegri', night: true, leash: () => { const a = SNAP['rave:site'], b = SNAP['rave:leaf']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 700 }; } }, 'rave:site');
+  // the horns mission (day or night): the citizen in Piazza Pretoria, the arch of Cutò (docs/horns.md)
+  mkSlot({ id: 'horns:cuto', kind: 'horns', sub: 'horns', name: 'U Sinnacu a primavera', leash: () => { const a = SNAP['horns:start'], b = SNAP['horns:arch']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 330 }; } }, 'horns:start');
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
   let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
   const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) })),
     ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
+  // the Missioni screen (src/ui.js): done / tried / best pay of one event by id, and ready(id) so the caller is there at once (an event just left or finished waits out a cooldown)
+  const status = id => {
+    const k = id.slice(0, id.indexOf(':')), r = k === 'race' ? prog.races[id.slice(5)] : 0, d = prog.done[id];
+    return { done: r === 1 || !!d || (k === 'food' && !!prog.food[id.slice(5)]) || (k === 'pub' && !!prog.pubs[id]), tried: r === 2, best: d && d.best > 0 ? d.best : 0 };
+  };
+  const ready = id => {   // -> [x, z, th]: where the lapa stands, in the road at the caller's spot
+    const s = slots.find(x => x.id === id) || (pubs && pubs.slots.find(x => x.id === id)); if (!s) return null;
+    s.coolUntil = 0; calls.arm(); pubs?.arm();
+    for (const o of [...slots, ...(pubs ? pubs.slots : [])]) if (o !== s && o.kind !== 'race' && Math.hypot(o.x - s.x, o.z - s.z) < 30) o.coolUntil = Math.max(o.coolUntil, now() + 60);   // another caller on the same spot does not take the lapa first
+    return [s.x, s.z, Math.atan2(s.dx, s.dz)];   // the middle of the road: at the lane offset of the ?event link a wall was 0.7 m away on a narrow street
+  };
   const progress = () => ({ secrets: secrets.list(), pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
 
   const X = {
@@ -539,7 +554,7 @@ function build(env) {
   const calls = X.calls = createCalls(X);
   calls.setSlots(slots);
   const rave = createRave({ scene, camera, game, pedestrians, groundY: groundAt, proj: env.proj, isNight, walls2d });   // the rave on Pellegrino: stage, lights, crowd and music at night
-  const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave);
+  const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave), horns = createHornsEvents(X, { game });
   pubs = createPubs(X, { game });
   races.buildSlots(slots.filter(s => s.kind === 'race'));
   for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
@@ -547,21 +562,23 @@ function build(env) {
   function startEvent(slot) {
     if (S.ev) return;
     calls.release(slot);
-    S.ev = { slot };
+    S.ev = { slot, s0: session };
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: true }));   // src/vehicle-events.js: the ZEN gag waits
     talkQ.length = 0;
     if (slot.kind === 'fare' || slot.kind === 'urgent') fares.start(slot);
     else if (slot.kind === 'food') food.start(slot);
     else if (slot.kind === 'pub') pubs.start(slot);
     else if (slot.kind === 'rave' || slot.kind === 'leaf') raves.start(slot);
+    else if (slot.kind === 'horns') horns.start(slot);
     else races.start(slot);
   }
   function endEvent(ok, aborted) {
     const ev = S.ev; if (!ev) return;
-    fares.stop(); food.stop(); pubs.stop(); raves.stop();
+    fares.stop(); food.stop(); pubs.stop(); raves.stop(); horns.stop();
     if (aborted && ev.slot.kind === 'race') races.stop();
     if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
     if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
+    if (ok && ev.slot.kind !== 'race') { const d = prog.done[ev.slot.id] || (prog.done[ev.slot.id] = { n: 0, best: 0 }); d.n++; d.best = Math.max(d.best, Math.round((session - ev.s0) * 100) / 100); saveProg(); }   // a race is told by prog.races (won or tried)
     ev.slot.coolUntil = now() + (ok ? (ev.slot.kind === 'race' ? 12 : 150) : 40);
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: false }));
     calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); hud.leash(false); leash.out = false; leash.t = LEASH_T; destBeacon.show(false);
@@ -620,7 +637,7 @@ function build(env) {
     const ev = S.ev; if (!ev || ev.failT > 0) return;
     ev.failT = 3.6; leash.t = LEASH_T; leash.out = false; hud.leash(false); aim.on = false; S.phase = 'done';
     hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("T'alluntanasti truappu", 'You went too far away')}</span></div>`, 3.2);
-    say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed();   // a friend riding along (src/event-rave.js) gets out
+    say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed(); horns.leashed();   // a friend riding along (src/event-rave.js) gets out
   }
   const LEASH_LINES = [['Unni stai iennu?! Era ri dda banna!', 'Where are you going?! It was somewhere else!'], ['Vabbè, lassamu piaiddiri. Un mi puazzu firari i nuddu.', 'Fine, I give up. You cannot count on anyone.']];
   function updateLeash(dt) {
@@ -658,7 +675,7 @@ function build(env) {
       else if (raceGo) startEvent(raceGo);
       else if (pubGo) startEvent(pubGo);
     } else if (S.ev.failT > 0) { if ((S.ev.failT -= dt) <= 0) endEvent(false, S.ev.slot.kind === 'race'); }
-    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); updateLeash(dt); }
+    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); horns.update(dt); updateLeash(dt); }
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
@@ -675,7 +692,7 @@ function build(env) {
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
-  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S };
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves };
+  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, ready };   // pubs and rave: src/drunk.js reads their doors and the stage
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns };
   return api;
 }

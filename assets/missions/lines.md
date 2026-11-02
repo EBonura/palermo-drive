@@ -482,6 +482,283 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Cumu va, Avvucatu? E a riunioni di condominiu?  
   _How is it going, Lawyer? And the condominium meeting? (?)_
 
+## Two more night clients (Via Lincoln, Via Bandiera)
+
+### lincoln client: flag
+
+- Psst! Lapista! Ccà... ma senza fari scena.  
+  _Psst! Driver! Here... but no fuss._
+- Ehi! Pi favuri, cu discriziuni. Haiu a gghiri ’nta na stratuzza.  
+  _Hey! Please, discreetly. I have to go to a little street._
+
+### lincoln client: board
+
+- Bonasira. Sugnu un... tecnicu ri... cosi. Pi lavoru.  
+  _Good evening. I am a... technician of... things. For work._
+- Mi raccumannu: un parrari, ca mi canusci tuttu u quartieri.  
+  _Please do not talk, the whole neighbourhood knows me._
+
+### lincoln client: ask
+
+- Via Lincoln. Vabbé, u sai... pi na cosa.  
+  _Via Lincoln. Well, you know... for a thing._
+- Mi porti a via Lincoln. Haiu a... cuntrullari na cosa ri famigghia.  
+  _Take me to Via Lincoln. I have to... check a family matter._
+- Via Lincoln, e un ti scurdari: ccà un ci sugnu mai statu.  
+  _Via Lincoln, and do not forget: I have never been there._
+
+### lincoln client: ambient
+
+- Chi viernu ca fa... mi mettu u cappeddu ’nta facci.  
+  _What a winter... I pull my hat over my face._
+- Cchiù chianu, ca mi talianu tutti.  
+  _Slower, everyone is looking at me._
+- Un taliari ’nta u specchiettu, pi favuri.  
+  _Do not look in the mirror, please._
+- Sugnu... in missioni pi cuntu ra parrocchia.  
+  _I am on a mission for the parish._
+
+### lincoln client: fast
+
+- Mamma mia, mi scappa u cappeddu! E a cuscienza!  
+  _Mamma mia, my hat is flying off! And my conscience!_
+
+### lincoln client: drift
+
+- Ohi! Si mi viri u parrinu accussì, mi scumunica!  
+  _Ohi! If the priest sees me like this he excommunicates me!_
+
+### lincoln client: wheels
+
+- Du roti! Chiamati a me muggheri... no, lassati stari!  
+  _Two wheels! Call my wife... no, leave it!_
+
+### lincoln client: miss
+
+- Chianu! Haiu ancora tanti cosi ri fari!  
+  _Easy! I still have so many things to do!_
+
+### lincoln client: hitPed
+
+- Ma cu è? Un lu canusciu, ci l’aiuru!  
+  _Who is that? I do not know him, I swear it!_
+
+### lincoln client: hitWall
+
+- Chi botta! Mi cariu u cappeddu!  
+  _What a bump! My hat fell off!_
+
+### lincoln client: late
+
+- Curri, ca si fa tardu e mi viri a luna!  
+  _Hurry, it is getting late and the moon sees me!_
+
+### lincoln client: arrive
+
+- Ecco, ecco. Teni, e... vabbé u sai: nuddu sapi nenti.  
+  _Here, here. Keep it, and... well, you know: nobody knows anything._
+- Grazzi, amicu. Tu un m’ha vistu. Mai.  
+  _Thanks, friend. You did not see me. Never._
+
+### lincoln client: fail
+
+- Nun fa nenti, ci vaiu a pedi... cu u cappeddu ’n testa.  
+  _Never mind, I will go on foot... with my hat on._
+
+### lincoln driver: board
+
+- Tranquillu, cumpari. Via Lincoln, certu. Pi... a cosa.  
+  _Relax, pal. Via Lincoln, of course. For... the thing._
+
+### lincoln driver: depart
+
+- Annamu, annamu, ca a nuttata è longa.  
+  _Let us go, let us go, the night is long._
+
+### lincoln driver: ask
+
+- A mia nuddu m’ha ittu nenti.  
+  _Nobody told me anything._
+
+### lincoln driver: arrive
+
+- Bonanuttata, cumpari. Ma u tassametru parla.  
+  _Good night, pal. But the meter talks._
+
+### bandiera client: flag
+
+- Psst, lapista! Accustati, ma cu garbu.  
+  _Psst, driver! Pull over, but gently._
+- Ehi! Ccà! Haiu a gghiri... vabbé u sai unni.  
+  _Hey! Here! I have to go... well, you know where._
+
+### bandiera client: board
+
+- Bonasira. Mi porti a via Bandiera? Nni Nicoletta a Trimmutura, vabbé u sai.  
+  _Good evening. Take me to Via Bandiera? To Nicoletta a Trimmutura’s, well, you know._
+- Un parrari assai, eh? Nicoletta mi spetta, vabbé u sai.  
+  _Do not talk much, eh? Nicoletta is expecting me, well, you know._
+
+### bandiera client: ask
+
+- Via Bandiera, nni Nicoletta a Trimmutura. Vabbé u sai, no? Ci haiu a purtari i cannola.  
+  _Via Bandiera, to Nicoletta a Trimmutura’s. Well, you know, right? I have to bring her the cannoli._
+- Nni Nicoletta a Trimmutura, via Bandiera. Chi dici? Ca è n’autru seculu? Ma chi dici, mi spetta! Vabbé u sai.  
+  _To Nicoletta a Trimmutura’s, Via Bandiera. What do you say? That it is another century? Come on, she is expecting me! Well, you know._
+- Nun ti dugnu autri spiegazioni, vabbé u sai.  
+  _I will give you no more explanations, well, you know._
+
+### bandiera client: ambient
+
+- Mi raccumannu: cu me muggheri nenti. Vabbé u sai.  
+  _Not a word to my wife. Well, you know._
+- Nni Nicoletta ci vaiu pi... affari. Riceve ancora, eh, ju u sacciu.  
+  _I go to Nicoletta’s for... business. She is still receiving, eh, I know it._
+- Chi calurusa sta nuttata, eh? Mi senti u cori...  
+  _Quite a warm night, eh? My heart..._
+- Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci.  
+  _Look, they know me: I put the newspaper over my face._
+
+### bandiera client: fast
+
+- Cchiù chianu, ca mi veni u mal ri mari!  
+  _Slower, I am getting seasick!_
+
+### bandiera client: drift
+
+- Maronna! Si u sapi me suoru mi scumunica ’ntô luocu!  
+  _Madonna! If my sister finds out she excommunicates me on the spot!_
+
+### bandiera client: wheels
+
+- Du roti! U me cori un regi!  
+  _Two wheels! My heart cannot take it!_
+
+### bandiera client: miss
+
+- Chianu! Nicoletta mi spetta, vabbé u sai!  
+  _Easy! Nicoletta is waiting for me, well, you know!_
+
+### bandiera client: hitPed
+
+- Un fu cuorpa mia! Un m’ha vistu nuddu!  
+  _It was not my fault! Nobody saw me!_
+
+### bandiera client: hitWall
+
+- Ahia! Mi cariru i cannola!  
+  _Ouch! The cannoli fell!_
+
+### bandiera client: late
+
+- Prestu, ca i cannola s’ammuscianu!  
+  _Hurry, the cannoli are going soft!_
+
+### bandiera client: arrive
+
+- Ecco, ecco: grazzi. Teni, e vabbé u sai: muto.  
+  _Here, here: thanks. Keep it, and well, you know: mum._
+- Mi raccumannu: nuddu sapi nenti. Salutami... vabbé u sai.  
+  _Please: nobody knows anything. Say hello for me to... well, you know._
+
+### bandiera client: fail
+
+- Nun fa nenti, ci vaiu a pedi... cu i cannola ’n manu.  
+  _Never mind, I will go on foot... with the cannoli in my hand._
+
+### bandiera driver: board
+
+- Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu.  
+  _Via Bandiera, well, you know. I am blind and deaf._
+- Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita.  
+  _To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime._
+
+### bandiera driver: depart
+
+- Chianu chianu, ca i cannola un si spezzanu.  
+  _Gently, gently, so the cannoli do not break._
+
+### bandiera driver: ask
+
+- Nenti ri nenti, cumpari. Mutu.  
+  _Nothing about nothing, pal. Mum._
+
+### bandiera driver: arrive
+
+- Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.  
+  _We are here, pal. Say hello to... nobody. But the meter talks._
+
+## The horns mission (Arco di Cutò)
+
+### bip
+
+- Dottò BIP, lei è un BIP!  
+  _Doctor BEEP, you are a BEEP!_
+
+### notme
+
+- Un u rissi iu, u rissi n'autru.  
+  _It was not me who said it, it was someone else._
+
+### call
+
+- Psst! Lapista! Vinni ccà, ca t’haiu a dari na cosa!  
+  _Psst! Driver! Come here, I have something to give you!_
+- Amunì, ca è na missioni ri paisi: i cuorna!  
+  _Come on, it is a town mission: the horns!_
+
+### give
+
+- Teni ’sti cuorna, mettitilli ’ncapu e vai ô Cutò.  
+  _Take these horns, put them on and go to the Cutò._
+- Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa!  
+  _Nobody passes under the arch of Cutò without scratching their head!_
+
+### go
+
+- Camina, camina, ca l’arcu è ddà ’nfunnu.  
+  _Keep going, the arch is down there._
+- Attentu ca sunnu larghi, eh!  
+  _Careful, they are wide, eh!_
+
+### scrape
+
+- Craaaac! Un ci passanu!  
+  _Craaack! They will not fit!_
+- Aaaahia! Sunnu truappu larghi!  
+  _Aaaahia! They are far too wide!_
+
+### head
+
+- Gràttiti a testa, ca ci stai passannu!  
+  _Scratch your head, you are going through!_
+- Visti? Sutta l’arcu ri Cutò un si passa senza grattarisi a testa!  
+  _See? Under the arch of Cutò nobody passes without scratching their head!_
+
+### careful
+
+- Ma chi fai, ci addummanni u permissu?  
+  _What are you doing, asking permission?_
+
+### careless
+
+- Chianu, un c’è premura! I cuorna!  
+  _Easy, no hurry! The horns!_
+
+### passers
+
+- Ahahah! Talìa chi cuorna!  
+  _Hahaha! Look at those horns!_
+- Gràttiti a testa, ca ti pizzica!  
+  _Scratch your head, it itches!_
+- Ahahah! Bravu!  
+  _Hahaha! Well done!_
+
+### fail
+
+- Vabbè, i cuorna mi li pigghiu iu.  
+  _Fine, I will take the horns back myself._
+
 ## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
 
 ### cries
