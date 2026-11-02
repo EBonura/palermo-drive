@@ -673,7 +673,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
     getEvents: () => fakeEvents || missions?.events?.() || [],
-    onStart: (x, z) => startAt(x, z),
+    onStart: (x, z, it) => it?.kind === 'event' ? mapGo(it.ref) : startAt(x, z),
+    eventButton: e => { const k = mapSkip(e); if (k == null) return null; const i = lang === 'it' ? 0 : 1, m = S[k ? 'mSkipNight' : 'mSkipDay']; return [m[i], m[1 - i]]; },
   });
   if (params.has('mapdebug')) window.__pdMap = startMap;
   function setView(v) {
@@ -874,6 +875,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     goMission(f.e, a === 'skip' ? f.hour : undefined);
   }
   function goMission(e, hour) { startAt(e.x, e.z, { id: e.id, hour }); }
+  // from the map: the same start as Vai, ready to accept; a mission at the wrong time of day moves the clock (the popup's button has already said so)
+  function mapSkip(e) { const want = e.night ? true : e.day ? false : null; return want !== null && want !== nightNow() ? want : null; }
+  function mapGo(e) { const w = mapSkip(e); startAt(e.x, e.z, { id: e.id, hour: w == null ? undefined : w ? NIGHT_HOUR : DAY_HOUR }); }
 
   // ---- credits roll ----
   let assetsHTML = '', assetsLoaded = false, rollPause = 0, rollY = 0;
