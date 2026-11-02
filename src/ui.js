@@ -51,6 +51,8 @@ const S = {
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
+  igMe: ['Segui questo gioco', 'Follow this game'], igStudio: ['Lo studio: soprattutto PS1', 'The studio: mostly PS1'],
+  coords: ['Coordinate (debug)', 'Coordinates (debug)'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'],
@@ -280,6 +282,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <div class="pd-tap" data-k="${coarse ? 'tapTouch' : 'tapKey'}" data-two></div>
 `);
   // main menu
+  const IG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>';
+  const igLink = (h, k) => `<a class="pd-ig" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer">${IG}<span><b>@${h}</b><small data-k="${k}"></small></span></a>`;
   mk('menu', '', `<div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
@@ -287,6 +291,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav>
+    <div class="pd-igs">${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div>
 `);
   // options
   const OPTS = [
@@ -301,6 +306,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
+    { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Italiano'], ['en', null, 'English']] };
   OPTS.push(LANG_OPT);

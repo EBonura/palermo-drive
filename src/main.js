@@ -26,6 +26,7 @@ import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.j
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
 import { POI_SPOTS } from './pub-places.js';
+import { createCoords } from './coords.js'; // ?coords or Options: position on screen for bug reports (src/coords.js)
 import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
@@ -364,6 +365,7 @@ let radio = null;
 setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 watchVersion(game);
+const coords = createCoords({ game, car, camera, groundY });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
@@ -401,6 +403,7 @@ renderer.setAnimationLoop(now => {
   if (game.state === 'play') missions.update?.(dt);
   if (game.state === 'play') suca.update(dt, car);
   if (game.state === 'play') { stadium.update(dt); carretto.update(dt); markets.update(dt); }
+  coords.update();
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
