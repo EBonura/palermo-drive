@@ -162,6 +162,70 @@ The people are no longer drawn at load time. `node tools/lpc/build.mjs` composes
 
 Cells: 3 directions (right is the mirror of left) x poses 0 idle, 1 to 4 walk (run for the joggers), 5 a drink held (drinkers), 6 sit and 7 sit and sip (only the people with a drink can sit). To stay at today's memory the cell is 38 px wide (the couples are cropped to it), sitting cells are lifted 2 px to the standing ground line and the cast keeps sit cells for drinkers only. Credits and the licence note are in `assets/peds/lpc/CREDITS.md` and `LICENSE.md`.
 
+## Phone budget pass (board item x5)
+
+Goal: take main-thread time off the phone profile (844x390, DPR 3, touch UI, 4x CPU slowdown) at the five worst places without changing how either device looks. Desktop and phone run the same graphics settings; nothing below is behind a device check.
+
+### Method
+
+`node tools/build/spotbench.mjs --url <dev server or a served dist> [--runs 3] [--spots qc,ballaro,zisa,porto,mondello] [--desktop]` (new, `tools/build/spotbench.mjs`). Per spot: `?fixres&debug&at=x,z,th`, 7 s to settle, the 4x slowdown on, 4 s more, then 6 s measured. Main ms per frame is CDP `TaskDuration` divided by frames; script, layout plus style, time inside `renderer.render`, draw calls and triangles of the last frame (shadow pass included) come with it. The spots are Quattro Canti (17.5, 0), Ballaro (24.9, 488.6), Piazza Zisa (-1758.8, -43.6), the port at Via Crispi (91.6, -1300.1) and Mondello's piazza (-3033.1, -10177.4), headings as in the script.
+
+Noise is the problem on a shared Mac: the same build moves 1 to 3 ms between runs minutes apart, and the first measuring window after a load is slower than the next ones. So before and after were built from two snapshots of the same tree that differ only in the files listed below (`build.mjs --src=<snapshot>`), served side by side, and measured as concurrent pairs (both pages load and run at the same moment under the same machine load), three pairs per spot, median. Read differences under about 0.5 ms as noise; the draw call counts and the layout column are exact.
+
+### Where the main thread goes (phone profile, 4x, Quattro Canti and Ballaro)
+
+CPU profile, inclusive, per second of wall time at about 30 fps (the frame callback is 570 to 690 ms of that second):
+- `renderer.render` 430 to 510 ms: drawing 190 to 250, of which `setProgram` (uniforms and binding state per draw) 110 to 130; `projectObject` (walking the scene) 88 to 97; the shadow pass 79 to 89 (it is on: the default tier is medium on every device, 1024 map); `updateMatrixWorld` 52 to 60.
+- game code 110 to 130 ms: pedestrians 20 to 38, traffic 34 to 54, sea 11, minimap 11, police beacons 12.
+
+So the frame is dominated by what three.js does per draw call and per object, about 560 calls (360 in the main pass, 195 in the shadow pass at Quattro Canti), not by triangles or by any one game system. Switching pieces off in one page, one 3 s window each (main ms per frame against the window before and after; differences of 0.5 ms or less are noise):
+
+| piece off | Quattro Canti | Ballaro | Porto | Mondello | calls removed (QC / Ballaro) |
+| --- | --- | --- | --- | --- | --- |
+| shadow pass | -1.5 | -2.0 | -2.3 | -1.3 | 195 / 189 |
+| all props (groups hidden) | -0.8 | -1.9 | | | 231 / 249 (105k / 190k triangles) |
+| rubbish piles (bags, bag_pile, mega, litter, cardboard, dump, mwaste, mcrates) | 0.0 | -0.4 | | | 45 / 63 (21k / 43k triangles) |
+| trees and shrubs | -0.4 | -0.4 | | -0.1 | 56 / 60 |
+| street furniture (lamps, bollards, benches, kiosks ...) | -0.8 | 0.0 | | | 62 / 47 |
+| boats | -0.4 | -0.7 | -0.6 | -0.1 | 0 |
+| far city (context chunks, far terrain) | -0.6 | -1.7 | 0.0 | -0.7 | 38 / 50 |
+| streets and terrain | -1.5 | | -0.9 | -1.3 | 62 / |
+
+The rubbish piles are 8 to 11 % of the draw calls and 1 to 3 % of the triangles but cost 0 to 0.4 ms of main thread, so thinning them would change the look for almost nothing. I left them. The same goes for every prop kind on its own: props as a whole are 40 % of the calls and 1 to 2 ms, spread over 100 cell meshes a pass.
+
+### What changed (phone and desktop alike, nothing looks different)
+
+1. DOM writes every frame (`src/main.js`, `src/event-hud.js`). A MutationObserver on the running page showed 3 mutations a frame: the speed digits and the `km/h` label were rewritten every frame, and my own edge arrow for event destinations (x e4) toggled its class twice a frame even when nothing changed. A DOM write of the same value still invalidates style, so the browser did a style recalculation every frame. The HUD text and the arrow class are now written only when they change. Layout plus style: 0.5 to 0.7 ms a frame down to 0.2 to 0.3 (0.15 desktop to 0.05).
+2. Frozen matrices for the prop cells (`src/props.js`). Every prop tile group and every cell mesh composed and multiplied its matrix every frame, and a group that updates forces all of its children to as well. The groups and the instanced meshes (they never move, the instances do) now have `matrixAutoUpdate = false`. Objects that recompute their world matrix every frame at Quattro Canti: 1301 down to 534.
+3. Shadow distance for small props (`SHADOW_D` in `src/props.js`). Parked cars already stopped casting beyond 60 m. Things narrower than about a metre (bollards, hydrants, phone boxes, post boxes, cabinets, small bins, fountains, litter, cardboard, crates, bus stop signs: 60 m) and up to about two metres (bag piles, big bins, scooters, cafe sets, benches, stall tables: 80 m) now stop casting at those distances too. At 1024 texels over 320 m a texel is 0.31 m, so these are one to three texels of shadow, and the mesh is still drawn. This is the only change that is not pixel-identical (a far bollard shadow is gone); it removes 9 to 30 shadow draws a frame (30 at Quattro Canti and Ballaro, 18 at Zisa, 27 at the port, 9 at Mondello). The table is one line to revert.
+4. Boats far away are sampled less often (`animateBoats` in `src/sea.js`): within 500 m every frame, to 2 km every 4th, beyond every 8th. The matrix still comes from the absolute time, only the sampling is sparser; heave is 5 cm and pitch under 2 degrees, invisible at that distance.
+5. Window size reads (`src/viewport.js`, new, used by `src/police.js`, `src/shouts.js`, `src/vehicle.js`, `src/event-hud.js`). `innerWidth` and `innerHeight` can make the browser lay the page out when something changed this frame; they are read once and on resize instead.
+
+### Result (median of three concurrent pairs, phone profile 4x; "before" is the same tree without the five items above)
+
+| | main ms before | main ms after | change | calls before / after | layout + style before / after |
+| --- | --- | --- | --- | --- | --- |
+| Quattro Canti | 12.43 | 11.48 | -0.95 (-8 %) | 568 / 538 | 0.53 / 0.19 |
+| Ballaro market | 15.75 | 14.51 | -1.24 (-8 %) | 595 / 565 | 0.62 / 0.22 |
+| Piazza Zisa | 12.35 | 11.30 | -1.05 (-9 %) | 471 / 453 | 0.64 / 0.21 |
+| the port | 10.37 | 9.64 | -0.73 (-7 %) | 469 / 442 | 0.55 / 0.20 |
+| Mondello piazza | 12.39 | 11.14 | -1.25 (-10 %) | 468 / 459 | 0.72 / 0.34 |
+
+The absolute numbers are higher than a quiet run (two browsers share the machine in a pair; a single quiet run of the old build reads 9 to 13 ms); the differences are the point, and in all 15 pairs (taken in the order they finished) the new build was ahead. Desktop (1280x720, no slowdown, one run each): Quattro Canti 3.29 to 3.02 ms and Ballaro 3.88 to 3.52 ms, calls 535 to 502 and 583 to 551.
+
+### Not done, and why
+
+- Thinning the rubbish piles: see the table, 0 to 0.4 ms for a visible change.
+- Updating the shadow map every other frame, or tightening the shadow box: the biggest single piece (1.3 to 2.3 ms, 13 to 20 %), but it would show (lagging shadows on moving things, less shadow range). If a real phone needs it, the least visible lever is the shadow box (`left/right/top/bottom` 160 m in `src/main.js`) or the tier (`low` has no shadow pass).
+- Fewer, bigger prop meshes (one per tile instead of per 250 m cell and model): a bigger mesh has a bigger bounding sphere, so small props would be drawn further out than their `FAR` distance. That changes the look.
+- Far city chunks (23 draws at Quattro Canti, 0.6 to 1.7 ms): already 2 km chunks with one material; the cost is the draws themselves.
+- Pedestrians and traffic: already budgeted (docs above); 1 to 2 ms together and nothing that stood out in the profile.
+
+### For `src/world.js` (not touched, routed to the lead)
+
+- Freeze the tile parts. 279 of the 534 objects that still recompute a world matrix every frame at Quattro Canti are under the `world` root (groups made at `world.js` 444, 634, 713, 783, 800, 817 and their meshes; only the meshes made at 453 and in `buildings.js` are frozen already, and a parent that updates forces its children anyway). `setPart` (line 328) could freeze each part it adds: `obj.traverse(o => { o.updateMatrix(); o.matrixAutoUpdate = false; })`. Setting it from the page console on the whole `world` subtree took the count from 534 to 256 and the objects are static (a grep of the landmark, building, garden, stadium, fence and world code finds no `rotation` or `position` writes on them). The frame time effect is inside the noise on this machine (the profile puts `updateMatrixWorld` plus its multiplications at about 60 to 80 ms per second at 4x for 1300 objects, so the remaining half is worth up to roughly 0.5 ms a frame); the object count is exact.
+- The building chunks are the biggest part of the shadow pass (17 meshes, 297k triangles at Quattro Canti, 275k of them cast). A chunk is drawn into the shadow map whole if its bounding sphere touches the 320 m shadow box, so most of that is outside the box. Splitting the chunks smaller for the shadow pass (or a depth-only low detail version) would cut GPU work in the shadow pass; it does not change the draw call count, so on the main thread it is worth nothing, on a real phone GPU it may.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.
@@ -251,6 +315,7 @@ node tools/build/measure.mjs --root dist --profile phone --net slow4g --cpu 4 --
 node tools/build/measure.mjs --url https://ebonura.github.io/palermo-drive/ --profile desktop      # the live site
 node tools/build/shots.mjs --roots <ref dir>,dist --out /tmp/shots                                  # screenshot diff
 node tools/build/scenestats.mjs --root dist --spot "38.115684,13.361460"                            # heaviest meshes
+node tools/build/spotbench.mjs --url http://localhost:8792/ --runs 3                                  # main ms per frame at the five spots, phone profile (see the phone budget pass)
 node tools/build/profile.mjs --root <dist built with --minify=false> --profile phone                # CPU + allocation profile
 ```
 `measure.mjs --root <source tree> --cdn <dir with three@r160>` measures the old layout (how the baseline was taken: `git archive bd6bf5f`).
