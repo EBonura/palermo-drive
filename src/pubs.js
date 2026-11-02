@@ -156,7 +156,9 @@ export function createPubs(X, { game }) {
         const dc = Math.hypot(car.x - v.kerb.x, car.z - v.kerb.z);
         v.ring.show(dc < 200);
         if (dc < nd) { nd = dc; nearest = v; }
-        if (armed && dc < ACCEPT_R && speed() < 2.2) { v.slot.holdT += dt; if (v.slot.holdT > 0.35) accepted = v.slot; } else v.slot.holdT = 0;
+        // Taverna, Magione and Monkey have their door in a piazza 20 to 50 m from the road, which the lapa cannot reach from it: there the road point (the pin on the map, where the errand ends) counts too
+        const here = dc < ACCEPT_R || (Math.hypot(v.kerb.x - v.slot.x, v.kerb.z - v.slot.z) > ACCEPT_R && Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < ACCEPT_R);
+        if (armed && here && speed() < 2.2) { v.slot.holdT += dt; if (v.slot.holdT > 0.35) accepted = v.slot; } else v.slot.holdT = 0;
       } else if (slow && d < OFFER_R && car.type !== 'sulky') spawnCaller(v);
     }
     // minimap pins for the pubs within reach
@@ -186,7 +188,7 @@ export function createPubs(X, { game }) {
   function clear() { for (const v of venues) { dropCaller(v); dropCrowd(v); if (v.slot.marker) { X.dropMarker(v.slot.marker); v.slot.marker = null; } } }
   // the music of the houses that have one: made on first use, they load their file only when the lapa is close
   for (const v of venues) if (v.def.music) v.music = createMusic(v.def, v.door, game, car, X.camera);
-  const api = { venues, slots: venues.map(v => v.slot), update, start, updateEvent: dt => errand.update(dt), stop, clear, cheer, errand, disarm: () => { armed = false; } };
+  const api = { venues, slots: venues.map(v => v.slot), update, start, updateEvent: dt => errand.update(dt), stop, clear, cheer, errand, arm: () => { armed = true; }, disarm: () => { armed = false; } };
   X.pubs = api;
   return api;
 }
