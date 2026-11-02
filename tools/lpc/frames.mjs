@@ -23,7 +23,7 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
     const f = P.layers.length ? frameOf(sheets[anim], anim, dir, idx) : new Uint8ClampedArray(FRAME * FRAME * 4);
     const hd = P.layers.length ? X.bbox(frameOf(subSheets['head' + anim], anim, dir, idx)) : null;
     if (hd) {
-      const A = { hd, dir, torso: subSheets['torso' + anim] ? X.maskOf(frameOf(subSheets['torso' + anim], anim, dir, idx)) : new Uint8Array(FRAME * FRAME), skinAt: (x, y) => { if (x < 0 || y < 0 || x >= FRAME || y >= FRAME) return false; const i = (y * FRAME + x) * 4; return f[i + 3] && skinSet.has((f[i] << 16) | (f[i + 1] << 8) | f[i + 2]); }, bodyMask: X.maskOf(f) };
+      const A = { hd, dir, sit: pose === 7, torso: subSheets['torso' + anim] ? X.maskOf(frameOf(subSheets['torso' + anim], anim, dir, idx)) : new Uint8Array(FRAME * FRAME), skinAt: (x, y) => { if (x < 0 || y < 0 || x >= FRAME || y >= FRAME) return false; const i = (y * FRAME + x) * 4; return f[i + 3] && skinSet.has((f[i] << 16) | (f[i + 1] << 8) | f[i + 2]); }, bodyMask: X.maskOf(f) };
       const hands = X.handsOf(f, A, hd.y1 + 6, hd.y1 + 34), sipPose = pose === 5 || pose === 7;
       for (const [kind, ...a] of P.extras) {
         switch (kind) {
@@ -31,7 +31,8 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
           case 'print': X.bandPrint(f, A, a[0], a[1], a[2]); break; case 'suit': X.suitFront(f, A, a[0]); break; case 'leather': X.leatherJacket(f, A, a[0]); break; case 'patches': X.patches(f, A); break;
           case 'rosaScarf': X.rosaScarf(f, A, a[0] || 'rosanero', a[1] || 'black'); break; case 'bandolier': X.bandolier(f, A, a[0]); break; case 'chain': X.chain(f, A); break; case 'stripe': X.stripe(f, A); break;
           case 'tattoo': X.tattoo(f, A, a[0]); break; case 'rip': X.ripKnees(f, A, skinRGB); break; case 'earring': X.earring(f, A); break;
-          case 'backpack': X.backpack(f, A, a[0]); break;
+          case 'backpack': X.backpack(f, A, a[0]); break; case 'bib': X.bib(f, A, a[0]); break; case 'rag': X.rag(f, A, a[0]); break;
+          case 'wrench': { const w = hands.l; X.wrench(f, w.x, w.y, dir === 'left' ? -1 : 1); break; }
           case 'hold': { const hd2 = a[2] === 'r' ? hands.r : hands.l; if (pose >= 6) break; const x = hd2.x, y = hd2.y; if (a[0] === 'bag') X.bag(f, x, y + 1, a[1]); else if (a[0] === 'purse') X.purse(f, x, y + 1, a[1]); else if (a[0] === 'briefcase') X.briefcase(f, x, y + 1, a[1]); else if (a[0] === 'helmet') X.helmetHand(f, x, y - 2, a[1]); else if (a[0] === 'phone') X.phone(f, x, y - 2); break; }
           case 'drink': { const hnd = dir === 'left' || dir === 'right' ? hands.l : hands.r; if (sipPose) X.sip(f, A, hnd, skinRGB, a[0], a[1]); else if (a[0] === 'glass') X.glass(f, hnd.x, hnd.y, a[1]); else X.bottle(f, hnd.x, hnd.y, a[1]); break; }
           case 'dog': X.dog(f, A, a[0], pose); break; case 'stroller': X.stroller(f, A, a[0], a[1]); break;
