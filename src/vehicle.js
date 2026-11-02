@@ -668,7 +668,7 @@ export function createVehicle(env) {
     const sp = Math.abs(car.vf);
     const slideAmt = Math.max(clamp((Math.abs(car.slip) - 0.18) * 3, 0, 1) * (car.drift > 0.3 ? 1 : 0), keys.Space && sp > 6 ? 0.8 : 0) * clamp(sp / 10, 0, 1);
     if (active && slideAmt > 0.1) {
-      smokeAcc += dt * 38 * slideAmt;
+      if (!(car.wet > 0.05)) smokeAcc += dt * 38 * slideAmt;   // no tyre smoke on the water
       const sn = Math.sin(car.th), cs = Math.cos(car.th);
       while (smokeAcc >= 1) {
         smokeAcc -= 1;
