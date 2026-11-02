@@ -104,7 +104,7 @@ const mul = (a, b) => new THREE.Matrix4().multiplyMatrices(a, b);
 const tr = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
 const rotY = (a) => new THREE.Matrix4().makeRotationY(a);
 
-function finish(scene) {
+function finish(parent) {
   const out = {};
   for (const k in MATS) {
     if (!BINS[k].length) continue;
@@ -113,7 +113,7 @@ function finish(scene) {
     const mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...m.opts });
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = !m.opts.noShadow; mesh.receiveShadow = true; mesh.name = 'landmarks-' + k;
-    scene.add(mesh); out[k] = merged.attributes.position.count / 3;
+    parent.add(mesh); out[k] = merged.attributes.position.count / 3;
     BINS[k] = [];
   }
   return out;
@@ -243,63 +243,72 @@ const centroid = (pts) => { let x = 0, z = 0; for (const p of pts) { x += p[0]; 
 // ====================================================================================================
 const QC = { C: [17.49, 4.0], R: 15.29, Rf: 14.95, Wd: 12.6 };
 
-function paintQC(Wd, PXH) {
-  const W = 512, H = 1024, sx = W / Wd, sy = H / 25.6;
+// The facade of one of the four Quattro Canti (Piazza Vigliena, 1608-20), painted: Wd metres wide, 25.6 m high on a W x H canvas. Read off the Commons photos (CC0 Bjs 2007 front view;
+// Flickr 9455477141, CC BY 2.0): a rusticated pedestal, three tiers with their orders (Doric, Ionic, composite) between two grey marble columns, the fountain and a plaque in the middle
+// of the lowest tier, a king's niche in the middle one, the saint's niche in the top one, shuttered windows in the side bays, a deep balcony between the first two tiers and the
+// royal arms on the attic. The heavy parts are real geometry (buildQuattroCanti), this is the wall they stand on: dressed stone, stucco frames, shutters, shadows.
+function paintQC(Wd) {
+  const W = 768, H = 1536, sx = W / Wd, sy = H / 25.6;
   return mkTex(W, H, (g) => {
     const X = (s) => (s + Wd / 2) * sx, Y = (y) => H - y * sy;
     const rect = (s0, y0, s1, y1, f) => { g.fillStyle = f; g.fillRect(X(s0), Y(y1), (s1 - s0) * sx, (y1 - y0) * sy); };
+    const frame = (s0, y0, s1, y1, c, wd) => { rect(s0 - wd, y0 - wd, s1 + wd, y0, c); rect(s0 - wd, y1, s1 + wd, y1 + wd, c); rect(s0 - wd, y0, s0, y1, c); rect(s1, y0, s1 + wd, y1, c); };
     const r_ = R_(101);
-    // base stone
-    g.fillStyle = '#8f7b58'; g.fillRect(0, 0, W, H);
-    // ground tier: heavy rustication
-    for (let y = 0; y < 7.4; y += 0.55) {
-      let s = -Wd / 2 - r_() * 1.1;
-      while (s < Wd / 2) {
-        const bw = 0.9 + r_() * 0.9, k = 0.88 + r_() * 0.2;
-        g.fillStyle = `rgb(${(150 * k) | 0},${(126 * k) | 0},${(90 * k) | 0})`; rect(s + 0.03, y + 0.03, s + bw - 0.03, y + 0.52, g.fillStyle); s += bw;
-      }
+    const T1 = 7.4, T2 = 15.0, T3 = 21.8;
+    // the stone: warm limestone, courses of dressed blocks that get finer with height
+    g.fillStyle = '#9a7b48'; g.fillRect(0, 0, W, H);
+    for (const [ya, yb, bh, bw, c0] of [[1.9, T1, 0.6, 1.5, [158, 126, 80]], [T1 + 0.6, T2, 0.72, 1.7, [164, 132, 86]], [T2 + 0.6, T3, 0.72, 1.7, [162, 130, 84]]]) for (let y = ya; y < yb; y += bh) {
+      let s = -Wd / 2 - r_() * bw;
+      while (s < Wd / 2) { const w2 = bw * (0.7 + r_() * 0.6), k = 0.86 + r_() * 0.26; rect(s + 0.025, y + 0.025, s + w2 - 0.025, y + bh - 0.02, `rgb(${(c0[0] * k) | 0},${(c0[1] * k) | 0},${(c0[2] * k) | 0})`); s += w2; }
     }
-    // mid and upper tiers: finer courses
-    for (const [ya, yb] of [[8.0, 15.0], [15.6, 21.8]]) for (let y = ya; y < yb; y += 0.7) {
-      let s = -Wd / 2 - r_() * 1.4;
-      while (s < Wd / 2) { const bw = 1.2 + r_() * 1.0, k = 0.9 + r_() * 0.18; rect(s + 0.02, y + 0.02, s + bw - 0.02, y + 0.68, `rgb(${(164 * k) | 0},${(140 * k) | 0},${(102 * k) | 0})`); s += bw; }
-    }
-    // cornice bands
-    for (const [y0, y1] of [[7.4, 8.0], [15.0, 15.6], [21.8, 22.5]]) { rect(-Wd / 2, y0, Wd / 2, y1, '#9d8864'); rect(-Wd / 2, y0, Wd / 2, y0 + 0.12, '#4d4132'); }
-    // attic above the top cornice
-    rect(-Wd / 2, 22.5, Wd / 2, 25.6, '#9a865f');
-    for (let s = -Wd / 2 + 0.3; s < Wd / 2; s += 1.5) rect(s, 22.5, s + 0.12, 24, '#6e5d44');
-    // corner quoin strips
+    // the pedestal: panelled, darker
+    rect(-Wd / 2, 0, Wd / 2, 1.9, '#7d6a49');
+    for (const [a, b] of [[-5.3, -2.95], [-1.9, 1.9], [2.95, 5.3]]) { rect(a, 0.35, b, 1.55, '#8c7852'); frame(a, 0.35, b, 1.55, '#5e4e36', 0.1); rect(a + 0.12, 0.47, b - 0.12, 1.43, '#957f57'); }
+    rect(-Wd / 2, 1.9, Wd / 2, 2.1, '#b49a6c'); rect(-Wd / 2, 1.9, Wd / 2, 1.97, '#4d4132');
+    // the bossed quoin strips up both edges, rusticated on the lowest tier
     for (const sg of [-1, 1]) {
-      const a = sg < 0 ? -Wd / 2 : Wd / 2 - 0.95, b = a + 0.95;
-      for (let y = 0; y < 22; y += 0.45) rect(a, y, b, y + 0.41, y < 7.4 ? '#8a7352' : '#b49c73');
+      const a = sg < 0 ? -Wd / 2 : Wd / 2 - 1.0, b = a + 1.0;
+      for (let y = 2.1; y < T3; y += 0.62) { const k = 0.9 + r_() * 0.18; rect(a, y, b, y + 0.56, `rgb(${(188 * k) | 0},${(160 * k) | 0},${(112 * k) | 0})`); rect(a, y, b, y + 0.07, 'rgba(255,240,200,0.35)'); rect(a, y + 0.5, b, y + 0.56, 'rgba(40,28,16,0.35)'); }
     }
-    // centre panel on the ground tier + plaque
-    rect(-2.0, 0.9, 2.0, 7.0, '#8e7a58'); g.strokeStyle = '#4a3c2b'; g.lineWidth = 3; g.strokeRect(X(-2.0), Y(7.0), 4.0 * sx, 6.1 * sy);
-    rect(-1.55, 4.6, 1.55, 6.3, '#d6cfbc'); g.fillStyle = '#5a5448';
-    for (let y = 4.85; y < 6.1; y += 0.16) g.fillRect(X(-1.3), Y(y), 2.6 * sx * (0.7 + r_() * 0.3), 3);
-    // windows
-    const win = (s, y0, y1, w, ped) => {
-      rect(s - w / 2 - 0.22, y0 - 0.15, s + w / 2 + 0.22, y1 + 0.15, '#c8bc9e');
-      rect(s - w / 2, y0, s + w / 2, y1, '#4a5a4f');
-      g.fillStyle = '#34423a'; for (let y = y0 + 0.1; y < y1; y += 0.14) g.fillRect(X(s - w / 2), Y(y), w * sx, 2);
-      g.fillStyle = '#26301f'; g.fillRect(X(s) - 1, Y(y1), 2, (y1 - y0) * sy);
-      if (ped) { g.fillStyle = '#c8bc9e'; g.beginPath(); g.moveTo(X(s - w / 2 - 0.5), Y(y1 + 0.2)); g.lineTo(X(s), Y(y1 + 1.0)); g.lineTo(X(s + w / 2 + 0.5), Y(y1 + 0.2)); g.fill(); }
+    // the central bay: smooth, recessed panels with a dark moulding
+    rect(-1.95, 2.1, 1.95, 7.0, '#9b8458'); frame(-1.95, 2.1, 1.95, 7.0, '#5a4a32', 0.1);
+    rect(-1.8, 2.25, 1.8, 6.85, '#a38c5f');
+    // the plaque (an inscription on a white cartouche) above the season's statue
+    rect(-1.6, 4.55, 1.6, 6.45, '#e2dccb'); frame(-1.6, 4.55, 1.6, 6.45, '#b9ae95', 0.12); rect(-1.45, 4.7, 1.45, 6.3, '#d8d1bd');
+    g.fillStyle = '#6a6354'; for (let y = 4.95; y < 6.15; y += 0.17) g.fillRect(X(-1.25), Y(y), 2.5 * sx * (0.72 + r_() * 0.28), 3);
+    g.fillStyle = '#e8e2d2'; g.beginPath(); g.ellipse(X(0), Y(6.55), 0.5 * sx, 0.14 * sy, 0, 0, 7); g.fill();
+    // the windows of the side bays: stucco frames, green shutters with louvres
+    const shutter = (s, y0, y1, w) => {
+      rect(s - w / 2, y0, s + w / 2, y1, '#3e5f48');
+      g.fillStyle = '#2f4a38'; for (let y = y0 + 0.08; y < y1 - 0.05; y += 0.13) g.fillRect(X(s - w / 2) + 2, Y(y), w * sx - 4, 2);
+      rect(s - 0.025, y0, s + 0.025, y1, '#223528');
     };
-    for (const s of [-3.85, 3.85]) {
-      win(s, 2.9, 5.5, 1.2, false);
-      rect(s - 0.95, 1.7, s + 0.95, 2.75, '#b9ad90'); g.fillStyle = '#7d6e55'; for (let k = -0.8; k <= 0.8; k += 0.2) g.fillRect(X(s + k) - 2, Y(2.55), 4, 0.6 * sy);
-      win(s, 9.3, 13.2, 1.3, true);
-      win(s, 16.8, 20.0, 1.2, false);
-      rect(s - 0.7, 20.5, s + 0.7, 21.3, '#b9ad90');
+    const win = (s, y0, y1, w, o = {}) => {
+      rect(s - w / 2 - 0.26, y0 - 0.26, s + w / 2 + 0.26, y1 + 0.2, '#e4ddcb'); rect(s - w / 2 - 0.26, y0 - 0.26, s + w / 2 + 0.26, y0 - 0.2, '#b2a78e');
+      rect(s - w / 2 - 0.1, y0 - 0.1, s + w / 2 + 0.1, y1 + 0.08, '#8e8268');
+      shutter(s, y0, y1, w);
+      if (o.ear) { rect(s - w / 2 - 0.48, y0 + (y1 - y0) * 0.55, s - w / 2 - 0.26, y1 + 0.1, '#e4ddcb'); rect(s + w / 2 + 0.26, y0 + (y1 - y0) * 0.55, s + w / 2 + 0.48, y1 + 0.1, '#e4ddcb'); }
+      if (o.cartouche) { g.fillStyle = '#ece6d6'; g.beginPath(); g.moveTo(X(s - 0.5), Y(y1 + 0.2)); g.quadraticCurveTo(X(s), Y(y1 + 1.15), X(s + 0.5), Y(y1 + 0.2)); g.fill(); }
+    };
+    for (const s of [-3.95, 3.95]) {
+      win(s, 3.4, 5.9, 1.25);
+      win(s, 8.9, 13.0, 1.5);
+      win(s, 17.2, 19.6, 1.1, { ear: true, cartouche: true });
     }
-    // niches (dark inset) are real geometry; paint their backgrounds anyway
-    // weathering
-    streaks(g, W, H, 260, 103, 0.16, 190);
-    for (const y of [7.4, 15.0, 21.8]) { const gr = g.createLinearGradient(0, Y(y), 0, Y(y) + 90); gr.addColorStop(0, 'rgba(25,18,10,0.32)'); gr.addColorStop(1, 'rgba(25,18,10,0)'); g.fillStyle = gr; g.fillRect(0, Y(y), W, 90); }
-    noiseDots(g, W, H, 9000, 2, 104, ['rgba(40,30,20,0.18)', 'rgba(240,220,180,0.10)']);
-    // dark blackened lower area
-    const gb = g.createLinearGradient(0, H, 0, Y(5)); gb.addColorStop(0, 'rgba(25,20,15,0.35)'); gb.addColorStop(1, 'rgba(25,20,15,0)'); g.fillStyle = gb; g.fillRect(0, Y(5), W, 5 * sy);
+    // cornice bands: the shadow under each, a light edge above it
+    for (const [y0, y1] of [[T1, T1 + 0.6], [T2, T2 + 0.6], [T3, T3 + 0.7]]) {
+      rect(-Wd / 2, y0, Wd / 2, y1, '#b09870'); rect(-Wd / 2, y1 - 0.1, Wd / 2, y1, '#cdb88c'); rect(-Wd / 2, y0, Wd / 2, y0 + 0.12, '#4d4132');
+      const gr = g.createLinearGradient(0, Y(y0), 0, Y(y0) + 70); gr.addColorStop(0, 'rgba(25,16,8,0.5)'); gr.addColorStop(1, 'rgba(25,16,8,0)'); g.fillStyle = gr; g.fillRect(0, Y(y0), W, 70);
+    }
+    // metope band of the Doric entablature (triglyphs) on the first cornice's frieze
+    rect(-Wd / 2, T1 - 0.7, Wd / 2, T1, '#a8905f'); for (let s = -Wd / 2 + 0.25; s < Wd / 2; s += 0.62) rect(s, T1 - 0.66, s + 0.2, T1 - 0.04, '#6a583a');
+    // the attic: dark panels between small pilasters, ends rolled into volutes (geometry)
+    rect(-Wd / 2, T3 + 0.7, Wd / 2, 25.6, '#9b835a');
+    for (let s = -Wd / 2 + 0.5; s < Wd / 2 - 0.9; s += 1.9) { rect(s, T3 + 1.0, s + 1.3, 24.3, '#85704a'); frame(s, T3 + 1.0, s + 1.3, 24.3, '#b59f76', 0.07); }
+    // weathering: dark streaks under every ledge, a blackened foot, pale patches
+    streaks(g, W, H, 520, 103, 0.28, 260);
+    noiseDots(g, W, H, 14000, 2, 104, ['rgba(40,30,20,0.18)', 'rgba(240,220,180,0.10)']);
+    const gb = g.createLinearGradient(0, H, 0, Y(5.5)); gb.addColorStop(0, 'rgba(25,20,15,0.42)'); gb.addColorStop(1, 'rgba(25,20,15,0)'); g.fillStyle = gb; g.fillRect(0, Y(5.5), W, 5.5 * sy);
   });
 }
 
@@ -332,16 +341,16 @@ function buildQuattroCanti() {
     if (cl.length < 3) continue;
     let a0 = cl[0].a, a1 = a0, last = a0;
     for (const p of cl) { let d = p.a - last; if (d < 0) d += TWO; a1 += d; last = p.a; }
-    // relative roof height from lidar when present
-    const bs = cl.map(p => p.b).filter(b => b.r !== undefined);
-    arcs.push({ a0, a1, mid: (a0 + a1) / 2, rel: bs.length ? relH(bs[0]) : null, h: cl[0].b.h });
+    arcs.push({ a0, a1, mid: (a0 + a1) / 2 });
   }
-  const rels = arcs.filter(a => a.rel).map(a => a.rel);
-  const H = rels.length ? Math.min(25, rels.reduce((s, v) => s + v, 0) / rels.length) : 23.3;
-  const sy = H / 23.3;
   const tex = paintQC(Wd);
   defMat('qcwall', tex, [Wd, 25.6]);
-  const stone = '#ffffff', marbleGrey = '#a7a3a6', whiteM = '#dedacc';
+  const T1 = 7.4, T2 = 15.0, T3 = 21.8, GREY = '#8b9197', GREY_D = '#6f757b', WHITE = '#e4decd', STONE = '#a28956', STONE_L = '#bca276', STONE_D = '#7f6a46', WATER = '#5f93ab';
+  const eagle = new THREE.Shape(); {   // the royal eagle: spread wings, head up, tail down (flat silhouette)
+    const P = [[-2.3, 0.1], [-1.9, 0.85], [-1.2, 1.0], [-0.8, 1.55], [-0.4, 1.7], [-0.25, 2.2], [0, 2.4], [0.25, 2.2], [0.4, 1.7], [0.8, 1.55], [1.2, 1.0], [1.9, 0.85], [2.3, 0.1], [1.5, 0.45], [0.8, 0.3], [0.45, -0.5], [0, -0.75], [-0.45, -0.5], [-0.8, 0.3], [-1.5, 0.45]];
+    eagle.moveTo(P[0][0], P[0][1]); for (const q of P.slice(1)) eagle.lineTo(q[0], q[1]); eagle.lineTo(P[0][0], P[0][1]);
+  }
+  const shield = new THREE.Shape(); shield.moveTo(-0.8, 0); shield.lineTo(0.8, 0); shield.lineTo(0.8, 1.2); shield.quadraticCurveTo(0.8, 2.1, 0, 2.5); shield.quadraticCurveTo(-0.8, 2.1, -0.8, 1.2); shield.lineTo(-0.8, 0);
 
   for (const arc of arcs) {
     const th = (s) => arc.mid + s / Rf;
@@ -350,113 +359,149 @@ function buildQuattroCanti() {
     // local frame at facade coordinate s, height y, depth z (toward the piazza)
     const at = (s, y = 0, z = 0) => {
       const t = th(s), dx = Math.cos(t), dz = Math.sin(t);
-      const m = frame(cx + Rf * dx, gy0 + y * sy * 0 + y, cz + Rf * dz, -dx, -dz);
+      const m = frame(cx + Rf * dx, gy0 + y, cz + Rf * dz, -dx, -dz);
       return z ? mul(m, tr(0, 0, z)) : m;
     };
-    // wall surface: faceted concave strip with painted texture
-    const nseg = 14, A = [];
+    // wall surface: faceted concave strip with the painted facade
+    const nseg = 14;
     {
       const gg = new THREE.BufferGeometry(), P = [], N = [], U = [];
-      const ytop = 25.6 * sy, ybot = -1.0;
+      const ytop = 25.6, ybot = -1.0;
       for (let i = 0; i < nseg; i++) {
         const sa = -Wd / 2 + Wd * i / nseg, sb = -Wd / 2 + Wd * (i + 1) / nseg;
         const ta = th(sa), tb = th(sb);
         const pa = [cx + Rf * Math.cos(ta), cz + Rf * Math.sin(ta)], pb = [cx + Rf * Math.cos(tb), cz + Rf * Math.sin(tb)];
         const tm = (ta + tb) / 2, nx = -Math.cos(tm), nz = -Math.sin(tm);
         const ua = i / nseg, ub = (i + 1) / nseg;
-        const vb = ybot / (25.6 * sy), vt = ytop / (25.6 * sy);
+        const vb = ybot / 25.6, vt = ytop / 25.6;
         const Q = [[pa, ybot, ua, vb], [pb, ybot, ub, vb], [pb, ytop, ub, vt], [pa, ytop, ua, vt]];
         for (const k of [0, 1, 2, 0, 2, 3]) { const q = Q[k]; P.push(q[0][0], gy0 + q[1], q[0][1]); N.push(nx, 0, nz); U.push(q[2], q[3]); }
       }
       gg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
       gg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
       gg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
-      // wind faces towards the centre: check orientation by normal
       part('qcwall', gg, { uv: 'keep', noao: true });
     }
-    // horizontal arc slabs (cornices, balcony)
+    // the footing: a skirt along the foot of the steps where the ground falls away from the facade
+    {
+      const ring = []; for (let i = 0; i <= 8; i++) { const t = th(-Wd / 2 - 0.4 + (Wd + 0.8) * i / 8); ring.push([cx + (Rf - 3.3) * Math.cos(t), cz + (Rf - 3.3) * Math.sin(t)]); }
+      for (let i = 8; i >= 0; i--) { const t = th(-Wd / 2 - 0.4 + (Wd + 0.8) * i / 8); ring.push([cx + (Rf + 0.2) * Math.cos(t), cz + (Rf + 0.2) * Math.sin(t)]); }
+      skirt('ashlar', ring, gy0 + 0.05, '#8a7a5c');
+    }
+    // horizontal arc slabs (cornices, balcony, plinth): short straight pieces along the arc
     const arcSlab = (key, s0, s1, y0, y1, z0, z1, c) => {
       const nn = Math.max(2, Math.ceil((s1 - s0) / 1.5));
       for (let i = 0; i < nn; i++) {
         const sa = s0 + (s1 - s0) * i / nn, sb = s0 + (s1 - s0) * (i + 1) / nn, sc = (sa + sb) / 2;
-        box(key, (sb - sa) * 1.05, y1 - y0, z1 - z0, { M: at(sc, y0, (z0 + z1) / 2), c });
+        box(key, (sb - sa) * 1.06, y1 - y0, z1 - z0, { M: at(sc, y0, (z0 + z1) / 2), c });
       }
     };
-    const T1 = 7.4, T2 = 15.0, T3 = 21.8;
-    // cornices with a projecting top moulding and modillion row
-    for (const [yb, w] of [[T1, 0.55], [T2, 0.5], [T3, 0.55]]) {
-      arcSlab('ashlar', -Wd / 2, Wd / 2, yb, yb + 0.55, 0, w, '#a99468');
-      arcSlab('ashlar', -Wd / 2, Wd / 2, yb + 0.55, yb + 0.7, 0, w + 0.18, '#b8a37a');
-      for (let s = -Wd / 2 + 0.4; s < Wd / 2; s += 0.8) box('ashlar', 0.28, 0.35, 0.3, { M: at(s, yb - 0.3, 0.3), c: '#9a845c' });
+    // the pedestal (it stands out of the wall) and the broken entablatures at the three tiers, each with its modillions
+    arcSlab('ashlar', -Wd / 2, Wd / 2, 0, 1.9, 0, 0.3, STONE_D);
+    arcSlab('ashlar', -Wd / 2, Wd / 2, 1.9, 2.15, 0, 0.45, STONE_L);
+    for (const [yb, w] of [[T1, 0.65], [T2, 0.6], [T3, 0.7]]) {
+      arcSlab('ashlar', -Wd / 2, Wd / 2, yb, yb + 0.6, 0, w, STONE);
+      arcSlab('ashlar', -Wd / 2, Wd / 2, yb + 0.6, yb + 0.78, 0, w + 0.22, STONE_L);
+      for (let s = -Wd / 2 + 0.4; s < Wd / 2; s += 0.7) box('ashlar', 0.3, 0.38, 0.34, { M: at(s, yb - 0.32, 0.34), c: STONE_D });
     }
-    // balcony of the middle tier: slab plus iron railing along the whole arc
-    arcSlab('ashlar', -Wd / 2, Wd / 2, T1 + 0.7, T1 + 0.95, 0, 1.05, '#a99468');
+    // the balcony between the first two tiers: a deep slab on corbels, iron railing along the whole width
+    arcSlab('ashlar', -Wd / 2 - 0.2, Wd / 2 + 0.2, T1 + 0.78, T1 + 1.08, 0, 1.45, STONE);
+    for (let s = -Wd / 2 + 0.5; s < Wd / 2; s += 1.1) box('ashlar', 0.42, 0.7, 0.9, { M: at(s, T1 - 0.45, 0.62), c: STONE_D });
+    for (let i = 0; i < 9; i++) { const sa = -Wd / 2 + Wd * i / 9; rail(at(sa + Wd / 18, T1 + 1.08, 1.38), Wd / 9 * 1.03, 1.1); }
+    for (const sg of [-1, 1]) rail(mul(at(sg * (Wd / 2 + 0.15), T1 + 1.08, 0.7), rotY(PI / 2)), 1.4, 1.1);
+    // ---- the orders: two grey marble columns each side of the middle bay at each tier
+    const capital = (order, s, y) => {   // y: top of the shaft
+      const M = at(s, y, 0.8);
+      if (order === 'doric') { cyl('marble', 0.4, 0.33, 0.24, 10, { M, c: GREY_D }); box('marble', 0.95, 0.18, 0.95, { M: mul(M, tr(0, 0.24, 0)), c: GREY }); }
+      else if (order === 'ionic') {
+        cyl('marble', 0.38, 0.31, 0.2, 10, { M, c: GREY_D });
+        box('marble', 1.0, 0.16, 0.78, { M: mul(M, tr(0, 0.2, 0)), c: GREY });
+        for (const sg of [-1, 1]) cyl('marble', 0.2, 0.2, 0.74, 10, { M: mul(M, tr(sg * 0.36, 0.34, -0.37)), rx: PI / 2, c: GREY_D });   // the two volutes, seen end on
+        box('marble', 1.0, 0.1, 0.8, { M: mul(M, tr(0, 0.5, 0)), c: GREY_D });
+      } else {   // composite: a bell of leaves and the volutes at the corners
+        lathe('marble', [[0.3, 0], [0.38, 0.25], [0.5, 0.55], [0.56, 0.72], [0.5, 0.72], [0.28, 0.1]], 10, { M, c: GREY_D });
+        for (const [a, b] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) box('marble', 0.2, 0.22, 0.2, { M: mul(M, tr(a * 0.5, 0.58, b * 0.5)), rz: a * 0.5, c: GREY });
+        box('marble', 1.05, 0.12, 1.05, { M: mul(M, tr(0, 0.72, 0)), c: GREY });
+      }
+    };
+    for (const sg of [-1, 1]) {
+      const s = sg * 2.4;
+      // lowest tier: Doric, on a tall plinth
+      box('ashlar', 1.05, 1.9, 1.05, { M: at(s, 0, 0.85), c: STONE_D });
+      cyl('marble', 0.33, 0.37, 4.75, 12, { M: at(s, 2.1, 0.8), c: GREY });
+      box('marble', 0.85, 0.2, 0.85, { M: at(s, 1.95, 0.8), c: GREY_D });
+      capital('doric', s, 6.85);
+      box('ashlar', 1.5, 0.35, 1.15, { M: at(s, 7.1, 0.62), c: STONE_L });
+      // middle tier: Ionic, on a pedestal on the balcony
+      box('marble', 0.85, 0.9, 0.85, { M: at(s, T1 + 1.08, 0.72), c: WHITE });
+      cyl('marble', 0.29, 0.33, 4.55, 12, { M: at(s, T1 + 1.98, 0.72), c: GREY });
+      capital('ionic', s, T1 + 6.53);
+      box('ashlar', 1.35, 0.3, 1.0, { M: at(s, T2 - 0.36, 0.6), c: STONE_L });
+      // top tier: pilasters with composite capitals
+      box('ashlar', 0.62, 5.0, 0.34, { M: at(s, T2 + 0.9, 0.17), c: STONE_L });
+      lathe('marble', [[0.3, 0], [0.34, 0.2], [0.42, 0.5], [0.46, 0.62], [0.4, 0.62], [0.28, 0.1]], 6, { M: at(s, T3 - 0.9, 0.2), c: STONE_L, ry: PI / 4 });
+      box('ashlar', 1.1, 0.3, 0.7, { M: at(s, T3 - 0.35, 0.34), c: STONE_L });
+    }
+    // ---- the fountain at the foot of the middle bay: steps, a garlanded basin, a stem, the upper basin with its spout, and the season on a plinth
     {
-      const nn = 8;
-      for (let i = 0; i < nn; i++) {
-        const sa = -Wd / 2 + Wd * i / nn, sb = sa + Wd / nn;
-        rail(at((sa + sb) / 2, T1 + 0.95, 1.0), (sb - sa) * 1.02, 1.05);
-      }
+      const F = (y, z = 2.15) => at(0, y, z);
+      cyl('marble', 2.7, 2.78, 0.2, 16, { M: F(0), c: '#b9b2a2' }); cyl('marble', 2.35, 2.42, 0.2, 16, { M: F(0.2), c: '#c4bdac' });
+      lathe('marble', [[0, 0.0], [0.6, 0.0], [1.7, 0.15], [2.0, 0.45], [2.05, 0.75], [1.85, 0.8], [1.7, 0.55], [0, 0.35]], 16, { M: F(0.4), c: '#d3cdbc' });   // lower basin
+      for (let k = 0; k < 10; k++) { const a = k * TWO / 10; sphere('marble', 0.17, { M: mul(F(0.78), tr(Math.cos(a) * 2.0, 0, Math.sin(a) * 2.0)), seg: 5, c: '#cfc9b8' }); }   // the garland of the basin
+      cyl('flat', 1.7, 1.7, 0.03, 16, { M: F(1.12), c: WATER, noao: true });
+      cyl('marble', 0.26, 0.42, 0.9, 8, { M: F(0.8), c: '#d3cdbc' });
+      lathe('marble', [[0, 0], [0.4, 0.05], [1.05, 0.25], [1.15, 0.5], [0.98, 0.52], [0.9, 0.35], [0, 0.18]], 12, { M: F(1.6), c: '#d9d3c2' });   // upper basin
+      cyl('flat', 0.9, 0.9, 0.03, 12, { M: F(2.0), c: WATER, noao: true });
+      box('marble', 0.5, 0.55, 0.4, { M: at(0, 1.15, 0.9), c: '#c7c0ae' });   // the mascaron the water comes from
+      box('marble', 1.0, 0.5, 0.8, { M: at(0, 1.9, 0.62), c: '#cdc7b6' });   // plinth of the season
+      statue('marble', at(0, 2.4, 0.62), 2.3, { c: WHITE });
     }
-    // balconies of the ground-tier windows
-    for (const s of [-3.85, 3.85]) {
-      box('ashlar', 2.0, 0.25, 0.55, { M: at(s, 1.55, 0.27), c: '#c4b898' });
-      rail(at(s, 1.8, 0.5), 1.9, 0.9);
-    }
-    // pilaster strips at the corners (protruding quoins)
-    for (const sg of [-1, 1]) {
-      const s = sg * (Wd / 2 - 0.47);
-      box('ashlar', 0.95, 22.0, 0.35, { M: at(s, 0, 0.17), c: '#b09a70' });
-      box('ashlar', 1.1, 0.3, 0.45, { M: at(s, 7.1, 0.22), c: '#b09a70' });
-    }
-    // free-standing columns (ground, middle) and pilaster pairs (upper)
-    for (const sg of [-1, 1]) {
-      const s = sg * 2.3;
-      box('marble', 0.8, 0.35, 0.8, { M: at(s, 0, 0.7), c: '#8c8780' });
-      cyl('marble', 0.27, 0.31, 6.7, 10, { M: at(s, 0.35, 0.7), c: marbleGrey });
-      box('marble', 0.75, 0.35, 0.75, { M: at(s, 7.05, 0.7), c: '#8c8780' });
-      box('marble', 0.8, 0.3, 0.8, { M: at(s, 8.25, 0.55), c: '#8c8780' });
-      cyl('marble', 0.2, 0.23, 5.6, 10, { M: at(s, 8.55, 0.55), c: marbleGrey });
-      box('marble', 0.7, 0.3, 0.7, { M: at(s, 14.15, 0.55), c: '#8c8780' });
-      box('ashlar', 0.55, 5.6, 0.3, { M: at(s, 15.6, 0.15), c: '#b09a70' });
-      box('ashlar', 0.65, 0.3, 0.4, { M: at(s, 21.3, 0.2), c: '#c0aa82' });
-    }
-    // centre niches: dark arched recess (frame + backing) and a statue
-    const niche = (y0, w, h, st, hs, crown) => {
-      const back = shapeGeo(archShape(w, h), 0.06);
-      part('dark', back, { M: at(0, y0, 0.05), uv: 'keep', c: '#2d2824', noao: true });
-      part('marble', shapeGeo(archShape(w + 0.5, h + 0.25), 0.16, archPath(w, h)), { M: at(0, y0 - 0.0, 0.0), c: '#d8d2c0' });
-      box('marble', 1.2, 0.7, 1.0, { M: at(0, y0, 0.55), c: '#cdc8b8' });
-      statue('marble', at(0, y0 + 0.7, 0.6), hs, { crown });
+    // ---- the niches of the two upper tiers: a dark bay with a scallop shell for a head, a white frame, the statue on a pedestal
+    const niche = (y0, w, h, hs, pedH) => {
+      part('dark', shapeGeo(archShape(w, h), 0.08), { M: at(0, y0, 0.04), uv: 'keep', c: '#2c3646', noao: true });
+      part('marble', shapeGeo(archShape(w + 0.56, h + 0.28), 0.2, archPath(w, h)), { M: at(0, y0 - 0.03, 0), c: WHITE });
+      for (let k = 0; k < 7; k++) { const a = PI * (k + 0.5) / 7; box('marble', 0.07, w / 2 * 0.95, 0.1, { M: at(0, y0 + h - w / 2, 0.1), rz: a - PI / 2, c: '#d5cfbd' }); }   // the shell's ribs
+      box('marble', 1.25, pedH, 0.95, { M: at(0, y0, 0.52), c: WHITE });
+      statue('marble', at(0, y0 + pedH, 0.55), hs, { c: WHITE });
     };
-    niche(9.0, 2.0, 5.2, 0, 3.1, true);
-    niche(16.4, 1.9, 4.6, 0, 3.0, false);
-    // ground-tier statue on its pedestal in the central panel, with fountain below
-    box('marble', 1.5, 1.4, 0.9, { M: at(0, 1.0, 0.45), c: '#cfc9b8' });
-    statue('marble', at(0, 2.4, 0.5), 2.4, {});
-    // fountain basin projecting into the piazza
-    cyl('marble', 1.6, 1.65, 0.45, 12, { M: at(0, 0, 1.6), c: '#bdb8a8' });
-    cyl('marble', 0.28, 0.4, 0.6, 8, { M: at(0, 0.45, 1.6), c: '#cfc9b8' });
-    lathe('marble', [[0, 0], [0.5, 0.05], [0.95, 0.35], [1.0, 0.5], [0.85, 0.5], [0, 0.12]], 12, { M: at(0, 1.0, 1.6), c: '#d2cdbd' });
-    box('marble', 1.4, 0.35, 0.3, { M: at(0, 0.0, 0.5), c: '#bdb8a8' });
-    // angels on the window pediments of the middle tier, and a window balustrade
-    for (const s of [-3.85, 3.85]) {
-      angel('marble', at(s, 14.2, 0.2), 1.4);
-      box('ashlar', 1.9, 0.28, 0.4, { M: at(s, 8.7, 0.2), c: '#c0b494' });
-    }
-    // crown: stepped attic with the coat of arms, end finials
-    box('ashlar', 4.6, 2.9, 0.7, { M: at(0, 22.5, 0.2), c: '#b59f76' });
-    box('ashlar', 4.0, 0.35, 0.9, { M: at(0, 25.3, 0.2), c: '#c0aa82' });
-    const crest = new THREE.Shape(); crest.moveTo(-1, 0); crest.lineTo(1, 0); crest.lineTo(1, 1.5); crest.quadraticCurveTo(1, 2.6, 0, 3.0); crest.quadraticCurveTo(-1, 2.6, -1, 1.5); crest.lineTo(-1, 0);
-    part('marble', shapeGeo(crest, 0.2), { M: at(0, 22.9, 0.9), s: [0.95, 0.85, 1], c: '#d8d2c0' });
-    angel('marble', at(-1.5, 22.5, 0.75), 1.6); angel('marble', at(1.5, 22.5, 0.75), 1.6);
-    sphere('marble', 0.25, { M: at(0, 25.8, 0.4), seg: 6, c: '#d8d2c0' });
+    niche(9.0, 2.0, 5.3, 3.0, 0.9);      // the Spanish king
+    niche(16.4, 1.9, 4.5, 2.8, 0.7);     // the patron saint
+    // a mascaron and garland over the king, an angel on a cloud over the saint
+    box('marble', 0.7, 0.8, 0.4, { M: at(0, 14.6, 0.1), c: '#d8d2c0' }); sphere('marble', 0.38, { M: at(0, 14.95, 0.3), seg: 6, c: '#d8d2c0' });
+    for (const sg of [-1, 1]) { sphere('marble', 0.2, { M: at(sg * 0.95, 14.7, 0.2), seg: 5, c: '#cfc9b8' }); sphere('marble', 0.17, { M: at(sg * 1.55, 14.55, 0.2), seg: 5, c: '#cfc9b8' }); }
+    sphere('marble', 0.55, { M: at(0, 21.15, 0.3), ky: 0.55, seg: 6, c: '#e8e4d8' }); angel('marble', at(0, 21.3, 0.3), 0.95, { c: WHITE });
+    // ---- the side bays: balconies and balustrades under the windows, the pediments and the angels on them
     for (const sg of [-1, 1]) {
-      const s = sg * (Wd / 2 - 0.45);
-      box('ashlar', 1.2, 1.8, 0.9, { M: at(s, 22.5, 0.3), c: '#b59f76' });
-      lathe('marble', [[0, 0], [0.3, 0], [0.38, 0.3], [0.25, 0.7], [0.12, 1.0], [0.0, 1.1]], 6, { M: at(s, 24.3, 0.3), c: '#d2cdbd' });
-      box('ashlar', 0.9, 1.0, 0.7, { M: at(sg * 3.6, 22.5, 0.2), c: '#b09a70' });
-      sphere('marble', 0.2, { M: at(sg * 3.6, 23.6, 0.2), seg: 6, c: '#d2cdbd' });
+      const s = sg * 3.95;
+      box('ashlar', 2.0, 0.22, 0.6, { M: at(s, 2.55, 0.3), c: STONE_L }); balus(at(s, 2.77, 0.58), 1.7, 0.8);
+      for (const q of [-1, 1]) box('ashlar', 0.14, 0.9, 0.5, { M: at(s + q * 0.95, 2.2, 0.25), c: STONE_L });
+      // middle tier: triangular pediment over the window, an angel on the apex
+      const ped = new THREE.Shape(); ped.moveTo(-1.15, 0); ped.lineTo(1.15, 0); ped.lineTo(0, 0.7); ped.lineTo(-1.15, 0);
+      part('marble', shapeGeo(ped, 0.3), { M: at(s, 13.3, 0.05), c: WHITE });
+      angel('marble', at(s, 14.0, 0.15), 0.95, { c: WHITE });
+      // top tier: the stucco frame of the little windows stands out
+      box('marble', 1.9, 0.22, 0.45, { M: at(s, 19.85, 0.18), c: WHITE });
+      box('marble', 0.5, 0.45, 0.3, { M: at(s, 20.1, 0.18), c: WHITE });
+    }
+    // ---- the crown: the attic's stepped end volutes, the royal arms (eagle and crowned shield) in the middle, a smaller shield at each end, the finials
+    for (const sg of [-1, 1]) {
+      box('ashlar', 1.5, 1.9, 0.8, { M: at(sg * 3.3, T3 + 0.8, 0.28), c: STONE_L });
+      cyl('ashlar', 0.55, 0.55, 0.5, 12, { M: at(sg * 4.35, T3 + 1.5, 0.28), rx: PI / 2, c: STONE });
+      cyl('ashlar', 0.3, 0.3, 0.6, 10, { M: at(sg * 4.35, T3 + 1.7, 0.28), rx: PI / 2, c: STONE_D });
+      box('ashlar', 1.2, 1.5, 0.8, { M: at(sg * (Wd / 2 - 0.65), T3 + 0.8, 0.3), c: STONE_L });
+      part('marble', shapeGeo(shield, 0.2), { M: at(sg * (Wd / 2 - 0.65), T3 + 2.3, 0.5), s: [0.55, 0.5, 1], c: WHITE });
+      sphere('marble', 0.3, { M: at(sg * (Wd / 2 - 0.25), T3 + 2.3, 0.4), seg: 6, c: '#d8d2c0' });
+    }
+    box('ashlar', 3.4, 1.4, 0.9, { M: at(0, T3 + 0.8, 0.28), c: STONE_L });
+    box('ashlar', 2.8, 1.5, 0.95, { M: at(0, 25.6, 0.3), c: STONE_L }); box('ashlar', 3.3, 0.3, 1.1, { M: at(0, 25.55, 0.3), c: STONE });      // the pedestal of the arms, above the attic
+    part('marble', shapeGeo(eagle, 0.22), { M: at(0, 26.4, 0.7), s: [1.3, 1.15, 1], c: WHITE });
+    part('marble', shapeGeo(shield, 0.3), { M: at(0, 26.3, 0.92), s: [1.15, 1.0, 1], c: '#e9e4d6' });
+    box('flat', 0.95, 0.5, 0.2, { M: at(0, 28.8, 0.95), c: '#c8a85a', noao: true }); for (const q of [-1, 0, 1]) sphere('flat', 0.13, { M: at(q * 0.33, 29.3, 0.95), seg: 5, c: '#c8a85a', noao: true });
+    // ---- two black candelabra lamps in front of the side bays
+    for (const sg of [-1, 1]) {
+      const L = at(sg * 4.35, 0, 2.7);
+      lathe('flat', [[0, 0], [0.34, 0], [0.3, 0.5], [0.13, 0.9], [0.07, 1.1], [0.07, 3.2]], 8, { M: L, c: '#26262b', noao: true });
+      for (const a of [-1, 0, 1]) { box('flat', 0.9, 0.06, 0.06, { M: mul(L, tr(0, 3.15, 0)), rz: a * 0.5, c: '#26262b', noao: true }); sphere('flat', 0.2, { M: mul(L, tr(a * 0.46, 3.35 + (a ? 0.0 : 0.25), 0)), c: '#f2eee0', seg: 6, noao: true }); }
     }
   }
 }
@@ -489,6 +534,19 @@ function wallQuad(key, L, R, yA, yB, uv, c, o = {}) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   part(key, g, { uv: 'keep', c, ...o });
+}
+// A skirt hung from yTop down to the streamed ground along a ring of [x, z] points: the model's footing where the ground falls away under it (both faces: it is seen from either side)
+function skirt(key, ring, yTop, c, below = 0.3) {
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(L / 3));
+    for (let s = 0; s < k; s++) {
+      const p = [a[0] + (b[0] - a[0]) * s / k, a[1] + (b[1] - a[1]) * s / k], q = [a[0] + (b[0] - a[0]) * (s + 1) / k, a[1] + (b[1] - a[1]) * (s + 1) / k];
+      const y = Math.min(groundY(p[0], p[1]), groundY(q[0], q[1])) - below;
+      if (y >= yTop - 0.05) continue;
+      const uv = [0, y / 3, L / k / 3, yTop / 3];
+      wallQuad(key, p, q, y, yTop, uv, c, { noao: true }); wallQuad(key, q, p, y, yTop, uv, c, { noao: true });
+    }
+  }
 }
 function roofPoly(key, pts, y, c, o = {}) {
   const contour = pts.map(p => new THREE.Vector2(p[0], p[1]));
@@ -562,7 +620,10 @@ function buildPretoria() {
     if (Math.hypot(x - 72, z - 26) < 30 && m > 8) { sx += x; sz += z; n++; }
   }
   const c = n ? [sx / n, sz / n] : [71, 25.6];
-  const gy = groundY(c[0], c[1]); BASEY = gy;
+  // the piazza level round the fountain (the ground under the basin itself is the lidar's reading of the basin), and a skirt where it falls away
+  const rg = []; for (let i = 0; i < 16; i++) { const a = i * PI / 8; rg.push(groundY(c[0] + 12 * Math.cos(a), c[1] + 12 * Math.sin(a))); }
+  rg.sort((a, b) => a - b); const gy = (rg[7] + rg[8]) / 2; BASEY = gy;
+  skirt('marble', Array.from({ length: 32 }, (_, i) => [c[0] + 12.05 * Math.cos(i * PI / 16), c[1] + 12.05 * Math.sin(i * PI / 16)]), gy + 0.12, '#bdb8a8');
   (KEEPOUT.circles || (KEEPOUT.circles = [])).push({ name: 'Fontana Pretoria', x: c[0], z: c[1], r: 12.2 });
   const at = (x, y, z, nx = 0, nz = 1) => frame(c[0] + x, gy + y, c[1] + z, nx, nz);
   const O = at(0, 0, 0);
@@ -913,9 +974,8 @@ function buildCattedrale(ctx) {
 function buildPortaNuova(ctx) {
   CUR = 'Porta Nuova';
   const b = byId('w815701117'); if (!b) return;
-  // ground at the gate: the road under the arch is at 35.5 m in the streamed world tile (src/world.js); groundY() at start-up still answers from the old baked
-  // centro grid (38.2 m here), which left the whole gate floating 2.7 m above the road, so the base is pinned to the tile's height
-  const gy = 35.5; BASEY = gy;
+  // ground at the gate: the road under the arch, read from the streamed tile (the model is built when its tile has loaded, see CENTRO_LANDMARKS)
+  const gy = groundY(-750.8, 395.6); BASEY = gy;
   // axis: through-passage along the Corso (ENE), as measured from the footprint's long edges. The OSM footprint is 18 x 18 m and runs from 7.3 m behind to
   // 10.7 m ahead of its centroid along the axis, so the model is centred on the footprint box, 0.4 m off to the side so the passage lies on the road
   // (the piers' collision in src/lmc-gates.js uses the same box)
@@ -1026,7 +1086,11 @@ function buildPortaFelice(ctx) {
   const n = [0.88, -0.47];       // along the Corso, towards the sea
   for (const b of [pa, pb]) {
     if (!b) continue;
-    const pts = pairsOf(b.p), cen = centroid(pts), gy = minGround(pts); BASEY = gy;
+    const pts = pairsOf(b.p), cen = centroid(pts); BASEY = 0;
+    // the pylon box is 11 x 10.6 m across the Corso (nx, nz is its depth axis): its base is the lowest ground under the box, and a skirt hangs round it
+    const tx = -n[1], tz = n[0], box4 = [[-5.5, -5.3], [5.5, -5.3], [5.5, 5.3], [-5.5, 5.3]].map(([u, v]) => [cen[0] + tx * u + n[0] * v, cen[1] + tz * u + n[1] * v]);
+    let gy = Infinity; for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) gy = Math.min(gy, groundY(cen[0] + tx * (-5.5 + 2.75 * i) + n[0] * (-5.3 + 2.65 * j), cen[1] + tz * (-5.5 + 2.75 * i) + n[1] * (-5.3 + 2.65 * j)));
+    BASEY = gy; skirt('marble', box4, gy + 0.1, '#cfcbbd');
     const H = Math.min(23.5, Math.max(relH(b, 22.9), ...(b.parts || []).map(q => q[1] - b.g)));
     const M = frame(cen[0], gy, cen[1], n[0], n[1]);
     // pylon facade runs across the Corso: rotate so +z is the sea direction
@@ -1163,16 +1227,26 @@ const BUILDERS = [
 const SKIP_IDS = ['w28002543', 'w24937131', 'w49750033', 'w815701117', 'r6309453.0', 'r6309453.1', 'w86870896', 'w49750065'];
 export function prepareLandmarks(ctx) { for (const id of SKIP_IDS) ctx.skip.add(id); }
 
-export function buildLandmarks(ctx) {
-  if (location.search.includes('nolm=1')) return;
-  const t0 = performance.now();
-  initMaterials();
-  for (const [name, fn] of BUILDERS) {
+// The centro landmarks are built like the city landmarks (src/landmarks-city.js): by the streamer, once the tile they stand on (and the tiles their footprint reaches
+// into) has loaded, so every height they read is the streamed ground, the same the terrain mesh, the roads and the car use. world.js keeps the group with the tile
+// and builds it again if the tile is released. x, z: where it stands (the anchor tile is the one that contains it), radius: how far it reaches.
+const BUILD_AT = {
+  'Quattro Canti': [0, 0, 60], 'Fontana Pretoria': [72, 26, 40], 'Palazzo delle Aquile': [85, 65, 50], 'Teatro Massimo': [-358, -491, 90], 'Cattedrale': [-456, 151, 110],
+  'Porta Nuova': [-751, 396, 40], 'Porta Felice': [875, -436, 50], 'San Cataldo': [105, 106, 30], 'Santa Caterina': [119, 27, 30], 'Palazzo dei Normanni': [-700, 502, 120],
+};
+export const CENTRO_LANDMARKS = BUILDERS.map(([name, fn]) => ({
+  name, x: BUILD_AT[name][0], z: BUILD_AT[name][1], radius: BUILD_AT[name][2],
+  build(ctx) {
+    if (location.search.includes('nolm=1')) return null;
+    const t0 = performance.now();
+    initMaterials();
+    const group = new THREE.Group(); group.name = 'landmark ' + name;
     try { CUR = name; fn(ctx); } catch (e) { console.error('landmark ' + name + ' failed', e); }
-  }
-  const per = finish(ctx.scene);
-  const total = Object.values(STATS).reduce((a, b) => a + b, 0);
-  if (location.search.includes('lmstats')) console.log('landmarks build ms', Math.round(performance.now() - t0), 'triangles', Math.round(total), JSON.stringify(Object.fromEntries(Object.entries(STATS).map(([k, v]) => [k, Math.round(v)]))));
-  window.__landmarkTris = { total: Math.round(total), per: STATS };
-  window.__landmarkKeepout = KEEPOUT;
-}
+    const per = finish(group), tris = Object.values(per).reduce((a, b) => a + b, 0);
+    STATS[name] = tris; group.userData.tris = tris;
+    window.__landmarkTris = { total: Math.round(Object.values(STATS).reduce((a, b) => a + b, 0)), per: STATS };
+    window.__landmarkKeepout = KEEPOUT;
+    if (location.search.includes('lmstats')) console.log('landmark', name, 'build ms', Math.round(performance.now() - t0), 'triangles', Math.round(tris));
+    return group;
+  },
+}));

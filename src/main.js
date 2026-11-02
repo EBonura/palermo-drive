@@ -7,7 +7,7 @@ import { buildStreets, CURB } from './streets.js'; // street building moved out 
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
 import { buildProps } from './props.js';
-import { prepareLandmarks, buildLandmarks } from './landmarks.js';
+import { prepareLandmarks } from './landmarks.js';   // the centro landmarks themselves are built by the streamer (world.js, CENTRO_LANDMARKS)
 import { buildContext } from './context.js';
 import { QUALITY, setupMobile } from './mobile.js';
 import { createVehicle } from './vehicle.js';
@@ -158,7 +158,6 @@ const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY, getWo
 let freeCam = null;
 const ctx = { scene, renderer, skip: new Set(), raisedMask, CURB };
 prepareLandmarks(ctx);
-buildLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
 const propsApi = buildProps(ctx) || {};
 // [perf pass] In the production build the far-city data (window.PALERMO_CONTEXT) arrives after the game has started (window.__pdLate, see
