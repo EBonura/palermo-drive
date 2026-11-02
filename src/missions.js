@@ -553,7 +553,7 @@ function build(env) {
   };
   const calls = X.calls = createCalls(X);
   calls.setSlots(slots);
-  const rave = createRave({ scene, camera, game, pedestrians, groundY: groundAt, proj: env.proj, isNight, walls2d });   // the rave on Pellegrino: stage, lights, crowd and music at night
+  const rave = createRave({ scene, camera, car, game, pedestrians, groundY: groundAt, isNight, walls2d });   // the rave in the woods of the Favorita: dance floor, stage, lights, crowd and music at night
   const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave), horns = createHornsEvents(X, { game });
   pubs = createPubs(X, { game });
   races.buildSlots(slots.filter(s => s.kind === 'race'));

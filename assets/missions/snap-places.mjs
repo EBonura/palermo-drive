@@ -96,11 +96,30 @@ for (const u of URGENT) {
 }
 
 // ---- the rave missions: the centro sociale, the rave site, Via Cipressi; the route between them; the leaves around Via Cipressi
-for (const k of ['karcere', 'site', 'leaf']) { const r = RAVE[k]; place('rave:' + k, r.lat, r.lon, r.onStreet); }
-for (const [id, a, b] of [['rave:karcere', 'rave:karcere', 'rave:site'], ['rave:leaf', 'rave:site', 'rave:leaf']]) {
-  const r = routeBetween(a, b); ROUTES[id] = r ? [[b.slice(5), Math.round(r.len), flat(r.pts)]] : [];
-  console.log(id.padEnd(14), r ? Math.round(r.len) + ' m' : 'NO ROUTE');
+// The dance floor is off the road, in the woods (src/rave-ground.js): its track leaves Viale Ercole at RAVE.access (the road point 'rave:mouth', dropped from the output) and runs
+// straight to the middle of the floor. The place of the missions, SNAP['rave:site'], is on the floor, 7 m short of its middle on the track's axis, looking along the track;
+// the baked routes run on the road to the mouth and then up the track to it.
+for (const k of ['karcere', 'leaf']) { const r = RAVE[k]; place('rave:' + k, r.lat, r.lon, r.onStreet); }
+const raveMouth = place('rave:mouth', RAVE.access.lat, RAVE.access.lon, RAVE.access.onStreet);
+const [raveFx, raveFz] = proj(RAVE.site.lat, RAVE.site.lon), raveL = Math.hypot(raveFx - raveMouth.x, raveFz - raveMouth.z), raveUx = (raveFx - raveMouth.x) / raveL, raveUz = (raveFz - raveMouth.z) / raveL;
+const raveP = [raveFx - raveUx * 7, raveFz - raveUz * 7];
+SNAP['rave:site'] = [r1(raveP[0]), r1(raveP[1]), r2(raveUx), r2(raveUz), 6, raveMouth.n || ''];
+report.push({ id: 'rave:site', road: raveMouth.n, off: Math.round(Math.hypot(raveP[0] - raveMouth.x, raveP[1] - raveMouth.z)), x: r1(raveP[0]), z: r1(raveP[1]) });
+// the road from a place to the mouth: through the end of the mouth's street segment that is on the way (the nearest graph node is often the far end, and the arrow would overshoot and double back)
+const mouthLeg = id => {
+  const A = SNAP[id], na = nodeOf(snap(net, A[0], A[1])); let best = null;
+  for (const nb of [raveMouth.e.a, raveMouth.e.b]) {
+    const p = route(net, na, nb); if (!p) continue;
+    const P = [[A[0], A[1]], ...pts(net, p), [raveMouth.x, raveMouth.z]], L = plen(P); if (!best || L < best.L) best = { L, P };
+  }
+  return best && simplify(best.P, 6);
+};
+for (const [id, from, to] of [['rave:karcere', 'rave:karcere', true], ['rave:leaf', 'rave:leaf', false]]) {
+  const leg = mouthLeg(from); let out = [];
+  if (leg) { const P = to ? [...leg, raveP] : [raveP, ...leg.slice().reverse()]; out = [[to ? 'site' : 'leaf', Math.round(plen(P)), flat(P)]]; }
+  ROUTES[id] = out; console.log(id.padEnd(14), out.length ? out[0][1] + ' m' : 'NO ROUTE');
 }
+delete SNAP['rave:mouth'];
 {
   const s = SNAP['rave:leaf'], cx = s[0], cz = s[1], rnd = rng(hash('leaf')), chosen = [], N = 7;
   const cands = pointsAround(cx, cz, 25, 150).filter(c => c.w >= 4);
