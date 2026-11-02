@@ -115,23 +115,28 @@ const DRAPE_MAX = 5;
 // Only split a ground triangle when the ground under it actually bends (measured by the perf work: 2.33M -> 1.25M visible
 // triangles at Quattro Canti for a 0.05-0.08% pixel difference); very long triangles are split anyway.
 const FLAT_TOL = 0.04, SPLIT_ANYWAY = 40;
-function bends(a, b, c) {
-  const ga = groundY(a.x, a.y), gb = groundY(b.x, b.y), gc = groundY(c.x, c.y);
-  return Math.abs(groundY((a.x + b.x) / 2, (a.y + b.y) / 2) - (ga + gb) / 2) > FLAT_TOL
-    || Math.abs(groundY((b.x + c.x) / 2, (b.y + c.y) / 2) - (gb + gc) / 2) > FLAT_TOL
-    || Math.abs(groundY((c.x + a.x) / 2, (c.y + a.y) / 2) - (gc + ga) / 2) > FLAT_TOL
-    || Math.abs(groundY((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3) - (ga + gb + gc) / 3) > FLAT_TOL;
+// On benched hill tiles (opts.fine) a triangle over 5 m is split as soon as the ground under it is more than 10 cm off its plane, whatever the
+// 18 m cap says: a road that climbs and turns (a hairpin, a gully crossing) otherwise gets a long triangle that cuts across the bench, banked
+// by metres and hanging off the ground the car drives on. Everywhere else the gate above is unchanged.
+const FINE_MIN = 5, FINE_TOL = 0.1;
+let GROUND = groundY, FINE = false;   // set per streetsIter call: the ground to drape on (a tile's own, see src/world.js groundFor) and the fine split above
+function bends(a, b, c, tol = FLAT_TOL) {
+  const ga = GROUND(a.x, a.y), gb = GROUND(b.x, b.y), gc = GROUND(c.x, c.y);
+  return Math.abs(GROUND((a.x + b.x) / 2, (a.y + b.y) / 2) - (ga + gb) / 2) > tol
+    || Math.abs(GROUND((b.x + c.x) / 2, (b.y + c.y) / 2) - (gb + gc) / 2) > tol
+    || Math.abs(GROUND((c.x + a.x) / 2, (c.y + a.y) / 2) - (gc + ga) / 2) > tol
+    || Math.abs(GROUND((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3) - (ga + gb + gc) / 3) > tol;
 }
 function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
   const ab = a.distanceTo(b), bc = b.distanceTo(c), ca = c.distanceTo(a), longest = Math.max(ab, bc, ca);
-  if (longest > max && depth < 8 && (longest > SPLIT_ANYWAY || bends(a, b, c))) {
+  if (depth < 8 && ((longest > max && (longest > SPLIT_ANYWAY || bends(a, b, c))) || (FINE && longest > FINE_MIN && bends(a, b, c, FINE_TOL)))) {
     // split the longest edge; winding is preserved in both halves
     if (longest === ab) { const d = a.clone().lerp(b, 0.5); drape(buf, a, d, c, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     else if (longest === bc) { const d = b.clone().lerp(c, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, a, d, c, lift, col, m, max, depth + 1); }
     else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     return;
   }
-  for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
+  for (const p of [a, b, c]) buf.v(p.x, GROUND(p.x, p.y) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
 }
 let TINT = null;   // opts.tint(layer) -> (x, z) -> THREE.Color: the colours of the orthophotos relative to the layer's own texture (tile.gt, src/world.js)
 export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, median: CURB, green: CURB + 0.01 };
@@ -159,6 +164,8 @@ const WHITE = new THREE.Color(1, 1, 1);
 export function* streetsIter(streets, group, opts = {}) {
   const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
+  const g0 = opts.ground || groundY, f0 = !!opts.fine;   // (set again after every yield: another tile's build may have run in between)
+  GROUND = g0; FINE = f0;
   if (offset) gardenDraw(streets);
   for (const layer of layers) {
     const polys = streets[layer];
@@ -180,7 +187,7 @@ export function* streetsIter(streets, group, opts = {}) {
         if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
         drape(buf, a, b, c, lift, WHITE, m, dmax);
       }
-      if ((++n & 7) === 0) yield;
+      if ((++n & 7) === 0) { yield; GROUND = g0; FINE = f0; }
     }
     for (const buf of bufs.values()) {
       if (!buf.p.length) continue;
@@ -190,9 +197,9 @@ export function* streetsIter(streets, group, opts = {}) {
       tris += buf.p.length / 9;
       group.add(mesh);
     }
-    yield;
+    yield; GROUND = g0; FINE = f0;
   }
-  TINT = null;
+  TINT = null; FINE = false;
   // Curbs: the road is on the left of each line. Vertical face plus a stone top strip.
   if (opts.curbs !== false && streets.curbs && streets.curbs.length) {
     const curb = new Buf(), stone = new THREE.Color('#d6d1cb'), TOP = 0.28;
@@ -202,13 +209,13 @@ export function* streetsIter(streets, group, opts = {}) {
         const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
         if (len < 0.01) continue;
         const nx = -dz / len, nz = dx / len; // towards the road
-        const ga = groundY(a[0], a[1]), gb = groundY(b[0], b[1]);
+        const ga = GROUND(a[0], a[1]), gb = GROUND(b[0], b[1]);
         const A0 = [a[0], ga, a[1]], B0 = [b[0], gb, b[1]], A1 = [a[0], ga + CURB + 0.005, a[1]], B1 = [b[0], gb + CURB + 0.005, b[1]];
         for (const q of [A0, B0, A1, B0, B1, A1]) curb.v(q[0], q[1], q[2], nx, 0, nz, stone, 0, 0, 0.8);
         const Ai = [a[0] - nx * TOP, ga + CURB + 0.005, a[1] - nz * TOP], Bi = [b[0] - nx * TOP, gb + CURB + 0.005, b[1] - nz * TOP];
         for (const q of [A1, B1, Ai, B1, Bi, Ai]) curb.v(q[0], q[1], q[2], 0, 1, 0, stone);
       }
-      if ((++n & 15) === 0) yield;
+      if ((++n & 15) === 0) { yield; GROUND = g0; }
     }
     if (curb.p.length) {
       curbMat = curbMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
@@ -219,6 +226,7 @@ export function* streetsIter(streets, group, opts = {}) {
       group.add(curbMesh);
     }
   }
+  GROUND = groundY;
   group.userData.tris = (group.userData.tris || 0) + tris;
   return group;
 }
