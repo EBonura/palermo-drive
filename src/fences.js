@@ -272,8 +272,10 @@ export function* buildFences(list, key) {
       // the two ends: inside the wall until a neighbouring piece is smashed, then they are what you see of it (a wall is solid, not a hollow shell)
       { const dx = b.x - a.x, dz = b.z - a.z, dl = hh(dx, dz) || 1;
         for (const [e, sg] of [[0, -1], [1, 1]]) {
-          const ev = (P, top, u, k) => { const y = top ? E[e].y1 : E[e].y0; wall.v(P[e][0], y, P[e][1], dx / dl * sg, 0, dz / dl * sg, base, E[e].s / LY.pw + u, (E[e].y1 - y) / LY.ph, k); }, tu = 2 * hw / LY.pw;
-          ev(L, 0, 0, foot); ev(R, 0, tu, foot); ev(R, 1, tu, 1); ev(L, 0, 0, foot); ev(R, 1, tu, 1); ev(L, 1, 0, 1);
+          const ev = (P, top, u, k) => { const y = top ? E[e].y1 : E[e].y0; wall.v(P[e][0], y, P[e][1], dx / dl * sg * 0.8, 0.6, dz / dl * sg * 0.8, base, E[e].s / LY.pw + u, (E[e].y1 - y) / LY.ph, k); }, uR = sg * 2 * hw / LY.pw;   // the texture runs on round the corner from the left face, away from the wall
+          // shaded as tilted up a little (0.6 of the normal): a flat end facing away from the sun was a black slot, which read as a hollow wall; wound so the face looks out of the wall at both ends (the near end used to be wound inwards: seen from the gap it was lit as a back face, nearly black)
+          if (sg > 0) { ev(L, 0, 0, foot); ev(R, 0, uR, foot); ev(R, 1, uR, 1); ev(L, 0, 0, foot); ev(R, 1, uR, 1); ev(L, 1, 0, 1); }
+          else { ev(R, 0, uR, foot); ev(L, 0, 0, foot); ev(L, 1, 0, 1); ev(R, 0, uR, foot); ev(L, 1, 0, 1); ev(R, 1, uR, 1); }
         } }
       wall.layer = CAP.i;   // the cap
       for (const [P, e] of [[L, 0], [L, 1], [R, 1], [L, 0], [R, 1], [R, 0]]) wall.v(P[e][0], E[e].y1, P[e][1], 0, 1, 0, top, P[e][0] / CAP.pw, P[e][1] / CAP.ph, 1);
