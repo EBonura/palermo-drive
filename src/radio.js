@@ -302,7 +302,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 #pd-ui[hidden] ~ .pd-radio { display: none; }
 /* the map picker and Options use the whole top left (back button, title, card): the widget steps aside there */
 #pd-ui:is([data-screen=start], [data-screen=options]) ~ .pd-radio { opacity: 0; visibility: hidden; transform: translateY(-10px); transition: left .3s ease, opacity .2s ease, transform .2s ease, visibility 0s .2s; }
-.pr-card { position: relative; pointer-events: auto; display: flex; align-items: center; height: 58px; padding: 0 4px 0 10px; box-sizing: border-box; cursor: pointer;
+.pr-card { position: relative; pointer-events: auto; display: flex; align-items: center; height: 48px; margin-top: -1px; padding: 0 4px 0 10px; box-sizing: border-box; cursor: pointer;
   transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.86), rgba(40,12,28,.8)); border-left: 5px solid #e8559a; box-shadow: 0 3px 12px rgba(0,0,0,.4);
   transition: height .3s ease, margin .3s ease; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .pr-card > * { transform: skewX(6deg); }
@@ -321,12 +321,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 .pd-radio:not([data-mode=on]) .pr-cd { filter: grayscale(.85) brightness(.65); box-shadow: 0 0 0 1.5px rgba(255,255,255,.28); }
 @keyframes pr-spin { to { transform: rotate(360deg); } }
 .pr-text { flex: none; width: var(--pr-tw); min-width: 0; }
-.pr-lab { display: block; margin-bottom: 4px; font-weight: 600; font-size: 9px; line-height: 1; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; white-space: nowrap; }
+.pr-lab { display: block; margin-bottom: 2px; font-weight: 600; font-size: 9px; line-height: 1; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; white-space: nowrap; }
 .pr-line { overflow: hidden; white-space: nowrap; }
 .pr-line > i { display: inline-block; font-style: normal; }
-.pr-t { margin-bottom: 2px; }
-.pr-t > i { font-weight: 700; font-size: 15px; line-height: 1.15; letter-spacing: .03em; }
-.pr-s > i { font-weight: 600; font-size: 11px; line-height: 1.2; letter-spacing: .04em; opacity: .8; }
+.pr-t { margin-bottom: 1px; font-size: 15px; line-height: 16px; }   /* the line box follows the text, not the 16px of the page (it used to be 19px and 19px) */
+.pr-s { font-size: 11px; line-height: 13px; }
+.pr-t > i { font-weight: 700; font-size: 15px; line-height: inherit; letter-spacing: .03em; }
+.pr-s > i { font-weight: 600; font-size: 11px; line-height: inherit; letter-spacing: .04em; opacity: .8; }
 .pr-line.mq > i { animation: pr-mq var(--md, 9s) ease-in-out 1.2s infinite; }
 .pd-radio.min .pr-line.mq > i { animation-play-state: paused; }
 @keyframes pr-mq { 0%, 15% { transform: translateX(0); } 50%, 65% { transform: translateX(var(--sx)); } 100% { transform: translateX(0); } }
