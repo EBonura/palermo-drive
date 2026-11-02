@@ -29,7 +29,7 @@
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/" } }</script>
 <script type="module">
 import { logoSVG } from '../../src/ui.js';
-const q = new URLSearchParams(location.search), mode = q.get('mode') || 'landscape';
+const q = new URLSearchParams(location.search), mode = ['landscape', 'portrait', 'logo'].includes(q.get('mode')) ? q.get('mode') : 'landscape';   // the mode goes into HTML below: only these three
 const c = document.getElementById('c');
 if (mode === 'logo') { c.className = 'logo-only'; c.innerHTML = `<div class="logo">${logoSVG('x')}</div>`; }
 else {

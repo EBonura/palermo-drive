@@ -1407,7 +1407,9 @@ let PHOTO = null, photoP = null;
 function loadPhotos() {
   return photoP || (photoP = (async () => {
     try {
-      const resp = await fetch(new URLSearchParams(location.search).get('photomap') || 'assets/facades/photo/map.json', { cache: 'no-cache' });
+      const pm = new URLSearchParams(location.search).get('photomap');   // a test link may name another map, but only on this site: a link must not make the page load a stranger's pictures
+      let mapUrl = 'assets/facades/photo/map.json'; try { if (pm && new URL(pm, location.href).origin === location.origin) mapUrl = pm; } catch (e) { /* keep the default */ }
+      const resp = await fetch(mapUrl, { cache: 'no-cache' });
       if (!resp.ok) return null;
       const map = await resp.json(), byId = {}, urls = [];
       for (const id of Object.keys(map)) for (const e of map[id]) {
