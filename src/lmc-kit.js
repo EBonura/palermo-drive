@@ -175,11 +175,12 @@ export function gridMesh(key, P, uvf, o = {}) {
 // Used for cliff footings under buildings on hillsides; flat-shaded, textured with the (rock-like) material `key`.
 export function crag(key, M, rx, rz, depth, o = {}) {
   const seg = o.seg || 14, rows = o.rows || 4, spread = o.spread || 1.5, seed = o.seed || 1, jit = o.jit === undefined ? 0.14 : o.jit;
-  const g = new THREE.CylinderGeometry(1, 1, 1, seg, rows, true), pos = g.attributes.position;
+  const g = new THREE.CylinderGeometry(1, 1, 1, seg, rows, !o.cap), pos = g.attributes.position;   // o.cap closes the ends (a free-standing rock, seen from above too)
   for (let i = 0; i < pos.count; i++) {
     const y = 0.5 - pos.getY(i), a = Math.atan2(pos.getZ(i), pos.getX(i)), f = 1 + (spread - 1) * y;   // y: 0 at the top ring, 1 at the bottom
-    const n = 1 + jit * (Math.sin(a * 3 + y * 5.1 + seed) * 0.6 + Math.sin(a * 7 + y * 2.3 + seed * 2.1) * 0.4) * Math.min(1, y * 3);
-    pos.setXYZ(i, Math.cos(a) * rx * f * n, (pos.getY(i) - 0.5) * depth, Math.sin(a) * rz * f * n);
+    const hubC = Math.hypot(pos.getX(i), pos.getZ(i)) < 1e-4;   // the centre of an end cap stays on the axis
+    const n = hubC ? 1 : 1 + jit * (Math.sin(a * 3 + y * 5.1 + seed) * 0.6 + Math.sin(a * 7 + y * 2.3 + seed * 2.1) * 0.4) * Math.min(1, y * 3) + (o.rough || 0) * (Math.sin(a * 11 + y * 17 + seed * 3.7) * 0.5 + Math.sin(a * 5 - y * 9 + seed) * 0.5);
+    pos.setXYZ(i, hubC ? 0 : Math.cos(a) * rx * f * n, (pos.getY(i) - 0.5) * depth, hubC ? 0 : Math.sin(a) * rz * f * n);
   }
   const ng = g.toNonIndexed(); ng.computeVertexNormals();
   const tm = DEFS[key].texM;
