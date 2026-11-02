@@ -297,7 +297,7 @@ placeAt(0, 0);
   // ?clean: the picture only, no HUD, menu, minimap or toasts (the share images, assets/ui/make-cover.sh)
   if (q.has('clean')) { const st = document.createElement('style'); st.textContent = 'body > :not(#view) { visibility: hidden !important; }'; document.head.appendChild(st); }
 }
-if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, shout: shouts.shout };
+if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, shout: shouts.shout };
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.

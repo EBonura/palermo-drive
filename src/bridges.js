@@ -86,10 +86,16 @@ export function registerStructs(d, key) {
   const list = d && d.structs; if (!list) return;
   const mine = new Set();
   for (const rec of list) {
+    // a footway underpass is a short tunnel that cannot get its 5.8 m of cover where the road above lies in a hollow: it would stay an open trench across the road (the sprint's line at Viale Regione, x -2790, z 263) and nobody drives through it
+    if (rec.k === 't' && rec.f) continue;
     mine.add(rec.id);
     let st = S.get(rec.id);
     if (st) { st.tiles.add(key); continue; }
     if (rec.y0 === undefined) continue;
+    if (rec.k === 'b' && rec.ly >= 1 && !rec.rv && !rec.ov && Math.abs(rec.y1 - rec.y0) < 2.5) {   // a flat layer-1 bridge that is not over water and is short: a flyover whose road below was not flagged (tools/structures.py misses it when the road under it is split at the crossing). Left flat its deck lay on the ground and its parapets walled the road off (Viale Regione at Piazza Einstein, the sprint's line)
+      let L = 0; for (let k = 2; k < rec.p.length; k += 2) L += hh(rec.p[k] - rec.p[k - 2], rec.p[k + 1] - rec.p[k - 1]);
+      if (L >= 25 && L <= 260) rec.ov = 1;
+    }
     rec.p = densify(rec.p, rec.k === 't' ? 4 : 6);   // the profile (ramps, a dip) needs vertices
     st = profile({ id: rec.id, rec, tiles: new Set([key]), meshes: null, full: new Set() });
     const r = rec, p = r.p, n = p.length / 2;

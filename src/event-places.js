@@ -142,7 +142,8 @@ export const URGENT = [
 export const RACES = [
   { id: 'regione', name: 'Sprint sulla Regione Siciliana', en: 'Regione Siciliana sprint', kind: 'sprint', road: 'Viale Regione Siciliana Nord Ovest', near: [-2850, -1500], dir: [0, 1], len: 1900,
     opp: ['car:viola', 'car:arancio', 'car:nero', 'lapa:rosanero', 'scooter:rosso'], prize: [70, 30, 12] },
-  { id: 'scienze', name: 'Giri al Campus', en: 'Campus laps', kind: 'laps', laps: 2, road: 'Viale delle Scienze', start: [-815, 1000], loopA: [-666, 825], loopB: [-1246, 1643],
+  { id: 'scienze', name: 'Giri al Campus', en: 'Campus laps', kind: 'laps', laps: 2, road: 'Viale delle Scienze', start: [-815, 1000], loopA: [-666, 825], loopB: [-1108, 1336],   // loopB was the end of the campus road at (-1246, 1643): a one-way ring round a fenced yard, no way to turn a lapa there at speed (e9)
+   
     opp: ['scooter:verde', 'scooter:rosanero', 'lapa:rosso', 'carrozza', 'car:azzurro'], prize: [60, 25, 10] },
   { id: 'olimpo', name: 'Giro dell\'Olimpo', en: 'Olimpo laps', kind: 'laps', laps: 2, road: 'Viale dell\'Olimpo', start: [-4705, -8106], loopA: [-4705, -8106], loopB: [-4683, -8088],
     opp: ['car:giallo', 'car:rosanero', 'carrozza', 'scooter:arancio', 'lapa:blu'], prize: [80, 35, 15] },
