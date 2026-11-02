@@ -13,7 +13,7 @@ export function createLpcAtlas(cast, base) {
   const stats = { farBytes: 0, nearBytes: 2, farMipBytes: 0, farTexels: 0, nearTexels: 1, farCells: 0, built: 0, farBuilt: 0, nearBuilt: 0, slots: 0, maxSlots: 0, buildMs: 0, nearMs: 0, farMs: 0, lpc: true, loaded: false };
   const out = { far, near, farSz, farW: 1, farH: 1, nearW: 1, nearH: 1, farCol: 1, nearCol: 1, farIdx, nearIdx: new Int32Array(N * CPE).fill(-1), farDone, FCW: 1, FCH: 1, NCW: 1, NCH: 1, stats,
     pump() {}, want() {}, settle() {}, prioritise() {}, buildNow() {}, nearReady: () => false, pending: () => 0, dispose() { far.dispose(); near.dispose(); } };
-  (async () => {
+  const load = async () => {
     try {
       const index = await (await fetch(base + 'index.json')).json();
       const bmp = await createImageBitmap(await (await fetch(base + 'atlas.png')).blob());
@@ -26,6 +26,9 @@ export function createLpcAtlas(cast, base) {
       farSz.set(cv.width, cv.height);
       stats.farBytes = n * 2; stats.farMipBytes = Math.round(n * 2 * 1.34); stats.farTexels = n; stats.farCells = index.entries.length * CPE; stats.loaded = true;
     } catch (e) { console.warn('LPC pedestrian atlas failed to load', e); }
-  })();
+  };
+  load();
+  // The pixels are dropped after the upload, so a lost GL context (phones can do this in the background) takes the crowd with it: fetch them again.
+  document.getElementById('view')?.addEventListener('webglcontextrestored', load);
   return out;
 }
