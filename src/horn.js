@@ -4,13 +4,18 @@
 export function createHorn({ keys, car, getVolume }) {
   let ctx = null, gain = null, oscs = [], on = false, pulse = 0;
 
-  function start() {
+  // The audio context must be made, and resumed, inside a user gesture (iPhone Safari keeps one that was made later in a frame silent for good): src/main.js calls unlock() from the shell's
+  // 'pd-gesture' (the title tap, Drive, Resume) and the first touch or key press, so the first honk is not the first time the context exists.
+  function unlock() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       ctx = new AC();
     }
     if (ctx.state === 'suspended') ctx.resume();
+  }
+  function start() {
+    unlock(); if (!ctx) return;
     gain = ctx.createGain();
     gain.gain.value = 0;
     // Small scooter horns are two slightly detuned square-ish tones through a nasal band-pass.
@@ -49,5 +54,5 @@ export function createHorn({ keys, car, getVolume }) {
     }
   }
 
-  return { update };
+  return { update, unlock };
 }

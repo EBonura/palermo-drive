@@ -169,4 +169,7 @@ export function setupMobile({ keys, camState, renderer, camera }) {
 
   if (touch) enable();
   else addEventListener('pointerdown', e => { if (e.pointerType === 'touch') enable(); }, { once: false, capture: true, passive: true });
+  // true while the "turn your phone" prompt covers the screen (touch UI on, portrait): src/main.js holds the game while it shows
+  const portraitMQ = matchMedia('(orientation: portrait)');
+  return { rotatePrompt: () => enabled && !rotate.hidden && portraitMQ.matches };
 }
