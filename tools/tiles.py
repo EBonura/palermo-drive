@@ -2171,6 +2171,8 @@ def build(offline=False):
     for key, items in tt.items():
         tile_props.setdefault(key, []).extend(items)
     print(f"  greenery: {sum(len(v) for v in tt.values())} trees in {len(tt)} tiles, {n_crown} OSM trees sized", flush=True)
+    import monumental
+    monumental.apply(os.path.join(ROOT, "data", "monumental_trees.geojson"), tile_props, T, inside)
     import transit_bake
     for src in (transit_bake.busstop_items(os.path.join(ROOT, "data", "bus_routes.json"), T), transit_bake.fountain_items(os.path.join(ROOT, "data", "fountains.json"), T)):
         for key, items in src.items():
@@ -2356,7 +2358,7 @@ def build(offline=False):
         "credits": dict({"osm": "Map data (c) OpenStreetMap contributors, ODbL", "lidar": LIDAR_CREDIT,
                          "terrain": "Mapzen/AWS Terrain Tiles (Terrarium)"},
                         **({"hills": TIN_CREDIT} if dem is not None else {}), **({"buildings": CTC_CREDIT} if CTC_ON else {}),
-                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT, "transit": TRANSIT_CREDIT, "colours": COLOUR_CREDIT}),
+                        **({"streets": RS_CREDIT} if RS_ON else {}), **({"walls": CTR_CREDIT} if os.path.exists(CTR_WALLS) else {}), **({"monumental": monumental.CREDIT} if os.path.exists(os.path.join(ROOT, "data", "monumental_trees.geojson")) else {}), **{"trees": UA_CREDIT, "green": VERDE_CREDIT, "transit": TRANSIT_CREDIT, "colours": COLOUR_CREDIT}),
     }
     if islands:
         manifest["islands"] = islands
