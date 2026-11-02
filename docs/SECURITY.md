@@ -25,7 +25,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 | 11 | Saved driver picture was taken from localStorage as any address | Low | Fixed |
 | 12 | GitHub-side settings: Dependabot off, secret scanning and push protection unknown, no branch protection, no private reporting | Medium | **Open** (owner, repository settings) |
 | 13 | Relay server: Go 1.22 is out of support, unpinned container images, stats key in the URL query | Low | **Open** |
-| 14 | HTML injection through OSM names, credits, URL parameters and saved data | none found | Info |
+| 14 | HTML injection through OSM names, credits, URL parameters and saved data | none found (one shared `esc()` now) | Info |
 | 15 | Third-party scripts and CDN: pinned, but without Subresource Integrity, in the dev tree only | Low | Open (Info) |
 | 16 | Build dependencies | `npm audit`: 0 vulnerabilities | Info |
 
@@ -53,7 +53,7 @@ on purpose, but it is also the login name of that account, so enable two-step ve
 ### 3. `.gitignore` coverage (Low, Fixed)
 
 What it really covered: `data/`, `dist/`, `node_modules/`, `tools/build/.cache/`, `tools/.venv/`, `__pycache__/`, `.claude/`, `.DS_Store`, `*.orig`, `*.tmp.js`, `*.tmp.mjs`. `world/` is **not**
-ignored (the tiles are tracked and published; `docs/PERF.md` still says otherwise in two places, now stale). Nothing for key files, env files or logs, so a stray `.env` or `*.pem` would have been
+ignored (the tiles are tracked and published; `docs/PERF.md` said otherwise; corrected). Nothing for key files, env files or logs, so a stray `.env` or `*.pem` would have been
 committed by `git add -A` (see the autopush finding). Added: `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.keystore`, `*credentials*`, `*.token`, `*_token`, `*.secret`, `secrets.json`, `*.log` (narrow on purpose:
 the game has a feature called secrets, and `src/secrets.js` must not vanish silently). `data/autopush.log` was already covered by `data/`.
 
@@ -96,8 +96,7 @@ happens to them:
 - **URL parameters**: values that reach the DOM are whitelisted (`lang`, `ui`, `view`, `veh`, `liv` against known ids), numeric (`peds`, `speed`, `at`, `time`, `tt`, `rs`, `cash`) or cut (`name`, 16 characters, set with `textContent`).
 - **localStorage** (`palermoDrive.settings.v1`, `.net.v1`, `.pid.v1`, `.events.v1`, `.secrets.v1`, `.mapEvents`, `.a2hs`, `.keyhint`, `pd.driver`, the Garage save): every loader validates types and ranges before use
   (`ui.js` 185 to 260, `garage.js` 156 to 170, `driver.js` `cleanSpec`, `missions.js:487`, the pid must match `^[0-9a-f]{16,40}$`). A tampered save needs the page's own origin, so it is self-inflicted at worst.
-- `esc()` (nine copies: `ui.js`, `garage-ui.js`, `startmap.js`, `event-hud.js`, `event-fares.js`, `event-food.js`, `event-pubs.js`, `achievements.js`, `net.js`) escapes `& < > "` but not `'`. No template puts an interpolated value
-  in a single-quoted attribute (grep `='${`: none), so this is safe today. Open, Low: one shared helper that also escapes `'` would remove the trap for the next author.
+- `esc()` used to be nine copies that escaped `& < > "` but not `'`. It is now one helper, `src/esc.js`, imported by `ui.js`, `garage-ui.js`, `startmap.js`, `event-hud.js`, `event-fares.js`, `event-food.js`, `event-pubs.js`, `achievements.js` and `net.js`; it also escapes `'` (as `&#39;`), so a value is safe in a single-quoted attribute too. No template used one, so nothing changed for players. Fixed.
 
 ### 8. URL parameters that load things from elsewhere
 

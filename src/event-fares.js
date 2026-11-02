@@ -4,6 +4,7 @@
 // drifts, two wheels and close calls. Hitting pedestrians or cars costs nothing. Pay goes to the Garage wallet through 'pd-fare' (src/garage.js).
 // createFares(X) -> { start(slot), update(dt), stop(), active(), stigghiola() }; X is the context built in src/missions.js.
 import { TOURIST, DRIVER, FAVORITA, PULLE, URGENT_LINES, NATIONS, FRIEND } from '../assets/missions/lines.js';
+import { esc } from './esc.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -170,7 +171,7 @@ export function createFares(X) {
       <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
     if (total >= f.base * 1.4) hud.burst();
   }
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 
   function update(dt) {
     if (!f) return;

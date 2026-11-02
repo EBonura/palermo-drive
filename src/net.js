@@ -14,6 +14,7 @@
 //  2. The WebSocket, open only while the game is in 'play' (not on menus or pause), the tab is visible and the player did
 //     something in the last 2 minutes. Every open second counts against the relay's free-tier budget.
 import * as THREE from 'three';
+import { esc } from './esc.js';
 
 const RELAY_URL = ''; // wss://<cloud-run-host>/ws once the relay is deployed (see server/DEPLOY.md)
 
@@ -145,7 +146,7 @@ export function createNet(env) {
     ensureUI(); closeCard();
     const t = lang(), editing = !!store.name;
     card = document.createElement('div'); card.className = 'pdn-card'; card.setAttribute('role', 'dialog');
-    const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
     card.innerHTML = `<b>${editing ? t.edit : t.ask}</b>${editing ? '' : `<small>${esc(t.askSub)}</small>`}
       <form><input maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="go" placeholder="${esc(t.ph)}" aria-label="${esc(t.ph)}">
       <button class="ok" type="submit">${editing ? t.save : t.join}</button><button class="no" type="button">${editing ? t.close : t.skip}</button>

@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ITEMS } from './pub-places.js';
+import { esc } from './esc.js';
 
 const R_PICK2 = 3.6 * 3.6;
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -48,7 +49,7 @@ export function createErrand(X) {
   const itemMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const homeBeacon = X.makeBeacon('#6bbf59', 8); homeBeacon.beam.scale.set(0.35, 1, 0.35);
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
   const lineOf = l => (Array.isArray(l) ? (X.lang() === 'en' && l[1] ? l[1] : l[0]) : l);
   const T2 = a => T(a[0], a[1]);
   const headOf = () => { const p = e.venue.caller ? X.pedestrians.info(e.venue.caller) : null; return p ? { x: p.x, y: p.y + 1.95, z: p.z } : { x: e.venue.door.x + e.venue.n.x * 1.7, y: groundAt(e.venue.door.x, e.venue.door.z) + 2.2, z: e.venue.door.z + e.venue.n.z * 1.7 }; };

@@ -14,6 +14,7 @@ import { setupGarageUI } from './garage-ui.js';   // the Garage screen (vehicles
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
+import { esc } from './esc.js';
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -163,7 +164,6 @@ export function logoSVG(u = 'a') {
 // ---------------------------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------------------------
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function h(tag, cls, html, attrs) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -202,7 +202,7 @@ const creditName = s => s.replace(/^`?[\w./-]+\.(jpg|png|webp|mp3|wav|ogg|glb|js
 const creditHead = s => s.replace(/\s*\([^)]*[/.][^)]*\)\s*$/, '');
 // a bare URL as readable text: decoded, no scheme, Commons files by name, long paths shortened (the link keeps the full address)
 function urlLabel(u) {
-  let s = u.replace(/&amp;/g, '&'); try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
+  let s = u.replace(/&amp;/g, '&').replace(/&#39;/g, "'"); try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
   s = s.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
   const f = s.match(/^commons\.wikimedia\.org\/wiki\/File:(.+)$/);
   if (f) s = 'Wikimedia Commons: ' + f[1].replace(/_/g, ' ');

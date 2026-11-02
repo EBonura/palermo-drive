@@ -5,6 +5,7 @@
 //   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
 import * as THREE from 'three';
 import { vp } from './viewport.js';
+import { esc } from './esc.js';
 
 const CSS = `
 #ev-hud { position: fixed; z-index: 60; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); width: min(360px, 54vw); display: none;
@@ -61,7 +62,7 @@ const CSS = `
 html.pd-title .ev-edge, html.pd-title #ev-hud, html.pd-title .ev-toasts, html.pd-title .ev-result, html.pd-title .ev-count { display: none !important; }
 `;
 
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export function createEventHud({ camera, car, groundY }) {
