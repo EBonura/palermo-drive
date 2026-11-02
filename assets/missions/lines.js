@@ -538,7 +538,6 @@ export const POLLANCHE = {
 // road of the world tiles and set on the verge: (dx, dz) = the road direction, the car is parked along it.
 export const APPARTATI = {
   yell: [
-    ['Ma chi fari sunnu chisti?! Astuta, screanzatu!', 'What headlights are these?! Turn them off, rude one! (?)'],
     ['Ma ti pari u modu?! Chista è na maccina privata!', 'Is that any way to behave?! This is a private car! (?)'],
     ['Eh! Stavamu... cuntannu i stiddi!', 'Hey! We were... counting the stars! (?)'],
     ['Stavamu sulu... ripassannu u codici stradali!', 'We were only... revising the highway code! (?)'],

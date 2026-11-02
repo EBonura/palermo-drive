@@ -98,6 +98,10 @@ html.touch .rot {
 .nosbar-l { font: 800 11px/1 system-ui, -apple-system, sans-serif; letter-spacing: .12em; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
 .nosbar-t { flex: 1; height: 9px; border-radius: 5px; background: rgba(0,0,0,.4); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); overflow: hidden; display: block; }
 .nosbar-t i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, #2b7bff, #5fe0ff); }
+.nosbar-t { position: relative; }
+.nosbar-t b { position: absolute; left: 0; top: 0; display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, #ffd34d, #fff1b0); }
+.nosbar.over .nosbar-t { box-shadow: inset 0 0 0 1.5px #ffe27a, 0 0 10px 2px rgba(255,200,60,.7); }
+.nosbar.over .nosbar-l { color: #ffe27a; }
 .nosbar.on .nosbar-t { box-shadow: inset 0 0 0 1.5px #fff, 0 0 10px 2px rgba(95,224,255,.75); }
 .nosbar.on .nosbar-t i { background: linear-gradient(90deg, #7fd6ff, #fff); }
 .nosbar.low .nosbar-t i { background: #c6473b; }

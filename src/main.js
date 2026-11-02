@@ -86,6 +86,16 @@ const SPOTS = [
   ['Piazza Leoni (ingresso Favorita)', 38.1468260, 13.3433865],
   ['Piazza Sant\'Anna', 38.1149181, 13.3651434],
   ['Stazione Notarbartolo', 38.1315626, 13.3408256],
+  // Starts near the secrets and vendors that have no pin of their own (the parked cars at night, the Ballarò and Noce corners, the Ponte Corleone). Each sits on a road vertex 20 to 45 m from what it leads to, with the lapa facing it when the road allows. Street names from the world tiles.
+  ['Via Pietro Bonanno (Monte Pellegrino)', 38.152401, 13.361362, 'Monte Pellegrino'],
+  ['Via Padre Giordano Cascini (Monte Pellegrino)', 38.17508, 13.361156, 'Monte Pellegrino'],
+  ['Via Santuario (Monte Pellegrino)', 38.167059, 13.349603],
+  ['Viale del Fante (Favorita)', 38.149991, 13.342344, 'Resuttana'],
+  ['Via Antonino Cassarà', 38.151452, 13.339932],
+  ['Viale Ercole (Favorita)', 38.151714, 13.347661, 'Parco della Favorita'],
+  ['Piazza Ballarò', 38.1113556, 13.3615778],
+  ['Piazza Noce', 38.1219451, 13.3329544],
+  ['Ponte Corleone (Viale Regione Siciliana)', 38.090479, 13.343314],
 ];
 SPOTS.push(...POI_SPOTS); // points of interest from the pubs work (Piazza Magione), src/pub-places.js
 
@@ -245,7 +255,7 @@ let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
 const stadium = createStadium({ ...worldEnv, vehicle });
 const traffic = createTraffic(worldEnv);
-const pedestrians = createPedestrians({ ...worldEnv, traffic, props: propsApi });
+const pedestrians = createPedestrians({ ...worldEnv, traffic, props: propsApi });   // props: the sunbeds and umbrellas, which the sunbathers keep off
 const carretto = createCarrettoProp({ ...worldEnv, proj }); carretto.bindPedestrians(pedestrians);
 const markets = createMarkets({ ...worldEnv, proj, props: propsApi }); markets.bindPedestrians(pedestrians);
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
@@ -445,5 +455,5 @@ renderer.setAnimationLoop(now => {
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);
-  if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; the wobble of a drink is on the camera for the render only
+  if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; drunk.render is renderer.render when sober, and while drunk the wobble of the camera plus the screen shader (src/drunk.js)
 });

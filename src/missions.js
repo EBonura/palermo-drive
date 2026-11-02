@@ -589,8 +589,8 @@ function build(env) {
   // ------------------------------------------------------------------------------------ stigghiola
   function eatStigghiola(v) {
     v.cd = 50;
-    car.nos = 1; car.nosLock = false;
-    toast('STIGGHIOLA!', T('Nitro pieno', 'Nitro refilled')); burst();
+    car.nos = Math.min(car.nosMax, car.nos + 0.8); car.nosLock = false;   // 0.8 on top of what you have, past a full bar (an overcharge); a pollanche is 0.5 up to full
+    toast('STIGGHIOLA!', T('Nitro in più, anche oltre il pieno', 'Extra nitro, even past full')); burst();
     say(pick(VENDOR_SERVE), () => ({ x: v.x, y: v.gy + 0.2, z: v.z }), 0);
     dline('stig', 2.0);
     fares.stigghiola();

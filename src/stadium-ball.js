@@ -1,4 +1,4 @@
-// Rocket League, lite, at the Barbera: a big rosanero ball on the pitch that the lapa can hit. Simple physics (gravity, bounce, rolling friction, the pitch's own edge as the wall, the two
+// Rocket League, lite, at the Barbera: a rosanero ball on the pitch that the lapa can hit (R below: 1 m across, about four times a real one so it still shows from the chase camera, and half the height of a person). Simple physics (gravity, bounce, rolling friction, the pitch's own edge as the wall, the two
 // goal posts), kicked by the lapa with an impulse from its speed. The ball crossing a goal line between the posts and under the bar is GOL: a big banner, the stands jump (src/stadium.js
 // holds the hype) and a fan calls it out in a balloon, points go on a small card, a euro or two reach the wallet (the Garage listens to 'pd-fare') with a cooldown, the best score is saved,
 // and the ball goes back to the centre. The goal frames stay solid for the lapa (walls in src/lmc-a.js): the ball does not use them, it goes through the mouth and the net.
@@ -11,7 +11,7 @@ import { FP } from './landmarks-city-data.js';
 import { PITCH_Y } from './stadium-ground.js';
 import { obb } from './lmc-kit.js';
 
-const R = 1.5, SURF = PITCH_Y + 0.2, G = 24, MOUTH = 3.7, BAR = 2.44, LINE = 52.5;
+const R = 0.5, SURF = PITCH_Y + 0.2, G = 24, MOUTH = 3.7, BAR = 2.44, LINE = 52.5;
 const BEST_KEY = 'palermoDrive.stadium.best.v1', PAY = 2, PAY_COOLDOWN = 20, STREAK_WINDOW = 45;
 const lang = () => (document.documentElement.lang === 'en' ? 1 : 0);
 const GOL_CHANTS = ['GOOOOL!', 'Gol! Gol! Gol!', 'Alé alé rosanero!', 'FORZA PALERMO!'];
@@ -45,6 +45,7 @@ export function createBall({ scene, car, shout, seat, boost, react = {} }) {
     g.fillStyle = '#f6f1e6'; g.fillRect(0, 54, 256, 20); g.fillStyle = '#16101a'; for (let i = 0; i < 8; i++) { g.beginPath(); g.arc(i * 32 + 16, 64, 8, 0, 7); g.fill(); } }
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 14), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55 })); mesh.visible = false; scene.add(mesh);
+  const ghost = new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({ color: 0xffb0d0, transparent: true, opacity: 0.55, depthWrite: false, depthFunc: THREE.GreaterDepth })); ghost.renderOrder = 3; mesh.add(ghost);   // drawn only where something stands in front of the ball (the lapa, a post), so a ball straight ahead of the chase camera never disappears behind the cabin
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 18), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   shadow.rotation.x = -Math.PI / 2; shadow.visible = false; scene.add(shadow);
   const axis = new THREE.Vector3();
