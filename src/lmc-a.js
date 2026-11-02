@@ -405,11 +405,16 @@ function buildSantuario() {
   // the grey-ochre limestone cliff the sanctuary is cut into: rock towers behind and to the right, rooted deep in the hillside (they used to be boxes whose underside hung over the road)
   cliffMat();
   const r_ = RNG(613), root = gy - lowestGround(M, -W / 2 - 14, W / 2 + 20, -Dp / 2 - 16, Dp / 2 + 14) + 8;
-  for (let i = 0; i < 6; i++) {
-    const x = -W / 2 - 4 + i * (W + 14) / 5, hh = 46 + r_() * 22, zz = -Dp / 2 - 4 - r_() * 3;
-    crag('cliff', mul(M, tr(x, hh, zz)), 10.5 + r_() * 3, 7 + r_() * 2, hh + root, { spread: 1.25, seed: 20 + i * 3, jit: 0.3, rough: 0.14, seg: 18, rows: 12, cap: true, noao: true });
-  }
-  for (let i = 0; i < 3; i++) { const hh = 36 + i * 9; crag('cliff', mul(M, tr(W / 2 + 4 + i * 4.5, hh, -Dp / 2 + 2 - i * 4)), 9, 8, hh + root, { spread: 1.25, seed: 50 + i * 4, jit: 0.3, rough: 0.14, seg: 16, rows: 12, cap: true, noao: true }); }
+  // each massif is a stack of four tiers, a broad foot and narrower tiers stepping back above it, so the cliff shows layered ledges (flat tops with scrub) and not a column
+  const massif = (x, zz, rx, rz, H, seed) => {
+    const tiers = 4;
+    for (let k = 0; k < tiers; k++) {
+      const top = H * (k + 1) / tiers * (0.94 + r_() * 0.1), f = 1.6 - 0.2 * k, sx = (r_() - 0.5) * 3.5;
+      crag('cliff', mul(M, tr(x + sx, top, zz - k * 2.8)), rx * f, rz * f, top + root, { spread: 1.12, seed: seed + k * 5, jit: 0.3, rough: 0.13, seg: 18, rows: 6, cap: true, noao: true });
+    }
+  };
+  for (let i = 0; i < 6; i++) massif(-W / 2 - 4 + i * (W + 14) / 5, -Dp / 2 - 6 - r_() * 3, 8 + r_() * 2.5, 6 + r_() * 2, 46 + r_() * 22, 20 + i * 3);
+  for (let i = 0; i < 3; i++) massif(W / 2 + 6 + i * 6.5, -Dp / 2 + 1 - i * 4, 7, 7, 36 + i * 9, 50 + i * 4);
   return end('Santuario di Santa Rosalia');
 }
 export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };

@@ -228,7 +228,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tileFns = new Set(), fullSet = new Set();
   const emit = (kind, t) => { if (kind === 'full') { if (fullSet.has(t)) return; fullSet.add(t); } else if (!fullSet.delete(t)) return; for (const f of tileFns) { try { f(kind, t); } catch (e) { console.error('[world] tile hook', e); } } };
   let CITY = [];
-  import('./landmarks-city.js').then(m => { CITY = m.CITY_LANDMARKS || []; }).catch(e => console.warn('city landmarks', e));
+  import('./landmarks-city.js').then(m => { CITY = m.CITY_LANDMARKS || []; PAVEZ = CITY.flatMap(l => (l.pave || []).map(pts => { const xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); return { pts, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) }; })); }).catch(e => console.warn('city landmarks', e));
+  let PAVEZ = [];   // ground polygons the landmarks ask to have paved (their `pave` lists)
   const cityIn = t => CITY.filter(l => Math.floor(l.x / T) === t.i && Math.floor(l.z / T) === t.j);
   let focus = { x: 0, z: 0 }, lastWanted = { x: 1e9, z: 1e9 }, wantedTimer = 0, forced = null;
   const stat = { frames: 0, work: 0, workMax: 0, workSum: 0, hitches: 0, fetched: 0, bytes: 0, built: 0, errors: 0, parseMax: 0 };
@@ -462,7 +463,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
           break;
         }
-        if (pvf && !covered && y > 1.6 && !(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1)) {   // built-up ground with no paving polygon and no land cover over it
+        let zoned = false;
+        for (const pz of PAVEZ) if (x > pz.x0 - step && x < pz.x1 + step && z > pz.z0 - step && z < pz.z1 + step && inPoly(pz.pts, x, z)) { zoned = true; break; }
+        if (zoned) { pav[j * n + i] = 1; _c.lerp(C.pave, 0.9); }
+        else if (pvf && !covered && y > 1.6 && !(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1)) {   // built-up ground with no paving polygon and no land cover over it
           const w = (1 - smooth(28, 70, paveAt(pvf, pvf.dist, x, z))) * smooth(0.06, 0.16, paveAt(pvf, pvf.dens, x, z)) * (1 - smooth(0.16, 0.34, slope));
           if (w > 0.004) { pav[j * n + i] = w; _c.lerp(C.pave, w * 0.9); }
         }
