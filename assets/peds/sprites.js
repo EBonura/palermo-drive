@@ -117,6 +117,9 @@ const TYPES = [
       ['mondello', { top: '#f0eee8', sleeve: 'short', bottom: { type: 'shorts', col: '#3f9ab8', len: 8 }, shoes: '#a8684a' }]].flatMap(([k, o]) => [
     { id: 'amico1_' + k, ...AMICO1, ...o, speed: 1.1, gen: false },
     { id: 'amico2_' + k, ...AMICO2, ...o, speed: 1.1, gen: false }]),
+  // the coachman of the tourist carrozze (src/carrozze.js puts him on the box): grey moustache, white shirt, black waistcoat, a top hat. Not part of the crowd (weight 0 below)
+  { id: 'cocchiere', gen: false, age: 'adult', skin: '#c99872', hair: '#6b645c', hairStyle: 'short', face: { beard: 'moustache', beardCol: '#6b645c' }, top: '#f2f0e8', sleeve: 'long', waistcoat: '#17151a',
+    hat: { type: 'top', col: '#17151a' }, bottom: { type: 'trousers', col: '#17151a' }, shoes: '#17151a', speed: 0.9 },
 ];
 
 // who is who: sex (default m) and age group (default adult); varyTop / varyBottom let the generator change the colours of the generic everyday types
@@ -136,7 +139,7 @@ const W = {
   tifoso: [4, 5, 2, 3, 14], tifoso2: [3, 4, 2, 2, 12], tifosa: [3, 4, 1, 2, 10], tifoso_kid: [2, 2, 1, 1, 6], tifoso_nonno: [1.5, 1.5, 1.5, 0.5, 5],
   tuta: [5, 4, 3, 2, 3], skinny: [4, 5, 3, 3, 3], motorino: [3, 2, 3, 1, 2], motorina: [2, 2, 2, 1, 2], nonno_gilet: [5, 2, 5, 1, 1], nonna2: [6, 3, 7, 1, 1.5], nonna3: [5, 2, 5, 1, 1],
   pescivendolo: [0.5, 0, 8, 0, 0], macellaio: [0.3, 0, 4, 0, 0], shopper: [2, 5, 3, 3, 3], beach_m: [0.5, 1.5, 0.5, 3, 0.5], beach_w: [0.5, 1.5, 0.5, 3, 0.5], mamma: [3, 3, 2, 2, 2],
-  wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0],
+  wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0], cocchiere: [0, 0, 0, 0, 0],
   scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
 };
 // Zones: [vicoli, main street, market, tourist, match-day, movida]. Zone 5 only exists after dark (Sant'Anna, Vucciria).
