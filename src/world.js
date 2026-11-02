@@ -497,7 +497,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* buildRaised(t) {
     const st = t.data.streets, ext = poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return [lo, hi]; };
     const x0 = t.i * T, z0 = t.j * T, info = [];
-    for (const [layers, col] of [[['raised', 'green'], '#f00'], [['asphalt', 'paving', 'raised', 'verge'], '#0f0']])
+    for (const [layers, col] of [[['raised', 'median', 'green'], '#f00'], [['asphalt', 'paving', 'raised', 'median', 'verge'], '#0f0']])
       for (const l of layers) for (const poly of st[l] || []) { const [lo, hi] = ext(poly); info.push({ poly, col, lo: (lo - z0) * RK, hi: (hi - z0) * RK }); }
     if (!info.length) { t.raised = null; t.hard = null; return; }
     if (!rcv) { rcv = document.createElement('canvas'); rcv.width = RW; rcv.height = BAND; rg = rcv.getContext('2d', { willReadFrequently: true }); }
@@ -798,7 +798,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'verge', 'green'], curbs: true, offset: true, drape: 9, chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
