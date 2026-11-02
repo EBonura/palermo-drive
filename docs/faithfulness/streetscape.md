@@ -26,3 +26,7 @@ Stopped early for budget. No code was changed: src/streets.js, src/gardens.js an
    `raised` to courtyards and plazas, or cut URBAN_REACH to about 4 m outside the dense core. That alone fixes finding 1 without runtime masks.
 
 References (Street View, Commons) were not consulted yet beyond the survey notes.
+
+## Port quays (board item n10)
+
+What the photographs of the port show (Wikimedia Commons categories of the port of Palermo, the Cala, the Molo Trapezoidale): the quays are flat concrete or stone aprons about 1.5 m over the water with a vertical stone face that goes straight down, a coping stone, iron bollards every 15 to 25 m, rubber fenders, ships alongside; the commercial port has gantry cranes on rails along the quay and container stacks on the apron. In the game the harbour was a beach: the terrain sloped into the water, buildings stood on the slope. See docs/TILES.md "The harbour quays". Checked in the game: before, ground 2.4 / 0.5 / -1.5 m over 10 m inland of the Molo Santa Lucia; after, 1.6 m flat to the edge and a vertical wall. Known: the quay height is one constant (1.6 m) for the whole port; the real quays vary by a few tens of cm.
