@@ -137,9 +137,20 @@ export const POLITEAMA = {
 
 // ====================================================================================================
 // 2. Stadio Renzo Barbera: the OSM ring (outer wall, hole = the playing area) becomes a two-tier bowl, canopies on the long sides,
-//    four floodlight towers, a red running track round the pitch, and a vehicle gate through the stands at the north end.
+//    four floodlight towers, a red running track round the pitch, and the vehicle gate: the main entrance in the middle of the front.
 // ====================================================================================================
-const GATE = { x: -1668, halfW: 3.6 };
+// The front is the covered Tribuna, the long side towards Viale del Fante (west-south-west): the OSM roof polygon (way 124120091) is that stand to the metre, the entrance=main nodes
+// line that side, and Via Cassarà, its junction with Viale del Fante and the OSM service road run straight at the middle of its wall (the road ends 2 m along the pitch from the centre).
+// (u, v): u along the pitch, v out from its centre towards the front; every x, z of the gate comes from them.
+const SD = (() => {
+  const outer = pairsOf(FP.stadio.p), hole = pairsOf(FP.stadio.holes[0]), ob = obb(hole), s = ob.ux > 0 ? 1 : -1, U = [ob.ux * s, ob.uz * s];
+  return { outer, hole, ob, U, F: [-U[1], U[0]], cx: ob.cx, cz: ob.cz };
+})();
+const P = (u, v) => [SD.cx + SD.U[0] * u + SD.F[0] * v, SD.cz + SD.U[1] * u + SD.F[1] * v];
+const lat = (x, z) => (x - SD.cx) * SD.U[0] + (z - SD.cz) * SD.U[1], dep = (x, z) => (x - SD.cx) * SD.F[0] + (z - SD.cz) * SD.F[1];
+// u, halfW: where the gate is along the front and half its width; PD: how far the entrance block stands out of the wall; EX: how far the tunnel's walls and roof run on over the track
+const GATE = { u: 2.0, halfW: 4.0, PD: 3.2, EX: 3.5 };
+{ const g = P(GATE.u, 0); GATE.vOut = rayHit(SD.outer, g[0], g[1], SD.F[0], SD.F[1]); GATE.vIn = rayHit(SD.hole, g[0], g[1], SD.F[0], SD.F[1]); }   // v of the outer wall and of the pitch wall at the gate
 function rayHit(ring, cx, cz, dx, dz) {
   let best = -1;
   for (let i = 0; i < ring.length; i++) {
@@ -150,26 +161,31 @@ function rayHit(ring, cx, cz, dx, dz) {
   }
   return best;
 }
+// the entrance block in front of the gate, seen from above: a pier each side of the opening (PIER wide, GATE.PD out of the wall) and beyond it an arched side door (DOOR wide, DOOR_D out)
+const PIER = 2.4, DOOR = 5.0, DOOR_D = 2.4;
 function stadiumCollision() {
-  const fp = FP.stadio, outer = pairsOf(fp.p), hole = pairsOf(fp.holes[0]), out = [];
-  const clip = (s) => { // cut the gate gap out of a segment that crosses it
-    const [x0, z0, x1, z1] = s, lo = GATE.x - GATE.halfW, hi = GATE.x + GATE.halfW, mnx = Math.min(x0, x1), mxx = Math.max(x0, x1);
-    if (mxx < lo || mnx > hi || Math.abs(z0 + 4185) > 25) return [s];
-    const r = [], zAt = (x) => z0 + (z1 - z0) * (x - x0) / (x1 - x0 || 1);
-    if (x0 < lo && x1 > lo || x1 < lo && x0 > lo) r.push(x0 < x1 ? [x0, z0, lo, zAt(lo)] : [x1, z1, lo, zAt(lo)]);
-    else if (mnx < lo) r.push(x0 < x1 ? [x0, z0, Math.min(x1, lo), zAt(Math.min(x1, lo))] : [x1, z1, Math.min(x0, lo), zAt(Math.min(x0, lo))]);
-    if (x0 < hi && x1 > hi || x1 < hi && x0 > hi) r.push(x0 < x1 ? [hi, zAt(hi), x1, z1] : [hi, zAt(hi), x0, z0]);
-    else if (mxx > hi) r.push(x0 < x1 ? [Math.max(x0, hi), zAt(Math.max(x0, hi)), x1, z1] : [Math.max(x1, hi), zAt(Math.max(x1, hi)), x0, z0]);
+  const out = [], { outer, hole, ob } = SD, lo = GATE.u - GATE.halfW, hi = GATE.u + GATE.halfW;
+  const clip = (s) => { // cut the gate's gap out of a segment of the front wall (both rings)
+    const [x0, z0, x1, z1] = s, a = lat(x0, z0), b = lat(x1, z1);
+    if (dep((x0 + x1) / 2, (z0 + z1) / 2) < 30 || Math.max(a, b) <= lo || Math.min(a, b) >= hi) return [s];
+    if (Math.abs(b - a) < 1e-6) return [];
+    const t1 = (lo - a) / (b - a), t2 = (hi - a) / (b - a), tl = Math.min(t1, t2), th = Math.max(t1, t2), at = (t) => [x0 + (x1 - x0) * t, z0 + (z1 - z0) * t], r = [];
+    if (tl > 0) r.push([x0, z0, ...at(Math.min(tl, 1))]);
+    if (th < 1) r.push([...at(Math.max(th, 0)), x1, z1]);
     return r.filter(q => Math.hypot(q[2] - q[0], q[3] - q[1]) > 0.05);
   };
-  for (const ring of [outer, hole]) for (const s of ringSegs(ring)) {
-    if (ring === outer ? s[1] < -4180 && s[3] < -4180 : s[1] > -4175 && s[1] < -4160 && s[3] > -4175 && s[3] < -4160) out.push(...clip(s)); else out.push(s);
+  for (const ring of [outer, hole]) for (const s of ringSegs(ring)) out.push(...clip(s));
+  // the tunnel's two walls, from the front of the entrance block to where the roof ends over the track, and the block itself: the piers beside the gate and the two arched doors
+  const v0 = GATE.vOut + GATE.PD, v1 = GATE.vIn - GATE.EX, seg = (l0, v0_, l1, v1_) => out.push([...P(l0, v0_), ...P(l1, v1_)]);
+  for (const l of [lo, hi]) seg(l, v0, l, v1);
+  for (const sg of [-1, 1]) {
+    const e = sg < 0 ? lo : hi, e1 = e + sg * PIER, e2 = e1 + sg * DOOR;
+    seg(e, v0, e1, v0); seg(e1, v0, e1, GATE.vOut);
+    seg(e1, GATE.vOut + DOOR_D, e2, GATE.vOut + DOOR_D); seg(e2, GATE.vOut + DOOR_D, e2, GATE.vOut);
   }
-  const zo = -4204.6, zi = -4167.4;
-  out.push([GATE.x - GATE.halfW, zo, GATE.x - GATE.halfW, zi], [GATE.x + GATE.halfW, zo, GATE.x + GATE.halfW, zi]);
   // the two goals are solid: a box over the mouth (7.4 m between the posts) and the net behind it (the models are at u = +-52.5 along the pitch, below)
-  const ob = obb(hole), P = (u, v) => [ob.cx + ob.ux * u + ob.vx * v, ob.cz + ob.uz * u + ob.vz * v];
-  for (const sg of [-1, 1]) { const a = P(52.5 * sg, -3.7), b = P(52.5 * sg, 3.7), c = P(55.0 * sg, 3.7), d = P(55.0 * sg, -3.7); out.push([...a, ...b], [...b, ...c], [...c, ...d], [...d, ...a]); }
+  const Q = (u, v) => [ob.cx + ob.ux * u + ob.vx * v, ob.cz + ob.uz * u + ob.vz * v];
+  for (const sg of [-1, 1]) { const a = Q(52.5 * sg, -3.7), b = Q(52.5 * sg, 3.7), c = Q(55.0 * sg, 3.7), d = Q(55.0 * sg, -3.7); out.push([...a, ...b], [...b, ...c], [...c, ...d], [...d, ...a]); }
   return out;
 }
 
@@ -209,7 +225,7 @@ function buildStadio() {
     g.strokeStyle = '#eef2ea'; g.lineWidth = 3; g.strokeRect(X(-52.5), Y(-34), 105 * sx, 68 * sy);
     g.beginPath(); g.moveTo(X(0), Y(-34)); g.lineTo(X(0), Y(34)); g.stroke(); g.beginPath(); g.arc(X(0), Y(0), 9.15 * sx, 0, 7); g.stroke();
     for (const s of [-1, 1]) { g.strokeRect(s > 0 ? X(52.5 - 16.5) : X(-52.5), Y(-20.2), 16.5 * sx, 40.4 * sy); g.strokeRect(s > 0 ? X(52.5 - 5.5) : X(-52.5), Y(-9.2), 5.5 * sx, 18.4 * sy); }
-  }, { polygonOffset: true, polygonOffsetFactor: -12, polygonOffsetUnits: -12 });
+  }, { polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -12 });   // no slope factor: seen edge-on from outside it pulled the pitch through the stands as a green line
   // polar sampling of the two rings from the centre of the playing area
   const D = [], I = [], O = [], gI = [], gO = [];
   for (let k = 0; k < N; k++) {
@@ -223,27 +239,47 @@ function buildStadio() {
   const ST = PROF.map(([t, h]) => I.map((p, k) => [p[0] + (O[k][0] - p[0]) * t, gI[k] + h, p[1] + (O[k][1] - p[1]) * t]));
   const dist = PROF.map(() => new Array(N + 1).fill(0));
   for (let i = 1; i < PROF.length; i++) for (let k = 0; k < N; k++) dist[i][k] = dist[i - 1][k] + Math.hypot(ST[i][k][0] - ST[i - 1][k][0], ST[i][k][1] - ST[i - 1][k][1], ST[i][k][2] - ST[i - 1][k][2]);
-  const gateCut = (a, b, c, d) => { const mx = (a[0] + b[0] + c[0] + d[0]) / 4, mz = (a[2] + b[2] + c[2] + d[2]) / 4, my = (a[1] + b[1] + c[1] + d[1]) / 4; return Math.abs(mx - GATE.x) < GATE.halfW + 0.9 && mz < cz - 30 && my - gc < 6.4; };
+  // the gate's width on the front: the stands, the pitch wall and the facade leave out every cell that touches it; the bowl's cells are radial, so the cut is a little wider than the gate,
+  // and ext is how far it reaches on each side (the tunnel's abutments below cover it)
+  const lo = GATE.u - GATE.halfW, hi = GATE.u + GATE.halfW, ext = { lo, hi };
+  const overGate = (track, ...p) => {
+    let l0 = 1e9, l1 = -1e9; for (const q of p) { const l = lat(q[0], q[2]); l0 = Math.min(l0, l); l1 = Math.max(l1, l); }
+    if (l1 <= lo || l0 >= hi || dep((p[0][0] + p[2][0]) / 2, (p[0][2] + p[2][2]) / 2) < 30) return false;
+    if (track) { ext.lo = Math.min(ext.lo, l0); ext.hi = Math.max(ext.hi, l1); }
+    return true;
+  };
+  const gateCut = (a, b, c, d) => (a[1] + b[1] + c[1] + d[1]) / 4 - gc < 6.4 && overGate(true, a, b, c, d);
   const band = (i0, i1, key, skip) => gridMesh(key, ST.slice(i0, i1 + 1), (i, j) => [arc[j] / 4, dist[i0 + i][j % N] / 4], { wrap: true, skip: skip ? (i, j, a, b, c, d) => gateCut(a, b, c, d) : undefined });
   band(0, 1, 'stSeats', true); band(1, 2, 'stSeats', true); band(2, 3, 'stConc', true); band(3, 4, 'stRing', true); band(4, 5, 'stConc'); band(5, 6, 'stSeats'); band(6, 7, 'stConc');
   // radial gangways (rose concrete) down both tiers, one every five samples
   for (let k = 2; k < N; k += 5) for (const [i0, i1] of [[1, 2], [5, 6]]) {
     const a = ST[i0][k], b = ST[i1][k], dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.hypot(dx, dy, dz);
-    if (Math.abs(a[0] - GATE.x) < GATE.halfW + 3 && a[2] < cz - 30) continue;
+    if (lat(a[0], a[2]) > ext.lo - 1.5 && lat(a[0], a[2]) < ext.hi + 1.5 && dep(a[0], a[2]) > 30) continue;
     box('stRing', 1.3, 0.12, len, { p: [a[0], a[1] + 0.04, a[2]], ry: Math.atan2(dx, dz), rx: -Math.asin(dy / len), noao: true });
   }
   // front wall with advertising boards
-  gridMesh('stAds', [I.map((p, k) => [p[0], gI[k], p[1]]), I.map((p, k) => [p[0], gI[k] + 1.5, p[1]])], (i, j) => [arc[j] / 16, i], { wrap: true, skip: (i, j, a, b, c, d) => Math.abs((a[0] + b[0]) / 2 - GATE.x) < GATE.halfW + 0.3 && a[2] < cz - 30 });
-  // outer facade: lower band (with the gate opening cut out) and an upper band that bridges the gate
+  gridMesh('stAds', [I.map((p, k) => [p[0], gI[k], p[1]]), I.map((p, k) => [p[0], gI[k] + 1.5, p[1]])], (i, j) => [arc[j] / 16, i], { wrap: true, skip: (i, j, a, b, c, d) => overGate(true, a, b, c, d) });
+  // outer facade: lower band (the gate's opening cut out, strips filled in up to its edges) and an upper band that bridges the gate
   const HF = (k) => gI[k] + HT;
   const fa = (y) => O.map((p, k) => [p[0], y(k), p[1]]);
   const ac = [0]; for (let k = 1; k <= N; k++) ac.push(ac[k - 1] + Math.hypot(O[k % N][0] - O[k - 1][0], O[k % N][1] - O[k - 1][1]));
   const FL = 0.27;   // v of the lower band's top in the facade texture
-  gridMesh('stFacade', [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 13, i * FL], { wrap: true, skip: (i, j, a, b) => Math.abs((a[0] + b[0]) / 2 - GATE.x) < GATE.halfW + 1.0 && a[2] < cz - 30 });
+  const fl = { l0: 1e9, l1: -1e9 };   // the cut's reach along the front, with the edge points [bottom, top, arc length] at both ends
+  gridMesh('stFacade', [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 13, i * FL], { wrap: true, skip: (i, j, a, b, c, d) => {
+    if (!overGate(false, a, b, c, d)) return false;
+    for (const [p, q, k] of [[a, d, j], [b, c, j + 1]]) { const l = lat(p[0], p[2]); if (l < fl.l0) { fl.l0 = l; fl.A = [p, q, ac[k]]; } if (l > fl.l1) { fl.l1 = l; fl.B = [p, q, ac[k]]; } }
+    return true;
+  } });
+  for (const [c0, c1] of [[fl.l1, hi], [lo, fl.l0]]) {   // (the bowl's samples run towards smaller u, so the strip nearer the larger u comes first)
+    const cols = [c0, c1].map(l => { const f = (l - fl.l0) / (fl.l1 - fl.l0), m = (a, b) => a + (b - a) * f, [A, B] = [fl.A, fl.B], at = (q) => [m(A[q][0], B[q][0]), m(A[q][1], B[q][1]), m(A[q][2], B[q][2])]; return { b: at(0), t: at(1), u: m(A[2], B[2]) }; });
+    if (Math.abs(c1 - c0) > 0.05) gridMesh('stFacade', [cols.map(c => c.b), cols.map(c => c.t)], (i, j) => [cols[j].u / 13, i * FL], {});
+  }
   gridMesh('stFacade', [fa(k => Math.max(gO[k], gI[k]) + 5.6), fa(HF)], (i, j) => [ac[j] / 13, FL + i * (1 - FL)], { wrap: true });
   gridMesh('stConc', [fa(HF), fa(k => HF(k) + 0.8)], (i, j) => [ac[j] / 2, i], { wrap: true });
   // pylons on the outside (every 4th sample) and the teal eave ring round the whole rim
-  for (let k = 0; k < N; k += 4) { const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
+  const atGate = (x, z, w) => Math.abs(lat(x, z) - GATE.u) < w && dep(x, z) > 30;   // in front of the entrance block, within w of the gate's axis
+  const BLOCK = GATE.halfW + PIER + DOOR + 1;   // half the width of the entrance block, and a metre
+  for (let k = 0; k < N; k += 4) { if (atGate(O[k][0], O[k][1], BLOCK)) continue; const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
   const eaveIn = (k, d, dy) => [O[k][0] - D[k][0] * d, HF(k) + dy, O[k][1] - D[k][1] * d], eaveOut = (k, d, dy) => [O[k][0] + D[k][0] * d, HF(k) + dy, O[k][1] + D[k][1] * d];
   gridMesh('stTeal', [O.map((p, k) => eaveIn(k, 1.2, 0.5)), O.map((p, k) => eaveOut(k, 2.6, -0.5))], (i, j) => [j * 1.2, i * 3], { wrap: true });
   gridMesh('stTeal', [O.map((p, k) => eaveOut(k, 2.6, -0.5)), O.map((p, k) => eaveOut(k, 2.6, -1.4))], (i, j) => [j * 1.2, i], { wrap: true });
@@ -260,7 +296,7 @@ function buildStadio() {
       gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true, c: '#555c60' });
       gridMesh('stTeal', [row(t0, h0 - 0.4, run), row(t0, h0 + 0.8, run)], (i, j) => [j, i], {});            // front fascia
       gridMesh('stTeal', [outerRow(h1 - 2.4, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia, the tall teal edge seen from the street
-      for (let q = 0; q < run.length; q += 3) { const k = run[q]; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
+      for (let q = 0; q < run.length; q += 3) { const k = run[q]; if (atGate(O[k][0], O[k][1], BLOCK)) continue; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
     }
     // the other long side (Tribuna Montepellegrino) and both ends are open to the sky in the satellite view: no roof there
   }
@@ -273,16 +309,53 @@ function buildStadio() {
   for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + PL, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
     bx('marble', Mg, -3.7, -3.6, 0, 2.44, 0, 0.12); bx('marble', Mg, 3.6, 3.7, 0, 2.44, 0, 0.12); bx('marble', Mg, -3.7, 3.7, 2.34, 2.44, 0, 0.12);
     bx('rail', Mg, -3.7, 3.7, 0, 2.4, -2.0, -1.9, { noao: true }); }
-  // the gate: concrete floor and side walls through the lower tier, with a roof slab
-  const zo = -4204.6, zi = -4167.4, ym = groundY(GATE.x, (zo + zi) / 2);
-  bx('stConc', tr(0, 0, 0), GATE.x - GATE.halfW, GATE.x + GATE.halfW, ym + 0.06, ym + 0.1, zo - 1, zi + 3, { noao: true });
-  for (const sg of [-1, 1]) bx('stConc', tr(0, 0, 0), GATE.x + sg * GATE.halfW - 0.3 + (sg > 0 ? 0.3 : 0), GATE.x + sg * GATE.halfW + 0.3 + (sg > 0 ? 0.3 : 0), ym, ym + 6.2, zo - 1, zi + 3.5, { c: '#d2cfc6' });
-  bx('stConc', tr(0, 0, 0), GATE.x - GATE.halfW - 0.3, GATE.x + GATE.halfW + 0.6, ym + 5.4, ym + 6.2, zo - 1.2, zi + 3.5, { c: '#d2cfc6' });
+  // the gate, the main entrance: a concrete tunnel from the front to a little way over the track (a floor that follows the ground, two abutments that fill the cut in the stands, a roof slab), and
+  // in front of it the entrance block: two piers and a lintel round the opening, an attic with the name, and an arched side door each side (the three arches of the 1932 front). Axis of the gate: u = GATE.u
+  { const vf = GATE.vOut + GATE.PD, v1 = GATE.vIn - GATE.EX, go = P(GATE.u, GATE.vOut), Mg = frame(go[0], 0, go[1], SD.F[0], SD.F[1]);
+    const gat = (v) => { const q = P(GATE.u, v); return groundY(q[0], q[1]); };
+    const gb = (key, l0, l1, y0, y1, w0, w1, o) => bx(key, Mg, l0 - GATE.u, l1 - GATE.u, y0, y1, w0 - GATE.vOut, w1 - GATE.vOut, o);   // a box between laterals l0..l1, heights y0..y1 and v w0..w1
+    const rb = Math.max(gat(GATE.vOut), gat(GATE.vIn)) + 5.6, yb = Math.min(gat(GATE.vOut), gat(vf)) - 0.8, yg = yb + 0.8, yl = rb + 1.2, yt = rb + 5.0;   // roof of the tunnel (= the top of the facade's lower band), the foot of the blocks, the ground, the lintel's top, the attic's top, attic top
+    const grey = '#d2cfc6', pale = '#ffffff', w0 = GATE.vOut - 0.5, w1 = vf;
+    defMat('stApron', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#cfccc2'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 400, 2, 511, ['rgba(60,60,55,0.12)', 'rgba(250,250,240,0.14)']); g.fillStyle = 'rgba(40,40,40,0.28)'; g.fillRect(0, 0, w, 2); g.fillRect(0, 0, 2, h); },
+      { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
+    defMat('stName', 1024, 288, [1, 1], (g, w, h) => {
+      g.fillStyle = '#e8e5db'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 512, ['rgba(60,60,55,0.10)', 'rgba(250,250,240,0.12)']);
+      g.fillStyle = '#2e7f94'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14); g.fillStyle = '#e46fa0'; g.fillRect(40, 118, w - 80, 4);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1f6a80';
+      g.font = '700 64px Arial, Helvetica, sans-serif'; g.fillText('S T A D I O', w / 2, 74);
+      let fs = 150, t = 'RENZO BARBERA'; do { g.font = `900 ${fs}px Arial, Helvetica, sans-serif`; fs -= 4; } while (g.measureText(t).width > w - 90); g.fillText(t, w / 2, 198);
+    });
+    // floor
+    const rows = [], nf = Math.ceil((vf - v1) / 4);
+    for (let i = 0; i <= nf; i++) { const v = vf - (vf - v1) * i / nf; rows.push([lo, hi].map(l => { const q = P(l, v); return [q[0], groundY(q[0], q[1]) + 0.06, q[1]]; })); }
+    gridMesh('stConc', rows, (i, j, q) => [lat(q[0], q[2]) / 4, dep(q[0], q[2]) / 4], { noao: true });
+    // abutments (the stands' cut reaches a little beyond the gate's walls) and the roof slab
+    gb('stConc', ext.lo - 0.05, lo, yb, rb + 0.8, v1, GATE.vOut, { c: grey }); gb('stConc', hi, ext.hi + 0.05, yb, rb + 0.8, v1, GATE.vOut, { c: grey });
+    gb('stConc', ext.lo - 0.05, ext.hi + 0.05, rb, rb + 0.8, v1, GATE.vOut, { c: grey });
+    // piers, lintel, attic with the name and its cornice
+    gb('stConc', lo - PIER, lo, yb, rb, w0, w1, { c: pale }); gb('stConc', hi, hi + PIER, yb, rb, w0, w1, { c: pale });
+    gb('stConc', lo - PIER, hi + PIER, rb, yl, w0, w1, { c: pale });
+    gb('stTeal', lo - PIER - 0.1, hi + PIER + 0.1, rb + 0.25, rb + 0.85, w1, w1 + 0.08, { noao: true });
+    gb('stConc', lo - PIER, hi + PIER, yl, yt, w0, w1, { c: pale });
+    gb('stTeal', lo - PIER - 0.5, hi + PIER + 0.5, yt, yt + 0.55, w0, w1 + 0.5, { noao: true });
+    panel('stName', hi - lo + 2 * PIER - 1.0, yt - yl - 0.5, { M: mul(Mg, tr(0, yl + 0.25, GATE.PD + 0.02)) });
+    // the side doors: an arched recess in a block each side, dark inside
+    for (const sg of [-1, 1]) {
+      const xc = sg * (GATE.halfW + PIER + DOOR / 2), Md = mul(Mg, tr(xc, yb, -0.3)), oh = 0.8 + 4.6;
+      archBay('stConc', DOOR, yl - yb, 2.8, oh, DOOR_D + 0.3, { M: Md, c: pale, oy0: 0.8 });
+      extrude('dark', archShape(2.8, oh - 0.8), 0.05, { M: mul(Mg, tr(xc, yg, 0.05)), c: '#2a2622', noao: true });
+      gb('stTeal', GATE.u + sg * (GATE.halfW + PIER) - (sg < 0 ? DOOR : 0) - 0.15, GATE.u + sg * (GATE.halfW + PIER) + (sg > 0 ? DOOR : 0) + 0.15, yl, yl + 0.35, w0, GATE.vOut + DOOR_D + 0.15, { noao: true });
+    }
+    // the forecourt: a concrete apron from the front of the block, level with the ground (the service road runs into it)
+    const aw = 5, al = 11, ar = [];
+    for (let i = 0; i <= 3; i++) ar.push([0, 1, 2, 3, 4, 5, 6].map(k => { const q = P(lo - aw + (hi - lo + 2 * aw) * k / 6, vf + al * i / 3); return [q[0], groundY(q[0], q[1]) + 0.03, q[1]]; }));
+    gridMesh('stApron', ar, (i, j, q) => [lat(q[0], q[2]) / 4, dep(q[0], q[2]) / 4], { noao: true });
+  }
   // perimeter fence 13 m outside the wall (Via del Fante side shows the sponsor boards on it), with a gate pier at each turnstile bay
   { const FO = 13;
     for (let k = 0; k < N; k++) {
       const k1 = (k + 1) % N, ax = O[k][0] + D[k][0] * FO, az = O[k][1] + D[k][1] * FO, bx_ = O[k1][0] + D[k1][0] * FO, bz = O[k1][1] + D[k1][1] * FO, l = Math.hypot(bx_ - ax, bz - az);
-      if (l < 0.5 || (Math.abs(ax - GATE.x) < GATE.halfW + 6 && az < cz - 30)) continue;
+      if (l < 0.5 || (Math.abs(lat((ax + bx_) / 2, (az + bz) / 2) - GATE.u) < GATE.halfW + 6 + l / 2 && dep(ax, az) > 30)) continue;
       const y = Math.min(groundY(ax, az), groundY(bx_, bz)), Mf = frame((ax + bx_) / 2, y, (az + bz) / 2, -(bz - az) / l, (bx_ - ax) / l);
       panel('stFence', l, 2.2, { M: Mf, uvk: [l / 4, 1], c: '#d8dcde' });
       if (k % 2 === 0) panel('stAds', l, 1.0, { M: mul(Mf, tr(0, 0.9, 0.05)), uvk: [l / 16, 1] });
@@ -297,15 +370,51 @@ function buildStadio() {
     bx('stSteel', Mt, -4.8, 4.8, 50.5, 51.8, -1.2, 0.2, { c: '#cfd2d6', noao: true });
     for (let r = 0; r < 3; r++) for (let q = 0; q < 7; q++) bx('stLamp', Mt, -4.5 + q * 1.5, -3.5 + q * 1.5, 51.8 + r * 1.3, 52.8 + r * 1.3, 0.1, 0.5, { noao: true });
   }
-  // the crowd: rosanero fans on the seats of both tiers (src/stadium-crowd.js), none in the gate's tunnel
+  // the crowd: rosanero fans on the seats of both tiers (src/stadium-crowd.js), none in the gate's tunnel or on the cut round it
   const grp = end('Stadio Renzo Barbera');
-  grp.add(buildCrowd({ ST, I, O, tiers: [[1, 2, 0.1, 0.95], [5, 6, 0.04, 0.96]], skip: (x, y, z) => Math.abs(x - GATE.x) < GATE.halfW + 3 && z < cz - 30 && y - gc < 12 }));
+  grp.add(buildCrowd({ ST, I, O, tiers: [[1, 2, 0.1, 0.95], [5, 6, 0.04, 0.96]], skip: (x, y, z) => lat(x, z) > ext.lo - 0.5 && lat(x, z) < ext.hi + 0.5 && dep(x, z) > 30 && y - gc < 12 }));
   return grp;
+}
+
+// The real road is gated and fenced where it meets the stadium (the tile data has panels of fence and a retaining wall across the way in, which the world streams in): the game's entrance is open, so
+// the pieces of them inside the strip in front of the gate (18 m wide, from the wall to the carriageway of Viale del Fante) are left out. src/world.js passes each tile's fences through here.
+function clearFences(list) {
+  if (!list) return list;
+  const L0 = GATE.u - 9, L1 = GATE.u + 9, D0 = GATE.vOut - 2, D1 = 121;
+  const outside = (ax, az, bx, bz) => {   // the parts [t0, t1] of a segment that lie outside the strip
+    let t0 = 0, t1 = 1;
+    for (const [a, b, l0, l1] of [[lat(ax, az), lat(bx, bz), L0, L1], [dep(ax, az), dep(bx, bz), D0, D1]]) {
+      const d = b - a;
+      if (Math.abs(d) < 1e-9) { if (a <= l0 || a >= l1) return [[0, 1]]; continue; }
+      const s0 = (l0 - a) / d, s1 = (l1 - a) / d;
+      t0 = Math.max(t0, Math.min(s0, s1)); t1 = Math.min(t1, Math.max(s0, s1));
+    }
+    return t0 >= t1 ? [[0, 1]] : [[0, t0], [t1, 1]].filter(r => r[1] - r[0] > 1e-6);
+  };
+  const res = [];
+  for (const f of list) {
+    const p = f.p, runs = []; let run = null, touched = false;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3];
+      const parts = outside(ax, az, bx, bz);
+      if (parts.length !== 1 || parts[0][0] > 0 || parts[0][1] < 1) touched = true;
+      for (const [t0, t1] of parts) {
+        const qa = [ax + (bx - ax) * t0, az + (bz - az) * t0], qb = [ax + (bx - ax) * t1, az + (bz - az) * t1];
+        if (run && Math.hypot(run[run.length - 2] - qa[0], run[run.length - 1] - qa[1]) < 1e-6) run.push(qb[0], qb[1]);
+        else { if (run) runs.push(run); run = [qa[0], qa[1], qb[0], qb[1]]; }
+      }
+    }
+    if (run) runs.push(run);
+    if (!touched) res.push(f); else for (const r of runs) res.push({ ...f, p: r });
+  }
+  return res;
 }
 
 export const STADIO = {
   name: 'Stadio Renzo Barbera', x: -1666, z: -4097, radius: 140, skipIds: [FP.stadio.id, 'w124120091'], dropWalls: [FP.stadio.id, 'w124120091'],
-  walls: stadiumCollision(), gate: { x: GATE.x, z: -4204.6, to: -4167.4, halfW: GATE.halfW },
+  walls: stadiumCollision(), clearFences,
+  // the vehicle entrance: its mouth on the front wall (x, z), its mouth on the pitch wall (x1, z1), the way in (dx, dz) and half its width; the tunnel's clear height is about 5.5 m
+  gate: (() => { const a = P(GATE.u, GATE.vOut), b = P(GATE.u, GATE.vIn); return { x: a[0], z: a[1], x1: b[0], z1: b[1], dx: -SD.F[0], dz: -SD.F[1], halfW: GATE.halfW }; })(),
   build: buildStadio,
 };
 

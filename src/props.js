@@ -1557,7 +1557,7 @@ function* generate(S, BUD) {
           if (!inBounds(x, z)) continue;
           // road must be on one side only, within a metre
           const a1 = asphalt(x - uz * 0.9, z + ux * 0.9), a2 = asphalt(x + uz * 0.9, z - ux * 0.9);
-          if (a1 === a2 || inB(x, z)) continue;
+          if (a1 === a2 || inB(x, z) || treeCleared(x, z)) continue;   // (the access road of the stadium crosses a pavement here: no bollards across it)
           const sx = x + (a1 ? -uz : uz) * 0.1, sz = z + (a1 ? ux : -ux) * 0.1;
           if (road(sx, sz) || occHit(sx, sz, 0.3) || nearWall(sx, sz, 0.4)) continue;
           put('bollard', sx, groundY(sx, sz) + (raisedMask(sx, sz) ? CURB : 0.01), sz); occAdd(sx, sz, 0.3); n++;

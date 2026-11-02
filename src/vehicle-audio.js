@@ -4,7 +4,7 @@
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
 // Loudness mix (owner: the engine covered everything). Engine sits ~9 dB under skids, impacts, horns and music.
-const ENGINE_MIX = 0.35;
+const ENGINE_MIX = 0.158;
 
 // Engine voices. A saw plus a detuned square through a resonant low-pass and a mid peak, chopped by a saw LFO at the firing rate,
 // plus a high-passed exhaust rasp. f = f0 + fr * rpm (Hz of the fundamental); lfo = lfo0 + lfor * rpm (firings per second).
@@ -129,7 +129,7 @@ export function createVehicleAudio(env) {
     set(E.lfo.frequency, P.lfo0 + P.lfor * rpm, 0.04);
     set(E.lp.frequency, (P.lp0 + P.lpr * (0.3 + 0.7 * thr) * (0.4 + 0.6 * rpm)) * (X[3] ? 1.25 : 1), 0.06);
     set(E.out.gain, s.active ? (P.out * 0.45 + 0.55 * P.out * thr + 0.22 * P.out * rpm) * X[0] * ENGINE_MIX : 0, 0.08);
-    set(E.ng.gain, s.active ? (0.02 + 0.07 * thr * rpm) * X[1] : 0, 0.08);
+    set(E.ng.gain, s.active ? (0.02 + 0.07 * thr * rpm) * X[1] * 0.45 : 0, 0.08);
     // skid and scrape
     const speed = Math.abs(s.vf);
     const slide = clamp((Math.abs(s.slip) - 0.1) * 3, 0, 1) * clamp(speed / 8, 0, 1) * (s.drift > 0.2 ? 1 : 0.35);
