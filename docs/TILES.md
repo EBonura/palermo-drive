@@ -316,7 +316,7 @@ Bridge decks, tunnel floors and the river trenches follow automatically (their e
 
 ### Hills outside the first TIN window (t7) and the Pellegrino shade (t6)
 
-`tools/dem.py` now fetches TINITALY for the whole play area (E 869400..892200, N 4218200..4242200), so the 222 tiles that had no near grid (the west hills, an east strip) have a 10 m one pinned the same way as the rest (t8). Details, checks and the size cost: docs/faithfulness/terrain.md. The steep-face fill of the far and tile terrain materials (`FAR_FILL`, `TERRAIN_FILL` in `src/world.js`) lightens the black wedges between Pellegrino's blocks.
+`tools/dem.py` now fetches TINITALY for the whole play area (E 869400..892200, N 4218200..4242200), so the 222 tiles that had no near grid (the west hills, an east strip) have a 10 m one pinned the same way as the rest (t8). Details, checks and the size cost: docs/faithfulness/terrain.md. The distance haze of the terrain (n9) is a shader term of the three terrain materials, not a vertex tint (docs/faithfulness/ground.md). `setPart` freezes the matrices of every object a tile part adds (`matrixAutoUpdate = false` after one `updateMatrix`, nothing under the world root moves). The steep-face fill of the far and tile terrain materials (`FAR_FILL`, `TERRAIN_FILL` in `src/world.js`) lightens the black wedges between Pellegrino's blocks.
 
 ### Parked cars and the bus (board items p9 and p8)
 
