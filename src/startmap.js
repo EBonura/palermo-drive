@@ -13,6 +13,7 @@
 //   map.applyLang()              the language changed
 // spots: [{ name, x, z, q }], quarters: [{ name, x, z }], getEvents(): [{ id, kind, name, x, z, night? }], getCar(): { x, z, th } | null.
 
+import { esc } from './esc.js';
 const ASSET = new URL('../assets/ui/startmap.json', import.meta.url).href;
 const CELL = 1000;                     // metres per road/area cell
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -26,7 +27,6 @@ const L = {
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
 const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd' };
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
 const C = {

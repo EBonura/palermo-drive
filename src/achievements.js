@@ -12,6 +12,7 @@
 // createAchievements({ game, car, groundY }) -> { update(dt), unlock(id), has(id), list() }
 //   list() -> [{ id, on, title, note, at }] in the order of SECRETS; locked entries still carry title and note (the UI must not show them).
 import * as THREE from 'three';
+import { esc } from './esc.js';
 
 const KEY = 'palermoDrive.secrets.v1';
 const clamp = THREE.MathUtils.clamp;
@@ -78,7 +79,7 @@ export function createAchievements({ game, car, groundY }) {
       });
     } catch (e) { /* no audio: the banner is enough */ }
   }
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
   function next() {
     const s = queue.shift(); if (!s) { showing = false; return; }
     showing = true; const l = lang();
