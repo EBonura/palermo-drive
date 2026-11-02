@@ -285,6 +285,7 @@ export function createVehicle(env) {
       else if (vf > -T.reverseV) { aDrive = -T.reverseA; car.gear = g = 1; }
     }
     if (hb) brakeA += T.hbrake * (SPHERE ? 0.45 : 1);   // sphere: the handbrake is mostly a yaw flick and a grip cut, not a brake
+    if (car.gripLoss > 0) { aDrive *= 1 - 0.4 * car.gripLoss; brakeA *= 1 - 0.5 * car.gripLoss; }   // e6: gravel, sand and grass (src/world.js drivePlayer) and potholes: the tyres spin and lock before they bite
     const coast = (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf;
     // Gravity along the slope: the Cassaro really does climb towards Porta Nuova.
     const slope = (gB(car.x + sn * 1.2, car.z + cs * 1.2) - gB(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;

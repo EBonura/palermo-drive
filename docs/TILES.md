@@ -314,6 +314,25 @@ Only colour values derived from the Regione Siciliana SITR orthophotos (ATA 2012
 The near and far grids use TINITALY everywhere and pin it to the lidar and to the Comune survey's building foot elevations (hold-out error 2.9 m rms against 6.9 m before; details in docs/faithfulness/terrain.md).
 Bridge decks, tunnel floors and the river trenches follow automatically (their end heights are baked from the same ground); the Ponte Corleone valley is the real 12 m deep one.
 
+### Off-road driving (board item e6)
+
+**Surfaces** (`src/world.js` `surfaceAt`, `drivePlayer`; `car.surf` for sounds and effects): 0 hard (asphalt, paving, pavements, medians, verges; the street polygons have seams of a few tenths of a metre along hairpins and tile borders, so hard ground within 0.9 m counts), 1 gravel and dirt
+(the `track` strips, and every `path`, `footway`, `cycleway`, `bridleway` that is not beside a street (9 m) or among houses (28 m): the paths of the Favorita and the hills; `buildGravel`, per tile),
+2 grass (the `green` layer), 3 beach sand (the `sand` layer, a third channel of the 0.5 m surface mask: `t.sandb`), 4 rough ground (scrub, hillside, fields: everything else that is not surfaced).
+Each class has `[grip lost, drag per second, bump size, bump spacing]` in `SURF`: gravel 0.22 / 0.06, grass 0.38 / 0.14, sand 0.70 / 0.55, rough 0.50 / 0.20 (grip lost works like a pothole: `car.gripLoss` caps the cornering).
+`src/vehicle.js` (one line, in the longitudinal part shared with the sphere model): `aDrive *= 1 - 0.4 gripLoss`, `brakeA *= 1 - 0.5 gripLoss`, so the tyres spin and lock on loose ground (and a little after a pothole).
+Measured on 55 m straights (full throttle 2.5 s, then full left at 14 m/s for 1.3 s): top speed 21.6 asphalt, 17.2 gravel, 17.7 grass, 9.6 sand; heading change in the carve 96, 85, 79, 75 degrees (before: 21.6, 17.4, 20.2, 18.8 and 95, 90, 84, 86).
+
+**Monte Pellegrino**: the OSM route from Via Isaac Rabin up Via Pietro Bonanno to the Santuario (9.3 km, 2,879 points every 3 m) and to the Castello Utveggio (6.9 km) is one connected drivable chain (unclassified, 6 m wide, then service roads of 4 m).
+An automatic drive (pure pursuit, 5 physics steps a frame, `tools`-free scratch script) completes both ends: Santuario in 635 s of game time, maximum distance from the route 3.8 m, maximum speed 17.9 m/s, ground from 21 to 423 m; Utveggio 476 s, 4.4 m. Both landmarks are there (the Utveggio: the salmon hotel castle with its towers; the Santuario: the ochre convent against the cliff, the road ends at its door).
+The only stops are a pedestrian and a pothole cluster at the hairpin at (308, -3990) and the dead end at the Santuario.
+
+**Favorita**: a 689 m path (a `cycleway` in OSM) and a 450 m run straight across the lawn completed without a stop (maximum 4 m off the line, 15 m/s).
+
+**ZEN** (`tools/zen_portals.py`): the OSM footprints close every court of the insulae with a building or a wall, so none of 51 courts of 250 m2 or more (63,000 m2) could be reached. 53 buildings are cut by a 6.4 m wide passage from the court to the street (a building split in two keeps its fields, ids get `.1` and `.2`),
+and the wall and fence lines across the passages are cut; three passes leave no pocket in the ZEN. Patched tiles: `-10_-15`, `-9_-14`, `-9_-15`, `-9_-16`, `-8_-14`, `-8_-15`, `-8_-16`, `-7_-15`, `-7_-16`, `-7_-14` (walls only). A rebake of those tiles brings the closed courts back: run the script again (`--apply`).
+The six largest courts were driven into automatically (all reached).
+
 ### Sferracavallo (board item b2): already inside the baked area
 
 The bake box (`BBOX_LL` in `tools/tiles.py`, 38.045..38.230 N, 13.235..13.455 E, game x -11,058 m at the west edge) already holds Sferracavallo (OSM place at -7,366, -9,147), its harbour (-7,545, -9,379), Punta di Barcarello (-7,009, -10,559), Tommaso Natale, Isola delle Femmine and Capaci. Tiles `-17_-19` to `-12_-22` carry them with buildings (812 in `-15_-19`), roads (Via Sferracavallo, Via Marina, Piazza Sferracavallo, the Galleria), trees, walls, a 10 m or 5 m near grid with the same lidar and TIN pinning and the harbour piers; the drivable box (`hooks.bounds`, the manifest bbox) and the start map take in the whole box. The drivable road graph (all drivable OSM classes, ends joined at 0.6 m) puts Sferracavallo, Tommaso Natale, Mondello, Isola delle Femmine and Capaci in the one big component. The start picker lists "Sferracavallo (la piazza)" and "Sferracavallo (il porticciolo)" (`POI_SPOTS` in `src/pub-places.js`, appended to `SPOTS` by `main.js`; the quartiere centre "Sferracavallo" in `main.js` names the group).
