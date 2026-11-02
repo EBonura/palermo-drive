@@ -1003,7 +1003,33 @@ function makePhysics(env) {
     }
     for (const k in DEB) { const D2 = DEB[k]; for (const b of D2.items) if (b.owner && b.owner.dead && !b.hidden) { b.owner = null; b.rest = true; b.hidden = true; b.dirty = true; D2.dirty = true; } }
   }
-  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid };
+  // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
+  // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
+  // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
+  const TALL = new Set(['kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'candelabra', 'signal', 'busstop']);
+  function occlude(x0, z0, x1, z1) {
+    const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
+    let tMin = 1;
+    const i0 = Math.floor(Math.min(x0, x1) / 8), i1 = Math.floor(Math.max(x0, x1) / 8), j0 = Math.floor(Math.min(z0, z1) / 8), j1 = Math.floor(Math.max(z0, z1) / 8);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
+      for (let q = 0; q < lst.length; q++) {
+        const c = lst[q]; if (!c || c.dead || c.st !== 0 || !TALL.has(c.model)) continue;
+        const cr = Math.cos(c.rot), sr = Math.sin(c.rot);
+        for (const [ox, oz, r0] of c.circ) {
+          const r = Math.max(0.35, SCALE_R.has(c.model) ? r0 * c.s : r0);
+          const wx = c.x + ox * cr + oz * sr, wz = c.z - ox * sr + oz * cr;
+          const ax = wx - x0, az = wz - z0;
+          if (ax * ax + az * az < (r + 1.2) * (r + 1.2)) continue;   // beside the car
+          const tc = (ax * rx + az * rz) / L2; if (tc <= 0) continue;
+          const px = ax - rx * tc, pz = az - rz * tc, d2 = px * px + pz * pz; if (d2 >= r * r) continue;
+          const t = tc - Math.sqrt((r * r - d2) / L2); if (t > 0 && t < tMin) tMin = t;
+        }
+      }
+    }
+    return tMin;
+  }
+  return { collidePlayer, flush, stats, add, remove, count: () => nColl, grid, occlude };
 }
 
 // ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)
@@ -2300,7 +2326,7 @@ export function buildProps(ctx) {
     phys.flush(cp);
     prev.call(this, r, sc, camera, ...rest);
   };
-  const api = { collidePlayer: phys.collidePlayer, stats: phys.stats, tileStats: tstats, attachWorld };
+  const api = { collidePlayer: phys.collidePlayer, occlude: phys.occlude, stats: phys.stats, tileStats: tstats, attachWorld };
   api.grid = phys.grid;
   if (location.search.includes('debug')) window.__props = Object.assign(api, { jobs, phys });
   return api;

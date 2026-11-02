@@ -82,7 +82,7 @@ const MODEL_LEN = 3.1;
 export const LIVERIES = ALL_LIVERIES.calessino;
 
 export function createVehicle(env) {
-  const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts } = env;
+  const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock } = env;   // viewBlock(x0, z0, x1, z1): where tall props hide the car from the chase camera (props.js occlude), optional
   const baseFov = camera.fov;
   const audio = createVehicleAudio({ keys });
 
@@ -433,7 +433,7 @@ export function createVehicle(env) {
 
   // ---------- camera ----------
   const camState = { mode: 0, init: false, pos: new THREE.Vector3() };
-  const cam = { ang: 0, fov: baseFov, trauma: 0, kick: 0, nosEnv: 0, roll: 0, t: 0, lastNosId: 0, lastHit: 0, look: new THREE.Vector3(), up: new THREE.Vector3() };
+  const cam = { pull: 1, ang: 0, fov: baseFov, trauma: 0, kick: 0, nosEnv: 0, roll: 0, t: 0, lastNosId: 0, lastHit: 0, look: new THREE.Vector3(), up: new THREE.Vector3() };
   function wallHit(x0, z0, x1, z1) {
     let tMin = 1;
     walls2d.query(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), s => {
@@ -497,8 +497,11 @@ export function createVehicle(env) {
     camState.pos.x += (dx - camState.pos.x) * kh; camState.pos.z += (dz - camState.pos.z) * kh; camState.pos.y += (dy - camState.pos.y) * kv;
     const p = _p.copy(camState.pos);
     if (m !== 3) {
-      const t = wallHit(car.x, car.z, p.x, p.z);
-      if (t < 1) { const k = Math.max(0.15, t * 0.85); p.x = car.x + (p.x - car.x) * k; p.z = car.z + (p.z - car.z) * k; p.y += (1 - k) * 2.5; }
+      let t = wallHit(car.x, car.z, p.x, p.z);
+      if (viewBlock) t = Math.min(t, viewBlock(car.x, car.z, p.x, p.z));   // trunks, poles, kiosks: the same pull-in as a wall
+      const kT = t < 1 ? Math.max(0.15, t * 0.85) : 1;
+      cam.pull += (kT - cam.pull) * (kT < cam.pull ? 1 : Math.min(1, 5 * dt));   // in at once, back out over a fraction of a second: a pole going by is a nudge, not a jolt
+      if (cam.pull < 0.995) { const k = cam.pull; p.x = car.x + (p.x - car.x) * k; p.z = car.z + (p.z - car.z) * k; p.y += (1 - k) * 2.5; }
     }
     p.y = Math.max(p.y, groundY(p.x, p.z) + 1.2 + (car.deck || 0));   // (on a deck the camera stays above the deck, in a tunnel under the roof)
     camera.position.set(p.x + sx, p.y + sy + (m === 3 ? 0 : car.hop * 0.6), p.z + sz);
