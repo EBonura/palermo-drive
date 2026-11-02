@@ -61,6 +61,10 @@ export function createP2P(env) {
   let myName = clean(params.get('name') || stored().name || '');
   let named = !!myName;   // nothing is joined until the player has a name (card below)
   if (!myName) myName = 'P2P' + selfId.slice(0, 3);
+  // the Garage's driver screen (src/garage-ui.js) edits the same stored name and says so with a 'pd-name' event; take it over, as src/net.js does
+  const urlName = !!params.get('name');
+  const refreshName = () => { if (urlName) return; const n = stored().name, c = typeof n === 'string' ? clean(n) : ''; if (c && c !== myName) { myName = c; named = true; } };
+  addEventListener('pd-name', refreshName);
   const livId = () => Math.max(0, (vehicle.LIVERIES || []).findIndex(l => l.id === car.livery));
 
   const rm = createRemotes(env);
@@ -298,6 +302,7 @@ export function createP2P(env) {
     en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close' } };
   let nameCard = null, submitName = null, closeName = null;
   function openName() {
+    refreshName();
     if (nameCard) { nameCard.remove(); nameCard = null; }
     const tx = NAME_TXT[lang()], editing = named;
     nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
@@ -312,7 +317,7 @@ export function createP2P(env) {
     ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close;
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
-      myName = n; named = true; try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), name: n, offline: false })); } catch (e) { /* private mode: fine */ }
+      myName = n; named = true; try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), name: n })); } catch (e) { /* private mode: fine */ }
       nameCard.remove(); nameCard = null;
     };
     submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
@@ -377,7 +382,7 @@ export function createP2P(env) {
   const api = {
     enabled: true, update, openName() {}, get online() { return peers.size > 0; },
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]),
-      say, offer, gameState: () => game.state,
+      say, offer, name: () => myName, gameState: () => game.state,
       setName: n => { myName = clean(n) || myName; },
       // test hook (tools/p2p/fuzz.mjs): feeds hostile messages from a made-up peer through the real handlers
       fuzz(msgs, refill = true) {
