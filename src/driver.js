@@ -1,13 +1,13 @@
 // The player's own driver ("Il tuo autista"). The Garage's driver screen (src/garage-ui.js, src/driver-compose.js) builds a pixel-art person from LPC layers; what the street needs of
 // it is only three small pictures (seated, seen from the front, the side and the back), which are kept here, saved in localStorage next to the options that made them, so
-// that driving never downloads the layers. In a lapa the driver is a billboard in the seat: it turns to the camera but shows the picture that matches the angle between where
+// that driving never downloads the layers. In every vehicle the driver is a billboard in the seat: it turns to the camera but shows the picture that matches the angle between where
 // the vehicle points and where the camera is (the back of the head in the chase view, the face through the windscreen from the front). Without a saved driver nothing changes:
 // the lapa keeps its blocky 3D driver.
 //   driver.has()              a driver was made
 //   driver.spec()             the options it was made from (the creator reopens with them)
 //   driver.set(frames, spec)  frames: { front, left, back }, each 64x64 RGBA bytes of the seated person (src/driver-compose.js); saves, and every lapa on screen updates
 //   driver.clear()            forget the driver: the lapae go back to the 3D one
-//   driver.dress(rig)         called for a vehicle rig that is made (street and Garage): puts the sprite in the seat of a lapa
+//   driver.dress(rig)         called for a vehicle rig that is made (street and Garage): puts the sprite in the seat
 import * as THREE from 'three';
 
 const KEY = 'pd.driver', CELL = { x: 12, y: 6, w: 40, h: 58 };   // the part of each 64x64 frame that is kept: x, y of the top left, size in pixels (fits every hat, hairdo and arm)
@@ -53,7 +53,12 @@ function dressTo(rig) {
   const geo = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0), uv = geo.attributes.uv;
   const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false;
-  mesh.position.set(0 - tp[0], SEAT.y * s - (64 - SEAT_ROW) * k - tp[1], SEAT.z * s - tp[2]);   // the plane's bottom edge is the bottom row of the frame
+  if (rig.kind === 'lapa') mesh.position.set(0 - tp[0], SEAT.y * s - (64 - SEAT_ROW) * k - tp[1], SEAT.z * s - tp[2]);   // the plane's bottom edge is the bottom row of the frame
+  else {   // the two-wheelers, the cart and the car: where the 3D driver it replaces is, with the head at the same height
+    rig.driver.updateWorldMatrix(true, true); const box = new THREE.Box3().setFromObject(rig.driver).applyMatrix4(rig.driver.matrixWorld.clone().invert());
+    if (box.isEmpty()) { const st = rig.seats?.[0] || { x: 0, y: 1, z: 0 }; box.set(new THREE.Vector3(st.x - tp[0], st.y - tp[1], st.z - tp[2]), new THREE.Vector3(st.x - tp[0], st.y - tp[1] + 0.8, st.z - tp[2])); }
+    mesh.position.set((box.min.x + box.max.x) / 2, box.max.y - h, (box.min.z + box.max.z) / 2);
+  }
   const hidden = rig.driver.children.filter(c => c.visible); for (const c of hidden) c.visible = false;
   const rec = { rig, mesh, hidden }; rig.driver.add(mesh); dressed.add(rec);
   mesh.onBeforeRender = (r, sc, cam) => {   // upright, towards the camera; the picture that matches the angle between the vehicle's nose and the camera
@@ -76,7 +81,7 @@ export const driver = {
   set(frames, s) { spec = s; paint(frames); save(); dressAll(); for (const f of listeners) f(); },
   clear() { spec = null; ready = false; try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } for (const r of [...dressed]) undress(r); for (const f of listeners) f(); },
   dress(rig) {
-    if (!rig || rig.kind !== 'lapa' || lapas.has(rig)) return;
+    if (!rig || lapas.has(rig)) return;
     lapas.add(rig); const od = rig.dispose; rig.dispose = () => { lapas.delete(rig); for (const r of [...dressed]) if (r.rig === rig) undress(r); od(); };
     if (ready) dressTo(rig);
   },

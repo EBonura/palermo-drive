@@ -463,7 +463,7 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
     for (const [t, m] of markers) if (done.has(t.id) || !L.includes(t) || (t.x - car.x) ** 2 + (t.z - car.z) ** 2 > 110 * 110) { const j = mapMarkers.indexOf(m); if (j >= 0) mapMarkers.splice(j, 1); markers.delete(t); }
     for (const t of L) {
       if (markers.has(t) || done.has(t.id) || (t.x - car.x) ** 2 + (t.z - car.z) ** 2 > 100 * 100) continue;
-      const m = { x: t.x, z: t.z, color: '#ffe14a', size: 3.5 }; markers.set(t, m); mapMarkers.push(m);
+      const m = { x: t.x, z: t.z, color: '#ff4fd8', size: 3.5, shape: 'cross' }; markers.set(t, m); mapMarkers.push(m);
     }
   }
 

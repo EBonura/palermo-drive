@@ -57,7 +57,7 @@ export function createFares(X) {
     f.phase = 'ride'; X.setPhase('ride');
     X.calls.hideBeacon();
     X.guide.path(f.pts);
-    X.destBeacon.set(f.dest.x, f.dest.z); X.destBeacon.show(true); X.destMarker = X.addMarker(f.dest.x, f.dest.z, '#ffd24a', 8);
+    X.destBeacon.set(f.dest.x, f.dest.z); X.destBeacon.show(true); X.destMarker = X.addMarker(f.dest.x, f.dest.z, '#ffd24a', 8, 'target');
     if (f.urgent) { say(pick(X.URGENT_DEF[f.slot.id].say), seatPos, 0.2); tline('board', 2.2); dline('board', 3.6); }
     else if (f.sub === 'pulle' || f.sub === 'nightc') {
       if (f.cl) { say(pick(f.cl.client.ask), seatPos, 0.2); say(pick(f.cl.driver.ask), driverPos, 2.6); say(pick(f.cl.driver.depart), driverPos, 5); }

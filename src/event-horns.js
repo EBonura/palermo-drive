@@ -133,7 +133,7 @@ export function createHornsEvents(X, opts = {}) {
   function begin() {
     const R = X.ROUTES.horns[0], g = e.gate;
     e.phase = 'go'; e.left = e.limit; X.setPhase('go'); X.guide.path(R[2]);
-    X.destBeacon.set(g.x, g.z); X.destBeacon.show(true); X.destMarker = X.addMarker(g.x, g.z, '#ffb02e', 8);
+    X.destBeacon.set(g.x, g.z); X.destBeacon.show(true); X.destMarker = X.addMarker(g.x, g.z, '#ffb02e', 8, 'target');
     hud.toast(T('Va’ ô Cutò', 'Go to the Cutò arch'), T('Pi Via Maqueda', 'By Via Maqueda'));
   }
   function makeCrowd() {   // two people waiting beyond the arch, towards Ballarò: they laugh when the horns come through

@@ -31,6 +31,22 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   let scanT = 0, scanI = 1e9, scanJ = 1e9;
   const key = (i, j) => i * 4096 + j;
 
+  // a marker's shape says what it is: round (default) someone to meet, target where to go now, diamond something to pick up, cross a graffiti to spray, triangle a food stall
+  function drawMarker(x, y, r, shape, color) {
+    mini.fillStyle = color; mini.strokeStyle = '#000'; mini.lineWidth = 1.5; mini.beginPath();
+    if (shape === 'diamond') { mini.moveTo(x, y - r * 1.2); mini.lineTo(x + r, y); mini.lineTo(x, y + r * 1.2); mini.lineTo(x - r, y); mini.closePath(); }
+    else if (shape === 'triangle') { mini.moveTo(x, y - r * 1.2); mini.lineTo(x + r * 1.1, y + r * 0.9); mini.lineTo(x - r * 1.1, y + r * 0.9); mini.closePath(); }
+    else if (shape === 'cross') {
+      mini.moveTo(x - r, y - r); mini.lineTo(x + r, y + r); mini.moveTo(x + r, y - r); mini.lineTo(x - r, y + r);
+      mini.lineCap = 'round'; mini.lineWidth = 4.5; mini.stroke(); mini.strokeStyle = color; mini.lineWidth = 2.2; mini.stroke(); mini.lineCap = 'butt'; return;
+    }
+    else if (shape === 'target') {
+      mini.arc(x, y, r + 1, 0, Math.PI * 2); mini.fillStyle = '#fff'; mini.fill(); mini.stroke();
+      mini.beginPath(); mini.arc(x, y, Math.max(2, r * 0.55), 0, Math.PI * 2); mini.fillStyle = color; mini.fill(); mini.stroke(); return;
+    }
+    else mini.arc(x, y, r, 0, Math.PI * 2);
+    mini.fill(); mini.stroke();
+  }
   function buildLand(M) { // the coastline (and islands) as one Path2D in world metres, built once
     landPath = new Path2D();
     for (const flat of [M.land, ...(M.islands || [])]) {
@@ -173,8 +189,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       let px = dx * ca - dz * sa, pz = dx * sa + dz * ca;
       const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
       if (off) { px *= rim / r; pz *= rim / r; }
-      mini.fillStyle = m.color || '#e8559a'; mini.strokeStyle = '#000'; mini.lineWidth = 1.5;
-      mini.beginPath(); mini.arc(W / 2 + px, W / 2 + pz, off ? 4 : (m.size || 5), 0, Math.PI * 2); mini.fill(); mini.stroke();
+      drawMarker(W / 2 + px, W / 2 + pz, off ? 4 : (m.size || 5), m.shape, m.color || '#e8559a');
     }
     mini.fillStyle = '#c41e2a'; mini.strokeStyle = '#fff'; mini.lineWidth = 2;
     mini.beginPath(); mini.moveTo(W / 2, W / 2 - 9); mini.lineTo(W / 2 + 6, W / 2 + 7); mini.lineTo(W / 2 - 6, W / 2 + 7); mini.closePath(); mini.fill(); mini.stroke();

@@ -282,7 +282,7 @@ function build(env) {
   }
 
   // ------------------------------------------------------------------------------------ minimap markers
-  const addMarker = (x, z, color, size) => { const m = { x, z, color, size }; mapMarkers.push(m); return m; };
+  const addMarker = (x, z, color, size, shape) => { const m = { x, z, color, size, shape }; mapMarkers.push(m); return m; };
   const dropMarker = m => { if (!m) return; const i = mapMarkers.indexOf(m); if (i >= 0) mapMarkers.splice(i, 1); };
 
   // ------------------------------------------------------------------------------------ stigghiulari
@@ -438,7 +438,7 @@ function build(env) {
   if (worldOn()) {
     for (const o of POLLANCHE.sites) {
       const [px0, pz0] = env.proj(o.lat, o.lon);
-      polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#e8b92e', 4) });
+      polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#ff7a1a', 5, 'triangle') });
     }
     pollPlume = makePlume(polls.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
   }
