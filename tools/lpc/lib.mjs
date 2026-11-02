@@ -75,22 +75,29 @@ export async function composeAnim(person, anim) {
       if (!file && anim === 'idle') file = await layerFile(rel, 'walk', L.variant);
       if (!file && anim === 'run') file = await layerFile(rel, 'walk', L.variant);
       if (!file) { const k = L.id + bt + anim; if (anim !== 'sit' && !warned.has(k)) { warned.add(k); console.warn('missing layer', L.id, bt, anim); } continue; }
-      parts.push({ z: ly.zPos ?? 100, id: L.id, n, file, rel, def, mat: L.mat || {}, src: path.basename(file, '.png') });
+      parts.push({ z: ly.zPos ?? 100, id: L.id, n, file, rel, def, mat: L.mat || {}, trim: L.trim, src: path.basename(file, '.png') });
     }
   }
   parts.sort((a, b) => a.z - b.z);
   if (!parts.length) return null;
   const W = Math.max(...(await Promise.all(parts.map(async p => (await loadSheet(p.file)).w)))), H = 256, out = new Uint8ClampedArray(W * H * 4);
   for (const p of parts) {
-    const sh = await loadSheet(p.file), map = recolorMap(p.def, p.mat), w = Math.min(W, sh.w), h = Math.min(H, sh.h);
+    const sh = await loadSheet(p.file), map = recolorMap(p.def, p.mat), w = Math.min(W, sh.w), h = Math.min(H, sh.h), band = p.trim ? trimBand(sh) : null;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = (y * sh.w + x) * 4, a = sh.data[i + 3]; if (!a) continue;
+      if (band) { const top = band[(y >> 6) * (sh.w >> 6) + (x >> 6)], r = (y & 63) - top; if (r < p.trim.skip || r >= p.trim.skip + p.trim.rows) continue; }   // trim: keep only a band of rows below the layer's top row in this frame
       let r = sh.data[i], g = sh.data[i + 1], b = sh.data[i + 2];
       if (map) { const k = map.get((r << 16) | (g << 8) | b); if (k !== undefined) { r = k >> 16; g = (k >> 8) & 255; b = k & 255; } }
       const o = (y * W + x) * 4; out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = 255;
     }
   }
   return { data: out, w: W, h: H, used: parts };
+}
+// the top opaque row of a layer in each 64 x 64 frame of its sheet (a trimmed layer keeps `rows` rows starting `skip` rows below it: a swimsuit top cut from a tank top)
+function trimBand(sh) {
+  const cw = sh.w >> 6, ch = sh.h >> 6, top = new Int16Array(cw * ch).fill(9999);
+  for (let y = 0; y < ch * 64; y++) for (let x = 0; x < cw * 64; x++) if (sh.data[(y * sh.w + x) * 4 + 3]) { const k = (y >> 6) * cw + (x >> 6), r = y & 63; if (r < top[k]) top[k] = r; }
+  return top;
 }
 function recolorMap(def, mat) {
   const ms = matsOf(def); if (!ms.length) return null;

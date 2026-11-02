@@ -142,6 +142,18 @@ export function rosaScarf(f, A, c1 = 'rosanero', c2 = 'black') {   // the match-
   const w = dir === 'front' || dir === 'back' ? 4 : 3; for (let x = cx - w; x <= cx + w; x++) for (let k = 0; k < 3; k++) put(f, x, y + k, (Math.floor((x + 40) / 2) & 1) ? P[3] : K[2]);
   if (dir === 'front') for (const dx of [-1, 1]) for (let k = 0; k < 7; k++) putOn(f, torso, cx + dx, y + 3 + k, ((k >> 1) & 1) ? K[2] : P[3]);
 }
+// a beach towel under a sitting figure, seen from a low angle: wider than the person, two colours in stripes, a dark rim under the near edge. Only fills what the figure leaves empty.
+export function towel(f, A, c1 = 'red', c2 = 'white') {
+  const m = A.bodyMask; let y1 = -1, x0 = F, x1 = -1;
+  for (let y = F - 1; y >= 0 && y1 < 0; y--) for (let x = 0; x < F; x++) if (m[y * F + x]) { y1 = y; break; }
+  if (y1 < 0) return;
+  for (let y = y1 - 6; y <= y1; y++) for (let x = 0; x < F; x++) if (m[y * F + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  const P = ramp('cloth', c1), Q = ramp('cloth', c2), inset = [3, 1, 0, 0];
+  for (let r = 0; r < 4; r++) for (let x = x0 - 4 + inset[r]; x <= x1 + 4 - inset[r]; x++) {
+    const y = y1 - 2 + r; if (a(f, x, y)) continue;
+    put(f, x, y, r === 3 ? P[0] : (x >> 1) & 1 ? P[3] : Q[4]);
+  }
+}
 export function bandolier(f, A, col = 'white') {
   const { hd: h, torso } = A, R = ramp('cloth', col), cx = h.cx, y1 = h.y1; for (let k = 0; k < 12; k++) for (const dy of [0, 1]) putOn(f, torso, Math.round(cx - 5 + k * 0.9), y1 + 3 + k * 0.8 + dy, k % 2 ? R[4] : R[3]);
 }

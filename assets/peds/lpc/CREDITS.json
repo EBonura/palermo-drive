@@ -958,5 +958,66 @@
   ],
   "notes": "original by Nila122, edited for v3 bases by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman",
   "def": "feet/boots/feet_boots_basic"
+ },
+ {
+  "file": "feet/sandals",
+  "authors": [
+   "Nila122",
+   "JaidynReiman",
+   "Matthew Krohn (makrohn)",
+   "Johannes Sjölund (wulax)"
+  ],
+  "licenses": [
+   "OGA-BY 3.0",
+   "CC-BY-SA 3.0",
+   "GPL 2.0",
+   "GPL 3.0"
+  ],
+  "urls": [
+   "https://opengameart.org/content/lpc-roman-armor",
+   "http://opengameart.org/content/lpc-clothing-updates",
+   "https://opengameart.org/content/lpc-expanded-socks-shoes"
+  ],
+  "notes": "edited for v3 bases by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman",
+  "def": "feet/feet_sandals"
+ },
+ {
+  "file": "legs/shorts/short_shorts",
+  "authors": [
+   "ElizaWy",
+   "JaidynReiman",
+   "Johannes Sjölund (wulax)",
+   "Stephen Challener (Redshrike)"
+  ],
+  "licenses": [
+   "OGA-BY 3.0"
+  ],
+  "urls": [
+   "https://github.com/ElizaWy/LPC/tree/main/Characters/Clothing",
+   "https://opengameart.org/content/lpc-expanded-sit-run-jump-more",
+   "https://opengameart.org/content/lpc-expanded-pants"
+  ],
+  "notes": "Original bases by Redshrike, thrust/shoot bases by Wulax, original shorts by ElizaWy, climb/jump/run/sit/emotes/revised combat by JaidynReiman",
+  "def": "legs/shorts/legs_shorts_short"
+ },
+ {
+  "file": "torso/clothes/sleeveless/sleeveless2",
+  "authors": [
+   "ElizaWy",
+   "JaidynReiman",
+   "Stephen Challener (Redshrike)",
+   "Johannes Sjölund (wulax)"
+  ],
+  "licenses": [
+   "OGA-BY 3.0"
+  ],
+  "urls": [
+   "http://opengameart.org/content/lpc-revised-character-basics",
+   "https://github.com/ElizaWy/LPC/tree/main/Characters/Clothing",
+   "https://opengameart.org/content/lpc-expanded-sit-run-jump-more",
+   "https://opengameart.org/content/lpc-expanded-simple-shirts"
+  ],
+  "notes": "original by ElizaWy; sleeveless adapted from original by JaidynReiman",
+  "def": "torso/shirts/sleeveless/torso_clothes_sleeveless2"
  }
 ]

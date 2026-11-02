@@ -13,6 +13,10 @@ const BEARD = { full: 'hair/beards/beards_medium', goatee: 'hair/beards/beards_t
 const eyeOf = hex => nearestRamp('eye', hex || '#4a3424');
 const cloth = hex => { const h = hex.toLowerCase(); const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16); return (r > 215 && g > 130 && g < 190 && b > 160 && b < 215) ? 'rosanero' : nearestRamp('cloth', hex); };
 const DYED = /^#(e8559a|3a7ad0|7a3ab8|2fa34a|e87aa0)/i;
+// Swimwear. The generator has none, so it is cut from layers it has: trunks are the male shorts, briefs the short shorts, a bikini top a band of rows trimmed from a sleeveless top
+// (tools/lpc/lib.mjs trim), a one-piece the whole sleeveless top over the same briefs; the person keeps the bare body of the generator everywhere else.
+const SUIT = ['red', 'yellow', 'white', 'teal', 'blue', 'pink', 'orange', 'black', 'lavender', 'green', 'navy', 'sky'], TRUNKS = ['red', 'yellow', 'teal', 'blue', 'orange', 'black', 'green', 'navy', 'sky', 'purple'], TOWEL = [['red', 'white'], ['blue', 'white'], ['yellow', 'teal'], ['orange', 'sky'], ['green', 'white'], ['pink', 'white'], ['teal', 'yellow'], ['navy', 'yellow']];
+const SLEEVELESS = 'torso/shirts/sleeveless/torso_clothes_sleeveless2';
 
 export function stackOf(sp, idx) {
   if (sp.chair === 'empty') return { id: sp.id, body: 'male', layers: [], extras: [['wheelchair', 'black', true]], emptyChair: true, noSit: true };
@@ -22,19 +26,24 @@ export function stackOf(sp, idx) {
   const headId = kid ? 'head/heads/human/heads_human_child' : fem ? (old ? 'head/heads/human/heads_human_female_elderly' : 'head/heads/human/heads_human_female') : (old ? 'head/heads/human/heads_human_male_elderly' : 'head/heads/human/heads_human_male');
   const L = [{ id: 'body/body', mat: { body: skin } }, { id: headId, mat: { body: skin, eye } }];
   const X = [];   // extras: [name, ...args]
-  const B = sp.bottom || {}, topC = cloth(sp.top || '#2a2e38');
+  const B = sp.bottom || {}, topC = cloth(sp.top || '#2a2e38'), swimCol = (sp.swim === 'trunks' ? TRUNKS : SUIT)[hashN(key + 'suit', sp.swim === 'trunks' ? TRUNKS.length : SUIT.length)];
   // ----- legs
   const legCol = B.type === 'robe' ? cloth(B.col) : cloth(B.col || '#2a2e38');
   if (kid) { const def = getDef(B.type === 'skirt' ? 'legs/skirts/legs_childskirts' : 'legs/pants/legs_childpants'); L.push({ id: def === getDef('legs/skirts/legs_childskirts') ? 'legs/skirts/legs_childskirts' : 'legs/pants/legs_childpants', variant: pickVariant(def, legCol) }); }
+  else if (sp.swim) L.push({ id: sp.swim === 'trunks' ? 'legs/shorts/legs_shorts' : 'legs/shorts/legs_shorts_short', mat: { cloth: swimCol } });
   else if (B.type === 'shorts') L.push({ id: 'legs/shorts/legs_shorts', mat: { cloth: legCol } });
   else if (B.type === 'skirt' || B.type === 'robe') L.push({ id: 'legs/skirts/legs_skirts_plain', mat: { cloth: B.type === 'skirt' && !B.long ? cloth(B.col) : legCol } });
   else L.push({ id: 'legs/pants/legs_pants', mat: { cloth: B.jeans ? 'blue' : legCol } });
   // ----- shoes
   const shoeC = cloth(sp.shoes || '#2c2622');
-  if (!kid || true) L.push(sp.boots ? { id: 'feet/boots/feet_boots_basic', mat: { cloth: 'black' } } : { id: 'feet/shoes/feet_shoes_basic', mat: { cloth: shoeC } });
+  const sandals = sp.sandals || (sp.swim && hashN(key + 'sandals', 2) === 0);   // flip-flops: the generator's sandals; the other swimmers go barefoot
+  if (sp.swim && !sandals) { /* barefoot */ }
+  else if (sandals) L.push({ id: 'feet/feet_sandals', mat: { cloth: shoeC } });
+  else if (!kid || true) L.push(sp.boots ? { id: 'feet/boots/feet_boots_basic', mat: { cloth: 'black' } } : { id: 'feet/shoes/feet_shoes_basic', mat: { cloth: shoeC } });
   // ----- torso
   const longS = sp.sleeve === 'long', none = sp.sleeve === 'none';
-  if (kid) { const def = getDef('torso/shirts/torso_clothes_child_shirt'); L.push({ id: 'torso/shirts/torso_clothes_child_shirt', variant: pickVariant(def, topC) }); }
+  if (sp.swim) { if (sp.swim === 'bikini') L.push({ id: SLEEVELESS, mat: { cloth: swimCol }, trim: { skip: 2, rows: 5 } }); else if (sp.swim === 'onepiece') L.push({ id: SLEEVELESS, mat: { cloth: swimCol } }); }
+  else if (kid) { const def = getDef('torso/shirts/torso_clothes_child_shirt'); L.push({ id: 'torso/shirts/torso_clothes_child_shirt', variant: pickVariant(def, topC) }); }
   else if (sp.waistcoat && !kid) { L.push({ id: 'torso/shirts/longsleeve/torso_clothes_longsleeve2', mat: { cloth: topC } }); L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2_vneck', mat: { cloth: nearestRamp('cloth', sp.waistcoat) } }); }   // a waistcoat over a long-sleeved shirt (the coachman)
   else if (sp.vest && sp.vestOver) { L.push({ id: 'torso/shirts/shortsleeve/torso_clothes_tshirt', mat: { cloth: topC } }); L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2_vneck', mat: { cloth: nearestRamp('cloth', sp.vest) } }); X.push(['patches']); }
   else if (none) L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2', mat: { cloth: topC } });
@@ -65,6 +74,7 @@ export function stackOf(sp, idx) {
   // ----- hats
   const h = sp.hat;
   if (h) { if (h.type === 'scarf') X.push(['fazzoletto', 'black']); else if (h.type === 'flatcap') X.push(['flatCap', cloth(h.col)]); else if (h.type === 'peaked') X.push(['peakedCap', lumOf(h.col) > 0.6 ? 'white' : 'navy', h.col2 && lumOf(h.col2) > 0.6 ? 'white' : 'yellow']); else if (h.type === 'straw') X.push(['strawHat', cloth(h.col), h.col2 ? cloth(h.col2) : 'red']); else if (h.type === 'helmet') X.push(['helmet', 'white']); else if (h.type === 'cap') X.push(['cap', cloth(h.col)]); else if (h.type === 'top') X.push(['topHat', 'black']); else if (h.type === 'hood') L.push({ id: 'headwear/coverings/hoods/hat_hood_cloth', mat: { cloth: cloth(h.col) } }); }
+  if (sp.swim) { const t = TOWEL[hashN(key + 'towel', TOWEL.length)]; X.push(['towel', t[0], t[1]]); if (!sp.glasses && hashN(key + 'shades', 5) < 2) X.push(['rectGlasses']); if (sp.swim !== 'trunks' && hashN(key + 'hat', 4) === 0 && !sp.hat) X.push(['strawHat', 'tan', swimCol]); }
   // ----- skin art and small things
   if (sp.tattoo && (sp.sleeveTattoo || sp.tattooForearm)) X.push(['tattoo', 'arms']);
   if (sp.neckTattoo) X.push(['tattoo', 'neck']);
