@@ -21,6 +21,7 @@ const BASE = { body: 'light', hair: 'orange', cloth: 'white', eye: 'blue', metal
 const hex2 = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 // ramps of our own in the same 6 step shape (the generator's pinks are muddy: the rosanero pink of Palermo FC needs a clean one)
 pal.cloth.rosanero = ['#3a1830', '#8a3a68', '#d8689a', '#f08cb4', '#f8b4cf', '#fde6ef'];
+import { setPalettes } from '../../assets/peds/lpc/ramps.js'; setPalettes(pal);   // the painters of assets/peds/lpc/extras.js read their ramps from here
 export const ramp = (material, name) => { const r = pal[material] && pal[material][name]; if (!r) throw new Error(`no ${material} ramp ${name}`); return r.map(hex2); };
 const HUMAN = ['light', 'amber', 'olive', 'taupe', 'bronze', 'brown', 'black'], EYES = ['blue', 'green', 'brown', 'gray'];
 const NATURAL_HAIR = ['ash', 'platinum', 'white', 'gray', 'blonde', 'sandy', 'strawberry', 'gold', 'ginger', 'carrot', 'redhead', 'red', 'light_brown', 'chestnut', 'dark_brown', 'dark_gray', 'black', 'raven'];
