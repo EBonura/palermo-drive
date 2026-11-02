@@ -21,6 +21,10 @@ out.push('## Night mission "A Favorita" (needs ?world=1)', '');
 for (const [k, arr] of Object.entries(L.FAVORITA.client)) pairs(`### client: ${k}`, arr);
 for (const [k, arr] of Object.entries(L.FAVORITA.driver)) pairs(`### driver: ${k}`, arr);
 pairs('### the glam night folk on the avenue greet him', L.FAVORITA.chorus);
+out.push('## Two more night clients (Via Lincoln, Via Bandiera)', '');
+for (const [id, o] of Object.entries(L.NIGHT_CLIENTS)) { for (const [k, arr] of Object.entries(o.client)) pairs(`### ${id} client: ${k}`, arr); for (const [k, arr] of Object.entries(o.driver)) pairs(`### ${id} driver: ${k}`, arr); }
+out.push('## The horns mission (Arco di Cutò)', '');
+for (const [k, arr] of Object.entries(L.HORNS_LINES)) pairs(`### ${k}`, arr);
 out.push('## Pollanche (Santuario di Santa Rosalia, needs ?world=1)', '');
 pairs('### cries', L.POLLANCHE.cry); pairs('### when serving', L.POLLANCHE.serve);
 out.push('## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)', '');

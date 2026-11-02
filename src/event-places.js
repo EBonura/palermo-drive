@@ -119,6 +119,9 @@ export const FARE_SPOTS = [
   { id: 'pulle-marina', kind: 'pulle', name: 'Piazza Marina', lat: 38.1177752, lon: 13.3686382, src: 'src/main.js SPOTS' },
   { id: 'pulle-lib', kind: 'pulle', name: 'Via della Libertà', lat: 38.1340, lon: 13.3485, src: 'on Via della Libertà, a bit south of the Giardino Inglese' },
   { id: 'pulle-stz', kind: 'pulle', name: 'Stazione Centrale', lat: 38.1092, lon: 13.3655, src: 'assets/missions/lines.js PICKUPS' },
+  // night clients like the one of A Favorita (src/event-fares.js, assets/missions/lines.js NIGHT_CLIENTS): they wait in the evening and ask for a discreet street; `dest` is the road they want
+  { id: 'nc-lincoln', kind: 'nightc', nc: 'lincoln', name: 'Piazza Politeama', lat: 38.1283, lon: 13.3570, dest: { id: 'lincoln', name: 'Via Lincoln', lat: 38.1139815, lon: 13.3736383, onStreet: 'Lincoln', src: 'Nominatim: Via Abramo Lincoln, Kalsa, Palermo' }, src: 'Politeama, the old A Favorita district of taxis' },
+  { id: 'nc-bandiera', kind: 'nightc', nc: 'bandiera', name: 'Via della Libertà (Giardino Inglese)', lat: 38.1312509, lon: 13.3522947, dest: { id: 'bandiera', name: 'Via Bandiera', lat: 38.1185029, lon: 13.3611735, onStreet: 'Via Bandiera', ped: '^Via Bandiera$', src: 'Nominatim: Via Bandiera, I Circoscrizione, Palermo (a pedestrian way in the tiles, so the baker adds it to the network for this route)' }, src: 'src/main.js SPOTS' },
 ];
 // "A pulle": Viale Diana in the Favorita (the old A Favorita mission). Same coordinate as before.
 export const PULLE_DEST = { id: 'diana', name: 'Viale Diana, Favorita', lat: 38.148519, lon: 13.346399, src: 'Nominatim, as the old A Favorita mission' };
@@ -159,6 +162,14 @@ export const RACES = [
 // (the road up to the Santuario), 5.7 km of road from the Karcere, on open scrub below the road so that the stage is seen from it. The slope there has 7 to 10 m of relief over any
 // 24 m (the flatter spots higher up the road, 5 to 6 m, are 8.6 to 10.8 km away: too long for a delivery), so the game cuts a terrace with a retaining wall. "Foglie allegre"
 // starts at the rave and sends you to Via Cipressi (OpenStreetMap way, Palermo, the end near the Cuba) for the leaves. Notes and sources: docs/rave.md.
+// The horns mission (docs/horns.md): a citizen waits in Piazza Pretoria (the fare spot 'pp' is the same place), hands the lapa a pair of huge horns, and the lapa takes them under the
+// Arco di Cutò, the arch over Via Chiappara al Carmine at Via Maqueda 26, from the Maqueda side towards Ballarò. `arch` is a point of the street just inside the arch (from the road
+// graph of the tiles: the Maqueda end of Via Chiappara al Carmine is at about 38.1110, 13.3645) and `to` a point further along the street, towards Ballarò: the baker (snap-places.mjs)
+// stores the road point and the direction of travel from one to the other. The arch is modelled in src/lmc-*.js by another agent; if it stands elsewhere move `arch` only.
+export const HORNS = {
+  start: { id: 'start', name: 'Piazza Pretoria', lat: 38.1151, lon: 13.3622, onStreet: 'Maqueda' },
+  arch: { id: 'arch', name: 'Arco di Cutò', lat: 38.110918, lon: 13.364388, onStreet: 'Chiappara', toLat: 38.1100, toLon: 13.3620 },
+};
 export const RAVE = {
   karcere: { id: 'karcere', name: 'Centro sociale ExKarcere', lat: 38.1188723, lon: 13.3610391, onStreet: 'San Basilio', who: 'Il tecnico delle casse' },
   site: { id: 'site', name: 'Rave sul Pellegrino', lat: 38.1569358, lon: 13.3682830, onStreet: 'Bonanno' },

@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, proj } from './roadnet.mjs';
-import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE } from '../../src/event-places.js';
+import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from '../../src/event-places.js';
 import { DESTS } from './lines.js';
 
 const net = loadNet();
@@ -61,21 +61,27 @@ for (const f of FOOD_PLACES) {
 const foodDests = DESTS.map(d => ({ id: d.id, name: d.name, lat: d.lat, lon: d.lon }));
 for (const d of foodDests) place('dest:' + d.id, d.lat, d.lon);
 for (const d of TAXI_DESTS) place('dest:' + d.id, d.lat, d.lon);
+// night clients' streets; one that is only a pedestrian way in the tiles (Via Bandiera) is snapped and routed in a network with that street added (dest.ped: a RegExp source)
+const netFor = {};
+for (const f of FARE_SPOTS) if (f.dest) {
+  const d = f.dest, nx = d.ped ? (netFor[d.id] = loadNet({ extra: new RegExp(d.ped) })) : net, [x, z] = proj(d.lat, d.lon), s = snap(nx, x, z, { name: d.onStreet });
+  SNAP['dest:' + d.id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id: 'dest:' + d.id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) });
+}
 place('dest:' + PULLE_DEST.id, PULLE_DEST.lat, PULLE_DEST.lon);
-function routeBetween(aId, bId) {
+function routeBetween(aId, bId, nx = net) {
   const A = SNAP[aId], B = SNAP[bId];
-  const sa = snap(net, A[0], A[1]), sb = snap(net, B[0], B[1]);
-  const p = route(net, nodeOf(sa), nodeOf(sb)); if (!p) return null;
-  const P = [[A[0], A[1]], ...pts(net, p), [B[0], B[1]]];
+  const sa = snap(nx, A[0], A[1]), sb = snap(nx, B[0], B[1]);
+  const p = route(nx, nodeNear(nx, sa), nodeNear(nx, sb)); if (!p) return null;
+  const P = [[A[0], A[1]], ...pts(nx, p), [B[0], B[1]]];
   return { len: plen(P), pts: simplify(P, 6) };
 }
 for (const f of FARE_SPOTS) {
   place('fare:' + f.id, f.lat, f.lon);
   const out = [];
-  const pool = f.kind === 'tourist' ? foodDests : f.kind === 'taxi' ? TAXI_DESTS : [PULLE_DEST];
+  const pool = f.kind === 'tourist' ? foodDests : f.kind === 'taxi' ? TAXI_DESTS : f.dest ? [f.dest] : [PULLE_DEST];
   const lo = f.kind === 'tourist' ? 300 : f.kind === 'taxi' ? 1200 : 0, hi = f.kind === 'tourist' ? 1700 : f.kind === 'taxi' ? 7000 : 1e9;
   const cs = [];
-  for (const d of pool) { const r = routeBetween('fare:' + f.id, 'dest:' + d.id); if (r && r.len >= lo && r.len <= hi) cs.push({ d, r }); }
+  for (const d of pool) { const r = routeBetween('fare:' + f.id, 'dest:' + d.id, netFor[d.id] || net); if (r && r.len >= lo && r.len <= hi) cs.push({ d, r }); }
   const mid = f.kind === 'tourist' ? 800 : 3000;
   cs.sort((p, q) => Math.abs(p.r.len - mid) - Math.abs(q.r.len - mid));
   for (const c of cs.slice(0, f.kind === 'pulle' ? 1 : 4)) out.push([c.d.id, Math.round(c.r.len), flat(c.r.pts)]);
@@ -104,6 +110,19 @@ for (const [id, a, b] of [['rave:karcere', 'rave:karcere', 'rave:site'], ['rave:
   const tour = []; { let cur = { x: cx, z: cz }; const left = chosen.slice(); while (left.length) { let bi = 0, bd = 1e12; left.forEach((c, i) => { const d = Math.hypot(c.x - cur.x, c.z - cur.z); if (d < bd) { bd = d; bi = i; } }); cur = left.splice(bi, 1)[0]; tour.push(cur); } }
   HUNT.leaf = { hunt: flat(tour.map(c => [c.x, c.z])) };
   console.log('leaf items', tour.length, 'farthest', Math.round(Math.max(...tour.map(c => Math.hypot(c.x - cx, c.z - cz)))), 'm');
+}
+
+// ---- the horns mission: the citizen in Piazza Pretoria, the arch (a road point just inside the arch of Via Chiappara al Carmine and the direction of travel towards Ballarò), the route.
+// Via Maqueda is a pedestrian way in the tiles (not in the drivable network), so this uses its own network with Via Maqueda added; the other bakes are not touched.
+{
+  const netH = loadNet({ extra: /^Via Maqueda$/ }), put = (id, lat, lon, name) => { const [x, z] = proj(lat, lon), s = snap(netH, x, z, name ? { name } : {}); SNAP[id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) }); return s; };
+  const a = put('horns:start', HORNS.start.lat, HORNS.start.lon, HORNS.start.onStreet);
+  const g = put('horns:arch', HORNS.arch.lat, HORNS.arch.lon, HORNS.arch.onStreet), [tx, tz] = proj(HORNS.arch.toLat, HORNS.arch.toLon);
+  const fwd = g.dx * (tx - g.x) + g.dz * (tz - g.z) >= 0, dx = fwd ? g.dx : -g.dx, dz = fwd ? g.dz : -g.dz;   // towards Ballarò
+  SNAP['horns:arch'] = [r1(g.x), r1(g.z), r2(dx), r2(dz), g.w, g.n || ''];
+  const na = nodeNear(netH, a), nb = nodeNear(netH, g), p = route(netH, na, nb);
+  if (p) { const P = [[a.x, a.z], ...pts(netH, p), [g.x, g.z]]; ROUTES['horns'] = [['arch', Math.round(plen(P)), flat(simplify(P, 4))]]; console.log('horns route', Math.round(plen(P)), 'm; gate', SNAP['horns:arch'].join(' '), 'start', SNAP['horns:start'].join(' ')); }
+  else { ROUTES['horns'] = []; console.log('horns NO ROUTE'); }
 }
 
 // ---- race tracks

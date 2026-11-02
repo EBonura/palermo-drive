@@ -15,6 +15,7 @@ import { POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, P
 import { STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, GYMNASIUM, VILLA_GIULIA_GATE, TEATRO_GARIBALDI, UCCIARDONE, FIERA_GATE, IGIEA, FLORIO, IDA } from './lmc-c.js';
 import { MONDELLO_LANDMARKS } from './lmc-mondello.js';
 import { GATES } from './lmc-gates.js';
+import { ARCO_CUTO } from './lmc-cuto.js';   // the Arco di Cutò and the front of the Palazzo Filangeri di Cutò on Via Maqueda (src/lmc-cuto.js)
 
 export const CITY_LANDMARKS = [
   POLITEAMA, STADIO, UTVEGGIO, SANTUARIO, ZISA, CUBA, EREMITI, PONTE_AMM, NORMANNI,
@@ -24,4 +25,5 @@ export const CITY_LANDMARKS = [
   ...GROUP_G,
   ...MONDELLO_LANDMARKS,
   ...GATES,
+  ARCO_CUTO,
 ];

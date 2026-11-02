@@ -1470,7 +1470,14 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, wts, quality: () => quality, knock, zoneCode, densAt, distAt, PNAMES, VW, VWN, VARIANTS };
-  const api = { spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  // someone on foot between rMin and rMax of (x, z), for a line from the street: { x, y, z } above the head, or null. Starts at a random person so it is not always the same one.
+  function personNear(x, z, rMin, rMax) {
+    if (!N.n) return null;
+    const a2 = rMin * rMin, b2 = rMax * rMax, s = (Math.random() * N.n) | 0;
+    for (let k = 0; k < N.n; k++) { const i = (s + k) % N.n, d = (X[i] - x) ** 2 + (Z[i] - z) ** 2; if (d >= a2 && d <= b2) return { x: X[i], y: Y[i] + 1.95, z: Z[i] }; }
+    return null;
+  }
+  const api = { personNear, spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
   if (params.has('debug')) { window.__peds.beach = { bathers, splashes, beachAll, waterAt, nearBeach, sandDist, knockBather, k: () => beachK }; window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;

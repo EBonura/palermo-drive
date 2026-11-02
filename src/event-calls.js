@@ -2,7 +2,7 @@
 // slot (src/missions.js builds them from src/event-places.js and the baked src/event-routes.js). A character is spawned only when the lapa is
 // near, bounces and shouts from the kerb; stop next to them to accept. Races have no caller: src/races.js puts the racers at the start line.
 // createCalls(X) -> { slots, setSlots(list), update(dt, allowed) -> accepted slot | null, release(slot), clear(), hideBeacon() }
-import { CALL, FRIEND } from '../assets/missions/lines.js';
+import { CALL, FRIEND, NIGHT_CLIENTS, HORNS_LINES } from '../assets/missions/lines.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -12,7 +12,7 @@ const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
 const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
-const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a' };
+const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e' };
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8;
 export const KIND_COLOR = COLORS;
 
@@ -30,6 +30,8 @@ export function createCalls(X) {
     if (s.kind === 'food') return OWNER_POOL[s.num % OWNER_POOL.length];
     if (s.kind === 'rave') return 'dj';
     if (s.kind === 'leaf') return 'nightboy2';
+    if (s.kind === 'horns') return pick(['nonno', 'coppola', 'shopper', 'suit']);
+    if (s.nc) return 'client';
     if (s.kind === 'urgent') return pick(['suit', 'suit2', 'borsa', 'ragazzo', 'signora2']);
     if (s.sub === 'pulle') return night ? 'client' : pick(TOURIST_POOL);
     if (s.sub !== 'tourist' && Math.random() < FRIEND_CHANCE) return 'amico' + (1 + (Math.random() < 0.5 ? 0 : 1)) + '_' + pick(FRIEND_OUTFITS);
@@ -49,7 +51,8 @@ export function createCalls(X) {
   function despawn(s) { for (const id of s.callers) pedestrians.remove(id); s.callers.length = 0; }
   function lineFor(s) {
     if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
-    const L = s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
+    if (s.nc) return pickLine(NIGHT_CLIENTS[s.nc].client.flag, s);
+    const L = s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
     return pickLine(L, s);
   }
   function pickLine(L, s) {
@@ -96,5 +99,5 @@ export function createCalls(X) {
   // the event takes the callers over (the passengers stay in the world)
   function release(s) { armed = false; callBeacon.show(false); beaconSlot = null; if (s.marker) { X.dropMarker(s.marker); s.marker = null; } }
   function clear() { for (const s of slots) { despawn(s); if (s.marker) { X.dropMarker(s.marker); s.marker = null; } } callBeacon.show(false); beaconSlot = null; }
-  return { get slots() { return slots; }, setSlots(l) { slots = l; }, update, release, clear, hideBeacon: () => callBeacon.show(false), armed: () => armed, disarm: () => { armed = false; } };
+  return { get slots() { return slots; }, setSlots(l) { slots = l; }, update, release, clear, hideBeacon: () => callBeacon.show(false), armed: () => armed, arm: () => { armed = true; }, disarm: () => { armed = false; } };
 }
