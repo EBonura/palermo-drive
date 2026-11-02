@@ -91,6 +91,7 @@ const T = {   // [italiano, english]
 };
 
 let instance = null;
+export const getRadio = () => instance;   // the radio if it exists, without making one (src/stadium.js)
 
 export function createRadio({ game, tracks = TRACKS } = {}) {
   if (instance) return instance;
@@ -224,7 +225,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   }
 
   function next() {
-    if (!started) return;
+    if (!started || taken?.lock) return;   // a locked takeover (La partita in the stadium) cannot be skipped away
     if (!enabled) return setEnabled(true);
     if (performance.now() - lastSwitch < 500) return;   // button mashing: one change at a time
     playTrack(SKIP_FADE);
@@ -363,6 +364,15 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   background: radial-gradient(circle, #090203 0 30%, #a3110b 31% 41%, transparent 42%), conic-gradient(#202024, #9a9aa4, #202024 18%, #8a8a94 36%, #202024 54%, #9a9aa4 72%, #202024); }
 .pd-radio[data-theme=metal] .pr-cd::before { background: #000; box-shadow: 0 0 0 2px #d3140c; }
 .pd-radio[data-theme=metal] .pr-cd::after { opacity: .3; }
+/* takeover theme 'match' (La partita, src/stadium.js): the same card and disc in rosanero and black, a gold label with a LIVE dot, the score in the title line */
+.pd-radio[data-theme=match] .pr-card { background: linear-gradient(90deg, #0b0709, #4a1230 58%, #170a11); border-left-color: #ff6fae; box-shadow: 0 3px 14px rgba(0,0,0,.55), 0 0 12px rgba(232,85,154,.45), inset 0 0 0 1px rgba(255,150,200,.2); }
+.pd-radio[data-theme=match] .pr-lab { color: #ffcf4a; font-weight: 700; letter-spacing: .22em; }
+.pd-radio[data-theme=match] .pr-lab::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 7px; border-radius: 50%; background: #ff3b5c; box-shadow: 0 0 6px #ff3b5c; vertical-align: 1px; animation: pr-live 1.1s steps(1) infinite; }
+.pd-radio[data-theme=match] .pr-t > i { font-family: 'Racing Sans One', 'Barlow Condensed', Impact, sans-serif; font-weight: 400; letter-spacing: .06em; text-transform: uppercase; color: #fff; text-shadow: 0 0 8px rgba(232,85,154,.8), 0 1px 0 #000; }
+.pd-radio[data-theme=match] .pr-s > i { color: #ffd1e6; opacity: 1; }
+.pd-radio[data-theme=match] .pr-ext .pr-btn { display: none; }
+.pd-radio[data-theme=match] .pr-chev { color: #ff9ac6; }
+@keyframes pr-live { 50% { opacity: .2; } }
 @keyframes pr-mshake { 0%, 86%, 100% { translate: 0 0; } 87% { translate: -2px 1px; } 89% { translate: 2px -1px; } 91% { translate: -1px -1px; } 93% { translate: 1px 1px; } 95% { translate: 0 0; } }
 @keyframes pr-mglow { from { filter: none; } to { filter: drop-shadow(0 0 5px rgba(255,40,20,.45)); } }
 @keyframes pr-mflick { 0%, 40%, 100% { opacity: 1; } 41% { opacity: .25; } 43% { opacity: 1; } 44% { opacity: .5; } 46% { opacity: 1; } 78% { opacity: .35; } 79% { opacity: 1; } }
@@ -370,7 +380,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 @keyframes pr-mgl1 { 0%, 80%, 100% { opacity: 0; } 81% { opacity: 1; translate: -3px 0; clip-path: inset(0 0 55% 0); } 85% { opacity: 1; translate: 3px 0; clip-path: inset(45% 0 20% 0); } 90% { opacity: 1; translate: -2px 0; clip-path: inset(70% 0 0 0); } 94% { opacity: 0; } }
 @keyframes pr-mgl2 { 0%, 82%, 100% { opacity: 0; } 83% { opacity: .9; translate: 3px 0; clip-path: inset(60% 0 0 0); } 87% { opacity: .9; translate: -3px 0; clip-path: inset(10% 0 55% 0); } 92% { opacity: 0; } }
 @keyframes pr-mfire { from { filter: drop-shadow(0 0 3px #ff3b00) drop-shadow(0 -2px 4px #ffa000); } to { filter: drop-shadow(0 0 6px #ff1a00) drop-shadow(0 -4px 7px #ff6a00); } }
-@media (prefers-reduced-motion: reduce) { .pr-cd i, .pr-line.mq > i, .pd-radio[data-theme=metal] :is(.pr-card, .pr-lab, .pr-text, .pr-cd, .pr-cd i) { animation: none; } .pd-radio[data-theme=metal] .pr-t > i::before, .pd-radio[data-theme=metal] .pr-t > i::after { animation: none; } .pr-card, .pr-ext, .pd-radio { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .pd-radio[data-theme=match] .pr-lab::after { animation: none; } .pr-cd i, .pr-line.mq > i, .pd-radio[data-theme=metal] :is(.pr-card, .pr-lab, .pr-text, .pr-cd, .pr-cd i) { animation: none; } .pd-radio[data-theme=metal] .pr-t > i::before, .pd-radio[data-theme=metal] .pr-t > i::after { animation: none; } .pr-card, .pr-ext, .pd-radio { transition: none; } }
 `;
   document.head.appendChild(style);
 
@@ -474,7 +484,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (document.hidden) return;
     if (now - lastDraw < 30) { raf = requestAnimationFrame(frame); return; }
     lastDraw = now;
-    const live = !!taken || (started && enabled && !blocked && slots[cur].playing && (!ctx || ctx.state === 'running'));
+    const metal = !!taken && box.dataset.theme === 'metal', live = !!taken || (started && enabled && !blocked && slots[cur].playing && (!ctx || ctx.state === 'running'));
     let sum = 0;
     const tk = taken, an = tk ? tk.analyser : analyser, fq = tk ? tk.buf : freq;
     if (live && an) an.getByteFrequencyData(fq);
@@ -489,7 +499,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         v = v * v * 0.95;
       } else if (tk) v = tl * (0.3 + 0.7 * Math.random());
       else if (live) v = 0.25 + 0.2 * Math.sin(now / 170 + i * 1.7) * Math.sin(now / 410 + i);   // no Web Audio: a gentle stand-in
-      if (tk) { const r = Math.random(); if (r < 0.05) v = 0; else if (r > 0.96) v = 1; }   // metal: dropouts and spikes
+      if (metal) { const r = Math.random(); if (r < 0.05) v = 0; else if (r > 0.96) v = 1; }   // metal: dropouts and spikes
       v = Math.min(1, v);
       lv[i] += (v - lv[i]) * (v > lv[i] ? 0.7 : 0.2);
       pk[i] = Math.max(lv[i], pk[i] - 0.03);
@@ -499,8 +509,8 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     g2.globalAlpha = live || sum > 0.5 ? 1 : 0.4;
     for (let i = 0; i < BARS; i++) {
       const x = i * (BW + BGAP), h = Math.max(2, Math.round(lv[i] * CH));
-      g2.fillStyle = taken ? gradM : grad; g2.fillRect(x, CH - h, BW, h);
-      if (pk[i] > 0.08) { g2.fillStyle = taken ? '#ffb199' : '#fff'; g2.fillRect(x, Math.max(0, CH - Math.round(pk[i] * CH) - 2.5), BW, 1.5); }
+      g2.fillStyle = metal ? gradM : grad; g2.fillRect(x, CH - h, BW, h);
+      if (pk[i] > 0.08) { g2.fillStyle = metal ? '#ffb199' : '#fff'; g2.fillRect(x, Math.max(0, CH - Math.round(pk[i] * CH) - 2.5), BW, 1.5); }
     }
     if (live || sum > 0.4) raf = requestAnimationFrame(frame);
   }
@@ -547,8 +557,9 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     // takeover({ label, title, artist, theme: 'metal', analyser, level }): a pub or a scene borrows the card. The three strings replace the label, the title and the
     // credits line; the next and on/off buttons are hidden; the card stays open until release(). theme 'metal' is the dark red look (glitching text, spiked burning disc,
     // flickering bars). The bars follow `analyser` (an AnalyserNode that is only read, never connected) or else `level` (a function returning 0..1) or else a steady flicker.
-    takeover({ label = '', title = '', artist = '', theme = 'metal', analyser = null, level = null } = {}) {
-      taken = { analyser: analyser && analyser.getByteFrequencyData ? analyser : null, level: typeof level === 'function' ? level : null, buf: null };
+    // theme 'match' is rosanero and black with a LIVE dot (La partita). lock: true also stops the next-track key (M) while it lasts; retext({ label, title, artist }) changes the lines live.
+    takeover({ label = '', title = '', artist = '', theme = 'metal', analyser = null, level = null, lock = false } = {}) {
+      taken = { analyser: analyser && analyser.getByteFrequencyData ? analyser : null, level: typeof level === 'function' ? level : null, buf: null, lock };
       if (taken.analyser) taken.buf = new Uint8Array(taken.analyser.frequencyBinCount);
       box.dataset.theme = theme;
       el.lab.textContent = label; setLine(el.t, title); setLine(el.s, artist);
@@ -556,13 +567,23 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
       box.setAttribute('aria-label', `${label}: ${title}`);
       clearTimeout(foldTimer); exp = true; applyExp(); kick();
     },
+    retext({ label, title, artist } = {}) {
+      if (!taken) return;
+      if (label != null) el.lab.textContent = label;
+      if (title != null) { setLine(el.t, title); el.t.firstChild.dataset.text = title; box.setAttribute('aria-label', `${el.lab.textContent}: ${title}`); }
+      if (artist != null) setLine(el.s, artist);
+      if (!box.classList.contains('min')) fitLines();
+    },
     release() {
       if (!taken) return;
       taken = null; delete box.dataset.theme; delete el.t.firstChild.dataset.text;
       lastKey = ''; sync(); open(OPEN_MS); kick();
     },
     get takenOver() { return !!taken; },
-    duckFor(k) { outer = 1 - 0.88 * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full)
+    duckFor(k, depth = 0.88) { outer = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full); depth 1 silences the radio at k = 1 (the stadium)
+    get duck() { return duck; },   // 1 while driving, lower under the pause menu and the title (the stadium's sound follows it)
+    get context() { return ctx; },   // the radio's AudioContext (null until the first tap): src/stadium-audio.js builds the Barbera's sound on it, so it starts with the game's own first gesture
+    get sfxVolume() { return Number.isFinite(settings.volume) ? settings.volume : 0.8; },   // the Options volume (effects), as the horn reads it
     get enabled() { return enabled; },
     get volume() { return volume; },
     get current() { return slots[cur].playing ? slots[cur].track : null; },
