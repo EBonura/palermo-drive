@@ -1,7 +1,7 @@
 # Security audit (board item r6)
 
 Scope: the repository (files, git history, ignore rules, CI, dependencies, CDN use), the game as it runs in a browser (untrusted text and URL parameters reaching the page, saved
-data, what the public GitHub Pages site serves) and the multiplayer relay in `server/` (not deployed yet). Method: read-mostly. Everything below was checked by running a command or
+data, what the public GitHub Pages site serves) and the multiplayer relay in `relay/` (not deployed yet). Method: read-mostly. Everything below was checked by running a command or
 reading the line quoted; nothing was assumed. Small, clear fixes were made and are marked **Fixed**; everything else is **Open** with what to do.
 
 Severity: **High** (exploitable now, real harm), **Medium** (exploitable with some effort or only once something is deployed), **Low** (hardening, privacy, hygiene), **Info** (checked, fine, or a note).
@@ -24,7 +24,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 | 10 | `tools/autopush.sh` commits and pushes everything to the public repo with no secret check | Medium | Fixed (guard added) |
 | 11 | Saved driver picture was taken from localStorage as any address | Low | Fixed |
 | 12 | GitHub-side settings: Dependabot, secret scanning, push protection and private reporting were off or unknown; no branch protection | Medium | **Fixed** by the owner on 2026-11-02 and read back with `gh api`: Dependabot alerts and security updates, secret scanning, push protection and private vulnerability reporting are on. `main` stays unprotected on purpose (autopush). |
-| 13 | Relay server: Go 1.22 is out of support, unpinned container images, stats key in the URL query | Low | **Open** |
+| 13 | Relay server: stats key in the URL query, base images need a bump process, `X-Forwarded-For` trusted as sent (the Go 1.22 finding is closed: the relay is Rust now) | Low | **Open** (see section 12) |
 | 14 | HTML injection through OSM names, credits, URL parameters and saved data | none found (one shared `esc()` now) | Info |
 | 15 | Third-party scripts and CDN: pinned, but without Subresource Integrity, in the dev tree only | Low | Open (Info) |
 | 16 | Build dependencies | `npm audit`: 0 vulnerabilities | Info |
@@ -39,7 +39,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 - Key-shaped strings in the whole history (`git log --all -G` over everything except `world/`, `docs/perf` and `assets/peds`): AWS access keys, GitHub tokens (`ghp_`, `gho_`, `github_pat_`),
   OpenAI-style `sk-`, Slack, Google API keys, private-key blocks, Mapillary `MLY|`. No match. Also nothing named `.env`, `*.pem`, `*.key`, `*credentials*`, `*token*` was ever tracked.
 - Working tree: grep for `key|secret|token|password|bearer|authorization` over tracked text files matches only prose and code that mentions such words (game "secret" achievements, the relay's
-  rate-limit "tokens", `STATS_KEY` as a variable name in `server/deploy.sh`, which generates it with `openssl rand`). No value.
+  rate-limit "tokens", `STATS_KEY` as a variable name in `relay/deploy.sh`, which generates it with `openssl rand`). No value.
 - Images: the nine facade photographs and the `docs/districts` pictures carry no EXIF (no GPS, no camera data). Their sources and licences are in `assets/facades/photo/map.json` and the CREDITS files.
 - The friends' reference photos are in `data/npc-refs` (ignored). The tracked sprites (`assets/peds/lpc/garage.*`, `docs/previews/friends-sprites*.png`) are pixel-art characters, not photographs.
 
@@ -47,7 +47,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 
 `tools/context.py` line 33 sent `contact ebonura@fastly.com` in the User-Agent of its Overpass requests. It now says `contact https://github.com/EBonura/palermo-drive`. The old address stays in
 the history (commits that touched that line). Rewriting history of a repository with Pages and 173 commits is not worth it for an address that is already on a work profile; if you want it gone anyway,
-that needs `git filter-repo` and a force push. The personal Google account `bonniestudiosdev@gmail.com` is named in `server/DEPLOY.md`, `deploy.sh` and `docs/TODO.md` as the deployment account: public
+that needs `git filter-repo` and a force push. The personal Google account `bonniestudiosdev@gmail.com` is named in `relay/DEPLOY.md`, `deploy.sh` and `docs/TODO.md` as the deployment account: public
 on purpose, but it is also the login name of that account, so enable two-step verification on it.
 
 ### 3. `.gitignore` coverage (Low, Fixed)
@@ -65,14 +65,14 @@ the game has a feature called secrets, and `src/secrets.js` must not vanish sile
 - Before: `actions/checkout@v7`, `setup-node@v7`, `upload-pages-artifact@v5`, `deploy-pages@v5` (moving tags). Now pinned to the commit each tag pointed at on 2 November 2026 with the tag in a
   comment (`3d3c42e5…` checkout, `949feb24…` setup-node, `fc324d35…` upload-pages-artifact, `368f8252…` deploy-pages; checked against `gh api repos/<action>/git/ref/tags/<tag>`).
 - `npm ci --no-audit --no-fund` installs from the lockfile (good); `--no-audit` only skips the audit message.
-- Added `.github/dependabot.yml` (monthly: Actions, `tools/build` npm, `server` Go modules) so the pins get bumped. It only works once Dependabot is switched on (see the repository settings finding).
+- Added `.github/dependabot.yml` (monthly: Actions, `tools/build` npm, `server` Go modules; the relay is Rust now, so the `server` entry must become `cargo`) so the pins get bumped. It only works once Dependabot is switched on (see the repository settings finding).
 
 ### 5. Build dependencies (Info)
 
 `tools/build/package.json`: `esbuild 0.28.2`, `puppeteer-core 25.16.0`, `sharp 0.35.5`, `three 0.187.0`, all exact versions, all `devDependencies`, `private: true`. `package-lock.json` has 85 packages, all from
 `registry.npmjs.org`, all with integrity hashes. `npm audit`: found 0 vulnerabilities. The only install script is esbuild's (it fetches its platform binary). `tools/build/serve.mjs` (test server) listens on
 127.0.0.1 only; its path check is `file.startsWith(base)`, which also accepts a sibling directory with the same prefix (Info: local tool, never exposed).
-Not covered by the lockfile: `server/killswitch/package.json` (`^5.0.0`, `^3.0.0`, no lockfile; a Cloud Function you deploy once), and the Python tools (no requirements file). Neither ships to players.
+Not covered by the lockfile: `relay/killswitch/package.json` (`^5.0.0`, `^3.0.0`, no lockfile; a Cloud Function you deploy once), and the Python tools (no requirements file). Neither ships to players.
 
 ### 6. Third-party scripts and CDN imports (Low, Info)
 
@@ -92,7 +92,7 @@ happens to them:
   strings (`ui.js:633` start list, `event-fares.js:165`, `event-food.js:146`, `event-pubs.js:105`, `achievements.js:86`, `garage-ui.js`). Canvas text (minimap, name tags) is not HTML.
 - **Credits converter** (`ui.js` 190 to 235, reads `assets/**/CREDITS.md`, whose authors and file titles come from Wikimedia and from LPC): `inline()` escapes first and only then builds links, and a link must
   start with `http:` or `https:` (no `javascript:`), is wrapped in `target="_blank" rel="noopener"`, and `urlLabel()` strips `<>"`. A `"` in a title cannot leave an attribute.
-- **Other players' names** (relay, when deployed): drawn into a canvas texture (`net.js` `tagTexture`), never as HTML; the server also sanitises them (16 runes, no controls or format characters, `server/protocol.go`).
+- **Other players' names** (relay, when deployed): drawn into a canvas texture (`net.js` `tagTexture`), never as HTML; the server also sanitises them (16 runes, no controls or format characters, `relay/src/protocol.rs`).
 - **URL parameters**: values that reach the DOM are whitelisted (`lang`, `ui`, `view`, `veh`, `liv` against known ids), numeric (`peds`, `speed`, `at`, `time`, `tt`, `rs`, `cash`) or cut (`name`, 16 characters, set with `textContent`).
 - **localStorage** (`palermoDrive.settings.v1`, `.net.v1`, `.pid.v1`, `.events.v1`, `.secrets.v1`, `.mapEvents`, `.a2hs`, `.keyhint`, `pd.driver`, the Garage save): every loader validates types and ranges before use
   (`ui.js` 185 to 260, `garage.js` 156 to 170, `driver.js` `cleanSpec`, `missions.js:487`, the pid must match `^[0-9a-f]{16,40}$`). A tampered save needs the page's own origin, so it is self-inflicted at worst.
@@ -117,7 +117,7 @@ happens to them:
 
 ### 9. What the public Pages site exposes (Info, one fix)
 
-The artifact is `dist/` only (about 92 MB: 1,124 `.bin` data and tile files, 109 PNG, music, fonts, the bundle). Not published: `src/`, `tools/`, `docs/`, `server/`, `data/`, source maps, shell, Python, `.mjs`, logs. It does contain four `CREDITS.md`
+The artifact is `dist/` only (about 92 MB: 1,124 `.bin` data and tile files, 109 PNG, music, fonts, the bundle). Not published: `src/`, `tools/`, `docs/`, `relay/`, `data/`, source maps, shell, Python, `.mjs`, logs. It does contain four `CREDITS.md`
 files, `js/app.*.js.LEGAL.txt` (licence texts of the bundled libraries), `version.json` (a release id), and the whole world: OSM-derived tiles (ODbL, attributed in the game's credits). The page sets no cookies. localStorage holds
 the keys listed under the HTML-injection finding plus `palermoDrive.pid.v1` (a random id, written only when the relay is configured).
 GitHub Pages sends no custom headers, so there is no CSP, `X-Content-Type-Options` or frame protection from the server (`frame-ancestors` cannot be set from a `<meta>`; the game can be framed by anyone, which only matters for clickjacking, and
@@ -142,15 +142,22 @@ Read with `gh api` (some are hidden without admin scope): Dependabot alerts are 
 protection** (404; autopush pushes straight to it, so protection would block the workflow you use: leave it, but know it); no topics, no security policy file. Recommended, all free for a public repository: Settings, Code security: enable Dependabot alerts,
 Dependabot security updates, secret scanning and push protection, and private vulnerability reporting; Settings, Actions, General: workflow permissions "read repository contents" by default. Pages: HTTPS is enforced (checked).
 
-### 12. The relay in `server/` (Low now, Medium when deployed)
+### 12. The relay in `relay/` (Low now, Medium when deployed)
 
-Read, not run. Good: WebSocket origin allow-list (`ebonura.github.io`, `localhost:*`, `127.0.0.1:*`), 80-byte read limit, name sanitiser, per-IP ping bucket (30 per minute, 40 new ids a day), `/ping` body capped at 128 bytes, HTML stats page escaped with
-`html.EscapeString`, stats key compared in constant time, distroless non-root image, at most one instance, a monthly free-tier cap that closes the WebSocket door, and a billing kill-switch function. Open:
-- `server/go.mod` says Go 1.22 and `Dockerfile` builds with `golang:1.22-alpine`; Go 1.22 no longer gets security fixes. Move to a supported Go and pin both base images by digest. `github.com/coder/websocket v1.8.12`: run `govulncheck` before deploying (not installed here).
+The relay was ported from Go to Rust on 2 November 2026 (`relay/src/`, tokio, axum for the routes and the WebSocket upgrade, hyper for the connection loop). Read and exercised on a local run (load, abuse and stall tests), not deployed. Good: WebSocket origin allow-list (`ebonura.github.io`, `localhost:*`, `127.0.0.1:*`; a request
+without an Origin header, which is not a browser, passes), 80-byte message limit enforced by the WebSocket layer, name sanitiser (control, format and private-use characters stripped, 16 characters, tiny slur list), per-IP ping bucket (30 per minute, 40 new ids a day), `/ping` body capped at 128 bytes, HTML stats page escaped,
+stats key compared in constant time, distroless non-root image, at most one instance, a monthly free-tier cap (instance time, requests and egress, the last one also outside North America) that closes the WebSocket door, and a billing kill-switch function. Added or checked in the port:
+- Header read timeout of 10 s on every connection (a client that sends half a request is cut; `axum::serve` has none, so the relay runs its own accept loop), and a cap on open sockets (2 x the WebSocket cap + 256).
+- Connections per address: 16 (it was 6), and an IPv6 client counts by its /64, because one device can use any address in its /64 and a per-address limit would not limit it. Total WebSockets: 300.
+- Every queue is bounded: 32 frames per connection, a client that cannot take frames for 200 sends in a row (20 s) or 5 s inside one write is disconnected. A burst of other players' names waits for the next tick instead of filling the queue.
+- Abuse run (`loadtest -mode abuse`): a bad Origin gets 403; a 200 byte message and a 1 MB frame close the connection; unknown-type and state floods are closed with 1008 after the strike limit; invalid UTF-8, 64 byte, control-character and block-listed names are cleaned or replaced; no INFO within 10 s is closed; the idle, AFK (4001) and per-address (429) limits fire; a half-sent request is closed at 10 s.
+Open:
+- `X-Forwarded-For` is trusted as sent: the last element is the client address and the per-address limit uses it. Behind Cloud Run the Google front end appends the real address there, so that is right. Run the relay directly on the internet (or behind a proxy that does not set the header) and a client can pick its own address and walk around the limit. Same as the Go version; the fix is a flag that says "behind a proxy" and ignores the header otherwise.
+- The `Dockerfile` pins `rust:1-alpine` and `gcr.io/distroless/static-debian12:nonroot` by digest (resolved 2 November 2026). They go stale unless something bumps them: add the docker ecosystem to `.github/dependabot.yml`. `Cargo.lock` is committed and the build uses `--locked`. `cargo audit` was not run (not installed here).
 - `/stats?key=…` puts the key in the URL (Cloud Run request logs, browser history). Accept it from an `Authorization` header instead, or rotate after each use.
 - `ALLOWED_ORIGINS` in `deploy.sh` always appends `localhost:*,127.0.0.1:*`: fine for a toy, drop it for production (the Origin header is only a browser-side control anyway).
 - `--allow-unauthenticated` is the point of a public relay; the cost control is `--max-instances=1`, the app's own cap and the kill-switch, which reacts to a budget notification after the spend (billing alerts lag by hours). Keep the budget at a figure you can lose.
-- `server/killswitch/` has `^` version ranges and no lockfile; add `package-lock.json` before deploying it.
+- `relay/killswitch/` has `^` version ranges and no lockfile; add `package-lock.json` before deploying it.
 
 ## What changed in this audit (files)
 
