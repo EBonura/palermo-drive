@@ -229,7 +229,7 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 // ---------- player car (src/vehicle.js) ----------
-const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude });
+const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
@@ -402,7 +402,14 @@ renderer.setAnimationLoop(now => {
   // the "turn your phone" prompt covers the screen in portrait: the game waits behind it (paused, with no menu opened) and goes on when the phone is turned
   if (mobile.rotatePrompt()) { if (game.state === 'play') { game.pause(); rotHeld = true; } } else if (rotHeld) { rotHeld = false; game.resume(); }
   if (game.state === 'play') {
-    for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */ }
+    for (acc += dt; acc >= STEP; acc -= STEP) {
+      physics(STEP);
+      const high = car.agl > 3, wet = car.wet > 0.5;   // up in the air the street cannot touch the lapa (src/vehicle-air.js); on the water there are no potholes or sand
+      if (!high) { traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
+      if (!high && !wet) roadwear.collidePlayer?.(car, STEP);
+      if (!high) propsApi.collidePlayer?.(car, STEP);
+      if (!high && !wet) world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */
+    }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
@@ -416,13 +423,15 @@ renderer.setAnimationLoop(now => {
   horn.update(dt, game.state === 'play');
   // sea.update animates the water; checkPlayer ends the run when the lapa drives into the sea.
   sea.update?.(dt, camera);
+  if (car.wet > 0.05 && game.state === 'play') sea.wake?.(car, dt);   // a lapa on floats: foam and spray (src/sea.js)
   // world: the baked coastline only covers the centro, so outside it the manifest's land polygon decides what is dry
   if (game.state === 'play' && !(world && world.isLand(car.x, car.z))) sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
 
   dayNight.update(dt); // advances the clock (play only) and relights everything; rewrites SUN_DIR
   const carPos = vehicle.updateVisual(dt);
-  sun.position.copy(carPos).addScaledVector(SUN_DIR, 300);
-  sun.target.position.copy(carPos);
+  const sunY = car.flying ? Math.min(carPos.y, groundY(car.x, car.z) + 25) : carPos.y;   // up in the air the shadows stay on the city below (the shadow box is 320 m wide)
+  sun.position.set(carPos.x, sunY, carPos.z).addScaledVector(SUN_DIR, 300);
+  sun.target.position.set(carPos.x, sunY, carPos.z);
 
   if (freeCam) freeCam();
   else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu

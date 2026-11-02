@@ -149,7 +149,7 @@ html.pd-in-garage :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: 
 // camera focus for the category being browsed: where to look from
 const FOCUS = {
   wheels: { mode: 'side', d: 5.4, h: 1.1, ly: 0.4 }, stance: { mode: 'side', d: 5.2, h: 0.8, ly: 0.4 }, trim: { mode: 'orbit', d: 6.4, h: 1.7, ly: 0.7 },
-  spoiler: { mode: 'rear', d: 5.6, h: 1.9, ly: 0.9 }, exhaust: { mode: 'rear', d: 5.0, h: 1.0, ly: 0.45 }, extra: { mode: 'rear', d: 6.4, h: 2.4, ly: 1.0 },
+  spoiler: { mode: 'rear', d: 5.6, h: 1.9, ly: 0.9 }, exhaust: { mode: 'rear', d: 5.0, h: 1.0, ly: 0.45 }, extra: { mode: 'rear', d: 6.4, h: 2.4, ly: 1.0 }, upgrade: { mode: 'orbit', d: 7.4, h: 2.3, ly: 0.9 },
   driver: { mode: 'orbit', d: 4.6, h: 2.3, ly: 1.2 }, stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
 };
 
@@ -245,7 +245,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
     return c.parts.map(pid => {
       const opts = partOpts(pid, sel); if (!opts.length) return '';
       const P = partById(pid), eq = garage.partsOf(sel)[pid] || '', pend = pending && pending.part === pid ? pending.id : null;
-      return `<div class="gx-sec"><div class="gx-sh"><span class="gx-sn">${esc(nm(P))}</span><button class="gx-stock" data-nav data-gx="opt:${pid}:" aria-pressed="${eq === ''}" type="button"><span>${esc(pid === 'sub' || pid === 'roof' || pid === 'load' || pid === 'box' || pid === 'screen' ? tr('none') : tr('stock'))}</span></button></div>
+      return `<div class="gx-sec"><div class="gx-sh"><span class="gx-sn">${esc(nm(P))}${P.hint_it ? `<small>${esc(li() === 0 ? P.hint_it : P.hint_en)}</small>` : ''}</span><button class="gx-stock" data-nav data-gx="opt:${pid}:" aria-pressed="${eq === ''}" type="button"><span>${esc(pid === 'sub' || pid === 'roof' || pid === 'load' || pid === 'box' || pid === 'screen' || pid === 'swim' || pid === 'fly' ? tr('none') : tr('stock'))}</span></button></div>
         <div class="gx-grid">${opts.map(o => {
           const own = garage.ownsPart(pid, o.id), dot = pid === 'neon' ? `<span class="gx-dot${o.id === 'arcobaleno' ? ' rb' : ''}" style="--dot:${esc(o.color || '#fff')}"></span>` : '';
           return `<button class="pd-btn sm pd-liv gx-card${own ? '' : ' gx-lock'}${pend === o.id ? ' gx-pend' : ''}" data-nav data-gx="opt:${pid}:${o.id}" aria-pressed="${eq === o.id}" type="button"><span class="pd-in"><span class="pd-l1">${dot}${esc(nm(o))}</span></span>${priceTag(own, o.price)}</button>`;

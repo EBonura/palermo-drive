@@ -277,7 +277,7 @@ export function createPolice(env, T) {
   function tick(dt) {
     const lv = level(), sp = hyp(car.vx, car.vz);
     // chaos that comes from driving rather than from a single hit
-    if (sp > 6.5 && peds && busted <= 0 && grace <= 0) {
+    if (sp > 6.5 && peds && busted <= 0 && grace <= 0 && !(car.agl > 3)) {   // (not up in the air: wings, src/vehicle-air.js)
       if (peds.near(car.x, car.z, 11) >= 5) chaos('market', 0.45 * dt * 4);
       if (raisedMask(car.x, car.z) && peds.near(car.x, car.z, 6) >= 2) chaos('sidewalk', 0.3 * dt * 4);
     }
@@ -312,7 +312,7 @@ export function createPolice(env, T) {
     // busted?
     if (busted <= 0 && grace <= 0 && lv > 0) {
       let n = 0; for (const v of ps) if (!v.fly && hyp(v.x - car.x, v.z - car.z) < 9.5) n++;
-      if (n > 0 && sp < 3.5) { bustT += dt * (1 + 0.4 * (n - 1)); if (bustT >= 2.2) bust(); } else bustT = Math.max(0, bustT - dt * 0.5);
+      if (n > 0 && sp < 3.5 && !(car.agl > 3)) { bustT += dt * (1 + 0.4 * (n - 1)); if (bustT >= 2.2) bust(); } else bustT = Math.max(0, bustT - dt * 0.5);
     }
     // reinforcements
     if (lv > 0 && time >= startT && time >= nextSpawn && ps.length < Math.min(MAXCOPS, lv)) {

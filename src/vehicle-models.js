@@ -581,14 +581,42 @@ function addParts(K, M, P, A) {
     const cr = Math.min(B.w, B.h) * 0.38;
     CN.add(MAT.dark, cylZ(cr, cr * 0.5, 0.07, 14, false), B.x, B.y, z0 - 0.02); CN.add(MAT.chrome, tor(cr, cr * 0.1, 4, 16), B.x, B.y, z0 - 0.052); CN.add(MAT.chrome, cylZ(cr * 0.28, cr * 0.28, 0.05, 8), B.x, B.y, z0 - 0.045);
   }
+  // --- the two endgame upgrades: orange floats and an outboard (drive on the sea), feathered wings (fly) ---
+  if (P.swim && A.flank) addFloats(T, A);
+  if (P.fly && A.flank) addWings(T, M, A);
   K.stage = null;
+}
+// Floats: a pontoon either side of the wheels on two struts, and a little outboard on the tail with its propeller just above the road (src/vehicle-water.js).
+function addFloats(T, A) {
+  const F = A.flank, bike = A.kind === 'bike', car = A.kind === 'car', r = bike ? 0.085 : car ? 0.17 : 0.15, xo = F.x + (bike ? 0.36 : 0.3), L = A.len * (bike ? 0.55 : 0.64), z0 = F.z * 0.45, y = 0.2;
+  for (const sx of [-1, 1]) {
+    T.add(MAT.orange, cylZ(r, r, L - 2 * r, 12), sx * xo, y, z0);
+    for (const e of [-1, 1]) T.add(MAT.orange, sph(r, 10, 8), sx * xo, y, z0 + e * (L / 2 - r), 0, 0, 0, 1, 1, e > 0 ? 1.9 : 1.2);
+    T.add(MAT.white, tor(r * 1.02, r * 0.18, 5, 14), sx * xo, y, z0 + L * 0.16, 0, PI / 2, 0);
+    for (const e of [-0.28, 0.3]) T.limb(MAT.chrome, [sx * (F.x - 0.04), y + 0.16, z0 + L * e], [sx * xo, y + 0.02, z0 + L * e], 0.022);
+  }
+  const zr = (A.back ? A.back.z : -A.len / 2) - (bike ? 0.28 : 0.2), cow = colMat('#c9342a', 0.5), grey = colMat('#b9bec3', 0.45, 0.3);
+  T.add(grey, box(0.24, 0.3, 0.3), 0, 0.64, zr); T.add(cow, box(0.25, 0.1, 0.31), 0, 0.84, zr);
+  T.add(MAT.dark, box(0.05, 0.46, 0.1), 0, 0.38, zr - 0.04); T.add(MAT.dark, cyl(0.06, 0.06, 0.16, 8), 0, 0.2, zr - 0.04, 0, 0, PI / 2);
+  for (const sx of [-1, 1]) T.add(MAT.chrome, box(0.02, 0.04, 0.12), sx * 0.07, 0.2, zr - 0.04);
+  T.add(MAT.dark, box(0.04, 0.04, 0.3), 0, 0.88, zr - 0.2);   // the tiller
+}
+// Wings: an angel's pair of five-feather fans on the shoulders, white with rosanero tips (src/vehicle-air.js).
+function addWings(T, M, A) {
+  const F = A.flank, bike = A.kind === 'bike', car = A.kind === 'car', y0 = bike ? 1.2 : car ? 1.05 : F.y + 0.8, x0 = bike ? 0.12 : car ? F.x - 0.04 : F.x - 0.02, z0 = bike ? -0.36 : car ? -0.55 : F.z * 0.4, sc = bike ? 0.8 : 1;
+  const LEN = [0.7, 0.95, 1.1, 0.95, 0.72];   // the feathers, top to bottom, in metres
+  for (let i = 0; i < 5; i++) {
+    const a = 0.95 - i * 0.34, len = LEN[i] * sc;
+    for (const sx of [-1, 1]) T.add(i > 2 ? PINKM : MAT.white, box(len, 0.17 * sc, 0.022), sx * (x0 + Math.cos(a) * len / 2), y0 + Math.sin(a) * len / 2, z0 - 0.014 * i, 0, 0, sx * a);
+  }
+  for (const sx of [-1, 1]) T.add(MAT.dark, box(0.2, 0.16, 0.12), sx * (x0 - 0.02), y0 - 0.02, z0 + 0.04);   // the harness
 }
 export const NEON = Object.fromEntries([['rosa', '#ff2f9e'], ['ciano', '#18e6ff'], ['verde', '#37ff6a'], ['viola', '#9b4dff'], ['ambra', '#ffb020'], ['arcobaleno', '#18e6ff']]);
 
 // ===================================================================================================================
 // TEMPLATES AND RIGS
 // ===================================================================================================================
-const GEO_PARTS = ['spoiler', 'neon', 'chrome', 'rims', 'stickers', 'exhaust', 'sub', 'stance', 'roof', 'load', 'box', 'screen'];   // the parts that change geometry (not the horn)
+const GEO_PARTS = ['spoiler', 'neon', 'chrome', 'rims', 'stickers', 'exhaust', 'sub', 'stance', 'roof', 'load', 'box', 'screen', 'swim', 'fly'];   // the parts that change geometry (not the horn)
 const tplKey = l => l.type + '|' + GEO_PARTS.map(k => l.parts[k] || '').join(',');
 const tplCache = new Map();
 function template(look) {

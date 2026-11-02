@@ -57,7 +57,7 @@
 </head>
 <body>
 <canvas id="view"></canvas>
-<div class="hud" id="loading">Costruendo Palermo…</div>
+<div class="hud" id="loading">Costruendo Palermo…<div id="tip"></div></div>   <!-- #tip: one tip at a time, src/loading-tips.js -->
 <div class="hud" id="where"><div id="street"></div><div id="landmark"></div></div>
 <div class="hud" id="speed">0<small>km/h</small></div>
 <canvas class="hud" id="mini" width="200" height="200"></canvas>
@@ -67,6 +67,7 @@
   <b>Shift</b> nitro<br>
   <b>H</b> horn<br>
   <b>B</b> drink (at a pub door or the rave, after dark)<br>
+  <b>F</b> fly, hold to climb (with the wings from the Garage)<br>
   <b>V</b> swap vehicle<br>
   <b>C</b> camera<br>
   <b>R</b> back on the road<br>
@@ -74,6 +75,7 @@
   <b>?</b> show/hide these controls
 </div>
 
+<script src="src/loading-tips.js" defer></script>
 <script src="palermo-data.js"></script>
 <script src="props-data.js"></script>
 <script type="importmap">
