@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { D, groundY, rng } from './core.js';
 
-const PI = Math.PI;
+const PI = Math.PI, TWO = PI * 2;
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
 // ====================================================================================================
@@ -610,8 +610,7 @@ function paintPalazzo(g, w, h, Wm, Hm, nb, cfg) {
 function ringWall(key, r0, r1, h, seg, M, c, cap = 0.12) {
   lathe(key, [[r0, 0], [r1, 0], [r1, h], [r1 + cap, h], [r1 + cap, h + 0.14], [r0 - cap * 0.5, h + 0.14], [r0 - cap * 0.5, h], [r0, h], [r0, 0]].slice(0, 9), seg, { M, c });
 }
-function buildPretoria() {
-  CUR = 'Fontana Pretoria';
+function pretoriaCentre() {   // the fountain's centre: the middle of the baked water polygons round (72, 26)
   let sx = 0, sz = 0, n = 0;
   for (const poly of (D.streets && D.streets.water) || []) {
     const o = poly[0]; let x = 0, z = 0; const m = o.length / 2;
@@ -619,7 +618,11 @@ function buildPretoria() {
     x /= m; z /= m;
     if (Math.hypot(x - 72, z - 26) < 30 && m > 8) { sx += x; sz += z; n++; }
   }
-  const c = n ? [sx / n, sz / n] : [71, 25.6];
+  return n ? [sx / n, sz / n] : [71, 25.6];
+}
+function buildPretoria() {
+  CUR = 'Fontana Pretoria';
+  const c = pretoriaCentre();
   // the piazza level round the fountain (the ground under the basin itself is the lidar's reading of the basin), and a skirt where it falls away
   const rg = []; for (let i = 0; i < 16; i++) { const a = i * PI / 8; rg.push(groundY(c[0] + 12 * Math.cos(a), c[1] + 12 * Math.sin(a))); }
   rg.sort((a, b) => a - b); const gy = (rg[7] + rg[8]) / 2; BASEY = gy;
@@ -883,9 +886,20 @@ function paintCatBay(g, w, h, Wm, Hm) {
     g.beginPath(); g.moveTo(X(cx - bw * 0.34), Y(0)); g.lineTo(X(cx - bw * 0.34), Y(6.6)); g.quadraticCurveTo(X(cx - bw * 0.34), Y(10.0), X(cx), Y(11.0)); g.quadraticCurveTo(X(cx + bw * 0.34), Y(10.0), X(cx + bw * 0.34), Y(6.6)); g.lineTo(X(cx + bw * 0.34), Y(0)); g.fill();
     // narrow window
     g.fillStyle = '#3a342d'; g.beginPath(); g.moveTo(X(cx - 0.32), Y(5.4)); g.lineTo(X(cx - 0.32), Y(8.2)); g.quadraticCurveTo(X(cx - 0.32), Y(9.0), X(cx), Y(9.6)); g.quadraticCurveTo(X(cx + 0.32), Y(9.0), X(cx + 0.32), Y(8.2)); g.lineTo(X(cx + 0.32), Y(5.4)); g.fill();
-    // frieze of small round arches under the cornice
-    for (let k = 0; k < 5; k++) { const ax = cx - bw * 0.4 + k * bw * 0.2 + bw * 0.1; g.fillStyle = '#8f7650'; g.beginPath(); g.arc(X(ax), Y(13.4), 0.32 * sx, PI, 0); g.fill(); g.fillRect(X(ax - 0.32), Y(13.4), 0.64 * sx, 0.8 * sy); }
   }
+  // the interlaced arcade (the Arab-Norman intersecting pointed arches in dark lava and pale tuff) under the cornice: two rows of arches half a period apart cross each other
+  for (let row = 0; row < 2; row++) {
+    for (let k = -1; k < Wm / 0.75 + 1; k++) {
+      const ax = k * 0.75 + row * 0.375, r = 0.75;
+      if ((k + row) % 2 && false) continue;
+      g.strokeStyle = row ? '#4d4033' : '#6d5a40'; g.lineWidth = 0.17 * sx;
+      g.beginPath(); g.moveTo(X(ax - r), Y(12.55)); g.quadraticCurveTo(X(ax - r), Y(12.55 + r * 1.1), X(ax), Y(12.55 + r * 1.55)); g.quadraticCurveTo(X(ax + r), Y(12.55 + r * 1.1), X(ax + r), Y(12.55)); g.stroke();
+      g.strokeStyle = 'rgba(240,222,176,0.7)'; g.lineWidth = 0.06 * sx;
+      g.beginPath(); g.moveTo(X(ax - r + 0.1), Y(12.55)); g.quadraticCurveTo(X(ax - r + 0.1), Y(12.55 + r * 1.05), X(ax), Y(12.55 + r * 1.45)); g.quadraticCurveTo(X(ax + r - 0.1), Y(12.55 + r * 1.05), X(ax + r - 0.1), Y(12.55)); g.stroke();
+    }
+  }
+  for (let k = 0; k < Wm / 0.75; k++) { g.fillStyle = '#3a3128'; g.beginPath(); g.arc(X(k * 0.75 + 0.375), Y(13.0), 0.1 * sx, 0, 7); g.fill(); }   // the lava inlays at the crossings
+
   rect(0, 12.1, Wm, 12.35, '#e4cc9b'); rect(0, 14.6, Wm, 15.4, '#dcc28e'); rect(0, 14.55, Wm, 14.7, 'rgba(60,40,20,0.5)');
   // polychrome band
   for (let x = 0; x < Wm; x += 0.5) rect(x, 14.0, x + 0.25, 14.4, '#6d5a40');
@@ -906,6 +920,52 @@ function paintTower(g, w, h) {
   }
   streaks(g, w, h, 20, 142, 0.14, 120);
 }
+// The cathedral's drum, dome, belfry and clock, painted. One drum tile is a sixteenth of the circumference.
+function paintDrum(g, w, h) {   // w x h = 1/16 of the circumference (about 3.7 m) by 6 m
+  const sx = w / 3.7, sy = h / 6, X = (s) => s * sx, Y = (y) => h - y * sy;
+  paintAshlar(g, w, h, 3.7, 6, 0.5, 1.0, '#d6bb88', '#8d744d', 171, 2, 0.06);
+  const rect = (a, b, c, d, f) => { g.fillStyle = f; g.fillRect(X(a), Y(d), (c - a) * sx, (d - b) * sy); };
+  rect(0.0, 0, 0.16, 5.2, '#bda573'); rect(3.54, 0, 3.7, 5.2, '#bda573'); rect(0.16, 0, 0.3, 5.2, '#e8d3a3'); rect(3.4, 0, 3.54, 5.2, '#e8d3a3');      // the paired pilasters at the seams
+  rect(0.7, 1.0, 3.0, 4.5, '#e4cc9b'); rect(0.9, 1.2, 2.8, 4.3, '#2a2d34');                                                                          // the window and its frame
+  g.fillStyle = '#e4cc9b'; g.beginPath(); g.moveTo(X(0.9), Y(4.3)); g.quadraticCurveTo(X(1.85), Y(5.2), X(2.8), Y(4.3)); g.fill();
+  g.strokeStyle = '#6a7580'; g.lineWidth = 2; for (const x of [1.5, 2.15]) { g.beginPath(); g.moveTo(X(x), Y(1.2)); g.lineTo(X(x), Y(4.4)); g.stroke(); }  // glazing bars
+  rect(0, 5.2, 3.7, 6.0, '#dcc28e'); rect(0, 5.2, 3.7, 5.34, 'rgba(60,40,20,0.55)');                                                                 // the cornice and its shadow
+  for (let x = 0.2; x < 3.7; x += 0.5) rect(x, 5.4, x + 0.25, 5.7, '#8d744d');                                                                         // dentils
+  streaks(g, w, h, 8, 172, 0.16, 90);
+}
+function paintDome(g, w, h) {   // one gore of the dome: lead panels between ribs
+  g.fillStyle = '#5f6b75'; g.fillRect(0, 0, w, h);
+  const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(255,255,255,0.10)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.08)'); gr.addColorStop(1, 'rgba(0,0,0,0.16)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#a4adb2'; g.fillRect(0, 0, 3, h); g.fillStyle = '#3d474f'; g.fillRect(3, 0, 2, h);                                                  // the rib and its shadow
+  for (let y = 10; y < h; y += 14) { g.fillStyle = 'rgba(30,38,44,0.35)'; g.fillRect(5, y, w - 5, 1); }                                                 // the lead roll joints
+  streaks(g, w, h, 6, 181, 0.14, 120);
+}
+function paintBelfry(g, w, h) {   // one face of the belfry stage, 5 x 6 m: twin pointed openings on colonnettes under a relieving arch, a blind arcade below
+  const sx = w / 5, sy = h / 6, X = (s) => s * sx, Y = (y) => h - y * sy;
+  paintAshlar(g, w, h, 5, 6, 0.5, 0.9, '#d4b67f', '#8d744d', 191, 2, 0.06);
+  const arch = (cx, y0, hw, hs, top, f) => { g.fillStyle = f; g.beginPath(); g.moveTo(X(cx - hw), Y(y0)); g.lineTo(X(cx - hw), Y(y0 + hs)); g.quadraticCurveTo(X(cx - hw), Y(y0 + top * 0.85), X(cx), Y(y0 + top)); g.quadraticCurveTo(X(cx + hw), Y(y0 + top * 0.85), X(cx + hw), Y(y0 + hs)); g.lineTo(X(cx + hw), Y(y0)); g.fill(); };
+  arch(2.5, 0.4, 2.0, 2.4, 4.2, '#e4cc9b'); arch(2.5, 0.4, 1.8, 2.3, 3.95, '#c9ad7a');                  // the relieving arch
+  for (const cx of [1.65, 3.35]) { arch(cx, 0.6, 0.6, 1.6, 2.6, '#e8d3a3'); arch(cx, 0.6, 0.42, 1.55, 2.4, '#26221f'); }
+  g.fillStyle = '#e8d3a3'; g.fillRect(X(2.42), Y(2.3), 0.16 * sx, 1.7 * sy);                              // the colonnette between them
+  g.fillStyle = '#dcc28e'; g.fillRect(0, Y(4.9), w, 0.3 * sy);
+  for (let k = 0; k < 6; k++) arch(0.42 + k * 0.83, 4.95, 0.3, 0.45, 0.85, '#8d744d');                    // the little blind arcade under the cornice
+  streaks(g, w, h, 6, 192, 0.14, 100);
+}
+function paintClock(g, w, h) {
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = '#3a342d'; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 1, 0, 7); g.fill();
+  g.fillStyle = '#efe9d8'; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 9, 0, 7); g.fill();
+  g.strokeStyle = '#2b2620'; g.lineWidth = 3;
+  for (let i = 0; i < 12; i++) { const a = i * PI / 6; g.beginPath(); g.moveTo(w / 2 + Math.sin(a) * (w / 2 - 32), h / 2 - Math.cos(a) * (w / 2 - 32)); g.lineTo(w / 2 + Math.sin(a) * (w / 2 - 14), h / 2 - Math.cos(a) * (w / 2 - 14)); g.stroke(); }
+  g.fillStyle = '#2b2620'; g.font = `bold ${(w * 0.11) | 0}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const [t, a] of [['XII', 0], ['III', PI / 2], ['VI', PI], ['IX', 3 * PI / 2]]) g.fillText(t, w / 2 + Math.sin(a) * (w / 2 - 50), h / 2 - Math.cos(a) * (w / 2 - 50));
+  g.lineWidth = 6; g.beginPath(); g.moveTo(w / 2, h / 2); g.lineTo(w / 2 + Math.sin(2.6) * w * 0.26, h / 2 - Math.cos(2.6) * w * 0.26); g.stroke();
+  g.lineWidth = 4; g.beginPath(); g.moveTo(w / 2, h / 2); g.lineTo(w / 2 + Math.sin(5.05) * w * 0.36, h / 2 - Math.cos(5.05) * w * 0.36); g.stroke();
+}
+function paintInscription(g, w, h) {
+  g.fillStyle = '#e6e0d0'; g.fillRect(0, 0, w, h); g.strokeStyle = '#8a8272'; g.lineWidth = 2; g.strokeRect(2, 2, w - 4, h - 4);
+  g.fillStyle = '#3a342d'; g.font = `bold ${(h * 0.5) | 0}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('OPERIBVS CREDITE', w / 2, h / 2 + 1);
+}
 function buildCattedrale(ctx) {
   CUR = 'Cattedrale';
   const b = byId('w49750033'); if (!b) return;
@@ -917,34 +977,67 @@ function buildCattedrale(ctx) {
     orientedBox('ashlar', ed.e.L, ed.e.R, ed.top - 0.2, 0.5, 0.9, 0.35, '#dcc28e');
     merlons('ashlar', ed.e.R, ed.e.L, ed.top + 0.3, '#d5b985');
   }
-  // central dome: octagonal drum + grey-green lead dome + lantern
+  // central dome (Fuga's, 1801): a round drum with paired pilasters and windows under a cornice with pinnacles, the ribbed ogival lead dome, the lantern with its little cupola and cross
   const hi = m.parts[m.hiIdx];
   const cen = centroid(hi.pts); let rr = 99; for (const p of hi.pts) rr = Math.min(rr, Math.hypot(p[0] - cen[0], p[1] - cen[1]));
   const Rd = rr * 0.78, drumTop = gy + hi.rel, dH = m.hiRel - hi.rel - 9;
   const Cd = (y) => tr(cen[0], y, cen[1]);
-  cyl('catWall', Rd, Rd * 1.0, 5.0, 8, { M: Cd(drumTop), c: '#ffffff', uv: 'world' });
-  cyl('ashlar', Rd * 1.1, Rd * 1.1, 0.8, 8, { M: Cd(drumTop + 4.4), c: '#dcc28e' });
-  const prof = []; for (let i = 0; i <= 8; i++) { const a = i * PI / 2 / 8; prof.push([Rd * 1.0 * Math.cos(a) * (i === 8 ? 0.001 : 1), Math.sin(a) * dH]); }
-  lathe('lead', prof, 16, { M: Cd(drumTop + 5.0), c: '#d4d8cf' });
-  cyl('ashlar', 1.6, 1.8, 3.2, 8, { M: Cd(drumTop + 5 + dH - 0.4), c: '#dcc28e' });
-  lathe('lead', [[1.9, 0], [1.4, 0.8], [0.05, 2.0]], 8, { M: Cd(drumTop + 5 + dH + 2.8), c: '#d4d8cf' });
+  defMat('catDrum', mkTex(256, 416, paintDrum), [3.7, 6]);
+  defMat('catDome', mkTex(64, 256, paintDome), [1, 1]);
+  const Hd = 6.0;
+  cyl('ashlar', Rd * 1.12, Rd * 1.12, 0.9, 16, { M: Cd(drumTop - 0.2), c: '#d5b985' });                                                         // the base ring on the roof
+  cyl('catDrum', Rd, Rd, Hd, 16, { M: Cd(drumTop + 0.7), c: '#ffffff', uv: 'keep', uvk: [16, 1] });
+  cyl('ashlar', Rd * 1.1, Rd * 1.1, 0.5, 16, { M: Cd(drumTop + 0.7 + Hd), c: '#dcc28e' });
+  for (let k = 0; k < 16; k++) { const a = k * TWO / 16; cyl('ashlar', 0.22, 0.28, 1.5, 6, { M: mul(Cd(drumTop + 0.7 + Hd + 0.4), tr(Math.cos(a) * Rd * 1.04, 0, Math.sin(a) * Rd * 1.04)), c: '#d5b985' }); cyl('ashlar', 0, 0.22, 0.7, 6, { M: mul(Cd(drumTop + 0.7 + Hd + 1.9), tr(Math.cos(a) * Rd * 1.04, 0, Math.sin(a) * Rd * 1.04)), c: '#d5b985' }); }   // a pinnacle over every pilaster
+  const DH = Math.max(7.5, dH), yd = drumTop + 0.7 + Hd + 0.5;
+  const prof = []; for (let i = 0; i <= 12; i++) { const a = i * PI / 2 / 12; prof.push([Rd * 0.97 * Math.pow(Math.cos(a), 1.05) * (i === 12 ? 0.001 : 1), Math.pow(Math.sin(a), 0.8) * DH]); }
+  lathe('catDome', prof, 16, { M: Cd(yd), c: '#ffffff', uv: 'keep', uvk: [16, 1] });
+  const yl = yd + DH - 0.4;                                                                                                                         // the lantern: eight arched openings, a cornice, the cupola, the cross
+  cyl('ashlar', 2.0, 2.2, 3.0, 8, { M: Cd(yl), c: '#dcc28e' });
+  for (let k = 0; k < 8; k++) { const a = k * TWO / 8 + PI / 8; box('dark', 0.55, 1.6, 0.2, { M: mul(Cd(yl + 0.7), mul(rotY(-a + PI / 2), tr(Math.cos(a) * 2.08, 0, Math.sin(a) * 2.08))), c: '#2a2d34', noao: true }); }
+  cyl('ashlar', 2.4, 2.4, 0.4, 8, { M: Cd(yl + 3.0), c: '#d5b985' });
+  lathe('catDome', [[2.1, 0], [2.0, 0.6], [1.5, 1.4], [0.7, 2.0], [0.12, 2.35]], 8, { M: Cd(yl + 3.4), c: '#ffffff', uv: 'keep', uvk: [8, 1] });
+  box('flat', 0.14, 1.6, 0.14, { M: Cd(yl + 5.6), c: '#2b2620', noao: true }); box('flat', 0.7, 0.14, 0.14, { M: Cd(yl + 6.3), c: '#2b2620', noao: true });
   // corner towers
   const E = [0.891, -0.454], S = [0.454, 0.891], O = [-458, 152];
   const L = (e, s) => [O[0] + e * E[0] + s * S[0], O[1] + e * E[1] + s * S[1]];
   const ang = Math.atan2(-E[1], E[0]);
-  const tower = (e, s, H, spire) => {
+  // The towers (the clock tower and its three companions): the painted shaft with corner colonnettes, a string course, the belfry stage with twin pointed openings
+  // under relieving arches, corner turrets with their little cones, a gable on each face and the octagonal spire; the clock tower also has its clock and its inscription.
+  defMat('belfry', mkTex(320, 384, paintBelfry), [5, 6]);
+  defMat('clock', mkTex(256, 256, paintClock), [1, 1], { alphaTest: 0.5, side: THREE.DoubleSide, transparent: false });
+  defMat('inscr', mkTex(384, 48, paintInscription), [1, 1]);
+  const tower = (e, s, H, spire, clock) => {
     const [x, z] = L(e, s), M = (y) => mul(tr(x, y, z), rotY(ang));
-    const y0 = gy;
+    const y0 = gy, Hs = H - 9.2;                      // Hs: the shaft up to the string course below the belfry
     box('ashlar', 6.6, 1.2, 6.6, { M: M(y0 - 0.8), c: '#c9ad7c' });
-    // shaft with painted arcades (4 sides via a box with world uv)
-    box('catTower', 5.6, H - 3, 5.6, { M: M(y0 + 0.4), c: '#ffffff' });
-    box('ashlar', 6.4, 0.7, 6.4, { M: M(y0 + H - 3.2), c: '#dcc28e' });
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { cyl('ashlar', 0.45, 0.6, 3.2, 6, { M: mul(M(y0 + H - 2.7), tr(sx * 2.7, 0, sz * 2.7)), c: '#d5b985' }); cyl('ashlar', 0, 0.55, 1.8, 6, { M: mul(M(y0 + H + 0.5), tr(sx * 2.7, 0, sz * 2.7)), c: '#d5b985' }); }
-    box('ashlar', 4.2, 2.8, 4.2, { M: M(y0 + H - 2.0), c: '#d5b985' });
-    if (spire) { cyl('lead', 0, 2.5, spire, 8, { M: M(y0 + H + 0.8), c: '#b8bcb2', uv: 'world' }); sphere('lead', 0.3, { M: M(y0 + H + 0.8 + spire), c: '#b8bcb2', seg: 5 }); }
-    else { cyl('lead', 0, 2.4, 3.2, 8, { M: M(y0 + H + 0.8), c: '#b8bcb2', uv: 'world' }); }
+    box('catTower', 5.6, Hs - 0.4, 5.6, { M: M(y0 + 0.4), c: '#ffffff' });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl('ashlar', 0.26, 0.3, Hs - 0.4, 6, { M: mul(M(y0 + 0.4), tr(sx * 2.85, 0, sz * 2.85)), c: '#d5b985' });   // corner colonnettes
+    box('ashlar', 6.3, 0.8, 6.3, { M: M(y0 + Hs), c: '#dcc28e' });
+    box('ashlar', 6.0, 0.35, 6.0, { M: M(y0 + Hs + 0.8), c: '#e4cc9b' });
+    // the belfry stage
+    const yb = y0 + Hs + 1.15;
+    box('belfry', 5.0, 6.0, 5.0, { M: M(yb), c: '#ffffff' });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl('ashlar', 0.22, 0.25, 6.0, 6, { M: mul(M(yb), tr(sx * 2.6, 0, sz * 2.6)), c: '#e0c690' });
+    box('ashlar', 5.9, 0.5, 5.9, { M: M(yb + 6.0), c: '#dcc28e' });
+    box('ashlar', 5.5, 0.2, 5.5, { M: M(yb + 6.5), c: '#e4cc9b' });
+    // the turrets and the gables
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { cyl('ashlar', 0.4, 0.5, 2.2, 6, { M: mul(M(yb + 6.5), tr(sx * 2.55, 0, sz * 2.55)), c: '#d5b985' }); cyl('ashlar', 0, 0.45, 1.5, 6, { M: mul(M(yb + 8.7), tr(sx * 2.55, 0, sz * 2.55)), c: '#c9ad7c' }); }
+    const gab = new THREE.Shape(); gab.moveTo(-2.3, 0); gab.lineTo(2.3, 0); gab.lineTo(0, 3.0); gab.lineTo(-2.3, 0);
+    for (let q = 0; q < 4; q++) part('ashlar', shapeGeo(gab, 0.5), { M: mul(M(yb + 6.5), mul(rotY(q * PI / 2), tr(0, 0, 2.2))), c: '#e0c690' });
+    // the spire
+    const sp = spire || 4;
+    cyl('lead', 0, 2.3, sp * 1.6, 8, { M: M(yb + 6.5), c: '#b8bcb2', uv: 'world' });
+    sphere('flat', 0.22, { M: M(yb + 6.5 + sp * 1.6), c: '#c8a85a', seg: 5, noao: true });
+    box('flat', 0.1, 1.1, 0.1, { M: M(yb + 6.5 + sp * 1.6 + 0.2), c: '#2b2620', noao: true }); box('flat', 0.5, 0.1, 0.1, { M: M(yb + 6.5 + sp * 1.6 + 0.75), c: '#2b2620', noao: true });
+    if (clock) {   // the clock on the south face, under a bracket cornice, with its inscription below
+      const yc = y0 + Hs - 4.2;
+      box('ashlar', 4.6, 0.5, 0.9, { M: M(yc + 2.3), c: '#d5b985' });
+      part('clock', geo('plane', () => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); return p; }), { M: mul(M(yc - 0.1), tr(0, 0, 2.86)), s: [3.3, 3.3, 1], uv: 'keep', noao: true, c: '#ffffff' });
+      part('inscr', geo('plane', () => { const p = new THREE.PlaneGeometry(1, 1); p.translate(0, 0.5, 0); return p; }), { M: mul(M(yc - 0.75), tr(0, 0, 2.86)), s: [4.2, 0.55, 1], uv: 'keep', noao: true, c: '#ffffff' });
+    }
   };
-  tower(-49, -11.5, 31, 5); tower(-46, 17, 31, 5); tower(44, -9.5, 29, 3); tower(49, 10.5, 29, 3);
+  tower(-49, -11.5, 31, 5); tower(-46, 17, 34, 5, true); tower(44, -9.5, 29, 3); tower(49, 10.5, 29, 3);
   // south porch: three pointed arches under a gable, standing in front of the south aisle wall
   {
     const sP = 27.4, eC = -31.5, W = 21;
@@ -1230,12 +1323,43 @@ export function prepareLandmarks(ctx) { for (const id of SKIP_IDS) ctx.skip.add(
 // The centro landmarks are built like the city landmarks (src/landmarks-city.js): by the streamer, once the tile they stand on (and the tiles their footprint reaches
 // into) has loaded, so every height they read is the streamed ground, the same the terrain mesh, the roads and the car use. world.js keeps the group with the tile
 // and builds it again if the tile is released. x, z: where it stands (the anchor tile is the one that contains it), radius: how far it reaches.
+
+// ---- collision (board item x4): wall segments [x0, z0, x1, z1] the streamer registers with the landmark's anchor tile while it is at full detail (src/world.js registerPhysics),
+// the same kind the building footprints give. Walls are two-dimensional and stop the lapa, pedestrians and traffic alike.
+const r1 = (v) => Math.round(v * 10) / 10;
+const ringSegs = (pts) => pts.map((p, i) => { const q = pts[(i + 1) % pts.length]; return [r1(p[0]), r1(p[1]), r1(q[0]), r1(q[1])]; });
+const circleRing = (cx, cz, r, n) => Array.from({ length: n }, (_, i) => [cx + r * Math.cos(i * TWO / n), cz + r * Math.sin(i * TWO / n)]);
+// a rectangle given in a frame whose local +z points along (nx, nz) and +x is (nz, -nx), as frame() does
+const localRect = (O, nx, nz, x0, x1, z0, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([x, z]) => [O[0] + x * nz + z * nx, O[1] - x * nx + z * nz]);
+function teatroFrame() {   // the dome axis of the Teatro Massimo and the direction to the piazza, as buildTeatro takes them
+  const b = byId('w24937131'); if (!b) return null;
+  const gref = b.g !== undefined ? b.g : 0;
+  const parts = (b.parts && b.parts.length) ? b.parts.map(q => ({ pts: pairsOf(q[0]), rel: q[1] - gref })) : [{ pts: pairsOf(b.p), rel: relH(b, b.h) }];
+  let hi = parts[0]; for (const q of parts) if (q.rel > hi.rel) hi = q;
+  const f = [0.41, 0.912], fl = Math.hypot(f[0], f[1]);
+  return { cen: centroid(hi.pts), nx: f[0] / fl, nz: f[1] / fl };
+}
+const COLLISION = (() => {
+  const out = {};
+  // Fontana Pretoria: the iron fence ring (r 12.05) and the basin wall inside it (r 10.45): the basin is not for driving in
+  { const c = pretoriaCentre(); out['Fontana Pretoria'] = [...ringSegs(circleRing(c[0], c[1], 12.05, 32)), ...ringSegs(circleRing(c[0], c[1], 10.45, 24))]; }
+  // Teatro Massimo: the podium with the portico, the 24 steps and the cheek walls are one block (28 m across, from the portico's back plane 14.5 m to 39.5 m in front of the dome axis),
+  // and the two lions' plinths at the foot of the stairs. The stairs are not drivable: 24 risers of 15 cm over 12.7 m is a climb for people, and the lapa's wheels are no bigger than the steps
+  { const T = teatroFrame(); if (T) {
+    const t0 = -3.5, R = (x0, x1, z0, z1) => ringSegs(localRect(T.cen, T.nx, T.nz, x0, x1, z0, z1));
+    out['Teatro Massimo'] = [...R(t0 - 14, t0 + 14, 14.5, 39.6), ...R(t0 - 12.3 - 1.6, t0 - 12.3 + 1.6, 37.0, 40.6), ...R(t0 + 12.3 - 1.6, t0 + 12.3 + 1.6, 37.0, 40.6)];
+  } }
+  // Cattedrale, the south porch: the block behind the three arches (21 m wide, 4.2 m deep) with the screen in front and the two pylons, one rectangle
+  { const E = [0.891, -0.454], S = [0.454, 0.891], O = [-458, 152], px = O[0] - 31.5 * E[0] + 27.4 * S[0], pz = O[1] - 31.5 * E[1] + 27.4 * S[1];
+    out['Cattedrale'] = ringSegs(localRect([px, pz], S[0], S[1], -11.9, 11.9, -4.3, 1.4)); }
+  return out;
+})();
 const BUILD_AT = {
   'Quattro Canti': [0, 0, 60], 'Fontana Pretoria': [72, 26, 40], 'Palazzo delle Aquile': [85, 65, 50], 'Teatro Massimo': [-358, -491, 90], 'Cattedrale': [-456, 151, 110],
   'Porta Nuova': [-751, 396, 40], 'Porta Felice': [875, -436, 50], 'San Cataldo': [105, 106, 30], 'Santa Caterina': [119, 27, 30], 'Palazzo dei Normanni': [-700, 502, 120],
 };
 export const CENTRO_LANDMARKS = BUILDERS.map(([name, fn]) => ({
-  name, x: BUILD_AT[name][0], z: BUILD_AT[name][1], radius: BUILD_AT[name][2],
+  name, x: BUILD_AT[name][0], z: BUILD_AT[name][1], radius: BUILD_AT[name][2], walls: COLLISION[name] || [], dropWalls: [],
   build(ctx) {
     if (location.search.includes('nolm=1')) return null;
     const t0 = performance.now();
