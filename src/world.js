@@ -260,10 +260,11 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
 
   // ground: loaded tile near grid, else the manifest far grid; the centro keeps its baked grid until its tile is in
   let lastG = null;
-  function tileGround(x, z) {
+  function tileGround(x, z, pin) {   // pin: a tile that answers for its own closed box whether or not its neighbour has streamed in (see groundFor)
     const i = Math.floor(x / T), j = Math.floor(z / T);
     let t = lastG;
-    if (t === null || t.i !== i || t.j !== j || t.dead) { t = tiles.get(nk(i, j)); if (t === undefined || t.dead) { t = null; } else lastG = t; }
+    if (pin !== undefined && !pin.dead && x >= pin.i * T && x <= (pin.i + 1) * T && z >= pin.j * T && z <= (pin.j + 1) * T) t = pin;
+    else if (t === null || t.i !== i || t.j !== j || t.dead) { t = tiles.get(nk(i, j)); if (t === undefined || t.dead) { t = null; } else lastG = t; }
     if (t !== null) {
       if (!t.nearS && !(t.data || t.lod)) return inNear(x, z) ? undefined : farM(x, z);
       const g = t.nearS ? t.nearS(x, z) : farM(x, z), sh = t.shape;
@@ -279,6 +280,9 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     return inNear(x, z) ? undefined : farM(x, z);
   }
+  // The ground as hooks.ground gives it, but a tile's own box answers from its own near grid: the bake makes neighbours agree on shared borders, so
+  // the road a tile drapes along its edge is the same whether or not the neighbour has loaded (else it drapes on the coarse far grid, metres off).
+  const groundFor = t => (x, z) => { const y = tileGround(x, z, t); return y === undefined ? groundY(x, z) : pitchGround(x, z, carveQuay(x, z, carve(x, z, y))); };
 
   function buildFar() {
     const F = M.far, h = Float32Array.from(F.h), s = F.s;
@@ -953,7 +957,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, chunk: 0, tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
@@ -970,7 +974,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {

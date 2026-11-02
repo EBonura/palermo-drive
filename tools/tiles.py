@@ -1697,6 +1697,11 @@ class _CleanWindow:
 # BENCH_MIN metres keep the plain 10 m grid.
 BENCH_KINDS = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary",
                "tertiary_link", "unclassified", "residential", "living_street", "service", "track"}
+# Footpaths get the same bench, but only where they cross a steep hillside: draped on the raw ground the old pilgrims' path up Monte Pellegrino (Via al Santuario)
+# lay at 60 degrees across its width, like a ribbon on its side. Elsewhere they stay on the plain ground, so the town's pavements do not cut the ground.
+BENCH_FOOT = {"footway", "pedestrian"}   # the ones drawn as a surface; a path is only a centreline and does not need it
+BENCH_FOOT_CUT = 6.0     # no bench where it would move the ground by more than this: a path over a cliff is not worth a scar on the mountain
+BENCH_FOOT_SLOPE = 0.25   # rise across the path per metre above which it gets a bench
 BENCH_EASE = 11.0
 BENCH_S = 5.0
 BENCH_PAD = 7        # lattice nodes (10 m) around the tile that the bench reads
@@ -1755,7 +1760,8 @@ def _bench(i, j, Vp, pa0, pb0):
     found = False
     for ri in G["road_tree"].query(win):
         rec, ls = G["roads"][ri]
-        if rec["k"] not in BENCH_KINDS or rec.get("tn") or rec.get("br"):
+        foot = rec["k"] in BENCH_FOOT
+        if (rec["k"] not in BENCH_KINDS and not foot) or rec.get("tn") or rec.get("br"):
             continue
         half = max(rec["w"], 3) / 2
         flat, reach = half + 1.5, half + 1.5 + BENCH_EASE
@@ -1774,6 +1780,10 @@ def _bench(i, j, Vp, pa0, pb0):
                 ax, az, bx, bz = c[q, 0], c[q, 1], c[q + 1, 0], c[q + 1, 1]
                 dx, dz = bx - ax, bz - az
                 l2 = dx * dx + dz * dz or 1.0
+                if foot:   # only where it crosses a steep hillside
+                    l_ = math.sqrt(l2); nx_, nz_ = -dz / l_ * 4, dx / l_ * 4; mx_, mz_ = (ax + bx) / 2, (az + bz) / 2
+                    if abs(float(B(mx_ + nx_, mz_ + nz_)) - float(B(mx_ - nx_, mz_ - nz_))) / 8 < BENCH_FOOT_SLOPE or max(abs(float(B(ax, az)) - h[q]), abs(float(B(ax + nx_ * 0.6, az + nz_ * 0.6)) - h[q]), abs(float(B(ax - nx_ * 0.6, az - nz_ * 0.6)) - h[q])) > BENCH_FOOT_CUT:
+                        continue
                 i0 = max(0, math.floor((min(ax, bx) - reach - tx0) / BENCH_S))
                 i1 = min(n - 1, math.ceil((max(ax, bx) + reach - tx0) / BENCH_S))
                 j0 = max(0, math.floor((min(az, bz) - reach - tz0) / BENCH_S))
