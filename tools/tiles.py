@@ -1320,7 +1320,8 @@ def streets_for_tile(tx0, tz0):
         if not azl.is_empty:
             pave = unary_union([pave, azl])
         pstreet = D(layer(G["pz_tree"], G["pz_geoms"]), layer(G["keep_tree"], G["keep_geoms"]))
-        pedz = unary_union([rs("plaza"), D(rs("pedestrian"), layer(G["asph_tree"], G["asph_geoms"])), ped, pstreet])
+        qstrip = D(I(G["quay_strip"], R), carr) if not G["quay_strip"].is_empty else shapely.Polygon()   # the harbour's quay apron is paved, the roads on it stay roads
+        pedz = unary_union([rs("plaza"), D(rs("pedestrian"), layer(G["asph_tree"], G["asph_geoms"])), ped, pstreet, qstrip])
         paving = I(pedz, space)
         asphalt = D(I(carr, space), paving)
         # Comune green (aree verdi): the medians and islands of the Comune are not road, so they are cut out of the asphalt; every class is
@@ -1443,6 +1444,11 @@ def tile_payload(i, j):
         return None
     out = {"buildings": blds, "roads": roads, "streets": st, "areas": areas, "labels": labels,
            "props": {"items": pitems, "areas": pareas, "counts": counts}}
+    if G.get("quay_decks"):
+        import quays as qy
+        qrec = qy.tile_record(G["quay_decks"], G["quay_walls"], G["quay_wall_all"], i, j, T)
+        if qrec:
+            out["quays"] = qrec
     if G["tile_struct"].get(key):
         out["structs"] = G["tile_struct"][key]
     if rail:
@@ -2172,6 +2178,12 @@ def build(offline=False):
         area_recs.append(("sand", BEACH_STRIP, None))
     for pg in plazas:
         area_recs.append(("plaza", pg, None))
+    import quays as qy   # the harbour's quay decks (board item n10, tools/quays.py)
+    q_decks, q_walls, q_wall_all, q_ext = qy.build(land, piers, kind_geoms["pier"], kind_geoms["sand"], roads)
+    for p in q_ext:   # the bands over the water are land for the sea
+        area_recs.append(("pier", p, None))
+    G["quay_decks"], G["quay_walls"], G["quay_wall_all"] = q_decks, q_walls, q_wall_all
+    G["quay_strip"] = unary_union([p for p, h, t, b in q_decks if not t]) if any(not d[2] for d in q_decks) else shapely.Polygon()
     for k in ("forest", "pier"):    # forests are not street surface; piers are drawn by the lead as before
         kind_geoms[k] = []
 

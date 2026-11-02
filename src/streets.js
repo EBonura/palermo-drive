@@ -58,9 +58,9 @@ export const TEX = {
     for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(40,35,30,${rnd(0.05, 0.12)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 40), rnd(8, 30), 0, 0, 7); g.fill(); }
   }, 2),
   verge: canvasTex(256, (g, S) => { // the strip between kerb-less asphalt and the fields: trodden dry grass, grit and dust
-    g.fillStyle = '#8b8461'; g.fillRect(0, 0, S, S);
-    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '120,112,78' : '150,138,98'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
-    speckle(g, S, 7000, ['#9a9170', '#7b7452', '#a39a78', '#6f6a4c', '#85805a'], 1, 3);
+    g.fillStyle = '#9a8d62'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '128,114,72' : '160,142,92'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
+    speckle(g, S, 7000, ['#aa9c70', '#867a52', '#b3a67a', '#7a6e4a', '#938558'], 1, 3);
   }, 3),
   grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is olive with dry straw patches
     g.fillStyle = '#6b7c43'; g.fillRect(0, 0, S, S);
@@ -88,7 +88,7 @@ export const TEX = {
     }
     for (let i = 0; i < 900; i++) { // scrub clumps: small dark olive blobs with a lighter tuft beside them
       const x = rnd(0, S), y = rnd(0, S), r = rnd(1.5, 4.5);
-      g.fillStyle = `rgba(${Math.random() < 0.7 ? '62,76,44' : '92,86,52'},${rnd(0.16, 0.34)})`;
+      g.fillStyle = `rgba(${Math.random() < 0.7 ? '92,86,52' : '112,98,60'},${rnd(0.16, 0.34)})`;
       wrap(() => { g.beginPath(); g.ellipse(x, y, r, r * rnd(0.6, 1), rnd(0, 3), 0, 7); g.fill(); });
       g.fillStyle = 'rgba(255,248,214,0.18)';
       wrap(() => { g.beginPath(); g.ellipse(x + r * 0.9, y - r * 0.6, r * 0.6, r * 0.35, 0.4, 0, 7); g.fill(); });

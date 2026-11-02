@@ -30,3 +30,8 @@ every texture in the game is procedural (no credits needed). Screenshots live in
 - Medians: Via Liberta and the Regione Siciliana carriageways are separate one-way roads with a raised strip between them; planted medians (oleanders) are not modelled.
 - Hills outside the old bbox use the Terrarium far grid only (no lidar, no TINITALY), so their relief is coarser than Pellegrino's.
 - Mondello lido huts, beach umbrellas, palms on the Foro Italico are props/landmarks (other agents).
+
+## Dry ground and hazed mountains (board items n5 and n9)
+
+Ground colour outside the irrigated greens (`src/world.js` palette and `terrainColor`, `src/streets.js` verge and terrain detail textures): the open lowland is ochre, straw and khaki (plain `#b3a685`, grove `#a39a68`, dry `#b5a26a`, hill scrub `#8d8458`, farm `#b19b5d`; the scrub clumps of the detail texture and the road verge are dry khaki too). Green stays where the data says it is irrigated: the street `green` layer (OSM leisure=park/garden, landuse=grass and every Comune green class), the OSM `green`, `forest` and `orchard` covers, the Mondello villa gardens. Checked on the Foro Italico park, the Giardino Inglese and the Favorita; the open ground at the ZEN, Uditore and the Cappuccini plain went from olive to ochre.
+Far mountains (n9): the far grid is tinted towards the style-guide haze blue `#7297b4` by height and by distance from the city (10 percent at the foot up to 78 percent on the high ridges beyond 8 km), and the low-detail tile ring (beyond 450 m) blues the ground above 100 m by up to 42 percent. The fog does the rest. Full-detail tiles are untouched.
