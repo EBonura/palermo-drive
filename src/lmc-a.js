@@ -6,6 +6,8 @@ import {
   balus, rail, statue, horse, palm, crenel, crag,
 } from './lmc-kit.js';
 import { FP } from './landmarks-city-data.js';
+import { PITCH_Y } from './stadium-ground.js';
+import { buildCrowd } from './stadium-crowd.js';
 
 // pale grey limestone of the Pellegrino cliffs (shared by the Utveggio footing and the Santuario backdrop)
 function cliffMat() {
@@ -154,6 +156,9 @@ function stadiumCollision() {
   }
   const zo = -4204.6, zi = -4167.4;
   out.push([GATE.x - GATE.halfW, zo, GATE.x - GATE.halfW, zi], [GATE.x + GATE.halfW, zo, GATE.x + GATE.halfW, zi]);
+  // the two goals are solid: a box over the mouth (7.4 m between the posts) and the net behind it (the models are at u = +-52.5 along the pitch, below)
+  const ob = obb(hole), P = (u, v) => [ob.cx + ob.ux * u + ob.vx * v, ob.cz + ob.uz * u + ob.vz * v];
+  for (const sg of [-1, 1]) { const a = P(52.5 * sg, -3.7), b = P(52.5 * sg, 3.7), c = P(55.0 * sg, 3.7), d = P(55.0 * sg, -3.7); out.push([...a, ...b], [...b, ...c], [...c, ...d], [...d, ...a]); }
   return out;
 }
 
@@ -161,7 +166,7 @@ function buildStadio() {
   initShared();
   const fp = FP.stadio, outer = pairsOf(fp.p), hole = pairsOf(fp.holes[0]);
   const ob = obb(hole), cx = ob.cx, cz = ob.cz, N = 120;
-  const gc = groundY(cx, cz);
+  const gc = PITCH_Y - 0.8;   // about the terrain under the pitch (the playing area is a flat platform over it, src/stadium-ground.js)
   begin(gc);
   const U = [ob.ux, ob.uz], Vv = [ob.vx, ob.vz];
   // ---- textures. Real colours (Commons photos and the satellite view): teal-green and blue plastic seats, white concrete with teal roofs, rose concrete walkways.
@@ -193,7 +198,7 @@ function buildStadio() {
     g.strokeStyle = '#eef2ea'; g.lineWidth = 3; g.strokeRect(X(-52.5), Y(-34), 105 * sx, 68 * sy);
     g.beginPath(); g.moveTo(X(0), Y(-34)); g.lineTo(X(0), Y(34)); g.stroke(); g.beginPath(); g.arc(X(0), Y(0), 9.15 * sx, 0, 7); g.stroke();
     for (const s of [-1, 1]) { g.strokeRect(s > 0 ? X(52.5 - 16.5) : X(-52.5), Y(-20.2), 16.5 * sx, 40.4 * sy); g.strokeRect(s > 0 ? X(52.5 - 5.5) : X(-52.5), Y(-9.2), 5.5 * sx, 18.4 * sy); }
-  }, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  }, { polygonOffset: true, polygonOffsetFactor: -12, polygonOffsetUnits: -12 });
   // polar sampling of the two rings from the centre of the playing area
   const D = [], I = [], O = [], gI = [], gO = [];
   for (let k = 0; k < N; k++) {
@@ -249,11 +254,12 @@ function buildStadio() {
     // the other long side (Tribuna Montepellegrino) and both ends are open to the sky in the satellite view: no roof there
   }
   // pitch and track, draped on the ground
-  const SR = 7, rows = [];
-  for (let s = 0; s <= SR; s++) { const f = s / SR; rows.push(I.map((p, k) => { const x = cx + (p[0] - cx) * f, z = cz + (p[1] - cz) * f; return [x, groundY(x, z) + 0.8, z]; })); }
+  const PL = 0.2;   // the pitch is drawn this high over the (lifted) ground: over the raised and green layers of the streets (0.15, 0.16, and their depth offsets), and the lapa stands on it like on a kerb (CURB 0.15)
+  const FS = [0, 0.25, 0.5, 0.7, 0.85, 0.9, 0.94, 0.97, 1], rows = [];   // from the centre out (the winding depends on it), finer near the ring where the platform ramps up over a few metres
+  for (const f of FS) { rows.push(I.map((p, k) => { const x = cx + (p[0] - cx) * f, z = cz + (p[1] - cz) * f; return [x, groundY(x, z) + PL, z]; })); }
   gridMesh('stPitch', rows, (i, j, p) => { const dx = p[0] - ob.cx, dz = p[2] - ob.cz; return [(dx * U[0] + dz * U[1]) / PW + 0.5, (dx * Vv[0] + dz * Vv[1]) / PH + 0.5]; }, { wrap: true, noao: true });
   // goals
-  for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + 0.8, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
+  for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + PL, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
     bx('marble', Mg, -3.7, -3.6, 0, 2.44, 0, 0.12); bx('marble', Mg, 3.6, 3.7, 0, 2.44, 0, 0.12); bx('marble', Mg, -3.7, 3.7, 2.34, 2.44, 0, 0.12);
     bx('rail', Mg, -3.7, 3.7, 0, 2.4, -2.0, -1.9, { noao: true }); }
   // the gate: concrete floor and side walls through the lower tier, with a roof slab
@@ -280,7 +286,10 @@ function buildStadio() {
     bx('stSteel', Mt, -4.8, 4.8, 50.5, 51.8, -1.2, 0.2, { c: '#cfd2d6', noao: true });
     for (let r = 0; r < 3; r++) for (let q = 0; q < 7; q++) bx('stLamp', Mt, -4.5 + q * 1.5, -3.5 + q * 1.5, 51.8 + r * 1.3, 52.8 + r * 1.3, 0.1, 0.5, { noao: true });
   }
-  return end('Stadio Renzo Barbera');
+  // the crowd: rosanero fans on the seats of both tiers (src/stadium-crowd.js), none in the gate's tunnel
+  const grp = end('Stadio Renzo Barbera');
+  grp.add(buildCrowd({ ST, I, O, tiers: [[1, 2, 0.1, 0.95], [5, 6, 0.04, 0.96]], skip: (x, y, z) => Math.abs(x - GATE.x) < GATE.halfW + 3 && z < cz - 30 && y - gc < 12 }));
+  return grp;
 }
 
 export const STADIO = {
