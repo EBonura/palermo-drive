@@ -67,6 +67,7 @@ TYPES.apePol = { model: 'apePol', L: 3.2, W: 1.4, mass: 0.9, circ: [[0.8, 0.78],
 TYPES.monopattino = { model: 'monopattino', L: 1.2, W: 0.55, mass: 0.2, circ: [[0.3, 0.4], [-0.2, 0.4]], vf: 1.15, a: 3.0, T: 0.7, s0: 1.0, rmin: 2.2, scooter: true, ped: true, hy: 1.95,
   cols: [['#c23b3b', 2], ['#2f6f9a', 2], ['#2a2a2c', 2], ['#d8c36a', 1], ['#5a7a4a', 1], ['#e8559a', 1]] };
 TYPES.teamBus = { ...TYPES.bus, model: 'teamBus', cols: [['#ee6aa6', 1]] };
+TYPES.arrotino = { ...TYPES.apeCrate, cols: [['#c2362c', 1]], vcap: 7 };   // l'arrotino, the knife-grinder (src/city-audio.js): an Ape that roams with its loudspeaker
 for (const t of Object.values(TYPES)) {
   Object.assign(t, { vf: 1, a: 2.6, b: 3.2, T: 0.95, s0: 1.6, rmin: 4.2, vcap: 99, minW: 0 }, { ...t });
   t.cls = t.bus ? 2 : t.ped ? (t.vcap < 15 || t.scooter ? 3 : 1) : 0; // 0 cars (no pedestrian streets), 1 walking-pace capable (vans), 2 buses, 3 slow ones (apes, scooters, carts: no motorways)
@@ -698,7 +699,7 @@ Object.assign(MODELS, buildPoliceModels());
   function cull(cx, cz) {
     for (let i = vs.length - 1; i >= 0; i--) {
       const v = vs[i], dx = v.x - cx, dz = v.z - cz, d2 = dx * dx + dz * dz;
-      const keep = (v.cop && v.cop.keep) || (v.lifeEnd && d2 < 360 * 360);   // police in a chase stay however far they are; the team bus tours the city
+      const keep = (v.cop && v.cop.keep) || (v.lifeEnd && d2 < 360 * 360) || (v.roam && d2 < 330 * 330);   // police in a chase stay however far they are; the team bus tours the city, the knife-grinder is heard from a few streets away
       let kill = (!keep && d2 > R_DESPAWN * R_DESPAWN) || v.route[0].dead;
       const lat = Math.abs((v.x - NX[v.route[0].a]) * v.route[0].rx + (v.z - NZ[v.route[0].a]) * v.route[0].rz);
       if (lat > 8 && !(v.cop && v.cop.mode === 'direct')) kill = true;
@@ -765,7 +766,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (planGen && !stepping && planGen.next().done) planGen = null;
   }
 
-  let acc = 0;
+  let acc = 0, roamer = null, nextRoam = 60 + Math.random() * 120;
   function update(dt, cam) {
     frames++;
     cam = cam || camera;
@@ -788,6 +789,8 @@ Object.assign(MODELS, buildPoliceModels());
       let tries = deficit > 12 ? 40 : 6, made = deficit > 12 ? 10 : 2;
       while (tries-- > 0 && made > 0) if (trySpawn()) made--;
     }
+    if (roamer && roamer.dead) { roamer = null; nextRoam = time + 150 + Math.random() * 210; }   // l'arrotino: one roams around the lapa; when it is gone (culled, a tile dropped) a new one is sent in from a few streets away
+    if (!roamer && time >= nextRoam) { roamer = spawnOffscreen('arrotino', 120, 210); if (roamer) roamer.roam = true; else nextRoam = time + 4; }
     fx.begin(); police.update(Math.min(dt, 0.1), fx); gags.update(Math.min(dt, 0.1), fx); fx.end();
     carrozze.update(Math.min(dt, 0.1)); vendors.update(Math.min(dt, 0.1));
     writeInstances();
@@ -1020,6 +1023,7 @@ Object.assign(MODELS, buildPoliceModels());
   return {
     update, collidePlayer,
     agents: () => agentsOut,
+    vehicles: vs, roamer: () => roamer,   // src/city-audio.js: the vehicles to hear, and the knife-grinder
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
     bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
     // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.

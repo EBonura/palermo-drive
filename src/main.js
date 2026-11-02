@@ -18,6 +18,7 @@ import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createDrunk } from './drunk.js';   // a drink at a pub's door or at the rave: the screen wobbles (src/drunk.js)
 import { createShouts } from './shouts.js';
+import { createCityAudio } from './city-audio.js';   // traffic noise, horns, l'arrotino, the market voices
 import { createMarkets } from './markets.js';   // Ballaro, the Vucciria and the Capo as living markets: stall lines along the real streets, awnings, crates, vendors
 import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
 import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
@@ -368,6 +369,8 @@ const placeStart = (x, z) => new Promise(done => {
 let radio = null;
 setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
+const cityAudio = createCityAudio({ scene, camera, car, game, traffic, getRadio: () => radio, mapMarkers, groundY });   // on the radio's AudioContext, so also from the first tap
+if (window.game) window.game.cityAudio = cityAudio;
 watchVersion(game);
 const coords = createCoords({ game, car, camera, groundY });
 applySettings();
@@ -412,6 +415,7 @@ renderer.setAnimationLoop(now => {
     }
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
+  cityAudio.update(dt, game.state === 'pause');
   if (game.state === 'play') missions.update?.(dt);
   drunk.update(dt);
   if (game.state === 'play') suca.update(dt, car);
