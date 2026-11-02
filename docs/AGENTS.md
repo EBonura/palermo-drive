@@ -34,7 +34,7 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/vehicle-events.js` (ZEN gag, corse clandestine), `src/garage.js` | vehicles agent |
 | `assets/peds/px.js`, `assets/peds/head.js`, `assets/peds/figure.js` | sprites agent |
 | `src/daynight.js` (+ small hooks in props/buildings/vehicle/sea for night) | day/night agent |
-| `src/traffic.js`, `src/police.js`, `src/gags.js`, `src/carrozze.js`, `src/vendors.js`, `assets/traffic/police-models.js` | police agent |
+| `src/traffic.js`, `src/police.js`, `src/gags.js`, `src/carrozze.js`, `src/carretto.js`, `src/vendors.js`, `assets/traffic/police-models.js`, `assets/traffic/carretto-art.js` | police agent |
 | `src/pedestrians.js`, `assets/peds/`, `src/missions.js`, `assets/missions/` | nightlife agent |
 | `tools/build/`, `.github/workflows/`, build/deploy pipeline, data codecs, three.js upgrade (coordinates module changes with owners) | performance agent |
 
