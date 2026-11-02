@@ -8,7 +8,7 @@ The question: can players find each other and drive together with no server of o
 
 | Piece | Where |
 | --- | --- |
-| Room logic, wire format, validation, HUD, phrase picker, drink offer | `src/p2p/p2p.js` |
+| Room logic, wire format, validation, HUD (rooms, peers, how each link was made: direct, STUN or relay), name card, phrase picker, drink offer | `src/p2p/p2p.js` |
 | Phrases players can say | `src/p2p/phrases.js` |
 | Trystero bundled into one file (Nostr, BitTorrent, MQTT) | `src/p2p/trystero.js`, made by `tools/build/vendor-trystero.mjs` |
 | Remote player drawing, split out of `src/net.js` so both clients share it | `src/remotes.js` |
@@ -180,6 +180,9 @@ Why it is still worth keeping alive:
 Next steps if you want to go on, in order: (1) a real test with two phones, one on mobile data and one on home Wi-Fi, plus a laptop on another network, to find the share of failed connections; (2) batch and thin the messages, measure the bandwidth again; (3) cap drawn players and measure on a real phone; (4) pin relays, write the privacy notice, add a local mute; (5) only if (1) shows many failures, add the TURN credential function. If (1) goes badly, the answer is "no, because players cannot reliably reach each other", and the relay stays the way to go.
 
 ## Other things noticed
+
+- First visit without `?name=` or a saved name: a stopgap name card appears (the relay client's words, saved under the same key, so the two clients share a name) and no room is joined until the player has typed one. It is a placeholder for a proper character creation screen, which the owner wants in the main game (asked of the main session). `tools/p2p/namecheck.mjs` checks it.
+- Typing into a text box over the running game hits `src/ui.js`'s key handler first: it is a window capture listener that opens the pause menu on Escape and on the letter P, so a name with a P in it ("Peppe", "Paolo") would open the menu and lose the letter. The p2p name card gets in front of it (its listener is registered earlier). The relay client's card in `src/net.js` stops the keys only at the card, which is later in the event path; I did not test it, but it probably has the same problem.
 
 - `src/ui.js` pauses the game when the page becomes hidden. Normal and sensible, but it means a player in a background window sends nothing (my tests were silent for a while because of this).
 - The game's `window.game` debug object has no `game` state, which made that hard to spot; not changed.

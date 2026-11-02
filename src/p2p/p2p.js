@@ -56,7 +56,11 @@ export function createP2P(env) {
   const ev = (name, o) => { const e = { t: Math.round(performance.now()), ev: name, ...o }; log.push(e); if (log.length > 2000) log.shift(); };
 
   const clean = s => Array.from(String(s).replace(/[\p{C}\p{Zl}\p{Zp}‎‏‪-‮⁦-⁩]/gu, '').replace(/\s+/g, ' ').trim()).slice(0, MAX_NAME_RUNES).join('');
-  let myName = clean(params.get('name') || (() => { try { return (JSON.parse(localStorage.getItem('palermoDrive.net.v1') || 'null') || {}).name; } catch (e) { return ''; } })() || '') || 'P2P' + selfId.slice(0, 3);
+  const STORE_KEY = 'palermoDrive.net.v1';   // the relay client's save: { name, offline }; the name is shared between the two clients
+  const stored = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {}; } catch (e) { return {}; } };
+  let myName = clean(params.get('name') || stored().name || '');
+  let named = !!myName;   // nothing is joined until the player has a name (card below)
+  if (!myName) myName = 'P2P' + selfId.slice(0, 3);
   const livId = () => Math.max(0, (vehicle.LIVERIES || []).findIndex(l => l.id === car.livery));
 
   const rm = createRemotes(env);
@@ -289,13 +293,53 @@ export function createP2P(env) {
   offerBtn.addEventListener('click', () => { offerBtn.blur(); offerList.style.display = offerList.style.display === 'none' ? 'block' : 'none'; });
   offerBox.append(offerBtn, offerList); document.body.appendChild(offerBox);
 
+  // ---------- name card (same words as the relay client's, src/net.js) ----------
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi' },
+    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close' } };
+  let nameCard = null, submitName = null, closeName = null;
+  function openName() {
+    if (nameCard) { nameCard.remove(); nameCard = null; }
+    const tx = NAME_TXT[lang()], editing = named;
+    nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
+    nameCard.style.cssText = 'position:fixed;z-index:70;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
+    if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
+    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae'; h.textContent = editing ? tx.edit : tx.ask;
+    const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
+    const input = document.createElement('input'); input.maxLength = 16; input.placeholder = tx.ph; input.value = named ? myName : ''; input.autocomplete = 'off'; input.spellcheck = false;
+    input.style.cssText = 'display:block;width:100%;box-sizing:border-box;font:600 16px system-ui,sans-serif;padding:9px 11px;margin-bottom:8px;border-radius:9px;border:1.5px solid #5a4a50;background:#1b1115;color:#fff;outline:none';
+    const ok = document.createElement('button'), no = document.createElement('button');
+    for (const b of [ok, no]) { b.type = 'button'; b.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer'; }
+    ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close;
+    const submit = () => {
+      const n = clean(input.value); if (!n) { input.focus(); return; }
+      myName = n; named = true; try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), name: n, offline: false })); } catch (e) { /* private mode: fine */ }
+      nameCard.remove(); nameCard = null;
+    };
+    submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
+    ok.addEventListener('click', submit); no.addEventListener('click', closeName);
+    nameCard.append(h, sub, input, ok); if (editing) nameCard.append(no);
+    document.body.appendChild(nameCard); if (window.matchMedia('(pointer:fine)').matches) input.focus();
+  }
+  // Typing a name must not drive the car or open the pause menu (P and Escape): the game's own key handler (src/ui.js) is a window capture listener
+  // too, but it is added after this one, so this runs first and keeps the keys for the card. Enter and Escape are handled here, letters still reach the box.
+  addEventListener('keydown', e => {
+    if (!nameCard || !nameCard.contains(e.target)) return;
+    e.stopImmediatePropagation();
+    if (e.key === 'Enter') { e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
+  }, true);
+  const nameBtn = document.createElement('button'); nameBtn.type = 'button'; nameBtn.textContent = '✎';
+  nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:64px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
+  nameBtn.addEventListener('click', () => { nameBtn.blur(); openName(); });
+  document.body.appendChild(nameBtn);
+
   // ---------- frame ----------
-  let hudT = 0, sendAcc = 0;
+  let hudT = 0, sendAcc = 0, linkTxt = '-', linkT = 0;
   function update(dt) {
     const now = performance.now();
-    chat.style.display = offerBox.style.display = game.state === 'play' ? '' : 'none';
+    chat.style.display = offerBox.style.display = nameBtn.style.display = game.state === 'play' ? '' : 'none';
     if (incoming && now > incoming.until) { incoming = null; closeCard(); }
-    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); }
+    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!named) setTimeout(openName, 800); }
+    if (!named) { rm.update(dt, now); return; }
     if (now - lastChecked > CHECK_MS) { lastChecked = now; evaluate(); }
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
@@ -314,19 +358,20 @@ export function createP2P(env) {
     rm.update(dt, now);
     if (now - hudT > 500) {
       hudT = now;
-      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}:${r.peers.size}`).join(' ')}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}`;
+      if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
+      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}:${r.peers.size}`).join(' ')}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}`;
     }
   }
 
   async function wire() {   // WebRTC byte counters across every connection, for the measurements
-    let sent = 0, recv = 0, pcs = 0, open = 0, tsent = 0, trecv = 0;
+    let sent = 0, recv = 0, pcs = 0, open = 0, tsent = 0, trecv = 0; const link = { host: 0, srflx: 0, prflx: 0, relay: 0 };
     const seen = new Set();
     for (const r of rooms.values()) for (const pc of Object.values(r.room.getPeers())) {
       if (seen.has(pc)) continue; seen.add(pc);   // one shared connection can show up in several rooms
       pcs++; if (pc.connectionState === 'connected') open++;
-      try { for (const s of (await pc.getStats()).values()) { if (s.type === 'data-channel') { sent += s.bytesSent || 0; recv += s.bytesReceived || 0; } else if (s.type === 'transport') { tsent += s.bytesSent || 0; trecv += s.bytesReceived || 0; } } } catch (e) { /* ignore */ }
+      try { const st = await pc.getStats(); for (const s of st.values()) { if (s.type === 'transport' && s.selectedCandidatePairId) { const cp = st.get(s.selectedCandidatePairId), lc = cp && st.get(cp.localCandidateId), rc = cp && st.get(cp.remoteCandidateId); const ty = [lc && lc.candidateType, rc && rc.candidateType]; const w = ty.includes('relay') ? 'relay' : ty.includes('prflx') || ty.includes('srflx') ? 'srflx' : 'host'; link[w]++; } if (s.type === 'data-channel') { sent += s.bytesSent || 0; recv += s.bytesReceived || 0; } else if (s.type === 'transport') { tsent += s.bytesSent || 0; trecv += s.bytesReceived || 0; } } } catch (e) { /* ignore */ }
     }
-    return { pcs, open, sent, recv, tsent, trecv };
+    return { pcs, open, sent, recv, tsent, trecv, link };
   }
 
   const api = {
