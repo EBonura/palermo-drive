@@ -15,8 +15,8 @@
 //     the ping is retried with growing pauses, up to 5 minutes.
 //  2. The WebSocket, open only while the game is in 'play' (not on menus or pause), the tab is visible and the player did
 //     something in the last 2 minutes. Every byte the relay sends counts against its monthly traffic limit.
-import * as THREE from 'three';
 import { esc } from './esc.js';
+import { createRemotes } from './remotes.js';
 
 const RELAY_URL = ''; // wss://<relay host>/ws once the relay is reachable from the internet (see relay/RUN.md)
 // Alternative to RELAY_URL for a relay whose address changes (a tunnel with a new host name): the path of a small JSON file on
@@ -36,14 +36,10 @@ const INPUT_MS = 120000;       // ... or the player has not touched anything thi
 const BEAT_S = 180;            // seconds of active play between stats pings
 const POLL_MS = 45000;         // while waiting for another multiplayer player to show up, ask this often
 const PID_KEY = 'palermoDrive.pid.v1'; // random anonymous player id
-const DELAY = 150;             // interpolation buffer, ms
-const EXTRAP = 250;            // longest extrapolation, ms
-const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
 const PINK = '#ff6fae', PINK_D = '#e8559a', BLACK = '#0d0709';
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
-const wrapPI = a => a - TAU * Math.floor((a + Math.PI) / TAU);
 
 const T = {
   it: { ask: 'Come ti chiami?', askSub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', skip: 'Offline',
@@ -126,7 +122,7 @@ export function createNet(env) {
   let mp = null, peers = 0, lastPingT = 0, promptShown = false, activeSec = 0, lastPlay = 0, lastInput = performance.now(), pingTimer = 0, pingTries = 0;
   let myId = -1, count = 0, lastRecv = 0, lastSend = 0, lastSentState = null, lastInfoKey = '', sendAcc = 0;
   let hiddenTimer = 0, sleeping = false, blocked = false, pingBusy = false;
-  const remotes = new Map(), dying = [];
+  const { remotes, ensure, setInfo, addSnap, retire, dropAll, update: updateRemotes } = createRemotes(env);
 
   // ---------- DOM ----------
   let pill = null, card = null;
@@ -317,8 +313,7 @@ export function createNet(env) {
       case 0x22: { // INFO
         const id = dv.getUint8(1), liv = dv.getUint8(2), n = dv.getUint8(3);
         const name = new TextDecoder().decode(new Uint8Array(dv.buffer, dv.byteOffset + 4, n));
-        let r = remotes.get(id);
-        if (!r) { r = makeRemote(id); remotes.set(id, r); }
+        const r = ensure(id);
         // the position that follows the name is where the later 16 bit positions are counted from
         const lo = dv.getUint32(4 + n, true);
         r.qx = lo & 0xfffff; r.qz = (lo >>> 20) | (dv.getUint8(8 + n) << 12); r.hq = true;
@@ -342,122 +337,7 @@ export function createNet(env) {
       }
     }
   }
-  function addSnap(r, s) {
-    const l = r.snaps[r.snaps.length - 1];
-    if (l) {
-      const gap = s.t - l.t, d = Math.hypot(s.x - l.x, s.z - l.z);
-      if (d > 25 + 0.045 * gap) r.snaps.length = 0; // teleport (respawn, or came back from far away)
-      else if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: s.t - 100 }); // it sat still until just now
-    }
-    r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
-    r.have = true;
-  }
 
-  // ---------- remote players ----------
-  const flameGeo = new THREE.ConeGeometry(0.1, 1, 8, 1, true).translate(0, 0.5, 0).rotateX(-Math.PI / 2);
-  const flameMat = new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-
-  function tagTexture(name) {
-    const c = document.createElement('canvas'), g = c.getContext('2d'), f = '700 30px system-ui,-apple-system,sans-serif';
-    g.font = f; const w = Math.ceil(g.measureText(name).width) + 30, h = 46;
-    c.width = Math.max(w, 60); c.height = h;
-    g.font = f; g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(13,7,9,0.72)'; g.beginPath(); g.roundRect ? g.roundRect(1.5, 1.5, c.width - 3, h - 3, 12) : g.rect(1.5, 1.5, c.width - 3, h - 3); g.fill();
-    g.strokeStyle = PINK_D; g.lineWidth = 3; g.stroke();
-    g.fillStyle = '#fff'; g.fillText(name, 15, h / 2 + 1);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
-    return t;
-  }
-
-  function makeRemote(id) {
-    const marker = { x: 0, z: 0, color: PINK, size: 4 };
-    return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
-  }
-  function setInfo(r, name, liv) {
-    const lid = (vehicle.LIVERIES && vehicle.LIVERIES[liv] && vehicle.LIVERIES[liv].id) || 'blu';
-    if (r.livery !== liv || !r.model) {
-      if (r.model) { scene.remove(r.model.root); r.fadeMats = null; }
-      r.livery = liv;
-      r.model = vehicle.buildLapa ? vehicle.buildLapa(lid) : null;
-      if (r.model) {
-        r.model.root.visible = false; scene.add(r.model.root);
-        r.flames = [-0.3, 0.3].map(x => { const m = new THREE.Mesh(flameGeo, flameMat); m.position.set(x, 0.36 - r.model.PIV, -1.6); m.visible = false; m.frustumCulled = false; r.model.tilt.add(m); return m; });
-        if (r.tag) r.model.root.add(r.tag);
-        r.shadow = true; for (const me of r.model.meshes) me.userData.sh = me.castShadow;
-      }
-    }
-    if (name !== r.name || !r.tag) {
-      r.name = name;
-      if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); r.model && r.model.root.remove(r.tag); }
-      const map = tagTexture(name || '?');
-      r.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
-      r.tag.scale.set(0.042 * map.image.width / map.image.height, 0.042, 1);
-      r.tag.position.set(0, 2.55, 0); r.tag.renderOrder = 20;
-      if (r.model) r.model.root.add(r.tag);
-    }
-  }
-
-  function applyAlpha(r) {
-    const a = r.alpha;
-    if (a >= 0.999) {
-      if (r.fadeMats) { for (const [m, o, c] of r.fadeMats) { m.material = o; c.dispose(); } r.fadeMats = null; }
-    } else if (r.model) {
-      if (!r.fadeMats) {
-        r.fadeMats = r.model.meshes.map(m => { const o = m.material, c = o.clone(); c.userData.base = o.opacity; c.transparent = true; m.material = c; return [m, o, c]; });
-      }
-      for (const [, , c] of r.fadeMats) c.opacity = c.userData.base * a;
-    }
-    if (r.tag) r.tag.material.opacity = a * r.tagA;
-  }
-
-  function retire(r) { // player left: fade out, then free
-    r.target = 0;
-    const i = mapMarkers.indexOf(r.marker); if (i >= 0) mapMarkers.splice(i, 1);
-    dying.push(r);
-  }
-  function dispose(r) {
-    r.fadeMats && r.fadeMats.forEach(([, , c]) => c.dispose()); r.fadeMats = null;
-    if (r.model) scene.remove(r.model.root);
-    if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); }
-    const i = mapMarkers.indexOf(r.marker); if (i >= 0) mapMarkers.splice(i, 1);
-  }
-  function dropAll() {
-    for (const r of remotes.values()) retire(r);
-    remotes.clear();
-  }
-
-  function sample(r, now) {
-    const s = r.snaps, rt = now - DELAY;
-    while (s.length > 2 && s[1].t <= rt) s.shift();
-    const a = s[0], b = s[1];
-    if (!b || rt >= b.t) {
-      const l = s[s.length - 1], dt = clamp(rt - l.t, 0, EXTRAP) / 1000;
-      return { x: l.x + Math.sin(l.th) * l.v * dt, z: l.z + Math.cos(l.th) * l.v * dt, th: l.th, v: l.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl };
-    }
-    if (rt <= a.t) return a;
-    const k = (rt - a.t) / (b.t - a.t), m = (p, q) => p + (q - p) * k;
-    return { x: m(a.x, b.x), z: m(a.z, b.z), th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl };
-  }
-
-    function poseRemote(r, dt, now) {
-    const m = r.model; if (!m || !r.snaps.length) return;
-    const p = sample(r, now);
-    const gy = groundY(p.x, p.z), lt = raisedMask(p.x, p.z) ? CURB : 0;
-    r.lift += (lt - r.lift) * Math.min(1, 12 * dt);
-    m.root.position.set(p.x, gy + r.lift, p.z); m.root.rotation.y = p.th;
-    m.tilt.rotation.set(0, 0, p.roll);
-    const th = p.lean * m.tipMax, px = -0.66 * Math.sign(p.lean);
-    m.lean.rotation.z = th; m.lean.position.set(px * (1 - Math.cos(th)), -px * Math.sin(th), 0);
-    r.spin += p.v * dt / 0.23;
-    for (const w of m.wheels) { w.spin.rotation.x = r.spin; if (w.front) w.pivot.rotation.y = p.steer; }
-    m.bar.rotation.y = p.steer * 0.9;
-    if (r.flames) { const on = (p.fl & 1) === 1; for (const f of r.flames) { f.visible = on; if (on) f.scale.set(1.3, 1.3, 1.6 + Math.random() * 0.8); } }
-    r.marker.x = p.x; r.marker.z = p.z;
-    const d = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
-    r.tagA = clamp((330 - d) / 100, 0, 1);
-    const sh = d < 90; if (sh !== r.shadow) { r.shadow = sh; for (const me of m.meshes) me.castShadow = sh && me.userData.sh; }
-    if (!r.shown) { r.shown = true; m.root.visible = true; mapMarkers.push(r.marker); }
-  }
 
   // ---------- frame ----------
   // A background tab keeps no connection open (an open WebSocket keeps the Cloud Run instance billed).
@@ -506,20 +386,7 @@ export function createNet(env) {
         }
       }
 
-      if (remotes.size || dying.length) {
-        for (const r of remotes.values()) {
-          if (r.have) { r.alpha = Math.min(1, r.alpha + dt / FADE); }
-          if (r.tagA === undefined) r.tagA = 0;
-          if (!r.have) continue;
-          poseRemote(r, dt, now); applyAlpha(r);
-        }
-        for (let i = dying.length - 1; i >= 0; i--) {
-          const r = dying[i]; r.alpha = Math.max(0, r.alpha - dt / FADE);
-          if (r.alpha <= 0) { dispose(r); dying.splice(i, 1); continue; }
-          if (r.tagA === undefined) r.tagA = 0;
-          applyAlpha(r);
-        }
-      }
+      updateRemotes(dt, now);
     },
   };
 }

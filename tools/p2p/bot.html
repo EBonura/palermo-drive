@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>p2p bot</title>
+<!-- A player without the game, for load tests (tools/p2p/scale.mjs): joins one room, drives a circle, sends and counts the same messages as src/p2p/p2p.js. -->
+<script type="module">
+import { strategies, selfId } from '/src/p2p/trystero.js';
+const q = new URLSearchParams(location.search), kind = q.get('kind') || 'nostr', room = q.get('room'), cx = +q.get('x'), cz = +q.get('z'), name = q.get('name') || 'bot', speed = +(q.get('speed') || 12), hz = +(q.get('hz') || 10);
+const st = { selfId, peers: 0, peerIds: new Set(), tx: 0, rx: 0, txBytes: 0, rxBytes: 0, joinedAt: 0, firstPeerAt: 0, errors: [], seq: 0, t0: performance.now(), pcs: () => 0 };
+window.bot = st;
+const r = strategies[kind].joinRoom({ appId: 'palermo-drive-p2p-exp-1', relayConfig: q.get('relays') ? { urls: q.get('relays').split(',') } : { redundancy: 3 } }, room, { onJoinError: e => st.errors.push(String(e.error).slice(0, 80)) });
+const info = r.makeAction('i'), state = r.makeAction('s');
+const nm = new TextEncoder().encode(name);
+const sendInfo = id => { const b = new Uint8Array(3 + nm.length); b[0] = 1; b[1] = 3; b[2] = nm.length; b.set(nm, 3); st.tx++; st.txBytes += b.length; info.send(b, { target: id }).catch(() => {}); };
+r.onPeerJoin = id => { st.peerIds.add(id); st.peers = st.peerIds.size; if (!st.firstPeerAt) st.firstPeerAt = performance.now() - st.t0; sendInfo(id); };
+r.onPeerLeave = id => { st.peerIds.delete(id); st.peers = st.peerIds.size; };
+info.onMessage = d => { st.rx++; st.rxBytes += d.byteLength; };
+state.onMessage = d => { st.rx++; st.rxBytes += d.byteLength; };
+let ang = Math.random() * 6.28; const R = 40;
+setInterval(() => {
+  ang += speed / R / hz; const x = cx + Math.cos(ang) * R, z = cz + Math.sin(ang) * R, th = ang + Math.PI / 2;
+  const b = new Uint8Array(13), dv = new DataView(b.buffer); b[0] = 2; b[1] = st.seq = (st.seq + 1) & 255;
+  const xq = Math.round(x * 20) + (1 << 19), zq = Math.round(z * 20) + (1 << 19);
+  dv.setUint32(2, (xq | ((zq & 0xfff) << 20)) >>> 0, true); b[6] = zq >>> 12; b[7] = Math.round(((th % 6.2832) + 6.2832) % 6.2832 / 6.2832 * 256) & 255; dv.setInt8(8, speed * 2); b[12] = 0;
+  const ids = [...st.peerIds]; if (!ids.length) return;
+  st.tx += ids.length; st.txBytes += 13 * ids.length; state.send(b, { target: ids }).catch(() => {});
+}, 1000 / hz);
+st.wire = async () => { let sent = 0, recv = 0, pcs = 0, open = 0; for (const pc of Object.values(r.getPeers())) { pcs++; if (pc.connectionState === 'connected') open++; for (const s of (await pc.getStats()).values()) if (s.type === 'data-channel') { sent += s.bytesSent || 0; recv += s.bytesReceived || 0; } } return { pcs, open, sent, recv }; };
+</script>
