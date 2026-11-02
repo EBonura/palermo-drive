@@ -1,5 +1,5 @@
 module palermo-drive-relay
 
-go 1.22
+go 1.23
 
-require github.com/coder/websocket v1.8.12
+require github.com/coder/websocket v1.8.15
