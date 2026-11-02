@@ -3,7 +3,8 @@
 //   - roads in three tiers, parks / woods / farmland / sand, and a built-up haze come from assets/ui/startmap.json (tools/startmap.py bakes
 //     it from the world tiles, the tiles themselves are far too big to fetch for an overview); the centro's building footprints are D.buildings.
 // Pan (drag), pinch zoom, mouse wheel, +/- buttons. Start points are pins (spots); tap one for a popup with "Parti da qui". A second layer shows
-// the events from missions.events() with their own icons and a show/hide toggle. Redraws only when something changed.
+// the events from missions.events() with their own icons and a show/hide toggle. Pins that would overlap on screen (the Quattro Canti have a dozen places and events within 400 m) are merged
+// into one numbered badge; tap it to zoom in on them, they come apart as the map zooms. Redraws only when something changed.
 //
 //   const map = createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart });
 //   map.show() / map.hide()      the screen opened / closed (loads the data on first use)
@@ -255,10 +256,42 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     for (const s of spots) pins.push({ x: s.x, z: s.z, kind: 'spot', ref: s });
     if (showEvents) for (const e of events) pins.push({ x: e.x, z: e.z, kind: 'event', ref: e });
   }
+  // ---------- clusters: pins closer than CLUSTER_R pixels on screen share one badge (the selected pin always stands alone) ----------
+  const CLUSTER_R = 19, clusters = [];
+  function layout() {
+    clusters.length = 0;
+    const merge = k < K_MAX * 0.85;
+    for (const p of pins) {
+      const x = sx(p.x), y = sy(p.z); if (x < -40 || y < -50 || x > W + 40 || y > H + 40) continue;
+      let c = null;
+      if (merge && !(sel && sel.ref === p.ref)) for (const q of clusters) if (!q.solo && (q.x - x) ** 2 + (q.y - (y - 12)) ** 2 < CLUSTER_R * CLUSTER_R) { c = q; break; }
+      if (c) { c.m.push(p); c.sx += x; c.sy += y - 12; c.x = c.sx / c.m.length; c.y = c.sy / c.m.length; }
+      else clusters.push({ x, y: y - 12, sx: x, sy: y - 12, m: [p], solo: !!(sel && sel.ref === p.ref) });
+    }
+  }
+  function drawCluster(c) {
+    const n = c.m.length, ev = c.m.some(p => p.kind === 'event'), r = 13 + Math.min(4, n / 6);
+    g.save(); g.translate(c.x, c.y);
+    g.shadowColor = 'rgba(20,8,16,.35)'; g.shadowBlur = 4; g.shadowOffsetY = 2;
+    g.fillStyle = '#e8559a'; g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.shadowColor = 'transparent';
+    g.lineWidth = 2.4; g.strokeStyle = '#fff'; g.stroke();
+    if (ev) { g.fillStyle = '#ffc83d'; g.beginPath(); g.arc(r * 0.72, -r * 0.72, 4.5, 0, 7); g.fill(); g.lineWidth = 1.4; g.strokeStyle = '#0b0709'; g.stroke(); }
+    g.fillStyle = '#fff'; g.font = "700 14px 'Barlow Condensed', system-ui, sans-serif"; g.fillText(String(n), 0, 0.5);
+    g.restore();
+  }
+  function zoomToCluster(c) { // tap on a badge: centre on its pins and zoom until they come apart (or as far as the map goes)
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const p of c.m) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+    const fit = Math.min((W - 120) / Math.max(1, x1 - x0), (H - 160) / Math.max(1, z1 - z0));
+    k = clamp(Math.max(k * 2, Math.min(fit, k * 6)), kMin, K_MAX); vx = (x0 + x1) / 2; vz = (z0 + z1) / 2; clampView(); mark();
+  }
   function drawPins() {
     const sz = clamp(0.8 + k * 1.2, 0.8, 1.15);
-    for (const p of pins) {
-      const x = sx(p.x), y = sy(p.z); if (x < -30 || y < -40 || x > W + 30 || y > H + 30) continue;
+    layout();
+    for (const c of clusters) {
+      if (c.m.length > 1) { drawCluster(c); continue; }
+      const p = c.m[0];
+      const x = sx(p.x), y = sy(p.z);
       const on = sel && sel.ref === p.ref;
       g.save(); g.translate(x, y); g.scale(on ? sz * 1.25 : sz, on ? sz * 1.25 : sz);
       if (p.kind === 'spot') {
@@ -333,11 +366,12 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     popT.textContent = sel.name;
     popS.textContent = sel.sub;
   }
-  function pick(px, py, thr) {
+  function pick(px, py, thr) { // a pin, or a cluster badge ({ m: [pins] })
+    layout();
     let best = null, bd = thr * thr;
-    for (const p of pins) {
-      const x = sx(p.x), y = sy(p.z) - (p.kind === 'event' ? 14 : 12), d = (x - px) * (x - px) + (y - py) * (y - py);
-      if (d <= bd) { bd = d; best = p; }
+    for (const c of clusters) {
+      const y = c.m.length > 1 ? c.y : c.y + (c.m[0].kind === 'event' ? -2 : 0), d = (c.x - px) * (c.x - px) + (y - py) * (y - py);
+      if (d <= bd) { bd = d; best = c.m.length > 1 ? c : c.m[0]; }
     }
     return best;
   }
@@ -373,7 +407,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     ptrs.delete(e.pointerId); pinch = 0;
     if (tap && !tap.moved && e.type === 'pointerup' && performance.now() - tap.t < 700) {
       const hit = pick(tap.x, tap.y, ptrKind === 'mouse' ? 18 : 26);
-      if (hit) openPop(itemOf(hit), false); else closePop();
+      if (hit && hit.m) { closePop(); zoomToCluster(hit); } else if (hit) openPop(itemOf(hit), false); else closePop();
     }
     tap = null;
   };
@@ -448,6 +482,6 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     },
     startSelected() { if (sel && onStart) onStart(sel.x, sel.z, sel); },
     // test hook (?mapdebug): view state and the screen position of every pin
-    debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
+    debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, clusters: (layout(), clusters.map(c => ({ n: c.m.length, x: Math.round(c.x), y: Math.round(c.y) }))), pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
   };
 }

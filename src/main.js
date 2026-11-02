@@ -44,7 +44,7 @@ const QUARTIERI = [
   ['Falsomiele', 38.089746, 13.357153], ['Chiavelli', 38.082498, 13.368055], ['Guadagna', 38.098424, 13.368817], ['Settecannoli', 38.10056, 13.38309],
   ['Romagnolo', 38.104641, 13.388605], ['Brancaccio', 38.095578, 13.383682], ['Ciaculli', 38.078302, 13.401197], ['Roccella', 38.092384, 13.410641],
   ['Bandita', 38.097383, 13.416877], ['Acqua dei Corsari', 38.091611, 13.430685], ['Pomara', 38.084645, 13.43419], ['Croce Verde', 38.069522, 13.417503],
-  ['Monte Pellegrino', 38.1600, 13.3545], ['Parco della Favorita', 38.1620, 13.3330], // groupings for the start picker (no OSM place node of their own)
+  ['Monte Pellegrino', 38.1600, 13.3545], ['Parco della Favorita', 38.1620, 13.3330], ['Politeama / Libertà', 38.1315, 13.3520], // groupings for the start picker (no OSM place node of their own)
 ];
 
 const SPOTS = [
@@ -55,15 +55,15 @@ const SPOTS = [
   ['Piazza Pretoria', 38.1151, 13.3622],
   ['La Cala', 38.1203, 13.3676],
   ['Stazione Centrale', 38.1092, 13.3655],
-  // More starting points (Nominatim/OSM positions). Keys 1-7 reach the first seven; the start picker lists all.
+  // More starting points (Nominatim/OSM positions). Keys 1-7 reach the first seven; the start picker lists all. A 4th item names the picker's group when the nearest quartiere centre is not the right one.
   ['Vucciria (Piazza Garraffello)', 38.1179401, 13.3649292],
   ['Piazza Marina', 38.1177752, 13.3686382],
   ['Mercato del Capo', 38.1186189, 13.3540701],
   ['Piazza Bellini', 38.1149189, 13.3625335],
   ['Piazza San Domenico', 38.1188139, 13.3629446],
   // outside the centro (Nominatim positions)
-  ['Politeama (Piazza Ruggero Settimo)', 38.1247846, 13.3559943],
-  ['Via della Libertà', 38.1387821, 13.3465045],
+  ['Politeama (Piazza Ruggero Settimo)', 38.1247846, 13.3559943, 'Politeama / Libertà'],
+  ['Via della Libertà', 38.1387821, 13.3465045, 'Politeama / Libertà'],
   ['Porta Felice e Foro Italico', 38.1195699, 13.3713217],
   ['Stadio Renzo Barbera', 38.1528194, 13.3420112],
   ['La Favorita (Palazzina Cinese)', 38.1667781, 13.3303513],
@@ -75,7 +75,7 @@ const SPOTS = [
   ['Villa Giulia e Orto Botanico', 38.1134959, 13.3756082],
   ['Ponte dell\'Ammiraglio', 38.1051828, 13.3750044],
   ['Tonnara Florio (Arenella)', 38.1516884, 13.3744234],
-  ['Giardino Inglese', 38.1312509, 13.3522947],
+  ['Giardino Inglese', 38.1312509, 13.3522947, 'Politeama / Libertà'],
   ['Fiera del Mediterraneo', 38.1445037, 13.3565490],
   ['Piazza Leoni (ingresso Favorita)', 38.1468260, 13.3433865],
   ['Piazza Sant\'Anna', 38.1149181, 13.3651434],
@@ -270,7 +270,7 @@ function updateHud(dt) {
 
 // ---------- loop ----------
 // Touch controls, landscape prompt and HUD layout for phones write into the same keys map.
-setupMobile({ keys, camState, renderer, camera });
+const mobile = setupMobile({ keys, camState, renderer, camera });
 placeAt(0, 0);
 { // ?spot=2&cam=1&turn=135 starts at a teleport spot, camera mode and heading offset in degrees
   const q = new URLSearchParams(location.search), spot = +q.get('spot'), turn = +q.get('turn');
@@ -331,6 +331,10 @@ function showKeyHint() {
 }
 const params = new URLSearchParams(location.search);
 horn = createHorn({ keys, car, getVolume: () => game.settings.volume ?? 0.8 });
+// Game audio starts inside the user's tap: the shell dispatches 'pd-gesture' on the title tap, Drive and Resume (src/ui.js gesture(), which also calls vehicle.unlockAudio; the radio listens to the event too),
+// and the horn's own context is made here as well, so that the first honk does not create it outside a gesture.
+addEventListener('pd-gesture', () => { vehicle.unlockAudio?.(); horn.unlock(); });
+for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend']) addEventListener(ev, () => horn.unlock(), { passive: true });
 // Screenshot/debug links skip the title screen.
 if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = 'play';
 // ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
@@ -370,7 +374,7 @@ if (world) world.hurry = true;
   const el = document.getElementById('loading');
   titleT0 = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 500);
 })();
-let last = performance.now(), acc = 0;
+let last = performance.now(), acc = 0, rotHeld = false;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
   perf.frame(now); // [perf pass]
@@ -381,6 +385,8 @@ renderer.setAnimationLoop(now => {
     renderer.render(game.garage.scene, game.garage.camera);
     return;
   }
+  // the "turn your phone" prompt covers the screen in portrait: the game waits behind it (paused, with no menu opened) and goes on when the phone is turned
+  if (mobile.rotatePrompt()) { if (game.state === 'play') { game.pause(); rotHeld = true; } } else if (rotHeld) { rotHeld = false; game.resume(); }
   if (game.state === 'play') {
     for (acc += dt; acc >= STEP; acc -= STEP) { physics(STEP); traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); roadwear.collidePlayer?.(car, STEP); propsApi.collidePlayer?.(car, STEP); world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */ }
   } else acc = 0;
