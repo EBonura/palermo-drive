@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Kit, box, cyl, cylX, cylZ, sph, tor, plane, hexa, prism, PI, TAU } from './vehicle-kit.js';
 import { MAT, colMat, paintedSet, paintSet, clonedSet, neonMats, stkUV } from './vehicle-art.js';
 import { cleanLook, lookKey } from './garage.js';
+import { driver } from './driver.js';
 
 // ---------- shared assemblies ----------
 // A rider (bikes) or driver, in the 'driver' group so the bonnet camera can hide it.
@@ -675,6 +676,6 @@ function instantiate(tpl, livery, local) {
 // Public: a model of any vehicle for any look: { type, livery, parts: { spoiler: 'gt', neon: 'rosa', ... } }. The caller poses it with rig.pose().
 export function buildVehicleModel(look) { const l = cleanLook(look); return instantiate(template(l), l.livery, false); }
 // The local car's rig: painted with the shared materials (recolour them with repaint()), so a livery change does not rebuild anything.
-export function buildLocalRig(look) { const l = cleanLook(look); paintSet(l.type, paintedSet(l.type), l.livery); return instantiate(template(l), l.livery, true); }
+export function buildLocalRig(look) { const l = cleanLook(look); paintSet(l.type, paintedSet(l.type), l.livery); const rig = instantiate(template(l), l.livery, true); driver.dress(rig); return rig; }   // driver.dress: the player's own driver in a lapa (src/driver.js)
 export function repaint(type, livery) { return paintSet(type, paintedSet(type), livery); }
 export { tickShared } from './vehicle-art.js';
