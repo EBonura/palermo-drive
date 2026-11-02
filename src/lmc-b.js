@@ -71,78 +71,6 @@ function buildZisa() {
 export const ZISA = { name: 'La Zisa', x: -1770, z: -116, radius: 60, skipIds: [FP.zisa.id], build: buildZisa };
 
 // ====================================================================================================
-// La Cuba
-// ====================================================================================================
-function buildCuba() {
-  initShared();
-  const pts = pairsOf(FP.cuba.p), gr = groundRange(pts), ob = obb(pts), fr = facing(ob, 0.6, 0.8);
-  const gy = gr.hi + 0.15, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
-  begin(gy);
-  const W = Math.min(fr.w, 32), Dp = Math.min(fr.d, 17), H = 17.5;
-  const arcFace = (Wm, key, seed, n) => defMat(key, 512, 512, [Wm, H], (g, w, h) => {
-    const sx = w / Wm, sy = h / H, X = (s) => s * sx, Y = (y) => h - y * sy;
-    paintAshlar(g, w, h, Wm, H, 0.45, 1.0, '#cbb68a', '#97845e', seed, 2, 0.05);
-    const bw = Wm / n;
-    for (let i = 0; i < n; i++) {
-      const cx = bw * (i + 0.5), aw = bw - 1.6;
-      g.beginPath(); g.moveTo(X(cx - aw / 2), Y(0.5)); g.lineTo(X(cx - aw / 2), Y(13.5 - aw * 0.4)); g.quadraticCurveTo(X(cx - aw / 2), Y(13.2), X(cx), Y(13.9 + aw * 0.12)); g.quadraticCurveTo(X(cx + aw / 2), Y(13.2), X(cx + aw / 2), Y(13.5 - aw * 0.4)); g.lineTo(X(cx + aw / 2), Y(0.5)); g.closePath();
-      g.fillStyle = '#b5a07a'; g.fill(); g.strokeStyle = 'rgba(60,45,25,0.7)'; g.lineWidth = 3; g.stroke();
-      for (const [y0, y1, ww] of [[2.0, 4.6, 1.0], [6.2, 9.6, 0.7], [10.6, 12.6, 0.7]]) { g.fillStyle = '#2a2219'; g.beginPath(); g.moveTo(X(cx - ww / 2), Y(y0)); g.lineTo(X(cx - ww / 2), Y(y1 - ww * 0.5)); g.quadraticCurveTo(X(cx), Y(y1 + ww * 0.5), X(cx + ww / 2), Y(y1 - ww * 0.5)); g.lineTo(X(cx + ww / 2), Y(y0)); g.fill(); }
-    }
-    g.fillStyle = 'rgba(60,45,25,0.5)'; g.fillRect(0, Y(15.6), w, 0.5 * sy); streaks(g, w, h, 40, seed + 1, 0.2, 240);
-  });
-  arcFace(W, 'cubaLong', 711, 4); arcFace(Dp, 'cubaShort', 712, 2);
-  skirt('stone', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#b0a58c' });
-  bx('cubaLong', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.02);
-  panel('cubaLong', W, H, { M: mul(M, tr(0, 0, Dp / 2 + 0.01)) });
-  panel('cubaLong', W, H, { M: mul(M, mul(rotY(PI), tr(0, 0, Dp / 2 + 0.01))) });
-  for (const sg of [-1, 1]) panel('cubaShort', Dp, H, { M: mul(M, mul(rotY(sg * PI / 2), tr(0, 0, W / 2 + 0.01))) });
-  bx('flat', M, -W / 2 - 0.3, W / 2 + 0.3, H, H + 0.6, -Dp / 2 - 0.3, Dp / 2 + 0.3, { c: '#d4c196' });
-  bx('flat', M, -W / 2 + 0.5, W / 2 - 0.5, H + 0.6, H + 1.0, -Dp / 2 + 0.5, Dp / 2 - 0.5, { c: '#a89a7a' });
-  return end('La Cuba');
-}
-export const CUBA = { name: 'La Cuba', x: -1633, z: 901, radius: 50, skipIds: [FP.cuba.id], build: buildCuba };
-
-// ====================================================================================================
-// San Giovanni degli Eremiti
-// ====================================================================================================
-function buildEremiti() {
-  initShared(); ensureTrunk();
-  const pts = pairsOf(FP.eremiti.p), gr = groundRange(pts), ob = obb(pts), fr = facing(ob, 0.5, 0.9);
-  const gy = gr.hi + 0.1;
-  // frame with local x along the long axis of the footprint
-  const M = frame(ob.cx, gy, ob.cz, ob.vx, ob.vz);
-  begin(gy);
-  defMat('eremWall', 256, 256, [6, 8], (g, w, h) => { paintAshlar(g, w, h, 6, 8, 0.5, 1.2, '#bda985', '#8d7c5c', 721, 2, 0.07); g.fillStyle = 'rgba(70,55,35,0.5)'; g.beginPath(); g.moveTo(40, 256); g.lineTo(40, 100); g.quadraticCurveTo(40, 60, 128, 52); g.quadraticCurveTo(216, 60, 216, 100); g.lineTo(216, 256); g.fill(); g.fillStyle = '#2d2418'; g.fillRect(118, 90, 20, 60); streaks(g, w, h, 20, 722, 0.2, 160); });
-  const L = 21, Dc = 12.4, Hb = 7.6;
-  skirt('stone', M, L + 2, Dc + 2, -(gr.hi - gr.lo) - 2.5, { c: '#a99d84' });
-  bx('eremWall', M, -L / 2 + 2, L / 2 + 2, 0, Hb, -Dc / 2, Dc / 2);
-  bx('flat', M, -L / 2 + 1.7, L / 2 + 2.3, Hb, Hb + 0.4, -Dc / 2 - 0.3, Dc / 2 + 0.3, { c: '#cbbb96' });
-  // five red domes: two over the nave, three over the choir end
-  for (const [x, z, r] of [[-3.5, 0, 2.6], [4.0, 0, 2.6], [10.0, -3.6, 1.8], [10.0, 0, 1.9], [10.0, 3.6, 1.8]]) {
-    bx('eremWall', M, x - r - 0.3, x + r + 0.3, Hb + 0.4, Hb + 2.2, z - r - 0.3, z + r + 0.3);
-    domeOn(mul(M, tr(x, Hb + 2.2, z)), r, 1.0);
-  }
-  // bell tower with its own small red dome
-  bx('eremWall', M, -8.8, -4.6, 0, 15.5, -9.2, -5.0);
-  for (const q of [0, 1]) box('dark', 1.1, 2.4, 0.15, { M: mul(M, mul(tr(-6.7, 11.0, -7.1), rotY(q * PI / 2))), p: [q ? 2.12 : 0, 0, q ? 0 : 2.12], noao: true });
-  domeOn(mul(M, tr(-6.7, 15.5, -7.1)), 1.6, 0.6);
-  // cloister arcade of paired slender columns on the side opposite the tower
-  const NA = 10, MA = mul(M, tr(0, 0, Dc / 2 + 7.0));
-  bx('stone', MA, -NA * 1.2 - 0.8, NA * 1.2 + 0.8, 0, 0.5, -0.5, 0.6, { c: '#c9bda0' });
-  for (let i = 0; i < NA; i++) {
-    const x = (i - (NA - 1) / 2) * 2.4;
-    archBay('tufa', 2.4, 3.9, 1.6, 3.2, 0.7, { M: mul(MA, tr(x, 0.5, -0.1)), pointed: true, oy0: 0.5, c: '#d8cba8' });
-    for (const dx of [-0.35, 0.35]) cyl('marble', 0.09, 0.09, 2.7, 6, { M: mul(MA, tr(x + dx, 0.5, 0.25)), c: '#ece6d6' });
-  }
-  bx('eremWall', M, -NA * 1.2 - 0.8, NA * 1.2 + 0.8, 4.4, 4.9, Dc / 2 + 6.4, Dc / 2 + 7.6);
-  // palms and a citrus tree in the garden
-  for (const [x, z] of [[-6, Dc / 2 + 5], [3, Dc / 2 + 4.5], [8, Dc / 2 + 6]]) palm(ob.cx + ob.vx * x + ob.vz * 0, gy, ob.cz + ob.vz * x + 0, 9.5, { r: x });
-  return end('San Giovanni degli Eremiti');
-}
-export const EREMITI = { name: 'San Giovanni degli Eremiti', x: -577, z: 683, radius: 50, skipIds: [FP.eremiti.id], build: buildEremiti };
-
-// ====================================================================================================
 // Ponte dell'Ammiraglio: the 12th-century humpback bridge of pointed stone arches, now a dry bridge over a lawn
 // ====================================================================================================
 function buildPonte() {
@@ -173,27 +101,3 @@ function buildPonte() {
   return end("Ponte dell'Ammiraglio");
 }
 export const PONTE = { name: "Ponte dell'Ammiraglio", x: 1209, z: 1182, radius: 60, skipIds: [], build: buildPonte };
-
-// ====================================================================================================
-// Palazzo dei Normanni: the whole palace mass with the pink-plaster front on Piazza del Parlamento. The Torre Pisana in the middle of
-// that front stays in src/landmarks.js (the centro module): this model replaces the generic building; the tower box of the centro module stands against the front wall of this one.
-// ====================================================================================================
-function buildNormanni() {
-  initShared();
-  const p = FP.normanni, pts = pairsOf(p.p), holes = (p.holes || []).map(pairsOf), gr = groundRange(pts);
-  const gy = gr.hi, WH = 19.5;
-  begin(gy);
-  defMat('norWall', 256, 512, [7.2, 15], (g, w, h) => paintFacade(g, w, h, 7.2, 15, { base: '#d3a999', trim: '#f0dccb', glass: '#2c2724', seed: 741, plinth: { h: 1.0, c: '#a58a7a' },
-    bands: [{ y: 5.6, h: 0.3, c: '#e8cbb8' }, { y: 10.9, h: 0.3, c: '#e8cbb8' }, { y: 15.2, h: 0.6, c: '#e8cbb8' }],
-    rows: [{ y0: 1.6, y1: 4.4, xs: [1.8, 5.4], w: 1.2, kind: 'rect', ped: true }, { y0: 6.6, y1: 9.8, xs: [1.8, 5.4], w: 1.2, kind: 'rect', ped: true, balc: true }, { y0: 11.8, y1: 14.4, xs: [1.8, 5.4], w: 1.1, kind: 'rect' }] }));
-  defMat('norPortal', 128, 256, [5, 10], (g, w, h) => { paintAshlar(g, w, h, 5, 10, 0.4, 0.9, '#cfc3a6', '#8d8068', 742, 2, 0.05); g.fillStyle = '#231b16'; g.beginPath(); g.moveTo(34, 256); g.lineTo(34, 150); g.arc(64, 150, 30, Math.PI, 0); g.lineTo(94, 256); g.fill(); });
-  shell('norWall', pts, holes, gy, WH, { lo: gr.lo - 3, roof: '#8f8a82', cc: '#e2c8b8' });
-  // the Piazza del Parlamento front: its centre is the Torre Pisana (centro module); a portal on the left wing
-  const fa = [-639.3, 532.3], fb = [-684.1, 486.2], fl = Math.hypot(fb[0] - fa[0], fb[1] - fa[1]), fx = (fb[0] - fa[0]) / fl, fz = (fb[1] - fa[1]) / fl;
-  const Mf = frame((fa[0] + fb[0]) / 2, gy, (fa[1] + fb[1]) / 2, 0.717, -0.697);
-  const MP = mul(Mf, tr(-fl / 4, 0, 0.3));
-  bx('tufa', MP, -2.8, 2.8, 0, 7.6, 0, 0.9, { c: '#d9cfb4' });
-  panel('norPortal', 5, 10, { M: mul(MP, tr(0, 0, 0.92)), uvk: [1, 0.76] });
-  return end('Palazzo dei Normanni');
-}
-export const NORMANNI = { name: 'Palazzo dei Normanni', x: -700, z: 502, radius: 120, skipIds: [FP.normanni.id], build: buildNormanni };
