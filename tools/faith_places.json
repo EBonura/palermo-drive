@@ -1,0 +1,175 @@
+{
+ "note": "Important places for the faithfulness rounds that the 304 survey viewpoints do not cover with a photo. id, lat, lon, r = search radius in metres for Mapillary images, n = how many photos (different headings) to keep.",
+ "places": [
+  {
+   "id": "xqc",
+   "name": "Quattro Canti, the crossing",
+   "lat": 38.115684,
+   "lon": 13.36146,
+   "r": 25,
+   "n": 3
+  },
+  {
+   "id": "xtm",
+   "name": "Teatro Massimo, Piazza Verdi",
+   "lat": 38.1199,
+   "lon": 13.3573,
+   "r": 60,
+   "n": 2
+  },
+  {
+   "id": "xsd",
+   "name": "Via Roma at Piazza San Domenico",
+   "lat": 38.1188139,
+   "lon": 13.3629446,
+   "r": 40,
+   "n": 1
+  },
+  {
+   "id": "xvu",
+   "name": "Vucciria, Piazza Garraffello",
+   "lat": 38.1179401,
+   "lon": 13.3649292,
+   "r": 40,
+   "n": 2
+  },
+  {
+   "id": "xcp",
+   "name": "Mercato del Capo",
+   "lat": 38.1186189,
+   "lon": 13.3540701,
+   "r": 50,
+   "n": 2
+  },
+  {
+   "id": "xpn",
+   "name": "Porta Nuova and Normanni",
+   "lat": 38.1108,
+   "lon": 13.3532,
+   "r": 70,
+   "n": 2
+  },
+  {
+   "id": "xpo",
+   "name": "Politeama, Piazza Ruggero Settimo",
+   "lat": 38.1247846,
+   "lon": 13.3559943,
+   "r": 50,
+   "n": 2
+  },
+  {
+   "id": "xmo",
+   "name": "Mondello, la piazza",
+   "lat": 38.2077898,
+   "lon": 13.3266288,
+   "r": 60,
+   "n": 2
+  },
+  {
+   "id": "xba",
+   "name": "Stadio Barbera",
+   "lat": 38.1528194,
+   "lon": 13.3420112,
+   "r": 80,
+   "n": 2
+  },
+  {
+   "id": "xze",
+   "name": "ZEN",
+   "lat": 38.1816,
+   "lon": 13.3149,
+   "r": 150,
+   "n": 2
+  },
+  {
+   "id": "xsr",
+   "name": "Santuario di Santa Rosalia",
+   "lat": 38.1680111,
+   "lon": 13.351843,
+   "r": 100,
+   "n": 1
+  },
+  {
+   "id": "xfa",
+   "name": "Favorita, Palazzina Cinese",
+   "lat": 38.1667781,
+   "lon": 13.3303513,
+   "r": 80,
+   "n": 1
+  },
+  {
+   "id": "xzi",
+   "name": "La Zisa",
+   "lat": 38.1161147,
+   "lon": 13.3411786,
+   "r": 60,
+   "n": 2
+  },
+  {
+   "id": "xpr",
+   "name": "Piazza Pretoria",
+   "lat": 38.1151,
+   "lon": 13.3622,
+   "r": 30,
+   "n": 1
+  },
+  {
+   "id": "xsc",
+   "name": "Stazione Centrale",
+   "lat": 38.1092,
+   "lon": 13.3655,
+   "r": 60,
+   "n": 1
+  }
+ ],
+ "around_note": "Places with no usable photo: shot in the game only, four headings each (tools/mapillary_extra.py writes the metadata, tools/faith_sheet.py --grid makes the sheet). Judged from knowledge of the real place, so findings from these are tagged as such.",
+ "around": [
+  {
+   "id": "gvu",
+   "name": "Vucciria Garraffello",
+   "lat": 38.1179401,
+   "lon": 13.3649292
+  },
+  {
+   "id": "gze",
+   "name": "ZEN",
+   "lat": 38.1816,
+   "lon": 13.3149
+  }
+ ],
+ "standoff_note": "Landmark stand-off shots: camera 6 m up, dist metres from the landmark centre (BUILD_AT in src/landmarks.js, game metres x east, z south), looking at it from the compass side given (from = N, E, S, W).",
+ "standoff": [
+  {
+   "id": "hca",
+   "name": "Cattedrale",
+   "x": -456,
+   "z": 151,
+   "dist": 90
+  },
+  {
+   "id": "hno",
+   "name": "Palazzo dei Normanni",
+   "x": -700,
+   "z": 502,
+   "dist": 100
+  },
+  {
+   "id": "hpn",
+   "name": "Porta Nuova",
+   "x": -751,
+   "z": 396,
+   "dist": 55
+  },
+  {
+   "id": "htm",
+   "name": "Teatro Massimo",
+   "x": -358,
+   "z": -491,
+   "dist": 75,
+   "front": [
+    0.41,
+    0.912
+   ]
+  }
+ ]
+}
