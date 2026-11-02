@@ -496,12 +496,13 @@ const SPECS = {
   punto: { kind: 'park', c: [[0, 1.2, 0.9], [0, -1.2, 0.9]], m: 1.1, thr: 4, L: 4.06, W: 1.69 },
   smart: { kind: 'park', c: [[0, 0.55, 0.8], [0, -0.55, 0.8]], m: 0.8, thr: 4, L: 2.69, W: 1.56 },
   van: { kind: 'park', c: [[0, 1.3, 0.95], [0, 0, 0.95], [0, -1.3, 0.95]], m: 2.0, thr: 4, L: 4.45, W: 1.82 },
-  ape: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 0.9, 1.5], hc: 0.9 },
-  apetaxi: { kind: 'veh', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 3.6, he: [0.75, 1.0, 1.5], hc: 1.0 },
+  ape: { kind: 'park', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 4, L: 3.2, W: 1.4 },       // the Ape and the Apetaxi are parked-car yeets too
+  apetaxi: { kind: 'park', c: [[0, 0.8, 0.78], [0, -0.7, 0.78]], m: 0.8, thr: 4, L: 3.2, W: 1.4 },
   scooter: { kind: 'scooter', c: [[0, 0.35, 0.4], [0, -0.35, 0.4]], m: 0.28, thr: 1.2, fly: 7.5, he: [0.35, 0.55, 0.9], hc: 0.55 },
-  bin_big: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.6, bags: 4 },
-  bin_over: { kind: 'bin', c: [[0, 0, 0.78]], m: 1.0, thr: 2.2, bags: 9 },
-  bin_small: { kind: 'bend', c: [[0, 0, 0.24]], thr: 3, tilt: 1.57, H: 0.9 },
+  // light things: tip or bend below `fly`, knocked flying above it (yeet: same balloon rule as the other flying props); they lie where they land and the tile puts them back after a while
+  bin_big: { kind: 'bin', c: [[0, 0, 0.78]], m: 0.9, thr: 2.6, fly: 6, bags: 4, he: [0.45, 0.55, 0.45], hc: 0.55, ghost: true },
+  bin_over: { kind: 'bin', c: [[0, 0, 0.78]], m: 0.9, thr: 2.2, fly: 6, bags: 9, he: [0.5, 0.55, 0.5], hc: 0.55, ghost: true },
+  bin_small: { kind: 'bend', c: [[0, 0, 0.24]], thr: 3, fly: 5.5, m: 0.3, he: [0.2, 0.45, 0.2], hc: 0.45, ghost: true, tilt: 1.57, H: 0.9 },
   fontanella: { kind: 'bend', c: [[0, 0, 0.26]], thr: 5, tilt: 1.3, H: 1.1 },
   ficus: { kind: 'tree', c: [[0, 0, 0.8]], thr: 13.9, H: 6, crown: 4 },
   tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 5, crown: 2.7 },
@@ -516,10 +517,15 @@ const SPECS = {
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
   signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
   bollard: { kind: 'bend', c: [[0, 0, 0.13]], thr: 5.5, tilt: 1.5, H: 0.8 },
-  busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 6.5, tilt: 1.0, H: 2.7 },
-  bench: { kind: 'solid', c: [[-0.7, 0, 0.32], [0.7, 0, 0.32]] },
-  stall_table: { kind: 'solid', c: [[-0.65, 0, 0.5], [0.65, 0, 0.5]] },
-  cafe_set: { kind: 'solid', c: [[0, 0, 0.55]] },
+  busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 4.5, fly: 8, m: 0.4, he: [0.25, 1.35, 0.25], hc: 1.35, ghost: true, tilt: 1.0, H: 2.7 },   // a sign on a thin pole: light
+  bench: { kind: 'object', c: [[-0.7, 0, 0.32], [0.7, 0, 0.32]], thr: 3.5, m: 1.0, he: [0.9, 0.45, 0.25], hc: 0.45, ghost: true },
+  stall_table: { kind: 'object', c: [[-0.65, 0, 0.5], [0.65, 0, 0.5]], thr: 2.5, m: 0.8, he: [0.9, 0.45, 0.5], hc: 0.45, ghost: true },
+  cafe_set: { kind: 'object', c: [[0, 0, 0.55]], thr: 2.2, m: 0.6, he: [0.7, 0.45, 0.7], hc: 0.45, ghost: true },     // table and plastic chairs
+  umbrella: { kind: 'object', c: [[0, 0, 0.15]], thr: 2.2, m: 0.4, he: [0.5, 1.0, 0.5], hc: 1.0, ghost: true },       // sits over a cafe set or a stall table: they go together
+  sunbed: { kind: 'object', c: [[0, 0, 0.5]], thr: 1.5, m: 0.4, he: [0.35, 0.25, 0.9], hc: 0.25, ghost: true },
+  beach_umbrella: { kind: 'object', c: [[0, 0, 0.2]], thr: 2.5, m: 0.4, he: [0.5, 1.1, 0.5], hc: 1.1, ghost: true },
+  shelter: { kind: 'solid', c: [[-1.0, 0, 0.6], [0, 0, 0.6], [1.0, 0, 0.6]] },   // glazed bus shelter: heavy
+  shrub: { kind: 'soft', c: [[0, 0, 0.6]], thr: 2.5, H: 1.2, crown: 0.9 },       // a bush: the lapa goes through it, slowed, in a puff of leaves
   hydrant: { kind: 'solid', c: [[0, 0, 0.18]] },
   phone: { kind: 'solid', c: [[0, 0, 0.5]] },
   cabinet: { kind: 'solid', c: [[-0.3, 0, 0.3], [0.3, 0, 0.3]] },
@@ -552,7 +558,7 @@ const SPECS = {
   dump_sofa: { kind: 'object', c: [[0, 0, 0.9]], thr: 2.5, m: 1.0, he: [0.9, 0.45, 0.4], hc: 0.45, ghost: true },
   dump_wreck: { kind: 'object', c: [[0, 0, 0.6]], thr: 1.6, m: 0.3, he: [0.6, 0.2, 0.35], hc: 0.2, ghost: true },
 };
-const SCALE_R = new Set(['ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
+const SCALE_R = new Set(['shrub', 'ficus', 'tree', 'orange', 'pine', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 
 
 function makePhysics(env) {
@@ -682,21 +688,46 @@ function makePhysics(env) {
     try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: gy(c.x, c.z) + 1.4, z: c.z, follow: () => c.dead ? null : { x: c.x, y: gy(c.x, c.z) + (c.fl ? c.fl.y : 0) + 1.4, z: c.z } } })); } catch (err) { /* no events */ }
   };
   const keepSlot = c => PARKED_MOVED.set(c.slot, { x: c.x, z: c.z, h: c.st === 'pfly' ? c.h : c.rot });
-  function startParkFly(c, vx, vz, vy, chain) {
+  // quiet: a vehicle of the traffic did it, not the lapa: no police chaos (the lapa's yeet and its chain reactions raise it, as with a traffic car)
+  function startParkFly(c, vx, vz, vy, chain, quiet) {
     const sg = () => rnd() < 0.5 ? -1 : 1;
     c.st = 'pfly'; gDel(c); if (!dyn.includes(c)) dyn.push(c);
-    c.fl = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + rnd() * 4), sp: (rnd() - 0.5) * 7, sr: sg() * (3 + rnd() * 6), bounces: 0, phase: 0, t: 0, chain, hit: new Set() };
+    c.fl = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + rnd() * 4), sp: (rnd() - 0.5) * 7, sr: sg() * (3 + rnd() * 6), bounces: 0, phase: 0, t: 0, chain, hit: new Set(), quiet };
     c.h = c.rot; c.pitch = 0; c.roll = 0; grow(c); stats.yeeted++;
+    if (!quiet) { try { dispatchEvent(new CustomEvent('pd-yeet', { detail: { kind: chain ? 'chain' : 'yeet' } })); } catch (err) { /* no events */ } }
   }
-  function launchPark(c, nx, nz, rel, pc, pen) {
-    const sc = c.sp.m <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
-    let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
+  // (vx, vz): the velocity of whatever hit it, rel: the closing speed
+  function launchParkV(c, nx, nz, rel, vx, vz, pen, quiet) {
+    const sc = c.sp.m <= 1.3 ? 1 : 0.65, pv = hyp2(vx, vz) || 1;
+    let ux = -nx * 0.45 + vx / pv * 0.55, uz = -nz * 0.45 + vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
     const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
-    startParkFly(c, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0);
+    startParkFly(c, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0, quiet);
     c.x -= nx * pen; c.z -= nz * pen;
-    const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
     shoutAt(c);
   }
+  function launchPark(c, nx, nz, rel, pc, pen) {
+    launchParkV(c, nx, nz, rel, pc.vx, pc.vz, pen, false);
+    const j = 0.1 * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);   // the lapa only gets a light knock
+  }
+  parked.near = (x, z, r, out) => {
+    out.length = 0;
+    const i0 = Math.floor((x - r) / 8), i1 = Math.floor((x + r) / 8), j0 = Math.floor((z - r) / 8), j1 = Math.floor((z + r) / 8);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
+      for (let q = 0; q < lst.length; q++) { const c = lst[q]; if (c.st === 0 && c.sp.kind === 'park' && !c.dead) out.push(c); }
+    }
+    return out.length;
+  };
+  parked.bump = (c, nx, nz, pen, rel, vx, vz, mv, quiet) => {
+    if (c.st !== 0 || c.dead) return 0;
+    if (rel * Math.min(1, mv / c.sp.m) >= (quiet ? 7 : c.sp.thr)) { launchParkV(c, nx, nz, rel, vx, vz, pen, quiet); return 2; }   // (a scooter does not launch a car, and a car scraping past one at walking speed only pushes it: it takes a ram, 7 m/s, to launch)
+    const x = c.x - nx * pen * (mv / (mv + c.sp.m)), z = c.z - nz * pen * (mv / (mv + c.sp.m));
+    if (inB(x, z)) return 0;
+    c.x = x; c.z = z; c.x0 = x; c.z0 = z; c.y0 = gy(x, z);
+    const k = cellK(x, z); if (k !== c.gk) { gDel(c); gAdd(c); }
+    grow(c); keepSlot(c);
+    return 1;
+  };
   // below the launch speed a parked car is pushed (the lapa and the car share the overlap by mass), unless a wall is behind it
   function nudgePark(c, nx, nz, pen, arm, pc) {
     const mv = c.sp.m, shV = 1 / (1 + mv), shP = mv / (1 + mv), x = c.x - nx * pen * shV, z = c.z - nz * pen * shV;
@@ -733,7 +764,7 @@ function makePhysics(env) {
             if (dx * dx + dz * dz > rr * rr) continue;
             f.hit.add(o);
             const k = (o.sp.m <= 1.3 ? 0.8 : 0.5) * (sp.m >= 1.5 ? 1.1 : 1), d = hyp2(dx, dz) || 1;
-            startParkFly(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1);
+            startParkFly(o, (f.vx * 0.7 + dx / d * speed * 0.3) * k, (f.vz * 0.7 + dz / d * speed * 0.3) * k, (3.2 + speed * 0.25) * k, f.chain + 1, f.quiet);
             f.vx *= 0.55; f.vz *= 0.55; shoutAt(o);
             break hunt;
           }
@@ -798,6 +829,7 @@ function makePhysics(env) {
         }
         break;
       case 'bin':
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { spawnBags(c, sp.bags, nx, nz, vc, pc); yeet(c, nx, nz, vc, pc); stats.tipped++; return; }   // hard enough: the whole bin goes
         if (c.st === 0 && vc >= sp.thr) {
           startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
         }
@@ -806,10 +838,14 @@ function makePhysics(env) {
         if (c.st === 0 && vc >= sp.thr) { junk(pc, c, nx, nz, vc); return; }
         if (sp.kind !== 'object') return;    // soft: the lapa just drives through rubbish below the threshold
         break;
+      case 'soft':   // a bush: through it, slowed, a puff of leaves
+        if (c.st === 0 && vc >= sp.thr && simT - (c.tsoft || -9) > 1) { c.tsoft = simT; spawnLeaves(c, -nx, -nz); stats.soft = (stats.soft || 0) + 1; }
+        slow(pc, nx, nz, 0.012); return;
       case 'tree':
         if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
         break;
       case 'bend':
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { yeet(c, nx, nz, vc, pc); stats.bent++; return; }   // the light ones (signs on thin poles, the small bin) are torn out
         if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
         break;
       default: break;
@@ -1038,6 +1074,11 @@ function makeIndex(buildings) {
 const CELL_OF = { panda: 100, punto: 100, smart: 100, van: 100 };
 const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60 };   // beyond this a parked car's mesh stops drawing into the shadow map (the shadow pass doubles what it draws)
 const PARKED_MOVED = new Map();
+// The traffic's side (src/traffic.js): parked cars as obstacles beside its lanes, and what happens when a vehicle runs into one.
+//   near(x, z, r, out)  fills `out` (the caller's own scratch array) with the parked cars (standing, not flying) in the grid cells within r and returns how many: car.x, car.z, car.rot (nose direction), car.sp.L / W / m / c
+//   bump(car, nx, nz, pen, rel, vx, vz, mv, quiet)  a vehicle of mass mv overlaps `car` by pen, (nx, nz) pointing from the parked car to the vehicle, closing at rel m/s
+//     with velocity (vx, vz): 0 nothing, 1 the car was pushed (share of the overlap by mass), 2 it was launched (quiet: raises no police chaos)
+export const parked = { near() { return 0; }, bump() { return 0; } };
 
 // ------------------------------------------------------------------ one source of props = one 500 m tile
 // generate() is a generator: it yields now and then so the caller can spread the work over frames (BUD.over()).
@@ -1606,15 +1647,15 @@ function* generate(S, BUD) {
           s += step;
           if (!inBounds(c[0], c[1])) continue;
           const e = march(c[0], c[1], nx, nz, 9, road), e2 = march(c[0], c[1], -nx, -nz, 9, road);
-          const wide = e + e2 - 2 * (W + 0.3) >= 2.7;   // room for a row of cars each side and a car between
+          const oneway = r.o ? (r.o > 0 ? 1 : -1) : 0, free = oneway ? 2.7 : 4.6;   // what has to stay open: one lane of one-way traffic, two narrow lanes otherwise (the traffic steers round the cars and keeps flowing)
+          const wide = e + e2 - 2 * (W + 0.3) >= free;   // room for a row of cars each side and the lanes between
           if ((!wide && sg !== only && tag === '-') || e < W / 2 + 0.4) { run = false; continue; }
           let hx, hz, d, ext;
-          const oneway = r.o ? (r.o > 0 ? 1 : -1) : 0;
           let f = oneway || (sg > 0 ? 1 : -1); if (rflip < 0.06) f = -f;
           if (mode === 'q') { hx = nx; hz = nz; d = e - L / 2 - 0.25; ext = L + 0.5; }
           else if (mode === 'd') { hx = (nx + tx * f) * 0.7071; hz = (nz + tz * f) * 0.7071; d = e - (L + W) * 0.35 - 0.25; ext = (L + W) * 0.71 + 0.3; }
           else { hx = tx * f; hz = tz * f; d = e - W / 2 - 0.17; ext = W + 0.3; }
-          if (e + e2 - ext < 2.7) { run = false; continue; }   // a car must still be able to pass
+          if (e + e2 - ext < free) { run = false; continue; }   // the lanes must stay open
           const x = c[0] + nx * d, z = c[1] + nz * d;
           const paint = (rburn < 0.07 && zoneOf(x, z) === 'zen') ? C(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'][Math.floor(rcol * 4) % 4])
             : paintBy(model, rcol, rshade);
