@@ -7,6 +7,7 @@ import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './cor
 import { zoneAt } from './districts.js';
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
+import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
@@ -538,7 +539,7 @@ const SPECS = {
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
-  hedge: { kind: 'solid', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]] },
+  hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 2.6, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 2.6 m/s and leaves a gap for the session
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
@@ -580,7 +581,8 @@ function makePhysics(env) {
   const gAdd = c => { const k = cellK(c.x, c.z); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); c.gk = k; };
   const gDel = c => { const a = grid.get(c.gk); if (a) { const i = a.indexOf(c); if (i >= 0) a.splice(i, 1); } };
   let simT = 0, tick = 0, lastShout = -9, camPos = null;
-  const dirty = new Set(), dyn = [], broken = new Set();
+  const dirty = new Set(), dyn = [], broken = new Set(), goneHedge = new Set();   // goneHedge: hedge blocks burst this session, by position (they survive the tile unloading)
+  const hedgeKey = c => Math.round(c.x0 * 4) + ',' + Math.round(c.z0 * 4);
   const stats = { yeeted: 0, tipped: 0, trees: 0, bent: 0, scooters: 0 };
 
   // ---- debris pools: bags, cardboard sheets, bottles (all stay until their owner resets), leaves and litter bits (expire)
@@ -631,12 +633,12 @@ function makePhysics(env) {
       leafPool.setColorAt(idx, BITC[(rnd() * BITC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
     }
   };
-  const spawnLeaves = (c, dx, dz) => {
-    const sp = c.sp, n = 16;
+  const spawnLeaves = (c, dx, dz, n = 16, big = 1) => {
+    const sp = c.sp;
     for (let i = 0; i < n; i++) {
       const idx = leafN++ % leafPool.count, a = Math.random() * 6.283, r = Math.random() * sp.crown * c.s * 0.7;
       let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
-      Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: 0.9 + Math.random() * 0.8, gone: false });
+      Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: (0.9 + Math.random() * 0.8) * big, gone: false });
       leafPool.setColorAt(idx, LEAFC[(Math.random() * LEAFC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
     }
   };
@@ -847,6 +849,14 @@ function makePhysics(env) {
       case 'soft':   // a bush: through it, slowed, a puff of leaves
         if (c.st === 0 && vc >= sp.thr && simT - (c.tsoft || -9) > 1) { c.tsoft = simT; spawnLeaves(c, -nx, -nz); stats.soft = (stats.soft || 0) + 1; }
         slow(pc, nx, nz, 0.012); return;
+      case 'hedge':   // a clipped hedge block: bursts into a puff of leaves and a few clumps, the gap stays for the session (the tile puts it back gone when it loads again)
+        if (c.st === 0 && vc >= sp.thr) {
+          c.st = 'gone'; gDel(c); goneHedge.add(hedgeKey(c)); poseInstance(c);
+          spawnLeaves(c, -nx, -nz, 30, 1); spawnLeaves(c, -nx, -nz, 7, 2.6); slow(pc, nx, nz, 0.12); stats.hedges = (stats.hedges || 0) + 1;
+          try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: c.x, z: c.z, kind: 'hedge' } })); } catch (err) { /* no events */ }
+          return;
+        }
+        break;
       case 'tree':
         if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
         break;
@@ -998,7 +1008,10 @@ function makePhysics(env) {
   }
   // tiles bring and take their colliders (c.im is the tile's instanced mesh for that model and cell)
   function add(list, meshOf) {
-    for (const c of list) { c.im = meshOf[c.model + '|' + c.key]; if (c.im) { gAdd(c); nColl++; } }
+    for (const c of list) {
+      c.im = meshOf[c.model + '|' + c.key];
+      if (c.im) { gAdd(c); nColl++; if (c.model === 'hedge' && goneHedge.has(hedgeKey(c))) { c.st = 'gone'; gDel(c); poseInstance(c); } }
+    }
   }
   function remove(list) {
     for (const c of list) {
@@ -1294,7 +1307,7 @@ function* generate(S, BUD) {
     return { m, t: tintOf(hex), code };
   };
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
-    if (!inBounds(x, z) || road(x, z) || inB(x, z)) return false;
+    if (!inBounds(x, z) || road(x, z) || inB(x, z) || treeCleared(x, z)) return false;
     const r = { ficus: 3.2, tree: 2.2, orange: 1.4, pine: 2, plane: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
@@ -2229,7 +2242,7 @@ function* instantiate(res, parent, BUD) {
     const M = MODELS[name], per = M.geo.attributes.position.count / 3;
     for (const [ckey, e] of cells.entries()) {
       const n = e.m.length / 5;
-      const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n); im.matrixAutoUpdate = false;   // [perf pass] a cell never moves (its instances do, through the instance matrices); a frozen matrix is not composed and multiplied every frame
+      const im = new THREE.InstancedMesh(M.geo, MATS[M.mat], n); im.name = 'prop_' + name; im.matrixAutoUpdate = false;   // [perf pass] a cell never moves (its instances do, through the instance matrices); a frozen matrix is not composed and multiplied every frame
       for (let i = 0; i < n; i++) {
         q4.setFromAxisAngle(up, e.m[i * 5 + 3]); s3.setScalar(e.m[i * 5 + 4]);
         m4.compose(p3.set(e.m[i * 5], e.m[i * 5 + 1], e.m[i * 5 + 2]), q4, s3); im.setMatrixAt(i, m4);

@@ -35,6 +35,7 @@ ROOT = os.path.normpath(os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 from bake import (KX, KZ, LAT0, LON0, area, building_height, flat, hash01, lidar_shape,  # noqa: E402
                   load_terrarium, stitch, unproj)
+from despike import despike_grid  # noqa: E402
 
 CITY = os.path.join(ROOT, "data", "city")
 WORLD = os.path.join(ROOT, "world")
@@ -1930,6 +1931,7 @@ def near_for(i, j):
     if best[inner.ravel()].min() > NEAR_BLEND:
         return None
     Vp = val.reshape(nzp, nxp)
+    Vp = despike_grid(Vp, s)[0]   # isolated nodes and short fins on the cliffs (tools/despike.py): the padded lattice, so neighbouring tiles agree
     own = Vp[P:-P, P:-P]
     hb = _bench(i, j, Vp, ia0 - P, ib0 - P) if CLEAN_ON else None
     if hb is not None:

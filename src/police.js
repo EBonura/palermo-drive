@@ -67,7 +67,7 @@ export function createPolice(env, T) {
   addEventListener('pd-time', e => { night = !!(e.detail && e.detail.isNight); });
 
   // ---------- chaos in ----------
-  const GAIN = { yeet: 0.7, chain: 0.15, knock: 0.45, hitcop: 1.1 }, LIMIT = { yeet: 0.3, chain: 0.3, knock: 0.12, hitcop: 0.5 };
+  const GAIN = { yeet: 0.7, chain: 0.15, knock: 0.45, hitcop: 1.1, fence: 0.08, hedge: 0.06, wall: 0.2 }, LIMIT = { yeet: 0.3, chain: 0.3, knock: 0.12, hitcop: 0.5, fence: 0.4, hedge: 0.4, wall: 0.5 };   // fence, hedge and wall: smashed garden walls and fences (src/fences.js, src/props.js)
   function chaos(kind, amt) {
     if (busted > 0 || grace > 0) return;
     const lim = LIMIT[kind];
