@@ -22,13 +22,14 @@ export const INSULTS = [
   'U paliaimmu è miraculusu!',
   "Mancu cu'u lignu!!",
   'Pigghialu stu nummaro i taigga',
-  'Con la rucola o seeeeeeeeenza?',
 ];
 // Said now and then by someone the lapa sends flying, or who leaps out of its way (src/pedestrians.js). Owner's line, as written.
 export const FLEW = 'Minchia vulavu';
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
 const CROWD_MAX = 8, CROWD_LIFE = 3.2;
+
+const RARE = 'Con la rucola o seeeeeeeeenza?', RARE_CHANCE = 0.03;   // a treat, about one shout in thirty
 
 export function createShouts(camera) {
   const layer = document.createElement('div');
@@ -44,6 +45,7 @@ export function createShouts(camera) {
   document.head.appendChild(style);
 
   function pick() {
+    if (Math.random() < RARE_CHANCE) return RARE;
     let i;
     do i = Math.floor(Math.random() * INSULTS.length); while (INSULTS.length > 1 && i === last);
     last = i;

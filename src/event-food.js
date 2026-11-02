@@ -51,7 +51,7 @@ export function createFood(X) {
     meshItems.instanceMatrix.needsUpdate = true; beams.instanceMatrix.needsUpdate = true;
   }
   function addItem(x, z, list) {
-    const y = groundAt(x, z), it = { x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#ffd24a', 5) };
+    const y = groundAt(x, z), it = { x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#ffd24a', 5, 'diamond') };
     const i = list.length; list.push(it); return i;
   }
   function start(slot) {
@@ -82,7 +82,7 @@ export function createFood(X) {
     for (const it of e.items) if (!it.got) it.got = true;
     setItems(e.mesh, e.beams, e.items);
     if (e.got === 0) { say(pick(FOOD.none)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0); finish(false); return; }
-    homeBeacon.set(e.slot.x, e.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(e.slot.x, e.slot.z, '#6bbf59', 8);
+    homeBeacon.set(e.slot.x, e.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(e.slot.x, e.slot.z, '#6bbf59', 8, 'target');
     hud.toast(T('Puoitali a ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + e.item.it);
   }
 

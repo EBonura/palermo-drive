@@ -58,7 +58,7 @@ export function createRaveEvents(X, rave) {
     const R = X.ROUTES['rave:karcere'][0], S = SNAP['rave:site'], limit = R[1] / 9 + 55;
     e = { kind: 'rave', slot, phase: 'drive', len: R[1], limit, left: limit, integ: 100, prevV: 0, cool: 0, dest: { x: S[0], z: S[1], name: RAVE.site.name }, cargo: makeCargo(), t: 0, thanks: 0, pay: 0 };
     X.calls.hideBeacon(); X.setPhase('drive'); X.guide.path(R[2]);
-    X.destBeacon.set(S[0], S[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(S[0], S[1], '#b16bff', 8);
+    X.destBeacon.set(S[0], S[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(S[0], S[1], '#b16bff', 8, 'target');
     hud.toast(T('Carica i casse!', 'Load the speakers!'), RAVE.karcere.name);
   }
   function updateRave(dt) {
@@ -116,7 +116,7 @@ export function createRaveEvents(X, rave) {
     const F = e.fr; F.seated = true; pedHit = false; pedestrians.attachTo(F.id, seatFn(0), { seated: true, blend: 0.4 });
     const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf'];
     e.phase = 'go'; e.left = e.limit; X.setPhase('ride'); X.guide.path(R[2]);
-    X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8);
+    X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8, 'target');
     hud.toast(T('Va’ a via Cipressi', 'Go to via Cipressi'), T('I fuogghi allegri', 'The happy leaves')); fsay('board', 0.4);
   }
   // the friend gets out and walks (ok: to the pal; else away from the lapa)
@@ -129,7 +129,7 @@ export function createRaveEvents(X, rave) {
   function updateBoard(dt) {
     const F = e.fr; F.t += dt;
     const info = F.id >= 0 ? pedestrians.info(F.id) : null;
-    if (!info) { F.id = -1; e.left = e.limit; X.setPhase('ride'); const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf']; e.phase = 'go'; X.guide.path(R[2]); X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8); return; }
+    if (!info) { F.id = -1; e.left = e.limit; X.setPhase('ride'); const R = X.ROUTES['rave:leaf'][0], L = SNAP['rave:leaf']; e.phase = 'go'; X.guide.path(R[2]); X.destBeacon.set(L[0], L[1]); X.destBeacon.show(true); X.destMarker = X.addMarker(L[0], L[1], '#7ad65a', 8, 'target'); return; }
     const sn = Math.sin(car.th), cs = Math.cos(car.th), side = ((info.x - car.x) * cs - (info.z - car.z) * sn) >= 0 ? 1 : -1;
     const tx = car.x + sn * -1.0 + cs * side * 1.0, tz = car.z + cs * -1.0 - sn * side * 1.0;
     F.next -= dt; if (F.next <= 0) { pedestrians.walkTo(F.id, tx, tz, 2.8); F.next = 0.25; }
@@ -153,7 +153,7 @@ export function createRaveEvents(X, rave) {
     e.phase = 'hunt'; e.left = HUNT_TIME; X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null;
     e.mesh = new THREE.InstancedMesh(leafGeo(), itemMat, n); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, n); e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     scene.add(e.mesh, e.beams);
-    for (let i = 0; i < n; i++) { const x = H[i * 2], z = H[i * 2 + 1], y = groundAt(x, z); e.items.push({ x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#7ad65a', 5) }); }
+    for (let i = 0; i < n; i++) { const x = H[i * 2], z = H[i * 2 + 1], y = groundAt(x, z); e.items.push({ x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#7ad65a', 5, 'diamond') }); }
     e.total = n; setItems();
     hud.toast(T('Attruova i fuogghi allegri!', 'Find the happy leaves!'), RAVE.leaf.name); fsay('arrive', 0.6);
   }
@@ -174,7 +174,7 @@ export function createRaveEvents(X, rave) {
     for (const it of e.items) if (!it.got) it.got = true; setItems();
     const sp = X.sideSpot({ x: L[0], z: L[1], dx: L[2], dz: L[3], w: L[4] }, L[4] / 2 + 1.6);
     e.contact = pedestrians.spawnScripted('nightboy2', sp.x, sp.z); if (e.contact >= 0) { pedestrians.face(e.contact, L[0], L[1]); pedestrians.setBounce?.(e.contact, true); }
-    homeBeacon.set(L[0], L[1]); homeBeacon.show(true); e.homeMarker = X.addMarker(L[0], L[1], '#6bbf59', 8);
+    homeBeacon.set(L[0], L[1]); homeBeacon.show(true); e.homeMarker = X.addMarker(L[0], L[1], '#6bbf59', 8, 'target');
     hud.toast(T('Portali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves')); fsay('hand', 0.8);
   }
   function collectLeaf() {

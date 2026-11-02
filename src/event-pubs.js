@@ -77,7 +77,7 @@ export function createErrand(X) {
     e.mesh = new THREE.InstancedMesh(itemGeo(item.shape), itemMat, e.total); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, e.total);
     e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     scene.add(e.mesh, e.beams);
-    for (let k = 0; k + 1 < I.length; k += 2) e.items.push({ x: I[k], z: I[k + 1], y: groundAt(I[k], I[k + 1]), ph: Math.random() * 6, got: false, marker: X.addMarker(I[k], I[k + 1], '#ffb02e', 5) });
+    for (let k = 0; k + 1 < I.length; k += 2) e.items.push({ x: I[k], z: I[k + 1], y: groundAt(I[k], I[k + 1]), ph: Math.random() * 6, got: false, marker: X.addMarker(I[k], I[k + 1], '#ffb02e', 5, 'diamond') });
     X.calls.hideBeacon();
     X.setPhase('hunt');
     hud.toast(T2(E.start), venue.def.name);
@@ -91,7 +91,7 @@ export function createErrand(X) {
     setItems();
     const v = e.venue;
     if (e.got === 0) { say(pick(e.E.none), headOf, 0); finish(false); return; }
-    homeBeacon.set(v.slot.x, v.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(v.slot.x, v.slot.z, '#6bbf59', 8);
+    homeBeacon.set(v.slot.x, v.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(v.slot.x, v.slot.z, '#6bbf59', 8, 'target');
     hud.toast(T((e.item.art === 'le' ? 'Riportale da ' : 'Riportali da ') + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + e.item.it);
   }
 
