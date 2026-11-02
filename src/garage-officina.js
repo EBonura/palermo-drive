@@ -9,6 +9,7 @@
 //   cam: { az } where the camera stands (angle from +z, radians); bounds: the box the camera stays in; lights: real lights for the vehicle.
 import * as THREE from 'three';
 import { Bake, surface, canvasTex, disposeTree, rng, blot, soft, smooth, clamp } from './garage-kit.js';
+import { createFriends } from './garage-friends.js';
 
 const X0 = -4.6, X1 = 4.6, Z0 = -5, Z1 = 6.2, H = 3.8;       // the room
 const DX0 = -3.3, DX1 = 0.3, DY = 2.7, OPEN = 1.5;           // the shutter door in the back wall, and how high its bottom bar is
@@ -343,6 +344,9 @@ export function buildOfficina({ vehicle, day = true } = {}) {
     corner.root.position.set(2.75, 0, -3.35); corner.root.rotation.y = -0.85; corner.pose({}); extras.add(corner.root);
   }
 
+  // the two friends: the mechanic at the bench and the other one in the light of the door (pixel-art billboards, see src/garage-friends.js)
+  const friends = createFriends({ tint: (x, z, o) => light({ x, y: 1.0, z }, { x: 0, y: 0.2, z: 0.98 }, o), day }); extras.add(friends.group);
+
   let texKB = 0;
   for (const t of texs) { const im = t.image; if (im) texKB += im.width * im.height * 4 * 1.33 / 1024; }
 
@@ -361,13 +365,14 @@ export function buildOfficina({ vehicle, day = true } = {}) {
     },
     onLook(look) { if (corner) corner.root.visible = look.type !== 'vespa'; },
     update(sec, dt) {
+      friends.update(sec);
       for (let i = 0; i < N; i++) {
         dp[i * 3] += dv[i][0] * dt + Math.sin(sec * 0.7 + i) * 0.0015; dp[i * 3 + 1] += dv[i][1] * dt * Math.sin(sec * 0.5 + i * 2); dp[i * 3 + 2] += dv[i][2] * dt;
         if (dp[i * 3 + 2] > Z0 + run * SUN.z || dp[i * 3 + 1] < 0.04 || dp[i * 3 + 1] > OPEN + 0.2) seedDust(i);
       }
       dust.geometry.attributes.position.needsUpdate = true;
     },
-    dispose() { disposeTree(group); disposeTree(turntable); if (corner) corner.dispose(); },
+    dispose() { disposeTree(group); disposeTree(turntable); if (corner) corner.dispose(); friends.dispose(); },
   };
 }
 
