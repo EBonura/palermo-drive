@@ -16,7 +16,7 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
   const subs = { head: P.layers.filter(l => isHead(l.id)), torso: P.layers.filter(l => isTorso(l.id)) }, subSheets = {};
   if (P.layers.length) for (const a of anims) { sheets[a] = await composeAnim(P, a); if (sheets[a]) used.push(...sheets[a].used); for (const k of ['head', 'torso']) subSheets[k + a] = subs[k].length ? await composeAnim({ body: P.body, layers: subs[k] }, a) : null; }
   const skinRamp = P.layers.length ? ramp('body', P.skinName).map(rgbKey) : [], skinSet = new Set(skinRamp), skinRGB = P.layers.length ? ramp('body', P.skinName) : [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
-  const poses = [0, 1, 2, 3, 4].concat(want.drink ? [5] : []).concat(want.sit ? [6, 7] : []);
+  const poses = [0, 1, 2, 3, 4].concat(want.drink ? [5] : []).concat(want.sit ? (want.drink ? [6, 7] : [6]) : []);   // pose 7 (sitting and sipping) only for those who hold a drink
   for (const dir of DIRS) for (const pose of poses) {
     let anim, idx;
     if (P.chair) { anim = 'sit'; idx = 2; } else if (pose === 0) { anim = 'idle'; idx = 0; } else if (pose <= 4) { anim = P.run ? 'run' : 'walk'; idx = WALKF[pose - 1]; } else if (pose === 5) { anim = 'idle'; idx = 1; } else if (pose === 6) { anim = 'sit'; idx = 1; } else { anim = 'sit'; idx = 0; }
@@ -36,7 +36,7 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
           case 'hold': { const hd2 = a[2] === 'r' ? hands.r : hands.l; if (pose >= 6) break; const x = hd2.x, y = hd2.y; if (a[0] === 'bag') X.bag(f, x, y + 1, a[1]); else if (a[0] === 'purse') X.purse(f, x, y + 1, a[1]); else if (a[0] === 'briefcase') X.briefcase(f, x, y + 1, a[1]); else if (a[0] === 'helmet') X.helmetHand(f, x, y - 2, a[1]); else if (a[0] === 'phone') X.phone(f, x, y - 2); break; }
           case 'drink': { const hnd = dir === 'left' || dir === 'right' ? hands.l : hands.r; if (sipPose) X.sip(f, A, hnd, skinRGB, a[0], a[1]); else if (a[0] === 'glass') X.glass(f, hnd.x, hnd.y, a[1]); else X.bottle(f, hnd.x, hnd.y, a[1]); break; }
           case 'dog': X.dog(f, A, a[0], pose); break; case 'stroller': X.stroller(f, A, a[0], a[1]); break;
-          case 'fazzoletto': X.fazzoletto(f, A, a[0]); break; case 'flatCap': X.flatCap(f, A, a[0]); break; case 'topHat': X.topHat(f, A, a[0]); break; case 'cheer': X.cheer(f, A, skinRGB); break; case 'peakedCap': X.peakedCap(f, A, a[0], a[1]); break; case 'strawHat': X.strawHat(f, A, a[0], a[1]); break; case 'helmet': X.helmet(f, A, a[0]); break; case 'cap': X.dark_cap(f, A, a[0]); break;
+          case 'fazzoletto': X.fazzoletto(f, A, a[0]); break; case 'flatCap': X.flatCap(f, A, a[0]); break; case 'topHat': X.topHat(f, A, a[0]); break; case 'cheer': X.cheer(f, A, skinRGB); break; case 'peakedCap': X.peakedCap(f, A, a[0], a[1]); break; case 'strawHat': X.strawHat(f, A, a[0], a[1]); break; case 'towel': if (pose >= 6) X.towel(f, A, a[0], a[1]); break; case 'helmet': X.helmet(f, A, a[0]); break; case 'cap': X.dark_cap(f, A, a[0]); break;
           default: break;
         }
       }

@@ -123,15 +123,23 @@ const TYPES = [
   // the carrettiere of the Sicilian cart (src/carrozze.js and src/carretto.js put him on the bench): flat cap, white moustache, rolled shirt, brown waistcoat. Not part of the crowd (weight 0 below)
   { id: 'carrettiere', gen: false, age: 'adult', skin: '#b98a62', hair: '#d8d4cc', hairStyle: 'short', face: { beard: 'moustache', beardCol: '#d8d4cc' }, top: '#ece4cf', sleeve: 'long', waistcoat: '#5a3320',
     hat: { type: 'flatcap', col: '#3b2a1e' }, bottom: { type: 'trousers', col: '#2f2a26' }, shoes: '#2a1c14', speed: 0.8 },
+  // Summer and the sea. All of them have weight 0 in W below: the district and place profiles of src/pedestrians.js (WEAR, PROFILES) put them where they belong, and the bathers
+  // and sunbathers of the beaches take swim_*. All adults. swim: the suit tools/lpc/cast.mjs cuts from existing LPC layers (trunks, a bandeau and briefs, a one-piece), in a colour
+  // it picks per person, with the towel under the sitters; bare: no top (the generated renderer, ?pedgen, shows a skin coloured one).
+  { id: 'swim_m', swim: 'trunks', bare: true, gen: true, age: 'young', sleeve: 'none', top: '#c99872', bottom: { type: 'shorts', col: '#2fa3c8', len: 7 }, shoes: '#a8684a', speed: 1.0 },
+  { id: 'swim_w', swim: 'bikini', gen: true, sex: 'f', age: 'young', sleeve: 'none', top: '#d9443c', bottom: { type: 'shorts', col: '#d9443c', len: 3 }, legCol: '#d9a98a', shoes: '#a8684a', speed: 1.0, styles: [['long', 3], ['wavy', 2.5], ['ponytail', 2], ['bun', 2], ['bob', 1.5]] },
+  { id: 'swim_w2', swim: 'onepiece', gen: true, sex: 'f', age: 'young', sleeve: 'none', top: '#2f6bb0', bottom: { type: 'shorts', col: '#2f6bb0', len: 3 }, legCol: '#d9a98a', shoes: '#a8684a', speed: 1.0, styles: [['long', 3], ['wavy', 2.5], ['ponytail', 2], ['bun', 2], ['bob', 1.5]] },
+  { id: 'summer_m', sandals: true, gen: true, age: 'adult', sleeve: 'none', top: '#f0eee8', glasses: '#18161a', bottom: { type: 'shorts', col: '#c8b78e', len: 9 }, shoes: '#a8684a', speed: 1.1 },
+  { id: 'summer_w', sandals: true, gen: true, sex: 'f', age: 'adult', sleeve: 'none', top: '#f0eee8', bottom: { type: 'skirt', col: '#3f9ab8', len: 9 }, legCol: '#d9a98a', shoes: '#a8684a', hat: { type: 'straw', col: '#e8dca8', col2: '#d9443c' }, speed: 1.1 },
 ];
 
 // who is who: sex (default m) and age group (default adult); varyTop / varyBottom let the generator change the colours of the generic everyday types
-const FEMALE = new Set(['nonna', 'nonna2', 'nonna3', 'signora', 'signora2', 'borsa', 'tifosa', 'shopper', 'motorina', 'mamma', 'beach_w', 'suora', 'teen2', 'kid2', 'jogger2', 'dogwalker2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'glam1', 'glam2', 'vendor2', 'metal_f', 'metal_f2']);
+const FEMALE = new Set(['swim_w', 'swim_w2', 'summer_w', 'nonna', 'nonna2', 'nonna3', 'signora', 'signora2', 'borsa', 'tifosa', 'shopper', 'motorina', 'mamma', 'beach_w', 'suora', 'teen2', 'kid2', 'jogger2', 'dogwalker2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'glam1', 'glam2', 'vendor2', 'metal_f', 'metal_f2']);
 const AGE = { kid: 'kid', kid2: 'kid', tifoso_kid: 'kid', scuola: 'kid', teen: 'teen', teen2: 'teen', ragazzo: 'young', ragazzo2: 'young', skinny: 'young', tuta: 'young', motorino: 'young', motorina: 'young', nightboy: 'young', nightboy2: 'young', nightgirl: 'young', nightgirl2: 'young', nightgirl3: 'young', dj: 'young', tifoso: 'young', tifosa: 'young', jogger: 'young', jogger2: 'young', hooded: 'young', glam1: 'young', glam2: 'young', glam3: 'young',
   nonna: 'old', nonna2: 'old', nonna3: 'old', nonno: 'old', nonno_gilet: 'old', coppola: 'old', coppola2: 'old', tifoso_nonno: 'old', dogwalker2: 'old', client: 'old', priest: 'old', suit2: 'old', beach_m: 'young', beach_w: 'young', cameriere: 'young', mamma: 'adult' };
-const SIT_TYPES = new Set();   // people with a drink (the night and metal looks) can sit on the ground; the LPC atlas holds the sit cells for them only, to keep its memory down
-const VARY_TOP = new Set(['tourist', 'tourist2', 'teen', 'teen2', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'signora2', 'kid', 'kid2', 'shopper', 'mamma', 'motorino', 'motorina', 'skinny', 'nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'jogger', 'jogger2', 'dogwalker', 'dogwalker3', 'beach_w']);
-const VARY_BOTTOM = new Set(['teen', 'ragazzo', 'ragazzo2', 'motorino', 'skinny', 'nightboy2', 'nightgirl2', 'dogwalker', 'kid']);
+const SIT_TYPES = new Set(['swim_m', 'swim_w', 'swim_w2']);   // people with a drink (the night and metal looks) and the swimmers (sunbathers on a towel) can sit on the ground; the LPC atlas holds the sit cells for them only, to keep its memory down
+const VARY_TOP = new Set(['summer_m', 'summer_w', 'tourist', 'tourist2', 'teen', 'teen2', 'ragazzo', 'ragazzo2', 'borsa', 'signora', 'signora2', 'kid', 'kid2', 'shopper', 'mamma', 'motorino', 'motorina', 'skinny', 'nightboy', 'nightboy2', 'nightgirl', 'nightgirl2', 'nightgirl3', 'jogger', 'jogger2', 'dogwalker', 'dogwalker3', 'beach_w']);
+const VARY_BOTTOM = new Set(['summer_m', 'teen', 'ragazzo', 'ragazzo2', 'motorino', 'skinny', 'nightboy2', 'nightgirl2', 'dogwalker', 'kid']);
 for (const t of TYPES) { if (FEMALE.has(t.id)) t.sex = 'f'; if (!t.age) t.age = AGE[t.id] || 'adult'; if (VARY_TOP.has(t.id)) t.varyTop = true; if (VARY_BOTTOM.has(t.id)) t.varyBottom = true; if (t.id.startsWith('amico')) t.age = 'young'; }
 
 // Crowd weights per zone: [vicoli, main street, market, tourist, match-day / Libertà-Politeama]
@@ -143,6 +151,7 @@ const W = {
   tuta: [5, 4, 3, 2, 3], skinny: [4, 5, 3, 3, 3], motorino: [3, 2, 3, 1, 2], motorina: [2, 2, 2, 1, 2], nonno_gilet: [5, 2, 5, 1, 1], nonna2: [6, 3, 7, 1, 1.5], nonna3: [5, 2, 5, 1, 1],
   pescivendolo: [0.5, 0, 8, 0, 0], macellaio: [0.3, 0, 4, 0, 0], shopper: [2, 5, 3, 3, 3], beach_m: [0.5, 1.5, 0.5, 3, 0.5], beach_w: [0.5, 1.5, 0.5, 3, 0.5], mamma: [3, 3, 2, 2, 2],
   wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0], cocchiere: [0, 0, 0, 0, 0], carrettiere: [0, 0, 0, 0, 0],
+  swim_m: [0, 0, 0, 0, 0], swim_w: [0, 0, 0, 0, 0], swim_w2: [0, 0, 0, 0, 0], summer_m: [0, 0, 0, 0, 0], summer_w: [0, 0, 0, 0, 0],   // the places add these (see the header of the summer types above)
   scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
 };
 // Zones: [vicoli, main street, market, tourist, match-day, movida]. Zone 5 only exists after dark (Sant'Anna, Vucciria).
@@ -171,7 +180,7 @@ for (const id of ['metal_long', 'metal_vest', 'metal_leather', 'metal_bald', 'me
 // Every type becomes n different people (more for the common types), each built once by the generator with a fixed seed so the crowd looks the same on every load.
 // A cast entry is the spec of one person plus what the crowd needs: id (its type), w / wn (day and night weights per zone, already divided by the entries of the type), n.
 export const CAST_SIZE = 84;   // entries shared out by crowd weight; the minimums below come on top
-const ENTRY_MIN = { beach_m: 4, beach_w: 4, vendor: 3, vendor2: 3, fruttivendolo: 2, pescivendolo: 2, macellaio: 2, tifoso: 3, tifoso2: 3, tifosa: 3, tifoso_kid: 2, tifoso_nonno: 2, jogger: 2, jogger2: 2, dogwalker: 2, dogwalker2: 2, dogwalker3: 2, metal_long: 3, metal_vest: 3, metal_leather: 3, metal_bald: 2, metal_f: 3, metal_f2: 2, nightboy: 2, nightboy2: 2, nightgirl: 2, nightgirl2: 2, nightgirl3: 2, wheelchair: 1 };
+const ENTRY_MIN = { swim_m: 4, swim_w: 4, swim_w2: 3, summer_m: 3, summer_w: 3, beach_m: 4, beach_w: 4, vendor: 3, vendor2: 3, fruttivendolo: 2, pescivendolo: 2, macellaio: 2, tifoso: 3, tifoso2: 3, tifosa: 3, tifoso_kid: 2, tifoso_nonno: 2, jogger: 2, jogger2: 2, dogwalker: 2, dogwalker2: 2, dogwalker3: 2, metal_long: 3, metal_vest: 3, metal_leather: 3, metal_bald: 2, metal_f: 3, metal_f2: 2, nightboy: 2, nightboy2: 2, nightgirl: 2, nightgirl2: 2, nightgirl3: 2, wheelchair: 1 };
 const wsum = id => { const w = W[id] || [1, 1, 1, 1, 1], n = NW[id] || w.map((x, z) => x * (NIGHT_MULT[id] ?? 1)); return w.reduce((a, b) => a + b, 0) + n.reduce((a, b) => a + b, 0) * 0.6; };
 export const VARIANTS = [];
 {
@@ -183,7 +192,7 @@ export const VARIANTS = [];
       const seed = hashStr(t.id) + k * 7919;
       let sp;
       if (t.pair) sp = { ...t, pair: t.pair.map((p, i) => makePerson({ ...p, sex: i ? 'f' : 'm', age: 'young', gen: true }, k + i, seed + i * 101)), skin: '#000', top: '#000', bottom: { type: 'trousers', col: '#000' }, shoes: '#000', hair: '#000' };
-      else sp = makePerson(t, k, seed);
+      else { sp = makePerson(t, k, seed); if (t.bare) sp.top = sp.skin; }
       sp.n = n; sp.w = wz.map(x => x / n); sp.wn = wn.map(x => x / n);
       sp.sit = !sp.pair && !sp.dog && !sp.chair && !sp.stroller && !t.run && !(t.hat && (t.hat.type === 'peaked' || t.hat.type === 'helmet')) && (!!sp.drink || SIT_TYPES.has(t.id));   // can sit on the ground (spawnCrowd pose 'sit'): people with a drink and the young everyday types
       VARIANTS.push(sp);
