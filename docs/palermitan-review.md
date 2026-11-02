@@ -414,3 +414,49 @@ The achievement: "Sutta l’Arcu ri Cutò" (en: Under the Cutò Arch), note "Pas
 | --- | --- |
 | Dottò BIP, lei è un BIP! | Doctor BEEP, you are a BEEP! |
 | Un u rissi iu, u rissi n'autru. | It was not me who said it, it was someone else. |
+
+## U cuinnutu (assets/missions/lines.js, NIGHT_CLIENTS.cuinnutu)
+
+A man in Piazza Sferracavallo, nervous and failing to hide it, asks you to take him to the Hotel Eufemia in Isola delle Femmine, "that is it". A nod to a local story: no name, no woman mentioned at all, nothing explicit. The jokes are on his nerves and on the driver's deadpan. His ambient lines come in this order (phone, hurry, phone, doubt, hurry, phone); then, by distance, `near` (slow down, he does not want to know), `near2` and `close` (wait for me), and at the door `arrive` ("accumpagnami"). Spelling follows your rules (stressed o to ua/uo, stressed e to ia/ie, r before a consonant to i); the words I am least sure of: "puaitti", "siantu", "viaru", "vuagghiu", "truappi pinsiari", "Fìmmini", "svinimiaintu".
+
+| who and when | Palermitan | English subtitle |
+| --- | --- | --- |
+| client, flag | Lapista! Runami un passaggiu, amunì! Sugnu calmissimu, eh! | Driver! Give me a lift, come on! I am very calm, eh! |
+| client, flag | Ehi, tu! Fermati, ca haiu pressa... ma sugnu calmu! | Hey, you! Stop, I am in a hurry... but I am calm! |
+| client, flag | Lapista! Ccà! Nenti ri gravi, mi ci vo sulu un passaggiu! | Driver! Here! Nothing serious, I only need a lift! |
+| client, board | Bongiornu. Sugnu calmu. Calmissimu. Talìa, un mi trema mancu a manu. | Good day. I am calm. Very calm. Look, my hand is not even shaking. |
+| client, board | Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nenti. | Do not worry, I am calm. Talk if you like, I hear nothing. |
+| client, ask | Mi puaitti all’Hotel Eufemia, all’Isula ri Fìmmini. Cucì, basta. | Take me to the Hotel Eufemia, in Isola delle Femmine. That is it. |
+| client, ask | Hotel Eufemia, all’Isula ri Fìmmini. Nenti ri chiù, nenti ri menu. Cucì. | Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it. |
+| client, ask | Amunì all’Hotel Eufemia. Un ti spiegu nenti, tantu sugnu calmu. | Let us go to the Hotel Eufemia. I will not explain, I am calm anyway. |
+| client, ambient | Un mumentu, talìu u cillulari... nenti. Megghiu accussì. | One moment, I check the phone... nothing. Better that way. |
+| client, ambient | Ju sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì. | I am calm, but you keep at it, eh? Faster, come on. |
+| client, ambient | Cuntrollu n’autra vota u cillulari. Nenti. Cchiù nenti c’è, cchiù mi preoccupu. | I check the phone again. Nothing. The more nothing there is, the more I worry. |
+| client, ambient | Dimmi na cosa: si ti dicu ca sugnu tranquillu, ti pari ca è viaru? | Tell me something: if I say I am calm, does it seem true to you? |
+| client, ambient | Ju un ci vaiu pi cuntrullari nenti, eh. Ci vaiu... pi ripusarimi. | I am not going there to check anything, eh. I am going... to rest. |
+| client, ambient | Cchiù prestu, pi favuri! No pirchì... sulu pirchì sì. | Faster, please! Not for any reason... just because. |
+| client, ambient | U cillulari è quasi scarricu. Un fa nenti. Un fa nenti. | The phone is almost flat. Never mind. Never mind. |
+| client, near | Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nenti! | Wait, slowly! Slowly, slowly... I do not want to know anything! |
+| client, near2 | Rallenta... no, un rallintari. Sì, rallenta. Un mi puazzu firari i nuddu, mancu ri mia. | Slow down... no, do not. Yes, slow down. I cannot trust anybody, not even myself. |
+| client, close | Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Forsi. | Stop here... no, keep going... no, stop. Wait for me, I will be a minute. Maybe. |
+| client, fast | Maronna! Cchiù araciu... no, un araciu... boh! Sugnu calmu! | Madonna! Slower... no, not slower... who knows! I am calm! |
+| client, drift | Ohi! Mi veni ’nu svinimiaintu! Ma sugnu calmu! | Ohi! I am going to faint! But I am calm! |
+| client, wheels | Du roti! Sugnu calmu! Sugnu calmu! | Two wheels! I am calm! I am calm! |
+| client, miss | Araciu, ca haiu già truappi pinsiari! | Easy, I already have too many thoughts! |
+| client, hitPed | Chi fu? Un mi ci mettiri puru chistu, ca sugnu calmu! | What was that? Do not add this one too, I am calm! |
+| client, hitWall | Chi botta! Un fa nenti, sugnu calmu... sugnu calmu... | What a bump! Never mind, I am calm... I am calm... |
+| client, late | Curri, ca mi veni l’ansia! Sugnu calmu, ma curri! | Hurry, my anxiety is coming! I am calm, but hurry! |
+| client, arrive | Teni ’sti picciuli. Aspettami ccà... no, un aspittari. Anzi sì. Anzi... accumpagnami. | Take this money. Wait for me here... no, do not wait. Actually yes. Actually... come with me. |
+| client, arrive | Grazzi. Va beni, trasu. Tu aspetta ccà. O veni cu mia? Accumpagnami, va. | Thanks. Fine, I am going in. You wait here. Or come with me? Come with me, go on. |
+| client, arrive | Teni i picciuli. Sugnu calmu, talìa: mi trema sulu a facci. | Keep the money. I am calm, look: only my face is shaking. |
+| client, fail | Un fa nenti, ci vaiu a pedi. Tantu sugnu calmu. | Never mind, I will go on foot. I am calm anyway. |
+| driver, board | Bongiornu. All’Isula ri Fìmmini, allura. | Good day. To Isola delle Femmine, then. |
+| driver, depart | Annamu. Calmi, calmi. | Let us go. Nice and calm. |
+| driver, ask | Hotel Eufemia, certu. Calmissimu. | Hotel Eufemia, sure. Very calm. |
+| driver, ambient | Certu. Calmissimu. | Sure. Very calm. |
+| driver, ambient | Mmh. | Mm. |
+| driver, ambient | Chi ti pozzu diri. | What can I tell you. |
+| driver, near | Rallentu. Pi mia è uguali. | Slowing down. It is all the same to me. |
+| driver, near2 | Ci semu quasi. | Nearly there. |
+| driver, close | Mi fermu unni voi tu. | I will stop wherever you like. |
+| driver, arrive | Ti aspettu ccà. U tassametru, però, un aspetta. | I will wait here. The meter, though, does not. |

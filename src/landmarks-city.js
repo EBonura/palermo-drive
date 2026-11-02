@@ -16,6 +16,7 @@ import { STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, GYMNASIUM, VILLA_GIULIA_GA
 import { MONDELLO_LANDMARKS } from './lmc-mondello.js';
 import { GATES } from './lmc-gates.js';
 import { ARCO_CUTO } from './lmc-cuto.js';   // the Arco di Cutò and the front of the Palazzo Filangeri di Cutò on Via Maqueda (src/lmc-cuto.js)
+import { EUFEMIA } from './lmc-eufemia.js';   // the sign of the Hotel Eufemia in Isola delle Femmine, the destination of the U cuinnutu fare (src/lmc-eufemia.js)
 
 export const CITY_LANDMARKS = [
   POLITEAMA, STADIO, UTVEGGIO, SANTUARIO, ZISA, CUBA, EREMITI, PONTE_AMM, NORMANNI,
@@ -26,4 +27,5 @@ export const CITY_LANDMARKS = [
   ...MONDELLO_LANDMARKS,
   ...GATES,
   ARCO_CUTO,
+  EUFEMIA,
 ];

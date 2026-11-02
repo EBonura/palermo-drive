@@ -513,7 +513,7 @@ function build(env) {
   const slots = [];
   const mkSlot = (o, key) => { const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
-  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.nc ? { nc: f.nc, night: true } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
+  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area.
   mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: () => { const a = SNAP['rave:karcere'], b = SNAP['rave:site']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 650 }; } }, 'rave:karcere');
@@ -629,7 +629,11 @@ function build(env) {
   const segDist = (px, pz, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz, t = l2 ? clamp(((px - a[0]) * dx + (pz - a[1]) * dz) / l2, 0, 1) : 0; return Math.hypot(px - a[0] - dx * t, pz - a[1] - dz * t); };
   function leashArea(s) {
     if (s.leash) return s.leash();
-    if (s.kind === 'fare' || s.kind === 'urgent') { const d = fares.state && fares.state.dest; return { a: [s.x, s.z], b: d ? [d.x, d.z] : [s.x, s.z], r: 520 }; }
+    if (s.kind === 'fare' || s.kind === 'urgent') {   // the corridor from the pick-up to the destination, wide enough for the baked road, which can bend far from the straight line
+      const f = fares.state, d = f && f.dest, A = [s.x, s.z], B = d ? [d.x, d.z] : A;
+      if (f && f.pts && !f.leashR) { let m = 0; for (let i = 0; i + 1 < f.pts.length; i += 2) m = Math.max(m, segDist(f.pts[i], f.pts[i + 1], A, B)); f.leashR = Math.max(520, m + 300); }
+      return { a: A, b: B, r: f && f.leashR || 520 };
+    }
     if (s.kind === 'race') { const T0 = TRACKS[s.def.id], p = T0 && T0.pts; if (p && p.length > 1) { let cx = 0, cz = 0; for (let i = 0; i < p.length; i += 2) { cx += p[i]; cz += p[i + 1]; } cx /= p.length / 2; cz /= p.length / 2; let r = 0; for (let i = 0; i < p.length; i += 2) r = Math.max(r, Math.hypot(p[i] - cx, p[i + 1] - cz)); return { a: [cx, cz], b: [cx, cz], r: r + 320 }; } }
     return { a: [s.x, s.z], b: [s.x, s.z], r: s.kind === 'pub' ? 480 : 520 };
   }
