@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 import { pairs, rng } from './core.js';
+import { createWake } from './sea-wake.js';   // the wake of a lapa on floats (src/sea-wake.js)
 
 export const SEA_Y = -0.2;   // the water surface (src/vehicle-water.js floats on it)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -750,16 +751,16 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
 
   // ring and foam patch on the surface
   const RING_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const RING_FRAG = 'uniform float uP; uniform float uA; varying vec2 vUv;\n' +
+  const RING_FRAG = 'uniform float uP; uniform float uA; uniform float uF; varying vec2 vUv;\n' +
     'void main(){ vec2 c = vUv - 0.5; float r = length(c) * 2.0, ang = atan(c.y, c.x);\n' +
     ' float wob = 0.035 * sin(ang * 7.0 + uP * 3.0) + 0.025 * sin(ang * 13.0 - uP * 5.0);\n' +
     ' float R = 0.08 + 0.92 * uP;\n' +
     ' float ring = 1.0 - smoothstep(0.0, 0.10, abs(r - R + wob));\n' +
-    ' float foamPatch = (1.0 - smoothstep(0.0, R * 0.9 + wob, r)) * (0.55 - 0.35 * uP);\n' +
+    ' float foamPatch = (1.0 - smoothstep(0.0, R * 0.9 + wob, r)) * (0.55 - 0.35 * uP) * uF;\n' +
     ' float a = (ring * 0.85 + foamPatch) * uA * (1.0 - uP * 0.5) * (1.0 - smoothstep(0.9, 1.0, r));\n' +
     ' if (a < 0.01) discard; gl_FragColor = vec4(0.93, 0.97, 1.0, a); }';
   const rings = [0, 1].map(() => {
-    const mat = new THREE.ShaderMaterial({ uniforms: { uP: { value: 1 }, uA: { value: 0 } }, vertexShader: RING_VERT, fragmentShader: RING_FRAG, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
+    const mat = new THREE.ShaderMaterial({ uniforms: { uP: { value: 1 }, uA: { value: 0 }, uF: { value: 1 } }, vertexShader: RING_VERT, fragmentShader: RING_FRAG, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat);
     m.visible = false; m.frustumCulled = false; m.renderOrder = 2; scene.add(m); return m;
   });
@@ -790,7 +791,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
       emit(spray, { x: x + Math.cos(a) * 0.8, y: SEA_Y + 0.3, z: z + Math.sin(a) * 0.8, vx: Math.cos(a) * h, vy: 1.4 + Math.random() * 2.6, vz: Math.sin(a) * h,
         life: 1.2 + Math.random() * 0.9, s0: 0.9, s1: 3.2 + Math.random() * 1.6, a0: 0.5, g: 1.2, drag: 0.8, r: 0.96, gc: 0.98, b: 1 });
     }
-    rings.forEach((m, i) => { m.position.set(x, SEA_Y + 0.04, z); m.scale.setScalar(i ? 22 : 16); m.visible = true; });
+    rings.forEach((m, i) => { m.material.uniforms.uF.value = 1; m.position.set(x, SEA_Y + 0.04, z); m.scale.setScalar(i ? 22 : 16); m.visible = true; });
     splashSound(speed);
   }
   let ac = null;
@@ -806,29 +807,31 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     } catch (e) { /* no audio: fine */ }
   }
 
-  // A lapa on floats (src/vehicle-water.js): foam trailing from the stern, a bow wave and spray when fast, a splash on the way in. The same particles as the drowning splash.
-  let wakeAcc = 0;
+  // A lapa on floats (src/vehicle-water.js): the wake is a flat mesh on the water (src/sea-wake.js: a narrow V, foam lines and churn), and above 12 m/s a few small drops come off the bow.
+  // wakeFed says wake() ran this frame, so update() does not fade the rows a second time.
+  const wk = createWake({ scene, seaY: SEA_Y, uniforms });
+  let wakeAcc = 0, wakeFed = false;
   function wake(car, dt) {
-    const sp = Math.abs(car.vf || 0), sn = Math.sin(car.th), cs = Math.cos(car.th), w = car.wet || 0;
-    wakeAcc += dt * (4 + sp * 1.5) * w;
+    wakeFed = true; wk.step(dt, car);
+    const sp = Math.abs(car.vf || 0), sn = Math.sin(car.th), cs = Math.cos(car.th);
+    if (sp < 12 || (car.wet || 0) < 0.5) { wakeAcc = 0; return; }
+    wakeAcc += dt * (sp - 12) * 3.5;
     while (wakeAcc >= 1) {
       wakeAcc -= 1;
-      for (const sg of [-1, 1]) {
-        emit(spray, { x: car.x - sn * 1.5 + cs * 0.55 * sg, y: SEA_Y + 0.05, z: car.z - cs * 1.5 - sn * 0.55 * sg, vx: cs * sg * (0.5 + sp * 0.035) + car.vx * 0.08, vy: 0, vz: -sn * sg * (0.5 + sp * 0.035) + car.vz * 0.08,
-          life: 1.5, s0: 0.5, s1: 1.5 + sp * 0.05, a0: 0.5, drag: 1.1, r: 0.96, gc: 0.98, b: 1 });
-        if (sp > 5) emit(spray, { x: car.x + sn * 1.5 + cs * 0.5 * sg, y: SEA_Y + 0.15, z: car.z + cs * 1.5 - sn * 0.5 * sg, vx: cs * sg * (0.6 + Math.random() * 0.8) + car.vx * 0.2, vy: 1.4 + Math.random() * 1.6 + sp * 0.04, vz: -sn * sg * (0.6 + Math.random() * 0.8) + car.vz * 0.2,
-          life: 0.7 + Math.random() * 0.4, s0: 0.14 + Math.random() * 0.1, s1: 0.1, a0: 0.85, g: 9.8, r: 0.92, gc: 0.97, b: 1 });
-      }
+      const sg = Math.random() < 0.5 ? -1 : 1, h = 0.8 + Math.random() * 0.8;
+      emit(spray, { x: car.x + sn * 1.3 + cs * 1.1 * sg, y: SEA_Y + 0.08, z: car.z + cs * 1.3 - sn * 1.1 * sg, vx: cs * sg * h + car.vx * 0.6, vy: 1.3 + Math.random() * 1.2, vz: -sn * sg * h + car.vz * 0.6,
+        life: 0.3 + Math.random() * 0.25, s0: 0.06 + Math.random() * 0.05, s1: 0.04, a0: 0.7, g: 9.8, r: 0.96, gc: 0.98, b: 1 });
     }
   }
-  function dip(x, z, speed, vx = 0, vz = 0) {   // the lapa lands on the water on its floats: spray and a thump, no rings and no game over
-    const n = 18 + Math.min(40, speed * 1.6);
+  let dipT = -1, dipK = 0;
+  function dip(x, z, speed, vx = 0, vz = 0) {   // the lapa lands on the water on its floats: a few small drops, one flat ripple and a thump, no game over
+    const n = 10 + Math.min(26, speed * 1.2);
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * 6.283, h = 0.5 + Math.random() * (1.2 + speed * 0.05), up = 1.8 + Math.random() * (3 + speed * 0.1);
-      emit(spray, { x: x + Math.cos(a) * 0.4, y: SEA_Y + 0.1, z: z + Math.sin(a) * 0.4, vx: Math.cos(a) * h + vx * 0.1, vy: up, vz: Math.sin(a) * h + vz * 0.1,
-        life: 0.7 + Math.random() * 0.6, s0: 0.12 + Math.random() * 0.12, s1: 0.1, a0: 0.9, g: 9.8, r: 0.92, gc: 0.97, b: 1 });
+      const a = Math.random() * 6.283, h = 0.5 + Math.random() * (1 + speed * 0.04), up = 1.6 + Math.random() * (2 + speed * 0.06);
+      emit(spray, { x: x + Math.cos(a) * 0.5, y: SEA_Y + 0.08, z: z + Math.sin(a) * 0.5, vx: Math.cos(a) * h + vx * 0.1, vy: up, vz: Math.sin(a) * h + vz * 0.1,
+        life: 0.35 + Math.random() * 0.4, s0: 0.06 + Math.random() * 0.06, s1: 0.04, a0: 0.75, g: 9.8, r: 0.96, gc: 0.98, b: 1 });
     }
-    for (let i = 0; i < 8; i++) { const a = Math.random() * 6.283, h = 0.3 + Math.random() * 1.2; emit(spray, { x: x + Math.cos(a) * 0.7, y: SEA_Y + 0.2, z: z + Math.sin(a) * 0.7, vx: Math.cos(a) * h, vy: 0.8 + Math.random() * 1.4, vz: Math.sin(a) * h, life: 1 + Math.random() * 0.6, s0: 0.8, s1: 2.6, a0: 0.45, g: 1.2, drag: 0.8, r: 0.96, gc: 0.98, b: 1 }); }
+    if (!S.on) { dipT = 0; dipK = clamp(speed / 12, 0.4, 1); rings[0].material.uniforms.uF.value = 0; rings[0].position.set(x, SEA_Y + 0.04, z); rings[0].scale.setScalar(5 + Math.min(speed, 20) * 0.35); rings[0].visible = true; }
     splashSound(Math.min(speed, 12) * 0.5);
   }
 
@@ -933,6 +936,11 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     const sc = _sz.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
     spray.mat.uniforms.uScale.value = sc; bubbles.mat.uniforms.uScale.value = sc;
     stepPoints(spray, dt); stepPoints(bubbles, dt);
+    if (wakeFed) wakeFed = false; else wk.step(dt, null);
+    if (dipT >= 0) {   // the ripple of a landing on floats
+      dipT += dt;
+      if (S.on || dipT >= 1.1) { dipT = -1; if (!S.on) rings[0].visible = false; } else { const m = rings[0].material.uniforms; m.uP.value = dipT / 1.1; m.uA.value = 0.8 * dipK; }
+    }
     if (S.on) {
       if (S.game.state !== 'over') endDrown(); // somebody else (the shell) took the game out of 'over'
       else { stepDrown(dt); if (S.shown) pollPad(); }
