@@ -68,10 +68,11 @@ export const TEX = {
     for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '104,98,84' : '140,131,112'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
     speckle(g, S, 7000, ['#9a937f', '#736c5a', '#a39c88', '#675f4e', '#8a8370'], 1, 3);
   }, 3),
-  grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is olive with dry straw patches
-    g.fillStyle = '#6b7c43'; g.fillRect(0, 0, S, S);
-    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(${Math.random() < 0.6 ? '150,140,86' : '70,92,50'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 50), rnd(10, 34), rnd(0, 3), 0, 7); g.fill(); }
-    speckle(g, S, 7000, ['#7c8a4c', '#5a6e38', '#8c9356', '#667840', '#9a9560'], 1, 3);
+  grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is dry olive and khaki with straw, dark leaf litter and the odd clump of scrub (the Favorita under its oaks and pines is mostly bare dry ground)
+    g.fillStyle = '#6f6c3e'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 22; i++) { g.fillStyle = `rgba(${Math.random() < 0.55 ? '158,146,88' : Math.random() < 0.5 ? '62,52,34' : '70,88,48'},${rnd(0.14, 0.34)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 50), rnd(10, 34), rnd(0, 3), 0, 7); g.fill(); }
+    for (let i = 0; i < 16; i++) { const x = rnd(0, S), y = rnd(0, S), r = rnd(3, 8); g.fillStyle = `rgba(${Math.random() < 0.7 ? '46,58,32' : '84,72,40'},${rnd(0.35, 0.6)})`; for (const dx of [0, -S]) for (const dy of [0, -S]) { g.beginPath(); g.ellipse(x + dx, y + dy, r, r * rnd(0.6, 0.9), rnd(0, 3), 0, 7); g.fill(); } }   // scrub and bramble clumps
+    speckle(g, S, 7000, ['#7c7a48', '#5e5f36', '#8f8a52', '#675f3a', '#9a945c', '#4e4a2e'], 1, 3);
   }, 3),
   sand: canvasTex(256, (g, S) => { // beaches of the world tiles (Mondello: pale, fine, slightly rippled sand)
     g.fillStyle = '#ddd3b9'; g.fillRect(0, 0, S, S);
