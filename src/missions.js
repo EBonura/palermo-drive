@@ -620,7 +620,7 @@ function build(env) {
     const ev = S.ev; if (!ev || ev.failT > 0) return;
     ev.failT = 3.6; leash.t = LEASH_T; leash.out = false; hud.leash(false); aim.on = false; S.phase = 'done';
     hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("T'alluntanasti truappu", 'You went too far away')}</span></div>`, 3.2);
-    say(pick(LEASH_LINES), driverPos, 0.2);
+    say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed();   // a friend riding along (src/event-rave.js) gets out
   }
   const LEASH_LINES = [['Unni stai iennu?! Era ri dda banna!', 'Where are you going?! It was somewhere else!'], ['Vabbè, lassamu piaiddiri. Un mi puazzu firari i nuddu.', 'Fine, I give up. You cannot count on anyone.']];
   function updateLeash(dt) {

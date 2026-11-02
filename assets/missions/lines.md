@@ -534,9 +534,9 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   __
 - Fermati, fermati!  
   _Stop, stop!_
-- Lapista! Mi porti?  
+- Lapista! Mi puoiti?  
   _Driver! Can you take me?_
-- Ehi! Libero?!  
+- Ehi! Libiru?!  
   _Hey! Free?!_
 
 ### call: pulle
@@ -550,20 +550,36 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### call: food
 
-- Aiutooo! Mi sono scappate le {items}!  
+- Aiutooo! Mi sunnu scappati i {items}!  
   _Heeelp! My {items} ran away!_
-- Fermati! Le {items} sono volate via!  
+- Fermati! I {items} sunnu vulati via!  
   _Stop! The {items} flew off!_
-- Ao! Aiutami! Ho perso le {items}!  
+- Ao! Aiutami! Haiu pirdutu i {items}!  
   _Hey! Help me! I lost the {items}!_
+
+### call: rave
+
+- Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!  
+  _Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!_
+- Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!  
+  _Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!_
+- Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!  
+  _No speakers, no rave! Take this stuff and run, but carefully!_
+
+### call: leaf
+
+- Psst cucì, a'gghiri nni Cipressi p'accattari... vabbé u sai, runami un passaggio amunì  
+  _Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on_
+- Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.  
+  _We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention._
 
 ### call: race
 
-- Chi vince, paga! Amunì!  
+- Cu vinci, paga! Amunì!  
   _Winner buys! Let's go!_
-- Fermati qua e corri con noi!  
+- Fermati ccà e cuorri cu nuatri!  
   _Stop here and race with us!_
-- Tre, due, uno... quasi!  
+- Tri, dui, unu... cuasi!  
   _Three, two, one... almost!_
 
 ### a pulle by day: ask
@@ -625,13 +641,13 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### food: thanks
 
-- Grazie, grazie! Sei un angelo con tre ruote!  
+- Grazie, grazie! Si ’n’angilu cu tri ruoti!  
   _Thank you, thank you! You are an angel with three wheels!_
-- Mi hai salvato la giornata! Ti offro qualcosa!  
+- M’ha saivatu a iurnata! Ti offru quarchi cosa!  
   _You saved my day! Let me treat you!_
 
 ### food: none
 
-- Niente?! Pazienza... torna quando hai più fortuna.  
+- Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.  
   _Nothing?! Never mind... come back when you are luckier._
 
