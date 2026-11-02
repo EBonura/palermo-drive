@@ -57,7 +57,7 @@ function dressTo(rig) {
   else {   // the two-wheelers, the cart and the car: where the 3D driver it replaces is, with the head at the same height
     rig.driver.updateWorldMatrix(true, true); const box = new THREE.Box3().setFromObject(rig.driver).applyMatrix4(rig.driver.matrixWorld.clone().invert());
     if (box.isEmpty()) { const st = rig.seats?.[0] || { x: 0, y: 1, z: 0 }; box.set(new THREE.Vector3(st.x - tp[0], st.y - tp[1], st.z - tp[2]), new THREE.Vector3(st.x - tp[0], st.y - tp[1] + 0.8, st.z - tp[2])); }
-    mesh.position.set((box.min.x + box.max.x) / 2, box.max.y - h, (box.min.z + box.max.z) / 2);
+    mesh.position.set((box.min.x + box.max.x) / 2, box.max.y - h, rig.kind === 'bike' ? box.min.z + (rig.type === 'scooterone' ? 0.34 : 0.14) : (box.min.z + box.max.z) / 2);   // on a bike the 3D rider's box reaches forward to the bars: the sprite sits back, on the saddle (the scooterone's top box needs him further forward, or the plane cuts through it)
   }
   const hidden = rig.driver.children.filter(c => c.visible); for (const c of hidden) c.visible = false;
   const rec = { rig, mesh, hidden }; rig.driver.add(mesh); dressed.add(rec);
