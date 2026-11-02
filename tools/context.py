@@ -30,7 +30,7 @@ ENDPOINTS = [
     "https://overpass.kumi.systems/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
-UA = "palermo-drive-prototype/0.1 (hobby 3D map; contact ebonura@fastly.com)"
+UA = "palermo-drive-prototype/0.1 (hobby 3D map; contact https://github.com/EBonura/palermo-drive)"
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 TILE_DIR = os.path.join(ROOT, "data", "context_tiles")

@@ -36,7 +36,7 @@ function save() {
 }
 (function load() {   // a saved driver: its pictures come back from the data URL (a few KB), no layers are fetched
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) { return; }
-  if (!s || s.v !== 1 || !s.spec || typeof s.png !== 'string') return;
+  if (!s || s.v !== 1 || !s.spec || typeof s.png !== 'string' || !s.png.startsWith('data:image/png;base64,')) return;   // only our own kind of picture: a tampered save cannot make the page fetch an address
   const img = new Image();
   img.onload = () => { if (ready) return; makeTexture(); spec = s.spec; canvas.getContext('2d').drawImage(img, 0, 0); tex.needsUpdate = true; ready = true; dressAll(); for (const f of listeners) f(); };
   img.src = s.png;
