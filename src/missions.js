@@ -96,7 +96,7 @@ function build(env) {
   };
 
   // ------------------------------------------------------------------------------------ the event overlay (src/event-hud.js)
-  const hud = createEventHud({ camera, car });
+  const hud = createEventHud({ camera, car, groundY });
   let hudUsed = false;
   const hudSetRaw = hud.set; hud.set = o => { hudUsed = true; hudSetRaw(o); };   // a module that wants the card calls set() every frame, otherwise it is hidden
   const toast = hud.toast, burst = hud.burst;

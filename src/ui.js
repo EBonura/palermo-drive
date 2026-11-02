@@ -599,10 +599,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   // ---- start picker ("Da dove parti?"): the city map or a list grouped by quartiere. Both start through startAt(). ----
   const QX = QUARTIERI.map(([name, la, lo]) => { const [x, z] = proj(la, lo); return { name, x, z }; });
-  const SP = SPOTS.map(sp => { // each start point belongs to the nearest quartiere
+  const SP = SPOTS.map(sp => { // each start point belongs to the nearest quartiere, unless it names its group (a 4th item: Politeama and Via della Libertà are 800 m and more from the Il Capo and Matteotti centres they would fall into)
     const [x, z] = proj(sp[1], sp[2]); let q = null, bd = Infinity;
     for (const c of QX) { const d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z); if (d < bd) { bd = d; q = c; } }
-    return { name: sp[0], x, z, q: q ? q.name : '' };
+    return { name: sp[0], x, z, q: sp[3] && QX.some(c => c.name === sp[3]) ? sp[3] : q ? q.name : '' };
   });
   let startView = params.get('view') === 'list' ? 'list' : 'map', listDone = false;
   const startBox = screens.start.querySelector('.pd-startlist');

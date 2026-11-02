@@ -1,7 +1,8 @@
 // The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one card at the top centre (timer, objective,
 // progress bar, a compass arrow), a big countdown, floating toasts and a results panel. The game shell leaves the top centre free for it.
-// createEventHud({ camera, car, T }) -> { set(o), clear(), count(big, sub), toast(text, sub, neg), result(html, secs), burst(), update(dt) }
+// createEventHud({ camera, car, groundY }) -> { set(o), clear(), count(big, sub), toast(text, sub, neg), result(html, secs), burst(), update(dt) }
 //   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the compass or null), ledger ([text, ...]) })
+//   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
 import * as THREE from 'three';
 
 const CSS = `
@@ -49,13 +50,20 @@ const CSS = `
 @keyframes ev-blink { 50% { opacity: .35; } }
 @keyframes ev-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-height: 520px) { #ev-hud { width: min(320px, 50vw); } .ev-arrow { width: 28px; height: 28px; } .ev-title { font-size: 13px; } .ev-card { padding: 4px 10px 8px 6px; } .ev-result { top: 20%; } }
-html.pd-title #ev-hud, html.pd-title .ev-toasts, html.pd-title .ev-result, html.pd-title .ev-count { display: none !important; }
+.ev-edge { position: fixed; z-index: 58; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; display: none; will-change: transform;
+  font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; }
+.ev-edge.on { display: block; }
+.ev-edge svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 7px rgba(255,79,163,.95)) drop-shadow(0 2px 3px rgba(0,0,0,.65)); animation: ev-edge 1.1s ease-in-out infinite; }
+.ev-edge small { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-weight: 700; font-size: 13px; letter-spacing: .08em; color: #fff; white-space: nowrap; text-shadow: 0 0 4px #0b0709, 0 1px 3px #0b0709; }
+@keyframes ev-edge { 50% { transform: scale(1.14); } }
+@media (max-height: 520px) { .ev-edge { width: 38px; height: 38px; margin: -19px 0 0 -19px; } .ev-edge small { font-size: 11px; } }
+html.pd-title .ev-edge, html.pd-title #ev-hud, html.pd-title .ev-toasts, html.pd-title .ev-result, html.pd-title .ev-count { display: none !important; }
 `;
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rand = (a, b) => a + Math.random() * (b - a);
 
-export function createEventHud({ camera, car }) {
+export function createEventHud({ camera, car, groundY }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
   const mk = (cls, html, parent = document.body, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; };
   const root = mk('', `<div class="ev-card"><div class="ev-arrow off"><svg viewBox="0 0 24 24"><path d="M12 1.5 L21 20 L12 15.5 L3 20 Z" fill="#ff4fa3" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
@@ -64,9 +72,30 @@ export function createEventHud({ camera, car }) {
   root.id = 'ev-hud';
   const q = s => root.querySelector(s);
   const elArrow = q('.ev-arrow'), elArrowSvg = q('.ev-arrow svg'), elLab = q('.ev-lab'), elTime = q('.ev-time'), elTitle = q('.ev-title'), elSub = q('.ev-sub'), elBar = q('.ev-bar'), elBarI = q('.ev-bar i'), elLedger = q('.ev-ledger');
+  const edge = mk('ev-edge', '<svg viewBox="0 0 24 24"><path d="M12 1.5 L21 20 L12 15.5 L3 20 Z" fill="#ff4fa3" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg><small></small>'), edgeSvg = edge.querySelector('svg'), edgeLab = edge.querySelector('small');
   const toasts = mk('ev-toasts'), result = mk('ev-result'), conf = mk('ev-conf'), flash = mk('ev-flash'), count = mk('ev-count');
   let target = null, resultT = 0, countT = 0, cache = '';
-  const _d = new THREE.Vector3();
+  const _d = new THREE.Vector3(), _p = new THREE.Vector3();
+  let edgeText = '';
+  // the arrow at the edge of the screen: where the target is in the camera's own frame (x right, y up, the view down -z); on the screen it needs no arrow, off it or behind it the arrow sits where the
+  // direction to it meets the border of the screen (inset from the card at the top and the touch pads at the bottom)
+  function edgeArrow() {
+    const W = innerWidth, H = innerHeight, touch = document.documentElement.classList.contains('touch'), top = 96, bot = touch ? Math.max(top + 80, H * 0.38) : H - 64, mx = 40;
+    _p.set(target.x, (groundY ? groundY(target.x, target.z) : car.y || 0) + 1.5, target.z).applyMatrix4(camera.matrixWorldInverse);
+    let dx, dy;
+    if (_p.z < -0.5) {   // in front: its place on the screen
+      const f = 1 / Math.tan(camera.fov * Math.PI / 360), nx = _p.x / -_p.z * f / camera.aspect, ny = _p.y / -_p.z * f;
+      if (Math.abs(nx) < 0.9 && ny < 0.82 && ny > -0.78) { edge.classList.remove('on'); return; }
+      dx = nx; dy = -ny;
+    } else { dx = _p.x / Math.max(1, Math.abs(_p.z)) * 2; dy = 1; }   // behind: at the bottom, towards the side it is on
+    const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const cx = W / 2, cy = (top + bot) / 2, tx = dx > 0.001 ? (W - mx - cx) / dx : dx < -0.001 ? (mx - cx) / dx : 1e9, ty = dy > 0.001 ? (bot - cy) / dy : dy < -0.001 ? (top - cy) / dy : 1e9, t = Math.min(tx, ty);
+    edge.style.transform = `translate(${(cx + dx * t).toFixed(1)}px, ${(cy + dy * t).toFixed(1)}px)`;
+    edgeSvg.style.rotate = `${(Math.atan2(dx, -dy) * 180 / Math.PI).toFixed(1)}deg`;
+    const d = Math.hypot(target.x - car.x, target.z - car.z), txt = d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d / 10) * 10 + ' m';
+    if (txt !== edgeText) { edgeText = txt; edgeLab.textContent = txt; }
+    edge.classList.add('on');
+  }
 
   addEventListener('pd-toast', e => { const d = e.detail || {}; api.toast(d.text, d.sub, d.neg); });   // other modules (src/danger.js) show a toast without owning the HUD
 
@@ -83,8 +112,8 @@ export function createEventHud({ camera, car }) {
       if (o.frac != null) elBarI.style.transform = `scaleX(${Math.min(1, Math.max(0, o.frac)).toFixed(3)})`;
       elLedger.innerHTML = o.ledger ? o.ledger.map(t => `<span>${esc(t)}</span>`).join('') : '';
     },
-    hide() { root.classList.remove('on'); target = null; cache = ''; },
-    clear() { root.classList.remove('on'); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
+    hide() { root.classList.remove('on'); edge.classList.remove('on'); target = null; cache = ''; },
+    clear() { root.classList.remove('on'); edge.classList.remove('on'); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },
     count(big, sub) { count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     toast(text, sub, neg) {
       const e = mk('ev-toast' + (neg ? ' neg' : ''), esc(text) + (sub ? `<small>${esc(sub)}</small>` : ''), toasts);
@@ -105,6 +134,7 @@ export function createEventHud({ camera, car }) {
     update(dt) {
       if (resultT > 0 && (resultT -= dt) <= 0) result.classList.remove('on');
       if (countT > 0 && (countT -= dt) <= 0) count.classList.remove('on');
+      if (!target) edge.classList.remove('on'); else edgeArrow();
       if (target) {
         camera.getWorldDirection(_d);
         elArrowSvg.style.transform = `rotate(${(Math.atan2(_d.x, _d.z) - Math.atan2(target.x - car.x, target.z - car.z)) * -180 / Math.PI}deg)`;
