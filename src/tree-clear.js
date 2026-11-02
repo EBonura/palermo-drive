@@ -4,5 +4,6 @@ export const TREE_CLEAR = [
   [648, -224, 24],   // the giant fig, crown about 40 m wide
   [704, -168, 16],   // and the second one
   [279.5, 526.8, 3.6],   // the mouth of the Arco di Cutò (src/lmc-cuto.js): the OSM palm of the palace courtyard is mapped 4 m out in the street, and the bollards would stand across the way in
+  [-1767, -4038, 4.5],   // where the access road of the Stadio Renzo Barbera (the way in to its main entrance, src/lmc-a.js) crosses the pavement of Viale del Fante
 ];
 export const treeCleared = (x, z) => { for (const c of TREE_CLEAR) if (Math.hypot(x - c[0], z - c[1]) < c[2]) return true; return false; };
