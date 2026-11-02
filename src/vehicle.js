@@ -148,8 +148,8 @@ export function createVehicle(env) {
     for (const v of roadVerts) { const d = (v[0] - x) ** 2 + (v[1] - z) ** 2; if (d < bd) { bd = d; best = v; } }
     return best;
   }
-  function placeAt(x, z) {
-    const v = nearestRoad(x, z);
+  function placeAt(x, z, th) {   // th given: exactly there, facing th (test link ?at=x,z,th: the stadium's pitch, a roof...); else on the nearest road vertex
+    const v = th === undefined ? nearestRoad(x, z) : [x, z, th];
     Object.assign(car, { x: v[0], z: v[1], th: v[2], vx: 0, vz: 0, vf: 0, steer: 0, w: 0, sIn: 0, slip: 0, drift: 0, dLatch: 0, gear: 1, shiftT: 0, psiDot: 0, scrape: 0, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, skid: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, hsCool: 0 });
     camState.init = false;
     sphere.reset();
