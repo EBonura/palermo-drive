@@ -51,7 +51,7 @@ export function createHornsEvents(X, opts = {}) {
 
   // ------------------------------------------------------------------ sound: a screech and a laugh, from Web Audio oscillators (nothing recorded)
   let ac = null, noise = null;
-  const vol = () => 0.55 * (game && game.settings && Number.isFinite(game.settings.volume) ? game.settings.volume : 0.8);
+  const vol = () => Math.max(0.001, 0.55 * (game && game.settings && Number.isFinite(game.settings.volume) ? game.settings.volume : 0.8));   // never 0: an exponential ramp to 0 throws
   function audio() {
     if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return ac; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;

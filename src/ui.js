@@ -6,7 +6,7 @@
 // units: 'kmh'|'mph', camera: 0..3 }) and then call applySettings().
 //
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
-// opens that screen (?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the side menu (?ui=collections the Collezioni
+// opens that screen (?ui=missions the Missioni list, ?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the side menu (?ui=collections the Collezioni
 // card, ?ui=start the picker, &view=list its list), ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES),
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
@@ -15,6 +15,7 @@ import { createGarageScene } from './garage-scene.js';   // the place it happens
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
 import { esc } from './esc.js';
+import { KIND_COLOR } from './event-calls.js';   // the colour of each kind of mission, for the Missioni list
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -38,6 +39,12 @@ const S = {
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
   colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
+  missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Vai', 'Go'],
+  mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mRave: ['Rave', 'Rave'], mHorns: ['Clacson', 'Horns'],
+  mDoneRow: ['Fatta', 'Done'], mTodo: ['Da fare', 'To do'], mTried: ['Provata', 'Tried'], mBest: ['Migliore', 'Best'], mRunning: ['In corso', 'Running'],
+  mNight: ['Di notte', 'At night'], mDay: ['Di giorno', 'By day'], mAny: ['Sempre', 'Any time'], mLeafNote: ['Ti chiama un amico al rave', 'A friend calls you at the rave'],
+  mOnlyNight: ['Questa missione c\'è solo di notte', 'This mission only runs at night'], mOnlyDay: ['Questa missione c\'è solo di giorno', 'This mission only runs by day'],
+  mSkipNight: ['Salta alla notte e vai', 'Skip to night and go'], mSkipDay: ['Salta al giorno e vai', 'Skip to day and go'], mGoAnyway: ['Vai lo stesso', 'Go anyway'],
   quality: ['Grafica', 'Graphics'],
   low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
   draw: ['Distanza', 'Draw distance'],
@@ -314,6 +321,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+      <button class="pd-btn" data-nav data-do="missions" type="button">${two('missions')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav></div>
@@ -361,7 +369,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
         <button class="pd-btn sm pd-grp" data-nav data-do="changeStart" type="button">${two('changeStart')}${CHEV}</button>
         <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
-        <button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}${CHEV}</button>
+        <div class="pd-sidepair"><button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}</button><button class="pd-btn sm" data-nav data-do="missions" type="button">${two('missions')}</button></div>
         <button class="pd-btn sm pd-grp" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
         <div class="pd-sideradio">
           <button class="pd-btn sm pd-radnext" data-nav data-do="radioNext" type="button"><span class="pd-in"><span class="pd-l1"><span data-k="radio"></span></span><span class="pd-l2 pd-radsub"></span></span></button>
@@ -381,6 +389,19 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <h2 class="pd-h" data-k="collections" data-two></h2>
       <div class="pd-colrows"></div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
+    </div>`);
+
+  // missions: every mission of the game, grouped, each with a Vai button (the rows are made in renderMissions(), from missions.events())
+  mk('missions', '', `<div class="pd-card pd-ms">
+      <div class="pd-mshead"><button class="pd-btn sm pd-msback" data-nav data-do="back" type="button">${two('back')}</button><h2 class="pd-h" data-k="missions" data-two></h2></div>
+      <div class="pd-mscount"><b></b><span></span><i data-k="mDone"></i></div>
+      <div class="pd-colbar"><i></i></div>
+      <div class="pd-scrollwrap">
+        <div class="pd-grid pd-mslist"></div>
+        <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
+        <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
+      </div>
+      <div class="pd-msask"></div>
     </div>`);
 
   mk('garage', '', `<div class="pd-card pd-garage">
@@ -418,7 +439,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     }
     root.lang = lang;
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
-    buildCredits(); syncRadio(); startMap?.applyLang();
+    buildCredits(); syncRadio(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
   }
 
   // ---- state and screen management ----
@@ -450,6 +471,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (name === 'start') openStart();
       if (name === 'side') syncSide();
       if (name === 'collections') renderCollections();
+      if (name === 'missions') renderMissions();
       let want = lastFocus[name];
       if (!want || !want.isConnected || !want.offsetParent) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
       if (name === 'garage') want = garageUI.focusEl() || want;   // the garage focuses the current base (step 1) or tab (step 2)
@@ -534,14 +556,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // The streamer gets most of every frame while the transition covers the screen (world.hurry): the hitches are not seen.
   const hurried = async work => { if (world) world.hurry = true; try { return await work(); } finally { if (world) world.hurry = false; } };
   // Menu or picker to the game, or a new start point from the side menu: cover, place the lapa, wait for the world, reveal.
-  function startAt(x, z) {
+  // how (the Missioni list): { id: the mission to stand at (its caller is made ready), hour: jump the clock there first }
+  function startAt(x, z, how = {}) {
     if (busy) return; busy = true; gesture();
     const fromTitle = game.state === 'title';
     transition(() => hurried(async () => {
       if (!fromTitle) missions?.stop?.();
+      const at = how.id && missions?.ready?.(how.id);   // the mission's own spot beside its caller
       await placeAt(x, z); // main.js: places the lapa and resolves once the start tile is at full detail
+      if (at) vehicle.placeAt(...at);   // the nearest road vertex can be 30 m off on a long street: stand at the caller, facing along the road
       leaveTitleCam(); game.titleCam = null;
       if (fromTitle) game.start(); else game.resume();
+      if (how.hour != null) { if (fromTitle) await garageFrames(2); dispatchEvent(new CustomEvent('pd-time-hour', { detail: how.hour })); }   // from the title the clock first goes to the start time (src/daynight.js), so the skip comes after it
       stack = []; go(null);
       await settle();
     })).catch(() => {}).then(() => { busy = false; });
@@ -582,6 +608,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'credits': return go('credits', { push: true });
       case 'garage': return enterGarage();
       case 'collections': return go('collections', { push: true });
+      case 'missions': return go('missions', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
       case 'quit': return quit();
@@ -739,8 +766,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   OPTS.forEach(o => { if (o.type === 'slider') sliderEvents(screens.options.querySelector(`[data-opt="${o.key}"]`), o); });
   // The options list is a scroll area with a rail you can see and drag, a fade and a "more below" arrow while there is more.
   let lastListScroll = 0;
-  (() => {
-    const wrap = screens.options.querySelector('.pd-scrollwrap'), list = wrap.querySelector('.pd-grid');
+  const scrollRail = screen => {
+    const wrap = screen.querySelector('.pd-scrollwrap'), list = wrap.querySelector('.pd-grid');
     const rail = wrap.querySelector('.pd-rail'), thumb = wrap.querySelector('.pd-railthumb'), more = wrap.querySelector('.pd-more');
     let th = 0, room = 0;
     function sync() {
@@ -753,7 +780,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     }
     list.addEventListener('scroll', () => { lastListScroll = now(); sync(); }, { passive: true });
     new ResizeObserver(sync).observe(list);
-    new MutationObserver(sync).observe(screens.options, { attributes: true, attributeFilter: ['class'] }); // opening the screen
+    new MutationObserver(sync).observe(screen, { attributes: true, attributeFilter: ['class'] }); // opening the screen
     rail.addEventListener('wheel', e => { list.scrollTop += e.deltaY; e.preventDefault(); }, { passive: false });
     more.addEventListener('click', () => list.scrollBy({ top: list.clientHeight * .8, behavior: 'smooth' }));
     let grab = null;
@@ -766,7 +793,87 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const move = e => { if (grab != null) list.scrollTop = (e.clientY - rail.getBoundingClientRect().top - grab) / room * (list.scrollHeight - list.clientHeight); };
     rail.addEventListener('pointermove', move);
     rail.addEventListener('pointerup', () => { grab = null; }); rail.addEventListener('pointercancel', () => { grab = null; });
-  })();
+    return sync;
+  };
+  scrollRail(screens.options);
+
+  // ---- missions: every mission the game lists (missions.events()), grouped by kind, with its state and a Vai button ----
+  // Nothing about the missions is kept here: names, places and the night flag come from events(), done / best from missions.status(id). A kind this file has never heard of
+  // still gets its own group. Vai goes through startAt(), the path of the start map, so the lapa is placed on the nearest road and the world streams in under the transition.
+  const MKIND = { fare: 'mFare', urgent: 'mUrgent', food: 'mFood', race: 'mRace', pub: 'mPub', rave: 'mRave', leaf: 'mRave', horns: 'mHorns' };   // leaf joins rave: one mission each
+  const MORDER = ['fare', 'urgent', 'food', 'race', 'pub', 'rave', 'horns'];
+  const MCOL = { ...KIND_COLOR, pub: '#ffb02e' };
+  const NIGHT_HOUR = 22.5, DAY_HOUR = 12;   // where "skip to night / day" puts the clock (src/daynight.js START_HOURS.night is 22.5)
+  const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>';
+  const ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>';
+  const ICON_ANY = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>';
+  const ICON_TICK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l5 5 9-10.5"/></svg>';
+  const msScreen = screens.missions, msCard = msScreen.querySelector('.pd-ms'), msList = msScreen.querySelector('.pd-mslist'), msAsk = msScreen.querySelector('.pd-msask');
+  const syncMsRail = scrollRail(msScreen);
+  const msClosed = new Set();   // group keys the player has folded
+  let msRows = [], askFor = null;
+  const nightNow = () => game.state === 'title' ? st.timeStart === 'night' : !!(game.time && game.time.isNight);   // from the title the game opens at the chosen start time
+  const eur = v => '€ ' + v.toFixed(2).replace('.', ',');
+  const qRank = new Map(QX.map(c => [c.name, c.x * c.x + c.z * c.z]));
+  function nearestQ(x, z) { let q = '', bd = Infinity; for (const c of QX) { const d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z); if (d < bd) { bd = d; q = c.name; } } return q; }
+  function renderMissions() {
+    const i = lang === 'it' ? 0 : 1, run = missions?.state?.ev?.slot?.id;
+    msRows = (missions?.events?.() || []).map((e, n) => ({ ...e, n, ...(missions?.status?.(e.id) || {}), q: nearestQ(e.x, e.z), g: e.kind === 'leaf' ? 'rave' : e.kind }));
+    const groups = [...new Set(msRows.map(r => r.g))].sort((a, b) => ((MORDER.indexOf(a) + 1) || 99) - ((MORDER.indexOf(b) + 1) || 99));
+    const total = msRows.length, done = msRows.filter(r => r.done).length, pct = total ? Math.round(done / total * 100) : 0;
+    msScreen.querySelector('.pd-mscount b').textContent = `${done} / ${total}`;
+    msScreen.querySelector('.pd-mscount span').textContent = pct + '%';
+    msScreen.querySelector('.pd-colbar i').style.width = pct + '%';
+    const lab = k => S[MKIND[k]] ? [S[MKIND[k]][i], S[MKIND[k]][1 - i]] : [k.charAt(0).toUpperCase() + k.slice(1), ''];
+    msList.innerHTML = total ? groups.map(g => {
+      const rows = msRows.filter(r => r.g === g).sort((a, b) => (qRank.get(a.q) - qRank.get(b.q)) || a.n - b.n), open = !msClosed.has(g), [l1, l2] = lab(g), col = MCOL[g] || 'var(--pd-pink)';
+      return `<button class="pd-btn sm pd-qh pd-msgh" style="--k:${col}" data-nav data-grp="${esc(g)}" aria-expanded="${open}" type="button"><span class="pd-in"><span class="pd-l1">${esc(l1)}${l2 ? `<small>${esc(l2)}</small>` : ''}</span></span><b>${rows.filter(r => r.done).length} / ${rows.length}</b>${CHEV}</button>`
+        + (open ? rows.map(r => {
+          const when = r.night ? ['mNight', ICON_MOON] : r.day ? ['mDay', ICON_SUN] : ['mAny', ICON_ANY], off = r.night ? !nightNow() : r.day ? nightNow() : false;
+          const state = r.done ? `<span class="ok">${ICON_TICK}${S.mDoneRow[i]}</span>${r.best ? `<span>${S.mBest[i]} ${eur(r.best)}</span>` : ''}` : r.tried ? `<span>${S.mTried[i]}</span>` : `<span>${S.mTodo[i]}</span>`;
+          return `<div class="pd-msrow${r.done ? ' done' : ''}${run === r.id ? ' run' : ''}"><div class="pd-msinfo" style="--k:${MCOL[r.kind] || 'var(--pd-pink)'}"><div class="pd-msmain">
+              <div class="pd-msn">${esc(r.name)}</div>
+              <div class="pd-msm"><span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
+              <div class="pd-msm">${state}</div>
+              ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
+            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + r.name)}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span><span class="pd-l2">${S.mGo[1 - i]}</span></span></button></div>`;
+        }).join('') : '');
+    }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
+    closeAsk(true);
+    syncMsRail();
+  }
+  function toggleGroup(g) {
+    const sc = msList.scrollTop;
+    msClosed.has(g) ? msClosed.delete(g) : msClosed.add(g);
+    renderMissions(); msList.scrollTop = sc;
+    msList.querySelector(`[data-grp="${CSS.escape(g)}"]`)?.focus({ preventScroll: true });
+  }
+  // Vai: straight there, unless a mission is running (the same warning as "Back to menu") or the mission only exists at the other time of day, which is offered as a clock skip.
+  function askGo(id) {
+    const e = msRows.find(r => r.id === id); if (!e) return;
+    const want = e.night ? true : e.day ? false : null, skip = want !== null && want !== nightNow(), drop = game.state === 'pause' && !!missions?.busy?.();
+    if (!skip && !drop) return goMission(e);
+    const i = lang === 'it' ? 0 : 1, msg = k => `<div class="pd-msq"><span class="pd-l1">${esc(S[k][i])}</span><span class="pd-l2">${esc(S[k][1 - i])}</span></div>`;
+    const btn = (a, k, cls = '') => `<button class="pd-btn sm ${cls}" data-nav data-ask="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(S[k][i])}</span><span class="pd-l2">${esc(S[k][1 - i])}</span></span></button>`;
+    askFor = { e, hour: skip ? (want ? NIGHT_HOUR : DAY_HOUR) : undefined };
+    msAsk.innerHTML = `<div class="pd-msinfo" style="--k:${MCOL[e.kind] || 'var(--pd-pink)'}"><div class="pd-msmain"><div class="pd-msn">${esc(e.name)}</div><div class="pd-msm"><span>${esc(e.q)}</span></div></div></div>`
+      + (skip ? msg(want ? 'mOnlyNight' : 'mOnlyDay') : '') + (drop ? msg('quitBusy') : '')
+      + (skip ? btn('skip', want ? 'mSkipNight' : 'mSkipDay', 'drive') + btn('asis', 'mGoAnyway') : btn('asis', 'mGo', 'drive')) + btn('cancel', 'back');
+    msCard.classList.add('asking');
+    msAsk.querySelector('[data-ask]')?.focus({ preventScroll: true });
+  }
+  function closeAsk(quiet) {   // true when an answer was open (Escape closes it before it leaves the screen)
+    if (!askFor) return false;
+    const id = askFor.e.id; askFor = null; msAsk.innerHTML = ''; msCard.classList.remove('asking');
+    if (!quiet) { const b = msList.querySelector(`[data-go="${CSS.escape(id)}"]`); if (b) { b.focus({ preventScroll: true }); b.scrollIntoView?.({ block: 'nearest' }); } }
+    return true;
+  }
+  function answerAsk(a) {
+    const f = askFor; if (!f) return;
+    if (a === 'cancel') return void closeAsk();
+    goMission(f.e, a === 'skip' ? f.hour : undefined);
+  }
+  function goMission(e, hour) { startAt(e.x, e.z, { id: e.id, hour }); }
 
   // ---- credits roll ----
   let assetsHTML = '', assetsLoaded = false, rollPause = 0, rollY = 0;
@@ -823,11 +930,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   // The side menu is one column (Up/Down walk it in order, the radio row and the quick buttons are rows for Left/Right), not a spatial grid.
   function sideMove(dir, a) {
-    const col = [...screens.side.querySelectorAll('.pd-sidelist > .pd-btn, .pd-radnext, .pd-qbtn:first-child')].filter(e => e.offsetParent !== null);
-    const row = a.closest('.pd-quick') ? [...screens.side.querySelectorAll('.pd-qbtn')].filter(e => e.offsetParent !== null) : a.closest('.pd-sideradio') ? [screens.side.querySelector('.pd-radnext'), screens.side.querySelector('.pd-radpwr')] : null;
+    const col = [...screens.side.querySelectorAll('.pd-sidelist > .pd-btn, .pd-sidepair > .pd-btn:first-child, .pd-radnext, .pd-qbtn:first-child')].filter(e => e.offsetParent !== null);
+    const row = a.closest('.pd-quick') ? [...screens.side.querySelectorAll('.pd-qbtn')].filter(e => e.offsetParent !== null) : a.closest('.pd-sideradio') ? [screens.side.querySelector('.pd-radnext'), screens.side.querySelector('.pd-radpwr')] : a.closest('.pd-sidepair') ? [...a.parentNode.children] : null;
     const i = row ? row.indexOf(a) : -1;
     if (dir === 'left' || dir === 'right') { if (row) row[clamp(i + (dir === 'left' ? -1 : 1), 0, row.length - 1)].focus({ preventScroll: true }); return true; }
-    const at = a.closest('.pd-quick') ? col.length - 1 : a === screens.side.querySelector('.pd-radpwr') ? col.indexOf(screens.side.querySelector('.pd-radnext')) : col.indexOf(a);
+    const at = a.closest('.pd-quick') ? col.length - 1 : a === screens.side.querySelector('.pd-radpwr') ? col.indexOf(screens.side.querySelector('.pd-radnext')) : a.closest('.pd-sidepair') ? col.indexOf(a.parentNode.firstElementChild) : col.indexOf(a);
     const n = col[clamp(at + (dir === 'up' ? -1 : 1), 0, col.length - 1)];
     if (n) n.focus({ preventScroll: true });
     return true;
@@ -838,7 +945,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (game.state === 'play') { if (a === 'pause' || a === 'back') openPause(); return; }
     if (cur === 'title') { if (a === 'ok') go('menu'); return; }
     if (a === 'pause' && game.state === 'pause') return closePause();
-    if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (cur === 'start' && startView === 'map' && startMap.closePop()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
+    if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (cur === 'start' && startView === 'map' && startMap.closePop()) return; if (cur === 'missions' && closeAsk()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
     if (a === 'ok') { const el = document.activeElement; if (cur && screens[cur] && el && el.closest && screens[cur].contains(el)) el.click(); return; }
     if (['up', 'down', 'left', 'right'].includes(a)) { if (cur === 'start' && startView === 'map') startMap.key(MAPKEY[a]); else move(a); }
   }
@@ -874,6 +981,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
     if (t.dataset.pt != null) return startFromList(t.dataset.pt);
+    if (t.dataset.go != null) return askGo(t.dataset.go);
+    if (t.dataset.grp != null) return toggleGroup(t.dataset.grp);
+    if (t.dataset.ask != null) return answerAsk(t.dataset.ask);
     if (t.dataset.do) return act(t.dataset.do, t);
   });
 
@@ -918,10 +1028,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     syncState(); lastState = 'play';
     if (want === 'pause') setTimeout(openPause, 50);
     if (want === 'collections') setTimeout(() => { openPause(); go('collections', { push: true }); }, 50);
+    if (want === 'missions') setTimeout(() => { openPause(); go('missions', { push: true }); }, 50);
   } else {
     syncState();
-    go(['menu', 'options', 'credits', 'garage', 'start'].includes(want) ? want : want === 'none' ? null : 'title');
-    if (want === 'options' || want === 'credits' || want === 'garage' || want === 'start') stack = ['menu'];
+    go(['menu', 'options', 'credits', 'garage', 'start', 'missions'].includes(want) ? want : want === 'none' ? null : 'title');
+    if (want === 'options' || want === 'credits' || want === 'garage' || want === 'start' || want === 'missions') stack = ['menu'];
   }
   lastState = game.state;
   requestAnimationFrame(tick);
