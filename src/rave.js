@@ -1,23 +1,32 @@
-// The rave on Monte Pellegrino: a terrace cut into the first slope off Via Pietro Bonanno (the clearing of src/event-places.js RAVE.site), a stage with two speaker stacks
-// and a DJ booth, six coloured searchlight beams and two flashing floor discs that follow the beat, a crowd of dancing people, and a thumping house loop made with the
-// Web Audio oscillators (a kick, a clap, an off-beat hat and a bass line: nothing recorded, nothing copyrighted). It exists at night (src/event-rave.js adds the delivery
-// of the speakers: once they are in, the stage is "powered": louder, brighter, more people). Built when the lapa is near, thrown away when it is far; the beams are four to
-// six additive meshes and the crowd is the pedestrians' own scripted slots, so a night at the rave costs a few draws and a dozen scripted people.
-// createRave(env) -> { update(dt), setPowered(on), site: { x, z }, live(), powered() }
+// The rave in the woods of the Favorita (the clearing of src/rave-ground.js, the site in src/event-places.js RAVE): a round slab of a dance floor you drive onto along a gravel track
+// through the pines, a stage with two speaker stacks and a DJ booth on the far side of it, six coloured searchlight beams and two flashing floor discs that follow the beat, a ring
+// of lamps, a crowd of dancing people that scatters from the lapa, and a thumping house loop made with the Web Audio oscillators (a kick, a clap, an off-beat hat and a bass line:
+// nothing recorded, nothing copyrighted). The slab and the track are there day and night; the rest exists at night (src/event-rave.js adds the delivery of the speakers: once they
+// are in, the stage is "powered": louder, brighter, more people). Built when the lapa is near, thrown away when it is far; the beams are four to six additive meshes and the
+// crowd is the pedestrians' own scripted slots, so a night at the rave costs a few draws and a dozen scripted people. Only the stage is solid.
+// createRave(env) -> { update(dt), setPowered(on), site: { x, z } (the middle of the floor), stage: { x, z }, live(), powered() }
 import * as THREE from 'three';
 import { createRadio } from './radio.js';
-import { RAVE } from './event-places.js';
+import { CURB } from './streets.js';
+import { FLOOR, FLOOR_R, TRACK } from './rave-ground.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const BPM = 138, BUILD_R = 560, CROWD_R = 300, CROWD_DROP = 380, HEAR_R = 360;
+const BPM = 138, BUILD_R = 560, CROWD_R = 300, CROWD_DROP = 380, HEAR_R = 360, FAR = 1e7;
 const COLS = [0xff2fa0, 0x32e0ff, 0x7dff3a, 0xffb02e, 0xb16bff, 0xff4a3a];
+const TAU = Math.PI * 2;
+const LIFT = CURB + 0.03;   // the floor and the track are drawn over the park's grass (a layer CURB over the ground) and count as raised ground (src/world.js): the lapa and the dancers stand this high over the ground
 
 export function createRave(env) {
-  const { scene, camera, game, pedestrians, groundY, proj, isNight, walls2d } = env;
-  const [sx, sz] = proj(RAVE.site.lat, RAVE.site.lon);
-  const site = { x: sx, z: sz };
-  if (walls2d) for (let k = 0; k < 16; k++) { const a0 = k * Math.PI / 8, a1 = (k + 1) * Math.PI / 8, x0 = sx + Math.cos(a0) * 16.2, z0 = sz + Math.sin(a0) * 16.2, x1 = sx + Math.cos(a1) * 16.2, z1 = sz + Math.sin(a1) * 16.2; walls2d.addSeg([x0, z0, x1, z1], x0, z0, x1, z1); }   // the terrace's retaining wall is a wall to the lapa
-  let built = null, crowd = [], crowdKind = '', powered = false, wasLive = false, tick = 0, t = 0;
+  const { scene, camera, car, game, pedestrians, groundY, isNight, walls2d } = env;
+  const site = { x: FLOOR.x, z: FLOOR.z };
+  // the frame of the site: a along the track towards the stage, b across it; W(a, b) is the world x, z
+  const ux = FLOOR.ux, uz = FLOOR.uz, vx = -uz, vz = ux, W = (a, b) => [site.x + ux * a + vx * b, site.z + uz * a + vz * b];
+  // the stage is solid (a box round the platform, the truss poles and the speaker stacks): its four walls are in play while it is drawn and sit out of play (at FAR) the rest of the time
+  const stageWalls = [];
+  { const k = [W(7.6, -4.8), W(12.4, -4.8), W(12.4, 4.8), W(7.6, 4.8)];
+    for (let i = 0; i < 4; i++) { const a = k[i], b = k[(i + 1) % 4], seg = [a[0], a[1], b[0], b[1]]; seg.o = seg.slice(); stageWalls.push(seg); walls2d.addSeg(seg, a[0], a[1], b[0], b[1]); seg[0] = seg[1] = seg[2] = seg[3] = FAR; } }
+  const wakeStage = on => { for (const s of stageWalls) { const a = on ? s.o : [FAR, FAR, FAR, FAR]; s[0] = a[0]; s[1] = a[1]; s[2] = a[2]; s[3] = a[3]; } };
+  let floor = null, built = null, crowd = [], crowdKind = '', powered = false, wasLive = false, tick = 0, t = 0, dtF = 0.016;
   const radio = () => { try { return createRadio({ game }); } catch (e) { return null; } };
   const mv = () => Number.isFinite(game?.settings?.musicVolume) ? game.settings.musicVolume : 0.5;
   const live = () => !!isNight();
@@ -69,15 +78,30 @@ export function createRave(env) {
 
   // ------------------------------------------------------------------ the scene
   const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, ...o });
+  const dropGroup = g => { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); };
+  // the slab of the dance floor (its top a hair over the grass layer; the ground is level inside it, src/rave-ground.js) and the gravel track to the road: day and night
+  function buildFloor() {
+    const g = new THREE.Group(); g.name = 'RaveFloor'; const top = FLOOR.y + LIFT;
+    const slab = new THREE.Mesh(new THREE.CylinderGeometry(FLOOR_R, FLOOR_R + 0.25, 0.7, 48, 1), mat(0xb4a27c, { flatShading: true })); slab.position.set(site.x, top - 0.35, site.z); slab.receiveShadow = true; g.add(slab);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(FLOOR_R, 48), mat(0xa8946c, { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 })); cap.rotation.x = -Math.PI / 2; cap.position.set(site.x, top + 0.01, site.z); cap.receiveShadow = true; g.add(cap);
+    // the track: a strip draped on the ground every 2 m, running a little under the rim of the slab
+    const n = Math.ceil((TRACK.len + 0.5) / 2), P = [], I = [], hw = TRACK.w / 2, ox = -TRACK.uz * hw, oz = TRACK.ux * hw;
+    for (let i = 0; i <= n; i++) {
+      const d = Math.min(i * 2, TRACK.len + 0.5), x = TRACK.x0 + TRACK.ux * d, z = TRACK.z0 + TRACK.uz * d;
+      P.push(x - ox, groundY(x - ox, z - oz) + LIFT, z - oz, x + ox, groundY(x + ox, z + oz) + LIFT, z + oz);
+      if (i) { const b = (i - 1) * 2; I.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setIndex(I); geo.computeVertexNormals();
+    const trk = new THREE.Mesh(geo, mat(0x9c8a68, { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, side: THREE.DoubleSide })); trk.receiveShadow = true; g.add(trk);
+    scene.add(g);
+    return g;
+  }
+  // the night scene, in the frame of the site (local +x along the track towards the stage, +z across it)
   function build() {
-    const g = new THREE.Group(); g.name = 'Rave';
-    // the terrace: a round platform 15 m across, its top over the highest ground on its rim, its flank buried down the slope
-    let top = -1e9, low = 1e9; for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, y = groundY(site.x + Math.cos(a) * 16, site.z + Math.sin(a) * 16); top = Math.max(top, y); low = Math.min(low, y); }
-    top = Math.max(top, groundY(site.x, site.z)) + 0.12; const hh = top - low + 2.5;
-    const plat = new THREE.Mesh(new THREE.CylinderGeometry(15, 15.8, hh, 28, 1), mat(0xb4a27c, { flatShading: true })); plat.position.set(site.x, top - hh / 2, site.z); plat.receiveShadow = true; plat.castShadow = true; g.add(plat);
-    const cap = new THREE.Mesh(new THREE.CircleGeometry(15, 28), mat(0xa8946c)); cap.rotation.x = -Math.PI / 2; cap.position.set(site.x, top + 0.01, site.z); cap.receiveShadow = true; g.add(cap);
+    const top = FLOOR.y + LIFT;
+    const g = new THREE.Group(); g.name = 'Rave'; g.position.set(site.x, 0, site.z); g.rotation.y = Math.atan2(-uz, ux);
     // stage on the side away from the road: floor, back wall, a truss over it, two speaker stacks, the DJ booth with a laser-bright screen
-    const st = new THREE.Group(); st.position.set(site.x + 10, top, site.z); st.rotation.y = -Math.PI / 2; g.add(st);   // +z of the group looks along -x, to the crowd and the road above it
+    const st = new THREE.Group(); st.position.set(10, top, 0); st.rotation.y = -Math.PI / 2; g.add(st);   // +z of the group looks along -x, to the crowd and the road beyond it
     const box = (w, h, d, x, y, z, c, o) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, o)); m.position.set(x, y, z); m.castShadow = true; st.add(m); return m; };
     box(9, 0.9, 4.4, 0, 0.45, 0, 0x26262c); box(9, 5, 0.4, 0, 3.4, -2, 0x16161a);
     for (const sg of [-1, 1]) { box(0.3, 6, 0.3, sg * 4.5, 3, 2, 0x303036); }
@@ -94,35 +118,60 @@ export function createRave(env) {
     const bgeo = new THREE.ConeGeometry(1.7, 26, 14, 1, true).translate(0, -13, 0);
     for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(bgeo, bm(COLS[i])); b.position.set((i - 2.5) * 1.7, 6, 1.6); b.userData.i = i; st.add(b); beams.push(b); }
     const discs = [];
-    for (let i = 0; i < 2; i++) { const d = new THREE.Mesh(new THREE.CircleGeometry(6.5, 28), new THREE.MeshBasicMaterial({ color: COLS[i * 2], transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); d.rotation.x = -Math.PI / 2; d.position.set(site.x - 1.5 - i * 2, top + 0.06, site.z + (i ? -3 : 3)); g.add(d); discs.push(d); }
-    // a ring of small coloured lamps round the rim of the terrace (one instanced mesh, the colours follow the beat)
+    for (let i = 0; i < 2; i++) { const d = new THREE.Mesh(new THREE.CircleGeometry(6.5, 28), new THREE.MeshBasicMaterial({ color: COLS[i * 2], transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); d.rotation.x = -Math.PI / 2; d.position.set(-1.5 - i * 2, top + 0.06, i ? -3 : 3); g.add(d); discs.push(d); }
+    // a ring of small coloured lamps round the rim of the floor (one instanced mesh, the colours follow the beat)
     const lamps = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }), 16), lm = new THREE.Matrix4(), lc = new THREE.Color();
-    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; lm.makeTranslation(site.x + Math.cos(a) * 14.4, top + 0.5, site.z + Math.sin(a) * 14.4); lamps.setMatrixAt(k, lm); lamps.setColorAt(k, lc.setHex(COLS[k % 6])); }
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; lm.makeTranslation(Math.cos(a) * 14.4, top + 0.5, Math.sin(a) * 14.4); lamps.setMatrixAt(k, lm); lamps.setColorAt(k, lc.setHex(COLS[k % 6])); }
     lamps.frustumCulled = false; g.add(lamps);
     scene.add(g);
+    wakeStage(true);
     return { g, st, screen, beams, discs, cones, top, lamps };
   }
   function dispose() {
     if (!built) return;
-    scene.remove(built.g);
-    built.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    dropGroup(built.g); wakeStage(false);
     built = null;
   }
 
-  // ------------------------------------------------------------------ the crowd: scripted people (src/pedestrians.js) placed on the terrace top every frame (attachTo), jumping on the beat
+  // ------------------------------------------------------------------ the crowd: scripted people (src/pedestrians.js) placed on the floor every frame (attachTo), jumping on the beat
+  // They are not solid: when the lapa comes close they step away from it, and when it touches them at speed they are knocked flying (a short throw, spinning, as the street crowd is)
+  // and walk back to their place a moment later.
   const POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3', 'metal_long', 'metal_f', 'metal_vest', 'nightboy', 'nightgirl'];
+  const SCARE_R = 5.5, KNOCK_R = 1.02, ROOM = 7.5, G_FLY = 12;
+  // one dancer's position this frame: home on the beat, stepping away from the lapa, in the air, or on the way back
+  function dance(c, out, bt) {
+    const hop = powered ? 0.28 * Math.abs(Math.sin((bt + c.ph) * Math.PI)) : 0.04 * Math.pow(1 - (bt % 1), 3);
+    const cx = car.x - c.x, cz = car.z - c.z, d = Math.hypot(cx, cz) || 0.01, sp = Math.hypot(car.vx || 0, car.vz || 0), dt = dtF;
+    if (c.fly > 0) {   // knocked: up and over, spinning, then dazed for a moment
+      c.fly -= dt; c.vy -= G_FLY * dt; c.y += c.vy * dt; c.x += c.vx * dt; c.z += c.vz * dt; c.spin += dt * 9;
+      const gy = groundY(c.x, c.z) + LIFT; if (c.y <= gy && c.vy < 0) { c.y = gy; c.fly = 0; c.daze = 1.6; c.vx = c.vz = 0; }
+      out.x = c.x; out.z = c.z; out.y = c.y; out.th = c.spin; return;
+    }
+    if (c.daze > 0) { c.daze -= dt; out.x = c.x; out.z = c.z; out.y = groundY(c.x, c.z) + LIFT; out.th = c.spin; return; }
+    if (sp > 2.2 && d < 4) for (const o of [-1, 0, 1]) {   // hit by the nose, the middle or the tail of a moving lapa (the street crowd's three circles, src/pedestrians.js)
+      const px = c.x - (car.x + Math.sin(car.th) * o), pz = c.z - (car.z + Math.cos(car.th) * o), pd = Math.hypot(px, pz);
+      if (pd < KNOCK_R) { c.fly = 1; c.vy = clamp(4.5 + sp * 0.55, 5.5, 11); c.vx = (car.vx || 0) * 0.9 + px / (pd || 1) * 3; c.vz = (car.vz || 0) * 0.9 + pz / (pd || 1) * 3; c.y = groundY(c.x, c.z) + LIFT; c.spin = out.th || 0; return dance(c, out, bt); }
+    }
+    // where the dancer wants to be: home, or pushed away from a lapa that is near and moving (not further than ROOM from home)
+    let tx = c.hx, tz = c.hz;
+    if (d < SCARE_R && sp > 1) { const k = Math.min(1, (SCARE_R - d) / SCARE_R * 1.4); tx = c.hx - cx / d * ROOM * k; tz = c.hz - cz / d * ROOM * k; }
+    const mx = tx - c.x, mz = tz - c.z, md = Math.hypot(mx, mz), step = Math.min(md, (d < SCARE_R && sp > 1 ? 4.5 : 1.8) * dt);
+    if (md > 0.001) { c.x += mx / md * step; c.z += mz / md * step; }
+    out.x = c.x; out.z = c.z; out.y = groundY(c.x, c.z) + LIFT + hop + (md > 0.3 ? 0.12 * Math.abs(Math.sin(t * 14 + c.ph * 9)) : 0);
+    out.th = md > 0.3 ? Math.atan2(mx, mz) : Math.atan2(c.fx - c.x, c.fz - c.z) + Math.sin(t * 2 + c.ph) * 0.25; c.spin = out.th;
+  }
   function spawnPeople() {
     if (!built) return;
-    const n = powered ? 22 : 12, top = built.top;
+    const n = powered ? 22 : 12, [fx, fz] = W(10, 0);
     for (let i = 0; i < n; i++) {
-      const a = (i * 2.399) % (Math.PI * 2), r = 1.5 + 7.2 * Math.sqrt((i + 0.5) / n), c = { id: -1, x: site.x - 2 + Math.cos(a) * r, z: site.z + Math.sin(a) * r, ph: i * 0.37 };
+      const a = (i * 2.399) % TAU, r = 1.5 + 7.2 * Math.sqrt((i + 0.5) / n), [hx, hz] = W(-2 + Math.cos(a) * r, Math.sin(a) * r), c = { id: -1, x: hx, z: hz, hx, hz, fx, fz, ph: i * 0.37, fly: 0, daze: 0, vx: 0, vy: 0, vz: 0, y: 0, spin: 0 };
       c.id = pedestrians.spawnScripted(i === 0 && powered ? 'dj' : POOL[i % POOL.length], c.x, c.z); if (c.id < 0) break;
-      pedestrians.face(c.id, site.x + 10, site.z);
-      pedestrians.attachTo(c.id, out => { const k = beatK(); out.x = c.x; out.z = c.z; out.th = Math.atan2(site.x + 10 - c.x, site.z - c.z) + Math.sin(t * 2 + c.ph) * 0.25; out.y = top + (powered ? 0.28 * Math.abs(Math.sin((beatNow() + c.ph) * Math.PI)) : 0.04 * k); }, {});
+      pedestrians.face(c.id, fx, fz);
+      pedestrians.attachTo(c.id, out => dance(c, out, beatNow()), {});
       crowd.push(c);
     }
     // the DJ behind the decks on the stage
-    const dj = pedestrians.spawnScripted('dj', site.x + 10, site.z); if (dj >= 0) { pedestrians.attachTo(dj, out => { out.x = site.x + 9.2; out.z = site.z - 0.3; out.y = top + 0.9; out.th = -Math.PI / 2; }, {}); crowd.push({ id: dj }); }
+    const [jx, jz] = W(9.2, -0.3), dj = pedestrians.spawnScripted('dj', jx, jz); if (dj >= 0) { pedestrians.attachTo(dj, out => { out.x = jx; out.z = jz; out.y = built ? built.top + 0.9 : 0; out.th = Math.atan2(-ux, -uz); }, {}); crowd.push({ id: dj }); }
     crowdKind = powered ? 'on' : 'off';
   }
   function dropPeople() { for (const c of crowd) pedestrians.remove(c.id); crowd = []; crowdKind = ''; }
@@ -130,11 +179,13 @@ export function createRave(env) {
   const beatK = () => Math.pow(1 - (beatNow() % 1), 3);
 
   function update(dt) {
-    t += dt; tick -= dt;
+    t += dt; tick -= dt; dtF = clamp(dt, 0, 0.05);
     const d = Math.hypot(camera.position.x - site.x, camera.position.z - site.z), on = live();
     if (on !== wasLive) { wasLive = on; if (!on) { powered = false; audioStop(); dropPeople(); dispose(); radio()?.duckFor?.(0); } }
+    // build / drop with the distance: the slab and the track by day and by night, the stage at night
+    if (!floor && d < BUILD_R) floor = buildFloor();
+    else if (floor && d > BUILD_R + 120) { dropGroup(floor); floor = null; }
     if (!on) return;
-    // build / drop with the distance
     if (!built && d < BUILD_R) built = build();
     else if (built && d > BUILD_R + 120) { dispose(); }
     // the beat (from the audio clock when it runs, else the wall clock), the beams and the discs
@@ -154,5 +205,5 @@ export function createRave(env) {
     if (att > 0.01) { audioStart(); if (master && ac) master.gain.setTargetAtTime(level * 0.9, ac.currentTime, 0.25); radio()?.duckFor?.(clamp(level * 1.3, 0, 1)); }
     else if (ac) { master && master.gain.setTargetAtTime(0, ac.currentTime, 0.2); if (d > HEAR_R + 80) { audioStop(); radio()?.duckFor?.(0); } }
   }
-  return { update, setPowered(on) { powered = !!on; tick = 0; }, site, live, powered: () => powered, get built() { return built; }, get crowdSize() { return crowd.length; } };
+  return { update, setPowered(on) { powered = !!on; tick = 0; }, site, stage: { x: W(10, 0)[0], z: W(10, 0)[1] }, live, powered: () => powered, get built() { return built; }, get crowdSize() { return crowd.length; }, get flying() { return crowd.filter(c => c.fly > 0 || c.daze > 0).length; } };
 }
