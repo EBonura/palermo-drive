@@ -53,3 +53,5 @@ References, proportions only, nothing stored: Wikimedia Commons "Mondello BW 201
 | The Addaura road | the road is OSM's Lungomare Cristoforo Colombo / Viale Regina Elena, a two-lane road with pavement and walls, between the sea (a rock breakwater and bathing beaches, per the photographs) and the cliffs of Monte Pellegrino. In the game it is there with the pavement, the walls and parked cars (checked from four chase-camera positions) | no change: the road follows OSM, and the photographs show no feature (tunnel, gallery) that the game lacks |
 
 Collision: the footprint walls of the three buildings still stand (the models replace the drawing, not the walls); drive test, 9 m/s at six segments of each ring from outside: the lapa stops at the wall (1.5 m) every time.
+
+Correction (2 November 2026): the Torre della Tonnara does not stand at (-3126,-10038), that is a 7 m square OSM building; it stands at the corner of the harbour front at about (-3070,-10109.5). See `mondello-round.md`, which also answers the Valdesi tower question.

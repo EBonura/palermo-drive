@@ -19,11 +19,33 @@ function buildStabilimento() {
   const pts = pairsOf(FP.mondelloStab.p), ob = obb(pts), fr = facing(ob, -1, 0.35);
   const deck = 1.9, M = frame(ob.cx, 0, ob.cz, fr.nx, fr.nz);   // +z towards the beach, x along the coast, y = 0 at the sea surface
   begin(0);
-  defMat('mnYellow', 256, 256, [8, 8], (g, w, h) => paintFacade(g, w, h, 8, 8, { base: '#f0dc8c', trim: '#fff8e0', glass: '#6a2c2c', seed: 801, plinth: { h: 0.6, c: '#e7cf7c' }, grime: 0,
-    bands: [{ y: 4.0, h: 0.3, c: '#fff4cf' }, { y: 7.6, h: 0.4, c: '#fff4cf' }], rows: [{ y0: 0.9, y1: 3.4, xs: [2, 6], w: 1.2, kind: 'arch', fr: 0.22, sill: false }, { y0: 4.8, y1: 7.1, xs: [2, 6], w: 1.1, kind: 'arch', fr: 0.2, sill: false }] }));
-  defMat('mnStripe', 128, 64, [7, 4.4], (g, w, h) => { g.fillStyle = '#f0e6c8'; g.fillRect(0, 0, w, h); g.fillStyle = '#8a2a35'; for (let x = 0; x < w; x += 16) { g.fillRect(x, 8, 8, h - 8); } g.fillStyle = '#4a2028'; for (let x = 3; x < w; x += 16) g.fillRect(x, 26, 4, h - 26); g.fillStyle = '#e7d9a8'; g.fillRect(0, 0, w, 8); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, h - 5, w, 5); });
-  defMat('mnBlock', 256, 256, [14, 9], (g, w, h) => paintFacade(g, w, h, 14, 9, { base: '#ecdc9c', trim: '#fff4cf', glass: '#5a2a2c', seed: 804, grime: 0, rows: [{ y0: 0.9, y1: 3.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }, { y0: 4.9, y1: 7.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }] }));
-  defMat('mnShed', 256, 128, [14, 5], (g, w, h) => paintFacade(g, w, h, 14, 5, { base: '#efe0a0', trim: '#fff4cf', glass: '#3a2a26', seed: 802, grime: 0, rows: [{ y0: 0.8, y1: 3.4, n: 5, m: 1.6, w: 1.5, kind: 'rect', fr: 0.1 }] }));
+  defMat('mnYellow', 256, 256, [8, 8], (g, w, h) => paintFacade(g, w, h, 8, 8, { base: '#f1d9b4', trim: '#fffaf0', glass: '#6a2c2c', seed: 801, plinth: { h: 0.6, c: '#e3c9a4' }, grime: 0,
+    bands: [{ y: 4.0, h: 0.3, c: '#fff6e8' }, { y: 7.6, h: 0.4, c: '#fff6e8' }], rows: [{ y0: 0.9, y1: 3.4, xs: [2, 6], w: 1.2, kind: 'arch', fr: 0.22, sill: false }, { y0: 4.8, y1: 7.1, xs: [2, 6], w: 1.1, kind: 'arch', fr: 0.2, sill: false }] }));
+  defMat('mnStripe', 128, 64, [7, 4.4], (g, w, h) => { g.fillStyle = '#f0e6c8'; g.fillRect(0, 0, w, h); g.fillStyle = '#8a2a35'; for (let x = 0; x < w; x += 16) { g.fillRect(x, 8, 8, h - 8); } g.fillStyle = '#4a2028'; for (let x = 3; x < w; x += 16) g.fillRect(x, 26, 4, h - 26); g.fillStyle = '#e8d8b4'; g.fillRect(0, 0, w, 8); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, h - 5, w, 5); });
+  defMat('mnBlock', 256, 256, [14, 9], (g, w, h) => paintFacade(g, w, h, 14, 9, { base: '#ecd6b0', trim: '#fff6e8', glass: '#5a2a2c', seed: 804, grime: 0, rows: [{ y0: 0.9, y1: 3.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }, { y0: 4.9, y1: 7.6, n: 5, m: 1.4, w: 1.3, kind: 'rect', fr: 0.12 }] }));
+  defMat('mnShed', 256, 128, [14, 5], (g, w, h) => paintFacade(g, w, h, 14, 5, { base: '#eedcb4', trim: '#fff6e8', glass: '#3a2a26', seed: 802, grime: 0, rows: [{ y0: 0.8, y1: 3.4, n: 5, m: 1.6, w: 1.5, kind: 'rect', fr: 0.1 }] }));
+  // the painted front of the pavilion (Mapillary 2022 and 2018 photos from the boardwalk): cream-peach plaster, an arcade of maroon doors under the first floor, a blue and white dado, tall arched maroon windows with white frames, pink roundels, a white cornice
+  const arcW = (g, X, Y, sx, sy, cx, wd, y0, y1, fill) => { g.fillStyle = '#fff6e8'; g.beginPath(); g.moveTo(X(cx - wd / 2 - 0.22), Y(y0)); g.lineTo(X(cx - wd / 2 - 0.22), Y(y1 - wd / 2)); g.ellipse(X(cx), Y(y1 - wd / 2), (wd / 2 + 0.22) * sx, (wd / 2 + 0.22) * sy, 0, PI, 0); g.lineTo(X(cx + wd / 2 + 0.22), Y(y0)); g.fill();
+    g.fillStyle = fill; g.beginPath(); g.moveTo(X(cx - wd / 2), Y(y0)); g.lineTo(X(cx - wd / 2), Y(y1 - wd / 2)); g.ellipse(X(cx), Y(y1 - wd / 2), (wd / 2) * sx, (wd / 2) * sy, 0, PI, 0); g.lineTo(X(cx + wd / 2), Y(y0)); g.fill();
+    g.fillStyle = 'rgba(255,246,232,0.8)'; g.fillRect(X(cx) - 0.7, Y(y1), 1.4, (y1 - y0) * sy); };
+  defMat('mnFront', 512, 160, [28, 8.2], (g, w, h) => {
+    const sx = w / 28, sy = h / 8.2, X = (m) => (m + 14) * sx, Y = (m) => h - m * sy;
+    g.fillStyle = '#f1d9b4'; g.fillRect(0, 0, w, h); g.fillStyle = '#e3c9a4'; g.fillRect(0, Y(0.9), w, 0.9 * sy);
+    for (const x of [-12.6, -8, -2.9, 2.9, 8, 12.6]) { g.fillStyle = 'rgba(255,246,232,0.7)'; g.fillRect(X(x) - 3, Y(8), 6, 7.1 * sy); }
+    arcW(g, X, Y, sx, sy, 0, 4.4, 0.9, 4.2, '#4a2228');
+    for (const x of [-5.6, 5.6, -10.2, 10.2]) arcW(g, X, Y, sx, sy, x, 2.4, 0.9, 3.9, '#6a2c34');
+    g.fillStyle = '#fff6e8'; g.fillRect(0, Y(4.75), w, 0.5 * sy); g.fillStyle = '#35508c'; for (let m = -14; m < 14; m += 0.7) g.fillRect(X(m), Y(4.65), 0.35 * sx, 0.28 * sy);
+    arcW(g, X, Y, sx, sy, 0, 4.4, 5.3, 7.9, '#7a2a38');
+    for (const x of [-5.6, 5.6, -10.2, 10.2]) arcW(g, X, Y, sx, sy, x, 2.4, 5.3, 7.5, '#7a2a38');
+    for (const x of [-8, 8]) { g.fillStyle = '#fff6e8'; g.beginPath(); g.ellipse(X(x), Y(6.5), 0.95 * sx, 0.95 * sy, 0, 0, 2 * PI); g.fill(); g.fillStyle = '#e8a595'; g.beginPath(); g.ellipse(X(x), Y(6.5), 0.7 * sx, 0.7 * sy, 0, 0, 2 * PI); g.fill(); }
+    g.fillStyle = '#fff6e8'; g.fillRect(0, Y(8.2), w, 0.4 * sy); g.fillStyle = 'rgba(80,50,30,0.25)'; g.fillRect(0, Y(7.8), w, 0.08 * sy);
+  });
+  defMat('mnTop', 256, 64, [14, 3.6], (g, w, h) => {
+    const sx = w / 14, sy = h / 3.6, X = (m) => (m + 7) * sx, Y = (m) => h - m * sy;
+    g.fillStyle = '#f1d9b4'; g.fillRect(0, 0, w, h);
+    arcW(g, X, Y, sx, sy, 0, 3.8, 0.3, 3.2, '#7a2a38'); for (const x of [-4.7, 4.7]) arcW(g, X, Y, sx, sy, x, 1.8, 0.5, 2.7, '#7a2a38');
+    g.fillStyle = '#fff6e8'; g.fillRect(0, Y(3.6), w, 0.3 * sy);
+  });
   defMat('deck', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#9a7d58'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { g.fillStyle = 'rgba(60,40,20,0.45)'; g.fillRect(0, y, w, 2); } noiseDots(g, w, h, 300, 2, 803, ['rgba(60,40,20,0.2)', 'rgba(220,190,140,0.2)']); });
   defMat('pile', 32, 32, [1, 1], (g, w, h) => { g.fillStyle = '#6a5a44'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(30,25,15,.5)'; for (let y = 0; y < h; y += 6) g.fillRect(0, y, w, 1.5); });
   const LEN = 112, DEP = 26;
@@ -32,34 +54,36 @@ function buildStabilimento() {
   // central pavilion: two storeys, balustraded roof, two corner towers with crowns and finials, a taller rear tower
   const CW = 28, CD = 20, CH = 8.2;
   bx('mnYellow', M, -CW / 2, CW / 2, deck, deck + CH, -CD / 2 - 2, CD / 2 - 2);
-  bx('flat', M, -CW / 2 - 0.4, CW / 2 + 0.4, deck + CH, deck + CH + 0.6, -CD / 2 - 2.4, CD / 2 - 1.6, { c: '#fff4cf' });
+  bx('flat', M, -CW / 2 - 0.4, CW / 2 + 0.4, deck + CH, deck + CH + 0.6, -CD / 2 - 2.4, CD / 2 - 1.6, { c: '#fff6e8' });
   for (let q = 0; q < 4; q++) balus(mul(M, mul(tr(0, deck + CH + 0.6, -2), mul(rotY(q * PI / 2), tr(0, 0, (q % 2 ? CW : CD) / 2 + 0.2)))), q % 2 ? CD : CW, 1.0);
   // upper central block with the curved pediment (the big arched window bay of the real facade)
   bx('mnYellow', M, -7, 7, deck + CH + 0.6, deck + CH + 4.2, -CD / 2 + 0.5, CD / 2 - 3.5);
-  bx('flat', M, -7.4, 7.4, deck + CH + 4.2, deck + CH + 4.7, -CD / 2 + 0.1, CD / 2 - 3.1, { c: '#fff4cf' });
-  for (const sg of [-1, 1]) { sphere('flat', 0.45, { M: mul(M, tr(sg * 6.6, deck + CH + 5.1, CD / 2 - 4)), c: '#f0cfa8', seg: 6 }); bx('flat', M, sg * 6.6 - 0.35, sg * 6.6 + 0.35, deck + CH + 4.7, deck + CH + 5.0, CD / 2 - 4.35, CD / 2 - 3.65, { c: '#fff4cf' }); }
+  bx('flat', M, -7.4, 7.4, deck + CH + 4.2, deck + CH + 4.7, -CD / 2 + 0.1, CD / 2 - 3.1, { c: '#fff6e8' });
+  for (const sg of [-1, 1]) { sphere('flat', 0.45, { M: mul(M, tr(sg * 6.6, deck + CH + 5.1, CD / 2 - 4)), c: '#f0cfa8', seg: 6 }); bx('flat', M, sg * 6.6 - 0.35, sg * 6.6 + 0.35, deck + CH + 4.7, deck + CH + 5.0, CD / 2 - 4.35, CD / 2 - 3.65, { c: '#fff6e8' }); }
   const tower = (Mt, hgt, wd) => {
-    bx('mnYellow', Mt, -wd, wd, 0, hgt, -wd, wd); bx('flat', Mt, -wd - 0.4, wd + 0.4, hgt, hgt + 0.55, -wd - 0.4, wd + 0.4, { c: '#fff4cf' });
-    bx('flat', Mt, -wd * 0.7, wd * 0.7, hgt + 0.55, hgt + 1.9, -wd * 0.7, wd * 0.7, { c: '#efe0a8' });
-    for (const a of [-1, 1]) for (const b of [-1, 1]) { bx('flat', Mt, a * wd * 0.95 - 0.28, a * wd * 0.95 + 0.28, hgt + 0.55, hgt + 1.5, b * wd * 0.95 - 0.28, b * wd * 0.95 + 0.28, { c: '#fff4cf' }); sphere('flat', 0.26, { M: mul(Mt, tr(a * wd * 0.95, hgt + 1.65, b * wd * 0.95)), c: '#e2b69c', seg: 5 }); }
+    bx('mnYellow', Mt, -wd, wd, 0, hgt, -wd, wd); bx('flat', Mt, -wd - 0.4, wd + 0.4, hgt, hgt + 0.55, -wd - 0.4, wd + 0.4, { c: '#fff6e8' });
+    bx('flat', Mt, -wd * 0.7, wd * 0.7, hgt + 0.55, hgt + 1.9, -wd * 0.7, wd * 0.7, { c: '#efdcb6' });
+    for (const a of [-1, 1]) for (const b of [-1, 1]) { bx('flat', Mt, a * wd * 0.95 - 0.28, a * wd * 0.95 + 0.28, hgt + 0.55, hgt + 1.5, b * wd * 0.95 - 0.28, b * wd * 0.95 + 0.28, { c: '#fff6e8' }); sphere('flat', 0.26, { M: mul(Mt, tr(a * wd * 0.95, hgt + 1.65, b * wd * 0.95)), c: '#e2b69c', seg: 5 }); }
     cyl('dark', 0.05, 0.07, 3.6, 4, { M: mul(Mt, tr(0, hgt + 1.9, 0)), noao: true }); sphere('flat', 0.22, { M: mul(Mt, tr(0, hgt + 3.0, 0)), c: '#d9b45a', seg: 5 });
   };
   for (const sg of [-1, 1]) tower(mul(M, tr(sg * (CW / 2 - 1.8), deck, CD / 2 - 4.2)), CH + 4.6, 1.9);
   tower(mul(M, tr(0, deck, -CD / 2 + 0.6)), CH + 7.4, 2.4);
   box('dark', 4, 4.2, 0.2, { M: mul(M, tr(0, deck, CD / 2 - 1.9)), noao: true, c: '#4a2a22' });
+  panel('mnFront', CW, CH, { M: mul(M, tr(0, deck, CD / 2 - 1.75)), noao: true });   // the painted front of the first two storeys
+  panel('mnTop', 14, 3.6, { M: mul(M, tr(0, deck + CH + 0.6, CD / 2 - 3.45)), noao: true });
   // wings, as on the photos: from the pavilion a long gallery of cabin fronts (maroon and cream stripes, doors) under a balustrade,
   // ending on the south side in a small box; on the north side the gallery runs into the big plain two-storey block on piles.
   const gal = (x0, x1) => {
     const lo = Math.min(x0, x1), hi = Math.max(x0, x1);
     bx('mnStripe', M, lo, hi, deck, deck + 4.4, -2.0, 7.0);
-    bx('flat', M, lo - 0.2, hi + 0.2, deck + 4.4, deck + 4.8, -2.2, 7.2, { c: '#efe3b8' });
+    bx('flat', M, lo - 0.2, hi + 0.2, deck + 4.4, deck + 4.8, -2.2, 7.2, { c: '#f0e2c4' });
     balus(mul(M, tr((lo + hi) / 2, deck + 4.8, 7.0)), hi - lo, 0.9);
   };
   gal(CW / 2 + 0.6, LEN / 2 - 7); gal(-CW / 2 - 0.6, -CW / 2 - 17);
-  bx('mnShed', M, LEN / 2 - 7, LEN / 2, deck, deck + 5.4, -2.0, 7.0); bx('flat', M, LEN / 2 - 7.3, LEN / 2 + 0.3, deck + 5.4, deck + 5.9, -2.3, 7.3, { c: '#efe3b8' });
+  bx('mnShed', M, LEN / 2 - 7, LEN / 2, deck, deck + 5.4, -2.0, 7.0); bx('flat', M, LEN / 2 - 7.3, LEN / 2 + 0.3, deck + 5.4, deck + 5.9, -2.3, 7.3, { c: '#f0e2c4' });
   bx('mnBlock', M, -LEN / 2, -CW / 2 - 17, deck, deck + 9.0, -3.2, 9.0);
-  bx('flat', M, -LEN / 2 - 0.4, -CW / 2 - 16.6, deck + 9.0, deck + 9.55, -3.6, 9.4, { c: '#efe3b8' });
-  bx('flat', M, -LEN / 2 - 0.2, -CW / 2 - 16.8, deck + 9.55, deck + 10.0, -3.4, 9.2, { c: '#e9dcae' });
+  bx('flat', M, -LEN / 2 - 0.4, -CW / 2 - 16.6, deck + 9.0, deck + 9.55, -3.6, 9.4, { c: '#f0e2c4' });
+  bx('flat', M, -LEN / 2 - 0.2, -CW / 2 - 16.8, deck + 9.55, deck + 10.0, -3.4, 9.2, { c: '#e9d8b8' });
   // boardwalk to the beach gate
   const gx = -3043, gz = -9598, sx = ob.cx + fr.nx * (CD / 2 + 1), sz = ob.cz + fr.nz * (CD / 2 + 1), dl = Math.hypot(gx - sx, gz - sz), gnx = (gx - sx) / dl, gnz = (gz - sz) / dl;
   const MG = frame(sx, 0, sz, gnx, gnz);
