@@ -76,7 +76,8 @@ compact binary format) and publishes it to GitHub Pages.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks; Terrorage (used with permission) plays outside the Krust pub. Full attribution in `assets/music/CREDITS.md`.
 - Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.
-- Vehicles, characters and textures are drawn in code. Sound effects are CC0, see `assets/CREDITS.md`.
+- Vehicles and textures are drawn in code. Sound effects are CC0, see `assets/CREDITS.md`.
+- Pedestrian sprites are composed from layers of the Universal LPC Spritesheet Character Generator (Liberated Pixel Cup contributors) with our own painted details; authors, licences and links of every layer are in `assets/peds/lpc/CREDITS.md`, the licence note for that folder is `assets/peds/lpc/LICENSE.md`, and the atlas is rebuilt with `node tools/lpc/build.mjs`.
 - three.js (MIT). Fonts: SIL Open Font License.
 
 Created by Emanuele Bonura.

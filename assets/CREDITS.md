@@ -159,3 +159,7 @@ Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https:/
 
 One song, "DIY Violence" by Terrorage (`music/terrorage.m4a`), played at the door of the Krust pub (src/pubs.js). Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in `music/CREDITS.md`.
 
+## Pedestrian sprites (LPC)
+
+The people are composed from layers of the [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) (the Liberated Pixel Cup art and its many contributors on OpenGameArt), plus our own painted details on top. Every layer used, with its authors, licences and links, is listed in [peds/lpc/CREDITS.md](peds/lpc/CREDITS.md); the licence note for the folder (`assets/peds/lpc/`, kept apart because part of its art is share-alike) is [peds/lpc/LICENSE.md](peds/lpc/LICENSE.md). Where a layer offers a permissive licence (CC0, CC-BY, OGA-BY) next to CC-BY-SA / GPL we use it under the permissive one. The atlas is rebuilt with `node tools/lpc/build.mjs`.
+
