@@ -32,7 +32,7 @@ export const SECRETS = [
     note: ['Facisti gol cû lapa ô Barbera.', 'You scored with the lapa at the Barbera.'],
     on: { event: 'pd-stadium-goal', when: d => d.n >= 1 } },                                         // src/stadium-ball.js: the ball crossed a goal line
   { id: 'arcu-cuto', title: ['Sutta l’Arcu ri Cutò', 'Under the Cutò Arch'],
-    note: ['Passasti sutta l’arcu ri Cutò cû cuorna, e ti grattasti a testa.', 'You passed under the arch of Cutò wearing the horns, and you scratched your head.'],
+    note: ['Passasti sutta l’arcu ri Cutò cû cuainna, e ti grattasti a testa.', 'You passed under the arch of Cutò wearing the horns, and you scratched your head.'],
     on: { event: 'pd-horns' } },                                                                    // src/event-horns.js: the lapa came through the arch with the horns on
 ];
 

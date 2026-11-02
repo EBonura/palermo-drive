@@ -83,7 +83,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Mi dispiaci, u traffico è traffico: accusa u Comune!  
   _Sorry, traffic is traffic: blame the Comune!_
-- Cu va chianu, va sanu e va luntanu!  
+- Cu va araciu, va sanu e va luntanu!  
   _Who goes slowly goes safely and far!_
 
 ### arrive
@@ -388,7 +388,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all'occhi.  
   _Why sunglasses at night? For... the moon. It hurts my eyes. (?)_
-- Cchiù chianu! Mi pari ca mi talia tuttu u quartieri.  
+- Cchiù araciu! Mi pari ca mi talia tuttu u quartieri.  
   _Slower! It feels like the whole neighbourhood is looking at me. (?)_
 - Nun mi taliari nta u specchiettu, grazzi.  
   _Do not look at me in the mirror, thanks. (?)_
@@ -511,7 +511,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Chi viernu ca fa... mi mettu u cappeddu ’nta facci.  
   _What a winter... I pull my hat over my face._
-- Cchiù chianu, ca mi talianu tutti.  
+- Cchiù araciu, ca mi talianu tutti.  
   _Slower, everyone is looking at me._
 - Un taliari ’nta u specchiettu, pi favuri.  
   _Do not look in the mirror, please._
@@ -535,7 +535,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### lincoln client: miss
 
-- Chianu! Haiu ancora tanti cosi ri fari!  
+- Araciu! Haiu ancora tanti cosi ri fari!  
   _Easy! I still have so many things to do!_
 
 ### lincoln client: hitPed
@@ -621,7 +621,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera client: fast
 
-- Cchiù chianu, ca mi veni u mal ri mari!  
+- Cchiù araciu, ca mi veni u mal ri mari!  
   _Slower, I am getting seasick!_
 
 ### bandiera client: drift
@@ -636,7 +636,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera client: miss
 
-- Chianu! Nicoletta mi spetta, vabbé u sai!  
+- Araciu! Nicoletta mi spetta, vabbé u sai!  
   _Easy! Nicoletta is waiting for me, well, you know!_
 
 ### bandiera client: hitPed
@@ -675,7 +675,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera driver: depart
 
-- Chianu chianu, ca i cannola un si spezzanu.  
+- Araciu araciu, ca i cannola un si spezzanu.  
   _Gently, gently, so the cannoli do not break._
 
 ### bandiera driver: ask
@@ -704,12 +704,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Psst! Lapista! Vinni ccà, ca t’haiu a dari na cosa!  
   _Psst! Driver! Come here, I have something to give you!_
-- Amunì, ca è na missioni ri paisi: i cuorna!  
+- Amunì, ca è na missioni ri paisi: i cuainna!  
   _Come on, it is a town mission: the horns!_
 
 ### give
 
-- Teni ’sti cuorna, mettitilli ’ncapu e vai ô Cutò.  
+- Teni ’sti cuainna, mettitilli ’ncapu e vai ô Cutò.  
   _Take these horns, put them on and go to the Cutò._
 - Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa!  
   _Nobody passes under the arch of Cutò without scratching their head!_
@@ -742,12 +742,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### careless
 
-- Chianu, un c’è premura! I cuorna!  
+- Araciu, un c’è premura! I cuainna!  
   _Easy, no hurry! The horns!_
 
 ### passers
 
-- Ahahah! Talìa chi cuorna!  
+- Ahahah! Talìa chi cuainna!  
   _Hahaha! Look at those horns!_
 - Gràttiti a testa, ca ti pizzica!  
   _Scratch your head, it itches!_
@@ -756,7 +756,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### fail
 
-- Vabbè, i cuorna mi li pigghiu iu.  
+- Vabbè, i cuainna mi li pigghiu iu.  
   _Fine, I will take the horns back myself._
 
 ## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
@@ -811,7 +811,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   __
 - Fermati, fermati!  
   _Stop, stop!_
-- Lapista! Mi puoiti?  
+- Lapista! Mi puaitti?  
   _Driver! Can you take me?_
 - Ehi! Libiru?!  
   _Hey! Free?!_
@@ -920,7 +920,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Grazie, grazie! Si ’n’angilu cu tri ruoti!  
   _Thank you, thank you! You are an angel with three wheels!_
-- M’ha saivatu a iurnata! Ti offru quarchi cosa!  
+- M’ha saibbatu a iurnata! Ti offru quarchi cosa!  
   _You saved my day! Let me treat you!_
 
 ### food: none

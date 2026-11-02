@@ -153,7 +153,7 @@ export const DRIVER = {
   ],
   late: [
     ['Mi dispiaci, u traffico è traffico: accusa u Comune!', 'Sorry, traffic is traffic: blame the Comune!'],
-    ['Cu va chianu, va sanu e va luntanu!', 'Who goes slowly goes safely and far!'],
+    ['Cu va araciu, va sanu e va luntanu!', 'Who goes slowly goes safely and far!'],
   ],
   arrive: [
     ['Semu arrivati! Bon appetitu, picciotti!', 'We have arrived! Enjoy your meal, kids!'],
@@ -290,7 +290,7 @@ export const FAVORITA = {
     ],
     ambient: [
       ['Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all\'occhi.', 'Why sunglasses at night? For... the moon. It hurts my eyes. (?)'],
-      ['Cchiù chianu! Mi pari ca mi talia tuttu u quartieri.', 'Slower! It feels like the whole neighbourhood is looking at me. (?)'],
+      ['Cchiù araciu! Mi pari ca mi talia tuttu u quartieri.', 'Slower! It feels like the whole neighbourhood is looking at me. (?)'],
       ['Nun mi taliari nta u specchiettu, grazzi.', 'Do not look at me in the mirror, thanks. (?)'],
       ['Si mi ricanuscinu mi rovinu: sugnu... cunsigghieri.', 'If they recognise me I am ruined: I am... a councillor. (?)'],
       ['Chistu è un impermeabili. Perché? Pi... a pioggia.', 'This is a raincoat. Why? For... the rain. (?) (it is not raining)'],
@@ -350,14 +350,14 @@ export const NIGHT_CLIENTS = {
       ],
       ambient: [
         ['Chi viernu ca fa... mi mettu u cappeddu ’nta facci.', 'What a winter... I pull my hat over my face.'],
-        ['Cchiù chianu, ca mi talianu tutti.', 'Slower, everyone is looking at me.'],
+        ['Cchiù araciu, ca mi talianu tutti.', 'Slower, everyone is looking at me.'],
         ['Un taliari ’nta u specchiettu, pi favuri.', 'Do not look in the mirror, please.'],
         ['Sugnu... in missioni pi cuntu ra parrocchia.', 'I am on a mission for the parish.'],
       ],
       fast: [['Mamma mia, mi scappa u cappeddu! E a cuscienza!', 'Mamma mia, my hat is flying off! And my conscience!']],
       drift: [['Ohi! Si mi viri u parrinu accussì, mi scumunica!', 'Ohi! If the priest sees me like this he excommunicates me!']],
       wheels: [['Du roti! Chiamati a me muggheri... no, lassati stari!', 'Two wheels! Call my wife... no, leave it!']],
-      miss: [['Chianu! Haiu ancora tanti cosi ri fari!', 'Easy! I still have so many things to do!']],
+      miss: [['Araciu! Haiu ancora tanti cosi ri fari!', 'Easy! I still have so many things to do!']],
       hitPed: [['Ma cu è? Un lu canusciu, ci l’aiuru!', 'Who is that? I do not know him, I swear it!']],
       hitWall: [['Chi botta! Mi cariu u cappeddu!', 'What a bump! My hat fell off!']],
       late: [['Curri, ca si fa tardu e mi viri a luna!', 'Hurry, it is getting late and the moon sees me!']],
@@ -395,10 +395,10 @@ export const NIGHT_CLIENTS = {
         ['Chi calurusa sta nuttata, eh? Mi senti u cori...', 'Quite a warm night, eh? My heart...'],
         ['Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci.', 'Look, they know me: I put the newspaper over my face.'],
       ],
-      fast: [['Cchiù chianu, ca mi veni u mal ri mari!', 'Slower, I am getting seasick!']],
+      fast: [['Cchiù araciu, ca mi veni u mal ri mari!', 'Slower, I am getting seasick!']],
       drift: [['Maronna! Si u sapi me suoru mi scumunica ’ntô luocu!', 'Madonna! If my sister finds out she excommunicates me on the spot!']],
       wheels: [['Du roti! U me cori un regi!', 'Two wheels! My heart cannot take it!']],
-      miss: [['Chianu! Nicoletta mi spetta, vabbé u sai!', 'Easy! Nicoletta is waiting for me, well, you know!']],
+      miss: [['Araciu! Nicoletta mi spetta, vabbé u sai!', 'Easy! Nicoletta is waiting for me, well, you know!']],
       hitPed: [['Un fu cuorpa mia! Un m’ha vistu nuddu!', 'It was not my fault! Nobody saw me!']],
       hitWall: [['Ahia! Mi cariru i cannola!', 'Ouch! The cannoli fell!']],
       late: [['Prestu, ca i cannola s’ammuscianu!', 'Hurry, the cannoli are going soft!']],
@@ -410,7 +410,7 @@ export const NIGHT_CLIENTS = {
     },
     driver: {
       board: [['Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu.', 'Via Bandiera, well, you know. I am blind and deaf.'], ['Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita.', 'To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime.']],
-      depart: [['Chianu chianu, ca i cannola un si spezzanu.', 'Gently, gently, so the cannoli do not break.']],
+      depart: [['Araciu araciu, ca i cannola un si spezzanu.', 'Gently, gently, so the cannoli do not break.']],
       ask: [['Nenti ri nenti, cumpari. Mutu.', 'Nothing about nothing, pal. Mum.']],
       arrive: [['Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.', 'We are here, pal. Say hello to... nobody. But the meter talks.']],
     },
@@ -425,10 +425,10 @@ export const HORNS_LINES = {
   notme: [["Un u rissi iu, u rissi n'autru.", 'It was not me who said it, it was someone else.']],
   call: [
     ['Psst! Lapista! Vinni ccà, ca t’haiu a dari na cosa!', 'Psst! Driver! Come here, I have something to give you!'],
-    ['Amunì, ca è na missioni ri paisi: i cuorna!', 'Come on, it is a town mission: the horns!'],
+    ['Amunì, ca è na missioni ri paisi: i cuainna!', 'Come on, it is a town mission: the horns!'],
   ],
   give: [
-    ['Teni ’sti cuorna, mettitilli ’ncapu e vai ô Cutò.', 'Take these horns, put them on and go to the Cutò.'],
+    ['Teni ’sti cuainna, mettitilli ’ncapu e vai ô Cutò.', 'Take these horns, put them on and go to the Cutò.'],
     ['Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa!', 'Nobody passes under the arch of Cutò without scratching their head!'],
   ],
   go: [
@@ -444,13 +444,13 @@ export const HORNS_LINES = {
     ['Visti? Sutta l’arcu ri Cutò un si passa senza grattarisi a testa!', 'See? Under the arch of Cutò nobody passes without scratching their head!'],
   ],
   careful: [['Ma chi fai, ci addummanni u permissu?', 'What are you doing, asking permission?']],
-  careless: [['Chianu, un c’è premura! I cuorna!', 'Easy, no hurry! The horns!']],
+  careless: [['Araciu, un c’è premura! I cuainna!', 'Easy, no hurry! The horns!']],
   passers: [
-    ['Ahahah! Talìa chi cuorna!', 'Hahaha! Look at those horns!'],
+    ['Ahahah! Talìa chi cuainna!', 'Hahaha! Look at those horns!'],
     ['Gràttiti a testa, ca ti pizzica!', 'Scratch your head, it itches!'],
     ['Ahahah! Bravu!', 'Hahaha! Well done!'],
   ],
-  fail: [['Vabbè, i cuorna mi li pigghiu iu.', 'Fine, I will take the horns back myself.']],
+  fail: [['Vabbè, i cuainna mi li pigghiu iu.', 'Fine, I will take the horns back myself.']],
 };
 
 // ---- "Pollanche": vendors roasting corn cobs on charcoal at the Santuario di Santa Rosalia (Monte Pellegrino).
@@ -499,7 +499,7 @@ export const APPARTATI = {
 // What the people on the kerb shout to call the lapa.
 export const CALL = {
   tourist: [['Taxi! Taxi! Over here!', ''], ['Hello! Excuse me! Are you free?', ''], ['Hey! Driver! Please, please!', ''], ['Is that a taxi? Please be a taxi!', '']],
-  taxi: [['Taxi! Ao, taxi!', ''], ['Fermati, fermati!', 'Stop, stop!'], ['Lapista! Mi puoiti?', 'Driver! Can you take me?'], ['Ehi! Libiru?!', 'Hey! Free?!']],
+  taxi: [['Taxi! Ao, taxi!', ''], ['Fermati, fermati!', 'Stop, stop!'], ['Lapista! Mi puaitti?', 'Driver! Can you take me?'], ['Ehi! Libiru?!', 'Hey! Free?!']],
   // hotel-concierge tourists, by day: they have been told to ask for "a pulle" and have no idea what it is
   pulle: [['Excuse me! Do you know "a pulle"? The hotel man winked a lot.', ''], ['Hello! We need "a pulle". Is it far? Is it a restaurant?', ''], ['Taxi! "A pulle", please! Everybody says it with a smile!', '']],
   food: [['Aiutooo! Mi sunnu scappati i {items}!', 'Heeelp! My {items} ran away!'], ['Fermati! I {items} sunnu vulati via!', 'Stop! The {items} flew off!'], ['Ao! Aiutami! Haiu pirdutu i {items}!', 'Hey! Help me! I lost the {items}!']],
@@ -512,7 +512,7 @@ export const CALL = {
 // passenger lines: [Italian or Sicilian, English]. They never use a name and say nothing about how anybody looks.
 export const FRIEND = {
   amico1: {
-    hail: [['Lapista! Fermati! Ti offru ’na stigghiola... a metà.', 'Driver! Stop! I will buy you a stigghiola... half of one.'], ['Ehi, amunì! Mi runi ’nu passaggiu? Pagu doppu!', 'Hey, come on! A lift? I pay later!'], ['Talìa chi cuincidienza! Libiru?', 'Look at that, what luck! Free?'], ['Fratì! Mi puoiti? Haiu lassatu u motorinu a casa!', 'Brother! Can you take me? I left the scooter at home!']],
+    hail: [['Lapista! Fermati! Ti offru ’na stigghiola... a metà.', 'Driver! Stop! I will buy you a stigghiola... half of one.'], ['Ehi, amunì! Mi runi ’nu passaggiu? Pagu doppu!', 'Hey, come on! A lift? I pay later!'], ['Talìa chi cuincidienza! Libiru?', 'Look at that, what luck! Free?'], ['Fratì! Mi puaitti? Haiu lassatu u motorinu a casa!', 'Brother! Can you take me? I left the scooter at home!']],
     board: [['Biedda matri, ’sta cosa va ’ntô seriu!', 'Holy mother, this thing is for real!'], ['Paiti puru, iu mi riggu ô tettu.', 'Go ahead, I will hold on to the roof.']],
     ambient: [['Sai ca ccà l’aria è sempri buona? Doppu i tri.', 'You know the air here is always nice? After three o’clock.'], ['Iu u dicu sempri: a tangenziali è n’opinioni.', 'I always say it: the ring road is an opinion.'], ['Si viri ’nu bar apiertu, fai finta ri nienti.', 'If you see an open bar, pretend you did not.']],
     drift: [['Minchia! Arrè, arrè!', 'Wow! Again, again!']], wheels: [['Supra dui ruoti! M’è passata a sunnulenza!', 'On two wheels! My sleepiness is gone!']],
@@ -522,7 +522,7 @@ export const FRIEND = {
   },
   amico2: {
     hail: [['Ehi! Lapista! Puozzu acchianari? Haiu i gammi lunghi, ma m’adattu.', 'Hey! Driver! Can I get in? My legs are long, but I will manage.'], ['Fermati ’n attimu! Ti cuntu ’na cosa mentri annamu.', 'Stop a moment! I will tell you something on the way.'], ['Amunì, amunì! Mi runi ’nu strappu?', 'Come on! Can I have a ride?'], ['Scusa, si libiru? Giuru ca un arrobbu u postu a nuddu.', 'Sorry, are you free? I swear I will not take anyone’s seat.']],
-    board: [['’Nu pocu strittu, ma havi u so fascinu.', 'A bit tight, but it has its charm.'], ['Va’ tranquillu. Iu mi chiegu ’n dui.', 'Take it easy. I will fold in half.']],
+    board: [['’Na picca strittu, ma havi u so fascinu.', 'A bit tight, but it has its charm.'], ['Va’ tranquillu. Iu mi chiegu ’n dui.', 'Take it easy. I will fold in half.']],
     ambient: [['U sai ca a Palermu u semaforu è ’nu cunsigghiu?', 'You know that in Palermo the traffic light is a suggestion?'], ['Vitti ’nu gattu cu ’na Vespa, ajeri. Giuru.', 'I saw a cat on a Vespa yesterday. I swear.'], ['Ccà ogni strata havi u so ciauru: panelle o scappamentu.', 'Every street here has its smell: panelle or exhaust.']],
     drift: [['Ahahah! Chista a cuntu!', 'Hahaha! I am telling this one!']], wheels: [['Dui ruoti! Pari ri vulari!', 'Two wheels! It feels like flying!']],
     fast: [['Va’! Sugnu già ’n ritardu ’n anticipu!', 'Go! I am already early for being late!']], miss: [['Ma u vidisti?! Era a ’nu ditu!', 'Did you see that?! It was a finger away!']],
@@ -557,7 +557,7 @@ export const URGENT_LINES = {
 };
 // The owner when the lost food is brought back
 export const FOOD = {
-  thanks: [['Grazie, grazie! Si ’n’angilu cu tri ruoti!', 'Thank you, thank you! You are an angel with three wheels!'], ['M’ha saivatu a iurnata! Ti offru quarchi cosa!', 'You saved my day! Let me treat you!']],
+  thanks: [['Grazie, grazie! Si ’n’angilu cu tri ruoti!', 'Thank you, thank you! You are an angel with three wheels!'], ['M’ha saibbatu a iurnata! Ti offru quarchi cosa!', 'You saved my day! Let me treat you!']],
   none: [['Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
 };
 
@@ -573,7 +573,7 @@ export const RAVE_LINES = {
   friend: {
     board: [['Amunì, amunì, ca è tardu!', 'Come on, come on, it is late!'], ['Paiti, paiti, ca ni stannu aspittannu!', 'Go, go, they are waiting for us!']],
     ambient: [['Chi biedda sirata, eh?', 'Nice night, eh?'], ['A lapa curri buona, eh!', 'The lapa runs well, eh!'], ['Ci semu cuasi?', 'Are we nearly there?']],
-    hitWall: [['Ohi! Ma unni talii?!', 'Ow! Where are you looking?!'], ['Chianu, chianu, ca mi rumpi i uossa!', 'Easy, you will break my bones!']],
+    hitWall: [['Ohi! Ma unni talii?!', 'Ow! Where are you looking?!'], ['Araciu, araciu, ca mi rumpi i uossa!', 'Easy, you will break my bones!']],
     hitPed: [['Ma chi fai, i pirsuni un si tuccanu!', 'What are you doing, you do not touch people!']],
     crash: [['Maronna! Mi stava cariennu ri ’nterra!', 'Madonna! I nearly fell out!'], ['Un c’è bisuognu ri ammazzarini, eh!', 'No need to get us killed, eh!']],
     fast: [['Curri, curri! Ma un ni ammazzari!', 'Go, go! But do not get us killed!']],

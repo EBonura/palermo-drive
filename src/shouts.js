@@ -14,7 +14,7 @@ export const INSULTS = [
   'To matri e pulla',
   "Cuinnut'i to patri!",
   "Talè chi c'è cca!",
-  "Pezz'i fagnu!",
+  "Pizz'i fagnu!",
   'Chi ffa un ci viri?',
   'A patente nni patatini attruvasti?',
   "Si t'annagghiu ti ruimpu u culu",
@@ -22,6 +22,14 @@ export const INSULTS = [
   'U paliaimmu è miraculusu!',
   "Mancu cu'u lignu!!",
   'Pigghialu stu nummaro i taigga',
+  'Sì nuddu immiscatu cu niainti',
+  "Ma u ciaivviaddu l'hai pi spaittiri 'aricchi?",
+  'Minchia ra niagghia',
+  'Minchia ra cosa inutili',
+  'Minchia sì na ccuasa ppi ghiccari',
+  "To matri sbatti l'uava chì minni",
+  "T'annagghiù ti rugnu na timpulata ti fazzu a bbiriri u papa vistutu i comuniuani",
+  "A vo' viriri Paliaimmu illuminata?",
 ];
 // Said now and then by someone the lapa sends flying, or who leaps out of its way (src/pedestrians.js). Owner's line, as written.
 export const FLEW = 'Minchia vulavu';

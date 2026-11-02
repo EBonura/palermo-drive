@@ -31,7 +31,7 @@ const LINES = [
   ['Dui strati? Pigghiu chidda ri mienzu.', 'Two roads? I will take the one in the middle.'],
   ['A lapa va sula. Iu mi fidu.', 'The lapa drives itself. I trust it.'],
   ['Chi è ’sta giuastra?', 'What is this merry-go-round?'],
-  ['Tuttu gira, ma iu mi sientu u rre.', 'Everything spins, but I feel like a king.'],
+  ['Tuttu gira, ma iu mi siantu u rre.', 'Everything spins, but I feel like a king.'],
 ];
 const CUT = ['Basta! Ti n’adduni ca parri cû lampiuni?', 'Enough! Do you realise you are talking to a lamp post?'];
 const BROKE = [
@@ -40,7 +40,7 @@ const BROKE = [
   ['Ci vonnu dui euru, un abbasta taliari.', 'It takes two euros, looking is not enough.'],
   ['Acqua ro rubinettu? Chidda è gratis.', 'Tap water? That one is free.'],
 ];
-const FREE = ['Gratis! I casse i puoitasti tu.', 'On the house! You brought the speakers.'];
+const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the speakers.'];
 // A finished errand (src/event-pubs.js) pays in drinks too, as the thanks of the house promise (src/pub-places.js): how many are free for the rest of that night.
 // Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey and Sanlorenzo promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
 const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1 };

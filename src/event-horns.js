@@ -127,7 +127,7 @@ export function createHornsEvents(X, opts = {}) {
     e.passer = pedestrians.spawnScripted('signora2', car.x - Math.cos(car.th) * 6, car.z + Math.sin(car.th) * 6); if (e.passer >= 0) pedestrians.face(e.passer, car.x, car.z);
     X.calls.hideBeacon(); X.setPhase('give');
     rig_.appear = 0; rig_.roll = rig_.pitch = rig_.rollV = rig_.pitchV = 0; rig_.pvx = car.vx; rig_.pvz = car.vz; rig_.broken = 0; rig_.t = 0;
-    hud.toast(T('Teni i cuorna!', 'Take the horns!'), T('Piazza Pretoria', 'Piazza Pretoria'));
+    hud.toast(T('Teni i cuainna!', 'Take the horns!'), T('Piazza Pretoria', 'Piazza Pretoria'));
     audio();   // made now, while the key press that stopped the lapa still counts as a gesture
   }
   function begin() {
@@ -150,7 +150,7 @@ export function createHornsEvents(X, opts = {}) {
       if (!e.gave && e.t > 0.3) { e.gave = true; if (e.cit >= 0) { say(pick(HL.bip), headOf(e.cit), 0); beep(); say(pick(HL.give), headOf(e.cit), 1.6); say(pick(HL.notme), headOf(e.cit), 3.2); } }
       if (!e.laughed && e.t > 2.2) { e.laughed = true; if (e.passer >= 0) { pedestrians.setBounce?.(e.passer, true); say(pick(HL.passers), headOf(e.passer), 0.2); } laugh(5, 0.1); }
       X.aim(0, 0, false);
-      hud.set({ label: T('U Sinnacu a primavera', 'The Mayor in Spring'), title: T('Mittiti i cuorna', 'Put on the horns'), sub: '', time: '', frac: null, target: null });
+      hud.set({ label: T('U Sinnacu a primavera', 'The Mayor in Spring'), title: T('Mittiti i cuainna', 'Put on the horns'), sub: '', time: '', frac: null, target: null });
       if (e.t > GIVE_T) begin();
       return;
     }
@@ -197,8 +197,8 @@ export function createHornsEvents(X, opts = {}) {
     screech(kind === 'careless' ? 0.8 : kind === 'careful' ? 1.9 : 1.3, kind !== 'careful');
     const p = tipsAt(); burst(p[0], p[1], p[2], 18, 7);
     rig_.rollV += 6; rig_.pitchV += 3;
-    if (kind === 'careless') { rig_.broken = 1; for (let i = 0; i < 24; i++) { const q = tipsAt(); burst(q[0], q[1], q[2], 1, 8); } hud.toast(T('Cuorna a pezzi!', 'Horns in pieces!'), T('Troppu prestu!', 'Far too fast!')); say(pick(HL.careless), X.driverPos, 1.4); }
-    else if (kind === 'careful') { hud.toast(T('Chianu chianu...', 'Slowly, slowly...'), ''); say(pick(HL.careful), X.driverPos, 1.4); }
+    if (kind === 'careless') { rig_.broken = 1; for (let i = 0; i < 24; i++) { const q = tipsAt(); burst(q[0], q[1], q[2], 1, 8); } hud.toast(T('Cuainna a pezzi!', 'Horns in pieces!'), T('Troppu prestu!', 'Far too fast!')); say(pick(HL.careless), X.driverPos, 1.4); }
+    else if (kind === 'careful') { hud.toast(T('Araciu araciu...', 'Slowly, slowly...'), ''); say(pick(HL.careful), X.driverPos, 1.4); }
     else hud.toast(T('Craaac!', 'Craaack!'), T('Gràttiti a testa!', 'Scratch your head!'));
     // the people beyond the arch
     for (let i = 0; i < e.crowd.length; i++) { pedestrians.setBounce?.(e.crowd[i], true); say(pick(HL.passers), headOf(e.crowd[i]), 0.9 + i * 0.7); }
@@ -209,13 +209,13 @@ export function createHornsEvents(X, opts = {}) {
     e.phase = 'done'; X.setPhase('done'); X.destBeacon.show(false); if (X.destMarker) { X.dropMarker(X.destMarker); X.destMarker = null; } X.guide.off();
     if (!ok) {
       e.thanks = 3.6; rig_.broken = 1; hornsMesh.visible = false; burst(car.x, groundAt(car.x, car.z) + roofY() + 0.6, car.z, 14, 4);
-      hud.result(`<h3>${T('Taiddu assai!', 'Far too late!')}</h3><div class="row"><span>${T('I cuorna si li pigghiau n’autru', 'Somebody else took the horns')}</span></div>`, 3);
+      hud.result(`<h3>${T('Taiddu assai!', 'Far too late!')}</h3><div class="row"><span>${T('I cuainna si li pigghiau n’autru', 'Somebody else took the horns')}</span></div>`, 3);
       say(pick(HL.fail), X.driverPos, 0.4); return;
     }
     const base = e.kind === 'good' ? 10 : 7, bonus = e.kind === 'good' ? Math.round(6 * clamp(e.left / e.limit, 0, 1) * 2) / 2 : 0, total = base + bonus;
     e.pay = total; e.thanks = 5; X.addFare(total, 'food');
     dispatchEvent(new CustomEvent('pd-horns', { detail: { kind: e.kind } }));   // the secret of src/achievements.js
-    const what = e.kind === 'good' ? T('Pulitu, cû cuorna!', 'Clean, with the horns!') : e.kind === 'careful' ? T('Troppu chianu', 'Far too slow') : T('Troppu prestu: cuorna rutti', 'Far too fast: broken horns');
+    const what = e.kind === 'good' ? T('Pulitu, cû cuainna!', 'Clean, with the horns!') : e.kind === 'careful' ? T('Truappu araciu', 'Far too slow') : T('Troppu prestu: cuainna rutti', 'Far too fast: broken horns');
     hud.result(`<h3>${T('U Sinnacu a primavera', 'The Mayor in Spring')}</h3>
       <div class="row"><span>${what}</span><span></span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>

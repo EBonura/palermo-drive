@@ -186,13 +186,12 @@ function paintFloor(g, w, h) {   // dark basalt flags, worn pale down the middle
   paintAshlar(g, w, h, 3, 3, 0.75, 1.0, '#8a8780', '#4a4742', 681, 2.5, 0.1);
   noiseDots(g, w, h, 500, 2.5, 682, ['rgba(30,25,20,0.2)', 'rgba(200,195,185,0.15)']);
 }
-function paintCol(g, w, h) {   // grey marble shaft (2.4 m round, 5 m high) with stains, a few posters on the street side (u around 0.5)
+function paintCol(g, w, h) {   // grey marble shaft (2.4 m round, 5 m high) with stains
   g.fillStyle = '#a7a59f'; g.fillRect(0, 0, w, h); const r = RNG(691);
   noiseDots(g, w, h, 900, 2.6, 692, ['rgba(70,68,62,0.16)', 'rgba(235,232,222,0.2)', 'rgba(120,110,95,0.14)']);
   g.strokeStyle = 'rgba(70,70,70,0.25)'; g.lineWidth = 1; for (let i = 0; i < 16; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let j = 0; j < 4; j++) { x += (r() - 0.5) * 12; y += 12 + r() * 20; g.lineTo(x, y); } g.stroke(); }
   streaks(g, w, h, 8, 693, 0.3, 140, '60,50,40');
   const gb = g.createLinearGradient(0, h, 0, h - h * 0.4); gb.addColorStop(0, 'rgba(60,50,40,0.45)'); gb.addColorStop(1, 'rgba(60,50,40,0)'); g.fillStyle = gb; g.fillRect(0, h - h * 0.4, w, h * 0.4);   // dirt from the pavement
-  for (const [u, y, pw, ph, col] of [[0.46, 0.34, 0.07, 0.1, '#e5a53c'], [0.54, 0.4, 0.06, 0.12, '#f1ece0'], [0.5, 0.52, 0.05, 0.09, '#d8dfe6'], [0.43, 0.6, 0.05, 0.07, '#c9553d']]) { g.fillStyle = col; g.fillRect(u * w, y * h, pw * w, ph * h); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(u * w, y * h + ph * h - 2, pw * w, 2); }
 }
 function paintRail(g, w, h) {   // wrought iron, 1.2 x 1.05 m: top and bottom rails, interlaced oval links between uprights
   g.clearRect(0, 0, w, h); g.fillStyle = IRON; g.fillRect(0, 0, w, h * 0.07); g.fillRect(0, h * 0.9, w, h * 0.06); g.fillRect(0, h * 0.18, w, 2);

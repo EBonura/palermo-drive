@@ -57,15 +57,15 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | Sei il nostro roadie! Un applauso! | Si u nostru roadie! ’Nu applausu! |
 | Niente chitarre? Allora stasera si fa il silenzio. | Nienti chitarre? Allura stasira si fa u silenziu. |
 | Ao! I barili dei tavoli sono rotolati giù per la piazza! | Ao! I varrili ri tavuli sunnu ruzzuliati ’ngiù pâ chiazza! |
-| Aiuto! Il Monkey è senza tavoli, riportami i barili! | Aiutu! U Monkey è sienza tavuli, puoitami i varrili! |
+| Aiuto! Il Monkey è senza tavoli, riportami i barili! | Aiutu! U Monkey è sienza tavuli, puaittami i varrili! |
 | Lapista! Non si può bere in piedi tutta la sera! | Lapista! Un si po viviri ’n peri tutta a sira! |
 | Cerca i barili dei tavoli! | Attruova i varrili ri tavuli! |
-| Grazie! Ti porto una Paulaner, offre la casa! | Grazie! Ti puoitu ’na Paulaner, offri a casa! |
+| Grazie! Ti porto una Paulaner, offre la casa! | Grazie! Ti puaittu ’na Paulaner, offri a casa! |
 | Sei un mito! I tavoli sono salvi! | Si ’nu mitu! I tavuli sunnu saivi! |
 | Niente barili? Stasera si beve in piedi. | Nienti varrili? Stasira si vivi ’n peri. |
 | Aiuto! I boccali sono finiti per strada, e ne servono trecento al giorno! | Aiutu! I buccali sunnu finuti ’nta strata, e ni sieivunu trecientu o iornu! |
 | Ao! Senza boccali la birra artigianale non si serve! | Ao! Sienza buccali a birra artigianali un si sieivi! |
-| Lapista! Mi hanno portato via i boccali dal carrello! | Lapista! M’annu puoitatu via i buccali ro carrellu! |
+| Lapista! Mi hanno portato via i boccali dal carrello! | Lapista! M’annu puaittatu via i buccali ro carrellu! |
 | Cerca i boccali di birra! | Attruova i buccali ri birra! |
 | Sei un tesoro! Stasera la prima birra è per te! | Si ’nu tisoru! Stasira a prima birra è pi tia! |
 | Salvati i boccali! Brindiamo al Mercato! | Saivati i buccali! Brindamu ô Mircatu! |
@@ -78,7 +78,7 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | Lapista! Fermati! Ti offro ’na stigghiola... a metà. | Lapista! Fermati! Ti offru ’na stigghiola... a metà. |
 | Ehi, amunì! Mi dai ’nu passaggio? Pago dopo! | Ehi, amunì! Mi runi ’nu passaggiu? Pagu doppu! |
 | Talìa chi coincidenza! Libero? | Talìa chi cuincidienza! Libiru? |
-| Fratè! Mi porti? Ho lasciato il motorino a casa! | Fratì! Mi puoiti? Haiu lassatu u motorinu a casa! |
+| Fratè! Mi porti? Ho lasciato il motorino a casa! | Fratì! Mi puaitti? Haiu lassatu u motorinu a casa! |
 | Bedda matri, ’sta cosa va sul serio! | Biedda matri, ’sta cosa va ’ntô seriu! |
 | Parti pure, io mi reggo al tetto. | Paiti puru, iu mi riggu ô tettu. |
 | Sai che qui l’aria è sempre buona? Dopo le tre. | Sai ca ccà l’aria è sempri buona? Doppu i tri. |
@@ -97,7 +97,7 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | Fermati un attimo! Ti racconto una cosa mentre andiamo. | Fermati ’n attimu! Ti cuntu ’na cosa mentri annamu. |
 | Amunì, amunì! Mi dai ’nu strappo? | Amunì, amunì! Mi runi ’nu strappu? |
 | Scusa, sei libero? Giuro che non rubo il posto a nessuno. | Scusa, si libiru? Giuru ca un arrobbu u postu a nuddu. |
-| Un po’ stretto, ma ha il suo fascino. | ’Nu pocu strittu, ma havi u so fascinu. |
+| Un po’ stretto, ma ha il suo fascino. | ’Na picca strittu, ma havi u so fascinu. |
 | Vai tranquillo. Io mi piego in due. | Va’ tranquillu. Iu mi chiegu ’n dui. |
 | Lo sai che a Palermo il semaforo è un consiglio? | U sai ca a Palermu u semaforu è ’nu cunsigghiu? |
 | Ho visto un gatto con una Vespa, ieri. Giuro. | Vitti ’nu gattu cu ’na Vespa, ajeri. Giuru. |
@@ -111,7 +111,7 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | Ce la facciamo, ce la facciamo... forse. | Ci la facemu, ci la facemu... fuorsi. |
 | Grazie mille! Offro io il caffè. Dopo. | Grazie mille! Offru iu u cafè. Doppu. |
 | Pazienza, ci vado a piedi. Lungo come sono... | Pacienza, ci vaiu a peri. Lungu comu sugnu... |
-| Lapista! Mi porti? | Lapista! Mi puoiti? |
+| Lapista! Mi porti? | Lapista! Mi puaitti? |
 | Ehi! Libero?! | Ehi! Libiru?! |
 | Aiutooo! Mi sono scappate le {items}! | Aiutooo! Mi sunnu scappati i {items}! |
 | Fermati! Le {items} sono volate via! | Fermati! I {items} sunnu vulati via! |
@@ -120,7 +120,7 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | Fermati qua e corri con noi! | Fermati ccà e cuorri cu nuatri! |
 | Tre, due, uno... quasi! | Tri, dui, unu... cuasi! |
 | Grazie, grazie! Sei un angelo con tre ruote! | Grazie, grazie! Si ’n’angilu cu tri ruoti! |
-| Mi hai salvato la giornata! Ti offro qualcosa! | M’ha saivatu a iurnata! Ti offru quarchi cosa! |
+| Mi hai salvato la giornata! Ti offro qualcosa! | M’ha saibbatu a iurnata! Ti offru quarchi cosa! |
 | Niente?! Pazienza... torna quando hai più fortuna. | Nienti?! Pacienza... tuoina quannu hai cchiù furtuna. |
 
 ## Food hunt texts (src/event-food.js)
@@ -128,22 +128,22 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | old | new |
 | --- | --- |
 | T('Cerca ' + item.it + '! | T('Attruova ' + item.it + '! |
-| T('Riportale da ' + e.slot.who | T('Puoitali a ' + e.slot.who |
-| T('Niente da riportare | T('Nienti ri puoitari |
+| T('Riportale da ' + e.slot.who | T('Puaittali a ' + e.slot.who |
+| T('Niente da riportare | T('Nienti ri puaittari |
 | T('Ritrovate | T('Attruvati |
 | T('Tutte quante! | T('Tutti quanti! |
 | T('Cerca ' + e.item.it, | T('Attruova ' + e.item.it, |
-| T('Riportale indietro | T('Puoitali narrè |
+| T('Riportale indietro | T('Puaittali narrè |
 
 ## Pub hunt texts (src/event-pubs.js)
 
 | old | new |
 | --- | --- |
-| T('Niente da riportare | T('Nienti ri puoitari |
+| T('Niente da riportare | T('Nienti ri puaittari |
 | T('Tutte quante! | T('Tutti quanti! |
 | T('Cerca ' + e.item.art + ' ' + e.item.it, | T('Attruova ' + e.item.it, |
-| T(e.item.art === 'le' ? 'Riportale indietro' : 'Riportali indietro | T('Puoitali narrè |
-| T(e.item.art === 'le' ? 'Riportate' : 'Riportati | T('Puoitati narrè |
+| T(e.item.art === 'le' ? 'Riportale indietro' : 'Riportali indietro | T('Puaittali narrè |
+| T(e.item.art === 'le' ? 'Riportate' : 'Riportati | T('Puaittati narrè |
 
 ## Fare texts (src/event-fares.js)
 
@@ -153,7 +153,7 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | T('Si parte! | T('Si paiti! |
 | T('Derapata! | T('Sciddicata! |
 | T('Su due ruote! | T('Supra dui ruoti! |
-| T('Pedale a tavoletta | T('Pidali a tavulietta |
+| T('Pedale a tavoletta | T('Pidali a tavuliatta |
 | T('Per un pelo! | T('Pi nu pilu! |
 | T('Che profumo! | T('Chi prufumu! |
 | T('I turisti vogliono una stigghiola | T('I turisti vonnu na stigghiola |
@@ -167,12 +167,12 @@ Plain Italian lines written by agents, converted to Palermitan with the owner's 
 | T('Totale | T('Tutali |
 | T('Incasso  | T('Ncassu  |
 | T('Urgente! | T('Uiginti! |
-| T('Portali a mangiare | T('Puoitali a manciari |
+| T('Portali a mangiare | T('Puaittali a manciari |
 | T('Salgono | T('Acchianunu |
 | T('Arrivederci | T('Ni viremu |
 | T('Stigghiola per i turisti | T('Stigghiola pê turisti |
 
-Less sure about: "Cuoisa" (cursa), "Uiginti" (urgenti), "tavulietta", "Pidali", "Tutali".
+Less sure about: "Cuoisa" (cursa), "Uiginti" (urgenti), "tavuliatta", "Pidali", "Tutali".
 
 ## The stadium (src/stadium-ball.js, src/achievements.js)
 
@@ -193,7 +193,7 @@ The first call line is the owner's (kept as is). New lines, all drafts:
 | chat | A lapa curri buona, eh! | The lapa runs well, eh! |
 | chat | Ci semu cuasi? | Are we nearly there? |
 | scrapes a wall | Ohi! Ma unni talii?! | Ow! Where are you looking?! |
-| scrapes a wall | Chianu, chianu, ca mi rumpi i uossa! | Easy, you will break my bones! |
+| scrapes a wall | Araciu, araciu, ca mi rumpi i uossa! | Easy, you will break my bones! |
 | hits a pedestrian | Ma chi fai, i pirsuni un si tuccanu! | What are you doing, you do not touch people! |
 | hard crash (above 14 m/s) | Maronna! Mi stava cariennu ri ’nterra! | Madonna! I nearly fell out! |
 | hard crash | Un c’è bisuognu ri ammazzarini, eh! | No need to get us killed, eh! |
@@ -222,12 +222,12 @@ New lines (no old text): what the stands shout at the lapa while it is on the pi
 | the lapa comes onto the pitch | Scinni ra ieiba, cuinnutu! | Get off the grass, you fool! |
 | the lapa comes onto the pitch | L’aibitru! Unni è l’aibitru?! | The referee! Where is the referee?! |
 | the lapa comes onto the pitch | Cu fu ca lu fici trasiri?! | Who let him in?! |
-| the lapa comes onto the pitch | Ma chi è, u nuovu puoitieri?! | What, is he the new goalkeeper?! |
+| the lapa comes onto the pitch | Ma chi è, u nuovu puaittieri?! | What, is he the new goalkeeper?! |
 | background shouting while it stays | Nesci ra ccà, scimunitu! | Get out of here, you fool! |
 | background shouting while it stays | Cu ti runau a patenti?! | Who gave you your licence?! |
 | background shouting while it stays | Pagai u biglietto pi vidiri chistu?! | I paid for a ticket to see this?! |
-| background shouting while it stays | A matri ro puoitieri lu sapi?! | Does the goalkeeper’s mother know?! |
-| background shouting while it stays | Puoitieri, to matri ti chiama! | Goalkeeper, your mother is calling you! |
+| background shouting while it stays | A matri ro puaittieri lu sapi?! | Does the goalkeeper’s mother know?! |
+| background shouting while it stays | Puaittieri, to matri ti chiama! | Goalkeeper, your mother is calling you! |
 | background shouting while it stays | Mi rumpisti a partita! | You ruined my match! |
 | background shouting while it stays | Cacciatilu ri ccà! | Throw him out! |
 | background shouting while it stays | Ma chi voli ’stu lapista?! | What does this lapa driver want?! |
@@ -253,8 +253,8 @@ New lines (no old text): what the stands shout at the lapa while it is on the pi
 | a goal | Cuntinua accussì, scimunitu! | Keep it up, you fool! |
 | a goal | Gol ri lapa! Mai vistu! | A lapa goal! Never seen before! |
 | a shot wide or over the bar | Fora! Pi ’nu pilu! | Wide! By a hair! |
-| a shot wide or over the bar | Era sulu ri spinciri ’nta puoita! | He only had to push it in! |
-| a shot wide or over the bar | Sbagghiasti puoita, cuinnutu! | Wrong goal, you fool! |
+| a shot wide or over the bar | Era sulu ri spinciri ’nta puaitta! | He only had to push it in! |
+| a shot wide or over the bar | Sbagghiasti puaitta, cuinnutu! | Wrong goal, you fool! |
 | a shot wide or over the bar | Ma unni tira?! | Where is he shooting?! |
 | a shot hits the post or the end line close to it | U palu! Ancora u palu! | The post! The post again! |
 | a shot hits the post or the end line close to it | Ohhh! Cuasi cuasi! | Ohhh! So close! |
@@ -282,7 +282,7 @@ New lines (no old text): what the stands shout at the lapa while it is on the pi
 | the lapa is close to the ball | A lapa s’avvicina ô palluni... | The lapa closes in on the ball... |
 | it hits the ball | Tocca u palluni! Chi cuntrollu! | He touches the ball! What control! |
 | it hits the ball | Cauci ô palluni! Cu la capìu? | A kick at the ball! Who saw that coming? |
-| the ball nears a goal | Attenzioni! Tira ’nta puoita... | Careful! Shot at goal... |
+| the ball nears a goal | Attenzioni! Tira ’nta puaitta... | Careful! Shot at goal... |
 | the ball nears a goal | U palluni è vicinu ê rete... | The ball is close to the net... |
 | goal at the Palermo end | GOL ro Palermu! O forsi ri chiddu cû lapa? | Palermo goal! Or the one with the lapa? |
 | goal at the other end | GOL! E stavota ’ntô latu sbagghiatu! | GOAL! And this time at the wrong end! |
@@ -294,7 +294,7 @@ New lines (no old text): what the stands shout at the lapa while it is on the pi
 
 Card words: label "La partita", "PALERMU" / "OSPITI" (guests).
 
-Less sure about: "ieiba" (erba, after the r before a consonant rule), "aibitru" (arbitro), "puoitieri" (portiere), "puoita" (porta), "paicheggiu" (parcheggio), "traivessa" (traversa), "iniziu", "carabinieri" (maybe carrabbinieri), "iardinieri", "trottula", "accussì", "cacciatilu", "sbagghiasti", "mi rumpisti", "ni stai rumpennu", "cchiù araciu", and whether "VAR" and "Schumacher" belong in a Palermo stand at all. The four stock chants (FORZA PALERMO!, Alé alé rosanero!, Palermo, Palermo, Palermo!, Sempre con te, Palermo!) are the old ones from src/stadium.js and the GOL ones from src/stadium-ball.js.
+Less sure about: "ieiba" (erba, after the r before a consonant rule), "aibitru" (arbitro), "puaittieri" (portiere), "puaitta" (porta), "paicheggiu" (parcheggio), "traivessa" (traversa), "iniziu", "carabinieri" (maybe carrabbinieri), "iardinieri", "trottula", "accussì", "cacciatilu", "sbagghiasti", "mi rumpisti", "ni stai rumpennu", "cchiù araciu", and whether "VAR" and "Schumacher" belong in a Palermo stand at all. The four stock chants (FORZA PALERMO!, Alé alé rosanero!, Palermo, Palermo, Palermo!, Sempre con te, Palermo!) are the old ones from src/stadium.js and the GOL ones from src/stadium-ball.js.
 
 ## Two more night clients: Via Lincoln and Via Bandiera (assets/missions/lines.js, NIGHT_CLIENTS)
 
@@ -312,13 +312,13 @@ Same system as the client of A Favorita: a man who winks ("vabbé u sai") and wa
 | client, ask | Mi porti a via Lincoln. Haiu a... cuntrullari na cosa ri famigghia. | Take me to Via Lincoln. I have to... check a family matter. |
 | client, ask | Via Lincoln, e un ti scurdari: ccà un ci sugnu mai statu. | Via Lincoln, and do not forget: I have never been there. |
 | client, ambient | Chi viernu ca fa... mi mettu u cappeddu ’nta facci. | What a winter... I pull my hat over my face. |
-| client, ambient | Cchiù chianu, ca mi talianu tutti. | Slower, everyone is looking at me. |
+| client, ambient | Cchiù araciu, ca mi talianu tutti. | Slower, everyone is looking at me. |
 | client, ambient | Un taliari ’nta u specchiettu, pi favuri. | Do not look in the mirror, please. |
 | client, ambient | Sugnu... in missioni pi cuntu ra parrocchia. | I am on a mission for the parish. |
 | client, fast | Mamma mia, mi scappa u cappeddu! E a cuscienza! | Mamma mia, my hat is flying off! And my conscience! |
 | client, drift | Ohi! Si mi viri u parrinu accussì, mi scumunica! | Ohi! If the priest sees me like this he excommunicates me! |
 | client, wheels | Du roti! Chiamati a me muggheri... no, lassati stari! | Two wheels! Call my wife... no, leave it! |
-| client, miss | Chianu! Haiu ancora tanti cosi ri fari! | Easy! I still have so many things to do! |
+| client, miss | Araciu! Haiu ancora tanti cosi ri fari! | Easy! I still have so many things to do! |
 | client, hitPed | Ma cu è? Un lu canusciu, ci l’aiuru! | Who is that? I do not know him, I swear it! |
 | client, hitWall | Chi botta! Mi cariu u cappeddu! | What a bump! My hat fell off! |
 | client, late | Curri, ca si fa tardu e mi viri a luna! | Hurry, it is getting late and the moon sees me! |
@@ -345,10 +345,10 @@ Same system as the client of A Favorita: a man who winks ("vabbé u sai") and wa
 | client, ambient | Nni Nicoletta ci vaiu pi... affari. Riceve ancora, eh, ju u sacciu. | I go to Nicoletta’s for... business. She is still receiving, eh, I know it. |
 | client, ambient | Chi calurusa sta nuttata, eh? Mi senti u cori... | Quite a warm night, eh? My heart... |
 | client, ambient | Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci. | Look, they know me: I put the newspaper over my face. |
-| client, fast | Cchiù chianu, ca mi veni u mal ri mari! | Slower, I am getting seasick! |
+| client, fast | Cchiù araciu, ca mi veni u mal ri mari! | Slower, I am getting seasick! |
 | client, drift | Maronna! Si u sapi me suoru mi scumunica ’ntô luocu! | Madonna! If my sister finds out she excommunicates me on the spot! |
 | client, wheels | Du roti! U me cori un regi! | Two wheels! My heart cannot take it! |
-| client, miss | Chianu! Nicoletta mi spetta, vabbé u sai! | Easy! Nicoletta is waiting for me, well, you know! |
+| client, miss | Araciu! Nicoletta mi spetta, vabbé u sai! | Easy! Nicoletta is waiting for me, well, you know! |
 | client, hitPed | Un fu cuorpa mia! Un m’ha vistu nuddu! | It was not my fault! Nobody saw me! |
 | client, hitWall | Ahia! Mi cariru i cannola! | Ouch! The cannoli fell! |
 | client, late | Prestu, ca i cannola s’ammuscianu! | Hurry, the cannoli are going soft! |
@@ -357,7 +357,7 @@ Same system as the client of A Favorita: a man who winks ("vabbé u sai") and wa
 | client, fail | Nun fa nenti, ci vaiu a pedi... cu i cannola ’n manu. | Never mind, I will go on foot... with the cannoli in my hand. |
 | driver, board | Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu. | Via Bandiera, well, you know. I am blind and deaf. |
 | driver, board | Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita. | To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime. |
-| driver, depart | Chianu chianu, ca i cannola un si spezzanu. | Gently, gently, so the cannoli do not break. |
+| driver, depart | Araciu araciu, ca i cannola un si spezzanu. | Gently, gently, so the cannoli do not break. |
 | driver, ask | Nenti ri nenti, cumpari. Mutu. | Nothing about nothing, pal. Mum. |
 | driver, arrive | Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla. | We are here, pal. Say hello to... nobody. But the meter talks. |
 
@@ -368,8 +368,8 @@ Working title "Sutta l’Arcu ri Cutò" (Under the Arch of Cutò). It rests on t
 | when | Palermitan | English subtitle |
 | --- | --- | --- |
 | call | Psst! Lapista! Vinni ccà, ca t’haiu a dari na cosa! | Psst! Driver! Come here, I have something to give you! |
-| call | Amunì, ca è na missioni ri paisi: i cuorna! | Come on, it is a town mission: the horns! |
-| give | Teni ’sti cuorna, mettitilli ’ncapu e vai ô Cutò. | Take these horns, put them on and go to the Cutò. |
+| call | Amunì, ca è na missioni ri paisi: i cuainna! | Come on, it is a town mission: the horns! |
+| give | Teni ’sti cuainna, mettitilli ’ncapu e vai ô Cutò. | Take these horns, put them on and go to the Cutò. |
 | give | Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa! | Nobody passes under the arch of Cutò without scratching their head! |
 | go | Camina, camina, ca l’arcu è ddà ’nfunnu. | Keep going, the arch is down there. |
 | go | Attentu ca sunnu larghi, eh! | Careful, they are wide, eh! |
@@ -378,35 +378,35 @@ Working title "Sutta l’Arcu ri Cutò" (Under the Arch of Cutò). It rests on t
 | head | Gràttiti a testa, ca ci stai passannu! | Scratch your head, you are going through! |
 | head | Visti? Sutta l’arcu ri Cutò un si passa senza grattarisi a testa! | See? Under the arch of Cutò nobody passes without scratching their head! |
 | careful | Ma chi fai, ci addummanni u permissu? | What are you doing, asking permission? |
-| careless | Chianu, un c’è premura! I cuorna! | Easy, no hurry! The horns! |
-| passers | Ahahah! Talìa chi cuorna! | Hahaha! Look at those horns! |
+| careless | Araciu, un c’è premura! I cuainna! | Easy, no hurry! The horns! |
+| passers | Ahahah! Talìa chi cuainna! | Hahaha! Look at those horns! |
 | passers | Gràttiti a testa, ca ti pizzica! | Scratch your head, it itches! |
 | passers | Ahahah! Bravu! | Hahaha! Well done! |
-| fail | Vabbè, i cuorna mi li pigghiu iu. | Fine, I will take the horns back myself. |
+| fail | Vabbè, i cuainna mi li pigghiu iu. | Fine, I will take the horns back myself. |
 
 On-screen texts:
 
 | where | Palermitan | English |
 | --- | --- | --- |
 | HUD / toast | Sutta l’Arcu | Under the Arch |
-| HUD | Mittiti i cuorna | Put on the horns |
-| toast | Teni i cuorna! | Take the horns! |
+| HUD | Mittiti i cuainna | Put on the horns |
+| toast | Teni i cuainna! | Take the horns! |
 | toast | Va’ ô Cutò | Go to the Cutò arch |
 | toast | Pi Via Maqueda | By Via Maqueda |
 | toast, wrong side | Di ddà un vali! | Not from that side! |
 | toast, wrong side | Trasi di Maqueda | Come in from Maqueda |
 | toast, at the arch | Craaac!  /  Gràttiti a testa! | Craaack!  /  Scratch your head! |
-| toast, too slow | Chianu chianu... | Slowly, slowly... |
-| toast, too fast | Cuorna a pezzi!  /  Troppu prestu! | Horns in pieces!  /  Far too fast! |
-| card, clean | Pulitu, cû cuorna! | Clean, with the horns! |
-| card, slow | Troppu chianu | Far too slow |
-| card, fast | Troppu prestu: cuorna rutti | Far too fast: broken horns |
-| card, late | I cuorna si li pigghiau n’autru | Somebody else took the horns |
+| toast, too slow | Araciu araciu... | Slowly, slowly... |
+| toast, too fast | Cuainna a pezzi!  /  Troppu prestu! | Horns in pieces!  /  Far too fast! |
+| card, clean | Pulitu, cû cuainna! | Clean, with the horns! |
+| card, slow | Truappu araciu | Far too slow |
+| card, fast | Troppu prestu: cuainna rutti | Far too fast: broken horns |
+| card, late | I cuainna si li pigghiau n’autru | Somebody else took the horns |
 | map pin | Sutta l’Arcu ri Cutò | Under the Cutò Arch |
 
-Also new in the night-client fares: the HUD label "Cliente ri nuttata" (Night client). Less sure about: "cuorna", "truappu larghi", "cariennu", "garbu", "mal ri mari", "muto", "u me cori un regi".
+Also new in the night-client fares: the HUD label "Cliente ri nuttata" (Night client). Less sure about: "cuainna", "truappu larghi", "cariennu", "garbu", "mal ri mari", "muto", "u me cori un regi".
 
-The achievement: "Sutta l’Arcu ri Cutò" (en: Under the Cutò Arch), note "Passasti sutta l’arcu ri Cutò cû cuorna, e ti grattasti a testa." (en: You passed under the arch of Cutò wearing the horns, and you scratched your head.).
+The achievement: "Sutta l’Arcu ri Cutò" (en: Under the Cutò Arch), note "Passasti sutta l’arcu ri Cutò cû cuainna, e ti grattasti a testa." (en: You passed under the arch of Cutò wearing the horns, and you scratched your head.).
 
 ## U Sinnacu a primavera
 

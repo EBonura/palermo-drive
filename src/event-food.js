@@ -83,13 +83,13 @@ export function createFood(X) {
     setItems(e.mesh, e.beams, e.items);
     if (e.got === 0) { say(pick(FOOD.none)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0); finish(false); return; }
     homeBeacon.set(e.slot.x, e.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(e.slot.x, e.slot.z, '#6bbf59', 8, 'target');
-    hud.toast(T('Puoitali a ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + e.item.it);
+    hud.toast(T('Puaittali a ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + e.item.it);
   }
 
   function finish(ok) {
     e.phase = 'done'; e.thanks = 5.5; X.setPhase('done');
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { hud.result(`<h3>${T('Nienti ri puoitari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
+    if (!ok) { hud.result(`<h3>${T('Nienti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * 1.5 * 2) / 2, bonus = e.got >= e.total ? 10 : 0;
     const total = base + bonus; e.pay = total;
     X.addFare(total, 'food');
@@ -130,7 +130,7 @@ export function createFood(X) {
       hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + HUNT_N, sub: e.slot.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / HUNT_TIME, target: nl });
     } else if (e.phase === 'return') {
       X.aim(e.slot.x, e.slot.z, true);
-      hud.set({ label: T('Puoitali narrè', 'Take them back'), title: e.slot.who, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: e.slot });
+      hud.set({ label: T('Puaittali narrè', 'Take them back'), title: e.slot.who, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: e.slot });
       if (Math.hypot(car.x - e.slot.x, car.z - e.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else if (e.phase === 'done') {
       X.aim(0, 0, false);
