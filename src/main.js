@@ -16,6 +16,7 @@ import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
+import { createDrunk } from './drunk.js';   // a drink at a pub's door or at the rave: the screen wobbles (src/drunk.js)
 import { createShouts } from './shouts.js';
 import { createMarkets } from './markets.js';   // Ballaro, the Vucciria and the Capo as living markets: stall lines along the real streets, awnings, crates, vendors
 import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
@@ -353,6 +354,8 @@ const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traff
 const net = createNet({ ...worldEnv, game, vehicle, mapMarkers });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
+const drunk = createDrunk({ game, car, camera, missions });
+if (window.game) window.game.drunk = drunk;
 if (window.game) window.game.traffic = traffic;
 // With the streamed world, a far start spot has to load before the lapa can find a road there. Returns a Promise that resolves once the start
 // tile is at full detail and the lapa stands on its road (or after 12 s, so a shell transition never stays covered for ever).
@@ -403,6 +406,7 @@ renderer.setAnimationLoop(now => {
   } else acc = 0;
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
+  drunk.update(dt);
   if (game.state === 'play') suca.update(dt, car);
   if (game.state === 'play') { stadium.update(dt); carretto.update(dt); markets.update(dt); }
   coords.update();
@@ -427,5 +431,5 @@ renderer.setAnimationLoop(now => {
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);
-  if (!game.noRender) renderer.render(scene, camera); // the start picker's map is opaque: nothing to draw under it
+  if (!game.noRender) { if (!freeCam) drunk.apply(); renderer.render(scene, camera); drunk.restore(); } // the start picker's map is opaque: nothing to draw under it; the wobble of a drink is on the camera for the render only
 });
