@@ -1,26 +1,32 @@
 // Multiplayer client: name, connection to the relay, other players' lapas. Owned by the multiplayer work.
 //
-// The relay (server/, Go) forwards each player's position to the players within ~400 m. This module asks for a name once,
+// The relay (relay/, Rust) forwards each player's position to the players within ~400 m. This module asks for a name once,
 // sends our state ~10 Hz when it changed, and draws everybody else as a lapa with a name tag and a minimap dot.
-// Protocol (binary, little endian) is documented in server/protocol.go; the numbers below must match it.
+// Protocol (binary, little endian) is documented in relay/src/protocol.rs; the numbers below must match it.
 //
 // Nothing happens (no DOM, no socket, no per-frame work) until a relay URL is set: RELAY_URL below, or ?relay=wss://host/ws
-// for testing. ?relay=off disables it. ?name=Foo sets the name for this page load only, ?room=xyz picks a private room.
+// for testing, or RELAY_URL_FILE (a file of this site that names the address). ?relay=off disables it. ?name=Foo sets the name for this page load only, ?room=xyz picks a private room.
 //
 // Two separate things talk to the relay:
 //  1. Anonymous play statistics: a random id kept in localStorage and a tiny HTTP POST (/ping) when a session starts, about
 //     every 3 minutes of active play, and when the page is hidden. No name, no IP is stored. The answer says whether
-//     multiplayer is open (the relay stops accepting WebSockets when it nears its monthly free-tier budget).
+//     multiplayer is open (the relay stops accepting WebSockets when it reaches its monthly outbound traffic limit). If the relay
+//     cannot be reached (it runs on a machine that is sometimes off) nothing is shown or retried noisily: single player carries on and
+//     the ping is retried with growing pauses, up to 5 minutes.
 //  2. The WebSocket, open only while the game is in 'play' (not on menus or pause), the tab is visible and the player did
-//     something in the last 2 minutes. Every open second counts against the relay's free-tier budget.
+//     something in the last 2 minutes. Every byte the relay sends counts against its monthly traffic limit.
 import * as THREE from 'three';
 import { esc } from './esc.js';
 
-const RELAY_URL = ''; // wss://<cloud-run-host>/ws once the relay is deployed (see server/DEPLOY.md)
+const RELAY_URL = ''; // wss://<relay host>/ws once the relay is reachable from the internet (see relay/RUN.md)
+// Alternative to RELAY_URL for a relay whose address changes (a tunnel with a new host name): the path of a small JSON file on
+// this site, { "url": "wss://host/ws" }, fetched without caching at start and again after the relay has been unreachable for a while.
+const RELAY_URL_FILE = ''; // for example 'relay.json'
 
 const STORE_KEY = 'palermoDrive.net.v1';   // { name, offline }
 const SETTINGS_KEY = 'palermoDrive.settings.v1'; // owned by ui.js: we only read the language
-const PROTO = 1;
+const PROTO = 2;               // 2: rooms of up to 256 players, positions in 5 bytes (see packState)
+const POS_UNITS = 20, POS_MID = 1 << 19, POS_MAX = (1 << 20) - 1; // positions: 0.05 m units, +-26 km (the map spans x -11500..8500, z -12500..8000)
 const SEND_MS = 100;           // state send interval (only when something changed)
 const PING_MS = 10000;         // keep-alive when we have nothing to say
 const DEAD_MS = 30000;         // server sends something at least every 10 s
@@ -81,11 +87,10 @@ export function createNet(env) {
   const params = new URLSearchParams(location.search);
 
   // ---------- relay URL ----------
-  const relayUrl = (() => {
-    // ?relay= is a test link (a local relay): honoured on localhost only, so a link on the public site cannot point the game at somebody else's server
-    const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.localhost)$/.test(location.hostname);
-    const rq = params.get('relay'), q = local || rq === 'off' || rq === '0' ? rq : null;   // (switching it off is always allowed)
-    let u = q != null ? q : RELAY_URL;
+  // a ?relay= link overrides both RELAY_URL and the file
+  const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.localhost)$/.test(location.hostname);
+  const rq = params.get('relay'), q = local || rq === 'off' || rq === '0' ? rq : null;   // (switching it off is always allowed)
+  const normalise = u => {
     if (!u || u === 'off' || u === '0') return '';
     try {
       const x = new URL(u);
@@ -94,8 +99,11 @@ export function createNet(env) {
       if (params.get('room')) x.searchParams.set('room', params.get('room'));
       return x.href;
     } catch (e) { return ''; }
-  })();
-  if (!relayUrl) return { update() {}, enabled: false, openName() {}, get online() { return false; } };
+  };
+  const derivePing = u => { try { const x = new URL(u); x.protocol = x.protocol === 'wss:' ? 'https:' : 'http:'; x.pathname = '/ping'; x.search = ''; return x.href; } catch (e) { return ''; } };
+  let relayUrl = normalise(q != null ? q : RELAY_URL);
+  const urlFile = q == null && !relayUrl ? RELAY_URL_FILE : '';
+  if (!relayUrl && !urlFile) return { update() {}, enabled: false, openName() {}, get online() { return false; } };
 
   // ---------- stored name ----------
   const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {}; } catch (e) { return {}; } };
@@ -181,7 +189,7 @@ export function createNet(env) {
     }
     return id;
   })();
-  const pingUrl = (() => { try { const u = new URL(relayUrl); u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'; u.pathname = '/ping'; u.search = ''; return u.href; } catch (e) { return ''; } })();
+  let pingUrl = derivePing(relayUrl), lastUrlCheck = -1e9;
   function onPingAnswer(j, sentMP) {
     const was = mp; mp = !!(j && j.mp === 1); pingTries = 0;
     peers = Math.max(0, ((j && j.on) | 0) - (sentMP ? 1 : 0)); // other players who want multiplayer right now
@@ -201,9 +209,26 @@ export function createNet(env) {
         pingBusy = false; if (ev === 'b') activeSec += sent; // credit it with the next ping
         if (code === 429) return;
         mp = false; if (pill) renderPill();
-        // relay unreachable: keep trying quietly, 5 s, 10 s ... up to 5 minutes between tries
+        checkUrlFile(false); // maybe the relay moved
+        // relay unreachable (the owner's machine is off, say): single player carries on, keep asking quietly, 5 s, 10 s ... up to 5 minutes between tries
         clearTimeout(pingTimer); pingTimer = setTimeout(() => ping('b', 0), Math.min(300000, 5000 * 2 ** Math.min(pingTries++, 6)));
       });
+  }
+  // With RELAY_URL_FILE the address of the relay is read from a file of this site, so a moved relay (new tunnel host name) is found
+  // without a new release: at start, and after pings have failed (at most once a minute). A new address replaces the old one.
+  function checkUrlFile(force) {
+    if (!urlFile) return;
+    const t = performance.now();
+    if (!force && t - lastUrlCheck < 60000) return;
+    lastUrlCheck = t;
+    fetch(new URL(urlFile, document.baseURI).href, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+      const u = normalise(j && j.url);
+      if (!u || u === relayUrl) return;
+      relayUrl = u; pingUrl = derivePing(u);
+      if (ws) closeWs();
+      clearTimeout(pingTimer); pingTries = 0; attempts = 0; lastPingT = 0;
+      if (started) ping('b', 0); // ask the new address at once; update() starts the socket when it says multiplayer is open
+    }).catch(() => {});
   }
   for (const ev of ['keydown', 'pointerdown', 'touchstart']) addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
   addEventListener('pagehide', () => { if (started) ping('e', activeSec, true); });
@@ -241,6 +266,9 @@ export function createNet(env) {
     // 1 s, 2 s, 4 s ... capped at 30 s (60 s if the relay has never answered), with jitter
     const base = soon ? 500 : Math.min(everOnline ? 30000 : 60000, 1000 * 2 ** Math.min(attempts, 6));
     attempts++;
+    // the socket keeps failing: find out through a ping whether the relay is there at all (a failed ping switches multiplayer off,
+    // so the retries stop and the game is plain single player), and whether it has moved
+    if (attempts >= 3 && !pingBusy && performance.now() - lastPingT > 15000) { ping('b', 0); checkUrlFile(false); }
     retryT = setTimeout(() => { retryT = 0; if (wanted() && !ws) connect(); }, base * (0.75 + Math.random() * 0.5));
     if (!soon && attempts > 1) setStatus('off');
   }
@@ -257,12 +285,14 @@ export function createNet(env) {
   }
   const q8 = (v, scale) => clamp(Math.round(v / scale * 127), -127, 127);
   function packState(x, z, th, v, steer, roll, lean, fl) {
-    const b = new Uint8Array(11), dv = new DataView(b.buffer);
+    const b = new Uint8Array(12), dv = new DataView(b.buffer);
     b[0] = 2;
-    dv.setInt16(1, clamp(Math.round(x * 10), -32768, 32767), true); dv.setInt16(3, clamp(Math.round(z * 10), -32768, 32767), true);
-    b[5] = Math.round(((th % TAU) + TAU) % TAU / TAU * 256) & 255;
-    dv.setInt8(6, clamp(Math.round(v * 2), -127, 127)); dv.setInt8(7, q8(steer, 0.7)); dv.setInt8(8, q8(roll, 0.5)); dv.setInt8(9, q8(lean, 1));
-    b[10] = fl;
+    // x and z: 20 bits each, 5 cm units, offset so the whole map (and twice as much again) is positive; 40 bits in all
+    const xq = clamp(Math.round(x * POS_UNITS) + POS_MID, 0, POS_MAX), zq = clamp(Math.round(z * POS_UNITS) + POS_MID, 0, POS_MAX);
+    dv.setUint32(1, (xq | ((zq & 0xfff) << 20)) >>> 0, true); b[5] = zq >>> 12;
+    b[6] = Math.round(((th % TAU) + TAU) % TAU / TAU * 256) & 255;
+    dv.setInt8(7, clamp(Math.round(v * 2), -127, 127)); dv.setInt8(8, q8(steer, 0.7)); dv.setInt8(9, q8(roll, 0.5)); dv.setInt8(10, q8(lean, 1));
+    b[11] = fl;
     return b;
   }
   function sendState(now) {
@@ -280,34 +310,44 @@ export function createNet(env) {
       case 0x20: // WELCOME
         if (dv.getUint8(1) !== PROTO) { blocked = true; return; } // incompatible relay: closed by update(), stay quiet
         myId = dv.getUint8(2); attempts = 0; everOnline = true; setStatus('online'); break;
-      case 0x21: count = dv.getUint8(1); renderPill(); break;
+      case 0x21: count = dv.getUint16(1, true); renderPill(); break;
       case 0x22: { // INFO
         const id = dv.getUint8(1), liv = dv.getUint8(2), n = dv.getUint8(3);
         const name = new TextDecoder().decode(new Uint8Array(dv.buffer, dv.byteOffset + 4, n));
         let r = remotes.get(id);
         if (!r) { r = makeRemote(id); remotes.set(id, r); }
+        // the position that follows the name is where the later 16 bit positions are counted from
+        const lo = dv.getUint32(4 + n, true);
+        r.qx = lo & 0xfffff; r.qz = (lo >>> 20) | (dv.getUint8(8 + n) << 12); r.hq = true;
         setInfo(r, name, liv); break;
       }
       case 0x23: { const r = remotes.get(dv.getUint8(1)); if (r) { remotes.delete(r.id); retire(r); } break; }
-      case 0x24: {
-        const n = dv.getUint8(1);
-        for (let i = 0, o = 2; i < n; i++, o += 11) {
-          const r = remotes.get(dv.getUint8(o)); if (!r) continue;
-          const t = now, x = dv.getInt16(o + 1, true) / 10, z = dv.getInt16(o + 3, true) / 10;
-          const s = { t, x, z, th: dv.getUint8(o + 5) / 256 * TAU, v: dv.getInt8(o + 6) / 2, steer: dv.getInt8(o + 7) / 127 * 0.7,
-            roll: dv.getInt8(o + 8) / 127 * 0.5, lean: dv.getInt8(o + 9) / 127, fl: dv.getUint8(o + 10) };
+      case 0x24: { // STATES: nFull FULL entries (11 bytes), then nShort SHORT entries (7 bytes), see relay/src/protocol.rs
+        const nf = dv.getUint8(1), ns = dv.getUint8(2);
+        let o = 3;
+        for (let i = 0; i < nf + ns; i++, o += i <= nf ? 11 : 7) {
+          const r = remotes.get(dv.getUint8(o)); if (!r || !r.hq) continue;
+          // the low 16 bits of the position: add the wrapped difference to the position we have
+          r.qx += ((dv.getUint16(o + 1, true) - r.qx) << 16) >> 16; r.qz += ((dv.getUint16(o + 3, true) - r.qz) << 16) >> 16;
           const l = r.snaps[r.snaps.length - 1];
-          if (l) {
-            const gap = t - l.t, d = Math.hypot(s.x - l.x, s.z - l.z);
-            if (d > 25 + 0.045 * gap) r.snaps.length = 0; // teleport (respawn, or came back from far away)
-            else if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: t - 100 }); // it sat still until just now
-          }
-          r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
-          r.have = true;
+          const s = { t: now, x: (r.qx - POS_MID) / POS_UNITS, z: (r.qz - POS_MID) / POS_UNITS, th: dv.getUint8(o + 5) / 256 * TAU, v: dv.getInt8(o + 6) / 2,
+            steer: l ? l.steer : 0, roll: l ? l.roll : 0, lean: l ? l.lean : 0, fl: l ? l.fl : 0 };   // a SHORT entry keeps the last value of these
+          if (i < nf) { s.steer = dv.getInt8(o + 7) / 127 * 0.7; s.roll = dv.getInt8(o + 8) / 127 * 0.5; s.lean = dv.getInt8(o + 9) / 127; s.fl = dv.getUint8(o + 10); }
+          addSnap(r, s);
         }
         break;
       }
     }
+  }
+  function addSnap(r, s) {
+    const l = r.snaps[r.snaps.length - 1];
+    if (l) {
+      const gap = s.t - l.t, d = Math.hypot(s.x - l.x, s.z - l.z);
+      if (d > 25 + 0.045 * gap) r.snaps.length = 0; // teleport (respawn, or came back from far away)
+      else if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: s.t - 100 }); // it sat still until just now
+    }
+    r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
+    r.have = true;
   }
 
   // ---------- remote players ----------
@@ -328,7 +368,7 @@ export function createNet(env) {
 
   function makeRemote(id) {
     const marker = { x: 0, z: 0, color: PINK, size: 4 };
-    return { id, name: '', livery: -1, snaps: [], have: false, model: null, tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
+    return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
   }
   function setInfo(r, name, liv) {
     const lid = (vehicle.LIVERIES && vehicle.LIVERIES[liv] && vehicle.LIVERIES[liv].id) || 'blu';
@@ -425,6 +465,7 @@ export function createNet(env) {
       if (started && activeSec > 5) { ping('b', activeSec, true); activeSec = 0; }
     }
   });
+  checkUrlFile(true);
 
   return {
     enabled: true,
