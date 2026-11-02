@@ -3,12 +3,13 @@
 // camera (src/stadium-lines.js: who is this guy, get off the grass, call the police), with bursts when it comes in, drives fast, hits the ball, spins, parks, scores or misses (at most
 // 8 at once, their own cap and element pool in src/shouts.js). The crowd is also heard (src/stadium-audio.js: loud inside, fading with distance outside, a roar for a goal, a groan for a
 // near miss, tension as the ball nears a goal), and the car radio card turns into "La partita" while the lapa is inside (radio.takeover, theme 'match'): the score of the goals and a line
-// of commentary about the lapa, the player's station ducked to silence and back when it leaves. Created by src/main.js; update(dt) while playing. The chants are the stock ones of every
+// of commentary about the lapa, the player's station ducked to silence and back when it leaves. The stands also throw tomatoes and oranges at the lapa (src/stadium-fruit.js; more the longer it stays, and after a doughnut or a kick of the ball). Created by src/main.js; update(dt) while playing. The chants are the stock ones of every
 // curva, written for the game: the owner may want his own.
 import * as THREE from 'three';
 import { pitchRing, pitchCentre } from './stadium-ground.js';
 import { crowdState } from './stadium-crowd.js';
 import { createBall } from './stadium-ball.js';
+import { createFruit } from './stadium-fruit.js';
 import { createStadiumAudio } from './stadium-audio.js';
 import { FANS, COMMENT, SCORE } from './stadium-lines.js';
 import { getRadio } from './radio.js';
@@ -95,7 +96,7 @@ export function createStadium(env) {
     inside = false; queue.length = 0; if (owner) { owner = false; getRadio()?.release(); }
   }
   const react = {
-    hit(sp) { if (off || !inside) return; say('hit', 1 + (Math.random() < 0.5 ? 1 : 0)); audio.event('cheer', clamp(sp / 14, 0.3, 1)); remark('hit', 3); },
+    hit(sp) { if (off || !inside) return; fruit.anger(0.3); say('hit', 1 + (Math.random() < 0.5 ? 1 : 0)); audio.event('cheer', clamp(sp / 14, 0.3, 1)); remark('hit', 3); },
     goal(side) { if (off) return; score[side]++; say('goal', 5); audio.event('goal'); remark(side === 0 ? 'goalHome' : 'goalAway', 6); },
     miss(kind) {
       if (off || !inside) return;
@@ -105,7 +106,9 @@ export function createStadium(env) {
   };
   // a goal keeps the stands at full hype for this many seconds (stadium-ball.js)
   const ball = createBall({ scene: env.scene, car, shout, seat, boost: s => { hold = s; hype = 1; }, react });
-  if (debug) { window.__ball = ball; window.__stadium = { audio, say, get inside() { return inside; }, get off() { return off; }, set off(v) { off = !!v; }, get score() { return score; }, cost: () => ({ ms: cost / Math.max(1, frames), frames }), resetCost() { cost = 0; frames = 0; } }; }   // test hooks; off: the new reactions, sound and radio card are switched off
+  let cheerT = -9;
+  const fruit = createFruit({ scene: env.scene, camera, car, groundY: env.groundY, getRadio, seats: () => crowdState.seats, vehicle: env.vehicle, onHit: () => { if (!off && time - cheerT > 1.5) { cheerT = time; audio.event('cheer', 0.3); } } });   // tomatoes and oranges from the seats
+  if (debug) { window.__ball = ball; window.__stadium = { audio, say, fruit, get inside() { return inside; }, get off() { return off; }, set off(v) { off = !!v; }, get score() { return score; }, cost: () => ({ ms: cost / Math.max(1, frames), frames }), resetCost() { cost = 0; frames = 0; } }; }   // test hooks; off: the new reactions, sound and radio card are switched off
 
   // the new part of a frame: presence, the shouting, the reactions and the sound
   function fx(dt, on, dc) {
@@ -128,7 +131,7 @@ export function createStadium(env) {
     // doughnuts: turning a lot for a while at a modest speed (the heading change adds up, and drains away when going straight)
     let dth = car.th - lastTh; lastTh = car.th; dth -= 6.2832 * Math.round(dth / 6.2832); donutCd -= dt;
     spin = Math.max(0, spin + (sp > 2.5 ? Math.abs(dth) : 0) - 0.8 * dt);
-    if (spin > 9.5 && donutCd <= 0) { spin = 0; donutCd = 14; say('donut', 3); audio.event('jeer'); remark('donut', 5); }
+    if (spin > 9.5 && donutCd <= 0) { spin = 0; donutCd = 14; fruit.anger(0.45); say('donut', 3); audio.event('jeer'); remark('donut', 5); }
     // parked: standing still for a while
     parkCd -= dt; if (sp < 0.7) { if ((parkT += dt) > 5 && parkCd <= 0) { parkCd = 15; parkT = 0; say('park', 3); remark('park', 5); } } else parkT = 0;
     // the ball nears a goal: the commentary says so once per approach
@@ -154,6 +157,7 @@ export function createStadium(env) {
       if (hold > 0) hold -= dt;
       hype += ((on || hold > 0 ? 1 : 0) - hype) * Math.min(1, dt * (on || hold > 0 ? 0.9 : 0.5));
       ball.update(dt, on);
+      fruit.update(dt, on && !off);
       crowdState.hype = hype < 0.02 ? 0 : hype;
       if (hype > 0.7 && time >= next) { chant(); next = time + 5 + Math.random() * 5; }
       fx(dt, on, Math.sqrt(d2));

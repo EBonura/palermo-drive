@@ -1,8 +1,9 @@
 // The sound of the city around the lapa, on the car radio's AudioContext (src/radio.js, which only exists after the game's first tap, so nothing starts before it):
 //  - the traffic: a low rumble that follows how many vehicles are near (quiet out of town, quieter at night), cars passing by with distance and stereo pan (a pool of six
 //    voices on the nearest moving vehicles), and horns all around from the real vehicles (four pooled voices: short beeps, double taps, long angry ones, recorded clips, the odd tune)
-//  - l'arrotino (the knife-grinder, a roaming vehicle of src/traffic.js): his loudspeaker announcement through a light megaphone filter, looped with gaps, heard from a few streets
-//    away with distance and pan, the radio turned down a little when he is close, sound lines floating off the vehicle (src/pub-notes.js) and a pin on the minimap
+//  - gli arrotini (the knife-grinders, src/arrotini.js: several, each on a loop of his own, by day): the loudspeaker announcement through a light megaphone filter, looped with gaps, heard from a
+//    few streets away with distance and pan. Two loudspeakers at most play at once, the two nearest (each keeps its voice while it stays one of them); the radio is turned down a little for the
+//    nearest only; sound lines float off the nearest (src/pub-notes.js); a pin on the minimap for each one within earshot. They are heard at their place on the loop even before they have a vehicle.
 //  - the voices of the market quarter (Ballaro, Vucciria, Capo) as a background bed by day
 // Everything follows the Options volume (radio.sfxVolume) and the radio's duck, and sits under the engine (src/vehicle-audio.js), the radio and the shouts. No node is made per frame: the
 // voices are made once, the parameters are set about ten times a second (setTargetAtTime, never an exponential ramp to 0), and a played clip makes one source node. The recordings are
@@ -17,7 +18,8 @@ const HORN_CLIPS = { beep1: [0, 0.28], beep2: [0.53, 0.6], beep3: [1.38, 0.65], 
 const CLIPS = ['beep2', 'beep3', 'long', 'angry1', 'angry2'];
 const PASSES = 6, HORNS = 4, TICK = 0.1;
 const MIX = { rumble: 0.14, hiss: 0.04, pass: 0.12, horn: 0.1, arrotino: 0.2, market: 0.32 };   // loudness of each layer at its loudest, before the Options volume
-const ARR_RANGE = 300, ARR_NEAR = 25, ARR_DUCK = 0.35;
+const ARR_RANGE = 300, ARR_NEAR = 25, ARR_DUCK = 0.35, ARR_EAR = 285;   // metres; ARR_EAR: beyond it the loudspeaker is too faint to count (no pin)
+const SPEAKERS = 2;
 
 export function createCityAudio({ scene, camera, car, game, traffic, getRadio, mapMarkers, groundY }) {
   const debugOn = location.search.includes('debug');
@@ -26,8 +28,9 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
   const L = { traffic: 0, night: 0, arr: 0, arrVis: 0, market: 0 };
   let yaw = [1, 0, 0, 0];   // the camera's right vector on the ground (x, z), and its position
   const notes = createNotes(scene, { glyphs: [3, 3, 3, 0] });   // sound lines (and the odd note) off the knife-grinder's loudspeaker
-  const pin = { x: 0, z: 0, color: '#5ad1ff', size: 4 }; let pinned = false;
-  let arr = null;   // the arrotino's player state
+  const pins = traffic.arrotini.map(() => ({ x: 0, z: 0, color: '#5ad1ff', size: 4 })), pinned = traffic.arrotini.map(() => false);
+  const speakers = [];   // the two loudspeakers: { m (its voice chain), src (the playing announcement), state, nextAt, e (the knife-grinder it belongs to), d (his distance) }
+  let nearE = null;      // the nearest knife-grinder within earshot (the radio, the sound lines)
 
   function pan(x, z) {   // -1 (left of the view) .. 1 (right), by the camera's own right-hand vector
     const dx = x - camera.position.x, dz = z - camera.position.z, d = Math.sqrt(dx * dx + dz * dz) || 1, e = camera.matrixWorld.elements;
@@ -72,15 +75,18 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
       chain(a, sg, lp); chain(b, sg); chain(cg, lp); chain(lp, o, p, bus);
       return { a, b, sg, cg, lp, o, p, until: 0 };
     });
-    // l'arrotino: a megaphone (band-limited, a presence peak, a touch of grit), then the distance (gain, closing lowpass) and the pan
-    const mega = { i: gain(1), hp: filt('highpass', 430, 0.7), pk: filt('peaking', 1700, 1.0), lp: filt('lowpass', 3600, 0.7), sh: ctx.createWaveShaper(), o: gain(0), dl: filt('lowpass', 3000, 0.5), p: panner() };
-    mega.pk.gain.value = 7;
-    const curve = new Float32Array(256); for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 127.5 - 1) * 1.8) / Math.tanh(1.8); mega.sh.curve = curve;
-    chain(mega.i, mega.hp, mega.pk, mega.lp, mega.sh, mega.dl, mega.o, mega.p, bus);
+    // gli arrotini: a megaphone (band-limited, a presence peak, a touch of grit), then the distance (gain, closing lowpass) and the pan; one chain per loudspeaker, made once
+    const curve = new Float32Array(256); for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 127.5 - 1) * 1.8) / Math.tanh(1.8);
+    const megaphone = () => {
+      const mega = { i: gain(1), hp: filt('highpass', 430, 0.7), pk: filt('peaking', 1700, 1.0), lp: filt('lowpass', 3600, 0.7), sh: ctx.createWaveShaper(), o: gain(0), dl: filt('lowpass', 3000, 0.5), p: panner() };
+      mega.pk.gain.value = 7; mega.sh.curve = curve;
+      chain(mega.i, mega.hp, mega.pk, mega.lp, mega.sh, mega.dl, mega.o, mega.p, bus);
+      return mega;
+    };
     // the market quarter's voices
     const mk = { lp: filt('lowpass', 5200, 0.5), o: gain(0), src: null }; chain(mk.lp, mk.o, bus);
-    g = { bus, comp, an, rum, his, passes, horns, mega, mk, noise };
-    arr = { src: null, state: 'gap', nextAt: 0, ends: 0 };
+    g = { bus, comp, an, rum, his, passes, horns, mk, noise };
+    for (let i = 0; i < SPEAKERS; i++) speakers.push({ m: megaphone(), src: null, state: 'gap', nextAt: 0, e: null, d: 0 });
     load('horns', 'horns');
     return true;
   }
@@ -113,7 +119,7 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
     const vs = traffic.vehicles, cx = camera.position.x, cz = camera.position.z, t = ctx.currentTime;
     const r = getRadio(), vol = r ? r.sfxVolume : 0.8, dk = r && Number.isFinite(r.duck) ? r.duck : 1, quiet = document.hidden || paused ? 0 : 1;
     g.bus.gain.setTargetAtTime(quiet * dk * clamp(vol, 0, 1), t, 0.15);
-    if (quiet === 0 || vol <= 0.001) { if (arr && arr.src) stopArrotino(); duckRadio(0); return; }
+    if (quiet === 0 || vol <= 0.001) { for (const S of speakers) if (S.e) release(S, t); duckRadio(0); return; }
     const night = game.time ? game.time.night || 0 : 0, hour = game.time ? game.time.hour : 12;
     // the vehicles near: the traffic level (how busy the street is), the nearest moving ones for the pool
     let dens = 0; const near = [];
@@ -161,43 +167,62 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
     if (g.mk.src && L.market < 0.005 && (g.mk.idle = (g.mk.idle || 0) + dt) > 4) { try { g.mk.src.stop(); } catch (e) { /* stopped */ } g.mk.src.disconnect(); g.mk.src = null; g.mk.idle = 0; } else if (L.market >= 0.005) g.mk.idle = 0;
   }
 
-  const grinder = () => { const v = traffic.roamer(); return v && !v.dead && !(game.time && game.time.night > 0.5) ? v : null; };   // he works by day, and at night his Ape is just an Ape
   function duckRadio(k) { const r = getRadio(); if (r && r.duckAmbient) r.duckAmbient(k, ARR_DUCK); }
-  function stopArrotino() { const s = arr.src; arr.src = null; arr.state = 'gap'; arr.nextAt = ctx.currentTime + 2; if (s) { try { s.stop(); } catch (e) { /* stopped */ } s.disconnect(); } }
+  function release(S, t) {   // a loudspeaker lets go of its knife-grinder (off duty, out of earshot, or no longer one of the two nearest): the voice fades and the announcement stops
+    const s = S.src; S.src = null; S.state = 'gap'; S.nextAt = t + 1 + Math.random() * 2; S.e = null;
+    S.m.o.gain.setTargetAtTime(0, t, 0.04);
+    if (s) { try { s.stop(t + 0.2); } catch (e) { /* stopped */ } }
+  }
   function arrotino(dt, t, night) {
-    const v = grinder(), m = g.mega;
-    if (!v) {   // gone or off duty: the voice stops (a new one is sent in from a few streets away, src/traffic.js)
-      if (arr.src) stopArrotino();
-      m.o.gain.setTargetAtTime(0, t, 0.1); L.arr = 0; L.arrVis = 0; duckRadio(0);
-      return;
+    const list = traffic.arrotini, cx = camera.position.x, cz = camera.position.z;
+    let a = null, b = null, da = ARR_RANGE * ARR_RANGE, db = da;   // the two nearest on duty within range
+    for (let i = 0; i < list.length; i++) {
+      const E = list[i]; if (!E.on) continue;
+      const dx = E.x - cx, dz = E.z - cz, d2 = dx * dx + dz * dz;
+      if (d2 < da) { b = a; db = da; a = E; da = d2; } else if (d2 < db) { b = E; db = d2; }
     }
-    load('arrotino', 'arrotino');
-    const dx = v.x - camera.position.x, dz = v.z - camera.position.z, d = Math.sqrt(dx * dx + dz * dz);
-    const lv = d <= ARR_NEAR ? 1 : d >= ARR_RANGE ? 0 : Math.pow(1 - (d - ARR_NEAR) / (ARR_RANGE - ARR_NEAR), 1.4);
-    if (buf.arrotino && arr.state === 'gap' && t >= arr.nextAt && lv > 0.01) {   // the announcement, then a gap of a few seconds
-      const s = ctx.createBufferSource(); s.buffer = buf.arrotino; s.connect(m.i); arr.src = s; arr.state = 'play';
-      s.onended = () => { if (arr && arr.src === s) { arr.src = null; arr.state = 'gap'; arr.nextAt = ctx.currentTime + 3.5 + Math.random() * 5; } s.disconnect(); };
-      s.start(t);
+    for (const S of speakers) if (S.e && S.e !== a && S.e !== b) release(S, t);
+    for (let k = 0; k < 2; k++) {
+      const E = k ? b : a; if (!E) continue;
+      let has = false, free = null; for (const S of speakers) { if (S.e === E) has = true; else if (!S.e && !free) free = S; }
+      if (has || !free) continue;
+      free.e = E; if (free.state === 'gap') free.nextAt = Math.max(free.nextAt, t + Math.random() * 2.5);   // not in step with the other one
     }
-    const playing = arr.state === 'play';
-    L.arr = playing ? lv : 0;
-    m.o.gain.setTargetAtTime(MIX.arrotino * lv * (1 - 0.3 * night), t, 0.1);
-    m.dl.frequency.setTargetAtTime(1200 + 2600 * lv, t, 0.15);
-    if (m.p) m.p.pan.setTargetAtTime(pan(v.x, v.z), t, 0.08);
-    if (arr.src) arr.src.playbackRate.setTargetAtTime(v.fly ? 0.82 : 1, t, 0.1);   // knocked into the air, his voice sags
-    duckRadio(playing ? clamp((lv - 0.12) / 0.7, 0, 1) : 0);
-    L.arrVis = playing ? clamp(1 - d / 220, 0, 1) : 0;
+    nearE = a; L.arr = 0; L.arrVis = 0; let duck = 0;
+    if (a || b) load('arrotino', 'arrotino');
+    for (const S of speakers) {
+      const m = S.m, E = S.e;
+      if (!E) { m.o.gain.setTargetAtTime(0, t, 0.1); continue; }
+      const dx = E.x - cx, dz = E.z - cz, d = Math.sqrt(dx * dx + dz * dz);
+      const lv = d <= ARR_NEAR ? 1 : d >= ARR_RANGE ? 0 : Math.pow(1 - (d - ARR_NEAR) / (ARR_RANGE - ARR_NEAR), 1.4);
+      if (buf.arrotino && S.state === 'gap' && t >= S.nextAt && lv > 0.01) {   // the announcement, then a gap of a few seconds
+        const s = ctx.createBufferSource(); s.buffer = buf.arrotino; s.connect(m.i); S.src = s; S.state = 'play';
+        s.onended = () => { if (S.src === s) { S.src = null; S.state = 'gap'; S.nextAt = ctx.currentTime + 3.5 + Math.random() * 5; } s.disconnect(); };
+        s.start(t);
+      }
+      const playing = S.state === 'play';
+      m.o.gain.setTargetAtTime(MIX.arrotino * lv * (1 - 0.3 * night), t, 0.1);
+      m.dl.frequency.setTargetAtTime(1200 + 2600 * lv, t, 0.15);
+      if (m.p) m.p.pan.setTargetAtTime(pan(E.x, E.z), t, 0.08);
+      if (S.src) S.src.playbackRate.setTargetAtTime(E.v && E.v.fly ? 0.82 : 1, t, 0.1);   // knocked into the air, his voice sags
+      if (E === a && playing) { duck = clamp((lv - 0.12) / 0.7, 0, 1); L.arr = lv; L.arrVis = clamp(1 - d / 220, 0, 1); }   // the radio goes down for the nearest only
+      S.d = d;
+    }
+    duckRadio(duck);
   }
 
   function update(dt, paused) {
-    const v = grinder();
-    if (v) {   // the pin on the minimap
-      pin.x = v.x; pin.z = v.z; if (!pinned) { mapMarkers.push(pin); pinned = true; }
-    } else if (pinned) { mapMarkers.splice(mapMarkers.indexOf(pin), 1); pinned = false; }
+    const list = traffic.arrotini, cx = camera.position.x, cz = camera.position.z;
+    for (let i = 0; i < list.length; i++) {   // a pin on the minimap for each knife-grinder within earshot, and none otherwise
+      const E = list[i], pin = pins[i], dx = E.x - cx, dz = E.z - cz;
+      if (E.on && dx * dx + dz * dz < ARR_EAR * ARR_EAR) { pin.x = E.x; pin.z = E.z; if (!pinned[i]) { mapMarkers.push(pin); pinned[i] = true; } }
+      else if (pinned[i]) { mapMarkers.splice(mapMarkers.indexOf(pin), 1); pinned[i] = false; }
+    }
     if (!ctx && !build()) return;
-    if ((v && L.arrVis > 0.04) || notes.alive) {   // the sound lines follow the loudspeaker (every frame while any are alive)
-      const lv = v ? L.arrVis : 0, y = v ? groundY(v.x, v.z) + 2.5 + (v.fly ? v.fly.y : 0) : 0;
-      notes.update(paused ? 0 : dt, lv, v ? v.x : 0, y, v ? v.z : 0, v ? -Math.sin(v.h) : 0, v ? -Math.cos(v.h) : 0);
+    const n = nearE && nearE.on ? nearE : null;
+    if ((n && L.arrVis > 0.04) || notes.alive) {   // the sound lines follow the nearest loudspeaker (every frame while any are alive)
+      const lv = n ? L.arrVis : 0, v = n && n.v, y = n ? groundY(n.x, n.z) + 2.5 + (v && v.fly ? v.fly.y : 0) : 0;
+      notes.update(paused ? 0 : dt, lv, n ? n.x : 0, y, n ? n.z : 0, n ? -Math.sin(n.h) : 0, n ? -Math.cos(n.h) : 0);
     }
     if ((tick -= dt) > 0) return;
     tick = TICK; if (ctx.state !== 'running') return;
@@ -211,9 +236,9 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
       const rms = a => { if (!a) return null; const b = new Float32Array(a.fftSize); a.getFloatTimeDomainData(b); let s = 0; for (const x of b) s += x * x; return +Math.sqrt(s / b.length).toFixed(4); };
       const v = g.passes.filter(p => p.v).length, t = ctx.currentTime;
       return { built: true, ctx: ctx.state, bus: +g.bus.gain.value.toFixed(3), rumble: +g.rum.o.gain.value.toFixed(4), hiss: +g.his.o.gain.value.toFixed(4), traffic: +L.traffic.toFixed(2), passVoices: v, hornsBusy: g.horns.filter(h => h.until > t).length,
-        arrotino: arr.state, arrGain: +g.mega.o.gain.value.toFixed(3), market: +L.market.toFixed(2), notes: notes.alive, buffers: Object.keys(buf).filter(k => buf[k]), rms: rms(g.an) };
+        arrotino: speakers.some(S => S.state === 'play') ? 'play' : 'gap', speakers: speakers.filter(S => S.state === 'play').length, heard: speakers.filter(S => S.e).length, arrGain: +Math.max(...speakers.map(S => S.m.o.gain.value)).toFixed(3), market: +L.market.toFixed(2), notes: notes.alive, buffers: Object.keys(buf).filter(k => buf[k]), rms: rms(g.an) };
     },
     horn: (v, d) => { if (g) horn(v, d); },   // test hook
-    state: () => ({ L, arr }),
+    state: () => ({ L, speakers: speakers.map(S => ({ state: S.state, e: S.e && S.e.name, d: Math.round(S.d) })) }),
   };
 }
