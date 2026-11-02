@@ -1,11 +1,13 @@
-// The Garage screen, in two steps. Owned by the driving work; src/ui.js (the shell) mounts it into its 'garage' screen and forwards enter/leave,
+// The Garage screen, in two steps (and a side room for the driver). Owned by the driving work; src/ui.js (the shell) mounts it into its 'garage' screen and forwards enter/leave,
 // the language and the Back key (garageUI.back()). The place itself (workshop, turntable, camera, lights) is src/garage-scene.js: this file only
 // tells it which look to show and where to look.
 //   Step 1  BASE: pick one of the bases (lape, scooters, the hatchback) with its description and handling bars, a live 3D view, the price when locked.
 //   Step 2  CUSTOMISE: one tab per category (colour, wheels, stance, trim, exhaust, spoiler, neon, stickers, horn, extras), only what fits that base.
 //           Hovering or focusing an option previews it on the model; clicking an owned option fits it, clicking a new one asks to buy it.
+//   Driver  "Il tuo autista" (from step 1): make the person who drives the lapa, from the Universal LPC layers (src/driver-compose.js, loaded when the screen opens); src/driver.js keeps and shows it.
 // Every base keeps its own setup (src/garage.js). Money comes from fares ("Turisti affamati" credits src/garage.js).
-// Test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon&gfix (still camera) &gnight / &gday (the workshop's light)
+// Test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon&gfix (still camera) &gnight / &gday (the workshop's light); &gstep=driver&gtab=clothes opens the driver screen (&gdrv=rnd: a random driver)
+import { driver } from './driver.js';
 import { garage, LIVERIES, PALETTE, categoriesFor, partOpts, partById, vehicleById, customLivery, parseLivery } from './garage.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -20,6 +22,13 @@ const S = {
   livery: ['Livrea', 'Livery'], body: ['Carrozzeria', 'Body colour'], trim: ['Dettagli', 'Details'], auto: ['Originale', 'Original'],
   earn: ['Guadagna euro con i Turisti affamati', 'Earn euros in Hungry tourists'],
   set: ['montati', 'fitted'],
+  driver: ['Il tuo autista', 'Your driver'], who: ['Chi guida?', 'Who drives?'], driverBtn: ['Autista', 'Driver'], random: ['Casuale', 'Random'], orig: ['Originale', 'Original'], loading: ['Un attimo…', 'One moment…'],
+  tBody: ['Corpo', 'Body'], tHair: ['Capelli', 'Hair'], tHead: ['Testa', 'Head'], tClothes: ['Vestiti', 'Clothes'],
+  sBody: ['Corporatura', 'Build'], sAge: ['Età', 'Age'], sSkin: ['Pelle', 'Skin'], sEye: ['Occhi', 'Eyes'], sHair: ['Taglio', 'Style'], sHairCol: ['Colore', 'Colour'], sBeard: ['Barba', 'Beard'],
+  sGlasses: ['Occhiali', 'Glasses'], sHat: ['Cappello', 'Hat'], sHatCol: ['Colore del cappello', 'Hat colour'], sTop: ['Maglia', 'Top'], sTopCol: ['Colore della maglia', 'Top colour'],
+  sBottom: ['Sotto', 'Bottom'], sBotCol: ['Colore', 'Colour'], sShoes: ['Scarpe', 'Shoes'], sShoeCol: ['Colore delle scarpe', 'Shoe colour'], sExtra: ['Extra', 'Extras'],
+  man: ['Uomo', 'Man'], woman: ['Donna', 'Woman'], young: ['Giovane', 'Young'], older: ['Anziano', 'Older'],
+  scarf: ['Sciarpa rosanero', 'Rosanero scarf'], chain: ['Catena d\'oro', 'Gold chain'], earring: ['Orecchino', 'Earring'], tattoo: ['Tatuaggi', 'Tattoos'], leather: ['Giubbotto di pelle', 'Leather jacket'],
 };
 const SHORT = { cassone: ['Cassone', 'Cargo'], tascia: ['Tascia', 'Hatch'], scooterone: ['Scooterone', 'Big scooter'], motorino: ['Motorino', 'Minibike'] };
 const ORDER = ['calessino', 'cassone', 'lapa50', 'tascia', 'vespa', 'scooterone', 'motorino'];
@@ -125,6 +134,14 @@ const CSS = `
   .gx-foot .pd-btn { min-height: 38px; }
 }
 @media (max-aspect-ratio: 1/1) { .pd-garage { width: min(94vw, 520px); } }
+/* the driver screen */
+.gx-port { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 4px 8px; background: rgba(255,255,255,.06); border-radius: 4px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
+.gx-port canvas { height: clamp(66px, 17vh, 118px); width: auto; image-rendering: pixelated; }
+.gx-wait { padding: 18px 4px; text-align: center; font: 700 clamp(13px, 3vh, 18px)/1.2 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
+.gx-foot.f3 .pd-btn { flex: 1 1 0; min-width: 0; padding-left: 2px; padding-right: 2px; }
+.gx-foot.f3 .pd-l1 { font-size: clamp(12px, 2.9vh, 17px); }
+.gx-foot.f3 .gx-go, .gx-foot.f3 .gx-need { flex: 1.5 1 0; }
+.gx-foot.f3 .gx-need { font-size: clamp(11px, 2.5vh, 15px); }
 html.pd-in-garage :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: hidden !important; }   /* the street HUD and the touch pads belong to the street */
 `;
 
@@ -132,7 +149,7 @@ html.pd-in-garage :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: 
 const FOCUS = {
   wheels: { mode: 'side', d: 5.4, h: 1.1, ly: 0.4 }, stance: { mode: 'side', d: 5.2, h: 0.8, ly: 0.4 }, trim: { mode: 'orbit', d: 6.4, h: 1.7, ly: 0.7 },
   spoiler: { mode: 'rear', d: 5.6, h: 1.9, ly: 0.9 }, exhaust: { mode: 'rear', d: 5.0, h: 1.0, ly: 0.45 }, extra: { mode: 'rear', d: 6.4, h: 2.4, ly: 1.0 },
-  stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
+  driver: { mode: 'orbit', d: 4.6, h: 2.3, ly: 1.2 }, stickers: { mode: 'side', d: 5.6, h: 1.4, ly: 0.7 }, neon: { mode: 'orbit', d: 5.8, h: 0.9, ly: 0.2 }, horn: { mode: 'orbit', d: 7, h: 2.2, ly: 0.7 },
 };
 
 export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
@@ -144,39 +161,42 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   const Q = new URLSearchParams(location.search);   // test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon
   let step = 1, sel = garage.type, cat = 'paint', pending = null, hv = null, popMsg = '', popT = 0, entered = false, lastPtr = 'mouse', downSel = null;
   const lastCat = {};
+  const D = { dc: null, M: null, spec: null, tab: 'body', ver: 0, idle: null, wait: false };   // the driver screen: the composer (loaded on first use), its manifest, the options being edited
   const li = () => getLang() === 'it' ? 0 : 1;
   const tr = k => S[k][li()];
   const nm = o => li() === 0 ? o.name_it : o.name_en;
   const baseName = v => nm(v);
   const shortName = v => (SHORT[v.id] ? SHORT[v.id][li()] : nm(v));
 
-  root.innerHTML = '<div class="gx-head"></div><div class="gx-tabs" hidden></div><div class="gx-main gx-m1"></div><div class="gx-main gx-m2" hidden></div><div class="gx-foot"></div>';
+  root.innerHTML = '<div class="gx-head"></div><div class="gx-tabs" hidden></div><div class="gx-main gx-m1"></div><div class="gx-main gx-m2" hidden></div><div class="gx-main gx-m3" hidden></div><div class="gx-foot"></div>';
   const $ = q => root.querySelector(q);
-  const elHead = $('.gx-head'), elTabs = $('.gx-tabs'), elM1 = $('.gx-m1'), elM2 = $('.gx-m2'), elFoot = $('.gx-foot');
+  const elHead = $('.gx-head'), elTabs = $('.gx-tabs'), elM1 = $('.gx-m1'), elM2 = $('.gx-m2'), elM3 = $('.gx-m3'), elFoot = $('.gx-foot');
+  const elBody = () => (step === 3 ? elM3 : elM2);
 
   // ---- what is shown on the vehicle: the base you browse, its saved setup, then the option you clicked (pending) and the one under the pointer / focus (hv) ----
   function previewLook() {
+    if (step === 3) return garage.lookOf('calessino');   // the driver sits in a lapa
     const l = garage.lookOf(sel);
     if (step === 2) for (const o of [pending, hv]) { if (!o) continue; if (o.k === 'liv') l.livery = o.id; else if (o.id) l.parts[o.part] = o.id; else delete l.parts[o.part]; }
     return l;
   }
   function showPreview() {
-    scene.setFocus(step === 2 ? FOCUS[cat] : null);
+    scene.setFocus(step === 2 ? FOCUS[cat] : step === 3 ? FOCUS.driver : null);
     scene.setLook(previewLook());
   }
 
   // ---- small renderers ----
   const priceTag = (owned, price) => owned ? '<span class="gx-tag">✓</span>' : `<span class="gx-tag">${eur(price)}</span>`;
   function keep(fn) {   // run a repaint and put the focus back on the same control
-    const a = document.activeElement, fk = a && root.contains(a) ? a.dataset.gx : null, sc = elM2.querySelector('.gx-body') ? elM2.querySelector('.gx-body').scrollTop : 0;
+    const a = document.activeElement, fk = a && root.contains(a) ? a.dataset.gx : null, sc = elBody().querySelector('.gx-body') ? elBody().querySelector('.gx-body').scrollTop : 0;
     fn();
-    const b = elM2.querySelector('.gx-body'); if (b) b.scrollTop = sc;
+    const b = elBody().querySelector('.gx-body'); if (b) b.scrollTop = sc;
     if (fk) { const el = [...root.querySelectorAll('[data-gx]')].find(e => e.dataset.gx === fk); if (el && el !== document.activeElement) el.focus({ preventScroll: true }); }
   }
   function paintHead() {
     const v = vehicleById(sel);
-    const crumb = popT > 0 ? `<span class="gx-crumb pop">${esc(popMsg)}</span>` : `<span class="gx-crumb">${esc(tr('step'))} ${step} / 2</span>`;
-    elHead.innerHTML = `<div class="gx-ttl"><h2 class="pd-h">${esc(step === 1 ? tr('pick') : baseName(v))}</h2>${crumb}</div><div class="gx-cash">${eur(garage.cash)}</div>`;
+    const crumb = popT > 0 ? `<span class="gx-crumb pop">${esc(popMsg)}</span>` : `<span class="gx-crumb">${step === 3 ? esc(tr('who')) : `${esc(tr('step'))} ${step} / 2`}</span>`;
+    elHead.innerHTML = `<div class="gx-ttl"><h2 class="pd-h">${esc(step === 1 ? tr('pick') : step === 3 ? tr('driver') : baseName(v))}</h2>${crumb}</div><div class="gx-cash">${eur(garage.cash)}</div>`;
   }
   function paintBases() {
     elM1.innerHTML = `<div class="gx-bases">${ORDER.map(id => {
@@ -195,7 +215,9 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
       <div class="gx-stats">${[['speed', 0], ['accel', 1], ['grip', 2]].map(([k, i]) => `<div class="gx-stat"><span>${esc(tr(k))}</span>${bar(v.stats[i])}</div>`).join('')}</div>`;
     for (const b of elM1.querySelectorAll('.gx-base')) b.setAttribute('aria-pressed', String(b.dataset.gx === 'base:' + sel));
   }
+  const DTABS = [['body', 'tBody'], ['hair', 'tHair'], ['head', 'tHead'], ['clothes', 'tClothes']];
   function paintTabs() {
+    if (step === 3) { elTabs.innerHTML = DTABS.map(([id, k]) => `<button class="pd-segb" data-nav data-gx="dtab:${id}" aria-pressed="${D.tab === id}" type="button"><span>${esc(tr(k))}</span></button>`).join(''); return; }
     const cats = categoriesFor(sel);
     if (!cats.some(c => c.id === cat)) cat = 'paint';
     elTabs.innerHTML = cats.map(c => `<button class="pd-segb" data-nav data-gx="tab:${c.id}" aria-pressed="${cat === c.id}" type="button"><span>${esc(nm(c))}</span></button>`).join('');
@@ -229,13 +251,70 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
         }).join('')}</div></div>`;
     }).join('');
   }
+  // ---- the driver screen: rows of choices for the tab; every click edits the spec, then the picture is composed again (src/driver-compose.js)
+  function paintDriver() {
+    if (!D.M || !D.spec) return `<div class="gx-wait">${esc(tr('loading'))}</div>`;
+    const sp = D.spec, O = D.M.options, nameOf = o => o.name[li()], vis = list => list.filter(o => o.bodies.includes(sp.body));
+    const chips = (field, list, cur) => `<div class="gx-chips">${list.map(o => `<button class="gx-chip" data-nav data-gx="dsp:${field}:${o.id}" data-name="${esc(nameOf(o))}" aria-pressed="${cur === o.id}" aria-label="${esc(nameOf(o))}" title="${esc(nameOf(o))}" style="--sw:${esc(o.sw)}" type="button"></button>`).join('')}</div>`;
+    const cards = (field, list, cur) => `<div class="gx-grid">${list.map(o => `<button class="pd-btn sm pd-liv gx-card" data-nav data-gx="dsp:${field}:${o.id}" aria-pressed="${cur === o.id}" type="button"><span class="pd-in"><span class="pd-l1">${esc(nameOf(o))}</span></span></button>`).join('')}</div>`;
+    const sec = (k, cur, list, body) => { const n = cur && list ? (list.find(o => o.id === cur) || { name: ['', ''] }).name[li()] : ''; return `<div class="gx-sec"><div class="gx-sh"><span class="gx-sn">${esc(tr(k))}${cur !== undefined ? `<small data-def="${esc(n)}">${esc(n)}</small>` : ''}</span></div>${body}</div>`; };
+    const toggle = (fx, on) => `<button class="pd-btn sm pd-liv gx-card" data-nav data-gx="dtg:${fx}" aria-pressed="${on}" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr(fx))}</span></span></button>`;
+    const two = (field, a, b, cur) => `<div class="gx-grid">${[a, b].map(([id, k]) => `<button class="pd-btn sm pd-liv gx-card" data-nav data-gx="dsp:${field}:${id}" aria-pressed="${cur === id}" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr(k))}</span></span></button>`).join('')}</div>`;
+    const hatTints = sp.hat === 'coppola' || sp.hat === 'cap';
+    if (D.tab === 'body') return sec('sBody', undefined, null, two('body', ['male', 'man'], ['female', 'woman'], sp.body)) + sec('sAge', undefined, null, two('old', ['young', 'young'], ['old', 'older'], sp.old ? 'old' : 'young'))
+      + sec('sSkin', sp.skin, O.skin, chips('skin', O.skin, sp.skin)) + sec('sEye', sp.eye, O.eye, chips('eye', O.eye, sp.eye));
+    if (D.tab === 'hair') return sec('sHair', undefined, null, cards('hair', vis(O.hair), sp.hair)) + sec('sHairCol', sp.hairCol, O.hairCol, chips('hairCol', O.hairCol, sp.hairCol)) + sec('sBeard', undefined, null, cards('beard', vis(O.beard), sp.beard));
+    if (D.tab === 'head') return sec('sGlasses', undefined, null, cards('glasses', O.glasses, sp.glasses)) + sec('sHat', undefined, null, cards('hat', O.hat, sp.hat))
+      + (hatTints ? sec('sHatCol', sp.hatCol, O.cloth, chips('hatCol', O.cloth, sp.hatCol)) : '') + sec('sExtra', undefined, null, `<div class="gx-grid">${toggle('earring', sp.earring)}</div>`);
+    return sec('sTop', undefined, null, cards('top', vis(O.top), sp.top)) + sec('sTopCol', sp.topCol, O.cloth, chips('topCol', O.cloth, sp.topCol))
+      + sec('sBottom', undefined, null, cards('bottom', vis(O.bottom), sp.bottom)) + sec('sBotCol', sp.botCol, O.cloth, chips('botCol', O.cloth, sp.botCol))
+      + sec('sShoes', undefined, null, cards('shoes', vis(O.shoes), sp.shoes)) + sec('sShoeCol', sp.shoeCol, O.cloth, chips('shoeCol', O.cloth, sp.shoeCol))
+      + sec('sExtra', undefined, null, `<div class="gx-grid">${toggle('scarf', sp.scarf)}${toggle('chain', sp.chain)}${toggle('tattoo', sp.tattoo)}${/^(long|longpolo)$/.test(sp.top) ? toggle('leather', sp.leather) : ''}</div>`);
+  }
+  function drawPortrait() {   // the standing person, front, side and back, next to each other (the pictures are 64 pixels, shown big and sharp)
+    const cv = elM3.querySelector('.gx-port canvas'); if (!cv || !D.idle) return;
+    const g = cv.getContext('2d'), im = g.createImageData(192, 64);
+    ['front', 'left', 'back'].forEach((d, k) => { const f = D.idle[d]; for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) { const i = (y * 64 + x) * 4, o = (y * 192 + k * 64 + x) * 4; im.data[o] = f[i]; im.data[o + 1] = f[i + 1]; im.data[o + 2] = f[i + 2]; im.data[o + 3] = f[i + 3]; } });
+    g.putImageData(im, 0, 0);
+  }
+  async function composeDriver() {
+    const my = ++D.ver;
+    try {
+      const out = await D.dc.compose(D.spec); if (my !== D.ver) return;
+      D.idle = out.idle; D.spec = out.spec; driver.set(out.sit, out.spec); drawPortrait();
+    } catch (e) { console.warn('driver compose failed', e); }
+  }
+  async function toDriver() {
+    step = 3; pending = null; hv = null; paintAll(); showPreview(); focusFirst();
+    try {
+      if (!D.dc) { D.dc = await import('./driver-compose.js'); D.M = await D.dc.loadManifest(); }
+      if (step !== 3) return;
+      if (!D.spec) D.spec = D.dc.cleanSpec(driver.spec() || (Q.get('gdrv') === 'rnd' ? D.dc.randomSpec() : D.dc.defaultSpec()));
+      paintAll(); await composeDriver();
+    } catch (e) { console.warn('driver screen failed', e); }
+  }
+  function setDrv(field, id) {
+    if (!D.spec) return;
+    const sp = { ...D.spec };
+    if (field === 'old') sp.old = id === 'old'; else sp[field] = id;
+    D.spec = D.dc.cleanSpec(sp); paintAll(); composeDriver();
+  }
+  function toggleDrv(fx) { if (!D.spec) return; D.spec = D.dc.cleanSpec({ ...D.spec, [fx]: !D.spec[fx] }); paintAll(); composeDriver(); }
+  function randomDrv() { if (!D.dc || !D.M) return; D.spec = D.dc.randomSpec(); paintAll(); composeDriver(); }
+  function originalDrv() { driver.clear(); D.spec = null; D.idle = null; flash(tr('orig') + ' ✓'); toStep(1); }   // back to the blocky 3D driver; the next visit starts again from the default person
   function paintBody() {
+    if (step === 3) { elM3.innerHTML = `<div class="gx-port"><canvas width="192" height="64"></canvas></div><div class="gx-body">${paintDriver()}</div>`; drawPortrait(); return; }
     const c = categoriesFor(sel).find(x => x.id === cat) || categoriesFor(sel)[0];
     elM2.innerHTML = `<div class="gx-body">${c.paint ? paintColour() : paintParts(c)}</div>`;
   }
   function paintFoot() {
     const back = `<button class="pd-btn sm" data-nav data-gx="back" type="button"><span class="pd-in"><span class="pd-l1">${esc(step === 1 ? tr('back') : '◀ ' + tr('vehicles'))}</span></span></button>`;
+    const drv = `<button class="pd-btn sm" data-nav data-gx="driver" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('driverBtn'))}</span></span></button>`;
     let main = '';
+    if (step === 3) {
+      elFoot.className = 'gx-foot f3'; elFoot.innerHTML = back + `<button class="pd-btn sm" data-nav data-gx="drrnd" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('random'))}</span></span></button><button class="pd-btn sm" data-nav data-gx="drorig" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('orig'))}</span></span></button><button class="pd-btn sm drive gx-go" data-nav data-gx="done" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('done'))} ✓</span></span></button>`;
+      return;
+    }
     if (step === 1) {
       const v = vehicleById(sel);
       if (garage.ownsVehicle(sel)) main = `<button class="pd-btn sm drive gx-go" data-nav data-gx="next" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('next'))} ▶</span></span></button>`;
@@ -246,11 +325,11 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
       if (garage.cash >= price) main = `<button class="pd-btn sm drive gx-go" data-nav data-gx="buyp" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('buy'))} · ${eur(price)}</span></span></button>`;
       else main = `<div class="gx-need">${esc(tr('need'))}<b>${eur(price - garage.cash)}</b></div>`;
     } else main = `<button class="pd-btn sm drive gx-go" data-nav data-gx="done" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('done'))} ✓</span></span></button>`;
-    elFoot.innerHTML = back + main;
+    elFoot.className = step === 1 ? 'gx-foot f3' : 'gx-foot'; elFoot.innerHTML = back + (step === 1 ? drv : '') + main;
   }
   function paintAll() {
     keep(() => {
-      elTabs.hidden = step !== 2; elM1.hidden = step !== 1; elM2.hidden = step !== 2;
+      elTabs.hidden = step === 1; elM1.hidden = step !== 1; elM2.hidden = step !== 2; elM3.hidden = step !== 3;
       paintHead(); paintFoot();
       if (step === 1) paintBases(); else { paintTabs(); paintBody(); }
     });
@@ -263,13 +342,13 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
     if (el) el.focus({ preventScroll: true });
   }
   function toStep(n) {
-    step = n; pending = null; hv = null;
+    step = n; pending = null; hv = null; D.ver++;
     if (n === 2) { garage.setVehicle(sel); const cats = categoriesFor(sel); cat = cats.some(c => c.id === lastCat[sel]) ? lastCat[sel] : 'paint'; if (Q.get('gcat') && cats.some(c => c.id === Q.get('gcat')) && !lastCat[sel]) cat = Q.get('gcat'); }
     paintAll(); showPreview(); focusFirst();
   }
   function setCat(c) { if (c === cat) return; cat = c; lastCat[sel] = c; pending = null; hv = null; paintAll(); showPreview(); }
   function goBack() {
-    if (step === 2) { toStep(1); return true; }
+    if (step === 2 || step === 3) { toStep(1); return true; }
     return false;
   }
   function buyVehicle() {
@@ -312,6 +391,12 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
     else if (k === 'bd') pickBody(a);
     else if (k === 'tr') pickTrim(a);
     else if (k === 'next') toStep(2);
+    else if (k === 'driver') toDriver();
+    else if (k === 'dtab') { D.tab = a; paintAll(); }
+    else if (k === 'dsp') setDrv(a, c);
+    else if (k === 'dtg') toggleDrv(a);
+    else if (k === 'drrnd') randomDrv();
+    else if (k === 'drorig') originalDrv();
     else if (k === 'back') { if (!goBack() && onExit) onExit(); }
     else if (k === 'done') { if (onExit) onExit(); }
     else if (k === 'buyv') buyVehicle();
@@ -325,7 +410,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   }
   // colour chips carry no label: the row caption shows the name of the one under the pointer or focus
   function caption(el) {
-    for (const sm of elM2.querySelectorAll('.gx-sn small[data-def]')) sm.textContent = sm.dataset.def;
+    for (const sm of elBody().querySelectorAll('.gx-sn small[data-def]')) sm.textContent = sm.dataset.def;
     const sec = el && el.closest && el.closest('.gx-sec'), sm = sec && sec.querySelector('.gx-sn small[data-def]');
     if (sm && el.dataset.name) sm.textContent = el.dataset.name;
   }
@@ -344,6 +429,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
     const [k, a] = b.dataset.gx.split(':');
     if (k === 'base') { if (sel !== a) { sel = a; pending = null; paintDetail(); paintFoot(); showPreview(); } }
     else if (k === 'tab') setCat(a);
+    else if (k === 'dtab') { if (D.tab !== a) { D.tab = a; paintAll(); } }
     else { browse(hvOf(b)); caption(b); }
   });
   root.addEventListener('pointerover', e => {
@@ -362,6 +448,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
       document.documentElement.classList.add('pd-in-garage'); scene.enter(garage.lookOf(sel));
       step = 1; paintAll(); showPreview();
       if (Q.get('gstep') === '2' && garage.ownsVehicle(sel)) toStep(2);
+      if (Q.get('gstep') === 'driver') { if (Q.get('gtab') && DTABS.some(t => t[0] === Q.get('gtab'))) D.tab = Q.get('gtab'); toDriver(); }
     },
     leave() { entered = false; pending = null; hv = null; scene.leave(); document.documentElement.classList.remove('pd-in-garage'); },
     render() { if (entered) paintAll(); },
