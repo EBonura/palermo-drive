@@ -40,7 +40,7 @@
 ## Waiting on the owner
 
 - **Deploy the multiplayer/stats relay** on the new bonniestudiosdev@gmail.com GCP account (owner said "later"):
-  follow server/DEPLOY.md (us-east1 for zero egress cost, kill switch at a few euros), then set RELAY_URL in
+  the relay is in relay/ (see relay/STATUS.md); multiplayer is shelved for now
   src/net.js. Until then multiplayer and player stats stay off.
 - **More photo facades**: a Mapillary access token and/or the owner's own frontal photos of key buildings.
 
