@@ -537,11 +537,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* buildRaised(t) {
     const st = t.data.streets, ext = poly => { let lo = 1e9, hi = -1e9; const r0 = poly[0]; for (let i = 1; i < r0.length; i += 2) { lo = Math.min(lo, r0[i]); hi = Math.max(hi, r0[i]); } return [lo, hi]; };
     const x0 = t.i * T, z0 = t.j * T, info = [];
-    for (const [layers, col] of [[['raised', 'median', 'green'], '#f00'], [['asphalt', 'paving', 'raised', 'median', 'verge'], '#0f0']])
+    for (const [layers, col] of [[['raised', 'median', 'green'], '#f00'], [['asphalt', 'paving', 'raised', 'median', 'verge'], '#0f0'], [['sand'], '#00f']])
       for (const l of layers) for (const poly of st[l] || []) { const [lo, hi] = ext(poly); info.push({ poly, col, lo: (lo - z0) * RK, hi: (hi - z0) * RK }); }
-    if (!info.length) { t.raised = null; t.hard = null; return; }
+    if (!info.length) { t.raised = null; t.hard = null; t.sandb = null; buildGravel(t); return; }
     if (!rcv) { rcv = document.createElement('canvas'); rcv.width = RW; rcv.height = BAND; rg = rcv.getContext('2d', { willReadFrequently: true }); }
     const bitsR = new Uint8Array(RW * RW / 8), bitsH = new Uint8Array(RW * RW / 8);
+    let bitsS = null;   // e6: beach sand, the third channel (null while the tile has none)
+    if ((st.sand || []).length) bitsS = new Uint8Array(RW * RW / 8);
     for (let band = 0; band < RW / BAND; band++) {
       const y0 = band * BAND;
       rg.setTransform(1, 0, 0, 1, 0, 0); rg.globalCompositeOperation = 'source-over'; rg.fillStyle = '#000'; rg.fillRect(0, 0, RW, BAND);
@@ -558,10 +560,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const b = base + q, o = q * 4;
         if (img[o] > 127) bitsR[b >> 3] |= 1 << (b & 7);
         if (img[o + 1] > 127) bitsH[b >> 3] |= 1 << (b & 7);
+        if (bitsS && img[o + 2] > 127) bitsS[b >> 3] |= 1 << (b & 7);
       }
       yield;
     }
-    t.raised = bitsR; t.hard = bitsH;
+    t.raised = bitsR; t.hard = bitsH; t.sandb = bitsS;
+    buildGravel(t);
   }
   let lastR = null;
   function maskAt(x, z, which) {
@@ -574,16 +578,75 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   const raised = (x, z) => maskAt(x, z, 'raised') === true || pitchDepth(x, z) > 0;   // the stadium's playing area counts as raised ground: the lapa stands on the track and the pitch like on a pavement (src/stadium-ground.js)
 
-  // Off the surfaced network (park ground, dirt tracks, hillside): less grip, a bumpy ride, a bit of drag. Called every physics step.
+  // ---------- e6: what the lapa drives on ----------
+  // Tracks and the paths of the parks and the hills are gravel and dirt even where the street layers paint them as paving; the beach is sand; the lawns are grass;
+  // anything else that is not surfaced (scrub, hillside, fields) is rough ground. Each has its own grip, drag and bumpiness (SURF below); asphalt, paving, pavements and
+  // verges are hard ground as before. car.surf says which (0 hard, 1 gravel, 2 grass, 3 sand, 4 rough) for the sound and the effects.
+  const GRAVEL_K = new Set(['track', 'path', 'footway', 'cycleway', 'bridleway']);
+  function buildGravel(t) {
+    t.gsegs = null;
+    const roads = t.data && t.data.roads; if (!roads) return;
+    const cand = roads.filter(r => GRAVEL_K.has(r.k) && !r.tn && !r.br); if (!cand.length) return;
+    const C = 12, cell = (x, z) => Math.floor(x / C) * 100003 + Math.floor(z / C), road = new Map(), bld = new Map();
+    for (const r of roads) {   // samples of the streets (a footway beside one is its pavement) and the building centres (a footway among houses is a town alley)
+      if (r.tn || r.br || !(DRIVABLE.has(r.k))) continue;
+      const p = r.p;
+      for (let q = 0; q + 3 < p.length; q += 2) {
+        const dx = p[q + 2] - p[q], dz = p[q + 3] - p[q + 1], n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 6));
+        for (let k = 0; k <= n; k++) { const x = p[q] + dx * k / n, z = p[q + 1] + dz * k / n, ck = cell(x, z); let a = road.get(ck); if (!a) road.set(ck, a = []); a.push(x, z); }
+      }
+    }
+    for (const b of t.data.buildings || []) { const p = b.p, x = p[0], z = p[1], ck = cell(x, z); let a = bld.get(ck); if (!a) bld.set(ck, a = []); a.push(x, z); }
+    const within = (m, x, z, d) => {
+      const ci = Math.floor(x / C), cj = Math.floor(z / C);
+      for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const l = m.get((ci + a) * 100003 + (cj + b)); if (l) for (let q = 0; q < l.length; q += 2) if (Math.hypot(l[q] - x, l[q + 1] - z) < d) return true; }
+      return false;
+    };
+    const segs = [];
+    for (const r of cand) {
+      const p = r.p, w = (r.k === 'track' ? 3.5 : 2.4) / 2 + 0.9;
+      for (let q = 0; q + 3 < p.length; q += 2) {
+        const mx = (p[q] + p[q + 2]) / 2, mz = (p[q + 1] + p[q + 3]) / 2;
+        if (r.k !== 'track' && (within(road, mx, mz, 9) || within(bld, mx, mz, 28))) continue;
+        segs.push([p[q], p[q + 1], p[q + 2], p[q + 3], w, Math.min(p[q], p[q + 2]) - w, Math.min(p[q + 1], p[q + 3]) - w, Math.max(p[q], p[q + 2]) + w, Math.max(p[q + 1], p[q + 3]) + w]);
+      }
+    }
+    t.gsegs = segs.length ? segs : null;
+  }
+  function onGravel(t, x, z) {
+    const g = t.gsegs; if (!g) return false;
+    for (let i = 0; i < g.length; i++) {
+      const s = g[i]; if (x < s[5] || x > s[7] || z < s[6] || z > s[8]) continue;
+      const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz, u = l2 > 0 ? Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)) : 0;
+      if (Math.hypot(x - s[0] - dx * u, z - s[1] - dz * u) < s[4]) return true;
+    }
+    return false;
+  }
+  // [grip lost (0..1, as a pothole does), drag (1/s), bump size, bump spacing (m)]
+  const SURF = [null, [0.22, 0.06, 0.35, 2.2], [0.38, 0.14, 0.8, 1.6], [0.7, 0.55, 0.3, 2.6], [0.5, 0.2, 1.2, 1.4]];
   let bumpPhase = 0;
+  function surfaceAt(x, z, deck) {
+    const hard = maskAt(x, z, 'hard');
+    const i = Math.floor(x / T), j = Math.floor(z / T), t = tiles.get(nk(i, j));
+    if (t && t.gsegs && onGravel(t, x, z)) return 1;
+    if (hard !== false || deck) return 0;
+    // seams in the street polygons (a few tenths of a metre, along hairpins and tile borders) are not off-road: hard ground within a metre counts
+    if (maskAt(x + 0.9, z, 'hard') === true || maskAt(x - 0.9, z, 'hard') === true || maskAt(x, z + 0.9, 'hard') === true || maskAt(x, z - 0.9, 'hard') === true) return 0;
+    if (maskAt(x, z, 'sandb') === true) return 3;
+    if (maskAt(x, z, 'raised') === true) return 2;
+    return 4;
+  }
+  // Called every physics step: grip, a bumpy ride and drag by what is under the car.
   function drivePlayer(car, dt) {
-    if (maskAt(car.x, car.z, 'hard') !== false || car.deck) return;   // (a bridge deck or a tunnel floor is hard ground whatever the street layers under it say)
+    const sf = surfaceAt(car.x, car.z, car.deck); car.surf = sf;
+    if (!sf) return;
     const v = Math.hypot(car.vx, car.vz);
     if (v < 1.5) return;
-    car.gripLoss = Math.max(car.gripLoss || 0, 0.3);
+    const S = SURF[sf];
+    car.gripLoss = Math.max(car.gripLoss || 0, S[0]);
     bumpPhase += v * dt;
-    if (bumpPhase > 1.6) { bumpPhase = 0; car.hopV = Math.min(2.2, (car.hopV || 0) + 0.45 + 1.0 * Math.random() * Math.min(1, v / 12)); }
-    const k = Math.exp(-0.12 * dt); car.vx *= k; car.vz *= k;
+    if (bumpPhase > S[3]) { bumpPhase = 0; car.hopV = Math.min(2.2, (car.hopV || 0) + (0.45 + 1.0 * Math.random() * Math.min(1, v / 12)) * S[2]); }
+    const k = Math.exp(-S[1] * dt); car.vx *= k; car.vz *= k;
   }
 
   // ---------- road-following terrain shaping ----------
@@ -843,7 +906,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* downgrade(t) {
     onTileDrop(t.k); emit('drop', t);
     setPart(t, 'bldFull', null); setPart(t, 'quays', null); disposeQuayMeshes(t.k); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
-    unregisterPhysics(t); t.raised = null; t.hard = undefined; t.hasFull = false;
+    unregisterPhysics(t); t.raised = null; t.hard = undefined; t.sandb = undefined; t.gsegs = null; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow) {
       if (yield* ensureData(t)) {
         if (!t.parts.bldLow) setPart(t, 'bldLow', yield* lowBuildings(t));
@@ -857,7 +920,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     for (const l of CENTRO_LANDMARKS) if (t.parts['lm:' + l.name]) lmPending.add(l);   // built again when the tile comes back
     onTileDrop(t.k); unregisterStructs(t.k); unregisterQuays(t.k); dropFences(t.k); emit('drop', t);
     for (const n of Object.keys(t.parts)) setPart(t, n, null);
-    unregisterPhysics(t); t.raised = null; t.hard = undefined;
+    unregisterPhysics(t); t.raised = null; t.hard = undefined; t.sandb = undefined; t.gsegs = null;
     stash(t);
     t.dead = true; t.nearS = null; t.nearStep = 0; t.benched = false; t.lod = 0; t.hasFull = false;
     tiles.delete(t.k);
@@ -1065,7 +1128,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     hurry: false,    // set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
     get farCity() { return farCity; },
     raised,
-    drivePlayer,
+    drivePlayer, surfaceAt,
     // Dry land per the manifest coastline (the baked D.land only covers the centro). False until the manifest is in.
     isLand(x, z) {
       if (!landPoly) return false;
