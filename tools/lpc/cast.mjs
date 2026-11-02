@@ -35,6 +35,7 @@ export function stackOf(sp, idx) {
   // ----- torso
   const longS = sp.sleeve === 'long', none = sp.sleeve === 'none';
   if (kid) { const def = getDef('torso/shirts/torso_clothes_child_shirt'); L.push({ id: 'torso/shirts/torso_clothes_child_shirt', variant: pickVariant(def, topC) }); }
+  else if (sp.waistcoat && !kid) { L.push({ id: 'torso/shirts/longsleeve/torso_clothes_longsleeve2', mat: { cloth: topC } }); L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2_vneck', mat: { cloth: nearestRamp('cloth', sp.waistcoat) } }); }   // a waistcoat over a long-sleeved shirt (the coachman)
   else if (sp.vest && sp.vestOver) { L.push({ id: 'torso/shirts/shortsleeve/torso_clothes_tshirt', mat: { cloth: topC } }); L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2_vneck', mat: { cloth: nearestRamp('cloth', sp.vest) } }); X.push(['patches']); }
   else if (none) L.push({ id: 'torso/shirts/sleeveless/torso_clothes_sleeveless2', mat: { cloth: topC } });
   else if (longS) L.push({ id: sp.collar ? 'torso/shirts/longsleeve/torso_clothes_longsleeve2_polo' : 'torso/shirts/longsleeve/torso_clothes_longsleeve2', mat: { cloth: topC } });
@@ -63,7 +64,7 @@ export function stackOf(sp, idx) {
   if (sp.glasses) { const g = sp.glasses; X.push([g.style === 'round' ? 'roundGlasses' : 'rectGlasses', g.style, g.tortoise]); }
   // ----- hats
   const h = sp.hat;
-  if (h) { if (h.type === 'scarf') X.push(['fazzoletto', 'black']); else if (h.type === 'flatcap') X.push(['flatCap', cloth(h.col)]); else if (h.type === 'peaked') X.push(['peakedCap', lumOf(h.col) > 0.6 ? 'white' : 'navy', h.col2 && lumOf(h.col2) > 0.6 ? 'white' : 'yellow']); else if (h.type === 'straw') X.push(['strawHat', cloth(h.col), h.col2 ? cloth(h.col2) : 'red']); else if (h.type === 'helmet') X.push(['helmet', 'white']); else if (h.type === 'cap') X.push(['cap', cloth(h.col)]); else if (h.type === 'hood') L.push({ id: 'headwear/coverings/hoods/hat_hood_cloth', mat: { cloth: cloth(h.col) } }); }
+  if (h) { if (h.type === 'scarf') X.push(['fazzoletto', 'black']); else if (h.type === 'flatcap') X.push(['flatCap', cloth(h.col)]); else if (h.type === 'peaked') X.push(['peakedCap', lumOf(h.col) > 0.6 ? 'white' : 'navy', h.col2 && lumOf(h.col2) > 0.6 ? 'white' : 'yellow']); else if (h.type === 'straw') X.push(['strawHat', cloth(h.col), h.col2 ? cloth(h.col2) : 'red']); else if (h.type === 'helmet') X.push(['helmet', 'white']); else if (h.type === 'cap') X.push(['cap', cloth(h.col)]); else if (h.type === 'top') X.push(['topHat', 'black']); else if (h.type === 'hood') L.push({ id: 'headwear/coverings/hoods/hat_hood_cloth', mat: { cloth: cloth(h.col) } }); }
   // ----- skin art and small things
   if (sp.tattoo && (sp.sleeveTattoo || sp.tattooForearm)) X.push(['tattoo', 'arms']);
   if (sp.neckTattoo) X.push(['tattoo', 'neck']);

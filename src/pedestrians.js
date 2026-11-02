@@ -1012,6 +1012,7 @@ export function createPedestrians(env) {
   //                                          a seated sprite shows no legs. blend: seconds to hop from where it stands to the seat
   //   detach(id)                             back to standing on the ground where it is
   //   setBounce(id, on)                      jump up and down on the spot (hailing a taxi)
+  //   setSize(id, k)                         scale the sprite (1 = as the crowd)
   //   info(id) -> { x, y, z, state }         state: 'stand' | 'walk' | 'seat'
   //   remove(id); near(x, z, r) -> crowd members within r; onKnock(fn(x, z, variant)) when the lapa sends a crowd member flying
   const SC = 96;
@@ -1050,6 +1051,7 @@ export function createPedestrians(env) {
   }
   function detach(id) { const c = scripted.get(id); if (!c) return; c.att = null; c.seated = false; c.state = 'stand'; c.y = c.hipY !== undefined ? c.hipY - ((LPC ? LPC_HIP : (VARIANTS[c.v].leg || 19) * LK - 1) * PX) : c.y; }
   function setBounce(id, on) { const c = scripted.get(id); if (c) c.bounce = !!on; }
+  function setSize(id, k) { const c = scripted.get(id); if (c) c.size = k; }   // 1 is an adult of the crowd; the carriages' passengers are drawn a little smaller to fit the seats
   function remove(id) { scripted.delete(id); }
   // A named group at a spot (a crowd in front of a pub, a gang at a bench): spawnCrowd({ x, z, radius, count, mix, props }) -> array of ids
   //   pose: 'sit' puts them on the ground (knees up, hands on the knees or a drink in one hand, sipping now and then); only people who can sit are picked (those with a drink, the young everyday types)
@@ -1148,7 +1150,7 @@ export function createPedestrians(env) {
   function setQuality(q) { if (QUALITIES[q] && !params.has('peds')) { quality = QUALITIES[q]; targetT = 0; } }
 
   if (params.has('debug')) window.__peds = { setTime, stats, N, X, Z, ST, VAR, TH, TMR, ROLL, RD, HOP, V, cell, wts, quality: () => quality, knock, zoneCode, densAt, distAt, PNAMES, VW, VWN, VARIANTS };
-  const api = { spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  const api = { spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
   if (params.has('debug')) { window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;

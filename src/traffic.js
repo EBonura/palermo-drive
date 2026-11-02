@@ -18,6 +18,8 @@ import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { buildPoliceModels, makePoliceDecal } from '../assets/traffic/police-models.js';
 import { createPolice, createBeacons } from './police.js';   // wanted system, police chase, siren, HUD
 import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
+import { createCarrozze } from './carrozze.js';                 // the tourist carrozze: their loop, coachman and passengers
+import { createVendors } from './vendors.js';                   // the Apes and carrozze that call out now and then
 
 // ---------- tuning ----------
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
@@ -43,9 +45,13 @@ const TYPES = {
     cols: [['#e9e4d2', 3], ['#7fa3c0', 3], ['#c2362c', 2], ['#4e7a4c', 2], ['#f4f4f0', 3]] },
   apeCrate: { model: 'apeCrate', L: 3.2, W: 1.4, mass: 0.9, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.7, a: 1.4, rmin: 3.6, vcap: 8.5, ped: true,
     cols: [['#e9e4d2', 3], ['#d6a24a', 2], ['#7fa3c0', 2], ['#4e7a4c', 2]] },
-  apeFood: { model: 'apeFood', L: 3.2, W: 1.4, mass: 1.0, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.65, a: 1.3, rmin: 3.6, vcap: 8, ped: true,
+  apeFrutta: { model: 'apeFrutta', hy: 2.1, L: 3.2, W: 1.4, mass: 0.9, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.7, a: 1.4, rmin: 3.6, vcap: 8.5, ped: true,
+    cols: [['#e9e4d2', 3], ['#d6a24a', 2], ['#7fa3c0', 2], ['#4e7a4c', 2], ['#c2362c', 1]] },
+  apeSfincione: { model: 'apeSfincione', hy: 2.7, L: 3.2, W: 1.4, mass: 1.0, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.65, a: 1.3, rmin: 3.6, vcap: 8, ped: true,
+    cols: [['#efe3c8', 3], ['#e8c46a', 2], ['#8fb3a0', 1]] },
+  apeFood: { model: 'apeFood', hy: 2.7, L: 3.2, W: 1.4, mass: 1.0, circ: [[0.8, 0.78], [-0.7, 0.78]], vf: 0.65, a: 1.3, rmin: 3.6, vcap: 8, ped: true,
     cols: [['#efe3c8', 3], ['#e8c46a', 2], ['#c2362c', 1]] },
-  carrozza: { model: 'carrozza', L: 6.7, W: 1.3, mass: 1.5, circ: [[2.6, 0.7], [0.8, 0.8], [-0.8, 0.8]], vf: 0.4, vcap: 2.7, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 6, ped: true,
+  carrozza: { model: 'carrozzaTour', hy: 2.5, L: 6.7, W: 1.3, mass: 1.5, circ: [[2.6, 0.7], [0.8, 0.8], [-0.8, 0.8]], vf: 0.4, vcap: 2.7, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 6, ped: true,
     cols: [['#5a3a24', 4], ['#2a2220', 2], ['#8a5a34', 3], ['#a9a49a', 1]] },
   carretto: { model: 'carretto', L: 5.0, W: 1.6, mass: 1.2, circ: [[1.6, 0.7], [-0.1, 0.85], [-0.9, 0.85]], vf: 0.4, vcap: 2.3, a: 0.8, b: 2.2, T: 1.4, s0: 2.0, rmin: 5, ped: true,
     cols: [['#2e2a26', 2], ['#6a4a30', 2]] },
@@ -284,13 +290,12 @@ Object.assign(MODELS, buildPoliceModels());
     const room = k => (c[k] || 0) < CAPS[k];
     if (e.ped) {
       if (e.transit) return pickW([['apePick', 2], ['van', 1], ['vespa', 2]]);
-      return pickW([['apeCrate', 3], ['apePick', 2], ['van', 3], ['apeFood', 1], ['vespa', 2]]);
+      return pickW([['apeCrate', 2], ['apeFrutta', 2], ['apePick', 2], ['van', 3], ['apeFood', 1.3], ['apeSfincione', 1.3], ['vespa', 2]]);
     }
     if (e.fast) return pickW([['panda', 24], ['punto', 22], ['smart', 4], ['taxi', 4], ['van', 8]]);
     const near = nearSite(NX[e.a], NZ[e.a]);
     const opts = [['panda', 24], ['punto', 22], ['smart', 8], ['taxi', 5], ['van', e.w >= 3.5 ? 7 : 0], ['vespa', 14], ['vespaB', 7],
-      ['apePick', 2.5], ['apeCrate', 1.8], ['apeFood', 0.9]];
-    if (room('carrozza') && near) opts.push(['carrozza', 4]);
+      ['apePick', 2.2], ['apeCrate', 1.4], ['apeFrutta', 1.6], ['apeFood', 1.1], ['apeSfincione', 1.1]];   // the carrozze are not here: they run their own loop (tourPlan below)
     if (room('carretto') && Math.random() < (near ? 0.04 : 0.006)) return 'carretto';
     return pickW(opts);
   }
@@ -331,9 +336,9 @@ Object.assign(MODELS, buildPoliceModels());
       if (!e.dead && d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX && e.len > 14) { busCand.push([pl, i]); if (pl.stops.some(st => st.i > i && st.i <= i + 2)) busStopCand.push([pl, i]); }
     }
   }
-  function trySpawnBus(name = 'bus') {
-    if (!busCand.length) return false;
-    const list = name === 'bus' && busStopCand.length && Math.random() < 0.7 ? busStopCand : busCand; // most buses start a little before a stop
+  function trySpawnBus(name = 'bus', cands = null) {   // cands: [plan, edge index] pairs to choose from instead of the bus lines (the tourist carrozze)
+    if (!cands && !busCand.length) return false;
+    const list = cands || (name === 'bus' && busStopCand.length && Math.random() < 0.7 ? busStopCand : busCand); // most buses start a little before a stop
     const [pl, i] = list[(Math.random() * list.length) | 0], e = pl.edges[i], ty = TYPES[name];
     const t = ty.L * 0.5 + 1 + Math.random() * Math.max(0, e.len - ty.L - 2);
     const x = NX[e.a] + e.dx * t + e.rx * Math.min(e.w / 4, 2.6), z = NZ[e.a] + e.dz * t + e.rz * Math.min(e.w / 4, 2.6);
@@ -783,6 +788,7 @@ Object.assign(MODELS, buildPoliceModels());
       while (tries-- > 0 && made > 0) if (trySpawn()) made--;
     }
     fx.begin(); police.update(Math.min(dt, 0.1), fx); gags.update(Math.min(dt, 0.1), fx); fx.end();
+    carrozze.update(Math.min(dt, 0.1)); vendors.update(Math.min(dt, 0.1));
     writeInstances();
   }
 
@@ -909,6 +915,48 @@ Object.assign(MODELS, buildPoliceModels());
     }
   }
 
+  // ---------- the tourist carrozze (src/carrozze.js): a closed loop between the Cattedrale, the Quattro Canti and the Teatro Massimo ----------
+  // Out along the shortest way the horse may take, back by other streets where there are any (else the same street's other lane). Found in the resident graph when asked for, kept until the graph changes.
+  const TOUR_STOPS = [proj(38.1146, 13.3558), proj(38.115684, 13.36146), proj(38.1199, 13.3573)];
+  function shortest(a, b, ty, banned) {   // Dijkstra over the edges a carrozza may use, skipping the banned edge ids; the edges in order, or null
+    const dist = new Map([[a, 0]]), prev = new Map(), open = [[0, a]];
+    while (open.length) {
+      let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i;
+      const [d, n] = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+      if (n === b) break;
+      if (d > dist.get(n) || dist.size > 4000) continue;
+      for (const c of NOUT[n]) { if (c.dead || !allowed(c, ty) || (banned && banned.has(c.id))) continue; const nd = d + c.len; if (nd < (dist.get(c.b) ?? 1e9)) { dist.set(c.b, nd); prev.set(c.b, c); open.push([nd, c.b]); } }
+    }
+    if (!prev.has(b)) return null;
+    const out = []; for (let e = prev.get(b); e; e = prev.get(e.a)) out.unshift(e); return out;
+  }
+  let tourPl = null, tourVer = -1;
+  function tourPlan() {
+    if (tourPl && tourVer === G.version && !tourPl.edges.some(e => e.dead)) return tourPl;
+    tourPl = null; tourVer = G.version;
+    const ty = TYPES.carrozza, ns = TOUR_STOPS.map(p => G.nearestNode(p[0], p[1], 70, false));
+    if (ns.some(n => n < 0) || ns[0] === ns[1] || ns[1] === ns[2]) return null;
+    const out = [...(shortest(ns[0], ns[1], ty) || []), ...(shortest(ns[1], ns[2], ty) || [])];
+    if (out.length < 4) return null;
+    const ban = new Set(); for (const e of out) { ban.add(e.id); if (e.rev >= 0) ban.add(e.rev); }
+    const back = shortest(ns[2], ns[0], ty, ban) || [...(shortest(ns[2], ns[1], ty) || []), ...(shortest(ns[1], ns[0], ty) || [])];
+    const edges = [...out, ...back];
+    if (back.length < 2 || edges[edges.length - 1].b !== edges[0].a) return null;
+    return (tourPl = { edges, stops: [], closed: true, row: 0 });
+  }
+  function spawnTour() {   // a carrozza on the loop, out of view
+    const pl = tourPlan(); if (!pl) return null;
+    const cands = [], cx = camera.position.x, cz = camera.position.z;
+    for (let i = 0; i < pl.edges.length; i++) {
+      const e = pl.edges[i], dx = (NX[e.a] + NX[e.b]) / 2 - cx, dz = (NZ[e.a] + NZ[e.b]) / 2 - cz, d2 = dx * dx + dz * dz;
+      if (!e.dead && e.len > 14 && d2 > R_SPAWN_MIN * R_SPAWN_MIN && d2 < R_SPAWN_MAX * R_SPAWN_MAX) cands.push([pl, i]);
+    }
+    if (!cands.length) return null;
+    for (let k = 0; k < 8; k++) { const v = trySpawnBus('carrozza', cands); if (v) { v.tour = true; return v; } }
+    return null;
+  }
+  const baseY = v => { const dk = v.route[0] && v.route[0].br ? topY(v.x, v.z) : NaN; return (dk === dk ? dk : groundY(v.x, v.z)) + (v.fly ? v.fly.y : 0); };   // where the vehicle's wheels are (bridge decks too)
+
   // ---------- police, lookouts, team bus, double parking: they steer ordinary vehicles through this small interface ----------
   function spawnOffscreen(name, dmin, dmax, edgeOk) { // a new vehicle out of view, dmin..dmax metres from the lapa, on an edge edgeOk(midX, midZ, edge) accepts
     if (!candEdges.length) return null;
@@ -956,16 +1004,18 @@ Object.assign(MODELS, buildPoliceModels());
       const r = EDGES[e.rev]; v.route = [r]; v.t = clamp(r.len - v.t, 0, r.len); v.pref = -v.pref; v.blocker = null; extendRoute(v); return true;
     },
     spawnTeamBus() { rebuildBusCandidates(camera.position.x, camera.position.z); for (let k = 0; k < 12; k++) { const v = trySpawnBus('teamBus'); if (v) return v; } return null; },
+    spawnTour, baseY,
     removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
   police = createPolice(env, T);
   addEventListener('pd-yeet', e => police.chaos((e.detail && e.detail.kind) || 'yeet'));   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
   gags = createGags(env, T, police);
+  const carrozze = createCarrozze(env, T), vendors = createVendors(env, T);
 
   return {
     update, collidePlayer,
     agents: () => agentsOut,
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
-    bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); },   // called by pedestrians.js once it is built
+    bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
     // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.
     //   nearestNode(x, z, maxDist = 60, drivable = true) -> node id or -1
     //   nodePos(n) -> [x, z]
@@ -973,7 +1023,7 @@ Object.assign(MODELS, buildPoliceModels());
     //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
-    debug: { vs, police, gags },   // ?debug probes
+    debug: { vs, police, gags, carrozze, vendors, tourPlan, TYPES },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },

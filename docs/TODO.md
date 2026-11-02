@@ -77,8 +77,8 @@
 - **Carretto siciliano**: the painted Sicilian cart (yellow/red wheels, carved and painted panels with
   chivalric scenes, plumed horse harness) as a hero prop, parked near the Cattedrale/Quattro Canti and
   as a slow horse-drawn vehicle in the traffic system.
-- **Lapa (Piaggio Ape)**: more variety beyond the current Ape and Apetaxi (fruit and vegetable sellers
-  with crates, the "pane e panelle" and "sfincione" street-food Ape, loudspeaker on the roof), parked
-  and later in traffic.
-- **Horse carriages** (carrozze) for tourists around the Cattedrale and Teatro Massimo.
+- DONE: **Lapa (Piaggio Ape)** variety in the traffic: the fruit seller's Ape (crates stepped up with oranges, lemons, melons, a striped parasol), the sfincione Ape and the pane e panelle Ape
+  with a horn loudspeaker on the roof that calls out now and then (src/vendors.js: a short line in the speech balloon, one at a time, 9 s apart at least, 30 to 70 s per vehicle). Open: parked ones.
+- DONE: **Horse carriages** (carrozze) for tourists: a closed loop Cattedrale, Quattro Canti, Teatro Massimo found in the road graph (traffic.js tourPlan), at most two carriages on it, each with an
+  LPC coachman (type `cocchiere`, top hat) and one or two tourists seated on it (src/carrozze.js); the coachman calls "Giru in carrozza!" now and then. The loop only exists while those tiles are loaded.
 - **Prop collision**: done (board item p5), see the table in docs/TILES.md, "What the lapa does to props". Open: no planters exist yet; garage doors are not known to the parked-car placement.

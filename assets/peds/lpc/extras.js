@@ -36,6 +36,12 @@ export function peakedCap(f, A, col = 'white', band = 'navy') {   // the vigile'
     put(f, cx + s * 2, top + 6, GOLD[1]);
   }
 }
+export function topHat(f, A, col = 'black') {   // the coachman's top hat: a tall crown with a red band, a brim wider than the head
+  const { hd: h, dir } = A, R = ramp('cloth', col), top = h.y0 - 5, cx = Math.round(h.cx), w = h.w, s = sideOf(dir), cw = Math.max(4, Math.round(w * 0.36));   // kept low: the atlas's cell is cut to the tallest figure, and a taller hat would push the feet out of it
+  shape(f, rect(cx - cw + s, top, cx + cw + s, top + 4), lit(R, cx - 3, top), R[0]);
+  for (let x = cx - cw + s; x <= cx + cw + s; x++) { put(f, x, top + 3, [132, 30, 40]); put(f, x, top + 2, [92, 22, 30]); }
+  shape(f, ellipse(cx + s, top + 5.4, w / 2 + 2.6, 1.5), (x, y) => (y < top + 5.6 ? R[4] : R[2]), R[0]);
+}
 export function strawHat(f, A, col = 'tan', band = 'red') {
   const { hd: h } = A, R = ramp('cloth', col), Bd = ramp('cloth', band), top = h.y0 - 3, cx = h.cx, w = h.w;
   shape(f, ellipse(cx, top + 6, w / 2 + 5, 2.4), (x, y) => ((x + y) & 1) ? R[3] : R[2], R[0]); shape(f, ellipse(cx, top + 3, w / 2 - 0.5, 3.2).filter(p => p[1] <= top + 5), lit(R, cx - 2, top), R[0]);
