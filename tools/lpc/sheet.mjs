@@ -1,0 +1,11 @@
+// A review sheet of a built atlas: node tools/lpc/sheet.mjs <atlas dir> <out.png> [cells: e.g. "front0,left1,left3,front5,front6,left7"] [ids, comma] [scale]
+import fs from 'fs'; import path from 'path'; import { sharp } from './lib.mjs';
+const [dir, out, cellsArg = 'front0,back0,left0,left1,left3,front5,front6,left7', idsArg, scaleArg = '2'] = process.argv.slice(2);
+const idx = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')), at = await sharp(path.join(dir, 'atlas.png')).raw().toBuffer({ resolveWithObject: true });
+const [CW, CH] = idx.cell, W = at.info.width, Z = +scaleArg, DI = { front: 0, back: 1, left: 2 }, cells = cellsArg.split(',').map(s => DI[s.replace(/\d+$/, '')] * 8 + +s.match(/\d+$/)[0]);
+const ents = idxEntries(); function idxEntries() { const only = idsArg ? idsArg.split(',') : null; return idx.entries.map((e, i) => ({ ...e, i })).filter(e => Object.keys(e.cells).length && (!only || only.includes(e.id))); }
+const comp = []; ents.forEach((e, r) => cells.forEach((c, k) => { const n = e.cells[c]; if (n === undefined) return; const cx = (n % idx.cols) * CW, cy = Math.floor(n / idx.cols) * CH, buf = Buffer.alloc(CW * CH * 4); for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) { const i = ((cy + y) * W + cx + x) * at.info.channels, j = (y * CW + x) * 4; buf[j] = at.data[i]; buf[j + 1] = at.data[i + 1]; buf[j + 2] = at.data[i + 2]; buf[j + 3] = at.data[i + 3]; } comp.push({ r, k, buf }); }));
+const tiles = []; for (const t of comp) tiles.push({ input: await sharp(t.buf, { raw: { width: CW, height: CH, channels: 4 } }).resize(CW * Z, CH * Z, { kernel: 'nearest' }).png().toBuffer(), left: t.k * CW * Z, top: t.r * (CH * Z) });
+const labels = `<svg width="${cells.length * CW * Z}" height="${ents.length * CH * Z}">${ents.map((e, r) => `<text x="3" y="${r * CH * Z + 11}" font-family="Helvetica" font-size="11" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">${e.id}</text>`).join('')}</svg>`;
+await sharp({ create: { width: cells.length * CW * Z, height: ents.length * CH * Z, channels: 4, background: { r: 142, g: 154, b: 166, alpha: 1 } } }).composite([...tiles, { input: Buffer.from(labels), left: 0, top: 0 }]).png().toFile(out);
+console.log('sheet', ents.length, 'rows');
