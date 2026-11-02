@@ -21,6 +21,7 @@ export const INSULTS = [
   'U paliaimmu è miraculusu!',
   "Mancu cu'u lignu!!",
   'Pigghialu stu nummaro i taigga',
+  'Con la rucola o seeeeeeeeenza?',
 ];
 // Said now and then by someone the lapa sends flying, or who leaps out of its way (src/pedestrians.js). Owner's line, as written.
 export const FLEW = 'Minchia vulavu';
