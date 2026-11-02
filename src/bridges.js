@@ -94,13 +94,13 @@ export function registerStructs(d, key) {
     st = profile({ id: rec.id, rec, tiles: new Set([key]), meshes: null, full: new Set() });
     const r = rec, p = r.p, n = p.length / 2;
     if (r.k === 't') { // floor: portal grades, plus a dip where the terrain above is not a hill
-      let minG = 1e9; for (let k = 0; k < n; k++) minG = Math.min(minG, rawGround(p[2 * k], p[2 * k + 1]));
+      let minG = 1e9; for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) minG = Math.min(minG, g); }   // undefined: that tile has no ground yet
       const base = (r.y0 + r.y1) / 2;
       const dip = Math.min(14, Math.max(0, base - (minG - TUN_COVER - 0.5)));   // a flat underpass: the floor sits so that the ground over it is a roof everywhere; a hill covers a level road by itself
       st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
       for (let k = 0; k < n; k++) { const s = st.cum[k], q = R > 0 ? Math.min(1, s / R, (st.L - s) / R) : 1; st.ys[k] -= dip * Math.max(0, q); }
     }
-    if (r.k === 'b' && st.L > 150 && !r.ov) for (let k = 0; k < n; k++) st.ys[k] = Math.max(st.ys[k], rawGround(p[2 * k], p[2 * k + 1]) + 0.4);   // a long viaduct crosses hills as well as valleys: never under the ground
+    if (r.k === 'b' && st.L > 150 && !r.ov) for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4); }   // a long viaduct crosses hills as well as valleys: never under the ground
     S.set(rec.id, st);
     // level surface (levelY): one entry per centreline segment
     for (let k = 0; k + 1 < n; k++) {
@@ -153,7 +153,7 @@ function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf) {
     for (let k = 0; k < n; k++) {
       const d = Math.abs(cum[k] - sc), a = flat[2 * Math.max(0, k - 1)], b = flat[2 * Math.min(n - 1, k + 1)], c = flat[2 * Math.max(0, k - 1) + 1], e = flat[2 * Math.min(n - 1, k + 1) + 1];
       const l = hh(b - a, e - c) || 1, nx = -(e - c) / l, nz = (b - a) / l, x = flat[2 * k], z = flat[2 * k + 1], o = Math.max(2, width / 2);
-      const floor = rf ? rf[k] : Math.min(rawGround(x, z), rawGround(x + nx * o, z + nz * o), rawGround(x - nx * o, z - nz * o));
+      const floor = rf ? rf[k] : Math.min(...[rawGround(x, z), rawGround(x + nx * o, z + nz * o), rawGround(x - nx * o, z - nz * o)].filter(v => v !== undefined));   // no ground yet at all: Infinity, and the old rule below takes over
       bedOld[k] = bed + Math.max(0, d - 30) * 0.05 + Math.max(0, d - 150) * 0.3;
       bedY[k] = Math.min(floor - RIVER_DIG, bedOld[k]);
     }
@@ -426,12 +426,15 @@ function disposeMeshes(st) {
 
 let root = null;
 export function setStructRoot(r) { root = r; }
+// the ground is undefined where a near tile is still loading, and every mesh below reads it (abutments, piers, tunnel roofs): a struct that is built over
+// such a point gets NaN vertices (three.js then warns "Computed radius is NaN"). It waits until its whole line has ground; its other tiles call onTileFull too.
+const groundReady = st => { const p = st.rec.p; for (let k = 0; k < p.length; k += 2) if (rawGround(p[k], p[k + 1]) === undefined) return false; return true; };
 export function onTileFull(key) {
   const mine = byTile.get(key); if (!mine || !root) return;
   for (const id of mine) {
     const st = S.get(id); if (!st) continue;
     st.full.add(key);
-    if (!st.meshes) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : buildTunnel(st); root.add(st.meshes); } catch (e) { console.error('[bridges]', id, e); } }
+    if (!st.meshes && groundReady(st)) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : buildTunnel(st); root.add(st.meshes); } catch (e) { console.error('[bridges]', id, e); } }
   }
 }
 export function onTileDrop(key) {
