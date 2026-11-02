@@ -158,6 +158,15 @@ and `data/footprints_extra.json` (git-ignored); `parse_buildings` in `tools/tile
 - `raised` (sidewalk slab, kerb height, the raised-ground mask) = the pavement bands, plus the parts of a Comune polygon far from any OSM road line
   (medians, promenades: Viale della Liberta is one polygon). Widths are the script's rules per class (1.5 to 3 m).
 - `verge` (new layer, flat, dry-grass texture, counts as hard ground) = the band beyond the pavement where no building stands.
+- **No kerb where the street has none (n6).** The part of a Comune carriageway polygon beyond the OSM lanes (`island`) used to become `raised` everywhere. It no longer does on a road
+  that has no pavement: OSM `sidewalk=no|none` (or `sidewalk:left` and `:right` both no), beyond `NOKERB_R` (inside the old town the survey wins: Via Argenteria Vecchia is tagged no and has a pavement), removes both that excess and any Comune pavement polygon within the road's reach (`nko_*` in `G`),
+  and a residential, service, track, unclassified or living_street road that OSM does not tag `sidewalk=yes|both|left|right|separate`, beyond `NOKERB_R` (2.5 km) from Quattro Canti, keeps
+  no excess either (`nkc_*`, per 60 m chunk) unless buildings fill at least `FRONTAGE` (25 %) of a 16 m strip along it (a built frontage means the survey's carriageway includes the pavement).
+  Comune pavement polygons far from a `sidewalk=no` road are trusted as they are. `sw` is bake-time only (not written to the tile roads).
+- **Medians of dual carriageways (n2, `tools/medians.py`).** Pairs of one-way OSM ways of the same name, 3 to 45 m apart and running opposite ways, give the strip between their centre
+  lines (cross sections every 6 m, dropped when another road crosses them or the free gap is over 22 m). Free gap under 4.5 m: the `median` streets layer, a concrete kerbed strip at kerb height (in the raised and hard-ground masks for the car, not walkable for pedestrians, no street furniture). Wider: a
+  planted strip (`green`, kerb height), only where the survey draws neither a pavement nor a verge. Guard rails and jersey barriers come from the OSM `barrier` ways in `tools/fences.py`
+  (kinds `g` and `j`) as before; nothing is invented. Where the Comune polygons already draw the median (Viale Regione Siciliana at Brancaccio) nothing changes.
 - `paving` = plazas (carriageway far from roads), the 2016 decree list of pedestrian streets, OSM-only pedestrian streets outside the Comune
   polygons, `footway` buffers, and OSM `area=yes` pedestrian squares. Via Maqueda is asphalt with kerbs (not decreed).
 - Everything else near buildings is private land (courtyards, lots, gardens) and is now terrain. `curbs` run where asphalt meets raised or green.

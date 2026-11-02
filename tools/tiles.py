@@ -481,6 +481,12 @@ RS_ON = os.path.exists(RS_PATH)   # without it the old model stays: every bit of
 PED_STONE = ("paving_stones", "sett", "stone", "cobblestone", "unhewn_cobblestone", "granite", "cobblestone:flattened")
 RS_PED_ASPHALT = ()   # street names that stay asphalt although OSM says highway=pedestrian (Mapillary and OSM surface=asphalt say Via Maqueda is one: see docs/TILES.md)
 RS_PED_REACH = 8.0   # metres each side of an OSM pedestrian street line that count as the street (the Comune platform inside that is the whole street, wall to wall)
+NOKERB_R = 2500.0   # board item n6: beyond this distance from Quattro Canti a local road with no Comune pavement polygon has no kerb
+NOKERB_CLASSES = {"residential", "service", "track", "unclassified", "living_street", "tertiary", "secondary", "primary"}
+FRONTAGE = 0.25      # share of the 16 m strip along the road that is building: above it the street has a built frontage and keeps its pavement
+FRONTAGE_R = 16.0
+NOKERB_CHUNK = 60.0
+NOKERB_LOCAL = {"residential", "service", "track", "unclassified", "living_street"}
 RS_SLACK = 2.5       # metres of carriageway kept beyond half the OSM road width on each side (OSM lines sit 1 to 2 m off the survey)
 RS_SIMPLIFY = 0.2   # metres: street polygon outlines are thinned this much (the Comune survey is 1:2000)
 RS_CREDIT = "Street surfaces: Comune di Palermo, Perimetrazione area stradale and Aree pedonali, CC BY 4.0"
@@ -902,6 +908,11 @@ def parse_highways(files):
                 pass
         if t.get("junction"):
             r["j"] = t["junction"]
+        sw = [t.get(k) for k in ("sidewalk", "sidewalk:both")] + [t.get("sidewalk:left"), t.get("sidewalk:right")]
+        if any(v in ("no", "none") for v in sw[:2]) or (sw[2] in ("no", "none") and sw[3] in ("no", "none")):
+            r["sw"] = "n"   # OSM: no sidewalk on this road (board item n6)
+        elif any(v in ("yes", "both", "left", "right", "separate") for v in sw):
+            r["sw"] = "y"
         pk = parking_lanes(t)
         if pk:
             r["pk"] = pk   # parking lanes left / right of the way direction (src/props.js parked cars)
@@ -1314,7 +1325,13 @@ def streets_for_tile(tx0, tz0):
         lanes = layer(G["lane_tree"], G["lane_geoms"])
         island = D(carr, lanes) if not lanes.is_empty else shapely.Polygon()
         carr = I(carr, lanes) if not lanes.is_empty else carr
+        nko, nkc = layer(G["nko_tree"], G["nko_geoms"]), layer(G["nkc_tree"], G["nkc_geoms"])
+        if not nko.is_empty or not nkc.is_empty:   # roads with no pavement (n6): the carriageway beyond the lanes is bare ground, not a raised band
+            island = D(island, unary_union([nko, nkc]))
+        if not nko.is_empty:
+            pave = D(pave, nko)
         pave = unary_union([pave, island])
+        medn = layer(G["medn_tree"], G["medn_geoms"])   # the narrow median of a dual carriageway: its own kerbed concrete layer, not walkable (n2)
         carr = unary_union([carr, rs("shoulder")])
         azl = layer(G["az_tree"], G["az_geoms"])
         if not azl.is_empty:
@@ -1336,14 +1353,21 @@ def streets_for_tile(tx0, tz0):
         green = D(D(D(D(I(layer(G["green_tree"], G["green_geoms"]), space), asphalt), paving), water), sand)
         if not gv_all.is_empty:
             green = poly_only(unary_union([green, D(D(D(D(I(gv_all, space), asphalt), paving), water), sand)]))
-        taken = unary_union([asphalt, paving, green, water, sand])
+        medw = layer(G["medw_tree"], G["medw_geoms"])
+        if not medw.is_empty:   # the wide median is a planted strip (n2), where the survey draws neither a pavement nor a verge
+            medw = D(D(medw, pave), verg)
+            green = poly_only(unary_union([green, D(D(D(D(I(medw, space), asphalt), paving), water), sand)]))
+        median = shapely.Polygon()
+        if not medn.is_empty:   # where the survey draws a pavement or a verge in it, that stays
+            median = poly_only(D(D(D(D(D(D(I(D(D(medn, pave), verg), space), asphalt), paving), water), sand), green), carr))
+        taken = unary_union([asphalt, paving, green, water, sand, median])
         raised = D(I(pave, space), taken)
         verge = D(D(I(verg, space), taken), raised)
         raised, verge = poly_only(raised.buffer(-0.05).buffer(0.05)), poly_only(verge.buffer(-0.05).buffer(0.05))
         cut = layer(G["cut_tree"], G["cut_geoms"])   # bridge decks (src/bridges.js draws them) take the road off the ground under them
         if not cut.is_empty:
-            asphalt, raised, verge, paving = (D(g, cut) for g in (asphalt, raised, verge, paving))
-        asphalt, raised, verge, paving = (poly_only(g.simplify(RS_SIMPLIFY)) for g in (asphalt, raised, verge, paving))   # the survey is 1:2000
+            asphalt, raised, verge, paving, median = (D(g, cut) for g in (asphalt, raised, verge, paving, median))
+        asphalt, raised, verge, paving, median = (poly_only(g.simplify(RS_SIMPLIFY)) for g in (asphalt, raised, verge, paving, median))   # the survey is 1:2000
     else:
         asphalt = I(car, space)
         paving = D(I(ped, space), asphalt)
@@ -1358,7 +1382,9 @@ def streets_for_tile(tx0, tz0):
             raised = poly_only(raised.buffer(-0.15).buffer(0.15))
 
     curbs = []
-    touch = unary_union([raised, green]).buffer(0.3)
+    if not RS_ON:
+        median = shapely.Polygon()
+    touch = unary_union([raised, green, median]).buffer(0.3)
     if not asphalt.is_empty and not touch.is_empty:
         for p in polys_of(shapely.orient_polygons(asphalt)):
             for ring in [p.exterior] + list(p.interiors):
@@ -1369,12 +1395,12 @@ def streets_for_tile(tx0, tz0):
                         curbs.append([round(c, 1) for pt in g.coords for c in pt[:2]])
 
     out = {"aoi": empty["aoi"]}
-    for name, geom in (("asphalt", asphalt), ("paving", paving), ("raised", raised), ("verge", verge), ("green", green),
+    for name, geom in (("asphalt", asphalt), ("paving", paving), ("raised", raised), ("verge", verge), ("median", median), ("green", green),
                        ("water", water), ("sand", sand)):
         g = I(geom, tile)
         out[name] = chunked(g, tx0, tz0) if not g.is_empty else []
     out["curbs"] = curbs
-    return {k: out[k] for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs", "aoi") if k != "verge" or out[k]}
+    return {k: out[k] for k in ("asphalt", "paving", "raised", "verge", "median", "green", "water", "sand", "curbs", "aoi") if k not in ("verge", "median") or out[k]}
 
 
 def clip_line(ls, tile):
@@ -1398,6 +1424,7 @@ def tile_payload(i, j):
         rec, ls = G["roads"][ri]
         for part in clip_line(ls, tile):
             r = dict(rec)
+            r.pop("sw", None)   # bake-time only (n6)
             r["p"] = [round(c, 1) for pt in part.coords for c in pt[:2]]
             roads.append(r)
     for ls in (G["pier_geoms"][k] for k in G["pier_tree"].query(tile)):
@@ -1429,7 +1456,7 @@ def tile_payload(i, j):
         counts[a["k"]] = counts.get(a["k"], 0) + 1
 
     st = streets_for_tile(tx0, tz0)
-    has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "green", "water", "sand", "curbs"))
+    has_streets = any(st.get(k) for k in ("asphalt", "paving", "raised", "verge", "median", "green", "water", "sand", "curbs"))
     near = G["near_for"](i, j)
     tr, rail = (G["tram"].tile(tx0, tz0, T) if G.get("tram") is not None else (None, []))
     fn = []
@@ -2211,6 +2238,39 @@ def build(offline=False):
         lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
                  for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]
         G.update(lane_geoms=lanes, lane_tree=tree(lanes))
+        # roads that have no pavement (board item n6): OSM sidewalk=no, and the residential / service / track / unclassified roads beyond the dense centre
+        # (NOKERB_R m from Quattro Canti) that OSM does not say have one: the Comune carriageway beyond the lanes is not a pavement there
+        from shapely.geometry import Point
+        disc = Point(0, 0).buffer(NOKERB_R)
+        bld_tree_n = shapely.STRtree(bld_geoms)
+        from shapely.ops import substring
+        nko, nkc = [], []
+        for rec, ls in roads:
+            if rec.get("tn") or rec.get("br") or rec["k"] not in NOKERB_CLASSES:
+                continue
+            reach = (rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK + 2.5
+            if rec.get("sw") == "n":
+                b = D(ls.buffer(reach, quad_segs=3), disc)   # inside the old town the survey's pavements stand (Via Argenteria Vecchia is tagged sidewalk=no and has one)
+                if not b.is_empty:
+                    nko.append(b)
+            elif rec.get("sw") != "y" and rec["k"] in NOKERB_LOCAL:
+                # a street with buildings on its frontage keeps the band (the survey's carriageway is the whole street there, pavement included);
+                # a street through gardens, fields or a detached-villa suburb does not
+                for a in range(0, int(ls.length) + 1, int(NOKERB_CHUNK)):
+                    seg = substring(ls, a, min(ls.length, a + NOKERB_CHUNK))
+                    if seg.length < 1.0:
+                        continue
+                    strip = seg.buffer(FRONTAGE_R, cap_style=2)
+                    hit = [bld_geoms[k] for k in bld_tree_n.query(strip)]
+                    if hit and unary_union(hit).intersection(strip).area / strip.area >= FRONTAGE:
+                        continue
+                    b = D(seg.buffer(reach, quad_segs=3), disc)
+                    if not b.is_empty:
+                        nkc.append(b)
+        G.update(nko_geoms=nko, nko_tree=tree(nko), nkc_geoms=nkc, nkc_tree=tree(nkc))
+        import medians as mdn
+        mnarrow, mwide = mdn.build(roads, CARRIAGEWAY)
+        G.update(medn_geoms=mnarrow, medn_tree=tree(mnarrow), medw_geoms=mwide, medw_tree=tree(mwide))
         # OSM highway=pedestrian beats the Comune carriageway unless the way is a road in reality: the whole platform near the line is stone
         # paving, no asphalt, no kerbs (the 2016 decree list is incomplete). What decides is the OSM `surface` tag ("whatever is in real life"):
         #   surface=asphalt                        -> asphalt carriageway with kerbs and pavements, as for any road (Via Maqueda: Mapillary 2021 agrees)

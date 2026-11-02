@@ -57,6 +57,12 @@ export const TEX = {
     speckle(g, S, 6000, ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.10)'], 1, 2);
     for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(40,35,30,${rnd(0.05, 0.12)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 40), rnd(8, 30), 0, 0, 7); g.fill(); }
   }, 2),
+  median: canvasTex(256, (g, S) => { // the concrete strip between the two roadways of a dual carriageway: cast slabs, grey, not a pavement
+    g.fillStyle = '#6f706b'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const v = rnd(-7, 7); g.fillStyle = `rgb(${[132, 133, 128].map(c => Math.round(c + v))})`; g.fillRect(i * (S / 4) + 2, j * (S / 2) + 2, S / 4 - 4, S / 2 - 4); }
+    speckle(g, S, 5000, ['rgba(0,0,0,0.14)', 'rgba(255,255,255,0.07)'], 1, 2);
+    for (let i = 0; i < 5; i++) { g.fillStyle = `rgba(30,28,25,${rnd(0.06, 0.14)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(10, 36), rnd(6, 20), 0, 0, 7); g.fill(); }
+  }, 2),
   verge: canvasTex(256, (g, S) => { // the strip between kerb-less asphalt and the fields: trodden dry grass, grit and dust
     g.fillStyle = '#9a8d62'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '128,114,72' : '160,142,92'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
@@ -128,16 +134,16 @@ function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
   for (const p of [a, b, c]) buf.v(p.x, groundY(p.x, p.y) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
 }
 let TINT = null;   // opts.tint(layer) -> (x, z) -> THREE.Color: the colours of the orthophotos relative to the layer's own texture (tile.gt, src/world.js)
-export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, green: CURB + 0.01 };
+export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, median: CURB, green: CURB + 0.01 };
 // World tiles are seen from far away: pull each layer towards the camera in depth so 0.15 m of lift doesn't z-fight at 1 km.
-const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], green: [-5, -5] };
+const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], median: [-4, -4], green: [-5, -5] };
 
 const matCache = new Map();
 function layerMaterial(layer, offset) {
   const key = layer + (offset ? '+' : '');
   let mat = matCache.get(key);
   if (mat) return mat;
-  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
+  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, median: TEX.median, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
   mat = layer === 'water'
     ? new THREE.MeshStandardMaterial({ color: '#2a6f8c', roughness: 0.1 })
     : new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: layer === 'asphalt' ? 0.85 : 0.95 });
@@ -157,7 +163,7 @@ export function* streetsIter(streets, group, opts = {}) {
   for (const layer of layers) {
     const polys = streets[layer];
     if (!polys || !polys.length) continue;
-    const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
+    const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, median: TEX.median, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
     const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map();
     TINT = opts.tint ? opts.tint(layer) : null;
     for (const poly of polys) {
