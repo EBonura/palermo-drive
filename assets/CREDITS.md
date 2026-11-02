@@ -2,51 +2,49 @@
 
 **Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli**
 
-The player vehicles (three lape, three two-wheelers and a tamarro hatchback, with all tuning parts and sticker designs) are built procedurally in `src/vehicle-models.js` and `src/vehicle-art.js`; the Calessino "lapa" was the first (in `src/vehicle.js`), including the
+The player vehicles (three lape, three two-wheelers and a tamarro hatchback, with all tuning parts and sticker designs) are built procedurally in code<!-- src/vehicle-models.js and src/vehicle-art.js; the Calessino lapa is in src/vehicle.js -->; the Calessino "lapa" was the first, including the
 three livery textures (royal blue, white and burgundy, and the hand-painted Sicilian cart folk-art pattern, all
 drawn on canvases in code). No external model or texture is used for it.
 
-Files still in this folder from the first car, kept for possible traffic use:
+<!-- Files still in this folder (assets/cars/) from the first car, kept for possible traffic use; not used by the player vehicle. -->
 
-All are CC0 1.0 (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/).
+## Car model
+
+Both are CC0 1.0 (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/).
 No attribution is required, credit is given anyway.
 
-## Car model (not used by the player vehicle)
+| File | Author | Source | Licence | Changes |
+| --- | --- | --- | --- | --- |
+| Sports hatchback model (`cars/hatchback-sports.glb`) | Kenney (www.kenney.nl) | Car Kit 3.1, https://kenney.nl/assets/car-kit (mirrored by the author at https://opengameart.org/content/car-kit) | CC0 1.0 | none |
+| Colour map texture of the car kit (`cars/Textures/colormap.png`) | Kenney, Car Kit 3.1 | same as above | CC0 1.0 | the green paint swatch (x 192-255, y 128-255) was hue-shifted to red |
+
+## Audio
+
+The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Audio, src/vehicle-audio.js --> (no sample). The tyre and impact sounds are:
 
 | File | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
-| `cars/hatchback-sports.glb` | Kenney (www.kenney.nl) | Car Kit 3.1, https://kenney.nl/assets/car-kit (mirrored by the author at https://opengameart.org/content/car-kit) | CC0 1.0 | none |
-| `cars/Textures/colormap.png` | Kenney, Car Kit 3.1 | same as above | CC0 1.0 | the green paint swatch (x 192-255, y 128-255) was hue-shifted to red |
-
-## Audio (used)
-
-The engine, horn melodies and subwoofer beat are synthesised with Web Audio in `src/vehicle-audio.js` (no sample). The tyre and impact sounds are:
-
-| File | Author | Source | Licence | Changes |
-| --- | --- | --- | --- | --- |
-| `audio/impact.wav` | Kenney | Starter Kit Racing, `audio/impact.ogg`, https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | converted to 22.05 kHz mono WAV |
-| `audio/skid.wav` | Landeplage (https://github.com/Landeplage), as shipped in Kenney's Starter Kit Racing | same repository, `audio/skid.ogg` | CC0 1.0 | converted to 22.05 kHz mono WAV, 50 ms crossfade at the loop point |
+| Impact sound (`audio/impact.wav`) | Kenney | Starter Kit Racing<!-- audio/impact.ogg -->, https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | converted to 22.05 kHz mono WAV |
+| Tyre skid sound (`audio/skid.wav`) | Landeplage (https://github.com/Landeplage), as shipped in Kenney's Starter Kit Racing | same repository<!-- audio/skid.ogg --> | CC0 1.0 | converted to 22.05 kHz mono WAV, 50 ms crossfade at the loop point |
 
 ## Traffic (src/traffic.js, assets/traffic/)
 
-All vehicle models are built in code (`assets/traffic/models.js`); no external model or texture is used.
+All vehicle models are built in code<!-- assets/traffic/models.js -->; no external model or texture is used.
 
-The AMAT bus lines in `assets/traffic/bus-routes.js` (line numbers, destinations, route geometry and the
-stops attached to each relation) are derived from OpenStreetMap bus route relations, fetched with Overpass and
-cached in `data/bus_routes_osm.json`; bus stop positions also come from `data/props_osm.json`. Baked by
-`assets/traffic/bake-bus.cjs`. Map data (c) OpenStreetMap contributors, available under the Open Database
+The AMAT bus lines<!-- assets/traffic/bus-routes.js --> (line numbers, destinations, route geometry and the
+stops attached to each route) are derived from OpenStreetMap bus route relations<!-- fetched with Overpass and
+cached in data/bus_routes_osm.json; baked by assets/traffic/bake-bus.cjs -->; bus stop positions also come from OpenStreetMap<!-- data/props_osm.json -->.
+Map data © OpenStreetMap contributors, available under the Open Database
 Licence (ODbL), https://www.openstreetmap.org/copyright.
-
-<!-- facade_photos:begin -->
 
 ## World terrain data (world/, baked by `tools/tiles.py`)
 
-The ground heights of the whole-city tiles come from three open datasets. Nothing is shipped as a file here; the numbers are baked into `world/manifest.json` and `world/tiles/*.json` (`near` and `far` grids).
+The ground heights of the whole-city tiles come from three open datasets. Nothing is shipped as a file; the numbers are baked into the game's world data<!-- world/manifest.json and world/tiles/*.json, near and far grids -->.
 
 | Data | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | TINITALY 1.1 digital elevation model (10 m), used for Monte Pellegrino and the other hills | INGV, Istituto Nazionale di Geofisica e Vulcanologia (S. Tarquini et al.) | https://tinitaly.pi.ingv.it, https://doi.org/10.13127/tinitaly/1.1 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | resampled to 10 m and 100 m grids, shifted toward the lidar where both exist, blended with the other terrain sources |
-| PST-A lidar DTM (Regione Sicilia), rasters and point queries | Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale | http://wms.pcn.minambiente.it (WMS GetMap and GetFeatureInfo) | CC BY 4.0 | elevations decoded from the rendered layer, point queries above its 204 m clip, resampled to 10 m grids |
+| PST-A lidar DTM (Regione Sicilia), rasters and point queries | Ministero dell'Ambiente e della Sicurezza Energetica, Geoportale Nazionale | http://wms.pcn.minambiente.it<!-- WMS GetMap and GetFeatureInfo --> | CC BY 4.0 | elevations decoded from the rendered layer, point queries above its 204 m clip, resampled to 10 m grids |
 | Terrarium terrain tiles (far grid outside the hills) | Mapzen / AWS Open Data (sources include SRTM) | https://registry.opendata.aws/terrain-tiles/ | open data, see the registry entry | resampled to a 100 m grid |
 
 ## Building heights and extra footprints (world/, baked by `tools/tiles.py` from `tools/footprints.py`)
@@ -59,7 +57,7 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 
 | Data | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
-| Perimetrazione Area Stradale (dataset 280), Area di Circolazione Pedonale (281), Le aree pedonali (850, decree list) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280, `=281`, `=850` | CC BY 4.0 | reprojected to game metres and shifted 1.5 m east to the OSM roads; split into carriageway, pavement, verge and pedestrian-street polygons by width rules; combined with OSM road lines |
+| Perimetrazione Area Stradale (dataset 280), Area di Circolazione Pedonale (281), Le aree pedonali (850, decree list) | Comune di Palermo | [dataset 280](https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280), [dataset 281](https://opendata.comune.palermo.it/opendata-dataset.php?dataset=281), [dataset 850](https://opendata.comune.palermo.it/opendata-dataset.php?dataset=850) | CC BY 4.0 | reprojected to game metres and shifted 1.5 m east to the OSM roads; split into carriageway, pavement, verge and pedestrian-street polygons by width rules; combined with OSM road lines |
 
 ## Walls and fences (world/, baked by `tools/tiles.py` from `tools/fences.py`)
 
@@ -72,7 +70,7 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Data | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | Isolated trees, hedges (CTR 1:10.000, ed. 2012-13) | Regione Siciliana | https://www.sitr.regione.sicilia.it | CC BY 4.0 | points and lines baked into tiles, sizes from the lidar |
-| Alberi Monumentali di Sicilia (list under L. 10/2013, updated 2021): position, species and height of the 42 single monumental trees of the Comune of Palermo | Regione Siciliana | https://dati.regione.sicilia.it/dataset/alberi-monumentali-di-sicilia | CC BY (as stated on the portal) | baked as tree props by `tools/monumental.py`, replacing the generic trees at the same spot; crown size is a game value |
+| Alberi Monumentali di Sicilia (list under L. 10/2013, updated 2021): position, species and height of the 42 single monumental trees of the Comune of Palermo | Regione Siciliana | https://dati.regione.sicilia.it/dataset/alberi-monumentali-di-sicilia | CC BY (as stated on the portal) | baked as tree props<!-- tools/monumental.py -->, replacing the generic trees at the same spot; crown size is a game value |
 | Urban Atlas Street Tree Layer 2018 | Copernicus Land Monitoring Service, European Environment Agency (EEA) | https://land.copernicus.eu/local/urban-atlas | free, full and open, source acknowledged | canopy polygons turned into thinned tree positions |
 | Perimetrazione aree verdi (medians, islands, verges, flowerbeds) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=278 | CC BY 4.0 | polygons reprojected and drawn as grass over the street layers |
 
@@ -88,6 +86,8 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Data | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | Ortofoto Regione Siciliana ATA 2012-2013 (15 cm and 25 cm): only colour values derived from it, no imagery | Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica, Nodo Regionale S.I.T.R. | https://www.sitr.regione.sicilia.it/geoportale/it/metadata/details/608 | CC BY 4.0 (as stated by the service record) | one colour per roof and one relative tint per 20 m ground cell, extracted, shadow-filtered and colour-rebalanced |
+
+<!-- facade_photos:begin -->
 
 ## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
 
@@ -109,7 +109,7 @@ Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 wo
 
 ## Car radio (src/radio.js, assets/music/)
 
-Four tracks (plus the Alamia e Sperandeo songs below), details and the full attribution text in `music/CREDITS.md`. Re-encoded to MP3 for the web (loudness
+Four tracks (plus the Alamia e Sperandeo songs below), details and the full attribution text in [the music credits](music/CREDITS.md). Re-encoded to MP3 for the web (loudness
 normalised, nothing else changed).
 
 | File | Author | Source | Licence | Changes |
@@ -121,7 +121,7 @@ normalised, nothing else changed).
 
 ## Alamia e Sperandeo
 
-Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/). Used with the permission of the rights holders. Re-encoded for the web and loudness normalised, nothing else changed. Full list with file names in `music/CREDITS.md`.
+Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/). Used with the permission of the rights holders. Re-encoded for the web and loudness normalised, nothing else changed. Full list in [the music credits](music/CREDITS.md).
 
 | Title | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
@@ -160,9 +160,9 @@ Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https:/
 
 ## Terrorage
 
-One song, "DIY Violence" by Terrorage (`music/terrorage.m4a`), played at the door of the Krust pub (src/pubs.js). Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in `music/CREDITS.md`.
+One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/pubs.js -->, played at the door of the Krust pub. Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
 
 ## Pedestrian sprites (LPC)
 
-The people are composed from layers of the [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) (the Liberated Pixel Cup art and its many contributors on OpenGameArt), plus our own painted details on top. Every layer used, with its authors, licences and links, is listed in [peds/lpc/CREDITS.md](peds/lpc/CREDITS.md); the licence note for the folder (`assets/peds/lpc/`, kept apart because part of its art is share-alike) is [peds/lpc/LICENSE.md](peds/lpc/LICENSE.md). Where a layer offers a permissive licence (CC0, CC-BY, OGA-BY) next to CC-BY-SA / GPL we use it under the permissive one. The atlas is rebuilt with `node tools/lpc/build.mjs`.
+The people are composed from layers of the [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) (the Liberated Pixel Cup art and its many contributors on OpenGameArt), plus our own painted details on top. Every layer used, with its authors, licences and links, is listed in [the sprite credits](peds/lpc/CREDITS.md); the licence note for that art (kept apart because part of it is share-alike) is [the sprite licence note](peds/lpc/LICENSE.md). Where a layer offers a permissive licence (CC0, CC-BY, OGA-BY) next to CC-BY-SA / GPL we use it under the permissive one. <!-- The atlas is rebuilt with node tools/lpc/build.mjs. -->
 
