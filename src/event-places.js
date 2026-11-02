@@ -32,6 +32,8 @@ export const FOOD_PLACES = [
   { id: 'benny', name: 'Pizzeria da Benny', who: 'Benny', g: 'm', item: 'pizzette', real: true, lat: 38.119748, lon: 13.350613, onStreet: 'Via Goethe', src: OSM + ' (node 4617236492 "Pizza Goethe", Via Goethe); owner confirmed it is Benny\'s, 2026-11-01' },
   // --- famous real places (OpenStreetMap features)
   { id: 'focacceria', name: 'Antica Focacceria San Francesco', who: 'La Focacceria San Francesco', g: 'f', item: 'panelle', real: true, lat: 38.116333, lon: 13.366144, src: OSM + ' (node 269456078)' },
+  // Rocky Basile, "il re della Vucciria": pani ca meusa in Piazza Caracciolo (Nominatim, way 86565285), asked for by the owner, 2026-11-02. Sources: balarm.it, doeatbetterexperience.com.
+  { id: 'rocky', name: 'Rocky, u re ra Vucciria', who: 'Rocky', g: 'm', item: 'meusa', real: true, lat: 38.1173692, lon: 13.3636591, src: 'Piazza Caracciolo (Nominatim, way 86565285); balarm.it and doeatbetterexperience.com for the stall; the owner asked for him, 2026-11-02' },
   { id: 'nino', name: 'Nino u Ballerino', who: 'Nino u Ballerino', g: 'm', item: 'meusa', real: true, lat: 38.1187009, lon: 13.3490904, src: 'Corso Finocchiaro Aprile 76; owner confirmed the place, 2026-11-01' },
   { id: 'kepalle', name: 'Ke Palle', who: 'Ke Palle', g: 'm', item: 'arancine', real: true, lat: 38.11769, lon: 13.360081, src: OSM + ' (node 5476723060, Via Maqueda 270)' },
   { id: 'franco', name: 'Nni Franco u Vastiddaru', who: 'Franco u Vastiddaru', g: 'm', item: 'crocche', real: true, lat: 38.11788, lon: 13.367101, src: OSM + ' (node 2498795220, Piazza Marina 2)' },
