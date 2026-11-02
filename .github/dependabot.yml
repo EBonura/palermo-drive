@@ -1,0 +1,12 @@
+# Keeps the pinned workflow actions (full commit SHAs, see pages.yml), the build tools and the relay's Go modules current. Monthly, so it stays quiet.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+  - package-ecosystem: npm
+    directory: /tools/build
+    schedule: { interval: monthly }
+  - package-ecosystem: gomod
+    directory: /server
+    schedule: { interval: monthly }

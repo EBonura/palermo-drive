@@ -105,6 +105,11 @@ html = html.replace(/\n\s*\n+/g, '\n');
 // release id (src/version.js): the page carries it, version.json says what is live; any change to the page, the bundle or the data names changes it
 const version = hash(Buffer.from(html));
 mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}">`, 'the <head> tag');
+// Content-Security-Policy as a <meta> (GitHub Pages cannot send headers): the published page runs only its own bundle (no inline script, no eval), takes images, audio and fonts from itself
+// (plus data: and blob: pictures), and may talk to itself and to the multiplayer relay on Cloud Run (server/DEPLOY.md). Style is 'unsafe-inline' because the modules add their own <style> blocks.
+// Checked on the built site: title, play, Garage, a race event and the credits raise no violation. The dev tree has no policy. If a new feature loads something from elsewhere, widen it here.
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://*.run.app wss://*.run.app; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
+mustReplace(/<head>/, `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`, 'the <head> tag (policy)');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version }));
 

@@ -13,3 +13,16 @@ tools/build/.cache/
 *.orig
 *.tmp.mjs
 *.tmp.js
+# secrets and local logs must never reach the public repo (the Mapillary token lives in data/, which is ignored above)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.keystore
+*credentials*
+*.token
+*_token
+*.secret
+secrets.json
+*.log

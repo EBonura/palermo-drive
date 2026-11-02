@@ -24,7 +24,13 @@ round() {
   [ -z "$(git status --porcelain)" ] && return 0
   if smoke; then
     files=$(git status --porcelain | awk '{print $2}' | sed 's#^src/##' | head -8 | tr '\n' ' ')
-    git add -A && git commit -q -m "Progress: $files" && \
+    git add -A || return 1
+    # the repo is public: never commit key-looking files or key-shaped strings (the Mapillary token sits in the ignored data/)
+    if git diff --cached --name-only | grep -qiE '(^|/)(\.env[^/]*|[^/]*\.(pem|key|p12|keystore|token|secret)|[^/]*_token|[^/]*credentials[^/]*)$' \
+      || git diff --cached -U0 -- . ':!world' ':!docs/perf' ':!assets' | grep -E '^\+' | grep -qE 'AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9]{32,}|AIza[0-9A-Za-z_-]{35}|MLY\|[0-9]{6,}|-----BEGIN [A-Z ]*PRIVATE KEY'; then
+      git reset -q; echo "$(date +%H:%M:%S) NOT pushed: something looks like a secret in the changes (git diff, then fix)"; return 1
+    fi
+    git commit -q -m "Progress: $files" && \
       git -c credential.helper= -c "credential.helper=!gh auth git-credential" push -q origin main && \
       echo "$(date +%H:%M:%S) pushed: $files"
   fi

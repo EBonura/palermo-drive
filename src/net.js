@@ -81,7 +81,9 @@ export function createNet(env) {
 
   // ---------- relay URL ----------
   const relayUrl = (() => {
-    const q = params.get('relay');
+    // ?relay= is a test link (a local relay): honoured on localhost only, so a link on the public site cannot point the game at somebody else's server
+    const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.localhost)$/.test(location.hostname);
+    const rq = params.get('relay'), q = local || rq === 'off' || rq === '0' ? rq : null;   // (switching it off is always allowed)
     let u = q != null ? q : RELAY_URL;
     if (!u || u === 'off' || u === '0') return '';
     try {
