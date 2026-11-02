@@ -352,3 +352,7 @@ Heavy things are solid or bend; a bent post stays down until its tile is rebuilt
 | planters | none exist in the world yet | | |
 
 Cars parked along the kerb: see the section above (pushed below 4 m/s, launched from 4).
+
+### Mondello beach strip (board item c5)
+
+`tiles.py` `widen_beach` (called from `build_land`) pushes the coast seaward where the dry beach of Mondello is narrower than 58 m (26 m at most, 8,300 m2 in all, not at the Antico Stabilimento): the strip is land, sand layer (`streets.sand`, `areas` kind sand) and terrain. A full bake does it; the live world was patched in place for the tiles -7_-20, -6_-20, -6_-19 (near grids, the sand pieces) and the manifest's land ring, with the same strip.

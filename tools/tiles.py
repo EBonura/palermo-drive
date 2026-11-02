@@ -1060,6 +1060,70 @@ def prop_kind(t):
 # ----------------------------------------------------------------------------------------------
 # Land polygon from the coastline
 # ----------------------------------------------------------------------------------------------
+# Mondello beach (board item c5): the OSM coastline leaves a dry beach of 25 to 45 m in the middle of the bay, the photographs and the satellite views show 50 to 80 m.
+# BEACH_BACK is the landward edge of the sand (z, x) from the OSM beach polygon (the same table as LAND in src/lmc-mondello.js); where the shore is nearer than BEACH_WANT the coast is pushed
+# seaward by the difference (at most BEACH_MAX, smoothed along the beach, nothing in the Stabilimento's stretch). The strip is kept in BEACH_STRIP: it is sand too.
+BEACH_BACK = [(-10020, -3128), (-9980, -3137), (-9940, -3158), (-9900, -3159), (-9860, -3153), (-9820, -3147), (-9780, -3141), (-9740, -3128), (-9700, -3104), (-9660, -3081), (-9620, -3061),
+              (-9580, -3029), (-9540, -3020), (-9500, -3000), (-9460, -2987), (-9420, -2966), (-9380, -2942), (-9340, -2912), (-9300, -2874), (-9260, -2839), (-9220, -2804), (-9180, -2766),
+              (-9140, -2728), (-9100, -2687), (-9060, -2644), (-9020, -2598)]
+BEACH_WANT, BEACH_MAX, BEACH_Z = 58.0, 26.0, (-9990, -9080)
+BEACH_SKIP = (-9690, -9510)     # the Antico Stabilimento stands on piles in the water here
+BEACH_STRIP = None
+
+
+def widen_beach(land):
+    """land plus the Mondello beach strip (see BEACH_BACK); sets BEACH_STRIP."""
+    global BEACH_STRIP
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import unary_union
+
+    def back(z):
+        if z <= BEACH_BACK[0][0]:
+            return BEACH_BACK[0][1]
+        for (za, xa), (zb, xb) in zip(BEACH_BACK, BEACH_BACK[1:]):
+            if za <= z <= zb:
+                return xa + (xb - xa) * (z - za) / (zb - za)
+        return BEACH_BACK[-1][1]
+
+    zs = list(range(BEACH_Z[0], BEACH_Z[1] + 1, 10))
+    shore, extra = [], []
+    for z in zs:
+        bx = back(z)
+        inter = LineString([(bx + 4.0, z), (bx + 160.0, z)]).intersection(land)
+        segs = [inter] if inter.geom_type == "LineString" else [g for g in getattr(inter, "geoms", []) if g.geom_type == "LineString"]
+        x0 = bx + 4.0
+        seg = next((g for g in segs if abs(g.coords[0][0] - (bx + 4.0)) < 0.01), None)   # the land piece that starts at the back of the beach
+        sx = max(c[0] for c in seg.coords) if seg is not None else None
+        shore.append(sx)
+        extra.append(0.0 if sx is None else max(0.0, min(BEACH_MAX, BEACH_WANT - (sx - bx))))
+    for _ in range(3):   # smooth along the beach
+        extra = [sum(extra[max(0, i - 1):i + 2]) / len(extra[max(0, i - 1):i + 2]) for i in range(len(extra))]
+    for i, z in enumerate(zs):   # nothing in the Stabilimento's stretch, tapering out over 40 m on both sides
+        d = max(BEACH_SKIP[0] - z, z - BEACH_SKIP[1], 0.0)
+        if BEACH_SKIP[0] <= z <= BEACH_SKIP[1]:
+            extra[i] = 0.0
+        else:
+            extra[i] *= min(1.0, d / 40.0)
+    inner, outer = [], []
+    for z, sx, e in zip(zs, shore, extra):
+        if sx is None or e < 0.5:
+            continue
+        inner.append((sx - 1.0, z))
+        outer.append((sx + e, z))
+    # the strip is cut into runs of consecutive samples
+    strips, run_i, run_o, last = [], [], [], None
+    for (ix, z), (ox, _) in zip(inner, outer):
+        if last is not None and z - last > 15:
+            if len(run_i) > 1:
+                strips.append(Polygon(run_i + run_o[::-1]).buffer(0))
+            run_i, run_o = [], []
+        run_i.append((ix, z)); run_o.append((ox, z)); last = z
+    if len(run_i) > 1:
+        strips.append(Polygon(run_i + run_o[::-1]).buffer(0))
+    BEACH_STRIP = unary_union(strips).difference(land) if strips else None
+    return unary_union([land] + strips).buffer(0) if strips else land
+
+
 def build_land(coast, rect):
     """Land = faces of (bbox border + coastline) that lie on the left of the coast ways (OSM rule)."""
     import shapely
@@ -1089,7 +1153,7 @@ def build_land(coast, rect):
     land = [f for f, v in zip(faces, votes) if v[0] > v[1]]
     if not land:
         land = [B]
-    return unary_union(land).buffer(0)
+    return widen_beach(unary_union(land).buffer(0))
 
 
 # ----------------------------------------------------------------------------------------------
@@ -2103,6 +2167,9 @@ def build(offline=False):
         area_recs.append((kind, geom, name))
         if kind in kind_geoms:
             kind_geoms[kind].append(geom)
+    if BEACH_STRIP is not None and not BEACH_STRIP.is_empty:   # the sand the coast was pushed out over (widen_beach)
+        kind_geoms["sand"].append(BEACH_STRIP)
+        area_recs.append(("sand", BEACH_STRIP, None))
     for pg in plazas:
         area_recs.append(("plaza", pg, None))
     for k in ("forest", "pier"):    # forests are not street surface; piers are drawn by the lead as before

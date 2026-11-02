@@ -7,7 +7,7 @@
 //  - tower: round, sandy-tan rubble tower about 14 m tall with a crown of merlons, a single slit window high up
 //  - boats: wooden gozzi, white hulls with a red line, blue or yellow strakes, hauled out on the slipway or moored along the quay
 import * as THREE from 'three';
-import { PI, defMat, begin, end, box, bx, cyl, sphere, prism, mul, tr, frame, groundY, initShared, RNG, noiseDots } from './lmc-kit.js';
+import { PI, defMat, begin, end, box, bx, cyl, sphere, prism, panel, shell, mul, tr, frame, groundY, groundRange, pairsOf, centroid, initShared, RNG, noiseDots, streaks } from './lmc-kit.js';
 
 // landward edge of the sand [z, x] (from the OSM beach polygon, which is the back of the dry beach)
 const LAND = [[-10020, -3128], [-9980, -3137], [-9940, -3158], [-9900, -3159], [-9860, -3153], [-9820, -3147], [-9780, -3141], [-9740, -3128], [-9700, -3104],
@@ -170,4 +170,96 @@ function buildHarbour() {
 }
 export const MN_HARBOUR = { name: 'Mondello harbour and tower', x: -3010, z: -10090, radius: 130, skipIds: ['w73411068'], build: buildHarbour };
 
-export const MONDELLO_LANDMARKS = [...MN_CABINS, ...MN_LAMPS, MN_HARBOUR];
+
+// ====================================================================================================
+// Board item c5. The harbour front behind the quay (OSM w73411051: a ring of attached houses, 138 x 121 m across), Hotel La Torre on the Capo Mondello promontory (w73395786) with its stone
+// watchtower (w285428887). References, proportions only, nothing stored (Wikimedia Commons: "Mondello BW 2012-10-09 13-59-24" (CC BY-SA 3.0) for the harbour front, "Hotel la torre - panoramio"
+// (CC BY-SA 3.0) for the hotel and the tower). Real: the harbour front is a row of three- and four-storey houses, each its own colour (cream, pink, yellow, white, ochre), arched shop fronts on
+// the quay, tall shuttered windows with small balconies, flat roofs with little rooftop rooms; the hotel is a long white block of four storeys with continuous blue balcony fronts, the
+// tower a round grey rubble watchtower with a broken crown on the rock at the end of the promontory.
+// ====================================================================================================
+const QUAY_RING = [-3080.9, -10160.0, -3051.4, -10131.2, -3051.6, -10126.7, -3064.2, -10112.5, -3069.1, -10115.4, -3072.7, -10111.9, -3070.1, -10108.3, -3070.8, -10105.4, -3073.5, -10103.8, -3076.5, -10104.1, -3083.2, -10097.5, -3101.0, -10080.8, -3111.7, -10070.4, -3115.8, -10074.7, -3121.2, -10072.0, -3118.6, -10067.5, -3171.3, -10044.3, -3184.9, -10038.9, -3189.3, -10046.7, -3172.0, -10064.3, -3159.5, -10079.0, -3154.5, -10081.3, -3152.7, -10081.3, -3149.1, -10074.4, -3152.4, -10072.4, -3152.8, -10070.0, -3155.0, -10068.6, -3153.3, -10065.9, -3139.0, -10075.7, -3137.1, -10073.8, -3134.5, -10076.0, -3130.8, -10074.3, -3130.3, -10076.0, -3131.1, -10077.7, -3130.3, -10080.1, -3134.4, -10086.2, -3138.2, -10083.8, -3138.5, -10081.9, -3140.0, -10079.4, -3142.2, -10079.3, -3145.4, -10077.0, -3152.8, -10084.8, -3148.9, -10087.3, -3145.7, -10084.2, -3142.8, -10087.5, -3146.2, -10090.8, -3141.3, -10094.4, -3142.7, -10097.7, -3129.0, -10111.2, -3110.2, -10129.3, -3111.5, -10133.2, -3109.8, -10135.0, -3106.5, -10133.5, -3102.6, -10139.6, -3095.3, -10150.7, -3086.8, -10159.4];
+const HOTEL_RING = [-2737.2, -10566.5, -2731.7, -10564.6, -2733.6, -10559.7, -2729.7, -10557.8, -2744.0, -10523.2, -2746.9, -10516.4, -2749.0, -10517.6, -2749.5, -10513.2, -2753.7, -10513.3, -2754.2, -10510.9, -2757.1, -10510.4, -2757.6, -10507.1, -2761.3, -10506.8, -2761.9, -10503.9, -2764.6, -10503.7, -2765.0, -10501.1, -2767.7, -10500.8, -2759.8, -10487.0, -2753.4, -10476.4, -2772.2, -10463.7, -2769.6, -10459.7, -2776.5, -10454.5, -2779.4, -10459.1, -2778.6, -10464.3, -2781.2, -10464.7, -2781.7, -10463.1, -2787.7, -10464.5, -2787.4, -10466.4, -2788.2, -10466.5, -2788.7, -10465.2, -2805.9, -10469.1, -2809.6, -10470.0, -2807.5, -10479.0, -2808.9, -10479.3, -2805.8, -10491.8, -2804.0, -10491.2, -2801.2, -10504.1, -2785.0, -10500.9, -2782.5, -10503.2, -2780.8, -10511.4, -2778.5, -10512.6, -2776.5, -10523.1, -2792.0, -10526.3, -2791.2, -10530.0, -2788.4, -10543.9, -2768.7, -10539.9, -2774.3, -10512.7, -2772.0, -10509.7, -2761.3, -10518.3, -2756.9, -10523.0, -2753.4, -10531.7, -2759.9, -10534.5, -2746.3, -10566.3, -2739.7, -10563.6];
+const TOWER_C = [-2736.9, -10640.7];
+const inRing = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, zi] = pts[i], [xj, zj] = pts[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
+function defMqMats() {
+  defMats();
+  defMat('mqWall', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#f2ead8'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 500, 2.5, 961, ['rgba(130,100,70,0.1)', 'rgba(255,255,255,0.12)']); });
+  defMat('mqFacade', 192, 576, [3, 9.4], (g, w, h) => {   // one 3 m bay, 9.4 m high: shop arch, a shuttered balcony window, a smaller window under the cornice (near white: the vertex colour is the house's plaster)
+    const sx = w / 3, sy = h / 9.4, X = (s) => s * sx, Y = (y) => h - y * sy;
+    g.fillStyle = '#fbf7ee'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 962, ['rgba(120,90,60,0.08)', 'rgba(255,255,255,0.1)']);
+    g.fillStyle = 'rgba(70,55,40,0.28)'; g.fillRect(0, Y(0.9), w, 0.9 * sy);                                                     // the plinth
+    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(X(0.45), Y(0.1)); g.lineTo(X(0.45), Y(2.3)); g.arc(X(1.5), Y(2.3), 1.05 * sx, PI, 0); g.lineTo(X(2.55), Y(0.1)); g.fill();   // the arch of the shop front
+    g.fillStyle = '#26333d'; g.beginPath(); g.moveTo(X(0.62), Y(0.1)); g.lineTo(X(0.62), Y(2.3)); g.arc(X(1.5), Y(2.3), 0.88 * sx, PI, 0); g.lineTo(X(2.38), Y(0.1)); g.fill();
+    g.fillStyle = 'rgba(200,215,225,0.25)'; g.fillRect(X(0.62), Y(2.8), 1.76 * sx, 1.4 * sy);
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(0, Y(3.55), w, 0.22 * sy);                                                    // the string course
+    g.fillStyle = '#ffffff'; g.fillRect(X(0.78), Y(6.55), 1.44 * sx, 2.5 * sy); g.fillStyle = '#4d6b4a'; g.fillRect(X(0.9), Y(6.4), 0.57 * sx, 2.2 * sy); g.fillRect(X(1.53), Y(6.4), 0.57 * sx, 2.2 * sy);   // the shuttered window with its frame
+    g.fillStyle = 'rgba(20,20,20,0.25)'; for (let y = 4.2; y < 6.4; y += 0.16) { g.fillRect(X(0.9), Y(y + 3.9 - 0.0) + 0, 0.57 * sx, 1); g.fillRect(X(1.53), Y(y + 3.9), 0.57 * sx, 1); }
+    g.fillStyle = '#2a2a2e'; g.fillRect(X(0.6), Y(4.75), 1.8 * sx, 0.1 * sy); for (let k = 0; k <= 9; k++) g.fillRect(X(0.6 + k * 0.2), Y(4.75), 1.5, 0.75 * sy);   // the balcony rail
+    g.fillStyle = '#ffffff'; g.fillRect(X(0.92), Y(8.85), 1.16 * sx, 1.55 * sy); g.fillStyle = '#34414d'; g.fillRect(X(1.0), Y(8.75), 1.0 * sx, 1.35 * sy);   // the attic window
+    g.fillStyle = 'rgba(255,255,255,0.75)'; g.fillRect(0, Y(9.4), w, 0.4 * sy); g.fillStyle = 'rgba(60,40,20,0.35)'; g.fillRect(0, Y(9.0), w, 0.08 * sy);
+    streaks(g, w, h, 6, 963, 0.14, 120);
+  });
+  defMat('hoWall', 192, 416, [6, 13], (g, w, h) => {   // the hotel: white plaster, a glazed ground floor and three floors of blue balcony fronts
+    const sx = w / 6, sy = h / 13, X = (s) => s * sx, Y = (y) => h - y * sy;
+    g.fillStyle = '#f4f2ec'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 971, ['rgba(120,110,90,0.08)', 'rgba(255,255,255,0.12)']);
+    g.fillStyle = '#2b3b4a'; g.fillRect(X(0.4), Y(3.0), 5.2 * sx, 2.6 * sy); g.fillStyle = 'rgba(200,225,240,0.25)'; g.fillRect(X(0.4), Y(3.0), 5.2 * sx, 1.0 * sy);  // the glazed ground floor
+    g.fillStyle = '#e9e5da'; g.fillRect(0, Y(3.35), w, 0.3 * sy);
+    for (let f = 0; f < 3; f++) {
+      const y0 = 3.7 + f * 3.0;
+      g.fillStyle = '#ffffff'; g.fillRect(0, Y(y0 + 0.12), w, 0.22 * sy);                                                            // the slab edge
+      g.fillStyle = '#2f73c4'; g.fillRect(X(0.0), Y(y0 + 1.15), w, 1.0 * sy); g.fillStyle = 'rgba(255,255,255,0.35)'; for (let k = 0; k < 12; k++) g.fillRect(X(k * 0.5 + 0.22), Y(y0 + 1.15), 1.5, 1.0 * sy);   // the blue balustrade
+      g.fillStyle = '#25323d'; g.fillRect(X(0.45), Y(y0 + 2.75), 1.7 * sx, 1.6 * sy); g.fillRect(X(3.45), Y(y0 + 2.75), 1.7 * sx, 1.6 * sy);   // sliding doors
+      g.fillStyle = 'rgba(190,210,225,0.3)'; g.fillRect(X(0.45), Y(y0 + 2.75), 0.85 * sx, 1.6 * sy); g.fillRect(X(3.45), Y(y0 + 2.75), 0.85 * sx, 1.6 * sy);
+    }
+    g.fillStyle = '#e4e0d4'; g.fillRect(0, Y(13.0), w, 0.5 * sy);
+    streaks(g, w, h, 8, 972, 0.12, 120);
+  });
+}
+const PLASTER = ['#f1dfb4', '#ecbfa8', '#f1d487', '#f6f2e6', '#dfae7d', '#e6b49a', '#f3e6c4', '#efc9a0'];
+function buildQuayRow() {
+  defMqMats();
+  const pts = pairsOf(QUAY_RING), gr = groundRange(pts), gy = gr.hi + 0.1, H = 9.4, rn = RNG(981);
+  begin(gy);
+  shell('mqWall', pts, [], gy, H, { lo: gr.lo - 1.5, roof: '#9b948a', cc: '#efe5cc' });
+  for (let i = 0; i < pts.length; i++) {
+    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+    if (L < 3.2) continue;
+    let nx = dz / L, nz = -dx / L; const mx0 = (A[0] + B[0]) / 2, mz0 = (A[1] + B[1]) / 2;
+    if (inRing(pts, mx0 + nx * 0.5, mz0 + nz * 0.5)) { nx = -nx; nz = -nz; }            // outward: the side that is not inside the ring
+    const n = Math.max(1, Math.round(L / 9.2));
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n, len = L / n, cx = A[0] + dx * (t0 + t1) / 2, cz = A[1] + dz * (t0 + t1) / 2;
+      const col = PLASTER[Math.floor(rn() * PLASTER.length)];
+      panel('mqFacade', len, H, { M: frame(cx + nx * 0.03, gy, cz + nz * 0.03, nx, nz), uvk: [len / 3, 1], c: col, noao: false });
+      if (rn() < 0.4) {   // a rooftop room, set back from the front, and a water tank
+        const rx = cx - nx * 2.3, rz = cz - nz * 2.3, M2 = frame(rx, gy + H + 0.15, rz, nx, nz);
+        if (inRing(pts, rx, rz)) { bx('mqWall', M2, -1.6, 1.6, 0, 2.7, -1.4, 1.4, { c: col }); bx('flat', M2, -1.8, 1.8, 2.7, 2.9, -1.6, 1.6, { c: '#d8d2c4', noao: true }); }
+      }
+    }
+  }
+  return end('Mondello harbour front');
+}
+export const MN_QUAY = { name: 'Mondello harbour front', x: -3120, z: -10100, radius: 90, skipIds: ['w73411051'], build: buildQuayRow };
+
+function buildHotelLaTorre() {
+  defMqMats();
+  const pts = pairsOf(HOTEL_RING), gr = groundRange(pts), gy = gr.lo + (gr.hi - gr.lo) * 0.6 + 0.2, H = 13.0;   // the terrace the hotel stands on: nearer the high side than the low one, the rest is a rock footing
+  begin(gy);
+  prism('mnStone', pts, gr.lo - 2, gy, { c: '#cbb995' });
+  shell('hoWall', pts, [], gy, H, { roof: '#cfcbc2', cc: '#f1eee6' });
+  // rooftop: a plant room, a terrace rail
+  const c = centroid(pts);
+  bx('mqWall', frame(c[0] - 6, gy + H + 0.15, c[1] + 4, 0, 1), -3.5, 3.5, 0, 2.6, -2.2, 2.2, { c: '#f4f2ec' });
+  // the watchtower on the rock at the end of the promontory: round grey rubble, a broken crown (some merlons gone), a door high up, two slits, corbels
+  const tx = TOWER_C[0], tz = TOWER_C[1], tg = groundRange([[tx - 4, tz], [tx + 4, tz], [tx, tz - 4], [tx, tz + 4]]), ty = tg.hi;
+  cyl('mnStone', 4.2, 4.9, 9.8 + (ty - tg.lo) + 1.5, 16, { p: [tx, tg.lo - 1.5, tz] });
+  cyl('mnStone', 4.7, 4.3, 0.8, 16, { p: [tx, ty + 9.4, tz], noao: true });                                    // the corbelled crown
+  for (let k = 0; k < 14; k++) { if ([2, 3, 9].includes(k)) continue; const a = k * 2 * PI / 14; box('mnStone', 0.9, 1.2, 0.55, { p: [tx + Math.cos(a) * 4.35, ty + 10.2, tz + Math.sin(a) * 4.35], ry: -a + PI / 2, noao: true }); }
+  box('dark', 1.0, 1.8, 0.3, { p: [tx + 4.2, ty + 3.4, tz], ry: PI / 2, noao: true });                           // the door, a storey up
+  for (const a of [1.9, 4.4]) box('dark', 0.3, 1.0, 0.3, { p: [tx + Math.cos(a) * 4.45, ty + 6.4, tz + Math.sin(a) * 4.45], ry: -a + PI / 2, noao: true });
+  return end('Hotel La Torre');
+}
+export const MN_HOTEL = { name: 'Hotel La Torre', x: -2770, z: -10560, radius: 100, skipIds: ['w73395786', 'w285428887'], build: buildHotelLaTorre };
+
+export const MONDELLO_LANDMARKS = [...MN_CABINS, ...MN_LAMPS, MN_HARBOUR, MN_QUAY, MN_HOTEL];
