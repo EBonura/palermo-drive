@@ -139,9 +139,10 @@ function terrainMaterial() {
           } }
         diffuseColor *= sampledDiffuseColor;
       #endif`)
+      .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze';
   return m;
 }
 
@@ -150,15 +151,23 @@ let lowMats = null;
 // The 100 m far terrain: smooth normals from the grid, so the steep faces of Monte Pellegrino that look away from the sun are lit by the sky alone and read as black wedges between the
 // bright full-detail blocks (board item t6). A fill proportional to steepness (FAR_FILL times the surface colour on a vertical face of the far mesh, TERRAIN_FILL on the textured tile terrain, nothing on level ground) keeps the shade readable.
 const FAR_FILL = 1.1, TERRAIN_FILL = 0.4;
+// Distant mountains read hazed blue #7297b4 (style guide section 6, board item n9): more with height and, now, with the real distance from the camera, in the shader of every
+// terrain material (full detail, low detail ring and the far mesh), so a hill that is half in one and half in another has no seam and nothing is tinted up close.
+// The vertex colours carry no haze any more. `pos` is a world position (the terrain meshes sit at the origin), the scene fog does the rest.
+const HAZE_GLSL = `
+float hzD = distance( cameraPosition, HZPOS ), hzY = HZPOS.y;
+float hz = min( 0.78, ( 0.1 + 0.3 * smoothstep( 30.0, 260.0, hzY ) ) * smoothstep( 300.0, 2500.0, hzD ) + 0.34 * smoothstep( 2000.0, 8500.0, hzD ) * smoothstep( 10.0, 120.0, hzY ) ) * smoothstep( 1.0, 4.0, hzY );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( ${HAZE.r.toFixed(5)}, ${HAZE.g.toFixed(5)}, ${HAZE.b.toFixed(5)} ), hz );`;
 function farMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFarNy;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y; vFarPos = position;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
+      .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
   };
-  m.customProgramCacheKey = () => 'far-fill';
+  m.customProgramCacheKey = () => 'far-fill-haze';
   return m;
 }
 function getLowMats() {
@@ -269,10 +278,6 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(gi * 1.7 + gj * 0.9) + Math.sin(gi * 0.37 - gj * 1.3)) * 0.25 + 0.5;
         terrainColor(_c, y, Math.hypot(dx, dz), noise);
-        { // distant mountains read hazed blue #7297b4 (style guide section 6, board item n9): more with height and with distance from the city, the scene fog does the rest
-          const dc = Math.hypot(pos[k], pos[k + 2]);
-          if (y > 2) _c.lerp(HAZE, Math.min(0.78, 0.1 + 0.3 * smooth(30, 260, y) + 0.34 * smooth(2000, 8500, dc) * smooth(10, 120, y)));
-        }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
       }
       const idx = new Uint16Array((vx - 1) * (vz - 1) * 6);
@@ -340,7 +345,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function setPart(t, name, obj, tris) {
     const old = t.parts[name];
     if (old) disposeObj(old);
-    if (obj) { t.parts[name] = obj; t.tris[name] = tris !== undefined ? tris : (obj.userData.tris || 0); root.add(obj); }
+    if (obj) {
+      t.parts[name] = obj; t.tris[name] = tris !== undefined ? tris : (obj.userData.tris || 0);
+      // nothing under the world root moves after it is placed (checked at the centro, the port, Mondello, the stadium: no matrix changed in 10 s of driving), so the matrices are
+      // computed once here and the per-frame updateMatrixWorld walk skips them (it was 279 of 534 updates a frame at Quattro Canti)
+      obj.traverse(o => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+      root.add(obj);
+    }
     else { delete t.parts[name]; delete t.tris[name]; }
     if (name === 'terrain') farHole(t, !!obj);
     contextDirty = true;
@@ -376,7 +387,6 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
           break;
         }
-        if (stride > 1 && y > 100) _c.lerp(HAZE, 0.42 * smooth(100, 420, y));   // the low detail ring (beyond 450 m): the high ground starts to blue (board item n9)
         if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
