@@ -24,6 +24,7 @@ const S = {
   earn: ['Guadagna euro con i Turisti affamati', 'Earn euros in Hungry tourists'],
   set: ['montati', 'fitted'],
   driver: ['Il tuo autista', 'Your driver'], who: ['Chi guida?', 'Who drives?'], driverBtn: ['Autista', 'Driver'], random: ['Casuale', 'Random'], orig: ['Originale', 'Original'], loading: ['Un attimo…', 'One moment…'],
+  nameL: ['Nome', 'Name'], nameP: ['Scrivi il tuo nome', 'Type your name'],
   tBody: ['Corpo', 'Body'], tHair: ['Capelli', 'Hair'], tHead: ['Testa', 'Head'], tClothes: ['Vestiti', 'Clothes'],
   sBody: ['Corporatura', 'Build'], sAge: ['Età', 'Age'], sSkin: ['Pelle', 'Skin'], sEye: ['Occhi', 'Eyes'], sHair: ['Taglio', 'Style'], sHairCol: ['Colore', 'Colour'], sBeard: ['Barba', 'Beard'],
   sGlasses: ['Occhiali', 'Glasses'], sHat: ['Cappello', 'Hat'], sHatCol: ['Colore del cappello', 'Hat colour'], sTop: ['Maglia', 'Top'], sTopCol: ['Colore della maglia', 'Top colour'],
@@ -36,6 +37,23 @@ const ORDER = ['calessino', 'cassone', 'lapa50', 'tascia', 'vespa', 'scooterone'
 const BODY_IDS = ['rosso', 'arancio', 'giallo', 'lime', 'verde', 'azzurro', 'blu', 'viola', 'rosa', 'bianco', 'grigio', 'nero'];
 const TRIM_IDS = ['nero', 'bianco', 'rosa', 'oro', 'bordeaux', 'grigio', 'rosso', 'blu'];
 
+// The player's name lives in the multiplayer store (src/net.js reads it): localStorage palermoDrive.net.v1 = { name, offline }. We only ever change `name` and keep `offline` as it is; a missing or corrupt value reads as {}.
+const NET_KEY = 'palermoDrive.net.v1', NAME_MAX = 16;
+let nameMem = null;   // when storage is unavailable the name still lasts for this visit
+// plain text only: whitespace collapsed, control / format (zero-width, direction marks and overrides) / separator / lone surrogate characters and blank-looking fillers removed, at most 16 UTF-16 units (net.js's limit) without cutting a pair in half
+function cleanName(v) {
+  let t = String(v == null ? '' : v).replace(/\s+/g, ' ').replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0]/gu, '').trim().slice(0, NAME_MAX);
+  if (/[\ud800-\udbff]$/.test(t)) t = t.slice(0, -1);
+  return t.trim();
+}
+function netStore() { try { const o = JSON.parse(localStorage.getItem(NET_KEY) || 'null'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function readName() { if (nameMem !== null) return nameMem; const n = netStore().name; return typeof n === 'string' ? cleanName(n) : ''; }
+function writeName(name) {
+  nameMem = name;
+  try { localStorage.setItem(NET_KEY, JSON.stringify({ name, offline: !!netStore().offline })); nameMem = null; } catch (e) { /* private mode: kept in memory */ }
+  try { window.dispatchEvent(new CustomEvent('pd-name')); } catch (e) { /* ignore */ }   // src/net.js re-reads the store
+}
+
 const CSS = `
 .pd-garage { width: min(54vw, 520px); }
 .gx-root { display: flex; flex-direction: column; gap: clamp(6px, 1.5vh, 12px); min-height: 0; flex: 1 1 auto; }
@@ -45,6 +63,12 @@ const CSS = `
 .gx-crumb { font: 600 clamp(10px, 2.2vh, 13px)/1 var(--pd-cond); letter-spacing: .24em; text-transform: uppercase; color: var(--pd-amber); white-space: nowrap; }
 .gx-crumb.pop { color: #fff; }
 .gx-cash { flex: 0 0 auto; font: 700 clamp(17px, 3.8vh, 24px)/1 var(--pd-cond); letter-spacing: .08em; color: var(--pd-amber); background: rgba(255,255,255,.08); padding: 5px 10px; border-radius: 3px; box-shadow: inset 0 0 0 2px rgba(245,169,201,.35); white-space: nowrap; }
+.gx-name { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 4px; }
+.gx-name[hidden] { display: none; }
+.gx-name label { flex: 0 0 auto; font: 700 clamp(12px, 2.8vh, 17px)/1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
+.gx-name input { flex: 1 1 auto; min-width: 0; box-sizing: border-box; height: clamp(34px, 7.4vh, 46px); padding: 0 12px; border: 0; border-radius: 3px; outline: none; color: #fff; background: rgba(0,0,0,.4); box-shadow: inset 0 0 0 2px rgba(255,255,255,.32); font: 700 18px/1 var(--pd-cond); letter-spacing: .06em; }   /* 16px at least, or iOS zooms the page when the field takes focus */
+.gx-name input::placeholder { color: rgba(255,255,255,.5); font-weight: 600; }
+.gx-name input:focus { box-shadow: inset 0 0 0 2px var(--pd-amber); background: rgba(0,0,0,.55); }
 .gx-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.5vh, 12px); }
 .gx-main[hidden], .gx-tabs[hidden] { display: none; }
 
@@ -114,6 +138,7 @@ const CSS = `
   .gx-root { gap: 5px; }
   .gx-main { gap: 5px; }
   .gx-head { min-height: 30px; }
+  .gx-name input { height: 34px; }
   .gx-ttl .pd-h { font-size: 22px; }
   .gx-crumb { font-size: 10px; letter-spacing: .2em; }
   .gx-cash { font-size: 17px; padding: 4px 8px; }
@@ -135,6 +160,7 @@ const CSS = `
   .gx-foot .pd-btn { min-height: 38px; }
 }
 @media (max-aspect-ratio: 1/1) { .pd-garage { width: min(94vw, 520px); } }
+@media (max-height: 260px) { .gx-m3 .gx-port { display: none; } }   /* a landscape phone with its keyboard open: the name field, the tabs and the options stay, the portraits make room */
 /* the driver screen */
 .gx-port { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 4px 8px; background: rgba(255,255,255,.06); border-radius: 4px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
 .gx-port canvas { height: clamp(66px, 17vh, 118px); width: auto; image-rendering: pixelated; }
@@ -169,10 +195,21 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   const baseName = v => nm(v);
   const shortName = v => (SHORT[v.id] ? SHORT[v.id][li()] : nm(v));
 
-  root.innerHTML = '<div class="gx-head"></div><div class="gx-tabs" hidden></div><div class="gx-main gx-m1"></div><div class="gx-main gx-m2" hidden></div><div class="gx-main gx-m3" hidden></div><div class="gx-foot"></div>';
+  root.innerHTML = '<div class="gx-head"></div><div class="gx-name" hidden><label for="gx-name-in"></label><input id="gx-name-in" type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done"></div><div class="gx-tabs" hidden></div><div class="gx-main gx-m1"></div><div class="gx-main gx-m2" hidden></div><div class="gx-main gx-m3" hidden></div><div class="gx-foot"></div>';
   const $ = q => root.querySelector(q);
-  const elHead = $('.gx-head'), elTabs = $('.gx-tabs'), elM1 = $('.gx-m1'), elM2 = $('.gx-m2'), elM3 = $('.gx-m3'), elFoot = $('.gx-foot');
+  const elHead = $('.gx-head'), elName = $('.gx-name'), elNameIn = $('.gx-name input'), elTabs = $('.gx-tabs'), elM1 = $('.gx-m1'), elM2 = $('.gx-m2'), elM3 = $('.gx-m3'), elFoot = $('.gx-foot');
   const elBody = () => (step === 3 ? elM3 : elM2);
+  // the player's name (driver screen only): a plain text field, saved on every change. Its keys must not reach the driving shortcuts (W A S D, B, V, digits...): the shell (src/ui.js) lets text fields type, and we stop the rest here.
+  elNameIn.addEventListener('input', () => { const c = cleanName(elNameIn.value); if (c !== readName()) writeName(c); });
+  elNameIn.addEventListener('change', () => { elNameIn.value = readName(); });
+  elNameIn.addEventListener('blur', () => { elNameIn.value = readName(); });
+  elNameIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); elNameIn.blur(); } });
+  elNameIn.addEventListener('keypress', e => e.stopPropagation());
+  function paintName() {
+    elName.hidden = step !== 3;
+    $('.gx-name label').textContent = tr('nameL'); elNameIn.placeholder = tr('nameP');
+    if (document.activeElement !== elNameIn) elNameIn.value = readName();
+  }
 
   // ---- what is shown on the vehicle: the base you browse, its saved setup, then the option you clicked (pending) and the one under the pointer / focus (hv) ----
   function previewLook() {
@@ -331,7 +368,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   function paintAll() {
     keep(() => {
       elTabs.hidden = step === 1; elM1.hidden = step !== 1; elM2.hidden = step !== 2; elM3.hidden = step !== 3;
-      paintHead(); paintFoot();
+      paintHead(); paintName(); paintFoot();
       if (step === 1) paintBases(); else { paintTabs(); paintBody(); }
     });
   }
@@ -451,7 +488,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
       if (Q.get('gstep') === '2' && garage.ownsVehicle(sel)) toStep(2);
       if (Q.get('gstep') === 'driver') { if (Q.get('gtab') && DTABS.some(t => t[0] === Q.get('gtab'))) D.tab = Q.get('gtab'); toDriver(); }
     },
-    leave() { entered = false; pending = null; hv = null; scene.leave(); document.documentElement.classList.remove('pd-in-garage'); },
+    leave() { entered = false; if (document.activeElement === elNameIn) elNameIn.blur(); pending = null; hv = null; scene.leave(); document.documentElement.classList.remove('pd-in-garage'); },
     render() { if (entered) paintAll(); },
     applyLang() { if (entered) paintAll(); },
     // Esc / B: one step back; returns false at step 1 so the shell leaves the garage

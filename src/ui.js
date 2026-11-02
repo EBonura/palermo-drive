@@ -956,6 +956,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   const MAPKEY = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   addEventListener('keydown', e => {
+    if (e.target && e.target.tagName === 'INPUT') return; // a text field (the driver's name in the Garage, the name card of src/net.js) types normally; it handles its own Enter and Escape
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const a = KEYMAP[e.code];
     if (game.state === 'play') {

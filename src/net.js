@@ -111,6 +111,9 @@ export function createNet(env) {
   const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ name: store.name || '', offline: !!store.offline })); } catch (e) { /* private mode: fine */ } };
   const urlName = (params.get('name') || '').slice(0, 16);
   if (urlName) { store.name = urlName; store.offline = false; } // this page load only (not saved until the player edits)
+  // the Garage's driver screen (src/garage-ui.js) edits the same stored name and says so with a 'pd-name' event; take it over (and again when the card opens) so this module neither shows nor writes back an old one
+  const refreshName = () => { if (urlName) return; const n = load().name, name = typeof n === 'string' ? n.replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/gu, '').trim().slice(0, 16) : ''; if (name !== (store.name || '')) { store.name = name; sleeping = false; attempts = 0; lastPingT = 0; infoDirty(); renderPill(); } };
+  addEventListener('pd-name', refreshName);
   const lang = () => {
     let l = 'it';
     try { l = (JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || {}).lang; } catch (e) { /* ignore */ }
@@ -151,7 +154,7 @@ export function createNet(env) {
 
   function closeCard() { if (card) { card.remove(); card = null; } }
   function openName() {
-    ensureUI(); closeCard();
+    refreshName(); ensureUI(); closeCard();
     const t = lang(), editing = !!store.name;
     card = document.createElement('div'); card.className = 'pdn-card'; card.setAttribute('role', 'dialog');
 
