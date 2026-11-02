@@ -68,6 +68,7 @@ compact binary format) and publishes it to GitHub Pages.
 - Street surfaces: Comune di Palermo, Perimetrazione area stradale and Aree pedonali (open data), CC BY 4.0,
   https://opendata.comune.palermo.it/opendata-dataset.php?dataset=280.
 - Walls, fences, hedges and trees: Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0.
+- Monumental trees: Regione Siciliana, Alberi Monumentali di Sicilia (open data, list updated 2021), CC BY, https://dati.regione.sicilia.it/dataset/alberi-monumentali-di-sicilia.
 - Trees: Contains modified Copernicus Land Monitoring Service information: Urban Atlas Street Tree Layer 2018, European Environment Agency (EEA).
 - Green areas (medians, islands, flowerbeds): Comune di Palermo, Perimetrazione aree verdi (open data), CC BY 4.0.
 - Bus and tram routes, stops and timetables: AMAT Palermo S.p.A. open data, GTFS feed published by the Comune di Palermo (opendata.comune.palermo.it), CC BY 4.0. Tram line geometry follows OpenStreetMap (ODbL), as in the feed itself.

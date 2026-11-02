@@ -70,6 +70,7 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Data | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | Isolated trees, hedges (CTR 1:10.000, ed. 2012-13) | Regione Siciliana | https://www.sitr.regione.sicilia.it | CC BY 4.0 | points and lines baked into tiles, sizes from the lidar |
+| Alberi Monumentali di Sicilia (list under L. 10/2013, updated 2021): position, species and height of the 42 single monumental trees of the Comune of Palermo | Regione Siciliana | https://dati.regione.sicilia.it/dataset/alberi-monumentali-di-sicilia | CC BY (as stated on the portal) | baked as tree props by `tools/monumental.py`, replacing the generic trees at the same spot; crown size is a game value |
 | Urban Atlas Street Tree Layer 2018 | Copernicus Land Monitoring Service, European Environment Agency (EEA) | https://land.copernicus.eu/local/urban-atlas | free, full and open, source acknowledged | canopy polygons turned into thinned tree positions |
 | Perimetrazione aree verdi (medians, islands, verges, flowerbeds) | Comune di Palermo | https://opendata.comune.palermo.it/opendata-dataset.php?dataset=278 | CC BY 4.0 | polygons reprojected and drawn as grass over the street layers |
 
