@@ -34,7 +34,7 @@ const TAU = Math.PI * 2;
 const CPM = 2;                                           // mask cells per metre
 const PX0 = 0.0438;                                       // metres per design unit (an adult is about 37 units = 1.6 m: big head, short body); far cells have one texel per unit, near cells three
 const WALK = 0, IDLE = 1, WAIT = 2, DODGE = 3, FLY = 4, LIE = 5, GETUP = 6;
-const QUALITIES = { low: { cap: 100, R: 75 }, medium: { cap: 240, R: 100 }, high: { cap: 380, R: 120 } };
+const QUALITIES = { low: { cap: 240, R: 75 }, medium: { cap: 640, R: 100 }, high: { cap: 1000, R: 120 } };   // [crowd pass] was 100, 240 and 380: see docs/PERF.md (crowd)
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -51,7 +51,7 @@ export function createPedestrians(env) {
   const variantsOf = id => { const r = []; for (let i = 0; i < VARIANTS.length; i++) if (VARIANTS[i].id === id) r.push(i); return r; };
   let quality = QUALITIES.medium; // the default tier on every device (main.js applySettings sets it from the options)
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
-  const CAP = 420;
+  const CAP = 1000;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
   if (!world) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, spawnCrowd: () => [], removeCrowd() {}, crowdFamilies: () => [], walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
 
@@ -323,7 +323,12 @@ export function createPedestrians(env) {
   const PIDX = {}; for (const n in DPROF) PIDX[n] = PNAMES.indexOf(DPROF[n]);
   const DEFP = PNAMES.indexOf('local');
   const profDay = new Float32Array(PNAMES.length), profNight = new Float32Array(PNAMES.length);
-  PNAMES.forEach((n, p) => { profDay[p] = PROFILES[n].day; profNight[p] = PROFILES[n].night; });
+  // [crowd pass] the owner asked for far more people on the street, by day above all, in the suburbs as much as the centre: every district profile and every hot spot is scaled up,
+  // and a smooth curve over the hour (todK below) takes the crowd down at night and up to its peak in the early afternoon.
+  const PK = +params.get('pedk') || 1;   // ?pedk=k scales the whole crowd (tests); ?pedk=0.4 is about the crowd before this pass
+  const DAYMUL = { main: 2.2, vicoli: 3, lib: 4, local: 7, zen: 4.5, cep: 6, beach: 2.2, lido: 1.6, coast: 5, park: 3.5, rural: 4, port: 5 };   // the suburbs gain most: they were nearly empty
+  const HOTD = 1.75 * PK, HOTN = 1.7 * PK;                                                                                                   // the hand-stamped hot spots of the centro
+  PNAMES.forEach((n, p) => { const m = (DAYMUL[n] || 3) * PK; profDay[p] = PROFILES[n].day * m; profNight[p] = PROFILES[n].night * m * 0.9; });
   const MAXD = 0.14;
   // variant weights by zone, in the order of VARIANTS (nonna, coppola, vendor, tourist, kid, teen, priest, carabiniere, signora, suit, nonno, borsa, ragazzo, fruttivendolo, then the colour variants)
   const VW = [0, 1, 2, 3, 4, 5].map(z => VARIANTS.map(v => v.w[z]));    // crowd mix per zone by day, set in assets/peds/sprites.js
@@ -366,8 +371,8 @@ export function createPedestrians(env) {
   // people per m2 and zone code at a spot: the centro hot spots where one is stamped, the district profile elsewhere
   const densAt = (x, z) => {
     const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC);
-    if (i >= 0 && j >= 0 && i < DNX && j < DNZ) { const k = j * DNX + i; if (nightCrowd ? stN[k] : stD[k]) return (nightCrowd ? densN : dens)[k]; }
-    const p = distAt(x, z); return nightCrowd ? profNight[p] : profDay[p];
+    if (i >= 0 && j >= 0 && i < DNX && j < DNZ) { const k = j * DNX + i; if (nightCrowd ? stN[k] : stD[k]) return (nightCrowd ? densN[k] * HOTN : dens[k] * HOTD) * todK; }
+    const p = distAt(x, z); return (nightCrowd ? profNight[p] : profDay[p]) * todK;
   };
   const zoneCode = (x, z) => {
     const i = Math.floor((x - AX0) / DC), j = Math.floor((z - AZ0) / DC);
@@ -378,11 +383,14 @@ export function createPedestrians(env) {
   // ======================================================================== time of day
   // The day/night work publishes game.time {hour, isNight, dusk} and fires window 'pd-time' {hour, isNight, dusk}; both are read
   // defensively and the default is daytime. nightCrowd flips the crowd map and mix; nightK (0..1) eases the sprites' light.
+  // the crowd over the day: about half of the peak at 3 in the morning, a quick rise from 6 to 9, the peak from 11 to 18, an evening decline (the maps themselves switch at dusk)
+  let todK = 1;
+  const todCurve = h => { const b = Math.max(0, Math.sin(Math.PI * (h - 6.3) / 15.4)); return 0.5 + 0.5 * Math.pow(b, 0.55); };
   let nightTarget = 0, nightK = 0, hourNow = null, purgeT = 0, purgeAt = 0, lastNight, lastIsNight;
   const setCrowdNight = b => { if (b === nightCrowd) return; nightCrowd = b; targetT = 0; purgeT = 45; };
   function setTime(t) {
     if (!t || typeof t !== 'object') return;
-    if (Number.isFinite(t.hour)) hourNow = t.hour;
+    if (Number.isFinite(t.hour)) { hourNow = t.hour; todK = todCurve(((t.hour % 24) + 24) % 24); }
     // game.time (src/daynight.js): night 0..1 (1 = dark), isNight, dusk 0..1; older shapes with only isNight/dusk/hour still work
     const n = typeof t.night === 'number' ? clamp(t.night, 0, 1) : t.isNight === true ? 1 : typeof t.dusk === 'number' ? t.dusk * 0.5 : t.dusk ? 0.5 : 0;
     const night = typeof t.isNight === 'boolean' ? t.isNight : n >= 0.5;

@@ -316,12 +316,12 @@ function buildPonteAmm() {
   defMat('g_rubble', 256, 256, [3.4, 3.4], paintRubble);
   const sp0 = [5.4, 7.2, 9.6, 12.0, 9.6, 7.2, 5.4], pier = 2.3, BW = 5.8, nA = sp0.length, sc = (L - pier * (nA + 1)) / sp0.reduce((q, v) => q + v, 0), spans = sp0.map(v => v * sc);
   let tot = pier; for (const s of spans) tot += s + pier;
-  const hump = (xx) => 5.0 + 3.3 * Math.cos(xx / (tot / 2) * PI / 2);
+  const hump = (xx) => 6.0 + 4.6 * Math.cos(xx / (tot / 2) * PI / 2);   // the deck is high enough over the widest arch for its pointed apex (a hole that breaks the outline of the extrusion fills with a pale lid)
   let x = -tot / 2;
   box('g_rubble', pier, hump(x + pier / 2), BW, { M, p: [x + pier / 2, 0, 0], c: '#e0d8b8' }); x += pier;
   for (const s of spans) {
     const cx = x + s / 2, H = hump(cx);
-    archBay('g_rubble', s + pier, H, s, Math.min(H - 0.8, s * 0.92 + 0.5), BW, { M: mul(M, tr(cx, 0, -BW / 2)), pointed: true, c: '#ece4c6' });
+    archBay('g_rubble', s + pier, H, s, Math.max(s / 2 + 0.2, Math.min(H - 1.0 - 0.45 * s / 2, s * 0.92 + 0.5)), BW, { M: mul(M, tr(cx, 0, -BW / 2)), pointed: true, oy0: 0.1, c: '#ece4c6' });   // oy0: a hole that touches the bottom edge of the outline breaks the triangulation and fills with a pale lid
     x += s + pier;
   }
   // parapets that follow the hump, with a stone coping
@@ -342,7 +342,6 @@ function buildPonteAmm() {
   // agaves on the banks: rosettes of crossed stiff cards (the palm card, tinted blue-green), and a few fan-palm bushes
   const agave = (X, Z, s) => { const y = groundY(X, Z); for (let k = 0; k < 4; k++) panel('palm', 2.2 * s, 1.5 * s, { p: [X, y + 0.5 * s, Z], ry: k * PI / 4 + rr(), c: '#7fa08c', noao: true }); };
   for (let i = 0; i < 14; i++) { const t = (rr() - 0.5) * 70, s = (rr() < 0.5 ? -1 : 1) * (10 + rr() * 6); agave(mx + ux * s + uz * t, mz + uz * s - ux * t, 0.8 + rr() * 0.8); }
-  // the iron garden fence runs along the lawn on both sides of the bed
   const gend = end("Ponte dell'Ammiraglio");
   return gend;
 }

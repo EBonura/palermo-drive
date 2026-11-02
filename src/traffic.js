@@ -1012,7 +1012,8 @@ Object.assign(MODELS, buildPoliceModels());
     spawnTour, baseY,
     removeVehicle(v) { const i = vs.indexOf(v); if (i >= 0) removeAt(i); } };
   police = createPolice(env, T);
-  addEventListener('pd-yeet', e => police.chaos((e.detail && e.detail.kind) || 'yeet'));   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
+  addEventListener('pd-yeet', e => police.chaos((e.detail && e.detail.kind) || 'yeet'));
+  addEventListener('pd-fence', e => police.chaos((e.detail && e.detail.kind) || 'fence'));   // a smashed fence panel, garden wall or hedge (src/fences.js, src/props.js): a little chaos   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
   gags = createGags(env, T, police);
   const carrozze = createCarrozze(env, T), vendors = createVendors(env, T);
 

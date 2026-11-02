@@ -259,12 +259,17 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
   city wall 5.5 to 7 m; a retaining wall is as high as the ground differs on its two sides (plus 0.3 m, at least 1.4 m). Walls are vertex-coloured limestone and plaster tones, 0.35 m
   thick (0.55 dry-stone, 0.5 retaining, 1.3 city wall); fences are 2.5 m panels with an alpha-tested texture: railing (dark bars), wooden, or mesh (OSM `fence_type` decides, else a hash).
 - **Runtime** (`src/fences.js`, wired in `src/world.js` buildFull and downgrade): per full tile one merged wall mesh plus at most three instanced fence meshes (at most 1,400 panels a
-  tile, OSM first). All pieces go into the wall grid, so cars, traffic and pedestrians are stopped by walls and by intact fences. Walls are solid at any speed.
+  tile, OSM first). All pieces go into the wall grid, so cars, traffic and pedestrians are stopped by walls and by intact fences. Retaining walls (`r`), city walls (`c`) and concrete barriers (`j`) are solid at any speed, so are the walls of buildings and landmarks.
 - **Fences break.** The two collide() functions (`src/vehicle.js`, `src/vehicle-sphere.js`) ask `hooks.breakFence(seg, speedIntoIt, nx, nz, car)`: at 3 m/s and more the panel is smashed (it
   flies off as a spinning piece, ten in the air at a time per fence style, gone after six seconds), the car loses a fifth of its speed into the fence, window event `pd-fence` fires, and the
   gap stays open for the session (`broken` ids survive a tile reloading). Slower, a fence is a wall. `hooks.tick` moves the flying pieces from the same physics step. `?nofences` hides
   all of it (debug).
-- **Not done:** gates (OSM `barrier=gate`) are left open, hedges are in the greenery step, wall textures are flat colour, and pedestrians do not react to a smashed fence.
+- **Garden walls and hedges break too** (`src/fences.js`, kinds `w` wall, `d` dry-stone, `h` hedge; `src/props.js` for the clipped hedge blocks of the Libertà). A wall is cut in 4 m pieces; a piece breaks above a speed that grows
+  with its mass: hedge 2.6 m/s, dry-stone 5.2, wall 6.4 below 1.9 m high, 8.0 up to 2.4 m, 9.5 above. The piece's quads are collapsed in the tile mesh (the `position` range recorded when it was built), the wall-grid
+  segment leaves every query, and chunks (stone and plaster colours, 150 pooled, gone after 4 to 6 s) or, for a hedge, a puff of leaves and green clumps (240 pooled) fly away from the car. The car loses 12 % (hedge),
+  26 % (low wall) or 38 % (wall) of its closing speed. The gap stays for the session (`broken` ids, a rebuilt tile skips them; the Libertà hedge blocks are remembered by position). Event `pd-fence`
+  `{x, z, kind: 'fence' | 'wall' | 'hedge'}` now feeds `police.chaos` (src/traffic.js listens; gains 0.08, 0.2 and 0.06, at most one per 0.4 to 0.5 s).
+- **Not done:** gates (OSM `barrier=gate`) are left open, wall textures are flat colour, and pedestrians do not react to a smashed fence.
 
 ## Trees, hedges and Comune green (tools/greenery.py, tools/fences.py, src/props.js)
 
@@ -350,6 +355,14 @@ Landmark group G, same toolkit and spec as the other city landmarks. `walls` are
 - **Ponte dell'Ammiraglio** (`PONTE_AMM` replaces `PONTE` of lmc-b): seven pointed arches of irregular rubble on the OSM line, parapets, round abutments, a gravel bed under the arches, stones and agaves. Collision: the piers.
 - **Piazza Mondello**: `pave` on a landmark spec is a list of ground polygons; world.js (`PAVEZ`) paves those terrain vertices (full weight, whatever the cover or the garden region says). Kiosks (collision), a kerb round the fountain, lamp posts. San Girolamo is rebuilt with a gabled front, rose window and bell tower (the OSM footprint is 7.7 x 19.6 m).
 - The Santuario cliff massifs are now four stacked tiers each (`massif()` in src/lmc-a.js), broad foot and stepped ledges.
+
+### Despiked terrain (owner request: "vertex explosions"; tools/despike.py)
+
+The near grids had isolated nodes and one-column fins on the cliffs, up to 170 m off (the fin at x -30, z -5730 in tile -1_-12 was a column that alternated between 150 and 320 m beside a 250 m face). `tools/despike.py` finds a node whose
+residual against the mean of each of its four opposite-neighbour pairs is above 15 m (on a 5 m grid, scaled with the step) in all four directions with the same sign, and runs of at most three nodes along a row or column whose cross residual is above
+30 m; the node takes the value interpolated across its smoothest direction, up to six passes. The sea clamp (-1.5 m) and its neighbours are left alone (the edge of the baked area is a real step). A cliff edge or crest is not flagged:
+along it the residual is small, a step has residuals of opposite sign. `--apply` patches `world/tiles` (originals to `data/despike-backup/`), and `tools/tiles.py near_for` runs the same function on the padded lattice, so a rebake keeps it.
+The 839 nodes of the first run are in 48 tiles, all on Monte Pellegrino, Monte Gallo and the north coast hills; none in the city.
 
 ### Sferracavallo (board item b2): already inside the baked area
 

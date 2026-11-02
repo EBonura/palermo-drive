@@ -137,6 +137,22 @@ Measured in the dev tree, same camera on a market street, `?markets=0` against t
 
 The ground-floor atlas grew by nine 256 x 256 layers (75 to 84, about 2.4 MB of texels and a third more with the mips) for the new shopfronts (`src/buildings.js`, `g_bar`, `g_tabacchi`, `g_pane`, `g_bottega`, `g_portone`, `g_farm`, `g_mk_a`, `g_mk_b`, `g_mk_c`). Phone profile (844x390 at DPR 3, 4x CPU, at the Ballaro spot, the x5 capture script, `?markets=0` against default): 60.1 fps both, main thread 10.79 against 10.88 ms per frame, 529 against 547 draw calls, 1.55 M against 1.61 M triangles. Desktop: 3.41 against 3.40 ms per frame. `?markets=0` switches the stalls off.
 
+## The crowd (src/pedestrians.js, board item 2 of the crowd pass)
+
+Asked for "way more people on the street, everywhere, especially by day". What changed: the quality caps (low / medium / high) from 100 / 240 / 380 to 240 / 640 / 1000 (the default is medium, the phone too), the arrays from 420 to 1000 slots, every district profile multiplied (day: centro streets 2.2x, old town 3x, Libertà 4x, the working-class quarters 7x, ZEN 4.5x, CEP 6x, the coast and the port 5x, Favorita 3.5x, Pellegrino 4x, the beaches 2.2x and 1.6x; night 0.9 of that), the hand-stamped centro hot spots 1.75x by day and 1.7x at night, and a smooth curve over the hour (`todCurve`: half the crowd at 3 in the morning, a rise from 6 to 9, the peak from 11 to 18, an evening decline) on top of the day and night maps. Still one instanced draw for all of them. `?pedk=0.4&peds=240` gives about the old crowd, `?pedk=k` scales the new one.
+
+People on screen (desktop, medium, the camera at each place, from `window.__peds.stats.count`):
+
+| hour | Brancaccio | ZEN | centro | Mondello |
+| --- | --- | --- | --- | --- |
+| 3 | 43 | 89 | 214 | 45 |
+| 8 | 198 | 406 | 656 | 426 |
+| 13 | 271 | 510 | 700 (cap) | 578 |
+| 19 | 70 | 131 | 347 | 79 |
+| 22 | 32 | 86 | 208 | 51 |
+
+Before: Brancaccio 24, ZEN 75 and the centro 240 (the cap) at any hour by day. Cost, phone profile (844x390 at DPR 3, 4x CPU, the x5 capture script, centro, three paired runs, before = `?pedk=0.4&peds=240`): 235 people against 669; the people's own update 0.64 against 1.61 ms per frame; main thread 13.2 against 14.5 ms per frame; 60 fps both. The worst place is the Ballaro market (700 people at the old cap of 700, stalls and 36 vendors on top): 58 to 60 fps at 97 to 99 percent busy on a machine that was busy with other work, which is why medium is 640 and not 700. Desktop: 0.37 ms for 681 people, 20 percent busy. The cost is about 2.5 microseconds per person per frame on the phone profile, plus the spatial hash.
+
 ## Pedestrian sprites at 3x (assets/peds, src/pedestrians.js)
 
 The crowd is no longer 75 hand-drawn variants but a cast of 153 generated people (types in `assets/peds/sprites.js`, faces and hair from `people.js`, drawn by a small software rasteriser, `raster.js` + `model.js`: swept solids shaded in four tones, pixel decals for eyes, brows, mouth, stubble, then the outline pass). Same 4 directions (right is the mirrored left) and the same walk cycle, plus a drink pose; same billboard shader, one draw call for the crowd and one for the scripted characters.
