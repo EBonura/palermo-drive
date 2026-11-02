@@ -28,6 +28,9 @@ export const SECRETS = [
   { id: 'baby-luna', title: ['Bba ieccati ru baby luna', 'Bba ieccati ru baby luna'],
     note: ['Ti sei buttato dal Ponte Corleone, accanto al vecchio Baby Luna.', 'You jumped off the Ponte Corleone, next to the old Baby Luna bar.'],
     on: { event: 'pd-landmark', when: d => d.id === 'baby-luna-jump' } },                         // src/bridges.js: the lapa fell off the Ponte Corleone (LANDMARK_ZONES)
+  { id: 'primo-gol', title: ['Primu gol ô Barbera', 'First Goal at the Barbera'],
+    note: ['Facisti gol cû lapa ô Barbera.', 'You scored with the lapa at the Barbera.'],
+    on: { event: 'pd-stadium-goal', when: d => d.n >= 1 } },                                         // src/stadium-ball.js: the ball crossed a goal line
 ];
 
 // ------------------------------------------------------------------------------------------------ banner and chime
