@@ -25,6 +25,7 @@ import { GARDEN_REGION as GR } from './gardens.js';
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
+import { pitchGround, pitchDepth } from './stadium-ground.js';
 import { CENTRO_LANDMARKS } from './landmarks.js';   // the centro landmark models: built here, when the tiles under them have loaded
 
 const T = 500;
@@ -196,7 +197,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     M = m;
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
-    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : carve(x, z, y); }; // + the river trenches and tunnel cuttings (src/bridges.js)
+    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : pitchGround(x, z, carve(x, z, y)); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js)
     hooks.level = levelY; hooks.fall = carTick;
     initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -526,7 +527,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const b = (((z - j * T) * RK) | 0) * RW + (((x - i * T) * RK) | 0);
     return (bits[b >> 3] >> (b & 7) & 1) === 1;
   }
-  const raised = (x, z) => maskAt(x, z, 'raised') === true;
+  const raised = (x, z) => maskAt(x, z, 'raised') === true || pitchDepth(x, z) > 0;   // the stadium's playing area counts as raised ground: the lapa stands on the track and the pitch like on a pavement (src/stadium-ground.js)
 
   // Off the surfaced network (park ground, dirt tracks, hillside): less grip, a bumpy ride, a bit of drag. Called every physics step.
   let bumpPhase = 0;
@@ -1103,8 +1104,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ?at=x,z puts the car somewhere once the world around it has streamed in
   function applyAt() {
     const at = Q.get('at'); if (!at || !binding) return;
-    const [x, z] = at.split(',').map(Number);
-    if (M) world.teleport(x, z, () => binding.placeAt(x, z)); else setTimeout(applyAt, 200);
+    const [x, z, th] = at.split(',').map(Number);   // a third number: exactly there, facing that way (radians), not on the nearest road
+    if (M) world.teleport(x, z, () => binding.placeAt(x, z, th)); else setTimeout(applyAt, 200);
   }
 
   // ?wstats overlay

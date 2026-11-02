@@ -17,6 +17,7 @@ import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
 import { createShouts } from './shouts.js';
+import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
 import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.js)
@@ -236,6 +237,7 @@ const shouts = createShouts(camera);
 addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text, d.follow); });   // follow: a parked car in the air keeps its balloon (src/props.js)
 let horn; // created once game settings exist (volume)
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
+const stadium = createStadium(worldEnv);
 const traffic = createTraffic(worldEnv);
 const pedestrians = createPedestrians({ ...worldEnv, traffic });
 // Potholes, patches and tyre marks on the asphalt; collidePlayer jolts the lapa over holes.
@@ -385,6 +387,7 @@ renderer.setAnimationLoop(now => {
   if (game.state !== 'pause') { traffic.update?.(dt, camera); pedestrians.update?.(dt, camera); }
   if (game.state === 'play') missions.update?.(dt);
   if (game.state === 'play') suca.update(dt, car);
+  if (game.state === 'play') stadium.update(dt);
   roadwear.update?.(dt);
   net.update?.(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);

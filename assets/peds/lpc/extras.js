@@ -294,4 +294,19 @@ export function bib(f, A, col = 'navy') {   // the bib of the dungarees: a darke
   }
   if (dir === 'front') { for (let x = cx - 2; x <= cx + 2; x++) { put(f, x, y0 + 2, R[1]); put(f, x, y0 + 5, R[1]); } put(f, cx - 2, y0 + 3, R[1]); put(f, cx + 2, y0 + 3, R[1]); put(f, cx - 4, y0 - 1, [236, 200, 90]); put(f, cx + 4, y0 - 1, [236, 200, 90]); }
 }
+// ---------- the stands (assets/peds/lpc/tifosi.png only) ----------
+// Both arms up and a pink and black scarf stretched between the hands, seen from the front: what the fans of the Barbera do. The hanging arms of the LPC pose are taken away first.
+export function cheer(f, A, skin) {
+  const { hd: h, dir } = A; if (dir !== 'front') return;
+  const cx = Math.round(h.cx), sh = Math.round(h.y1) + 5, top = Math.round(h.y0) - 6;
+  for (let y = sh + 4; y < F; y++) for (let x = 0; x < F; x++) if (Math.abs(x - cx) >= 9) f[(y * F + x) * 4 + 3] = 0;   // the arms that hung at the sides
+  for (const sg of [-1, 1]) {
+    const x0 = cx + sg * 8, y0 = sh + 2, x1 = cx + sg * 11, y1 = top + 1, n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)), pts = [], seen = new Set();
+    for (let k = 0; k <= n; k++) { const px = x0 + (x1 - x0) * k / n, py = y0 + (y1 - y0) * k / n; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = Math.round(px) + dx, y = Math.round(py) + dy; if ((x - px) ** 2 + (y - py) ** 2 <= 2.4 && !seen.has(key(x, y))) { seen.add(key(x, y)); pts.push([x, y]); } } }
+    shape(f, pts, (x, y) => (!seen.has(key(x - sg, y)) ? skin[4] : skin[3]), skin[0]);
+  }
+  const R = ramp('cloth', 'rosanero'), B = ramp('cloth', 'black');
+  for (let x = cx - 11; x <= cx + 11; x++) { const sag = Math.round(((x - cx) / 11) ** 2 * -1.4 + 1.4), c = (((x - cx + 40) >> 1) & 1) ? B[3] : R[3];
+    for (let y = top - 1; y <= top + 2; y++) put(f, x, y + sag, y === top - 1 || y === top + 2 ? (c === B[3] ? B[1] : R[1]) : c); }
+}
 export const GLASSY = { GL };
