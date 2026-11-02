@@ -259,17 +259,28 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
   city wall 5.5 to 7 m; a retaining wall is as high as the ground differs on its two sides (plus 0.3 m, at least 1.4 m). Walls are vertex-coloured limestone and plaster tones, 0.35 m
   thick (0.55 dry-stone, 0.5 retaining, 1.3 city wall); fences are 2.5 m panels with an alpha-tested texture: railing (dark bars), wooden, or mesh (OSM `fence_type` decides, else a hash).
 - **Runtime** (`src/fences.js`, wired in `src/world.js` buildFull and downgrade): per full tile one merged wall mesh plus at most three instanced fence meshes (at most 1,400 panels a
-  tile, OSM first). All pieces go into the wall grid, so cars, traffic and pedestrians are stopped by walls and by intact fences. Retaining walls (`r`), city walls (`c`) and concrete barriers (`j`) are solid at any speed, so are the walls of buildings and landmarks.
+  tile, OSM first). All pieces go into the wall grid, so cars, traffic and pedestrians are stopped by walls and by intact fences. City walls (`c`) and retaining walls that hold up ground are solid at any speed, so are the walls of buildings and landmarks; the other walls break (below).
 - **Fences break.** The two collide() functions (`src/vehicle.js`, `src/vehicle-sphere.js`) ask `hooks.breakFence(seg, speedIntoIt, nx, nz, car)`: at 3 m/s and more the panel is smashed (it
   flies off as a spinning piece, ten in the air at a time per fence style, gone after six seconds), the car loses a fifth of its speed into the fence, window event `pd-fence` fires, and the
   gap stays open for the session (`broken` ids survive a tile reloading). Slower, a fence is a wall. `hooks.tick` moves the flying pieces from the same physics step. `?nofences` hides
   all of it (debug).
-- **Garden walls and hedges break too** (`src/fences.js`, kinds `w` wall, `d` dry-stone, `h` hedge; `src/props.js` for the clipped hedge blocks of the Libertà). A wall is cut in 4 m pieces; a piece breaks above a speed that grows
-  with its mass: hedge 2.6 m/s, dry-stone 5.2, wall 6.4 below 1.9 m high, 8.0 up to 2.4 m, 9.5 above. The piece's quads are collapsed in the tile mesh (the `position` range recorded when it was built), the wall-grid
-  segment leaves every query, and chunks (stone and plaster colours, 150 pooled, gone after 4 to 6 s) or, for a hedge, a puff of leaves and green clumps (240 pooled) fly away from the car. The car loses 12 % (hedge),
-  26 % (low wall) or 38 % (wall) of its closing speed. The gap stays for the session (`broken` ids, a rebuilt tile skips them; the Libertà hedge blocks are remembered by position). Event `pd-fence`
-  `{x, z, kind: 'fence' | 'wall' | 'hedge'}` now feeds `police.chaos` (src/traffic.js listens; gains 0.08, 0.2 and 0.06, at most one per 0.4 to 0.5 s).
-- **Not done:** gates (OSM `barrier=gate`) are left open, wall textures are flat colour, and pedestrians do not react to a smashed fence.
+- **Walls are textured** (`src/wall-tex.js`, used by `src/fences.js`). One texture array with a 512 px layer per kind, drawn in code from a seeded generator (the same pixels on every device, nothing depends on the
+  quality tier): plaster with age stains and a patch of fallen plaster for garden and parcel walls (`w`, 4 x 3 m), irregular stacked stones with dark gaps and moss for dry-stone (`d`, 3.2 x 1.6 m), rough rubble in
+  grey mortar for retaining walls (`r`, 3.2 x 2.4 m), big honey-coloured tufa blocks in running bond for city walls (`c`, 3.6 x 2.7 m), board-marked cast concrete with panel seams and tie holes for barriers (`j`),
+  leafy clumps for hedges (`h`, 2.4 m) and coping slabs for the top of every wall. The uvs are real metres (along the wall over the layer's width, below the wall top over its height), so nothing stretches and a
+  stone course follows the wall over a slope; the courses are scaled to add up to the tile exactly, so the array repeats without a seam. The layer is light, near neutral detail: the wall's own colour (per wall
+  variation, the darker foot, the paler cap) still comes from its vertex colour, and two octaves of world space value noise in the shader break up the repeat. The whole tile stays one mesh with one material
+  shared by every tile (the draw calls of the walls did not change), and the flying chunks of a broken piece use the same material with an instanced layer, so they carry the stone, plaster or leaf look and the colour of the wall.
+- **Walls and hedges break, easily** (`src/fences.js` for the baked kinds `w`, `d`, `h`, `r`, `j`; `src/props.js` for the clipped hedge blocks of the Libertà). A wall is cut in 4 m pieces. The speed that counts is
+  the effective speed `hypot(v_into_wall, 0.55 * v_along_wall)`, so a scrape along a wall at speed breaks a piece too, not only a square hit (under sphere handling a glancing hit used to carry only its normal part,
+  often far under the threshold). A piece breaks above: hedge 1.8 m/s, dry-stone 3.6, wall 4.0 below 1.6 m high, 5.2 up to 2.2 m, 6.6 above, retaining wall that holds up less than 0.8 m of ground (the ground on its two
+  sides differs by under 0.8 m) 5.4, concrete barrier 9.0; fence panels 2.6. Retaining walls that really hold up ground and city walls (`c`) stay solid, so do the walls of buildings and landmarks (counted over every baked tile, with duplicates at tile borders removed: under 1 km; the "118 km of walls" of the first audit were the OpenStreetMap barrier ways only, the Regione's technical map lines add the rest, 1,173 km of `w` were already in the tiles of commit 754e170; the roughly 1,440 km
+  of baked wall that is breakable against 61 km that is not: 1,172 km of garden and parcel walls, 202 km of weak retaining walls, 60 km of hedges and 8 km of dry-stone against 60 km of ground-holding retaining wall
+  and 1 km of city wall). The piece's quads are collapsed in the tile mesh (the `position` range recorded when it was built), its wall-grid segment leaves every query, and chunks (150 pooled, gone after 4 to 6 s) or,
+  for a hedge, a puff of leaves and green clumps (240 pooled) fly away from the car. The car loses 12 % (hedge), 26 % (low wall), 38 % (wall) or 50 % (barrier) of its speed, scaled down for a scrape. The gap stays
+  for the session (`broken` ids, a rebuilt tile skips them; the Libertà hedge blocks are remembered by position). Event `pd-fence` `{x, z, kind: 'fence' | 'wall' | 'hedge'}` feeds `police.chaos` (src/traffic.js
+  listens; gains 0.08, 0.2 and 0.06, at most one per 0.4 to 0.5 s).
+- **Not done:** gates (OSM `barrier=gate`) are left open, the walls have no normal maps, and pedestrians do not react to a smashed fence. The data has no `j` pieces yet (OSM `jersey_barrier` is baked as `j` when it appears).
 
 ## Trees, hedges and Comune green (tools/greenery.py, tools/fences.py, src/props.js)
 
