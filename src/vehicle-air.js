@@ -25,7 +25,7 @@ const HOVER = 22;               // m above the ground that a lapa stays at while
 
 // LINES: said by the driver (balloons over the lapa, see 'pd-shout' in src/main.js). [text, when]
 export const LINES = {
-  up: ['Minchia, vulu!'],
+  up: ['Minchia staiu vulannu', 'Chi ccià farì a riedbull?', 'Volareeeeee! Oooouuuu!'],
   land: ['Pusai com’a ’na pinna!', 'Chi atterraggiu!'],
   hard: ['Ahia, u culu!'],
   roof: ['Chi bella vista ri cca supra!'],
