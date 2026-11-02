@@ -1,6 +1,6 @@
 // Notes, sound lines and "horns" hand signs floating out of a pub's door while its music is audible (src/pubs.js, Krust). One InstancedMesh of camera-facing
 // quads (one draw call, 16 instances), a 4-glyph atlas painted in code. The glyphs are drawn white with a dark outline and tinted per instance.
-//   createNotes(scene) -> { update(dt, level 0..1, x, y, z, nx, nz), dispose() }   (x, y, z the doorway, nx, nz the outward normal)
+//   createNotes(scene, { glyphs }) -> { update(dt, level 0..1, x, y, z, nx, nz), dispose() }   (x, y, z the doorway, nx, nz the outward normal; glyphs: the atlas cells to pick from, default GLYPHS)
 import * as THREE from 'three';
 
 const N = 16, TAU = Math.PI * 2;
@@ -53,24 +53,25 @@ const FRAG = `
     #include <colorspace_fragment>
   }`;
 
-export function createNotes(scene) {
+export function createNotes(scene, opts = {}) {
+  const cells = opts.glyphs || GLYPHS;
   const geo = new THREE.InstancedBufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2)); geo.setIndex([0, 1, 2, 0, 2, 3]);
   const pos = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3), A = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4), col = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
   for (let i = 0; i < N; i++) A.array[i * 4] = 2;                                  // age past 1: not drawn
   geo.setAttribute('iPos', pos); geo.setAttribute('iA', A); geo.setAttribute('iCol', col); geo.instanceCount = N;
-  const map = atlas(), mat = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const map = (opts.atlas || atlas)(), mat = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh);
   const P = Array.from({ length: N }, () => ({ on: false, age: 0, life: 3.4, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, sw: 0, ph: 0, sz: 1, rot: 0, wob: 0 }));
   let emit = 0, alive = 0;
   function spawn(p, x, y, z, nx, nz) {
-    const cell = pick(GLYPHS), side = (Math.random() - 0.5) * 3.2, sp = 1.1 + Math.random() * 1.0;
+    const cell = pick(cells), side = (Math.random() - 0.5) * 3.2, sp = 1.1 + Math.random() * 1.0;
     p.on = true; p.age = 0; p.life = 3.0 + Math.random() * 1.4; p.cell = cell;
     p.x = x + nz * side * 0.6; p.z = z - nx * side * 0.6; p.y = y + (Math.random() - 0.3) * 0.5;
     p.vx = nx * sp + nz * side * 0.45; p.vz = nz * sp - nx * side * 0.45; p.vy = 0.55 + Math.random() * 0.55;
     p.sw = 0.25 + Math.random() * 0.3; p.ph = Math.random() * TAU; p.sz = cell === 2 ? 1.15 : cell === 3 ? 0.95 : 0.85; p.rot = (Math.random() - 0.5) * 0.7; p.wob = 0.6 + Math.random() * 0.8;
-    p.tint = cell === 2 ? TINT[1] : pick(TINT);
+    p.tint = opts.tints ? pick(opts.tints) : cell === 2 ? TINT[1] : pick(TINT);
     p.nx = nx; p.nz = nz;
   }
   // level: how loud the song is at the lapa (0..1); (x, y, z) the doorway, n the outward normal
