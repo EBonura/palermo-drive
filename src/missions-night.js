@@ -3,8 +3,8 @@
 //      hooded guy walks up to the lapa; a balloon says the owner's line, the driver answers dismissively. There is nothing to buy, no
 //      items, no mechanics: the player can only drive off.
 //   2. the "appartati": cars parked at Monte Pellegrino's lookouts and in quiet corners of the Favorita, windows steamed up at night and
-//      the car gently rocking on its suspension. Strictly innuendo: the fog hides the glass, nobody is visible. If the lapa's headlights
-//      sweep over the car or the horn sounds nearby, the rocking stops, the windows flash and somebody yells. They need the whole-city
+//      the car gently rocking on its suspension. Strictly innuendo: the fog hides the glass, nobody is visible. Only the horn sounding
+//      nearby disturbs them (the rocking stops, the windows flash and somebody yells); the headlights do nothing. They need the whole-city
 //      tiles, so they are built only when the lapa gets near.
 // createNightLife(h) -> { update(dt, allowed), inZone() }. h = { env, say, groundAt, findSpot, isNight, worldOn, driverPos }
 // (helpers from src/missions.js). Lines and places: assets/missions/lines.js (SPACCIA, SPACCIA_ZONES, APPARTATI).
@@ -98,7 +98,7 @@ export function createNightLife(h) {
     // collision: the car is a solid box on the verge
     const cs = Math.cos(th), sn = Math.sin(th), W = (a, b) => [s.x + a * cs + b * sn, s.z - a * sn + b * cs], c = [W(-0.85, -1.8), W(0.85, -1.8), W(0.85, 1.8), W(-0.85, 1.8)];
     for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
-    Object.assign(s, { g, body, glass, gy, built: true, fog: 0, state: 'rock', at: 0, cd: 0, lit: 0, horn: false, ph: Math.random() * TAU, amp: 0, flash: 0, gT: 0, th });
+    Object.assign(s, { g, body, glass, gy, built: true, fog: 0, state: 'rock', at: 0, cd: 0, horn: false, ph: Math.random() * TAU, amp: 0, flash: 0, gT: 0, th });
   }
   addEventListener('pd-horn', e => { const d = e.detail; if (!d) return; for (const s of sites) if (s.built && isNight() && Math.hypot(s.x - d.x, s.z - d.z) < 45) s.horn = true; });
 
@@ -112,14 +112,14 @@ export function createNightLife(h) {
   const HEART_OPTS = { glyphs: [0], atlas: heartAtlas, tints: [[1, 0.13, 0.25], [1, 0.3, 0.55], [1, 0.45, 0.65]] };
 
   function disturb(s) {
-    s.state = 'angry'; s.at = 0; s.cd = 40; s.lit = 0; s.horn = false;
+    s.state = 'angry'; s.at = 0; s.cd = 40; s.horn = false;
     const head = () => ({ x: s.x, y: s.gy + 2.1, z: s.z });
     say(pick(APPARTATI.yell), head, 0.35);
     if (Math.random() < 0.6) say(pick(APPARTATI.yell), head, 2.6);
   }
   function updateAppartati(dt) {
     if (!sites.length) return;
-    const night = isNight(), fx = Math.sin(car.th), fz = Math.cos(car.th);
+    const night = isNight();
     for (const s of sites) {
       const dx = s.x - car.x, dz = s.z - car.z, d = Math.hypot(dx, dz);
       if (!s.built) { if (d < 600) { try { buildCar(s); } catch (e) { console.warn('[missions] appartati', s.o.id, e); s.built = true; s.g = null; } } continue; }
@@ -129,8 +129,7 @@ export function createNightLife(h) {
       s.g.visible = d < 900;
       if (!s.g.visible) continue;
       s.fog += ((night ? 1 : 0) - s.fog) * Math.min(1, 0.5 * dt);
-      if (night && s.cd <= 0 && s.state === 'rock' && d < 32 && d > 1) { if ((dx * fx + dz * fz) / d > 0.85) s.lit += dt; else s.lit = Math.max(0, s.lit - 2 * dt); if (s.lit > 0.5 || s.horn) disturb(s); }
-      else if (s.state === 'rock') s.lit = Math.max(0, s.lit - 2 * dt);
+      if (s.horn) { if (night && s.cd <= 0 && s.state === 'rock' && d < 32) disturb(s); s.horn = false; }   // only the horn (flagged by pd-horn) disturbs them; a horn heard out of range or in their cooldown is forgotten
       let target = night && s.state === 'rock' ? 1 : 0;
       if (s.state === 'angry') { s.at += dt; s.flash = s.at < 2.6 ? Math.max(0, Math.sin(s.at * 15)) * Math.exp(-s.at * 0.55) : 0; if (s.at > 8 || (s.at > 5 && d > 30)) { s.state = 'calm'; s.at = 0; } }
       else if (s.state === 'calm') { s.at += dt; s.flash = 0; if (s.at > 4) s.state = 'rock'; }

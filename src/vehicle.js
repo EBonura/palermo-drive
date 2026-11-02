@@ -139,7 +139,7 @@ export function createVehicle(env) {
   // ---------- state ----------
   const car = {
     x: 0, z: 0, th: 0, vx: 0, vz: 0, vf: 0, steer: 0, roll: 0, pitch: 0, lastVf: 0, lift: 0,
-    w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosAmt: 0, nosOn: false, nosLock: false,
+    w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosMax: 1.8, nosAmt: 0, nosOn: false, nosLock: false,
     psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu', type: 'calessino', kind: 'lapa',
     hop: 0, hopV: 0, gripLoss: 0, kickT: 0, kickSgn: 0, skid: 0,   // road wear: bounce spring, grip lost to a pothole, forced two-wheel lean / high-side, tyre scrub 0..1
     lean: 0,           // signed visual lean -1..1 (lapa: tip * side, bike: bank). net.js sends this.
@@ -316,11 +316,11 @@ export function createVehicle(env) {
     car.ax += ((vf - car.lastVf) / dt - car.ax) * Math.min(1, 8 * dt);
     car.lastVf = vf;
 
-    // nitro bar: burns while boosting, refills with speed and (a lot) with drifting
+    // nitro bar: burns while boosting, refills with speed and (a lot) with drifting; a stigghiola overcharges it past 1 (up to car.nosMax), which only burns off, never refills
     if (nosWant && !nosFree) car.nos = Math.max(0, car.nos - dt / T.nosTime);
     else {
       const sp01 = clamp(vf / (28 * SS), 0, 1);
-      car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 10, 0, 1)) * dt);
+      if (car.nos < 1) car.nos = Math.min(1, car.nos + (T.nosSpeedFill * sp01 + T.nosDriftFill * d * clamp(sa / 0.35, 0, 1) * clamp(vf / 10, 0, 1)) * dt);
     }
 
     // rebuild world velocity after the drive forces
@@ -469,10 +469,10 @@ export function createVehicle(env) {
   // ---------- nitro bar (own DOM element, outside the HUD corners) ----------
   const nosEl = document.createElement('div');
   nosEl.className = 'nosbar'; nosEl.hidden = true;
-  nosEl.innerHTML = '<span class="nosbar-l">NOS</span><span class="nosbar-t"><i></i></span>';
+  nosEl.innerHTML = '<span class="nosbar-l">NOS</span><span class="nosbar-t"><i></i><b></b></span>';
   document.body.appendChild(nosEl);
-  const nosFill = nosEl.querySelector('i');
-  let nosShown = -1, nosHidden = true;
+  const nosFill = nosEl.querySelector('i'), nosOver = nosEl.querySelector('b');
+  let nosShown = -1, overShown = -1, nosHidden = true;
 
   // ---------- camera ----------
   const camState = { mode: 0, init: false, pos: new THREE.Vector3() };
@@ -707,8 +707,10 @@ export function createVehicle(env) {
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
-    const q = car.flying && car.agl > 1 ? 1 : Math.round(car.nos * 200) / 200;   // the bar reads full while the nitro is free in the air
+    const aloft = car.flying && car.agl > 1, q = aloft ? 1 : Math.round(Math.min(1, car.nos) * 200) / 200;   // the bar reads full while the nitro is free in the air
     if (q !== nosShown) { nosShown = q; nosFill.style.transform = `scaleX(${q})`; }
+    const ov = Math.round(clamp((Math.max(aloft ? 1 : 0, car.nos) - 1) / (car.nosMax - 1), 0, 1) * 200) / 200;   // the overcharge from a stigghiola: a gold layer over the full bar
+    if (ov !== overShown) { overShown = ov; nosOver.style.transform = `scaleX(${ov})`; nosEl.classList.toggle('over', ov > 0); }
     nosEl.classList.toggle('on', car.nosAmt > 0.3);
     nosEl.classList.toggle('low', car.nos < 0.15 && car.nosAmt < 0.3);
     nosEl.classList.toggle('full', car.nos > 0.995);
