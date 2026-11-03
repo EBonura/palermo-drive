@@ -10,10 +10,14 @@
 //     wall grid, tagged with their panel (seg.fn). A car that meets one at breakSpeed or more (the sphere and classic collide() ask
 //     hooks.breakFence before pushing back) smashes it: the panel flies off as a spinning piece, the gap stays for the rest of the session (the
 //     `broken` set survives a tile being unloaded and loaded again). Slower, a fence is a wall.
+//   * street walls (kinds x worn plaster, s rough stone, q block, p hoarding, and w with a `rail` on top): the fences within 8 m of a carriageway are re-read by src/fence-walls.js and arrive
+//     here as walls carrying `fence`; they sit on the same 2.5 m pieces on the same line, break at the speed the fence did and push the car back as it did. A rail on a low wall is a panel of
+//     the railing or mesh instanced mesh that goes with its piece. ?nostreetwalls draws the fences as mapped.
 // Everything is baked at full detail only (like the building walls); the draw cost is four calls per tile at most.
 import * as THREE from 'three';
 import { Buf, groundY, hooks } from './core.js';
 import { wallMaterial, wallTextureSteps, LAYER } from './wall-tex.js';
+import { roadsideWalls } from './fence-walls.js';
 
 const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, POOL = 10;
 const KIND = {
@@ -23,7 +27,13 @@ const KIND = {
   c: { th: 1.3, col: ['#d6bd8e', '#cdb486', '#dcc597'] },
   j: { th: 0.55, col: ['#c2c0b6', '#b8b6ac'] },
   h: { th: 0.95, col: ['#4c6b34', '#44622f', '#55723a', '#3e5c2d'] },   // hedges: leafy clumps (the texture), a green block
+  // the street walls that replace the mapped fences beside a carriageway (src/fence-walls.js); they carry `fence`, so they collide and break as the fence did
+  x: { th: 0.35, col: ['#e2dccd', '#d6cdb6', '#cfc8b8', '#dcd0b4', '#c9c3b4', '#e6ddc8', '#d3bfa0'] },        // worn plaster: patched, posters, tags
+  s: { th: 0.5, col: ['#bcb39d', '#c8bea5', '#aca38d', '#d0c7ae', '#b6a98d'] },                    // rough stone (the rubble layer, at any height)
+  q: { th: 0.22, col: ['#cbc8bd', '#bfbcb2', '#d2cfc4', '#b7b4aa'] },                              // precast concrete or bare block (the concrete layer)
+  p: { th: 0.1, col: ['#8a9a86', '#b8b2a0', '#7f8c9a', '#a8654b', '#93928b', '#c9c1a8'] },       // hoarding: faded green, cream, blue-grey, rust, grey, beige
 };
+const LAYER_OF = { s: LAYER.r, q: LAYER.j };   // kinds that borrow a texture layer
 // the speed (m/s, effective, see below) at which a piece breaks. Hedge lightest, dry-stone and a low wall next, a taller wall more, a concrete barrier the most; a retaining wall that holds up
 // real ground (a drop of 0.8 m or more between its two sides) and a city wall do not break at all (0)
 const breakSpeed = (k, h, drop) => k === 'h' ? 1.8 : k === 'd' ? 3.6 : k === 'w' ? (h < 1.6 ? 4.0 : h < 2.2 ? 5.2 : 6.6) : k === 'r' ? (drop < 0.8 ? 5.4 : 0) : k === 'j' ? 9.0 : 0;
@@ -153,6 +163,7 @@ const HEDGECOL = ['#4c6b34', '#44622f', '#55723a', '#3e5c2d'].map(h => new THREE
 function breakWall(f, vs, nx, nz, car, vsIn) {
   f.gone = true; broken.add(f.id);
   const m = f.tile && f.tile.wall; if (m) { const pos = m.geometry.attributes.position; for (let i = f.v0; i < f.v1; i++) pos.setXYZ(i, f.x, f.y, f.z); pos.needsUpdate = true; }
+  if (f.rails) for (const q of f.rails) { const m = f.tile && f.tile.mesh[q.st]; if (m) { _m.makeScale(0, 0, 0); m.setMatrixAt(q.i, _m); m.instanceMatrix.needsUpdate = true; } q.gone = true; }
   debrisPools();
   const k = 2 + vs * 0.45, hedge = f.kind === 'hedge', n = hedge ? 5 : 9;
   for (let q = 0; q < n; q++) {   // chunks (a hedge: green clumps of twigs)
@@ -168,11 +179,14 @@ function breakWall(f, vs, nx, nz, car, vsIn) {
   else for (let q = 0; q < 8; q++) {   // and dust-coloured flakes
     spawnLeaf(f.x + (Math.random() - 0.5) * f.len, f.y + Math.random() * f.h, f.z + (Math.random() - 0.5) * f.len, -nx * k * Math.random() * 0.5 + (Math.random() - 0.5) * 3, 0.5 + Math.random() * 2.5, -nz * k * Math.random() * 0.5 + (Math.random() - 0.5) * 3, 0.14 + Math.random() * 0.14, f.col, 1.4 + Math.random());
   }
-  const loss = LOSS[f.kind];
-  const sp0 = Math.hypot(car.vx, car.vz), share = sp0 > 0.1 ? Math.min(1, Math.max(0.3, vsIn / sp0 + 0.25)) : 1;   // a square hit costs the full share of the speed, a scrape less
-  car.vx *= 1 - loss * share; car.vz *= 1 - loss * share;
+  if (f.fence) { car.vx += nx * vs * 0.22; car.vz += nz * vs * 0.22; }   // a street wall that was a fence: the same little push-back as a smashed panel
+  else {
+    const loss = LOSS[f.kind];
+    const sp0 = Math.hypot(car.vx, car.vz), share = sp0 > 0.1 ? Math.min(1, Math.max(0.3, vsIn / sp0 + 0.25)) : 1;   // a square hit costs the full share of the speed, a scrape less
+    car.vx *= 1 - loss * share; car.vz *= 1 - loss * share;
+  }
   if (car.vf !== undefined) car.vf = car.vx * Math.sin(car.th) + car.vz * Math.cos(car.th);
-  try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: f.x, z: f.z, kind: f.kind === 'hedge' ? 'hedge' : 'wall' } })); } catch (e) { /* no events */ }
+  try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: f.x, z: f.z, kind: f.fence ? 'fence' : f.kind === 'hedge' ? 'hedge' : 'wall' } })); } catch (e) { /* no events */ }
 }
 
 // ---------- the collision hook ----------
@@ -222,9 +236,11 @@ class WBuf extends Buf {
   }
 }
 const OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nofences');   // ?nofences: debug, the world as it was before walls and fences
-export function* buildFences(list, key) {
+const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
+export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
   if (!list || !list.length || !wallGrid || OFF) return null;
   panelAssets();
+  if (ctx && !NOROAD) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas);
   yield* wallTextureSteps();   // the wall textures, a layer per step, the first time only
   const group = new THREE.Group(); group.name = 'fences';
   const wall = new WBuf(), panels = [[], [], []], wallPieces = [];
@@ -232,7 +248,7 @@ export function* buildFences(list, key) {
   const tk = 'f' + key;
   const addSeg = (ax, az, bx, bz, fn) => { const s = [ax, az, bx, bz]; if (fn) s.fn = fn; wallGrid.addSeg(tk, s, ax, az, bx, bz); };
   for (let li = 0; li < list.length; li++) {
-    const r = list[li], pts = resample(r.p, r.k === 'f' || r.k === 'g' ? PANEL : 4);
+    const r = list[li], pts = resample(r.p, r.k === 'f' || r.k === 'g' || r.fence ? PANEL : 4);
     if ((++n & 7) === 0) yield;
     if (r.k === 'f' || r.k === 'g') {
       const st = r.k === 'g' ? 0 : r.s || 0;
@@ -248,7 +264,7 @@ export function* buildFences(list, key) {
     }
     // solid and breakable walls
     const K = KIND[r.k] || KIND.w, hw = K.th / 2, base = new THREE.Color(K.col[(rnd01(r.p[0], r.p[1]) * K.col.length) | 0]);
-    const top = new THREE.Color().copy(base).multiplyScalar(1.1), foot = 0.76, LY = LAYER[r.k] || LAYER.w, CAP = LAYER.cap;
+    const top = new THREE.Color().copy(base).multiplyScalar(1.1), foot = 0.76, LY = LAYER_OF[r.k] || LAYER[r.k] || LAYER.w, CAP = LAYER.cap;
     let sAcc = 0;
     const V = pts.map((q, i) => {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = hh(dx, dz) || 1, nx = -dz / l, nz = dx / l;
@@ -260,7 +276,7 @@ export function* buildFences(list, key) {
     });
     for (let i = 0; i + 1 < V.length; i++) {
       const a = V[i], b = V[i + 1], wid = key + ':w' + li + ':' + i, hgt = r.k === 'r' ? Math.max(a.y1 - a.y0, b.y1 - b.y0) : r.h;
-      const thr = breakSpeed(r.k, hgt, Math.max(a.drop, b.drop)), breakable = thr > 0;   // see breakSpeed: a wall that holds up ground, a city wall stay solid
+      const thr = r.fence ? BREAK_SPEED : breakSpeed(r.k, hgt, Math.max(a.drop, b.drop)), breakable = thr > 0;   // see breakSpeed: a wall that holds up ground, a city wall stay solid
       if (breakable && broken.has(wid)) continue;   // smashed earlier in the session: the gap stays
       const vStart = wall.p.length / 3, E = [a, b];
       const L = [[a.x + a.nx * hw, a.z + a.nz * hw], [b.x + b.nx * hw, b.z + b.nz * hw]], R = [[a.x - a.nx * hw, a.z - a.nz * hw], [b.x - b.nx * hw, b.z - b.nz * hw]];
@@ -281,10 +297,14 @@ export function* buildFences(list, key) {
       for (const [P, e] of [[L, 0], [L, 1], [R, 1], [L, 0], [R, 1], [R, 0]]) wall.v(P[e][0], E[e].y1, P[e][1], 0, 1, 0, top, P[e][0] / CAP.pw, P[e][1] / CAP.ph, 1);
       const len = hh(b.x - a.x, b.z - a.z);
       if (len > 0.3) {
-        let fn = null;
+        let fn = null, rails = null;
+        if (r.rail && nPanels < MAX_PANELS) {   // a rail on the wall: a panel on top of this piece, gone with it
+          const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, st = r.rail.s, rp = { id: wid + 'r', st, x: mx, z: mz, y: (a.y1 + b.y1) / 2 - 0.04, yaw: Math.atan2(-(b.z - a.z), b.x - a.x), len, h: r.rail.h, i: panels[st].length, tile: null, gone: false };
+          panels[st].push(rp); nPanels++; rails = [rp];
+        }
         if (breakable) {
           const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, y0 = Math.min(a.y0, b.y0);
-          fn = { id: wid, wk: true, kind: r.k === 'h' ? 'hedge' : r.k === 'j' ? 'barrier' : (r.k === 'd' || r.k === 'r' || hgt < 1.9) ? 'low' : 'wall', thr, layer: LY.i, v0: vStart, v1: wall.p.length / 3, x: mx, z: mz, y: y0 + 0.45, h: hgt, len, dx: (b.x - a.x) / len, dz: (b.z - a.z) / len, col: base, tile: null, gone: false };
+          fn = { id: wid, wk: true, kind: r.k === 'h' ? 'hedge' : r.k === 'j' ? 'barrier' : (r.k === 'd' || r.k === 'r' || hgt < 1.9) ? 'low' : 'wall', fence: !!r.fence, rails, thr, layer: LY.i, v0: vStart, v1: wall.p.length / 3, x: mx, z: mz, y: y0 + 0.45, h: hgt, len, dx: (b.x - a.x) / len, dz: (b.z - a.z) / len, col: base, tile: null, gone: false };
           wallPieces.push(fn); nBreak += len;
         } else nSolid += len;
         addSeg(a.x, a.z, b.x, b.z, fn);

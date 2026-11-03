@@ -17,7 +17,7 @@
 // so the loading screen and the start transition lift as soon as the view is complete instead of waiting for the whole ring.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
-import { streetsIter, roadMarksIter, TEX as GROUND_TEX } from './streets.js';
+import { streetsIter, roadMarksIter, TEX as GROUND_TEX, histW } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
 import { treeGeo as makeTreeGeo } from './treegeo.js';
@@ -99,7 +99,7 @@ const C = {
   rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#7a7a4a'),
   beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#b5a26a'),
   farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), olive: new THREE.Color('#939a66'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
-  dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'), pave: new THREE.Color('#d9d2c2'),
+  dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'), pave: new THREE.Color('#d9d2c2'), yard: new THREE.Color('#c4c0b4'),
 };
 // OSM land cover (tools/tiles.py areas[].k) that tints the terrain: colour, strength and priority (first match wins, lower = stronger claim)
 const COVER = {
@@ -131,10 +131,10 @@ function terrainMaterial() {
   const m = new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   const k = (1 / GROUND_TEX.terrain.metres).toFixed(6);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.paveMap = { value: GROUND_TEX.balate }; sh.uniforms.rkNoise = { value: ROCK_NOISE };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0, dtL = 0.8; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap, rkNoise;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
+    sh.uniforms.paveMap = { value: GROUND_TEX.balate }; sh.uniforms.yardMap = { value: GROUND_TEX.yard }; sh.uniforms.rkNoise = { value: ROCK_NOISE };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave; attribute float aYard; varying float vYard;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave; vYard = aYard;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0, dtL = 0.8; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave, vYard; uniform sampler2D paveMap, yardMap, rkNoise;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
         { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
@@ -151,6 +151,11 @@ function terrainMaterial() {
           }
           // built-up ground the tile data has no paving polygon for (squares, courtyards, yards between blocks): worn limestone slabs, the same texture as the street paving layer
           if ( vPave > 0.01 ) sampledDiffuseColor = mix( sampledDiffuseColor, vec4( texture2D( paveMap, vTpPos.xz * ${(1 / GROUND_TEX.balate.metres).toFixed(6)} ).rgb * 1.25, 1.0 ), vPave * ( 1.0 - side ) );
+          // the same kind of ground outside the historic centre (histW, src/streets.js): forecourts, lots and yards between the blocks are rough asphalt, dirt and weeds, not slabs; two samples at unrelated scales so the 12 m repeat does not show
+          if ( vYard > 0.01 ) {
+            vec2 yP = vTpPos.xz; vec3 y1 = texture2D( yardMap, yP * ${(1 / GROUND_TEX.yard.metres).toFixed(6)} ).rgb, y2 = texture2D( yardMap, vec2( 0.8387 * yP.x - 0.5446 * yP.y, 0.5446 * yP.x + 0.8387 * yP.y ) * 0.0331 + vec2( 0.4, 0.2 ) ).rgb;
+            sampledDiffuseColor = mix( sampledDiffuseColor, vec4( y1 * mix( vec3( 1.0 ), y2 * 1.25, 0.6 ) * 2.3, 1.0 ), vYard * ( 1.0 - side ) );
+          }
         }
         dtL = dot( sampledDiffuseColor.rgb, vec3( 0.3333 ) );
         diffuseColor *= sampledDiffuseColor;
@@ -159,7 +164,7 @@ function terrainMaterial() {
       .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vTpPos').replaceAll('HDT', 'dtL').replaceAll('HNY', 'abs( normalize( vTpNrm ).y )') + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-hz-rk';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-yard-hz-rk';
   return m;
 }
 
@@ -428,40 +433,46 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // within 45 m; terrainMesh paves the ground that is both close to walls and in a built-up quarter, unless a land cover polygon (park, wood, sand, field) says otherwise.
   const PV_C = 5, PV_M = 50, PV_N = Math.round((T + 2 * PV_M) / PV_C) + 1;
   function paveField(t) {
-    const x0 = t.i * T - PV_M, z0 = t.j * T - PV_M, n = PV_N, seed = new Uint8Array(n * n), x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C;
+    const x0 = t.i * T - PV_M, z0 = t.j * T - PV_M, n = PV_N, seed = new Uint8Array(n * n), seedR = new Uint8Array(n * n), x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C;   // seedR: the edges of the raised and paving polygons
     let any = 0;
-    const mark = (ax, az, bx, bz) => {
+    const mark = (ax, az, bx, bz, seed) => {
       const len = Math.hypot(bx - ax, bz - az), k = Math.max(1, Math.ceil(len / (PV_C * 0.5)));
       for (let q = 0; q <= k; q++) {
         const x = ax + (bx - ax) * q / k, z = az + (bz - az) * q / k, i = Math.round((x - x0) / PV_C), j = Math.round((z - z0) / PV_C);
         if (i >= 0 && j >= 0 && i < n && j < n) { seed[j * n + i] = 1; any++; }
       }
     };
-    const ring = (p) => {
+    const ring = (p, sd = seed) => {
       const m = p.length >> 1; if (m < 3) return;
       let lx = 1e9, hx = -1e9, lz = 1e9, hz = -1e9;
       for (let q = 0; q < m; q++) { const x = p[2 * q], z = p[2 * q + 1]; if (x < lx) lx = x; if (x > hx) hx = x; if (z < lz) lz = z; if (z > hz) hz = z; }
       if (hx < x0 || lx > x1 || hz < z0 || lz > z1) return;
-      for (let q = 0; q < m; q++) { const r = (q + 1) % m; mark(p[2 * q], p[2 * q + 1], p[2 * r], p[2 * r + 1]); }
+      for (let q = 0; q < m; q++) { const r = (q + 1) % m; mark(p[2 * q], p[2 * q + 1], p[2 * r], p[2 * r + 1], sd); }
     };
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
       const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
       if (d && d.buildings) for (const b of d.buildings) { if (b.yb) continue; ring(b.p); if (b.holes) for (const h of b.holes) ring(h); }
+      if (d && d.streets) for (const l of ['raised', 'paving']) for (const poly of d.streets[l] || []) ring(poly[0], seedR);
     }
     if (!any) return null;
-    // distance to the nearest wall cell (chamfer, metres)
-    const dist = new Float32Array(n * n).fill(1e4), D2 = PV_C * Math.SQRT2;
-    for (let q = 0; q < n * n; q++) if (seed[q]) dist[q] = 0;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-      const q = j * n + i; let v = dist[q];
-      if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
-      dist[q] = v;
-    }
-    for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
-      const q = j * n + i; let v = dist[q];
-      if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
-      dist[q] = v;
-    }
+    // distance to the nearest wall cell, and to the nearest edge of a pavement or square polygon (chamfer, metres)
+    const D2 = PV_C * Math.SQRT2;
+    const chamfer = (sd) => {
+      const dist = new Float32Array(n * n).fill(1e4);
+      for (let q = 0; q < n * n; q++) if (sd[q]) dist[q] = 0;
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const q = j * n + i; let v = dist[q];
+        if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
+        dist[q] = v;
+      }
+      for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
+        const q = j * n + i; let v = dist[q];
+        if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
+        dist[q] = v;
+      }
+      return dist;
+    };
+    const dist = chamfer(seed), dr = chamfer(seedR);
     // crowding: share of the cells within 45 m that hold a wall (summed-area table)
     const S = new Int32Array((n + 1) * (n + 1)), dens = new Float32Array(n * n), R = 9;
     for (let j = 0; j < n; j++) { let row = 0; for (let i = 0; i < n; i++) { row += seed[j * n + i]; S[(j + 1) * (n + 1) + i + 1] = S[j * (n + 1) + i + 1] + row; } }
@@ -469,19 +480,22 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const a = Math.max(0, i - R), b = Math.min(n, i + R + 1), c = Math.max(0, j - R), e = Math.min(n, j + R + 1);
       dens[j * n + i] = (S[e * (n + 1) + b] - S[c * (n + 1) + b] - S[e * (n + 1) + a] + S[c * (n + 1) + a]) / ((b - a) * (e - c));
     }
-    return { x0, z0, n, dist, dens };
+    return { x0, z0, n, dist, dens, dr };
   }
   const paveAt = (f, a, x, z) => {   // bilinear sample of one of the field arrays
     const fx = Math.min(f.n - 1.001, Math.max(0, (x - f.x0) / PV_C)), fz = Math.min(f.n - 1.001, Math.max(0, (z - f.z0) / PV_C)), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, q = j * f.n + i;
     return (a[q] * (1 - tx) + a[q + 1] * tx) * (1 - tz) + (a[q + f.n] * (1 - tx) + a[q + f.n + 1] * tx) * tz;
   };
 
+  // how crowded with walls the ground is within 45 m (0 to 1), asked for by the street layers that may turn a wide pavement into a yard (src/streets.js); the field is built on the first question
+  const densOf = t => { let f = null; return (x, z) => { f = f || paveField(t) || { n: 0 }; return f.n ? paveAt(f, f.dens, x, z) : 0; }; };
+
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), pvf = paveField(t);
+    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), yar = new Float32Array(n * n), pvf = paveField(t);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
@@ -512,8 +526,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         for (const pz of PAVEZ) if (x > pz.x0 - step && x < pz.x1 + step && z > pz.z0 - step && z < pz.z1 + step && inPoly(pz.pts, x, z)) { zoned = true; break; }
         if (zoned) { pav[j * n + i] = 1; _c.lerp(C.pave, 0.9); }
         else if (pvf && !covered && y > 1.6 && !(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1)) {   // built-up ground with no paving polygon and no land cover over it
-          const w = (1 - smooth(28, 70, paveAt(pvf, pvf.dist, x, z))) * smooth(0.06, 0.16, paveAt(pvf, pvf.dens, x, z)) * (1 - smooth(0.16, 0.34, slope));
-          if (w > 0.004) { pav[j * n + i] = w; _c.lerp(C.pave, w * 0.9); }
+          const dw = paveAt(pvf, pvf.dist, x, z), dp = paveAt(pvf, pvf.dr, x, z);
+          const w = (1 - smooth(28, 70, dw)) * smooth(0.06, 0.16, paveAt(pvf, pvf.dens, x, z)) * (1 - smooth(0.16, 0.34, slope)), h = histW(x, z);
+          // the first 3 m of ground beside the edge of a pavement or square polygon with a wall near (the apron of a row of shops or garages) is part of that pavement wherever it is; open ground further out is not
+          const sl = Math.max(h, (1 - smooth(2.5, 4.5, dp)) * (1 - smooth(5, 8, dw)));
+          if (w * sl > 0.004) { pav[j * n + i] = w * sl; _c.lerp(C.pave, w * sl * 0.9); }   // old town, or a strip: stone slabs
+          if (w * (1 - sl) > 0.004) { yar[j * n + i] = w * (1 - sl); _c.lerp(C.yard, Math.min(1, w * (1 - sl) * 1.15)); }   // elsewhere: a yard (see histW)
         }
         if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
@@ -529,8 +547,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const nb = n * n, total = nb + sk.length;
     const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
     P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
-    const PA = new Float32Array(total); PA.set(pav);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; });
+    const PA = new Float32Array(total), YA = new Float32Array(total); PA.set(pav); YA.set(yar);
+    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; YA[nb + q] = yar[v]; });
     const idx = [];
     for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
@@ -544,6 +562,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('color', new THREE.BufferAttribute(Cc, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
     geo.setAttribute('aPave', new THREE.BufferAttribute(PA, 1));
+    geo.setAttribute('aYard', new THREE.BufferAttribute(YA, 1));
     geo.setIndex(new THREE.BufferAttribute(total < 65536 ? new Uint16Array(idx) : new Uint32Array(idx), 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
     m.userData.tris = idx.length / 3;
@@ -1019,7 +1038,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
@@ -1036,7 +1055,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
@@ -1046,7 +1065,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (mk) setPart(t, 'paint', mk);
     }
     t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) setPart(t, 'quays', qg); }
-    t.stage = 'fences'; { const fg = yield* buildFences(raveFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences)), t.k); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate; the park wall of Viale Ercole has a gap where the track to the rave leaves the road)
+    t.stage = 'fences'; { const fg = yield* buildFences(raveFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences)), t.k, t.data); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate; the park wall of Viale Ercole has a gap where the track to the rave leaves the road)
     t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;

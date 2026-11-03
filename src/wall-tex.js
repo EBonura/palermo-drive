@@ -17,8 +17,10 @@ export const LAYER = {
   j: { i: 4, pw: 3.0, ph: 1.5 },   // cast concrete, board marked, with panel seams
   h: { i: 5, pw: 2.4, ph: 2.4 },   // hedge: leafy clumps
   cap: { i: 6, pw: 2.0, ph: 2.0 }, // the top of a wall: coping stone
+  x: { i: 7, pw: 4.0, ph: 3.0 },   // worn city wall: patched lime wash, torn posters and black-bordered notices, spray tags (long street walls, src/fence-walls.js)
+  p: { i: 8, pw: 4.0, ph: 3.0 },   // hoarding: corrugated sheet on posts, rust, pasted bills, tags
 };
-const N_LAYERS = 7;
+const N_LAYERS = 9;
 
 // run `fn(x, y)` for the element at (x, y) of size (w, h) and for its copies across the edges of the tile, so the texture repeats without a seam
 function wrap(x, y, w, h, fn) {
@@ -111,6 +113,68 @@ const PAINT = {
       wrap(x - w, y - w, 2 * w, 2 * w, (X, Y) => { g.save(); g.translate(X, Y); g.rotate(a); g.fillStyle = rgba(c, 0.95); g.beginPath(); g.ellipse(0, 0, w, h, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(20,28,12,0.28)'; g.fillRect(-w * 0.6, -0.5, w * 1.2, 1); g.restore(); });
     }
     for (let i = 0; i < 160; i++) { const x = r() * S, y = r() * S, rr = 4 + r() * 10; wrap(x - rr, y - rr, 2 * rr, 2 * rr, (X, Y) => { g.fillStyle = 'rgba(22,34,14,0.38)'; g.beginPath(); g.ellipse(X, Y, rr, rr * 0.6, r() * 3, 0, 7); g.fill(); }); }
+  },
+  x(g, r, sx, sy) {   // a worn street wall: the lime wash gone patchy, repairs in other washes, a band of torn posters and death notices at hand height, spray tags
+    g.fillStyle = '#e6dfcf'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 70; i++) { const x = r() * S, y = r() * S, rx = 30 + r() * 80, ry = 24 + r() * 60, c = r() < 0.6 ? rgba([125, 104, 72], 0.02 + r() * 0.04) : rgba([255, 252, 240], 0.03 + r() * 0.05); wrap(x - rx, y - ry, 2 * rx, 2 * ry, (X, Y) => { g.fillStyle = c; g.beginPath(); g.ellipse(X + rx, Y + ry, rx, ry, r() * 3, 0, 7); g.fill(); }); }
+    const tones = [[212, 198, 168], [198, 198, 188], [226, 204, 194], [200, 184, 158], [188, 178, 160], [222, 214, 190]];
+    for (let i = 0; i < 7; i++) {   // repair patches: ragged rectangles of a slightly different wash, a darker edge
+      const w = (0.4 + r() * 1.1) * sx, h = (0.3 + r() * 0.8) * sy, x = r() * S, y = r() * S, c = tones[(r() * tones.length) | 0];
+      wrap(x, y, w, h, (X, Y) => { g.beginPath(); g.moveTo(X, Y); for (let q = 1; q <= 6; q++) g.lineTo(X + w * q / 6, Y + (r() - 0.5) * 5); for (let q = 1; q <= 5; q++) g.lineTo(X + w + (r() - 0.5) * 5, Y + h * q / 5); for (let q = 5; q >= 0; q--) g.lineTo(X + w * q / 6, Y + h + (r() - 0.5) * 5); for (let q = 4; q >= 1; q--) g.lineTo(X + (r() - 0.5) * 5, Y + h * q / 5); g.closePath(); g.fillStyle = rgba(c, 0.85); g.fill(); g.strokeStyle = 'rgba(80,66,48,0.35)'; g.lineWidth = 1.2; g.stroke(); });
+    }
+    for (let i = 0; i < 34; i++) {   // rain streaks
+      const x = r() * S, y = r() * S * 0.55, len = (0.4 + r() * 1.4) * sy, w = (0.015 + r() * 0.05) * sx, a = 0.05 + r() * 0.1;
+      wrap(x, y, w, len, (X, Y) => { const gr = g.createLinearGradient(0, Y, 0, Y + len); gr.addColorStop(0, rgba([98, 82, 58], a)); gr.addColorStop(1, rgba([98, 82, 58], 0)); g.fillStyle = gr; g.fillRect(X, Y, w, len); });
+    }
+    // posters: pasted over one another along a band 0.5 to 1.5 m below the top; an off-white bill, a yellow one, a red one, a blue one, and the black-bordered death notice
+    const pal = [[238, 236, 226], [232, 206, 90], [208, 74, 64], [112, 150, 204], [240, 168, 90], [244, 244, 238], [226, 226, 220], [238, 236, 226]];
+    let px = r() * 0.3 * sx;
+    while (px < S - 0.2 * sx) {
+      const pw = (0.45 + r() * 0.5) * sx, ph = (0.6 + r() * 0.6) * sy, py = (0.4 + r() * 0.45) * sy, notice = r() < 0.22, c = notice ? [244, 244, 238] : pal[(r() * pal.length) | 0];
+      wrap(px, py, pw, ph, (X, Y) => {
+        g.fillStyle = 'rgba(40,34,26,0.25)'; g.fillRect(X + 2, Y + 2, pw, ph);   // its shadow
+        g.fillStyle = rgba(c, 1); g.fillRect(X, Y, pw, ph);
+        if (notice) { g.strokeStyle = '#1c1b1a'; g.lineWidth = 3; g.strokeRect(X + 3, Y + 3, pw - 6, ph - 6); g.fillStyle = '#1c1b1a'; g.fillRect(X + pw * 0.38, Y + ph * 0.12, pw * 0.24, ph * 0.1); }   // the cross
+        else { g.fillStyle = rgba(jit(c, 0.62), 0.9); g.fillRect(X + pw * 0.08, Y + ph * 0.08, pw * 0.84, ph * (0.18 + r() * 0.2)); }   // the headline
+        for (let q = 0; q < 6; q++) { g.fillStyle = 'rgba(30,28,26,0.55)'; g.fillRect(X + pw * 0.1, Y + ph * (0.5 + q * 0.07), pw * (0.4 + r() * 0.45), 1.6); }   // lines of print
+        if (r() < 0.7) { g.fillStyle = rgba([232, 224, 206], 1); g.beginPath(); const t = (0.15 + r() * 0.3) * Math.min(pw, ph); const c0 = r() < 0.5; g.moveTo(X + (c0 ? 0 : pw), Y + ph); g.lineTo(X + (c0 ? t : pw - t), Y + ph); g.lineTo(X + (c0 ? 0 : pw), Y + ph - t); g.fill(); }   // a torn corner, the wall showing
+        g.strokeStyle = 'rgba(30,26,20,0.35)'; g.lineWidth = 1; g.strokeRect(X, Y, pw, ph);
+      });
+      px += pw * (r() < 0.4 ? 0.75 : 1.0) + (0.05 + r() * 0.9) * sx;
+    }
+    for (let i = 0; i < 4; i++) {   // spray tags: a loose scrawl and a stroke, low on the wall
+      let x = r() * S, y = (1.1 + r() * 1.5) * sy; const col = ['rgba(20,20,22,0.85)', 'rgba(30,60,140,0.8)', 'rgba(170,30,30,0.8)', 'rgba(20,20,22,0.85)'][i];
+      g.strokeStyle = col; g.lineWidth = 3 + r() * 3; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 9; k++) { x += (r() - 0.35) * 26; y += (r() - 0.5) * 34; g.lineTo(x, y); }
+      g.stroke();
+    }
+    g.lineCap = 'butt';
+    speckles(g, r, 5000, ['rgba(80,66,46,0.10)', 'rgba(255,255,248,0.10)', 'rgba(110,95,70,0.08)']);
+  },
+  p(g, r, sx, sy) {   // hoarding: corrugated sheets (2 m wide) on dark posts, bolts and rust runs, a grid of pasted bills, a tag, dirt at the foot; near neutral so the vertex colour is the paint
+    g.fillStyle = '#c8c6c0'; g.fillRect(0, 0, S, S);
+    const rib = 0.1 * sx;
+    for (let x = 0; x < S; x += rib) { g.fillStyle = 'rgba(255,255,250,0.18)'; g.fillRect(x, 0, rib * 0.35, S); g.fillStyle = 'rgba(30,28,24,0.2)'; g.fillRect(x + rib * 0.55, 0, rib * 0.4, S); }
+    for (let i = 0; i < 30; i++) { const x = r() * S, y = r() * S, rx = 20 + r() * 70, ry = 20 + r() * 60; wrap(x - rx, y - ry, 2 * rx, 2 * ry, (X, Y) => { g.fillStyle = r() < 0.5 ? rgba([40, 34, 26], 0.05 + r() * 0.06) : rgba([255, 255, 248], 0.05 + r() * 0.06); g.beginPath(); g.ellipse(X + rx, Y + ry, rx, ry, r() * 3, 0, 7); g.fill(); }); }
+    for (let x = 0; x < S; x += 2.0 * sx) {   // the posts every 2 m, the bolts down them
+      g.fillStyle = 'rgba(36,34,30,0.8)'; g.fillRect(x - 0.05 * sx, 0, 0.1 * sx, S);
+      for (const yy of [0.2, 1.0, 1.8, 2.6]) { g.fillStyle = 'rgba(20,18,16,0.7)'; g.beginPath(); g.arc(x + 0.12 * sx, yy * sy, 2.6, 0, 7); g.fill(); const gr = g.createLinearGradient(0, yy * sy, 0, yy * sy + 0.5 * sy); gr.addColorStop(0, 'rgba(140,70,30,0.45)'); gr.addColorStop(1, 'rgba(140,70,30,0)'); g.fillStyle = gr; g.fillRect(x + 0.1 * sx, yy * sy, 4, 0.5 * sy); }
+    }
+    for (let i = 0; i < 18; i++) { const x = r() * S, y = r() * S * 0.6, len = (0.3 + r() * 1.2) * sy, w = (0.02 + r() * 0.06) * sx; wrap(x, y, w, len, (X, Y) => { const gr = g.createLinearGradient(0, Y, 0, Y + len); gr.addColorStop(0, 'rgba(130,66,32,0.4)'); gr.addColorStop(1, 'rgba(130,66,32,0)'); g.fillStyle = gr; g.fillRect(X, Y, w, len); }); }
+    // a run of identical pasted bills along one sheet, hand high, with a gap where one was torn off
+    const bx = (r() < 0.5 ? 0.15 : 2.15) * sx, bw = 0.42 * sx, bh = 0.62 * sy, col = [[238, 234, 222], [238, 234, 222], [236, 224, 176], [228, 196, 184], [204, 216, 226]][(r() * 5) | 0];   // paper, not paint
+    for (let k = 0; k < 4; k++) {
+      if (k === 2 && r() < 0.6) continue;
+      const X = bx + k * (bw + 0.02 * sx), Y = 0.9 * sy;
+      g.fillStyle = rgba(col, 1); g.fillRect(X, Y, bw, bh); g.fillStyle = rgba(jit(col, 0.8), 0.9); g.fillRect(X + 3, Y + 3, bw - 6, bh * 0.3);
+      for (let q = 0; q < 5; q++) { g.fillStyle = 'rgba(30,28,26,0.5)'; g.fillRect(X + 5, Y + bh * (0.45 + q * 0.09), bw * (0.4 + r() * 0.45), 1.5); }
+      g.strokeStyle = 'rgba(30,26,20,0.35)'; g.strokeRect(X, Y, bw, bh);
+    }
+    let x = r() * S, y = (1.9 + r() * 0.8) * sy; g.strokeStyle = 'rgba(20,20,22,0.8)'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 8; k++) { x += (r() - 0.3) * 24; y += (r() - 0.5) * 30; g.lineTo(x, y); }
+    g.stroke(); g.lineCap = 'butt';
+    const gr = g.createLinearGradient(0, S * 0.8, 0, S); gr.addColorStop(0, 'rgba(60,50,38,0)'); gr.addColorStop(1, 'rgba(60,50,38,0.3)'); g.fillStyle = gr; g.fillRect(0, S * 0.8, S, S * 0.2);
+    speckles(g, r, 4000, ['rgba(0,0,0,0.10)', 'rgba(255,255,255,0.10)']);
   },
   cap(g, r, sx, sy) {   // coping: pale slabs with fine joints and a little weathering
     g.fillStyle = '#d9d3c4'; g.fillRect(0, 0, S, S);

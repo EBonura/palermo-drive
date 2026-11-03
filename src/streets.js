@@ -4,7 +4,7 @@
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
 import { groundY, Buf, pairs, canvasTex, rnd, speckle } from './core.js';
-import { gardenDraw, gardenPatch } from './gardens.js';
+import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 
 export const CURB = 0.15;
 
@@ -68,6 +68,35 @@ export const TEX = {
     for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '104,98,84' : '140,131,112'},${rnd(0.12, 0.3)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 46), rnd(8, 28), rnd(0, 3), 0, 7); g.fill(); }
     speckle(g, S, 7000, ['#9a937f', '#736c5a', '#a39c88', '#675f4e', '#8a8370'], 1, 3);
   }, 3),
+  yard: canvasTex(512, (g, S) => { // forecourts, lots and wide verges of the outskirts: cracked sun-bleached asphalt, packed dirt, dust, tufts of dry weeds (seamless: every blob is drawn at its nine wrapped positions)
+    const all = fn => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+    g.fillStyle = '#a19e92'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 46; i++) { // big soft patches: asphalt grey, bare earth, pale dust
+      const x = rnd(0, S), y = rnd(0, S), rx = rnd(40, 150), ry = rnd(30, 110), a = rnd(0, 3), c = Math.random(), col = c < 0.58 ? '128,126,118' : c < 0.76 ? '178,166,138' : '198,193,178';
+      g.fillStyle = `rgba(${col},${rnd(0.18, 0.4)})`; all(() => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, 7); g.fill(); });
+    }
+    for (let i = 0; i < 4; i++) { // an asphalt patch with a ragged edge, and a repair slab inside it
+      const x = rnd(0, S), y = rnd(0, S), w = rnd(110, 230), h = rnd(70, 150), a = rnd(-0.3, 0.3);
+      all(() => { g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = 'rgba(112,110,105,0.5)'; g.beginPath(); g.moveTo(0, 0);
+        for (let k = 1; k <= 10; k++) g.lineTo(w * k / 10, rnd(-5, 5)); for (let k = 1; k <= 7; k++) g.lineTo(w + rnd(-6, 6), h * k / 7); for (let k = 9; k >= 0; k--) g.lineTo(w * k / 10, h + rnd(-5, 5)); for (let k = 6; k >= 1; k--) g.lineTo(rnd(-6, 6), h * k / 7);
+        g.closePath(); g.fill(); g.strokeStyle = 'rgba(64,62,58,0.4)'; g.lineWidth = 1.5; g.stroke();
+        g.fillStyle = 'rgba(122,120,115,0.45)'; g.fillRect(w * 0.15, h * 0.2, w * 0.4, h * 0.45); g.restore(); });
+    }
+    const weeds = [];
+    for (let i = 0; i < 16; i++) { // cracks wander across; tufts grow out of them
+      let x = rnd(0, S), y = rnd(0, S), a = rnd(0, 6.28); const pts = [[x, y]];
+      for (let k = 0; k < 14; k++) { a += rnd(-0.7, 0.7); x += Math.cos(a) * rnd(8, 22); y += Math.sin(a) * rnd(8, 22); pts.push([x, y]); if (Math.random() < 0.25) weeds.push([x, y]); }
+      g.strokeStyle = `rgba(70,68,62,${rnd(0.3, 0.5)})`; g.lineWidth = rnd(1, 2); all(() => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts) g.lineTo(p[0], p[1]); g.stroke(); });
+    }
+    for (let i = 0; i < 26; i++) weeds.push([rnd(0, S), rnd(0, S)]);
+    const hay = ['#8a8a50', '#a89d5e', '#6f7442', '#bbae78', '#5f6a3a'];
+    for (const [x, y] of weeds) { // a tuft: a fan of thin blades in dry greens and straw
+      const n = 7 + ((Math.random() * 8) | 0), cols = []; for (let k = 0; k < n; k++) cols.push([hay[(Math.random() * hay.length) | 0], rnd(-1.1, 1.1), rnd(7, 18)]);
+      all(() => { for (const [c, a, l] of cols) { g.strokeStyle = c; g.lineWidth = rnd(0.8, 1.6); g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.sin(a) * l, y - Math.cos(a) * l); g.stroke(); } });
+    }
+    for (let i = 0; i < 7; i++) { g.fillStyle = `rgba(50,46,40,${rnd(0.05, 0.1)})`; const x = rnd(0, S), y = rnd(0, S), r = rnd(10, 40), a = rnd(0, 3); all(() => { g.beginPath(); g.ellipse(x, y, r, r * 0.5, a, 0, 7); g.fill(); }); } // oil
+    for (let i = 0; i < 9000; i++) { g.fillStyle = ['#a39d8c', '#827e72', '#aaa493', '#8f897a', '#b3ac98'][i % 5]; const r = rnd(1, 3), x = rnd(0, S), y = rnd(0, S); g.fillRect(x, y, r, r); if (x > S - 3) g.fillRect(x - S, y, r, r); if (y > S - 3) g.fillRect(x, y - S, r, r); }
+  }, 12),
   grass: canvasTex(256, (g, S) => { // park lawn: Palermo's grass is never lime, it is dry olive and khaki with straw, dark leaf litter and the odd clump of scrub (the Favorita under its oaks and pines is mostly bare dry ground)
     g.fillStyle = '#6f6c3e'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 22; i++) { g.fillStyle = `rgba(${Math.random() < 0.55 ? '158,146,88' : Math.random() < 0.5 ? '62,52,34' : '70,88,48'},${rnd(0.14, 0.34)})`; g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(14, 50), rnd(10, 34), rnd(0, 3), 0, 7); g.fill(); }
@@ -109,6 +138,60 @@ export const TEX = {
   }, 48),
 };
 
+// ---------- the historic centre keeps its slabs, the rest of the city does not ----------
+// The Comune's pavement and plaza polygons are wide in the outskirts where a pavement is really a hard shoulder, a forecourt, a car park or a lot (photos at Via Messina Marine, Via Ciaculli, Via Oreto: rough asphalt,
+// dirt and weeds, never a pale slab plain). The terrain's inferred ground (src/world.js) keeps its slabs inside HIST_R0 of the Quattro Canti (the old town, the 19th century grid, Politeama, Via della Liberta, Notarbartolo) and fades to yard by HIST_R1.
+// A raised polygon of the streets beyond OLD_R is drawn with TEX.yard when all of this holds: its mean width (2 area / perimeter, the cuts along the 62.5 m chunk grid not counted) is YARD_WIDTH.raised or more (a paving
+// polygon: YARD_WIDTH.paving), few walls stand within 45 m of it (opts.density: a wide pavement in front of a row of buildings is a pavement), and it is not a kerbed island between two carriageways (kerbs all round it
+// and under ISLAND_WIDTH wide: the median of Viale Regione Siciliana, su09). Mondello (the garden region, src/gardens.js) is left alone: its piazza and promenade are real. The terrain does the same with its own inferred paving (src/world.js).
+export const HIST_R0 = 2200, HIST_R1 = 3000;
+export const histW = (x, z) => { const t = Math.min(1, Math.max(0, (Math.hypot(x, z) - HIST_R0) / (HIST_R1 - HIST_R0))); return 1 - t * t * (3 - 2 * t); };
+const YARD_WIDTH = { raised: 4.6, paving: 9 }, ISLAND_WIDTH = 6.5, SPARSE = 0.10, OLD_R = 1800;   // OLD_R: inside it every polygon keeps its slabs
+const CHUNK_M = 62.5;
+function curbIndex(curbs) {   // the kerb lines as points every 1.5 m in 2 m cells
+  const g = new Map();
+  for (const flat of curbs || []) for (let i = 0; i + 3 < flat.length; i += 2) {
+    const ax = flat[i], az = flat[i + 1], bx = flat[i + 2], bz = flat[i + 3], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 1.5));
+    for (let q = 0; q <= n; q++) { const x = ax + (bx - ax) * q / n, z = az + (bz - az) * q / n, k = Math.floor(x / 2) * 100003 + Math.floor(z / 2); const a = g.get(k); if (a) a.push(x, z); else g.set(k, [x, z]); }
+  }
+  return g;
+}
+function nearCurb(g, x, z) {
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const a = g.get((Math.floor(x / 2) + i) * 100003 + Math.floor(z / 2) + j); if (a) for (let q = 0; q < a.length; q += 2) if (Math.hypot(a[q] - x, a[q + 1] - z) < 1.2) return true; }
+  return false;
+}
+const isCut = (ax, az, bx, bz) => (Math.abs(ax - bx) < 0.2 && Math.abs(ax - Math.round(ax / CHUNK_M) * CHUNK_M) < 0.2) || (Math.abs(az - bz) < 0.2 && Math.abs(az - Math.round(az / CHUNK_M) * CHUNK_M) < 0.2);
+function isYard(poly, minWidth, ctx) {
+  const r0 = poly[0], x0 = r0[0], z0 = r0[1];
+  if (Math.hypot(x0, z0) < OLD_R || (x0 > GR.x0 && x0 < GR.x1 && z0 > GR.z0 && z0 < GR.z1)) return false;
+  let a = 0, per = 0;
+  for (let k = 0; k < poly.length; k++) {
+    const r = poly[k], n = r.length >> 1; let s = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ax = r[2 * i], az = r[2 * i + 1], bx = r[2 * j], bz = r[2 * j + 1];
+      s += ax * bz - bx * az;
+      if (!isCut(ax, az, bx, bz)) per += Math.hypot(bx - ax, bz - az);
+    }
+    a += (k ? -1 : 1) * Math.abs(s) / 2;
+  }
+  if (!(a > 40 && per > 0)) return false;
+  const mw = 2 * a / per;
+  if (mw < minWidth) return false;
+  if (ctx.density) { let cx = 0, cz = 0; const m = r0.length >> 1; for (let i = 0; i < m; i++) { cx += r0[2 * i]; cz += r0[2 * i + 1]; } if (ctx.density(cx / m, cz / m) >= SPARSE) return false; }   // walls all round: the pavement of a street
+  if (mw < ISLAND_WIDTH && ctx.curbs) {   // kerbs along nearly all of its edge: an island or median, not a lay-by
+    let tot = 0, hit = 0;
+    const r = r0, n = r.length >> 1;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ax = r[2 * i], az = r[2 * i + 1], bx = r[2 * j], bz = r[2 * j + 1];
+      if (isCut(ax, az, bx, bz)) continue;
+      const len = Math.hypot(bx - ax, bz - az), m = Math.max(1, Math.floor(len / 3));
+      for (let q = 0; q < m; q++) { tot += len / m; if (nearCurb(ctx.curbs, ax + (bx - ax) * (q + 0.5) / m, az + (bz - az) * (q + 0.5) / m)) hit += len / m; }
+    }
+    if (tot > 0 && hit / tot > 0.8) return false;
+  }
+  return true;
+}
+
 // ---------- street geometry ----------
 // Triangulated street polygons have long triangles that would cut through the terrain between
 // their corners; split them until every edge is short enough to follow the lidar ground.
@@ -142,17 +225,18 @@ function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
 let TINT = null;   // opts.tint(layer) -> (x, z) -> THREE.Color: the colours of the orthophotos relative to the layer's own texture (tile.gt, src/world.js)
 export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, median: CURB, green: CURB + 0.01 };
 // World tiles are seen from far away: pull each layer towards the camera in depth so 0.15 m of lift doesn't z-fight at 1 km.
-const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], median: [-4, -4], green: [-5, -5] };
+const POLY_OFFSET = { asphalt: [-2, -2], sand: [-1, -1], verge: [-1, -1], paving: [-3, -3], water: [0, 0], raised: [-4, -4], median: [-4, -4], green: [-5, -5], yard: [-4, -4] };
 
 const matCache = new Map();
 function layerMaterial(layer, offset) {
   const key = layer + (offset ? '+' : '');
   let mat = matCache.get(key);
   if (mat) return mat;
-  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, median: TEX.median, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
+  const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, median: TEX.median, green: TEX.grass, sand: TEX.sand, verge: TEX.verge, yard: TEX.yard }[layer];
   mat = layer === 'water'
     ? new THREE.MeshStandardMaterial({ color: '#2a6f8c', roughness: 0.1 })
     : new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: layer === 'asphalt' ? 0.85 : 0.95 });
+  if (layer === 'yard') mat.color.setRGB(1.8, 1.78, 1.72);   // the texture is drawn dark so it can hold dark cracks; this brings the dust and asphalt to the grey of the photos
   if (offset && layer === 'raised') gardenPatch(mat, TEX.grass);   // Mondello's villa yards are gardens, see src/gardens.js
   if (offset) { const [f, u] = POLY_OFFSET[layer]; mat.polygonOffset = true; mat.polygonOffsetFactor = f; mat.polygonOffsetUnits = u; }
   matCache.set(key, mat);
@@ -165,6 +249,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 export function* streetsIter(streets, group, opts = {}) {
   const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
+  const yctx = { density: opts.density, curbs: offset ? curbIndex(streets.curbs) : null };
   const g0 = opts.ground || groundY, f0 = !!opts.fine;   // (set again after every yield: another tile's build may have run in between)
   GROUND = g0; FINE = f0;
   if (offset) gardenDraw(streets);
@@ -172,12 +257,13 @@ export function* streetsIter(streets, group, opts = {}) {
     const polys = streets[layer];
     if (!polys || !polys.length) continue;
     const tex = { asphalt: TEX.asphalt, paving: TEX.balate, raised: TEX.sidewalk, median: TEX.median, green: TEX.grass, sand: TEX.sand, verge: TEX.verge }[layer];
-    const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map();
+    const m = tex ? tex.metres : 1, lift = LAYERS[layer], bufs = new Map(), ybufs = new Map(), ym = TEX.yard.metres, yw = offset && YARD_WIDTH[layer];
     TINT = opts.tint ? opts.tint(layer) : null;
     for (const poly of polys) {
       // one mesh per chunk (opts.chunk metres, default 250; 0 = a single mesh, as the streamed world tiles want) so frustum culling helps
       const ck = chunk ? Math.floor(poly[0][0] / chunk) * 100003 + Math.floor(poly[0][1] / chunk) : 0;
-      let buf = bufs.get(ck); if (!buf) bufs.set(ck, buf = new Buf());
+      const yard = yw && isYard(poly, yw, yctx), bm = yard ? ybufs : bufs;
+      let buf = bm.get(ck); if (!buf) bm.set(ck, buf = new Buf());
       const contour = pairs(poly[0]).map(p => new THREE.Vector2(p[0], p[1]));
       const holes = poly.slice(1).map(h => pairs(h).map(p => new THREE.Vector2(p[0], p[1])));
       let tris3;
@@ -186,15 +272,15 @@ export function* streetsIter(streets, group, opts = {}) {
       for (const t of tris3) {
         let [a, b, c] = t.map(i => all[i]);
         if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
-        drape(buf, a, b, c, lift, WHITE, m, dmax);
+        drape(buf, a, b, c, lift, WHITE, yard ? ym : m, dmax);
       }
       if ((++n & 7) === 0) { yield; GROUND = g0; FINE = f0; }
     }
-    for (const buf of bufs.values()) {
+    for (const [bm, ly] of [[bufs, layer], [ybufs, 'yard']]) for (const buf of bm.values()) {
       if (!buf.p.length) continue;
-      const mesh = buf.mesh(layerMaterial(layer, offset));
+      const mesh = buf.mesh(layerMaterial(ly, offset));
       mesh.receiveShadow = true;
-      mesh.name = 'street_' + layer;
+      mesh.name = 'street_' + ly;
       tris += buf.p.length / 9;
       group.add(mesh);
     }
