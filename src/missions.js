@@ -111,7 +111,7 @@ function build(env) {
   // lines: array of strings or [text, gloss]; pos(): { x, y, z } anchor, delay in seconds
   function say(line, pos, delay = 0) {
     if (!shout || !line) return;
-    talkQ.push({ at: talkClock + delay, text: Array.isArray(line) ? line[0] : line, pos });
+    talkQ.push({ at: talkClock + delay, text: Array.isArray(line) ? (lang() === 'en' && line[1] ? line[1] : line[0]) : line, pos });   // [text, gloss]: the gloss in English, when there is one (a tourist's line has none: tourists do not speak Palermitan)
   }
   // a fare (phases board / ride / drop, src/event-fares.js) puts the balloons in focus: only the passenger (seatPos) speaks, one line at a time
   const fareTalk = () => !!S.ev && (S.phase === 'board' || S.phase === 'ride' || S.phase === 'drop');
@@ -532,6 +532,30 @@ function build(env) {
     const k = id.slice(0, id.indexOf(':')), r = k === 'race' ? prog.races[id.slice(5)] : 0, d = prog.done[id];
     return { done: r === 1 || !!d || (k === 'food' && !!prog.food[id.slice(5)]) || (k === 'pub' && !!prog.pubs[id]), tried: r === 2, best: d && d.best > 0 ? d.best : 0 };
   };
+  // What a mission asks of the player, in one sentence [palermitan, english], for the card that asks whether to start it (src/ui.js). Where a mission already says it (the toasts of its
+  // own module, the errand lines of the pubs, the caller of the rave) the sentence is made of those words; the fares, the urgent runs and the races have DRAFT Palermitan sentences for the owner to correct.
+  const bare = t => t.replace(/[!.]+$/, '');
+  const destName = id => (TAXI_DESTS.find(d => d.id === id) || {}).name || '';
+  const describe = id => {
+    const s = slots.find(x => x.id === id), v = !s && pubs && pubs.venues.find(x => x.slot.id === id);
+    if (v) { const st = v.def.errand.start; return [bare(st[0]) + ' e puaittali narrè.', bare(st[1]) + ' and take them back.']; }
+    if (!s) return null;
+    switch (s.kind) {
+      case 'food': return ['Attruova ' + ITEMS[s.item].it + ' e puaittali narrè.', 'Find the ' + ITEMS[s.item].en + ' and take them back.'];
+      case 'rave': return ['Carica i casse e puitali â Favorita, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them to the Favorita, nice and slow: they are delicate.'];
+      case 'leaf': return ['Va’ a via Cipressi, attruova i fuogghi allegri e portali ô cumpari.', 'Go to via Cipressi, find the happy leaves and take them to the pal.'];
+      case 'horns': return ['Mittiti i cuainna e passa sutta l\'Arcu ri Cutò.', 'Put on the horns and drive under the Arch of Cutò.'];
+      case 'race': return ['Fermati ccà e cuorri cu nuatri: i primi tri vincinu i picciuli.', 'Stop here and race: the first three win a prize.'];   // DRAFT; the first half is the line the racers shout
+      case 'urgent': { const u = URGENT.find(x => 'urgent:' + x.id === id), d = u ? destName(u.to) : ''; return d ? ['Curri! Puaitta u passiggeri a ' + d + ' e un fari taiddu.', 'Hurry! Take the passenger to ' + d + ' and do not be late.'] : null; }   // DRAFT
+      case 'fare': {
+        if (s.sub === 'tourist') return ['Puaittali a manciari e un fari taiddu.', 'Take the tourists to a place to eat, and do not be late.'];   // DRAFT; "Puaittali a manciari" is the label of the ride
+        const d = s.sub === 'pulle' ? PULLE_DEST.name.split(',')[0] : s.sub === 'nightc' ? ((FARE_SPOTS.find(f => 'fare:' + f.id === id) || {}).dest || {}).name : '';
+        return d ? ['Puaitta u passiggeri a ' + d + ' e un fari taiddu.', 'Take the passenger to ' + d + ', and do not be late.']   // DRAFT
+          : ['Puaitta u passiggeri unni voli annari e un fari taiddu.', 'Take the passenger where they want to go, and do not be late.'];   // DRAFT
+      }
+    }
+    return null;
+  };
   const arrive = () => { calls.disarm(); pubs?.disarm(); };
   const stand = id => {   // -> [x, z, th]: where the lapa stands, in the road at the caller's spot
     const s = slots.find(x => x.id === id) || (pubs && pubs.slots.find(x => x.id === id)); if (!s) return null;
@@ -700,7 +724,7 @@ function build(env) {
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
-  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
+  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
   if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns };
   return api;
 }

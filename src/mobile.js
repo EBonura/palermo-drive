@@ -6,6 +6,7 @@
 // its pointer by position, so a thumb can slide from one pad to its neighbour without lifting.
 // The pads write into the same `keys` map as the keyboard. Camera, back on the road, swap vehicle and fullscreen are in the in-game
 // side menu (src/ui.js), not on the screen. ?touch forces the touch UI on a desktop browser (for testing).
+import { T, onLang } from './lang.js';   // one language at a time (src/lang.js)
 const params = typeof location === 'object' ? new URLSearchParams(location.search) : new URLSearchParams();
 const coarse = typeof matchMedia === 'function' && (matchMedia('(pointer: coarse)').matches ||
   (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches));
@@ -63,11 +64,13 @@ export function setupMobile({ keys, camState, renderer, camera }) {
       <svg class="rot-arc" viewBox="0 0 120 120" aria-hidden="true"><path d="M24 40 A42 42 0 0 1 96 36" /><path class="rot-head" d="M97 20 L97 38 L79 36" /></svg>
       <svg class="rot-phone" viewBox="0 0 64 64" aria-hidden="true"><rect x="19" y="5" width="26" height="54" rx="6" /><path d="M28 10h8" /><circle cx="32" cy="53" r="1.8" /></svg>
     </div>
-    <div class="rot-t">Ruota il telefono in orizzontale</div>
-    <div class="rot-s">Turn your phone sideways to drive</div>
-    <div class="rot-card"><i aria-hidden="true">i</i>
-      <p class="rot-it">Se la pagina non gira (succede aprendo il link da Instagram o Facebook), aprila nel browser del telefono: menu &#8942; o &#8943;, poi "Apri nel browser".</p>
-      <p class="rot-en">If the page doesn't rotate (it happens inside Instagram or Facebook), open it in your phone's browser: menu &#8942; or &#8943;, then "Open in browser".</p></div>`);
+    <div class="rot-t"></div>
+    <div class="rot-card"><i aria-hidden="true">i</i><p class="rot-it"></p></div>`);
+  const rotateText = () => {   // in the language shown, and again when it changes
+    rotate.querySelector('.rot-t').textContent = T('Ruota il telefono in orizzontale', 'Turn your phone sideways');
+    rotate.querySelector('.rot-it').textContent = T('Se la pagina non gira (succede aprendo il link da Instagram o Facebook), aprila nel browser del telefono: menu \u22ee o \u22ef, poi "Apri nel browser".', 'If the page doesn\'t rotate (it happens inside Instagram or Facebook), open it in your phone\'s browser: menu \u22ee or \u22ef, then "Open in browser".');
+  };
+  rotateText(); onLang(rotateText);
   rotate.hidden = true;
 
   const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
@@ -95,8 +98,7 @@ export function setupMobile({ keys, camState, renderer, camera }) {
   function showHomeScreenHint() {
     try { if (localStorage.getItem('palermoDrive.a2hs')) return; localStorage.setItem('palermoDrive.a2hs', '1'); } catch (e) { /* private mode */ }
     const hint = el('div', 'a2hs', `
-      <b>Schermo intero</b> tocca <span class="a2hs-share"></span> Condividi e poi <i>Aggiungi alla schermata Home</i>
-      <small>Full screen: tap Share, then Add to Home Screen</small>`);
+      ${T('<b>Schermo intero</b> tocca <span class="a2hs-share"></span> Condividi e poi <i>Aggiungi alla schermata Home</i>', '<b>Full screen</b>: tap <span class="a2hs-share"></span> Share, then <i>Add to Home Screen</i>')}`);
     hint.addEventListener('pointerdown', () => hint.remove());
     document.body.appendChild(hint);
     setTimeout(() => hint.remove(), 9000);

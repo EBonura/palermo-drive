@@ -204,7 +204,7 @@ export function createDrunk({ game, car, camera, missions }) {
     if (k !== key) {
       key = k;
       elB.textContent = pick(['Vivi', 'Drink']);
-      elS.textContent = pick(['Drink', 'Vivi']) + ' · ' + (spot.id === 'rave' ? price : spot.name + ' · ' + price);
+      elS.textContent = spot.id === 'rave' ? price : spot.name + ' · ' + price;   // the place and the price: the button's word is the only one in a language
     }
   }
 

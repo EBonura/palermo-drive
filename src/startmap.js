@@ -41,9 +41,9 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     <button class="pd-mp-ev" type="button" data-nav data-map="events" aria-pressed="true"><i></i><span data-t="events"></span></button>
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
     <div class="pd-mp-pop" hidden><div class="pd-mp-pt"></div><div class="pd-mp-ps"></div>
-      <button class="pd-btn sm drive" type="button" data-nav data-do="mapgo"><span class="pd-in"><span class="pd-l1" data-t="here"></span><span class="pd-l2" data-t="here2"></span></span></button></div>
+      <button class="pd-btn sm drive" type="button" data-nav data-do="mapgo"><span class="pd-in"><span class="pd-l1" data-t="here"></span></span></button></div>
     <div class="pd-mp-cl" hidden><div class="pd-mp-clt"></div><div class="pd-mp-cll" role="list"></div>
-      <button class="pd-btn sm" type="button" data-nav data-map="clzoom"><span class="pd-in"><span class="pd-l1" data-t="zinh"></span><span class="pd-l2" data-t="zinh2"></span></span></button></div>
+      <button class="pd-btn sm" type="button" data-nav data-map="clzoom"><span class="pd-in"><span class="pd-l1" data-t="zinh"></span></span></button></div>
     <div class="pd-mp-hint"></div>`;
   const cv = host.querySelector('.pd-mp-cv'), g = cv.getContext('2d');
   const pop = host.querySelector('.pd-mp-pop'), popT = pop.querySelector('.pd-mp-pt'), popS = pop.querySelector('.pd-mp-ps'), hint = host.querySelector('.pd-mp-hint');
@@ -398,8 +398,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     popT.textContent = sel.name;
     popS.textContent = sel.sub;
     const lab = L[sel.kind === 'event' ? 'there' : 'here'];   // a mission does not start from here: the game asks on arrival (src/ui.js)
-    pop.querySelector('.pd-l1').textContent = lab[li()];
-    const l2 = pop.querySelector('.pd-l2'); if (l2) l2.textContent = lab[1 - li()];
+    pop.querySelector('.pd-l1').textContent = lab[li()];   // one language: the one shown
   }
   function pick(px, py, thr) { // a pin, or a cluster badge ({ m: [pins] })
     layout();
@@ -476,8 +475,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   function applyLang() {
     for (const e of host.querySelectorAll('[data-t]')) {
       const key = e.dataset.t, i = li();
-      if (key === 'here2' || key === 'zinh2') e.textContent = L[key.slice(0, -1)][1 - i];
-      else if (e.dataset.a) e.setAttribute('aria-label', L[key][i]);
+      if (e.dataset.a) e.setAttribute('aria-label', L[key][i]);
       else e.textContent = L[key][i];
     }
     evBtn.setAttribute('aria-label', L.events[li()]);

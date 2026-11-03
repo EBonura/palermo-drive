@@ -1,10 +1,10 @@
 # Drowning lines to review
 
-Shown on the game-over overlay when the lapa drives into the sea (one picked at random). The Italian line is on top, the English subtitle under it.
+Shown on the game-over overlay when the lapa drives into the sea (one picked at random). The card shows the line of the language chosen in Options (the Italian/Palermitan one or the English one), never both.
 They live in the `LINES` array in `src/sea.js`; if you change a line here, change it there too (or tell me and I will).
 I am not a native Palermitan: anything with Sicilian spelling is a guess and marked (?). Please correct spelling and idiom.
 
-Overlay: title **Tuffo!** (subtitle "Game over - Splash"), buttons **Riprova** (Retry, Enter) and **Menu** (Back to title, Esc).
+Overlay: title **Tuffo!** (subtitle "Game over - Splash"), buttons **Riprova** (English: Retry; Enter) and **Menu** (Esc).
 
 ## Lines
 

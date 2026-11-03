@@ -17,6 +17,7 @@
 //     something in the last 2 minutes. Every byte the relay sends counts against its monthly traffic limit.
 import { esc } from './esc.js';
 import { createRemotes } from './remotes.js';
+import { getLang } from './lang.js';   // the language shown, one at a time (src/lang.js)
 
 const RELAY_URL = ''; // wss://<relay host>/ws once the relay is reachable from the internet (see relay/RUN.md)
 // Alternative to RELAY_URL for a relay whose address changes (a tunnel with a new host name): the path of a small JSON file on
@@ -24,7 +25,6 @@ const RELAY_URL = ''; // wss://<relay host>/ws once the relay is reachable from 
 const RELAY_URL_FILE = ''; // for example 'relay.json'
 
 const STORE_KEY = 'palermoDrive.net.v1';   // { name, offline }
-const SETTINGS_KEY = 'palermoDrive.settings.v1'; // owned by ui.js: we only read the language
 const PROTO = 2;               // 2: rooms of up to 256 players, positions in 5 bytes (see packState)
 const POS_UNITS = 20, POS_MID = 1 << 19, POS_MAX = (1 << 20) - 1; // positions: 0.05 m units, +-26 km (the map spans x -11500..8500, z -12500..8000)
 const SEND_MS = 100;           // state send interval (only when something changed)
@@ -110,12 +110,8 @@ export function createNet(env) {
   // the Garage's driver screen (src/garage-ui.js) edits the same stored name and says so with a 'pd-name' event; take it over (and again when the card opens) so this module neither shows nor writes back an old one
   const refreshName = () => { if (urlName) return; const n = load().name, name = typeof n === 'string' ? n.replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/gu, '').trim().slice(0, 16) : ''; if (name !== (store.name || '')) { store.name = name; sleeping = false; attempts = 0; lastPingT = 0; infoDirty(); renderPill(); } };
   addEventListener('pd-name', refreshName);
-  const lang = () => {
-    let l = 'it';
-    try { l = (JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || {}).lang; } catch (e) { /* ignore */ }
-    const p = params.get('lang'); if (p === 'en' || p === 'it') l = p;
-    return T[l] || T.it;
-  };
+  const lang = () => T[getLang()] || T.it;
+  addEventListener('pd-lang', () => renderPill());   // the pill writes itself again in the new language
 
   // ---------- state ----------
   let started = false, ws = null, status = 'idle', attempts = 0, retryT = 0, everOnline = false;

@@ -3,6 +3,7 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
   Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
 import { hooks } from './core.js';
+import { T } from './lang.js';   // one language at a time (src/lang.js)
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
@@ -351,7 +352,7 @@ function showKeyHint() {
   try { if (localStorage.getItem('palermoDrive.keyhint')) return; localStorage.setItem('palermoDrive.keyhint', '1'); } catch (e) { /* private mode: show it anyway */ }
   const el = document.createElement('div');
   el.id = 'keyhint';
-  el.textContent = 'Premi ? per i comandi · Press ? for controls';
+  el.textContent = T('Premi ? per i comandi', 'Press ? for controls');
   zone('act').appendChild(el);
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 700); }, 4500);
 }
