@@ -28,6 +28,8 @@ out.push('## The horns mission (Arco di Cutò)', '');
 for (const [k, arr] of Object.entries(L.HORNS_LINES)) pairs(`### ${k}`, arr);
 out.push('## Pollanche (Santuario di Santa Rosalia, needs ?world=1)', '');
 pairs('### cries', L.POLLANCHE.cry); pairs('### when serving', L.POLLANCHE.serve);
+out.push('## U Barettu (granita kiosk, Piazza Valdesi in Mondello, needs ?world=1)', '');
+pairs('### cries', L.GRANITA.cry); pairs('### when serving', L.GRANITA.serve); pairs('### the driver after the granita', L.GRANITA.driver); pairs('### the toast', [L.GRANITA.toast]);
 out.push('## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)', '');
 pairs('### what they yell when the headlights or the horn hit them', L.APPARTATI.yell);
 out.push('## Free roam events: callers, "a pulle" tourists, urgent passengers, food sellers', '');

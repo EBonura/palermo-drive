@@ -927,6 +927,36 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Pi tia, ca è cavuda!  
   _For you, it is hot! (?)_
 
+## U Barettu (granita kiosk, Piazza Valdesi in Mondello, needs ?world=1)
+
+### cries
+
+- Granita fridda! Limuni, mennula, cafè!  
+  _Ice cold granita! Lemon, almond, coffee! (?)_
+- Cu st'afa ti runu na granita!  
+  _In this heat, here is a granita for you! (?)_
+- Scegghi: limuni, mennula o cafè?  
+  _Choose: lemon, almond or coffee? (?)_
+
+### when serving
+
+- Teni, fridda fridda!  
+  _Here, ice cold! (?)_
+- Pi tia, cu a panna ’ncapu!  
+  _For you, with cream on top! (?)_
+
+### the driver after the granita
+
+- Chi friscu! Amunì, ca ora si vola!  
+  _How refreshing! Come on, now we fly! (?)_
+- Granita e nitro: chista è a stati!  
+  _Granita and nitro: this is summer! (?)_
+
+### the toast
+
+- Nitro ’n chiù, fridda, puru oltri u chinu  
+  _Extra nitro, ice cold, even past full_
+
 ## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)
 
 ### what they yell when the headlights or the horn hit them

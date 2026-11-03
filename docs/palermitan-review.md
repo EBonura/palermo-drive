@@ -460,3 +460,18 @@ A man in Piazza Sferracavallo, nervous and failing to hide it, asks you to take 
 | driver, near2 | Ci semu quasi. | Nearly there. |
 | driver, close | Mi fermu unni voi tu. | I will stop wherever you like. |
 | driver, arrive | Ti aspettu ccà. U tassametru, però, un aspetta. | I will wait here. The meter, though, does not. |
+
+## U Barettu, the granita kiosk in Mondello (assets/missions/lines.js, GRANITA; new, all drafts)
+
+Nothing here existed before, so there is no old column. Every line is a draft in the owner's spelling as far as the memory notes go, please correct it. The sign on the kiosk reads BARETTU and GRANITE (a drawn texture in src/missions.js).
+
+| who and when | Palermitan | English subtitle |
+| --- | --- | --- |
+| vendor, cry | Granita fridda! Limuni, mennula, cafè! | Ice cold granita! Lemon, almond, coffee! |
+| vendor, cry | Cu st'afa ti runu na granita! | In this heat, here is a granita for you! |
+| vendor, cry | Scegghi: limuni, mennula o cafè? | Choose: lemon, almond or coffee? |
+| vendor, serving | Teni, fridda fridda! | Here, ice cold! |
+| vendor, serving | Pi tia, cu a panna ’ncapu! | For you, with cream on top! |
+| driver, after the granita | Chi friscu! Amunì, ca ora si vola! | How refreshing! Come on, now we fly! |
+| driver, after the granita | Granita e nitro: chista è a stati! | Granita and nitro: this is summer! |
+| toast under GRANITA! | Nitro ’n chiù, fridda, puru oltri u chinu | Extra nitro, ice cold, even past full |
