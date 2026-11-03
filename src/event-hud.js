@@ -1,4 +1,4 @@
-// The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one slim line at the top centre (what it is, what to do with its count, the distance, the time, and a thin progress bar along its bottom edge), a big countdown, short lines one at a time and a results panel. They stand in the HUD's zones (src/hud.js).
+// The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one small card at the top centre of two or three short lines (what it is and the time, what to do with its count, the place or distance, and a thin progress bar along its bottom edge), a big countdown, short lines one at a time and a results panel. They stand in the HUD's zones (src/hud.js).
 // createEventHud({ camera, car, groundY }) -> { set(o), clear(), count(big, sub), toast(text, sub, neg), result(html, secs), burst(), update(dt) }
 //   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the arrow at the edge of the screen or null), ledger ([text, ...]) })
 //   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
@@ -8,19 +8,21 @@ import { esc } from './esc.js';
 import { zone } from './hud.js';
 
 const CSS = `
-#ev-hud { width: max-content; max-width: var(--wide); display: none;
+#ev-hud { width: max-content; min-width: 168px; max-width: min(var(--wide), 340px); display: none;
   pointer-events: none; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; text-transform: uppercase; }
 #ev-hud.on { display: block; }
-.ev-card { position: relative; box-sizing: border-box; display: flex; align-items: center; gap: 9px; height: 30px; max-width: 100%; padding: 0 14px; border-radius: 15px; background: var(--capsule, rgba(13,7,10,.8)); box-shadow: 0 2px 10px rgba(0,0,0,.3); overflow: hidden; }
-.ev-lab { flex: none; font-weight: 600; font-size: 10px; letter-spacing: .16em; color: #f5a9c9; white-space: nowrap; }
-.ev-title { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 15px; line-height: 1.1; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev-sub { flex: 0 3 auto; min-width: 0; font-weight: 600; font-size: 11px; letter-spacing: .1em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev-lab:empty, .ev-sub:empty, .ev-time:empty { display: none; }
+.ev-card { position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; padding: 5px 14px 9px; border-radius: 14px; background: var(--capsule, rgba(13,7,10,.8)); box-shadow: 0 2px 10px rgba(0,0,0,.3); }
+.ev-r1 { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.ev-lab { min-width: 0; font-weight: 600; font-size: 10px; letter-spacing: .16em; line-height: 1.2; color: #f5a9c9; }
+.ev-title { font-weight: 700; font-size: 16px; line-height: 1.1; letter-spacing: .05em; overflow-wrap: anywhere; }
+.ev-sub { font-weight: 600; font-size: 11px; line-height: 1.15; letter-spacing: .1em; opacity: .82; overflow-wrap: anywhere; }
+.ev-lab:empty, .ev-sub:empty, .ev-time:empty, .ev-title:empty { display: none; }
 .ev-time { flex: none; font: 400 16px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; font-variant-numeric: tabular-nums; }
 .ev-time.low { color: #ff6a5a; animation: ev-blink .5s steps(2) infinite; }
-.ev-bar { position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); }
+.ev-bar { position: absolute; left: 14px; right: 14px; bottom: 4px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); }
 .ev-bar i { display: block; height: 100%; width: 100%; transform-origin: left; border-radius: 2px; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
 .ev-bar.low i { background: #ff4a3a; } .ev-bar.off { display: none; }
+.ev-card:has(.ev-bar.off) { padding-bottom: 6px; }
 .ev-ledger { margin: 3px 0 0 10px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: #ffd1e6; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .ev-toasts { pointer-events: none; display: flex; flex-direction: column; align-items: center; }
 .ev-toasts:empty { display: none; }
@@ -56,7 +58,7 @@ const CSS = `
 @keyframes ev-pop { 0% { transform: translate(-50%, -50%) scale(1.6) skewX(-8deg); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1) skewX(-8deg); } }
 @keyframes ev-blink { 50% { opacity: .35; } }
 @keyframes ev-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
-@media (max-height: 520px) { .ev-title { font-size: 13px; } .ev-card { height: 26px; padding: 0 12px; gap: 7px; } .ev-time { font-size: 14px; } }
+@media (max-height: 520px) { .ev-title { font-size: 14px; } .ev-card { padding: 4px 12px 8px; gap: 1px; } .ev-time { font-size: 14px; } .ev-card:has(.ev-bar.off) { padding-bottom: 5px; } }
 .ev-edge { position: fixed; z-index: 58; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; display: none; will-change: transform;
   font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; }
 .ev-edge.on { display: block; }
@@ -73,7 +75,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 export function createEventHud({ camera, car, groundY }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
   const mk = (cls, html, parent = document.body, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; };
-  const root = mk('', `<div class="ev-card"><span class="ev-lab"></span><span class="ev-title"></span><span class="ev-sub"></span><span class="ev-time"></span><div class="ev-bar off"><i></i></div></div>
+  const root = mk('', `<div class="ev-card"><div class="ev-r1"><span class="ev-lab"></span><span class="ev-time"></span></div><div class="ev-title"></div><div class="ev-sub"></div><div class="ev-bar off"><i></i></div></div>
     <div class="ev-ledger"></div>`, zone('obj'));
   root.id = 'ev-hud';
   const q = s => root.querySelector(s);

@@ -166,19 +166,19 @@ export function createPolice(env, T) {
   #pd-hood .ph-p { display: flex; gap: 2px; flex: 0 0 auto; }
   #pd-hood .ph-p i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
   #pd-hood .ph-p i.f { background: var(--hc, #f5a9c9); box-shadow: 0 0 5px var(--hc, #f5a9c9); }
-  #pd-wanted { position: relative; display: none; grid-area: 2 / 1 / 3 / 3; pointer-events: none; align-items: center; justify-content: space-between; gap: 8px; margin-top: -3px; padding: 0 calc(var(--mini) * .3) 7px calc(var(--mini) * .3); border-radius: 0 0 calc(var(--mini) / 2) calc(var(--mini) / 2); overflow: hidden;
-    font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }
+  #pd-wanted { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 6px; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.12);
+    font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }   /* the police line stands in the words column, right under the area and its diamonds, which it lines up with */
   #pd-wanted.on { display: flex; }
-  #pd-wanted .pw-l { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; }
-  #pd-wanted .pw-ico { width: 22px; height: 22px; flex: 0 0 auto; }
+  #pd-wanted .pw-l { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; }
+  #pd-wanted .pw-ico { width: 17px; height: 17px; flex: 0 0 auto; }
   #pd-wanted .pw-ico .d { transform-origin: 12px 18px; }
   #pd-wanted.seen .pw-ico .b1 { animation: pw-b1 .34s steps(1) infinite; } #pd-wanted.seen .pw-ico .b2 { animation: pw-b2 .34s steps(1) infinite; }
   @keyframes pw-b1 { 0% { fill: #f08cb4; } 50% { fill: #1a1114; } } @keyframes pw-b2 { 0% { fill: #1a1114; } 50% { fill: #f08cb4; } }
-  #pd-wanted .pw-t { font: 700 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .05em; color: #f5a9c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* the condensed face: RIESTA AMMUCCIATU… does not fit beside the diamonds in Racing Sans One */
+  #pd-wanted .pw-t { font: 700 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .02em; color: #f5a9c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* the condensed face: RIESTA AMMUCCIATU… does not fit beside the diamonds in Racing Sans One */
   #pd-wanted .pw-pips { display: flex; gap: 2px; flex: 0 0 auto; }
   #pd-wanted .pw-pips i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(245,169,201,.55); }
   #pd-wanted .pw-pips i.f { background: #e8559a; box-shadow: 0 0 6px #ff4fa3, inset 0 0 0 1.5px #ffd1e6; }
-  #pd-wanted .pw-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
+  #pd-wanted .pw-bar { flex: 0 0 100%; height: 2px; margin-top: 3px; border-radius: 1px; background: rgba(255,255,255,.14); overflow: hidden; }   /* how close the escape is, under the line */
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
   #pd-wanted.clear .pw-t { color: #fff; text-shadow: 0 0 8px #e8559a; }
   #pd-busted { display: none; transform: skewX(-6deg); box-sizing: border-box; min-width: var(--obj); max-width: var(--wide); padding: 10px 22px 12px; text-align: center; pointer-events: none;
@@ -199,7 +199,7 @@ export function createPolice(env, T) {
   // the map capsule (src/ui.css, #pd-card): the area and its danger always (in the words column, #pd-info), the police line across its bottom only when the police care
   const hood = document.createElement('div'); hood.id = 'pd-hood';
   hood.innerHTML = '<div class="ph-row"><div class="ph-n"></div><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div><div class="ph-t"></div>';
-  document.getElementById('pd-info').append(hood); document.getElementById('pd-card').append(hud);
+  document.getElementById('pd-info').append(hood, hud);
   const elHN = hood.querySelector('.ph-n'), elHT = hood.querySelector('.ph-t'), hPips = [...hood.querySelectorAll('.ph-p i')];
   const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
   let hdOn = null, hdName = '', hdLv = -1, hdLang = '', hdEx = 0;

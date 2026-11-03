@@ -465,7 +465,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
   // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
-  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><div class="pd-btitle"><span></span></div>`, { role: 'group' });
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><div class="pd-btitle"><span></span></div><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
   bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
@@ -488,7 +488,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1;
     for (const e of ui.querySelectorAll('[data-k]')) applyLangTo(e);
     miniEl.setAttribute('aria-label', S.whereQ[i]); miniEl.title = S.whereQ[i];
-    mapTag.textContent = S.openMap[i]; mapTag.setAttribute('aria-label', S.openMap[i]);
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
     for (const e of ui.querySelectorAll('.pd-namein')) e.placeholder = S.namePh[i];
     buildCredits(); syncRadio(); if (cur === 'controls') renderControls(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
@@ -503,6 +502,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     root.classList.toggle('pd-title', game.state === 'title');
     ui.dataset.st = game.state;
     ui.dataset.screen = cur || '';
+    if (typeof kickBars === 'function') kickBars();   // the bar may have come on screen
   }
   function focusables(name = cur) { return name ? [...screens[name].querySelectorAll('[data-nav]')].filter(e => e.offsetParent !== null) : []; }
   function go(name, { push = false, back = false } = {}) {
@@ -641,21 +641,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function openMap() {
     if (game.state !== 'play' || busy) return;
     game.pause(); stack = []; delete lastFocus.start; go('start');
-    countMapOpen();
   }
   const miniEl = document.getElementById('mini');
-  // The little label on the minimap's top edge says what the map is for. A <span>, not a <button>: a focused button would open the map on Space, which is the handbrake.
-  // Once the player has opened the map a few times the words go (the map itself still opens on a tap).
-  const MAP_OPENS_KEY = 'palermoDrive.mapOpens', MAP_OPENS_MAX = 3;
-  const mapOpens = () => { try { return +localStorage.getItem(MAP_OPENS_KEY) || 0; } catch (e) { return 0; } };
-  const mapTag = document.createElement('span');
-  mapTag.className = 'pd-maptag'; mapTag.setAttribute('role', 'button'); mapTag.hidden = mapOpens() >= MAP_OPENS_MAX;
-  miniEl.parentNode.appendChild(mapTag);
-  function countMapOpen() {
-    const n = mapOpens() + 1;
-    try { localStorage.setItem(MAP_OPENS_KEY, String(Math.min(n, 99))); } catch (e) { /* storage unavailable: the tag stays */ }
-    if (n >= MAP_OPENS_MAX) mapTag.hidden = true;
-  }
   // A tap opens the map from pointerup as well as click: while another finger holds a steering pad the browser sends the second finger's tap no click at all (pointerdown,
   // touchstart, pointerup and touchend arrive, the click does not), so while driving with a thumb on the pad it took several taps. openMap ignores a second call.
   function wireMapOpener(el) {
@@ -670,7 +657,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });   // the page lockdown (src/mobile.js) leaves this tap alone
     el.addEventListener('touchend', e => { e.stopPropagation(); if (handled) { handled = false; if (e.cancelable) e.preventDefault(); } });   // the tap is done: no click may follow onto the big map that is now under the finger
   }
-  wireMapOpener(miniEl); wireMapOpener(mapTag);
+  wireMapOpener(miniEl);
   // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
@@ -700,12 +687,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'missions': return go('missions', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
-      case 'map': delete lastFocus.start; countMapOpen(); return go('start', { push: true });
+      case 'map': delete lastFocus.start; return go('start', { push: true });
       case 'controls': return go('controls', { push: true });
       case 'nameCard': return void dispatchEvent(new Event('pd-open-name'));
       case 'quit': return quit();
       case 'radioNext': getRadio?.()?.next(); return;
-      case 'radioPower': { const r = getRadio?.(); if (!r) return; if (r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }
+      case 'radioPower': { const r = getRadio?.(); if (!r) return; const first = idleAtDown; idleAtDown = false; if (first || r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }   // the very first tap only starts the radio, it does not also switch it off
       case 'qCam': vehicle.camState.mode = (vehicle.camState.mode + 1) % 4; vehicle.camState.init = false; return;
       case 'qReset': return vehicle.placeAt(vehicle.car.x, vehicle.car.z);
       case 'qSwap': return dispatchEvent(new CustomEvent('pd-swap'));
@@ -733,7 +720,34 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     barT.textContent = title; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
   }
-  addEventListener('pd-radio', e => syncRadio(e.detail));
+  addEventListener('pd-radio', e => { syncRadio(e.detail); kickBars(); });
+
+  // ---- the music bars in the slim bar: a few bars that follow the radio's spectrum (src/radio.js spectrum()). Cheap on purpose: a 36 x 20 canvas drawn about 30 times a second, and only while the bar
+  // is on screen, the page is visible and something plays or the bars are still falling; the loop stops by itself and starts again with the radio's next change or when the bar comes back ----
+  const barCv = bar.querySelector('.pd-bbars'), bg = barCv.getContext('2d'), NB = 7, BW = 3, BGAP = 2.5, CW = NB * BW + (NB - 1) * BGAP, CH = 20, lvl = new Float32Array(NB);
+  let barRaf = 0, barLast = 0, gradP = null, gradM = null, barDpr = 0;
+  function sizeBars() {
+    barDpr = Math.min(2, window.devicePixelRatio || 1);
+    barCv.width = Math.round(CW * barDpr); barCv.height = Math.round(CH * barDpr); barCv.style.width = CW + 'px'; barCv.style.height = CH + 'px';
+    bg.setTransform(barDpr, 0, 0, barDpr, 0, 0);
+    gradP = bg.createLinearGradient(0, 0, 0, CH); gradP.addColorStop(0, '#ffd1e6'); gradP.addColorStop(.45, '#f06fae'); gradP.addColorStop(1, '#8a3a62');
+    gradM = bg.createLinearGradient(0, 0, 0, CH); gradM.addColorStop(0, '#ffb199'); gradM.addColorStop(.35, '#ff2a1a'); gradM.addColorStop(1, '#2b0204');
+  }
+  sizeBars();
+  function drawBars(t) {
+    barRaf = 0;
+    const r = getRadio?.();
+    if (!r || document.hidden || !bar.offsetParent) return;   // hidden bar or hidden page: no loop
+    if (t - barLast < 30) { barRaf = requestAnimationFrame(drawBars); return; }
+    barLast = t;
+    const live = r.spectrum(lvl);
+    bg.clearRect(0, 0, CW, CH); bg.fillStyle = bar.dataset.theme === 'metal' ? gradM : gradP;
+    for (let i = 0; i < NB; i++) { if (!live && lvl[i] < 0.04) continue; const h = Math.max(2, Math.round(lvl[i] * CH)); bg.fillRect(i * (BW + BGAP), CH - h, BW, h); }   // nothing playing: nothing drawn once they have fallen
+    if (live) barRaf = requestAnimationFrame(drawBars); else bg.clearRect(0, 0, CW, CH);   // settled: the loop ends with an empty canvas
+  }
+  function kickBars() { if (!barRaf && !document.hidden) barRaf = requestAnimationFrame(drawBars); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kickBars(); });
+  addEventListener('resize', () => { if ((window.devicePixelRatio || 1) !== barDpr) { sizeBars(); kickBars(); } });
   function syncSide() {
     syncRadio();
     quitSub.hidden = !missions?.busy?.();
@@ -1130,10 +1144,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   addEventListener('pointerdown', () => setKb(false), true);
   addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && (e.movementX || e.movementY)) setKb(false); }, true);
 
+  let idleAtDown = false;   // the radio had not started when this press began: the first gesture starts it (src/radio.js), and the press on the play button must not undo that
+  addEventListener('pointerdown', () => { const r = getRadio?.(); idleAtDown = !!r && r.view.mode === 'idle'; if (idleAtDown) setTimeout(() => { idleAtDown = false; }, 700); }, true);
+  const DOCKED = new Set(['side', 'options', 'controls', 'collections', 'missions']);
+  let downOnBackdrop = false;
+  ui.addEventListener('pointerdown', e => { downOnBackdrop = game.state === 'pause' && !!(e.target.classList && e.target.classList.contains('pd-screen') && DOCKED.has(e.target.dataset.name)); }, true);
   // pointer: one delegated click handler (click, not pointerdown, so a tap never lands on the next screen)
   ui.addEventListener('click', e => {
     if (busy || (e.detail && now() < lockUntil)) return; // pointer taps right after a screen change are ignored; keyboard clicks (detail 0) are not
-    if (e.target === screens.side) return closePause(); // a tap beside the panel closes it
+    // a click or tap on the game, beside the panel (the backdrop of the menu panel or of a docked Comandi, Opzioni, Missioni, Collezioni), closes it and resumes, like Torna a guidare. Only when the press began there as
+    // well (a slider dragged past the panel's edge does not count), and never on the title screen's menus (the game is not paused then). Nothing reaches the game: the screens cover it.
+    const bd = e.target.classList && e.target.classList.contains('pd-screen') ? e.target.dataset.name : null;
+    if (bd && DOCKED.has(bd) && downOnBackdrop && game.state === 'pause') { downOnBackdrop = false; return closePause(); }
     const t = e.target.closest ? e.target.closest('button, .pd-s-title') : null;
     if (!t) return;
     if (t === menuBtn) return openPause();   // (the bar's own buttons, play or pause and next, carry data-do like the panel's)
@@ -1168,7 +1190,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   let lastT = now(), lastState = '', nextLivCheck = 0;
   function tick(t) {
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
-    if (game.state !== lastState) { lastState = game.state; syncState(); }
+    if (game.state !== lastState) { lastState = game.state; syncState(); kickBars(); }
     if (arrived && game.state === 'play' && Math.hypot(vehicle.car.x - arrived.x, vehicle.car.z - arrived.z) > 25) answerArrival(false);   // put elsewhere (R, a swap): that is an answer too
     if (arrived) syncAsk();
     pollPad(t);
