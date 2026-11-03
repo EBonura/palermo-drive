@@ -339,7 +339,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   }
   function toggleDrv(fx) { if (!D.spec) return; D.spec = D.dc.cleanSpec({ ...D.spec, [fx]: !D.spec[fx] }); paintAll(); composeDriver(); }
   function randomDrv() { if (!D.dc || !D.M) return; D.spec = D.dc.randomSpec(); paintAll(); composeDriver(); }
-  function originalDrv() { driver.clear(); D.spec = null; D.idle = null; flash(tr('orig') + ' ✓'); toStep(1); }   // back to the blocky 3D driver; the next visit starts again from the default person
+  function originalDrv() { driver.clear(); D.spec = null; D.idle = null; flash(tr('orig') + ' ✓'); toStep(1); }   // back to the default driver; the next visit starts again from the default person
   function paintBody() {
     if (step === 3) { elM3.innerHTML = `<div class="gx-port"><canvas width="192" height="64"></canvas></div><div class="gx-body">${paintDriver()}</div>`; drawPortrait(); return; }
     const c = categoriesFor(sel).find(x => x.id === cat) || categoriesFor(sel)[0];

@@ -10,23 +10,6 @@ import { cleanLook, lookKey } from './garage.js';
 import { driver } from './driver.js';
 
 // ---------- shared assemblies ----------
-// A rider (bikes) or driver, in the 'driver' group so the bonnet camera can hide it.
-function rider(D, o) {
-  const shirt = colMat(o.shirt, 0.9), pants = colMat(o.pants, 0.9), skin = colMat('#c58b64', 0.8), shoe = MAT.dark;
-  const { hip, sh, head } = o;
-  D.limb(shirt, hip, sh, 0.34, 0.2);
-  D.add(skin, sph(0.1, 10, 8), head[0], head[1], head[2]);
-  if (o.helmet === 'full') { D.add(colMat(o.helmetColor || '#16161a', 0.35, 0.2), sph(0.135, 12, 9), head[0], head[1] + 0.015, head[2]); D.add(MAT.dark, box(0.19, 0.06, 0.06), head[0], head[1], head[2] + 0.115); }
-  else if (o.helmet === 'jet') { D.add(colMat(o.helmetColor || '#f1efe8', 0.4, 0.1), sph(0.128, 12, 9, 0), head[0], head[1] + 0.03, head[2] - 0.01, 0, 0, 0, 1, 0.82, 1.05); D.add(MAT.dark, box(0.22, 0.025, 0.1), head[0], head[1] + 0.07, head[2] + 0.1); }
-  for (const sx of [-1, 1]) {
-    D.limb(pants, [sx * 0.12, hip[1], hip[2]], [sx * o.knee[0], o.knee[1], o.knee[2]], 0.14, 0.14);
-    D.limb(pants, [sx * o.knee[0], o.knee[1], o.knee[2]], [sx * o.foot[0], o.foot[1], o.foot[2]], 0.11, 0.11);
-    D.add(shoe, box(0.1, 0.07, 0.22), sx * o.foot[0], o.foot[1] - 0.03, o.foot[2] + 0.05);
-    D.limb(shirt, [sx * 0.19, sh[1] - 0.02, sh[2]], [sx * o.hand[0], o.hand[1], o.hand[2]], 0.095, 0.095);
-    D.add(skin, sph(0.045, 6, 5), sx * o.hand[0], o.hand[1], o.hand[2]);
-  }
-}
-
 // One wheel: tyre + rim, in the wheel's own frame (the axle is the origin). style: 'lapa' whitewall, 'bike' alloy, 'car' flashy.
 function addWheel(K, W, style, rimOpt, M) {
   const r = W.r, w = W.w, S = W.s, X = W.x;
@@ -70,9 +53,9 @@ function decal(T, key, cx, cy, cz, w, h, face) {
 // ===================================================================================================================
 // LAPE
 // ===================================================================================================================
-// The front end shared by the three lape: tub, cowl, nose, lamps, bumpers, seat, driver, windscreen, handlebar, front wheel fork.
+// The front end shared by the three lape: tub, cowl, nose, lamps, bumpers, seat, windscreen, handlebar, front wheel fork.
 function lapaFront(K, M, o) {
-  const T = K.on('tilt'), D = K.on('driver'), B = K.on('bar'), cab = M.cab || M.body, pil = M.pillar || M.trim || M.body;
+  const T = K.on('tilt'), B = K.on('bar'), cab = M.cab || M.body, pil = M.pillar || M.trim || M.body;
   T.add(MAT.dark, box(1.12, 0.1, 2.7), 0, 0.27, -0.1);
   T.add([cab, cab, M.body, M.body, M.body, M.body], new THREE.BoxGeometry(1.3, 0.5, 0.9), 0, 0.53, 0.35);
   T.add(M.body, box(1.0, 0.52, 0.4), 0, 0.74, 0.97);
@@ -85,10 +68,8 @@ function lapaFront(K, M, o) {
   }
   T.add(MAT.white, box(0.3, 0.1, 0.02), 0, 0.45, o.tailZ + 0.01);
   T.add(MAT.chrome, box(1.0, 0.05, 0.12), 0, 0.32, o.tailZ + 0.015); T.add(MAT.chrome, box(0.95, 0.05, 0.1), 0, 0.32, 1.1);
-  // front seat and driver
+  // front seat (the driver is a sprite, src/driver.js)
   T.add(MAT.seat, box(0.55, 0.28, 0.45), 0, 0.92, 0.18); T.add(MAT.seat, box(0.55, 0.42, 0.09), 0, 1.2, -0.07);
-  D.add(colMat('#2c3a58', 0.9), box(0.42, 0.5, 0.24), 0, 1.28, 0.12);
-  D.add(colMat('#c58b64', 0.8), sph(0.12, 10, 8), 0, 1.68, 0.14); D.add(MAT.dark, box(0.26, 0.04, 0.2), 0, 1.78, 0.17);
   // windscreen, A-pillars, wiper and mirror (one assembly leaning back)
   { const W = K.on('tilt', 0, 1.0, 0.8, -0.15, 0, 0);
     W.add(MAT.glass, box(1.14, 0.7, 0.02), 0, 0.4, 0);
@@ -116,7 +97,7 @@ function lapaFront(K, M, o) {
 
 function buildCalessino(K, M, P, A) {
   K.spec.tiltPivot = [0, 0.45, 0]; K.spec.barPos = [0, 1.12, 0.62];
-  K.group('tilt', [0, 0.45, 0]).group('driver', [0, 0.45, 0]).group('bar', [0, 1.12, 0.62]);
+  K.group('tilt', [0, 0.45, 0]).group('bar', [0, 1.12, 0.62]);
   const T = K.on('tilt');
   lapaFront(K, M, { tailZ: -1.565, rims: P.rims });
   T.add([M.rear, M.rear, MAT.floor, M.body, M.body, M.rear], new THREE.BoxGeometry(1.3, 0.5, 1.5), 0, 0.53, -0.85);
@@ -149,7 +130,7 @@ function buildCalessino(K, M, P, A) {
 
 function buildCassone(K, M, P, A) {
   K.spec.tiltPivot = [0, 0.45, 0]; K.spec.barPos = [0, 1.12, 0.62];
-  K.group('tilt', [0, 0.45, 0]).group('driver', [0, 0.45, 0]).group('bar', [0, 1.12, 0.62]);
+  K.group('tilt', [0, 0.45, 0]).group('bar', [0, 1.12, 0.62]);
   const T = K.on('tilt');
   lapaFront(K, M, { tailZ: -1.72, rims: P.rims });
   // hard cab roof and glazed doors
@@ -181,7 +162,7 @@ function buildCassone(K, M, P, A) {
 function buildLapa50(K, M, P, A) {
   const s = 0.86; K.s = s;
   K.spec.tiltPivot = [0, 0.45 * s, 0]; K.spec.barPos = [0, 1.12 * s, 0.62 * s];
-  K.group('tilt', [0, 0.45 * s, 0]).group('driver', [0, 0.45 * s, 0]).group('bar', [0, 1.12 * s, 0.62 * s]);
+  K.group('tilt', [0, 0.45 * s, 0]).group('bar', [0, 1.12 * s, 0.62 * s]);
   const T = K.on('tilt');
   lapaFront(K, M, { tailZ: -1.3, rims: P.rims });
   // cab roof, then a van box behind it
@@ -209,12 +190,12 @@ function buildLapa50(K, M, P, A) {
 // ===================================================================================================================
 function bikeFrame(K, rearY, rearZ, barPos) {
   K.spec.tiltPivot = [0, rearY, rearZ]; K.spec.barPos = barPos; K.spec.wheelsIn = 'tilt'; K.spec.leanMode = 'bank';
-  K.group('tilt', [0, rearY, rearZ]).group('driver', [0, rearY, rearZ]).group('bar', barPos);
+  K.group('tilt', [0, rearY, rearZ]).group('bar', barPos);
 }
 
 function buildVespa(K, M, P, A) {
   bikeFrame(K, 0.2, -0.6, [0, 0.98, 0.5]);
-  const T = K.on('tilt'), D = K.on('driver'), B = K.on('bar');
+  const T = K.on('tilt'), B = K.on('bar');
   // body: rear cowl with flat sides, round top, floorboard, legshield, tail
   T.add(M.body, prism([-0.17, 0.17, -0.92, -0.2], 0.24, [-0.15, 0.15, -0.9, -0.24], 0.62));
   T.add(M.body, sph(0.2, 12, 8), 0, 0.6, -0.56, 0, 0, 0, 0.78, 0.55, 1.5);
@@ -237,7 +218,6 @@ function buildVespa(K, M, P, A) {
   B.add(M.body, sph(0.15, 12, 8), 0, 0.02, 0.02, 0, 0, 0, 1.15, 0.8, 1.25);
   B.add(MAT.lamp, sph(0.075, 10, 8), 0, 0.02, 0.17); B.add(MAT.chrome, tor(0.078, 0.01, 5, 14), 0, 0.02, 0.16);
   B.add(MAT.chrome, cylX(0.014, 0.014, 0.62, 8), 0, 0.07, -0.04); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.024, 0.024, 0.1, 8), sx * 0.34, 0.07, -0.04); K.stage = 1; B.tube(MAT.chrome, [sx * 0.2, 0.08, -0.04], [sx * 0.24, 0.3, -0.1], 0.008); B.add(MAT.chrome, box(0.1, 0.07, 0.015), sx * 0.24, 0.32, -0.1); K.stage = null; }
-  rider(D, { shirt: '#2f7a87', pants: '#3a4660', helmet: 'jet', helmetColor: '#f1efe8', hip: [0, 0.8, -0.38], sh: [0, 1.3, -0.26], head: [0, 1.5, -0.2], knee: [0.17, 0.78, 0.0], foot: [0.16, 0.27, 0.2], hand: [0.3, 1.06, 0.45] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 0.66, z: -0.97, w: 0.42, h: 0.12 }, neon: { x: 0.2, z0: -0.5, z1: 0.5, y: 0.15, bike: true }, glow: { w: 1.5, l: 2.6, z: 0 },
     roof: { x: 0.17, y: 0.6, z: -0.88 }, tail: { y: 0.7, z: -0.95, w: 0.36 }, bag: { x: 0.24, y: 0.4, z: -0.8, l: 0.4, h: 0.26 }, screen: { y: 0.17, z: 0.08, w: 0.34 },
@@ -250,7 +230,7 @@ function buildVespa(K, M, P, A) {
 
 function buildScooterone(K, M, P, A) {
   bikeFrame(K, 0.26, -0.68, [0, 1.02, 0.5]);
-  const T = K.on('tilt'), D = K.on('driver'), B = K.on('bar');
+  const T = K.on('tilt'), B = K.on('bar');
   T.add(M.body, prism([-0.2, 0.2, -1.0, -0.22], 0.3, [-0.18, 0.18, -0.96, -0.3], 0.74));
   T.add(M.body, sph(0.2, 12, 8), 0, 0.72, -0.62, 0, 0, 0, 0.9, 0.5, 1.75);
   T.add(M.body, box(0.42, 0.05, 0.56), 0, 0.27, 0.16); T.add(MAT.alu, box(0.03, 0.03, 0.56), 0.215, 0.27, 0.16); T.add(MAT.alu, box(0.03, 0.03, 0.56), -0.215, 0.27, 0.16);
@@ -272,7 +252,6 @@ function buildScooterone(K, M, P, A) {
   for (const sx of [-1, 1]) { B.add(MAT.lamp, box(0.1, 0.05, 0.03), sx * 0.1, 0.0, 0.25); }
   B.add(MAT.glass, box(0.3, 0.2, 0.01), 0, 0.2, 0.0, -0.4);
   B.add(MAT.chrome, cylX(0.014, 0.014, 0.66, 8), 0, 0.14, -0.1); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.11, 8), sx * 0.36, 0.14, -0.1); K.stage = 1; B.tube(MAT.black, [sx * 0.2, 0.14, -0.1], [sx * 0.26, 0.34, -0.1], 0.008); B.add(MAT.black, box(0.1, 0.07, 0.015), sx * 0.26, 0.36, -0.1); K.stage = null; }
-  rider(D, { shirt: '#23262e', pants: '#4a5668', helmet: 'jet', helmetColor: '#1f2024', hip: [0, 0.9, -0.34], sh: [0, 1.46, -0.3], head: [0, 1.67, -0.26], knee: [0.17, 0.9, 0.12], foot: [0.16, 0.34, 0.26], hand: [0.3, 1.16, 0.4] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 1.26, z: -1.09, w: 0.4, h: 0.1 }, neon: { x: 0.22, z0: -0.6, z1: 0.55, y: 0.17, bike: true }, glow: { w: 1.6, l: 2.8, z: 0 },
     roof: { x: 0.15, y: 1.24, z: -1.0 }, tail: { y: 1.24, z: -0.86, w: 0.36 }, bag: { x: 0.27, y: 0.45, z: -0.82, l: 0.42, h: 0.28 }, screen: { y: 0.3, z: 0.0, w: 0.36 },
@@ -285,7 +264,7 @@ function buildScooterone(K, M, P, A) {
 
 function buildMotorino(K, M, P, A) {
   bikeFrame(K, 0.3, -0.65, [0, 1.0, 0.42]);
-  const T = K.on('tilt'), D = K.on('driver'), B = K.on('bar');
+  const T = K.on('tilt'), B = K.on('bar');
   // frame, engine, tank, seat and tail
   T.limb(MAT.black, [0, 0.95, 0.4], [0, 0.55, -0.3], 0.05); T.limb(MAT.black, [0, 0.55, -0.3], [0, 0.34, -0.58], 0.05); T.limb(MAT.black, [0, 0.95, 0.4], [0, 0.4, 0.22], 0.05); T.limb(MAT.black, [0, 0.4, 0.22], [0, 0.34, -0.2], 0.05);
   T.add(MAT.alu, box(0.2, 0.28, 0.36), 0, 0.42, -0.02); T.add(MAT.dark, prism([-0.07, 0.07, -0.15, 0.06], 0.52, [-0.07, 0.07, -0.1, 0.1], 0.74)); T.add(MAT.alu, box(0.22, 0.16, 0.22), 0, 0.34, -0.38);
@@ -306,7 +285,6 @@ function buildMotorino(K, M, P, A) {
   // bar: wide handlebar, round headlight, little clocks
   B.add(MAT.black, cylX(0.014, 0.014, 0.74, 8), 0, 0.03, 0); for (const sx of [-1, 1]) { B.add(MAT.dark, cylX(0.026, 0.026, 0.12, 8), sx * 0.38, 0.03, 0); K.stage = 1; B.tube(MAT.chrome, [sx * 0.3, 0.05, 0.02], [sx * 0.34, 0.24, -0.02], 0.007); B.add(MAT.chrome, box(0.09, 0.06, 0.012), sx * 0.34, 0.26, -0.02); K.stage = null; }
   B.add(MAT.chrome, cylZ(0.1, 0.1, 0.12, 14), 0, -0.02, 0.14); B.add(MAT.lamp, cylZ(0.082, 0.082, 0.02, 14), 0, -0.02, 0.205); B.add(MAT.dark, box(0.1, 0.08, 0.04), 0, 0.12, -0.04);
-  rider(D, { shirt: '#b0262a', pants: '#20242c', helmet: 'full', helmetColor: '#141418', hip: [0, 0.9, -0.4], sh: [0, 1.34, -0.12], head: [0, 1.5, -0.02], knee: [0.15, 0.78, 0.1], foot: [0.18, 0.36, -0.18], hand: [0.37, 1.04, 0.42] });
   Object.assign(A, {
     kind: 'bike', spoil: { y: 0.93, z: -0.84, w: 0.3, h: 0.1 }, neon: { x: 0.18, z0: -0.45, z1: 0.5, y: 0.2, bike: true }, glow: { w: 1.4, l: 2.6, z: 0 },
     roof: { x: 0.12, y: 0.95, z: -0.88 }, tail: { y: 0.97, z: -0.86, w: 0.26 }, bag: { x: 0.2, y: 0.55, z: -0.7, l: 0.4, h: 0.24 }, screen: { y: 0.15, z: 0.2, w: 0.3 },
@@ -322,8 +300,8 @@ function buildMotorino(K, M, P, A) {
 // ===================================================================================================================
 function buildTascia(K, M, P, A) {
   K.spec.tiltPivot = [0, 0.3, 0]; K.spec.barPos = [0, 0.8, 0.4];
-  K.group('tilt', [0, 0.3, 0]).group('driver', [0, 0.3, 0]).group('bar', [0, 0.8, 0.4]);
-  const T = K.on('tilt'), D = K.on('driver');
+  K.group('tilt', [0, 0.3, 0]).group('bar', [0, 0.8, 0.4]);
+  const T = K.on('tilt');
   // lower body: slab, long bonnet sloping to the nose, short tail
   T.add(M.body, prism([-0.8, 0.8, -1.78, 1.78], 0.2, [-0.76, 0.76, -1.78, 1.5], 0.62));
   T.add(M.body, prism([-0.76, 0.76, 1.5, 1.78], 0.5, [-0.74, 0.74, 1.62, 1.8], 0.6)); T.add(M.body, prism([-0.74, 0.74, 0.55, 1.5], 0.6, [-0.7, 0.7, 0.62, 1.5], 0.74));
@@ -345,11 +323,10 @@ function buildTascia(K, M, P, A) {
     const w = K.wheel(sx * 0.78, 0.29, sz * 1.1, 0.29, 0.2, sz > 0); addWheel(K, w, 'car', P.rims);
     T.add(MAT.dark, cylX(0.36, 0.36, 0.22, 14, false, 0, PI), sx * 0.76, 0.29, sz * 1.1);
   }
-  // the bare chassis (what is left after the ZEN): two rails, cross members, a steering wheel and the driver on the floor pan
+  // the bare chassis (what is left after the ZEN): two rails, cross members, a steering wheel on the floor pan
   for (const sx of [-1, 1]) T.add(MAT.dark, box(0.08, 0.08, 3.3), sx * 0.45, 0.3, 0);
   for (const z of [-1.5, -0.3, 0.8, 1.6]) T.add(MAT.dark, box(1.0, 0.06, 0.08), 0, 0.3, z);
   T.add(MAT.dark, box(0.5, 0.04, 0.9), 0.3, 0.34, -0.2); T.tube(MAT.dark, [0.3, 0.4, 0.55], [0.3, 0.9, 0.2], 0.02); T.add(MAT.dark, tor(0.14, 0.02, 4, 14), 0.3, 0.93, 0.18, -0.9, 0, 0);
-  rider(K.on('driver', 0.3, 0, 0), { shirt: '#c9342a', pants: '#3a4660', hip: [0, 0.5, -0.3], sh: [0, 0.92, -0.2], head: [0, 1.08, -0.15], knee: [0.12, 0.56, 0.15], foot: [0.12, 0.36, 0.45], hand: [-0.04, 0.9, 0.2] });
   // the fat stock exhaust: big oval can with a flared tip, right of centre
   T.add(MAT.chrome, cylZ(0.07, 0.085, 0.22, 12, false), 0.5, 0.22, -1.88); T.add(MAT.dark, cylZ(0.05, 0.05, 0.24, 10, false), 0.5, 0.22, -1.88);
   Object.assign(A, {
@@ -369,8 +346,8 @@ function buildTascia(K, M, P, A) {
 // ===================================================================================================================
 function buildSulky(K, M, P, A) {
   K.spec.tiltPivot = [0, 0.5, 0]; K.spec.barPos = [0, 1.2, 0.2]; K.spec.len = 3.6;
-  K.group('tilt', [0, 0.5, 0]).group('driver', [0, 0.5, 0]).group('bar', [0, 1.2, 0.2]);
-  const T = K.on('tilt'), D = K.on('driver'), coat = M.body, cart = M.trim, wood = MAT.wood, blk = MAT.black;
+  K.group('tilt', [0, 0.5, 0]).group('bar', [0, 1.2, 0.2]);
+  const T = K.on('tilt'), coat = M.body, cart = M.trim, wood = MAT.wood, blk = MAT.black;
   // the sulky: two big spoked wheels, a light frame, a seat and a footboard, a pink pennant
   for (const sx of [-1, 1]) {
     const w = K.wheel(sx * 0.68, 0.5, -0.65, 0.5, 0.07, false); addWheel(K, w, 'cart', '', M);
@@ -382,14 +359,7 @@ function buildSulky(K, M, P, A) {
   T.add(cart, box(0.6, 0.07, 0.44), 0, 0.98, -0.72); T.add(cart, box(0.6, 0.34, 0.05), 0, 1.16, -0.97); T.add(cart, box(0.6, 0.04, 0.6), 0, 0.74, -0.3);
   T.add(wood, box(0.8, 0.05, 0.05), 0, 0.88, 0.5);
   T.tube(MAT.dark, [-0.22, 1.0, -0.98], [-0.22, 1.95, -0.98], 0.014); T.add(colMat('#f27aa8', 0.6), box(0.012, 0.16, 0.34), -0.22, 1.82, -1.16);
-  // the jockey, in pink and black silks
-  const silk = colMat('#f27aa8', 0.8), skin = colMat('#c58b64', 0.8);
-  D.limb(silk, [0, 1.02, -0.72], [0, 1.52, -0.58], 0.34, 0.22); D.add(skin, sph(0.1, 10, 8), 0, 1.7, -0.52);
-  D.add(colMat('#141418', 0.5), sph(0.115, 10, 8), 0, 1.74, -0.52, 0, 0, 0, 1, 0.75, 1.1); D.add(colMat('#141418', 0.5), box(0.2, 0.03, 0.12), 0, 1.69, -0.4);
   for (const sx of [-1, 1]) {
-    D.limb(colMat('#f4f2ea', 0.8), [sx * 0.12, 1.02, -0.72], [sx * 0.14, 0.92, -0.35], 0.13, 0.13); D.limb(colMat('#f4f2ea', 0.8), [sx * 0.14, 0.92, -0.35], [sx * 0.15, 0.78, 0.0], 0.1, 0.1);
-    D.add(MAT.dark, box(0.1, 0.06, 0.2), sx * 0.15, 0.76, 0.06);
-    D.limb(silk, [sx * 0.2, 1.46, -0.58], [sx * 0.17, 1.18, -0.2], 0.09, 0.09); D.add(skin, sph(0.04, 6, 5), sx * 0.17, 1.18, -0.2);
     T.tube(MAT.dark, [sx * 0.17, 1.18, -0.2], [sx * 0.1, 1.55, 2.0], 0.008);   // reins
   }
   // the horse: body and head bob, four legs and the tail swing (see rig.pose)
@@ -703,8 +673,8 @@ function instantiate(tpl, livery, local) {
 }
 
 // Public: a model of any vehicle for any look: { type, livery, parts: { spoiler: 'gt', neon: 'rosa', ... } }. The caller poses it with rig.pose().
-export function buildVehicleModel(look) { const l = cleanLook(look); return instantiate(template(l), l.livery, false); }
+export function buildVehicleModel(look, own = false) { const l = cleanLook(look); const rig = instantiate(template(l), l.livery, false); driver.dress(rig, own); return rig; }   // every rig has a driver sprite (src/driver.js): own = the player's (a saved one, or the default), otherwise always the default
 // The local car's rig: painted with the shared materials (recolour them with repaint()), so a livery change does not rebuild anything.
-export function buildLocalRig(look) { const l = cleanLook(look); paintSet(l.type, paintedSet(l.type), l.livery); const rig = instantiate(template(l), l.livery, true); driver.dress(rig); return rig; }   // driver.dress: the player's own driver in a lapa (src/driver.js)
+export function buildLocalRig(look) { const l = cleanLook(look); paintSet(l.type, paintedSet(l.type), l.livery); const rig = instantiate(template(l), l.livery, true); driver.dress(rig, true); return rig; }
 export function repaint(type, livery) { return paintSet(type, paintedSet(type), livery); }
 export { tickShared } from './vehicle-art.js';

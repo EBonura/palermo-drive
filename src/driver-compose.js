@@ -32,9 +32,9 @@ function sheet(rel, anim) {
 
 // ---- the spec
 const pick = (list, id, d) => (list.some(o => o.id === id) ? id : d);
-export function defaultSpec() {
-  return { v: 1, body: 'male', old: false, skin: 'light', eye: 'brown', hair: 'short', hairCol: 'dark_brown', beard: 'none', glasses: 'none', hat: 'none', hatCol: 'brown',
-    top: 'tshirt', topCol: 'sky', bottom: 'pants', botCol: 'navy', shoes: 'shoes', shoeCol: 'white', scarf: false, chain: false, earring: false, tattoo: false, leather: false };
+export function defaultSpec() {   // an ordinary man in everyday clothes: the driver every vehicle has until the player makes their own (baked into src/driver-default.js by tools/lpc/default-driver.mjs, run it again after a change here) and where the creator starts
+  return { v: 1, body: 'male', old: false, skin: 'olive', eye: 'brown', hair: 'short', hairCol: 'black', beard: 'none', glasses: 'none', hat: 'none', hatCol: 'brown',
+    top: 'tshirt', topCol: 'tan', bottom: 'pants', botCol: 'navy', shoes: 'shoes', shoeCol: 'white', scarf: false, chain: false, earring: false, tattoo: false, leather: false };
 }
 export function cleanSpec(s) {
   const o = manifest.options, d = defaultSpec(); s = s && typeof s === 'object' ? s : {};
