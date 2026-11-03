@@ -369,7 +369,7 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 // Multiplayer is peer to peer (src/p2p/p2p.js, docs/P2P-MULTIPLAYER.md), and nothing connects until the player says yes on its name card. ?p2p=off falls back to the relay client, which does nothing without a relay.
-const net = (typeof __PD_P2P__ === 'undefined' || __PD_P2P__) && params.get('p2p') !== 'off' ? (await import('./p2p/p2p.js')).createP2P({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk }) : createNet({ ...worldEnv, game, vehicle, mapMarkers });
+const net = (typeof __PD_P2P__ === 'undefined' || __PD_P2P__) && params.get('p2p') !== 'off' ? (await import('./p2p/p2p.js')).createP2P({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions }) : createNet({ ...worldEnv, game, vehicle, mapMarkers });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
 const drunk = createDrunk({ game, car, camera, missions });

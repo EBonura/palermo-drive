@@ -13,7 +13,7 @@ const toasts = P => P.page.evaluate(() => window.__t.slice());
 const clear = P => P.page.evaluate(() => { window.__t.length = 0; });
 const cardText = P => P.page.evaluate(() => { const c = document.querySelector('[role=alertdialog]'); return c ? c.textContent : null; });
 const pillText = P => P.page.evaluate(() => { const d = [...document.querySelectorAll('.pd-p2p')].find(x => x.style.bottom === '90px'); return d && d.style.display !== 'none' ? d.textContent : ''; });
-const press = (P, txt) => P.page.evaluate(t => { const b = [...document.querySelectorAll('[role=alertdialog] button')].find(x => x.textContent === t); if (b) b.click(); return !!b; }, txt);
+const press = (P, txt) => P.page.evaluate(t => { const b = document.querySelector('[role=alertdialog] button[data-act=' + (t === 'Accetta' ? 'yes' : 'no') + ']'); if (b) b.click(); return !!b; }, txt);
 const until = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 150) { const v = await fn(); if (v) return v; await sleep(150); } return null; };
 const has = async (P, re, ms = 6000) => !!(await until(async () => (await toasts(P)).some(t => re.test(t)), ms));
 const reset = (...Ps) => Promise.all(Ps.map(P => P.page.evaluate(() => window.__p2p.resetOffers())));
@@ -28,6 +28,7 @@ try {
   const A = await player(h, { name: 'Anna', ns, x: 137, z: -212, extra: 'cash=20', size: [900, 500], isolated: true });
   const B = await player(h, { name: 'Bob', ns, x: 141, z: -205, size: [900, 500], isolated: true });
   ok('the two players meet', await meet(A, B)); await Promise.all([watch(A), watch(B)]);
+  await A.page.evaluate(() => localStorage.setItem('palermoDrive.p2pFree.v1', '0'));   // these two have used their free rounds: the tests below are about paying
 
   // 1. accepted: the card says who, what and how dizzy; the giver pays; the receiver is dizzy and sees it
   await sleep(4000); const swim0 = await swim(B);
@@ -103,9 +104,9 @@ try {
   // Anna has no money left: a second giver
   const C = await player(h, { name: 'Carla', ns, x: 142, z: -204, extra: 'cash=20', size: [900, 500], isolated: true }); await watch(C);
   ok('Carla meets Bob', await meet(C, B));
-  await B.page.keyboard.press('KeyP'); await sleep(600);
+  await C.page.evaluate(() => localStorage.setItem('palermoDrive.p2pFree.v1', '0'));
+  await clear(C); await B.page.keyboard.press('KeyP'); await sleep(300); await offer(C, 1);   // at once: a paused player is dropped from the street after 6 s, and a loaded machine is slow
   ok('in the pause menu the buttons are hidden', await B.page.evaluate(() => [...document.querySelectorAll('.pd-p2p')].every(e => getComputedStyle(e).display === 'none')));
-  await clear(C); await offer(C, 1);
   ok('Carla is told Bob is busy', await has(C, /Bob è occupatu/), (await toasts(C)).join(' | '));
   ok('and no card shows up on a paused Bob', (await cardText(B)) === null);
   await B.page.screenshot({ path: out + '/offer-4-bob-paused.png' });
@@ -120,6 +121,21 @@ try {
   await reset(C, B); await clear(C); await offer(C, 1); await until(() => cardText(B), 4000);
   await B.page.close();
   ok('Carla is told Bob is gone and the waiting line goes', await has(C, /Bob un c’è chiù/, 15000) && !(await pillText(C)), (await toasts(C)).join(' | '));
+
+  // two free rounds for a new player with an empty wallet, not refilled by a reload
+  const D = await player(h, { name: 'Dina', ns, x: 300, z: -212, size: [900, 500], isolated: true }), E = await player(h, { name: 'Eli', ns, x: 304, z: -208, size: [900, 500], isolated: true });
+  await Promise.all([watch(D), watch(E)]); ok('Dina (empty wallet) meets Eli', await meet(D, E));
+  ok('Dina starts with 2 free rounds and no money', (await D.page.evaluate(() => [window.__p2p.free(), window.__p2p.wallet()])).join() === '2,0');
+  ok('Dina can offer with an empty wallet, and her line says free', await until(() => offer(D, 1), 10000) && /gratis/.test(await until(() => pillText(D), 2000) || ''), await pillText(D));
+  await until(() => cardText(E), 5000); await press(E, 'Accetta');
+  ok('she is told it was on the house, with 1 free left', await has(D, /Offre a casa.*1 gratis arristati/), (await toasts(D)).join(' | '));
+  ok('Eli got the drink', await has(E, /Dina t’offriu/));
+  await reset(D, E); await clear(D); await offer(D, 0); await until(() => cardText(E), 5000); await press(E, 'Accetta');
+  ok('the second one is the last free one', await has(D, /ultimu gratis/), (await toasts(D)).join(' | '));
+  await reset(D, E); await clear(D);
+  ok('then she has to pay: refused with no money', (await offer(D, 1)) === false && await has(D, /Sienza picciuli/), (await toasts(D)).join(' | '));
+  await D.page.reload({ waitUntil: 'domcontentloaded' }); await D.page.waitForFunction(() => window.__p2p && window.game && !document.getElementById('loading'), { timeout: 300000, polling: 250 });
+  ok('a reload does not bring a free round back', (await D.page.evaluate(() => window.__p2p.free())) === 0);
 
   // hostile messages: nothing is given, nothing throws
   const bad7 = await C.page.evaluate(() => { const u0 = window.game.drunk.units; const r = window.__p2p.fuzz([['o', new Uint8Array([6, 1, 5])], ['o', new Uint8Array([5, 0, 5])], ['o', new Uint8Array([7, 9, 5])], ['o', new Uint8Array([4, 9, 5])], ['o', new Uint8Array([4])], ['o', new Uint8Array(40)], ['o', new Uint8Array([9, 1, 1])], ['o', new Uint8Array([6, 1, 0])]]); return { ...r, gift: window.game.drunk.units - u0, card: !!document.querySelector('[role=alertdialog]') }; });

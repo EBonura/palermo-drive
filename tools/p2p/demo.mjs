@@ -21,10 +21,10 @@ try {
   const cash0 = await A.page.evaluate(() => JSON.parse(localStorage.getItem('palermoDrive.garage.v1') || '{}').cash);
   console.log('offer sent', await A.page.evaluate(() => window.__p2p.offer(1)));
   await sleep(2500);
-  const hasCard = await B.page.evaluate(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Accetta'));
+  const hasCard = await B.page.evaluate(() => !!document.querySelector('[role=alertdialog] button[data-act=yes]'));
   console.log('Bob sees the card', hasCard);
   await B.page.screenshot({ path: out + '/demo-bob-offer-card.png' });
-  await B.page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent === 'Accetta').click());
+  await B.page.evaluate(() => document.querySelector('[role=alertdialog] button[data-act=yes]').click());
   await sleep(2500);
   await B.page.screenshot({ path: out + '/demo-bob-after-drink.png' });
   console.log('Bob drunk level', await B.page.evaluate(() => window.game.drunk && window.game.drunk.units), 'Anna cash', cash0, '->', await A.page.evaluate(() => JSON.parse(localStorage.getItem('palermoDrive.garage.v1') || '{}').cash));

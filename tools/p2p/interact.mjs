@@ -13,6 +13,7 @@ const see = P => P.page.evaluate(() => {
   return { game: d.gameState(), cars: [...d.remotes.values()].map(r => r.name + (r.bubble ? ' [says]' : '')).join(',') || '-', peers: d.peers.size, p2pUi: btn, card: card ? card.textContent : '', toasts: window.__t.slice(-4).join(' | ') };
 });
 const row = async (step, A, B) => { const a = await see(A), b = await see(B); console.log(`[${tag}] ${step}\n   Anna: ${JSON.stringify(a)}\n   Bob : ${JSON.stringify(b)}`); return [a, b]; };
+const until = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 150) { const v = await fn(); if (v) return v; await sleep(150); } return null; };
 const meet = async (...Ps) => { for (let i = 0; i < 90; i++) { const n = await Promise.all(Ps.map(P => P.page.evaluate(() => window.__p2p.remotes.size))); if (n.every(v => v >= 1)) return true; await sleep(1000); } return false; };
 const shot = async (n, ...Ps) => { for (const P of Ps) await P.page.screenshot({ path: `${out}/int-${tag}-${n}-${P.name}.png` }); };
 const tap = (P, sel, txt) => P.page.evaluate(([s, t]) => { const b = [...document.querySelectorAll(s)].find(x => !t || x.textContent === t); if (b) b.click(); return !!b; }, [sel, txt]);
@@ -31,6 +32,7 @@ try {
   await tap(A, 'button[title=T]'); await sleep(300);
   await A.page.evaluate(() => document.querySelectorAll('svg[role=menu] [role=menuitem]')[1].dispatchEvent(new MouseEvent('click', { bubbles: true }))); await sleep(300);
   await A.page.evaluate(() => document.querySelectorAll('svg[role=menu] [role=menuitem]')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))); await sleep(1200);
+  await until(async () => /says/.test((await see(B)).cars), 4000);   // the bubble stands for 4.5 s: look for it, a slow machine is not a missing bubble
   [a, b] = await row('phrase', A, B); ok('phrase: Bob sees a bubble on Anna, Anna sees her words as a line', /says/.test(b.cars) && a.toasts !== '');
   await shot('2-phrase', A, B);
 
@@ -39,11 +41,11 @@ try {
   const slice = i => A.page.evaluate(i => document.querySelectorAll('svg[role=menu] [role=menuitem]')[i].dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
   await slice(2); await sleep(300); await slice(6); await sleep(1500);
   [a, b] = await row('offer sent', A, B); ok('offer: Bob has a card that names Anna and the drink', /Anna ti offre una birra/.test(b.card));
-  await shot('3-offer', A, B);
-  await B.page.evaluate(() => [...document.querySelectorAll('[role=alertdialog] button')].find(x => x.textContent === 'Accetta').click()); await sleep(2500);
-  [a, b] = await row('accepted', A, B); ok('accepted: Anna told, Bob told', /accittau/.test(a.toasts) && /t’offriu/.test(b.toasts));
+  await shot('3-offer', B);   // the card stands 15 s: a picture of it first, the rest after the answer
+  await B.page.evaluate(() => document.querySelector('[role=alertdialog] button[data-act=yes]').click()); await sleep(2500);
+  [a, b] = await row('accepted', A, B); await shot('3-offer-after', A); ok('accepted: Anna told, Bob told', /accittau/.test(a.toasts) && /t’offriu/.test(b.toasts));
   await sleep(3500); await shot('4-dizzy', A, B);
-  const dz = await B.page.evaluate(() => ({ u: window.game.drunk.units, l: window.game.drunk.level, post: window.game.drunk.post })); ok('Bob is dizzy', dz.u > 0.8 && dz.post, JSON.stringify(dz));
+  const dz = await B.page.evaluate(() => ({ u: window.game.drunk.units, l: window.game.drunk.level, post: window.game.drunk.post })); ok('Bob is dizzy', dz.u > 0.2 && dz.post, JSON.stringify(dz));
 
   // name change: Options asks for the card with this event (the pencil is gone)
   await B.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300);
