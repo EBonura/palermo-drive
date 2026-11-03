@@ -70,7 +70,8 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
         break;
       case 'fade': {
         if (evBusy || covered()) { Z.state = 'out'; zenVisual(0); if (Z.drunk) passOut = true; break; }   // an event or a transition took over: the gang lets you go, the drinks don't
-        Z.t += dt; const k = clamp(Z.t / FADE, 0, 1); zenVisual(k * k * (3 - 2 * k));
+        const was = Z.t; Z.t += dt; const k = clamp(Z.t / FADE, 0, 1); zenVisual(k * k * (3 - 2 * k));
+        if (Z.drunk && was < FADE * 0.5 && Z.t >= FADE * 0.5) toast(T('No ma vivitilla n\'avutra', 'Sure, have another one'), '', true);   // the owner's line, as the screen closes in
         if (Z.t >= FADE) {
           Z.state = 'black'; Z.t = 0; zenVisual(1, true); api.holdSim(true);
           Z.lost = garage.debit(cashLoss(Z.lv, garage.cash));
@@ -86,7 +87,7 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
       case 'wake': {
         Z.t += dt; const k = 1 - clamp(Z.t / WAKE, 0, 1); zenVisual(k * k * (3 - 2 * k));
         if (!Z.toasted && Z.t > WAKE * 0.45) { Z.toasted = true;   // once the screen has cleared enough to read it
-          toast(Z.drunk ? T('T\'addurmisti e ti futtieru tutti cuasi!', 'You passed out and they nicked all your stuff!') : T('Ti futtieru tutti cuasi!', 'They nicked all your stuff!'), Z.lost > 0 ? T(`Ti hanno alleggerito di € ${Z.lost}`, `They lightened you by € ${Z.lost}`) : T('Per fortuna eri al verde', 'Lucky you were broke'), true); }
+          toast(Z.drunk ? T('T\'addurmiscisti e ti futtieru tutti cuasi!', 'You passed out and they nicked all your stuff!') : T('Ti futtieru tutti cuasi!', 'They nicked all your stuff!'), Z.lost > 0 ? T(`Ti hanno alleggerito di € ${Z.lost}`, `They lightened you by € ${Z.lost}`) : T('Per fortuna eri al verde', 'Lucky you were broke'), true); }
         if (!Z.wokeBalloon && Z.t > 1.1) { Z.wokeBalloon = true; const sn = Math.sin(car.th), cs = Math.cos(car.th); const x = car.x + cs * 3.2 + sn * 2, z = car.z - sn * 3.2 + cs * 2;
           dispatchEvent(new CustomEvent('pd-shout', { detail: { x, y: groundY(x, z) + 1.75, z, text: LINES[Math.floor(Math.random() * LINES.length)] } })); }
         if (Z.t >= WAKE) { log('block done'); Z.state = 'out'; zenVisual(0); }
