@@ -17,7 +17,7 @@ async function open(size = { width: 1100, height: 650 }, store = null) {
 const card = p => p.page.evaluate(() => { const d = document.querySelector('[role=dialog] input')?.closest('[role=dialog]'); return d ? [...d.querySelectorAll('button:not(.p2p-info)')].map(b => b.textContent) : null; });
 const press = (p, txt) => p.page.evaluate(t => { [...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === t).click(); }, txt);
 const type = (p, n) => p.page.evaluate(n => { document.querySelector('[role=dialog] input').value = n; }, n);
-const net = p => p.page.evaluate(() => ({ rooms: window.__p2p.rooms.size, peers: window.__p2p.peers.size, drawn: window.__p2p.remotes.size, sockets: window.__p2p.relays().length }));
+const net = p => p.page.evaluate(() => ({ rooms: window.__p2p.rooms.size, peers: window.__p2p.peers.size, drawn: window.__p2p.remotes.size, sockets: window.__p2p.relays().filter(r => r[1] < 2).length }));   // open or opening: the list keeps closed ones
 
 const a = await open(), b = await open({ width: 844, height: 390 });
 check('card shows for a new player', (await card(a))?.join() === 'Gioca online,Gioca da solo', JSON.stringify(await card(a)));
@@ -50,7 +50,7 @@ check('a yes saved by an older version is not used', n.rooms === 0 && n.sockets 
 
 await a.page.evaluate(() => dispatchEvent(new Event('pd-open-name')));   // Options asks for the name card with this event (the pencil is gone)
 await sleep(300); await press(a, 'Gioca da solo'); await sleep(1000); n = await net(a);
-check('going solo leaves the rooms', n.rooms === 0 && n.drawn === 0, JSON.stringify(n));
+check('going solo leaves the rooms and shuts the relay sockets', n.rooms === 0 && n.drawn === 0 && n.sockets === 0, JSON.stringify(n));
 await sleep(12000); n = await net(b); check('the other player drops the one who left', n.drawn === 0, JSON.stringify(n));
 
 const errs = [a, b, c, d, e].flatMap(p => p.errs); check('no page errors or policy violations', !errs.length, errs.slice(0, 4).join(' | '));
