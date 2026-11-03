@@ -8,7 +8,7 @@ window.bot = st;
 const r = strategies[kind].joinRoom({ appId: 'palermo-drive-p2p-exp-1', relayConfig: q.get('relays') ? { urls: q.get('relays').split(',') } : { redundancy: 3 } }, room, { onJoinError: e => st.errors.push(String(e.error).slice(0, 80)) });
 const info = r.makeAction('i'), state = r.makeAction('s');
 const nm = new TextEncoder().encode(name);
-const sendInfo = id => { const b = new Uint8Array(3 + nm.length); b[0] = 1; b[1] = 3; b[2] = nm.length; b.set(nm, 3); st.tx++; st.txBytes += b.length; info.send(b, { target: id }).catch(() => {}); };
+const sendInfo = id => { const b = new Uint8Array(4 + nm.length); b[0] = 1; b[1] = 0; b[2] = 3; b[3] = nm.length; b.set(nm, 4); st.tx++; st.txBytes += b.length; info.send(b, { target: id }).catch(() => {}); };
 r.onPeerJoin = id => { st.peerIds.add(id); st.peers = st.peerIds.size; if (!st.firstPeerAt) st.firstPeerAt = performance.now() - st.t0; sendInfo(id); };
 r.onPeerLeave = id => { st.peerIds.delete(id); st.peers = st.peerIds.size; };
 info.onMessage = d => { st.rx++; st.rxBytes += d.byteLength; };

@@ -1,8 +1,9 @@
-// Other players drawn in the world: a lapa with a name tag and a minimap dot, positions interpolated from a few snapshots.
-// Shared by src/net.js (relay) and src/p2p/p2p.js (peer to peer). They feed it: ensure(id), setInfo(r, name, livery), addSnap(r, snap),
+// Other players drawn in the world: their own vehicle (a lapa unless the feed names another) with a name tag and a minimap dot, positions interpolated from a few snapshots.
+// Shared by src/net.js (relay) and src/p2p/p2p.js (peer to peer). They feed it: ensure(id), setInfo(r, name, livery[, vehicle]), addSnap(r, snap),
 // retire(r) / remove(id) when somebody leaves; the owner calls update(dt, now) every frame.
 // A snapshot is { t (performance.now), x, z, th, v, steer, roll, lean, fl }: fl bit0 nitro.
 import * as THREE from 'three';
+import { LIVERIES as ALL_LIVERIES } from './garage.js';
 
 const DELAY = 150;             // interpolation buffer, ms
 const EXTRAP = 250;            // longest extrapolation, ms
@@ -45,18 +46,24 @@ export function createRemotes(env) {
 
   function makeRemote(id) {
     const marker = { x: 0, z: 0, color: PINK, size: 4 };
-    return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
+    return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
   }
-  function setInfo(r, name, liv) {
-    const lid = (vehicle.LIVERIES && vehicle.LIVERIES[liv] && vehicle.LIVERIES[liv].id) || 'blu';
-    if (r.livery !== liv || !r.model) {
-      if (r.model) { scene.remove(r.model.root); r.fadeMats = null; }
-      r.livery = liv;
-      r.model = vehicle.buildLapa ? vehicle.buildLapa(lid) : null;
+  // liv indexes the livery list of `type` (a vehicle id); without a type it is the old relay call: the local vehicle's list, drawn as a lapa.
+  // Both come from the network, so an unknown vehicle is a lapa and an unknown livery is the first one of its vehicle.
+  function setInfo(r, name, liv, type) {
+    const vt = type && ALL_LIVERIES[type] && type !== 'sulky' ? type : 'calessino', list = type ? ALL_LIVERIES[vt] : vehicle.LIVERIES;
+    const lid = (list && list[liv] && list[liv].id) || ALL_LIVERIES[vt][0].id;
+    if (r.livery !== liv || r.type !== vt || !r.model) {
+      const old = r.model;
+      if (old) { old.root.remove(...old.root.children.filter(c => c === r.tag || (r.bubble && c === r.bubble.sprite))); old.dispose(); r.fadeMats = null; }
+      r.livery = liv; r.type = vt;
+      r.model = vehicle.buildVehicleModel ? vehicle.buildVehicleModel({ type: vt, livery: lid }) : vehicle.buildLapa(lid);
       if (r.model) {
-        r.model.root.visible = false; scene.add(r.model.root);
-        r.flames = [-0.3, 0.3].map(x => { const m = new THREE.Mesh(flameGeo, flameMat); m.position.set(x, 0.36 - r.model.PIV, -1.6); m.visible = false; m.frustumCulled = false; r.model.tilt.add(m); return m; });
+        r.model.root.visible = r.shown; scene.add(r.model.root);   // a rebuilt model of a car that is already on the street stays on it
+        const A = r.model.A, tp = r.model.tpl.spec.tiltPivot, ex = A.exh ? (A.kind === 'bike' ? A.exh.slice(0, 1) : A.exh) : [];
+        r.flames = ex.map(([x, y, z]) => { const m = new THREE.Mesh(flameGeo, flameMat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.2); m.visible = false; m.frustumCulled = false; r.model.tilt.add(m); return m; });
         if (r.tag) r.model.root.add(r.tag);
+        if (r.bubble) r.model.root.add(r.bubble.sprite);
         r.shadow = true; for (const me of r.model.meshes) me.userData.sh = me.castShadow;
       }
     }
@@ -92,7 +99,7 @@ export function createRemotes(env) {
   }
   function dispose(r) {
     r.fadeMats && r.fadeMats.forEach(([, , c]) => c.dispose()); r.fadeMats = null;
-    if (r.model) scene.remove(r.model.root);
+    if (r.model) { scene.remove(r.model.root); if (r.model.dispose) r.model.dispose(); }   // dispose: the shared template is free to go when nobody uses it
     if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); }
     clearBubble(r);
     const i = mapMarkers.indexOf(r.marker); if (i >= 0) mapMarkers.splice(i, 1);
@@ -121,12 +128,8 @@ export function createRemotes(env) {
     const gy = groundY(p.x, p.z), lt = raisedMask(p.x, p.z) ? CURB : 0;
     r.lift += (lt - r.lift) * Math.min(1, 12 * dt);
     m.root.position.set(p.x, gy + r.lift, p.z); m.root.rotation.y = p.th;
-    m.tilt.rotation.set(0, 0, p.roll);
-    const th = p.lean * m.tipMax, px = -0.66 * Math.sign(p.lean);
-    m.lean.rotation.z = th; m.lean.position.set(px * (1 - Math.cos(th)), -px * Math.sin(th), 0);
-    r.spin += p.v * dt / 0.23;
-    for (const w of m.wheels) { w.spin.rotation.x = r.spin; if (w.front) w.pivot.rotation.y = p.steer; }
-    m.bar.rotation.y = p.steer * 0.9;
+    r.spin += p.v * dt / ((m.wheels[0] && m.wheels[0].r) || 0.23);
+    m.pose({ pitch: 0, roll: p.roll, lean: p.lean, steer: p.steer, spin: r.spin, t: now / 1000, speed: Math.abs(p.v) });
     if (r.flames) { const on = (p.fl & 1) === 1; for (const f of r.flames) { f.visible = on; if (on) f.scale.set(1.3, 1.3, 1.6 + Math.random() * 0.8); } }
     r.marker.x = p.x; r.marker.z = p.z;
     const d = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
