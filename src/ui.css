@@ -53,7 +53,6 @@
 #loading #tip.on { opacity: 1; }
 #tip .tip-k { display: block; margin-bottom: 6px; font: 700 clamp(10px, 2.3vh, 13px)/1 var(--pd-cond); letter-spacing: .3em; text-transform: uppercase; color: var(--pd-amber); }
 #tip .tip-1 { display: block; font: 600 clamp(15px, 3.7vh, 22px)/1.22 var(--pd-sans); color: var(--pd-cream); }
-#tip .tip-2 { display: block; margin-top: 5px; font: italic 400 clamp(12px, 2.7vh, 16px)/1.28 var(--pd-sans); color: var(--pd-cream); opacity: .72; }
 @media (prefers-reduced-motion: reduce) { #loading #tip { transition: none; } }
 
 /* ---------- root ---------- */
@@ -261,21 +260,28 @@ html.pd-radio-drop .hz-status { top: calc(var(--st) + 108px); }   /* the radio, 
 #mini:active { border-color: #f5a9c9; }
 #hud .nosbar { position: static; transform: none; }   /* src/mobile.css draws the bar, it only stands in the row here */
 html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
-/* the question on arriving at a mission from the big map (src/ui.js): the mission card's place and look, two answers */
-.pd-ask { display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; width: max(var(--obj), 300px); padding: 6px 12px 10px 12px; pointer-events: auto; font-family: var(--pd-cond); color: #fff; text-transform: uppercase;
-  background: linear-gradient(90deg, rgba(11,7,9,.9), rgba(40,12,28,.86)); box-shadow: inset 5px 0 0 var(--pd-pink), 0 3px 12px rgba(0,0,0,.4); }
-.pd-ask:empty { display: none; }
-.pd-ask * { box-sizing: border-box; }
-.pd-ask-t small { display: block; font: 600 10px/1.2 var(--pd-cond); letter-spacing: .16em; color: var(--pd-amber); }
-.pd-ask-t b { display: block; font: 700 clamp(15px, 3.4vh, 19px)/1.1 var(--pd-cond); letter-spacing: .05em; }
-.pd-ask-t span { display: block; margin-top: 2px; font: 600 11px/1.15 var(--pd-cond); letter-spacing: .08em; color: var(--pd-amber); }
-.pd-ask-b { display: flex; gap: 6px; }
-.pd-ask .pd-btn { flex: 1 1 0; width: auto; min-width: 0; min-height: 44px; padding: 3px 8px 3px 12px; font-size: 19px; }
-.pd-ask .pd-btn.drive { flex: 1.4 1 0; min-height: 44px; font-size: 19px; }
-.pd-ask .pd-in { gap: 2px; padding-left: 4px; min-width: 0; }
-.pd-ask .pd-l1 { line-height: 1.02; }
-.pd-ask .pd-l2 { font-size: 10px; letter-spacing: .14em; }
-.hz-obj:has(.pd-ask:not(:empty)) #ev-hud { display: none; }
+/* the question on arriving at a mission from the big map (src/ui.js): a poster in the look of the game over card. The card, its kicker, description and buttons are the .sea-* classes
+   (src/sea.js); this is the backdrop and what is the mission's own: the name in the script font with the same glow as the game over title. It stands in #pd-ui, over the HUD. */
+.pd-mcard { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse 85% 65% at 50% 45%, rgba(11,7,9,.25), rgba(11,7,9,.82)), linear-gradient(180deg, rgba(11,7,9,.15) 40%, rgba(90,25,60,.5) 85%, rgba(232,85,154,.3));
+  opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s linear .35s; }
+.pd-mcard.on { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.pd-mcard.on .sea-card { transform: none; }
+.pd-mcard .sea-card { text-align: center; }
+.pd-mc-k { text-shadow: 0 1px 0 rgba(10,6,9,.8); }
+.pd-mc-h { margin: clamp(2px, 1vh, 8px) 0 0; padding: 0 .1em; font: 400 clamp(34px, 11vh, 70px)/1.08 var(--pd-script); letter-spacing: 0; color: #fff; text-wrap: balance; overflow-wrap: anywhere; word-spacing: .16em;
+  text-shadow: 0 0 22px rgba(232,85,154,.85), 0 3px 0 rgba(10,6,9,.9); transform: rotate(-2deg); }
+.pd-mc-h.long { font-size: clamp(28px, 8.4vh, 54px); line-height: 1.12; }
+.pd-mcard .sea-it { text-wrap: balance; }
+.pd-mc-w { margin: clamp(6px, 1.6vh, 12px) 0 0; font: 700 clamp(13px, 3vh, 18px)/1.15 var(--pd-cond); letter-spacing: .12em; text-transform: uppercase; color: var(--pd-amber); }
+.pd-mcard .sea-btns { margin-top: clamp(12px, 3vh, 24px); }
+.pd-mcard .sea-btn { text-align: center; justify-content: center; font-size: clamp(19px, 4.6vh, 30px); letter-spacing: .05em; }   /* COMINCIA MISSIONE has to fit on one line next to M'ABBUTTA */
+.pd-mcard .sea-btn > span { padding-left: 0; }
+.pd-mcard .sea-btn.main { flex: 1.5 1 0; }
+.pd-menulang { flex: 0 1 auto; margin: 0 auto 0 auto; }
+.pd-menulang .pd-lang { width: min(46vw, 260px); }
+.pd-menulang .pd-segb { min-height: clamp(34px, 7.4vh, 42px); font-size: clamp(14px, 3.1vh, 19px); }
 @media (orientation: landscape) {
   html.touch #hud { --mini: clamp(76px, 25vh, 104px); }
   html.touch #mini { width: var(--mini); height: var(--mini); box-sizing: border-box; border-width: 2px; }

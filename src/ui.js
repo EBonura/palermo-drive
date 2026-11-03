@@ -16,12 +16,12 @@ import { transition } from './transition.js';     // rosanero squares + spinning
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
 import { esc } from './esc.js';
 import { KIND_COLOR } from './event-calls.js';   // the colour of each kind of mission, for the Missioni list
-import { zone } from './hud.js';
+import { getLang, setLang } from './lang.js';   // the one language at a time (src/lang.js)
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
 // ---------------------------------------------------------------------------------------------
-// Strings: [italiano, english]. The language option decides which one is large.
+// Strings: [italiano, english]. The language option (src/lang.js) decides which one is shown; the other is never on screen beside it.
 // ---------------------------------------------------------------------------------------------
 const S = {
   tapTouch: ['Tocca per iniziare', 'Tap to start'],
@@ -39,7 +39,8 @@ const S = {
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
   colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
-  missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'], mStay: ['Resto qui', 'Stay here'],
+  missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'],
+  mKick: ['Missione', 'Mission'], mStart: ['Comincia missione', 'Start mission'], mNotNow: ['M\'abbutta', 'Not now'],   // the card that asks whether to start (the owner's words)
   mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mRave: ['Rave', 'Rave'], mHorns: ['Clacson', 'Horns'],
   mDoneRow: ['Fatta', 'Done'], mTodo: ['Da fare', 'To do'], mTried: ['Provata', 'Tried'], mBest: ['Migliore', 'Best'], mRunning: ['In corso', 'Running'],
   mNight: ['Di notte', 'At night'], mDay: ['Di giorno', 'By day'], mAny: ['Sempre', 'Any time'], mLeafNote: ['Ti chiama un amico al rave', 'A friend calls you at the rave'],
@@ -289,7 +290,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   st.handling = params.has('physics') ? (params.get('physics') === 'classic' ? 'classic' : 'sphere') : saved.handling === 'classic' ? 'classic' : 'sphere';   // the sphere is the default; the key is new so an old saved 'classic' default does not stick
   vehicle?.setPhysics?.(st.handling);
   let livery = typeof saved.livery === 'string' ? saved.livery : null;
-  let lang = ['it', 'en'].includes(params.get('lang')) ? params.get('lang') : ['it', 'en'].includes(saved.lang) ? saved.lang : 'it';
+  let lang = getLang();   // ?lang=, then the saved choice, then Palermitan: decided in src/lang.js
   const save = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, lang, livery })); } catch (e) { /* storage unavailable: fine */ } };
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const baseFov = camera.fov;
@@ -304,7 +305,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const scrim = h('div', 'pd-scrim'), dim = h('div', 'pd-dim');
   ui.append(scrim, dim);
 
-  const two = (key, extra = '') => `<span class="pd-in" data-k="${key}" data-two ${extra}></span>`;
+  const two = (key, extra = '') => `<span class="pd-in" data-k="${key}" data-two ${extra}></span>`;   // data-two: written as one line, in the language shown
   const screens = {};
   const mk = (name, cls, html) => { const s = h('section', `pd-screen pd-s-${name} ${cls || ''}`, html, { 'data-name': name }); screens[name] = s; ui.append(s); return s; };
 
@@ -343,7 +344,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
     { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
   ];
-  const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Italiano'], ['en', null, 'English']] };
+  const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
   OPTS.push(LANG_OPT);
   const rowHTML = o => `<div class="pd-row" data-opt="${o.key}">
       <div class="pd-lab"><span data-k="${o.label}" data-two></span>${o.type === 'slider' ? '<span class="pd-val"></span>' : ''}</div>
@@ -360,6 +361,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       </div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
+  // the same two language buttons in the main menu's footer (the options screen, reached from the menu and from the side menu, has them too)
+  { const row = h('div', 'pd-menulang', rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')); screens.menu.querySelector('.pd-mfoot').insertBefore(row, screens.menu.querySelector('.pd-vslot')); }
   // credits
   mk('credits', '', `<div class="pd-roll"><div class="pd-rollin"></div></div>
     <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>`);
@@ -433,13 +436,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function applyLangTo(e) {
     const i = lang === 'it' ? 0 : 1, s = S[e.dataset.k]; if (!s) return;
     if (e.hasAttribute('data-sub')) e.innerHTML = `<span class="pd-l1">${esc(e.dataset.sub)}</span><span class="pd-l2">${esc(s[i])}</span>`;
-    else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
+    else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span>` : esc(s[i]);
   }
   function applyLang() {
     const i = lang === 'it' ? 0 : 1;
     for (const e of ui.querySelectorAll('[data-k]')) applyLangTo(e);
     miniEl.setAttribute('aria-label', S.whereQ[i]); miniEl.title = S.whereQ[i];
-    root.lang = lang;
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
     buildCredits(); syncRadio(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
   }
@@ -715,7 +717,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   let applyTimer = 0;
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
-    if (key === 'lang') { lang = value; applyLang(); garageUI.applyLang(); }
+    if (key === 'lang') { lang = value; setLang(value); applyLang(); garageUI.applyLang(); }   // setLang: <html lang> and the 'pd-lang' event, for everything outside this file
     else if (key === 'musicVolume' || key === 'radio') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
     else {
       st[key] = value;
@@ -732,7 +734,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function syncOptions() {
     for (const o of OPTS) {
       const row = screens.options.querySelector(`[data-opt="${o.key}"]`), v = optValue(o);
-      if (o.type === 'seg') for (const b of row.querySelectorAll('.pd-segb')) b.setAttribute('aria-pressed', String(String(b.dataset.v) === String(v)));
+      if (o.type === 'seg') for (const b of ui.querySelectorAll(`[data-opt="${o.key}"] .pd-segb`)) b.setAttribute('aria-pressed', String(String(b.dataset.v) === String(v)));   // ui, not just the options screen: the language is in the menu too
       else {
         const r = (v - o.min) / (o.max - o.min) * 100;
         row.querySelector('.pd-fill').style.width = r + '%';
@@ -835,10 +837,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     msScreen.querySelector('.pd-mscount b').textContent = `${done} / ${total}`;
     msScreen.querySelector('.pd-mscount span').textContent = pct + '%';
     msScreen.querySelector('.pd-colbar i').style.width = pct + '%';
-    const lab = k => S[MKIND[k]] ? [S[MKIND[k]][i], S[MKIND[k]][1 - i]] : [k.charAt(0).toUpperCase() + k.slice(1), ''];
+    const lab = k => S[MKIND[k]] ? S[MKIND[k]][i] : k.charAt(0).toUpperCase() + k.slice(1);
     msList.innerHTML = total ? groups.map(g => {
-      const rows = msRows.filter(r => r.g === g).sort((a, b) => (qRank.get(a.q) - qRank.get(b.q)) || a.n - b.n), open = !msClosed.has(g), [l1, l2] = lab(g), col = MCOL[g] || 'var(--pd-pink)';
-      return `<button class="pd-btn sm pd-qh pd-msgh" style="--k:${col}" data-nav data-grp="${esc(g)}" aria-expanded="${open}" type="button"><span class="pd-in"><span class="pd-l1">${esc(l1)}${l2 ? `<small>${esc(l2)}</small>` : ''}</span></span><b>${rows.filter(r => r.done).length} / ${rows.length}</b>${CHEV}</button>`
+      const rows = msRows.filter(r => r.g === g).sort((a, b) => (qRank.get(a.q) - qRank.get(b.q)) || a.n - b.n), open = !msClosed.has(g), l1 = lab(g), col = MCOL[g] || 'var(--pd-pink)';
+      return `<button class="pd-btn sm pd-qh pd-msgh" style="--k:${col}" data-nav data-grp="${esc(g)}" aria-expanded="${open}" type="button"><span class="pd-in"><span class="pd-l1">${esc(l1)}</span></span><b>${rows.filter(r => r.done).length} / ${rows.length}</b>${CHEV}</button>`
         + (open ? rows.map(r => {
           const when = r.night ? ['mNight', ICON_MOON] : r.day ? ['mDay', ICON_SUN] : ['mAny', ICON_ANY], off = r.night ? !nightNow() : r.day ? nightNow() : false;
           const state = r.done ? `<span class="ok">${ICON_TICK}${S.mDoneRow[i]}</span>${r.best ? `<span>${S.mBest[i]} ${eur(r.best)}</span>` : ''}` : r.tried ? `<span>${S.mTried[i]}</span>` : `<span>${S.mTodo[i]}</span>`;
@@ -847,7 +849,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
               <div class="pd-msm"><span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
               <div class="pd-msm">${state}</div>
               ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
-            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + r.name)}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span><span class="pd-l2">${S.mGo[1 - i]}</span></span></button></div>`;
+            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + r.name)}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button></div>`;
         }).join('') : '');
     }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
     closeAsk(true);
@@ -864,8 +866,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const e = msRows.find(r => r.id === id); if (!e) return;
     const want = e.night ? true : e.day ? false : null, skip = want !== null && want !== nightNow(), drop = game.state === 'pause' && !!missions?.busy?.();
     if (!skip && !drop) return goMission(e);
-    const i = lang === 'it' ? 0 : 1, msg = k => `<div class="pd-msq"><span class="pd-l1">${esc(S[k][i])}</span><span class="pd-l2">${esc(S[k][1 - i])}</span></div>`;
-    const btn = (a, k, cls = '') => `<button class="pd-btn sm ${cls}" data-nav data-ask="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(S[k][i])}</span><span class="pd-l2">${esc(S[k][1 - i])}</span></span></button>`;
+    const i = lang === 'it' ? 0 : 1, msg = k => `<div class="pd-msq"><span class="pd-l1">${esc(S[k][i])}</span></div>`;
+    const btn = (a, k, cls = '') => `<button class="pd-btn sm ${cls}" data-nav data-ask="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(S[k][i])}</span></span></button>`;
     askFor = { e, hour: skip ? (want ? NIGHT_HOUR : DAY_HOUR) : undefined };
     msAsk.innerHTML = `<div class="pd-msinfo" style="--k:${MCOL[e.kind] || 'var(--pd-pink)'}"><div class="pd-msmain"><div class="pd-msn">${esc(e.name)}</div><div class="pd-msm"><span>${esc(e.q)}</span></div></div></div>`
       + (skip ? msg(want ? 'mOnlyNight' : 'mOnlyDay') : '') + (drop ? msg('quitBusy') : '')
@@ -885,33 +887,40 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     goMission(f.e, a === 'skip' ? f.hour : undefined);
   }
   function goMission(e, hour) { startAt(e.x, e.z, { id: e.id, hour }); }
-  // Arriving at a mission from the big map: the lapa stands beside its caller and the card asks. Amunì starts it (a mission at the wrong time of day moves the clock, and the button says so), Resto qui or just
-  // driving off leaves it. Enter and Escape (A and B on a gamepad) answer as well. It stands where the mission card goes, which it replaces meanwhile (src/hud.js).
-  const askEl = h('div', 'pd-ask', null, { role: 'group' });
-  zone('obj').prepend(askEl);
+  // Arriving at a mission from the big map: the lapa stands beside its caller and a big card in the look of the game over card asks: kicker (MISSIONE · the quartiere), the mission's name, what
+  // to do in one sentence, COMINCIA MISSIONE or M'ABBUTTA. Start moves the clock first when the mission only exists at the other time of day (the pink button then says so). Not now, or Escape / B,
+  // or the lapa put more than 25 m away (the R key, a swap) leaves it. Enter and A start. The lapa is held still while the card is up (vehicle.holdSim): the card covers the road, so there is no driving
+  // away to answer. The card's look is the .sea-* classes of src/sea.js (the game over card) plus .pd-mc-* in ui.css. It is hidden under the side menu and comes back when the game does.
+  const askEl = h('div', 'pd-mcard', null, { role: 'dialog' });
+  ui.append(askEl);
   for (const ev of ['touchstart', 'touchend']) askEl.addEventListener(ev, e => e.stopPropagation(), { passive: true });
   let arrived = null;   // { e, hour, x, z } while the card asks
   function showArrival(e) {
-    const i = lang === 'it' ? 0 : 1, wrong = (e.night ? true : e.day ? false : null) === !nightNow(), kind = S[MKIND[e.kind]], car = vehicle.car;
-    const go = wrong ? S[e.night ? 'mSkipNight' : 'mSkipDay'] : S.mGo, two = (s, a, cls) => `<button class="pd-btn sm ${cls}" data-a="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span></span></button>`;
-    askEl.innerHTML = `<div class="pd-ask-t">${kind ? `<small>${esc(kind[i])}</small>` : ''}<b>${esc(e.name)}</b>${wrong ? `<span>${esc(S[e.night ? 'mOnlyNight' : 'mOnlyDay'][i])}</span>` : ''}</div>
-      <div class="pd-ask-b">${two(go, 'go', 'drive')}${two(S.mStay, 'stay', '')}</div>`;
+    const i = lang === 'it' ? 0 : 1, wrong = (e.night ? true : e.day ? false : null) === !nightNow(), car = vehicle.car;
+    const desc = missions?.describe?.(e.id), go = wrong ? S[e.night ? 'mSkipNight' : 'mSkipDay'] : S.mStart;
+    askEl.innerHTML = `<div class="sea-card pd-mc"><p class="sea-sub pd-mc-k">${esc(S.mKick[i])} \u00b7 ${esc(nearestQ(e.x, e.z))}</p>
+      <h2 class="pd-mc-h${e.name.length > 24 ? ' long' : ''}">${esc(e.name)}</h2>${desc ? `<p class="sea-it pd-mc-d">${esc(desc[i])}</p>` : ''}${wrong ? `<p class="pd-mc-w">${esc(S[e.night ? 'mOnlyNight' : 'mOnlyDay'][i])}</p>` : ''}
+      <div class="sea-btns"><button type="button" class="sea-btn main" data-a="go"><span>${esc(go[i])}</span></button><button type="button" class="sea-btn" data-a="stay"><span>${esc(S.mNotNow[i])}</span></button></div></div>`;
     arrived = { e, hour: wrong ? (e.night ? NIGHT_HOUR : DAY_HOUR) : undefined, x: car.x, z: car.z };
+    vehicle.holdSim?.(true);
+    syncAsk();
   }
+  const syncAsk = () => askEl.classList.toggle('on', !!arrived && game.state === 'play');
   function answerArrival(yes) {
     const a = arrived; if (!a) return;
-    arrived = null; askEl.innerHTML = '';
+    arrived = null; askEl.classList.remove('on'); vehicle.holdSim?.(false);
     if (!yes) return;
     if (a.hour != null) dispatchEvent(new CustomEvent('pd-time-hour', { detail: a.hour }));
     missions?.ready?.(a.e.id);
   }
   askEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { b.blur(); answerArrival(b.dataset.a === 'go'); } });
+  if (params.has('debug')) window.__pdAsk = { show: showArrival, answer: answerArrival, open: () => !!arrived };   // test hook: put the card up for any event
 
   // ---- credits roll ----
   let assetsHTML = '', assetsLoaded = false, rollPause = 0, rollY = 0;
   const roll = screens.credits.querySelector('.pd-roll'), rollIn = screens.credits.querySelector('.pd-rollin');
   function buildCredits() {
-    const i = lang === 'it' ? 0 : 1, T = k => `${esc(S[k][i])}<small>${esc(S[k][1 - i])}</small>`;
+    const i = lang === 'it' ? 0 : 1, T = k => esc(S[k][i]);
     rollIn.innerHTML = `
       <div class="pd-logo">${logoSVG('c')}</div>
       <h3>${T('credCreated')}</h3><div class="pd-big">Emanuele Bonura</div><p class="pd-motto">${esc(MOTTO)}</p>
@@ -1044,7 +1053,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function tick(t) {
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
     if (game.state !== lastState) { lastState = game.state; syncState(); }
-    if (arrived && game.state === 'play' && Math.hypot(vehicle.car.x - arrived.x, vehicle.car.z - arrived.z) > 25) answerArrival(false);   // drove off: that is an answer too
+    if (arrived && game.state === 'play' && Math.hypot(vehicle.car.x - arrived.x, vehicle.car.z - arrived.z) > 25) answerArrival(false);   // put elsewhere (R, a swap): that is an answer too
+    if (arrived) syncAsk();
     pollPad(t);
     garageUI.tick(dt);
     if (cur === 'credits' && t > rollPause) {

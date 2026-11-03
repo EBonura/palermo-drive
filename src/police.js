@@ -12,6 +12,7 @@ import { garage } from './garage.js';
 import { dangerAt, areaAt, covered } from './danger.js';
 import { vp } from './viewport.js';
 import { zone } from './hud.js';
+import { li as langIdx } from './lang.js';   // one language at a time (src/lang.js)
 
 const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -236,8 +237,8 @@ export function createPolice(env, T) {
   zone('moment').appendChild(card);
   function bust() {
     const lv = Math.max(1, level()), want = 20 * lv, fine = garage.debit(Math.min(want, garage.cash));
-    const [it, en] = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0];
-    card.innerHTML = `<h3>T'INCUCCIARU!</h3><p>${it}<small>${en}</small></p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
+    const line = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0][langIdx()];   // the line in the language shown, no subtitle
+    card.innerHTML = `<h3>T'INCUCCIARU!</h3><p>${line}</p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
     card.classList.add('on'); busted = 4.2; grace = 9; heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0;
     for (const v of pursuers()) disengage(v);
     try { dispatchEvent(new CustomEvent('pd-busted', { detail: { fine } })); } catch (e) { /* no events */ }

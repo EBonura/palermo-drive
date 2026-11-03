@@ -464,7 +464,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (key !== lastKey) { lastKey = key; if (taken) lastLang = l; else render(mode, track, l); }
     if (!armed && !document.getElementById('loading')) { armed = true; arm(OPEN_MS); }   // the first fold waits for the loading screen to go
     // a mission's card (or the question before one, src/ui.js) comes up: fold, a tap opens it again. The side menu on screens under 760: keep it folded
-    const busy = !!document.querySelector('#ev-hud.on, .pd-ask:not(:empty)'), mf = innerWidth < 760 && game?.state === 'pause', ly = `${busy}|${mf}|${game?.state}|${innerWidth < 1200}`;
+    const busy = !!document.querySelector('#ev-hud.on, .pd-mcard.on'), mf = innerWidth < 760 && game?.state === 'pause', ly = `${busy}|${mf}|${game?.state}|${innerWidth < 1200}`;
     if (ly !== lay) { lay = ly; if (busy && !evBusy) { exp = false; clearTimeout(foldTimer); } evBusy = busy; menuFold = mf; applyExp(); }
     if (mode === 'on') kick();
   }

@@ -6,6 +6,8 @@
 //   import { watchVersion } from './version.js';
 //   watchVersion(game);   // game.state: 'title' | 'play' | 'pause'
 
+import { T } from './lang.js';   // one language at a time (src/lang.js)
+
 export function watchVersion(game) {
   const meta = document.querySelector('meta[name="pd-version"]'), cur = meta?.content, curName = meta?.dataset.name || '';
   if (!cur) return;
@@ -50,12 +52,18 @@ export function watchVersion(game) {
     const u = new URL(location.href); u.searchParams.set('v', latest); location.replace(u.href);
   }
 
+  // the notice in the language shown (and again when the language changes); the names of the two versions go under it when the build knows them
+  function fill() {
+    if (el) el.innerHTML = `<div>${T('Nuova versione', 'New version')}${curName && latestName ? `<small>v${curName} \u2192 v${latestName}</small>` : ''}</div><button type="button">${T('Aggiorna', 'Update')}</button>`;
+    el?.querySelector('button')?.addEventListener('click', reload);
+  }
+  addEventListener('pd-lang', fill);
+
   function show() {
     if (el) return;
     el = document.createElement('div');
     el.className = 'pd-update'; el.setAttribute('role', 'status');
-    el.innerHTML = `<div>Nuova versione<small>${curName && latestName ? `v${curName} \u2192 v${latestName}` : 'A new version is out'}</small></div><button type="button">Aggiorna</button>`;
-    el.querySelector('button').addEventListener('click', reload);
+    fill();
     tag.hidden = true;
     dock.appendChild(el);
   }

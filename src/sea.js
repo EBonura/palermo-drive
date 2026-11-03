@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
 import { pairs, rng } from './core.js';
+import { li, T } from './lang.js';   // the game over card is written in the language shown, one at a time (src/lang.js)
 import { createWake } from './sea-wake.js';   // the wake of a lapa on floats (src/sea-wake.js)
 
 export const SEA_Y = -0.2;   // the water surface (src/vehicle-water.js floats on it)
@@ -426,7 +427,7 @@ function boatMaterial() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Drowning lines (Italian/Palermitan with English subtitles; the same text is in assets/sea/lines.md for review)
+// Drowning lines [Italian/Palermitan, English]: the card shows the one of the language chosen (the same text is in assets/sea/lines.md for review)
 // ---------------------------------------------------------------------------------------------------------------
 const LINES = [
   ['Minchia, e unni pensavi d’annari? A Tunisi?', 'Damn, where did you think you were going? Tunis?'],
@@ -979,7 +980,6 @@ function buildOverlay() {
   text-shadow: 0 0 22px rgba(232,85,154,.85), 0 3px 0 rgba(10,6,9,.9); transform: rotate(-2deg); }
 .sea-sub { margin: 2px 0 0; font: 600 clamp(12px, 2.6vh, 16px)/1 var(--pd-cond, 'Barlow Condensed', sans-serif); letter-spacing: .3em; text-transform: uppercase; color: #f5a9c9; }
 .sea-it { margin: clamp(10px, 2.6vh, 22px) 0 0; font: 700 clamp(19px, 4.8vh, 31px)/1.2 var(--pd-cond, 'Barlow Condensed', sans-serif); letter-spacing: .02em; color: #fff; }
-.sea-en { margin: 6px 0 0; font: 400 clamp(12px, 2.7vh, 16px)/1.3 var(--pd-sans, 'Barlow', sans-serif); font-style: italic; color: rgba(255,255,255,.7); }
 .sea-btns { display: flex; gap: clamp(10px, 2.4vw, 18px); margin-top: clamp(14px, 3.6vh, 28px); }
 .sea-btn { position: relative; flex: 1 1 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: clamp(52px, 12vh, 76px); padding: 0 clamp(14px, 3vh, 24px); margin: 0; border: 0; border-radius: 3px; cursor: pointer; text-align: left; color: #fff;
   font: 700 clamp(22px, 5.4vh, 36px)/1 var(--pd-cond, 'Barlow Condensed', sans-serif); letter-spacing: .07em; text-transform: uppercase; touch-action: manipulation; -webkit-appearance: none; appearance: none;
@@ -987,7 +987,6 @@ function buildOverlay() {
   transform: skewX(-11deg); transition: transform .12s ease, background .12s ease, box-shadow .12s ease; }
 .sea-btn::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 7px; background: linear-gradient(180deg, #f5a9c9, #e8559a); transition: width .12s ease; }
 .sea-btn > * { display: block; transform: skewX(11deg); padding-left: 10px; }
-.sea-btn small { font: 600 clamp(10px, 2.2vh, 14px)/1 var(--pd-cond, 'Barlow Condensed', sans-serif); letter-spacing: .2em; opacity: .75; }
 .sea-btn.main { background: linear-gradient(90deg, #ff9a2e, #ff2d95); box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 0 28px rgba(232,85,154,.45); }
 .sea-btn.main::before { background: #fff; }
 .sea-btn:focus { outline: none; }
@@ -1000,15 +999,17 @@ function buildOverlay() {
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const root = document.createElement('div'); root.id = 'sea-go'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Game over');
   root.innerHTML = `<div class="sea-card"><h2 class="sea-h">Tuffo!</h2><p class="sea-sub">Game over &middot; Splash</p>
-    <p class="sea-it"></p><p class="sea-en"></p>
-    <div class="sea-btns"><button type="button" class="sea-btn main" data-sea="retry"><span>Riprova</span><small>Retry</small></button>
-    <button type="button" class="sea-btn" data-sea="menu"><span>Menu</span><small>Back to title</small></button></div>
-    <p class="sea-hint">Invio riprova &middot; Esc menu</p></div>`;
+    <p class="sea-it"></p>
+    <div class="sea-btns"><button type="button" class="sea-btn main" data-sea="retry"><span></span></button>
+    <button type="button" class="sea-btn" data-sea="menu"><span></span></button></div>
+    <p class="sea-hint"></p></div>`;
   document.body.appendChild(root);
-  const it = root.querySelector('.sea-it'), en = root.querySelector('.sea-en'), bRetry = root.querySelector('[data-sea=retry]'), bMenu = root.querySelector('[data-sea=menu]');
+  const it = root.querySelector('.sea-it'), hint = root.querySelector('.sea-hint'), bRetry = root.querySelector('[data-sea=retry]'), bMenu = root.querySelector('[data-sea=menu]');
   const o = {
     onRetry() {}, onMenu() {},
-    show(line) { it.textContent = line[0]; en.textContent = line[1]; root.classList.add('on'); bRetry.focus({ preventScroll: true }); bRetry.classList.add('hot'); bMenu.classList.remove('hot'); },
+    show(line) {
+      it.textContent = line[li()]; bRetry.firstChild.textContent = T('Riprova', 'Retry'); bMenu.firstChild.textContent = 'Menu'; hint.textContent = T('Invio riprova \u00b7 Esc menu', 'Enter retry \u00b7 Esc menu');
+      root.classList.add('on'); bRetry.focus({ preventScroll: true }); bRetry.classList.add('hot'); bMenu.classList.remove('hot'); },
     hide() { root.classList.remove('on'); if (document.activeElement && root.contains(document.activeElement)) document.activeElement.blur(); },
     busy() { bRetry.disabled = bMenu.disabled = true; setTimeout(() => { bRetry.disabled = bMenu.disabled = false; }, 1500); },
     toggleFocus() { const f = document.activeElement === bMenu ? bRetry : bMenu; f.focus({ preventScroll: true }); bRetry.classList.toggle('hot', f === bRetry); bMenu.classList.toggle('hot', f === bMenu); },

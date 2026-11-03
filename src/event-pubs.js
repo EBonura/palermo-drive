@@ -43,6 +43,7 @@ function itemGeo(shape) {
 
 export function createErrand(X) {
   const { scene, car, vehicle, T, hud, eur, speed, say, groundAt } = X;
+  const iname = it => T(it.it, it.en);   // the name of the item in the language shown (the card's label already says it that way)
   let e = null;
   const beamGeo = new THREE.CylinderGeometry(0.3, 0.5, 60, 8, 1, true).translate(0, 30, 0);
   const beamMat = new THREE.MeshBasicMaterial({ color: '#ffb02e', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
@@ -92,7 +93,7 @@ export function createErrand(X) {
     const v = e.venue;
     if (e.got === 0) { say(pick(e.E.none), headOf, 0); finish(false); return; }
     homeBeacon.set(v.slot.x, v.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(v.slot.x, v.slot.z, '#6bbf59', 8, 'target');
-    hud.toast(T((e.item.art === 'le' ? 'Riportale da ' : 'Riportali da ') + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + e.item.it);
+    hud.toast(T((e.item.art === 'le' ? 'Riportale da ' : 'Riportali da ') + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + iname(e.item));
   }
 
   function finish(ok) {
@@ -104,7 +105,7 @@ export function createErrand(X) {
     say(pick(e.E.thanks), headOf, 0.6);
     X.pubs?.cheer(e.venue);
     hud.result(`<h3>${esc(e.venue.def.name)}</h3>
-      <div class="row"><span>${T('Puaittati narrè', 'Brought back')} ${e.item.it}</span><span>${e.got} / ${e.total}</span></div>
+      <div class="row"><span>${T('Puaittati narrè', 'Brought back')} ${iname(e.item)}</span><span>${e.got} / ${e.total}</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
       ${bonus ? `<div class="row"><span>${T('Tutti quanti!', 'All of them!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
       <div class="row tot"><span>${T('Totale', 'Total')}</span><span>${eur(total)}</span></div>`, 4.2);
@@ -118,7 +119,7 @@ export function createErrand(X) {
       if (dx * dx + dz * dz < R_PICK2) {
         it.got = true; e.got++;
         if (it.marker) { X.dropMarker(it.marker); it.marker = null; }
-        hud.toast('+1', e.item.it + ' ' + e.got + '/' + e.total);
+        hud.toast('+1', iname(e.item) + ' ' + e.got + '/' + e.total);
         for (let k = 0; k < 3; k++) vehicle.puff(it.x + (Math.random() - 0.5), it.y + 0.8, it.z + (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), 0.5);
       }
     }
@@ -135,11 +136,11 @@ export function createErrand(X) {
       else {
         const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
         const m = Math.max(0, e.left);
-        hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: e.item.it + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
+        hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: iname(e.item) + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
       }
     } else if (e.phase === 'return') {
       X.aim(v.slot.x, v.slot.z, true);
-      hud.set({ label: T('Puaittali narrè', 'Take them back'), title: v.def.name, sub: e.got + ' ' + e.item.it, time: '', frac: null, target: v.slot });
+      hud.set({ label: T('Puaittali narrè', 'Take them back'), title: v.def.name, sub: e.got + ' ' + iname(e.item), time: '', frac: null, target: v.slot });
       if (Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else {
       X.aim(0, 0, false);

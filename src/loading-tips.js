@@ -1,6 +1,6 @@
 // Tips on the loading screen. A classic script with no imports, deferred from index.html: it runs on its own as soon as the page is parsed, before the game's
 // bundle (and the data it waits for) has arrived, so the tips are there for the whole of a slow download. One tip at a time, every few seconds, in the language of
-// the Options (the saved setting, or ?lang=): that language large, the other one under it, as everywhere in the game. It reads nothing but localStorage, fetches
+// the Options (the saved setting, or ?lang=), in that language only, as everywhere in the game. It reads nothing but localStorage, fetches
 // nothing, and stops by itself when main.js takes #loading away. The build copies it, minified, to js/ (tools/build/build.mjs); the CSP allows it ('self').
 // Every tip says something the game really does (checked against the code); the first one is always about the two upgrades of the Garage.
 (function () {
@@ -34,14 +34,14 @@
     for (i = 2; i < TIPS.length; i++) rest.push(i);
     for (i = rest.length - 1; i > 0; i--) { j = Math.floor(Math.random() * (i + 1)); t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
     var order = [first].concat(rest, [1 - first]), at = 0;
-    var kicker = document.createElement('span'), l1 = document.createElement('span'), l2 = document.createElement('span');
-    kicker.className = 'tip-k'; l1.className = 'tip-1'; l2.className = 'tip-2';
+    var kicker = document.createElement('span'), l1 = document.createElement('span');
+    kicker.className = 'tip-k'; l1.className = 'tip-1';
     kicker.textContent = lang === 'en' ? 'Tip' : 'Cunsigghiu';
-    el.appendChild(kicker); el.appendChild(l1); el.appendChild(l2);
+    el.appendChild(kicker); el.appendChild(l1);
     var show = function () {
       var tip = TIPS[order[at]]; at = (at + 1) % order.length;
-      l1.textContent = tip[big]; l2.textContent = tip[1 - big];
-      l1.lang = big ? 'en' : 'it'; l2.lang = big ? 'it' : 'en';
+      l1.textContent = tip[big];
+      l1.lang = big ? 'en' : 'it';
     };
     show(); el.className = 'on';
     var timer = setInterval(function () {

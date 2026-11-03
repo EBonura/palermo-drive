@@ -21,6 +21,7 @@
 //   OFFER [4][kind u8][offer id u8]                   a drink (0 cicchetto, 1 birra) for a player close by; ACCEPT [5][id] answers it, CONFIRM [6][id] says the giver paid
 //   STATE [2][seq u8][state 11 bytes]                 position 5 bytes, heading u8, speed i8, steer i8, roll i8, lean i8, flags u8
 import { createRemotes } from '../remotes.js';
+import { getLang as lang } from '../lang.js';   // the language shown, 'it' | 'en' (src/lang.js)
 import { strategies, selfId } from './trystero.js';
 import { PHRASES, CATEGORIES } from './phrases.js';
 import { createWheel } from './wheel.js';
@@ -269,7 +270,6 @@ export function createP2P(env) {
   // giver pays DRINK_PRICE from the Garage wallet and sends CONFIRM; only then does the receiver get the drink (drunk.gift). Nothing happens to
   // anybody without their own yes, and every message is checked like the others.
   const KINDS = ['cicchetto', 'birra'], KIND_TXT = { it: ['un cicchetto', 'una birra'], en: ['a cicchetto', 'a beer'] };   // wording to be corrected by the owner
-  const lang = () => { let l = 'it'; try { l = (JSON.parse(localStorage.getItem('palermoDrive.settings.v1') || 'null') || {}).lang; } catch (e) { /* ignore */ } return params.get('lang') === 'en' || l === 'en' ? 'en' : 'it'; };
   const TOAST_IDX = PHRASES.indexOf('a to saluti!');
   let myOffer = null, lastOfferAt = -1e9, incoming = null, offerSeq = 0, card = null, notice = null;
   const sendOffer = (id, bytes) => { const p = peers.get(id), k = p && route(p); if (k === null || k === undefined) return; stats.txMsgs++; stats.txBytes += bytes.length; rooms.get(k).offer.send(bytes, { target: id }).catch(() => {}); };
