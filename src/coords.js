@@ -1,5 +1,5 @@
 // Coordinates on screen, for reporting a spot in the world with one screenshot: game metres, lat/lon, the 500 m tile, the
-// ground height under the car and under the camera, the quartiere. On with ?coords, or Options > "Coordinate" (game.settings.coords).
+// ground height under the car and under the camera, the quartiere, and the frame rate, the automatic graphics step and the resolution (src/perf.js). On with ?coords, or Options > "Debug" (game.settings.coords).
 // Read-only: it draws text and touches nothing else.
 //
 //   import { createCoords } from './coords.js';
@@ -9,7 +9,7 @@ import { zone } from './hud.js';
 
 const T = 500;   // tile size (src/world.js)
 
-export function createCoords({ game, car, camera, groundY }) {
+export function createCoords({ game, car, camera, groundY, perf }) {
   const forced = new URLSearchParams(location.search).has('coords');
   const el = document.createElement('div');
   el.className = 'pd-coords';
@@ -30,7 +30,8 @@ export function createCoords({ game, car, camera, groundY }) {
     const txt = `x ${f1(x)}  z ${f1(z)}  head ${Math.round(((car.th * 180 / Math.PI) % 360 + 360) % 360)}°\n` +
       `lat ${f6(lat)}  lon ${f6(lon)}\n` +
       `tile ${ti}_${tj}  ground ${gy(x, z)} m${hood ? '  ' + hood : ''}\n` +
-      `cam ${f1(c.x)} ${f1(c.y)} ${f1(c.z)}  ground ${gy(c.x, c.z)} m`;
+      `cam ${f1(c.x)} ${f1(c.y)} ${f1(c.z)}  ground ${gy(c.x, c.z)} m` +
+      (perf ? '\n' + perf.hud() : '');   // fps, graphics step, what limits it, resolution (src/perf.js)
     if (txt !== last) { el.textContent = txt; last = txt; }
   }
   return { update };

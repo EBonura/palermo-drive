@@ -2,7 +2,7 @@
 // game.state: 'title' | 'play' | 'pause'; call game.start(), game.pause(), game.resume(). 'pause' is the side menu: the simulation is stopped, the
 // world keeps drawing behind the panel so option changes show at once. Menu to game, game to menu and a new start point all go through
 // transition() (src/transition.js), which stays covered until the world around the start has streamed in.
-// Change game.settings ({ quality: 'low'|'medium'|'high', drawDistance: 0.5..1.5, volume: 0..1,
+// Change game.settings ({ quality: 'auto'|'low'|'medium'|'high', drawDistance: 0.5..1.5, volume: 0..1,
 // units: 'kmh'|'mph', camera: 0..3 }) and then call applySettings().
 //
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
@@ -47,7 +47,7 @@ const S = {
   mOnlyNight: ['Questa missione c\'è solo di notte', 'This mission only runs at night'], mOnlyDay: ['Questa missione c\'è solo di giorno', 'This mission only runs by day'],
   mSkipNight: ['Salta alla notte, amunì', 'Skip to night and go'], mSkipDay: ['Salta al giorno, amunì', 'Skip to day and go'], mGoAnyway: ['Amunì lo stesso', 'Go anyway'],
   quality: ['Grafica', 'Graphics'],
-  low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
+  auto: ['Auto', 'Auto'], low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
   draw: ['Distanza', 'Draw distance'],
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
@@ -74,7 +74,7 @@ const S = {
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Segui il creatore del gioco', 'Follow the game\'s creator'], igStudio: ['Segui lo studio, principalmente sviluppo per PlayStation 1', 'Follow the studio, mostly PlayStation 1 development'],
-  coords: ['Coordinate (debug)', 'Coordinates (debug)'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
+  coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
@@ -295,7 +295,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // ---- settings: defaults from main.js, then localStorage, then validation ----
   const st = game.settings;
   const saved = readSaved();
-  if (['low', 'medium', 'high'].includes(saved.quality)) st.quality = saved.quality;
+  // Auto is the default. A saved low / medium / high only counts as a choice if the player picked it (qualityChosen): older saves wrote the then-default into every save.
+  if (saved.qualityChosen && ['auto', 'low', 'medium', 'high'].includes(saved.quality)) { st.quality = saved.quality; st.qualityChosen = true; }
   if (Number.isFinite(saved.drawDistance)) st.drawDistance = clamp(saved.drawDistance, 0.5, 1.5);
   if (Number.isFinite(saved.volume)) st.volume = clamp(saved.volume, 0, 1);
   st.musicVolume = Number.isFinite(saved.musicVolume) ? clamp(saved.musicVolume, 0, 1) : (st.musicVolume ?? 0.5); // car radio (src/radio.js)
@@ -350,7 +351,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 `);
   // options
   const OPTS = [
-    { key: 'quality', label: 'quality', type: 'seg', vals: [['low', 'low'], ['medium', 'medium'], ['high', 'high']] },
+    { key: 'quality', label: 'quality', type: 'seg', vals: [['auto', 'auto'], ['low', 'low'], ['medium', 'medium'], ['high', 'high']] },
     { key: 'drawDistance', label: 'draw', type: 'slider', min: 0.5, max: 1.5, step: 0.1, fmt: v => Math.round(v * 100) + '%' },
     { key: 'volume', label: 'volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
     { key: 'musicVolume', label: 'musicVolume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
@@ -833,6 +834,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     else if (key === 'musicVolume' || key === 'radio') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
     else {
       st[key] = value;
+      if (key === 'quality') st.qualityChosen = true;
       if (key === 'volume') vehicle?.setVolume?.(value);
       if (key === 'camera' && game.state !== 'title') vehicle.camState.mode = value;
       if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again

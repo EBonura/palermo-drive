@@ -43,9 +43,84 @@ Live check on the real GitHub Pages site after the last deploy (`docs/perf/06-li
 | 4 three.js r187 (bundle grew by 40 KB gzip: r187 is bigger) | 1.91 MB | 17 | 9.8 s | 15.0 s |
 | 5 rendering and startup work, far city and photos off the critical path, webp photos | 2.15 MB total, 1.25 MB before first frame | 23 | 8.1 s | 12.7 s |
 
+## Automatic graphics (`src/perf.js`, Options > Graphics > Auto)
+
+Auto is the default for new players and for everyone who never chose a tier. One target on every device: 60 fps. There is no phone profile; a weak device simply ends up lower on the same ladder. Low, medium and high stay in Options as manual choices and are fixed: nothing adapts under them, and the draw distance slider applies. While Auto is on, Auto owns the draw distance (the slider is overridden).
+
+**Saved settings.** `localStorage` `palermoDrive.settings.v1` has written the then-default `quality` into every save since the first preview, and the default has changed twice (low on phones / high on desktop, then medium on 1 November), so a saved low, medium or high cannot be told from an old default. A saved tier now counts only if the save also has `qualityChosen: true`, which `src/ui.js` writes when the player taps the Graphics control. Older saves become Auto. Cost: someone who deliberately picked high or low before this change is on Auto until they pick again.
+
+**The ladder** (`LADDER` in `src/perf.js`, step 0 is the best; resolution is the continuous rung before step 0):
+
+| rung | what it does | lowered | rebuilds? |
+| --- | --- | --- | --- |
+| 1 resolution | pixel ratio, steps of 0.125, ceiling min(devicePixelRatio, 2), floor 0.75 (0.625 at 30 fps) | first, proportionally (cost follows pixels) | no, a buffer resize of a few ms |
+| 2 draw distance | step 0: 1.0, step 1: 0.85, step 2: 0.7 (far plane and fog) | after the floor | no |
+| 3 shadows | step 3: map 512 (from 1024), step 4: off | next | size: reallocates the map. On or off: every program recompiles |
+| 4 crowd and traffic | step 5: pedestrians 'low' tier (240 within 75 m) and traffic cap 30 instead of 60 | last | no |
+
+Steps 0 to 3 are the 60 fps ladder (`S60`): shadows must stay on, because shadows off is "giving up a lot". Steps 0 to 5 are the 30 fps ladder. Auto never goes above today's medium for crowd and shadows (1024 map, medium crowd); the high tier (2048 map, 1000 pedestrians) is manual only. Roadwear stays on its medium tier in Auto (changing it unloads every cell).
+
+**CPU bound.** After a resolution lowering, the next 3 s window is compared with the one before. If it did not improve by 7 % and is still slow, the game is CPU bound: the sharp image comes back, the resolution is left alone for 2 min, and the next moves skip the rungs that only help the GPU (draw distance) and go straight to the ones with `cpu: true` (shadows, crowd).
+
+**30 fps.** If the 60 fps ladder is used up and six windows in a row (18 s) are still slow, the game settles at 30: the animation loop skips frames so that one in every `floor(33.3 / refresh + 0.25)` display refreshes runs (2 at 60 Hz, 3 at 90 Hz, 4 at 120 Hz, 2 at 75 Hz = 37.5 fps). The refresh interval is measured from the raw animation frame deltas (lowest estimate seen, snapped to a real rate), not assumed. The same rules then run at a 33.3 ms target from step 1, resolution 1. Every 5 min at first, doubling to 80 min each time it returns to 30, a 60 fps trial runs for two windows at the floor resolution and the same step (no rebuild); if it holds, 60 stays and the ladder climbs from there. In Auto, 60 fps mode is capped too on displays at 120 Hz or more: every `floor(refresh / 60 + 0.05)`th refresh runs (2nd at 120 and 144 Hz: 60 and 72 fps, an even cadence; 3rd at 180 Hz, 4th at 240 Hz), to save battery and heat. 90 and 100 Hz have no even way to 60 and run uncapped. The governor's target is `max(16.7 ms, cap interval)`. Manual tiers are never capped.
+
+**Slow on purpose** (all constants are in `DEFAULTS`, and every one is a guess until it meets a real phone):
+
+| constant | value | meaning |
+| --- | --- | --- |
+| window | 3 s | one decision per window of frame times; windows with under 12 frames are dropped |
+| slow | 1.15 x target (19.2 ms at 60) | lower above this; the old resolution-only code used 1.23 |
+| very slow | 1.7 x target | one window is enough |
+| fast | 1.05 x target | a window below this counts as having room |
+| lowering | two slow windows in a row | one if very slow |
+| raise | 15 s of good windows | doubled (up to 10 min) after every failed raise, halved again after 5 min without a change |
+| failed raise | a lowering within 25 s, or the first window after a raise above 1.12 x target | the raise is taken back at once (when it does not rebuild) and that level is banned for 20 min |
+| grace | 2.5 s | ignored after each change and after loading, a transition, the menu closing |
+| rebuilding change | shadow size: on a transition (`pd-cover`), else 90 s since the last one when lowering, 300 s when raising (the first one in a session also waits for a transition or 90 s). Shadows on or off: only on a transition, never mid-drive | a pending lowering to shadows off is saved as already done, so the next start (covered) begins there |
+
+Frames are not measured on the title, in menus, in the Garage, in a hidden page, under a transition or in the grace period after any of those. Streaming while driving is real cost and counts. The transition (`src/transition.js`) dispatches `pd-cover` on `window` (detail true once the screen is covered, false when free again); the governor does its waiting rebuild when it sees true.
+
+**Remembering.** After 60 s without a change the level is saved in `palermoDrive.autogfx.v1` (mode, step, resolution, back-off state) with a signature of devicePixelRatio, screen size and GPU renderer string; a different signature is ignored. The next start begins there ("saved"). Without a saved level: 60 fps mode, step 1, resolution 1.0, or step 2 and 0.875 when `hardwareConcurrency` or `deviceMemory` is 4 or less. That is a start point, not a profile: the same ladder and rules follow.
+
+**Tests stay deterministic.** `?fixres` and an automated browser (`navigator.webdriver`) turn Auto into the old fixed medium (ceiling 1.5, 1024 shadows, medium crowd) and nothing adapts, so every script in `tools/build` and the scripts that load `?fixres` give the numbers they gave before. `?gfx=auto|low|medium|high` overrides the setting for one page load (automation can test Auto with `?gfx=auto`). In tests, `window.__pdPerfCfg = { win: 1500, ... }` (set before load) shortens the governor constants, and `game.perf.force({ mode, s, ratio })` jumps to a level (`?debug`).
+
+**Readout.** Options > Debug (`game.settings.coords`, or `?coords`) adds lines to the coordinates box: fps and mode, step, limit (CPU after a CPU verdict, GPU for two minutes after a resolution lowering helped, - otherwise), the refresh rate, resolution and the buffer size, and draw distance, shadow size and crowd tier. It reads state the governor keeps anyway and updates eight times a second.
+
+**Tests of the logic.** `node tools/build/perfsim.mjs` runs the governor on a fake clock against cost models (CPU bound, GPU bound, both, load that comes and goes, 50 to 144 Hz) and checks the frame caps on fake timestamps from 50 to 240 Hz (rate, and an even cadence with 0.3 ms of timestamp jitter), that manual tiers are never capped, and that shadows never switch outside a transition. `tools/build/perfsim.mjs` is also where the thresholds were first tuned, so it is tuned to its own model: it proves the state machine, not the constants.
+
+**Measured** (headless Chrome 156, M3 Max, `--use-angle=metal --enable-gpu`, 1280x720 at DPR 2 so the ceiling is 2, spot 1 Quattro Canti, `?gfx=auto`; the machine was shared with other agents' browser runs, load average 117 to 250 during these, so frame times are noisy and I read states and orders, not single frame numbers). Short runs used `__pdPerfCfg` with 1.5 s windows and 6 s raise waits (about 4x faster than the real constants); the long run used the real constants. Noise was handled by the design (3 s windows, two in a row, six at the bottom of the ladder, relative comparisons for the CPU verdict, back-off after failed raises) and by repeating the key runs; the logs are in `/private/tmp/claude-501/autogfx/`.
+
+| case | what happened |
+| --- | --- |
+| no load, fast constants | climbs from step 1 and resolution 1 to step 0 and resolution 2.0 in about 80 s (9 raises), 60 fps, then 70 s without a change |
+| CPU x4 and x6 (CDP) | resolution lowered once, the next window did not improve, "CPU bound": resolution back, then straight to step 3 (shadows 512) within 5 s, then, still slow, to 30 fps after six slow windows; at 30 the frame time sits at 33.3 ms. At x6 even step 5 gave 34 to 40 ms on this loaded machine, so it stayed at 28 fps |
+| GPU stress (a full-screen shader, cost follows pixels) | two runs: resolution to the 0.75 floor first, then draw distance (steps 1, 2), then shadow 512 (step 3), then 30 fps at step 1 and resolution 1 and a resolution search at 30 (0.75 to 1.0), the order of the ladder both times. 1200 iterations (a lighter load) only moved resolution (1.125 to 0.875) and never touched a step |
+| load goes away | CPU case: climbed from step 5 / 0.625 back to step 0 / 2.0 in 145 s (fast constants), and a 60 fps trial took place; GPU case: a trial succeeded about 70 s after the stress stopped and 60 fps came back. Under the shared load the 60 ladder then dropped steps again (the machine was busy), the order was still correct |
+| manual and fixres | `gfx=medium`, `high`, `low`, `auto&fixres` and the webdriver default, 60 s under CPU x6 and a GPU stress: pixel ratio, shadow flag and far plane unchanged in every case (1.5 / 2 / 1 / 1.5 / 1.5), the governor off (`auto: false`) |
+| 30 fps cadence | steady 30.0 to 30.1 fps with a 33.3 ms mean at 60 Hz; the caps at 90, 120 and 144 Hz were only run on fake timestamps (`perfsim.mjs`): every 3rd, 4th and 5th refresh, 30, 30 and 28.8 fps |
+| rebuild on a transition | a shadow-off step that could not run was deferred 16 times; a real `transition()` from `src/transition.js` dispatched `pd-cover` and the step ran at the cover (shadows off) |
+| remembered level | after a settled run the key held mode, step, resolution and back-off; the next start read "saved" and began at 30 fps, step 0, resolution 1.125 as saved |
+| 10 minutes, real constants, CPU x3, load average above 100 | 15 states, the last six in the second half (one resolution lowering at 330 s that led to a CPU verdict and step 3, two resolution steps at 530 and 540 s, one at 590 s, and the 30 fps verdict at 600 s when the machine got busier). Not flat, but no flicker either; more moves than a quiet device would make, and I put them down to the load. The six-window rule before 30 fps was added after this run, so the 600 s verdict would now need 18 s of slow windows |
+| tools | `csp` none, `garagecheck` no errors (title, drive, phone, garage, garage-phone), `drivecmp` no errors at the eight spots (spot 12 drove only 4 m, with fences and without; I did not look into it, it is not the fences) |
+| `perfsim.mjs` | 15 modelled devices pass (strong, GPU bound, CPU bound, cannot hold 60, very weak, borderline for 40 min, load that comes and goes, 90 / 120 Hz, saved 30, rebuilds waiting for covers); the borderline 40 minute case changed 19 times, about once every 2 minutes, because of its slow retries (raises that fail are banned for 20 min) |
+
+**What the pictures show.** `/private/tmp/claude-501/autogfx/qc-L0` to `qc-L6` (Quattro Canti, chase camera) and `high-L0` to `high-L6` (a high camera), 1280x720 at DPR 2: top (2.0), resolution 1.0, 0.75, draw 0.7, shadow 512, shadows off (30 fps), crowd low and resolution 0.625 (30 fps).
+
+**Shadow rebuild cost (measured on the production build).** `node tools/build/build.mjs` to `dist/`, served statically, 1280x720 at DPR 2, CDP CPU x4, the governor held still (`__pdPerfCfg = { win: 1e9 }`) and `game.perf.force()` flipping shadows off and on, longest animation frame gap over 7 s after each flip (`/private/tmp/claude-501/autogfx/stall.mjs`):
+
+| | first shadows off | later flips (off, on, off, on, on) |
+| --- | --- | --- |
+| production build | 767 ms | 33, 50, 50, 150 ms (the 150 had two frames over 100 ms) |
+| dev tree (status query on) | 1700 ms | 117, 67, 83, 133, 83 ms |
+
+The first switch compiles the other program variants and is the stall; three.js keeps the programs, so later flips are cheap. 767 ms is over the half second, so shadows on or off now switch only during a transition (or the loading that starts the game), never while driving. A new shadow map size (1024 / 512) needs no recompile and keeps the 90 s rule. The price: a device that needs shadows off waits at step 3 until the next transition (a mission start, a teleport, the menu); `perfsim.mjs` models one every 4 minutes. One run per build, on the shared machine.
+
+**Untested.** A real phone (GPU time, thermal throttling, iOS Safari's refresh handling and its `hardwareConcurrency` and `deviceMemory`, 120 Hz ProMotion), a real 90 / 120 / 144 Hz display (only fake timestamps), a real 120 or 144 Hz display for the new 60 fps cap (fake timestamps only), Low Power Mode (a 30 Hz display is handled by the target following the refresh, but never run), and the weak-device start hint. Every threshold in the table above is a guess tuned on the model and this Mac.
+
+
 ## One profile for every device, and the far city (LOD pass)
 
-The owner's rule: desktop and phone show exactly the same graphics. Only the render scale follows the screen (`QUALITY.pixelRatio` in `src/mobile.js`: 1.25 on touch, 2 elsewhere, and `perf.js` still aims at 30 fps on touch and 60 on desktop). Everything else is one set of numbers, tuned on the phone test (844x390, touch, CDP CPU x4, `?fixres`) and then shared. The old per-device branches (`QUALITY.mobile`, `QUALITY.shadowMap`, `(pointer: coarse)` in the files below) are gone.
+The owner's rule: desktop and phone show exactly the same graphics. Only the render scale follows the screen (`QUALITY.pixelRatio` in `src/mobile.js`: 1.25 on touch, 2 elsewhere, and, since the Auto graphics pass below, `perf.js` aims at 60 fps on every device and falls back to a steady 30 on its own). Everything else is one set of numbers, tuned on the phone test (844x390, touch, CDP CPU x4, `?fixres`) and then shared. The old per-device branches (`QUALITY.mobile`, `QUALITY.shadowMap`, `(pointer: coarse)` in the files below) are gone.
 
 | what | value (every device) | was phone / desktop | why |
 | --- | --- | --- | --- |
@@ -57,7 +132,7 @@ The owner's rule: desktop and phone show exactly the same graphics. Only the ren
 | trees (pines per tile) | 14 m spacing, 1400 max | 17 m, 900 / 11 m, 2400 | |
 | props | density 0.8, draw distance x0.85, build budget 3 ms | 0.55, x0.7, 2.5 / 1, x1, 4 | 1.0 vs 0.55 was inside the noise (+90 draw calls, 90k triangles); 0.8 keeps the streets lived in |
 | shadows | 1024 map in the default tier (medium), 2048 in high, none in low | 1024 / 4096 | +3 ms of main thread and about +480k GL triangles at Quattro Canti at x4, the biggest single item. Kept: shadows are most of what makes the streets look right |
-| default tier | medium (Options still offers low / medium / high; the saved choice wins) | low / high | medium = shadows, peds 240 within 100 m, pixel ratio ceiling 1.5, the two real night lights |
+| default tier | Auto (see "Automatic graphics" below); medium, high and low are manual choices. Medium = shadows, peds 240 within 100 m, pixel ratio ceiling 1.5, the two real night lights |
 | anisotropy cap | 4 | 4 / none | `main.js` (all textures), `sea.js`, `suca.js` |
 | sea | `LOW` shader (two wave layers, no weed), coarse field 32 m, fine window 1.2 km at 3 m | LOW, 32 m, 1.2 km at 3 m / full shader, 24 m, 1.6 km at 2 m | the water covers a big share of the screen on the coast: the fragment cost is the one to keep low |
 | pedestrian atlases | far: whole cast at 1 texel per design unit, 6.2 MB (8.3 with mips); near: 3 texels per unit for the people close to the camera, 3.7 MB phone / 5.6 MB desktop (see the pedestrian sprites section) | half / full | |
@@ -307,7 +382,7 @@ Read the migration guide r160 to r187. What actually broke here:
 
 - Street layers: see the recommendation for `src/streets.js` below (1.4 M of 2.3 M visible triangles at Quattro Canti before). The streaming agent applied the flat-ground rule.
 - Buildings: chunks of 250 m instead of 400 m in the centro (frustum and shadow culling work better): minus 16 % triangles at Quattro Canti for plus 5 % draw calls.
-- Dynamic resolution (`src/perf.js`, hooked in `src/main.js`): phones aim at 30 fps, desktop at 60. The quality tier sets the ceiling, the pixel ratio moves between 0.5 (phone) / 0.75 (desktop) and that ceiling in steps of 0.125 from the measured frame interval. Lowers fast (proportional), raises slowly with back-off, ignores hitches and the first 90 frames, and checks two seconds after each lowering that the frame time really improved (if not the game is CPU bound and the sharp image comes back). `?fixres` disables it (benchmarks), `game.perf.stats()` with `?debug`.
+- Dynamic resolution (`src/perf.js`, hooked in `src/main.js`): first version, phones aimed at 30 fps and desktop at 60. Replaced by the Auto graphics ladder (section "Automatic graphics"): same target everywhere, resolution is its first rung, `?fixres` still disables it, `game.perf.stats()` with `?debug`.
 - Shadows on phones: the default phone tier is already "low" (shadow map off), medium is 1024. I left the tiers alone; with dynamic resolution a phone could afford a higher ceiling (see vehicles agent below).
 - Anisotropic filtering is capped at 4x on phones whatever the modules ask for (`renderer.capabilities.getMaxAnisotropy` override in `main.js`).
 - Production only: `renderer.debug.checkShaderErrors = false` and `renderer.compile(scene, camera)` before the first frame, so the 56 shader programs are linked together instead of one at a time on first use.
@@ -333,7 +408,7 @@ Read the migration guide r160 to r187. What actually broke here:
 - `src/world.js`: read tiles with `r.json()`; consider `streetsIter` with larger `drape` for far tiles and the flat-ground rule; tile `streets` already go through the same 0.06 m simplification in the build.
 - `src/sea.js` (sea agent): vColor fix is in. `createSea` costs 0.8-0.9 s at 4x CPU at startup (the land raster at line ~64 uses a canvas + `getImageData`: `rasterMask` from `core.js` does it in a tenth of the memory); `QUALITY.mobile` already lowers anisotropy, good.
 - `src/roadwear.js` (free now, left alone so as not to collide with the vehicles agent): `createRoadWear` is 0.9-1.4 s at 4x CPU, almost all of it the 2048 px tiled raster + per-pixel bit loop (same job as `rasterMask`) and per-road sampling; build it after the first frame (it only matters once the lapa drives over asphalt) or reuse `rasterMask`.
-- `src/vehicle.js`, `src/mobile.js`, `src/mobile.css`, garage in `src/ui.js` (vehicles agent): `QUALITY.pixelRatio` (1.25 on touch) and the tier table in `main.js` (`low: [1, 0]`) were chosen before dynamic resolution existed. A phone at DPR 3 renders at 1x CSS pixels, which is soft; `perf.js` now backs off when a device struggles, so the ceiling could be 1.5-2 on phones that hold 30 fps (change the tier table or `QUALITY.pixelRatio`, `perf.setMax` takes it). `assets/audio/skid.wav` is 150 KB and `impact.wav` 29 KB: Pages does not gzip wav; mono 16-bit at 22 kHz, or ogg/mp3, would cut that by 4-10x. `assets/cars/hatchback-sports.glb` (198 KB) and `Textures/` do not seem to be referenced any more.
+- `src/vehicle.js`, `src/mobile.js`, `src/mobile.css`, garage in `src/ui.js` (vehicles agent): `QUALITY.pixelRatio` (1.25 on touch) and the tier table in `main.js` (`low: [1, 0]`) were chosen before dynamic resolution existed. A phone at DPR 3 renders at 1x CSS pixels, which is soft; `perf.js` now backs off when a device struggles, so the ceiling could be 1.5-2 on phones that hold 30 fps (Auto now uses a ceiling of min(devicePixelRatio, 2) on every device and climbs to it only while frames hold; `QUALITY.pixelRatio` still caps the manual tiers). `assets/audio/skid.wav` is 150 KB and `impact.wav` 29 KB: Pages does not gzip wav; mono 16-bit at 22 kHz, or ogg/mp3, would cut that by 4-10x. `assets/cars/hatchback-sports.glb` (198 KB) and `Textures/` do not seem to be referenced any more.
 - `src/net.js`, `src/radio.js`: no startup cost seen (the relay and `assets/music/*.mp3`, 14 MB, are only fetched when used; keep it lazy: nothing under `assets/music` may be touched before the first tap).
 - `src/daynight.js`: constant light count (2 point + 1 spot at intensity 0), so no program recompiles; good. Keep it that way: changing the number of lights or toggling `castShadow` recompiles every material.
 - `src/main.js` / `index.html` (lead): edits I made are marked `[perf pass]`: PCFShadowMap/Sky patch for r182+, `perf` hooks (import, `createPerf`, `applySettings`, loop, `game.perf`), `checkShaderErrors` in production, anisotropy cap, `renderer.compile`, `centroRaised` via `rasterMask`, deferred far city (`if (WORLD && window.__pdLate) await ...`, a top-level await), import map version. The `raisedMask`/`mapCanvas` minimap canvas: `mapCanvas` is 2.4 k x 2.4 k px, fine.
