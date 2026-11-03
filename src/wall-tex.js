@@ -72,8 +72,8 @@ const PAINT = {
     // places where the plaster has come off, each different: a few big and shallow ones at the damp foot or under the coping, several small ones, a tonal spread of the stone under
     // (grey, ochre, tufa), a ragged edge with a lip of render, a shadow along its top. The old three identical tan patches repeated every 4 m as a stamp.
     const stones = [[176, 164, 140], [190, 170, 126], [162, 156, 146], [196, 178, 142], [150, 142, 128]];
-    for (let i = 0; i < 9; i++) {
-      const big = i < 3, w = (big ? 0.5 + r() * 0.7 : 0.12 + r() * 0.3) * sx, h = (big ? 0.3 + r() * 0.35 : 0.1 + r() * 0.22) * sy, x = r() * S, y = big ? (r() < 0.5 ? S * (0.72 + r() * 0.2) : r() * S * 0.2) : r() * S, sc = stones[(r() * stones.length) | 0];
+    for (let i = 0; i < 4; i++) {   // [texround2] was 9 (three big and six small): the same nine marks came back every 4 m; two shallow ones and two small remain, the soft stains below carry the variation
+      const big = i < 2, w = (big ? 0.5 + r() * 0.7 : 0.12 + r() * 0.3) * sx, h = (big ? 0.3 + r() * 0.35 : 0.1 + r() * 0.22) * sy, x = r() * S, y = big ? (r() < 0.5 ? S * (0.72 + r() * 0.2) : r() * S * 0.2) : r() * S, sc = stones[(r() * stones.length) | 0];
       wrap(x, y, w, h, (X, Y) => {
         g.save(); g.beginPath(); const m = 14; for (let q = 0; q < m; q++) { const a = q / m * 6.283, rr = 0.62 + r() * 0.38; g[q ? 'lineTo' : 'moveTo'](X + w / 2 + Math.cos(a) * w / 2 * rr, Y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath(); g.clip();
         g.fillStyle = rgba(sc, 0.82); g.fillRect(X - 2, Y - 2, w + 4, h + 4);
@@ -81,10 +81,10 @@ const PAINT = {
         const sh = g.createLinearGradient(X, Y, X + w * 0.3, Y + h * 0.5); sh.addColorStop(0, 'rgba(30,24,16,0.5)'); sh.addColorStop(1, 'rgba(30,24,16,0)'); g.fillStyle = sh; g.fillRect(X - 2, Y - 2, w + 4, h + 4);
         g.restore();
         g.beginPath(); for (let q = 0; q < 14; q++) { const a = q / 14 * 6.283, rr = 0.62 + r() * 0.38; g[q ? 'lineTo' : 'moveTo'](X + w / 2 + Math.cos(a) * w / 2 * rr, Y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath();
-        g.strokeStyle = 'rgba(255,252,238,0.35)'; g.lineWidth = 2; g.stroke();
+        g.strokeStyle = 'rgba(255,252,238,0.2)'; g.lineWidth = 2; g.stroke();
       });
     }
-    for (let i = 0; i < 5; i++) {   // large soft stains: damp, soot, a fresher wash: tonal variation across the tile so no stretch of wall is one colour
+    for (let i = 0; i < 9; i++) {   // large soft stains: damp, soot, a fresher wash: tonal variation across the tile so no stretch of wall is one colour
       const x = r() * S, y = r() * S, rad = 70 + r() * 110, k = r(), c = k < 0.4 ? '96,82,60' : k < 0.7 ? '255,250,236' : '150,110,78', a = 0.04 + r() * 0.07;
       wrap(x - rad, y - rad, 2 * rad, 2 * rad, (X, Y) => { const gr = g.createRadialGradient(X, Y, 1, X, Y, rad); gr.addColorStop(0, `rgba(${c},${a})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(X - rad, Y - rad, 2 * rad, 2 * rad); });
     }
