@@ -1031,6 +1031,13 @@ Object.assign(MODELS, buildPoliceModels());
   police = createPolice(env, T);
   addEventListener('pd-yeet', e => police.chaos((e.detail && e.detail.kind) || 'yeet'));
   addEventListener('pd-fence', e => police.chaos((e.detail && e.detail.kind) || 'fence'));   // a smashed fence panel, garden wall or hedge (src/fences.js, src/props.js): a little chaos   // the lapa launched a parked car (src/props.js): the same chaos as launching a traffic car
+  // the lookouts of a gang (src/danger.js): when you are told to get out, the scooters near you shout it; if there is none in sight, one balloon from the roadside ahead
+  addEventListener('pd-lookout', e => {
+    const text = e.detail && e.detail.text; if (!text) return;
+    let n = 0;
+    for (const v of vs) if (n < 2 && v.ty.scooter && !v.dead && !v.fly && hyp2(v.x - car.x, v.z - car.z) < 45 && inView(v.x, 1, v.z, 2)) { shoutAt(v, text); n++; }
+    if (!n) { const sn = Math.sin(car.th), cs = Math.cos(car.th), x = car.x + sn * 14 + cs * 5, z = car.z + cs * 14 - sn * 5; env.shout?.(x, groundY(x, z) + 1.8, z, text); }
+  });
   gags = createGags(env, T, police);
   const carrozze = createCarrozze(env, T), vendors = createVendors(env, T);
   arrotini = createArrotini(T, { NX, NZ, NOUT, nearestNode: G.nearestNode });
