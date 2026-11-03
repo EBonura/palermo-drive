@@ -381,6 +381,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 @keyframes pr-mgl1 { 0%, 80%, 100% { opacity: 0; } 81% { opacity: 1; translate: -3px 0; clip-path: inset(0 0 55% 0); } 85% { opacity: 1; translate: 3px 0; clip-path: inset(45% 0 20% 0); } 90% { opacity: 1; translate: -2px 0; clip-path: inset(70% 0 0 0); } 94% { opacity: 0; } }
 @keyframes pr-mgl2 { 0%, 82%, 100% { opacity: 0; } 83% { opacity: .9; translate: 3px 0; clip-path: inset(60% 0 0 0); } 87% { opacity: .9; translate: -3px 0; clip-path: inset(10% 0 55% 0); } 92% { opacity: 0; } }
 @keyframes pr-mfire { from { filter: drop-shadow(0 0 3px #ff3b00) drop-shadow(0 -2px 4px #ffa000); } to { filter: drop-shadow(0 0 6px #ff1a00) drop-shadow(0 -4px 7px #ff6a00); } }
+/* open beside a mission card, or on a screen too narrow for the row: its own row under the menu button, as wide as there is room left of the card. The HUD's status column moves down one row (src/ui.css) */
+#pd-ui[data-st=play] ~ .pd-radio.drop { left: max(10px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 54px); }
+.pd-radio.drop .pr-card { width: min(400px, calc(50vw - min(180px, 18vw) - max(10px, env(safe-area-inset-left)) - 10px)); }
+.pd-radio.drop .pr-ext { flex: 1 1 0; min-width: 0; max-width: none; margin-right: 4px; }
+.pd-radio.drop .pr-text { flex: 1 1 0; width: auto; }
+.pd-radio.drop .pr-bars { display: none; }
+@media (max-width: 900px) { .pd-radio.drop:not([data-theme]) .pr-cd { display: none; } }
 @media (prefers-reduced-motion: reduce) { .pd-radio[data-theme=match] .pr-lab::after { animation: none; } .pr-cd i, .pr-line.mq > i, .pd-radio[data-theme=metal] :is(.pr-card, .pr-lab, .pr-text, .pr-cd, .pr-cd i) { animation: none; } .pd-radio[data-theme=metal] .pr-t > i::before, .pd-radio[data-theme=metal] .pr-t > i::after { animation: none; } .pr-card, .pr-ext, .pd-radio { transition: none; } }
 `;
   document.head.appendChild(style);
@@ -391,8 +398,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>',
   };
   const box = document.createElement('div');
-  // pd-radio-toast + on: src/suca.js stacks its graffiti toast under any '.pd-radio-toast.on', which keeps that toast clear of this widget
-  box.className = 'pd-radio pd-radio-toast on';
+  box.className = 'pd-radio';
   box.setAttribute('role', 'group');
   box.innerHTML = `<div class="pr-card">
     <div class="pr-ext"><div class="pr-cd"><i></i></div>
@@ -407,12 +413,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   for (const ev of ['touchstart', 'touchmove', 'touchend']) box.addEventListener(ev, e => e.stopPropagation(), { passive: true });
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
 
-  // open / folded: a track change or a tap opens it for a while, then it folds to the bars and a chevron
-  let exp = true, hover = false, evBusy = false, armed = false, foldTimer = 0, lastKey = '', lastLang = 0;
+  // open / folded: a track change or a tap opens it for a while, then it folds to the bars and a chevron. While a mission's card is up only a tap opens it: nothing else may push in beside the card
+  let exp = true, hover = false, evBusy = false, menuFold = false, armed = false, foldTimer = 0, lastKey = '', lastLang = 0, lay = '';
   let taken = null;   // takeover(): { analyser, level, buf } while a pub or a scene has borrowed the card
   function applyExp() {
-    const min = !exp || evBusy;
-    box.classList.toggle('min', min);
+    const min = !exp || menuFold, drop = !min && game?.state === 'play' && (evBusy || innerWidth < 1200);
+    box.classList.toggle('min', min); box.classList.toggle('drop', drop);
+    document.documentElement.classList.toggle('pd-radio-drop', drop);
     el.chev.setAttribute('aria-expanded', String(!min));
     el.chev.setAttribute('aria-label', T[min ? 'open' : 'fold'][lastLang]); el.chev.title = el.chev.getAttribute('aria-label');
     if (!min) fitLines();
@@ -421,7 +428,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   function open(ms = OPEN_MS) { exp = true; applyExp(); arm(ms); }
   el.card.addEventListener('click', e => {
     const b = e.target.closest('button');
-    if (b === el.chev) { if (exp && !evBusy) { exp = false; applyExp(); clearTimeout(foldTimer); } else open(TAP_MS); }
+    if (b === el.chev) { if (exp && !menuFold) { exp = false; applyExp(); clearTimeout(foldTimer); } else open(TAP_MS); }
     else if (b === el.next) { next(); open(TAP_MS); }
     else if (b === el.pwr) { toggle(); open(TAP_MS); }
     else if (!exp) open(TAP_MS);
@@ -456,12 +463,12 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     const key = `${mode}|${track ? track.title : ''}|${l}`;
     if (key !== lastKey) { lastKey = key; if (taken) lastLang = l; else render(mode, track, l); }
     if (!armed && !document.getElementById('loading')) { armed = true; arm(OPEN_MS); }   // the first fold waits for the loading screen to go
-    // keep it folded where it would run into something: the event card (top centre) on screens under 1200 wide, the side menu on screens under 760
-    const busy = (innerWidth < 1200 && !!document.querySelector('#ev-hud.on')) || (innerWidth < 760 && game?.state === 'pause');
-    if (busy !== evBusy) { evBusy = busy; applyExp(); }
+    // a mission's card (or the question before one, src/ui.js) comes up: fold, a tap opens it again. The side menu on screens under 760: keep it folded
+    const busy = !!document.querySelector('#ev-hud.on, .pd-ask:not(:empty)'), mf = innerWidth < 760 && game?.state === 'pause', ly = `${busy}|${mf}|${game?.state}|${innerWidth < 1200}`;
+    if (ly !== lay) { lay = ly; if (busy && !evBusy) { exp = false; clearTimeout(foldTimer); } evBusy = busy; menuFold = mf; applyExp(); }
     if (mode === 'on') kick();
   }
-  function onTrack() { sync(); if (!armed) { exp = true; applyExp(); } else open(OPEN_MS); }
+  function onTrack() { sync(); if (!armed) { exp = true; applyExp(); } else if (!evBusy) open(OPEN_MS); }
 
   // spectrum: 11 bars from the analyser (log-spaced bins), drawn on a 48 x 26 canvas about every other frame; the loop stops once the bars have settled
   const CW = 48, CH = 26, BW = 3, BGAP = 1.5;
@@ -566,7 +573,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
       el.lab.textContent = label; setLine(el.t, title); setLine(el.s, artist);
       el.t.firstChild.dataset.text = title;
       box.setAttribute('aria-label', `${label}: ${title}`);
-      clearTimeout(foldTimer); exp = true; applyExp(); kick();
+      clearTimeout(foldTimer); exp = !evBusy; applyExp(); kick();
     },
     retext({ label, title, artist } = {}) {
       if (!taken) return;
@@ -578,7 +585,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     release() {
       if (!taken) return;
       taken = null; delete box.dataset.theme; delete el.t.firstChild.dataset.text;
-      lastKey = ''; sync(); open(OPEN_MS); kick();
+      lastKey = ''; sync(); if (!evBusy) open(OPEN_MS); kick();
     },
     get takenOver() { return !!taken; },
     duckFor(k, depth = 0.88) { outer = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full); depth 1 silences the radio at k = 1 (the stadium)

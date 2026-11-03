@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { FP } from './landmarks-city-data.js';
 import { PITCH_Y } from './stadium-ground.js';
 import { obb } from './lmc-kit.js';
+import { zone } from './hud.js';
 
 const R = 0.5, SURF = PITCH_Y + 0.2, G = 24, MOUTH = 3.7, BAR = 2.44, LINE = 52.5;
 const BEST_KEY = 'palermoDrive.stadium.best.v1', PAY = 2, PAY_COOLDOWN = 20, STREAK_WINDOW = 45;
@@ -17,25 +18,25 @@ const lang = () => (document.documentElement.lang === 'en' ? 1 : 0);
 const GOL_CHANTS = ['GOOOOL!', 'Gol! Gol! Gol!', 'Alé alé rosanero!', 'FORZA PALERMO!'];
 
 const CSS = `
-.st-card { position: fixed; z-index: 55; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 52px); transform: translateX(-50%) skewX(-6deg); display: none; padding: 4px 14px 5px; pointer-events: none;
+.st-card { transform: skewX(-6deg); display: none; padding: 4px 14px 5px; pointer-events: none;
   background: linear-gradient(90deg, rgba(11,7,9,.84), rgba(40,12,28,.8)); border-left: 5px solid #e8559a; box-shadow: 0 3px 12px rgba(0,0,0,.4); color: #fff; text-transform: uppercase; white-space: nowrap;
   font: 600 clamp(11px, 2.4vh, 14px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .14em; }
 .st-card.on { display: block; } .st-card > * { display: inline-block; transform: skewX(6deg); } .st-card b { font: 400 1.5em/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #ffcf4a; margin: 0 .5em 0 .25em; }
 .st-card .best { opacity: .72; }
-.st-gol { position: fixed; z-index: 64; left: 50%; top: 47%; pointer-events: none; display: none; text-align: center; text-transform: uppercase; transform: translate(-50%, -50%) skewX(-8deg);
+.st-gol { position: fixed; z-index: 64; left: 50%; top: 45%; pointer-events: none; display: none; text-align: center; text-transform: uppercase; transform: translate(-50%, -50%) skewX(-8deg);
   font: 400 clamp(64px, 24vh, 190px)/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; -webkit-text-stroke: 3px #0b0709; paint-order: stroke fill; letter-spacing: .04em;
   text-shadow: 0 0 30px #e8559a, 0 0 60px rgba(255,207,74,.8), 0 6px 10px rgba(0,0,0,.6); }
 .st-gol small { display: block; font: 700 clamp(14px, 4vh, 28px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .24em; -webkit-text-stroke: 0; text-shadow: 0 0 14px #e8559a, 0 2px 4px rgba(0,0,0,.7); }
 .st-gol.on { display: block; animation: st-gol 2.6s ease-out forwards; }
 @keyframes st-gol { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) skewX(-8deg); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1) skewX(-8deg); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -62%) scale(1.08) skewX(-8deg); } }
-html.pd-title .st-card, html.pd-title .st-gol { display: none !important; }
+html.pd-title .st-gol { display: none !important; }
 `;
 
 export function createBall({ scene, car, shout, seat, boost, react = {} }) {
   const ob = obb((() => { const f = FP.stadio.holes[0], o = []; for (let i = 0; i < f.length; i += 2) o.push([f[i], f[i + 1]]); return o; })());
   const ux = ob.ux, uz = ob.uz, vx_ = ob.vx, vz_ = ob.vz, cx = ob.cx, cz = ob.cz;
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
-  const card = document.createElement('div'); card.className = 'st-card'; document.body.appendChild(card);
+  const card = document.createElement('div'); card.className = 'st-card'; zone('obj').appendChild(card);
   const banner = document.createElement('div'); banner.className = 'st-gol'; document.body.appendChild(banner);
   let best = 0; try { best = +localStorage.getItem(BEST_KEY) || 0; } catch (e) { /* storage unavailable */ }
 

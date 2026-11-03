@@ -38,6 +38,7 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 | --- | --- | --- |
 | Drive | WASD or arrow keys | pads on both sides |
 | Handbrake | Space | FRENO |
+| Big map, change place | G, or click the minimap | tap the minimap |
 | Nitro | Shift | NOS |
 | Fly (hold to climb, needs the wings) | F | VOLA |
 | Horn | H | CLACSON |

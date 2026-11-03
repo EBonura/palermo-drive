@@ -22,7 +22,7 @@ const K_MAX = 1.4;                     // px per metre at full zoom (a street is
 const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
-  here: ['Amunì, parti ri ccà', 'Start here'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
+  here: ['Amunì, parti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
@@ -36,7 +36,7 @@ const C = {
   roadA: ['#e8559a', '#ffe2ef'], roadB: ['#cdb98f', '#fffdf6'], roadC: ['#ddd0b2', '#ffffff'],
 };
 
-export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart, eventButton }) {
+export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart }) {
   host.innerHTML = `<canvas class="pd-mp-cv" aria-hidden="true"></canvas>
     <button class="pd-mp-ev" type="button" data-nav data-map="events" aria-pressed="true"><i></i><span data-t="events"></span></button>
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
@@ -397,9 +397,9 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (!sel) return;
     popT.textContent = sel.name;
     popS.textContent = sel.sub;
-    const lab = sel.kind === 'event' && eventButton ? eventButton(sel.ref) : null;   // a mission at the wrong time of day: the button says the clock will change
-    pop.querySelector('.pd-l1').textContent = lab ? lab[0] : L.here[li()];
-    const l2 = pop.querySelector('.pd-l2'); if (l2) l2.textContent = lab ? lab[1] : L.here[1 - li()];
+    const lab = L[sel.kind === 'event' ? 'there' : 'here'];   // a mission does not start from here: the game asks on arrival (src/ui.js)
+    pop.querySelector('.pd-l1').textContent = lab[li()];
+    const l2 = pop.querySelector('.pd-l2'); if (l2) l2.textContent = lab[1 - li()];
   }
   function pick(px, py, thr) { // a pin, or a cluster badge ({ m: [pins] })
     layout();

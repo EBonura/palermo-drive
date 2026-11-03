@@ -13,6 +13,7 @@
 //   list() -> [{ id, on, title, note, at }] in the order of SECRETS; locked entries still carry title and note (the UI must not show them).
 import * as THREE from 'three';
 import { esc } from './esc.js';
+import { zone } from './hud.js';
 
 const KEY = 'palermoDrive.secrets.v1';
 const clamp = THREE.MathUtils.clamp;
@@ -38,19 +39,19 @@ export const SECRETS = [
 
 // ------------------------------------------------------------------------------------------------ banner and chime
 const CSS = `
-.pd-secret { position: fixed; z-index: 70; left: 50%; top: max(18%, calc(env(safe-area-inset-top) + 76px)); width: min(440px, 86vw); transform: translateX(-50%) scale(.6) skewX(-5deg); opacity: 0; pointer-events: none;
+.pd-secret { position: relative; display: none; box-sizing: border-box; width: var(--wide); transform: skewX(-5deg); pointer-events: none;
   text-align: center; color: #fff; text-transform: uppercase; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; padding: 10px 18px 12px;
   background: linear-gradient(180deg, rgba(11,7,9,.94), rgba(70,14,44,.92)); border: 2px solid #ffcf4a; box-shadow: 0 0 34px rgba(255,207,74,.55), 0 0 60px rgba(232,85,154,.4); }
-.pd-secret.on { animation: pd-secret-in .55s cubic-bezier(.2,1.5,.4,1) forwards; }
-.pd-secret.off { animation: pd-secret-out .5s ease-in forwards; }
+.pd-secret.on { display: block; animation: pd-secret-in .55s cubic-bezier(.2,1.5,.4,1) forwards; }
+.pd-secret.off { display: block; animation: pd-secret-out .5s ease-in forwards; }
 .pd-secret > * { transform: skewX(5deg); }
 .pd-secret small { display: block; font-weight: 700; font-size: clamp(11px, 2.4vh, 14px); letter-spacing: .3em; color: #ffcf4a; }
 .pd-secret b { display: block; margin: 3px 0 2px; font: 400 clamp(22px, 6vh, 40px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .05em; text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); -webkit-text-stroke: 1px #0b0709; paint-order: stroke fill; text-transform: none; }
 .pd-secret span { display: block; font-weight: 600; font-size: clamp(11px, 2.5vh, 15px); letter-spacing: .08em; opacity: .88; text-transform: none; }
 .pd-secret i { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4px; background: #ffcf4a; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); opacity: 0;
   animation: pd-secret-spark 1.1s ease-out forwards; animation-delay: var(--d); transform: skewX(5deg); }
-@keyframes pd-secret-in { 0% { opacity: 0; transform: translateX(-50%) scale(.6) skewX(-5deg); } 100% { opacity: 1; transform: translateX(-50%) scale(1) skewX(-5deg); } }
-@keyframes pd-secret-out { to { opacity: 0; transform: translateX(-50%) translateY(-18px) scale(.96) skewX(-5deg); } }
+@keyframes pd-secret-in { 0% { opacity: 0; transform: scale(.6) skewX(-5deg); } 100% { opacity: 1; transform: scale(1) skewX(-5deg); } }
+@keyframes pd-secret-out { to { opacity: 0; transform: translateY(-18px) scale(.96) skewX(-5deg); } }
 @keyframes pd-secret-spark { 0% { opacity: 1; transform: translate(0, 0) scale(.4) skewX(5deg); } 100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1.5) skewX(5deg); } }
 .pd-sec .pd-colh b { color: #ffcf4a; }
 .pd-sec.lock { opacity: .7; } .pd-sec.lock .pd-colh span { letter-spacing: .4em; }
@@ -67,7 +68,7 @@ export function createAchievements({ game, car, groundY }) {
   const has = id => !!saved[id];
 
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
-  const box = document.createElement('div'); box.className = 'pd-secret'; box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite'); document.body.appendChild(box);
+  const box = document.createElement('div'); box.className = 'pd-secret'; box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite'); zone('moment').appendChild(box);
   const queue = []; let showing = false;
 
   let ac = null;
@@ -87,6 +88,7 @@ export function createAchievements({ game, car, groundY }) {
   }
 
   function next() {
+    if (queue.length && document.querySelector('.ev-result.on, #pd-busted.on')) { showing = true; setTimeout(next, 500); return; }   // one moment at a time (src/hud.js): a secret waits for the mission's result
     const s = queue.shift(); if (!s) { showing = false; return; }
     showing = true; const l = lang();
     let sparks = ''; for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2 + Math.random() * 0.3, r = 110 + Math.random() * 90; sparks += `<i style="--x:${Math.round(Math.cos(a) * r * 1.5)}px;--y:${Math.round(Math.sin(a) * r * 0.6)}px;--d:${(0.1 + Math.random() * 0.25).toFixed(2)}s"></i>`; }

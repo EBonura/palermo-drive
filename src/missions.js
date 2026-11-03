@@ -14,6 +14,7 @@
 //   progress() -> { food: { done, total }, races: { won, total }, fares }   (localStorage 'palermoDrive.events.v1')
 //   busy() -> true while an event runs
 //   status(id) -> { done, tried, best }, ready(id) -> [x, z, th] (the caller is there at once and accepts without a drive-off first): used by the Missioni screen (src/ui.js); the done events are also kept in prog.done
+//   stand(id) -> [x, z, th]: the same spot, the caller there, but nothing starts: the big map (src/ui.js) asks first, ready(id) is the yes. arrive(): any other jump from the map, a caller next to it does not accept either
 //   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, world, placeAt, proj }
 // Test links: ?event=food:benny | fare:qc | urgent:u-stadio | race:olimpo puts the lapa at that event (add &auto to accept at once; race:corse forces night).
 // Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
@@ -531,12 +532,14 @@ function build(env) {
     const k = id.slice(0, id.indexOf(':')), r = k === 'race' ? prog.races[id.slice(5)] : 0, d = prog.done[id];
     return { done: r === 1 || !!d || (k === 'food' && !!prog.food[id.slice(5)]) || (k === 'pub' && !!prog.pubs[id]), tried: r === 2, best: d && d.best > 0 ? d.best : 0 };
   };
-  const ready = id => {   // -> [x, z, th]: where the lapa stands, in the road at the caller's spot
+  const arrive = () => { calls.disarm(); pubs?.disarm(); };
+  const stand = id => {   // -> [x, z, th]: where the lapa stands, in the road at the caller's spot
     const s = slots.find(x => x.id === id) || (pubs && pubs.slots.find(x => x.id === id)); if (!s) return null;
-    s.coolUntil = 0; calls.arm(); pubs?.arm();
+    s.coolUntil = 0; arrive(); X.held = s;   // held: this one waits for the answer, and does not take a "no" back until the lapa has left (update below)
     for (const o of [...slots, ...(pubs ? pubs.slots : [])]) if (o !== s && o.kind !== 'race' && Math.hypot(o.x - s.x, o.z - s.z) < 30) o.coolUntil = Math.max(o.coolUntil, now() + 60);   // another caller on the same spot does not take the lapa first
     return [s.x, s.z, Math.atan2(s.dx, s.dz)];   // the middle of the road: at the lane offset of the ?event link a wall was 0.7 m away on a narrow street
   };
+  const ready = id => { const at = stand(id); X.held = null; calls.arm(); pubs?.arm(); return at; };
   const progress = () => ({ secrets: secrets.list(), pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
 
   const X = {
@@ -647,7 +650,7 @@ function build(env) {
   function updateLeash(dt) {
     const ev = S.ev; if (!ev || S.phase === 'done' || ev.failT > 0) { if (leash.out) { leash.out = false; leash.t = LEASH_T; hud.leash(false); } return; }
     const A = leashArea(ev.slot), d = segDist(car.x, car.z, A.a, A.b);
-    if (!leash.out && d > A.r) { leash.out = true; leash.t = LEASH_T; hud.toast(T('Tonna arreri!', 'Come back!'), T('Si fora zuana', 'You are out of the area')); }
+    if (!leash.out && d > A.r) { leash.out = true; leash.t = LEASH_T; }
     else if (leash.out && d < A.r - LEASH_BACK) { leash.out = false; leash.t = LEASH_T; hud.leash(false); }
     if (!leash.out) return;
     leash.t -= dt;
@@ -668,6 +671,7 @@ function build(env) {
   function update(dt) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt; hudUsed = false; aim.on = false;
+    if (X.held && Math.hypot(car.x - X.held.x, car.z - X.held.z) > 40) X.held = null;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
     updateVendors(dt); updatePoll(dt); secrets.update(dt); rave.update(dt);
     night.update(dt, !S.ev);
@@ -696,7 +700,7 @@ function build(env) {
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
-  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, ready };   // pubs and rave: src/drunk.js reads their doors and the stage
+  const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
   if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns };
   return api;
 }

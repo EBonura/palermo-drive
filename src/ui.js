@@ -1,4 +1,4 @@
-// Title screen, main menu, options, credits, the start picker (map and list) and the in-game side menu. Owned by the game-shell work.
+// Title screen, main menu, options, credits, the big map (start picker: map and list; in the game the minimap opens it) and the in-game side menu. Owned by the game-shell work.
 // game.state: 'title' | 'play' | 'pause'; call game.start(), game.pause(), game.resume(). 'pause' is the side menu: the simulation is stopped, the
 // world keeps drawing behind the panel so option changes show at once. Menu to game, game to menu and a new start point all go through
 // transition() (src/transition.js), which stays covered until the world around the start has streamed in.
@@ -16,6 +16,7 @@ import { transition } from './transition.js';     // rosanero squares + spinning
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
 import { esc } from './esc.js';
 import { KIND_COLOR } from './event-calls.js';   // the colour of each kind of mission, for the Missioni list
+import { zone } from './hud.js';
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -31,7 +32,6 @@ const S = {
   back: ['Indietro', 'Back'],
   menu: ['Menu', 'Menu'],
   resume: ['Riprendi', 'Resume'],
-  changeStart: ['Cambia partenza', 'Change start'],
   quit: ['Esci al menu', 'Back to menu'],
   quitBusy: ['Lasci l\'evento in corso', 'You drop the current event'],
   collections: ['Collezioni', 'Collections'],
@@ -39,7 +39,7 @@ const S = {
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
   colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
-  missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'],
+  missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'], mStay: ['Resto qui', 'Stay here'],
   mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mRave: ['Rave', 'Rave'], mHorns: ['Clacson', 'Horns'],
   mDoneRow: ['Fatta', 'Done'], mTodo: ['Da fare', 'To do'], mTried: ['Provata', 'Tried'], mBest: ['Migliore', 'Best'], mRunning: ['In corso', 'Running'],
   mNight: ['Di notte', 'At night'], mDay: ['Di giorno', 'By day'], mAny: ['Sempre', 'Any time'], mLeafNote: ['Ti chiama un amico al rave', 'A friend calls you at the rave'],
@@ -62,7 +62,7 @@ const S = {
   coords: ['Coordinate (debug)', 'Coordinates (debug)'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
-  startQ: ['Da dove parti?', 'Where do you start?'],
+  startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
   menuBtn: ['Menu', 'Menu'],
@@ -368,8 +368,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <h2 class="pd-h" data-k="menu"></h2>
       <div class="pd-stack pd-sidelist">
         <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
-        <button class="pd-btn sm pd-grp" data-nav data-do="changeStart" type="button">${two('changeStart')}${CHEV}</button>
-        <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+        <button class="pd-btn sm pd-grp" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
         <div class="pd-sidepair"><button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}</button><button class="pd-btn sm" data-nav data-do="missions" type="button">${two('missions')}</button></div>
         <button class="pd-btn sm pd-grp" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
         <div class="pd-sideradio">
@@ -431,13 +430,15 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   ui.addEventListener('touchend', e => e.stopPropagation(), { passive: true });
 
   // ---- language ----
+  function applyLangTo(e) {
+    const i = lang === 'it' ? 0 : 1, s = S[e.dataset.k]; if (!s) return;
+    if (e.hasAttribute('data-sub')) e.innerHTML = `<span class="pd-l1">${esc(e.dataset.sub)}</span><span class="pd-l2">${esc(s[i])}</span>`;
+    else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
+  }
   function applyLang() {
     const i = lang === 'it' ? 0 : 1;
-    for (const e of ui.querySelectorAll('[data-k]')) {
-      const s = S[e.dataset.k]; if (!s) continue;
-      if (e.hasAttribute('data-sub')) e.innerHTML = `<span class="pd-l1">${esc(e.dataset.sub)}</span><span class="pd-l2">${esc(s[i])}</span>`;
-      else e.innerHTML = e.hasAttribute('data-two') ? `<span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span>` : esc(s[i]);
-    }
+    for (const e of ui.querySelectorAll('[data-k]')) applyLangTo(e);
+    miniEl.setAttribute('aria-label', S.whereQ[i]); miniEl.title = S.whereQ[i];
     root.lang = lang;
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
     buildCredits(); syncRadio(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
@@ -488,6 +489,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function goBack() {
     if (cur === 'garage') return leaveGarage();
     if (stack.length) go(stack.pop(), { back: true });
+    else if (game.state === 'pause') closePause();   // the big map, opened from the minimap: straight back to the street
   }
   // The garage is a place of its own (src/garage-scene.js): in and out go through the checkerboard. While it is open main.js draws the garage
   // instead of the city and does not simulate it, so the street (title flyover or driving, camera, position, heading) is exactly as it was on the way out.
@@ -557,19 +559,20 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // The streamer gets most of every frame while the transition covers the screen (world.hurry): the hitches are not seen.
   const hurried = async work => { if (world) world.hurry = true; try { return await work(); } finally { if (world) world.hurry = false; } };
   // Menu or picker to the game, or a new start point from the side menu: cover, place the lapa, wait for the world, reveal.
-  // how (the Missioni list): { id: the mission to stand at (its caller is made ready), hour: jump the clock there first }
+  // how (the Missioni list): { id: the mission to stand at (its caller is made ready), hour: jump the clock there first }; (a mission's pin on the big map): { ask: the mission }: stand at it, nothing starts until the answer
   function startAt(x, z, how = {}) {
-    if (busy) return; busy = true; gesture();
+    if (busy) return; busy = true; gesture(); answerArrival(false);
     const fromTitle = game.state === 'title';
     transition(() => hurried(async () => {
       if (!fromTitle) missions?.stop?.();
-      const at = how.id && missions?.ready?.(how.id);   // the mission's own spot beside its caller
+      const at = how.id ? missions?.ready?.(how.id) : how.ask ? missions?.stand?.(how.ask.id) : (missions?.arrive?.(), null);   // the mission's own spot beside its caller
       await placeAt(x, z); // main.js: places the lapa and resolves once the start tile is at full detail
       if (at) vehicle.placeAt(...at);   // the nearest road vertex can be 30 m off on a long street: stand at the caller, facing along the road
       leaveTitleCam(); game.titleCam = null;
       if (fromTitle) game.start(); else game.resume();
       if (how.hour != null) { if (fromTitle) await garageFrames(2); dispatchEvent(new CustomEvent('pd-time-hour', { detail: how.hour })); }   // from the title the clock first goes to the start time (src/daynight.js), so the skip comes after it
       stack = []; go(null);
+      if (how.ask) showArrival(how.ask);
       await settle();
     })).catch(() => {}).then(() => { busy = false; });
   }
@@ -582,10 +585,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (game.state !== 'pause' || cur === 'garage') return;
     game.resume(); go(null); gesture();
   }
+  // The minimap opens the big map: that is how a player changes place. The game waits behind it (as under the side menu), Back goes straight back to the street.
+  function openMap() {
+    if (game.state !== 'play' || busy) return;
+    game.pause(); stack = []; delete lastFocus.start; go('start');
+  }
+  const miniEl = document.getElementById('mini');
+  miniEl.addEventListener('click', openMap);
+  for (const ev of ['touchstart', 'touchend']) miniEl.addEventListener(ev, e => e.stopPropagation(), { passive: true });   // the page lockdown (src/mobile.js) leaves this tap alone
   // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
-    if (busy) return; busy = true;
+    if (busy) return; busy = true; answerArrival(false);
     transition(() => hurried(async () => {
       missions?.stop?.();
       game.state = 'title'; stack = []; go('menu');
@@ -602,7 +613,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function act(name, el) {
     switch (name) {
       case 'drive': return go('start', { push: true });
-      case 'changeStart': return go('start', { push: true });
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
       case 'options': return go('options', { push: true });
@@ -674,8 +684,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
     getEvents: () => fakeEvents || missions?.events?.() || [],
-    onStart: (x, z, it) => it?.kind === 'event' ? mapGo(it.ref) : startAt(x, z),
-    eventButton: e => { const k = mapSkip(e); if (k == null) return null; const i = lang === 'it' ? 0 : 1, m = S[k ? 'mSkipNight' : 'mSkipDay']; return [m[i], m[1 - i]]; },
+    onStart: (x, z, it) => it?.kind === 'event' ? startAt(x, z, { ask: it.ref }) : startAt(x, z),
   });
   if (params.has('mapdebug')) window.__pdMap = startMap;
   function setView(v) {
@@ -685,7 +694,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     game.noRender = cur === 'start' && v === 'map';
     if (v === 'map') startMap.show(); else { startMap.hide(); renderList(); }
   }
-  function openStart() { setView(startView); if (startView === 'map') lastFocus.start = screens.start.querySelector('.pd-starttabs [aria-pressed=true]'); }
+  function openStart() { const h = screens.start.querySelector('.pd-h'); h.dataset.k = game.state === 'title' ? 'startQ' : missions?.busy?.() ? 'whereBusy' : 'whereQ'; applyLangTo(h); setView(startView); if (startView === 'map') lastFocus.start = screens.start.querySelector('.pd-starttabs [aria-pressed=true]'); }
   function renderList() {
     if (!listDone) {
       listDone = true;
@@ -876,9 +885,27 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     goMission(f.e, a === 'skip' ? f.hour : undefined);
   }
   function goMission(e, hour) { startAt(e.x, e.z, { id: e.id, hour }); }
-  // from the map: the same start as Vai, ready to accept; a mission at the wrong time of day moves the clock (the popup's button has already said so)
-  function mapSkip(e) { const want = e.night ? true : e.day ? false : null; return want !== null && want !== nightNow() ? want : null; }
-  function mapGo(e) { const w = mapSkip(e); startAt(e.x, e.z, { id: e.id, hour: w == null ? undefined : w ? NIGHT_HOUR : DAY_HOUR }); }
+  // Arriving at a mission from the big map: the lapa stands beside its caller and the card asks. Amunì starts it (a mission at the wrong time of day moves the clock, and the button says so), Resto qui or just
+  // driving off leaves it. Enter and Escape (A and B on a gamepad) answer as well. It stands where the mission card goes, which it replaces meanwhile (src/hud.js).
+  const askEl = h('div', 'pd-ask', null, { role: 'group' });
+  zone('obj').prepend(askEl);
+  for (const ev of ['touchstart', 'touchend']) askEl.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  let arrived = null;   // { e, hour, x, z } while the card asks
+  function showArrival(e) {
+    const i = lang === 'it' ? 0 : 1, wrong = (e.night ? true : e.day ? false : null) === !nightNow(), kind = S[MKIND[e.kind]], car = vehicle.car;
+    const go = wrong ? S[e.night ? 'mSkipNight' : 'mSkipDay'] : S.mGo, two = (s, a, cls) => `<button class="pd-btn sm ${cls}" data-a="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(s[i])}</span><span class="pd-l2">${esc(s[1 - i])}</span></span></button>`;
+    askEl.innerHTML = `<div class="pd-ask-t">${kind ? `<small>${esc(kind[i])}</small>` : ''}<b>${esc(e.name)}</b>${wrong ? `<span>${esc(S[e.night ? 'mOnlyNight' : 'mOnlyDay'][i])}</span>` : ''}</div>
+      <div class="pd-ask-b">${two(go, 'go', 'drive')}${two(S.mStay, 'stay', '')}</div>`;
+    arrived = { e, hour: wrong ? (e.night ? NIGHT_HOUR : DAY_HOUR) : undefined, x: car.x, z: car.z };
+  }
+  function answerArrival(yes) {
+    const a = arrived; if (!a) return;
+    arrived = null; askEl.innerHTML = '';
+    if (!yes) return;
+    if (a.hour != null) dispatchEvent(new CustomEvent('pd-time-hour', { detail: a.hour }));
+    missions?.ready?.(a.e.id);
+  }
+  askEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { b.blur(); answerArrival(b.dataset.a === 'go'); } });
 
   // ---- credits roll ----
   let assetsHTML = '', assetsLoaded = false, rollPause = 0, rollY = 0;
@@ -947,7 +974,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function input(a) {
     if (busy) return;
     if (game.state === 'over') return; // the sea's game-over overlay handles its own input
-    if (game.state === 'play') { if (a === 'pause' || a === 'back') openPause(); return; }
+    if (game.state === 'play') { if (arrived && (a === 'ok' || a === 'back')) return answerArrival(a === 'ok'); if (a === 'pause' || a === 'back') openPause(); else if (a === 'map') openMap(); return; }
     if (cur === 'title') { if (a === 'ok') go('menu'); return; }
     if (a === 'pause' && game.state === 'pause') return closePause();
     if (a === 'back') { if (cur === 'garage' && garageUI.back()) return; if (cur === 'start' && startView === 'map' && startMap.closePop()) return; if (cur === 'missions' && closeAsk()) return; if (stack.length) goBack(); else if (game.state === 'pause') closePause(); return; }
@@ -960,7 +987,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const a = KEYMAP[e.code];
     if (game.state === 'play') {
-      if (e.code === 'Escape' || e.code === 'KeyP') { if (!e.repeat) input('pause'); e.preventDefault(); e.stopImmediatePropagation(); }
+      if (arrived && (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Escape')) { if (!e.repeat) input(e.code === 'Escape' ? 'back' : 'ok'); e.preventDefault(); e.stopImmediatePropagation(); }
+      else if (e.code === 'Escape' || e.code === 'KeyP') { if (!e.repeat) input('pause'); e.preventDefault(); e.stopImmediatePropagation(); }
+      else if (e.code === 'KeyG' && !e.repeat) input('map');
       return;
     }
     e.stopImmediatePropagation(); // no driving shortcuts while a menu is up
@@ -999,7 +1028,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = [...pads].find(g => g && g.connected); if (!gp) return;
     const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
-    const cs = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6, ok: b(0), back: b(1), pause: b(9) };
+    const cs = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6, ok: b(0), back: b(1), pause: b(9), map: b(8) };
     for (const k in cs) {
       const hh = held[k] || (held[k] = { on: false, t0: 0, t1: 0 });
       if (cs[k]) {
@@ -1015,6 +1044,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function tick(t) {
     const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
     if (game.state !== lastState) { lastState = game.state; syncState(); }
+    if (arrived && game.state === 'play' && Math.hypot(vehicle.car.x - arrived.x, vehicle.car.z - arrived.z) > 25) answerArrival(false);   // drove off: that is an answer too
     pollPad(t);
     garageUI.tick(dt);
     if (cur === 'credits' && t > rollPause) {

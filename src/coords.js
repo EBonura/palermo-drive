@@ -5,6 +5,7 @@
 //   import { createCoords } from './coords.js';
 //   const coords = createCoords({ game, car, camera, groundY });   coords.update() once per frame
 import { LAT0, LON0, KX, KZ } from './core.js';
+import { zone } from './hud.js';
 
 const T = 500;   // tile size (src/world.js)
 
@@ -12,10 +13,9 @@ export function createCoords({ game, car, camera, groundY }) {
   const forced = new URLSearchParams(location.search).has('coords');
   const el = document.createElement('div');
   el.className = 'pd-coords';
-  el.style.cssText = 'position:fixed;left:max(8px,env(safe-area-inset-left));top:170px;z-index:530;' +
-    'pointer-events:none;white-space:pre;font:600 11px/1.3 ui-monospace,Menlo,Consolas,monospace;color:#fff;' +
+  el.style.cssText = 'pointer-events:none;white-space:pre;font:600 11px/1.3 ui-monospace,Menlo,Consolas,monospace;color:#fff;' +
     'background:rgba(11,7,9,.78);border-left:3px solid #e8559a;padding:5px 8px;border-radius:4px;display:none';
-  document.body.appendChild(el);
+  zone('status').appendChild(el);
   let last = '', tick = 0;
   const f1 = v => (Math.round(v * 10) / 10).toFixed(1), f6 = v => v.toFixed(6);
   const gy = (x, z) => { try { const y = groundY(x, z); return Number.isFinite(y) ? f1(y) : '?'; } catch (e) { return '?'; } };

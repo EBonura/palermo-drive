@@ -158,7 +158,7 @@ export function createPubs(X, { game }) {
         if (dc < nd) { nd = dc; nearest = v; }
         // Taverna, Magione and Monkey have their door in a piazza 20 to 50 m from the road, which the lapa cannot reach from it: there the road point (the pin on the map, where the errand ends) counts too
         const here = dc < ACCEPT_R || (Math.hypot(v.kerb.x - v.slot.x, v.kerb.z - v.slot.z) > ACCEPT_R && Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < ACCEPT_R);
-        if (armed && here && speed() < 2.2) { v.slot.holdT += dt; if (v.slot.holdT > 0.35) accepted = v.slot; } else v.slot.holdT = 0;
+        if (armed && X.held !== v.slot && here && speed() < 2.2) { v.slot.holdT += dt; if (v.slot.holdT > 0.35) accepted = v.slot; } else v.slot.holdT = 0;
       } else if (slow && d < OFFER_R && car.type !== 'sulky') spawnCaller(v);
     }
     // minimap pins for the pubs within reach
