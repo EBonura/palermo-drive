@@ -24,6 +24,7 @@ import { createRemotes } from '../remotes.js';
 import { strategies, selfId } from './trystero.js';
 import { PHRASES, CATEGORIES } from './phrases.js';
 import { createWheel } from './wheel.js';
+import { RELAYS } from './relays.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 
 const APP_ID = 'palermo-drive-p2p-exp-1';
@@ -53,7 +54,7 @@ export function createP2P(env) {
   const ns = (params.get('ns') || '').replace(/[^\w-]/g, '').slice(0, 24);   // separate the rooms of a test run from everybody else's
   const relayUrls = (params.get('relays') || '').split(',').filter(u => /^wss:\/\/[\w.:-]+(\/[\w./-]*)?$/.test(u));
   const strat = strategies[kind];
-  const relayConfig = relayUrls.length ? { urls: relayUrls } : { redundancy: num('red', 3, 1, 10) };
+  const relayConfig = relayUrls.length ? { urls: relayUrls } : kind === 'nostr' ? { urls: RELAYS } : { redundancy: num('red', 3, 1, 10) };
   const log = [];   // timing events for the measurements: { t, ev, ... }
   const ev = (name, o) => { const e = { t: Math.round(performance.now()), ev: name, ...o }; log.push(e); if (log.length > 2000) log.shift(); };
 
@@ -321,8 +322,8 @@ export function createP2P(env) {
   offerBox.append(offerBtn, offerList); document.body.appendChild(offerBox);
 
   // ---------- name card (same words as the relay client's, src/net.js) ----------
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi' },
-    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close' } };
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei. Non salviamo nulla.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi' },
+    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in. We store nothing.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close' } };
   let nameCard = null, submitName = null, closeName = null;
   function openName() {
     refreshName();
@@ -333,6 +334,7 @@ export function createP2P(env) {
     if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
     const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae'; h.textContent = editing ? tx.edit : tx.ask;
     const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
+    const priv = document.createElement('small'); priv.style.cssText = 'display:block;opacity:.55;margin:-4px 0 10px;font-size:11px'; priv.textContent = editing ? '' : tx.priv;
     const input = document.createElement('input'); input.maxLength = 16; input.placeholder = tx.ph; input.value = named ? myName : ''; input.autocomplete = 'off'; input.spellcheck = false;
     input.style.cssText = 'display:block;width:100%;box-sizing:border-box;font:600 16px system-ui,sans-serif;padding:9px 11px;margin-bottom:8px;border-radius:9px;border:1.5px solid #5a4a50;background:#1b1115;color:#fff;outline:none';
     const ok = document.createElement('button'), no = document.createElement('button');
@@ -345,7 +347,7 @@ export function createP2P(env) {
     };
     submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
     ok.addEventListener('click', submit); no.addEventListener('click', closeName);
-    nameCard.append(h, sub, input, ok); if (editing) nameCard.append(no);
+    nameCard.append(h, sub, priv, input, ok); if (editing) nameCard.append(no);
     document.body.appendChild(nameCard); if (window.matchMedia('(pointer:fine)').matches) input.focus();
   }
   // Typing a name must not drive the car or open the pause menu (P and Escape): the game's own key handler (src/ui.js) is a window capture listener
