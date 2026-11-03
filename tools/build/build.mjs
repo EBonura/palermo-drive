@@ -16,11 +16,14 @@ import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDataBlobs } from './data.mjs';
 import { RELAYS } from '../../src/p2p/relays.js';
+import { PLAYLOG_URL } from '../../src/playlog-url.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const flag = (k, d) => { const a = process.argv.find(x => x === '--' + k || x.startsWith('--' + k + '=')); return a ? (a.includes('=') ? a.split('=')[1] : true) : d; };
 const ROOT = path.resolve(flag('src', path.resolve(HERE, '../..')));   // --src=<dir> builds another checkout of the project
 const DATA_MODE = flag('data', 'bin');
+// the play log (src/playlog.js): the address in src/playlog-url.js, or --playlog=<url> for a local test build (which also lets it send from the test addresses and automated browsers)
+const PLAYLOG = flag('playlog', '') || PLAYLOG_URL;
 const OUT = path.resolve(ROOT, flag('out', 'dist'));
 const hash = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 10);
 const kb = n => (n / 1024).toFixed(1) + ' KB';
@@ -63,7 +66,7 @@ const res = await esbuild.build({
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
-  define: { __PD_PROD__: 'true', __PD_P2P__: flag('p2p', true) ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
+  define: { __PD_PROD__: 'true', __PD_P2P__: flag('p2p', true) ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
 let appJs = null;
@@ -117,7 +120,8 @@ mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}" data
 // (plus data: and blob: pictures), and may talk to itself and to the multiplayer relay on Cloud Run (server/DEPLOY.md). Style is 'unsafe-inline' because the modules add their own <style> blocks.
 // Checked on the built site: title, play, Garage, a race event and the credits raise no violation. The dev tree has no policy. If a new feature loads something from elsewhere, widen it here.
 // The peer to peer client (docs/P2P-MULTIPLAYER.md) also needs the Nostr relays it pins in src/p2p/relays.js: exactly those hosts are allowed here.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://*.run.app wss://*.run.app" + (flag('p2p', true) ? ' ' + RELAYS.join(' ') : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
+// The play log (src/playlog.js) needs its one service host, the origin of PLAYLOG_URL (src/playlog-url.js): added only when that constant is set, so with it empty the policy allows no extra host.
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://*.run.app wss://*.run.app" + (flag('p2p', true) ? ' ' + RELAYS.join(' ') : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
 mustReplace(/<head>/, `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`, 'the <head> tag (policy)');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version, name: versionName }));

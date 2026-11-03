@@ -80,7 +80,7 @@ Not covered by the lockfile: `relay/killswitch/package.json` (`^5.0.0`, `^3.0.0`
   carry `integrity` in current Chrome). `assets/ui/cover.html` (source of the share images, not published) does the same.
 - The **published** page does not use the CDN: `tools/build` bundles three and the addons into `js/app.<hash>.js`. A built page makes no request to any other host (checked: zero external requests on
   title, play, Garage and a race). Fonts are self-hosted (`assets/ui/fonts`). The bundle's only external strings are Wikimedia, OpenStreetMap and w3.org URLs in credits text.
-- No analytics, no ads, no service worker, no cookies, no `postMessage`, no `window.open`.
+- No third-party analytics, no ads, no service worker, no cookies, no `postMessage`, no `window.open`. The one thing the page can send to a server of ours is the play log (`src/playlog.js`, service in `joinlog/`): anonymous counts about play and performance, the chosen name for online players, no address, no lasting id, a switch in Options. It is off, and the page makes no such request, while `src/playlog-url.js` is empty (it is empty until the service is deployed).
 
 ## Game
 

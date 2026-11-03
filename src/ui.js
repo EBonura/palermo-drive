@@ -75,6 +75,7 @@ const S = {
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Segui il creatore del gioco', 'Follow the game\'s creator'], igStudio: ['Segui lo studio, principalmente sviluppo per PlayStation 1', 'Follow the studio, mostly PlayStation 1 development'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
+  stats: ['Statistiche di gioco', 'Game stats'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
@@ -304,6 +305,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
+  st.stats = saved.stats === 'off' ? 'off' : 'on';   // anonymous play and performance counts (src/playlog.js); 'off' stops all sending
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice
@@ -363,6 +365,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
     { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
+    { key: 'stats', label: 'stats', type: 'seg', vals: [['on', 'cOn'], ['off', 'cOff']] }, // anonymous game stats (src/playlog.js), on by default
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
   OPTS.push(LANG_OPT);
