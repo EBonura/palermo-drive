@@ -76,3 +76,16 @@ fronts on set-back facades. Already trimmed: bracket count on continuous balconi
   ground/streets agent's area.
 - Free-camera shots of far districts need 40 s or more of streaming; `tools/shot.sh` (20 s) shows empty ground there.
 - The headless Chrome and the shared in-app browser pane both made Street View slow (about 25 s per view); only 28 views were taken.
+
+## Old-town facades (round 2, item 3)
+
+Photos: ce16 (Via Porta di Castro), ce22 (Via Cavour), xsc_0, and the post-war avenues po24, zi31, su43, pt24. The game showed flat buff walls, one window type repeated down a whole facade, the same shuttered ground floor everywhere, balconies only on the piano nobile.
+
+What `src/buildings.js` does now:
+
+- **Layer groups.** `aLayer >= 200` names a group (`GRPV`: first layer, count) and the fragment shader picks one variant per bay and floor from a hash of `floor(vTileUv)`, so a facade shows many windows from one strip of two triangles and no extra geometry. Every wall starts at another bay (`B.uo`, added to the strip uvs). Groups: the old-town windows (`old_up`, `old_nob`, `old_top`, `old_wall`), old-town ground floors (`og_door`, `og_shop`, `og_low`), the plain street shop in four shutter states (`g_shops`, via `GMAP`), and the existing runs of window layers of every other style (`UPGRP`: blocks, plain houses, 19th c., Liberty, post-war), so blinds, awnings and shutters differ from flat to flat everywhere.
+- **Old town** = `OLDZ` zones (corso, roma, old, centro, kalsa, alberg, politeama, stazione) and the styles bar, n19, res and low, without a per-building spec (the measured palaces keep their own look). A shared aged render (`obase`, one fixed seed, so bays and tiles meet without a seam), repair patches, stone surrounds with a recessed opening, dark painted skirts, a smaller top floor, arched wooden doors, passages (androne), a votive niche, small shops with wooden or metal shutters. Palette `OLD_PAL` (terracotta, salmon, ochre, cream, grey), a little desaturated. Per house: bay width x0.82 to 1.32, ground floor height +-12 %, storey height +-8 % (so the storey count can differ from the neighbour), cornice depth. `pw` is halved in these zones.
+- **Balconies in runs** (`obalc`): one slab, one rail and triangle brackets per run of one to three bays, a long one on the piano nobile, on most floors. Cheaper per metre than a balcony per bay, so the old-town triangles went down (QC full-detail buildings 519k to 487k, Kalsa 402k to 384k).
+- **Weathering in the shader**: repainted and damp patches and rain streaks from a tiling noise layer (`wxnoise`, two fetches). The first version computed value noise per pixel and cost 1.5 to 2 ms on the phone profile; the texture version is within noise.
+
+Not done: quoins and window hoods as geometry, iron canopies over doors (ce16), balconies on the plain `res` houses outside the old town (every balcony costs triangles and the streamer is at its `triCap` near Quattro Canti), a real 1950s concrete block (pilotis, deep stacked slabs, terracotta and white), the colour of the far low-detail city. Atlas: 84 to 120 layers, about 13 MB more GPU memory.
