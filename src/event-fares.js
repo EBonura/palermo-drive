@@ -3,7 +3,7 @@
 // (src/event-routes.js) before the clock runs out, drop. Pay = fare by distance + a tip that grows with speed (time left) + small tips for
 // drifts, two wheels and close calls. Hitting pedestrians or cars costs nothing. Pay goes to the Garage wallet through 'pd-fare' (src/garage.js).
 // createFares(X) -> { start(slot), update(dt), stop(), active(), stigghiola() }; X is the context built in src/missions.js.
-import { TOURIST, DRIVER, FAVORITA, NIGHT_CLIENTS, PULLE, URGENT_LINES, NATIONS, FRIEND } from '../assets/missions/lines.js';
+import { TOURIST, DRIVER, FAVORITA, NIGHT_CLIENTS, PULLE, URGENT_LINES, NATIONS, FRIEND, STORIES, favoritaFor } from '../assets/missions/lines.js';
 import { esc } from './esc.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -21,12 +21,19 @@ export function createFares(X) {
   const natPick = () => { let r = Math.random() * NATIONS.reduce((a, n) => a + n[1], 0); for (const [k, w] of NATIONS) if ((r -= w) <= 0) return k; return 'en'; };
   const tline = (key, delay = 0) => {
     if (!f) return;
+    const SL = f.story && f.story[key];   // a fare with a story (STORIES in assets/missions/lines.js): its lines replace the usual ones for that key; 'ambient' ones come in order, then the usual random ones
+    if (SL) {
+      const L = Array.isArray(SL) ? SL : SL[f.nat] || SL.en;
+      if (key !== 'ambient') { say(pick(L), seatPos, delay); return; }
+      if (f.storyN < L.length) { say(L[f.storyN++], seatPos, delay); return; }
+    }
     const L = f.friend ? (FRIEND[f.friend][key] || null) : f.cl ? (f.cl.client[key] || f.cl.client.ambient) : f.urgent ? (URGENT_LINES[key] || []) : f.sub === 'tourist' || f.sub === 'pulle' ? (TOURIST[key] && (TOURIST[key][f.nat] || TOURIST[key].en)) : null;
     if (key === 'ambient' && f.cl && f.cl.seq) { if (f.seqN < L.length) say(L[f.seqN++], seatPos, delay); else f.seqDone = true; return; }   // a client whose lines come in order (U cuinnutu): none left, none said
     if (L && L.length) say(pick(L), seatPos, delay);
   };
   const dline = (key, delay = 1.4) => {
     if (key === 'ambient' && f && f.seqDone) return;   // his lines are over, so is the driver's answer
+    if (f && f.story && f.sub === 'taxi' && (key === 'ambient' || key === 'arrive')) return;   // the usual driver lines are about a meal: a taxi passenger with a story is not going to one
     const L = f && f.cl ? f.cl.driver[key] : f && f.urgent && key === 'board' ? URGENT_LINES.driver : null;
     const src = L || DRIVER[key]; if (src) say(pick(src), driverPos, delay);
   };
@@ -39,7 +46,7 @@ export function createFares(X) {
     const [destId, len, flat] = pick(opts); lastDest = destId;
     const dest = X.destInfo(destId);
     const pts = flat;
-    f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, cl: slot.nc ? NIGHT_CLIENTS[slot.nc] : sub === 'pulle' && night ? FAVORITA : null, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
+    f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, cl: slot.nc ? NIGHT_CLIENTS[slot.nc] : sub === 'pulle' && night ? favoritaFor(slot.id) : null, story: slot.kind === 'fare' && !slot.friend ? STORIES[slot.id.slice(5)] || null : null, storyN: 0, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
       base: 0, tips: 0, limit: 0, left: 0, ev: {}, wantsStig: sub === 'tourist' && Math.random() < 0.45, stigDone: false, sniffed: false, lateSaid: false, glam: null, discretion: 0, seqN: 0, said: {} };
     slot.callers = [];
     // a second tourist sometimes
@@ -65,9 +72,9 @@ export function createFares(X) {
       if (f.cl) { say(pick(f.cl.client.ask), seatPos, 0.2); say(pick(f.cl.driver.ask), driverPos, 2.6); say(pick(f.cl.driver.depart), driverPos, 5); }
       else { say(pick(PULLE.ask), seatPos, 0.2); say(pick(PULLE.driver), driverPos, 2.8); }
     } else if (f.sub === 'tourist') {
-      say(fmtTpl(pick(TOURIST.ask[f.nat] || TOURIST.ask.en), f.dest), seatPos, 0.2);
+      say(fmtTpl(pick(TOURIST.ask[f.nat] || TOURIST.ask.en), f.dest), seatPos, 0.2, 9);
       say(pick(f.dest.meusa ? DRIVER.askMeusa : DRIVER.ask), driverPos, 1.8); say(pick(DRIVER.depart), driverPos, 3.6);
-    } else { say(T('Mi porti a ' + f.dest.name + ', per favore.', 'Take me to ' + f.dest.name + ', please.'), seatPos, 0.2); say(pick(DRIVER.depart), driverPos, 2); }
+    } else { say(T('Mi porti a ' + f.dest.name + ', per favore.', 'Take me to ' + f.dest.name + ', please.'), seatPos, 0.2, 9); say(pick(DRIVER.depart), driverPos, 2); }
   }
 
   function updateBoard(dt) {
@@ -98,7 +105,7 @@ export function createFares(X) {
     if (f.sub === 'pulle' && !f.glam && Math.hypot(car.x - f.dest.x, car.z - f.dest.z) < 450) spawnGlam();
     f.left -= dt;
     for (const k in ev) if (ev[k] > 0) ev[k] = Math.max(0, ev[k] - dt);
-    ev.drift = ev.drift || 0; ev.wheels = ev.wheels || 0; ev.miss = ev.miss || 0; ev.wall = ev.wall || 0; ev.ped = ev.ped || 0; ev.fast = ev.fast || 0; ev.chat = ev.chat === undefined ? rand(10, 18) : ev.chat;
+    ev.drift = ev.drift || 0; ev.wheels = ev.wheels || 0; ev.miss = ev.miss || 0; ev.wall = ev.wall || 0; ev.ped = ev.ped || 0; ev.fast = ev.fast || 0; ev.chat = ev.chat === undefined ? (f.story ? rand(16, 22) : rand(10, 18)) : ev.chat;   // a story's first line comes after the ask; this timer is counted down twice as fast (the loop over ev above takes it too), so 8 to 11 s
     // small tips
     f.driftAcc = (car.drift > 0.55 && sp > 7) ? (f.driftAcc || 0) + dt : Math.max(0, (f.driftAcc || 0) - dt * 2);
     if (f.driftAcc >= 1) { f.driftAcc = 0; tip(1.5, T('Sciddicata!', 'Drift!')); if (Math.random() < 0.5) { tline('drift'); dline('drift'); } }
@@ -161,7 +168,7 @@ export function createFares(X) {
     f.total = total; X.addFare(total);
     tline('arrive'); dline('arrive', 2.0);
     if (f.sub === 'pulle') {
-      say(pick(f.pulleNight ? FAVORITA.client.arrive : PULLE.arrive), seatPos, 0.8);
+      say(pick(f.pulleNight ? f.cl.client.arrive : PULLE.arrive), seatPos, 0.8);
       const sorted = (f.glam || []).slice().sort((a, b) => Math.abs(a.along) - Math.abs(b.along));
       sorted.slice(0, 3).forEach((g, i) => say(FAVORITA.chorus[(i + (Math.random() < 0.5 ? 0 : 1)) % FAVORITA.chorus.length], X.charHead(g.id), 3.6 + i * 1.5));
       if (f.pulleNight && sorted.length && f.chars[0]) say(pick(FAVORITA.client.caught), X.charHead(f.chars[0].id), 8);
@@ -187,12 +194,12 @@ export function createFares(X) {
     const tgt = f.phase === 'ride' ? f.dest : f.slot, dist = Math.hypot(tgt.x - car.x, tgt.z - car.z), ds = dist >= 1000 ? (dist / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(dist / 5) * 5 + ' m';
     if (f.phase === 'ride') {
       const m = Math.max(0, f.left);
-      hud.set({ label: f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puaittali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : f.sub === 'nightc' ? (f.cl && f.cl.label ? T(f.cl.label[0], f.cl.label[1]) : T('Cliente ri nuttata', 'Night client')) : T('Cuoisa in taxi', 'Taxi ride'),
+      hud.set({ label: f.slot.title || (f.urgent ? T('Uiginti!', 'Urgent!') : f.sub === 'tourist' ? T('Puaittali a manciari', 'Take them to eat') : f.sub === 'pulle' ? T('A pulle', 'A pulle') : f.sub === 'nightc' ? (f.cl && f.cl.label ? T(f.cl.label[0], f.cl.label[1]) : T('Cliente ri nuttata', 'Night client')) : T('Cuoisa in taxi', 'Taxi ride')),
         title: f.dest.name, sub: (f.dest.addr ? f.dest.addr + '  ·  ' : '') + ds, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 12, frac: f.left / f.limit,
         target: f.dest, ledger: [T('Cuoisa ', 'Fare ') + eur(f.base + f.tips), T('Ncassu ', 'Total ') + eur(X.earned())] });
       X.aim(f.dest.x, f.dest.z, true);
-    } else if (f.phase === 'board') { hud.set({ label: T('Acchianunu', 'Boarding'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
-    else { hud.set({ label: T('Ni viremu', 'Goodbye'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
+    } else if (f.phase === 'board') { hud.set({ label: f.slot.title || T('Acchianunu', 'Boarding'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
+    else { hud.set({ label: f.slot.title || T('Ni viremu', 'Goodbye'), title: f.dest.name, sub: '', time: '', frac: null, target: null }); X.aim(0, 0, false); }
   }
 
   function stop(why) {

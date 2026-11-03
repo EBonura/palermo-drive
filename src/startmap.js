@@ -423,7 +423,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   function itemOf(p) {
     if (p.kind === 'spot') return { kind: 'spot', ref: p.ref, x: p.x, z: p.z, name: p.ref.name, sub: p.ref.q || '' };
     const e = p.ref, kn = L[e.kind] ? L[e.kind][li()] : '';
-    return { kind: 'event', ref: e, x: p.x, z: p.z, name: e.name || kn, sub: kn + (e.night ? ' · ' + L.night[li()] : '') };
+    return { kind: 'event', ref: e, x: p.x, z: p.z, name: e.title || e.name || kn, sub: kn + (e.title && e.name ? ' · ' + e.name : '') + (e.night ? ' · ' + L.night[li()] : '') };
   }
 
   // ---------- input ----------

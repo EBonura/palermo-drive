@@ -1,6 +1,7 @@
 // Regenerates assets/missions/lines.md (review copy for the owner) from lines.js: node assets/missions/make-lines-md.mjs
 import { writeFileSync } from 'node:fs';
 import * as L from './lines.js';
+import { FARE_SPOTS } from '../../src/event-places.js';
 const out = [];
 out.push('# Lines to review', '', 'Generated from `lines.js` (edit there, then run `node assets/missions/make-lines-md.mjs`).',
   'Driver and vendor lines are Palermitan/Italian with an English gloss. Please correct spelling and idiom: anything marked (?) is one I am less sure of.', '');
@@ -34,4 +35,17 @@ for (const [k, arr] of Object.entries(L.CALL)) pairs(`### call: ${k}`, arr);
 for (const [k, arr] of Object.entries(L.PULLE)) pairs(`### a pulle by day: ${k}`, arr);
 for (const [k, arr] of Object.entries(L.URGENT_LINES)) pairs(`### urgent: ${k}`, arr);
 for (const [k, arr] of Object.entries(L.FOOD)) pairs(`### food: ${k}`, arr);
+out.push('## The clienti: mission titles (src/event-places.js FARE_SPOTS, `title`)', '');
+for (const f of FARE_SPOTS) if (f.title) out.push(`- ${f.title}  \n  _${f.id}, ${f.name}_`);
+out.push('');
+out.push('## The clienti: a story each (draft, fare spot by fare spot)', '');
+for (const [id, o] of Object.entries(L.STORIES)) {
+  out.push(`### ${((FARE_SPOTS.find(f => f.id === id) || {}).title || id) + ` (${id})`}`, '');
+  for (const [k, v] of Object.entries(o)) {
+    if (Array.isArray(v)) pairs(`#### ${id}: ${k}`, v);
+    else { out.push(`#### ${id}: ${k}`, ''); for (const [n, arr] of Object.entries(v)) for (const t of arr) out.push(`- (${n}) ${t}`); out.push(''); }
+  }
+}
+out.push('## Vabbè u sai: variations of the night client of "a pulle"', '');
+for (const [id, o] of Object.entries(L.FAVORITA_VARIANTS)) for (const [k, arr] of Object.entries(o)) pairs(`### ${id}: ${k}`, arr);
 writeFileSync(new URL('./lines.md', import.meta.url), out.join('\n') + '\n');
