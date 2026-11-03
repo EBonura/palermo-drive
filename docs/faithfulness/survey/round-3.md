@@ -1,6 +1,6 @@
 # Faithfulness survey, round 3: the game against Mapillary photos, a third time
 
-Date: 3 November 2026. Game commit shot: 7bd7e17 (a `git archive` snapshot of HEAD, served on its own port, so other people's edits did not change the round). Reviewer: one pass, no fixes made. Nothing here is copied from a photo; the photos were only looked at and live outside the repo.
+Date: 3 November 2026. Game commit shot: 3c00ae2 (a `git archive` snapshot of HEAD, served on its own port, so other people's edits did not change the round). Reviewer: one pass, no fixes made. Nothing here is copied from a photo; the photos were only looked at and live outside the repo.
 
 ## What was compared
 

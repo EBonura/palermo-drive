@@ -1,6 +1,6 @@
 # Faithfulness survey, round 2: the game against Mapillary photos, again
 
-Date: 2 November 2026. Game commit shot: 50cad3e (a snapshot of the committed tree, so other people's edits did not change the round halfway). Reviewer: one pass, no fixes made. Nothing here is copied from a photo; the photos were only looked at and live outside the repo.
+Date: 2 November 2026. Game commit shot: 3f47ff8 (a snapshot of the committed tree, so other people's edits did not change the round halfway). Reviewer: one pass, no fixes made. Nothing here is copied from a photo; the photos were only looked at and live outside the repo.
 
 ## What was compared
 
