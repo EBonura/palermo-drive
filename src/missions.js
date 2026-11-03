@@ -654,7 +654,7 @@ function build(env) {
     else if (leash.out && d < A.r - LEASH_BACK) { leash.out = false; leash.t = LEASH_T; hud.leash(false); }
     if (!leash.out) return;
     leash.t -= dt;
-    hud.leash(true, T('Tonna arreri! ', 'Come back! ') + Math.max(0, Math.ceil(leash.t)), T('Ti nni isti truappu luntanu', 'You are too far from the mission') + ' · ' + Math.round(Math.max(0, d - A.r + LEASH_BACK) / 10) * 10 + ' m');
+    hud.leash(true, T("Cosa 'nutile unni stai ieannu? ", 'Where are you going, you useless thing? ') + Math.max(0, Math.ceil(leash.t)), T('Tuinna cca ai a finiri a missiuani!!!', 'Come back, you have to finish the mission!!!') + ' · ' + Math.round(Math.max(0, d - A.r + LEASH_BACK) / 10) * 10 + ' m');
     if (leash.t <= 0) failEvent();
   }
 
