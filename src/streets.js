@@ -3,7 +3,7 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, Buf, pairs, canvasTex, rnd, speckle } from './core.js';
+import { groundY, Buf, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 
 export const CURB = 0.15;
@@ -326,16 +326,27 @@ export function buildStreets(streets, opts) {
   return group;
 }
 
-// ---------- road paint outside the centro: lane lines, edge lines and zebra crossings (world tiles) ----------
-// Palermo's surfaced roads outside the centro storico carry white paint (worn, never fresh). Roads under 5.5 m wide (vicoli, service
-// roads) get none. Dashes are left out wherever another road crosses or joins, so junctions stay clear.
+// ---------- road paint outside the centro: lane lines, edge lines, approach lines, stop lines, gore hatching and zebra crossings (world tiles) ----------
+// Palermo's surfaced roads outside the centro storico carry white paint (worn, never fresh). Roads under 5.5 m wide (vicoli, service roads) get none. What it is built from:
+//   * the pattern of Palermo's dashed lines, measured on the photographs: a 2.2 m dash every 6 m (the game used 3 m every 9);
+//   * the OSM class, width (cw), lanes (l), one-way (o), maxspeed (ms) and junction of the baked road; the traffic signals of the tile's props (a stop line before each);
+//   * on the fast roads (motorway, trunk, the primary carriageways of Viale Regione Siciliana, their slip roads) the edge of the real asphalt (an exact raster of the tile's asphalt,
+//     like src/roadwear.js uses): the edge lines stand 1.3 m inside it and the lanes divide what is between, so the paint follows a road the baked width understates;
+//   * the dashes stop where another road crosses or joins (junctions stay clear); the last 15 m of a dashed centre line before one is solid (the approach line).
+// Design values, not data: the 1.3 m shoulder, the 15 m approach, the 6.5 m stop line setback, the hatching of the gores. Not in the tiles, so not painted: cycle lanes, bus lanes and
+// parking bays (OSM tags them on a few dozen ways here, mostly as "no"), stop signs (props do not carry highway=stop), the hatched areas beside the tram (no polygon for them).
 const CAR_W = { motorway: 8, motorway_link: 4.5, trunk: 9, trunk_link: 4.5, primary: 10, primary_link: 4.5, secondary: 9, secondary_link: 4.5,
   tertiary: 8, tertiary_link: 4.5, unclassified: 6, residential: 5.5, living_street: 4.5, service: 3.5 };
-const EDGE_LINED = new Set(['motorway', 'trunk', 'primary']);
+const EDGE_LINED = new Set(['motorway', 'trunk', 'primary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary', 'secondary_link']);
+const EDGE_IF_FAST = new Set(['tertiary', 'tertiary_link', 'unclassified']);   // these too when OSM gives them a limit of 50 or more
 const PAINT = new THREE.Color('#dedbd0');
+const DASH = 2.2, PERIOD = 5.9, SAMPLE = 1.2, APPROACH = 15, STOP_BACK = 6.5, SHOULDER_IN = 1.3;
+const NOEXP = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noexpressway');
+const fastRoad = r => !r.tn && !r.br && (r.k === 'motorway' || r.k === 'trunk' || r.k === 'motorway_link' || r.k === 'trunk_link' || (r.k === 'primary' && (r.ms || 0) >= 70));
 let paintMat = null;
-// roads: tile roads[]; crossings: tile props items (k 'crossing', x, z). Returns a Group (or null when there is nothing to paint).
-export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true where something else already paints the road (the centro, src/roadwear.js)
+// roads: tile roads[]; crossings: tile props items (k 'crossing', x, z); skip(x, z) -> true where something else already paints the road (the centro, src/roadwear.js);
+// tile: { streets, signals } for the asphalt raster and the traffic signals (both optional). Returns a Group (or null when there is nothing to paint).
+export function* roadMarksIter(roads, crossings, skip, tile) {
   const cell = 24, grid = new Map(), segs = [];
   const cw = r => r.cw || CAR_W[r.k] || 0;
   roads.forEach((r, id) => {
@@ -369,38 +380,142 @@ export function* roadMarksIter(roads, crossings, skip) { // skip(x, z) -> true w
     for (const q of [A, C2, B, A, D, C2]) { P.push(q[0], groundY(q[0], q[1]) + 0.035, q[1]); N.push(0, 1, 0); Cc.push(c.r * k, c.g * k, c.b * k); }
     nq++;
   };
-  // paints a line offset `off` m to the left of the centreline: dashed (dash, gap) or continuous in 6 m pieces
-  const line = (r, id, off, dash, gap, hw, rng) => {
-    const p = r.p, d = dash || 6, per = d + (dash ? gap : 0); let arc = 0;
-    for (let i = 0; i + 3 < p.length; i += 2) {
-      const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3], dx = bx - ax, dz = bz - az, L = Math.sqrt(dx * dx + dz * dz);
-      if (L < 0.3) continue;
-      const tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
-      for (let k = Math.floor(arc / per); k * per < arc + L; k++) { // pattern periods are laid on the arc length, so dashes run on round bends
-        const u0 = Math.max(0, k * per - arc), u1 = Math.min(L, k * per + d - arc);
-        if (u1 - u0 < 0.6) continue;
-        const mx = ax + tx * (u0 + u1) / 2 + nx * off, mz = az + tz * (u0 + u1) / 2 + nz * off;
-        if ((skip && skip(mx, mz)) || !clear(mx, mz, id, hw + 2.2) || rng() < 0.07) continue; // junctions stay clear; a few dashes have worn away
-        quad(ax + tx * u0 + nx * off, az + tz * u0 + nz * off, ax + tx * u1 + nx * off, az + tz * u1 + nz * off, hw, 0.78 + 0.22 * rng());
-      }
-      arc += L;
-    }
-  };
+  const mask = tile && tile.streets && tile.streets.aoi && !NOEXP && roads.some(fastRoad) ? rasterMask([tile.streets.asphalt || []], tile.streets.aoi, 2) : null;
   let seed = 12345; const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   let n = 0;
   for (let id = 0; id < roads.length; id++) {
     const r = roads[id], w = cw(r);
     if (!w || r.tn || r.br || r.j === 'roundabout' || w < 5.5 || r.p.length < 4) continue;
-    const lanes = r.l || Math.max(1, Math.round(w / 3.2));
-    if (r.o) {
-      for (let i = 1; i < lanes; i++) line(r, id, (i - lanes / 2) * (w / lanes), 3, 6, 0.075, rng); // lane dividers, dashed
-    } else if (w >= 11) {
-      line(r, id, 0, 0, 0, 0.09, rng); // four lanes or more: solid centre line, dashed lane lines either side
-      line(r, id, w / 4, 3, 6, 0.075, rng); line(r, id, -w / 4, 3, 6, 0.075, rng);
-    } else {
-      line(r, id, 0, 3, 6, 0.075, rng); // two lanes: dashed white centre line
+    // samples every SAMPLE m along the line: position, direction, arc length, blocked (a junction here, or the centro) and the offsets of the left and right edge lines
+    const S = []; let base = 0, at = 0;
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const ax = r.p[i], az = r.p[i + 1], bx = r.p[i + 2], bz = r.p[i + 3], L = Math.hypot(bx - ax, bz - az); if (L < 0.05) continue;
+      const tx = (bx - ax) / L, tz = (bz - az) / L;
+      for (; at < base + L; at += SAMPLE) S.push({ x: ax + tx * (at - base), z: az + tz * (at - base), tx, tz, a: at });
+      base += L;
     }
-    if (EDGE_LINED.has(r.k) && w >= 7) { line(r, id, w / 2 - 0.3, 0, 0, 0.06, rng); line(r, id, -w / 2 + 0.3, 0, 0, 0.06, rng); }
+    if (S.length < 3) continue;
+    const m = S.length, hwr = w / 2;
+    const blocked = S.map(s => (skip && skip(s.x, s.z)) || !clear(s.x, s.z, id, hwr + 2.2));
+    const near = new Array(m).fill(1e9);   // metres of arc to the nearest blocked sample
+    for (let i = 0, d = 1e9; i < m; i++) { d = blocked[i] ? 0 : d + SAMPLE; near[i] = d; }
+    for (let i = m - 1, d = 1e9; i >= 0; i--) { d = blocked[i] ? 0 : d + SAMPLE; if (d < near[i]) near[i] = d; }
+    // the edge line offsets (left positive): the mapped half width, or on a fast road the asphalt's own edge less a shoulder
+    const Lx = new Array(m).fill(hwr - 0.3), Rx = new Array(m).fill(-(hwr - 0.3));
+    if (mask && fastRoad(r)) {
+      const probe = (s, side) => { const nx = -s.tz * side, nz = s.tx * side; let e = hwr; if (mask(s.x + nx * e, s.z + nz * e)) while (e < hwr + 8 && mask(s.x + nx * e, s.z + nz * e)) e += 0.5; return e < hwr + 6.5 ? e : -1; };
+      const eL = S.map(s => probe(s, 1)), eR = S.map(s => probe(s, -1));
+      const sm = (E, i, d) => { let t = 0, k = 0; for (let j = Math.max(0, i - 4); j <= Math.min(m - 1, i + 4); j++) if (E[j] >= 0) { t += E[j]; k++; } return k >= 5 ? t / k : d; };
+      for (let i = 0; i < m; i++) { const l = sm(eL, i, -1), rr = sm(eR, i, -1); if (l > 0 && rr > 0 && l + rr > 2 * hwr * 0.9) { Lx[i] = l - SHOULDER_IN; Rx[i] = -(rr - SHOULDER_IN); } }
+    }
+    const lanes = Math.max(1, r.l || Math.round((Lx[0] - Rx[0]) / 3.2)), wide = (mask && fastRoad(r)) ? Math.min(4, Math.max(lanes, Math.round((Lx[Math.floor(m / 2)] - Rx[Math.floor(m / 2)]) / 3.6))) : lanes;
+    const offAt = (i, f) => Lx[i] + (Rx[i] - Lx[i]) * f;   // f: 0 the left edge line, 1 the right
+    const pos = (a, f) => { // the point at arc a, fraction f across the carriageway
+      const i = Math.min(m - 2, Math.max(0, Math.floor((a - S[0].a) / SAMPLE))), s0 = S[i], s1 = S[i + 1], u = Math.min(1, Math.max(0, (a - s0.a) / SAMPLE));
+      const o = offAt(i, f) * (1 - u) + offAt(i + 1, f) * u, tx = s0.tx + (s1.tx - s0.tx) * u, tz = s0.tz + (s1.tz - s0.tz) * u, l = Math.hypot(tx, tz) || 1;
+      return [s0.x + (s1.x - s0.x) * u - tz / l * o, s0.z + (s1.z - s0.z) * u + tx / l * o];
+    };
+    const freeAt = a => { const i = Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE))); return !blocked[i]; };
+    // f across the carriageway; mode 'dash' | 'solid' | 'centre' (dashed, solid for the last APPROACH m before a junction)
+    const line = (f, mode, hw) => {
+      const a0 = S[0].a, a1 = S[m - 1].a;
+      if (mode === 'solid') {   // continuous in 6 m pieces
+        for (let a = a0; a < a1 - 0.6; a += 6) {
+          const b = Math.min(a1, a + 6); if (!(freeAt(a) && freeAt((a + b) / 2) && freeAt(b))) continue;
+          const p = pos(a, f), q = pos(b, f); if (rng() < 0.04) continue;
+          quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng());
+        }
+        return;
+      }
+      for (let k = Math.floor(a0 / PERIOD); k * PERIOD < a1; k++) {   // a pattern laid on the arc length, so the dashes run on round bends
+        const d0 = Math.max(a0, k * PERIOD), d1 = Math.min(a1, k * PERIOD + DASH); if (d1 - d0 < 0.6) continue;
+        const dm = (d0 + d1) / 2, i = Math.min(m - 1, Math.max(0, Math.round((dm - a0) / SAMPLE)));
+        if (blocked[i] || !freeAt(d0) || !freeAt(d1)) continue;
+        if (mode === 'centre' && near[i] < APPROACH) continue;   // the approach line paints here instead
+        if (rng() < 0.07) continue;   // a few dashes have worn away
+        const p = pos(d0, f), q = pos(d1, f);
+        quad(p[0], p[1], q[0], q[1], hw, 0.78 + 0.22 * rng());
+      }
+      if (mode === 'centre') {   // the approach: solid from the junction back APPROACH m
+        for (let i = 0; i + 1 < m;) {
+          if (blocked[i] || near[i] >= APPROACH) { i++; continue; }
+          let j = i; while (j + 1 < m && !blocked[j + 1] && near[j + 1] < APPROACH && S[j + 1].a - S[i].a < 6) j++;
+          if (j > i) { const p = pos(S[i].a, f), q = pos(S[j].a, f); quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng()); }
+          i = j + 1;
+        }
+      }
+    };
+    if (r.o) {
+      for (let i = 1; i < wide; i++) line(i / wide, 'dash', 0.075);   // lane dividers, dashed
+    } else if (w >= 11) {
+      line(0.5, 'solid', 0.09);   // four lanes or more: solid centre line, dashed lane lines either side
+      line(0.25, 'dash', 0.075); line(0.75, 'dash', 0.075);
+    } else {
+      line(0.5, 'centre', 0.075);   // two lanes: dashed white centre line, solid on the way to a junction
+    }
+    if (w >= 7 && (EDGE_LINED.has(r.k) || (EDGE_IF_FAST.has(r.k) && (r.ms || 0) >= 50 && !r.pk))) { line(0, 'solid', 0.06); line(1, 'solid', 0.06); }
+    if ((++n & 15) === 0) yield;
+  }
+  // stop lines: a bar across the lanes that approach a traffic signal, STOP_BACK m before it, on every road that meets it
+  for (const sg of (tile && tile.signals) || []) {
+    if (skip && skip(sg.x, sg.z)) continue;
+    const seen = new Set();
+    for (const s of grid.get(Math.floor(sg.x / cell) * 100003 + Math.floor(sg.z / cell)) || []) {
+      const r = roads[s.id]; if (seen.has(s.id) || r.br || r.j === 'roundabout' || cw(r) < 5.5 || distSeg(sg.x, sg.z, s) > 5) continue;
+      seen.add(s.id);
+      const p = r.p, hwr = cw(r) / 2;
+      let bi = -1, bd = 1e9; for (let i = 0; i + 3 < p.length; i += 2) { const d = distSeg(sg.x, sg.z, { x0: p[i], z0: p[i + 1], x1: p[i + 2], z1: p[i + 3] }); if (d < bd) { bd = d; bi = i; } }
+      for (const dir of [1, -1]) {   // leave the node along the road in each direction; the traffic comes the other way
+        if (r.o === 1 && dir === 1 || r.o === -1 && dir === -1) continue;   // a one-way road: only the leg the traffic arrives along (it travels toward the node)
+        let rem = STOP_BACK, x = sg.x, z = sg.z, i = dir > 0 ? bi + 2 : bi, ok = false, tx = 0, tz = 0;
+        for (let guard = 0; guard < 30; guard++) {
+          if (i < 0 || i + 1 >= p.length) break;
+          const nx = p[i], nz = p[i + 1], L = Math.hypot(nx - x, nz - z);
+          if (L >= rem) { tx = (nx - x) / (L || 1); tz = (nz - z) / (L || 1); x += tx * rem; z += tz * rem; ok = true; break; }
+          rem -= L; x = nx; z = nz; i += dir * 2;
+        }
+        if (!ok || (skip && skip(x, z))) continue;
+        let free = true; for (const o of grid.get(Math.floor(x / cell) * 100003 + Math.floor(z / cell)) || []) if (o.id !== s.id && distSeg(sg.x, sg.z, o) > 8 && distSeg(x, z, o) < o.hw + 1.5) { free = false; break; }   // another road, not the ones at the signal itself
+        if (!free) continue;
+        // (tx, tz) points away from the node; the traffic travels along (-tx, -tz); its right is (tz, -tx) ... in game metres (x east, z south) the right of travel (a, b) is (-b, a)
+        const ax = -tx, az = -tz, rx = -az, rz = ax;
+        const c0 = r.o ? -hwr + 0.3 : 0.3, c1 = hwr - 0.3;   // a two-way road: the right half only
+        if (c1 - c0 < 1) continue;
+        quad(x + rx * c0, z + rz * c0, x + rx * c1, z + rz * c1, 0.2, 0.85 + 0.15 * rng());
+        n++;
+      }
+    }
+    if ((++n & 7) === 0) yield;
+  }
+  // gore hatching: where a slip road leaves or joins a fast road the wedge between the two carriageways is painted with diagonal bars (the chevrons)
+  if (mask) for (let id = 0; id < roads.length; id++) {
+    const lk = roads[id]; if (!(lk.k === 'motorway_link' || lk.k === 'trunk_link' || lk.k === 'primary_link') || lk.tn || lk.br || lk.p.length < 4) continue;
+    for (const end of [0, 1]) {
+      const p = lk.p, ex = end ? p[p.length - 2] : p[0], ez = end ? p[p.length - 1] : p[1];
+      let main = null, bd = 9;
+      for (const s of grid.get(Math.floor(ex / cell) * 100003 + Math.floor(ez / cell)) || []) { const r = roads[s.id]; if (s.id === id || !fastRoad(r) || r.k.endsWith('_link')) continue; const d = distSeg(ex, ez, s); if (d < bd) { bd = d; main = s; } }
+      if (!main) continue;
+      const lhw = cw(lk) / 2, mhw = main.hw, mdx = main.x1 - main.x0, mdz = main.z1 - main.z0, ml = Math.hypot(mdx, mdz) || 1, mtx = mdx / ml, mtz = mdz / ml;
+      // walk along the slip road away from the join, every 2.2 m
+      const pts = []; for (let i = 0; i < p.length; i += 2) pts.push([p[i], p[i + 1]]); if (end) pts.reverse();
+      let acc = 0, nextAt = 2, bars = 0;
+      for (let i = 0; i + 1 < pts.length && acc < 70 && bars < 22; i++) {
+        const a = pts[i], b = pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
+        for (; nextAt <= acc + L && bars < 22; nextAt += 2.4) {
+          const u = (nextAt - acc) / L, x = a[0] + (b[0] - a[0]) * u, z = a[1] + (b[1] - a[1]) * u;
+          // nearest point on the fast road and the gap between the two edges
+          let bm = null, dm = 1e9; for (const s of grid.get(Math.floor(x / cell) * 100003 + Math.floor(z / cell)) || []) { if (s.id !== main.id && roads[s.id] !== roads[main.id]) continue; const d = distSeg(x, z, s); if (d < dm) { dm = d; bm = s; } }
+          if (!bm) continue;
+          const gap = dm - mhw - lhw; if (gap < 0.9 || gap > 6.5) continue;
+          const tt = Math.max(0, Math.min(1, ((x - bm.x0) * mdx + (z - bm.z0) * mdz) / (ml * ml))), qx = bm.x0 + (bm.x1 - bm.x0) * tt, qz = bm.z0 + (bm.z1 - bm.z0) * tt;
+          const ux = (x - qx) / (dm || 1), uz = (z - qz) / (dm || 1);   // from the fast road toward the slip road
+          const sx = qx + ux * (mhw + 0.35), sz = qz + uz * (mhw + 0.35), fx = x - ux * (lhw + 0.35), fz = z - uz * (lhw + 0.35);   // inner edges of both carriageways
+          const sl = Math.min(gap * 0.9, 4), dirx = (mtx * (end ? -1 : 1)), dirz = (mtz * (end ? -1 : 1));
+          quad(sx, sz, fx + dirx * sl * 0.6, fz + dirz * sl * 0.6, 0.17, 0.82 + 0.18 * rng()); bars++;
+        }
+        acc += L;
+      }
+    }
     if ((++n & 15) === 0) yield;
   }
   // zebra crossings at OSM crossing nodes: bars 0.5 m wide, 3 m long, along the road, across its whole width

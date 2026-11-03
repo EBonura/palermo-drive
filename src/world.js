@@ -1060,7 +1060,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
       const aoi = D.streets && D.streets.aoi, inC = aoi ? (x, z) => x > aoi[0] && x < aoi[2] && z > aoi[1] && z < aoi[3] : null; // the centro's paint is src/roadwear.js
-      const mk = yield* roadMarksIter(t.data.roads, ((t.data.props || {}).items || []).filter(i => i.k === 'crossing'), inC);
+      const items = (t.data.props || {}).items || [], mk = yield* roadMarksIter(t.data.roads, items.filter(i => i.k === 'crossing'), inC, { streets: t.data.streets, signals: items.filter(i => i.k === 'signal') });
       if (t.want < 2) { if (mk) disposeObj(mk); return; }
       if (mk) setPart(t, 'paint', mk);
     }

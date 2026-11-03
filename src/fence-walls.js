@@ -7,6 +7,7 @@
 // line, same breaking speed, same push-back (the `fence` flag), so only what you see changes. Away from the street, and short bits, stay as they were.
 import { histW } from './streets.js';
 import { inPoly } from './core.js';
+import { isExpressway } from './expressway.js';
 
 const NEAR = 8, STEP = 3;
 const DRIVE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'service']);
@@ -30,13 +31,13 @@ function put(grid, x0, z0, x1, z1, v) {
 // list: the tile's fences [{k, h, s, p}], roads, buildings and tram (its `r` rails): the tile's own. A fence within 7 m of a tram rail is the tram's railing and stays. Returns the list with the roadside fences re-read (it is the same list when nothing changes).
 export function roadsideWalls(list, roads, buildings, tram, areas) {
   if (!list || !list.length || !roads || !roads.length) return list;
-  const rg = new Map(), bg = new Map();
+  const rg = new Map(), bg = new Map(), xg = new Map();   // xg: the fast roads (src/expressway.js): a fence beside one is the right-of-way fence, wire mesh, never a plastered wall
   for (const r of roads) {
     if (!DRIVE.has(r.k) || r.tn || !r.p || r.p.length < 4) continue;
-    const hw = (r.cw || r.w || 6) / 2;
-    for (let i = 0; i + 3 < r.p.length; i += 2) put(rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw]);
+    const hw = (r.cw || r.w || 6) / 2, fast = isExpressway(r);
+    for (let i = 0; i + 3 < r.p.length; i += 2) put(fast ? xg : rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw]);
   }
-  if (!rg.size) return list;
+  if (!rg.size && !xg.size) return list;
   for (const b of buildings || []) { // the outline of every building, a point every 6 m
     const p = b.p; for (let i = 0; i < p.length; i += 2) {
       const j = (i + 2) % p.length, n = Math.max(1, Math.ceil(hh(p[j] - p[i], p[j + 1] - p[i + 1]) / 6));
@@ -50,10 +51,10 @@ export function roadsideWalls(list, roads, buildings, tram, areas) {
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const a = tg.get((Math.floor(x / C) + i) * 100003 + Math.floor(z / C) + j); if (a) for (const q of a) if (hh(x - q[0], z - q[1]) < 7) return true; }
     return false;
   };
-  const gap = (x, z) => { // metres from the edge of the nearest carriageway
+  const gap = (x, z, g = rg) => { // metres from the edge of the nearest carriageway
     let best = 1e9;
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      const a = rg.get((Math.floor(x / C) + i) * 100003 + Math.floor(z / C) + j); if (!a) continue;
+      const a = g.get((Math.floor(x / C) + i) * 100003 + Math.floor(z / C) + j); if (!a) continue;
       for (const s of a) {
         const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2));
         const d = hh(x - s[0] - dx * t, z - s[1] - dz * t) - s[4]; if (d < best) best = d;
@@ -73,6 +74,7 @@ export function roadsideWalls(list, roads, buildings, tram, areas) {
   const flat = pts => { const f = []; for (const q of pts) f.push(Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10); return f; };
   for (const r of list) {
     if (r.k !== 'f' || r.p.length < 4) { out.push(r); continue; }
+    if (xg.size && r.s !== 2 && gap(r.p[0], r.p[1], xg) < 12 && gap(r.p[r.p.length - 2], r.p[r.p.length - 1], xg) < 12) { out.push({ ...r, s: 2 }); changed = true; continue; }
     const pts = resample(r.p, STEP), road = pts.map(q => gap(q[0], q[1]) < NEAR && !tramNear(q[0], q[1]));
     if (!road.some(Boolean)) { out.push(r); continue; }
     changed = true;
