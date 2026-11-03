@@ -94,7 +94,6 @@ The game's code is under the MIT licence, see [LICENSE](LICENSE). That covers th
 - Roof and ground colours derived from the Regione Siciliana SITR Ortofoto ATA 2012-2013 (Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica), CC BY 4.0. Colours were extracted and rebalanced; no imagery is included.
 - Terrain: AWS Terrain Tiles (Mapzen terrarium; sources include SRTM).
 - Radio music: Alamia e Sperandeo (Seamusica S.r.l., used with permission) and CC BY 4.0, CC0 and public domain tracks; Terrorage (used with permission) plays outside the Krust pub. Full attribution in `assets/music/CREDITS.md`.
-- Photo facades: Wikimedia Commons photos, authors and licences in `assets/CREDITS.md`.
 - Vehicles and textures are drawn in code. Sound effects are CC0, see `assets/CREDITS.md`.
 - Pedestrian sprites (the street crowd, the stadium's tifosi, the coachmen and the driver in every vehicle, the default one or the one you make in the Garage) are composed from layers of the Universal LPC Spritesheet Character Generator (Liberated Pixel Cup contributors) with our own painted details; authors, licences and links of every layer are in `assets/peds/lpc/CREDITS.md`, the licence note for that folder is `assets/peds/lpc/LICENSE.md`, and the atlas is rebuilt with `node tools/lpc/build.mjs`. The default driver is baked into `src/driver-default.js` by `node tools/lpc/default-driver.mjs` (run it again after changing `defaultSpec()` in `src/driver-compose.js`).
 - three.js (MIT). Fonts: SIL Open Font License.
