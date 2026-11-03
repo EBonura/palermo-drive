@@ -1,5 +1,4 @@
-// The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one card at the top centre (timer, objective,
-// progress bar), a big countdown, short lines one at a time and a results panel. They stand in the HUD's zones (src/hud.js).
+// The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one slim line at the top centre (what it is, what to do with its count, the distance, the time, and a thin progress bar along its bottom edge), a big countdown, short lines one at a time and a results panel. They stand in the HUD's zones (src/hud.js).
 // createEventHud({ camera, car, groundY }) -> { set(o), clear(), count(big, sub), toast(text, sub, neg), result(html, secs), burst(), update(dt) }
 //   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the arrow at the edge of the screen or null), ledger ([text, ...]) })
 //   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
@@ -9,28 +8,26 @@ import { esc } from './esc.js';
 import { zone } from './hud.js';
 
 const CSS = `
-#ev-hud { width: var(--obj); display: none;
+#ev-hud { width: max-content; max-width: var(--wide); display: none;
   pointer-events: none; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; color: #fff; text-transform: uppercase; }
 #ev-hud.on { display: block; }
-.ev-card { position: relative; display: flex; align-items: center; gap: 8px; padding: 5px 12px 9px 10px; background: linear-gradient(90deg, rgba(11,7,9,.82), rgba(40,12,28,.78));
-  border-left: 5px solid #e8559a; transform: skewX(-6deg); box-shadow: 0 3px 12px rgba(0,0,0,.4); overflow: hidden; }
-.ev-card > * { transform: skewX(6deg); }
-.ev-body { flex: 1 1 auto; min-width: 0; }
-.ev-top { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 10px; letter-spacing: .16em; color: #f5a9c9; }
-.ev-time { font: 400 18px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; }
+.ev-card { position: relative; box-sizing: border-box; display: flex; align-items: center; gap: 9px; height: 30px; max-width: 100%; padding: 0 14px; border-radius: 15px; background: var(--capsule, rgba(13,7,10,.8)); box-shadow: 0 2px 10px rgba(0,0,0,.3); overflow: hidden; }
+.ev-lab { flex: none; font-weight: 600; font-size: 10px; letter-spacing: .16em; color: #f5a9c9; white-space: nowrap; }
+.ev-title { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 15px; line-height: 1.1; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-sub { flex: 0 3 auto; min-width: 0; font-weight: 600; font-size: 11px; letter-spacing: .1em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-lab:empty, .ev-sub:empty, .ev-time:empty { display: none; }
+.ev-time { flex: none; font: 400 16px/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #fff; font-variant-numeric: tabular-nums; }
 .ev-time.low { color: #ff6a5a; animation: ev-blink .5s steps(2) infinite; }
-.ev-title { font-weight: 700; font-size: 15px; line-height: 1.05; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev-sub { font-weight: 600; font-size: 10px; letter-spacing: .1em; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.12); transform: none !important; }
-.ev-bar i { display: block; height: 100%; width: 100%; transform-origin: left; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
+.ev-bar { position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); }
+.ev-bar i { display: block; height: 100%; width: 100%; transform-origin: left; border-radius: 2px; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
 .ev-bar.low i { background: #ff4a3a; } .ev-bar.off { display: none; }
-.ev-ledger { margin: 3px 0 0 8px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: #ffd1e6; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+.ev-ledger { margin: 3px 0 0 10px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: #ffd1e6; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .ev-toasts { pointer-events: none; display: flex; flex-direction: column; align-items: center; }
 .ev-toasts:empty { display: none; }
-.ev-toast { box-sizing: border-box; max-width: var(--wide); padding: 3px 14px 5px; text-align: center; color: #fff; text-transform: uppercase; background: linear-gradient(90deg, rgba(11,7,9,.86), rgba(40,12,28,.82)); border-left: 5px solid #e8559a; box-shadow: 0 3px 12px rgba(0,0,0,.4);
-  transform: skewX(-6deg); animation: ev-toast 1.9s ease-out forwards; font: 400 clamp(15px, 3.4vh, 22px)/1.1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .05em; }
-.ev-toast > span { display: block; transform: skewX(6deg); }
-.ev-toast.neg { background: linear-gradient(90deg, rgba(60,10,8,.92), rgba(110,18,14,.88)); border-left-color: #ff4a3a; }
+.ev-toast { box-sizing: border-box; max-width: var(--wide); padding: 4px 16px 5px; text-align: center; color: #fff; text-transform: uppercase; background: var(--capsule, rgba(13,7,10,.8)); border-radius: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  animation: ev-toast 1.9s ease-out forwards; font: 400 clamp(14px, 3.2vh, 20px)/1.1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .05em; }
+.ev-toast > span { display: block; }
+.ev-toast.neg { background: rgba(86,14,10,.9); }
 .ev-toast small { display: block; margin-top: 1px; font: 600 clamp(10px, 2.3vh, 13px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .1em; color: #ffd1e6; }
 .ev-result { display: none; transform: skewX(-6deg); box-sizing: border-box; min-width: var(--obj); max-width: var(--wide); padding: 8px 20px 10px; text-align: center;
   background: linear-gradient(180deg, rgba(11,7,9,.9), rgba(60,14,40,.88)); border: 2px solid #e8559a; box-shadow: 0 0 30px rgba(232,85,154,.5);
@@ -45,21 +42,21 @@ const CSS = `
 .ev-count.on { display: block; animation: ev-pop .9s ease-out; } .ev-count small { display: block; font-size: .16em; letter-spacing: .2em; -webkit-text-stroke: 0; }
 .ev-conf { position: fixed; z-index: 63; left: 50%; top: 52%; width: 0; height: 0; pointer-events: none; }
 .ev-conf i { position: absolute; left: 0; top: 0; width: 9px; height: 14px; animation: ev-conf 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
-.ev-leash { box-sizing: border-box; transform: skewX(-6deg); width: var(--obj); padding: 4px 14px 6px; text-align: center; display: none; pointer-events: none;
-  background: linear-gradient(180deg, rgba(60,10,8,.92), rgba(110,18,14,.9)); border: 2px solid #ff4a3a; box-shadow: 0 0 26px rgba(255,74,58,.55); color: #fff; text-transform: uppercase;
+.ev-leash { box-sizing: border-box; max-width: var(--wide); padding: 3px 16px 4px; border-radius: 18px; text-align: center; display: none; pointer-events: none; align-items: baseline; justify-content: center; gap: 10px;
+  background: rgba(86,14,10,.92); box-shadow: 0 2px 10px rgba(0,0,0,.35); color: #fff; text-transform: uppercase;
   font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; animation: ev-leash .9s ease-in-out infinite; }
-.ev-leash.on { display: block; } .ev-leash > * { display: block; transform: skewX(6deg); }
-.ev-leash b { font: 400 clamp(18px, 4.6vh, 30px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; }
-.ev-leash small { font-weight: 600; font-size: clamp(11px, 2.4vh, 14px); letter-spacing: .14em; opacity: .92; }
-@keyframes ev-leash { 50% { box-shadow: 0 0 40px rgba(255,74,58,.95); } }
+.ev-leash.on { display: flex; }
+.ev-leash b { font: 400 clamp(15px, 3.6vh, 22px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .06em; white-space: nowrap; }
+.ev-leash small { font-weight: 600; font-size: clamp(11px, 2.4vh, 14px); letter-spacing: .14em; opacity: .92; white-space: nowrap; }
+@keyframes ev-leash { 50% { box-shadow: 0 0 22px rgba(255,74,58,.9); } }
 .ev-flash { position: fixed; inset: 0; z-index: 59; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(255,160,60,.0), rgba(255,120,40,.45)); opacity: 0; }
 .ev-flash.on { animation: ev-flash .7s ease-out; }
 @keyframes ev-conf { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
-@keyframes ev-toast { 0% { opacity: 0; transform: translateY(-6px) skewX(-6deg); } 10% { opacity: 1; transform: none skewX(-6deg); } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ev-toast { 0% { opacity: 0; transform: translateY(-6px); } 10% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes ev-pop { 0% { transform: translate(-50%, -50%) scale(1.6) skewX(-8deg); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1) skewX(-8deg); } }
 @keyframes ev-blink { 50% { opacity: .35; } }
 @keyframes ev-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
-@media (max-height: 520px) { .ev-title { font-size: 13px; } .ev-card { padding: 4px 10px 8px 8px; } }
+@media (max-height: 520px) { .ev-title { font-size: 13px; } .ev-card { height: 26px; padding: 0 12px; gap: 7px; } .ev-time { font-size: 14px; } }
 .ev-edge { position: fixed; z-index: 58; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; display: none; will-change: transform;
   font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; }
 .ev-edge.on { display: block; }
@@ -76,7 +73,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 export function createEventHud({ camera, car, groundY }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
   const mk = (cls, html, parent = document.body, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; };
-  const root = mk('', `<div class="ev-card"><div class="ev-body"><div class="ev-top"><span class="ev-lab"></span><span class="ev-time"></span></div><div class="ev-title"></div><div class="ev-sub"></div></div><div class="ev-bar off"><i></i></div></div>
+  const root = mk('', `<div class="ev-card"><span class="ev-lab"></span><span class="ev-title"></span><span class="ev-sub"></span><span class="ev-time"></span><div class="ev-bar off"><i></i></div></div>
     <div class="ev-ledger"></div>`, zone('obj'));
   root.id = 'ev-hud';
   const q = s => root.querySelector(s);

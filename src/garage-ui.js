@@ -41,14 +41,14 @@ const TRIM_IDS = ['nero', 'bianco', 'rosa', 'oro', 'bordeaux', 'grigio', 'rosso'
 const NET_KEY = 'palermoDrive.net.v1', NAME_MAX = 16;
 let nameMem = null;   // when storage is unavailable the name still lasts for this visit
 // plain text only: whitespace collapsed, control / format (zero-width, direction marks and overrides) / separator / lone surrogate characters and blank-looking fillers removed, at most 16 UTF-16 units (net.js's limit) without cutting a pair in half
-function cleanName(v) {
+export function cleanName(v) {
   let t = String(v == null ? '' : v).replace(/\s+/g, ' ').replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0]/gu, '').trim().slice(0, NAME_MAX);
   if (/[\ud800-\udbff]$/.test(t)) t = t.slice(0, -1);
   return t.trim();
 }
 function netStore() { try { const o = JSON.parse(localStorage.getItem(NET_KEY) || 'null'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
-function readName() { if (nameMem !== null) return nameMem; const n = netStore().name; return typeof n === 'string' ? cleanName(n) : ''; }
-function writeName(name) {
+export function readName() { if (nameMem !== null) return nameMem; const n = netStore().name; return typeof n === 'string' ? cleanName(n) : ''; }
+export function writeName(name) {
   nameMem = name;
   try { localStorage.setItem(NET_KEY, JSON.stringify({ ...netStore(), name, offline: !!netStore().offline })); nameMem = null; } catch (e) { /* private mode: kept in memory */ }
   try { window.dispatchEvent(new CustomEvent('pd-name')); } catch (e) { /* ignore */ }   // src/net.js re-reads the store
@@ -169,7 +169,7 @@ const CSS = `
 .gx-foot.f3 .pd-l1 { font-size: clamp(12px, 2.9vh, 17px); }
 .gx-foot.f3 .gx-go, .gx-foot.f3 .gx-need { flex: 1.5 1 0; }
 .gx-foot.f3 .gx-need { font-size: clamp(11px, 2.5vh, 15px); }
-html.pd-in-garage :is(#help, .tc) { visibility: hidden !important; }   /* the street HUD and the touch pads belong to the street */
+html.pd-in-garage .tc { visibility: hidden !important; }   /* the street HUD and the touch pads belong to the street */
 `;
 
 // camera focus for the category being browsed: where to look from

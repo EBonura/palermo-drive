@@ -10,7 +10,7 @@
 // card, ?ui=start the picker, &view=list its list), ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES),
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
-import { setupGarageUI } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
@@ -31,11 +31,11 @@ const S = {
   credits: ['Crediti', 'Credits'],
   back: ['Indietro', 'Back'],
   menu: ['Menu', 'Menu'],
-  resume: ['Riprendi', 'Resume'],
-  quit: ['Esci al menu', 'Back to menu'],
+  quit: ['Menu principale', 'Main menu'],
+  toDrive: ['Torna a guidare', 'Back to driving'],
   quitBusy: ['Lasci l\'evento in corso', 'You drop the current event'],
   collections: ['Collezioni', 'Collections'],
-  radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio', 'Radio'],
+  radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio accesa o spenta', 'Radio on or off'],
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
   colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
@@ -58,6 +58,20 @@ const S = {
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
+  nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], nameBtn: ['Online o da solo', 'Online or alone'],
+  controls: ['Comandi', 'Controls'], ctlKb: ['Tastiera', 'Keyboard'], ctlPad: ['Controller', 'Gamepad'], ctlTouch: ['Schermo tattile', 'Touch screen'],
+  ctlDrive: ['Guida: gas, retro, sterzo', 'Drive: gas, reverse, steer'], ctlHand: ['Freno a mano', 'Handbrake'], ctlNitro: ['Nitro', 'Nitro'], ctlHorn: ['Clacson', 'Horn'],
+  ctlDrink: ['Bevi (alla porta di un pub o al rave, dopo il tramonto)', 'Drink (at a pub door or the rave, after dark)'],
+  ctlFly: ['Vola, tieni premuto per salire (con le ali del Garage)', 'Fly, hold to climb (with the wings from the Garage)'],
+  ctlSwap: ['Cambia mezzo', 'Swap vehicle'], ctlCam: ['Camera', 'Camera'], ctlReset: ['Torna in strada', 'Back on the road'],
+  ctlMap: ['Mappa grande, cambia posto (o clicca la minimappa)', 'Big map, change place (or click the minimap)'],
+  ctlJump: ['Salta a un punto di partenza (1 è i Quattro Canti)', 'Jump to a starting point (1 is Quattro Canti)'],
+  ctlNext: ['Brano dopo', 'Next track'], ctlRadio: ['Radio accesa o spenta', 'Radio on or off'], ctlTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'],
+  ctlMenu: ['Menu', 'Menu'], ctlThis: ['Questi comandi', 'This screen'],
+  ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Indietro', 'Back'],
+  ctlSteer: ['Sterza a sinistra e a destra', 'Steer left and right'], ctlGas: ['Accelera', 'Accelerate'], ctlRev: ['Retromarcia e freno', 'Reverse and brake'],
+  ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, mezzo, schermo intero', 'Menu: camera, back on the road, ride, full screen'],
+  ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Segui il creatore del gioco', 'Follow the game\'s creator'], igStudio: ['Segui lo studio, principalmente sviluppo per PlayStation 1', 'Follow the studio, mostly PlayStation 1 development'],
   coords: ['Coordinate (debug)', 'Coordinates (debug)'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
@@ -189,7 +203,9 @@ const ICON_MENU = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><
 const ICON_CAM = '<svg viewBox="0 0 48 48"><path d="M8 17h8l3-5h10l3 5h8v21H8z" /><circle cx="24" cy="26" r="6" /></svg>';
 const ICON_RESET = '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" /><path d="M10 8v9h9" /></svg>';
 const ICON_SWAP = '<svg viewBox="0 0 48 48"><path d="M10 18h26M28 10l8 8-8 8M38 32H12M20 24l-8 8 8 8" /></svg>';
-const ICON_NOTE = '<svg viewBox="0 0 24 24"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg>';
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
+const ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/><path d="M19 5v14"/></svg>';
 const ICON_FULL = '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>';
 const ICON_EXIT = '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>';
 const CHEV = '<svg class="pd-chev" viewBox="0 0 12 18"><path d="M2 2l8 7-8 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -357,11 +373,17 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     </div>`;
   // How to pin the game to the home screen (a phone in a browser tab; hidden once it runs standalone or fullscreen, in CSS and here for iOS): one platform, one language, no popup
   const IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // the player's name (the store the Garage edits too, palermoDrive.net.v1) and the button that opens the name card, where they go online or play alone. Only when multiplayer exists (html.pd-mp, src/p2p/p2p.js)
+  const NAME_ROW = `<div class="pd-row pd-name" data-name>
+      <div class="pd-lab"><span data-k="nameLabel" data-two></span></div>
+      <div class="pd-namerow"><input class="pd-namein" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
+        <button class="pd-segb pd-namebtn" data-nav data-do="nameCard" type="button"><span data-k="nameBtn"></span></button></div>
+    </div>`;
   const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
       <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2>${rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')}</div>
       <div class="pd-scrollwrap">
-        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}${PIN_ROW}</div>
+        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}${NAME_ROW}${PIN_ROW}</div>
         <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
         <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
       </div>
@@ -374,16 +396,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>`);
   // in-game side menu: slides in from the right while the game keeps drawing behind it
   mk('side', '', `<div class="pd-side" role="dialog">
-      <h2 class="pd-h" data-k="menu"></h2>
+      <div class="pd-np">
+        <button class="pd-bbtn pd-bpow" data-nav data-do="radioPower" type="button"></button>
+        <button class="pd-bbtn pd-bnext" data-nav data-do="radioNext" type="button">${ICON_NEXT}</button>
+        <div class="pd-npt"><small class="pd-npl"></small><b class="pd-npn"></b><span class="pd-nps"></span></div>
+      </div>
       <div class="pd-stack pd-sidelist">
-        <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('resume')}${CHEV}</button>
-        <button class="pd-btn sm pd-grp" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
-        <div class="pd-sidepair"><button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}</button><button class="pd-btn sm" data-nav data-do="missions" type="button">${two('missions')}</button></div>
-        <button class="pd-btn sm pd-grp" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
-        <div class="pd-sideradio">
-          <button class="pd-btn sm pd-radnext" data-nav data-do="radioNext" type="button"><span class="pd-in"><span class="pd-l1"><span data-k="radio"></span></span><span class="pd-l2 pd-radsub"></span></span></button>
-          <button class="pd-segb pd-radpwr" data-nav data-do="radioPower" type="button" aria-pressed="true">${ICON_NOTE}<span>ON</span></button>
-        </div>
+        <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('toDrive')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="map" type="button">${two('openMap')}${CHEV}</button>
+        <div class="pd-sidepair"><button class="pd-btn sm" data-nav data-do="missions" type="button">${two('missions')}</button><button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}</button></div>
+        <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="controls" type="button">${two('controls')}${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
         <button class="pd-btn sm pd-grp pd-quit" data-nav data-do="quit" type="button"><span class="pd-in"><span class="pd-l1" data-k="quit"></span><span class="pd-l2 pd-quitsub" data-k="quitBusy" hidden></span></span>${CHEV}</button>
       </div>
       <div class="pd-quick">
@@ -413,6 +437,17 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-msask"></div>
     </div>`);
 
+  // controls: what the buttons do on this device (the rows are made in renderControls())
+  mk('controls', '', `<div class="pd-card pd-ctl">
+      <h2 class="pd-h" data-k="controls" data-two></h2>
+      <div class="pd-scrollwrap">
+        <div class="pd-grid pd-ctlgrid"></div>
+        <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
+        <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
+      </div>
+      <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
+    </div>`);
+
   mk('garage', '', `<div class="pd-card pd-garage">
       <div class="gx-root"></div>
     </div>`);   // the garage draws its own Back / Done row (src/garage-ui.js): step 2 backs out to step 1
@@ -427,12 +462,16 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <div class="pd-sl pd-card"><div class="pd-stack pd-liveries pd-startlist"></div></div>`);
 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
+  // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
+  // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><div class="pd-btitle"><span></span></div>`, { role: 'group' });
+  bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
   const onFs = () => { fsBtn.innerHTML = document.fullscreenElement || document.webkitFullscreenElement ? ICON_EXIT : ICON_FULL; };
   document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
   if (params.has('campos') && !params.has('hud')) ui.hidden = true; // free-camera screenshots: no shell on top
-  ui.append(menuBtn, fsBtn);
+  ui.append(bar, fsBtn);
   document.body.append(ui);
   ui.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }); // keep mobile.js's page lockdown off our scrolling
   ui.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
@@ -450,7 +489,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     miniEl.setAttribute('aria-label', S.whereQ[i]); miniEl.title = S.whereQ[i];
     mapTag.textContent = S.openMap[i]; mapTag.setAttribute('aria-label', S.openMap[i]);
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
-    buildCredits(); syncRadio(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
+    for (const e of ui.querySelectorAll('.pd-namein')) e.placeholder = S.namePh[i];
+    buildCredits(); syncRadio(); if (cur === 'controls') renderControls(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
   }
 
   // ---- state and screen management ----
@@ -478,13 +518,15 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     game.noRender = false; // the start map is opaque: main.js skips drawing the world under it
     syncState();
     if (name) {
-      if (name === 'options') { if (game.time) st.timeNow = Math.round(game.time.hour * 2) / 2 % 24; syncOptions(); } // the time slider opens on the current game time
+      if (name === 'options') { if (game.time) st.timeNow = Math.round(game.time.hour * 2) / 2 % 24; syncOptions(); syncName(); } // the time slider opens on the current game time
       if (name === 'start') openStart();
       if (name === 'side') syncSide();
       if (name === 'collections') renderCollections();
       if (name === 'missions') renderMissions();
+      if (name === 'controls') renderControls();
       let want = lastFocus[name];
       if (!want || !want.isConnected || !want.offsetParent) want = name === 'options' ? screens.options.querySelector('[data-opt=quality] [aria-pressed=true]') : focusables(name)[0];
+      if (name === 'side' && !lastFocus.side) want = screens.side.querySelector('[data-do=resume]') || want;
       if (name === 'garage') want = garageUI.focusEl() || want;   // the garage focuses the current base (step 1) or tab (step 2)
       if (want && name !== 'title') want.focus({ preventScroll: true });
       if (name === 'credits') startRoll();
@@ -587,8 +629,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   function openPause() {
     if (game.state !== 'play' || busy) return;
+    for (const k in screens) delete lastFocus[k];   // the panel opens on "Torna a guidare", not where the last visit left the focus
     game.pause(); stack = []; go('side');
-    for (const k in screens) delete lastFocus[k];
   }
   function closePause() {
     if (game.state !== 'pause' || cur === 'garage') return;
@@ -598,12 +640,21 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function openMap() {
     if (game.state !== 'play' || busy) return;
     game.pause(); stack = []; delete lastFocus.start; go('start');
+    countMapOpen();
   }
   const miniEl = document.getElementById('mini');
-  // The little label on the minimap's top rim says what the map is for. A <span>, not a <button>: a focused button would open the map on Space, which is the handbrake.
+  // The little label on the minimap's top edge says what the map is for. A <span>, not a <button>: a focused button would open the map on Space, which is the handbrake.
+  // Once the player has opened the map a few times the words go (the map itself still opens on a tap).
+  const MAP_OPENS_KEY = 'palermoDrive.mapOpens', MAP_OPENS_MAX = 3;
+  const mapOpens = () => { try { return +localStorage.getItem(MAP_OPENS_KEY) || 0; } catch (e) { return 0; } };
   const mapTag = document.createElement('span');
-  mapTag.className = 'pd-maptag'; mapTag.setAttribute('role', 'button');
+  mapTag.className = 'pd-maptag'; mapTag.setAttribute('role', 'button'); mapTag.hidden = mapOpens() >= MAP_OPENS_MAX;
   miniEl.parentNode.appendChild(mapTag);
+  function countMapOpen() {
+    const n = mapOpens() + 1;
+    try { localStorage.setItem(MAP_OPENS_KEY, String(Math.min(n, 99))); } catch (e) { /* storage unavailable: the tag stays */ }
+    if (n >= MAP_OPENS_MAX) mapTag.hidden = true;
+  }
   // A tap opens the map from pointerup as well as click: while another finger holds a steering pad the browser sends the second finger's tap no click at all (pointerdown,
   // touchstart, pointerup and touchend arrive, the click does not), so while driving with a thumb on the pad it took several taps. openMap ignores a second call.
   function wireMapOpener(el) {
@@ -648,9 +699,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'missions': return go('missions', { push: true });
       case 'back': return goBack();
       case 'resume': return closePause();
+      case 'map': delete lastFocus.start; countMapOpen(); return go('start', { push: true });
+      case 'controls': return go('controls', { push: true });
+      case 'nameCard': return void dispatchEvent(new Event('pd-open-name'));
       case 'quit': return quit();
-      case 'radioNext': getRadio?.()?.next(); return setTimeout(syncRadio, 300);
-      case 'radioPower': getRadio?.()?.toggle(); return syncRadio();
+      case 'radioNext': getRadio?.()?.next(); return;
+      case 'radioPower': { const r = getRadio?.(); if (!r) return; if (r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }
       case 'qCam': vehicle.camState.mode = (vehicle.camState.mode + 1) % 4; vehicle.camState.init = false; return;
       case 'qReset': return vehicle.placeAt(vehicle.car.x, vehicle.car.z);
       case 'qSwap': return dispatchEvent(new CustomEvent('pd-swap'));
@@ -662,20 +716,53 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const garageScene = createGarageScene({ renderer, vehicle, game });
   const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), scene: garageScene, getLang: () => lang, onExit: () => goBack() });
 
-  // ---- side menu: radio row, the busy warning, the fullscreen button ----
-  const radNext = screens.side.querySelector('.pd-radnext'), radPwr = screens.side.querySelector('.pd-radpwr'), radSub = screens.side.querySelector('.pd-radsub');
+  // ---- the radio on screen: the bar, the top of the menu panel (both fed by the radio's view, src/radio.js), the busy warning, the fullscreen button ----
+  const npL = screens.side.querySelector('.pd-npl'), npN = screens.side.querySelector('.pd-npn'), npS = screens.side.querySelector('.pd-nps');
+  const barT = bar.querySelector('.pd-btitle span');
   const quitSub = screens.side.querySelector('.pd-quitsub');
-  function syncRadio() {
-    const r = getRadio?.(), on = r ? r.enabled : st.radio !== 'off';
-    radPwr.setAttribute('aria-pressed', String(on));
-    radPwr.querySelector('span').textContent = on ? 'ON' : 'OFF';
-    radSub.textContent = on && r && r.current ? r.current.title : '';
+  function syncRadio(view) {   // view: the one in the 'pd-radio' event (the radio announces itself before getRadio() can return it)
+    const v = view && view.title !== undefined && !(view instanceof Event) ? view : getRadio?.()?.view, i = lang === 'it' ? 0 : 1;
+    const mode = v ? v.mode : st.radio === 'off' ? 'off' : 'idle', playing = mode === 'on';
+    const title = v ? v.title : '', label = v ? v.label : '', sub = v ? v.sub : '';
+    for (const b of ui.querySelectorAll('.pd-bpow')) {
+      b.innerHTML = playing ? ICON_PAUSE : ICON_PLAY; b.setAttribute('aria-pressed', String(playing));
+      b.setAttribute('aria-label', S.radioPower[i]); b.title = S.radioPower[i];
+    }
+    for (const b of ui.querySelectorAll('.pd-bnext')) { b.setAttribute('aria-label', S.radioNext[i]); b.title = S.radioNext[i]; }
+    barT.textContent = title; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
+    npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
   }
+  addEventListener('pd-radio', e => syncRadio(e.detail));
   function syncSide() {
     syncRadio();
     quitSub.hidden = !missions?.busy?.();
     screens.side.querySelector('.pd-qfull').hidden = !canFull;
   }
+
+  // ---- the player's name (Options): the same store as the Garage, and the button that opens the name card of src/p2p/p2p.js ----
+  const nameIn = screens.options.querySelector('.pd-namein');
+  const syncName = () => { if (document.activeElement !== nameIn) nameIn.value = readName(); };
+  function saveName() { const n = cleanName(nameIn.value); if (n && n !== readName()) writeName(n); nameIn.value = readName(); }
+  nameIn.addEventListener('change', saveName);
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.key === 'Enter') saveName(); else nameIn.value = readName(); nameIn.blur(); } });   // the keys of a text field stay in the field (the shell's own handler skips inputs)
+  addEventListener('pd-name', syncName);
+
+  // ---- controls: what the buttons do on this device. The list is made again each time the screen opens (a phone gets its pads, a computer its keys and the gamepad) ----
+  const ctlGrid = screens.controls.querySelector('.pd-ctlgrid');
+  let syncCtlRail = () => {};   // set where scrollRail is made, below
+  function renderControls() {
+    const i = lang === 'it' ? 0 : 1, touchUI = root.classList.contains('touch');
+    const sect = k => `<div class="pd-ctlh">${esc(S[k][i])}</div>`;
+    const row = (keys, k) => `<div class="pd-ctlr"><span class="pd-ctlk">${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span><span class="pd-ctlt">${esc(S[k][i])}</span></div>`;
+    const kb = [[['W', 'A', 'S', 'D', '←↑↓→'], 'ctlDrive'], [['Space'], 'ctlHand'], [['Shift'], 'ctlNitro'], [['H'], 'ctlHorn'], [['B'], 'ctlDrink'], [['F'], 'ctlFly'], [['V'], 'ctlSwap'], [['C'], 'ctlCam'], [['R'], 'ctlReset'],
+      [['G'], 'ctlMap'], [['1 - 9'], 'ctlJump'], [['M'], 'ctlNext'], [['N'], 'ctlRadio'], [['T'], 'ctlTalk'], [['Esc', 'P'], 'ctlMenu'], [['?', 'F1'], 'ctlThis']];
+    const pad = [[['Start'], 'ctlStart'], [['Select'], 'ctlSelect'], [['D-pad', '◎'], 'ctlMove'], [['A'], 'ctlOk'], [['B'], 'ctlBack']];
+    const tc = [[['‹', '›'], 'ctlSteer'], [['GAS'], 'ctlGas'], [['RETRO'], 'ctlRev'], [['FRENO'], 'ctlHand'], [['NOS'], 'ctlNitro'], [['CLACSON'], 'ctlHorn'], [['VOLA'], 'ctlFly'],
+      [['☰'], 'ctlTapMenu'], [['◎'], 'ctlTapMap'], [['💬'], 'ctlTapTalk'], [['BERE'], 'ctlTapDrink']];
+    ctlGrid.innerHTML = touchUI ? sect('ctlTouch') + tc.map(r => row(...r)).join('') : sect('ctlKb') + kb.map(r => row(...r)).join('') + sect('ctlPad') + pad.map(r => row(...r)).join('');
+    ctlGrid.scrollTop = 0; syncCtlRail();
+  }
+  addEventListener('pd-controls', () => { if (game.state === 'play' && !busy) { openPause(); go('controls', { push: true }); } });   // the ? key (src/main.js)
 
   // ---- collections: SUCA / 800A tags, food events, races, fares ----
   const colRows = screens.collections.querySelector('.pd-colrows'), fakeProg = params.has('fakeprogress');
@@ -833,6 +920,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     return sync;
   };
   scrollRail(screens.options);
+  syncCtlRail = scrollRail(screens.controls);
 
   // ---- missions: every mission the game lists (missions.events()), grouped by kind, with its state and a Vai button ----
   // Nothing about the missions is kept here: names, places and the night flag come from events(), done / best from missions.status(id). A kind this file has never heard of
@@ -993,13 +1081,14 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     }
     if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
   }
-  // The side menu is one column (Up/Down walk it in order, the radio row and the quick buttons are rows for Left/Right), not a spatial grid.
+  // The side menu is one column (Up/Down walk it in order); the radio buttons on top, the Missions and Collections pair and the quick buttons are rows for Left/Right.
   function sideMove(dir, a) {
-    const col = [...screens.side.querySelectorAll('.pd-sidelist > .pd-btn, .pd-sidepair > .pd-btn:first-child, .pd-radnext, .pd-qbtn:first-child')].filter(e => e.offsetParent !== null);
-    const row = a.closest('.pd-quick') ? [...screens.side.querySelectorAll('.pd-qbtn')].filter(e => e.offsetParent !== null) : a.closest('.pd-sideradio') ? [screens.side.querySelector('.pd-radnext'), screens.side.querySelector('.pd-radpwr')] : a.closest('.pd-sidepair') ? [...a.parentNode.children] : null;
+    const side = screens.side, vis = list => list.filter(e => e.offsetParent !== null);
+    const col = vis([...side.querySelectorAll('.pd-bpow, .pd-sidelist > .pd-btn, .pd-sidepair > .pd-btn:first-child, .pd-qbtn:first-child')]);
+    const row = a.closest('.pd-quick') ? vis([...side.querySelectorAll('.pd-qbtn')]) : a.closest('.pd-np') ? [...side.querySelectorAll('.pd-np .pd-bbtn')] : a.closest('.pd-sidepair') ? [...a.parentNode.children] : null;
     const i = row ? row.indexOf(a) : -1;
     if (dir === 'left' || dir === 'right') { if (row) row[clamp(i + (dir === 'left' ? -1 : 1), 0, row.length - 1)].focus({ preventScroll: true }); return true; }
-    const at = a.closest('.pd-quick') ? col.length - 1 : a === screens.side.querySelector('.pd-radpwr') ? col.indexOf(screens.side.querySelector('.pd-radnext')) : a.closest('.pd-sidepair') ? col.indexOf(a.parentNode.firstElementChild) : col.indexOf(a);
+    const at = a.closest('.pd-quick') ? col.length - 1 : a.closest('.pd-np') ? 0 : a.closest('.pd-sidepair') ? col.indexOf(a.parentNode.firstElementChild) : col.indexOf(a);
     const n = col[clamp(at + (dir === 'up' ? -1 : 1), 0, col.length - 1)];
     if (n) n.focus({ preventScroll: true });
     return true;
@@ -1044,7 +1133,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (e.target === screens.side) return closePause(); // a tap beside the panel closes it
     const t = e.target.closest ? e.target.closest('button, .pd-s-title') : null;
     if (!t) return;
-    if (t === menuBtn) return openPause();
+    if (t === menuBtn) return openPause();   // (the bar's own buttons, play or pause and next, carry data-do like the panel's)
     if (t === fsBtn) return fullscreen();
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
@@ -1099,6 +1188,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (want === 'pause') setTimeout(openPause, 50);
     if (want === 'collections') setTimeout(() => { openPause(); go('collections', { push: true }); }, 50);
     if (want === 'missions') setTimeout(() => { openPause(); go('missions', { push: true }); }, 50);
+    if (want === 'controls') setTimeout(() => { openPause(); go('controls', { push: true }); }, 50);
   } else {
     syncState();
     go(['menu', 'options', 'credits', 'garage', 'start', 'missions'].includes(want) ? want : want === 'none' ? null : 'title');

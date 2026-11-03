@@ -234,7 +234,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyC') camState.mode = (camState.mode + 1) % 4;
   if (e.code === 'KeyR') placeAt(car.x, car.z);
-  if (e.code === 'Slash' || e.code === 'F1') { document.getElementById('help').classList.toggle('show'); e.preventDefault(); }
+  if (e.code === 'Slash' || e.code === 'F1') { dispatchEvent(new Event('pd-controls')); e.preventDefault(); }   // the Controls screen of the menu (src/ui.js)
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= SPOTS.length) { const [x, z] = proj(SPOTS[n - 1][1], SPOTS[n - 1][2]); placeAt(x, z); world?.teleport(x, z, () => placeAt(x, z)); }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -306,7 +306,6 @@ placeAt(0, 0);
   }
   if (turn) car.th += turn * Math.PI / 180;
   if (q.has('cam')) camState.mode = +q.get('cam') % 4;
-  if (q.has('help')) document.getElementById('help').classList.remove('show');
   // ?campos=x,y,z&look=x,y,z pins a free camera (for screenshots); proj() gives x,z from lat/lon.
   if (q.has('campos')) {
     const [p, l] = ['campos', 'look'].map(k => (q.get(k) || '0,0,0').split(',').map(Number));

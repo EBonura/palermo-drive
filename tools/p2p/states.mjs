@@ -12,11 +12,11 @@ try {
   ok('they meet', await waitDrawn(A, 1) && await waitDrawn(B, 1));
 
   // solo and back
-  await click(A, '.pd-p2p', '✎'); await sleep(300); await click(A, '[role=dialog] button', 'Gioca da solo'); await sleep(1500);
+  await A.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300); await click(A, '[role=dialog] button', 'Gioca da solo'); await sleep(1500);
   let a = await info(A); ok('Anna goes solo: no rooms, nobody drawn, no chat or drink buttons', a.rooms === 0 && a.drawn === 0 && a.ui === 1, JSON.stringify(a));
   console.log('   relay sockets after going solo (1 = open):', a.sockets, '(Trystero keeps them: see the report)');
   ok('Bob stops seeing her', await waitDrawn(B, 0, 15000));
-  await click(A, '.pd-p2p', '✎'); await sleep(300); await click(A, '[role=dialog] button', 'Gioca online');
+  await A.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300); await click(A, '[role=dialog] button', 'Gioca online');
   ok('Anna says "Gioca online" again and they meet again', await waitDrawn(A, 1, 90000) && await waitDrawn(B, 1, 90000), JSON.stringify(await info(A)));
 
   // drowning: Anna drives into the sea

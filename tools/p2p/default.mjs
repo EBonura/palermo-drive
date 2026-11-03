@@ -44,7 +44,8 @@ n = await net(c); check('solo is remembered after a reload', n.rooms === 0 && !(
 const d = await open(undefined, JSON.stringify({ name: 'Garage', offline: false })); await sleep(1500); n = await net(d);
 check("a name from the Garage isn't a yes", n.rooms === 0 && !!(await card(d)), JSON.stringify(await card(d)));
 
-await a.page.evaluate(() => [...document.querySelectorAll('button')].find(x => x.textContent === '✎').click()); await sleep(300); await press(a, 'Gioca da solo'); await sleep(1000); n = await net(a);
+await a.page.evaluate(() => dispatchEvent(new Event('pd-open-name')));   // Options asks for the name card with this event (the pencil is gone)
+await sleep(300); await press(a, 'Gioca da solo'); await sleep(1000); n = await net(a);
 check('going solo leaves the rooms', n.rooms === 0 && n.drawn === 0, JSON.stringify(n));
 await sleep(12000); n = await net(b); check('the other player drops the one who left', n.drawn === 0, JSON.stringify(n));
 
