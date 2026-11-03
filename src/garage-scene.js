@@ -9,7 +9,6 @@
 import * as THREE from 'three';
 import { garage } from './garage.js';
 import { tickShared } from './vehicle-models.js';
-import { driver } from './driver.js';
 import { buildOfficina } from './garage-officina.js';
 import { canvasTex, soft } from './garage-kit.js';
 
@@ -114,7 +113,7 @@ export function createGarageScene({ renderer, vehicle, game }) {
     shownKey = key; shownLook = look;
     const keepYaw = room.turntable.rotation.y;
     dropRig();
-    rig = vehicle.buildVehicleModel(look); driver.dress(rig);   // the player's own driver sits in a lapa (src/driver.js)
+    rig = vehicle.buildVehicleModel(look, true);   // true: the player's own driver sits in it (src/driver.js)
     rig.root.position.y = room.top; room.turntable.add(rig.root); room.turntable.rotation.y = keepYaw;
     kind = rig.kind;
     rig.pose({ t: 0 }); measure();

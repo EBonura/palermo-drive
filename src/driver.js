@@ -1,66 +1,66 @@
-// The player's own driver ("Il tuo autista"). The Garage's driver screen (src/garage-ui.js, src/driver-compose.js) builds a pixel-art person from LPC layers; what the street needs of
-// it is only three small pictures (seated, seen from the front, the side and the back), which are kept here, saved in localStorage next to the options that made them, so
-// that driving never downloads the layers. In every vehicle the driver is a billboard in the seat: it turns to the camera but shows the picture that matches the angle between where
-// the vehicle points and where the camera is (the back of the head in the chase view, the face through the windscreen from the front). Without a saved driver nothing changes:
-// the lapa keeps its blocky 3D driver.
-//   driver.has()              a driver was made
+// The driver ("Il tuo autista"). Every vehicle has one, a billboard in the seat that turns to the camera but shows the picture that matches the angle between where the vehicle points and
+// where the camera is (the back of the head in the chase view, the face through the windscreen from the front). It is three small pictures (seated, seen from the front, the side and the
+// back, 64x64 RGBA each, cropped to CELL) kept next to each other in one texture. Until the player makes their own, that is the default driver, an ordinary man baked into
+// src/driver-default.js by tools/lpc/default-driver.mjs (so the street downloads no layer). The Garage's driver screen (src/garage-ui.js, src/driver-compose.js) builds a pixel-art person from
+// LPC layers; what the street needs of it is those three pictures, saved in localStorage next to the options that made them, and a saved driver wins over the default in the player's own
+// vehicle (the Garage and the street). The vehicles of other players and of the racers always have the default.
+//   driver.has()              the player made a driver (the default does not count)
 //   driver.spec()             the options it was made from (the creator reopens with them)
-//   driver.set(frames, spec)  frames: { front, left, back }, each 64x64 RGBA bytes of the seated person (src/driver-compose.js); saves, and every lapa on screen updates
-//   driver.clear()            forget the driver: the lapae go back to the 3D one
-//   driver.dress(rig)         called for a vehicle rig that is made (street and Garage): puts the sprite in the seat
+//   driver.set(frames, spec)  frames: { front, left, back }, each 64x64 RGBA bytes of the seated person (src/driver-compose.js); saves, and the player's own vehicles on screen update
+//   driver.clear()            forget the driver: the player's vehicles go back to the default one
+//   driver.dress(rig, own)    called for every vehicle rig that is made (src/vehicle-models.js): puts the sprite in the seat; own: the player's (a saved driver, else the default)
 import * as THREE from 'three';
+import { DEFAULT_DRIVER_PNG } from './driver-default.js';
 
 const KEY = 'pd.driver', CELL = { x: 12, y: 6, w: 40, h: 58 };   // the part of each 64x64 frame that is kept: x, y of the top left, size in pixels (fits every hat, hairdo and arm)
-const PX = 0.0215;                      // metres per pixel on the lapa's seat: a seated person is 0.8 m from the seat to the top of the head (the 3D driver it replaces is about 0.75)
+const PX = 0.0215;                      // metres per pixel on the lapa's seat: a seated person is 0.8 m from the seat to the top of the head
 const SEAT_ROW = 47;                    // the row of the frame where the hips are in the seated pose
 const SEAT = { y: 1.06, z: 0.14 };      // the top of the seat cushion and where the driver sits (vehicle units of the lapa, before the Lapa 50's 0.86 scale)
+const SPOT = {                          // where the bottom middle of the sprite is in the driver group of the others (x, y, z of the vehicle's tilt group): on the saddle, the car's driving seat, the sulky's bench
+  vespa: [0, 0.188, 0.2628], scooterone: [0, 0.298, 0.5803], motorino: [0, 0.103, 0.3056], tascia: [0.3, -0.367, 0.1064], sulky: [0, 0.0792, -0.333],
+};
 
-let spec = null, tex = null, canvas = null, ready = false;
-const dressed = new Set(), lapas = new Set(), listeners = new Set();   // dressed: the sprites that exist; lapas: every lapa rig that is alive (so a driver made later reaches them)
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _p = new THREE.Vector3(), _c = new THREE.Vector3(), _f = new THREE.Vector3(), _y = new THREE.Vector3(0, 1, 0);
+let spec = null, made = false;
+const listeners = new Set();
 
-function makeTexture() {
-  if (tex) return;
-  canvas = document.createElement('canvas'); canvas.width = CELL.w * 3; canvas.height = CELL.h;
-  tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+function makeTexture() {   // the three frames next to each other: front, left, back
+  const canvas = document.createElement('canvas'); canvas.width = CELL.w * 3; canvas.height = CELL.h;
+  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+  return { canvas, tex };
 }
-function paint(frames) {   // the three frames next to each other: front, left, back
-  makeTexture();
-  const g = canvas.getContext('2d'), out = g.createImageData(CELL.w * 3, CELL.h);
+const mine = makeTexture(), stock = makeTexture();   // mine: the player's own vehicles (the default until they make a driver); stock: everyone else's, always the default
+const draw = (t, img) => { const g = t.canvas.getContext('2d'); g.clearRect(0, 0, t.canvas.width, t.canvas.height); g.drawImage(img, 0, 0); t.tex.needsUpdate = true; };
+let stockImg = null;   // the default driver's picture, once decoded
+{ const img = new Image();   // a data URL of a few KB, decoded at once; the sprites are see-through until then
+  img.onload = () => { stockImg = img; draw(stock, img); if (!made) draw(mine, img); };
+  img.src = DEFAULT_DRIVER_PNG; }
+
+function paint(frames) {
+  const g = mine.canvas.getContext('2d'), out = g.createImageData(CELL.w * 3, CELL.h);
   ['front', 'left', 'back'].forEach((d, k) => { const f = frames[d]; for (let y = 0; y < CELL.h; y++) for (let x = 0; x < CELL.w; x++) {
     const i = ((CELL.y + y) * 64 + CELL.x + x) * 4, o = (y * CELL.w * 3 + k * CELL.w + x) * 4; out.data[o] = f[i]; out.data[o + 1] = f[i + 1]; out.data[o + 2] = f[i + 2]; out.data[o + 3] = f[i + 3]; } });
-  g.putImageData(out, 0, 0); tex.needsUpdate = true; ready = true;
+  g.putImageData(out, 0, 0); mine.tex.needsUpdate = true;
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify({ v: 1, spec, png: canvas.toDataURL('image/png') })); } catch (e) { /* private window or full: the driver lasts until the page is closed */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ v: 1, spec, png: mine.canvas.toDataURL('image/png') })); } catch (e) { /* private window or full: the driver lasts until the page is closed */ }
 }
 (function load() {   // a saved driver: its pictures come back from the data URL (a few KB), no layers are fetched
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) { return; }
   if (!s || s.v !== 1 || !s.spec || typeof s.png !== 'string' || !s.png.startsWith('data:image/png;base64,')) return;   // only our own kind of picture: a tampered save cannot make the page fetch an address
   const img = new Image();
-  img.onload = () => { if (ready) return; makeTexture(); spec = s.spec; canvas.getContext('2d').drawImage(img, 0, 0); tex.needsUpdate = true; ready = true; dressAll(); for (const f of listeners) f(); };
+  img.onload = () => { if (made) return; spec = s.spec; made = true; draw(mine, img); for (const f of listeners) f(); };
   img.src = s.png;
 })();
 
 // ---- the billboard in the seat
-function undress(rec) {
-  rec.mesh.parent && rec.mesh.parent.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
-  for (const c of rec.hidden) c.visible = true;
-  dressed.delete(rec);
-}
-function dressTo(rig) {
+function dressTo(rig, own) {
   const tp = rig.tpl.spec.tiltPivot, s = rig.kind === 'lapa' ? tp[1] / 0.45 : 1, k = PX * s, w = CELL.w * k, h = CELL.h * k;   // the lapae scale their whole model (the Lapa 50 by 0.86) and pivot at 0.45 m of it
+  const at = rig.kind === 'lapa' ? [0 - tp[0], SEAT.y * s - (64 - SEAT_ROW) * k - tp[1], SEAT.z * s - tp[2]] : SPOT[rig.type];   // the plane's bottom edge is the bottom row of the frame
+  if (!at) return;
   const geo = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0), uv = geo.attributes.uv;
-  const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
-  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false;
-  if (rig.kind === 'lapa') mesh.position.set(0 - tp[0], SEAT.y * s - (64 - SEAT_ROW) * k - tp[1], SEAT.z * s - tp[2]);   // the plane's bottom edge is the bottom row of the frame
-  else {   // the two-wheelers, the cart and the car: where the 3D driver it replaces is, with the head at the same height
-    rig.driver.updateWorldMatrix(true, true); const box = new THREE.Box3().setFromObject(rig.driver).applyMatrix4(rig.driver.matrixWorld.clone().invert());
-    if (box.isEmpty()) { const st = rig.seats?.[0] || { x: 0, y: 1, z: 0 }; box.set(new THREE.Vector3(st.x - tp[0], st.y - tp[1], st.z - tp[2]), new THREE.Vector3(st.x - tp[0], st.y - tp[1] + 0.8, st.z - tp[2])); }
-    mesh.position.set((box.min.x + box.max.x) / 2, box.max.y - h, rig.kind === 'bike' ? box.min.z + (rig.type === 'scooterone' ? 0.34 : 0.14) : (box.min.z + box.max.z) / 2);   // on a bike the 3D rider's box reaches forward to the bars: the sprite sits back, on the saddle (the scooterone's top box needs him further forward, or the plane cuts through it)
-  }
-  const hidden = rig.driver.children.filter(c => c.visible); for (const c of hidden) c.visible = false;
-  const rec = { rig, mesh, hidden }; rig.driver.add(mesh); dressed.add(rec);
+  const mat = new THREE.MeshLambertMaterial({ map: (own ? mine : stock).tex, alphaTest: 0.5 });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.position.set(...at);
   mesh.onBeforeRender = (r, sc, cam) => {   // upright, towards the camera; the picture that matches the angle between the vehicle's nose and the camera
     const par = mesh.parent; par.getWorldQuaternion(_q); _f.set(0, 0, 1).applyQuaternion(_q); _f.y = 0;
     mesh.getWorldPosition(_p); cam.getWorldPosition(_c); const dx = _c.x - _p.x, dz = _c.z - _p.z, a = Math.atan2(dx, dz);
@@ -71,19 +71,15 @@ function dressTo(rig) {
     uv.setXY(0, l, 1); uv.setXY(1, rr, 1); uv.setXY(2, l, 0); uv.setXY(3, rr, 0); uv.needsUpdate = true;
     mesh.updateMatrixWorld();
   };
+  rig.driver.add(mesh);
+  const od = rig.dispose; rig.dispose = () => { mesh.parent && mesh.parent.remove(mesh); geo.dispose(); mat.dispose(); od(); };   // the textures are shared and stay
 }
 
-const isDressed = rig => { for (const r of dressed) if (r.rig === rig) return true; return false; };
-const dressAll = () => { for (const rig of lapas) if (!isDressed(rig)) dressTo(rig); };
 export const driver = {
-  has: () => ready,
+  has: () => made,
   spec: () => spec,
-  set(frames, s) { spec = s; paint(frames); save(); dressAll(); for (const f of listeners) f(); },
-  clear() { spec = null; ready = false; try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } for (const r of [...dressed]) undress(r); for (const f of listeners) f(); },
-  dress(rig) {
-    if (!rig || lapas.has(rig)) return;
-    lapas.add(rig); const od = rig.dispose; rig.dispose = () => { lapas.delete(rig); for (const r of [...dressed]) if (r.rig === rig) undress(r); od(); };
-    if (ready) dressTo(rig);
-  },
+  set(frames, s) { spec = s; made = true; paint(frames); save(); for (const f of listeners) f(); },
+  clear() { spec = null; made = false; try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } if (stockImg) draw(mine, stockImg); for (const f of listeners) f(); },   // before the default has decoded, its onload fills mine
+  dress(rig, own = false) { if (rig) dressTo(rig, own); },
   onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 };
