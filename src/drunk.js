@@ -92,10 +92,9 @@ void main() {
 const CSS = `
 #pd-drink { display: none; }
 #pd-drink.on { display: block; pointer-events: auto; }
-#pd-drink button { display: flex; align-items: center; gap: 10px; min-width: 150px; min-height: 48px; padding: 6px 20px 6px 10px; margin: 0; border: 2px solid #e8559a; border-radius: 0; cursor: pointer; transform: skewX(-6deg);
-  background: linear-gradient(90deg, rgba(11,7,9,.9), rgba(60,14,40,.88)); box-shadow: 0 0 22px rgba(232,85,154,.45), 0 3px 10px rgba(0,0,0,.45); color: #fff; text-align: left;
+#pd-drink button { display: flex; align-items: center; gap: 10px; min-width: 150px; min-height: 48px; padding: 6px 22px 6px 12px; margin: 0; border: 0; border-radius: 24px; cursor: pointer;
+  background: rgba(13,7,10,.84); box-shadow: 0 0 18px rgba(232,85,154,.4), 0 2px 10px rgba(0,0,0,.4); color: #fff; text-align: left;
   font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; text-transform: uppercase; -webkit-tap-highlight-color: transparent; touch-action: none; }
-#pd-drink button > * { transform: skewX(6deg); }
 #pd-drink.wait button { opacity: .55; }
 #pd-drink kbd { flex: 0 0 auto; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 5px; background: #e8559a; color: #0b0709; font: 700 15px/1 system-ui, sans-serif; }
 html.touch #pd-drink kbd { display: none; }

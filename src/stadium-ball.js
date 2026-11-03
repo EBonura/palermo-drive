@@ -18,10 +18,10 @@ const lang = () => (document.documentElement.lang === 'en' ? 1 : 0);
 const GOL_CHANTS = ['GOOOOL!', 'Gol! Gol! Gol!', 'Alé alé rosanero!', 'FORZA PALERMO!'];
 
 const CSS = `
-.st-card { transform: skewX(-6deg); display: none; padding: 4px 14px 5px; pointer-events: none;
-  background: linear-gradient(90deg, rgba(11,7,9,.84), rgba(40,12,28,.8)); border-left: 5px solid #e8559a; box-shadow: 0 3px 12px rgba(0,0,0,.4); color: #fff; text-transform: uppercase; white-space: nowrap;
+.st-card { display: none; padding: 4px 16px 5px; border-radius: 15px; pointer-events: none;
+  background: var(--capsule, rgba(13,7,10,.8)); box-shadow: 0 2px 10px rgba(0,0,0,.3); color: #fff; text-transform: uppercase; white-space: nowrap;
   font: 600 clamp(11px, 2.4vh, 14px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .14em; }
-.st-card.on { display: block; } .st-card > * { display: inline-block; transform: skewX(6deg); } .st-card b { font: 400 1.5em/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #ffcf4a; margin: 0 .5em 0 .25em; }
+.st-card.on { display: block; } .st-card > * { display: inline-block; } .st-card b { font: 400 1.5em/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .04em; color: #ffcf4a; margin: 0 .5em 0 .25em; }
 .st-card .best { opacity: .72; }
 .st-gol { position: fixed; z-index: 64; left: 50%; top: 45%; pointer-events: none; display: none; text-align: center; text-transform: uppercase; transform: translate(-50%, -50%) skewX(-8deg);
   font: 400 clamp(64px, 24vh, 190px)/1 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; -webkit-text-stroke: 3px #0b0709; paint-order: stroke fill; letter-spacing: .04em;

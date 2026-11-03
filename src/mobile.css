@@ -13,7 +13,6 @@ html.touch, html.touch body {
   -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
 }
 html.touch canvas#view { touch-action: none; }
-html.touch #help { display: none !important; }
 
 html.touch .tc {
   --pad: clamp(64px, 25vh, 108px);
@@ -28,13 +27,13 @@ html.touch .tc {
 .tc .pad {
   position: absolute; pointer-events: auto; box-sizing: border-box;
   border: 5px solid transparent; background-clip: padding-box;
-  background-color: rgba(255,255,255,.2);
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.18);
+  background-color: rgba(255,255,255,.09);   /* see-through: the street shows behind the pads */
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.34), 0 2px 8px rgba(0,0,0,.1);
   border-radius: 22px; color: #fff;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   transition: background-color .06s;
 }
-.tc .pad.on { background-color: rgba(255,255,255,.52); }
+.tc .pad.on { background-color: rgba(255,255,255,.34); }
 .tc .pad i { display: block; width: 44%; max-width: 54px; }
 .tc svg { width: 100%; height: auto; display: block; fill: none; stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
 .tc .pad b { font: 800 10px/1 system-ui, -apple-system, sans-serif; letter-spacing: .08em; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
@@ -43,13 +42,13 @@ html.touch .tc {
 .tc-steer .p-left { left: var(--edge-l); }
 .tc-steer .p-right { left: calc(var(--edge-l) + var(--pad) * 1.05); }
 
-.tc-drive .p-gas { right: var(--edge-r); bottom: var(--edge-b); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * 1.6); background-color: rgba(120,230,140,.28); }
-.tc-drive .p-gas.on { background-color: rgba(120,230,140,.6); }
-.tc-drive .p-brake { right: calc(var(--edge-r) + var(--pad) * 1.05); bottom: var(--edge-b); width: calc(var(--pad) * .95); height: calc(var(--pad) * .95); background-color: rgba(255,120,110,.26); }
-.tc-drive .p-brake.on { background-color: rgba(255,120,110,.58); }
+.tc-drive .p-gas { right: var(--edge-r); bottom: var(--edge-b); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * 1.6); background-color: rgba(120,230,140,.14); }
+.tc-drive .p-gas.on { background-color: rgba(120,230,140,.42); }
+.tc-drive .p-brake { right: calc(var(--edge-r) + var(--pad) * 1.05); bottom: var(--edge-b); width: calc(var(--pad) * .95); height: calc(var(--pad) * .95); background-color: rgba(255,120,110,.13); }
+.tc-drive .p-brake.on { background-color: rgba(255,120,110,.4); }
 .tc-drive .p-hb { right: calc(var(--edge-r) + var(--pad) * 1.05); bottom: calc(var(--edge-b) + var(--pad) * .95); width: calc(var(--pad) * .95); height: calc(var(--pad) * .7); }
-.tc-drive .p-nos { right: var(--edge-r); bottom: calc(var(--edge-b) + var(--pad) * 1.6); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * .72); background-color: rgba(90,170,255,.3); }
-.tc-drive .p-nos.on { background-color: rgba(120,200,255,.7); }
+.tc-drive .p-nos { right: var(--edge-r); bottom: calc(var(--edge-b) + var(--pad) * 1.6); width: calc(var(--pad) * 1.05); height: calc(var(--pad) * .72); background-color: rgba(90,170,255,.15); }
+.tc-drive .p-nos.on { background-color: rgba(120,200,255,.45); }
 .tc-drive .p-nos i { width: 28%; }
 .tc-drive .p-hb i { width: 30%; }
 .tc-drive .p-brake i { width: 34%; }
@@ -111,11 +110,11 @@ html.touch .rot {
 @keyframes a2hs-in { from { opacity: 0; transform: translate(-50%, 12px); } }
 /* VOLA (fly) pad: only with the wings fitted (html.pd-wings, set by vehicle.js); a hold pad like the others, left of the handbrake pad */
 .tc .p-fly { display: none; }
-html.pd-wings .tc .p-fly { display: flex; right: calc(var(--edge-r) + var(--pad) * 2.05); bottom: var(--edge-b); width: calc(var(--pad) * .95); height: calc(var(--pad) * 1.3); background-color: rgba(150,200,255,.3); }
-html.pd-wings .tc .p-fly.on { background-color: rgba(190,225,255,.7); }
+html.pd-wings .tc .p-fly { display: flex; right: calc(var(--edge-r) + var(--pad) * 2.05); bottom: var(--edge-b); width: calc(var(--pad) * .95); height: calc(var(--pad) * 1.3); background-color: rgba(150,200,255,.15); }
+html.pd-wings .tc .p-fly.on { background-color: rgba(190,225,255,.45); }
 .tc .p-fly i { width: 40%; }
 /* CLACSON (horn) pad, left of the NOS pad */
-.tc-drive .p-horn { right: calc(var(--edge-r) + var(--pad) * 1.15); bottom: calc(var(--edge-b) + var(--pad) * 1.6); width: calc(var(--pad) * .9); height: calc(var(--pad) * .72); background-color: rgba(232,85,154,.28); }
-.tc-drive .p-horn.on { background-color: rgba(245,169,201,.75); }
+.tc-drive .p-horn { right: calc(var(--edge-r) + var(--pad) * 1.15); bottom: calc(var(--edge-b) + var(--pad) * 1.6); width: calc(var(--pad) * .9); height: calc(var(--pad) * .72); background-color: rgba(232,85,154,.14); }
+.tc-drive .p-horn.on { background-color: rgba(245,169,201,.45); }
 .tc-drive .p-horn i { width: 34%; }
 .tc-drive .p-horn b { font-size: 9px; }

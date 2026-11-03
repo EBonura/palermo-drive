@@ -21,10 +21,10 @@ try {
   const A = await player(h, { ...opts, name: 'Anna', x: 137, z: -212, extra: 'cash=20' });
   await watch(A); await sleep(3000);
   const [a0] = await Promise.all([see(A)]); console.log(`[${tag}] alone`, JSON.stringify(a0));
-  ok('alone: no chat/drink buttons on screen (only the name pencil)', a0.p2pUi === 1, JSON.stringify(a0));
+  ok('alone: no talk button on screen', a0.p2pUi === 0, JSON.stringify(a0));
   const B = await player(h, { ...opts, name: 'Bob', x: 141, z: -205 }); await watch(B);
   ok('Bob joins: they meet', await meet(A, B)); await sleep(1500);
-  let [a, b] = await row('join', A, B); ok('join: both see a car and have the three buttons', a.cars === 'Bob' && b.cars === 'Anna' && a.p2pUi === 3 && b.p2pUi === 3);
+  let [a, b] = await row('join', A, B); ok('join: both see a car and have the talk button', a.cars === 'Bob' && b.cars === 'Anna' && a.p2pUi === 1 && b.p2pUi === 1);
   await shot('1-join', A, B);
 
   // a phrase, by the buttons (a finger on the phone)
@@ -34,9 +34,10 @@ try {
   [a, b] = await row('phrase', A, B); ok('phrase: Bob sees a bubble on Anna, Anna sees her words as a line', /says/.test(b.cars) && a.toasts !== '');
   await shot('2-phrase', A, B);
 
-  // an offer, by the beer button, answered with a tap
-  await tap(A, '.pd-p2p button', '🍺'); await sleep(200);
-  await tap(A, '.pd-p2p button', 'birra (1 €)'); await sleep(1500);
+  // an offer, from the wheel (Brindisi e da bere, the beer is its seventh slice), answered with a tap
+  await tap(A, 'button[title=T]'); await sleep(300);
+  const slice = i => A.page.evaluate(i => document.querySelectorAll('svg[role=menu] [role=menuitem]')[i].dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
+  await slice(2); await sleep(300); await slice(6); await sleep(1500);
   [a, b] = await row('offer sent', A, B); ok('offer: Bob has a card that names Anna and the drink', /Anna ti offre una birra/.test(b.card));
   await shot('3-offer', A, B);
   await B.page.evaluate(() => [...document.querySelectorAll('[role=alertdialog] button')].find(x => x.textContent === 'Accetta').click()); await sleep(2500);
@@ -44,8 +45,8 @@ try {
   await sleep(3500); await shot('4-dizzy', A, B);
   const dz = await B.page.evaluate(() => ({ u: window.game.drunk.units, l: window.game.drunk.level, post: window.game.drunk.post })); ok('Bob is dizzy', dz.u > 0.8 && dz.post, JSON.stringify(dz));
 
-  // name change, from the pencil
-  await tap(B, '.pd-p2p', '✎'); await sleep(300);
+  // name change: Options asks for the card with this event (the pencil is gone)
+  await B.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300);
   await B.page.evaluate(() => { const i = document.querySelector('[role=dialog] input'); i.value = 'Roberto'; [...document.querySelectorAll('[role=dialog] button')].find(x => x.textContent === 'Salva').click(); });
   await sleep(2500); [a, b] = await row('Bob renamed', A, B); ok('rename: Anna sees Roberto', a.cars === 'Roberto'); await shot('5-rename', A, B);
 
@@ -60,7 +61,7 @@ try {
   await sleep(7000); [a, b] = await row('Bob away 10 s', A, B); console.log(`   (Anna still sees Bob after 10 s away: ${a.cars})`);
   await B.page.evaluate(() => { document.documentElement.classList.remove('pd-in-garage'); });
   await B.page.close();
-  await sleep(4000); [a] = await Promise.all([see(A)]); console.log(`[${tag}] Bob closed his page: Anna sees ${a.cars}`); ok('leaving: the car is gone for Anna', a.cars === '-' && a.p2pUi === 1);
+  await sleep(4000); [a] = await Promise.all([see(A)]); console.log(`[${tag}] Bob closed his page: Anna sees ${a.cars}`); ok('leaving: the car is gone for Anna', a.cars === '-' && a.p2pUi === 0);
   console.log('errors', A.errs);
 } finally { await h.close(); }
 process.exit(bad ? 1 : 0);

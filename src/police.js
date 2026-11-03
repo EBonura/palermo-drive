@@ -156,18 +156,18 @@ export function createPolice(env, T) {
   // ---------- HUD ----------
   const css = document.createElement('style');
   css.textContent = `
-  /* the area and its danger (rows 2 and 3) and the police line (row 4) are parts of the card under the minimap, src/ui.css */
+  /* the area with its danger diamonds (row 2, plus for a few seconds after the area changes the words "neighbourhood danger") and the police line are parts of the map capsule, src/ui.css */
   #pd-hood { display: none; flex-direction: column; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
   #pd-hood.on { display: flex; }
-  #pd-hood .ph-n { margin-top: 1px; font-size: 13px; letter-spacing: .06em; line-height: 1.15; color: #ffb3d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #pd-hood .ph-r { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.14); }
-  #pd-hood .ph-t { font: 600 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #d9c3cd; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  #pd-hood .ph-p { display: flex; gap: 3px; flex: 0 0 auto; }
-  #pd-hood .ph-p i { width: 9px; height: 9px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
+  #pd-hood .ph-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 1px; }
+  #pd-hood .ph-n { min-width: 0; font-size: 12.5px; letter-spacing: .05em; line-height: 1.2; color: #ffb3d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pd-hood .ph-t { display: none; margin-top: 1px; font: 600 10px/1.1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #d9c3cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pd-hood.ex .ph-t { display: block; }
+  #pd-hood .ph-p { display: flex; gap: 2px; flex: 0 0 auto; }
+  #pd-hood .ph-p i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
   #pd-hood .ph-p i.f { background: var(--hc, #f5a9c9); box-shadow: 0 0 5px var(--hc, #f5a9c9); }
-  #pd-wanted { position: relative; display: none; pointer-events: none; align-items: center; justify-content: space-between; gap: 6px; margin: 5px -8px -6px; padding: 3px 8px 8px; border-radius: 0 0 8px 8px; overflow: hidden;
+  #pd-wanted { position: relative; display: none; grid-area: 2 / 1 / 3 / 3; pointer-events: none; align-items: center; justify-content: space-between; gap: 8px; margin-top: -3px; padding: 0 calc(var(--mini) * .3) 7px calc(var(--mini) * .3); border-radius: 0 0 calc(var(--mini) / 2) calc(var(--mini) / 2); overflow: hidden;
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }
-  #pd-wanted::before { content: ''; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: rgba(255,255,255,.14); }
   #pd-wanted.on { display: flex; }
   #pd-wanted .pw-l { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; }
   #pd-wanted .pw-ico { width: 22px; height: 22px; flex: 0 0 auto; }
@@ -175,8 +175,8 @@ export function createPolice(env, T) {
   #pd-wanted.seen .pw-ico .b1 { animation: pw-b1 .34s steps(1) infinite; } #pd-wanted.seen .pw-ico .b2 { animation: pw-b2 .34s steps(1) infinite; }
   @keyframes pw-b1 { 0% { fill: #f08cb4; } 50% { fill: #1a1114; } } @keyframes pw-b2 { 0% { fill: #1a1114; } 50% { fill: #f08cb4; } }
   #pd-wanted .pw-t { font: 700 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .05em; color: #f5a9c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* the condensed face: RIESTA AMMUCCIATU… does not fit beside the diamonds in Racing Sans One */
-  #pd-wanted .pw-pips { display: flex; gap: 3px; flex: 0 0 auto; }
-  #pd-wanted .pw-pips i { width: 9px; height: 9px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(245,169,201,.55); }
+  #pd-wanted .pw-pips { display: flex; gap: 2px; flex: 0 0 auto; }
+  #pd-wanted .pw-pips i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(245,169,201,.55); }
   #pd-wanted .pw-pips i.f { background: #e8559a; box-shadow: 0 0 6px #ff4fa3, inset 0 0 0 1.5px #ffd1e6; }
   #pd-wanted .pw-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
@@ -196,19 +196,21 @@ export function createPolice(env, T) {
   const hud = document.createElement('div');
   hud.id = 'pd-wanted';
   hud.innerHTML = `<div class="pw-l"><svg class="pw-ico" viewBox="0 0 24 24"><g class="d"><path class="b1" d="M5 18a7 7 0 0 1 7-9v9z" fill="#f08cb4"/><path class="b2" d="M19 18a7 7 0 0 0-7-9v9z" fill="#1a1114"/></g><rect x="3" y="18" width="18" height="3" rx="1" fill="#e8559a"/><path d="M12 2v3M4.5 5.5l2 2M19.5 5.5l-2 2" stroke="#f5a9c9" stroke-width="1.6" stroke-linecap="round"/></svg><div class="pw-t"></div></div><div class="pw-pips"><i></i><i></i><i></i><i></i><i></i></div><div class="pw-bar"><b></b></div>`;
-  // the card under the minimap (src/ui.css, #pd-card): the area and its danger always, the police line under them only when the police care
+  // the map capsule (src/ui.css, #pd-card): the area and its danger always (in the words column, #pd-info), the police line across its bottom only when the police care
   const hood = document.createElement('div'); hood.id = 'pd-hood';
-  hood.innerHTML = '<div class="ph-n"></div><div class="ph-r"><span class="ph-t"></span><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div>';
-  document.getElementById('pd-card').append(hood, hud);
+  hood.innerHTML = '<div class="ph-row"><div class="ph-n"></div><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div><div class="ph-t"></div>';
+  document.getElementById('pd-info').append(hood); document.getElementById('pd-card').append(hud);
   const elHN = hood.querySelector('.ph-n'), elHT = hood.querySelector('.ph-t'), hPips = [...hood.querySelectorAll('.ph-p i')];
   const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
-  let hdOn = null, hdName = '', hdLv = -1, hdLang = '';
+  let hdOn = null, hdName = '', hdLv = -1, hdLang = '', hdEx = 0;
+  const EX_MS = 5000;   // "neighbourhood danger" is spelt out for this long after the area changes, then only the diamonds stay
   function drawHood() {
     const on = !covered();
     if (on !== hdOn) { hdOn = on; hood.classList.toggle('on', on); }
     if (!on) return;
     const name = areaAt(car.x, car.z) || 'Palermo', lv = dangerAt(car.x, car.z);
-    if (name !== hdName) { hdName = name; elHN.textContent = name; }
+    if (name !== hdName) { hdName = name; elHN.textContent = name; hdEx = performance.now() + EX_MS; hood.classList.add('ex'); }
+    else if (hdEx && performance.now() > hdEx) { hdEx = 0; hood.classList.remove('ex'); }
     const lang = document.documentElement.lang === 'en' ? 'en' : 'it';
     if (lang !== hdLang) { hdLang = lang; elHT.textContent = lang === 'en' ? 'Neighbourhood danger' : 'Pericolosità quartiere'; }
     if (lv !== hdLv) { hdLv = lv; hPips.forEach((p, i) => p.classList.toggle('f', i < lv)); hood.style.setProperty('--hc', HOOD_C[lv - 1] || HOOD_C[0]); }

@@ -424,11 +424,11 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
   }
   world?.onTile(tileEvent);
 
-  // toast, same look as the radio's "now playing" card; it has its own line under the mission card (src/hud.js), a new tag replaces the old one
+  // toast, the same dark capsule as the mission line; it has its own line under the mission card (src/hud.js), a new tag replaces the old one
   const style = document.createElement('style');
   style.textContent = `
-.pd-suca-toast { display: none; opacity: 0; width: max-content; max-width: var(--wide); box-sizing: border-box; padding: 5px 12px 6px 11px; border-radius: 9px; pointer-events: none; text-align: center;
-  background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff;
+.pd-suca-toast { display: none; opacity: 0; width: max-content; max-width: var(--wide); box-sizing: border-box; padding: 4px 16px 5px; border-radius: 16px; pointer-events: none; text-align: center;
+  background: var(--capsule, rgba(13,7,10,.8)); box-shadow: 0 2px 10px rgba(0,0,0,.3); color: #fff;
   font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .3s, display .3s allow-discrete; }
 .pd-suca-toast.on { display: block; opacity: 1; @starting-style { opacity: 0; } }
 .pd-suca-toast.bump { animation: pd-suca-bump .55s cubic-bezier(.2, 1.5, .4, 1); }

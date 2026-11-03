@@ -67,7 +67,7 @@
 #pd-ui[hidden] { display: none; }
 
 /* HUD hides behind the title; the attribution moves into the title footer */
-html.pd-title :is(#hud, #help, .tc) { visibility: hidden !important; }
+html.pd-title :is(#hud, .tc) { visibility: hidden !important; }
 
 /* ---------- backdrops ---------- */
 .pd-scrim, .pd-dim { position: absolute; inset: 0; opacity: 0; transition: opacity .5s ease; pointer-events: none; }
@@ -78,7 +78,7 @@ html.pd-title :is(#hud, #help, .tc) { visibility: hidden !important; }
 }
 .pd-dim { background: radial-gradient(ellipse at 50% 50%, rgba(10,6,9,.5), rgba(10,6,9,.8)); }
 #pd-ui[data-st=title] .pd-scrim { opacity: 1; }
-#pd-ui[data-st=pause] .pd-dim { opacity: 1; background: linear-gradient(270deg, rgba(10,6,9,.7) 0%, rgba(10,6,9,.42) 34%, rgba(10,6,9,0) 66%); } /* the game stays visible and live behind the side panels */
+#pd-ui[data-st=pause] .pd-dim { opacity: 1; background: linear-gradient(90deg, rgba(10,6,9,.7) 0%, rgba(10,6,9,.42) 34%, rgba(10,6,9,0) 66%); } /* the game stays visible and live behind the side panels */
 #pd-ui[data-st=pause] .pd-scrim { opacity: 0 !important; }
 #pd-ui[data-screen=menu] .pd-scrim, #pd-ui[data-screen=options] .pd-scrim, #pd-ui[data-screen=credits] .pd-scrim { opacity: 1; background:
     linear-gradient(90deg, rgba(10,6,9,.72) 0%, rgba(10,6,9,.5) 45%, rgba(10,6,9,.18) 100%),
@@ -220,56 +220,85 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 .pd-rollin .pd-end { margin-top: 9vh; font: 400 clamp(26px, 6vh, 40px)/1.1 var(--pd-script); color: var(--pd-cream); text-shadow: 0 0 18px rgba(232,85,154,.8); }
 .pd-s-credits .pd-actions { position: absolute; left: var(--pad-l); bottom: var(--pad-b); z-index: 2; }
 
-/* ---------- in-game: menu button (top left) and fullscreen (title, phones) ---------- */
-.pd-menubtn, .pd-fsbtn {
+/* ---------- in-game: the slim bar top left (menu button, play or pause, next, the track) and fullscreen (title, phones) ---------- */
+.pd-fsbtn {
   position: absolute; display: none; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer; pointer-events: auto;
   background: rgba(0,0,0,.32); box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); touch-action: manipulation; -webkit-appearance: none; appearance: none;
   align-items: center; justify-content: center; transition: background .12s;
 }
-.pd-menubtn { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); }
-.pd-menubtn svg, .pd-fsbtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
-.pd-menubtn svg { stroke-width: 2.6; width: 24px; height: 24px; }
-.pd-menubtn:active, .pd-menubtn.pd-hot { background: rgba(255,255,255,.5); }
-@media (hover: hover) { .pd-menubtn:hover { background: rgba(0,0,0,.5); } }
-.pd-kb .pd-menubtn:focus { outline: 3px solid #fff; outline-offset: 2px; }
+.pd-fsbtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+/* the bar: one dark capsule like the map's. Only the buttons take taps. On the street and on the menus that leave the corner free (title, main menu, credits, garage, missions); not while the menu panel or the map picker is open */
+.pd-bar { position: absolute; z-index: 3; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); box-sizing: border-box; width: var(--bar-w); height: 40px; display: none; align-items: center; gap: 2px; padding: 0 14px 0 3px;
+  border-radius: 20px; background: rgba(13,7,10,.8); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; color: #fff; -webkit-user-select: none; user-select: none; }
+#pd-ui[data-st=play] .pd-bar, #pd-ui[data-st=title]:is([data-screen=title], [data-screen=menu], [data-screen=credits], [data-screen=garage], [data-screen=missions]) .pd-bar { display: flex; }
+.pd-bbtn, .pd-menubtn { flex: none; position: relative; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; pointer-events: auto;
+  background: rgba(255,255,255,.1); touch-action: manipulation; -webkit-appearance: none; appearance: none; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+.pd-bbtn::before, .pd-menubtn::before { content: ''; position: absolute; inset: -3px; }
+.pd-bbtn svg, .pd-menubtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.pd-bbtn svg path:first-child:not(:last-child) { fill: currentColor; }
+.pd-bpow svg path { fill: currentColor; }
+.pd-bpow[aria-pressed=true] svg path { fill: none; stroke-width: 3.4; }
+.pd-bpow:not([aria-pressed=true]) svg path { stroke-width: 1.6; }
+.pd-menubtn { display: none; margin-right: 4px; background: rgba(255,255,255,.16); }
+.pd-menubtn svg { width: 20px; height: 20px; }
 #pd-ui[data-st=play] .pd-menubtn { display: flex; }
+.pd-bbtn:active, .pd-menubtn:active, .pd-menubtn.pd-hot { background: rgba(255,255,255,.4); }
+@media (hover: hover) { .pd-bbtn:hover, .pd-menubtn:hover { background: rgba(255,255,255,.26); } }
+.pd-kb .pd-bbtn:focus, .pd-kb .pd-menubtn:focus { outline: 3px solid #fff; outline-offset: 1px; }
+.pd-bbtn:focus, .pd-menubtn:focus { outline: none; }
+.pd-bar[data-mode=off] .pd-bpow { color: rgba(255,255,255,.6); }
+.pd-btitle { flex: 1 1 0; min-width: 0; margin-left: 6px; font: 700 14px/1.1 var(--pd-cond); letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none; }
+.pd-btitle span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.pd-bar[data-mode=off] .pd-btitle { opacity: .6; }
+/* a pub or a scene has borrowed the line (src/radio.js takeover): the bar takes its colours */
+.pd-bar[data-theme=metal], .pd-np[data-theme=metal] { background: linear-gradient(90deg, #050102, #2b0508 62%, #120203); box-shadow: 0 0 12px rgba(211,20,12,.5); }
+.pd-bar[data-theme=metal] .pd-btitle, .pd-np[data-theme=metal] .pd-npn { color: #ffe3d2; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,40,20,.85); }
+.pd-bar[data-theme=match], .pd-np[data-theme=match] { background: linear-gradient(90deg, #0b0709, #4a1230 58%, #170a11); box-shadow: 0 0 12px rgba(232,85,154,.45); }
+.pd-bar[data-theme=match] .pd-btitle, .pd-np[data-theme=match] .pd-npn { color: #fff; text-transform: uppercase; }
+.pd-bar:is([data-theme=metal], [data-theme=match]) .pd-bbtn { display: none; }
 .pd-fsbtn { top: max(8px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); background: rgba(10,6,9,.5); }
 html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
-:root { --pd-menu-inset: 56px; }
 
 /* ---------- the HUD: one place for each kind of message (the map of who goes where is in src/hud.js) ---------- */
+:root { --bar-w: min(300px, 34vw); }
+html.touch { --bar-w: min(250px, 31vw); }   /* the slim bar top left (menu button, play, next, the track), and how far the talk button stands from the edge (src/p2p/p2p.js) */
 #hud { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: #fff;
   --sl: max(10px, env(safe-area-inset-left)); --sr: max(12px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(10px, env(safe-area-inset-bottom));
-  --obj: min(360px, 36vw); --wide: max(var(--obj), min(420px, 100vw - 840px)); --mini: 206px; --card: 206px; }   /* --obj: the mission card. --wide: the most any line under it may take, so that the open radio beside it stays clear (src/radio.js: 400 wide at most) */
+  --obj: min(360px, 36vw); --wide: max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))); --mini: clamp(84px, 14vh, 108px); --cap: 300px; --capsule: rgba(13,7,10,.8); }   /* --obj: the width of the big moments (mission poster, caught card, result). --wide: the most any line under the mission line may take. --mini and --cap: the map capsule's height (the round map fills it) and width */
 .hz { position: absolute; display: flex; flex-direction: column; }
-.hz-status { left: var(--sl); top: calc(var(--st) + 54px); align-items: flex-start; gap: 6px; }   /* under the row of the menu button and the radio */
-html.pd-radio-drop .hz-status { top: calc(var(--st) + 108px); }   /* the radio, open beside a mission card, has taken the row (src/radio.js) */
+.hz-status { left: var(--sl); top: calc(var(--st) + 50px); align-items: flex-start; gap: 6px; }   /* under the slim bar top left */
 .hz-top { left: 50%; top: var(--st); transform: translateX(-50%); width: max-content; align-items: center; }
 .hz-top > * { display: flex; flex-direction: column; align-items: center; }
 .hz-top > :not(.hz-obj) > * { margin-top: 5px; }
 .hz-obj { gap: 5px; }
-.hz-map { right: var(--sr); top: var(--st); width: var(--mini); align-items: center; gap: 6px; }
-/* The card under the minimap: street (or the landmark beside you), area, its danger, the police line when they care. The clock pill sits on its top edge, over the map's rim.
-   Parts: #street and #landmark (src/main.js), #pd-hood (area and danger) and #pd-wanted (police), src/police.js, #pd-clock src/daynight.js; the online pill (src/net.js) is appended after the card. */
-#where { width: var(--card); text-align: center; text-shadow: none; }
-#pd-card { position: relative; box-sizing: border-box; width: 100%; margin-top: -6px; padding: 15px 8px 6px; border-radius: 8px; background: rgba(11,7,9,.86); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+.hz-map { right: var(--sr); top: var(--st); align-items: flex-end; }
+/* The map capsule: one dark shape, fully rounded, with the round minimap as its right end and the words to its left: street (or the landmark beside you), then the area with its danger diamonds,
+   then (only while the police care) the police line across the bottom. Parts: #street and #landmark (src/main.js), #pd-hood (area and danger) and #pd-wanted (police), src/police.js, #pd-clock src/daynight.js, the "Apri mappa" tag (src/ui.js);
+   the online pill (src/net.js) is appended after the capsule. */
+#where { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-shadow: none; }
+#pd-card { position: relative; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) var(--mini); width: var(--cap); border-radius: calc(var(--mini) / 2); background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }
 #pd-card:not(:has(#pd-hood.on)) { display: none; }   /* not while the screen is covered (title, loading, transition): police.js */
-#pd-loc { font: 700 17px/1.1 var(--pd-cond); color: #fff; }
+#pd-info { grid-area: 1 / 1; min-width: 0; align-self: center; padding: 0 4px 0 calc(var(--mini) * .22); text-align: left; }
+#pd-mapw { grid-area: 1 / 2; position: relative; width: var(--mini); height: var(--mini); }
+#pd-loc { font: 700 16px/1.12 var(--pd-cond); color: #fff; }
 #pd-loc > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#street:empty, #landmark:empty, #pd-loc:has(#landmark:not(:empty)) #street { display: none; }   /* a landmark takes the street's place, so the card never grows */
+#street:empty, #landmark:empty, #pd-loc:has(#landmark:not(:empty)) #street { display: none; }   /* a landmark takes the street's place; no street and no landmark: no row at all */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hz-gauges { display: flex; align-items: center; gap: 14px; }
-#mini { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: border-color .12s, box-shadow .12s; }   /* a tap opens the big map (src/ui.js) */
-@media (hover: hover) { #mini:hover { border-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35), 0 0 14px rgba(232,85,154,.7); } }
-#mini:active { border-color: #f5a9c9; }
-/* "Apri mappa": a small pill on the minimap's top rim (src/ui.js), centred on the map whatever its size; the clock of the map badge goes on the bottom rim */
-.pd-maptag { position: absolute; z-index: 2; top: 0; right: calc(var(--mini) / 2); transform: translate(50%, -32%); box-sizing: border-box; padding: 3px 9px 2px; border-radius: 999px; white-space: nowrap;
-  font: 700 10px/1.1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-cream); text-shadow: none; background: rgba(11,7,9,.9); border: 1.5px solid var(--pd-pink); box-shadow: 0 2px 6px rgba(0,0,0,.4);
-  pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .12s, border-color .12s; }
-@media (hover: hover) { .pd-maptag:hover, .hz-map:has(#mini:hover) .pd-maptag { background: var(--pd-pink); border-color: #fff; } }
+.hz-gauges { display: flex; align-items: center; gap: 12px; }   /* speed and nitro: one compact row, phone and desktop */
+#mini { display: block; width: 100%; height: 100%; border-radius: 50%; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: filter .12s; }   /* a tap opens the big map (src/ui.js) */
+@media (hover: hover) { #mini:hover { filter: brightness(1.1) saturate(1.1); } }
+#mini:active { filter: brightness(.92); }
+/* "Apri mappa": a small tag on the map's top edge (src/ui.js); it goes away once the map has been opened a few times */
+.pd-maptag { position: absolute; z-index: 2; top: 0; left: 50%; transform: translate(-50%, -42%); box-sizing: border-box; padding: 3px 8px 2px; border-radius: 999px; white-space: nowrap;
+  font: 700 9px/1.1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: #fff; text-shadow: none; background: var(--capsule); box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .12s, color .12s; }
+.pd-maptag[hidden] { display: none; }
+@media (hover: hover) { .pd-maptag:hover, #pd-card:has(#mini:hover) .pd-maptag { background: var(--pd-pink); } }
 .pd-maptag:active { background: var(--pd-pink); }
-#hud .nosbar { position: static; transform: none; }   /* src/mobile.css draws the bar, it only stands in the row here */
+#hud .nosbar { position: static; transform: none; width: clamp(84px, 8vw, 120px); gap: 6px; }   /* src/mobile.css draws the bar, it only stands in the row here */
+#hud .nosbar-l { font-size: 9px; }
+#hud .nosbar-t { height: 6px; }
 html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 /* the question on arriving at a mission from the big map (src/ui.js): a poster in the look of the game over card. The card, its kicker, description and buttons are the .sea-* classes
    (src/sea.js); this is the backdrop and what is the mission's own: the name in the script font with the same glow as the game over title. It stands in #pd-ui, over the HUD. */
@@ -294,20 +323,22 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 .pd-menulang .pd-lang { width: min(46vw, 260px); }
 .pd-menulang .pd-segb { min-height: clamp(34px, 7.4vh, 42px); font-size: clamp(14px, 3.1vh, 19px); }
 @media (orientation: landscape) {
-  html.touch #hud { --mini: clamp(76px, 25vh, 104px); }
-  html.touch #mini { width: var(--mini); height: var(--mini); box-sizing: border-box; border-width: 2px; }
-  html.touch .pd-maptag { padding: 2px 7px 1px; font-size: 8.5px; letter-spacing: .12em; }
-  /* the street reads left of the map: under it stand the NOS and horn pads */
-  html.touch .hz-map { width: auto; flex-direction: row-reverse; align-items: flex-start; }
-  /* the top centre column (mission card, banners, results) moves left, just right of the round menu button and under the row of the menu button and the (folded) radio, so that it ends before the map's card starts.
-     The open radio (z-index 505, its own row under the menu button) draws above it */
-  html.touch .hz-top { left: calc(var(--sl) + 50px); top: calc(var(--st) + 46px); transform: none; }
-  html.touch .hz-top > * { align-items: flex-start; }
-  html.touch #pd-card { margin-top: 10px; }   /* beside the map, not under it: the clock pill sits on the card's own top edge */
-  html.touch .hz-gauges { flex-direction: column-reverse; gap: 4px; }
-  html.touch #speed { font-size: 26px; text-align: center; }
-  html.touch #speed small { font-size: 10px; }
+  html.touch #hud { --mini: clamp(64px, 19.5vh, 84px); --cap: 240px; }   /* about 240 x 76 at 844 x 390: clear of the NOS pad below it and the mission column beside it */
+  html.touch #pd-loc { font-size: 15px; }
+  html.touch .pd-maptag { padding: 2px 6px 1px; font-size: 8px; letter-spacing: .1em; }
 }
+/* the mission line and what stands under it (the come-back banner, a tag picked up, short lines, the result) go to the left, under the slim bar and ending before the capsule: on a phone, and on a desktop window that is narrow */
+html.touch .hz-top { left: var(--sl); top: calc(var(--st) + 46px); transform: none; --wide: calc(100vw - var(--sl) - var(--sr) - var(--cap) - 18px); }
+html.touch .hz-top > * { align-items: flex-start; }
+@media (max-width: 1100px) {
+  html:not(.touch) #hud { --cap: 270px; }
+  html:not(.touch) .hz-top { left: var(--sl); top: calc(var(--st) + 46px); transform: none; --wide: calc(100vw - var(--sl) - var(--sr) - var(--cap) - 18px); }
+  html:not(.touch) .hz-top > * { align-items: flex-start; }
+}
+html.touch .hz-gauges { gap: 8px; }
+html.touch #speed { font-size: 22px; }
+html.touch #speed small { font-size: 9px; }
+html.touch #hud .nosbar { width: 84px; }
 
 /* ---------- compact phones in landscape ---------- */
 @media (max-height: 460px) {
@@ -365,13 +396,6 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 /* ---------- start picker: map or list ---------- */
 .pd-s-start { display: block; padding: 0; }
 .pd-btn.drive.sm { min-height: clamp(40px, 9vh, 54px); font-size: clamp(18px, 4.2vh, 26px); }
-/* the Garage's card leaves little room on a small screen: the open radio narrows to what is left of it, so its arrow stays off the card's title */
-@media (max-width: 1100px) {
-  #pd-ui[data-screen=garage] ~ .pd-radio:not(.min) .pr-card { width: calc(100vw - min(54vw, 470px) - 2 * max(14px, env(safe-area-inset-right)) - max(10px, env(safe-area-inset-left)) - 8px); }
-  #pd-ui[data-screen=garage] ~ .pd-radio:not(.min) .pr-ext { flex: 1 1 0; min-width: 0; max-width: none; margin-right: 4px; }
-  #pd-ui[data-screen=garage] ~ .pd-radio:not(.min) .pr-text { flex: 1 1 0; width: auto; }
-  #pd-ui[data-screen=garage] ~ .pd-radio:not(.min) .pr-bars { display: none; }
-}
 html.touch #pd-ui:is([data-screen=start], [data-screen=garage], [data-screen=options], [data-screen=credits], [data-screen=side], [data-screen=collections]) .pd-fsbtn.ok { display: none; }
 .pd-sbar { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; gap: clamp(8px, 2vw, 20px); pointer-events: none;
   padding: var(--pad-t) var(--pad-r) 14px var(--pad-l); background: linear-gradient(180deg, rgba(11,7,9,.9), rgba(11,7,9,.6) 62%, rgba(11,7,9,0)); }
@@ -439,35 +463,36 @@ html.touch .pd-mp-row { min-height: 44px; }
 .pd-mp-hint { position: absolute; z-index: 2; left: var(--pad-l); bottom: var(--pad-b); padding: 4px 10px; border-radius: 4px; background: rgba(11,7,9,.7); color: #fff; font: 600 12px/1.2 var(--pd-cond); letter-spacing: .08em; pointer-events: none; }
 html.touch .pd-mp-hint { display: none; }
 
-/* ---------- side menu (in game): slides in from the right, the game keeps drawing behind it ---------- */
-.pd-s-side { padding: 0; justify-content: flex-end; align-items: stretch; transform: none; }
-.pd-side { width: min(88vw, 360px); height: 100%; display: flex; flex-direction: column; gap: clamp(6px, 1.5vh, 12px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
-  padding: calc(var(--pad-t) + 4px) var(--pad-r) var(--pad-b) 20px; background: linear-gradient(180deg, rgba(28,18,24,.95), rgba(11,7,10,.97));
-  box-shadow: inset 3px 0 0 var(--pd-pink), -16px 0 44px rgba(8,2,20,.55); transform: translateX(104%); transition: transform .32s cubic-bezier(.2,.8,.2,1); touch-action: pan-y; }
+/* ---------- the menu panel (in game): slides in from the left, under the bar's corner, and the game keeps drawing beside it ---------- */
+.pd-s-side { padding: 0; justify-content: flex-start; align-items: stretch; transform: none; }
+.pd-side { width: min(88vw, 340px); height: 100%; display: flex; flex-direction: column; gap: clamp(6px, 1.5vh, 12px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+  padding: max(8px, env(safe-area-inset-top)) 18px var(--pad-b) max(10px, env(safe-area-inset-left)); background: linear-gradient(180deg, rgba(28,18,24,.95), rgba(11,7,10,.97));
+  box-shadow: inset -3px 0 0 var(--pd-pink), 16px 0 44px rgba(8,2,20,.55); transform: translateX(-104%); transition: transform .32s cubic-bezier(.2,.8,.2,1); touch-action: pan-y; }
 .pd-s-side.on .pd-side { transform: none; }
-.pd-side .pd-h { flex: 0 0 auto; font-size: clamp(22px, 5.4vh, 34px); }
-.pd-sidelist { flex: 0 0 auto; gap: clamp(5px, 1.3vh, 10px); padding-right: 6px; --pd-gg: clamp(7px, 2vh, 18px); }
+/* now playing, on top: play or pause, next, and the label, the title and the credits */
+.pd-np { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; box-sizing: border-box; min-height: 56px; padding: 6px 12px 6px 6px; border-radius: 30px; background: rgba(255,255,255,.07); }
+.pd-np .pd-bbtn { width: 40px; height: 40px; background: rgba(255,255,255,.14); }
+.pd-np .pd-bbtn svg { width: 20px; height: 20px; }
+.pd-np:is([data-theme=metal], [data-theme=match]) .pd-bbtn { display: none; }
+.pd-npt { flex: 1 1 0; min-width: 0; margin-left: 4px; display: flex; flex-direction: column; gap: 1px; }
+.pd-npt > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-npl { font: 600 9px/1.1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
+.pd-npn { font: 700 16px/1.1 var(--pd-cond); letter-spacing: .03em; }
+.pd-nps { font: 600 11px/1.15 var(--pd-cond); letter-spacing: .04em; opacity: .75; }
+.pd-sidelist { flex: 0 0 auto; gap: clamp(5px, 1.3vh, 10px); padding-right: 0; }
 .pd-side .pd-btn.sm { flex: 0 0 auto; min-height: clamp(36px, 8vh, 52px); font-size: clamp(17px, 3.9vh, 24px); }
 .pd-side .pd-btn .pd-chev { flex: 0 0 auto; }
-/* Riprendi is the big one, then three groups: the game, the settings and radio, and the way out */
-.pd-side .pd-btn.drive.sm { min-height: clamp(44px, 10.5vh, 72px); font-size: clamp(22px, 5.2vh, 34px); }
-.pd-side .pd-grp { margin-top: var(--pd-gg); }
+.pd-side .pd-btn.drive.sm { min-height: clamp(40px, 9vh, 60px); font-size: clamp(20px, 4.6vh, 30px); }
+.pd-side .pd-grp { margin-top: clamp(4px, 1.2vh, 12px); }
 .pd-side .pd-quit::before { background: linear-gradient(180deg, var(--pd-violet), var(--pd-pink)); }
 .pd-side .pd-quit:not(:hover):not(:focus):not(.pd-hot) { background: rgba(10,6,9,.5); box-shadow: inset 0 0 0 2px rgba(245,169,201,.2); color: rgba(255,255,255,.82); }
 .pd-quitsub { text-transform: none; letter-spacing: .08em; color: var(--pd-amber); }
 .pd-quitsub[hidden] { display: none; }
-.pd-sideradio { display: flex; gap: 6px; }
-.pd-sidepair { display: flex; gap: 6px; flex: 0 0 auto; }   /* Collezioni and Missioni share a row: the compact phone menu has no room for one more */
+.pd-sidepair { display: flex; gap: 6px; flex: 0 0 auto; }   /* Missioni and Collezioni share a row: the compact phone menu has no room for one more */
 .pd-side .pd-sidepair .pd-btn { flex: 1 1 0; width: auto; min-width: 0; padding-left: clamp(12px, 2.4vh, 20px); padding-right: 6px; font-size: clamp(15px, 3.5vh, 22px); }
 .pd-sidepair .pd-btn > .pd-in { padding-left: 8px; min-width: 0; max-width: 100%; }
 .pd-sidepair .pd-l1, .pd-sidepair .pd-l2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-sideradio .pd-radnext { flex: 1 1 auto; width: auto; min-width: 0; }
-.pd-sideradio .pd-radnext .pd-in { min-width: 0; max-width: 100%; }
-.pd-radsub { text-transform: none; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 11em; }
-.pd-radsub:empty { display: none; }
-.pd-radpwr { flex: 0 0 auto; width: clamp(88px, 26%, 112px); min-height: clamp(36px, 8vh, 52px); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: clamp(13px, 2.9vh, 18px); }
-.pd-radpwr svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transform: skewX(11deg); }
-.pd-quick { display: flex; gap: 6px; margin-top: auto; padding-right: 6px; flex: 0 0 auto; }
+.pd-quick { display: flex; gap: 6px; margin-top: auto; flex: 0 0 auto; }
 .pd-quick .pd-qbtn[hidden] { display: none; }
 .pd-qbtn { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: clamp(44px, 10vh, 58px); padding: 4px 2px; border: 0; border-radius: 6px; cursor: pointer; color: #fff;
   font: 700 clamp(10px, 2.2vh, 13px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(255,255,255,.2); touch-action: manipulation; -webkit-appearance: none; appearance: none; }
@@ -476,11 +501,12 @@ html.touch .pd-mp-hint { display: none; }
 .pd-qbtn:active, .pd-kb .pd-qbtn:focus { background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); color: var(--pd-ink); }
 @media (hover: hover) { .pd-qbtn:hover { background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); color: var(--pd-ink); } }
 
-/* options and collections opened from the side menu dock to the right too, so the game stays visible while you change things */
-#pd-ui[data-st=pause] .pd-s-options { justify-content: flex-end; align-items: stretch; padding: 0; }
-#pd-ui[data-st=pause] .pd-s-options .pd-card { width: min(92vw, 430px); height: 100%; max-height: none; border-radius: 0; padding: calc(var(--pad-t) + 6px) var(--pad-r) var(--pad-b) 22px; }
-#pd-ui[data-st=pause] .pd-s-options .pd-card::before { display: none; }
-#pd-ui[data-st=pause] .pd-s-options .pd-grid { grid-template-columns: 1fr; flex: 1 1 auto; min-height: 0; }
+/* options, controls, collections and missions opened from the menu panel dock to the left too, so the game stays visible while you change things */
+#pd-ui[data-st=pause] :is(.pd-s-options, .pd-s-controls, .pd-s-missions) { justify-content: flex-start; align-items: stretch; padding: 0; }
+#pd-ui[data-st=pause] .pd-s-collections { justify-content: flex-start; }
+#pd-ui[data-st=pause] :is(.pd-s-options, .pd-s-controls) .pd-card { width: min(92vw, 430px); height: 100%; max-height: none; border-radius: 0; padding: calc(var(--pad-t) + 6px) 22px var(--pad-b) max(14px, env(safe-area-inset-left)); }
+#pd-ui[data-st=pause] :is(.pd-s-options, .pd-s-controls) .pd-card::before, .pd-s-controls .pd-card::before { display: none; }
+#pd-ui[data-st=pause] :is(.pd-s-options, .pd-s-controls) .pd-grid { grid-template-columns: 1fr; flex: 1 1 auto; min-height: 0; }
 /* the options list is a scroll area: a chunky rail you can drag, a fade and a bouncing arrow while there is more below */
 .pd-scrollwrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; gap: 6px; }
 .pd-scrollwrap .pd-grid { flex: 1 1 auto; min-width: 0; min-height: 0; padding-right: 8px; overscroll-behavior: contain; scrollbar-width: none; }
@@ -512,14 +538,14 @@ html.touch .pd-mp-hint { display: none; }
 .pd-colbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); }
 @media (max-height: 460px) {
   .pd-side { gap: 5px; padding-top: var(--pad-t); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
-  .pd-side .pd-h { font-size: 20px; }
-  .pd-sidelist { gap: 5px; --pd-gg: 6px; }
+  .pd-np { min-height: 48px; padding-top: 4px; padding-bottom: 4px; } .pd-np .pd-bbtn { width: 36px; height: 36px; } .pd-npn { font-size: 15px; } .pd-nps { font-size: 10px; }
+  .pd-sidelist { gap: 4px; }
   .pd-side .pd-btn { padding-top: 4px; padding-bottom: 4px; }
   .pd-side .pd-btn > .pd-in { gap: 3px; }
-  .pd-side .pd-btn.sm { min-height: 36px; font-size: 16px; }
-  .pd-side .pd-btn.drive.sm { min-height: 42px; font-size: 24px; }
-  .pd-side .pd-l2 { font-size: 9px; }
-  .pd-radpwr { min-height: 36px; }
+  .pd-side .pd-btn.sm { min-height: 34px; font-size: 16px; }
+  .pd-side .pd-btn.drive.sm { min-height: 40px; font-size: 22px; }
+  .pd-side .pd-btn .pd-l2:not(.pd-quitsub) { display: none; }
+  .pd-side .pd-grp { margin-top: 2px; }
   .pd-quick { gap: 4px; } .pd-qbtn { min-height: 34px; padding-top: 3px; padding-bottom: 3px; } .pd-qbtn svg { width: 16px; height: 16px; }
   #pd-ui[data-st=pause] .pd-s-options .pd-head { flex-direction: row; align-items: center; gap: 10px; }
   #pd-ui[data-st=pause] .pd-s-options .pd-head .pd-h .pd-l2 { display: none; }
@@ -551,6 +577,7 @@ html.touch .pd-mp-hint { display: none; }
 /* ---------- missions: every mission, grouped, a Vai button on each row (docked like the options in the side menu; the list uses the options rail) ---------- */
 .pd-s-missions { justify-content: flex-end; align-items: stretch; padding: 0; }
 .pd-ms { width: min(92vw, 430px); height: 100%; max-height: none; border-radius: 0; padding: calc(var(--pad-t) + 6px) var(--pad-r) var(--pad-b) 22px; gap: clamp(6px, 1.4vh, 12px); }
+#pd-ui[data-st=pause] .pd-ms { padding: calc(var(--pad-t) + 6px) 22px var(--pad-b) var(--pad-l); }
 .pd-ms::before { display: none; }
 .pd-mshead { display: flex; align-items: center; gap: clamp(10px, 2vw, 18px); flex: 0 0 auto; }
 .pd-mshead .pd-btn { width: auto; flex: 0 0 auto; min-width: clamp(96px, 24vw, 128px); padding-top: clamp(4px, 1vh, 8px); padding-bottom: clamp(4px, 1vh, 8px); }
@@ -605,3 +632,23 @@ html.touch .pd-mp-hint { display: none; }
   .pd-msgh { min-height: 36px; }
 }
 @media (prefers-reduced-motion: reduce) { .pd-msgh .pd-chev { transition: none; } }
+
+/* ---------- the name in Options (only where multiplayer exists) and the controls list ---------- */
+.pd-row.pd-name { display: none; grid-column: 1 / -1; }
+html.pd-mp .pd-row.pd-name { display: flex; }
+.pd-namerow { display: flex; gap: 6px; align-items: stretch; }
+.pd-namein { flex: 1 1 0; min-width: 0; box-sizing: border-box; height: clamp(42px, 9.6vh, 54px); padding: 0 12px; border: 0; border-radius: 3px; outline: none; color: #fff; background: rgba(0,0,0,.4); box-shadow: inset 0 0 0 2px rgba(255,255,255,.32);
+  font: 700 clamp(16px, 3.6vh, 22px)/1 var(--pd-cond); letter-spacing: .06em; -webkit-user-select: text; user-select: text; }
+.pd-namein::placeholder { color: rgba(255,255,255,.5); font-weight: 600; }
+.pd-namein:focus, .pd-kb .pd-namein:focus { box-shadow: inset 0 0 0 2px var(--pd-amber); background: rgba(0,0,0,.55); }
+.pd-namebtn { flex: 0 0 auto; padding: 0 clamp(10px, 2vw, 18px); font-size: clamp(13px, 3vh, 18px); }
+.pd-ctl { gap: clamp(6px, 1.4vh, 12px); }
+.pd-ctlgrid { display: flex; flex-direction: column; gap: 0; }
+.pd-ctlgrid > * { flex: 0 0 auto; }
+.pd-ctlh { margin-top: clamp(8px, 1.6vh, 14px); margin-bottom: 2px; font: 700 clamp(14px, 3.2vh, 19px)/1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
+.pd-ctlh:first-child { margin-top: 0; }
+.pd-ctlr { display: flex; align-items: center; gap: 12px; min-height: clamp(22px, 4.4vh, 30px); padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.08); }   /* grows with its text; the hairline keeps two-line rows apart */
+.pd-ctl .pd-h { font-size: clamp(22px, 5vh, 32px); }
+.pd-ctlk { flex: 0 0 auto; width: clamp(96px, 20vh, 128px); display: flex; flex-wrap: wrap; gap: 3px; }
+.pd-ctlk kbd { min-width: 22px; box-sizing: border-box; padding: 3px 6px; border-radius: 4px; text-align: center; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.28); font: 700 clamp(12px, 2.8vh, 15px)/1 var(--pd-cond); letter-spacing: .06em; color: #fff; }
+.pd-ctlt { min-width: 0; font: 600 clamp(13px, 3vh, 17px)/1.2 var(--pd-cond); letter-spacing: .03em; color: #fff; }

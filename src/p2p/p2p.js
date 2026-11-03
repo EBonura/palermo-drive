@@ -237,9 +237,9 @@ export function createP2P(env) {
   // the talk wheel (src/p2p/wheel.js): the 💬 button or the T key opens it; categories first, then the phrases of one. The wheel is built from the
   // fixed lists in src/p2p/phrases.js, so what it can send is exactly what the receiver accepts.
   const chat = document.createElement('div');
-  chat.className = 'pd-p2p'; chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
+  chat.className = 'pd-p2p'; chat.style.cssText = 'position:fixed;z-index:31;left:calc(max(10px,env(safe-area-inset-left)) + var(--bar-w) + 8px);top:max(8px,env(safe-area-inset-top));font:600 14px system-ui,sans-serif;color:#fff';   // beside the slim bar top left (src/ui.css), in its row
   const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬'; chatBtn.title = 'T';
-  chatBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
+  chatBtn.style.cssText = 'width:40px;height:40px;padding:0;border-radius:99px;border:0;background:rgba(13,7,10,.8);box-shadow:0 2px 10px rgba(0,0,0,.3);color:#fff;font-size:19px;line-height:1;cursor:pointer';
   const wheelLang = () => lang() === 'en' ? 'en' : 'it';
   const wheel = createWheel({
     categories: [],   // filled by buildWheel (the language and the offers are read when it opens)
@@ -277,7 +277,7 @@ export function createP2P(env) {
   // the receiver gets the card (who, what, and how dizzy it makes them) and a line if the drink does not arrive. REPLY [7][code][offer id] carries
   // the refusals. Against harassment: one card at a time, the giver waits OFFER_GAP_MS between offers, a player who said no (or let the card run out)
   // is not shown another card from the same player for MUTE_MS, and a card closes by itself when its giver leaves, walks off or the game pauses.
-  const KINDS = ['cicchetto', 'birra'], KIND_TXT = { it: ['un cicchetto', 'una birra'], en: ['a cicchetto', 'a beer'] };   // wording to be corrected by the owner
+  const KIND_TXT = { it: ['un cicchetto', 'una birra'], en: ['a cicchetto', 'a beer'] };   // wording to be corrected by the owner
   const tr = (it, en) => lang() === 'en' ? en : it;
   const TOAST_IDX = PHRASES.indexOf('a to saluti!');
   const FAR_R = OFFER_R * 1.6, MUTE_MS = 60000, ACCEPT_GRACE_MS = 2500, CONFIRM_WAIT_MS = 5000;
@@ -391,15 +391,6 @@ export function createP2P(env) {
     if (now > incoming.until) { decline(incoming); closeCard(); return; }
     if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
   }
-  const offerBox = document.createElement('div'); offerBox.className = 'pd-p2p';
-  offerBox.style.cssText = 'position:fixed;z-index:31;left:60px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
-  const offerBtn = document.createElement('button'); offerBtn.type = 'button'; offerBtn.textContent = '🍺';
-  offerBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
-  const offerList = document.createElement('div'); offerList.style.cssText = 'display:none;margin-top:6px;padding:6px;border-radius:12px;background:rgba(13,7,9,.92);border:2px solid #e8559a';
-  KINDS.forEach((k, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = `${k} (${DRINK_PRICE} €)`; b.style.cssText = 'display:block;width:100%;text-align:left;min-height:40px;margin:2px 0;padding:6px 12px;border-radius:9px;border:1.5px solid #5a4a50;background:transparent;color:#fff;font:inherit;cursor:pointer'; b.addEventListener('click', () => { b.blur(); offerList.style.display = 'none'; offer(i); }); offerList.appendChild(b); });
-  offerBtn.addEventListener('click', () => { offerBtn.blur(); offerList.style.display = offerList.style.display === 'none' ? 'block' : 'none'; });
-  offerBox.append(offerBtn, offerList); document.body.appendChild(offerBox);
-
   // ---------- name card (same words as the relay client's, src/net.js) ----------
   const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei. Non salviamo nulla.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
     en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in. We store nothing.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
@@ -409,7 +400,7 @@ export function createP2P(env) {
     if (nameCard) { nameCard.remove(); nameCard = null; }
     const tx = NAME_TXT[lang()], editing = named && agreed;
     nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
-    nameCard.style.cssText = 'position:fixed;z-index:70;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
+    nameCard.style.cssText = 'position:fixed;z-index:600;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
     if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
     const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; h.textContent = editing ? tx.edit : tx.ask;
     const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
@@ -444,10 +435,9 @@ export function createP2P(env) {
     e.stopImmediatePropagation();
     if (e.key === 'Enter') { e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
   }, true);
-  const nameBtn = document.createElement('button'); nameBtn.type = 'button'; nameBtn.textContent = '✎';
-  nameBtn.className = 'pd-p2p'; nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:116px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
-  nameBtn.addEventListener('click', () => { nameBtn.blur(); openName(); });
-  document.body.appendChild(nameBtn);
+  // the name and the online choice live in Options (src/ui.js), which asks for the card with this event; html.pd-mp tells it that there is multiplayer to choose
+  addEventListener('pd-open-name', () => openName());
+  document.documentElement.classList.add('pd-mp');
 
   function goOffline() {
     for (const r of [...rooms.values()]) leaveCell(r);
@@ -460,7 +450,7 @@ export function createP2P(env) {
   function update(dt) {
     const now = performance.now();
     const playing = game.state === 'play', company = playing && rm.remotes.size > 0;   // nobody near: nothing to say or offer, so the buttons stay off the screen
-    chat.style.display = offerBox.style.display = company ? '' : 'none'; nameBtn.style.display = playing && !screenshots ? '' : 'none'; nameBtn.style.left = company ? '112px' : '8px';   // under the radio, which opens down to about 110 px on a phone
+    chat.style.display = company ? '' : 'none';
     if (!company && wheel.isOpen) wheel.close();
     offerClocks(now, playing);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !stored().offline && !screenshots) setTimeout(openName, 800); }
@@ -505,7 +495,7 @@ export function createP2P(env) {
   }
 
   const api = {
-    enabled: true, update, openName() {}, get online() { return peers.size > 0; },
+    enabled: true, update, openName, get online() { return peers.size > 0; },
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]),
       rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
       wallet: () => garage.cash, spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
