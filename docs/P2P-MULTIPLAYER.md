@@ -208,7 +208,7 @@ The 💬 button (or the T key) opens a radial menu in the middle of the screen. 
 
 ## On by default
 
-Multiplayer is on by default on the published site. Nothing connects until the player has seen the name card and chosen Gioca online. What other players can see is behind the card's i button. A name saved in the Garage alone isn't a yes, so the yes is stored by itself (`p2pOk` in `palermoDrive.net.v1`). Gioca da solo stays solo until the player opens the card again with the pencil button. The talk and drink buttons only show when somebody is near.
+Multiplayer is on by default on the published site. Nothing connects until the player has seen the name card and chosen Gioca online. What other players can see is behind the card's i button. The card asks on every page open, with a saved name filled in: only the name is remembered, never the answer. Gioca da solo stays solo until the next page open, or until the player opens the card again from Options. The talk and drink buttons only show when somebody is near.
 
 `?p2p=off` turns the client off. `?p2p` in the address is the test mode: the debug box shows and a name is enough to join. Add `&ns=<anything>` to keep a test group's rooms apart from everyone else's. The comparison shots and benches (`?clean`, `?fixres`) never show the card and never join. `tools/p2p/default.mjs` tests this flow on a built site.
 

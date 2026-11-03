@@ -6,7 +6,7 @@
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events_test       # first against a test table
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events 2          # then the real one, with a 2 GBP budget that arms the kill switch
 #
-# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and five views,
+# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and six views,
 # Cloud Run service joinlog, one log exclusion on the _Default sink, and with BUDGET_GBP one budget on the existing billing-budget-alerts topic (relay/killswitch.sh).
 set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
@@ -78,6 +78,17 @@ WITH r AS (SELECT visit, device, name, ts, LAG(ts) OVER (PARTITION BY visit ORDE
 SELECT DATETIME(m, 'Europe/London') AS minute, visit, ANY_VALUE(device) AS device, LOGICAL_OR(name IS NOT NULL) AS online
 FROM r, UNNEST(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP_TRUNC(IF(prev IS NOT NULL AND TIMESTAMP_DIFF(ts, prev, SECOND) <= 360, prev, ts), MINUTE), TIMESTAMP_TRUNC(ts, MINUTE), INTERVAL 1 MINUTE)) AS m
 GROUP BY minute, visit;" >/dev/null
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.players\` OPTIONS (description = 'One row per chosen name, Europe/London time; everyone without a name is grouped as (solo, no name). Names are not identities: two people can pick the same one.') AS
+WITH who AS (SELECT visit, ARRAY_AGG(name IGNORE NULLS ORDER BY ts DESC LIMIT 1)[SAFE_OFFSET(0)] AS name FROM \`$PROJECT.$DATASET.$TABLE\` GROUP BY visit),
+e AS (SELECT IFNULL(who.name, '(solo, no name)') AS player, t.* FROM \`$PROJECT.$DATASET.$TABLE\` AS t JOIN who USING (visit)),
+m AS (SELECT player, SUM(SAFE_CAST(SPLIT(SPLIT(x, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(0)] AS INT64)) AS started, SUM(SAFE_CAST(SPLIT(SPLIT(x, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(1)] AS INT64)) AS completed, SUM(SAFE_CAST(SPLIT(SPLIT(x, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(2)] AS INT64)) AS failed FROM e, UNNEST(SPLIT(missions, ';')) AS x WHERE missions IS NOT NULL AND x != '' GROUP BY player)
+SELECT e.player, COUNT(DISTINCT visit) AS visits, DATETIME(MIN(ts), 'Europe/London') AS first_seen, DATETIME(MAX(ts), 'Europe/London') AS last_seen,
+  ROUND(SUM(IFNULL(play_s, 0)) / 60, 1) AS minutes_driven, ROUND(SUM(IFNULL(dist_m, 0)) / 1000, 2) AS km, SUM(IFNULL(cash, 0)) AS money, SUM(IFNULL(busts, 0)) AS busts,
+  IFNULL(ANY_VALUE(m.started), 0) AS missions_started, IFNULL(ANY_VALUE(m.completed), 0) AS missions_completed, IFNULL(ANY_VALUE(m.failed), 0) AS missions_failed,
+  ARRAY_AGG(vehicle IGNORE NULLS ORDER BY play_s DESC LIMIT 1)[SAFE_OFFSET(0)] AS main_vehicle, MAX(players) AS most_players_seen, ROUND(SAFE_DIVIDE(SUM(fps * play_s), SUM(IF(fps IS NULL, 0, play_s))), 1) AS avg_fps,
+  COUNT(DISTINCT IF(device = 'phone', visit, NULL)) AS phone_visits, COUNT(DISTINCT IF(device = 'desktop', visit, NULL)) AS desktop_visits, APPROX_TOP_COUNT(lang, 1)[SAFE_OFFSET(0)].value AS language
+FROM e LEFT JOIN m USING (player) GROUP BY e.player;" >/dev/null
 # the service may append to this one table and nothing else
 for i in 1 2 3 4 5 6; do   # a role created a moment ago can take a few seconds to be known to BigQuery
   "${Q[@]}" add-iam-policy-binding --member="serviceAccount:$SA" --role="projects/$PROJECT/roles/$ROLE" "$PROJECT:$DATASET.$TABLE" >/dev/null && break

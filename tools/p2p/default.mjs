@@ -1,4 +1,4 @@
-// The default flow on a built site, with no ?p2p in the address: nothing connects before the name card's yes, two players who say yes meet, solo stays solo, a name from the Garage isn't a yes.
+// The default flow on a built site, with no ?p2p in the address: nothing connects before the name card's yes, two players who say yes meet, solo stays solo, every page open asks again, a name from the Garage isn't a yes.
 //   /private/tmp/claude-501/withbrowser.sh node tools/p2p/default.mjs --root dist --shots <folder>
 import { start, arg, sleep } from './lib.mjs';
 const h = await start(), shots = arg('shots', ''), results = [];
@@ -33,22 +33,26 @@ let met = false; for (let i = 0; i < 90 && !met; i++) { await sleep(1000); const
 check('two players who say yes meet', met);
 if (shots) { await sleep(1500); await a.page.screenshot({ path: `${shots}/online-desktop.png` }); await b.page.screenshot({ path: `${shots}/online-phone.png` }); }
 const again = await a.page.evaluate(() => JSON.parse(localStorage.getItem('palermoDrive.net.v1')));
-check('the yes is saved', again.p2pOk === true && again.name === 'Anna', JSON.stringify(again));
+check('the name is saved, the answer is not', again.name === 'Anna' && again.p2pOk === undefined, JSON.stringify(again));
 
 const c = await open(); await press(c, 'Gioca da solo'); await sleep(3000); n = await net(c);
 check('solo joins nothing', n.rooms === 0 && n.sockets === 0 && !(await card(c)), JSON.stringify(n));
 if (shots) await c.page.screenshot({ path: `${shots}/solo-desktop.png` });
 await c.page.reload({ waitUntil: 'domcontentloaded' }); await c.page.waitForFunction(() => window.game && window.__p2p && !document.getElementById('loading'), { timeout: 300000, polling: 250 }); await sleep(3000);
-n = await net(c); check('solo is remembered after a reload', n.rooms === 0 && !(await card(c)), JSON.stringify(n));
+n = await net(c); check('a reload asks again and joins nothing until answered', n.rooms === 0 && n.sockets === 0 && !!(await card(c)), JSON.stringify(n));
+await press(c, 'Gioca da solo');
 
 const d = await open(undefined, JSON.stringify({ name: 'Garage', offline: false })); await sleep(1500); n = await net(d);
 check("a name from the Garage isn't a yes", n.rooms === 0 && !!(await card(d)), JSON.stringify(await card(d)));
+check('a saved name is filled in and the card asks online or solo', await d.page.evaluate(() => { const c = document.querySelector('[role=dialog] input')?.closest('[role=dialog]'); return c.querySelector('input').value === 'Garage' && c.querySelector('b').textContent === 'Online o da solo?'; }));
+const e = await open(undefined, JSON.stringify({ name: 'Anna', p2pOk: true, offline: false })); await sleep(1500); n = await net(e);
+check('a yes saved by an older version is not used', n.rooms === 0 && n.sockets === 0 && !!(await card(e)), JSON.stringify(n));
 
 await a.page.evaluate(() => dispatchEvent(new Event('pd-open-name')));   // Options asks for the name card with this event (the pencil is gone)
 await sleep(300); await press(a, 'Gioca da solo'); await sleep(1000); n = await net(a);
 check('going solo leaves the rooms', n.rooms === 0 && n.drawn === 0, JSON.stringify(n));
 await sleep(12000); n = await net(b); check('the other player drops the one who left', n.drawn === 0, JSON.stringify(n));
 
-const errs = [a, b, c, d].flatMap(p => p.errs); check('no page errors or policy violations', !errs.length, errs.slice(0, 4).join(' | '));
+const errs = [a, b, c, d, e].flatMap(p => p.errs); check('no page errors or policy violations', !errs.length, errs.slice(0, 4).join(' | '));
 await h.close();
 console.log(results.every(Boolean) ? 'ALL OK' : 'FAILED'); process.exit(results.every(Boolean) ? 0 : 1);

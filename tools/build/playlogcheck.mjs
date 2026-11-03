@@ -130,10 +130,12 @@ async function browserTests(root) {
     await page.waitForFunction(() => window.game && !document.getElementById('loading'), { timeout: 300000, polling: 250 });
     return { page, errs, ctx, reqs };
   }
+  const answer = async (page, txt) => { await page.waitForFunction(() => !!document.querySelector('[role=dialog] input'), { timeout: 30000, polling: 200 }); await page.evaluate(t => [...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === t).click(), txt); };   // the name card asks on every page open
   const drive = page => page.evaluate(() => { let n = 0; const t = setInterval(() => { window.game.car.x += 0.5; if (++n > 400) clearInterval(t); }, 20); });   // a car that drives about 200 m
   try {
     // online: the name goes with every report
-    const a = await open(JSON.stringify({ name: 'Anna', p2pOk: true, offline: false }), '&ns=pltest');
+    const a = await open(JSON.stringify({ name: 'Anna', offline: false }), '&ns=pltest');
+    await answer(a.page, 'Gioca online');
     await drive(a.page);
     await sleep(8000);
     let rs = rows(sink);
@@ -166,7 +168,8 @@ async function browserTests(root) {
 
     // solo by choice: stats but no name
     const s0 = rows(sink).length;
-    const b = await open(JSON.stringify({ name: 'Bruno', p2pOk: false, offline: true }), '&ns=pltest2');
+    const b = await open(JSON.stringify({ name: 'Bruno', offline: true }), '&ns=pltest2');
+    await answer(b.page, 'Gioca da solo');
     await drive(b.page);
     await sleep(7000);
     rs = rows(sink).slice(s0); check('solo player: reports are sent without a name', rs.length >= 1 && rs.every(x => x.name === null), JSON.stringify(rs[0]));

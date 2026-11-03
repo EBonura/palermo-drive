@@ -69,8 +69,8 @@ export function createP2P(env) {
   let myName = clean(params.get('name') || stored().name || '');
   let named = !!myName;
   const testing = params.has('p2p');
-  // nothing is joined until the player has a name and has seen the card. A name saved in the Garage alone isn't a yes, so the yes is stored by itself. Chosen solo: stays solo until the card says otherwise.
-  let agreed = testing || !!stored().p2pOk;
+  // nothing is joined until the player has a name and has answered the card. The card asks on every page open, online or solo: only the name is remembered, never the answer.
+  let agreed = testing;
   const screenshots = !testing && ['clean', 'fixres'].some(k => params.has(k));   // the comparison shots and benches run with no card over the picture
   const saveStore = o => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), ...o })); } catch (e) { /* private mode: fine */ } };
   if (!myName) myName = 'P2P' + selfId.slice(0, 3);
@@ -462,8 +462,8 @@ export function createP2P(env) {
     if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
   }
   // ---------- name card (same words as the relay client's, src/net.js) ----------
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei.' + (PLAYLOG_ON ? ' Tutti i giocatori, anche da soli, inviano statistiche anonime su come giocano e su come gira il gioco (missioni, soldi, chilometri, fotogrammi): si spengono in Opzioni, Statistiche di gioco. Se giochi online salviamo anche il nome che scegli. Teniamo tutto fino a 12 mesi e non salviamo il tuo indirizzo IP.' : ' Non salviamo nulla.'), edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
-    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in.' + (PLAYLOG_ON ? ' Every player, even playing alone, sends anonymous stats about how they play and how the game runs (missions, money, distance, frame rate): turn them off in Options, Game stats. If you play online we also save the name you chose. We keep it all for up to 12 months and do not save your IP address.' : ' We store nothing.'), edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei.' + (PLAYLOG_ON ? ' Tutti i giocatori, anche da soli, inviano statistiche anonime su come giocano e su come gira il gioco (missioni, soldi, chilometri, fotogrammi): si spengono in Opzioni, Statistiche di gioco. Se giochi online salviamo anche il nome che scegli. Teniamo tutto fino a 12 mesi e non salviamo il tuo indirizzo IP.' : ' Non salviamo nulla.'), edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
+    en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in.' + (PLAYLOG_ON ? ' Every player, even playing alone, sends anonymous stats about how they play and how the game runs (missions, money, distance, frame rate): turn them off in Options, Game stats. If you play online we also save the name you chose. We keep it all for up to 12 months and do not save your IP address.' : ' We store nothing.'), edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
   let nameCard = null, submitName = null, closeName = null;
   function openName() {
     refreshName();
@@ -472,7 +472,7 @@ export function createP2P(env) {
     nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
     nameCard.style.cssText = 'position:fixed;z-index:600;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
     if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
-    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; h.textContent = editing ? tx.edit : tx.ask;
+    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; h.textContent = editing ? tx.edit : named ? tx.again : tx.ask;
     const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
     // what others can see: behind the i, opened by a tap on a phone and by hovering or a click with a mouse
     const priv = document.createElement('div'); priv.setAttribute('role', 'tooltip'); priv.textContent = tx.priv;
@@ -490,11 +490,11 @@ export function createP2P(env) {
     ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close; solo.textContent = tx.solo;
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
-      myName = n; named = true; agreed = true; saveStore({ name: n, p2pOk: true, offline: false }); goLoud();
+      myName = n; named = true; agreed = true; saveStore({ name: n, offline: false }); goLoud();
       nameCard.remove(); nameCard = null;
     };
     submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
-    ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ p2pOk: false, offline: true }); goOffline(); closeName(); });
+    ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); });
     nameCard.append(priv, info, h, sub, input, ok); if (editing) nameCard.append(no); nameCard.append(solo);
     document.body.appendChild(nameCard); if (window.matchMedia('(pointer:fine)').matches) input.focus();
   }
@@ -532,7 +532,7 @@ export function createP2P(env) {
     chat.style.display = company ? '' : 'none';
     if (!company && wheel.isOpen) wheel.close();
     offerClocks(now, playing); if (playing) arrivals(now);
-    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !stored().offline && !screenshots) setTimeout(openName, 800); }
+    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
     if (quiet && now - quietT > 2000) { quietT = now; shutSockets(); }   // a relay that was already waiting to retry opens once more: shut it again
     if (!named || !agreed) { rm.update(dt, now); return; }
     if (now - lastChecked > CHECK_MS) { lastChecked = now; evaluate(); }
