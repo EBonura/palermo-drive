@@ -88,6 +88,9 @@ export function createP2P(env) {
   hud.style.cssText = 'position:fixed;z-index:30;left:8px;top:8px;padding:4px 8px;border-radius:6px;background:rgba(13,7,9,.74);color:#fff;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre';
   if (testing) document.body.appendChild(hud);
 
+  // the Garage draws its own screen and the main loop skips the frame (so update() below does not run): the buttons are hidden by a rule that follows the page, not by a frame
+  const css = document.createElement('style'); css.textContent = 'html.pd-in-garage .pd-p2p{display:none!important}@keyframes pd-p2p-bar{from{width:100%}to{width:0}}.pd-p2p-bar{animation:pd-p2p-bar ' + OFFER_TTL_MS + 'ms linear forwards}'; document.head.appendChild(css);
+
   // ---------- rooms ----------
   const key = (i, j) => `${ns}:${CELL}:${i}:${j}`;
   const rectDist = (x, z, i, j) => Math.hypot(Math.max(i * CELL - x, 0, x - (i + 1) * CELL), Math.max(j * CELL - z, 0, z - (j + 1) * CELL));
@@ -228,12 +231,13 @@ export function createP2P(env) {
     lastSaid = now; const b = new Uint8Array([3, idx]), byRoom = new Map();
     for (const p of peers.values()) { const k = route(p); if (k !== null) { if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(p.id); } }
     for (const [k, list] of byRoom) { stats.txMsgs += list.length; stats.txBytes += 2 * list.length; rooms.get(k).say.send(b, { target: list }).catch(() => {}); }
+    toast(PHRASES[idx]);   // what you said, on your own screen too (the bubble is over your car on theirs)
     return true;
   }
   // the talk wheel (src/p2p/wheel.js): the 💬 button or the T key opens it; categories first, then the phrases of one. The wheel is built from the
   // fixed lists in src/p2p/phrases.js, so what it can send is exactly what the receiver accepts.
   const chat = document.createElement('div');
-  chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
+  chat.className = 'pd-p2p'; chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
   const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬'; chatBtn.title = 'T';
   chatBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
   const wheelLang = () => lang() === 'en' ? 'en' : 'it';
@@ -247,7 +251,7 @@ export function createP2P(env) {
     const l = wheelLang();
     return CATEGORIES.map(c => ({
       label: c[l], icon: c.icon,
-      items: [...c.phrases.map(i => ({ label: PHRASES[i], onPick: () => say(i) })), ...(c.drinks || []).map(k => ({ label: KIND_NAME[l][k], tag: '€' + DRINK_PRICE, onPick: () => offer(k) }))],
+      items: [...c.phrases.map(i => ({ label: PHRASES[i], onPick: () => say(i) })), ...(c.drinks || []).map(k => ({ label: KIND_NAME[l][k], tag: '€' + DRINK_PRICE, onPick: () => { offer(k); } }))],
     }));
   }
   function openWheel() { wheel.setCategories(buildWheel()); wheel.open(); }
@@ -269,55 +273,125 @@ export function createP2P(env) {
   // Giver: picks cicchetto or birra, the nearest visible player within OFFER_R gets an OFFER and a card with Accetta / Nun mi va. On ACCEPT the
   // giver pays DRINK_PRICE from the Garage wallet and sends CONFIRM; only then does the receiver get the drink (drunk.gift). Nothing happens to
   // anybody without their own yes, and every message is checked like the others.
+  // Both sides always hear how it went: the giver gets a line for every outcome (accepted, no, busy, had enough, too far, gone, no answer, no money),
+  // the receiver gets the card (who, what, and how dizzy it makes them) and a line if the drink does not arrive. REPLY [7][code][offer id] carries
+  // the refusals. Against harassment: one card at a time, the giver waits OFFER_GAP_MS between offers, a player who said no (or let the card run out)
+  // is not shown another card from the same player for MUTE_MS, and a card closes by itself when its giver leaves, walks off or the game pauses.
   const KINDS = ['cicchetto', 'birra'], KIND_TXT = { it: ['un cicchetto', 'una birra'], en: ['a cicchetto', 'a beer'] };   // wording to be corrected by the owner
+  const tr = (it, en) => lang() === 'en' ? en : it;
   const TOAST_IDX = PHRASES.indexOf('a to saluti!');
-  let myOffer = null, lastOfferAt = -1e9, incoming = null, offerSeq = 0, card = null, notice = null;
-  const sendOffer = (id, bytes) => { const p = peers.get(id), k = p && route(p); if (k === null || k === undefined) return; stats.txMsgs++; stats.txBytes += bytes.length; rooms.get(k).offer.send(bytes, { target: id }).catch(() => {}); };
-  function say2(text) { if (!notice) { notice = document.createElement('div'); notice.style.cssText = 'position:fixed;z-index:40;left:50%;bottom:90px;transform:translateX(-50%);padding:8px 14px;border-radius:12px;background:rgba(13,7,9,.92);border:2px solid #e8559a;color:#fff;font:600 14px system-ui,sans-serif'; document.body.appendChild(notice); } notice.textContent = text; notice.style.display = ''; clearTimeout(notice.t); notice.t = setTimeout(() => { notice.style.display = 'none'; }, 3000); }
+  const FAR_R = OFFER_R * 1.6, MUTE_MS = 60000, ACCEPT_GRACE_MS = 2500, CONFIRM_WAIT_MS = 5000;
+  const R_NO = 0, R_BUSY = 1, R_ENOUGH = 2, R_FAR = 3, R_BROKE = 4, R_WALKED = 5;   // REPLY codes: 0 to 3 receiver to giver (no, busy, had enough, you are too far from me), 4 and 5 giver to receiver after their yes (cannot pay, you walked off)
+  let myOffer = null, lastOfferAt = -1e9, incoming = null, offerSeq = 0, card = null, pill = null;
+  const toast = (text, sub, neg) => dispatchEvent(new CustomEvent('pd-toast', { detail: { text, sub, neg } }));   // the game's own line at the top of the screen (src/event-hud.js)
+  const nameOf = id => { const p = peers.get(id); return (p && p.name) || 'Player'; };
+  const here = id => { const p = peers.get(id); return !!(p && p.shown && rm.remotes.get(id)); };   // somebody we can see on the street
+  const dist = id => { const p = peers.get(id); return p && Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : Infinity; };
+  const sendOffer = (id, bytes) => { const p = peers.get(id), k = p && route(p); if (k === null || k === undefined) return false; stats.txMsgs++; stats.txBytes += bytes.length; rooms.get(k).offer.send(bytes, { target: id }).catch(() => {}); return true; };
+  const reply = (id, offerId, code) => sendOffer(id, new Uint8Array([7, code, offerId]));
+  // what the giver waits for: a line under the buttons until the answer comes (a toast only lasts two seconds)
+  function note(text) {
+    if (!pill) { pill = document.createElement('div'); pill.className = 'pd-p2p'; pill.style.cssText = 'position:fixed;z-index:40;left:50%;bottom:90px;transform:translateX(-50%);max-width:calc(100vw - 24px);box-sizing:border-box;padding:8px 14px;border-radius:12px;background:rgba(13,7,9,.92);border:2px solid #e8559a;color:#fff;font:600 14px system-ui,sans-serif;text-align:center'; document.body.appendChild(pill); }
+    pill.textContent = text || ''; pill.style.display = text ? '' : 'none';
+  }
+  const drunkOf = () => env.getDrunk && env.getDrunk();
   function offer(kind) {
     const now = performance.now(); if (kind !== 0 && kind !== 1) return false;
-    if (now - lastOfferAt < OFFER_GAP_MS || (myOffer && now < myOffer.until)) return false;
+    if (!(game.state === 'play')) return false;
+    if (myOffer || now - lastOfferAt < OFFER_GAP_MS) { toast(tr('Aspetta ’na picca', 'Wait a moment'), myOffer ? tr(`Aspettu a ${nameOf(myOffer.to)}`, `Waiting for ${nameOf(myOffer.to)}`) : '', true); return false; }
     let best = null, bd = OFFER_R;
     for (const [id, rem] of rm.remotes) { const p = peers.get(id); if (!p || !p.shown || !rem.snaps.length) continue; const d = Math.hypot(p.x - car.x, p.z - car.z); if (d < bd) { bd = d; best = id; } }
-    if (!best) { say2(lang() === 'en' ? 'Nobody close enough' : 'Nessuno vicino'); return false; }
-    if (garage.cash < DRINK_PRICE) { say2(lang() === 'en' ? 'Not enough money' : 'Sienza picciuli!'); return false; }
-    lastOfferAt = now; myOffer = { to: best, id: (offerSeq = (offerSeq + 1) & 255), kind, until: now + OFFER_TTL_MS };
-    sendOffer(best, new Uint8Array([4, kind, myOffer.id]));
-    say2(lang() === 'en' ? 'Offer sent' : 'Offerta mandata');
+    if (!best) { toast(tr('Nessuno vicino', 'Nobody close enough'), '', true); return false; }
+    if (garage.cash < DRINK_PRICE) { toast(tr('Sienza picciuli!', 'Not enough money'), `${DRINK_PRICE} €`, true); return false; }
+    const id = (offerSeq = (offerSeq + 1) & 255);
+    if (!sendOffer(best, new Uint8Array([4, kind, id]))) { toast(tr(`${nameOf(best)} un c’è chiù`, `${nameOf(best)} is gone`), '', true); return false; }
+    lastOfferAt = now; myOffer = { to: best, name: nameOf(best), id, kind, until: now + OFFER_TTL_MS };
+    note(tr(`Offerta mandata a ${nameOf(best)}`, `Offer sent to ${nameOf(best)}`));
     return true;
   }
   function closeCard() { if (card) { card.remove(); card = null; } }
+  function dizzy() {   // the stack the receiver would be at after this drink (src/drunk.js), 1 to max
+    const d = drunkOf(), max = (d && d.max) || 6; return { n: Math.min(max, Math.ceil(((d && d.units) || 0) + 1 - 1e-6)), max };
+  }
+  function showCard(name, kind) {
+    const what = KIND_TXT[lang()][kind], { n, max } = dizzy();
+    closeCard(); card = document.createElement('div'); card.className = 'pd-p2p'; card.setAttribute('role', 'alertdialog');
+    card.style.cssText = 'position:fixed;z-index:60;left:50%;bottom:120px;transform:translateX(-50%);width:min(320px,calc(100vw - 24px));box-sizing:border-box;padding:12px 12px 14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif;overflow:hidden';
+    if (window.matchMedia('(max-height:500px)').matches) card.style.bottom = '12px';
+    const q = document.createElement('div'); q.style.cssText = 'font-weight:700;margin-bottom:4px'; q.textContent = tr(`${name} ti offre ${what}`, `${name} offers you ${what}`);
+    const dz = document.createElement('div'); dz.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:#ffb3d4';
+    const dl = document.createElement('span'); dl.textContent = tr('Ti gira a testa', 'Your head will spin'); dz.append(dl);
+    const pips = document.createElement('span'); pips.setAttribute('aria-label', `${n}/${max}`); pips.style.cssText = 'display:inline-flex;gap:3px;align-items:center';
+    for (let i = 1; i <= max; i++) { const s = document.createElement('i'); s.style.cssText = `display:block;width:9px;height:9px;border-radius:99px;border:1.5px solid #e8559a;background:${i <= n ? '#e8559a' : 'transparent'}`; pips.append(s); }
+    const x = document.createElement('b'); x.textContent = `×${n}`; x.style.color = '#fff'; dz.append(pips, x);
+    const mk = (txt, yes) => { const bt = document.createElement('button'); bt.type = 'button'; bt.textContent = txt; bt.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:' + (yes ? '#e8559a' : 'transparent') + ';color:' + (yes ? '#0d0709' : '#fff') + ';font:700 14px system-ui,sans-serif;cursor:pointer';
+      bt.addEventListener('click', () => { bt.blur(); answer(yes); }); return bt; };
+    const bar = document.createElement('div'); bar.className = 'pd-p2p-bar'; bar.style.cssText = 'position:absolute;left:0;bottom:0;height:3px;background:#e8559a';
+    card.append(q, dz, mk(tr('Accetta', 'Accept'), true), mk(tr('Nun mi va', 'No thanks'), false), bar); document.body.appendChild(card);
+  }
+  function answer(yes) {
+    const o = incoming; closeCard(); if (!o || o.accepted) return;
+    if (!yes) { reply(o.from, o.id, R_NO); decline(o); return; }
+    if (!sendOffer(o.from, new Uint8Array([5, 0, o.id]))) { incoming = null; toast(tr(`${o.name} un c’è chiù`, `${o.name} is gone`), '', true); return; }
+    o.accepted = true; o.waitUntil = performance.now() + CONFIRM_WAIT_MS;
+  }
+  function decline(o) { incoming = null; const p = peers.get(o.from); if (p) p.mutedUntil = performance.now() + MUTE_MS; }
   function onOffer(id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
-    if (!p || !b || b.length !== 3 || b[0] < 4 || b[0] > 6) { stats.rxBad++; return; }
+    if (!p || !b || b.length !== 3 || b[0] < 4 || b[0] > 7 || (b[0] === 4 && b[1] > 1) || (b[0] === 7 && b[1] > R_WALKED)) { stats.rxBad++; return; }
     stats.rxBytes += b.length;
     if (!admit(p, now)) { stats.rxDropped++; return; }
-    if (b[0] === 4) {   // OFFER
-      const rem = rm.remotes.get(id);
-      if (b[1] > 1 || !rem || !p.shown || Math.hypot(p.x - car.x, p.z - car.z) > OFFER_R * 1.6 || incoming || now - (p.lastOffer || -1e9) < OFFER_GAP_MS * 0.8 || game.state !== 'play') { stats.rxDropped++; return; }
-      p.lastOffer = now; incoming = { from: id, id: b[2], kind: b[1], until: now + OFFER_TTL_MS, accepted: false };
-      const en = lang() === 'en', what = KIND_TXT[en ? 'en' : 'it'][b[1]];
-      closeCard(); card = document.createElement('div');
-      card.style.cssText = 'position:fixed;z-index:60;left:50%;bottom:120px;transform:translateX(-50%);width:min(320px,calc(100vw - 24px));box-sizing:border-box;padding:12px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
-      const q = document.createElement('div'); q.style.cssText = 'font-weight:700;margin-bottom:8px'; q.textContent = en ? `${p.name} offers you ${what}` : `${p.name} ti offre ${what}`;
-      const mk = (txt, yes) => { const bt = document.createElement('button'); bt.type = 'button'; bt.textContent = txt; bt.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:' + (yes ? '#e8559a' : 'transparent') + ';color:' + (yes ? '#0d0709' : '#fff') + ';font:700 14px system-ui,sans-serif;cursor:pointer'; bt.addEventListener('click', () => { bt.blur(); if (yes && incoming) { incoming.accepted = true; sendOffer(incoming.from, new Uint8Array([5, 0, incoming.id])); } else incoming = null; closeCard(); }); return bt; };
-      card.append(q, mk(en ? 'Accept' : 'Accetta', true), mk(en ? 'No thanks' : 'Nun mi va', false)); document.body.appendChild(card);
+    if (b[0] === 4) {   // OFFER, to the receiver
+      if (now - (p.lastOffer || -1e9) < OFFER_GAP_MS * 0.8) { stats.rxDropped++; return; }   // faster than a real client sends: no card and no answer
+      p.lastOffer = now;
+      if ((p.mutedUntil || 0) > now) { reply(id, b[2], R_NO); return; }
+      const d = drunkOf();
+      if (game.state !== 'play' || incoming || !p.shown) { reply(id, b[2], R_BUSY); return; }
+      if (!rm.remotes.get(id) || dist(id) > FAR_R) { reply(id, b[2], R_FAR); return; }
+      if (d && d.full) { reply(id, b[2], R_ENOUGH); return; }
+      incoming = { from: id, name: p.name || 'Player', id: b[2], kind: b[1], until: now + OFFER_TTL_MS, accepted: false, waitUntil: 0 };
+      showCard(incoming.name, b[1]);
     } else if (b[0] === 5) {   // ACCEPT, to the giver
-      if (!myOffer || myOffer.to !== id || myOffer.id !== b[2] || now > myOffer.until) { stats.rxDropped++; return; }
-      const o = myOffer; myOffer = null;
-      if (garage.cash >= DRINK_PRICE && garage.debit(DRINK_PRICE) >= DRINK_PRICE) {
-        sendOffer(id, new Uint8Array([6, o.kind, o.id]));
-        const rem = rm.remotes.get(id); if (rem && TOAST_IDX >= 0) rm.say(rem, PHRASES[TOAST_IDX], now);
-        say2(lang() === 'en' ? `Cheers! -${DRINK_PRICE} €` : `Saluti! -${DRINK_PRICE} €`);
-      }
-    } else if (b[0] === 6) {   // CONFIRM, to the receiver: the giver paid
-      if (!incoming || incoming.from !== id || incoming.id !== b[2] || !incoming.accepted || now > incoming.until + 5000) { stats.rxDropped++; return; }
-      const o = incoming; incoming = null;
-      const d = env.getDrunk && env.getDrunk(); if (d && d.gift) d.gift(KIND_TXT.it[o.kind].replace(/^una? /, '').replace(/^./, c => c.toUpperCase()));
+      if (!myOffer || myOffer.to !== id || myOffer.id !== b[2] || now > myOffer.until + ACCEPT_GRACE_MS) { stats.rxDropped++; return; }
+      const o = myOffer, name = nameOf(id); myOffer = null; note(null);
+      if (!here(id) || dist(id) > FAR_R) { reply(id, o.id, R_WALKED); toast(tr(`${name} è truappu luntanu`, `${name} is too far`), '', true); return; }
+      if (!(garage.cash >= DRINK_PRICE && garage.debit(DRINK_PRICE) >= DRINK_PRICE)) { reply(id, o.id, R_BROKE); toast(tr('Sienza picciuli!', 'Not enough money'), `${DRINK_PRICE} €`, true); return; }
+      sendOffer(id, new Uint8Array([6, o.kind, o.id]));
       const rem = rm.remotes.get(id); if (rem && TOAST_IDX >= 0) rm.say(rem, PHRASES[TOAST_IDX], now);
+      toast(tr(`Saluti! -${DRINK_PRICE} €`, `Cheers! -${DRINK_PRICE} €`), tr(`${name} accittau`, `${name} accepted`));
+    } else if (b[0] === 6) {   // CONFIRM, to the receiver: the giver paid
+      if (!incoming || incoming.from !== id || incoming.id !== b[2] || !incoming.accepted || now > incoming.waitUntil + 2000) { stats.rxDropped++; return; }
+      const o = incoming; incoming = null;
+      toast(tr(`${o.name} t’offriu ${KIND_TXT.it[o.kind]}`, `${o.name} treated you to ${KIND_TXT.en[o.kind]}`));   // who; the drink's own line (how dizzy) follows from src/drunk.js
+      const d = drunkOf(); if (d && d.gift) d.gift(KIND_TXT.it[o.kind].replace(/^una? /, '').replace(/^./, c => c.toUpperCase()));
+      const rem = rm.remotes.get(id); if (rem && TOAST_IDX >= 0) rm.say(rem, PHRASES[TOAST_IDX], now);
+    } else {   // REPLY
+      const code = b[1];
+      if (code <= R_FAR) {   // to the giver
+        if (!myOffer || myOffer.to !== id || myOffer.id !== b[2]) { stats.rxDropped++; return; }
+        myOffer = null; note(null); const name = nameOf(id);
+        toast(code === R_NO ? tr(`${name}: nun ci va`, `${name} said no thanks`) : code === R_BUSY ? tr(`${name} è occupatu`, `${name} is busy`) : code === R_ENOUGH ? tr(`${name} n’avi abbastanza`, `${name} has had enough`) : tr(`${name} è truappu luntanu`, `${name} is too far`), '', true);
+      } else {   // to the receiver, after their yes
+        if (!incoming || incoming.from !== id || incoming.id !== b[2] || !incoming.accepted) { stats.rxDropped++; return; }
+        const o = incoming; incoming = null;
+        toast(code === R_BROKE ? tr(`${o.name} un havi picciuli`, `${o.name} can’t pay for it`) : tr('Si’ truappu luntanu', 'You are too far away'), '', true);
+      }
     }
   }
-  const offerBox = document.createElement('div');
+  // housekeeping, every frame: the clocks of both sides, and an offer whose other end has gone
+  function offerClocks(now, playing) {
+    if (myOffer) {
+      const name = myOffer.name;   // the record of the player may be gone by now
+      if (!here(myOffer.to)) { note(null); myOffer = null; toast(tr(`${name} un c’è chiù`, `${name} is gone`), '', true); }
+      else if (now > myOffer.until + ACCEPT_GRACE_MS) { note(null); myOffer = null; toast(tr(`${name} un rispunniu`, `${name} didn’t answer`), '', true); }
+    }
+    if (!incoming) return;
+    if (incoming.accepted) { if (now > incoming.waitUntil) { const n = incoming.name; incoming = null; toast(tr(`${n} un c’è chiù`, `${n} is gone`), '', true); } return; }
+    if (!playing) { reply(incoming.from, incoming.id, R_BUSY); closeCard(); incoming = null; return; }   // paused, game over: nothing to answer with
+    if (now > incoming.until) { decline(incoming); closeCard(); return; }
+    if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
+  }
+  const offerBox = document.createElement('div'); offerBox.className = 'pd-p2p';
   offerBox.style.cssText = 'position:fixed;z-index:31;left:60px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
   const offerBtn = document.createElement('button'); offerBtn.type = 'button'; offerBtn.textContent = '🍺';
   offerBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
@@ -371,14 +445,14 @@ export function createP2P(env) {
     if (e.key === 'Enter') { e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
   }, true);
   const nameBtn = document.createElement('button'); nameBtn.type = 'button'; nameBtn.textContent = '✎';
-  nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:116px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
+  nameBtn.className = 'pd-p2p'; nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:116px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
   nameBtn.addEventListener('click', () => { nameBtn.blur(); openName(); });
   document.body.appendChild(nameBtn);
 
   function goOffline() {
     for (const r of [...rooms.values()]) leaveCell(r);
     for (const p of peers.values()) if (p.shown) rm.remove(p.id);
-    peers.clear();
+    peers.clear(); myOffer = null; incoming = null; closeCard(); note(null);   // an offer in the air is over with the player it was for
   }
 
   // ---------- frame ----------
@@ -388,7 +462,7 @@ export function createP2P(env) {
     const playing = game.state === 'play', company = playing && rm.remotes.size > 0;   // nobody near: nothing to say or offer, so the buttons stay off the screen
     chat.style.display = offerBox.style.display = company ? '' : 'none'; nameBtn.style.display = playing && !screenshots ? '' : 'none'; nameBtn.style.left = company ? '112px' : '8px';   // under the radio, which opens down to about 110 px on a phone
     if (!company && wheel.isOpen) wheel.close();
-    if (incoming && now > incoming.until) { incoming = null; closeCard(); }
+    offerClocks(now, playing);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !stored().offline && !screenshots) setTimeout(openName, 800); }
     if (!named || !agreed) { rm.update(dt, now); return; }
     if (now - lastChecked > CHECK_MS) { lastChecked = now; evaluate(); }
@@ -433,12 +507,15 @@ export function createP2P(env) {
   const api = {
     enabled: true, update, openName() {}, get online() { return peers.size > 0; },
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]),
-      say, offer, name: () => myName, gameState: () => game.state,
+      rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
+      wallet: () => garage.cash, spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
+      resetOffers(keepMute) { lastOfferAt = -1e9; for (const p of peers.values()) { p.lastOffer = 0; if (!keepMute) p.mutedUntil = 0; } },
+      say, offer, name: () => myName, offerState: () => ({ myOffer, incoming: incoming && { ...incoming }, card: !!card, muted: [...peers.values()].map(p => p.mutedUntil || 0) }), gameState: () => game.state,
       setName: n => { myName = clean(n) || myName; },
       // test hook (tools/p2p/fuzz.mjs): feeds hostile messages from a made-up peer through the real handlers
       fuzz(msgs, refill = true) {
         const id = 'fuzz-peer', r = { key: 'fuzz' }; peers.get(id) || peers.set(id, newPeer(id)); const p = peers.get(id); let threw = 0;
-        for (const [kind, bytes] of msgs) { if (refill) p.tokens = RATE_BURST; try { (kind === 'i' ? onInfo : onState)(r, id, bytes); } catch (e) { threw++; } }
+        for (const [kind, bytes] of msgs) { if (refill) p.tokens = RATE_BURST; try { if (kind === 'o') onOffer(id, bytes); else (kind === 'i' ? onInfo : onState)(r, id, bytes); } catch (e) { threw++; } }
         return { threw, name: p.name, vehicle: p.vehicle, livery: p.livery, rxBad: stats.rxBad, rxDropped: stats.rxDropped, drawn: rm.remotes.size };
       } },
   };

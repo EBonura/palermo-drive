@@ -15,10 +15,12 @@ export async function start({ root = arg('root'), headless = 'new' } = {}) {
   return { server, port, browser, close: async () => { await browser.close().catch(() => {}); server.close(); } };
 }
 // one player: a page at the map point (x, z) heading th, named name; all players of a run share the ns so they only meet each other
-export async function player(h, { name, ns, x, z, th = 0, extra = '', size = [480, 270], cpu = 1, phone = false, p2p = 'p2p' }) {
+export async function player(h, { name, ns, x, z, th = 0, extra = '', size = [480, 270], cpu = 1, phone = false, p2p = 'p2p', isolated = false }) {
   // a window of its own, so that every player is a visible page and keeps running at full rate (background tabs are throttled)
-  const { targetId } = await (h.root || (h.root = await h.browser.target().createCDPSession())).send('Target.createTarget', { url: 'about:blank', newWindow: true });
-  const page = await (await h.browser.waitForTarget(t => t._targetId === targetId)).page();
+  // isolated: a browser context of its own too (its own storage, as a second person's browser has), so one player's saved wallet and settings never reach another
+  let page, ctx = null;
+  if (isolated) { ctx = await h.browser.createBrowserContext(); page = await ctx.newPage(); }
+  else { const { targetId } = await (h.root || (h.root = await h.browser.target().createCDPSession())).send('Target.createTarget', { url: 'about:blank', newWindow: true }); page = await (await h.browser.waitForTarget(t => t._targetId === targetId)).page(); }
   if (phone) await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 3, isMobile: true, hasTouch: true }); else await page.setViewport({ width: size[0], height: size[1], deviceScaleFactor: 1 });
   // the game pauses itself when the page is hidden (ui.js): in a test with several windows that must never happen, or nobody drives or sends
   await page.evaluateOnNewDocument(() => { Object.defineProperty(document, 'hidden', { get: () => false }); Object.defineProperty(document, 'visibilityState', { get: () => 'visible' }); document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true); });
@@ -29,7 +31,7 @@ export async function player(h, { name, ns, x, z, th = 0, extra = '', size = [48
   await page.waitForFunction(want => window.game && (!want || window.__p2p) && !document.getElementById('loading'), { timeout: 300000, polling: 250 }, /(^|&)p2p/.test(p2p));
   await page.evaluate(([x, z, th]) => { const c = window.game.car; c.x = x; c.z = z; c.th = th; c.vx = c.vz = 0; }, [x, z, th]);
   console.log('  player', name, 'ready');
-  return { page, cdp, errs, name };
+  return { page, cdp, errs, name, ctx };
 }
 // scripted driver: sets the car's position every frame along a polyline at `speed` m/s (physics and walls ignored: this is about the network)
 export function drivePath(p, pts, speed, loop = false) {
