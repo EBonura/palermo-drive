@@ -532,6 +532,33 @@ export const POLLANCHE = {
   ],
 };
 
+// ---- U Barettu (Il Baretto), Mondello: the granita kiosk, same nitro top-up as the stigghiola (src/missions.js, needs ?world=1).
+// What the sources say (looked up 3 Nov 2026, nothing copied; see assets/missions/places.md for the links): a family-run gelateria kiosk at Piazza Valdesi,
+// corner of Viale Regina Elena, on the Mondello seafront, opened 1957 by the Schillaci family and sold gelati, granite and frappe; it closed for good in Sept 2021
+// after a long dispute over who owned the kiosk, and the family later reopened in Via Teti. No source gives the kiosk's exact spot or its colours.
+// The site below is OUR best reading: the seaward verge of Viale Regina Elena, about 50 m from the Piazza Valdesi node (OSM 38.19696, 13.33174), set
+// beside the road so a lapa can pull up; rx, rz = the direction from the kiosk to the carriageway. The owner knows the place: correct it here.
+// Palermitan lines are drafts for the owner (every one marked (?)).
+export const GRANITA = {
+  cry: [
+    ['Granita fridda! Limuni, mennula, cafè!', 'Ice cold granita! Lemon, almond, coffee! (?)'],
+    ['Cu st\'afa ti runu na granita!', 'In this heat, here is a granita for you! (?)'],
+    ['Scegghi: limuni, mennula o cafè?', 'Choose: lemon, almond or coffee? (?)'],
+  ],
+  serve: [
+    ['Teni, fridda fridda!', 'Here, ice cold! (?)'],
+    ['Pi tia, cu a panna ’ncapu!', 'For you, with cream on top! (?)'],
+  ],
+  driver: [
+    ['Chi friscu! Amunì, ca ora si vola!', 'How refreshing! Come on, now we fly! (?)'],
+    ['Granita e nitro: chista è a stati!', 'Granita and nitro: this is summer! (?)'],
+  ],
+  toast: ['Nitro ’n chiù, fridda, puru oltri u chinu', 'Extra nitro, ice cold, even past full'],
+  sites: [
+    { id: 'barettu', name: 'U Barettu (Piazza Valdesi, Mondello)', lat: 38.196918, lon: 13.3324, rx: -0.438, rz: 0.899 },
+  ],
+};
+
 // ---- "Appartati": parked cars with steamed-up windows at Monte Pellegrino's lookouts and in quiet corners of the Favorita.
 // Strictly innuendo: a fogged car gently rocking, nobody visible. Flash the headlights or honk and the rocking stops,
 // the windows flash and a balloon yells. Lookouts from OpenStreetMap (tourism=viewpoint, amenity=parking), each snapped to the nearest

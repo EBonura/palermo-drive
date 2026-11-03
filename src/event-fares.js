@@ -126,7 +126,7 @@ export function createFares(X) {
     if (pedHits > 0) { pedHits = 0; if (ev.ped <= 0) { ev.ped = 1.0; tline('hitPed'); dline('hitPed', 1.8); } }
     ev.chat -= dt;
     if (ev.chat <= 0) { ev.chat = f.cl && f.cl.seq ? rand(28, 44) : rand(14, 24); if (!f.urgent) { tline('ambient'); dline('ambient', 1.8); } }
-    if (f.wantsStig && !f.sniffed) for (const v of X.vendors) if (v.kind !== 'pollanche' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline('smell'); toast(T('Chi prufumu!', 'What a smell!'), T('I turisti vonnu na stigghiola', 'The tourists want a stigghiola')); break; }
+    if (f.wantsStig && !f.sniffed) for (const v of X.vendors) if (v.kind === 'stigghiola' && v.cd <= 0 && Math.hypot(v.x - car.x, v.z - car.z) < 55) { f.sniffed = true; tline('smell'); toast(T('Chi prufumu!', 'What a smell!'), T('I turisti vonnu na stigghiola', 'The tourists want a stigghiola')); break; }
     if (f.left < 12 && !f.lateSaid) { f.lateSaid = true; tline('late'); dline('late'); }
     const d = Math.hypot(car.x - f.dest.x, car.z - f.dest.z);
     if (f.cl && f.cl.stages) for (const [r, k] of f.cl.stages) if (d < r && !f.said[k]) { f.said[k] = 1; tline(k); dline(k, 2.2); }   // lines said once, this far from the destination
