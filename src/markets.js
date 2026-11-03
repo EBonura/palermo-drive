@@ -268,7 +268,7 @@ export function createMarkets(env) {
     (e.part === 1 ? smashStall : smashCrates)(e.mk, e.i, nx, nz, vs, car);
     if (t - lastShout > 1.2) {   // the vendor swears at you (a balloon over their head), or the stall itself does when there is nobody behind it
       const mk = e.mk, s = mk.S[e.i], v = peds && mk.ids[e.i] >= 0 && peds.info(mk.ids[e.i]); lastShout = t;
-      try { dispatchEvent(new CustomEvent('pd-shout', { detail: v ? { x: v.x, y: v.y + 1.9, z: v.z } : { x: s[0], y: mk.y[e.i] + 1.4, z: s[1] } })); } catch (err) { /* no events */ }
+      try { dispatchEvent(new CustomEvent('pd-shout', { detail: v ? { x: v.x, y: v.y + 1.9, z: v.z, follow: () => ({ x: v.x, y: v.y + 1.9, z: v.z }) } : { x: s[0], y: mk.y[e.i] + 1.4, z: s[1] } })); } catch (err) { /* no events */ }
     }
   }
   const chain = hooks.breakFence;   // the fences' hook (src/fences.js): the lapa asks it about any wall segment that carries a piece (seg.fn)

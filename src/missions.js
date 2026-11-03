@@ -18,6 +18,7 @@
 //   env: { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, world, placeAt, proj }
 // Test links: ?event=food:benny | fare:qc | urgent:u-stadio | race:olimpo puts the lapa at that event (add &auto to accept at once; race:corse forces night).
 // Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
+import { lifeFor } from './shouts.js';
 import * as THREE from 'three';
 import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, POLLANCHE, FAVORITA } from '../assets/missions/lines.js';
 import { WORLD } from './core.js';
@@ -107,7 +108,7 @@ function build(env) {
   const toast = hud.toast, burst = hud.burst;
 
   // ------------------------------------------------------------------------------------ speech (env.shout)
-  const talkQ = []; let talkClock = 0, lastTalk = -9;
+  const talkQ = []; let talkClock = 0, lastTalk = -9, talkWait = 2.2;
   // lines: array of strings or [text, gloss]; pos(): { x, y, z } anchor, delay in seconds
   function say(line, pos, delay = 0) {
     if (!shout || !line) return;
@@ -118,15 +119,16 @@ function build(env) {
   function updateTalk(dt) {
     talkClock += dt;
     const focus = fareTalk(); shout?.focus?.(focus);
-    if (!talkQ.length || talkClock - lastTalk < (focus ? 2.2 : 0.55)) return;
+    if (!talkQ.length || talkClock - lastTalk < (focus ? talkWait : 0.55)) return;
     const i = talkQ.findIndex(q => q.at <= talkClock);
     if (i < 0) return;
     const q = talkQ.splice(i, 1)[0];
     if (talkClock - q.at > 5) return;
     if (focus && q.pos !== seatPos) return;
     const p = q.pos();
-    shout(p.x, p.y, p.z, q.text, undefined, focus ? { pax: true } : undefined);
-    lastTalk = talkClock;
+    shout(p.x, p.y, p.z, q.text, q.pos, focus ? { pax: true } : undefined);   // the balloon stays with whoever speaks
+    lastTalk = talkClock; talkWait = lifeFor(q.text);   // the passenger's next line waits until this one has been read
+
   }
   const driverPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift - 0.3, z: car.z });
   const seatPos = () => ({ x: car.x, y: groundY(car.x, car.z) + car.lift - 0.1, z: car.z });
