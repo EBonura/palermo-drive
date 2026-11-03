@@ -22,6 +22,7 @@ import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
 import { treeGeo as makeTreeGeo } from './treegeo.js';
 import { createFarCity } from './context.js';
+import { createHills } from './hills.js';   // finer far mesh for the hill tiles (assets/world/hills.bin)
 import { GARDEN_REGION as GR } from './gardens.js';
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
@@ -130,10 +131,10 @@ function terrainMaterial() {
   const m = new THREE.MeshStandardMaterial({ map: GROUND_TEX.terrain, vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   const k = (1 / GROUND_TEX.terrain.metres).toFixed(6);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.paveMap = { value: GROUND_TEX.balate };
+    sh.uniforms.paveMap = { value: GROUND_TEX.balate }; sh.uniforms.rkNoise = { value: ROCK_NOISE };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0, dtL = 0.8; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave; uniform sampler2D paveMap, rkNoise;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
         { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
@@ -151,13 +152,14 @@ function terrainMaterial() {
           // built-up ground the tile data has no paving polygon for (squares, courtyards, yards between blocks): worn limestone slabs, the same texture as the street paving layer
           if ( vPave > 0.01 ) sampledDiffuseColor = mix( sampledDiffuseColor, vec4( texture2D( paveMap, vTpPos.xz * ${(1 / GROUND_TEX.balate.metres).toFixed(6)} ).rgb * 1.25, 1.0 ), vPave * ( 1.0 - side ) );
         }
+        dtL = dot( sampledDiffuseColor.rgb, vec3( 0.3333 ) );
         diffuseColor *= sampledDiffuseColor;
       #endif`)
-      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
-      .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
+      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP() + FACET_GLSL)
+      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vTpPos').replaceAll('HDT', 'dtL').replaceAll('HNY', 'abs( normalize( vTpNrm ).y )') + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-hz';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-hz-rk';
   return m;
 }
 
@@ -165,19 +167,42 @@ function terrainMaterial() {
 let lowMats = null;
 // The 100 m far terrain: smooth normals from the grid, so the steep faces of Monte Pellegrino that look away from the sun are lit by the sky alone and read as black wedges between the
 // bright full-detail blocks (board item t6). A fill proportional to steepness (FAR_FILL times the surface colour on a vertical face of the far mesh, TERRAIN_FILL on the textured tile terrain, nothing on level ground) keeps the shade readable.
-const FAR_FILL = 1.1, TERRAIN_FILL = 0.4;
+const FAR_FILL = 0.5, TERRAIN_FILL = 0.4;
 // The tile skirts (a 30 m drop along every tile border, against cracks) are double-sided like the rest of the terrain, and three.js flips the normal of a back face, so a skirt seen
 // from its back lit as a face pointing down and drew a dark line along the tile border. The terrain and far shaders light every face with its own vertex normal.
 const TILING_GLSL = `
 float tvh( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
 float tvn( vec2 p ) { vec2 i = floor( p ), f = fract( p ); f = f * f * ( 3.0 - 2.0 * f ); return mix( mix( tvh( i ), tvh( i + vec2( 1.0, 0.0 ) ), f.x ), mix( tvh( i + vec2( 0.0, 1.0 ) ), tvh( i + vec2( 1.0, 1.0 ) ), f.x ), f.y ); }`;
+// Mountains as limestone (board item 4 of the Mondello round): on slopes steeper than about 25 degrees, above 40 m, the ground colour gives way to grey rock with horizontal strata
+// (bands in height, bent by two noises) and dark green-brown scrub on the gentler part of the slope; level ground and anything below 40 m keep their own colour. On the steep part the
+// normal is mixed with the face normal (derivatives), so the 25 m facets of the far mesh light as crags instead of a smooth ramp. rkC (0..1) is how much rock a fragment is.
+const ROCK_GLSL = `
+float rkY = HPOS.y, rkS = 1.0 - clamp( HNY, 0.0, 1.0 ), rkC = 0.0, rkB = 0.5, rkN = 0.5;
+if ( rkY > 40.0 && rkS > 0.01 ) {
+  float rkH = smoothstep( 40.0, 110.0, rkY ), rkW = smoothstep( 0.01, 0.06, rkS ) * rkH;   // 8 to 20 degrees: city streets stay as they are
+  vec3 rkT = vec3( texture2D( rkNoise, HPOS.xz / ( 41.0 * 64.0 ) ).r, texture2D( rkNoise, HPOS.xz / ( 11.0 * 64.0 ) + 0.37 ).g, texture2D( rkNoise, HPOS.xz / ( 67.0 * 64.0 ) + 0.71 ).b );
+  float n1 = rkT.r, n2 = rkT.g;
+  float rkR = smoothstep( 0.2, 0.42, rkS + 0.1 * ( n1 - 0.5 ) );
+  rkC = rkR * rkH; rkN = n2;
+  float band = fract( rkY / 26.0 + n1 * 2.3 + n2 * 0.5 ); rkB = band;   // ledges: each layer darkens towards its foot and is lit on its top edge
+  vec3 rock = mix( vec3( 0.22, 0.19, 0.16 ), vec3( 0.47, 0.41, 0.33 ), clamp( 0.45 + 0.4 * n2 + 0.15 * ( n1 - 0.5 ), 0.0, 1.0 ) ) * ( 1.0 + 0.5 * rkR * rkR * rkR * ( band - 0.5 ) * 0.6 );
+  vec3 scrub = mix( vec3( 0.11, 0.13, 0.07 ), vec3( 0.26, 0.25, 0.14 ), clamp( n1 * 0.8 + n2 * 0.4, 0.0, 1.0 ) );
+  rock = mix( rock, rock * vec3( 1.0, 0.88, 0.7 ), smoothstep( 0.45, 0.7, rkT.b ) * 0.6 );   // ochre patches
+  vec3 scree = vec3( 0.50, 0.45, 0.37 ) * ( 0.85 + 0.3 * n2 );
+  scrub = mix( scrub, scree, smoothstep( 0.55, 0.8, n2 + 0.4 * ( rkS - 0.15 ) ) * smoothstep( 0.1, 0.2, rkS ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, mix( scrub, rock, rkR ) * ( 0.25 + 0.75 * clamp( HDT / 0.8, 0.0, 1.4 ) ), rkW );   // HDT: the detail texture's brightness (the tile terrain), so rock keeps its flecks and streaks up close
+  hzRk = 1.0 - 0.8 * rkW;
+}`;
+const FACET_GLSL = `\nnormal = normalize( mix( normal, normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) ), 0.6 * rkC ) );\nnormal = normalize( normal + rkC * rkC * vec3( 0.6 * ( rkN - 0.5 ), 0.7 * ( rkB - 0.5 ), 0.0 ) );`;
+// a 64 x 64 random texture (one channel per scale, bilinear and mipmapped, so the detail fades out with distance instead of shimmering) for ROCK_GLSL: three noise lookups cost less than the hashes they replace
+const ROCK_NOISE = (() => { const d = new Uint8Array(64 * 64 * 4); let q = 12345; for (let i = 0; i < d.length; i++) { q = (q * 1664525 + 1013904223) >>> 0; d[i] = q >>> 24; } const t = new THREE.DataTexture(d, 64, 64, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t; })();
 const NORMAL_NOFLIP = () => THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0');
 // Distant mountains read hazed blue #7297b4 (style guide section 6, board item n9): more with height and, now, with the real distance from the camera, in the shader of every
 // terrain material (full detail, low detail ring and the far mesh), so a hill that is half in one and half in another has no seam and nothing is tinted up close.
 // The vertex colours carry no haze any more. `pos` is a world position (the terrain meshes sit at the origin), the scene fog does the rest.
 const HAZE_GLSL = `
 float hzD = distance( cameraPosition, HZPOS ), hzY = HZPOS.y;
-float hz = min( 0.78, ( 0.1 + 0.3 * smoothstep( 30.0, 260.0, hzY ) ) * smoothstep( 300.0, 2500.0, hzD ) + 0.34 * smoothstep( 2000.0, 8500.0, hzD ) * smoothstep( 10.0, 120.0, hzY ) ) * smoothstep( 1.0, 4.0, hzY );
+float hz = min( 0.78, ( 0.1 + 0.3 * smoothstep( 30.0, 260.0, hzY ) ) * smoothstep( 300.0, 2500.0, hzD ) + 0.34 * smoothstep( 2000.0, 8500.0, hzD ) * smoothstep( 10.0, 120.0, hzY ) ) * smoothstep( 1.0, 4.0, hzY ) * hzRk;
 float hzK = smoothstep( 150.0, 400.0, hzY ) * smoothstep( 2500.0, 4500.0, hzD ) * ( 1.0 - smoothstep( 6000.0, 9500.0, hzD ) );   // tall ground far away (Monte Pellegrino from the seafront): the sun overexposed its pale limestone and the fog whitened it into the sky, so it drops to a darker silhouette with less fog on it
 hzFog = 1.0 - 0.6 * hzK;
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( ${HAZE.r.toFixed(5)}, ${HAZE.g.toFixed(5)}, ${HAZE.b.toFixed(5)} ), hz ) * ( 1.0 - 0.66 * hzK );`;
@@ -185,14 +210,15 @@ const FOG_HZ = THREE.ShaderChunk.fog_fragment.replace('vFogDepth * vFogDepth', '
 function farMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.rkNoise = { value: ROCK_NOISE };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFarNy; varying vec3 vFarPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y; vFarPos = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0; varying float vFarNy; varying vec3 vFarPos;').replace('#include <fog_fragment>', FOG_HZ)
-      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP())
-      .replace('#include <color_fragment>', '#include <color_fragment>' + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0; varying float vFarNy; varying vec3 vFarPos; uniform sampler2D rkNoise;').replace('#include <fog_fragment>', FOG_HZ)
+      .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP() + FACET_GLSL)
+      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vFarPos').replaceAll('HDT', '0.8').replaceAll('HNY', 'vFarNy') + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
   };
-  m.customProgramCacheKey = () => 'far-fill-haze-nf-hz';
+  m.customProgramCacheKey = () => 'far-fill-haze-nf-hz-rk';
   return m;
 }
 function getLowMats() {
@@ -241,7 +267,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const stat = { frames: 0, work: 0, workMax: 0, workSum: 0, hitches: 0, fetched: 0, bytes: 0, built: 0, errors: 0, parseMax: 0 };
 
   // ---------- manifest and far terrain ----------
-  const far = { chunks: new Map(), hidden: new Set() };
+  const far = { chunks: new Map(), hidden: new Set(), holeVer: 0 };
+  let hills = null, hillsVer = -1;
   const url = p => new URL(CFG.base + p, document.baseURI).href;
 
   fetch(url('manifest.json')).then(r => r.json()).then(m => {
@@ -255,6 +282,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
     buildFar();
+    hills = createHills({ root, url: new URL('assets/world/hills.bin', document.baseURI).href, mat: getLowMats().far, farM, colour: hillColour }); hills.load();
     farCity = createFarCity({ root, F: M.far, T, nk, url: new URL('assets/world/far.bin', document.baseURI).href, mat: getLowMats().roof });
     farCity.load().then(() => { wantedTimer = 99; }); // the budget needs the far triangle counts
     // warm the facade atlas in slices while the first tiles download
@@ -289,6 +317,12 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // the road a tile drapes along its edge is the same whether or not the neighbour has loaded (else it drapes on the coarse far grid, metres off).
   const groundFor = t => (x, z) => { const y = tileGround(x, z, t); return y === undefined ? groundY(x, z) : raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y)))); };
 
+  // vertex colour of a fine hill node (src/hills.js): the same ground colours as the far grid, by height and slope
+  function hillColour(col, k, x, y, z, dx, dz) {
+    const noise = (Math.sin(x * 0.013 + z * 0.009) + Math.sin(x * 0.0037 - z * 0.013)) * 0.25 + 0.5, n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5;
+    terrainColor(_c, y, Math.hypot(dx, dz), noise, n2);
+    col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
+  }
   function buildFar() {
     const F = M.far, h = Float32Array.from(F.h), s = F.s;
     const CELLS = 40; // 8 tiles; tile edges land on cell edges because the grid origin and step are multiples of 100 m
@@ -332,7 +366,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       let n = 0; const idx = c.idx;
       for (let j = 0; j < c.vz - 1; j++) for (let i = 0; i < c.vx - 1; i++) {
         const x = F.x0 + (c.ci0 + i) * s, z = F.z0 + (c.cj0 + j) * s;
-        if (far.hidden.has(nk(Math.floor(x / T), Math.floor(z / T)))) continue;
+        const tk = nk(Math.floor(x / T), Math.floor(z / T));
+        if (far.hidden.has(tk) || (hills && hills.fine.has(tk))) continue;
         const k = j * c.vx + i;
         idx[n++] = k; idx[n++] = k + c.vx; idx[n++] = k + 1; idx[n++] = k + 1; idx[n++] = k + c.vx; idx[n++] = k + c.vx + 1;
       }
@@ -344,7 +379,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function farHole(t, on) {
     const k = nk(t.i, t.j);
     if (on === far.hidden.has(k)) return;
-    on ? far.hidden.add(k) : far.hidden.delete(k);
+    on ? far.hidden.add(k) : far.hidden.delete(k); far.holeVer++;
     const c = far.chunks.get(Math.floor(t.i / 8) * 1000 + Math.floor(t.j / 8)); if (c) c.dirty = true;
   }
 
@@ -1104,6 +1139,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       est += estimate(t, 0);
     }
     if (farCity) est += farCity.trisAround(fx, fz, farRadius(), inKeys);
+    if (hills) est += hills.tris();
     for (const t of list) if (t.d < guard) { t.want = 2; est += estimate(t, 2) - estimate(t, 0); }
     for (const t of list) {
       if (t.dw < 1 || t.want >= 1) continue;
@@ -1126,7 +1162,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // one task at a time keeps the far chunks around the camera built (src/context.js sync); it sits behind the tile work in the queue
   function ensureFarTask(fx, fz) {
     if (!farCity || (farTask && !farTask.done)) return;
-    farTask = { t: { pd: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius(), seenBox); contextDirty = true; })(), wait: null, name: 'far' };
+    farTask = { t: { pd: 5e4 }, gen: (function* () { yield farCity.load(); yield* farCity.sync(fx, fz, farRadius(), seenBox); contextDirty = true; if (hills) yield* hills.sync(fx, fz, farRadius() + 1500, far.hidden, far.holeVer, seenBox); })(), wait: null, name: 'far' };
     tasks.push(farTask);
   }
   // ---------- centro landmarks (src/landmarks.js): a model is built once the tile it stands on is loaded and the tiles its footprint reaches into are too (or are not coming), so
@@ -1215,7 +1251,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (t.failed && !t.data && !cache.has(t.k)) continue;
       if (t.lod < t.want || (t.want === 1 && t.hasFull)) n++;
     }
-    farMissing = farCity ? farCity.missing(focus.x, focus.z, farRadius(), seenBox) : 0;
+    farMissing = (farCity ? farCity.missing(focus.x, focus.z, farRadius(), seenBox) : 0) + (hills ? hills.missing() : 0);
     return n + farMissing;
   }
 
@@ -1310,6 +1346,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const t = tiles.get(nk(Math.floor(tele.x / T), Math.floor(tele.z / T)));
         if (t && t.lod === 2) { const d = tele.done; tele = null; d && d(); }
       }
+      if (hills) { hills.refresh(far.hidden, far.holeVer); if (hills.ver !== hillsVer) { hillsVer = hills.ver; for (const c of far.chunks.values()) c.dirty = true; } }
       farUpdate();
       if (contextDirty) refreshContext();
       visPending = countPending();
