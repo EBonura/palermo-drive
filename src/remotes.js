@@ -72,7 +72,7 @@ export function createRemotes(env) {
       if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); r.model && r.model.root.remove(r.tag); }
       const map = tagTexture(name || '?');
       r.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
-      r.tag.scale.set(0.042 * map.image.width / map.image.height, 0.042, 1);
+      r.tag.scale.set(0.066 * map.image.width / map.image.height, 0.066, 1);
       r.tag.position.set(0, 2.55, 0); r.tag.renderOrder = 20;
       if (r.model) r.model.root.add(r.tag);
     }
@@ -148,7 +148,7 @@ export function createRemotes(env) {
     if (!r || !r.model) return;
     clearBubble(r);
     const map = tagTexture(text), sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
-    sprite.scale.set(0.05 * map.image.width / map.image.height, 0.05, 1); sprite.position.set(0, 3.3, 0); sprite.renderOrder = 21;
+    sprite.scale.set(0.074 * map.image.width / map.image.height, 0.074, 1); sprite.position.set(0, 3.6, 0); sprite.renderOrder = 21;
     r.model.root.add(sprite); r.bubble = { sprite, until: now + ms };
   }
 
