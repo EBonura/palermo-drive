@@ -4,9 +4,10 @@
 // shader pass: the whole picture ripples and swims, breathes in and out, blurs in pulses every few seconds and, from three drinks, sees double. It is plain from the first drink and properly
 // silly at six. It wears off over a few minutes of play, is cleared when the game goes back to the menu and is never saved. The wobble is the picture only: steering and physics are untouched,
 // and the camera is changed just for the render and put back straight after (render below, called from src/main.js), so no other module ever sees it.
-// Sober play costs exactly nothing: until the first drink there is no render target and no extra draw, the scene goes to the canvas as ever; while drunk the scene is drawn to a render target
-// (the size of the drawing buffer, 4x multisampled, half float so the sun and the lamps are still HDR) and one full-screen triangle with the shader brings it to the canvas, applying the
-// renderer's tone mapping and colour space there (they are skipped for a render target); the target is freed again a moment after the last drink wears off.
+// Sober play costs exactly nothing: until the first drink there is no extra texture and no extra draw, the scene goes to the canvas as ever; while drunk the scene still goes to the canvas as ever,
+// is copied to a texture the size of the drawing buffer, and one full-screen triangle with the shader draws it back. Never draw the scene to a render target here: three.js builds another version of
+// every material's shader for one (no tone mapping, another colour space), and the first drink froze the game for up to 1.5 s compiling them. The texture is freed a moment after the last drink wears off.
+// Six drinks and you pass out: 'pd-pass-out' goes to src/vehicle-events.js, which plays the gang block's sequence (stripped to the frame, some of the wallet gone) and answers 'pd-sober' in the dark.
 // createDrunk({ game, car, camera, missions }) -> { update(dt), render(renderer, scene, camera, skip), reset(), drink(), setUnits(n), units, level, spot, price }
 //   missions: the missions api (src/missions.js), for its pubs (doors) and its rave; both are optional, without them there is simply nothing to drink at.
 //   Test links: ?debug puts it on window.game.drunk (setUnits(n) stacks n drinks at once). Reduced motion (prefers-reduced-motion) keeps a much gentler version: a slow soft blur and a slight, slow roll,
@@ -17,7 +18,7 @@ import { zone } from './hud.js';
 
 const PRICE = 2;            // euro per drink at a pub (garage.debit takes whole euro)
 const COOL = 1.4;           // seconds before the next drink can be asked for
-const MAX = 6;              // drinks that can be stacked; the barman refuses the seventh
+const MAX = 6;              // drinks that can be stacked; the sixth and you pass out (src/vehicle-events.js)
 const WEAR = 75;            // seconds of play for one drink to wear off (a stack of three takes a bit under four minutes)
 // Where a pub pours: near its door (a little more than the 7 m of the 'pd-pub-stop' event of src/pubs.js) or near the road point that its errand ends at (src/pub-routes.js).
 // Some doors sit in pedestrian piazzas with buildings between them and the road, so the lapa gets only so close (measured by driving at each door from eight sides): they have a wider reach.
@@ -85,8 +86,6 @@ void main() {
   }
   col *= 1.0 - uVig * smoothstep(0.25, 0.95, sqrt(r2));
   gl_FragColor = vec4(col, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
 }`;
 
 const CSS = `
@@ -157,6 +156,7 @@ export function createDrunk({ game, car, camera, missions }) {
     }
     units += 1; count += 1;
     const n = Math.ceil(units), name = spot.id === 'rave' ? RAVE_DRINKS[(count - 1) % RAVE_DRINKS.length] : spot.name;
+    if (n >= MAX) dispatchEvent(new Event('pd-pass-out'));
     let sub = drinkLine(n, pick);
     if (spot.free && spot.perk) spot.perk.left--;
     if (spot.free && noted !== spot.id) { noted = spot.id; sub = pick(spot.rave ? FREE : FREE_PUB); }
@@ -170,10 +170,12 @@ export function createDrunk({ game, car, camera, missions }) {
     units += 1; count += 1;
     const n = Math.ceil(units);
     toast(name + (n > 1 ? '  ×' + n : ''), drinkLine(n, pick));
+    if (n >= MAX) dispatchEvent(new Event('pd-pass-out'));
     return true;
   }
 
-  function reset() { units = 0; shown = 0; count = 0; cool = 0; still = 0; noted = ''; visible = false; spot = null; for (const k in perks) delete perks[k]; }
+  function reset() { units = 0; shown = 0; count = 0; cool = 0; still = 0; noted = ''; visible = false; spot = null; for (const k in perks) delete perks[k]; dispatchEvent(new Event('pd-sober')); }
+  addEventListener('pd-woke-sober', () => { units = 0; shown = 0; count = 0; });   // passed out: the wake-up is sober (src/vehicle-events.js)
 
   // ------------------------------------------------------------------ per frame
   function update(dt) {
@@ -186,7 +188,7 @@ export function createDrunk({ game, car, camera, missions }) {
     if (er && er.phase === 'done' && er.pay > 0 && !paid.has(er)) { paid.add(er); const n = FREE_ROUND[er.venue.def.id]; if (n) perks[er.venue.def.id] = { night: nightNo, left: n }; }
     if (play) {
       clock += dt; cool = Math.max(0, cool - dt);
-      if (units > 0) { units = Math.max(0, units - dt / WEAR); if (units === 0) { toast(pick(GONE), pick(GONE_SUB)); count = 0; } }
+      if (units > 0) { units = Math.max(0, units - dt / WEAR); if (units === 0) { toast(pick(GONE), pick(GONE_SUB)); count = 0; dispatchEvent(new Event('pd-sober')); } }
     }
     // the picture follows the stack gently, so a drink swells in over a couple of seconds and a wearing-off drifts away
     shown += (Math.min(1, Math.pow(units / MAX, 0.7)) - shown) * Math.min(1, dt * 0.9);
@@ -230,20 +232,23 @@ export function createDrunk({ game, car, camera, missions }) {
     if (camera.fov !== sf) { camera.fov = sf; camera.updateProjectionMatrix(); }
   }
 
-  // the render target and the full-screen pass, made at the first drink and dropped IDLE seconds after the last one wore off
+  // the copy of the picture and the full-screen pass, made at the first drink and dropped IDLE seconds after the last one wore off
   let post = null, idleAt = 0;
   const sz = new THREE.Vector2();
-  function makePost(renderer) {
-    const hf = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
-    const target = new THREE.WebGLRenderTarget(4, 4, { type: hf ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: 4, depthBuffer: true, generateMipmaps: false });
-    target.texture.wrapS = target.texture.wrapT = THREE.MirroredRepeatWrapping;
-    const uniforms = { tDiffuse: { value: target.texture }, uTime: { value: 0 }, uAspect: { value: 1.78 }, uWave: { value: 0 }, uBlur: { value: 0 }, uGhost: { value: 0 }, uVig: { value: 0 } };
-    const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false });
+  function makeCopy(w, h) {   // holds what the canvas shows, tone mapped and in its colour space already, so the pass draws it back untouched
+    const t = new THREE.FramebufferTexture(w, h);
+    t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    return t;
+  }
+  function makePost(w, h) {
+    const copy = makeCopy(w, h);
+    const uniforms = { tDiffuse: { value: copy }, uTime: { value: 0 }, uAspect: { value: 1.78 }, uWave: { value: 0 }, uBlur: { value: 0 }, uGhost: { value: 0 }, uVig: { value: 0 } };
+    const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false, toneMapped: false });
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); quad.frustumCulled = false;
     const scn = new THREE.Scene(); scn.add(quad);
-    return { target, uniforms, mat, quad, scn, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
+    return { copy, uniforms, mat, quad, scn, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
   }
-  function dropPost() { idleAt = 0; if (!post) return; post.target.dispose(); post.mat.dispose(); post.quad.geometry.dispose(); post = null; }
+  function dropPost() { idleAt = 0; if (!post) return; post.copy.dispose(); post.mat.dispose(); post.quad.geometry.dispose(); post = null; }
   const smooth = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
 
   // Draws the frame: the plain way when sober (nothing extra at all), through the target and the shader pass while drunk. Returns nothing.
@@ -257,9 +262,9 @@ export function createDrunk({ game, car, camera, missions }) {
     // a floor under the first drink so it reads at once, then the stack takes it to full
     const k = shown, lvl = 0.5 + 0.5 * k, t = clock * (calm ? 0.6 : 1);
     apply(k);
-    if (!post) post = makePost(renderer);
     renderer.getDrawingBufferSize(sz);
-    if (post.target.width !== sz.x || post.target.height !== sz.y) post.target.setSize(sz.x, sz.y);
+    if (!post) post = makePost(sz.x, sz.y);
+    else if (post.copy.image.width !== sz.x || post.copy.image.height !== sz.y) { post.copy.dispose(); post.copy = post.uniforms.tDiffuse.value = makeCopy(sz.x, sz.y); }
     // the blur comes in pulses: every few seconds the picture goes soft for a moment, more often and deeper with more drinks
     const wave = Math.sin(t * 0.8 + 0.7 * Math.sin(t * 0.23)), pulse = smooth(0.62 - 0.35 * k, 0.97, wave);
     const u = post.uniforms;
@@ -271,9 +276,9 @@ export function createDrunk({ game, car, camera, missions }) {
       u.uGhost.value = smooth(0.4, 0.75, k) * (0.45 + 0.55 * smooth(-0.2, 0.7, Math.sin(t * 0.37 + 2))) * (0.004 + 0.018 * k);   // double vision from about three drinks, coming and going
       u.uVig.value = 0.5 * k * k * (0.5 + 0.5 * pulse);
     }
-    const rtOld = renderer.getRenderTarget();
-    renderer.setRenderTarget(post.target); renderer.render(scene, cam); restore();
-    renderer.setRenderTarget(rtOld); renderer.render(post.scn, post.cam);
+    renderer.render(scene, cam); restore();
+    renderer.copyFramebufferToTexture(post.copy);
+    renderer.render(post.scn, post.cam);
   }
 
   return { update, render, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, max: MAX, get full() { return units > MAX - 1 + 0.001; }, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
