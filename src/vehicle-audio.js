@@ -80,7 +80,7 @@ export function createVehicleAudio(env) {
       a.nos = loop(nb, 'bandpass', 1400); a.nos.filt.Q.value = 0.7;
       a.impact = imp; a.ready = true; buildEngine();
     }).catch(err => console.warn('vehicle audio failed to load', err));
-    document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend(); else ctx.resume(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) ctx.suspend(); });   // coming back is src/audio-recover.js
   }
   function gesture() { start(); if (a.ctx && a.ctx.state === 'suspended' && !document.hidden) a.ctx.resume(); }
   for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, gesture, { passive: true });

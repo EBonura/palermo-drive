@@ -1,3 +1,4 @@
+import './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,

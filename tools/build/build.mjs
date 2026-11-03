@@ -96,7 +96,8 @@ mustReplace(/<\/style>/, `</style>\n<style>${css}</style>`, 'the inline <style> 
 html = html.replace(/<script type="importmap">[\s\S]*?<\/script>\s*/, '');
 if (DATA_MODE === 'bin') html = html.replace(/<script src="(palermo|props|context)-data\.js"><\/script>\s*/g, '');
 mustReplace(/<script type="module" src="src\/main\.js"><\/script>/, '', 'the main.js module script');
-const fontPre = [...css.matchAll(/url\("?([^)"]*(?:mr-dafoe|racing-sans-one)[^)"]*\.woff2)"?\)/g)].map(m => `<link rel="preload" as="font" type="font/woff2" crossorigin href="${m[1].replace(/^\.\//, '')}">`); // title fonts: fetch them with the HTML, not after the CSS is parsed
+html = html.replace(/<link rel="preload" as="font"[^>]*>\s*/g, '');   // index.html preloads the first screen's fonts by their source names: the hashed ones below replace them
+const fontPre = [...css.matchAll(/url\("?([^)"]*(?:mr-dafoe|racing-sans-one|barlow)[^)"]*\.woff2)"?\)/g)].map(m => `<link rel="preload" as="font" type="font/woff2" crossorigin href="${m[1].replace(/^\.\//, '')}">`); // title fonts and the Barlow faces of the loading tips: fetch them with the HTML, not after the CSS is parsed
 const preloads = [...fontPre, `<link rel="modulepreload" href="js/${appName}">`, ...dataBlobs.filter(b => !b.late).map(b => `<link rel="preload" as="fetch" crossorigin href="${b.file}">`)];
 html = html.replace('<link rel="manifest"', preloads.join('\n') + '\n<link rel="manifest"');
 html = html.replace('</body>', `<script type="module" src="js/${appName}"></script>\n</body>`);

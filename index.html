@@ -8,6 +8,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Palermo Drive">
 <link rel="manifest" href="manifest.webmanifest">
+<!-- the fonts the first screen (the loading tips, src/loading-tips.js) is set in: fetched with the page, not after the CSS is parsed. The build swaps these for the hashed files. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/barlow-600.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/barlow-400.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/barlow-condensed-700.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/barlow-condensed-600.woff2">
 <title>Palermo Drive</title>
 <meta name="description" content="Palermo Drive: 3 ruote 2 frecce 1 clacson 0 dignità. Guida una lapa nel caos di Palermo.">
 <meta property="og:type" content="website">
