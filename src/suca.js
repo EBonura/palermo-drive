@@ -8,6 +8,7 @@
 // One atlas texture, one mesh for every live tag (rebuilt when a tile comes or goes). progress() is { found, total }: total counts the
 // tags of every tile the player has seen so far (kept in localStorage), so it grows as the city streams in.
 import * as THREE from 'three';
+import { zone } from './hud.js';
 import { groundY, pairs, signedArea, inPoly, rng } from './core.js';
 import { zoneAt } from './districts.js';
 
@@ -379,8 +380,8 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
         au = new AC(); noise = au.createBuffer(1, au.sampleRate * .4, au.sampleRate);
         const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       }
-      if (au.state === 'suspended') au.resume();
-      const v = getVolume(); if (au.state !== 'running' || !(v > 0)) return;
+      const v = getVolume(); if (!(v > 0)) return;
+      if (au.state === 'suspended') { au.resume().then(chime, () => {}); return; }   // a new context starts suspended: the first tag was always silent
       const t = au.currentTime, out = au.createGain(); out.gain.value = .2 * v; out.connect(au.destination);
       const hiss = au.createBufferSource(), band = au.createBiquadFilter(), env = au.createGain();
       hiss.buffer = noise; band.type = 'bandpass'; band.Q.value = .8; band.frequency.setValueAtTime(2600, t); band.frequency.exponentialRampToValueAtTime(7500, t + .38);
@@ -423,14 +424,13 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
   }
   world?.onTile(tileEvent);
 
-  // toast, same look as the radio's "now playing" card (top-left, below the mission panel / radio card)
+  // toast, same look as the radio's "now playing" card; it has its own line under the mission card (src/hud.js), a new tag replaces the old one
   const style = document.createElement('style');
   style.textContent = `
-.pd-suca-toast { position: fixed; z-index: 506; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); transform: translate(0, -8px);
-  width: max-content; max-width: min(340px, 64vw); box-sizing: border-box; padding: 7px 12px 8px 11px; border-radius: 9px; pointer-events: none;
-  background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff; opacity: 0;
-  font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .3s, transform .3s; transform-origin: 0 50%; }
-.pd-suca-toast.on { opacity: 1; transform: translate(0, 0); }
+.pd-suca-toast { display: none; opacity: 0; width: max-content; max-width: var(--wide); box-sizing: border-box; padding: 5px 12px 6px 11px; border-radius: 9px; pointer-events: none; text-align: center;
+  background: rgba(11,7,9,.88); border: 1px solid rgba(232,85,154,.7); border-left: 4px solid #e8559a; color: #fff;
+  font: 600 13px/1.25 system-ui, -apple-system, sans-serif; text-shadow: none; transition: opacity .3s, display .3s allow-discrete; }
+.pd-suca-toast.on { display: block; opacity: 1; @starting-style { opacity: 0; } }
 .pd-suca-toast.bump { animation: pd-suca-bump .55s cubic-bezier(.2, 1.5, .4, 1); }
 .pd-suca-toast.bump b { animation: pd-suca-num .55s ease-out; transform-origin: 0 50%; }
 @keyframes pd-suca-bump { 0% { transform: scale(.9); } 28% { transform: scale(1.16); box-shadow: 0 0 22px rgba(232,85,154,.85); } 100% { transform: scale(1); box-shadow: 0 0 0 rgba(232,85,154,0); } }
@@ -438,20 +438,17 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
 @media (prefers-reduced-motion: reduce) { .pd-suca-toast.bump, .pd-suca-toast.bump b { animation: none; } }
 .pd-suca-toast small { display: block; font: 800 9.5px/1 system-ui, -apple-system, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #e8559a; margin-bottom: 3px; }
 .pd-suca-toast b { display: block; font-weight: 800; font-size: 15px; letter-spacing: .04em; }
-@media (max-height: 460px) { .pd-suca-toast { font-size: 11px; padding: 5px 10px 6px 9px; max-width: min(300px, 46vw); } .pd-suca-toast b { font-size: 13px; } }
+@media (max-height: 460px) { .pd-suca-toast { font-size: 11px; padding: 4px 10px 5px 9px; } .pd-suca-toast b { font-size: 13px; } }
 `;
   document.head.appendChild(style);
   const toast = document.createElement('div');
   toast.className = 'pd-suca-toast'; toast.setAttribute('role', 'status'); toast.setAttribute('aria-live', 'polite');
-  document.body.appendChild(toast);
+  zone('pick').appendChild(toast);
   let toastTimer = 0;
   const progress = () => ({ found: done.size, total: Math.max(seenTotal, done.size) });
   function showToast(word) {
     const p = progress();
     toast.innerHTML = `<small>Graffiti</small><b>${word} ${p.found}/${p.total}</b>`;
-    let top = 8;
-    for (const el of document.querySelectorAll('#pm-hud.on, .pd-radio-toast.on')) top = Math.max(top, el.getBoundingClientRect().bottom + 8);
-    toast.style.top = top > 8 ? `${Math.round(top)}px` : '';
     toast.classList.remove('bump'); void toast.offsetWidth; // restart the bounce when a second tag follows closely
     toast.classList.add('on', 'bump');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on', 'bump'), 2600);

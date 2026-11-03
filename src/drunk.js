@@ -13,6 +13,7 @@
 //   with no rippling, no zoom, no sway and no double vision.
 import * as THREE from 'three';
 import { garage } from './garage.js';
+import { zone } from './hud.js';
 
 const PRICE = 2;            // euro per drink at a pub (garage.debit takes whole euro)
 const COOL = 1.4;           // seconds before the next drink can be asked for
@@ -86,10 +87,8 @@ void main() {
 }`;
 
 const CSS = `
-#pd-drink { position: fixed; z-index: 40; left: 50%; bottom: 76px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; }
-#pd-drink.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-html.touch #pd-drink { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 80px); }
-html.pd-title #pd-drink { display: none; }
+#pd-drink { display: none; }
+#pd-drink.on { display: block; pointer-events: auto; }
 #pd-drink button { display: flex; align-items: center; gap: 10px; min-width: 150px; min-height: 48px; padding: 6px 20px 6px 10px; margin: 0; border: 2px solid #e8559a; border-radius: 0; cursor: pointer; transform: skewX(-6deg);
   background: linear-gradient(90deg, rgba(11,7,9,.9), rgba(60,14,40,.88)); box-shadow: 0 0 22px rgba(232,85,154,.45), 0 3px 10px rgba(0,0,0,.45); color: #fff; text-align: left;
   font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; text-transform: uppercase; -webkit-tap-highlight-color: transparent; touch-action: none; }
@@ -118,7 +117,7 @@ export function createDrunk({ game, car, camera, missions }) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const box = document.createElement('div'); box.id = 'pd-drink'; box.setAttribute('aria-hidden', 'true');
   box.innerHTML = '<button type="button" tabindex="-1"><kbd>B</kbd><span><b></b><small></small></span></button>';
-  document.body.appendChild(box);
+  zone('act').appendChild(box);
   const elB = box.querySelector('b'), elS = box.querySelector('small');
   box.querySelector('button').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drink(); });   // on the press, like the driving pads
   addEventListener('keydown', e => {

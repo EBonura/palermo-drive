@@ -221,7 +221,7 @@ export function createRaces(X) {
     }
     const near = S.slot.dist < 70;
     if (near && allowed && X.now() >= S.slot.coolUntil) {
-      const slow = Math.abs(car.vf) < 2.5 && S.slot.dist < JOIN_R && X.calls.armed() && !X.params.has('nojoin');
+      const slow = Math.abs(car.vf) < 2.5 && S.slot.dist < JOIN_R && X.calls.armed() && X.held !== S.slot && !X.params.has('nojoin');
       S.stop = slow ? S.stop + dt : Math.max(0, S.stop - dt * 2);
       hud.set({ label: S.def.night ? T('Di notte', 'After dark') : T('Gara', 'Race'), title: T(S.def.name, S.def.en), sub: T('Fermati alla linea per partecipare', 'Stop at the line to join'), time: '', frac: S.stop / 1.1, target: S.slot });
       if (S.stop >= 1.1) { S.stop = 0; return S.slot; }

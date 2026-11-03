@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { garage } from './garage.js';
 import { dangerAt, areaAt, covered } from './danger.js';
 import { vp } from './viewport.js';
+import { zone } from './hud.js';
 
 const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number per call (docs/PERF.md)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -157,13 +158,13 @@ export function createPolice(env, T) {
   // ---------- HUD ----------
   const css = document.createElement('style');
   css.textContent = `
-  #pd-status { position: fixed; z-index: 58; left: max(10px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 84px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
-  #pd-hood { display: none; flex-direction: column; padding: 4px 11px 6px 9px; transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.78), rgba(40,12,28,.7));
+  #pd-hood { display: none; flex-direction: column; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 5px auto 0; padding: 4px 11px 6px 9px; transform: skewX(-6deg); background: linear-gradient(90deg, rgba(11,7,9,.78), rgba(40,12,28,.7));
     border-left: 3px solid var(--hc, #f5a9c9); box-shadow: 0 2px 10px rgba(0,0,0,.35); font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }
   #pd-hood.on { display: flex; }
   #pd-hood > * { transform: skewX(6deg); }
-  #pd-hood .ph-n { font-size: 13px; letter-spacing: .06em; line-height: 1.05; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
-  #pd-hood .ph-r { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+  #pd-hood .ph-n { font-size: 13px; letter-spacing: .06em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none; }
+  #pd-hood .ph-r { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 3px 7px; margin-top: 3px; }
+  #pd-hood .ph-t { display: none; } #pd-hood.fresh .ph-t { display: block; }   /* the words only for a moment when the area changes; the diamonds stay */
   #pd-hood .ph-t { font: 600 9px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.7); white-space: nowrap; }
   #pd-hood .ph-p { display: flex; gap: 3px; }
   #pd-hood .ph-p i { width: 9px; height: 9px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
@@ -184,36 +185,37 @@ export function createPolice(env, T) {
   #pd-wanted .pw-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); transform: none; }
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
   #pd-wanted.clear .pw-t { color: #fff; text-shadow: 0 0 8px #e8559a; }
-  html.touch #pd-status { top: calc(max(8px, env(safe-area-inset-top)) + 70px); transform-origin: left top; scale: .86; }
-  #pd-busted { position: fixed; z-index: 70; left: 50%; top: 24%; transform: translate(-50%, 0) skewX(-6deg) scale(.92); min-width: min(330px, 70vw); max-width: 88vw; padding: 12px 22px 14px; text-align: center; pointer-events: none; opacity: 0;
-    transition: opacity .25s, transform .25s; background: linear-gradient(90deg, rgba(11,7,9,.92), rgba(48,12,32,.9)); border-top: 4px solid #e8559a; border-bottom: 4px solid #1a1114; box-shadow: 0 6px 30px rgba(0,0,0,.55), 0 0 0 2px #e8559a; color: #fff;
+  html.touch #pd-hood { margin: 4px 0 0 auto; padding: 3px 8px 4px 7px; } html.touch #pd-hood .ph-n { font-size: 11px; }
+  #pd-busted { display: none; transform: skewX(-6deg); box-sizing: border-box; min-width: var(--obj); max-width: var(--wide); padding: 10px 22px 12px; text-align: center; pointer-events: none;
+    background: linear-gradient(90deg, rgba(11,7,9,.92), rgba(48,12,32,.9)); border-top: 4px solid #e8559a; border-bottom: 4px solid #1a1114; box-shadow: 0 6px 30px rgba(0,0,0,.55), 0 0 0 2px #e8559a; color: #fff;
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
-  #pd-busted.on { opacity: 1; transform: translate(-50%, 0) skewX(-6deg) scale(1); }
+  #pd-busted.on { display: block; animation: pd-busted-in .25s ease-out; }
+  @keyframes pd-busted-in { from { opacity: 0; transform: skewX(-6deg) scale(.92); } }
+  .hz-moment:has(#pd-busted.on) .ev-result { display: none; }   /* one moment at a time: src/hud.js */
   #pd-busted > * { transform: skewX(6deg); }
   #pd-busted h3 { margin: 0 0 6px; font-weight: 400; font-size: clamp(24px, 6vh, 42px); line-height: 1; letter-spacing: .08em; text-shadow: 0 0 14px #e8559a, 0 3px 0 #1a1114; }
   #pd-busted p { margin: 0; font: 700 clamp(13px, 2.9vh, 18px)/1.25 system-ui, sans-serif; }
-  html.pd-title #pd-busted { display: none; }
   #pd-busted small { display: block; margin-top: 2px; font: 600 clamp(11px, 2.3vh, 14px)/1.2 system-ui, sans-serif; opacity: .75; }
   #pd-busted .fine { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(16px, 3.6vh, 24px); letter-spacing: .1em; color: #f5a9c9; }`;
   document.head.appendChild(css);
   const hud = document.createElement('div');
   hud.id = 'pd-wanted';
   hud.innerHTML = `<svg class="pw-ico" viewBox="0 0 24 24"><g class="d"><path class="b1" d="M5 18a7 7 0 0 1 7-9v9z" fill="#f08cb4"/><path class="b2" d="M19 18a7 7 0 0 0-7-9v9z" fill="#1a1114"/></g><rect x="3" y="18" width="18" height="3" rx="1" fill="#e8559a"/><path d="M12 2v3M4.5 5.5l2 2M19.5 5.5l-2 2" stroke="#f5a9c9" stroke-width="1.6" stroke-linecap="round"/></svg><div><div class="pw-t">SBIRRI</div><div class="pw-pips"><i></i><i></i><i></i><i></i><i></i></div></div><div class="pw-bar"><b></b></div>`;
-  // top-left status stack: the wanted line (only when the police care) above the neighbourhood's danger line (always, while driving)
-  const status = document.createElement('div'); status.id = 'pd-status'; document.body.appendChild(status);
-  status.appendChild(hud);
+  // the wanted line (only when the police care) stands in the status column; the neighbourhood's danger line is part of "where am I", under the street name
+  zone('status').appendChild(hud);
   const hood = document.createElement('div'); hood.id = 'pd-hood';
   hood.innerHTML = '<div class="ph-n"></div><div class="ph-r"><span class="ph-t">Pericolosità quartiere</span><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div>';
-  status.appendChild(hood);
-  const elHN = hood.querySelector('.ph-n'), hPips = [...hood.querySelectorAll('.ph-p i')];
+  document.getElementById('where').appendChild(hood);
+  const elHN = hood.querySelector('.ph-n'), elHT = hood.querySelector('.ph-t'), hPips = [...hood.querySelectorAll('.ph-p i')];
   const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
-  let hdOn = null, hdName = '', hdLv = -1;
+  let hdOn = null, hdName = '', hdLv = -1, hdWords = 0;
   function drawHood() {
     const on = !covered();
     if (on !== hdOn) { hdOn = on; hood.classList.toggle('on', on); }
     if (!on) return;
     const name = areaAt(car.x, car.z) || 'Palermo', lv = dangerAt(car.x, car.z);
-    if (name !== hdName) { hdName = name; elHN.textContent = name; }
+    if (name !== hdName) { hdName = name; elHN.textContent = name; hood.classList.add('fresh'); hdWords = performance.now() + 5000; elHT.textContent = document.documentElement.lang === 'en' ? 'Neighbourhood danger' : 'Pericolosità quartiere'; }
+    else if (hdWords && performance.now() > hdWords) { hdWords = 0; hood.classList.remove('fresh'); }
     if (lv !== hdLv) { hdLv = lv; hPips.forEach((p, i) => p.classList.toggle('f', i < lv)); hood.style.setProperty('--hc', HOOD_C[lv - 1] || HOOD_C[0]); }
   }
   const elT = hud.querySelector('.pw-t'), pips = [...hud.querySelectorAll('.pw-pips i')], elBar = hud.querySelector('.pw-bar b');
@@ -235,7 +237,7 @@ export function createPolice(env, T) {
   // ---------- busted ----------
   const card = document.createElement('div');
   card.id = 'pd-busted';
-  document.body.appendChild(card);
+  zone('moment').appendChild(card);
   function bust() {
     const lv = Math.max(1, level()), want = 20 * lv, fine = garage.debit(Math.min(want, garage.cash));
     const [it, en] = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0];

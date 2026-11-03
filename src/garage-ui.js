@@ -169,7 +169,7 @@ const CSS = `
 .gx-foot.f3 .pd-l1 { font-size: clamp(12px, 2.9vh, 17px); }
 .gx-foot.f3 .gx-go, .gx-foot.f3 .gx-need { flex: 1.5 1 0; }
 .gx-foot.f3 .gx-need { font-size: clamp(11px, 2.5vh, 15px); }
-html.pd-in-garage :is(#where, #speed, #mini, #help, #attrib, .tc) { visibility: hidden !important; }   /* the street HUD and the touch pads belong to the street */
+html.pd-in-garage :is(#help, .tc) { visibility: hidden !important; }   /* the street HUD and the touch pads belong to the street */
 `;
 
 // camera focus for the category being browsed: where to look from

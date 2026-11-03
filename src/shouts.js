@@ -120,13 +120,16 @@ export function createShouts(camera) {
       const behind = v.z > 1;
       s.el.style.display = behind ? 'none' : '';
       if (behind) continue;
-      const x = (v.x + 1) / 2 * w, y = (1 - v.y) / 2 * h;
+      if (s.h === undefined) { s.h = s.el.offsetHeight; s.w = s.el.offsetWidth; }   // read once per balloon
+      const x = (v.x + 1) / 2 * w, y = Math.max((h < 520 ? 110 : 96) + s.h, (1 - v.y) / 2 * h);   // the whole balloon stays under the top band, which belongs to the HUD's zones (src/hud.js)
       const pop = Math.min(1, s.t / 0.12), fade = Math.min(1, (s.life - s.t) / 0.3);
       // Sit beside the speaker, on the side away from the screen centre, so the face and the road stay
       // visible; the side is chosen once so the balloon doesn't flip while it follows them.
       if (!s.side) { s.side = x < w / 2 ? -1 : 1; s.el.classList.add(s.side < 0 ? 'left' : 'right'); }
       const ox = s.side * 18, ax = s.side < 0 ? -100 : 0;
-      s.el.style.transform = `translate(${(x + ox).toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${(0.6 + 0.4 * pop).toFixed(2)})`;
+      // it stays on the screen, and on a desktop out of the map's column on the right (a phone's column ends in the top band)
+      const bx = s.side < 0 ? Math.max(8 + s.w, x + ox) : Math.min(w - 8 - s.w - (h >= 520 && y - s.h < 340 ? 222 : 0), x + ox);
+      s.el.style.transform = `translate(${bx.toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${(0.6 + 0.4 * pop).toFixed(2)})`;
       s.el.style.opacity = fade.toFixed(2);
     }
   }

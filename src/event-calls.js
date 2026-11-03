@@ -76,7 +76,7 @@ export function createCalls(X) {
         s.shoutT -= dt;
         if (s.shoutT <= 0 && d < 75) { s.shoutT = rand(6, 10); say(lineFor(s), headOf(s.callers[0]), 0); }
         if (d < nd) { nd = d; nearest = s; }
-        if (armed && d < ACCEPT_R && speed() < 2.2) { s.holdT = (s.holdT || 0) + dt; if (s.holdT > 0.35) accepted = s; } else s.holdT = 0;
+        if (armed && X.held !== s && d < ACCEPT_R && speed() < 2.2) { s.holdT = (s.holdT || 0) + dt; if (s.holdT > 0.35) accepted = s; } else s.holdT = 0;
       } else if (doSpawn && d < SPAWN_R && present() < MAX_CALLERS && car.type !== 'sulky') spawn(s);
     }
     // the nearest caller gets the pink ring

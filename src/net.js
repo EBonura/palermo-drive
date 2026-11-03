@@ -53,7 +53,7 @@ const T = {
 };
 
 const CSS = `
-.pdn-pill{position:fixed;z-index:30;right:226px;top:20px;display:flex;align-items:center;gap:7px;padding:5px 11px 5px 9px;border-radius:99px;
+.pdn-pill{margin:5px auto 0;pointer-events:auto;display:flex;align-items:center;gap:7px;padding:5px 11px 5px 9px;border-radius:99px;
   font:700 12px/1 system-ui,-apple-system,sans-serif;color:#fff;background:rgba(13,7,9,.74);border:1.5px solid ${PINK_D};cursor:pointer;
   box-shadow:0 2px 8px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;max-width:200px;white-space:nowrap}
 .pdn-pill[hidden]{display:none}
@@ -74,7 +74,7 @@ html.pd-title .pdn-pill,html.pd-title .pdn-card{display:none!important}
 .pdn-card button{flex:1;font:700 14px system-ui,sans-serif;padding:9px 12px;border-radius:9px;border:1.5px solid ${PINK_D};background:transparent;color:#fff;cursor:pointer;min-height:40px}
 .pdn-card button.ok{background:${PINK_D};color:${BLACK}}
 .pdn-card button.lnk{flex:1 1 100%;border:0;min-height:0;padding:4px;font-weight:600;font-size:12px;opacity:.7;text-decoration:underline}
-html.touch .pdn-pill{right:calc(max(12px,env(safe-area-inset-right)) + clamp(76px,25vh,104px) + 8px);top:max(10px,env(safe-area-inset-top));font-size:11px;padding:4px 9px 4px 8px}
+html.touch .pdn-pill{margin:4px 0 0 auto;font-size:11px;padding:4px 9px 4px 8px}
 html.touch .pdn-pill .n{display:none}
 html.touch .pdn-card{bottom:auto;top:max(60px,calc(env(safe-area-inset-top) + 56px));width:min(330px,calc(100vw - 280px));min-width:250px;padding:10px 12px}
 html.touch .pdn-card small{display:none}
@@ -136,7 +136,7 @@ export function createNet(env) {
     pill = document.createElement('button'); pill.type = 'button'; pill.className = 'pdn-pill off';
     pill.innerHTML = '<span class="d"></span><span class="c"></span><span class="n"></span>';
     pill.addEventListener('click', () => openName());
-    document.body.appendChild(pill);
+    document.getElementById('where').appendChild(pill);   // the HUD's "where am I" column (src/hud.js)
     renderPill();
   }
   function renderPill() {

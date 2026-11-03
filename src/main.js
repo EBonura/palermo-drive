@@ -33,6 +33,7 @@ import { watchVersion } from './version.js'; // "new version" button on the titl
 import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
+import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
 import { createLeanEngine } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
 
 // Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
@@ -242,6 +243,7 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 // ---------- player car (src/vehicle.js) ----------
 const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
+zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar stands next to the speed
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
@@ -347,7 +349,7 @@ function showKeyHint() {
   const el = document.createElement('div');
   el.id = 'keyhint';
   el.textContent = 'Premi ? per i comandi · Press ? for controls';
-  document.body.appendChild(el);
+  zone('act').appendChild(el);
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 700); }, 4500);
 }
 const params = new URLSearchParams(location.search);

@@ -20,7 +20,7 @@ html.touch .tc {
   --edge-l: max(10px, env(safe-area-inset-left));
   --edge-r: max(10px, env(safe-area-inset-right));
   --edge-b: max(10px, env(safe-area-inset-bottom));
-  display: block; position: fixed; inset: 0; z-index: 20; pointer-events: none;
+  display: block; position: fixed; inset: 0; z-index: 45; pointer-events: none;   /* over the balloons (40), under the HUD zones (50) */
 }
 .tc * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
@@ -78,19 +78,6 @@ html.touch .rot {
 .rot-en { margin-top: 7px !important; color: rgba(255,255,255,.62); }
 @keyframes rot-turn { 0%, 14% { transform: rotate(0); } 54%, 86% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @media (max-height: 640px) { .rot-ring { width: clamp(88px, 24vw, 120px); } .rot-card { margin-top: 6px; padding-top: 9px; padding-bottom: 9px; } .rot-card p { font-size: 12px; } }
-
-/* HUD on phones in landscape: small, out of the way of the pads (steer bottom-left, gas/brake bottom-right) */
-@media (orientation: landscape) {
-  /* under the minimap: same right edge and centre as #mini, just below it */
-  html.touch #where { top: calc(max(8px, env(safe-area-inset-top)) + clamp(76px, 25vh, 104px) + 6px); left: auto;
-    right: max(12px, env(safe-area-inset-right)); width: clamp(110px, 30vh, 150px); margin-right: calc((clamp(76px, 25vh, 104px) - clamp(110px, 30vh, 150px)) / 2); max-width: none; }
-  html.touch #street { font-size: 12px; padding: 3px 6px; }
-  html.touch #landmark { font-size: 11px; }
-  html.touch #mini { top: max(8px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: clamp(76px, 25vh, 104px); height: clamp(76px, 25vh, 104px); border-width: 2px; }
-  html.touch #speed { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 14px); left: 50%; transform: translateX(-50%); font-size: 26px; text-align: center; }
-  html.touch #speed small { font-size: 10px; }
-  html.touch #attrib { bottom: max(3px, env(safe-area-inset-bottom)); width: 34vw; white-space: normal; text-align: center; font-size: 7px; line-height: 1.25; opacity: .8; }
-}
 
 /* Nitro bar (created by vehicle.js): bottom centre on desktop, above the speed readout on phones */
 .nosbar { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); width: min(240px, 36vw); display: flex; align-items: center; gap: 8px; pointer-events: none; z-index: 5; }

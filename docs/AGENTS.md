@@ -19,6 +19,7 @@ Several agents work at once in this folder. Edit only the files you own.
 | `src/context.js`, `tools/context.py`, `data/context_osm.json`, `context-data.js` | context agent |
 | `src/vehicle.js`, `src/mobile.js`, `src/mobile.css`, `assets/cars/`, `assets/audio/` | driving agent |
 | `src/ui.js`, `src/ui.css`, `assets/ui/` | game-shell agent |
+| `src/hud.js` (the HUD's zones: one place for each kind of message; put a new message in a zone, don't position it yourself) | game-shell agent |
 | `src/traffic.js`, `assets/traffic/` | traffic agent |
 | `src/pedestrians.js`, `assets/peds/` (and removing the static pedestrians from `src/props.js`) | pedestrian agent |
 | `src/missions.js`, `assets/missions/`, plus small additions to `src/pedestrians.js` (scripted characters) and `src/ui.js` (menu entries, copy/tone) | missions agent |
