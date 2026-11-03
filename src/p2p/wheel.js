@@ -19,7 +19,7 @@ function wrap(text, max = 12) {   // at most 3 short lines, broken at spaces
 }
 
 export function createWheel({ categories: initial, backLabel = () => 'indietro', closeLabel = () => 'chiudi', onClose = () => {} }) {
-  const root = document.createElement('div');
+  const root = document.createElement('div'); root.className = 'pd-p2p';   // hidden in the Garage by the page rule in src/p2p/p2p.js
   root.style.cssText = 'position:fixed;z-index:35;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88vh,88vw,600px);height:min(88vh,88vw,600px);display:none;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none';
   const svg = el('svg', { viewBox: `0 0 ${VB} ${VB}`, width: '100%', height: '100%', role: 'menu' });
   svg.style.cssText = 'display:block;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;font-weight:700;overflow:visible';

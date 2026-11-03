@@ -41,7 +41,7 @@ const LINES = [
 ];
 // now and then, at any drink, instead of the line for that drink (owner's lines)
 const BOAST = [["L'acqua fa ruggine!", 'Water makes you rust!'], ["E ppu gradiri si nn'ammucco 60 litra!", 'And just to be polite, he downed 60 litres!']];
-const drinkLine = n => pick(Math.random() < 0.3 ? BOAST[(Math.random() * BOAST.length) | 0] : LINES[Math.min(LINES.length, n) - 1]);
+const drinkLine = (n, pick) => pick(Math.random() < 0.3 ? BOAST[(Math.random() * BOAST.length) | 0] : LINES[Math.min(LINES.length, n) - 1]);
 const CUT = ['Basta! Ti n’adduni ca parri cû lampiuni?', 'Enough! Do you realise you are talking to a lamp post?'];
 const BROKE = [
   ['Sienza picciuli un si vivi. Va’ a travagghiari!', 'No money, no drink. Go and work!'],
@@ -158,7 +158,7 @@ export function createDrunk({ game, car, camera, missions }) {
     }
     units += 1; count += 1;
     const n = Math.ceil(units), name = spot.id === 'rave' ? RAVE_DRINKS[(count - 1) % RAVE_DRINKS.length] : spot.name;
-    let sub = drinkLine(n);
+    let sub = drinkLine(n, pick);
     if (spot.free && spot.perk) spot.perk.left--;
     if (spot.free && noted !== spot.id) { noted = spot.id; sub = pick(spot.rave ? FREE : FREE_PUB); }
     toast(name + (n > 1 ? '  ×' + n : ''), sub);
@@ -170,7 +170,7 @@ export function createDrunk({ game, car, camera, missions }) {
     if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi chiù.', 'No more for you.']), true); return false; }
     units += 1; count += 1;
     const n = Math.ceil(units);
-    toast(name + (n > 1 ? '  ×' + n : ''), drinkLine(n));
+    toast(name + (n > 1 ? '  ×' + n : ''), drinkLine(n, pick));
     return true;
   }
 
@@ -277,5 +277,5 @@ export function createDrunk({ game, car, camera, missions }) {
     renderer.setRenderTarget(rtOld); renderer.render(post.scn, post.cam);
   }
 
-  return { update, render, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
+  return { update, render, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, max: MAX, get full() { return units > MAX - 1 + 0.001; }, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
 }
