@@ -247,8 +247,18 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 .pd-kb .pd-bbtn:focus, .pd-kb .pd-menubtn:focus { outline: 3px solid #fff; outline-offset: 1px; }
 .pd-bbtn:focus, .pd-menubtn:focus { outline: none; }
 .pd-bar[data-mode=off] .pd-bpow { color: rgba(255,255,255,.6); }
-.pd-btitle { flex: 1 1 0; min-width: 0; margin-left: 6px; font: 700 14px/1.1 var(--pd-cond); letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none; }
+.pd-btitle { flex: 1 1 0; min-width: 0; align-self: stretch; margin: 0 0 0 6px; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; pointer-events: auto; -webkit-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  display: flex; flex-direction: column; justify-content: center; font: 700 14px/1.1 var(--pd-cond); letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-shadow: none; }
+.pd-btitle:focus { outline: none; }
+.pd-kb .pd-btitle:focus-visible { outline: 2px solid #fff; outline-offset: 1px; border-radius: 6px; }
 .pd-btitle span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.pd-btitle small { display: none; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond); letter-spacing: .06em; opacity: .72; }
+/* open: the bar grows to the right (to the middle of the screen at most, so the mission card and the minimap stay clear), the artist shows under the title */
+.pd-bar { transition: width .18s ease; }
+.pd-bar.open { width: max(var(--bar-w), min(340px, 50vw - 14px)); }
+.pd-bar.open .pd-btitle small:not(:empty) { display: block; }
+.pd-bar.open .pd-bbars { display: none; }   /* the room the bars took goes to the title */
+@media (prefers-reduced-motion: reduce) { .pd-bar { transition: none; } }
 .pd-bbars { flex: none; display: block; margin-left: 8px; opacity: .95; }
 .pd-bar[data-mode=off] .pd-bbars { opacity: .35; }
 .pd-bar[data-mode=off] .pd-btitle { opacity: .6; }
@@ -311,7 +321,7 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 .pd-mcard .sea-it { text-wrap: balance; }
 .pd-mc-w { margin: clamp(6px, 1.6vh, 12px) 0 0; font: 700 clamp(13px, 3vh, 18px)/1.15 var(--pd-cond); letter-spacing: .12em; text-transform: uppercase; color: var(--pd-amber); }
 .pd-mcard .sea-btns { margin-top: clamp(12px, 3vh, 24px); }
-.pd-mcard .sea-btn { text-align: center; justify-content: center; font-size: clamp(19px, 4.6vh, 30px); letter-spacing: .05em; }   /* COMINCIA MISSIONE has to fit on one line next to M'ABBUTTA */
+.pd-mcard .sea-btn { text-align: center; justify-content: center; font-size: clamp(19px, 4.6vh, 30px); letter-spacing: .05em; }   /* COMINCIA MISSIONE has to fit on one line next to No mi siddia */
 .pd-mcard .sea-btn > span { padding-left: 0; }
 .pd-mcard .sea-btn.main { flex: 1.5 1 0; }
 .pd-menulang { flex: 0 1 auto; margin: 0 auto 0 auto; }
@@ -524,7 +534,7 @@ html.touch .pd-mp-hint { display: none; }
 #pd-ui[data-st=pause] .pd-s-options .pd-lang { width: 100%; }
 .pd-s-collections { justify-content: flex-end; }
 .pd-coll { width: min(92vw, 430px); }
-.pd-colrows { display: flex; flex-direction: column; gap: clamp(10px, 2.4vh, 18px); padding: 4px 6px 4px 4px; }
+.pd-colrows { display: flex; flex-direction: column; gap: clamp(10px, 2.4vh, 18px); padding: 4px 6px 4px 4px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; scrollbar-width: thin; }   /* a short screen scrolls the rows, so the Indietro row under them stays on the screen */
 .pd-colh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font: 700 clamp(15px, 3.4vh, 21px)/1.1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; color: var(--pd-amber); }
 .pd-colh b { font: 400 clamp(17px, 3.8vh, 24px)/1 var(--pd-race); letter-spacing: .04em; color: #fff; white-space: nowrap; }
 .pd-colbar { height: 11px; margin-top: 6px; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); transform: skewX(-11deg); overflow: hidden; }

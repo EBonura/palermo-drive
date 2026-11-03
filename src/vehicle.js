@@ -628,13 +628,12 @@ export function createVehicle(env) {
     }
   }
 
-  // Swap vehicle in the street: V on the keyboard, the swap button on the touch UI (mobile.js dispatches 'pd-swap'). Cycles through the owned vehicles.
+  // Swap vehicle in the street: V on the keyboard. Cycles through the owned vehicles; everyone else picks one in the Garage.
   function cycleVehicle() {
     const owned = VEHICLES.filter(v => garage.ownsVehicle(v.id)); if (owned.length < 2 || idleFrames >= 4 || swapLock || car.flying || car.wet > 0.2) return;   // (not in the air or on the water: the next one may have no wings or floats)
     garage.setVehicle(owned[(owned.findIndex(v => v.id === garage.type) + 1) % owned.length].id);
   }
   addEventListener('keydown', e => { if (e.code === 'KeyV' && !e.repeat && !e.ctrlKey && !e.metaKey) cycleVehicle(); });
-  addEventListener('pd-swap', cycleVehicle);
 
   // ---------- visual ----------
   const _pose = { speed: 0, pitch: 0, roll: 0, lean: 0, steer: 0, spin: 0, t: 0, lockRear: false }, _au = { rpm: 0, thr: 0, nosAmt: 0, active: false, vf: 0, slip: 0, drift: 0, hb: false, scrape: 0 };

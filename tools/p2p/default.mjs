@@ -14,19 +14,24 @@ async function open(size = { width: 1100, height: 650 }, store = null) {
   await sleep(2000);
   return { page, errs, ctx };
 }
-const card = p => p.page.evaluate(() => { const d = document.querySelector('[role=dialog] input')?.closest('[role=dialog]'); return d ? [...d.querySelectorAll('button:not(.p2p-info)')].map(b => b.textContent) : null; });
+const card = p => p.page.evaluate(() => { const d = document.querySelector('[role=dialog] input')?.closest('[role=dialog]'); return d ? [...d.querySelectorAll('button:not(.p2p-info):not(#p2p-priv button)')].map(b => b.textContent) : null; });
 const press = (p, txt) => p.page.evaluate(t => { [...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === t).click(); }, txt);
 const type = (p, n) => p.page.evaluate(n => { document.querySelector('[role=dialog] input').value = n; }, n);
 const net = p => p.page.evaluate(() => ({ rooms: window.__p2p.rooms.size, peers: window.__p2p.peers.size, drawn: window.__p2p.remotes.size, sockets: window.__p2p.relays().filter(r => r[1] < 2).length }));   // open or opening: the list keeps closed ones
 
-const a = await open(), b = await open({ width: 844, height: 390 });
+const a = await open(), b = await open({ width: 844, height: 390, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 check('card shows for a new player', (await card(a))?.join() === 'Gioca online,Gioca da solo', JSON.stringify(await card(a)));
 let n = await net(a); check('nothing joined before the yes', n.rooms === 0 && n.sockets === 0, JSON.stringify(n));
-const tip = p => p.page.evaluate(() => { const t = document.querySelector('[role=dialog] [role=tooltip]'); return t && getComputedStyle(t).display !== 'none' ? t.textContent : ''; });
+const tip = p => p.page.evaluate(() => { const t = document.querySelector('[role=dialog] #p2p-priv'); return t && getComputedStyle(t).display !== 'none' ? t.textContent : ''; });
 check('the notice is behind the i', (await tip(b)) === '');
+// the card is centred in both axes with a dim layer over the whole page that takes the touches, at desktop and phone size
+const geo = p => p.page.evaluate(() => { const d = document.querySelector('[aria-modal]'), r = d.getBoundingClientRect(), dim = d.parentElement, g = dim.getBoundingClientRect(); const top = document.elementFromPoint(3, 3), mid = document.elementFromPoint(innerWidth - 4, innerHeight / 2);
+  return { dx: Math.abs(r.left + r.width / 2 - innerWidth / 2), dy: Math.abs(r.top + r.height / 2 - innerHeight / 2), fits: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth, full: g.width === innerWidth && g.height === innerHeight, blocks: top === dim && mid === dim, dimmed: getComputedStyle(dim).backgroundColor }; });
+for (const [nm, p] of [['desktop', a], ['phone', b]]) { const g = await geo(p); check(`the card is centred and the page dimmed (${nm})`, g.dx < 2 && g.dy < 2 && g.fits && g.full && g.blocks, JSON.stringify(g)); }
 if (shots) { await a.page.screenshot({ path: `${shots}/card-desktop.png` }); await b.page.screenshot({ path: `${shots}/card-phone.png` }); }
 await b.page.evaluate(() => document.querySelector('.p2p-info').click()); check('tapping the i shows it', /IP/.test(await tip(b)), await tip(b));
 if (shots) await b.page.screenshot({ path: `${shots}/card-phone-info.png` });
+{ const g = await geo(b); check('with the notice open the card still fits and is centred', g.dy < 2 && g.fits, JSON.stringify(g)); }
 await b.page.evaluate(() => document.querySelector('.p2p-info').click()); check('tapping again hides it', (await tip(b)) === '');
 await type(a, 'Anna'); await press(a, 'Gioca online'); await type(b, 'Bruno'); await press(b, 'Gioca online');
 let met = false; for (let i = 0; i < 90 && !met; i++) { await sleep(1000); const na = await net(a), nb = await net(b); met = na.drawn >= 1 && nb.drawn >= 1; if (met) console.log('  met after', i + 1, 's', JSON.stringify(na)); }
@@ -37,6 +42,7 @@ check('the name is saved, the answer is not', again.name === 'Anna' && again.p2p
 
 const c = await open(); await press(c, 'Gioca da solo'); await sleep(3000); n = await net(c);
 check('solo joins nothing', n.rooms === 0 && n.sockets === 0 && !(await card(c)), JSON.stringify(n));
+check('the dim goes away with the card', await c.page.evaluate(() => !document.querySelector('[aria-modal]') && document.elementFromPoint(3, 3)?.tagName === 'CANVAS'));
 if (shots) await c.page.screenshot({ path: `${shots}/solo-desktop.png` });
 await c.page.reload({ waitUntil: 'domcontentloaded' }); await c.page.waitForFunction(() => window.game && window.__p2p && !document.getElementById('loading'), { timeout: 300000, polling: 250 }); await sleep(3000);
 n = await net(c); check('a reload asks again and joins nothing until answered', n.rooms === 0 && n.sockets === 0 && !!(await card(c)), JSON.stringify(n));
