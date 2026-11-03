@@ -18,7 +18,7 @@
     ['Palermu ha tanti segreti: nta Collezioni sunnu ??? finu a quannu un li trovi.', 'Palermo has plenty of secrets: they show as ??? in Collections until you find them.'],
     ['Shift è u nitro: si ricarica cû curriri e cu i sbandati.', 'Shift is the nitro: it refills as you go fast and as you drift.'],
     ['Si ti ’ncastri, premi R: ti rimetti ’nta strata.', 'If you get stuck, press R: it puts you back on the road.'],
-    ['Si fai truappu burdellu arriva a pulizzia: fermati e ti fannu a multa.', 'Cause too much chaos and the police come: stop and they fine you.'],
+    ['Si fai truappu buiddiellu arriva a pulizzia: si ti fiaimmi ti fannu puru a multa.', 'Cause too much chaos and the police come: if you stop, they fine you too.'],
     ['Ni trovi supra Instagram: @bonnie_studios_.', 'Find us on Instagram: @bonnie_studios_.'],
   ];
   var EVERY = 4500, FADE = 320;

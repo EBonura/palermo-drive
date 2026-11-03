@@ -34,12 +34,7 @@
   canvas#view { display: block; }
   /* The HUD's zones and their places are in src/ui.css, the map of who goes where is in src/hud.js. */
   .hud { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
-  /* Street name sits under the minimap, centred on it, like a sat-nav. */
-  #where { width: 206px; text-align: center; }
-  #street { font-size: 17px; font-weight: 800; line-height: 1.15; background: rgba(11,7,9,.72); border: 1px solid rgba(232,85,154,.7);
-    border-radius: 8px; padding: 4px 8px; display: inline-block; max-width: 100%; text-shadow: none; box-sizing: border-box; }
-  #street:empty { display: none; }
-  #landmark { font-size: 12px; opacity: .9; margin-top: 3px; }
+  /* The card under the minimap (street, area, danger, the clock, the police line) is styled in src/ui.css; its parts are filled by src/main.js, police.js and daynight.js. */
   #speed { font-size: 44px; font-weight: 800; line-height: 1; white-space: nowrap; }
   #speed small { font-size: 14px; font-weight: 600; margin-left: 4px; }
   #mini { display: block; width: 200px; height: 200px; border-radius: 50%; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
@@ -60,7 +55,7 @@
 <div id="hud">   <!-- one place for each kind of message: src/hud.js -->
   <div class="hz hz-status"></div>
   <div class="hz hz-top"><div class="hz-obj"></div><div class="hz-alert"></div><div class="hz-moment"></div><div class="hz-pick"></div><div class="hz-feed"></div></div>
-  <div class="hz hz-map"><canvas class="hud" id="mini" width="200" height="200"></canvas><div class="hud" id="where"><div id="street"></div><div id="landmark"></div></div></div>
+  <div class="hz hz-map"><canvas class="hud" id="mini" width="200" height="200"></canvas><div class="hud" id="where"><div id="pd-card"><div id="pd-loc"><div id="street"></div><div id="landmark"></div></div></div></div></div>
   <div class="hz hz-bottom"><div class="hz-act"></div><div class="hz-gauges"><div class="hud" id="speed">0<small>km/h</small></div></div></div>
 </div>
 <div class="hud" id="help">
