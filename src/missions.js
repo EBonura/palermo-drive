@@ -575,6 +575,7 @@ function build(env) {
     if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
     if (ok && ev.slot.kind !== 'race') { const d = prog.done[ev.slot.id] || (prog.done[ev.slot.id] = { n: 0, best: 0 }); d.n++; d.best = Math.max(d.best, Math.round((session - ev.s0) * 100) / 100); saveProg(); }   // a race is told by prog.races (won or tried)
     ev.slot.coolUntil = now() + (ok ? (ev.slot.kind === 'race' ? 12 : 150) : 40);
+    dispatchEvent(new CustomEvent('pd-event-end', { detail: { id: ev.slot.id, ok: !!ok } }));   // src/playlog.js counts how events end (the id and the result, nothing else)
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: false }));
     calls.disarm(); S.ev = null; S.phase = 'off'; aim.on = false; guide.off(); hud.clear(); hud.leash(false); leash.out = false; leash.t = LEASH_T; destBeacon.show(false);
   }

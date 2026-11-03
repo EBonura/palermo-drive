@@ -36,6 +36,7 @@ import { createPerf } from './perf.js'; // Auto graphics: holds 60 fps on any de
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
+import { createPlayLog } from './playlog.js'; // anonymous play and performance counts to our own service, off until src/playlog-url.js has an address (src/playlog.js)
 import { createLeanEngine } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
 
 // Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
@@ -384,6 +385,7 @@ if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = '
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 // Multiplayer is peer to peer (src/p2p/p2p.js, docs/P2P-MULTIPLAYER.md), and nothing connects until the player says yes on its name card. ?p2p=off falls back to the relay client, which does nothing without a relay.
 const net = (typeof __PD_P2P__ === 'undefined' || __PD_P2P__) && params.get('p2p') !== 'off' ? (await import('./p2p/p2p.js')).createP2P({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions }) : createNet({ ...worldEnv, game, vehicle, mapMarkers });
+const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
 const drunk = createDrunk({ game, car, camera, missions });
@@ -455,6 +457,7 @@ renderer.setAnimationLoop(now => {
   coords.update();
   roadwear.update?.(dt);
   net.update?.(dt);
+  playlog.update(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
   horn.update(dt, game.state === 'play');
   // sea.update animates the water; checkPlayer ends the run when the lapa drives into the sea.

@@ -9,6 +9,7 @@ __pycache__/
 # performance agent: build output and tool dependencies (dist/ is built by the Pages workflow)
 dist/
 node_modules/
+joinlog/target/
 tools/build/.cache/
 *.orig
 *.tmp.mjs

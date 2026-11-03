@@ -28,6 +28,7 @@ import { PHRASES, CATEGORIES } from './phrases.js';
 import { createWheel } from './wheel.js';
 import { RELAYS } from './relays.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
+import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
 const APP_ID = 'palermo-drive-p2p-exp-1';
 const POS_UNITS = 20, POS_MID = 1 << 19, POS_MAX = (1 << 20) - 1;
@@ -461,8 +462,8 @@ export function createP2P(env) {
     if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
   }
   // ---------- name card (same words as the relay client's, src/net.js) ----------
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei. Non salviamo nulla.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
-    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in. We store nothing.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei.' + (PLAYLOG_ON ? ' Tutti i giocatori, anche da soli, inviano statistiche anonime su come giocano e su come gira il gioco (missioni, soldi, chilometri, fotogrammi): si spengono in Opzioni, Statistiche di gioco. Se giochi online salviamo anche il nome che scegli. Teniamo tutto fino a 12 mesi e non salviamo il tuo indirizzo IP.' : ' Non salviamo nulla.'), edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
+    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in.' + (PLAYLOG_ON ? ' Every player, even playing alone, sends anonymous stats about how they play and how the game runs (missions, money, distance, frame rate): turn them off in Options, Game stats. If you play online we also save the name you chose. We keep it all for up to 12 months and do not save your IP address.' : ' We store nothing.'), edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
   let nameCard = null, submitName = null, closeName = null;
   function openName() {
     refreshName();
@@ -575,6 +576,7 @@ export function createP2P(env) {
 
   const api = {
     enabled: true, update, openName, players: () => rm.list(), get online() { return peers.size > 0; },
+    statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]),
       rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
