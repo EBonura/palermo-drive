@@ -44,6 +44,20 @@ export function createRemotes(env) {
     return t;
   }
 
+  // A speech bubble: white, rounded, dark text, with a tail pointing down at the car (the name tag stays the dark pink pill)
+  function bubbleTexture(text) {
+    const c = document.createElement('canvas'), g = c.getContext('2d'), f = '700 34px system-ui,-apple-system,sans-serif', tail = 22, pad = 22, bh = 62;
+    g.font = f; const bw = Math.max(Math.ceil(g.measureText(text).width) + pad * 2, 90);
+    c.width = bw + 8; c.height = bh + tail + 8;
+    const x = 4, y = 4, r = 22, mx = c.width / 2;
+    g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + bw - r, y); g.quadraticCurveTo(x + bw, y, x + bw, y + r); g.lineTo(x + bw, y + bh - r); g.quadraticCurveTo(x + bw, y + bh, x + bw - r, y + bh);
+    g.lineTo(mx + 14, y + bh); g.lineTo(mx, y + bh + tail); g.lineTo(mx - 14, y + bh); g.lineTo(x + r, y + bh); g.quadraticCurveTo(x, y + bh, x, y + bh - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+    g.fillStyle = '#fffaf0'; g.fill(); g.lineWidth = 4; g.strokeStyle = '#1b0f14'; g.lineJoin = 'round'; g.stroke();
+    g.font = f; g.fillStyle = '#1b0f14'; g.textBaseline = 'middle'; g.textAlign = 'center'; g.fillText(text, mx, y + bh / 2 + 1);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+    return t;
+  }
+
   function makeRemote(id) {
     const marker = { x: 0, z: 0, color: PINK, size: 4 };
     return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
@@ -147,8 +161,8 @@ export function createRemotes(env) {
   function say(r, text, now, ms = 4500) {
     if (!r || !r.model) return;
     clearBubble(r);
-    const map = tagTexture(text), sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
-    sprite.scale.set(0.074 * map.image.width / map.image.height, 0.074, 1); sprite.position.set(0, 3.6, 0); sprite.renderOrder = 21;
+    const map = bubbleTexture(text), sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
+    sprite.scale.set(0.085 * map.image.width / map.image.height, 0.085, 1); sprite.center.set(0.5, 0); sprite.position.set(0, 3.0, 0); sprite.renderOrder = 21;   // the tail's tip is the anchor, just above the name tag
     r.model.root.add(sprite); r.bubble = { sprite, until: now + ms };
   }
 
