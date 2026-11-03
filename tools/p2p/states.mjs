@@ -14,13 +14,13 @@ try {
   // solo and back
   await A.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300); await click(A, '[role=dialog] button', 'Gioca da solo'); await sleep(1500);
   let a = await info(A); ok('Anna goes solo: no rooms, nobody drawn, no chat or drink buttons', a.rooms === 0 && a.drawn === 0 && a.ui === 0, JSON.stringify(a));
-  const online = await A.page.evaluate(() => window.__p2p.relays().length); ok('there were relay sockets before (they are listed)', online === 5, String(online));
+  const online = await A.page.evaluate(() => window.__p2p.relays().length); ok('there were relay sockets before (the 5 for the rooms; the 2 of presence are gone with presence)', online === 5, String(online));
   ok('solo: no relay socket is open or opening', a.open === 0, a.sockets);
   for (const sec of [10, 20, 30]) { await sleep(10000); const x = await info(A); ok(`still none ${sec} s after going solo`, x.open === 0, x.sockets); }
   ok('Bob stops seeing her', await waitDrawn(B, 0, 15000));
   await A.page.evaluate(() => dispatchEvent(new Event('pd-open-name'))); await sleep(300); await click(A, '[role=dialog] button', 'Gioca online');
   ok('Anna says "Gioca online" again and they meet again', await waitDrawn(A, 1, 90000) && await waitDrawn(B, 1, 90000), JSON.stringify(await info(A)));
-  ok('the relay sockets are back', (await info(A)).sockets === '11111', (await info(A)).sockets);
+  ok('the relay sockets are back', (await info(A)).sockets === '1111111', (await info(A)).sockets);
 
   // drowning: Anna drives into the sea
   const wet = await A.page.evaluate(() => { const w = window.game.world, c = window.game.car; for (let r = 200; r < 6000; r += 100) for (let k = 0; k < 24; k++) { const x = c.x + Math.cos(k / 24 * 6.283) * r, z = c.z + Math.sin(k / 24 * 6.283) * r; if (w && !w.isLand(x, z)) return [x, z]; } return null; });

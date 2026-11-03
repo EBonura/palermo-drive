@@ -134,6 +134,12 @@ It runs every two minutes, and after a headless smoke test does `git add -A`, co
 (`git reset`) when a staged file name looks like a key file (`.env*`, `*.pem`, `*.key`, `*.p12`, `*.keystore`, `*.token`, `*.secret`, `*_token`, `*credentials*`) or the staged diff (outside `world/`, `docs/perf`, `assets/`) adds a key-shaped
 string (AWS, GitHub, `sk-`, Google, `MLY|`, private-key blocks); it prints `NOT pushed`. Tested in a scratch repository (both guards fire).
 
+## Multiplayer presence (4 Nov, `src/p2p/presence.js`)
+
+New untrusted input: the city-wide list of who is online, read from public Nostr relays. Checked: every event field by field (kind, author as 64 hex characters, topic tag, expiration inside 25 minutes, the room list against a strict pattern of three small integers per room, at most 6 rooms and 120 characters, an empty content is a goodbye), duplicate event ids dropped, at most 400 players remembered, newer replaces older per author. Signatures are not checked by the client (the relay does); a malicious relay or a crowd of fake keys can forge entries, which can only make a client join a room that turns out empty. That costs a room join, and such a room is left after 25 s and ignored for 2 minutes; the number of players held is capped whatever the list says (`MAX_PLAYERS`, with shards of at most 9 members). Rooms are only ever joined by name built from the list's integers, never by a string from it.
+
+What leaks (see also docs/P2P-MULTIPLAYER.md, "Who can learn what"): anyone can read which 500 m cells are occupied and which cells each online player holds, under a random per-visit key, with no name and no IP. A relay that ignores the expiration tag keeps those events. It uses its own WebSockets (two relays out of the three in `PRESENCE_RELAYS`), all inside the existing Content-Security-Policy because they are a subset of `RELAYS`. Nothing opens before the yes on the name card; going solo closes them, as does a page paused or in the background for 60 s. Peer IP addresses are never displayed, logged or sent anywhere by the game.
+
 ## GitHub settings and the relay (Open)
 
 ### 11. Repository settings (Medium, owner)
