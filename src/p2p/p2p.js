@@ -354,10 +354,15 @@ export function createP2P(env) {
       if (game.state === 'play') sendStateTo([...peers.keys()], now, false);
     }
     for (const p of peers.values()) {
-      if ((p.goneAt && now - p.goneAt > GONE_MS) || (p.shown && now - p.lastRx > STALE_MS) || (!p.rooms.size && !p.goneAt)) {
+      if ((p.goneAt && now - p.goneAt > GONE_MS) || (!p.rooms.size && !p.goneAt)) {
         if (p.shown) rm.remove(p.id);
-        ev('drop', { peer: p.id.slice(0, 4), why: p.goneAt ? 'left' : 'stale' });
+        ev('drop', { peer: p.id.slice(0, 4), why: 'left' });
         peers.delete(p.id);
+      } else if (p.shown && now - p.lastRx > STALE_MS) {
+        // quiet for a while (the other page was locked, or in the background): take the car off the street but keep the record, the connection
+        // is still open and nothing would add it again. Its next STATE shows it again with the name and livery we already have.
+        rm.remove(p.id); p.shown = false; p.seq = -1;
+        ev('drop', { peer: p.id.slice(0, 4), why: 'stale' });
       }
     }
     rm.update(dt, now);

@@ -189,3 +189,9 @@ Next steps if you want to go on, in order: (1) a real test with two phones, one 
 - The relay client sends a state only when it changed, p2p sends every 100 ms regardless. Cheap to fix in a real build.
 - Names with invalid UTF-8 are accepted with replacement characters.
 - `tools/build/package.json` now lists the three Trystero packages as dev dependencies, used only to rebuild `src/p2p/trystero.js`.
+
+## Real device finding: players lost each other after a pause (fixed)
+
+First test over the internet (phone and laptop, different networks, link shown as `stun`): they connected and saw each other. After one of them paused (the Garage is a pause, so buying a vehicle is one) the other stopped seeing them for good. A plain page refresh was not the cause (tested on its own, the refreshed page and its partner find each other again in about a second).
+
+Cause: the game sends nothing while paused. After 6 s without a STATE the other side dropped the player, and the drop deleted the peer record although the data channel was still open. Records were only created when a peer joined a room, so everything that arrived afterwards from that player was rejected as unknown (`rxBad` counted up, the phone showed `peers 0` with `1` peer in every room). Fix: a quiet player is only taken off the street (`shown = false`), the record stays while the player is in a room, and the next STATE shows the car again with the name and livery already known. Test: `tools/p2p/resume.mjs` (refresh, then a 10 s pause with a livery change, on each side). Before the fix both pause cases fail and stay failed; after it they pass.
