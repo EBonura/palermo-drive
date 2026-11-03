@@ -35,7 +35,7 @@ function peel(g, r, cx, cy, s) {
     if (i) g.lineTo(x, y); else g.moveTo(x, y);
   }
   g.closePath(); g.fillStyle = '#cdb68e'; g.fill();
-  g.shadowColor = 'rgba(40,30,20,.5)'; g.shadowBlur = 4; g.strokeStyle = 'rgba(70,52,34,.4)'; g.lineWidth = 1; g.stroke(); g.shadowBlur = 0; g.clip();
+  g.shadowColor = 'rgba(40,30,20,.3)'; g.shadowBlur = 5; g.strokeStyle = 'rgba(70,52,34,.22)'; g.lineWidth = 1; g.stroke(); g.shadowBlur = 0; g.clip();
   // exposed ashlar underneath
   for (let y = cy - s; y < cy + s; y += 9) { g.fillStyle = 'rgba(80,58,34,.35)'; g.fillRect(cx - s * 2, y, s * 4, 1.5); const off = (((y - cy) / 9) | 0) % 2 * 9; for (let x = cx - s * 2 + off; x < cx + s * 2; x += 18) g.fillRect(x, y, 1.5, 9); }
   for (let i = 0; i < 12; i++) { g.fillStyle = r() < .5 ? 'rgba(140,108,70,.3)' : 'rgba(226,208,168,.35)'; g.fillRect(cx + (r() - .5) * s * 2.8, cy + (r() - .5) * s * 1.8, 5 + r() * 12, 4 + r() * 6); }
@@ -62,7 +62,7 @@ function plaster(g, r, base = '#e7e1d3', o = {}) {
   softNoise(g, r, 5, '120,92,58', .2); softNoise(g, r, 9, '255,250,236', .22); softNoise(g, r, 14, '90,70,45', .12);
   softNoise(g, r, 3, '70,60,50', .16, 2.4); // vertical grime bands
   for (let i = 0; i < 900; i++) { g.fillStyle = r() < .5 ? 'rgba(90,70,50,.10)' : 'rgba(255,255,255,.12)'; g.fillRect(r() * T, r() * T, 1 + r() * 1.6, 1 + r() * 1.6); }
-  const np = o.peel === undefined ? (r() < .38 ? 1 : 0) : o.peel;
+  const np = o.peel === undefined ? (r() < .1 ? 1 : 0) : o.peel;   // [texround2] was .38: one tan patch per tile read as a stamp repeating down a wall
   for (let i = 0; i < np; i++) { const s = 10 + r() * 16; peel(g, r, 1.7 * s + r() * (T - 3.4 * s), 1.7 * s + r() * (T - 3.4 * s), s); }
 }
 function dado(g, h = 30, a = .3) {
@@ -146,8 +146,8 @@ function rollShutter(g, r, x, y, w, h, col = '#6c6c6a') {
 }
 
 // ---- generic
-layer('blank', (g, r) => { plaster(g, r, '#e7e1d3'); for (let i = 0; i < 3; i++) streak(g, 30 + r() * 190, r() * 80, 100 + r() * 100, 6 + r() * 10, .09); });
-layer('blank_g', (g, r) => { plaster(g, r, '#e2dccd', { peel: 1 }); dado(g, 60, .4); });
+layer('blank', (g, r) => { plaster(g, r, '#e7e1d3', { peel: 0 }); for (let i = 0; i < 3; i++) streak(g, 30 + r() * 190, r() * 80, 100 + r() * 100, 6 + r() * 10, .09); });
+layer('blank_g', (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); dado(g, 60, .4); });   // [texround2] the walls use the groups blank_v and g_blank (below), these two stay for the roof furniture
 layer('cornice', (g, r) => {
   g.fillStyle = '#efe8d6'; g.fillRect(0, 0, T, T);
   let gr = g.createLinearGradient(0, 0, 0, 70); gr.addColorStop(0, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(60,45,30,.3)'); g.fillStyle = gr; g.fillRect(0, 0, T, 70);
@@ -646,7 +646,28 @@ function pwRender(g, r) {   // the render panel of one flat: neutral light rende
   g.fillStyle = '#f3f0e8'; g.fillRect(0, T - 24, T, 24); g.fillStyle = 'rgba(40,34,28,.3)'; g.fillRect(0, T - 24, T, 3);
   const gr = g.createLinearGradient(0, 0, 0, 34); gr.addColorStop(0, 'rgba(40,34,28,.22)'); gr.addColorStop(1, 'rgba(40,34,28,0)'); g.fillStyle = gr; g.fillRect(0, 0, T, 34);
   for (let i = 0; i < 2; i++) streak(g, 20 + r() * 216, 0, 60 + r() * 90, 6 + r() * 12, .1);
+  pwFrame(g, r);
 }
+// [texround2] the concrete frame of a post-war block: a pier on each side of the bay (two of them side by side between flats), a shade darker and greyer than the painted infill, board marks, a shadow line where the infill is set back,
+// and a rust stain at the foot of the pier. The slab band is already at the foot of the tile.
+function pwFrame(g, r, pw = 17) {
+  for (const x of [0, T - pw]) {
+    g.fillStyle = 'rgba(122,118,108,.34)'; g.fillRect(x, 0, pw, T);
+    g.fillStyle = 'rgba(40,36,30,.07)'; for (let y = 6; y < T; y += 9 + (r() * 4 | 0)) g.fillRect(x, y, pw, 1.4);   // board marks
+    g.fillStyle = 'rgba(30,26,20,.3)'; g.fillRect(x === 0 ? pw : x - 2.5, 0, 2.5, T - 24);                           // the infill set back from the pier
+    g.fillStyle = 'rgba(255,255,248,.22)'; g.fillRect(x === 0 ? 0 : T - 2, 0, 2, T);
+    if (r() < .6) streak(g, x + pw / 2, T - 24 - 50, 56 + r() * 40, 4 + r() * 4, .2);
+  }
+}
+function sillStain(g, r, x, y, w, k = 1) {   // rain runs off a sill and leaves two or three dirty streaks below it, wider at the ends
+  for (let i = 0; i < 3; i++) { const sx = x + (i === 1 ? .5 : i === 0 ? .08 : .92) * w + (r() - .5) * 6; streak(g, sx, y, (36 + r() * 70) * k, 5 + r() * 9, .13 + r() * .1); }
+}
+function potRow(g, r, x, y, n = 3) {   // flower pots on a ledge
+  for (let i = 0; i < n; i++) { const px = x + i * 22 + r() * 6; g.fillStyle = '#a4573a'; g.fillRect(px, y - 11, 14, 11); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px, y - 3, 14, 3);
+    g.fillStyle = ['#4f7a3a', '#5f8a45', '#3f6a30'][(r() * 3) | 0]; g.beginPath(); g.arc(px + 7, y - 15, 8, 0, 6.3); g.arc(px + 2, y - 11, 5, 0, 6.3); g.arc(px + 12, y - 11, 5, 0, 6.3); g.fill(); if (r() < .5) { g.fillStyle = ['#c8302a', '#e8c830', '#e8e4d8'][(r() * 3) | 0]; g.beginPath(); g.arc(px + 4 + r() * 6, y - 18, 2.4, 0, 6.3); g.fill(); } }
+}
+function dishAt(g, x, y) { g.fillStyle = '#d6d4cc'; g.beginPath(); g.ellipse(x, y, 14, 11, -0.5, 0, 6.3); g.fill(); g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(x + 2, y + 1, 8, 6, -0.5, 0, 6.3); g.fill(); g.fillStyle = '#6a6a66'; g.fillRect(x + 9, y - 9, 2, 14); g.fillRect(x - 1, y + 9, 3, 9); }   // a satellite dish
+function grilleAt(g, x, y, w, h) { g.fillStyle = '#26262a'; for (let xx = x + 3; xx < x + w; xx += 11) g.fillRect(xx, y, 3, h); g.fillRect(x, y + h * .4, w, 3); g.fillRect(x, y, w, 3); g.fillRect(x, y + h - 3, w, 3); }   // iron window grille
 const BRICKS = ['#a65e46', '#9a5440', '#b06a4e', '#8f4f3c', '#b87454', '#a0604a', '#9c7a62'];
 function pwBrick(g, r) {   // exposed facing brick (klinker) in running bond, a concrete slab band at the foot
   g.fillStyle = '#b9ae9e'; g.fillRect(0, 0, T, T);
@@ -670,7 +691,8 @@ function pwWin(g, r, x, y, w, h, o = {}) {   // a flat's window or French window
   if (o.curt) { g.fillStyle = 'rgba(240,235,222,.6)'; g.fillRect(x, y, w * o.curt, h * .8); }
   if (o.blind) { shutterBox(g, x - fr, y - fr - 17, w + 2 * fr, 17); tapp(g, x - 1, y - 2, w + 2, h * o.down + 2, o.blind); }
   if (o.perc) { const c = SH[o.perc], lw = w / 2 + .5; if (o.pst === 'open') { leaf(g, x - fr - lw, y, lw, h, c); leaf(g, x + w + fr, y, lw, h, c); } else { leaf(g, x, y, lw, h, c); leaf(g, x + w - lw, y, lw, h, c); } }
-  if (o.sill) { g.fillStyle = '#eeeae0'; g.fillRect(x - fr - 5, y + h + fr, w + 2 * fr + 10, 6); g.fillStyle = 'rgba(30,20,10,.35)'; g.fillRect(x - fr - 5, y + h + fr + 6, w + 2 * fr + 10, 3); }
+  if (o.sill) { sillStain(g, r, x - fr, y + h + fr + 8, w + 2 * fr); g.fillStyle = '#eeeae0'; g.fillRect(x - fr - 5, y + h + fr, w + 2 * fr + 10, 6); g.fillStyle = 'rgba(30,20,10,.35)'; g.fillRect(x - fr - 5, y + h + fr + 6, w + 2 * fr + 10, 3); }
+  if (o.grille) grilleAt(g, x, y, w, h);
 }
 function pwLaundry(g, r, y) { g.strokeStyle = '#555'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(40, y); g.lineTo(216, y + 5); g.stroke(); const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2', '#6aa05a']; for (let i = 0; i < 5; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(48 + i * 34, y + 1 + i, 16 + r() * 10, 26 + r() * 20); } }
 const PWBL = ['#7f8588', '#7a5a3e', '#4d6a4e', '#8c8a80', '#6a4e3a'];   // tapparella colours: grey, brown, green, putty, dark brown
@@ -682,6 +704,12 @@ const PWD = [   // bays with the balcony door
   (g, r) => { pwRender(g, r); g.fillStyle = '#d8dad6'; g.fillRect(34, 62, 188, 172); const gr = g.createLinearGradient(0, 68, 0, 230); gr.addColorStop(0, '#6a7f94'); gr.addColorStop(1, '#222d3a'); g.fillStyle = gr; g.fillRect(40, 68, 176, 162);   // a balcony closed in with aluminium and glass (veranda)
     g.fillStyle = '#d8dad6'; for (const x of [84, 128, 172]) g.fillRect(x - 2, 68, 4, 162); g.fillRect(40, 124, 176, 4); g.fillStyle = 'rgba(240,235,222,.55)'; g.fillRect(44, 72, 38, 100); g.fillRect(132, 72, 36, 70); g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(40, 220); g.lineTo(120, 68); g.lineTo(150, 68); g.lineTo(40, 230); g.fill(); },
   (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: pwBl(r), down: .2 }); pwLaundry(g, r, 128); },
+  // [texround2] more bays with the balcony door, so a column of balconies does not repeat one flat
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, perc: 'w', pst: 'open', curt: .3 }); potRow(g, r, 26, T - 24, 2); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: '#4d6a4e', down: 1 }); acUnit(g, 186, 70); dishAt(g, 38, 88); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 66, 88, 168, { door: 1, leaves: 2, curt: .35 }); awnDrop(g, 66, 46, 124, 70 + r() * 40, ['#c9803a', '#2f6a8a', '#b8322e', '#d8c070'][(r() * 4) | 0]); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: '#8c8a80', down: .75 }); g.fillStyle = '#eceae4'; g.fillRect(30, 150, 26, 22); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(30, 172, 26, 3); g.fillStyle = '#7a8088'; g.fillRect(34, 156, 18, 2.5); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, perc: 'g', pst: 'closed' }); pwLaundry(g, r, 112); },
 ];
 const PWW = [   // plain bays
   (g, r) => { pwRender(g, r); pwWin(g, r, 84, 70, 88, 118, { blind: pwBl(r), down: .7, sill: 1 }); },
@@ -689,6 +717,12 @@ const PWW = [   // plain bays
   (g, r) => { pwRender(g, r); pwWin(g, r, 108, 98, 40, 54, { fr: 4 }); g.fillStyle = '#9a9a92'; g.fillRect(190, 0, 7, T - 24); g.fillStyle = '#d4d0c4'; g.fillRect(52, 150, 26, 36); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(52, 186, 26, 3); },   // a stair or bathroom window, a drainpipe, a meter box
   (g, r) => { pwRender(g, r); pwWin(g, r, 50, 78, 156, 104, { leaves: 3, blind: pwBl(r), down: .4, sill: 1 }); },
   (g, r) => { pwRender(g, r); pwWin(g, r, 84, 86, 88, 112, { curt: .4, sill: 1 }); awnDrop(g, 70, 52, 116, 40 + r() * 50, ['#c9803a', '#4f7a5c', '#b8322e', '#d8c070'][(r() * 4) | 0]); },
+  // [texround2] more plain bays: a grille, pots on the sill, two small windows with a split unit, a dish on the wall, a wide window with white persiane
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 70, 88, 118, { blind: pwBl(r), down: .35, sill: 1 }); potRow(g, r, 70, 70 + 118 + 5 + 2, 4); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 56, 90, 50, 70, { fr: 4, sill: 1, blind: pwBl(r), down: .6 }); pwWin(g, r, 148, 90, 50, 70, { fr: 4, sill: 1, leaves: 2, perc: 'w', pst: 'closed' }); acUnit(g, 104, 176); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 80, 88, 104, { leaves: 2, grille: 1, sill: 1 }); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 50, 78, 156, 104, { leaves: 3, perc: 'w', pst: 'open', sill: 1 }); dishAt(g, 224, 56); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 70, 88, 118, { blind: pwBl(r), down: 1, sill: 1 }); acUnit(g, 182, 130); g.strokeStyle = '#6a6a66'; g.lineWidth = 2; g.beginPath(); g.moveTo(190, 156); g.lineTo(190, 200); g.stroke(); },
 ];
 const brickBay = (door, o) => (g, r) => {
   pwBrick(g, r); const y = door ? 58 : 70, h = door ? 176 : 118; g.fillStyle = '#e4e0d4'; g.fillRect(70, y - 22, 116, 12); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(70, y - 10, 116, 3);   // a concrete lintel
@@ -753,22 +787,24 @@ function concrete(g, r, base = '#cfcdc6') {
   for (let i = 0; i < 1400; i++) { g.fillStyle = r() < .5 ? 'rgba(60,56,50,.1)' : 'rgba(255,255,255,.12)'; g.fillRect(r() * T, r() * T, 1.5, 1.5); }
   g.fillStyle = 'rgba(40,36,32,.3)'; g.fillRect(0, 0, 3, T); g.fillRect(0, T - 3, T, 3); // panel joints
 }
-layer('zen_a', (g, r) => { // ribbon window with aluminium roller blind, rust streaks
+const zenA = (g, r) => { // ribbon window with aluminium roller blind, rust streaks
   concrete(g, r);
   g.fillStyle = '#a9a69d'; g.fillRect(26, 70, 204, 84); const gr = g.createLinearGradient(0, 74, 0, 150); gr.addColorStop(0, '#56646e'); gr.addColorStop(1, '#262c32'); g.fillStyle = gr; g.fillRect(32, 76, 192, 72);
   g.fillStyle = '#a9a69d'; g.fillRect(94, 76, 4, 72); g.fillRect(158, 76, 4, 72);
   tapp(g, 100, 70, 54, 36 + r() * 30, '#b8b2a2');
   g.fillStyle = 'rgba(120,70,40,.35)'; for (let i = 0; i < 4; i++) g.fillRect(30 + r() * 190, 154, 4 + r() * 4, 30 + r() * 60);
   streak(g, 128, 156, 90, 160, .08);
-});
-layer('zen_b', (g, r) => { // recessed loggia: dark gap behind a concrete rail, laundry
+};
+layer('zen_a', zenA);
+const zenB = (g, r) => { // recessed loggia: dark gap behind a concrete rail, laundry
   concrete(g, r, '#c8c5bc');
   g.fillStyle = '#26221e'; g.fillRect(24, 40, 208, 150); g.fillStyle = 'rgba(190,180,150,.2)'; g.fillRect(34, 50, 70, 130);
   g.fillStyle = '#d4d0c6'; g.fillRect(14, 186, 228, 22); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(14, 208, 228, 6);
   g.strokeStyle = '#4a4a4e'; g.lineWidth = 2; g.beginPath(); g.moveTo(34, 76); g.lineTo(220, 82); g.stroke();
   const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2']; for (let i = 0; i < 5; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(44 + i * 34, 78 + i * .8, 16 + r() * 8, 26 + r() * 24); }
   for (let i = 0; i < 3; i++) streak(g, 30 + r() * 190, 214, 40, 12, .16);
-});
+};
+layer('zen_b', zenB);
 layer('zen_stair', (g, r) => { // exterior stairwell: concrete frame, diagonal flights, rail
   concrete(g, r, '#c4c1b8');
   g.fillStyle = '#1e1c1a'; g.fillRect(40, 20, 176, T - 40);
@@ -785,6 +821,32 @@ layer('zen_g', (g, r) => { // ground floor: bricked-up and shuttered, spray tags
   dado(g, 40, .4);
 });
 
+// [texround2] The housing insulae took ONE of zen_a / zen_b for a whole building (up: ['zen_a', 'zen_b', 'zen_a']), so a block read as one window pasted in every bay. The group zen_up (STYLES.ins) mixes these and the new ones per bay and floor;
+// each has the concrete frame (piers, a slab line), stains under the sills and in some a balcony slab with its railing, shutters or a roller blind.
+function zenFrame(g, r) {
+  g.fillStyle = 'rgba(50,46,40,.14)'; g.fillRect(0, 0, 15, T); g.fillRect(T - 15, 0, 15, T);   // the piers, a shade darker
+  g.fillStyle = 'rgba(30,26,20,.28)'; g.fillRect(15, 0, 2.5, T); g.fillRect(T - 17.5, 0, 2.5, T);
+  g.fillStyle = 'rgba(30,26,20,.2)'; g.fillRect(0, T - 22, T, 3); g.fillStyle = 'rgba(255,255,248,.18)'; g.fillRect(0, T - 19, T, 2);   // the slab edge
+  if (r() < .7) streak(g, 7 + (r() < .5 ? 0 : T - 14), T - 90, 70 + r() * 30, 5, .22);
+}
+function zenSill(g, r, x, y, w) { g.fillStyle = '#b4b0a6'; g.fillRect(x - 6, y, w + 12, 7); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x - 6, y + 7, w + 12, 3); sillStain(g, r, x - 6, y + 10, w + 12, 1.2); }
+function zenRail(g, x, y, w, h, solid) {   // a balcony: the concrete slab, and a painted rail on it (bars or a solid parapet)
+  g.fillStyle = '#c8c4ba'; g.fillRect(x - 8, y + h, w + 16, 12); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x - 8, y + h + 12, w + 16, 4);
+  if (solid) { g.fillStyle = '#d6d2c6'; g.fillRect(x - 8, y + h * .35, w + 16, h * .65); g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(x - 8, y + h * .35, w + 16, 4); }
+  else { g.fillStyle = '#34343a'; g.fillRect(x - 8, y + h * .3, w + 16, 4); g.fillRect(x - 8, y + h - 3, w + 16, 3); for (let xx = x - 4; xx < x + w + 8; xx += 9) g.fillRect(xx, y + h * .3, 2.5, h * .7); }
+}
+const ZENUP = [
+  (g, r) => { zenA(g, r); zenFrame(g, r); sillStain(g, r, 26, 160, 204); },
+  (g, r) => { zenB(g, r); zenFrame(g, r); },
+  (g, r) => { concrete(g, r, '#cac7be'); g.fillStyle = '#a9a69d'; g.fillRect(78, 54, 100, 140); const gr = g.createLinearGradient(0, 60, 0, 190); gr.addColorStop(0, '#56646e'); gr.addColorStop(1, '#262c32'); g.fillStyle = gr; g.fillRect(84, 60, 88, 128);
+    g.fillStyle = '#a9a69d'; g.fillRect(126, 60, 4, 128); tapp(g, 84, 56, 88, 40 + r() * 70, r() < .5 ? '#7f8588' : '#8c8a80'); zenRail(g, 70, 150, 116, 46, false); zenFrame(g, r); },   // a French window on a balcony slab, iron rail
+  (g, r) => { concrete(g, r, '#c6c3ba'); for (const x of [46, 156]) { g.fillStyle = '#a9a69d'; g.fillRect(x, 84, 56, 80); g.fillStyle = '#2a3238'; g.fillRect(x + 5, 89, 46, 70); leaf(g, x + 5, 89, 23, 70, SH.g); leaf(g, x + 28, 89, 23, 70, SH.g); zenSill(g, r, x, 164, 56); } acUnit(g, 104, 112); zenFrame(g, r); },   // two shuttered windows and a split unit between
+  (g, r) => { concrete(g, r, '#c9c6bd'); g.fillStyle = '#a9a69d'; g.fillRect(34, 70, 188, 90); const gr = g.createLinearGradient(0, 76, 0, 154); gr.addColorStop(0, '#5d6c76'); gr.addColorStop(1, '#2a3036'); g.fillStyle = gr; g.fillRect(40, 76, 176, 78);
+    g.fillStyle = '#a9a69d'; for (const x of [84, 128, 172]) g.fillRect(x - 2, 76, 4, 78); tapp(g, 44, 72, 38, 30 + r() * 40, '#b8b2a2'); tapp(g, 132, 72, 38, 20 + r() * 60, '#b8b2a2'); zenSill(g, r, 34, 160, 188); zenFrame(g, r); },   // a four-part ribbon window, two blinds at different heights
+  (g, r) => { concrete(g, r, '#c8c5bc'); g.fillStyle = '#26221e'; g.fillRect(26, 50, 204, 138); g.fillStyle = 'rgba(190,180,150,.16)'; g.fillRect(36, 60, 60, 118); zenRail(g, 26, 140, 204, 48, true);
+    const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2']; g.strokeStyle = '#4a4a4e'; g.lineWidth = 2; g.beginPath(); g.moveTo(40, 78); g.lineTo(216, 84); g.stroke(); for (let i = 0; i < 4; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(52 + i * 40, 80 + i * .8, 16 + r() * 8, 24 + r() * 20); } zenFrame(g, r); },   // a loggia with a solid parapet and washing
+  (g, r) => { concrete(g, r, '#cdcac2'); g.fillStyle = '#a9a69d'; g.fillRect(104, 100, 48, 56); g.fillStyle = '#2a3238'; g.fillRect(109, 105, 38, 46); zenSill(g, r, 104, 156, 48); g.fillStyle = '#9a9a92'; g.fillRect(190, 0, 8, T - 22); g.fillStyle = '#d4d0c4'; g.fillRect(50, 160, 26, 36); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(50, 196, 26, 3); dishAt(g, 216, 70); zenFrame(g, r); },   // a plain panel: a stair window, a drainpipe, a meter box, a dish
+];
 // ---- fishermen's houses and summer houses: whitewash, painted wood doors, pastel shutters
 function fisBase(g, r, base = '#ece6d6') { plaster(g, r, base, { peel: r() < .5 ? 1 : 0 }); g.fillStyle = 'rgba(60,70,90,.14)'; g.fillRect(0, T - 46, T, 46); }
 layer('fis_door', (g, r) => {
@@ -903,9 +965,9 @@ function obase(g) {
   }
   g.drawImage(OBASE, 0, 0);
 }
-function opatch(g, r, n, pk = [.42, .72]) {   // pk: cumulative shares of the three kinds (stone showing, fresh wash, damp); the blind walls ask for hardly any stone   // ageing inside the tile: the stone showing where the render has gone (with a lip of render and a shadow), a patch of fresh wash, a damp stain; every call draws other shapes
+function opatch(g, r, n, pk = [.15, .55], sc = 1) {   // [texround2] stone showing was 42% of the patches, a hard marked blob on most tiles that read as a stamp down a facade: now 15%, a lighter outline, and `sc` makes the odd one big // pk: cumulative shares of the three kinds (stone showing, fresh wash, damp); the blind walls ask for hardly any stone   // ageing inside the tile: the stone showing where the render has gone (with a lip of render and a shadow), a patch of fresh wash, a damp stain; every call draws other shapes
   for (let i = 0; i < n; i++) {
-    const k = r(), w = 24 + r() * 44, h = 18 + r() * 34, x = 18 + r() * (T - 36 - w), y = 18 + r() * (T - 36 - h);
+    const k = r(), w = (24 + r() * 44) * sc, h = (18 + r() * 34) * sc, x = 18 + r() * (T - 36 - w), y = 18 + r() * (T - 36 - h);
     const blob = (jag) => { g.beginPath(); const m = 11; for (let q = 0; q < m; q++) { const a = q / m * 6.283, rr = .55 + r() * jag; g[q ? 'lineTo' : 'moveTo'](x + w / 2 + Math.cos(a) * w / 2 * rr, y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath(); };
     if (k < pk[0]) {        // missing render: tufa blocks underneath, shadow along the top and left edge, the lip of render thick along the bottom and right
       g.save(); blob(.5); g.clip();
@@ -913,7 +975,7 @@ function opatch(g, r, n, pk = [.42, .72]) {   // pk: cumulative shares of the th
       for (let yy = y - 2, row = 0; yy < y + h + 4; yy += 11 + r() * 4, row++) { g.fillStyle = 'rgba(60,46,30,.38)'; g.fillRect(x - 4, yy, w + 8, 1.6); for (let xx = x - (row % 2) * 14; xx < x + w + 4; xx += 28 + r() * 10) g.fillRect(xx, yy, 1.6, 12); g.fillStyle = `rgba(${r() < .5 ? '255,244,214' : '80,60,38'},${.06 + r() * .1})`; g.fillRect(x - 4, yy + 2, w + 8, 9); }
       const sh = g.createLinearGradient(x, y, x + w * .5, y + h * .6); sh.addColorStop(0, 'rgba(30,22,14,.55)'); sh.addColorStop(1, 'rgba(30,22,14,0)'); g.fillStyle = sh; g.fillRect(x - 4, y - 4, w + 8, h + 8);
       g.restore();
-      blob(.5); g.lineWidth = 2.2; g.strokeStyle = 'rgba(70,54,38,.5)'; g.stroke(); g.translate(1.6, 1.8); g.lineWidth = 1.6; g.strokeStyle = 'rgba(255,250,232,.5)'; g.stroke(); g.setTransform(1, 0, 0, 1, 0, 0);
+      blob(.5); g.lineWidth = 2.2; g.strokeStyle = 'rgba(70,54,38,.3)'; g.stroke(); g.translate(1.6, 1.8); g.lineWidth = 1.6; g.strokeStyle = 'rgba(255,250,232,.3)'; g.stroke(); g.setTransform(1, 0, 0, 1, 0, 0);
     } else if (k < pk[1]) { // fresh wash over an older one: paler or warmer, a soft edge
       blob(.35); g.fillStyle = r() < .5 ? 'rgba(255,246,224,.30)' : 'rgba(196,150,108,.16)'; g.fill(); g.lineWidth = 1.2; g.strokeStyle = 'rgba(90,72,52,.18)'; g.stroke();
     } else {              // a damp stain: dark soft cloud, a tide line along its upper edge
@@ -1132,14 +1194,33 @@ const OWALL = [   // blind side and party walls: worn plaster with soft tonal va
   (g, r) => { obase(g); wash(g, r, 4); opatch(g, r, 1, [0, .4]); g.fillStyle = 'rgba(70,58,44,.10)'; g.fillRect(96, 50, 64, 110); g.fillStyle = 'rgba(40,32,24,.14)'; g.fillRect(96, 50, 64, 3); g.fillRect(96, 50, 3, 110); g.fillStyle = 'rgba(214,202,176,.35)'; g.fillRect(92, 160, 72, 4); },   // a bricked-up opening, hardly there
   (g, r) => { obase(g); wash(g, r, 6); opatch(g, r, 2, [0, .2]); for (let i = 0; i < 2; i++) streak(g, 20 + r() * 210, 0, 120 + r() * 90, 14 + r() * 20, .09); },
 ];
+// [texround2] Plain walls (party walls and short edges: L.blank, 4 m tiles; the blind ground floors of the suburbs: blank_g) used to be one tile with one tan patch, so the patch came back every 4 m in a grid.
+// Now groups of seven and six variants on the same render (obase, so the tiles meet without a seam): big soft clouds of wash, damp and rain, the odd crack, and one variant in seven with a single large patch of stone.
+const BLANKW = [
+  (g, r) => { obase(g); wash(g, r, 4); },
+  (g, r) => { obase(g); wash(g, r, 5); for (let i = 0; i < 2; i++) streak(g, 30 + r() * 190, r() * 40, 120 + r() * 90, 18 + r() * 24, .08); },
+  (g, r) => { obase(g); wash(g, r, 3); opatch(g, r, 1, [0, .5]); },
+  (g, r) => { obase(g); wash(g, r, 4); crack(g, r); },
+  (g, r) => { obase(g); wash(g, r, 6); const gr = g.createLinearGradient(0, T * .55, 0, T); gr.addColorStop(0, 'rgba(70,58,44,0)'); gr.addColorStop(1, 'rgba(70,58,44,.14)'); g.fillStyle = gr; g.fillRect(0, T * .55, T, T * .45); },
+  (g, r) => { obase(g); wash(g, r, 3); opatch(g, r, 1, [0, .25]); for (let i = 0; i < 2; i++) streak(g, 20 + r() * 210, 0, 100 + r() * 100, 14 + r() * 20, .08); },
+  (g, r) => { obase(g); wash(g, r, 3); opatch(g, r, 1, [1, 1], 1.7); },
+];
+const BLANKG = [   // the blind ground floor: the same, with the damp foot of the wall
+  (g, r) => { obase(g); wash(g, r, 3); dado(g, 70, .38); },
+  (g, r) => { obase(g); wash(g, r, 4); dado(g, 54, .46); streak(g, 40 + r() * 170, 0, 120 + r() * 80, 20 + r() * 20, .08); },
+  (g, r) => { obase(g); wash(g, r, 3); dado(g, 80, .34); opatch(g, r, 1, [0, .4]); },
+  (g, r) => { obase(g); wash(g, r, 5); dado(g, 60, .42); crack(g, r); },
+  (g, r) => { obase(g); wash(g, r, 4); dado(g, 64, .4); g.fillStyle = 'rgba(70,58,44,.10)'; for (let x = 0; x < T; x += 8) g.fillRect(x, T - 92 - ((x * 7) % 11), 8, 11); },   // a ragged tide mark of rising damp
+  (g, r) => { obase(g); wash(g, r, 3); dado(g, 58, .4); opatch(g, r, 1, [1, 1], 1.5); },
+];
 const SHOPS = [   // the plain street shop (g_shop_s) in four states: shutters of different colours, one half raised on a lit window
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#8f8e86'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); glassFront(g, 28, 96, 200, 138, '#ecd49a', '#7a5a34'); for (let i = 0; i < 7; i++) { g.fillStyle = PRODUCE[(r() * PRODUCE.length) | 0]; g.fillRect(40 + i * 26, 160 + (i % 2) * 14, 18, 22); } rollShutter(g, r, 26, 70, 204, 30, '#7a7a74'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#74695a'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#5f7062'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
 ];
-const GMAP = { g_shop_s: 'g_shops', g_garage: 'g_gars' };   // ground-floor layer -> its group
-const OGROUPS = { old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW, g_gars: GARS, pwd: PWD, pww: PWW, pwbd: PWBD, pwbw: PWBW, pwg: PWG };
+const GMAP = { g_shop_s: 'g_shops', g_garage: 'g_gars', blank_g: 'g_blank' };   // ground-floor layer -> its group
+const OGROUPS = { zen_up: ZENUP, blank_v: BLANKW, g_blank: BLANKG, old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW, g_gars: GARS, pwd: PWD, pww: PWW, pwbd: PWBD, pwbw: PWBW, pwg: PWG };
 // the hand-drawn facades of the best known buildings (src/hero-facades.js): layers named hr_*, used by the walls whose spec says so (`bl`)
 for (const [name, fn] of heroLayers({ T, obase, opatch, ofloor, owin, orust, ovouss, oskirt, archPath, oleaf, oshut, oshutOpen, oped, softNoise, wash, streak, SH })) layer(name, fn);
 layer('wxnoise', (g, r) => {   // not a facade: smooth tiling noise for the weathering in the building shader (R broad patches, G vertical streaks); stored so that the linear value after sRGB decoding is the noise itself
@@ -1336,7 +1417,7 @@ const STYLES = {
     pwf: { pat: [.15, .55, .2, 0, .1], depth: [.85, 1.2], pilot: .04, brick: .03 },
     ground: [['g_garage', 1.6], ['g_door2', 1.6], ['g_lobby', 1.4], ['pwg', 1.4], ['g_win', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
-  ins: { noShops: true, pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
+  ins: { noShops: true, pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_up'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
     ground: [['g_pilot', 3], ['g_garage', 3], ['zen_g', 1.2], ['blank_g', .5]] },
   // fishermen's and summer houses: whitewash, painted wooden doors, pastel shutters
   fish: { noShops: true, pal: 'res', bay: 3.6, g0: 3.4, fh: 3.0, parapet: 0.55, corn: 0.0, nobile: false, up: ['fis_a', 'fis_win'], rail: 'rail_a', balc: 'none', pitch: 0.5,
@@ -1370,14 +1451,14 @@ function buildLookups(data = D) {
   data.buildings.forEach((b, i) => {
     const pts = pairs(b.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
-    binfo.push({ pts, x0, z0, x1, z1 });
+    binfo.push({ pts, x0, z0, x1, z1, b });
     for (let cx = Math.floor(x0 / BC); cx <= Math.floor(x1 / BC); cx++) for (let cz = Math.floor(z0 / BC); cz <= Math.floor(z1 / BC); cz++) {
       const k = cx * 100003 + cz; let l = bgrid.get(k); if (!l) bgrid.set(k, l = []); l.push(i);
     }
   });
-  const inBuilding = (x, z) => {
+  const inBuilding = (x, z, self) => {   // `self`: a split building (parts on a footprint) leaves out its own outline, which the walls of its inset parts lie inside of ([texround2] they all read as party walls)
     const l = bgrid.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false;
-    for (const i of l) { const q = binfo[i]; if (x >= q.x0 && x <= q.x1 && z >= q.z0 && z <= q.z1 && inPoly(q.pts, x, z)) return true; }
+    for (const i of l) { const q = binfo[i]; if (q.b === self) continue; if (x >= q.x0 && x <= q.x1 && z >= q.z0 && z <= q.z1 && inPoly(q.pts, x, z)) return true; }
     return false;
   };
   const RC = 24, rgrid = new Map();
@@ -1619,7 +1700,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       for (let i = 0; i < P.length; i++) {
         const p = P[i], q = P[(i + 1) % P.length], dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz; if (l2 < 1e-6) continue;
         const l = Math.sqrt(l2), t = (x, z) => ((x - p[0]) * dx + (z - p[1]) * dz) / l2, off = (x, z) => Math.abs((x - p[0]) * dz - (z - p[1]) * dx) / l;
-        if (off(ax, az) > 0.45 || off(bx, bz) > 0.45) continue;
+        const tol = B.spec && B.spec.wtol || 0.45;   // wtol: the walls of a split building's parts stand inside its outline, a villa's front a few metres behind the portico
+        if (off(ax, az) > tol || off(bx, bz) > tol) continue;
         const ta = t(ax, az), tb = t(bx, bz); if (ta < -0.03 || ta > 1.03 || tb < -0.03 || tb > 1.03) continue;
         return { i, ta, tb };
       }
@@ -1648,7 +1730,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if (bm) { const w = B.spec.walls[bm.i]; if (w) W = { ...sp, ...w }; }
       }
       if (kind === 'party' && !S.silo || len < 2.6 && !S.silo) {
-        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? L.ch_low : B.old ? L.old_wall : L.blank, 0.72, 0.97, 0, len / 4);
+        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? L.ch_low : B.old ? L.old_wall : L.blank_v, 0.72, 0.97, 0, len / 4);
       } else {
         const nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / ((W.bay || S.bay) * (B.bayK || 1)))), bw = len / nb;
         let upT = W.up || B.up; const nobT = W.nob || B.nob || 'n19_nob', gmode = W.ground;
@@ -1843,6 +1925,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       }
     }
 
+    // a wall is a party wall when another building stands against it; for a split building that includes its other parts, but not its own footprint line (the parts stand inside it)
+    const touches = (x, z) => inBuilding(x, z, B.self) || (B.parts2 && B.parts2.some(q => q.flat !== flat && inPoly(q.pts, x, z)));
     for (const ring of rings) {
       const pts = ring.pts, N = pts.length;
       for (let i = 0; i < N; i++) {
@@ -1855,14 +1939,14 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         let kind;
         if (ring.hole) kind = 'court';
         else if (stack !== undefined) kind = 'back';
-        else if (inBuilding(mx + nx * 0.6, mz + nz * 0.6) || inBuilding(mx + nx * 1.3, mz + nz * 1.3)) kind = 'party';
+        else if (touches(mx + nx * 0.6, mz + nz * 0.6) || touches(mx + nx * 1.3, mz + nz * 1.3)) kind = 'party';
         else {
           kind = roadNear(mx + nx * 2.2, mz + nz * 2.2).d < 3.2 ? 'street' : 'back';
           // Set-back fronts: on the wide avenues and in the housing estates the facade stands behind a garden strip, a service lane or a parking row, and is still
           // the front (shops, balconies). Look further out along the normal for a street, stopping at the first building in the way.
           if (kind === 'back' && B.reach && len > 6) for (let t = 5; t <= B.reach; t += 4) {
             const qx = mx + nx * t, qz = mz + nz * t;
-            if (inBuilding(qx, qz)) break;
+            if (touches(qx, qz)) break;
             if (roadNear(qx, qz).d < 1.2) { kind = 'street'; break; }
           }
         }
@@ -1968,7 +2052,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const B = {
         S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || nFl || 0,
         railAlt: S.railAlt && r() < 0.5 ? S.railAlt : null, up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
-        spec, bp: spec && spec.walls ? pts0 : null, stoneWall: isStone, arch: !!b.yb,
+        spec, self: b.split ? b : undefined, parts2: b.split && b.parts ? b.parts.map(q => ({ flat: q[0], pts: pairs(q[0]) })) : null, bp: spec && spec.walls ? pts0 : null, stoneWall: isStone, arch: !!b.yb,
         reach: Z.elig && !Z.shed ? (Z.front ?? 15) : 0,
         sn: near && near.r && near.r.n || '', sc: near && near.r && near.r.k || '',   // the street it stands on (ground-floor mix)
         gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e,

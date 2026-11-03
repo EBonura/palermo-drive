@@ -65,7 +65,7 @@ export default {
     walls: { 1: { bays: 9, bl: { ground: ['hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_gc', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g'], nob: ['hr_biondo_n'], up: ['hr_biondo_u'] } } },
     src: 'https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg' },
   // Villa Malfitano: pale stone, a four-column portico with a terrace over it, shuttered windows with moulded frames in the wings.
-  'w250508063': { name: 'Villa Malfitano', style: 'bar', floors: 2, g0: 6.0, nobH: 8.6, balc: 'none', corn: 0.8, col: '#e6dcc4', grime: 0.4,
+  'w250508063': { name: 'Villa Malfitano', style: 'bar', floors: 2, g0: 6.0, nobH: 8.6, balc: 'none', corn: 0.8, col: '#e6dcc4', grime: 0.4, wtol: 6.5,
     walls: { 7: { bays: 7, bl: { ground: ['hr_malf_w', 'hr_malf_w', 'hr_malf_pl', 'hr_malf_pc', 'hr_malf_pr', 'hr_malf_w', 'hr_malf_w'], nob: ['hr_malf_wu', 'hr_malf_wu', 'hr_malf_ul', 'hr_malf_uc', 'hr_malf_ur', 'hr_malf_wu', 'hr_malf_wu'], up: ['hr_malf_wu'] } } },
     src: 'https://commons.wikimedia.org/wiki/File:Villa_Malfitano_-_Fa%C3%A7ade_.jpg' },
   // Grand Hotel et des Palmes: cream-yellow facade of five storeys, small iron balconies on the wings, a centre block with a balustraded balcony and an entrance canopy.
