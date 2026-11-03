@@ -902,7 +902,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- trees: cheap instanced pines in forest areas, a few in parks (full-detail tiles only) ----------
   // n4: the woods are Aleppo pines (light olive, irregular) with stone pines (dark umbrellas) among them, mostly in the Favorita and at Mondello (src/treegeo.js); one instanced mesh each
   const STONE_SHARE = { favorita: 0.22, mondello: 0.4, valdesi: 0.4, lido: 0.4, sferra: 0.25 }, HOLM_SHARE = { favorita: 0.45 };   // the Favorita is mostly holm oak and the other dark broadleaves, with stone and Aleppo pines among them (src/species.js MIX.favorita)
-  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });   // (the leaf sprays of src/treegeo.js are open sheets)
   const hash2 = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
   function* buildTrees(t) {
     const d = t.data, areas = (d.areas || []).filter(a => a.k === 'forest' || a.k === 'green').map(a => {
