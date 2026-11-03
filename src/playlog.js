@@ -1,5 +1,5 @@
 // The play log: a few anonymous counts about how the game ran and how it was played, sent to our own service (joinlog/, on Cloud Run, into a BigQuery table).
-// One small report about every 3 minutes of driving (a batch of what happened since the last), one when the player has been driving for a few seconds ('join') and one when the page
+// One small report about every 3 minutes of driving (a batch of what happened since the last), one when the player has been in the game for a few seconds and has actually moved ('join') and one when the page
 // goes away ('leave', through sendBeacon). Nothing is sent before the player is actually driving, and nothing is sent for the title, the menus or the Garage.
 // Who: everybody, solo or online. A report carries the name only when the player chose one on the name card and went online; solo players and players who have not answered the card send none.
 // There is no lasting id: the visit id is random for this page load, lives in this closure and is never stored. Nothing about it is saved in localStorage; the only saved thing is the player's off switch
@@ -18,7 +18,7 @@ const TEST = typeof __PD_PLAYLOG_TEST__ !== 'undefined' && __PD_PLAYLOG_TEST__;
 export const PLAYLOG_ON = !!URL_;   // the privacy wording (src/p2p/p2p.js) follows this
 
 const tune = TEST ? +new URLSearchParams(location.search).get('plms') || 0 : 0;   // test builds only: ?plms=<ms> shortens the 3 minutes
-const JOIN_AFTER_S = tune ? 1 : 5, ALIVE_MS = tune || 180000, MIN_BATCH_S = tune ? 1 : 20, MAX_MISSIONS = 8;
+const JOIN_AFTER_S = tune ? 1 : 5, ALIVE_MS = tune || 180000, MIN_BATCH_S = tune ? 1 : 20, MAX_MISSIONS = 8, JOIN_MIN_M = 5;
 const rnd = () => { const a = new Uint8Array(8); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); };
 
 function gpuFamily(renderer) {   // the maker only, never the model
@@ -101,7 +101,7 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
       lastX = car.x; lastZ = car.z;
       const now = performance.now();
       if (getName() && now - playersAt > 1000) { playersAt = now; try { b.players = Math.max(b.players, getPlayers()); } catch (e) { /* none */ } }
-      if (!joined) { if (playTotal >= JOIN_AFTER_S) { joined = true; t0 = now - playTotal * 1000; send('join'); } return; }
+      if (!joined) { if (playTotal >= JOIN_AFTER_S && b.dist >= JOIN_MIN_M) { joined = true; t0 = now - playTotal * 1000; send('join'); } return; }
       if (now - lastSend >= ALIVE_MS && b.playS >= MIN_BATCH_S) send('alive');
     },
   };

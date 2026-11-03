@@ -156,7 +156,7 @@ Everything arrives from strangers, so every message goes through checks before i
 
 The live page has `script-src 'self'`; that stays valid because the library is bundled into our own file (`src/p2p/trystero.js` through the build), not loaded from a CDN. Data channels are not governed by `connect-src` (WebRTC is outside what CSP restricts), and they worked under the page policy in every test. What has to change:
 
-1. `connect-src` must allow the signalling WebSocket servers. Today it has `'self' https://*.run.app wss://*.run.app`. The `--p2p` build adds a bare `wss:` so any server works while testing. For a release, pin Trystero to a short list (`relays=` / `relayConfig.urls`) and list exactly those hosts, for example `connect-src ... wss://relay-one.example wss://relay-two.example`. Leaving the default list would mean about 29 Nostr hosts that rotate with the library version.
+1. `connect-src` must allow the signalling WebSocket servers. The base is `'self'`. The `--p2p` build adds a bare `wss:` so any server works while testing. For a release, pin Trystero to a short list (`relays=` / `relayConfig.urls`) and list exactly those hosts, for example `connect-src ... wss://relay-one.example wss://relay-two.example`. Leaving the default list would mean about 29 Nostr hosts that rotate with the library version.
 2. With MQTT only: `worker-src 'self' blob:`. Nostr and BitTorrent needed no change. I would not use MQTT.
 3. STUN/TURN traffic is UDP and not covered by CSP. If TURN is added, its credential service needs its URL in `connect-src` (https).
 

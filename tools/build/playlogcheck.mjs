@@ -119,7 +119,7 @@ async function browserTests(root) {
   const sink = path.join(tmp, 'game.jsonl');
   const svc = service(18788, origin, sink, { ADDR_BURST: '100', ADDR_PER_MIN: '600' });   // the test build reports every 3 s, far faster than a player, so this address gets a wider allowance   // 18788: the address the test build was made with
   await up(18788);
-  const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'] });
+  const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
   async function open(store, extra) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage(), errs = [];
     await page.setViewport({ width: 960, height: 540 });
@@ -130,10 +130,11 @@ async function browserTests(root) {
     await page.waitForFunction(() => window.game && !document.getElementById('loading'), { timeout: 300000, polling: 250 });
     return { page, errs, ctx, reqs };
   }
+  const drive = page => page.evaluate(() => { let n = 0; const t = setInterval(() => { window.game.car.x += 0.5; if (++n > 400) clearInterval(t); }, 20); });   // a car that drives about 200 m
   try {
     // online: the name goes with every report
     const a = await open(JSON.stringify({ name: 'Anna', p2pOk: true, offline: false }), '&ns=pltest');
-    await a.page.evaluate(() => { let n = 0; const t = setInterval(() => { window.game.car.x += 0.5; if (++n > 400) clearInterval(t); }, 20); });   // a car that drives about 200 m
+    await drive(a.page);
     await sleep(8000);
     let rs = rows(sink);
     check('online player: a join row after a few seconds of driving', rs.length >= 1 && rs[0].event === 'join', JSON.stringify(rs[0]));
@@ -166,6 +167,7 @@ async function browserTests(root) {
     // solo by choice: stats but no name
     const s0 = rows(sink).length;
     const b = await open(JSON.stringify({ name: 'Bruno', p2pOk: false, offline: true }), '&ns=pltest2');
+    await drive(b.page);
     await sleep(7000);
     rs = rows(sink).slice(s0); check('solo player: reports are sent without a name', rs.length >= 1 && rs.every(x => x.name === null), JSON.stringify(rs[0]));
     await b.ctx.close();
@@ -173,6 +175,9 @@ async function browserTests(root) {
     const s1 = rows(sink).length;
     const c = await open(null, '&ns=pltest3');
     await sleep(7000);
+    check('a player who never moves: nothing is sent', rows(sink).length === s1, `${rows(sink).length - s1} rows`);
+    await drive(c.page);
+    await sleep(4000);
     rs = rows(sink).slice(s1); check('a player who has not answered the card: sent without a name', rs.length >= 1 && rs.every(x => x.name === null), JSON.stringify(rs[0]));
     await c.ctx.close();
   } finally { await browser.close(); server.close(); svc.kill(); }

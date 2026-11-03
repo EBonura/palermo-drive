@@ -11,7 +11,7 @@ export const sleep = ms => new Promise(r => setTimeout(r, ms));
 export async function start({ root = arg('root'), headless = 'new' } = {}) {
   const { server, port } = await startServer(path.resolve(root), '');
   const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless, protocolTimeout: 600000,
-    args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--no-first-run'] });
+    args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--no-first-run'] });
   return { server, port, browser, close: async () => { await browser.close().catch(() => {}); server.close(); } };
 }
 // one player: a page at the map point (x, z) heading th, named name; all players of a run share the ns so they only meet each other

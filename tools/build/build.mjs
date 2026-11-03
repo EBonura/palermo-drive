@@ -117,11 +117,11 @@ const version = hash(Buffer.from(html));
 const versionName = `${fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim()}.${process.env.GITHUB_RUN_NUMBER || 'dev'}`;
 mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}" data-name="${versionName}">`, 'the <head> tag');
 // Content-Security-Policy as a <meta> (GitHub Pages cannot send headers): the published page runs only its own bundle (no inline script, no eval), takes images, audio and fonts from itself
-// (plus data: and blob: pictures), and may talk to itself and to the multiplayer relay on Cloud Run (server/DEPLOY.md). Style is 'unsafe-inline' because the modules add their own <style> blocks.
+// (plus data: and blob: pictures), and may talk to itself. Style is 'unsafe-inline' because the modules add their own <style> blocks.
 // Checked on the built site: title, play, Garage, a race event and the credits raise no violation. The dev tree has no policy. If a new feature loads something from elsewhere, widen it here.
 // The peer to peer client (docs/P2P-MULTIPLAYER.md) also needs the Nostr relays it pins in src/p2p/relays.js: exactly those hosts are allowed here.
 // The play log (src/playlog.js) needs its one service host, the origin of PLAYLOG_URL (src/playlog-url.js): added only when that constant is set, so with it empty the policy allows no extra host.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://*.run.app wss://*.run.app" + (flag('p2p', true) ? ' ' + RELAYS.join(' ') : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'" + (flag('p2p', true) ? ' ' + RELAYS.join(' ') : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
 mustReplace(/<head>/, `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`, 'the <head> tag (policy)');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version, name: versionName }));
