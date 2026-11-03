@@ -119,7 +119,7 @@ html.pd-title :is(#hud, .tc) { visibility: hidden !important; }
    share one bar underneath, and the top padding clears the radio card, so none of them can land on another. */
 .pd-s-menu { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: clamp(6px, 1.6vh, 14px); padding-top: calc(var(--pad-t) + 46px); }
 .pd-mbody { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; gap: clamp(16px, 5vw, 64px); }
-.pd-mfoot { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 14px; padding: 0 6px; }
+.pd-mfoot { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding: 0 6px; }
 .pd-vslot { flex: none; margin-left: auto; }
 .pd-s-title .pd-vslot { position: absolute; left: calc(var(--pad-l) + 6px); bottom: var(--pad-b); margin: 0; }
 .pd-s-menu .pd-logo { width: min(46vw, 100vh, 600px); flex: 0 1 auto; }
@@ -549,14 +549,19 @@ html.touch .pd-mp-hint { display: none; }
 }
 
 /* Studio credit on the title screen: "a game by" over the Bonnie Studios logo (white on transparent). */
-.pd-igs { display: flex; flex-wrap: wrap; align-items: stretch; gap: clamp(6px, 1vh, 10px) clamp(10px, 1.6vw, 16px); min-width: 0; }
-.pd-ig { display: flex; align-items: center; gap: 8px; padding: clamp(4px, 1vh, 7px) 14px clamp(4px, 1vh, 7px) 11px; border-radius: 3px; color: #fff; text-decoration: none; pointer-events: auto;
-  background: linear-gradient(90deg, rgba(34,22,28,.9), rgba(14,9,12,.78)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.38); transform: skewX(-11deg); transition: background .12s ease; }
-.pd-ig > * { transform: skewX(11deg); }
-.pd-ig:hover, .pd-ig:focus-visible { background: rgba(232,85,154,.32); }
-.pd-ig svg { color: #e8559a; flex: none; }
-.pd-ig b { display: block; font: 700 clamp(12px, 2.4vh, 15px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .03em; }
-.pd-ig small { display: block; max-width: min(26vw, 280px); font: 500 clamp(10px, 2vh, 12px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; opacity: .8; }
+.pd-msoc { flex: 0 1 auto; min-width: 0; max-width: min(49vw, 430px); display: flex; flex-direction: column; align-items: flex-start; gap: clamp(4px, 1vh, 8px); }
+.pd-igs { display: inline-flex; align-items: stretch; min-width: 0; border-radius: 3px; overflow: hidden; pointer-events: auto;
+  background: linear-gradient(90deg, rgba(34,22,28,.92), rgba(14,9,12,.8)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.38); transform: skewX(-11deg); }
+.pd-igi { display: flex; align-items: center; padding: 0 8px 0 11px; color: #e8559a; }
+.pd-igi svg, .pd-ig > *, .pd-igm > * { transform: skewX(11deg); }
+.pd-ig { display: block; padding: clamp(3px, .8vh, 6px) 11px; color: #fff; text-decoration: none; border-left: 1px solid rgba(245,169,201,.22); transition: background .12s ease; }
+.pd-ig:hover, .pd-ig:focus-visible, .pd-igm:hover, .pd-igm:focus-visible { background: rgba(232,85,154,.32); }
+.pd-ig b { display: block; font: 700 clamp(12px, 2.4vh, 15px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .03em; }
+.pd-ig small { display: block; font: 500 clamp(9px, 1.8vh, 11px)/1.1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .03em; opacity: .75; white-space: nowrap; }
+.pd-igm { min-width: 0; display: inline-flex; align-items: center; gap: 8px; padding: clamp(3px, .8vh, 6px) 13px clamp(3px, .8vh, 6px) 10px; border-radius: 3px; color: #fff; text-decoration: none; pointer-events: auto;
+  background: linear-gradient(90deg, rgba(232,85,154,.34), rgba(14,9,12,.8)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.38); transform: skewX(-11deg); transition: background .12s ease;
+  font: 500 clamp(10px, 2vh, 12.5px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .02em; }
+.pd-igm svg { flex: none; color: #f5a9c9; }
 .pd-by { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
   padding: 8px 10px 10px; border-radius: 12px; background: rgba(11,7,9,.62); box-shadow: 0 0 0 1px rgba(232,85,154,.35); }

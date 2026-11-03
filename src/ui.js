@@ -73,7 +73,7 @@ const S = {
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, mezzo, schermo intero', 'Menu: camera, back on the road, ride, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  igMe: ['Segui il creatore del gioco', 'Follow the game\'s creator'], igStudio: ['Segui lo studio, principalmente sviluppo per PlayStation 1', 'Follow the studio, mostly PlayStation 1 development'],
+  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG compà ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG, mate, and we\'ll sort it out'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   stats: ['Statistiche di gioco', 'Game stats'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
@@ -339,8 +339,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     <div class="pd-vslot"></div>
 `);
   // main menu
-  const IG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>';
-  const igLink = (h, k) => `<a class="pd-ig" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer">${IG}<span><b>@${h}</b><small data-k="${k}"></small></span></a>`;
+  const IG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>';
+  const igLink = (h, k) => `<a class="pd-ig" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer"><b>@${h}</b><small data-k="${k}"></small></a>`;
+  const NOTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M9 18.5a3 3 0 1 1-2-2.83V5.2l12-2.2v13.5a3 3 0 1 1-2-2.83V7.4L9 8.87z"/></svg>';
   mk('menu', '', `<div class="pd-mbody"><div class="pd-logo">${logoSVG('m')}</div>
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
@@ -349,7 +350,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav></div>
-    <div class="pd-mfoot"><div class="pd-igs">${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div><div class="pd-vslot"></div></div>
+    <div class="pd-mfoot"><div class="pd-msoc"><div class="pd-igs"><span class="pd-igi">${IG}</span>${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div><a class="pd-igm" href="https://ig.me/m/izzy88izzy" target="_blank" rel="noopener noreferrer">${NOTE}<span data-k="igMusic"></span></a></div><div class="pd-vslot"></div></div>
 `);
   // options
   const OPTS = [
