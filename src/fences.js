@@ -18,8 +18,11 @@ import * as THREE from 'three';
 import { Buf, groundY, hooks } from './core.js';
 import { wallMaterial, wallTextureSteps, LAYER } from './wall-tex.js';
 import { roadsideWalls } from './fence-walls.js';
+import { expresswayRails } from './expressway.js';
+import { buildSigns } from './direction-signs.js';
 
-const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, POOL = 10;
+const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, MAX_RAILS = 2400, POOL = 10;
+const GUARD_BREAK = 15;   // m/s (effective, see breakFence): a steel guard rail holds a scrape and a bump, and gives way to a car that hits it head on at about 55 km/h or more
 const KIND = {
   w: { th: 0.35, col: ['#d6caa8', '#cdbe98', '#c4b594', '#ddd2b6', '#c9bba0', '#d3c3a4'] },
   d: { th: 0.55, col: ['#b0a995', '#a39c88', '#b5ae98', '#9f9985'] },
@@ -50,8 +53,24 @@ const STYLE = [
   { name: 'railing', draw: (g, W, H) => { g.fillStyle = '#2d2f2e'; for (let x = 6; x < W; x += 9) g.fillRect(x, 6, 3, H - 8); g.fillRect(0, 4, W, 5); g.fillRect(0, H * 0.55, W, 3); } },
   { name: 'wooden', draw: (g, W, H) => { for (let x = 6; x < W; x += 15) { g.fillStyle = (x / 15 | 0) % 2 ? '#7d5c3b' : '#6e5033'; g.fillRect(x, 2, 11, H - 2); } g.fillStyle = '#5a4128'; g.fillRect(0, H * 0.25, W, 4); g.fillRect(0, H * 0.7, W, 4); } },
   { name: 'mesh', draw: (g, W, H) => { g.strokeStyle = '#7d8286'; g.lineWidth = 1.6; for (let k = -H; k < W + H; k += 10) { g.beginPath(); g.moveTo(k, H); g.lineTo(k + H, 0); g.stroke(); g.beginPath(); g.moveTo(k, 0); g.lineTo(k + H, H); g.stroke(); } g.fillStyle = '#5b6064'; g.fillRect(0, 0, W, 4); g.fillRect(0, H - 3, W, 3); } },
+  // steel guard rails (kind g): a W-beam, single (slip roads, mapped rails) or double (the main carriageway and the median of the fast roads, src/expressway.js)
+  { name: 'wbeam', rail: 1, draw: (g, W, H) => wbeam(g, W, H, 1) },
+  { name: 'wbeam2', rail: 1, draw: (g, W, H) => wbeam(g, W, H, 2) },
 ];
-let GEO = null, MAT = null;
+const STYLES = STYLE.length;
+// one galvanised beam: a lit top edge, two dark grooves of the corrugation, a pale lower edge; weathered by rust at the bottom and dust
+function wbeam(g, W, H, beams) {
+  const beam = (y0, y1) => {
+    const h = y1 - y0; g.fillStyle = '#c4c6c0'; g.fillRect(0, y0, W, h);
+    g.fillStyle = '#e6e7e1'; g.fillRect(0, y0, W, h * 0.14);                      // the lit top edge
+    g.fillStyle = '#9a9c97'; g.fillRect(0, y0 + h * 0.3, W, h * 0.16); g.fillRect(0, y0 + h * 0.66, W, h * 0.14);   // grooves
+    g.fillStyle = '#d4d5cf'; g.fillRect(0, y0 + h * 0.48, W, h * 0.16); g.fillRect(0, y1 - h * 0.1, W, h * 0.1);
+    g.fillStyle = 'rgba(120,84,52,0.28)'; for (let x = 0; x < W; x += 11 + ((x * 7) % 9)) g.fillRect(x, y0 + h * 0.5, 2 + (x % 3), h * 0.5);   // rust runs
+  };
+  if (beams === 1) beam(H * 0.1, H * 0.46); else { beam(H * 0.05, H * 0.42); beam(H * 0.5, H * 0.87); }
+}
+let GEO = null, GEO_RAIL = null, MAT = null;
+const geoOf = st => STYLE[st].rail ? GEO_RAIL : GEO;
 function panelAssets() {
   if (GEO) return;
   MAT = STYLE.map(s => {
@@ -73,6 +92,17 @@ function panelAssets() {
   GEO.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
   GEO.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   GEO.setIndex(idx); GEO.computeVertexNormals();
+  { // a guard rail panel: the beam over its whole length and one post at its start (the next panel's beam covers the far end): 6 triangles
+    const p = [], uv = [], idx = [];
+    const quad = (a, b, c, d, u) => { const o = p.length / 3; p.push(...a, ...b, ...c, ...d); uv.push(...u); idx.push(o, o + 1, o + 2, o, o + 2, o + 3); };
+    quad([-h, 0, 0], [h, 0, 0], [h, 1, 0], [-h, 1, 0], [0.04, 0, 1, 0, 1, 1, 0.04, 1]);
+    const x = -h + 0.06;
+    quad([x - 0.05, 0, 0.02], [x + 0.05, 0, 0.02], [x + 0.05, 0.92, 0.02], [x - 0.05, 0.92, 0.02], [0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5]);
+    quad([x, 0, -0.05], [x, 0, 0.09], [x, 0.92, 0.09], [x, 0.92, -0.05], [0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5]);
+    GEO_RAIL = new THREE.BufferGeometry();
+    GEO_RAIL.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); GEO_RAIL.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    GEO_RAIL.setIndex(idx); GEO_RAIL.computeVertexNormals();
+  }
 }
 
 // ---------- smashed panels in flight ----------
@@ -81,18 +111,18 @@ let pools = null;
 function flyPool() {
   if (pools) return pools;
   panelAssets();
-  pools = STYLE.map((s, i) => { const m = new THREE.InstancedMesh(GEO, MAT[i], POOL); m.count = 0; m.frustumCulled = false; m.name = 'fence_debris_' + s.name; root.add(m); return m; });
+  pools = STYLE.map((s, i) => { const m = new THREE.InstancedMesh(geoOf(i), MAT[i], POOL); m.count = 0; m.frustumCulled = false; m.name = 'fence_debris_' + s.name; root.add(m); return m; });
   return pools;
 }
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 function writeFlyers() {
-  const P = flyPool(), n = [0, 0, 0];
+  const P = flyPool(), n = new Array(STYLES).fill(0);
   for (const f of flyers) {
     const m = P[f.st]; if (n[f.st] >= POOL) continue;
     _e.set(f.tilt, f.yaw, 0, 'YXZ'); _q.setFromEuler(_e); _p.set(f.x, f.y, f.z); _s.set(f.len / PANEL, f.h, 1);
     m.setMatrixAt(n[f.st]++, _m.compose(_p, _q, _s));
   }
-  for (let i = 0; i < 3; i++) { P[i].count = n[i]; P[i].instanceMatrix.needsUpdate = true; }
+  for (let i = 0; i < STYLES; i++) { P[i].count = n[i]; P[i].instanceMatrix.needsUpdate = true; }
 }
 // chunks of a broken wall and leaves of a broken hedge: two small instanced pools shared by the whole world
 const CH = 150, LF = 240;
@@ -238,26 +268,34 @@ class WBuf extends Buf {
 const OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nofences');   // ?nofences: debug, the world as it was before walls and fences
 const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
 export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
-  if (!list || !list.length || !wallGrid || OFF) return null;
+  if (!wallGrid || OFF) return null;
+  if (ctx && !NOROAD && list && list.length) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas);
+  yield;
+  const rails = ctx ? expresswayRails(ctx, list) : [];   // the guard rails of the fast roads, by rule (src/expressway.js)
+  if (rails.length) list = (list || []).concat(rails);
+  yield;
+  const signs = ctx ? buildSigns(ctx) : null;   // direction signs and gantries of the motorways (src/direction-signs.js)
+  if ((!list || !list.length) && !signs) return null;
+  list = list || [];
   panelAssets();
-  if (ctx && !NOROAD) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas);
   yield* wallTextureSteps();   // the wall textures, a layer per step, the first time only
   const group = new THREE.Group(); group.name = 'fences';
-  const wall = new WBuf(), panels = [[], [], []], wallPieces = [];
-  let nPanels = 0, n = 0, nBreak = 0, nSolid = 0;
+  const wall = new WBuf(), panels = STYLE.map(() => []), wallPieces = [];
+  let nPanels = 0, nRail = 0, n = 0, nBreak = 0, nSolid = 0;
   const tk = 'f' + key;
   const addSeg = (ax, az, bx, bz, fn) => { const s = [ax, az, bx, bz]; if (fn) s.fn = fn; wallGrid.addSeg(tk, s, ax, az, bx, bz); };
   for (let li = 0; li < list.length; li++) {
     const r = list[li], pts = resample(r.p, r.k === 'f' || r.k === 'g' || r.fence ? PANEL : 4);
     if ((++n & 7) === 0) yield;
     if (r.k === 'f' || r.k === 'g') {
-      const st = r.k === 'g' ? 0 : r.s || 0;
-      for (let i = 0; i + 1 < pts.length && nPanels < MAX_PANELS; i++) {
+      const st = r.k === 'g' ? (r.s >= 3 ? r.s : 3) : r.s || 0, rail = r.k === 'g';   // a guard rail is a W-beam, single unless it says double
+      for (let i = 0; i + 1 < pts.length && (rail ? nRail < MAX_RAILS : nPanels < MAX_PANELS); i++) {
         const a = pts[i], b = pts[i + 1], len = hh(b[0] - a[0], b[1] - a[1]); if (len < 0.6) continue;
         const id = key + ':' + li + ':' + i; if (broken.has(id)) continue;
         const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2, yaw = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
         const f = { id, st, x: mx, z: mz, y: groundY(mx, mz) - 0.04, yaw, len, h: r.h, i: panels[st].length, tile: null, gone: false };
-        panels[st].push(f); nPanels++;
+        if (rail) { f.thr = GUARD_BREAK; nRail++; } else nPanels++;
+        panels[st].push(f);
         addSeg(a[0], a[1], b[0], b[1], f);
       }
       continue;
@@ -311,24 +349,25 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
       }
     }
   }
-  const rec = { mesh: [null, null, null], wall: null };
+  const rec = { mesh: STYLE.map(() => null), wall: null };
   for (const f of wallPieces) f.tile = rec;
   if (wall.p.length) {
     const m = wall.mesh(wallMaterial());
     m.castShadow = true; m.receiveShadow = true; group.add(m); rec.wall = m;
   }
 
-  for (let s = 0; s < 3; s++) {
+  for (let s = 0; s < STYLES; s++) {
     const L = panels[s]; if (!L.length) continue;
-    const m = new THREE.InstancedMesh(GEO, MAT[s], L.length); m.receiveShadow = true; m.frustumCulled = true;
+    const m = new THREE.InstancedMesh(geoOf(s), MAT[s], L.length); m.receiveShadow = true; m.frustumCulled = true;
     L.forEach((f, i) => {
       _e.set(0, f.yaw, 0, 'YXZ'); _q.setFromEuler(_e); _p.set(f.x, f.y, f.z); _s.set(f.len / PANEL, f.h, 1);
       m.setMatrixAt(i, _m.compose(_p, _q, _s)); f.tile = rec;
     });
     m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); rec.mesh[s] = m; group.add(m);
   }
-  group.userData.tris = (wall.p.length / 9) + nPanels * 10;
-  group.userData.panels = nPanels;
+  if (signs) { group.add(signs.group); for (const q of signs.segs) addSeg(q[0], q[1], q[2], q[3], null); }
+  group.userData.tris = (wall.p.length / 9) + nPanels * 10 + nRail * 6 + (signs ? signs.group.userData.tris : 0);
+  group.userData.panels = nPanels + nRail;
   totals.breakM += nBreak; totals.solidM += nSolid;
   return group;
 }
