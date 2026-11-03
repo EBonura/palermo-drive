@@ -1014,8 +1014,8 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### call: rave
 
-- Ou! Amunì, ca i casse pû rave su ccà! Puitali â Favorita, ma araciu, ca sunnu dilicati!  
-  _Hey! Come on, the speakers for the rave are here! Take them to the Favorita, but nice and slow, they are delicate!_
+- Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!  
+  _Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!_
 - Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!  
   _Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!_
 - Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!  

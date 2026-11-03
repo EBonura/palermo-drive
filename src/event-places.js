@@ -166,11 +166,12 @@ export const RACES = [
 // ---------------------------------------------------------------------------------------------------------------- the rave missions
 // "Casse per il rave" starts at the centro sociale ExKarcere (Via San Basilio 17, Albergheria; address from questoapp.com/places-to-visit/palermo/centro-sociale-ex-karcere and
 // livesicilia.it/centro-sociale-exkarcere-sospeso-lo-sgombero; the street's position from OpenStreetMap Nominatim, "Via San Basilio, La Loggia, Palermo", 38.11887, 13.36104;
-// the house number is not on the map, the game puts the door on that street) and ends at the rave in the woods of the Favorita, at the foot of Monte Pellegrino: a dance floor in a
-// clearing of the pines between Viale Ercole and Viale Diana, 58 m in from Viale Ercole along a track the game cuts through the trees (src/rave-ground.js), 4.5 km of road from the
-// Karcere. The slopes of the mountain itself are cliffs under the trees (18 m and more of relief in 16 m) and the gentle woods on the Via Pietro Bonanno side are 8 km of road away, so
-// this is the flattest dense wood within a delivery. "Fuogghi allegri" starts at the rave and sends you to Via Cipressi (OpenStreetMap way, Palermo, the end near the Cuba) for the
-// leaves. Notes and sources: docs/rave.md.
+// the house number is not on the map, the game puts the door on that street) and ends at the rave in the woods of Monte Pellegrino: a dance floor on a bench of the mountain, 295 m up,
+// in the forest of the tiles, 38 m from the forest service road Via Padre Ennio Pintacuda (a branch that leaves Via Pietro Bonanno at a hairpin 112 m away),
+// reached by a track the game cuts through the trees (src/rave-ground.js), about 9.4 km of road from the Karcere. It is the gentlest ground in the woods within reach of a road: the
+// slopes of the mountain are steep nearly everywhere (4 to 10 m of relief in 20 m), the plain woods of the Favorita are not on the mountain, and the other flat woods are at the
+// Santuario, 12.9 km away. "Fuogghi allegri" starts at the rave and sends you to Via Cipressi (OpenStreetMap way, Palermo, the end near the Cuba) for the leaves. Notes and sources:
+// docs/rave.md.
 // The horns mission (docs/horns.md): a citizen waits in Piazza Pretoria (the fare spot 'pp' is the same place), hands the lapa a pair of huge horns, and the lapa takes them under the
 // Arco di Cutò, the arch over Via Chiappara al Carmine at Via Maqueda 26, from the Maqueda side towards Ballarò. `arch` is a point of the street just inside the arch (from the road
 // graph of the tiles: the Maqueda end of Via Chiappara al Carmine is at about 38.1110, 13.3645) and `to` a point further along the street, towards Ballarò: the baker (snap-places.mjs)
@@ -181,7 +182,7 @@ export const HORNS = {
 };
 export const RAVE = {
   karcere: { id: 'karcere', name: 'Centro sociale', lat: 38.1188723, lon: 13.3610391, onStreet: 'San Basilio', who: 'Il tecnico delle casse' },
-  site: { id: 'site', name: 'Rave alla Favorita', lat: 38.1513704, lon: 13.3486840 },   // the middle of the dance floor
-  access: { lat: 38.1511054, lon: 13.3481124, onStreet: 'Ercole' },   // where the track to it leaves the road (the middle of Viale Ercole)
+  site: { id: 'site', name: 'Rave sul Pellegrino', lat: 38.1564654, lon: 13.3558708 },   // the middle of the dance floor
+  access: { lat: 38.1561387, lon: 13.3559892, onStreet: 'Pintacuda' },   // where the track to it leaves the road (the middle of the forest service road, Via Padre Ennio Pintacuda)
   leaf: { id: 'leaf', name: 'Via Cipressi', lat: 38.1115405, lon: 13.3394977, onStreet: 'Cipressi' },
 };

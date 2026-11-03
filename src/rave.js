@@ -1,4 +1,4 @@
-// The rave in the woods of the Favorita (the clearing of src/rave-ground.js, the site in src/event-places.js RAVE): a round slab of a dance floor you drive onto along a gravel track
+// The rave in the woods of Monte Pellegrino (the clearing of src/rave-ground.js, the site in src/event-places.js RAVE): a round slab of a dance floor you drive onto along a gravel track
 // through the pines, a stage with two speaker stacks and a DJ booth on the far side of it, six coloured searchlight beams and two flashing floor discs that follow the beat, a ring
 // of lamps, a crowd of dancing people that scatters from the lapa, and a thumping house loop made with the Web Audio oscillators (a kick, a clap, an off-beat hat and a bass line:
 // nothing recorded, nothing copyrighted). The slab and the track are there day and night; the rest exists at night (src/event-rave.js adds the delivery of the speakers: once they
@@ -14,11 +14,12 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const BPM = 138, BUILD_R = 560, CROWD_R = 300, CROWD_DROP = 380, HEAR_R = 360, FAR = 1e7;
 const COLS = [0xff2fa0, 0x32e0ff, 0x7dff3a, 0xffb02e, 0xb16bff, 0xff4a3a];
 const TAU = Math.PI * 2;
-const LIFT = CURB + 0.03;   // the floor and the track are drawn over the park's grass (a layer CURB over the ground) and count as raised ground (src/world.js): the lapa and the dancers stand this high over the ground
+const LIFT = CURB + 0.03;   // the floor and the track are drawn over the forest floor (a layer CURB over the ground) and count as raised ground (src/world.js): the lapa and the dancers stand this high over the ground
 
 export function createRave(env) {
   const { scene, camera, car, game, pedestrians, groundY, isNight, walls2d } = env;
   const site = { x: FLOOR.x, z: FLOOR.z };
+  const trackSig = () => { let s = 0; for (const d of [0, TRACK.len / 2, TRACK.len]) s += groundY(TRACK.x0 + TRACK.ux * d, TRACK.z0 + TRACK.uz * d); return s; };   // the ground under the track: when it changes the strip is drawn again
   // the frame of the site: a along the track towards the stage, b across it; W(a, b) is the world x, z
   const ux = FLOOR.ux, uz = FLOOR.uz, vx = -uz, vz = ux, W = (a, b) => [site.x + ux * a + vx * b, site.z + uz * a + vz * b];
   // the stage is solid (a box round the platform, the truss poles and the speaker stacks): its four walls are in play while it is drawn and sit out of play (at FAR) the rest of the time
@@ -93,6 +94,7 @@ export function createRave(env) {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setIndex(I); geo.computeVertexNormals();
     const trk = new THREE.Mesh(geo, mat(0x9c8a68, { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, side: THREE.DoubleSide })); trk.receiveShadow = true; g.add(trk);
+    g.userData.sig = trackSig();
     scene.add(g);
     return g;
   }
@@ -185,6 +187,7 @@ export function createRave(env) {
     // build / drop with the distance: the slab and the track by day and by night, the stage at night
     if (!floor && d < BUILD_R) floor = buildFloor();
     else if (floor && d > BUILD_R + 120) { dropGroup(floor); floor = null; }
+    else if (floor && Math.abs(trackSig() - floor.userData.sig) > 0.3) { dropGroup(floor); floor = buildFloor(); }   // the ground under the track changed: the tiles there streamed in (the strip is draped on it when built, and the mountain is far from the coarse far grid)
     if (!on) return;
     if (!built && d < BUILD_R) built = build();
     else if (built && d > BUILD_R + 120) { dispose(); }
