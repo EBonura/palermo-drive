@@ -88,6 +88,7 @@ export function registerStructs(d, key) {
   for (const rec of list) {
     // a footway underpass is a short tunnel that cannot get its 5.8 m of cover where the road above lies in a hollow: it would stay an open trench across the road (the sprint's line at Viale Regione, x -2790, z 263) and nobody drives through it
     if (rec.k === 't' && rec.f) continue;
+    if (rec.id === 'b699377602') continue;   // Ponte dell'Ammiraglio: the stone landmark is the bridge (src/lmc-g.js), a generic deck would show through its arches
     mine.add(rec.id);
     let st = S.get(rec.id);
     if (st) { st.tiles.add(key); continue; }
