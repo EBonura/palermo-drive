@@ -40,6 +40,9 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       mini.moveTo(x - r, y - r); mini.lineTo(x + r, y + r); mini.moveTo(x + r, y - r); mini.lineTo(x - r, y + r);
       mini.lineCap = 'round'; mini.lineWidth = 4.5; mini.stroke(); mini.strokeStyle = color; mini.lineWidth = 2.2; mini.stroke(); mini.lineCap = 'butt'; return;
     }
+    else if (shape === 'ring') {   // another player: a hollow ring, dark edges, a bright colour (src/remotes.js)
+      mini.arc(x, y, r + 1, 0, Math.PI * 2); mini.lineWidth = 6.5; mini.strokeStyle = '#0b0709'; mini.stroke(); mini.lineWidth = 3.4; mini.strokeStyle = color; mini.stroke(); return;
+    }
     else if (shape === 'target') {
       mini.arc(x, y, r + 1, 0, Math.PI * 2); mini.fillStyle = '#fff'; mini.fill(); mini.stroke();
       mini.beginPath(); mini.arc(x, y, Math.max(2, r * 0.55), 0, Math.PI * 2); mini.fillStyle = color; mini.fill(); mini.stroke(); return;
@@ -185,12 +188,22 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       }
       mini.restore();
     }
+    let near = null, nearD = 1e9;   // the nearest other player on the map: its name is written beside it when the map is big enough to read it
     for (const m of mapMarkers) {
       const dx = (m.x - car.x) * k, dz = (m.z - car.z) * k;
       let px = dx * ca - dz * sa, pz = dx * sa + dz * ca;
       const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
       if (off) { px *= rim / r; pz *= rim / r; }
-      drawMarker(W / 2 + px, W / 2 + pz, off ? 4 : (m.size || 5), m.shape, m.color || '#e8559a');
+      // another player's ring grows as the player comes near: 3.5 px (200 px canvas) from 400 m out, 6.5 px inside 40 m, never more, so it stays a thin ring round the arrow and clear of a mission mark
+      const rs = m.player ? 3.5 + 3 * Math.min(1, Math.max(0, (400 - Math.hypot(m.x - car.x, m.z - car.z)) / 360)) : m.size || 5;
+      drawMarker(W / 2 + px, W / 2 + pz, off ? 4 : rs, m.shape, m.color || '#e8559a');
+      if (m.player && !off && r < nearD) { nearD = r; near = [m, W / 2 + px, W / 2 + pz]; }
+    }
+    // On a phone the map is about 98 px wide, a 200 px canvas shown at half size: a name would be 5 px tall. So there it is the dot only; from 150 px up, the nearest player gets a name.
+    if (near && near[0].name && canvas.clientWidth >= 150) {
+      const [m, x, y] = near; mini.font = "700 12px 'Barlow Condensed', system-ui, sans-serif"; mini.textBaseline = 'middle'; mini.lineJoin = 'round';
+      const w = mini.measureText(m.name).width, left = x + 12 + w > W - 6; mini.textAlign = left ? 'right' : 'left';
+      const tx = left ? x - 12 : x + 12; mini.lineWidth = 3.5; mini.strokeStyle = 'rgba(11,7,9,.85)'; mini.strokeText(m.name, tx, y); mini.fillStyle = '#e8fbff'; mini.fillText(m.name, tx, y); mini.textAlign = 'start';
     }
     mini.fillStyle = '#c41e2a'; mini.strokeStyle = '#fff'; mini.lineWidth = 2;
     mini.beginPath(); mini.moveTo(W / 2, W / 2 - 9); mini.lineTo(W / 2 + 6, W / 2 + 7); mini.lineTo(W / 2 - 6, W / 2 + 7); mini.closePath(); mini.fill(); mini.stroke();

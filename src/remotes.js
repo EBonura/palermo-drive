@@ -10,6 +10,7 @@ const EXTRAP = 250;            // longest extrapolation, ms
 const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
 const PINK = '#ff6fae', PINK_D = '#e8559a';
+export const PLAYER_DOT = '#00e1ff';   // other players on the maps: a cyan RING, a colour and a shape nothing else on the minimap or the big map uses (mission marks are filled green, orange, yellow, purple and pink discs, diamonds, triangles and crosses)
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const wrapPI = a => a - TAU * Math.floor((a + Math.PI) / TAU);
@@ -59,7 +60,7 @@ export function createRemotes(env) {
   }
 
   function makeRemote(id) {
-    const marker = { x: 0, z: 0, color: PINK, size: 4 };
+    const marker = { x: 0, z: 0, color: PLAYER_DOT, size: 5, shape: 'ring', player: true, name: '' };   // name: plain text, drawn with fillText by the maps
     return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
   }
   // liv indexes the livery list of `type` (a vehicle id); without a type it is the old relay call: the local vehicle's list, drawn as a lapa.
@@ -82,7 +83,7 @@ export function createRemotes(env) {
       }
     }
     if (name !== r.name || !r.tag) {
-      r.name = name;
+      r.name = name; r.marker.name = name;
       if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); r.model && r.model.root.remove(r.tag); }
       const map = tagTexture(name || '?');
       r.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
@@ -129,18 +130,19 @@ export function createRemotes(env) {
     const a = s[0], b = s[1];
     if (!b || rt >= b.t) {
       const l = s[s.length - 1], dt = clamp(rt - l.t, 0, EXTRAP) / 1000;
-      return { x: l.x + Math.sin(l.th) * l.v * dt, z: l.z + Math.cos(l.th) * l.v * dt, th: l.th, v: l.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl };
+      return { x: l.x + Math.sin(l.th) * l.v * dt, z: l.z + Math.cos(l.th) * l.v * dt, th: l.th, v: l.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl, h: l.h || 0 };
     }
     if (rt <= a.t) return a;
     const k = (rt - a.t) / (b.t - a.t), m = (p, q) => p + (q - p) * k;
-    return { x: m(a.x, b.x), z: m(a.z, b.z), th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl };
+    return { x: m(a.x, b.x), z: m(a.z, b.z), th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl, h: m(a.h || 0, b.h || 0) };
   }
 
     function poseRemote(r, dt, now) {
     const m = r.model; if (!m || !r.snaps.length) return;
     const p = sample(r, now);
-    const gy = groundY(p.x, p.z), lt = raisedMask(p.x, p.z) ? CURB : 0;
-    r.lift += (lt - r.lift) * Math.min(1, 12 * dt);
+    // height over the ground: a curb, or what the sender says (a bridge deck, a roof, the air), brought along with the same interpolation as x and z, then eased a little
+    const gy = groundY(p.x, p.z), lt = Math.max(p.h || 0, raisedMask(p.x, p.z) ? CURB : 0);
+    r.lift += (lt - r.lift) * Math.min(1, (p.h > 0.3 || r.lift > 0.6 ? 30 : 12) * dt);
     m.root.position.set(p.x, gy + r.lift, p.z); m.root.rotation.y = p.th;
     r.spin += p.v * dt / ((m.wheels[0] && m.wheels[0].r) || 0.23);
     m.pose({ pitch: 0, roll: p.roll, lean: p.lean, steer: p.steer, spin: r.spin, t: now / 1000, speed: Math.abs(p.v) });
@@ -187,5 +189,7 @@ export function createRemotes(env) {
     }
   }
 
-  return { remotes, ensure, remove, setInfo, addSnap, retire, dropAll, update, say };
+  // the players on the street right now, for the big map: [{ id, name, x, z }] (only those we are connected to and have seen)
+  const list = () => [...remotes.values()].filter(r => r.shown).map(r => ({ id: r.id, name: r.name, x: r.marker.x, z: r.marker.z }));
+  return { remotes, ensure, remove, setInfo, addSnap, retire, dropAll, update, say, list };
 }

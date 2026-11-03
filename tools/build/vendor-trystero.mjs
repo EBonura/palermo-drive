@@ -6,11 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url)), ROOT = path.resolve(HERE, '../..');
 const entry = `
-import { joinRoom as nostr, getRelaySockets as nostrSockets, defaultRelayUrls as nostrRelays, selfId } from '@trystero-p2p/nostr';
+import { joinRoom as nostr, getRelaySockets as nostrSockets, defaultRelayUrls as nostrRelays, selfId, pauseRelayReconnection, resumeRelayReconnection } from '@trystero-p2p/nostr';   // the pause is shared by Nostr and BitTorrent (one lock in @trystero-p2p/core)
 import { joinRoom as torrent, getRelaySockets as torrentSockets, defaultRelayUrls as torrentRelays } from '@trystero-p2p/torrent';
 import { joinRoom as mqtt, getRelaySockets as mqttSockets, defaultRelayUrls as mqttRelays } from '@trystero-p2p/mqtt';
 export const strategies = { nostr: { joinRoom: nostr, sockets: nostrSockets, relays: nostrRelays }, torrent: { joinRoom: torrent, sockets: torrentSockets, relays: torrentRelays }, mqtt: { joinRoom: mqtt, sockets: mqttSockets, relays: mqttRelays } };
-export { selfId };
+export { selfId, pauseRelayReconnection, resumeRelayReconnection };
 `;
 const r = await esbuild.build({ stdin: { contents: entry, resolveDir: HERE }, bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: true, legalComments: 'none', write: false, nodePaths: [path.join(HERE, 'node_modules')], logLevel: 'warning' });

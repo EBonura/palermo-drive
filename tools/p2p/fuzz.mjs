@@ -22,6 +22,13 @@ try {
     run('wrong type byte', [['s', state(b => { b[0] = 7; })], ['i', new Uint8Array([9, 0, 0, 0])]]);
     run('position beyond +-20 km', [['s', state(b => { b.set([255, 255, 255, 255, 255], 2); })]]);
     run('state of a peer without info', [['s', state()]]);
+    let sq = 20; const lifted = n => { const b = new Uint8Array(15); b[0] = 2; b[1] = ++sq; b.set([0, 0, 8, 0, 128], 2); b[12] = 8; new DataView(b.buffer).setUint16(13, n, true); return b; };
+    run('height flag but no height bytes (bad)', [['s', state(b => { b[12] = 8; })]]);
+    run('height bytes without the flag (bad)', [['s', new Uint8Array(15).fill(0).map((v, i) => i === 0 ? 2 : i === 1 ? 3 : 0)]]);
+    run('reserved flag bits (bad)', [['s', state(b => { b[12] = 0x10; })], ['s', state(b => { b[12] = 0x80; })]]);
+    run('height of 6553 m (bad)', [['s', lifted(65535)]]);
+    run('height of 1000.1 m (bad)', [['s', lifted(10001)]]);
+    run('height of 12.3 m (fine)', [['s', lifted(123)]]);
     return out;
   });
   for (const [k, v] of Object.entries(r)) console.log(k.padEnd(34), JSON.stringify(v));

@@ -36,7 +36,7 @@ const C = {
   roadA: ['#e8559a', '#ffe2ef'], roadB: ['#cdb98f', '#fffdf6'], roadC: ['#ddd0b2', '#ffffff'],
 };
 
-export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart }) {
+export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, getPlayers, onStart }) {
   host.innerHTML = `<canvas class="pd-mp-cv" aria-hidden="true"></canvas>
     <button class="pd-mp-ev" type="button" data-nav data-map="events" aria-pressed="true"><i></i><span data-t="events"></span></button>
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
@@ -52,7 +52,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   const li = () => getLang() === 'it' ? 0 : 1;
 
   // ---------- state ----------
-  let W = 0, H = 0, dpr = 1, k = 0.03, vx = 0, vz = 0, kMin = 0.01, shown = false, dirty = false, raf = 0;
+  let playersT = 0, W = 0, H = 0, dpr = 1, k = 0.03, vx = 0, vz = 0, kMin = 0.01, shown = false, dirty = false, raf = 0;
   let sel = null, cl = null, events = [], showEvents = true, evTick = 0, popW = 0, popH = 0, clW = 0, clH = 0, ptrKind = 'mouse';
   try { showEvents = localStorage.getItem(EV_KEY) !== '0'; } catch (e) { /* private mode */ }
   const pins = []; // reused: { x, z, kind: 'spot'|'event', ref }
@@ -252,6 +252,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       g.restore();
     }
     drawPins();
+    drawPlayers();
     drawCar();
   }
   function buildPins() { // spots first, events over them
@@ -355,6 +356,16 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     else if (e.kind === 'race') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) & 1) g.fillRect(-9 + i * 4.5, -25 + j * 4.5, 4.5, 4.5); }
     if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
     if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
+  }
+  // Other players, the ones we are connected to (rooms of 500 m around the lapa, src/p2p/p2p.js): so a far player is not on the map, we simply do not know where it is. A cyan ring like the minimap's, the name beside it (canvas text only: the names come from strangers).
+  function drawPlayers() {
+    const list = getPlayers && getPlayers(); if (!list || !list.length) return;
+    for (const p of list) {
+      const x = sx(p.x), y = sy(p.z); if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      const c = getCar && getCar(), d = c ? Math.hypot(p.x - c.x, p.z - c.z) : 1e9, rr = 6 + 3.5 * clamp((500 - d) / 460, 0, 1);   // 6 px from 500 m out, 9.5 px inside 40 m (the lapa's own arrow stays visible through the ring)
+      g.lineWidth = rr * 0.9 + 1; g.strokeStyle = '#0b0709'; g.beginPath(); g.arc(x, y, rr, 0, 7); g.stroke(); g.lineWidth = rr * 0.5 + 1; g.strokeStyle = '#00e1ff'; g.beginPath(); g.arc(x, y, rr, 0, 7); g.stroke();
+      g.textAlign = x > W - 120 ? 'right' : 'left'; text(String(p.name || '').slice(0, 16), x + (x > W - 120 ? -14 : 14), y, 13, 700, '#04566b'); g.textAlign = 'center';
+    }
   }
   function drawCar() { // where the lapa is now (when the picker is opened from the side menu)
     const c = getCar && getCar(); if (!c) return;
@@ -488,7 +499,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
 
   return {
     show() {
-      shown = true; closePop();
+      shown = true; closePop(); clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
       events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins();
       evBtn.setAttribute('aria-pressed', String(showEvents));
       prepManifest(); applyLang(); load();
@@ -497,7 +508,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       const place = () => { W = 0; resize(); if (!W && shown && tries++ < 60) { requestAnimationFrame(place); return; } limits(); fit(); clampView(); mark(); };
       place();
     },
-    hide() { shown = false; closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } },
+    hide() { shown = false; clearInterval(playersT); closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } },
     resize,
     applyLang,
     isOpenPop: () => !!sel || !!cl,

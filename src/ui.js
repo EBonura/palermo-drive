@@ -288,7 +288,7 @@ function creditsMarkdown(md, base) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ game, applySettings, missions, suca, getRadio, world, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
+export function setupUI({ game, applySettings, missions, suca, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
 
@@ -796,6 +796,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const startMap = createStartMap({
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
+    getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/p2p/p2p.js)
     getEvents: () => fakeEvents || missions?.events?.() || [],
     onStart: (x, z, it) => it?.kind === 'event' ? startAt(x, z, { ask: it.ref }) : startAt(x, z),
   });
