@@ -90,25 +90,6 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | --- | --- | --- | --- | --- |
 | Ortofoto Regione Siciliana ATA 2012-2013 (15 cm and 25 cm): only colour values derived from it, no imagery | Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica, Nodo Regionale S.I.T.R. | https://www.sitr.regione.sicilia.it/geoportale/it/metadata/details/608 | CC BY 4.0 (as stated by the service record) | one colour per roof and one relative tint per 20 m ground cell, extracted, shadow-filtered and colour-rebalanced |
 
-<!-- facade_photos:begin -->
-
-## Photo facade textures (`facades/photo/`, built by `tools/facade_photos.py`)
-
-Source photos are from Wikimedia Commons. Textures marked CC BY-SA 4.0 or 3.0 would make the derived texture share-alike; CC BY needs the credit shown; CC0 needs nothing (credit given anyway).
-
-| Texture | Title | Author | Licence | Source | Changes |
-| --- | --- | --- | --- | --- | --- |
-| `facades/photo/riso.jpg` (Palazzo Belmonte Riso (Corso Vittorio Emanuele)) | Palazzo Belmonte Riso Palermo 2024-07-26 11.52.14.jpg | CSD2024 | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Palazzo_Belmonte_Riso_Palermo_2024-07-26_11.52.14.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/gangi.jpg` (Palazzo Valguarnera-Gangi (Piazza Croce dei Vespri)) | Palazzo Gangi (Palermo) 14 07 2024 01.jpg | Effems | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Palazzo_Gangi_(Palermo)_14_07_2024_01.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/jung.jpg` (Palazzo Jung (Via Abramo Lincoln)) | Palermo, Palazzo Jung 01.jpg | HaguardDuNord | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | https://commons.wikimedia.org/wiki/File:Palermo,_Palazzo_Jung_01.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/biondo.jpg` (Teatro Biondo (Via Roma)) | Facciata del Teatro Biondo.jpg | Luca.favorido | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/palmes.jpg` (Grand Hotel et des Palmes (Via Mariano Stabile)) | Grand Hotel et des Palmes (Palermo) - Façade.jpg | HaguardDuNord | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | https://commons.wikimedia.org/wiki/File:Grand_Hotel_et_des_Palmes_(Palermo)_-_Fa%C3%A7ade.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/malfitano.jpg` (Villa Malfitano) | Villa Malfitano - Façade .jpg | HaguardDuNord | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | https://commons.wikimedia.org/wiki/File:Villa_Malfitano_-_Fa%C3%A7ade_.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/zisa.jpg` (Castello della Zisa (main front)) | La Zisa (Palermo) 19 06 2026 31.jpg | Effems | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:La_Zisa_(Palermo)_19_06_2026_31.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/borsa.jpg` (Grand Hotel Piazza Borsa (ex Cassa di Risparmio)) | Cassa di Risparmio (Palermo).jpg | HaguardDuNord | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | https://commons.wikimedia.org/wiki/File:Cassa_di_Risparmio_(Palermo).jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-| `facades/photo/giustizia.jpg` (Palazzo di Giustizia (Piazza Vittorio Emanuele Orlando)) | Palazzo di Giustizia (Palermo) 19 06 2026 01.jpg | Effems | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) | https://commons.wikimedia.org/wiki/File:Palazzo_di_Giustizia_(Palermo)_19_06_2026_01.jpg | rectified and downscaled (perspective-corrected, obstructions painted out, colour-neutralised, 1024 px max) |
-
-<!-- facade_photos:end -->
 
 ## Car radio (src/radio.js, assets/music/)
 
@@ -168,4 +149,3 @@ One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/p
 ## Pedestrian sprites (LPC)
 
 The people are composed from layers of the [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) (the Liberated Pixel Cup art and its many contributors on OpenGameArt), plus our own painted details on top. Every layer used, with its authors, licences and links, is listed in [the sprite credits](peds/lpc/CREDITS.md); the licence note for that art (kept apart because part of it is share-alike) is [the sprite licence note](peds/lpc/LICENSE.md). Where a layer offers a permissive licence (CC0, CC-BY, OGA-BY) next to CC-BY-SA / GPL we use it under the permissive one. <!-- The atlas is rebuilt with node tools/lpc/build.mjs. -->
-

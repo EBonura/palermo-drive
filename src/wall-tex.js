@@ -69,13 +69,24 @@ const PAINT = {
       const x = r() * S, y = r() * S * 0.55, len = (0.4 + r() * 1.4) * sy, w = (0.015 + r() * 0.05) * sx, a = 0.04 + r() * 0.09;
       wrap(x, y, w, len, (X, Y) => { const gr = g.createLinearGradient(0, Y, 0, Y + len); gr.addColorStop(0, rgba([98, 82, 58], a)); gr.addColorStop(1, rgba([98, 82, 58], 0)); g.fillStyle = gr; g.fillRect(X, Y, w, len); });
     }
-    for (let i = 0; i < 3; i++) {   // a patch where the plaster has come off: the stone under it
-      const w = (0.25 + r() * 0.45) * sx, h = (0.2 + r() * 0.35) * sy, x = r() * S, y = r() * S;
+    // places where the plaster has come off, each different: a few big and shallow ones at the damp foot or under the coping, several small ones, a tonal spread of the stone under
+    // (grey, ochre, tufa), a ragged edge with a lip of render, a shadow along its top. The old three identical tan patches repeated every 4 m as a stamp.
+    const stones = [[176, 164, 140], [190, 170, 126], [162, 156, 146], [196, 178, 142], [150, 142, 128]];
+    for (let i = 0; i < 9; i++) {
+      const big = i < 3, w = (big ? 0.5 + r() * 0.7 : 0.12 + r() * 0.3) * sx, h = (big ? 0.3 + r() * 0.35 : 0.1 + r() * 0.22) * sy, x = r() * S, y = big ? (r() < 0.5 ? S * (0.72 + r() * 0.2) : r() * S * 0.2) : r() * S, sc = stones[(r() * stones.length) | 0];
       wrap(x, y, w, h, (X, Y) => {
-        g.save(); g.beginPath(); g.moveTo(X, Y + h * 0.3); for (let q = 0; q <= 8; q++) g.lineTo(X + w * q / 8, Y + (q % 2 ? 0 : h * 0.12) + r() * h * 0.1); for (let q = 0; q <= 6; q++) g.lineTo(X + w - (q % 2 ? 0 : w * 0.06), Y + h * 0.3 + h * 0.7 * q / 6); for (let q = 8; q >= 0; q--) g.lineTo(X + w * q / 8, Y + h - (q % 2 ? 0 : h * 0.1)); g.closePath(); g.clip();
-        g.fillStyle = '#a89d88'; g.fillRect(X, Y, w, h); const rr = rng(Math.floor(X * 7 + Y)); for (let q = 0; q < 16; q++) { g.fillStyle = rgba(jit([172, 160, 136], 0.8 + rr() * 0.4), 1); g.fillRect(X + rr() * w, Y + rr() * h, 0.1 * sx + rr() * 0.2 * sx, 0.07 * sy + rr() * 0.1 * sy); }
-        g.restore(); g.strokeStyle = 'rgba(70,60,46,0.4)'; g.lineWidth = 1.5; g.stroke();
+        g.save(); g.beginPath(); const m = 14; for (let q = 0; q < m; q++) { const a = q / m * 6.283, rr = 0.62 + r() * 0.38; g[q ? 'lineTo' : 'moveTo'](X + w / 2 + Math.cos(a) * w / 2 * rr, Y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath(); g.clip();
+        g.fillStyle = rgba(sc, 0.82); g.fillRect(X - 2, Y - 2, w + 4, h + 4);
+        const rr2 = rng(Math.floor(X * 7 + Y * 3)); for (let q = 0; q < 18; q++) { g.fillStyle = rgba(jit(sc, 0.78 + rr2() * 0.4), 0.75); g.fillRect(X + rr2() * w, Y + rr2() * h, 3 + rr2() * 9, 2 + rr2() * 5); }
+        const sh = g.createLinearGradient(X, Y, X + w * 0.3, Y + h * 0.5); sh.addColorStop(0, 'rgba(30,24,16,0.5)'); sh.addColorStop(1, 'rgba(30,24,16,0)'); g.fillStyle = sh; g.fillRect(X - 2, Y - 2, w + 4, h + 4);
+        g.restore();
+        g.beginPath(); for (let q = 0; q < 14; q++) { const a = q / 14 * 6.283, rr = 0.62 + r() * 0.38; g[q ? 'lineTo' : 'moveTo'](X + w / 2 + Math.cos(a) * w / 2 * rr, Y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath();
+        g.strokeStyle = 'rgba(255,252,238,0.35)'; g.lineWidth = 2; g.stroke();
       });
+    }
+    for (let i = 0; i < 5; i++) {   // large soft stains: damp, soot, a fresher wash: tonal variation across the tile so no stretch of wall is one colour
+      const x = r() * S, y = r() * S, rad = 70 + r() * 110, k = r(), c = k < 0.4 ? '96,82,60' : k < 0.7 ? '255,250,236' : '150,110,78', a = 0.04 + r() * 0.07;
+      wrap(x - rad, y - rad, 2 * rad, 2 * rad, (X, Y) => { const gr = g.createRadialGradient(X, Y, 1, X, Y, rad); gr.addColorStop(0, `rgba(${c},${a})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(X - rad, Y - rad, 2 * rad, 2 * rad); });
     }
     g.strokeStyle = 'rgba(70,60,48,0.45)'; g.lineWidth = 1.2;
     for (let i = 0; i < 6; i++) { let x = r() * S, y = r() * S; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 9; k++) { x += (r() - 0.5) * 16; y += 6 + r() * 18; g.lineTo(x, y); } g.stroke(); }

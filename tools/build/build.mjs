@@ -138,24 +138,6 @@ function copyTree(src, dst) {
   }
 }
 copyTree(path.join(ROOT, 'assets'), path.join(OUT, 'assets'));
-// Facade photos (assets/facades/photo): jpg -> webp (about a third smaller), map.json follows. Decoded by the game with Image.decode().
-{
-  const dir = path.join(OUT, 'assets/facades/photo'), mapFile = path.join(dir, 'map.json');
-  if (fs.existsSync(mapFile)) {
-    const { default: sharp } = await import('sharp');
-    let before = 0, after = 0, mapText = fs.readFileSync(mapFile, 'utf8');
-    for (const f of fs.readdirSync(dir).filter(f => /\.(jpe?g|png)$/i.test(f))) {
-      const src = path.join(dir, f), out = f.replace(/\.(jpe?g|png)$/i, '.webp');
-      const buf = await sharp(src).webp({ quality: 78, effort: 5 }).toBuffer();
-      before += fs.statSync(src).size; after += buf.length;
-      fs.writeFileSync(path.join(dir, out), buf); fs.rmSync(src);
-      mapText = mapText.split(f).join(out);
-    }
-    fs.writeFileSync(mapFile, mapText);
-    fs.rmSync(path.join(dir, 'sources.json'), { force: true });
-    console.log(`facade photos: ${kb(before)} -> ${kb(after)} (webp)`);
-  }
-}
 fs.copyFileSync(path.join(ROOT, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 if (DATA_MODE === 'raw') for (const f of ['palermo-data.js', 'props-data.js', 'context-data.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
