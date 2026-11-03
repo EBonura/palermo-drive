@@ -61,11 +61,13 @@ export function createRemotes(env) {
 
   function makeRemote(id) {
     const marker = { x: 0, z: 0, color: PLAYER_DOT, size: 5, shape: 'ring', player: true, name: '' };   // name: plain text, drawn with fillText by the maps
-    return { id, name: '', livery: -1, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
+    return { id, name: '', livery: -1, far: false, info: null, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
   }
   // liv indexes the livery list of `type` (a vehicle id); without a type it is the old relay call: the local vehicle's list, drawn as a lapa.
   // Both come from the network, so an unknown vehicle is a lapa and an unknown livery is the first one of its vehicle.
   function setInfo(r, name, liv, type) {
+    r.info = [name, liv, type];
+    if (r.far) { r.name = name; r.marker.name = name; return; }   // a player far away is a dot with a name on the maps, not a car: nothing is built until setFar(r, false)
     const vt = type && ALL_LIVERIES[type] && type !== 'sulky' ? type : 'calessino', list = type ? ALL_LIVERIES[vt] : vehicle.LIVERIES;
     const lid = (list && list[liv] && list[liv].id) || ALL_LIVERIES[vt][0].id;
     if (r.livery !== liv || r.type !== vt || !r.model) {
@@ -91,6 +93,18 @@ export function createRemotes(env) {
       r.tag.position.set(0, 2.55, 0); r.tag.renderOrder = 20;
       if (r.model) r.model.root.add(r.tag);
     }
+  }
+
+  // far: true takes the car and the name tag away (the dot on the maps stays), false brings them back, fading in. Used by src/p2p/p2p.js for players far from the camera.
+  function setFar(r, far) {
+    if (!r || r.far === far) return;
+    r.far = far;
+    if (far) {
+      clearBubble(r);
+      if (r.model) { scene.remove(r.model.root); r.fadeMats && r.fadeMats.forEach(([, , c]) => c.dispose()); r.fadeMats = null; if (r.model.dispose) r.model.dispose(); r.model = null; r.flames = null; }
+      if (r.tag) { r.tag.material.map.dispose(); r.tag.material.dispose(); r.tag = null; }
+      r.livery = -1; r.type = '';
+    } else if (r.info) { r.alpha = 0; setInfo(r, ...r.info); }
   }
 
   function applyAlpha(r) {
@@ -174,6 +188,7 @@ export function createRemotes(env) {
   function update(dt, now) {
     if (remotes.size || dying.length) {
       for (const r of remotes.values()) {
+        if (r.far) { if (r.have) { const p = sample(r, now); r.marker.x = p.x; r.marker.z = p.z; if (!r.shown) { r.shown = true; mapMarkers.push(r.marker); } } continue; }
         if (r.bubble && now > r.bubble.until) clearBubble(r);
         if (r.have) { r.alpha = Math.min(1, r.alpha + dt / FADE); }
         if (r.tagA === undefined) r.tagA = 0;
@@ -191,5 +206,5 @@ export function createRemotes(env) {
 
   // the players on the street right now, for the big map: [{ id, name, x, z }] (only those we are connected to and have seen)
   const list = () => [...remotes.values()].filter(r => r.shown).map(r => ({ id: r.id, name: r.name, x: r.marker.x, z: r.marker.z }));
-  return { remotes, ensure, remove, setInfo, addSnap, retire, dropAll, update, say, list };
+  return { remotes, ensure, remove, setInfo, setFar, addSnap, retire, dropAll, update, say, list };
 }

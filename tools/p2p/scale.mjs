@@ -7,7 +7,8 @@ const ns = 'sc' + Date.now().toString(36), cx = -1250, cz = 250, room = `${ns}:5
 const h = await start();
 try {
   const t0 = Date.now();
-  const me = await player(h, { name: 'Me', ns, x: cx, z: cz, phone, cpu, p2p: none ? 'nop2p' : `p2p=${kind}${relays ? '&relays=' + relays : ''}` });
+  const me = await player(h, { name: 'Me', ns, x: cx, z: cz, phone, cpu, extra: 'maxp=' + Math.max(N, 1),   // the cap would hide the bots beyond MAX_PLAYERS: this measures what N peers cost
+     p2p: none ? 'nop2p' : `p2p=${kind}${relays ? '&relays=' + relays : ''}` });
   const botPages = none ? [] : await bots(h, { n: N, room, kind, x: cx, z: cz, relays });
   await me.page.bringToFront();
   // wait for all peers (or give up)

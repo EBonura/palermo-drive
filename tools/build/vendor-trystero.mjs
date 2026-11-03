@@ -10,7 +10,8 @@ import { joinRoom as nostr, getRelaySockets as nostrSockets, defaultRelayUrls as
 import { joinRoom as torrent, getRelaySockets as torrentSockets, defaultRelayUrls as torrentRelays } from '@trystero-p2p/torrent';
 import { joinRoom as mqtt, getRelaySockets as mqttSockets, defaultRelayUrls as mqttRelays } from '@trystero-p2p/mqtt';
 export const strategies = { nostr: { joinRoom: nostr, sockets: nostrSockets, relays: nostrRelays }, torrent: { joinRoom: torrent, sockets: torrentSockets, relays: torrentRelays }, mqtt: { joinRoom: mqtt, sockets: mqttSockets, relays: mqttRelays } };
-export { selfId, pauseRelayReconnection, resumeRelayReconnection };
+import { schnorr } from '@noble/secp256k1';   // already inside the Nostr strategy; src/p2p/presence.js signs its own events with it
+export { selfId, pauseRelayReconnection, resumeRelayReconnection, schnorr };
 `;
 const r = await esbuild.build({ stdin: { contents: entry, resolveDir: HERE }, bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: true, legalComments: 'none', write: false, nodePaths: [path.join(HERE, 'node_modules')], logLevel: 'warning' });
