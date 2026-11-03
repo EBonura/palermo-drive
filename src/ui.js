@@ -73,7 +73,7 @@ const S = {
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, mezzo, schermo intero', 'Menu: camera, back on the road, ride, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG compà ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG, mate, and we\'ll sort it out'],
+  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   stats: ['Statistiche di gioco', 'Game stats'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
