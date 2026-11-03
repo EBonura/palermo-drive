@@ -236,7 +236,7 @@ function build(env) {
       m.scale.setScalar(scale); m.renderOrder = order; return m;
     };
     arrow3d.add(mk('#120a0e', 1.14, THREE.BackSide, 50), mk('#ff4fa3', 1.0, THREE.FrontSide, 51));
-    arrow3d.scale.setScalar(0.48);
+    arrow3d.scale.setScalar(0.36);
   }
   arrow3d.visible = false; arrow3d.renderOrder = 50; scene.add(arrow3d);
   let arrowYaw = 0, arrowT = 0;
