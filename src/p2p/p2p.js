@@ -462,40 +462,77 @@ export function createP2P(env) {
     if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
   }
   // ---------- name card (same words as the relay client's, src/net.js) ----------
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei.' + (PLAYLOG_ON ? ' Tutti i giocatori, anche da soli, inviano statistiche anonime su come giocano e su come gira il gioco (missioni, soldi, chilometri, fotogrammi): si spengono in Opzioni, Statistiche di gioco. Se giochi online salviamo anche il nome che scegli. Teniamo tutto fino a 12 mesi e non salviamo il tuo indirizzo IP.' : ' Non salviamo nulla.'), edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
-    en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in.' + (PLAYLOG_ON ? ' Every player, even playing alone, sends anonymous stats about how they play and how the game runs (missions, money, distance, frame rate): turn them off in Options, Game stats. If you play online we also save the name you chose. We keep it all for up to 12 months and do not save your IP address.' : ' We store nothing.'), edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
-  let nameCard = null, submitName = null, closeName = null;
+  // The notice behind the i: three short paragraphs, kept true by hand (docs/P2P-MULTIPLAYER.md, joinlog/README.md). The second one follows PLAYLOG_ON.
+  // WHO_SEES is the one sentence about who can see a player: if that changes (who is told what), change it here and nowhere else.
+  const WHO_SEES = {
+    it: "Se giochi online, i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP: una connessione diretta funziona così. I server che mettono in contatto i giocatori vedono anche il tuo indirizzo IP e sanno in che zona (500 m) sei.",
+    en: 'If you play online, players near you can see your name, your position and your IP address: that is how a direct connection works. The servers that connect players see your IP address too, and learn which 500 m area you are in.' };
+  const KEPT = {
+    it: 'Non raccogliamo informazioni personali. Non teniamo il tuo indirizzo, la tua posizione né un identificativo che dura nel tempo.',
+    en: 'We do not collect personal information. We keep no address, no position and no ID that lasts.' };
+  const STATS = {
+    it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi. Li spegni in Opzioni, Statistiche di gioco. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
+    en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate. You can switch this off in Options, Game stats. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
+  const NONE = { it: 'Non salviamo nulla.', en: 'We store nothing.' };
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Privacy e dati', back: 'Indietro' },
+    en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'Privacy and data', back: 'Back' } };
+  const privParts = l => [KEPT[l], PLAYLOG_ON ? STATS[l] : NONE[l], WHO_SEES[l]];
+  let nameCard = null, submitName = null, closeName = null, nameFit = null;
+  // The card sits in the middle of the screen with the game dimmed behind it. nameCard is that full-screen layer (it takes every touch, so nothing reaches the game
+  // underneath), the dialog is its child. It follows the visible area (visualViewport) so an on-screen keyboard that does not resize the page cannot cover it.
+  function dropName() {
+    if (nameFit && window.visualViewport) { visualViewport.removeEventListener('resize', nameFit); visualViewport.removeEventListener('scroll', nameFit); }
+    nameFit = null; if (nameCard) nameCard.remove(); nameCard = null;
+  }
   function openName() {
     refreshName();
-    if (nameCard) { nameCard.remove(); nameCard = null; }
+    dropName();
     const tx = NAME_TXT[lang()], editing = named && agreed;
-    nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
-    nameCard.style.cssText = 'position:fixed;z-index:600;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
-    if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
-    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; h.textContent = editing ? tx.edit : named ? tx.again : tx.ask;
+    nameCard = document.createElement('div');
+    nameCard.style.cssText = 'position:fixed;inset:0;z-index:599;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:rgba(4,2,3,.72);touch-action:none';
+    const dlg = document.createElement('div'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true');
+    dlg.style.cssText = 'position:relative;width:min(460px,100%);max-height:100%;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.97);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6)';
+    // the page's touch lockdown (src/mobile.js) would cancel a scroll inside the card; the same two lines as the menu (src/ui.js)
+    for (const t of ['touchstart', 'touchmove', 'touchend']) dlg.addEventListener(t, e => e.stopPropagation(), { passive: true });
+    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; const head = editing ? tx.edit : named ? tx.again : tx.ask; h.textContent = head;
     const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
-    // what others can see: behind the i, opened by a tap on a phone and by hovering or a click with a mouse
-    const priv = document.createElement('div'); priv.setAttribute('role', 'tooltip'); priv.textContent = tx.priv;
-    priv.style.cssText = 'display:none;position:absolute;left:0;right:0;bottom:calc(100% + 8px);box-sizing:border-box;padding:10px 12px;border-radius:12px;background:rgba(13,7,9,.96);border:1.5px solid #e8559a;color:#fff;font:500 12px/1.4 system-ui,sans-serif';
-    const info = document.createElement('button'); info.type = 'button'; info.className = 'p2p-info'; info.textContent = 'i'; info.setAttribute('aria-label', tx.info); info.setAttribute('aria-expanded', 'false');
+    // what happens to your data: behind the i, opened by a tap or a click. It takes the place of the form while it is open (so it is never cut off on a short screen), with a Back button under it.
+    const priv = document.createElement('div'); priv.id = 'p2p-priv'; priv.style.cssText = 'display:none;margin-top:8px';
+    const note = document.createElement('div'); note.setAttribute('role', 'note'); note.style.cssText = 'margin-bottom:8px;padding:8px 10px;border-radius:10px;background:rgba(232,85,154,.12);border:1px solid rgba(232,85,154,.5);font:500 12.5px/1.38 system-ui,sans-serif';
+    privParts(lang()).forEach((t, i) => { const p = document.createElement('p'); p.style.cssText = i ? 'margin:6px 0 0' : 'margin:0'; p.textContent = t; note.appendChild(p); });
+    const back = document.createElement('button'); back.type = 'button'; back.textContent = tx.back;
+    priv.append(note, back);
+    const info = document.createElement('button'); info.type = 'button'; info.className = 'p2p-info'; info.textContent = 'i'; info.setAttribute('aria-label', tx.info); info.setAttribute('aria-expanded', 'false'); info.setAttribute('aria-controls', 'p2p-priv');
     info.style.cssText = 'position:absolute;right:10px;top:10px;width:30px;height:30px;padding:0;border-radius:99px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px Georgia,serif;cursor:pointer';
-    const showInfo = on => { priv.style.display = on ? 'block' : 'none'; info.setAttribute('aria-expanded', on ? 'true' : 'false'); };
-    let pinned = false;
-    info.addEventListener('click', () => { pinned = !pinned; showInfo(pinned); });
-    if (window.matchMedia('(hover:hover)').matches) { info.addEventListener('mouseenter', () => showInfo(true)); info.addEventListener('mouseleave', () => showInfo(pinned)); }
+    const form = document.createElement('div');   // the sub line, the name box and the buttons
+    let shown = false;
+    const showInfo = on => {
+      shown = on; priv.style.display = on ? 'block' : 'none'; form.style.display = on ? 'none' : '';
+      info.setAttribute('aria-expanded', String(on)); info.style.background = on ? '#e8559a' : 'transparent'; info.style.color = on ? '#0d0709' : '#fff'; h.textContent = on ? tx.info : head;
+      dlg.scrollTop = 0; if (on) back.focus({ preventScroll: true }); else if (window.matchMedia('(pointer:fine)').matches) input.focus();
+    };
+    info.addEventListener('click', () => showInfo(!shown)); back.addEventListener('click', () => showInfo(false));
     const input = document.createElement('input'); input.maxLength = 16; input.placeholder = tx.ph; input.value = named ? myName : ''; input.autocomplete = 'off'; input.spellcheck = false;
     input.style.cssText = 'display:block;width:100%;box-sizing:border-box;font:600 16px system-ui,sans-serif;padding:9px 11px;margin-bottom:8px;border-radius:9px;border:1.5px solid #5a4a50;background:#1b1115;color:#fff;outline:none';
     const ok = document.createElement('button'), no = document.createElement('button'), solo = document.createElement('button');
-    for (const b of [ok, no, solo]) { b.type = 'button'; b.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer'; }
+    for (const b of [ok, no, solo, back]) { b.type = 'button'; b.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer'; }
     ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close; solo.textContent = tx.solo;
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
       myName = n; named = true; agreed = true; saveStore({ name: n, offline: false }); goLoud();
-      nameCard.remove(); nameCard = null;
+      dropName();
     };
-    submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
+    submitName = submit; closeName = dropName;
     ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); });
-    nameCard.append(priv, info, h, sub, input, ok); if (editing) nameCard.append(no); nameCard.append(solo);
+    // a press on the dim does nothing to the game; with a mouse it keeps the keyboard in the box so that Enter and Escape still reach the card
+    nameCard.addEventListener('pointerdown', e => { if (e.target === nameCard && e.pointerType === 'mouse') { e.preventDefault(); input.focus(); } });
+    form.append(sub, input, ok); if (editing) form.append(no); form.append(solo);
+    dlg.append(info, h, form, priv);
+    nameCard.appendChild(dlg);
+    // keep the layer on the part of the page that can be seen
+    const vv = window.visualViewport;
+    nameFit = () => { if (!nameCard || !vv) return; const s = nameCard.style; s.inset = 'auto'; s.left = vv.offsetLeft + 'px'; s.top = vv.offsetTop + 'px'; s.width = vv.width + 'px'; s.height = vv.height + 'px'; };
+    if (vv) { vv.addEventListener('resize', nameFit); vv.addEventListener('scroll', nameFit); }
     document.body.appendChild(nameCard); if (window.matchMedia('(pointer:fine)').matches) input.focus();
   }
   // Typing a name must not drive the car or open the pause menu (P and Escape): the game's own key handler (src/ui.js) is a window capture listener
@@ -503,7 +540,8 @@ export function createP2P(env) {
   addEventListener('keydown', e => {
     if (!nameCard || !nameCard.contains(e.target)) return;
     e.stopImmediatePropagation();
-    if (e.key === 'Enter') { e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
+    // on a button Enter presses that button, as it does everywhere else
+    if (e.key === 'Enter') { if (e.target.tagName === 'BUTTON') return; e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
   }, true);
   // the name and the online choice live in Options (src/ui.js), which asks for the card with this event; html.pd-mp tells it that there is multiplayer to choose
   addEventListener('pd-open-name', () => openName());

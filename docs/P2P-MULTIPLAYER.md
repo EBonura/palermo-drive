@@ -208,7 +208,7 @@ The 💬 button (or the T key) opens a radial menu in the middle of the screen. 
 
 ## On by default
 
-Multiplayer is on by default on the published site. Nothing connects until the player has seen the name card and chosen Gioca online. What other players can see is behind the card's i button. The card asks on every page open, with a saved name filled in: only the name is remembered, never the answer. Gioca da solo stays solo until the next page open, or until the player opens the card again from Options. The talk and drink buttons only show when somebody is near.
+Multiplayer is on by default on the published site. Nothing connects until the player has seen the name card and chosen Gioca online. The card sits in the middle of the screen over a full-screen dim layer that takes every touch. What other players can see, and what we keep, is behind the card's i button, which replaces the form with three short paragraphs (`KEPT`, `STATS` and `WHO_SEES` in `src/p2p/p2p.js`; `STATS` follows `PLAYLOG_ON`, and `WHO_SEES` is the one place to change when who can see a player changes). The card asks on every page open, with a saved name filled in: only the name is remembered, never the answer. Gioca da solo stays solo until the next page open, or until the player opens the card again from Options. The talk and drink buttons only show when somebody is near.
 
 `?p2p=off` turns the client off. `?p2p` in the address is the test mode: the debug box shows and a name is enough to join. Add `&ns=<anything>` to keep a test group's rooms apart from everyone else's. The comparison shots and benches (`?clean`, `?fixres`) never show the card and never join. `tools/p2p/default.mjs` tests this flow on a built site.
 

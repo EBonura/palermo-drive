@@ -317,13 +317,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   });
 
   // ---- what the shell shows: one view, announced when it changes ----
-  const view = { mode: 'idle', label: '', title: '', sub: '', theme: '' };   // mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
+  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '' };   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
   let taken = null;   // takeover(): { lock } while a pub or a scene has borrowed the line
   let lastKey = '', lv = new Float32Array(0), edges = [1];
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
   function setView(v) {
     Object.assign(view, v);
-    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.theme}`;
+    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}`;
     if (key !== lastKey) { lastKey = key; dispatchEvent(new CustomEvent('pd-radio', { detail: view })); }
   }
   function sync() {   // 10 Hz, from tick(): the event only goes out when something changed
@@ -331,7 +331,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     const l = langNow();
     const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
     const track = mode === 'on' ? slots[cur].track : null;
-    setView({ mode, label: track ? T.now[l] : T.fm[l], title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? `${track.by} · ${track.lic}` : mode === 'off' ? T.offSub[l] : T.idleSub[l], theme: '' });
+    setView({ mode, label: track ? T.now[l] : T.fm[l], title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? `${track.by} · ${track.lic}` : mode === 'off' ? T.offSub[l] : T.idleSub[l], artist: track ? track.by : '', theme: '' });
   }
   const onTrack = () => sync();
 
@@ -377,14 +377,14 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     // fully silent (not ducked) and on the same track, and next / play in the bar do nothing to it; release() resumes it where it was.
     takeover({ label = '', title = '', artist = '', theme = 'metal', lock = false, analyser: an = null, level = null } = {}) {
       const was = !!taken;
-      taken = { lock, analyser: an && an.getByteFrequencyData ? an : null, level: typeof level === 'function' ? level : null, buf: null };
+      taken = { lock, theme, analyser: an && an.getByteFrequencyData ? an : null, level: typeof level === 'function' ? level : null, buf: null };
       if (taken.analyser) taken.buf = new Uint8Array(taken.analyser.frequencyBinCount);
       if (!was && started && enabled) hold(0.4);   // the radio goes quiet, not just lower, and stays on its track
-      setView({ mode: 'on', label, title, sub: artist, theme });
+      setView({ mode: 'on', label, title, sub: artist, artist: theme === 'match' ? '' : artist, theme });   // the match card's line is the commentary, not an artist
     },
     retext({ label, title, artist } = {}) {
       if (!taken) return;
-      setView({ ...(label != null && { label }), ...(title != null && { title }), ...(artist != null && { sub: artist }) });
+      setView({ ...(label != null && { label }), ...(title != null && { title }), ...(artist != null && { sub: artist, artist: taken.theme === 'match' ? '' : artist }) });
     },
     release() {
       if (!taken) return;

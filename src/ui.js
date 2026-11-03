@@ -36,12 +36,12 @@ const S = {
   quitBusy: ['Lasci l\'evento in corso', 'You drop the current event'],
   collections: ['Collezioni', 'Collections'],
   radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio accesa o spenta', 'Radio on or off'],
-  qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qSwap: ['Mezzo', 'Ride'], qFull: ['Schermo', 'Screen'],
+  qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qFull: ['Schermo', 'Screen'],
   colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
   missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'],
-  mKick: ['Missione', 'Mission'], mStart: ['Comincia missione', 'Start mission'], mNotNow: ['M\'abbutta', 'Not now'],   // the card that asks whether to start (the owner's words)
-  mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mRave: ['Rave', 'Rave'], mHorns: ['Clacson', 'Horns'],
+  mKick: ['Missione', 'Mission'], mStart: ['Comincia missione', 'Start mission'], mNotNow: ['No mi siddia', 'Not now'],   // the card that asks whether to start (the owner's words)
+  mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mMalu: ['Maluchiffari', 'Shady Business'],   // the group of the rave, the happy leaves and the horns (the English title is a draft for the owner)
   mDoneRow: ['Fatta', 'Done'], mTodo: ['Da fare', 'To do'], mTried: ['Provata', 'Tried'], mBest: ['Migliore', 'Best'], mRunning: ['In corso', 'Running'],
   mNight: ['Di notte', 'At night'], mDay: ['Di giorno', 'By day'], mAny: ['Sempre', 'Any time'], mLeafNote: ['Ti chiama un amico al rave', 'A friend calls you at the rave'],
   mOnlyNight: ['Questa missione c\'è solo di notte', 'This mission only runs at night'], mOnlyDay: ['Questa missione c\'è solo di giorno', 'This mission only runs by day'],
@@ -70,7 +70,7 @@ const S = {
   ctlMenu: ['Menu', 'Menu'], ctlThis: ['Questi comandi', 'This screen'],
   ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Indietro', 'Back'],
   ctlSteer: ['Sterza a sinistra e a destra', 'Steer left and right'], ctlGas: ['Accelera', 'Accelerate'], ctlRev: ['Retromarcia e freno', 'Reverse and brake'],
-  ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, mezzo, schermo intero', 'Menu: camera, back on the road, ride, full screen'],
+  ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, schermo intero', 'Menu: camera, back on the road, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
@@ -203,7 +203,6 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ICON_MENU = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 const ICON_CAM = '<svg viewBox="0 0 48 48"><path d="M8 17h8l3-5h10l3 5h8v21H8z" /><circle cx="24" cy="26" r="6" /></svg>';
 const ICON_RESET = '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" /><path d="M10 8v9h9" /></svg>';
-const ICON_SWAP = '<svg viewBox="0 0 48 48"><path d="M10 18h26M28 10l8 8-8 8M38 32H12M20 24l-8 8 8 8" /></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
 const ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/><path d="M19 5v14"/></svg>';
@@ -418,7 +417,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-quick">
         <button class="pd-qbtn" data-nav data-do="qCam" type="button">${ICON_CAM}<span data-k="qCam"></span></button>
         <button class="pd-qbtn" data-nav data-do="qReset" type="button">${ICON_RESET}<span data-k="qReset"></span></button>
-        <button class="pd-qbtn" data-nav data-do="qSwap" type="button">${ICON_SWAP}<span data-k="qSwap"></span></button>
         <button class="pd-qbtn pd-qfull" data-nav data-do="qFull" type="button">${ICON_FULL}<span data-k="qFull"></span></button>
       </div>
     </div>`);
@@ -469,7 +467,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
   // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
-  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><div class="pd-btitle"><span></span></div><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-btitle" type="button" aria-expanded="false"><span class="pd-bt1"></span><small class="pd-bt2"></small></button><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
   bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
@@ -699,7 +697,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'radioPower': { const r = getRadio?.(); if (!r) return; const first = idleAtDown; idleAtDown = false; if (first || r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }   // the very first tap only starts the radio, it does not also switch it off
       case 'qCam': vehicle.camState.mode = (vehicle.camState.mode + 1) % 4; vehicle.camState.init = false; return;
       case 'qReset': return vehicle.placeAt(vehicle.car.x, vehicle.car.z);
-      case 'qSwap': return dispatchEvent(new CustomEvent('pd-swap'));
       case 'qFull': return fullscreen();
     }
   }
@@ -710,7 +707,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   // ---- the radio on screen: the bar, the top of the menu panel (both fed by the radio's view, src/radio.js), the busy warning, the fullscreen button ----
   const npL = screens.side.querySelector('.pd-npl'), npN = screens.side.querySelector('.pd-npn'), npS = screens.side.querySelector('.pd-nps');
-  const barT = bar.querySelector('.pd-btitle span');
+  const barT = bar.querySelector('.pd-bt1'), barA = bar.querySelector('.pd-bt2'), barTitle = bar.querySelector('.pd-btitle');
+  // a tap on the track name opens it to the right: the whole title, the artist small under it. Another tap, or a few seconds, closes it.
+  let barOpenT = 0;
+  const openBar = on => { clearTimeout(barOpenT); bar.classList.toggle('open', on); barTitle.setAttribute('aria-expanded', String(on)); if (on) barOpenT = setTimeout(() => openBar(false), 5000); };
+  barTitle.addEventListener('click', () => openBar(!bar.classList.contains('open')));
   const quitSub = screens.side.querySelector('.pd-quitsub');
   function syncRadio(view) {   // view: the one in the 'pd-radio' event (the radio announces itself before getRadio() can return it)
     const v = view && view.title !== undefined && !(view instanceof Event) ? view : getRadio?.()?.view, i = lang === 'it' ? 0 : 1;
@@ -721,7 +722,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       b.setAttribute('aria-label', S.radioPower[i]); b.title = S.radioPower[i];
     }
     for (const b of ui.querySelectorAll('.pd-bnext')) { b.setAttribute('aria-label', S.radioNext[i]); b.title = S.radioNext[i]; }
-    barT.textContent = title; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
+    barT.textContent = title; barA.textContent = v ? v.artist || '' : ''; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
   }
   addEventListener('pd-radio', e => { syncRadio(e.detail); kickBars(); });
@@ -946,9 +947,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // ---- missions: every mission the game lists (missions.events()), grouped by kind, with its state and a Vai button ----
   // Nothing about the missions is kept here: names, places and the night flag come from events(), done / best from missions.status(id). A kind this file has never heard of
   // still gets its own group. Vai goes through startAt(), the path of the start map, so the lapa is placed on the nearest road and the world streams in under the transition.
-  const MKIND = { fare: 'mFare', urgent: 'mUrgent', food: 'mFood', race: 'mRace', pub: 'mPub', rave: 'mRave', leaf: 'mRave', horns: 'mHorns' };   // leaf joins rave: one mission each
-  const MORDER = ['fare', 'urgent', 'food', 'race', 'pub', 'rave', 'horns'];
-  const MCOL = { ...KIND_COLOR, pub: '#ffb02e' };
+  const MKIND = { fare: 'mFare', urgent: 'mUrgent', food: 'mFood', race: 'mRace', pub: 'mPub', malu: 'mMalu' };
+  const MGROUP = { rave: 'malu', leaf: 'malu', horns: 'malu' };   // the rave, the happy leaves and the horns are one group
+  // the funny groups (Maluchiffari, then the pubs) sit in the middle of the list; the rest keeps its order around them
+  const MORDER = ['fare', 'urgent', 'malu', 'pub', 'food', 'race'];
+  const MCOL = { ...KIND_COLOR, pub: '#ffb02e', malu: KIND_COLOR.rave };
   const NIGHT_HOUR = 22.5, DAY_HOUR = 12;   // where "skip to night / day" puts the clock (src/daynight.js START_HOURS.night is 22.5)
   const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>';
   const ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>';
@@ -964,7 +967,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function nearestQ(x, z) { let q = '', bd = Infinity; for (const c of QX) { const d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z); if (d < bd) { bd = d; q = c.name; } } return q; }
   function renderMissions() {
     const i = lang === 'it' ? 0 : 1, run = missions?.state?.ev?.slot?.id;
-    msRows = (missions?.events?.() || []).map((e, n) => ({ ...e, n, ...(missions?.status?.(e.id) || {}), q: nearestQ(e.x, e.z), g: e.kind === 'leaf' ? 'rave' : e.kind }));
+    msRows = (missions?.events?.() || []).map((e, n) => ({ ...e, n, ...(missions?.status?.(e.id) || {}), q: nearestQ(e.x, e.z), g: MGROUP[e.kind] || e.kind }));
     const groups = [...new Set(msRows.map(r => r.g))].sort((a, b) => ((MORDER.indexOf(a) + 1) || 99) - ((MORDER.indexOf(b) + 1) || 99));
     const total = msRows.length, done = msRows.filter(r => r.done).length, pct = total ? Math.round(done / total * 100) : 0;
     msScreen.querySelector('.pd-mscount b').textContent = `${done} / ${total}`;
@@ -1021,7 +1024,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   function goMission(e, hour) { startAt(e.x, e.z, { id: e.id, hour }); }
   // Arriving at a mission from the big map: the lapa stands beside its caller and a big card in the look of the game over card asks: kicker (MISSIONE · the quartiere), the mission's name, what
-  // to do in one sentence, COMINCIA MISSIONE or M'ABBUTTA. Start moves the clock first when the mission only exists at the other time of day (the pink button then says so). Not now, or Escape / B,
+  // to do in one sentence, COMINCIA MISSIONE or NO MI SIDDIA. Start moves the clock first when the mission only exists at the other time of day (the pink button then says so). Not now, or Escape / B,
   // or the lapa put more than 25 m away (the R key, a swap) leaves it. Enter and A start. The lapa is held still while the card is up (vehicle.holdSim): the card covers the road, so there is no driving
   // away to answer. The card's look is the .sea-* classes of src/sea.js (the game over card) plus .pd-mc-* in ui.css. It is hidden under the side menu and comes back when the game does.
   const askEl = h('div', 'pd-mcard', null, { role: 'dialog' });
