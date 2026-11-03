@@ -73,6 +73,8 @@ compact binary format) and publishes it to GitHub Pages.
 
 ## Credits and licences
 
+The game's code is under the MIT licence, see [LICENSE](LICENSE). That covers the source code, including `src/`, `tools/` and `relay/`. It doesn't cover the assets and data listed below, which keep their own licences and terms. That includes the map data and the music used with permission. The two friends drawn as characters in the game are real people, so their sprites aren't covered either.
+
 - Map data © OpenStreetMap contributors, Open Database License (ODbL). The baked map files (`world/`,
   `palermo-data.js`, `props-data.js`, `context-data.js`, `assets/ui/startmap.json`) are derived from it and are
   available under the ODbL too.

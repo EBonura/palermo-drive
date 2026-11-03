@@ -14,4 +14,4 @@ It listens on 127.0.0.1 and speaks plain WebSocket, so it needs a tunnel or a re
 
 `killswitch/` and `killswitch.sh` are a Google Cloud budget kill switch: a budget alert detaches billing from one project.
 
-This folder is under the MIT licence, see [LICENSE](LICENSE). It covers the relay only, not the rest of the game.
+This folder is under the MIT licence, see [LICENSE](LICENSE). The game's code uses the same licence, see the [main README](../README.md#credits-and-licences) for what it doesn't cover.
