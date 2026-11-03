@@ -30,9 +30,9 @@ jobs:
       - name: Install build dependencies
         run: npm ci --no-audit --no-fund
         working-directory: tools/build
-      # --p2p includes the peer to peer client (only loaded on ?p2p) and lets the policy reach its pinned Nostr relays (src/p2p/relays.js)
+      # the build includes the peer to peer client and lets the policy reach its pinned Nostr relays (src/p2p/relays.js)
       - name: Build dist/
-        run: node build.mjs --p2p
+        run: node build.mjs
         working-directory: tools/build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:

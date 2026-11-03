@@ -1,5 +1,5 @@
 // Shared helpers for the peer to peer experiment tests (docs/P2P-MULTIPLAYER.md). Run scripts through the browser slot wrapper:
-//   /private/tmp/claude-501/withbrowser.sh node tools/p2p/<script>.mjs --root <dist built with --p2p>
+//   /private/tmp/claude-501/withbrowser.sh node tools/p2p/<script>.mjs --root <dist>
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';

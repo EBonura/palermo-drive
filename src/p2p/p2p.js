@@ -1,6 +1,6 @@
-// Peer to peer multiplayer experiment (?p2p): no server of ours. Players find each other through public signalling (Trystero:
+// Peer to peer multiplayer, on by default (?p2p=off turns it off): no server of ours. Players find each other through public signalling (Trystero:
 // Nostr relays by default, ?p2p=torrent or ?p2p=mqtt for the others) and then talk over WebRTC data channels.
-// Write-up, numbers and the recommendation: docs/P2P-MULTIPLAYER.md. Off unless the page is opened with ?p2p.
+// Write-up and numbers: docs/P2P-MULTIPLAYER.md. Nothing connects until the player says yes on the name card, which says what others can see. ?p2p in the address is the test mode: the debug box shows and a name is enough to join.
 //
 // Rooms follow the map. The world is cut into square cells (CELL metres, 500 = one world tile). A player is in the room of every
 // cell whose rectangle is within MARGIN metres of the car, and leaves a room once the car is MARGIN + HYST metres from that
@@ -62,7 +62,12 @@ export function createP2P(env) {
   const STORE_KEY = 'palermoDrive.net.v1';   // the relay client's save: { name, offline }; the name is shared between the two clients
   const stored = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {}; } catch (e) { return {}; } };
   let myName = clean(params.get('name') || stored().name || '');
-  let named = !!myName;   // nothing is joined until the player has a name (card below)
+  let named = !!myName;
+  const testing = params.has('p2p');
+  // nothing is joined until the player has a name and has seen the card. A name saved in the Garage alone isn't a yes, so the yes is stored by itself. Chosen solo: stays solo until the card says otherwise.
+  let agreed = testing || !!stored().p2pOk;
+  const screenshots = !testing && ['clean', 'fixres'].some(k => params.has(k));   // the comparison shots and benches run with no card over the picture
+  const saveStore = o => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), ...o })); } catch (e) { /* private mode: fine */ } };
   if (!myName) myName = 'P2P' + selfId.slice(0, 3);
   // the Garage's driver screen (src/garage-ui.js) edits the same stored name and says so with a 'pd-name' event; take it over, as src/net.js does
   const urlName = !!params.get('name');
@@ -80,7 +85,7 @@ export function createP2P(env) {
   // ---------- HUD (debug) ----------
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;z-index:30;left:8px;top:8px;padding:4px 8px;border-radius:6px;background:rgba(13,7,9,.74);color:#fff;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre';
-  document.body.appendChild(hud);
+  if (testing) document.body.appendChild(hud);
 
   // ---------- rooms ----------
   const key = (i, j) => `${ns}:${CELL}:${i}:${j}`;
@@ -227,7 +232,7 @@ export function createP2P(env) {
   // the talk wheel (src/p2p/wheel.js): the 💬 button or the T key opens it; categories first, then the phrases of one. The wheel is built from the
   // fixed lists in src/p2p/phrases.js, so what it can send is exactly what the receiver accepts.
   const chat = document.createElement('div');
-  chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:64px;font:600 14px system-ui,sans-serif;color:#fff';
+  chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
   const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬'; chatBtn.title = 'T';
   chatBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
   const wheelLang = () => lang() === 'en' ? 'en' : 'it';
@@ -313,7 +318,7 @@ export function createP2P(env) {
     }
   }
   const offerBox = document.createElement('div');
-  offerBox.style.cssText = 'position:fixed;z-index:31;left:60px;top:64px;font:600 14px system-ui,sans-serif;color:#fff';
+  offerBox.style.cssText = 'position:fixed;z-index:31;left:60px;top:116px;font:600 14px system-ui,sans-serif;color:#fff';
   const offerBtn = document.createElement('button'); offerBtn.type = 'button'; offerBtn.textContent = '🍺';
   offerBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
   const offerList = document.createElement('div'); offerList.style.cssText = 'display:none;margin-top:6px;padding:6px;border-radius:12px;background:rgba(13,7,9,.92);border:2px solid #e8559a';
@@ -322,32 +327,40 @@ export function createP2P(env) {
   offerBox.append(offerBtn, offerList); document.body.appendChild(offerBox);
 
   // ---------- name card (same words as the relay client's, src/net.js) ----------
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei. Non salviamo nulla.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi' },
-    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in. We store nothing.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close' } };
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', priv: 'Online i giocatori vicini vedono il tuo nome, la tua posizione e il tuo indirizzo IP, e i server che ci mettono in contatto sanno in che zona (500 m) sei. Non salviamo nulla.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Cosa vedono gli altri' },
+    en: { ask: "What's your name?", sub: 'Drive online with other players. You can change it any time.', priv: 'Online, players near you can see your name, your position and your IP address, and the servers that connect us learn which 500 m area you are in. We store nothing.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'What others can see' } };
   let nameCard = null, submitName = null, closeName = null;
   function openName() {
     refreshName();
     if (nameCard) { nameCard.remove(); nameCard = null; }
-    const tx = NAME_TXT[lang()], editing = named;
+    const tx = NAME_TXT[lang()], editing = named && agreed;
     nameCard = document.createElement('div'); nameCard.setAttribute('role', 'dialog');
     nameCard.style.cssText = 'position:fixed;z-index:70;left:50%;bottom:120px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));box-sizing:border-box;padding:14px;border-radius:14px;background:rgba(13,7,9,.94);border:2px solid #e8559a;color:#fff;font:14px/1.35 system-ui,sans-serif';
     if (window.matchMedia('(max-height:500px)').matches) nameCard.style.bottom = '12px';
-    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae'; h.textContent = editing ? tx.edit : tx.ask;
+    const h = document.createElement('b'); h.style.cssText = 'display:block;font-size:17px;color:#ff6fae;padding-right:36px'; h.textContent = editing ? tx.edit : tx.ask;
     const sub = document.createElement('small'); sub.style.cssText = 'display:block;opacity:.7;margin:2px 0 10px;font-size:12px'; sub.textContent = editing ? '' : tx.sub;
-    const priv = document.createElement('small'); priv.style.cssText = 'display:block;opacity:.55;margin:-4px 0 10px;font-size:11px'; priv.textContent = editing ? '' : tx.priv;
+    // what others can see: behind the i, opened by a tap on a phone and by hovering or a click with a mouse
+    const priv = document.createElement('div'); priv.setAttribute('role', 'tooltip'); priv.textContent = tx.priv;
+    priv.style.cssText = 'display:none;position:absolute;left:0;right:0;bottom:calc(100% + 8px);box-sizing:border-box;padding:10px 12px;border-radius:12px;background:rgba(13,7,9,.96);border:1.5px solid #e8559a;color:#fff;font:500 12px/1.4 system-ui,sans-serif';
+    const info = document.createElement('button'); info.type = 'button'; info.className = 'p2p-info'; info.textContent = 'i'; info.setAttribute('aria-label', tx.info); info.setAttribute('aria-expanded', 'false');
+    info.style.cssText = 'position:absolute;right:10px;top:10px;width:30px;height:30px;padding:0;border-radius:99px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px Georgia,serif;cursor:pointer';
+    const showInfo = on => { priv.style.display = on ? 'block' : 'none'; info.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    let pinned = false;
+    info.addEventListener('click', () => { pinned = !pinned; showInfo(pinned); });
+    if (window.matchMedia('(hover:hover)').matches) { info.addEventListener('mouseenter', () => showInfo(true)); info.addEventListener('mouseleave', () => showInfo(pinned)); }
     const input = document.createElement('input'); input.maxLength = 16; input.placeholder = tx.ph; input.value = named ? myName : ''; input.autocomplete = 'off'; input.spellcheck = false;
     input.style.cssText = 'display:block;width:100%;box-sizing:border-box;font:600 16px system-ui,sans-serif;padding:9px 11px;margin-bottom:8px;border-radius:9px;border:1.5px solid #5a4a50;background:#1b1115;color:#fff;outline:none';
-    const ok = document.createElement('button'), no = document.createElement('button');
-    for (const b of [ok, no]) { b.type = 'button'; b.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer'; }
-    ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close;
+    const ok = document.createElement('button'), no = document.createElement('button'), solo = document.createElement('button');
+    for (const b of [ok, no, solo]) { b.type = 'button'; b.style.cssText = 'min-height:40px;margin-right:8px;padding:6px 14px;border-radius:9px;border:1.5px solid #e8559a;background:transparent;color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer'; }
+    ok.style.background = '#e8559a'; ok.style.color = '#0d0709'; ok.textContent = editing ? tx.save : tx.join; no.textContent = tx.close; solo.textContent = tx.solo;
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
-      myName = n; named = true; try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...stored(), name: n })); } catch (e) { /* private mode: fine */ }
+      myName = n; named = true; agreed = true; saveStore({ name: n, p2pOk: true, offline: false });
       nameCard.remove(); nameCard = null;
     };
     submitName = submit; closeName = () => { nameCard.remove(); nameCard = null; };
-    ok.addEventListener('click', submit); no.addEventListener('click', closeName);
-    nameCard.append(h, sub, priv, input, ok); if (editing) nameCard.append(no);
+    ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ p2pOk: false, offline: true }); goOffline(); closeName(); });
+    nameCard.append(priv, info, h, sub, input, ok); if (editing) nameCard.append(no); nameCard.append(solo);
     document.body.appendChild(nameCard); if (window.matchMedia('(pointer:fine)').matches) input.focus();
   }
   // Typing a name must not drive the car or open the pause menu (P and Escape): the game's own key handler (src/ui.js) is a window capture listener
@@ -358,19 +371,26 @@ export function createP2P(env) {
     if (e.key === 'Enter') { e.preventDefault(); submitName && submitName(); } else if (e.key === 'Escape') { e.preventDefault(); closeName && closeName(); }
   }, true);
   const nameBtn = document.createElement('button'); nameBtn.type = 'button'; nameBtn.textContent = '✎';
-  nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:64px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
+  nameBtn.style.cssText = 'position:fixed;z-index:31;left:112px;top:116px;width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
   nameBtn.addEventListener('click', () => { nameBtn.blur(); openName(); });
   document.body.appendChild(nameBtn);
+
+  function goOffline() {
+    for (const r of [...rooms.values()]) leaveCell(r);
+    for (const p of peers.values()) if (p.shown) rm.remove(p.id);
+    peers.clear();
+  }
 
   // ---------- frame ----------
   let hudT = 0, sendAcc = 0, linkTxt = '-', linkT = 0;
   function update(dt) {
     const now = performance.now();
-    chat.style.display = offerBox.style.display = nameBtn.style.display = game.state === 'play' ? '' : 'none';
-    if (game.state !== 'play' && wheel.isOpen) wheel.close();
+    const playing = game.state === 'play', company = playing && rm.remotes.size > 0;   // nobody near: nothing to say or offer, so the buttons stay off the screen
+    chat.style.display = offerBox.style.display = company ? '' : 'none'; nameBtn.style.display = playing && !screenshots ? '' : 'none'; nameBtn.style.left = company ? '112px' : '8px';   // under the radio, which opens down to about 110 px on a phone
+    if (!company && wheel.isOpen) wheel.close();
     if (incoming && now > incoming.until) { incoming = null; closeCard(); }
-    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!named) setTimeout(openName, 800); }
-    if (!named) { rm.update(dt, now); return; }
+    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !stored().offline && !screenshots) setTimeout(openName, 800); }
+    if (!named || !agreed) { rm.update(dt, now); return; }
     if (now - lastChecked > CHECK_MS) { lastChecked = now; evaluate(); }
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
@@ -392,7 +412,7 @@ export function createP2P(env) {
       }
     }
     rm.update(dt, now);
-    if (now - hudT > 500) {
+    if (testing && now - hudT > 500) {
       hudT = now;
       if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
       hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}:${r.peers.size}`).join(' ')}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}`;

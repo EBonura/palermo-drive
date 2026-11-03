@@ -50,7 +50,7 @@ function netStore() { try { const o = JSON.parse(localStorage.getItem(NET_KEY) |
 function readName() { if (nameMem !== null) return nameMem; const n = netStore().name; return typeof n === 'string' ? cleanName(n) : ''; }
 function writeName(name) {
   nameMem = name;
-  try { localStorage.setItem(NET_KEY, JSON.stringify({ name, offline: !!netStore().offline })); nameMem = null; } catch (e) { /* private mode: kept in memory */ }
+  try { localStorage.setItem(NET_KEY, JSON.stringify({ ...netStore(), name, offline: !!netStore().offline })); nameMem = null; } catch (e) { /* private mode: kept in memory */ }
   try { window.dispatchEvent(new CustomEvent('pd-name')); } catch (e) { /* ignore */ }   // src/net.js re-reads the store
 }
 
