@@ -6,6 +6,7 @@
 //   plaster, stone  hex palettes (multiplied up by buildings.js, so roughly albedo / 1.15), pStone = chance a palazzo shows bare tufa
 //   grime           0..1 soot and weathering (vertex colour darkening and desaturation)
 //   w               style weights: bar n19 res pw (centro styles) and lib blk ins pal fish ind
+//   mid             true: from 3 to 4 storeys up the modern belts take apartment blocks (pal, blk, pw) over houses (res, fish, n19, lib); see chooseStyle
 //   elig            true: weights are filtered by storey count and footprint (new zones); the centro zones keep their old behaviour
 //   fl              [[storeys, weight], ...] storey distribution used where the baked height is only the generic estimate
 //   flA             [small, medium, large] version of fl by footprint (< 100, 100 to 300, > 300 m2), from lidar (tools/district-calibrate.mjs); also used for buildings under 40 m2
@@ -62,9 +63,9 @@ export const ZONES = {
   borgoV: { plaster: ['#c9b48e', '#c4a67e', '#d0bc98', '#b99c7a', '#cfb08c', '#bfa88a', '#d6c4a0', '#b48f70', '#c4b8a4'], stone: ['#a98f68', '#9d8560'], pStone: 0.22, grime: 0.62, elig: true,
     w: { res: .5, n19: .22, pw: .13, blk: .1, bar: .03, lib: .02 }, fl: [[2, 1], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.4, roof: 0.4 },
   // Piazza Noce (Street View): 5 to 6 storey blocks in yellow-ochre and pale tan, small windows, shops with yellow signs, few balconies.
-  noce: { plaster: ['#dcc994', '#d8c49c', '#e2d4ae', '#d2c092', '#e6dcbc', '#dcd2b8', '#cfbf98', '#e8e0c8', '#d8ceb4'], stone: ['#a98f68'], pStone: 0.1, grime: 0.45, elig: true,
+  noce: { plaster: ['#dcc994', '#d8c49c', '#e2d4ae', '#d2c092', '#e6dcbc', '#dcd2b8', '#cfbf98', '#e8e0c8', '#d8ceb4'], stone: ['#a98f68'], pStone: 0.1, grime: 0.45, elig: true, mid: true,
     w: { pw: .1, blk: .28, res: .3, n19: .14, pal: .14, ind: .02 }, fl: [[3, 1], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.2, roof: 0.3 },
-  zisa: { plaster: ['#d2bf94', '#cbb68c', '#dccba8', '#c6b69c', '#d6c09c', '#cfc6b0', '#c2a682', '#dccfb4'], stone: ['#a98f68', '#9d8560'], pStone: 0.3, grime: 0.55, elig: true,
+  zisa: { plaster: ['#d2bf94', '#cbb68c', '#dccba8', '#c6b69c', '#d6c09c', '#cfc6b0', '#c2a682', '#dccfb4'], stone: ['#a98f68', '#9d8560'], pStone: 0.3, grime: 0.55, elig: true, mid: true,
     w: { res: .38, pw: .08, blk: .2, n19: .1, ind: .1, pal: .14 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.6, ruin: 0.02 },
 
   // ---------------- Stazione, Oreto, Brancaccio, Corso dei Mille ----------------
@@ -74,10 +75,14 @@ export const ZONES = {
   oreto: { plaster: ['#d2bf94', '#cfb088', '#d8c49e', '#c6b89e', '#dcc096', '#cbb08c', '#dccdac', '#c0b29a'], stone: ['#a98f68'], pStone: 0.12, grime: 0.6, elig: true,
     w: { res: .42, pw: .06, blk: .3, n19: .08, ind: .06, pal: .08 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.3, roof: 0.4 },
   // Via Giulio Sarmiento (Street View): 4 to 6 storey cream and ochre blocks with stacked balconies and green rails, 3 storey terracotta-orange rendered houses with tile roofs.
-  brancaccio: { plaster: ['#dccba4', '#d4c09c', '#e0d2b0', '#cdbfa4', '#d9a272', '#cfc8b2', '#e6dcc0', '#d49a68', '#e8e0cc'], stone: ['#a98f68'], pStone: 0.05, grime: 0.5, elig: true,
+  brancaccio: { plaster: ['#dccba4', '#d4c09c', '#e0d2b0', '#cdbfa4', '#d9a272', '#cfc8b2', '#e6dcc0', '#d49a68', '#e8e0cc'], stone: ['#a98f68'], pStone: 0.05, grime: 0.5, elig: true, mid: true,
     w: { res: .46, pw: .06, blk: .2, pal: .2, ind: .05, fish: .03 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .7]], fh: 3.2, roof: 0.5 },
-  corsoMille: { plaster: ['#d6a894', '#d8b09a', '#dcc89a', '#c9a08a', '#dcc294', '#cfc8b2', '#e0d0ac', '#c8a48a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true,
+  corsoMille: { plaster: ['#d6a894', '#d8b09a', '#dcc89a', '#c9a08a', '#dcc294', '#cfc8b2', '#e0d0ac', '#c8a48a'], stone: ['#a98f68'], pStone: 0.05, grime: 0.55, elig: true, mid: true,
     w: { n19: .28, res: .32, pw: .05, blk: .16, ind: .08, pal: .1 }, fl: [[2, 1], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.6, roof: 0.3 },
+
+  // Via Messina Marine (Street View): 3 to 5 storey orange, ochre and cream blocks and houses along the coast road, iron fences and railings, garages below.
+  marine: { plaster: ['#d9a06a', '#d49a68', '#e0b27a', '#e2c690', '#dcb888', '#d6c6a4', '#e8dcc0', '#cf9568', '#e4d2a8', '#ece4d0'], stone: ['#b9a07a'], pStone: 0.04, grime: 0.45, elig: true,
+    w: { pal: .36, res: .3, blk: .1, n19: .08, fish: .06, pw: .06 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.2, roof: 0.4 },
 
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
@@ -85,7 +90,7 @@ export const ZONES = {
   // laundry and air conditioners on the faces.
   zen: { plaster: ['#cdb48c', '#c6a87c', '#d2bc96', '#bfa27a', '#d6c4a2', '#c4ae8c', '#c9a98a', '#d8c9aa', '#c2b6a0'], stone: ['#b8a88a'], pStone: 0, grime: 0.55, elig: true,
     w: { ins: .72, pw: .02, res: .14, pal: .12 }, fl: [[3, 1], [4, 2], [5, 3], [6, 3], [7, 2]], fh: 3.0, roof: 0, insArea: 110 },
-  cep: { plaster: ['#d6c8a8', '#cbbfa6', '#d2b890', '#c8c4b4', '#bfb4a0', '#d8cdb4', '#c8a888', '#d0d0c4'], stone: ['#b8b0a0'], pStone: 0, grime: 0.65, elig: true,
+  cep: { plaster: ['#d6c8a8', '#cbbfa6', '#d2b890', '#c8c4b4', '#bfb4a0', '#d8cdb4', '#c8a888', '#d0d0c4'], stone: ['#b8b0a0'], pStone: 0, grime: 0.65, elig: true, mid: true,
     w: { ins: .3, blk: .3, pw: .06, pal: .24, res: .1 }, fl: [[3, 2], [4, 3], [5, 3], [6, 2], [7, 1]], fh: 3.1, roof: 0.05 },
   // Via Cruillas (Street View): a village core of 2 to 3 storey old houses (ochre plaster, green shutters, dark wooden doors, wrought-iron balconies on
   // brackets) with 4 to 5 storey yellow and cream blocks around it.
@@ -98,7 +103,7 @@ export const ZONES = {
 
   // ---------------- north: Tommaso Natale, Sferracavallo, Mondello, Valdesi ----------------
   // Via Tommaso Natale (Street View): detached villas and low houses in walled gardens with pines and hedges, a few 4 to 6 storey blocks along the main road.
-  tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.04, grime: 0.35, elig: true,
+  tn: { plaster: ['#e6dcc0', '#e0d0b0', '#d8c8a8', '#ece6d6', '#d6c0a0', '#e0c0a0', '#cfc8b4', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.04, grime: 0.35, elig: true, mid: true,
     w: { pal: .24, res: .42, fish: .14, lib: .06, blk: .08, pw: .03 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, .7]], fh: 3.1, roof: 0.9,
     flA: [[[1, 68], [2, 20], [3, 10], [4, 2]], [[1, 47], [2, 37], [3, 13], [4, 1]], [[1, 40], [2, 39], [3, 9], [4, 2], [7, 1], [8, 10]]] },
   // Sferracavallo: low whitewashed and pastel fishermen's houses around the harbour, flat roofs with a parapet, painted wooden doors.
@@ -124,7 +129,7 @@ export const ZONES = {
   acquasanta: { plaster: ['#d8c8a4', '#d0bc98', '#dccdaa', '#c9b08a', '#e0d4b8', '#c8a888', '#d6c0a0', '#ece6d6'], stone: ['#c4b08c', '#b8a47e', '#cdbb98'], pStone: 0.5, grime: 0.5, elig: true,
     w: { res: .3, n19: .3, fish: .1, pw: .03, lib: .1, pal: .1, blk: .07 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1]], fh: 3.2, roof: 0.9 },
   // Via dell'Arenella (Street View): 4 to 5 storey cream and white blocks with continuous balconies and blue trim bands on a narrow street, walled villas between.
-  arenella: { plaster: ['#ece6d8', '#e6dcc4', '#dcc9a0', '#d6cfc0', '#e0c0a8', '#c8d2d0', '#d8c8a4', '#f0ebe0'], stone: ['#a98f68'], pStone: 0.04, grime: 0.5, elig: true,
+  arenella: { plaster: ['#ece6d8', '#e6dcc4', '#dcc9a0', '#d6cfc0', '#e0c0a8', '#c8d2d0', '#d8c8a4', '#f0ebe0'], stone: ['#a98f68'], pStone: 0.04, grime: 0.5, elig: true, mid: true,
     w: { fish: .14, res: .3, pw: .04, pal: .26, blk: .14, n19: .12 }, fl: [[1, 2], [2, 4], [3, 3], [4, 1]], fh: 3.0, roof: 0.6,
     gl: [['fis_door', 3], ['fis_win', 3], ['g_garage', 1], ['blank_g', 1]] },
 
@@ -136,11 +141,11 @@ export const ZONES = {
 
   // ---------------- west and north-west: Uditore, Passo di Rigano, outskirts ----------------
   // Piazza Uditore (Street View): the old borgata is 1 to 2 storey rendered and rubble-stone houses with crumbling plaster; 5 to 6 storey condos rise right behind it.
-  uditore: { plaster: ['#e6dcc0', '#e0d0b0', '#e8e2d2', '#d8c8a8', '#ece6d6', '#d9b890', '#cfc8b4', '#e0c8a8'], stone: ['#b8a888', '#a89a80'], pStone: 0.14, grime: 0.4, elig: true,
+  uditore: { plaster: ['#e6dcc0', '#e0d0b0', '#e8e2d2', '#d8c8a8', '#ece6d6', '#d9b890', '#cfc8b4', '#e0c8a8'], stone: ['#b8a888', '#a89a80'], pStone: 0.14, grime: 0.4, elig: true, mid: true,
     w: { pal: .3, blk: .18, res: .28, pw: .03, fish: .1, n19: .06, lib: .02 }, fl: [[1, 1], [2, 3], [3, 3], [4, 3], [5, 2.5], [6, 1.2]], fh: 3.1, roof: 0.6 },
-  rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true,
+  rigano: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0'], stone: ['#bba07a'], pStone: 0.03, grime: 0.35, elig: true, mid: true,
     w: { pal: .3, res: .32, blk: .14, pw: .04, fish: .12, n19: .06 }, fl: [[1, 1], [2, 3], [3, 3], [4, 3], [5, 2], [6, 1]], fh: 3.1, roof: 0.8 },
-  periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true,
+  periph: { plaster: ['#e0d4b4', '#d8c8a8', '#e4dcc8', '#d2bda0', '#e8e2d2', '#d9b890', '#cdc6b2', '#dcc9a0', '#cfa888'], stone: ['#bba07a'], pStone: 0.03, grime: 0.4, elig: true, mid: true,
     w: { pal: .32, res: .34, pw: .06, blk: .14, fish: .1, n19: .04 }, fl: [[1, 1], [2, 3], [3, 3], [4, 2], [5, 1], [6, .4]], fh: 3.2, roof: 0.7,
     // storeys of the lidar-measured buildings of this zone by footprint class (tools/district-calibrate.mjs): the unmeasured rest follows the same distribution
     flA: [[[1, 63], [2, 21], [3, 10], [4, 2], [8, 1]], [[1, 41], [2, 38], [3, 13], [4, 2], [5, 1], [8, 3]], [[1, 40], [2, 26], [3, 13], [4, 5], [5, 2], [6, 3], [7, 2], [8, 9]]] },
@@ -209,7 +214,8 @@ const STREET_ZONES = [
   [/^Via Principe di Paternò|^Via Duca della Verdura|^Via Sciuti|^Via Marchese di Villabianca|^Via Empedocle Restivo/, 'sacco', 16],
   [/^Corso Calatafimi$|^Corso Tukory$|^Corso Pisani$/, 'calat', 20],
   [/^Corso dei Mille$/, 'corsoMille', 22],
-  [/^Via Oreto$/, 'oreto', 18],
+  [/^Via Oreto$/, 'oreto', 18, 'stazione'],   // a 4th entry: a seed of that zone within half its reach wins (Via Oreto starts at the station, among 19th c. palazzi)
+  [/^Via Messina Marine$/, 'marine', 24],
 ];
 
 // zone for a building centroid (x, z in metres) given its nearest street name `n` and distance `d` (metres, from the carriageway edge)
@@ -217,7 +223,10 @@ export function zoneAt(cx, cz, n, d) {
   n = n || '';
   if (/^Via Roma$/.test(n)) return 'roma';
   if (/Maqueda|Vittorio Emanuele|Cassaro|Bologni|Pretoria|Verdi|Quattro Canti|San Domenico/.test(n)) return 'corso';
-  for (const [re, z, dm] of STREET_ZONES) if (re.test(n) && d < dm) return z;
+  for (const [re, z, dm, out] of STREET_ZONES) if (re.test(n) && d < dm) {
+    if (out) for (const s of SEEDS) if (s[0] === out && Math.hypot(cx - s[1], cz - s[2]) < s[3] * 0.5) return out;
+    return z;
+  }
   let best = null, bd = 1;
   for (let i = 0; i < SEEDS.length; i++) {
     const s = SEEDS[i], q = Math.hypot(cx - s[1], cz - s[2]) / s[3];
