@@ -123,9 +123,9 @@ the keys listed under the HTML-injection finding plus `palermoDrive.pid.v1` (a r
 GitHub Pages sends no custom headers, so there is no CSP, `X-Content-Type-Options` or frame protection from the server (`frame-ancestors` cannot be set from a `<meta>`; the game can be framed by anyone, which only matters for clickjacking, and
 there is nothing sensitive to click).
 **Fixed (Low, defence in depth):** `tools/build/build.mjs` now writes a `Content-Security-Policy` meta tag and a referrer policy into the built `index.html`:
-`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https://*.run.app wss://*.run.app; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'`.
+`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'`.
 The built site has one external script reference (its own bundle), no inline script and no `eval`, so a strict script policy fits. Tested on the built site under that policy: title screen, driving, the Garage, a race event and the credits raise no
-violation. `?relay=wss://evil.example` on a non-local host makes no request; on a local host the policy blocks it anyway. If a feature starts loading something from another host (for example the relay on a domain other than `*.run.app`),
+violation. `?relay=wss://evil.example` on a non-local host makes no request; on a local host the policy blocks it anyway. If a feature starts loading something from another host (for example the relay, if it comes back),
 widen `connect-src` in that one line of `build.mjs`.
 
 ### 10. `tools/autopush.sh` (Medium, Fixed)

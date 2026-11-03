@@ -6,7 +6,7 @@ import os from 'os'; import path from 'path'; import fs from 'fs'; import puppet
 const OUT = process.env.OUT || os.tmpdir();
 const [id, host = 'http://localhost:8792/', W = 1280, H = 720, extra = ''] = process.argv.slice(2);
 const night = id === 'corse';
-const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'] });
+const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
 const p = await b.newPage(); await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1, hasTouch: +W < 900, isMobile: +W < 900 });
 const errs = []; p.on('pageerror', e => errs.push('PAGEERR ' + e.message.slice(0, 200))); p.on('console', m => { if (m.type() === 'error' || (m.type() === 'warn' && !/toNonIndexed|noShadow/.test(m.text()))) errs.push(m.text().slice(0, 200)); });
 const tag = `${id}-${W}`;

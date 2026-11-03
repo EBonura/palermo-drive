@@ -22,7 +22,7 @@ const SPOTS = {
 const names = String(arg('spots', Object.keys(SPOTS).join(','))).split(',');
 const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
 
-const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu'] });
+const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
 async function once(name) {
   const [, x, z, th] = SPOTS[name];
   const page = await browser.newPage();

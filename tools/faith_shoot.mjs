@@ -19,7 +19,7 @@ fs.mkdirSync(round + '/shots', { recursive: true });
 const todo = ids.filter(i => force || !fs.existsSync(`${round}/shots/${i}.png`));
 console.log(todo.length, 'to shoot of', ids.length);
 if (!todo.length) process.exit(0);
-const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars'] });
+const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars'] });
 const p = await b.newPage(); await p.setViewport({ width: 1024, height: 768, deviceScaleFactor: 1 });
 const errs = []; p.on('pageerror', e => errs.push(e.message.slice(0, 200)));
 await p.goto(base + '?help=0&debug&clean&fixres&time=11&play&cam=2&at=0,0', { waitUntil: 'domcontentloaded', timeout: 180000 });

@@ -37,7 +37,7 @@ const { server, stats, port: PORT } = URL_ARG ? { server: { close() {} }, stats:
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: true,
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars', '--no-first-run', '--autoplay-policy=no-user-gesture-required',
+  args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars', '--no-first-run', '--autoplay-policy=no-user-gesture-required',
     '--disable-frame-rate-limit', '--disable-gpu-vsync', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
   defaultViewport: null,
 });

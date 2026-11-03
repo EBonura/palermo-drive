@@ -7,7 +7,7 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ?
 const ROOT = path.resolve(arg('root', 'dist')), CDN = arg('cdn', ''), TOP = +arg('top', 30);
 const [lat, lon] = arg('spot', '38.115684,13.361460').split(',').map(Number);
 const { server, port } = await startServer(ROOT, CDN);
-const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, defaultViewport: { width: 1280, height: 720 }, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, defaultViewport: { width: 1280, height: 720 }, args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage();
 if (CDN) { await page.setRequestInterception(true); page.on('request', r => { const m = r.url().match(/^https:\/\/cdn\.jsdelivr\.net(\/npm\/.*)$/); m ? r.continue({ url: `http://127.0.0.1:${port}/__cdn${m[1]}` }) : r.continue(); }); }
 await page.goto(`http://127.0.0.1:${port}/?debug&help=0`);

@@ -33,7 +33,7 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 const THREE_DIR = path.join(fs.realpathSync(path.join(HERE, 'node_modules')), 'three');
 
 const opened = new Set();
-const launch = async () => { const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] }); opened.add(b); b.on('disconnected', () => console.log('  [browser disconnected]', new Date().toISOString(), 'pid', b.process()?.pid, 'exit', b.process()?.exitCode, b.process()?.signalCode)); return b; };
+const launch = async () => { const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] }); opened.add(b); b.on('disconnected', () => console.log('  [browser disconnected]', new Date().toISOString(), 'pid', b.process()?.pid, 'exit', b.process()?.exitCode, b.process()?.signalCode)); return b; };
 // a run that fails must not leave its browsers behind on a machine shared with other work
 process.on('uncaughtException', async e => { console.error(e); for (const b of opened) await b.close().catch(() => {}); process.exit(1); });
 process.on('unhandledRejection', async e => { console.error(e); for (const b of opened) await b.close().catch(() => {}); process.exit(1); });
