@@ -545,9 +545,16 @@ function build(env) {
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
   FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.title ? { title: f.title } : {}), ...(f.ped ? { ped: f.ped } : {}), ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
-  // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area.
-  mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: () => { const a = SNAP['rave:karcere'], b = SNAP['rave:site']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 650 }; } }, 'rave:karcere');
-  mkSlot({ id: 'leaf:rave', kind: 'leaf', sub: 'leaf', name: 'Fuogghi allegri', night: true, leash: () => { const a = SNAP['rave:site'], b = SNAP['rave:leaf']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 700 }; } }, 'rave:site');
+  // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area: the line between its two places and a
+  // radius wide enough for the baked road, which climbs and winds a long way from the straight line (the mountain road to the rave swings 1 km out to the east): the radius is the farthest
+  // the baked route strays from the line plus 300 m, never under the 650 and 700 m of a plain city run (the same rule as the fares, `leashArea`).
+  const raveLeash = (id, from, to, base) => { let r = 0; return () => {
+    const a = SNAP[from], b = SNAP[to], p = ROUTES[id] && ROUTES[id][0] && ROUTES[id][0][2] || [];
+    if (!r) { r = base; for (let i = 0; i + 1 < p.length; i += 2) r = Math.max(r, segDist(p[i], p[i + 1], a, b) + 300); }
+    return { a: [a[0], a[1]], b: [b[0], b[1]], r };
+  }; };
+  mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: raveLeash('rave:karcere', 'rave:karcere', 'rave:site', 650) }, 'rave:karcere');
+  mkSlot({ id: 'leaf:rave', kind: 'leaf', sub: 'leaf', name: 'Fuogghi allegri', night: true, leash: raveLeash('rave:leaf', 'rave:site', 'rave:leaf', 700) }, 'rave:site');
   // the horns mission (day or night): the citizen in Piazza Pretoria, the arch of Cutò (docs/horns.md)
   mkSlot({ id: 'horns:cuto', kind: 'horns', sub: 'horns', name: 'U Sinnacu a primavera', leash: () => { const a = SNAP['horns:start'], b = SNAP['horns:arch']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 330 }; } }, 'horns:start');
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
@@ -571,7 +578,7 @@ function build(env) {
     if (!s) return null;
     switch (s.kind) {
       case 'food': return ['Attruova ' + ITEMS[s.item].it + ' e puaittali narrè.', 'Find the ' + ITEMS[s.item].en + ' and take them back.'];
-      case 'rave': return ['Carica i casse e puitali â Favorita, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them to the Favorita, nice and slow: they are delicate.'];
+      case 'rave': return ['Carica i casse e puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them up on Pellegrino, nice and slow: they are delicate.'];
       case 'leaf': return ['Va’ a via Cipressi, attruova i fuogghi allegri e portali ô cumpari.', 'Go to via Cipressi, find the happy leaves and take them to the pal.'];
       case 'horns': return ['Mittiti i cuainna e passa sutta l\'Arcu ri Cutò.', 'Put on the horns and drive under the Arch of Cutò.'];
       case 'race': return ['Fermati ccà e cuorri cu nuatri: i primi tri vincinu i picciuli.', 'Stop here and race: the first three win a prize.'];   // DRAFT; the first half is the line the racers shout

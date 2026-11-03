@@ -28,7 +28,7 @@ import { initFences, buildFences, dropFences } from './fences.js';   // walls an
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 import { pitchGround, pitchDepth } from './stadium-ground.js';
-import { raveGround, raveSurf, raveFences } from './rave-ground.js';   // the dance floor of the rave in the Favorita and its track (src/rave.js)
+import { raveGround, raveSurf, raveWood, raveWoodTile } from './rave-ground.js';   // the dance floor of the rave in the woods of Monte Pellegrino and its track (src/rave.js)
 import { treeCleared } from './tree-clear.js';
 import { initQuays, registerQuays, unregisterQuays, carve as carveQuay, tileQuays, buildQuayMeshes, disposeQuayMeshes } from './quays.js';   // the harbour's quays (board item n10)
 import { CENTRO_LANDMARKS } from './landmarks.js';   // the centro landmark models: built here, when the tiles under them have loaded
@@ -280,7 +280,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     M = m;
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
-    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y)))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js) and the dance floor of the rave (src/rave-ground.js) and the dance floor of the rave (src/rave-ground.js)
+    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y)))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js) and the dance floor of the rave (src/rave-ground.js)
     hooks.level = levelY; hooks.fall = carTick;
     initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -736,7 +736,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const b = (((z - j * T) * RK) | 0) * RW + (((x - i * T) * RK) | 0);
     return (bits[b >> 3] >> (b & 7) & 1) === 1;
   }
-  const raised = (x, z) => maskAt(x, z, 'raised') === true || pitchDepth(x, z) > 0 || raveSurf(x, z) >= 0;   // the stadium's playing area counts as raised ground: the lapa stands on the track and the pitch like on a pavement (src/stadium-ground.js); so do the dance floor of the rave and its track, drawn over the park's grass (src/rave-ground.js); so do the dance floor of the rave and its track, drawn over the park's grass (src/rave-ground.js)
+  const raised = (x, z) => maskAt(x, z, 'raised') === true || pitchDepth(x, z) > 0 || raveSurf(x, z) >= 0;   // the stadium's playing area counts as raised ground: the lapa stands on the track and the pitch like on a pavement (src/stadium-ground.js); so do the dance floor of the rave and its track, drawn over the forest floor (src/rave-ground.js)
 
   // ---------- e6: what the lapa drives on ----------
   // Tracks and the paths of the parks and the hills are gravel and dirt even where the street layers paint them as paving; the beach is sand; the lawns are grass;
@@ -943,9 +943,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         }
       }
     }
-    for (let gz = t.j * T; gz < (t.j + 1) * T; gz += SP) {
-      for (let gx = t.i * T; gx < (t.i + 1) * T; gx += SP) {
-        const x = gx + hash2(gx, gz) * SP, z = gz + hash2(gz + 7.1, gx - 3.3) * SP;
+    for (const dense of raveWoodTile(t.i * T, t.j * T, T) ? [false, true] : [false]) for (let gz = t.j * T; gz < (t.j + 1) * T; gz += dense ? 7 : SP) {   // (dense: a second, finer planting round the clearing of the rave, src/rave-ground.js raveWood)
+      for (let gx = t.i * T; gx < (t.i + 1) * T; gx += dense ? 7 : SP) {
+        const x = gx + hash2(gx, gz) * (dense ? 7 : SP), z = gz + hash2(gz + 7.1, gx - 3.3) * (dense ? 7 : SP);
+        if (dense && hash2(x * 2.1 - 1.3, z * 1.7 + 0.4) > raveWood(x, z)) continue;
         let pr = 0;
         for (const a of areas) if (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1 && a.p > pr && inPoly(a.pts, x, z)) pr = a.p;
         if (pr === 0 || hash2(x * 1.3, z * 0.7) > pr) continue;
@@ -1065,7 +1066,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (mk) setPart(t, 'paint', mk);
     }
     t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) setPart(t, 'quays', qg); }
-    t.stage = 'fences'; { const fg = yield* buildFences(raveFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences)), t.k, t.data); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate; the park wall of Viale Ercole has a gap where the track to the rave leaves the road)
+    t.stage = 'fences'; { const fg = yield* buildFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences), t.k, t.data); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate)
     t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
     t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
     if (t.want < 2) return;

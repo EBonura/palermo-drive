@@ -23,7 +23,7 @@ const WEAR = 75;            // seconds of play for one drink to wear off (a stac
 // Where a pub pours: near its door (a little more than the 7 m of the 'pd-pub-stop' event of src/pubs.js) or near the road point that its errand ends at (src/pub-routes.js).
 // Some doors sit in pedestrian piazzas with buildings between them and the road, so the lapa gets only so close (measured by driving at each door from eight sides): they have a wider reach.
 const DOOR_R = 9, ROAD_R = 12, REACH = { taverna: 14, magione: 16, monkey: 16 };
-const RAVE_R = 55;          // metres from the middle of the dance floor: its rim is 15 m out, the place where the speakers are delivered 7 m, the track to it leaves Viale Ercole 58 m away
+const RAVE_R = 55;          // metres from the middle of the dance floor: its rim is 15 m out, the place where the speakers are delivered 7 m, the track to it leaves the service road 38 m away
 const STILL = 1.5, GO = 3;  // m/s: standing still counts below STILL (for 0.4 s), the button goes away above GO
 const ROLL = 0.16, YAW = 0.06, PITCH = 0.025, ZOOM = 0.04, SIDE = 0.45;   // the camera wobble at full strength: radians, a fraction of the field of view, metres
 const IDLE = 2;             // seconds sober before the render target is freed

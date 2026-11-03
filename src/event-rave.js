@@ -1,7 +1,7 @@
-// The two rave missions (night). "Casse pû rave": the sound man at the centro sociale ExKarcere (Via San Basilio) needs two speaker stacks taken to the rave in the woods of the Favorita
+// The two rave missions (night). "Casse pû rave": the sound man at the centro sociale ExKarcere (Via San Basilio) needs two speaker stacks taken up to the rave in the woods of Monte Pellegrino
 // (src/rave.js): a timed delivery of fragile cargo; every hard knock costs some of the speakers' health, at nothing left or with the clock out the rave is off; delivered, the
 // stage goes full power for the night (louder, brighter, more people) and the pay follows the health that is left and the time. "Fuogghi allegri": a friend at the rave sends you
-// to Via Cipressi (6 km away) for the happy leaves: drive there, hunt them close by, hand them to a pal on the street. Same pieces as the other events: slots and callers from
+// to Via Cipressi (11.8 km away, back down the mountain) for the happy leaves: drive there, hunt them close by, hand them to a pal on the street. Same pieces as the other events: slots and callers from
 // src/missions.js and src/event-calls.js, baked routes and hunt items (src/event-routes.js, assets/missions/snap-places.mjs), the card, the arrow and the minimap of src/event-hud.js.
 // The text is Palermitan, written by an agent: it is all in assets/missions/lines.js (RAVE_LINES, CALL.rave, CALL.leaf) and in the T(...) calls below, for the owner to correct.
 // createRaveEvents(X, rave) -> { start(slot), update(dt), stop(), active() }
@@ -91,7 +91,7 @@ export function createRaveEvents(X, rave) {
     const base = Math.round((12 + e.len / 500) * 2) / 2, got = Math.round(base * e.integ / 100 * 2) / 2, bonus = Math.round(8 * clamp(e.left / e.limit, 0, 1) * 2) / 2, total = got + bonus;
     e.pay = total; X.addFare(total, 'food'); rave.setPowered(true);
     say(pick(RL.thanks), headAt(rave.stage.x, rave.stage.z, 2.6), 0.8);
-    hud.result(`<h3>${T('Rave â Favorita', 'The rave at the Favorita')}</h3>
+    hud.result(`<h3>${T('Rave ô Pellegrinu', 'The rave on Pellegrino')}</h3>
       <div class="row"><span>${T('Casse sani', 'Speakers intact')}</span><span>${Math.round(e.integ)}%</span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(got)}</span></div>
       ${bonus ? `<div class="row"><span>${T('Priestu!', 'In good time!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
