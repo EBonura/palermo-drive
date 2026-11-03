@@ -6,7 +6,7 @@
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events_test       # first against a test table
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events 2          # then the real one, with a 2 GBP budget that arms the kill switch
 #
-# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and four views,
+# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and five views,
 # Cloud Run service joinlog, one log exclusion on the _Default sink, and with BUDGET_GBP one budget on the existing billing-budget-alerts topic (relay/killswitch.sh).
 set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
@@ -72,6 +72,12 @@ SELECT DATE(ts) AS day, SPLIT(m, '=')[SAFE_OFFSET(0)] AS mission,
   SUM(SAFE_CAST(SPLIT(SPLIT(m, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(1)] AS INT64)) AS completed,
   SUM(SAFE_CAST(SPLIT(SPLIT(m, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(2)] AS INT64)) AS failed
 FROM \`$PROJECT.$DATASET.$TABLE\`, UNNEST(SPLIT(missions, ';')) AS m WHERE missions IS NOT NULL AND m != '' GROUP BY day, mission;" >/dev/null
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.activity\` OPTIONS (description = 'One row per visit per minute it was playing, Europe/London time. A gap over 6 minutes between reports counts as not playing. Chart it with a count of distinct visits.') AS
+WITH r AS (SELECT visit, device, name, ts, LAG(ts) OVER (PARTITION BY visit ORDER BY ts) AS prev FROM \`$PROJECT.$DATASET.$TABLE\`)
+SELECT DATETIME(m, 'Europe/London') AS minute, visit, ANY_VALUE(device) AS device, LOGICAL_OR(name IS NOT NULL) AS online
+FROM r, UNNEST(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP_TRUNC(IF(prev IS NOT NULL AND TIMESTAMP_DIFF(ts, prev, SECOND) <= 360, prev, ts), MINUTE), TIMESTAMP_TRUNC(ts, MINUTE), INTERVAL 1 MINUTE)) AS m
+GROUP BY minute, visit;" >/dev/null
 # the service may append to this one table and nothing else
 for i in 1 2 3 4 5 6; do   # a role created a moment ago can take a few seconds to be known to BigQuery
   "${Q[@]}" add-iam-policy-binding --member="serviceAccount:$SA" --role="projects/$PROJECT/roles/$ROLE" "$PROJECT:$DATASET.$TABLE" >/dev/null && break
