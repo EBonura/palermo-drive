@@ -9,7 +9,8 @@
 // plays the siren and shows the rosanero HUD.
 import * as THREE from 'three';
 import { garage } from './garage.js';
-import { dangerAt, areaAt, covered } from './danger.js';
+import { dangerAt, covered, resetTrouble } from './danger.js';
+import { createDangerHud } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
 import { vp } from './viewport.js';
 import { zone } from './hud.js';
 import { li as langIdx } from './lang.js';   // one language at a time (src/lang.js)
@@ -71,8 +72,9 @@ export function createPolice(env, T) {
     if (busted > 0 || grace > 0) return;
     const lim = LIMIT[kind];
     if (lim) { if (time - (lastAt[kind] ?? -9) < lim) return; lastAt[kind] = time; }
-    const was = heat;
-    heat = clamp(heat + (amt ?? GAIN[kind] ?? 0.3), 0, 5);
+    const was = heat, add = amt ?? GAIN[kind] ?? 0.3;
+    try { dispatchEvent(new CustomEvent('pd-chaos', { detail: { kind, amt: add } })); } catch (e) { /* no events */ }   // the neighbourhood score listens too (src/danger.js)
+    heat = clamp(heat + add, 0, 5);
     if (kind === 'hitcop') heat = Math.max(heat, 1.6);
     unseenT = 0;
     if (was <= 0 && heat > 0) { startT = time + 4.5 + Math.random() * 3; engageAmbient(); }
@@ -156,16 +158,7 @@ export function createPolice(env, T) {
   // ---------- HUD ----------
   const css = document.createElement('style');
   css.textContent = `
-  /* the area with its danger diamonds (row 2, plus for a few seconds after the area changes the words "neighbourhood danger") and the police line are parts of the map capsule, src/ui.css */
-  #pd-hood { display: none; flex-direction: column; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
-  #pd-hood.on { display: flex; }
-  #pd-hood .ph-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 1px; }
-  #pd-hood .ph-n { min-width: 0; font-size: 12.5px; letter-spacing: .05em; line-height: 1.2; color: #ffb3d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #pd-hood .ph-t { display: none; margin-top: 1px; font: 600 10px/1.1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #d9c3cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #pd-hood.ex .ph-t { display: block; }
-  #pd-hood .ph-p { display: flex; gap: 2px; flex: 0 0 auto; }
-  #pd-hood .ph-p i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
-  #pd-hood .ph-p i.f { background: var(--hc, #f5a9c9); box-shadow: 0 0 5px var(--hc, #f5a9c9); }
+  /* the police line is a part of the map capsule, src/ui.css, under the area, its diamonds and the gang row (src/danger-hud.js) */
   #pd-wanted { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 6px; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.12);
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }   /* the police line stands in the words column, right under the area and its diamonds, which it lines up with */
   #pd-wanted.on { display: flex; }
@@ -196,32 +189,16 @@ export function createPolice(env, T) {
   const hud = document.createElement('div');
   hud.id = 'pd-wanted';
   hud.innerHTML = `<div class="pw-l"><svg class="pw-ico" viewBox="0 0 24 24"><g class="d"><path class="b1" d="M5 18a7 7 0 0 1 7-9v9z" fill="#f08cb4"/><path class="b2" d="M19 18a7 7 0 0 0-7-9v9z" fill="#1a1114"/></g><rect x="3" y="18" width="18" height="3" rx="1" fill="#e8559a"/><path d="M12 2v3M4.5 5.5l2 2M19.5 5.5l-2 2" stroke="#f5a9c9" stroke-width="1.6" stroke-linecap="round"/></svg><div class="pw-t"></div></div><div class="pw-pips"><i></i><i></i><i></i><i></i><i></i></div><div class="pw-bar"><b></b></div>`;
-  // the map capsule (src/ui.css, #pd-card): the area and its danger always (in the words column, #pd-info), the police line across its bottom only when the police care
-  const hood = document.createElement('div'); hood.id = 'pd-hood';
-  hood.innerHTML = '<div class="ph-row"><div class="ph-n"></div><span class="ph-p"><i></i><i></i><i></i><i></i><i></i></span></div><div class="ph-t"></div>';
-  document.getElementById('pd-info').append(hood, hud);
-  const elHN = hood.querySelector('.ph-n'), elHT = hood.querySelector('.ph-t'), hPips = [...hood.querySelectorAll('.ph-p i')];
-  const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
-  let hdOn = null, hdName = '', hdLv = -1, hdLang = '', hdEx = 0;
-  const EX_MS = 5000;   // "neighbourhood danger" is spelt out for this long after the area changes, then only the diamonds stay
-  function drawHood() {
-    const on = !covered();
-    if (on !== hdOn) { hdOn = on; hood.classList.toggle('on', on); }
-    if (!on) return;
-    const name = areaAt(car.x, car.z) || 'Palermo', lv = dangerAt(car.x, car.z);
-    if (name !== hdName) { hdName = name; elHN.textContent = name; hdEx = performance.now() + EX_MS; hood.classList.add('ex'); }
-    else if (hdEx && performance.now() > hdEx) { hdEx = 0; hood.classList.remove('ex'); }
-    const lang = document.documentElement.lang === 'en' ? 'en' : 'it';
-    if (lang !== hdLang) { hdLang = lang; elHT.textContent = lang === 'en' ? 'Neighbourhood danger' : 'Pericolosità quartiere'; }
-    if (lv !== hdLv) { hdLv = lv; hPips.forEach((p, i) => p.classList.toggle('f', i < lv)); hood.style.setProperty('--hc', HOOD_C[lv - 1] || HOOD_C[0]); }
-  }
+  // the map capsule (src/ui.css, #pd-card): the area and its danger and the gang row (src/danger-hud.js) always in the words column (#pd-info), the police line across its bottom only when the police care
+  const dangerHud = createDangerHud(car);
+  document.getElementById('pd-info').append(...dangerHud.els, hud);
   // the words of the police line: the one place to change them
   const WANTED_TEXT = { escaped: 'SEMINATI!', seen: 'SBIRRI!', alert: 'ACCURA…', hidden: 'RIESTA AMMUCCIATU…' };
   const elT = hud.querySelector('.pw-t'), pips = [...hud.querySelectorAll('.pw-pips i')], elBar = hud.querySelector('.pw-bar b');
   let hLevel = -1, hSeen = null, hText = '', hBar = -1;
   function drawHud() {
     const lv = level(), shown = (lv > 0 || toastT > 0) && !covered();
-    drawHood();
+    dangerHud.draw();
     if (hud.classList.contains('on') !== shown) hud.classList.toggle('on', shown);
     if (!shown) return;
     const txt = toastT > 0 && lv === 0 ? WANTED_TEXT.escaped : seen ? WANTED_TEXT.seen : startT > time && !pursuers().length ? WANTED_TEXT.alert : WANTED_TEXT.hidden;
@@ -353,6 +330,7 @@ export function createPolice(env, T) {
   function update(dt, fx) {
     time += dt;
     // back on the menu the chase is over: no wanted line and no siren behind the title screen, and nothing waiting on the next drive
+    if (document.documentElement.classList.contains('pd-title')) resetTrouble();   // and no neighbourhood score either
     if (heat > 0 && document.documentElement.classList.contains('pd-title')) { heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0; toastT = 0; for (const v of pursuers()) disengage(v); }
     if (toastT > 0) toastT -= dt;
     if (busted > 0) { busted -= dt; if (busted <= 0) card.classList.remove('on'); }

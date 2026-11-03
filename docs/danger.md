@@ -1,6 +1,6 @@
 # Danger levels
 
-Every place in the city has a danger level from 1 (quiet) to 5 (the ZEN). The level decides how likely a gang block is, how many police patrols you see, and which toast appears when you enter the area. This supersedes `docs/danger-draft.md` (the draft this table was built from).
+Every place in the city has a danger level from 1 (quiet) to 5 (the ZEN). The level decides how touchy the area is (how fast the damage you do there brings a gang block) and how many police patrols you see; the capsule shows it as a small number and the tint of the diamonds. This supersedes `docs/danger-draft.md` (the draft this table was built from).
 
 **IDISE measures hardship, not crime.** The source is ISTAT's IDISE, "Disagio socio-economico a livello sub-comunale, anno 2023", the socio-economic hardship index (nine indicators on income, work, education, housing; no crime among them), published for Palermo at the 55 UPL (Unità di Primo Livello) areas. The levels are a game-design call made by the owner on top of that ranking, not a statement about crime or about the people who live there. ISTAT content is CC BY 4.0 unless stated otherwise (istat.it/note-legali); credit ISTAT if the numbers are shown.
 
@@ -9,7 +9,7 @@ Every place in the city has a danger level from 1 (quiet) to 5 (the ZEN). The le
 - `tools/danger.py` rebuilds the UPL outlines from the 3,600 census-section polygons of ISTAT's `Palermo.html` map (each section carries its UPL code), rasterises them on a 100 m grid in game metres, and writes `src/danger-data.js` (about 5.5 KB: the run-length coded grid plus a name and a level per UPL). Cells in no section but touching one take that UPL (street gaps); the rest is no data.
 - `src/danger.js` looks a position up: `dangerAt(x, z)`, `areaAt(x, z)`. It is independent of the game's style zones (`src/districts.js`) and of the QUARTIERI points.
 - One level per UPL. Where one UPL holds quartieri with different calls, the call that fits the area best won (below).
-- **No data** (port, open country, parks, sea front without residents): level 2. Parks and countryside are not safe at night, but nobody lives there to set the tone; 2 also gives Parco della Favorita the level the owner asked for. No-data places have no name, so no entry toast.
+- **No data** (port, open country, parks, sea front without residents): level 2. Parks and countryside are not safe at night, but nobody lives there to set the tone; 2 also gives Parco della Favorita the level the owner asked for. No-data places have no name (the capsule says Palermo) and share one score between them.
 
 ## Final calls
 
@@ -24,7 +24,7 @@ Calls I had to make:
 - **San Lorenzo**: it holds the point of Parco della Favorita (2) and San Lorenzo (1). Took 1; the park itself has no residents, so it is no data and gets 2 anyway.
 - **Oreto Perez and Cantieri**: draft 5 and not in the owner's lists. Took 3, the level the owner gave the other draft-5 areas that are not in the top two tiers (Albergheria, Il Capo, Altarello).
 - UPLs with no quartiere point and draft 2 to 4 follow the remaining rule (2); the Libertà belt (Politeama, Notarbartolo, Villa Sperlinga, Villabianca and the rest of the draft 1 UPLs) is 1.
-- Entry toasts use the quartiere name where the UPL has one, a short form of the ISTAT name otherwise (Politeama, Terrasanta, Villabianca, Quattro Camere, ...).
+- The names in the capsule use the quartiere name where the UPL has one, a short form of the ISTAT name otherwise (Politeama, Terrasanta, Villabianca, Quattro Camere, ...).
 
 ### Per UPL
 
@@ -145,21 +145,25 @@ Calls I had to make:
 
 ## What the level does
 
-- **Gang block** (`src/danger.js`, played by `src/vehicle-events.js`). Every 3 s of play a random check can start a block. Chance per check = 1 - exp(-rate x 3 / 60), with rate in blocks per minute = base(level) x speed x night:
-  - base at cruising speed in daylight: level 1 0.001, level 2 0.015, level 3 0.05, level 4 0.12, level 5 0.25;
-  - speed: 3 below 2 m/s (stopped), 2 below 6 m/s, 1 below 14 m/s, 0.35 above (flooring it is safer);
-  - night: 1.6.
-  Chance of at least one block in 3 minutes: level 5 53% cruising at 10 m/s, 23% flat out, 89% parked by day, 97% parked at night; level 3 14%, 5%, 36%, 51%; level 2 4%, 2%, 13%, 19%; level 1 about 1% even parked.
-  Never during an event (`missions.busy()`), a screen transition or the busted card; the first 20 s of play and 120 s after a block are safe. A block already fading is called off if an event or transition takes over.
+- **Neighbourhood score** (`src/danger.js`, drawn by `src/danger-hud.js`). Nothing is random: every area keeps a score from 0 to 100 that only rises when you do damage in it, with the events that feed the police (`src/police.js` sends `pd-chaos` for each: cars sent flying, people knocked over, smashed fences, walls and hedges, fast driving through crowds and over pavements). Zero damage is zero risk, everywhere. The rates are in one table, `TUNE` at the top of the file:
+  - touchiness by the area's level 1 to 5 (points per unit of police chaos, a car sent flying is 0.7 units, a person knocked over 0.45): 2, 6, 12, 24, 46. In cars sent flying that is about 43 to reach "searching" in level 1, 14 in level 2, 7 in level 3, 4 in level 4 and 2 in the ZEN;
+  - each kind counts as in the police except fast driving through crowds and over pavements (0.35, they come as a stream) and hitting the police (0.5); at night everything counts 1.3 times;
+  - stages: calm under 35 points (diamonds only, 20 points a diamond), noticed from 35 ("Ti stannu taliannu…", full bar), searching from 60 (the bar drains, "Ti stannu circannu!"), get out when the bar is under 35% ("Nesci ri ccà!", lookouts shout), and the bar empty in that area means the gang block;
+  - the bar lasts 40 s at cruising speed; the old speed factor still applies: 3 times faster when stopped, 2 under 6 m/s, 1 under 14, 0.35 above (flooring it is safer). Not during an event, a transition or the busted card;
+  - leaving the area before the bar is empty is safe ("Saibbatu!" for a moment). The bar of an area you are not in fills again in 12 s;
+  - a score starts to fade 8 s after the last damage, 0.5 points a second, in every area (so it is remembered for a minute or two if you come back); it does not fade while you are parked in an area at "noticed" or worse;
+  - after a block the score of that area is 0.
+  The old random dice (`RATE`, `blockRate`, the 3 s check, the 120 s cooldown) are gone. The lookouts are the scooters of the normal traffic near you (up to two in view within 45 m; `pd-lookout`, src/traffic.js); with none in sight one balloon from the roadside ahead.
 - **The block**: the screen darkens for about 3 s, goes black, and you wake up on a road just outside the area (no cell of it within 35 m, preferring a lower level, nearest first), facing away, stripped to the frame for five minutes of play (cosmetic only), minus some cash.
 - **Cash lost**: a share of the wallet, at least and at most, never more than you have: level 2 8% (min 3, max 15), level 3 15% (6, 30), level 4 25% (10, 60), level 5 40% (15, 120), all in euro. Shown in the wake-up toast.
 - **Police** (`src/police.js`): the calm-streets patrol check (every 25 to 55 s) spawns a car with chance 1, 0.75, 0.45, 0.15, 0.03 for levels 1 to 5. Chases once you cause chaos are unchanged.
-- **Entry toast**: after 1.5 s in an area whose level differs from the last one shown: the name, 1 to 5 diamonds and a line (bilingual, `T(it, en)`). Not while an event runs.
+- **The capsule** (top right, same on a phone and a desktop): the area's name, its level as a small number, and five diamonds that fill as the area's score rises, tinted by the level (green to red). From "noticed" a row appears under them in the look of the police row: the words and a bar. The police row stays under it.
 
 ## Test links
 
-- `?danger=1..5` forces the level everywhere (blocks, police, toasts).
-- `?dangerfast` a block within seconds (level 2 and up) and the sequence at 15% length; `?dangerfast=1` the same quick trigger with the real-length sequence.
+- `?danger=1..5` forces the level everywhere (touchiness, police, tint).
+- `?dangerscore=N` starts with N points in the area you start in (35 noticed, 60 searching).
+- `?dangerfast` makes the bar last 5 s and plays the block sequence at 15% length; `?dangerfast=1` the real-length sequence. With `?debug`, `window.pdDanger = { add(points), set(points), state(), areas }` (points, not police units) and `window.pdPolice.chaos('yeet')` sends the real event.
 - `?dangerfreeze=fade|black|wake&dangerk=0.5` freezes the sequence half way through a stage (screenshots).
 - `?policefast` runs the patrol check 20 times as often; with `?debug`, `window.pdPolice.stat` holds `{ rolls, spawns }`.
 - `?evlog` logs the block stages to the console.

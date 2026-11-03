@@ -1,13 +1,13 @@
 // A local-colour event that changes the player's vehicle. Owned by the driving work; created by src/vehicle.js, updated from its updateVisual().
 //
-//  THE GANG BLOCK (the old ZEN gag, now played anywhere the danger level says so: src/danger.js decides when, docs/danger.md). A few seconds
+//  THE GANG BLOCK (the old ZEN gag, now played in whatever area the player has done enough damage in: the neighbourhood score of src/danger.js decides when, docs/danger.md). A few seconds
 //  after a gang takes the road the screen darkens (a vignette closing in, the colour draining, the vehicle sounds muffled), goes black for a
 //  beat, and you wake up parked just outside the area, facing away, with the vehicle stripped to the bare frame and wheels (canvas, roof, doors,
 //  seats, lights, mirrors, stickers, tuning parts gone) and some of the wallet gone. It stays drivable. Five minutes of game time later
 //  everything is back. Garage ownership is untouched. Position based, so it only happens where the world streaming lets you drive.
 //
 // The night "Corse clandestine" race moved to src/races.js (the shared race system of the free-roam events).
-// Test links: ?danger=5 (force the level), ?dangerfast (a block within seconds, fast sequence), ?dangerfreeze=fade|black|wake&dangerk=0.5.
+// Test links: ?danger=5 (force the level), ?dangerscore=N (start with N points), ?dangerfast (a 5 s bar, fast sequence), ?dangerfreeze=fade|black|wake&dangerk=0.5.
 
 import { garage } from './garage.js';
 import { createDanger, dangerAt, wakeSpot, cashLoss, toast, covered } from './danger.js';
