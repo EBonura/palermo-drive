@@ -270,7 +270,7 @@ const minimap = createMinimap({ canvas: document.getElementById('mini'), car, wo
 
 // ---------- HUD ----------
 const elStreet = document.getElementById('street'), elLand = document.getElementById('landmark'), elSpeed = document.getElementById('speed');
-let hudTimer = 0, hudSpd = -1, hudUnit = '', hudStreet = '', hudLand = '';
+let hudTimer = 0, hudSpd = -1, hudUnit = '', hudStreet = '', hudLand = '', hudGone = 0;
 function updateHud(dt) {
   const v = Math.abs(car.vf || 0) * 3.6, mph = game.settings.units === 'mph', n = Math.round(mph ? v * 0.6214 : v), u = mph ? 'mph' : 'km/h';
   // [perf pass] text only when it changes: a DOM write every frame, even of the same string, restyles the page (about 0.4 ms a frame at 4x CPU)
@@ -283,7 +283,10 @@ function updateHud(dt) {
     const [qx, qz] = closestOnSeg(car.x, car.z, s), d = Math.hypot(car.x - qx, car.z - qz) - s[5] / 2;
     if (d < bd) { bd = d; best = s[4]; }
   });
-  { const t = best && bd < 8 ? best : ''; if (t !== hudStreet) { hudStreet = t; elStreet.textContent = t; } }
+  // a street that is gone for a moment (a junction, a gap in the data) keeps its name for a second, so the card does not jump on and off the row
+  const found = best && bd < 8 ? best : '';
+  hudGone = found ? 0 : hudGone + 1;
+  { const t = found || (hudGone < 4 ? hudStreet : ''); if (t !== hudStreet) { hudStreet = t; elStreet.textContent = t; } }
   let lm = null, ld = Infinity;
   for (const l of D.labels) { const d = Math.hypot(l.x - car.x, l.z - car.z) / l.r; if (d < 1 && d < ld) { ld = d; lm = l.n; } }
   { const t = lm || ''; if (t !== hudLand) { hudLand = t; elLand.textContent = t; } }

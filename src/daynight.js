@@ -319,17 +319,17 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   let seaU = null, seaTries = 0;
   const DAY_SEA_H = C('#a8cbe6'), DAY_SEA_Z = C('#3d7fc4'), _seaSun = new THREE.Color();
 
-  // ---- clock element under the street name
+  // ---- the clock: a pill on the top edge of the card under the minimap (#pd-card, src/ui.css), over the map's rim
   let clockEl = null, clockShown = '';
   try {
-    const where = document.getElementById('where');
-    if (where) {
+    const card = document.getElementById('pd-card');
+    if (card) {
       const css = document.createElement('style');
-      css.textContent = '#pd-clock{margin-top:4px;font:600 12px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;opacity:.78;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.7)}' +
-        '#pd-clock i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:0;background:#ffd36a;box-shadow:0 0 6px #ffd36a}#pd-clock i.n{background:#c8d4ff;box-shadow:inset -2px -1px 0 #5a6aa0,0 0 6px #aab8ff}' +
-        'html.touch #pd-clock{font-size:11px}';
+      css.textContent = '#pd-clock{position:absolute;left:50%;top:0;transform:translate(-50%,-50%);z-index:1;display:flex;align-items:center;padding:3px 10px 3px 9px;border-radius:99px;background:#0b0709;border:1.5px solid var(--pd-pink,#e8559a);' +
+        'font:700 13px/1 var(--pd-cond,"Barlow Condensed",system-ui,sans-serif);letter-spacing:.06em;color:#fff;white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none}' +
+        '#pd-clock i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#ffd36a;box-shadow:0 0 6px #ffd36a}#pd-clock i.n{background:#c8d4ff;box-shadow:inset -2px -1px 0 #5a6aa0,0 0 6px #aab8ff}';
       document.head.appendChild(css);
-      clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; where.appendChild(clockEl);
+      clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; card.appendChild(clockEl);
     }
   } catch (e) { /* no HUD: fine */ }
   function showClock() {

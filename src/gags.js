@@ -46,7 +46,7 @@ export function createGags(env, T, police) {
   }
   function alarm(v) {
     v.alerted = true; v.flee = true; v.boost = 1.55; v.fleeUntil = time + 25;
-    T.shoutAt(v, 'Ou, i sbirri! I sbirri!');
+    T.shoutAt(v, 'Ou accura ca ci su sbirri!');
   }
 
   // ======================================================================== the team bus
