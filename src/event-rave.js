@@ -174,6 +174,7 @@ export function createRaveEvents(X, rave) {
     for (const it of e.items) if (!it.got) it.got = true; setItems();
     const sp = X.sideSpot({ x: L[0], z: L[1], dx: L[2], dz: L[3], w: L[4] }, L[4] / 2 + 1.6);
     e.contact = pedestrians.spawnScripted('nightboy2', sp.x, sp.z); if (e.contact >= 0) { pedestrians.face(e.contact, L[0], L[1]); pedestrians.setBounce?.(e.contact, true); }
+    X.guide.to(L[0], L[1]);   // the way to the pal, worked out from where the car is
     homeBeacon.set(L[0], L[1]); homeBeacon.show(true); e.homeMarker = X.addMarker(L[0], L[1], '#6bbf59', 8, 'target');
     hud.toast(T('Portali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves')); fsay('hand', 0.8);
   }

@@ -77,18 +77,19 @@ export function createFood(X) {
     return b || { x: e.slot.x, z: e.slot.z };
   }
   function startReturn() {
-    e.phase = 'return'; X.setPhase('return'); X.guide.off();
+    e.phase = 'return'; X.setPhase('return'); X.guide.off();   // the hunt had no route; the way back is set below
     for (const it of e.items) if (!it.got && it.marker) { X.dropMarker(it.marker); it.marker = null; }
     // what is left on the road is gone
     for (const it of e.items) if (!it.got) it.got = true;
     setItems(e.mesh, e.beams, e.items);
     if (e.got === 0) { say(pick(FOOD.none)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0); finish(false); return; }
+    X.guide.to(e.slot.x, e.slot.z);   // the way back to the vendor, worked out from where the car is (the hunt before it has no route)
     homeBeacon.set(e.slot.x, e.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(e.slot.x, e.slot.z, '#6bbf59', 8, 'target');
     hud.toast(T('Puaittali a ' + e.slot.who, 'Take them back to ' + e.slot.who), e.got + ' ' + iname(e.item));
   }
 
   function finish(ok) {
-    e.phase = 'done'; e.thanks = 5.5; X.setPhase('done');
+    e.phase = 'done'; e.thanks = 5.5; X.setPhase('done'); X.guide.off();
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
     if (!ok) { hud.result(`<h3>${T('Nienti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * 1.5 * 2) / 2, bonus = e.got >= e.total ? 10 : 0;

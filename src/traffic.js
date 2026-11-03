@@ -1045,11 +1045,13 @@ Object.assign(MODELS, buildPoliceModels());
     //   nodePos(n) -> [x, z]
     //   path(x0, z0, x1, z1) -> { pts: [x, z, ...], len (m), complete, nodes } | null: A* over drivable edges, one-ways respected; when the
     //     destination is not resident (or unreachable) the path ends at the reachable node closest to it and complete is false
+    //   plan(x, z, hx, hz, targets, opts), edgeFor(x, z, hx, hz, maxd, out), tileLoaded(x, z): the guidance queries of src/route-guide.js (see traffic-graph.js)
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
     debug: { vs, police, gags, carrozze, vendors, arrotini, tourPlan, TYPES, G, TOURS, shortest },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
+      plan: G.plan, edgeFor: G.edgeFor, tileLoaded: G.tileLoaded,   // route guidance (src/route-guide.js): the way on from the car to several targets, with a head start each
       ready(x, z, r = 120) { let ok = false; G.eachEdgeNear(x, z, r, e => { if (!e.ped) ok = true; }); return ok; },
       get version() { return G.version; },
       stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, plans: PLANS.length, buses: counts.bus || 0, tileMs, aliveMs: +aliveMs.toFixed(1), aliveMax: +aliveMax.toFixed(1) }; },

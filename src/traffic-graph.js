@@ -96,7 +96,7 @@ export function createGraph() {
     const dx = NX[b] - NX[a], dz = NZ[b] - NZ[a], len = hyp2(dx, dz);
     const e = {
       id: 0, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
-      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast,
+      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast, svc: !!road.svc,
       br: road.br, v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, alive: false, dead: false, seg: false, tile, q: 0,
     };
     if (round) e.v = Math.min(e.v, 6.5);
@@ -119,7 +119,7 @@ export function createGraph() {
     const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || ''), p = r.p;
     flagsOf(r, tmp);
     const o = tmp.o === undefined ? (cls.ow ? 1 : 0) : tmp.o, round = tmp.j === 'roundabout';
-    const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0 };
+    const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0, svc: r.k === 'service' };
     for (let i = 0; i + 3 < p.length; i += 2) {
       const dxx = p[i + 2] - p[i], dzz = p[i + 3] - p[i + 1];
       if (dxx * dxx + dzz * dzz < 0.25) continue;
@@ -272,6 +272,98 @@ export function createGraph() {
     pts.push(NX[s], NZ[s]);
     for (let k = rev.length - 1; k >= 0; k--) pts.push(NX[rev[k]], NZ[rev[k]]);
     return { pts, len, complete: found, nodes: rev.length + 1 };
+  };
+
+  // ---------- guidance: where the car is on the road graph, and the best way on from there (src/route-guide.js) ----------
+  G.tileLoaded = (x, z) => { const t = G.tiles.get(Math.floor(x / TS) + '_' + Math.floor(z / TS)); return !!(t && t.done); };
+
+  // The directed edge a car at (x, z) heading (hx, hz) is driving along: near, and pointing the way it points, so on a dual carriageway
+  // it is the carriageway the car is on, not the nearest centreline of the other one. Pedestrian streets are not roads (Via Maqueda
+  // and the like, which taxis use, are). Fills `out` { e, t (metres along the edge), d (metres off it) }; false when none is within maxd.
+  const EF = { best: 1e9, e: null, t: 0, d: 0 };
+  G.edgeFor = function (x, z, hx, hz, maxd, out) {
+    EF.best = 1e9; EF.e = null;
+    G.eachEdgeNear(x, z, maxd, e => {
+      if (e.ped && !e.transit) return;
+      const ax = NX[e.a], az = NZ[e.a], t = Math.max(0, Math.min(e.len, (x - ax) * e.dx + (z - az) * e.dz));
+      const d = hyp2(x - ax - e.dx * t, z - az - e.dz * t); if (d > maxd) return;
+      const sc = d + 16 * (1 - (e.dx * hx + e.dz * hz));
+      if (sc < EF.best) { EF.best = sc; EF.e = e; EF.t = t; EF.d = d; }
+    });
+    if (!EF.e) return false;
+    out.e = EF.e; out.t = EF.t; out.d = EF.d; return true;
+  };
+
+  // plan(x, z, hx, hz, tg, o): the quickest way from a car at (x, z) heading (hx, hz) to any of several targets, each with a head start:
+  // tg is flat [tx, tz, cost, ...] where cost (seconds) is what remains to be driven once the target is reached (0 for a destination, the
+  // rest of a baked route for a point on it), so the winner has the lowest driving time to it plus what follows it. One search, run from
+  // the targets back to the car (edges taken in reverse), A* with the straight-line time to the car as the guess. The car goes on along its
+  // own edge; turning back costs UTURN seconds and is only possible on a two-way street. One-ways are respected, pedestrian streets are not
+  // used, service roads cost more. Bounded to o.max node expansions (12000 by default; measured about 0.8 ms per thousand, and the resident graph of 4 tiles has about 1400 nodes).
+  // Returns o { pts: [x, z, ...] from the car to the winning target's node, ti (index in tg / 3), cost, len, expanded, why } or null (o.why:
+  // 'noroad' none within 35 m of the car, 'notarget' none near a road, 'noway' no way through, 'cap' the bound was hit).
+  let sg = new Float32Array(0), sn = new Int32Array(0), ss = new Uint32Array(0), sT = new Int32Array(0), sc = new Uint32Array(0), stamp = 0;
+  const hI = [], hF = [], SE = { e: null, t: 0, d: 0 }, PLAN = { pts: null, ti: -1, cost: 0, len: 0, expanded: 0, why: '' };
+  const SVC = 2.5, UTURN = 12, SEED_MAX = 16, NN = new Int32Array(SEED_MAX), NND = new Float32Array(SEED_MAX);
+  function nodesNear(x, z, r, kmax) {   // the kmax drivable nodes nearest to (x, z) within r into NN (ids) and NND (metres), nearest first; how many
+    let m = 0;
+    for (let ix = Math.floor((x - r) / NCELL); ix <= Math.floor((x + r) / NCELL); ix++) for (let iz = Math.floor((z - r) / NCELL); iz <= Math.floor((z + r) / NCELL); iz++) {
+      const a = ngrid.get(nck(ix, iz)); if (!a) continue;
+      for (let n = 0; n < a.length; n++) {
+        const i = a[n], d = hyp2(NX[i] - x, NZ[i] - z); if (d > r || (m === kmax && d >= NND[m - 1])) continue;
+        let ok = false; const o = NOUT[i], q = NIN[i]; for (let k = 0; k < o.length && !ok; k++) ok = !o[k].ped; for (let k = 0; k < q.length && !ok; k++) ok = !q[k].ped; if (!ok) continue;
+        let j = m < kmax ? m++ : m - 1; while (j > 0 && NND[j - 1] > d) { NN[j] = NN[j - 1]; NND[j] = NND[j - 1]; j--; }
+        NN[j] = i; NND[j] = d;
+      }
+    }
+    return m;
+  }
+  G.plan = function (x, z, hx, hz, tg, o) {
+    const res = o || PLAN, max = res.max || 12000, seedR = res.seedR || 40, seedN = Math.min(SEED_MAX, res.seeds || 4); res.why = ''; res.expanded = 0;
+    if (!G.edgeFor(x, z, hx, hz, 35, SE)) { res.why = 'noroad'; return null; }
+    if (sg.length < NX.length) { const m = Math.max(NX.length + 256, sg.length * 2); sg = new Float32Array(m); sn = new Int32Array(m); ss = new Uint32Array(m); sT = new Int32Array(m); sc = new Uint32Array(m); }
+    stamp++;
+    hI.length = hF.length = 0;
+    const push = (i, f) => { let c = hI.length; hI.push(i); hF.push(f); while (c > 0) { const p = (c - 1) >> 1; if (hF[p] <= hF[c]) break; const ti = hI[p], tf = hF[p]; hI[p] = hI[c]; hF[p] = hF[c]; hI[c] = ti; hF[c] = tf; c = p; } };
+    const pop = () => {
+      const top = hI[0], li = hI.pop(), lf = hF.pop();
+      if (hI.length) { hI[0] = li; hF[0] = lf; let c = 0; for (;;) { const l = c * 2 + 1, r = l + 1; let m = c; if (l < hI.length && hF[l] < hF[m]) m = l; if (r < hI.length && hF[r] < hF[m]) m = r; if (m === c) break; const ti = hI[m], tf = hF[m]; hI[m] = hI[c]; hF[m] = hF[c]; hI[c] = ti; hF[c] = tf; c = m; } }
+      return top;
+    };
+    const h = i => hyp2(NX[i] - x, NZ[i] - z) / 22;
+    let seeded = 0;
+    for (let k = 0; k + 2 < tg.length; k += 3) {   // each target starts the search from the o.seeds (4) drivable nodes nearest to it within o.seedR (40 m): the very nearest can be a spur nobody can leave, or on the far side of a tile that is not here
+      const m = nodesNear(tg[k], tg[k + 1], seedR, seedN);
+      for (let q = 0; q < m; q++) {
+        const n = NN[q], c0 = tg[k + 2] + NND[q] / 8;
+        if (ss[n] === stamp && sg[n] <= c0) continue;
+        ss[n] = stamp; sg[n] = c0; sn[n] = -1; sT[n] = k / 3; seeded++; push(n, c0 + h(n));
+      }
+    }
+    if (!seeded) { res.why = 'notarget'; return null; }
+    const e0 = SE.e, v0 = Math.max(2, e0.v), nb = e0.b, na = e0.rev >= 0 ? e0.a : -1;
+    const offB = (e0.len - SE.t) / v0, offA = SE.t / v0 + UTURN;
+    let best = 1e9, start = -1, expanded = 0;
+    while (hI.length && expanded < max) {
+      const f = hF[0], i = pop();
+      if (f >= best) break;
+      if (sc[i] === stamp) continue;
+      sc[i] = stamp; expanded++;
+      if (i === nb || i === na) { const tot = sg[i] + (i === nb ? offB : offA); if (tot < best) { best = tot; start = i; } }
+      const ins = NIN[i], gi = sg[i];
+      for (let k = 0; k < ins.length; k++) {
+        const e = ins[k]; if (e.ped && !e.transit) continue;
+        const a = e.a; if (sc[a] === stamp) continue;
+        const c = gi + e.len / Math.max(2, e.v) * (e.svc ? SVC : 1);
+        if (ss[a] !== stamp || c < sg[a]) { ss[a] = stamp; sg[a] = c; sn[a] = e.id; push(a, c + h(a)); }
+      }
+    }
+    res.expanded = expanded;
+    if (start < 0) { res.why = expanded >= max ? 'cap' : 'noway'; return null; }
+    const pts = [x, z, NX[start], NZ[start]]; let n = start, len = hyp2(NX[start] - x, NZ[start] - z);
+    for (let g = 0; sn[n] >= 0 && g < 4000; g++) { const e = EDGES[sn[n]]; n = e.b; pts.push(NX[n], NZ[n]); len += e.len; }
+    res.pts = pts; res.ti = sT[n]; res.cost = best; res.len = len;
+    return res;
   };
   return G;
 }

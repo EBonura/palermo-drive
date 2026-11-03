@@ -35,6 +35,7 @@ import { createHornsEvents } from './event-horns.js';
 import { createAchievements } from './achievements.js';
 import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
+import { createGuide, GUIDE } from './route-guide.js';
 import { transition } from './transition.js';
 
 const TAU = Math.PI * 2;
@@ -199,27 +200,10 @@ function build(env) {
   }
 
   // ------------------------------------------------------------------------------------ guidance
-  // A route is a baked polyline (src/event-routes.js) of flat x,z. The big arrow over the lapa points ~32 m ahead along it, so it turns with the
-  // streets, and the minimap draws it (mapRoute). Without a route the arrow points straight at the target.
-  const route = { pts: null, cum: null, len: 0, cursor: 0, s0: 0 };
-  function setRoute(pts) {
-    route.pts = pts; route.cum = [0];
-    for (let i = 2; i < pts.length; i += 2) route.cum.push(route.cum[route.cum.length - 1] + Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]));
-    route.len = route.cum[route.cum.length - 1]; route.cursor = 0; route.s0 = 0;
-    mapRoute.length = 0;
-    for (let i = 0; i < pts.length; i += 2) mapRoute.push([pts[i], pts[i + 1]]);
-  }
-  function clearRoute() { route.pts = null; mapRoute.length = 0; }
-  const _p = { x: 0, z: 0 };
-  function routeAt(s) {   // position at arc length s along the route
-    const c = route.cum, pts = route.pts; let i = clamp(route.cursor, 0, c.length - 2);
-    while (i > 0 && c[i] > s) i--;
-    while (i < c.length - 2 && c[i + 1] < s) i++;
-    const seg = c[i + 1] - c[i] || 1, u = clamp((s - c[i]) / seg, 0, 1);
-    _p.x = pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * u; _p.z = pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * u;
-    return _p;
-  }
-  const guide = { path: setRoute, off: clearRoute };
+  // The route (a baked polyline from src/event-routes.js, or one worked out from the car's place, guide.to) is followed and, when the car
+  // strays, recalculated by src/route-guide.js. The big arrow over the lapa points GUIDE.AHEAD m ahead along it, so it turns with the streets,
+  // and the minimap draws the part still to drive (mapRoute). Without a route the arrow points straight at the target.
+  const guide = createGuide({ car, mapRoute, graph: () => traffic && traffic.graph });
   const aim = { on: false, x: 0, z: 0 };
 
   // 3D guide arrow hovering over the lapa. It points along the computed route ~32 m ahead (so it turns
@@ -249,10 +233,10 @@ function build(env) {
     if (!show) return;
     arrowT += dt;
     let ax = tx, az = tz;
-    if (route.pts && route.len > 0) { const p = routeAt(Math.min(route.len, route.s0 + 32)); ax = p.x; az = p.z; }
+    const rp = guide.ahead(GUIDE.AHEAD); if (rp) { ax = rp.x; az = rp.z; }
     const want = Math.atan2(ax - car.x, az - car.z);
     let d = want - arrowYaw; d = Math.atan2(Math.sin(d), Math.cos(d));
-    arrowYaw += d * Math.min(1, dt * 8);
+    arrowYaw += clamp(d * Math.min(1, dt * 6), -dt * 5, dt * 5);   // eased, and never faster than 5 rad/s: a new route turns the arrow round, it does not whip it
     arrow3d.position.set(car.x, groundY(car.x, car.z) + (car.lift || 0) + 3.1 + Math.sin(arrowT * 3) * 0.1, car.z);
     // Face the camera (y axis = towards the eye) and turn the chevron within that plane towards the route
     // heading projected onto it: straight on points up, a left turn points left, behind points down.
@@ -266,24 +250,6 @@ function build(env) {
     _am.makeBasis(_ax, _an, _ad);
     arrow3d.quaternion.setFromRotationMatrix(_am).multiply(_arrowTilt); // small roll shows the extruded thickness
   }
-  // progress along the route: a window around the cursor, the whole line when the lapa has been moved
-  function updateGuide() {
-    if (!route.pts) return;
-    const pts = route.pts, c = route.cum, n = c.length - 1;
-    const scan = (i0, i1) => {
-      let bd = Infinity, bs = route.s0;
-      for (let i = i0; i < i1; i++) {
-        const ax = pts[i * 2], az = pts[i * 2 + 1], dx = pts[i * 2 + 2] - ax, dz = pts[i * 2 + 3] - az, l2 = dx * dx + dz * dz;
-        const u = l2 ? clamp(((car.x - ax) * dx + (car.z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(car.x - ax - dx * u, car.z - az - dz * u);
-        if (d < bd) { bd = d; bs = c[i] + u * Math.sqrt(l2); route.cursor = i; }
-      }
-      return [bd, bs];
-    };
-    let [bd, bs] = scan(Math.max(0, route.cursor - 6), Math.min(n, route.cursor + 40));
-    if (bd > 60) [bd, bs] = scan(0, n);
-    route.s0 = bs;
-  }
-
   // ------------------------------------------------------------------------------------ minimap markers
   const addMarker = (x, z, color, size, shape) => { const m = { x, z, color, size, shape }; mapMarkers.push(m); return m; };
   const dropMarker = m => { if (!m) return; const i = mapMarkers.indexOf(m); if (i >= 0) mapMarkers.splice(i, 1); };
@@ -713,7 +679,7 @@ function build(env) {
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
-    updateGuide();
+    guide.update(dt);
     updateArrow3d(dt, aim.on && S.phase !== 'board' && S.phase !== 'finish' && S.phase !== 'done', aim.x, aim.z);
   }
 

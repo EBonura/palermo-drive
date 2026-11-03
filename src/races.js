@@ -247,7 +247,7 @@ export function createRaces(X) {
     for (let k = 1; k <= per * R.laps; k++) R.cps.push(k * (total / (per * R.laps)));
     X.setPhase('race');
     X.calls.hideBeacon(); if (startRing) startRing.show(false);
-    { const tp = X.TRACKS[def.id].pts; let gp = tp.slice(); for (let l = 1; l < R.laps; l++) gp = gp.concat(tp.slice(2)); X.guide.path(gp); }   // the guide arrow and the minimap follow the racing line
+    { const tp = X.TRACKS[def.id].pts; let gp = tp.slice(); for (let l = 1; l < R.laps; l++) gp = gp.concat(tp.slice(2)); X.guide.path(gp, { fixed: true }); }   // the guide arrow and the minimap follow the racing line
     if (R.sulky) { vehicle.lockSwap(true); vehicle.preview({ type: 'sulky', livery: pick(['baio', 'sauro', 'morello', 'grigio']), parts: {} }); }
     vehicle.holdSim(true);
     const k0 = Math.floor(Math.random() * (def.opp.length + 1)), g0 = gridSlot(k0, trk);
