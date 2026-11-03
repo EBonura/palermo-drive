@@ -22,7 +22,8 @@
 //   STATE [2][seq u8][state 11 bytes]                 position 5 bytes, heading u8, speed i8, steer i8, roll i8, lean i8, flags u8
 import { createRemotes } from '../remotes.js';
 import { strategies, selfId } from './trystero.js';
-import { PHRASES } from './phrases.js';
+import { PHRASES, CATEGORIES } from './phrases.js';
+import { createWheel } from './wheel.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 
 const APP_ID = 'palermo-drive-p2p-exp-1';
@@ -222,21 +223,40 @@ export function createP2P(env) {
     for (const [k, list] of byRoom) { stats.txMsgs += list.length; stats.txBytes += 2 * list.length; rooms.get(k).say.send(b, { target: list }).catch(() => {}); }
     return true;
   }
-  // a small button and list of the phrases (debug-grade UI for the experiment; text set with textContent)
+  // the talk wheel (src/p2p/wheel.js): the 💬 button or the T key opens it; categories first, then the phrases of one. The wheel is built from the
+  // fixed lists in src/p2p/phrases.js, so what it can send is exactly what the receiver accepts.
   const chat = document.createElement('div');
   chat.style.cssText = 'position:fixed;z-index:31;left:8px;top:64px;font:600 14px system-ui,sans-serif;color:#fff';
-  const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬';
+  const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬'; chatBtn.title = 'T';
   chatBtn.style.cssText = 'width:44px;height:44px;border-radius:99px;border:2px solid #e8559a;background:rgba(13,7,9,.8);color:#fff;font-size:20px;cursor:pointer';
-  const chatList = document.createElement('div'); chatList.style.cssText = 'display:none;margin-top:6px;padding:6px;border-radius:12px;background:rgba(13,7,9,.92);border:2px solid #e8559a;max-height:60vh;overflow:auto';
-  PHRASES.forEach((s, i) => {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = s;
-    b.style.cssText = 'display:block;width:100%;text-align:left;min-height:40px;margin:2px 0;padding:6px 12px;border-radius:9px;border:1.5px solid #5a4a50;background:transparent;color:#fff;font:inherit;cursor:pointer';
-    b.addEventListener('click', () => { if (say(i)) { chatList.style.display = 'none'; } });
-    chatList.appendChild(b);
+  const wheelLang = () => lang() === 'en' ? 'en' : 'it';
+  const wheel = createWheel({
+    categories: [],   // filled by buildWheel (the language and the offers are read when it opens)
+    backLabel: () => wheelLang() === 'en' ? 'back' : 'indietro', closeLabel: () => wheelLang() === 'en' ? 'close' : 'chiudi',
+    onClose: () => { chatBtn.blur(); },
   });
-  chatBtn.addEventListener('click', () => { chatList.style.display = chatList.style.display === 'none' ? 'block' : 'none'; });
+  const KIND_NAME = { it: ['Offri un cicchetto', 'Offri una birra'], en: ['Offer a cicchetto', 'Offer a beer'] };
+  function buildWheel() {
+    const l = wheelLang();
+    return CATEGORIES.map(c => ({
+      label: c[l], icon: c.icon,
+      items: [...c.phrases.map(i => ({ label: PHRASES[i], onPick: () => say(i) })), ...(c.drinks || []).map(k => ({ label: KIND_NAME[l][k], tag: '€' + DRINK_PRICE, onPick: () => offer(k) }))],
+    }));
+  }
+  function openWheel() { wheel.setCategories(buildWheel()); wheel.open(); }
+  chatBtn.addEventListener('click', () => { chatBtn.blur(); if (wheel.isOpen) wheel.close(); else openWheel(); });
+  // T opens and closes it, 1 to 8 pick, Escape closes: in the capture phase, ahead of the game's own handler (src/ui.js adds its listener later)
+  addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const typing = e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+    if (typing || nameCard) return;
+    if (e.code === 'KeyT' && named && game.state === 'play') { e.preventDefault(); e.stopImmediatePropagation(); if (wheel.isOpen) wheel.close(); else openWheel(); return; }
+    if (!wheel.isOpen) return;
+    if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Escape') wheel.close(); else wheel.back(); }
+    else if (/^(Digit|Numpad)[1-8]$/.test(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); wheel.pick(+e.code.slice(-1) - 1); }
+  }, true);
   chat.addEventListener('click', e => { if (e.target instanceof HTMLElement) e.target.blur(); });   // so that the arrow keys go on driving
-  chat.append(chatBtn, chatList); document.body.appendChild(chat);
+  chat.append(chatBtn); document.body.appendChild(chat);
 
   // ---------- a drink for somebody close by ----------
   // Giver: picks cicchetto or birra, the nearest visible player within OFFER_R gets an OFFER and a card with Accetta / Nun mi va. On ACCEPT the
@@ -345,6 +365,7 @@ export function createP2P(env) {
   function update(dt) {
     const now = performance.now();
     chat.style.display = offerBox.style.display = nameBtn.style.display = game.state === 'play' ? '' : 'none';
+    if (game.state !== 'play' && wheel.isOpen) wheel.close();
     if (incoming && now > incoming.until) { incoming = null; closeCard(); }
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!named) setTimeout(openName, 800); }
     if (!named) { rm.update(dt, now); return; }

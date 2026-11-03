@@ -31,3 +31,14 @@ export const PHRASES = [
   'a birra l’offru iu',
   'canziati',
 ];
+
+// The wheel (src/p2p/wheel.js) sorts the phrases into categories. Indexes into PHRASES, so a spelling change above cannot break it; every phrase is in
+// exactly one category (tools/p2p/phrases-check.mjs). The category names and the grouping are a first guess for the owner to rearrange.
+// `drinks` are the two real offers (cicchetto, birra), listed with the toasts in the same category.
+export const CATEGORIES = [
+  { id: 'saluti', icon: '👋', it: 'Saluti', en: 'Hellos', phrases: [1, 3, 7, 8, 9, 6, 12, 13] },
+  { id: 'complimenti', icon: '😍', it: 'Complimenti', en: 'Compliments', phrases: [20, 22, 23, 21, 11, 14] },
+  { id: 'brindisi', icon: '🍻', it: 'Brindisi e da bere', en: 'Toasts and drinks', phrases: [5, 27, 24, 25, 26], drinks: [0, 1] },
+  { id: 'strada', icon: '🚗', it: 'In strada', en: 'On the road', phrases: [16, 17, 10, 15, 18, 4] },
+  { id: 'sfotto', icon: '😈', it: 'Sfottò', en: 'Banter', phrases: [0, 2, 19, 28] },
+];
