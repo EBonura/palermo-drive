@@ -100,30 +100,32 @@ export const TAXI_DESTS = [
 ];
 
 // kind: tourist (hungry tourists, centro, destinations from DESTS), taxi (a normal ride to any TAXI_DESTS place), pulle (Viale Diana, by day and by night)
+// title: the mission's name in the Missioni list, the poster, the map popup and the mission line (the same in both languages, a proper name); `name` stays the place, for start points and "go to" text.
+// ped (optional): the sprite of whoever hails the lapa here, so that the story fits the look. Passenger lines per fare id: STORIES in assets/missions/lines.js.
 export const FARE_SPOTS = [
-  { id: 'qc', kind: 'tourist', name: 'Quattro Canti', lat: 38.115684, lon: 13.36146, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'tm', kind: 'tourist', name: 'Teatro Massimo', lat: 38.1199, lon: 13.3573, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'cat', kind: 'tourist', name: 'Cattedrale', lat: 38.1146, lon: 13.3558, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'pn', kind: 'tourist', name: 'Palazzo dei Normanni', lat: 38.1112, lon: 13.354, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'pp', kind: 'tourist', name: 'Piazza Pretoria', lat: 38.1151, lon: 13.3622, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'cala', kind: 'tourist', name: 'La Cala', lat: 38.1203, lon: 13.3676, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'stz', kind: 'tourist', name: 'Stazione Centrale', lat: 38.1092, lon: 13.3655, src: 'assets/missions/lines.js PICKUPS' },
-  { id: 'tx-poli', kind: 'taxi', name: 'Politeama', lat: 38.1247846, lon: 13.3559943, src: 'src/main.js SPOTS' },
-  { id: 'tx-notar', kind: 'taxi', name: 'Stazione Notarbartolo', lat: 38.1315626, lon: 13.3408256, src: 'src/main.js SPOTS' },
-  { id: 'tx-lib', kind: 'taxi', name: 'Via della Libertà', lat: 38.1387821, lon: 13.3465045, src: 'src/main.js SPOTS' },
-  { id: 'tx-fiera', kind: 'taxi', name: 'Fiera del Mediterraneo', lat: 38.1445037, lon: 13.356549, src: 'src/main.js SPOTS' },
-  { id: 'tx-mondello', kind: 'taxi', name: 'Mondello', lat: 38.2077898, lon: 13.3266288, src: 'src/main.js SPOTS' },
-  { id: 'tx-borgo', kind: 'taxi', name: 'Borgo Nuovo', lat: 38.129106, lon: 13.294677, src: 'QUARTIERI in src/main.js' },
-  { id: 'tx-brancaccio', kind: 'taxi', name: 'Brancaccio', lat: 38.095578, lon: 13.383682, src: 'QUARTIERI in src/main.js' },
-  { id: 'tx-giardino', kind: 'taxi', name: 'Via Libertà (Giardino Inglese)', lat: 38.1312509, lon: 13.3522947, src: 'src/main.js SPOTS' },
-  { id: 'tx-calatafimi', kind: 'taxi', name: 'Corso Calatafimi', lat: 38.1075791, lon: 13.3426146, src: 'src/main.js SPOTS (La Cuba, Corso Calatafimi)' },
-  { id: 'tx-resuttana', kind: 'taxi', name: 'Resuttana', lat: 38.154198, lon: 13.333469, src: 'QUARTIERI in src/main.js' },
-  { id: 'pulle-marina', kind: 'pulle', name: 'Piazza Marina', lat: 38.1177752, lon: 13.3686382, src: 'src/main.js SPOTS' },
-  { id: 'pulle-lib', kind: 'pulle', name: 'Via della Libertà', lat: 38.1340, lon: 13.3485, src: 'on Via della Libertà, a bit south of the Giardino Inglese' },
-  { id: 'pulle-stz', kind: 'pulle', name: 'Stazione Centrale', lat: 38.1092, lon: 13.3655, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'qc', kind: 'tourist', title: 'Quattru Canti, zeru idee', name: 'Quattro Canti', lat: 38.115684, lon: 13.36146, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'tm', kind: 'tourist', title: 'Tri uri ri Verdi', name: 'Teatro Massimo', lat: 38.1199, lon: 13.3573, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'cat', kind: 'tourist', title: 'Prima a Cattedrali, poi a meusa', name: 'Cattedrale', lat: 38.1146, lon: 13.3558, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'pn', kind: 'tourist', title: 'U rre avi fami', name: 'Palazzo dei Normanni', lat: 38.1112, lon: 13.354, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'pp', kind: 'tourist', title: 'A Funtana ra Virgogna', name: 'Piazza Pretoria', lat: 38.1151, lon: 13.3622, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'cala', kind: 'tourist', title: 'Scinneru râ barca', name: 'La Cala', lat: 38.1203, lon: 13.3676, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'stz', kind: 'tourist', title: 'Arancina o arancinu?', name: 'Stazione Centrale', lat: 38.1092, lon: 13.3655, src: 'assets/missions/lines.js PICKUPS' },
+  { id: 'tx-poli', kind: 'taxi', title: 'U spettaculu accumincia', name: 'Politeama', lat: 38.1247846, lon: 13.3559943, src: 'src/main.js SPOTS' },
+  { id: 'tx-notar', kind: 'taxi', title: 'U trenu un aspetta', name: 'Stazione Notarbartolo', lat: 38.1315626, lon: 13.3408256, src: 'src/main.js SPOTS' },
+  { id: 'tx-lib', kind: 'taxi', title: 'Trenta buorsi', ped: 'shopper', name: 'Via della Libertà', lat: 38.1387821, lon: 13.3465045, src: 'src/main.js SPOTS' },
+  { id: 'tx-fiera', kind: 'taxi', title: 'Un ci u rissiru', name: 'Fiera del Mediterraneo', lat: 38.1445037, lon: 13.356549, src: 'src/main.js SPOTS' },
+  { id: 'tx-mondello', kind: 'taxi', title: 'U custumi sutta a giacca', ped: 'suit', name: 'Mondello', lat: 38.2077898, lon: 13.3266288, src: 'src/main.js SPOTS' },
+  { id: 'tx-borgo', kind: 'taxi', title: 'A nanna ca fici a spisa', ped: 'signora', name: 'Borgo Nuovo', lat: 38.129106, lon: 13.294677, src: 'QUARTIERI in src/main.js' },
+  { id: 'tx-brancaccio', kind: 'taxi', title: 'U cucinu ra festa', name: 'Brancaccio', lat: 38.095578, lon: 13.383682, src: 'QUARTIERI in src/main.js' },
+  { id: 'tx-giardino', kind: 'taxi', title: 'U cani ci scappò', name: 'Via Libertà (Giardino Inglese)', lat: 38.1312509, lon: 13.3522947, src: 'src/main.js SPOTS' },
+  { id: 'tx-calatafimi', kind: 'taxi', title: 'U semaforu ca un cancia', name: 'Corso Calatafimi', lat: 38.1075791, lon: 13.3426146, src: 'src/main.js SPOTS (La Cuba, Corso Calatafimi)' },
+  { id: 'tx-resuttana', kind: 'taxi', title: 'U studenti un si susiu', ped: 'teen', name: 'Resuttana', lat: 38.154198, lon: 13.333469, src: 'QUARTIERI in src/main.js' },
+  { id: 'pulle-marina', kind: 'pulle', title: 'Vabbè u sai', name: 'Piazza Marina', lat: 38.1177752, lon: 13.3686382, src: 'src/main.js SPOTS' },
+  { id: 'pulle-lib', kind: 'pulle', title: 'Vabbè u sai, n\'avutra vota', name: 'Via della Libertà', lat: 38.1340, lon: 13.3485, src: 'on Via della Libertà, a bit south of the Giardino Inglese' },
+  { id: 'pulle-stz', kind: 'pulle', title: 'Vabbè u sai, ma di cursa', name: 'Stazione Centrale', lat: 38.1092, lon: 13.3655, src: 'assets/missions/lines.js PICKUPS' },
   // night clients like the one of A Favorita (src/event-fares.js, assets/missions/lines.js NIGHT_CLIENTS): they wait in the evening and ask for a discreet street; `dest` is the road they want
-  { id: 'nc-lincoln', kind: 'nightc', nc: 'lincoln', name: 'Piazza Politeama', lat: 38.1283, lon: 13.3570, dest: { id: 'lincoln', name: 'Via Lincoln', lat: 38.1139815, lon: 13.3736383, onStreet: 'Lincoln', src: 'Nominatim: Via Abramo Lincoln, Kalsa, Palermo' }, src: 'Politeama, the old A Favorita district of taxis' },
-  { id: 'nc-bandiera', kind: 'nightc', nc: 'bandiera', name: 'Via della Libertà (Giardino Inglese)', lat: 38.1312509, lon: 13.3522947, dest: { id: 'bandiera', name: 'Via Bandiera', lat: 38.1185029, lon: 13.3611735, onStreet: 'Via Bandiera', ped: '^Via Bandiera$', src: 'Nominatim: Via Bandiera, I Circoscrizione, Palermo (a pedestrian way in the tiles, so the baker adds it to the network for this route)' }, src: 'src/main.js SPOTS' },
+  { id: 'nc-lincoln', kind: 'nightc', title: 'Affari a via Lincoln', nc: 'lincoln', name: 'Piazza Politeama', lat: 38.1283, lon: 13.3570, dest: { id: 'lincoln', name: 'Via Lincoln', lat: 38.1139815, lon: 13.3736383, onStreet: 'Lincoln', src: 'Nominatim: Via Abramo Lincoln, Kalsa, Palermo' }, src: 'Politeama, the old A Favorita district of taxis' },
+  { id: 'nc-bandiera', kind: 'nightc', title: 'Nicoletta a Trimmutura', nc: 'bandiera', name: 'Via della Libertà (Giardino Inglese)', lat: 38.1312509, lon: 13.3522947, dest: { id: 'bandiera', name: 'Via Bandiera', lat: 38.1185029, lon: 13.3611735, onStreet: 'Via Bandiera', ped: '^Via Bandiera$', src: 'Nominatim: Via Bandiera, I Circoscrizione, Palermo (a pedestrian way in the tiles, so the baker adds it to the network for this route)' }, src: 'src/main.js SPOTS' },
   // "U cuinnutu" (docs/cuinnutu.md), day or night (`day`): a nervous man in Piazza Sferracavallo wants the Hotel Eufemia in Isola delle Femmine. The hotel has no name in OpenStreetMap; its place is the
   // building=hotel footprint w1211538241 (an unnamed hotel, with its car park, 3 minutes' walk from the railway station), 20 m from the Kayak page of the Hotel Eufemia (38.19337, 13.25114).
   // The road is Via Nazionale (SS113), the building stands 35 m back from it behind a car park; src/lmc-eufemia.js puts the sign on it.

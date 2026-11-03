@@ -974,11 +974,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
           const when = r.night ? ['mNight', ICON_MOON] : r.day ? ['mDay', ICON_SUN] : ['mAny', ICON_ANY], off = r.night ? !nightNow() : r.day ? nightNow() : false;
           const state = r.done ? `<span class="ok">${ICON_TICK}${S.mDoneRow[i]}</span>${r.best ? `<span>${S.mBest[i]} ${eur(r.best)}</span>` : ''}` : r.tried ? `<span>${S.mTried[i]}</span>` : `<span>${S.mTodo[i]}</span>`;
           return `<div class="pd-msrow${r.done ? ' done' : ''}${run === r.id ? ' run' : ''}"><div class="pd-msinfo" style="--k:${MCOL[r.kind] || 'var(--pd-pink)'}"><div class="pd-msmain">
-              <div class="pd-msn">${esc(r.name)}</div>
-              <div class="pd-msm"><span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
+              <div class="pd-msn">${esc(r.title || r.name)}</div>
+              <div class="pd-msm">${r.title && r.name !== r.q ? `<span>${esc(r.name)}</span>` : ''}<span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
               <div class="pd-msm">${state}</div>
               ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
-            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + r.name)}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button></div>`;
+            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button></div>`;
         }).join('') : '');
     }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
     closeAsk(true);
@@ -998,7 +998,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1, msg = k => `<div class="pd-msq"><span class="pd-l1">${esc(S[k][i])}</span></div>`;
     const btn = (a, k, cls = '') => `<button class="pd-btn sm ${cls}" data-nav data-ask="${a}" type="button"><span class="pd-in"><span class="pd-l1">${esc(S[k][i])}</span></span></button>`;
     askFor = { e, hour: skip ? (want ? NIGHT_HOUR : DAY_HOUR) : undefined };
-    msAsk.innerHTML = `<div class="pd-msinfo" style="--k:${MCOL[e.kind] || 'var(--pd-pink)'}"><div class="pd-msmain"><div class="pd-msn">${esc(e.name)}</div><div class="pd-msm"><span>${esc(e.q)}</span></div></div></div>`
+    msAsk.innerHTML = `<div class="pd-msinfo" style="--k:${MCOL[e.kind] || 'var(--pd-pink)'}"><div class="pd-msmain"><div class="pd-msn">${esc(e.title || e.name)}</div><div class="pd-msm"><span>${esc(e.q)}</span></div></div></div>`
       + (skip ? msg(want ? 'mOnlyNight' : 'mOnlyDay') : '') + (drop ? msg('quitBusy') : '')
       + (skip ? btn('skip', want ? 'mSkipNight' : 'mSkipDay', 'drive') + btn('asis', 'mGoAnyway') : btn('asis', 'mGo', 'drive')) + btn('cancel', 'back');
     msCard.classList.add('asking');
@@ -1028,7 +1028,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1, wrong = (e.night ? true : e.day ? false : null) === !nightNow(), car = vehicle.car;
     const desc = missions?.describe?.(e.id), go = wrong ? S[e.night ? 'mSkipNight' : 'mSkipDay'] : S.mStart;
     askEl.innerHTML = `<div class="sea-card pd-mc"><p class="sea-sub pd-mc-k">${esc(S.mKick[i])} \u00b7 ${esc(nearestQ(e.x, e.z))}</p>
-      <h2 class="pd-mc-h${e.name.length > 24 ? ' long' : ''}">${esc(e.name)}</h2>${desc ? `<p class="sea-it pd-mc-d">${esc(desc[i])}</p>` : ''}${wrong ? `<p class="pd-mc-w">${esc(S[e.night ? 'mOnlyNight' : 'mOnlyDay'][i])}</p>` : ''}
+      <h2 class="pd-mc-h${(e.title || e.name).length > 24 ? ' long' : ''}">${esc(e.title || e.name)}</h2>${desc ? `<p class="sea-it pd-mc-d">${esc(desc[i])}</p>` : ''}${wrong ? `<p class="pd-mc-w">${esc(S[e.night ? 'mOnlyNight' : 'mOnlyDay'][i])}</p>` : ''}
       <div class="sea-btns"><button type="button" class="sea-btn main" data-a="go"><span>${esc(go[i])}</span></button><button type="button" class="sea-btn" data-a="stay"><span>${esc(S.mNotNow[i])}</span></button></div></div>`;
     arrived = { e, hour: wrong ? (e.night ? NIGHT_HOUR : DAY_HOUR) : undefined, x: car.x, z: car.z };
     vehicle.holdSim?.(true);

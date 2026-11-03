@@ -688,6 +688,156 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.  
   _We are here, pal. Say hello to... nobody. But the meter talks._
 
+### cuinnutu client: flag
+
+- Lapista! Runami un passaggiu, amunì! Sugnu calmissimu, eh!  
+  _Driver! Give me a lift, come on! I am very calm, eh!_
+- Ehi, tu! Fermati, ca haiu pressa... ma sugnu calmu!  
+  _Hey, you! Stop, I am in a hurry... but I am calm!_
+- Lapista! Ccà! Nenti ri gravi, mi ci vo sulu un passaggiu!  
+  _Driver! Here! Nothing serious, I only need a lift!_
+
+### cuinnutu client: board
+
+- Bongiornu. Sugnu calmu. Calmissimu. Talìa, un mi trema mancu a manu.  
+  _Good day. I am calm. Very calm. Look, my hand is not even shaking._
+- Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nenti.  
+  _Do not worry, I am calm. Talk if you like, I hear nothing._
+
+### cuinnutu client: ask
+
+- Mi puaitti all’Hotel Eufemia, all’Isula ri Fìmmini. Cucì, basta.  
+  _Take me to the Hotel Eufemia, in Isola delle Femmine. That is it._
+- Hotel Eufemia, all’Isula ri Fìmmini. Nenti ri chiù, nenti ri menu. Cucì.  
+  _Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it._
+- Amunì all’Hotel Eufemia. Un ti spiegu nenti, tantu sugnu calmu.  
+  _Let us go to the Hotel Eufemia. I will not explain, I am calm anyway._
+
+### cuinnutu client: ambient
+
+- Un mumentu, talìu u cillulari... nenti. Megghiu accussì.  
+  _One moment, I check the phone... nothing. Better that way._
+- Ju sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì.  
+  _I am calm, but you keep at it, eh? Faster, come on._
+- Cuntrollu n’autra vota u cillulari. Nenti. Cchiù nenti c’è, cchiù mi preoccupu.  
+  _I check the phone again. Nothing. The more nothing there is, the more I worry._
+- Dimmi na cosa: si ti dicu ca sugnu tranquillu, ti pari ca è viaru?  
+  _Tell me something: if I say I am calm, does it seem true to you?_
+- Ju un ci vaiu pi cuntrullari nenti, eh. Ci vaiu... pi ripusarimi.  
+  _I am not going there to check anything, eh. I am going... to rest._
+- Cchiù prestu, pi favuri! No pirchì... sulu pirchì sì.  
+  _Faster, please! Not for any reason... just because._
+- U cillulari è quasi scarricu. Un fa nenti. Un fa nenti.  
+  _The phone is almost flat. Never mind. Never mind._
+
+### cuinnutu client: near
+
+- Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nenti!  
+  _Wait, slowly! Slowly, slowly... I do not want to know anything!_
+
+### cuinnutu client: near2
+
+- Rallenta... no, un rallintari. Sì, rallenta. Un mi puazzu firari i nuddu, mancu ri mia.  
+  _Slow down... no, do not. Yes, slow down. I cannot trust anybody, not even myself._
+
+### cuinnutu client: close
+
+- Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Forsi.  
+  _Stop here... no, keep going... no, stop. Wait for me, I will be a minute. Maybe._
+
+### cuinnutu client: fast
+
+- Maronna! Cchiù araciu... no, un araciu... boh! Sugnu calmu!  
+  _Madonna! Slower... no, not slower... who knows! I am calm!_
+
+### cuinnutu client: drift
+
+- Ohi! Mi veni ’nu svinimiaintu! Ma sugnu calmu!  
+  _Ohi! I am going to faint! But I am calm!_
+
+### cuinnutu client: wheels
+
+- Du roti! Sugnu calmu! Sugnu calmu!  
+  _Two wheels! I am calm! I am calm!_
+
+### cuinnutu client: miss
+
+- Araciu, ca haiu già truappi pinsiari!  
+  _Easy, I already have too many thoughts!_
+
+### cuinnutu client: hitPed
+
+- Chi fu? Un mi ci mettiri puru chistu, ca sugnu calmu!  
+  _What was that? Do not add this one too, I am calm!_
+
+### cuinnutu client: hitWall
+
+- Chi botta! Un fa nenti, sugnu calmu... sugnu calmu...  
+  _What a bump! Never mind, I am calm... I am calm..._
+
+### cuinnutu client: late
+
+- Curri, ca mi veni l’ansia! Sugnu calmu, ma curri!  
+  _Hurry, my anxiety is coming! I am calm, but hurry!_
+
+### cuinnutu client: arrive
+
+- Teni ’sti picciuli. Aspettami ccà... no, un aspittari. Anzi sì. Anzi... accumpagnami.  
+  _Take this money. Wait for me here... no, do not wait. Actually yes. Actually... come with me._
+- Grazzi. Va beni, trasu. Tu aspetta ccà. O veni cu mia? Accumpagnami, va.  
+  _Thanks. Fine, I am going in. You wait here. Or come with me? Come with me, go on._
+- Teni i picciuli. Sugnu calmu, talìa: mi trema sulu a facci.  
+  _Keep the money. I am calm, look: only my face is shaking._
+
+### cuinnutu client: fail
+
+- Un fa nenti, ci vaiu a pedi. Tantu sugnu calmu.  
+  _Never mind, I will go on foot. I am calm anyway._
+
+### cuinnutu driver: board
+
+- Bongiornu. All’Isula ri Fìmmini, allura.  
+  _Good day. To Isola delle Femmine, then._
+
+### cuinnutu driver: depart
+
+- Annamu. Calmi, calmi.  
+  _Let us go. Nice and calm._
+
+### cuinnutu driver: ask
+
+- Hotel Eufemia, certu. Calmissimu.  
+  _Hotel Eufemia, sure. Very calm._
+
+### cuinnutu driver: ambient
+
+- Certu. Calmissimu.  
+  _Sure. Very calm._
+- Mmh.  
+  _Mm._
+- Chi ti pozzu diri.  
+  _What can I tell you._
+
+### cuinnutu driver: near
+
+- Rallentu. Pi mia è uguali.  
+  _Slowing down. It is all the same to me._
+
+### cuinnutu driver: near2
+
+- Ci semu quasi.  
+  _Nearly there._
+
+### cuinnutu driver: close
+
+- Mi fermu unni voi tu.  
+  _I will stop wherever you like._
+
+### cuinnutu driver: arrive
+
+- Ti aspettu ccà. U tassametru, però, un aspetta.  
+  _I will wait here. The meter, though, does not._
+
 ## The horns mission (Arco di Cutò)
 
 ### bip
@@ -781,8 +931,6 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### what they yell when the headlights or the horn hit them
 
-- Ma chi fari sunnu chisti?! Astuta, screanzatu!  
-  _What headlights are these?! Turn them off, rude one! (?)_
 - Ma ti pari u modu?! Chista è na maccina privata!  
   _Is that any way to behave?! This is a private car! (?)_
 - Eh! Stavamu... cuntannu i stiddi!  
@@ -927,4 +1075,508 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.  
   _Nothing?! Never mind... come back when you are luckier._
+
+## The clienti: mission titles (src/event-places.js FARE_SPOTS, `title`)
+
+- Quattru Canti, zeru idee  
+  _qc, Quattro Canti_
+- Tri uri ri Verdi  
+  _tm, Teatro Massimo_
+- Prima a Cattedrali, poi a meusa  
+  _cat, Cattedrale_
+- U rre avi fami  
+  _pn, Palazzo dei Normanni_
+- A Funtana ra Virgogna  
+  _pp, Piazza Pretoria_
+- Scinneru râ barca  
+  _cala, La Cala_
+- Arancina o arancinu?  
+  _stz, Stazione Centrale_
+- U spettaculu accumincia  
+  _tx-poli, Politeama_
+- U trenu un aspetta  
+  _tx-notar, Stazione Notarbartolo_
+- Trenta buorsi  
+  _tx-lib, Via della Libertà_
+- Un ci u rissiru  
+  _tx-fiera, Fiera del Mediterraneo_
+- U custumi sutta a giacca  
+  _tx-mondello, Mondello_
+- A nanna ca fici a spisa  
+  _tx-borgo, Borgo Nuovo_
+- U cucinu ra festa  
+  _tx-brancaccio, Brancaccio_
+- U cani ci scappò  
+  _tx-giardino, Via Libertà (Giardino Inglese)_
+- U semaforu ca un cancia  
+  _tx-calatafimi, Corso Calatafimi_
+- U studenti un si susiu  
+  _tx-resuttana, Resuttana_
+- Vabbè u sai  
+  _pulle-marina, Piazza Marina_
+- Vabbè u sai, n'avutra vota  
+  _pulle-lib, Via della Libertà_
+- Vabbè u sai, ma di cursa  
+  _pulle-stz, Stazione Centrale_
+- Affari a via Lincoln  
+  _nc-lincoln, Piazza Politeama_
+- Nicoletta a Trimmutura  
+  _nc-bandiera, Via della Libertà (Giardino Inglese)_
+
+## The clienti: a story each (draft, fare spot by fare spot)
+
+### Quattru Canti, zeru idee (qc)
+
+#### qc: board
+
+- (en) A taxi, thank goodness! Four turns, and every one was wrong.
+- (de) Ein Taxi, Gott sei Dank! Viermal abgebogen, jedes Mal falsch.
+- (jp) Taxi! Sugoi! Four turns, four times wrong. Mayoimashita!
+- (fr) Un taxi, enfin! Quatre virages, quatre fois faux.
+
+#### qc: ambient
+
+- (en) Did we pass that fountain before? Or its twin? Everything here has a twin.
+- (de) Waren wir an diesem Brunnen nicht schon? Oder an seinem Zwilling?
+- (jp) This fountain, I see before? Or twin? Doko, doko, doko?
+- (fr) On est déjà passés devant cette fontaine, non? Ou devant sa jumelle?
+
+#### qc: arrive
+
+- (en) We were in walking distance the whole time. In circles, but still.
+- (de) Wir waren die ganze Zeit in Laufnähe. Im Kreis, aber trotzdem.
+- (jp) We were close all the time! Walking in circle! Gomen gomen!
+- (fr) On était tout près depuis le début. En tournant en rond, mais près.
+
+#### qc: hitWall
+
+- (en) A wrong turn! Finally one that is not ours.
+- (de) Falsch abgebogen! Endlich mal nicht wir.
+- (jp) Wrong turn! Finally, not our wrong turn!
+- (fr) Un mauvais virage! Enfin, pas le nôtre.
+
+### Tri uri ri Verdi (tm)
+
+#### tm: board
+
+- (en) Three hours of opera. I could eat the velvet seats.
+- (de) Drei Stunden Oper. Ich könnte die Samtsitze essen.
+- (jp) Three hour opera! Very long. Now I eat the chair!
+- (fr) Trois heures d'opéra. Je mangerais les fauteuils en velours.
+
+#### tm: ambient
+
+- (en) The soprano held one note forever. My stomach held a note too, louder.
+- (de) Die Sopranistin hielt einen Ton ewig. Mein Magen hielt auch einen, lauter.
+- (jp) Soprano sing one note so long. My stomach sing too, louder!
+- (fr) La soprano a tenu une note une éternité. Mon ventre aussi, en plus fort.
+
+#### tm: arrive
+
+- (en) Bravo! Encore! Of the food, I mean.
+- (de) Bravo! Zugabe! Vom Essen, meine ich.
+- (jp) Bravo bravo! Encore! Food encore, onegaishimasu!
+- (fr) Bravo! Bis! Je parle de la nourriture, bien sûr.
+
+#### tm: hitWall
+
+- (en) A crash of cymbals! Is it the finale?
+- (de) Beckenschlag! Ist das das Finale?
+- (jp) Cymbal crash! Is this the finale? Bravo?
+- (fr) Un coup de cymbales! C'est le final?
+
+### Prima a Cattedrali, poi a meusa (cat)
+
+#### cat: board
+
+- (en) I said one prayer. A short one. Now I need that spleen sandwich.
+- (de) Ein kurzes Gebet gesprochen. Jetzt das Milzbrötchen, bitte.
+- (jp) One short prayer, done. Now I need spleen sandwich!
+- (fr) Une courte prière, c'est fait. Maintenant, la rate!
+
+#### cat: ambient
+
+- (en) I asked for forgiveness. Then I asked for a second sandwich.
+- (de) Ich habe um Vergebung gebeten. Dann um ein zweites Brötchen.
+- (jp) I ask forgiveness. Then I ask second sandwich. God is kind, I think.
+- (fr) J'ai demandé pardon. Puis j'ai demandé un deuxième sandwich.
+
+#### cat: arrive
+
+- (en) Amen. Now the real miracle: the sandwich.
+- (de) Amen. Jetzt das eigentliche Wunder: das Brötchen.
+- (jp) Amen! Now real miracle: sandwich!
+- (fr) Amen. Maintenant, le vrai miracle: le sandwich.
+
+#### cat: hitWall
+
+- (en) Dear Lord, I only just finished praying!
+- (de) Lieber Gott, ich habe doch gerade erst gebetet!
+- (jp) Kamisama! I just pray! Too soon!
+- (fr) Seigneur, je viens à peine de prier!
+
+### U rre avi fami (pn)
+
+#### pn: board
+
+- (en) I want to eat like a king today. A king on a budget, mind you.
+- (de) Ich will heute essen wie ein König. Aber mit Reisebudget.
+- (jp) Today I eat like king! Small budget king. Ok?
+- (fr) Aujourd'hui je mange comme un roi. Un roi avec un petit budget.
+
+#### pn: ambient
+
+- (en) The Normans built a whole palace. I only need a plate. A cheap plate.
+- (de) Die Normannen bauten einen ganzen Palast. Ich brauche nur einen Teller. Einen billigen.
+- (jp) Normans build whole palace. I only want plate. Cheap plate!
+- (fr) Les Normands ont bâti un palais entier. Moi, il me faut juste une assiette. Pas chère.
+
+#### pn: arrive
+
+- (en) Long live the king! The king will have the cheapest thing on the menu.
+- (de) Es lebe der König! Der König nimmt das Billigste auf der Karte.
+- (jp) Long live king! King orders cheapest one.
+- (fr) Vive le roi! Le roi prend le moins cher de la carte.
+
+#### pn: hitWall
+
+- (en) Careful! Royal passenger!
+- (de) Vorsicht! Königlicher Fahrgast!
+- (jp) Careful! Royal passenger!
+- (fr) Attention! Passager royal!
+
+### A Funtana ra Virgogna (pp)
+
+#### pp: board
+
+- (en) I have seen the fountain statues. I need strong coffee.
+- (de) Ich habe die Brunnenstatuen gesehen. Ich brauche starken Kaffee.
+- (jp) I see fountain statues, very close. I need strong coffee!
+- (fr) J'ai vu les statues de la fontaine. Il me faut un café serré.
+
+#### pp: ambient
+
+- (en) Nobody warned me about the fountain. The guidebook just said "a fountain".
+- (de) Mich hat keiner vor dem Brunnen gewarnt. Im Reiseführer stand nur "Brunnen".
+- (jp) Guidebook say only "fountain". Only fountain! Hontou ni?
+- (fr) Le guide disait juste "une fontaine". Personne ne m'a prévenu.
+
+#### pp: arrive
+
+- (en) Coffee. Black. Strong. And no more statues, please.
+- (de) Kaffee. Schwarz, stark. Und keine Statuen mehr, bitte.
+- (jp) Coffee, black, strong. No more statue, please!
+- (fr) Un café noir, serré. Et plus de statues, s'il vous plaît.
+
+#### pp: hitWall
+
+- (en) Oh good, a wall. A wall with no statues on it.
+- (de) Na endlich eine Wand. Ohne Statuen.
+- (jp) Ah, a wall. No statue. Thank you, wall.
+- (fr) Un mur, enfin. Sans statues dessus.
+
+### Scinneru râ barca (cala)
+
+#### cala: board
+
+- (en) Off the boat at last. Ground still moving. Also starving.
+- (de) Endlich vom Boot. Der Boden schwankt noch. Ich habe Hunger!
+- (jp) Off the boat! Ground still moving. Seasick, but very hungry!
+- (fr) Enfin hors du bateau. Le sol bouge encore. Et j'ai faim!
+
+#### cala: ambient
+
+- (en) Could you drive a bit straighter? My stomach is still on the boat, but it wants lunch.
+- (de) Könnten Sie etwas gerader fahren? Mein Magen ist noch auf dem Boot, will aber Mittagessen.
+- (jp) Please drive straight? My stomach still on boat, but want lunch!
+- (fr) Plus droit, s'il vous plaît? Mon estomac est resté sur le bateau.
+
+#### cala: arrive
+
+- (en) Solid ground and a table. The two best things in the world.
+- (de) Fester Boden und ein Tisch. Die zwei besten Dinge der Welt.
+- (jp) Solid ground and a table. Best two things!
+- (fr) Un sol stable et une table. Les deux meilleures choses au monde.
+
+#### cala: hitWall
+
+- (en) A wall! Finally, something that stays still.
+- (de) Eine Wand! Endlich etwas, das stillsteht.
+- (jp) Wall! Finally, something not moving!
+- (fr) Un mur! Enfin quelque chose qui ne bouge pas.
+
+### Arancina o arancinu? (stz)
+
+#### stz: board
+
+- (en) Hello! We would like to try the famous... arancino? Aran-cheeno?
+- (de) Hallo! Wir möchten das berühmte... Arancino? Aran-tschino?
+- (jp) Konnichiwa! We try famous... arancino? Arancino desu ka?
+- (fr) Bonjour! On voudrait goûter le fameux... arancino? Aran-chino?
+
+#### stz: ambient
+
+- (en) He says it is arancina. Not arancino. He looked very hurt.
+- (de) Er sagt, es heißt Arancina. Nicht Arancino. Er sah sehr gekränkt aus.
+- (jp) He say arancina, not arancino. He look very hurt!
+- (fr) Il dit arancina, pas arancino. Il avait l'air très blessé.
+
+#### stz: arrive
+
+- (en) Arancina. Arancine. Arancini. Whatever, just bring them.
+- (de) Arancina. Arancine. Arancini. Egal, Hauptsache sie kommen.
+- (jp) Arancina, arancine, arancini... any is ok, just bring!
+- (fr) Arancina, arancine, arancini... peu importe, apportez-les!
+
+### U spettaculu accumincia (tx-poli)
+
+#### tx-poli: board
+
+- Amunì, ca u spettaculu accuminciau! E i biglietti unni i misi?  
+  _Hurry, the show has started! And where did I put the tickets?_
+
+#### tx-poli: ambient
+
+- I biglietti... nta a giacca no... nta a borsa no... forsi sunnu nto frigurifiru.  
+  _The tickets... not in the jacket... not in the bag... maybe they are in the fridge._
+
+#### tx-poli: arrive
+
+- Ecculi! Eranu nta a sacchetta ri darrè! Uora spiramu ca ni fannu trasiri.  
+  _Here they are! They were in my back pocket! Now let us hope they let us in._
+
+#### tx-poli: hitWall
+
+- Bravu! U spettaculu u facisti tu.  
+  _Bravo! You put on the show yourself._
+
+### U trenu un aspetta (tx-notar)
+
+#### tx-notar: board
+
+- Curri, ca u trenu un aspetta a nuddu!  
+  _Step on it, the train waits for nobody!_
+
+#### tx-notar: ambient
+
+- L’artuparlanti dissi ca è in ritardu? Mah, ju un ci cridu. Curri u stissu.  
+  _The loudspeaker said it is late? Hm, I do not believe it. Hurry anyway._
+
+#### tx-notar: arrive
+
+- U trenu è ancora ddà! Era in ritardu pi daveru. Ma ju un ci cridìa.  
+  _The train is still there! It really was late. But I did not believe it._
+
+#### tx-notar: hitWall
+
+- Ecco, ora u trenu u perdu pi daveru.  
+  _There, now I really will miss the train._
+
+### Trenta buorsi (tx-lib)
+
+#### tx-lib: board
+
+- Scusa, fammi spaziu: haiu trenta buorsi. Sì, trenta.  
+  _Sorry, make some room: I have thirty bags. Yes, thirty._
+
+#### tx-lib: ambient
+
+- Talìa nto specchiettu... no, u specchiettu un si viri cchiù. Un fa nenti, va’ a senzu.  
+  _Look in the mirror... no, you cannot see the mirror any more. Never mind, go by feel._
+
+#### tx-lib: arrive
+
+- Grazzi! Mi runi na manu a scarricari? Sunnu sulu trenta.  
+  _Thanks! Give me a hand unloading? There are only thirty._
+
+#### tx-lib: hitWall
+
+- Ahia! I buorsi! Chidda cu i scarpi no!  
+  _Ouch! The bags! Not the one with the shoes!_
+
+### Un ci u rissiru (tx-fiera)
+
+#### tx-fiera: board
+
+- Chiusa! E nuddu mi dissi nenti! Sugnu vinutu pi nenti!  
+  _Closed! And nobody told me anything! I came for nothing!_
+
+#### tx-fiera: ambient
+
+- Tutti u sapianu ca a Fiera era chiusa. Tutti, tranni a mia.  
+  _Everybody knew the Fiera was closed. Everybody except me._
+
+#### tx-fiera: arrive
+
+- Almenu ccà è apertu, spiramu. Talìa prima tu, va.  
+  _At least this one is open, I hope. You check first, go on._
+
+#### tx-fiera: hitWall
+
+- Chiusu puru ccà! E nuddu mi dissi nenti!  
+  _Closed here too! And nobody told me anything!_
+
+### U custumi sutta a giacca (tx-mondello)
+
+#### tx-mondello: board
+
+- Un ti scantari: sutta a giacca haiu u custumi. Amunì â praia.  
+  _Do not be shocked, I have trunks under my jacket. To the beach!_
+
+#### tx-mondello: ambient
+
+- Si mi telefuna u capu, ju sugnu ancora n’ufficiu. Capisti?  
+  _If the boss calls, I am still at the office. Understood?_
+
+#### tx-mondello: arrive
+
+- Ahh, u mari! Teni, e un diri nenti ô capu.  
+  _Ahh, the sea! Keep it, and tell the boss nothing._
+
+#### tx-mondello: hitWall
+
+- Attentu ca mi sgualcisci a cammisa! Haiu na riunioni... nta l’acqua.  
+  _Careful, you will crease my shirt! I have a meeting... in the water._
+
+### A nanna ca fici a spisa (tx-borgo)
+
+#### tx-borgo: board
+
+- Bongiornu, figghiu miu. Haiu sei buorsi: attentu a l’ova.  
+  _Good day, son. I have six bags: careful with the eggs._
+
+#### tx-borgo: ambient
+
+- Cchiù araciu! Me maritu, bonanima, guidava miegghiu, e un avia mancu a patenti.  
+  _Slower! My husband, God rest him, drove better, and he did not even have a licence._
+
+#### tx-borgo: arrive
+
+- Bravu, pi sta vota ci semu. Teni, pigghiati n’aranciu pâ strata.  
+  _Well done, this time we made it. Here, take an orange for the road._
+
+#### tx-borgo: hitWall
+
+- Maronna! Mi s’arruppiru l’ova! E u dannu u paghi tu, eh!  
+  _Madonna! My eggs broke! And you pay for the damage, eh!_
+
+### U cucinu ra festa (tx-brancaccio)
+
+#### tx-brancaccio: board
+
+- Amunì, me cucinu mi spetta â festa! E a torta è cu mia.  
+  _Come on, my cousin is waiting at the party! The cake is with me._
+
+#### tx-brancaccio: ambient
+
+- Attentu a torta! Si s’abbissa, me cucinu m’ammazza.  
+  _Mind the cake! If it collapses, my cousin will kill me._
+
+#### tx-brancaccio: arrive
+
+- Semu in ritardu, ma a torta è sana. Chistu è un miraculu.  
+  _We are late, but the cake is whole. That is a miracle._
+
+#### tx-brancaccio: hitWall
+
+- A torta! Dimmi ca a torta è sana!  
+  _The cake! Tell me the cake is fine!_
+
+### U cani ci scappò (tx-giardino)
+
+#### tx-giardino: board
+
+- Curri! U cani mi scappò! Era ccà un mumentu fa!  
+  _Hurry! The dog got away from me! He was here a moment ago!_
+
+#### tx-giardino: ambient
+
+- Talìa ddà! No, chiddu è un gattu. Talìa ddocu! No, è un mutorinu.  
+  _Look over there! No, that is a cat. Look there! No, that is a scooter._
+
+#### tx-giardino: arrive
+
+- Mi sa ca è già a casa, cu na bistecca. Un fa nenti, grazzi u stissu.  
+  _I bet he is already home with a steak. Never mind, thanks anyway._
+
+#### tx-giardino: hitWall
+
+- Ecco, ora u cani si fa tri risati.  
+  _There, now the dog is having a good laugh._
+
+### U semaforu ca un cancia (tx-calatafimi)
+
+#### tx-calatafimi: board
+
+- Finalmenti! Staiu fermu a stu semaforu di stamatina.  
+  _Finally! I have been stuck at this light since this morning._
+
+#### tx-calatafimi: ambient
+
+- Ccà u russu dura cchiù di na missa ri Natali.  
+  _Here the red lasts longer than a Christmas Mass._
+
+#### tx-calatafimi: arrive
+
+- Semu arrivati senza mai fermarni! Mi sta cumminciannu a piaciri.  
+  _We got here without stopping once! I am starting to like it._
+
+#### tx-calatafimi: hitWall
+
+- Chistu è comu u semaforu: un si move mai.  
+  _This one is like the traffic light: it never moves._
+
+### U studenti un si susiu (tx-resuttana)
+
+#### tx-resuttana: board
+
+- Mi susii ora! L’esami è fra deci minuti e un studiai mancu.  
+  _I just woke up! Exam in ten minutes, and I have not studied._
+
+#### tx-resuttana: ambient
+
+- Spiramu ca u prufissuri si susiu tardi puru iddu.  
+  _Let us hope the professor got up late too._
+
+#### tx-resuttana: arrive
+
+- Ci semu! Mi manca sulu na cosa: a matiria.  
+  _We are here! Only one thing missing: the subject._
+
+#### tx-resuttana: hitWall
+
+- Perfettu: ora haiu na scusa. “Prufissuri, ci fu n’incidenti.”  
+  _Perfect: now I have an excuse. "Professor, there was an accident."_
+
+## Vabbè u sai: variations of the night client of "a pulle"
+
+### fare:pulle-lib: board
+
+- Bonasira. Ju sugnu chiddu ri sempri: a Favorita, vabbé u sai.  
+  _Good evening. I am the usual one: the Favorita, well, you know._
+
+### fare:pulle-lib: ask
+
+- A Favorita, n’avutra vota. Vabbé u sai: l’ultima, eh!  
+  _The Favorita, once again. Well, you know: the last time, eh!_
+
+### fare:pulle-lib: arrive
+
+- Grazzi. A prossima vota... ma chi dicu, u sai già.  
+  _Thanks. Next time... what am I saying, you already know._
+
+### fare:pulle-stz: board
+
+- Bonasira! Curri, curri! Vabbé u sai, sugnu di cursa.  
+  _Good evening! Go, go! Well, you know, I am in a hurry._
+
+### fare:pulle-stz: ask
+
+- A Favorita, ma di cursa, vabbé u sai: ca me muggheri torna prestu.  
+  _To the Favorita, but fast, well, you know: my wife comes home soon._
+
+### fare:pulle-stz: arrive
+
+- Ecco, ecco, vabbé u sai: ju ccà un ci sugnu mai statu. Ciao!  
+  _Here, here, well, you know: I was never here. Bye!_
 

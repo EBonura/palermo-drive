@@ -606,6 +606,285 @@ export const PULLE = {
   ],
   fail: [['We will walk. Is it far? We will ask that nice lady in the sparkly dress.', '']],
 };
+// ---- The clienti's stories (src/event-fares.js): each fare spot of src/event-places.js with a `title` has a one-line story, told by its passenger in up to four lines: `board` (when they sit down),
+// `ambient` (on the way, in this order, the first one soon after the start), `arrive` and `hitWall` (a crash). Only the keys that are here replace the usual lines; the rest stay as they are.
+// The tourists (the first seven) keep their own languages and speak each line by nationality, en | de | jp | fr: the Americans (`us`) say the English one. They are plain strings, no Palermitan.
+// The taxi passengers are from here and speak Palermitan: [Palermitan, English] pairs. During a fare only the passenger talks (src/missions.js), so what the driver says is told by the passenger.
+// Keep a `board` line under about 64 characters: the passenger's next line (what they ask for) is dropped when it has waited more than 5 seconds behind it (lifeFor in src/shouts.js).
+// The destination is random (a tourist asks for a place to eat, a taxi goes to any TAXI_DESTS place), so no line names a place to go to. Palermitan and English drafts for the owner to correct.
+export const STORIES = {
+  // Quattru Canti, zeru idee: four corners, four wrong turns, and they are still lost
+  qc: {
+    board: {
+      en: ['A taxi, thank goodness! Four turns, and every one was wrong.'],
+      de: ['Ein Taxi, Gott sei Dank! Viermal abgebogen, jedes Mal falsch.'],
+      jp: ['Taxi! Sugoi! Four turns, four times wrong. Mayoimashita!'],
+      fr: ['Un taxi, enfin! Quatre virages, quatre fois faux.'],
+    },
+    ambient: {
+      en: ['Did we pass that fountain before? Or its twin? Everything here has a twin.'],
+      de: ['Waren wir an diesem Brunnen nicht schon? Oder an seinem Zwilling?'],
+      jp: ['This fountain, I see before? Or twin? Doko, doko, doko?'],
+      fr: ['On est déjà passés devant cette fontaine, non? Ou devant sa jumelle?'],
+    },
+    arrive: {
+      en: ['We were in walking distance the whole time. In circles, but still.'],
+      de: ['Wir waren die ganze Zeit in Laufnähe. Im Kreis, aber trotzdem.'],
+      jp: ['We were close all the time! Walking in circle! Gomen gomen!'],
+      fr: ['On était tout près depuis le début. En tournant en rond, mais près.'],
+    },
+    hitWall: {
+      en: ['A wrong turn! Finally one that is not ours.'],
+      de: ['Falsch abgebogen! Endlich mal nicht wir.'],
+      jp: ['Wrong turn! Finally, not our wrong turn!'],
+      fr: ['Un mauvais virage! Enfin, pas le nôtre.'],
+    },
+  },
+  // Tri uri ri Verdi: three hours of opera, and now they would eat the seats
+  tm: {
+    board: {
+      en: ['Three hours of opera. I could eat the velvet seats.'],
+      de: ['Drei Stunden Oper. Ich könnte die Samtsitze essen.'],
+      jp: ['Three hour opera! Very long. Now I eat the chair!'],
+      fr: ['Trois heures d\'opéra. Je mangerais les fauteuils en velours.'],
+    },
+    ambient: {
+      en: ['The soprano held one note forever. My stomach held a note too, louder.'],
+      de: ['Die Sopranistin hielt einen Ton ewig. Mein Magen hielt auch einen, lauter.'],
+      jp: ['Soprano sing one note so long. My stomach sing too, louder!'],
+      fr: ['La soprano a tenu une note une éternité. Mon ventre aussi, en plus fort.'],
+    },
+    arrive: {
+      en: ['Bravo! Encore! Of the food, I mean.'],
+      de: ['Bravo! Zugabe! Vom Essen, meine ich.'],
+      jp: ['Bravo bravo! Encore! Food encore, onegaishimasu!'],
+      fr: ['Bravo! Bis! Je parle de la nourriture, bien sûr.'],
+    },
+    hitWall: {
+      en: ['A crash of cymbals! Is it the finale?'],
+      de: ['Beckenschlag! Ist das das Finale?'],
+      jp: ['Cymbal crash! Is this the finale? Bravo?'],
+      fr: ['Un coup de cymbales! C\'est le final?'],
+    },
+  },
+  // Prima a Cattedrali, poi a meusa: one prayer, then straight to the pani ca meusa
+  cat: {
+    board: {
+      en: ['I said one prayer. A short one. Now I need that spleen sandwich.'],
+      de: ['Ein kurzes Gebet gesprochen. Jetzt das Milzbrötchen, bitte.'],
+      jp: ['One short prayer, done. Now I need spleen sandwich!'],
+      fr: ['Une courte prière, c\'est fait. Maintenant, la rate!'],
+    },
+    ambient: {
+      en: ['I asked for forgiveness. Then I asked for a second sandwich.'],
+      de: ['Ich habe um Vergebung gebeten. Dann um ein zweites Brötchen.'],
+      jp: ['I ask forgiveness. Then I ask second sandwich. God is kind, I think.'],
+      fr: ['J\'ai demandé pardon. Puis j\'ai demandé un deuxième sandwich.'],
+    },
+    arrive: {
+      en: ['Amen. Now the real miracle: the sandwich.'],
+      de: ['Amen. Jetzt das eigentliche Wunder: das Brötchen.'],
+      jp: ['Amen! Now real miracle: sandwich!'],
+      fr: ['Amen. Maintenant, le vrai miracle: le sandwich.'],
+    },
+    hitWall: {
+      en: ['Dear Lord, I only just finished praying!'],
+      de: ['Lieber Gott, ich habe doch gerade erst gebetet!'],
+      jp: ['Kamisama! I just pray! Too soon!'],
+      fr: ['Seigneur, je viens à peine de prier!'],
+    },
+  },
+  // U rre avi fami: wants to eat like a king, on a tourist's budget
+  pn: {
+    board: {
+      en: ['I want to eat like a king today. A king on a budget, mind you.'],
+      de: ['Ich will heute essen wie ein König. Aber mit Reisebudget.'],
+      jp: ['Today I eat like king! Small budget king. Ok?'],
+      fr: ['Aujourd\'hui je mange comme un roi. Un roi avec un petit budget.'],
+    },
+    ambient: {
+      en: ['The Normans built a whole palace. I only need a plate. A cheap plate.'],
+      de: ['Die Normannen bauten einen ganzen Palast. Ich brauche nur einen Teller. Einen billigen.'],
+      jp: ['Normans build whole palace. I only want plate. Cheap plate!'],
+      fr: ['Les Normands ont bâti un palais entier. Moi, il me faut juste une assiette. Pas chère.'],
+    },
+    arrive: {
+      en: ['Long live the king! The king will have the cheapest thing on the menu.'],
+      de: ['Es lebe der König! Der König nimmt das Billigste auf der Karte.'],
+      jp: ['Long live king! King orders cheapest one.'],
+      fr: ['Vive le roi! Le roi prend le moins cher de la carte.'],
+    },
+    hitWall: {
+      en: ['Careful! Royal passenger!'],
+      de: ['Vorsicht! Königlicher Fahrgast!'],
+      jp: ['Careful! Royal passenger!'],
+      fr: ['Attention! Passager royal!'],
+    },
+  },
+  // A Funtana ra Virgogna: has seen the statues of the fountain and needs a strong coffee
+  pp: {
+    board: {
+      en: ['I have seen the fountain statues. I need strong coffee.'],
+      de: ['Ich habe die Brunnenstatuen gesehen. Ich brauche starken Kaffee.'],
+      jp: ['I see fountain statues, very close. I need strong coffee!'],
+      fr: ['J\'ai vu les statues de la fontaine. Il me faut un café serré.'],
+    },
+    ambient: {
+      en: ['Nobody warned me about the fountain. The guidebook just said "a fountain".'],
+      de: ['Mich hat keiner vor dem Brunnen gewarnt. Im Reiseführer stand nur "Brunnen".'],
+      jp: ['Guidebook say only "fountain". Only fountain! Hontou ni?'],
+      fr: ['Le guide disait juste "une fontaine". Personne ne m\'a prévenu.'],
+    },
+    arrive: {
+      en: ['Coffee. Black. Strong. And no more statues, please.'],
+      de: ['Kaffee. Schwarz, stark. Und keine Statuen mehr, bitte.'],
+      jp: ['Coffee, black, strong. No more statue, please!'],
+      fr: ['Un café noir, serré. Et plus de statues, s\'il vous plaît.'],
+    },
+    hitWall: {
+      en: ['Oh good, a wall. A wall with no statues on it.'],
+      de: ['Na endlich eine Wand. Ohne Statuen.'],
+      jp: ['Ah, a wall. No statue. Thank you, wall.'],
+      fr: ['Un mur, enfin. Sans statues dessus.'],
+    },
+  },
+  // Scinneru râ barca: off the boat, still seasick, starving
+  cala: {
+    board: {
+      en: ['Off the boat at last. Ground still moving. Also starving.'],
+      de: ['Endlich vom Boot. Der Boden schwankt noch. Ich habe Hunger!'],
+      jp: ['Off the boat! Ground still moving. Seasick, but very hungry!'],
+      fr: ['Enfin hors du bateau. Le sol bouge encore. Et j\'ai faim!'],
+    },
+    ambient: {
+      en: ['Could you drive a bit straighter? My stomach is still on the boat, but it wants lunch.'],
+      de: ['Könnten Sie etwas gerader fahren? Mein Magen ist noch auf dem Boot, will aber Mittagessen.'],
+      jp: ['Please drive straight? My stomach still on boat, but want lunch!'],
+      fr: ['Plus droit, s\'il vous plaît? Mon estomac est resté sur le bateau.'],
+    },
+    arrive: {
+      en: ['Solid ground and a table. The two best things in the world.'],
+      de: ['Fester Boden und ein Tisch. Die zwei besten Dinge der Welt.'],
+      jp: ['Solid ground and a table. Best two things!'],
+      fr: ['Un sol stable et une table. Les deux meilleures choses au monde.'],
+    },
+    hitWall: {
+      en: ['A wall! Finally, something that stays still.'],
+      de: ['Eine Wand! Endlich etwas, das stillsteht.'],
+      jp: ['Wall! Finally, something not moving!'],
+      fr: ['Un mur! Enfin quelque chose qui ne bouge pas.'],
+    },
+  },
+  // Arancina o arancinu?: the tourist says the wrong one and the driver has to put it right
+  stz: {
+    board: {
+      en: ['Hello! We would like to try the famous... arancino? Aran-cheeno?'],
+      de: ['Hallo! Wir möchten das berühmte... Arancino? Aran-tschino?'],
+      jp: ['Konnichiwa! We try famous... arancino? Arancino desu ka?'],
+      fr: ['Bonjour! On voudrait goûter le fameux... arancino? Aran-chino?'],
+    },
+    ambient: {
+      en: ['He says it is arancina. Not arancino. He looked very hurt.'],
+      de: ['Er sagt, es heißt Arancina. Nicht Arancino. Er sah sehr gekränkt aus.'],
+      jp: ['He say arancina, not arancino. He look very hurt!'],
+      fr: ['Il dit arancina, pas arancino. Il avait l\'air très blessé.'],
+    },
+    arrive: {
+      en: ['Arancina. Arancine. Arancini. Whatever, just bring them.'],
+      de: ['Arancina. Arancine. Arancini. Egal, Hauptsache sie kommen.'],
+      jp: ['Arancina, arancine, arancini... any is ok, just bring!'],
+      fr: ['Arancina, arancine, arancini... peu importe, apportez-les!'],
+    },
+  },
+
+  // U spettaculu accumincia: the show has started and they are still looking for the tickets
+  'tx-poli': {
+    board: [['Amunì, ca u spettaculu accuminciau! E i biglietti unni i misi?', 'Hurry, the show has started! And where did I put the tickets?']],
+    ambient: [['I biglietti... nta a giacca no... nta a borsa no... forsi sunnu nto frigurifiru.', 'The tickets... not in the jacket... not in the bag... maybe they are in the fridge.']],
+    arrive: [['Ecculi! Eranu nta a sacchetta ri darrè! Uora spiramu ca ni fannu trasiri.', 'Here they are! They were in my back pocket! Now let us hope they let us in.']],
+    hitWall: [['Bravu! U spettaculu u facisti tu.', 'Bravo! You put on the show yourself.']],
+  },
+  // U trenu un aspetta: it does wait, it is late, but they do not believe it
+  'tx-notar': {
+    board: [['Curri, ca u trenu un aspetta a nuddu!', 'Step on it, the train waits for nobody!']],
+    ambient: [['L’artuparlanti dissi ca è in ritardu? Mah, ju un ci cridu. Curri u stissu.', 'The loudspeaker said it is late? Hm, I do not believe it. Hurry anyway.']],
+    arrive: [['U trenu è ancora ddà! Era in ritardu pi daveru. Ma ju un ci cridìa.', 'The train is still there! It really was late. But I did not believe it.']],
+    hitWall: [['Ecco, ora u trenu u perdu pi daveru.', 'There, now I really will miss the train.']],
+  },
+  // Trenta buorsi: thirty shopping bags, one passenger, no room for the driver
+  'tx-lib': {
+    board: [['Scusa, fammi spaziu: haiu trenta buorsi. Sì, trenta.', 'Sorry, make some room: I have thirty bags. Yes, thirty.']],
+    ambient: [['Talìa nto specchiettu... no, u specchiettu un si viri cchiù. Un fa nenti, va’ a senzu.', 'Look in the mirror... no, you cannot see the mirror any more. Never mind, go by feel.']],
+    arrive: [['Grazzi! Mi runi na manu a scarricari? Sunnu sulu trenta.', 'Thanks! Give me a hand unloading? There are only thirty.']],
+    hitWall: [['Ahia! I buorsi! Chidda cu i scarpi no!', 'Ouch! The bags! Not the one with the shoes!']],
+  },
+  // Un ci u rissiru: nobody told them the Fiera is closed
+  'tx-fiera': {
+    board: [['Chiusa! E nuddu mi dissi nenti! Sugnu vinutu pi nenti!', 'Closed! And nobody told me anything! I came for nothing!']],
+    ambient: [['Tutti u sapianu ca a Fiera era chiusa. Tutti, tranni a mia.', 'Everybody knew the Fiera was closed. Everybody except me.']],
+    arrive: [['Almenu ccà è apertu, spiramu. Talìa prima tu, va.', 'At least this one is open, I hope. You check first, go on.']],
+    hitWall: [['Chiusu puru ccà! E nuddu mi dissi nenti!', 'Closed here too! And nobody told me anything!']],
+  },
+  // U custumi sutta a giacca: office clothes, swimming trunks underneath, off to the beach
+  'tx-mondello': {
+    board: [['Un ti scantari: sutta a giacca haiu u custumi. Amunì â praia.', 'Do not be shocked, I have trunks under my jacket. To the beach!']],
+    ambient: [['Si mi telefuna u capu, ju sugnu ancora n’ufficiu. Capisti?', 'If the boss calls, I am still at the office. Understood?']],
+    arrive: [['Ahh, u mari! Teni, e un diri nenti ô capu.', 'Ahh, the sea! Keep it, and tell the boss nothing.']],
+    hitWall: [['Attentu ca mi sgualcisci a cammisa! Haiu na riunioni... nta l’acqua.', 'Careful, you will crease my shirt! I have a meeting... in the water.']],
+  },
+  // A nanna ca fici a spisa: grandma, six bags and an opinion on your driving
+  'tx-borgo': {
+    board: [['Bongiornu, figghiu miu. Haiu sei buorsi: attentu a l’ova.', 'Good day, son. I have six bags: careful with the eggs.']],
+    ambient: [['Cchiù araciu! Me maritu, bonanima, guidava miegghiu, e un avia mancu a patenti.', 'Slower! My husband, God rest him, drove better, and he did not even have a licence.']],
+    arrive: [['Bravu, pi sta vota ci semu. Teni, pigghiati n’aranciu pâ strata.', 'Well done, this time we made it. Here, take an orange for the road.']],
+    hitWall: [['Maronna! Mi s’arruppiru l’ova! E u dannu u paghi tu, eh!', 'Madonna! My eggs broke! And you pay for the damage, eh!']],
+  },
+  // U cucinu ra festa: late for a cousin's party, carrying the cake
+  'tx-brancaccio': {
+    board: [['Amunì, me cucinu mi spetta â festa! E a torta è cu mia.', 'Come on, my cousin is waiting at the party! The cake is with me.']],
+    ambient: [['Attentu a torta! Si s’abbissa, me cucinu m’ammazza.', 'Mind the cake! If it collapses, my cousin will kill me.']],
+    arrive: [['Semu in ritardu, ma a torta è sana. Chistu è un miraculu.', 'We are late, but the cake is whole. That is a miracle.']],
+    hitWall: [['A torta! Dimmi ca a torta è sana!', 'The cake! Tell me the cake is fine!']],
+  },
+  // U cani ci scappò: chasing a dog that is not there any more
+  'tx-giardino': {
+    board: [['Curri! U cani mi scappò! Era ccà un mumentu fa!', 'Hurry! The dog got away from me! He was here a moment ago!']],
+    ambient: [['Talìa ddà! No, chiddu è un gattu. Talìa ddocu! No, è un mutorinu.', 'Look over there! No, that is a cat. Look there! No, that is a scooter.']],
+    arrive: [['Mi sa ca è già a casa, cu na bistecca. Un fa nenti, grazzi u stissu.', 'I bet he is already home with a steak. Never mind, thanks anyway.']],
+    hitWall: [['Ecco, ora u cani si fa tri risati.', 'There, now the dog is having a good laugh.']],
+  },
+  // U semaforu ca un cancia: stuck at the same light since this morning
+  'tx-calatafimi': {
+    board: [['Finalmenti! Staiu fermu a stu semaforu di stamatina.', 'Finally! I have been stuck at this light since this morning.']],
+    ambient: [['Ccà u russu dura cchiù di na missa ri Natali.', 'Here the red lasts longer than a Christmas Mass.']],
+    arrive: [['Semu arrivati senza mai fermarni! Mi sta cumminciannu a piaciri.', 'We got here without stopping once! I am starting to like it.']],
+    hitWall: [['Chistu è comu u semaforu: un si move mai.', 'This one is like the traffic light: it never moves.']],
+  },
+  // U studenti un si susiu: overslept, the exam is in ten minutes, and they have not studied either
+  'tx-resuttana': {
+    board: [['Mi susii ora! L’esami è fra deci minuti e un studiai mancu.', 'I just woke up! Exam in ten minutes, and I have not studied.']],
+    ambient: [['Spiramu ca u prufissuri si susiu tardi puru iddu.', 'Let us hope the professor got up late too.']],
+    arrive: [['Ci semu! Mi manca sulu na cosa: a matiria.', 'We are here! Only one thing missing: the subject.']],
+    hitWall: [['Perfettu: ora haiu na scusa. “Prufissuri, ci fu n’incidenti.”', 'Perfect: now I have an excuse. "Professor, there was an accident."']],
+  },
+};
+
+// "Vabbè u sai": the night client of "a pulle" (FAVORITA above) is the same man every time; two of the three fare spots on Viale Diana's run have small variations of him: he is a regular
+// (pulle-lib, "n'avutra vota") or in a hurry (pulle-stz, "ma di cursa"). Only the lines that are here change. Palermitan drafts for the owner to correct.
+export const FAVORITA_VARIANTS = {
+  'fare:pulle-lib': {
+    board: [['Bonasira. Ju sugnu chiddu ri sempri: a Favorita, vabbé u sai.', 'Good evening. I am the usual one: the Favorita, well, you know.']],
+    ask: [['A Favorita, n’avutra vota. Vabbé u sai: l’ultima, eh!', 'The Favorita, once again. Well, you know: the last time, eh!']],
+    arrive: [['Grazzi. A prossima vota... ma chi dicu, u sai già.', 'Thanks. Next time... what am I saying, you already know.']],
+  },
+  'fare:pulle-stz': {
+    board: [['Bonasira! Curri, curri! Vabbé u sai, sugnu di cursa.', 'Good evening! Go, go! Well, you know, I am in a hurry.']],
+    ask: [['A Favorita, ma di cursa, vabbé u sai: ca me muggheri torna prestu.', 'To the Favorita, but fast, well, you know: my wife comes home soon.']],
+    arrive: [['Ecco, ecco, vabbé u sai: ju ccà un ci sugnu mai statu. Ciao!', 'Here, here, well, you know: I was never here. Bye!']],
+  },
+};
+export const favoritaFor = id => FAVORITA_VARIANTS[id] ? { ...FAVORITA, client: { ...FAVORITA.client, ...FAVORITA_VARIANTS[id] } } : FAVORITA;
+
 // Urgent passengers, once they are on board
 export const URGENT_LINES = {
   board: [['Vai vai vai! Non fermarti ai semafori!', 'Go go go! Do not stop at the lights!'], ['Presto! Ho i minuti contati!', 'Quick! I have minutes to spare, no more!']],

@@ -10,7 +10,7 @@
 // The overlay is src/event-hud.js (top centre). Screen changes go through src/transition.js.
 //
 // createMissions(env) -> { mode ('free'), setMode() (no-op, kept for compatibility), update(dt), stop(), events(), progress(), busy() }
-//   events() -> [{ id, kind: 'fare'|'urgent'|'food'|'race', name, x, z, night? }]  (x, z: a road point next to the caller; the start map pins them)
+//   events() -> [{ id, kind: 'fare'|'urgent'|'food'|'race', name, title?, x, z, night? }]  (x, z: a road point next to the caller; the start map pins them; name is the place, title (the clienti) the mission's own name)
 //   progress() -> { food: { done, total }, races: { won, total }, fares }   (localStorage 'palermoDrive.events.v1')
 //   busy() -> true while an event runs
 //   status(id) -> { done, tried, best }, ready(id) -> [x, z, th] (the caller is there at once and accepts without a drive-off first): used by the Missioni screen (src/ui.js); the done events are also kept in prog.done
@@ -111,9 +111,9 @@ function build(env) {
   // ------------------------------------------------------------------------------------ speech (env.shout)
   const talkQ = []; let talkClock = 0, lastTalk = -9, talkWait = 2.2;
   // lines: array of strings or [text, gloss]; pos(): { x, y, z } anchor, delay in seconds
-  function say(line, pos, delay = 0) {
+  function say(line, pos, delay = 0, ttl = 5) {   // ttl: seconds a line may wait for its turn before it is dropped (what a passenger asks for waits longer: it is the one thing they must say)
     if (!shout || !line) return;
-    talkQ.push({ at: talkClock + delay, text: Array.isArray(line) ? (lang() === 'en' && line[1] ? line[1] : line[0]) : line, pos });   // [text, gloss]: the gloss in English, when there is one (a tourist's line has none: tourists do not speak Palermitan)
+    talkQ.push({ at: talkClock + delay, text: Array.isArray(line) ? (lang() === 'en' && line[1] ? line[1] : line[0]) : line, pos, ttl });   // [text, gloss]: the gloss in English, when there is one (a tourist's line has none: tourists do not speak Palermitan)
   }
   // a fare (phases board / ride / drop, src/event-fares.js) puts the balloons in focus: only the passenger (seatPos) speaks, one line at a time
   const fareTalk = () => !!S.ev && (S.phase === 'board' || S.phase === 'ride' || S.phase === 'drop');
@@ -124,7 +124,7 @@ function build(env) {
     const i = talkQ.findIndex(q => q.at <= talkClock);
     if (i < 0) return;
     const q = talkQ.splice(i, 1)[0];
-    if (talkClock - q.at > 5) return;
+    if (talkClock - q.at > q.ttl) return;
     if (focus && q.pos !== seatPos) return;
     const p = q.pos();
     shout(p.x, p.y, p.z, q.text, q.pos, focus ? { pax: true } : undefined);   // the balloon stays with whoever speaks
@@ -482,7 +482,7 @@ function build(env) {
   const slots = [];
   const mkSlot = (o, key) => { const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
-  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
+  FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.title ? { title: f.title } : {}), ...(f.ped ? { ped: f.ped } : {}), ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area.
   mkSlot({ id: 'rave:karcere', kind: 'rave', sub: 'rave', name: RAVE.karcere.name, night: true, leash: () => { const a = SNAP['rave:karcere'], b = SNAP['rave:site']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 650 }; } }, 'rave:karcere');
@@ -493,7 +493,7 @@ function build(env) {
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
   let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
-  const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, x: s.x, z: s.z, ...(s.night ? { night: true } : {}) })),
+  const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, ...(s.title ? { title: s.title } : {}), x: s.x, z: s.z, ...(s.night ? { night: true } : {}) })),
     ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
   // the Missioni screen (src/ui.js): done / tried / best pay of one event by id, and ready(id) so the caller is there at once (an event just left or finished waits out a cooldown)
   const status = id => {
