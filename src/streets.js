@@ -147,6 +147,7 @@ export const TEX = {
 export const HIST_R0 = 2200, HIST_R1 = 3000;
 export const histW = (x, z) => { const t = Math.min(1, Math.max(0, (Math.hypot(x, z) - HIST_R0) / (HIST_R1 - HIST_R0))); return 1 - t * t * (3 - 2 * t); };
 const YARD_WIDTH = { raised: 4.6, paving: 9 }, ISLAND_WIDTH = 6.5, SPARSE = 0.10, OLD_R = 1800;   // OLD_R: inside it every polygon keeps its slabs
+const PORT = { x0: 0, x1: 1500, z0: -3500, z1: 0 };   // the port's quays keep their slabs: few walls stand near them, so the density test would make yards of them, piece by piece
 const CHUNK_M = 62.5;
 function curbIndex(curbs) {   // the kerb lines as points every 1.5 m in 2 m cells
   const g = new Map();
@@ -163,7 +164,7 @@ function nearCurb(g, x, z) {
 const isCut = (ax, az, bx, bz) => (Math.abs(ax - bx) < 0.2 && Math.abs(ax - Math.round(ax / CHUNK_M) * CHUNK_M) < 0.2) || (Math.abs(az - bz) < 0.2 && Math.abs(az - Math.round(az / CHUNK_M) * CHUNK_M) < 0.2);
 function isYard(poly, minWidth, ctx) {
   const r0 = poly[0], x0 = r0[0], z0 = r0[1];
-  if (Math.hypot(x0, z0) < OLD_R || (x0 > GR.x0 && x0 < GR.x1 && z0 > GR.z0 && z0 < GR.z1)) return false;
+  if (Math.hypot(x0, z0) < OLD_R || (x0 > GR.x0 && x0 < GR.x1 && z0 > GR.z0 && z0 < GR.z1) || (x0 > PORT.x0 && x0 < PORT.x1 && z0 > PORT.z0 && z0 < PORT.z1)) return false;
   let a = 0, per = 0;
   for (let k = 0; k < poly.length; k++) {
     const r = poly[k], n = r.length >> 1; let s = 0;

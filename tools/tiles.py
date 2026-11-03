@@ -1633,7 +1633,13 @@ def clean_dtm(x0, z0, nx, nz):
     # flat ground only: a closing would also fill real gullies and shave valley floors on slopes
     k = int(round(CLEAN_CLOSE / CLEAN_PX))
     if k > 0:
-        fill = np.where(np.isfinite(out), out, np.nanmedian(out)).astype(np.float32)
+        # no-data pixels take the local mean of the data around them (normalised blur), not the median of the whole window: the
+        # window is different for every tile, and that made the cleaned DTM (and so `near`) differ between neighbouring tiles
+        okm = np.isfinite(out).astype(np.float32)
+        den = cv2.GaussianBlur(okm, (0, 0), 8.0)
+        num = cv2.GaussianBlur(np.where(np.isfinite(out), out, 0).astype(np.float32), (0, 0), 8.0)
+        loc = np.where(den > 0.01, num / np.maximum(den, 0.01), 0.0)
+        fill = np.where(np.isfinite(out), out, loc).astype(np.float32)
         ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * k + 1, 2 * k + 1))
         closed = cv2.erode(cv2.dilate(fill, ker), ker)
         gy, gx = np.gradient(cv2.GaussianBlur(closed, (0, 0), 4.0), CLEAN_PX)   # slope of the filled surface, not of the pit walls
@@ -1932,7 +1938,8 @@ def near_for(i, j):
     # straddle the bbox edge) the clamp would drop real ground to -1.5 m while the neighbouring far-grid tile stays at its true
     # height: the 35 m and 248 m steps on 10_6|10_7 and -14_-16|-14_-15. Outside the rectangle the far grid decides, as before.
     rx0, rz0, rx1, rz1 = world_rect()
-    in_rect = (qx >= rx0) & (qx <= rx1) & (qz >= rz0) & (qz <= rz1)
+    # strictly inside: the east edge (x = 8210.0) is a lattice node, and contains_xy is false on the boundary, which clamped a one node trench along it
+    in_rect = (qx > rx0) & (qx < rx1) & (qz > rz0) & (qz < rz1)
     land_q = shapely.contains_xy(G["land"], qx, qz) | ~in_rect
     val = np.where(land_q, val, np.minimum(val, -1.5))
     nxp, nzp = ia1 - ia0 + 1 + 2 * P, ib1 - ib0 + 1 + 2 * P
