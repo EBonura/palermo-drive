@@ -847,7 +847,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const ICON_TICK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l5 5 9-10.5"/></svg>';
   const msScreen = screens.missions, msCard = msScreen.querySelector('.pd-ms'), msList = msScreen.querySelector('.pd-mslist'), msAsk = msScreen.querySelector('.pd-msask');
   const syncMsRail = scrollRail(msScreen);
-  const msClosed = new Set();   // group keys the player has folded
+  const msOpen = new Set();   // group keys the player has folded
   let msRows = [], askFor = null;
   const nightNow = () => game.state === 'title' ? st.timeStart === 'night' : !!(game.time && game.time.isNight);   // from the title the game opens at the chosen start time
   const eur = v => '€ ' + v.toFixed(2).replace('.', ',');
@@ -863,7 +863,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     msScreen.querySelector('.pd-colbar i').style.width = pct + '%';
     const lab = k => S[MKIND[k]] ? S[MKIND[k]][i] : k.charAt(0).toUpperCase() + k.slice(1);
     msList.innerHTML = total ? groups.map(g => {
-      const rows = msRows.filter(r => r.g === g).sort((a, b) => (qRank.get(a.q) - qRank.get(b.q)) || a.n - b.n), open = !msClosed.has(g), l1 = lab(g), col = MCOL[g] || 'var(--pd-pink)';
+      const rows = msRows.filter(r => r.g === g).sort((a, b) => (qRank.get(a.q) - qRank.get(b.q)) || a.n - b.n), open = msOpen.has(g), l1 = lab(g), col = MCOL[g] || 'var(--pd-pink)';
       return `<button class="pd-btn sm pd-qh pd-msgh" style="--k:${col}" data-nav data-grp="${esc(g)}" aria-expanded="${open}" type="button"><span class="pd-in"><span class="pd-l1">${esc(l1)}</span></span><b>${rows.filter(r => r.done).length} / ${rows.length}</b>${CHEV}</button>`
         + (open ? rows.map(r => {
           const when = r.night ? ['mNight', ICON_MOON] : r.day ? ['mDay', ICON_SUN] : ['mAny', ICON_ANY], off = r.night ? !nightNow() : r.day ? nightNow() : false;
@@ -881,7 +881,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   function toggleGroup(g) {
     const sc = msList.scrollTop;
-    msClosed.has(g) ? msClosed.delete(g) : msClosed.add(g);
+    msOpen.has(g) ? msOpen.delete(g) : msOpen.add(g);
     renderMissions(); msList.scrollTop = sc;
     msList.querySelector(`[data-grp="${CSS.escape(g)}"]`)?.focus({ preventScroll: true });
   }
