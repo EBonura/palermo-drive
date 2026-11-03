@@ -106,16 +106,18 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   const lang = () => (readSaved().lang === 'en' ? 1 : 0);
 
   // ---- audio graph ----
-  let ctx = null, master = null, useGain = false;
+  let ctx = null, master = null, useGain = false, analyser = null, freq = null;
   const slots = [0, 1].map(() => {
     const el = new Audio();
     el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', '');
-    return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false };
+    return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false, keep: false };   // keep: stopped by a pause, the file stays loaded where it was
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
   let ambient = 1;   // duckAmbient(k): the city's own voices (the knife-grinder's loudspeaker, src/city-audio.js) turn the radio down a little; apart from outer so a pub's song does not undo it
   let outer = 1;   // duckFor(k): other music nearby (a pub's song, src/pubs.js) turns the radio down without touching the player's volume
   let bag = [], last = -1, upcoming = null;
+  let mem = null;   // a pause or a hand-over to a pub song: { track } on slots[cur] (its element keeps the position); resuming goes on there. Only next, or a track that ends, moves on
+  let pend = false; // something asked to play while a pub song or the stadium had the line: starts when it is released
   const srcOf = track => BASE + (track.file || track.id + '.m4a');
 
   function buildGraph() {
@@ -132,7 +134,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         s.node.connect(s.gain); s.gain.connect(master);
       }
       useGain = true;
-    } catch (e) { ctx = null; useGain = false; }   // fall back to element.volume (desktop browsers)
+      try {   // spectrum tap for the bars in the top bar: a dead-end branch off the slot outputs (before the master volume and ducking), it changes nothing that is heard
+        analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.55;
+        freq = new Uint8Array(analyser.frequencyBinCount);
+        for (const s of slots) s.gain.connect(analyser);
+        const mute = ctx.createGain(); mute.gain.value = 0; analyser.connect(mute); mute.connect(ctx.destination);   // some browsers only run an analyser that reaches the output; this branch is silent
+      } catch (e) { analyser = null; freq = null; }
+    } catch (e) { ctx = null; useGain = false; analyser = null; freq = null; }   // fall back to element.volume (desktop browsers)
   }
 
   function applyGains(dt) {
@@ -182,6 +190,8 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   function playTrack(fadeSec) {
     if (!started || !enabled) return;
     if (document.hidden) return;
+    if (taken) { pend = true; return; }   // a pub's own song (or the stadium) has the line: the radio stays silent until it is released
+    mem = null; pend = false;
     const old = slots[cur];
     cur ^= 1;
     const s = slots[cur];
@@ -196,6 +206,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
       else if (err && err.name !== 'AbortError') trackFailed(s);
     });
     if (old.playing) { old.target = 0; old.fade = fadeSec; }
+    else if (old.keep) { old.keep = false; release(old); }   // a paused track that is left behind
     lastSwitch = performance.now();
     onTrack(track);
   }
@@ -212,10 +223,27 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   function stopAll(fadeSec) {
     for (const s of slots) if (s.playing) { s.target = 0; s.fade = fadeSec; }
   }
+  // Pausing keeps the track and its place: the current slot fades out and is paused with its file still loaded (tick), whatever else was fading out goes as before.
+  function hold(fadeSec) {
+    const c = slots[cur];
+    for (const s of slots) if (s.playing) { s.target = 0; s.fade = fadeSec; }
+    if (c.playing && c.track) { c.keep = true; mem = { track: c.track }; }
+  }
+  // Resuming goes on in the same track from where it stopped; with nothing remembered it is a new track from the bag.
+  function resume(fadeSec) {
+    if (taken) { pend = true; return; }
+    const c = slots[cur];
+    if (mem && c.track === mem.track && c.loaded === mem.track && c.keep) {
+      c.keep = false; c.target = 1; c.fade = fadeSec; c.playing = true; mem = null; pend = false; lastSwitch = performance.now();
+      const p = c.el.play();
+      if (p && p.catch) p.catch(err => { if (err && err.name === 'NotAllowedError') { blocked = true; c.playing = false; c.target = 0; c.keep = true; mem = { track: c.track }; } else if (err && err.name !== 'AbortError') trackFailed(c); });
+      sync();
+    } else playTrack(fadeSec);
+  }
 
   function next() {
-    if (!started || taken?.lock) return;   // a locked takeover (La partita in the stadium) cannot be skipped away
-    if (!enabled) return setEnabled(true);
+    if (!started || taken) return;   // a pub's own song or La partita has the line: nothing of the radio plays under it, so there is nothing to skip
+    if (!enabled) { mem = null; return setEnabled(true); }   // next on a paused radio goes to a new track
     if (performance.now() - lastSwitch < 500) return;   // button mashing: one change at a time
     playTrack(SKIP_FADE);
   }
@@ -225,8 +253,8 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (on === enabled) return;
     enabled = on;
     if (started) {
-      if (on) { playTrack(SKIP_FADE); }
-      else { stopAll(OFF_FADE); sync(); }
+      if (on) { resume(SKIP_FADE); }
+      else { hold(OFF_FADE); sync(); }
     }
   }
   const toggle = () => setEnabled(!enabled);
@@ -246,7 +274,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
       started = true;
       if (enabled) playTrack(2);
     } else if (enabled && !slots[cur].playing) {
-      playTrack(SKIP_FADE);
+      resume(SKIP_FADE);
     } else {
       for (const s of slots) if (s.playing && s.el.paused) s.el.play().catch(() => {});
     }
@@ -275,7 +303,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     for (const s of slots) {
       if (s.playing && s.target > 0 && s.el.paused && !s.el.ended) s.el.play().catch(err => { if (err && err.name === 'NotAllowedError') blocked = true; });
     }
-    if (why === 'return' && !slots[cur].playing) playTrack(SKIP_FADE);
+    if (why === 'return' && !slots[cur].playing && !taken) resume(SKIP_FADE);
   });
 
   // ---- keyboard ----
@@ -291,7 +319,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   // ---- what the shell shows: one view, announced when it changes ----
   const view = { mode: 'idle', label: '', title: '', sub: '', theme: '' };   // mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
   let taken = null;   // takeover(): { lock } while a pub or a scene has borrowed the line
-  let lastKey = '';
+  let lastKey = '', lv = new Float32Array(0), edges = [1];
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
   function setView(v) {
     Object.assign(view, v);
@@ -311,7 +339,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   window.addEventListener('pd-music-setting', () => {
     if (Number.isFinite(settings.musicVolume)) volume = clamp(settings.musicVolume, 0, 1);
     const on = settings.radio !== 'off';
-    if (on !== enabled) { enabled = on; if (started) { if (on) playTrack(SKIP_FADE); else stopAll(OFF_FADE); } }
+    if (on !== enabled) { enabled = on; if (started) { if (on) resume(SKIP_FADE); else { hold(OFF_FADE); sync(); } } }
   });
 
   // ---- main tick: fades, ducking, auto-advance, button and toast visibility ----
@@ -325,7 +353,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
         const step = dt / Math.max(0.05, s.fade);
         s.level = s.level < s.target ? Math.min(s.target, s.level + step) : Math.max(s.target, s.level - step);
       }
-      if (s.playing && s.target === 0 && s.level === 0) { s.playing = false; s.el.pause(); release(s); }
+      if (s.playing && s.target === 0 && s.level === 0) { s.playing = false; s.el.pause(); if (!s.keep) release(s); }
     }
     applyGains(dt);
     const c = slots[cur];
@@ -345,9 +373,13 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     next, toggle, setEnabled, setVolume, unlock,
     // takeover({ label, title, artist, theme: 'metal' | 'match', lock }): a pub or a scene borrows the line. The three strings replace the label, the title and the credits line in the bar and the panel (src/ui.js);
     // theme 'metal' is the dark red look, 'match' rosanero and black (La partita). lock: true also stops the next-track key (M) while it lasts; retext({ label, title, artist }) changes the lines live.
-    // (The `analyser` and `level` the old widget's bars followed are still accepted and ignored: the bars are gone.)
-    takeover({ label = '', title = '', artist = '', theme = 'metal', lock = false } = {}) {
-      taken = { lock };
+    // analyser (an AnalyserNode that is only read) or else level (a function returning 0..1) drives the bars in the top bar while the line is borrowed. While it is borrowed the radio itself is paused,
+    // fully silent (not ducked) and on the same track, and next / play in the bar do nothing to it; release() resumes it where it was.
+    takeover({ label = '', title = '', artist = '', theme = 'metal', lock = false, analyser: an = null, level = null } = {}) {
+      const was = !!taken;
+      taken = { lock, analyser: an && an.getByteFrequencyData ? an : null, level: typeof level === 'function' ? level : null, buf: null };
+      if (taken.analyser) taken.buf = new Uint8Array(taken.analyser.frequencyBinCount);
+      if (!was && started && enabled) hold(0.4);   // the radio goes quiet, not just lower, and stays on its track
       setView({ mode: 'on', label, title, sub: artist, theme });
     },
     retext({ label, title, artist } = {}) {
@@ -357,8 +389,34 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     release() {
       if (!taken) return;
       taken = null; lastKey = ''; sync();
+      if (started && enabled && !document.hidden && (mem || pend)) resume(1.2);   // back to the same track and place
     },
     get takenOver() { return !!taken; },
+    // spectrum(out): fills out (a Float32Array of any length, 0..1 per bar) for the bars in the top bar (src/ui.js), smoothed, and says whether anything is live. Cheap: one getByteFrequencyData
+    // and a few additions, called only while the bar is on screen and the page is visible.
+    spectrum(out) {
+      const n = out.length, tk = taken, an = tk ? tk.analyser : analyser, fq = tk ? tk.buf : freq;
+      if (lv.length !== n) { lv = new Float32Array(n); edges = [1]; for (let i = 1; i <= n; i++) edges.push(Math.max(edges[i - 1] + 1, Math.round(Math.pow(72, i / n)))); }
+      const live = !!tk || (started && enabled && !blocked && slots[cur].playing && (!ctx || ctx.state === 'running'));
+      if (live && an) an.getByteFrequencyData(fq);
+      const now = performance.now(), tl = tk && !an ? (tk.level ? clamp(+tk.level() || 0, 0, 1) : 0.55) : 0;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        let v = 0;
+        if (live && an) {
+          let a = 0; const lo = Math.min(edges[i], fq.length - 1), hi = Math.max(lo + 1, Math.min(edges[i + 1], fq.length));
+          for (let k = lo; k < hi; k++) a += fq[k];
+          v = a / (hi - lo) / 255;
+          v = Math.min(1, v * (0.85 + 0.6 * i / Math.max(1, n - 1)));   // the top of the spectrum is quiet in music: lift it a little
+          v = v * v * 0.95;
+        } else if (tk) v = tl * (0.3 + 0.7 * Math.random());
+        else if (live) v = 0.25 + 0.2 * Math.sin(now / 170 + i * 1.7) * Math.sin(now / 410 + i);   // no Web Audio: a gentle stand-in
+        v = Math.min(1, v);
+        lv[i] += (v - lv[i]) * (v > lv[i] ? 0.7 : 0.2);
+        out[i] = lv[i]; sum += lv[i];
+      }
+      return live || sum > 0.3;   // false once the bars have settled: the caller stops its loop
+    },
     get view() { return view; },   // what the bar and the menu panel show (src/ui.js)
     duckFor(k, depth = 0.88) { outer = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (no other music) .. 1 (other music at full); depth 1 silences the radio at k = 1 (the stadium)
     duckAmbient(k, depth = 0.4) { ambient = 1 - depth * clamp(k || 0, 0, 1); },   // k: 0 (nothing loud in the street) .. 1; depth 0.4 takes the radio down to 60 % at k = 1
@@ -372,5 +430,6 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     debug: () => ({ useGain, ctx: ctx && ctx.state, levels: slots.map(s => +s.level.toFixed(2)), duck: +duck.toFixed(2), master: master ? +master.gain.value.toFixed(3) : null, vols: slots.map(s => s.el.volume), started, blocked, failures }),
     destroy() { clearInterval(timer); stopAll(0.1); for (const s of slots) s.el.pause(); instance = null; },
   };
+  if (location.search.includes('debug')) window.__pdRadio = instance;   // test hook
   return instance;
 }

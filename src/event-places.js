@@ -178,7 +178,7 @@ export const HORNS = {
   arch: { id: 'arch', name: 'Arco di Cutò', lat: 38.110918, lon: 13.364388, onStreet: 'Chiappara', toLat: 38.1100, toLon: 13.3620 },
 };
 export const RAVE = {
-  karcere: { id: 'karcere', name: 'Centro sociale ExKarcere', lat: 38.1188723, lon: 13.3610391, onStreet: 'San Basilio', who: 'Il tecnico delle casse' },
+  karcere: { id: 'karcere', name: 'Centro sociale', lat: 38.1188723, lon: 13.3610391, onStreet: 'San Basilio', who: 'Il tecnico delle casse' },
   site: { id: 'site', name: 'Rave alla Favorita', lat: 38.1513704, lon: 13.3486840 },   // the middle of the dance floor
   access: { lat: 38.1511054, lon: 13.3481124, onStreet: 'Ercole' },   // where the track to it leaves the road (the middle of Viale Ercole)
   leaf: { id: 'leaf', name: 'Via Cipressi', lat: 38.1115405, lon: 13.3394977, onStreet: 'Cipressi' },
