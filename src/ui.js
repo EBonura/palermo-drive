@@ -66,7 +66,10 @@ const S = {
   startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
-  menuBtn: ['Menu', 'Menu'],
+  pinH: ['Schermo intero come un\'app', 'Full screen, like an app'],
+  pinDroid: ['Menu del browser (⋮), poi «Aggiungi a schermata Home». Si apre a schermo intero, senza barra.', 'Browser menu (⋮), then “Add to Home screen”. It opens full screen, with no browser bar.'],
+  pinIos: ['Tocca Condividi, poi «Aggiungi alla schermata Home». Si apre a schermo intero, senza barra.', 'Tap Share, then “Add to Home Screen”. It opens full screen, with no browser bar.'],
+  menuBtn: ['Menu', 'Menu'], openMap: ['Apri mappa', 'Open map'],
   fullscreen: ['Schermo intero', 'Fullscreen'],
   credCreated: ['Creato da', 'Created by'],
   credData: ['Dati e mappe', 'Data and maps'],
@@ -352,10 +355,13 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         ? `<div class="pd-seg" role="group">${o.vals.map(v => `<button class="pd-segb" data-nav type="button" data-v="${v[0]}" aria-pressed="false"><span ${v[1] ? `data-k="${v[1]}"` : ''}>${v[2] || ''}</span></button>`).join('')}</div>`
         : `<div class="pd-slider" data-nav role="slider" tabindex="0" aria-valuemin="${o.min}" aria-valuemax="${o.max}"><div class="pd-track"><div class="pd-fill"></div></div><div class="pd-thumb"></div></div>`}
     </div>`;
+  // How to pin the game to the home screen (a phone in a browser tab; hidden once it runs standalone or fullscreen, in CSS and here for iOS): one platform, one language, no popup
+  const IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
       <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2>${rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')}</div>
       <div class="pd-scrollwrap">
-        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}</div>
+        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}${PIN_ROW}</div>
         <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
         <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
       </div>
@@ -442,6 +448,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1;
     for (const e of ui.querySelectorAll('[data-k]')) applyLangTo(e);
     miniEl.setAttribute('aria-label', S.whereQ[i]); miniEl.title = S.whereQ[i];
+    mapTag.textContent = S.openMap[i]; mapTag.setAttribute('aria-label', S.openMap[i]);
     menuBtn.setAttribute('aria-label', S.menuBtn[i]);
     buildCredits(); syncRadio(); startMap?.applyLang(); if (cur === 'missions') renderMissions();
   }
@@ -593,8 +600,25 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     game.pause(); stack = []; delete lastFocus.start; go('start');
   }
   const miniEl = document.getElementById('mini');
-  miniEl.addEventListener('click', openMap);
-  for (const ev of ['touchstart', 'touchend']) miniEl.addEventListener(ev, e => e.stopPropagation(), { passive: true });   // the page lockdown (src/mobile.js) leaves this tap alone
+  // The little label on the minimap's top rim says what the map is for. A <span>, not a <button>: a focused button would open the map on Space, which is the handbrake.
+  const mapTag = document.createElement('span');
+  mapTag.className = 'pd-maptag'; mapTag.setAttribute('role', 'button');
+  miniEl.parentNode.appendChild(mapTag);
+  // A tap opens the map from pointerup as well as click: while another finger holds a steering pad the browser sends the second finger's tap no click at all (pointerdown,
+  // touchstart, pointerup and touchend arrive, the click does not), so while driving with a thumb on the pad it took several taps. openMap ignores a second call.
+  function wireMapOpener(el) {
+    let down = null, handled = false;
+    el.addEventListener('click', openMap);
+    el.addEventListener('pointerdown', e => { down = e.pointerType === 'mouse' ? null : { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }; });
+    el.addEventListener('pointerup', e => {
+      const d = down; down = null;
+      if (d && d.id === e.pointerId && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 16 && performance.now() - d.t < 800 && game.state === 'play' && !busy) { handled = true; openMap(); }
+    });
+    el.addEventListener('pointercancel', () => { down = null; });
+    el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });   // the page lockdown (src/mobile.js) leaves this tap alone
+    el.addEventListener('touchend', e => { e.stopPropagation(); if (handled) { handled = false; if (e.cancelable) e.preventDefault(); } });   // the tap is done: no click may follow onto the big map that is now under the finger
+  }
+  wireMapOpener(miniEl); wireMapOpener(mapTag);
   // The sea's game-over "Menu" button asks the shell to go back to the menu instead of reloading.
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {

@@ -12,6 +12,7 @@ import { buildFront } from './pub-fronts.js';
 import { createErrand } from './event-pubs.js';
 import { createRadio } from './radio.js';
 import { createNotes } from './pub-notes.js';
+import { onAudioRecover } from './audio-recover.js';
 
 const BUILD_R = 320, SHOW_R = 460, DROP_R = 900;                  // front: build, show, throw away (metres)
 const CROWD_R = 140, CROWD_DROP = 210;                            // people in front
@@ -72,9 +73,9 @@ function createMusic(def, door, game, car, camera) {
   function camYaw(cam) { cam.getWorldDirection(fwd); return Math.atan2(fwd.x, fwd.z); }
   let last = performance.now();
   const timer = setInterval(() => { const n = performance.now(), dt = Math.min(0.5, (n - last) / 1000); last = n; try { tick(dt); } catch (e) { /* keep ticking */ } }, 100);
-  addEventListener('pointerdown', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
-  addEventListener('keydown', () => { if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); }, true);
-  return { get level() { return lvl; }, get loaded() { return !!el; }, get element() { return el; }, get taken() { return taken; }, destroy() { clearInterval(timer); close(); } };
+  // the browser pauses the song in the background: the contexts come back by themselves (src/audio-recover.js), the element is started again here
+  const unhook = onAudioRecover(() => { if (el && wantPlay && el.paused) el.play().catch(() => { wantPlay = false; }); });
+  return { get level() { return lvl; }, get loaded() { return !!el; }, get element() { return el; }, get taken() { return taken; }, destroy() { clearInterval(timer); unhook(); close(); } };
 }
 
 // ------------------------------------------------------------------------------------------------ the venues

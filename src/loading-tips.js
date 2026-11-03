@@ -21,7 +21,17 @@
     ['Si fai truappu buiddiellu arriva a pulizzia: si ti fiaimmi ti fannu puru a multa.', 'Cause too much chaos and the police come: if you stop, they fine you too.'],
     ['Ni trovi supra Instagram: @bonnie_studios_.', 'Find us on Instagram: @bonnie_studios_.'],
   ];
-  var EVERY = 4500, FADE = 320;
+  var EVERY = 4500, FADE = 320, FONT_WAIT = 1200;
+  // One more tip, only for a phone in a browser tab: how to pin the game to the home screen (full screen, no browser bar). Not on a computer, not once it runs standalone or fullscreen;
+  // the iPhone gets its own steps. The menu names are the browser's own (Italian ones, as the phone shows them).
+  try {
+    var phone = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window,
+      pinned = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone === true,
+      ios = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (phone && !pinned) TIPS.push(ios
+      ? ['Mettiti Palermo Drive nta schermata Home: Condividi, «Aggiungi alla schermata Home», e s’apri a schermu sanu comu n’app.', 'Pin Palermo Drive to your home screen: Share, “Add to Home Screen”, and it opens full screen like an app.']
+      : ['Mettiti Palermo Drive nta schermata Home: menu ru browser (⋮), «Aggiungi a schermata Home», e s’apri a schermu sanu comu n’app.', 'Pin Palermo Drive to your home screen: browser menu (⋮), “Add to Home screen”, and it opens full screen like an app.']);
+  } catch (e) { /* no media queries: no tip */ }
   try {
     var box = document.getElementById('loading'), el = document.getElementById('tip');
     if (!box || !el) return;
@@ -43,11 +53,22 @@
       l1.textContent = tip[big];
       l1.lang = big ? 'en' : 'it';
     };
-    show(); el.className = 'on';
-    var timer = setInterval(function () {
-      if (!document.getElementById('loading') || box.classList.contains('out')) { clearInterval(timer); return; }
-      el.className = '';
-      setTimeout(function () { show(); el.className = 'on'; }, FADE);
-    }, EVERY);
+    var timer = 0, begun = false;
+    var go = function () {   // the first tip and then the rotation, once the fonts it is set in have arrived (or FONT_WAIT has passed)
+      if (begun || !document.getElementById('loading')) return;
+      begun = true;
+      show(); el.className = 'on';
+      timer = setInterval(function () {
+        if (!document.getElementById('loading') || box.classList.contains('out')) { clearInterval(timer); return; }
+        el.className = '';
+        setTimeout(function () { show(); el.className = 'on'; }, FADE);
+      }, EVERY);
+    };
+    // The tip is set in Barlow and Barlow Condensed (font-display: swap): shown at once it would start in the fallback face and jump when the real one arrives. The fonts are
+    // preloaded by index.html; the tip stays invisible until document.fonts has them, but never longer than FONT_WAIT, so a slow network still gets its text. Nothing else waits.
+    if (document.fonts && document.fonts.load) {
+      setTimeout(go, FONT_WAIT);
+      try { Promise.all(['600 1em Barlow', 'italic 400 1em Barlow', '700 1em "Barlow Condensed"'].map(function (f) { return document.fonts.load(f); })).then(go, go); } catch (e) { go(); }
+    } else go();
   } catch (e) { /* the tips are a nicety: never let them break loading */ }
 }());

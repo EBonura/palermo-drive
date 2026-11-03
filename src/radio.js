@@ -20,6 +20,8 @@
 //   the slot outputs (a side branch, nothing is routed through it), title and credits, next / on-off buttons. It collapses to the bars and
 //   a chevron a few seconds after the last track change or tap, and a track change opens it again.
 
+import { onAudioRecover } from './audio-recover.js';
+
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 const BASE = new URL('../assets/music/', import.meta.url).href;
 
@@ -278,11 +280,16 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { for (const s of slots) if (s.playing) s.el.pause(); ctx?.suspend?.().catch?.(() => {}); }
-    else if (started) {
-      ctx?.resume?.().catch?.(() => {});
-      for (const s of slots) if (s.playing) s.el.play().catch(() => {});
-      if (enabled && !slots[cur].playing) playTrack(SKIP_FADE);
+  });
+  // coming back (src/audio-recover.js resumes the contexts, this restarts the radio): only what was playing, and only while the radio is on. The browser pauses the elements
+  // in the background (and on a call or a lock screen), so any element that should be playing but is paused gets play() again; a refusal waits for the next tap.
+  onAudioRecover(why => {
+    if (!started || !enabled || document.hidden) return;
+    if (blocked) { unlock(); return; }
+    for (const s of slots) {
+      if (s.playing && s.target > 0 && s.el.paused && !s.el.ended) s.el.play().catch(err => { if (err && err.name === 'NotAllowedError') blocked = true; });
     }
+    if (why === 'return' && !slots[cur].playing) playTrack(SKIP_FADE);
   });
 
   // ---- keyboard ----

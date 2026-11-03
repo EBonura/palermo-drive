@@ -168,6 +168,11 @@ html.pd-title :is(#hud, #help, .tc) { visibility: hidden !important; }
 .pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 2.2vh, 20px) clamp(16px, 3vw, 36px); overflow-y: auto; overflow-x: hidden; padding: 4px 14px 4px 12px; touch-action: pan-y; scrollbar-width: thin; }
 .pd-grid.spots { grid-template-columns: 1fr 1fr; }
 .pd-grid .pd-row[data-opt=camera] { grid-column: 1 / -1; }
+/* how to pin the game to the home screen (src/ui.js): a phone in a browser tab only */
+.pd-row.pd-pin { display: none; grid-column: 1 / -1; }
+html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
+@media (display-mode: standalone), (display-mode: fullscreen) { .pd-pin { display: none !important; } }
+.pd-pint { margin: 0; font: 400 clamp(12px, 2.9vh, 15px)/1.3 var(--pd-sans); color: var(--pd-cream); opacity: .85; }
 .pd-row[data-opt=timeStart] .pd-segb, .pd-row[data-opt=timeSpeed] .pd-segb { font-size: clamp(11px, 2.5vh, 16px); letter-spacing: .03em; padding: 0 2px; }
 .pd-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .pd-lang { width: min(46%, 300px); flex: 0 0 auto; }
@@ -258,6 +263,12 @@ html.pd-radio-drop .hz-status { top: calc(var(--st) + 108px); }   /* the radio, 
 #mini { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: border-color .12s, box-shadow .12s; }   /* a tap opens the big map (src/ui.js) */
 @media (hover: hover) { #mini:hover { border-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35), 0 0 14px rgba(232,85,154,.7); } }
 #mini:active { border-color: #f5a9c9; }
+/* "Apri mappa": a small pill on the minimap's top rim (src/ui.js), centred on the map whatever its size; the clock of the map badge goes on the bottom rim */
+.pd-maptag { position: absolute; z-index: 2; top: 0; right: calc(var(--mini) / 2); transform: translate(50%, -32%); box-sizing: border-box; padding: 3px 9px 2px; border-radius: 999px; white-space: nowrap;
+  font: 700 10px/1.1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-cream); text-shadow: none; background: rgba(11,7,9,.9); border: 1.5px solid var(--pd-pink); box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .12s, border-color .12s; }
+@media (hover: hover) { .pd-maptag:hover, .hz-map:has(#mini:hover) .pd-maptag { background: var(--pd-pink); border-color: #fff; } }
+.pd-maptag:active { background: var(--pd-pink); }
 #hud .nosbar { position: static; transform: none; }   /* src/mobile.css draws the bar, it only stands in the row here */
 html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 /* the question on arriving at a mission from the big map (src/ui.js): a poster in the look of the game over card. The card, its kicker, description and buttons are the .sea-* classes
@@ -285,6 +296,7 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 @media (orientation: landscape) {
   html.touch #hud { --mini: clamp(76px, 25vh, 104px); }
   html.touch #mini { width: var(--mini); height: var(--mini); box-sizing: border-box; border-width: 2px; }
+  html.touch .pd-maptag { padding: 2px 7px 1px; font-size: 8.5px; letter-spacing: .12em; }
   /* the street reads left of the map: under it stand the NOS and horn pads */
   html.touch .hz-map { width: auto; flex-direction: row-reverse; align-items: flex-start; }
   /* the top centre column (mission card, banners, results) moves left, just right of the round menu button and under the row of the menu button and the (folded) radio, so that it ends before the map's card starts.
