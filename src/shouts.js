@@ -37,6 +37,7 @@ export const INSULTS = [
   "Fumatilla n'avutra",
   'Cuscì ciaicchi aggaddu?',
   'Bba iaccati!',
+  'Chiffà a dignità nna puittamu puru o a lassamu a casa?',
 ];
 // The owner's lines that belong to a place: the ZEN, Mondello's sand and the three markets, the last two by day. placeLine(x, z, sand) -> one of them at that spot, or null anywhere else.
 const ZEN_LINES = ['Cutiaddu? Pistuala?'], MARKET_LINES = ['Si sta muriannu ra faaameee', 'Signora i limoni signoraaaaaaaahhhhh'];
