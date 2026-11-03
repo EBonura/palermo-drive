@@ -55,6 +55,7 @@ export function placeLine(x, z, sand) {   // sand: the spot is on a beach (the c
 export const FLEW = 'Minchia vulavu';
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
+export const lifeFor = t => Math.min(6, LIFE + Math.max(0, t.length - 20) * 0.07);   // a long line stays long enough to be read
 const CROWD_MAX = 8, CROWD_LIFE = 3.2;
 
 const RARE = 'Con la rucola o seeeeeeeeenza?', RARE_CHANCE = 0.03;   // a treat, about one shout in thirty
@@ -99,7 +100,7 @@ export function createShouts(camera) {
     el.textContent = text || pick(x, z);
     el.style.setProperty('--tilt', `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     layer.appendChild(el);
-    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0, pax, crowd, life: crowd ? CROWD_LIFE : LIFE });
+    live.push({ el, p: new THREE.Vector3(x, y, z), follow, t: 0, side: 0, pax, crowd, life: crowd ? CROWD_LIFE : lifeFor(el.textContent) });
   }
   // focus(true) when a fare starts: clears the other balloons and keeps them away until focus(false)
   shout.focus = on => {

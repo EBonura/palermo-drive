@@ -632,7 +632,7 @@ function makePhysics(env) {
     // player loses momentum
     const dv = vc * (1 - mv * e) / (1 + mv), loss = vc - dv;
     pc.vx += nx * loss; pc.vz += nz * loss; pc.vf = pc.vx * Math.sin(pc.th) + pc.vz * Math.cos(pc.th);
-    if (simT - lastShout > 1.2) { lastShout = simT; try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: c.py || c.y0 + 1, z: c.z } })); } catch (err) { /* no events */ } }
+    if (simT - lastShout > 1.2) { lastShout = simT; try { dispatchEvent(new CustomEvent('pd-shout', { detail: { x: c.x, y: c.py || c.y0 + 1, z: c.z, follow: () => c.dead ? null : { x: c.x, y: c.py || c.y0 + 1, z: c.z } } })); } catch (err) { /* no events */ } }
   }
   // A loose piece that is not a tile prop (a market stall's frame, canopy and crates, src/markets.js): p = { im, i, x0, y0, z0, rot0, s, sp: { m, he, hc, ghost } }, an instance of any
   // InstancedMesh. Thrown like a yeeted object (same speeds and spin, o scales them), it lands and lies where it falls: it is never put back, and nothing hits it again.
