@@ -8,7 +8,7 @@
 export const SP = {
   // code: [model, tint hex or null, crown sizes it can have: s small (< 2.1 m radius), m, l (> 4.2 m)]
   plane: ['plane', null, 'ml'], ficus: ['ficus', null, 'ml'], stone: ['pine', null, 'ml'], aleppo: ['aleppo', null, 'ml'],
-  carob: ['tree', '#7f9a74', 'ml'], holm: ['tree', '#5f7f66', 'm'], olive: ['tree', '#a9b48a', 'sm'], citrus: ['orange', null, 'sm'], oleander: ['shrub', null, 's'],
+  carob: ['tree', '#7f9a74', 'ml'], holm: ['holm', null, 'm'], olive: ['tree', '#a9b48a', 'sm'], citrus: ['orange', null, 'sm'], oleander: ['shrub', null, 's'],
   canary: ['palm_date', null, 't'], wash: ['palm_fan', null, 't'],
 };
 
