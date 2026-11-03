@@ -92,12 +92,13 @@ export function createErrand(X) {
     setItems();
     const v = e.venue;
     if (e.got === 0) { say(pick(e.E.none), headOf, 0); finish(false); return; }
+    X.guide.to(v.slot.x, v.slot.z);   // the way back to the pub, worked out from where the car is
     homeBeacon.set(v.slot.x, v.slot.z); homeBeacon.show(true); e.homeMarker = X.addMarker(v.slot.x, v.slot.z, '#6bbf59', 8, 'target');
     hud.toast(T((e.item.art === 'le' ? 'Riportale da ' : 'Riportali da ') + v.def.name, 'Take them back to ' + v.def.name), e.got + ' ' + iname(e.item));
   }
 
   function finish(ok) {
-    e.phase = 'done'; e.thanks = 5.5; X.setPhase('done');
+    e.phase = 'done'; e.thanks = 5.5; X.setPhase('done'); X.guide.off();
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
     if (!ok) { hud.result(`<h3>${T('Nienti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * e.E.pay * 2) / 2, bonus = e.got >= e.total ? e.E.bonus : 0, total = base + bonus; e.pay = total;

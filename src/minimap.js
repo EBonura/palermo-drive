@@ -177,9 +177,10 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     if (mapRoute.length > 1) {
       mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
       mini.lineCap = mini.lineJoin = 'round';
-      for (const [w, c] of [[7, '#120a0e'], [4, '#e8559a']]) {
-        mini.strokeStyle = c; mini.lineWidth = w; mini.beginPath();
-        mapRoute.forEach(([x, z], i) => { const [px, pz] = toMap(x, z); i ? mini.lineTo(px, pz) : mini.moveTo(px, pz); });
+      for (let pass = 0; pass < 2; pass++) {   // outline, then pink; only the part still to drive, from the car (mapRoute.i0 and .px/.pz: src/route-guide.js)
+        mini.strokeStyle = pass ? '#e8559a' : '#120a0e'; mini.lineWidth = pass ? 4 : 7; mini.beginPath(); mini.moveTo(W / 2, W / 2);
+        if (mapRoute.i0 > 0) { const dx = (mapRoute.px - car.x) * k, dz = (mapRoute.pz - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
+        for (let i = mapRoute.i0 || 0; i < mapRoute.length; i++) { const m = mapRoute[i], dx = (m[0] - car.x) * k, dz = (m[1] - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
         mini.stroke();
       }
       mini.restore();
