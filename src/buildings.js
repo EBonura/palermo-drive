@@ -261,13 +261,15 @@ layer('g_door2', (g, r) => {
   win(g, 190, 100, 40, 66, { sh: 'g', st: 'closed', fr: 4, sill: true });
   dado(g, 50, .45);
 });
-layer('g_garage', (g, r) => {
-  plaster(g, r, '#e0d9c8', { peel: 0 });
-  g.fillStyle = '#ebe4d2'; g.fillRect(16, 60, 224, T - 60);
-  rollShutter(g, r, 26, 70, 204, 186, r() < .5 ? '#6a5a4a' : '#6c6c6a');
+// garage doors in four states (a group, GMAP g_garage): light metal, brown, green, and one rolled up on a dark box with a car in it
+const garageDoor = (col, up) => (g, r) => {
+  plaster(g, r, '#e0d9c8', { peel: 0 }); g.fillStyle = '#ebe4d2'; g.fillRect(16, 60, 224, T - 60);
+  if (up) { g.fillStyle = '#17120e'; g.fillRect(26, 70, 204, 186); g.fillStyle = 'rgba(220,190,120,.35)'; g.fillRect(150, 120, 70, 136); g.fillStyle = '#6a6c70'; g.fillRect(46, 190, 100, 50); g.fillStyle = '#4a4c52'; g.fillRect(64, 164, 62, 30); g.fillStyle = 'rgba(190,210,230,.3)'; g.fillRect(70, 170, 50, 18); rollShutter(g, r, 26, 70, 204, 22, col); }
+  else rollShutter(g, r, 26, 70, 204, 186, col);
   g.fillStyle = '#2a2a2a'; g.fillRect(26, 62, 204, 8);
   dado(g, 30, .35);
-});
+};
+const GARS = [garageDoor('#a6a8a2'), garageDoor('#6a5a4a'), garageDoor('#50705a'), garageDoor('#7a7b76', 1)];
 layer('g_win', (g, r) => {
   plaster(g, r, '#dfd8c6', { peel: 1 });
   win(g, 84, 92, 88, 96, { sh: r() < .5 ? 'g' : 'b', st: 'half', fr: 8 });
@@ -476,26 +478,6 @@ layer('res_e', (g, r) => { // painted balcony
   g.fillStyle = '#4f7a3a'; g.beginPath(); g.arc(78, 138, 12, 0, 6.3); g.arc(176, 134, 10, 0, 6.3); g.fill();
 });
 
-// ---- post-war concrete block
-layer('pw_a', (g, r) => {
-  plaster(g, r, '#e4e0d6', { peel: 0 });
-  g.fillStyle = '#d6d2c6'; g.fillRect(0, 200, T, 56); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(0, 200, T, 4);
-  g.fillStyle = '#c9c5b8'; g.fillRect(44, 46, 168, 24); g.fillStyle = 'rgba(0,0,0,.2)'; for (let y = 48; y < 68; y += 4) g.fillRect(44, y, 168, 1.5);
-  g.fillStyle = '#9ca3a8'; g.fillRect(44, 70, 168, 96);
-  const gr = g.createLinearGradient(0, 74, 0, 160); gr.addColorStop(0, '#5f6e7a'); gr.addColorStop(1, '#2a3036'); g.fillStyle = gr; g.fillRect(49, 74, 158, 88);
-  g.fillStyle = '#9ca3a8'; g.fillRect(126, 74, 4, 88);
-  g.fillStyle = '#e8e6df'; g.fillRect(180, 176, 40, 20); g.fillStyle = '#888'; g.fillRect(184, 184, 32, 2);
-  streak(g, 128, 168, 70, 80, .07);
-});
-layer('pw_b', (g, r) => {
-  plaster(g, r, '#e4e0d6', { peel: 0 });
-  g.fillStyle = '#f0ede4'; g.fillRect(0, 150, T, 96); g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, 246, T, 10); g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(0, 150, T, 3);
-  g.fillStyle = '#b8b4a8'; g.fillRect(0, 150, T, 6);
-  win(g, 70, 36, 116, 100, { fr: 5, frc: '#c9c5b8', sill: false });
-  g.fillStyle = '#bdb9ac'; g.fillRect(64, 28, 128, 20); g.fillStyle = 'rgba(0,0,0,.2)'; for (let y = 30; y < 46; y += 4) g.fillRect(64, y, 128, 1.5);
-  streak(g, 40, 246, 10, 40, .0);
-});
-
 // ---- church / civic stone
 layer('ch_low', (g, r) => { ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72); dado(g, 50, .35); for (let i = 0; i < 4; i++) streak(g, r() * T, r() * 60, 120, 10, .12); });
 layer('ch_door', (g, r) => {
@@ -655,23 +637,95 @@ layer('g_lib', (g, r) => { // rusticated base, arched window with iron grille, c
   g.fillStyle = '#b9ae98'; g.fillRect(34, T - 10, 188, 10); dado(g, 40, .35);
 });
 
-// ---- sacco di Palermo blocks (1960s-70s): continuous balconies, tapparelle, drop awnings, marble lobbies
-function blkTile(g, r, tcol, awn, extra) {
-  plaster(g, r, '#e6e1d4', { peel: 0 });
-  shutterBox(g, 74, 22, 108);
-  win(g, 84, 48, 88, 168, { fr: 4, frc: '#cfc9b9', sill: false });
-  tapp(g, 80, 44, 96, 168 * (0.3 + 0.5 * r()), tcol);
-  if (awn) awnDrop(g, 70, 46, 116, 150, awn);
-  if (extra === 'ac') acUnit(g, 186, 70);
-  if (extra === 'win') { win(g, 196, 90, 34, 50, { fr: 3, frc: '#cfc9b9', sill: false }); tapp(g, 194, 88, 38, 22, tcol); }
-  g.fillStyle = '#f0ede4'; g.fillRect(0, T - 20, T, 20); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(0, T - 20, T, 3);
-  for (let i = 0; i < 3; i++) streak(g, 20 + r() * 216, 0, 90 + r() * 60, 6 + r() * 10, .12);
+// ---- post-war blocks, 1950s to 1980s (sacco di Palermo): a concrete frame with render panels, a French window and a deep balcony in the living-room bay, plain windows in the others, tapparelle in every state.
+// Variants are gathered in groups (PWD balcony-door bays, PWW plain bays, PWBD and PWBW the same on exposed brick, PWG shop fronts); the shader picks one per bay and floor. Balconies are geometry (buildings.js, pwBalc).
+function pwRender(g, r) {   // the render panel of one flat: neutral light render (no warm blotches, the building colour tints it), a lighter slab band at the foot, a shadow under the slab above
+  g.fillStyle = '#ebe8e1'; g.fillRect(0, 0, T, T); softNoise(g, r, 5, '110,102,92', .14); softNoise(g, r, 9, '255,255,250', .2); softNoise(g, r, 3, '70,66,60', .14, 2.4);
+  for (let i = 0; i < 500; i++) { g.fillStyle = r() < .5 ? 'rgba(80,74,66,.10)' : 'rgba(255,255,255,.12)'; g.fillRect(r() * T, r() * T, 1 + r() * 1.6, 1 + r() * 1.6); }
+  g.fillStyle = '#f3f0e8'; g.fillRect(0, T - 24, T, 24); g.fillStyle = 'rgba(40,34,28,.3)'; g.fillRect(0, T - 24, T, 3);
+  const gr = g.createLinearGradient(0, 0, 0, 34); gr.addColorStop(0, 'rgba(40,34,28,.22)'); gr.addColorStop(1, 'rgba(40,34,28,0)'); g.fillStyle = gr; g.fillRect(0, 0, T, 34);
+  for (let i = 0; i < 2; i++) streak(g, 20 + r() * 216, 0, 60 + r() * 90, 6 + r() * 12, .1);
 }
-layer('blk_a', (g, r) => blkTile(g, r, '#8a6a4a', null, 'ac'));
-layer('blk_b', (g, r) => blkTile(g, r, '#e2dac2', null, 'win'));
-layer('blk_c', (g, r) => blkTile(g, r, '#5c7a58', '#c9803a', null));
-layer('blk_e', (g, r) => blkTile(g, r, '#8a6a4a', '#4f7a5c', 'ac'));
-layer('blk_d', (g, r) => blkTile(g, r, '#9a9a94', null, 'ac'));
+const BRICKS = ['#a65e46', '#9a5440', '#b06a4e', '#8f4f3c', '#b87454', '#a0604a', '#9c7a62'];
+function pwBrick(g, r) {   // exposed facing brick (klinker) in running bond, a concrete slab band at the foot
+  g.fillStyle = '#b9ae9e'; g.fillRect(0, 0, T, T);
+  const rows = 42, rh = T / rows, nb = 13, bw = T / nb;
+  for (let j = 0; j < rows; j++) for (let i = 0; i < nb; i++) {
+    const x = i * bw + (j % 2) * bw / 2, c = BRICKS[(r() * BRICKS.length) | 0];
+    g.fillStyle = c; g.fillRect(x + .8, j * rh + .6, bw - 1.6, rh - 1.2); if (x + bw > T) g.fillRect(x - T + .8, j * rh + .6, bw - 1.6, rh - 1.2);
+  }
+  softNoise(g, r, 6, '40,20,10', .18); softNoise(g, r, 4, '255,240,220', .1);
+  g.fillStyle = '#d9d5ca'; g.fillRect(0, T - 24, T, 24); g.fillStyle = 'rgba(40,34,28,.3)'; g.fillRect(0, T - 24, T, 3);
+  const gr = g.createLinearGradient(0, 0, 0, 30); gr.addColorStop(0, 'rgba(30,20,14,.28)'); gr.addColorStop(1, 'rgba(30,20,14,0)'); g.fillStyle = gr; g.fillRect(0, 0, T, 30);
+}
+function pwWin(g, r, x, y, w, h, o = {}) {   // a flat's window or French window: frame set in the wall, glass, then tapparella, louvred shutters, curtain
+  const fr = o.fr ?? 5, fc = o.frame || '#e4e0d4';
+  g.fillStyle = 'rgba(30,24,18,.34)'; g.fillRect(x - fr + 3, y - fr + 4, w + 2 * fr, h + 2 * fr);
+  g.fillStyle = fc; g.fillRect(x - fr, y - fr, w + 2 * fr, h + 2 * fr);
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+  g.fillStyle = 'rgba(200,215,230,.15)'; g.beginPath(); g.moveTo(x, y + h * .55); g.lineTo(x + w * .6, y); g.lineTo(x + w, y); g.lineTo(x, y + h * .9); g.fill();
+  g.fillStyle = fc; const n = o.leaves || 1; for (let i = 1; i < n; i++) g.fillRect(x + w * i / n - 1.5, y, 3, h);
+  if (o.door) g.fillRect(x, y + h * .22, w, 3);
+  if (o.curt) { g.fillStyle = 'rgba(240,235,222,.6)'; g.fillRect(x, y, w * o.curt, h * .8); }
+  if (o.blind) { shutterBox(g, x - fr, y - fr - 17, w + 2 * fr, 17); tapp(g, x - 1, y - 2, w + 2, h * o.down + 2, o.blind); }
+  if (o.perc) { const c = SH[o.perc], lw = w / 2 + .5; if (o.pst === 'open') { leaf(g, x - fr - lw, y, lw, h, c); leaf(g, x + w + fr, y, lw, h, c); } else { leaf(g, x, y, lw, h, c); leaf(g, x + w - lw, y, lw, h, c); } }
+  if (o.sill) { g.fillStyle = '#eeeae0'; g.fillRect(x - fr - 5, y + h + fr, w + 2 * fr + 10, 6); g.fillStyle = 'rgba(30,20,10,.35)'; g.fillRect(x - fr - 5, y + h + fr + 6, w + 2 * fr + 10, 3); }
+}
+function pwLaundry(g, r, y) { g.strokeStyle = '#555'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(40, y); g.lineTo(216, y + 5); g.stroke(); const cl = ['#e8e8e0', '#c8423a', '#3a64a8', '#e8c43a', '#f2f2f2', '#6aa05a']; for (let i = 0; i < 5; i++) { g.fillStyle = cl[(r() * cl.length) | 0]; g.fillRect(48 + i * 34, y + 1 + i, 16 + r() * 10, 26 + r() * 20); } }
+const PWBL = ['#7f8588', '#7a5a3e', '#4d6a4e', '#8c8a80', '#6a4e3a'];   // tapparella colours: grey, brown, green, putty, dark brown
+const pwBl = r => PWBL[(r() * PWBL.length) | 0];
+const PWD = [   // bays with the balcony door
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: pwBl(r), down: 1 }); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: pwBl(r), down: .45 }); acUnit(g, 186, 96); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, curt: .5, perc: r() < .5 ? 'w' : 'g', pst: 'open' }); },
+  (g, r) => { pwRender(g, r); g.fillStyle = '#d8dad6'; g.fillRect(34, 62, 188, 172); const gr = g.createLinearGradient(0, 68, 0, 230); gr.addColorStop(0, '#6a7f94'); gr.addColorStop(1, '#222d3a'); g.fillStyle = gr; g.fillRect(40, 68, 176, 162);   // a balcony closed in with aluminium and glass (veranda)
+    g.fillStyle = '#d8dad6'; for (const x of [84, 128, 172]) g.fillRect(x - 2, 68, 4, 162); g.fillRect(40, 124, 176, 4); g.fillStyle = 'rgba(240,235,222,.55)'; g.fillRect(44, 72, 38, 100); g.fillRect(132, 72, 36, 70); g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(40, 220); g.lineTo(120, 68); g.lineTo(150, 68); g.lineTo(40, 230); g.fill(); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 58, 88, 176, { door: 1, leaves: 2, blind: pwBl(r), down: .2 }); pwLaundry(g, r, 128); },
+];
+const PWW = [   // plain bays
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 70, 88, 118, { blind: pwBl(r), down: .7, sill: 1 }); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 70, 88, 118, { leaves: 2, perc: 'w', pst: 'closed', sill: 1 }); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 108, 98, 40, 54, { fr: 4 }); g.fillStyle = '#9a9a92'; g.fillRect(190, 0, 7, T - 24); g.fillStyle = '#d4d0c4'; g.fillRect(52, 150, 26, 36); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(52, 186, 26, 3); },   // a stair or bathroom window, a drainpipe, a meter box
+  (g, r) => { pwRender(g, r); pwWin(g, r, 50, 78, 156, 104, { leaves: 3, blind: pwBl(r), down: .4, sill: 1 }); },
+  (g, r) => { pwRender(g, r); pwWin(g, r, 84, 86, 88, 112, { curt: .4, sill: 1 }); awnDrop(g, 70, 52, 116, 40 + r() * 50, ['#c9803a', '#4f7a5c', '#b8322e', '#d8c070'][(r() * 4) | 0]); },
+];
+const brickBay = (door, o) => (g, r) => {
+  pwBrick(g, r); const y = door ? 58 : 70, h = door ? 176 : 118; g.fillStyle = '#e4e0d4'; g.fillRect(70, y - 22, 116, 12); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(70, y - 10, 116, 3);   // a concrete lintel
+  pwWin(g, r, 84, y, 88, h, { ...o, door: door ? 1 : 0, leaves: door ? 2 : 1, frame: '#e8e4da' });
+};
+const PWBD = [brickBay(1, { blind: '#7f8588', down: .5 }), brickBay(1, { curt: .5, perc: 'g', pst: 'open' })];
+const PWBW = [brickBay(0, { blind: '#7a5a3e', down: .6, sill: 1 }), brickBay(0, { perc: 'w', pst: 'closed', sill: 1 })];
+function pwShop(g, r, o) {   // a glass shop front under the slab: coloured fascia with the name, a big window, a glass door
+  plaster(g, r, '#e4e0d6', { peel: 0 });
+  g.fillStyle = '#cfccc2'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T);
+  g.fillStyle = o.sign; g.fillRect(20, 22, 216, 44); g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(20, 22, 216, 3); lettering(g, o.txt, 128, 45, 28, o.ink, 196);
+  glassFront(g, 26, 82, 148, 150, o.lit, o.dark);
+  g.fillStyle = '#3a342c'; for (const x of [75, 124]) g.fillRect(x - 2, 82, 4, 150);
+  for (let i = 0; i < 5; i++) { g.fillStyle = o.goods[(r() * o.goods.length) | 0]; g.fillRect(34 + i * 28, 168 + (i % 2) * 8, 20, 36 - (i % 2) * 8); }
+  g.fillStyle = '#2a2420'; g.fillRect(184, 82, 46, 150); g.fillStyle = 'rgba(210,225,240,.2)'; g.fillRect(188, 86, 38, 142); g.fillStyle = '#c8c0a0'; g.fillRect(192, 150, 3, 18);
+  g.fillStyle = '#b9b4a6'; g.fillRect(14, 236, 228, 20); dado(g, 30, .25);
+}
+const PWG = [
+  { txt: 'OTTICA', sign: '#1f3f6e', ink: '#f1ede0', lit: '#e8dcb8', dark: '#6a6a5a', goods: ['#cfd4d8', '#8a9aa6', '#e8e4d8'] },
+  { txt: 'ABBIGLIAMENTO', sign: '#7a1f24', ink: '#f1ede0', lit: '#f0d8a8', dark: '#7a5a3c', goods: ['#3a5a8a', '#c8423a', '#e8e0d0', '#2a2a2e'] },
+  { txt: 'PARRUCCHIERE', sign: '#1c1c1e', ink: '#d8b25a', lit: '#f0e4c8', dark: '#8a7a5a', goods: ['#d8c8b0', '#a85a4a', '#3a3a3e'] },
+  { txt: 'FIORI E PIANTE', sign: '#2f5f35', ink: '#f1ede0', lit: '#dce8c0', dark: '#4a6a3a', goods: ['#c8302a', '#e8c830', '#5d8a35', '#d86aa0'] },
+].map(o => (g, r) => pwShop(g, r, o));
+layer('rail_s', (g, r) => {   // solid parapet, rendered and capped, with a trailing plant (tinted by the building colour)
+  g.clearRect(0, 0, T, T); g.fillStyle = '#e6e2d8'; g.fillRect(0, 34, T, T - 34); g.fillStyle = '#f4f1ea'; g.fillRect(0, 24, T, 14); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 38, T, 6);
+  g.fillStyle = 'rgba(70,60,50,.1)'; for (let i = 0; i < 5; i++) g.fillRect(r() * T, 50 + r() * 150, 30 + r() * 60, 30);
+  for (const x of [30 + r() * 60, 150 + r() * 70]) { g.fillStyle = '#4f7a3a'; for (const [dx, dy, rr] of [[0, 20, 12], [14, 14, 9], [-12, 26, 8]]) { g.beginPath(); g.arc(x + dx, dy, rr, 0, 6.3); g.fill(); } }
+});
+layer('rail_m', (g, r) => {   // white aluminium posts and three tubes
+  g.clearRect(0, 0, T, T); g.fillStyle = '#d8dad6'; for (const y of [20, 100, 180]) g.fillRect(0, y, T, 8);
+  for (let x = 0; x < T; x += 128) g.fillRect(x, 20, 10, T - 20);
+  g.fillStyle = '#e4e1d8'; g.fillRect(0, 226, T, 30); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 226, T, 4);
+});
+layer('rail_x', (g, r) => {   // painted iron lattice (ringhiera a losanghe) over a low kerb
+  g.clearRect(0, 0, T, T); g.fillStyle = '#2c2c30'; g.strokeStyle = '#2c2c30'; g.fillRect(0, 12, T, 9); g.fillRect(0, 196, T, 8); g.lineWidth = 4;
+  for (let x = -T; x < T * 2; x += 43) { g.beginPath(); g.moveTo(x, 204); g.lineTo(x + 192, 21); g.stroke(); g.beginPath(); g.moveTo(x + 192, 204); g.lineTo(x, 21); g.stroke(); }
+  g.fillStyle = '#e4e1d8'; g.fillRect(0, 204, T, 52); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(0, 204, T, 4);
+});
 layer('g_pilot', (g, r) => { // open ground floor on pilotis: dark garage, two concrete columns, parked scooter
   plaster(g, r, '#e0dccf', { peel: 0 });
   g.fillStyle = '#d6d2c6'; g.fillRect(0, 0, T, 34);
@@ -981,20 +1035,20 @@ const SHOPS = [   // the plain street shop (g_shop_s) in four states: shutters o
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#74695a'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#5f7062'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
 ];
-const GMAP = { g_shop_s: 'g_shops' };   // ground-floor layer -> its group
-const OGROUPS = { old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW };
+const GMAP = { g_shop_s: 'g_shops', g_garage: 'g_gars' };   // ground-floor layer -> its group
+const OGROUPS = { old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW, g_gars: GARS, pwd: PWD, pww: PWW, pwbd: PWBD, pwbw: PWBW, pwg: PWG };
 layer('wxnoise', (g, r) => {   // not a facade: smooth tiling noise for the weathering in the building shader (R broad patches, G vertical streaks); stored so that the linear value after sRGB decoding is the noise itself
   const im = g.createImageData(T, T), a = Array.from({ length: 64 }, () => r()), b = Array.from({ length: 128 }, () => r()), sm = t => t * t * (3 - 2 * t);
   const f = (G, nx, ny, x, y) => { const u = x / T * nx, v = y / T * ny, i = Math.floor(u), j = Math.floor(v), fu = sm(u - i), fv = sm(v - j), at = (ii, jj) => G[(jj % ny) * nx + (ii % nx)]; return (at(i, j) * (1 - fu) + at(i + 1, j) * fu) * (1 - fv) + (at(i, j + 1) * (1 - fu) + at(i + 1, j + 1) * fu) * fv; };
   for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) { const k = (y * T + x) * 4; im.data[k] = 255 * Math.pow(f(a, 8, 8, x, y), 1 / 2.2); im.data[k + 1] = 255 * Math.pow(f(b, 32, 4, x, y), 1 / 2.2); im.data[k + 3] = 255; }
   g.putImageData(im, 0, 0);
 });
-const GRPV = Array.from({ length: 16 }, () => new THREE.Vector2(0, 1));
+const GRPV = Array.from({ length: 24 }, () => new THREE.Vector2(0, 1));
 const GROUPS = [];   // aLayer = 200 + index picks a group; uGrp[index] = (first layer, count) and the shader chooses the variant per bay and floor
 for (const [name, list] of Object.entries(OGROUPS)) { list.forEach((fn, i) => layer(name + '_' + i, fn)); LID[name] = 200 + GROUPS.length; GRPV[GROUPS.length].set(LID[name + '_0'], list.length); GROUPS.push(name); }
 // runs of consecutive layers that used to be one window type per building become groups too: each bay and floor picks its own (blinds, awnings and shutters differ from flat to flat)
 const UPGRP = {};
-for (const [name, first, n] of [['blk_up', 'blk_a', 5], ['res_up', 'res_a', 5], ['n19_up', 'n19_up_g', 3], ['bar_up', 'bar_up_g', 2], ['pw_up', 'pw_a', 2], ['lib_up', 'lib_up_a', 2], ['bar_nobs', 'bar_nob_tri', 2]]) {
+for (const [name, first, n] of [['res_up', 'res_a', 5], ['n19_up', 'n19_up_g', 3], ['bar_up', 'bar_up_g', 2], ['lib_up', 'lib_up_a', 2], ['bar_nobs', 'bar_nob_tri', 2]]) {
   LID[name] = 200 + GROUPS.length; GRPV[GROUPS.length].set(LID[first], n); GROUPS.push(name);
   for (let i = 0; i < n; i++) UPGRP[LAYERS[LID[first] + i].name] = name;
 }
@@ -1033,7 +1087,7 @@ function atlasMaterial(tex, cutout, photo) {
       .replace('#include <common>', '#include <common>\nattribute float aLayer;\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLayer = aLayer; vTileUv = uv; vNy = normal.y; vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nuniform float uWin;\nuniform vec2 uGrp[16];\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;\nfloat bH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
+      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nuniform float uWin;\nuniform vec2 uGrp[24];\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;\nfloat bH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
       .replace('#include <color_fragment>', `
         float lay = floor(vLayer + 0.5);
         if (lay >= 200.0) { vec2 gp = uGrp[int(lay - 200.0)]; lay = gp.x + floor(bH(floor(vTileUv) * 1.37 + 7.3) * gp.y); }   // a layer group: one variant per bay and floor
@@ -1055,7 +1109,7 @@ function atlasMaterial(tex, cutout, photo) {
         }`}`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += winGlow;');
   };
-  m.customProgramCacheKey = () => 'bldg3' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
+  m.customProgramCacheKey = () => 'bldg4' + (cutout ? 'c' : 'o') + (photo ? 'p' : '');
   return m;
 }
 
@@ -1146,7 +1200,7 @@ const PAL = {
   bar: ['#c2a878', '#b9a185', '#c9b087', '#bfa27a', '#cdb892', '#b49a72', '#d0b88c', '#c9a58a', '#d4b894'].map(C),
   n19: ['#d9cab7', '#c9a293', '#d8c48a', '#c4b09a', '#dcc9a6', '#cfa88d', '#e0d2b8', '#c7a373', '#af9c8d', '#d8b0a0', '#e3d28f', '#e9e2d2', '#d99a78', '#bba898'].map(C),
   res: ['#c7a373', '#d8c48a', '#cf9a6b', '#e2d8c4', '#b8aea0', '#c98f78', '#d6b58a', '#bfae8e', '#dcc7a0', '#9fb0a6', '#d99a78', '#e3d28f', '#cdb8a0', '#c4a6a0', '#e8e0cc', '#a9b6a2'].map(C),
-  pw: ['#d0cbc2', '#b9b5ab', '#d8cdb5', '#d9bfa0', '#c8c2b4'].map(C),
+  pw: ['#e0dcd2', '#e4dccc', '#dcd8cc', '#e0d4b4', '#dccb8c', '#e2d6a0', '#d0a08c', '#d8b09c', '#c98a6a', '#d6cfc0', '#cfcabe', '#e6e0d4', '#d9c9a8', '#c8c2b4'].map(C),   // 1950s to 80s render: white, cream, pale yellow, salmon, a little terracotta, grey
   church: ['#b09062', '#a6875b', '#bda37a'].map(C),
 };
 const STYLES = {
@@ -1155,9 +1209,11 @@ const STYLES = {
   n19: { pal: 'n19', bay: 3.8, g0: 4.4, fh: 3.9, parapet: 0.9, corn: 0.42, nobile: true, up: ['n19_up_g', 'n19_up_b', 'n19_up_t'], nob: ['n19_nob'], rail: 'rail_a', balcUpper: 0.4, pitch: 0.22,
     ground: [['g_shop_s', 4], ['g_shop_o', 3], ['g_arch', 1.4], ['g_door', 2]] },
   res: { pal: 'res', bay: 3.3, g0: 3.5, fh: 3.3, parapet: 0.8, corn: 0.2, nobile: false, up: ['res_a', 'res_b', 'res_c', 'res_d', 'res_e'], rail: 'rail_a', balcUpper: 0, pitch: 0.5,
-    ground: [['g_door2', 2], ['g_shop_s', 2.5], ['g_garage', 1.5], ['g_win', 2], ['g_door', 1], ['g_shop_o', 1]] },
-  pw: { pal: 'pw', bay: 3.6, g0: 3.8, fh: 3.1, parapet: 0.7, corn: 0.0, nobile: false, up: ['pw_a', 'pw_b'], rail: 'rail_a', balcUpper: 0, pitch: 0.0,
-    ground: [['pw_shop', 3], ['g_shop_s', 3], ['g_door2', 1.5], ['g_garage', 1]] },
+    ground: [['g_door2', 2], ['g_shop_s', 1.8], ['g_garage', 1], ['g_win', 2.2], ['g_door', 1], ['g_shop_o', 1], ['blank_g', .8]] },
+  // 1950s to 60s block: a flat in every bay, deep balconies in stacked columns (rhythm per wall), tapparelle in every state, glass shops or an open arcade on pilotis below
+  pw: { pal: 'pw', bay: 3.5, g0: 4.2, fh: 3.1, parapet: 0.8, corn: 0.0, nobile: false, up: ['pww'], rail: 'rail_s', balc: 'pw', pitch: 0.0,
+    pwf: { pat: [.06, .36, .22, .22, .14], depth: [1.15, 1.6], pilot: .45, brick: .06 },
+    ground: [['pwg', 3], ['g_lobby', 1.6], ['g_pilot', .8], ['pw_shop', 1], ['g_garage', .8]] },
   church: { pal: 'church', rail: 'rail_a', bay: 5.0, g0: 5.2, fh: 6.4, parapet: 0.0, corn: 0.3, nobile: false, up: ['ch_mid'], church: true, pitch: 0.6,
     ground: [['ch_low', 6], ['ch_door', 1]] },
   low: { pal: 'res', bay: 4.0, g0: 99, fh: 3.3, parapet: 0.6, corn: 0.0, nobile: false, up: ['res_a'], rail: 'rail_a', balcUpper: 0, pitch: 0.4,
@@ -1167,11 +1223,13 @@ const STYLES = {
   lib: { pal: 'res', bay: 4.0, g0: 4.3, fh: 3.8, parapet: 0.8, corn: 0.5, nobile: true, up: ['lib_up_a', 'lib_up_b'], nob: ['lib_nob'], rail: 'rail_l', balcUpper: 0.5, pitch: 0.45,
     ground: [['g_lib', 3], ['g_door', 1.5], ['g_win', 1.5], ['g_shop_s', 1]] },
   // 1960s-70s apartment block (sacco di Palermo): continuous balconies on every floor, tapparelle, drop awnings, shops or a lobby below
-  blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['blk_a', 'blk_b', 'blk_d', 'blk_a', 'blk_b', 'blk_d', 'blk_c', 'blk_e'], rail: 'rail_c', balc: 'cont', contFloors: 99, pitch: 0.0,
-    ground: [['pw_shop', 3], ['g_shop_s', 2], ['g_pilot', 1.4], ['g_lobby', 1.6], ['g_garage', 1]] },
+  blk: { pal: 'pw', bay: 3.4, g0: 4.2, fh: 3.1, parapet: 0.9, corn: 0.0, nobile: false, up: ['pww'], rail: 'rail_s', balc: 'pw', pitch: 0.0,
+    pwf: { pat: [.06, .34, .22, .22, .16], depth: [1.0, 1.45], pilot: .22, brick: .05 },
+    ground: [['pwg', 3], ['pw_shop', 2], ['g_lobby', 1.6], ['g_pilot', 1], ['g_garage', 1]] },
   // 1980s+ palazzina: one balcony per bay, glazed or solid parapets
-  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['blk_a', 'blk_d', 'res_d', 'blk_b', 'blk_c'], rail: 'rail_c', railAlt: 'rail_g', balc: 'alt', pitch: 0.18, // 'alt': balconies in stacked columns on every other bay (Viale Lazio), half the triangles of one per bay
-    ground: [['g_garage', 2], ['g_door2', 2], ['g_lobby', 1.4], ['g_win', 1.4], ['pw_shop', 1]] },
+  pal: { pal: 'pw', bay: 3.5, g0: 3.6, fh: 3.1, parapet: 0.9, corn: 0.15, nobile: false, up: ['pww'], rail: 'rail_c', balc: 'pw', pitch: 0.18,
+    pwf: { pat: [.15, .55, .2, 0, .1], depth: [.85, 1.2], pilot: .04, brick: .03 },
+    ground: [['g_garage', 1.6], ['g_door2', 1.6], ['g_lobby', 1.4], ['pwg', 1.4], ['g_win', 1]] },
   // public housing insulae (ZEN, CEP): prefab concrete, ribbon windows, exterior stairwell bays, pilotis and shuttered ground floors
   ins: { noShops: true, pal: 'pw', bay: 4.4, g0: 3.6, fh: 3.0, parapet: 0.6, corn: 0.0, nobile: false, up: ['zen_a', 'zen_b', 'zen_a'], alt: 'zen_stair', altP: 0.18, rail: 'rail_c', balc: 'none', pitch: 0.0,
     ground: [['g_pilot', 3], ['g_garage', 3], ['zen_g', 1.2], ['blank_g', .5]] },
@@ -1190,13 +1248,14 @@ const STYLES = {
 // The old town: which zones, the palette of its plaster (real albedo before the 1.3 of the build; terracotta, salmon, ochre, cream, grey), and its ground floors by kind of street.
 const OLDZ = new Set(['corso', 'roma', 'old', 'centro', 'kalsa', 'alberg', 'politeama', 'stazione']);
 const OLD_PAL = ['#ae6a52', '#b87258', '#a46048', '#cb9a86', '#c48c7a', '#c9a064', '#d0aa70', '#bf9158', '#d6bf84', '#dcc896', '#d2b672', '#dcd1ba', '#d6cbb4', '#bcb09c', '#aea492', '#d0a99c', '#a2745a', '#b5b8a4', '#e4dfd2', '#c29c70', '#8f8474', '#9a8c7c'].map(C);
+const PW_RAILS = [['rail_s', 2.2], ['rail_m', 2], ['rail_x', 2], ['rail_c', 1.6], ['rail_a', 1.6], ['rail_g', .8]];   // balcony rails of the post-war blocks
 const OLD_GROUND = {
   market: [['og_shop', 3], ['g_mk_a', 2.4], ['g_mk_b', 1.6], ['g_mk_c', 1.3], ['g_bottega', 1.2], ['og_door', 1], ['g_portone', .4], ['g_bar', .4], ['og_low', .5]],
   main: [['og_shop', 2.6], ['og_door', 1.8], ['g_bar', 1.3], ['g_tabacchi', .7], ['g_farm', .5], ['g_pane', .5], ['g_portone', .8], ['pw_shop', 1], ['g_shop_o', .8], ['og_low', .8], ['g_shop_s', 1.4]],
   side: [['og_door', 3], ['og_shop', 2], ['og_low', 1.5], ['g_portone', 1], ['g_bar', .35], ['g_bottega', .6], ['g_shop_s', .8]],
   minor: [['og_door', 3.4], ['og_low', 2], ['og_shop', 1.2], ['g_portone', .6], ['g_bottega', .3]],
 };
-const REPEATABLE = new Set(['og_door', 'og_shop', 'og_low', 'g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
+const REPEATABLE = new Set(['pwg', 'og_door', 'og_shop', 'og_low', 'g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
 
 // =====================================================================================
 // Spatial lookups
@@ -1270,9 +1329,14 @@ function zoneOf(cx, cz, near) { return zoneAt(cx, cz, near && near.r && near.r.n
 // A building style is only offered where it exists in real life: Liberty villini are low, sacco blocks are tall, ZEN insulae are big.
 const ELIG = {
   bar: f => f <= 6, n19: f => f <= 6, res: f => f <= 5, pw: f => f >= 4, blk: f => f >= 5, pal: f => f >= 3 && f <= 7,
-  ins: (f, a, Z) => f >= 3 && a > (Z.insArea || 300), lib: (f, a) => f <= 4 && a < 900, fish: f => f <= 3, ind: (f, a, Z) => Z.shed ? a > 180 : a > 500,
+  ins: (f, a, Z) => f >= 3 && a > (Z.insArea || 300), lib: (f, a) => f <= 4 && a < 900, fish: f => f <= 2, ind: (f, a, Z) => Z.shed ? a > 180 : a > 500,
 };
 const STYLE_KEYS = ['bar', 'n19', 'res', 'pw', 'lib', 'blk', 'pal', 'ins', 'fish', 'ind'];
+// Era. A 19th c. palazzo stops at about five storeys of 4 to 4.5 m; the 1950s to 70s blocks that replaced the bombed ones and filled the gaps are taller. PWH: the height (m) from which a
+// building in these old-prior zones is a post-war block (a ramp of 5 m starts 2 m below it); below it the zone gets no pw or blk, above it mostly pw. PWB: how the post-war styles share it.
+const PWH = { corso: 29, old: 27, kalsa: 26, alberg: 26, roma: 24, centro: 22, politeama: 22, stazione: 23, calat: 24, borgoV: 22, oreto: 21, porto: 22 };
+const PWB = { pw: .5, blk: .3, pal: .12 };
+const OLDSTY = new Set(['bar', 'n19', 'res', 'lib', 'fish']);
 function chooseStyle(b, H, area, zone, r, o = {}) {
   if (b.k === 'church' || b.t === 'church' || b.t === 'cathedral' || b.am === 'place_of_worship') return 'church';
   const Z = ZONES[zone] || ZONES.centro, name = b.n || '';
@@ -1292,14 +1356,24 @@ function chooseStyle(b, H, area, zone, r, o = {}) {
   if (Z.elig) {
     const f = o.fl || Math.max(1, Math.round((H - 1.7) / (Z.fh || 3.2)));
     const ks = [], ws = []; let tot = 0;
-    for (const k of STYLE_KEYS) { const w0 = ZW[k] || 0; if (w0 <= 0 || (ELIG[k] && !ELIG[k](f, area, Z))) continue; const w1 = k === 'ind' && Z.shed && area > 600 ? w0 * 4 : w0; ks.push(k); ws.push(w1); tot += w1; }
+    const pe = PWH[zone] === undefined ? 0 : Math.min(1, Math.max(0, (H - PWH[zone] + 2) / 5)), mid = Z.mid ? Math.min(1, Math.max(0, (f - 2) / 2)) : 0;   // era ramp of old-prior zones; apartments from 3 to 4 storeys up in the modern belts
+    for (const k of STYLE_KEYS) {
+      let w0 = ZW[k] || 0;
+      if (PWH[zone] !== undefined) { if (OLDSTY.has(k)) w0 *= 1 - 0.9 * pe; else if (PWB[k] !== undefined) w0 = (k === 'pal' ? w0 : w0 * pe) + PWB[k] * pe; }
+      else if (mid) { if (OLDSTY.has(k)) w0 *= 1 - 0.7 * mid; else if (k === 'pal' || k === 'blk' || k === 'pw') w0 *= 1 + mid; }
+      if (w0 <= 0 || (ELIG[k] && !ELIG[k](f, area, Z))) continue; const w1 = k === 'ind' && Z.shed && area > 600 ? w0 * 4 : w0; ks.push(k); ws.push(w1); tot += w1;
+    }
     if (!tot) return f >= 5 ? 'blk' : 'res';
     let t = r() * tot; for (let i = 0; i < ks.length; i++) { t -= ws[i]; if (t <= 0) return ks[i]; }
     return ks[ks.length - 1];
   }
   let w = H >= 17 && zone !== 'corso' ? { ...ZW, pw: ZW.pw + .1, res: Math.max(0.05, ZW.res - .1) } : ZW;
+  const u = r();
   if (OLDZ.has(zone)) w = { ...w, pw: w.pw * 0.5 };   // the old town is mostly 19th c. palazzi; the 1950s blocks are the exception
-  let t = r() * (w.bar + w.n19 + w.res + w.pw); for (const k of ['bar', 'n19', 'res', 'pw']) { t -= w[k]; if (t <= 0) return k; }
+  const pe = PWH[zone] === undefined ? 0 : Math.min(1, Math.max(0, (H - PWH[zone] + 2) / 5));
+  if (pe && area > 100 && o.u2 < pe) return u < .6 ? 'pw' : u < .88 ? 'blk' : 'pal';   // old-prior zone, tall enough: a post-war block
+  let t = u * (w.bar + w.n19 + w.res + w.pw);
+  for (const k of ['bar', 'n19', 'res', 'pw']) { t -= w[k]; if (t <= 0) { if (k !== 'pw' || !PWH[zone]) return k; const v = o.u2 * (w.bar + w.n19 + w.res); return v < w.bar ? 'bar' : v < w.bar + w.n19 ? 'n19' : 'res'; } }   // where a block would be drawn but the height says old: one of the old kinds
   return 'res';
 }
 const NAMED = { white: '#e6e3da', tan: '#c9ad82', beige: '#d6c9a8', yellow: '#dcc88a', red: '#b8705a', brown: '#9a7a5a', grey: '#b5b0a5', gray: '#b5b0a5', pink: '#d4a89a', orange: '#d49a6a' };
@@ -1332,7 +1406,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   const stats = { styles: {}, balconies: 0, tanks: 0, tiled: 0, flat: 0 };
 
   // ---------- rooftop furniture ----------
-  function boxAt(gb, cx, cz, w, d, ang, y0, y1, col, k) {
+  function boxAt(gb, cx, cz, w, d, ang, y0, y1, col, k, top = true) {
     const c = Math.cos(ang), s = Math.sin(ang), hw = w / 2, hd = d / 2, L = LID.blank;
     const cn = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([a, b]) => [cx + a * c - b * s, cz + a * s + b * c]);
     for (let i = 0; i < 4; i++) {
@@ -1340,15 +1414,15 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       // ring is counter-clockwise in x/z so this normal points outward
       gb.q([a[0], y0, a[1], 0, 0, k * .85], [b[0], y0, b[1], l / 2, 0, k * .85], [b[0], y1, b[1], l / 2, (y1 - y0) / 2, k], [a[0], y1, a[1], 0, (y1 - y0) / 2, k], nx, 0, nz, L, col);
     }
-    gb.q([cn[0][0], y1, cn[0][1], 0, 0, k], [cn[1][0], y1, cn[1][1], 1, 0, k], [cn[2][0], y1, cn[2][1], 1, 1, k], [cn[3][0], y1, cn[3][1], 0, 1, k], 0, 1, 0, L, col);
+    if (top) gb.q([cn[0][0], y1, cn[0][1], 0, 0, k], [cn[1][0], y1, cn[1][1], 1, 0, k], [cn[2][0], y1, cn[2][1], 1, 1, k], [cn[3][0], y1, cn[3][1], 0, 1, k], 0, 1, 0, L, col);
   }
-  function cylAt(gb, cx, cz, rad, y0, y1, col, k, sides = 8) {
+  function cylAt(gb, cx, cz, rad, y0, y1, col, k, sides = 6) {   // [tri budget] 6 sides and a cap of sides - 2 triangles (was 8 and 8): 16 triangles instead of 32
     const L = LID.blank;
     for (let i = 0; i < sides; i++) {
       const a0 = i / sides * 6.2832, a1 = (i + 1) / sides * 6.2832, am = (a0 + a1) / 2;
       const x0 = cx + Math.cos(a0) * rad, z0 = cz + Math.sin(a0) * rad, x1 = cx + Math.cos(a1) * rad, z1 = cz + Math.sin(a1) * rad;
       gb.q([x0, y0, z0, 0, 0, k * .8], [x1, y0, z1, .5, 0, k * .8], [x1, y1, z1, .5, .5, k], [x0, y1, z0, 0, .5, k], Math.cos(am), 0, Math.sin(am), L, col);
-      gb.tUp([cx, y1, cz, .5, .5, k], [x0, y1, z0, 0, 0, k], [x1, y1, z1, 1, 0, k], L, col);
+      if (i >= 1 && i <= sides - 2) gb.tUp([cx + Math.cos(0) * rad, y1, cz + Math.sin(0) * rad, 1, .5, k], [x0, y1, z0, 0, 0, k], [x1, y1, z1, 1, 0, k], L, col);
     }
   }
   const tankCols = [C('#e8e8e0'), C('#e2e2da'), C('#58687a'), C('#2c2e30'), C('#7a8f7c'), C('#d9d4c4')];
@@ -1383,12 +1457,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     for (let i = 0; i < nt; i++) {
       const rad = 0.65 + r() * 0.35, s = spot(rad + 1.0); if (!s) continue;
       const col = tankCols[(r() * tankCols.length) | 0];
-      boxAt(gb, s[0], s[1], rad * 1.5, rad * 1.5, 0, y, y + 0.35, C('#8a8a86'), 0.9); // stand
-      cylAt(gb, s[0], s[1], rad, y + 0.35, y + 0.35 + 1.1 + r() * 0.6, col, 1.0, 8);
+      boxAt(gb, s[0], s[1], rad * 1.5, rad * 1.5, 0, y, y + 0.35, C('#8a8a86'), 0.9, false); // stand (the tank hides its top)
+      cylAt(gb, s[0], s[1], rad, y + 0.35, y + 0.35 + 1.1 + r() * 0.6, col, 1.0);
       stats.tanks++;
     }
     if (r() < 0.35) { // antenna mast
-      const s = spot(1.0); if (s) { boxAt(gb, s[0], s[1], .08, .08, 0, y, y + 3.2 + r() * 1.5, C('#444'), 1); boxAt(gb, s[0], s[1], 1.1, .05, r() * 3, y + 3.0, y + 3.06, C('#444'), 1); }
+      const s = spot(1.0); if (s) { boxAt(gb, s[0], s[1], .08, .08, 0, y, y + 3.2 + r() * 1.5, C('#444'), 1, false); boxAt(gb, s[0], s[1], 1.1, .05, r() * 3, y + 3.0, y + 3.06, C('#444'), 1, false); }   // [tri budget] no tops on the thin parts
     }
   }
 
@@ -1456,8 +1530,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const col = B.col, L = LID;
       const kc = t => (t === 0 && E.reflexA) || (t === 1 && E.reflexB) ? 0.86 : 1;
       const uo = B.uo + (Math.abs(Math.floor(ax * 3 + az * 7)) % 37);   // every wall starts at another bay of the layer groups
+      let grec = 0;   // pilotis: how far the ground-floor wall stands back from the facade line (set around the ground runs)
       const strip = (t0, t1, yb0, yb1, yt0, yt1, v0, v1, lay, k0, k1, u0, u1) => {
-        const so = stack !== undefined ? 0.03 : 0; // stacked volumes sit 3 cm proud of the base mass parapet below them
+        const so = (stack !== undefined ? 0.03 : 0) - grec; // stacked volumes sit 3 cm proud of the base mass parapet below them
         const x0 = ax + dx * t0 + nx * so, z0 = az + dz * t0 + nz * so, x1 = ax + dx * t1 + nx * so, z1 = az + dz * t1 + nz * so;
         const c0 = kc(t0), c1 = kc(t1), j0 = 0.95 + 0.1 * hh(x0, z0), j1 = 0.95 + 0.1 * hh(x1, z1);
         gbuf.q([x0, yb0, z0, u0 + uo, v0, k0 * c0 * j0], [x1, yb1, z1, u1 + uo, v0, k0 * c1 * j1], [x1, yt1, z1, u1 + uo, v1, k1 * c1 * j1], [x0, yt0, z0, u0 + uo, v1, k1 * c0 * j0], nx, 0, nz, lay, col);
@@ -1492,11 +1567,38 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             addRun(lay); prev = lay;
           }
         } else for (let i = 0; i < nb; i++) { const q = r(); addRun(stack !== undefined ? 'blank_g' : q < 0.12 ? 'g_door2' : q < 0.25 ? 'g_win' : 'blank_g'); }
+        // post-war street walls: the rhythm of balcony columns, and now and then pilotis (the ground floor stands back under the block, concrete columns in front)
+        const PF = S.pwf && kind === 'street' && !W.up && !W.ground && nUp > 0 && bw >= 2.9 ? S.pwf : null;
+        let pcol = null, rec = 0;
+        if (PF) {
+          const pu = hh(ax * 0.31 + 5.7, az * 0.53 + 1.1), ps = PF.pat.reduce((a, b) => a + b, 0); let pat = 0, acc = PF.pat[0];
+          while (pat < 4 && pu * ps >= acc) acc += PF.pat[++pat];
+          const per = [1, 2, 3, 3, 1][pat], ph = Math.floor(hh(ax * 0.91 + 2.3, az * 1.7 + 0.9) * per);
+          pcol = Array.from({ length: nb }, (_, i) => (i === 0 && E.reflexA) || (i === nb - 1 && E.reflexB) ? 0 : pat === 0 ? 1 : pat === 1 ? ((i + ph) % 2 === 0 ? 1 : 0) : pat === 2 ? ((i + ph) % 3 !== 0 ? 1 : 0) : pat === 3 ? ((i + ph) % 3 === 0 ? 1 : 0) : hh(ax * 2.1 + i * 3.7, az * 1.3 + i) < 0.5 ? 1 : 0);
+          if (!pcol.some(Boolean)) pcol[nb >> 1] = 1;
+          if (len >= 9 && !E.reflexA && !E.reflexB && hh(ax * 0.47 + 9.1, az * 0.83 + 4.3) < PF.pilot) rec = 2.6 + 1.2 * hh(ax * 1.3 + 0.7, az * 0.6 + 3.1);
+        }
         let i0 = 0;
+        grec = rec;
         for (const run of runs) {
           const t0 = i0 / nb, t1 = (i0 + run.n) / nb;
           strip(t0, t1, foot0 + (foot1 - foot0) * t0, foot0 + (foot1 - foot0) * t1, Math.max(yg, foot0 + 1), Math.max(yg, foot1 + 1), 0, 1, L[GMAP[run.lay] || run.lay], 0.64, 0.9, i0, i0 + run.n);
           i0 += run.n;
+        }
+        grec = 0;
+        if (rec) {   // the arcade: the underside of the block, the two returns and a row of columns
+          const cc = B.conc, rx = -nx * rec, rz = -nz * rec;
+          gbuf.q([ax, yg, az, 0, 0, .45], [bx, yg, bz, len / 3, 0, .45], [bx + rx, yg, bz + rz, len / 3, rec / 3, .45], [ax + rx, yg, az + rz, 0, rec / 3, .45], 0, -1, 0, L.blank, cc);
+          gbuf.q([ax, foot0, az, 0, 0, .8], [ax + rx, foot0, az + rz, 1, 0, .6], [ax + rx, yg, az + rz, 1, 1, .6], [ax, yg, az, 0, 1, .8], ux, 0, uz, L.blank, cc);
+          gbuf.q([bx, foot1, bz, 0, 0, .8], [bx + rx, foot1, bz + rz, 1, 0, .6], [bx + rx, yg, bz + rz, 1, 1, .6], [bx, yg, bz, 0, 1, .8], -ux, 0, -uz, L.blank, cc);
+          const nc = Math.max(2, Math.round(len / 6.2) + 1);
+          for (let k = 0; k < nc; k++) {   // a column: front and two sides, 0.7 m wide and 0.6 m deep, from the pavement to the underside of the block
+            const s0 = Math.min(len - 0.75, 0.05 + (len - 0.8) * k / (nc - 1)), s1 = s0 + 0.7, yb = foot0 + (foot1 - foot0) * (s0 + 0.35) / len, dpc = 0.6;
+            const p0x = ax + ux * s0, p0z = az + uz * s0, p1x = ax + ux * s1, p1z = az + uz * s1;
+            gbuf.q([p0x, yb, p0z, 0, 0, .78], [p1x, yb, p1z, .6, 0, .78], [p1x, yg, p1z, .6, 1, .9], [p0x, yg, p0z, 0, 1, .9], nx, 0, nz, L.blank, cc);
+            gbuf.q([p0x, yb, p0z, 0, 0, .7], [p0x - nx * dpc, yb, p0z - nz * dpc, .5, 0, .7], [p0x - nx * dpc, yg, p0z - nz * dpc, .5, 1, .8], [p0x, yg, p0z, 0, 1, .8], -ux, 0, -uz, L.blank, cc);
+            gbuf.q([p1x, yb, p1z, 0, 0, .7], [p1x - nx * dpc, yb, p1z - nz * dpc, .5, 0, .7], [p1x - nx * dpc, yg, p1z - nz * dpc, .5, 1, .8], [p1x, yg, p1z, 0, 1, .8], ux, 0, uz, L.blank, cc);
+          }
         }
         // upper floors
         if (nUp > 0) {
@@ -1508,6 +1610,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             if (hasNob && kind === 'street') { strip(0, 1, yg, yg, yg + fh1, yg + fh1, 0, 1, L[nobT], 0.94, 0.98, 0, nb); start = 2; y0 = yg + fh1; }
             const nf = nUp - start + 1;
             if (B.old && upT === 'old_up' && nf >= 2) { const yt = y0 + (yTop - y0) * (nf - 1) / nf; strip(0, 1, y0, y0, yt, yt, 0, nf - 1, L[upT], 0.97, 0.945, 0, nb); strip(0, 1, yt, yt, yTop, yTop, 0, 1, L.old_top, 0.945, 0.93, 0, nb); }   // the top floor has its own, smaller windows
+            else if (nf >= 1 && pcol) {   // one strip per run of bays with the same kind of window: balcony doors or plain windows
+              for (let i = 0, j; i < nb; i = j) {
+                for (j = i; j < nb && pcol[j] === pcol[i]; j++);
+                strip(i / nb, j / nb, y0, y0, yTop, yTop, 0, nf, L[pcol[i] ? (B.brick ? 'pwbd' : 'pwd') : (B.brick ? 'pwbw' : 'pww')], 0.97, 0.93, i, j);
+              }
+            }
             else if (nf >= 1) strip(0, 1, y0, y0, yTop, yTop, 0, nf, L[upT], 0.97, 0.93, 0, nb);
           }
         }
@@ -1524,6 +1632,15 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
               for (let i = lo, k = 0; i < hi; k++) {
                 const h2 = hh(ax * 3.1 + i * 1.3 + f * 7.7, az * 2.3 + k), n = 1 + (h2 < 0.35) + (h2 < 0.12), run = Math.min(n, hi - i);
                 if (h2 < 0.6) { const w2 = run * bw / 2 - 0.3; obalc((i + run / 2) / nb, floorBase(f), w2, Math.max(1, Math.round(w2 / (nobF ? 1.1 : 1.8))), rl, dp); i += run + 1; } else i++;
+              }
+            }
+          } else if (bmode === 'pw') {   // post-war: a deep balcony in front of every balcony door, in columns, a rail per column (now and then another one)
+            if (pcol) for (let i = 0; i < nb; i++) {
+              if (!pcol[i]) continue;
+              const w2 = Math.min(bw * 0.5 - 0.15, PF.maxW ? PF.maxW / 2 : 1.75), t = (i + 0.5) / nb, rl1 = hh(ax * 0.7 + i * 1.9, az * 1.1 + i) < 0.72 ? B.pr[0] : B.pr[1];
+              for (let f = 1; f <= nUp; f++) {
+                if (f === nUp && nUp >= 5 && hh(ax * 0.17 + i * 2.3, az * 0.41 + 7.7) < 0.6) continue;   // [tri budget] the top floor is often a set-back attico or a plain terrace, and nobody counts its balconies from the street
+                pwBalc(t, floorBase(f), w2, B.pdp, f > 1 && hh(ax * 0.3 + i * 5.1, az * 0.8 + f * 3.3) < 0.1 ? B.pr[2] : rl1, f === 1, !(i > 0 && pcol[i - 1]), !(i < nb - 1 && pcol[i + 1]));
               }
             }
           } else if (bmode === 'cont') {
@@ -1561,6 +1678,19 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           ch.r.q([px1 - ux * ins, rb, pz1 - uz * ins, 0, 0, 1], [rx1 - ux * ins, rb, rz1 - uz * ins, du, 0, 1], [rx1 - ux * ins, rt, rz1 - uz * ins, du, 1, 1], [px1 - ux * ins, rt, pz1 - uz * ins, 0, 1, 1], ux, 0, uz, rl, white);
           stats.balconies++;
         }
+        function pwBalc(t, yFloor, w2, dp, rl0, top, sl0, sr0) {   // a deep post-war balcony: slab front, soffit and (on the first floor, where a camera can see it) the top; rail on the front and on the sides that are not against a neighbouring balcony, 8 to 12 triangles
+          if (w2 < 0.8) return;
+          const cx = ax + dx * t, cz = az + dz * t, th = 0.17, yb = yFloor + 0.08, yt = yb + th, px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
+          const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = B.slab, LB = L.blank;
+          gbuf.q([qx0, yb, qz0, 0, 0, .85], [qx1, yb, qz1, 1, 0, .85], [qx1, yt, qz1, 1, .1, .95], [qx0, yt, qz0, 0, .1, .95], nx, 0, nz, LB, sl);
+          gbuf.q([px0, yb, pz0, 0, 0, .5], [px1, yb, pz1, 1, 0, .5], [qx1, yb, qz1, 1, .3, .5], [qx0, yb, qz0, 0, .3, .5], 0, -1, 0, LB, sl);
+          if (top) gbuf.q([px0, yt, pz0, 0, 0, 1], [px1, yt, pz1, 1, 0, 1], [qx1, yt, qz1, 1, .3, 1], [qx0, yt, qz0, 0, .3, 1], 0, 1, 0, LB, sl);
+          const rl = L[rl0], rc = rl0 === 'rail_s' ? sl : white, rb = yt, rt = yt + 1.0, ins = 0.05, rx0 = qx0 - nx * ins, rz0 = qz0 - nz * ins, rx1 = qx1 - nx * ins, rz1 = qz1 - nz * ins, wu = w2 * 2 / 1.6, du = dp / 1.6;
+          ch.r.q([rx0, rb, rz0, 0, 0, 1], [rx1, rb, rz1, wu, 0, 1], [rx1, rt, rz1, wu, 1, 1], [rx0, rt, rz0, 0, 1, 1], nx, 0, nz, rl, rc);
+          if (sl0) ch.r.q([px0 + ux * ins, rb, pz0 + uz * ins, 0, 0, 1], [rx0 + ux * ins, rb, rz0 + uz * ins, du, 0, 1], [rx0 + ux * ins, rt, rz0 + uz * ins, du, 1, 1], [px0 + ux * ins, rt, pz0 + uz * ins, 0, 1, 1], -ux, 0, -uz, rl, rc);
+          if (sr0) ch.r.q([px1 - ux * ins, rb, pz1 - uz * ins, 0, 0, 1], [rx1 - ux * ins, rb, rz1 - uz * ins, du, 0, 1], [rx1 - ux * ins, rt, rz1 - uz * ins, du, 1, 1], [px1 - ux * ins, rt, pz1 - uz * ins, 0, 1, 1], ux, 0, uz, rl, rc);
+          stats.balconies++;
+        }
         function balcony(t, yFloor, w2, brackets, nBr, rl0) {
           const cx = ax + dx * t, cz = az + dz * t, dp = 0.78, th = 0.16, yb = yFloor + 0.09, yt = yb + th;
           const px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
@@ -1576,7 +1706,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             const offs = nBr ? Array.from({ length: nBr + 1 }, (_, k) => -w2 + 0.3 + (2 * w2 - 0.6) * k / nBr) : [-w2 + 0.25, w2 - 0.25];
             for (const o of offs) {
               const bx0 = cx + ux * o, bz0 = cz + uz * o, bx1 = bx0 + nx * dp, bz1 = bz0 + nz * dp;
-              for (const sgn of [1, -1]) gbuf.q([bx0, yb - 0.42, bz0, 0, 0, .4], [bx1, yb, bz1, .1, .1, .5], [bx0, yb, bz0, 0, .1, .5], [bx0, yb, bz0, 0, .1, .5], ux * sgn, 0, uz * sgn, L.blank, B.iron);
+              for (const sgn of [1, -1]) gbuf.t([bx0, yb - 0.42, bz0, 0, 0, .4], [bx1, yb, bz1, .1, .1, .5], [bx0, yb, bz0, 0, .1, .5], ux * sgn, 0, uz * sgn, L.blank, B.iron);   // [tri budget] one triangle, not a quad with a degenerate half
             }
           }
           const rl = L[rl0], rb = yt, rt = yt + 1.0, ins = 0.05, rx0 = qx0 - nx * ins, rz0 = qz0 - nz * ins, rx1 = qx1 - nx * ins, rz1 = qz1 - nz * ins, wu = w2 * 2 / 1.6, du = dp / 1.6;
@@ -1714,10 +1844,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       const isStone = key === 'church' || (spec && spec.stone !== undefined ? spec.stone : (key === 'bar' || key === 'res' || key === 'n19') && r() < Z.pStone * (key === 'bar' ? 1.3 : key === 'res' ? 1 : 0.5));
       const osm = osmColour(b.col);
       let base;
+      const brick = !!(S.pwf && !spec && !osm && hh(cx * 0.77 + 1.9, cz * 1.37 + 0.3) < S.pwf.brick);   // post-war block in exposed brick: the tile has the colour, the vertex colour stays near white
       if (spec && spec.col) base = new THREE.Color(spec.col);
       else if (osm) { base = osm; stats.osmCol++; }
+      else if (brick) base = new THREE.Color('#b8ada0');
       else if (old && !isStone) base = OLD_PAL[((b.c * 2654435761) >>> 0) % OLD_PAL.length].clone();
-      else if (key === 'pw' && !Z.elig) base = PAL.pw[b.c % PAL.pw.length].clone();
+      else if (S.pwf && (!Z.elig || OLDZ.has(zone))) base = PAL.pw[b.c % PAL.pw.length].clone();   // post-war blocks in the old zones (and in the unclassified rest) take the 1950s to 80s render colours
       else if (key === 'church') base = PAL.church[b.c % PAL.church.length].clone();
       else { const list = isStone ? Z.stone : Z.plaster; base = new THREE.Color(list[b.c % list.length]); }
       const grime = spec && spec.grime !== undefined ? spec.grime : Z.grime, gr = grime * r();
@@ -1733,6 +1865,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e,
       };
       B.uo = Math.floor(hh(cx * 3.1, cz * 1.7) * 60);
+      if (S.pwf) {   // post-war: balcony depth, the rails of this block (two, and a third for the odd balcony), concrete of the arcade columns
+        B.brick = brick; if (brick) B.up = 'pwbw';
+        B.pdp = S.pwf.depth[0] + (S.pwf.depth[1] - S.pwf.depth[0]) * hh(cx * 0.53 + 4.1, cz * 0.29 + 8.3);
+        B.pr = [0, 1, 2].map(k => pick(PW_RAILS, () => hh(cx * (0.9 + k * 0.37) + k, cz * (1.1 + k * 0.23) + 2.9 * k)));
+        B.conc = new THREE.Color(0.78, 0.77, 0.74).lerp(col, 0.15);
+      }
       if (old) { B.old = true; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; }
       if (B.photo) stats.photo++;
       if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = 'st_up_' + sh; }
