@@ -63,7 +63,7 @@ Project `palermo-drive-bonnie`, region `europe-west8`, always through the gcloud
 
 - Service account `joinlog-run`, no keys. The service gets its token from the metadata server.
 - Custom role `joinlogWriter` (`bigquery.tables.get`, `getData`, `updateData`) granted on the one table, plus `roles/bigquery.jobUser` on the project (it can run a query job; it has no data access with it).
-- BigQuery dataset `joinlog` with no public access, table `events` (`events_test` for tests), views `visits` and `daily`.
+- BigQuery dataset `joinlog` with no public access, table `events` (`events_test` for tests), views `visits`, `daily`, `perf` and `missions`.
 - Cloud Run service `joinlog`: 1 vCPU, 128 MiB, concurrency 1, `--min-instances=0 --max-instances=1`, 15 s timeout, request-based billing, first generation environment.
 - A log exclusion `joinlog` on the `_Default` sink: no request logs, no container logs for this service.
 - A budget (GBP 2) on the existing `billing-budget-alerts` topic, whose function (`relay/killswitch/`) detaches billing from the project when cost passes the budget.

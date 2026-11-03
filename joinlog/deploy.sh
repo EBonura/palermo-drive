@@ -6,7 +6,7 @@
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events_test       # first against a test table
 #   ./deploy.sh palermo-drive-bonnie europe-west8 bonniestudiosdev@gmail.com events 2          # then the real one, with a 2 GBP budget that arms the kill switch
 #
-# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and two views,
+# What it creates (nothing else is touched): service account joinlog-run, custom role joinlogWriter, BigQuery dataset joinlog (in REGION) with the table and four views,
 # Cloud Run service joinlog, one log exclusion on the _Default sink, and with BUDGET_GBP one budget on the existing billing-budget-alerts topic (relay/killswitch.sh).
 set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
@@ -60,6 +60,18 @@ CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.daily\` OPTIONS (description = 'Per d
 SELECT DATE(first_seen) AS day, COUNT(*) AS visits, COUNTIF(name IS NOT NULL) AS online_visits, COUNT(DISTINCT name) AS names,
   ROUND(SUM(driving_seconds) / 60) AS minutes_driven, ROUND(AVG(avg_fps), 1) AS avg_fps, SUM(money) AS money, SUM(distance_m) AS distance_m
 FROM \`$PROJECT.$DATASET.visits\` GROUP BY day ORDER BY day DESC;" >/dev/null
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.perf\` OPTIONS (description = 'Per day (UTC) and kind of device: how the game ran') AS
+SELECT DATE(ts) AS day, device, gpu, version, auto_lvl, fps_mode, COUNT(DISTINCT visit) AS visits, ROUND(SUM(play_s) / 60, 1) AS minutes,
+  ROUND(SAFE_DIVIDE(SUM(fps * play_s), SUM(play_s)), 1) AS avg_fps, ROUND(AVG(fps_slow_ms)) AS avg_slowest_ms, ROUND(AVG(res_pct)) AS avg_res_pct, ROUND(AVG(mem_mb)) AS avg_mem_mb
+FROM \`$PROJECT.$DATASET.$TABLE\` WHERE fps IS NOT NULL GROUP BY day, device, gpu, version, auto_lvl, fps_mode;" >/dev/null
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.missions\` OPTIONS (description = 'Per day (UTC) and mission: started, completed, failed') AS
+SELECT DATE(ts) AS day, SPLIT(m, '=')[SAFE_OFFSET(0)] AS mission,
+  SUM(SAFE_CAST(SPLIT(SPLIT(m, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(0)] AS INT64)) AS started,
+  SUM(SAFE_CAST(SPLIT(SPLIT(m, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(1)] AS INT64)) AS completed,
+  SUM(SAFE_CAST(SPLIT(SPLIT(m, '=')[SAFE_OFFSET(1)], '.')[SAFE_OFFSET(2)] AS INT64)) AS failed
+FROM \`$PROJECT.$DATASET.$TABLE\`, UNNEST(SPLIT(missions, ';')) AS m WHERE missions IS NOT NULL AND m != '' GROUP BY day, mission;" >/dev/null
 # the service may append to this one table and nothing else
 for i in 1 2 3 4 5 6; do   # a role created a moment ago can take a few seconds to be known to BigQuery
   "${Q[@]}" add-iam-policy-binding --member="serviceAccount:$SA" --role="projects/$PROJECT/roles/$ROLE" "$PROJECT:$DATASET.$TABLE" >/dev/null && break

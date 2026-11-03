@@ -52,7 +52,8 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
   function post(body, beacon) {
     if (beacon && navigator.sendBeacon) { try { if (navigator.sendBeacon(URL_, body)) return; } catch (e) { /* fall through to fetch */ } }
     let tries = 0;
-    const go = () => { try { fetch(URL_, { method: 'POST', body, mode: 'no-cors', keepalive: true, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' }).catch(() => { if (++tries < 2) setTimeout(go, 5000); }); } catch (e) { /* silent */ } };
+    // referrerPolicy 'origin', never 'no-referrer': Safari and every iPhone browser then send Origin: null on this POST, and the service refuses it. Chrome hides the problem.
+    const go = () => { try { fetch(URL_, { method: 'POST', body, mode: 'no-cors', keepalive: true, credentials: 'omit', referrerPolicy: 'origin', cache: 'no-store' }).catch(() => { if (++tries < 2) setTimeout(go, 5000); }); } catch (e) { /* silent */ } };
     go();
   }
 
