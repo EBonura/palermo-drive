@@ -373,7 +373,7 @@ else if (MODE === 'smoke') {
   { const page = await open(browser, port, 'qc', Q, undefined, false); await sleep(5000); await say(page, 'title flyover'); await page.close(); }
   // each tier from a saved setting, then switched while running from the options screen
   for (const q of ['low', 'medium', 'high']) {
-    const page = await open(browser, port, 'qc', Q, `try { localStorage.setItem('palermoDrive.settings.v1', JSON.stringify({ quality: '${q}' })); } catch (e) {}`); await sleep(5000); await say(page, 'saved tier ' + q);
+    const page = await open(browser, port, 'qc', Q, `try { localStorage.setItem('palermoDrive.settings.v1', JSON.stringify({ quality: '${q}', qualityChosen: true })); } catch (e) {}`); await sleep(5000); await say(page, 'saved tier ' + q);
     await page.close();
   }
   { const page = await open(browser, port, 'qc', 'menu=options' + (Q ? '&' + Q : '')); await sleep(5000); await say(page, 'options open');

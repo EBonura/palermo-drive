@@ -87,6 +87,7 @@ export function createTraffic(env) {
   const { scene, camera, car, groundY, walls2d, closestOnSeg, D } = env;
   // one profile for every device (docs/PERF.md): same traffic on desktop and phone
   const MAXV = 60;
+  let densK = 1;   // graphics setQuality(): a share of MAXV (src/perf.js lowers it last, on a device that cannot hold the frame rate)
   const CAPS = { bus: 3, carrozza: 2, carretto: 1 };
 
   // ---------- road graph ----------
@@ -288,7 +289,7 @@ Object.assign(MODELS, buildPoliceModels());
     candEdges.length = 0; candCum.length = 0; candAcc = 0; candLane = 0; candCx = cx; candCz = cz;
     G.eachEdgeNear(cx, cz, R_SPAWN_MAX, candVisit);
     candX = cx; candZ = cz;
-    target = clamp(Math.round(candLane / LANE_PER_CAR), 6, MAXV);
+    target = clamp(Math.round(candLane / LANE_PER_CAR), 6, Math.max(6, Math.round(MAXV * densK)));
   }
   function chooseType(e) {
     const c = counts;
@@ -1038,6 +1039,7 @@ Object.assign(MODELS, buildPoliceModels());
     update, collidePlayer,
     agents: () => agentsOut,
     vehicles: vs, arrotini: arrotini.list, bindClock: arrotini.bindClock,   // src/city-audio.js: the vehicles to hear, and the knife-grinders (each on duty has x, z, h and v, his vehicle once he is near enough to have one); bindClock(game.time): they work from 07:30 to 20:00
+    setQuality(q) { densK = q === 'low' ? 0.5 : 1; },   // 'low' halves the cap on cars (the cars already there leave as they pass out of range); low / medium / high from main.js applySettings
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
     bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
     // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.

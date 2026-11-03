@@ -32,7 +32,7 @@ import { createRadio } from './radio.js';
 import { POI_SPOTS } from './pub-places.js';
 import { createCoords } from './coords.js'; // ?coords or Options: position on screen for bug reports (src/coords.js)
 import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
-import { createPerf } from './perf.js'; // adaptive render scale: ~30 fps on phones, 60 on desktop [perf pass]
+import { createPerf } from './perf.js'; // Auto graphics: holds 60 fps on any device by moving resolution, draw distance, shadows and crowd (src/perf.js, docs/PERF.md)
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
@@ -108,7 +108,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
-const perf = createPerf({ renderer, mobile: QUALITY.mobile });
+const perf = createPerf({ renderer, apply: L => applyLevel(L), gate: () => game.state === 'play' && !game.garage }); // gate: frames are only measured while driving (not on the title, in menus or in the Garage)
 { const maxA = renderer.capabilities.getMaxAnisotropy(); renderer.capabilities.getMaxAnisotropy = () => Math.min(4, maxA); } // [perf pass] cap anisotropic filtering at 4x whatever the modules ask for, on every device // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
@@ -326,25 +326,39 @@ if (location.search.includes('debug')) window.game = { perf, world, car, keys, p
 const game = {
   state: 'title', titleCam: null, noRender: false, garage: null, // garage: set while the Garage is open (src/garage-scene.js): its own scene, the city is neither simulated nor drawn
   time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
-  settings: { quality: 'medium', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
+  settings: { quality: 'auto', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
   pause() { if (this.state === 'play') this.state = 'pause'; },
   resume() { if (this.state === 'pause') { this.state = 'play'; last = performance.now(); } },
 };
 // One place where options touch the renderer; ui.js calls it after changing game.settings.
+// quality 'auto' is the default: src/perf.js moves a ladder of levels and calls applyLevel with each (the draw distance slider is overridden meanwhile).
+// low / medium / high are fixed choices: the slider applies and nothing adapts. ?fixres turns Auto into medium (benchmarks), and so does an automated
+// browser (navigator.webdriver) unless ?gfx=auto|low|medium|high says otherwise: tests stay deterministic.
 function applySettings() {
-  const st = game.settings, tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[st.quality] || [2, 2048];
-  perf.setMax(Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio)); // [perf pass] ceiling; perf.js adapts below it
-  renderer.shadowMap.enabled = tier[1] > 0;
-  if (tier[1] && sun.shadow.mapSize.x !== tier[1]) { sun.shadow.mapSize.set(tier[1], tier[1]); sun.shadow.map?.dispose(); sun.shadow.map = null; }
-  scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
-  scene.fog.density = 0.00014 / st.drawDistance;
-  camera.far = 40000 * st.drawDistance; camera.updateProjectionMatrix();
+  const st = game.settings, gfx = params.get('gfx');
+  let q = gfx || st.quality;
+  if (q === 'auto' && (params.has('fixres') || (!gfx && navigator.webdriver))) q = 'medium';
+  if (q === 'auto') perf.configure({ auto: true, ceil: Math.min(devicePixelRatio, 2) });
+  else {
+    const tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[q] || [2, 2048];
+    perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio) });
+    applyLevel({ dd: st.drawDistance, sh: tier[1], crowd: q, road: q });
+  }
   vehicle.setVolume?.(st.volume);
   traffic.setVolume?.(st.volume);
-  pedestrians.setQuality?.(st.quality);
-  traffic.setQuality?.(st.quality);
-  roadwear.setQuality?.(st.quality);
+}
+// L: { dd: draw distance factor, sh: shadow map size (0 = off), crowd: 'low'|'medium'|'high' for pedestrians and traffic, road: roadwear tier }. Only what changed costs anything:
+// a new shadow size reallocates the map, shadows on or off recompiles every program (perf.js does that during a screen transition when it can).
+function applyLevel(L) {
+  scene.fog.density = 0.00014 / L.dd;
+  if (camera.far !== 40000 * L.dd) { camera.far = 40000 * L.dd; camera.updateProjectionMatrix(); }
+  const on = L.sh > 0;
+  if (on && sun.shadow.mapSize.x !== L.sh) { sun.shadow.mapSize.set(L.sh, L.sh); sun.shadow.map?.dispose(); sun.shadow.map = null; }
+  if (renderer.shadowMap.enabled !== on) { renderer.shadowMap.enabled = on; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
+  pedestrians.setQuality?.(L.crowd);
+  traffic.setQuality?.(L.crowd);
+  roadwear.setQuality?.(L.road || 'medium');
 }
 // First drive on a keyboard: say once where the controls are, then get out of the way.
 function showKeyHint() {
@@ -390,7 +404,7 @@ radio = createRadio({ game }); // car radio (src/radio.js): starts on the first 
 const cityAudio = createCityAudio({ scene, camera, car, game, traffic, getRadio: () => radio, mapMarkers, groundY });   // on the radio's AudioContext, so also from the first tap
 if (window.game) window.game.cityAudio = cityAudio;
 watchVersion(game);
-const coords = createCoords({ game, car, camera, groundY });
+const coords = createCoords({ game, car, camera, groundY, perf });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
@@ -412,7 +426,7 @@ if (world) world.hurry = true;
 let last = performance.now(), acc = 0, rotHeld = false;
 const STEP = 1 / 120;
 renderer.setAnimationLoop(now => {
-  perf.frame(now); // [perf pass]
+  if (perf.frame(now)) return; // [perf pass] true: the 30 fps cap skips this refresh
   const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); const away = now - last; last = now; // never negative (headless virtual time)
   if (game.garage) { // the Garage: draw its scene and nothing else, so the street is exactly as it was when we come back (the flyover clock is held too)
     if (titleT0 >= 0) titleT0 += Math.max(0, away);
