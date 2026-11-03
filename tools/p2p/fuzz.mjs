@@ -5,20 +5,21 @@ const h = await start();
 try {
   const a = await player(h, { name: 'Anna', ns: 'fuzz' + Date.now().toString(36), x: -1250, z: 250, p2p: 'p2p=nostr' });
   const r = await a.page.evaluate(() => {
-    const enc = s => new TextEncoder().encode(s), info = (liv, nameBytes) => { const b = new Uint8Array(3 + nameBytes.length); b[0] = 1; b[1] = liv; b[2] = nameBytes.length; b.set(nameBytes, 3); return b; };
+    const enc = s => new TextEncoder().encode(s), info = (liv, nameBytes, veh = 0) => { const b = new Uint8Array(4 + nameBytes.length); b[0] = 1; b[1] = veh; b[2] = liv; b[3] = nameBytes.length; b.set(nameBytes, 4); return b; };
     const state = (mut) => { const b = new Uint8Array(13); b[0] = 2; b[1] = 1; mut && mut(b); return b; };
     const D = window.__p2p, out = {};
     const run = (label, msgs) => { const before = { ...D.stats }; const res = D.fuzz(msgs); out[label] = { ...res, newBad: D.stats.rxBad - before.rxBad }; };
     run('markup name', [['i', info(0, enc('<img src=x onerror=alert(1)>'))]]);
     run('control + bidi + zero width', [['i', info(0, enc('A‮evil​\u0000⁦x⁩\n\tB'))]]);
     run('emoji + long name (kept to 16)', [['i', info(0, enc('😀'.repeat(40).slice(0, 60)))]]);
-    run('name length field lies', [['i', (() => { const b = info(0, enc('abc')); b[2] = 200; return b; })()]]);
+    run('name length field lies', [['i', (() => { const b = info(0, enc('abc')); b[3] = 200; return b; })()]]);
     run('name over 64 bytes', [['i', info(0, new Uint8Array(65).fill(65))]]);
-    run('livery out of range', [['i', info(99, enc('x'))]]);
+    run('livery out of range (first livery)', [['i', info(99, enc('x'))]]);
+    run('vehicle out of range (the lapa)', [['i', info(0, enc('x'), 99)], ['i', info(250, enc('x'), 255)]]);
     run('invalid utf-8', [['i', info(0, new Uint8Array([0xff, 0xfe, 0xc0, 0x80]))]]);
     run('not bytes', [['i', 'string'], ['i', null], ['i', { a: 1 }], ['s', 12345], ['s', undefined], ['s', new Uint8Array(0)]]);
     run('wrong state sizes', [['s', new Uint8Array(12)], ['s', new Uint8Array(14)], ['s', new Uint8Array(1000)]]);
-    run('wrong type byte', [['s', state(b => { b[0] = 7; })], ['i', new Uint8Array([9, 0, 0])]]);
+    run('wrong type byte', [['s', state(b => { b[0] = 7; })], ['i', new Uint8Array([9, 0, 0, 0])]]);
     run('position beyond +-20 km', [['s', state(b => { b.set([255, 255, 255, 255, 255], 2); })]]);
     run('state of a peer without info', [['s', state()]]);
     return out;

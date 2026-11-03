@@ -15,21 +15,22 @@
 //
 // Messages come from strangers: every byte is validated (length, ranges, rate limit, names reduced to plain text and drawn on a
 // canvas, never as HTML). Wire format (little endian), the same state encoding as relay/src/protocol.rs, in one data channel action:
-//   INFO  [1][livery u8][nameLen u8][name utf8]       sent to a new peer and when the name or livery changes
+//   INFO  [1][vehicle u8][livery u8][nameLen u8][name utf8]   sent to a new peer and when the name, vehicle or livery changes;
+//         vehicle indexes VEHICLES (src/garage.js), livery the LIVERIES of that vehicle; anything out of range is the calessino / its first livery
 //   SAY   [3][phrase index u8]                        one of PHRASES (src/p2p/phrases.js), shown as a bubble over the sender's car
 //   OFFER [4][kind u8][offer id u8]                   a drink (0 cicchetto, 1 birra) for a player close by; ACCEPT [5][id] answers it, CONFIRM [6][id] says the giver paid
 //   STATE [2][seq u8][state 11 bytes]                 position 5 bytes, heading u8, speed i8, steer i8, roll i8, lean i8, flags u8
 import { createRemotes } from '../remotes.js';
 import { strategies, selfId } from './trystero.js';
 import { PHRASES } from './phrases.js';
-import { garage } from '../garage.js';
+import { garage, VEHICLES, LIVERIES } from '../garage.js';
 
 const APP_ID = 'palermo-drive-p2p-exp-1';
 const POS_UNITS = 20, POS_MID = 1 << 19, POS_MAX = (1 << 20) - 1;
 const TAU = Math.PI * 2;
-const MAX_NAME_BYTES = 64, MAX_NAME_RUNES = 16, MAX_LIVERY = 15;
+const MAX_NAME_BYTES = 64, MAX_NAME_RUNES = 16;
 const MAX_REMOTES = 48;        // players drawn at once; more are ignored
-const STATE_LEN = 11, MSG_STATE = 2 + STATE_LEN, MSG_INFO_MAX = 3 + MAX_NAME_BYTES;
+const STATE_LEN = 11, MSG_STATE = 2 + STATE_LEN, MSG_INFO_MAX = 4 + MAX_NAME_BYTES;
 const RATE_PER_S = 40, RATE_BURST = 60;  // incoming messages per peer
 const STALE_MS = 6000;         // a player we hear nothing from for this long is dropped
 const GONE_MS = 1500;          // a player whose last connection closed is dropped after this (a room swap may bring it back)
@@ -65,7 +66,8 @@ export function createP2P(env) {
   const urlName = !!params.get('name');
   const refreshName = () => { if (urlName) return; const n = stored().name, c = typeof n === 'string' ? clean(n) : ''; if (c && c !== myName) { myName = c; named = true; } };
   addEventListener('pd-name', refreshName);
-  const livId = () => Math.max(0, (vehicle.LIVERIES || []).findIndex(l => l.id === car.livery));
+  const vehId = () => Math.max(0, VEHICLES.findIndex(v => v.id === car.type));   // the night race's sulky is not a garage vehicle: it goes out as the default
+  const livId = () => Math.max(0, (LIVERIES[VEHICLES[vehId()].id] || []).findIndex(l => l.id === car.livery));   // a custom colour is not in the list: the first one
 
   const rm = createRemotes(env);
   const rooms = new Map();   // key -> { key, i, j, room, state, info, peers: Set, t0, tFirstPeer, joined }
@@ -127,13 +129,13 @@ export function createP2P(env) {
     if (why) ev(why, { room: r.key, peer: id.slice(0, 4) });
     if (!p.rooms.size) p.goneAt = performance.now();
   }
-  const newPeer = id => ({ id, rooms: new Set(), name: '', livery: -1, seq: -1, lastRx: 0, x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
+  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
 
   // ---------- outgoing ----------
   const route = p => { let best = null; for (const k of p.rooms) if (rooms.has(k) && (best === null || k < best)) best = k; return best; };
   function sendInfoTo(r, id) {
     const nm = new TextEncoder().encode(myName).slice(0, MAX_NAME_BYTES);
-    const b = new Uint8Array(3 + nm.length); b[0] = 1; b[1] = livId(); b[2] = nm.length; b.set(nm, 3);
+    const b = new Uint8Array(4 + nm.length); b[0] = 1; b[1] = vehId(); b[2] = livId(); b[3] = nm.length; b.set(nm, 4);
     stats.txMsgs++; stats.txBytes += b.length;
     r.info.send(b, id ? { target: id } : undefined).catch(() => {});
   }
@@ -143,7 +145,7 @@ export function createP2P(env) {
     const xq = clamp(Math.round(car.x * POS_UNITS) + POS_MID, 0, POS_MAX), zq = clamp(Math.round(car.z * POS_UNITS) + POS_MID, 0, POS_MAX);
     dv.setUint32(2, (xq | ((zq & 0xfff) << 20)) >>> 0, true); b[6] = zq >>> 12;
     b[7] = Math.round(((car.th % TAU) + TAU) % TAU / TAU * 256) & 255;
-    dv.setInt8(8, clamp(Math.round((car.vf || 0) * 2), -127, 127)); dv.setInt8(9, q8(car.steer || 0, 0.7)); dv.setInt8(10, q8(car.roll || 0, 0.5)); dv.setInt8(11, q8((car.tip || 0) * Math.sign(car.ay || 0), 1));
+    dv.setInt8(8, clamp(Math.round((car.vf || 0) * 2), -127, 127)); dv.setInt8(9, q8(car.steer || 0, 0.7)); dv.setInt8(10, q8(car.roll || 0, 0.5)); dv.setInt8(11, q8(car.lean || 0, 1));
     b[12] = (car.nosAmt > 0.15 ? 1 : 0) | (car.braking ? 2 : 0) | (car.drift > 0.3 ? 4 : 0);
     return b;
   }
@@ -171,13 +173,14 @@ export function createP2P(env) {
   function known(id) { return typeof id === 'string' && peers.get(id); }
   function onInfo(r, id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
-    if (!p || !b || b.length < 3 || b.length > MSG_INFO_MAX || b[0] !== 1 || b.length !== 3 + b[2] || b[2] > MAX_NAME_BYTES) { stats.rxBad++; return; }
+    if (!p || !b || b.length < 4 || b.length > MSG_INFO_MAX || b[0] !== 1 || b.length !== 4 + b[3] || b[3] > MAX_NAME_BYTES) { stats.rxBad++; return; }
     stats.rxBytes += b.length;
     if (!admit(p, now)) { stats.rxDropped++; return; }
-    if (b[1] > MAX_LIVERY) { stats.rxBad++; return; }
-    p.name = clean(new TextDecoder().decode(b.subarray(3))) || 'Player'; p.livery = b[1];
+    const v = VEHICLES[b[1]] || VEHICLES[0];   // untrusted: an unknown vehicle is the lapa, an unknown livery its first
+    p.vehicle = v.id; p.livery = b[2] < LIVERIES[v.id].length ? b[2] : 0;
+    p.name = clean(new TextDecoder().decode(b.subarray(4))) || 'Player';
     p.lastRx = now;
-    if (p.shown) rm.setInfo(rm.remotes.get(id), p.name, p.livery);
+    if (p.shown) rm.setInfo(rm.remotes.get(id), p.name, p.livery, p.vehicle);
   }
   function onState(r, id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
@@ -196,7 +199,7 @@ export function createP2P(env) {
     if (p.livery < 0) return;   // INFO not here yet (it was sent first, and arrives first unless it came through another room)
     if (!p.shown) {
       if (rm.remotes.size >= MAX_REMOTES) return;
-      p.shown = true; rm.setInfo(rm.ensure(id), p.name || 'Player', p.livery);
+      p.shown = true; rm.setInfo(rm.ensure(id), p.name || 'Player', p.livery, p.vehicle);
       ev('firstState', { peer: id.slice(0, 4), room: r.key, msSinceRoom: Math.round(now - r.t0) });
     }
     const rem = rm.remotes.get(id); if (!rem) return;
@@ -349,7 +352,7 @@ export function createP2P(env) {
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
       sendAcc = 0;
-      const key2 = myName + '|' + livId();
+      const key2 = myName + '|' + vehId() + '|' + livId();
       if (key2 !== lastInfoKey) { lastInfoKey = key2; for (const r of rooms.values()) sendInfoTo(r, null); }
       if (game.state === 'play') sendStateTo([...peers.keys()], now, false);
     }
@@ -393,7 +396,7 @@ export function createP2P(env) {
       fuzz(msgs, refill = true) {
         const id = 'fuzz-peer', r = { key: 'fuzz' }; peers.get(id) || peers.set(id, newPeer(id)); const p = peers.get(id); let threw = 0;
         for (const [kind, bytes] of msgs) { if (refill) p.tokens = RATE_BURST; try { (kind === 'i' ? onInfo : onState)(r, id, bytes); } catch (e) { threw++; } }
-        return { threw, name: p.name, livery: p.livery, rxBad: stats.rxBad, rxDropped: stats.rxDropped, drawn: rm.remotes.size };
+        return { threw, name: p.name, vehicle: p.vehicle, livery: p.livery, rxBad: stats.rxBad, rxDropped: stats.rxDropped, drawn: rm.remotes.size };
       } },
   };
   window.__p2p = api.debug;
