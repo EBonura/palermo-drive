@@ -946,8 +946,12 @@ layer('deck', (g, r) => { // timber deck roofs and terraces
 // Every tile here starts from the same render (obase), so neighbouring bays and tiles meet without a seam. Variant layers are gathered in groups (GROUPS below): the shader picks one per bay and floor,
 // so a facade does not repeat one window. Colour stays near neutral: the plaster is tinted per building by the vertex colour, the shutters and wood keep their own.
 Object.assign(SH, { x: ['#7d8ba2', '#5d6b84'], r: ['#6e3b30', '#522a22'], v: ['#46604a', '#324738'], o: ['#8a5a34', '#6a4224'] });
-let OBASE = null;
+let OBASE = null, OSTONE = null, STONEF = false;   // STONEF: a stone variant of the old-town tiles is being drawn (below, `stonify`): obase gives dressed ashlar and not lime render
 function obase(g) {
+  if (STONEF) {
+    if (!OSTONE) { OSTONE = document.createElement('canvas'); OSTONE.width = OSTONE.height = T; const c = OSTONE.getContext('2d'), r = rng(4243); ashlar(c, r, 0, 0, T, T, '#e6e1d3', 32, 64, .22); softNoise(c, r, 3, '150,112,80', .1); softNoise(c, r, 7, '98,84,66', .12); }
+    g.drawImage(OSTONE, 0, 0); return;
+  }
   if (!OBASE) {
     OBASE = document.createElement('canvas'); OBASE.width = OBASE.height = T;
     const c = OBASE.getContext('2d'), r = rng(31337);
@@ -1193,6 +1197,12 @@ const OWALL = [   // blind side and party walls: worn plaster with soft tonal va
   (g, r) => { obase(g); wash(g, r, 3); opatch(g, r, 1, [.3, .6]); crack(g, r); },
   (g, r) => { obase(g); wash(g, r, 4); opatch(g, r, 1, [0, .4]); g.fillStyle = 'rgba(70,58,44,.10)'; g.fillRect(96, 50, 64, 110); g.fillStyle = 'rgba(40,32,24,.14)'; g.fillRect(96, 50, 64, 3); g.fillRect(96, 50, 3, 110); g.fillStyle = 'rgba(214,202,176,.35)'; g.fillRect(92, 160, 72, 4); },   // a bricked-up opening, hardly there
   (g, r) => { obase(g); wash(g, r, 6); opatch(g, r, 2, [0, .2]); for (let i = 0; i < 2; i++) streak(g, 20 + r() * 210, 0, 120 + r() * 90, 14 + r() * 20, .09); },
+  // [oldtown] the blind faces are not all blind: a flank wall that stands above its neighbour has the odd small window, a drainpipe, the ghost of a house that is gone. Three variants of those, so an exposed flank has some relief
+  (g, r) => { obase(g); wash(g, r, 3); owin(g, r, 112, 64, 34, 70, { fr: 5, st: r() < .5 ? 'closed' : 'none', sh: r() < .5 ? 'g' : 'o' }); if (r() < .6) grilleAt(g, 112, 64, 34, 70); opatch(g, r, 1, [0, .3]); },   // a stair or bathroom window, small, in a plain frame (some with an iron grille)
+  (g, r) => { obase(g); wash(g, r, 4); const x = 50 + r() * 150; g.fillStyle = 'rgba(40,32,24,.28)'; g.fillRect(x + 5, 0, 8, T); g.fillStyle = '#8c887c'; g.fillRect(x, 0, 8, T); g.fillStyle = 'rgba(255,255,255,.28)'; g.fillRect(x, 0, 2, T); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 20; y < T; y += 70) g.fillRect(x - 2, y, 12, 4);   // a drainpipe with its brackets, a meter box, a cable
+    g.fillStyle = '#d4cdba'; g.fillRect(x + 22, 118, 30, 38); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x + 22, 156, 30, 3); g.fillStyle = 'rgba(30,26,22,.55)'; g.fillRect(x + 8, 128, 14, 1.6); g.fillRect(x + 52, 135, 60 + r() * 60, 1.6); opatch(g, r, 1, [0, .2]); },
+  (g, r) => { obase(g); wash(g, r, 3); const cut = 70 + r() * 80; g.fillStyle = 'rgba(255,248,230,.20)'; g.beginPath(); g.moveTo(-4, T + 4); g.lineTo(-4, cut); g.lineTo(T * (.55 + r() * .3), cut + 50 * (r() - .5)); g.lineTo(T * (.55 + r() * .3), T + 4); g.closePath(); g.fill();   // the ghost of a demolished neighbour: a paler patch with the slope of its roof, the line of its floors
+    g.strokeStyle = 'rgba(70,56,40,.22)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, cut); g.lineTo(T * .7, cut + 8); g.stroke(); g.fillStyle = 'rgba(70,56,40,.12)'; for (let y = cut + 70; y < T; y += 92) g.fillRect(0, y, T * .62, 3); },
 ];
 // [texround2] Plain walls (party walls and short edges: L.blank, 4 m tiles; the blind ground floors of the suburbs: blank_g) used to be one tile with one tan patch, so the patch came back every 4 m in a grid.
 // Now groups of seven and six variants on the same render (obase, so the tiles meet without a seam): big soft clouds of wash, damp and rain, the odd crack, and one variant in seven with a single large patch of stone.
@@ -1220,7 +1230,12 @@ const SHOPS = [   // the plain street shop (g_shop_s) in four states: shutters o
   (g, r) => { plaster(g, r, '#e2dccd', { peel: 0 }); g.fillStyle = '#f1ebdb'; g.fillRect(0, 0, 14, T); g.fillRect(T - 14, 0, 14, T); sign(g, r, 24, 24, 208, 40); g.fillStyle = '#d9d2c0'; g.fillRect(20, 66, 216, 4); rollShutter(g, r, 26, 70, 204, 170, '#5f7062'); g.fillStyle = '#c6bda7'; g.fillRect(14, 240, 228, 16); dado(g, 30, .3); },
 ];
 const GMAP = { g_shop_s: 'g_shops', g_garage: 'g_gars', blank_g: 'g_blank' };   // ground-floor layer -> its group
-const OGROUPS = { zen_up: ZENUP, blank_v: BLANKW, g_blank: BLANKG, old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW, g_gars: GARS, pwd: PWD, pww: PWW, pwbd: PWBD, pwbw: PWBW, pwg: PWG };
+// Stone fronts of the old town (isStone: a third or more of the buildings in the oldest zones) had the plain stoneUp window, one pane in a flat frame, whatever the street: here are the same windows, surrounds, shutters
+// and hoods as the rendered fronts, on ashlar (fewer variants, to keep the atlas small), for the storeys, the piano nobile, the top floor and the blind walls.
+const stonify = list => list.map(f => (g, r) => { STONEF = true; try { f(g, r); } finally { STONEF = false; } });
+const OSTUP = stonify(OUP.slice(0, 5)), OSTNOB = stonify(ONOB.slice(0, 3)), OSTTOP = stonify(OTOP.slice(0, 2));
+const OSTWALL = stonify([(g, r) => { obase(g); wash(g, r, 2); }, OWALL[5], OWALL[6], (g, r) => { obase(g); wash(g, r, 3); opatch(g, r, 1, [0, .3]); }]);
+const OGROUPS = { zen_up: ZENUP, blank_v: BLANKW, g_blank: BLANKG, old_wall: OWALL, g_shops: SHOPS, old_up: OUP, old_nob: ONOB, old_top: OTOP, og_door: ODOOR, og_shop: OSHOP, og_low: OLOW, g_gars: GARS, pwd: PWD, pww: PWW, pwbd: PWBD, pwbw: PWBW, pwg: PWG, ost_up: OSTUP, ost_nob: OSTNOB, ost_top: OSTTOP, ost_wall: OSTWALL };
 // the hand-drawn facades of the best known buildings (src/hero-facades.js): layers named hr_*, used by the walls whose spec says so (`bl`)
 for (const [name, fn] of heroLayers({ T, obase, opatch, ofloor, owin, orust, ovouss, oskirt, archPath, oleaf, oshut, oshutOpen, oped, softNoise, wash, streak, SH })) layer(name, fn);
 layer('wxnoise', (g, r) => {   // not a facade: smooth tiling noise for the weathering in the building shader (R broad patches, G vertical streaks); stored so that the linear value after sRGB decoding is the noise itself
@@ -1229,7 +1244,7 @@ layer('wxnoise', (g, r) => {   // not a facade: smooth tiling noise for the weat
   for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) { const k = (y * T + x) * 4; im.data[k] = 255 * Math.pow(f(a, 8, 8, x, y), 1 / 2.2); im.data[k + 1] = 255 * Math.pow(f(b, 32, 4, x, y), 1 / 2.2); im.data[k + 3] = 255; }
   g.putImageData(im, 0, 0);
 });
-const GRPV = Array.from({ length: 24 }, () => new THREE.Vector2(0, 1));
+const GRPV = Array.from({ length: 32 }, () => new THREE.Vector2(0, 1));
 const GROUPS = [];   // aLayer = 200 + index picks a group; uGrp[index] = (first layer, count) and the shader chooses the variant per bay and floor
 for (const [name, list] of Object.entries(OGROUPS)) { list.forEach((fn, i) => layer(name + '_' + i, fn)); LID[name] = 200 + GROUPS.length; GRPV[GROUPS.length].set(LID[name + '_0'], list.length); GROUPS.push(name); }
 // runs of consecutive layers that used to be one window type per building become groups too: each bay and floor picks its own (blinds, awnings and shutters differ from flat to flat)
@@ -1273,7 +1288,7 @@ function atlasMaterial(tex, cutout) {
       .replace('#include <common>', '#include <common>\nattribute float aLayer;\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLayer = aLayer; vTileUv = uv; vNy = normal.y; vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nuniform float uWin;\nuniform vec2 uGrp[24];\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;\nfloat bH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
+      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uTex;\nuniform float uWin;\nuniform vec2 uGrp[32];\nvarying float vLayer;\nvarying vec2 vTileUv;\nvarying vec3 vWp;\nvarying float vNy;\nfloat bH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
       .replace('#include <color_fragment>', `
         float lay = floor(vLayer + 0.5);
         if (lay >= 200.0) { vec2 gp = uGrp[int(lay - 200.0)]; lay = gp.x + floor(bH(floor(vTileUv) * 1.37 + 7.3) * gp.y); }   // a layer group: one variant per bay and floor
@@ -1713,7 +1728,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
 
     function edge(E) {
       const { ax, az, bx, bz, dx, dz, ux, uz, nx, nz, len, kind } = E;
-      const col = B.col, L = LID;
+      let col = B.col, stoneC = B.stone, slabC = B.slab, hs = null, nb = 0, bts = null; const L = LID;
+      const bt = i => bts ? bts[i] : i / nb;   // where bay i starts along the wall, as a share of its length   // col, stoneC, slabC: the house being emitted (an old-town front is several houses, below)
       const kc = t => (t === 0 && E.reflexA) || (t === 1 && E.reflexB) ? 0.86 : 1;
       const uo = B.uo + (Math.abs(Math.floor(ax * 3 + az * 7)) % 37);   // every wall starts at another bay of the layer groups
       let grec = 0;   // pilotis: how far the ground-floor wall stands back from the facade line (set around the ground runs)
@@ -1730,24 +1746,30 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         if (bm) { const w = B.spec.walls[bm.i]; if (w) W = { ...sp, ...w }; }
       }
       if (kind === 'party' && !S.silo || len < 2.6 && !S.silo) {
-        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? L.ch_low : B.old ? L.old_wall : L.blank_v, 0.72, 0.97, 0, len / 4);
+        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? (B.old ? L.ost_wall : L.ch_low) : B.old ? L.old_wall : L.blank_v, 0.72, 0.97, 0, len / 4);
       } else {
-        const nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / ((W.bay || S.bay) * (B.bayK || 1)))), bw = len / nb;
+        nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / ((W.bay || S.bay) * (B.bayK || 1))));
+        const bw = len / nb;
+        // Old-town street fronts are cut into houses. One OSM outline is often a whole block front (Via Cavour: 73 m, one colour, one storey height, one window pitch), which read as one slab.
+        // A house is 10 to 24 m of wall with its own plaster colour, bay width, storey count (when the storey height stays in range), cornice and balcony habit; the strips below are laid per house.
+        hs = B.old && kind === 'street' ? oldHouses(E, B, S, len, nUp, yTop - yg, nb) : null;
+        if (hs) { nb = hs.nb; bts = hs.bts; }
         let upT = W.up || B.up; const nobT = W.nob || B.nob || 'n19_nob', gmode = W.ground;
         if (S.alt && !W.up && hh(ax * 0.77 + 3, az * 1.31) < S.altP) upT = S.alt; // e.g. an exterior stairwell bay on a housing insulae
         // ground floor runs
         const runs = [];
-        const addRun = lay => { const q = runs[runs.length - 1]; if (q && q.lay === lay && REPEATABLE.has(lay)) q.n++; else runs.push({ lay, n: 1 }); };
+        const addRun = (lay, brk, h) => { const q = runs[runs.length - 1]; if (q && q.lay === lay && !brk && REPEATABLE.has(lay)) q.n++; else runs.push({ lay, n: 1, h }); };   // brk: a new house starts here, so a run never crosses two colours
         if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.7 ? 'ch_door' : 'ch_low');
         else if (W.bl && W.bl.ground) for (let i = 0; i < nb; i++) addRun(W.bl.ground[(nb - 1 - i) % W.bl.ground.length]);   // a hand-drawn facade (src/hero-facades.js): the layer of every bay, in order
         else if (kind === 'street') {
           let prev = null;
           const GL = GROUND_MODES[gmode] || B.gl || groundMix(S, B);
           for (let i = 0; i < nb; i++) {
-            let lay = prev && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(GL, r);
+            const hi = hs ? hs.of[i] : 0, brk = hs && hs.h[hi].i0 === i;
+            let lay = prev && !brk && REPEATABLE.has(prev) && r() < 0.6 ? prev : pick(GL, r);
             if (lay === prev && !REPEATABLE.has(lay)) lay = pick(GL, r);
             if (W.portal && W.portal.bay === i && (W.portal.wall === undefined || (bm && W.portal.wall === bm.i))) lay = 'g_arch';
-            addRun(lay); prev = lay;
+            addRun(lay, brk, hi); prev = lay;
           }
         } else for (let i = 0; i < nb; i++) { const q = r(); addRun(stack !== undefined ? 'blank_g' : q < 0.12 ? 'g_door2' : q < 0.25 ? 'g_win' : 'blank_g'); }
         // post-war street walls: the rhythm of balcony columns, and now and then pilotis (the ground floor stands back under the block, concrete columns in front)
@@ -1764,11 +1786,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         let i0 = 0;
         grec = rec;
         for (const run of runs) {
-          const t0 = i0 / nb, t1 = (i0 + run.n) / nb;
+          const t0 = bt(i0), t1 = bt(i0 + run.n);
+          if (hs && run.h !== undefined) col = hs.h[run.h].col;
           strip(t0, t1, foot0 + (foot1 - foot0) * t0, foot0 + (foot1 - foot0) * t1, Math.max(yg, foot0 + 1), Math.max(yg, foot1 + 1), 0, 1, L[GMAP[run.lay] || run.lay], 0.64, 0.9, i0, i0 + run.n);
           i0 += run.n;
         }
-        grec = 0;
+        col = B.col; grec = 0;
         if (rec) {   // the arcade: the underside of the block, the two returns and a row of columns
           const cc = B.conc, rx = -nx * rec, rz = -nz * rec;
           gbuf.q([ax, yg, az, 0, 0, .45], [bx, yg, bz, len / 3, 0, .45], [bx + rx, yg, bz + rz, len / 3, rec / 3, .45], [ax + rx, yg, az + rz, 0, rec / 3, .45], 0, -1, 0, L.blank, cc);
@@ -1785,7 +1808,17 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         }
         // upper floors
         if (nUp > 0) {
-          if (S.church) {
+          if (hs) {   // an old-town front: every house lays its own storeys
+            for (const h of hs.h) {
+              col = h.col;
+              const fhH = (yTop - yg) / h.nUp; let start = 1, y0 = yg;
+              if (hasNob) { strip(bt(h.i0), bt(h.i1), yg, yg, yg + fhH, yg + fhH, 0, 1, L[nobT], 0.94, 0.98, h.i0, h.i1); start = 2; y0 = yg + fhH; }
+              const nf = h.nUp - start + 1;
+              if ((upT === 'old_up' || upT === 'ost_up') && nf >= 2) { const yt = y0 + (yTop - y0) * (nf - 1) / nf; strip(bt(h.i0), bt(h.i1), y0, y0, yt, yt, 0, nf - 1, L[upT], 0.97, 0.945, h.i0, h.i1); strip(bt(h.i0), bt(h.i1), yt, yt, yTop, yTop, 0, 1, upT === 'ost_up' ? L.ost_top : L.old_top, 0.945, 0.93, h.i0, h.i1); }   // the top floor has its own, smaller windows
+              else if (nf >= 1) strip(bt(h.i0), bt(h.i1), y0, y0, yTop, yTop, 0, nf, L[upT], 0.97, 0.93, h.i0, h.i1);
+            }
+            col = B.col;
+          } else if (S.church) {
             if (nUp >= 2) strip(0, 1, yg, yg, yg + fh * (nUp - 1), yg + fh * (nUp - 1), 0, nUp - 1, L.ch_mid, 0.95, 0.97, 0, nb);
             strip(0, 1, yg + fh * (nUp - 1), yg + fh * (nUp - 1), yTop, yTop, 0, 1, nUp >= 2 ? L.ch_top : L.ch_mid, 0.97, 0.93, 0, nb);
           } else {
@@ -1793,7 +1826,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             if (hasNob && W.bl && W.bl.nob) { for (let i = 0; i < nb; i++) strip(i / nb, (i + 1) / nb, yg, yg, yg + fh1, yg + fh1, 0, 1, L[W.bl.nob[(nb - 1 - i) % W.bl.nob.length]], 0.94, 0.98, 0, 1); start = 2; y0 = yg + fh1; }
             else if (hasNob && kind === 'street') { strip(0, 1, yg, yg, yg + fh1, yg + fh1, 0, 1, L[nobT], 0.94, 0.98, 0, nb); start = 2; y0 = yg + fh1; }
             const nf = nUp - start + 1;
-            if (B.old && upT === 'old_up' && nf >= 2) { const yt = y0 + (yTop - y0) * (nf - 1) / nf; strip(0, 1, y0, y0, yt, yt, 0, nf - 1, L[upT], 0.97, 0.945, 0, nb); strip(0, 1, yt, yt, yTop, yTop, 0, 1, L.old_top, 0.945, 0.93, 0, nb); }   // the top floor has its own, smaller windows
+            if (B.old && (upT === 'old_up' || upT === 'ost_up') && nf >= 2) { const yt = y0 + (yTop - y0) * (nf - 1) / nf; strip(0, 1, y0, y0, yt, yt, 0, nf - 1, L[upT], 0.97, 0.945, 0, nb); strip(0, 1, yt, yt, yTop, yTop, 0, 1, upT === 'ost_up' ? L.ost_top : L.old_top, 0.945, 0.93, 0, nb); }   // the top floor has its own, smaller windows
             else if (nf >= 1 && W.bl && W.bl.up) {   // a hand-drawn facade: a layer per bay, the top floor on its own when it has layers of its own
               const top = W.bl.top && nf >= 2, yt = top ? y0 + (yTop - y0) * (nf - 1) / nf : yTop, nfu = top ? nf - 1 : nf;
               for (let i = 0; i < nb; i++) {
@@ -1812,18 +1845,23 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         }
         // balconies on street fronts (per-spec pattern, otherwise palazzi styles get the default pattern)
         const bmode = B.old ? 'old' : W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || B.railAlt || S.rail || 'rail_a';
-        if (kind === 'street' && bmode !== 'none' && bw >= (W.balc || B.old ? 2.5 : 2.9) && nUp > 0) {
-          if (bmode === 'old') {   // old town: balconies in runs of one to three bays (a long one on the piano nobile), on most floors; one slab and one rail per run, cheaper per metre than a balcony per bay
-            const lo = E.reflexA ? 1 : 0, hi = nb - (E.reflexB ? 1 : 0);
-            for (let f = 1; f <= nUp; f++) {
-              const u = hh(ax * 1.7 + f * 3.1, az * 0.9 + f * 5.3), nobF = f === 1 && hasNob, pAny = nobF ? 0.9 : B.balcP;
-              if (u > pAny || hi <= lo) continue;
-              const rl = hh(ax * 0.7 + f, az * 1.9) < 0.6 ? 'rail_b' : 'rail_a', dp = 0.62 + 0.3 * hh(ax + f * 0.37, az * 1.1);
-              if (nobF ? u < 0.45 : u < B.balcP * 0.3) { const w2 = (hi - lo) * bw / 2 - 0.3, t = (lo + hi) / 2 / nb; obalc(t, floorBase(f), w2, Math.max(1, Math.round(w2 / (nobF ? 1.1 : 1.6))), rl, dp); continue; }
-              for (let i = lo, k = 0; i < hi; k++) {
-                const h2 = hh(ax * 3.1 + i * 1.3 + f * 7.7, az * 2.3 + k), n = 1 + (h2 < 0.35) + (h2 < 0.12), run = Math.min(n, hi - i);
-                if (h2 < 0.6) { const w2 = run * bw / 2 - 0.3; obalc((i + run / 2) / nb, floorBase(f), w2, Math.max(1, Math.round(w2 / (nobF ? 1.1 : 1.8))), rl, dp); i += run + 1; } else i++;
+        if (kind === 'street' && bmode !== 'none' && (hs || bw >= (W.balc ? 2.5 : 2.9)) && nUp > 0) {
+          if (bmode === 'old') {   // old town: every house has its own balcony habit (oldHouses): iron balconies on every floor in a run per window or two, one on the piano nobile only, a few, or none
+            if (hs) for (const h of hs.h) {
+              const lo = h.i0 + (h.i0 === 0 && E.reflexA ? 1 : 0), hi = h.i1 - (h.i1 === nb && E.reflexB ? 1 : 0), fhH = (yTop - yg) / h.nUp, bwH = h.bw;
+              if (h.bal === 'none' || hi <= lo || bwH < 2.5) continue;
+              stoneC = h.stone; slabC = h.slab;
+              for (let f = 1; f <= h.nUp; f++) {
+                const u = hh(ax * 1.7 + f * 3.1 + h.k * 11.3, az * 0.9 + f * 5.3), nobF = f === 1 && hasNob, yF = yg + (f - 1) * fhH;
+                if (h.bal === 'nob' ? f !== 1 : u > (h.bal === 'full' ? 0.93 : nobF ? 0.9 : 0.62)) continue;
+                const rl = h.rail, dp = h.dp + 0.1 * (f === 1) + 0.12 * hh(ax + f * 0.37, az * 1.1);
+                if (h.bal === 'nob' || (h.bal === 'full' && f === 1) || (nobF ? u < 0.45 : u < 0.19)) { const w2 = (hi - lo) * bwH / 2 - 0.3, t = (bt(lo) + bt(hi)) / 2; obalc(t, yF, w2, Math.max(1, Math.round(w2 / (nobF ? 1.1 : 1.6))), rl, dp); continue; }
+                for (let i = lo, k = 0; i < hi; k++) {
+                  const h2 = hh(ax * 3.1 + i * 1.3 + f * 7.7, az * 2.3 + k), n = 1 + (h2 < 0.35) + (h2 < 0.12), run = Math.min(n, hi - i);
+                  if (h2 < (h.bal === 'full' ? 0.85 : 0.6)) { const w2 = run * bwH / 2 - 0.3; obalc((bt(i) + bt(i + run)) / 2, yF, w2, Math.max(1, Math.round(w2 / (nobF ? 1.1 : 1.8))), rl, dp); i += run + (h.bal === 'full' ? 0 : 1); } else i++;
+                }
               }
+              stoneC = B.stone; slabC = B.slab;
             }
           } else if (bmode === 'pw') {   // post-war: a deep balcony in front of every balcony door, in columns, a rail per column (now and then another one)
             if (pcol) for (let i = 0; i < nb; i++) {
@@ -1853,7 +1891,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         function obalc(t, yFloor, w2, nBr, rl0, dp) {   // one old-town balcony: a slab (front, soffit, two ends), stone brackets under it, the iron rail on top
           if (w2 < 0.6) return;
           const cx = ax + dx * t, cz = az + dz * t, th = 0.2, yb = yFloor + 0.05, yt = yb + th, px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
-          const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = B.slab, LB = L.blank;
+          const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = slabC, LB = L.blank;
           gbuf.q([qx0, yb, qz0, 0, 0, .85], [qx1, yb, qz1, 1, 0, .85], [qx1, yt, qz1, 1, .1, .95], [qx0, yt, qz0, 0, .1, .95], nx, 0, nz, LB, sl);
           gbuf.q([px0, yb, pz0, 0, 0, .5], [px1, yb, pz1, 1, 0, .5], [qx1, yb, qz1, 1, .3, .5], [qx0, yb, qz0, 0, .3, .5], 0, -1, 0, LB, sl);
           gbuf.q([px0, yb, pz0, 0, 0, .8], [qx0, yb, qz0, .3, 0, .8], [qx0, yt, qz0, .3, .1, .9], [px0, yt, pz0, 0, .1, .9], -ux, 0, -uz, LB, sl);
@@ -1907,18 +1945,22 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           stats.balconies++;
         }
       }
-      // projecting cornice at the roof line
+      // projecting cornice at the roof line (an old-town front: one piece per house, each as deep as its own house)
       if (kind !== 'party' && len >= 2.5 && (B.corn ?? S.corn) > 0) {
-        const d = B.corn ?? S.corn, ext = len > 4 * d ? d : 0, sA = E.reflexA ? 0 : ext, sB = E.reflexB ? 0 : ext;
-        const x0 = ax - ux * sA, z0 = az - uz * sA, x1 = bx + ux * sB, z1 = bz + uz * sB, yb = yTop - 0.42, yt = yTop + 0.02, ox0 = x0 + nx * d, oz0 = z0 + nz * d, ox1 = x1 + nx * d, oz1 = z1 + nz * d, ll = len / 1.2, st = B.stone;
-        gbuf.q([ox0, yb, oz0, 0, 0, .95], [ox1, yb, oz1, ll, 0, .95], [ox1, yt, oz1, ll, 1, 1], [ox0, yt, oz0, 0, 1, 1], nx, 0, nz, L.cornice, st);
-        gbuf.q([x0, yb, z0, 0, 0, .55], [x1, yb, z1, 1, 0, .55], [ox1, yb, oz1, 1, .3, .55], [ox0, yb, oz0, 0, .3, .55], 0, -1, 0, L.blank, st);
-        gbuf.q([x0, yt, z0, 0, 0, 1], [x1, yt, z1, 1, 0, 1], [ox1, yt, oz1, 1, .3, 1], [ox0, yt, oz0, 0, .3, 1], 0, 1, 0, L.blank, st);
+        for (const h of hs ? hs.h : [null]) {
+          const d = h ? B.corn * h.cornK : B.corn ?? S.corn, ext = len > 4 * d ? d : 0, sA = E.reflexA && (!h || h.i0 === 0) ? 0 : h && h.i0 > 0 ? 0 : ext, sB = E.reflexB && (!h || h.i1 === nb) ? 0 : h && h.i1 < nb ? 0 : ext;
+          const l0 = h ? bt(h.i0) * len : 0, l1 = h ? bt(h.i1) * len : len;
+          const x0 = ax + ux * l0 - ux * sA, z0 = az + uz * l0 - uz * sA, x1 = ax + ux * l1 + ux * sB, z1 = az + uz * l1 + uz * sB, yb = yTop - 0.42, yt = yTop + 0.02, ox0 = x0 + nx * d, oz0 = z0 + nz * d, ox1 = x1 + nx * d, oz1 = z1 + nz * d, ll = (l1 - l0) / 1.2, st = h ? h.stone : B.stone;
+          gbuf.q([ox0, yb, oz0, 0, 0, .95], [ox1, yb, oz1, ll, 0, .95], [ox1, yt, oz1, ll, 1, 1], [ox0, yt, oz0, 0, 1, 1], nx, 0, nz, L.cornice, st);
+          gbuf.q([x0, yb, z0, 0, 0, .55], [x1, yb, z1, 1, 0, .55], [ox1, yb, oz1, 1, .3, .55], [ox0, yb, oz0, 0, .3, .55], 0, -1, 0, L.blank, st);
+          gbuf.q([x0, yt, z0, 0, 0, 1], [x1, yt, z1, 1, 0, 1], [ox1, yt, oz1, 1, .3, 1], [ox0, yt, oz0, 0, .3, 1], 0, 1, 0, L.blank, st);
+        }
       }
       // parapet around the terrace
       if (!pitched && parH > 0 && kind !== 'party' && len >= 1.5) {
         const t = 0.25, ext = len > 1 ? t : 0, sA = E.reflexA ? 0 : ext, sB = E.reflexB ? 0 : ext;
-        strip(0, 1, yTop, yTop, yTop + parH, yTop + parH, 0, parH / 4, L.blank, 0.9, 1, 0, len / 4);
+        if (hs) { for (const h of hs.h) { col = h.col; strip(bt(h.i0), bt(h.i1), yTop, yTop, yTop + parH, yTop + parH, 0, parH / 4, L.blank, 0.9, 1, bt(h.i0) * len / 4, bt(h.i1) * len / 4); } col = B.col; }
+        else strip(0, 1, yTop, yTop, yTop + parH, yTop + parH, 0, parH / 4, L.blank, 0.9, 1, 0, len / 4);
         const x0 = ax - ux * sA, z0 = az - uz * sA, x1 = bx + ux * sB, z1 = bz + uz * sB, ix0 = x0 - nx * t, iz0 = z0 - nz * t, ix1 = x1 - nx * t, iz1 = z1 - nz * t;
         gbuf.q([ix0, yTop, iz0, 0, 0, .85], [ix1, yTop, iz1, len / 4, 0, .85], [ix1, yTop + parH, iz1, len / 4, parH / 4, 1], [ix0, yTop + parH, iz0, 0, parH / 4, 1], -nx, 0, -nz, L.blank, col);
         gbuf.q([x0, yTop + parH, z0, 0, 0, 1], [x1, yTop + parH, z1, 1, 0, 1], [ix1, yTop + parH, iz1, 1, .2, 1], [ix0, yTop + parH, iz0, 0, .2, 1], 0, 1, 0, L.blank, B.stone);
@@ -2053,9 +2095,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         S, r, ch: chunkOf(cx, cz), col, stone, slab: stone.clone().multiplyScalar(0.92), iron: C('#24242a'), lv: Number(b.lv) || spec && spec.floors || nFl || 0,
         railAlt: S.railAlt && r() < 0.5 ? S.railAlt : null, up: S.up[(r() * S.up.length) | 0], nob: S.nob ? S.nob[(r() * S.nob.length) | 0] : null, greyRoof: S.church && r() < 0.35, roofK: 1,
         spec, self: b.split ? b : undefined, parts2: b.split && b.parts ? b.parts.map(q => ({ flat: q[0], pts: pairs(q[0]) })) : null, bp: spec && spec.walls ? pts0 : null, stoneWall: isStone, arch: !!b.yb,
-        reach: Z.elig && !Z.shed ? (Z.front ?? 15) : 0,
+        reach: Z.elig && !Z.shed ? (Z.front ?? 15) : OLDZ.has(zone) ? 13 : 0,   // the old-town zones that are not `elig` (a piazza in front of a facade, a pavement the road data does not reach) look 13 m for a street, as the others do
         sn: near && near.r && near.r.n || '', sc: near && near.r && near.r.k || '',   // the street it stands on (ground-floor mix)
-        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e,
+        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e, gr, houseCol: !spec && !osm && !isStone,
       };
       B.uo = Math.floor(hh(cx * 3.1, cz * 1.7) * 60);
       if (S.pwf) {   // post-war: balcony depth, the rails of this block (two, and a third for the odd balcony), concrete of the arcade columns
@@ -2065,7 +2107,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         B.conc = new THREE.Color(0.78, 0.77, 0.74).lerp(col, 0.15);
       }
       if (old) { B.old = true; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; }
-      if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = 'st_up_' + sh; }
+      if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = old ? 'ost_up' : 'st_up_' + sh; if (old) B.nob = 'ost_nob'; }
       else if (old) { B.up = 'old_up'; B.nob = 'old_nob'; }
       if (!spec) { B.up = UPGRP[B.up] || B.up; if (B.nob) B.nob = UPGRP[B.nob] || B.nob; }
       if (spec && spec.win && spec.win !== 'rect' && WIN_TILES[spec.win]) { const [u, n] = WIN_TILES[spec.win](isStone, r() < 0.6 ? 'g' : 'b'); B.up = u; B.nob = n; }
@@ -2105,6 +2147,32 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   return group;
 }
 
+// An old-town street wall as a row of houses. Returns the houses (bays i0 to i1, their own look), the bays in all and where each starts along the wall (bts, as a share of the length).
+// All of it comes from hashes of the wall's position, so a rebuilt tile gets the same houses, and the first house keeps what the building itself drew (colour, storeys), which is the whole wall when it is short.
+const HGREY = new THREE.Color();
+const HAB_P = [['full', .38], ['nob', .3], ['mix', .22], ['none', .1]], HAB_H = [['full', .18], ['nob', .2], ['mix', .34], ['none', .28]];   // balcony habit of a house, palazzi and plain houses
+function oldHouses(E, B, S, len, nUp, Hu, nb0) {
+  const { ax, az } = E, hu = (k, a, b) => hh(ax * a + k * 7.13 + 0.7, az * b + k * 3.31 + 1.9);
+  const n = len < 15 ? 1 : Math.max(1, Math.round(len / (13 + 9 * hu(0, 0.61, 1.17)))), w = Array.from({ length: n }, (_, k) => 0.6 + 0.8 * hu(k, 1.31, 0.77)), ws = w.reduce((a, b) => a + b, 0);
+  const h = [], bts = [0], of = []; let l0 = 0;
+  for (let k = 0; k < n; k++) {
+    const lk = len * w[k] / ws, bayK = (B.bayK || 1) * (k ? 0.88 + 0.26 * hu(k, 2.1, 1.9) : 1), nbk = n === 1 ? nb0 : Math.max(1, Math.round(lk / (S.bay * bayK))), i0 = bts.length - 1;
+    let nU = nUp;
+    if (k && nUp >= 2) { const q = hu(k, 0.53, 2.7), d = q < 0.25 ? 1 : q < 0.5 ? -1 : 0, fh = Hu / (nUp + d); if (d && fh > S.fh * 0.78 && fh < S.fh * 1.22) nU = nUp + d; }   // another storey count where the storey height stays in range
+    let col = B.col, stone = B.stone, slab = B.slab;
+    if (k) {
+      if (B.houseCol) { col = OLD_PAL[Math.floor(hu(k, 2.3, 0.9) * OLD_PAL.length) % OLD_PAL.length].clone().multiplyScalar(1.3 * (0.94 + 0.1 * hu(k, 1.1, 2.1)) * (1 - 0.2 * B.gr)); const l = (col.r + col.g + col.b) / 3; col.lerp(HGREY.setRGB(l, l, l), 0.24 + 0.28 * B.gr); }   // as the building's own colour was made (the plaster palette, a little greyed)
+      else col = B.col.clone().multiplyScalar(0.9 + 0.2 * hu(k, 1.7, 1.3));
+      stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15); slab = stone.clone().multiplyScalar(0.92);
+    }
+    let q = hu(k, 3.7, 0.41); const hab = (S.nobile ? HAB_P : HAB_H).find(([, p]) => (q -= p) < 0);
+    h.push({ k, i0, i1: i0 + nbk, nUp: nU, bw: lk / nbk, col, stone, slab, bal: hab ? hab[0] : 'mix', rail: hu(k, 0.7, 1.9) < 0.6 ? 'rail_b' : 'rail_a', dp: 0.62 + 0.3 * hu(k, 1.1, 0.5), cornK: 0.8 + 0.9 * hu(k, 0.9, 1.3) });
+    for (let i = 0; i < nbk; i++) { of.push(k); bts.push((l0 + lk * (i + 1) / nbk) / len); }
+    l0 += lk;
+  }
+  bts[bts.length - 1] = 1;
+  return { h, nb: bts.length - 1, bts, of };
+}
 function calcFloors(S, Hw, lv, sp) {
   const g0 = sp && sp.g0 || S.g0;
   if (Hw < g0 * 1.2) return { g0: Hw, nUp: 0 };
