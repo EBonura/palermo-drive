@@ -14,6 +14,7 @@
 //   gl              ground-floor mix for low/residential styles, [[tile, weight], ...]
 //   roof            multiplier on the chance of a pitched tile roof
 //   ruin            chance a small building is a bombed shell / rubble lot instead
+//   town            true: a town of its own (Villabate): the old-town facade machinery of buildings.js with the zone's palette and its own ground floors (TOWN_GROUND); docs/faithfulness/towns.md
 //   insArea         smallest footprint (m2) that may become a housing insula (default 300); front: how far (m) a facade may stand behind a garden strip or lane and still count as a street front
 
 const K = Math.cos(38.11572 * Math.PI / 180) * 111320; // same local projection as core.js (origin Quattro Canti)
@@ -83,6 +84,14 @@ export const ZONES = {
   // Via Messina Marine (Street View): 3 to 5 storey orange, ochre and cream blocks and houses along the coast road, iron fences and railings, garages below.
   marine: { plaster: ['#d9a06a', '#d49a68', '#e0b27a', '#e2c690', '#dcb888', '#d6c6a4', '#e8dcc0', '#cf9568', '#e4d2a8', '#ece4d0'], stone: ['#b9a07a'], pStone: 0.04, grime: 0.45, elig: true,
     w: { pal: .36, res: .3, blk: .1, n19: .08, fish: .06, pw: .06 }, fl: [[2, 2], [3, 3], [4, 3], [5, 2], [6, .5]], fh: 3.2, roof: 0.4 },
+
+  // ---------------- the towns around Palermo: one zone each, same recipe (docs/faithfulness/towns.md) ----------------
+  // Villabate (Mapillary, March to April 2021, 37 viewpoints): a grid of narrow streets (4.5 to 7 m wall to wall) between 2 to 5 storey houses and 4 to 6 storey post-war blocks,
+  // flat roofs, deep balconies with iron or glass rails, pastel plaster (ochre, salmon, peach, putty, white, now and then pale green or blue) over a stone or brick plinth, roller
+  // shutters at nearly every ground floor with a shop, a bar or a pharmacy now and then.
+  villabate: { plaster: ['#e2c27c', '#e8ce90', '#e2c27c', '#e2aa90', '#eac8a8', '#e2aa90', '#dca29a', '#dccfae', '#dccfae', '#ece3cc', '#f0ebe0', '#ece3cc', '#b8cdb4', '#adc2cc', '#bb7258', '#d08c6c', '#d4b4a8', '#e6d4a4'],
+    stone: ['#b09870', '#a98f68', '#9d8560'], pStone: 0.1, grime: 0.28, elig: true, town: true, front: 7,
+    w: { n19: .2, res: .3, pal: .22, blk: .12, pw: .06, lib: .04, fish: .03, bar: .03 }, fl: [[2, 1], [3, 3], [4, 4], [5, 3], [6, 1]], fh: 3.3, roof: 0.2 },
 
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
@@ -201,11 +210,14 @@ const SEEDS_LL = [
   ['periph', 38.1450, 13.3100, 900], ['periph', 38.1100, 13.3400, 500],
   // the park
   ['favorita', 38.1620, 13.3378, 700], ['favorita', 38.1700, 13.3330, 700], ['favorita', 38.1590, 13.3430, 500], ['favorita', 38.1760, 13.3360, 700],
+  // the towns around Palermo (docs/faithfulness/towns.md). Villabate: the long grid along Corso Vittorio Emanuele, x 6400 to 8100, z 3850 to 4900
+  ['villabate', 38.0795, 13.4368, 450], ['villabate', 38.0773, 13.4419, 650], ['villabate', 38.0757, 13.4463, 600], ['villabate', 38.0737, 13.4509, 550], ['villabate', 38.0737, 13.4440, 300], ['villabate', 38.0772, 13.4372, 250],
   // far corners and the countryside
   ['rural', 38.1650, 13.3520, 1100], // Monte Pellegrino: the sanctuary's low convent, kiosks and huts, never apartment blocks
   ['rural', 38.0750, 13.3050, 3000], ['rural', 38.0750, 13.4050, 3000], ['rural', 38.2200, 13.3900, 3000], ['rural', 38.2200, 13.2900, 3000], ['rural', 38.1700, 13.2800, 1500],
 ];
 export const SEEDS = SEEDS_LL.map(([z, la, lo, reach]) => { const p = proj(la, lo); return [z, p[0], p[1], reach]; });
+const TOWN_SEEDS = SEEDS.filter(s => ZONES[s[0]].town);
 
 // Streets that define a zone by themselves (matched against the nearest street's name, within `d` metres of its edge).
 const STREET_ZONES = [
@@ -218,11 +230,22 @@ const STREET_ZONES = [
   [/^Via Messina Marine$/, 'marine', 24],
 ];
 
+// The towns around Palermo, by name: [name, x, z, reach in metres] (game metres). The HUD names the place a car is in with it (src/danger-hud.js) where the neighbourhood
+// grid of the ISTAT outlines has nothing, and the town zones above are seeded around the same centres. The nearest centre inside its reach wins.
+const TOWNS_LL = [['Villabate', 38.0764, 13.4440, 1150]];
+export const TOWNS = TOWNS_LL.map(([n, la, lo, r]) => { const p = proj(la, lo); return [n, p[0], p[1], r]; });
+export function townAt(x, z) {
+  let best = '', bd = 1;
+  for (const t of TOWNS) { const q = Math.hypot(x - t[1], z - t[2]) / t[3]; if (q < bd) { bd = q; best = t[0]; } }
+  return best;
+}
+
 // zone for a building centroid (x, z in metres) given its nearest street name `n` and distance `d` (metres, from the carriageway edge)
 export function zoneAt(cx, cz, n, d) {
   n = n || '';
-  if (/^Via Roma$/.test(n)) return 'roma';
-  if (/Maqueda|Vittorio Emanuele|Cassaro|Bologni|Pretoria|Verdi|Quattro Canti|San Domenico/.test(n)) return 'corso';
+  // Via Roma, Corso Vittorio Emanuele and Via Verdi are in every town: inside a town zone (its seeds) they are the town's streets, not the centro's
+  const roma = /^Via Roma$/.test(n), corso = !roma && /Maqueda|Vittorio Emanuele|Cassaro|Bologni|Pretoria|Verdi|Quattro Canti|San Domenico/.test(n);
+  if ((roma || corso) && !TOWN_SEEDS.some(s => Math.hypot(cx - s[1], cz - s[2]) < s[3])) return roma ? 'roma' : 'corso';
   for (const [re, z, dm, out] of STREET_ZONES) if (re.test(n) && d < dm) {
     if (out) for (const s of SEEDS) if (s[0] === out && Math.hypot(cx - s[1], cz - s[2]) < s[3] * 0.5) return out;
     return z;
@@ -280,14 +303,14 @@ export function applyDistrictHeights(data, zoneFor) {
     return (c - 1) / Math.max(0.3, Math.min(1, fx) * Math.min(1, fz));
   };
   for (const b of data.buildings) {
-    if (b.r !== undefined || b.lv || b.t || b.k || b.hi || b.n || b.am || b.dh) continue;
+    if (b.r !== undefined || b.lv || b.t || b.k || b.hi || b.am || b.dh) continue;   // (a name alone keeps the baked height too, except in the towns: Villabate's named villino and old station carry the generic 18 to 21 m of an unmeasured named building)
     const pat = (b.h - 1) / 3.4;
     if (Math.abs(pat - Math.round(pat)) > 0.06 || pat < 2.9 || pat > 6.1) continue; // not the generic 3..6 floor estimate: keep
     const p = b.p; let cx = 0, cz = 0, a = 0, n = p.length / 2;
     for (let i = 0; i < p.length; i += 2) { cx += p[i]; cz += p[i + 1]; const j = (i + 2) % p.length; a += p[i] * p[j + 1] - p[j] * p[i + 1]; }
     cx /= n; cz /= n; a = Math.abs(a) / 2;
     const Z = ZONES[zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9)];
-    if (!Z || !Z.fl) continue;
+    if (!Z || !Z.fl || (b.n && !Z.town)) continue;
     if (a < 40 && !Z.flA) continue; // tiny buildings keep the baked height except where lidar says what they are (sheds and garages: 1 storey)
     const f = floorsAt(Z, cx, cz, a, Z.flA ? density(cx, cz) : 0), fh = Z.fh || 3.2;
     b.h = Math.round((fh + 0.8 + (f - 1) * fh + 0.9) * 10) / 10; b.dh = f; b.dz = zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9); // ground floor taller, plus parapet; dz: the zone that chose it
