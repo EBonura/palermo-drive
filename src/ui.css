@@ -273,7 +273,7 @@ html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 
 /* ---------- the HUD: one place for each kind of message (the map of who goes where is in src/hud.js) ---------- */
 :root { --bar-w: min(300px, 34vw); }
-html.touch { --bar-w: min(260px, 36vw); }   /* the slim bar top left (menu button, play, next, the track), and how far the talk button stands from the edge (src/p2p/p2p.js) */
+html.touch { --bar-w: min(260px, 36vw); }   /* the slim bar top left (menu button, play, next, the track) */
 #hud { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: #fff;
   --sl: max(10px, env(safe-area-inset-left)); --sr: max(12px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(10px, env(safe-area-inset-bottom));
   --obj: min(360px, 36vw); --wide: max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))); --mini: clamp(100px, 16vh, 128px); --cap: 360px; --capsule: rgba(13,7,10,.8); }   /* --obj: the width of the big moments (mission poster, caught card, result). --wide: the most any line under the mission line may take. --mini and --cap: the map capsule's height (the round map fills it) and width */
@@ -295,6 +295,8 @@ html.touch { --bar-w: min(260px, 36vw); }   /* the slim bar top left (menu butto
 #pd-loc { font: 700 18px/1.12 var(--pd-cond); color: #fff; }
 #pd-loc > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #street:empty, #landmark:empty, #pd-loc:has(#landmark:not(:empty)) #street { display: none; }   /* a landmark takes the street's place; no street and no landmark: no row at all */
+.hz-social { left: var(--sl); bottom: var(--sb); align-items: flex-start; width: max-content; max-width: min(300px, 46vw); pointer-events: none; }   /* the multiplayer section (src/p2p/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
+html.touch .hz-social { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .hz-gauges { display: flex; align-items: center; gap: 12px; }   /* speed and nitro: one compact row, phone and desktop */

@@ -8,9 +8,9 @@ let bad = 0; const ok = (label, v, extra = '') => { console.log(label.padEnd(66)
 const watch = P => P.page.evaluate(() => { window.__t = []; const feed = () => { const e = document.querySelector('.ev-toast'), x = e && e.textContent; if (x && (!window.__t.length || window.__t[window.__t.length - 1] !== x)) window.__t.push(x); }; new MutationObserver(feed).observe(document.body, { subtree: true, childList: true, characterData: true }); });
 const see = P => P.page.evaluate(() => {
   const vis = e => e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
-  const btn = [...document.querySelectorAll('.pd-p2p')].filter(e => e.tagName !== 'DIV' || e.style.position === 'fixed').filter(vis).length;
+  const btn = [...document.querySelectorAll('.mpx-talk')].filter(vis).length, feed = [...document.querySelectorAll('.mpx-line')].map(l => l.textContent).join(' | ');
   const d = window.__p2p, card = document.querySelector('[role=alertdialog]');
-  return { game: d.gameState(), cars: [...d.remotes.values()].map(r => r.name + (r.bubble ? ' [says]' : '')).join(',') || '-', peers: d.peers.size, p2pUi: btn, card: card ? card.textContent : '', toasts: window.__t.slice(-4).join(' | ') };
+  return { game: d.gameState(), cars: [...d.remotes.values()].map(r => r.name + (r.bubble ? ' [says]' : '')).join(',') || '-', peers: d.peers.size, p2pUi: btn, feed, card: card ? card.textContent : '', toasts: window.__t.slice(-4).join(' | ') };
 });
 const row = async (step, A, B) => { const a = await see(A), b = await see(B); console.log(`[${tag}] ${step}\n   Anna: ${JSON.stringify(a)}\n   Bob : ${JSON.stringify(b)}`); return [a, b]; };
 const until = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 150) { const v = await fn(); if (v) return v; await sleep(150); } return null; };
@@ -22,22 +22,22 @@ try {
   const A = await player(h, { ...opts, name: 'Anna', x: 137, z: -212, extra: 'cash=20' });
   await watch(A); await sleep(3000);
   const [a0] = await Promise.all([see(A)]); console.log(`[${tag}] alone`, JSON.stringify(a0));
-  ok('alone: no talk button on screen', a0.p2pUi === 0, JSON.stringify(a0));
+  ok('alone: the multiplayer section shows (online), nobody to talk to', a0.p2pUi === 1 && a0.peers === 0, JSON.stringify(a0));
   const B = await player(h, { ...opts, name: 'Bob', x: 141, z: -205 }); await watch(B);
   ok('Bob joins: they meet', await meet(A, B)); await sleep(1500);
   let [a, b] = await row('join', A, B); ok('join: both see a car and have the talk button', a.cars === 'Bob' && b.cars === 'Anna' && a.p2pUi === 1 && b.p2pUi === 1);
   await shot('1-join', A, B);
 
   // a phrase, by the buttons (a finger on the phone)
-  await tap(A, 'button[title=T]'); await sleep(300);
+  await tap(A, 'button.mpx-talk'); await sleep(300);
   await A.page.evaluate(() => document.querySelectorAll('svg[role=menu] [role=menuitem]')[1].dispatchEvent(new MouseEvent('click', { bubbles: true }))); await sleep(300);
   await A.page.evaluate(() => document.querySelectorAll('svg[role=menu] [role=menuitem]')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))); await sleep(1200);
   await until(async () => /says/.test((await see(B)).cars), 4000);   // the bubble stands for 4.5 s: look for it, a slow machine is not a missing bubble
-  [a, b] = await row('phrase', A, B); ok('phrase: Bob sees a bubble on Anna, Anna sees her words as a line', /says/.test(b.cars) && a.toasts !== '');
+  [a, b] = await row('phrase', A, B); ok('phrase: Bob sees a bubble and a line with Anna\'s name, Anna sees her own line', /says/.test(b.cars) && /^Anna dici/.test(b.feed) && /^Anna dici/.test(a.feed), `${a.feed} / ${b.feed}`);
   await shot('2-phrase', A, B);
 
   // an offer, from the wheel (Brindisi e da bere, the beer is its seventh slice), answered with a tap
-  await tap(A, 'button[title=T]'); await sleep(300);
+  await tap(A, 'button.mpx-talk'); await sleep(300);
   const slice = i => A.page.evaluate(i => document.querySelectorAll('svg[role=menu] [role=menuitem]')[i].dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
   await slice(2); await sleep(300); await slice(6); await sleep(1500);
   [a, b] = await row('offer sent', A, B); ok('offer: Bob has a card that names Anna and the drink', /Anna ti offre una birra/.test(b.card));
@@ -63,7 +63,7 @@ try {
   await sleep(7000); [a, b] = await row('Bob away 10 s', A, B); console.log(`   (Anna still sees Bob after 10 s away: ${a.cars})`);
   await B.page.evaluate(() => { document.documentElement.classList.remove('pd-in-garage'); });
   await B.page.close();
-  await sleep(4000); [a] = await Promise.all([see(A)]); console.log(`[${tag}] Bob closed his page: Anna sees ${a.cars}`); ok('leaving: the car is gone for Anna', a.cars === '-' && a.p2pUi === 0);
+  await sleep(4000); [a] = await Promise.all([see(A)]); console.log(`[${tag}] Bob closed his page: Anna sees ${a.cars}`); ok('leaving: the car is gone for Anna', a.cars === '-' && a.peers === 0);
   console.log('errors', A.errs);
 } finally { await h.close(); }
 process.exit(bad ? 1 : 0);
