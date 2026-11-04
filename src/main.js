@@ -112,6 +112,7 @@ SPOTS.push(
   ['Monreale (Via Roma)', 38.0821593, 13.2909174],
   ['Villabate (Corso Vittorio Emanuele)', 38.0779382, 13.441592],
 );
+SPOTS.push(['Discarica di Bellolampo (la strada di servizio)', 38.1448135, 13.2798741]);   // the bend of the service road where the track to the pit of the landfill mission leaves it (src/event-places.js DUMP)
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('view');

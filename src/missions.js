@@ -21,7 +21,7 @@
 import { lifeFor } from './shouts.js';
 import * as THREE from 'three';
 import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, POLLANCHE, GRANITA, FAVORITA } from '../assets/missions/lines.js';
-import { WORLD } from './core.js';
+import { WORLD, hooks } from './core.js';
 import { createNightLife } from './missions-night.js';
 import { createEventHud } from './event-hud.js';
 import { createCalls, KIND_COLOR } from './event-calls.js';
@@ -32,8 +32,10 @@ import { createPubs } from './pubs.js';
 import { createRave } from './rave.js';
 import { createRaveEvents } from './event-rave.js';
 import { createHornsEvents } from './event-horns.js';
+import { createDiscarica } from './discarica.js';
+import { createDumpEvents, DUMP_TITLE } from './event-dump.js';
 import { createAchievements } from './achievements.js';
-import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from './event-places.js';
+import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { createGuide, GUIDE } from './route-guide.js';
 import { transition } from './transition.js';
@@ -557,6 +559,8 @@ function build(env) {
   mkSlot({ id: 'leaf:rave', kind: 'leaf', sub: 'leaf', name: 'Fuogghi allegri', night: true, leash: raveLeash('rave:leaf', 'rave:site', 'rave:leaf', 700) }, 'rave:site');
   // the horns mission (day or night): the citizen in Piazza Pretoria, the arch of Cutò (docs/horns.md)
   mkSlot({ id: 'horns:cuto', kind: 'horns', sub: 'horns', name: 'U Sinnacu a primavera', leash: () => { const a = SNAP['horns:start'], b = SNAP['horns:arch']; return { a: [a[0], a[1]], b: [b[0], b[1]], r: 330 }; } }, 'horns:start');
+  // the landfill mission (day or night): a caller on Via Bellolampo, the pit of the landfill of Bellolampo up the service road (docs/discarica.md); its area is the line from the caller to the rim and the baked road's own bends
+  mkSlot({ id: 'dump:bellolampo', kind: 'dump', sub: 'dump', name: DUMP.site.name, title: DUMP_TITLE, leash: raveLeash('dump', 'dump:start', 'dump:rim', 650) }, 'dump:start');
   for (const r of RACES) if (TRACKS[r.id]) mkSlot({ id: 'race:' + r.id, kind: 'race', sub: 'race', def: r, name: r.name, night: !!r.night }, 'race:' + r.id);
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
@@ -580,6 +584,7 @@ function build(env) {
       case 'food': return ['Attruova ' + ITEMS[s.item].it + ' e puaittali narrè.', 'Find the ' + ITEMS[s.item].en + ' and take them back.'];
       case 'rave': return ['Carica i casse e puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them up on Pellegrino, nice and slow: they are delicate.'];
       case 'leaf': return ['Va’ a via Cipressi, attruova i fuogghi allegri e portali ô cumpari.', 'Go to via Cipressi, find the happy leaves and take them to the pal.'];
+      case 'dump': return ['Acchiana â discarica ri Bellolampo e ieccati ’nta vasca cû lapa.', 'Climb up to the Bellolampo landfill and throw the lapa and yourself into the cell.'];
       case 'horns': return ['Mittiti i cuainna e passa sutta l\'Arcu ri Cutò.', 'Put on the horns and drive under the Arch of Cutò.'];
       case 'race': return ['Fermati ccà e cuorri cu nuatri: i primi tri vincinu i picciuli.', 'Stop here and race: the first three win a prize.'];   // DRAFT; the first half is the line the racers shout
       case 'urgent': { const u = URGENT.find(x => 'urgent:' + x.id === id), d = u ? destName(u.to) : ''; return d ? ['Curri! Puaitta u passiggeri a ' + d + ' e un fari taiddu.', 'Hurry! Take the passenger to ' + d + ' and do not be late.'] : null; }   // DRAFT
@@ -618,6 +623,9 @@ function build(env) {
   calls.setSlots(slots);
   const rave = createRave({ scene, camera, car, game, pedestrians, groundY: groundAt, isNight, walls2d });   // the rave in the woods of the Favorita: dance floor, stage, lights, crowd and music at night
   const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave), horns = createHornsEvents(X, { game });
+  const dump = createDiscarica({ scene, camera, car, game, groundY: groundAt, isNight, walls2d, vehicle }), dumps = createDumpEvents(X, dump);   // the landfill: yard, pit, rubbish; the plunge over its rim is the ball model's (src/vehicle-sphere.js hooks.plunge)
+  hooks.plunge = dump.plunge;
+  { const [px, pz] = env.proj(DUMP.site.lat, DUMP.site.lon); addMarker(px, pz, '#8a6a3a', 6, 'triangle'); }   // the landfill on the minimap, always: brown, like the callers of its mission
   pubs = createPubs(X, { game });
   races.buildSlots(slots.filter(s => s.kind === 'race'));
   for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
@@ -633,11 +641,12 @@ function build(env) {
     else if (slot.kind === 'pub') pubs.start(slot);
     else if (slot.kind === 'rave' || slot.kind === 'leaf') raves.start(slot);
     else if (slot.kind === 'horns') horns.start(slot);
+    else if (slot.kind === 'dump') dumps.start(slot);
     else races.start(slot);
   }
   function endEvent(ok, aborted) {
     const ev = S.ev; if (!ev) return;
-    fares.stop(); food.stop(); pubs.stop(); raves.stop(); horns.stop();
+    fares.stop(); food.stop(); pubs.stop(); raves.stop(); horns.stop(); dumps.stop();
     if (aborted && ev.slot.kind === 'race') races.stop();
     if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
     if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
@@ -719,7 +728,7 @@ function build(env) {
     const ev = S.ev; if (!ev || ev.failT > 0) return;
     ev.failT = 3.6; leash.t = LEASH_T; leash.out = false; hud.leash(false); aim.on = false; S.phase = 'done';
     hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("Ma runni stai iennu? Cos'inutili!", 'Where are you going? You useless thing!')}</span></div>`, 3.2);
-    say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed(); horns.leashed();   // a friend riding along (src/event-rave.js) gets out
+    say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed(); horns.leashed(); dumps.leashed();   // a friend riding along (src/event-rave.js) gets out
   }
   const LEASH_LINES = [['Unni stai iennu?! Era ri dda banna!', 'Where are you going?! It was somewhere else!'], ['Vabbè, lassamu piaiddiri. Un mi puazzu firari i nuddu.', 'Fine, I give up. You cannot count on anyone.']];
   function updateLeash(dt) {
@@ -748,7 +757,7 @@ function build(env) {
     S.t += dt; hudUsed = false; aim.on = false;
     if (X.held && Math.hypot(car.x - X.held.x, car.z - X.held.z) > 40) X.held = null;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
-    updateVendors(dt); updatePoll(dt); secrets.update(dt); rave.update(dt);
+    updateVendors(dt); updatePoll(dt); secrets.update(dt); rave.update(dt); dump.update(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
@@ -758,7 +767,7 @@ function build(env) {
       else if (raceGo) startEvent(raceGo);
       else if (pubGo) startEvent(pubGo);
     } else if (S.ev.failT > 0) { if ((S.ev.failT -= dt) <= 0) endEvent(false, S.ev.slot.kind === 'race'); }
-    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); horns.update(dt); updateLeash(dt); }
+    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); horns.update(dt); dumps.update(dt); updateLeash(dt); }
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
@@ -776,6 +785,6 @@ function build(env) {
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps };
   return api;
 }

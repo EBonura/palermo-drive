@@ -3,6 +3,7 @@
 // Who draws a line (grep "guide\.path\|guide\.to" src/*.js):
 //   guide.path(baked polyline)  fares: tourist, taxi, pulle, night clients (nightc), urgent    src/event-fares.js   ROUTES['fare:<spot>'], ROUTES['urgent:<id>']  (the ride: pickup to destination)
 //                               horns                                                           src/event-horns.js   ROUTES.horns
+//                               the landfill: the road up Via Bellolampo and the track to the pit  src/event-dump.js    ROUTES.dump
 //                               rave: the delivery and the ride to Via Cipressi                 src/event-rave.js    ROUTES['rave:karcere'], ROUTES['rave:leaf']
 //                               races (fixed racing line, laps repeated)                        src/races.js         TRACKS[id]
 //   guide.to(x, z)              food: the way back to the vendor from wherever the car is        src/event-food.js    start points = the ten HUNT items of the place
@@ -20,9 +21,9 @@ export async function loadLegs(root = ROOT) {   // root: the source tree whose d
   const kindOfFare = Object.fromEntries(places.FARE_SPOTS.map(f => ['fare:' + f.id, f.kind]));
   const baked = [], returns = [];
   for (const [key, arr] of Object.entries(ROUTES)) {
-    const kind = key === 'horns' ? 'horns' : key.startsWith('rave:') ? 'rave' : key.startsWith('urgent:') ? 'urgent' : kindOfFare[key] || 'fare';
+    const kind = key === 'horns' ? 'horns' : key === 'dump' ? 'dump' : key.startsWith('rave:') ? 'rave' : key.startsWith('urgent:') ? 'urgent' : kindOfFare[key] || 'fare';
     for (const [dest, len, flat] of arr) {
-      const from = SNAP[key] || (key === 'horns' ? SNAP['horns:start'] : null), to = SNAP['dest:' + dest] || (dest === 'arch' ? SNAP['horns:arch'] : dest === 'site' ? SNAP['rave:site'] : dest === 'leaf' ? SNAP['rave:leaf'] : null);
+      const from = SNAP[key] || (key === 'horns' ? SNAP['horns:start'] : key === 'dump' ? SNAP['dump:start'] : null), to = SNAP['dest:' + dest] || (dest === 'arch' ? SNAP['horns:arch'] : dest === 'rim' ? SNAP['dump:rim'] : dest === 'site' ? SNAP['rave:site'] : dest === 'leaf' ? SNAP['rave:leaf'] : null);
       baked.push({ id: key + '>' + dest, kind, len, pts: flat, from: from ? [from[0], from[1]] : [flat[0], flat[1]], to: to ? [to[0], to[1]] : [flat[flat.length - 2], flat[flat.length - 1]], rave: kind === 'rave' });
     }
   }

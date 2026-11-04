@@ -78,11 +78,11 @@ export function makeGeo() {
   return geo;
 }
 
-export function loadNet(opts = {}) {   // opts.extra: a RegExp of street names that are added even when not drivable in the tiles (pedestrian ways such as Via Maqueda); the default is the plain network. opts.built = false: roads the game does not build stay
+export function loadNet(opts = {}) {   // opts.extra: a RegExp of street names that are added even when not drivable in the tiles (pedestrian ways such as Via Maqueda); opts.extraFn(road): the same by any property of the road (the unnamed service roads of the landfill); the default is the plain network. opts.built = false: roads the game does not build stay
   const dir = path.join(ROOT, 'world/tiles'), roads = [], blds = new Map(), geo = makeGeo(), cut = { segs: 0, kept: 0 };
   for (const f of fs.readdirSync(dir)) {
     const t = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-    for (const r of t.roads) if ((DRIVE.has(r.k) || (opts.extra && opts.extra.test(r.n || ''))) && r.p.length >= 4) roads.push(r);
+    for (const r of t.roads) if ((DRIVE.has(r.k) || (opts.extra && opts.extra.test(r.n || '')) || (opts.extraFn && opts.extraFn(r))) && r.p.length >= 4) roads.push(r);
     blds.set(f.replace('.json', ''), t.buildings.map(b => b.p));
     geo.add(f.replace('.json', ''), t);
   }
@@ -114,7 +114,7 @@ export function loadNet(opts = {}) {   // opts.extra: a RegExp of street names t
 export function snap(net, x, z, opts = {}) {
   let best = null, bd = Infinity;
   for (const e of net.edges) {
-    if (!net.main(e.a)) continue;
+    if (!opts.anyComp && !net.main(e.a)) continue;   // opts.anyComp: also the roads of a piece of the network that the built roads cut off from the city (Via Bellolampo, src/event-places.js DUMP)
     const nm = e.r.n || '';
     if (opts.name && !nm.includes(opts.name)) continue;
     const A = net.nodes[e.a], B = net.nodes[e.b], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz;

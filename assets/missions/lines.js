@@ -592,6 +592,8 @@ export const CALL = {
   // the two rave missions (src/event-rave.js): the sound man at the centro sociale ExKarcere, and the friend at the rave. Palermitan, written by an agent: for the owner to correct.
   rave: [['Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!', 'Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!'], ['Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!', 'Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!'], ['Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!', 'No speakers, no rave! Take this stuff and run, but carefully!']],
   leaf: [["Psst cucì, a'gghiri nni Cipressi p'accattari... vabbé u sai, runami un passaggio amunì", 'Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on'], ['Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.', 'We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention.']],
+  // the landfill mission (src/event-dump.js, docs/discarica.md): Palermitan, written by an agent: for the owner to correct. "Bbaiecca 'a munnizza" is the owner's own wording.
+  dump: [["Bbaiecca 'a munnizza, ca ’ccà un c’è chiù postu!", "Throw yourself in the rubbish, there is no room left here!"], ['Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu!', 'Hey driver! At the Bellolampo landfill there is a cell waiting for you!']],
   race: [['Cu vinci, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati ccà e cuorri cu nuatri!', 'Stop here and race with us!'], ['Tri, dui, unu... cuasi!', 'Three, two, one... almost!']],
 };
 // Two pals of the lapista (the cameo friends of the cast, ids amico1_* and amico2_*) who sometimes wave the lapa down for a ride. Same shape as the other
@@ -948,4 +950,14 @@ export const RAVE_LINES = {
     off: [['Uora sì ca s’abballa! Ni viremu ô rave!', 'Now we dance! See you at the rave!']],
     fail: [['Basta, scinnu! A pieri fazzu cchiù prestu.', 'Enough, I am getting out! Walking is quicker.']],
   },
+};
+
+// The landfill mission "Bbaiecca 'a munnizza, e a chi ci sì bbaieccati puru tu" (src/event-dump.js). Palermitan, written by an agent: drafts for the owner to correct (docs/discarica.md lists them).
+export const DUMP_LINES = {
+  give: [['Acchiana â discarica ri Bellolampo e ieccati ’nta vasca!', 'Go up to the Bellolampo landfill and throw yourself in the cell!']],
+  sendoff: [['E si t’ammazzi, un mi chiamari!', 'And if you kill yourself, do not call me!']],
+  rim: [['Amunì, un mi firmu!', 'Come on, I am not stopping!']],
+  fall: [['Maaammaaa!', 'Mummyyyy!'], ['Ahahahaaa!', 'Wheeeee!']],
+  land: [['Ciaf! Chi puzza!', 'Splat! What a stink!'], ['Sugnu ’n mezzu â munnizza, ma sugnu cuntentu!', 'I am in the middle of the rubbish, but I am happy!']],
+  fail: [['Chi fa? Un ti ieccasti! Ora è tardu!', 'What, you did not throw yourself in! Now it is too late!']],
 };

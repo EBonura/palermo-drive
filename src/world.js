@@ -28,6 +28,7 @@ import { initFences, buildFences, dropFences } from './fences.js';   // walls an
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
 import { pitchGround, pitchDepth } from './stadium-ground.js';
+import { dumpGround, dumpSurf } from './discarica-ground.js';   // the pit and the pad of the landfill mission (src/discarica.js)
 import { raveGround, raveSurf, raveWood, raveWoodTile } from './rave-ground.js';   // the dance floor of the rave in the woods of Monte Pellegrino and its track (src/rave.js)
 import { treeCleared } from './tree-clear.js';
 import { initQuays, registerQuays, unregisterQuays, carve as carveQuay, tileQuays, buildQuayMeshes, disposeQuayMeshes } from './quays.js';   // the harbour's quays (board item n10)
@@ -294,7 +295,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     M = m;
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
-    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y)))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js) and the dance floor of the rave (src/rave-ground.js)
+    hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y))))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js) and the dance floor of the rave (src/rave-ground.js), then the pad and the pit of the landfill (src/discarica-ground.js)
     hooks.level = levelY; hooks.fall = carTick;
     initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
@@ -334,7 +335,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   // The ground as hooks.ground gives it, but a tile's own box answers from its own near grid: the bake makes neighbours agree on shared borders, so
   // the road a tile drapes along its edge is the same whether or not the neighbour has loaded (else it drapes on the coarse far grid, metres off).
-  const groundFor = t => (x, z) => { const y = tileGround(x, z, t); return y === undefined ? groundY(x, z) : raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y)))); };
+  const groundFor = t => (x, z) => { const y = tileGround(x, z, t); return y === undefined ? groundY(x, z) : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y))))); };
 
   // vertex colour of a fine hill node (src/hills.js): the same ground colours as the far grid, by height and slope
   function hillColour(col, k, x, y, z, dx, dz) {
@@ -851,6 +852,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   let bumpPhase = 0;
   function surfaceAt(x, z, deck) {
     const rv = raveSurf(x, z); if (rv >= 0) return rv;   // the dance floor of the rave and its track (src/rave-ground.js)
+    const dv = dumpSurf(x, z); if (dv >= 0) return dv;   // the pad, the track and the pit of the landfill (src/discarica-ground.js)
     const hard = maskAt(x, z, 'hard');
     const i = Math.floor(x / T), j = Math.floor(z / T), t = tiles.get(nk(i, j));
     if (t && t.gsegs && onGravel(t, x, z)) return 1;

@@ -909,6 +909,42 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Vabbè, i cuainna mi li pigghiu iu.  
   _Fine, I will take the horns back myself._
 
+## The landfill mission (Bellolampo; the title is the owner's, the lines are drafts)
+
+### give
+
+- Acchiana â discarica ri Bellolampo e ieccati ’nta vasca!  
+  _Go up to the Bellolampo landfill and throw yourself in the cell!_
+
+### sendoff
+
+- E si t’ammazzi, un mi chiamari!  
+  _And if you kill yourself, do not call me!_
+
+### rim
+
+- Amunì, un mi firmu!  
+  _Come on, I am not stopping!_
+
+### fall
+
+- Maaammaaa!  
+  _Mummyyyy!_
+- Ahahahaaa!  
+  _Wheeeee!_
+
+### land
+
+- Ciaf! Chi puzza!  
+  _Splat! What a stink!_
+- Sugnu ’n mezzu â munnizza, ma sugnu cuntentu!  
+  _I am in the middle of the rubbish, but I am happy!_
+
+### fail
+
+- Chi fa? Un ti ieccasti! Ora è tardu!  
+  _What, you did not throw yourself in! Now it is too late!_
+
 ## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
 
 ### cries
@@ -1027,6 +1063,13 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on_
 - Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.  
   _We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention._
+
+### call: dump
+
+- Bbaiecca 'a munnizza, ca ’ccà un c’è chiù postu!  
+  _Throw yourself in the rubbish, there is no room left here!_
+- Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu!  
+  _Hey driver! At the Bellolampo landfill there is a cell waiting for you!_
 
 ### call: race
 
