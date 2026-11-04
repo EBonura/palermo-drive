@@ -11,22 +11,14 @@ export const CURB = 0.15;
 // ---------- tiled ground materials (procedural, world-space UVs) ----------
 export const TEX = {
   asphalt: canvasTex(512, (g, S) => {
-    // Palermo asphalt is sun-bleached and patched, never black (style guide: base #7e7c76).
+    // Palermo asphalt is sun-bleached, never black (style guide: base #7e7c76). Repair patches and cracks are not painted here: this tile repeats every 6 m, so anything
+    // drawn on it comes back as a grid of equal shapes (src/roadwear.js lays the patches and cracks, each in its own place).
     g.fillStyle = '#7e7c76'; g.fillRect(0, 0, S, S);
-    for (let i = 0; i < 6; i++) { // rectangular repair patches
-      g.fillStyle = `rgba(90,89,85,${rnd(0.35, 0.6)})`;
-      g.save(); g.translate(rnd(0, S), rnd(0, S)); g.rotate(rnd(-0.2, 0.2)); g.fillRect(0, 0, rnd(40, 160), rnd(30, 110)); g.restore();
-    }
     for (let i = 0; i < 12; i++) { // stains
       g.fillStyle = `rgba(${Math.random() < 0.6 ? '70,68,64' : '150,147,138'},${rnd(0.08, 0.2)})`;
       g.beginPath(); g.ellipse(rnd(0, S), rnd(0, S), rnd(20, 90), rnd(15, 60), rnd(0, 3), 0, 7); g.fill();
     }
     speckle(g, S, 9000, ['#8c8a83', '#6c6a65', '#9a978f', '#74726c'], 1, 3);
-    g.strokeStyle = 'rgba(55,54,50,0.6)'; g.lineWidth = 1.5;
-    for (let i = 0; i < 5; i++) { // cracks
-      let x = rnd(0, S), y = rnd(0, S); g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 12; k++) { x += rnd(-14, 14); y += rnd(-14, 14); g.lineTo(x, y); } g.stroke();
-    }
   }, 6),
   balate: canvasTex(512, (g, S) => { // worn limestone slabs in running courses of irregular length
     g.fillStyle = '#4f4a43'; g.fillRect(0, 0, S, S);

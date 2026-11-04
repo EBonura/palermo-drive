@@ -1,4 +1,4 @@
-// Road wear: potholes, repair patches, cracks, sunken manholes, worn zebra paint and tyre marks on the asphalt.
+// Road wear: potholes, repair trenches and patches, cracks, sunken manholes, worn zebra paint and tyre marks on the asphalt.
 // Owned by the road-wear work.
 //
 // Per world tile (src/world.js): when a tile reaches full detail (world.onTile 'full') its wear is generated from the tile's own
@@ -7,7 +7,11 @@
 // work is a generator stepped a couple of milliseconds per frame, nearest tile first; when the tile drops from full detail
 // ('drop') everything it made (cells, meshes, collision records) is disposed. Features never cross a tile border (each tile only
 // sees its own asphalt), which keeps the result independent of the order tiles load in.
-// Density follows the district (districts.js zoneAt): worse in Brancaccio, ZEN, Borgo Vecchio and Albergheria, better on Via Liberta.
+// Density follows the district (districts.js zoneAt): worse in Brancaccio, ZEN, Borgo Vecchio and Albergheria, better on Via Liberta. Each road also has
+// a condition of its own (some streets are simply kept up), and the fast roads (expressway.js isFastRoad) are almost clean.
+// Shapes: a hole is a ragged star shaped outline (per vertex radius and angle, a bite now and then), never a regular polygon, mostly small; a repair is a
+// ribbon that follows the road (a long utility trench, a strip along the kerb, a cut across) or a small ragged blob, with edges that wander; a crack runs
+// along the road and drifts across it.
 // The decals are streamed in 100 m cells around the camera (one cell = a few merged meshes), so a battered city only ever has a
 // few tens of thousands of wear triangles resident.
 //   - wear mesh per cell: opaque, vertex coloured, world-space grain texture, sits 4 cm over the road (polygonOffset)
@@ -15,14 +19,15 @@
 //   - marks mesh per cell: old black skid marks, alpha blended
 // Holes are fake-3D: crumbled lip, dark wall whose normals tilt towards the hole so the low sun lights one side and
 // shades the other, dark floor shaded by the sun side. No geometry goes below the road, so nothing z-fights.
-// Physics: collidePlayer() tests the lapa's wheels against the holes and calls vehicle.bump() plus a little
+// Physics: collidePlayer() tests the lapa's wheels against the drawn outlines of the holes and calls vehicle.bump() plus a little
 // speed loss, yaw kick, forced two-wheel lean and loss of grip. Dynamic tyre marks come from car.skid (vehicle.js) and work anywhere.
 import * as THREE from 'three';
 import { pairs, rng, rasterMask } from './core.js';
 import { zoneAt } from './districts.js';
+import { isFastRoad } from './expressway.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
-const HVIS = 0.8;   // drawn size of a hole relative to its collision size (collidePlayer and holeAt are unchanged)
+const MINHIT = 0.11;   // holes smaller than this are only drawn: a wheel does not feel a hole under a hand's width
 const TAU = Math.PI * 2, CELL = 100, TS = 500, LIFT = 0.04, UVM = 2.2, MARK_LIFT = 0.041;
 const SUNH = [-0.924, 0.381];   // horizontal direction towards the sun (WSW), as set in main.js
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -36,18 +41,19 @@ const C = h => new THREE.Color(h);
 
 // colours (hex, converted to linear by THREE.Color)
 const COL = {
-  crumbOut: [C('#8f8c84'), C('#7f7c75'), C('#96928a')], crumbIn: C('#67645f'),   // holes read as shallow worn asphalt: base-course grey, not black pits
-  rim: C('#4d4a46'), wall: C('#42403c'), floor: C('#4c4945'), centre: C('#47443f'),
-  patchDark: [C('#6a6862'), C('#726f69'), C('#615f5a')], patchLight: [C('#9a978e'), C('#a29f96')], seam: C('#55524e'),
-  crack: C('#4a4844'), worn: C('#7b7a74'), mhFrame: C('#55514b'), mhCover: [C('#6a645b'), C('#5d5851')], mhGap: C('#232220'),
+  crumbOut: [C('#8f8c84'), C('#85827b'), C('#96928a')], crumbIn: C('#6c6964'),   // holes read as shallow worn asphalt: base-course grey, not black pits
+  rim: C('#55524d'), wall: C('#494743'), floor: C('#54514c'), centre: C('#4e4b46'),
+  patchDark: [C('#6f7272'), C('#727575'), C('#6b6e6e')], patchLight: [C('#7e8180'), C('#838685')], seam: C('#676969'),   // repairs sit a few per cent off the asphalt, not a different material (the grain map warms whatever it covers, so these are a shade cool)
+  crack: C('#57544f'), worn: C('#7b7a74'), mhFrame: C('#55514b'), mhCover: [C('#6a645b'), C('#5d5851')], mhGap: C('#232220'),
   water: C('#5d6165'),
 };
-// per class, per metre of centreline: holes, repair patches, cracks, manholes
+// per class, per metre of centreline: holes, repair patches (trenches, kerb strips, cuts, blobs), cracks, manholes
 const DENS = {
-  primary: [0.055, 0.012, 0.025, 0.02], secondary: [0.08, 0.015, 0.03, 0.02], tertiary: [0.14, 0.02, 0.04, 0.03],
-  unclassified: [0.16, 0.02, 0.04, 0.02], residential: [0.24, 0.03, 0.05, 0.03], service: [0.2, 0.02, 0.05, 0.015],
-  living_street: [0.2, 0.02, 0.04, 0.02], pedestrian: [0.09, 0.01, 0.03, 0.01],
+  primary: [0.032, 0.006, 0.02, 0.02], secondary: [0.048, 0.009, 0.024, 0.02], tertiary: [0.08, 0.0135, 0.03, 0.03],
+  unclassified: [0.095, 0.015, 0.034, 0.02], residential: [0.135, 0.021, 0.044, 0.03], service: [0.11, 0.015, 0.04, 0.015],
+  living_street: [0.11, 0.018, 0.034, 0.02], pedestrian: [0.055, 0.0075, 0.025, 0.01],
 };
+const FAST = 0.12;   // wear multiplier on the fast roads: kept up, nearly clean
 const MARKETS = [[-60, 410, 110], [260, -220, 110], [-390, -245, 90]];   // Ballaro, Vucciria, Capo
 // how much the district neglects its asphalt (multiplies every density); anything not listed is 1
 const ZW = { brancaccio: 1.65, zen: 1.7, borgoV: 1.5, alberg: 1.5, kalsa: 1.2, oreto: 1.25, corsoMille: 1.2, zisa: 1.15, cep: 1.2, noce: 1.1,
@@ -103,7 +109,7 @@ export function createRoadWear(env) {
   // ---------- storage: one record per full-detail tile ----------
   const live = new Map();    // tile key -> W { t, cells: Map, recs, ready, dead }
   const pending = [];        // tiles waiting for their wear to be generated
-  const stats = { tiles: 0, holes: 0, water: 0, big: 0, clusters: 0, patches: 0, cracks: 0, manholes: 0, sunken: 0, marks: 0, crossings: 0, junctions: 0, genMs: 0, genTiles: 0, genMax: 0 };
+  const stats = { tiles: 0, holes: 0, water: 0, big: 0, clusters: 0, patches: 0, trenches: 0, strips: 0, cuts: 0, blobs: 0, cracks: 0, manholes: 0, sunken: 0, marks: 0, crossings: 0, junctions: 0, genMs: 0, genTiles: 0, genMax: 0 };
 
   const cg = new Map(), CGS = 6;   // collision grid of holes and sunken manholes (all tiles)
   const cgKey = rec => Math.floor(rec.x / CGS) * 8192 + Math.floor(rec.z / CGS);
@@ -138,24 +144,62 @@ export function createRoadWear(env) {
     };
 
     function addHole(x, z, r, rot, el, dep, water, q, hostR = null) {
-      const c = Math.cos(rot), s = Math.sin(rot), e = r * el + 0.15, f = r + 0.15;
-      if (!onRoad(x, z) || !onRoad(x + c * e, z + s * e) || !onRoad(x - c * e, z - s * e) || !onRoad(x - s * f, z + c * f) || !onRoad(x + s * f, z - c * f)) return null;
-      const rr = r * Math.max(1, el);
-      if (hgNear(x, z, rr * 0.9)) return null;
-      const rec = { x, z, r, rot, el, dep, water, q: r > 0.5 ? q * 0.4 : q, seed: hash(x, z, 9), kind: 0 };
-      cellAt(x, z).holes.push(rec); hgAdd(x, z, rr * 1.1, rec); cgAdd(W, rec);
-      stats.holes++; if (water) stats.water++; if (r > 0.5) stats.big++;
-      if (r > 0.45 && hostR) {   // alligator cracks radiating from the big ones
+      const rm = r * 1.4 * Math.max(1, el) + 0.15;
+      if (!onRoad(x, z) || !onRoad(x + rm, z) || !onRoad(x - rm, z) || !onRoad(x, z + rm) || !onRoad(x, z - rm)) return null;
+      if (hgNear(x, z, rm * 0.7)) return null;
+      const rec = { x, z, r, rot, el, dep, water, q: r > 0.3 ? q * 0.4 : q, seed: hash(x, z, 9), kind: 0, sh: null };
+      cellAt(x, z).holes.push(rec); hgAdd(x, z, rm * 0.8, rec); if (r >= MINHIT) cgAdd(W, rec);
+      stats.holes++; if (water) stats.water++; if (r > 0.3) stats.big++;
+      if (r > 0.3 && hostR) {   // alligator cracks radiating from the big ones
         const n = 2 + Math.floor(hostR() * 3);
         for (let i = 0; i < n; i++) {
-          const a = hostR() * TAU, len = 0.8 + hostR() * 1.8, pts = [], sx = x + Math.cos(a) * r * el * 1.1, sz = z + Math.sin(a) * r * 1.1;
+          const a = hostR() * TAU, len = 0.8 + hostR() * 1.6, pts = [], sx = x + Math.cos(a) * r * el * 1.1, sz = z + Math.sin(a) * r * 1.1;
           let px = sx, pz = sz, h = a;
-          for (let k = 0; k < 4; k++) { if (!onRoad(px, pz)) break; pts.push(px, pz, 0.035 - k * 0.005); h += (hostR() - 0.5) * 0.9; px += Math.cos(h) * len / 4; pz += Math.sin(h) * len / 4; }
+          for (let k = 0; k < 4; k++) { if (!onRoad(px, pz)) break; pts.push(px, pz, 0.02 - k * 0.004); h += (hostR() - 0.5) * 0.9; px += Math.cos(h) * len / 4; pz += Math.sin(h) * len / 4; }
           if (pts.length >= 6) { cellAt(x, z).cracks.push({ pts, q: rec.q }); stats.cracks++; }
         }
       }
       return rec;
     }
+    // a ribbon of repair along the road samples: [x, z, half width left, half width right] per point, edges that wander, ends that taper; null when it does not fit on the asphalt
+    const ribbon = (smp, n, i0, len, off0, wid, rag, step, R) => {
+      const pts = []; let off = off0, hl = wid / 2, hr = wid / 2;
+      for (let j = 0, k = i0; j <= len && k < n; j += step, k += step) {
+        const tx = smp[k * 4 + 2], tz = smp[k * 4 + 3], nx = -tz, nz = tx;
+        off += (R() - 0.5) * 0.05 * step;
+        hl = clamp(hl + (R() - 0.5) * rag * step, wid * 0.3, wid * 0.75); hr = clamp(hr + (R() - 0.5) * rag * step, wid * 0.3, wid * 0.75);
+        const cx = smp[k * 4] + nx * off, cz = smp[k * 4 + 1] + nz * off;
+        if (!onRoad(cx, cz) || !onRoad(cx + nx * (hl + 0.15), cz + nz * (hl + 0.15)) || !onRoad(cx - nx * (hr + 0.15), cz - nz * (hr + 0.15)) || hgNear(cx, cz, 0.1)) break;
+        pts.push(cx, cz, hl, hr);
+      }
+      return pts.length >= 12 ? pts : null;
+    };
+    const addRibbon = (pts, kind, R) => {
+      const rec = { pts, blob: null, light: R() < 0.25, v: Math.floor(R() * 3), q: R(), seed: hash(pts[0], pts[1], 3) };
+      cellAt(pts[0], pts[1]).patches.push(rec); stats.patches++; stats[kind]++;
+      for (let i = 0; i < pts.length; i += 4) hgAdd(pts[i], pts[i + 1], Math.max(pts[i + 2], pts[i + 3]) + 0.3, rec);
+    };
+    // a small ragged repair: 7 to 9 corners, each at its own radius
+    const addBlob = (px, pz, rot, ax, az, R) => {
+      const rr = Math.max(ax, az) * 1.25 + 0.15;
+      for (const [u, v] of [[0, 0], [rr, 0], [-rr, 0], [0, rr], [0, -rr]]) if (!onRoad(px + u, pz + v) || hgNear(px + u, pz + v, 0.1)) return;
+      const m = 7 + Math.floor(R() * 3), k = []; for (let i = 0; i < m; i++) k.push(0.7 + 0.55 * R());
+      const rec = { x: px, z: pz, blob: { rot, ax, az, k }, pts: null, light: R() < 0.25, v: Math.floor(R() * 3), q: R(), seed: hash(px, pz, 3) };
+      cellAt(px, pz).patches.push(rec); stats.patches++; stats.blobs++; hgAdd(px, pz, Math.max(ax, az) * 1.1 + 0.2, rec);
+    };
+    // a crack that follows the road: [x, z, width] per point, drifting across the lane, thinning out; null when too short
+    const crackAlong = (smp, n, i0, len, off0, w0, R, hw) => {
+      const pts = []; let off = off0, w = w0;
+      for (let j = 0, k = i0; j <= len && k < n; ) {
+        const st = R() < 0.35 ? 2 : 1, nx = -smp[k * 4 + 3], nz = smp[k * 4 + 2];
+        off = clamp(off + (R() - 0.5) * 0.22 * st, -hw, hw);
+        const x = smp[k * 4] + nx * (off + (R() - 0.5) * 0.06), z = smp[k * 4 + 1] + nz * (off + (R() - 0.5) * 0.06);
+        if (!onRoad(x, z)) break;
+        pts.push(x, z, w); w = Math.max(0.01, w * (0.975 + R() * 0.02));
+        j += st; k += st;
+      }
+      return pts.length >= 9 ? pts : null;
+    };
 
     // ---- roads: resample every metre and scatter features
     const roadList = [];
@@ -167,6 +211,7 @@ export function createRoadWear(env) {
       const P = pairs(r.p); if (P.length < 2) continue;
       const R = rng(hash(P[0][0], P[0][1], P.length) ^ seedT);
       const hw = (r.w || 4) / 2 * 0.9, narrow = r.w < 5 ? 1.2 : 1;
+      const fast = isFastRoad(r), fm = fast ? FAST : 1, cond = 0.35 + 1.55 * hf(P[0][0], P[0][1], P.length) ** 1.5;   // cond: this road's own upkeep, 0.35 (kept up) to 1.9 (neglected), 1 on average
       const smp = [];   // x, z, tx, tz
       let next = 0;
       for (let i = 0; i < P.length - 1; i++) {
@@ -184,59 +229,58 @@ export function createRoadWear(env) {
         const gk = Math.floor(x / SGC) * 8192 + Math.floor(z / SGC); let ga = sgrid.get(gk); if (!ga) sgrid.set(gk, ga = []); ga.push(SX.length);
         SX.push(x); SZ.push(z); STX.push(tx); STZ.push(tz);
         if (i % 30 === 0) zf = zoneMul(x, z, r.n);
-        const ng = neglect(x, z) * narrow * zf, nx = -tz, nzz = tx;
+        const ng = neglect(x, z) * narrow * zf * cond, eg = ng ** 1.3, nx = -tz, nzz = tx;
         const lat = () => R() < 0.4 ? (R() < 0.5 ? 1 : -1) * hw * (0.35 + R() * 0.3) : (R() * 2 - 1) * hw;
-        // potholes
-        if (R() < Math.min(0.9, dens[0] * ng)) {
+        // potholes: mostly small, a big one is rare
+        if (R() < Math.min(0.4, dens[0] * eg * fm)) {
           const u = R(); let rad;
-          if (u < 0.6) rad = 0.11 + R() * 0.2; else if (u < 0.86) rad = 0.25 + R() * 0.25; else if (u < 0.97) rad = 0.5 + R() * 0.3; else rad = 0.8 + R() * 0.5;
+          if (u < 0.55) rad = 0.06 + R() * 0.08; else if (u < 0.85) rad = 0.12 + R() * 0.12; else if (u < 0.97) rad = 0.22 + R() * 0.16; else rad = 0.34 + R() * 0.2;
           const off = lat(), px = x + nx * off, pz = z + nzz * off;
-          const el = rad > 0.45 ? 1 + R() * 0.6 : 1 + R() * 0.2, rot = Math.atan2(tz, tx) + (R() - 0.5) * 0.8;
-          const dep = 0.025 + 0.2 * Math.min(1, rad / 0.9) * (0.6 + 0.4 * R());
-          const water = rad >= 0.25 ? R() < 0.22 : R() < 0.03;
+          const el = rad > 0.3 ? 1 + R() * 0.6 : 1 + R() * 0.35, rot = Math.atan2(tz, tx) + (R() - 0.5) * 0.8;
+          const dep = 0.02 + 0.16 * Math.min(1, rad / 0.5) * (0.6 + 0.4 * R());
+          const water = rad >= 0.18 ? R() < 0.2 : R() < 0.02;
           const main = addHole(px, pz, rad, rot, el, dep, water, R(), R);
-          if (main && R() < 0.1) {   // a cluster of smaller ones around it
+          if (main && !fast && rad >= 0.12 && R() < 0.07) {   // a cluster of smaller ones around it
             stats.clusters++;
-            const m = 3 + Math.floor(R() * 4);
+            const m = 3 + Math.floor(R() * 3);
             for (let k = 0; k < m; k++) {
-              const a = R() * TAU, d = 0.5 + R() * 2.2, rr = 0.09 + R() * 0.22;
-              addHole(px + Math.cos(a) * d, pz + Math.sin(a) * d, rr, R() * TAU, 1 + R() * 0.3, 0.03 + R() * 0.07, R() < 0.12, main.q + R() * 0.15);
+              const a = R() * TAU, d = 0.4 + R() * 1.8, rr = 0.05 + R() * 0.12;
+              addHole(px + Math.cos(a) * d, pz + Math.sin(a) * d, rr, R() * TAU, 1 + R() * 0.3, 0.02 + R() * 0.06, R() < 0.08, main.q + R() * 0.15);
             }
           }
         }
-        // repair patches: long trench strips and square patches
-        if (R() < dens[1] * ng) {
-          const trench = R() < 0.6, len = trench ? 3 + R() * 10 : 1.2 + R() * 2.4, wid = trench ? 0.7 + R() * 0.6 : 1 + R() * 1.4;
-          const off = clamp((R() * 2 - 1) * hw, -(hw - wid / 2), hw - wid / 2) * 0.9, px = x + nx * off, pz = z + nzz * off;
-          const rot = Math.atan2(tz, tx) + (R() - 0.5) * 0.12, c = Math.cos(rot), s = Math.sin(rot);
-          let ok = true;
-          for (let a = -len / 2; a <= len / 2 + 0.01 && ok; a += Math.max(0.5, len / 8)) for (const b of [-wid / 2 - 0.1, 0, wid / 2 + 0.1]) {
-            const wx = px + c * a - s * b, wz = pz + s * a + c * b;
-            if (!onRoad(wx, wz) || hgNear(wx, wz, 0.1)) { ok = false; break; }
-          }
-          if (ok) {
-            const pr = { x: px, z: pz, len, wid, rot, light: R() < 0.28, v: Math.floor(R() * 3), q: R(), seed: hash(px, pz, 3) };
-            cellAt(px, pz).patches.push(pr); stats.patches++;
-            const nn = Math.ceil(len / 2.5); for (let a = 0; a < nn; a++) { const tt = (a + 0.5) / nn - 0.5; hgAdd(px + c * len * tt, pz + s * len * tt, Math.max(len / nn / 2 + 0.2, wid / 2 + 0.2), pr); }
-          }
+        // repairs: long utility trenches along the road, strips along the kerb, narrow cuts across, small ragged patches
+        if (R() < dens[1] * eg * fm) {
+          const kind = R(), ang = Math.atan2(tz, tx);
+          if (kind < 0.34) {   // a trench: long and thin, a little off the centre or in a wheel track
+            const len = 4 + 30 * R() ** 1.7, off = (R() < 0.5 ? (R() < 0.5 ? 1 : -1) * (0.15 + 0.3 * R()) : (R() * 2 - 1) * 0.8) * hw;
+            const pts = ribbon(smp, n, i, len, off, 0.35 + 0.55 * R(), 0.14, 2, R); if (pts) addRibbon(pts, 'trenches', R);
+          } else if (kind < 0.58) {   // a strip along the kerb, ragged on the road side
+            const len = 3 + 14 * R() ** 1.5, side = R() < 0.5 ? 1 : -1, wid = 0.4 + 0.6 * R();
+            const pts = ribbon(smp, n, i, len, side * (hw - wid / 2) * (0.92 + 0.08 * R()), wid, 0.3, 2, R); if (pts) addRibbon(pts, 'strips', R);
+          } else if (kind < 0.66) {   // a cut across the road for a pipe
+            const wid = 0.3 + 0.25 * R(), a = ang + Math.PI / 2 + (R() - 0.5) * 0.3, c = Math.cos(a), s = Math.sin(a), pts = [];
+            for (let u = -hw; u <= hw + 0.01; u += 2) {
+              const px = x + c * u, pz = z + s * u, hh = wid / 2 * (0.8 + 0.4 * R());
+              if (!onRoad(px, pz) || hgNear(px, pz, 0.1)) { pts.length = 0; break; }
+              pts.push(px, pz, hh, hh);
+            }
+            if (pts.length >= 12) addRibbon(pts, 'cuts', R);
+          } else addBlob(x + nx * lat(), z + nzz * lat(), ang + (R() - 0.5) * 0.5, 0.4 + 1.0 * R() ** 1.5, 0.3 + 0.6 * R(), R);
         }
-        // cracks
-        if (R() < dens[2] * ng) {
-          const off = (R() * 2 - 1) * hw, sx = x + nx * off, sz = z + nzz * off;
-          const crack = (px, pz, h, len, w0) => {
-            const pts = []; let wl = w0;
-            for (let d = 0; d <= len; d += 0.5 + R() * 0.4) {
+        // cracks: long ones follow the road, short ones cross it
+        if (R() < dens[2] * ng * Math.sqrt(fm)) {
+          const w0 = 0.014 + R() * 0.012;
+          if (R() < 0.7) {
+            const pts = crackAlong(smp, n, i, 5 + 22 * R() ** 1.4, (R() * 2 - 1) * hw, w0, R, hw);
+            if (pts) { cellAt(pts[0], pts[1]).cracks.push({ pts, q: R() }); stats.cracks++; }
+          } else {
+            const px0 = x + nx * (R() * 2 - 1) * hw, pz0 = z + nzz * (R() * 2 - 1) * hw, pts = []; let px = px0, pz = pz0, h = Math.atan2(tz, tx) + Math.PI / 2 + (R() - 0.5) * 1.0, w = w0;
+            for (let d = 0, len = 1 + R() * 4; d <= len; d += 0.7) {
               if (!onRoad(px, pz)) break;
-              pts.push(px, pz, wl); wl = Math.max(0.012, wl * (0.93 + R() * 0.05));
-              h += (R() - 0.5) * 0.9; px += Math.cos(h) * (0.5 + R() * 0.3); pz += Math.sin(h) * (0.5 + R() * 0.3);
+              pts.push(px, pz, w); w = Math.max(0.008, w * 0.96); h += (R() - 0.5) * 0.45; px += Math.cos(h) * 0.7; pz += Math.sin(h) * 0.7;
             }
-            return pts;
-          };
-          const h0 = R() < 0.7 ? Math.atan2(tz, tx) + (R() - 0.5) * 0.7 : R() * TAU, len = 1.5 + R() * 6;
-          const pts = crack(sx, sz, h0, len, 0.03 + R() * 0.03);
-          if (pts.length >= 9) {
-            const cl = cellAt(sx, sz), q = R(); cl.cracks.push({ pts, q }); stats.cracks++;
-            if (R() < 0.3) { const k = Math.floor(pts.length / 6) * 3, bp = crack(pts[k], pts[k + 1], h0 + (R() < 0.5 ? 1 : -1) * (0.6 + R() * 0.5), len * 0.5, 0.02); if (bp.length >= 9) cl.cracks.push({ pts: bp, q }); }
+            if (pts.length >= 9) { cellAt(px0, pz0).cracks.push({ pts, q: R() }); stats.cracks++; }
           }
         }
         // manholes and drain grates
@@ -320,7 +364,7 @@ export function createRoadWear(env) {
         for (const o of [(e1 - e2) / 2 - 1.5, (e1 - e2) / 2 + 1.5]) cell.polish.push({ pts: line(cx + nx * o - tx * 1.9, cz + nzz * o - tz * 1.9, cx + nx * o + tx * 1.9, cz + nzz * o + tz * 1.9, 0.95), w: 0.28, a: 0.1 + R() * 0.08, q: R() });
         // black skid marks leading up to the stripes on either approach: everyone brakes late in Palermo
         for (const dir of [1, -1]) {
-          if (R() > 0.55) continue;
+          if (R() > 0.35) continue;
           const off = dir > 0 ? e1 * 0.5 : -e2 * 0.5, len = 4 + R() * 9, d0 = 1.9 + R() * 1.4;
           const lat = off + (R() - 0.5) * (Math.abs(off) * 0.6);
           addMarks(line(cx + nx * lat - tx * dir * (d0 + len), cz + nzz * lat - tz * dir * (d0 + len), cx + nx * (lat + (R() - 0.5) * 0.5) - tx * dir * d0, cz + nzz * (lat + (R() - 0.5) * 0.5) - tz * dir * d0), 'brake', R);
@@ -349,14 +393,14 @@ export function createRoadWear(env) {
       for (const j of jm.values()) {
         if (j.arms.length < 3) continue;
         stats.junctions++;
-        const arms = j.arms, minor = arms.some(a => a[3] === 'primary' || a[3] === 'secondary' || a[3] === 'tertiary') ? 0.4 : 0.25;
+        const arms = j.arms, minor = arms.some(a => a[3] === 'primary' || a[3] === 'secondary' || a[3] === 'tertiary') ? 0.25 : 0.15;
         for (const a of arms) {
           if (R() > minor) continue;
           const ax = a[0], az = a[1], w = a[2], fx = -ax, fz = -az, rx = -fz, rz = fx, lat = w / 4 + (R() - 0.5) * 0.5;   // travelling towards the junction, in the right-hand lane
           const d0 = 3 + R() * 2, len = 4 + R() * 8;
           addMarks(line(j.x + ax * (d0 + len) + rx * lat, j.z + az * (d0 + len) + rz * lat, j.x + ax * d0 + rx * lat, j.z + az * d0 + rz * lat), 'brake', R);
         }
-        if (R() < 0.22) {   // a swerving turn through the junction
+        if (R() < 0.12) {   // a swerving turn through the junction
           const a = arms[Math.floor(R() * arms.length)], b = arms[Math.floor(R() * arms.length)];
           if (a !== b && Math.abs(a[0] * b[0] + a[1] * b[1]) < 0.9) {
             const la = a[2] / 4, lb = b[2] / 4, arx = a[1], arz = -a[0], brx = -b[1], brz = b[0];
@@ -375,7 +419,7 @@ export function createRoadWear(env) {
           if (--skip > 0) continue;
           const a0 = Math.atan2(smp[(i - 6) * 4 + 3], smp[(i - 6) * 4 + 2]), a1 = Math.atan2(smp[(i + 6) * 4 + 3], smp[(i + 6) * 4 + 2]);
           let da = a1 - a0; da -= TAU * Math.round(da / TAU);
-          if (Math.abs(da) < 0.5 || R() > 0.3) continue;
+          if (Math.abs(da) < 0.5 || R() > 0.15) continue;
           skip = 40;
           const path = [], sgn = da > 0 ? 1 : -1, lane = (w / 4) * (R() < 0.5 ? 1 : -1) + sgn * 0.3;
           for (let k = i - 7; k <= i + 8; k++) { const tx = smp[k * 4 + 2], tz = smp[k * 4 + 3]; path.push(smp[k * 4] - tz * lane, smp[k * 4 + 1] + tx * lane); }
@@ -404,37 +448,90 @@ export function createRoadWear(env) {
   let qf = 1, rad = 210, qname = 'high';
   const mix = (a, b, t) => new THREE.Color(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
 
-  function buildHole(B, W, h) {
-    const R = rng(h.seed), n = h.r < 0.2 ? 6 : h.r < 0.5 ? 8 : 10, cr = Math.cos(h.rot), sr = Math.sin(h.rot), a0 = R() * TAU;
-    const crumble = h.r >= 0.17, wc0 = 0.03 + 0.2 * h.r;
-    const C0 = [], C1 = [], R1 = [], R2 = [], F2 = [], wat = [];
-    const pt = (px, pz, nx, ny, nz, c, k) => B.v(px, gy(px, pz), pz, nx, ny, nz, c, k);
+  // The outline of a hole: a star shaped polygon in the hole's own frame (angle and radius per corner, from its seed), shared by the drawing and by the
+  // wheel test, so a wheel feels what is drawn. Corner angles are unevenly spaced and the radii wander (two low lobes, jitter, now and then a bite), so no
+  // hole reads as a regular hexagon. a[i] ascends from a[0] over one turn; k[i] is the radius as a multiple of h.r.
+  function shapeOf(h) {
+    if (h.sh) return h.sh;
+    const R = rng(h.seed ^ 0x51ed), n = h.r < 0.15 ? 6 : h.r < 0.3 ? 9 : 12, a = new Float32Array(n), k = new Float32Array(n), cs = new Float32Array(n), sn = new Float32Array(n), gap = [];
+    let acc = 0; for (let i = 0; i < n; i++) { gap.push(0.55 + 0.9 * R()); acc += gap[i]; }
+    const p1 = R() * TAU, p2 = R() * TAU, A1 = 0.1 + 0.2 * R(), A2 = 0.06 + 0.12 * R();
+    let t = R() * TAU;
     for (let i = 0; i < n; i++) {
-      const a = a0 + TAU * i / n, lx = Math.cos(a) * h.el, lz = Math.sin(a), wx = lx * cr - lz * sr, wz = lx * sr + lz * cr;
-      const rad = h.r * HVIS * (0.78 + 0.44 * R()), ol = hyp2(wx, wz), ox = wx / ol, oz = wz / ol, sf = ox * SUNH[0] + oz * SUNH[1];   // sf +1: on the sunward (west) side
-      const p1x = h.x + wx * rad, p1z = h.z + wz * rad, p2x = h.x + wx * rad * 0.68, p2z = h.z + wz * rad * 0.68;
-      if (crumble) {
-        const wcw = wc0 * (0.4 + 1.5 * R()), p0x = p1x + ox * wcw, p0z = p1z + oz * wcw;
-        C0.push(pt(p0x, p0z, ox * 0.2, 1, oz * 0.2, COL.crumbOut[i % 3], 0.88 + 0.2 * R()));
-        C1.push(pt(p1x, p1z, ox * 0.5, 1, oz * 0.5, COL.crumbIn, 0.9 + 0.2 * R()));
-      }
-      const lit = 1 - 0.3 * sf;
-      R1.push(pt(p1x, p1z, -ox * 0.9, 1, -oz * 0.9, COL.rim, lit));
-      R2.push(pt(p2x, p2z, -ox * 0.9, 1, -oz * 0.9, COL.wall, lit * 0.9));
-      F2.push(pt(p2x, p2z, 0, 1, 0, COL.floor, 1 - 0.4 * sf));
-      if (h.water) wat.push(W.v(h.x + wx * rad * 0.93, gy(h.x + wx * rad * 0.93, h.z + wz * rad * 0.93) + 0.004, h.z + wz * rad * 0.93, 0, 1, 0, COL.water, 1));
+      a[i] = t; t += TAU * gap[i] / acc;
+      k[i] = 1 + A1 * Math.cos(a[i] - p1) + A2 * Math.cos(2 * a[i] - p2) + (R() - 0.5) * 0.45;
     }
-    const cc = pt(h.x, h.z, 0, 1, 0, COL.centre, 1);
+    if (R() < 0.35) k[Math.floor(R() * n)] *= 0.6;   // a bite
+    for (let i = 0; i < n; i++) { k[i] = clamp(k[i], 0.5, 1.4); cs[i] = Math.cos(a[i]); sn[i] = Math.sin(a[i]); }
+    return h.sh = { n, a, k, cs, sn };
+  }
+  function inHole(h, x, z, pad) {   // is the point inside the drawn outline, grown by pad metres
+    const dx = x - h.x, dz = z - h.z, rm = h.r * 1.4 * Math.max(1, h.el) + pad; if (dx * dx + dz * dz > rm * rm) return false;
+    const c = Math.cos(h.rot), s = Math.sin(h.rot), px = (dx * c + dz * s) / h.el, pz = -dx * s + dz * c, sh = shapeOf(h), n = sh.n, a0 = sh.a[0];
+    let da = Math.atan2(pz, px) - a0; da -= TAU * Math.floor(da / TAU);
+    let i = n - 1; for (let j = 1; j < n; j++) if (sh.a[j] - a0 > da) { i = j - 1; break; }
+    const j = (i + 1) % n, ri = sh.k[i] * h.r + pad, rj = sh.k[j] * h.r + pad, ax = sh.cs[i] * ri, az = sh.sn[i] * ri;
+    return (sh.cs[j] * rj - ax) * (pz - az) - (sh.sn[j] * rj - az) * (px - ax) >= 0;   // left of the edge i to j: inside
+  }
+
+  function buildHole(B, W, h) {
+    const R = rng(h.seed), sh = shapeOf(h), n = sh.n, cr = Math.cos(h.rot), sr = Math.sin(h.rot), full = h.r >= 0.15, wc0 = 0.02 + 0.14 * h.r;
+    const X = [], Z = [], OX = [], OZ = [];
+    for (let i = 0; i < n; i++) {
+      const lx = sh.cs[i] * sh.k[i] * h.r * h.el, lz = sh.sn[i] * sh.k[i] * h.r, wx = lx * cr - lz * sr, wz = lx * sr + lz * cr, ol = hyp2(wx, wz) || 1;
+      X.push(h.x + wx); Z.push(h.z + wz); OX.push(wx / ol); OZ.push(wz / ol);
+    }
+    const pt = (px, pz, nx, ny, nz, c, k) => B.v(px, gy(px, pz), pz, nx, ny, nz, c, k);
+    if (!full) {   // a speck: the lip fades into a dark middle
+      const ring = []; for (let i = 0; i < n; i++) ring.push(pt(X[i], Z[i], 0, 1, 0, COL.crumbIn, 0.92 + 0.16 * R()));
+      const cc = pt(h.x, h.z, 0, 1, 0, COL.floor, 1);
+      for (let i = 0; i < n; i++) B.t(ring[i], cc, ring[(i + 1) % n]);
+      if (h.water) { const wat = []; for (let i = 0; i < n; i++) wat.push(W.v(h.x + (X[i] - h.x) * 0.9, gy(X[i], Z[i]) + 0.004, h.z + (Z[i] - h.z) * 0.9, 0, 1, 0, COL.water, 1)); const wc = W.v(h.x, gy(h.x, h.z) + 0.004, h.z, 0, 1, 0, COL.water, 1); for (let i = 0; i < n; i++) W.t(wat[i], wc, wat[(i + 1) % n]); }
+      return;
+    }
+    const C0 = [], C1 = [], R1 = [], R2 = [], F2 = [], wat = [], mx = h.x + (R() - 0.5) * h.r * 0.3, mz = h.z + (R() - 0.5) * h.r * 0.3;   // the floor's middle sits a little off the outline's middle
+    for (let i = 0; i < n; i++) {
+      const sf = OX[i] * SUNH[0] + OZ[i] * SUNH[1];   // sf +1: on the sunward (west) side
+      const wcw = wc0 * (0.4 + 1.5 * R()), f = 0.55 + 0.25 * R(), p2x = mx + (X[i] - mx) * f, p2z = mz + (Z[i] - mz) * f;
+      C0.push(pt(X[i] + OX[i] * wcw, Z[i] + OZ[i] * wcw, OX[i] * 0.2, 1, OZ[i] * 0.2, COL.crumbOut[i % 3], 0.88 + 0.2 * R()));
+      C1.push(pt(X[i], Z[i], OX[i] * 0.5, 1, OZ[i] * 0.5, COL.crumbIn, 0.9 + 0.2 * R()));
+      const lit = 1 - 0.3 * sf;
+      R1.push(pt(X[i], Z[i], -OX[i] * 0.9, 1, -OZ[i] * 0.9, COL.rim, lit));
+      R2.push(pt(p2x, p2z, -OX[i] * 0.9, 1, -OZ[i] * 0.9, COL.wall, lit * 0.9));
+      F2.push(pt(p2x, p2z, 0, 1, 0, COL.floor, 1 - 0.4 * sf));
+      if (h.water) wat.push(W.v(mx + (X[i] - mx) * 0.93 * f, gy(X[i], Z[i]) + 0.004, mz + (Z[i] - mz) * 0.93 * f, 0, 1, 0, COL.water, 1));
+    }
+    const cc = pt(mx, mz, 0, 1, 0, COL.centre, 1);
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      if (crumble) { B.t(C0[i], C1[j], C0[j]); B.t(C0[i], C1[i], C1[j]); }
+      B.t(C0[i], C1[j], C0[j]); B.t(C0[i], C1[i], C1[j]);
       B.t(R1[i], R2[j], R1[j]); B.t(R1[i], R2[i], R2[j]);
       B.t(F2[i], cc, F2[j]);
     }
     if (h.water) {
-      const wc = W.v(h.x, gy(h.x, h.z) + 0.004, h.z, 0, 1, 0, COL.water, 1);
+      const wc = W.v(mx, gy(mx, mz) + 0.004, mz, 0, 1, 0, COL.water, 1);
       for (let i = 0; i < n; i++) W.t(wat[i], wc, wat[(i + 1) % n]);
     }
+  }
+
+  function ribbonMesh(B, pts, grow, c0, c1, y, R, taper) {   // [x, z, half width left, half width right] points: quads along the polyline, colour c0 to c1 along it, grow widens both edges
+    const n = pts.length / 4, ids = [];
+    for (let i = 0; i < n; i++) {
+      const j0 = Math.max(0, i - 1), j1 = Math.min(n - 1, i + 1);
+      let dx = pts[j1 * 4] - pts[j0 * 4], dz = pts[j1 * 4 + 1] - pts[j0 * 4 + 1]; const l = hyp2(dx, dz) || 1; dx /= l; dz /= l;
+      const e = i === 0 || i === n - 1 ? taper : 1, hl = pts[i * 4 + 2] * e + grow, hr = pts[i * 4 + 3] * e + grow, x = pts[i * 4], z = pts[i * 4 + 1], c = n > 1 ? mix(c0, c1, i / (n - 1)) : c0;
+      ids.push(B.v(x - dz * hl, gy(x - dz * hl, z + dx * hl) + y, z + dx * hl, 0, 1, 0, c, 0.95 + 0.1 * R()), B.v(x + dz * hr, gy(x + dz * hr, z - dx * hr) + y, z - dx * hr, 0, 1, 0, c, 0.95 + 0.1 * R()));
+    }
+    for (let i = 0; i < n - 1; i++) { const a = ids[i * 2], b = ids[i * 2 + 1], c = ids[i * 2 + 2], d = ids[i * 2 + 3]; B.t(a, c, b); B.t(b, c, d); }
+  }
+  function blobMesh(B, p, grow, c, y, R) {   // a ragged patch: a fan round its middle
+    const { rot, ax, az, k } = p.blob, m = k.length, cr = Math.cos(rot), sr = Math.sin(rot), ids = [];
+    for (let i = 0; i < m; i++) {
+      const a = TAU * i / m + (k[(i * 5) % m] - 1) * 0.3, lx = Math.cos(a) * (ax * k[i] + grow), lz = Math.sin(a) * (az * k[i] + grow), x = p.x + cr * lx - sr * lz, z = p.z + sr * lx + cr * lz;
+      ids.push(B.v(x, gy(x, z) + y, z, 0, 1, 0, c, 0.95 + 0.1 * R()));
+    }
+    const cc = B.v(p.x, gy(p.x, p.z) + y, p.z, 0, 1, 0, c, 1);
+    for (let i = 0; i < m; i++) B.t(ids[i], cc, ids[(i + 1) % m]);
   }
 
   function strip(B, pts, step, width, col, alphaFn) {   // ribbon along x, z[, w] triples; used for cracks, marks, polish
@@ -464,8 +561,8 @@ export function createRoadWear(env) {
     for (const p of cell.patches) {
       if (p.q > qf) continue;
       const R = rng(p.seed), c = p.light ? COL.patchLight[p.v % 2] : COL.patchDark[p.v % 3];
-      quad(B, p.x, p.z, p.rot, p.len / 2 + 0.05, p.wid / 2 + 0.05, COL.seam, COL.seam, 0.06, R, 1);
-      quad(B, p.x, p.z, p.rot, p.len / 2 - 0.02, p.wid / 2 - 0.02, c, mix(c, COL.worn, 0.3), 0.05, R, 1, 0.003);
+      if (p.blob) { blobMesh(B, p, 0.03, COL.seam, 0, R); blobMesh(B, p, 0, c, 0.003, R); }
+      else { ribbonMesh(B, p.pts, 0.03, COL.seam, COL.seam, 0, R, 0.6); ribbonMesh(B, p.pts, 0, c, mix(c, COL.worn, 0.3), 0.003, R, 0.6); }
     }
     for (const c of cell.cracks) if (c.q < qf) strip(B, c.pts, 3, (i, p) => p[i * 3 + 2] * 0.6, COL.crack);
     for (const m of cell.mhs) {
@@ -497,7 +594,7 @@ export function createRoadWear(env) {
       const cc = B.v(b.x, gy(b.x, b.z) - 0.008, b.z, 0, 1, 0, col, 1);
       for (let i = 0; i < n; i++) B.t(ids[i], cc, ids[(i + 1) % n]);
     }
-    for (const m of cell.marks) if (m.q < qf) strip(M, m.pts, 3, m.w * 0.5, MARK_COL, (i, p) => p[i * 3 + 2] * 0.45);   // baked skids at under half strength
+    for (const m of cell.marks) if (m.q < qf) strip(M, m.pts, 3, m.w * 0.5, MARK_COL, (i, p) => p[i * 3 + 2] * 0.32);   // baked skids at a third of full strength
     for (const p of cell.polish) if (p.q < qf) strip(M, p.pts, 2, p.w, MARK_COL, () => p.a * 0.7);
     const out = { meshes: [], tris: B.tris + W.tris + M.tris };
     const mw = B.mesh(wearMat), mwa = W.mesh(waterMat), mm = M.mesh(markMat);
@@ -629,23 +726,20 @@ export function createRoadWear(env) {
   // The current vehicle's wheels (vehicle.js sets car.wheelPts: 2 for bikes, 3 for lape, 4 for the car).
   const wheelSet = () => car.wheelPts || WH;
   const ws = [0, 1, 2, 3].map(() => ({ rec: null, cool: 0 }));
-  function holeAt(x, z) {
+  function holeAt(x, z) {   // the deepest hole whose drawn outline (grown by the wheel's width) holds the point; sunken manholes are circles
     const ix = Math.floor(x / CGS), iz = Math.floor(z / CGS); let best = null;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const l = cg.get((ix + a) * 8192 + iz + b); if (!l) continue;
       for (const h of l) {
         if (h.q >= qf) continue;
-        const dx = x - h.x, dz = z - h.z, r = h.r * 0.9 + 0.08;
-        if (dx * dx + dz * dz > (r * Math.max(1, h.el)) ** 2) continue;
-        const c = Math.cos(h.rot), s = Math.sin(h.rot), lx = (dx * c + dz * s) / (r * h.el), lz = (-dx * s + dz * c) / r;
-        if (lx * lx + lz * lz < 1 && (!best || h.dep > best.dep)) best = h;
+        if (h.kind ? (x - h.x) ** 2 + (z - h.z) ** 2 < (h.r * 0.9 + 0.08) ** 2 : inHole(h, x, z, 0.05)) { if (!best || h.dep > best.dep) best = h; }   // a wheel is a few centimetres wide, hence the pad
       }
     }
     return best;
   }
   function impact(rec, wi, k) {
     const sp = Math.abs(car.vf || 0), w = wheelSet()[wi] || WH[0];
-    const size = rec.kind ? 0.25 : clamp((rec.r - 0.08) / 0.75, 0.05, 1.3), dep = clamp(rec.dep / 0.14, 0.4, 1.4);
+    const size = rec.kind ? 0.25 : clamp((rec.r - 0.04) / 0.6, 0.05, 1.3), dep = clamp(rec.dep / 0.14, 0.4, 1.4);
     const I = size * dep * clamp(sp / 13, 0.12, 1.4) * k;
     if (I < 0.02) return;
     const loss = clamp(0.01 + 0.04 * I, 0, 0.09), keep = 1 - loss;
@@ -680,6 +774,11 @@ export function createRoadWear(env) {
       marks(dt);
     },
     collidePlayer,
+    nearHoles(x, z, r) {   // test hook (only reachable with ?debug): the holes a wheel can feel within r metres, with their size, depth and whether they hold water
+      const out = [];
+      for (const l of cg.values()) for (const h of l) if (!h.kind && hyp2(h.x - x, h.z - z) < r) out.push({ x: h.x, z: h.z, r: h.r, dep: h.dep, water: h.water, rot: h.rot });
+      return out.sort((a, b) => hyp2(a.x - x, a.z - z) - hyp2(b.x - x, b.z - z));
+    },
     setQuality(q) {
       const nq = QF[q] ? q : 'high';
       if (nq === qname) return;
