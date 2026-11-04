@@ -6,7 +6,7 @@
 import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import http from 'http'; import { fileURLToPath } from 'url';
 const here = path.dirname(fileURLToPath(import.meta.url)), ROOT = path.resolve(here, '../..');
 const puppeteer = createRequire(path.join(ROOT, 'tools/build/package.json'))('puppeteer-core');
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const MIME = { '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.html': 'text/html' };
 const BLANK = `<!doctype html><script type="importmap">{"imports":{"three":"/tools/build/node_modules/three/build/three.module.js"}}</script>`;   // three from the local package, not the CDN
 

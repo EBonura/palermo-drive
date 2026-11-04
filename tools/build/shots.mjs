@@ -14,7 +14,7 @@ const VIEWS = {
   quattro: 'spot=1&cam=0&help=0', teatro: 'spot=2&cam=0&help=0', cala: 'spot=6&cam=0&help=0',
   street: 'campos=250,40,300&look=0,5,0', aerial: 'campos=1800,300,-1500&look=0,0,0',
 };
-const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, defaultViewport: { width: 1280, height: 720 },
+const browser = await puppeteer.launch({ executablePath: (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless: true, defaultViewport: { width: 1280, height: 720 },
   args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--hide-scrollbars'] });
 const files = {};
 for (const root of roots) {

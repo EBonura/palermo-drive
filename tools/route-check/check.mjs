@@ -63,7 +63,7 @@ function resample(flat, step) {
 
 // ---- the browser
 const { server, port } = await startServer(ROOT, '');
-const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', protocolTimeout: 900000,
+const browser = await puppeteer.launch({ executablePath: process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless: 'new', protocolTimeout: 900000,
   args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--no-first-run'] });
 const closeAll = async () => { await browser.close().catch(() => {}); server.close(); };
 process.on('SIGINT', async () => { await closeAll(); process.exit(130); });
