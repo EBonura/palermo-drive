@@ -8,11 +8,26 @@ const puppeteer = createRequire(path.join(HERE, '../build/package.json'))('puppe
 const { startServer } = await import(path.join(HERE, '../build/serve.mjs'));
 export const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
+// --local: the test talks to five local relays (tools/p2p/relay.mjs) and to nothing else. The five pinned relay names resolve to them, whatever the page asks for (?relays=wss://nos.lol or the shipped list), and every other name fails to resolve,
+// so no public relay, STUN server or play stats service can be reached, and the shipped page policy is unchanged. Any tool that uses start() takes it. Checked at the start of the run.
 export async function start({ root = arg('root'), headless = 'new', extraArgs = [] } = {}) {   // extraArgs: more Chrome flags (tools/p2p/stress.mjs)
   const { server, port } = await startServer(path.resolve(root), '');
+  let local = null;
+  if (process.argv.includes('--local')) {
+    const { startRelays } = await import('./relay.mjs'), { RELAYS } = await import('../../src/p2p/relays.js');
+    local = await startRelays({ n: RELAYS.length });
+    const map = RELAYS.map((u, i) => `MAP ${new URL(u).hostname} ${new URL(local.urls[i]).host}`).join(', ');
+    extraArgs = [...extraArgs, '--ignore-certificate-errors', `--host-resolver-rules=${map}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE *.local`];
+  }
   const browser = await puppeteer.launch({ executablePath: process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless, protocolTimeout: 600000,
     args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--no-first-run', ...extraArgs] });
-  return { server, port, browser, close: async () => { await browser.close().catch(() => {}); server.close(); } };
+  if (local) {   // the self-check: a public address does not resolve, and the pinned relays do, here
+    const pg = await browser.newPage(); await pg.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    const seen = await pg.evaluate(async () => { const r = {}; try { await fetch('https://example.org/', { mode: 'no-cors' }); r.publicReachable = true; } catch (e) { r.publicReachable = false; } r.relayAnswers = await new Promise(res => { const w = new WebSocket('wss://nos.lol'); w.onopen = () => { w.close(); res(true); }; w.onerror = () => res(false); setTimeout(() => res(false), 8000); }); return r; }).catch(e => ({ error: String(e) }));
+    await pg.close(); console.log('  local relays only:', JSON.stringify(seen));
+    if (seen.publicReachable !== false || !seen.relayAnswers) throw new Error('--local self-check failed: ' + JSON.stringify(seen));
+  }
+  return { server, port, browser, local, close: async () => { await browser.close().catch(() => {}); server.close(); if (local) { console.log('  local relays saw', JSON.stringify(local.snapshot().map(r => r.inFrames))); local.close(); } } };
 }
 // one player: a page at the map point (x, z) heading th, named name; all players of a run share the ns so they only meet each other
 export async function player(h, { name, ns, x, z, th = 0, extra = '', size = [480, 270], cpu = 1, phone = false, p2p = 'p2p', isolated = false }) {

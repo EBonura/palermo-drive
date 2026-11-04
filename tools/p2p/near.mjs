@@ -20,11 +20,12 @@ async function tap(P) {
 try {
   const A = await player(h, { name: 'Anna', ns, x: -1250, z: 250, extra: 'at=-1250,250,0&relays=wss://nos.lol,wss://nostr.chaima.info', isolated: true });
   const tA = await tap(A);
+  await until(() => A.page.evaluate(() => { const r = [...window.__p2p.rooms.values()]; return window.__p2p.home() && !r.some(x => x.i === 0 && x.j === 0); }), 90000);   // every page starts for a moment in the default spawn cell, and two who meet there would stay connected through that room: Anna is gone from it before Bob loads
   const B = await player(h, { name: 'Bob', ns, x: 3000, z: 2000, extra: 'at=3000,2000,0&relays=wss://nos.lol,wss://nostr.chaima.info', isolated: true });   // about 5.5 km away, another cell
   const t0 = Date.now();
   const sees = async (P, nm) => (await view(P)).find(v => v.name === nm);
   const inFar = async (P, i, j) => P.page.evaluate(([i, j]) => [...window.__p2p.rooms.values()].some(r => r.i === i && r.j === j && r.peers.size > 0), [i, j]);   // really through the far cell's room, not the default spawn cell both pages start in
-  const met = await until(async () => (await inFar(A, 6, 4)) && (await inFar(B, -3, 0)) && (await sees(A, 'Bob'))?.shown && (await sees(B, 'Anna'))?.shown, 150000);
+  const met = await until(async () => ((await inFar(A, 6, 4)) || (await inFar(B, -3, 0))) && (await sees(A, 'Bob'))?.shown && (await sees(B, 'Anna'))?.shown, 150000);   // one shared room is enough: only one of them has to visit the other (src/p2p/rooms.js)
   console.log('  far pair found each other (through the far cell room) after', ((Date.now() - t0) / 1000).toFixed(1), 's');
   ok('two players 5 km apart see each other with names', !!met, JSON.stringify(await view(A)));
   const vb = await sees(A, 'Bob');
