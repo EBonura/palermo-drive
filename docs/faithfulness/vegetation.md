@@ -59,3 +59,66 @@ The machine was shared with other browser runs, which moves a run by up to 3 ms 
 **Photo comparison** (all in `/private/tmp/claude-501/treecrowns/`, never committed): eye-level shots at the places of the survey with the old game, the new game and the photo side by side, and chase-camera shots old against new. Clearly better: Via Basile (su13) and Viale Michelangelo (zi08, zi09), where the bare planes now match the bare, forking avenue of the photos; the leafy avenues (po02, po10, po31, su18) are continuous canopies with a ragged edge instead of plates; the big dark crown over the wall in Via Guglielmo il Buono (ce15); the Foro Italico palms (pt01 to pt05) read as palms. Barely changed: Viale Diana (pe32) is leafier but the real avenue is oaks and poplars with high crowns, the game's are low and dense; the Aleppo pines of the hillside (pe06) are leafy blobs, the photo has few, small ones. Not done or worse: no stone-pine rows exist along Viale Regione Siciliana (su08, su09) and there is no palm or stone pine at zi09, because adding trees there would move tree positions; the trunks and limbs of the planes are still thick and faceted when the camera is within a few metres of them (the chase camera in Via della Libertà); a few sprays stick out of a crown on their own as small dark shards against the sky; the Phoenix palm head is thinner than the real one.
 
 **Guesses and measurements.** Measured: triangle counts, draw calls and main-thread times above, and what the pictures show. Guesses (not measured from lidar or photos): the crown and trunk sizes of every model, the spray sizes and counts, all colours (read off the photos by eye), the aspect and hue ranges of the instances, the 50 % share of the second individuals, the 140 m circle for the bare planes at ce12, and which two avenues are bare.
+
+
+## Trees: solid crowns, buttressed ficus, lighter palms, stone-pine rows (2026-11-04, round 4 gap 1)
+
+Round 4 ranked the trees first among the visible gaps: flat plates on identical trunks, no stone pines along Viale Regione Siciliana (su08, su09), oleander as green balls with pink lumps. This pass rebuilt the tree shapes of `src/treegeo.js`, changed a few tree lines of `src/props.js`, `src/species.js` and `src/world.js`, and added no alpha-tested leaves (nothing is discarded in the fragment shader; every leaf is geometry).
+
+**How a crown is built now.** The round 3 crowns were hollow shells of small sprays (5 triangles each), which read as shards and cost 400 to 600 triangles. A crown is now a few solid lobes (`Mini.lobe`: a jittered icosahedron of 20 or 80 faces, stretched, flattened underneath, light on top and dark under and inside, lit with the normal of the whole crown) on the tips of real branches, plus a fringe of 1 to 3 sprays per lobe to break the outline. A lobe lies where the real crown has a clump; faces inside another lobe are not drawn. The same lobes make the cheap `*_lo` pines and oaks of the woods. Limbs get fewer segments on the finer levels (`nseg` can now be a list per level).
+
+**Species** (triangles old to new, measured from the geometry, `treeGeo(name)`):
+
+| model | old | new | what changed |
+|---|---|---|---|
+| plane, plane_b | 581, 597 | 366, 370 | trunk forks at 5 m and rises to 14 m, broad round crown of 7 lumps, slimmer trunk |
+| stone pine (`pine`, `pine_b`) | 402, 417 | 224, 188 | trunk bare to 9 m, thick dark flat-topped umbrella of three or four lobes |
+| ficus | 460 | 381 | fluted trunk on seven buttress wedges, three hanging aerial roots, very wide dark dome |
+| holm oak (`holm`, `holm_b`) | 325 | 300, 282 | short thick trunk, dark lobed dome; a second individual (new) for the Favorita road rows |
+| generic broadleaf (`tree`) | 248 | 204 | rounder, larger crown |
+| orange | 114 | 119 | one 80-face lobe and two small ones, a few orange triangles |
+| Aleppo pine, full / wood | 280 / 92 | 189 / 76 | flat ragged pads on a leaning trunk |
+| stone pine and holm oak of the woods (`stone_lo`, `holm_lo`) | 135, 117 | 91, 84 | same lobes, fuller |
+| fan palms a, b, c | 364, 375, 309 | 215, 223, 191 | 17 to 21 fronds of 7 blades instead of 22 to 28 of 9 |
+| date palms a, b | 520, 538 | 305, 317 | 19 or 20 fronds, each a curved ribbon of quads with a deeply notched edge (12 triangles), young ones upright, instead of a comb of leaflets |
+| oleander (the `shrub` model) | about 60 | 62 | two stacked dark lobes, a few sprays, pink flower triangles on the shell |
+| jacaranda (new) | n/a | 313 | spreading crown that is half lilac; planted only on Via Ruggero Settimo (22 percent of the street trees there, photo po02) |
+| bare plane | 384 | 384 | not touched |
+
+**Placement and rules.**
+- Same planting positions and random streams everywhere, with these exceptions. (1) Viale Regione Siciliana gets a row of stone pines, one tree every 22 m on both edges of every carriageway (`CANOPY` in `src/props.js`, the number is the last one in the entry): su08 and su09 had one lone tree. That is about 240 more trees in view at the measured spot (table below); stretching the 22 to 33 m takes a third off that cost. (2) The Favorita mix of `src/species.js` is now holm oak 40 percent (stone pine 12, Aleppo 12, carob 12, plane 8, the rest 16), and holm oak is allowed on big crowns too; pe32 shows a tunnel of oaks and the game had stone pines. (3) The Favorita road rows of `src/world.js` alternate two holm oak individuals.
+- Collision circles (`SPECS`) follow the new trunks (ficus 1.1 m, stone pine 0.45, holm 0.5, date palm 0.52 to 0.55, plane 0.4); `crown` follows the crown width of the model so a lidar-measured tree keeps the size it had; `H` follows the height (leaf bursts).
+
+**Cost.** Method: `tools/tree_cost.mjs` loads the game with `?debug&fixres&time=11` at 1024 x 768, drops the car at a place, waits until the tile streamer is idle, and sums, over every visible tree mesh whose bounding sphere meets the frustum, instance count times triangles (instanced meshes are not culled per instance, so this is what the GPU gets). Before and after were taken with the same script on the same tiles, the before from `git archive` of the starting commit. Draw calls are the tree meshes only: the frame total moves by a few tens between two runs of the same code (cars, pedestrians), so it is not a clean measure.
+
+| spot | tree triangles in view, before / after | change | tree instances | triangles per tree | tree draw calls | whole frame triangles | whole frame draw calls |
+|---|---|---|---|---|---|---|---|
+| liberta | 215,443 / 144,373 | -33 % | 644 / 644 | 335 / 224 | 61 / 63 | 919,337 / 872,776 | 372 / 379 |
+| lazio | 62,504 / 42,243 | -32 % | 150 / 150 | 417 / 282 | 19 / 19 | 712,287 / 666,493 | 259 / 257 |
+| foro | 543,100 / 384,941 | -29 % | 1312 / 1313 | 414 / 293 | 79 / 81 | 1,055,108 / 933,401 | 331 / 336 |
+| favorita | 488,574 / 438,619 | -10 % | 3278 / 4011 | 149 / 109 | 41 / 47 | 859,269 / 771,667 | 228 / 234 |
+| regsic | 147,144 / 176,403 | +20 % | 907 / 1147 | 162 / 154 | 55 / 60 | 652,717 / 678,721 | 294 / 301 |
+| mondello | 128,775 / 84,987 | -34 % | 364 / 365 | 354 / 233 | 32 / 32 | 550,009 / 510,378 | 246 / 251 |
+| ruggero | 171,426 / 111,031 | -35 % | 537 / 532 | 319 / 209 | 51 / 50 | 818,930 / 748,342 | 291 / 286 |
+| quattro | 37,770 / 28,344 | -25 % | 108 / 108 | 350 / 262 | 28 / 28 | 646,382 / 642,696 | 227 / 225 |
+
+Reading the table: every spot loses 10 to 35 percent of its tree triangles except Viale Regione Siciliana (regsic), where the new stone-pine rows (240 more trees) cost 45,000 triangles (260 pines of about 204 triangles against 20 before), more than the cheaper shapes of the other trees there save (11 percent of the remaining 139,000). A tree costs 20 to 40 percent fewer triangles on average everywhere. Tree draw calls move by 0 to 6 per spot, minus 1 once (the second holm oak in the Favorita, the jacaranda along Via Ruggero Settimo, the pines along the viale: one call per model and 250 m cell). The Favorita falls least because most of it is the Aleppo wood, already cheap. In the Favorita run the after counts more tree instances than the before (4,011 against 3,278: the streamer had more cells loaded), so read its triangles per tree: 149 to 109.
+
+**Checks done.** Photo viewpoints of the survey (po02, po09, po10, po31, pt01 to pt05, pt10 to pt12, pt19, pe06, pe08, pe32, su08, su09, su10, su13, su18, zi08, zi09, ce12, ce15, mo02, mo06) shot before and after with `tools/faith_shoot.mjs` at 11:00; chase camera before and after at the eight spots above, by day and by night (22:00: lamps light the trunks, the crowns go dark and keep their silhouette against the sky); shadows on (the trees along roads cast, as before); felling: the car was driven into every kind of tree (plane, stone pine, ficus, holm oak, fan and date palm, jacaranda, orange, generic broadleaf: each falls, the instance matrix moves, `props.stats.trees` counts it) and into the oleander (soft: slows the car, no fall), no page errors.
+
+**Not done, not measured.**
+- GPU time on a phone. The numbers are triangles and draw calls, which are the cost the GPU is given; the sprays and fronds are still open sheets, so the material stays two-sided, and the solid lobes are drawn two-sided as well (their back faces are hidden by depth, not skipped before shading). A one-sided material for the lobes would need the sprays on a second mesh. Worth a measurement on the old iPhone before anything else is done to trees.
+- No distance LOD tier. The cull in `props.js` could draw a 60 to 100 triangle version of every model for cells whose nearest edge is more than about 200 m away (a second `InstancedMesh` per cell sharing the instance buffers, `mind` next to `maxd` in the cull loop); with the numbers above that would take roughly a third off the tree triangles of the long views (Libertà, the Foro Italico) and nothing in the old town. It is not in this change because it touches the cull loop and the collision's mesh bookkeeping.
+- Cypress and the poplar of Viale Diana are not modelled; carob, olive and holm oak are still the generic broadleaf with a tint (carob, olive) or the holm model. Pollarded planes are still the bare plane.
+- Tree positions on the lidar and OSM items did not change; the species of those trees changed in the Favorita only. The map bake was not touched.
+
+**Guesses, not measurements.** All crown, trunk and spray sizes and colours (read off the photos by eye), the 22 percent jacaranda share, the 22 m spacing of the pine rows, the Favorita mix weights, the 50 percent split between the two holm oaks.
+
+**Smells met on the way.**
+- A model needs six hand-kept tables in `props.js` (`MODELS`, `SPECS`, `TREE_LIKE`, `SCALE_R`, `TALL`, `FAR`) plus the species code in `species.js`; a variant `_b` needs all of them again. One registration function would remove most of the edits and the chance of forgetting one.
+- `baseMatrix` (`props.js`) composes a reset tree with a uniform scale, so a tree that was knocked over and put back after 25 s loses the width and height variety it was built with (`instantiate` gives it a different aspect per tree).
+- The `crown` field of `SPECS` is a size hint for lidar-measured trees (`it.r / crown`) and does not equal the crown radius of the model (the planes were always about a third larger than their `crown`); I kept the ratio of old to new, so lidar trees keep their size.
+- `palm_fan_c` is registered and has a collision entry but nothing picks it (`placeTree` callers use `palm_fan_a` and `palm_fan_b`).
+- `world.js` `buildTrees` keeps one list per kind by hand (`rows`, `mats`, `smats`, `hmats`); a map from kind to list would make the third individual of a wood tree a one-line change.
+- The road rows of the woods cap at `MAX = 1400` trees per tile, counted before the shape is known; a dense tile stops planting mid-road.
+- Streaming is not deterministic: two runs of the same build at the Favorita saw 3,259 and 4,011 tree instances (the number of woods cells in view when the streamer went quiet), so compare triangles per tree there, not the sum.

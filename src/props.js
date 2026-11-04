@@ -280,12 +280,11 @@ for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_
   MODELS.plane = { geo: treeGeo('plane'), mat: 'dbl', tint: true };
   MODELS.plane_b = { geo: treeGeo('plane_b'), mat: 'dbl', tint: true };   // a second individual of the planes, the bare planes and the stone pines (picked by position in placeTree): a row of trees is not one tree repeated
   MODELS.plane_bare_b = { geo: treeGeo('plane_bare_b'), mat: 'dbl', tint: true };
+  MODELS.jacaranda = { geo: treeGeo('jacaranda'), mat: 'dbl', tint: true };   // lilac in blossom
+  MODELS.holm_b = { geo: treeGeo('holm_b'), mat: 'dbl', tint: true };
   MODELS.pine_b = { geo: treeGeo('stone_b'), mat: 'dbl', tint: true };      // n4: the plane tree (Via della Liberta, the old avenues)
   MODELS.aleppo = { geo: treeGeo('aleppo'), mat: 'dbl', tint: true };    // n4: the Aleppo pine (the hills, Monte Gallo, the Favorita)
-  const sh = new MB();    // oleander / flowering shrub and clipped hedge block
-  sh.lump(0, 0.9, 0, 1.0, 0.9, 1.0, C('#4d7438'), 0, 0.2, 0.6, 11);
-  for (const [x, y, z] of [[0.6, 1.4, 0.2], [-0.5, 1.2, 0.6]]) sh.lump(x, y, z, 0.28, 0.2, 0.28, C('#d96a8c'), 0, 0.2, 0.9);
-  def('shrub', sh, { tint: false });
+  MODELS.shrub = { geo: treeGeo('oleander'), mat: 'dbl', tint: false };   // oleander: an upright clump of arching stems with pink flower tips (src/treegeo.js); and the clipped hedge block
   const hd = new MB(); hd.box(-1.5, 0, -0.45, 1.5, 1.1, 0.45, C('#3f6a30'), 0.6, 1); def('hedge', hd, { tint: true });
 }
 
@@ -494,22 +493,24 @@ const SPECS = {
   bin_over: { kind: 'bin', c: [[0, 0, 0.78]], m: 0.9, thr: 2.2, fly: 6, bags: 9, he: [0.5, 0.55, 0.5], hc: 0.55, ghost: true },
   bin_small: { kind: 'bend', c: [[0, 0, 0.24]], thr: 3, fly: 5.5, m: 0.3, he: [0.2, 0.45, 0.2], hc: 0.45, ghost: true, tilt: 1.57, H: 0.9 },
   fontanella: { kind: 'bend', c: [[0, 0, 0.26]], thr: 5, tilt: 1.3, H: 1.1 },
-  ficus: { kind: 'tree', c: [[0, 0, 0.8]], thr: 13.9, H: 6, crown: 4 },
-  tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 5, crown: 2.7 },
-  orange: { kind: 'tree', c: [[0, 0, 0.22]], thr: 8.3, H: 3.5, crown: 1.7 },
-  pine: { kind: 'tree', c: [[0, 0, 0.36]], thr: 11, H: 8, crown: 3.9 },
-  plane: { kind: 'tree', c: [[0, 0, 0.36]], thr: 12, H: 7, crown: 3.4 },
+  ficus: { kind: 'tree', c: [[0, 0, 1.1]], thr: 13.9, H: 9, crown: 4.8 },
+  tree: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 6, crown: 3.4 },
+  orange: { kind: 'tree', c: [[0, 0, 0.22]], thr: 8.3, H: 4.5, crown: 1.8 },
+  pine: { kind: 'tree', c: [[0, 0, 0.45]], thr: 11, H: 11, crown: 4.5 },
+  plane: { kind: 'tree', c: [[0, 0, 0.4]], thr: 12, H: 11, crown: 4.0 },
   plane_bare: { kind: 'tree', c: [[0, 0, 0.36]], thr: 12, H: 7, crown: 3.4 },
-  holm: { kind: 'tree', c: [[0, 0, 0.36]], thr: 11, H: 7, crown: 3.9 },
-  plane_b: { kind: 'tree', c: [[0, 0, 0.36]], thr: 12, H: 7, crown: 3.4 },
+  holm: { kind: 'tree', c: [[0, 0, 0.5]], thr: 11, H: 8.5, crown: 4.8 },
+  plane_b: { kind: 'tree', c: [[0, 0, 0.4]], thr: 12, H: 11, crown: 4.0 },
   plane_bare_b: { kind: 'tree', c: [[0, 0, 0.36]], thr: 12, H: 7, crown: 3.4 },
-  pine_b: { kind: 'tree', c: [[0, 0, 0.36]], thr: 11, H: 8, crown: 3.9 },
+  pine_b: { kind: 'tree', c: [[0, 0, 0.45]], thr: 11, H: 11, crown: 4.5 },
+  jacaranda: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 7, crown: 3.4 },
+  holm_b: { kind: 'tree', c: [[0, 0, 0.5]], thr: 11, H: 8.5, crown: 4.8 },
   aleppo: { kind: 'tree', c: [[0, 0, 0.3]], thr: 10, H: 8.5, crown: 2.6 },
   palm_fan_a: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 9, crown: 2.5 },
   palm_fan_b: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.7, H: 13, crown: 2.5 },
   palm_fan_c: { kind: 'tree', c: [[0, 0, 0.3]], thr: 9.0, H: 6.5, crown: 2.5 },
-  palm_date_a: { kind: 'tree', c: [[0, 0, 0.45]], thr: 11, H: 5, crown: 2.5 },
-  palm_date_b: { kind: 'tree', c: [[0, 0, 0.42]], thr: 11, H: 7.5, crown: 2.5 },
+  palm_date_a: { kind: 'tree', c: [[0, 0, 0.55]], thr: 11, H: 5, crown: 2.5 },
+  palm_date_b: { kind: 'tree', c: [[0, 0, 0.52]], thr: 11, H: 7.5, crown: 2.5 },
   lamp_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 7, tilt: 1.05, H: 9 },
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
   utility_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 10, tilt: 0.7, H: 9.4 },   // a pole of the power line: heavier than a lamp; the wires stay where they are
@@ -557,9 +558,9 @@ const SPECS = {
   dump_sofa: { kind: 'object', c: [[0, 0, 0.9]], thr: 2.5, m: 1.0, he: [0.9, 0.45, 0.4], hc: 0.45, ghost: true },
   dump_wreck: { kind: 'object', c: [[0, 0, 0.6]], thr: 1.6, m: 0.3, he: [0.6, 0.2, 0.35], hc: 0.2, ghost: true },
 };
-const TREE_VARIANT = new Set(['plane', 'plane_bare', 'pine']);   // models with a second individual (name + '_b')
-const TREE_LIKE = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
-const SCALE_R = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'shrub', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
+const TREE_VARIANT = new Set(['plane', 'plane_bare', 'pine', 'holm']);   // models with a second individual (name + '_b')
+const TREE_LIKE = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
+const SCALE_R = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'shrub', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 
 
 function makePhysics(env) {
@@ -1034,7 +1035,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
+  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1384,7 +1385,7 @@ function* generate(S, BUD) {
   const treePts = [];   // where the trees stand (the street trees of 13 keep their distance)
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
     if (!inBounds(x, z) || road(x, z) || inB(x, z) || treeCleared(x, z)) return false;
-    const r = { ficus: 3.2, tree: 2.2, holm: 2.8, orange: 1.4, pine: 2, plane: 2.4, plane_bare: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
+    const r = { ficus: 3.2, tree: 2.2, jacaranda: 2.2, holm: 2.8, orange: 1.4, pine: 2, plane: 2.4, plane_bare: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
     if (TREE_VARIANT.has(kind) && hash3(x * 0.73, z * 0.41, 3.7) < 0.5) kind += '_b';   // (by position, not from the random stream of the tile)
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
@@ -2219,7 +2220,7 @@ function* generate(S, BUD) {
     // b) planes along Via della Liberta and the other grand avenues of the 1960s grid; palms along the seafronts
     const AVENUE = /^(Via|Viale) della Libertà$/, FRONT = /Regina Elena|Lungomare|Foro Italico|Piano di Gallo|Viale Marina|Lido/;
     // Streets whose real canopy closes over the carriageway, read off the Mapillary photos of the faithfulness survey (round 2: po02 and po31 planes and jacaranda, zi08 and zi09 plane rows, su13 pollarded planes, su18 broadleaves, pt10 plane and ficus, pt12 ficus); the same planting is carried along the whole named street, which the photos do not show: [name, tree, scale, spacing in m]
-    const CANOPY = [[/Ruggero Settimo|^Viale Lazio$|Imperatore Federico/, 'plane', 1.55, 11], [/^Viale Michelangelo$/, 'plane_bare', 1.55, 11], [/Ernesto Basile/, 'plane_bare', 1.15, 11], [/Filippo Paruta/, 'tree', 1.55, 10], [/Domenico Costantino/, 'ficus', 1.1, 14]];
+    const CANOPY = [[/Ruggero Settimo|^Viale Lazio$|Imperatore Federico/, 'plane', 1.55, 11], [/^Viale Michelangelo$/, 'plane_bare', 1.55, 11], [/Ernesto Basile/, 'plane_bare', 1.15, 11], [/Filippo Paruta/, 'tree', 1.55, 10], [/Domenico Costantino/, 'ficus', 1.1, 14], [/Regione Siciliana/, 'pine', 1.15, 22]];
     for (const r of S.roads) {
       const nm = r.n || '';
       const lib = AVENUE.test(nm), front = FRONT.test(nm) && DRIVE.has(r.k), can = !lib && !front ? CANOPY.find(c => c[0].test(nm)) : null;
@@ -2239,7 +2240,7 @@ function* generate(S, BUD) {
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
             const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
             if (!inBounds(x, z) || (!can && !raisedMask(x, z) && !paving(x, z))) continue;
-            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : can ? placeTree(x, z, can[1], can[2], null) : placeTree(x, z, lib || grand ? 'plane' : 'tree', lib ? 1.45 : 0.9, null)) { if (front) st.palms++; else st.plane++; }
+            if (front ? placeTree(x, z, pickF(['palm_fan_a', 'palm_fan_b', 'palm_fan_a', 'palm_date_a'])) : can ? placeTree(x, z, can[1] === 'plane' && /Ruggero Settimo/.test(nm) && hash3(x * 0.37, z * 0.59, 9.1) < 0.22 ? 'jacaranda' : can[1], can[2], null) : placeTree(x, z, lib || grand ? 'plane' : 'tree', lib ? 1.45 : 0.9, null)) { if (front) st.palms++; else st.plane++; }
           }
         }
       }
@@ -2494,7 +2495,7 @@ function* generate(S, BUD) {
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
   signal: 350, signal_arm: 380, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
-  shrub: 350, ficus: 1300, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
+  shrub: 350, ficus: 1300, holm_b: 1100, jacaranda: 1000, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
 let ZEBRA_MAT = null, PANEL_MAT = null;
