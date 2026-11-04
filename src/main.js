@@ -56,8 +56,8 @@ const QUARTIERI = [
   ['Bandita', 38.097383, 13.416877], ['Acqua dei Corsari', 38.091611, 13.430685], ['Pomara', 38.084645, 13.43419], ['Croce Verde', 38.069522, 13.417503],
   ['Monte Pellegrino', 38.1600, 13.3545], ['Parco della Favorita', 38.1620, 13.3330], ['Politeama / Libertà', 38.1315, 13.3520], // groupings for the start picker (no OSM place node of their own)
   // The towns around Palermo that have tiles (the bake box, docs/TILES.md). Each group sits on its start point below, a road vertex of the world tiles.
-  ['Isola delle Femmine', 38.1964148, 13.248103], ['Capaci', 38.1716084, 13.2397178], ['Torretta', 38.1271141, 13.2363153],
-  ['Monreale', 38.0821593, 13.2909174], ['Belmonte Mezzagno', 38.0481707, 13.3870288], ['Villabate', 38.0779382, 13.441592],
+  ['Isola delle Femmine', 38.1964148, 13.248103],
+  ['Monreale', 38.0821593, 13.2909174], ['Villabate', 38.0779382, 13.441592],
 ];
 
 const SPOTS = [
@@ -106,14 +106,10 @@ const SPOTS = [
 ];
 SPOTS.push(...POI_SPOTS); // points of interest from the pubs work (Piazza Magione), src/pub-places.js
 // One start in each town around Palermo, on a named drivable road of the world tiles (the street names are the tiles' own), after the points above so no earlier number moves.
-// Torretta is the exception to "the centre": its street grid lies west of the bake box (game x -11,058), where the map is sea, so its start is on the nearest street inside it.
 SPOTS.push(
   ['Bellolampo (Via Bellolampo)', 38.1365876, 13.2718908],
   ['Isola delle Femmine (Via Giuseppe Garibaldi)', 38.1964148, 13.248103],
-  ['Capaci (Corso Domenico Sommariva)', 38.1716084, 13.2397178],
-  ['Torretta (Via John Kennedy)', 38.1271141, 13.2363153],
   ['Monreale (Via Roma)', 38.0821593, 13.2909174],
-  ['Belmonte Mezzagno (Piazza Giuseppe Garibaldi)', 38.0481707, 13.3870288],
   ['Villabate (Corso Vittorio Emanuele)', 38.0779382, 13.441592],
 );
 
