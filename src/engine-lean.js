@@ -361,9 +361,9 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   const restore = () => { if (trueChildren.saved) { scene.children = trueChildren.saved; trueChildren.saved = null; } };
 
   // ---------- drawing only the runs in view ----------
-  // Between three's own call and GL: its render of a mesh with runs picked this frame becomes one multi-draw (or a few plain draws where the extension is missing), for the main view only.
+  // Between three's own call and GL: its render of a mesh with runs picked this frame becomes a few plain draws with no state change in between, for the main view only.
   if (on.parts) {
-    const gl0 = renderer.getContext(), md = gl0.getExtension('WEBGL_multi_draw'), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
+    const gl0 = renderer.getContext(), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
     let cur = null;
     renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
       const R = ob.userData.leanRuns;
@@ -374,11 +374,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     gl0.drawElements = function (mode, cnt, type, off) {
       if (!cur) return de(mode, cnt, type, off);
       const R = cur, b = type === gl0.UNSIGNED_INT ? 4 : type === gl0.UNSIGNED_SHORT ? 2 : 1; cur = null;
-      if (md && R.n > 1) {
-        const O = R.bytes || (R.bytes = new Int32Array(R.firsts.length));
-        for (let i = 0; i < R.n; i++) O[i] = R.firsts[i] * b;
-        md.multiDrawElementsWEBGL(mode, R.counts, 0, type, O, 0, R.n);
-      } else for (let i = 0; i < R.n; i++) de(mode, R.counts[i], type, R.firsts[i] * b);
+      for (let i = 0; i < R.n; i++) de(mode, R.counts[i], type, R.firsts[i] * b);   // plain draws: WEBGL_multi_draw lost the 16-bit meshes (the ground) on an older iPhone
     };
   }
 
