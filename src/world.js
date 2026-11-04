@@ -95,8 +95,8 @@ class SegGrid {
 
 // ---------- terrain colours (same palette as the old far mesh in main.js) ----------
 const C = {
-  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#b3a685'), grove: new THREE.Color('#a39a68'), scrub: new THREE.Color('#8d8458'),   // dry open ground: ochre, straw and khaki (board item n5); only the irrigated greens below stay green
-  rock: new THREE.Color('#c6c0b2'), rockLo: new THREE.Color('#aaa598'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#7a7a4a'),
+  sand: new THREE.Color('#cdbb92'), plain: new THREE.Color('#9d9770'), grove: new THREE.Color('#8f8c5e'), scrub: new THREE.Color('#8d8458'),   // dry open ground: khaki, straw and olive, duller and darker than the sand it was (board item n5, outskirts round); only the irrigated greens below stay green
+  rock: new THREE.Color('#c4b69e'), rockLo: new THREE.Color('#a69880'), shoulder: new THREE.Color('#8b8676'), cut: new THREE.Color('#8a7458'), urban: new THREE.Color('#9c968a'), garden: new THREE.Color('#76854c'), forest: new THREE.Color('#44603a'), green: new THREE.Color('#7a7a4a'),
   beach: new THREE.Color('#e4dbc2'), shore: new THREE.Color('#9d978a'), dry: new THREE.Color('#b5a26a'),
   farm: new THREE.Color('#b19b5d'), orchard: new THREE.Color('#78854c'), olive: new THREE.Color('#939a66'), cemetery: new THREE.Color('#98987a'), rail: new THREE.Color('#8c877c'),
   dirt: new THREE.Color('#a8967a'), pitch: new THREE.Color('#6d9b4f'), pave: new THREE.Color('#d9d2c2'), yard: new THREE.Color('#c4c0b4'),
@@ -108,8 +108,9 @@ const COVER = {
   rail: [C.rail, 0.8, 10], grass: [C.dry, 0.8, 11],
 };
 const _c = new THREE.Color(), _r = new THREE.Color(), HAZE = new THREE.Color('#7297b4');
-// h: ground height (m), slope: |gradient|, noise 0..1 (low frequency), n2 0..1 (a second, finer pattern)
-function terrainColor(out, h, slope, noise, n2 = 0.5) {
+// h: ground height (m), slope: |gradient|, noise 0..1 (low frequency), n2 0..1 (a second, finer pattern), road 0..1 (how close to a carriageway the ground is, roadField below: the bench a road is cut into
+// is a cut or a fill of earth and scrub, not limestone, wherever it is steep)
+function terrainColor(out, h, slope, noise, n2 = 0.5, road = 0) {
   if (h < 1.6) { out.copy(C.shore).lerp(C.sand, 0.25 * noise); return out; } // rocky or built-up shore; beaches are OSM sand polygons
   const hill = smooth(55, 130, h), steep = smooth(0.14, 0.4, slope);
   // lowland: dry grass, straw and ochre patches; hills: khaki scrub with dry tan clearings (nothing here is lawn green: that is the OSM and Comune green set)
@@ -117,13 +118,17 @@ function terrainColor(out, h, slope, noise, n2 = 0.5) {
   _r.copy(C.scrub).lerp(C.dry, n2 * 0.4).lerp(C.grove, noise * 0.2);
   out.lerp(_r, Math.max(hill, steep * 0.8));
   // limestone: grey-ochre, paler on the high ledges, with faint strata bands
-  const rock = smooth(0.38, 0.85, slope);
+  const rock = smooth(0.38, 0.85, slope) * (1 - 0.9 * road);
   if (rock > 0) {
     _r.copy(C.rockLo).lerp(C.rock, Math.min(1, 0.35 + noise * 0.5 + smooth(120, 420, h) * 0.3)).multiplyScalar(0.94 + 0.06 * Math.sin(h * 0.9));
     out.lerp(_r, rock);
   }
-  return out;
+  return road > 0 ? cutBank(out, road, steep, noise) : out;
 }
+function cutBank(out, road, steep, noise) { _r.copy(C.cut).lerp(C.scrub, 0.2 + noise * 0.5); return out.lerp(_r, road * steep * 0.85); }   // the bank of a cut or a fill beside a carriageway: earth and scrub
+// The ground away from the old city, graded: the orthophotos' summer colours (dirt, farmland, dry grass, bare scrub, boosted by the tile's own tint) read as pale ochre sand beside every outskirts road,
+// where Mapillary shows scrub, dry grass and a hard shoulder, darker and greener (k 0 in the old city, half in the built-up tiles, 1 well out in the open; beaches, pitches, paved plazas, the villa quarters of Mondello and the shore are left alone)
+function outskirtsGrade(c, k) { if (k > 0) { const l = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b; c.multiplyScalar(1 - 0.4 * k); c.r += (l * 0.86 - c.r) * 0.4 * k; c.g += (l * 1.04 - c.g) * 0.4 * k; c.b += (l * 0.76 - c.b) * 0.4 * k; } return c; }
 
 // Terrain detail texture, triplanar on steep faces: the world-space (x, z) UVs smear along the fall line on cliffs (Monte Pellegrino), so
 // once the slope passes ~45 degrees the detail is also projected on the x/y and z/y planes and blended in by the normal.
@@ -132,9 +137,9 @@ function terrainMaterial() {
   const k = (1 / GROUND_TEX.terrain.metres).toFixed(6);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.paveMap = { value: GROUND_TEX.balate }; sh.uniforms.yardMap = { value: GROUND_TEX.yard }; sh.uniforms.rkNoise = { value: ROCK_NOISE };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave; attribute float aYard; varying float vYard;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave; vYard = aYard;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0, dtL = 0.8; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave, vYard; uniform sampler2D paveMap, yardMap, rkNoise;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTpPos; varying vec3 vTpNrm; attribute float aPave; varying float vPave; attribute float aYard; varying float vYard; attribute float aRoad; varying float vRoad;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTpPos = position; vTpNrm = normal; vPave = aPave; vYard = aYard; vRoad = aRoad;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0, dtL = 0.8; varying vec3 vTpPos; varying vec3 vTpNrm; varying float vPave, vYard, vRoad; uniform sampler2D paveMap, yardMap, rkNoise;' + TILING_GLSL).replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D( map, vMapUv );
         { // the detail texture repeats every 48 m, which reads as a regular grid on a hillside: a second sample, rotated and 3.2 times larger, multiplies it (the two periods never meet),
@@ -161,10 +166,10 @@ function terrainMaterial() {
         diffuseColor *= sampledDiffuseColor;
       #endif`)
       .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP() + FACET_GLSL)
-      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vTpPos').replaceAll('HDT', 'dtL').replaceAll('HNY', 'abs( normalize( vTpNrm ).y )') + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
+      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vTpPos').replaceAll('HDT', 'dtL').replaceAll('HNY', 'abs( normalize( vTpNrm ).y )').replaceAll('HROAD', 'vRoad') + HAZE_GLSL.replaceAll('HZPOS', 'vTpPos'))   // after the vertex colours, so the haze is not tinted by them
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${TERRAIN_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, abs( normalize( vTpNrm ).y ) ) );`);   // t6: the same sky fill as the far terrain, so a shaded cliff is not a black wedge
   };
-  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-yard-hz-rk';
+  m.customProgramCacheKey = () => 'terrain-triplanar-fill-haze-nf-tile-pave-yard-hz-rk-road';
   return m;
 }
 
@@ -188,17 +193,26 @@ if ( rkY > 40.0 && rkS > 0.01 ) {
   vec3 rkT = vec3( texture2D( rkNoise, HPOS.xz / ( 41.0 * 64.0 ) ).r, texture2D( rkNoise, HPOS.xz / ( 11.0 * 64.0 ) + 0.37 ).g, texture2D( rkNoise, HPOS.xz / ( 67.0 * 64.0 ) + 0.71 ).b );
   float n1 = rkT.r, n2 = rkT.g;
   float rkR = smoothstep( 0.2, 0.42, rkS + 0.1 * ( n1 - 0.5 ) );
-  rkC = rkR * rkH; rkN = n2;
+  float rkRd = HROAD;   // 0 to 1: how close a carriageway is (roadField): the bank of a road bench is earth and scrub, not rock
+  rkC = rkR * rkH * ( 1.0 - 0.7 * rkRd ); rkN = n2;
   float band = fract( rkY / 26.0 + n1 * 2.3 + n2 * 0.5 ); rkB = band;   // ledges: each layer darkens towards its foot and is lit on its top edge
-  vec3 rock = mix( vec3( 0.22, 0.19, 0.16 ), vec3( 0.47, 0.41, 0.33 ), clamp( 0.45 + 0.4 * n2 + 0.15 * ( n1 - 0.5 ), 0.0, 1.0 ) ) * ( 1.0 + 0.5 * rkR * rkR * rkR * ( band - 0.5 ) * 0.6 );
+  // warm limestone, golden to pink-ochre in the photos of the north-west cliffs and the A29 (grey and cream before): dark brown in the hollows, buff on the faces, vertical water streaks, faint ledges
+  vec3 rock = mix( vec3( 0.20, 0.145, 0.105 ), vec3( 0.50, 0.375, 0.265 ), clamp( 0.45 + 0.4 * n2 + 0.15 * ( n1 - 0.5 ), 0.0, 1.0 ) ) * ( 1.0 + 0.5 * rkR * rkR * rkR * ( band - 0.5 ) * 0.22 );
+  rock *= 0.8 + 0.36 * smoothstep( 0.25, 0.75, texture2D( rkNoise, vec2( ( HPOS.x + HPOS.z ) / ( 6.0 * 64.0 ), HPOS.y / ( 70.0 * 64.0 ) + 0.13 ) ).g );
   vec3 scrub = mix( vec3( 0.11, 0.13, 0.07 ), vec3( 0.26, 0.25, 0.14 ), clamp( n1 * 0.8 + n2 * 0.4, 0.0, 1.0 ) );
-  rock = mix( rock, rock * vec3( 1.0, 0.88, 0.7 ), smoothstep( 0.45, 0.7, rkT.b ) * 0.6 );   // ochre patches
+  rock = mix( rock, rock * vec3( 1.1, 0.92, 0.7 ), smoothstep( 0.45, 0.7, rkT.b ) * 0.6 );   // ochre patches
+  rock = mix( rock, rock * vec3( 1.06, 0.86, 0.84 ), smoothstep( 0.4, 0.7, rkT.r ) * 0.45 );   // pink ones
   vec3 scree = vec3( 0.50, 0.45, 0.37 ) * ( 0.85 + 0.3 * n2 );
-  scrub = mix( scrub, scree, smoothstep( 0.55, 0.8, n2 + 0.4 * ( rkS - 0.15 ) ) * smoothstep( 0.1, 0.2, rkS ) );
+  scrub = mix( scrub, scree, smoothstep( 0.55, 0.8, n2 + 0.4 * ( rkS - 0.15 ) ) * smoothstep( 0.1, 0.2, rkS ) * ( 1.0 - rkRd ) );
+  if ( rkRd > 0.01 ) {   // the cut: brown earth with a fringe of grass and broom, over the same slope
+    vec3 cutE = mix( vec3( 0.12, 0.085, 0.052 ), vec3( 0.26, 0.19, 0.12 ), clamp( 0.45 + 0.7 * ( n2 - 0.5 ) + 0.4 * ( rkT.b - 0.5 ), 0.0, 1.0 ) );
+    cutE = mix( cutE, scrub * 1.5, smoothstep( 0.5, 0.75, n1 ) * 0.7 );
+    rock = mix( rock, cutE, rkRd * 0.92 ); scrub = mix( scrub, cutE, rkRd * 0.6 );
+  }
   diffuseColor.rgb = mix( diffuseColor.rgb, mix( scrub, rock, rkR ) * ( 0.25 + 0.75 * clamp( HDT / 0.8, 0.0, 1.4 ) ), rkW );   // HDT: the detail texture's brightness (the tile terrain), so rock keeps its flecks and streaks up close
   hzRk = 1.0 - 0.8 * rkW;
 }`;
-const FACET_GLSL = `\nnormal = normalize( mix( normal, normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) ), 0.6 * rkC ) );\nnormal = normalize( normal + rkC * rkC * vec3( 0.6 * ( rkN - 0.5 ), 0.7 * ( rkB - 0.5 ), 0.0 ) );`;
+const FACET_GLSL = `\nnormal = normalize( mix( normal, normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) ), 0.6 * rkC ) );\nnormal = normalize( normal + rkC * rkC * vec3( 0.6 * ( rkN - 0.5 ), 0.3 * ( rkB - 0.5 ), 0.0 ) );`;
 // a 64 x 64 random texture (one channel per scale, bilinear and mipmapped, so the detail fades out with distance instead of shimmering) for ROCK_GLSL: three noise lookups cost less than the hashes they replace
 const ROCK_NOISE = (() => { const d = new Uint8Array(64 * 64 * 4); let q = 12345; for (let i = 0; i < d.length; i++) { q = (q * 1664525 + 1013904223) >>> 0; d[i] = q >>> 24; } const t = new THREE.DataTexture(d, 64, 64, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t; })();
 const NORMAL_NOFLIP = () => THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0');
@@ -220,10 +234,10 @@ function farMaterial() {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFarNy = normal.y; vFarPos = position;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat hzFog = 1.0, hzRk = 1.0; varying float vFarNy; varying vec3 vFarPos; uniform sampler2D rkNoise;').replace('#include <fog_fragment>', FOG_HZ)
       .replace('#include <normal_fragment_begin>', NORMAL_NOFLIP() + FACET_GLSL)
-      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vFarPos').replaceAll('HDT', '0.8').replaceAll('HNY', 'vFarNy') + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
+      .replace('#include <color_fragment>', '#include <color_fragment>' + ROCK_GLSL.replaceAll('HPOS', 'vFarPos').replaceAll('HDT', '0.8').replaceAll('HNY', 'vFarNy').replaceAll('HROAD', '0.0') + HAZE_GLSL.replaceAll('HZPOS', 'vFarPos'))
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${FAR_FILL.toFixed(2)} * ( 1.0 - smoothstep( 0.25, 0.85, vFarNy ) );`);
   };
-  m.customProgramCacheKey = () => 'far-fill-haze-nf-hz-rk';
+  m.customProgramCacheKey = () => 'far-fill-haze-nf-hz-rk-road';
   return m;
 }
 function getLowMats() {
@@ -487,6 +501,48 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     return (a[q] * (1 - tx) + a[q + 1] * tx) * (1 - tz) + (a[q + f.n] * (1 - tx) + a[q + f.n + 1] * tx) * tz;
   };
 
+  // ---------- the ground beside a carriageway ----------
+  // A 5 m field over the tile and 30 m beyond it: the distance (m) to the nearest drivable road centre line (bridges and tunnels do not count; the neighbours' roads do, so a tile border shows no seam).
+  // terrainMesh paints the bank of a road bench as earth and scrub instead of limestone, and the first metres of flat ground beside the asphalt as a worn shoulder (photos of the outskirts: scrub,
+  // dry grass and a hard shoulder up to the kerb, where the terrain was pale ochre limestone all the way).
+  const RF_M = 30, RF_N = Math.round((T + 2 * RF_M) / PV_C) + 1;
+  function roadField(t) {
+    const x0 = t.i * T - RF_M, z0 = t.j * T - RF_M, n = RF_N, x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C, dist = new Float32Array(n * n).fill(1e4);
+    let any = 0;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
+      if (!d || !d.roads) continue;
+      for (const r of d.roads) {
+        if (r.tn || r.br || !DRIVABLE.has(r.k) || r.k === 'service' || !r.p) continue;
+        const p = r.p;
+        for (let q = 0; q + 3 < p.length; q += 2) {
+          const ax = p[q], az = p[q + 1], bx = p[q + 2], bz = p[q + 3];
+          if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
+          const k = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / (PV_C * 0.5)));
+          for (let u = 0; u <= k; u++) { const i = Math.round((ax + (bx - ax) * u / k - x0) / PV_C), j = Math.round((az + (bz - az) * u / k - z0) / PV_C); if (i >= 0 && j >= 0 && i < n && j < n) { dist[j * n + i] = 0; any++; } }
+        }
+      }
+    }
+    if (!any) return null;
+    const D2 = PV_C * Math.SQRT2;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {   // chamfer, as paveField
+      const q = j * n + i; let v = dist[q];
+      if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
+      dist[q] = v;
+    }
+    for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
+      const q = j * n + i; let v = dist[q];
+      if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
+      dist[q] = v;
+    }
+    return { x0, z0, n, dist };
+  }
+  const roadAt = (f, x, z) => {   // metres to the nearest road centre line (bilinear)
+    if (!f) return 1e4;
+    const fx = Math.min(f.n - 1.001, Math.max(0, (x - f.x0) / PV_C)), fz = Math.min(f.n - 1.001, Math.max(0, (z - f.z0) / PV_C)), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, q = j * f.n + i, a = f.dist;
+    return (a[q] * (1 - tx) + a[q + 1] * tx) * (1 - tz) + (a[q + f.n] * (1 - tx) + a[q + f.n + 1] * tx) * tz;
+  };
+
   // how crowded with walls the ground is within 45 m (0 to 1), asked for by the street layers that may turn a wide pavement into a yard (src/streets.js); the field is built on the first question
   const densOf = t => { let f = null; return (x, z) => { f = f || paveField(t) || { n: 0 }; return f.n ? paveAt(f, f.dens, x, z) : 0; }; };
 
@@ -495,7 +551,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), yar = new Float32Array(n * n), pvf = paveField(t);
+    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), yar = new Float32Array(n * n), rda = new Float32Array(n * n), pvf = paveField(t), rdf = roadField(t);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
@@ -512,14 +568,17 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         pos[k] = x; pos[k + 1] = y - 0.2; pos[k + 2] = z; nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(x * 0.013 + z * 0.009) + Math.sin(x * 0.0037 - z * 0.013)) * 0.25 + 0.5;
         const n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5, slope = Math.hypot(dx, dz);
-        terrainColor(_c, y, slope, noise, n2);
+        const road = rdf ? 1 - smooth(8, 26, roadAt(rdf, x, z)) : 0;
+        rda[j * n + i] = road;
+        terrainColor(_c, y, slope, noise, n2, road);
         if (urban > 0) _c.lerp(x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1 ? C.garden : C.urban, urban); // the villa quarters of Mondello read green from afar (src/gardens.js)
-        let covered = false;
+        let covered = false, coverK = '';
         if (tint) for (const a of tint) {
           if (x < a.x0 || x > a.x1 || z < a.z0 || z > a.z1 || !inPoly(a.pts, x, z)) continue;
           covered = true;
-          _c.lerp(a.col, a.s); // woods, scrub and lawns give way to bare limestone where the ground is steep
-          if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8); }
+          _c.lerp(a.col, a.s); // woods, scrub and lawns give way to bare limestone where the ground is steep (but not on a road bench: that is earth, see cutBank)
+          if (a.cover !== 'sand' && slope > 0.45) { _r.copy(C.rockLo).lerp(C.rock, noise); _c.lerp(_r, smooth(0.45, 0.9, slope) * 0.8 * (1 - 0.9 * road)); if (road > 0) cutBank(_c, road, smooth(0.14, 0.4, slope), noise); }
+          coverK = a.cover;
           break;
         }
         let zoned = false;
@@ -534,6 +593,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           if (w * (1 - sl) > 0.004) { yar[j * n + i] = w * (1 - sl); _c.lerp(C.yard, Math.min(1, w * (1 - sl) * 1.15)); }   // elsewhere: a yard (see histW)
         }
         if (gtT) { const m = gtT(x, z); _c.r *= m.r; _c.g *= m.g; _c.b *= m.b; }
+        if (y > 1.6 && coverK !== 'sand' && coverK !== 'pitch' && pav[j * n + i] < 0.3) {
+          if (rdf) _c.lerp(C.shoulder, (1 - smooth(4.5, 10, roadAt(rdf, x, z))) * (1 - smooth(0.1, 0.35, slope)) * 0.55);   // worn hard shoulder beside the asphalt, on flat ground only
+          outskirtsGrade(_c, (1 - histW(x, z)) * (x > GR.x0 && x < GR.x1 && z > GR.z0 && z < GR.z1 ? 0 : 1 - 0.5 * Math.min(1, urban / 0.8)));   // half as much in the built-up tiles (their yards and open lots were the same pale tan), none in the villa quarters of Mondello
+        }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
       }
@@ -547,8 +610,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const nb = n * n, total = nb + sk.length;
     const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
     P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
-    const PA = new Float32Array(total), YA = new Float32Array(total); PA.set(pav); YA.set(yar);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; YA[nb + q] = yar[v]; });
+    const PA = new Float32Array(total), YA = new Float32Array(total), RA = new Float32Array(total); PA.set(pav); YA.set(yar); RA.set(rda);
+    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; YA[nb + q] = yar[v]; RA[nb + q] = rda[v]; });
     const idx = [];
     for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
@@ -563,6 +626,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
     geo.setAttribute('aPave', new THREE.BufferAttribute(PA, 1));
     geo.setAttribute('aYard', new THREE.BufferAttribute(YA, 1));
+    geo.setAttribute('aRoad', new THREE.BufferAttribute(RA, 1));
     geo.setIndex(new THREE.BufferAttribute(total < 65536 ? new Uint16Array(idx) : new Uint32Array(idx), 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
     m.userData.tris = idx.length / 3;
@@ -867,33 +931,38 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.shape = { x0, z0, s, nx, nz, W, WH };
   }
 
-  // ---------- dirt tracks (highway=track, when the bake has them): a plain strip along the centreline ----------
-  // (lifted just above the park grass layer, streets.js green = CURB + 0.01 with polygon offset -5, or tracks in parks would be buried)
-  const TRACK_COL = new THREE.Color('#a48c66');
+  // ---------- dirt tracks (highway=track, when the bake has them): a narrow strip of packed earth along the centreline ----------
+  // (lifted just above the park grass layer, streets.js green = CURB + 0.01 with polygon offset -5, or tracks in parks would be buried). Textured with the verge's dust and grit (a flat #a48c66 band, as wide as a road,
+  // was the tan stripe beside 12 of the 45 south-east viewpoints), narrower than the mapped width, and left out where the street layers already cover the ground (the hard mask: asphalt, paving, pavements).
+  const TRACK_COL = new THREE.Color().setRGB(1.2, 0.95, 0.68);   // a tint over the verge texture (dusty grey-brown): packed earth, a little warmer than the verges
   let trackMat = null;
   function* buildTracks(t) {
     const roads = t.data.roads.filter(r => r.k === 'track'); if (!roads.length) return null;
-    const P = [], N = [], Cc = [], I = [];
+    const P = [], N = [], Cc = [], UV = [], I = [], M = GROUND_TEX.verge.metres;
     for (const r of roads) {
-      const p = pairs(r.p), hw = Math.max(r.w || 3.5, 2.5) / 2;
+      const p = pairs(r.p), hw = Math.max(r.w || 3.5, 2.2) * 0.34;
+      let prev = -1;   // index of the last pair of vertices of the current run (a run ends where a street layer covers the track)
       for (let i = 0; i < p.length; i++) {
         const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
         let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
-        const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw;
+        if (maskAt(p[i][0], p[i][1], 'hard') === true || maskAt(p[i][0] + tz * 2.5, p[i][1] - tx * 2.5, 'hard') === true || maskAt(p[i][0] - tz * 2.5, p[i][1] + tx * 2.5, 'hard') === true) { prev = -1; continue; }
+        const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw, v = P.length / 3;
         P.push(lx, groundY(lx, lz) + 0.17, lz, rx, groundY(rx, rz) + 0.17, rz); N.push(0, 1, 0, 0, 1, 0);
-        const k = 0.92 + 0.08 * Math.sin(i * 1.7); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
+        UV.push(lx / M, lz / M, rx / M, rz / M);
+        const k = 0.88 + 0.12 * Math.sin(i * 1.7 + p[i][0] * 0.05); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
+        if (prev >= 0) I.push(prev, prev + 1, v, prev + 1, v + 1, v);   // strip quads: vertices come in left/right pairs along each run (wound counter-clockwise seen from above)
+        prev = v;
       }
     }
-    // strip quads: vertices come in left/right pairs along each road (wound counter-clockwise seen from above)
-    let base = 0;
-    for (const r of roads) { const n = pairs(r.p).length; for (let i = 0; i < n - 1; i++) { const a = base + i * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } base += n * 2; }
+    if (!I.length) return null;
     yield;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2));
     geo.setIndex(new THREE.BufferAttribute(new Uint32Array(I), 1));
-    trackMat = trackMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
+    trackMat = trackMat || new THREE.MeshStandardMaterial({ map: GROUND_TEX.verge, vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
     const m = new THREE.Mesh(geo, trackMat); m.receiveShadow = true; m.name = 'tracks';
     const g = new THREE.Group(); g.add(m); g.userData.tris = I.length / 3;
     return g;

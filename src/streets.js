@@ -119,7 +119,7 @@ export const TEX = {
     const wrap = (fn) => { for (const dx of [0, -S]) for (const dy of [0, -S]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
     for (let i = 0; i < 70; i++) { // large soft blotches (patches of drier or greener ground)
       const x = rnd(0, S), y = rnd(0, S), rx = rnd(30, 110), ry = rnd(24, 80), a = rnd(0, 3), dark = Math.random() < 0.55;
-      g.fillStyle = dark ? `rgba(70,66,48,${rnd(0.05, 0.12)})` : `rgba(255,252,236,${rnd(0.08, 0.18)})`;
+      g.fillStyle = dark ? `rgba(70,66,48,${rnd(0.03, 0.08)})` : `rgba(255,252,236,${rnd(0.08, 0.18)})`;
       wrap(() => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, 7); g.fill(); });
     }
     for (let i = 0; i < 900; i++) { // scrub clumps: small dark olive blobs with a lighter tuft beside them

@@ -10,7 +10,7 @@
 //     wall grid, tagged with their panel (seg.fn). A car that meets one at breakSpeed or more (the sphere and classic collide() ask
 //     hooks.breakFence before pushing back) smashes it: the panel flies off as a spinning piece, the gap stays for the rest of the session (the
 //     `broken` set survives a tile being unloaded and loaded again). Slower, a fence is a wall.
-//   * street walls (kinds x worn plaster, s rough stone, q block, p hoarding, and w with a `rail` on top): the fences within 8 m of a carriageway are re-read by src/fence-walls.js and arrive
+//   * street walls (kinds x worn plaster, n lime wash, s rough stone, q block, p hoarding, and w or n with a `rail` on top): the fences within 8 m of a carriageway are re-read by src/fence-walls.js (and the mapped walls beside a street or a fast road finished by their surroundings) and arrive
 //     here as walls carrying `fence`; they sit on the same 2.5 m pieces on the same line, break at the speed the fence did and push the car back as it did. A rail on a low wall is a panel of
 //     the railing or mesh instanced mesh that goes with its piece. ?nostreetwalls draws the fences as mapped.
 // Everything is baked at full detail only (like the building walls); the draw cost is four calls per tile at most.
@@ -34,6 +34,7 @@ const KIND = {
   x: { th: 0.35, col: ['#e2dccd', '#d6cdb6', '#cfc8b8', '#dcd0b4', '#c9c3b4', '#e6ddc8', '#d3bfa0'] },        // worn plaster: patched, posters, tags
   s: { th: 0.5, col: ['#bcb39d', '#c8bea5', '#aca38d', '#d0c7ae', '#b6a98d'] },                    // rough stone (the rubble layer, at any height)
   q: { th: 0.22, col: ['#cbc8bd', '#bfbcb2', '#d2cfc4', '#b7b4aa'] },                              // precast concrete or bare block (the concrete layer)
+  n: { th: 0.3, col: ['#ece6d6', '#e4dac0', '#e8d9c4', '#dcc9a8', '#e6d3cb', '#d8d4c4', '#e9dfa8'] },        // lime wash, plain: village, garden and parapet walls (no fallen patch)
   p: { th: 0.1, col: ['#8a9a86', '#b8b2a0', '#7f8c9a', '#a8654b', '#93928b', '#c9c1a8'] },       // hoarding: faded green, cream, blue-grey, rust, grey, beige
 };
 const LAYER_OF = { s: LAYER.r, q: LAYER.j };   // kinds that borrow a texture layer
@@ -269,9 +270,9 @@ const OFF = typeof location !== 'undefined' && new URLSearchParams(location.sear
 const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
 export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
   if (!wallGrid || OFF) return null;
-  if (ctx && !NOROAD && list && list.length) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas);
+  const rails = ctx ? expresswayRails(ctx, list) : [];   // the guard rails of the fast roads, by rule (src/expressway.js); asked first, so a mapped wall beside a fast road knows whether a rail already stands there
+  if (ctx && !NOROAD && list && list.length) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas, rails);
   yield;
-  const rails = ctx ? expresswayRails(ctx, list) : [];   // the guard rails of the fast roads, by rule (src/expressway.js)
   if (rails.length) list = (list || []).concat(rails);
   yield;
   const signs = ctx ? buildSigns(ctx) : null;   // direction signs and gantries of the motorways (src/direction-signs.js)
@@ -314,7 +315,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
     });
     for (let i = 0; i + 1 < V.length; i++) {
       const a = V[i], b = V[i + 1], wid = key + ':w' + li + ':' + i, hgt = r.k === 'r' ? Math.max(a.y1 - a.y0, b.y1 - b.y0) : r.h;
-      const thr = r.fence ? BREAK_SPEED : breakSpeed(r.k, hgt, Math.max(a.drop, b.drop)), breakable = thr > 0;   // see breakSpeed: a wall that holds up ground, a city wall stay solid
+      const thr = r.fence ? BREAK_SPEED : breakSpeed(r.bk || r.k, hgt, Math.max(a.drop, b.drop)), breakable = thr > 0;   // see breakSpeed: a wall that holds up ground, a city wall stay solid
       if (breakable && broken.has(wid)) continue;   // smashed earlier in the session: the gap stays
       const vStart = wall.p.length / 3, E = [a, b];
       const L = [[a.x + a.nx * hw, a.z + a.nz * hw], [b.x + b.nx * hw, b.z + b.nz * hw]], R = [[a.x - a.nx * hw, a.z - a.nz * hw], [b.x - b.nx * hw, b.z - b.nz * hw]];
