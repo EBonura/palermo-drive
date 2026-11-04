@@ -248,7 +248,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') placeAt(car.x, car.z);
   if (e.code === 'Slash' || e.code === 'F1') { dispatchEvent(new Event('pd-controls')); e.preventDefault(); }   // the Controls screen of the menu (src/ui.js)
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= SPOTS.length) { const [x, z] = proj(SPOTS[n - 1][1], SPOTS[n - 1][2]); placeAt(x, z); world?.teleport(x, z, () => placeAt(x, z)); }
+  if (n >= 1 && n <= SPOTS.length) { dispatchEvent(new Event('pd-drunk-reset')); const [x, z] = proj(SPOTS[n - 1][1], SPOTS[n - 1][2]); placeAt(x, z); world?.teleport(x, z, () => placeAt(x, z)); }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });

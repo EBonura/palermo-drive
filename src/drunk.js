@@ -175,6 +175,7 @@ export function createDrunk({ game, car, camera, missions }) {
   }
 
   function reset() { units = 0; shown = 0; count = 0; cool = 0; still = 0; noted = ''; visible = false; spot = null; for (const k in perks) delete perks[k]; dispatchEvent(new Event('pd-sober')); }
+  addEventListener('pd-drunk-reset', reset);   // a teleport from the map or a jump to a start, and the way back to the menu: the drink stays behind (src/ui.js, src/main.js)
   addEventListener('pd-woke-sober', () => { units = 0; shown = 0; count = 0; });   // passed out: the wake-up is sober (src/vehicle-events.js)
 
   // ------------------------------------------------------------------ per frame
