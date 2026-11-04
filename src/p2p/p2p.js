@@ -30,6 +30,8 @@ import { createPanel } from './panel.js';
 import { zone } from '../hud.js';
 import { RELAYS, PRESENCE_RELAYS } from './relays.js';
 import { createPresence } from './presence.js';
+import { createChooser, MAX_LISTED } from './rooms.js';
+import { createGuard } from './guard.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
@@ -51,9 +53,6 @@ const SEND_NEAR = 100, SEND_MID = 200, SEND_FAR = 1000, SEND_AFAR = 2500; // sta
 // all of its members). Chosen from the phone-profile measurements in docs/P2P-MULTIPLAYER.md (section "The closest players"). ?maxp=N overrides it for the tests.
 const MAX_PLAYERS = 8;
 const DRAW_R = 400, DRAW_OUT = 480;   // metres: a player farther than this is a dot with a name on the maps, not a car (fades in again inside DRAW_R)
-const KEEP_M = 150;                   // a room already joined counts this much closer than it is, so two rooms at about the same distance do not swap places all the time
-const SETTLE_MS = 8000;               // a room is not left by the selection until it has been joined this long (the presence of the others lags a few seconds)
-const DECOY_MS = 25000, BAN_MS = 120000;   // a room that presence says is occupied but where nobody has turned up after DECOY_MS is left alone for BAN_MS
 const SHARED_IDLE_MS = 15000;         // Trystero keeps the connection to a player for this long after the last room you shared closes (its default is 2 minutes): long enough for a room swap, short enough that a player we dropped is not connected for minutes. The option's name says test only; it is read in the vendored 0.26.0 and costs nothing if a later version ignores it
 const PRESENCE_WAIT_MS = 3000;        // the first room waits this long for the list of who is online (then goes without it)
 const PRESENCE_IDLE_MS = 60000;       // a paused or hidden game stops publishing and reading presence after this long
@@ -97,7 +96,7 @@ export function createP2P(env) {
   const rm = createRemotes(env);
   const rooms = new Map();   // key -> { key, i, j, room, state, info, peers: Set, t0, tFirstPeer, joined }
   const peers = new Map();   // peerId -> { id, rooms: Set(roomKey), name, livery, seq, lastRx, x, z, nextTx, goneAt, tokens, tokT, rx }
-  const stats = { txMsgs: 0, txBytes: 0, rxMsgs: 0, rxBytes: 0, rxDropped: 0, rxDup: 0, rxBad: 0, joins: 0, leaves: 0 };
+  const stats = { txMsgs: 0, txBytes: 0, rxMsgs: 0, rxBytes: 0, rxDropped: 0, rxDup: 0, rxBad: 0, joins: 0, leaves: 0, relayTx: 0, limits: 0, halts: 0 };
   let lastChecked = -1e9, lastInfoKey = '', started = false;
 
   // ---------- HUD (debug) ----------
@@ -108,21 +107,25 @@ export function createP2P(env) {
   // the Garage draws its own screen and the main loop skips the frame (so update() below does not run): the buttons are hidden by a rule that follows the page, not by a frame
   const css = document.createElement('style'); css.textContent = 'html.pd-in-garage .pd-p2p{display:none!important}@keyframes pd-p2p-bar{from{width:100%}to{width:0}}.pd-p2p-bar{animation:pd-p2p-bar ' + OFFER_TTL_MS + 'ms linear forwards}'; document.head.appendChild(css);
 
+  // ---------- the limit on what the relays are asked for ----------
+  // src/p2p/guard.js: room joins, presence events and every frame on a relay socket a minute. Past the last of these something is badly wrong and the page stops altogether for a while (halt, below) rather than go on.
+  // The frames are counted where they leave, in WebSocket.send, so Trystero's and presence's are counted alike and a socket Trystero has just reopened is covered from its first frame. Other sockets (src/net.js) pass straight through.
+  let halted = false;
+  const guard = createGuard({ clock: () => performance.now(), onHit: (what, ms) => { stats.limits++; ev('limit', { what, ms }); if (what === 'frames') setTimeout(halt, 0); } });   // (later: this can be inside a Trystero call)
+  const relayAddrs = new Set((relayUrls.length ? relayUrls : [...RELAYS, ...PRESENCE_RELAYS]).map(u => new URL(u).href));
+  const wsSend = WebSocket.prototype.send;
+  WebSocket.prototype.send = function (m) { if (relayAddrs.has(this.url)) { if (!guard.allow('frames')) return; stats.relayTx++; } wsSend.call(this, m); };
+
   // ---------- rooms ----------
-  // Who to hold. The limit is a number of players, not a distance: MAXP other players at most, the closest ones, wherever they are in the city.
-  // The list of who is online and in which rooms comes from src/p2p/presence.js (plain Nostr events, no WebRTC). Rooms are taken from the closest outward until their
-  // members add up to MAXP (a room is all or nothing: Trystero connects you to everyone in it), and a room already joined counts KEEP_M closer than it is, so a new one has to
-  // be clearly closer to push it out. A cell can hold a crowd, so a cell is cut into shards (rooms "cell", "cell:1", "cell:2"...): the lowest shard with fewer than MAXP others is
-  // the one a player takes as their home room, so no room ever has more than MAXP + 1 members. When several players take the same shard at the same moment and it overfills,
-  // the members sort themselves by id, the first MAXP + 1 stay and the rest move to the next shard, with no talking needed. Without presence (another strategy, ?presence=off,
+  // Who to hold, and why this settles: src/p2p/rooms.js. The list of who is online and in which rooms comes from src/p2p/presence.js (plain Nostr events, no WebRTC). Without presence (another strategy, ?presence=off,
   // or no relay answered) the old rule applies: the rooms within MARGIN metres of the car, shard 0.
   const MAXP = Math.round(num('maxp', MAX_PLAYERS, 1, 40)), IDLE_MS = num('idlems', PRESENCE_IDLE_MS, 1000, 600000);   // ?idlems=N: for the tests
   const presenceOn = kind === 'nostr' && params.get('presence') !== 'off' && !grid3;
-  const presence = createPresence({ topic: `${APP_ID}:presence${CELL === 500 ? '' : ':c' + CELL}${ns ? ':' + ns : ''}`, urls: relayUrls.length ? relayUrls.slice(0, 3) : PRESENCE_RELAYS, onChange: () => { lastChecked = -1e9; } });
+  const presence = createPresence({ topic: `${APP_ID}:presence${CELL === 500 ? '' : ':c' + CELL}${ns ? ':' + ns : ''}`, urls: relayUrls.length ? relayUrls.slice(0, 3) : PRESENCE_RELAYS, onChange: () => { lastChecked = -1e9; }, allow: () => guard.allow('presence') });
   const key = (i, j, s = 0) => `${ns}:${CELL}:${i}:${j}` + (s ? ':' + s : '');
   const rectDist = (x, z, i, j) => Math.hypot(Math.max(i * CELL - x, 0, x - (i + 1) * CELL), Math.max(j * CELL - z, 0, z - (j + 1) * CELL));
-  let home = null, overSince = 0, lastListed = '';
-  const banned = new Map();   // room key -> until: rooms that turned out empty or overfull
+  const chooser = createChooser({ maxp: MAXP, cell: CELL, hyst: HYST, key, selfId });
+  let lastListed = '';
   function evaluate(now) {
     const x = car.x, z = car.z, ci = Math.floor(x / CELL), cj = Math.floor(z / CELL);
     if (presenceOn) {
@@ -130,51 +133,19 @@ export function createP2P(env) {
       if (!presence.ready && now - presence.startedAt < PRESENCE_WAIT_MS) return;
     }
     if (!presenceOn || !presence.ready) { legacy(x, z, ci, cj, now); return; }
-    // who is where, by room: the others that list the room
-    const gs = new Map();
-    for (const e of presence.list()) for (const [i, j, s] of e.rooms) { const k = key(i, j, s); let g = gs.get(k); if (!g) gs.set(k, g = { key: k, i, j, s, who: new Set(), anon: 0 }); g.who.add(e.id); }
-    for (const r of rooms.values()) { let g = gs.get(r.key); if (!g) gs.set(r.key, g = { key: r.key, i: r.i, j: r.j, s: r.s, who: new Set(), anon: 0 }); g.anon = Math.max(0, r.peers.size - g.who.size); }   // connected to more than presence lists (a player with no presence): they count too
-    const occ = k => { const g = gs.get(k); return g ? g.who.size + g.anon : 0; };
-    const ok = k => (banned.get(k) || 0) <= now;
-    if (!home || home.i !== ci || home.j !== cj || !ok(home.key)) {
-      let s = 0; for (; s < 60; s++) { const k = key(ci, cj, s); if (ok(k) && (rooms.has(k) || occ(k) < MAXP)) break; }
-      home = { i: ci, j: cj, s, key: key(ci, cj, s) };
-    }
-    // the players held are counted once each, however many of the chosen rooms they are in (two players who each visit the other's room are one connection, not two:
-    // counting them twice makes both give up the visit, and then neither is held)
-    const want = new Map([[home.key, home]]), held = new Set(gs.get(home.key) ? gs.get(home.key).who : []);
-    let anon = gs.get(home.key) ? gs.get(home.key).anon : 0;
-    const cand = [...gs.values()].filter(g => g.key !== home.key && g.who.size + g.anon > 0 && ok(g.key)).map(g => [rectDist(x, z, g.i, g.j) - (rooms.has(g.key) ? KEEP_M : 0), g]).sort((a, b) => a[0] - b[0] || (a[1].key < b[1].key ? -1 : 1));
-    for (const [, g] of cand) {
-      let fresh = g.anon; for (const w of g.who) if (!held.has(w)) fresh++;
-      if (held.size + anon + fresh <= MAXP) { want.set(g.key, g); for (const w of g.who) held.add(w); anon += g.anon; }
-    }
-    const homeKey = home.key;
-    for (const r of [...rooms.values()]) {
-      const settled = now - r.t0 > SETTLE_MS;
-      if (!want.has(r.key) && settled) { leaveCell(r); continue; }
-      if (r.key !== homeKey && now - r.t0 > DECOY_MS && !r.peers.size && occ(r.key) > 0) { banned.set(r.key, now + BAN_MS); ev('decoy', { room: r.key }); leaveCell(r); continue; }   // somebody said they were there, nobody is
-      if (r.peers.size > MAXP && now - r.t0 > 6000 && [selfId, ...r.peers].sort().indexOf(selfId) > MAXP) {   // overfull, and we are not among the first MAXP + 1 ids
-        banned.set(r.key, now + BAN_MS); ev('overfull', { room: r.key, members: r.peers.size + 1 }); leaveCell(r);
-        if (r.key === homeKey) home = null;
-      }
-    }
-    if (home) for (const [k, g] of want) if (!rooms.has(k) && ok(k)) joinCell(k, g.i, g.j, g.s);   // (a room just banned above is not rejoined in the same pass)
-    // the other cap: whatever the rooms add up to, more than MAXP + 2 players connected for ten seconds means the farthest settled room goes
-    const linked = [...peers.values()].filter(p => p.rooms.size).length;
-    if (linked > MAXP + 2) { if (!overSince) overSince = now; } else overSince = 0;
-    if (overSince && now - overSince > 10000) {
-      const far = [...rooms.values()].filter(r => (!home || r.key !== home.key) && now - r.t0 > SETTLE_MS).sort((a, b) => rectDist(x, z, b.i, b.j) - rectDist(x, z, a.i, a.j))[0];
-      if (far) { ev('overcap', { room: far.key, linked }); leaveCell(far); overSince = now; }
-    }
+    const o = chooser.step(now, x, z, presence.list(), rooms, peers);
+    for (const { r, why } of o.leave) { ev(why, { room: r.key, members: r.peers.size + 1, linked: linkedCount() }); leaveCell(r); }
+    for (const q of o.join) joinCell(q.key, q.i, q.j, q.s);
     // tell the others which rooms we are in (home first)
+    const home = chooser.home;
     if (home && rooms.has(home.key)) {
-      const list = [[home.i, home.j, home.s], ...[...rooms.values()].filter(r => r.key !== home.key).sort((a, b) => (a.key < b.key ? -1 : 1)).map(r => [r.i, r.j, r.s])], txt = list.join(';');
+      const list = [[home.i, home.j, home.s], ...[...rooms.values()].filter(r => r.key !== home.key).sort((a, b) => (a.key < b.key ? -1 : 1)).map(r => [r.i, r.j, r.s])].slice(0, MAX_LISTED), txt = list.join(';');
       if (txt !== lastListed) { lastListed = txt; presence.publish(list); }
     }
   }
+  const linkedCount = () => { let n = 0; for (const p of peers.values()) if (p.rooms.size) n++; return n; };
   function legacy(x, z, ci, cj, now) {
-    home = null;
+    chooser.reset();
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {   // MARGIN < CELL: no cell farther than the ring around ours is in reach
       const i = ci + di, j = cj + dj, k = key(i, j);
       if (grid3 || rectDist(x, z, i, j) <= MARGIN) { if (!rooms.has(k)) joinCell(k, i, j, 0); }
@@ -185,6 +156,7 @@ export function createP2P(env) {
     }
   }
   function joinCell(k, i, j, sh) {
+    if (!guard.allow('joins')) return;   // over the limit: the choice is made again in half a second, and costs nothing until the limit lets it through
     const r = { key: k, i, j, s: sh || 0, room: null, state: null, info: null, peers: new Set(), t0: performance.now(), tFirstPeer: 0, joined: false };
     rooms.set(k, r); stats.joins++;
     try {
@@ -201,6 +173,7 @@ export function createP2P(env) {
       const t = performance.now(); if (first) { r.tFirstPeer = t; }
       ev('peerJoin', { room: k, peer: id.slice(0, 4), ms: Math.round(t - r.t0) });
       let p = peers.get(id); if (!p) { p = newPeer(id); peers.set(id, p); }
+      if (!p.rooms.size) p.since = t;
       p.rooms.add(k); p.goneAt = 0;
       sendInfoTo(r, id); sendStateTo([id], performance.now(), true);
     };
@@ -219,7 +192,7 @@ export function createP2P(env) {
     if (why) ev(why, { room: r.key, peer: id.slice(0, 4) });
     if (!p.rooms.size) p.goneAt = performance.now();
   }
-  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
+  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, since: performance.now(), x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
 
   // ---------- outgoing ----------
   const route = p => { let best = null; for (const k of p.rooms) if (rooms.has(k) && (best === null || k < best)) best = k; return best; };
@@ -639,7 +612,7 @@ export function createP2P(env) {
   document.documentElement.classList.add('pd-mp');
 
   function goOffline() {
-    panel.clear(); wheel.close(); presence.stop(true); home = null; lastListed = ''; banned.clear();   // no list of who is online, no more events
+    panel.clear(); wheel.close(); presence.stop(true); chooser.reset(); chooser.clear(); lastListed = '';   // no list of who is online, no more events
     for (const r of [...rooms.values()]) leaveCell(r);
     for (const p of peers.values()) if (p.shown) rm.remove(p.id);
     peers.clear(); myOffer = null; incoming = null; closeCard(); note(null);   // an offer in the air is over with the player it was for
@@ -650,15 +623,22 @@ export function createP2P(env) {
   let quiet = false, quietT = 0;
   const shutSockets = () => { for (const w of Object.values(strat.sockets() || {})) if (w && w.readyState < 2) { try { w.close(); } catch (e) { /* already closing */ } } };
   function goQuiet() { quiet = true; pauseRelayReconnection(); shutSockets(); }
-  function goLoud() { if (!quiet) return; quiet = false; resumeRelayReconnection(); }
+  function goLoud() { if (!quiet) return; quiet = false; if (!halted) resumeRelayReconnection(); }
+  // Over the limit on relay frames: the page stops. Everything is left at once, and what would be said on the way out is not sent (the sockets are shut, which tells a relay the same thing). update() starts it all again when the guard says so, longer each time it happens.
+  function halt() {
+    if (halted) return; halted = true; stats.halts++; ev('halt', { until: Math.round(guard.until('frames')) });
+    presence.stop(false); chooser.reset(); lastListed = '';
+    for (const r of [...rooms.values()]) leaveCell(r);
+    pauseRelayReconnection(); shutSockets();
+  }
   // a page in the background has no frames, so update() below does not run there: its own timer ends presence after PRESENCE_IDLE_MS hidden (it starts again on the first frame back)
   let hiddenTimer = null;
   document.addEventListener('visibilitychange', () => {
     clearTimeout(hiddenTimer); hiddenTimer = null;
-    if (document.hidden && presenceOn) hiddenTimer = setTimeout(() => { if (presence.running) { presence.stop(true); home = null; lastListed = ''; } }, IDLE_MS);
+    if (document.hidden && presenceOn) hiddenTimer = setTimeout(() => { if (presence.running) { presence.stop(true); chooser.reset(); lastListed = ''; } }, IDLE_MS);
   });
   addEventListener('offline', () => pauseRelayReconnection());
-  addEventListener('online', () => { if (!quiet) resumeRelayReconnection(); });
+  addEventListener('online', () => { if (!quiet && !halted) resumeRelayReconnection(); });
 
   // ---------- the cap on players, whatever the rooms hold ----------
   // The rooms are chosen so that the players in them add up to MAXP, but presence lags, and a room can hold more by the time we are in it. So the players actually
@@ -697,13 +677,14 @@ export function createP2P(env) {
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
     offerClocks(now, playing); if (playing) arrivals(now);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
-    if (quiet && now - quietT > 2000) { quietT = now; shutSockets(); }   // a relay that was already waiting to retry opens once more: shut it again
+    if ((quiet || halted) && now - quietT > 2000) { quietT = now; shutSockets(); }   // a relay that was already waiting to retry opens once more: shut it again
+    if (halted && !guard.blocked('frames')) { halted = false; if (!quiet) resumeRelayReconnection(); }
     if (!named || !agreed) { rm.update(dt, now); return; }
     if (presenceOn) {   // publishing and reading who is online: only while the game is being played and looked at (a phone in the background sends nothing)
-      if (playing && !document.hidden) { idleSince = 0; if (!presence.running && !quiet) presence.start(); }
-      else { if (!idleSince) idleSince = now; if (presence.running && now - idleSince > IDLE_MS) { presence.stop(true); home = null; lastListed = ''; } }
+      if (playing && !document.hidden) { idleSince = 0; if (!presence.running && !quiet && !halted) presence.start(); }
+      else { if (!idleSince) idleSince = now; if (presence.running && now - idleSince > IDLE_MS) { presence.stop(true); chooser.reset(); lastListed = ''; } }
     }
-    if (now - lastChecked > CHECK_MS) { lastChecked = now; evaluate(now); rank(now); }
+    if (now - lastChecked > CHECK_MS) { lastChecked = now; if (!halted) evaluate(now); rank(now); }
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
       sendAcc = 0;
@@ -727,7 +708,7 @@ export function createP2P(env) {
     if (testing && now - hudT > 500) {
       hudT = now;
       if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
-      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}`;
+      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}`;
     }
   }
 
@@ -748,7 +729,7 @@ export function createP2P(env) {
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
       peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),
-      presence, MAXP, home: () => home && { ...home }, banned,
+      presence, MAXP, home: () => chooser.home && { ...chooser.home }, banned: chooser.banned, guard, halted: () => halted,
       rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
       resetOffers(keepMute) { lastOfferAt = -1e9; for (const p of peers.values()) { p.lastOffer = 0; if (!keepMute) p.mutedUntil = 0; } },

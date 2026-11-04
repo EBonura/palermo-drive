@@ -18,10 +18,10 @@ const RX_EVENTS_PER_S = 1.6;        // heartbeats per second a player is willing
 const EXP_FACTOR = 2.5;             // an entry is believed this many beats after it was sent
 const MAX_ENTRIES = 400, MAX_EXP_S = 1500, MAX_ROOMS = 6, MAX_CELL = 1000, MAX_SHARD = 99;
 const SINCE_S = 600, LIMIT = 300;   // what a new reader asks the relay for
-const RETRY_MIN_MS = 4000, RETRY_MAX_MS = 60000, LIMITED_MS = 60000;
+const RETRY_MIN_MS = 4000, RETRY_MAX_MS = 60000, LIMITED_MS = 60000, STABLE_MS = 30000;   // a socket has to stay open STABLE_MS before the retry time starts again from the minimum: a relay that takes a connection and drops it is not retried every 4 s for ever
 const hex = u => { let s = ''; for (const b of u) s += b.toString(16).padStart(2, '0'); return s; };
 
-export function createPresence({ topic, urls, onChange }) {
+export function createPresence({ topic, urls, onChange, allow = () => true }) {   // allow: the limit on events a minute (src/p2p/guard.js)
   const relays = [], entries = new Map();   // entries: author -> { rooms: [[i, j, s]...], created, until }
   const stats = { txEvents: 0, txBytes: 0, rxEvents: 0, rxBytes: 0, refused: 0, limited: 0, notices: 0, bye: 0 };
   const refusals = [];   // what relays said when they said no (first few), for the measurements
@@ -41,7 +41,10 @@ export function createPresence({ topic, urls, onChange }) {
     if (!keys) return;
     const k = keys, msg = await sign(k, content, Math.round(beatMs() * EXP_FACTOR / 1000));
     if (!running && content !== '' || keys !== k) return;
-    for (const r of relays) if (r.ws && r.ws.readyState === 1 && now() > r.limitedUntil) { try { r.ws.send(msg); stats.txEvents++; stats.txBytes += msg.length; } catch (e) { /* closing */ } }
+    for (const r of relays) if (r.ws && r.ws.readyState === 1 && now() > r.limitedUntil) {
+      if (!allow()) { lastSent = ''; return; }   // over the limit: nothing goes out, and the next beat says it again
+      try { r.ws.send(msg); stats.txEvents++; stats.txBytes += msg.length; } catch (e) { /* closing */ }
+    }
   }
   function publishNow() {
     clearTimeout(timer); timer = null; clearTimeout(beatTimer); beatTimer = setTimeout(publishNow, beatMs());
@@ -93,7 +96,7 @@ export function createPresence({ topic, urls, onChange }) {
     let ws; try { ws = new WebSocket(r.url); } catch (e) { retry(r); return; }
     r.ws = ws; const sub = 'pd' + Math.random().toString(36).slice(2, 8);
     ws.onopen = () => {
-      r.backoff = RETRY_MIN_MS;
+      r.openedAt = now();
       ws.send(JSON.stringify(['REQ', sub, { kinds: [KIND], '#t': [topic], since: Math.floor(Date.now() / 1000) - SINCE_S, limit: LIMIT }]));
       if (current) { lastSent = ''; publishNow(); }
     };
@@ -108,7 +111,7 @@ export function createPresence({ topic, urls, onChange }) {
         else if (/^(blocked|restricted|auth-required|pow|invalid)/.test(why)) { r.dead = true; try { ws.close(); } catch (e) { /* gone */ } }   // this relay does not want this kind: leave it alone
       } else if (d[0] === 'NOTICE' || d[0] === 'CLOSED') { stats.notices++; if (/rate/i.test(String(d[d.length - 1]))) r.limitedUntil = now() + LIMITED_MS; }
     };
-    ws.onclose = () => { if (r.ws === ws) { r.ws = null; retry(r); } };
+    ws.onclose = () => { if (r.ws === ws) { r.ws = null; if (r.openedAt && now() - r.openedAt > STABLE_MS) r.backoff = RETRY_MIN_MS; r.openedAt = 0; retry(r); } };
     ws.onerror = () => { try { ws.close(); } catch (e) { /* gone */ } };
   }
   function retry(r) {
@@ -120,7 +123,7 @@ export function createPresence({ topic, urls, onChange }) {
     if (running) return; running = true; ready = false; startedAt = now(); entries.clear(); seen.clear();
     keys = schnorr.keygen();   // a new key at every start: nobody can follow a player from one session to the next
     const pick = urls.slice().sort(() => Math.random() - 0.5).slice(0, 2);
-    for (const url of pick) { const r = { url, ws: null, backoff: RETRY_MIN_MS, retry: null, dead: false, limitedUntil: 0 }; relays.push(r); connect(r); }
+    for (const url of pick) { const r = { url, ws: null, backoff: RETRY_MIN_MS, retry: null, dead: false, limitedUntil: 0, openedAt: 0 }; relays.push(r); connect(r); }
     clearTimeout(beatTimer); beatTimer = setTimeout(publishNow, beatMs());
   }
   // stop: say goodbye (an empty event replaces ours) when asked, then close every socket and forget everybody
