@@ -103,7 +103,7 @@ export function createGags(env, T, police) {
     const cands = [];
     for (const v of vs) {
       if (!CARS.has(v.name) || v.fly || v.cop || v.hold2 || v.dp || v.stopT > 0 || v.v < 2.5 || v.hide) continue;
-      const e = v.route[0]; if (!e || e.ped || e.w < 7 || e.rank < 3 || e.len < 40 || v.t < 10 || e.len - v.t < 24) continue;
+      const e = v.route[0]; if (!e || e.ped || e.fr || e.w < 7 || e.rank < 3 || e.len < 40 || v.t < 10 || e.len - v.t < 24) continue;
       const d = hyp(v.x - camera.position.x, v.z - camera.position.z); if (d < dmin || d > 110) continue;
       let close = false; for (const s of dps) if (hyp(s.a.x - v.x, s.a.z - v.z) < 70) close = true;
       if (!close) cands.push(v);

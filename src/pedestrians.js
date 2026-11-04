@@ -26,6 +26,7 @@
 import { FLEW, placeLine } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
+import { fastAt } from './road-class.js';
 import { pitchCentre } from './stadium-ground.js';
 import { inYard } from './discarica-ground.js';
 import { VARIANTS as ALL_VARIANTS, CELL_W as CELL_W0, CELL_H as CELL_H0, GROUND as GROUND0, POSES, CELLS_PER_ENTRY, POSE_SIT, POSE_SIT_SIP } from '../assets/peds/sprites.js';
@@ -135,7 +136,7 @@ export function createPedestrians(env) {
       else if (WALKWAY.has(r.k)) line(1, r.p, Math.max(r.w || 2, 2));
       if (r.k === 'pier' || WALKWAY.has(r.k) || r.k === 'track') continue;
       for (let i = 0; i + 3 < r.p.length; i += 2) {
-        const s = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w || 6];
+        const s = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w || 6, r];
         for (let ix = Math.floor(Math.min(s[0], s[2]) / RG); ix <= Math.floor(Math.max(s[0], s[2]) / RG); ix++)
           for (let iz = Math.floor(Math.min(s[1], s[3]) / RG); iz <= Math.floor(Math.max(s[1], s[3]) / RG); iz++) { const k = rgk(ix, iz); let a = roadSegs.get(k); if (!a) roadSegs.set(k, a = []); a.push(s); }
       }
@@ -149,10 +150,10 @@ export function createPedestrians(env) {
         for (const s of a) {
           const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz; if (!l2) continue;
           const u = clamp(((it.x - s[0]) * dx + (it.z - s[1]) * dz) / l2, 0, 1), dd = hyp2(it.x - s[0] - dx * u, it.z - s[1] - dz * u);
-          if (dd < bd) { bd = dd; best = [s[0] + dx * u, s[1] + dz * u, dx, dz, s[4]]; }
+          if (dd < bd) { bd = dd; best = [s[0] + dx * u, s[1] + dz * u, dx, dz, s[4], s[5]]; }
         }
       }
-      if (!best) continue;
+      if (!best || fastAt(best[5], best[0], best[1])) continue;   // (no zebra across a fast road, src/road-class.js)
       const l = hyp2(best[2], best[3]), tx = best[2] / l, tz = best[3] / l, nx = -tz, nz = tx, hl = Math.max(best[4] / 2 + 2.5, 4), hw = 1.5, cx0 = best[0], cz0 = best[1];
       poly(2, [[cx0 + tx * hw + nx * hl, cz0 + tz * hw + nz * hl, cx0 - tx * hw + nx * hl, cz0 - tz * hw + nz * hl, cx0 - tx * hw - nx * hl, cz0 - tz * hw - nz * hl, cx0 + tx * hw - nx * hl, cz0 + tz * hw - nz * hl]], false);
     }

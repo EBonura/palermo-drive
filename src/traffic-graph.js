@@ -11,6 +11,7 @@
 // Public pieces (see createGraph's return value): the arrays NX/NZ/NOUT/NIN/NDEG, edge objects, `alive` (which edges
 // a class of vehicle may use: no dead ends, no isolated fragments), cell queries, nearest node and an A* path.
 
+import { fastAt, isFastRoad } from './road-class.js';   // the fast roads (the Viale's carriageways too): nobody double-parks there (src/gags.js)
 import { UNBUILT } from './unbuilt-roads.js';   // road segments the game does not build (assets/missions/snap-unbuilt.mjs): the graph leaves them out
 
 export const CLASS = { // r: priority rank, v: free speed in m/s, w: spawn weight per metre, d: density of cars per lane metre (1 = old centro value)
@@ -113,7 +114,7 @@ export function createGraph() {
     const dx = NX[b] - NX[a], dz = NZ[b] - NZ[a], len = hyp2(dx, dz);
     const e = {
       id: 0, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
-      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast, svc: !!road.svc,
+      rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast, fr: !!road.fr && fastAt(road.fr, (NX[a] + NX[b]) / 2, (NZ[a] + NZ[b]) / 2), svc: !!road.svc,
       br: road.br, v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, sg: null, alive: false, dead: false, seg: false, tile, q: 0,
     };
     if (round) e.v = Math.min(e.v, 6.5);
@@ -136,7 +137,7 @@ export function createGraph() {
     const ped = r.k === 'pedestrian', transit = ped && TRANSIT.test(r.n || ''), p = r.p;
     flagsOf(r, tmp);
     const o = tmp.o === undefined ? (cls.ow ? 1 : 0) : tmp.o, round = tmp.j === 'roundabout';
-    const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0, svc: r.k === 'service' };
+    const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0, svc: r.k === 'service', fr: isFastRoad(r) ? r : null };
     for (let i = 0; i + 3 < p.length; i += 2) {
       const dxx = p[i + 2] - p[i], dzz = p[i + 3] - p[i + 1];
       if (dxx * dxx + dzz * dzz < 0.25 || isUnbuilt(p[i], p[i + 1], p[i + 2], p[i + 3])) continue;

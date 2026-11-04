@@ -7,7 +7,7 @@
 //   * the edge is where the asphalt ends (probed outward from the carriageway half width), the rail stands 0.9 m further out (1 m for the double beam);
 //   * a rail never stands where another drivable road is within its half width and 1.2 m (so it never crosses a junction, a slip road, a service road or an exit), within
 //     14 m of a bridge or tunnel of the same road, or where the asphalt goes on for more than 8 m (a neighbouring lane: nothing to stand on);
-//   * two opposite one-way carriageways of one road with under 6 m between their edges get ONE rail in the middle (the lower way id builds it), otherwise each has its own;
+//   * two fast carriageways side by side (the opposite ways of one road, or the Viale's lane beside its carriageway) with under 6 m between their edges get ONE rail in the middle (the lower way id builds it), otherwise each has its own;
 //   * where OSM maps a guard rail or a concrete barrier within 3 m, that one stays and nothing is added.
 // Design values, not data: the 0.9 m offset, the 14 m, the 7.5 m shortest run, the beam heights. ?noexpressway turns the rule off.
 import { rasterMask } from './core.js';
@@ -22,16 +22,41 @@ export function probeEdge(mask, x, z, nx, nz, hw) {
   let e = hw; if (mask(x + nx * e, z + nz * e)) while (e < hw + CAP && mask(x + nx * e, z + nz * e)) e += 0.5;
   return e < hw + SHOULDER ? e : hw + HARD;
 }
-export const isExpressway = r => !r.tn && !r.br && r.j !== 'roundabout' && r.p && r.p.length >= 4 && (r.k === 'motorway' || r.k === 'trunk' || r.k === 'motorway_link' || r.k === 'trunk_link' || (r.k === 'primary' && (r.ms || 0) >= 70));
+import { isExpressway, isFastRoad, isLane, builtAt, fastParts } from './road-class.js';
+export { isExpressway, isFastRoad };   // (the classes live apart, with no imports, so the node tools that read the traffic graph can ask them too)
 
-// Fast roads the data tags as city streets: the one-way carriageways of Viale Regione Siciliana and the Raccordo are tertiary with maxspeed 50 or none in the tiles, but the photos (nw29, nw30, zw33, zw46) show a double
-// steel rail, edge lines and tall lamps. Only the roadside walls rule (src/fence-walls.js) asks for this one, so a mapped wall beside them becomes a guard rail; the rails above, parked cars, crossings and pavements still read them as streets.
-const FAST_NAME = /Regione Siciliana|Circonvallazione|Raccordo/i;
-export const isFastRoad = r => isExpressway(r) || (!r.tn && !r.br && r.j !== 'roundabout' && r.o === 1 && !!r.p && r.p.length >= 4 && (r.k === 'tertiary' || r.k === 'secondary' || r.k === 'primary') && (r.w || 0) >= 7 && FAST_NAME.test(r.n || ''));
+// Where a tile's fast roads are, for the layers that take the road's character (the pavements, src/streets.js): gap(x, z) is how far (m, 40 at most) the edge of the nearest fast
+// carriageway is, and how far the edge of the nearest other drivable road. Null when the tile has no fast road.
+export function fastIndex(roads) {
+  const C = 32, cells = [new Map(), new Map()]; let any = false;
+  const add = (f, x0, z0, x1, z1, hw) => {
+    const s = [x0, z0, x1, z1, hw];
+    for (let a = Math.floor(Math.min(x0, x1) / C); a <= Math.floor(Math.max(x0, x1) / C); a++)
+      for (let b = Math.floor(Math.min(z0, z1) / C); b <= Math.floor(Math.max(z0, z1) / C); b++) { const k = a * 100003 + b; let l = cells[f].get(k); if (!l) cells[f].set(k, l = []); l.push(s); }
+  };
+  for (const r of roads || []) {
+    if (!DRIVE.has(r.k) || r.tn || !r.p || r.p.length < 4) continue;
+    const hw = hwOf(r);
+    if (isFastRoad(r)) { for (const [x0, z0, x1, z1, open] of fastParts(r)) { add(open ? 0 : 1, x0, z0, x1, z1, hw); if (open) any = true; } }   // (a built-up stretch of a lane is a city street)
+    else for (let i = 0; i + 3 < r.p.length; i += 2) add(1, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw);
+  }
+  if (!any) return null;
+  const gap = (g, x, z) => {
+    let best = 40; const ci = Math.floor(x / C), cj = Math.floor(z / C);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const l = g.get((ci + a) * 100003 + cj + b); if (!l) continue;
+      for (const s of l) { const d = distSeg(x, z, { x0: s[0], z0: s[1], x1: s[2], z1: s[3] }) - s[4]; if (d < best) best = d; }
+    }
+    return best;
+  };
+  return { fast: (x, z) => gap(cells[0], x, z), other: (x, z) => gap(cells[1], x, z) };
+}
+
+const distSeg = (x, z, s) => { const dx = s.x1 - s.x0, dz = s.z1 - s.z0, l2 = dx * dx + dz * dz, t = l2 > 0 ? Math.max(0, Math.min(1, ((x - s.x0) * dx + (z - s.z0) * dz) / l2)) : 0; return hh(s.x0 + dx * t - x, s.z0 + dz * t - z); };
 
 export function expresswayRails(data, fences) {
   const roads = data && data.roads; if (OFF || !roads || !roads.length) return [];
-  const mains = []; roads.forEach((r, id) => { if (isExpressway(r)) mains.push(id); });
+  const mains = []; roads.forEach((r, id) => { if (isFastRoad(r)) mains.push(id); });
   const links = roads.map((r, id) => r.k === 'primary_link' && !r.tn && !r.br && r.p.length >= 4 ? id : -1).filter(id => id >= 0);
   if (!mains.length && !links.length) return [];
   // segment grid of every drivable road
@@ -62,7 +87,7 @@ export function expresswayRails(data, fences) {
   const mate = (a, b) => a.k === b.k && (a.n || '') === (b.n || '');
   const out = [];
   for (const id of ids) {
-    const r = roads[id], hw0 = hwOf(r), main = r.k === 'motorway' || r.k === 'trunk' || r.k === 'primary', dbl = main;
+    const r = roads[id], hw0 = hwOf(r), lane = isLane(r), main = r.k === 'motorway' || r.k === 'trunk' || r.k === 'primary', dbl = main;
     // centre samples every STEP m along the line, with the tangent (averaged at the corners)
     const C = []; let base = 0, nextAt = 0;
     for (let i = 0; i + 3 < r.p.length; i += 2) {
@@ -87,18 +112,19 @@ export function expresswayRails(data, fences) {
       const flush = () => { if (run.length >= 3 && runLen >= MINRUN) { const p = []; for (const q of run) p.push(Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10); out.push({ k: 'g', h: dbl ? 0.9 : 0.8, s: dbl ? 4 : 3, p, ex: 1 }); } run = []; runLen = 0; };
       for (let i = 0; i < n; i++) {
         const c = C[i], nx = -c.tz * side, nz = c.tx * side, e1 = Es[i];
-        let off = e1 + (dbl ? 1.0 : 0.9), ok = true;
+        let off = e1 + (dbl ? 1.0 : 0.9), ok = true, beside = false;   // beside: another fast carriageway is within 6 m (the median rail below)
         { // another carriageway beside this one: a narrow median takes one rail in the middle, built by the lower way id
           for (const s of near(c.x + nx * 8, c.z + nz * 8)) {
-            const o = roads[s.id]; if (s.id === id || s.st || !isExpressway(o) || !mate(r, o)) continue;
-            const dx = s.x1 - s.x0, dz = s.z1 - s.z0, l = hh(dx, dz) || 1; if ((dx * c.tx + dz * c.tz) / l > -0.6) continue;   // running the other way
+            const o = roads[s.id]; if (s.id === id || s.st || !isFastRoad(o)) continue;
+            const dx = s.x1 - s.x0, dz = s.z1 - s.z0, l = hh(dx, dz) || 1; if (Math.abs(dx * c.tx + dz * c.tz) / l < 0.6) continue;   // running along it (the other way, or the Viale's lane beside the carriageway)
             const d = distSeg(c.x, c.z, s), qx = c.x + nx * d, qz = c.z + nz * d;
             if (distSeg(qx, qz, s) > 3) continue;   // it is not on this side
-            const gap = d - s.hw - Ed[i];
-            if (gap < 6) { if (s.id < id) { ok = false; } else off = Ed[i] + Math.max(gap, 0.3) / 2; }
+            const gap = d - s.hw - (lane || isLane(o) ? hw0 : Ed[i]);   // (beside a lane the mapped width: the asphalt of the two runs together there, and its edge is not the carriageway's)
+            if (gap < 6) { beside = true; if (s.id < id) { ok = false; } else off = Ed[i] + Math.max(gap, 0.3) / 2; }
             break;
           }
         }
+        if (lane && !beside && builtAt(c.x, c.z)) ok = false;   // a lane has its outer rail only where nothing is built beside it (a rail between it and its carriageway stays)
         let qx = c.x + nx * off, qz = c.z + nz * off;
         if (ok) for (const s of near(qx, qz)) {   // junctions, slip roads, service roads, exits: nothing stands on or beside another road
           if (s.id === id) continue;

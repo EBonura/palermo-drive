@@ -24,6 +24,7 @@ import { treeGeo as makeTreeGeo } from './treegeo.js';
 import { createFarCity } from './context.js';
 import { createHills } from './hills.js';   // finer far mesh for the hill tiles (assets/world/hills.bin)
 import { GARDEN_REGION as GR } from './gardens.js';
+import { fastIndex } from './expressway.js';   // where the fast roads are: the pavements along them are shoulders
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
@@ -1153,7 +1154,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
@@ -1170,7 +1171,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
-    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
