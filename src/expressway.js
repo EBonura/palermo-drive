@@ -24,6 +24,11 @@ export function probeEdge(mask, x, z, nx, nz, hw) {
 }
 export const isExpressway = r => !r.tn && !r.br && r.j !== 'roundabout' && r.p && r.p.length >= 4 && (r.k === 'motorway' || r.k === 'trunk' || r.k === 'motorway_link' || r.k === 'trunk_link' || (r.k === 'primary' && (r.ms || 0) >= 70));
 
+// Fast roads the data tags as city streets: the one-way carriageways of Viale Regione Siciliana and the Raccordo are tertiary with maxspeed 50 or none in the tiles, but the photos (nw29, nw30, zw33, zw46) show a double
+// steel rail, edge lines and tall lamps. Only the roadside walls rule (src/fence-walls.js) asks for this one, so a mapped wall beside them becomes a guard rail; the rails above, parked cars, crossings and pavements still read them as streets.
+const FAST_NAME = /Regione Siciliana|Circonvallazione|Raccordo/i;
+export const isFastRoad = r => isExpressway(r) || (!r.tn && !r.br && r.j !== 'roundabout' && r.o === 1 && !!r.p && r.p.length >= 4 && (r.k === 'tertiary' || r.k === 'secondary' || r.k === 'primary') && (r.w || 0) >= 7 && FAST_NAME.test(r.n || ''));
+
 export function expresswayRails(data, fences) {
   const roads = data && data.roads; if (OFF || !roads || !roads.length) return [];
   const mains = []; roads.forEach((r, id) => { if (isExpressway(r)) mains.push(id); });

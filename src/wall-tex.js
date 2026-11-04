@@ -19,8 +19,9 @@ export const LAYER = {
   cap: { i: 6, pw: 2.0, ph: 2.0 }, // the top of a wall: coping stone
   x: { i: 7, pw: 4.0, ph: 3.0 },   // worn city wall: patched lime wash, torn posters and black-bordered notices, spray tags (long street walls, src/fence-walls.js)
   p: { i: 8, pw: 4.0, ph: 3.0 },   // hoarding: corrugated sheet on posts, rust, pasted bills, tags
+  n: { i: 9, pw: 4.0, ph: 3.0 },   // lime wash without a fallen patch: village, garden and parapet walls (src/fence-walls.js), so not every plaster wall carries the same torn mark
 };
-const N_LAYERS = 9;
+const N_LAYERS = 10;
 
 // run `fn(x, y)` for the element at (x, y) of size (w, h) and for its copies across the edges of the tile, so the texture repeats without a seam
 function wrap(x, y, w, h, fn) {
@@ -62,7 +63,7 @@ function courses(g, r, sx, sy, o) {
 }
 
 const PAINT = {
-  w(g, r, sx, sy) {   // plaster: pale lime wash, soft mottling, rain streaks, damp, a patch where the plaster has fallen, hairline cracks
+  w(g, r, sx, sy, clean) {   // plaster: pale lime wash, soft mottling, rain streaks, damp, a patch where the plaster has fallen, hairline cracks
     g.fillStyle = '#ece6d7'; g.fillRect(0, 0, S, S);
     for (let i = 0; i < 90; i++) { const x = r() * S, y = r() * S, rx = 40 + r() * 90, ry = 30 + r() * 70, c = r() < 0.6 ? rgba([125, 104, 72], 0.015 + r() * 0.03) : rgba([255, 252, 240], 0.03 + r() * 0.05); wrap(x - rx, y - ry, 2 * rx, 2 * ry, (X, Y) => { g.fillStyle = c; g.beginPath(); g.ellipse(X + rx, Y + ry, rx, ry, r() * 3, 0, 7); g.fill(); }); }
     for (let i = 0; i < 44; i++) {   // rain streaks run down from a ledge or a crack
@@ -72,7 +73,7 @@ const PAINT = {
     // places where the plaster has come off, each different: a few big and shallow ones at the damp foot or under the coping, several small ones, a tonal spread of the stone under
     // (grey, ochre, tufa), a ragged edge with a lip of render, a shadow along its top. The old three identical tan patches repeated every 4 m as a stamp.
     const stones = [[176, 164, 140], [190, 170, 126], [162, 156, 146], [196, 178, 142], [150, 142, 128]];
-    for (let i = 0; i < 4; i++) {   // [texround2] was 9 (three big and six small): the same nine marks came back every 4 m; two shallow ones and two small remain, the soft stains below carry the variation
+    for (let i = 0; i < (clean ? 0 : 4); i++) {   // [texround2] was 9 (three big and six small): the same nine marks came back every 4 m; two shallow ones and two small remain, the soft stains below carry the variation
       const big = i < 2, w = (big ? 0.5 + r() * 0.7 : 0.12 + r() * 0.3) * sx, h = (big ? 0.3 + r() * 0.35 : 0.1 + r() * 0.22) * sy, x = r() * S, y = big ? (r() < 0.5 ? S * (0.72 + r() * 0.2) : r() * S * 0.2) : r() * S, sc = stones[(r() * stones.length) | 0];
       wrap(x, y, w, h, (X, Y) => {
         g.save(); g.beginPath(); const m = 14; for (let q = 0; q < m; q++) { const a = q / m * 6.283, rr = 0.62 + r() * 0.38; g[q ? 'lineTo' : 'moveTo'](X + w / 2 + Math.cos(a) * w / 2 * rr, Y + h / 2 + Math.sin(a) * h / 2 * rr); } g.closePath(); g.clip();
@@ -92,6 +93,7 @@ const PAINT = {
     for (let i = 0; i < 6; i++) { let x = r() * S, y = r() * S; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 9; k++) { x += (r() - 0.5) * 16; y += 6 + r() * 18; g.lineTo(x, y); } g.stroke(); }
     speckles(g, r, 5200, ['rgba(80,66,46,0.10)', 'rgba(255,255,248,0.10)', 'rgba(110,95,70,0.08)']);
   },
+  n(g, r, sx, sy) { PAINT.w(g, r, sx, sy, true); },   // the same lime wash, stains and hairline cracks, no fallen patch
   d(g, r, sx, sy) {   // dry-stone: irregular stones stacked without mortar, dark gaps, a little moss
     courses(g, r, sx, sy, { joint: '#3d372e', rh: 0.27, rv: 0.85, sw: 0.62, sv: 1.1, gap: 3.5, round: 13, pits: 3, pal: [[170, 162, 142], [186, 176, 152], [150, 144, 128], [196, 184, 158], [160, 152, 134]] });
     for (let i = 0; i < 40; i++) { const x = r() * S, y = r() * S, rr = 3 + r() * 9; wrap(x - rr, y - rr, 2 * rr, 2 * rr, (X, Y) => { g.fillStyle = rgba([86, 100, 56], 0.18 + r() * 0.2); g.beginPath(); g.ellipse(X, Y, rr, rr * 0.6, r() * 3, 0, 7); g.fill(); }); }
