@@ -8,7 +8,7 @@
 export const SP = {
   // code: [model, tint hex or null, crown sizes it can have: s small (< 2.1 m radius), m, l (> 4.2 m)]
   plane: ['plane', null, 'ml'], ficus: ['ficus', null, 'ml'], stone: ['pine', null, 'ml'], aleppo: ['aleppo', null, 'ml'],
-  carob: ['tree', '#7f9a74', 'ml'], holm: ['holm', null, 'm'], olive: ['tree', '#a9b48a', 'sm'], citrus: ['orange', null, 'sm'], oleander: ['shrub', null, 's'],
+  carob: ['tree', '#7f9a74', 'ml'], holm: ['holm', null, 'ml'], olive: ['tree', '#a9b48a', 'sm'], citrus: ['orange', null, 'sm'], oleander: ['shrub', null, 's'],
   canary: ['palm_date', null, 't'], wash: ['palm_fan', null, 't'],
 };
 
@@ -21,7 +21,7 @@ const MIX = {
   botanic: { ficus: 26, wash: 16, plane: 14, canary: 12, stone: 8, citrus: 8, holm: 6, carob: 4, oleander: 6 },        // Villa Giulia, the Orto Botanico
   marina: { ficus: 60, wash: 10, canary: 8, plane: 10, oleander: 6, citrus: 6 },                                         // Giardino Garibaldi, Piazza Marina
   villa: { ficus: 20, canary: 16, wash: 12, plane: 16, stone: 8, citrus: 10, holm: 6, carob: 4, oleander: 8 },          // the villa gardens: Trabia, Malfitano, Giardino Inglese, Bonanno...
-  favorita: { stone: 26, aleppo: 20, holm: 22, carob: 8, canary: 6, wash: 5, ficus: 4, plane: 4, citrus: 3, olive: 2 },
+  favorita: { holm: 40, stone: 12, aleppo: 12, carob: 12, plane: 8, ficus: 4, canary: 4, wash: 3, citrus: 3, olive: 2 },   // the park is mostly holm oak and the other broadleaves (the Viale Diana of photo pe32 is a tunnel of oaks); the pines are the minority
   mondello: { stone: 18, canary: 14, wash: 10, aleppo: 12, citrus: 10, ficus: 8, oleander: 12, carob: 6, plane: 4, olive: 3, holm: 3 },
   lido: { canary: 32, wash: 26, oleander: 14, stone: 10, ficus: 6, citrus: 4, plane: 4, aleppo: 4 },                      // the Mondello promenade
   viaLib: { plane: 48, ficus: 14, wash: 6, canary: 5, citrus: 8, oleander: 6, carob: 5, stone: 3 },
