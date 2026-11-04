@@ -617,6 +617,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function startAt(x, z, how = {}) {
     if (busy) return; busy = true; gesture(); answerArrival(false);
     const fromTitle = game.state === 'title';
+    dispatchEvent(new Event('pd-drunk-reset'));
     transition(() => hurried(async () => {
       if (!fromTitle) missions?.stop?.();
       const at = how.id ? missions?.ready?.(how.id) : how.ask ? missions?.stand?.(how.ask.id) : (missions?.arrive?.(), null);   // the mission's own spot beside its caller
@@ -664,6 +665,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   addEventListener('pd-quit-to-title', e => { e.preventDefault(); busy = false; quit(); });
   function quit() {
     if (busy) return; busy = true; answerArrival(false);
+    dispatchEvent(new Event('pd-drunk-reset'));
     transition(() => hurried(async () => {
       missions?.stop?.();
       game.state = 'title'; stack = []; go('menu');
