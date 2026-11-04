@@ -158,12 +158,18 @@ sun.shadow.bias = -0.0003;
 sun.shadow.normalBias = 0.5;
 scene.add(sun, sun.target);
 
+// The page's real size, not innerWidth: on an iPhone that can be stale when the resize event fires (after a rotation, or when the toolbar moves), and the canvas stayed short of the screen.
+let viewW = 0, viewH = 0;
 function resize() {
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
+  const de = document.documentElement, w = de.clientWidth || innerWidth, h = de.clientHeight || innerHeight;
+  if (w === viewW && h === viewH) return;
+  viewW = w; viewH = h;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
+new ResizeObserver(resize).observe(document.documentElement);
 resize();
 
 // ---------- palettes ----------
