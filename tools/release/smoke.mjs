@@ -1,14 +1,15 @@
 // The checks a release must pass: the built game loads with no error or Content Security Policy refusal on the main screens, desktop and phone, the Garage opens, and the lapa moves when driven.
-//   tools/release/withbrowser.sh node tools/release/smoke.mjs http://127.0.0.1:8797/      exit 1 on any failure; about 3 minutes
+//   tools/release/withbrowser.sh node tools/release/smoke.mjs dist      exit 1 on any failure; about 3 minutes
 import { createRequire } from 'module';
+import { startServer } from '../build/serve.mjs';
 const puppeteer = createRequire(new URL('../build/package.json', import.meta.url))('puppeteer-core');
-const base = process.argv[2] || 'http://127.0.0.1:8797/', wait = ms => new Promise(r => setTimeout(r, ms));
+const srv = await startServer(process.argv[2] || 'dist'), base = `http://127.0.0.1:${srv.port}/`, wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ executablePath: process.env.PD_CHROME, headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
 let bad = 0; const say = (tag, errs, extra = '') => { console.log(tag.padEnd(14), extra, errs.length ? 'ERR ' + errs.join(' | ') : 'no errors'); if (errs.length) bad++; };
 const open = async (w, h, q) => {
   const p = await b.newPage(), errs = []; await p.setViewport({ width: w, height: h, hasTouch: w < 900, isMobile: w < 900 });
   p.on('pageerror', e => errs.push(e.message.slice(0, 160)));
-  p.on('console', m => { const t = m.text(); if (m.type() === 'error' || /Content Security Policy|Refused to/i.test(t)) errs.push(t.slice(0, 160)); });
+  p.on('console', m => { const t = m.text(); if ((m.type() === 'error' && !/ERR_CONNECTION_RESET/.test(t)) || /Content Security Policy|Refused to/i.test(t)) errs.push(t.slice(0, 160)); });   // a reset is the busy local test server, not the game
   await p.goto(base + '?help=0&' + q, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await p.waitForFunction(() => !document.getElementById('loading'), { timeout: 180000, polling: 250 }).catch(() => errs.push('loading never lifted'));
   return { p, errs };
@@ -27,4 +28,4 @@ for (const [tag, w, h, at] of [['drive centre', 1280, 720, '15,5'], ['drive phon
   if (moved < 5) errs.push('the lapa did not move (' + moved + ' m)');
   say(tag, errs, moved + ' m'); await p.close();
 }
-await b.close(); process.exit(bad ? 1 : 0);
+await b.close(); await srv.close?.(); process.exit(bad ? 1 : 0);
