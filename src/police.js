@@ -68,13 +68,14 @@ export function createPolice(env, T) {
 
   // ---------- chaos in ----------
   const GAIN = { yeet: 0.7, chain: 0.15, knock: 0.45, hitcop: 1.1, fence: 0.08, hedge: 0.06, wall: 0.2 }, LIMIT = { yeet: 0.3, chain: 0.3, knock: 0.12, hitcop: 0.5, fence: 0.4, hedge: 0.4, wall: 0.5 };   // fence, hedge and wall: smashed garden walls and fences (src/fences.js, src/props.js)
+  const HEAT_RATE = 0.6;
   function chaos(kind, amt) {
     if (busted > 0 || grace > 0) return;
     const lim = LIMIT[kind];
     if (lim) { if (time - (lastAt[kind] ?? -9) < lim) return; lastAt[kind] = time; }
     const was = heat, add = amt ?? GAIN[kind] ?? 0.3;
     try { dispatchEvent(new CustomEvent('pd-chaos', { detail: { kind, amt: add } })); } catch (e) { /* no events */ }   // the neighbourhood score listens too (src/danger.js)
-    heat = clamp(heat + add, 0, 5);
+    heat = clamp(heat + add * HEAT_RATE, 0, 5);   // the level climbs slower than the chaos happens (the owner, 4 Nov); the neighbourhood score above still gets the full event
     if (kind === 'hitcop') heat = Math.max(heat, 1.6);
     unseenT = 0;
     if (was <= 0 && heat > 0) { startT = time + 4.5 + Math.random() * 3; engageAmbient(); }
