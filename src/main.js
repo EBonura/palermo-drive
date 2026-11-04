@@ -1,5 +1,6 @@
 import './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
 import './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
+import './shading.js';   // cheaper shader chunks, before anything compiles (src/shading.js)
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,

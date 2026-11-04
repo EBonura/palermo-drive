@@ -11,10 +11,10 @@ import { hooks } from './core.js';
 const T = 500;                        // tile size (src/world.js)
 const CELL = 4, NC = T / CELL;        // occluder cells: a cell blocks only if every sample in it is inside a solid, so an alley stays open
 const SP = CELL / 2, NS = NC * 2 + 1; // raster samples of a tile (3 x 3 per cell, shared along the edges)
-const NEAR_STEP = CELL, NEAR_R = 100, FAR_STEP = CELL * 2, MAXR = 450;   // ray march: a skipped cell only means a wall that does not occlude, and past the walls of the street little more is hidden
+const NEAR_STEP = CELL, NEAR_R = 100, FAR_STEP = CELL * 2, MAXR = 450;   // ray march: a skipped cell only means a wall that does not occlude, and past the walls of the street little more is hidden (further out a street fits between two rays: a run to 1400 m let the hills' pixels fall through such gaps)
 const CD = CELL * Math.SQRT2;         // a cell's diagonal: a sample anywhere in a cell, the roof counts at the far side of the cell when it is above the eye, at the near side when below
 const RAYS = 320, REC = 24;           // rays are even in screen x, so at the centre of a 2.2 : 1 screen they are about 0.45 degrees apart, 3.5 m at 450 m
-const EMPTY = -1e9;
+const EMPTY = -1e9, BOX = 6;          // a box: x0, z0, x1, z1, top, bottom
 const key = (i, j) => (i + 2048) * 4096 + j + 2048;
 
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
@@ -26,7 +26,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   if (on.occ) hooks.occ = {
     begin() { const solids = []; return { solids, add(flat, holes, roofY) { solids.push(flat, holes, roofY); } }; },
     end(t, job) { rasterQueue.push({ i: t.i, j: t.j, k: key(t.i, t.j), solids: job.solids }); },
-    drop(t) { grids.delete(key(t.i, t.j)); for (let q = rasterQueue.length - 1; q >= 0; q--) if (rasterQueue[q].k === key(t.i, t.j)) rasterQueue.splice(q, 1); },
+    drop(t) { grids.delete(key(t.i, t.j)); if (rasterJob && rasterJob.k === key(t.i, t.j)) rasterJob = null; for (let q = rasterQueue.length - 1; q >= 0; q--) if (rasterQueue[q].k === key(t.i, t.j)) rasterQueue.splice(q, 1); },
   };
   let rasterJob = null;
   const row = new Float64Array(256);
@@ -86,7 +86,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     const gp = [], gk = [];
     const addGroup = (o, parent) => { const n = groups.length; groups.push(o); gp.push(parent); gk.push(o.children.length); groupLast.push(o.children[o.children.length - 1]); return n; };
     const walk = (o, g, under) => {
-      if (under && o.matrixAutoUpdate && o.isMesh && /^far_/.test(o.name)) { o.updateMatrix(); o.matrixAutoUpdate = false; }   // the far terrain chunks never move; they were left out when the tile parts were frozen
+      if (under && o.matrixAutoUpdate && o.isMesh && /^(far_|hills_)/.test(o.name)) { o.updateMatrix(); o.matrixAutoUpdate = false; }   // the far terrain and hill chunks never move; they were left out when the tile parts were frozen
       if (o.matrixAutoUpdate || !(o.isMesh || o.isGroup || o.type === 'Object3D')) { always.push(o); return; }
       if (o.matrixWorldNeedsUpdate) o.updateMatrixWorld(true);
       if (o.isMesh) {
@@ -103,24 +103,24 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       else always.push(c);
     }
     groupOk = new Uint8Array(groups.length); groupParent = Int32Array.from(gp); groupKids = Int32Array.from(gk);
-    if (boxes.length < leaves.length * 5) boxes = new Float32Array(leaves.length * 8);
+    if (boxes.length < leaves.length * BOX) boxes = new Float32Array(leaves.length * 2 * BOX);
     subQueue.length = 0;
-    for (let n = 0; n < leaves.length; n++) { boxes[n * 5] = NaN; const l = leaves[n]; const bb = boxFor(l, n); if (!bb) boxQueue.push(n); if (l.userData.leanSub === undefined) subQueue.push(l); }
+    for (let n = 0; n < leaves.length; n++) { boxes[n * BOX] = NaN; const l = leaves[n]; const bb = boxFor(l, n); if (!bb) boxQueue.push(n); if (l.userData.leanSub === undefined) subQueue.push(l); }
     st.leaves = leaves.length; st.groups = groups.length; st.always = always.length;
     staticsDirty = true;
   }
   const _box = new THREE.Box3(), _m = new THREE.Matrix4(), subQueue = [], st_ = { subs: 0 };
   function boxFor(l, n, again) {   // the world box of a leaf, kept on the leaf (the lists are rebuilt several times a second while tiles stream in); a big geometry's box is computed later, a little at a time, and the leaf stays visible until then
-    const o = n * 5; let c = l.userData.leanBox;
+    const o = n * BOX; let c = l.userData.leanBox;
     if (!c || again) {
       const geo = l.geometry; let b;
       if (l.isInstancedMesh) { if (!geo.boundingBox) { if (geo.attributes.position.count > 20000) return false; geo.computeBoundingBox(); } l.computeBoundingBox(); l.userData.leanV = l.instanceMatrix.version * 65536 + l.count; b = l.boundingBox; }
       else { if (!geo.boundingBox) { if (geo.attributes.position && geo.attributes.position.count > 8000) return false; geo.computeBoundingBox(); } b = geo.boundingBox; }
       _box.copy(b); _box.applyMatrix4(l.matrixWorld);
-      c = l.userData.leanBox = [_box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y];
+      c = l.userData.leanBox = [_box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y, _box.min.y];
       if (again) { l.userData.leanSub = undefined; l.userData.leanJob = null; l.userData.leanLast = 0; subQueue.push(l); }
     }
-    boxes[o] = c[0]; boxes[o + 1] = c[1]; boxes[o + 2] = c[2]; boxes[o + 3] = c[3]; boxes[o + 4] = c[4];
+    boxes[o] = c[0]; boxes[o + 1] = c[1]; boxes[o + 2] = c[2]; boxes[o + 3] = c[3]; boxes[o + 4] = c[4]; boxes[o + 5] = c[5];
     return true;
   }
   // A single box round a 250 m chunk or a whole market catches one open street and the lot is drawn. So big leaves also get boxes per part of their area, each grown to hold whole triangles
@@ -131,20 +131,20 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     if (u.leanSub !== undefined) return budget;
     if (!pos || !pos.array) { u.leanSub = null; return budget; }   // (a tile mesh that has given up its arrays, src/world.js)
     const c = u.leanBox, tris = (geo.index ? geo.index.count : pos.count) / 3 * (l.isInstancedMesh ? l.count : 1);
-    if (!c || tris < SUB_TRIS || (c[2] - c[0] < SUB_MIN && c[3] - c[1] < SUB_MIN) || /^(far_|farcity)/.test(l.name)) { u.leanSub = null; return budget; }
+    if (!c || tris < SUB_TRIS || (c[2] - c[0] < SUB_MIN && c[3] - c[1] < SUB_MIN) || /^(far_|hills_|farcity)/.test(l.name)) { u.leanSub = null; return budget; }
     let J = u.leanJob;
     if (!J) J = u.leanJob = { i: 0, cell: Math.max(32, Math.max(c[2] - c[0], c[3] - c[1]) / SUB_DIV), m: new Map() };
-    const m = J.m, cell = J.cell, add = (cx, cz, x0, z0, x1, z1, y) => {
+    const m = J.m, cell = J.cell, add = (cx, cz, x0, z0, x1, z1, y, yb) => {
       const k = Math.floor(cx / cell) * 65536 + Math.floor(cz / cell); let b = m.get(k);
-      if (!b) m.set(k, [x0, z0, x1, z1, y]);
-      else { if (x0 < b[0]) b[0] = x0; if (z0 < b[1]) b[1] = z0; if (x1 > b[2]) b[2] = x1; if (z1 > b[3]) b[3] = z1; if (y > b[4]) b[4] = y; }
+      if (!b) m.set(k, [x0, z0, x1, z1, y, yb]);
+      else { if (x0 < b[0]) b[0] = x0; if (z0 < b[1]) b[1] = z0; if (x1 > b[2]) b[2] = x1; if (z1 > b[3]) b[3] = z1; if (y > b[4]) b[4] = y; if (yb < b[5]) b[5] = yb; }
     };
     const P = pos.array, st = pos.itemSize, idx = geo.index ? geo.index.array : null;
     if (l.isInstancedMesh) {
       const A = l.instanceMatrix.array, gb = geo.boundingBox, n = l.count;
       for (; J.i < n; J.i++) {
         const o = J.i * 16; _m.fromArray(A, o); _box.copy(gb).applyMatrix4(_m);
-        add((_box.min.x + _box.max.x) / 2, (_box.min.z + _box.max.z) / 2, _box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y);
+        add((_box.min.x + _box.max.x) / 2, (_box.min.z + _box.max.z) / 2, _box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y, _box.min.y);
       }
     } else {
       const me = l.matrixWorld.elements, ox = me[12], oy = me[13], oz = me[14];
@@ -154,11 +154,11 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       for (; J.i + 2 < end && budget > 0; J.i += 3, budget--) {
         const a = idx ? idx[J.i] : J.i, b = idx ? idx[J.i + 1] : J.i + 1, d = idx ? idx[J.i + 2] : J.i + 2;
         const ax = P[a * st], ay = P[a * st + 1], az = P[a * st + 2], bx = P[b * st], by = P[b * st + 1], bz = P[b * st + 2], dx = P[d * st], dy = P[d * st + 1], dz = P[d * st + 2];
-        add((ax + bx + dx) / 3 + ox, (az + bz + dz) / 3 + oz, Math.min(ax, bx, dx) + ox, Math.min(az, bz, dz) + oz, Math.max(ax, bx, dx) + ox, Math.max(az, bz, dz) + oz, Math.max(ay, by, dy) + oy);
+        add((ax + bx + dx) / 3 + ox, (az + bz + dz) / 3 + oz, Math.min(ax, bx, dx) + ox, Math.min(az, bz, dz) + oz, Math.max(ax, bx, dx) + ox, Math.max(az, bz, dz) + oz, Math.max(ay, by, dy) + oy, Math.min(ay, by, dy) + oy);
       }
       if (J.i + 2 < end) return budget;
     }
-    const F = new Float32Array(m.size * 5); let q = 0; for (const b of m.values()) { F[q] = b[0]; F[q + 1] = b[1]; F[q + 2] = b[2]; F[q + 3] = b[3]; F[q + 4] = b[4]; q += 5; }
+    const F = new Float32Array(m.size * BOX); let q = 0; for (const b of m.values()) { F[q] = b[0]; F[q + 1] = b[1]; F[q + 2] = b[2]; F[q + 3] = b[3]; F[q + 4] = b[4]; F[q + 5] = b[5]; q += BOX; }
     u.leanSub = F; u.leanJob = null; st_.subs++;
     return budget;
   }
@@ -187,7 +187,9 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   // ---------- the fan of rays ----------
   const recD = new Float32Array((RAYS + 1) * REC), recS = new Float32Array((RAYS + 1) * REC), recN = new Int32Array(RAYS + 1);
   const _c = new THREE.Vector3(), _f = new THREE.Vector3();
-  let camX = 0, camY = 0, camZ = 0, fx = 0, fz = 1, X = 1, sMax = 1, fanOK = false;
+  const sTop = new Float32Array(RAYS + 1), sBot = new Float32Array(RAYS + 1);   // per ray: the slope of the top and the bottom of the view along it
+  const topA = new THREE.Vector3(), topB = new THREE.Vector3(), botA = new THREE.Vector3(), botB = new THREE.Vector3(), _nT = new THREE.Vector3(), _nB = new THREE.Vector3();
+  let camX = 0, camY = 0, camZ = 0, fx = 0, fz = 1, X = 1, fanOK = false;
   function setupFan(cam) {
     cam.getWorldPosition(_c); camX = _c.x; camY = _c.y; camZ = _c.z;
     cam.getWorldDirection(_f);
@@ -195,18 +197,21 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     fanOK = h > 0.5; if (!fanOK) return;   // looking steeply up or down: no fan, everything is tested by three as usual
     fx = _f.x / h; fz = _f.z / h;
     // the four corners of the view, on the horizontal plane (a pitched camera sees wider than its forward slice) and in elevation
-    const v = cam.projectionMatrixInverse.elements, w = cam.matrixWorld.elements; let mx = 0, s = -Infinity;
+    const v = cam.projectionMatrixInverse.elements, w = cam.matrixWorld.elements; let mx = 0;
     for (let a = -1; a <= 1; a += 2) for (let b = -1; b <= 1; b += 2) {
       const ww = v[3] * a + v[7] * b + v[11] + v[15], px = (v[0] * a + v[4] * b + v[8] + v[12]) / ww, py = (v[1] * a + v[5] * b + v[9] + v[13]) / ww, pz = (v[2] * a + v[6] * b + v[10] + v[14]) / ww;
       const dx = w[0] * px + w[4] * py + w[8] * pz, dy = w[1] * px + w[5] * py + w[9] * pz, dz = w[2] * px + w[6] * py + w[10] * pz;
       const f = dx * fx + dz * fz; if (f <= 0) { fanOK = false; return; }
       const r = dx * -fz + dz * fx; if (Math.abs(r / f) > mx) mx = Math.abs(r / f);
-      const e = dy / Math.hypot(dx, dz); if (e > s) s = e;
+      (b > 0 ? a > 0 ? topA : topB : a > 0 ? botA : botB).set(dx, dy, dz);
     }
-    X = mx * 1.02; sMax = s + 0.02;
+    X = mx * 1.02;
+    _nT.crossVectors(topB, topA); _nB.crossVectors(botA, botB);   // the top and bottom planes of the view, through the eye. On a plane the slope along a horizontal direction is a straight sum, so it is known ray by ray
+    const nearlyFlat = Math.abs(_nT.y) < 1e-4 * _nT.length() || Math.abs(_nB.y) < 1e-4 * _nB.length();
     let steps = 0;
     for (let e = 0; e <= RAYS; e++) {
       const sx = -X + 2 * X * e / RAYS, q = 1 / Math.sqrt(1 + sx * sx), dx = (fx - fz * sx) * q, dz = (fz + fx * sx) * q, base = e * REC;
+      const top = nearlyFlat ? Infinity : -(_nT.x * dx + _nT.z * dz) / _nT.y + 0.002; sTop[e] = top; sBot[e] = nearlyFlat ? -Infinity : -(_nB.x * dx + _nB.z * dz) / _nB.y - 0.002;
       let n = 0, cur = -Infinity, gx0 = 1e9, gx1 = -1e9, gz0 = 0, gz1 = 0, g = null, open = false, step = NEAR_STEP;
       for (let d = 0; d < MAXR; d += step) {
         if (d >= NEAR_R) step = FAR_STEP;
@@ -221,7 +226,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
         if (sl > cur + 0.01) {
           cur = sl;
           if (n < REC) { recD[base + n] = d + CD; recS[base + n] = sl; n++; } else break;
-          if (cur >= sMax) break;
+          if (cur >= top) break;
         }
       }
       recN[e] = n;
@@ -230,7 +235,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   }
   // 0 visible, 1 behind the walls, 2 outside the fan
   function test(B, o) {
-    const x0 = B[o], z0 = B[o + 1], x1 = B[o + 2], z1 = B[o + 3], top = B[o + 4];
+    const x0 = B[o], z0 = B[o + 1], x1 = B[o + 2], z1 = B[o + 3], top = B[o + 4], bot = B[o + 5];
     const nx = camX < x0 ? x0 : camX > x1 ? x1 : camX, nz = camZ < z0 ? z0 : camZ > z1 ? z1 : camZ, ndx = nx - camX, ndz = nz - camZ, d0 = Math.sqrt(ndx * ndx + ndz * ndz);
     if (d0 < 1) return 0;
     let lo = Infinity, hi = -Infinity, behind = 0, far = 0;
@@ -245,13 +250,25 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     if (hi < -X || lo > X) return 2;
     let e0 = Math.floor((lo + X) / (2 * X) * RAYS) - 1, e1 = Math.ceil((hi + X) / (2 * X) * RAYS) + 1;
     if (e0 < 0) e0 = 0; if (e1 > RAYS) e1 = RAYS;
-    const y = top - camY, tan = y >= 0 ? y / d0 : y / Math.sqrt(far);
+    const y = top - camY, yb = bot - camY, fd = Math.sqrt(far), tan = y >= 0 ? y / d0 : y / fd, tanB = yb >= 0 ? yb / fd : yb / d0;
     for (let e = e0; e <= e1; e++) {
+      // along this ray all of it above the top of the view or below its bottom: from the high camera that is the hills and the far city, drawn for nothing
+      const st = sTop[e], t = tan < st ? tan : st;
+      if (tan < sBot[e] || tanB > st) continue;
       const base = e * REC; let k = recN[e] - 1;
-      if (k < 0 || recS[base + k] <= tan) return 0;
+      if (k < 0 || recS[base + k] <= t) return 0;
       while (k >= 0 && recD[base + k] > d0) k--;
-      if (k < 0 || recS[base + k] <= tan) return 0;
+      if (k < 0 || recS[base + k] <= t) return 0;
     }
+    return 1;
+  }
+
+  // The same with the parts of a big object: the whole box in view, is any part of it? U.leanLast: the part that was visible last frame goes first, it usually still is.
+  function verdict(B, o, F, U) {
+    const v = test(B, o); if (v !== 0 || !F) return v;
+    const last = U.leanLast | 0;
+    if (test(F, last) === 0) return 0;
+    for (let q = 0; q < F.length; q += BOX) if (q !== last && test(F, q) === 0) { U.leanLast = q; return 0; }
     return 1;
   }
 
@@ -274,24 +291,22 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       setupFan(cam);
       const t3 = performance.now(); st.fanT += t3 - t2;
       flat.length = 0; hiddenNow.length = 0;
-      for (let n = 0; n < always.length; n++) { const a = always[n]; if (a.isInstancedMesh && a.count === 0) continue; flat.push(a); }   // an empty pool still costs three a full program setup
+      for (let n = 0; n < always.length; n++) {
+        const a = always[n]; if (a.isInstancedMesh && a.count === 0) continue;   // an empty pool still costs three a full program setup
+        const m = a.userData.leanMover;   // something that moves but stays inside known boxes (src/sea.js, the boats)
+        if (m && fanOK && a.visible && verdict(m.box, 0, m.parts, m) !== 0) { hiddenNow.push(a); continue; }
+        flat.push(a);
+      }
       let hid = 0, out = 0, tested = 0;
       for (let n = 0; n < leaves.length; n++) {
         const l = leaves[n];
         if (l.matrixWorldNeedsUpdate) { l.updateMatrixWorld(true); boxFor(l, n, true); staticsDirty = true; }   // a frozen object that was moved
         if (!l.visible || !groupOk[leafGroup[n]]) continue;
         if (l.isInstancedMesh && l.userData.leanV !== l.instanceMatrix.version * 65536 + l.count) { boxFor(l, n, true); staticsDirty = true; }   // placed or knocked about since the box was made (markets lay their stalls out when they come into range): the box and the cached shadow follow
-        const o = n * 5;
+        const o = n * BOX;
         if (fanOK && boxes[o] === boxes[o]) {
           tested++;
-          let v = test(boxes, o);
-          if (v === 0) {   // the whole box is in view: is any part of it?
-            const F = l.userData.leanSub;
-            if (F) {   // the part that was visible last frame goes first: it usually still is
-              const U = l.userData, last = U.leanLast | 0;
-              if (test(F, last) !== 0) { v = 1; for (let q = 0; q < F.length; q += 5) if (q !== last && test(F, q) === 0) { v = 0; U.leanLast = q; break; } }
-            }
-          }
+          const v = verdict(boxes, o, l.userData.leanSub, l.userData);
           if (v === 1) { hid++; hiddenNow.push(l); continue; }
           if (v === 2) { out++; hiddenNow.push(l); continue; }
         }
@@ -410,7 +425,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     parts: on,
     stats: () => ({ ...st, subs: st_.subs, subPending: subQueue.length }),
     hiddenNow,
-    debug: { recN, recD, recS, grids, leaves: () => leaves, always: () => always, pose },
+    debug: { recN, recD, recS, grids, leaves: () => leaves, always: () => always, pose, view: () => ({ X, fanOK, camY, sTop, sBot }) },
   };
   return api;
 }

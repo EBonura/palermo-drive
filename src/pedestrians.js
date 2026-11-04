@@ -546,8 +546,7 @@ export function createPedestrians(env) {
         if (vY < vClip) discard;
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
         if (vFade < ign) discard;
-        vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);
-        vec4 c = vNear > 0.5 ? cn : cf;
+        vec4 c = vNear > 0.5 ? texture2D(mapNear, vUvN) : texture2D(mapFar, vUvF);   // one lookup: a sprite is all one or all the other, and the LPC crowd has no near atlas at all
         if (c.a < 0.4) discard;
         c.rgb = pow(c.rgb, vec3(2.2));   // the atlases hold sRGB in 5 bits per channel: back to linear
         gl_FragColor = vec4(c.rgb * (uAmb + uSun * vSun) * vBright, 1.0);
