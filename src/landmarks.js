@@ -3,7 +3,7 @@
 // All models are assembled from merged parts (one mesh per material) in local frames, on groundY.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { D, groundY, rng, freeCanvas } from './core.js';
+import { D, groundY, rng, freeCanvas, weld } from './core.js';
 
 const PI = Math.PI, TWO = PI * 2;
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -116,6 +116,7 @@ function finish(parent) {
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = !m.opts.noShadow; mesh.receiveShadow = true; mesh.name = 'landmarks-' + k;
     parent.add(mesh); out[k] = merged.attributes.position.count / 3;
+    weld(merged);
     BINS[k] = [];
   }
   return out;
