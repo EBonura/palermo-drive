@@ -3,7 +3,7 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, FBuf, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
+import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 
 export const CURB = 0.15;
@@ -272,6 +272,7 @@ export function* streetsIter(streets, group, opts = {}) {
     for (const [bm, ly] of [[bufs, layer], [ybufs, 'yard']]) for (const buf of bm.values()) {
       if (!buf.n) continue;
       const mesh = buf.mesh(layerMaterial(ly, offset));
+      weld(mesh.geometry);
       mesh.receiveShadow = true;
       mesh.name = 'street_' + ly;
       tris += buf.n / 3;
@@ -300,6 +301,7 @@ export function* streetsIter(streets, group, opts = {}) {
     if (curb.n) {
       curbMat = curbMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
       const curbMesh = curb.mesh(curbMat);
+      weld(curbMesh.geometry);
       curbMesh.receiveShadow = true;
       curbMesh.name = 'street_curbs';
       tris += curb.n / 3;

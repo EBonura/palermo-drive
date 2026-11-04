@@ -16,7 +16,7 @@
 // close) are built before the rest of the ring, and visiblePending() counts what those tiles and the far city chunks in view still need,
 // so the loading screen and the start transition lift as soon as the view is complete instead of waiting for the whole ring.
 import * as THREE from 'three';
-import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex } from './core.js';
+import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex, weld } from './core.js';
 import { streetsIter, roadMarksIter, TEX as GROUND_TEX, histW } from './streets.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
@@ -453,7 +453,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (!g.boundingBox) g.computeBoundingBox();
       if (!g.boundingSphere) g.computeBoundingSphere();
       for (const k in g.attributes) g.attributes[k].array = null;
-      if (g.index && !u.keepIndex) g.index.array = null;
+      if (g.index && !u.keepIndex && !u.leanSorting) g.index.array = null;   // (leanSorting: its sorted index is still to be uploaded, src/engine-lean.js frees it then)
       u.freed = true;
     }
   }
@@ -735,6 +735,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
       geo.setAttribute('color', new THREE.BufferAttribute(rc.slice(0, rv * 3), 3));
       geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      weld(geo);   // the roofs: walls share nothing
       mk(geo, getLowMats().roof, 'low_roofs');
     }
     g.userData.tris = (nwi + rv) / 3;

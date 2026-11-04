@@ -7,6 +7,7 @@
 //   node tools/perf/gpucost.mjs diff --v gate,vogel [--spots qc] [--times 12,18.5,23] [--out dir]      # the same instant drawn with and without a variant: pixel differences
 //   node tools/perf/gpucost.mjs waste [--spots qc] [--top 45]                                          # each object in a flat colour: triangles drawn against pixels that reach the screen
 //   node tools/perf/gpucost.mjs eval --js file [--spots qc]                                            # a snippet run in the settled page (G, R, S, THREE, gl), its result as JSON
+//   node tools/perf/gpucost.mjs partcheck [--spots qc] [--points 40]                                   # random road places: only the parts in view against every part, pixels that differ
 //   --q 'extra=1&...' adds to every page's query, --root <dir> serves another checkout (a before/after pair)
 // A frame is timed from the start of the game's animation callback to the end of a 1-pixel readPixels (the GPU has finished it). --k raises the pixel
 // ratio k times over the iPhone's 2 (k = 4, the default, is 6752 x 3120 for an 844 x 390 window: 16 times the pixels), so the GPU is what the frame waits for; read the costs as shares of
@@ -56,7 +57,7 @@ function serve(root) {
 }
 // One page: the plan runs inside it (tools/perf/probe.js), the messages come back as lines.
 async function page(port, spot, plan, { q = '', attr = null, settle = 8000, limit = 900 } = {}) {
-  const cfg = { plan, attr, settle };
+  const cfg = { plan, attr, settle, partShots: !!OUT };
   const probe = path.join(os.tmpdir(), `gpucost-probe-${process.pid}.js`);
   fs.writeFileSync(probe, `window.__PROBE = ${JSON.stringify(cfg)};\n` + fs.readFileSync(path.join(HERE, 'probe.js'), 'utf8'));
   const url = `http://127.0.0.1:${port}/?help=0&play&at=${SPOTS[spot] || spot}&fixres&debug&gfx=high&p2p=off&cam=${arg('cam', 1)}${/(^|&)time=/.test(q + '&' + Q) ? '' : '&time=' + arg('time', 12)}${Q ? '&' + Q : ''}${q ? '&' + q : ''}`;
@@ -75,6 +76,7 @@ function onMsg(o) {
   else if (o.phase) console.log(`  loaded in ${(o.t / 1000).toFixed(0)} s, ${o.renderer}, antialias ${o.attr?.antialias}, timer query ${o.timer}`);
   else if (o.ab) console.log(`  ${o.ab.name.padEnd(14)} base ${o.ab.base.toFixed(1).padStart(6)} ms  with ${o.ab.with.toFixed(1).padStart(6)} ms  ${(o.ab.d >= 0 ? '+' : '') + o.ab.d.toFixed(1)} ms (${o.ab.pct >= 0 ? '+' : ''}${o.ab.pct} %)   rounds ${o.ab.baseRounds.join(' ')} / ${o.ab.withRounds.join(' ')}`);
   else if (o.time) console.log(`  ${(o.tag || '').padEnd(8)} pr ${o.pr} ${o.buf.join('x')}: frame ${o.time.tot.toFixed(1)} ms (p25 ${o.time.lo.toFixed(1)}), game code ${o.time.js.toFixed(1)}, waiting for the GPU ${o.time.wait.toFixed(1)}`);
+  else if (o.partshot) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `part-${o.partshot[0]}_${o.partshot[1]}-parts.jpg`), Buffer.from(o.ja.split(',')[1], 'base64')); fs.writeFileSync(path.join(OUT, `part-${o.partshot[0]}_${o.partshot[1]}-whole.jpg`), Buffer.from(o.jb.split(',')[1], 'base64')); console.log('  partshot', o.partshot.join(' '), 'cam', o.cam.join(' ')); }
   else if (o.fps) console.log(`  fps ${o.fps} at pr ${o.pr}`);
 }
 const DEFAULT_V = 'sh0,shpass0,shtap1,fog0,tone0,env0,nospec,mediump,alpha0,cutout0,transp0,flat';
@@ -96,10 +98,11 @@ try {
       results[spot] = r;
     }
     if (MODE === 'eval') { const m = await page(port, spot, [{ do: 'eval', pr: PR, js: fs.readFileSync(arg('js'), 'utf8') }]); console.log(JSON.stringify(m.find(o => 'eval' in o)?.eval, null, 1)); }
+    if (MODE === 'partcheck') { const m = await page(port, spot, [{ do: 'partcheck', pr: PR, points: +arg('points', 40) }]); console.log(JSON.stringify(m.find(o => o.partcheck)?.partcheck)); }
     if (MODE === 'waste') {
       const m = await page(port, spot, [{ do: 'idpass', pr: 1 }]), o = m.find(x => x.idpass);
       if (o) {
-        console.log(`  ${o.w}x${o.h}, ${o.drawn} draws, ${o.trisAll} triangles, sky or empty ${o.background} % of the pixels`);
+        console.log(`  ${o.w}x${o.h}, ${o.drawn} draws, ${o.trisAll} triangles, ${o.idpass.reduce((a, r) => a + r.shaded, 0)} vertices (three's count: whole meshes), of which meshes sorted by part draw ${Math.round(o.runTris || 0)} of their ${Math.round(o.runWhole || 0)} triangles; sky or empty ${o.background} % of the pixels`);
         console.log('  ' + 'name | material'.padEnd(62) + 'draws  hit     tris  verts shaded  px %');
         for (const r of o.idpass.slice(0, +arg('top', 45))) console.log('  ' + r.key.padEnd(62) + String(r.draws).padStart(5) + String(r.drawsHit).padStart(5) + String(r.tris).padStart(9) + String(r.shaded).padStart(9) + (r.indexed ? ' i' : ' n') + String(r.pxPct).padStart(7));
       }

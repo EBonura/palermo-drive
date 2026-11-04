@@ -4,7 +4,7 @@
 // only geometry is created per build (world.js disposes geometry with the tile).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { groundY, rng, freeCanvas } from './core.js';
+import { groundY, rng, freeCanvas, weld } from './core.js';
 
 export { groundY };
 export const PI = Math.PI;
@@ -38,6 +38,7 @@ export function end(name) {
     const merged = mergeGeometries(BINS[k], false);
     const mesh = new THREE.Mesh(merged, getMat(k));
     mesh.castShadow = !DEFS[k].opts.noShadow; mesh.receiveShadow = true; mesh.name = name + ':' + k;
+    weld(merged);
     g.add(mesh);
   }
   g.userData.tris = Math.round(TRIS);

@@ -93,6 +93,8 @@
     srgb: () => patchAll('srgb', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <colorspace_pars_fragment>', window.__srgbChunk(THREE.ShaderChunk.colorspace_pars_fragment)); }),
     out0: () => patchAll('out0', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <colorspace_fragment>', ''); }),
     sprite1: () => patchAll('sprite1', sh => { sh.fragmentShader = sh.fragmentShader.replace('vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);\n        vec4 c = vNear > 0.5 ? cn : cf;', 'vec4 c = vNear > 0.5 ? texture2D(mapNear, vUvN) : texture2D(mapFar, vUvF);'); }, m => m.uniforms && m.uniforms.mapNear),
+    unweld: () => { const U = []; S.traverse(o => { if (o.isMesh && o.geometry?.index && /^(street_|landmarks-|low_roofs)|:/.test(o.name) && o.geometry.attributes.position?.array) { const g = o.geometry; U.push([o, g]); o.geometry = g.toNonIndexed(); o.geometry.drawRange = g.drawRange; } }); return () => U.forEach(([o, g]) => { o.geometry.dispose(); o.geometry = g; }); },   // the shared vertices of src/core.js weld() undone
+    whole: () => { G.lean.wholeParts = true; return () => { G.lean.wholeParts = false; }; },
     lamps0: () => { const L = []; S.traverse(o => { if ((o.isPointLight || o.isSpotLight) && o.visible) { o.visible = false; L.push(o); } }); return () => L.forEach(o => { o.visible = true; }); },
     fog0: () => setMat(m => m.fog, 'fog', false),
     tone0: () => { const t = R.toneMapping; R.toneMapping = THREE.NoToneMapping; recompile(); return () => { R.toneMapping = t; recompile(); }; },
@@ -197,7 +199,7 @@
     for (let i = 0; i < px.length; i += 4) { const id = px[i] | (px[i + 1] << 8) | (px[i + 2] << 16); if (id > 0 && id <= byId.length) hit[id]++; else hit[byId.length + 1]++; }
     for (let i = 1; i <= byId.length; i++) { const r = byId[i - 1]; r.px += hit[i]; if (hit[i]) r.drawsHit++; }
     const T = w * h, list = [...rows.values()].map(r => ({ ...r, tris: Math.round(r.tris), shaded: Math.round(r.shaded), pxPct: +(r.px / T * 100).toFixed(2) })).sort((a, b) => b.tris - a.tris);
-    return { idpass: list, w, h, drawn: byId.length, trisAll: list.reduce((a, r) => a + r.tris, 0), trisHit: 0, background: +(hit[byId.length + 1] / T * 100).toFixed(2) };
+    return { runTris: G.lean?.stats().runTris, runWhole: G.lean?.stats().runWhole, idpass: list, w, h, drawn: byId.length, trisAll: list.reduce((a, r) => a + r.tris, 0), trisHit: 0, background: +(hit[byId.length + 1] / T * 100).toFixed(2) };
   }
 
   async function ab(name, on, rounds, n, warm) {
@@ -231,6 +233,24 @@
     return { diff: v, w, h, over1: pc(n1), over4: pc(n4), over8: pc(n8), over32: pc(n32), max: mx, ja, jb };
   }
 
+  // Random places on the roads: the frame with only the parts in view against the same instant with every part of every mesh. A pixel that differs is a part that should have been drawn.
+  async function partcheck(points) {
+    const seed = []; for (const t of G.world.fullTiles()) { const d = t.data; if (d && d.roads) for (const o of d.roads) if (o.p && o.p.length >= 4 && !o.tn && !o.br) seed.push(o.p); }
+    const rnd = (() => { let s = 12345; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight; let bad = 0, worst = 0, pts = 0, saved = 0, where = [];
+    for (let q = 0; q < points; q++) {
+      const p = seed[(rnd() * seed.length) | 0], k = ((rnd() * (p.length / 2 - 1)) | 0) * 2, u = rnd(), x = p[k] + (p[k + 2] - p[k]) * u, z = p[k + 1] + (p[k + 3] - p[k + 1]) * u;
+      try { G.placeAt(x, z, Math.atan2(p[k + 2] - p[k], p[k + 3] - p[k + 1]) + (rnd() < 0.5 ? Math.PI : 0) + (rnd() - 0.5) * 0.6); } catch (e) { continue; }
+      for (let i = 0; i < 14; i++) await frame();
+      R.render(S, G.camera); const a = grab(w, h), ja = P.partShots ? R.domElement.toDataURL('image/jpeg', 0.7) : '';
+      G.lean.wholeParts = true; R.render(S, G.camera); const b = grab(w, h), jb = P.partShots ? R.domElement.toDataURL('image/jpeg', 0.7) : ''; G.lean.wholeParts = false;
+      let n = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) > 8 || Math.abs(a[i + 1] - b[i + 1]) > 8 || Math.abs(a[i + 2] - b[i + 2]) > 8) n++;
+      pts++; bad += n; if (n > worst) worst = n; if (n) where.push([Math.round(x), Math.round(z), n]);
+      if (n > 100 && P.partShots) post({ partshot: [Math.round(x), Math.round(z), n], ja, jb, cam: G.camera.position.toArray().map(v => +v.toFixed(1)) });
+    }
+    return { partcheck: { pts, w, h, badPixels: bad, worst, where: where.slice(0, 12) } };
+  }
+
   async function main() {
     while (!(window.game && window.game.renderer && !document.getElementById('loading'))) await sleep(250);
     G = window.game; R = G.renderer; S = G.scene; THREE = await import('three');
@@ -256,6 +276,7 @@
         if (!on) { post({ error: 'no variant ' + step.v }); continue; }
         post({ ab: await ab(step.v, on, step.rounds || 3, step.n || 16, step.warm || 10), pr: R.getPixelRatio() });
       }
+      if (step.do === 'partcheck') post(await partcheck(step.points || 40));
       if (step.do === 'idpass') post(await idpass());
       if (step.do === 'eval') { await frame(); post({ eval: await (new Function('G', 'R', 'S', 'THREE', 'gl', 'return (async () => {' + step.js + '})()'))(G, R, S, THREE, gl) }); }
       if (step.do === 'diff') post(await diff(step.v, step.shots));

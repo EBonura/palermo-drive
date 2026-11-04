@@ -73,6 +73,35 @@ export class FBuf {
   }
 }
 
+// Exactly equal vertices shared through an index: the same triangles in the same order with the same values, but the GPU shades each vertex once instead of three or six times, and the vertex buffers shrink.
+// Only for float attributes (anything else is left alone); bit for bit, no tolerance. Fast enough for a tile's geometry: an open hash table over the raw words, no strings.
+export function weld(g) {
+  const names = Object.keys(g.attributes), n = g.attributes.position.count, A = names.map(k => g.attributes[k]), old = g.index ? g.index.array : null;
+  if (n < 12 || A.some(a => !(a.array instanceof Float32Array) || a.isInterleavedBufferAttribute)) return g;
+  const W = A.map(a => new Uint32Array(a.array.buffer, a.array.byteOffset, a.array.length)), S = A.map(a => a.itemSize), m = A.length;
+  let bits = 16; while ((1 << bits) < n * 2) bits++;
+  const size = 1 << bits, mask = size - 1, table = new Int32Array(size).fill(-1), map = new Uint32Array(n), keep = new Uint32Array(n);
+  let u = 0;
+  for (let i = 0; i < n; i++) {
+    let h = 0x811c9dc5 | 0;
+    for (let a = 0; a < m; a++) { const w = W[a], s = S[a], o = i * s; for (let c = 0; c < s; c++) { h ^= w[o + c]; h = Math.imul(h, 16777619); h ^= h >>> 13; } }
+    let t = h & mask, j;
+    for (;;) {
+      j = table[t];
+      if (j < 0) { table[t] = u; keep[u] = i; map[i] = u; u++; break; }
+      const q = keep[j]; let same = true;
+      for (let a = 0; a < m && same; a++) { const w = W[a], s = S[a], o = i * s, p = q * s; for (let c = 0; c < s; c++) if (w[o + c] !== w[p + c]) { same = false; break; } }
+      if (same) { map[i] = j; break; }
+      t = (t + 1) & mask;
+    }
+  }
+  const nt = old ? old.length : n, idx = u < 65536 ? new Uint16Array(nt) : new Uint32Array(nt);
+  for (let i = 0; i < nt; i++) idx[i] = map[old ? old[i] : i];
+  A.forEach((a, k) => { const s = S[k], src = a.array, dst = new Float32Array(u * s); for (let i = 0; i < u; i++) { const o = keep[i] * s, p = i * s; for (let c = 0; c < s; c++) dst[p + c] = src[o + c]; } g.setAttribute(names[k], new THREE.BufferAttribute(dst, s, a.normalized)); });
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
+
 export const pairs = flat => { const out = []; for (let i = 0; i < flat.length; i += 2) out.push([flat[i], flat[i + 1]]); return out; };
 export const signedArea = pts => { let a = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; };
 

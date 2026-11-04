@@ -12,13 +12,14 @@ const T = 500;                        // tile size (src/world.js)
 const CELL = 4, NC = T / CELL;        // occluder cells: a cell blocks only if every sample in it is inside a solid, so an alley stays open
 const SP = CELL / 2, NS = NC * 2 + 1; // raster samples of a tile (3 x 3 per cell, shared along the edges)
 const NEAR_STEP = CELL, NEAR_R = 100, FAR_STEP = CELL * 2, MAXR = 450;   // ray march: a skipped cell only means a wall that does not occlude, and past the walls of the street little more is hidden (further out a street fits between two rays: a run to 1400 m let the hills' pixels fall through such gaps)
+const EYE_R = 10;                     // metres
 const CD = CELL * Math.SQRT2;         // a cell's diagonal: a sample anywhere in a cell, the roof counts at the far side of the cell when it is above the eye, at the near side when below
 const RAYS = 320, REC = 24;           // rays are even in screen x, so at the centre of a 2.2 : 1 screen they are about 0.45 degrees apart, 3.5 m at 450 m
 const EMPTY = -1e9, BOX = 6;          // a box: x0, z0, x1, z1, top, bottom
 const key = (i, j) => (i + 2048) * 4096 + j + 2048;
 
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
-  const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort') };
+  const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
   const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
 
   // ---------- occluder grids, one per full detail tile, from the same solids the building generator emits ----------
@@ -118,13 +119,14 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       else { if (!geo.boundingBox) { if (geo.attributes.position && geo.attributes.position.count > 8000) return false; geo.computeBoundingBox(); } b = geo.boundingBox; }
       _box.copy(b); _box.applyMatrix4(l.matrixWorld);
       c = l.userData.leanBox = [_box.min.x, _box.min.z, _box.max.x, _box.max.z, _box.max.y, _box.min.y];
-      if (again) { l.userData.leanSub = undefined; l.userData.leanJob = null; l.userData.leanLast = 0; subQueue.push(l); }
+      if (again) { l.userData.leanSub = undefined; l.userData.leanJob = null; l.userData.leanLast = 0; l.userData.leanRuns = null; subQueue.push(l); }
     }
     boxes[o] = c[0]; boxes[o + 1] = c[1]; boxes[o + 2] = c[2]; boxes[o + 3] = c[3]; boxes[o + 4] = c[4]; boxes[o + 5] = c[5];
     return true;
   }
   // A single box round a 250 m chunk or a whole market catches one open street and the lot is drawn. So big leaves also get boxes per part of their area, each grown to hold whole triangles
   // or instances (none of them is cut, so there is no gap between them), and a leaf is hidden when every part is. The far terrain and far city change their index ranges as tiles come and go: they keep the one box.
+  let frameNo = 0;
   const SUB_MIN = 96, SUB_DIV = 5, SUB_TRIS = 1500, MAX_TRIS_STEP = 40000;   // under SUB_TRIS triangles a draw costs less than testing its parts
   function subBoxes(l, budget) {
     const u = l.userData, geo = l.geometry, pos = geo.attributes.position;
@@ -136,8 +138,9 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     if (!J) J = u.leanJob = { i: 0, cell: Math.max(32, Math.max(c[2] - c[0], c[3] - c[1]) / SUB_DIV), m: new Map() };
     const m = J.m, cell = J.cell, add = (cx, cz, x0, z0, x1, z1, y, yb) => {
       const k = Math.floor(cx / cell) * 65536 + Math.floor(cz / cell); let b = m.get(k);
-      if (!b) m.set(k, [x0, z0, x1, z1, y, yb]);
+      if (!b) { m.set(k, b = [x0, z0, x1, z1, y, yb]); b.part = m.size - 1; }
       else { if (x0 < b[0]) b[0] = x0; if (z0 < b[1]) b[1] = z0; if (x1 > b[2]) b[2] = x1; if (z1 > b[3]) b[3] = z1; if (y > b[4]) b[4] = y; if (yb < b[5]) b[5] = yb; }
+      return b.part;
     };
     const P = pos.array, st = pos.itemSize, idx = geo.index ? geo.index.array : null;
     if (l.isInstancedMesh) {
@@ -151,16 +154,34 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       if (me[0] !== 1 || me[5] !== 1 || me[10] !== 1 || me[1] || me[2] || me[4] || me[6] || me[8] || me[9]) { u.leanSub = null; u.leanJob = null; return budget; }
       const dr = geo.drawRange, n = idx ? idx.length : pos.count, end = Math.min(n, dr.start + (dr.count === Infinity ? n : dr.count));
       if (!J.i) J.i = dr.start;
+      const whole = !!idx && dr.start === 0 && end === n && !geo.groups.length;   // an index can be sorted by part, so that only the parts in view are drawn
+      if (whole && !J.tp) J.tp = new Uint16Array(n / 3);
       for (; J.i + 2 < end && budget > 0; J.i += 3, budget--) {
         const a = idx ? idx[J.i] : J.i, b = idx ? idx[J.i + 1] : J.i + 1, d = idx ? idx[J.i + 2] : J.i + 2;
         const ax = P[a * st], ay = P[a * st + 1], az = P[a * st + 2], bx = P[b * st], by = P[b * st + 1], bz = P[b * st + 2], dx = P[d * st], dy = P[d * st + 1], dz = P[d * st + 2];
-        add((ax + bx + dx) / 3 + ox, (az + bz + dz) / 3 + oz, Math.min(ax, bx, dx) + ox, Math.min(az, bz, dz) + oz, Math.max(ax, bx, dx) + ox, Math.max(az, bz, dz) + oz, Math.max(ay, by, dy) + oy, Math.min(ay, by, dy) + oy);
+        const part = add((ax + bx + dx) / 3 + ox, (az + bz + dz) / 3 + oz, Math.min(ax, bx, dx) + ox, Math.min(az, bz, dz) + oz, Math.max(ax, bx, dx) + ox, Math.max(az, bz, dz) + oz, Math.max(ay, by, dy) + oy, Math.min(ay, by, dy) + oy);
+        if (whole) J.tp[J.i / 3] = part;
       }
       if (J.i + 2 < end) return budget;
+      if (whole && m.size > 1 && on.parts) sortByPart(u, geo, J.tp, m.size);
     }
     const F = new Float32Array(m.size * BOX); let q = 0; for (const b of m.values()) { F[q] = b[0]; F[q + 1] = b[1]; F[q + 2] = b[2]; F[q + 3] = b[3]; F[q + 4] = b[4]; F[q + 5] = b[5]; q += BOX; }
     u.leanSub = F; u.leanJob = null; st_.subs++;
     return budget;
+  }
+  // The triangles of an indexed mesh in the order of their parts (within a part as they were), with where each part's run lies in the index. Each frame only the runs in view are drawn, as one draw.
+  function sortByPart(u, geo, tp, parts) {
+    const idx = geo.index.array, start = new Int32Array(parts), count = new Int32Array(parts);
+    for (let t = 0; t < tp.length; t++) count[tp[t]] += 3;
+    for (let p = 1; p < parts; p++) start[p] = start[p - 1] + count[p - 1];
+    const put = start.slice(), out = new idx.constructor(idx.length);
+    for (let t = 0; t < tp.length; t++) { const q = put[tp[t]]; put[tp[t]] = q + 3; out[q] = idx[t * 3]; out[q + 1] = idx[t * 3 + 1]; out[q + 2] = idx[t * 3 + 2]; }
+    idx.set(out); geo.index.needsUpdate = true;
+    // the array goes up again the next time this mesh is drawn; if src/world.js has freed the geometry's arrays by then, this one goes after that upload
+    const ix = geo.index, was = ix.onUploadCallback;
+    u.leanSorting = true;
+    ix.onUpload(function () { was.call(this); u.leanSorting = false; if (u.freed) this.array = null; });
+    u.leanRuns = { start, count, frame: -1, n: 0, firsts: new Int32Array(parts), counts: new Int32Array(parts) };
   }
   function boxStep() {   // the big ones, about a tile's worth of vertices a frame
     let left = 60000;
@@ -221,7 +242,8 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
         if (g === null) { open = true; continue; }
         const h = g[((z - gz0) / CELL | 0) * NC + ((x - gx0) / CELL | 0)];
         if (h === EMPTY || h !== h) { open = true; continue; }
-        if (!open) continue;   // the eye inside a footprint (a camera pressed into a wall): that solid does not count
+        if (d < EYE_R) open = false;   // a solid this close may have the eye in it (the high camera in a narrow street stands in the buildings, and their walls are not drawn from inside): the first one a ray meets does not count
+        if (!open) continue;
         const y = h - camY, sl = y >= 0 ? y / (d + CD) : y / Math.max(1, d - CD);
         if (sl > cur + 0.01) {
           cur = sl;
@@ -272,6 +294,22 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     return 1;
   }
 
+  // The parts of a mesh sorted by part: which runs of its index to draw this frame. Neighbouring runs in view join up.
+  function pickRuns(B, o, F, R) {
+    const v = test(B, o); if (v !== 0) return v;
+    let n = 0, tot = 0;
+    const { start, count, firsts, counts } = R;
+    for (let p = 0, q = 0; q < F.length; p++, q += BOX) {
+      if (test(F, q) !== 0) continue;
+      tot += count[p];
+      if (n && firsts[n - 1] + counts[n - 1] === start[p]) counts[n - 1] += count[p];
+      else { firsts[n] = start[p]; counts[n] = count[p]; n++; }
+    }
+    if (!n) return 1;
+    R.n = n; R.frame = frameNo; st.runTris += tot / 3; st.runWhole += (start[start.length - 1] + count[count.length - 1]) / 3;
+    return 0;
+  }
+
   // ---------- each frame, after the props' distance cull and before three walks the scene ----------
   const trueChildren = { saved: null }, flat = [];
   const hiddenNow = [];   // what occ removed this frame (read by the validator in tools/build/enginebench.mjs)
@@ -290,7 +328,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       const t2 = performance.now();
       setupFan(cam);
       const t3 = performance.now(); st.fanT += t3 - t2;
-      flat.length = 0; hiddenNow.length = 0;
+      flat.length = 0; hiddenNow.length = 0; frameNo++; st.runTris = 0; st.runWhole = 0;
       for (let n = 0; n < always.length; n++) {
         const a = always[n]; if (a.isInstancedMesh && a.count === 0) continue;   // an empty pool still costs three a full program setup
         const m = a.userData.leanMover;   // something that moves but stays inside known boxes (src/sea.js, the boats)
@@ -306,7 +344,8 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
         const o = n * BOX;
         if (fanOK && boxes[o] === boxes[o]) {
           tested++;
-          const v = verdict(boxes, o, l.userData.leanSub, l.userData);
+          const U = l.userData, runs = U.leanRuns;
+          const v = runs ? pickRuns(boxes, o, U.leanSub, runs) : verdict(boxes, o, U.leanSub, U);
           if (v === 1) { hid++; hiddenNow.push(l); continue; }
           if (v === 2) { out++; hiddenNow.push(l); continue; }
         }
@@ -320,6 +359,28 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   };
   scene.onAfterRender = function (...a) { restore(); prevAR.apply(this, a); };
   const restore = () => { if (trueChildren.saved) { scene.children = trueChildren.saved; trueChildren.saved = null; } };
+
+  // ---------- drawing only the runs in view ----------
+  // Between three's own call and GL: its render of a mesh with runs picked this frame becomes one multi-draw (or a few plain draws where the extension is missing), for the main view only.
+  if (on.parts) {
+    const gl0 = renderer.getContext(), md = gl0.getExtension('WEBGL_multi_draw'), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
+    let cur = null;
+    renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
+      const R = ob.userData.leanRuns;
+      cur = R && R.frame === frameNo && c === camera && !api.bypass && !api.wholeParts && !mat.isMeshDepthMaterial && !mat.isMeshDistanceMaterial ? R : null;
+      rbd.call(this, c, sc, g, mat, ob, grp);
+      cur = null;
+    };
+    gl0.drawElements = function (mode, cnt, type, off) {
+      if (!cur) return de(mode, cnt, type, off);
+      const R = cur, b = type === gl0.UNSIGNED_INT ? 4 : type === gl0.UNSIGNED_SHORT ? 2 : 1; cur = null;
+      if (md && R.n > 1) {
+        const O = R.bytes || (R.bytes = new Int32Array(R.firsts.length));
+        for (let i = 0; i < R.n; i++) O[i] = R.firsts[i] * b;
+        md.multiDrawElementsWEBGL(mode, R.counts, 0, type, O, 0, R.n);
+      } else for (let i = 0; i < R.n; i++) de(mode, R.counts[i], type, R.firsts[i] * b);
+    };
+  }
 
   // ---------- the matrix walk ----------
   if (on.walk) {
@@ -422,6 +483,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
 
   const api = {
     bypass: false,   // set by the bench: one render exactly as without this module (the whole scene, three's own shadow pass)
+    wholeParts: false,   // set by the bench: draw every part of a mesh sorted by part
     parts: on,
     stats: () => ({ ...st, subs: st_.subs, subPending: subQueue.length }),
     hiddenNow,
