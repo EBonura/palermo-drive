@@ -422,6 +422,46 @@ The high camera (7 m up, 13 m back) went through gate vaults, flyover decks and 
 
 Cost per frame inside `updateCamera` (`window.__camClear.stats()` with `?debug`), phone profile (844x390, DPR 3, 4x CPU slowdown, `?fixres`), camera driving through each place for 6 s: stadium entrance 0.056 ms average (0.8 ms worst, the budgeted indexing chunk), Ballaro 0.017 ms (no indexed group within 170 m), Quattro Canti 0.040 ms. Main ms per frame with and without (`?noclear`, three alternating pairs, medians): 14.26 / 14.27, 16.78 / 17.63, 13.75 / 14.38, that is inside the noise of the shared Mac. The index holds 406 triangles for the stadium and 2854 at Quattro Canti; a tile rasterises in well under a millisecond.
 
+## Memory (tools/perf/memory.mjs)
+
+iOS Safari reloads a tab that uses too much memory, and past a total for all canvases it may leave new ones blank (from memory, not verified on a device; an older iPhone showed a sea-blue minimap in the centre, which fits). None of this was measured on an iPhone. Everything below is headless Chrome on an M3 Max, the production build, base and final at the same moment, MiB. Base is the tree before this work, final is the same tree with it, before the rendering and tree changes that landed alongside.
+
+The number people quote is misleading: `performance.memory` read about 300 at Quattro Canti, and about 240 of that was garbage waiting for a collection. Typed arrays do not appear in it at all, and they were the largest live item.
+
+| Desktop 1280x720, ratio 2, 2048 shadows | load: base | load: final | 3.8 km drive: base | drive: final | 8 starts, back at Quattro Canti: base | starts: final |
+| --- | --- | --- | --- | --- | --- | --- |
+| V8 heap after a collection | 62 | 53 | 55 | 46 | 76 | 62 |
+| ArrayBuffers | 222 | 86 | 199 | 64 | 220 | 80 |
+| of which the JS copy of the geometry | 135 | 69 | 111 | 47 | 130 | 60 |
+| 2D canvases | 65 | 16 | 67 | 11 | 131 | 19 |
+| GPU textures (tally of the allocations) | 213 | 255 | 223 | 252 | 336 | 295 |
+| GPU buffers | 80 | 78 | 74 | 73 | 92 | 86 |
+| Renderer process footprint | 454 | 280 | 411 | 238 | 559 | 360 |
+| Peak heap + ArrayBuffers, garbage included | 511 | 308 | 383 | 191 | 533 | 406 |
+
+Phone profile (844x390, ratio 3, touch), final: canvases 16 / 11 / 19, renderer 282 / 248 / 386, against base 65 / 67 / 113 and 449 / 415 / 590.
+
+GPU textures are higher after a load because painted textures now upload at once instead of when first seen; the same memory was reached before by looking around. The GPU process footprint (about 1100 to 1800 here) moves far more than the tally and follows no change clearly: it is not understood, and it may be specific to Chrome on the Mac.
+
+What was cut, largest first:
+
+- The JS copy of tile geometry goes after upload (`freeAfterUpload` in `src/world.js`): terrain, streets, buildings, far terrain, far city, hills, road wear. Fences edit theirs, `src/camera-clear.js` reads landmarks and bridges, instanced parts move: those keep their arrays. A mesh not drawn yet keeps its arrays until it is first drawn, which is most of what is left.
+- Facade and wall atlas pixels in JS (59 and 10) go after upload and are painted again on restore: the layers are seeded, so the same pixels return.
+- Painted canvases (`freeCanvas` in `src/core.js`): uploaded one a frame soon after painting, then the canvas shrinks to a pixel. Temporary canvases are zeroed as soon as they are used, since iOS counts one until it is collected (also from memory). The start map and transition canvases (two full screens) shrink when hidden.
+- Three leaks: landmark textures painted again on every return of their tile; a disposed mesh uploaded again by the static shadow job, with a buffer nothing deleted; a style cache keeping one entry per old-town house.
+- Decoder arrays sized at once (PALERMO_DATA 7.9 to 5.1 in the snapshot). Build: the centro street layers nothing reads are left out (core data 689 to 374 KB gzip).
+- Garbage while tiles build: typed buffers in low buildings and street layers, one set of arrays in the terrain. V8 allocation during a load, unminified build: 2529 to 1845.
+
+Tile JSON was not the problem (2 to 6 MB resident), so the parsed-tile LRU stayed as it was.
+
+**A lost GL context** (phones can do this in the background) can no longer re-upload from arrays. `world.contextRestored` hides the freed meshes before the next frame and streams their tiles again; the far meshes and road wear are rebuilt; the car waits. Tested with WEBGL_lose_context on the desktop and phone profiles: view back in 3 to 7 s, no errors, the picture right by eye. Ground textures with random speckle come back with different noise. A listener added before the renderer exists runs before three's own, so it must not upload: that gave black textures for one build.
+
+**Minimap.** 18 pieces made at startup and kept. Every paint sets the whole context state; a style that does not read back, a lost context or a transparent piece paints again; while one stays blank the land is drawn under it. Blanking the pieces on a running game was repaired; the reset check and the context events have not fired in any test. `?coords` shows live canvas MB and the map's counters: the way to find out on a real phone.
+
+**Streaming.** Paired drives on a quiet machine, base / final: frames over 33 ms 6 / 6, 7 / 6, 6 / 7, 6 / 7, 6 / 3; over 50 ms 1 / 1, 3 / 3, 3 / 3, 2 / 2, 1 / 1; worst streamer frame 30 / 31, 23 / 24, 40 / 45, 23 / 25, 17 / 21 ms. On a machine at load 50, before textures went up one a frame, the final build had more long frames (over 33 ms 26 / 34, 34 / 41, 35 / 73).
+
+**What is still big.** GPU: facade atlas 78 (235 layers of 256 x 256 with mips), shadow maps 48, crowd atlas 15, drawing buffer at ratio 2 about 140 by estimate. Visited landmark textures stay cached, up to about 100 by adding up their sizes: bounded, not a leak. Vertex format: 48 bytes per building vertex, of which normals and colours could shrink (touches shaders, needs the image comparison). A baked compressed atlas would be the largest single saving, and would change pixels. The motorway sign atlas is a 2048 x 2048 canvas (16) that is drawn on as signs appear, so it keeps its canvas.
+
 ## Measuring
 
 ```
@@ -432,5 +472,6 @@ node tools/build/shots.mjs --roots <ref dir>,dist --out /tmp/shots              
 node tools/build/scenestats.mjs --root dist --spot "38.115684,13.361460"                            # heaviest meshes
 node tools/build/spotbench.mjs --url http://localhost:8792/ --runs 3                                  # main ms per frame at the five spots, phone profile (see the phone budget pass)
 node tools/build/profile.mjs --root <dist built with --minify=false> --profile phone                # CPU + allocation profile
+tools/release/withbrowser.sh node tools/perf/memory.mjs --root <dist> [--phone] [--starts 20] [--snap drive|starts|none] [--lose --shots dir] [--alloc]   # memory after load, a drive and a cycle of starts; heap snapshot by category (--minify=false keeps the names)
 ```
 `measure.mjs --root <source tree> --cdn <dir with three@r160>` measures the old layout (how the baseline was taken: `git archive bd6bf5f`).
