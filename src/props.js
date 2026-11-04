@@ -169,6 +169,16 @@ ape('ape', false); ape('apetaxi', true);
   def('candelabra', cd);
 }
 
+// Utility pole of the power and telephone lines along the roads of the outskirts: a tapered shaft (grey concrete; the instance colour turns it wood brown) with a cross arm and three
+// insulators, 9.4 m. The arm runs along z. The wires between the poles are one mesh per tile (generate, 14).
+{
+  const mb = new MB(), con = C('#b8b4aa'), arm = C('#4a4640'), ins = C('#6e7a74');
+  mb.prism(0, 0, 0, 9.4, 0.16, 0.1, 6, con, { k0: 0.7 });
+  mb.box(-0.06, 8.72, -1.0, 0.06, 8.84, 1.0, arm, 0.9, 1);
+  for (const z of [-0.8, 0, 0.8]) mb.box(-0.04, 8.84, z - 0.04, 0.04, 8.97, z + 0.04, ins, 1, 1, false);
+  def('utility_pole', mb, { tint: true });
+}
+
 // Bollards, benches, hydrants, phone, post box, cabinet, signals, bus stop
 {
   const mb = new MB();
@@ -457,6 +467,7 @@ const SPECS = {
   palm_date_b: { kind: 'tree', c: [[0, 0, 0.42]], thr: 11, H: 7.5, crown: 2.5 },
   lamp_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 7, tilt: 1.05, H: 9 },
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
+  utility_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 10, tilt: 0.7, H: 9.4 },   // a pole of the power line: heavier than a lamp; the wires stay where they are
   signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
   bollard: { kind: 'bend', c: [[0, 0, 0.13]], thr: 5.5, tilt: 1.5, H: 0.8 },
   busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 4.5, fly: 8, m: 0.4, he: [0.25, 1.35, 0.25], hc: 1.35, ghost: true, tilt: 1.0, H: 2.7 },   // a sign on a thin pole: light
@@ -975,7 +986,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'candelabra', 'signal', 'busstop']);
+  const TALL = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1076,7 +1087,7 @@ const CELL_OF = { panda: 100, punto: 100, smart: 100, van: 100 };
 // beyond this distance (m, to the cell's nearest instance) a mesh stops drawing into the shadow map (the shadow pass doubles what it draws). Parked cars at 60 m; [perf pass] so do the
 // things narrower than about a metre (their shadow is one to three texels of the 1024 map there, 0.31 m each, and the cell is still drawn), and the ones up to two metres at 80 m.
 const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60,
-  bollard: 60, hydrant: 60, phone: 60, postbox: 60, cabinet: 60, bin_small: 60, fontanella: 60, litter0: 60, litter1: 60, litter_cafe: 60, cardboard: 60, mwaste0: 60, mwaste1: 60, mcrates: 60, busstop: 60,
+  utility_pole: 60, bollard: 60, hydrant: 60, phone: 60, postbox: 60, cabinet: 60, bin_small: 60, fontanella: 60, litter0: 60, litter1: 60, litter_cafe: 60, cardboard: 60, mwaste0: 60, mwaste1: 60, mcrates: 60, busstop: 60,
   bag_pile0: 80, bag_pile1: 80, bag_pile2: 80, bag_pile3: 80, bin_big: 80, bin_over: 80, scooter: 80, cafe_set: 80, bench: 80, stall_table: 80 };
 const PARKED_MOVED = new Map();
 // The traffic's side (src/traffic.js): parked cars as obstacles beside its lanes, and what happens when a vehicle runs into one.
@@ -1102,7 +1113,7 @@ function* generate(S, BUD) {
   const colls = [];
   const buckets = {};
   const stats = {};
-  const res = { buckets, colls, stats, decals: [], rails: null };
+  const res = { buckets, colls, stats, decals: [], rails: null, wires: null };
   function put(model, x, y, z, rot = 0, s = 1, col = null) {
     const m = MODELS[model]; if (!m) return;
     const sp = SPECS[model], park = sp && sp.kind === 'park', slot = park ? S.tk + ':' + Math.round(x) + ',' + Math.round(z) : null;
@@ -1183,6 +1194,61 @@ function* generate(S, BUD) {
   const distEff = (x, z) => { const d = hyp2(x, z); return d < 1100 ? d : (ZONE_DIST[zoneOf(x, z)] ?? 1300); };   // beyond the centro the zone says how built-up it is
   const zoneCars = r => ZONE_CARS[zoneOf(r.p[r.p.length >> 2 << 1], r.p[(r.p.length >> 2 << 1) + 1])] ?? 1;
   const burntCar = (x, z) => zoneOf(x, z) === 'zen' && rand() < 0.07 ? C(pick(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'])) : null;
+  // How built-up a spot is, 0 (open country) to 1 (a street of houses): the share of the 120 m square around it that is covered by buildings. The district seeds reach only so far;
+  // a village or suburb street outside them is "rural" to the zone tables (a third of the cars) though the houses stand on both sides of it.
+  const BU = 40, BU0 = 0.05, BU1 = 0.15, bCov = new Map();
+  for (let bi = 0; bi < bl.length; bi++) {
+    const o = bl[bi], k = Math.floor((o.x0 + o.x1) / 2 / BU) * 4096 + Math.floor((o.z0 + o.z1) / 2 / BU); bCov.set(k, (bCov.get(k) || 0) + Math.abs(signedArea(o.outer)));
+    if ((bi & 255) === 255 && BUD.over()) yield;
+  }
+  const builtUp = (x, z) => {
+    const ci = Math.floor(x / BU), cj = Math.floor(z / BU); let a = 0;
+    for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) a += bCov.get(i * 4096 + j) || 0;
+    // where the square runs over the tile edge the neighbour's houses are not known (a 6 m margin only): divide by the part that is
+    const fx = (Math.min((ci + 2) * BU, S.x1 + 6) - Math.max((ci - 1) * BU, S.x0 - 6)) / (3 * BU), fz = (Math.min((cj + 2) * BU, S.z1 + 6) - Math.max((cj - 1) * BU, S.z0 - 6)) / (3 * BU);
+    return Math.max(0, Math.min(1, (a / (9 * BU * BU * Math.max(0.35, fx * fz)) - BU0) / (BU1 - BU0)));
+  };
+  // the old centre and the belts of the 1960s grid keep the planting, the cars and the lamps they have (the rules for the outskirts below leave them alone)
+  const OLD_ZONES = new Set(['corso', 'roma', 'old', 'alberg', 'kalsa', 'centro', 'politeama', 'viaLib', 'sacco', 'avenue', 'calat', 'fiera', 'resut', 'stazione', 'porto']);
+  const oldCity = (x, z, n = '') => {
+    const d = hyp2(x, z); if (d < 2000) return true;
+    const zn = zoneOf(x, z); return OLD_ZONES.has(zn) && !(zn === 'avenue' && d > 4500 && /Regione Siciliana/.test(n));   // (the far ends of the Viale Regione Siciliana are the outskirts)
+  };
+  // the tile's mapped fences and walls (their pieces are built and collided in src/fences.js; the line is the same whatever the style): a tree or a pole does not stand in one
+  const fgrid = new Map(), FC = 16;
+  for (let fi = 0; fi < S.fences.length; fi++) {
+    if ((fi & 63) === 63 && BUD.over()) yield;
+    const p = S.fences[fi].p; if (!p || p.length < 4) continue;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const sg = [p[i], p[i + 1], p[i + 2], p[i + 3]];
+      for (let ix = Math.floor(Math.min(sg[0], sg[2]) / FC); ix <= Math.floor(Math.max(sg[0], sg[2]) / FC); ix++) for (let iz = Math.floor(Math.min(sg[1], sg[3]) / FC); iz <= Math.floor(Math.max(sg[1], sg[3]) / FC); iz++) {
+        const k = ix * 4096 + iz; let a = fgrid.get(k); if (!a) fgrid.set(k, a = []); a.push(sg);
+      }
+    }
+  }
+  const nearFence = (x, z, r) => {
+    for (let ix = Math.floor((x - r) / FC); ix <= Math.floor((x + r) / FC); ix++) for (let iz = Math.floor((z - r) / FC); iz <= Math.floor((z + r) / FC); iz++) {
+      const a = fgrid.get(ix * 4096 + iz); if (!a) continue;
+      for (const g of a) {
+        const dx = g[2] - g[0], dz = g[3] - g[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - g[0]) * dx + (z - g[1]) * dz) / l2));
+        if (hyp2(x - g[0] - dx * t, z - g[1] - dz * t) < r) return true;
+      }
+    }
+    return false;
+  };
+  // under or beside a bridge deck: a pole or a tree that tall would stand through it
+  const brSegs = [];
+  for (const r of S.roads) if (r.br && r.p.length >= 4) for (let i = 0; i + 3 < r.p.length; i += 2) brSegs.push([r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], (r.w || 8) / 2 + 6]);
+  const nearBridge = (x, z) => {
+    for (const g of brSegs) {
+      const dx = g[2] - g[0], dz = g[3] - g[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - g[0]) * dx + (z - g[1]) * dz) / l2));
+      if (hyp2(x - g[0] - dx * t, z - g[1] - dz * t) < g[4]) return true;
+    }
+    return false;
+  };
+
+  // the steepest fall of the ground within 2 m of a spot (m per m): a trunk or a pole on a bank stands on the drawn terrain only roughly
+  const fall = (x, z) => Math.max(Math.abs(groundY(x + 2, z) - groundY(x - 2, z)), Math.abs(groundY(x, z + 2) - groundY(x, z - 2))) / 4;
 
   // ---------- squalor: how run-down / market-busy a spot is (0..1). Markets and the old poor quarters are
   // found from street names; elsewhere it follows the road class (grand roads stay clean).
@@ -1267,6 +1333,7 @@ function* generate(S, BUD) {
     if (m === 'plane' && bareAt(x, z)) m = 'plane_bare';
     return { m, t: tintOf(hex), code };
   };
+  const treePts = [];   // where the trees stand (the street trees of 13 keep their distance)
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
     if (!inBounds(x, z) || road(x, z) || inB(x, z) || treeCleared(x, z)) return false;
     const r = { ficus: 3.2, tree: 2.2, holm: 2.8, orange: 1.4, pine: 2, plane: 2.4, plane_bare: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
@@ -1274,7 +1341,7 @@ function* generate(S, BUD) {
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
     const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
-    put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6);
+    put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6); treePts.push([x, z]);
     return true;
   };
   for (const it of osm) {
@@ -1519,9 +1586,10 @@ function* generate(S, BUD) {
   // ---------- 6. cars, cassonetti, market stalls along the carriageways
   let carCount = 0;
   // one car, footprint (body and four corners) wholly on asphalt, off the walls and the other props; (hx, hz) is where its nose points
-  const placeCar = (x, z, hx, hz, model = wpick(CARS), paint = null) => {
+  // (inset: the sides are tested that far inside the body; the asphalt mask has 0.5 m cells, and a car at the kerb has its wheels on the very edge of the asphalt)
+  const placeCar = (x, z, hx, hz, model = wpick(CARS), paint = null, inset = 0) => {
     const sp = SPECS[model], L = sp.L, W = sp.W;
-    const fx = hx * L / 2, fz = hz * L / 2, wx = -hz * (W / 2 + 0.08), wz = hx * (W / 2 + 0.08);
+    const fx = hx * L / 2, fz = hz * L / 2, wx = -hz * (W / 2 + 0.08 - inset), wz = hx * (W / 2 + 0.08 - inset);
     for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const px = x + fx * a + wx * b, pz = z + fz * a + wz * b;
       if (!road(px, pz) || nearWall(px, pz, 0.12)) return false;
@@ -1595,6 +1663,8 @@ function* generate(S, BUD) {
   // left and the right of the way: n none, p parallel, q perpendicular, d diagonal) win where they exist; elsewhere parallel, thinner towards the
   // outskirts. Never: on bridges or in tunnels, within 6 m of a junction (side streets and driveways keep clear), on a crossing, near a bus stop,
   // on tram tracks. They are the traffic's cars (see SPECS: pushed when nudged, launched like the traffic when hit).
+  // Outside the old centre the thinning follows the houses along the street (builtUp), not only the district seed that happens to be near: a village street no seed
+  // reaches was counted as countryside (a third of the cars), and at the kerb a footprint that fits the asphalt by a hand's width often failed the 0.5 m cells of its mask.
   {
     const PK_CLASS = { primary: 0.55, secondary: 0.72, tertiary: 0.82, unclassified: 0.78, residential: 0.9, living_street: 0.5, service: 0.35 };
     const PK_CAP = Math.round(900 * S.den / 0.8);
@@ -1635,7 +1705,10 @@ function* generate(S, BUD) {
         const a = p[seg], b = p[seg + 1], l = cum[seg + 1] - cum[seg] || 1, u = (sv - cum[seg]) / l;
         return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
       };
-      const mid = at(len / 2), occ = Math.min(0.93, cls * Math.min(1.3, zoneCars(r)) * Math.max(0.6, Math.min(1, 1.2 - distEff(mid[0], mid[1]) / 4000)) * 1.05);
+      // outside the old centre a street of houses that no district seed reaches counts as built-up (builtUp), as in the photos, and a car may stand with its wheels on the very edge of the asphalt; a fast road keeps what it had
+      const mid = at(len / 2), fast = (r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || ''), outskirts = !fast && !oldCity(mid[0], mid[1]), bu = outskirts ? builtUp(mid[0], mid[1]) : 0;
+      const zc = Math.min(1.3, zoneCars(r)), dE = distEff(mid[0], mid[1]);
+      const occ = Math.min(0.93, cls * (zc < 1 ? zc + (1 - zc) * bu : zc) * Math.max(0.6, Math.min(1, 1.2 - (dE > 1300 ? dE + (1300 - dE) * bu : dE) / 4000)) * 1.05);
       const pStay = 0.93, pStart = Math.min(0.9, occ * (1 - pStay) / Math.max(0.05, 1 - occ));
       // Every random number here comes from a generator seeded by the tile and the road, and every slot takes the same draws and the same step whether
       // it is filled or not: a tile built again (its neighbours may differ this time: walls, other tiles' props) puts the same cars on the same spots,
@@ -1671,7 +1744,7 @@ function* generate(S, BUD) {
           const x = c[0] + nx * d, z = c[1] + nz * d;
           const paint = (rburn < 0.07 && zoneOf(x, z) === 'zen') ? C(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'][Math.floor(rcol * 4) % 4])
             : paintBy(model, rcol, rshade);
-          if (blocked(x, z, hx, hz, L) || !placeCar(x, z, hx, hz, model, paint)) { run = false; continue; }
+          if (blocked(x, z, hx, hz, L) || !placeCar(x, z, hx, hz, model, paint, outskirts ? 0.3 : 0)) { run = false; continue; }
           n++;
         }
       }
@@ -2175,13 +2248,173 @@ function* generate(S, BUD) {
     stats.flavour = st;
   }
 
+  // ---------- 13. street trees along the streets of the towns and the countryside around Palermo (the old avenues have theirs in 12 b; the centre and its belts keep what they have)
+  // The planting follows the street class and how built-up the place is (builtUp): planes, ficus and carob along the roads of a town, a mix of pines, olive and carob in the open country, stone
+  // pines both sides of the fast roads. Every draw comes from a hash of the spot, so a tile built again plants the same trees; at most 160 a tile (the phone), thinned evenly over its roads.
+  // Never: within 8 m of a junction, on a crossing, in front of a door (a wall within 1.7 m), on a slope or beside the sea, on the asphalt, nearer than 6 m to another tree.
+  {
+    const STREET_TREE = { primary: [11, 0.75], secondary: [11, 0.75], tertiary: [11, 0.7], unclassified: [12, 0.5], residential: [12, 0.5], living_street: [14, 0.3], service: [18, 0.12] };   // [spacing in m, chance of a tree at a spot]
+    const MIX_MAIN = [['plane', 36], ['ficus', 22], ['carob', 16], ['stone', 8], ['holm', 6], ['canary', 6], ['wash', 6]];
+    const MIX_TOWN = [['ficus', 24], ['carob', 22], ['citrus', 22], ['plane', 14], ['olive', 8], ['wash', 5], ['canary', 5]];
+    const MIX_EDGE = [['plane', 14], ['carob', 22], ['stone', 16], ['aleppo', 14], ['olive', 14], ['ficus', 10], ['holm', 10]];
+    const MIX_OPEN = [['stone', 24], ['aleppo', 24], ['olive', 22], ['carob', 16], ['holm', 14]];
+    const MIX_FAST = [['stone', 70], ['aleppo', 12], ['holm', 8], ['carob', 10]];
+    const TREE_CAP = Math.round(200 * DEN), near2 = (list, x, z, r) => { for (const q of list) if (hyp2(q[0] - x, q[1] - z) < r) return true; return false; }, tspot = (x, z, k) => hash3(x * 0.37 + k, z * 0.53, k * 3.1);
+    const spOf = (code, x, z) => { const [model, hex] = SP[code]; return { m: model === 'palm_date' ? 'palm_date_b' : model === 'palm_fan' ? (tspot(x, z, 1) < 0.5 ? 'palm_fan_a' : 'palm_fan_b') : model, t: tintOf(hex) }; };
+    const eligible = [];
+    let want = 0;   // the trees the whole tile would plant: to thin evenly when that is more than the cap
+    for (const r of S.roads) {
+      const cl = STREET_TREE[r.k]; if (!cl || r.br || r.tn || r.j === 'roundabout' || r.p.length < 4) continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p); let L = 0; for (let i = 0; i < p.length - 1; i++) L += hyp2(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]);
+      if (L < 16) continue;
+      const mid = p[p.length >> 1];
+      if (oldCity(mid[0], mid[1], r.n)) continue;
+      const fast = (r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || ''), bu = fast ? 0 : builtUp(mid[0], mid[1]);
+      if (!fast && bu < 0.05 && r.k === 'service') continue;
+      const f = fast ? 0.7 : bu > 0.5 ? 1 : bu > 0.2 ? 0.7 : 0.35;
+      eligible.push({ r, p, f, fast, bu, cl }); want += 2 * L / cl[0] * cl[1] * f;
+    }
+    const scale = want > TREE_CAP ? TREE_CAP / want : 1;
+    let tn = 0;
+    for (const { r, p, f, fast, bu, cl } of eligible) {
+      if (tn >= TREE_CAP) break;
+      if (BUD.over()) yield;
+      const mix = fast ? MIX_FAST : bu > 0.5 ? (r.k === 'residential' || r.k === 'unclassified' || r.k === 'living_street' || r.k === 'service' ? MIX_TOWN : MIX_MAIN) : bu > 0.2 ? MIX_EDGE : MIX_OPEN;
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
+        const tx = dx / L, tz = dz / L;
+        for (let s = cl[0] * (0.3 + 0.7 * tspot(a[0], a[1], 7)); s < L; s += cl[0]) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (!inBounds(cx, cz) || nearJunction(cx, cz, 8) || near2(zebras, cx, cz, 5)) continue;
+          for (const sg of [1, -1]) {
+            if (tspot(cx, cz, sg + 11) > cl[1] * f * scale) continue;
+            const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 12, road); if (e < 1 || e > 11) continue;
+            const x = cx + nx * (e + (fast ? 3.5 : 1.7)), z = cz + nz * (e + (fast ? 3.5 : 1.7));
+            if (!inBounds(x, z) || road(x, z) || inB(x, z) || nearWall(x, z, 1.7) || treeCleared(x, z) || nearJunction(x, z, 8) || near2(zebras, x, z, 4) || near2(treePts, x, z, 6) || lampNear(x, z, 2.5) || nearFence(x, z, 1.3) || nearBridge(x, z)) continue;
+            const y = groundY(x, z); if (y < 1.0 || Math.abs(y - groundY(cx, cz)) > 1.5 || fall(x, z) > 0.3) continue;
+            const sp = spOf(pickBy(mix, tspot(x, z, 5)), x, z);
+            if (placeTree(x, z, sp.m, 1.05 + 0.25 * tspot(x, z, 9), sp.t)) tn++;
+          }
+        }
+      }
+    }
+    stats.trees_street2 = tn;
+  }
+
+  // ---------- 14. furniture of the roads at the edge of town and in the country (own random stream: nothing above moves)
+  // a) poles of the electricity and telephone lines, one row along a road (on one side of it, the same side all the way) with the wires between them, as in the photos of the villages and the
+  // lanes of the west and south-east; one merged mesh of wires per tile (res.wires). b) lamps along the roads that have houses but no pavement (the procedural lamps above want a kerb).
+  // Never in the old centre or its belts, on the fast roads (the expressways have their lamps and rails), within 5 m of a junction, on a crossing, in front of a door or on the asphalt.
+  {
+    const POLE_ROADS = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service']);   // (half of the service lanes)
+    const pspot = (x, z, k) => hash3(x * 0.41 + k, z * 0.29, k * 2.3);
+    const near2 = (list, x, z, r) => { for (const q of list) if (hyp2(q[0] - x, q[1] - z) < r) return true; return false; };
+    // the tram avenues carry their own overhead lines: no pole row of this beside them (a tram rail within 35 m)
+    const trams = [];
+    for (const ln of S.tram || []) for (let i = 0; i + 3 < ln.length; i += 2) {
+      if (Math.max(ln[i], ln[i + 2]) > S.x0 - 40 && Math.min(ln[i], ln[i + 2]) < S.x1 + 40 && Math.max(ln[i + 1], ln[i + 3]) > S.z0 - 40 && Math.min(ln[i + 1], ln[i + 3]) < S.z1 + 40) trams.push([ln[i], ln[i + 1], ln[i + 2], ln[i + 3]]);
+    }
+    const nearTram = (x, z) => {
+      for (const q of trams) {
+        const dx = q[2] - q[0], dz = q[3] - q[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - q[0]) * dx + (z - q[1]) * dz) / l2));
+        if (hyp2(x - q[0] - dx * t, z - q[1] - dz * t) < 35) return true;
+      }
+      return false;
+    };
+    const wm = new MB(), wcol = C('#1c1c1f');
+    // a wire from (a) to (b) hanging by `sag` in the middle: a flat ribbon and an upright one crossed, 0.05 m wide
+    const wire = (ax, ay, az, bx, by, bz, sag) => {
+      const N = 5; let px = ax, py = ay, pz = az;
+      for (let i = 1; i <= N; i++) {
+        const u = i / N, x = ax + (bx - ax) * u, z = az + (bz - az) * u, y = ay + (by - ay) * u - 4 * sag * u * (1 - u);
+        const dx = x - px, dz = z - pz, l = hyp2(dx, dz) || 1, hx = -dz / l * 0.025, hz = dx / l * 0.025;
+        wm.face(wcol, [[px - hx, py, pz - hz], [x - hx, y, z - hz], [x + hx, y, z + hz], [px + hx, py, pz + hz]]);
+        wm.face(wcol, [[px, py - 0.025, pz], [x, y - 0.025, z], [x, y + 0.025, z], [px, py + 0.025, pz]]);
+        px = x; py = y; pz = z;
+      }
+    };
+    const lampHere = (x, z, r) => {   // a lamp pole of any of the rows so far (the real ones, the kerb rows of 4 and 12 c, these)
+      if (lampsReal.some(q => hyp2(q.x - x, q.z - z) < r)) return true;
+      const b = buckets.lamp_pole; if (b) for (const e of b.values()) for (let i = 0; i < e.m.length; i += 5) if (hyp2(e.m[i] - x, e.m[i + 2] - z) < r) return true;
+      return false;
+    };
+    let np = 0, nl = 0, nw = 0;
+    const POLE_CAP = Math.round(120 * DEN), LAMP_CAP = Math.round(60 * DEN);
+    for (const r of S.roads) {
+      if (!DRIVE.has(r.k) || r.br || r.tn || r.j === 'roundabout' || r.p.length < 4) continue;
+      if (!POLE_ROADS.has(r.k)) continue;
+      const p = pairs(r.p); let L = 0; for (let i = 0; i < p.length - 1; i++) L += hyp2(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]);
+      if (L < 30) continue;
+      const mid = p[p.length >> 1];
+      if (oldCity(mid[0], mid[1], r.n)) continue;
+      if ((r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || '') || r.k === 'service' && pspot(p[0][0], p[0][1], 3) > 0.5) continue;
+      const bu = builtUp(mid[0], mid[1]);
+      if (bu > 0.9 && pspot(p[0][0], p[0][1], 5) > 0.35) continue;   // the dense streets carry their wires on the facades
+      const side = pspot(p[0][0], p[0][1], 1) < 0.5 ? 1 : -1;
+      if (BUD.over()) yield;
+      let prev = null, carry = 12 + 24 * pspot(p[0][0], p[0][1], 2);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = hyp2(dx, dz); if (L2 < 1) continue;
+        const tx = dx / L2, tz = dz / L2, nx = -tz * side, nz = tx * side;
+        let s = carry;
+        for (; s < L2; s += 38 + 8 * pspot(a[0] + s, a[1], 4)) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (!inBounds(cx, cz) || nearJunction(cx, cz, 5) || near2(zebras, cx, cz, 3)) { prev = null; continue; }
+          const e = march(cx, cz, nx, nz, 12, road); if (e < 1 || e > 11) { prev = null; continue; }
+          const x = cx + nx * (e + 1.0), z = cz + nz * (e + 1.0);
+          if (!inBounds(x, z) || road(x, z) || inB(x, z) || nearWall(x, z, 0.9) || occHit(x, z, 0.5) || treeCleared(x, z) || nearFence(x, z, 0.8) || nearBridge(x, z) || (trams.length && nearTram(x, z))) { prev = null; continue; }
+          const y = groundY(x, z); if (y < 0.8 || Math.abs(y - groundY(cx, cz)) > 1.8 || fall(x, z) > 0.4) { prev = null; continue; }
+          if (np >= POLE_CAP) break;
+          const conc = pspot(x, z, 6) < 0.45;   // concrete poles in the new quarters, wood elsewhere
+          put('utility_pole', x, y, z, Math.atan2(nx, nz), 1, conc ? C('#ffffff') : C('#9a7a58'));
+          occAdd(x, z, 0.5); np++;
+          if (prev && hyp2(prev[0] - x, prev[2] - z) < 62 && Math.abs(prev[1] - y) < 5) {   // a span: three conductors from the cross arm of the one pole to that of the next
+            for (const o of [-0.8, 0, 0.8]) wire(prev[0] + prev[3] * o, prev[1] + 8.95, prev[2] + prev[4] * o, x + nx * o, y + 8.95, z + nz * o, 0.014 * hyp2(prev[0] - x, prev[2] - z));
+            nw++;
+          }
+          prev = [x, y, z, nx, nz];
+        }
+        carry = Math.max(0, s - L2);
+      }
+    }
+    // b) lamps on the roads with houses but no pavement
+    {
+      for (const r of S.roads) {
+        if (nl >= LAMP_CAP) break;
+        if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary' || r.k === 'unclassified' || r.k === 'residential') || r.br || r.tn || r.j === 'roundabout' || r.p.length < 4) continue;
+        if ((r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || '')) continue;
+        const p = pairs(r.p), mid = p[p.length >> 1];
+        if (oldCity(mid[0], mid[1], r.n)) continue;
+        const bu = builtUp(mid[0], mid[1]); if (bu < 0.25) continue;
+        if (BUD.over()) yield;
+        const side = pspot(p[0][0], p[0][1], 9) < 0.5 ? 1 : -1;
+        for (let i = 0; i < p.length - 1; i++) {
+          const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = hyp2(dx, dz); if (L2 < 8) continue;
+          const tx = dx / L2, tz = dz / L2, nx = -tz * side, nz = tx * side;
+          for (let s = 6 + 14 * pspot(a[0], a[1], 10); s < L2 - 3; s += 40 + 12 * pspot(a[0] + s, a[1], 11)) {
+            const cx = a[0] + tx * s, cz = a[1] + tz * s;
+            if (!inBounds(cx, cz) || pspot(cx, cz, 12) > 0.5 + 0.5 * bu) continue;
+            const e = march(cx, cz, nx, nz, 12, road); if (e < 1 || e > 11) continue;
+            const x = cx + nx * (e + 0.7), z = cz + nz * (e + 0.7);
+            if (!inBounds(x, z) || road(x, z) || raisedMask(x, z) || inB(x, z) || nearWall(x, z, 0.8) || nearJunction(x, z, 6) || near2(zebras, x, z, 3) || lampHere(x, z, 30) || treeCleared(x, z) || nearFence(x, z, 0.8) || nearBridge(x, z)) continue;
+            const y = groundY(x, z); if (y < 0.8 || Math.abs(y - groundY(cx, cz)) > 1.8 || fall(x, z) > 0.4) continue;
+            put('lamp_pole', x, y, z, Math.atan2(nx, nz) + Math.PI / 2); occAdd(x, z, 0.5); nl++;
+          }
+        }
+      }
+    }
+    if (nw) res.wires = wm.geo();
+    stats.poles_rural = np; stats.wire_spans = nw; stats.lamps_rural = nl;
+  }
+
   return res;
 }
 
 // ------------------------------------------------------------------ instances -> meshes
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
-  signal: 350, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+  signal: 350, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
@@ -2226,6 +2459,11 @@ function* instantiate(res, parent, BUD) {
   }
   for (const g of res.decals) {
     const m = new THREE.Mesh(g, zebraMat()); m.matrixAutoUpdate = false; m.receiveShadow = true; parent.add(m); geos.push(g); tris += g.attributes.position.count / 3;
+  }
+  if (res.wires) {   // the wires between the poles of the tile: one mesh, culled by distance like the cells
+    const w = new THREE.Mesh(res.wires, MATS.dbl); w.name = 'prop_wires'; w.matrixAutoUpdate = false; w.castShadow = false; w.receiveShadow = false;
+    res.wires.computeBoundingSphere(); w.boundingSphere = res.wires.boundingSphere; w.userData.kind = 'wires'; w.userData.maxd = 450 * PFAR;
+    parent.add(w); meshes.push(w); geos.push(res.wires); tris += res.wires.attributes.position.count / 3;
   }
   if (res.rails) {
     const a = new THREE.Mesh(res.rails.posts, MATS.dbl); a.matrixAutoUpdate = false; a.castShadow = true; a.receiveShadow = true; parent.add(a);
@@ -2276,7 +2514,7 @@ export function buildProps(ctx) {
       idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
       roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [], green: (st.green || []).concat(st.verge || []),
       sand: sandRings(d),
-      areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
+      fences: d.fences || [], areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
     };
   }
 
