@@ -167,7 +167,7 @@ export const MAT = {
   chrome: tiny(std('#e4e8ec', 0.25, 0.6)), gold: tiny(std('#d9a62e', 0.3, 0.8)), alu: tiny(std('#a9aeb4', 0.4, 0.6)),
   glass: tiny(new THREE.MeshStandardMaterial({ color: '#8fb4c8', roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false })),
   tint: tiny(new THREE.MeshStandardMaterial({ color: '#0d1218', roughness: 0.08, metalness: 0.4, transparent: true, opacity: 0.82, depthWrite: false })),
-  plastic: tiny(new THREE.MeshStandardMaterial({ color: '#dfe8ee', roughness: 0.2, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })),
+  plastic: tiny(new THREE.MeshStandardMaterial({ color: '#dfe8ee', roughness: 0.2, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true })),
   tyre: std('#1a1a1c', 0.9), white: tiny(std('#f3f1e8', 0.7)), seat: std('#efe6cf', 0.8), dark: tiny(std('#1d1c1e', 0.8)), black: tiny(std('#0f0f12', 0.55, 0.2)),
   floor: std('#3a3430', 0.9),
   lamp: tiny(new THREE.MeshStandardMaterial({ color: '#fff7dc', emissive: '#ffe9a8', emissiveIntensity: 0.55, roughness: 0.2 })),

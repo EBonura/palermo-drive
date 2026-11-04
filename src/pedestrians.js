@@ -1,6 +1,6 @@
 // Pedestrians: 4-direction billboard sprites walking sidewalks, pedestrian streets and piazze. Owned by the pedestrian work.
 // createPedestrians(env) with env = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, traffic, world }.
-// Returns { update(dt, camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
+// Returns { update(dt, camera), draw(camera), collidePlayer(car), setQuality('low'|'medium'|'high'), stats }.
 //
 // How it works
 // - Art: assets/peds/ draws the characters with a small software rasteriser from a parametric model (assets/peds/model.js): every person is a spec (face, hair, outfit)
@@ -58,7 +58,7 @@ export function createPedestrians(env) {
   if (params.has('peds')) quality = { cap: Math.max(0, +params.get('peds') | 0), R: quality.R };
   const CAP = 1000;
   const stats = { ms: 0, avgMs: 0, maxMs: 0, count: 0, target: 0, tileMs: 0, tiles: 0 };
-  if (!world) return { update() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, spawnCrowd: () => [], removeCrowd() {}, crowdFamilies: () => [], walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
+  if (!world) return { update() {}, draw() {}, collidePlayer() {}, setQuality() {}, stats, spawnScripted: () => -1, spawnCrowd: () => [], removeCrowd() {}, crowdFamilies: () => [], walkTo() {}, face() {}, attachTo() {}, detach() {}, remove() {}, info: () => null, setBounce() {}, near: () => 0, onKnock() {}, night: () => ({ night: false, k: 0, hour: null }) };
 
   // ======================================================================== walkability mask (per world tile)
   // One mask per full-detail world tile (500 m), made from that tile's own street polygons (paving, raised sidewalks, green, sand, water to
@@ -612,7 +612,8 @@ export function createPedestrians(env) {
   const LEAVE = F(CAP).fill(-1);                        // >= 0: fading out (a day crowd member going home at dusk, or the reverse at dawn)
   const MIR = F(CAP);                                   // team-bus miracle countdown (seconds left standing up), 0 when seated
   const BUS = U(CAP);                                   // 1: waiting at a bus stop (moans about the bus when the lapa drives by)
-  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, NEARF, MIR, LEAVE, BUS];
+  const ACC = F(CAP);                                   // seconds since this one was last stepped (see "what the camera can see" below)
+  const copyArrs = [X, Z, Y, TH, THT, NUDGE, V, V0, PH, AGE, VX, VZ, VY, HOP, ROLL, RD, TMR, STEER, TRAV, NEXTT, SHT, SHC, BRI, SIZE, REACT, WAITT, TFLY, ST, VAR, ZN, CLS, TICK, NEARF, MIR, LEAVE, BUS, ACC];
   // ======================================================================== level of detail
   // The near atlas has three texels per design unit; it only helps when a near texel covers about a screen pixel or more, so the people close enough for that
   // (this depends on the screen: a phone at 1.25 pixel ratio gets about 8 m, a desktop at 1.5 about 17 m) ask for a near slot of their cast entry, and use it once built.
@@ -694,7 +695,7 @@ export function createPedestrians(env) {
   const TURN_OFFS = [0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.1, -2.1, 0.25, -0.25];
 
   // ======================================================================== spawn / despawn
-  let jumpedNow = false, cx = 0, cz = 0, camFwdX = 0, camFwdZ = -1, lastCx = 1e9, lastCz = 1e9, targetN = 0, targetT = 0, started = false, frameNo = 0;
+  let started0 = false, jumpedNow = false, cx = 0, cz = 0, camFwdX = 0, camFwdZ = -1, lastCx = 1e9, lastCz = 1e9, targetN = 0, targetT = 0, started = false, frameNo = 0;
   const idleTmp = [];
   function spawn(initial) {
     if (N.n >= CAP) return false;
@@ -745,7 +746,7 @@ export function createPedestrians(env) {
     THT[i] = TH[i]; NUDGE[i] = 0; V[i] = 0; V0[i] = (v.speed || 1.1) * rand(0.85, 1.15); PH[i] = Math.random(); AGE[i] = !started || jumpedNow ? 5 : 0;
     VX[i] = VZ[i] = VY[i] = HOP[i] = ROLL[i] = 0; RD[i] = 1; TMR[i] = atIdle ? tmr : 0; STEER[i] = Math.random() * 0.1; TRAV[i] = 0; NEXTT[i] = rand(10, 35);
     SHC[i] = SHT[i] = inSun(x, z); BRI[i] = rand(0.92, 1.08); SIZE[i] = rand(0.96, 1.04); REACT[i] = -1; WAITT[i] = 0; TFLY[i] = 0;
-    ST[i] = atIdle ? IDLE : WALK; TICK[i] = (Math.random() * 5) | 0;
+    ST[i] = atIdle ? IDLE : WALK; TICK[i] = (Math.random() * 5) | 0; ACC[i] = Math.random() * 0.1;
     if (!atIdle) V[i] = V0[i];
     return i;
   }
@@ -913,6 +914,22 @@ export function createPedestrians(env) {
     RD[i] = (car.vx * nz - car.vz * nx) >= 0 ? 1 : -1; ROLL[i] = 0; HOP[i] = 0.05; V[i] = 0;
   }
 
+  // ======================================================================== what the camera can see
+  // A wedge a little wider than the camera's sideways field of view (with the camera's own tilt, so a high camera looking down is right too). Nobody outside it can be on the screen: they
+  // are stepped less often and get no instance, and the people in it but far away, where a step of the crowd is well under a pixel, are stepped every other frame or so. The people close
+  // to the lapa always run at the full rate wherever they stand (they can get hit, and the camera can swing round to them).
+  let wx0 = 0, wy0 = 0, wz0 = 0, wrx = 1, wry = 0, wrz = 0, wfx = 0, wfy = 0, wfz = -1, wtan = 2;
+  const viewWedge = cam => {
+    const e = cam.matrixWorld.elements, pe = cam.projectionMatrix.elements[0];
+    wx0 = e[12]; wy0 = e[13]; wz0 = e[14]; wrx = e[0]; wry = e[1]; wrz = e[2]; wfx = -e[8]; wfy = -e[9]; wfz = -e[10];
+    wtan = (pe > 0 ? 1 / pe : 2) * 1.15 + 0.05;   // a touch wider than the screen: the wedge may be one frame old in update(), and the drunk camera wobbles
+  };
+  const inWedge = (x, y, z) => {
+    const dx = x - wx0, dy = y + 1 - wy0, dz = z - wz0, s = dx * wrx + dy * wry + dz * wrz, al = (dx * wfx + dy * wfy + dz * wfz + 6) * wtan;   // 6 m behind the eye: a person's width and shadow next to the screen's edge
+    return s <= al && -s <= al;
+  };
+  const RATE_NEAR2 = 30 * 30, RATE_MID2 = 55 * 55, RATE_FAR2 = 85 * 85;
+
   // ======================================================================== per-frame update
   const camQ = new THREE.Vector3();
   function update(dt, cam) {
@@ -992,25 +1009,34 @@ export function createPedestrians(env) {
     hHead.fill(-1);
     for (let i = 0; i < N.n; i++) { const k = hkey(Math.floor(X[i] / 1.5), Math.floor(Z[i] / 1.5)); hNext[i] = hHead[k]; hHead[k] = i; }
 
-    const sfx = Math.sin(car.th), sfz = Math.cos(car.th);
+    const sfx = Math.sin(car.th), sfz = Math.cos(car.th), seeAll = jumped || !started0;
+    viewWedge(cam); started0 = true;
     for (let i = 0; i < N.n; i++) {
       AGE[i] += dt;
-      if (MIR[i] > 0) { MIR[i] -= dt; HOP[i] = MIR[i] > 0 ? 0.1 * Math.abs(Math.sin(MIR[i] * 9)) : 0; if (MIR[i] <= 0) seatAgain(i); }
-      let st = ST[i];
-      // decision tick, staggered
-      if ((STEER[i] -= dt) <= 0 && st <= WAIT) { STEER[i] = 0.1 + Math.random() * 0.04; steer(i, 0.12); st = ST[i]; }
+      if (LEAVE[i] >= 0) { LEAVE[i] -= dt / 1.4; if (LEAVE[i] <= 0) AGE[i] = -999; }
+      let st = ST[i], every = 0;
+      // how often this one is stepped: see "what the camera can see". What it walks in the frames left out it walks in the next one
+      if (st < DODGE && !seeAll) {
+        const qx = X[i] - cx, qz = Z[i] - cz, q2 = qx * qx + qz * qz;
+        if (q2 > RATE_NEAR2) every = inWedge(X[i], Y[i], Z[i]) ? (q2 < RATE_MID2 ? 0 : q2 < RATE_FAR2 ? 0.03 : 0.06) : (q2 < RATE_MID2 ? 0.05 : 0.12);
+      }
+      if ((ACC[i] += dt) < every) continue;
+      const dti = Math.min(ACC[i], 0.25); ACC[i] = 0;
+      if (MIR[i] > 0) { MIR[i] -= dti; HOP[i] = MIR[i] > 0 ? 0.1 * Math.abs(Math.sin(MIR[i] * 9)) : 0; if (MIR[i] <= 0) seatAgain(i); }
+      // decision tick, staggered (at half the rate for those off the screen or far away)
+      if ((STEER[i] -= dti) <= 0 && st <= WAIT) { const slow = every >= 0.05; STEER[i] = slow ? 0.24 : 0.1 + Math.random() * 0.04; steer(i, slow ? 0.24 : 0.12); st = ST[i]; }
 
       const x = X[i], z = Z[i];
       if (st === WALK || st === IDLE || st === WAIT) {
         // turn towards the intended heading (+ wall nudge), speed follows
         const goal = THT[i] + NUDGE[i], dh = angDiff(goal, TH[i]);
-        TH[i] += clamp(dh, -5 * dt, 5 * dt);
-        if (VAR[i] === HEALV && V0[i] > 2.7) V0[i] -= (V0[i] - 2.6) * Math.min(1, 0.35 * dt);
+        TH[i] += clamp(dh, -5 * dti, 5 * dti);
+        if (VAR[i] === HEALV && V0[i] > 2.7) V0[i] -= (V0[i] - 2.6) * Math.min(1, 0.35 * dti);
         const want = st === WALK ? V0[i] * Math.max(0.25, Math.cos(Math.min(1.4, Math.abs(dh)))) : 0;
-        V[i] += clamp(want - V[i], -5 * dt, 3 * dt);
-        if (st === IDLE && Math.abs(dh) > 0.01) TH[i] += clamp(dh, -2.5 * dt, 2.5 * dt);
+        V[i] += clamp(want - V[i], -5 * dti, 3 * dti);
+        if (st === IDLE && Math.abs(dh) > 0.01) TH[i] += clamp(dh, -2.5 * dti, 2.5 * dti);
         if (V[i] > 0.02) {
-          const d = V[i] * dt, nx = x + Math.sin(TH[i]) * d, nz = z + Math.cos(TH[i]) * d;
+          const d = V[i] * dti, nx = x + Math.sin(TH[i]) * d, nz = z + Math.cos(TH[i]) * d;
           if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; TRAV[i] += d; PH[i] += d / STRIDE[VAR[i]]; }
           else { V[i] = 0; STEER[i] = 0; THT[i] += (Math.random() < 0.5 ? 1 : -1) * 1.2; }
         }
@@ -1020,29 +1046,29 @@ export function createPedestrians(env) {
           for (let j = hHead[hkey(ix + a, iz + b)]; j >= 0; j = hNext[j]) {
             if (j === i) continue;
             const dx = X[i] - X[j], dz = Z[i] - Z[j], d2 = dx * dx + dz * dz;
-            if (d2 < 0.49 && d2 > 1e-6) { const d = Math.sqrt(d2); pushOut(i, dx / d, dz / d, (0.7 - d) * 1.6 * dt); }
+            if (d2 < 0.49 && d2 > 1e-6) { const d = Math.sqrt(d2); pushOut(i, dx / d, dz / d, (0.7 - d) * 1.6 * dti); }
           }
         }
         const cdx = X[i] - car.x, cdz = Z[i] - car.z;
         if (cdx * cdx + cdz * cdz < 16) {
           // distance to the lapa's centre line (3.2 m long)
           const al = clamp(cdx * sfx + cdz * sfz, -1.2, 1.2), qx = cdx - sfx * al, qz = cdz - sfz * al, qd = hyp2(qx, qz);
-          if (qd < 1.7 && qd > 1e-4) pushOut(i, qx / qd, qz / qd, (1.7 - qd) * (1.5 + carSpd * 0.25) * dt * (carSpd > 0.3 ? 1 : 0.3));
+          if (qd < 1.7 && qd > 1e-4) pushOut(i, qx / qd, qz / qd, (1.7 - qd) * (1.5 + carSpd * 0.25) * dti * (carSpd > 0.3 ? 1 : 0.3));
         }
-        if (st === IDLE || st === WAIT) { V[i] = Math.max(0, V[i] - 4 * dt); }
+        if (st === IDLE || st === WAIT) { V[i] = Math.max(0, V[i] - 4 * dti); }
       } else if (st === DODGE) {
-        TMR[i] += dt;
+        TMR[i] += dti;
         const u = TMR[i] / 0.5;
-        const nx = x + VX[i] * dt, nz = z + VZ[i] * dt;
+        const nx = x + VX[i] * dti, nz = z + VZ[i] * dti;
         if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; } else { VX[i] = VZ[i] = 0; }
         HOP[i] = 4 * 0.42 * Math.min(1, u) * (1 - Math.min(1, u));
         if (u >= 1) { HOP[i] = 0; if (VAR[i] === HEALV) { ST[i] = WALK; V[i] = V0[i]; STEER[i] = 0; } else { ST[i] = IDLE; TMR[i] = rand(0.5, 1.1); THT[i] = TH[i] + rand(-0.7, 0.7); V[i] = 0; } }
       } else if (st === FLY) {
-        TMR[i] += dt;
-        const nx = x + VX[i] * dt, nz = z + VZ[i] * dt;
+        TMR[i] += dti;
+        const nx = x + VX[i] * dti, nz = z + VZ[i] * dti;
         if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; } else { VX[i] *= -0.2; VZ[i] *= -0.2; }
-        VY[i] -= 12 * dt; HOP[i] += VY[i] * dt;
-        const k = Math.exp(-0.8 * dt); VX[i] *= k; VZ[i] *= k;
+        VY[i] -= 12 * dti; HOP[i] += VY[i] * dti;
+        const k = Math.exp(-0.8 * dti); VX[i] *= k; VZ[i] *= k;
         ROLL[i] = RD[i] * Math.PI * (0.5 + 2 * Math.max(1, Math.round(1 + 1.5 * TFLY[i]))) * Math.min(1, TMR[i] / Math.max(0.2, TFLY[i]));   // whole turns, ending on the side (LIE)
         if (HOP[i] <= 0) {
           HOP[i] = 0;
@@ -1050,31 +1076,44 @@ export function createPedestrians(env) {
           else { ST[i] = LIE; TMR[i] = rand(1.4, 2.4); ROLL[i] = RD[i] * Math.PI / 2; }
         }
       } else if (st === LIE) {
-        TMR[i] -= dt; const k = Math.exp(-5 * dt); VX[i] *= k; VZ[i] *= k;
-        const nx = x + VX[i] * dt, nz = z + VZ[i] * dt; if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; }
+        TMR[i] -= dti; const k = Math.exp(-5 * dti); VX[i] *= k; VZ[i] *= k;
+        const nx = x + VX[i] * dti, nz = z + VZ[i] * dti; if (cell(nx, nz)) { X[i] = nx; Z[i] = nz; }
         if (TMR[i] <= 0) { ST[i] = GETUP; TMR[i] = 0; }
       } else if (st === GETUP) {
-        TMR[i] += dt; const u = Math.min(1, TMR[i] / 0.45);
+        TMR[i] += dti; const u = Math.min(1, TMR[i] / 0.45);
         ROLL[i] = RD[i] * Math.PI / 2 * (1 - u * u); HOP[i] = 0.25 * Math.sin(u * Math.PI);
         if (u >= 1) { ST[i] = WALK; ROLL[i] = 0; HOP[i] = 0; REACT[i] = -1; THT[i] = TH[i] = rand(0, TAU); V0[i] = (VARIANTS[VAR[i]].speed || 1.1) * 1.15; V[i] = 0; STEER[i] = 0; }
       }
 
-      // ground height, eased so stepping onto a curb isn't a pop
-      if (((i + frameNo) & 1) === 0) {   // every other frame is plenty for the height (tile-aware groundY is the dearest call here)
+      // ground height, eased so stepping onto a curb isn't a pop. Every other frame is plenty for the height (tile-aware groundY is the dearest call here), and someone standing still only looks now and then, for a tile that comes in under them
+      if (V[i] > 0.02 || st >= DODGE ? every > 0 || ((i + frameNo) & 1) === 0 : ((i + frameNo) & 15) === 0) {
         const ty = groundY(X[i], Z[i]) + (raisedMask(X[i], Z[i]) ? CURB : 0);
-        Y[i] += (ty - Y[i]) * Math.min(1, 28 * dt);
+        Y[i] += (ty - Y[i]) * Math.min(1, 28 * dti);
       }
+      // sun shading eases to its target
+      SHC[i] += (SHT[i] - SHC[i]) * Math.min(1, 4 * dti);
     }
+    updateChairs(dt, cx, cz); updateBeach(dt, cx, cz);
+    lodEnd(dt);
+    stats.count = N.n;
+    const ms = performance.now() - t0; stats.ms = ms; stats.avgMs += (ms - stats.avgMs) * 0.05; if (ms > stats.maxMs) stats.maxMs = ms;
+  }
 
-    // sun shading eases to its target
-    for (let i = 0; i < N.n; i++) SHC[i] += (SHT[i] - SHC[i]) * Math.min(1, 4 * dt);
-
+  // The instance buffers, written after the camera has moved for this frame (main.js), also while the game is paused (the camera can go on moving then: the menu's turntable). Only who is in the wedge gets an instance.
+  function draw(cam) {
+    if (quality.cap <= 0) return;
+    cam = cam || camera; cam.updateMatrixWorld(); viewWedge(cam);
+    const R = quality.R;
     // write the instance buffers
     const pos = aPos.array, A = aA.array, B = aB.array, n = N.n;
     const cpx = cam.position.x, cpz = cam.position.z, fadeStart = R + 12;
+    let w = 0;
     for (let i = 0; i < n; i++) {
-      const x = X[i], z = Z[i], st = ST[i], dxc = cpx - x, dzc = cpz - z, dist = hyp2(dxc, dzc) || 1;
-      pos[i * 3] = x; pos[i * 3 + 1] = Y[i] + HOP[i]; pos[i * 3 + 2] = z;
+      const x = X[i], z = Z[i], st = ST[i];
+      if (!inWedge(x, Y[i] + HOP[i], z)) continue;
+      const dxc = cpx - x, dzc = cpz - z, dist = hyp2(dxc, dzc) || 1;
+      if (dist > fadeStart) continue;   // (faded out)
+      pos[w * 3] = x; pos[w * 3 + 1] = Y[i] + HOP[i]; pos[w * 3 + 2] = z;
       let dir, pose;
       if (st >= FLY) { dir = 0; pose = st === FLY ? 1 : 0; }
       else {
@@ -1088,18 +1127,15 @@ export function createPedestrians(env) {
       }
       lodSee = dxc * camFwdX + dzc * camFwdZ < 0;
       lodPick(VAR[i], dir, pose, dist, SIZE[i], NEARF[i]); NEARF[i] = lodNear;
-      A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = SIZE[i]; A[i * 4 + 3] = ROLL[i];
-      if (LEAVE[i] >= 0) { LEAVE[i] -= dt / 1.4; if (LEAVE[i] <= 0) AGE[i] = -999; }
+      A[w * 4] = lodX; A[w * 4 + 1] = lodY; A[w * 4 + 2] = SIZE[i]; A[w * 4 + 3] = ROLL[i];
       const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1) * (LEAVE[i] >= 0 ? Math.max(0, LEAVE[i]) : 1);
-      B[i * 4] = fade; B[i * 4 + 1] = SHC[i] * (1 - nightK); B[i * 4 + 2] = BRI[i];
+      B[w * 4] = fade; B[w * 4 + 1] = SHC[i] * (1 - nightK); B[w * 4 + 2] = BRI[i];
+      w++;
     }
-    updateChairs(dt, cpx, cpz); const nc = writeChairs(n, cpx, cpz, fadeStart);
-    updateBeach(dt, cpx, cpz); const nb = writeBeach(n + nc, cpx, cpz, fadeStart);
-    lodEnd(dt);
-    aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true;
-    sprites.geometry.instanceCount = shadows.geometry.instanceCount = n + nc + nb;
-    stats.count = n;
-    const ms = performance.now() - t0; stats.ms = ms; stats.avgMs += (ms - stats.avgMs) * 0.05; if (ms > stats.maxMs) stats.maxMs = ms;
+    const nc = writeChairs(w, cpx, cpz, fadeStart), nb = writeBeach(w + nc, cpx, cpz, fadeStart), all = w + nc + nb;
+    // only the part in use goes to the GPU
+    if (all > 0) { aPos.clearUpdateRanges(); aA.clearUpdateRanges(); aB.clearUpdateRanges(); aPos.addUpdateRange(0, all * 3); aA.addUpdateRange(0, all * 4); aB.addUpdateRange(0, all * 4); aPos.needsUpdate = aA.needsUpdate = aB.needsUpdate = true; }
+    sprites.geometry.instanceCount = shadows.geometry.instanceCount = all;
   }
 
   // ======================================================================== the lapa meets a pedestrian (runs at 120 Hz)
@@ -1217,13 +1253,14 @@ export function createPedestrians(env) {
     for (let i = 0; i < N.n; i++) { if (ST[i] >= FLY) continue; const dx = X[i] - x, dz = Z[i] - z; if (dx * dx + dz * dz < r2) n++; }
     return n;
   }
-  const attOut = { x: 0, y: 0, z: 0, th: 0 };
+  const attOut = { x: 0, y: 0, z: 0, th: 0 }, scriptOrder = [];
   function updateScripted(dt, cam) {
     dt = clamp(dt, 0, 0.05); scriptClock += dt;
     const cpx = cam.position.x, cpz = cam.position.z;
+    if (!scripted.size) { sSprites.geometry.instanceCount = sShadows.geometry.instanceCount = 0; return; }
     const sp = sPos.array, sa = sA.array, sb = sB.array;
-    let k = 0, seatedList = null;
-    const order = [];
+    let k = 0;
+    const order = scriptOrder; order.length = 0;
     for (const c of scripted.values()) {
       if (c.state === 'walk') {
         const dx = c.tx - c.x, dz = c.tz - c.z, d = hyp2(dx, dz), step = c.speed * dt;
@@ -1487,7 +1524,7 @@ export function createPedestrians(env) {
     for (let k = 0; k < N.n; k++) { const i = (s + k) % N.n, d = (X[i] - x) ** 2 + (Z[i] - z) ** 2; if (d >= a2 && d <= b2) return { x: X[i], y: Y[i] + 1.95, z: Z[i] }; }
     return null;
   }
-  const api = { personNear, spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  const api = { personNear, spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, draw, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
   if (params.has('debug')) { window.__peds.beach = { bathers, splashes, beachAll, waterAt, nearBeach, sandDist, knockBather, k: () => beachK }; window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;

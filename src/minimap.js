@@ -38,7 +38,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   }
   let active = []; // pieces around the car, refreshed by scan()
   let landPath = null, bbox = null;
-  let scanT = 0, scanI = 1e9, scanJ = 1e9;
+  let scanT = 0, scanI = 1e9, scanJ = 1e9, sinceDraw = 1, lastSig = NaN;
   const key = (i, j) => i * 4096 + j;
 
   // a marker's shape says what it is: round (default) someone to meet, target where to go now, diamond something to pick up, cross a graffiti to spray, triangle a food stall
@@ -152,8 +152,9 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       const t0 = performance.now();
       try { paintDetail(p, d); } catch (e) { p.detail = true; console.warn('[minimap] tile', p.i, p.j, e); }
       const ms = performance.now() - t0; stats.lastMs = ms; stats.sumMs += ms; if (ms > stats.maxMs) stats.maxMs = ms;
-      return;
+      return true;
     }
+    return false;
   }
 
   function drawTiles(R) {
@@ -177,8 +178,15 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       const ci = Math.floor(car.x / T), cj = Math.floor(car.z / T);
       scanT -= dt || 0.016;
       if (scanT <= 0 || ci !== scanI || cj !== scanJ || !landPath) { scanT = 0.2; scanI = ci; scanJ = cj; scan(R); }
-      upgradeOne();
+      if (upgradeOne()) sinceDraw = 1;
     }
+    // A canvas drawn every frame goes through the page's compositing every frame (on Safari that is the dear part): 30 times a second while anything moves, a heading up map turning at that rate
+    // looks the same, and twice a second while nothing does (standing still), which also catches what the sum below cannot see, such as a marker changing colour.
+    sinceDraw += dt || 0.016;
+    let sig = Math.round(car.x * 4) * 1.7 + Math.round(car.z * 4) * 2.3 + Math.round(car.th * 200) * 31 + Math.round(zoom * 500) * 97 + mapRoute.length + (mapRoute.i0 || 0);
+    for (const m of mapMarkers) sig += m.x * 0.7 + m.z * 1.3 + (m.size || 0);
+    if (sinceDraw < (sig !== lastSig ? 0.03 : 0.5)) return;
+    sinceDraw = 0; lastSig = sig;
     mini.save();
     mini.clearRect(0, 0, W, W);
     mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
@@ -193,7 +201,6 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     // screen space: rotate each offset by the same angle as the map (heading up), scale like the map.
     // Off-map markers are pinned to the rim so the direction still reads.
     const a = car.th - Math.PI, ca = Math.cos(a), sa = Math.sin(a), k = zoom;
-    const toMap = (x, z) => { const dx = (x - car.x) * k, dz = (z - car.z) * k; return [W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca]; };
     if (mapRoute.length > 1) {
       mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
       mini.lineCap = mini.lineJoin = 'round';

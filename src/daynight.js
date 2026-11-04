@@ -438,13 +438,13 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   ground.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 1, -0.5, 0, 1], 3));
   ground.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
   ground.setIndex([0, 2, 1, 0, 3, 2]);
-  const decalMat = new THREE.MeshBasicMaterial({ map: beamT, color: '#ffe9b8', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
+  const decalMat = new THREE.MeshBasicMaterial({ map: beamT, color: '#ffe9b8', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, forceSinglePass: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
   const coneLen = 13, coneGeo = new THREE.ConeGeometry(2.4, coneLen, 18, 1, true);
   coneGeo.translate(0, -coneLen / 2, 0); coneGeo.rotateX(-Math.PI / 2); // apex at the origin, opening towards +z
   { const pos = coneGeo.attributes.position, cc = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) { const t = clamp(pos.getZ(i) / coneLen, 0, 1), a = (1 - t) * (1 - t) * 0.9; cc[i * 3] = cc[i * 3 + 1] = cc[i * 3 + 2] = a; }
     coneGeo.setAttribute('color', new THREE.BufferAttribute(cc, 3)); }
-  const coneMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: '#ffeccc', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0 });
+  const coneMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: '#ffeccc', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, forceSinglePass: true, opacity: 0 });
   const heads = [0, 1].map(() => {
     const pivot = new THREE.Group(), cone = new THREE.Mesh(coneGeo, coneMat), decal = new THREE.Mesh(ground, decalMat);
     cone.scale.set(0.55, 0.55, 1); cone.frustumCulled = false; decal.frustumCulled = false; pivot.add(cone); beamGroup.add(pivot);

@@ -505,6 +505,7 @@ renderer.setAnimationLoop(now => {
   else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu
   else updateCamera(dt);
   if (world) world.overview = game.state === 'title';
+  pedestrians.draw(camera); // the crowd's instances, for where the camera is now
   world?.update(dt, camera); // stream tiles around the camera
   updateHud(dt);
   minimap.draw(dt);

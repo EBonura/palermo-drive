@@ -69,7 +69,7 @@ export function createWake({ scene, seaY, uniforms }) {
   g.setIndex(idx);
   const mat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uLife: { value: LIFE } }]), vertexShader: VERT, fragmentShader: FRAG, fog: true,
-    transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
   });
   mat.uniforms.uAmb = uniforms.uAmb; mat.uniforms.uTime = uniforms.uTime;   // the sea's own, so the day and night light and the clock are shared
   const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.visible = false; scene.add(mesh);

@@ -152,7 +152,7 @@ function crates() {   // a pile of empty and full crates on the ground beside th
 const SEE = 330;                 // metres from a market's edge within which its meshes are drawn
 const VEND = ['fruttivendolo', 'vendor', 'pescivendolo', 'macellaio', 'vendor2'];   // by stall kind
 const NEAR_V = 62, FAR_V = 82, MAX_V = 36;                                     // vendors exist for stalls within NEAR_V of the camera (up to MAX_V at once)
-const TARP_TINT = ['#2a6aa8', '#3a7a40', '#e8e4da', '#b8742a'].map(C);
+const TARP_TINT = ['#2a6aa8', '#3a7a40', '#e8e4da', '#b8742a'].map(C); const NO_TINT = new THREE.Color(1, 1, 1);
 const THR_STALL = 3.0, THR_CRATES = 1.6;   // closing speed (m/s) from which a stall, or the pile of crates beside it, breaks (a fence panel 3.0, a bench 3.5, a crate 1.2); slower they are walls
 const LOSS = 0.3;                          // share of the closing speed the lapa gives up to a stall it smashes (a fence panel 0.22, a garden wall 0.38): it goes on through
 const WRECK = 64;                          // pieces of each kind and part the wreck meshes keep (the oldest is recycled)
@@ -183,7 +183,8 @@ export function createMarkets(env) {
     const mk = (geo, list, material, tint, shadow, part) => {
       if (!list.length) return null;
       const im = new THREE.InstancedMesh(geo, material, list.length); im.matrixAutoUpdate = false; im.castShadow = shadow; im.receiveShadow = true; im.visible = false;
-      if (tint) for (let k = 0; k < list.length; k++) im.setColorAt(k, TARP_TINT[S[list[k]][4] - 4]);
+      // every mesh of the canopies' material has an instance colour (white when untinted): with and without on one material makes three re-derive the program parameters from one mesh to the next
+      if (material === matD) for (let k = 0; k < list.length; k++) im.setColorAt(k, tint ? TARP_TINT[S[list[k]][4] - 4] : NO_TINT);
       im.userData.list = list; im.userData.noShadowFar = true; im.userData.part = part; list.forEach((j, k) => { where[j][part] = [im, k]; }); scene.add(im); meshes.push(im); return im;
     };
     const parts = [];
