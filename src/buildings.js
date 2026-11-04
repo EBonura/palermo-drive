@@ -1448,6 +1448,7 @@ const STYLES = {
 };
 // The old town: which zones, the palette of its plaster (real albedo before the 1.3 of the build; terracotta, salmon, ochre, cream, grey), and its ground floors by kind of street.
 const OLDZ = new Set(['corso', 'roma', 'old', 'centro', 'kalsa', 'alberg', 'politeama', 'stazione']);
+const TPAL = new Map();   // the plaster palette of a town zone as colours, for the houses of a long street wall (oldHouses)
 const OLD_PAL = ['#ae6a52', '#b87258', '#a46048', '#cb9a86', '#c48c7a', '#c9a064', '#d0aa70', '#bf9158', '#d6bf84', '#dcc896', '#d2b672', '#dcd1ba', '#d6cbb4', '#bcb09c', '#aea492', '#d0a99c', '#a2745a', '#b5b8a4', '#e4dfd2', '#c29c70', '#8f8474', '#9a8c7c'].map(C);
 const PW_RAILS = [['rail_s', 2.2], ['rail_m', 2], ['rail_x', 2], ['rail_c', 1.6], ['rail_a', 1.6], ['rail_g', .8]];   // balcony rails of the post-war blocks
 const OLD_GROUND = {
@@ -1455,6 +1456,14 @@ const OLD_GROUND = {
   main: [['og_shop', 2.6], ['og_door', 1.8], ['g_bar', 1.3], ['g_tabacchi', .7], ['g_farm', .5], ['g_pane', .5], ['g_portone', .8], ['pw_shop', 1], ['g_shop_o', .8], ['og_low', .8], ['g_shop_s', 1.4]],
   side: [['og_door', 3], ['og_shop', 2], ['og_low', 1.5], ['g_portone', 1], ['g_bar', .35], ['g_bottega', .6], ['g_shop_s', .8]],
   minor: [['og_door', 3.4], ['og_low', 2], ['og_shop', 1.2], ['g_portone', .6], ['g_bottega', .3]],
+};
+// Ground floors of the country towns (Villabate photos): the roller shutter is the commonest front, then a plain door, a shop with its shutter up or down, a bar, a bakery or a
+// chemist now and then, a fruit and vegetable front on the main street. Same four kinds of street as OLD_GROUND.
+const TOWN_GROUND = {
+  market: [['g_mk_a', 3], ['g_mk_b', 2], ['g_mk_c', 1.6], ['g_bottega', 1.4], ['g_garage', 1.5], ['g_door2', 1]],
+  main: [['g_garage', 2.4], ['g_shop_s', 2.2], ['g_shop_o', 1.3], ['pw_shop', 1.1], ['g_door2', 1.5], ['g_bar', 1.1], ['g_tabacchi', .5], ['g_farm', .5], ['g_pane', .5], ['g_bottega', .8], ['g_portone', .4], ['g_mk_a', .4]],
+  side: [['g_garage', 3.2], ['g_door2', 2.4], ['og_door', 1], ['g_shop_s', 1.2], ['g_bottega', .5], ['g_bar', .25], ['g_pane', .2], ['og_low', .8]],
+  minor: [['g_garage', 3.6], ['g_door2', 2.8], ['og_door', 1.2], ['og_low', 1.2], ['g_shop_s', .4]],
 };
 const REPEATABLE = new Set(['pwg', 'og_door', 'og_shop', 'og_low', 'g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
 
@@ -2070,7 +2079,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       }
       let S = STYLES[key];
       if (spec) { stats.specs++; S = { ...S }; if (spec.bay) S.bay = spec.bay; if (spec.fh) S.fh = spec.fh; if (spec.corn !== undefined) S.corn = spec.corn; if (spec.rail) S.rail = spec.rail; }
-      const old = !spec && OLDZ.has(zone) && (key === 'bar' || key === 'n19' || key === 'res' || key === 'low');   // old town: its own windows, ground floors, balconies and plaster
+      const old = !spec && (OLDZ.has(zone) || Z.town) && (key === 'bar' || key === 'n19' || key === 'res' || key === 'low');   // old town: its own windows, ground floors, balconies and plaster
       if (old) S = { ...S, g0: S.g0 * (0.88 + 0.26 * hh(cx * 0.43, cz * 0.77)), fh: S.fh * (0.92 + 0.16 * hh(cx * 0.91, cz * 0.13)) };   // storey heights differ from house to house
       stats.styles[key] = (stats.styles[key] || 0) + 1;
       if (BDBG) (window.__bldDbg = window.__bldDbg || []).push([b.id, Math.round(cx), Math.round(cz), zone, key, Math.round(H0 * 10) / 10, Math.round(area), b.r !== undefined ? 'L' : b.lv ? 'osm' : nFl ? 'dist' : 'gen']);
@@ -2083,7 +2092,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
       if (spec && spec.col) base = new THREE.Color(spec.col);
       else if (osm) { base = osm; stats.osmCol++; }
       else if (brick) base = new THREE.Color('#b8ada0');
-      else if (old && !isStone) base = OLD_PAL[((b.c * 2654435761) >>> 0) % OLD_PAL.length].clone();
+      else if (old && !isStone && !Z.town) base = OLD_PAL[((b.c * 2654435761) >>> 0) % OLD_PAL.length].clone();
       else if (S.pwf && (!Z.elig || OLDZ.has(zone))) base = PAL.pw[b.c % PAL.pw.length].clone();   // post-war blocks in the old zones (and in the unclassified rest) take the 1950s to 80s render colours
       else if (key === 'church') base = PAL.church[b.c % PAL.church.length].clone();
       else { const list = isStone ? Z.stone : Z.plaster; base = new THREE.Color(list[b.c % list.length]); }
@@ -2097,7 +2106,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         spec, self: b.split ? b : undefined, parts2: b.split && b.parts ? b.parts.map(q => ({ flat: q[0], pts: pairs(q[0]) })) : null, bp: spec && spec.walls ? pts0 : null, stoneWall: isStone, arch: !!b.yb,
         reach: Z.elig && !Z.shed ? (Z.front ?? 15) : OLDZ.has(zone) ? 13 : 0,   // the old-town zones that are not `elig` (a piazza in front of a facade, a pavement the road data does not reach) look 13 m for a street, as the others do
         sn: near && near.r && near.r.n || '', sc: near && near.r && near.r.k || '',   // the street it stands on (ground-floor mix)
-        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e, gr, houseCol: !spec && !osm && !isStone,
+        gl: Z.gl && (key === 'low' || key === 'fish' || key === 'res') ? Z.gl : null, pitchMul: Z.roof ?? 1, eave: !!b.e, gr, houseCol: !spec && !osm && !isStone, townPal: Z.town ? (TPAL.get(zone) || TPAL.set(zone, Z.plaster.map(c => new THREE.Color(c))).get(zone)) : null,
       };
       B.uo = Math.floor(hh(cx * 3.1, cz * 1.7) * 60);
       if (S.pwf) {   // post-war: balcony depth, the rails of this block (two, and a third for the odd balcony), concrete of the arcade columns
@@ -2106,7 +2115,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         B.pr = [0, 1, 2].map(k => pick(PW_RAILS, () => hh(cx * (0.9 + k * 0.37) + k, cz * (1.1 + k * 0.23) + 2.9 * k)));
         B.conc = new THREE.Color(0.78, 0.77, 0.74).lerp(col, 0.15);
       }
-      if (old) { B.old = true; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; }
+      if (old) { B.old = true; B.town = !!Z.town; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; }
       if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = old ? 'ost_up' : 'st_up_' + sh; if (old) B.nob = 'ost_nob'; }
       else if (old) { B.up = 'old_up'; B.nob = 'old_nob'; }
       if (!spec) { B.up = UPGRP[B.up] || B.up; if (B.nob) B.nob = UPGRP[B.nob] || B.nob; }
@@ -2161,7 +2170,7 @@ function oldHouses(E, B, S, len, nUp, Hu, nb0) {
     if (k && nUp >= 2) { const q = hu(k, 0.53, 2.7), d = q < 0.25 ? 1 : q < 0.5 ? -1 : 0, fh = Hu / (nUp + d); if (d && fh > S.fh * 0.78 && fh < S.fh * 1.22) nU = nUp + d; }   // another storey count where the storey height stays in range
     let col = B.col, stone = B.stone, slab = B.slab;
     if (k) {
-      if (B.houseCol) { col = OLD_PAL[Math.floor(hu(k, 2.3, 0.9) * OLD_PAL.length) % OLD_PAL.length].clone().multiplyScalar(1.3 * (0.94 + 0.1 * hu(k, 1.1, 2.1)) * (1 - 0.2 * B.gr)); const l = (col.r + col.g + col.b) / 3; col.lerp(HGREY.setRGB(l, l, l), 0.24 + 0.28 * B.gr); }   // as the building's own colour was made (the plaster palette, a little greyed)
+      if (B.houseCol) { const PL = B.townPal || OLD_PAL; col = PL[Math.floor(hu(k, 2.3, 0.9) * PL.length) % PL.length].clone().multiplyScalar(1.3 * (0.94 + 0.1 * hu(k, 1.1, 2.1)) * (1 - 0.2 * B.gr)); const l = (col.r + col.g + col.b) / 3; col.lerp(HGREY.setRGB(l, l, l), 0.24 + 0.28 * B.gr); }   // as the building's own colour was made (the plaster palette, a little greyed)
       else col = B.col.clone().multiplyScalar(0.9 + 0.2 * hu(k, 1.7, 1.3));
       stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15); slab = stone.clone().multiplyScalar(0.92);
     }
@@ -2198,6 +2207,7 @@ function groundMix(S, B) {
   const nm = B.sn || '', cl = B.sc || '';
   const ctx = MARKET_FRONT.test(nm) ? 'market' : MAIN_ST.test(nm) || cl === 'primary' || cl === 'secondary' || cl === 'tertiary' || cl === 'pedestrian' ? 'main' : cl === 'residential' || cl === 'living_street' || cl === 'unclassified' ? 'side' : 'minor';
   let m = MIX_CACHE.get(S); if (!m) MIX_CACHE.set(S, m = {});
+  if (B.town) return m[ctx + 't'] || (m[ctx + 't'] = TOWN_GROUND[ctx]);
   if (B.old) return m[ctx + 'o'] || (m[ctx + 'o'] = [...S.ground.filter(([l]) => l === 'g_arch').map(([l, w]) => [l, w * .4]), ...OLD_GROUND[ctx]]);
   if (m[ctx]) return m[ctx];
   const E = SHOP_EXTRA[ctx];

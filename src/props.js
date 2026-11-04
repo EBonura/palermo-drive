@@ -4,7 +4,7 @@
 // bucketed into 250 m cells so frustum culling still works.
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
-import { zoneAt } from './districts.js';
+import { zoneAt, ZONES } from './districts.js';
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
 import { treeCleared } from './tree-clear.js';
@@ -1068,12 +1068,12 @@ function makePhysics(env) {
 
 // ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)
 // squalor 0..1 by zone where the centro's street-name rules do not apply
-const ZONE_SQ = { zen: 0.95, cep: 0.72, viaLib: 0.18, lido: 0.2, mondello: 0.25, sferra: 0.38, valdesi: 0.3, favorita: 0.3, rural: 0.3, brancaccio: 0.66, noce: 0.6, zisa: 0.6, borgoV: 0.7, oreto: 0.65, porto: 0.7, brin: 0.6, corsoMille: 0.55 };
+const ZONE_SQ = { zen: 0.95, cep: 0.72, viaLib: 0.18, lido: 0.2, mondello: 0.25, sferra: 0.38, valdesi: 0.3, favorita: 0.3, rural: 0.3, brancaccio: 0.66, noce: 0.6, zisa: 0.6, borgoV: 0.7, villabate: 0.5, oreto: 0.65, porto: 0.7, brin: 0.6, corsoMille: 0.55 };
 // "effective distance from the old centre" (m) outside 1.1 km: drives how thickly cars, scooters and lanterns are set
-const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama: 800, stazione: 900, noce: 1000, zisa: 1000, borgoV: 900, oreto: 1000, brancaccio: 1100, corsoMille: 1000, zen: 1000, cep: 1200, mondello: 1000, lido: 900, sferra: 1100,
+const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama: 800, stazione: 900, noce: 1000, zisa: 1000, borgoV: 900, villabate: 1000, oreto: 1000, brancaccio: 1100, corsoMille: 1000, zen: 1000, cep: 1200, mondello: 1000, lido: 900, sferra: 1100,
   valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
-const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1 };
-const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7 };   // share of cafes with tables outside
+const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1, villabate: 1.15 };
+const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7, villabate: 0.6 };   // share of cafes with tables outside
 const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
 // ------------------------------------------------------------------ building index (exact point test + nearest wall)
@@ -2306,6 +2306,23 @@ function* generate(S, BUD) {
       st.gardenTrees = gn;
     }
     stats.flavour = st;
+  }
+
+  // ---------- 12f. street life of the country towns (Villabate photos): a produce stall on the pavement in front of each greengrocer (own rng, so nothing above moves)
+  {
+    const rt = rng(S.seed3 + 4141), CRATE = ['#d9701f', '#e6d9b0', '#7aa23a', '#c0392b'];
+    let n = 0;
+    for (const it of osm) {
+      if (it.k !== 'shop' || it.shop !== 'greengrocer') continue;
+      const zn = ZONES[zoneOf(it.x, it.z)]; if (!zn || !zn.town) continue;
+      const r1 = rt(), r2 = rt(); if (r1 < 0.25) continue;
+      const w = nearWall(it.x, it.z, 7); if (!w) continue;
+      const x = w.px + w.nx * 1.35, z = w.pz + w.nz * 1.35;
+      if (inB(x, z) || (asphalt(x, z) && !raisedMask(x, z) && !paving(x, z)) || occHit(x, z, 1.1) || nearWall(x, z, 0.6)) continue;
+      put('stall_table', x, gy(x, z), z, Math.atan2(w.nx, w.nz), 1); occAdd(x, z, 1.1); n++;
+      if (r2 < 0.6) put('umbrella', x, gy(x, z), z, r2 * 6, 0.8, C(CRATE[Math.floor(r2 * 4) % 4]));
+    }
+    stats.town_stalls = n;
   }
 
   // ---------- 13. street trees along the streets of the towns and the countryside around Palermo (the old avenues have theirs in 12 b; the centre and its belts keep what they have)

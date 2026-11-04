@@ -3,6 +3,7 @@
 //   #pd-gang  under it, only from "noticed" on: a row in the look of the police row (#pd-wanted, src/police.js) with the words of the stage and a bar that drains
 // createDangerHud(car) -> { els: [hood, gang], draw() }; draw() every frame (it only touches the page when something changed). Same on a phone and a desktop.
 import { dangerAt, areaAt, covered, trouble, TUNE } from './danger.js';
+import { townAt } from './districts.js';
 
 const CSS = `
   /* the area with its danger diamonds (row 2, plus for a few seconds after the area changes the words "neighbourhood danger") and the gang row are parts of the map capsule, src/ui.css */
@@ -56,7 +57,7 @@ export function createDangerHud(car) {
     const shown = !covered();
     if (shown !== on) { on = shown; hood.classList.toggle('on', shown); }
     if (!shown) { if (gOn) { gOn = false; gang.classList.remove('on'); } return; }
-    const n = areaAt(car.x, car.z) || 'Palermo', l = dangerAt(car.x, car.z), tr = trouble();
+    const n = areaAt(car.x, car.z) || townAt(car.x, car.z) || 'Palermo', l = dangerAt(car.x, car.z), tr = trouble();
     if (n !== name) { name = n; elN.textContent = n; ex = performance.now() + EX_MS; hood.classList.add('ex'); }
     else if (ex && performance.now() > ex) { ex = 0; hood.classList.remove('ex'); }
     const lg = document.documentElement.lang === 'en' ? 'en' : 'it';
