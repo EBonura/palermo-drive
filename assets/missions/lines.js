@@ -232,12 +232,20 @@ export const VENDORS = [
   { id: 'garraffello', name: 'Piazza Garraffello (Vucciria)', lat: 38.1179401, lon: 13.3649292, skin: 'fruttivendolo' },
 ];
 
-// real places that are outside today's drivable box, for later
+// Stigghiulari that are not in the centro: position-based, built when the lapa comes near (the same lazy list as the pollanche, src/missions.js updatePoll). lat/lon is the cart itself, (rx, rz)
+// the direction from the cart to the carriageway it serves. The stigghiolaro of the Basile bridge: Viale Regione Siciliana Sud Est, the carriageway towards Bagheria (OSM way 12229 of the tiles,
+// one-way south-east), on its RIGHT side, in the verge strip between that carriageway and its slip road, under the deck that carries Via Ernesto Basile (OSM ways 34015846 and 34015847). The cart
+// stands 8.1 m from the carriageway line, 2.6 m clear of its edge. The owner asked for the right side travelling out of town towards Bagheria (4 Nov 2026). He has no name: the sign says STIGGHIOLA.
+export const STIGGHIOLA_FAR = {
+  sites: [
+    { id: 'basile', name: 'Sutta u ponti ri via Ernesto Basile (Viale Regione Siciliana)', lat: 38.093746, lon: 13.338934, rx: 0.674, rz: -0.738, skin: 'coppola2' },
+  ],
+};
+
+// real places that are not built yet, for later (the Via Ernesto Basile and Viale Regione Siciliana stigghiola that were here is STIGGHIOLA_FAR above; the centro box is no longer a limit)
 export const LATER = [
-  { name: 'Piazza della Kalsa', lat: 38.1158659, lon: 13.3735872, note: 'about 40 m outside the box (stigghiola vendor, Kalsa)' },
-  { name: 'Antica Friggitoria Chiluzzo, Via Torremuzza', lat: 38.1163042, lon: 13.373051, note: 'just outside the box (panelle, Kalsa)' },
-  { name: 'Via Ernesto Basile (stigghiola, Pagliarelli side)', lat: 38.0993011, lon: 13.3468323, note: 'Nominatim node of the road; far south of the box' },
-  { name: 'Viale Regione Siciliana (stigghiola, Pagliarelli side)', lat: null, lon: null, note: 'no Nominatim result, coordinates still to find' },
+  { name: 'Piazza della Kalsa', lat: 38.1158659, lon: 13.3735872, note: 'stigghiola vendor, Kalsa' },
+  { name: 'Antica Friggitoria Chiluzzo, Via Torremuzza', lat: 38.1163042, lon: 13.373051, note: 'panelle, Kalsa' },
 ];
 
 // =====================================================================================================================
@@ -557,6 +565,60 @@ export const GRANITA = {
   sites: [
     { id: 'barettu', name: 'U Barettu (Piazza Valdesi, Mondello)', lat: 38.196918, lon: 13.3324, rx: -0.438, rz: 0.899 },
   ],
+};
+
+// ---- Ideas of a Palermo friend of the owner (Nov 2026), src/friend-stops.js. Every line below is a DRAFT in the owner's Palermitan spelling for the owner to correct; no person is named, and the
+// real businesses (Ganci, the cornetto kiosks) only appear as a plain sign: nothing is said about them.
+// "Pezzo nni Ganci": a pezzo (a piece of rosticceria: pizzotti, calzoni fritti, arancine, ravazzate) at a branch of the Ganci rosticceria. Same nitro treat as the stigghiola.
+export const GANCI = {
+  title: 'Pezzo nni Ganci',
+  cry: [
+    ['Pizzotti, calzoni e arancine! Amunì, ca sunnu cavuri!', 'Pizzotti, calzoni and arancine! Come on, they are hot!'],
+    ['Pezzu cavuru, pezzu cavuru!', 'Hot piece, hot piece!'],
+    ['Ravazzati frischi ri furnu!', 'Fresh ravazzate from the oven!'],
+  ],
+  serve: [
+    ['Teni, un pezzu: chiddu ca vo’ tu.', 'Here, a piece: whichever you like.'],
+    ['Pi tia, ca a stati curri picca e mancia assai.', 'For you: you drive little and eat a lot.'],
+  ],
+  driver: [
+    ['Un pezzu ô vulu e ripartu.', 'A piece on the fly and I am off.'],
+    ['Cu u pezzu ’nta manu si guida araciu araciu.', 'With a piece in your hand you drive nice and slow.'],
+  ],
+  toast: ['Nitro ’n chiù, cavuru, puru oltri u chinu', 'Extra nitro, hot, even past full'],
+};
+// "A preghiera alla santuzza": stop at the shrine of the Santuario di Santa Rosalia (and at the Festino carro) and pray: the wanted level and the trouble of the neighbourhood go, on a cooldown.
+// The jokes are on the drivers, never on the faith.
+export const PREGHIERA = {
+  title: 'A preghiera alla Santuzza',
+  pray: [
+    ['Santuzza, pirdunami i luci russi.', 'Santuzza, forgive me the red lights.'],
+    ['Un fu curpa mia: u marciapieri era ddà.', 'It was not my fault: the pavement was just there.'],
+    ['Giuru ca di dumani cuntu fina a dui prima ri sorpassari.', 'I swear that from tomorrow I count to two before overtaking.'],
+    ['Santuzza, tu ca vii tuttu: talìa ri n’autra banna.', 'Santuzza, you who see everything: look the other way.'],
+  ],
+  amen: [['Amen. E ora ripartu, ma cu giudiziu.', 'Amen. And now I am off, but sensibly.'], ['Grazii, Santuzza. Ni viremu ô prossimu semaforu russu.', 'Thank you, Santuzza. See you at the next red light.']],
+  cool: ['A Santuzza ti sta taliannu: ripassa cchiù tardu.', 'The Santuzza is watching you: come back later.'],
+  toastDone: ['BENEDIZIONE!', ['I sbirri s’hannu scurdatu ri tia', 'The cops have forgotten about you']],
+  toastNone: ['BENEDIZIONE!', ['Nuddu piccatu ri pirdunari: teni na picca ri nitro', 'No sins to forgive: here is a bit of nitro']],
+};
+// "Cornetto i menzannuatti": the hot cornetti kiosks that are open only from about midnight to dawn (hours: src/friend-places.js CORNETTI).
+export const CORNETTO = {
+  title: 'Cornetto i menzannuatti',
+  cry: [
+    ['Cornetti cavuri, appena nisciuti!', 'Hot cornetti, just out!'],
+    ['Cu a luna ’ncapu e u cornettu ’nta manu!', 'With the moon above and a cornetto in hand!'],
+    ['Cornetti cavuri cu a criema!', 'Hot cornetti with custard!'],
+  ],
+  serve: [
+    ['Teni, ca è propriu nisciutu.', 'Here, it has only just come out.'],
+    ['Pi tia, cu a criema.', 'For you, with custard.'],
+  ],
+  driver: [
+    ['Cornettu cavuru a menzannuatti: a vita è bedda.', 'A hot cornetto at midnight: life is good.'],
+    ['Ora pozzu cuntinuari a notti.', 'Now I can go on with the night.'],
+  ],
+  toast: ['Nitro ’n chiù, cavuru, puru oltri u chinu', 'Extra nitro, hot, even past full'],
 };
 
 // ---- "Appartati": parked cars with steamed-up windows at Monte Pellegrino's lookouts and in quiet corners of the Favorita.

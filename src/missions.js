@@ -20,7 +20,7 @@
 // Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
 import { lifeFor } from './shouts.js';
 import * as THREE from 'three';
-import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, POLLANCHE, GRANITA, FAVORITA } from '../assets/missions/lines.js';
+import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, STIGGHIOLA_FAR, POLLANCHE, GRANITA, FAVORITA } from '../assets/missions/lines.js';
 import { WORLD, hooks } from './core.js';
 import { createNightLife } from './missions-night.js';
 import { createEventHud } from './event-hud.js';
@@ -29,6 +29,7 @@ import { createFares } from './event-fares.js';
 import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
 import { createPubs } from './pubs.js';
+import { createFriendStops } from './friend-stops.js';
 import { createRave } from './rave.js';
 import { createRaveEvents } from './event-rave.js';
 import { createHornsEvents } from './event-horns.js';
@@ -351,11 +352,15 @@ function build(env) {
 
   // U Barettu (Mondello), a small granita kiosk (sources, and the doubt about its exact spot: GRANITA in assets/missions/lines.js and places.md). Local frame like the carts:
   // +x is the road side, z runs along the front. Boxes and cylinders, the sign is drawn on a canvas, nothing is a photo.
-  function kioskSign() {
+  function kioskSign(a = 'BARETTU', b = 'GRANITE', col = '#2358a8') {   // a: the name, b: what it sells (none: the name fills the board); col: the stripes and the name
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 80; const g = cv.getContext('2d');
-    g.fillStyle = '#f1efe6'; g.fillRect(0, 0, 512, 80); g.fillStyle = '#2358a8'; g.fillRect(0, 0, 512, 7); g.fillRect(0, 73, 512, 7);
-    g.font = '700 54px "Arial Narrow", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('BARETTU', 188, 42);
-    g.fillStyle = '#c4452e'; g.font = '700 28px "Arial Narrow", Impact, sans-serif'; g.fillText('GRANITE', 404, 42);
+    g.fillStyle = '#f1efe6'; g.fillRect(0, 0, 512, 80); g.fillStyle = col; g.fillRect(0, 0, 512, 7); g.fillRect(0, 73, 512, 7);
+    g.font = '700 54px "Arial Narrow", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (!b && g.measureText(a).width > 440) {   // a long name goes on two lines, split at the middle space
+      const w = a.split(' '); let k = 1, best = 1e9; for (let i = 1; i < w.length; i++) { const d = Math.abs(w.slice(0, i).join(' ').length - w.slice(i).join(' ').length); if (d < best) { best = d; k = i; } }
+      g.font = '700 33px "Arial Narrow", Impact, sans-serif'; g.fillText(w.slice(0, k).join(' '), 256, 27); g.fillText(w.slice(k).join(' '), 256, 56);
+    } else g.fillText(a, b ? 188 : 256, 42);
+    if (b) { g.fillStyle = '#c4452e'; g.font = '700 28px "Arial Narrow", Impact, sans-serif'; g.fillText(b, 404, 42); }
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   }
   const MK = {
@@ -364,24 +369,29 @@ function build(env) {
     glass: new THREE.MeshStandardMaterial({ color: '#dbeef2', roughness: 0.1, transparent: true, opacity: 0.55 }), brioche: std('#d9a35c', 0.8),
     lamp: new THREE.MeshBasicMaterial({ color: 0xffe2a8 }), sign: new THREE.MeshBasicMaterial({ map: kioskSign(), toneMapped: false }),
   };
+  // o.sign [name, what it sells, stripe colour] and o.accent (a colour) dress it for another kiosk (the cornetto kiosks, src/friend-stops.js); o.hot puts a tray of hot cornetti on the counter
+  // instead of the granita tubs; o.shutter adds a roll-down shutter over the hatch (v.parts.shutter, v.parts.lamp: the module opens and closes it); o.late: the seller is not spawned here (v.mkSeller).
   function buildKiosk(o, px, pz, theta) {
-    const gy = groundAt(px, pz);
+    const gy = groundAt(px, pz), acc = o.accent ? std(o.accent, 0.7) : MK.blue, signMat = o.sign ? new THREE.MeshBasicMaterial({ map: kioskSign(...o.sign), toneMapped: false }) : MK.sign;
     const g = new THREE.Group(); g.position.set(px, gy, pz); g.rotation.y = theta; scene.add(g);
     box(2.9, 0.12, 3.5, MK.plinth, 0, 0.06, 0, g);
     box(0.12, 2.4, 3.4, MK.wall, -1.34, 1.32, 0, g, true);                                                       // back
     for (const s of [-1, 1]) box(2.8, 2.4, 0.12, MK.wall, 0, 1.32, s * 1.64, g, true);                           // sides
-    box(0.16, 0.88, 3.4, MK.blue, 1.4, 0.56, 0, g, true);                                                        // the front below the hatch
+    box(0.16, 0.88, 3.4, acc, 1.4, 0.56, 0, g, true);                                                        // the front below the hatch
     for (const s of [-1, 1]) box(0.16, 0.9, 0.5, MK.wall, 1.4, 1.45, s * 1.45, g);                              // pillars either side of the hatch
     box(0.16, 0.6, 3.4, MK.wall, 1.4, 2.2, 0, g);                                                               // lintel under the sign
     box(0.5, 0.06, 3.4, MK.white, 1.55, 1.0, 0, g, true);                                                       // the counter
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.4), MK.sign); sign.position.set(1.49, 2.18, 0); sign.rotation.y = Math.PI / 2; g.add(sign);
-    box(3.4, 0.14, 4.0, MK.blue, 0, 2.6, 0, g, true); box(3.0, 0.1, 3.6, MK.white, 0, 2.72, 0, g);              // roof, with a pale cap
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.4), signMat); sign.position.set(1.49, 2.18, 0); sign.rotation.y = Math.PI / 2; g.add(sign);
+    box(3.4, 0.14, 4.0, acc, 0, 2.6, 0, g, true); box(3.0, 0.1, 3.6, MK.white, 0, 2.72, 0, g);              // roof, with a pale cap
     const aw = new THREE.Group(); aw.position.set(1.62, 2.52, 0); aw.rotation.z = -0.3; g.add(aw);                // striped awning over the counter, sloping down towards the road
-    for (let i = 0; i < 7; i++) box(0.7, 0.05, 0.52, i % 2 ? MK.white : MK.blue, 0.35, 0, -1.56 + i * 0.52, aw, true);
-    box(0.08, 0.05, 3.0, MK.lamp, 1.56, 1.86, 0, g);                                                             // a strip lamp under the awning (a basic material: it glows at night)
+    for (let i = 0; i < 7; i++) box(0.7, 0.05, 0.52, i % 2 ? MK.white : acc, 0.35, 0, -1.56 + i * 0.52, aw, true);
+    const lampStrip = box(0.08, 0.05, 3.0, MK.lamp, 1.56, 1.86, 0, g);                                                             // a strip lamp under the awning (a basic material: it glows at night)
     // inside: a raised floor (the sprites are small: the vendor stands on it so that he shows over the counter), the granita tubs, a shelf with bottles
     box(2.58, 0.48, 3.2, MK.plinth, 0.01, 0.36, 0, g);
-    [[MK.lemon, -1.1], [MK.almond, -0.55], [MK.coffee, 0]].forEach(([m, z]) => { cyl(0.26, 0.55, m, 0.85, 0.9, z, g); cyl(0.275, 0.05, MK.lid, 0.85, 1.19, z, g); });
+    if (o.hot) {   // a tray of hot cornetti: crescents (a squashed sphere each) in rows on a warm board
+      box(0.6, 0.05, 1.8, MK.coffee, 0.85, 1.03, -0.4, g);
+      for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) { const c = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), MK.brioche); c.scale.set(1.6, 0.7, 0.9); c.rotation.y = 0.5 * (k % 2 ? 1 : -1); c.position.set(0.7 + r * 0.16, 1.1, -1.1 + k * 0.28); g.add(c); }
+    } else [[MK.lemon, -1.1], [MK.almond, -0.55], [MK.coffee, 0]].forEach(([m, z]) => { cyl(0.26, 0.55, m, 0.85, 0.9, z, g); cyl(0.275, 0.05, MK.lid, 0.85, 1.19, z, g); });
     box(0.1, 0.05, 2.8, MK.wall, -1.2, 1.7, 0, g);
     for (let i = 0; i < 6; i++) cyl(0.05, 0.28, i % 2 ? MK.mulberry : MK.lemon, -1.2, 1.88, -1.2 + i * 0.48, g);
     // on the counter: a row of glasses and a plate of brioche with the tuppo
@@ -393,16 +403,18 @@ function build(env) {
     }
     const vx0 = Math.sin(theta + Math.PI / 2), vz0 = Math.cos(theta + Math.PI / 2);   // world direction of local +x (towards the road)
     const cs = Math.cos(theta), sS = Math.sin(theta), wl = (a, b) => [px + a * cs + b * sS, pz - a * sS + b * cs];   // local (x, z) to world, as the group's rotation does
-    const [vsx, vsz] = wl(0.1, 0.8), cid = pedestrians.spawnScripted(o.skin || 'vendor2', vsx, vsz);
-    if (cid >= 0) pedestrians.attachTo(cid, out => { out.x = vsx; out.y = gy + 0.6; out.z = vsz; out.th = Math.atan2(vx0, vz0); });   // standing on the raised floor behind the counter, facing the road
+    const [vsx, vsz] = wl(0.1, 0.8);
+    const mkSeller = () => { const id = pedestrians.spawnScripted(o.skin || 'vendor2', vsx, vsz); if (id >= 0) pedestrians.attachTo(id, out => { out.x = vsx; out.y = gy + 0.6; out.z = vsz; out.th = Math.atan2(vx0, vz0); }); return id; };   // standing on the raised floor behind the counter, facing the road
+    const cid = o.late ? -1 : mkSeller();
+    const shutter = o.shutter ? box(0.12, 1.5, 3.3, std('#7d8286', 0.6, { metalness: 0.5 }), 1.5, 1.55, 0, g) : null;   // rolled down over the hatch
     {
       const lx = [-1.5, 1.85], lz = [-1.8, 1.8];
       const c = [wl(lx[0], lz[0]), wl(lx[1], lz[0]), wl(lx[1], lz[1]), wl(lx[0], lz[1])];
       for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
     }
-    const v = { o, pl: null, kind: 'granita', x: px, z: pz, gy, g, coal: null, glow: null, cid, cd: 0, ring: null, marker: o.marker || addMarker(px, pz, '#59c9e8', 5, 'triangle'), shoutT: rand(2, 8), seed: Math.random() * 10 };
+    const v = { o, pl: null, kind: 'granita', x: px, z: pz, gy, g, coal: null, glow: null, cid, cd: 0, ring: null, marker: o.marker || addMarker(px, pz, '#59c9e8', 5, 'triangle'), shoutT: rand(2, 8), seed: Math.random() * 10, mkSeller, parts: { shutter, lamp: lampStrip }, vx0, vz0, wl };
     v.sx = px + vx0 * 6.0; v.sz = pz + vz0 * 6.0;   // the stop: the carriageway edge in front of the counter
-    v.ring = makeBeacon('#59c9e8', 4.5, { beam: false }); v.ring.set(v.sx, v.sz); v.ring.show(true);
+    v.ring = makeBeacon(o.ring || '#59c9e8', 4.5, { beam: false }); v.ring.set(v.sx, v.sz); v.ring.show(true);
     return v;
   }
 
@@ -462,17 +474,21 @@ function build(env) {
   // plume you can see from the city, "POLLANCHEEEE" now and then, and a nitro top-up when you stop. They live in the whole-city tiles,
   // so they are built lazily: the plume and the marker at once, the cart and the vendor when the lapa comes within 420 m.
   const polls = [];
-  let pollPlume = null;
+  let pollPlume = null, farPlume = null;
   if (worldOn()) {
     for (const o of POLLANCHE.sites) {
       const [px0, pz0] = env.proj(o.lat, o.lon);
       polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#ff7a1a', 5, 'triangle') });
     }
     pollPlume = makePlume(polls.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
+    polls.forEach((p, i) => { p.plume = [pollPlume, i]; });
     for (const o of GRANITA.sites) {   // the granita kiosks join the same lazy list, after the pollanche (no plume: the plume index is the list index)
       const [gx0, gz0] = env.proj(o.lat, o.lon);
       polls.push({ o, kind: 'granita', x: gx0, z: gz0, gy: groundAt(gx0, gz0), built: false, v: null, marker: addMarker(gx0, gz0, '#59c9e8', 5, 'triangle') });
     }
+    const far = STIGGHIOLA_FAR.sites.map(o => { const [sx0, sz0] = env.proj(o.lat, o.lon); return { o, kind: 'stigghiola', x: sx0, z: sz0, gy: groundAt(sx0, sz0), built: false, v: null, marker: addMarker(sx0, sz0, '#ff7a1a', 5, 'triangle') }; });   // the stigghiolari outside the centro: their own plume, built at once
+    farPlume = makePlume(far.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
+    far.forEach((p, i) => { p.plume = [farPlume, i]; polls.push(p); });
   }
   let pollT = 0;
   function updatePoll(dt) {
@@ -481,10 +497,10 @@ function build(env) {
     pollT = 1.5;
     polls.forEach((p, i) => {
       const gy = groundAt(p.x, p.z);
-      if (Math.abs(gy - p.gy) > 0.25) { p.gy = gy; if (p.kind !== 'granita') pollPlume.setY(i, gy + 1.1); if (p.v) p.v.g.position.y = gy; }   // terrain refines as tiles stream in
+      if (Math.abs(gy - p.gy) > 0.25) { p.gy = gy; if (p.plume) p.plume[0].setY(p.plume[1], gy + 1.1); if (p.v) p.v.g.position.y = gy; }   // terrain refines as tiles stream in
       if (!p.built && Math.hypot(car.x - p.x, car.z - p.z) < 420) {
         p.built = true;
-        try { const th = Math.atan2(p.o.rx, p.o.rz) - Math.PI / 2, v = p.kind === 'granita' ? buildKiosk({ ...p.o, marker: p.marker }, p.x, p.z, th) : buildVendorAt({ ...p.o, marker: p.marker }, null, p.x, p.z, th, 'pollanche'); vendors.push(v); p.v = v; }
+        try { const th = Math.atan2(p.o.rx, p.o.rz) - Math.PI / 2, v = p.kind === 'granita' ? buildKiosk({ ...p.o, marker: p.marker }, p.x, p.z, th) : buildVendorAt({ ...p.o, marker: p.marker }, null, p.x, p.z, th, p.kind === 'stigghiola' ? undefined : 'pollanche'); vendors.push(v); p.v = v; }
         catch (e) { console.warn('[missions] pollanche', p.o.id, e); }
       }
     });
@@ -757,7 +773,7 @@ function build(env) {
     S.t += dt; hudUsed = false; aim.on = false;
     if (X.held && Math.hypot(car.x - X.held.x, car.z - X.held.z) > 40) X.held = null;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
-    updateVendors(dt); updatePoll(dt); secrets.update(dt); rave.update(dt); dump.update(dt);
+    updateVendors(dt); updatePoll(dt); friend?.update(dt); secrets.update(dt); rave.update(dt); dump.update(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
@@ -784,7 +800,9 @@ function build(env) {
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
+  // Ganci, the shrines of Santa Rosalia and the night cornetto kiosks (src/friend-stops.js); they share the drawing helpers and the nitro treat of the vendors above
+  const friend = worldOn() ? createFriendStops({ env, scene, car, game, pedestrians, walls2d, groundAt, hud, toast, burst, T, say, isNight, busy: () => !!S.ev, speed, driverPos, makeBeacon, addMarker, dropMarker, buildKiosk, nitroTreat, std, glowTex }) : null;
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps };
   return api;
 }

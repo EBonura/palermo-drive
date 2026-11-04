@@ -193,7 +193,37 @@ function follow(start, name, len, hint) {
 const widthOf = path => { const w = []; for (let i = 1; i < path.length; i++) w.push(net.adj[path[i - 1]].find(a => a.to === path[i]).e.r.w); w.sort((a, b) => a - b); return w[w.length >> 1] || 8; };
 for (const r of RACES) {
   let P, closed = false, w = 8, nodesPath = null;
-  if (r.track) { P = r.track.map(p => p.slice()); w = 9; }
+  if (r.track) {
+    P = r.track.map(p => p.slice()); w = 9;
+    if (r.via) {   // go on from the last hand point through the `via` places on the roads, one-ways obeyed, each in the direction of travel (never on the other carriageway)
+      const ahead = (x, z, tx, tz) => {   // the edge near (x, z) that runs towards (tx, tz): { head, tail } node ids of the way it is driven
+        let best = null, tl = Math.hypot(tx, tz) || 1;
+        for (const e of net.edges) {
+          if (!net.main(e.a)) continue;
+          for (const [a, b, ok] of [[e.a, e.b, true], [e.b, e.a, !e.one]]) {
+            if (!ok) continue; const A = net.nodes[a], B = net.nodes[b], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz, t = l2 ? Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2)) : 0;
+            const d = Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) + (e.r.n ? 0 : 40);
+            if ((dx * tx + dz * tz) / (Math.sqrt(l2) * tl || 1) < 0.2) continue;
+            if (!best || d < best.d) best = { d, tail: a, head: b };
+          }
+        }
+        return best;
+      };
+      let at = P[P.length - 1], cur = null;
+      for (const v of r.via) {
+        const tx = v[0] - at[0], tz = v[1] - at[1], to = ahead(v[0], v[1], tx, tz);
+        if (!cur) cur = ahead(at[0], at[1], tx, tz).head;
+        const p = route(net, cur, to.tail, { oneway: true }); if (!p) { console.log('NO WAY to', v, 'for', r.id); break; }
+        for (const q of pts(net, p).concat([net.nodes[to.head]])) P.push(q.slice());
+        cur = to.head; at = v;
+      }
+      if (r.finish) {   // cut the line at its point nearest to `finish`
+        let bi = 0, bd = 1e9, bq = null;
+        for (let i = 0; i + 1 < P.length; i++) { const A = P[i], B = P[i + 1], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz, t = l2 ? Math.max(0, Math.min(1, ((r.finish[0] - A[0]) * dx + (r.finish[1] - A[1]) * dz) / l2)) : 0, qx = A[0] + dx * t, qz = A[1] + dz * t, d = Math.hypot(r.finish[0] - qx, r.finish[1] - qz); if (d < bd) { bd = d; bi = i; bq = [qx, qz]; } }
+        P = P.slice(0, bi + 1).concat([bq]);
+      }
+    }
+  }
   else if (r.kind === 'sprint') {
     // the carriageway that runs in `dir`: try every node of that road near `near`, keep the longest straight run
     let bestP = [];
