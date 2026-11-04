@@ -432,7 +432,7 @@ Heavy things are solid or bend; a bent post stays down until its tile is rebuilt
 | cafe_set (table and plastic chairs), umbrella over it, stall_table | light | solid | 2.2 to 2.5: fly (the table and its parasol go together) |
 | sunbed, beach_umbrella | light | solid | 1.5 / 2.5: fly |
 | litter, bags, cardboard, rubbish piles | soft | burst into debris at 0.9 to 1.6 | |
-| lamp_pole, candelabra, signal (traffic light), fontanella | heavy, bend | solid | bend over at 6.5 to 7.5 (fontanella 5) |
+| lamp_pole, candelabra, signal (traffic light, and its mast arm on the wide roads), fontanella | heavy, bend | solid | bend over at 6.5 to 7.5 (fontanella 5) |
 | bollard | heavy, bend | solid | bends at 5.5 |
 | trees and palms | heavy | solid | fall at 8 to 14 (by trunk size), in a shower of leaves |
 | shrub | soft | none: the lapa goes through, slowed | 2.5: a puff of leaves |

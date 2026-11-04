@@ -13,6 +13,7 @@ import { proj } from './core.js';
 import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
 import { parked } from './props.js';   // the cars parked along the kerbs: obstacles to steer round, and to run into
 import { createGraph, CLASS } from './traffic-graph.js';
+import { signalSites, light as signalLight, clock as signalClock, STOP_BACK } from './signals.js';   // the signals: which approach each one governs, and its light on the shared wall clock
 import { buildModels, makeMaterial, busSignGeometry } from '../assets/traffic/models.js';
 import { BUS_ROUTES, BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { buildPoliceModels, makePoliceDecal } from '../assets/traffic/police-models.js';
@@ -325,7 +326,7 @@ Object.assign(MODELS, buildPoliceModels());
     for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return false;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-      lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0,
+      lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false,
       yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null,
     };
     extendRoute(v);
@@ -355,7 +356,7 @@ Object.assign(MODELS, buildPoliceModels());
     let si = 0; while (si < pl.stops.length && (pl.stops[si].i < i || (pl.stops[si].i === i && pl.stops[si].t < t + 8))) si++;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
-      lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0,
+      lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0,
       col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si: name === 'bus' ? si : pl.stops.length, dwell: 0,
     };
     extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
@@ -384,9 +385,9 @@ Object.assign(MODELS, buildPoliceModels());
     return false;
   }
   function mustHold(v, e, rem, exitSpace) {
-    const n = e.b, ty = v.ty;
+    const n = e.b, ty = v.ty, sg = e.sg;   // sg: the junction is signalled, and the light is green for this vehicle (red and amber stop it before it gets here)
     if (NDEG[n] < 3) return false;
-    if (v.wait > 9) return false;                                    // gridlock breaker
+    if (sg ? v.stuck > 3.5 : v.wait > 9) return false;               // gridlock breaker (at a signal: stopped for 3.5 s on green, the green is not to be wasted)
     if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why2 = v.exitO; return true; } // keep the box clear, briefly
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1];
@@ -400,10 +401,20 @@ Object.assign(MODELS, buildPoliceModels());
       }
       if (oe === e) continue;
       const remO = oe.len - o.t, ot = o.route[1];
+      if (o.sigHold) continue;                                          // it waits at its red light: it is not coming
       if (remO > 3 && remO / Math.max(o.v, 2.5) > 3.8) continue;       // far away
       if (!pathsCross(e, en, oe, ot)) continue;                         // nothing to give way to
       if (remO < 2.5 && (o.v > 0.3 || remO < 1.2)) { if (!eager) { v.why2 = o; return true; } continue; } // it is in the box already
       if (eager) continue;
+      if (sg) {   // the other phases wait at their lights; what is left is this phase's own turns: straight on goes before a turn across it, otherwise first come
+        const og = oe.sg; if (og && og.g !== sg.g) continue;
+        const vs = !en || e.dx * en.dx + e.dz * en.dz > 0.85, os = !ot || oe.dx * ot.dx + oe.dz * ot.dz > 0.85;
+        if (vs && !os) continue;
+        if (!vs && os) { v.why2 = o; return true; }
+        const d = (remO / Math.max(o.v, 2.5) - o.wait) - (rem / Math.max(v.v, 2.5) - v.wait);
+        if (d < -0.4 || (d < 0.4 && o.id < v.id)) { v.why2 = o; return true; }
+        continue;
+      }
       const rightDot = oe.dx * e.rx + oe.dz * e.rz;
       if (oe.rank > e.rank) { v.why2 = o; return true; }
       if (oe.rank === e.rank) { // first come first served, the right-hand rule breaks ties
@@ -522,6 +533,24 @@ Object.assign(MODELS, buildPoliceModels());
       if (sg > -1.2 && sp * sp / (2 * Math.max(sg, 0.1)) < 6.5) interact(sg, 0, null);
       if (sp < 0.5 && sg < 4) v.wait += dt;
     } else v.wait = 0;
+    // traffic signals: stop at the line on red, and on amber when it can be done without standing on the brake. A light that has held a vehicle for a minute lets it go: a jam
+    // that never clears is worse than one run light, and the queue behind it must not outlast the clock.
+    let lit = false;
+    if (!(v.cop && v.cop.pursue)) {
+      for (let k = 0, dd = rem; k < 2 && k < route.length && dd < 70; k++) {
+        const sg = route[k].sg;
+        if (sg) {
+          const st = signalLight(sg.site, sg.g, sigT);
+          if (st && v.sigW < 60) {
+            const gap = dd - L2 - STOP_BACK - 0.4;
+            if (gap > -0.5 && sp * sp / (2 * Math.max(gap, 0.1)) < (st === 1 ? 4 : 6.5)) { interact(gap, 0, null); lit = true; break; }
+          }
+        }
+        if (k + 1 < route.length) dd += route[k + 1].len;
+      }
+    }
+    if (lit) v.sigW += dt; else if (v.sigW < 60) v.sigW = 0; else if ((v.sigW += dt) > 66) v.sigW = 0;
+    v.sigHold = lit;
     if (!route[1] && rem < 60) interact(rem - L2 - 0.4, 0, null); // end of the road
     if (v.plan) { // the next bus stop on the line: pull up with the front door at the pole, wait, go on
       const pl = v.plan, n = pl.edges.length;
@@ -567,7 +596,7 @@ Object.assign(MODELS, buildPoliceModels());
     v.stopT = Math.max(0, v.stopT - dt);
     v.v = Math.max(0, v.v + (v.acc || 0) * dt);
     if (v.v < 0.25) v.stuck += dt; else if (v.v > 1) v.stuck = 0;
-    if (v.hold2) v.stuck = 0;
+    if (v.hold2 || v.sigHold) v.stuck = 0;   // (held at a red light is not stuck)
     // steer: pure pursuit on the lane line
     let e0 = route[0];
     v.lat += (v.latT - v.lat) * Math.min(1, 3 * dt);
@@ -670,7 +699,7 @@ Object.assign(MODELS, buildPoliceModels());
 
   // ---------- step ----------
   function stepAll(dt) {
-    time += dt;
+    time += dt; sigT = signalClock.now();
     buildOcc();
     for (let i = 0; i < vs.length; i++) if (!vs[i].fly && !(vs[i].cop && vs[i].cop.mode === 'direct')) control(vs[i], dt);
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
@@ -740,9 +769,35 @@ Object.assign(MODELS, buildPoliceModels());
   function killOnDeadEdges() {
     for (let i = vs.length - 1; i >= 0; i--) { const r = vs[i].route; for (let k = 0; k < r.length; k++) if (r[k].dead) { removeAt(i); break; } }
   }
+  // ---------- traffic signals (src/signals.js) ----------
+  // The sites of every resident tile; each approach edge of a signal's node carries sg = { site, g } (the phase group) so that a vehicle finds its light in one lookup. Node and
+  // edge ids are recycled when tiles drop, so the tags are laid again whenever the graph changes.
+  const sigSites = new Map(), sigEdges = [];
+  let sigVer = -1, sigT = 0;
+  function tagSignals() {
+    for (const e of sigEdges) e.sg = null;
+    sigEdges.length = 0; sigVer = G.version;
+    for (const sites of sigSites.values()) for (const site of sites) {
+      const n = G.nearestNode(site.x, site.z, 1.2, false); if (n < 0 || NDEG[n] < 2) continue;
+      for (const e of NIN[n]) {
+        if (e.ped || e.rank === 6) continue;   // (not on a pedestrian street, nor at a roundabout)
+        let bi = -1, bd = 0.93;
+        for (let i = 0; i < site.legs.length; i++) { const l = site.legs[i]; if (!l.inb) continue; const d = -(e.dx * l.ax + e.dz * l.az); if (d > bd) { bd = d; bi = i; } }
+        if (bi >= 0) { e.sg = { site, g: site.legs[bi].g }; sigEdges.push(e); }
+      }
+    }
+  }
   world.onTile((kind, t) => {
     const key = t.i + '_' + t.j;
-    if (kind === 'full') { if (t.data && t.data.roads && t.data.roads.length) addQ.push(t); return; }
+    if (kind === 'full') {
+      if (t.data && t.data.roads && t.data.roads.length) {
+        addQ.push(t);
+        const items = t.data.props && t.data.props.items;
+        if (items && items.some(i => i.k === 'signal')) sigSites.set(key, signalSites(t.data.roads, items));
+      }
+      return;
+    }
+    sigSites.delete(key);
     const qi = addQ.indexOf(t); if (qi >= 0) addQ.splice(qi, 1);
     if (stepping && stepping.key === key) stepping = null;
     if (G.dropTile(key)) { killOnDeadEdges(); if (!graphDirty) dirtyAt = time; graphDirty = true; plansDirty = true; planGen = null; }
@@ -765,6 +820,7 @@ Object.assign(MODELS, buildPoliceModels());
       const t0 = performance.now(); G.recomputeAlive(); graphDirty = false; nextCand = 0;
       aliveMs = performance.now() - t0; if (aliveMs > aliveMax) aliveMax = aliveMs;
     }
+    if (sigVer !== G.version && !stepping) tagSignals();
     if (plansDirty && !stepping && !addQ.length && !graphDirty) { planGen = planJob(); plansDirty = false; }
     if (planGen && !stepping && planGen.next().done) planGen = null;
   }
@@ -983,7 +1039,7 @@ Object.assign(MODELS, buildPoliceModels());
       let clear = true; for (const o of vs) if (hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) { clear = false; break; }
       if (!clear) continue;
       const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-        lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+        lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
       extendRoute(v);
       if (v.route.length < 2 && e.len < 40) continue;
       vs.push(v); counts[name] = (counts[name] || 0) + 1;
@@ -998,7 +1054,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (dc < R_SPAWN_MIN || hyp2(x - car.x, z - car.z) < 18 || (dc < R_FAR && inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3))) return null;
     for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return null;
     const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-      lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+      lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
     if (init) init(v);
     extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
     return v;
