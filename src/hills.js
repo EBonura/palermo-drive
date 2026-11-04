@@ -11,7 +11,7 @@ const nk = (i, j) => (i + 200) * 1000 + (j + 200);
 // node index (in a chunk's nn x nn grid) of node q of edge e of tile (tu, tv): 0 the -z side, 1 +x, 2 +z, 3 -x
 const edgeNode = (tu, tv, e, q, c, nn) => (e === 0 ? tv * c : e === 2 ? (tv + 1) * c : tv * c + q) * nn + (e === 3 ? tu * c : e === 1 ? (tu + 1) * c : tu * c + q);
 
-export function createHills({ root, url, mat, farM, colour }) {
+export function createHills({ root, url, mat, farM, colour, free }) {
   const tiles = new Map();   // nk -> Float32Array(N * N) metres
   const chunks = new Map();  // a * 1000 + b -> { mesh, level, active: Set of tile keys, ver, a, b, tris }
   const fine = new Set();    // keys of the tiles a fine mesh stands on now
@@ -78,6 +78,7 @@ export function createHills({ root, url, mat, farM, colour }) {
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3((gi0 + CT * 10) * STEP, (y0 + y1) / 2, (gj0 + CT * 10) * STEP), Math.hypot(CT * T / 2, (y1 - y0) / 2) + 80);
     const mesh = new THREE.Mesh(geo, mat); mesh.name = 'hills_' + a + '_' + b; mesh.receiveShadow = true; mesh.frustumCulled = true;
     if (ch.mesh) { root.remove(ch.mesh); ch.mesh.geometry.dispose(); }
+    free?.(mesh);
     ch.mesh = mesh; ch.nn = nn; ch.c = c; ch.nb = nb; ch.ver = -1;
     root.add(mesh);
   }
@@ -149,5 +150,6 @@ export function createHills({ root, url, mat, farM, colour }) {
       fineVer++;
     }
   }
-  return { load, sync, refresh, fine, get ver() { return fineVer; }, get loaded() { return loaded; }, get failed() { return failed; }, missing: () => (loaded || failed ? Math.max(0, pendingVis) : loading ? 1 : 0), tris: () => trisNow, stats: () => ({ chunks: chunks.size, tiles: tiles.size, tris: trisNow, fine: fine.size }) };
+  function contextRestored() { for (const ch of chunks.values()) { if (ch.mesh) { root.remove(ch.mesh); ch.mesh.geometry.dispose(); } } chunks.clear(); fine.clear(); fineVer++; pendingVis = 1; }   // the meshes gave up their arrays: the next sync builds them again
+  return { load, sync, refresh, contextRestored, fine, get ver() { return fineVer; }, get loaded() { return loaded; }, get failed() { return failed; }, missing: () => (loaded || failed ? Math.max(0, pendingVis) : loading ? 1 : 0), tris: () => trisNow, stats: () => ({ chunks: chunks.size, tiles: tiles.size, tris: trisNow, fine: fine.size }) };
 }

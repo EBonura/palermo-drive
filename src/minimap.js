@@ -8,6 +8,9 @@
 //             roads by width, building footprints. Painted once, at most one piece per frame.
 // Each frame is just a few drawImage calls of the pieces around the car (no getImageData, no per-frame tile rebuilds). A piece
 // is painted slightly before it scrolls into view (margin PRE metres). The view widens a little at speed (zoom-out).
+// The pieces are a fixed set of canvases made at startup and never freed, so they are not the ones that fail when Safari on iOS runs out of canvas memory (new canvases then stay blank). Older iPhones also showed a piece with black roads,
+// as if its context had been reset while it was painted: every paint sets the whole state, a style that does not read back or a lost context paints the piece again. A piece is checked after painting and now and then afterwards: a blank one
+// is painted again, and while one stays blank the land is drawn directly under the pieces, so the map is never solid sea.
 //
 
 const W = 200; // canvas size in px (the CSS size varies, see ui/mobile css)
@@ -21,11 +24,18 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   const mini = canvas.getContext('2d');
   const RES = 256, S = RES / T, CAP = 18; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
-  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0 };
+  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0, blanks: 0, dead: 0, resets: 0, lost: 0 };
 
   // ---------- per tile pieces ----------
   const pieces = new Map(); // key -> { c, g, i, j, detail } (insertion order = LRU order)
-  const pool = []; // canvases of evicted pieces, reused
+  const pool = []; // the free canvases of the fixed set
+  const onLost = e => { e.preventDefault(); stats.lost++; };   // preventDefault: the browser may give the context back (contextrestored below)
+  const onBack = e => { for (const p of pieces.values()) if (p.c === e.target) { p.detail = false; p.g = p.c.getContext('2d'); paintBase(p); } };
+  for (let n = 0; n < CAP; n++) {
+    const c = document.createElement('canvas'); c.width = c.height = RES; const g = c.getContext('2d');
+    c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onBack);
+    if (g) { g.fillRect(0, 0, 1, 1); pool.push({ c, g }); }   // (drawn on, so the memory is really theirs from now on)
+  }
   let active = []; // pieces around the car, refreshed by scan()
   let landPath = null, bbox = null;
   let scanT = 0, scanI = 1e9, scanJ = 1e9;
@@ -62,7 +72,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   }
   function paintBase(p) {
     const g = p.g;
-    g.setTransform(S, 0, 0, S, -p.i * T * S, -p.j * T * S);
+    g.setTransform(S, 0, 0, S, -p.i * T * S, -p.j * T * S); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setLineDash([]); g.lineCap = g.lineJoin = 'round';   // the whole state, every time: a context may have been reset
     g.fillStyle = SEA; g.fillRect(p.i * T, p.j * T, T, T);
     g.fillStyle = LAND; g.fill(landPath);
   }
@@ -90,47 +100,53 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       poly(b.path, r.p);
     }
     const order = [...buckets.values()].sort((a, b) => a.ord - b.ord || a.w - b.w);
-    for (const b of order) { g.strokeStyle = b.col; g.lineWidth = b.w; g.stroke(b.path); }
+    let reset = false;
+    for (const b of order) { g.strokeStyle = b.col; g.lineWidth = b.w; g.stroke(b.path); if (g.strokeStyle !== b.col) reset = true; }   // (a style that does not read back: the context was reset under us, the owner's phone drew such roads black)
     // buildings
     if (d.buildings && d.buildings.length) {
       const bp = new Path2D();
       for (const b of d.buildings) { if (b.p.length < 6) continue; poly(bp, b.p); bp.closePath(); }
       g.fillStyle = BLD; g.fill(bp);
     }
+    if (reset || g.lineWidth === 1 && order.length && order[order.length - 1].w !== 1 || (g.isContextLost && g.isContextLost())) { stats.resets++; p.tries = (p.tries || 0) + 1; p.detail = p.tries > 3; paintBase(p); return; }   // try again on a later frame, a few times
     p.detail = true; stats.detailed++;
+    if (isBlank(p)) verify(p);
   }
   function getPiece(i, j) {
     const k = key(i, j); let p = pieces.get(k);
     if (p) { pieces.delete(k); pieces.set(k, p); return p; }
-    const c = pool.pop() || document.createElement('canvas');
-    if (c.width !== RES) c.width = c.height = RES;
-    p = { c, g: c.getContext('2d'), i, j, detail: false };
+    if (!pool.length) for (const [q, o] of pieces) if (!active.includes(o)) { pieces.delete(q); pool.push({ c: o.c, g: o.g }); if (o.blank) { o.blank = false; stats.dead--; } break; }   // the oldest piece not in use (the view uses at most 9 of the 18)
+    if (!pool.length) return null;
+    const s = pool.pop();
+    p = { c: s.c, g: s.g, i, j, detail: false, blank: false };
     pieces.set(k, p);
     paintBase(p); stats.painted++;
+    verify(p);
     return p;
   }
-  function evict() {
-    if (pieces.size <= CAP) return;
-    for (const [k, p] of pieces) {
-      if (pieces.size <= CAP) break;
-      if (active.includes(p)) continue;
-      pieces.delete(k); pool.push(p.c);
-    }
+  // A blank canvas reads back transparent: paintBase covers every pixel with something opaque. The canvas gets a new backing and the piece is painted again (the detail follows in upgradeOne).
+  function isBlank(p) { try { return (p.g.isContextLost && p.g.isContextLost()) || p.g.getImageData(RES >> 1, RES >> 1, 1, 1).data[3] === 0; } catch (e) { return true; } }
+  function verify(p) {
+    if (!isBlank(p)) { if (p.blank) { p.blank = false; stats.dead--; } return; }
+    stats.blanks++;
+    p.c.width = p.c.height = RES; p.g = p.c.getContext('2d') || p.g; p.detail = false; p.tries = 0; paintBase(p);
+    const b = isBlank(p); if (b !== p.blank) { p.blank = b; stats.dead += b ? 1 : -1; }
   }
+  let checkI = 0, checkT = 0;
   function scan(R) { // pieces for every tile in the visible disc plus a margin
     if (!landPath) { if (world.manifest) buildLand(world.manifest); else return; }
     const r = R + PRE, i0 = Math.floor((car.x - r) / T), i1 = Math.floor((car.x + r) / T), j0 = Math.floor((car.z - r) / T), j1 = Math.floor((car.z + r) / T);
     active.length = 0;
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
       if ((i + 1) * T < bbox[0] || i * T > bbox[2] || (j + 1) * T < bbox[1] || j * T > bbox[3]) continue; // pure sea outside the baked area
-      active.push(getPiece(i, j));
+      const p = getPiece(i, j); if (p) active.push(p);
     }
     stats.pieces = pieces.size;
-    evict();
+    if ((checkT -= 0.2) <= 0 && active.length) { checkT = 2; verify(active[checkI++ % active.length]); }   // one piece every 2 s: a canvas can also lose its pixels later
   }
   function upgradeOne() { // at most one detail paint per frame
     for (const p of active) {
-      if (p.detail) continue;
+      if (p.detail || p.blank) continue;
       const d = world.tileData(p.i, p.j);
       if (!d) continue;
       const t0 = performance.now();
@@ -170,6 +186,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     mini.translate(W / 2, W / 2);
     mini.rotate(car.th - Math.PI);
     mini.scale(zoom, zoom);
+    if (stats.dead > 0 && landPath) { mini.translate(-car.x, -car.z); mini.fillStyle = LAND; mini.fill(landPath); mini.translate(car.x, car.z); }   // pieces that stay blank (see the top of this file): at least the land
     drawTiles(R);
     mini.restore();
     // Markers from other modules (missions, stigghiulari, other players), drawn after restore() in plain
@@ -210,7 +227,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     const ms = performance.now() - t0; stats.frames++; stats.drawMs += ms; if (ms > stats.drawMax) stats.drawMax = ms;
   }
 
-  const api = { draw, stats: () => ({ ...stats, zoom, active: active.length, res: RES, cap: CAP, avgDrawMs: stats.drawMs / Math.max(1, stats.frames) }) };
+  const api = { draw, pieces, stats: () => ({ ...stats, zoom, active: active.length, res: RES, cap: CAP, avgDrawMs: stats.drawMs / Math.max(1, stats.frames) }) };
   if (location.search.includes('debug')) window.__pdMinimap = api;
   return api;
 }

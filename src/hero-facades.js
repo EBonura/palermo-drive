@@ -8,7 +8,7 @@ export function heroLayers(H) {
   const { T, obase, opatch, ofloor, owin, orust, ovouss, oskirt, archPath, oleaf, oshut, oshutOpen, oped, softNoise, wash, streak, SH } = H;
   const out = [];
   // a tile is drawn as the viewer reads the wall (left to right); the strips of the facade run the other way (right to left), so it is mirrored on the way into the atlas, lettering included
-  const add = (name, fn) => out.push([name, (g, r) => { const c = document.createElement('canvas'); c.width = c.height = T; fn(c.getContext('2d'), r); g.save(); g.translate(T, 0); g.scale(-1, 1); g.drawImage(c, 0, 0); g.restore(); }]);
+  const add = (name, fn) => out.push([name, (g, r) => { const c = document.createElement('canvas'); c.width = c.height = T; fn(c.getContext('2d'), r); g.save(); g.translate(T, 0); g.scale(-1, 1); g.drawImage(c, 0, 0); g.restore(); c.width = c.height = 0; }]);   // (on iOS a canvas nobody holds still counts until the collector finds it)
   const dk = 'rgba(50,38,24,.34)', lt = 'rgba(255,252,238,.5)';
   const pier = (g, x, w, cap = true) => {   // a pilaster at the edge of the bay (the neighbour tile draws the other half): lit left edge, shaded right edge, a capital with two volutes
     g.fillStyle = 'rgba(255,250,236,.20)'; g.fillRect(x, 0, w, T); g.fillStyle = lt; g.fillRect(x, 0, 2, T); g.fillStyle = dk; g.fillRect(x + w - 3, 0, 3, T);

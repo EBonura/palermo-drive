@@ -9,7 +9,7 @@
 // tags of every tile the player has seen so far (kept in localStorage), so it grows as the city streams in.
 import * as THREE from 'three';
 import { zone } from './hud.js';
-import { groundY, pairs, signedArea, inPoly, rng } from './core.js';
+import { groundY, pairs, signedArea, inPoly, rng, freeCanvas } from './core.js';
 import { zoneAt } from './districts.js';
 
 const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, T = 500, BUDGET = 0.9, WORDS = ['SUCA', '800A'];
@@ -100,7 +100,7 @@ function paintTag(g, V, r, word) {
 function makeAtlas() {
   const k = .625, cv = document.createElement('canvas'), cw = CW * k, ch = CH * k;
   cv.width = cw * COLS; cv.height = ch * ROWS;
-  const g = cv.getContext('2d', { willReadFrequently: true });
+  const g = cv.getContext('2d', { willReadFrequently: true }), paint = () => {
   for (let w = 0; w < 2; w++) for (let v = 0; v < VARIANTS.length; v++) {
     const cx = (v % COLS) * cw, cy = (Math.floor(v / COLS) + 2 * w) * ch;
     g.save(); g.beginPath(); g.rect(cx, cy, cw, ch); g.clip(); g.translate(cx, cy); g.scale(k, k);
@@ -114,8 +114,9 @@ function makeAtlas() {
     g.lineCap = g.lineJoin = 'round';
     for (const [lw, c] of [[13, 'rgba(16,16,20,.7)'], [7, '#6fd68a']]) { g.strokeStyle = c; g.lineWidth = lw; g.beginPath(); g.moveTo(-17, 1); g.lineTo(-5, 14); g.lineTo(18, -15); g.stroke(); }
     g.restore();
-  }
-  const tex = new THREE.CanvasTexture(cv);
+  } };
+  paint();
+  const tex = freeCanvas(new THREE.CanvasTexture(cv), paint);
   tex.colorSpace = THREE.SRGBColorSpace; tex.premultiplyAlpha = true; tex.anisotropy = 4;
   return tex;
 }

@@ -136,7 +136,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   function load() {
     if (data || loading) return; loading = true;
     fetch(ASSET).then(r => r.json()).then(j => {
-      data = j;
+      data = true;   // (a flag: the raw lists are kept as the cells below, typed)
       for (const t of ['a', 'b', 'c']) roads[t] = cellsOf(j.roads[t] || [], j.q);
       for (const t in j.areas) areas[t] = cellsOf(j.areas[t], j.q);
       const b = j.built, c = document.createElement('canvas'); c.width = b.nx; c.height = b.nz;
@@ -509,7 +509,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       const place = () => { W = 0; resize(); if (!W && shown && tries++ < 60) { requestAnimationFrame(place); return; } limits(); fit(); clampView(); mark(); };
       place();
     },
-    hide() { shown = false; clearInterval(playersT); closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } },
+    hide() { shown = false; clearInterval(playersT); closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } cv.width = cv.height = 1; },   // a full-screen canvas is 15 MB at pixel ratio 2: show() sizes it again
     resize,
     applyLang,
     isOpenPop: () => !!sel || !!cl,

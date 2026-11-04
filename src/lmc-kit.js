@@ -4,7 +4,7 @@
 // only geometry is created per build (world.js disposes geometry with the tile).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { groundY, rng } from './core.js';
+import { groundY, rng, freeCanvas } from './core.js';
 
 export { groundY };
 export const PI = Math.PI;
@@ -24,7 +24,7 @@ function getMat(key) {
   if (d.paint) {
     const cv = document.createElement('canvas'); cv.width = d.w; cv.height = d.h;
     d.paint(cv.getContext('2d'), d.w, d.h);
-    map = new THREE.CanvasTexture(cv); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+    map = freeCanvas(new THREE.CanvasTexture(cv), d.paint); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   }
   const { noShadow, ...mo } = d.opts;
   return CACHE[key] = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo });

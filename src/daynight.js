@@ -14,7 +14,7 @@
 // Settings (game.settings.timeStart 'morning'|'afternoon'|'sunset'|'night', timeSpeed 'off'|'slow'|'normal'|'fast') come from the
 // Options screen; ?time=HH (also 19.5) freezes the clock for screenshots, ?timespeed=MINUTES_PER_DAY lets it run again.
 import * as THREE from 'three';
-import { D, groundY, proj } from './core.js';
+import { D, groundY, proj, freeCanvas } from './core.js';
 import { MAT } from './vehicle-art.js';
 
 // Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
@@ -383,7 +383,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       fieldDone = true;
       const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
       const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
-      const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
+      const g = cv.getContext('2d'), paintField = () => { g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
       const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);
       for (const r of D.roads) {
         if (!DRIVE.has(r.k)) continue;
@@ -397,9 +397,10 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         const x = (poolM[i * 4] - X0) * S, z = (poolM[i * 4 + 2] - Z0) * S, rad = poolM[i * 4 + 3] * 1.1 * S, gr = g.createRadialGradient(x, z, 0, x, z, rad);
         gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
         g.fillStyle = gr; g.fillRect(x - rad, z - rad, rad * 2, rad * 2);
-      }
-      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-      LT.value = tex; LB.value.set(X0, Z0, 1 / (cv.width / S), 1 / (cv.height / S));
+      } };
+      paintField();
+      const fW = cv.width, fH = cv.height, tex = freeCanvas(new THREE.CanvasTexture(cv), paintField); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+      LT.value = tex; LB.value.set(X0, Z0, 1 / (fW / S), 1 / (fH / S));
     } catch (e) { console.warn('[daynight] lamp field skipped', e); }
     const n = bulbs.length / 3, np = poolM.length / 4;
     if (!n) return { none: true };

@@ -3,7 +3,7 @@
 // All models are assembled from merged parts (one mesh per material) in local frames, on groundY.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { D, groundY, rng } from './core.js';
+import { D, groundY, rng, freeCanvas } from './core.js';
 
 const PI = Math.PI, TWO = PI * 2;
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -17,14 +17,15 @@ const STATS = {};
 const KEEPOUT = {};  // open-ground footprints of models, for the lead to treat as obstacles (exposed on window.__landmarkKeepout)     // landmark -> triangles
 let CUR = 'misc', BASEY = 0;
 
-function mkTex(w, h, draw) {
+// A model is built again whenever its tile comes back, and the builders ask for their textures every time: painted once per material key, or each return left a new canvas and GPU texture behind.
+function mkTex(w, h, draw) { return { make() {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d'); draw(g, w, h);
-  const t = new THREE.CanvasTexture(cv);
+  const t = freeCanvas(new THREE.CanvasTexture(cv), draw);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
-}
-function defMat(key, map, texM, opts = {}) { MATS[key] = { map, texM, opts }; BINS[key] = []; }
+} }; }
+function defMat(key, map, texM, opts = {}) { if (MATS[key]) { MATS[key].texM = texM; return; } MATS[key] = { map: map && map.make ? map.make() : map, texM, opts }; BINS[key] = []; }
 
 const UB = new THREE.BoxGeometry(1, 1, 1); UB.translate(0, 0.5, 0);   // base-centred unit box
 const GEO = {};
@@ -111,7 +112,7 @@ function finish(parent) {
     const merged = mergeGeometries(BINS[k], false);
     const m = MATS[k];
     const { noShadow, ...mo } = m.opts;   // noShadow is ours (castShadow below), not a material parameter
-    const mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo });
+    const mat = m.mat || (m.mat = new THREE.MeshStandardMaterial({ map: m.map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo }));
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = !m.opts.noShadow; mesh.receiveShadow = true; mesh.name = 'landmarks-' + k;
     parent.add(mesh); out[k] = merged.attributes.position.count / 3;

@@ -201,7 +201,7 @@ function nearest(c, x, z) {
   let best = 1e9, bh = 0;
   for (let k = 0; k + 1 < c.n; k++) {
     const ax = c.pts[2 * k], az = c.pts[2 * k + 1], dx = c.pts[2 * k + 2] - ax, dz = c.pts[2 * k + 3] - az, l2 = dx * dx + dz * dz || 1;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), d = hh(x - ax - dx * t, z - az - dz * t);
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez);   // (no Math.hypot: this runs for every terrain sample near a river trench or a tunnel)
     if (d < best) { best = d; bh = c.kind !== 'tunnel' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
   }
   c.d = best; return bh;
