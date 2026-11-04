@@ -8,10 +8,10 @@ const puppeteer = createRequire(path.join(HERE, '../build/package.json'))('puppe
 const { startServer } = await import(path.join(HERE, '../build/serve.mjs'));
 export const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
-export async function start({ root = arg('root'), headless = 'new' } = {}) {
+export async function start({ root = arg('root'), headless = 'new', extraArgs = [] } = {}) {   // extraArgs: more Chrome flags (tools/p2p/stress.mjs)
   const { server, port } = await startServer(path.resolve(root), '');
   const browser = await puppeteer.launch({ executablePath: process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless, protocolTimeout: 600000,
-    args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--no-first-run'] });
+    args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--no-first-run', ...extraArgs] });
   return { server, port, browser, close: async () => { await browser.close().catch(() => {}); server.close(); } };
 }
 // one player: a page at the map point (x, z) heading th, named name; all players of a run share the ns so they only meet each other

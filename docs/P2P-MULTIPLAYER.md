@@ -50,7 +50,7 @@ URL options (all optional):
 
 Without `ns` you are in the public rooms for that cell. Nobody else has this build today, but keep it in mind.
 
-Tests (each through the shared browser slot wrapper, for example `/private/tmp/claude-501/withbrowser.sh node tools/p2p/border.mjs --root dist`): `join.mjs`, `cold.mjs`, `border.mjs`, `scale.mjs`, `fuzz.mjs`, `demo.mjs`. They need `--p2p` builds and open one real window per player (a background tab is throttled, and the game pauses itself when its page is hidden, so the harness stubs that).
+Tests (each through the shared browser slot wrapper, for example `/private/tmp/claude-501/withbrowser.sh node tools/p2p/border.mjs --root dist`): `join.mjs`, `cold.mjs`, `border.mjs`, `scale.mjs`, `fuzz.mjs`, `demo.mjs`; and `stress.mjs` with `relay.mjs` and `botgame/` for many players on local relays (section "Stress test" below). They need `--p2p` builds and open one real window per player (a background tab is throttled, and the game pauses itself when its page is hidden, so the harness stubs that).
 
 ## The room design
 
@@ -183,6 +183,113 @@ Up to 12 the frame time is inside the noise; 16 costs about 2 ms and 5 fps. The 
 - Relay operators also see your IP as a client of their relay, as before, for the room signalling (five relays) and now for presence (two).
 - Nobody learns your IP from presence, and a player who is not among your closest and whose closest you are not never gets it.
 - Nothing logs, displays or sends a peer's IP: `wire()` reads only the candidate type (host, srflx, relay) to count links; the debug box shows counts; the play log sends the name and the player count only.
+
+## Stress test: 8 to 64 players (4 Nov)
+
+The question: what does the shipped netcode do with 16, 32 and 64 players, and how far can the cap be pushed? Measured with `tools/p2p/stress.mjs` (header: arguments and how long a run takes). Raw numbers: `docs/p2p/measurements.txt` (entries "=== stress.mjs ...", then the notes added by hand at the end). Nothing in `src/` was changed.
+
+**What was run.** Everything on one Mac (headless Chrome, 14 cores, other agents running at the same time, load average 12 to 30 during part of the runs, 190 during one storm). Per run: 5 local Nostr relays (`tools/p2p/relay.mjs`, 127.0.0.1 only, throw-away TLS certificate because the shipped client only accepts `wss://` in `?relays=`), passed as `?relays=`; five like the five pinned in `src/p2p/relays.js`, the first three also carrying presence as `PRESENCE_RELAYS` does. The shipped build's page policy lists only the pinned hosts, so the test serves the build through a small proxy that adds the local addresses to `connect-src` in `index.html`; the build itself is untouched. Chrome is started with every name except 127.0.0.1 refused, so nothing could reach a public relay, a STUN server or the play stats service. Checked in every run: a public address fails to resolve, a STUN server gives no server-reflexive candidate, the network log shows only 127.0.0.1 sockets and requests, no refused lookups. The play log was never reached (`?ns=` and `navigator.webdriver` both block it; the refused-lookup count was 0). Players used a private `?ns=`. The one run on the real relays is described below (4 players).
+
+**Who the players were.** In each run 1 full game page (2 from 32 players up) and the rest light bots. Never to be read as "64 game clients". A bot is the real `src/p2p/p2p.js`, `presence.js` and Trystero, bundled with drawing, garage and language stubbed (`tools/p2p/botgame/`): same room choice, shards, presence, rate limits, wire format and timers, so the same traffic. What they do not do: build or draw cars, run the game, run the garage. Their STUN is switched off (loopback). Eight bots share one browser page (one iframe each, so each has its own id and its own Trystero). Check of parity: in the 8 player crowd a real page sent 70 messages a second and 7.9 KB/s on its data channels, a bot 70.6 and 8.0. (`tools/p2p/bot.html`, the older bot, joins one fixed room and sends 10 Hz to everybody; it cannot show shards or presence, so it was not used.) The real pages start unnamed and are given a name at their start time, which is what makes them join, as in the game; their STUN names were refused, so they connect on host candidates only.
+
+**What this cannot show.** One machine: no NAT, no mobile network, no packet loss, no real latency (one way between bots was 1 ms at p50), no Safari or iOS, and no TURN. WebRTC found its direct path instantly, as on any one machine. What is emulated: the phone profile (844x390, CPU slowed 4x) as in the older measurements. Network throttling was not applied. A busy Mac makes every timing in the tables worse than a quiet one, not better, and the Mac was shared. The test that would close the gap: 8 to 16 real people on different networks (home Wi-Fi, mobile data, at least two phones) in one spot for ten minutes, with the stats of `stress.mjs` read from the debug box, on the real relays (the owner's call, it is real load on volunteers).
+
+**Situations.** A: everyone in one spot, arriving over 20 s, then 60 s steady. B: spread over the city, each wants its closest players. C: everyone arrives in the same second, after a minute half of them drive off at 40 m/s and come back. D: one player joins every 3 s. E: 50 m/s back and forth over cell borders in a 1.6 km corridor. Only A and D finished at all four sizes. The rest, and why:
+
+### Results at the shipped cap of 8
+
+"First peer" is the time from a player's own start to its first connected player (the very first player in has nobody to meet and is left out). "Seen" is to the first car/dot shown. "Connected" counts WebRTC peers at one time; the cap says 8. Relay figures are what the five local relays saw in the steady 60 s (45 s in C and D, the relay frames are in plus out); "busiest" is the most loaded relay, and per hour is that rate times 3600 (an extrapolation, assumes the same N stays for an hour).
+
+**N = 8** (1 game page, 7 bots)
+
+| | First peer / seen, median (max) ms | Shards at the end | Max connected at once | Max members in a room (limit 9) | Alone | Room joins per player per min | Relay frames/s (all 5 / busiest) | Busiest relay per hour | Not received | Update gap p99 (<150 m) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A crowd | 320 (365) / 320 | 1 of 8 | 7 | 8 | none | 0 | 8.6 / 2.1 | 7,600 frames, 4 MB | 0 % | 101 ms |
+| D rolling | 317 (367) / 317 | 1 of 8 | 7 | 8 | none | 0 | 8.4 / 2.6 | 9,400 frames, 4 MB | 0 % | 101 ms |
+| C wave | 592 (751) / 610 | 1 of 8 (6 identical rooms stay joined) | 7 | 8 | none | 0 after settling | 44 / 9 | 32,000 frames, 15 MB | 0 % | 101 ms |
+| E fast | 866 (2067) / 889 | 5 (2,2,2,1,1) | 7 | 8 | none | 26 | 3000 / 601 | 2.2 million frames, 964 MB | 0.7 % | not measured |
+| B spread | 693 (2343) / 693 | 8 (1 each), 13 rooms | 7 | 8 | none | 35 | 3706 / 742 | 2.7 million frames, 1193 MB | 3.4 % | 2761 ms (far players are sent to every 1 to 2.5 s by design) |
+
+**N = 16** (1 game page, 15 bots)
+
+| | First peer / seen, median (max) ms | Shards at the end | Max connected at once | Max members in a room | Alone | Room joins per player per min | Relay frames/s (all 5 / busiest) | Busiest relay per hour | Not received | Update gap p99 (<150 m) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A crowd | 363 (440) / 366 | 2 (9,7), 3 rooms | 15 (over 8 for 104 s) | 14 for 14 s | 1 player 22 s | 0 | 25 / 7.3 | 26,000 frames, 12 MB | 0 % | 101 ms |
+| D rolling | 334 (370) / 335 | 3 (8,7,1) | 10 (6 s) | 11 | none | 1 | 156 / 33.6 | 121,000 frames, 53 MB | 0 % | 101 ms (12 gaps over 250 ms, longest 684) |
+| C wave | 665 (3044) / 674 | 3 (7,6,3) but 15 rooms | 15 (over 8 for 159 s) | 16 for 61 s | 2 players, 13 s | 23 | 4516 / 906 | 3.3 million frames, 1463 MB | 2.6 % | 267 ms (193 gaps over 1 s, longest 30 s) |
+| E fast | 839 (2436) | no final state: pages stopped answering for 111 s | 6 | 15 | | 2 | 9597 / 1937 | 7.0 million frames, 3247 MB | | |
+| B spread | 1389 (8727) / 1426 | no final state: pages stopped answering for 138 s | 14 | 14 | | 6 | 9380 / 1880 | 6.8 million frames, 3078 MB | | |
+
+**N = 32** (2 game pages, 30 bots)
+
+| | First peer / seen, median (max) ms | Shards at the end | Max connected at once | Max members in a room | Alone | Relay frames/s (all 5 / busiest) | Busiest relay per hour | Not received | Update gap p99 (<150 m) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A crowd | 344 (1034) / 347 | 5 (9,8,8,5,2) | 21 (over 8 for 25 s) | 17 for 17 s | none | 56 / 16.6 | 60,000 frames, 26 MB | 0 % | 101 ms |
+| D rolling | 347 (448) / 348 | 6 (9,8,8,4,2,1) | 21 (over 8 for 108 s) | 19 for 29 s | 1 player 5 s | 241 / 54 | 195,000 frames, 85 MB | 1.1 % | 101 ms (27 gaps over 250 ms, longest 7 s) |
+| C, E, B | not completed (pages stopped answering, one page crashed, watchdog; see the notes in the measurements file) | | | | | | | | |
+
+**N = 64** (2 game pages, 62 bots)
+
+| | First peer / seen, median (max) ms | Shards at the end | Max connected at once | Max members in a room | Alone | Relay frames/s (all 5 / busiest) | Busiest relay per hour | Not received | Update gap p99 (<150 m) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A crowd | 335 (638) / 336 | 9 (9,9,9,8,8,7,7,6,1) | 24 (over 8 for 124 s) | 17 for 23 s | 1 player 4 s | 156 / 53 | 191,000 frames, 84 MB | 0 % | 101 ms |
+| D, C, E, B | not completed or not clean (D: the harness lost its pages for 134 s and 9 players never connected; the rest not run to the end) | | | | | | | | |
+
+Join burst (all five relays, the first minute of A, everyone arriving within 20 s): 3,600 frames at 8 players, 49,000 at 16, 77,000 at 32, 108,000 at 64. The peak second at 64 players was 2233 frames out.
+
+Frame time and CPU of the full game pages in these runs: 60 fps (16.7 ms mean, p99 16.8 ms) on desktop in A and D at every size up to 64 players, because the cap of 8 limits what is drawn. The Chrome of the 64 player run used 5.4 GB in all (about 1.8 GB of it the two game pages), about 28 MB per bot when loaded and about 42 MB in the mesh, and about 1.2 cores in renderers. One bot page costs about 4 to 5 ms of main thread a second at 8 peers.
+
+### What it does today
+
+**At 16 players in one spot.** Everybody connects in about 0.35 s, but nobody sees all 15: the crowd is cut into shards of at most 9 and a player only sees the members of its own shard plus whatever rooms fit under 8 in total (a room is all or nothing). End state 9 and 7 in the run in the table (an earlier run of the same scenario ended 8 and 8). Players 40 m apart in different shards do not see each other, and the shards do not merge later. Up to 15 connections were open at once in the first 20 s and 9 to 10 stayed open for the rest of the run (the connection cap is `MAXP + 2` for 10 s before a room is dropped, so "8" is a cap on what is drawn and sent, not on connections). The cap of 8 on shown players was never exceeded in any run (0 s).
+
+**At 32.** Same pattern, 5 to 6 shards, up to 21 connections at once, one player alone for up to 5 s. Room signalling is fine (busiest relay 17 to 54 frames/s).
+
+**At 64.** One spot works as well as 32: 9 shards (9,9,9,8,8,7,7,6,1), everybody connected within 0.64 s, a player in the last shard of 1 still saw 5 to 8 through visiting rooms, relay load 53 frames/s on the busiest relay. What did not work at 64 was a rolling join (the harness lost its pages), see below.
+
+**Not in one spot (B, C, E).** This is the finding that matters. As soon as the players are not all in one room, the room choice does not settle at 8 players and above. In B with 8 players spread over the city (everyone can see everyone, 7 < 8) each player joined and left 35 rooms a minute and had 400 connection events a minute for as long as the test ran (110 s and 169 s), 3700 relay frames/s for 8 players, 3 % of position messages never arrived, and the update gaps for far players went to 2.7 s at p99. At 16 players the same situations (B, E, and C after the wave) went into a storm: relay traffic of 4500 to 9600 frames/s, the pages stopped answering for 100 s or more, one crashed. At 32 players all three situations did the same and were stopped. A wave of half the crowd leaving (C) also leaves rooms behind: after it, 8 players held 6 identical rooms of 8 for two minutes.
+
+Cause, partly found (not proven): `evaluate()` in `src/p2p/p2p.js` adds `g.anon` (peers connected to a room beyond what presence lists for it) once per room into the count against `MAXP`. A peer that sits in several shared rooms is counted in each of them, so with presence lagging the count passes 8 and rooms are dropped and rejoined a second later, which publishes a new room list, which changes everybody else's count. Test: the same B run with 8 bots and `g.anon = 0` in the bots' copy of the file only (the `--patch` option of `stress.mjs`) went from 37 to 5.6 joins a minute, from 3744 to 349 relay frames/s. Less, not none: something else still keeps the rooms changing. This is a report, not a fix; nothing in `src/` was touched.
+
+**Real relays.** The one run on them (4 players, the five pinned relays, private `?ns=`, 2 minutes): connected in 599 to 717 ms against 280 to 370 ms on the local relays at about the same size, no errors. That says nothing about 8 players or more in B on a real relay; the storm above is what an unthrottled relay does, a real one would rate-limit (the earlier measurement saw `rate-limited` replies at 1 event a minute from 2 pages) and the slower feedback might calm or sustain it. Not tested, and not testable within the rule of at most 4 players on public relays.
+
+### Per hour, what the pinned relays would see
+
+Steady crowd (A), the busiest relay, frames in plus out, extrapolated from the rates above: 8 players about 8,000 an hour, 16 about 26,000, 32 about 60,000, 64 about 190,000 (84 MB). The three relays that also carry presence take 3 to 4.5 times what the other two take, and about three quarters of their frames are presence events being passed to every subscriber, which grows with the square of the players online until the beat stretches (the beat is 60 s up to 96 players, then the number of players known divided by 1.6, at most 250 s because only 400 players are remembered). Estimate of that term: events out per presence relay per second = (2/3 N)^2 / beat (each player is on 2 of the 3 presence relays). At 64 players that gives 30 (measured 33 to 39 on the busy ones). At 1000 players the beat is 250 s and it gives about 1,800 events a second of 460 bytes, 0.8 MB/s, per presence relay. These are estimates from the code and the measurements at 64, not measurements at 1000. Add the join bursts (the first minute of A divided by N gives about 450, 3,000, 2,400 and 1,700 frames across the five relays per arriving player at 8, 16, 32 and 64) and any storm of the kind above, which dwarfs everything (a million frames an hour on the busiest relay at 8 players spread out, 7 million at 16).
+
+### Headroom: raising `?maxp` with everyone in one room
+
+M other players held, M + 1 players in one spot (1 game page, 2 bots on pages of their own, the rest bots), 60 s steady, desktop window 480x270. Bandwidth is the game page's WebRTC counters (data channel bytes; "wire" includes headers).
+
+| M | Time to connect, median / p90 / max | Connected | Upload / download data channels | Wire up / down | Position messages per player per s | One-way delay p99 | Frame (mean, fps) | Game page main thread | Netcode alone, one bot page, normal / CPU x4 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 (shipped, from A) | 0.32 s | all | 7.9 / 8.0 KB/s | 12.5 / 12.6 KB/s | 71 | 1 ms | 16.7 ms, 60 | about 200 ms/s | 4 / not measured ms/s |
+| 12 | 1.1 s / 2.0 / 2.8 | 12 of 12 | 13.6 / 13.7 KB/s | 21.3 / 21.5 KB/s | 121 | 6 ms | 16.9 ms, 59 (p99 33 ms) | 369 ms/s | 15 / 29 ms/s |
+| 16 | 0.8 s / 1.7 / 1.7 | 16 of 16 | 17.9 / 18.2 KB/s | 28.2 / 28.5 KB/s | 162 | 6 ms | 16.7 ms, 60 | 499 ms/s | 21 / 40 ms/s |
+| 24 | 1.4 s / 2.5 / 4.4 | 24 of 24 | 27.2 / 27.5 KB/s | 42.8 / 43.1 KB/s | 242 | 4 ms | 16.7 ms, 60 | 270 ms/s | 12 / 30 ms/s |
+| 32 | 1.5 s / 85.8 / 89.4 | 31 of 32, one player never connected | 34.4 / 35.8 KB/s | 56.6 / 58.5 KB/s | 209 | 2171 ms (max 4953), 1755 gaps over 250 ms | 16.7 ms, 60 | 355 ms/s | 22 / 46 ms/s |
+| 40 | run killed: pages stopped answering at 148 s | | | | | | | | |
+
+Phone profile (844x390, CPU x4, game page): M = 16: 25.5 ms mean, 39 fps, p95 50 ms, p99 67 ms, main thread 847 ms/s, upload 14.1 KB/s (below the desktop 17.9 because the game loop sends fewer than 10 a second when it runs at 39 fps), download 18.2 KB/s, one-way p99 25 ms. M = 40 phone: killed like the desktop run. For comparison the older table: 8 peers on the phone profile 39 fps in that test too.
+
+Where each limit bites first (measured here, on one machine):
+
+1. Bandwidth per player grows by 1.1 KB/s up and 1.1 down per connected player in data channels, 1.8 each way on the wire: 28 KB/s each way at 16 (100 MB an hour each way), 57 KB/s at 32 (200 MB an hour). On Wi-Fi fine, on mobile data this is the first limit that matters; it is why 8 was chosen.
+2. CPU of the netcode is not a limit: one bot page spent 12 to 22 ms of main thread a second at 24 to 32 peers, 46 ms a second at 32 peers with the CPU slowed 4x (under 5 % of a main thread). On the phone profile the frame time falls (39 fps at 16 peers) because of drawing the cars and tags, not the network. A cap on drawn players, not on connections, would help phones.
+3. Mesh formation breaks first on the desktop: at 32 in one room the first connections were fast but the slowest took 85 to 89 s, one player of 33 never connected, one-way delays reached seconds (p99 2.2 s) and there were handshake timeouts and "could not connect after exchanging SDP" warnings. At 40 the pages stopped answering. Up to 24 everything was clean (delay p99 4 ms, no failures). This is on loopback with no NAT, so a real network will break earlier, not later.
+4. Relays: room signalling per shard is small (a few frames a second). The relay cost comes from presence (squared in the players online up to 96) and from storms, not from the size of a room.
+
+### Answers
+
+**16, 32, 64 players today.** In one spot: everyone connects in about a third of a second, nobody sees more than 8, and the crowd splits into shards of up to 9 that do not merge, so at 16 you see 6 to 8 of 15 and cars 40 m away in the other shard are not there. Connections run at 9 to 10 sustained, 15 to 24 for the first 20 s. Relay load is small (a busiest relay of 7, 17 and 53 frames/s). Desktop stays at 60 fps. Spread out or driving fast over borders, it does not settle from 8 players up, and from 16 up it can storm. That is the main problem found.
+
+**A cap we could run safely.** For a crowd in one room and desktop only: 12 to 24 measured clean here (60 fps, 14 to 27 KB/s each way, delay under 10 ms), but the shipped logic does not hold even 8 stably outside a crowd, so I would not raise the number before the churn is fixed. Phones should stay at 8 for bandwidth, and a cap on drawn cars is the better phone setting. Proposal, not a decision.
+
+**1000 players, what breaks first.** (1) The room choice, as above, before any volume limit: it is unstable at 8 to 16 players away from each other, and a thousand players are nearly all away from each other. (2) Presence: `MAX_ENTRIES` is 400 and a new reader asks for at most 300 events, so beyond 400 online a client does not know the others; the doc already says it needs splitting by region. (3) The pinned relays: estimated 0.8 MB/s of presence per presence relay, about 1,700 open sockets each (1,000 Trystero and 667 presence), a count volunteer relays may not accept (unknown). (4) A storm on real relays would be more than they would take. Estimates, except where a figure is quoted from a run above.
+
+**Cheapest change to push further.** In order of cost: (a) count each connected peer once in `evaluate()` (the `anon` double count; the test copy shows 7 to 10 times less churn); (b) after that, find what still keeps rooms changing, with `stress.mjs --scenario B --n 8` as the check (it must reach zero joins a minute); (c) leave a room only when all its members are in other held rooms (stops the ghost rooms after a wave); (d) merge two small shards of the same cell; (e) only then, a higher `MAX_PLAYERS` for desktop. Recommendations only.
+
+What was not tested: real networks (NAT, mobile, loss, latency), Safari and iOS, more than 2 game pages at once, C, E and B at 32 and 64, rolling join at 64, the headroom at 40, repeat runs for variance (the shard sizes of a crowd differ from run to run: at 16 the same scenario ended 9,7 once and 8,8 another time).
 
 ## Privacy
 
