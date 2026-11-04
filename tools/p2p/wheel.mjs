@@ -43,7 +43,7 @@ try {
   const P = await player(h, { name: 'Pia', ns: ns + 'p', x: -300, z: 250, phone: true });
   const Q = await player(h, { name: 'Pol', ns: ns + 'p', x: -296, z: 254, phone: true });
   await P.page.waitForFunction(() => window.__p2p.remotes.size > 0, { timeout: 90000, polling: 500 }); await sleep(500);
-  await P.page.evaluate(() => document.querySelector('button[title=T]').click()); await sleep(400);
+  await P.page.evaluate(() => document.querySelector('button.mpx-talk').click()); await sleep(400);
   await P.page.screenshot({ path: out + '/wheel-phone-1.png' });
   await P.page.evaluate(() => document.querySelectorAll('svg[role=menu] [role=menuitem]')[2].dispatchEvent(new MouseEvent('click', { bubbles: true }))); await sleep(400);
   await P.page.screenshot({ path: out + '/wheel-phone-2.png' });

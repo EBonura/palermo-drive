@@ -17,7 +17,7 @@
 // canvas, never as HTML). Wire format (little endian), the same state encoding as relay/src/protocol.rs, in one data channel action:
 //   INFO  [1][vehicle u8][livery u8][nameLen u8][name utf8]   sent to a new peer and when the name, vehicle or livery changes;
 //         vehicle indexes VEHICLES (src/garage.js), livery the LIVERIES of that vehicle; anything out of range is the calessino / its first livery
-//   SAY   [3][phrase index u8]                        one of PHRASES (src/p2p/phrases.js), shown as a bubble over the sender's car
+//   SAY   [3][phrase index u8]                        one of PHRASES (src/p2p/phrases.js), shown as a bubble over the sender's car and as a line with the sender's name in the multiplayer section (src/p2p/panel.js); sent only to players within DRAW_R of the sender, and ignored by a receiver farther than that
 //   OFFER [4][kind u8][offer id u8]                   a drink (0 cicchetto, 1 birra) for a player close by; ACCEPT [5][id] answers it, CONFIRM [6][id] says the giver paid
 //   STATE [2][seq u8][state 11 bytes][height u16]?    position 5 bytes, heading u8, speed i8, steer i8, roll i8, lean i8, flags u8 (bit 0 nitro, 1 brake, 2 drift, 3 height follows);
 //         height: how far the car stands above the ground at its x, z, in tenths of a metre (a bridge deck, a roof, the air: car.lift); sent only above 0.6 m, so a car on the road costs nothing extra
@@ -26,6 +26,8 @@ import { getLang as lang } from '../lang.js';   // the language shown, 'it' | 'e
 import { strategies, selfId, pauseRelayReconnection, resumeRelayReconnection } from './trystero.js';
 import { PHRASES, CATEGORIES } from './phrases.js';
 import { createWheel } from './wheel.js';
+import { createPanel } from './panel.js';
+import { zone } from '../hud.js';
 import { RELAYS, PRESENCE_RELAYS } from './relays.js';
 import { createPresence } from './presence.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
@@ -300,34 +302,38 @@ export function createP2P(env) {
     rm.addSnap(rem, { t: now, x, z, th: b[7] / 256 * TAU, v, steer: dv.getInt8(9) / 127 * 0.7, roll: dv.getInt8(10) / 127 * 0.5, lean: dv.getInt8(11) / 127, fl: b[12] & 7, h });
   }
 
+  // A phrase reaches the players who can see our car: within DRAW_R metres (the range at which another player is drawn as a car and not a ring on the maps). The sender sends to
+  // those only, and a receiver checks its own distance too, since a message comes from a stranger: past that range there is no bubble, no line and no sound.
+  const reach = p => !!(p && p.held !== false && p.rooms.size && Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_MS && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
+  const inReach = () => { let n = 0; for (const p of peers.values()) if (reach(p)) n++; return n; };
+  const SAID = { it: 'dici', en: 'said' };   // "izzy dici “ciao curò”": wording to be corrected by the owner
   function onSay(id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
     if (!p || !b || b.length !== 2 || b[0] !== 3 || b[1] >= PHRASES.length) { stats.rxBad++; return; }
     stats.rxBytes += b.length;
     if (!admit(p, now) || now - (p.lastSay || -1e9) < SAY_GAP_MS * 0.8) { stats.rxDropped++; return; }
     const rem = rm.remotes.get(id); if (!rem) return;   // only players we can see
-    p.lastSay = now; rm.say(rem, PHRASES[b[1]], now); chirp('say');
+    if (!p.shown || !Number.isFinite(p.x) || Math.hypot(p.x - car.x, p.z - car.z) > DRAW_R) { stats.rxDropped++; return; }   // too far to be a car on our street: not for us
+    p.lastSay = now; rm.say(rem, PHRASES[b[1]], now); panel.line(p.name || 'Player', SAID[lang()], PHRASES[b[1]], false); chirp('say');
   }
   let lastSaid = -1e9;
   function say(idx) {
     const now = performance.now(); if (!(idx >= 0 && idx < PHRASES.length) || now - lastSaid < SAY_GAP_MS) return false;
-    lastSaid = now; const b = new Uint8Array([3, idx]), byRoom = new Map();
-    for (const p of peers.values()) { const k = route(p); if (k !== null) { if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(p.id); } }
+    const byRoom = new Map(); let n = 0;
+    for (const p of peers.values()) { if (!reach(p)) continue; const k = route(p); if (k !== null) { if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(p.id); n++; } }
+    if (!n) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr(`Entro ${DRAW_R} m`, `Within ${DRAW_R} m`), true); return false; }
+    lastSaid = now; const b = new Uint8Array([3, idx]);
     for (const [k, list] of byRoom) { stats.txMsgs += list.length; stats.txBytes += 2 * list.length; rooms.get(k).say.send(b, { target: list }).catch(() => {}); }
-    toast(PHRASES[idx]);   // what you said, on your own screen too (the bubble is over your car on theirs)
+    panel.line(myName, SAID[lang()], PHRASES[idx], true);   // what you said, in the same form as on their screens (the bubble is over your car on theirs)
     return true;
   }
-  // the talk wheel (src/p2p/wheel.js): the 💬 button or the T key opens it; categories first, then the phrases of one. The wheel is built from the
+  // the talk wheel (src/p2p/wheel.js): the talk button of the multiplayer section (src/p2p/panel.js) or the T key opens it; categories first, then the phrases of one. The wheel is built from the
   // fixed lists in src/p2p/phrases.js, so what it can send is exactly what the receiver accepts.
-  const chat = document.createElement('div');
-  chat.className = 'pd-p2p'; chat.style.cssText = 'position:fixed;z-index:31;left:calc(max(10px,env(safe-area-inset-left)) + var(--bar-w) + 8px);top:max(8px,env(safe-area-inset-top));font:600 14px system-ui,sans-serif;color:#fff';   // beside the slim bar top left (src/ui.css), in its row
-  const chatBtn = document.createElement('button'); chatBtn.type = 'button'; chatBtn.textContent = '💬'; chatBtn.title = 'T';
-  chatBtn.style.cssText = 'width:40px;height:40px;padding:0;border-radius:99px;border:0;background:rgba(13,7,10,.8);box-shadow:0 2px 10px rgba(0,0,0,.3);color:#fff;font-size:19px;line-height:1;cursor:pointer';
   const wheelLang = () => lang() === 'en' ? 'en' : 'it';
   const wheel = createWheel({
     categories: [],   // filled by buildWheel (the language and the offers are read when it opens)
     backLabel: () => wheelLang() === 'en' ? 'back' : 'indietro', closeLabel: () => wheelLang() === 'en' ? 'close' : 'chiudi',
-    onClose: () => { chatBtn.blur(); },
+    onClose: () => { panel.talk.blur(); },
   });
   const KIND_NAME = { it: ['Offri un cicchetto', 'Offri una birra'], en: ['Offer a cicchetto', 'Offer a beer'] };
   function buildWheel() {
@@ -337,21 +343,24 @@ export function createP2P(env) {
       items: [...c.phrases.map(i => ({ label: PHRASES[i], onPick: () => say(i) })), ...(c.drinks || []).map(k => ({ label: KIND_NAME[l][k], tag: priceTag(), onPick: () => { offer(k); } }))],
     }));
   }
-  function openWheel() { wheel.setCategories(buildWheel()); wheel.open(); }
-  chatBtn.addEventListener('click', () => { chatBtn.blur(); if (wheel.isOpen) wheel.close(); else openWheel(); });
+  const online = () => named && agreed && !quiet;   // the player said yes (the name card, or Online in Options) and has not gone solo since
+  function openWheel() {
+    if (!inReach()) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr(`Entro ${DRAW_R} m`, `Within ${DRAW_R} m`), true); return; }
+    wheel.setCategories(buildWheel()); wheel.open();
+  }
+  const toggleWheel = () => { if (wheel.isOpen) wheel.close(); else openWheel(); };
+  const panel = createPanel({ zone: zone('social'), onTalk: toggleWheel });
   // T opens and closes it, 1 to 8 pick, Escape closes: in the capture phase, ahead of the game's own handler (src/ui.js adds its listener later)
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const typing = e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
     if (typing || nameCard) return;
     if (card && (e.code === 'KeyY' || e.code === 'KeyN')) { e.preventDefault(); e.stopImmediatePropagation(); answer(e.code === 'KeyY'); return; }   // N is the radio's key too: the card has it first
-    if (e.code === 'KeyT' && named && game.state === 'play') { e.preventDefault(); e.stopImmediatePropagation(); if (wheel.isOpen) wheel.close(); else openWheel(); return; }
+    if (e.code === 'KeyT' && online() && game.state === 'play') { e.preventDefault(); e.stopImmediatePropagation(); toggleWheel(); return; }
     if (!wheel.isOpen) return;
     if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Escape') wheel.close(); else wheel.back(); }
     else if (/^(Digit|Numpad)[1-8]$/.test(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); wheel.pick(+e.code.slice(-1) - 1); }
   }, true);
-  chat.addEventListener('click', e => { if (e.target instanceof HTMLElement) e.target.blur(); });   // so that the arrow keys go on driving
-  chat.append(chatBtn); document.body.appendChild(chat);
 
   // ---------- a drink for somebody close by ----------
   // Giver: picks cicchetto or birra, the nearest visible player within OFFER_R gets an OFFER and a card with Accetta / Nun mi va. On ACCEPT the
@@ -630,7 +639,7 @@ export function createP2P(env) {
   document.documentElement.classList.add('pd-mp');
 
   function goOffline() {
-    nearCount = 0; presence.stop(true); home = null; lastListed = ''; banned.clear();   // no list of who is online, no more events
+    panel.clear(); wheel.close(); presence.stop(true); home = null; lastListed = ''; banned.clear();   // no list of who is online, no more events
     for (const r of [...rooms.values()]) leaveCell(r);
     for (const p of peers.values()) if (p.shown) rm.remove(p.id);
     peers.clear(); myOffer = null; incoming = null; closeCard(); note(null);   // an offer in the air is over with the player it was for
@@ -655,21 +664,18 @@ export function createP2P(env) {
   // The rooms are chosen so that the players in them add up to MAXP, but presence lags, and a room can hold more by the time we are in it. So the players actually
   // connected are ranked by distance as well: only the closest MAXP are sent to, drawn or listened to (a farther one in a room is connected, and idle). A player
   // beyond DRAW_R is a dot with a name on the maps, not a car.
-  let nearCount = 0;
   function rank(now) {
     const known = [], unknown = [];
     for (const p of peers.values()) { if (!p.rooms.size) continue; (Number.isFinite(p.x) ? known : unknown).push(p); }
     const dist = p => Math.hypot(p.x - car.x, p.z - car.z);
     known.sort((a, b) => dist(a) - (a.held ? 50 : 0) - (dist(b) - (b.held ? 50 : 0)));
     const slots = MAXP;   // a player we have not heard a position from yet takes no slot (it sends us its first state within a moment, and then it is ranked); it is sent to, so that it can rank us
-    nearCount = 0;
     known.forEach((p, n) => {
       p.held = n < slots;
       if (!p.shown) return;
       if (!p.held) { rm.remove(p.id); p.shown = false; p.seq = -1; ev('unheld', { peer: p.id.slice(0, 4) }); return; }
       const d = dist(p), far = p.far ? d > DRAW_R : d > DRAW_OUT;
       if (far !== p.far) { p.far = far; rm.setFar(rm.remotes.get(p.id), far); ev(far ? 'far' : 'near', { peer: p.id.slice(0, 4), m: Math.round(d) }); }
-      if (!far) nearCount++;
     });
     for (const p of unknown) p.held = true;
   }
@@ -677,9 +683,18 @@ export function createP2P(env) {
   let idleSince = 0, hudT = 0, sendAcc = 0, linkTxt = '-', linkT = 0;
   function update(dt) {
     const now = performance.now();
-    const playing = game.state === 'play', company = playing && nearCount > 0;   // nobody near: nothing to say or offer, so the buttons stay off the screen
-    chat.style.display = company ? '' : 'none';
-    if (!company && wheel.isOpen) wheel.close();
+    const playing = game.state === 'play', on = online();
+    if (!on || !playing) panel.set({ show: false, title: '', sub: '', label: '' });
+    else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
+      let linked = 0; for (const p of peers.values()) if (p.rooms.size && p.held !== false) linked++;
+      const near = inReach(), keys = !document.documentElement.classList.contains('touch');
+      panel.set({
+        show: true, idle: !near, open: wheel.isOpen, label: tr('Parla', 'Talk') + (keys ? ' (T)' : ''),
+        title: linked ? tr(`${linked} ${linked === 1 ? 'giocatore' : 'giocatori'}`, `${linked} ${linked === 1 ? 'player' : 'players'}`) : 'Online',
+        sub: !linked ? tr('ancora nessuno', 'no one yet') : near ? tr(`${near} entro ${DRAW_R} m`, `${near} within ${DRAW_R} m`) : tr(`nessuno entro ${DRAW_R} m`, `none within ${DRAW_R} m`),
+      });
+    }
+    if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
     offerClocks(now, playing); if (playing) arrivals(now);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
     if (quiet && now - quietT > 2000) { quietT = now; shutSockets(); }   // a relay that was already waiting to retry opens once more: shut it again
@@ -729,7 +744,7 @@ export function createP2P(env) {
 
   const api = {
     enabled: true, update, openName, players: () => rm.list(), get online() { return peers.size > 0; },
-    isOnline: () => named && agreed && !quiet,
+    isOnline: online,
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
       peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),
@@ -738,7 +753,8 @@ export function createP2P(env) {
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
       resetOffers(keepMute) { lastOfferAt = -1e9; for (const p of peers.values()) { p.lastOffer = 0; if (!keepMute) p.mutedUntil = 0; } },
       inMission, forceBusy: b => { busyForce = b; },
-      say, offer, name: () => myName, offerState: () => ({ myOffer, incoming: incoming && { ...incoming }, card: !!card, muted: [...peers.values()].map(p => p.mutedUntil || 0) }), gameState: () => game.state,
+      say, offer, inReach, feedLine: (name, idx, mine) => panel.line(name, SAID[lang()], PHRASES[idx], !!mine),   // test hooks (tools/p2p/feed.mjs, the screenshots): a line in the section, and the peers' reach
+      name: () => myName, offerState: () => ({ myOffer, incoming: incoming && { ...incoming }, card: !!card, muted: [...peers.values()].map(p => p.mutedUntil || 0) }), gameState: () => game.state,
       setName: n => { myName = clean(n) || myName; },
       // test hook (tools/p2p/fuzz.mjs): feeds hostile messages from a made-up peer through the real handlers
       fuzz(msgs, refill = true) {
