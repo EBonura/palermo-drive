@@ -43,7 +43,9 @@ Live check on the real GitHub Pages site after the last deploy (`docs/perf/06-li
 | 4 three.js r187 (bundle grew by 40 KB gzip: r187 is bigger) | 1.91 MB | 17 | 9.8 s | 15.0 s |
 | 5 rendering and startup work, far city and photos off the critical path, webp photos | 2.15 MB total, 1.25 MB before first frame | 23 | 8.1 s | 12.7 s |
 
-## Automatic graphics (`src/perf.js`, Options > Graphics > Auto)
+## Automatic graphics (`src/perf.js`, off since 4 Nov 2026)
+
+Players no longer choose or get an automatic level: every device runs the full graphics (`applySettings` in `src/main.js`). `?gfx=auto|low|medium|high` remains for tests. What follows describes the ladder, which only `?gfx=auto` still uses.
 
 Auto is the default for new players and for everyone who never chose a tier. One target on every device: 60 fps. There is no phone profile; a weak device simply ends up lower on the same ladder. Low, medium and high stay in Options as manual choices and are fixed: nothing adapts under them, and the draw distance slider applies. While Auto is on, Auto owns the draw distance (the slider is overridden).
 

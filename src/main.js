@@ -338,24 +338,21 @@ if (location.search.includes('debug')) window.game = { perf, world, car, keys, p
 const game = {
   state: 'title', titleCam: null, noRender: false, garage: null, // garage: set while the Garage is open (src/garage-scene.js): its own scene, the city is neither simulated nor drawn
   time: { hour: 16.5, isNight: false, night: 0, dusk: 0 }, // [day/night] filled in by src/daynight.js every frame; modules may also listen for 'pd-time'
-  settings: { quality: 'auto', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 0, ...{} },
+  settings: { quality: 'high', drawDistance: 1, volume: 0.8, units: 'kmh', camera: 1, ...{} },
   start() { this.state = 'play'; camState.mode = this.settings.camera; camState.init = false; showKeyHint(); },
   pause() { if (this.state === 'play') this.state = 'pause'; },
   resume() { if (this.state === 'pause') { this.state = 'play'; last = performance.now(); } },
 };
 // One place where options touch the renderer; ui.js calls it after changing game.settings.
-// quality 'auto' is the default: src/perf.js moves a ladder of levels and calls applyLevel with each (the draw distance slider is overridden meanwhile).
-// low / medium / high are fixed choices: the slider applies and nothing adapts. ?fixres turns Auto into medium (benchmarks), and so does an automated
-// browser (navigator.webdriver) unless ?gfx=auto|low|medium|high says otherwise: tests stay deterministic.
+// One look for everyone: every device gets the full graphics, the same on a phone and a desktop (the owner's decision, 4 Nov), and the work goes into making that run well.
+// ?gfx=auto|low|medium|high is left for the tests and the benchmarks, players have no choice to make.
 function applySettings() {
-  const st = game.settings, gfx = params.get('gfx');
-  let q = gfx || st.quality;
-  if (q === 'auto' && (params.has('fixres') || (!gfx && navigator.webdriver))) q = 'medium';
+  const st = game.settings, q = params.get('gfx') || 'high';
   if (q === 'auto') perf.configure({ auto: true, ceil: Math.min(devicePixelRatio, 2) });
   else {
     const tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[q] || [2, 2048];
-    perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, tier[0], QUALITY.pixelRatio) });
-    applyLevel({ dd: st.drawDistance, sh: tier[1], crowd: q, road: q });
+    perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, tier[0]) });
+    applyLevel({ dd: 1, sh: tier[1], crowd: q, road: q });
   }
   vehicle.setVolume?.(st.volume);
   traffic.setVolume?.(st.volume);

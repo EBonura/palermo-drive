@@ -13,7 +13,7 @@ const coarse = typeof matchMedia === 'function' && (matchMedia('(pointer: coarse
 const touch = coarse || params.has('touch');
 
 // Only the render scale follows the device (phones cap the pixel ratio lower). Everything else is one profile for every device: docs/PERF.md.
-export const QUALITY = { mobile: touch, pixelRatio: touch ? 1.25 : 2 };
+export const QUALITY = { mobile: touch, pixelRatio: 2 };
 
 // Bulb-horn shape for the CLACSON pad.
 const HORN_ICON = '<svg viewBox="0 0 24 24"><path d="M3 10v4h3l7 5V5L6 10H3z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
