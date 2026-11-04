@@ -1975,6 +1975,18 @@ def near_for(i, j):
             "h": [round(float(v), 1) for v in own.ravel()]}
 
 
+def far_sea_clamp(far, land, rect):
+    """The far grid as the game draws it: inside the baked box, a node off the coastline is sea and goes under the water. The elevation sources read a few metres over the sea
+    near the coast, and where a sea cell has no tile nothing hides the far mesh there, so it stood over the water as a flat brown slab (Addaura, tile 1_-15)."""
+    import numpy as np
+    import shapely
+    x0, z0, x1, z1 = rect
+    gx, gz = np.meshgrid(far["x0"] + np.arange(far["nx"]) * far["s"], far["z0"] + np.arange(far["nz"]) * far["s"])
+    sea = (gx >= x0) & (gx <= x1) & (gz >= z0) & (gz <= z1) & ~shapely.contains_xy(land, gx, gz)
+    h = np.array(far["h"], dtype=np.float64).reshape(far["nz"], far["nx"])
+    h[sea] = np.minimum(h[sea], -1.5)
+    return {**far, "h": [round(float(v), 1) for v in h.ravel()]}
+
 def far_grid(elev, rect):
     """The 100 m grid the game shows beyond the near grids (low detail distance, and before a tile has loaded).
     Terrarium is 4 to 10 m off on the coastal plain (Piazza Mondello read 6 m, the lidar says 1 to 2 m) and 100 to 200 m off on the hills, so
@@ -2416,7 +2428,7 @@ def build(offline=False):
     manifest = {
         "T": T, "bbox": [round(v, 1) for v in rect],
         "tiles": {r[0]: {"b": r[1], "bytes": r[2]} for r in results},
-        "spawn": [0, 0], "landmarks": lm, "far": far, "land": land_ring,
+        "spawn": [0, 0], "landmarks": lm, "far": far_sea_clamp(far, land, rect), "land": land_ring,
         "attribution": ("Map data (c) OpenStreetMap contributors, ODbL. " + LIDAR_CREDIT + ". Far terrain: AWS Terrarium tiles"
                         + (", hills: " + TIN_CREDIT if dem is not None else "")
                         + (". " + CTC_CREDIT if CTC_ON else "") + (". " + RS_CREDIT if RS_ON else "") + (". " + CTR_CREDIT if os.path.exists(CTR_WALLS) else "") + ". " + UA_CREDIT + ". " + VERDE_CREDIT + ". " + TRANSIT_CREDIT + ". " + COLOUR_CREDIT + "."),
@@ -2510,6 +2522,7 @@ def terrain_only(offline=True):
     shapely.prepare(land)
     mp_ = os.path.join(WORLD_LIVE, "manifest.json")
     man = json.load(open(mp_))
+    far = far_sea_clamp(far, land, rect)
     if man.get("far") != far and not ONLY:
         man["far"] = far
         with open(mp_ + ".part", "w") as f:
