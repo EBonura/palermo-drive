@@ -688,6 +688,19 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
       mesh.frustumCulled = false; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       arr.forEach((b, i) => { b.c1.toArray(g.attributes.iCol1.array, i * 3); b.c2.toArray(g.attributes.iCol2.array, i * 3); });
       scene.add(mesh); fleets.push({ kind, arr, mesh });
+      // the boats barely move: a box per stretch of water lets the street-canyon culling (src/engine-lean.js) leave a fleet out when none of its parts can be seen from where the car is
+      g.computeBoundingSphere();
+      const cells = new Map();
+      for (const b of arr) {
+        const r = g.boundingSphere.radius * b.scale + 4, k = Math.floor(b.x / 300) * 65536 + Math.floor(b.z / 300); let c = cells.get(k);
+        if (!c) cells.set(k, c = [b.x - r, b.z - r, b.x + r, b.z + r, SEA_Y + r]);
+        else { c[0] = Math.min(c[0], b.x - r); c[1] = Math.min(c[1], b.z - r); c[2] = Math.max(c[2], b.x + r); c[3] = Math.max(c[3], b.z + r); c[4] = Math.max(c[4], SEA_Y + r); }
+      }
+      const parts = new Float32Array(cells.size * 6); let q = 0;
+      for (const c of cells.values()) { parts.set(c, q); parts[q + 5] = SEA_Y - 8; q += 6; }
+      const box = [Infinity, Infinity, -Infinity, -Infinity, -Infinity, SEA_Y - 8];
+      for (const c of cells.values()) { box[0] = Math.min(box[0], c[0]); box[1] = Math.min(box[1], c[1]); box[2] = Math.max(box[2], c[2]); box[3] = Math.max(box[3], c[3]); box[4] = Math.max(box[4], c[4]); }
+      mesh.userData.leanMover = { box, parts };
     }
     boatsReady = true;
   }

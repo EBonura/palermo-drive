@@ -580,12 +580,14 @@ function makePhysics(env) {
   const stats = { yeeted: 0, tipped: 0, trees: 0, bent: 0, scooters: 0 };
 
   // ---- debris pools: bags, cardboard sheets, bottles (all stay until their owner resets), leaves and litter bits (expire)
+  // `count` starts at 0 and grows with what has been spawned (spawnIdx): nothing is drawn for an empty pool, instead of every instance at scale 0 through the vertex shader
   const mkPool = (geo, n, castShadow, tinted = true) => {
     const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: false, roughness: 0.9, side: THREE.DoubleSide }), n);
-    im.frustumCulled = false; im.castShadow = castShadow; im.receiveShadow = true; im.count = n;
+    im.frustumCulled = false; im.castShadow = castShadow; im.receiveShadow = true; im.count = 0; im.userData.cap = n;
     mA.makeScale(0, 0, 0); for (let i = 0; i < n; i++) { im.setMatrixAt(i, mA); if (tinted) im.setColorAt(i, new THREE.Color(1, 1, 1)); }
     scene.add(im); return im;
   };
+  const spawnIdx = (im, n) => { const i = n % im.userData.cap; if (i >= im.count) im.count = i + 1; return i; };
   const rnd = Math.random, r2 = (a, b) => a + rnd() * (b - a);
   const bagGeo = (() => { const g = new THREE.IcosahedronGeometry(0.2, 0); g.scale(1.15, 0.8, 1); return g; })();
   const boardGeo = new THREE.BoxGeometry(0.7, 0.025, 0.5);
@@ -601,7 +603,7 @@ function makePhysics(env) {
   const mkDebris = (geo, n, kind, cast) => ({ im: mkPool(geo, n, cast), items: [], n: 0, dirty: false, kind, cols: kind === 'bag' ? BAGC : kind === 'board' ? BOARDC : BOTC });
   const DEB = { bag: mkDebris(bagGeo, 560, 'bag', false), board: mkDebris(boardGeo, 160, 'board', false), bottle: mkDebris(bottleGeo, 140, 'bottle', false) };
   const spawnDeb = (kind, c, init) => {
-    const D2 = DEB[kind], idx = D2.n++ % D2.im.count; let it = D2.items.find(q => q.idx === idx); if (!it) D2.items.push(it = { idx });
+    const D2 = DEB[kind], idx = spawnIdx(D2.im, D2.n++); let it = D2.items.find(q => q.idx === idx); if (!it) D2.items.push(it = { idx });
     Object.assign(it, { rest: false, hidden: false, owner: c, tilt: 0, tv: 0, spin: 0, roll: 0, rot: rnd() * 6.28, s: 1 }, init);
     D2.im.setColorAt(idx, init.col || D2.cols[(rnd() * D2.cols.length) | 0]); D2.im.instanceColor.needsUpdate = true; D2.dirty = true; return it;
   };
@@ -621,7 +623,7 @@ function makePhysics(env) {
   };
   const spawnBits = (c, n, nx, nz, vc, pc) => {   // light litter puffs up and flutters down
     for (let i = 0; i < n; i++) {
-      const idx = leafN++ % leafPool.count; let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
+      const idx = spawnIdx(leafPool, leafN++); let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
       const [vx, vz] = burstV(nx, nz, vc, 0.3 + rnd() * 0.5, pc);
       Object.assign(l, { x: c.x + (rnd() - 0.5), y: gy(c.x, c.z) + 0.2, z: c.z + (rnd() - 0.5), vx, vy: 1.5 + rnd() * 3, vz, rot: rnd() * 6, spin: (rnd() - 0.5) * 12, age: 0, life: 3 + rnd() * 2.5, s: r2(0.5, 0.9), gone: false });
       leafPool.setColorAt(idx, BITC[(rnd() * BITC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
@@ -630,7 +632,7 @@ function makePhysics(env) {
   const spawnLeaves = (c, dx, dz, n = 16, big = 1) => {
     const sp = c.sp;
     for (let i = 0; i < n; i++) {
-      const idx = leafN++ % leafPool.count, a = Math.random() * 6.283, r = Math.random() * sp.crown * c.s * 0.7;
+      const idx = spawnIdx(leafPool, leafN++), a = Math.random() * 6.283, r = Math.random() * sp.crown * c.s * 0.7;
       let l = leaves.find(q => q.idx === idx); if (!l) leaves.push(l = { idx });
       Object.assign(l, { x: c.x + Math.cos(a) * r, y: gy(c.x, c.z) + sp.H * c.s * (0.6 + Math.random() * 0.4), z: c.z + Math.sin(a) * r, vx: dx * Math.random() * 4 + (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 3, vz: dz * Math.random() * 4 + (Math.random() - 0.5) * 4, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 9, age: 0, life: 2.5 + Math.random() * 2, s: (0.9 + Math.random() * 0.8) * big, gone: false });
       leafPool.setColorAt(idx, LEAFC[(Math.random() * LEAFC.length) | 0]); leafPool.instanceColor.needsUpdate = true;
