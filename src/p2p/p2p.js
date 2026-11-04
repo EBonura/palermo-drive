@@ -547,8 +547,8 @@ export function createP2P(env) {
     it: 'Non raccogliamo informazioni personali. Non teniamo il tuo indirizzo, la tua posizione né un identificativo che dura nel tempo.',
     en: 'We do not collect personal information. We keep no address, no position and no ID that lasts.' };
   const STATS = {
-    it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi. Li spegni in Opzioni, Statistiche di gioco. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
-    en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate. You can switch this off in Options, Game stats. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
+    it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
+    en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
   const NONE = { it: 'Non salviamo nulla.', en: 'We store nothing.' };
   const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Privacy e dati', back: 'Indietro' },
     en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'Privacy and data', back: 'Back' } };
@@ -596,10 +596,10 @@ export function createP2P(env) {
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
       myName = n; named = true; agreed = true; saveStore({ name: n, offline: false }); goLoud();
-      dropName();
+      dropName(); dispatchEvent(new Event('pd-net-changed'));
     };
     submitName = submit; closeName = dropName;
-    ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); });
+    ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); dispatchEvent(new Event('pd-net-changed')); });
     // a press on the dim does nothing to the game; with a mouse it keeps the keyboard in the box so that Enter and Escape still reach the card
     nameCard.addEventListener('pointerdown', e => { if (e.target === nameCard && e.pointerType === 'mouse') { e.preventDefault(); input.focus(); } });
     form.append(sub, input, ok); if (editing) form.append(no); form.append(solo);
@@ -621,6 +621,12 @@ export function createP2P(env) {
   }, true);
   // the name and the online choice live in Options (src/ui.js), which asks for the card with this event; html.pd-mp tells it that there is multiplayer to choose
   addEventListener('pd-open-name', () => openName());
+  addEventListener('pd-net-mode', e => {   // the toggle in Options (src/ui.js): the same two answers as the card
+    refreshName();
+    if (e.detail) { if (!myName) return; named = true; agreed = true; saveStore({ name: myName, offline: false }); goLoud(); }
+    else { agreed = false; saveStore({ offline: true }); goOffline(); }
+    dispatchEvent(new Event('pd-net-changed')); dropName();
+  });
   document.documentElement.classList.add('pd-mp');
 
   function goOffline() {
@@ -723,6 +729,7 @@ export function createP2P(env) {
 
   const api = {
     enabled: true, update, openName, players: () => rm.list(), get online() { return peers.size > 0; },
+    isOnline: () => named && agreed && !quiet,
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
       peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),

@@ -3,7 +3,7 @@
 // goes away ('leave', through sendBeacon). Nothing is sent before the player is actually driving, and nothing is sent for the title, the menus or the Garage.
 // Who: everybody, solo or online. A report carries the name only when the player chose one on the name card and went online; solo players and players who have not answered the card send none.
 // There is no lasting id: the visit id is random for this page load, lives in this closure and is never stored. Nothing about it is saved in localStorage; the only saved thing is the player's off switch
-// (Options > Game stats, game.settings.stats), which stops all sending at once. No position, route, chat phrase, neighbourhood, address or user agent is in a report.
+// (there is no off switch since 4 Nov 2026, the owner's decision). No position, route, chat phrase, neighbourhood, address or user agent is in a report.
 //
 // While PLAYLOG_URL (src/playlog-url.js) is empty nothing is sent. Never sent: automated browsers (navigator.webdriver) and the test and screenshot addresses (?p2p, ?ns=, ?fixres, ?clean, ?debug).
 // A build made with --playlog=<url> (tools/build/build.mjs) is for local tests of this module: it sends from those addresses too.
@@ -37,7 +37,7 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
   const device = matchMedia('(pointer: coarse)').matches ? 'phone' : 'desktop';
   const version = document.querySelector('meta[name="pd-version"]')?.dataset.name || '0.0.dev';
   const gpu = gpuFamily(renderer);
-  const on = () => game.settings.stats !== 'off';
+  const on = () => true;
 
   let joined = false, t0 = 0, lastSend = 0, playTotal = 0, lastX = NaN, lastZ = NaN, playersAt = 0;
   let b;   // the batch since the last report

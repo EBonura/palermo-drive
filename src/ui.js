@@ -58,7 +58,7 @@ const S = {
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
   language: ['Lingua', 'Language'],
-  nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], nameBtn: ['Online o da solo', 'Online or alone'],
+  nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], netOn: ['Online', 'Online'], netOff: ['Offline', 'Offline'],
   controls: ['Comandi', 'Controls'], ctlKb: ['Tastiera', 'Keyboard'], ctlPad: ['Controller', 'Gamepad'], ctlTouch: ['Schermo tattile', 'Touch screen'],
   ctlDrive: ['Guida: gas, retro, sterzo', 'Drive: gas, reverse, steer'], ctlHand: ['Freno a mano', 'Handbrake'], ctlNitro: ['Nitro', 'Nitro'], ctlHorn: ['Clacson', 'Horn'],
   ctlDrink: ['Bevi (alla porta di un pub o al rave, dopo il tramonto)', 'Drink (at a pub door or the rave, after dark)'],
@@ -75,7 +75,6 @@ const S = {
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
-  stats: ['Statistiche di gioco', 'Game stats'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
   startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
@@ -301,7 +300,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
-  st.stats = saved.stats === 'off' ? 'off' : 'on';   // anonymous play and performance counts (src/playlog.js); 'off' stops all sending
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice
@@ -360,7 +358,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
     { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
-    { key: 'stats', label: 'stats', type: 'seg', vals: [['on', 'cOn'], ['off', 'cOff']] }, // anonymous game stats (src/playlog.js), on by default
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
   OPTS.push(LANG_OPT);
@@ -372,11 +369,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     </div>`;
   // How to pin the game to the home screen (a phone in a browser tab; hidden once it runs standalone or fullscreen, in CSS and here for iOS): one platform, one language, no popup
   const IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  // the player's name (the store the Garage edits too, palermoDrive.net.v1) and the button that opens the name card, where they go online or play alone. Only when multiplayer exists (html.pd-mp, src/p2p/p2p.js)
+  // the player's name (the store the Garage edits too, palermoDrive.net.v1) and next to it online or offline (src/p2p/p2p.js 'pd-net-mode'). Only when multiplayer exists (html.pd-mp, src/p2p/p2p.js)
   const NAME_ROW = `<div class="pd-row pd-name" data-name>
       <div class="pd-lab"><span data-k="nameLabel" data-two></span></div>
       <div class="pd-namerow"><input class="pd-namein" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
-        <button class="pd-segb pd-namebtn" data-nav data-do="nameCard" type="button"><span data-k="nameBtn"></span></button></div>
+        <div class="pd-seg pd-netseg"><button class="pd-segb" data-nav data-net="on" type="button" aria-pressed="false"><span data-k="netOn"></span></button><button class="pd-segb" data-nav data-net="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div></div>
     </div>`;
   const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
@@ -688,7 +685,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'resume': return closePause();
       case 'map': delete lastFocus.start; return go('start', { push: true });
       case 'controls': return go('controls', { push: true });
-      case 'nameCard': return void dispatchEvent(new Event('pd-open-name'));
       case 'quit': return quit();
       case 'radioNext': getRadio?.()?.next(); return;
       case 'radioPower': { const r = getRadio?.(); if (!r) return; const first = idleAtDown; idleAtDown = false; if (first || r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }   // the very first tap only starts the radio, it does not also switch it off
@@ -763,6 +759,15 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   nameIn.addEventListener('change', saveName);
   nameIn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.key === 'Enter') saveName(); else nameIn.value = readName(); nameIn.blur(); } });   // the keys of a text field stay in the field (the shell's own handler skips inputs)
   addEventListener('pd-name', syncName);
+  // online or offline: online needs a name, so with none the box takes the focus and the toggle stays where it is
+  const netBtns = [...screens.options.querySelectorAll('[data-net]')];
+  const syncNet = () => { const on = !!net?.isOnline?.(); for (const b of netBtns) b.setAttribute('aria-pressed', String((b.dataset.net === 'on') === on)); };
+  for (const b of netBtns) b.addEventListener('click', () => {
+    if (b.dataset.net === 'on') { saveName(); if (!readName()) { nameIn.focus(); return; } }
+    dispatchEvent(new CustomEvent('pd-net-mode', { detail: b.dataset.net === 'on' }));
+    syncNet();
+  });
+  addEventListener('pd-net-changed', syncNet); syncNet();
 
   // ---- controls: what the buttons do on this device. The list is made again each time the screen opens (a phone gets its pads, a computer its keys and the gamepad) ----
   const ctlGrid = screens.controls.querySelector('.pd-ctlgrid');
