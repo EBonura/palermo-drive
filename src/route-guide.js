@@ -69,7 +69,7 @@ export function createGuide({ car, mapRoute, graph }) {   // graph: () => traffi
   let mode = 0, fixed = false, rIsB = false, dest = null, bS = 0, bMax = 0;
   let clk = 0, hold = 0, nextTry = 0, since = 99, offT = 0, awayN = 0, awayT = 0, lastOff = 0, wrongT = 0;
   const st = { plans: 0, fails: 0, why: '', reason: '', ms: 0, worstMs: 0, expanded: 0, worstExp: 0, cost: 0, kind: '', lastAt: -1 };
-  const opt = { max: 5000 }, P = { x: 0, z: 0 }, tg = [], ts = [];   // opt.max: node expansions per search at most (about 1 ms per thousand; the resident graph has about 1400 nodes)
+  const opt = { max: 5000 }, DE = { e: null, t: 0, d: 0 }, P = { x: 0, z: 0 }, tg = [], ts = [];   // opt.max: node expansions per search at most (about 1 ms per thousand; the resident graph has about 1400 nodes)
 
   function fillMap() {
     mapRoute.length = 0;
@@ -118,8 +118,16 @@ export function createGuide({ car, mapRoute, graph }) {   // graph: () => traffi
     const t0 = performance.now(); let res = null, kind = '';
     st.reason = why;
     if (dest && g.tileLoaded(dest.x, dest.z)) {   // the destination is here: straight to it
-      tg.length = 0; tg.push(dest.x, dest.z, 0); opt.seeds = 12; opt.seedR = 70;   // one target: seed it from many nodes
-      res = g.plan(car.x, car.z, hx, hz, tg, opt); kind = 'direct';
+      // The destination is a point on a road, not a node of the graph. Aim for the ends of the road segment it is on and finish along that segment (a one-way segment only from
+      // the end it can be entered from), so the last stretch of the line is the road. Seeding the nodes near the point and closing with a straight line (as the first version did)
+      // drew the last 20 to 70 m across whatever stood between the nearest node and the door: houses, in the old town.
+      tg.length = 0;
+      if (g.edgeFor(dest.x, dest.z, 0, 0, 40, DE)) {
+        const e = DE.e, v = Math.max(2, e.v), A = g.nodePos(e.a), B = g.nodePos(e.b);
+        tg.push(A[0], A[1], DE.t / v); if (e.rev >= 0) tg.push(B[0], B[1], (e.len - DE.t) / v);
+        opt.seeds = 1; opt.seedR = 2; kind = 'direct';
+      } else { tg.push(dest.x, dest.z, 0); opt.seeds = 12; opt.seedR = 70; kind = 'direct'; }   // not near any road segment: seed it from many nodes, as before
+      res = g.plan(car.x, car.z, hx, hz, tg, opt);
       if (res) { const p = res.pts, ex = dest.x - p[p.length - 2], ez = dest.z - p[p.length - 1]; if (ex * ex + ez * ez > 4) p.push(dest.x, dest.z); }
     }
     if (!res && mode === 1) {   // else to the best point of the rest of the baked route that is here, and on along it

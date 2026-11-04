@@ -4,11 +4,12 @@
 // hunt items of every food place (ten, close together: the scooter chase was taken out), and the race tracks. Nothing here runs in the game.
 import fs from 'fs';
 import path from 'path';
-import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, proj } from './roadnet.mjs';
+import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, simplifyClear, reachTo, proj } from './roadnet.mjs';
 import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from '../../src/event-places.js';
 import { DESTS } from './lines.js';
 
-const net = loadNet();
+const net = loadNet();   // the roads the game builds (assets/missions/roadnet.mjs BUILT): routes run on these
+const netAll = loadNet({ built: false });   // every road of the tiles: a place stays where it is (the snap), even when the road it is on is one the game does not build; the check (tools/route-check) then flags it
 console.log('network', net.nodes.length, 'nodes', net.edges.length, 'edges');
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
@@ -16,7 +17,7 @@ const rng = seed => { let s = seed || 1; return () => (s = Math.imul(s ^ (s >>> 
 
 const SNAP = {}, ROUTES = {}, HUNT = {}, TRACKS = {}, report = [];
 function place(id, lat, lon, name) {
-  const [x, z] = proj(lat, lon), s = snap(net, x, z, name ? { name } : {});
+  const [x, z] = proj(lat, lon), s = snap(netAll, x, z, name ? { name } : {});
   SNAP[id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || ''];
   report.push({ id, road: s.n || '(unnamed ' + s.k + ')', off: Math.round(s.d), x: r1(s.x), z: r1(s.z) });
   return s;
@@ -39,7 +40,7 @@ const pointsAround = (cx, cz, r0, r1_) => {
 };
 for (const f of FOOD_PLACES) {
   const s = place('food:' + f.id, f.lat, f.lon, f.onStreet);
-  const rnd = rng(hash(f.id)), N = 10, cands = pointsAround(s.x, s.z, 50, 230), chosen = [];
+  const rnd = rng(hash(f.id)), N = 10, back = reachTo(net, nodeNear(net, s)), cands = pointsAround(s.x, s.z, 50, 230).filter(c => back[c.e.b] || (!c.e.one && back[c.e.a])), chosen = [];   // only where the way back to the place exists (one-ways obeyed)
   const near = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d);
   const radii = [80, 130, 190];
   for (let k = 0; k < N; k++) {
@@ -64,16 +65,19 @@ for (const d of TAXI_DESTS) place('dest:' + d.id, d.lat, d.lon);
 // night clients' streets; one that is only a pedestrian way in the tiles (Via Bandiera) is snapped and routed in a network with that street added (dest.ped: a RegExp source)
 const netFor = {};
 for (const f of FARE_SPOTS) if (f.dest) {
-  const d = f.dest, nx = d.ped ? (netFor[d.id] = loadNet({ extra: new RegExp(d.ped) })) : net, [x, z] = proj(d.lat, d.lon), s = snap(nx, x, z, { name: d.onStreet });
+  const d = f.dest, nx = d.ped ? (netFor[d.id] = loadNet({ extra: new RegExp(d.ped) })) : net, na = d.ped ? loadNet({ extra: new RegExp(d.ped), built: false }) : netAll, [x, z] = proj(d.lat, d.lon), s = snap(na, x, z, { name: d.onStreet });
   SNAP['dest:' + d.id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id: 'dest:' + d.id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) });
 }
 place('dest:' + PULLE_DEST.id, PULLE_DEST.lat, PULLE_DEST.lon);
 function routeBetween(aId, bId, nx = net) {
   const A = SNAP[aId], B = SNAP[bId];
   const sa = snap(nx, A[0], A[1]), sb = snap(nx, B[0], B[1]);
-  const p = route(nx, nodeNear(nx, sa), nodeNear(nx, sb)); if (!p) return null;
+  // one-way streets are obeyed (the guide's own planner does, and a line that goes the wrong way up a one-way ramp has to turn round on it: the spike at Piazza Tredici Vittime that blocked
+  // the lapa), starting from the end of a one-way segment the car leaves by and arriving at the start of the one it arrives on; if that finds no way, the plain shortest way
+  const na = sa.e.one ? sa.e.b : nodeNear(nx, sa), nb = sb.e.one ? sb.e.a : nodeNear(nx, sb);
+  const p = route(nx, na, nb, { oneway: true }) || route(nx, nodeNear(nx, sa), nodeNear(nx, sb)); if (!p) return null;
   const P = [[A[0], A[1]], ...pts(nx, p), [B[0], B[1]]];
-  return { len: plen(P), pts: simplify(P, 6) };
+  return { len: plen(P), pts: simplifyClear(P, 6, nx.geo) };
 }
 for (const f of FARE_SPOTS) {
   place('fare:' + f.id, f.lat, f.lon);
@@ -116,7 +120,7 @@ const mouthLeg = (id, to, oneway) => {
     const p = to ? route(netR, na, nb, { oneway }) : route(netR, nb, na, { oneway }); if (!p) continue;
     const P = to ? [[A[0], A[1]], ...pts(netR, p), [raveMouth.x, raveMouth.z]] : [[raveMouth.x, raveMouth.z], ...pts(netR, p), [A[0], A[1]]], L = plen(P); if (!best || L < best.L) best = { L, P };
   }
-  return best && simplify(best.P, 6);
+  return best && simplifyClear(best.P, 6, net.geo);
 };
 for (const [id, from, to] of [['rave:karcere', 'rave:karcere', true], ['rave:leaf', 'rave:leaf', false]]) {
   const leg = mouthLeg(from, to, !to); let out = [];
@@ -126,7 +130,7 @@ for (const [id, from, to] of [['rave:karcere', 'rave:karcere', true], ['rave:lea
 delete SNAP['rave:mouth'];
 {
   const s = SNAP['rave:leaf'], cx = s[0], cz = s[1], rnd = rng(hash('leaf')), chosen = [], N = 7;
-  const cands = pointsAround(cx, cz, 25, 150).filter(c => c.w >= 4);
+  const back = reachTo(net, nodeNear(net, snap(net, cx, cz))), cands = pointsAround(cx, cz, 25, 150).filter(c => c.w >= 4 && (back[c.e.b] || (!c.e.one && back[c.e.a])));
   const near = (c, d) => chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) >= d);
   cands.sort(() => rnd() - 0.5);
   for (const c of cands) { if (chosen.length >= N) break; if (near(c, 38)) chosen.push(c); }
@@ -138,13 +142,13 @@ delete SNAP['rave:mouth'];
 // ---- the horns mission: the citizen in Piazza Pretoria, the arch (a road point just inside the arch of Via Chiappara al Carmine and the direction of travel towards Ballarò), the route.
 // Via Maqueda is a pedestrian way in the tiles (not in the drivable network), so this uses its own network with Via Maqueda added; the other bakes are not touched.
 {
-  const netH = loadNet({ extra: /^Via Maqueda$/ }), put = (id, lat, lon, name) => { const [x, z] = proj(lat, lon), s = snap(netH, x, z, name ? { name } : {}); SNAP[id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) }); return s; };
+  const netH = loadNet({ extra: /^Via Maqueda$/ }), netHAll = loadNet({ extra: /^Via Maqueda$/, built: false }), put = (id, lat, lon, name) => { const [x, z] = proj(lat, lon), s = snap(netHAll, x, z, name ? { name } : {}); SNAP[id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) }); return s; };
   const a = put('horns:start', HORNS.start.lat, HORNS.start.lon, HORNS.start.onStreet);
   const g = put('horns:arch', HORNS.arch.lat, HORNS.arch.lon, HORNS.arch.onStreet), [tx, tz] = proj(HORNS.arch.toLat, HORNS.arch.toLon);
   const fwd = g.dx * (tx - g.x) + g.dz * (tz - g.z) >= 0, dx = fwd ? g.dx : -g.dx, dz = fwd ? g.dz : -g.dz;   // towards Ballarò
   SNAP['horns:arch'] = [r1(g.x), r1(g.z), r2(dx), r2(dz), g.w, g.n || ''];
-  const na = nodeNear(netH, a), nb = nodeNear(netH, g), p = route(netH, na, nb);
-  if (p) { const P = [[a.x, a.z], ...pts(netH, p), [g.x, g.z]]; ROUTES['horns'] = [['arch', Math.round(plen(P)), flat(simplify(P, 4))]]; console.log('horns route', Math.round(plen(P)), 'm; gate', SNAP['horns:arch'].join(' '), 'start', SNAP['horns:start'].join(' ')); }
+  const na = nodeNear(netH, snap(netH, a.x, a.z)), nb = nodeNear(netH, snap(netH, g.x, g.z)), p = route(netH, na, nb);
+  if (p) { const P = [[a.x, a.z], ...pts(netH, p), [g.x, g.z]]; ROUTES['horns'] = [['arch', Math.round(plen(P)), flat(simplifyClear(P, 4, netH.geo))]]; console.log('horns route', Math.round(plen(P)), 'm; gate', SNAP['horns:arch'].join(' '), 'start', SNAP['horns:start'].join(' ')); }
   else { ROUTES['horns'] = []; console.log('horns NO ROUTE'); }
 }
 
@@ -185,7 +189,7 @@ for (const r of RACES) {
     cyc = cyc.slice(bi).concat(cyc.slice(0, bi)); nodesPath = cyc.concat([cyc[0]]);
     P = pts(net, nodesPath); closed = true; w = widthOf(nodesPath);
   }
-  const S = simplify(P, 1.2), L = plen(S);
+  const S = simplifyClear(P, 1.2, net.geo), L = plen(S);
   TRACKS[r.id] = { closed, w, len: Math.round(L), pts: flat(S) };
   console.log('track', r.id.padEnd(10), Math.round(L), 'm', S.length, 'pts', closed ? 'loop' : 'A-B', 'w', w, 'from', S[0].map(Math.round), 'to', S[S.length - 1].map(Math.round));
   SNAP['race:' + r.id] = [r1(S[0][0]), r1(S[0][1]), r2((S[1][0] - S[0][0]) / Math.hypot(S[1][0] - S[0][0], S[1][1] - S[0][1])), r2((S[1][1] - S[0][1]) / Math.hypot(S[1][0] - S[0][0], S[1][1] - S[0][1])), w, r.road || 'Viale delle Scienze'];

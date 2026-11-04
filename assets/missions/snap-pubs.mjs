@@ -5,7 +5,7 @@
 // route that visits them (the guide arrow follows it). Nothing here runs in the game.
 import fs from 'fs';
 import path from 'path';
-import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, proj } from './roadnet.mjs';
+import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, reachTo, proj } from './roadnet.mjs';
 import { PUBS } from '../../src/pub-places.js';
 
 const net = loadNet();
@@ -64,9 +64,9 @@ for (const v of PUBS) {
 
   // errand items on the main roads around the pub, one per sector at three radii; then a greedy tour through them
   if (v.errand) {
-    const N = v.errand.n, rnd = rng(hash(v.id)), cands = [];
+    const N = v.errand.n, rnd = rng(hash(v.id)), cands = [], reachBack = reachTo(net, nodeNear(net, s));   // items only where the way back to the pub exists (one-ways obeyed)
     for (const e of net.edges) {
-      if (!net.main(e.a) || e.r.w < 5) continue;
+      if (!net.main(e.a) || e.r.w < 5 || !(reachBack[e.b] || (!e.one && reachBack[e.a]))) continue;
       const A = net.nodes[e.a], B = net.nodes[e.b], n = Math.max(1, Math.round(e.l / 20));
       for (let k = 0; k <= n; k++) {
         const t = k / n, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t, d = Math.hypot(x - s.x, z - s.z);

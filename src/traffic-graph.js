@@ -11,6 +11,8 @@
 // Public pieces (see createGraph's return value): the arrays NX/NZ/NOUT/NIN/NDEG, edge objects, `alive` (which edges
 // a class of vehicle may use: no dead ends, no isolated fragments), cell queries, nearest node and an A* path.
 
+import { UNBUILT } from './unbuilt-roads.js';   // road segments the game does not build (assets/missions/snap-unbuilt.mjs): the graph leaves them out
+
 export const CLASS = { // r: priority rank, v: free speed in m/s, w: spawn weight per metre, d: density of cars per lane metre (1 = old centro value)
   motorway: { r: 5, v: 24, w: 3.2, d: 1.1, fast: true, ow: true }, motorway_link: { r: 4, v: 15, w: 1, d: 0.8, ow: true },
   trunk: { r: 5, v: 19, w: 3, d: 1.1, fast: true }, trunk_link: { r: 4, v: 13, w: 1, d: 0.8, ow: true },
@@ -24,6 +26,21 @@ const TRANSIT = /^(Via Maqueda|Via Vittorio Emanuele|Corso Vittorio Emanuele)$/;
 // The market lanes (stall lines on both sides, src/markets.js): no vehicle drives through them, the crowd and the stalls have them
 const MARKET_ST = /^(Piazza Ballar.|Piazzetta Ballar.|Via Chiappara al Carmine|Via Casa Professa|Discesa Maccheronai|Via Argenteria (Nuova|Vecchia)|Via Cassari|Via Materassai|Via Coltellieri|Via Chiavettieri|Piazza Garraffello|Via Garraffello|Piazza Caracciolo|Via Sant'Agostino|Via Beati Paoli|Via Cappuccinelle|Via Porta Carini)$/;
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b);
+// UNBUILT as a lookup: 16 m cells of the segments' ends; a road segment is unbuilt when both its ends are within 0.3 m of the ends of one of them (either way round)
+let unbuiltCells = null;
+function isUnbuilt(ax, az, bx, bz) {
+  if (!unbuiltCells) {
+    unbuiltCells = new Map();
+    const add = (x, z, seg) => { const ks = new Set(); for (const dx of [-0.3, 0.3]) for (const dz of [-0.3, 0.3]) ks.add(Math.floor((x + dx) / 16) * 65536 + Math.floor((z + dz) / 16)); for (const k of ks) { let a = unbuiltCells.get(k); if (!a) unbuiltCells.set(k, a = []); a.push(...seg); } };   // in the cells of both ends, widened by the 0.3 m of the match
+    for (const run of UNBUILT) for (let i = 0; i + 3 < run.length; i += 2) { const seg = [run[i], run[i + 1], run[i + 2], run[i + 3]]; add(seg[0], seg[1], seg); add(seg[2], seg[3], seg); }
+  }
+  const a = unbuiltCells.get(Math.floor(ax / 16) * 65536 + Math.floor(az / 16)); if (!a) return false;
+  for (let i = 0; i < a.length; i += 4) {
+    if (Math.abs(a[i] - ax) < 0.3 && Math.abs(a[i + 1] - az) < 0.3 && Math.abs(a[i + 2] - bx) < 0.3 && Math.abs(a[i + 3] - bz) < 0.3) return true;
+    if (Math.abs(a[i + 2] - ax) < 0.3 && Math.abs(a[i + 3] - az) < 0.3 && Math.abs(a[i] - bx) < 0.3 && Math.abs(a[i + 1] - bz) < 0.3) return true;
+  }
+  return false;
+}
 const TS = 500;                 // tile size, as in src/world.js
 const NUDGE = [0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4];
 const CELL = 64;                // edge grid cell per tile
@@ -122,7 +139,7 @@ export function createGraph() {
     const road = { w: r.w, n: r.n, o, ms: r.ms, br: r.br ? 1 : 0, svc: r.k === 'service' };
     for (let i = 0; i + 3 < p.length; i += 2) {
       const dxx = p[i + 2] - p[i], dzz = p[i + 3] - p[i + 1];
-      if (dxx * dxx + dzz * dzz < 0.25) continue;
+      if (dxx * dxx + dzz * dzz < 0.25 || isUnbuilt(p[i], p[i + 1], p[i + 2], p[i + 3])) continue;
       const a = node(p[i], p[i + 1]), b = node(p[i + 2], p[i + 3]);
       if (a === b) continue;
       NDEG[a]++; NDEG[b]++;
