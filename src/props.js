@@ -10,6 +10,7 @@ import { treeGeo } from './treegeo.js';
 import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
+import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, clock as signalClock, light as signalLight } from './signals.js';   // the traffic signals: where they stand, which road each head faces, the lamp it shows
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -199,10 +200,53 @@ ape('ape', false); ape('apetaxi', true);
   const pb = new MB(); pb.box(-0.2, 0.0, -0.2, 0.2, 0.9, 0.2, C('#b3262a'), 0.8, 1); pb.box(-0.23, 0.9, -0.23, 0.23, 1.15, 0.23, C('#b3262a'), 0.9, 1);
   pb.box(-0.25, 1.0, 0.0, 0.25, 1.1, 0.24, C('#222'), 1, 1, false); def('postbox', pb);
   const cb = new MB(); cb.box(-0.45, 0, -0.2, 0.45, 1.45, 0.2, C('#8d8f8e'), 0.8, 1); def('cabinet', cb);
-  const sg = new MB(); sg.prism(0, 0, 0, 3.4, 0.06, 0.05, 6, BLACKMET);   // traffic light, heads face +z
-  sg.box(-0.15, 3.0, 0.0, 0.15, 3.9, 0.22, BLACKMET, 1, 1);
-  for (const [y, col] of [[3.7, '#c93a2e'], [3.45, '#d9a623'], [3.2, '#3b9c58']]) sg.face(C(col), [[-0.06, y, 0.23], [0.06, y, 0.23], [0.06, y + 0.12, 0.23], [-0.06, y + 0.12, 0.23]]);
-  def('signal', sg);
+  // Traffic signals (src/signals.js): an Italian head is a dark housing with three round lenses of 25 cm under tunnel visors, red on top, on a white-bordered backplate.
+  // Poles stand at the right kerb of the approach and the heads face the traffic coming (+z); on wide roads a mast arm carries one more head over the lanes (Corso
+  // Calatafimi has them). The lens vertices carry attributes (lamp 1 red, 2 amber, 3 green, and the lens centre) that the material of the heads (signalMaterial) lights.
+  const HOUSING = C('#1c1d20'), SPOLE = C('#5b6165'), LENS = [C('#ff0610'), C('#ffa800'), C('#10e46c')], LAMPS = [];
+  const strut = (mb, a, b, r, col) => {   // a hexagonal bar between two points
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(d[0], d[1], d[2]), u = d.map(q => q / L), t = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    let v1 = [u[1] * t[2] - u[2] * t[1], u[2] * t[0] - u[0] * t[2], u[0] * t[1] - u[1] * t[0]]; const l1 = Math.hypot(...v1); v1 = v1.map(q => q / l1);
+    const v2 = [u[1] * v1[2] - u[2] * v1[1], u[2] * v1[0] - u[0] * v1[2], u[0] * v1[1] - u[1] * v1[0]];
+    const ring = c => { const o = []; for (let i = 0; i < 6; i++) { const q = TAU * i / 6; o.push([c[0] + r * (Math.cos(q) * v1[0] + Math.sin(q) * v2[0]), c[1] + r * (Math.cos(q) * v1[1] + Math.sin(q) * v2[1]), c[2] + r * (Math.cos(q) * v1[2] + Math.sin(q) * v2[2]), 1]); } return o; };
+    const A = ring(a), B = ring(b); mb.ctr = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+    for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; mb.face(col, [A[i], A[j], B[j], B[i]]); }
+    mb.face(col, A); mb.face(col, B); mb.ctr = null;
+  };
+  // one head: housing bottom at (x, y0, z0), lenses facing +z; hangs from whatever the caller builds behind it
+  const sigHead = (mb, x, y0, z0) => {
+    mb.box(x - 0.31, y0 - 0.1, z0 - 0.04, x + 0.31, y0 + 1.12, z0 - 0.01, HOUSING, 1, 1, false);   // the backplate, with its white reflective border on the front
+    const wf = C('#e8e6dc'), bz = z0 - 0.0085;
+    for (const [a, b, c, d] of [[-0.31, -0.1, 0.31, -0.07], [-0.31, 1.09, 0.31, 1.12], [-0.31, -0.07, -0.28, 1.09], [0.28, -0.07, 0.31, 1.09]])
+      mb.face(wf, [[x + a, y0 + b, bz], [x + c, y0 + b, bz], [x + c, y0 + d, bz], [x + a, y0 + d, bz]]);
+    mb.box(x - 0.17, y0, z0 - 0.01, x + 0.17, y0 + 1.02, z0 + 0.27, HOUSING, 0.85, 1);
+    for (let k = 0; k < 3; k++) {
+      const yc = y0 + 0.855 - k * 0.345, zf = z0 + 0.275, a0 = LAMPS.length;
+      for (let i = 0; i < 8; i++) { const q0 = TAU * i / 8, q1 = TAU * (i + 1) / 8; mb.face(LENS[k], [[x, yc, zf], [x + Math.cos(q0) * 0.125, yc + Math.sin(q0) * 0.125, zf], [x + Math.cos(q1) * 0.125, yc + Math.sin(q1) * 0.125, zf]]); }
+      LAMPS.push([mb.p.length / 3 - 24, mb.p.length / 3, k + 1, x, yc, zf]);
+      mb.box(x - 0.165, yc + 0.135, z0 + 0.27, x + 0.165, yc + 0.155, z0 + 0.42, HOUSING, 0.9, 1, false);   // the visor over each lens: a roof and two cheeks
+      mb.box(x - 0.165, yc - 0.15, z0 + 0.27, x - 0.145, yc + 0.155, z0 + 0.38, HOUSING, 0.9, 1, false);
+      mb.box(x + 0.145, yc - 0.15, z0 + 0.27, x + 0.165, yc + 0.155, z0 + 0.38, HOUSING, 0.9, 1, false);
+    }
+  };
+  const sigGeo = mb => {   // the geometry plus the lens attributes
+    const g = mb.geo(), n = g.attributes.position.count, id = new Float32Array(n), ctr = new Float32Array(n * 3);
+    for (const [a, b, k, cx, cy, cz] of LAMPS) for (let i = a; i < b; i++) { id[i] = k; ctr[i * 3] = cx; ctr[i * 3 + 1] = cy; ctr[i * 3 + 2] = cz; }
+    g.setAttribute('lamp', new THREE.BufferAttribute(id, 1)); g.setAttribute('lampC', new THREE.BufferAttribute(ctr, 3)); LAMPS.length = 0; return g;
+  };
+  const sg = new MB(); sg.prism(0, 0, 0, 3.75, 0.075, 0.06, 6, SPOLE); sg.prism(0, 0, 0, 0.35, 0.1, 0.1, 6, SPOLE);
+  sigHead(sg, 0, 2.62, 0.115);
+  MODELS.signal = { geo: sigGeo(sg), mat: 'sig', tint: false };
+  {   // the mast arm for the wide carriageways: it runs to the left of the traffic (-x), the head hangs near its end
+    const L = 6.5, ma = new MB(); ma.prism(0, 0, 0, 5.5, 0.13, 0.085, 8, SPOLE, { k0: 0.7 }); ma.prism(0, 0, 0, 0.5, 0.17, 0.17, 8, SPOLE);
+    const top = [0, 5.3, 0], arc = [[-0.15, 5.62, 0], [-0.6, 5.85, 0], [-1.3, 5.93, 0]], end = [-L, 5.93, 0];
+    let prev = top; for (const q of [...arc, end]) { strut(ma, prev, q, 0.065, SPOLE); prev = q; }
+    const hx = -(L - 0.9);
+    strut(ma, [hx, 5.93, 0], [hx, 5.62, 0.02], 0.04, SPOLE);
+    sigHead(ma, hx, 4.62, 0.115);   // the head over the lane, hanging below the arm
+    sigHead(ma, 0, 2.62, 0.115);    // and the one on the pole
+    MODELS.signal_arm = { geo: sigGeo(ma), mat: 'sig', tint: false };
+  }
   const bs = new MB(); bs.prism(0, 0, 0, 2.7, 0.04, 0.04, 6, C('#7d8286'));
   bs.box(-0.25, 2.2, -0.02, 0.25, 2.7, 0.02, C('#1f5aa8'), 1, 1); bs.face(C('#f0f0f0'), [[-0.14, 2.3, 0.025], [0.14, 2.3, 0.025], [0.14, 2.55, 0.025], [-0.14, 2.55, 0.025]]);
   def('busstop', bs);
@@ -406,6 +450,7 @@ const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
   veh: makeMaterial(),   // the traffic material: instance colour tints only the paintwork
+  sig: signalMaterial(),   // traffic signal heads: the red channel of the instance colour says which lens is lit
 };
 
 // Beach (Mondello lido and the other sand strips): striped umbrella, sunbed, summer kiosk
@@ -469,6 +514,7 @@ const SPECS = {
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
   utility_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 10, tilt: 0.7, H: 9.4 },   // a pole of the power line: heavier than a lamp; the wires stay where they are
   signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
+  signal_arm: { kind: 'bend', c: [[0, 0, 0.25]], thr: 8, tilt: 0.95, H: 5.5 },   // the mast arm: a taller, heavier pole
   bollard: { kind: 'bend', c: [[0, 0, 0.13]], thr: 5.5, tilt: 1.5, H: 0.8 },
   busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 4.5, fly: 8, m: 0.4, he: [0.25, 1.35, 0.25], hc: 1.35, ghost: true, tilt: 1.0, H: 2.7 },   // a sign on a thin pole: light
   bench: { kind: 'object', c: [[-0.7, 0, 0.32], [0.7, 0, 0.32]], thr: 3.5, m: 1.0, he: [0.9, 0.45, 0.25], hc: 0.45, ghost: true },
@@ -986,7 +1032,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop']);
+  const TALL = new Set(['plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1344,6 +1390,24 @@ function* generate(S, BUD) {
     put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6); treePts.push([x, z]);
     return true;
   };
+  // Traffic signals: one head on its pole (or mast arm) per road that arrives at a mapped signal, at the right kerb by the stop line (src/streets.js), facing the
+  // traffic that comes. src/signals.js says which roads and which phase; the heads are registered with the lamp board when the tile's meshes exist.
+  res.sigs = [];
+  for (const site of signalSites(S.roads, osm)) {
+    const done = [];
+    for (const leg of site.legs) {
+      if (!leg.inb || done.some(q => q.ax * leg.ax + q.az * leg.az > 0.97)) continue;
+      const [px, pz, tx, tz] = legPoint(leg, site, STOP_BACK + 0.5), rx = tz, rz = -tx;   // by the stop line; (rx, rz): the driver's right
+      let d = march(px, pz, rx, rz, leg.w / 2 + 3, road); if (d < 0.5 || d > leg.w / 2 + 2.5) d = leg.w / 2;   // the kerb: where the asphalt ends, or the mapped width when the march ran on into a cross street
+      let o = d + 0.65, x = px + rx * o, z = pz + rz * o;
+      for (let i = 0; i < 5 && (inB(x, z) || occHit(x, z, 0.5)); i++) { o = d + 0.65 - 0.2 * (i + 1); x = px + rx * o; z = pz + rz * o; }   // a wall or another prop: nearer the road, then give up
+      if (inB(x, z)) continue;
+      done.push(leg);
+      const aw = leg.ow ? leg.w : leg.w / 2, model = aw >= 9 ? 'signal_arm' : 'signal';   // a mast arm over a carriageway of three lanes or more
+      put(model, x, gy(x, z), z, Math.atan2(tx, tz)); occAdd(x, z, 0.5);
+      res.sigs.push({ coll: colls[colls.length - 1], site, g: leg.g }); stats.signals = (stats.signals || 0) + 1;
+    }
+  }
   for (const it of osm) {
     if (BUD.over()) yield;
     const k = it.k;
@@ -1374,11 +1438,7 @@ function* generate(S, BUD) {
     if (k === 'phone') { const sp = snapOff(it.x, it.z); if (sp) { const w = nearWall(sp[0], sp[1], 3); put('phone', sp[0], gy(sp[0], sp[1]), sp[1], w ? Math.atan2(w.nx, w.nz) : 0); } continue; }
     if (k === 'postbox') { const sp = snapOff(it.x, it.z); if (sp) put('postbox', sp[0], gy(sp[0], sp[1]), sp[1], R(0, TAU)); continue; }
     if (k === 'street_cabinet') { const sp = snapOff(it.x, it.z); if (sp) { const w = nearWall(sp[0], sp[1], 3); put('cabinet', sp[0], gy(sp[0], sp[1]), sp[1], w ? Math.atan2(w.nx, w.nz) : R(0, TAU)); } continue; }
-    if (k === 'signal') {
-      const sp = snapOff(it.x, it.z); if (!sp) continue;
-      const nr = nearRoad(sp[0], sp[1], 14), rot = nr ? Math.atan2(nr.tx, nr.tz) + (rand() < 0.5 ? 0 : Math.PI) : R(0, TAU);
-      put('signal', sp[0], gy(sp[0], sp[1]), sp[1], rot); occAdd(sp[0], sp[1], 0.3); continue;
-    }
+    if (k === 'signal') continue;   // placed per approach before this loop
     if (k === 'busstop') {
       const sp = snapOff(it.x, it.z); if (!sp || occHit(sp[0], sp[1], 1)) continue;
       const nr = nearRoad(sp[0], sp[1], 14), y = gy(sp[0], sp[1]);
@@ -2414,7 +2474,7 @@ function* generate(S, BUD) {
 // ------------------------------------------------------------------ instances -> meshes
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
-  signal: 350, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+  signal: 350, signal_arm: 380, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
@@ -2489,6 +2549,7 @@ export function buildProps(ctx) {
   const inBAny = (x, z) => { const t = tileIdx.get(tkey(Math.floor(x / T), Math.floor(z / T))); return t ? t.inB(x, z) : false; };
   const gy = (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0);
   const phys = makePhysics({ inB: inBAny, gy, scene });
+  const lamps = createSignalLamps();   // the lit lens of every signal head in the scene
   const tstats = { tiles: 0, built: 0, instances: 0, tris: 0, ms: 0, msMax: 0, lamps: 0, stepMax: 0, cpu: 0, queued: () => [...jobs.values()].filter(j => j.phase < 3).length };
 
   // ---------- tile source
@@ -2536,6 +2597,8 @@ export function buildProps(ctx) {
       job.inst = inst; job.colls = res.colls; job.gen = null;
       tileIdx.set(tkey(job.t.i, job.t.j), { inB: job.S.idx.inB });
       phys.add(res.colls, inst.meshOf);
+      for (const g of res.sigs) { const im = inst.meshOf[g.coll.model + '|' + g.coll.key]; if (im) lamps.add(im, g.coll.i, g.site, g.g, g.coll); }
+      lamps.update();
       for (const im of inst.meshes) { im.visible = false; cull.push(im); }
       scene.add(job.group);
       job.lamps = inst.meshes.some(im => im.userData.kind === 'lamp_pole' || im.userData.kind === 'lamp_wall' || im.userData.kind === 'candelabra');
@@ -2580,6 +2643,7 @@ export function buildProps(ctx) {
     if (job.phase === 3) {
       phys.remove(job.colls); tileIdx.delete(tkey(t.i, t.j));
       const gone = new Set(job.inst.meshes); cull = cull.filter(im => !gone.has(im));
+      lamps.drop(gone);
     }
     scene.remove(job.group);
     job.group.traverse(o => { if (o.isInstancedMesh) o.dispose(); });
@@ -2598,11 +2662,11 @@ export function buildProps(ctx) {
     pump(performance.now());
     // [perf pass] sqrt instead of Math.hypot: hypot boxed a heap number per cell mesh per frame
     for (let i = 0; i < cull.length; i++) { const im = cull[i], b = im.boundingSphere, dx = b.center.x - cp.x, dy = b.center.y - cp.y, dz = b.center.z - cp.z; const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - b.radius; im.visible = d < im.userData.maxd; if (im.userData.shadowd) im.castShadow = d < im.userData.shadowd; }
-    phys.flush(cp);
+    phys.flush(cp); lamps.update();
     prev.call(this, r, sc, camera, ...rest);
   };
   const api = { collidePlayer: phys.collidePlayer, occlude: phys.occlude, stats: phys.stats, tileStats: tstats, attachWorld, throwPiece: phys.throwPiece, lump: phys.lump };   // throwPiece, lump: loose pieces for src/markets.js
   api.grid = phys.grid;
-  if (location.search.includes('debug')) window.__props = Object.assign(api, { jobs, phys });
+  if (location.search.includes('debug')) { window.__props = Object.assign(api, { jobs, phys }); window.__signals = { clock: signalClock, lamps, light: signalLight }; }
   return api;
 }

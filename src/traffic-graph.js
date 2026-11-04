@@ -114,7 +114,7 @@ export function createGraph() {
     const e = {
       id: 0, a, b, len, dx: dx / len, dz: dz / len, rx: -dz / len, rz: dx / len, w: road.w || 4,
       rank: round ? 6 : cls.r, ow: !!road.o, ped, transit, name: road.n || '', pw: cls.w, den: cls.d, rev: -1, bus: false, fast: !!cls.fast, svc: !!road.svc,
-      br: road.br, v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, alive: false, dead: false, seg: false, tile, q: 0,
+      br: road.br, v: Math.min(cls.v, road.ms ? road.ms / 3.6 * 1.08 : 99), veh: [], giveWay: false, slowJ: false, sg: null, alive: false, dead: false, seg: false, tile, q: 0,
     };
     if (round) e.v = Math.min(e.v, 6.5);
     if (transit) e.v = 5;
