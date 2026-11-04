@@ -158,9 +158,14 @@ export const RACES = [
     opp: ['scooter:verde', 'scooter:rosanero', 'lapa:rosso', 'carrozza', 'car:azzurro'], prize: [60, 25, 10] },
   { id: 'olimpo', name: 'Giro dell\'Olimpo', en: 'Olimpo laps', kind: 'laps', laps: 2, road: 'Viale dell\'Olimpo', start: [-4705, -8106], loopA: [-4705, -8106], loopB: [-4683, -8088],
     opp: ['car:giallo', 'car:rosanero', 'carrozza', 'scooter:arancio', 'lapa:blu'], prize: [80, 35, 15] },
-  // The night race that was in vehicle-events.js: Viale delle Scienze in front of the University, horse and sulky, scooters escorting. Night only.
-  { id: 'corse', name: 'Corse clandestine', en: 'Night street race', kind: 'sprint', night: true, sulky: true, track: [[-815, 1000], [-868, 1057], [-910, 1106], [-1000, 1209], [-1108, 1336], [-1212, 1445]],
-    opp: ['sulky:sauro', 'sulky:morello', 'sulky:grigio'], prize: [60, 25, 10], crowd: true },
+  // The night race that was in vehicle-events.js: horse and sulky, scooters escorting, a crowd. Night only. It starts in front of the University (Viale delle Scienze) and, since the friend's idea
+  // "La corsa illegale chi cavaddi" (the owner's title, the same in both languages), it goes on along the outbound carriageway of Via Ernesto Basile to the bridge that carries the road over Viale
+  // Regione Siciliana: `track` is the start (hand points on Viale delle Scienze), `via` the places the baker then routes through on the roads, one-ways obeyed, always in the direction of travel
+  // (snap-places.mjs). `finish` cuts the line at its nearest point: the finish stands on the level road 35 m before the foot of the bridge ramp (the ramp starts at -1890, 2366), so that the crowd
+  // stands on the ground beside the road and the bridge rises ahead of the finish line.
+  { id: 'corse', name: 'La corsa illegale chi cavaddi', en: 'La corsa illegale chi cavaddi', kind: 'sprint', night: true, sulky: true, track: [[-815, 1000], [-868, 1057], [-910, 1106], [-1000, 1209], [-1108, 1336], [-1212, 1445]],
+    via: [[-1339, 1947], [-1434, 2062], [-1631, 2195], [-1890, 2366]], finish: [-1860, 2347],
+    opp: ['sulky:sauro', 'sulky:morello', 'sulky:grigio', 'sulky:baio'], prize: [70, 30, 12], crowd: true },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------- the rave missions

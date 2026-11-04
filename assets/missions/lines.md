@@ -993,6 +993,101 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Nitro ’n chiù, fridda, puru oltri u chinu  
   _Extra nitro, ice cold, even past full_
 
+## "Pezzo nni Ganci" (the Ganci branches, src/friend-places.js; drafts for the owner)
+
+### cries
+
+- Pizzotti, calzoni e arancine! Amunì, ca sunnu cavuri!  
+  _Pizzotti, calzoni and arancine! Come on, they are hot!_
+- Pezzu cavuru, pezzu cavuru!  
+  _Hot piece, hot piece!_
+- Ravazzati frischi ri furnu!  
+  _Fresh ravazzate from the oven!_
+
+### when serving
+
+- Teni, un pezzu: chiddu ca vo’ tu.  
+  _Here, a piece: whichever you like._
+- Pi tia, ca a stati curri picca e mancia assai.  
+  _For you: you drive little and eat a lot._
+
+### the driver after the pezzo
+
+- Un pezzu ô vulu e ripartu.  
+  _A piece on the fly and I am off._
+- Cu u pezzu ’nta manu si guida araciu araciu.  
+  _With a piece in your hand you drive nice and slow._
+
+### the toast
+
+- Nitro ’n chiù, cavuru, puru oltri u chinu  
+  _Extra nitro, hot, even past full_
+
+## "A preghiera alla Santuzza" (the shrine of the Santuario and the Festino carro; drafts)
+
+### what the driver says while praying
+
+- Santuzza, pirdunami i luci russi.  
+  _Santuzza, forgive me the red lights._
+- Un fu curpa mia: u marciapieri era ddà.  
+  _It was not my fault: the pavement was just there._
+- Giuru ca di dumani cuntu fina a dui prima ri sorpassari.  
+  _I swear that from tomorrow I count to two before overtaking._
+- Santuzza, tu ca vii tuttu: talìa ri n’autra banna.  
+  _Santuzza, you who see everything: look the other way._
+
+### after the blessing
+
+- Amen. E ora ripartu, ma cu giudiziu.  
+  _Amen. And now I am off, but sensibly._
+- Grazii, Santuzza. Ni viremu ô prossimu semaforu russu.  
+  _Thank you, Santuzza. See you at the next red light._
+
+### while the cooldown runs
+
+- A Santuzza ti sta taliannu: ripassa cchiù tardu.  
+  _The Santuzza is watching you: come back later._
+
+### the toast when there was something to forgive
+
+- BENEDIZIONE!  
+  _I sbirri s’hannu scurdatu ri tia / The cops have forgotten about you_
+
+### the toast when there was nothing
+
+- BENEDIZIONE!  
+  _Nuddu piccatu ri pirdunari: teni na picca ri nitro / No sins to forgive: here is a bit of nitro_
+
+## "Cornetto i menzannuatti" (the night kiosks; drafts)
+
+### cries
+
+- Cornetti cavuri, appena nisciuti!  
+  _Hot cornetti, just out!_
+- Cu a luna ’ncapu e u cornettu ’nta manu!  
+  _With the moon above and a cornetto in hand!_
+- Cornetti cavuri cu a criema!  
+  _Hot cornetti with custard!_
+
+### when serving
+
+- Teni, ca è propriu nisciutu.  
+  _Here, it has only just come out._
+- Pi tia, cu a criema.  
+  _For you, with custard._
+
+### the driver after the cornetto
+
+- Cornettu cavuru a menzannuatti: a vita è bedda.  
+  _A hot cornetto at midnight: life is good._
+- Ora pozzu cuntinuari a notti.  
+  _Now I can go on with the night._
+
+### the toast
+
+- Nitro ’n chiù, cavuru, puru oltri u chinu  
+  _Extra nitro, hot, even past full_
+
 ## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)
 
 ### what they yell when the headlights or the horn hit them

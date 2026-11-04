@@ -328,6 +328,9 @@ export function createPolice(env, T) {
     }
   }
 
+  // a blessing at the shrine of Santa Rosalia (src/friend-stops.js): the chase is over and the neighbourhoods forget what you did
+  addEventListener('pd-blessed', () => { heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0; toastT = 0; grace = Math.max(grace, 5); for (const v of pursuers()) disengage(v); resetTrouble(); });
+
   function update(dt, fx) {
     time += dt;
     // back on the menu the chase is over: no wanted line and no siren behind the title screen, and nothing waiting on the next drive
