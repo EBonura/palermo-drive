@@ -228,6 +228,16 @@ Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `l
   asphalt with edge and centre lines, kerbs, pavements, parapets, piers every 30 m, abutments; the river (bed strip and water) under a bridge; tunnel floor, lining and ceiling.
   Deck heights are linear between `y0` and `y1`; a flyover climbs 5.4 m with 28 m ramps; a long viaduct never goes under the ground; a tunnel under a hill is level, one under flat
   ground dips so that the ground is a roof everywhere (4 m steps, ramps at 10 %), with an open cutting at the mouths.
+- **Flyovers and what runs under them** (`oc`, `ud`; tools/structures.py, src/bridges.js). `oc` is the list of metres along the deck where a road passes under it; a flyover with `oc` is lifted only around those
+  points (9 m of plateau, 36 m of ramp each side, never steeper than the end ramps) and follows the ground elsewhere, with piers away from the crossings, so a 250 m interchange ramp is no longer a slab 5 m above
+  a field. `ud` has, per crossing, the lower road's line (8 m vertices, 56 m each side, carried straight on past the end of its way) and the ground under it: that road sinks 2.7 m under the deck (a terrain channel
+  of kind `dip`, level where it is under the deck, back to the ground over 42 m) and the deck climbs 5.4 - 2.7 m. It is only baked where the lower road passes at least 8 m (plus half its width) from both
+  ends of the deck, because a dip that reached the approach road would leave the deck end in the air; the short flyovers (under about 60 m: Via Nazionale at Isola delle Femmine, the Piazza Di Salvo ring) keep the full 5.4 m climb.
+  Parapet colliders: none within 12 m of a flyover end until the deck stands 1 m above its starting line (roads join the ring of Piazza Einstein right at the bridge ends), and none where a parapet would stand
+  in the lane of another deck within 2.6 m of its height (ramps that merge or part: the four ramps of the Isola delle Femmine interchange could not be driven because each one's parapet crossed the next one's lane).
+  Tunnel ways: `tunnel=yes` shorter than 20 m that run under a bridge, and `covered=yes` on a motorway, trunk, primary, secondary or tertiary road (the open cutting of the Viale Regione Siciliana under
+  Piazza Einstein, 543 m), are ordinary surface roads in the bake; they used to be flagged `tn` (dropped from the street layers and from traffic) without ever getting a tunnel record, so the road was missing.
+  `covered=yes` on a residential or service way is a passage through a building and stays a `tn` way.
 - **Cars.** `car.deck` is the height of the deck or floor above the terrain (negative in a tunnel); `car.lift` includes it, so everything that adds `lift` to `groundY` (missions, mounts)
   follows. Both driving models use it (`src/vehicle.js` classic, `src/vehicle-sphere.js`); driving off a deck is a free fall; the camera stays above the deck and under a tunnel roof.
   Traffic on a road flagged `br` (graph edges carry it) is placed on the highest deck; pedestrians do not walk on decks (the street layers are cut there).

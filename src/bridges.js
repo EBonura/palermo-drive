@@ -31,6 +31,9 @@ export const onLandmarkEvent = fn => { listeners.add(fn); return () => listeners
 
 const RIVER_DIG = 0.9;                 // metres the river channel is cut under the floor of the valley
 const RISE = 5.4, RAMP = 28;           // flyovers: clearance above the road below, and the length of each ramp
+const DIP = 2.7, DIP_FLAT = 6, DIP_RAMP = 42;   // a road that passes under a flyover (rec.ud, its line and ground, from the bake) sinks DIP m, level for DIP_FLAT m beyond the deck's edge and back to the ground over DIP_RAMP m: the deck then climbs RISE - DIP, not RISE
+const END_OPEN = 12, END_OPEN_RISE = 1.0;   // flyover ends: no parapet collider within END_OPEN m of an end until the deck stands END_OPEN_RISE m above its starting line
+const PLATEAU = 9, RAMP_LOCAL = 36;    // a long flyover (rec.oc, the metres along it where roads pass under it) is lifted only this far from each crossing, then falls back over RAMP_LOCAL m to follow the ground
 const SLAB = 0.9, KERB = 0.15, PARAPET_H = 1.0, SIDEWALK = 1.2, PARAPET_W = 0.5;
 const CELL = 24;
 const hh = (a, b) => Math.hypot(a, b);
@@ -59,7 +62,15 @@ function profile(st) {
   for (let k = 0; k < n; k++) {
     const s = cum[k];
     let y = y0 + (y1 - y0) * s / L;
-    if (r.k === 'b' && r.ov) { const q = Math.min(1, s / Math.min(RAMP, L / 2), (L - s) / Math.min(RAMP, L / 2)); y += RISE * q * q * (3 - 2 * q); }
+    if (r.k === 'b' && r.ov) {
+      const q = Math.min(1, s / Math.min(RAMP, L / 2), (L - s) / Math.min(RAMP, L / 2));   // ramps at both ends (the whole of a short bridge is ramp)
+      let rise = q * q * (3 - 2 * q);
+      if (r.oc && r.oc.length) {   // the roads below are known: lift only around them (the interchange ramps of Isola delle Femmine were slabs 5 m above the field for 190 m)
+        let b = 0; for (const c of r.oc) b = Math.max(b, Math.min(1, Math.max(0, 1 - (Math.abs(s - c) - PLATEAU) / RAMP_LOCAL)));
+        rise = Math.min(rise, b * b * (3 - 2 * b));
+      }
+      y += (r.ud && r.oc && r.ud.length === r.oc.length ? RISE - DIP : RISE) * rise;
+    }
     ys[k] = y;
   }
   st.cum = cum; st.ys = ys; st.L = L;
@@ -84,7 +95,7 @@ function densify(p, step) {
 
 export function registerStructs(d, key) {
   const list = d && d.structs; if (!list) return;
-  const mine = new Set();
+  const mine = new Set(), fresh = [];
   for (const rec of list) {
     // a footway underpass is a short tunnel that cannot get its 5.8 m of cover where the road above lies in a hollow: it would stay an open trench across the road (the sprint's line at Viale Regione, x -2790, z 263) and nobody drives through it
     if (rec.k === 't' && rec.f) continue;
@@ -107,7 +118,7 @@ export function registerStructs(d, key) {
       st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
       for (let k = 0; k < n; k++) { const s = st.cum[k], q = R > 0 ? Math.min(1, s / R, (st.L - s) / R) : 1; st.ys[k] -= dip * Math.max(0, q); }
     }
-    if (r.k === 'b' && st.L > 150 && !r.ov) for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4); }   // a long viaduct crosses hills as well as valleys: never under the ground
+    if (r.k === 'b' && st.L > 150 && (!r.ov || r.oc)) for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4); }   // a long viaduct crosses hills as well as valleys: never under the ground
     S.set(rec.id, st);
     // level surface (levelY): one entry per centreline segment
     for (let k = 0; k + 1 < n; k++) {
@@ -123,10 +134,12 @@ export function registerStructs(d, key) {
       r.rv.forEach((rv, li) => chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r, r.rf ? r.rf[li] : null)));
       st.bed = Math.min(...chans.map(c => c.bedY[c.si]));
     } else if (r.k === 't') chans.push(makeChannel(r.id, p, r.w, 0, st, TUN_COVER, 'tunnel', r));
+    if (r.k === 'b' && r.ov && r.ud && r.oc && r.ud.length === r.oc.length) for (const u of r.ud) chans.push(makeChannel(r.id, u.p, u.w, 0, null, Infinity, 'dip', r, u.f, u));
     st.chans = chans;
     for (const c of chans) { st.carve = true; gridAdd(chanGrid, c.bx0, c.bz0, c.bx1, c.bz1, c); }
-    addWalls(st);
+    fresh.push(st);
   }
+  for (const st of fresh) addWalls(st);   // after every deck of the tile is a level, so that a parapet can tell when it stands in another deck's lane
   byTile.set(key, mine);
 }
 
@@ -146,11 +159,15 @@ export function unregisterStructs(key) {
 }
 
 // ---------- the terrain trench ----------
-function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf) {
+function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf, dip) {
   const n = flat.length / 2, cum = new Float32Array(n), bedY = new Float32Array(n), bedOld = new Float32Array(n);
   for (let k = 1; k < n; k++) cum[k] = cum[k - 1] + hh(flat[2 * k] - flat[2 * k - 2], flat[2 * k + 1] - flat[2 * k - 1]);
-  const hw = kind === 'river' ? width / 2 + 1.2 : width / 2 + 0.6;
+  const hw = kind === 'river' ? width / 2 + 1.2 : kind === 'dip' ? width / 2 + 2.5 : width / 2 + 0.6;
   let sc = 0;
+  if (kind === 'dip') {   // the lower road under a flyover: the baked ground under every vertex, minus DIP where the road is under the deck and a little beyond it
+    const half = rec.w / 2 + DIP_FLAT;
+    for (let k = 0; k < n; k++) { const t = Math.max(0, Math.abs(cum[k] - dip.c) - half) / DIP_RAMP, f = Math.max(0, 1 - t); bedY[k] = rf[k] - DIP * f * f * (3 - 2 * f); bedOld[k] = bedY[k]; }
+  }
   if (kind === 'river') { // the crossing: where the river line passes the deck centreline
     let best = 1e9; const rp = rec.p;
     for (let k = 0; k < n; k++) { const dd = distSegs(rp, flat[2 * k], flat[2 * k + 1]); if (dd < best) { best = dd; sc = cum[k]; } }
@@ -185,7 +202,7 @@ function nearest(c, x, z) {
   for (let k = 0; k + 1 < c.n; k++) {
     const ax = c.pts[2 * k], az = c.pts[2 * k + 1], dx = c.pts[2 * k + 2] - ax, dz = c.pts[2 * k + 3] - az, l2 = dx * dx + dz * dz || 1;
     const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), d = hh(x - ax - dx * t, z - az - dz * t);
-    if (d < best) { best = d; bh = c.kind === 'river' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
+    if (d < best) { best = d; bh = c.kind !== 'tunnel' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
   }
   c.d = best; return bh;
 }
@@ -227,14 +244,28 @@ export function levelY(x, z, yRef) {
 export const topY = (x, z) => levelY(x, z, 1e9);
 
 // ---------- walls (parapets, tunnel lining) ----------
+// is (x, z) inside the lane of another deck within 2.6 m of the height y (the level tolerance of a parapet, src/vehicle-sphere.js)?
+function inOtherLane(id, x, z, y) {
+  const a = levelGrid.get(ck(Math.floor(x / CELL), Math.floor(z / CELL))); if (!a) return false;
+  for (const e of a) {
+    if (e.id === id) continue;
+    const t = Math.max(0, Math.min(1, ((x - e.x0) * e.dx + (z - e.z0) * e.dz) / e.l2));
+    if (hh(x - e.x0 - e.dx * t, z - e.z0 - e.dz * t) < e.hw - 0.3 && Math.abs(e.y0 + (e.y1 - e.y0) * t - y) < 2.6) return true;
+  }
+  return false;
+}
 function addWalls(st) {
   if (!walls) return;
   const r = st.rec, p = r.p, n = p.length / 2, off = r.w / 2 - PARAPET_W * 0.5, jump = r.k === 'b' && LANDMARK_ZONES.some(z => z.jump && z.structs.includes(r.id));
   for (let k = 0; k + 1 < n; k++) {
+    if (r.ov && Math.min(st.cum[k], st.L - st.cum[k + 1]) < END_OPEN) {   // where a flyover starts, the deck is still on the ground and roads join it from the side (the ring of Piazza Einstein): a wall there closes the junction, so no wall until the deck is a metre up
+      const m = (st.cum[k] + st.cum[k + 1]) / 2; if ((st.ys[k] + st.ys[k + 1]) / 2 - (r.y0 + (r.y1 - r.y0) * m / st.L) < END_OPEN_RISE) continue;
+    }
     const dx = p[2 * k + 2] - p[2 * k], dz = p[2 * k + 3] - p[2 * k + 1], l = hh(dx, dz) || 1, nx = -dz / l, nz = dx / l;
     for (const sg of [1, -1]) {
       const a = [p[2 * k] + nx * off * sg, p[2 * k + 1] + nz * off * sg, p[2 * k + 2] + nx * off * sg, p[2 * k + 3] + nz * off * sg];
       a.lv = (st.ys[k] + st.ys[k + 1]) / 2; if (jump) a.jump = true;
+      if (inOtherLane(r.id, (a[0] + a[2]) / 2, (a[1] + a[3]) / 2, a.lv)) continue;   // where two ramps merge or part, one's parapet would stand across the other's lane
       walls.addSeg('s' + r.id, a, a[0], a[1], a[2], a[3]);
     }
   }
@@ -324,13 +355,14 @@ function buildDeck(st) {
     if (sgn < 0) quad(conc, [Rr[0], gy, Rr[2]], [L[0], gy, L[2]], [L[0], top, L[2]], [Rr[0], top, Rr[2]], tx, 0, tz, CONC, null, 0.85);
   }
   // piers
-  if (r.k === 'b' && !r.f && st.L > 40 && !r.ov) {
+  if (r.k === 'b' && !r.f && st.L > 40 && (!r.ov || r.oc)) {
     const bed = r.rv && st.bed !== undefined ? st.bed : null, np = Math.max(1, Math.round(st.L / 30)) ;
     for (let i = 1; i < np + 0; i++) {
       const s = st.L * i / np, k = (() => { let q = 1; while (q < n - 1 && st.cum[q] < s) q++; return q; })();
       const t = (s - st.cum[k - 1]) / ((st.cum[k] - st.cum[k - 1]) || 1), x = p[2 * k - 2] + (p[2 * k] - p[2 * k - 2]) * t, z = p[2 * k - 1] + (p[2 * k + 1] - p[2 * k - 1]) * t;
       const top = yAt(st, s) - SLAB, bot = bed !== null ? bed - 0.3 : rawGround(x, z) - 0.3;
       if (top - bot < 1.5) continue;
+      if (r.oc && r.oc.some(c => Math.abs(s - c) < PLATEAU + 6)) continue;   // a pier never stands on the road that passes under a flyover
       const tx = T[k][0], tz = T[k][1], nx = -tz, nz = tx, hl = 0.8, hn = po - 0.8;
       const c = (a, b) => [x + tx * a + nx * b, 0, z + tz * a + nz * b];
       const crn = [c(-hl, -hn), c(hl, -hn), c(hl, hn), c(-hl, hn)];
