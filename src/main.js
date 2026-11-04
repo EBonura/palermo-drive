@@ -116,7 +116,7 @@ SPOTS.push(['Discarica di Bellolampo (la strada di servizio)', 38.1448135, 13.27
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: new URLSearchParams(location.search).get('aa') !== '0' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
@@ -351,8 +351,9 @@ function applySettings() {
   if (q === 'auto') perf.configure({ auto: true, ceil: Math.min(devicePixelRatio, 2) });
   else {
     const tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[q] || [2, 2048];
-    perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, tier[0]) });
-    applyLevel({ dd: 1, sh: tier[1], crowd: q, road: q });
+    // ?pr= ?sh= ?crowd= ?road= ?aa=0: one thing at a time, to find on a real phone what costs the frames
+    perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, +params.get('pr') || tier[0]) });
+    applyLevel({ dd: 1, sh: params.has('sh') ? +params.get('sh') : tier[1], crowd: params.get('crowd') || q, road: params.get('road') || q });
   }
   vehicle.setVolume?.(st.volume);
   traffic.setVolume?.(st.volume);
