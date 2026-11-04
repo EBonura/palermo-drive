@@ -207,6 +207,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     car.deck = car.flying ? 0 : hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
     if (hooks.fall) hooks.fall(car, S);
     if (hooks.tick) hooks.tick(dt);   // smashed fence panels in flight (src/fences.js)
+    if (hooks.plunge) hooks.plunge(car, S);   // the rim of the landfill pit: the ball goes over it instead of following the slope down (src/discarica.js)
     if (S.hit > 0) { if (onHit) onHit(S.hit); S.hit = 0; }
   }
 

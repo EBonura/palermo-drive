@@ -12,7 +12,7 @@ const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
 const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
-const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e' };
+const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a' };
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8;
 export const KIND_COLOR = COLORS;
 
@@ -31,6 +31,7 @@ export function createCalls(X) {
     if (s.kind === 'rave') return 'dj';
     if (s.kind === 'leaf') return 'nightboy2';
     if (s.kind === 'horns') return pick(['nonno', 'coppola', 'shopper', 'suit']);
+    if (s.kind === 'dump') return 'tuta';
     if (s.ped) return s.ped;   // a fare spot whose story needs a look (src/event-places.js)
     if (s.nc) return NIGHT_CLIENTS[s.nc].ped || 'client';   // 'ped': a night client who also calls by day wears something else
     if (s.kind === 'urgent') return pick(['suit', 'suit2', 'borsa', 'ragazzo', 'signora2']);
@@ -53,7 +54,7 @@ export function createCalls(X) {
   function lineFor(s) {
     if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
     if (s.nc) return pickLine(NIGHT_CLIENTS[s.nc].client.flag, s);
-    const L = s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
+    const L = s.kind === 'dump' ? CALL.dump : s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
     return pickLine(L, s);
   }
   function pickLine(L, s) {

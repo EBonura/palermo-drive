@@ -475,3 +475,25 @@ Nothing here existed before, so there is no old column. Every line is a draft in
 | driver, after the granita | Chi friscu! Amunì, ca ora si vola! | How refreshing! Come on, now we fly! |
 | driver, after the granita | Granita e nitro: chista è a stati! | Granita and nitro: this is summer! |
 | toast under GRANITA! | Nitro ’n chiù, fridda, puru oltri u chinu | Extra nitro, ice cold, even past full |
+
+## Bbaiecca 'a munnizza, the landfill mission (assets/missions/lines.js, CALL.dump and DUMP_LINES, src/event-dump.js; new, all drafts)
+
+The title is the owner's, "Bbaiecca 'a munnizza, e a chi ci sì bbaieccati puru tu", used exactly as written in both languages. Nothing else here existed before, so there is no old column; every line is a draft in the owner's spelling as far as the memory notes go, please correct it. The full table (with the toasts and the card) is in docs/discarica.md.
+
+| who and when | Palermitan | English subtitle |
+| --- | --- | --- |
+| caller, hail | Bbaiecca 'a munnizza, ca ’ccà un c’è chiù postu! | Throw yourself in the rubbish, there is no room left here! |
+| caller, hail | Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu! | Hey driver! At the Bellolampo landfill there is a cell waiting for you! |
+| caller, on accepting | Acchiana â discarica ri Bellolampo e ieccati ’nta vasca! | Go up to the Bellolampo landfill and throw yourself in the cell! |
+| caller, after it | E si t’ammazzi, un mi chiamari! | And if you kill yourself, do not call me! |
+| driver, at the gate | Amunì, un mi firmu! | Come on, I am not stopping! |
+| driver, falling | Maaammaaa! | Mummyyyy! |
+| driver, falling | Ahahahaaa! | Wheeeee! |
+| driver, landed | Ciaf! Chi puzza! | Splat! What a stink! |
+| driver, landed | Sugnu ’n mezzu â munnizza, ma sugnu cuntentu! | I am in the middle of the rubbish, but I am happy! |
+| driver, the clock ran out | Chi fa? Un ti ieccasti! Ora è tardu! | What, you did not throw yourself in! Now it is too late! |
+| card, jumped | Sautu ri classi ’nta vasca! | A proper jump into the cell! |
+| card, rolled | Ti rruzzuliasti ’nta vasca | You rolled into the cell |
+| card | Sì ’nta munnizza finu ô coddu | Neck deep in the rubbish |
+| toasts | Â discarica! / Pi Via Bellolampo / Ddà ’n funnu / ’A vasca | To the landfill! / Up Via Bellolampo / Down there / The cell |
+| the list of missions | Acchiana â discarica ri Bellolampo e ieccati ’nta vasca cû lapa. | Climb up to the Bellolampo landfill and throw the lapa and yourself into the cell. |

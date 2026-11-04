@@ -26,6 +26,8 @@ out.push('## Two more night clients (Via Lincoln, Via Bandiera)', '');
 for (const [id, o] of Object.entries(L.NIGHT_CLIENTS)) { for (const [k, arr] of Object.entries(o.client)) pairs(`### ${id} client: ${k}`, arr); for (const [k, arr] of Object.entries(o.driver)) pairs(`### ${id} driver: ${k}`, arr); }
 out.push('## The horns mission (Arco di Cutò)', '');
 for (const [k, arr] of Object.entries(L.HORNS_LINES)) pairs(`### ${k}`, arr);
+out.push('## The landfill mission (Bellolampo; the title is the owner\'s, the lines are drafts)', '');
+for (const [k, arr] of Object.entries(L.DUMP_LINES)) pairs(`### ${k}`, arr);
 out.push('## Pollanche (Santuario di Santa Rosalia, needs ?world=1)', '');
 pairs('### cries', L.POLLANCHE.cry); pairs('### when serving', L.POLLANCHE.serve);
 out.push('## U Barettu (granita kiosk, Piazza Valdesi in Mondello, needs ?world=1)', '');

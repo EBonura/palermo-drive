@@ -477,7 +477,7 @@ export function createVehicle(env) {
   // ---------- camera ----------
   const camState = { mode: 0, init: false, pos: new THREE.Vector3() };
   const camClear = createCameraClear({ scene, groundY });
-  const cam = { pull: 1, ang: 0, fov: baseFov, trauma: 0, kick: 0, nosEnv: 0, roll: 0, t: 0, lastNosId: 0, lastHit: 0, look: new THREE.Vector3(), up: new THREE.Vector3() };
+  const cam = { pull: 1, ang: 0, fov: baseFov, trauma: 0, kick: 0, mom: 0, nosEnv: 0, roll: 0, t: 0, lastNosId: 0, lastHit: 0, look: new THREE.Vector3(), up: new THREE.Vector3() };
   function wallHit(x0, z0, x1, z1) {
     let tMin = 1;
     walls2d.query(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), s => {
@@ -512,7 +512,7 @@ export function createVehicle(env) {
 
     const gy0 = groundY(car.x, car.z), gy = gy0 + (car.flying || car.wet > 0.02 ? car.lift : car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js); in the air or on the water the body's own height
     // field of view: speed, nitro punch
-    const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6;
+    const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6 + cam.mom * 9;
     cam.fov += (fovT - cam.fov) * Math.min(1, 7 * dt);
     if (Math.abs(camera.fov - cam.fov) > 0.02) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
 
@@ -535,8 +535,8 @@ export function createVehicle(env) {
     if (rig) rig.driver.visible = true;
     const [dist0, h] = [[5.8 * T.camK, 2.7 * T.camK], [13 * T.camK, 7 * T.camK], null, [3, 130]][m];
     const hi = car.flying ? sstep(0, 25, car.agl) : 0;   // up in the air the camera backs off a little, to show the city under the wings
-    const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 + hi * 3.5 : 0);
-    const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 + hi * 1.6 : 0);
+    const dist = dist0 + (m < 2 ? sp01 * 1.8 + cam.nosEnv * 0.7 + hi * 3.5 + cam.mom * 7 : 0);   // cam.mom: a scripted moment (api.camMoment) backs the camera off
+    const dx = car.x - f.x * dist, dz = car.z - f.z * dist, dy = gy + h + (m < 2 ? sp01 * 0.5 + hi * 1.6 + cam.mom * 4 : 0);
     if (!camState.init) { camState.pos.set(dx, dy, dz); camState.init = true; }
     const kh = 1 - Math.exp(-(m === 3 ? 3 : 22) * dt), kv = 1 - Math.exp(-(m === 3 ? 3 : 6) * dt);
     camState.pos.x += (dx - camState.pos.x) * kh; camState.pos.z += (dz - camState.pos.z) * kh; camState.pos.y += (dy - camState.pos.y) * kv;
@@ -753,6 +753,8 @@ export function createVehicle(env) {
     return ok;
   };
   api.puff = puff;
+  api.camFx = ({ trauma = 0, kick = 0 } = {}) => { cam.trauma = Math.max(cam.trauma, trauma); cam.kick = Math.max(cam.kick, kick); };   // a shake and a field-of-view punch (the landfill plunge, src/discarica.js)
+  api.camMoment = k => { cam.mom = clamp(+k || 0, 0, 1); };   // 0..1: the chase camera backs off and rises, the field of view opens (src/event-dump.js sets it while the lapa falls)
   api.air = air; api.water = water;   // test hooks and the wake (src/main.js)
   api.teleport = (x, z, th) => {
     Object.assign(car, { x, z, th, vx: 0, vz: 0, vf: 0, w: 0, slip: 0, drift: 0, dLatch: 0, psiDot: 0, psiPrev: th, hop: 0, hopV: 0, gripLoss: 0, kickT: 0, bank: 0, bankV: 0, wheelie: 0, hsT: 0, steer: 0, sIn: 0 });

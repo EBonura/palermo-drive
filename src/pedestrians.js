@@ -27,6 +27,7 @@ import { FLEW, placeLine } from './shouts.js';
 import * as THREE from 'three';
 import { zoneAt as districtAt } from './districts.js';
 import { pitchCentre } from './stadium-ground.js';
+import { inYard } from './discarica-ground.js';
 import { VARIANTS as ALL_VARIANTS, CELL_W as CELL_W0, CELL_H as CELL_H0, GROUND as GROUND0, POSES, CELLS_PER_ENTRY, POSE_SIT, POSE_SIT_SIP } from '../assets/peds/sprites.js';
 import { LPC_CELL, LPC_GROUND, LPC_PX, LPC_HIP } from '../assets/peds/lpc/cast.js';
 import { createLpcAtlas } from '../assets/peds/lpc/atlas.js';
@@ -213,6 +214,7 @@ export function createPedestrians(env) {
   }
   // mask class at a world position; tiles that are not at full detail, and blocks not drawn yet, read as blocked
   function cell(x, z) {
+    if (inYard(x, z)) return 0;   // the fenced yard of the landfill mission (src/discarica-ground.js)
     const w = wtAt(x, z); if (w === null) return 0;
     const gx = ((x - w.x0) * CPM) | 0, gz = ((z - w.z0) * CPM) | 0, bx = (gx / BC) | 0, bz = (gz / BC) | 0;
     const m = w.blocks[bz * 8 + bx]; return m === null ? 0 : m[(gz - bz * BC) * BC + gx - bx * BC];

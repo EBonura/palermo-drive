@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, simplifyClear, reachTo, proj } from './roadnet.mjs';
-import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS } from '../../src/event-places.js';
+import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP } from '../../src/event-places.js';
 import { DESTS } from './lines.js';
 
 const net = loadNet();   // the roads the game builds (assets/missions/roadnet.mjs BUILT): routes run on these
@@ -150,6 +150,29 @@ delete SNAP['rave:mouth'];
   const na = nodeNear(netH, snap(netH, a.x, a.z)), nb = nodeNear(netH, snap(netH, g.x, g.z)), p = route(netH, na, nb);
   if (p) { const P = [[a.x, a.z], ...pts(netH, p), [g.x, g.z]]; ROUTES['horns'] = [['arch', Math.round(plen(P)), flat(simplifyClear(P, 4, netH.geo))]]; console.log('horns route', Math.round(plen(P)), 'm; gate', SNAP['horns:arch'].join(' '), 'start', SNAP['horns:start'].join(' ')); }
   else { ROUTES['horns'] = []; console.log('horns NO ROUTE'); }
+}
+
+// ---- the landfill mission (docs/discarica.md): the caller on Via Bellolampo, the road up to the landfill, the gate, the track to the rim of the pit.
+// The landfill's roads are unnamed service roads of the tiles (not in the plain drivable network, but with street polygons under them, so the game builds them): the bake uses a network that
+// has the service roads of the landfill added (extraFn). The track from the service road to the pit is the game's own (src/discarica-ground.js TRACK): the baked line runs on the road to the mouth
+// (DUMP.access, the bend of the service road the track leaves, SNAP['dump:mouth'] with the direction of travel back down the road, for the lift that takes the lapa out of the pit) and then straight
+// along the track to a point 6 m short of the rim (SNAP['dump:rim']).
+{
+  const inBox = r => r.k === 'service' && r.p.some((v, i) => i % 2 === 0 && v > -7820 && v < -7090 && r.p[i + 1] > -3320 && r.p[i + 1] < -2690);
+  const netL = loadNet({ extraFn: inBox }), netLAll = loadNet({ extraFn: inBox, built: false });
+  const a = (() => { const [x, z] = proj(DUMP.start.lat, DUMP.start.lon), s = snap(netLAll, x, z, { name: DUMP.start.onStreet, anyComp: true }); SNAP['dump:start'] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id: 'dump:start', road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) }); return s; })();
+  const [mx, mz] = proj(DUMP.access.lat, DUMP.access.lon), m = snap(netL, mx, mz, { anyComp: true }), [cx, cz] = proj(DUMP.site.lat, DUMP.site.lon);
+  const na = nodeNear(netL, snap(netL, a.x, a.z, { anyComp: true })), nb = nodeNear(netL, m), p = route(netL, na, nb);
+  const rimP = [cx - 42 - 6, cz];   // HA = 42 in src/discarica-ground.js
+  if (p) {
+    const R = pts(netL, p), P = [[a.x, a.z], ...R, [m.x, m.z], rimP], L = plen(P), prev = R.length > 1 ? R[R.length - 2] : [a.x, a.z], tx = prev[0] - m.x, tz = prev[1] - m.z, tl = Math.hypot(tx, tz) || 1;
+    { const q = P[1], l = Math.hypot(q[0] - a.x, q[1] - a.z) || 1; SNAP['dump:start'][2] = r2((q[0] - a.x) / l); SNAP['dump:start'][3] = r2((q[1] - a.z) / l); }   // the lapa stands facing the way of the route
+    SNAP['dump:mouth'] = [r1(m.x), r1(m.z), r2(tx / tl), r2(tz / tl), m.w, m.n || ''];
+    SNAP['dump:rim'] = [r1(rimP[0]), r1(rimP[1]), 1, 0, 6, m.n || ''];
+    ROUTES['dump'] = [['rim', Math.round(L), flat(simplifyClear(P, 4, netL.geo))]];
+    report.push({ id: 'dump:mouth', road: m.n || '(' + m.k + ')', off: Math.round(Math.hypot(m.x - mx, m.z - mz)), x: r1(m.x), z: r1(m.z) });
+    console.log('dump route', Math.round(L), 'm; start', SNAP['dump:start'].join(' '), 'mouth', SNAP['dump:mouth'].join(' '), 'rim', SNAP['dump:rim'].join(' '), 'cut segs', netL.cut.segs);
+  } else { ROUTES['dump'] = []; console.log('dump NO ROUTE'); }
 }
 
 // ---- race tracks

@@ -186,3 +186,16 @@ export const RAVE = {
   access: { lat: 38.1561387, lon: 13.3559892, onStreet: 'Pintacuda' },   // where the track to it leaves the road (the middle of the forest service road, Via Padre Ennio Pintacuda)
   leaf: { id: 'leaf', name: 'Via Cipressi', lat: 38.1115405, lon: 13.3394977, onStreet: 'Cipressi' },
 };
+
+// ---------------------------------------------------------------------------------------------------------------- the landfill mission (docs/discarica.md)
+// "Bbaiecca 'a munnizza, e a chi ci sì bbaieccati puru tu": a caller on Via Bellolampo, at the foot of the road up to the landfill, dares you to throw the lapa into the discarica of
+// Bellolampo. The landfill is real and mapped: OpenStreetMap landuse=landfill, name "Discarica di Bellolampo", ways 320772217 and 1490070878 (the big one, 59 ha, holds the whole site
+// below), reached by Via Bellolampo (SP1, way 666679659) and its service roads. The tiles do not draw it (no landfill kind in their areas), so the game builds the site (src/discarica.js,
+// src/discarica-ground.js): the pit is NOT surveyed, it is the game's own cell (a vasca) cut into the open ground inside the polygon (its middle is 71 m from the nearest edge of the OSM way), 134 m
+// from a service road that is in the tiles (the bend at 38.14481, 13.27987), and a gravel track runs from that bend to it. `site` is the middle of the pit; `access` is where the track leaves
+// the service road; `start` is the caller (snapped to Via Bellolampo by the baker).
+export const DUMP = {
+  start: { id: 'start', name: 'Bellolampo', lat: 38.1389785, lon: 13.2728065, onStreet: 'Bellolampo' },
+  site: { id: 'site', name: 'Discarica di Bellolampo', lat: 38.1448045, lon: 13.2813927 },
+  access: { lat: 38.1448135, lon: 13.2798741 },
+};
