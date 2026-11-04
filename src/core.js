@@ -94,15 +94,20 @@ export function fillPoly(buf, flat, holes, y, col) {
 // ---------- procedural texture helpers ----------
 // A painted texture that never changes needs its canvas only until it is on the GPU: the canvas then shrinks to a pixel (a canvas's pixels are memory the JS heap does not even show), and a lost GL context
 // (phones can do this in the background) paints it again before the next frame. paint(g, w, h) must be able to run again on the same canvas.
-// The upload does not wait for the first draw (a texture of something behind the camera would hold its canvas until then): it follows as soon as the caller has set the texture up.
-const repaint = [];
-let glr = null, toUpload = [];
-document.getElementById('view')?.addEventListener('webglcontextrestored', () => { for (const f of repaint) f(true); });   // (this listener runs before three's own, so the uploads wait for the next task)
+// The upload does not wait for the first draw (a texture of something behind the camera would hold its canvas until then): one texture a frame goes up from a queue, so a landmark's dozen textures do not all land in one frame.
+const repaint = [], queue = [];
+let glr = null, toUpload = [], pumping = false;
+document.getElementById('view')?.addEventListener('webglcontextrestored', () => { for (const f of repaint) f(); });   // (this listener runs before three's own: the uploads wait for the next frame, by the queue)
 export function setCanvasRenderer(r) { glr = r; for (const t of toUpload) r.initTexture(t); toUpload = []; }   // main.js, once there is a renderer: what the modules painted before it goes up now
-const upload = t => { if (!glr) toUpload.push(t); else if (!glr.getContext().isContextLost()) glr.initTexture(t); }, uploadSoon = t => queueMicrotask(() => upload(t));
+const pump = () => {
+  const t = queue.shift();
+  if (t) { if (!glr) toUpload.push(t); else if (!glr.getContext().isContextLost()) glr.initTexture(t); }
+  if (queue.length) requestAnimationFrame(pump); else pumping = false;
+};
+const uploadSoon = t => { queue.push(t); if (!pumping) { pumping = true; requestAnimationFrame(pump); } };
 export function freeCanvas(t, paint) {
   const c = t.image, w = c.width, h = c.height;
-  const again = restored => { c.width = w; c.height = h; paint(c.getContext('2d'), w, h); t.needsUpdate = true; if (restored === true) setTimeout(() => upload(t), 0); else uploadSoon(t); };
+  const again = () => { c.width = w; c.height = h; paint(c.getContext('2d'), w, h); t.needsUpdate = true; uploadSoon(t); };
   t.onUpdate = () => { c.width = c.height = 1; };
   uploadSoon(t);
   t.addEventListener('dispose', again);   // (disposed and used later: three uploads it again from the canvas)
