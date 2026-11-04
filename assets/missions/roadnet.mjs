@@ -19,6 +19,30 @@ export const BUILT = {
   BLD_DEPTH: 0.8,     // a sample this far inside a footprint (m) is in the building (the footprint ring is a wall)
   BLD_RUN: 1,         // m: a run of samples this long inside a footprint blocks the segment (a wall across the middle of the road stops the car even when the building is a thin one)
 };
+// Road segments that the tiles show as built but that a drive of the real game showed the lapa cannot follow (tools/route-check/check.mjs --drive): a bend in a lane that is too tight for
+// the car, bridge parapets across the line, a street the footprints run along. Each is one segment of one tile road: its two ends, flat x,z as snap-unbuilt.mjs writes them
+// (one decimal; matched within 0.3 m either way round), and why. BUILT.built() says no to these, so the baked routes (snap-places.mjs, snap-pubs.mjs) and the traffic graph
+// with the runtime guide (src/unbuilt-roads.js, baked by snap-unbuilt.mjs; the graph skips tunnel roads on its own) leave them out. Hand kept: add a line when a check shows another.
+export const BLOCKED = [
+  [168.2, -94.2, 154.6, -102.2, "Salita Sant'Antonio: a tight bend in a 2.8 m street (fare:cat>focacceria, 165,-96)"],
+  [300.7, -830.5, 339.2, -751.3, 'Foro Italico bridge: the parapets stand across the line (fare:tx-giardino>foroitalico, 300,-831)'],
+  [-915.1, -354.4, -898.0, -356.6, 'the street over the Corso Alberto Amedeo tunnel mouth near Via Goethe: its parapets stand across the line (fare:tx-calatafimi>politeama, -902,-356)'],
+  [-897.3, -348.1, -898.0, -356.6, 'Corso Alberto Amedeo along the tunnel trench, 8 m south of Via Goethe: the car stuck at -901,-352 on a drive of fare:tx-calatafimi>politeama and of return:food:nino#8'],
+  [442.8, -3294.5, 455.2, -3277.1, 'Acquasanta lane, 3 m wide with bends, off Via Taranto (rave:leaf>leaf and return:food:peppe, 455,-3277)'],
+  [500.0, -3368.5, 462.6, -3351.7, 'Acquasanta lane, 3 m wide, a hairpin off the main road at 515.7,-3375.5 (rave:leaf>leaf, 471,-3356; the drive stuck at 509,-3383)'],
+  [-852.2, -907.3, -815.4, -828.5, 'Via Benedetto Civiletti: one 87 m segment whose centreline runs along building footprints, the line crosses a block (return:pub:krust#8 and whisky#7, -833,-886)'],
+  [-6728.8, -8381.0, -6754.9, -8420.3, 'Via Sferracavallo at the underpass mouth: the parapets stand across the line (urgent:u-treno>notarbartolo, -6728,-8381)'],
+];
+const blockedKey = new Map();
+for (const [ax, az, bx, bz] of BLOCKED) for (const [x, z] of [[ax, az], [bx, bz]]) { const k = Math.round(x / 4) + ',' + Math.round(z / 4); (blockedKey.get(k) || blockedKey.set(k, []).get(k)).push([ax, az, bx, bz]); }
+const near3 = (a, b) => Math.abs(a - b) < 0.3;
+function isBlocked(ax, az, bx, bz) {
+  for (const dx of [-1, 0, 1]) for (const dz of [-1, 0, 1]) for (const s of blockedKey.get((Math.round(ax / 4) + dx) + ',' + (Math.round(az / 4) + dz)) || []) {
+    if (near3(s[0], ax) && near3(s[1], az) && near3(s[2], bx) && near3(s[3], bz)) return true;
+    if (near3(s[2], ax) && near3(s[3], az) && near3(s[0], bx) && near3(s[1], bz)) return true;
+  }
+  return false;
+}
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) if ((r[i + 1] > z) !== (r[j + 1] > z) && x < (r[j] - r[i]) * (z - r[i + 1]) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; return c; };
 const inPoly = (poly, x, z) => { let c = false; for (const r of poly) if (inRing(r, x, z)) c = !c; return c; };
 const dRing = (r, x, z) => { let d = 1e9; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const ax = r[j], az = r[j + 1], dx = r[i] - ax, dz = r[i + 1] - az, l2 = dx * dx + dz * dz, u = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0; const e = Math.hypot(x - ax - dx * u, z - az - dz * u); if (e < d) d = e; } return d; };
@@ -45,6 +69,7 @@ export function makeGeo() {
     clear(ax, az, bx, bz) { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / BUILT.STEP)); for (let k = 0; k <= n; k++) { const x = ax + (bx - ax) * k / n, z = az + (bz - az) * k / n; if (geo.depthAt(x, z) > BUILT.BLD_DEPTH) return false; if (!geo.hard(x, z) && !geo.onDeck(x, z)) return false; } return true; },
     // is this road segment something the game builds? (see BUILT)
     built(ax, az, bx, bz) {
+      if (isBlocked(ax, az, bx, bz)) return false;
       const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / BUILT.STEP)); let hard = 0, run = 0, maxRun = 0;
       for (let k = 0; k < n; k++) { const t = (k + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t; if (geo.hard(x, z) || geo.onDeck(x, z)) hard++; if (geo.depthAt(x, z) > BUILT.BLD_DEPTH) { run++; if (run > maxRun) maxRun = run; } else run = 0; }
       return hard / n >= BUILT.HARD_MIN && maxRun * (Math.hypot(bx - ax, bz - az) / n) < BUILT.BLD_RUN;
