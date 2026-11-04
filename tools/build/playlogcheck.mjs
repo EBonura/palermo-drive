@@ -119,7 +119,7 @@ async function browserTests(root) {
   const sink = path.join(tmp, 'game.jsonl');
   const svc = service(18788, origin, sink, { ADDR_BURST: '100', ADDR_PER_MIN: '600' });   // the test build reports every 3 s, far faster than a player, so this address gets a wider allowance   // 18788: the address the test build was made with
   await up(18788);
-  const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
+  const browser = await puppeteer.launch({ executablePath: process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
   async function open(store, extra) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage(), errs = [];
     await page.setViewport({ width: 960, height: 540 });

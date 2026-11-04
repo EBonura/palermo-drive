@@ -6,7 +6,7 @@ import { startServer } from './serve.mjs';
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const ROOT = path.resolve(arg('root', 'dist')), CDN = arg('cdn', ''), PROFILE = arg('profile', 'desktop'), CPU = +arg('cpu', PROFILE === 'phone' ? 4 : 1), TOP = +arg('top', 25);
 const { server, port } = await startServer(ROOT, CDN);
-const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const browser = await puppeteer.launch({ executablePath: (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless: true, args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage();
 if (PROFILE === 'phone') await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 3, isMobile: true, hasTouch: true }); else await page.setViewport({ width: 1280, height: 720 });
 const cdp = await page.createCDPSession();

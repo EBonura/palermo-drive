@@ -29,7 +29,7 @@ const names = String(arg('spots', Object.keys(SPOTS).join(','))).split(',');
 const TIMES = String(arg('times', '8,12,16.5,19,23')).split(','), QA = arg('qa', 'engine=off');
 const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const THREE_DIR = path.join(fs.realpathSync(path.join(HERE, 'node_modules')), 'three');
 
 const opened = new Set();

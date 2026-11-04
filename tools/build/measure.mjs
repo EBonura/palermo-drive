@@ -24,7 +24,7 @@ const CDN = arg('cdn', '');
 const QUERY = arg('query', 'debug&fixres');   // fixres: perf.js keeps the pixel ratio fixed, so runs are comparable
 const OUT = arg('out', '');
 const SETTLE = +arg('settle', 6000);
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 
 const NETS = { // Lighthouse-style presets, bytes/s
   none: null,
