@@ -200,7 +200,8 @@ function pixels(kind, seed) {
   const cv = document.createElement('canvas'); cv.width = cv.height = S;
   const g = cv.getContext('2d', { willReadFrequently: true }), L = LAYER[kind];
   PAINT[kind](g, rng(seed), S / L.pw, S / L.ph);
-  return g.getImageData(0, 0, S, S).data;
+  const px = g.getImageData(0, 0, S, S).data; cv.width = cv.height = 0;   // (on iOS a canvas nobody holds still counts until the collector finds it)
+  return px;
 }
 
 const GLSL = `
@@ -222,6 +223,9 @@ export function wallTexture() {
   TEX.format = THREE.RGBAFormat; TEX.type = THREE.UnsignedByteType;
   TEX.wrapS = TEX.wrapT = THREE.RepeatWrapping; TEX.minFilter = THREE.LinearMipmapLinearFilter; TEX.magFilter = THREE.LinearFilter; TEX.generateMipmaps = true;
   TEX.anisotropy = 4; TEX.colorSpace = THREE.SRGBColorSpace; TEX.needsUpdate = true;
+  // the pixels (10 MB) go once they are on the GPU; a lost GL context paints them again (they are seeded: the same ones)
+  TEX.onUpdate = () => { TEX.image.data = null; DATA = null; };
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(S * S * 4 * N_LAYERS); KINDS.forEach((k, n) => d.set(pixels(k, 4100 + n * 37), LAYER[k].i * S * S * 4)); TEX.image.data = d; TEX.needsUpdate = true; });
   return TEX;
 }
 // the one material of every wall mesh and of the flying chunks: attributes aUv (metres over the layer's size) and aLayer (the layer index)

@@ -3,7 +3,7 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, Buf, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
+import { groundY, FBuf, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 
 export const CURB = 0.15;
@@ -264,7 +264,7 @@ export function* streetsIter(streets, group, opts = {}) {
       // one mesh per chunk (opts.chunk metres, default 250; 0 = a single mesh, as the streamed world tiles want) so frustum culling helps
       const ck = chunk ? Math.floor(poly[0][0] / chunk) * 100003 + Math.floor(poly[0][1] / chunk) : 0;
       const yard = yw && isYard(poly, yw, yctx), bm = yard ? ybufs : bufs;
-      let buf = bm.get(ck); if (!buf) bm.set(ck, buf = new Buf());
+      let buf = bm.get(ck); if (!buf) bm.set(ck, buf = new FBuf());
       const contour = pairs(poly[0]).map(p => new THREE.Vector2(p[0], p[1]));
       const holes = poly.slice(1).map(h => pairs(h).map(p => new THREE.Vector2(p[0], p[1])));
       let tris3;
@@ -278,11 +278,11 @@ export function* streetsIter(streets, group, opts = {}) {
       if ((++n & 7) === 0) { yield; GROUND = g0; FINE = f0; }
     }
     for (const [bm, ly] of [[bufs, layer], [ybufs, 'yard']]) for (const buf of bm.values()) {
-      if (!buf.p.length) continue;
+      if (!buf.n) continue;
       const mesh = buf.mesh(layerMaterial(ly, offset));
       mesh.receiveShadow = true;
       mesh.name = 'street_' + ly;
-      tris += buf.p.length / 9;
+      tris += buf.n / 3;
       group.add(mesh);
     }
     yield; GROUND = g0; FINE = f0;
@@ -290,7 +290,7 @@ export function* streetsIter(streets, group, opts = {}) {
   TINT = null; FINE = false;
   // Curbs: the road is on the left of each line. Vertical face plus a stone top strip.
   if (opts.curbs !== false && streets.curbs && streets.curbs.length) {
-    const curb = new Buf(), stone = new THREE.Color('#d6d1cb'), TOP = 0.28;
+    const curb = new FBuf(), stone = new THREE.Color('#d6d1cb'), TOP = 0.28;
     for (const flat of streets.curbs) {
       const p = pairs(flat);
       for (let i = 0; i < p.length - 1; i++) {
@@ -305,12 +305,12 @@ export function* streetsIter(streets, group, opts = {}) {
       }
       if ((++n & 15) === 0) { yield; GROUND = g0; }
     }
-    if (curb.p.length) {
+    if (curb.n) {
       curbMat = curbMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
       const curbMesh = curb.mesh(curbMat);
       curbMesh.receiveShadow = true;
       curbMesh.name = 'street_curbs';
-      tris += curb.p.length / 9;
+      tris += curb.n / 3;
       group.add(curbMesh);
     }
   }

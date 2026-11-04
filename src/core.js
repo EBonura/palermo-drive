@@ -55,6 +55,24 @@ export class Buf {
   }
 }
 
+// Buf without the garbage, for the big street layers: a plain array grown by push leaves its old copies behind on every doubling, and a tile has hundreds of thousands of numbers
+export class FBuf {
+  constructor() { this.cap = 1024; this.n = 0; this.p = new Float32Array(3072); this.nr = new Float32Array(3072); this.c = new Float32Array(3072); this.uv = new Float32Array(2048); }
+  v(x, y, z, nx, ny, nz, col, u = 0, w = 0, k = 1) {
+    if (this.n === this.cap) { const c = this.cap *= 2, f = (a, m) => { const b = new Float32Array(c * m); b.set(a); return b; }; this.p = f(this.p, 3); this.nr = f(this.nr, 3); this.c = f(this.c, 3); this.uv = f(this.uv, 2); }
+    const i = this.n++, a = i * 3, b = i * 2, P = this.p, N = this.nr, C = this.c;
+    P[a] = x; P[a + 1] = y; P[a + 2] = z; N[a] = nx; N[a + 1] = ny; N[a + 2] = nz; C[a] = col.r * k; C[a + 1] = col.g * k; C[a + 2] = col.b * k; this.uv[b] = u; this.uv[b + 1] = w;
+  }
+  mesh(mat) {
+    const g = new THREE.BufferGeometry(), n = this.n;
+    g.setAttribute('position', new THREE.BufferAttribute(this.p.slice(0, n * 3), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(this.nr.slice(0, n * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(this.c.slice(0, n * 3), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(this.uv.slice(0, n * 2), 2));
+    return new THREE.Mesh(g, mat);
+  }
+}
+
 export const pairs = flat => { const out = []; for (let i = 0; i < flat.length; i += 2) out.push([flat[i], flat[i + 1]]); return out; };
 export const signedArea = pts => { let a = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; };
 
@@ -74,10 +92,27 @@ export function fillPoly(buf, flat, holes, y, col) {
 
 
 // ---------- procedural texture helpers ----------
+// A painted texture that never changes needs its canvas only until it is on the GPU: the canvas then shrinks to a pixel (a canvas's pixels are memory the JS heap does not even show), and a lost GL context
+// (phones can do this in the background) paints it again before the next frame. paint(g, w, h) must be able to run again on the same canvas.
+// The upload does not wait for the first draw (a texture of something behind the camera would hold its canvas until then): it follows as soon as the caller has set the texture up.
+const repaint = [];
+let glr = null, toUpload = [];
+document.getElementById('view')?.addEventListener('webglcontextrestored', () => { for (const f of repaint) f(true); });   // (this listener runs before three's own, so the uploads wait for the next task)
+export function setCanvasRenderer(r) { glr = r; for (const t of toUpload) r.initTexture(t); toUpload = []; }   // main.js, once there is a renderer: what the modules painted before it goes up now
+const upload = t => { if (!glr) toUpload.push(t); else if (!glr.getContext().isContextLost()) glr.initTexture(t); }, uploadSoon = t => queueMicrotask(() => upload(t));
+export function freeCanvas(t, paint) {
+  const c = t.image, w = c.width, h = c.height;
+  const again = restored => { c.width = w; c.height = h; paint(c.getContext('2d'), w, h); t.needsUpdate = true; if (restored === true) setTimeout(() => upload(t), 0); else uploadSoon(t); };
+  t.onUpdate = () => { c.width = c.height = 1; };
+  uploadSoon(t);
+  t.addEventListener('dispose', again);   // (disposed and used later: three uploads it again from the canvas)
+  repaint.push(again);
+  return t;
+}
 export function canvasTex(size, draw, metres) {
   const cv = document.createElement('canvas'); cv.width = cv.height = size;
   draw(cv.getContext('2d'), size);
-  const t = new THREE.CanvasTexture(cv);
+  const t = freeCanvas(new THREE.CanvasTexture(cv), draw);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
@@ -124,5 +159,6 @@ export function rasterMask(layers, aoi, k) {
       if ((px[o + i] >>> 24) > 127) { const n = (ty + j) * W + tx + i; bits[n >> 3] |= 1 << (n & 7); }
     }
   }
+  cv.width = cv.height = 0;   // the 4 MB scratch goes now: on iOS a canvas nobody holds still counts until the collector finds it
   return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; if (i < 0 || j < 0 || i >= W || j >= H) return false; const n = j * W + i; return (bits[n >> 3] >> (n & 7) & 1) === 1; };
 }

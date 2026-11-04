@@ -56,6 +56,7 @@ function softNoise(g, r, cells, rgb, amax, sy = 1) {
   }
   g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
   g.drawImage(sm, 0, 0, sm.width, sm.height, -T, -T, 3 * T, 3 * T); g.restore();
+  sm.width = sm.height = 0;   // (on iOS a canvas nobody holds still counts until the collector finds it)
 }
 function plaster(g, r, base = '#e7e1d3', o = {}) {
   g.fillStyle = base; g.fillRect(0, 0, T, T);
@@ -1255,10 +1256,10 @@ for (const [name, first, n] of [['res_up', 'res_a', 5], ['n19_up', 'n19_up_g', 3
 }
 
 // Build the 2D-array texture once (a generator that yields per layer, so the world streamer can warm it up in slices).
-function* buildAtlasIter() {
+// Its pixels (61 MB of JavaScript memory) are dropped once they are on the GPU; a lost GL context takes them with it (phones can do this in the background), so they are drawn again on restore. The layers are seeded: the same pixels come back.
+function* paintAtlas(data) {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
   const g = cv.getContext('2d', { willReadFrequently: true });
-  const data = new Uint8Array(T * T * 4 * LAYERS.length);
   const sheet = /[?&]atlas=1/.test(location.search) ? document.createElement('canvas') : null; // debug contact sheet
   if (sheet) { sheet.width = 8 * 160; sheet.height = Math.ceil(LAYERS.length / 8) * 160; sheet.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:#7a8a9a'; document.body.appendChild(sheet); }
   for (let i = 0; i < LAYERS.length; i++) {
@@ -1270,12 +1271,19 @@ function* buildAtlasIter() {
     for (let y = 0; y < T; y++) data.set(px.subarray(y * T * 4, (y + 1) * T * 4), (i * T + (T - 1 - y)) * T * 4); // flip: v = 1 is the top
     yield;
   }
+  cv.width = cv.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
+}
+function* buildAtlasIter() {
+  const data = new Uint8Array(T * T * 4 * LAYERS.length);
+  yield* paintAtlas(data);
   const tex = new THREE.DataArrayTexture(data, T, T, LAYERS.length);
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
+  tex.onUpdate = () => { tex.image.data = null; };
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(T * T * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
   return tex;
 }
 
@@ -1388,7 +1396,7 @@ class GB {
     g.setAttribute('color', new THREE.BufferAttribute(this.C.slice(0, n * 3), 3));
     g.setAttribute('uv', new THREE.BufferAttribute(this.U.slice(0, n * 2), 2));
     g.setAttribute('aLayer', new THREE.BufferAttribute(this.L.slice(0, n), 1));
-    g.setIndex(new THREE.BufferAttribute(this.I.slice(0, this.ni), 1));
+    g.setIndex(new THREE.BufferAttribute(n <= 65536 ? new Uint16Array(this.I.subarray(0, this.ni)) : this.I.slice(0, this.ni), 1));
     return new THREE.Mesh(g, mat);
   }
 }
@@ -2201,7 +2209,7 @@ const SHOP_EXTRA = {
   side: { k: 1, sh: 0.8, add: [['g_portone', 1.7], ['g_bar', 0.45], ['g_bottega', 0.7], ['g_pane', 0.35], ['g_tabacchi', 0.35], ['g_farm', 0.15]] },
   minor: { k: 1, add: [['g_portone', 0.7], ['g_bottega', 0.3]] },
 };
-const MIX_CACHE = new Map();
+const MIX_CACHE = new WeakMap();   // (weak: the old town's houses each have a style of their own, and a Map kept them all for good, a few MB more with every tile)
 function groundMix(S, B) {
   if (S.church || S.ind || S.silo || S.ruin || S.noShops) return S.ground;
   const nm = B.sn || '', cl = B.sc || '';

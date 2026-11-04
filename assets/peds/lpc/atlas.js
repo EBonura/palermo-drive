@@ -18,12 +18,13 @@ export function createLpcAtlas(cast, base) {
       const index = await (await fetch(base + 'index.json')).json();
       const bmp = await createImageBitmap(await (await fetch(base + 'atlas.png')).blob());
       const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; const g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(bmp, 0, 0);
-      const px = g.getImageData(0, 0, cv.width, cv.height).data, n = cv.width * cv.height, data = new Uint16Array(n);
+      const px = g.getImageData(0, 0, cv.width, cv.height).data, W = cv.width, H = cv.height, n = W * H, data = new Uint16Array(n);
+      bmp.close(); cv.width = cv.height = 0;   // 24 MB of canvas that would wait for the collector (iOS counts it until then)
       for (let i = 0, k = 0; i < n; i++, k += 4) data[i] = px[k + 3] > 127 ? ((px[k] >> 3) << 11) | ((px[k + 1] >> 3) << 6) | ((px[k + 2] >> 3) << 1) | 1 : (px[k] >> 6 << 11) | (px[k + 1] >> 6 << 6) | (px[k + 2] >> 6 << 1);
-      [out.FCW, out.FCH] = index.cell; out.farCol = index.cols; out.farW = cv.width; out.farH = cv.height;
+      [out.FCW, out.FCH] = index.cell; out.farCol = index.cols; out.farW = W; out.farH = H;
       index.entries.forEach((e, v) => { if (v >= N || e.id !== cast[v].id) return; for (const c of Object.keys(e.cells)) farIdx[v][+c] = e.cells[c]; farDone[v] = 1; });   // entries are in the order of the cast (assets/peds/sprites.js)
-      far.dispose(); far.image = { data, width: cv.width, height: cv.height }; far.generateMipmaps = true; far.minFilter = THREE.LinearMipmapLinearFilter; far.onUpdate = () => { far.image.data = null; far.onUpdate = null; }; far.needsUpdate = true;
-      farSz.set(cv.width, cv.height);
+      far.dispose(); far.image = { data, width: W, height: H }; far.generateMipmaps = true; far.minFilter = THREE.LinearMipmapLinearFilter; far.onUpdate = () => { far.image.data = null; far.onUpdate = null; }; far.needsUpdate = true;
+      farSz.set(W, H);
       stats.farBytes = n * 2; stats.farMipBytes = Math.round(n * 2 * 1.34); stats.farTexels = n; stats.farCells = index.entries.length * CPE; stats.loaded = true;
     } catch (e) { console.warn('LPC pedestrian atlas failed to load', e); }
   };

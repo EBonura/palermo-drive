@@ -503,7 +503,7 @@ export function createRoadWear(env) {
     const mw = B.mesh(wearMat), mwa = W.mesh(waterMat), mm = M.mesh(markMat);
     if (mm) mm.renderOrder = 1;
     if (mwa) mwa.renderOrder = 0;
-    for (const m of [mw, mwa, mm]) if (m) { scene.add(m); out.meshes.push(m); }
+    for (const m of [mw, mwa, mm]) if (m) { scene.add(m); out.meshes.push(m); world.freeAfterUpload(m); }   // (a lost GL context: built again, below)
     return out;
   }
   const MARK_COL = C('#1c1b1b');
@@ -532,6 +532,7 @@ export function createRoadWear(env) {
     }
   }
   world.onTile(onTile);   // replays 'full' for the tiles already in
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { for (const W of live.values()) for (const c of W.cells.values()) unload(c); queue = []; dirty = true; });
 
   function generate(ms) {   // a few ms per frame of tile generation, nearest tile first
     const t0 = performance.now(), cp = camera.position;

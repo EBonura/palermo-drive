@@ -9,7 +9,7 @@
 // class, then yield to the right). Vehicles are spawned out of
 // view around the camera, despawned out of view, and drawn with one InstancedMesh per model.
 import * as THREE from 'three';
-import { proj } from './core.js';
+import { proj, freeCanvas } from './core.js';
 import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
 import { parked } from './props.js';   // the cars parked along the kerbs: obstacles to steer round, and to run into
 import { createGraph, CLASS } from './traffic-graph.js';
@@ -193,15 +193,16 @@ Object.assign(MODELS, buildPoliceModels());
     cv.width = W * 2; cv.height = H * 2 * ROWS.length;
     const g = cv.getContext('2d'), tmp = document.createElement('canvas'), tg = tmp.getContext('2d');
     tmp.width = W; tmp.height = H; g.imageSmoothingEnabled = false;
-    ROWS.forEach((r, i) => {
+    const paintRows = () => { g.imageSmoothingEnabled = false; ROWS.forEach((r, i) => {
       tg.fillStyle = '#080604'; tg.fillRect(0, 0, W, H);
       const text = (r.ref + ' ' + r.to).trim().toUpperCase().replace(/^(PARCHEGGIO|PIAZZALE|STAZIONE) /, m => m.slice(0, 4) + '. ');
       let px = 11; tg.textBaseline = 'middle';
       do { tg.font = `bold ${px}px monospace`; px--; } while (tg.measureText(text).width > W - 6 && px > 6);
       tg.fillStyle = '#ffae1a'; tg.fillText(text, 3, H / 2 + 1);
       g.drawImage(tmp, 0, i * H * 2, W * 2, H * 2);
-    });
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+    }); };
+    paintRows();
+    const tex = freeCanvas(new THREE.CanvasTexture(cv), paintRows); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
     const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
     mat.onBeforeCompile = sh => {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float row;')

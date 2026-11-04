@@ -128,7 +128,8 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   const SUB_MIN = 96, SUB_DIV = 5, SUB_TRIS = 1500, MAX_TRIS_STEP = 40000;   // under SUB_TRIS triangles a draw costs less than testing its parts
   function subBoxes(l, budget) {
     const u = l.userData, geo = l.geometry, pos = geo.attributes.position;
-    if (!pos || !pos.array || u.leanSub !== undefined) return budget;
+    if (u.leanSub !== undefined) return budget;
+    if (!pos || !pos.array) { u.leanSub = null; return budget; }   // (a tile mesh that has given up its arrays, src/world.js)
     const c = u.leanBox, tris = (geo.index ? geo.index.count : pos.count) / 3 * (l.isInstancedMesh ? l.count : 1);
     if (!c || tris < SUB_TRIS || (c[2] - c[0] < SUB_MIN && c[3] - c[1] < SUB_MIN) || /^(far_|farcity)/.test(l.name)) { u.leanSub = null; return budget; }
     let J = u.leanJob;

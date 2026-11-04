@@ -28,7 +28,7 @@ function farSurface(F) {
 export function buildContext() { const g = new THREE.Group(); g.name = 'context'; return g; }
 
 // root: where the chunk meshes go; F: the manifest's far grid; nk(i, j): the streamer's tile key; mat: a vertex-colour material
-export function createFarCity({ root, F, T, nk, url, mat }) {
+export function createFarCity({ root, F, T, nk, url, mat, free }) {
   const ground = farSurface(F);
   const dir = new Map();      // tile key -> { k, i, j, off, n, tris }
   const byChunk = new Map();  // chunk key -> [tile entries]
@@ -64,7 +64,7 @@ export function createFarCity({ root, F, T, nk, url, mat }) {
     const t0 = performance.now(), tiles = byChunk.get(key), { x: bx, z: bz, w: bw, d: bd, q: bq, c: bc, m: bm, cell } = cols;
     let nv = 0, ni = 0;
     for (const e of tiles) for (let b = e.off; b < e.off + e.n; b++) { const m = bm[b], s = (m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1); nv += 4 + 4 * s; ni += 6 + 6 * s; }
-    const pos = new Float32Array(nv * 3), nor = new Int8Array(nv * 4), col = new Float32Array(nv * 3), idx = new Uint32Array(ni), ranges = [];
+    const pos = new Float32Array(nv * 3), nor = new Int8Array(nv * 4), col = new Float32Array(nv * 3), idx = new (nv <= 65536 ? Uint16Array : Uint32Array)(ni), ranges = [];
     let v = 0, ii = 0, nbx = 0;
     const quad = (ax, ay, az, bx2, by, bz2, y1, y0, nx, ny, nz, c) => { // wall: bottom edge a->b, normal given; or roof when y0 === null
       const o = v * 3;
@@ -98,7 +98,7 @@ export function createFarCity({ root, F, T, nk, url, mat }) {
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const live = idx.slice(); geo.setIndex(new THREE.BufferAttribute(live, 1));
     geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, mat); mesh.name = 'farcity_' + key; mesh.matrixAutoUpdate = false;
+    const mesh = new THREE.Mesh(geo, mat); mesh.name = 'farcity_' + key; mesh.matrixAutoUpdate = false; free?.(mesh);
     const ch = { key, mesh, geo, master: idx, live, ranges, tris: 0, ni };
     chunks.set(key, ch); root.add(mesh); built++; buildMs += performance.now() - t0;
     applyHidden(ch);
@@ -153,6 +153,7 @@ export function createFarCity({ root, F, T, nk, url, mat }) {
       for (const e of dir.values()) { if (skip.has(e.k)) continue; const x = (e.i + 0.5) * T - fx, z = (e.j + 0.5) * T - fz; if (x * x + z * z < R * R) n += e.tris; }
       return n;
     },
+    contextRestored() { for (const ch of chunks.values()) { ch.mesh.removeFromParent(); ch.geo.dispose(); } chunks.clear(); },   // the meshes gave up their arrays: the next sync builds them again
     stats() { let tris = 0, boxes = 0; for (const ch of chunks.values()) tris += ch.tris; for (const e of dir.values()) boxes += e.n; return { loaded, chunks: chunks.size, built, buildMs: +buildMs.toFixed(0), tris, boxes, tiles: dir.size }; },
   };
 }

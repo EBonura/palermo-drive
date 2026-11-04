@@ -25,7 +25,7 @@ export function decode(buf) {
       case 4: case 5: case 6: case 7: case 8: case 9: return rV() / P10[t - 3];
       case 10: { const v = dv.getFloat64(pf, true); pf += 8; return v; }
       case 11: return strs[rL()];
-      case 12: { const n = rL(), a = []; for (let i = 0; i < n; i++) a.push(get()); return a; }
+      case 12: { const n = rL(), a = new Array(n); for (let i = 0; i < n; i++) a[i] = get(); return a; }   // (sized at once: an array grown by push keeps up to a third more than it holds, and the tile data lives on)
       case 13: {
         let id = rL(), keys;
         if (id === 0) { const n = rL(); keys = []; for (let i = 0; i < n; i++) keys.push(strs[rL()]); shapes.push(keys); } else keys = shapes[id - 1];
@@ -33,11 +33,11 @@ export function decode(buf) {
       }
       case 14: {
         const n = rL(), mode = buf[pt++], d = mode & 7, stride = (mode >> 3) & 3, hs = ((mode >> 5) & 3) * 2, order = mode >> 7;
-        const q = [];
-        for (let i = 0; i < hs; i++) q.push(rV());
-        if (!stride) for (let i = hs; i < n; i++) q.push(rV());
-        else if (!order) for (let i = hs; i < n; i++) q.push(rV() + (i - stride >= hs ? q[i - stride] : 0));
-        else for (let i = hs; i < n; i++) { const a = i - stride >= hs ? q[i - stride] : 0; q.push(rV() + (i - 2 * stride >= hs ? 2 * a - q[i - 2 * stride] : a)); }
+        const q = new Array(n);
+        for (let i = 0; i < hs; i++) q[i] = rV();
+        if (!stride) for (let i = hs; i < n; i++) q[i] = rV();
+        else if (!order) for (let i = hs; i < n; i++) q[i] = rV() + (i - stride >= hs ? q[i - stride] : 0);
+        else for (let i = hs; i < n; i++) { const a = i - stride >= hs ? q[i - stride] : 0; q[i] = rV() + (i - 2 * stride >= hs ? 2 * a - q[i - 2 * stride] : a); }
         if (d) { const k = P10[d]; for (let i = 0; i < n; i++) q[i] /= k; }
         return q;
       }

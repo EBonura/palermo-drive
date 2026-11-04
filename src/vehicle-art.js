@@ -2,6 +2,7 @@
 // Everything is drawn in code (canvas), no external image. Shared materials are created once; the livery-dependent
 // ("painted") materials exist per vehicle type and are recoloured in place (local car) or cloned per livery (remote players).
 import * as THREE from 'three';
+import { freeCanvas } from './core.js';
 import { PI, TAU, MAT_STAGE } from './vehicle-kit.js';
 import { parseLivery } from './garage.js';
 
@@ -14,6 +15,7 @@ export function canvasTex(w, h, draw, repeat) {
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   return t;
 }
+const artTex = (w, h, draw) => freeCanvas(canvasTex(w, h, draw), draw);   // this file's textures live for good, so they free their canvas after upload (the Garage makes and disposes its own with canvasTex)
 const FOLK = { yellow: '#f2c200', red: '#d42a1f', blue: '#1c4fb8', green: '#1f9a4a', cream: '#fff0cf', orange: '#ec7a1c', dark: '#2a1a10' };
 function flower(g, x, y, r, petal, centre, n = 8) {
   for (let i = 0; i < n; i++) {
@@ -61,15 +63,15 @@ function folkPanel(g, w, h, seed) {
     }
   }
 }
-export const T_FOLK_REAR = canvasTex(512, 200, (g, w, h) => folkPanel(g, w, h, 11));
-export const T_FOLK_CAB = canvasTex(384, 190, (g, w, h) => folkPanel(g, w, h, 29));
-export const T_CHECK = canvasTex(64, 64, g => { for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#fdfbf2' : '#1c4fb8'; g.fillRect(x * 32, y * 32, 32, 32); } }, [1, 12]);
-export const T_CANVAS = canvasTex(128, 128, (g, w, h) => {
+export const T_FOLK_REAR = artTex(512, 200, (g, w, h) => folkPanel(g, w, h, 11));
+export const T_FOLK_CAB = artTex(384, 190, (g, w, h) => folkPanel(g, w, h, 29));
+export const T_CHECK = artTex(64, 64, g => { for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#fdfbf2' : '#1c4fb8'; g.fillRect(x * 32, y * 32, 32, 32); } }, [1, 12]);
+export const T_CANVAS = artTex(128, 128, (g, w, h) => {
   const R = rngOf(5); g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < w; i += 3) { g.fillStyle = `rgba(0,0,0,${0.05 + R() * 0.05})`; g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
   for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(0,0,0,${R() * 0.06})`; g.fillRect(R() * w, R() * h, 2, 2); }
 }, [2, 2]);
-export const T_WOOD = canvasTex(256, 128, (g, w, h) => {
+export const T_WOOD = artTex(256, 128, (g, w, h) => {
   const R = rngOf(3), n = 6, sh = h / n;
   for (let i = 0; i < n; i++) {
     const l = 36 + R() * 8; g.fillStyle = `hsl(28,62%,${l}%)`; g.fillRect(0, i * sh, w, sh);
@@ -95,7 +97,7 @@ const PINK = '#f27aa8', PINK_D = '#b83a6e', INK = '#16101a';
 let _stk = null;
 export function stickerAtlas() {
   if (_stk) return _stk;
-  _stk = canvasTex(1024, ATLAS_H, (g, W, H) => {
+  _stk = artTex(1024, ATLAS_H, (g, W, H) => {
     g.clearRect(0, 0, W, H);
     // PALERMO: chunky italic block letters, pink with a black outline and a pink drop
     { const [x, y, w, h] = STK.palermo; g.save(); g.translate(x + w / 2, y + h / 2);

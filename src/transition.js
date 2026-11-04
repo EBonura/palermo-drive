@@ -93,6 +93,7 @@ async function run(work, { cover = 560, reveal = 560, hold = 250, lapa = true } 
   root.classList.remove('lapa');
   await play(reveal, -1);
   root.classList.remove('on');
+  cv.width = cv.height = 1;   // a full-screen canvas is 15 MB at pixel ratio 2: layout() sizes it again
   announce(false);
   if (failed) throw err;
   return res;

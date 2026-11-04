@@ -302,8 +302,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       landPoly = { pts, x0, z0, x1, z1, islands: (M.islands || []).map(pairs) }; }
     buildFar();
-    hills = createHills({ root, url: new URL('assets/world/hills.bin', document.baseURI).href, mat: getLowMats().far, farM, colour: hillColour }); hills.load();
-    farCity = createFarCity({ root, F: M.far, T, nk, url: new URL('assets/world/far.bin', document.baseURI).href, mat: getLowMats().roof });
+    hills = createHills({ root, url: new URL('assets/world/hills.bin', document.baseURI).href, mat: getLowMats().far, farM, colour: hillColour, free: m => freeAfterUpload(m, true) }); hills.load();
+    farCity = createFarCity({ root, F: M.far, T, nk, url: new URL('assets/world/far.bin', document.baseURI).href, mat: getLowMats().roof, free: m => freeAfterUpload(m, true) });
     farCity.load().then(() => { wantedTimer = 99; }); // the budget needs the far triangle counts
     // warm the facade atlas in slices while the first tiles download
     const warm = warmBuildings(); tasks.push({ t: { pd: -1 }, gen: warm, wait: null, name: 'atlas' });
@@ -372,6 +372,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       geo.setIndex(new THREE.BufferAttribute(idx, 1));
       geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(F.x0 + (ci0 + ci1) / 2 * s, 100, F.z0 + (cj0 + cj1) / 2 * s), Math.hypot(vx, vz) * s * 0.75 + 800);
       const mesh = new THREE.Mesh(geo, mat); mesh.name = 'far_' + a + '_' + b; mesh.receiveShadow = true;
+      freeAfterUpload(mesh, true);
       root.add(mesh);
       far.chunks.set(a * 1000 + b, { mesh, idx, ci0, cj0, vx, vz, dirty: true });
     }
@@ -425,11 +426,41 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
 
   function disposeObj(o) {
     o.removeFromParent();
-    o.traverse(c => { if (c.geometry) c.geometry.dispose(); });
+    o.traverse(c => { c.visible = false; if (c.geometry) c.geometry.dispose(); });   // (not visible: the static shadow job of src/engine-lean.js holds a list of meshes for a few frames, and drawing a disposed one uploads it again)
+  }
+  // The JavaScript copy of the geometry. Tile terrain, streets and buildings never change once built, and collisions, masks and the minimap read the tile data, not the meshes (the fences edit theirs, the camera reads the landmarks and bridges,
+  // the instanced parts move: those keep their arrays). So a mesh's arrays go once it is on the GPU and the lean renderer has its boxes. Three.js would upload them again after a lost GL context: the tile is rebuilt then (contextRestored below).
+  const FREE_PARTS = new Set(['terrain', 'streets', 'streetsHi', 'paint', 'tracks', 'bldLow']);
+  const onGPU = [];   // meshes whose arrays are all uploaded
+  function freeAfterUpload(o, keepIndex) {   // keepIndex: the far meshes rewrite their index as tiles come and go
+    o.traverse(m => {
+      if (!m.isMesh || m.isInstancedMesh) return;
+      const g = m.geometry, all = Object.values(g.attributes); if (g.index && !keepIndex) all.push(g.index);
+      m.userData.keepIndex = keepIndex;
+      let left = all.length;
+      const up = () => { if (--left === 0) onGPU.push(m); };
+      for (const a of all) { if (a.isInterleavedBufferAttribute) return; a.onUpload(up); }
+    });
+  }
+  function freeStep() {
+    for (let i = onGPU.length - 1; i >= 0; i--) {
+      const m = onGPU[i], u = m.userData;
+      const lean = hooks.occ && !m.matrixAutoUpdate && u.leanSub === undefined;   // src/engine-lean.js works out its boxes from the arrays of the frozen meshes (one it never takes as a leaf keeps them: after 20 s or so we stop asking)
+      if (lean && (u.leanWait = (u.leanWait || 0) + 1) < 1200) continue;
+      onGPU[i] = onGPU[onGPU.length - 1]; onGPU.pop();
+      const g = m.geometry;
+      if (lean) continue;
+      if (!g.boundingBox) g.computeBoundingBox();
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      for (const k in g.attributes) g.attributes[k].array = null;
+      if (g.index && !u.keepIndex) g.index.array = null;
+      u.freed = true;
+    }
   }
   function setPart(t, name, obj, tris) {
     const old = t.parts[name];
     if (old) disposeObj(old);
+    if (obj && FREE_PARTS.has(name)) freeAfterUpload(obj);
     if (obj) {
       t.parts[name] = obj; t.tris[name] = tris !== undefined ? tris : (obj.userData.tris || 0);
       // nothing under the world root moves after it is placed (checked at the centro, the port, Mondello, the stadium: no matrix changed in 10 s of driving), so the matrices are
@@ -552,7 +583,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), pav = new Float32Array(n * n), yar = new Float32Array(n * n), rda = new Float32Array(n * n), pvf = paveField(t), rdf = roadField(t);
+    const nb = n * n, total = nb + 4 * n;   // the grid, then the skirt (below): one set of arrays, sized for both
+    const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), pav = new Float32Array(total), yar = new Float32Array(total), rda = new Float32Array(total), pvf = paveField(t), rdf = roadField(t);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
@@ -606,29 +638,25 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid, a low detail cell next to a full detail one) stay hidden.
     // On a cliff the two meshes of a tile border differ by more than the old 8 m, and the sky showed through as a bright blue sliver.
     const SKIRT = 30;
-    const sk = [], at = (i, j) => (j * n + i);
-    for (let i = 0; i < n; i++) { sk.push(at(i, 0), at(i, n - 1), at(0, i), at(n - 1, i)); }
-    const nb = n * n, total = nb + sk.length;
-    const P = new Float32Array(total * 3), N = new Float32Array(total * 3), Cc = new Float32Array(total * 3), UV = new Float32Array(total * 2);
-    P.set(pos); N.set(nor); Cc.set(col); UV.set(uv);
-    const PA = new Float32Array(total), YA = new Float32Array(total), RA = new Float32Array(total); PA.set(pav); YA.set(yar); RA.set(rda);
-    sk.forEach((v, q) => { const a = v * 3, b = (nb + q) * 3; P[b] = pos[a]; P[b + 1] = pos[a + 1] - SKIRT; P[b + 2] = pos[a + 2]; N[b] = nor[a]; N[b + 1] = nor[a + 1]; N[b + 2] = nor[a + 2]; Cc[b] = col[a]; Cc[b + 1] = col[a + 1]; Cc[b + 2] = col[a + 2]; UV[(nb + q) * 2] = uv[v * 2]; UV[(nb + q) * 2 + 1] = uv[v * 2 + 1]; PA[nb + q] = pav[v]; YA[nb + q] = yar[v]; RA[nb + q] = rda[v]; });
-    const idx = [];
-    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx.push(k, k + n, k + 1, k + 1, k + n, k + n + 1); }
+    const sk = new Int32Array(4 * n), at = (i, j) => (j * n + i);
+    for (let i = 0, q = 0; i < n; i++) { sk[q++] = at(i, 0); sk[q++] = at(i, n - 1); sk[q++] = at(0, i); sk[q++] = at(n - 1, i); }
+    for (let q = 0; q < sk.length; q++) { const v = sk[q], a = v * 3, b = (nb + q) * 3; pos[b] = pos[a]; pos[b + 1] = pos[a + 1] - SKIRT; pos[b + 2] = pos[a + 2]; nor[b] = nor[a]; nor[b + 1] = nor[a + 1]; nor[b + 2] = nor[a + 2]; col[b] = col[a]; col[b + 1] = col[a + 1]; col[b + 2] = col[a + 2]; uv[(nb + q) * 2] = uv[v * 2]; uv[(nb + q) * 2 + 1] = uv[v * 2 + 1]; pav[nb + q] = pav[v]; yar[nb + q] = yar[v]; rda[nb + q] = rda[v]; }
+    const nIdx = (n - 1) * (n - 1) * 6 + (n - 1) * 24, idx = total < 65536 ? new Uint16Array(nIdx) : new Uint32Array(nIdx); let ii = 0;
+    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx[ii++] = k; idx[ii++] = k + n; idx[ii++] = k + 1; idx[ii++] = k + 1; idx[ii++] = k + n; idx[ii++] = k + n + 1; }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
     for (let i = 0; i < n - 1; i++) {
       const s0 = nb + i * 4, s1 = nb + (i + 1) * 4;
-      for (let side = 0; side < 4; side++) { const a = sk[i * 4 + side], b = sk[(i + 1) * 4 + side], sa = s0 + side, sb = s1 + side; idx.push(a, b, sa, b, sb, sa); }
+      for (let side = 0; side < 4; side++) { const a = sk[i * 4 + side], b = sk[(i + 1) * 4 + side], sa = s0 + side, sb = s1 + side; idx[ii++] = a; idx[ii++] = b; idx[ii++] = sa; idx[ii++] = b; idx[ii++] = sb; idx[ii++] = sa; }
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(Cc, 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
-    geo.setAttribute('aPave', new THREE.BufferAttribute(PA, 1));
-    geo.setAttribute('aYard', new THREE.BufferAttribute(YA, 1));
-    geo.setAttribute('aRoad', new THREE.BufferAttribute(RA, 1));
-    geo.setIndex(new THREE.BufferAttribute(total < 65536 ? new Uint16Array(idx) : new Uint32Array(idx), 1));
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute('aPave', new THREE.BufferAttribute(pav, 1));
+    geo.setAttribute('aYard', new THREE.BufferAttribute(yar, 1));
+    geo.setAttribute('aRoad', new THREE.BufferAttribute(rda, 1));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
     m.userData.tris = idx.length / 3;
     return m;
@@ -637,8 +665,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- low-detail buildings: plain extrusions ----------
   function* lowBuildings(t) {
     const d = t.data, skip = ctx.skip;
-    const wp = [], wn = [], wc = [], wu = [], wi = [], rp = [], rn = [], rc = [], ri = [];
-    let nb = 0, wv = 0, rv = 0;
+    // typed from the start and grown by doubling (plain arrays by push were a fifth of all the garbage of a load)
+    const roomF = (a, n) => { if (n <= a.length) return a; const b = new Float32Array(Math.max(n, a.length * 2)); b.set(a); return b; };
+    let wp = new Float32Array(12288), wn = new Float32Array(12288), wc = new Float32Array(12288), wu = new Float32Array(8192), wi = new Uint32Array(6144), rp = new Float32Array(6144), rc = new Float32Array(6144);
+    let nb = 0, wv = 0, rv = 0, nwi = 0;
     const solids = [];
     for (const b of d.buildings) {
       if (skip.has(b.id)) continue;
@@ -657,45 +687,57 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         let gmax = -1e9, gmin = 1e9; for (const y of gs) { gmax = Math.max(gmax, y); gmin = Math.min(gmin, y); }
         const roof = Math.max(roofAbs === null ? gmax + b.h : roofAbs, gmax + 2.5);
         const col = PLASTER[b.c % PLASTER.length], v = 0.92 + ((b.c >> 4) % 9) * 0.02;
+        const cr = col.r * v, cg = col.g * v, cb = col.b * v;
         let acc = 0;
         for (let i = 0; i < pts.length; i++) {
           const a = pts[i], bb = pts[(i + 1) % pts.length], dx = bb[0] - a[0], dz = bb[1] - a[1], len = Math.hypot(dx, dz);
           if (len < 0.3) continue;
           const nx = dz / len, nz = -dx / len, ya = gs[i] - 0.6, yb = gs[(i + 1) % pts.length] - 0.6, base = Math.min(ya, yb);
           const u0 = acc / 7.2, u1 = (acc + len) / 7.2, v0a = (ya - base) / 6.6, v0b = (yb - base) / 6.6, vt = (roof - base) / 6.6;
-          wp.push(a[0], ya, a[1], bb[0], yb, bb[1], bb[0], roof, bb[1], a[0], roof, a[1]);
-          for (let q = 0; q < 4; q++) { wn.push(nx, 0, nz); wc.push(col.r * v, col.g * v, col.b * v); }
-          wu.push(u0, v0a, u1, v0b, u1, vt, u0, vt);
-          wi.push(wv, wv + 2, wv + 1, wv, wv + 3, wv + 2); wv += 4;
+          const o3 = wv * 3, o2 = wv * 2, n3 = o3 + 12;
+          wp = roomF(wp, n3); wn = roomF(wn, n3); wc = roomF(wc, n3); wu = roomF(wu, o2 + 8);
+          if (nwi + 6 > wi.length) { const w2 = new Uint32Array(wi.length * 2); w2.set(wi); wi = w2; }
+          wp[o3] = a[0]; wp[o3 + 1] = ya; wp[o3 + 2] = a[1]; wp[o3 + 3] = bb[0]; wp[o3 + 4] = yb; wp[o3 + 5] = bb[1]; wp[o3 + 6] = bb[0]; wp[o3 + 7] = roof; wp[o3 + 8] = bb[1]; wp[o3 + 9] = a[0]; wp[o3 + 10] = roof; wp[o3 + 11] = a[1];
+          for (let q = 0; q < 4; q++) { const o = o3 + q * 3; wn[o] = nx; wn[o + 1] = 0; wn[o + 2] = nz; wc[o] = cr; wc[o + 1] = cg; wc[o + 2] = cb; }
+          wu[o2] = u0; wu[o2 + 1] = v0a; wu[o2 + 2] = u1; wu[o2 + 3] = v0b; wu[o2 + 4] = u1; wu[o2 + 5] = vt; wu[o2 + 6] = u0; wu[o2 + 7] = vt;
+          wi[nwi++] = wv; wi[nwi++] = wv + 2; wi[nwi++] = wv + 1; wi[nwi++] = wv; wi[nwi++] = wv + 3; wi[nwi++] = wv + 2; wv += 4;
           acc += len;
         }
         try {
           const contour = pts.map(p => new THREE.Vector2(p[0], p[1])), tris = THREE.ShapeUtils.triangulateShape(contour, []);
           const rcol = b.rc ? _lr.set('#' + b.rc) : (roof - gmin < 9 && (b.c & 3) === 0) ? TERRACOTTA : ROOFS[b.c % ROOFS.length];   // b.rc: the orthophoto roof colour
+          const rr = rcol.r * v, rg = rcol.g * v, rbl = rcol.b * v;
+          rp = roomF(rp, (rv + tris.length * 3) * 3); rc = roomF(rc, (rv + tris.length * 3) * 3);
           for (const tr of tris) {
-            let [a, bq, c] = tr.map(i => pts[i]);
-            if ((bq[1] - a[1]) * (c[0] - a[0]) - (bq[0] - a[0]) * (c[1] - a[1]) < 0) [bq, c] = [c, bq];
-            for (const p of [a, bq, c]) { rp.push(p[0], roof, p[1]); rn.push(0, 1, 0); rc.push(rcol.r * v, rcol.g * v, rcol.b * v); ri.push(rv++); }
+            const a = pts[tr[0]]; let bq = pts[tr[1]], c = pts[tr[2]];
+            if ((bq[1] - a[1]) * (c[0] - a[0]) - (bq[0] - a[0]) * (c[1] - a[1]) < 0) { const q = bq; bq = c; c = q; }
+            for (let q = 0; q < 3; q++) { const p = q === 0 ? a : q === 1 ? bq : c, o = rv++ * 3; rp[o] = p[0]; rp[o + 1] = roof; rp[o + 2] = p[1]; rc[o] = rr; rc[o + 1] = rg; rc[o + 2] = rbl; }
           }
         } catch (e) { /* skip broken ring */ }
       }
     }
     const g = new THREE.Group();
-    const mk = (P, N, Cc, U, I, mat, name) => {
-      if (!I.length) return;
+    const mk = (geo, mat, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.matrixAutoUpdate = false; g.add(m); };
+    if (nwi) {
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
-      if (U) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(U), 2));
-      geo.setIndex(new THREE.BufferAttribute(P.length / 3 < 65536 ? new Uint16Array(I) : new Uint32Array(I), 1));
-      const m = new THREE.Mesh(geo, mat); m.name = name; m.matrixAutoUpdate = false;
-      g.add(m);
-    };
-    mk(wp, wn, wc, wu, wi, getLowMats().wall, 'low_walls');
+      geo.setAttribute('position', new THREE.BufferAttribute(wp.slice(0, wv * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(wn.slice(0, wv * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(wc.slice(0, wv * 3), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(wu.slice(0, wv * 2), 2));
+      geo.setIndex(new THREE.BufferAttribute(wv < 65536 ? new Uint16Array(wi.subarray(0, nwi)) : wi.slice(0, nwi), 1));
+      mk(geo, getLowMats().wall, 'low_walls');
+    }
     yield;
-    mk(rp, rn, rc, null, ri, getLowMats().roof, 'low_roofs');
-    g.userData.tris = (wi.length + ri.length) / 3;
+    if (rv) {
+      const geo = new THREE.BufferGeometry(), nor = new Float32Array(rv * 3), idx = rv < 65536 ? new Uint16Array(rv) : new Uint32Array(rv);
+      for (let i = 0; i < rv; i++) { nor[i * 3 + 1] = 1; idx[i] = i; }
+      geo.setAttribute('position', new THREE.BufferAttribute(rp.slice(0, rv * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(rc.slice(0, rv * 3), 3));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      mk(geo, getLowMats().roof, 'low_roofs');
+    }
+    g.userData.tris = (nwi + rv) / 3;
     return g;
   }
 
@@ -1147,6 +1189,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const occ = hooks.occ?.begin(t);   // the lean renderer: the building solids of this tile become its occluder grid (src/engine-lean.js)
     const tctx = lms.length || occ ? { ...ctx, skip: new Set([...ctx.skip, ...lms.flatMap(l => l.skipIds || [])]), onSolid: occ?.add } : ctx;
     yield* buildBuildingsIter(tctx, t.data, bg);
+    freeAfterUpload(bg);   // (the landmark models added next keep their arrays: src/camera-clear.js reads them)
     for (const l of lms) { // landmark models standing in for those generic buildings
       // a model reads the ground under its whole footprint: wait (8 s at most) for the tiles round it that are on their way, so it stands on the streamed ground and not on the far grid
       for (let t0 = performance.now(); t.want >= 2 && performance.now() - t0 < 8000 && lmNeighboursPending(l);) yield new Promise(r => setTimeout(r, 200));
@@ -1188,7 +1231,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* process(t) {
     for (;;) {
       const want = t.want;
-      if (want === 0) { release(t); return; }
+      if (want === 0 || t.lost) { release(t); return; }
       if (t.lod === want && !(want === 1 && t.hasFull)) { if (want === 1) stash(t); return; }
       if (!(yield* ensureData(t))) { if (t.want === 0) continue; return; }
       if (t.want !== want) continue;
@@ -1307,6 +1350,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   }
   function ensureTask(t) {
     if (t.task || t.dead) return;
+    if (t.lost) { const task = { t, gen: process(t), wait: null, name: t.id }; t.task = task; tasks.push(task); return; }
     if (t.want === t.lod && !(t.want === 1 && t.hasFull) && t.want !== 0) { if (t.want === 1 && t.data) stash(t); return; }
     if (t.want === 0 && t.lod === 0 && !Object.keys(t.parts).length && !t.data && !t.nearS) { t.dead = true; tiles.delete(t.k); return; }
     if (t.failed && t.want > 0 && !t.data && !cache.has(t.k)) return;
@@ -1411,6 +1455,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     },
     bind(b) { binding = b; applyAt(); },
     // Move the player somewhere far: stream the destination in first, then place the car (placeAt snaps to the nearest road vertex).
+    freeAfterUpload,   // for src/roadwear.js
     onTile(fn) { tileFns.add(fn); for (const t of fullSet) fn('full', t); return () => tileFns.delete(fn); },
     fullTiles() { return [...fullSet]; },
     // Parsed data of tile (i, j) if it is resident or in the parsed-tile LRU (full or low detail), else null. Read-only (minimap).
@@ -1419,6 +1464,18 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     visiblePending() { return visPending; },
     tileData(i, j) { const k = nk(i, j), t = tiles.get(k); return (t && t.data) || cache.get(k) || null; },
     teleport(x, z, done) { tele = { x, z, done }; wantedTimer = 99; },
+    // A lost GL context took the buffers, and the meshes that gave up their arrays cannot upload again: they leave the frame now (before the next render), and their tiles are released and streamed in again, nearest first.
+    contextRestored() {
+      for (const t of tiles.values()) {
+        let lost = false;
+        for (const n in t.parts) t.parts[n].traverse(m => { if (m.userData.freed) { m.visible = false; lost = true; } });
+        if (lost || t.task) { t.lost = true; ensureTask(t); }
+      }
+      onGPU.length = 0; wantedTimer = 99;
+      for (const c of far.chunks.values()) { root.remove(c.mesh); c.mesh.geometry.dispose(); }
+      far.chunks.clear(); if (M) buildFar();
+      hills?.contextRestored(); farCity?.contextRestored();
+    },
     update(dt, cam) {
       if (!M) { if (tasks.length) runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs); return; }
       const t0 = performance.now();
@@ -1432,6 +1489,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       markView();
       pump();
       runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs);
+      freeStep();
       for (const t of tiles.values()) if (!t.task && !t.dead) ensureTask(t);
       if (tele) {
         const t = tiles.get(nk(Math.floor(tele.x / T), Math.floor(tele.z / T)));

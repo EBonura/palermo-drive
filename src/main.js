@@ -1,8 +1,9 @@
+import './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
 import './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
-  Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle } from './core.js';
+  Buf, pairs, signedArea, triUp, fillPoly, canvasTex, rnd, speckle, setCanvasRenderer } from './core.js';
 import { hooks } from './core.js';
 import { T } from './lang.js';   // one language at a time (src/lang.js)
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
@@ -122,6 +123,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;
 const perf = createPerf({ renderer, apply: L => applyLevel(L), gate: () => game.state === 'play' && !game.garage }); // gate: frames are only measured while driving (not on the title, in menus or in the Garage)
 { const maxA = renderer.capabilities.getMaxAnisotropy(); renderer.capabilities.getMaxAnisotropy = () => Math.min(4, maxA); } // [perf pass] cap anisotropic filtering at 4x whatever the modules ask for, on every device // [perf pass] moves the pixel ratio up to the ceiling set in applySettings()
+setCanvasRenderer(renderer);   // (after the anisotropy cap above: the painted textures of the modules go up now)
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap was folded into PCFShadowMap in r182 (PCFShadowMap is the soft one now). [perf pass]
 renderer.shadowMap.type = +THREE.REVISION >= 182 ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -421,7 +423,7 @@ radio = createRadio({ game }); // car radio (src/radio.js): starts on the first 
 const cityAudio = createCityAudio({ scene, camera, car, game, traffic, getRadio: () => radio, mapMarkers, groundY });   // on the radio's AudioContext, so also from the first tap
 if (window.game) window.game.cityAudio = cityAudio;
 watchVersion(game);
-const coords = createCoords({ game, car, camera, groundY, perf });
+const coords = createCoords({ game, car, camera, groundY, perf, minimap });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
@@ -442,6 +444,17 @@ if (world) world.hurry = true;
 })();
 let last = performance.now(), acc = 0, rotHeld = false;
 const STEP = 1 / 120;
+// A lost GL context (phones can do this in the background): the tiles under the car are built again, and the car waits for its ground and walls (under 15 s).
+canvas.addEventListener('webglcontextrestored', () => {
+  if (!world) return;
+  const held = game.state === 'play'; if (held) game.pause();
+  world.hurry = true; world.contextRestored();
+  (function wait(t0 = performance.now(), calm = 0, n = 0) {
+    calm = ++n > 20 && world.visiblePending() === 0 ? calm + 1 : 0;   // (the first frames still see the old tiles)
+    if (calm < 3 && performance.now() - t0 < 15000) return requestAnimationFrame(() => wait(t0, calm, n));
+    world.hurry = false; if (held && game.state === 'pause') game.resume();
+  })();
+});
 renderer.setAnimationLoop(now => {
   if (perf.frame(now)) return; // [perf pass] true: the 30 fps cap skips this refresh
   const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); const away = now - last; last = now; // never negative (headless virtual time)

@@ -109,6 +109,7 @@ function rasterLand(box, k, src, outLand) {
   }
   const px = g.getImageData(0, 0, w, h).data, land = outLand && outLand.length >= w * h ? outLand : new Uint8Array(w * h);
   for (let i = 0, n = w * h; i < n; i++) land[i] = px[i * 4] > 127 ? 1 : 0;
+  cv.width = cv.height = 0;   // (on iOS a canvas nobody holds still counts until the collector finds it)
   return { w, h, land, k, box };
 }
 

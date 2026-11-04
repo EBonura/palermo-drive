@@ -108,7 +108,10 @@ export async function buildDataBlobs({ ROOT, OUT, hash, prune = true, simplify =
   const st = { before: 0, after: 0 };
   if (globals.PALERMO_DATA) {
     const D = globals.PALERMO_DATA;
-    globals.PALERMO_DATA = { ...D, streets: processStreets(D.streets, simplify, st) };
+    const streets = processStreets(D.streets, simplify, st);
+    // The game builds its streets from the world tiles: of the centro's own layers it reads the outline (aoi), the water (src/landmarks.js) and, once, the raised ground round the two boxes of the boats (src/sea.js fleetFields). The rest was 1 MB of download and more of heap for nothing.
+    const near = poly => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; const r = poly[0]; for (let i = 0; i < r.length; i += 2) { a = Math.min(a, r[i]); c = Math.max(c, r[i]); b = Math.min(b, r[i + 1]); d = Math.max(d, r[i + 1]); } return [[400, -900, 960, -290], [40, -1900, 920, -1000]].some(([x0, z0, x1, z1]) => c >= x0 - 21 && a <= x1 + 21 && d >= z0 - 21 && b <= z1 + 21); };   // (the boxes and the margin of fleetFields)
+    globals.PALERMO_DATA = { ...D, streets: { aoi: streets.aoi, water: streets.water, raised: (streets.raised || []).filter(near) } };
     log(`  streets: ${st.before} -> ${st.after} vertices (simplify ${simplify} m, curbs rounded to 0.1 m)`);
   }
   if (prune && globals.PALERMO_CONTEXT) globals.PALERMO_CONTEXT = await pruneContext(globals.PALERMO_CONTEXT, log, ROOT);
