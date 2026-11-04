@@ -116,7 +116,7 @@ export function createRave(env) {
     }
     box(2.2, 1.0, 0.9, 0, 1.4, 0.4, 0x1a1a20); box(1.6, 0.06, 0.5, 0, 1.93, 0.35, 0x909098);
     // lights: six beams from the truss, two floor discs; additive, no depth write
-    const beams = [], bm = (c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+    const beams = [], bm = (c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
     const bgeo = new THREE.ConeGeometry(1.7, 26, 14, 1, true).translate(0, -13, 0);
     for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(bgeo, bm(COLS[i])); b.position.set((i - 2.5) * 1.7, 6, 1.6); b.userData.i = i; st.add(b); beams.push(b); }
     const discs = [];

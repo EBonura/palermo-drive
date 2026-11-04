@@ -173,13 +173,13 @@ function build(env) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aP', new THREE.BufferAttribute(ap, 2)); geo.setIndex(idx);
     const u = { uTime: { value: 0 }, uCol: { value: new THREE.Color(col) }, uAlpha: { value: 1 } };
-    const ring = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: u, vertexShader: RING_V, fragmentShader: RING_F, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    const ring = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: u, vertexShader: RING_V, fragmentShader: RING_F, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
     ring.frustumCulled = false; ring.renderOrder = 3; group.add(ring);
     let beam = null;
     if (opt.beam !== false) {
       const H = opt.height || 90, bg = new THREE.CylinderGeometry(1.8, 1.3, H, 20, 1, true); bg.translate(0, H / 2, 0);
-      beam = new THREE.Mesh(bg, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      beam = new THREE.Mesh(bg, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }));
       beam.frustumCulled = false; beam.renderOrder = 4; group.add(beam);
     }
     const b = {
@@ -280,7 +280,7 @@ function build(env) {
   const std = (c, r = 0.85, extra) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...extra });
   const M = {
     steel: std('#2a2624', 0.6, { metalness: 0.4 }), rust: std('#7a3b2a', 0.9), wood: std('#8a6a44', 0.9), pale: std('#d8c8a0', 0.9),
-    coal: new THREE.MeshBasicMaterial({ color: 0xff6a22 }), skewer: std('#6b4a2b', 0.9), green: std('#4f7a3a', 0.9), pole: std('#bdbab2', 0.5, { metalness: 0.5 }),
+    coal: new THREE.MeshBasicMaterial({ color: 0xff6a22 }), skewer: std('#6b4a2b', 0.9), pile: std('#6b4a2b', 0.9), green: std('#4f7a3a', 0.9), pole: std('#bdbab2', 0.5, { metalness: 0.5 }),
     sign: new THREE.MeshBasicMaterial({ map: V.sign, toneMapped: false }), signCorn: new THREE.MeshBasicMaterial({ map: signTexture('POLLANCHE', '#a8680e', '#2f6b49'), toneMapped: false }), umbrella: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }),
   };
   const glowTex = (() => {
@@ -323,7 +323,7 @@ function build(env) {
     // counter on the road side with the sign and a pile of skewers
     box(0.42, 0.05, 1.3, M.wood, 0.68, 0.86, 0, g, true);
     for (const lz of [-0.55, 0.55]) { cyl(0.03, 0.84, M.wood, 0.5, 0.42, lz, g); cyl(0.03, 0.84, M.wood, 0.86, 0.42, lz, g); }
-    box(0.3, 0.07, 0.36, M.pale, 0.62, 0.92, -0.35, g); box(0.26, 0.05, 0.3, M.green, 0.66, 0.97, -0.3, g); box(0.2, 0.06, 0.4, M.skewer, 0.7, 0.93, 0.3, g);
+    box(0.3, 0.07, 0.36, M.pale, 0.62, 0.92, -0.35, g); box(0.26, 0.05, 0.3, M.green, 0.66, 0.97, -0.3, g); box(0.2, 0.06, 0.4, M.pile, 0.7, 0.93, 0.3, g);
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.36), corn ? M.signCorn : M.sign); sign.position.set(0.9, 0.62, 0); sign.rotation.y = Math.PI / 2; g.add(sign);
     // umbrella
     cyl(0.025, 2.3, M.pole, -0.15, 1.15, 0.0, g);
@@ -430,7 +430,7 @@ function build(env) {
     const iBase = new THREE.InstancedBufferAttribute(base, 3); geo.setAttribute('iBase', iBase); geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 3)); geo.instanceCount = n;
     const u = { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 }, uLight: { value: 1 } };
     const plume = new THREE.Mesh(geo, new THREE.ShaderMaterial({
-      uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true,
       vertexShader: `
         attribute vec3 iBase; attribute vec3 iSeed; uniform float uTime; uniform float uH; uniform vec2 uWind;
         varying vec2 vUv; varying float vA; varying float vT; varying float vDist;

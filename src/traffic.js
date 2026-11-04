@@ -701,10 +701,17 @@ Object.assign(MODELS, buildPoliceModels());
   // ---------- step ----------
   function stepAll(dt) {
     time += dt; sigT = signalClock.now();
-    buildOcc();
-    for (let i = 0; i < vs.length; i++) if (!vs[i].fly && !(vs[i].cop && vs[i].cop.mode === 'direct')) control(vs[i], dt);
+    buildOcc(); stepN++;
+    // the driver of a vehicle far away or out of view thinks at half the rate (it goes on moving on its last decision): nobody can see the difference, and this is most of the cost of the traffic
+    for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && !(v.cop && v.cop.mode === 'direct')) { if (!v.lazy) control(v, dt); else if ((v.id + stepN) & 1) control(v, dt * 2); } }
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
-    for (let i = 0; i < vs.length; i++) if (!vs[i].fly) bumpParked(vs[i]);
+    for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && (!v.lazy || ((v.id + stepN) & 1))) bumpParked(v); }
+  }
+  function markLazy(cx, cz, camY) {
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i], dx = v.x - cx, dz = v.z - cz, d2 = dx * dx + dz * dz;
+      v.lazy = !v.cop && d2 > 70 * 70 && (d2 > 150 * 150 || !inView(v.x, camY, v.z, v.ty.L * 0.6 + 8));
+    }
   }
   // a vehicle that does run into a parked car (it came out of a turn, was boxed in, the police ram): the car is pushed, or launched at 4 m/s and more, and the
   // vehicle loses speed. Quiet: no police chaos, the lapa did not do it.
@@ -748,7 +755,7 @@ Object.assign(MODELS, buildPoliceModels());
 
   function writeInstances() {
     for (const k in MESH) MESH[k].count = 0;
-    agentsOut.length = 0;
+    let nOut = 0;
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i], m = MESH[v.ty.model], n = m.count++;
       const c = Math.cos(v.h), s = Math.sin(v.h), cr = Math.cos(v.roll), sr = Math.sin(v.roll), pi = v.pitch || 0, cp = Math.cos(pi), sp = Math.sin(pi), o = n * 16, A = m.instanceMatrix.array;
@@ -758,8 +765,12 @@ Object.assign(MODELS, buildPoliceModels());
       A[o + 12] = v.x; const dk = v.route[0] && v.route[0].br ? topY(v.x, v.z) : NaN; A[o + 13] = (dk === dk ? dk : groundY(v.x, v.z)) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
       if (v.plan && v.name === 'bus') SIGN_ROW.array[n] = v.plan.row;
       const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
-      for (const [zo, r] of v.ty.circ) agentsOut.push({ x: v.x + s * zo, z: v.z + c * zo, r });
+      for (let q = 0, circ = v.ty.circ; q < circ.length; q++) {   // (objects kept from frame to frame: this runs for every vehicle in every frame)
+        const a = agentsOut[nOut] || (agentsOut[nOut] = { x: 0, z: 0, r: 0 }); nOut++;
+        a.x = v.x + s * circ[q][0]; a.z = v.z + c * circ[q][0]; a.r = circ[q][1];
+      }
     }
+    agentsOut.length = nOut;
     for (const k in MESH) { const m = MESH[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
     DECAL.count = MESH.apePol.count; CART_DECAL.count = MESH.carretto.count;
@@ -826,7 +837,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (planGen && !stepping && planGen.next().done) planGen = null;
   }
 
-  let acc = 0;
+  let acc = 0, stepN = 0;
   function update(dt, cam) {
     frames++;
     cam = cam || camera;
@@ -835,6 +846,7 @@ Object.assign(MODELS, buildPoliceModels());
     fm.multiplyMatrices(cam.projectionMatrix, inv); frustum.setFromProjectionMatrix(fm);
     const cx = cam.position.x, cz = cam.position.z;
     acc += Math.min(dt, 0.1);
+    if (acc >= STEP) markLazy(cx, cz, cam.position.y);
     while (acc >= STEP) { acc -= STEP; stepAll(STEP); }
     tiles(cx, cz);
     cull(cx, cz);

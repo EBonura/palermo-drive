@@ -35,7 +35,7 @@ export function createTrails({ scene }) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
   g.setAttribute('aT', new THREE.BufferAttribute(aT, 3).setUsage(THREE.DynamicDrawUsage));
   g.setIndex(idx);
-  const mat = new THREE.ShaderMaterial({ uniforms: { uRim: { value: new THREE.Color(0.96, 0.74, 0.9) } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const mat = new THREE.ShaderMaterial({ uniforms: { uRim: { value: new THREE.Color(0.96, 0.74, 0.9) } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true });
   const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false; mesh.renderOrder = 4; mesh.visible = false; scene.add(mesh);
 
   // slot 0 of each array is the live row on the wing (rewritten every frame while flying), slots 1..H the history, newest first; count = history rows in use

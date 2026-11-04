@@ -61,7 +61,7 @@ export function createNotes(scene, opts = {}) {
   const pos = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3), A = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4), col = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
   for (let i = 0; i < N; i++) A.array[i * 4] = 2;                                  // age past 1: not drawn
   geo.setAttribute('iPos', pos); geo.setAttribute('iA', A); geo.setAttribute('iCol', col); geo.instanceCount = N;
-  const map = (opts.atlas || atlas)(), mat = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const map = (opts.atlas || atlas)(), mat = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
   const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 7; mesh.visible = false; scene.add(mesh);
   const P = Array.from({ length: N }, () => ({ on: false, age: 0, life: 3.4, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, sw: 0, ph: 0, sz: 1, rot: 0, wob: 0 }));
   let emit = 0, alive = 0;

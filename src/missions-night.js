@@ -90,7 +90,7 @@ export function createNightLife(h) {
     }
     const glass = [];
     const pane = (w, hh, x, y, z, ry, tex) => {
-      const m = new THREE.MeshStandardMaterial({ map: tex, color: '#e4edf0', transparent: true, opacity: 0.3, roughness: 0.35, emissive: '#8fa6b0', emissiveIntensity: 0.1, side: THREE.DoubleSide, depthWrite: false });
+      const m = new THREE.MeshStandardMaterial({ map: tex, color: '#e4edf0', transparent: true, opacity: 0.3, roughness: 0.35, emissive: '#8fa6b0', emissiveIntensity: 0.1, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), m); mesh.position.set(x, y, z); mesh.rotation.y = ry; body.add(mesh); glass.push(m);
     };
     pane(1.62, 0.4, 0.745, 1.2, -0.2, Math.PI / 2, texPlain); pane(1.62, 0.4, -0.745, 1.2, -0.2, -Math.PI / 2, texHeart);

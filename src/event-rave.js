@@ -31,7 +31,7 @@ export function createRaveEvents(X, rave) {
   let e = null, pedHit = false;
   if (pedestrians.onKnock) pedestrians.onKnock(() => { pedHit = true; });
   const beamGeo = new THREE.CylinderGeometry(0.3, 0.5, 60, 8, 1, true).translate(0, 30, 0);
-  const beamMat = new THREE.MeshBasicMaterial({ color: '#7ad65a', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const beamMat = new THREE.MeshBasicMaterial({ color: '#7ad65a', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
   const itemMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const homeBeacon = X.makeBeacon('#6bbf59', 8); homeBeacon.beam.scale.set(0.35, 1, 0.35);
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);

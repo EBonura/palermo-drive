@@ -176,7 +176,7 @@ export function createDiscarica(env) {
       }
       const pos = FP, uv = FU, pi = FI;
       const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); fg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); fg.setIndex(pi); fg.computeVertexNormals();
-      const link = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: linkTex(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.3, color: 0xcfd6dc })); link.name = 'DumpFence'; g.add(link);
+      const link = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: linkTex(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, forceSinglePass: true, roughness: 0.6, metalness: 0.3, color: 0xcfd6dc })); link.name = 'DumpFence'; g.add(link);
       const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.13, 2.7, 0.13), mat(0x6a6e74, { metalness: 0.2 }), posts.length), mm = new THREE.Matrix4();
       posts.forEach((p, i) => { mm.makeTranslation(p[0], p[1] + 1.2, p[2]); pm.setMatrixAt(i, mm); }); g.add(pm);
       // the gate: two posts, two leaves opened inwards along the edge of the track
@@ -192,7 +192,7 @@ export function createDiscarica(env) {
     for (const [a, b] of [[-46, -50], [58, -44], [20, 44]]) {
       const x = PIT.x + a, z = PIT.z + b, y = gy(x, z), m = new THREE.Mesh(mg, mmat); m.position.set(x, y, z); m.rotation.y = Math.atan2(PIT.x - x, PIT.z - z); masts.add(m);
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.34, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff3d0 })); lamp.position.set(0, 11.15, 0.3); m.add(lamp);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(11, 52, 14, 1, true).translate(0, -26, 0), new THREE.MeshBasicMaterial({ color: 0xfff0c8, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(11, 52, 14, 1, true).translate(0, -26, 0), new THREE.MeshBasicMaterial({ color: 0xfff0c8, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, fog: false }));
       cone.position.set(x, y + 11.2, z); const dx = PIT.x - x, dz = PIT.z - z, dy = RIM_Y - 9 - (y + 11.2), L = Math.hypot(dx, dy, dz); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dx / L, dy / L, dz / L)); masts.add(cone); beams.push(cone);
     }
     g.add(masts);
