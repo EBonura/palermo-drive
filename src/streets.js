@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
+import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';
 
 export const CURB = 0.15;
 
@@ -154,9 +155,17 @@ function nearCurb(g, x, z) {
   return false;
 }
 const isCut = (ax, az, bx, bz) => (Math.abs(ax - bx) < 0.2 && Math.abs(ax - Math.round(ax / CHUNK_M) * CHUNK_M) < 0.2) || (Math.abs(az - bz) < 0.2 && Math.abs(az - Math.round(az / CHUNK_M) * CHUNK_M) < 0.2);
+// A pavement polygon (its outer ring) along a fast road (src/expressway.js fastIndex): half of its corners within FAST_PAVE m of the carriageway's edge and nearer to it than to any other road
+const FAST_PAVE = 9;
+const besideFast = (fi, ring) => {
+  const n = ring.length >> 1, st = Math.max(1, Math.floor(n / 16)); let k = 0, hit = 0;
+  for (let i = 0; i < n; i += st) { const x = ring[2 * i], z = ring[2 * i + 1], f = fi.fast(x, z); k++; if (f < FAST_PAVE && fi.other(x, z) > f + 4) hit++; }
+  return hit * 2 >= k;
+};
 function isYard(poly, minWidth, ctx) {
   const r0 = poly[0], x0 = r0[0], z0 = r0[1];
   if (Math.hypot(x0, z0) < OLD_R || (x0 > GR.x0 && x0 < GR.x1 && z0 > GR.z0 && z0 < GR.z1) || (x0 > PORT.x0 && x0 < PORT.x1 && z0 > PORT.z0 && z0 < PORT.z1)) return false;
+  if (ctx.fast && besideFast(ctx.fast, r0)) return true;   // along a fast road (a lane only where nothing is built beside it, src/road-class.js) the pavement is a hard shoulder of the real ground, never slabs
   let a = 0, per = 0;
   for (let k = 0; k < poly.length; k++) {
     const r = poly[k], n = r.length >> 1; let s = 0;
@@ -242,7 +251,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 export function* streetsIter(streets, group, opts = {}) {
   const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
   let tris = 0, n = 0;
-  const yctx = { density: opts.density, curbs: offset ? curbIndex(streets.curbs) : null };
+  const yctx = { density: opts.density, curbs: offset ? curbIndex(streets.curbs) : null, fast: offset ? opts.fast : null };
   const g0 = opts.ground || groundY, f0 = !!opts.fine;   // (set again after every yield: another tile's build may have run in between)
   GROUND = g0; FINE = f0;
   if (offset) gardenDraw(streets);
@@ -336,7 +345,7 @@ const EDGE_IF_FAST = new Set(['tertiary', 'tertiary_link', 'unclassified']);   /
 const PAINT = new THREE.Color('#dedbd0');
 const DASH = 2.2, PERIOD = 5.9, SAMPLE = 1.2, APPROACH = 15, STOP_BACK = 6.5, SHOULDER_IN = 1.3;
 const NOEXP = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noexpressway');
-const fastRoad = r => !r.tn && !r.br && (r.k === 'motorway' || r.k === 'trunk' || r.k === 'motorway_link' || r.k === 'trunk_link' || (r.k === 'primary' && (r.ms || 0) >= 70));
+const fastRoad = isFastRoad;   // (src/road-class.js: the motorways, the expressways and their slip roads, and the Viale's carriageways whatever the data says their class is)
 let paintMat = null;
 // roads: tile roads[]; crossings: tile props items (k 'crossing', x, z); skip(x, z) -> true where something else already paints the road (the centro, src/roadwear.js);
 // tile: { streets, signals } for the asphalt raster and the traffic signals (both optional). Returns a Group (or null when there is nothing to paint).
@@ -389,7 +398,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       base += L;
     }
     if (S.length < 3) continue;
-    const m = S.length, hwr = w / 2;
+    const m = S.length, hwr = w / 2, lane = isLane(r), fastOpen = lane ? S.map(s => !builtAt(s.x, s.z)) : null;   // fastOpen: where a lane is a fast road (nothing built beside it)
     const blocked = S.map(s => (skip && skip(s.x, s.z)) || !clear(s.x, s.z, id, hwr + 2.2));
     const near = new Array(m).fill(1e9);   // metres of arc to the nearest blocked sample
     for (let i = 0, d = 1e9; i < m; i++) { d = blocked[i] ? 0 : d + SAMPLE; near[i] = d; }
@@ -400,7 +409,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       const probe = (s, side) => { const nx = -s.tz * side, nz = s.tx * side; let e = hwr; if (mask(s.x + nx * e, s.z + nz * e)) while (e < hwr + 8 && mask(s.x + nx * e, s.z + nz * e)) e += 0.5; return e < hwr + 6.5 ? e : -1; };
       const eL = S.map(s => probe(s, 1)), eR = S.map(s => probe(s, -1));
       const sm = (E, i, d) => { let t = 0, k = 0; for (let j = Math.max(0, i - 4); j <= Math.min(m - 1, i + 4); j++) if (E[j] >= 0) { t += E[j]; k++; } return k >= 5 ? t / k : d; };
-      for (let i = 0; i < m; i++) { const l = sm(eL, i, -1), rr = sm(eR, i, -1); if (l > 0 && rr > 0 && l + rr > 2 * hwr * 0.9) { Lx[i] = l - SHOULDER_IN; Rx[i] = -(rr - SHOULDER_IN); } }
+      for (let i = 0; i < m; i++) { const l = sm(eL, i, -1), rr = sm(eR, i, -1); if (l > 0 && rr > 0 && l + rr > 2 * hwr * 0.9 && (!fastOpen || fastOpen[i])) { Lx[i] = l - SHOULDER_IN; Rx[i] = -(rr - SHOULDER_IN); } }
     }
     const lanes = Math.max(1, r.l || Math.round((Lx[0] - Rx[0]) / 3.2)), wide = (mask && fastRoad(r)) ? Math.min(4, Math.max(lanes, Math.round((Lx[Math.floor(m / 2)] - Rx[Math.floor(m / 2)]) / 3.6))) : lanes;
     const offAt = (i, f) => Lx[i] + (Rx[i] - Lx[i]) * f;   // f: 0 the left edge line, 1 the right
@@ -411,11 +420,13 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     };
     const freeAt = a => { const i = Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE))); return !blocked[i]; };
     // f across the carriageway; mode 'dash' | 'solid' | 'centre' (dashed, solid for the last APPROACH m before a junction)
-    const line = (f, mode, hw) => {
+    const openAt = a => !fastOpen || fastOpen[Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE)))];
+    const line = (f, mode, hw, onlyOpen) => {   // onlyOpen: a solid line only where a lane is a fast road
       const a0 = S[0].a, a1 = S[m - 1].a;
       if (mode === 'solid') {   // continuous in 6 m pieces
         for (let a = a0; a < a1 - 0.6; a += 6) {
           const b = Math.min(a1, a + 6); if (!(freeAt(a) && freeAt((a + b) / 2) && freeAt(b))) continue;
+          if (onlyOpen && !(openAt(a) && openAt(b))) continue;
           const p = pos(a, f), q = pos(b, f); if (rng() < 0.04) continue;
           quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng());
         }
@@ -447,7 +458,8 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     } else {
       line(0.5, 'centre', 0.075);   // two lanes: dashed white centre line, solid on the way to a junction
     }
-    if (w >= 7 && (EDGE_LINED.has(r.k) || (EDGE_IF_FAST.has(r.k) && (r.ms || 0) >= 50 && !r.pk))) { line(0, 'solid', 0.06); line(1, 'solid', 0.06); }
+    const edgeOld = EDGE_LINED.has(r.k) || (EDGE_IF_FAST.has(r.k) && (r.ms || 0) >= 50 && !r.pk);
+    if (w >= 7 && (edgeOld || isFastRoad(r))) { line(0, 'solid', 0.06, !edgeOld); line(1, 'solid', 0.06, !edgeOld); }   // (a lane has them only where it is a fast road)
     if ((++n & 15) === 0) yield;
   }
   // stop lines: a bar across the lanes that approach a traffic signal, STOP_BACK m before it, on every road that meets it
@@ -517,7 +529,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     let best = null, bd = 6;
     const a = grid.get(Math.floor(c.x / cell) * 100003 + Math.floor(c.z / cell)) || [];
     for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].j === 'roundabout')) { bd = d; best = s; } }
-    if (!best || (skip && skip(c.x, c.z))) continue;
+    if (!best || fastAt(roads[best.id], c.x, c.z) || (skip && skip(c.x, c.z))) continue;   // (a fast road has no zebra in the middle of its carriageway)
     const dx = best.x1 - best.x0, dz = best.z1 - best.z0, L = Math.sqrt(dx * dx + dz * dz) || 1, tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
     const half = best.hw, bars = Math.max(2, Math.floor(half * 2 / 1.0));
     // snap the centre of the zebra onto the centreline

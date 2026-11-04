@@ -7,7 +7,7 @@
 // line, same breaking speed, same push-back (the `fence` flag), so only what you see changes. Away from the street, and short bits, stay as they were.
 //
 // The mapped walls (kind w, the CTR's E003 lines, which tools/fences.py gave an invented height of 1.8 to 2.6 m: the CTR has none) beside a carriageway are finished by what stands round them, too:
-//   * beside a fast road (src/expressway.js isFastRoad: motorways, the expressways, the one-way carriageways of Viale Regione Siciliana) a wall within FAST m of the asphalt is the road's steel guard rail in
+//   * beside a fast road (src/road-class.js isFastRoad: motorways, the expressways, the one-way carriageways of Viale Regione Siciliana, its side lanes where nothing is built beside them) a wall within FAST m of the asphalt is the road's steel guard rail in
 //     the photos (nw30, nw29, zw33), so it becomes a rail, or is dropped where the rail rule already put one (`rails`: nothing is drawn twice); a wall over FAST m away is left as mapped;
 //   * near the sea (open water within 70 m on either side, low ground) a wall is a parapet: 0.8 to 1.2 m, with a railing on it or in plain stone, so it never blocks the view of the water (nw19, nw22);
 //   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, mostly lower, with a mesh over a low wall now and then;
@@ -15,7 +15,7 @@
 // They carry `bk: 'w'` (src/fences.js breakSpeed) so they break at the speed a wall of their new height did, not as the stone and block kinds, which stay solid.
 import { histW } from './streets.js';
 import { inPoly, groundY } from './core.js';
-import { isFastRoad } from './expressway.js';
+import { isFastRoad, fastParts } from './road-class.js';
 
 const NEAR = 8, STEP = 3, FAST = 6, RAIL_NEAR = 6;
 const DRIVE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'service']);
@@ -45,7 +45,8 @@ export function roadsideWalls(list, roads, buildings, tram, areas, rails) {
     if (r.br && DRIVE.has(r.k) && r.p && r.p.length >= 4) for (let i = 0; i + 3 < r.p.length; i += 2) put(vg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], (r.cw || r.w || 6) / 2 + 8]);
     if (!DRIVE.has(r.k) || r.tn || r.br || !r.p || r.p.length < 4) continue;   // (a viaduct is no street for the ground under it: a wall there was drawn across the view of the deck, nw24)
     const hw = (r.cw || r.w || 6) / 2, fast = isFastRoad(r);
-    for (let i = 0; i + 3 < r.p.length; i += 2) put(fast ? xg : rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw]);
+    if (fast) { for (const [x0, z0, x1, z1, open] of fastParts(r)) put(open ? xg : rg, x0, z0, x1, z1, [x0, z0, x1, z1, hw]); }   // (a built-up stretch of a lane is a city street: its walls are finished as the street's)
+    else for (let i = 0; i + 3 < r.p.length; i += 2) put(rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw]);
   }
   if (!rg.size && !xg.size) return list;
   for (const b of buildings || []) { // the outline of every building, a point every 6 m

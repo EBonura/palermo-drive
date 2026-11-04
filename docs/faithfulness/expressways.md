@@ -18,6 +18,13 @@ solid white edge lines, green gantry signs, scrub verges. The game had ordinary 
 - **Signs** (`tools/expressway_signs.py` reads the OSM `destination`, `destination:ref`, `destination:lanes` tags of the motorway and slip road ways into `src/expressway-signs.js`): 24 roadside exit boards at slip roads and 8 overhead
   gantries over carriageways with `destination:lanes` or `destination`, a green panel per run of lanes with the same text (place names and refs as OSM has them; nothing invented). The A29 ways with lane tags are only 2-node stubs, so their
   gantries do not exist. One merged mesh per tile, one shared material (a text atlas), the posts are wall segments.
+- **The Viale's carriageways the data calls streets** (`src/road-class.js`): the one-way `primary` (maxspeed 30 or 50 in places) ways named Viale Regione Siciliana, Circonvallazione or Raccordo are fast roads whatever their class
+  says (5.2 km), all the way. Its one-way side lanes (`tertiary` or `secondary`, width 7 m or more, 26.9 km) are fast roads only where nothing is built beside them: `tools/fast-built.mjs` measures each lane along its whole length
+  (a building outline within the half width + 14 m on either side makes a 5 m sample built; a lone built bit under 40 m is dropped, built stretches grow 15 m, an open gap or end under 100 m becomes built) and bakes the built
+  stretches into `src/fast-built.js` (a point every 10 m; run it again after a rebake). Open: 12.5 km (north-west 9.3, south-east 3.2); built: 14.4 km (10.1 and 4.3), which stay city streets. Where a lane is fast it gets the rails
+  (a single beam; one rail in the middle where it runs beside a carriageway with under 6 m between the mapped edges), edge lines and lane dashes, no zebra crossings (paint, props and the pedestrians' strips), no parked cars or bins,
+  no double-parking scenes, a tall double-arm pole every 40 m on the right of travel where no mapped lamp is within 24 m, and the roadside walls within 6 m of it become rails (src/fence-walls.js); a pavement beside it is the
+  rough shoulder, not slabs (src/streets.js isYard). In the built stretches the lane keeps what a city street has. Two-way streets of the same names and the residential lanes are city streets everywhere.
 - `?noexpressway` turns the rail rule and the new paint off, `?nosigns` the signs.
 
 ## Road paint (src/streets.js `roadMarksIter`)

@@ -11,6 +11,7 @@ import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, clock as signalClock, light as signalLight } from './signals.js';   // the traffic signals: where they stand, which road each head faces, the lamp it shows
+import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';   // the fast roads (the Viale's carriageways, and its lanes where nothing is built beside them): no parked cars, bins or crossings
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -1258,6 +1259,7 @@ function* generate(S, BUD) {
     return Math.max(0, Math.min(1, (a / (9 * BU * BU * Math.max(0.35, fx * fz)) - BU0) / (BU1 - BU0)));
   };
   // the old centre and the belts of the 1960s grid keep the planting, the cars and the lamps they have (the rules for the outskirts below leave them alone)
+  const viale = (r, x, z) => /Regione Siciliana/.test(r.n || '') && !(isLane(r) && builtAt(x, z));   // a stretch of the Viale that is a fast road (its lanes are city streets where houses line them: src/road-class.js)
   const OLD_ZONES = new Set(['corso', 'roma', 'old', 'alberg', 'kalsa', 'centro', 'politeama', 'viaLib', 'sacco', 'avenue', 'calat', 'fiera', 'resut', 'stazione', 'porto']);
   const oldCity = (x, z, n = '') => {
     const d = hyp2(x, z); if (d < 2000) return true;
@@ -1522,7 +1524,7 @@ function* generate(S, BUD) {
       if (it.cr === 'unmarked' || it.den === 'unmarked') continue;
       if (done.some(d => hyp2(d[0] - it.x, d[1] - it.z) < 10)) continue;
       const nr = nearRoad(it.x, it.z, 5); if (!nr || !road(nr.px, nr.pz)) continue;
-      if (nr.road.k === 'service' && rand() < 0.5) continue;
+      if (nr.road.k === 'service' && rand() < 0.5 || fastAt(nr.road, nr.px, nr.pz)) continue;
       zebra(nr.px, nr.pz, nr.tx, nr.tz);
     }
     // junction arms on real streets
@@ -1534,7 +1536,7 @@ function* generate(S, BUD) {
         const o = idx === 0 ? p[1] : idx === p.length - 1 ? p[p.length - 2] : p[idx + 1]; if (!o) continue;
         const L = hyp2(o[0] - j.x, o[1] - j.z); if (L < 14) continue;
         const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, cx = j.x + tx * 6.5, cz = j.z + tz * 6.5;
-        if (done.some(d => hyp2(d[0] - cx, d[1] - cz) < 12) || !road(cx, cz) || rand() < 0.35) continue;
+        if (done.some(d => hyp2(d[0] - cx, d[1] - cz) < 12) || !road(cx, cz) || rand() < 0.35 || fastAt(r, j.x, j.z)) continue;
         zebra(cx, cz, tx, tz);
       }
     }
@@ -1569,6 +1571,29 @@ function* generate(S, BUD) {
       }
     }
     stats.lamp_poles_proc = lampPts.length;
+  }
+  {
+    // the fast roads (src/expressway.js) stand under tall double-arm poles beside the rail, every 40 m on the right of the carriageway (photos nw29, nw30, zs12); where a mapped lamp is near, that one is the pole
+    let n = 0;
+    for (const r of S.roads) {
+      if (!isFastRoad(r) || r.k === 'motorway_link' || (r.cw || r.w) < 5.5) continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p); let acc = hash3(r.p[0], r.p[1], 9) * 40;   // (not from the shared stream: the rest of the tile builds as it did)
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 0.01) continue;
+        const tx = dx / L, tz = dz / L, nx = -tz * (r.o === -1 ? -1 : 1), nz = tx * (r.o === -1 ? -1 : 1);   // right of travel
+        let s = acc;
+        for (; s < L; s += 40) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (!inBounds(cx, cz) || !road(cx, cz) || nearJunction(cx, cz, 12) || !fastAt(r, cx, cz)) continue;
+          const e = march(cx, cz, nx, nz, 12, road), x = cx + nx * (e + 2.4), z = cz + nz * (e + 2.4);
+          if (e > 11 || !inBounds(x, z) || road(x, z) || inB(x, z) || nearWall(x, z, 0.6) || lampNear(x, z, 24)) continue;
+          put('lamp_pole', x, gy(x, z), z, Math.atan2(nx, nz) + Math.PI / 2); occAdd(x, z, 0.5); n++;
+        }
+        acc = s - L;
+      }
+    }
+    stats.lamp_poles_fast = n;
   }
   {
     // wall lanterns on street-facing facades, denser towards Quattro Canti
@@ -1697,7 +1722,7 @@ function* generate(S, BUD) {
           }
           // cassonetti: groups at the kerb every so often
           binGap -= 5.7;
-          if (binGap < 0 && !jn && r.k !== 'service') {
+          if (binGap < 0 && !jn && r.k !== 'service' && !fastAt(r, cx, cz)) {
             binGap = R(110, 260);
             const side = rand() < 0.5 ? 1 : -1, nx = rx * side, nz = rz * side, e = march(cx, cz, nx, nz, 9, road);
             if (e > 2.6) {
@@ -1769,7 +1794,7 @@ function* generate(S, BUD) {
         return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
       };
       // outside the old centre a street of houses that no district seed reaches counts as built-up (builtUp), as in the photos, and a car may stand with its wheels on the very edge of the asphalt; a fast road keeps what it had
-      const mid = at(len / 2), fast = (r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || ''), outskirts = !fast && !oldCity(mid[0], mid[1]), bu = outskirts ? builtUp(mid[0], mid[1]) : 0;
+      const mid = at(len / 2), fast = (r.ms || 0) >= 60 || viale(r, mid[0], mid[1]), outskirts = !fast && !oldCity(mid[0], mid[1]), bu = outskirts ? builtUp(mid[0], mid[1]) : 0;
       const zc = Math.min(1.3, zoneCars(r)), dE = distEff(mid[0], mid[1]);
       const occ = Math.min(0.93, cls * (zc < 1 ? zc + (1 - zc) * bu : zc) * Math.max(0.6, Math.min(1, 1.2 - (dE > 1300 ? dE + (1300 - dE) * bu : dE) / 4000)) * 1.05);
       const pStay = 0.93, pStart = Math.min(0.9, occ * (1 - pStay) / Math.max(0.05, 1 - occ));
@@ -1793,7 +1818,7 @@ function* generate(S, BUD) {
           const c = at(sc), A = at(sc - L * 0.45), B = at(sc + L * 0.45), cl = hyp2(B[0] - A[0], B[1] - A[1]) || 1;
           const tx = (B[0] - A[0]) / cl, tz = (B[1] - A[1]) / cl, nx = -tz * sg, nz = tx * sg;   // sg 1: right of travel
           s += step;
-          if (!inBounds(c[0], c[1])) continue;
+          if (!inBounds(c[0], c[1]) || (!r.pk && fastAt(r, c[0], c[1]))) continue;   // (a fast road has no parked cars, unless OSM maps a parking lane on it)
           const e = march(c[0], c[1], nx, nz, 9, road), e2 = march(c[0], c[1], -nx, -nz, 9, road);
           const oneway = r.o ? (r.o > 0 ? 1 : -1) : 0, free = oneway ? 2.7 : 4.6;   // what has to stay open: one lane of one-way traffic, two narrow lanes otherwise (the traffic steers round the cars and keeps flowing)
           const wide = e + e2 - 2 * (W + 0.3) >= free;   // room for a row of cars each side and the lanes between
@@ -2350,7 +2375,7 @@ function* generate(S, BUD) {
       if (L < 16) continue;
       const mid = p[p.length >> 1];
       if (oldCity(mid[0], mid[1], r.n)) continue;
-      const fast = (r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || ''), bu = fast ? 0 : builtUp(mid[0], mid[1]);
+      const fast = (r.ms || 0) >= 60 || viale(r, mid[0], mid[1]), bu = fast ? 0 : builtUp(mid[0], mid[1]);
       if (!fast && bu < 0.05 && r.k === 'service') continue;
       const f = fast ? 0.7 : bu > 0.5 ? 1 : bu > 0.2 ? 0.7 : 0.35;
       eligible.push({ r, p, f, fast, bu, cl }); want += 2 * L / cl[0] * cl[1] * f;
