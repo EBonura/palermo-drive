@@ -464,6 +464,7 @@ CARRIAGEWAY = {  # drivable asphalt widths when OSM has no width/lanes (streets.
     "secondary": 9, "secondary_link": 4.5, "tertiary": 8, "tertiary_link": 4.5, "unclassified": 6,
     "residential": 5.5, "living_street": 4.5, "service": 3.5,
 }
+COVERED_OPEN = ("motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link")   # classes where covered=yes is a cutting, not a passage
 PEDESTRIAN = {"pedestrian": 7, "footway": 2.5}   # cycleway/path stay centreline-only, as before
 URBAN_REACH = 24.0   # (only without data/road_surfaces.json) ground within this distance of a building and not road/green/... is raised pavement
 MARGIN = 30.0        # metres computed beyond each tile so street polygons line up across borders
@@ -825,6 +826,7 @@ def parse_misc(files):
     return coast, areas, piers
 
 
+OV_LOCAL, OV_CLEAR = 120.0, 16.0   # a flyover longer than this keeps the road on the ground only within OV_CLEAR m of a crossing (src/bridges.js PLATEAU and ramps)
 STRUCTS = []       # (line, tags, 'b'|'t', carriageway width) of every OSM bridge and tunnel way, see tools/structures.py
 PED_STREETS = []   # (line, tags, width) of every OSM highway=pedestrian way (not area), for the pedestrian zones of streets_for_tile
 
@@ -870,7 +872,8 @@ def parking_lanes(t):
 def parse_highways(files):
     from shapely.geometry import LineString, Polygon
     from streets import width_of
-    roads, car, ped, plazas = [], [], [], []
+    import structures
+    roads, car, ped, plazas, short_tn = [], [], [], [], []
     PED_STREETS.clear()
     STRUCTS.clear()
     for e in iter_elements(files):
@@ -882,7 +885,10 @@ def parse_highways(files):
         if len(pts) < 2:
             continue
         closed = is_closed(e)
-        tunnel = t.get("tunnel") in ("yes", "culvert", "building_passage") or t.get("covered") == "yes"
+        # covered=yes alone is not a tunnel on a main road: OSM puts it on stretches that run in an open cutting under the bridges of a junction (the Viale Regione
+        # Siciliana under Piazza Albert Einstein, 543 m). They were dropped as tunnels but never built as one (that needs tunnel=yes), so the road was missing.
+        # (On a residential or service way covered=yes is a passage through a building, which stays as it was.)
+        tunnel = t.get("tunnel") in ("yes", "culvert", "building_passage") or (t.get("covered") == "yes" and hw not in COVERED_OPEN)
         if hw == "pedestrian" and closed and t.get("area") == "yes":
             pg = Polygon(pts).buffer(0)
             plazas.append(pg)
@@ -929,11 +935,21 @@ def parse_highways(files):
             cwd = width_of(t, CARRIAGEWAY[hw]) if hw in CARRIAGEWAY else PEDESTRIAN.get(hw, ROAD_WIDTH[hw])
             STRUCTS.append((LineString(pts), dict(t, _id=e["id"]), "b" if brg else "t", cwd))
         if tunnel:
+            if t.get("tunnel") == "yes" and hw in CARRIAGEWAY and LineString(pts).length < structures.MIN_TUNNEL:
+                short_tn.append((r, LineString(pts), hw, t))   # too short to be built as a tunnel: see below
             continue
         if hw in CARRIAGEWAY:
             car.append(LineString(pts).buffer(width_of(t, CARRIAGEWAY[hw]) / 2, quad_segs=4))
         elif hw in PEDESTRIAN and not (RS_ON and hw == "pedestrian"):   # pedestrian streets come from the decree list (road_surfaces)
             ped.append(LineString(pts).buffer(width_of(t, PEDESTRIAN[hw]) / 2, quad_segs=4))
+    # A tunnel way under 20 m gets no tunnel record (structures.MIN_TUNNEL) and `tn` drops it from the streets and from traffic, so where it is the road
+    # that passes under a bridge of a junction (Via Liberta under the ramps at Isola delle Femmine) the road vanished for the length of the deck. Under a
+    # bridge it is an ordinary road at ground level, and the bridge above it becomes a flyover (structures.py finds the crossing).
+    bridges = [ls for ls, t, kind, _cw in STRUCTS if kind == "b" and t.get("highway") not in ("footway", "path", "cycleway", "steps", "pedestrian")]
+    for r, ls, hw, t in short_tn:
+        if any(ls.buffer(1.0).intersects(b) for b in bridges):
+            r.pop("tn", None)
+            car.append(ls.buffer(width_of(t, CARRIAGEWAY[hw]) / 2, quad_segs=4))
     return roads, car, ped, plazas
 
 
@@ -2278,6 +2294,13 @@ def build(offline=False):
         tun = [ls.buffer(max(rec["w"], 6) / 2 + 6, quad_segs=2) for rec, ls in roads if rec.get("tn")]
         G.update(tunnel_geoms=tun, tunnel_tree=tree(tun))
         cuts = [LineString(zip(r["p"][0::2], r["p"][1::2])).buffer(r["w"] / 2 + 0.6, quad_segs=2) for r in structs if r["k"] == "b" and not r.get("ov")]
+        for r in structs:   # a long flyover is lifted only around the roads that pass under it (src/bridges.js): the rest of it takes the road off the ground like any deck
+            if r["k"] == "b" and r.get("ov") and r.get("oc") and not r.get("f"):
+                ln = LineString(zip(r["p"][0::2], r["p"][1::2]))
+                if ln.length > OV_LOCAL:
+                    away = ln.difference(shapely.unary_union([ln.interpolate(s).buffer(OV_CLEAR) for s in r["oc"]]))
+                    if not away.is_empty:
+                        cuts.append(away.buffer(r["w"] / 2 + 0.6, quad_segs=2))
         G.update(cut_geoms=cuts, cut_tree=tree(cuts))
         lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
                  for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]

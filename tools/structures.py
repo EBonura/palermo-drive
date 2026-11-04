@@ -6,7 +6,8 @@ road draped over whatever the ground model said). Here every structure becomes a
 
   {id, k: 'b'|'t', p: [x,z,...] centreline, w: deck width, cw: carriageway width, ly: layer, n: name, hw: highway kind,
    rv: [[x,z,...], ...] river lines near the deck (bridges only), rw: river width, rf: per river vertex the lowest ground across the valley floor (the line cut into <= 8 m pieces by the bake), dep: metres from the deck down to the river bed,
-   ov: 1 when the bridge goes over another road (a flyover: ramps and clearance instead of a trench), ow: 1 one-way, f: 1 footway}
+   ov: 1 when the bridge goes over another road (a flyover: ramps and clearance instead of a trench), oc: metres along the deck where the lower roads cross under it, ud: for every crossing {s, w: the lower road's width, c: metres along p to the crossing, p: its line round the crossing, f: the ground under p (add_heights)},
+   ow: 1 one-way, f: 1 footway}
 
 The records go into every tile the structure (buffered) touches; the runtime keeps one copy per id. Heights are NOT baked: the deck
 follows the game's own ground at both ends (the ground model off the lidar rasters is off by metres, a baked absolute would float).
@@ -15,7 +16,7 @@ The depth `dep` is a relative number (TINITALY 10 m DEM: shoulders of the valley
 import math
 
 from shapely.geometry import LineString, Point, box
-from shapely.ops import unary_union
+from shapely.ops import substring, unary_union
 
 RIVER_W = {"river": 14.0, "canal": 8.0, "stream": 5.0, "brook": 4.0, "drain": 3.5, "ditch": 2.0}
 RIVER_WINDOW = 200.0      # metres of river line kept each side of the deck
@@ -23,6 +24,8 @@ MIN_BRIDGE = 12.0         # shorter bridges (culverts, gutters) are not built
 MIN_TUNNEL = 20.0
 SIDEWALK = 1.2            # pavement each side of a vehicle deck, metres
 PARAPET = 0.5
+DIP_CLEAR = 8.0   # metres from the edge of the lower road to either end of the deck that the sinking road needs
+DIP_HALF, DIP_STEP = 56.0, 8.0   # a lower road is followed this far each side of a flyover, with a vertex every DIP_STEP metres (it sinks where it passes under)
 
 
 def river_width(t):
@@ -46,9 +49,10 @@ def build_structures(structs, waterways, roads, dem=None, log=print):
     wl = [w for w, t in waterways if t.get("tunnel") not in ("yes", "culvert") and t.get("covered") != "yes"]
     wt = [t for w, t in waterways if t.get("tunnel") not in ("yes", "culvert") and t.get("covered") != "yes"]
     wtree = STRtree(wl) if wl else None
-    rl = [ls for rec, ls in roads if not rec.get("tn") and rec["k"] in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified",
-                                                                         "residential", "living_street", "service", "motorway_link", "trunk_link",
-                                                                         "primary_link", "secondary_link", "tertiary_link")]
+    lower = [(rec, ls) for rec, ls in roads if not rec.get("tn") and rec["k"] in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified",
+                                                                                    "residential", "living_street", "service", "motorway_link", "trunk_link",
+                                                                                    "primary_link", "secondary_link", "tertiary_link")]
+    rl = [ls for rec, ls in lower]
     rtree = STRtree(rl) if rl else None
     out, n_riv, n_over = [], 0, 0
     for line, t, kind, cw in structs:
@@ -94,6 +98,7 @@ def build_structures(structs, waterways, roads, dem=None, log=print):
                 rec.setdefault("dep", 5.0)
             elif rtree is not None:   # a flyover: another, lower road crosses it
                 inner = line.buffer(-0.5) if L > 8 else line
+                at = []   # (metres along the deck, lower road, where on it) of every road that passes under the deck (src/bridges.js lifts the deck only around these)
                 for i in rtree.query(line):
                     g = rl[i]
                     if g.equals(line) or not g.crosses(line):
@@ -102,10 +107,35 @@ def build_structures(structs, waterways, roads, dem=None, log=print):
                     if p.is_empty or p.geom_type not in ("Point", "MultiPoint"):
                         continue
                     pts = [p] if p.geom_type == "Point" else list(p.geoms)
-                    if any(4.0 < line.project(q) < L - 4.0 for q in pts):
-                        rec["ov"] = 1
-                        n_over += 1
-                        break
+                    at += [(line.project(q), i, g.project(q)) for q in pts if 4.0 < line.project(q) < L - 4.0]
+                if at:
+                    at.sort()
+                    oc, ud = [], []
+                    for s, i, gs in at:
+                        if oc and s - oc[-1] <= 6.0:
+                            continue
+                        oc.append(round(s, 1))
+                        # the lower road sinks a little under the deck, so that the deck needs to climb less (DIP in src/bridges.js): its line round the crossing
+                        g, lrec = rl[i], lower[i][0]
+                        # the lower road must pass well clear of both ends of the deck: the approach road there stays on the ground, and a dip that reached it would leave the deck end standing in the air
+                        if not lrec.get("br") and min(g.distance(Point(line.coords[0])), g.distance(Point(line.coords[-1]))) >= lrec["w"] / 2 + DIP_CLEAR:
+                            cs = list(g.coords)
+                            def at_s(t, g=g, cs=cs):   # a point of the lower road at arc length t, the road carried straight on past its ends
+                                if 0.0 <= t <= g.length:
+                                    q = g.interpolate(t)
+                                    return (q.x, q.y)
+                                a, b = (cs[0], cs[1]) if t < 0 else (cs[-1], cs[-2])
+                                d = math.hypot(a[0] - b[0], a[1] - b[1]) or 1.0
+                                e = -t if t < 0 else t - g.length
+                                return (a[0] + (a[0] - b[0]) / d * e, a[1] + (a[1] - b[1]) / d * e)
+                            n = int(round(2 * DIP_HALF / DIP_STEP))
+                            pts2 = [at_s(gs - DIP_HALF + 2 * DIP_HALF * k / n) for k in range(n + 1)]
+                            ud.append({"s": round(s, 1), "w": lrec["w"], "c": float(DIP_HALF), "p": [round(c, 1) for pt in pts2 for c in pt]})
+                    rec["ov"] = 1
+                    rec["oc"] = oc
+                    if len(ud) == len(oc):
+                        rec["ud"] = ud
+                    n_over += 1
         out.append(rec)
     log(f"  structures: {sum(1 for r in out if r['k'] == 'b')} bridges ({n_riv} over water, {n_over} over roads), "
         f"{sum(1 for r in out if r['k'] == 't')} tunnels")
@@ -119,6 +149,8 @@ def tiles_of(rec, T):
     m = rec["w"] / 2 + (RIVER_WINDOW if "rv" in rec else 12)
     for r in rec.get("rv", []):
         xs, zs = xs + r[0::2], zs + r[1::2]
+    for u in rec.get("ud", []):
+        xs, zs = xs + u["p"][0::2], zs + u["p"][1::2]
     x0, x1, z0, z1 = min(xs) - m, max(xs) + m, min(zs) - m, max(zs) + m
     return [f"{i}_{j}" for i in range(math.floor(x0 / T), math.floor(x1 / T) + 1) for j in range(math.floor(z0 / T), math.floor(z1 / T) + 1)]
 
@@ -187,12 +219,17 @@ def add_heights(world_dir, structs, far_f, T, log=print):
 
     heights = {}
     rivers = {}
+    heights_ud = {}
     for r in structs:
         p = r["p"]
         a, b = (p[0], p[1]), (p[-2], p[-1])
         heights[r["id"]] = (round(ground(*a), 2), round(ground(*b), 2))
         if r.get("rv"):
             rivers[r["id"]] = river_floor(r, ground)
+        if r.get("ud"):
+            heights_ud[r["id"]] = r
+        for u in r.get("ud", []):
+            u["f"] = [round(ground(u["p"][k], u["p"][k + 1]), 2) for k in range(0, len(u["p"]), 2)]
     n = 0
     for f in glob.glob(os.path.join(world_dir, "tiles", "*.json")):
         raw = open(f, "rb").read()
@@ -203,6 +240,8 @@ def add_heights(world_dir, structs, far_f, T, log=print):
             r["y0"], r["y1"] = heights[r["id"]]
             if r["id"] in rivers:
                 r["rv"], r["rf"] = rivers[r["id"]]
+            if "ud" in heights_ud.get(r["id"], {}):
+                r["ud"] = heights_ud[r["id"]]["ud"]
         tmp = f + ".part"
         with open(tmp, "w") as fh:
             json.dump(d, fh, separators=(",", ":"), ensure_ascii=False)
