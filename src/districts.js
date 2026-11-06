@@ -111,6 +111,23 @@ export const ZONES = {
   // on every bend; no street of houses.
   bellolampo: { plaster: ['#e6dcc0', '#eee8da', '#e0c890', '#d8b88a', '#e2b8a0', '#f0ece0', '#d6d2c0'], stone: ['#a89874', '#9a8a68'], pStone: 0.25, grime: 0.4, elig: true, town: true, rows: true, front: 10,
     w: { res: .46, fish: .22, pal: .14, n19: .06, pw: .08, low: .04 }, fl: [[1, 3], [2, 4], [3, 2], [4, .4]], fh: 3.1, roof: 1.1 },
+  // Belmonte Mezzagno (Mapillary, March 2019, one drive through the town, 21 photos looked at): narrow streets of 3 to 6 storey houses with an iron balcony on nearly every floor, cream, white,
+  // ochre, salmon and a bright orange now and then, bare rubble stone and peeling render in the old part round the Chiesa Madre, post-war fronts of 5 and 6 storeys with balconies in rows
+  // and shops below on the long streets, flat roofs; cars parked nose to tail on both kerbs.
+  belmonte: { plaster: ['#ece3cc', '#f0ebe0', '#e2c27c', '#dcb060', '#e2aa90', '#d4784e', '#dca29a', '#d6c8a8', '#ece3cc', '#e6d4a4', '#c8c4b8', '#f0ebe0'],
+    stone: ['#a89874', '#9a8a68', '#8f7f62'], pStone: 0.3, grime: 0.5, elig: true, town: true, front: 7, habH: [['full', .42], ['nob', .14], ['mix', .32], ['none', .12]],
+    w: { n19: .22, res: .3, pw: .2, pal: .14, blk: .08, bar: .03, lib: .03 }, fl: [[2, 1.5], [3, 3], [4, 3.5], [5, 2.5], [6, 1]], fh: 3.2, roof: 0.3 },
+  // Capaci (Mapillary, October 2019, one drive along Corso Domenico Sommariva, 10 photos looked at): 2 to 5 storey houses and palazzine in yellow ochre, cream, salmon and pink with iron
+  // balconies and shutters, a grey stone plinth, a Liberty palazzo here and there, 5 and 6 storey blocks with balconies in rows at the lower end, trees along the corso.
+  capaci: { plaster: ['#e0b860', '#e6c878', '#ece3cc', '#f0ebe0', '#e2aa90', '#e0a8a0', '#dccfae', '#e0b860', '#e8d9b0', '#d4a478', '#f0ebe0', '#c0705a'],
+    stone: ['#a8a090', '#b09870'], pStone: 0.12, grime: 0.35, elig: true, town: true, front: 8,
+    w: { res: .3, n19: .22, pal: .16, pw: .14, blk: .08, lib: .06, bar: .04 }, fl: [[2, 2], [3, 4], [4, 3], [5, 1.5], [6, .5]], fh: 3.3, roof: 0.3 },
+  // The hill borgate of Palermo, Baida and Boccadifalco under the mountains to the west and Partanna to the north-west (Mapillary, March 2019 and April 2022, 13 photos looked at):
+  // 2 and 3 storey houses and villas, white, cream, pale yellow, ochre and salmon, a balcony with an iron rail on most upper floors, shutters, tiled roof edges, garden walls; older
+  // street fronts of 3 storeys in the village streets. The houses stand in the Comune's survey with lidar heights, so the storeys are measured; this zone gives them their faces.
+  borgata: { plaster: ['#f2eee4', '#ece3cc', '#e8d488', '#e0b868', '#e4a486', '#f2eee4', '#e0a0a0', '#e6c878', '#d8d4c4', '#dcc08a', '#f0ebe0', '#d08a68'],
+    stone: ['#a89874', '#9a8a68'], pStone: 0.1, grime: 0.35, elig: true, town: true, front: 9, habH: [['full', .34], ['nob', .2], ['mix', .32], ['none', .14]],
+    w: { res: .46, n19: .12, pal: .2, pw: .08, fish: .06, lib: .04, low: .04 }, fl: [[1, 1], [2, 4], [3, 3], [4, 1.2], [5, .4]], fh: 3.2, roof: 0.9 },
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
   // Via Primo Carnera (Street View): the insulae are sand-ochre and tan, not grey; open pilotis passages and garage doors at ground level, deep balcony slabs,
@@ -236,6 +253,10 @@ const SEEDS_LL = [
   // Isola delle Femmine: the grid between the coast road and the railway (x -10050 to -9600, z -9100 to -8500); Bellolampo: the village on the road up to the landfill
   ['isola', 38.1964, 13.2481, 300], ['isola', 38.1958, 13.2494, 250], ['isola', 38.1944, 13.2472, 260], ['isola', 38.1944, 13.2505, 250], ['isola', 38.1979, 13.2488, 220], ['isola', 38.1999, 13.2465, 200],
   ['bellolampo', 38.1366, 13.2719, 600], ['bellolampo', 38.1356, 13.2733, 400],
+  // Belmonte Mezzagno (the OSM place node; the town south of z 7817 is outside the baked map) and Capaci (the OSM place node, its west end is past the map's edge)
+  ['belmonte', 38.0485, 13.3911, 1100], ['capaci', 38.1707, 13.2392, 1000],
+  // the hill borgate, at their OSM place nodes: Baida, Boccadifalco, Partanna
+  ['borgata', 38.1141, 13.2976, 700], ['borgata', 38.1090, 13.3065, 1000], ['borgata', 38.1961, 13.3106, 450],
   // far corners and the countryside
   ['rural', 38.1650, 13.3520, 1100], // Monte Pellegrino: the sanctuary's low convent, kiosks and huts, never apartment blocks
   ['rural', 38.0750, 13.3050, 3000], ['rural', 38.0750, 13.4050, 3000], ['rural', 38.2200, 13.3900, 3000], ['rural', 38.2200, 13.2900, 3000], ['rural', 38.1700, 13.2800, 1500],
@@ -256,7 +277,8 @@ const STREET_ZONES = [
 
 // The towns around Palermo, by name: [name, x, z, reach in metres] (game metres). The HUD names the place a car is in with it (src/danger-hud.js, before the neighbourhood grid of the
 // ISTAT outlines, which only knows Palermo's own quarters and named Bellolampo's landfill road Cruillas), and the town zones above are seeded around the same centres. The nearest centre inside its reach wins.
-const TOWNS_LL = [['Villabate', 38.0764, 13.4440, 1150], ['Monreale', 38.0818, 13.2899, 1500], ['Isola delle Femmine', 38.1964, 13.2481, 1100], ['Bellolampo', 38.1366, 13.2719, 1500]];
+const TOWNS_LL = [['Villabate', 38.0764, 13.4440, 1150], ['Monreale', 38.0818, 13.2899, 1500], ['Isola delle Femmine', 38.1964, 13.2481, 1100], ['Bellolampo', 38.1366, 13.2719, 1500],
+  ['Belmonte Mezzagno', 38.0485, 13.3911, 1300], ['Capaci', 38.1707, 13.2392, 1200]];
 export const TOWNS = TOWNS_LL.map(([n, la, lo, r]) => { const p = proj(la, lo); return [n, p[0], p[1], r]; });
 export function townAt(x, z) {
   let best = '', bd = 1;

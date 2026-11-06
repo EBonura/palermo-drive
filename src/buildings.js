@@ -2147,7 +2147,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         B.pr = [0, 1, 2].map(k => pick(PW_RAILS, () => hh(cx * (0.9 + k * 0.37) + k, cz * (1.1 + k * 0.23) + 2.9 * k)));
         B.conc = new THREE.Color(0.78, 0.77, 0.74).lerp(col, 0.15);
       }
-      if (old) { B.old = true; B.town = !!Z.town; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; }
+      if (old) { B.old = true; B.town = !!Z.town; B.bayK = 0.82 + 0.5 * hh(cx * 0.37, cz * 0.61); B.corn = Math.max(S.corn, 0.28) * (0.8 + 0.7 * hh(cx * 0.9, cz * 1.3)); B.balcP = key === 'res' ? 0.5 : key === 'low' ? 0 : 0.62; B.habH = Z.habH || null; }   // habH: a zone's own balcony habit of plain houses (the hill borgate and Belmonte Mezzagno: a balcony on most upper floors)
       if (isStone && !S.church && S.up.length && key !== 'low') { const sh = r() < 0.6 ? 'g' : 'b'; B.up = old ? 'ost_up' : 'st_up_' + sh; if (old) B.nob = 'ost_nob'; }
       else if (old) { B.up = 'old_up'; B.nob = 'old_nob'; }
       if (!spec) { B.up = UPGRP[B.up] || B.up; if (B.nob) B.nob = UPGRP[B.nob] || B.nob; }
@@ -2206,7 +2206,7 @@ function oldHouses(E, B, S, len, nUp, Hu, nb0) {
       else col = B.col.clone().multiplyScalar(0.9 + 0.2 * hu(k, 1.7, 1.3));
       stone = new THREE.Color(1, 1, 1).lerp(col, 0.3).multiplyScalar(1.15); slab = stone.clone().multiplyScalar(0.92);
     }
-    let q = hu(k, 3.7, 0.41); const hab = (S.nobile ? HAB_P : HAB_H).find(([, p]) => (q -= p) < 0);
+    let q = hu(k, 3.7, 0.41); const hab = (S.nobile ? HAB_P : B.habH || HAB_H).find(([, p]) => (q -= p) < 0);
     h.push({ k, i0, i1: i0 + nbk, nUp: nU, bw: lk / nbk, col, stone, slab, bal: hab ? hab[0] : 'mix', rail: hu(k, 0.7, 1.9) < 0.6 ? 'rail_b' : 'rail_a', dp: 0.62 + 0.3 * hu(k, 1.1, 0.5), cornK: 0.8 + 0.9 * hu(k, 0.9, 1.3) });
     for (let i = 0; i < nbk; i++) { of.push(k); bts.push((l0 + lk * (i + 1) / nbk) / len); }
     l0 += lk;

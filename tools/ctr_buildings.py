@@ -1,6 +1,6 @@
 """Third building-footprint source, for the towns outside the Comune di Palermo's survey: Regione Siciliana, Carta Tecnica Regionale 1:10,000, layer 35 "Edificato" (see docs/sources/ctr-sicilia.md).
 
-    tools/.venv/bin/python -I tools/ctr_buildings.py [--towns monreale,isola,bellolampo] [--refetch]
+    tools/.venv/bin/python -I tools/ctr_buildings.py [--towns monreale,isola,bellolampo,belmonte,capaci] [--refetch]
 
 OpenStreetMap has about 190 buildings in the 700 m round Monreale's Duomo and the CTR has 2000: the old town is solid blocks there. The CTR polygons are the 2003 survey (patched in
 2012), whole street blocks in the old towns and single houses in the new ones, with no heights; the game gives them the district's storeys (src/districts.js).
@@ -45,9 +45,12 @@ TOWNS = {
     "monreale": (13.272, 38.068, 13.310, 38.098),
     "isola": (13.232, 38.184, 13.272, 38.208),
     "bellolampo": (13.255, 38.125, 13.295, 38.152),
+    "belmonte": (13.374, 38.044, 13.404, 38.057),
+    "capaci": (13.228, 38.160, 13.256, 38.180),
 }
-# centre (game metres: Via Roma in Monreale, Via Garibaldi in Isola delle Femmine, Via Bellolampo) and reach: the rest of the box is not baked (the country keeps its OSM buildings)
-CENTRES = {"monreale": (-6250.0, 3750.0, 1500.0), "isola": (-9911.0, -8920.0, 1100.0), "bellolampo": (-7827.0, -2307.0, 1000.0)}
+# centre (game metres: Via Roma in Monreale, Via Garibaldi in Isola delle Femmine, Via Bellolampo, the OSM place nodes of Belmonte Mezzagno and Capaci) and reach: the rest of the box is not baked (the country keeps its OSM buildings)
+CENTRES = {"monreale": (-6250.0, 3750.0, 1500.0), "isola": (-9911.0, -8920.0, 1100.0), "bellolampo": (-7827.0, -2307.0, 1000.0),
+           "belmonte": (2610.0, 7428.0, 1100.0), "capaci": (-10693.0, -6079.0, 1000.0)}
 KEEP = {"B001": "yes", "B002": "industrial", "B003": "church"}
 MIN_AREA, MIN_LEFT, MIN_WIDTH = 20.0, 30.0, 2.4
 COVERED, GROW_DROP, GROW_CUT = 0.7, 1.0, 1.5
