@@ -9,6 +9,8 @@
 //   ground: 'shops' | 'arcade' | 'blind' | 'rustic' | 'mixed'; portal: { bay: i, wall?: edgeIndex }
 //   corn: cornice projection m (0 = none); stone: true = exposed tufa; col: '#hex' plaster/stone colour; grime: 0..1
 //   walls: { <b.p edge index>: { any of bays/ground/portal/balc/win/up } }   per-wall overrides
+//   walls[i].bal: [{ f: [first floor, last floor], k: [first bay, last bay + 1], run?: true, w?: half width m of one, rail?, dp? }]   iron balconies as geometry in front of a hand-drawn front (bays counted left to right as the viewer reads the wall, like `bl`; run = one slab over the range)
+//   walls[i].canopy: { k: [first bay, last bay + 1] (may be fractional), dy?: m above the first floor line (negative: below), dp?: depth m }   a glazed entrance canopy as geometry
 //   src: photo source note (not used by the game)
 export default {
   // Piazza Marina: bare golden tufa, three storeys of pointed/round-arched windows, banded ground floor, crenellated cornice.
@@ -62,18 +64,21 @@ export default {
     src: 'https://commons.wikimedia.org/wiki/File:Cassa_di_Risparmio_(Palermo).jpg' },
   // Teatro Biondo, Via Roma: grey-beige stone, a rusticated ground floor of arches (the middle one a lit entrance), a piano nobile of tall round-arched windows between pilasters.
   'w143740363': { name: 'Teatro Biondo', style: 'bar', floors: 3, g0: 5.5, nobH: 8.2, balc: 'none', corn: 0.9, stone: true, col: '#d3c6aa', grime: 0.4,
-    walls: { 1: { bays: 9, bl: { ground: ['hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_gc', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g'], nob: ['hr_biondo_n'], up: ['hr_biondo_u'] } } },
+    walls: { 1: { bays: 9, bal: [{ f: [1, 1], k: [0, 9], w: 1.05, dp: 0.6 }], bl: { ground: ['hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_gc', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g', 'hr_biondo_g'], nob: ['hr_biondo_n'], up: ['hr_biondo_u'] } } },
     src: 'https://commons.wikimedia.org/wiki/File:Facciata_del_Teatro_Biondo.jpg' },
   // Villa Malfitano: pale stone, a four-column portico with a terrace over it, shuttered windows with moulded frames in the wings.
   'w250508063': { name: 'Villa Malfitano', style: 'bar', floors: 2, g0: 6.0, nobH: 8.6, balc: 'none', corn: 0.8, col: '#e6dcc4', grime: 0.4, wtol: 6.5,
     walls: { 7: { bays: 7, bl: { ground: ['hr_malf_w', 'hr_malf_w', 'hr_malf_pl', 'hr_malf_pc', 'hr_malf_pr', 'hr_malf_w', 'hr_malf_w'], nob: ['hr_malf_wu', 'hr_malf_wu', 'hr_malf_ul', 'hr_malf_uc', 'hr_malf_ur', 'hr_malf_wu', 'hr_malf_wu'], up: ['hr_malf_wu'] } } },
     src: 'https://commons.wikimedia.org/wiki/File:Villa_Malfitano_-_Fa%C3%A7ade_.jpg' },
-  // Grand Hotel et des Palmes: cream-yellow facade of five storeys, small iron balconies on the wings, a centre block with a balustraded balcony and an entrance canopy.
+  // Grand Hotel et des Palmes: cream-yellow facade of five storeys, wings with an iron balcony in every bay (geometry), a centre block with pilasters and one long balcony over a two-bay entrance under a glass canopy (geometry).
   'w278478513': { name: 'Grand Hotel et des Palmes', style: 'n19', floors: 5, g0: 4.4, nobH: 3.9, balc: 'none', corn: 0.6, col: '#f0e2ac', grime: 0.3,
-    walls: { 2: { bays: 16, bl: {
-      ground: ['hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gh', 'hr_palm_gh', 'hr_palm_ge', 'hr_palm_ge', 'hr_palm_gh', 'hr_palm_gh', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw'],
-      nob: ['hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_c', 'hr_palm_c', 'hr_palm_cb', 'hr_palm_cb', 'hr_palm_c', 'hr_palm_c', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w'],
-      up: ['hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w'] } } },
+    walls: { 2: { bays: 16,
+      bal: [{ f: [1, 3], k: [0, 5] }, { f: [1, 3], k: [11, 16] }, { f: [1, 1], k: [5, 11], run: true, dp: 0.8 }], canopy: { k: [7.25, 8.75], dy: -1.2, dp: 2.2 },
+      bl: {
+      ground: ['hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gh', 'hr_palm_gh', 'hr_palm_gel', 'hr_palm_ger', 'hr_palm_gh', 'hr_palm_gh', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw', 'hr_palm_gw'],
+      nob: ['hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_c', 'hr_palm_cb', 'hr_palm_c', 'hr_palm_cb', 'hr_palm_c', 'hr_palm_cb', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w'],
+      up: ['hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_c', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w', 'hr_palm_w'],
+      top: ['hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_ct', 'hr_palm_ct', 'hr_palm_ct', 'hr_palm_ct', 'hr_palm_ct', 'hr_palm_ct', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt', 'hr_palm_wt'] } } },
     src: 'https://commons.wikimedia.org/wiki/File:Grand_Hotel_et_des_Palmes_(Palermo)_-_Fa%C3%A7ade.jpg' },
   // Palazzo Jung, Via Lincoln: a long white neoclassical front, brown shutters, small iron balconies on the middle floors, an arched central portal.
   'w279882476': { name: 'Palazzo Jung', style: 'n19', floors: 4, g0: 4.5, nobH: 4.3, balc: 'none', corn: 0.7, col: '#f0ece0', grime: 0.25,

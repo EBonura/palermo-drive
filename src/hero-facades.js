@@ -114,16 +114,46 @@ export function heroLayers(H) {
     g.fillStyle = '#e4dcc6'; g.fillRect(0, 168, T, 60); for (let x = 5; x < T; x += 13) { g.fillStyle = 'rgba(255,255,250,.55)'; g.fillRect(x, 174, 5, 48); g.fillStyle = dk; g.fillRect(x + 5, 174, 2, 48); } g.fillStyle = '#d4ccb4'; g.fillRect(0, 164, T, 8); g.fillRect(0, 222, T, 8);   // the balustrade
   });
 
-  // ============================== Teatro Biondo (Via Roma): grey-beige stone, a rusticated ground floor of arches (the middle ones glazed and lit), a piano nobile of tall round-arched windows between pilasters, a string course and a cornice
-  add('hr_biondo_g', (g, r) => { obase(g); orust(g, r, 0, 0, T, T, '#dcd2bb', 44, 64); g.fillStyle = 'rgba(40,30,20,.34)'; g.fillRect(0, T - 20, T, 20); g.fillStyle = '#cfc4a8'; archPath(g, 128, 112, 70, T - 20); g.fill(); ovouss(g, 128, 112, 58, 70); const gr = g.createLinearGradient(0, 50, 0, T - 20); gr.addColorStop(0, '#33444f'); gr.addColorStop(1, '#0f1720'); g.fillStyle = gr; archPath(g, 128, 114, 58, T - 20); g.fill(); g.fillStyle = '#d8d4c6'; g.fillRect(70, 160, 116, 4); });
-  add('hr_biondo_gc', (g, r) => { obase(g); orust(g, r, 0, 0, T, T, '#dcd2bb', 44, 64); g.fillStyle = 'rgba(40,30,20,.34)'; g.fillRect(0, T - 20, T, 20); g.fillStyle = '#cfc4a8'; archPath(g, 128, 96, 104, T - 20); g.fill(); ovouss(g, 128, 96, 90, 104); g.fillStyle = '#2a2018'; archPath(g, 128, 98, 90, T - 20); g.fill(); g.fillStyle = 'rgba(240,200,120,.45)'; g.fillRect(50, 100, 156, T - 20 - 100); col(g, 76, 14, 70, T - 20); col(g, 166, 14, 70, T - 20); });
+  // ============================== Teatro Biondo (Via Roma): grey-beige stone, a rusticated ground floor of arches (the middle one a deep entrance between two columns, the others closed by iron gates), a piano nobile of tall round-arched windows
+  // between pilasters, each with an iron balcony in front of it (geometry, assets/facades/specs.js `bal`), a string course and a cornice. Drawn from the Commons photo named in specs.js and from knowledge; no street photograph of it exists in the Mapillary set.
+  const bRust = (g, r) => { obase(g); orust(g, r, 0, 0, T, T, '#dcd2bb', 44, 64); g.fillStyle = 'rgba(40,30,20,.34)'; g.fillRect(0, T - 20, T, 20); };
+  const bGlass = (g, y0) => { const gr = g.createLinearGradient(0, y0, 0, T - 20); gr.addColorStop(0, '#33444f'); gr.addColorStop(1, '#0f1720'); return gr; };
+  const bArchRing = (g, cx, y0, hw, base) => {   // a moulded arch that stands out of the rustication: a shadow on the wall to the right, a lit ring with voussoirs, the thickness of the wall (lit on the left, dark on the right and at the top)
+    g.fillStyle = 'rgba(30,20,10,.24)'; archPath(g, cx + 7, y0 + 3, hw + 3, base); g.fill();
+    g.fillStyle = '#d6cbae'; archPath(g, cx, y0, hw, base); g.fill(); ovouss(g, cx, y0, hw - 14, hw);
+    g.fillStyle = '#a79a80'; archPath(g, cx, y0, hw - 14, base); g.fill();
+    g.fillStyle = 'rgba(20,14,8,.4)'; g.save(); archPath(g, cx, y0, hw - 14, base); g.clip(); g.fillRect(cx - hw + 14 + 8, 0, hw * 2, T); g.restore();
+  };
+  const bGate = (g, cx, y0, hw, base) => {   // an iron gate in an arch: bars, three rails, a fan of spokes in the head, a scroll in the middle, over the dark of the hall behind (which the night shader lights like glass)
+    g.save(); archPath(g, cx, y0, hw, base); g.clip();
+    g.fillStyle = bGlass(g, y0 - hw); g.fillRect(cx - hw, y0 - hw, hw * 2, base - y0 + hw);
+    g.strokeStyle = '#1c1c21'; g.lineWidth = 2.4; g.beginPath();
+    for (let x = cx - hw + 7; x < cx + hw - 3; x += 10) { g.moveTo(x, y0 - hw); g.lineTo(x, base); }
+    g.moveTo(cx - hw, y0); g.lineTo(cx + hw, y0); g.moveTo(cx - hw, base - 34); g.lineTo(cx + hw, base - 34); g.moveTo(cx - hw, base - 6); g.lineTo(cx + hw, base - 6); g.stroke();
+    g.lineWidth = 1.6; g.beginPath(); for (let a = 0; a <= 8; a++) { const t = Math.PI + a / 8 * Math.PI; g.moveTo(cx, y0); g.lineTo(cx + Math.cos(t) * hw, y0 + Math.sin(t) * hw); } g.stroke();
+    g.beginPath(); g.arc(cx, y0 + 40, 14, 0, 7); g.stroke(); g.beginPath(); g.arc(cx - 20, y0 + 40, 9, 0, 7); g.arc(cx + 20, y0 + 40, 9, 0, 7); g.stroke();
+    g.restore();
+  };
+  add('hr_biondo_g', (g, r) => { bRust(g, r); bArchRing(g, 128, 114, 78, T - 20); bGate(g, 134, 116, 56, T - 20); g.fillStyle = '#d8d4c6'; g.fillRect(60, T - 24, 136, 4); });
+  add('hr_biondo_gc', (g, r) => {   // the entrance: a wide arch, two columns on plinths carrying an entablature, the gates open on a lit hall, steps
+    bRust(g, r); bArchRing(g, 128, 108, 108, T - 20);
+    g.fillStyle = '#2a2018'; archPath(g, 136, 110, 82, T - 20); g.fill();
+    g.fillStyle = 'rgba(240,200,120,.5)'; g.fillRect(70, 112, 132, T - 20 - 112);   // the lit hall
+    g.fillStyle = '#6a4e2c'; g.fillRect(70, 112, 6, T - 20 - 112); g.fillRect(199, 112, 6, T - 20 - 112); g.fillRect(133, 112, 5, T - 20 - 112); g.fillRect(70, 156, 132, 4);   // the doors, from the hall side
+    g.strokeStyle = '#1c1c21'; g.lineWidth = 2.2; g.beginPath(); for (const x0 of [74, 203]) for (let k = 0; k < 3; k++) { g.moveTo(x0 + k * (x0 < 100 ? 8 : -8), 112); g.lineTo(x0 + k * (x0 < 100 ? 8 : -8), T - 20); } g.stroke();   // the two gate leaves swung back
+    col(g, 48, 26, 74, T - 20); col(g, 182, 26, 74, T - 20);
+    g.fillStyle = '#d8cfb8'; g.fillRect(24, 58, 208, 18); g.fillStyle = lt; g.fillRect(24, 58, 208, 2); g.fillStyle = dk; g.fillRect(24, 76, 208, 5); for (let x = 28; x < 230; x += 9) g.fillRect(x, 70, 4, 5);   // the entablature, with dentils
+    g.fillStyle = '#cfc6ac'; g.fillRect(16, T - 14, 224, 6); g.fillRect(8, T - 8, 240, 8); g.fillStyle = 'rgba(255,255,250,.35)'; g.fillRect(16, T - 14, 224, 1.6); g.fillRect(8, T - 8, 240, 1.6);   // two steps
+  });
   add('hr_biondo_n', (g, r) => {
     ofloor(g, r); pier(g, 0, 14); pier(g, T - 14, 14);
-    g.fillStyle = '#d8ceb4'; archPath(g, 128, 98, 46, 214); g.fill(); g.strokeStyle = 'rgba(50,38,24,.45)'; g.lineWidth = 1.5; g.stroke();
-    const gr = g.createLinearGradient(0, 56, 0, 212); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; archPath(g, 128, 100, 38, 212); g.fill();
-    g.fillStyle = '#e4ddcc'; g.fillRect(126, 62, 3, 150); g.fillRect(90, 134, 76, 3);
-    g.fillStyle = 'rgba(255,255,250,.35)'; g.fillRect(88, 100, 2, 112); ovouss(g, 128, 100, 38, 46);
-    g.fillStyle = '#ddd4bf'; g.fillRect(60, 214, 136, 8); g.fillStyle = dk; g.fillRect(60, 222, 136, 3);
+    g.fillStyle = 'rgba(30,20,10,.24)'; archPath(g, 135, 102, 50, 252); g.fill();                                           // the surround stands out of the wall
+    g.fillStyle = '#d8ceb4'; archPath(g, 128, 98, 48, 250); g.fill(); g.strokeStyle = 'rgba(50,38,24,.45)'; g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = '#a89c82'; archPath(g, 128, 100, 40, 250); g.fill();                                                       // the reveal
+    const gr = g.createLinearGradient(0, 56, 0, 248); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; archPath(g, 132, 102, 36, 250); g.fill();   // the glass, set back: the reveal shows on the left
+    g.strokeStyle = '#e4ddcc'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(132, 66); g.lineTo(132, 250); g.moveTo(96, 150); g.lineTo(168, 150); g.moveTo(96, 176); g.lineTo(168, 176); for (let a = 1; a < 5; a++) { const t = Math.PI + a / 5 * Math.PI; g.moveTo(132, 102); g.lineTo(132 + Math.cos(t) * 36, 102 + Math.sin(t) * 36); } g.stroke();   // the glazing bars and the fanlight
+    g.fillStyle = 'rgba(255,255,250,.35)'; g.fillRect(88, 102, 2, 146); ovouss(g, 128, 100, 40, 50);
+    g.fillStyle = '#e4dcc8'; g.fillRect(74, 96, 10, 8); g.fillRect(172, 96, 10, 8); g.fillStyle = dk; g.fillRect(74, 104, 10, 3); g.fillRect(172, 104, 10, 3);   // the imposts
   });
 
   add('hr_biondo_u', (g, r) => {   // the attic under the cornice: pilasters, a plain band, small square windows in plain frames, dentils
@@ -132,20 +162,59 @@ export function heroLayers(H) {
     g.fillStyle = '#e4dcc6'; g.fillRect(0, 196, T, 22); g.fillStyle = lt; g.fillRect(0, 196, T, 2); g.fillStyle = dk; for (let x = 0; x < T; x += 10) g.fillRect(x, 218, 5, 8);
   });
 
-  // ============================== Grand Hotel et des Palmes (Via Mariano Stabile): a cream-yellow front of five storeys; the wings have a small window and an iron balcony in every bay on every floor,
-  // the centre block (six bays) has plain windows with pediments on the first floor over a balustraded balcony, and a glazed entrance under a curved canopy.
+  // ============================== Grand Hotel et des Palmes (Via Mariano Stabile): a cream-yellow front of five storeys. The wings (five bays each side) have a tall window with a moulded surround and a hood on two consoles
+  // in every bay, and an iron balcony in front of it on the first three floors (the balconies are geometry, assets/facades/specs.js `bal`, so they stand out of the wall and throw a shadow). The centre block (six bays) has
+  // pilasters, windows with pediments and one long balcony over the entrance; the entrance is a wide doorway between two columns under a glazed canopy (`canopy`, geometry), drawn across two bays.
+  // From knowledge of the building and of the Palermo palaces of its time, plus Mapillary frames of the street's neighbouring fronts (2021; looked at, nothing copied): the proportions of the entrance and the canopy are an estimate.
   const CR = 'rgba(244,226,160,.34)';
   const pBase = (g, r) => { ofloor(g, r, true); g.fillStyle = CR; g.fillRect(0, 0, T, T); };
-  add('hr_palm_w', (g, r) => { pBase(g, r); owin(g, r, 76, 50, 104, 126, { st: 'closed', sh: 'b', fr: 9, sill: 0 }); rail(g, 46, 210, 202, 34); });
-  add('hr_palm_wt', (g, r) => { pBase(g, r); owin(g, r, 76, 50, 104, 126, { st: 'closed', sh: 'b', fr: 9, sill: 0 }); rail(g, 46, 210, 202, 34); g.fillStyle = '#e8dcb2'; g.fillRect(0, 0, T, 12); g.fillStyle = dk; g.fillRect(0, 12, T, 4); });
-  add('hr_palm_c', (g, r) => { pBase(g, r); pier(g, 0, 12, false); pier(g, T - 12, 12, false); owin(g, r, 78, 50, 100, 130, { st: 'half', sh: 'b', fr: 7, ped: 'tri' }); });
-  add('hr_palm_cb', (g, r) => { pBase(g, r); pier(g, 0, 12, false); pier(g, T - 12, 12, false); owin(g, r, 78, 50, 100, 130, { st: 'closed', sh: 'b', fr: 7, ped: 'seg' }); g.fillStyle = '#ecdfb8'; g.fillRect(0, 196, T, 34); g.fillStyle = 'rgba(40,30,20,.4)'; g.fillRect(0, 228, T, 3); for (let x = 5; x < T; x += 12) { g.fillStyle = 'rgba(255,255,250,.6)'; g.fillRect(x, 200, 5, 26); g.fillStyle = dk; g.fillRect(x + 5, 200, 2, 26); } });
-  add('hr_palm_gw', (g, r) => { obase(g); g.fillStyle = CR; g.fillRect(0, 0, T, T); oskirt(g, 24, '#7b7366'); owin(g, r, 76, 54, 104, 110, { st: 'closed', sh: 'b', fr: 9, sill: 1 }); });
-  add('hr_palm_gh', (g, r) => { obase(g); g.fillStyle = CR; g.fillRect(0, 0, T, T); oskirt(g, 24, '#7b7366'); g.fillStyle = '#e8dcb2'; archPath(g, 128, 100, 64, T - 24); g.fill(); const gr = g.createLinearGradient(0, 40, 0, T - 24); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; archPath(g, 128, 102, 54, T - 24); g.fill(); g.fillStyle = '#e4ddcc'; g.fillRect(126, 60, 3, T - 84); g.fillRect(74, 140, 108, 3); });
-  add('hr_palm_ge', (g, r) => {   // the entrance: a door in a bronze frame, a curved glass canopy above it
-    obase(g); g.fillStyle = CR; g.fillRect(0, 0, T, T); oskirt(g, 24, '#7b7366');
-    g.fillStyle = '#2a2018'; g.fillRect(40, 80, 176, T - 104); g.fillStyle = 'rgba(240,200,120,.5)'; g.fillRect(52, 92, 152, T - 128); g.fillStyle = '#4a3a2a'; for (let x = 52; x < 204; x += 38) g.fillRect(x, 92, 3, T - 128);
-    g.fillStyle = '#3a4a52'; g.beginPath(); g.moveTo(10, 78); g.quadraticCurveTo(128, 50, 246, 78); g.lineTo(246, 90); g.quadraticCurveTo(128, 62, 10, 90); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(14, 74, 228, 2);
+  const pHood = (g, x0, x1, y) => {   // a window hood: a moulded cornice with dentils on two scrolled consoles
+    g.fillStyle = 'rgba(30,20,10,.28)'; g.fillRect(x0 - 8, y + 2, x1 - x0 + 16, 24);
+    for (const cx of [x0 - 2, x1 - 10]) { g.fillStyle = '#ecdfb8'; g.beginPath(); g.moveTo(cx, y); g.lineTo(cx + 12, y); g.lineTo(cx + 10, y + 12); g.quadraticCurveTo(cx + 10, y + 24, cx + 4, y + 26); g.lineTo(cx + 1, y + 20); g.closePath(); g.fill(); g.strokeStyle = 'rgba(50,38,24,.45)'; g.lineWidth = 1.2; g.stroke(); g.fillStyle = 'rgba(50,38,24,.3)'; g.fillRect(cx + 8, y + 2, 3, 18); }
+    g.fillStyle = '#f0e4be'; g.fillRect(x0 - 10, y - 12, x1 - x0 + 20, 12); g.fillStyle = 'rgba(255,255,250,.6)'; g.fillRect(x0 - 10, y - 12, x1 - x0 + 20, 2); g.fillStyle = 'rgba(50,38,24,.4)'; g.fillRect(x0 - 10, y - 2, x1 - x0 + 20, 3);
+    g.fillStyle = 'rgba(50,38,24,.4)'; for (let x = x0 - 8; x < x1 + 8; x += 7) g.fillRect(x, y - 8, 3, 5);
+  };
+  const pWin = (g, r, o = {}) => {   // a wing window down to the floor line (the balcony rail in front of it is geometry), with its hood
+    const y = o.y ?? 58, h = o.h ?? 174;
+    owin(g, r, 80, y, 96, h, { st: o.st || 'closed', sh: 'b', fr: 9, sill: o.sill ? 1 : 0 }); pHood(g, 71, 185, y - 9 - 4);
+    g.fillStyle = 'rgba(50,38,24,.18)'; g.fillRect(71, y + h + 9, 114, 3);
+  };
+  add('hr_palm_w', (g, r) => { pBase(g, r); pWin(g, r); });
+  add('hr_palm_wt', (g, r) => {   // the top floor of a wing: a shorter window with a sill, no balcony, a plain frieze under the cornice
+    pBase(g, r); pWin(g, r, { y: 74, h: 112, st: 'half', sill: true }); g.fillStyle = 'rgba(40,30,20,.16)'; g.fillRect(0, 0, T, 22); g.fillStyle = '#ecdfb8'; g.fillRect(0, 22, T, 4);
+  });
+  add('hr_palm_c', (g, r) => { pBase(g, r); pier(g, 0, 12, false); pier(g, T - 12, 12, false); owin(g, r, 78, 52, 100, 180, { st: 'half', sh: 'b', fr: 7, ped: 'tri' }); });
+  add('hr_palm_cb', (g, r) => { pBase(g, r); pier(g, 0, 12, false); pier(g, T - 12, 12, false); owin(g, r, 78, 52, 100, 180, { st: 'closed', sh: 'b', fr: 7, ped: 'seg' }); });
+  add('hr_palm_ct', (g, r) => {   // the top floor of the centre block: a square window in a plain frame between the pilasters, a band under the cornice
+    pBase(g, r); pier(g, 0, 12, false); pier(g, T - 12, 12, false); owin(g, r, 84, 78, 88, 104, { st: 'closed', sh: 'b', fr: 7, sill: 1 });
+    g.fillStyle = 'rgba(40,30,20,.16)'; g.fillRect(0, 0, T, 24); g.fillStyle = '#ecdfb8'; g.fillRect(0, 24, T, 4);
+  });
+  const pGround = (g, r) => { obase(g); g.fillStyle = CR; g.fillRect(0, 0, T, T); orust(g, r, 0, 0, T, T - 24, '#eadfba', 44, 64); oskirt(g, 24, '#7b7366'); };
+  add('hr_palm_gw', (g, r) => { pGround(g, r); owin(g, r, 80, 62, 96, 100, { st: 'closed', sh: 'b', fr: 9, sill: 1 }); g.strokeStyle = '#26262c'; g.lineWidth = 2; g.beginPath(); for (let x = 90; x < 176; x += 12) { g.moveTo(x, 72); g.lineTo(x, 158); } g.stroke(); });
+  add('hr_palm_gh', (g, r) => {   // an arched window of the ground floor, with voussoirs and a keystone
+    pGround(g, r); g.fillStyle = '#eadfb8'; archPath(g, 128, 104, 66, T - 24); g.fill(); ovouss(g, 128, 104, 54, 66);
+    const gr = g.createLinearGradient(0, 50, 0, T - 24); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; archPath(g, 128, 106, 54, T - 24); g.fill(); g.fillStyle = '#e4ddcc'; g.fillRect(126, 56, 3, T - 80); g.fillRect(74, 150, 108, 3);
+  });
+  // the entrance, across two bays (drawn on a double tile and cut in half): rusticated piers, two columns, a wide doorway with a transom under a flat segmental head, bronze double doors with the lit hall behind them
+  const addPair = (nL, nR, fn) => [nL, nR].forEach((name, k) => out.push([name, (g, r) => {
+    const c = document.createElement('canvas'); c.width = 2 * T; c.height = T; const cg = c.getContext('2d');
+    obase(cg); cg.save(); cg.translate(T, 0); obase(cg); cg.restore(); cg.fillStyle = CR; cg.fillRect(0, 0, 2 * T, T);
+    fn(cg, r); g.save(); g.translate(T, 0); g.scale(-1, 1); g.drawImage(c, k * T, 0, T, T, 0, 0, T, T); g.restore();
+  }]));
+  addPair('hr_palm_gel', 'hr_palm_ger', (g, r) => {
+    const W2 = 2 * T; orust(g, r, 0, 0, W2, T - 24, '#eadfba', 44, 64); oskirt(g, 24, '#7b7366'); g.save(); g.translate(T, 0); oskirt(g, 24, '#7b7366'); g.restore();
+    g.fillStyle = 'rgba(214,204,184,.6)'; g.fillRect(0, T - 27, W2, 3);
+    g.fillStyle = 'rgba(30,20,10,.3)'; g.fillRect(112, 92, 288, T - 24 - 92);   // the recess the doorway sits in
+    g.fillStyle = '#e8dcb2'; g.fillRect(122, 96, 268, 6); g.fillRect(122, 96, 14, T - 24 - 96); g.fillRect(376, 96, 14, T - 24 - 96);   // the frame
+    g.fillStyle = '#2a2018'; g.fillRect(142, 104, 228, T - 24 - 104);
+    g.fillStyle = 'rgba(244,206,128,.55)'; g.fillRect(150, 112, 212, 30); g.fillStyle = 'rgba(244,206,128,.5)'; g.fillRect(150, 152, 98, T - 24 - 152); g.fillRect(264, 152, 98, T - 24 - 152);   // the lit hall: the transom and the glass of the two doors
+    g.fillStyle = '#6a4e2c'; g.fillRect(142, 144, 228, 6); g.fillRect(252, 144, 8, T - 24 - 144); g.fillRect(142, 104, 8, T - 24 - 104); g.fillRect(362, 104, 8, T - 24 - 104);   // bronze: transom bar, meeting stile, jambs
+    g.fillStyle = '#4a3a22'; for (const x of [199, 305]) g.fillRect(x, 152, 3, T - 24 - 152); g.fillRect(150, 196, 212, 3);
+    g.fillStyle = 'rgba(255,255,248,.22)'; g.beginPath(); g.moveTo(160, 230); g.lineTo(220, 152); g.lineTo(246, 152); g.lineTo(186, 230); g.fill();
+    col(g, 96, 22, 94, T - 24); col(g, 394, 22, 94, T - 24);   // the two columns
+    g.fillStyle = '#1d2a24'; g.fillRect(96, 4, 320, 28); g.strokeStyle = '#c9a85a'; g.lineWidth = 2; g.strokeRect(100, 8, 312, 20);   // the name over the canopy, in gold on dark green
+    g.fillStyle = '#d9b862'; g.font = 'bold 17px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('GRAND HOTEL ET DES PALMES', 256, 19);
+    g.fillStyle = '#ddd4bf'; g.fillRect(92, T - 30, 30, 6); g.fillRect(390, T - 30, 30, 6);
   });
   const palC = 'hr_palm_c', palW = 'hr_palm_w';
   // ============================== Palazzo Jung (Via Abramo Lincoln): a long white front, brown shutters, an iron balcony on stone brackets under the windows of the first two floors, pediments over the first floor, a rusticated ground floor with green shopfronts and a central arched portal

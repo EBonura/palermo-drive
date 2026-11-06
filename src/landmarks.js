@@ -233,6 +233,26 @@ function angel(key, M, h, o = {}) {
   box(key, 0.5 * h, 0.4 * h, 0.04 * h, { M, p: [-0.28 * h, 0.5 * h, -0.12 * h], rz: 0.5, c: o.c || '#ddd9cc' });
   box(key, 0.5 * h, 0.4 * h, 0.04 * h, { M, p: [0.28 * h, 0.5 * h, -0.12 * h], rz: -0.5, c: o.c || '#ddd9cc' });
 }
+// A figure with a head you can see from the piazza (the Quattro Canti): a robe that narrows at the waist, a neck, a bigger head, one arm up on an attribute. o.crown, o.staff (a sceptre), o.halo.
+function statueFine(key, M, h, o = {}) {
+  const c = o.c || '#d6d2c4', k = h, na = true;
+  lathe(key, [[0, 0], [0.22 * k, 0], [0.24 * k, 0.1 * k], [0.17 * k, 0.32 * k], [0.13 * k, 0.5 * k], [0.16 * k, 0.6 * k], [0.09 * k, 0.66 * k], [0.05 * k, 0.7 * k], [0.045 * k, 0.75 * k]], 7, { M, c, noao: na });
+  box(key, 0.42 * k, 0.09 * k, 0.16 * k, { M, p: [0, 0.6 * k, 0], c, noao: na });
+  sphere(key, 0.1 * k, { M, p: [0, 0.83 * k, 0.01 * k], c, seg: 6, noao: na });
+  box(key, 0.07 * k, 0.3 * k, 0.08 * k, { M, p: [-0.22 * k, 0.38 * k, 0.04 * k], rz: -0.12, c, noao: na });
+  box(key, 0.07 * k, 0.3 * k, 0.08 * k, { M, p: [0.26 * k, 0.5 * k, 0.1 * k], rz: -0.55, c, noao: na });
+  box(key, 0.36 * k, 0.6 * k, 0.05 * k, { M, p: [0, 0.1 * k, -0.15 * k], c: o.cloak || '#c8c3b3', noao: na });
+  if (o.crown) cyl(key, 0.1 * k, 0.085 * k, 0.07 * k, 6, { M, p: [0, 0.92 * k, 0.01 * k], c: '#cdb978', noao: na });
+  if (o.staff) box(key, 0.028 * k, 0.78 * k, 0.028 * k, { M, p: [0.36 * k, 0.28 * k, 0.12 * k], c: '#c8a85a', noao: na });
+  if (o.halo) cyl(key, 0.2 * k, 0.2 * k, 0.015 * k, 8, { M: mul(M, tr(0, 0.83 * k, -0.07 * k)), rx: PI / 2, c: '#d9c47a', noao: na });
+}
+// A figure for the rings of a fountain, seen from ten metres or more: a hexagonal robe, shoulders, a head (about 80 triangles, a third of `statue`).
+function statueLite(key, M, h, o = {}) {
+  const c = o.c || '#d6d2c4', k = h;
+  lathe(key, [[0, 0], [0.23 * k, 0], [0.17 * k, 0.4 * k], [0.15 * k, 0.62 * k], [0.06 * k, 0.72 * k]], 6, { M, c, noao: true });
+  box(key, 0.4 * k, 0.1 * k, 0.16 * k, { M, p: [0, 0.6 * k, 0], c, noao: true });
+  sphere(key, 0.085 * k, { M, p: [0, 0.82 * k, 0], c, seg: 5, noao: true });
+}
 // base height for a footprint
 const baseAt = (x, z) => groundY(x, z);
 function minGround(pts) { let m = Infinity; for (const p of pts) m = Math.min(m, groundY(p[0], p[1])); return m; }
@@ -277,7 +297,7 @@ function paintQC(Wd) {
     rect(-1.95, 2.1, 1.95, 7.0, '#9b8458'); frame(-1.95, 2.1, 1.95, 7.0, '#5a4a32', 0.1);
     rect(-1.8, 2.25, 1.8, 6.85, '#a38c5f');
     // the plaque (an inscription on a white cartouche) above the season's statue
-    rect(-1.6, 4.55, 1.6, 6.45, '#e2dccb'); frame(-1.6, 4.55, 1.6, 6.45, '#b9ae95', 0.12); rect(-1.45, 4.7, 1.45, 6.3, '#d8d1bd');
+    rect(-1.6, 4.55, 1.6, 6.45, '#e2dccb'); frame(-1.6, 4.55, 1.6, 6.45, '#b9ae95', 0.12); rect(-1.45, 4.7, 1.45, 6.3, '#c9c0a6');
     g.fillStyle = '#6a6354'; for (let y = 4.95; y < 6.15; y += 0.17) g.fillRect(X(-1.25), Y(y), 2.5 * sx * (0.72 + r_() * 0.28), 3);
     g.fillStyle = '#e8e2d2'; g.beginPath(); g.ellipse(X(0), Y(6.55), 0.5 * sx, 0.14 * sy, 0, 0, 7); g.fill();
     // the windows of the side bays: stucco frames, green shutters with louvres
@@ -308,11 +328,89 @@ function paintQC(Wd) {
     // the attic: dark panels between small pilasters, ends rolled into volutes (geometry)
     rect(-Wd / 2, T3 + 0.7, Wd / 2, 25.6, '#9b835a');
     for (let s = -Wd / 2 + 0.5; s < Wd / 2 - 0.9; s += 1.9) { rect(s, T3 + 1.0, s + 1.3, 24.3, '#85704a'); frame(s, T3 + 1.0, s + 1.3, 24.3, '#b59f76', 0.07); }
+    carveQC(g, W, H, Wd);
     // weathering: dark streaks under every ledge, a blackened foot, pale patches
     streaks(g, W, H, 520, 103, 0.28, 260);
     noiseDots(g, W, H, 14000, 2, 104, ['rgba(40,30,20,0.18)', 'rgba(240,220,180,0.10)']);
     const gb = g.createLinearGradient(0, H, 0, Y(5.5)); gb.addColorStop(0, 'rgba(25,20,15,0.42)'); gb.addColorStop(1, 'rgba(25,20,15,0)'); g.fillStyle = gb; g.fillRect(0, Y(5.5), W, 5.5 * sy);
   });
+}
+
+// The carving of the Quattro Canti, painted on the wall texture (no geometry, no normals): the cartouche round the plaque, rosettes in the metopes, egg-and-dart on the cornices, the modillions under them
+// (they were boxes, 54 a facade), husk chains down the window frames, lozenges in the pedestal, deep shadow under the balcony and beside the columns, soft patina. Light from the upper left.
+// Drawn from the Mapillary frames of the crossing (2024; looked at, nothing copied) and from the Commons photos named above; the plaque's lines are an estimate (the real inscription is not read).
+function carveQC(g, W, H, Wd) {
+  const sx = W / Wd, sy = H / 25.6, X = (s) => (s + Wd / 2) * sx, Y = (y) => H - y * sy, r_ = R_(131);
+  const T1 = 7.4, T2 = 15.0, T3 = 21.8, LIT = '#e9dfc2', MID = '#c8b88e', DRK = 'rgba(38,26,12,.55)';
+  const rect = (s0, y0, s1, y1, f) => { g.fillStyle = f; g.fillRect(X(s0), Y(y1), (s1 - s0) * sx, (y1 - y0) * sy); };
+  const oval = (s, y, rw, rh, f, a = 0) => { g.fillStyle = f; g.beginPath(); g.ellipse(X(s), Y(y), rw * sx, rh * sy, a, 0, 7); g.fill(); };
+  const curl = (s, y, rad, dir) => {   // a volute: a spiral drawn dark, then lit a little to the upper left, ending in a round eye
+    for (const [dx, dy, c, w] of [[0.012, -0.012, LIT, 0.07], [0, 0, DRK, 0.07]]) {
+      g.strokeStyle = c; g.lineWidth = w * sx; g.lineCap = 'round'; g.beginPath();
+      for (let t = 0; t <= 9; t += 0.25) { const a = dir * t * 0.7 + 1.2, rr = rad * (1 - t / 10.5); g[t ? 'lineTo' : 'moveTo'](X(s + dx + Math.cos(a) * rr), Y(y + dy + Math.sin(a) * rr)); }
+      g.stroke();
+    }
+    oval(s, y, 0.05, 0.05, LIT);
+  };
+  const shell = (s, y, rad) => {   // a scallop fan: a half disc with ribs
+    g.fillStyle = LIT; g.beginPath(); g.ellipse(X(s), Y(y), rad * sx, rad * sy, 0, Math.PI, 0); g.closePath(); g.fill();
+    g.strokeStyle = DRK; g.lineWidth = 1.4; g.beginPath(); for (let k = 0; k <= 8; k++) { const a = Math.PI + k / 8 * Math.PI; g.moveTo(X(s), Y(y)); g.lineTo(X(s) + Math.cos(a) * rad * sx, Y(y) + Math.sin(a) * rad * sy); } g.stroke();
+    g.strokeStyle = 'rgba(38,26,12,.4)'; g.beginPath(); g.ellipse(X(s), Y(y), rad * sx, rad * sy, 0, Math.PI, 0); g.stroke();
+  };
+  const rosette = (s, y, rad) => { oval(s, y, rad, rad, 'rgba(38,26,12,.35)'); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; oval(s + Math.cos(a) * rad * 0.55, y + Math.sin(a) * rad * 0.55, rad * 0.32, rad * 0.32, LIT); } oval(s, y, rad * 0.28, rad * 0.28, MID); };
+  const soft = (s0, y0, s1, y1, a, horiz, rev) => {   // a soft shadow: a gradient over a rectangle, dark at the first edge (horiz: along the width, else along the height)
+    const gr = horiz ? g.createLinearGradient(X(s0), 0, X(s1), 0) : g.createLinearGradient(0, Y(y1), 0, Y(y0));
+    gr.addColorStop(rev ? 1 : 0, `rgba(25,16,8,${a})`); gr.addColorStop(rev ? 0 : 1, 'rgba(25,16,8,0)'); g.fillStyle = gr; g.fillRect(X(s0), Y(y1), (s1 - s0) * sx, (y1 - y0) * sy);
+  };
+
+  // large soft patina first: golden and brown clouds, so no stretch of wall is one colour
+  for (let i = 0; i < 46; i++) {
+    const s = (r_() - 0.5) * Wd, y = 2 + r_() * 22, rad = (0.9 + r_() * 2.4) * sx, k = r_();
+    const gr = g.createRadialGradient(X(s), Y(y), 2, X(s), Y(y), rad); const c = k < 0.4 ? '205,150,64' : k < 0.75 ? '62,42,22' : '236,214,170'; gr.addColorStop(0, `rgba(${c},${0.10 + r_() * 0.08})`); gr.addColorStop(1, `rgba(${c},0)`);
+    g.fillStyle = gr; g.fillRect(X(s) - rad, Y(y) - rad, 2 * rad, 2 * rad);
+  }
+  // shade beside every column, and under the balcony: the depth the flat wall lacks
+  for (const [ya, yb] of [[2.1, T1 - 0.7], [T1 + 1.1, T2], [T2 + 0.6, T3]]) for (const c of [-2.4, 2.4]) { soft(c + 0.3, ya, c + 1.3, yb, 0.28, true); soft(c - 1.3, ya, c - 0.3, yb, 0.28, true, true); }
+  soft(-Wd / 2, T1 - 1.1, Wd / 2, T1 + 0.78, 0.55, false);   // the balcony slab throws its shadow down the wall
+
+  // the pedestal: a lozenge with a rosette in each panel
+  for (const [a, b] of [[-5.3, -2.95], [-1.9, 1.9], [2.95, 5.3]]) {
+    const m = (a + b) / 2, hw = (b - a) / 2 - 0.4;
+    g.strokeStyle = 'rgba(38,26,12,.5)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(X(m - hw), Y(0.95)); g.lineTo(X(m), Y(1.33)); g.lineTo(X(m + hw), Y(0.95)); g.lineTo(X(m), Y(0.57)); g.closePath(); g.stroke();
+    g.strokeStyle = 'rgba(240,226,190,.4)'; g.beginPath(); g.moveTo(X(m - hw) + 1.5, Y(0.95) + 1.5); g.lineTo(X(m) + 1.5, Y(1.33) + 1.5); g.stroke();
+    rosette(m, 0.95, 0.2);
+  }
+
+  // the cornices: egg-and-dart on the top band, and the modillions (brackets with a lit face, a dark side and two drops) in the shade under it, in place of the boxes
+  for (const [yb, w] of [[T1, 0.65], [T2, 0.6], [T3, 0.7]]) {
+    for (let s = -Wd / 2 + 0.2; s < Wd / 2 - 0.1; s += 0.16) { oval(s + 0.07, yb + w + 0.07, 0.05, 0.07, 'rgba(244,232,200,.55)'); rect(s + 0.125, yb + w, s + 0.16, yb + w + 0.15, 'rgba(38,26,12,.38)'); }
+    rect(-Wd / 2, yb - 0.4, Wd / 2, yb, 'rgba(38,26,12,.34)');
+    for (let s = -Wd / 2 + 0.4; s < Wd / 2; s += 0.7) {
+      rect(s - 0.15, yb - 0.38, s + 0.15, yb, '#b9a67a'); rect(s - 0.15, yb - 0.38, s - 0.1, yb, '#e0d2a8'); rect(s + 0.1, yb - 0.38, s + 0.15, yb, 'rgba(38,26,12,.55)'); rect(s - 0.15, yb - 0.38, s + 0.15, yb - 0.3, 'rgba(38,26,12,.4)');
+      oval(s, yb - 0.3, 0.05, 0.05, '#d9ccA0'); for (const q of [-0.07, 0.07]) rect(s + q - 0.02, yb - 0.4, s + q + 0.02, yb - 0.34, '#e2d6b0');
+    }
+  }
+  // the Doric frieze: a rosette in every metope
+  for (let s = -Wd / 2 + 0.25; s < Wd / 2 - 0.4; s += 0.62) rosette(s + 0.41, T1 - 0.35, 0.1);
+
+  // the cartouche round the plaque: scrolls at the sides, a shell over it, a drop under it, and the lines of the inscription in place of the bars
+  rect(-1.45, 4.7, 1.45, 6.3, '#d8d1bd');
+  g.fillStyle = '#5e5646'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const [t, y, sz] of [['VIGLIENA', 6.0, 0.2], ['QVADRIVIVM · PANORMI', 5.62, 0.14], ['AB INCHOATA VRBE', 5.34, 0.11], ['ANNO · MDCVIII', 5.07, 0.14]]) { g.font = `${Math.round(sz * sy)}px Georgia, serif`; g.fillText(t, X(0), Y(y)); }
+  for (const sg of [-1, 1]) {
+    curl(sg * 1.95, 5.5, 0.3, -sg); curl(sg * 1.95, 4.75, 0.2, sg); curl(sg * 1.75, 6.35, 0.17, -sg);
+    rect(sg * 1.62 - 0.05, 4.65, sg * 1.62 + 0.05, 6.4, LIT); rect(sg * 1.62 + 0.05 * sg, 4.65, sg * 1.62 + 0.09 * sg, 6.4, 'rgba(38,26,12,.45)');
+  }
+  shell(0, 6.55, 0.5);
+
+  // the window frames: husk chains down both sides, a mascaron on the keystone of the two lower windows
+  for (const sg of [-1, 1]) for (const [y0, y1, w] of [[3.4, 5.9, 1.25], [8.9, 13.0, 1.5]]) {
+    const xs = sg * 3.95 + (-0.5 * sg) * 0, side = [-1, 1];
+    for (const q of side) for (let y = y1 - 0.15; y > y0 + 0.4; y -= 0.34) { const k = (y1 - y) / (y1 - y0), s = sg * 3.95 + q * (w / 2 + 0.42 + 0.05 * Math.sin(k * 9)); oval(s, y, 0.07, 0.13 + 0.03 * (1 - k), '#cdbf96'); oval(s - 0.02, y + 0.03, 0.03, 0.06, 'rgba(250,240,210,.55)'); oval(s + 0.03, y - 0.03, 0.03, 0.07, 'rgba(38,26,12,.4)'); }
+    const sm = sg * 3.95, ym = y1 + 0.55;
+    oval(sm, ym, 0.28, 0.3, '#ddd0a8'); oval(sm - 0.1, ym + 0.06, 0.05, 0.035, 'rgba(38,26,12,.7)'); oval(sm + 0.1, ym + 0.06, 0.05, 0.035, 'rgba(38,26,12,.7)'); rect(sm - 0.02, ym - 0.18, sm + 0.02, ym + 0.05, 'rgba(38,26,12,.5)'); oval(sm, ym - 0.14, 0.1, 0.04, 'rgba(38,26,12,.6)');
+    curl(sm - 0.48, ym - 0.05, 0.16, -1); curl(sm + 0.48, ym - 0.05, 0.16, 1);
+  }
 }
 
 function buildQuattroCanti() {
@@ -399,13 +497,12 @@ function buildQuattroCanti() {
         box(key, (sb - sa) * 1.06, y1 - y0, z1 - z0, { M: at(sc, y0, (z0 + z1) / 2), c });
       }
     };
-    // the pedestal (it stands out of the wall) and the broken entablatures at the three tiers, each with its modillions
+    // the pedestal (it stands out of the wall) and the broken entablatures at the three tiers (their modillions are painted, carveQC)
     arcSlab('ashlar', -Wd / 2, Wd / 2, 0, 1.9, 0, 0.3, STONE_D);
     arcSlab('ashlar', -Wd / 2, Wd / 2, 1.9, 2.15, 0, 0.45, STONE_L);
     for (const [yb, w] of [[T1, 0.65], [T2, 0.6], [T3, 0.7]]) {
       arcSlab('ashlar', -Wd / 2, Wd / 2, yb, yb + 0.6, 0, w, STONE);
       arcSlab('ashlar', -Wd / 2, Wd / 2, yb + 0.6, yb + 0.78, 0, w + 0.22, STONE_L);
-      for (let s = -Wd / 2 + 0.4; s < Wd / 2; s += 0.7) box('ashlar', 0.3, 0.38, 0.34, { M: at(s, yb - 0.32, 0.34), c: STONE_D });
     }
     // the balcony between the first two tiers: a deep slab on corbels, iron railing along the whole width
     arcSlab('ashlar', -Wd / 2 - 0.2, Wd / 2 + 0.2, T1 + 0.78, T1 + 1.08, 0, 1.45, STONE);
@@ -457,18 +554,18 @@ function buildQuattroCanti() {
       cyl('flat', 0.9, 0.9, 0.03, 12, { M: F(2.0), c: WATER, noao: true });
       box('marble', 0.5, 0.55, 0.4, { M: at(0, 1.15, 0.9), c: '#c7c0ae' });   // the mascaron the water comes from
       box('marble', 1.0, 0.5, 0.8, { M: at(0, 1.9, 0.62), c: '#cdc7b6' });   // plinth of the season
-      statue('marble', at(0, 2.4, 0.62), 2.3, { c: WHITE });
+      statueFine('marble', at(0, 2.4, 0.62), 2.3, { c: WHITE, crown: true });
     }
     // ---- the niches of the two upper tiers: a dark bay with a scallop shell for a head, a white frame, the statue on a pedestal
-    const niche = (y0, w, h, hs, pedH) => {
+    const niche = (y0, w, h, hs, pedH, fig) => {
       part('dark', shapeGeo(archShape(w, h), 0.08), { M: at(0, y0, 0.04), uv: 'keep', c: '#2c3646', noao: true });
       part('marble', shapeGeo(archShape(w + 0.56, h + 0.28), 0.2, archPath(w, h)), { M: at(0, y0 - 0.03, 0), c: WHITE });
       for (let k = 0; k < 7; k++) { const a = PI * (k + 0.5) / 7; box('marble', 0.07, w / 2 * 0.95, 0.1, { M: at(0, y0 + h - w / 2, 0.1), rz: a - PI / 2, c: '#d5cfbd' }); }   // the shell's ribs
       box('marble', 1.25, pedH, 0.95, { M: at(0, y0, 0.52), c: WHITE });
-      statue('marble', at(0, y0 + pedH, 0.55), hs, { c: WHITE });
+      statueFine('marble', at(0, y0 + pedH, 0.55), hs, { c: WHITE, ...fig });
     };
-    niche(9.0, 2.0, 5.3, 3.0, 0.9);      // the Spanish king
-    niche(16.4, 1.9, 4.5, 2.8, 0.7);     // the patron saint
+    niche(9.0, 2.0, 5.3, 3.0, 0.9, { crown: true, staff: true });      // the Spanish king
+    niche(16.4, 1.9, 4.5, 2.8, 0.7, { halo: true });     // the patron saint
     // a mascaron and garland over the king, an angel on a cloud over the saint
     box('marble', 0.7, 0.8, 0.4, { M: at(0, 14.6, 0.1), c: '#d8d2c0' }); sphere('marble', 0.38, { M: at(0, 14.95, 0.3), seg: 6, c: '#d8d2c0' });
     for (const sg of [-1, 1]) { sphere('marble', 0.2, { M: at(sg * 0.95, 14.7, 0.2), seg: 5, c: '#cfc9b8' }); sphere('marble', 0.17, { M: at(sg * 1.55, 14.55, 0.2), seg: 5, c: '#cfc9b8' }); }
@@ -631,45 +728,54 @@ function pretoriaCentre() {   // the fountain's centre: the middle of the baked 
 function buildPretoria() {
   CUR = 'Fontana Pretoria';
   const c = pretoriaCentre();
-  // the piazza level round the fountain (the ground under the basin itself is the lidar's reading of the basin), and a skirt where it falls away
+  // the stone of this model: the marble, with the gadroons (the vertical lobes) of the three basins painted in a band; only the basins read the band (uv 'keep', ten lobes round), every other part
+  // is mapped from a point (texM so large that a metre is a hair of texture), where the stone is plain. One material, as before, in place of the marble.
+  defMat('pret', mkTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#e4e0d4'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 500, 2.2, 31, ['rgba(110,105,95,0.09)', 'rgba(255,255,250,0.12)']);
+    const y0 = h * 0.38, y1 = h * 0.86, gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(255,255,248,.5)'); gr.addColorStop(0.35, 'rgba(255,255,248,.08)'); gr.addColorStop(0.75, 'rgba(70,64,50,.3)'); gr.addColorStop(1, 'rgba(50,44,34,.5)');
+    g.fillStyle = gr; g.fillRect(0, y0, w, y1 - y0); g.fillStyle = 'rgba(50,44,34,.55)'; g.fillRect(0, y0, 3, y1 - y0); g.fillRect(w - 3, y0, 3, y1 - y0); g.fillRect(0, y0 - 3, w, 4); g.fillRect(0, y1, w, 4);
+    g.strokeStyle = 'rgba(50,44,34,.55)'; g.lineWidth = 3; g.beginPath(); g.ellipse(w / 2, y0 + 30, w * 0.4, 28, 0, Math.PI, 0); g.stroke();   // the scallop at the head of each lobe
+    g.fillStyle = 'rgba(255,255,248,.25)'; g.beginPath(); g.ellipse(w * 0.4, y0 + 52, 16, 36, 0, 0, 7); g.fill();
+  }), [4000, 4000]);
+  const GAD = { uv: 'keep', uvk: [10, 1] };  // the piazza level round the fountain (the ground under the basin itself is the lidar's reading of the basin), and a skirt where it falls away
   const rg = []; for (let i = 0; i < 16; i++) { const a = i * PI / 8; rg.push(groundY(c[0] + 12 * Math.cos(a), c[1] + 12 * Math.sin(a))); }
   rg.sort((a, b) => a - b); const gy = (rg[7] + rg[8]) / 2; BASEY = gy;
-  skirt('marble', Array.from({ length: 32 }, (_, i) => [c[0] + 12.05 * Math.cos(i * PI / 16), c[1] + 12.05 * Math.sin(i * PI / 16)]), gy + 0.12, '#bdb8a8');
+  skirt('pret', Array.from({ length: 32 }, (_, i) => [c[0] + 12.05 * Math.cos(i * PI / 16), c[1] + 12.05 * Math.sin(i * PI / 16)]), gy + 0.12, '#bdb8a8');
   (KEEPOUT.circles || (KEEPOUT.circles = [])).push({ name: 'Fontana Pretoria', x: c[0], z: c[1], r: 12.2 });
   const at = (x, y, z, nx = 0, nz = 1) => frame(c[0] + x, gy + y, c[1] + z, nx, nz);
   const O = at(0, 0, 0);
   const W = '#dcd8cb', Wd = '#c8c4b6';
   // sunken floor and outer ring
-  cyl('marble', 11.0, 11.0, 0.25, 28, { M: O, c: '#c9c4b4' });
-  ringWall('marble', 10.1, 10.45, 0.85, 28, O, Wd);
-  ringWall('marble', 6.9, 7.2, 1.45, 24, O, Wd);
-  cyl('marble', 5.0, 5.0, 0.9, 20, { M: O, c: '#cfcabb' });
+  cyl('pret', 11.0, 11.0, 0.25, 28, { M: O, c: '#c9c4b4' });
+  ringWall('pret', 10.1, 10.45, 0.85, 28, O, Wd);
+  ringWall('pret', 6.9, 7.2, 1.45, 24, O, Wd);
+  cyl('pret', 5.0, 5.0, 0.9, 20, { M: O, c: '#cfcabb' });
   // radial stair flights
   for (let k = 0; k < 4; k++) {
     const a = k * PI / 2 + PI / 4, nx = Math.cos(a), nz = Math.sin(a);
     for (let st = 0; st < 3; st++) {
       const r = 10.9 - st * 1.1 - 0.4;
       const M = frame(c[0] + nx * r, gy, c[1] + nz * r, nx, nz);
-      box('marble', 3.0, 0.3 + st * 0.35 + 0.05, 1.1, { M, c: '#d6d2c4', p: [0, 0, 0] });
+      box('pret', 3.0, 0.3 + st * 0.35 + 0.05, 1.1, { M, c: '#d6d2c4', p: [0, 0, 0] });
     }
   }
   // central fountain: three tiers
-  cyl('marble', 3.4, 3.7, 0.6, 16, { M: at(0, 0.9, 0), c: '#d3cfc0' });
-  lathe('marble', [[0, 0], [2.4, 0.1], [3.9, 0.45], [4.1, 0.8], [3.8, 0.8], [0, 0.4]], 18, { M: at(0, 1.5, 0), c: '#e0dccf' });
-  cyl('marble', 0.8, 1.2, 1.8, 10, { M: at(0, 1.9, 0), c: '#d8d4c6' });
-  lathe('marble', [[0, 0], [1.6, 0.1], [2.6, 0.45], [2.75, 0.75], [2.4, 0.75], [0, 0.35]], 16, { M: at(0, 3.5, 0), c: '#e0dccf' });
-  cyl('marble', 0.45, 0.75, 1.3, 8, { M: at(0, 3.9, 0), c: '#d8d4c6' });
-  lathe('marble', [[0, 0], [1.0, 0.1], [1.7, 0.35], [1.8, 0.6], [1.5, 0.6], [0, 0.3]], 14, { M: at(0, 5.0, 0), c: '#e0dccf' });
-  cyl('marble', 0.25, 0.4, 1.2, 8, { M: at(0, 5.3, 0), c: '#d8d4c6' });
-  sphere('marble', 0.55, { M: at(0, 6.9, 0), c: '#e0dccf', seg: 8 });
-  statue('marble', at(0, 6.9, 0), 1.6, {});
+  cyl('pret', 3.4, 3.7, 0.6, 16, { M: at(0, 0.9, 0), c: '#d3cfc0' });
+  lathe('pret', [[0, 0], [2.4, 0.1], [3.9, 0.45], [4.1, 0.8], [3.8, 0.8], [0, 0.4]], 18, { M: at(0, 1.5, 0), c: '#e0dccf', ...GAD });
+  cyl('pret', 0.8, 1.2, 1.8, 10, { M: at(0, 1.9, 0), c: '#d8d4c6' });
+  lathe('pret', [[0, 0], [1.6, 0.1], [2.6, 0.45], [2.75, 0.75], [2.4, 0.75], [0, 0.35]], 16, { M: at(0, 3.5, 0), c: '#e0dccf', ...GAD });
+  cyl('pret', 0.45, 0.75, 1.3, 8, { M: at(0, 3.9, 0), c: '#d8d4c6' });
+  lathe('pret', [[0, 0], [1.0, 0.1], [1.7, 0.35], [1.8, 0.6], [1.5, 0.6], [0, 0.3]], 14, { M: at(0, 5.0, 0), c: '#e0dccf', ...GAD });
+  cyl('pret', 0.25, 0.4, 1.2, 8, { M: at(0, 5.3, 0), c: '#d8d4c6' });
+  sphere('pret', 0.55, { M: at(0, 6.9, 0), c: '#e0dccf', seg: 8 });
+  statue('pret', at(0, 6.9, 0), 1.6, {});
   // statues: outer ring (facing out), inner ring, round the first basin
   const ring = (cnt, r, y, hs, ped, off = 0) => {
     for (let i = 0; i < cnt; i++) {
       const a = off + i * 2 * PI / cnt, nx = Math.cos(a), nz = Math.sin(a);
       const M = frame(c[0] + nx * r, gy + y, c[1] + nz * r, nx, nz);
-      box('marble', 0.55, ped, 0.55, { M, c: '#cdc8b8' });
-      statue('marble', mul(M, tr(0, ped, 0)), hs, {});
+      box('pret', 0.55, ped, 0.55, { M, c: '#cdc8b8' });
+      statueLite('pret', mul(M, tr(0, ped, 0)), hs, {});
     }
   };
   ring(20, 10.3, 0.85, 1.9, 0.6, 0.1);
@@ -685,7 +791,7 @@ function buildPretoria() {
       rail(M, len, 1.45);
       box('dark', 0.14, 1.6, 0.14, { M: frame(c[0] + r * Math.cos(a0), gy, c[1] + r * Math.sin(a0), 1, 0), c: '#26262b' });
     }
-    ringWall('marble', 11.9, 12.1, 0.12, 32, O, '#bdb8a8', 0.04);
+    ringWall('pret', 11.9, 12.1, 0.12, 32, O, '#bdb8a8', 0.04);
   }
 }
 

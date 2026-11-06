@@ -262,6 +262,11 @@ ape('ape', false); ape('apetaxi', true);
   mn.prism(0, 0, 1.6, 3.0, 0.22, 0.14, 6, st); mn.lump(0, 3.15, 0, 0.17, 0.2, 0.15, st, 0, 0.08, 0.85);
   mn.box(-0.3, 2.0, -0.05, -0.1, 2.3, 0.35, st, 1, 1);
   def('monument', mn);
+  const ms = new MB(), ws = C('#d8d4c6');    // a statue on a low plinth, for the figures round the Fontana Pretoria (OSM maps each as a monument: the obelisk of `monument` stood 4 m high in the middle of the piazza)
+  ms.box(-0.45, 0, -0.45, 0.45, 0.9, 0.45, st, 0.7, 1);
+  ms.prism(0, 0, 0.9, 2.1, 0.36, 0.2, 6, ws); ms.box(-0.32, 1.95, -0.13, 0.32, 2.2, 0.13, ws, 0.9, 1);
+  ms.lump(0, 2.45, 0, 0.15, 0.18, 0.15, ws, 0, 0.08, 0.85); ms.box(0.32, 1.7, -0.06, 0.42, 2.35, 0.06, ws, 1, 1);
+  def('monument_s', ms);
   const fn = new MB(); fn.prism(0, 0, 0, 0.55, 1.5, 1.4, 10, C('#c4bfb0'));
   fn.prism(0, 0, 0.5, 0.5, 1.2, 1.2, 10, C('#3a7c8c'), { cap: true });
   fn.prism(0, 0, 0.5, 1.5, 0.22, 0.12, 8, C('#c4bfb0')); fn.prism(0, 0, 1.5, 1.6, 0.6, 0.5, 10, C('#c4bfb0'));
@@ -532,6 +537,7 @@ const SPECS = {
   cabinet: { kind: 'solid', c: [[-0.3, 0, 0.3], [0.3, 0, 0.3]] },
   postbox: { kind: 'solid', c: [[0, 0, 0.28]] },
   monument: { kind: 'solid', c: [[0, 0, 0.85]] },
+  monument_s: { kind: 'solid', c: [[0, 0, 0.85]] },
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
   hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 1.8, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 1.8 m/s (effective, see src/fences.js) and leaves a gap for the session
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
@@ -1036,7 +1042,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
+  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'monument_s', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1455,7 +1461,9 @@ function* generate(S, BUD) {
     if (k === 'monument') {
       if (it.tour === 'artwork' && it.support === 'ground' && !it.mem) continue;   // mosaics and the like
       if (inB(it.x, it.z) || road(it.x, it.z)) continue;
-      put('monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
+      const dp = it.art === 'statue' ? Math.hypot(it.x - 71.5, it.z - 25.8) : 99;   // Fontana Pretoria (src/landmarks.js): the statues of its precinct are figures; the one in the middle of the basin is in the model, behind a fence
+      if (dp < 10) continue;
+      put(dp < 24 ? 'monument_s' : 'monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
     }
     if (k === 'water') { // a drinking tap (OSM drinking_water and the Comune's fontanelle list): on the pavement
       const sp = snapOff(it.x, it.z); if (!sp || occHit(sp[0], sp[1], 0.4)) continue;
@@ -2519,7 +2527,7 @@ function* generate(S, BUD) {
 // ------------------------------------------------------------------ instances -> meshes
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
 const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
-  signal: 350, signal_arm: 380, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, shelter: 350, fountain: 600,
+  signal: 350, signal_arm: 380, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, monument_s: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, holm_b: 1100, jacaranda: 1000, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };
 const WHITE_IC = new THREE.Color(1, 1, 1);
