@@ -44,9 +44,25 @@ jobs:
     permissions:
       pages: write
       id-token: write
+    # three tries of at most 10 minutes each (the most deploy-pages allows) plus the waits between them
+    timeout-minutes: 45
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
     steps:
-      - id: deployment
+      # Pages sometimes keeps a deployment queued on its side for minutes, then fails it ("Deployment failed, try again later")
+      # or the action gives up at its 10 minute cap; the same artifact deploys fine a few minutes later, so try up to three times
+      - id: deploy1
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        continue-on-error: true
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 120
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        continue-on-error: true
+      - if: steps.deploy2.outcome == 'failure'
+        run: sleep 300
+      - id: deploy3
+        if: steps.deploy2.outcome == 'failure'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
