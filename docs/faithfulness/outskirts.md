@@ -45,8 +45,9 @@ Not decided from data: the CTR tells nothing about height or material, so the mi
 
 ## The floating slab at su17
 
-It is the deck of the OSM bridge b81531217 (Via Palmerino over a brook, 11.4 m wide, layer 1), seen from the lane 3.5 m before it. The deck height is baked from the DEM at the two ends
-(`y0` 85.64, `y1` 85.24); the ground the game runs on at the start of the deck is 84.1, so the deck stands 1.5 m above the approach, with the lane's asphalt cut away under it, and from
-eye height the slab is a grey wall with a road dash on top. It is not drawn by a street layer or a fence. Not changed: a fix means moving the bridge's ends onto the runtime ground
-(src/bridges.js `registerStructs`, which deliberately does not read the ground so that decks do not depend on which tiles are loaded) or baking a ramp, both bigger than a visual tweak.
-I tried a steeper bank for brooks (the trench is 13 m from the camera, so it was not the cause) and reverted it.
+It was the deck of the OSM bridge b81531217 (Via Palmerino over a brook), seen from the lane 3.5 m before it. The deck does meet the ground at its ends (85.64 and
+85.24, the same as the runtime ground there); what stood across the lane was the face that closed each end of every deck, drawn across the whole width up to the parapet
+top, 1.15 m above the road, with the lane paint showing through it. Now only the slab and abutment (below the road) and the pavement and parapet ends close a deck.
+`tools/bridge-steps.mjs` compares every deck end with the ground its approach is draped on: the long-viaduct rule (deck at least 0.4 m over the ground) had lifted 23
+ends 0.4 to 2 m above their approach, and now leaves the ends at the baked height. Still off by 1 to 3 m: ends whose ground is lowered by another structure's cut
+(the Viale Regione underpass cutting at -6536,-7844, the dips at Piazza Einstein, the quay at the port flyover 355,-748).

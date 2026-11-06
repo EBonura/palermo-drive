@@ -34,6 +34,7 @@ const RISE = 5.4, RAMP = 28;           // flyovers: clearance above the road bel
 const DIP = 2.7, DIP_FLAT = 6, DIP_RAMP = 42;   // a road that passes under a flyover (rec.ud, its line and ground, from the bake) sinks DIP m, level for DIP_FLAT m beyond the deck's edge and back to the ground over DIP_RAMP m: the deck then climbs RISE - DIP, not RISE
 const END_OPEN = 12, END_OPEN_RISE = 1.0;   // flyover ends: no parapet collider within END_OPEN m of an end until the deck stands END_OPEN_RISE m above its starting line
 const PLATEAU = 9, RAMP_LOCAL = 36;    // a long flyover (rec.oc, the metres along it where roads pass under it) is lifted only this far from each crossing, then falls back over RAMP_LOCAL m to follow the ground
+const CLEAR_IN = 12;                   // a long viaduct's clearance over the ground (0.4 m) eases in over this many metres from each end
 const SLAB = 0.9, KERB = 0.15, PARAPET_H = 1.0, SIDEWALK = 1.2, PARAPET_W = 0.5;
 const CELL = 24;
 const hh = (a, b) => Math.hypot(a, b);
@@ -118,7 +119,10 @@ export function registerStructs(d, key) {
       st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
       for (let k = 0; k < n; k++) { const s = st.cum[k], q = R > 0 ? Math.min(1, s / R, (st.L - s) / R) : 1; st.ys[k] -= dip * Math.max(0, q); }
     }
-    if (r.k === 'b' && st.L > 150 && (!r.ov || r.oc)) for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4); }   // a long viaduct crosses hills as well as valleys: never under the ground
+    if (r.k === 'b' && st.L > 150 && (!r.ov || r.oc)) for (let k = 1; k < n - 1; k++) {   // a long viaduct crosses hills as well as valleys: never under the ground. The two ends keep the baked height
+      // (the ground the road arrives on) and the clearance eases in over CLEAR_IN m: lifted to the ground + 0.4 there, 23 deck ends stood 0.4 to 2 m above their approach
+      const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4 * Math.min(1, st.cum[k] / CLEAR_IN, (st.L - st.cum[k]) / CLEAR_IN));
+    }
     S.set(rec.id, st);
     // level surface (levelY): one entry per centreline segment
     for (let k = 0; k + 1 < n; k++) {
@@ -344,15 +348,22 @@ function buildDeck(st) {
       }
     }
   }
-  // ends: the slab's cross-section and the abutment walls down to the ground
+  // ends: the slab's cross-section and the abutment walls down to the ground, and the ends of the pavements and parapets. Only the parapets rise above the road: a face
+  // across the whole width up to the parapet top stood 1.15 m above the deck where the road runs on, and from the approach every bridge read as a grey wall with the
+  // lane paint showing through it (Via Palmerino, b81531217, viewpoint su17)
   for (const end of [0, n - 1]) {
-    const k = end, sgn = end === 0 ? -1 : 1, tx = T[k][0] * sgn, tz = T[k][1] * sgn;
-    const gy = Math.min(rawGround(p[2 * k], p[2 * k + 1]), st.ys[k]) - 0.5;
-    const top = ys[k] + KERB + PARAPET_H;
-    const L = at(k, po, 0), Rr = at(k, -po, 0);
-    // face closing the deck and parapets, then the abutment from under the slab to below the ground (it is hidden inside the embankment)
-    quad(conc, [L[0], gy, L[2]], [Rr[0], gy, Rr[2]], [Rr[0], top, Rr[2]], [L[0], top, L[2]], tx, 0, tz, CONC, null, 0.85);
-    if (sgn < 0) quad(conc, [Rr[0], gy, Rr[2]], [L[0], gy, L[2]], [L[0], top, L[2]], [Rr[0], top, Rr[2]], tx, 0, tz, CONC, null, 0.85);
+    const k = end, y = ys[k];
+    const gy = Math.min(rawGround(p[2 * k], p[2 * k + 1]), y) - 0.5;
+    const face = (o0, o1, ya, yb) => { // both sides: seen from the approach and, for the parapet ends, from the deck
+      const L = at(k, o0, 0), Rr = at(k, o1, 0), s = Math.sign(o0 - o1), fx = T[k][0] * s, fz = T[k][1] * s;   // (the first winding faces along the tangent when o0 > o1)
+      quad(conc, [L[0], ya, L[2]], [Rr[0], ya, Rr[2]], [Rr[0], yb, Rr[2]], [L[0], yb, L[2]], fx, 0, fz, CONC, null, 0.85);
+      quad(conc, [Rr[0], ya, Rr[2]], [L[0], ya, L[2]], [L[0], yb, L[2]], [Rr[0], yb, Rr[2]], -fx, 0, -fz, CONC, null, 0.85);
+    };
+    face(po, -po, gy, y);   // the slab and the abutment from the deck down to below the ground (hidden inside the embankment)
+    if (!r.f) for (const sg of [1, -1]) {
+      face(sg * po, sg * cw / 2, y, y + KERB);                    // pavement
+      face(sg * po, sg * ph, y + KERB, y + KERB + PARAPET_H);     // parapet
+    } else for (const sg of [1, -1]) face(sg * po, sg * (po - PARAPET_W), y, y + PARAPET_H);
   }
   // piers
   if (r.k === 'b' && !r.f && st.L > 40 && (!r.ov || r.oc)) {
