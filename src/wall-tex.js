@@ -20,8 +20,10 @@ export const LAYER = {
   x: { i: 7, pw: 4.0, ph: 3.0 },   // worn city wall: patched lime wash, torn posters and black-bordered notices, spray tags (long street walls, src/fence-walls.js)
   p: { i: 8, pw: 4.0, ph: 3.0 },   // hoarding: corrugated sheet on posts, rust, pasted bills, tags
   n: { i: 9, pw: 4.0, ph: 3.0 },   // lime wash without a fallen patch: village, garden and parapet walls (src/fence-walls.js), so not every plaster wall carries the same torn mark
+  o: { i: 10, pw: 3.2, ph: 2.4 },  // old rubble wall grown over: moss in the joints, ivy hanging from the top, weeds (the lanes of the hills and the countryside, zw22)
+  m: { i: 11, pw: 4.0, ph: 3.0 },  // old render gone grey and mossy: black algae runs from the top, moss, a curtain of ivy here and there
 };
-const N_LAYERS = 10;
+const N_LAYERS = 12;
 
 // run `fn(x, y)` for the element at (x, y) of size (w, h) and for its copies across the edges of the tile, so the texture repeats without a seam
 function wrap(x, y, w, h, fn) {
@@ -60,6 +62,38 @@ function courses(g, r, sx, sy, o) {
     }
     y += rh;
   }
+}
+
+// growth on old walls: leaves (ivy) in curtains hanging from the top of the wall (y 0 of the layer is the wall top), moss in patches, tufts of weeds
+const LEAF = [[58, 82, 38], [78, 104, 50], [46, 64, 30], [96, 120, 62], [66, 92, 44], [112, 130, 70]];
+function leaf(g, r, x, y, sz, a = 0.95) {
+  const c = jit(LEAF[(r() * LEAF.length) | 0], 0.85 + r() * 0.3), w = sz * (0.8 + r() * 0.5), h = sz * (0.55 + r() * 0.3), ang = r() * 6.28;
+  wrap(x - w, y - w, 2 * w, 2 * w, (X, Y) => { g.save(); g.translate(X + w, Y + w); g.rotate(ang); g.fillStyle = rgba(c, a); g.beginPath(); g.ellipse(0, 0, w, h, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(16,24,10,0.3)'; g.fillRect(-w * 0.7, -0.5, w * 1.4, 1); g.restore(); });
+}
+function ivy(g, r, sx, sy, n, maxLen) {   // n curtains, each 0.3 to 1.1 m wide, hanging 0.25 m to maxLen m, thinning out downwards; a leafy fringe along the top
+  for (let x = 0; x < S; x += 2) { const d = (0.04 + r() * 0.12) * sy; for (let k = 0; k < 3; k++) if (r() < 0.75) leaf(g, r, x + r() * 4, r() * d, 4 + r() * 4); }
+  for (let i = 0; i < n; i++) {
+    const cx = r() * S, w = (0.3 + r() * 0.8) * sx, len = (0.25 + r() * (maxLen - 0.25)) * sy;
+    g.strokeStyle = 'rgba(52,44,30,0.5)'; g.lineWidth = 1.3;   // the stems
+    for (let k = 0; k < 4; k++) { let x = cx + (r() - 0.5) * w, y = 0; g.beginPath(); g.moveTo(x, y); while (y < len) { x += (r() - 0.5) * 6; y += 8 + r() * 10; g.lineTo(x, y); } g.stroke(); }
+    const m = Math.round(w * len / 22);
+    for (let k = 0; k < m; k++) { const t = Math.pow(r(), 1.6), y = t * len, x = cx + (r() - 0.5) * w * (1 - 0.45 * t); leaf(g, r, x, y, 4 + r() * 4 * (1 - 0.4 * t)); }
+  }
+}
+function moss(g, r, n, y0, y1, a0) {   // soft green patches between y0 and y1 (fractions of the layer height)
+  for (let i = 0; i < n; i++) {
+    const x = r() * S, y = (y0 + r() * (y1 - y0)) * S, rx = 6 + r() * 26, ry = 4 + r() * 14, c = r() < 0.5 ? [82, 100, 50] : r() < 0.5 ? [64, 78, 40] : [110, 120, 62];
+    wrap(x - rx, y - ry, 2 * rx, 2 * ry, (X, Y) => { const gr = g.createRadialGradient(X + rx, Y + ry, 1, X + rx, Y + ry, rx); gr.addColorStop(0, rgba(c, a0 + r() * 0.25)); gr.addColorStop(1, rgba(c, 0)); g.fillStyle = gr; g.beginPath(); g.ellipse(X + rx, Y + ry, rx, ry, r() * 3, 0, 7); g.fill(); });
+  }
+}
+function weeds(g, r, sx, sy, n, y0) {   // tufts of grass and weeds, low on the wall (below y0 m from the top) and in its cracks
+  for (let i = 0; i < n; i++) {
+    const x = r() * S, y = (y0 + r() * (S / sy - y0)) * sy, k = 5 + ((r() * 7) | 0), hgt = (0.08 + r() * 0.2) * sy;
+    g.lineWidth = 1.6; g.lineCap = 'round';
+    for (let q = 0; q < k; q++) { const c = jit(LEAF[(r() * LEAF.length) | 0], 1.05 + r() * 0.25), ang = -Math.PI / 2 + (r() - 0.5) * 1.6, l = hgt * (0.5 + r() * 0.6); g.strokeStyle = rgba(c, 0.9); wrap(x - l, y - l, 2 * l, 2 * l, (X, Y) => { g.beginPath(); g.moveTo(X + l, Y + l); g.quadraticCurveTo(X + l + Math.cos(ang) * l * 0.5, Y + l + Math.sin(ang) * l * 0.6, X + l + Math.cos(ang) * l, Y + l + Math.sin(ang) * l); g.stroke(); }); }
+    if (r() < 0.4) for (let q = 0; q < 5; q++) leaf(g, r, x + (r() - 0.5) * 14, y - r() * hgt * 0.6, 3 + r() * 3);
+  }
+  g.lineCap = 'butt';
 }
 
 const PAINT = {
@@ -189,6 +223,25 @@ const PAINT = {
     const gr = g.createLinearGradient(0, S * 0.8, 0, S); gr.addColorStop(0, 'rgba(60,50,38,0)'); gr.addColorStop(1, 'rgba(60,50,38,0.3)'); g.fillStyle = gr; g.fillRect(0, S * 0.8, S, S * 0.2);
     speckles(g, r, 4000, ['rgba(0,0,0,0.10)', 'rgba(255,255,255,0.10)']);
   },
+  o(g, r, sx, sy) {   // old rubble grown over: weathered stones in dark mortar, moss in the joints and over the lower stones, ivy hanging from the top, weeds in the cracks
+    courses(g, r, sx, sy, { joint: '#6f6a5c', rh: 0.21, rv: 0.75, sw: 0.4, sv: 1.0, gap: 2.8, round: 7, pits: 2, pal: [[168, 160, 140], [184, 172, 148], [150, 146, 132], [190, 180, 156], [158, 150, 128], [140, 138, 126]] });
+    for (let i = 0; i < 40; i++) { const x = r() * S, y = r() * S * 0.5, w = (0.1 + r() * 0.5) * sx, len = (0.5 + r() * 1.5) * sy, a = 0.06 + r() * 0.12; wrap(x, y, w, len, (X, Y) => { const gr = g.createLinearGradient(0, Y, 0, Y + len); gr.addColorStop(0, rgba([36, 38, 28], a)); gr.addColorStop(1, rgba([36, 38, 28], 0)); g.fillStyle = gr; g.fillRect(X, Y, w, len); }); }
+    moss(g, r, 120, 0.05, 1.0, 0.3);
+    moss(g, r, 90, 0.4, 1.0, 0.35);
+    weeds(g, r, sx, sy, 26, 0.6);
+    ivy(g, r, sx, sy, 3, 1.5);
+    speckles(g, r, 2500, ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.07)', 'rgba(70,90,40,0.15)']);
+  },
+  m(g, r, sx, sy) {   // old render: the lime wash gone grey, black algae running from the top, moss and damp, an ivy curtain, weeds at the foot
+    PAINT.w(g, r, sx, sy, true);
+    g.fillStyle = 'rgba(128,124,108,0.32)'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 60; i++) { const x = r() * S, len = (0.3 + r() * 1.6) * sy, w = (0.04 + r() * 0.3) * sx, a = 0.08 + r() * 0.2; wrap(x, 0, w, len, (X, Y) => { const gr = g.createLinearGradient(0, Y, 0, Y + len); gr.addColorStop(0, rgba([34, 38, 30], a)); gr.addColorStop(1, rgba([34, 38, 30], 0)); g.fillStyle = gr; g.fillRect(X, Y, w, len); }); }
+    for (let i = 0; i < 14; i++) { const x = r() * S, y = (0.3 + r() * 0.7) * S, rad = 50 + r() * 90; wrap(x - rad, y - rad, 2 * rad, 2 * rad, (X, Y) => { const gr = g.createRadialGradient(X, Y, 1, X, Y, rad); gr.addColorStop(0, 'rgba(60,66,44,0.22)'); gr.addColorStop(1, 'rgba(60,66,44,0)'); g.fillStyle = gr; g.fillRect(X - rad, Y - rad, 2 * rad, 2 * rad); }); }
+    moss(g, r, 80, 0.3, 1.0, 0.25);
+    weeds(g, r, sx, sy, 14, 0.8);
+    ivy(g, r, sx, sy, 2, 1.8);
+    speckles(g, r, 3000, ['rgba(0,0,0,0.10)', 'rgba(70,90,40,0.12)']);
+  },
   cap(g, r, sx, sy) {   // coping: pale slabs with fine joints and a little weathering
     g.fillStyle = '#d9d3c4'; g.fillRect(0, 0, S, S);
     for (let y = 0; y < S; y += 1.0 * sy) for (let x = ((y / sy) % 2) * 0.5 * sx; x < S + sx; x += 1.0 * sx) { const k = 0.92 + r() * 0.14; g.fillStyle = `rgba(${Math.round(222 * k)},${Math.round(216 * k)},${Math.round(200 * k)},1)`; g.fillRect(x + 1, y + 1, 1.0 * sx - 2, 1.0 * sy - 2); }
@@ -223,7 +276,7 @@ export function wallTexture() {
   TEX.format = THREE.RGBAFormat; TEX.type = THREE.UnsignedByteType;
   TEX.wrapS = TEX.wrapT = THREE.RepeatWrapping; TEX.minFilter = THREE.LinearMipmapLinearFilter; TEX.magFilter = THREE.LinearFilter; TEX.generateMipmaps = true;
   TEX.anisotropy = 4; TEX.colorSpace = THREE.SRGBColorSpace; TEX.needsUpdate = true;
-  // the pixels (10 MB) go once they are on the GPU; a lost GL context paints them again (they are seeded: the same ones)
+  // the pixels (12 MB) go once they are on the GPU; a lost GL context paints them again (they are seeded: the same ones)
   TEX.onUpdate = () => { TEX.image.data = null; DATA = null; };
   document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(S * S * 4 * N_LAYERS); KINDS.forEach((k, n) => d.set(pixels(k, 4100 + n * 37), LAYER[k].i * S * S * 4)); TEX.image.data = d; TEX.needsUpdate = true; });
   return TEX;
