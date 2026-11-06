@@ -245,10 +245,10 @@ void main() {
   vec2 q = p + N.xz * min(depth, 3.0) * 0.8;
   float bn = texture2D(uNrm, q / 11.0).a;
   vec3 sand = vec3(0.70, 0.60, 0.38), rock = vec3(0.26, 0.24, 0.20), weed = vec3(0.10, 0.17, 0.08);
-  vec3 bed = mix(sand, rock, smoothstep(0.50, 0.78, bn) * 0.85);
+  vec3 bed = mix(sand, rock, smoothstep(0.30, 0.95, bn) * 0.22);   // rock only as a faint shading over the sand, with soft edges: at 0.50..0.78 and 0.85 it was dark blotches all over the shallows (owner's call)
   #ifndef LOW
   float bn2 = texture2D(uNrm, q / 2.9 + 0.37).a;
-  bed = mix(bed, weed, smoothstep(0.58, 0.85, bn2) * 0.55 * smoothstep(0.8, 3.0, depth));
+  bed = mix(bed, weed, smoothstep(0.55, 0.95, bn2) * 0.55 * smoothstep(0.8, 3.0, depth));
   bed *= 0.85 + 0.3 * bn2;
   #endif
   vec3 trans = exp(-vec3(0.55, 0.11, 0.075) * depth);                           // red goes first
