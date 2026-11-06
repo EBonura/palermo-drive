@@ -33,7 +33,7 @@ const names = String(arg('scenes', Object.keys(SCENES).join(','))).split(',');
 // ---------- source map by hand: the unminified bundle says "// src/x.js" before each module
 const appFile = fs.readdirSync(path.join(ROOT, 'js')).find(f => /^app\..*\.js$/.test(f));
 const bundle = fs.readFileSync(path.join(ROOT, 'js', appFile), 'utf8').split('\n');
-const modStart = []; bundle.forEach((l, i) => { const m = l.match(/^\/\/ ((?:[^\s]+\/)?[^\s/]+\.m?js)$/); if (m) modStart.push([i, m[1].replace(/^.*node_modules\//, '').replace(/^(\.\.\/)+/, '')]); });
+const modStart = []; bundle.forEach((l, i) => { const m = l.match(/^\/\/ ((?:[^\s]+\/)?[^\s/]+\.m?js)$/); if (m) modStart.push([i, m[1].replace(/^.*node_modules\//, '').replace(/^.*?(?=(^|\/)src\/)\/?/, '').replace(/^(\.\.\/)+/, '')]); });
 if (modStart.length < 10) console.error('warning: no module markers in', appFile, '(build with --minify=false for readable names)');
 const moduleAt = line => { let a = 0, b = modStart.length - 1, r = '?'; while (a <= b) { const m = (a + b) >> 1; if (modStart[m][0] <= line) { r = modStart[m]; a = m + 1; } else b = m - 1; } return r === '?' ? ['?', 0] : r; };
 const short = m => m.replace(/^src\//, '').replace(/^three\/build\/three\.(core|module)(\.min)?\.js$/, 'three').replace(/^three\/.*\//, 'three/');
@@ -45,10 +45,10 @@ const f1 = v => (+v).toFixed(1), f2 = v => (+v).toFixed(2);
 
 // ---------- page side: rAF timing and the driver
 const PAGE_EARLY = () => {
-  const raf = window.requestAnimationFrame.bind(window), F = window.__ft = { on: false, work: [], gap: [], t: -1, cur: 0, last: 0 };
+  const raf = window.requestAnimationFrame.bind(window), F = window.__ft = { on: false, work: [], gap: [], win: [], t: -1, cur: 0, last: 0 };
   window.requestAnimationFrame = cb => raf(t => {
     const a = performance.now(); cb(t); const b = performance.now();
-    if (t !== F.t) { if (F.on && F.t >= 0) { F.work.push(F.cur); F.gap.push(a - F.last); } F.t = t; F.cur = 0; F.last = a; }
+    if (t !== F.t) { if (F.on && F.t >= 0) { F.work.push(F.cur); F.gap.push(a - F.last); F.win.push([F.last, F.cur]); } F.t = t; F.cur = 0; F.last = a; }
     F.cur += b - a;
   });
 };
@@ -73,7 +73,7 @@ const PAGE_DRIVER = () => {
 };
 
 // ---------- CPU profile
-function analyseProfile(profile, frames) {
+function analyseProfile(profile, frames, win, offset) {
   const nodes = new Map(profile.nodes.map(n => [n.id, n])), self = new Map(); let total = 0;
   profile.samples.forEach((id, i) => { const d = (profile.timeDeltas[i] || 0) / 1000; total += d; self.set(id, (self.get(id) || 0) + d); });
   for (const n of profile.nodes) for (const c of n.children || []) nodes.get(c).parent = n;
@@ -94,15 +94,18 @@ function analyseProfile(profile, frames) {
     if (n.parent && !n.parent.parent && !/^\((idle|program|garbage collector|root)\)$/.test(cf.functionName)) { const k = label(cf); outside.set(k, (outside.get(k) || 0) + incl(n.id)); }
   }
   const per = m => [...m].map(([k, t]) => [k, +(t / frames).toFixed(3)]).sort((a, b) => b[1] - a[1]);
-  // the worst frames: split the samples into loop runs, take the worst 2% of them, and say what filled them (inclusive, by what the loop called, then by the deepest src/ or three function)
+  // the worst frames: the page says when each frame ran (win: [start, ms] on its clock, offset: profile clock minus page clock), and the samples in the worst 2% say what filled them (by what the loop called, then by function)
   const loopChild = new Map(); (function mark(n, sys) { const c = nodes.get(n); for (const q of c.children || []) { const cn = nodes.get(q), isLoop = c.callFrame.functionName === 'onAnimationFrame' && modOf(cn.callFrame) === 'src/main.js', s2 = sys || (isLoop ? '(loop self)' : null); loopChild.set(q, sys === '(loop self)' ? label(cn.callFrame) : s2); mark(q, loopChild.get(q)); } })(profile.nodes[0].id, null);
-  const runs = []; let cur = null;
-  profile.samples.forEach((id, i) => { const d = (profile.timeDeltas[i] || 0) / 1000, sys = loopChild.get(id); if (sys) { if (!cur) cur = { ms: 0, sys: new Map(), fn: new Map() }; cur.ms += d; cur.sys.set(sys, (cur.sys.get(sys) || 0) + d); const k = label(nodes.get(id).callFrame); cur.fn.set(k, (cur.fn.get(k) || 0) + d); } else if (cur && !/^\(garbage collector\)$/.test(nodes.get(id).callFrame.functionName)) { runs.push(cur); cur = null; } });
-  runs.sort((a, b) => b.ms - a.ms);
-  const worstN = Math.max(3, runs.length >> 5), worst = runs.slice(0, worstN), wSys = new Map(), wFn = new Map();
-  for (const r of worst) { for (const [k, t] of r.sys) wSys.set(k, (wSys.get(k) || 0) + t / worstN); for (const [k, t] of r.fn) wFn.set(k, (wFn.get(k) || 0) + t / worstN); }
+  const worst = [...win].sort((a, b) => b[1] - a[1]).slice(0, Math.max(3, win.length >> 5)).sort((a, b) => a[0] - b[0]), worstN = worst.length, wSys = new Map(), wFn = new Map();
+  let ts = profile.startTime / 1000, wi = 0;
+  profile.samples.forEach((id, i) => {
+    const d = (profile.timeDeltas[i] || 0) / 1000; ts += d; const t = ts - offset;
+    while (wi < worst.length && t > worst[wi][0] + worst[wi][1]) wi++;
+    if (wi >= worst.length || t < worst[wi][0]) return;
+    const n = nodes.get(id), sys = loopChild.get(id) || label(n.callFrame), k = label(n.callFrame); wSys.set(sys, (wSys.get(sys) || 0) + d / worstN); wFn.set(k, (wFn.get(k) || 0) + d / worstN);
+  });
   const top = m => [...m].map(([k, t]) => [k, +t.toFixed(2)]).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  const spikes = { n: worstN, medianRunMs: +(runs.length ? runs[runs.length >> 1].ms : 0).toFixed(1), worstMs: worst.slice(0, 6).map(r => +r.ms.toFixed(1)), systems: top(wSys), self: top(wFn) };
+  const spikes = { n: worstN, medianRunMs: +(median(win.map(w => w[1]))).toFixed(1), worstMs: [...worst].sort((a, b) => b[1] - a[1]).slice(0, 6).map(r => +r[1].toFixed(1)), systems: top(wSys), self: top(wFn) };
   return { spikes, totalMs: total, frames, loopMs: +(loop / frames).toFixed(2), loopSelfMs: +(loopSelf / frames).toFixed(2), systems: per(bySys), topSelf: per(byFn).slice(0, TOP), modules: per(byMod).slice(0, 30), outside: per(outside).filter(x => x[0] !== '(anon) [(native)]').slice(0, 15) };
 }
 
@@ -147,7 +150,7 @@ async function scene(id, cpu) {
   const timingPass = async () => {
   await go();
   await page.tracing.start({ categories: ['toplevel', 'devtools.timeline'] });
-  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.on = true; window.__rt.t = 0; window.__rt.n = 0; });
+  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.win = []; F.on = true; window.__rt.t = 0; window.__rt.n = 0; });
   const t0 = await metric('TaskDuration'), s0 = await metric('ScriptDuration');
   const wall0 = Date.now(); await wait(SECS * 1000); const wall = (Date.now() - wall0) / 1000;
   const t1 = await metric('TaskDuration'), s1 = await metric('ScriptDuration');
@@ -165,12 +168,13 @@ async function scene(id, cpu) {
   const cpuPass = async () => {
   await go();
   await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
-  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.on = true; });
+  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.win = []; F.on = true; });
   await cdp.send('Profiler.start'); await wait(SECS * 1000);
+  const pageNow = await page.evaluate(() => performance.now());   // close enough to the stop below to line the two clocks up within a few ms
   const { profile } = await cdp.send('Profiler.stop');
-  const frames = await page.evaluate(() => { const F = window.__ft; F.on = false; return F.work.length; });
+  const { frames, win } = await page.evaluate(() => { const F = window.__ft; F.on = false; return { frames: F.work.length, win: F.win }; });
   R.cpuDrive = await end();
-  R.cpuProfile = analyseProfile(profile, frames);
+  R.cpuProfile = analyseProfile(profile, frames, win, profile.endTime / 1000 - pageNow);
   if (arg('keep')) fs.writeFileSync(path.join(OUT, `${LABEL}-${id}-${cpu}x.cpuprofile`), JSON.stringify(profile));
   };
   if (arg('coldcpu')) { await cpuPass(); await timingPass(); } else { await timingPass(); await cpuPass(); }
@@ -179,7 +183,7 @@ async function scene(id, cpu) {
   await go();
   await cdp.send('HeapProfiler.enable');
   await cdp.send('HeapProfiler.startSampling', { samplingInterval: 8192, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
-  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.on = true; });
+  await page.evaluate(() => { const F = window.__ft; F.work = []; F.gap = []; F.win = []; F.on = true; });
   const allocS = Math.min(SECS, 12); await wait(allocS * 1000);
   const heap = (await cdp.send('HeapProfiler.stopSampling')).profile;
   const allocFrames = await page.evaluate(() => { const F = window.__ft; F.on = false; return F.work.length; });

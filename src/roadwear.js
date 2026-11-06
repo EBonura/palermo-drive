@@ -22,7 +22,7 @@
 // Physics: collidePlayer() tests the lapa's wheels against the drawn outlines of the holes and calls vehicle.bump() plus a little
 // speed loss, yaw kick, forced two-wheel lean and loss of grip. Dynamic tyre marks come from car.skid (vehicle.js) and work anywhere.
 import * as THREE from 'three';
-import { pairs, rng, rasterMask } from './core.js';
+import { pairs, rng, rasterMaskIter } from './core.js';
 import { zoneAt } from './districts.js';
 import { isFastRoad } from './expressway.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
@@ -121,10 +121,8 @@ export function createRoadWear(env) {
     const t = W.t, data = t.data, st = data.streets || {}, tx0 = t.i * TS, tz0 = t.j * TS;
     const seedT = hash(t.i, t.j, 77);
     const aoi = [tx0, tz0, tx0 + TS, tz0 + TS];
-    const asph = rasterMask([st.asphalt || []], aoi, 1);
-    yield;
-    const block = rasterMask([st.paving || [], st.raised || [], st.green || []], aoi, 1);
-    yield;
+    const asph = yield* rasterMaskIter([st.asphalt || []], aoi, 1);
+    const block = yield* rasterMaskIter([st.paving || [], st.raised || [], st.green || []], aoi, 1);
     const onRoad = (x, z) => asph(x, z) && !block(x, z);
     const cellAt = (x, z) => {
       const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL), k = (ix + 4096) * 8192 + (iz + 4096);
@@ -769,7 +767,7 @@ export function createRoadWear(env) {
   // ---------- public ----------
   const api = {
     update(dt) {
-      generate(2.5);
+      generate(1.5);
       stream();
       marks(dt);
     },
