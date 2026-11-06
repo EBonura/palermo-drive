@@ -1,6 +1,8 @@
 // Decoder for the PDB1 format written by tools/build/codec.mjs. Returns the original JS value.
 const P10 = [1, 10, 100, 1e3, 1e4, 1e5, 1e6];
-export function decode(buf) {
+// decode(buf) is the whole thing in one go. decodeSteps(buf, ms) is a generator that does the same in steps of about ms milliseconds, for a tile that arrives while the game is being played (a big one took 20 ms at a 4x CPU slowdown in one piece).
+export function decode(buf) { const it = decodeSteps(buf, Infinity); for (;;) { const r = it.next(); if (r.done) return r.value; } }
+export function* decodeSteps(buf, ms) {
   let o = 4;
   const rv = () => { let r = 0, m = 1, b; while ((b = buf[o++]) & 128) { r += (b & 127) * m; m *= 128; } return r + b * m; };
   const sizes = [rv(), rv(), rv(), rv(), rv()];
@@ -48,5 +50,17 @@ export function decode(buf) {
     }
     throw new Error('bad PDB1 tag ' + t);
   }
-  return get();
+  // the outer two levels of arrays and objects (a tile: its lists of buildings, roads, polygons of each street layer) can stop between their members
+  let t0 = performance.now();
+  function* steps(depth) {
+    const t = buf[pt];
+    if (t !== 12 && t !== 13) return get();
+    pt++;
+    const over = () => performance.now() - t0 > ms;
+    if (t === 12) { const n = rL(), a = []; for (let i = 0; i < n; i++) { a.push(depth < 2 ? yield* steps(depth + 1) : get()); if (over()) { yield; t0 = performance.now(); } } return a; }
+    let id = rL(), keys;
+    if (id === 0) { const n = rL(); keys = []; for (let i = 0; i < n; i++) keys.push(strs[rL()]); shapes.push(keys); } else keys = shapes[id - 1];
+    const ob = {}; for (let i = 0; i < keys.length; i++) { ob[keys[i]] = depth < 2 ? yield* steps(depth + 1) : get(); if (over()) { yield; t0 = performance.now(); } } return ob;
+  }
+  return yield* steps(0);
 }

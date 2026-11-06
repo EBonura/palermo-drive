@@ -4,6 +4,7 @@
 // a few tiled strips per wall (ground-floor runs, piano nobile, repeated upper floors), so the tile
 // repeats with RepeatWrapping. Geometry is merged per 400 m chunk into one opaque mesh plus one
 // alpha-tested mesh (balcony railings).
+import { sliceOver } from './slice.js';
 import * as THREE from 'three';
 import { D, HAS_NEAR, groundY, proj, pairs, signedArea, rng, inPoly } from './core.js';
 import SPECS from '../assets/facades/specs.js';
@@ -1479,16 +1480,17 @@ const REPEATABLE = new Set(['pwg', 'og_door', 'og_shop', 'og_low', 'g_shop_s', '
 // =====================================================================================
 // Spatial lookups
 // =====================================================================================
-function buildLookups(data = D) {
+function* buildLookupsIter(data = D) {
   const BC = 30, bgrid = new Map(), binfo = [];
-  data.buildings.forEach((b, i) => {
-    const pts = pairs(b.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+  for (let i = 0; i < data.buildings.length; i++) {
+    const b = data.buildings[i], pts = pairs(b.p); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
     binfo.push({ pts, x0, z0, x1, z1, b });
     for (let cx = Math.floor(x0 / BC); cx <= Math.floor(x1 / BC); cx++) for (let cz = Math.floor(z0 / BC); cz <= Math.floor(z1 / BC); cz++) {
       const k = cx * 100003 + cz; let l = bgrid.get(k); if (!l) bgrid.set(k, l = []); l.push(i);
     }
-  });
+    if (sliceOver()) yield;
+  }
   const inBuilding = (x, z, self) => {   // `self`: a split building (parts on a footprint) leaves out its own outline, which the walls of its inset parts lie inside of ([texround2] they all read as party walls)
     const l = bgrid.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false;
     for (const i of l) { const q = binfo[i]; if (q.b === self) continue; if (x >= q.x0 && x <= q.x1 && z >= q.z0 && z <= q.z1 && inPoly(q.pts, x, z)) return true; }
@@ -1505,6 +1507,7 @@ function buildLookups(data = D) {
         const k = cx * 100003 + cz; let l = rgrid.get(k); if (!l) rgrid.set(k, l = []); l.push(s);
       }
     }
+    if (sliceOver()) yield;
   }
   // distance from the carriageway edge to the nearest street, and that street
   const roadNear = (x, z) => {
@@ -1615,7 +1618,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
   const t0 = performance.now();
   const { matMain, matRail } = yield* sharedIter();
   if (tile) applyDistrictHeights(data); // district-typical storeys where the baked height is only the generic estimate (idempotent; world.js may call it on tile load)
-  const { inBuilding, roadNear, dupIds } = buildLookups(data);
+  const { inBuilding, roadNear, dupIds } = yield* buildLookupsIter(data);
   const white = new THREE.Color(1, 1, 1);
 
   let chunks = new Map(); const CH = 250; // [perf pass] was 400 for the centro: smaller chunks cull better (view and shadow pass): -16% triangles at Quattro Canti for +5% draw calls
@@ -2077,7 +2080,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     stats.styles = {}; stats.balconies = 0; stats.tanks = 0; stats.tiled = 0; stats.flat = 0; stats.specs = 0; stats.osmCol = 0;
     for (const b of data.buildings) {
       if (ctx.skip.has(b.id) || dupIds.has(b.id)) continue;
-      if ((++nb & 3) === 0) yield;
+      if (sliceOver()) yield;
       const r = rng(b.c * 7919 + 13);
       const solids = [];
       const pts0 = pairs(b.p);

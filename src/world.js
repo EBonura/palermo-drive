@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex, weld } from './core.js';
 import { streetsIter, roadMarksIter, TEX as GROUND_TEX, histW } from './streets.js';
+import { slice, sliceOver } from './slice.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
 import { treeGeo as makeTreeGeo } from './treegeo.js';
@@ -50,6 +51,7 @@ const CFG = {
   triCap: +Q.get("tricap") || 1.2e6,
   conc: 3,
   budgetMs: +Q.get('wbudget') || 2,
+  sliceMs: +Q.get('wslice') || 1.5,       // one build step (src/slice.js)
   hurryMs: +Q.get('whurry') || 12,        // per-frame build budget while a loading screen or the start transition covers the game (world.hurry)
   viewMargin: 80,                         // metres the camera frustum is widened by when deciding what is in view (the car may turn)
   viewNear: 220,                          // tiles this close to the focus count as in view whichever way the camera points
@@ -434,6 +436,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const FREE_PARTS = new Set(['terrain', 'streets', 'streetsHi', 'paint', 'tracks', 'bldLow']);
   const onGPU = [];   // meshes whose arrays are all uploaded
   function freeAfterUpload(o, keepIndex) {   // keepIndex: the far meshes rewrite their index as tiles come and go
+    if (Q.has('keepgeo')) return;   // ?keepgeo: tests that read the built geometry (tools/perf/tilehash.mjs)
     o.traverse(m => {
       if (!m.isMesh || m.isInstancedMesh) return;
       const g = m.geometry, all = Object.values(g.attributes); if (g.index && !keepIndex) all.push(g.index);
@@ -479,7 +482,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // A 5 m field over the tile and 50 m beyond it (the neighbours' buildings count, so a tile border shows no seam) gives the distance to the nearest wall and how crowded the walls are
   // within 45 m; terrainMesh paves the ground that is both close to walls and in a built-up quarter, unless a land cover polygon (park, wood, sand, field) says otherwise.
   const PV_C = 5, PV_M = 50, PV_N = Math.round((T + 2 * PV_M) / PV_C) + 1;
-  function paveField(t) {
+  function* paveFieldIter(t) {
     const x0 = t.i * T - PV_M, z0 = t.j * T - PV_M, n = PV_N, seed = new Uint8Array(n * n), seedR = new Uint8Array(n * n), x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C;   // seedR: the edges of the raised and paving polygons
     let any = 0;
     const mark = (ax, az, bx, bz, seed) => {
@@ -498,35 +501,37 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     };
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
       const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
-      if (d && d.buildings) for (const b of d.buildings) { if (b.yb) continue; ring(b.p); if (b.holes) for (const h of b.holes) ring(h); }
-      if (d && d.streets) for (const l of ['raised', 'paving']) for (const poly of d.streets[l] || []) ring(poly[0], seedR);
+      if (d && d.buildings) for (const b of d.buildings) { if (b.yb) continue; ring(b.p); if (b.holes) for (const h of b.holes) ring(h); if (sliceOver()) yield; }
+      if (d && d.streets) for (const l of ['raised', 'paving']) for (const poly of d.streets[l] || []) { ring(poly[0], seedR); if (sliceOver()) yield; }
     }
     if (!any) return null;
     // distance to the nearest wall cell, and to the nearest edge of a pavement or square polygon (chamfer, metres)
     const D2 = PV_C * Math.SQRT2;
-    const chamfer = (sd) => {
+    const chamfer = function* (sd) {
       const dist = new Float32Array(n * n).fill(1e4);
       for (let q = 0; q < n * n; q++) if (sd[q]) dist[q] = 0;
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const q = j * n + i; let v = dist[q];
         if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
         dist[q] = v;
+        if (i === 0 && sliceOver()) yield;
       }
       for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
         const q = j * n + i; let v = dist[q];
         if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
         dist[q] = v;
+        if (i === 0 && sliceOver()) yield;
       }
       return dist;
     };
-    const dist = chamfer(seed), dr = chamfer(seedR);
+    const dist = yield* chamfer(seed), dr = yield* chamfer(seedR);
     // crowding: share of the cells within 45 m that hold a wall (summed-area table)
     const S = new Int32Array((n + 1) * (n + 1)), dens = new Float32Array(n * n), R = 9;
     for (let j = 0; j < n; j++) { let row = 0; for (let i = 0; i < n; i++) { row += seed[j * n + i]; S[(j + 1) * (n + 1) + i + 1] = S[j * (n + 1) + i + 1] + row; } }
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) {
       const a = Math.max(0, i - R), b = Math.min(n, i + R + 1), c = Math.max(0, j - R), e = Math.min(n, j + R + 1);
       dens[j * n + i] = (S[e * (n + 1) + b] - S[c * (n + 1) + b] - S[e * (n + 1) + a] + S[c * (n + 1) + a]) / ((b - a) * (e - c));
-    }
+    } if (sliceOver()) yield; }
     return { x0, z0, n, dist, dens, dr };
   }
   const paveAt = (f, a, x, z) => {   // bilinear sample of one of the field arrays
@@ -539,7 +544,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // terrainMesh paints the bank of a road bench as earth and scrub instead of limestone, and the first metres of flat ground beside the asphalt as a worn shoulder (photos of the outskirts: scrub,
   // dry grass and a hard shoulder up to the kerb, where the terrain was pale ochre limestone all the way).
   const RF_M = 30, RF_N = Math.round((T + 2 * RF_M) / PV_C) + 1;
-  function roadField(t) {
+  function* roadFieldIter(t) {
     const x0 = t.i * T - RF_M, z0 = t.j * T - RF_M, n = RF_N, x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C, dist = new Float32Array(n * n).fill(1e4);
     let any = 0;
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
@@ -554,6 +559,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           const k = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / (PV_C * 0.5)));
           for (let u = 0; u <= k; u++) { const i = Math.round((ax + (bx - ax) * u / k - x0) / PV_C), j = Math.round((az + (bz - az) * u / k - z0) / PV_C); if (i >= 0 && j >= 0 && i < n && j < n) { dist[j * n + i] = 0; any++; } }
         }
+        if (sliceOver()) yield;
       }
     }
     if (!any) return null;
@@ -562,11 +568,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const q = j * n + i; let v = dist[q];
       if (i > 0) v = Math.min(v, dist[q - 1] + PV_C); if (j > 0) { v = Math.min(v, dist[q - n] + PV_C); if (i > 0) v = Math.min(v, dist[q - n - 1] + D2); if (i < n - 1) v = Math.min(v, dist[q - n + 1] + D2); }
       dist[q] = v;
+      if (i === 0 && sliceOver()) yield;
     }
     for (let j = n - 1; j >= 0; j--) for (let i = n - 1; i >= 0; i--) {
       const q = j * n + i; let v = dist[q];
       if (i < n - 1) v = Math.min(v, dist[q + 1] + PV_C); if (j < n - 1) { v = Math.min(v, dist[q + n] + PV_C); if (i < n - 1) v = Math.min(v, dist[q + n + 1] + D2); if (i > 0) v = Math.min(v, dist[q + n - 1] + D2); }
       dist[q] = v;
+      if (i === 0 && sliceOver()) yield;
     }
     return { x0, z0, n, dist };
   }
@@ -576,16 +584,16 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     return (a[q] * (1 - tx) + a[q + 1] * tx) * (1 - tz) + (a[q + f.n] * (1 - tx) + a[q + f.n + 1] * tx) * tz;
   };
 
-  // how crowded with walls the ground is within 45 m (0 to 1), asked for by the street layers that may turn a wide pavement into a yard (src/streets.js); the field is built on the first question
-  const densOf = t => { let f = null; return (x, z) => { f = f || paveField(t) || { n: 0 }; return f.n ? paveAt(f, f.dens, x, z) : 0; }; };
+  // how crowded with walls the ground is within 45 m (0 to 1), asked for by the street layers that may turn a wide pavement into a yard (src/streets.js); the field is the one terrainMesh has just made for this stage
+  const densOf = t => { const f = t.pvf; return (x, z) => f ? paveAt(f, f.dens, x, z) : 0; };
 
   // ---------- terrain mesh of a tile ----------
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
     const x0 = t.i * T, z0 = t.j * T, g = groundY;
-    const nb = n * n, total = nb + 4 * n;   // the grid, then the skirt (below): one set of arrays, sized for both
-    const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), pav = new Float32Array(total), yar = new Float32Array(total), rda = new Float32Array(total), pvf = paveField(t), rdf = roadField(t);
+    const nb = n * n, total = nb + 4 * n, pvf = t.pvf = yield* paveFieldIter(t), rdf = yield* roadFieldIter(t);   // the grid, then the skirt (below): one set of arrays, sized for both
+    const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), pav = new Float32Array(total), yar = new Float32Array(total), rda = new Float32Array(total);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
     // Low detail cells cannot follow a road bench: on a steep hillside a coarse cell would cover the road for hundreds of metres (the
@@ -633,8 +641,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         }
         col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
+        if (sliceOver()) yield;
       }
-      if ((j & 1) === 1) yield;
     }
     // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid, a low detail cell next to a full detail one) stay hidden.
     // On a cliff the two meshes of a tile border differ by more than the old 8 m, and the sky showed through as a bright blue sliver.
@@ -643,7 +651,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     for (let i = 0, q = 0; i < n; i++) { sk[q++] = at(i, 0); sk[q++] = at(i, n - 1); sk[q++] = at(0, i); sk[q++] = at(n - 1, i); }
     for (let q = 0; q < sk.length; q++) { const v = sk[q], a = v * 3, b = (nb + q) * 3; pos[b] = pos[a]; pos[b + 1] = pos[a + 1] - SKIRT; pos[b + 2] = pos[a + 2]; nor[b] = nor[a]; nor[b + 1] = nor[a + 1]; nor[b + 2] = nor[a + 2]; col[b] = col[a]; col[b + 1] = col[a + 1]; col[b + 2] = col[a + 2]; uv[(nb + q) * 2] = uv[v * 2]; uv[(nb + q) * 2 + 1] = uv[v * 2 + 1]; pav[nb + q] = pav[v]; yar[nb + q] = yar[v]; rda[nb + q] = rda[v]; }
     const nIdx = (n - 1) * (n - 1) * 6 + (n - 1) * 24, idx = total < 65536 ? new Uint16Array(nIdx) : new Uint32Array(nIdx); let ii = 0;
-    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx[ii++] = k; idx[ii++] = k + n; idx[ii++] = k + 1; idx[ii++] = k + 1; idx[ii++] = k + n; idx[ii++] = k + n + 1; }
+    for (let j = 0; j < n - 1; j++) { for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx[ii++] = k; idx[ii++] = k + n; idx[ii++] = k + 1; idx[ii++] = k + 1; idx[ii++] = k + n; idx[ii++] = k + n + 1; } if (sliceOver()) yield; }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
     for (let i = 0; i < n - 1; i++) {
       const s0 = nb + i * 4, s1 = nb + (i + 1) * 4;
@@ -659,7 +667,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     geo.setAttribute('aRoad', new THREE.BufferAttribute(rda, 1));
     geo.setIndex(new THREE.BufferAttribute(idx, 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
-    m.userData.tris = idx.length / 3;
+    m.userData.tris = ii / 3;
     return m;
   }
 
@@ -669,11 +677,11 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // typed from the start and grown by doubling (plain arrays by push were a fifth of all the garbage of a load)
     const roomF = (a, n) => { if (n <= a.length) return a; const b = new Float32Array(Math.max(n, a.length * 2)); b.set(a); return b; };
     let wp = new Float32Array(12288), wn = new Float32Array(12288), wc = new Float32Array(12288), wu = new Float32Array(8192), wi = new Uint32Array(6144), rp = new Float32Array(6144), rc = new Float32Array(6144);
-    let nb = 0, wv = 0, rv = 0, nwi = 0;
+    let wv = 0, rv = 0, nwi = 0;
     const solids = [];
     for (const b of d.buildings) {
       if (skip.has(b.id)) continue;
-      if ((++nb & 15) === 0) yield;
+      if (sliceOver()) yield;
       solids.length = 0;
       let sh = d.near ? 0 : -b.g; // survey heights (e): eave above the lowest ground under the building, see buildings.js
       if (b.e) { let lo = Infinity; for (let i = 0; i < b.p.length; i += 2) lo = Math.min(lo, groundY(b.p[i], b.p[i + 1])); sh = lo - b.g; }
@@ -758,7 +766,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     return out;
   }
   function* registerPhysics(t) {
-    const d = t.data; let n = 0;
+    const d = t.data;
     const roofs = t.roofs = new Map(), tops = new Map();   // roofs: cell -> records; tops: building id -> highest roof
     const addRing = (flat, top) => {
       const p = pairs(flat);
@@ -775,8 +783,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         for (let ix = Math.floor(x0 / RC); ix <= Math.floor(x1 / RC); ix++) for (let iz = Math.floor(z0 / RC); iz <= Math.floor(z1 / RC); iz++) { const k = rk(ix, iz); let a = roofs.get(k); if (!a) roofs.set(k, a = []); a.push(rec); }
       }
       tops.set(b.id, top);
-      if (drop.has(b.id) || b.yb) { if ((++n & 63) === 0) yield; continue; }
-      addRing(b.p, top); if (b.holes) b.holes.forEach(h => addRing(h, top)); if ((++n & 63) === 0) yield;
+      if (drop.has(b.id) || b.yb) { if (sliceOver()) yield; continue; }
+      addRing(b.p, top); if (b.holes) b.holes.forEach(h => addRing(h, top)); if (sliceOver()) yield;
     }
     for (const l of lms) { let top = -1e9; for (const id of l.dropWalls || []) top = Math.max(top, tops.get(id) ?? -1e9); for (const w of l.walls || []) { w.top = top > -1e9 ? top : groundY(w[0], w[1]) + 25; wallGrid.addSeg(t.k, w, w[0], w[1], w[2], w[3]); } }
     for (const r of d.roads) {
@@ -786,6 +794,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         if (r.n) nameGrid.addSeg(t.k, [a[0], a[1], b[0], b[1], r.n, r.w], a[0], a[1], b[0], b[1]);
         if (DRIVABLE.has(r.k) || r.k === 'track') { const v = [a[0], a[1], Math.atan2(b[0] - a[0], b[1] - a[1])]; v.t = t.k; roadVerts.push(v); }
       }
+      if (sliceOver()) yield;
     }
     t.phys = true;
   }
@@ -950,14 +959,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     const s = SHAPE_S, x0 = Math.floor(bx0 / s) * s, z0 = Math.floor(bz0 / s) * s, nx = Math.ceil((bx1 - x0) / s) + 2, nz = Math.ceil((bz1 - z0) / s) + 2;
     if (nx < 3 || nz < 3) return;
     const W = new Float32Array(nx * nz), WH = new Float32Array(nx * nz), best = new Float32Array(nx * nz).fill(1e9);
-    let nr = 0;
     for (const r of roads) {
       const half = Math.max(r.w, 3) / 2, flat = half + 1.5, reach = R(r), p = pairs(r.p);
       // resample every ~3 m, with the blurred height at each sample
       const pts = [];
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i], b = p[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 3));
-        for (let k = i === 0 ? 0 : 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; pts.push([x, z, blur(x, z)]); if ((pts.length & 31) === 0) yield; }
+        for (let k = i === 0 ? 0 : 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; pts.push([x, z, blur(x, z)]); if (sliceOver()) yield; }
       }
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1;
@@ -971,7 +979,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           const e = d <= flat ? 1 : 1 - smooth(flat, reach, d);
           best[c] = d; W[c] = e; WH[c] = e * (a[2] + (b[2] - a[2]) * tt);
         }
-        if ((++nr & 15) === 0) yield;
+        if (sliceOver()) yield;
       }
     }
     t.shape = { x0, z0, s, nx, nz, W, WH };
@@ -999,6 +1007,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         if (prev >= 0) I.push(prev, prev + 1, v, prev + 1, v + 1, v);   // strip quads: vertices come in left/right pairs along each run (wound counter-clockwise seen from above)
         prev = v;
       }
+      if (sliceOver()) yield;
     }
     if (!I.length) return null;
     yield;
@@ -1033,6 +1042,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       const e = { pts, x0, z0, x1, z1 };
       for (let cx = Math.floor(x0 / BC); cx <= Math.floor(x1 / BC); cx++) for (let cz = Math.floor(z0 / BC); cz <= Math.floor(z1 / BC); cz++) { const k = cx * 100003 + cz; let l = bg.get(k); if (!l) bg.set(k, l = []); l.push(e); }
+      if (sliceOver()) yield;
     }
     const inBld = (x, z) => { const l = bg.get(Math.floor(x / BC) * 100003 + Math.floor(z / BC)); if (!l) return false; for (const e of l) if (x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1 && inPoly(e.pts, x, z)) return true; return false; };
     const SP = 14, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
@@ -1057,6 +1067,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
           }
         }
       }
+      if (sliceOver()) yield;
     }
     for (const dense of raveWoodTile(t.i * T, t.j * T, T) ? [false, true] : [false]) for (let gz = t.j * T; gz < (t.j + 1) * T; gz += dense ? 7 : SP) {   // (dense: a second, finer planting round the clearing of the rave, src/rave-ground.js raveWood)
       for (let gx = t.i * T; gx < (t.i + 1) * T; gx += dense ? 7 : SP) {
@@ -1071,18 +1082,19 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         q.setFromAxisAngle(up, hash2(x, z + 9.1) * 6.28); sc.set(s, s * (0.9 + hash2(z, x) * 0.3), s); pos.set(x, groundY(x, z) - 0.1, z);
         m4.compose(pos, q, sc); (stone ? smats : holm ? hmats : mats).push(m4.clone());
         const v = 0.78 + hash2(x - 5.5, z + 2.2) * 0.4; (stone ? scols : holm ? hcols : cols).push(col.setRGB(v * (1 + hash2(z, x) * 0.12), v * (0.96 + hash2(z, z) * 0.1), v * 0.9).clone());
+        if (sliceOver()) yield;
       }
-      yield;
     }
     if (!nTrees()) return null;
     const g = new THREE.Group(); g.userData.tris = 0;
     for (const [name, ms, cs, road] of [['aleppo_lo', mats, cols], ['stone_lo', smats, scols], ['holm_lo', hmats, hcols], ['aleppo', ...rows.aleppo, 1], ['stone', ...rows.stone, 1], ['holm', ...rows.holm, 1], ['holm_b', ...rows.holm_b, 1]]) {   // the woods in the cheaper shapes, the trees along the roads in the full ones
       if (!ms.length) continue;
       const geo = makeTreeGeo(name), mesh = new THREE.InstancedMesh(geo, treeMat, ms.length); if (road) mesh.castShadow = mesh.receiveShadow = true;   // the trees along the roads shade them (the woods behind do not cast: that is a lot of triangles for a shadow nobody sees)
-      ms.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, cs[i]); });
+      for (let i = 0; i < ms.length; i++) { mesh.setMatrixAt(i, ms[i]); mesh.setColorAt(i, cs[i]); if (sliceOver()) yield; }
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; mesh.name = (road ? 'roadtrees_' : 'trees_') + name;
       if (mesh.computeBoundingSphere) mesh.computeBoundingSphere(); else mesh.frustumCulled = false;
       g.add(mesh); g.userData.tris += ms.length * geo.attributes.position.count / 3;
+      yield;
     }
     return g;
   }
@@ -1155,6 +1167,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
     yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
+    t.pvf = null;
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
@@ -1172,6 +1185,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
+    t.pvf = null;
     if (t.want < 2) { disposeObj(g); return; }
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
@@ -1213,6 +1227,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (yield* ensureData(t)) {
         if (!t.parts.bldLow) setPart(t, 'bldLow', yield* lowBuildings(t));
         setPart(t, 'terrain', yield* terrainMesh(t, 2));
+        t.pvf = null;
       }
     }
     t.lod = 1;
@@ -1400,7 +1415,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       if (k.wait || k.done) continue;
       while (performance.now() - t0 < budget) {
         let r;
-        const s0 = performance.now();
+        const s0 = performance.now(); slice.t0 = s0; slice.ms = world.hurry ? budget : CFG.sliceMs;
         try { r = k.gen.next(); } catch (e) { console.error('[world] task', k.name, e); r = { done: true }; if (k.t.id) { k.t.failed = true; k.t.want = 0; } }
         { const dtm = performance.now() - s0; if (dtm > 6 && k.t.id) { (stat.slow = stat.slow || []).push([+dtm.toFixed(1), k.t.id, k.t.stage]); if (stat.slow.length > 40) stat.slow.shift(); } }
         if (r.done) { k.done = true; if (k.t.id) k.t.task = null; break; }
@@ -1429,7 +1444,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     estTris: 0,
     // set by main.js while the title is up (see updateWanted); a change asks for a new allocation at once, so leaving the title does not wait for the next 0.5 s tick
     get overview() { return overviewOn; }, set overview(v) { if (v !== overviewOn) { overviewOn = v; wantedTimer = 99; } },
-    hurry: false,    // set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
+    hurry: true,    // (from the start: until main.js lifts the loading screen) set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
     get farCity() { return farCity; },
     raised,
     drivePlayer, surfaceAt,
@@ -1517,6 +1532,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     tiles, cfg: CFG,
   };
 
+  window.__pdHurry = () => world.hurry;   // the tile decoding in the production build (tools/build/runtime/loader.js)
   // ?at=x,z puts the car somewhere once the world around it has streamed in
   function applyAt() {
     const at = Q.get('at'); if (!at || !binding) return;

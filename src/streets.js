@@ -3,7 +3,8 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMask } from './core.js';
+import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMaskIter } from './core.js';
+import { sliceOver } from './slice.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';
 
@@ -250,7 +251,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 // opts: layers (names to build, default all of LAYERS), curbs (default true), offset (depth offset for streamed tiles).
 export function* streetsIter(streets, group, opts = {}) {
   const layers = opts.layers || Object.keys(LAYERS), offset = !!opts.offset, dmax = opts.drape || DRAPE_MAX, chunk = opts.chunk === undefined ? 250 : opts.chunk; // opts.drape: longest triangle edge (m); streamed tiles use more
-  let tris = 0, n = 0;
+  let tris = 0;
   const yctx = { density: opts.density, curbs: offset ? curbIndex(streets.curbs) : null, fast: offset ? opts.fast : null };
   const g0 = opts.ground || groundY, f0 = !!opts.fine;   // (set again after every yield: another tile's build may have run in between)
   GROUND = g0; FINE = f0;
@@ -275,8 +276,8 @@ export function* streetsIter(streets, group, opts = {}) {
         let [a, b, c] = t.map(i => all[i]);
         if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
         drape(buf, a, b, c, lift, WHITE, yard ? ym : m, dmax);
+        if (sliceOver()) { const tt = TINT; yield; GROUND = g0; FINE = f0; TINT = tt; }
       }
-      if ((++n & 7) === 0) { yield; GROUND = g0; FINE = f0; }
     }
     for (const [bm, ly] of [[bufs, layer], [ybufs, 'yard']]) for (const buf of bm.values()) {
       if (!buf.n) continue;
@@ -305,7 +306,7 @@ export function* streetsIter(streets, group, opts = {}) {
         const Ai = [a[0] - nx * TOP, ga + CURB + 0.005, a[1] - nz * TOP], Bi = [b[0] - nx * TOP, gb + CURB + 0.005, b[1] - nz * TOP];
         for (const q of [A1, B1, Ai, B1, Bi, Ai]) curb.v(q[0], q[1], q[2], 0, 1, 0, stone);
       }
-      if ((++n & 15) === 0) { yield; GROUND = g0; }
+      if (sliceOver()) { yield; GROUND = g0; }
     }
     if (curb.n) {
       curbMat = curbMat || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
@@ -383,7 +384,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     for (const q of [A, C2, B, A, D, C2]) { P.push(q[0], groundY(q[0], q[1]) + 0.035, q[1]); N.push(0, 1, 0); Cc.push(c.r * k, c.g * k, c.b * k); }
     nq++;
   };
-  const mask = tile && tile.streets && tile.streets.aoi && !NOEXP && roads.some(fastRoad) ? rasterMask([tile.streets.asphalt || []], tile.streets.aoi, 2) : null;
+  const mask = tile && tile.streets && tile.streets.aoi && !NOEXP && roads.some(fastRoad) ? yield* rasterMaskIter([tile.streets.asphalt || []], tile.streets.aoi, 2) : null;
   let seed = 12345; const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   let n = 0;
   for (let id = 0; id < roads.length; id++) {
@@ -460,7 +461,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     }
     const edgeOld = EDGE_LINED.has(r.k) || (EDGE_IF_FAST.has(r.k) && (r.ms || 0) >= 50 && !r.pk);
     if (w >= 7 && (edgeOld || isFastRoad(r))) { line(0, 'solid', 0.06, !edgeOld); line(1, 'solid', 0.06, !edgeOld); }   // (a lane has them only where it is a fast road)
-    if ((++n & 15) === 0) yield;
+    if (sliceOver()) yield;
   }
   // stop lines: a bar across the lanes that approach a traffic signal, STOP_BACK m before it, on every road that meets it
   for (const sg of (tile && tile.signals) || []) {
@@ -491,7 +492,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
         n++;
       }
     }
-    if ((++n & 7) === 0) yield;
+    if (sliceOver()) yield;
   }
   // gore hatching: where a slip road leaves or joins a fast road the wedge between the two carriageways is painted with diagonal bars (the chevrons)
   if (mask) for (let id = 0; id < roads.length; id++) {
@@ -522,7 +523,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
         acc += L;
       }
     }
-    if ((++n & 15) === 0) yield;
+    if (sliceOver()) yield;
   }
   // zebra crossings at OSM crossing nodes: bars 0.5 m wide, 3 m long, along the road, across its whole width
   for (const c of crossings || []) {
@@ -539,7 +540,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       const sx = cx + nx * off, sz = cz + nz * off;
       quad(sx - tx * 1.6, sz - tz * 1.6, sx + tx * 1.6, sz + tz * 1.6, 0.25, 0.82 + 0.18 * rng());
     }
-    if ((++n & 7) === 0) yield;
+    if (sliceOver()) yield;
   }
   if (!nq) return null;
   const idx = new Uint32Array(P.length / 3); for (let i = 0; i < idx.length; i++) idx[i] = i;

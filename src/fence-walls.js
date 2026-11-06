@@ -13,6 +13,7 @@
 //   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, mostly lower, with a mesh over a low wall now and then;
 //   * in a town it is lime wash (with and without a fallen patch), worn plaster, block or rubble, 1.5 to 2.1 m; the old town keeps its walls as mapped.
 // They carry `bk: 'w'` (src/fences.js breakSpeed) so they break at the speed a wall of their new height did, not as the stone and block kinds, which stay solid.
+import { sliceOver } from './slice.js';
 import { histW } from './streets.js';
 import { inPoly, groundY } from './core.js';
 import { isFastRoad, fastParts } from './road-class.js';
@@ -38,7 +39,7 @@ function put(grid, x0, z0, x1, z1, v) {
 
 // list: the tile's fences [{k, h, s, p}], roads, buildings and tram (its `r` rails): the tile's own. A fence within 7 m of a tram rail is the tram's railing and stays. rails: the guard rails the fast road rule made for this tile (src/expressway.js).
 // Returns the list with the roadside fences and walls re-read (it is the same list when nothing changes).
-export function roadsideWalls(list, roads, buildings, tram, areas, rails) {
+export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
   if (!list || !list.length || !roads || !roads.length) return list;
   const rg = new Map(), bg = new Map(), xg = new Map(), vg = new Map();   // vg: the decks of viaducts: ground under one is not the roadside of its road   // xg: the fast roads (src/expressway.js): a fence beside one is the right-of-way fence, wire mesh, never a plastered wall
   for (const r of roads) {
@@ -91,6 +92,7 @@ export function roadsideWalls(list, roads, buildings, tram, areas, rails) {
   const out = []; let changed = false;
   const flat = pts => { const f = []; for (const q of pts) f.push(Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10); return f; };
   for (const r of list) {
+    if (sliceOver()) yield;
     if (r.k === 'w' && !r.fence && r.p.length >= 4) { const o = mapped(r); if (o) { out.push(...o); changed = true; } else out.push(r); continue; }
     if (r.k !== 'f' || r.p.length < 4) { out.push(r); continue; }
     if (xg.size && r.s !== 2 && gap(r.p[0], r.p[1], xg) < 12 && gap(r.p[r.p.length - 2], r.p[r.p.length - 1], xg) < 12) { out.push({ ...r, s: 2 }); changed = true; continue; }

@@ -762,17 +762,20 @@ Object.assign(MODELS, buildPoliceModels());
       A[o] = c * cr + s * sr * sp; A[o + 1] = sr * cp; A[o + 2] = -s * cr + c * sr * sp; A[o + 3] = 0;
       A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
       A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
-      A[o + 12] = v.x; const dk = v.route[0] && v.route[0].br ? topY(v.x, v.z) : NaN; A[o + 13] = (dk === dk ? dk : groundY(v.x, v.z)) + (v.fly ? v.fly.y : 0); A[o + 14] = v.z; A[o + 15] = 1;
+      // the simulation steps 30 times a second: on a faster screen the vehicle is drawn where it has got to since the last step, or it would judder against the camera
+      const ahead = v.fly ? 0 : v.v * acc, px = v.x + s * ahead, pz = v.z + c * ahead;
+      A[o + 12] = px; const dk = v.route[0] && v.route[0].br ? topY(px, pz) : NaN; A[o + 13] = (dk === dk ? dk : groundY(px, pz)) + (v.fly ? v.fly.y : 0); A[o + 14] = pz; A[o + 15] = 1;
       if (v.plan && v.name === 'bus') SIGN_ROW.array[n] = v.plan.row;
-      const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b;
+      const O = m.userData.owner || (m.userData.owner = new Int32Array(CAP));   // (a colour only goes to the GPU when another vehicle takes the slot)
+      if (O[n] !== v.id) { O[n] = v.id; const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b; m.instanceColor.needsUpdate = true; }
       for (let q = 0, circ = v.ty.circ; q < circ.length; q++) {   // (objects kept from frame to frame: this runs for every vehicle in every frame)
         const a = agentsOut[nOut] || (agentsOut[nOut] = { x: 0, z: 0, r: 0 }); nOut++;
         a.x = v.x + s * circ[q][0]; a.z = v.z + c * circ[q][0]; a.r = circ[q][1];
       }
     }
     agentsOut.length = nOut;
-    for (const k in MESH) { const m = MESH[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
-    if (SIGN) { SIGN.count = MESH.bus.count; SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
+    for (const k in MESH) { const m = MESH[k]; if (!m.count) continue; const q = m.instanceMatrix; q.clearUpdateRanges(); q.addUpdateRange(0, m.count * 16); q.needsUpdate = true; }   // only the slots in use, and nothing for a model with no vehicle on the road
+    if (SIGN) { SIGN.count = MESH.bus.count; if (SIGN.count) SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
     DECAL.count = MESH.apePol.count; CART_DECAL.count = MESH.carretto.count;
   }
 

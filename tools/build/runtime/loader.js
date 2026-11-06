@@ -3,7 +3,7 @@
 // When the build converted the world tiles it also installs a fetch shim: requests for world/manifest.json and
 // world/tiles/*.json are served from the .bin twin and decoded per tile, so streaming code keeps calling
 // fetch(url).then(r => r.json()) unchanged.
-import { decode } from './decode.js';
+import { decode, decodeSteps } from './decode.js';
 
 export async function loadBlobs(base, blobs, opts = {}) {
   const get = async b => {
@@ -27,7 +27,10 @@ function installTileShim() {
     if (!RE.test(url)) return orig(input, init);
     return orig(url.replace(/\.json(\?[^#]*)?(#.*)?$/, '.bin'), init).then(async r => {
       if (!r.ok) return r;
-      const obj = decode(new Uint8Array(await r.arrayBuffer()));
+      const it = decodeSteps(new Uint8Array(await r.arrayBuffer()), 1.5);
+      let obj;
+      // a piece per frame while the game is running; all at once while a loading screen or a transition covers it (world.hurry)
+      for (;;) { const s = it.next(); if (s.done) { obj = s.value; break; } if (window.__pdHurry && !window.__pdHurry()) await new Promise(res => { requestAnimationFrame(res); setTimeout(res, 100); }); }
       return { ok: true, status: 200, statusText: 'OK', url: r.url, headers: r.headers, redirected: false, type: r.type,
         json: () => Promise.resolve(obj), text: () => Promise.resolve(JSON.stringify(obj)), clone() { return this; } };
     });

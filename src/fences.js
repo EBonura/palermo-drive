@@ -15,10 +15,11 @@
 //     the railing or mesh instanced mesh that goes with its piece. ?nostreetwalls draws the fences as mapped.
 // Everything is baked at full detail only (like the building walls); the draw cost is four calls per tile at most.
 import * as THREE from 'three';
-import { Buf, groundY, hooks } from './core.js';
+import { Buf, Grow, groundY, hooks, rasterMaskIter } from './core.js';
+import { sliceOver } from './slice.js';
 import { wallMaterial, wallTextureSteps, LAYER } from './wall-tex.js';
 import { roadsideWalls } from './fence-walls.js';
-import { expresswayRails } from './expressway.js';
+import { expresswayRails, isFastRoad } from './expressway.js';
 import { buildSigns } from './direction-signs.js';
 
 const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, MAX_RAILS = 2400, POOL = 10;
@@ -257,12 +258,12 @@ function resample(p, step) { // flat polyline -> points about `step` apart (at m
 
 // the wall mesh: Buf plus a texture layer per vertex; uvs are in layer units (src/wall-tex.js), attributes aUv and aLayer
 class WBuf extends Buf {
-  constructor() { super(); this.ly = []; this.layer = 0; }
+  constructor() { super(); this.ly = new Grow(); this.layer = 0; }
   v(x, y, z, nx, ny, nz, col, u, w, k) { super.v(x, y, z, nx, ny, nz, col, u, w, k); this.ly.push(this.layer); }
   mesh(mat) {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3)); g.setAttribute('aUv', new THREE.Float32BufferAttribute(this.uv, 2)); g.setAttribute('aLayer', new THREE.Float32BufferAttribute(this.ly, 1));
+    g.setAttribute('position', new THREE.BufferAttribute(this.p.done(), 3)); g.setAttribute('normal', new THREE.BufferAttribute(this.n.done(), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(this.c.done(), 3)); g.setAttribute('aUv', new THREE.BufferAttribute(this.uv.done(), 2)); g.setAttribute('aLayer', new THREE.BufferAttribute(this.ly.done(), 1));
     return new THREE.Mesh(g, mat);
   }
 }
@@ -274,8 +275,9 @@ const OFF = typeof location !== 'undefined' && new URLSearchParams(location.sear
 const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
 export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
   if (!wallGrid || OFF) return null;
+  if (ctx && ctx.streets && ctx.streets.aoi && ctx.roads && ctx.roads.some(r => isFastRoad(r) || r.k === 'primary_link')) yield* rasterMaskIter([ctx.streets.asphalt || []], ctx.streets.aoi, 2);   // (so that the rules below find it done)
   const rails = ctx ? expresswayRails(ctx, list) : [];   // the guard rails of the fast roads, by rule (src/expressway.js); asked first, so a mapped wall beside a fast road knows whether a rail already stands there
-  if (ctx && !NOROAD && list && list.length) list = roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas, rails);
+  if (ctx && !NOROAD && list && list.length) list = yield* roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas, rails);
   yield;
   if (rails.length) list = (list || []).concat(rails);
   yield;
@@ -291,7 +293,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   const addSeg = (ax, az, bx, bz, fn) => { const s = [ax, az, bx, bz]; if (fn) s.fn = fn; wallGrid.addSeg(tk, s, ax, az, bx, bz); };
   for (let li = 0; li < list.length; li++) {
     const r = list[li], pts = resample(r.p, r.k === 'f' || r.k === 'g' || r.fence ? PANEL : 4);
-    if ((++n & 7) === 0) yield;
+    if (sliceOver()) yield;
     if (r.k === 'f' || r.k === 'g') {
       const st = r.k === 'g' ? (r.s >= 3 ? r.s : 3) : r.s || 0, rail = r.k === 'g';   // a guard rail is a W-beam, single unless it says double
       for (let i = 0; i + 1 < pts.length && (rail ? nRail < MAX_RAILS : nPanels < MAX_PANELS); i++) {

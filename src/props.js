@@ -3,7 +3,7 @@
 // Owned by the props work. Everything is vertex-coloured low-poly in shared InstancedMeshes,
 // bucketed into 250 m cells so frustum culling still works.
 import * as THREE from 'three';
-import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMask } from './core.js';
+import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMaskIter } from './core.js';
 import { zoneAt, ZONES } from './districts.js';
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
@@ -1190,9 +1190,8 @@ function* generate(S, BUD) {
 
   // ---------- street masks
   // [perf pass] bit-packed tiled raster (core.js rasterMask) instead of a 66 MB RGBA read-back per call
-  function mask(polys, k) { return rasterMask([polys], S.aoi, k); }
-  const asphalt = mask(S.asphalt, 2); yield;
-  const paving = mask(S.paving, 1); yield;
+  const asphalt = yield* rasterMaskIter([S.asphalt], S.aoi, 2);
+  const paving = yield* rasterMaskIter([S.paving], S.aoi, 1);
   const road = (x, z) => asphalt(x, z) && !inB(x, z);
 
   // ---------- roads

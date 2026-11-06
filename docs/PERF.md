@@ -120,6 +120,36 @@ The first switch compiles the other program variants and is the stall; three.js 
 **Untested.** A real phone (GPU time, thermal throttling, iOS Safari's refresh handling and its `hardwareConcurrency` and `deviceMemory`, 120 Hz ProMotion), a real 90 / 120 / 144 Hz display (only fake timestamps), a real 120 or 144 Hz display for the new 60 fps cap (fake timestamps only), Low Power Mode (a 30 Hz display is handled by the target following the refresh, but never run), and the weak-device start hint. Every threshold in the table above is a guess tuned on the model and this Mac.
 
 
+## The main thread (JS cost and stutter, November 2026)
+
+Tools in `tools/perf/`: `cpuprofile.mjs` (five scenes, timing, CPU profile by system, allocation, worst frames), `table.mjs`, `crowdcheck.mjs` (everybody on the screen has an instance), `gamecheck.mjs` (a fare, a pub, the discarica, collisions, scripted), `tilehash.mjs` (what the tile build makes, two builds compared), `shotdiff.mjs` (pixel diff).
+
+Before and after, headless Chrome on the M3 Max, phone profile (844x390 at DPR 3, full graphics), CDP CPU throttling, builds alternated on a quiet machine (load average 2 to 5). Before is ded93926; after is this work on top of a main that also holds the rendering and memory passes (not the last five commits of main), so the totals are not this work's alone: read the crowd and map columns for that. 4x is two runs each, shown as a mean; 6x is one run. Not an iPhone: it is a stand-in for JS cost, GPU cost does not scale with it, and Safari's GC and layout are not Chrome's.
+
+| scene | CPU | main ms per frame | crowd ms | map ms | rAF p99 ms | worst frame ms | tasks over 33 ms | MB/s allocated |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti, standing | 4x | 10.6 to 7.0 | 2.14 to 0.98 | 0.20 to 0.02 | 11.9 to 9.0 | 13.5 to 10.8 | 0 to 0 | 16.4 to 10.6 |
+| Via Maqueda, driving | 4x | 12.8 to 11.8 | 1.40 to 0.81 | 0.19 to 0.08 | 27.2 to 24.7 | 41.8 to 52.1 | 5.5 to 4.5 | 63 to 37 |
+| Ballaro, driving | 4x | 12.9 to 9.9 | 2.20 to 1.11 | 0.20 to 0.10 | 15.7 to 11.9 | 111 to 104 | 1 to 1 | 45 to 33 |
+| Viale Regione, fast | 4x | 10.9 to 10.1 | 0.57 to 0.37 | 0.11 to 0.07 | 26.6 to 20.4 | 38.4 to 26.9 | 5 to 0 | 56 to 37 |
+| Mondello | 4x | 14.2 to 10.9 | 1.67 to 0.97 | 0.17 to 0.09 | 22.6 to 18.9 | 36.7 to 36.2 | 3 to 1 | 21 to 16 |
+| Quattro Canti, standing | 6x | 12.4 to 8.9 | 2.89 to 1.35 | 0.25 to 0.02 | 15.6 to 12.8 | 17.5 to 15.7 | 0 to 0 | 16.1 to 10.6 |
+| Via Maqueda, driving | 6x | 18.6 to 15.8 | 2.03 to 1.27 | 0.24 to 0.11 | 34.8 to 26.7 | 66 to 56 | 12 to 7 | 52 to 30 |
+| Ballaro, driving | 6x | 18.2 to 15.0 | 3.28 to 1.62 | 0.26 to 0.14 | 22.6 to 17.5 | 128 to 124 | 1 to 2 | 30 to 26 |
+| Viale Regione, fast | 6x | 17.8 to 13.9 | 0.95 to 0.53 | 0.18 to 0.10 | 44.9 to 30.0 | 60 to 51 | 24 to 8 | 54 to 43 |
+| Mondello | 6x | 18.4 to 15.2 | 2.44 to 1.29 | 0.20 to 0.14 | 30.7 to 26.8 | 50 to 55 | 9 to 4 | 22 to 16 |
+
+What each cut does, as far as it could be told apart:
+- **Crowd**: its JS about halves, in every scene with people in it. Only who is in a wedge round the camera gets an instance (about 300 of 1000 at Quattro Canti), which also spares the GPU; `crowdcheck.mjs` found nobody on the screen without one in 361077 checks.
+- **Minimap**: its JS falls about 90 % standing and about half driving. What it saves on Safari (a canvas composited every frame) cannot be measured here.
+- **Program recomputes**: 8 a frame to 2 at Quattro Canti and 4 at the other spots checked; the rest is the shadow pass's depth material between plain and instanced meshes.
+- **Traffic rates**: no saving could be measured on its own.
+- **Tile steps by the clock, decoding in pieces**: against the main of that day, rAF p99 and the worst frames while streaming improve on Viale (6x, median of 3 pairs, 49.9 to 40.7 and 67.7 to 51.0 ms), little or nothing elsewhere, and the mean does not move. The garbage they first saved was already saved by the memory pass.
+
+What is still dear: `renderer.render` is half or more of the main thread everywhere. Tile build steps still reach 30 to 40 ms at 4x now and then: a step cannot stop inside one big building, one street polygon's triangulation or a garbage collection. Every Ballaro run has a task of 100 to 190 ms: it comes with the tool's teleport at the start of a pass and was not looked into further. One Ballaro run of this work had a single task of 1.37 s that did not come back in eight more runs of the scene: not explained.
+
+Noise: on a shared machine (load average 50 to 90, the first tables of this work) a pair of runs could go either way by 30 %, and one set of pairs even showed the crowd cut as a loss in total. The table above is the only one to read.
+
 ## One profile for every device, and the far city (LOD pass)
 
 The owner's rule: desktop and phone show exactly the same graphics. Only the render scale follows the screen (`QUALITY.pixelRatio` in `src/mobile.js`: 1.25 on touch, 2 elsewhere, and, since the Auto graphics pass below, `perf.js` aims at 60 fps on every device and falls back to a steady 30 on its own). Everything else is one set of numbers, tuned on the phone test (844x390, touch, CDP CPU x4, `?fixres`) and then shared. The old per-device branches (`QUALITY.mobile`, `QUALITY.shadowMap`, `(pointer: coarse)` in the files below) are gone.

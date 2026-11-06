@@ -39,18 +39,27 @@ export const groundY = (x, z) => {
 
 
 // ---------- geometry helpers ----------
+// A growing Float32Array: geometry is written a vertex at a time into one of these instead of a JS array of doubles that is copied every time it doubles and once more at the end (most of the garbage of the tile building).
+export class Grow {
+  constructor(cap = 256) { this.a = new Float32Array(cap); this.length = 0; }
+  room(n) { if (this.length + n > this.a.length) { const b = new Float32Array(Math.max(this.a.length * 2, this.length + n)); b.set(this.a.subarray(0, this.length)); this.a = b; } }
+  push(x) { this.room(1); this.a[this.length++] = x; }
+  push2(x, y) { this.room(2); const a = this.a, l = this.length; a[l] = x; a[l + 1] = y; this.length = l + 2; }
+  push3(x, y, z) { this.room(3); const a = this.a, l = this.length; a[l] = x; a[l + 1] = y; a[l + 2] = z; this.length = l + 3; }
+  done() { return this.a.slice(0, this.length); }
+}
 export class Buf {
-  constructor() { this.p = []; this.n = []; this.c = []; this.uv = []; }
+  constructor() { this.p = new Grow(); this.n = new Grow(); this.c = new Grow(); this.uv = new Grow(); }
   v(x, y, z, nx, ny, nz, col, u = 0, w = 0, k = 1) {
-    this.p.push(x, y, z); this.n.push(nx, ny, nz);
-    this.c.push(col.r * k, col.g * k, col.b * k); this.uv.push(u, w);
+    this.p.push3(x, y, z); this.n.push3(nx, ny, nz);
+    this.c.push3(col.r * k, col.g * k, col.b * k); this.uv.push2(u, w);
   }
   mesh(mat) {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('position', new THREE.BufferAttribute(this.p.done(), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(this.n.done(), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(this.c.done(), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(this.uv.done(), 2));
     return new THREE.Mesh(g, mat);
   }
 }
@@ -167,7 +176,12 @@ export function inPoly(pts, x, z) { let c = false; for (let i = 0, j = pts.lengt
 // ~66 MB of heap, close to the 16 M px canvas limit of iOS Safari. This keeps 1 bit per cell (about 2 MB) and a 4 MB scratch canvas.
 // layers: array of polygon lists (each polygon = [outerRing, hole, ...], flat [x, z, ...]); aoi: [x0, z0, x1, z1]; k: cells per metre.
 // Returns (x, z) => boolean, same answers as the old canvas version (even-odd fill per polygon, alpha > 127).
-export function rasterMask(layers, aoi, k) {
+// One canvas for all of it (a new 1024 canvas per call was 4 MB each until the collector came by), and the last few answers kept: a tile asks for the same asphalt up to four times (guard rails, direction signs, road paint, props).
+// rasterMaskIter yields between bands of rows; rasterMask is the same thing in one go, and answers at once when the iterator has just done the job.
+const RM_BAND = 128, rmLast = [];
+let rmCv = null, rmG = null;
+export function* rasterMaskIter(layers, aoi, k) {
+  for (const m of rmLast) if (m.k === k && m.aoi[0] === aoi[0] && m.aoi[1] === aoi[1] && m.aoi[2] === aoi[2] && m.aoi[3] === aoi[3] && m.layers.length === layers.length && m.layers.every((l, i) => l === layers[i])) return m.fn;
   const [x0, z0, x1, z1] = aoi, W = Math.ceil((x1 - x0) * k), H = Math.ceil((z1 - z0) * k), TS = 1024;
   const bits = new Uint8Array((W * H + 7) >> 3);
   const items = [];
@@ -176,23 +190,30 @@ export function rasterMask(layers, aoi, k) {
     for (let i = 0; i < r.length; i += 2) { const x = (r[i] - x0) * k, z = (r[i + 1] - z0) * k; if (x < a) a = x; if (x > c) c = x; if (z < b) b = z; if (z > d) d = z; }
     items.push([poly, a, b, c, d]);
   }
-  const cv = document.createElement('canvas'); cv.width = cv.height = TS;
-  const g = cv.getContext('2d');   // GPU canvas on purpose: same rasteriser (and edge pixels) as the old whole-map canvas
-  for (let ty = 0; ty < H; ty += TS) for (let tx = 0; tx < W; tx += TS) {
-    g.clearRect(0, 0, TS, TS); g.fillStyle = '#fff';
+  yield;
+  if (!rmCv) { rmCv = document.createElement('canvas'); rmCv.width = TS; rmCv.height = RM_BAND; rmG = rmCv.getContext('2d'); }   // GPU canvas on purpose: same rasteriser (and edge pixels) as the old whole-map canvas
+  const g = rmG;
+  for (let ty = 0; ty < H; ty += RM_BAND) for (let tx = 0; tx < W; tx += TS) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, TS, RM_BAND); g.fillStyle = '#fff';
     let any = false;
     for (const [poly, a, b, c, d] of items) {
-      if (c < tx - 2 || a > tx + TS + 2 || d < ty - 2 || b > ty + TS + 2) continue;
+      if (c < tx - 2 || a > tx + TS + 2 || d < ty - 2 || b > ty + RM_BAND + 2) continue;
       g.beginPath();
       for (const ring of poly) for (let i = 0; i < ring.length; i += 2) g[i ? 'lineTo' : 'moveTo']((ring[i] - x0) * k - tx, (ring[i + 1] - z0) * k - ty);
       g.fill('evenodd'); any = true;
     }
     if (!any) continue;
-    const w = Math.min(TS, W - tx), h = Math.min(TS, H - ty), px = new Uint32Array(g.getImageData(0, 0, w, h).data.buffer);
+    const w = Math.min(TS, W - tx), h = Math.min(RM_BAND, H - ty), px = new Uint32Array(g.getImageData(0, 0, w, h).data.buffer);
     for (let j = 0; j < h; j++) for (let i = 0, o = j * w; i < w; i++) {
       if ((px[o + i] >>> 24) > 127) { const n = (ty + j) * W + tx + i; bits[n >> 3] |= 1 << (n & 7); }
     }
+    yield;
   }
-  cv.width = cv.height = 0;   // the 4 MB scratch goes now: on iOS a canvas nobody holds still counts until the collector finds it
-  return (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; if (i < 0 || j < 0 || i >= W || j >= H) return false; const n = j * W + i; return (bits[n >> 3] >> (n & 7) & 1) === 1; };
+  const fn = (x, z) => { const i = ((x - x0) * k) | 0, j = ((z - z0) * k) | 0; if (i < 0 || j < 0 || i >= W || j >= H) return false; const n = j * W + i; return (bits[n >> 3] >> (n & 7) & 1) === 1; };
+  rmLast.unshift({ layers, aoi: [x0, z0, x1, z1], k, fn }); if (rmLast.length > 4) rmLast.pop();
+  return fn;
+}
+export function rasterMask(layers, aoi, k) {
+  const it = rasterMaskIter(layers, aoi, k);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
 }
