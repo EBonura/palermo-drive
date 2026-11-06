@@ -78,3 +78,43 @@ The bare hills and their terrain triangles were more expensive than the building
 - The Duomo's piazza (large grey slabs, palms, iron lamps, a bust on a column, a green hedge) is not drawn; the west front, the south tower and the apses are from the type (above).
 - Isola delle Femmine: no photo of its side streets exists in Mapillary, so its look inside the grid is judged from the through road. Roof terraces, wires, satellite dishes, laundry.
 - Hillside villas above Monreale (mo10, mo34): the CTR has the buildings, but they stand in the `rural` zone's 1 to 3 storey mix with few terraces.
+
+# Belmonte Mezzagno, Capaci and the hill borgate (third pass)
+
+The outskirts survey (docs/faithfulness/survey/zone-south-east.md item 8 and zs06, zone-west.md item 7, zone-north-west.md item 6) found Belmonte Mezzagno's centre to be a wide paved plaza where the photo has a street of balconied houses, and the village houses of the west and north-west to be plain boxes. Re-shot on current main with 21 photos in Belmonte Mezzagno (one drive, March 2019), 10 in Capaci (one drive, October 2019), 13 in Baida, Boccadifalco, Molara and Aquino (March 2019) and the survey's own viewpoints.
+
+## What was wrong
+
+- **Belmonte Mezzagno and Capaci were nearly empty.** OSM has 152 buildings within reach of Belmonte Mezzagno and 131 of Capaci; the CTR has about 850 and 1,450 in their boxes. The game drew bare hills with roads and parked cars on them; the plaza look at zs06 came mostly from the empty town round the square. Fix at the source, as for Monreale: `tools/ctr_buildings.py` takes the two towns too (624 and 564 buildings added) and 44 tiles are rebaked. Both are towns of their own (zones `belmonte` and `capaci`, the HUD names them), seeded at their OSM place nodes. The south half of Belmonte Mezzagno and the west end of Capaci are outside the baked map.
+- **The square swallowed the road.** Piazza Giuseppe Garibaldi is one OSM pedestrian area of about 3,000 m2 laid over the junction of Via La Rocca and Corso Martiri di Via Fani; the photo has asphalt with zebra crossings and a strip with planters. The street layers pave an OSM pedestrian area over the carriageway, so the junction was slabs with a crowd on them. General rule in `tools/tiles.py` (`plazas_off_roads`): beyond the Comune's survey, the carriageway of every drivable road is cut out of an OSM square, in the square's area record, in the paving and in the carriageway layer. 61 polygons outside Palermo change, about 4,700 m2: mostly Belmonte Mezzagno and Capaci, a little in Villabate, Monreale, Isola delle Femmine and San Martino delle Scale. Inside the Comune's survey nothing changes.
+- **Village houses had no faces.** The houses of Baida, Boccadifalco and Partanna are in the Comune's survey with lidar heights, so their massing is right, but they took the generic `periph` (or `tn`) zone: beige plaster, small windows, no balconies, no shutters, one slab per outline. New zone `borgata` (`town: true`, so the old-town facade machinery: houses cut along the street wall, shutters, surrounds, balconies in runs, the zone's palette), seeded at the OSM place nodes of Baida, Boccadifalco and Partanna. Molara and Aquino are left out: their photos are country lanes, and the 3 km `rural` seed there leaves a village seed almost no ground.
+- **Balcony habit by zone.** `habH` on a zone replaces the balcony habit of plain houses (full, piano nobile only, mixed, none) in `oldHouses`; Belmonte Mezzagno and the borgate have a balcony on most upper floors in the photos.
+
+## Side effects
+
+- Zones: 778 buildings `periph` to `borgata` round Baida, 526 round Boccadifalco (35 of them `rural`), 520 `periph` and 534 `tn` round Partanna (Partanna's centre lay in the Tommaso Natale villa zone), 720 to `belmonte`, 553 to `capaci` (all were `periph` or `rural` by default). Everything else keeps its zone.
+- Squares given back to the road outside the two towns: Piazza Sac. Vittorio Salmeri in Villabate (about 200 m2), bits of small squares in Monreale, Isola delle Femmine and San Martino delle Scale (under 90 m2 each).
+
+## Numbers (headless Chrome, 11:00, chase camera at each viewpoint, median of 30 frames; triangles / draw calls)
+
+| place | phone 844x390 before | after | desktop 1280x720 before | after |
+| --- | --- | --- | --- | --- |
+| Quattro Canti (reference) | 642k / 247 | 641k / 249 | 603k / 238 | 603k / 235 |
+| Belmonte, Piazza Garibaldi (zs06) | 815k / 411 | 543k / 304 | 671k / 366 | 467k / 286 |
+| Belmonte, long streets (bm09, bm13) | 533k / 291, 607k / 289 | 511k / 214, 494k / 201 | 531k / 284, 571k / 269 | 503k / 206, 485k / 191 |
+| Belmonte, east edge (bm10, bm14) | 520k / 274, 560k / 275 | 573k / 227, 598k / 217 | 531k / 275, 569k / 274 | 587k / 229, 585k / 209 |
+| Capaci, corso (cp03, cp06) | 734k / 336, 866k / 411 | 698k / 266, 664k / 249 | 727k / 324, 843k / 395 | 683k / 262, 654k / 247 |
+| Boccadifalco (vc03, zw24) | 444k / 259, 784k / 347 | 444k / 258, 787k / 345 | 418k / 249, 736k / 322 | 415k / 249, 740k / 321 |
+| Baida (vb02) | 813k / 460 | 816k / 456 | 795k / 444 | 802k / 447 |
+| Partanna (nw36) | 468k / 203 | 475k / 199 | 461k / 195 | 459k / 192 |
+
+As in the second pass the bare hills cost more than the houses that replace them. zw24 and vb02 were above the centre's figure before this work and still are (the view down the valley over the city); the borgata faces add about 3k.
+
+## Not done
+
+- Boccadifalco: the `periph` seed of the west outskirts stands in the village itself, so about half the houses round zw24 keep `periph`; the borgata faces show more in Baida, round vc03 and in Partanna than at zw24. Colour and balconies are still paler and fewer than in the photos.
+- Belmonte Mezzagno beyond the map's south edge (z 7817), and Capaci west of x -11058.
+- No landmark model: the Chiesa Madre of Belmonte Mezzagno and the churches of Capaci stand as generic church blocks of their footprint.
+- Capaci's square at nw03: the CTR block stands where the photo shows the square with parked cars (the photo position may be off; not settled).
+- Molara, Aquino, Villaggio Santa Rosalia and the other small borgate keep `periph` or `rural`. Sferracavallo's west end (nw17, nw18) falls to `rural` because the `sferra` seeds lie east of the village's OSM node; not changed here.
+- Wires, satellite dishes, laundry, roof terraces; the stone setts and kerbs of the old lanes.

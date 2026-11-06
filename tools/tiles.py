@@ -961,6 +961,51 @@ def parse_highways(files):
     return roads, car, ped, plazas
 
 
+def plazas_off_roads(plazas, ped, car):
+    """Beyond the Comune's survey a square is its OSM pedestrian area, and that outline often takes in the roads that cross the square or run round it: Piazza
+    Giuseppe Garibaldi in Belmonte Mezzagno is one 3,000 m2 polygon over the junction of Via La Rocca and Corso Martiri di Via Fani, where the photo has
+    asphalt with zebra crossings and the paved part is a strip with planters. The paving wins over the carriageway in the street layers, so the town centre
+    was a plaza with no road through it. Here the carriageway of every drivable road is cut out of the square (plazas and ped are changed in place, the
+    same polygon is in both, and the street layers' copies of the OSM squares in data/road_surfaces.json likewise). A square that any of the Comune's street
+    polygons touches is left as it was: the survey already says where its road is."""
+    import shapely
+    from shapely.ops import unary_union
+    if not plazas or not car:
+        return
+    ct = shapely.STRtree(car)
+    rs = load_road_surfaces() if RS_ON else None
+    com = rs["comune"] if rs else None
+    stat, back = [0, 0.0], []
+
+    def off(pg):
+        hit = [car[i] for i in ct.query(pg) if car[i].intersects(pg)]
+        if not hit or (com and len(com[1].query(pg.buffer(5.0)))):
+            return pg
+        road = unary_union(hit)
+        q = pg.difference(road)
+        q = unary_union([p for p in polys_of(q) if p.area >= 20.0])
+        if pg.area - q.area < 1.0:
+            return pg
+        stat[0] += 1
+        stat[1] += pg.area - q.area
+        back.append(pg.intersection(road))
+        return q
+    at = {id(p): k for k, p in enumerate(ped)}
+    for k, pg in enumerate(plazas):
+        q = off(pg)
+        if q is not pg:
+            if id(pg) in at:
+                ped[at[id(pg)]] = q
+            plazas[k] = q
+    if rs:   # the same squares come again in data/road_surfaces.json as OSM-only pedestrian areas (tools/road_surfaces.py), which the street layers pave too
+        geoms = [off(g) for g in rs["pedestrian"][0]]
+        rs["pedestrian"] = (geoms, shapely.STRtree(geoms))
+    # the street layers' carriageway (road_surfaces.json) was cut by those squares too, so the road given back is added to it in streets_for_tile (else it is bare ground)
+    bk = [p for g in back for p in polys_of(g) if p.area > 0.5]
+    G["back_geoms"], G["back_tree"] = bk, shapely.STRtree(bk)
+    print(f"  OSM squares outside the Comune's survey with a road through them: {stat[0]} polygons, {stat[1]:.0f} m2 of carriageway given back to the roads", flush=True)
+
+
 def parse_waterways(files):
     """[(LineString, tags)] of OSM waterway lines (rivers, streams, drains), for structures.py."""
     from shapely.geometry import LineString
@@ -1284,8 +1329,17 @@ def I(a, b):  # noqa: E743
 RS_LAYERS = ("carriageway", "pavement", "verge", "plaza", "pedestrian", "platform")
 
 
+_RS_CACHE = []
+
+
 def load_road_surfaces():
-    """data/road_surfaces.json -> {layer: (geoms, STRtree)} in game metres. Shoulders (motorway hard shoulder) count as carriageway."""
+    """data/road_surfaces.json -> {layer: (geoms, STRtree)} in game metres. Shoulders (motorway hard shoulder) count as carriageway. Read once per run."""
+    if not _RS_CACHE:
+        _RS_CACHE.append(_load_road_surfaces())
+    return _RS_CACHE[0]
+
+
+def _load_road_surfaces():
     import shapely
     from shapely.geometry import Polygon
     d = json.load(open(RS_PATH))
@@ -1478,6 +1532,9 @@ def streets_for_tile(tx0, tz0):
             hits = [geoms[i] for i in tr.query(R)]
             return poly_only(unary_union([I(h, R) for h in hits])) if hits else shapely.Polygon()
         carr, pave, verg = rs("carriageway"), rs("pavement"), rs("verge")
+        bk = layer(G["back_tree"], G["back_geoms"]) if G.get("back_geoms") else None
+        if bk is not None and not bk.is_empty:   # the roads across the OSM squares beyond the Comune's survey (plazas_off_roads)
+            carr = unary_union([carr, bk])
         tz = layer(G["tunnel_tree"], G["tunnel_geoms"])
         if not tz.is_empty:   # the Comune polygons do not skip tunnels: the ground above one is no street (a surface road crossing it is put back)
             carr = unary_union([D(carr, tz), I(car, tz)])
@@ -2344,6 +2401,7 @@ def build(offline=False):
     buildings, labels, stats = parse_buildings(files["bld"], lidar)
     coast, areas_raw, piers = parse_misc(files["misc"])
     roads, car, ped, plazas = parse_highways(files["hwy"])
+    plazas_off_roads(plazas, ped, car)
     pitems, pareas = parse_props(files["props"])
     places = parse_places(files.get("places", []))
     import structures
