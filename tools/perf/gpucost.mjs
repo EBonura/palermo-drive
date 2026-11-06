@@ -8,6 +8,7 @@
 //   node tools/perf/gpucost.mjs waste [--spots qc] [--top 45]                                          # each object in a flat colour: triangles drawn against pixels that reach the screen
 //   node tools/perf/gpucost.mjs eval --js file [--spots qc]                                            # a snippet run in the settled page (G, R, S, THREE, gl), its result as JSON
 //   node tools/perf/gpucost.mjs partcheck [--spots qc] [--points 40]                                   # random road places: only the parts in view against every part, pixels that differ
+//   node tools/perf/gpucost.mjs frame [--spots qc]                                                     # frame time at the phone's pixel ratio and animation frames per second, with and without src/shading.js and part drawing
 //   --q 'extra=1&...' adds to every page's query, --root <dir> serves another checkout (a before/after pair)
 // A frame is timed from the start of the game's animation callback to the end of a 1-pixel readPixels (the GPU has finished it). --k raises the pixel
 // ratio k times over the iPhone's 2 (k = 4, the default, is 6752 x 3120 for an 844 x 390 window: 16 times the pixels), so the GPU is what the frame waits for; read the costs as shares of
@@ -56,7 +57,7 @@ function serve(root) {
   return new Promise(r => srv.listen(0, '127.0.0.1', () => r(srv)));
 }
 // One page: the plan runs inside it (tools/perf/probe.js), the messages come back as lines.
-async function page(port, spot, plan, { q = '', attr = null, settle = 8000, limit = 900 } = {}) {
+async function page(port, spot, plan, { q = '', attr = null, settle = 8000, limit = +arg('limit', 240) } = {}) {
   const cfg = { plan, attr, settle, partShots: !!OUT };
   const probe = path.join(os.tmpdir(), `gpucost-probe-${process.pid}.js`);
   fs.writeFileSync(probe, `window.__PROBE = ${JSON.stringify(cfg)};\n` + fs.readFileSync(path.join(HERE, 'probe.js'), 'utf8'));
@@ -97,6 +98,7 @@ try {
       }
       results[spot] = r;
     }
+    if (MODE === 'frame') for (const q of ['shade=off&lean=occ,shadow,walk,noparts', '', 'shade=off&lean=occ,shadow,walk,noparts', '']) console.log(q || 'as shipped', JSON.stringify((await page(port, spot, [{ do: 'time', pr: PR, n: 240 }, { do: 'fps', ms: 6000 }], { q })).filter(o => o.time || o.fps).map(o => o.time ? +o.time.tot.toFixed(2) : o.fps)));
     if (MODE === 'eval') { const m = await page(port, spot, [{ do: 'eval', pr: PR, js: fs.readFileSync(arg('js'), 'utf8') }]); console.log(JSON.stringify(m.find(o => 'eval' in o)?.eval, null, 1)); }
     if (MODE === 'partcheck') { const m = await page(port, spot, [{ do: 'partcheck', pr: PR, points: +arg('points', 40) }]); console.log(JSON.stringify(m.find(o => o.partcheck)?.partcheck)); }
     if (MODE === 'waste') {
