@@ -40,7 +40,7 @@ function put(grid, x0, z0, x1, z1, v) {
   for (let i = Math.floor(Math.min(x0, x1) / C); i <= Math.floor(Math.max(x0, x1) / C); i++) for (let j = Math.floor(Math.min(z0, z1) / C); j <= Math.floor(Math.max(z0, z1) / C); j++) { const k = i * 100003 + j; let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(v); }
 }
 
-// list: the tile's fences [{k, h, s, p}], roads, buildings and tram (its `r` rails): the tile's own. A fence within 7 m of a tram rail is the tram's railing and stays. rails: the guard rails the fast road rule made for this tile (src/expressway.js).
+// list: the tile's fences [{k, h, s, p}], roads (the tile's own plus the neighbours' pieces within 20 m of its edge, `er`), buildings and tram (its `r` rails): the tile's own. A fence within 7 m of a tram rail is the tram's railing and stays. rails: the guard rails the fast road rule made for this tile (src/expressway.js).
 // Returns the list with the roadside fences and walls re-read (it is the same list when nothing changes).
 export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
   if (!list || !list.length || !roads || !roads.length) return list;

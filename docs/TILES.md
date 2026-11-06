@@ -24,6 +24,8 @@ coast. Everything is baked into square tiles that the game streams around the ca
   - `buildings[]` (same fields as today: id, p, holes, h, r, g, parts, split, c, k, n, t, lv, hi, am...).
     A building belongs to the tile containing its centroid; its footprint may cross the border.
   - `roads[]` clipped to the tile (centrelines keep class, width, name).
+  - `er[]`: the drivable roads of the neighbouring tiles clipped to the 20 m just outside this one (same fields, fewer of them; only in tiles with walls).
+    Only the roadside-wall rules read it (`src/fence-walls.js`, so a wall at the tile edge knows the road next door); everything else reads `roads`.
   - `streets`: `asphalt/paving/raised/green/water` polygons and `curbs` clipped to the tile, plus `aoi` = the tile rect.
   - `areas[]`, `labels[]`, `props` (OSM street furniture in the tile, same structure as props-data.js).
   - `near`: lidar DTM grid for the tile where we have one (same structure as today's `D.near`).

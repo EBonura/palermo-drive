@@ -279,7 +279,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   if (!wallGrid || OFF) return null;
   if (ctx && ctx.streets && ctx.streets.aoi && ctx.roads && ctx.roads.some(r => isFastRoad(r) || r.k === 'primary_link')) yield* rasterMaskIter([ctx.streets.asphalt || []], ctx.streets.aoi, 2);   // (so that the rules below find it done)
   const rails = ctx ? expresswayRails(ctx, list) : [];   // the guard rails of the fast roads, by rule (src/expressway.js); asked first, so a mapped wall beside a fast road knows whether a rail already stands there
-  if (ctx && !NOROAD && list && list.length) list = yield* roadsideWalls(list, ctx.roads, ctx.buildings, ctx.tram, ctx.areas, rails);
+  if (ctx && !NOROAD && list && list.length) list = yield* roadsideWalls(list, ctx.er && ctx.roads ? ctx.roads.concat(ctx.er) : ctx.roads, ctx.buildings, ctx.tram, ctx.areas, rails);   // er: the neighbours' roads just past the tile's edge (tools/tiles.py EDGE_REACH), read by these rules only
   yield;
   if (rails.length) list = (list || []).concat(rails);
   yield;

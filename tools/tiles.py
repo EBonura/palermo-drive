@@ -468,6 +468,10 @@ COVERED_OPEN = ("motorway", "motorway_link", "trunk", "trunk_link", "primary", "
 PEDESTRIAN = {"pedestrian": 7, "footway": 2.5}   # cycleway/path stay centreline-only, as before
 URBAN_REACH = 24.0   # (only without data/road_surfaces.json) ground within this distance of a building and not road/green/... is raised pavement
 MARGIN = 30.0        # metres computed beyond each tile so street polygons line up across borders
+EDGE_REACH = 20.0    # metres beyond each tile whose road pieces the tile also stores, as `er`, for the roadside-wall rules (src/fence-walls.js: walls within 8 m of an edge, fences within 12 m of a fast road, 8 m round a deck)
+EDGE_CLASSES = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link",
+                "unclassified", "residential", "living_street", "service"}   # the roads those rules read (fence-walls.js DRIVE)
+EDGE_FIELDS = ("w", "k", "n", "cw", "o", "ms", "j", "br")   # what they ask of a road (src/road-class.js isFastRoad, fence-walls.js)
 CHUNK = T / 8        # street polygons are cut into 62.5 m cells (drape over terrain, cull well)
 DENSIFY = 8
 FAR_STEP = 100
@@ -1285,7 +1289,7 @@ def load_road_surfaces():
     import shapely
     from shapely.geometry import Polygon
     d = json.load(open(RS_PATH))
-    out = {}
+    out = {"comune": []}   # comune: the street space the Comune surveyed (carriageway and pavement), where the walled-street rule stays out (walled_aprons)
     for name in RS_LAYERS:
         geoms = []
         for rec in d[name]:
@@ -1302,9 +1306,146 @@ def load_road_surfaces():
                 out.setdefault("shoulder", []).append(g)
             else:
                 geoms.append(g)
+            if name in ("carriageway", "pavement") and rec.get("src") == "comune":
+                out["comune"].append(g)
         out[name] = geoms
     out.setdefault("shoulder", [])
     return {k: (v, shapely.STRtree(v)) for k, v in out.items()}
+
+
+# Streets between walls (nw02). Beyond the Comune's survey a street is its OSM centreline buffered to the class width, so a road OSM gives 6 m whose
+# walls stand 11 m apart (Via Kennedy at Isola delle Femmine) was a narrow strip of asphalt with bare verge out to the walls, where the photo has asphalt
+# with cars parked on it and a pavement at the foot of each wall. Where mapped walls, fences or hedges run alongside an ordinary road on both sides,
+# at most WALLED_MAX m apart, and the asphalt out to WALLED_PAVE m short of them is at least WALLED_GAIN m wider than the carriageway, the space
+# between them is the street: asphalt to WALLED_PAVE m from each wall, a pavement from there to the wall. Never inside the Comune's survey (it already
+# is the street wall to wall), never where a building or another road stands between the road and the wall (a frontage, a parallel lane), and only
+# along WALLED_RUN stations in a row, so a wall that touches the road for a few metres or a gateway does not make a bulge.
+WALLED_KINDS = {"w", "d", "f", "h", "c"}   # walls, dry-stone walls, fences, hedges, city walls (not retaining walls, guard rails or concrete barriers: those stand at the asphalt)
+WALLED_CLASSES = {"primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "unclassified", "residential", "living_street"}
+WALLED_STEP = 4.0    # metres between stations along the road
+WALLED_REACH = 12.0  # metres from the centre line a wall is looked for on each side
+WALLED_MAX = 14.0    # wall to wall at most this (two lanes, two parking lanes and two pavements: nw02 is 11.3 m, Via Giovanni Falcone at 6836, 4706 is 12.2); wider may be a yard, a field or a verge
+WALLED_PAVE = 1.5    # the pavement at the foot of each wall
+WALLED_GAIN = 1.5    # the street must come out at least this much wider than the mapped carriageway
+WALLED_ALONG = 3.0   # a wall counts when it is there 3 m before and after the station too, within WALLED_TRUE m (it runs alongside, not across)
+WALLED_TRUE = 1.2
+WALLED_RUN = 3       # stations in a row (12 m), after closing gaps of up to WALLED_GAPS stations (gateways, side streets)
+WALLED_GAPS = 2
+WALLED_WIN = 25.0    # roads are measured along this far beyond the tile's street window, so neighbouring tiles find the same runs
+
+
+def walled_aprons(R):
+    """(asphalt, pavement) of the walled streets that reach window R, see WALLED_*. Stations are spaced from each road's start, so every tile
+    that sees a road gets the same answer for it."""
+    import numpy as np
+    import shapely
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    if G.get("fence_tree") is None or "rs" not in G:
+        return Polygon(), Polygon()
+    win = R.buffer(WALLED_WIN, join_style=2)
+    com_g, com_t = G["rs"]["comune"]
+    asph, pave = [], []
+    for ri in G["road_tree"].query(win):
+        rec, ls = G["roads"][ri]
+        if rec["k"] not in WALLED_CLASSES or rec.get("tn") or rec.get("br") or ls.length < WALLED_STEP * WALLED_RUN:
+            continue
+        L = ls.length
+        s = np.arange(WALLED_STEP / 2, L, WALLED_STEP)
+        c = shapely.line_interpolate_point(ls, s)
+        cx, cz = shapely.get_x(c), shapely.get_y(c)
+        if not shapely.contains_xy(win, cx, cz).any():
+            continue
+        a = shapely.line_interpolate_point(ls, np.clip(s - 1.0, 0, L))
+        b = shapely.line_interpolate_point(ls, np.clip(s + 1.0, 0, L))
+        tx, tz = shapely.get_x(b) - shapely.get_x(a), shapely.get_y(b) - shapely.get_y(a)
+        tl = np.hypot(tx, tz)
+        tl[tl == 0] = 1
+        tx, tz = tx / tl, tz / tl
+        nx, nz = -tz, tx   # left normal
+        reach = ls.buffer(WALLED_REACH + WALLED_ALONG, quad_segs=2)
+        bars = [G["fence_items"][k]["g"] for k in G["fence_tree"].query(reach) if G["fence_items"][k]["k"] in WALLED_KINDS]
+        if not bars:
+            continue
+        bars = unary_union(bars)
+        blds = [G["bld_geoms"][k] for k in G["bld_tree"].query(reach)]
+        blds = unary_union(blds) if blds else None
+        others = [G["roads"][k][1] for k in G["road_tree"].query(reach) if k != ri and G["roads"][k][0]["k"] in CARRIAGEWAY and not G["roads"][k][0].get("tn")]
+        others = unary_union(others) if others else None
+        incom = np.zeros(len(s), bool)
+        if com_g:
+            for k in com_t.query(reach):
+                incom |= shapely.contains_xy(com_g[k], cx, cz)
+        cw = rec.get("cw") or CARRIAGEWAY[rec["k"]]
+        d = {}
+        for side in (1, -1):
+            hits = []
+            for off in (-WALLED_ALONG, 0.0, WALLED_ALONG):
+                ox, oz = cx + tx * off, cz + tz * off
+                rays = shapely.linestrings(np.stack([np.stack([ox, oz], -1), np.stack([ox + side * nx * WALLED_REACH, oz + side * nz * WALLED_REACH], -1)], 1))
+                hit = shapely.intersection(rays, bars)
+                dist = shapely.distance(shapely.points(ox, oz), hit)
+                dist = np.where(shapely.is_empty(hit), np.nan, dist)
+                hits.append(dist)
+            h = np.array(hits)
+            ok = np.isfinite(h).all(0)
+            ok[ok] = h[:, ok].max(0) - h[:, ok].min(0) <= WALLED_TRUE
+            dd = np.where(ok, h[1], np.nan)
+            seg = shapely.linestrings(np.stack([np.stack([cx, cz], -1), np.stack([cx + side * nx * np.nan_to_num(dd - 0.3, nan=0.1), cz + side * nz * np.nan_to_num(dd - 0.3, nan=0.1)], -1)], 1))
+            for blk in (blds, others):
+                if blk is not None:
+                    dd = np.where(shapely.intersects(seg, blk), np.nan, dd)
+            d[side] = dd
+        dl, dr = d[1], d[-1]
+        el, er = np.maximum(cw / 2, dl - WALLED_PAVE), np.maximum(cw / 2, dr - WALLED_PAVE)
+        good = np.isfinite(dl) & np.isfinite(dr) & ~incom & (dl + dr <= WALLED_MAX) & (el + er - cw >= WALLED_GAIN) & (dl > cw / 2 - 0.5) & (dr > cw / 2 - 0.5)
+        if not good.any():
+            continue
+        idx = np.flatnonzero(good)   # close short gaps, carrying the edges across them
+        for p, q in zip(idx[:-1], idx[1:]):
+            if 1 < q - p <= WALLED_GAPS + 1 and not incom[p:q].any():
+                for k in range(p + 1, q):
+                    f = (k - p) / (q - p)
+                    for arr in (dl, dr, el, er):
+                        arr[k] = arr[p] + (arr[q] - arr[p]) * f
+                    good[k] = True
+        n = len(s)
+        k = 0
+        while k < n:
+            if not good[k]:
+                k += 1
+                continue
+            j = k
+            while j + 1 < n and good[j + 1]:
+                j += 1
+            if j - k + 1 >= WALLED_RUN:
+                sl = slice(k, j + 1)
+                med = lambda v: np.array([np.median(v[max(k, i - 1):min(j, i + 1) + 1]) for i in range(k, j + 1)])   # a running median over 3 stations: the edge does not jitter with the wall
+                El, Er, Dl, Dr = med(el), med(er), med(dl), med(dr)
+                px, pz, qx, qz = cx[sl], cz[sl], nx[sl], nz[sl]
+                ex, ez = tx[sl], tz[sl]
+                # the run's ends: a step beyond its first and last station the asphalt is back to the carriageway (a taper, not a square step)
+                px = np.concatenate([[px[0] - ex[0] * WALLED_STEP], px, [px[-1] + ex[-1] * WALLED_STEP]])
+                pz = np.concatenate([[pz[0] - ez[0] * WALLED_STEP], pz, [pz[-1] + ez[-1] * WALLED_STEP]])
+                qx, qz = np.concatenate([qx[:1], qx, qx[-1:]]), np.concatenate([qz[:1], qz, qz[-1:]])
+                El, Er, Dl, Dr = (np.concatenate([v[:1], v, v[-1:]]) for v in (El, Er, Dl, Dr))
+                El[0] = El[-1] = Er[0] = Er[-1] = cw / 2
+
+                def band(lo, hi):
+                    left = list(zip(px + qx * lo, pz + qz * lo))
+                    right = list(zip(px - qx * hi, pz - qz * hi))
+                    g = Polygon(left + right[::-1])
+                    return g if g.is_valid else g.buffer(0)
+                A = band(El, Er)
+                W = band(Dl, Dr)
+                if not A.is_empty:
+                    asph.append(A)
+                    pave.append(D(W, A))
+            k = j + 1
+    if not asph:
+        return Polygon(), Polygon()
+    A = poly_only(unary_union(asph))
+    return A, D(poly_only(unary_union(pave)), A)
 
 
 def streets_for_tile(tx0, tz0):
@@ -1352,7 +1493,12 @@ def streets_for_tile(tx0, tz0):
         if not nko.is_empty:
             pave = D(pave, nko)
         pave = unary_union([pave, island])
-        medn = layer(G["medn_tree"], G["medn_geoms"])   # the narrow median of a dual carriageway: its own kerbed concrete layer, not walkable (n2)
+        wa, wp = walled_aprons(R)   # streets between walls: asphalt out to a pavement at each wall (nw02)
+        if not wa.is_empty:
+            wa, wp = I(wa, R), I(wp, R)
+            carr = unary_union([carr, wa])
+            pave = unary_union([D(pave, wa), wp])
+        medn =layer(G["medn_tree"], G["medn_geoms"])   # the narrow median of a dual carriageway: its own kerbed concrete layer, not walkable (n2)
         carr = unary_union([carr, rs("shoulder")])
         azl = layer(G["az_tree"], G["az_geoms"])
         if not azl.is_empty:
@@ -1451,6 +1597,22 @@ def tile_payload(i, j):
     for ls in (G["pier_geoms"][k] for k in G["pier_tree"].query(tile)):
         for part in clip_line(ls, tile):
             roads.append({"w": 5, "k": "pier", "p": [round(c, 1) for pt in part.coords for c in pt[:2]]})
+    # er: the pieces of the drivable roads of the neighbouring tiles that lie within EDGE_REACH m of this tile, so that the roadside-wall rules
+    # (src/fence-walls.js) know the road a wall at the tile's edge lines when the road itself is stored next door (zw23). Only those rules read it:
+    # traffic, paint, collisions, the minimap and routing take `roads`, which stays the tile's own.
+    ring = box(tx0 - EDGE_REACH, tz0 - EDGE_REACH, tx0 + T + EDGE_REACH, tz0 + T + EDGE_REACH)
+    er = []
+    for ri in G["road_tree"].query(ring):
+        rec, ls = G["roads"][ri]
+        if rec["k"] not in EDGE_CLASSES or rec.get("tn"):
+            continue
+        for part in clip_line(ls, ring):
+            out_ = part.difference(tile)
+            for q in ([out_] if out_.geom_type == "LineString" else [x for x in getattr(out_, "geoms", []) if x.geom_type == "LineString"]):
+                if q.length > 0.5:
+                    r = {k: v for k, v in rec.items() if k in EDGE_FIELDS}
+                    r["p"] = [round(c, 1) for pt in q.coords for c in pt[:2]]
+                    er.append(r)
 
     areas = []
     landt = I(G["land"], tile)
@@ -1505,6 +1667,8 @@ def tile_payload(i, j):
         out["fences"] = fn
     if tr:
         out["tram"] = tr
+    if er and fn:   # (a tile with no walls has no use for them)
+        out["er"] = er
     if G["tile_gt"].get(key):
         out["gt"] = G["tile_gt"][key]
     if near:
