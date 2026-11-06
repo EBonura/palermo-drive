@@ -10,7 +10,9 @@
 //   * beside a fast road (src/road-class.js isFastRoad: motorways, the expressways, the one-way carriageways of Viale Regione Siciliana, its side lanes where nothing is built beside them) a wall within FAST m of the asphalt is the road's steel guard rail in
 //     the photos (nw30, nw29, zw33), so it becomes a rail, or is dropped where the rail rule already put one (`rails`: nothing is drawn twice); a wall over FAST m away is left as mapped;
 //   * near the sea (open water within 70 m on either side, low ground) a wall is a parapet: 0.8 to 1.2 m, with a railing on it or in plain stone, so it never blocks the view of the water (nw19, nw22);
-//   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, mostly lower, with a mesh over a low wall now and then;
+//   * on open ground beside a country road (unclassified and up) where the ground falls away beyond it, it is the road's guard rail (zw23): the CTR line is the top of the fill;
+//   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, with a mesh over a low wall now and then;
+//     on high or green ground most of it is old and grown over (moss, ivy, weeds: zw22), and on open lowland it is knee to waist high, a field or garden wall (nw02);
 //   * in a town it is lime wash (with and without a fallen patch), worn plaster, block or rubble, 1.5 to 2.1 m; the old town keeps its walls as mapped.
 // They carry `bk: 'w'` (src/fences.js breakSpeed) so they break at the speed a wall of their new height did, not as the stone and block kinds, which stay solid.
 import { sliceOver } from './slice.js';
@@ -18,7 +20,8 @@ import { histW } from './streets.js';
 import { inPoly, groundY } from './core.js';
 import { isFastRoad, fastParts } from './road-class.js';
 
-const NEAR = 8, STEP = 3, FAST = 6, RAIL_NEAR = 6;
+const NEAR = 8, STEP = 3, FAST = 6, RAIL_NEAR = 6, EDGE = 3.5, DROP = 0.3;
+const COUNTRY = new Set(['primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified']);   // the through roads of the countryside (residential lanes and tracks keep their walls)
 const DRIVE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'service']);
 const GREEN = new Set(['green', 'forest', 'orchard', 'olive', 'farm', 'cemetery', 'pitch']);
 const hash = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -47,7 +50,7 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
     if (!DRIVE.has(r.k) || r.tn || r.br || !r.p || r.p.length < 4) continue;   // (a viaduct is no street for the ground under it: a wall there was drawn across the view of the deck, nw24)
     const hw = (r.cw || r.w || 6) / 2, fast = isFastRoad(r);
     if (fast) { for (const [x0, z0, x1, z1, open] of fastParts(r)) put(open ? xg : rg, x0, z0, x1, z1, [x0, z0, x1, z1, hw]); }   // (a built-up stretch of a lane is a city street: its walls are finished as the street's)
-    else for (let i = 0; i + 3 < r.p.length; i += 2) put(rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw]);
+    else for (let i = 0; i + 3 < r.p.length; i += 2) put(rg, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], hw, r.k]);
   }
   if (!rg.size && !xg.size) return list;
   for (const b of buildings || []) { // the outline of every building, a point every 6 m
@@ -76,6 +79,17 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
       for (const s of a) {
         const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2));
         const d = hh(x - s[0] - dx * t, z - s[1] - dz * t) - s[4]; if (d < best) best = d;
+      }
+    }
+    return best;
+  };
+  const nearest = (x, z) => { // the nearest carriageway of a street (not a fast road): {d: metres from its edge, x, z: the closest point of its centre line, hw, k: its class}
+    let best = null;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const a = rg.get((Math.floor(x / C) + i) * 100003 + Math.floor(z / C) + j); if (!a) continue;
+      for (const s of a) {
+        const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)), cx = s[0] + dx * t, cz = s[1] + dz * t;
+        const d = hh(x - cx, z - cz) - s[4]; if (!best || d < best.d) best = { d, x: cx, z: cz, hw: s[4], k: s[5] };
       }
     }
     return best;
@@ -165,9 +179,31 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
     for (const d of [25, 45, 70]) if (groundY(m[0] + nx * d, m[1] + nz * d) < 0.3 || groundY(m[0] - nx * d, m[1] - nz * d) < 0.3) return true;
     return false;
   }
+  // a mapped wall that lines the asphalt of a country road (unclassified and up, not a fast road: those have their own rule) where the ground beyond it falls away from the road:
+  // in the photos that edge is the road's steel guard rail with scrub behind it (zw23, and the rails of zw02, zw03, zw07, zw08), the CTR's wall line being the top of the fill.
+  // Where the ground beyond rises (a cut) or stays level the wall stays a wall. Asked only of open ground (nothing built within 14 m) outside the old town.
+  // open: most of the stretch has nothing built within 14 m of it. (It was its middle and both ends: a 60 m wall along a garden whose far end touched the corner of a block
+  // counted as the block's frontage and stood 2 m tall all the way, nw02.)
+  function isOpen(pts) {
+    if (bld(pts[pts.length >> 1][0], pts[pts.length >> 1][1]) <= 14) return false;
+    let near = 0; const most = pts.length * 0.35;
+    for (const q of pts) if (bld(q[0], q[1]) <= 14 && ++near >= most) return false;   // (a street of houses stops at the first few points)
+    return true;
+  }
+  function countryEdge(pts) {
+    let fall = 0, n = 0;
+    for (const q of [pts[0], pts[pts.length >> 1], pts[pts.length - 1]]) {
+      const c = nearest(q[0], q[1]);
+      if (!c || !COUNTRY.has(c.k) || c.d > EDGE) return false;   // every part of the stretch hugs the asphalt of a country road
+      const dx = q[0] - c.x, dz = q[1] - c.z, l = hh(dx, dz); if (l < 0.5) return false;
+      const ux = dx / l, uz = dz / l, ey = groundY(c.x + ux * c.hw, c.z + uz * c.hw);   // the ground at the asphalt edge, and 8 m beyond the wall
+      fall += ey - groundY(q[0] + ux * 8, q[1] + uz * 8); n++;
+    }
+    return fall / n > DROP;
+  }
   function wallStretch(pts, len, r) {
     const m = pts[pts.length >> 1], x = m[0], z = m[1], u = hash(pts[0][0], pts[0][1]), v = hash(pts[0][1] * 1.3, pts[0][0] * 0.7), w = hash(x * 0.19, z * 0.83), p = flat(pts);
-    const bd = Math.min(bld(x, z), bld(pts[0][0], pts[0][1]), bld(pts[pts.length - 1][0], pts[pts.length - 1][1])), open = bd > 14;
+    const open = isOpen(pts);
     const gy = groundY(x, z), old = histW(x, z) > 0.5;
     let green = false;
     if (veg.length) { const e = pts[pts.length - 1], dx = e[0] - pts[0][0], dz = e[1] - pts[0][1], l = hh(dx, dz) || 1, nx = -dz / l * 5, nz = dx / l * 5; green = veg.some(a => inPoly(a, x + nx, z + nz) || inPoly(a, x - nx, z - nz)); }
@@ -178,13 +214,26 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
       if (u < 0.75) return [piece('s', H(0.7, 1.0))];
       return [{ k: 'f', s: 0, h: H(1.0, 1.2), p }];
     }
+    if (!old && open && r.k !== 'f' && countryEdge(pts)) return [{ k: 'g', h: 0.8, s: 3, p }];   // the road's guard rail on its downhill side (zw23)
     const hill = gy > 90, rural = !old && (hill || open || green) && histW(x, z) < 0.5;
-    if (rural) {   // hill villages and the countryside: stone first
-      if (u < 0.4) return [piece('s', H(1.0, hill ? 1.9 : 1.5))];
-      if (u < 0.55) return [piece('d', H(0.9, 1.4))];
-      if (u < 0.72) return [piece('n', H(1.3, 1.9))];
-      if (u < 0.82) return [piece('q', H(1.6, 2.0))];
-      return [piece('n', H(0.5, 0.8), { rail: { s: 2, h: H(0.9, 1.1) } })];   // mesh over a low wall
+    if (rural) {   // hill villages and the countryside: stone first, much of it old and grown over (zw22)
+      if (open && !hill) {   // open lowland: field and garden walls along the road, knee to waist high (nw02)
+        if (u < 0.3) return [piece('s', H(0.8, 1.2))];
+        if (u < 0.4) return [piece('o', H(0.8, 1.2))];
+        if (u < 0.54) return [piece('d', H(0.7, 1.1))];
+        if (u < 0.66) return [piece('n', H(0.9, 1.4))];
+        if (u < 0.72) return [piece('m', H(0.9, 1.4))];
+        if (u < 0.8) return [piece('q', H(1.0, 1.4))];
+        return [piece('n', H(0.4, 0.8), { rail: { s: 2, h: H(1.1, 1.5) } })];   // mesh over a low wall
+      }
+      // high ground and green land: old lanes, half the walls grown over with moss, ivy and weeds
+      if (u < 0.3) return [piece('o', H(1.0, hill ? 1.9 : 1.5))];
+      if (u < 0.5) return [piece('m', H(1.3, 2.1))];
+      if (u < 0.6) return [piece('s', H(1.0, hill ? 1.9 : 1.5))];
+      if (u < 0.72) return [piece('d', H(0.9, 1.4))];
+      if (u < 0.82) return [piece('n', H(1.3, 1.9))];
+      if (u < 0.88) return [piece('q', H(1.6, 2.0))];
+      return [piece('n', H(0.4, 0.8), { rail: { s: 2, h: H(1.1, 1.5) } })];
     }
     if (old) return [{ ...r, p }];   // the old town keeps its mapped walls
     // a town: lime wash with and without the fallen patch, worn plaster, rubble, block, a low wall with a railing
@@ -198,7 +247,7 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
 
   function stretch(pts, len, r) {
     const m = pts[pts.length >> 1], x = m[0], z = m[1], u = hash(pts[0][0], pts[0][1]), v = hash(pts[0][1] * 1.3, pts[0][0] * 0.7), w = hash(x * 0.19, z * 0.83);
-    const old = histW(x, z) > 0.5, open = Math.min(bld(x, z), bld(pts[0][0], pts[0][1]), bld(pts[pts.length - 1][0], pts[pts.length - 1][1])) > 14;   // open: nothing built within 14 m of it
+    const old = histW(x, z) > 0.5, open = isOpen(pts);
     let green = false;   // a park, a field, a pitch or scrub on either side: railings and chain-link are what stands there
     if (veg.length) { const e = pts[pts.length - 1], dx = e[0] - pts[0][0], dz = e[1] - pts[0][1], l = hh(dx, dz) || 1, nx = -dz / l * 5, nz = dx / l * 5; green = veg.some(a => inPoly(a, x + nx, z + nz) || inPoly(a, x - nx, z - nz)); }
     const p = flat(pts), keep = { k: 'f', s: r.s, h: r.h, p };
