@@ -93,6 +93,24 @@ export const ZONES = {
     stone: ['#b09870', '#a98f68', '#9d8560'], pStone: 0.1, grime: 0.28, elig: true, town: true, front: 7,
     w: { n19: .2, res: .3, pal: .22, blk: .12, pw: .06, lib: .04, fish: .03, bar: .03 }, fl: [[2, 1], [3, 3], [4, 4], [5, 3], [6, 1]], fh: 3.3, roof: 0.2 },
 
+  // Monreale (Mapillary, March 2019, 44 viewpoints and 57 photos within 170 m of the Duomo): the old town is solid blocks of 3 to 5 storey ochre, sand, pale yellow and pink palazzi with iron balconies, shutters
+  // and dark ashlar fronts, on lanes of 4.5 to 7 m wall to wall paved in setts; round it and down the hill the town is 4 to 6 storey cream, white and ochre blocks with deep balconies in rows.
+  monrealeOld: { plaster: ['#d6b878', '#c9a870', '#dccb9a', '#d9b08c', '#e0d2b0', '#c8b090', '#e2dccb', '#cfa488', '#d6b878', '#e8d9b0', '#b8a888', '#dcc08a'],
+    stone: ['#a89066', '#9a8460', '#8f7a58', '#b09a72'], pStone: 0.35, grime: 0.5, elig: true, town: true, front: 6,
+    w: { n19: .36, res: .3, bar: .08, pal: .06, pw: .14, blk: .04, lib: .02 }, fl: [[2, 1], [3, 3], [4, 4], [5, 3], [6, .6]], fh: 3.7, roof: 0.5 },
+  monreale: { plaster: ['#e8dfc4', '#efe9d8', '#e2c98a', '#dcbf7e', '#e6b890', '#d8a878', '#ece5d2', '#f0ece0', '#cfd8c0', '#e4d2a8', '#e8dfc4', '#efe9d8'],
+    stone: ['#b09870', '#a98f68'], pStone: 0.06, grime: 0.35, elig: true, town: true, front: 8,
+    w: { pw: .34, blk: .22, pal: .22, res: .1, n19: .06, lib: .02, bar: .02 }, fl: [[2, .7], [3, 2], [4, 4], [5, 4], [6, 1.5]], fh: 3.2, roof: 0.3 },
+
+  // Isola delle Femmine (Mapillary, October 2019 along the through road, 2024 on the expressway; no photo in the side streets): the town is 2 to 4 storey houses and palazzine in yellow ochre,
+  // salmon, pink, cream and white with shutters and iron balconies, a few 5 storey blocks, flat roofs, rows of terraced houses; the road through it is 10 to 12 m wide with a white kerb and a wall.
+  isola: { plaster: ['#e0b860', '#e6c878', '#d8906c', '#d9a090', '#e6dcc0', '#eee8da', '#bcd0b4', '#c98a68', '#e0b860', '#eadfc4', '#d4a478', '#f0e8d6'],
+    stone: ['#b09870', '#a89874'], pStone: 0.08, grime: 0.35, elig: true, town: true, rows: true, front: 8,
+    w: { res: .34, n19: .16, pal: .16, pw: .14, fish: .1, blk: .04, bar: .03, lib: .03 }, fl: [[1, .6], [2, 4], [3, 4], [4, 2], [5, .5]], fh: 3.3, roof: 0.5 },
+  // Bellolampo (Mapillary, March 2019, one drive up the mountain road): a scattered hill village of 1 to 3 storey houses and villas behind stone walls, hedges, cypresses and pines, a guard rail
+  // on every bend; no street of houses.
+  bellolampo: { plaster: ['#e6dcc0', '#eee8da', '#e0c890', '#d8b88a', '#e2b8a0', '#f0ece0', '#d6d2c0'], stone: ['#a89874', '#9a8a68'], pStone: 0.25, grime: 0.4, elig: true, town: true, rows: true, front: 10,
+    w: { res: .46, fish: .22, pal: .14, n19: .06, pw: .08, low: .04 }, fl: [[1, 3], [2, 4], [3, 2], [4, .4]], fh: 3.1, roof: 1.1 },
   // ---------------- ZEN, CEP, Borgo Nuovo: large public housing ----------------
   // ZEN (San Filippo Neri): prefab concrete slab insulae, exterior stairwells, faded paint, heavy grime, flat roofs.
   // Via Primo Carnera (Street View): the insulae are sand-ochre and tan, not grey; open pilotis passages and garage doors at ground level, deep balcony slabs,
@@ -212,6 +230,12 @@ const SEEDS_LL = [
   ['favorita', 38.1620, 13.3378, 700], ['favorita', 38.1700, 13.3330, 700], ['favorita', 38.1590, 13.3430, 500], ['favorita', 38.1760, 13.3360, 700],
   // the towns around Palermo (docs/faithfulness/towns.md). Villabate: the long grid along Corso Vittorio Emanuele, x 6400 to 8100, z 3850 to 4900
   ['villabate', 38.0795, 13.4368, 450], ['villabate', 38.0773, 13.4419, 650], ['villabate', 38.0757, 13.4463, 600], ['villabate', 38.0737, 13.4509, 550], ['villabate', 38.0737, 13.4440, 300], ['villabate', 38.0772, 13.4372, 250],
+  // Monreale: the old town on its ridge (x -6650 to -6050, z 3530 to 3990, the Duomo at its east end), the newer blocks south-west of it
+  ['monrealeOld', 38.0821, 13.2893, 330], ['monrealeOld', 38.0825, 13.2907, 250], ['monrealeOld', 38.0813, 13.2876, 260], ['monrealeOld', 38.0832, 13.2921, 220], ['monrealeOld', 38.0822, 13.2921, 160],
+  ['monreale', 38.0791, 13.2853, 380], ['monreale', 38.0784, 13.2876, 350], ['monreale', 38.0799, 13.2890, 260], ['monreale', 38.0805, 13.2845, 220],
+  // Isola delle Femmine: the grid between the coast road and the railway (x -10050 to -9600, z -9100 to -8500); Bellolampo: the village on the road up to the landfill
+  ['isola', 38.1964, 13.2481, 300], ['isola', 38.1958, 13.2494, 250], ['isola', 38.1944, 13.2472, 260], ['isola', 38.1944, 13.2505, 250], ['isola', 38.1979, 13.2488, 220], ['isola', 38.1999, 13.2465, 200],
+  ['bellolampo', 38.1366, 13.2719, 600], ['bellolampo', 38.1356, 13.2733, 400],
   // far corners and the countryside
   ['rural', 38.1650, 13.3520, 1100], // Monte Pellegrino: the sanctuary's low convent, kiosks and huts, never apartment blocks
   ['rural', 38.0750, 13.3050, 3000], ['rural', 38.0750, 13.4050, 3000], ['rural', 38.2200, 13.3900, 3000], ['rural', 38.2200, 13.2900, 3000], ['rural', 38.1700, 13.2800, 1500],
@@ -230,9 +254,9 @@ const STREET_ZONES = [
   [/^Via Messina Marine$/, 'marine', 24],
 ];
 
-// The towns around Palermo, by name: [name, x, z, reach in metres] (game metres). The HUD names the place a car is in with it (src/danger-hud.js) where the neighbourhood
-// grid of the ISTAT outlines has nothing, and the town zones above are seeded around the same centres. The nearest centre inside its reach wins.
-const TOWNS_LL = [['Villabate', 38.0764, 13.4440, 1150]];
+// The towns around Palermo, by name: [name, x, z, reach in metres] (game metres). The HUD names the place a car is in with it (src/danger-hud.js, before the neighbourhood grid of the
+// ISTAT outlines, which only knows Palermo's own quarters and named Bellolampo's landfill road Cruillas), and the town zones above are seeded around the same centres. The nearest centre inside its reach wins.
+const TOWNS_LL = [['Villabate', 38.0764, 13.4440, 1150], ['Monreale', 38.0818, 13.2899, 1500], ['Isola delle Femmine', 38.1964, 13.2481, 1100], ['Bellolampo', 38.1366, 13.2719, 1500]];
 export const TOWNS = TOWNS_LL.map(([n, la, lo, r]) => { const p = proj(la, lo); return [n, p[0], p[1], r]; });
 export function townAt(x, z) {
   let best = '', bd = 1;
@@ -303,14 +327,14 @@ export function applyDistrictHeights(data, zoneFor) {
     return (c - 1) / Math.max(0.3, Math.min(1, fx) * Math.min(1, fz));
   };
   for (const b of data.buildings) {
-    if (b.r !== undefined || b.lv || b.t || b.k || b.hi || b.am || b.dh) continue;   // (a name alone keeps the baked height too, except in the towns: Villabate's named villino and old station carry the generic 18 to 21 m of an unmeasured named building)
+    if (b.r !== undefined || b.lv || (b.t && b.t !== 'terrace') || b.k || b.hi || b.am || b.dh) continue;   // (a name alone keeps the baked height too, except in the towns: Villabate's named villino and old station carry the generic 18 to 21 m of an unmeasured named building)
     const pat = (b.h - 1) / 3.4;
     if (Math.abs(pat - Math.round(pat)) > 0.06 || pat < 2.9 || pat > 6.1) continue; // not the generic 3..6 floor estimate: keep
     const p = b.p; let cx = 0, cz = 0, a = 0, n = p.length / 2;
     for (let i = 0; i < p.length; i += 2) { cx += p[i]; cz += p[i + 1]; const j = (i + 2) % p.length; a += p[i] * p[j + 1] - p[j] * p[i + 1]; }
     cx /= n; cz /= n; a = Math.abs(a) / 2;
     const Z = ZONES[zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9)];
-    if (!Z || !Z.fl || (b.n && !Z.town)) continue;
+    if (!Z || !Z.fl || (b.n && !Z.town) || (b.t && !Z.rows)) continue;   // a row house (building=terrace) takes the district's storeys only where `rows` says its generic 11 to 21 m is not measured (Isola delle Femmine)
     if (a < 40 && !Z.flA) continue; // tiny buildings keep the baked height except where lidar says what they are (sheds and garages: 1 storey)
     const f = floorsAt(Z, cx, cz, a, Z.flA ? density(cx, cz) : 0), fh = Z.fh || 3.2;
     b.h = Math.round((fh + 0.8 + (f - 1) * fh + 0.9) * 10) / 10; b.dh = f; b.dz = zoneFor ? zoneFor(cx, cz) : zoneAt(cx, cz, '', 1e9); // ground floor taller, plus parapet; dz: the zone that chose it

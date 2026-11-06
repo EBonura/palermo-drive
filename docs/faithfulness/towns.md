@@ -42,3 +42,39 @@ Villabate was the first. Monreale, Isola delle Femmine and Bellolampo take the s
 - A floating slab of balcony hangs over the street at Via Leonardo Sciascia and the south-east blocks (the same slab was there before this work): a `pwBalc` run on a building whose height is off.
 - The east end of the town is outside the baked box (the baked box ends at x 8210); Corso Vittorio Emanuele towards Bagheria is not in the world.
 - Facade of the Chiesa Madre: from the type, not from a photo.
+
+# Monreale, Isola delle Femmine, Bellolampo (second pass)
+
+Same recipe, three changes to it that Villabate taught: look at what the towns are made of first (building style, how wide the lanes really are), fix the missing buildings at the source, and do the landmark that matters.
+
+## What was wrong
+
+- **The buildings were not there.** OpenStreetMap has about 190 buildings in the 700 m round Monreale's Duomo (the CTR has about 2,000), and the Comune di Palermo survey stops at the city boundary. The game drew the old town as bare hill and its streets as 8 m roads with wide pavement bands. Fix at the source: `tools/ctr_buildings.py` (docs/sources/ctr-sicilia.md) takes the Regione Siciliana CTR layer 35 for the three towns; 1,960 buildings in Monreale, 449 in Isola delle Femmine and 47 in Bellolampo (the village was already mapped there) were added, 63 tiles rebaked, source and generated commits apart. Wall to wall on Monreale's baked residential streets is now 7.0 m (median, 3.6 to 30 m, class width 6 m); the asphalt is clipped by the buildings, so nothing else had to change.
+- **Style by town.** Monreale (Mapillary, March 2019: 44 viewpoints spread over the town and 57 photos within 170 m of the Duomo): the old town on its ridge is solid blocks of 3 to 5 storey ochre, sand and pink palazzi with iron balconies and dark ashlar fronts on lanes of 5 to 7 m paved in setts (zone `monrealeOld`); round it and down the hill (Via Kennedy, Via della Repubblica, Via Zeta) it is 4 to 6 storey cream and white blocks with balconies in rows and shops below (zone `monreale`, 78 % post-war styles, not palazzo fronts). Isola delle Femmine (October 2019, one drive along the through road, 42 photos looked at): 2 to 4 storey yellow, salmon, pink and cream houses with shutters and iron balconies, rows of terraced houses (OSM `building=terrace`, which `applyDistrictHeights` used to leave at a generic 11 to 21 m: new zone flag `rows`), a 10 to 12 m road with a white kerb and a wall. Bellolampo (March 2019, one drive, 20 photos looked at): a scattered hill village of 1 to 3 storey houses behind stone walls, hedges, cypresses and guard rails.
+- **Names in the HUD.** `townAt` now comes before the ISTAT neighbourhood grid, which only knows Palermo's own quarters (Bellolampo showed Borgo Nuovo, its landfill road Cruillas). Monreale, Isola delle Femmine and Bellolampo (reach 1,500 m, so the landfill track reads Bellolampo too).
+
+## The Duomo di Monreale (src/lmc-towns.js)
+
+Before: the OSM footprint extruded to a generic 22 m with small windows (a brick wall with holes). Now a model on the same footprint (88 by 43 m, about 1,200 triangles). **Seen in photos** (Mapillary, March 2019, from the north side): the golden tufa wall in three registers (an arcade at the foot, blind arches over it, tall pointed windows under the eaves), the square clock tower at the north-west corner with its crenellated top and bell, the low tiled roof. **Not seen in any photo, drawn from the type of a Norman basilica and the size Wikipedia gives (about 102 m by 40 m):** the west front between the towers (porch of three arches, the gable, the central window), the south tower, the three apses of the east end, the south side. All heights (eave 22 m, towers 36.5 and 33 m) are estimates from the photos, not measurements. The monastery and cloister beside it are the CTR blocks of generic buildings.
+
+## Numbers (desktop 1280x720 / phone 844x390, headless Chrome, 11:00; the frame is capped at 16.7 ms there, so triangles and draw calls are what to read)
+
+| place | before (origin/main) triangles / calls | after |
+| --- | --- | --- |
+| city centre (the ceiling) | 596k / 265 desktop, 682k / 299 phone | 596k / 263 desktop, 681k / 295 phone |
+| Monreale, old town | 725k / 346, phone 793k / 379 | 454k / 217, phone 419k / 210 |
+| Monreale, Duomo square | 310k / 267, phone 340k / 273 | 636k / 374, phone 689k / 394 |
+| Monreale, Via Roma | 508k / 262, phone 662k / 303 | 398k / 187, phone 566k / 229 |
+| Monreale, belt | 649k / 378, phone 715k / 408 | 479k / 276, phone 620k / 331 |
+| Isola delle Femmine | 675k / 338, phone 675k / 374 | 469k / 223, phone 475k / 264 |
+| Bellolampo | 616k / 289, phone 656k / 313 | 614k / 291, phone 654k / 318 |
+
+The bare hills and their terrain triangles were more expensive than the buildings that replace them; the one place above the city centre is the Duomo square on the phone (689k against 681k), where the view spans the whole old town.
+
+## Not done
+
+- Pavements (the pale grid slabs, 2 to 3 m wide) and the sett paving of the old lanes: the streets layer.
+- Landmarks other than the Duomo: Monreale's other churches (Sant'Antonio, the Collegio di Maria, Santissima Trinita), Isola delle Femmine's Maria SS. delle Grazie, the Torre di Dentro and the harbour, Bellolampo has none. They stand as generic buildings of their footprint.
+- The Duomo's piazza (large grey slabs, palms, iron lamps, a bust on a column, a green hedge) is not drawn; the west front, the south tower and the apses are from the type (above).
+- Isola delle Femmine: no photo of its side streets exists in Mapillary, so its look inside the grid is judged from the through road. Roof terraces, wires, satellite dishes, laundry.
+- Hillside villas above Monreale (mo10, mo34): the CTR has the buildings, but they stand in the `rural` zone's 1 to 3 storey mix with few terraces.
