@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { D, groundY, proj, freeCanvas } from './core.js';
 import { MAT } from './vehicle-art.js';
+import { SHADE, envProbe } from './shading.js';
 
 // Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
 export const NIGHT = { win: { value: 0 } };
@@ -296,6 +297,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   envScene.add(new THREE.Mesh(envGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
   const pmrem = new THREE.PMREMGenerator(renderer);
   let envRT = null, lastBake = -1e9;
+  const envProbeLight = SHADE ? new THREE.LightProbe() : null;   // not a light of its own: the numbers for the shaders, src/shading.js
+  if (envProbeLight) scene.add(envProbeLight);
   const baked = { Z: new THREE.Color(-1, 0, 0), H: new THREE.Color(), B: new THREE.Color() };
   renderer.domElement.addEventListener('webglcontextrestored', () => { baked.Z.r = -1; lastBake = -1e9; });   // a lost GL context takes the bake with it (phones can do this in the background), and the colours alone would not ask for a new one
   function bakeEnv(now) {
@@ -312,6 +315,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     scene.environment = envRT.texture;
     if (prev) prev.dispose();
     baked.Z.copy(P.envZ); baked.H.copy(P.envH); baked.B.copy(P.envB); lastBake = now;
+    if (envProbeLight) envProbe(envProbeLight, P.envH, P.envZ, P.envB);
   }
   const colDiff = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
 

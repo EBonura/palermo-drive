@@ -95,6 +95,9 @@
     sprite1: () => patchAll('sprite1', sh => { sh.fragmentShader = sh.fragmentShader.replace('vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);\n        vec4 c = vNear > 0.5 ? cn : cf;', 'vec4 c = vNear > 0.5 ? texture2D(mapNear, vUvN) : texture2D(mapFar, vUvF);'); }, m => m.uniforms && m.uniforms.mapNear),
     unweld: () => { const U = []; S.traverse(o => { if (o.isMesh && o.geometry?.index && /^(street_|landmarks-|low_roofs)|:/.test(o.name) && o.geometry.attributes.position?.array) { const g = o.geometry; U.push([o, g]); o.geometry = g.toNonIndexed(); o.geometry.drawRange = g.drawRange; } }); return () => U.forEach(([o, g]) => { o.geometry.dispose(); o.geometry = g; }); },   // the shared vertices of src/core.js weld() undone
     whole: () => { G.lean.wholeParts = true; return () => { G.lean.wholeParts = false; }; },
+    ibl1: () => patchAll('ibl1', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', THREE.ShaderChunk.lights_fragment_maps.replace('vec3 iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );', 'vec3 iblRadiance; if ( material.roughness >= 0.8 ) iblRadiance = iblIrradiance / PI; else iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );')); }),
+    envfit: () => { const L = []; S.traverse(o => { if (o.isLightProbe) { L.push(o); o.visible = false; } }); const u = patchAll('envfit', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', window.__shade.CHUNKS0.lights_fragment_maps); }); return () => { L.forEach(o => { o.visible = true; }); u(); }; },   // the sky reflection as cube map lookups again (src/shading.js)
+    sprfull: () => { const U = []; S.traverse(o => { const u = o.material?.uniforms?.uBoxOn; if (u && !U.includes(u)) { U.push(u); u.value = 0; } }); return () => U.forEach(u => { u.value = 1; }); },   // the crowd's quads at the whole cell again
     lamps0: () => { const L = []; S.traverse(o => { if ((o.isPointLight || o.isSpotLight) && o.visible) { o.visible = false; L.push(o); } }); return () => L.forEach(o => { o.visible = true; }); },
     fog0: () => setMat(m => m.fog, 'fog', false),
     tone0: () => { const t = R.toneMapping; R.toneMapping = THREE.NoToneMapping; recompile(); return () => { R.toneMapping = t; recompile(); }; },
@@ -253,7 +256,7 @@
 
   async function main() {
     while (!(window.game && window.game.renderer && !document.getElementById('loading'))) await sleep(250);
-    G = window.game; R = G.renderer; S = G.scene; THREE = await import('three');
+    G = window.game; R = G.renderer; S = G.scene; THREE = await import('three'); window.__shade = await import(location.origin + '/src/shading.js');
     post({ phase: 'loaded', t: Math.round(performance.now()), dpr: devicePixelRatio, size: [innerWidth, innerHeight], renderer: (() => { const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })(), attr: gl.getContextAttributes(), timer: !!gl.getExtension('EXT_disjoint_timer_query_webgl2') });
     // the world around the car first: the tile under it at full detail and nothing in view still on its way (a minute at most on a busy machine)
     for (const t0 = performance.now(); performance.now() - t0 < 60000; await sleep(250)) {
