@@ -1405,6 +1405,7 @@ class GB {
 // Styles
 // =====================================================================================
 const C = c => new THREE.Color(c);
+const CANOPY_GLASS = C('#8aa1ac');   // the glass of an entrance canopy (ocanopy)
 const PAL = {
   bar: ['#c2a878', '#b9a185', '#c9b087', '#bfa27a', '#cdb892', '#b49a72', '#d0b88c', '#c9a58a', '#d4b894'].map(C),
   n19: ['#d9cab7', '#c9a293', '#d8c48a', '#c4b09a', '#dcc9a6', '#cfa88d', '#e0d2b8', '#c7a373', '#af9c8d', '#d8b0a0', '#e3d28f', '#e9e2d2', '#d99a78', '#bba898'].map(C),
@@ -1862,8 +1863,9 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         }
         // balconies on street fronts (per-spec pattern, otherwise palazzi styles get the default pattern)
         const bmode = B.old ? 'old' : W.balc || S.balc || (S.rail && S.nobile ? 'default' : 'none'), rail = W.rail || B.railAlt || S.rail || 'rail_a';
-        if (kind === 'street' && bmode !== 'none' && (hs || bw >= (W.balc ? 2.5 : 2.9)) && nUp > 0) {
-          if (bmode === 'old') {   // old town: every house has its own balcony habit (oldHouses): iron balconies on every floor in a run per window or two, one on the piano nobile only, a few, or none
+        if (kind === 'street' && (bmode !== 'none' || W.bal || W.canopy) && (hs || bw >= (W.balc ? 2.5 : 2.9)) && nUp > 0) {
+          if (bmode === 'none') { /* the balconies and the canopy of a hand-drawn front (W.bal, W.canopy), below */ }
+          else if (bmode === 'old') {   // old town: every house has its own balcony habit (oldHouses): iron balconies on every floor in a run per window or two, one on the piano nobile only, a few, or none
             if (hs) for (const h of hs.h) {
               const lo = h.i0 + (h.i0 === 0 && E.reflexA ? 1 : 0), hi = h.i1 - (h.i1 === nb && E.reflexB ? 1 : 0), fhH = (yTop - yg) / h.nUp, bwH = h.bw;
               if (h.bal === 'none' || hi <= lo || bwH < 2.5) continue;
@@ -1904,6 +1906,25 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
               }
             }
           }
+          // A hand-drawn front (assets/facades/specs.js) asks for its depth as geometry. Bays are counted left to right as the viewer reads the wall, like the layers of `bl`.
+          //   bal: [{ f: [first floor, last floor], k: [first bay, last bay + 1], run: one slab along the whole range, w: half width of one, rail, dp }]   canopy: { k, dy (m above the first floor line, negative = below), dp }
+          for (const q of nUp > 0 && W.bal || []) {
+            const k0 = q.k ? q.k[0] : 0, k1 = q.k ? q.k[1] : nb, rl = q.rail || rail, dp = q.dp || 0.62;
+            for (let f = q.f[0]; f <= Math.min(q.f[1], nUp); f++) {
+              if (q.run) { const w2 = (k1 - k0) * bw / 2 - 0.25; obalc((2 * nb - k0 - k1) / (2 * nb), floorBase(f), w2, Math.max(1, Math.round(w2 / 1.1)), rl, dp); }
+              else for (let k = k0; k < k1; k++) obalc((nb - k - 0.5) / nb, floorBase(f), q.w ?? Math.min(1.55, bw * 0.4), 1, rl, dp);
+            }
+          }
+          if (W.canopy) ocanopy((nb - W.canopy.k[1]) / nb, (nb - W.canopy.k[0]) / nb, yg + (W.canopy.dy ?? -1.2), W.canopy.dp || 2.2);
+        }
+        function ocanopy(t0, t1, yB, dp) {   // a glazed entrance canopy: the glass sloping down from the wall to an iron fascia, an iron soffit and two end faces; 10 triangles
+          const px0 = ax + dx * t0, pz0 = az + dz * t0, px1 = ax + dx * t1, pz1 = az + dz * t1, qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp;
+          const yw = yB + 0.55, fa = 0.3, sl = Math.hypot(dp, yw - yB), sx = nx * (yw - yB) / sl, sy = dp / sl, sz = nz * (yw - yB) / sl, LB = LID.blank, ir = B.iron;
+          gbuf.q([px0, yw, pz0, 0, 0, 1], [px1, yw, pz1, 1, 0, 1], [qx1, yB, qz1, 1, .3, 1], [qx0, yB, qz0, 0, .3, 1], sx, sy, sz, LB, CANOPY_GLASS);
+          gbuf.q([qx0, yB - fa, qz0, 0, 0, .8], [qx1, yB - fa, qz1, 1, 0, .8], [qx1, yB, qz1, 1, .1, .9], [qx0, yB, qz0, 0, .1, .9], nx, 0, nz, LB, ir);
+          gbuf.q([px0, yw - fa, pz0, 0, 0, .45], [px1, yw - fa, pz1, 1, 0, .45], [qx1, yB - fa, qz1, 1, .3, .45], [qx0, yB - fa, qz0, 0, .3, .45], 0, -1, 0, LB, ir);
+          gbuf.t([px0, yw, pz0, 0, 0, .7], [qx0, yB, qz0, .3, 0, .8], [px0, yw - fa, pz0, 0, .1, .6], -ux, 0, -uz, LB, ir); gbuf.t([qx0, yB - fa, qz0, 0, 0, .7], [qx0, yB, qz0, .3, .1, .8], [px0, yw - fa, pz0, 0, .1, .6], -ux, 0, -uz, LB, ir);
+          gbuf.t([px1, yw, pz1, 0, 0, .7], [qx1, yB, qz1, .3, 0, .8], [px1, yw - fa, pz1, 0, .1, .6], ux, 0, uz, LB, ir); gbuf.t([qx1, yB - fa, qz1, 0, 0, .7], [qx1, yB, qz1, .3, .1, .8], [px1, yw - fa, pz1, 0, .1, .6], ux, 0, uz, LB, ir);
         }
         function obalc(t, yFloor, w2, nBr, rl0, dp) {   // one old-town balcony: a slab (front, soffit, two ends), stone brackets under it, the iron rail on top
           if (w2 < 0.6) return;

@@ -266,6 +266,10 @@ class WBuf extends Buf {
     return new THREE.Mesh(g, mat);
   }
 }
+// Fontana Pretoria: OSM maps the fountain's precinct as two walls, and the bake gives a wall a plausible 2.5 m, which hid the whole fountain from a piazza eye. The real precinct is low, with the iron railing inside it
+// that src/landmarks.js builds. So these two are drawn 0.45 m high (vh); they stay 2.5 m for how they break and collide, and for the pieces that fly off.
+const PRETORIA = [71.5, 25.8, 26];
+const lowPrecinct = r => r.k === 'w' && r.h > 2 && r.p.every((v, i) => i % 2 || Math.hypot(v - PRETORIA[0], r.p[i + 1] - PRETORIA[1]) < PRETORIA[2]) ? { ...r, vh: 0.45 } : r;
 const OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nofences');   // ?nofences: debug, the world as it was before walls and fences
 const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
 export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
@@ -277,7 +281,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   yield;
   const signs = ctx ? buildSigns(ctx) : null;   // direction signs and gantries of the motorways (src/direction-signs.js)
   if ((!list || !list.length) && !signs) return null;
-  list = list || [];
+  list = (list || []).map(lowPrecinct);
   panelAssets();
   yield* wallTextureSteps();   // the wall textures, a layer per step, the first time only
   const group = new THREE.Group(); group.name = 'fences';
@@ -309,7 +313,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = hh(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       if (i) sAcc += hh(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]);
       const g = groundY(q[0], q[1]);
-      let y0 = g - 0.45, y1 = g + r.h, drop = 0;
+      let y0 = g - 0.45, y1 = g + (r.vh ?? r.h), drop = 0;
       if (r.k === 'r') { const gl = groundY(q[0] + nx * 1.6, q[1] + nz * 1.6), gr = groundY(q[0] - nx * 1.6, q[1] - nz * 1.6); drop = Math.abs(gl - gr); y0 = Math.min(gl, gr, g) - 0.4; y1 = Math.max(gl, gr, g) + 0.3; if (y1 - y0 < 1.4) y1 = y0 + 1.4; }
       return { x: q[0], z: q[1], nx, nz, y0, y1, s: sAcc, drop };
     });
