@@ -11,7 +11,7 @@ Stopped early for budget. No code was changed: src/streets.js, src/gardens.js an
   (plus the road-shaping bench) touches the asphalt directly. `curbs[]` only exist where asphalt touches raised/green.
 - Motorways: `tools/streets.py width_of` turns `lanes` into 3 m per lane and `cw` is baked, but there is no median, shoulder, barrier or lamp geometry anywhere;
   roadMarksIter only paints lines. Dual carriageways are mapped as two oneway ways (`o`), the gap between them is bare terrain.
-- Viale Regione Siciliana at 38.13036,13.33005: not investigated (check `br` bridge flag in roads[]; roadMarksIter and the asphalt both skip/handle `br`/`tn`).
+- Viale Regione Siciliana at 38.13036,13.33005 (zi18): the gap was the covered stretch under Piazza Einstein, which the bake dropped as a tunnel; back since e0f41c22. A ray cast down at every 8 m of all the Viale's carriageways and side lanes in the loaded game (9,004 samples, 2026-11-06) found no other missing stretch: about 0.5% of samples miss the asphalt, in runs of one to six samples at the ends of bridge decks (the deck cut reaches 0.6 m past the deck), and the terrain covers the Sud Est carriageway by 1.4 to 2.1 m for about 20 m where it crosses the Via Emily Balch underpass (-1300, 3016).
 
 ## Plan that was designed (not built)
 

@@ -153,6 +153,18 @@ ape('ape', false); ape('apetaxi', true);
     mb.box(s * 1.45 - 0.35, 8.82, -0.16, s * 1.45 + 0.35, 8.95, 0.16, C('#cfd3d5'), 0.8, 1, false);
   }
   def('lamp_pole', mb);
+  // a roadside billboard of the fast roads (photos su07, su09, nw30): a 6 x 3 m panel on two steel posts, 4 m up, front +z, in two poster designs (blocks of loud colour, bars for the lettering)
+  const steel = C('#6d7175'), frame = C('#4a4d50');
+  for (const [name, blocks] of [
+    ['billboard_a', [[-3, 4.1, 3, 7, '#f4f1ea'], [-3, 4.1, -0.4, 7, '#d8342b'], [0.0, 6.1, 2.6, 6.5, '#2a2a2e'], [0.0, 5.4, 2.2, 5.75, '#2a2a2e'], [-3, 4.1, 3, 4.6, '#f2c230']]],
+    ['billboard_b', [[-3, 4.1, 3, 7, '#2f6fb8'], [-2.6, 4.5, 0.6, 6.6, '#f4f1ea'], [1.0, 5.9, 2.7, 6.5, '#ffd23f'], [1.0, 4.9, 2.7, 5.4, '#ffffff'], [-3, 4.1, 3, 4.35, '#ef7d22']]]]) {
+    const bb = new MB();
+    for (const x of [-2.2, 2.2]) bb.box(x - 0.14, 0, -0.14, x + 0.14, 4.1, 0.14, steel, 0.7, 1, false);
+    bb.box(-3.1, 4.0, -0.22, 3.1, 7.1, -0.06, frame, 0.8, 1, true);
+    blocks.forEach(([x0, y0, x1, y1, col], k) => bb.box(x0, y0, -0.06, x1, y1, 0.0 + k * 0.012, C(col), 1, 1, false));
+    bb.box(-3.0, 3.9, 0.0, 3.0, 4.0, 0.7, frame, 0.8, 1, true);   // the walkway under it
+    def(name, bb);
+  }
   const wl = new MB(), blk = C('#232326'), glow = C('#f4e6b8');   // wall lantern on a curly bracket, wall is z=0, out is +z
   wl.box(-0.025, 4.45, 0.0, 0.025, 4.52, 0.75, blk, 1, 1, false);
   wl.frust(4.0, [-0.1, 0.62, 0.1, 0.82], 4.3, [-0.17, 0.57, 0.17, 0.87], glow, 1, 1, false);
@@ -518,6 +530,8 @@ const SPECS = {
   palm_date_a: { kind: 'tree', c: [[0, 0, 0.55]], thr: 11, H: 5, crown: 2.5 },
   palm_date_b: { kind: 'tree', c: [[0, 0, 0.52]], thr: 11, H: 7.5, crown: 2.5 },
   lamp_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 7, tilt: 1.05, H: 9 },
+  billboard_a: { kind: 'solid', c: [[-2.2, 0, 0.3], [2.2, 0, 0.3]] },
+  billboard_b: { kind: 'solid', c: [[-2.2, 0, 0.3], [2.2, 0, 0.3]] },
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
   utility_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 10, tilt: 0.7, H: 9.4 },   // a pole of the power line: heavier than a lamp; the wires stay where they are
   signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
@@ -1042,7 +1056,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'monument_s', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm']);
+  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'monument_s', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm', 'billboard_a', 'billboard_b']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1601,6 +1615,32 @@ function* generate(S, BUD) {
       }
     }
     stats.lamp_poles_fast = n;
+  }
+  {
+    // billboards along the open fast roads (photos su07, su09, nw30; none in the OSM data): now and then, on the right of travel well beyond the rail and the tall lamps, angled to the traffic that comes,
+    // one of two posters. Never near a junction or a building, on or next to the asphalt (it may stand in a separator wide enough), on a slope or within 40 m of another one. About one in BB_EVERY m of each carriageway.
+    const BB_STEP = 30, BB_EVERY = 250, BB_OFF = 5.5;
+    const bbs = []; let n = 0;
+    for (const r of S.roads) {
+      if (!isFastRoad(r) || r.k === 'motorway_link' || r.o === -1) continue;
+      if (BUD.over()) yield;
+      const p = pairs(r.p);
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
+        const tx = dx / L, tz = dz / L, nx = -tz, nz = tx;   // right of travel
+        for (let s = BB_STEP * hash3(a[0], a[1], 6.1); s < L; s += BB_STEP) {
+          const cx = a[0] + tx * s, cz = a[1] + tz * s;
+          if (hash3(cx * 0.13, cz * 0.17, 8.3) > BB_STEP / BB_EVERY || !inBounds(cx, cz) || !road(cx, cz) || nearJunction(cx, cz, 25) || !fastAt(r, cx, cz)) continue;
+          const e = march(cx, cz, nx, nz, 12, road); if (e > 11) continue;
+          const x = cx + nx * (e + BB_OFF), z = cz + nz * (e + BB_OFF);
+          if (!inBounds(x, z) || march(x, z, -nx, -nz, BB_OFF - 1.5, (qx, qz) => !road(qx, qz)) < BB_OFF - 1.8 || road(x + nx * 2, z + nz * 2) || road(x + tx * 3.5, z + tz * 3.5) || road(x - tx * 3.5, z - tz * 3.5) || inB(x, z) || nearWall(x, z, 4) || occHit(x, z, 3.2) || nearJunction(x, z, 25)) continue;
+          if (Math.abs(gy(x, z) - gy(cx, cz)) > 1.5 || bbs.some(q => hyp2(q[0] - x, q[1] - z) < 40)) continue;
+          const fx = -tx * 0.85 - nx * 0.53, fz = -tz * 0.85 - nz * 0.53;   // facing the oncoming traffic, turned 32 degrees to the road
+          put(hash3(x, z, 1.7) < 0.5 ? 'billboard_a' : 'billboard_b', x, gy(x, z), z, Math.atan2(fx, fz)); occAdd(x, z, 3.2); bbs.push([x, z]); n++;
+        }
+      }
+    }
+    stats.billboards = n;
   }
   {
     // wall lanterns on street-facing facades, denser towards Quattro Canti
@@ -2252,7 +2292,7 @@ function* generate(S, BUD) {
     // b) planes along Via della Liberta and the other grand avenues of the 1960s grid; palms along the seafronts
     const AVENUE = /^(Via|Viale) della Libertà$/, FRONT = /Regina Elena|Lungomare|Foro Italico|Piano di Gallo|Viale Marina|Lido/;
     // Streets whose real canopy closes over the carriageway, read off the Mapillary photos of the faithfulness survey (round 2: po02 and po31 planes and jacaranda, zi08 and zi09 plane rows, su13 pollarded planes, su18 broadleaves, pt10 plane and ficus, pt12 ficus); the same planting is carried along the whole named street, which the photos do not show: [name, tree, scale, spacing in m]
-    const CANOPY = [[/Ruggero Settimo|^Viale Lazio$|Imperatore Federico/, 'plane', 1.55, 11], [/^Viale Michelangelo$/, 'plane_bare', 1.55, 11], [/Ernesto Basile/, 'plane_bare', 1.15, 11], [/Filippo Paruta/, 'tree', 1.55, 10], [/Domenico Costantino/, 'ficus', 1.1, 14], [/Regione Siciliana/, 'pine', 1.15, 22]];
+    const CANOPY = [[/Ruggero Settimo|^Viale Lazio$|Imperatore Federico/, 'plane', 1.55, 11], [/^Viale Michelangelo$/, 'plane_bare', 1.55, 11], [/Ernesto Basile/, 'plane_bare', 1.15, 11], [/Filippo Paruta/, 'tree', 1.55, 10], [/Domenico Costantino/, 'ficus', 1.1, 14], [/Regione Siciliana/, 'pine', 1.15, 22]];   // (Viale Regione Siciliana: its outer edges here, the strip on the left of its one-way ways below)
     for (const r of S.roads) {
       const nm = r.n || '';
       const lib = AVENUE.test(nm), front = FRONT.test(nm) && DRIVE.has(r.k), can = !lib && !front ? CANOPY.find(c => c[0].test(nm)) : null;
@@ -2268,6 +2308,7 @@ function* generate(S, BUD) {
           const cx = a[0] + tx * s, cz = a[1] + tz * s;
           if (nearJunction(cx, cz, 7) && !front) continue;
           for (const sg of [1, -1]) {
+            if (can && sg === -1 && r.o === 1 && /Regione Siciliana/.test(nm)) continue;   // (the left of a one-way way of the Viale is its separator: planted below)
             if (!lib && !can && rf() > (front ? 0.7 : 0.5)) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
             const d = e + (front ? 1.5 : 1.8), x = cx + nx * d, z = cz + nz * d;
@@ -2276,6 +2317,41 @@ function* generate(S, BUD) {
           }
         }
       }
+    }
+
+    // Viale Regione Siciliana's separators (tr9; photos su08, su09, zs12, zs20, zw47, lm24): a row of stone pines, a palm now and then, down the middle of the strip between the two carriageways and
+    // between a carriageway and its side lane. (The rule of the canopy streets above put a pine every 22 m 1.8 m off the asphalt on both sides of every way of the Viale: two rows in a wide median and
+    // trunks on the guard rail in a narrow one; it keeps the outer edges.) The Viale's ways are all one-way and traffic keeps right, so the strip is on the left of travel. Where it is:
+    // from the asphalt edge on the left, across the ground to the next asphalt within SEP_MAX m, which must be another way of the Viale running alongside it (a cross street or a slip road is no separator).
+    // Under SEP_MIN m there is no room; under SEP_RAIL m the guard rail stands in the middle (src/expressway.js: one rail where the edges are under 6 m apart), so the trunk stands ROW_RAIL m beside it;
+    // up to SEP_ONE m one row in the middle, wider strips (a lay-by, a garden) a row SEP_EDGE m in from each side. The two ways of a strip share its middle row: no tree within ROW_GAP m of another.
+    {
+      const VIALE = /Regione Siciliana/, VDRIVE = new Set(['primary', 'secondary', 'tertiary']), SEP_MIN = 2.4, SEP_RAIL = 6, SEP_ONE = 16, SEP_MAX = 34, SEP_EDGE = 3.2, ROW_STEP = 11, ROW_GAP = 8, ROW_RAIL = 0.7;
+      const near2 = (list, x, z, rr) => { for (const q of list) if (hyp2(q[0] - x, q[1] - z) < rr) return true; return false; };
+      let sn = 0;
+      for (const r of S.roads) {
+        if (!VDRIVE.has(r.k) || r.o !== 1 || r.tn || r.br || r.j === 'roundabout' || !VIALE.test(r.n || '') || r.p.length < 4) continue;
+        if (BUD.over()) yield;
+        const p = pairs(r.p);
+        for (let i = 0; i < p.length - 1; i++) {
+          const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp2(dx, dz); if (L < 3) continue;
+          const tx = dx / L, tz = dz / L, nx = tz, nz = -tx;   // (nx, nz): left of travel
+          for (let s = ROW_STEP * hash3(a[0], a[1], 4.4); s < L; s += ROW_STEP) {
+            const cx = a[0] + tx * s, cz = a[1] + tz * s;
+            if (!inBounds(cx, cz) || nearJunction(cx, cz, 9)) continue;
+            const e = march(cx, cz, nx, nz, 18, road); if (e < 1) continue;
+            let g = -1; for (let q = e + 0.6; q <= e + SEP_MAX; q += 0.3) if (road(cx + nx * q, cz + nz * q)) { g = q - e - 0.3; break; }
+            if (g < SEP_MIN) continue;
+            const o = nearRoad(cx + nx * (e + g + 1.5), cz + nz * (e + g + 1.5), 6);
+            if (!o || o.road === r || !VIALE.test(o.road.n || '') || Math.abs(o.tx * tx + o.tz * tz) < 0.8) continue;
+            const d = g < SEP_RAIL ? e + g / 2 + ROW_RAIL : g <= SEP_ONE ? e + g / 2 : e + SEP_EDGE, x = cx + nx * d, z = cz + nz * d;
+            if (!inBounds(x, z) || near2(treePts, x, z, ROW_GAP) || nearJunction(x, z, 9)) continue;
+            const u = hash3(x * 0.61, z * 0.37, 2.9), kind = u < 0.12 ? 'palm_fan_a' : u < 0.2 ? 'palm_date_a' : 'pine';
+            if (placeTree(x, z, kind, kind === 'pine' ? 1.15 : 1.0, null)) sn++;
+          }
+        }
+      }
+      st.viale_sep = sn;
     }
 
     // the Libertà is lined with clipped hedges between the carriageway and the gardens

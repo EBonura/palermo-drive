@@ -26,6 +26,12 @@ solid white edge lines, green gantry signs, scrub verges. The game had ordinary 
   no double-parking scenes, a tall double-arm pole every 40 m on the right of travel where no mapped lamp is within 24 m, and the roadside walls within 6 m of it become rails (src/fence-walls.js); a pavement beside it is the
   rough shoulder, not slabs (src/streets.js isYard). In the built stretches the lane keeps what a city street has. Two-way streets of the same names and the residential lanes are city streets everywhere.
 - `?noexpressway` turns the rail rule and the new paint off, `?nosigns` the signs.
+- **The Viale's separators** (`src/props.js`, 12 b; tr9, photos su08, su09, zs12, zs20, zw47, lm24): every way of the Viale is one-way and traffic keeps right, so the strip between it and the opposite carriageway or its side lane is on the left of travel.
+  Its width is measured on the tile's asphalt (edge to the next asphalt within 34 m, which must be another way of the Viale running alongside), and a row of stone pines with a palm now and then (one in five) goes down its middle every 11 m,
+  no tree within 8 m of another; where the strip is under 6 m (one guard rail in the middle) the trunk stands 0.7 m beside the middle. Before, the canopy rule put a pine 1.8 m off the asphalt every 22 m on both sides of every way, so a wide
+  median had two rows and a narrow one had its trunks on the rail; that rule keeps the outer edges.
+- **Billboards** (`billboard_a`, `billboard_b` in `src/props.js`; photos su07, su09, nw30; no data source): on the open stretches of the fast roads, at most one in 250 m of carriageway (the clearances below leave fewer: 6 in the full-detail area round zi15, 2 round su07, 1 round su09, none at the north-west end), 5.5 m beyond the asphalt on the
+  right of travel, angled to the oncoming traffic; never near a junction, a building or another billboard, on a slope or next to other asphalt. Two poster designs, one draw call each per props cell that has one.
 
 ## Road paint (src/streets.js `roadMarksIter`)
 
