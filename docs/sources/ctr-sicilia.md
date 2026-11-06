@@ -17,3 +17,12 @@ Used for: `data/trees.json` (isolated trees), `data/tree_rows.json`, `data/walls
   - Retaining walls come as a top line (`retaining`) and rarely a foot line; heights must come from the ground.
 - Credit line for the README: `Regione Siciliana, Carta Tecnica Regionale 1:10.000 (ed. 2012-13), CC BY 4.0.`
   - Orchards and olive groves from layers 26 and 27 (`data/veg_areas.json`: G008 fruit orchard 1,525 polygons, G034 citrus 2, G007 olive 242) are also baked into the tiles as `orchard` and `olive` land cover (board item n4, `tools/tiles.py`).
+
+## Buildings (layer 35 "Edificato"), used for Monreale, Isola delle Femmine and Bellolampo
+
+- Same service and licence as above; `tools/ctr_buildings.py` fetches the polygons of three boxes round the towns (6,929, 1,510 and 1,024 features), keeps B001 (civil building), B002 (factory, shed, shop building) and B003 (church, bell tower) and drops huts (B006), roofs (B007), greenhouses, barns and buildings under construction.
+- Why: OpenStreetMap has about 190 buildings in the 700 m round Monreale's Duomo, the CTR has about 2,000; the old town is solid street blocks there and the game drew a bare hill. Outside the Comune di Palermo there is no volume survey (docs/sources/comune-ctc-buildings.md), so this is the only second source.
+- Treatment: a polygon with more than 70 % of its area inside an OSM or Comune building (grown 1 m) is dropped, the others are cut by those buildings (grown 1.5 m) and kept when 30 m2 and 2.4 m wide are left. No heights in the layer: `tools/tiles.py` gives them the lidar roof where there is a raster (Bellolampo) and otherwise the estimate, which `src/districts.js` replaces by the zone's storeys. In the old towns the polygons are whole blocks, not single houses; `src/buildings.js` cuts a long street wall into houses.
+- Only what lies within 1,500 m of Via Roma in Monreale, 1,100 m of Via Garibaldi in Isola delle Femmine and 1,000 m of Bellolampo's village is kept (`CENTRES` in the tool), so the baker does not touch the countryside tiles.
+- Result: 2,456 buildings added (Monreale 1,960, Isola delle Femmine 449, Bellolampo 47), written to `data/footprints_ctr.json` (git-ignored) and read by `tools/tiles.py` like the Comune extras.
+- Credit line: as above.

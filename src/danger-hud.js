@@ -57,7 +57,7 @@ export function createDangerHud(car) {
     const shown = !covered();
     if (shown !== on) { on = shown; hood.classList.toggle('on', shown); }
     if (!shown) { if (gOn) { gOn = false; gang.classList.remove('on'); } return; }
-    const n = areaAt(car.x, car.z) || townAt(car.x, car.z) || 'Palermo', l = dangerAt(car.x, car.z), tr = trouble();
+    const n = townAt(car.x, car.z) || areaAt(car.x, car.z) || 'Palermo', l = dangerAt(car.x, car.z), tr = trouble();
     if (n !== name) { name = n; elN.textContent = n; ex = performance.now() + EX_MS; hood.classList.add('ex'); }
     else if (ex && performance.now() > ex) { ex = 0; hood.classList.remove('ex'); }
     const lg = document.documentElement.lang === 'en' ? 'en' : 'it';

@@ -1078,12 +1078,12 @@ function makePhysics(env) {
 
 // ------------------------------------------------------------------ district tables (zones come from src/districts.js zoneAt)
 // squalor 0..1 by zone where the centro's street-name rules do not apply
-const ZONE_SQ = { zen: 0.95, cep: 0.72, viaLib: 0.18, lido: 0.2, mondello: 0.25, sferra: 0.38, valdesi: 0.3, favorita: 0.3, rural: 0.3, brancaccio: 0.66, noce: 0.6, zisa: 0.6, borgoV: 0.7, villabate: 0.5, oreto: 0.65, porto: 0.7, brin: 0.6, corsoMille: 0.55 };
+const ZONE_SQ = { zen: 0.95, cep: 0.72, viaLib: 0.18, lido: 0.2, mondello: 0.25, sferra: 0.38, valdesi: 0.3, favorita: 0.3, rural: 0.3, brancaccio: 0.66, noce: 0.6, zisa: 0.6, borgoV: 0.7, villabate: 0.5, monrealeOld: 0.55, monreale: 0.4, isola: 0.45, bellolampo: 0.35, oreto: 0.65, porto: 0.7, brin: 0.6, corsoMille: 0.55 };
 // "effective distance from the old centre" (m) outside 1.1 km: drives how thickly cars, scooters and lanterns are set
-const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama: 800, stazione: 900, noce: 1000, zisa: 1000, borgoV: 900, villabate: 1000, oreto: 1000, brancaccio: 1100, corsoMille: 1000, zen: 1000, cep: 1200, mondello: 1000, lido: 900, sferra: 1100,
+const ZONE_DIST = { viaLib: 850, sacco: 900, resut: 1000, fiera: 1000, politeama: 800, stazione: 900, noce: 1000, zisa: 1000, borgoV: 900, villabate: 1000, monrealeOld: 900, monreale: 1000, isola: 1100, bellolampo: 1700, oreto: 1000, brancaccio: 1100, corsoMille: 1000, zen: 1000, cep: 1200, mondello: 1000, lido: 900, sferra: 1100,
   valdesi: 1300, uditore: 1300, rigano: 1300, periph: 1400, rural: 3200, favorita: 2600, porto: 1800, brin: 1800, acquasanta: 1200, arenella: 1300, tn: 1300 };
-const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1, villabate: 1.15 };
-const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7, villabate: 0.6 };   // share of cafes with tables outside
+const ZONE_CARS = { rural: 0.3, favorita: 0.4, porto: 0.5, brin: 0.4, lido: 1.25, mondello: 1.25, viaLib: 1.3, sacco: 1.2, zen: 0.9, sferra: 1.1, villabate: 1.15, monrealeOld: 1.3, monreale: 1.2, isola: 1.0, bellolampo: 0.5 };
+const CAFE_OUT = { viaLib: 0.85, lido: 0.9, mondello: 0.9, politeama: 0.8, valdesi: 0.7, sferra: 0.7, villabate: 0.6, monrealeOld: 0.5, monreale: 0.4, isola: 0.6, bellolampo: 0.2 };   // share of cafes with tables outside
 const BEACH_UMB = ['#e8e4d8', '#2f6fb0', '#d9482a', '#e6c040', '#2a8a8a', '#f2f2ee', '#d9588a', '#1f4f8a'];
 
 // ------------------------------------------------------------------ building index (exact point test + nearest wall)

@@ -696,6 +696,7 @@ def raster_shape(outer, holes):
 
 CTC_HEIGHTS = os.path.join(ROOT, "data", "footprints_osm_heights.json")   # tools/footprints.py, see docs/sources/comune-ctc-buildings.md
 CTC_EXTRA = os.path.join(ROOT, "data", "footprints_extra.json")
+CTR_BLD = os.path.join(ROOT, "data", "footprints_ctr.json")   # tools/ctr_buildings.py: the regional survey's buildings for Monreale, Isola delle Femmine and Bellolampo (no heights)
 CTC_ON = os.path.exists(CTC_HEIGHTS)
 
 
@@ -786,6 +787,9 @@ def parse_buildings(files, lidar):
     if os.path.exists(CTC_EXTRA):   # buildings the Comune's survey has and OSM lacks (already cut against the OSM footprints)
         for rec in json.load(open(CTC_EXTRA))["buildings"]:
             add(rec["id"], rec["oid"], rec["tags"], rec["outer"], rec.get("holes", []), rec)
+    if os.path.exists(CTR_BLD):   # the regional survey's buildings OSM lacks round the towns outside the Comune (already cut against the OSM and Comune footprints); no height, so the lidar raster or the estimate decides
+        for rec in json.load(open(CTR_BLD))["buildings"]:
+            add(rec["id"], rec["oid"], rec["tags"], rec["outer"], rec.get("holes", []))
     return out, labels, stats
 
 
