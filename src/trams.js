@@ -1,7 +1,8 @@
 // Palermo's tram: tracks, platforms, catenary poles and wire, and the trams themselves.
 //
 //   * per tile (tile.tram, tools/tram.py; the black iron railing along the median is in tile.fences): buildTram(tr, key) returns one Group: the rails
-//     (a strip with two rails and sleepers, laid just above whatever street layer the track lies in), the platforms with shelters and benches at the stops,
+//     (a strip with two rails and sleepers, laid just above whatever street layer the track lies in), the platforms with shelters and benches at the stops
+//     (st.w the half width of an island platform OSM maps as an area, else 1.3 m),
 //     the dark red catenary poles (instanced) and the wire (one line mesh). Catenary pole spacing is a design value (30 m): nothing says where the real
 //     poles stand.
 //   * the trams: assets/traffic/tram-lines.js has the seven line patterns (path along the OSM tracks, stops with their chainage, the timetable headway).
@@ -16,6 +17,12 @@ let raisedFn = () => false, root = null;
 export function initTrams({ raised, scene }) { raisedFn = raised; root = scene; startTrams(); }
 
 const hh = Math.hypot;
+// the corners of a quad in the order that faces n (counter-clockwise seen from that side): the materials are front-sided, so a quad wound the
+// other way is invisible from where it should be seen (the platform tops and sides, a tram's right side and rear were)
+function facing(a, b, c, d, n) {
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  return (uy * vz - uz * vy) * n[0] + (uz * vx - ux * vz) * n[1] + (ux * vy - uy * vx) * n[2] >= 0 ? [a, b, c, a, c, d] : [a, c, b, a, d, c];
+}
 const LIFT = 0.05, LIFT_RAISED = 0.2;
 
 // ---------- static pieces of a tile ----------
@@ -78,15 +85,16 @@ export function buildTram(tr, key) {
   for (const st of tr.s || []) {
     if (!st.a) continue;
     const [ax, az, bx, bz] = st.a, l = hh(bx - ax, bz - az); if (l < 3) continue;
-    const tx = (bx - ax) / l, tz = (bz - az) / l, nx = -tz, nz = tx, hw = 1.3, y = groundY((ax + bx) / 2, (az + bz) / 2);
+    const tx = (bx - ax) / l, tz = (bz - az) / l, nx = -tz, nz = tx, hw = st.w || 1.3, y = groundY((ax + bx) / 2, (az + bz) / 2);
     const P = (t, o, h) => [ax + tx * t + nx * o, y + h, az + tz * t + nz * o];
-    const quad = (a, b, c, d, n, col) => { for (const q of [a, b, c, a, c, d]) sb.v(q[0], q[1], q[2], n[0], n[1], n[2], col); };
+    const quad = (a, b, c, d, n, col) => { for (const q of facing(a, b, c, d, n)) sb.v(q[0], q[1], q[2], n[0], n[1], n[2], col); };
     quad(P(0, -hw, 0.3), P(l, -hw, 0.3), P(l, hw, 0.3), P(0, hw, 0.3), [0, 1, 0], conc);                   // top
     quad(P(0, -hw, 0), P(l, -hw, 0), P(l, -hw, 0.3), P(0, -hw, 0.3), [-nx, 0, -nz], edge); quad(P(l, hw, 0), P(0, hw, 0), P(0, hw, 0.3), P(l, hw, 0.3), [nx, 0, nz], edge);
+    quad(P(0, -hw, 0), P(0, hw, 0), P(0, hw, 0.3), P(0, -hw, 0.3), [-tx, 0, -tz], edge); quad(P(l, -hw, 0), P(l, hw, 0), P(l, hw, 0.3), P(l, -hw, 0.3), [tx, 0, tz], edge);   // the two ends
     if (st.sh) { // a glass shelter over the middle of the platform
       const c0 = l / 2 - 2.2, c1 = l / 2 + 2.2, o = hw - 0.25;
-      quad(P(c0, -hw + 0.1, 2.4), P(c1, -hw + 0.1, 2.4), P(c1, hw - 0.1, 2.4), P(c0, hw - 0.1, 2.4), [0, 1, 0], steel);
-      quad(P(c0, o, 0.3), P(c1, o, 0.3), P(c1, o, 2.4), P(c0, o, 2.4), [-nx, 0, -nz], glass);
+      for (const up of [1, -1]) quad(P(c0, -hw + 0.1, 2.4), P(c1, -hw + 0.1, 2.4), P(c1, hw - 0.1, 2.4), P(c0, hw - 0.1, 2.4), [0, up, 0], steel);   // roof, seen from above and below
+      for (const sg of [1, -1]) quad(P(c0, o, 0.3), P(c1, o, 0.3), P(c1, o, 2.4), P(c0, o, 2.4), [nx * sg, 0, nz * sg], glass);            // the glass back, from either side
       for (const t of [c0, c1]) quad(P(t, o - 0.04, 0.3), P(t, o + 0.04, 0.3), P(t, o + 0.04, 2.4), P(t, o - 0.04, 2.4), [tx, 0, tz], steel);
     }
     if (st.b) quad(P(l / 2 - 0.9, o0(hw), 0.75), P(l / 2 + 0.9, o0(hw), 0.75), P(l / 2 + 0.9, o0(hw) + 0.4, 0.75), P(l / 2 - 0.9, o0(hw) + 0.4, 0.75), [0, 1, 0], wood);
@@ -124,13 +132,13 @@ function at(pt, s) { // position and heading at chainage s
 }
 function moduleGeo() {
   const b = new Buf(), W = 1.2, L = MOD_LEN / 2, white = new THREE.Color('#e9e8e2'), dark = new THREE.Color('#25292d'), grey = new THREE.Color('#8b8f92'), skirt = new THREE.Color('#3a3d40'), band = new THREE.Color('#ffffff');
-  const f = (a, bb, c, d, nx, ny, nz, col, k = 1) => { for (const q of [a, bb, c, a, c, d]) b.v(q[0], q[1], q[2], nx, ny, nz, col, 0, 0, k); };
+  const f = (a, bb, c, d, nx, ny, nz, col, k = 1) => { for (const q of facing(a, bb, c, d, [nx, ny, nz])) b.v(q[0], q[1], q[2], nx, ny, nz, col, 0, 0, k); };
   const wall = (z, y0, y1, col, sgn, k = 1) => f([-W, y0, z * sgn], [W, y0, z * sgn], [W, y1, z * sgn], [-W, y1, z * sgn], 0, 0, sgn, col, k);
   const side = (x, y0, y1, col, k = 1) => { const s = Math.sign(x); f([x, y0, -L], [x, y0, L], [x, y1, L], [x, y1, -L], s, 0, 0, col, k); };
   for (const sx of [-W, W]) { side(sx, 0.45, 3.1, white); side(sx * 1.01, 1.25, 2.55, dark); side(sx * 1.005, 0.45, 0.9, skirt); side(sx * 1.003, 0.9, 1.25, band, 0.95); }
   f([-W, 3.1, -L], [-W, 3.1, L], [W, 3.1, L], [W, 3.1, -L], 0, 1, 0, grey);                                    // roof
   f([-W, 3.1, L], [W, 3.1, L], [W, 3.1, L - 0.01], [-W, 3.1, L - 0.01], 0, 1, 0, grey);
-  wall(L, 0.45, 3.1, white, 1); wall(L, 1.25, 2.55, dark, 1, 1); wall(L, 0.45, 3.1, white, -1);
+  wall(L, 0.45, 3.1, white, 1); wall(L + 0.01, 1.25, 2.55, dark, 1, 1); wall(L, 0.45, 3.1, white, -1);   // the windscreen just proud of the front wall, not in it
   return b.mesh(new THREE.MeshStandardMaterial()).geometry;
 }
 function startTrams() {

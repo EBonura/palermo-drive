@@ -316,6 +316,8 @@ from the map; the Regione Siciliana CTR lines (`data/walls.json`) were prepared 
   poles (instanced) and the wire (one line mesh over every track not in the carriageway), and runs the trams: three articulated modules following the line path, as many trams per direction as the
   headway asks for (at most five, 12 in all: L1 3.1 min, L2 to L4 about 6.5 min), slowing to every stop, 9 s there, and starting the other way at the end of the line. They are solid: the lapa
   bounces off a module (circle test in `hooks.fall`) and a tram brakes for a car on the track within 14 m ahead.
+  A stop's platform `a` is the platform line's two ends, drawn 2.6 m wide; Notarbartolo's island is mapped as an area, so its `a` is the long axis of the area's smallest enclosing rectangle
+  and `w` its half width (2.9 m). A platform shared by two stops (the island platforms at Notarbartolo, Stazione Centrale and Roccella) is on the first stop only, so it is drawn once.
 - **Design values, not data:** the catenary pole spacing (30 m, on the median between a pair of tracks, else 2.3 m beside the track) and the railing (1.1 m black iron railing, 1.9 m outside each
   rail on median and roadside stretches, gaps at stops, crossings and between the two tracks): OSM and the GTFS have neither, the Mapillary photos only show the look. Tram speed 9 m/s is a game value.
 - **Fountains.** `water` props (OSM `drinking_water`, 130 nodes, which were baked but never drawn) are now a green cast-iron fontanella on the pavement; the Comune list adds the 150 entries
