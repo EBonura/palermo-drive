@@ -380,8 +380,18 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // props.js builds lamps per tile as tiles stream in and out and says so with 'pd-lamps-changed': the glows are rebuilt from the scene (at most every 1.5 s)
   let lampsStale = false, lampsAt = -9, fieldDone = false;
   addEventListener('pd-lamps-changed', () => { lampsStale = true; });
+  // The two lamp materials and the pool quad are made once, kept across rebuilds and compiled while the game loads (the end of createDayNight).
+  const haloMat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 600 }, uAmt: { value: 0 } }]),
+    vertexShader: HALO_VERT, fragmentShader: HALO_FRAG, fog: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const poolMat = new THREE.MeshBasicMaterial({
+    map: radial([[0, 'rgba(255,255,255,0.95)'], [0.25, 'rgba(255,255,255,0.55)'], [0.6, 'rgba(255,255,255,0.14)'], [1, 'rgba(255,255,255,0)']], 128),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+  });
+  const poolGeo = new THREE.PlaneGeometry(2, 2); poolGeo.rotateX(-Math.PI / 2);
   function dropLamps() {
-    if (lamps && !lamps.none) { scene.remove(lamps.halo, lamps.pools); lamps.halo.geometry.dispose(); lamps.haloMat.dispose(); lamps.pools.geometry.dispose(); lamps.pools.dispose(); if (lamps.poolMat.map) lamps.poolMat.map.dispose(); lamps.poolMat.dispose(); }
+    if (lamps && !lamps.none) { scene.remove(lamps.halo, lamps.pools); lamps.halo.geometry.dispose(); lamps.pools.dispose(); }
     lamps = null;
   }
   function buildLamps() {
@@ -446,18 +456,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     geo.setAttribute('position', new THREE.Float32BufferAttribute(bulbs, 3));
     geo.setAttribute('aCol', new THREE.Float32BufferAttribute(bulbCol, 3));
     geo.setAttribute('aSize', new THREE.Float32BufferAttribute(bulbSize, 1));
-    const haloMat = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 600 }, uAmt: { value: 0 } }]),
-      vertexShader: HALO_VERT, fragmentShader: HALO_FRAG, fog: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    });
     const halo = new THREE.Points(geo, haloMat); halo.frustumCulled = false; halo.renderOrder = 5; halo.visible = false;
     scene.add(halo);
-    const pg = new THREE.PlaneGeometry(2, 2); pg.rotateX(-Math.PI / 2);
-    const poolMat = new THREE.MeshBasicMaterial({
-      map: radial([[0, 'rgba(255,255,255,0.95)'], [0.25, 'rgba(255,255,255,0.55)'], [0.6, 'rgba(255,255,255,0.14)'], [1, 'rgba(255,255,255,0)']], 128),
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
-    });
-    const pools = new THREE.InstancedMesh(pg, poolMat, np); pools.frustumCulled = false; pools.renderOrder = 4; pools.visible = false;
+    const pools = new THREE.InstancedMesh(poolGeo, poolMat, np); pools.frustumCulled = false; pools.renderOrder = 4; pools.visible = false;
     for (let i = 0; i < np; i++) {
       m.makeScale(poolM[i * 4 + 3], 1, poolM[i * 4 + 3]).setPosition(poolM[i * 4], poolM[i * 4 + 1], poolM[i * 4 + 2]);
       pools.setMatrixAt(i, m); pools.setColorAt(i, col.setRGB(poolC[i * 3], poolC[i * 3 + 1], poolC[i * 3 + 2]));
@@ -517,12 +518,12 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   }
 
   // ------------------------------------------------------------------------------------------ a handful of real lights
-  // Two point lights ride the nearest street lamps and one spot the car's nose. Added the first time it gets dark (adding a light
-  // recompiles the materials once), never on Low quality.
-  let rl = null, rlTried = false, rlAcc = 0;
-  function ensureRealLights() {
-    if (rlTried || !lamps || lamps.none) return; rlTried = true;
-    if (st.quality === 'low') return;
+  // Two point lights ride the nearest street lamps and one spot the car's nose, never on Low quality. They are in the scene from the start, dark by day:
+  // the number of lights is part of every program (three.js keys its shaders on it), so adding them at the first dusk recompiled every material in view at
+  // once (a 0.34 to 0.56 s freeze in headless Chrome on a fast Mac at 4x CPU, and about 30 programs kept twice). A light at intensity 0 skips its BRDF in
+  // src/shading.js, so by day it costs a branch on the GPU and its uniforms on the CPU.
+  let rl = null, rlAcc = 0;
+  if (st.quality !== 'low') {
     const pts = [0, 1].map(() => { const l = new THREE.PointLight('#ff9a3c', 0, 38, 1.5); l.castShadow = false; scene.add(l); return { l, tx: 0, ty: 0, tz: 0, k: 0 }; });
     const spot = new THREE.SpotLight('#fff0cf', 0, 42, 0.5, 0.75, 1.5); spot.castShadow = false; scene.add(spot, spot.target);
     rl = { pts, spot };
@@ -641,7 +642,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (car) NK.value.z = groundY(car.x, car.z); // street level near the player: the wash fades with height above it
     if (lampOn > 0.003) {
       if (lampsStale && lamps && realNow - lampsAt > 1.5) dropLamps();
-      if (!lamps) { lamps = buildLamps(); lampsAt = realNow; lampsStale = false; ensureRealLights(); }
+      if (!lamps) { lamps = buildLamps(); lampsAt = realNow; lampsStale = false; }
       if (lamps && !lamps.none) {
         lamps.halo.visible = lamps.pools.visible = true;
         renderer.getDrawingBufferSize(_sz);
@@ -659,6 +660,17 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     if (lastEvent < 0 || ((hour - lastEvent + 24) % 24) >= 2 / 60) dispatch();   // every two game minutes
     firstFrame = false;
   }
+
+  // The night-only materials (lamp glows and pools, headlight cones and decals) compile now, while the game loads, instead of in the first frame after dusk
+  // (each one a compile and link that the frame waits for). With the parallel compile extension the linking finishes in the background.
+  try {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3)); g.setAttribute('aCol', new THREE.Float32BufferAttribute([1, 1, 1], 3)); g.setAttribute('aSize', new THREE.Float32BufferAttribute([1], 1));
+    const ip = new THREE.InstancedMesh(poolGeo, poolMat, 1); ip.setColorAt(0, _c.setRGB(1, 1, 1));
+    const w = new THREE.Group(); w.add(new THREE.Points(g, haloMat), ip);
+    renderer.compile(w, camera, scene); renderer.compile(beamGroup, camera, scene);
+    g.dispose(); ip.dispose();
+  } catch (e) { console.warn('[daynight] night materials not compiled ahead', e); }
 
   update(0); // first frame: everything in place before the title flyover renders
   return { update, time, jumpTo, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow) };

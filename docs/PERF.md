@@ -375,6 +375,30 @@ The one clear GPU cost is the night wash on every material (5fecdaa0). In WebKit
 - the hook that washes a material on its first draw takes itself off the material afterwards (it ran on every standard draw).
 The main thread did not move measurably (main against this, two concurrent pairs per spot and hour: -0.5 to +0.6 ms).
 
+## Night against day on the main thread, and the freeze at dusk
+
+The perf7 tables read night as 1 to 4 ms dearer than day on the main thread. Measured in one page (the clock frozen with `?timespeed=0` and jumped with `pd-time-hour`, so the place, the tiles and the load are the same; phone profile, 4x CPU, headless Chrome on the M3 Max), it is not: at Quattro Canti `renderer.render` is 6.6 to 6.8 ms by day and 6.7 to 7.0 at night, and the whole main thread is the same or lower at night because the night crowd is smaller (271 people against 999). Mondello: render 8.0 to 8.2 by day, 8.1 to 8.4 at night. The big gaps in perf7 were separate page loads measured two at a time on a busy machine (the same build moves 1 to 3 ms between loads).
+
+What night did cost:
+- **A freeze at the first dusk**: the two point lights and the headlight spot were added to the scene the first time it got dark. The number of lights is part of every three.js program, so every lit material in view recompiled in that frame: one task of 340 to 560 ms at Quattro Canti, Via Maqueda, Ballaro and Mondello (32 to 40 programs). A phone compiles slower. A game started at night paid the same, during loading or just after.
+- **About 30 programs kept twice**: each material keeps its program from before the lights as well, 93 to 106 programs at night against 63 to 68 by day.
+- The night-only materials (lamp glows, light pools, headlight cones and decals) compiled on their first frame too.
+
+Changed in `src/daynight.js`: the three real lights are in the scene from the start (not on Low quality), at intensity 0 by day, so the light count never changes; the lamp materials are made once and reused when the lamps are rebuilt; the night-only materials are compiled while the game loads (`renderer.compile`). Going from day to night now compiles nothing (+0 programs at Quattro Canti and Ballaro, +2 from elsewhere at Via Maqueda and Mondello) and the worst frame of the change is 17 to 67 ms; programs are 64 to 70 by day and at night.
+
+The price: by day the dark lights' uniforms are uploaded with each program change (`uniform3f` 94 to 190 calls a frame at Quattro Canti), 0.2 to 0.35 ms of `renderer.render` at 4x (lights in against lights out in one page, five alternating windows, Quattro Canti and Mondello). On the GPU a dark light costs a branch (`src/shading.js` skips its BRDF). By day the picture is the same: with and without the dark lights in one page, at most 6 of 5.3 million colour values differ, by 1 of 255.
+
+Main ms per frame, phone profile 4x, `?fixres`, before (e0c4db68) and after, two runs each, the builds alternated in turn (not side by side), mean of the two:
+
+| spot | day before | day after | night before | night after | programs day / night before | after |
+| --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti | 11.19 | 12.05 | 11.76 | 10.84 | 68 / 96 | 70 / 70 |
+| Via Maqueda | 12.20 | 12.21 | 11.66 | 11.91 | 66 / 99 | 68 / 69 |
+| Ballaro | 12.51 | 12.88 | 12.93 | 12.69 | 66 / 96 | 68 / 68 |
+| Mondello | 11.81 | 12.60 | 12.44 | 12.76 | 63 / 93 | 65 / 65 |
+
+The two runs of one cell differ by up to 3.2 ms, so this table cannot show 0.3 ms either way; the in-page numbers above are the ones to read. Desktop Chrome with CPU throttling is a stand-in for a phone: it scales the JS, not the GPU or Safari's shader compiler.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.
