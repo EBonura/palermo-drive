@@ -199,7 +199,11 @@ export function createP2P(env) {
       if (!stay) leaveCell(r);
     }
   }
+  // Trystero's room.leave() is async and tears the shared peer links down about 100 ms later, so a room joined again before that resolves loses its
+  // new connections (the board game hit this). A key still leaving is not joined: the choice is made again in half a second.
+  const leaving = new Map();
   function joinCell(k, i, j, sh) {
+    if (leaving.has(k)) return;
     if (!guard.allow('joins')) return;   // over the limit: the choice is made again in half a second, and costs nothing until the limit lets it through
     const r = { key: k, i, j, s: sh || 0, room: null, state: null, info: null, peers: new Set(), t0: performance.now(), tFirstPeer: 0, joined: false };
     rooms.set(k, r); stats.joins++;
@@ -227,7 +231,8 @@ export function createP2P(env) {
     ev('leave', { room: r.key, peers: r.peers.size }); stats.leaves++;
     for (const id of [...r.peers]) detach(r, id, null);
     rooms.delete(r.key);
-    try { r.room.leave(); } catch (e) { /* ignore */ }
+    const k = r.key;
+    try { leaving.set(k, Promise.resolve(r.room.leave()).catch(() => {}).finally(() => leaving.delete(k))); } catch (e) { leaving.delete(k); }
   }
   function detach(r, id, why) {
     r.peers.delete(id);
