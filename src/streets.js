@@ -3,7 +3,7 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMaskIter, hooks } from './core.js';
+import { groundY, FBuf, weld, pairs, canvasTex, rnd, rng, signedArea, speckle, rasterMaskIter, hooks } from './core.js';
 import { sliceOver } from './slice.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';
@@ -362,8 +362,80 @@ const DASH = 2.2, PERIOD = 5.9, SAMPLE = 1.2, APPROACH = 15, STOP_BACK = 6.5, SH
 const NOEXP = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noexpressway');
 const fastRoad = isFastRoad;   // (src/road-class.js: the motorways, the expressways and their slip roads, and the Viale's carriageways whatever the data says their class is)
 let paintMat = null;
+
+// The zebra across the mouth of a side street on a main road (zw18, Via Bronte at Via Castellana; the survey's "a zebra at the corner" all over the west), just past the flare of
+// its mouth. Decided here, before the paint, so the paint leaves it clear and puts the side street's stop line beside it; src/props.js draws the stripes (tile.sideZebras).
+// A side street that ends on a main road running through is a junction of two ways and three arms. Its own random stream, seeded by the tile, so these change nothing else.
+// tile: { streets, buildings, crossings (the tile's OSM crossing items), raised(x, z), seed }. Returns [{ x, z, tx, tz, e1, e2, jx, jz, ri, inbound, oneway }]: the centre,
+// (tx, tz) along the side street away from the junction, e1 / e2 the asphalt either side ((-tz, tx) and back), the junction, the road, and whether traffic arrives along it.
+const ZB_MAIN = new Set(['primary', 'secondary', 'tertiary']), ZB_SIDE = new Set(['residential', 'unclassified', 'living_street']);
+const ZB_DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'service']);
+export function* sideZebrasIter(roads, tile) {
+  const st = tile && tile.streets, out = [];
+  if (!st || !st.aoi || !st.asphalt || !st.asphalt.length) return out;
+  const road = yield* rasterMaskIter([st.asphalt], st.aoi, 2);   // (the mask the paint and src/props.js use: made once)
+  const [x0, z0, x1, z1] = st.aoi, inBounds = (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1, hyp = (a, b) => Math.sqrt(a * a + b * b);
+  const march = (cx, cz, nx, nz, maxd) => { let d = 0; for (let s = 0.3; s <= maxd; s += 0.3) { if (!road(cx + nx * s, cz + nz * s)) break; d = s; } return d; };
+  // how built-up a spot is (src/props.js builtUp: the share of the 120 m square round it covered by the tile's buildings)
+  const BU = 40, bCov = new Map();
+  for (const b of tile.buildings || []) {
+    const q = pairs(b.p); let a0 = 1e9, a1 = -1e9, c0 = 1e9, c1 = -1e9;
+    for (const [x, z] of q) { if (x < a0) a0 = x; if (x > a1) a1 = x; if (z < c0) c0 = z; if (z > c1) c1 = z; }
+    const k = Math.floor((a0 + a1) / 2 / BU) * 4096 + Math.floor((c0 + c1) / 2 / BU); bCov.set(k, (bCov.get(k) || 0) + Math.abs(signedArea(q)));
+  }
+  const builtUp = (x, z) => {
+    const ci = Math.floor(x / BU), cj = Math.floor(z / BU); let a = 0;
+    for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) a += bCov.get(i * 4096 + j) || 0;
+    const fx = (Math.min((ci + 2) * BU, x1 + 6) - Math.max((ci - 1) * BU, x0 - 6)) / (3 * BU), fz = (Math.min((cj + 2) * BU, z1 + 6) - Math.max((cj - 1) * BU, z0 - 6)) / (3 * BU);
+    return Math.max(0, Math.min(1, (a / (9 * BU * BU * Math.max(0.35, fx * fz)) - 0.05) / 0.1));
+  };
+  const raised = tile.raised || (() => false);
+  // the junctions, in the order src/props.js finds them
+  const juncs = new Map();
+  roads.forEach((r, ri) => {
+    if (!ZB_DRIVE.has(r.k)) return;
+    const p = pairs(r.p);
+    for (const v of [p[0], p[p.length - 1], ...p.slice(1, -1)]) {
+      const key = Math.round(v[0] * 10) + ',' + Math.round(v[1] * 10); let j = juncs.get(key);
+      if (!j) juncs.set(key, j = { x: v[0], z: v[1], roads: new Set(), n: 0 });
+      j.roads.add(ri); j.n++;
+    }
+  });
+  yield;
+  const done = (tile.crossings || []).filter(c => !(c.cr === 'unmarked' || c.den === 'unmarked')).map(c => [c.x, c.z]);   // the marked OSM crossings are zebras already
+  const zr = rng(tile.seed || 0);
+  for (const j of juncs.values()) {
+    if (j.roads.size < 2 && j.n < 3) continue;
+    let arms = 0, main = false;
+    for (const ri of j.roads) { const r = roads[ri], q = r.p, last = q.length - 2; let ix = -1; for (let i = 0; i < q.length; i += 2) if (Math.abs(q[i] - j.x) < 0.2 && Math.abs(q[i + 1] - j.z) < 0.2) { ix = i; break; } arms += ix === 0 || ix === last ? 1 : 2; if (ZB_MAIN.has(r.k)) main = true; }
+    if (!main || arms < 3) continue;
+    for (const ri of j.roads) {
+      const r = roads[ri]; if (!ZB_SIDE.has(r.k) || r.br || r.tn) continue;
+      const p = pairs(r.p), idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx !== 0 && idx !== p.length - 1) continue;   // (the street has to end here)
+      const o = idx === 0 ? p[1] : p[p.length - 2], L = hyp(o[0] - j.x, o[1] - j.z), pick = zr(); if (L < 9) continue;
+      const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, wAt = d => { const x = j.x + tx * d, z = j.z + tz * d; return march(x, z, -tz, tx, 9) + march(x, z, tz, -tx, 9); };
+      const wref = Math.min(15, wAt(Math.min(L - 1, 30)));   // the street's own width, well in
+      let cx = 0, cz = 0, ok = false;
+      for (let d = 4; d <= Math.min(24, L - 3); d += 0.5) {   // past the flare of the mouth (a street meeting the main road at a slant is wide there, zw18 for 20 m): the first spot where it is its own width, and a step further
+        const w = wAt(d);
+        if (w >= 4.5 && w <= wref + 1.5) { cx = j.x + tx * (d + 1.2); cz = j.z + tz * (d + 1.2); ok = true; break; }
+      }
+      // a town street (houses round it, or a pavement within 3 m of its asphalt) always has its crossing; a country lane one time in two
+      const town = ok && (builtUp(cx, cz) >= 0.4 || [1, -1].some(sg => { const e = march(cx, cz, -tz * sg, tx * sg, 9); for (let q = 0.6; q <= 3; q += 0.6) if (raised(cx - tz * sg * (e + q), cz + tx * sg * (e + q))) return true; return false; }));
+      if (!ok || (!town && pick > 0.5) || done.some(d => hyp(d[0] - cx, d[1] - cz) < 9) || !road(cx, cz) || !inBounds(cx, cz) || fastAt(r, cx, cz)) continue;
+      const e1 = march(cx, cz, -tz, tx, 9), e2 = march(cx, cz, tz, -tx, 9);
+      if (e1 + e2 < 4.5 || e1 + e2 > 16) continue;
+      // traffic arrives at the junction along it unless it is one way out of the junction (o 1: along the line's own order)
+      const inbound = !(r.o === 1 && idx === 0) && !(r.o === -1 && idx === p.length - 1);
+      out.push({ x: cx, z: cz, tx, tz, e1, e2, jx: j.x, jz: j.z, ri, inbound, oneway: !!r.o });
+      done.push([cx, cz]);
+    }
+  }
+  return out;
+}
+
 // roads: tile roads[]; crossings: tile props items (k 'crossing', x, z); skip(x, z) -> true where something else already paints the road (the centro, src/roadwear.js);
-// tile: { streets, signals } for the asphalt raster and the traffic signals (both optional). Returns a Group (or null when there is nothing to paint).
+// tile: { streets, signals, zebras } for the asphalt raster, the traffic signals and the side-street zebras (sideZebrasIter) (all optional). Returns a Group (or null when there is nothing to paint).
 export function* roadMarksIter(roads, crossings, skip, tile) {
   const cell = 24, grid = new Map(), segs = [];
   const cw = r => r.cw || CAR_W[r.k] || 0;
@@ -402,6 +474,28 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
   // the same asphalt mask (src/props.js asks for it next, so it is made once) for the width of the ordinary streets: see `thin` below
   const amask = mask || (tile && tile.streets && tile.streets.aoi && tile.streets.asphalt && tile.streets.asphalt.length ? yield* rasterMaskIter([tile.streets.asphalt], tile.streets.aoi, 2) : null);
   let seed = 12345; const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  // The zebras on the tile's roads: the OSM crossings painted at the end, and the side streets' (tile.zebras, drawn by src/props.js). No line runs through one: the lines stop
+  // ZB_CLEAR m short of its middle, so a solid approach line ends at it as it does at a junction, and a stop line is put beside it, never on it.
+  const ZB_CLEAR = 2.2, zgrid = new Map(), osmZ = [];
+  const addZ = z => { const k = Math.floor(z.x / cell) * 100003 + Math.floor(z.z / cell); let a = zgrid.get(k); if (!a) zgrid.set(k, a = []); a.push(z); };
+  for (const c of crossings || []) {   // zebra crossings at OSM crossing nodes, snapped onto the nearest road's centre line
+    let best = null, bd = 6;
+    const a = grid.get(Math.floor(c.x / cell) * 100003 + Math.floor(c.z / cell)) || [];
+    for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].j === 'roundabout')) { bd = d; best = s; } }
+    if (!best || fastAt(roads[best.id], c.x, c.z) || (skip && skip(c.x, c.z))) continue;   // (a fast road has no zebra in the middle of its carriageway)
+    const dx = best.x1 - best.x0, dz = best.z1 - best.z0, L = Math.sqrt(dx * dx + dz * dz) || 1, tx = dx / L, tz = dz / L;
+    const t0 = Math.max(0, Math.min(L, (c.x - best.x0) * tx + (c.z - best.z0) * tz)), z = { x: best.x0 + tx * t0, z: best.z0 + tz * t0, tx, tz, e1: best.hw, e2: best.hw };
+    osmZ.push(z); addZ(z);
+  }
+  for (const z of (tile && tile.zebras) || []) addZ(z);
+  const zebraAt = (x, z, along = ZB_CLEAR) => {   // the zebra this spot is on (within `along` m of its middle along its road, across it to its edges and a little), or null
+    const ci = Math.floor(x / cell), cj = Math.floor(z / cell);
+    for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) for (const q of zgrid.get(i * 100003 + j) || []) {
+      const dx = x - q.x, dz = z - q.z, u = dx * q.tx + dz * q.tz, v = -dx * q.tz + dz * q.tx;
+      if (Math.abs(u) < along && v < q.e1 + 0.6 && v > -q.e2 - 0.6) return q;
+    }
+    return null;
+  };
   let n = 0;
   for (let id = 0; id < roads.length; id++) {
     const r = roads[id], w = cw(r);
@@ -416,7 +510,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     }
     if (S.length < 3) continue;
     const m = S.length, hwr = w / 2, lane = isLane(r), fastOpen = lane ? S.map(s => !builtAt(s.x, s.z)) : null;   // fastOpen: where a lane is a fast road (nothing built beside it)
-    const blocked = S.map(s => (skip && skip(s.x, s.z)) || !clear(s.x, s.z, id, hwr + 2.2));
+    const blocked = S.map(s => (skip && skip(s.x, s.z)) || !clear(s.x, s.z, id, hwr + 2.2) || zebraAt(s.x, s.z) !== null);   // (a junction, the centro or a zebra)
     const near = new Array(m).fill(1e9);   // metres of arc to the nearest blocked sample
     for (let i = 0, d = 1e9; i < m; i++) { d = blocked[i] ? 0 : d + SAMPLE; near[i] = d; }
     for (let i = m - 1, d = 1e9; i >= 0; i--) { d = blocked[i] ? 0 : d + SAMPLE; if (d < near[i]) near[i] = d; }
@@ -450,6 +544,15 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       thin = S.map((s, i) => { let t = 0, k = 0; for (let j = Math.max(0, i - 3); j <= Math.min(m - 1, i + 3); j++) if (wd[j] >= 0) { t += wd[j]; k++; } return k >= 3 && t / k < THIN; });
       if (!thin.some(Boolean)) thin = null;
     }
+    // where no asphalt lies anywhere across the carriageway there is no paint (a road over a paved square, or one in a closed area that the street layers leave as ground);
+    // a sample within a metre of the tile's edge counts as paved, so a line does not break at the border
+    let bare = null;
+    if (amask) {
+      const ao = tile.streets.aoi, offs = [0, w / 4, -w / 4, w / 2 - 0.3, 0.3 - w / 2];
+      bare = S.map(s => s.x > ao[0] + 1 && s.x < ao[2] - 1 && s.z > ao[1] + 1 && s.z < ao[3] - 1 && !offs.some(o => amask(s.x - s.tz * o, s.z + s.tx * o)));
+      if (!bare.some(Boolean)) bare = null;
+    }
+    const bareAt = a => bare !== null && bare[Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE)))];
     const freeAt = a => { const i = Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE))); return !blocked[i]; };
     // f across the carriageway; mode 'dash' | 'solid' | 'centre' (dashed, solid for the last APPROACH m before a junction)
     const openAt = a => !fastOpen || fastOpen[Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE)))];
@@ -459,6 +562,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
         for (let a = a0; a < a1 - 0.6; a += 6) {
           const b = Math.min(a1, a + 6); if (!(freeAt(a) && freeAt((a + b) / 2) && freeAt(b))) continue;
           if (onlyOpen && !(openAt(a) && openAt(b))) continue;
+          if (bareAt((a + b) / 2)) continue;
           const p = pos(a, f), q = pos(b, f); if (rng() < 0.04) continue;
           quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng());
         }
@@ -469,6 +573,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
         const dm = (d0 + d1) / 2, i = Math.min(m - 1, Math.max(0, Math.round((dm - a0) / SAMPLE)));
         if (blocked[i] || !freeAt(d0) || !freeAt(d1)) continue;
         if (thin && f > 0 && f < 1 && thin[i]) continue;   // a lane too narrow for two
+        if (bare && bare[i]) continue;
         if (mode === 'centre' && near[i] < APPROACH) continue;   // the approach line paints here instead
         if (rng() < 0.07) continue;   // a few dashes have worn away
         const p = pos(d0, f), q = pos(d1, f);
@@ -476,8 +581,8 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       }
       if (mode === 'centre') {   // the approach: solid from the junction back APPROACH m
         for (let i = 0; i + 1 < m;) {
-          if (blocked[i] || near[i] >= APPROACH || (thin && thin[i])) { i++; continue; }
-          let j = i; while (j + 1 < m && !blocked[j + 1] && near[j + 1] < APPROACH && !(thin && thin[j + 1]) && S[j + 1].a - S[i].a < 6) j++;
+          if (blocked[i] || near[i] >= APPROACH || (thin && thin[i]) || (bare && bare[i])) { i++; continue; }
+          let j = i; while (j + 1 < m && !blocked[j + 1] && near[j + 1] < APPROACH && !(thin && thin[j + 1]) && !(bare && bare[j + 1]) && S[j + 1].a - S[i].a < 6) j++;
           if (j > i) { const p = pos(S[i].a, f), q = pos(S[j].a, f); quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng()); }
           i = j + 1;
         }
@@ -508,14 +613,19 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       let bi = -1, bd = 1e9; for (let i = 0; i + 3 < p.length; i += 2) { const d = distSeg(sg.x, sg.z, { x0: p[i], z0: p[i + 1], x1: p[i + 2], z1: p[i + 3] }); if (d < bd) { bd = d; bi = i; } }
       for (const dir of [1, -1]) {   // leave the node along the road in each direction; the traffic comes the other way
         if (r.o === 1 && dir === 1 || r.o === -1 && dir === -1) continue;   // a one-way road: only the leg the traffic arrives along (it travels toward the node)
-        let rem = STOP_BACK, x = sg.x, z = sg.z, i = dir > 0 ? bi + 2 : bi, ok = false, tx = 0, tz = 0;
-        for (let guard = 0; guard < 30; guard++) {
-          if (i < 0 || i + 1 >= p.length) break;
-          const nx = p[i], nz = p[i + 1], L = Math.hypot(nx - x, nz - z);
-          if (L >= rem) { tx = (nx - x) / (L || 1); tz = (nz - z) / (L || 1); x += tx * rem; z += tz * rem; ok = true; break; }
-          rem -= L; x = nx; z = nz; i += dir * 2;
-        }
-        if (!ok || (skip && skip(x, z))) continue;
+        let x = 0, z = 0, ok = false, tx = 0, tz = 0;
+        const walk = back => {   // the point `back` m from the node along this leg
+          let rem = back, i = dir > 0 ? bi + 2 : bi; x = sg.x; z = sg.z; ok = false;
+          for (let guard = 0; guard < 30; guard++) {
+            if (i < 0 || i + 1 >= p.length) break;
+            const nx = p[i], nz = p[i + 1], L = Math.hypot(nx - x, nz - z);
+            if (L >= rem) { tx = (nx - x) / (L || 1); tz = (nz - z) / (L || 1); x += tx * rem; z += tz * rem; ok = true; break; }
+            rem -= L; x = nx; z = nz; i += dir * 2;
+          }
+        };
+        // a zebra on the leg near the line (one at the mouth of a side street, an OSM crossing): the line goes back to a metre before it, where the traffic waits off the crossing
+        for (let back = STOP_BACK; back < STOP_BACK + 8; back += 0.5) { walk(back); if (!ok || !zebraAt(x, z, ZB_CLEAR + 0.4)) break; }
+        if (!ok || zebraAt(x, z, ZB_CLEAR + 0.4) || (skip && skip(x, z))) continue;
         let free = true; for (const o of grid.get(Math.floor(x / cell) * 100003 + Math.floor(z / cell)) || []) if (o.id !== s.id && distSeg(sg.x, sg.z, o) > 8 && distSeg(x, z, o) < o.hw + 1.5) { free = false; break; }   // another road, not the ones at the signal itself
         if (!free) continue;
         // (tx, tz) points away from the node; the traffic travels along (-tx, -tz); its right is (tz, -tx) ... in game metres (x east, z south) the right of travel (a, b) is (-b, a)
@@ -527,6 +637,21 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       }
     }
     if (sliceOver()) yield;
+  }
+  // the stop line of a side street with a zebra at its mouth, as at zw18 (Via Bronte): a bar across the lane that arrives, between the zebra and the main road, where the side
+  // street is still clear of the main road's carriageway. A signal's own line (above) stands instead where there is one.
+  if (amask) for (const zc of (tile && tile.zebras) || []) {
+    if (!zc.inbound || (skip && skip(zc.x, zc.z)) || ((tile && tile.signals) || []).some(sg => Math.hypot(sg.x - zc.jx, sg.z - zc.jz) < 25)) continue;
+    const { tx, tz } = zc, rx = tz, rz = -tx;   // the traffic travels along (-tx, -tz), toward the junction; its right is (tz, -tx), the zebra's e2 side
+    for (const back of [3.6, 3.0]) {
+      const x = zc.x - tx * back, z = zc.z - tz * back;
+      if (!amask(x, z) || !clear(x, z, zc.ri, 1)) continue;
+      let eR = 0, eL = 0; for (let s = 0.3; s <= 9 && amask(x + rx * s, z + rz * s); s += 0.3) eR = s; for (let s = 0.3; s <= 9 && amask(x - rx * s, z - rz * s); s += 0.3) eL = s;
+      const c1 = Math.min(eR, zc.e2 + 0.5) - 0.3, c0 = zc.oneway ? -(Math.min(eL, zc.e1 + 0.5) - 0.3) : 0.3;
+      if (c1 - c0 < 1) break;
+      quad(x + rx * c0, z + rz * c0, x + rx * c1, z + rz * c1, 0.2, 0.85 + 0.15 * rng());
+      n++; break;
+    }
   }
   // gore hatching: where a slip road leaves or joins a fast road the wedge between the two carriageways is painted with diagonal bars (the chevrons)
   if (mask) for (let id = 0; id < roads.length; id++) {
@@ -559,16 +684,9 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     }
     if (sliceOver()) yield;
   }
-  // zebra crossings at OSM crossing nodes: bars 0.5 m wide, 3 m long, along the road, across its whole width
-  for (const c of crossings || []) {
-    let best = null, bd = 6;
-    const a = grid.get(Math.floor(c.x / cell) * 100003 + Math.floor(c.z / cell)) || [];
-    for (const s of a) { const d = distSeg(c.x, c.z, s); if (d < bd && s.hw >= 2.5 && !(roads[s.id].br || roads[s.id].j === 'roundabout')) { bd = d; best = s; } }
-    if (!best || fastAt(roads[best.id], c.x, c.z) || (skip && skip(c.x, c.z))) continue;   // (a fast road has no zebra in the middle of its carriageway)
-    const dx = best.x1 - best.x0, dz = best.z1 - best.z0, L = Math.sqrt(dx * dx + dz * dz) || 1, tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
-    const half = best.hw, bars = Math.max(2, Math.floor(half * 2 / 1.0));
-    // snap the centre of the zebra onto the centreline
-    const t0 = Math.max(0, Math.min(L, (c.x - best.x0) * tx + (c.z - best.z0) * tz)), cx = best.x0 + tx * t0, cz = best.z0 + tz * t0;
+  // zebra crossings at OSM crossing nodes (found above): bars 0.5 m wide, 3 m long, along the road, across its whole width
+  for (const zc of osmZ) {
+    const { tx, tz } = zc, nx = -tz, nz = tx, cx = zc.x, cz = zc.z, half = zc.e1, bars = Math.max(2, Math.floor(half * 2 / 1.0));
     for (let b = 0; b < bars; b++) {
       const off = -half + 0.5 + b * ((half * 2 - 1) / Math.max(1, bars - 1));
       const sx = cx + nx * off, sz = cz + nz * off;
