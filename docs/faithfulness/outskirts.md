@@ -51,3 +51,8 @@ top, 1.15 m above the road, with the lane paint showing through it. Now only the
 `tools/bridge-steps.mjs` compares every deck end with the ground its approach is draped on: the long-viaduct rule (deck at least 0.4 m over the ground) had lifted 23
 ends 0.4 to 2 m above their approach, and now leaves the ends at the baked height. Still off by 1 to 3 m: ends whose ground is lowered by another structure's cut
 (the Viale Regione underpass cutting at -6536,-7844, the dips at Piazza Einstein, the quay at the port flyover 355,-748).
+
+The lane's asphalt also stopped about 6 m short of the deck, with bare ground in between. The bake takes the street layers off the ground under every deck
+(`tools/tiles.py`, the decks' `cut_geoms`), and the buffer it used had round caps that reached w / 2 + 0.6 m past each end. The cut is now square at the deck's
+ends (63 tiles patched, street layers only). Each deck end also gets a 1.5 m apron at the deck's height that slopes under the ground (`src/bridges.js`
+buildDeck), so the slab's end no longer shows as a thin grey edge over the terrain, which is drawn 0.2 m under the ground (su17, Viadotto Argonauti).
