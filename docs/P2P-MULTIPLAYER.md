@@ -419,7 +419,7 @@ Next steps if you want to go on, in order: (1) a real test with two phones, one 
 
 - `src/ui.js` pauses the game when the page becomes hidden. Normal and sensible, but it means a player in a background window sends nothing (my tests were silent for a while because of this).
 - The game's `window.game` debug object has no `game` state, which made that hard to spot; not changed.
-- The relay client sends a state only when it changed, p2p sends every 100 ms regardless. Cheap to fix in a real build.
+- The relay client sends a state only when it changed, p2p sent every 100 ms regardless. Fixed on 7 Nov: see "Bytes on the wire, and lag".
 - Names with invalid UTF-8 are accepted with replacement characters.
 - `tools/build/package.json` now lists the three Trystero packages as dev dependencies, used only to rebuild `src/p2p/trystero.js`.
 
@@ -459,3 +459,74 @@ Trystero cannot close the relay sockets after "Gioca da solo": `getRelaySockets(
 - **Arrivals, sound, keys.** "X è vicino" at 60 m (again after 100 m), once a minute per player and once every 6 s overall; a two note blip for a phrase and three for an offer at the game's volume (`game.settings.volume`); Y and N answer the card (shown to keyboard players only, N is the radio's key and the card has it first). `hello.mjs`.
 - **Maps.** Other players are a cyan ring (`#00e1ff`, a shape and a colour nothing else on the maps uses) on the minimap, named for the nearest one when the map is 150 px or wider (not on a phone, where it is 98 px), and on the big map with their names. Only players we are connected to exist (the closest `MAX_PLAYERS`, anywhere in the city; far ones are a ring and a name, see "The closest players"); there is no list of everybody. `maps.mjs`.
 - **Missions.** An offer to a player in a timed mission (`missions.busy()`, except the pub errand, the leaves and the rave) is held: REPLY 6 tells the giver, the card shows 3 s after the mission ends if the giver is still near and the offer stands, and after `HOLD_MS` (120 s) the giver is told the player is busy. `held.mjs`.
+
+## Bytes on the wire, and lag (7 Nov)
+
+Players on mobile data mostly connect through the TURN relay (Metered, shared with the board game), which is paid by the byte, both ways. Before this change a pair of players cost about 2.3 KB/s each way through TURN whatever they did, parked or driving. Now it is about 0.25 KB/s parked and 0.5 KB/s driving, and the other car is drawn 60 ms behind instead of 210 (on a clean link) and 65 to 130 ms instead of 420 to 450 (with loss and jitter). The connection layer shared with the board game (Trystero 0.26, relays, TURN, joining and leaving) is not changed.
+
+### Where the bytes went
+
+A STATE was 13 bytes of game data. Trystero wraps every message in its room token (1 + 2 + 64 bytes: a hex SHA-256 of the app and the room) and its action header (36 bytes: the action name is padded to 32 bytes, so a short name saves nothing), so 116 bytes went into the data channel. SCTP and DTLS add about 65 more, and a TURN relay over UDP another 32 (4 ChannelData, 8 UDP, 20 IPv4). It went 10 times a second to every player within 150 m, moving or not. The receiving end's SCTP acknowledgements rode on its own states. On top of that Chrome checks every connection with STUN (ICE consent): about 1.1 checks a second at each end (requests and answers), about 100 bytes each, and they go through TURN too. Nothing else is periodic: Trystero sends nothing on the data channel between room events.
+
+### What changed
+
+1. **STATE has a channel of its own** (`src/p2p/p2p.js`, top of the file). Both ends open a second data channel on the RTCPeerConnection that Trystero already made for the pair: pre-negotiated on stream 101, unordered, `maxRetransmits: 0`. Pre-negotiated means nothing is signalled: Chrome fires no `negotiationneeded` (checked, `stats.fastNeg` stays 0) and Trystero's code and config are untouched. Trystero shares one RTCPeerConnection between all the rooms of a pair, so the channel is made once per RTCPeerConnection. The channel's real properties, read back in Chrome: `ordered false`, `maxRetransmits 0`, `negotiated true`, id 101. A lost STATE is not sent again and does not hold the next one back, and a message carries none of Trystero's 103 bytes of framing. INFO, SAY and the drink messages stay on Trystero's reliable channel.
+2. **A state goes when the car leaves the predicted path, not 10 times a second.** Sender and receiver run the same `predict()` (`src/predict.js`): the last state carried along an arc of its curvature with its acceleration, stopping at 0. Close by, a new state goes when the car is more than 0.2 m, 2 degrees or 0.5 m/s off that prediction, or the steer, roll, lean, flags or height change; at most every 100 ms (as before) and at least every 1 s while moving, every 2 s parked. Farther out the tolerances grow with the distance over 50 m, and the old least intervals by distance stay (200 ms past 150 m, 1 s past 350 m, 2.5 s past 1200 m).
+3. **The receiver does not wait for the next state.** A state on the new channel carries the sender's clock (ms, 16 bits). The receiver maps it onto its own clock by the fastest delivery seen in the last 10 to 20 s, so the buffer follows the network's jitter (1.5 x jitter + 10 ms, at least 30) and not the time between states, and past the latest state `predict()` carries the car on (up to 1.5 s). A state that moves the path is blended in over 0.2 s as before. The old buffer (gap + 2 x jitter + 30 ms, 150 to 400) is kept for states that come through Trystero.
+4. **INFO once per player**, not once per room the player shares with us; when it changes, to each player through one room.
+5. A bug found on the way, its own commit: the line that faded the correction offset in `src/remotes.js` had slipped into its comment, so a correction stayed in the drawn position until the next teleport.
+
+The new channel's format: HELLO `[9][heard u8]`, FAST `[10][time u16][position 5][heading u16][speed i16, 1/100 m/s][steer i8][roll i8][lean i8][flags u8][curvature i16, 1/10000 per m][accel i8, 1/10 m/s2][height u16]?`: 19 bytes, 21 with a height. Every field is checked as before (`tools/p2p/fuzz.mjs` has cases for it).
+
+### Older clients
+
+Old and new players can meet. A new client says HELLO on the new channel every 0.5 s until the other end answers that it heard it. An older client has no such channel: the browser drops what arrives on stream 101, nothing reaches the game, and after 40 tries (20 s) the new client stops asking. Until a peer has answered, it gets STATE through Trystero exactly as before (format, rate and all), and a new client reads the old STATE as before. So an older client sees and is seen as it was, with the old cost and lag for that pair. `tools/p2p/mixed.mjs` puts an old build and a new one in one spot: they see each other move, no bad messages, no page errors.
+
+### Numbers
+
+`tools/p2p/bytes.mjs` (local relays, one Mac, two or eight real game pages; the car's pose is held by the test so the physics cannot stop it at a wall). Lag is from the moment the sender's car is at a pose to the frame the receiver draws it there, network and buffer included: both pages run on one clock, and each drawn frame is matched to the point of the sender's recorded path nearest to it. The drive: a 160 x 100 m loop, 16 m/s on the straights with a 0.3 m weave, braking at 5 m/s2 to 9 m/s for 25 m corners. "Loss" is done in the sending page: on Trystero's reliable channel a lost packet comes 300 ms late and holds the later ones back, on the new channel it is gone; each message is also held 0 to J ms. Raw output: `~/.cache/palermo-drive/p2pdata/bytes/`.
+
+Bytes per pair per second, one way (through TURN: DTLS bytes plus 32 per packet plus about 132 per ICE check; an estimate, nothing here went through a real TURN server):
+
+| Scenario | Before: DTLS | Before: TURN | After: DTLS | After: TURN | After: messages/s |
+| --- | --- | --- | --- | --- | --- |
+| Two players, both parked | 1854 | 2345 | 88 | 287 | 0.65 |
+| Two players, one drives, one parked | 1817 | 2296 | 225 | 496 | 2.25 |
+| Two players, both drive (sometimes 150 m apart) | 1293 | 1659 | 253 | 509 | 2.55 |
+| Crowd of 8, all parked | 1617 | 2064 | 57 | 240 | 0.5 |
+| Crowd of 8, 4 drive, 4 parked | 1419 | 1839 | 254 | 527 | 2.64 |
+
+Parked, two thirds of what is left is Chrome's ICE consent checks (about 150 B/s each way through TURN), which a page cannot change.
+
+Lag, p50 / p95 in ms, one player drives and the other watches:
+
+| Link | Before: all | After: all | After: steady | After: just after a turn starts | After: just after braking |
+| --- | --- | --- | --- | --- | --- |
+| Clean | 207 / 209 | 59 / 102 | 58 / 62 | 91 / 104 | 54 / 57 |
+| 5 % loss, 0 to 40 ms jitter | 418 / 475 | 65 / 122 | 63 / 67 | 106 / 125 | 58 / 62 |
+| 15 % loss, 0 to 80 ms jitter | 452 / 652 | 119 / 168 | 118 / 128 | 149 / 170 | 114 / 117 |
+
+Both driving (the watcher's own car moving too, often more than 150 m apart, where the old rate halves): before 342 / 391 clean, 460 / 507 at 5 %, 398 / 552 at 15 %; after 60 / 120, 67 / 160 and 132 / 292. No case got worse.
+
+What it costs in looks: the car drawn now follows the prediction between states, so it is off the true path by 0.14 m at p95 (one driving, clean), 0.25 m with both driving, against 0.02 m before when the car was drawn 200 ms late between two real positions. With 15 % loss the largest miss was 1.5 to 2 m before a correction (before: 2.1 m at p95, since a late packet held everything back). Drawn speed over true speed, p1 / p5 / p99: before 0.92 / 0.95 / 1.54, after 0.94 / 0.96 / 1.63 (clean); largest step in one frame 0.33 m before, 0.34 m after (at 16 m/s, 0.27 m a frame). At 15 % loss with both driving there were a few frames at a standstill (p1 0), when two states in a row were lost and the prediction ran past its 1.5 s.
+
+### Per hour through TURN
+
+If every pair is relayed, a group of n players all connected to each other is n(n-1)/2 pairs, two directions each. With the crowd figures (half the players driving: 1839 B/s before, 527 after; all parked: 2064 and 240):
+
+| Players | Before | After, half driving | After, all parked |
+| --- | --- | --- | --- |
+| 2 | 0.013 GB/h | 0.004 GB/h | 0.002 GB/h |
+| 4 | 0.079 GB/h | 0.023 GB/h | 0.010 GB/h |
+| 8 | 0.37 GB/h | 0.11 GB/h | 0.048 GB/h |
+
+That counts each byte once on its way through the relay. How Metered counts (bytes in and out of the relay, or once) is not checked here, and when both players of a pair are behind TURN the bytes can pass through two allocations: the real figure can be up to four times this. For one player's own phone: 7 others in a crowd cost about 7 x 2 x 527 B/s, 27 MB an hour up and down together, against 93 MB before.
+
+### Not done, and limits
+
+- Not checked through a real TURN server: building with the TURN credentials was not possible from here. A short `?p2p&turnonly` check with a build that has TURN (the published one, once this ships) would confirm the numbers; the debug box shows `up` and `down` KB.
+- Not checked in Firefox or Safari. Mozilla had a bug where `maxRetransmits: 0` came out as a reliable channel; the client does not depend on it (it would only be the old behaviour on a cheaper channel), but `__p2p.fastChannel(id)` reads the properties back if anybody wants to look.
+- A lost state is not sent again; the sender does not know. The keepalive (1 s moving) bounds how long the drawn car can follow a wrong guess.
+- Lower rates for a player behind the camera or off screen: not done. The sender does not know where the other player looks, and the distance tolerances already cover most of it.
+- Batching: nothing to batch. Each player is its own connection, and INFO, SAY and offers are rare. SCTP already puts what goes out together in one packet.
+- The test drive is scripted and smooth. A real player's small steering corrections will make more states than this loop (more weave, more corrections); a real session's numbers should be read from the debug box.

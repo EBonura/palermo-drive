@@ -1,14 +1,19 @@
 // Other players drawn in the world: their own vehicle (a lapa unless the feed names another) with a name tag and a minimap dot, positions interpolated from a few snapshots.
 // Shared by src/net.js (relay) and src/p2p/p2p.js (peer to peer). They feed it: ensure(id), setInfo(r, name, livery[, vehicle]), addSnap(r, snap),
 // retire(r) / remove(id) when somebody leaves; the owner calls update(dt, now) every frame.
-// A snapshot is { t (performance.now), x, z, th, v, steer, roll, lean, fl }: fl bit0 nitro.
+// A snapshot is { t (performance.now), x, z, th, v, steer, roll, lean, fl }: fl bit0 nitro. A snapshot with ts (the sender's own clock, ms) also has k (the curvature of its
+// path, 1/m) and a (its acceleration, m/s2): the sender sends it only when the car's path stops following predict() (src/predict.js, src/p2p/p2p.js), so the receiver draws it just behind
+// its latest snapshot, carried on by predict(), and its buffer follows the network's jitter, not the time between snapshots.
 import * as THREE from 'three';
 import { LIVERIES as ALL_LIVERIES } from './garage.js';
+import { predict } from './predict.js';
 
 const DELAY = 150;             // interpolation buffer, ms: the least. Each remote's own buffer follows how often its snapshots really come (gap and jitter, below), so a car
 const DELAY_MAX = 400;         // at most this far behind: every link is direct or through TURN at the full rate (the 3 a second relay fallback is gone), so a longer buffer only adds lag
 const EXTRAP = 250;            // longest extrapolation, ms (or one and a half times the usual gap between snapshots, if longer, up to EXTRAP_MAX)
 const EXTRAP_MAX = 800;
+const DELAY_SYNC = 30;         // the least buffer for a car with the sender's clock (ts): the latest snapshot is carried on by predict(), so the buffer only takes the network's jitter
+const EXTRAP_SYNC = 1500;      // how far predict() carries such a car past its latest snapshot (the sender sends at least once a second while moving, src/p2p/p2p.js)
 const SMOOTH = 0.2;            // seconds: when a new snapshot moves the path (a guess that was wrong, a late one), the car glides to it over about this long instead of jumping
 const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
@@ -18,14 +23,17 @@ export const PLAYER_DOT = '#00e1ff';   // other players on the maps: a cyan RING
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const wrapPI = a => a - TAU * Math.floor((a + Math.PI) / TAU);
 
+
 export function createRemotes(env) {
   const { scene, camera, groundY, raisedMask, CURB, vehicle, mapMarkers } = env;
   const remotes = new Map(), dying = [];
 
   function addSnap(r, s) {
+    if (s.ts !== undefined) return addSync(r, s);
     const l = r.snaps[r.snaps.length - 1];
     s.arr = s.t;
     let before = null;
+    if (r.sync) { r.sync = false; r.gap = 0; }   // the sender's clock stopped coming (its fast channel closed): back to arrival times
     if (l) {
       const gap = s.t - l.arr, d = Math.hypot(s.x - l.x, s.z - l.z);
       // when it was really there: the arrival time carries the network's jitter (on the relays tens of ms in a gap of 300), which would show as a car that surges and brakes.
@@ -41,6 +49,34 @@ export function createRemotes(env) {
     r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
     r.have = true;
     // where the car is drawn must not jump because a snapshot arrived (a guess that was off, or a late one): the difference goes into an offset that fades over SMOOTH seconds. A teleport is not smoothed
+    if (before) {
+      const after = sample(r, s.arr);
+      r.ox += before.x - after.x; r.oz += before.z - after.z; r.oth += wrapPI(before.th - after.th);
+      if (Math.hypot(r.ox, r.oz) > 12) r.ox = r.oz = r.oth = 0;
+    } else r.ox = r.oz = r.oth = 0;
+  }
+
+  // A snapshot with the sender's clock: its time is the sender's, moved onto ours by the smallest delay seen in the last 10 to 20 s (the fastest a message went), so the
+  // network's jitter is the lateness of a snapshot over that, and the buffer is sized from it. The time between snapshots does not matter: past the latest one predict() goes on.
+  function addSync(r, s) {
+    s.arr = s.t;
+    const o = s.arr - s.ts;
+    if (!r.sync) { r.sync = true; r.offA = r.offB = o; r.offT = s.arr; r.jit = 10; }   // the buffer comes down from where it was at follow()'s pace, never with a jump
+    if (s.arr - r.offT > 10000) { r.offB = r.offA; r.offA = o; r.offT = s.arr; }   // two windows, so a lasting change of the path's delay is taken within 20 s
+    r.offA = Math.min(r.offA, o);
+    const off = Math.min(r.offA, r.offB), late = o - off;
+    r.jit += (late - r.jit) * (late > r.jit ? 0.3 : 0.03);
+    s.t = s.ts + off;
+    const l = r.snaps[r.snaps.length - 1];
+    let before = null;
+    if (l) {
+      const gap = s.t - l.t, d = Math.hypot(s.x - l.x, s.z - l.z);
+      if (gap <= 0) return;   // older than what we have (the channel does not keep the order)
+      if (d > 25 + 0.045 * gap) r.snaps.length = 0;   // teleport
+      else { if (r.model) before = sample(r, s.arr); if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: Math.max(l.t + 1, s.t - 100) }); }
+    }
+    r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
+    r.have = true;
     if (before) {
       const after = sample(r, s.arr);
       r.ox += before.x - after.x; r.oz += before.z - after.z; r.oth += wrapPI(before.th - after.th);
@@ -161,7 +197,9 @@ export function createRemotes(env) {
     while (s.length > 2 && s[1].t <= rt) s.shift();
     const a = s[0], b = s[1];
     if (!b || rt >= b.t) {
-      const l = s[s.length - 1], dt = clamp(rt - l.t, 0, clamp(r.gap * 1.5, EXTRAP, EXTRAP_MAX)) / 1000;
+      const l = s[s.length - 1];
+      if (r.sync) { const p = predict(l, clamp(rt - l.t, 0, EXTRAP_SYNC) / 1000); return { x: p.x, z: p.z, th: p.th, v: p.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl, h: l.h || 0 }; }
+      const dt = clamp(rt - l.t, 0, clamp(r.gap * 1.5, EXTRAP, EXTRAP_MAX)) / 1000;
       return { x: l.x + Math.sin(l.th) * l.v * dt, z: l.z + Math.cos(l.th) * l.v * dt, th: l.th, v: l.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl, h: l.h || 0 };
     }
     if (rt <= a.t) return a;
@@ -183,15 +221,15 @@ export function createRemotes(env) {
   // the buffer follows the snapshots, gently: every ms it grows is a ms of slow motion and every ms it shrinks one of hurry, so it moves at 150 ms a second up (the car at 85 %)
   // and 60 down (106 %), and only when it is clearly off
   function follow(r, dt) {
-    const want = clamp(r.gap + 2 * r.jit + 30, DELAY, DELAY_MAX), off = want - r.delay;
-    if (off > 20) r.delay += Math.min(off, 150 * dt); else if (off < -40) r.delay -= Math.min(-off, 60 * dt);
+    const want = r.sync ? clamp(1.5 * r.jit + 10, DELAY_SYNC, DELAY_MAX) : clamp(r.gap + 2 * r.jit + 30, DELAY, DELAY_MAX), off = want - r.delay;
+    if (off > 20) r.delay += Math.min(off, 150 * dt); else if (off < (r.sync ? -10 : -40)) r.delay -= Math.min(-off, 60 * dt);   // with the sender's clock the buffer is small, and comes down closer to what it needs
   }
 
     function poseRemote(r, dt, now) {
     const m = r.model; if (!m || !r.snaps.length) return;
     follow(r, dt);
     const p = sample(r, now);
-    const fade = Math.exp(-dt / SMOOTH);   // the offset left by a snapshot that moved the path (addSnap) r.ox *= fade; r.oz *= fade; r.oth *= fade;
+    const fade = Math.exp(-dt / SMOOTH); r.ox *= fade; r.oz *= fade; r.oth *= fade;   // the offset left by a snapshot that moved the path (addSnap)
     p.x += r.ox; p.z += r.oz; p.th += r.oth;
     // height over the ground: a curb, or what the sender says (a bridge deck, a roof, the air), brought along with the same interpolation as x and z, then eased a little
     const gy = groundY(p.x, p.z), lt = Math.max(p.h || 0, raisedMask(p.x, p.z) ? CURB : 0);
