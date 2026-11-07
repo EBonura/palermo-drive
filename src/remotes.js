@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { LIVERIES as ALL_LIVERIES } from './garage.js';
 
 const DELAY = 150;             // interpolation buffer, ms: the least. Each remote's own buffer follows how often its snapshots really come (gap and jitter, below), so a car
-const DELAY_MAX = 800;         // sent 3 times a second (the relay fallback, src/p2p/fallback.js) is drawn about half a second late but between real positions, not guessed
+const DELAY_MAX = 400;         // at most this far behind: every link is direct or through TURN at the full rate (the 3 a second relay fallback is gone), so a longer buffer only adds lag
 const EXTRAP = 250;            // longest extrapolation, ms (or one and a half times the usual gap between snapshots, if longer, up to EXTRAP_MAX)
 const EXTRAP_MAX = 800;
 const SMOOTH = 0.2;            // seconds: when a new snapshot moves the path (a guess that was wrong, a late one), the car glides to it over about this long instead of jumping
@@ -181,10 +181,10 @@ export function createRemotes(env) {
     return { x, z, th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl, h: m(a.h || 0, b.h || 0) };
   }
   // the buffer follows the snapshots, gently: every ms it grows is a ms of slow motion and every ms it shrinks one of hurry, so it moves at 150 ms a second up (the car at 85 %)
-  // and 30 down (103 %), and only when it is clearly off
+  // and 60 down (106 %), and only when it is clearly off
   function follow(r, dt) {
     const want = clamp(r.gap + 2 * r.jit + 30, DELAY, DELAY_MAX), off = want - r.delay;
-    if (off > 20) r.delay += Math.min(off, 150 * dt); else if (off < -60) r.delay -= Math.min(-off, 30 * dt);
+    if (off > 20) r.delay += Math.min(off, 150 * dt); else if (off < -40) r.delay -= Math.min(-off, 60 * dt);
   }
 
     function poseRemote(r, dt, now) {
