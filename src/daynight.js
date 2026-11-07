@@ -378,7 +378,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   };
   let lamps = null; // { halo: Points, haloMat, pools: InstancedMesh, poolMat, pos: Float32Array of bulb xyz }
   // props.js builds lamps per tile as tiles stream in and out and says so with 'pd-lamps-changed': the glows are rebuilt from the scene (at most every 1.5 s)
-  let lampsStale = false, lampsAt = -9, fieldDone = false;
+  let lampsStale = false, lampsAt = -9, field = null;   // field: the light field below, its texture and the lamp pools painted on it
   addEventListener('pd-lamps-changed', () => { lampsStale = true; });
   // The two lamp materials and the pool quad are made once, kept across rebuilds and compiled while the game loads (the end of createDayNight).
   const haloMat = new THREE.ShaderMaterial({
@@ -427,29 +427,48 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     });
     // light field over the centro: red = lamps (soft discs), green = streets (soft bands). Sampled by the wash shader, so the ground and the
     // facades glow orange where lamps overlap and along every street, and only fall to navy far from them.
-    if (!fieldDone) try { // the light field covers the baked centro only and is built once
-      fieldDone = true;
-      const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
-      const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
-      const g = cv.getContext('2d'), paintField = () => { g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
-      const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);
-      for (const r of D.roads) {
-        if (!DRIVE.has(r.k)) continue;
-        for (const [wk, a] of [[2.6, 0.16], [1.7, 0.16], [1.0, 0.16]]) {
-          g.strokeStyle = `rgba(0,255,0,${a})`; g.lineWidth = (r.w + 5) * wk * S; g.beginPath();
-          for (let i = 0; i < r.p.length; i += 2) g[i ? 'lineTo' : 'moveTo']((r.p[i] - X0) * S, (r.p[i + 1] - Z0) * S);
-          g.stroke();
-        }
+    // The streets go on once; a lamp's disc goes on the first time its tile is in (a game started at night builds this before any tile has loaded).
+    // 'lighter' adds and clamps, so discs added later give the same pixels as all of them painted at once.
+    if (field !== false) try {
+      if (!field) {
+        const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
+        const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
+        const g = cv.getContext('2d'), DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);
+        const disc = (px, pz, pr) => {
+          const x = (px - X0) * S, z = (pz - Z0) * S, rad = pr * 1.1 * S, gr = g.createRadialGradient(x, z, 0, x, z, rad);
+          gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
+          g.fillStyle = gr; g.fillRect(x - rad, z - rad, rad * 2, rad * 2);
+        };
+        const paintField = () => {   // everything known so far: the first paint, and again on a restored GL context
+          g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height); g.globalCompositeOperation = 'lighter'; g.lineCap = g.lineJoin = 'round';
+          for (const r of D.roads) {
+            if (!DRIVE.has(r.k)) continue;
+            for (const [wk, a] of [[2.6, 0.16], [1.7, 0.16], [1.0, 0.16]]) {
+              g.strokeStyle = `rgba(0,255,0,${a})`; g.lineWidth = (r.w + 5) * wk * S; g.beginPath();
+              for (let i = 0; i < r.p.length; i += 2) g[i ? 'lineTo' : 'moveTo']((r.p[i] - X0) * S, (r.p[i + 1] - Z0) * S);
+              g.stroke();
+            }
+          }
+          for (let i = 0; i < field.pools.length; i += 3) disc(field.pools[i], field.pools[i + 1], field.pools[i + 2]);
+        };
+        field = { pools: [], seen: new Set(), disc, x0: X0 - 12, z0: Z0 - 12, x1: X0 + W + 12, z1: Z0 + H + 12 };   // the field's box and a disc's reach past its edge
+        paintField();
+        const tex = freeCanvas(new THREE.CanvasTexture(cv), paintField); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+        tex.flipY = false;   // the shader reads v = (z - z0) / height, canvas row 0 at z0: flipped (three's default) the field lay mirrored north to south
+        tex.onUpdate = null;   // keep the canvas (freeCanvas would shrink it once uploaded): later tiles paint their lamps on it
+        field.tex = tex; LT.value = tex; LB.value.set(X0, Z0, 1 / (cv.width / S), 1 / (cv.height / S));
       }
-      for (let i = 0; i < poolM.length / 4; i++) {
-        const x = (poolM[i * 4] - X0) * S, z = (poolM[i * 4 + 2] - Z0) * S, rad = poolM[i * 4 + 3] * 1.1 * S, gr = g.createRadialGradient(x, z, 0, x, z, rad);
-        gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
-        g.fillStyle = gr; g.fillRect(x - rad, z - rad, rad * 2, rad * 2);
-      } };
-      paintField();
-      const fW = cv.width, fH = cv.height, tex = freeCanvas(new THREE.CanvasTexture(cv), paintField); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-      LT.value = tex; LB.value.set(X0, Z0, 1 / (fW / S), 1 / (fH / S));
-    } catch (e) { console.warn('[daynight] lamp field skipped', e); }
+      let added = 0;
+      for (let i = 0; i < poolM.length; i += 4) {
+        const x = poolM[i], z = poolM[i + 2];
+        if (x < field.x0 || z < field.z0 || x > field.x1 || z > field.z1) continue;
+        const k = Math.round(x * 10) + ',' + Math.round(z * 10);   // the same lamp every time its tile comes back (tiles are seeded), so it is painted once
+        if (field.seen.has(k)) continue;
+        field.seen.add(k); field.pools.push(x, z, poolM[i + 3]);
+        field.disc(x, z, poolM[i + 3]); added++;   // (the canvas is still in 'lighter' from paintField)
+      }
+      if (added) field.tex.needsUpdate = true;
+    } catch (e) { console.warn('[daynight] lamp field skipped', e); field = false; }   // and not tried again
     const n = bulbs.length / 3, np = poolM.length / 4;
     if (!n) return { none: true };
     const geo = new THREE.BufferGeometry();
