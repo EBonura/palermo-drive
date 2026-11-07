@@ -7,6 +7,8 @@ road draped over whatever the ground model said). Here every structure becomes a
   {id, k: 'b'|'t', p: [x,z,...] centreline, w: deck width, cw: carriageway width, ly: layer, n: name, hw: highway kind,
    rv: [[x,z,...], ...] river lines near the deck (bridges only), rw: river width, rf: per river vertex the lowest ground across the valley floor (the line cut into <= 8 m pieces by the bake), dep: metres from the deck down to the river bed,
    ov: 1 when the bridge goes over another road (a flyover: ramps and clearance instead of a trench), oc: metres along the deck where the lower roads cross under it, ud: for every crossing {s, w: the lower road's width, c: metres along p to the crossing, p: its line round the crossing, f: the ground under p (add_heights)},
+   xc: (tunnels) [[metres along p, width along p], ...] of the surface roads that cross over it, xg: per crossing the lowest ground round it (add_heights),
+   ap: (tunnels with xc) [start, end]: the road leaving each mouth, outward, AP_LEN m [x,z,...] (src/bridges.js sinks it into a ramp where the tunnel has to go deeper to pass under a road),
    ow: 1 one-way, f: 1 footway}
 
 The records go into every tile the structure (buffered) touches; the runtime keeps one copy per id. Heights are NOT baked: the deck
@@ -26,6 +28,10 @@ SIDEWALK = 1.2            # pavement each side of a vehicle deck, metres
 PARAPET = 0.5
 DIP_CLEAR = 8.0   # metres from the edge of the lower road to either end of the deck that the sinking road needs
 DIP_HALF, DIP_STEP = 56.0, 8.0   # a lower road is followed this far each side of a flyover, with a vertex every DIP_STEP metres (it sinks where it passes under)
+AP_LEN, AP_STEP = 80.0, 8.0   # a tunnel's approach roads are followed this far out of each mouth (a ramp at 10 % from 8 m down), a vertex every AP_STEP metres
+XG_ALONG, XG_ACROSS = 1.5, 5.0   # xg: the ground is read across the crossing road's width plus XG_ALONG, and out to XG_ACROSS beyond each side of the tunnel
+SURFACE = ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "motorway_link", "trunk_link",
+           "primary_link", "secondary_link", "tertiary_link")
 
 
 def river_width(t):
@@ -49,12 +55,14 @@ def build_structures(structs, waterways, roads, dem=None, log=print):
     wl = [w for w, t in waterways if t.get("tunnel") not in ("yes", "culvert") and t.get("covered") != "yes"]
     wt = [t for w, t in waterways if t.get("tunnel") not in ("yes", "culvert") and t.get("covered") != "yes"]
     wtree = STRtree(wl) if wl else None
-    lower = [(rec, ls) for rec, ls in roads if not rec.get("tn") and rec["k"] in ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified",
-                                                                                    "residential", "living_street", "service", "motorway_link", "trunk_link",
-                                                                                    "primary_link", "secondary_link", "tertiary_link")]
+    lower = [(rec, ls) for rec, ls in roads if not rec.get("tn") and rec["k"] in SURFACE]
     rl = [ls for rec, ls in lower]
     rtree = STRtree(rl) if rl else None
-    out, n_riv, n_over = [], 0, 0
+    over = [(rec, ls) for rec, ls in roads if not rec.get("tn") and not rec.get("br") and rec["k"] in SURFACE + ("pedestrian",)]   # what can cross over a tunnel at ground level
+    ol = [ls for rec, ls in over]
+    otree = STRtree(ol) if ol else None
+    out, n_riv, n_over, n_xc = [], 0, 0, 0
+    mouths = [pt[:2] for line, t, kind, cw in structs if kind == "t" for pt in (line.coords[0], line.coords[-1])]   # an approach stops at the next tunnel
     for line, t, kind, cw in structs:
         L = line.length
         if L < (MIN_BRIDGE if kind == "b" else MIN_TUNNEL):
@@ -136,10 +144,68 @@ def build_structures(structs, waterways, roads, dem=None, log=print):
                     if len(ud) == len(oc):
                         rec["ud"] = ud
                     n_over += 1
+        elif not rec.get("f") and otree is not None:   # a tunnel: the roads and squares that cross over it at ground level, and the roads out of its mouths
+            xc = []
+            for i in otree.query(line):
+                g, lrec = ol[i], over[i][0]
+                if not g.crosses(line):
+                    continue
+                q = g.intersection(line)
+                for pt in ([q] if q.geom_type == "Point" else [x for x in getattr(q, "geoms", []) if x.geom_type == "Point"]):
+                    s = line.project(pt)
+                    if 2.0 < s < L - 2.0 and not any(abs(s - c[0]) < 2.0 for c in xc):
+                        # the width the road covers along the tunnel: a road that crosses at a slant (the Viale's side road over the Via Belgio link) reaches further
+                        gs = g.project(pt)
+                        a0, a1, b0, b1 = line.interpolate(max(0.0, s - 2.0)), line.interpolate(min(L, s + 2.0)), g.interpolate(max(0.0, gs - 2.0)), g.interpolate(min(g.length, gs + 2.0))
+                        ux, uz, vx, vz = a1.x - a0.x, a1.y - a0.y, b1.x - b0.x, b1.y - b0.y
+                        sin = abs(ux * vz - uz * vx) / ((math.hypot(ux, uz) * math.hypot(vx, vz)) or 1.0)
+                        xc.append([round(s, 1), round(lrec["w"] / max(sin, 0.35), 1)])
+            if xc:
+                rec["xc"] = sorted(xc)
+                rec["ap"] = [approach(line, e, rl, rtree, mouths) for e in (0, 1)]
+                n_xc += 1
         out.append(rec)
     log(f"  structures: {sum(1 for r in out if r['k'] == 'b')} bridges ({n_riv} over water, {n_over} over roads), "
-        f"{sum(1 for r in out if r['k'] == 't')} tunnels")
+        f"{sum(1 for r in out if r['k'] == 't')} tunnels ({n_xc} with roads over them)")
     return out
+
+
+def approach(line, end, rl, rtree, mouths=()):
+    """The road out of a tunnel mouth (end 0: the start of `line`, 1: its end), outward, AP_LEN m with a vertex every AP_STEP m: the surface ways that
+    join it end to end and carry on straightest (within 45 degrees), then straight on; it stops short where it reaches the mouth of another tunnel
+    (Via Pietro Calandra runs under two motorway links 30 m apart: one's ramp would cut the other's roof). OSM's tunnel way is the covered part; where the tunnel has to go
+    deeper to pass under a road, the ramp down to it lies on these roads (src/bridges.js)."""
+    cs = list(line.coords)
+    p, q = (cs[0], cs[1]) if end == 0 else (cs[-1], cs[-2])
+    unit = lambda a, b: ((a[0] - b[0]) / (math.hypot(a[0] - b[0], a[1] - b[1]) or 1.0), (a[1] - b[1]) / (math.hypot(a[0] - b[0], a[1] - b[1]) or 1.0))
+    d, pts, used, length = unit(p, q), [p[:2]], set(), 0.0
+    other = [m for m in mouths if math.dist(m, p[:2]) > 1.5]
+    while length < AP_LEN and not any(math.dist(m, p[:2]) < 1.5 for m in other):
+        best = None
+        for i in rtree.query(Point(p).buffer(1.5)):
+            if i in used:
+                continue
+            c = [x[:2] for x in rl[i].coords]
+            seq = c if math.dist(c[0], p[:2]) < 1.5 else c[::-1] if math.dist(c[-1], p[:2]) < 1.5 else None
+            if not seq or len(seq) < 2:
+                continue
+            v = next((x for x in seq[1:] if math.dist(x, seq[0]) > 3.0), seq[-1])
+            u = unit(v, seq[0])
+            dot = u[0] * d[0] + u[1] * d[1]
+            if best is None or dot > best[0]:
+                best = (dot, i, seq)
+        if best is None or best[0] < 0.7:
+            break
+        used.add(best[1])
+        for x in best[2][1:]:
+            length += math.dist(pts[-1], x)
+            pts.append(x)
+        p, d = best[2][-1], unit(best[2][-1], best[2][-2])
+    if length < AP_LEN and not any(math.dist(m, p[:2]) < 1.5 for m in other):
+        pts.append((pts[-1][0] + d[0] * (AP_LEN - length), pts[-1][1] + d[1] * (AP_LEN - length)))
+    ln = substring(LineString(pts), 0.0, min(AP_LEN, length) if any(math.dist(m, p[:2]) < 1.5 for m in other) else AP_LEN)
+    n = max(1, int(round(ln.length / AP_STEP)))
+    return [round(c, 1) for k in range(n + 1) for c in ln.interpolate(ln.length * k / n).coords[0][:2]]
 
 
 def tiles_of(rec, T):
@@ -149,8 +215,8 @@ def tiles_of(rec, T):
     m = rec["w"] / 2 + (RIVER_WINDOW if "rv" in rec else 12)
     for r in rec.get("rv", []):
         xs, zs = xs + r[0::2], zs + r[1::2]
-    for u in rec.get("ud", []):
-        xs, zs = xs + u["p"][0::2], zs + u["p"][1::2]
+    for u in rec.get("ud", []) + rec.get("ap", []):
+        xs, zs = xs + (u["p"] if isinstance(u, dict) else u)[0::2], zs + (u["p"] if isinstance(u, dict) else u)[1::2]
     x0, x1, z0, z1 = min(xs) - m, max(xs) + m, min(zs) - m, max(zs) + m
     return [f"{i}_{j}" for i in range(math.floor(x0 / T), math.floor(x1 / T) + 1) for j in range(math.floor(z0 / T), math.floor(z1 / T) + 1)]
 
@@ -178,6 +244,25 @@ def river_floor(rec, ground, step=8.0):
         lines.append([round(c, 1) for p in dense for c in p])
         floors.append(fl)
     return lines, floors
+
+
+def crossing_ground(rec, ground):
+    """xg: for every road that crosses over a tunnel, the lowest ground under it within its width (plus XG_ALONG) along the tunnel and out to XG_ACROSS
+    beyond the tunnel's sides: what the tunnel has to stay under for that road to keep its ground (src/bridges.js)."""
+    line = LineString(list(zip(rec["p"][0::2], rec["p"][1::2])))
+    out = []
+    for s, w in rec["xc"]:
+        lo = 1e9
+        for a in (-(w / 2 + XG_ALONG), 0.0, w / 2 + XG_ALONG):
+            t = max(0.0, min(line.length, s + a))
+            c, e = line.interpolate(max(0.0, t - 1.0)), line.interpolate(min(line.length, t + 1.0))
+            l = math.hypot(e.x - c.x, e.y - c.y) or 1.0
+            nx, nz = -(e.y - c.y) / l, (e.x - c.x) / l
+            m = line.interpolate(t)
+            for b in (-(rec["w"] / 2 + XG_ACROSS), 0.0, rec["w"] / 2 + XG_ACROSS):
+                lo = min(lo, ground(m.x + nx * b, m.y + nz * b))
+        out.append(round(lo, 2))
+    return out
 
 
 def add_heights(world_dir, structs, far_f, T, log=print):
@@ -220,6 +305,7 @@ def add_heights(world_dir, structs, far_f, T, log=print):
     heights = {}
     rivers = {}
     heights_ud = {}
+    xgs = {}
     for r in structs:
         p = r["p"]
         a, b = (p[0], p[1]), (p[-2], p[-1])
@@ -230,6 +316,8 @@ def add_heights(world_dir, structs, far_f, T, log=print):
             heights_ud[r["id"]] = r
         for u in r.get("ud", []):
             u["f"] = [round(ground(u["p"][k], u["p"][k + 1]), 2) for k in range(0, len(u["p"]), 2)]
+        if r.get("xc"):
+            xgs[r["id"]] = crossing_ground(r, ground)
     n = 0
     for f in glob.glob(os.path.join(world_dir, "tiles", "*.json")):
         raw = open(f, "rb").read()
@@ -242,6 +330,8 @@ def add_heights(world_dir, structs, far_f, T, log=print):
                 r["rv"], r["rf"] = rivers[r["id"]]
             if "ud" in heights_ud.get(r["id"], {}):
                 r["ud"] = heights_ud[r["id"]]["ud"]
+            if r["id"] in xgs:
+                r["xg"] = xgs[r["id"]]
         tmp = f + ".part"
         with open(tmp, "w") as fh:
             json.dump(d, fh, separators=(",", ":"), ensure_ascii=False)

@@ -84,6 +84,50 @@ const yAt = (st, s) => { // linear along the polyline
 
 // tunnel floor: level between the portals where the ground above is a hill, dipping where the ground is flat (an underpass), see floorOf
 const TUN_H = 5.2, TUN_ROOF = 0.8, TUN_SLOPE = 0.1, TUN_COVER = TUN_H + 0.6;   // ceiling height, roof thickness of a flat underpass, steepest ramp, ground-over-floor that counts as covered
+const XC_ALONG = 1.5, XC_MARGIN = 0.5;   // a road over a tunnel (rec.xc): the floor is kept TUN_COVER + XC_MARGIN under its ground (rec.xg) across its width plus XC_ALONG each side
+
+// The roads that cross over a tunnel at ground level (rec.xc, and the lowest ground round each, rec.xg, from the bake). Where the floor is not deep enough under
+// one of them, the cutting of the tunnel's mouth takes that road's ground away: a short underpass dips only in its middle, so a road crossing it off centre
+// stood over a 5 to 7 m trench (the Viale Regione Siciliana over Via Emily Balch, x -1300, z 3016, and the motorways over the short underpasses of Via De
+// Gasperi or Viale Leone). The floor goes down to TUN_COVER + XC_MARGIN under each such road, level across it, climbing back at TUN_SLOPE; where that leaves
+// it lower than a mouth, the ramp down to it is on the road outside (rec.ap), as in a real underpass (OSM's tunnel way is the covered part): st.ramp.
+function tunnelDip(st) {   // floor: portal grades, plus a dip where the terrain above is not a hill
+  const r = st.rec, p = r.p, n = p.length / 2;
+  let minG = 1e9; for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) minG = Math.min(minG, g); }   // undefined: that tile has no ground yet
+  const base = (r.y0 + r.y1) / 2;
+  const dip = Math.min(14, Math.max(0, base - (minG - TUN_COVER - 0.5)));   // a flat underpass: the floor sits so that the ground over it is a roof everywhere; a hill covers a level road by itself
+  st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
+  for (let k = 0; k < n; k++) { const s = st.cum[k], q = R > 0 ? Math.min(1, s / R, (st.L - s) / R) : 1; st.ys[k] -= dip * Math.max(0, q); }
+}
+// the first o metres of a line (vertices every 4 m at most, without its first point), and the rest of it from there
+function cutLine(f, o) {
+  const head = [], rest = []; let acc = 0, k = 2;
+  for (; k < f.length; k += 2) {
+    const ax = f[k - 2], az = f[k - 1], l = hh(f[k] - ax, f[k + 1] - az);
+    if (acc + l >= o) { const t = (o - acc) / (l || 1), x = ax + (f[k] - ax) * t, z = az + (f[k + 1] - az) * t; head.push(...densify([ax, az, x, z], 4).slice(2)); rest.push(x, z, ...f.slice(k)); break; }
+    head.push(...densify([ax, az, f[k], f[k + 1]], 4).slice(2)); acc += l;
+  }
+  if (!rest.length) rest.push(f[f.length - 2], f[f.length - 1], f[f.length - 2] + 1e-3, f[f.length - 1]);
+  return [head, rest];
+}
+function underRoads(st) {
+  const r = st.rec, x0 = r.__x0 || 0;   // (__x0: metres a previous registration of this record carried its start on by)
+  const need = r.xc.map(([s, w], i) => [s + x0, w / 2 + XC_ALONG, r.xg[i] - TUN_COVER - XC_MARGIN]);   // [metres along, half width, the highest floor that leaves that road its ground]
+  const B = s => { let b = Infinity; for (const [c, hc, y] of need) b = Math.min(b, y + TUN_SLOPE * Math.max(0, Math.abs(s - c) - hc)); return b; };
+  // a road wider than the tunnel way reaches past a mouth that has to go down (the motorway over Via De Gasperi, 14 m wide 5 m from the mouth): carry the
+  // tunnel on under it along the road out of that mouth, or the ramp outside would cut the edge of that road
+  if (!r.__ap) {
+    const L = st.L, o0 = B(0) < r.y0 - 0.05 ? Math.max(0, ...need.map(([c, hc]) => hc + 1 - c)) : 0, o1 = B(L) < r.y1 - 0.05 ? Math.max(0, ...need.map(([c, hc]) => c + hc + 1 - L)) : 0;
+    r.__ap = r.ap.slice(); r.__x0 = 0;
+    if (o0 > 0) { const [h, rest] = cutLine(r.ap[0], o0), pre = []; for (let k = h.length - 2; k >= 0; k -= 2) pre.push(h[k], h[k + 1]); r.p = pre.concat(r.p); r.__ap[0] = rest; r.__x0 = o0; for (const q of need) q[0] += o0; }
+    if (o1 > 0) { const [h, rest] = cutLine(r.ap[1], o1); r.p = r.p.concat(h); r.__ap[1] = rest; }
+    if (o0 > 0 || o1 > 0) { profile(st); tunnelDip(st); }
+  }
+  const n = st.ys.length;
+  for (let k = 0; k < n; k++) st.ys[k] = Math.min(st.ys[k], B(st.cum[k]));
+  const long = f => { let l = 0; for (let k = 2; k < f.length; k += 2) l += hh(f[k] - f[k - 2], f[k + 1] - f[k - 1]); return l > 2; };   // (a road out that is no road: the mouth of the next tunnel)
+  st.ramp = [st.ys[0] < r.y0 - 0.05 && long(r.__ap[0]) ? st.ys[0] : null, st.ys[n - 1] < r.y1 - 0.05 && long(r.__ap[1]) ? st.ys[n - 1] : null];   // the floor at a mouth that is below the ground there
+}
 
 function densify(p, step) {
   const out = [p[0], p[1]];
@@ -111,14 +155,9 @@ export function registerStructs(d, key) {
     }
     rec.p = densify(rec.p, rec.k === 't' ? 4 : 6);   // the profile (ramps, a dip) needs vertices
     st = profile({ id: rec.id, rec, tiles: new Set([key]), meshes: null, full: new Set() });
-    const r = rec, p = r.p, n = p.length / 2;
-    if (r.k === 't') { // floor: portal grades, plus a dip where the terrain above is not a hill
-      let minG = 1e9; for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) minG = Math.min(minG, g); }   // undefined: that tile has no ground yet
-      const base = (r.y0 + r.y1) / 2;
-      const dip = Math.min(14, Math.max(0, base - (minG - TUN_COVER - 0.5)));   // a flat underpass: the floor sits so that the ground over it is a roof everywhere; a hill covers a level road by itself
-      st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
-      for (let k = 0; k < n; k++) { const s = st.cum[k], q = R > 0 ? Math.min(1, s / R, (st.L - s) / R) : 1; st.ys[k] -= dip * Math.max(0, q); }
-    }
+    const r = rec;
+    if (r.k === 't') { tunnelDip(st); if (r.xc && r.xg && r.ap) underRoads(st); }   // (underRoads may carry the tunnel on past a mouth: p is read after it)
+    const p = r.p, n = p.length / 2;
     if (r.k === 'b' && st.L > 150 && (!r.ov || r.oc)) for (let k = 1; k < n - 1; k++) {   // a long viaduct crosses hills as well as valleys: never under the ground. The two ends keep the baked height
       // (the ground the road arrives on) and the clearance eases in over CLEAR_IN m: lifted to the ground + 0.4 there, 23 deck ends stood 0.4 to 2 m above their approach
       const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) st.ys[k] = Math.max(st.ys[k], g + 0.4 * Math.min(1, st.cum[k] / CLEAR_IN, (st.L - st.cum[k]) / CLEAR_IN));
@@ -126,7 +165,7 @@ export function registerStructs(d, key) {
     S.set(rec.id, st);
     // level surface (levelY): one entry per centreline segment
     for (let k = 0; k + 1 < n; k++) {
-      const e = { id: rec.id, x0: p[2 * k], z0: p[2 * k + 1], x1: p[2 * k + 2], z1: p[2 * k + 3], y0: st.ys[k], y1: st.ys[k + 1], hw: r.w / 2 - PARAPET_W - 0.1, st };
+      const e = { id: rec.id, x0: p[2 * k], z0: p[2 * k + 1], x1: p[2 * k + 2], z1: p[2 * k + 3], y0: st.ys[k], y1: st.ys[k + 1], hw: r.w / 2 - PARAPET_W - 0.1, st, tun: r.k === 't' };
       e.dx = e.x1 - e.x0; e.dz = e.z1 - e.z0; e.l2 = e.dx * e.dx + e.dz * e.dz || 1;
       gridAdd(levelGrid, e.x0 - e.hw, e.z0 - e.hw, e.x1 + e.hw, e.z1 + e.hw, e);
     }
@@ -138,6 +177,7 @@ export function registerStructs(d, key) {
       r.rv.forEach((rv, li) => chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r, r.rf ? r.rf[li] : null)));
       st.bed = Math.min(...chans.map(c => c.bedY[c.si]));
     } else if (r.k === 't') chans.push(makeChannel(r.id, p, r.w, 0, st, TUN_COVER, 'tunnel', r));
+    if (st.ramp) st.ramp.forEach((y, e) => { if (y !== null) chans.push(makeChannel(r.id, r.__ap[e], r.w, y, null, Infinity, 'ramp', r)); });   // the road out of a mouth, sunk to the floor there and climbing at TUN_SLOPE
     if (r.k === 'b' && r.ov && r.ud && r.oc && r.ud.length === r.oc.length) for (const u of r.ud) chans.push(makeChannel(r.id, u.p, u.w, 0, null, Infinity, 'dip', r, u.f, u));
     st.chans = chans;
     for (const c of chans) { st.carve = true; gridAdd(chanGrid, c.bx0, c.bz0, c.bx1, c.bz1, c); }
@@ -168,6 +208,7 @@ function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf, dip) {
   for (let k = 1; k < n; k++) cum[k] = cum[k - 1] + hh(flat[2 * k] - flat[2 * k - 2], flat[2 * k + 1] - flat[2 * k - 1]);
   const hw = kind === 'river' ? width / 2 + 1.2 : kind === 'dip' ? width / 2 + 2.5 : width / 2 + 0.6;
   let sc = 0;
+  if (kind === 'ramp') for (let k = 0; k < n; k++) bedY[k] = bedOld[k] = bed + TUN_SLOPE * cum[k];   // from the tunnel mouth outward (rec.ap): bed is the floor at the mouth
   if (kind === 'dip') {   // the lower road under a flyover: the baked ground under every vertex, minus DIP where the road is under the deck and a little beyond it
     const half = rec.w / 2 + DIP_FLAT;
     for (let k = 0; k < n; k++) { const t = Math.max(0, Math.abs(cum[k] - dip.c) - half) / DIP_RAMP, f = Math.max(0, 1 - t); bedY[k] = rf[k] - DIP * f * f * (3 - 2 * f); bedOld[k] = bedY[k]; }
@@ -202,13 +243,13 @@ function distSegs(flat, x, z) {
 }
 // nearest point of a channel's line: [distance, bed height there]
 function nearest(c, x, z) {
-  let best = 1e9, bh = 0;
+  let best = 1e9, bh = 0, back = false;
   for (let k = 0; k + 1 < c.n; k++) {
     const ax = c.pts[2 * k], az = c.pts[2 * k + 1], dx = c.pts[2 * k + 2] - ax, dz = c.pts[2 * k + 3] - az, l2 = dx * dx + dz * dz || 1;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez);   // (no Math.hypot: this runs for every terrain sample near a river trench or a tunnel)
-    if (d < best) { best = d; bh = c.kind !== 'tunnel' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
+    const tr = ((x - ax) * dx + (z - az) * dz) / l2, t = Math.max(0, Math.min(1, tr)), ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez);   // (no Math.hypot: this runs for every terrain sample near a river trench or a tunnel)
+    if (d < best) { best = d; back = (k === 0 && tr < 0) || (k + 2 === c.n && tr > 1); bh = c.kind !== 'tunnel' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
   }
-  c.d = best; return bh;
+  c.d = best; c.back = back; return bh;
 }
 export function carve(x, z, y) {
   if (chanGrid.size === 0) return y;
@@ -221,7 +262,8 @@ export function carve(x, z, y) {
       const w = c.d <= c.hw ? 0 : (c.d - c.hw) * 1.0;                          // vertical-ish walls: 45 degrees beyond the lining
       y = Math.min(y, bh + w + (c.d <= c.hw ? 0 : 0));
     } else {
-      const w = Math.max(0, c.d - c.hw) * 0.9;
+      if (c.back && c.kind === 'ramp') continue;   // behind the mouth (over the tunnel, where the ground is its roof) or past the end of the road out (the next tunnel's mouth)
+      const w = Math.max(0, c.d - c.hw) * (c.kind === 'ramp' ? 3 : 0.9);   // (a ramp is walled: its sides do not take the ground of a road beside its mouth, the Viale's side road at the Via Belgio link)
       if (bh + w < y) y = bh + w;
     }
   }
@@ -240,6 +282,7 @@ export function levelY(x, z, yRef) {
     const px = e.x0 + e.dx * t, pz = e.z0 + e.dz * t;
     if (hh(x - px, z - pz) > e.hw) continue;
     const y = e.y0 + (e.y1 - e.y0) * Math.max(0, Math.min(1, t));
+    if (e.tun && yRef > y + TUN_H && yRef < 1e8) continue;   // a car above the tunnel's ceiling is on the road over it (every car driving over a covered tunnel fell to its floor); topY (1e9) still gets the floor
     if (y <= yRef + 1.2 && !(y <= best)) best = y;
   }
   return best;
@@ -437,7 +480,7 @@ function buildTunnel(st) {
   const lamps = new Buf(), lampC = new THREE.Color('#ffe2a8');
   for (let i = 0; i < n; i++) {
     const q = P[i], prev = P[i - 1], next = P[i + 1];
-    for (const [edge, nb] of [[prev && !prev.cov && q.cov, 1], [next && !next.cov && q.cov, -1]]) {
+    for (const [edge, nb] of [[q.cov && (prev ? !prev.cov : st.ramp && st.ramp[0] !== null), 1], [q.cov && (next ? !next.cov : st.ramp && st.ramp[1] !== null), -1]]) {   // (a mouth with the ramp outside it is covered from its first metre)
       if (!edge) continue;
       const fx = q.tx * nb, fz = q.tz * nb;   // from the portal into the tunnel
       const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep

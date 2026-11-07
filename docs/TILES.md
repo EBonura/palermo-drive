@@ -240,6 +240,14 @@ Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `l
   Tunnel ways: `tunnel=yes` shorter than 20 m that run under a bridge, and `covered=yes` on a motorway, trunk, primary, secondary or tertiary road (the open cutting of the Viale Regione Siciliana under
   Piazza Einstein, 543 m), are ordinary surface roads in the bake; they used to be flagged `tn` (dropped from the street layers and from traffic) without ever getting a tunnel record, so the road was missing.
   `covered=yes` on a residential or service way is a passage through a building and stays a `tn` way.
+- **Roads over tunnels** (`xc`, `xg`, `ap`; tools/structures.py, src/bridges.js). A short underpass dipped only in its middle, so the cutting at its mouths took away the ground of any road crossing
+  over it off centre: 49 crossings over 28 tunnels stood over a 2 to 7 m trench (the Viale Regione Siciliana over Via Emily Balch at x -1300, z 3016, where the car fell in and stuck; the motorways over
+  the underpasses of Via De Gasperi, Viale Leone, Via Kennedy and the Raccordo per Via Belgio). The bake now gives every tunnel the surface roads and squares that cross over it (`xc`: metres along, width),
+  the lowest ground round each (`xg`, add_heights) and the road out of each mouth (`ap`: 80 m outward, following the joined ways, stopping at the next tunnel's mouth). The runtime keeps the floor
+  `TUN_COVER` + 0.5 m under every such road, level across it, climbing back at 10 %; where that leaves a mouth below the ground, the ramp down is cut along `ap` outside the mouth (OSM's tunnel way is
+  the covered part), and where a road over a mouth is wider than the tunnel way reaches, the tunnel is carried on under it. A tunnel floor no longer counts as a level for anything above its ceiling,
+  so a car on a road over a covered tunnel stays on that road (it used to snap down to the tunnel floor). The tiles got only these fields (a script wrote them into the committed tiles from the
+  bake's own code); 9 tiles that the ramps reach got the tunnel record.
 - **Cars.** `car.deck` is the height of the deck or floor above the terrain (negative in a tunnel); `car.lift` includes it, so everything that adds `lift` to `groundY` (missions, mounts)
   follows. Both driving models use it (`src/vehicle.js` classic, `src/vehicle-sphere.js`); driving off a deck is a free fall; the camera stays above the deck and under a tunnel roof.
   Traffic on a road flagged `br` (graph edges carry it) is placed on the highest deck; pedestrians do not walk on decks (the street layers are cut there).
