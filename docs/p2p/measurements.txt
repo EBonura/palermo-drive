@@ -1400,3 +1400,142 @@ scenario P N=4 (1 real game pages + 3 bots) cap 8 (shipped) seed 1, ran 122 s
   whole run room events (all players): {"join":4,"leave":0,"peerJoin":12,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"spare":0,"swap":0,"gave":0,"empty":0,"limit":0,"halt":0,"joinError":0}
   browser CPU (steady 40 s): {"windowS":40,"rendererCoresUsed":0.26,"gpuCores":0,"browserCores":0.01,"otherCores":0.18,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,2,2,1,1],[20,4,4,3,1],[31,4,4,3,1],[41,4,4,3,1],[51,4,4,3,1],[61,4,4,3,1],[71,4,4,3,1],[81,4,4,3,1],[91,4,4,3,1],[102,4,4,3,1],[112,4,4,3,1],[122,4,4,3,1]]
+
+=== 7 Nov, relay fallback (src/p2p/fallback.js): stress.mjs --scenario A --n 8 --block all (every WebRTC connection blocked with ?iceblock)
+isolation self-check {"playStatsReachable":false,"publicRelayHostReachable":false,"stunServerReflexiveCandidates":0}
+  player  ready
+loaded 1 real + 7 bots in 8 s; chrome 1180 MB, 3 renderers; memory free 53 %
+scenario A N=8 (1 real game pages + 7 bots), WebRTC blocked for 8 cap 8 (shipped) seed 1, ran 137 s
+  connect (ms from own start): first peer {"n":0} first seen {"n":7,"min":6850,"p50":7800,"p90":11096,"max":11096} never connected 7 never saw 0; real pages first peer {"n":0} seen {"n":1,"min":6850,"p50":6850,"p90":6850,"max":6850}
+  end state: last room change at 18 s (last player started at 18 s, run 137 s); 8 players, shown {"n":8,"min":3,"p50":4,"p90":7,"max":7} (expected 7), below expected 7, linked {"n":8,"min":3,"p50":4,"p90":7,"max":7}; rooms 1 sizes 8; home shards 1 sizes 8
+  cap: max linked 7, max shown 7, max members in a room 8 (limit 9); seconds any player linked > 8: 0 (longest streak 0), room over 9: 0, shown over cap: 0; longest gap between samples 2 s
+  alone: seconds with nobody in view since own start (per player) {"n":8,"min":2,"p50":4,"p90":8,"max":8}, players alone over 10 s in all: 0; players that lost everybody after seeing someone 0, longest 0 s, total 0 s; ending alone 0
+  churn per player per minute (steady 60 s): {"join":0,"leave":0,"peerJoin":0,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"spare":0,"swap":0,"gave":0,"empty":0,"limit":0,"halt":0,"joinError":6.99}  drops: {"left":0,"stale":0}
+  safety limit: most used by one player in any minute: 1 room joins, 173 relay frames; limits hit 0, halts 0
+  messages (steady 59 s): sent 3665 received 4117 (-12.33 % not counted as received, includes in flight and sent to peers that just left), dup 0 bad 0 rate-limited 0; per player 7.8 out / 8.7 in msgs/s, 101 B/s payload out
+  update delay between bots (ms): one-way {"n":0} p99 null; gap between updates {"n":0} p99 null, over 250 ms 0, over 1 s 0 (of 0 states, 0 pairs); gaps between players under 150 m apart (sent at 10 Hz by design): {"n":0} p99 null, over 250 ms 0, over 1 s 0
+  relays (steady 59 s, 5 local relays): total 123.9 frames/s 74.4 KB/s, 15.49 frames/s per player; busiest relay 55.2 frames/s = 198720 per hour, 117 MB/h; whole run avg 119.9/s, peak second in 36 out 111, first minute 6621 frames
+    relay 0 (signalling+presence): in 8.6/s out 46.6/s, 6.2+27.2 KB/s, presence events in 0.1/s out 0.61/s, fallback events in 7.1/s out 35.04/s 29.2 KB/s, REQ 0/s EVENT 8.59/s, conns 22
+    relay 1 (signalling+presence): in 8.6/s out 45.3/s, 6.1+25.7 KB/s, presence events in 0.1/s out 0.61/s, fallback events in 7.15/s out 33.67/s 27.7 KB/s, REQ 0/s EVENT 8.64/s, conns 22
+    relay 2 (signalling+presence): in 1.5/s out 4.1/s, 1.3+2.1 KB/s, presence events in 0.07/s out 0.27/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 1.46/s, conns 12
+    relay 3 (signalling only): in 1.2/s out 3.4/s, 1.1+1.8 KB/s, presence events in 0/s out 0/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 1.24/s, conns 8
+    relay 4 (signalling only): in 1.2/s out 3.4/s, 1.1+1.8 KB/s, presence events in 0/s out 0/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 1.2/s, conns 8
+  relay fallback (steady, 8 players with WebRTC blocked): per player events out {"n":8,"min":1.76,"p50":1.78,"p90":1.8,"max":1.8} in {"n":8,"min":5.84,"p50":7.55,"p90":12.55,"max":12.55} /s, bytes out {"n":8,"min":1152,"p50":1171,"p90":1402,"max":1402} B/s; players drawn through the relays per player {"n":240,"min":3,"p50":4,"p90":7,"max":7}, sent to {"n":240,"min":4,"p50":4,"p90":6,"max":6} (end {"n":8,"min":3,"p50":4,"p90":7,"max":7}); per player [i, out/s, in/s, taken on or let go in the window] [["0",1.78,7.54,0],["1",1.8,7.55,0],["2",1.78,10.89,0],["3",1.78,7.55,0],["4R",1.76,7.55,0],["5",1.78,5.84,0],["6",1.78,9.23,0],["7",1.8,12.55,0]]; refused 0, not sent 0; most of the limit used in a minute 108 of 300
+  bots main thread (steady): task {"n":7,"min":5,"p50":5,"p90":5,"max":5} ms/s, script {"n":7,"min":2,"p50":2,"p90":2,"max":2} ms/s, JS heap {"n":7,"min":4,"p50":4,"p90":4,"max":4} MB; bot bandwidth up {"n":7,"min":0,"p50":0,"p90":0,"max":0} down {"n":7,"min":0,"p50":0,"p90":0,"max":0} KB/s (data channels), connections {"n":7,"min":0,"p50":0,"p90":0,"max":0}
+  real R4: frame {"mean":16.7,"p95":16.8,"p99":16.8,"fps":60} task 185 script 146 ms/s heap 63 MB, wire {"pcs":0,"open":0,"upKBs":0,"downKBs":0,"wireUpKBs":0,"wireDownKBs":0,"links":{"host":0,"srflx":0,"prflx":0,"relay":0}}, shown 4 linked 4
+  harness steps (ms): [["open: process info",79],["open: page metrics",1],["open: bandwidth counters",1],["close: process info",78],["close: page metrics",1],["close: bandwidth counters and traces",1]]
+  memory: chrome {"chromeAtLoad":{"mbAll":1180,"renderers":3,"mbRenderers":799},"chromeSteadyStart":{"mbAll":1181,"renderers":3,"mbRenderers":760},"chromeEnd":{"mbAll":1213,"renderers":3,"mbRenderers":785},"chromeAfterRealPages":{"mbAll":1006,"renderers":2,"mbRenderers":629},"perBotPageMBApprox":24,"perBotPageMBInMeshApprox":22,"note":"chrome tree = every process of the browser this run started; renderers include the real pages"}; free at end 52 %
+  network: ws hosts {"127.0.0.1:58200":12,"127.0.0.1:58199":22,"127.0.0.1:58198":22,"127.0.0.1:58201":8,"127.0.0.1:58202":8} http hosts {"127.0.0.1":38} refused lookups {} => LOCAL ONLY
+  errors: {"joinErrorKinds":{"could not connect to peer * after exchanging SDP; configure TURN servers with turnConfig o":112},"distinct":{},"realPageErrors":[],"joinErrors":112,"total":0}
+  whole run room events (all players): {"join":8,"leave":0,"peerJoin":0,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"spare":0,"swap":0,"gave":0,"empty":0,"limit":0,"halt":0,"joinError":112}
+  browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.29,"gpuCores":0,"browserCores":0.02,"otherCores":0.17,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
+  timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,4,0,0,1],[20,8,6,4,1],[31,8,8,7,1],[41,8,8,7,1],[51,8,8,7,1],[61,8,8,7,1],[71,8,8,7,1],[81,8,8,7,1],[92,8,8,7,1],[102,8,8,7,1],[112,8,8,7,1],[122,8,8,7,1],[132,8,8,7,1]]
+
+=== 7 Nov, relay fallback: stress.mjs --scenario A --n 16 --block all
+isolation self-check {"playStatsReachable":false,"publicRelayHostReachable":false,"stunServerReflexiveCandidates":0}
+  player  ready
+loaded 1 real + 15 bots in 8 s; chrome 1325 MB, 4 renderers; memory free 52 %
+scenario A N=16 (1 real game pages + 15 bots), WebRTC blocked for 16 cap 8 (shipped) seed 1, ran 137 s
+  connect (ms from own start): first peer {"n":0} first seen {"n":15,"min":6999,"p50":7582,"p90":11617,"max":12533} never connected 15 never saw 0; real pages first peer {"n":0} seen {"n":1,"min":10988,"p50":10988,"p90":10988,"max":10988}
+  end state: last room change at 20 s (last player started at 19 s, run 137 s); 16 players, shown {"n":16,"min":3,"p50":5,"p90":6,"max":7} (expected 8), below expected 16, linked {"n":16,"min":3,"p50":5,"p90":6,"max":7}; rooms 2 sizes 9,7; home shards 2 sizes 9,7
+  cap: max linked 7, max shown 7, max members in a room 9 (limit 9); seconds any player linked > 8: 0 (longest streak 0), room over 9: 0, shown over cap: 0; longest gap between samples 2 s
+  alone: seconds with nobody in view since own start (per player) {"n":16,"min":2,"p50":4,"p90":8,"max":8}, players alone over 10 s in all: 0; players that lost everybody after seeing someone 0, longest 0 s, total 0 s; ending alone 0
+  churn per player per minute (steady 60 s): {"join":0,"leave":0,"peerJoin":0,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"spare":0,"swap":0,"gave":0,"empty":0,"limit":0,"halt":0,"joinError":7.13}  drops: {"left":0,"stale":0}
+  safety limit: most used by one player in any minute: 1 room joins, 185 relay frames; limits hit 0, halts 0
+  messages (steady 59 s): sent 8052 received 9038 (-12.25 % not counted as received, includes in flight and sent to peers that just left), dup 0 bad 0 rate-limited 0; per player 8.5 out / 9.6 in msgs/s, 111 B/s payload out
+  update delay between bots (ms): one-way {"n":0} p99 null; gap between updates {"n":0} p99 null, over 250 ms 0, over 1 s 0 (of 0 states, 0 pairs); gaps between players under 150 m apart (sent at 10 Hz by design): {"n":0} p99 null, over 250 ms 0, over 1 s 0
+  relays (steady 59 s, 5 local relays): total 261.7 frames/s 163 KB/s, 16.36 frames/s per player; busiest relay 133.3 frames/s = 479880 per hour, 287 MB/h; whole run avg 251.5/s, peak second in 63 out 205, first minute 13804 frames
+    relay 0 (signalling+presence): in 14.5/s out 84.5/s, 10.9+51.9 KB/s, presence events in 0.22/s out 3.08/s, fallback events in 11.55/s out 62.28/s 54 KB/s, REQ 0/s EVENT 14.47/s, conns 46
+    relay 1 (signalling+presence): in 20/s out 113.3/s, 14.5+67.2 KB/s, presence events in 0.14/s out 1.22/s, fallback events in 17.2/s out 87.47/s 73.2 KB/s, REQ 0/s EVENT 20.02/s, conns 41
+    relay 2 (signalling+presence): in 2.8/s out 8.8/s, 2.6+4.5 KB/s, presence events in 0.15/s out 1.37/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 2.81/s, conns 25
+    relay 3 (signalling only): in 2.4/s out 6.6/s, 2.2+3.6 KB/s, presence events in 0/s out 0/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 2.35/s, conns 16
+    relay 4 (signalling only): in 2.3/s out 6.5/s, 2.1+3.5 KB/s, presence events in 0/s out 0/s, fallback events in 0/s out 0/s 0 KB/s, REQ 0/s EVENT 2.27/s, conns 16
+  relay fallback (steady, 16 players with WebRTC blocked): per player events out {"n":16,"min":1.54,"p50":1.56,"p90":2.13,"max":2.15} in {"n":16,"min":5.23,"p50":9.59,"p90":12.82,"max":12.82} /s, bytes out {"n":16,"min":1006,"p50":1213,"p90":1660,"max":1660} B/s; players drawn through the relays per player {"n":480,"min":3,"p50":5,"p90":6,"max":7}, sent to {"n":480,"min":4,"p50":5,"p90":6,"max":6} (end {"n":16,"min":3,"p50":5,"p90":6,"max":7}); per player [i, out/s, in/s, taken on or let go in the window] [["0",2.12,12.82,0],["1",1.54,9.61,0],["2",1.54,9.59,0],["3",1.54,5.23,0],["4",2.12,8.79,0],["5",2.15,8.79,0],["6",1.54,9.59,0],["7",1.54,6.71,0],["8R",2.08,8.79,0],["9",1.56,9.59,0],["10",1.54,11.03,0],["11",1.54,6.67,0],["12",1.56,8.15,0],["13",2.12,12.82,0],["14",2.12,10.81,0],["15",2.13,10.81,0]]; refused 0, not sent 0; most of the limit used in a minute 129 of 300
+  bots main thread (steady): task {"n":15,"min":5,"p50":5,"p90":5,"max":5} ms/s, script {"n":15,"min":2,"p50":2,"p90":2,"max":2} ms/s, JS heap {"n":15,"min":2,"p50":2,"p90":3,"max":3} MB; bot bandwidth up {"n":15,"min":0,"p50":0,"p90":0,"max":0} down {"n":15,"min":0,"p50":0,"p90":0,"max":0} KB/s (data channels), connections {"n":15,"min":0,"p50":0,"p90":0,"max":0}
+  real R8: frame {"mean":16.7,"p95":16.7,"p99":16.8,"fps":60} task 200 script 157 ms/s heap 48 MB, wire {"pcs":0,"open":0,"upKBs":0,"downKBs":0,"wireUpKBs":0,"wireDownKBs":0,"links":{"host":0,"srflx":0,"prflx":0,"relay":0}}, shown 4 linked 4
+  harness steps (ms): [["open: process info",85],["open: page metrics",1],["open: bandwidth counters",4],["close: process info",80],["close: page metrics",1],["close: bandwidth counters and traces",4]]
+  memory: chrome {"chromeAtLoad":{"mbAll":1325,"renderers":4,"mbRenderers":941},"chromeSteadyStart":{"mbAll":1351,"renderers":4,"mbRenderers":981},"chromeEnd":{"mbAll":1427,"renderers":4,"mbRenderers":1049},"chromeAfterRealPages":{"mbAll":999,"renderers":2,"mbRenderers":623},"perBotPageMBApprox":21,"perBotPageMBInMeshApprox":28,"note":"chrome tree = every process of the browser this run started; renderers include the real pages"}; free at end 54 %
+  network: ws hosts {"127.0.0.1:58392":41,"127.0.0.1:58391":46,"127.0.0.1:58393":25,"127.0.0.1:58394":16,"127.0.0.1:58395":16} http hosts {"127.0.0.1":54} refused lookups {} => LOCAL ONLY
+  errors: {"joinErrorKinds":{"could not connect to peer * after exchanging SDP; configure TURN servers with turnConfig o":228},"distinct":{},"realPageErrors":[],"joinErrors":228,"total":0}
+  whole run room events (all players): {"join":16,"leave":0,"peerJoin":0,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"spare":0,"swap":0,"gave":0,"empty":0,"limit":0,"halt":0,"joinError":228}
+  browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.39,"gpuCores":0,"browserCores":0.03,"otherCores":0.2,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
+  timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,7,0,0,1],[20,16,9,6,2],[31,16,16,7,2],[41,16,16,7,2],[51,16,16,7,2],[61,16,16,7,2],[71,16,16,7,2],[81,16,16,7,2],[92,16,16,7,2],[102,16,16,7,2],[112,16,16,7,2],[122,16,16,7,2],[132,16,16,7,2]]
+
+=== 7 Nov, relay fallback: tools/p2p/fallback.mjs --local
+  local relays only: {"publicReachable":false,"relayAnswers":true}
+  player Anna ready
+  player Bob ready
+  blocked pair saw each other after 4.5 s
+1. two blocked players see each other, with names                          OK   [[{"name":"Bob","shown":true,"car":true,"snaps":2,"delay":233}],[{"name":"Anna","shown":true,"car":true,"snaps":3,"delay":153}]]
+   through the relays: no direct connection, each holds the other on fallback OK   direct 0 fallback 1,1
+  Anna fallback events [[909,"join","0,0",""],[11356,"fbArm","0,0",""],[11856,"fbOn","QZBc",""],[11858,"firstState","QZBc","relay"],[11858,"fbTo","QZBc",""]]
+  Bob fallback events [[1141,"join","0,0",""],[7405,"fbArm","0,0",""],[7922,"fbTo","KXQX",""],[8422,"fbOn","KXQX",""],[8424,"firstState","KXQX","relay"]]
+   every WebRTC attempt failed (the block works)                           OK   {"host":0,"srflx":0,"prflx":0,"relay":0} pcs 0
+  test box: relay fallback: drawn 1, sent to 1 (heard 1, rooms 1)  ev/s out 1.5 in 1.5  chaima open*, christiansass open  ICE BLOCKED
+  Anna draws Bob (14 m/s on a circle): {"frames":600,"stepMaxM":0.58,"speedP5":11,"speedP50":14,"speedP95":17.1,"speedMax":34.8,"framesOver2x":2,"delayMs":677,"gapMs":388}
+   Bob moves on Anna's screen at his speed, never a jump (no frame step over 1.5 m) OK   {"frames":600,"stepMaxM":0.58,"speedP5":11,"speedP50":14,"speedP95":17.1,"speedMax":34.8,"framesOver2x":2,"delayMs":677,"gapMs":388}
+   a phrase from Bob shows over his car on Anna's screen                   OK   
+   Anna offers Bob a beer                                                  OK   
+   Bob gets the card                                                       OK   Anna ti offre una birraTi gira a testa×1AccettaYNun mi vaN
+   Bob accepts: Anna is told, Bob is treated                               OK   [["Saluti! Offre a casaBob accittau · 1 gratis arristati"],["Anna t’offriu una birra"]]
+  Anna fallback stats {"fb":{"txEvents":62,"txBytes":28779,"rxEvents":65,"rxBytes":30890,"refused":0,"limited":0,"bad":0,"dup":0,"unsent":0},"relays":[{"url":"wss://nostr.chaima.info","state":"open","writer":true},{"url":"wss://nostr.christiansass.de","state":"open","writer":false}],"guard":62,"frames":149}
+  player Carla ready
+2. with a third, unblocked player everybody sees the two others            OK   [[{"name":"Bob","shown":true,"car":true,"snaps":5,"delay":745},{"name":"Carla","shown":true,"car":true,"snaps":2,"delay":165}],[{"name":"Anna","shown":true,"car":true,"snaps":5,"delay":718},{"name":"Carla","shown":true,"car":true,"snaps":3,"delay":270}],[{"name":"Bob","shown":true,"car":true,"snaps":3,"delay":282},{"name":"Anna","shown":true,"car":true,"snaps":3,"delay":227}]]
+   Carla: none direct with the blocked ones, both on the relays            OK   [{"id":"QZBc","fb":true,"rooms":[],"shown":true,"held":true,"far":false,"age":83,"x":143,"nextIn":-3},{"id":"KXQX","fb":true,"rooms":[],"shown":true,"held":true,"far":false,"age":117,"x":137,"nextIn":-3}]
+  player Dino ready
+   Carla and Dino connect directly, next to the two pairs on the relays    OK   [{"id":"QZBc","fb":true,"rooms":[],"shown":true,"held":true,"far":false,"age":124,"x":143,"nextIn":58},{"id":"KXQX","fb":true,"rooms":[],"shown":true,"held":true,"far":false,"age":224,"x":137,"nextIn":58},{"id":"UsAn","fb":false,"rooms":["0,0","0,-1"],"shown":true,"held":true,"far":false,"age":13,"x":134,"nextIn":58}]
+  Carla draws Dino (direct): {"frames":601,"stepMaxM":0.53,"speedP5":12.8,"speedP50":14.1,"speedP95":15.4,"speedMax":31.7,"framesOver2x":3,"delayMs":210,"gapMs":100}
+  Carla draws Anna (relay):  {"frames":601,"stepMaxM":1.05,"speedP5":8.6,"speedP50":14,"speedP95":17.2,"speedMax":63.2,"framesOver2x":8,"delayMs":722,"gapMs":380}
+   Anna through the relays moves about as smoothly as Dino directly        OK   {"smA":{"frames":601,"stepMaxM":1.05,"speedP5":8.6,"speedP50":14,"speedP95":17.2,"speedMax":63.2,"framesOver2x":8,"delayMs":722,"gapMs":380},"smD":{"frames":601,"stepMaxM":0.53,"speedP5":12.8,"speedP50":14.1,"speedP95":15.4,"speedMax":31.7,"framesOver2x":3,"delayMs":210,"gapMs":100}}
+  Carla test box: relay fallback: drawn 2, sent to 2 (heard 2, rooms 1)  ev/s out 3.0 in 5.9  chaima open*, christiansass open
+3. block lifted on Anna: her link to Carla opens and the relays stop for it OK   [{"id":"QZBc","fb":true,"rooms":[],"shown":true,"held":true,"far":false,"age":261,"x":143,"nextIn":26},{"id":"msHo","fb":false,"rooms":["0,-1"],"shown":true,"held":true,"far":false,"age":78,"x":131,"nextIn":26}]
+   Anna logged an upgrade                                                  OK   fbArm fbmw6i33j4:500:0:0, fbOn QZBc, fbTo QZBc, fbArm fbmw6i33j4:500:0:-1, fbTo msHo, fbOn msHo, fbTo UsAn, fbOn UsAn, fbBye UsAn, upgrade msHo
+   and still sees both (Dino, who closed his page, is gone)                OK   [{"name":"Bob","shown":true,"car":true,"snaps":4,"delay":687},{"name":"Carla","shown":true,"car":true,"snaps":6,"delay":701}]
+  Bob closed; gone from Anna and Carla after 1.5 s
+4. a player on the relays who closes the page is gone from the others      OK   [[{"name":"Carla","shown":true,"car":true,"snaps":7,"delay":703}],[{"name":"Anna","shown":true,"car":true,"snaps":8,"delay":666}]]
+   and does not come back (no ghost)                                       OK   [[{"name":"Carla","shown":true,"car":true,"snaps":5,"delay":343}],[{"name":"Anna","shown":true,"car":true,"snaps":5,"delay":307}]]
+  errors [] []
+  errors [] []
+  local relays saw [111,491,320,99,99]
+
+=== 7 Nov, relay fallback: tools/p2p/fallback.mjs --short on the public relays (2 players, private ns)
+  player Anna ready
+  player Bob ready
+  blocked pair saw each other after 15.1 s
+1. two blocked players see each other, with names                          OK   [[{"name":"Bob","shown":true,"car":true,"snaps":2,"delay":203}],[{"name":"Anna","shown":true,"car":true,"snaps":2,"delay":230}]]
+   through the relays: no direct connection, each holds the other on fallback OK   direct 0 fallback 1,1
+  Anna fallback events [[1061,"join","0,0",""],[11509,"fbArm","0,0",""],[21259,"join","0,-1",""],[21775,"fbTo","BFi9",""],[21775,"fbArm","0,-1",""],[22292,"fbOn","BFi9",""],[22294,"firstState","BFi9","relay"]]
+  Bob fallback events [[1017,"join","0,0",""],[7271,"fbArm","0,0",""],[18021,"fbOn","rq69",""],[18023,"firstState","rq69","relay"],[18023,"fbTo","rq69",""]]
+   every WebRTC attempt failed (the block works)                           OK   {"host":0,"srflx":0,"prflx":0,"relay":0} pcs 0
+  test box: relay fallback: drawn 1, sent to 1 (heard 1, rooms 2)  ev/s out 1.9 in 1.9  chaima open, christiansass open*  ICE BLOCKED
+  Anna draws Bob (14 m/s on a circle): {"frames":600,"stepMaxM":0.94,"speedP5":4,"speedP50":14.1,"speedP95":17.7,"speedMax":56.8,"framesOver2x":9,"delayMs":717,"gapMs":382}
+   Bob moves on Anna's screen at his speed, never a jump (no frame step over 1.5 m) OK   {"frames":600,"stepMaxM":0.94,"speedP5":4,"speedP50":14.1,"speedP95":17.7,"speedMax":56.8,"framesOver2x":9,"delayMs":717,"gapMs":382}
+   a phrase from Bob shows over his car on Anna's screen                   OK   
+   Anna offers Bob a beer                                                  OK   
+   Bob gets the card                                                       OK   Anna ti offre una birraTi gira a testa×1AccettaYNun mi vaN
+   Bob accepts: Anna is told, Bob is treated                               OK   [["Saluti! Offre a casaBob accittau · 1 gratis arristati"],["Anna t’offriu una birra"]]
+  Anna fallback stats {"fb":{"txEvents":64,"txBytes":29710,"rxEvents":65,"rxBytes":30891,"refused":0,"limited":0,"bad":0,"dup":0,"unsent":1},"relays":[{"url":"wss://nostr.chaima.info","state":"open","writer":false},{"url":"wss://nostr.christiansass.de","state":"open","writer":true}],"guard":64,"frames":155}
+  errors [] []
+
+=== 7 Nov, tools/p2p/fbrelays.mjs (one address, two keys, 3 events a second each)
+nos.lol                      sent 178 ok 0 refused 0 delivered 0 (0 %) latency null presence stored false 
+nostr.chaima.info            sent 178 ok 179 refused 0 delivered 178 (100 %) latency {"p50":61,"p90":134,"max":285} presence stored true 
+nostr.christiansass.de       sent 178 ok 179 refused 0 delivered 178 (100 %) latency {"p50":66,"p90":128,"max":147} presence stored true 
+nostr.stakey.net             sent 178 ok 9 refused 170 delivered 9 (5 %) latency {"p50":168,"p90":207,"max":207} presence stored false {"rate-limited: too many requests":170}
+relay.bitmacro.cloud         sent 178 ok 179 refused 0 delivered 178 (100 %) latency {"p50":175,"p90":251,"max":484} presence stored true 
+relay.damus.io               sent 178 ok 6 refused 173 delivered 6 (3 %) latency {"p50":301,"p90":354,"max":354} presence stored false {"rate-limited: you are noting too much":2,"banned: too many rate-limit violations, try again later":171}
+relay.primal.net             sent 178 ok 179 refused 0 delivered 178 (100 %) latency {"p50":524,"p90":4226,"max":5266} presence stored true 
+nostr.mom                    sent 178 ok 179 refused 0 delivered 178 (100 %) latency {"p50":1689,"p90":2256,"max":2845} presence stored true 
+offchain.pub                 sent 178 ok 15 refused 164 delivered 15 (8 %) latency {"p50":285,"p90":346,"max":348} presence stored false {"Policy violated and pubkey is not in our web of trust.":164}
+relay.nostr.net              sent 178 ok 121 refused 58 delivered 120 (67 %) latency {"p50":159,"p90":230,"max":364} presence stored true {"rate-limited: too many events from this key (60/60s)":58}
+nostr.oxtr.dev               sent 178 ok 31 refused 148 delivered 30 (17 %) latency {"p50":162,"p90":225,"max":232} presence stored true {"rate limited":148}
+nos.lol                      sent 120 ok 0 refused 0 delivered 0 (0 %) latency null presence stored false 
+nostr.rblb.it                sent 118 ok 119 refused 0 delivered 118 (100 %) latency {"p50":166,"p90":244,"max":378} presence stored true 
+nostr.red5d.dev              sent 118 ok 119 refused 0 delivered 118 (100 %) latency {"p50":145,"p90":220,"max":399} presence stored true 
+nostr.robosats.org           did not open
+relay.nostr.dev.br           sent 120 ok 121 refused 0 delivered 120 (100 %) latency {"p50":67,"p90":233,"max":782} presence stored true 
+relay.piazza.today           sent 120 ok 121 refused 0 delivered 120 (100 %) latency {"p50":102,"p90":264,"max":420} presence stored true 
+relay.layer.systems          sent 120 ok 10 refused 111 delivered 10 (8 %) latency {"p50":51,"p90":111,"max":111} presence stored false {"rate-limited: slow down, please":111}
+relay.grigic.org             sent 120 ok 121 refused 0 delivered 120 (100 %) latency {"p50":106,"p90":173,"max":253} presence stored true 
+relay.degmods.com            sent 120 ok 121 refused 0 delivered 0 (0 %) latency null presence stored false 
+relay.hackshed.dev           sent 120 ok 121 refused 0 delivered 120 (100 %) latency {"p50":258,"p90":345,"max":428} presence stored true 

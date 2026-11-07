@@ -2,7 +2,7 @@
 // Why it exists: the game's signalling runs over public Nostr relays run by volunteers. A 64-player test must not put that load on them, so the test points the game at
 // these (?relays=wss://127.0.0.1:PORT,...) and counts every frame they see, which is what the real relays would have to take.
 //
-// It speaks enough of NIP-01 for Trystero (room announcements: ephemeral or regular events, one REQ with a '#x' filter) and for src/p2p/presence.js (kind 30078,
+// It speaks enough of NIP-01 for Trystero (room announcements: ephemeral or regular events, one REQ with a '#x' filter), for src/p2p/fallback.js (ephemeral, '#t') and for src/p2p/presence.js (kind 30078,
 // addressable, NIP-40 expiration): EVENT (answered with OK, kept unless the kind is ephemeral, replaced if the kind is replaceable or addressable, forwarded to every
 // matching subscription), REQ (stored matches, then EOSE, then live events), CLOSE. It serves TLS with a throw-away self-signed certificate, because the shipped client only
 // accepts wss:// addresses in ?relays= (src/p2p/p2p.js); the test browser is started with --ignore-certificate-errors.
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { WebSocketServer } = createRequire(path.join(HERE, '../build/package.json'))('ws');   // installed with tools/build (npm install there)
 
-const PRESENCE_KIND = 30078;
+const PRESENCE_KIND = 30078, FALLBACK_KIND = 20078;   // src/p2p/presence.js, src/p2p/fallback.js
 export function makeCert(dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pd-relay-'))) {
   const key = path.join(dir, 'key.pem'), crt = path.join(dir, 'crt.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', crt, '-days', '2', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { stdio: 'ignore' });
@@ -41,7 +41,7 @@ function startOne(tls, port) {
   const slot = new Map();    // replace key -> id
   const clients = new Set();
   const c = { conns: 0, connsTotal: 0, inFrames: 0, outFrames: 0, inBytes: 0, outBytes: 0, in: { EVENT: 0, REQ: 0, CLOSE: 0, other: 0 }, out: { EVENT: 0, EOSE: 0, OK: 0, NOTICE: 0 },
-    eventsIn: 0, eventsInPresence: 0, eventsOut: 0, eventsOutPresence: 0, bytesInPresence: 0, bytesOutPresence: 0, stored: 0, subsMax: 0, maxFrameOut: 0 };
+    eventsIn: 0, eventsInPresence: 0, eventsOut: 0, eventsOutPresence: 0, bytesInPresence: 0, bytesOutPresence: 0, eventsInFb: 0, eventsOutFb: 0, bytesInFb: 0, bytesOutFb: 0, stored: 0, subsMax: 0, maxFrameOut: 0 };
   const series = [];   // [second, frames in, frames out] once per second, for the peak rate
   let lastIn = 0, lastOut = 0;
   const tick = setInterval(() => { series.push([Math.round(Date.now() / 1000), c.inFrames - lastIn, c.outFrames - lastOut]); lastIn = c.inFrames; lastOut = c.outFrames; if (series.length > 4000) series.shift(); }, 1000);
@@ -49,7 +49,7 @@ function startOne(tls, port) {
   const wss = new WebSocketServer({ server, perMessageDeflate: false, maxPayload: 1 << 20 });
   const out = (cl, arr) => {
     if (cl.ws.readyState !== 1) return; const s = JSON.stringify(arr); c.outFrames++; c.outBytes += s.length; c.out[arr[0]] = (c.out[arr[0]] || 0) + 1;
-    if (arr[0] === 'EVENT') { c.eventsOut++; if (arr[2].kind === PRESENCE_KIND) { c.eventsOutPresence++; c.bytesOutPresence += s.length; } }
+    if (arr[0] === 'EVENT') { c.eventsOut++; if (arr[2].kind === PRESENCE_KIND) { c.eventsOutPresence++; c.bytesOutPresence += s.length; } else if (arr[2].kind === FALLBACK_KIND) { c.eventsOutFb++; c.bytesOutFb += s.length; } }
     if (s.length > c.maxFrameOut) c.maxFrameOut = s.length;
     cl.ws.send(s);
   };
@@ -62,7 +62,7 @@ function startOne(tls, port) {
       if (m[0] === 'EVENT') {
         c.in.EVENT++; const ev = m[1];
         if (!ev || typeof ev.id !== 'string' || typeof ev.kind !== 'number' || !Array.isArray(ev.tags) || typeof ev.pubkey !== 'string') return out(cl, ['OK', ev && ev.id, false, 'invalid: malformed']);
-        c.eventsIn++; if (ev.kind === PRESENCE_KIND) { c.eventsInPresence++; c.bytesInPresence += raw.length; }
+        c.eventsIn++; if (ev.kind === PRESENCE_KIND) { c.eventsInPresence++; c.bytesInPresence += raw.length; } else if (ev.kind === FALLBACK_KIND) { c.eventsInFb++; c.bytesInFb += raw.length; }
         if (expiry(ev) <= Date.now() / 1000) return out(cl, ['OK', ev.id, false, 'invalid: expired']);
         if (store.has(ev.id)) return out(cl, ['OK', ev.id, true, 'duplicate:']);
         const ephemeral = ev.kind >= 20000 && ev.kind < 30000;
