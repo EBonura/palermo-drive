@@ -46,13 +46,11 @@ URL options (all optional):
 | `cell=500` | cell size in metres | 500 (one world tile) |
 | `margin=150`, `hyst=60` | see the design below | 150, 60 |
 | `mode=grid3` | join the 3x3 cells around you instead | off |
-| `relays=wss://a,wss://b` | use only these signalling servers (the first three also carry presence, the first two the relay fallback) | Trystero picks 3 of its default list |
-| `iceblock` | tests only (with `p2p`): WebRTC may use TURN candidates only, and there is no TURN server, so no direct connection opens, as on the phones at the jam. `__p2p.iceBlock(false)` lifts it for the next attempts | off |
-| `fb=off` | no relay fallback (section "Relay fallback") | on |
+| `relays=wss://a,wss://b` | use only these signalling servers | Trystero picks 3 of its default list |
 
 Without `ns` you are in the public rooms for that cell. Nobody else has this build today, but keep it in mind.
 
-Tests (each through the shared browser slot wrapper, for example `/private/tmp/claude-501/withbrowser.sh node tools/p2p/border.mjs --root dist`): `fallback.mjs` (the relay fallback, with WebRTC blocked), `join.mjs`, `cold.mjs`, `border.mjs`, `scale.mjs`, `fuzz.mjs`, `demo.mjs`; and `stress.mjs` with `relay.mjs` and `botgame/` for many players on local relays (section "Stress test" below). They need `--p2p` builds and open one real window per player (a background tab is throttled, and the game pauses itself when its page is hidden, so the harness stubs that).
+Tests (each through the shared browser slot wrapper, for example `/private/tmp/claude-501/withbrowser.sh node tools/p2p/border.mjs --root dist`): `join.mjs`, `cold.mjs`, `border.mjs`, `scale.mjs`, `fuzz.mjs`, `demo.mjs`; and `stress.mjs` with `relay.mjs` and `botgame/` for many players on local relays (section "Stress test" below). They need `--p2p` builds and open one real window per player (a background tab is throttled, and the game pauses itself when its page is hidden, so the harness stubs that).
 
 ## The room design
 
@@ -151,7 +149,7 @@ The rooms above found only players within about 500 m, so two players in differe
 
 Tests: `near.mjs` (two pages 5 km apart find each other and show on the minimap and big map with names, a third nearby is a car, hand-over both ways with one record, no ghost), `closest.mjs` (with `?maxp=1` the closest player only, and the swap when somebody closer turns up), `crowd.mjs`, `hidden.mjs` (background stops presence), `traffic.mjs` and `presence-sim.mjs` (the numbers below), `rooms-sim.mjs` (the room choice alone, no browser, no relay, many seeds: does it come to rest?) and `guard-check.mjs` (the safety limit). `--local` on any tool that uses `start()` in `tools/p2p/lib.mjs` points the five pinned relay names at five local relays and refuses every other name, so a tool with more than a few pages does not touch the public relays. `default.mjs` and `states.mjs` still pass: the sockets of presence are in the list that must be empty after "Gioca da solo". Time to meet far away is about 10 to 30 s in the tests, mostly the 15 s least gap between two presence events plus a few seconds of WebRTC; two players who load at their spots and stay meet sooner.
 
-**Traffic and manners.** Two relays out of three (`PRESENCE_RELAYS`: nos.lol, nostr.christiansass.de, nostr.chaima.info, the ones that accepted and stored the event when tried; nostr.christiansass.de took the place of nostr.stakey.net on 7 Nov, see "Relay fallback"), picked at random per player: any two of three share one, so any two players share a relay. Own sockets (not Trystero's), so a relay that refuses this kind cannot cost the game its room signalling. One event per player per minute, plus one when the room list changes (at most every 15 s). With a crowd the beat stretches (a player aims to receive at most about 1.6 events per second per relay, `RX_EVENTS_PER_S`; the beat is 60 s up to 96 players and grows with the number online after that), and the list remembers at most 400 players: past a few hundred online at once the topic has to be split by region (not built). A page that is paused or in the background for 60 s says goodbye and closes its two sockets; a player who goes solo does the same at once; nothing is opened before the yes on the name card. Trystero's own room announcements still go on in a paused or background page (as before this change).
+**Traffic and manners.** Two relays out of three (`PRESENCE_RELAYS`: nos.lol, nostr.stakey.net, nostr.chaima.info, the ones that accepted and stored the event when tried), picked at random per player: any two of three share one, so any two players share a relay. Own sockets (not Trystero's), so a relay that refuses this kind cannot cost the game its room signalling. One event per player per minute, plus one when the room list changes (at most every 15 s). With a crowd the beat stretches (a player aims to receive at most about 1.6 events per second per relay, `RX_EVENTS_PER_S`; the beat is 60 s up to 96 players and grows with the number online after that), and the list remembers at most 400 players: past a few hundred online at once the topic has to be split by region (not built). A page that is paused or in the background for 60 s says goodbye and closes its two sockets; a player who goes solo does the same at once; nothing is opened before the yes on the name card. Trystero's own room announcements still go on in a paused or background page (as before this change).
 
 Measured (Mac, headless Chrome, real public relays, `tools/p2p/traffic.mjs`, `presence-sim.mjs`; one client's WebSocket frames, both directions):
 
@@ -372,8 +370,6 @@ Same order as the cap of 8, no limit hit, 60 fps on the game page. So the fix re
 
 ## Privacy
 
-The relay fallback (7 Nov, section "Relay fallback") changes one thing: for a pair whose direct connection does not open, the name, vehicle, livery, position, speed, phrases and drink offers that would have gone over WebRTC go through two public Nostr relays instead, where anyone subscribed to the topic can read them, together with the room (500 m cell) they were said in and the random per-page ids of who writes to whom. No more than a direct peer gets, but readable by more than the peers. The card's `WHO_SEES` sentence does not say this yet: see the proposal in that section.
-
 Players see each other's IP addresses (since 4 Nov the closest `MAX_PLAYERS`, wherever they are: see "The closest players", which lists exactly who learns what). A WebRTC connection hands your public IP (and, if the browser does not hide it, local addresses) to the other side, and it does so to everybody you share a room with, which may be strangers. The signalling servers (Nostr relays, trackers or brokers) and the STUN servers (Cloudflare's, among Trystero's defaults) also see your IP. Room names are hashed, but anyone can compute the hash of each cell, so the signalling service can tell which 500 m cell your IP is in. Peers learn your name, livery, exact position and speed.
 
 Design consequences: nothing connects without the player's yes (multiplayer is on by default, but the name card comes first, see On by default), say so before the first connection, no sending of anything beyond what is in the wire format, no persistent id (the peer id is random per page load; the multiplayer code itself stores nothing). The separate play log (`src/playlog.js`, `joinlog/README.md`) does save things once `src/playlog-url.js` is set: every player, solo or online, sends anonymous counts about play and performance (no name, no address, no lasting id, off in Options > Game stats), online players' chosen name goes with them, all kept up to 12 months. The name card's "i" says so in that case and keeps saying "Non salviamo nulla" / "We store nothing" while the address is empty, so the claim is true at every moment. A notice would need to say: other players near you can see your IP address; so can the signalling services we use, which also learn the 500 m area you are in; names and positions are public to players nearby; list the third parties by name (the Nostr relays or trackers we pin, and the STUN server); we cannot delete data held by them; players can play without it. I am not a lawyer; if the audience includes children or the EU, check the wording.
@@ -463,95 +459,3 @@ Trystero cannot close the relay sockets after "Gioca da solo": `getRelaySockets(
 - **Arrivals, sound, keys.** "X è vicino" at 60 m (again after 100 m), once a minute per player and once every 6 s overall; a two note blip for a phrase and three for an offer at the game's volume (`game.settings.volume`); Y and N answer the card (shown to keyboard players only, N is the radio's key and the card has it first). `hello.mjs`.
 - **Maps.** Other players are a cyan ring (`#00e1ff`, a shape and a colour nothing else on the maps uses) on the minimap, named for the nearest one when the map is 150 px or wider (not on a phone, where it is 98 px), and on the big map with their names. Only players we are connected to exist (the closest `MAX_PLAYERS`, anywhere in the city; far ones are a ring and a name, see "The closest players"); there is no list of everybody. `maps.mjs`.
 - **Missions.** An offer to a player in a timed mission (`missions.busy()`, except the pub errand, the leaves and the rave) is held: REPLY 6 tells the giver, the card shows 3 s after the mission ends if the giver is still near and the offer stands, and after `HOLD_MS` (120 s) the giver is told the player is busy. `held.mjs`.
-
-## Relay fallback (7 Nov)
-
-**Why.** At the game jam (three phones and a laptop, on mobile data and on one phone's hotspot) every pair ended up in the same room and every connection attempt got the other side's answer, so signalling worked. But every WebRTC connection ended "closed" or stuck "connecting": phone browsers hide local addresses behind mDNS, and the carrier's shared address (CGNAT) does not hairpin, so ICE never found a path. On a home network it works. The owner chose a fallback through the Nostr relays over a TURN server. Code: `src/p2p/fallback.js` (the transport), the "relay fallback" part of `src/p2p/p2p.js` (who and when), `src/remotes.js` (drawing a car that is sent 3 times a second).
-
-**When.** Presence already says how many players are in each of our rooms. When that stays above the number we are directly connected to for 6 s (`FB_WAIT_MS`), the room is armed: we listen on its fallback topic and post a hello there (INFO and STATE) every 10 s. A player in the room who hears a hello from somebody it is not connected to starts writing to that player's inbox. So nothing is sent through the relays while every connection works, apart from the odd hello when presence lags behind (somebody just left).
-
-**Two sets, one per direction.** `fbTo`: who we send STATE to. We choose at most 4 (`FB_MAX`): the closest, with 300 m of credit for a player who already writes to us, and a player we chose is kept at least 15 s and then keeps its place over anybody less than 150 m closer, so pairs form and hold. On top of those we write back to anybody who writes to us, up to 6 in all (`FB_TO_MAX`); one event reaches them all, so that adds receivers, not events. `p.fb`: who we draw through the relays, which is whoever writes to our inbox (the closest 8, `MAXP`), until they stop for 5 s or say goodbye. A car on the screen is therefore always one that streams to us. How it got there, measured with 8 blocked players in one spot: one set for both directions froze the cars of players nobody had chosen and dropped them 25 times a minute per player; split sets with weak hysteresis still swapped (about 2 drops a minute); with the hold, 0 drops but one player drew only 1 car while another drew 7; writing back to writers brought the least to 3.
-
-**Wire.** Nostr ephemeral events (kind 20078: relays forward them to whoever is subscribed and store nothing). Content `1 <Trystero id> <base64> ...`: version, sender, up to 4 of the game's own binary messages (INFO, STATE, SAY, OFFER/ACCEPT/CONFIRM/REPLY), unchanged. One `t` tag per recipient: a room topic (`<app>:fb:<room key>`) for hellos and room goodbyes, an inbox topic (`<app>:fb:<ns>@<id>`) for everything else. One event carries a STATE to all the players due at that moment. A goodbye is an event with no messages: on a room topic it means "I left this room" (a room swap; the hello in the next room keeps the pair), in an inbox it means "I let you go" (page closed, solo). The receiver checks every field (`tools/p2p/fbfuzz.mjs`) and the messages then go through the same handlers and checks as the WebRTC ones (`admit`, `onInfo`, `onState`...). STATE through the relays has its own sequence counter (`p.fseq`). The first Nostr key that speaks for a Trystero id keeps it: another key cannot speak for that player afterwards. Each page signs with a key made at start and thrown away, like presence.
-
-**Relays.** `FALLBACK_RELAYS` (nostr.chaima.info, nostr.christiansass.de). Everybody listens on both and writes to one, picked at random per page (the other if that one refuses, limits us or is closed), so nothing arrives twice and the load is split. A relay that answers `blocked`, `restricted`, `auth-required`, `pow` or `invalid` is left for the session, one that answers `rate-limited` for 60 s. Sockets are opened only while something is armed or in use, and closed 20 s after.
-
-**Rate.** STATE at most every 320 ms (about 3 a second on the 100 ms send tick), and never two STATE events closer than that whatever the schedules say: everybody due before the next event goes in the same one. With more than 4 players in our rooms (presence counts everybody there, connected or not) the interval grows in proportion, up to 700 ms; farther players get the direct rates for distance (1 s past 350 m, 2.5 s past 1200 m). INFO goes in the first STATE event to a player and again when the name, vehicle or livery changes. Phrases and offers go when they happen. Hellos every 10 s per armed room. An event is about 460 bytes on the wire.
-
-**The limit.** `src/p2p/guard.js` has a new kind, `fallback`: 300 events a minute, then nothing goes through the relays for 60 s (doubling each time, as the others). Normal use at its most (a STATE every 350 ms, a hello in each of 6 rooms every 10 s, a phrase every 1.5 s) is about 250 a minute and is never refused in `tools/p2p/guard-check.mjs`; a bug that sends an event every frame gets 2 events a second through over ten minutes. Every frame is also counted by the existing `frames` limit (2000 a minute, then the page halts and the fallback stops with it).
-
-**Upgrade.** When a direct connection opens after all (Trystero's `onPeerJoin`), the relays stop for that player at once on both ends (`upgrade` in the log).
-
-**Drawing a car sent 3 times a second** (`src/remotes.js`, used by both clients). Each remote now has its own interpolation buffer: the time between its snapshots and how unevenly they come (a late one raises the jitter at once, which then comes down slowly) give the delay, 150 ms at the least (as before) and 800 at most; about 600 to 700 ms through the relays in the tests. The buffer changes slowly (150 ms a second up, 30 down), because every millisecond it grows is a moment of slow motion. Snapshot times: the arrival time carries the relays' jitter, so for a moving car the time is taken from the distance it covered at the speed it reported, kept within 120 ms before and 60 ms after the arrival. Between two snapshots the car follows a curve that leaves and arrives along their headings (Hermite), so a corner is not cut in straight lines; plain straight lines when the headings do not fit (reversing, a spin). Past the last snapshot it is extrapolated for up to 1.5 times the usual gap (at most 800 ms). When a new snapshot moves the path, the difference is taken into an offset that fades in 0.2 s, so the car glides instead of jumping; a teleport (as before, more than 25 m plus 4.5 cm per ms) is not smoothed.
-
-**Test box (`?p2p`).** A new line: `relay fallback: drawn N, sent to M (heard K, rooms R)  ev/s out X in Y  chaima open*, christiansass open`: players drawn through the relays, players we send to, players heard on the fallback topics, armed rooms, events a second each way, and the state of each relay (`*` is the one we write to; `refused` and `limited` show there). `ICE BLOCKED` when the test switch is on.
-
-### Tests and measurements (7 Nov)
-
-All on this Mac, headless Chrome, WebRTC made to fail on purpose with `?iceblock` (TURN candidates only and no TURN server: no candidate is gathered, every attempt ends `failed` and Trystero logs "could not connect to peer after exchanging SDP; configure TURN servers", as it would on the phones).
-
-`tools/p2p/fallback.mjs --local` (five local relays, nothing public), all checks pass:
-
-- Two players, both blocked: they see each other 3 to 5 s after the second page loads (the room is armed after 6 s of presence saying somebody is missing), with names; a phrase shows as a bubble; a drink offer, the card, the yes, the payment and the "treated you" line all go through. About 2 to 3 events a second each way per player in the test box.
-- A third player, not blocked, sees both blocked ones through the relays and they see him; a fourth, not blocked, connects directly to the third while the third keeps the two blocked ones on the relays (a working pair next to two relayed ones).
-- Smoothness, the same drive (a 30 m circle at 14 m/s) drawn on the same screen, speed of the drawn car frame by frame (5th, 50th, 95th percentile, largest single step): through the direct link 12.8 / 14.1 / 15.4 m/s, 0.53 m; through the relays 8.6 / 14.0 / 17.2 m/s, 1.05 m, with a buffer of about 700 ms. In another run of the same, 11 / 14 / 17.1 m/s, 0.58 m. No teleport in any run (largest step under 1.1 m); the relayed car surges a little more and is drawn about half a second later than a direct one.
-- Upgrade: the block lifted on one player, its next connection to the unblocked player opens and the relays stop for that pair (`upgrade` in the log), and it still sees everybody.
-- Leaving: a player on the relays closes the page; it is gone from both others in 1.5 to 1.6 s (the goodbye in the inbox), and does not come back in the next 12 s. A player who goes solo sends the same goodbye; one whose goodbye is lost goes after 5 s.
-- The test ran eight times while this was built. Earlier versions failed on the room swap at the start (a pair let each other go for a moment when both left the spawn cell) and on smoothness (the buffer grew fast after each late event, which showed as slow motion: 400 ms a second up became 150).
-
-`tools/p2p/stress.mjs --scenario A --block all` (everybody in one spot, every WebRTC connection blocked, five local relays):
-
-| | 8 players | 16 players |
-| --- | --- | --- |
-| first other player seen, from own start (median, slowest) | 7.8 s, 11.1 s | 7.6 s, 12.5 s |
-| cars drawn per player at the end (least, median, most) | 3, 4, 7 | 3, 5, 7 |
-| players sent to per player | 4 to 6 | 4 to 6 |
-| fallback players taken on or let go in the steady minute | 0 | 0 |
-| fallback events sent per player | 1.76 to 1.80 a second | 1.54 to 2.15 a second |
-| fallback events received per player | 5.8 to 12.6 a second | 5.2 to 12.8 a second |
-| most of the `fallback` limit used by one player in a minute | 108 of 300 | 129 of 300 |
-| most relay frames of all kinds by one player in a minute | 173 of 2000 | 185 of 2000 |
-| fallback frames at the relays (in + out), per player | 10.4 a second, 7.1 KB/s | 11.2 a second, 8.0 KB/s |
-| all relay frames per player (signalling, presence, fallback) | 15.5 a second | 16.4 a second |
-| the same with every connection working (measurements of 4 Nov) | 1.07 a second | 1.27 a second |
-| busiest relay | 55 frames/s, 117 MB an hour | 133 frames/s, 287 MB an hour |
-| limits hit, halts, page errors | 0, 0, 0 | 0, 0, 0 |
-
-The crowd's room is cut in two shards at 16 (9 and 7), as before. The game page's frame rate stayed at 60 fps; the bots' main thread spent 5 to 6 ms a second on the netcode, against 4 in the 16 player run of 4 Nov with direct links (signing an event with secp256k1 is the new work; not measured on a phone). What this means: a player on the relays costs the relays about 10 frames and 7 to 8 KB a second, ten times a direct player's signalling, and bounded by construction (at most one STATE event every 320 ms to at most 6 receivers, plus a hello every 10 s per room). That is the worst case, everybody blocked and in one spot. A room of 16 phones all on the fallback would put about 130 frames a second on each of the two relays: well within what a relay does, but more than a volunteer might like for hours. Raw output: `docs/p2p/measurements.txt`.
-
-Other checks run on this branch: `guard-check.mjs` (with the new fallback cases), `fbfuzz.mjs` (malformed, misaddressed and foreign events, a stranger speaking for a known player, duplicates, refusals and rate limits: nothing threw, nothing bad reached the game), `fuzz.mjs`, `states.mjs` (going solo also closes the fallback sockets), `default.mjs`, `near.mjs` (all `--local`), `phrases-check.mjs`, and `tools/release/smoke.mjs` on the build: all pass.
-
-**Public relays, once, short.** `tools/p2p/fallback.mjs --short` without `--local`: two blocked players on the shipped relay lists with a private `ns`, for about two minutes. They found each other 15 s after the second page loaded (each page starts in the default spawn cell and moves to its own a few seconds later), saw each other move, a phrase and a drink offer went through. chaima and christiansass refused nothing (0 refusals, 0 rate limits, 64 events sent by one player). Smoothness over the public relays: 4 / 14.1 / 17.7 m/s (5th, 50th, 95th percentile), largest step 0.94 m, buffer 717 ms: real relay jitter makes more short stalls than the local relays did.
-
-**Which relays take this traffic** (`tools/p2p/fbrelays.mjs`: from this one address, two keys each publishing 3 ephemeral events a second for 20 to 30 s, a reader on the same relay; then one presence event stored and read back):
-
-| Relay | Accepted | Delivered | Median delivery | Presence stored, notes |
-| --- | --- | --- | --- | --- |
-| nostr.chaima.info | 178 of 178 | 100 % | 61 ms | yes |
-| nostr.christiansass.de | 178 of 178 | 100 % | 66 ms | yes |
-| relay.grigic.org | 120 of 120 | 100 % | 106 ms | yes |
-| relay.nostr.dev.br | 120 of 120 | 100 % | 67 ms (max 782) | yes |
-| nostr.red5d.dev, nostr.rblb.it, relay.piazza.today, relay.hackshed.dev | all | 100 % | 102 to 258 ms | yes |
-| relay.bitmacro.cloud | 178 of 178 | 100 % | 175 ms | yes |
-| relay.primal.net | 178 of 178 | 100 % | 524 ms (p90 4.2 s) | yes |
-| nostr.mom | 178 of 178 | 100 % | 1.7 s | yes |
-| relay.nostr.net | 121 of 178 | 67 % | 159 ms | yes; `rate-limited: too many events from this key (60/60s)` |
-| nostr.oxtr.dev, relay.layer.systems | under 20 % | | | rate-limited |
-| nostr.stakey.net | 9 of 178 | | | `rate-limited: too many requests` |
-| relay.damus.io | 6 of 178 | | | rate-limited, then `banned: too many rate-limit violations` (for this address; for how long is not known) |
-| offchain.pub | 15 of 178 | | | web of trust only |
-| relay.degmods.com | all answered OK | 0 % | | accepts and does not forward |
-| nos.lol | no answer at all | 0 % | | see below |
-
-So `nostr.stakey.net` is out: `relay.grigic.org` takes its place in `RELAYS` (Trystero's signalling) and `nostr.christiansass.de` in `PRESENCE_RELAYS`. The fallback uses the two fastest, chaima and christiansass.
-
-**nos.lol said nothing.** From this Mac on 7 Nov, nos.lol accepted the WebSocket and answered subscriptions (stored notes came back), but sent no `OK` for any event we published, of any kind (20078, 30078, kind 1), and did not forward them. It may be limiting this address after the jam's tests, or it may have changed policy; one address cannot tell. It matters for presence: two players whose only shared presence relay is nos.lol would not see each other in the list. Check again from another network before relying on it, and replace it in `PRESENCE_RELAYS` if it stays silent.
-
-**What the phones should check next time** (with `?p2p` for the test box): the new `relay fallback` line on each phone (drawn, sent to, events a second, both relays `open`, no `refused` or `limited`); that the phones see each other move within about 15 s of arriving although `tries` still ends `failed` or `connecting`; how a relayed car looks while driving (it is drawn about 0.7 s late); a phrase and a drink offer between two phones on mobile data; several phones on one hotspot (one address for all of them, and relays limit per address: watch for `limited`); and frame rate and battery on a phone that signs 2 to 3 events a second.
-
-### Proposed wording for the card (not changed)
-
-`WHO_SEES` (`src/p2p/p2p.js`) is no longer the whole truth: through the fallback, name, position and phrases can be read by anyone who reads those relays, not only by the closest players. A proposal for the owner to correct, added after the first sentence:
-
-- it: "Se una connessione diretta non funziona, il tuo nome, la tua posizione e quello che dici passano invece per quei server, dove chiunque può leggerli."
-- en: "If a direct connection does not work, your name, your position and what you say go through those servers instead, where anyone can read them."

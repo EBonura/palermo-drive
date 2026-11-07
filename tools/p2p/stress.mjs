@@ -13,7 +13,6 @@
 //   --maxp M    the cap on other players (?maxp=, default: the shipped 8);  --steady S  seconds of steady state measured at the end (default 60);  --seed K  (default 1)
 //   --end S     total seconds of the scenario, to override the default (smoke tests)
 //   --patch F   experiments only: F is JSON [[from, to], ...] applied to the bots' copy of src/p2p/p2p.js or, with [file, from, to] entries, of another file in src/p2p (the real clients and the shipped files are untouched)
-//   --block K   K players (or 'all') load with ?iceblock: their WebRTC connections cannot open, so they and everybody they meet go through the relay fallback (src/p2p/fallback.js)
 //   --append F  adds the raw numbers to F;  --json F  writes the full result (all samples) to F
 //
 // How it works. The game's signalling goes to public Nostr relays run by volunteers, so this does not use them: it starts five small local relays (tools/p2p/relay.mjs,
@@ -47,7 +46,6 @@ const has = k => process.argv.includes('--' + k);
 const SC = arg('scenario', 'A'), N = +arg('n', 16), STEADY = +arg('steady', 60), SEED = +arg('seed', 1), GAP = +arg('gap', 3), PHONE = has('phone');
 const PER = +arg('per', 8);   // bots per browser page (each in an iframe of its own, so each has its own Trystero and its own id; one process for the lot)
 const REAL = Math.min(N, +arg('real', N >= 32 ? 2 : 1)), MAXP_ARG = arg('maxp', ''), MAXP = MAXP_ARG ? +MAXP_ARG : 8;
-const BLOCK = arg('block', '') === 'all' ? N : +arg('block', 0);   // the first BLOCK players (by index) cannot open WebRTC
 const rnd = (() => { let a = SEED * 2654435761 >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })();
 const pct = (a, p) => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
 const dist = (a, d = 0) => a.length ? { n: a.length, min: +a.reduce((m, v) => v < m ? v : m, Infinity).toFixed(d), p50: +pct(a, 0.5).toFixed(d), p90: +pct(a, 0.9).toFixed(d), max: +a.reduce((m, v) => v > m ? v : m, -Infinity).toFixed(d) } : { n: 0 };
@@ -97,7 +95,7 @@ function plan() {
   const P = Array.from({ length: N }, (_, i) => ({ i, at: 0, x: SPOT[0], z: SPOT[1], mode: 'circle', v: 12, r: 40, cx: SPOT[0], cz: SPOT[1], real: false }));
   const realIdx = new Set(Array.from({ length: REAL }, (_, k) => Math.floor((k + 0.5) * N / REAL)));
   if (SC === 'D') { const a = Math.floor(N / 4), b = Math.floor(3 * N / 4); realIdx.clear(); [a, b].slice(0, REAL).forEach(i => realIdx.add(i)); if (REAL === 1) { realIdx.clear(); realIdx.add(a); } }
-  P.forEach(p => { p.real = realIdx.has(p.i); p.block = p.i < BLOCK; });
+  P.forEach(p => { p.real = realIdx.has(p.i); });
   let end = 135, steadyFrom = 135 - STEADY, actions = [];
   if (SC === 'A' || SC === 'P') P.forEach(p => { p.at = rnd() * 20; });
   else if (SC === 'B') { let k = 0; P.forEach(p => { p.at = rnd() * 20; const c = p.real ? LAND[k++ % LAND.length] : [-4500 + rnd() * 9000, -3000 + rnd() * 9500]; Object.assign(p, { x: c[0], z: c[1], cx: c[0], cz: c[1] }); }); }
@@ -117,8 +115,7 @@ function plan() {
 const SAMPLE = lastT => { const d = window.__p2p, c = window.bot ? window.bot.car : window.game.car, peers = [...d.peers.values()]; return {
   w: performance.timeOrigin, mem: performance.memory ? performance.memory.usedJSHeapSize : 0, online: d.presence.size, shown: d.remotes.size,
   rooms: [...d.rooms.values()].map(r => r.i + ',' + r.j + (r.s ? ':' + r.s : '') + '=' + r.peers.size), home: (h => h ? h.i + ',' + h.j + (h.s ? ':' + h.s : '') : '')(d.home()),
-  linked: peers.filter(p => p.rooms.size || p.fb).length, held: peers.filter(p => (p.rooms.size || p.fb) && p.held !== false).length, st: { ...d.stats }, x: Math.round(c.x), z: Math.round(c.z),
-  fb: d.fb ? { ...d.fb.stats, on: peers.filter(p => p.fb).length, to: d.fbTo().length, guardUsed: d.guard.used('fallback') } : null,
+  linked: peers.filter(p => p.rooms.size).length, held: peers.filter(p => p.rooms.size && p.held !== false).length, st: { ...d.stats }, x: Math.round(c.x), z: Math.round(c.z),
   ev: d.log.filter(e => e.t > lastT), logLen: d.log.length }; };
 const REAL_MOVE = spec => { const c = window.game.car; if (window.__mv) cancelAnimationFrame(window.__mv.id); const m = window.__mv = { spec, id: 0, ang: Math.random() * 6.28, last: performance.now() };
   const f = now => { const dt = Math.min(0.1, (now - m.last) / 1000); m.last = now; const s = m.spec;
@@ -153,7 +150,7 @@ async function main() {
   const loadOne = async p => {
     const name = (p.real ? 'R' : 'B') + p.i;
     if (p.real) {
-      const g = await player(h, { name: '', ns, x: p.x, z: p.z, extra: `at=${p.x},${p.z},0${relayParam}${maxpParam}${p.block ? '&iceblock' : ''}`, isolated: true, phone: PHONE && SC === 'H', cpu: PHONE && SC === 'H' ? 4 : 1, p2p: 'p2p' });
+      const g = await player(h, { name: '', ns, x: p.x, z: p.z, extra: `at=${p.x},${p.z},0${relayParam}${maxpParam}`, isolated: true, phone: PHONE && SC === 'H', cpu: PHONE && SC === 'H' ? 4 : 1, p2p: 'p2p' });
       await watch(g.page); g.errs.length = 0; Object.assign(p, g, { name });
     } else Object.assign(p, { name, errs: [] });
     p.frame = p.real ? p.page.mainFrame() : null; p.series = []; p.events = []; p.lastT = -1; p.startT = 0; p.cpu = [];
@@ -176,7 +173,7 @@ async function main() {
   await Promise.all(reals.map(loadOne));
   const treeReals = chromeTree(h.browser.process().pid);
   bots.forEach(loadOne);   // (nothing to load per bot: the pages below)
-  const groups = [], urlOf = p => `http://127.0.0.1:${botSrv.port}/bot.html?p2p=nostr&ns=${ns}&name=${p.name}${relayParam}${maxpParam}${local ? '' : '&stun=1'}${p.block ? '&iceblock' : ''}`;
+  const groups = [], urlOf = p => `http://127.0.0.1:${botSrv.port}/bot.html?p2p=nostr&ns=${ns}&name=${p.name}${relayParam}${maxpParam}${local ? '' : '&stun=1'}`;
   async function loadGroup(list, cpu = 1) {
     // a browser context of its own for each page: Chrome keeps about 300 WebSockets open per context and leaves the rest waiting without an error (measured), and 8 bots x 7 sockets is far below that
     const bctx = await h.browser.createBrowserContext(), page = await bctx.newPage(), grp = { page, list, cpu };
@@ -318,18 +315,10 @@ async function main() {
       if (t0 != null && t - t0 < 5000) { delays.push(Math.max(0, t - t0)); nmatch++; } const pk = from + '>' + p.selfIdCache, lt = lastRx.get(pk); if (lt != null) { gaps.push(t - lt); if (dm >= 0 && dm < 150 && dmLast.get(pk) < 150) nearGaps.push(t - lt); } lastRx.set(pk, t); dmLast.set(pk, dm); }
     R.update = { fromBotsOnly: true, statesReceived: nrx, matchedToASend: nmatch, oneWayMs: dist(delays), oneWayP99: pct(delays, 0.99), gapMs: dist(gaps), gapP99: pct(gaps, 0.99), nearGapMs: dist(nearGaps), nearGapP99: pct(nearGaps, 0.99), nearGapOver250ms: nearGaps.filter(g => g > 250).length, nearGapOver1000ms: nearGaps.filter(g => g > 1000).length, gapOver250ms: gaps.filter(g => g > 250).length, gapOver1000ms: gaps.filter(g => g > 1000).length, pairs: lastRx.size };
   }
-  // the relay fallback (src/p2p/fallback.js), from the players' own counters: events sent and received per player per second in the steady window, how many players each one reached that way, the most any one used of its limit
-  {
-    const per = pl.P.map((_, i) => tkA.s[i] && tkB.s[i] && tkA.s[i].fb && tkB.s[i].fb ? { tx: (tkB.s[i].fb.txEvents - tkA.s[i].fb.txEvents) / secsAB, rx: (tkB.s[i].fb.rxEvents - tkA.s[i].fb.rxEvents) / secsAB, txB: (tkB.s[i].fb.txBytes - tkA.s[i].fb.txBytes) / secsAB, on: tkB.s[i].fb.on, refused: tkB.s[i].fb.refused, unsent: tkB.s[i].fb.unsent - tkA.s[i].fb.unsent } : null).filter(Boolean);
-    const onAt = ticks.filter(t => t.T >= wa && t.T <= wb).flatMap(t => t.s.filter(s => s && s.fb).map(s => s.fb.on)), toAt = ticks.filter(t => t.T >= wa && t.T <= wb).flatMap(t => t.s.filter(s => s && s.fb).map(s => s.fb.to));
-    R.fallback = { blocked: BLOCK, players: per.length, eventsOutPerPlayerPerS: dist(per.map(p => p.tx), 2), eventsInPerPlayerPerS: dist(per.map(p => p.rx), 2), bytesOutPerPlayerPerS: dist(per.map(p => p.txB), 0), fallbackPeersPerPlayer: dist(onAt), sentToPerPlayer: dist(toAt), fallbackPeersEnd: dist(per.map(p => p.on)), refused: sum(per.map(p => p.refused)), unsent: sum(per.map(p => p.unsent)),
-      perPlayer: pl.P.map((p, i) => tkA.s[i] && tkB.s[i] && tkB.s[i].fb ? { i, real: p.real, out: +((tkB.s[i].fb.txEvents - tkA.s[i].fb.txEvents) / secsAB).toFixed(2), in: +((tkB.s[i].fb.rxEvents - tkA.s[i].fb.rxEvents) / secsAB).toFixed(2), on: tkB.s[i].fb.on, onOff: p.events.filter(e => (e.ev === 'fbOn' || e.ev === 'fbOff' || e.ev === 'fbTo') && e.T >= wa && e.T <= wb).length } : null).filter(Boolean),
-      peakGuardUsedPerMin: Math.max(0, ...ticks.flatMap(t => t.s.filter(s => s && s.fb).map(s => s.fb.guardUsed))), guardLimitPerMin: 300 };
-  }
   // relays: what public relays would have to take
   if (relays) {
     const at = (T) => relSnaps.reduce((b, s) => Math.abs(s.T - T) < Math.abs(b.T - T) ? s : b), a = at(wa), b = at(wb), secs = Math.max(1, (b.T - a.T) / 1000), all0 = relSnaps[0], whole = Math.max(1, (relSnaps[relSnaps.length - 1].T - T0) / 1000);
-    const per = b.r.map((x, i) => ({ relay: i, carries: i < 3 ? 'signalling+presence' : 'signalling only', inPerS: +((x.inFrames - a.r[i].inFrames) / secs).toFixed(1), outPerS: +((x.outFrames - a.r[i].outFrames) / secs).toFixed(1), inKBperS: +((x.inBytes - a.r[i].inBytes) / secs / 1024).toFixed(1), outKBperS: +((x.outBytes - a.r[i].outBytes) / secs / 1024).toFixed(1), presenceEventsInPerS: +((x.eventsInPresence - a.r[i].eventsInPresence) / secs).toFixed(2), presenceEventsOutPerS: +((x.eventsOutPresence - a.r[i].eventsOutPresence) / secs).toFixed(2), fbEventsInPerS: +((x.eventsInFb - a.r[i].eventsInFb) / secs).toFixed(2), fbEventsOutPerS: +((x.eventsOutFb - a.r[i].eventsOutFb) / secs).toFixed(2), fbKBperS: +((x.bytesInFb + x.bytesOutFb - a.r[i].bytesInFb - a.r[i].bytesOutFb) / secs / 1024).toFixed(1), reqPerS: +((x.in.REQ - a.r[i].in.REQ) / secs).toFixed(2), eventPerS: +((x.in.EVENT - a.r[i].in.EVENT) / secs).toFixed(2), conns: x.conns, subsMax: x.subsMax }));
+    const per = b.r.map((x, i) => ({ relay: i, carries: i < 3 ? 'signalling+presence' : 'signalling only', inPerS: +((x.inFrames - a.r[i].inFrames) / secs).toFixed(1), outPerS: +((x.outFrames - a.r[i].outFrames) / secs).toFixed(1), inKBperS: +((x.inBytes - a.r[i].inBytes) / secs / 1024).toFixed(1), outKBperS: +((x.outBytes - a.r[i].outBytes) / secs / 1024).toFixed(1), presenceEventsInPerS: +((x.eventsInPresence - a.r[i].eventsInPresence) / secs).toFixed(2), presenceEventsOutPerS: +((x.eventsOutPresence - a.r[i].eventsOutPresence) / secs).toFixed(2), reqPerS: +((x.in.REQ - a.r[i].in.REQ) / secs).toFixed(2), eventPerS: +((x.in.EVENT - a.r[i].in.EVENT) / secs).toFixed(2), conns: x.conns, subsMax: x.subsMax }));
     const tot = f => sum(per.map(f));
     R.relay = { windowS: +secs.toFixed(0), perRelay: per, totalFramesPerS: +(tot(r => r.inPerS + r.outPerS)).toFixed(1), totalKBperS: +(tot(r => r.inKBperS + r.outKBperS)).toFixed(1), framesPerPlayerPerS: +(tot(r => r.inPerS + r.outPerS) / Math.max(1, started.length)).toFixed(2),
       busiestRelayFramesPerS: Math.max(...per.map(r => r.inPerS + r.outPerS)), estimateBusiestRelayFramesPerHour: Math.round(Math.max(...per.map(r => r.inPerS + r.outPerS)) * 3600), estimateBusiestRelayMBPerHour: +(Math.max(...per.map(r => r.inKBperS + r.outKBperS)) * 3600 / 1024).toFixed(0),
@@ -363,7 +352,7 @@ async function main() {
   // ---------- print ----------
   const out = [];
   const L = s => out.push(s);
-  L(`scenario ${SC} N=${N} (${REAL} real game pages + ${N - REAL} bots)${BLOCK ? `, WebRTC blocked for ${BLOCK}` : ''} cap ${MAXP}${MAXP_ARG ? ' (?maxp)' : ' (shipped)'}${PHONE ? ' phone profile' : ''} seed ${SEED}, ran ${R.durationS} s${aborted ? ', STOPPED: ' + aborted : ''}`);
+  L(`scenario ${SC} N=${N} (${REAL} real game pages + ${N - REAL} bots) cap ${MAXP}${MAXP_ARG ? ' (?maxp)' : ' (shipped)'}${PHONE ? ' phone profile' : ''} seed ${SEED}, ran ${R.durationS} s${aborted ? ', STOPPED: ' + aborted : ''}`);
   L(`  connect (ms from own start): first peer ${JSON.stringify(R.connect.all.firstPeerMs)} first seen ${JSON.stringify(R.connect.all.firstSeenMs)} never connected ${R.connect.all.neverConnected} never saw ${R.connect.all.neverSaw}; real pages first peer ${JSON.stringify(R.connect.real.firstPeerMs)} seen ${JSON.stringify(R.connect.real.firstSeenMs)}`);
   L(`  end state: last room change at ${R.end.lastRoomChangeSOfRun} s (last player started at ${R.end.lastPlayerStartedAtS} s, run ${R.durationS} s); ${R.end.active} players, shown ${JSON.stringify(R.end.shown)} (expected ${expect}), below expected ${R.end.belowExpected}, linked ${JSON.stringify(R.end.linked)}; rooms ${R.end.rooms.distinctRooms} sizes ${R.end.rooms.sizes.join(',')}; home shards ${R.end.homes.distinct} sizes ${R.end.homes.sizes.join(',')}`);
   L(`  cap: max linked ${maxLinked}, max shown ${maxShown}, max members in a room ${maxRoomMembers} (limit ${cap}); seconds any player linked > ${MAXP}: ${R.cap.secondsWithAnyPlayerOverLinkCap} (longest streak ${R.cap.longestStreakS}), room over ${cap}: ${R.cap.secondsWithRoomOverLimit}, shown over cap: ${R.cap.secondsWithAnyShownOverCap}; longest gap between samples ${R.cap.longestSampleGapS} s`);
@@ -372,8 +361,7 @@ async function main() {
   L(`  safety limit: most used by one player in any minute: ${R.limitsUsed.peakJoinsPerMin} room joins, ${R.limitsUsed.peakRelayFramesPerMin} relay frames; limits hit ${R.limitsUsed.hits}, halts ${R.limitsUsed.halts}`);
   L(`  messages (steady ${R.messages.windowS} s): sent ${tx} received ${rx} (${R.messages.lostOrInFlightPct} % not counted as received, includes in flight and sent to peers that just left), dup ${R.messages.rxDup} bad ${R.messages.rxBad} rate-limited ${R.messages.rxDropped}; per player ${R.messages.txPerPlayerPerS} out / ${R.messages.rxPerPlayerPerS} in msgs/s, ${R.messages.txBytesPerPlayerPerS} B/s payload out`);
   if (R.update) L(`  update delay between bots (ms): one-way ${JSON.stringify(R.update.oneWayMs)} p99 ${R.update.oneWayP99}; gap between updates ${JSON.stringify(R.update.gapMs)} p99 ${R.update.gapP99}, over 250 ms ${R.update.gapOver250ms}, over 1 s ${R.update.gapOver1000ms} (of ${R.update.statesReceived} states, ${R.update.pairs} pairs); gaps between players under 150 m apart (sent at 10 Hz by design): ${JSON.stringify(R.update.nearGapMs)} p99 ${R.update.nearGapP99}, over 250 ms ${R.update.nearGapOver250ms}, over 1 s ${R.update.nearGapOver1000ms}`);
-  if (R.relay) { L(`  relays (steady ${R.relay.windowS} s, 5 local relays): total ${R.relay.totalFramesPerS} frames/s ${R.relay.totalKBperS} KB/s, ${R.relay.framesPerPlayerPerS} frames/s per player; busiest relay ${R.relay.busiestRelayFramesPerS} frames/s = ${R.relay.estimateBusiestRelayFramesPerHour} per hour, ${R.relay.estimateBusiestRelayMBPerHour} MB/h; whole run avg ${R.relay.wholeRun.framesPerS}/s, peak second in ${R.relay.wholeRun.peakPerSecondIn} out ${R.relay.wholeRun.peakPerSecondOut}, first minute ${R.relay.wholeRun.firstMinuteFrames} frames`); R.relay.perRelay.forEach(r => L(`    relay ${r.relay} (${r.carries}): in ${r.inPerS}/s out ${r.outPerS}/s, ${r.inKBperS}+${r.outKBperS} KB/s, presence events in ${r.presenceEventsInPerS}/s out ${r.presenceEventsOutPerS}/s, fallback events in ${r.fbEventsInPerS}/s out ${r.fbEventsOutPerS}/s ${r.fbKBperS} KB/s, REQ ${r.reqPerS}/s EVENT ${r.eventPerS}/s, conns ${r.conns}`)); }
-  if (R.fallback) L(`  relay fallback (steady, ${R.fallback.blocked} players with WebRTC blocked): per player events out ${JSON.stringify(R.fallback.eventsOutPerPlayerPerS)} in ${JSON.stringify(R.fallback.eventsInPerPlayerPerS)} /s, bytes out ${JSON.stringify(R.fallback.bytesOutPerPlayerPerS)} B/s; players drawn through the relays per player ${JSON.stringify(R.fallback.fallbackPeersPerPlayer)}, sent to ${JSON.stringify(R.fallback.sentToPerPlayer)} (end ${JSON.stringify(R.fallback.fallbackPeersEnd)}); per player [i, out/s, in/s, taken on or let go in the window] ${JSON.stringify(R.fallback.perPlayer.map(p => [p.i + (p.real ? 'R' : ''), p.out, p.in, p.onOff]))}; refused ${R.fallback.refused}, not sent ${R.fallback.unsent}; most of the limit used in a minute ${R.fallback.peakGuardUsedPerMin} of ${R.fallback.guardLimitPerMin}`);
+  if (R.relay) { L(`  relays (steady ${R.relay.windowS} s, 5 local relays): total ${R.relay.totalFramesPerS} frames/s ${R.relay.totalKBperS} KB/s, ${R.relay.framesPerPlayerPerS} frames/s per player; busiest relay ${R.relay.busiestRelayFramesPerS} frames/s = ${R.relay.estimateBusiestRelayFramesPerHour} per hour, ${R.relay.estimateBusiestRelayMBPerHour} MB/h; whole run avg ${R.relay.wholeRun.framesPerS}/s, peak second in ${R.relay.wholeRun.peakPerSecondIn} out ${R.relay.wholeRun.peakPerSecondOut}, first minute ${R.relay.wholeRun.firstMinuteFrames} frames`); R.relay.perRelay.forEach(r => L(`    relay ${r.relay} (${r.carries}): in ${r.inPerS}/s out ${r.outPerS}/s, ${r.inKBperS}+${r.outKBperS} KB/s, presence events in ${r.presenceEventsInPerS}/s out ${r.presenceEventsOutPerS}/s, REQ ${r.reqPerS}/s EVENT ${r.eventPerS}/s, conns ${r.conns}`)); }
   L(`  bots main thread (steady): task ${JSON.stringify(R.botMainThread.taskMsPerS)} ms/s, script ${JSON.stringify(R.botMainThread.scriptMsPerS)} ms/s, JS heap ${JSON.stringify(R.botMainThread.jsHeapMB)} MB; bot bandwidth up ${JSON.stringify(R.botBandwidth.upKBs)} down ${JSON.stringify(R.botBandwidth.downKBs)} KB/s (data channels), connections ${JSON.stringify(R.botBandwidth.connections)}`);
   R.realClients.forEach(r => L(`  real ${r.name}: frame ${JSON.stringify(r.frameMs)} task ${r.taskMsPerS} script ${r.scriptMsPerS} ms/s heap ${r.jsHeapMB} MB, wire ${JSON.stringify(r.wire)}, shown ${r.shown} linked ${r.linked}`));
   L(`  harness steps (ms): ${JSON.stringify(stepLog)}`);
@@ -387,7 +375,7 @@ async function main() {
   console.log(out.join('\n'));
   const app = arg('append', '');
   if (app) fs.appendFileSync(path.resolve(app), `\n=== stress.mjs ${process.argv.slice(2).join(' ')}\n` + out.join('\n') + '\n');
-  const jf = arg('json', ''); if (jf) fs.writeFileSync(path.resolve(jf), JSON.stringify({ R, events: pl.P.filter(p => p.started).map(p => ({ i: p.i, real: p.real, start: p.startT - T0, ev: p.events.filter(e => ['join', 'leave', 'decoy', 'overfull', 'overcap', 'spare', 'swap', 'gave', 'empty', 'limit', 'halt', 'unheld', 'drop', 'fbOn', 'fbOff', 'fbTo', 'fbBye', 'upgrade', 'fbArm'].includes(e.ev)).map(e => [e.T - T0, e.ev, e.room || e.peer || '', e.peers, e.why || e.linked || '']) })), ticks: ticks.map(t => ({ T: t.T - T0, s: t.s.map(s => s && { shown: s.shown, linked: s.linked, held: s.held, rooms: s.rooms, home: s.home, online: s.online }) })) }));
+  const jf = arg('json', ''); if (jf) fs.writeFileSync(path.resolve(jf), JSON.stringify({ R, events: pl.P.filter(p => p.started).map(p => ({ i: p.i, real: p.real, start: p.startT - T0, ev: p.events.filter(e => ['join', 'leave', 'decoy', 'overfull', 'overcap', 'spare', 'swap', 'gave', 'empty', 'limit', 'halt', 'unheld', 'drop'].includes(e.ev)).map(e => [e.T - T0, e.ev, e.room || e.peer || '', e.peers, e.why || e.linked || '']) })), ticks: ticks.map(t => ({ T: t.T - T0, s: t.s.map(s => s && { shown: s.shown, linked: s.linked, held: s.held, rooms: s.rooms, home: s.home, online: s.online }) })) }));
   // ---------- tidy ----------
   clearTimeout(dog); await within(h.browser.close(), 20000).catch(() => {}); try { h.browser.process().kill('SIGKILL'); } catch (e) { /* gone */ } h.server.close(); proxy.server.close(); botSrv.server.close(); relays && relays.close();
   fs.rmSync(botDir, { recursive: true, force: true });
