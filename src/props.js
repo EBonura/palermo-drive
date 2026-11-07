@@ -3,7 +3,9 @@
 // Owned by the props work. Everything is vertex-coloured low-poly in shared InstancedMeshes,
 // bucketed into 250 m cells so frustum culling still works.
 import * as THREE from 'three';
-import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMaskIter } from './core.js';
+import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMaskIter, freeCanvas } from './core.js';
+import { paintAtlas, COLS as POSTER_COLS, ROWS as POSTER_ROWS, CELL_W, CELL_H, COUNT as POSTERS, DW as POSTER_DW, DH as POSTER_DH } from './adverts.js';   // the twelve adverts on the billboards
+import { NIGHT } from './daynight.js';   // (read only: its shared night uniform lights the billboards)
 import { zoneAt, ZONES } from './districts.js';
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
@@ -89,6 +91,7 @@ const MODELS = {}; // name -> { geo, mat: 'std'|'dbl', tint }
 const def = (name, mb, o = {}) => { MODELS[name] = { geo: mb.geo(), mat: o.dbl ? 'dbl' : 'std', tint: !!o.tint }; };
 
 const GLASS = C('#262e35'), TYRE = C('#1a1a1c'), WHITE = C('#ffffff'), BLACKMET = C('#26262b');
+const BB_LAMPS = [-1.6, 1.6]; let BB_LAMP_Y = 7;   // the billboard's two lamps (x on the model; the lens height is set where it is built)
 
 // Parked cars are the traffic cars' own models (windows, wheels, lamps, a body colour tinted per instance), drawn with the traffic material.
 {
@@ -153,18 +156,27 @@ ape('ape', false); ape('apetaxi', true);
     mb.box(s * 1.45 - 0.35, 8.82, -0.16, s * 1.45 + 0.35, 8.95, 0.16, C('#cfd3d5'), 0.8, 1, false);
   }
   def('lamp_pole', mb);
-  // a roadside billboard of the fast roads (photos su07, su09, nw30): a 6 x 3 m panel on two steel posts, 4 m up, front +z, in two poster designs (blocks of loud colour, bars for the lettering)
-  const steel = C('#6d7175'), frame = C('#4a4d50');
-  for (const [name, blocks] of [
-    ['billboard_a', [[-3, 4.1, 3, 7, '#f4f1ea'], [-3, 4.1, -0.4, 7, '#d8342b'], [0.0, 6.1, 2.6, 6.5, '#2a2a2e'], [0.0, 5.4, 2.2, 5.75, '#2a2a2e'], [-3, 4.1, 3, 4.6, '#f2c230']]],
-    ['billboard_b', [[-3, 4.1, 3, 7, '#2f6fb8'], [-2.6, 4.5, 0.6, 6.6, '#f4f1ea'], [1.0, 5.9, 2.7, 6.5, '#ffd23f'], [1.0, 4.9, 2.7, 5.4, '#ffffff'], [-3, 4.1, 3, 4.35, '#ef7d22']]]]) {
-    const bb = new MB();
-    for (const x of [-2.2, 2.2]) bb.box(x - 0.14, 0, -0.14, x + 0.14, 4.1, 0.14, steel, 0.7, 1, false);
-    bb.box(-3.1, 4.0, -0.22, 3.1, 7.1, -0.06, frame, 0.8, 1, true);
-    blocks.forEach(([x0, y0, x1, y1, col], k) => bb.box(x0, y0, -0.06, x1, y1, 0.0 + k * 0.012, C(col), 1, 1, false));
-    bb.box(-3.0, 3.9, 0.0, 3.0, 4.0, 0.7, frame, 0.8, 1, true);   // the walkway under it
-    def(name, bb);
+  // a roadside billboard of the fast roads (photos su07, su09, nw30): a 6 x 2.82 m poster on two steel posts, 4 m up, front +z, with a walkway under it and two lamps over it.
+  // One model for all twelve adverts (src/adverts.js): the poster quad reads its cell of the advert atlas by the instance colour (posterMat), the rest are vertex colours.
+  // uv marks the parts: the poster 0..1, the frame -1, the lamp lenses -2 (lit at night).
+  const steel = C('#6d7175'), frame = C('#4a4d50'), bb = new MB(), PY0 = 4.1, PY1 = 4.1 + 6 * POSTER_DH / POSTER_DW;
+  for (const x of [-2.2, 2.2]) bb.box(x - 0.14, 0, -0.14, x + 0.14, 4.1, 0.14, steel, 0.7, 1, false);
+  bb.box(-3.1, 4.0, -0.22, 3.1, PY1 + 0.1, -0.02, frame, 0.8, 1, true);
+  bb.box(-3.0, 3.9, 0.0, 3.0, 4.0, 0.7, frame, 0.8, 1, true);   // the walkway under it
+  for (const x of BB_LAMPS) {   // a lamp on an arm over the poster, looking down at it
+    bb.box(x - 0.03, PY1 + 0.02, -0.06, x + 0.03, PY1 + 0.08, 0.95, steel, 0.9, 1, false);
+    bb.box(x - 0.18, PY1 + 0.0, 0.82, x + 0.18, PY1 + 0.14, 1.06, BLACKMET, 0.8, 1, false);
   }
+  const nFrame = bb.p.length / 3;
+  for (const x of BB_LAMPS) bb.face(WHITE, [[x - 0.15, PY1 - 0.01, 0.85], [x + 0.15, PY1 - 0.01, 0.85], [x + 0.15, PY1 - 0.01, 1.03], [x - 0.15, PY1 - 0.01, 1.03]]);   // the lens, facing down
+  const nLens = bb.p.length / 3;
+  bb.face(WHITE, [[-3, PY0, 0], [3, PY0, 0], [3, PY1, 0], [-3, PY1, 0]]);   // the poster
+  const bg = bb.geo(), uv = new Float32Array(bg.attributes.position.count * 2).fill(-1), pos = bg.attributes.position;
+  for (let i = nFrame; i < nLens; i++) uv[i * 2] = uv[i * 2 + 1] = -2;
+  for (let i = nLens; i < pos.count; i++) { uv[i * 2] = (pos.getX(i) + 3) / 6; uv[i * 2 + 1] = (pos.getY(i) - PY0) / (PY1 - PY0); }
+  bg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  MODELS.billboard = { geo: bg, mat: 'poster', tint: true };   // tint: the instance colour carries the advert (posterCol)
+  BB_LAMP_Y = PY1 - 0.01;
   const wl = new MB(), blk = C('#232326'), glow = C('#f4e6b8');   // wall lantern on a curly bracket, wall is z=0, out is +z
   wl.box(-0.025, 4.45, 0.0, 0.025, 4.52, 0.75, blk, 1, 1, false);
   wl.frust(4.0, [-0.1, 0.62, 0.1, 0.82], 4.3, [-0.17, 0.57, 0.17, 0.87], glow, 1, 1, false);
@@ -463,11 +475,49 @@ for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_
 }
 
 // ------------------------------------------------------------------ materials / instancing
+// The billboards' material: one atlas of the twelve adverts (src/adverts.js, 2048 x 768, 8.4 MB with its mipmaps), painted once and freed after upload like the other painted
+// textures. The instance colour's red channel is the advert (posterCol); uv says the part (poster 0..1, frame -1, lamp lens -2). At night (NIGHT.win, daynight.js) the lamps
+// glow and the poster takes a soft light, stronger at the top under them. No extra draw: one InstancedMesh per props cell, as before.
+const posterCol = k => new THREE.Color((k + 0.5) / 16, 0, 0);
+function posterMaterial() {
+  const cv = document.createElement('canvas'); cv.width = POSTER_COLS * CELL_W; cv.height = POSTER_ROWS * CELL_H;
+  const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+  const paint = () => { paintAtlas(cv.getContext('2d'), cv.width, cv.height); map.needsUpdate = true; freeCanvas(map, (g, w, h) => paintAtlas(g, w, h)); };
+  // the headlines are Impact; a device without it uses Barlow Condensed, which the page loads (src/ui.css): wait for it there, a little
+  const probe = cv.getContext('2d'); probe.font = '40px monospace'; const a = probe.measureText('MWMWiiii').width; probe.font = '40px Impact, monospace';
+  if (probe.measureText('MWMWiiii').width !== a || !document.fonts?.load) paint();
+  else Promise.race([document.fonts.load('700 40px "Barlow Condensed"'), new Promise(r => setTimeout(r, 4000))]).then(paint, paint);
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, map, roughness: 0.75, metalness: 0.0 });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uWin = NIGHT.win;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vPart;')
+      .replace('#include <color_vertex>', `vColor = vec4( 1.0 );
+#ifdef USE_COLOR
+vColor.rgb *= color;
+#endif`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>
+{ float k = floor( instanceColor.r * 16.0 ); vec2 cell = vec2( mod( k, ${POSTER_COLS}.0 ), floor( k / ${POSTER_COLS}.0 ) );
+  vPart = uv.x < -1.5 ? -2.0 : uv.x < -0.5 ? -1.0 : uv.y;
+  vMapUv = uv.x < -0.5 ? vec2( -1.0 ) : vec2( ( cell.x + 0.002 + uv.x * 0.996 ) / ${POSTER_COLS}.0, 1.0 - ( cell.y + 0.004 + ( 1.0 - uv.y ) * 0.992 ) / ${POSTER_ROWS}.0 ); }`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWin;\nvarying float vPart;')
+      .replace('#include <map_fragment>', `vec4 sampledDiffuseColor = texture2D( map, max( vMapUv, 0.0 ) );
+if ( vPart >= 0.0 ) diffuseColor *= sampledDiffuseColor;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+{ float nk = smoothstep( 0.0, 0.08, uWin );
+  if ( vPart < -1.5 ) totalEmissiveRadiance += vec3( 1.0, 0.86, 0.62 ) * 2.5 * nk;
+  else if ( vPart >= 0.0 ) totalEmissiveRadiance += diffuseColor.rgb * ( 0.25 + 0.35 * vPart ) * nk; }`);
+  };
+  m.customProgramCacheKey = () => 'billboard-poster';
+  return m;
+}
 const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
   veh: makeMaterial(),   // the traffic material: instance colour tints only the paintwork
   sig: signalMaterial(),   // traffic signal heads: the red channel of the instance colour says which lens is lit
+  poster: posterMaterial(),   // the billboards: the red channel of the instance colour says which advert
 };
 
 // Beach (Mondello lido and the other sand strips): striped umbrella, sunbed, summer kiosk
@@ -530,8 +580,7 @@ const SPECS = {
   palm_date_a: { kind: 'tree', c: [[0, 0, 0.55]], thr: 11, H: 5, crown: 2.5 },
   palm_date_b: { kind: 'tree', c: [[0, 0, 0.52]], thr: 11, H: 7.5, crown: 2.5 },
   lamp_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 7, tilt: 1.05, H: 9 },
-  billboard_a: { kind: 'solid', c: [[-2.2, 0, 0.3], [2.2, 0, 0.3]] },
-  billboard_b: { kind: 'solid', c: [[-2.2, 0, 0.3], [2.2, 0, 0.3]] },
+  billboard: { kind: 'solid', c: [[-2.2, 0, 0.3], [2.2, 0, 0.3]] },
   candelabra: { kind: 'bend', c: [[0, 0, 0.25]], thr: 7.5, tilt: 0.9, H: 4 },
   utility_pole: { kind: 'bend', c: [[0, 0, 0.2]], thr: 10, tilt: 0.7, H: 9.4 },   // a pole of the power line: heavier than a lamp; the wires stay where they are
   signal: { kind: 'bend', c: [[0, 0, 0.2]], thr: 6.5, tilt: 1.1, H: 3.5 },
@@ -1056,7 +1105,7 @@ function makePhysics(env) {
   // The chase camera's pull-in (src/vehicle.js): where along the car -> camera segment does a prop that stands tall enough to hide the car get in the way?
   // 1 = clear. Trunks, poles, kiosks and shelters count (a thin one at least 0.35 m wide, so a lamp post is seen to cross the view); low things (bins, cars, benches,
   // hedges) and anything knocked over do not. Props the car is touching are ignored: they are in the picture anyway. Reads the collision grid, no allocation.
-  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'monument_s', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm', 'billboard_a', 'billboard_b']);
+  const TALL = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'kiosk', 'shelter', 'monument', 'monument_s', 'phone', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b', 'lamp_pole', 'utility_pole', 'candelabra', 'signal', 'busstop', 'signal_arm', 'billboard']);
   function occlude(x0, z0, x1, z1) {
     const rx = x1 - x0, rz = z1 - z0, L2 = rx * rx + rz * rz; if (L2 < 1e-6) return 1;
     let tMin = 1;
@@ -1625,7 +1674,7 @@ function* generate(S, BUD) {
   }
   {
     // billboards along the open fast roads (photos su07, su09, nw30; none in the OSM data): now and then, on the right of travel well beyond the rail and the tall lamps, angled to the traffic that comes,
-    // one of two posters. Never near a junction or a building, on or next to the asphalt (it may stand in a separator wide enough), on a slope or within 40 m of another one. About one in BB_EVERY m of each carriageway.
+    // one of the twelve adverts. Never near a junction or a building, on or next to the asphalt (it may stand in a separator wide enough), on a slope or within 40 m of another one. About one in BB_EVERY m of each carriageway.
     const BB_STEP = 30, BB_EVERY = 250, BB_OFF = 5.5;
     const bbs = []; let n = 0;
     for (const r of S.roads) {
@@ -1643,7 +1692,11 @@ function* generate(S, BUD) {
           if (!inBounds(x, z) || march(x, z, -nx, -nz, BB_OFF - 1.5, (qx, qz) => !road(qx, qz)) < BB_OFF - 1.8 || road(x + nx * 2, z + nz * 2) || road(x + tx * 3.5, z + tz * 3.5) || road(x - tx * 3.5, z - tz * 3.5) || inB(x, z) || nearWall(x, z, 4) || occHit(x, z, 3.2) || nearJunction(x, z, 25)) continue;
           if (Math.abs(gy(x, z) - gy(cx, cz)) > 1.5 || bbs.some(q => hyp2(q[0] - x, q[1] - z) < 40)) continue;
           const fx = -tx * 0.85 - nx * 0.53, fz = -tz * 0.85 - nz * 0.53;   // facing the oncoming traffic, turned 32 degrees to the road
-          put(hash3(x, z, 1.7) < 0.5 ? 'billboard_a' : 'billboard_b', x, gy(x, z), z, Math.atan2(fx, fz)); occAdd(x, z, 3.2); bbs.push([x, z]); n++;
+          // the advert: a fixed hash of the position (the same for everyone), stepped on past the ones the billboards of this tile within 800 m already show
+          const near = bbs.filter(q => hyp2(q[0] - x, q[1] - z) < 800).map(q => q[2]);
+          let k = Math.floor(hash3(x, z, 1.7) * POSTERS) % POSTERS;
+          for (let j = 0; j < POSTERS && near.includes(k); j++) k = (k + 5) % POSTERS;   // (5 and 12 are coprime: the steps visit every advert)
+          put('billboard', x, gy(x, z), z, Math.atan2(fx, fz), 1, posterCol(k)); occAdd(x, z, 3.2); bbs.push([x, z, k]); n++;
         }
       }
     }
@@ -2707,6 +2760,11 @@ function* instantiate(res, parent, BUD) {
       im.computeBoundingSphere();
       im.castShadow = !/^(bags)$/.test(name); im.receiveShadow = true;
       im.userData.kind = name; /* [day/night] src/daynight.js finds the lamps by kind */ im.userData.maxd = (FAR[name] ?? 450) * PFAR; if (SHADOW_D[name]) im.userData.shadowd = SHADOW_D[name];
+      if (name === 'billboard') {   // its two lamps light at night like the lamps on wires (src/daynight.js reads userData.lampPts: x, ground y, z, height of the lens)
+        const lp = [];
+        for (let i = 0; i < n; i++) { const r = e.m[i * 5 + 3], c = Math.cos(r), s = Math.sin(r); for (const lx of BB_LAMPS) lp.push(e.m[i * 5] + lx * c + 0.94 * s, e.m[i * 5 + 1], e.m[i * 5 + 2] - lx * s + 0.94 * c, BB_LAMP_Y); }
+        im.userData.lampPts = new Float32Array(lp);
+      }
       meshes.push(im); meshOf[name + '|' + ckey] = im; parent.add(im); tris += per * n; total += n;
     }
     if (BUD.over()) yield;
