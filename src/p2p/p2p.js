@@ -100,9 +100,40 @@ export function createP2P(env) {
   let lastChecked = -1e9, lastInfoKey = '', started = false;
 
   // ---------- HUD (debug) ----------
+  // In the HUD's status zone, under the slim music bar top left (src/hud.js), so the bar never covers it; the body if that zone is missing.
   const hud = document.createElement('div');
-  hud.style.cssText = 'position:fixed;z-index:30;left:8px;top:8px;padding:4px 8px;border-radius:6px;background:rgba(13,7,9,.74);color:#fff;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre';
-  if (testing) document.body.appendChild(hud);
+  hud.style.cssText = 'padding:4px 8px;border-radius:6px;background:rgba(13,7,9,.8);color:#fff;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre-wrap;max-width:min(560px,92vw)';
+  if (testing) { const z = zone('status'); if (z) z.appendChild(hud); else { hud.style.cssText += ';position:fixed;z-index:30;left:8px;top:60px'; document.body.appendChild(hud); } }
+
+  // What happens to each WebRTC connection attempt, for the test box: Trystero makes its RTCPeerConnections through the global at call time
+  // (new (opt ?? RTCPeerConnection)), so wrapping the global here sees every one. Per attempt: whether the other side's description arrived
+  // (signalling reached us), the candidate types we gathered (host = this network, srflx = our public address via STUN, relay = TURN), and the
+  // ICE and connection states. "no answer" means the relays never carried the other side's reply; "failed" with srflx means a NAT or the
+  // network blocked the direct path, the case a TURN relay is for. Also the relay warnings Trystero logs (rate limits, refusals). Only with ?p2p.
+  const rtc = { made: 0, tries: [], warns: 0, lastWarn: '' };
+  if (testing && typeof window.RTCPeerConnection === 'function') {
+    const Orig = window.RTCPeerConnection;
+    const Wrapped = function (...a) {
+      const pc = new Orig(...a), t = { pc, cand: new Set(), remote: false };
+      rtc.made++; rtc.tries.push(t); if (rtc.tries.length > 16) rtc.tries.shift();
+      pc.addEventListener('icecandidate', e => { if (e.candidate && e.candidate.type) t.cand.add(e.candidate.type); });
+      const srd = pc.setRemoteDescription.bind(pc);
+      pc.setRemoteDescription = (...b) => { t.remote = true; return srd(...b); };
+      return pc;
+    };
+    Wrapped.prototype = Orig.prototype; Object.setPrototypeOf(Wrapped, Orig);
+    window.RTCPeerConnection = Wrapped;
+    const warn = console.warn.bind(console);
+    console.warn = (...a) => { const s = a.map(String).join(' '); if (/Trystero/.test(s)) { rtc.warns++; rtc.lastWarn = s.replace(/^Trystero:\s*/, '').slice(0, 90); } warn(...a); };
+  }
+  const rtcText = () => {
+    const by = {}; let remote = 0; const cand = new Set();
+    for (const t of rtc.tries) { const s = t.pc.connectionState || t.pc.iceConnectionState || '?'; by[s] = (by[s] || 0) + 1; if (t.remote) remote++; for (const c of t.cand) cand.add(c); }
+    const states = Object.entries(by).map(([k, v]) => `${k} ${v}`).join(', ') || 'none';
+    const socks = Object.values(strat.sockets() || {}), up = socks.filter(w => w && w.readyState === 1).length;
+    const net = navigator.connection ? ` ${navigator.connection.type || ''}${navigator.connection.effectiveType ? ' ' + navigator.connection.effectiveType : ''}` : '';
+    return `tries ${rtc.made} (last ${rtc.tries.length}): ${states}\nanswer from them ${remote}/${rtc.tries.length}  my addresses ${[...cand].join(' ') || 'none'}\nrelays open ${up}/${socks.length}  presence ${presence.ready ? 'ready' : 'waiting'}${net}\nrelay warnings ${rtc.warns}${rtc.lastWarn ? ': ' + rtc.lastWarn : ''}`;
+  };
 
   // the Garage draws its own screen and the main loop skips the frame (so update() below does not run): the buttons are hidden by a rule that follows the page, not by a frame
   const css = document.createElement('style'); css.textContent = 'html.pd-in-garage .pd-p2p{display:none!important}@keyframes pd-p2p-bar{from{width:100%}to{width:0}}.pd-p2p-bar{animation:pd-p2p-bar ' + OFFER_TTL_MS + 'ms linear forwards}'; document.head.appendChild(css);
@@ -708,7 +739,7 @@ export function createP2P(env) {
     if (testing && now - hudT > 500) {
       hudT = now;
       if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
-      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}`;
+      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}\n${rtcText()}`;
     }
   }
 
