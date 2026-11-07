@@ -4,6 +4,7 @@
 //   skipIds generic building ids this model replaces (hidden from that tile's buildings only)
 //   build   uses only THREE and groundY, which it imports from src/core.js itself; ctx is unused
 //   walls / dropWalls  optional collision changes, see the report: walls are [x0,z0,x1,z1] segments to add, dropWalls are building ids whose footprint walls should not be registered
+// A built model may set userData.solids = [[flat, holes, roofY], ...]: where it stands solid, handed to the lean renderer's occluder grid as the generic building it replaces was (src/world.js)
 import { POLITEAMA, STADIO, UTVEGGIO, SANTUARIO } from './lmc-a.js';
 import { GROUP_G } from './lmc-g.js';   // review-2 items 9, 13/14 and 15: Giardino Inglese, Villa Garibaldi, Stazione Centrale, Ponte dell'Ammiraglio, Piazza Mondello (src/lmc-g.js)
 import { PONTE_AMM } from './lmc-g.js';
@@ -16,7 +17,7 @@ import { STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, GYMNASIUM, VILLA_GIULIA_GA
 import { MONDELLO_LANDMARKS } from './lmc-mondello.js';
 import { GATES } from './lmc-gates.js';
 import { ARCO_CUTO } from './lmc-cuto.js';   // the Arco di Cutò and the front of the Palazzo Filangeri di Cutò on Via Maqueda (src/lmc-cuto.js)
-import { TOWN_LANDMARKS } from './lmc-towns.js';   // Villabate: the Chiesa Madre di Sant'Agata, the bell tower of San Giuseppe and the bandstand (src/lmc-towns.js)
+import { TOWN_LANDMARKS } from './lmc-towns.js';   // the towns: Villabate's Chiesa Madre di Sant'Agata, bell tower of San Giuseppe and bandstand, the Duomo di Monreale, the Chiesa Madre of Belmonte Mezzagno and of Capaci (src/lmc-towns.js)
 import { EUFEMIA } from './lmc-eufemia.js';   // the sign of the Hotel Eufemia in Isola delle Femmine, the destination of the U cuinnutu fare (src/lmc-eufemia.js)
 
 export const CITY_LANDMARKS = [

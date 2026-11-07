@@ -114,7 +114,42 @@ As in the second pass the bare hills cost more than the houses that replace them
 
 - Boccadifalco: the `periph` seed of the west outskirts stands in the village itself, so about half the houses round zw24 keep `periph`; the borgata faces show more in Baida, round vc03 and in Partanna than at zw24. Colour and balconies are still paler and fewer than in the photos.
 - Belmonte Mezzagno beyond the map's south edge (z 7817), and Capaci west of x -11058.
-- No landmark model: the Chiesa Madre of Belmonte Mezzagno and the churches of Capaci stand as generic church blocks of their footprint.
+- No landmark model: the Chiesa Madre of Belmonte Mezzagno and the churches of Capaci stand as generic church blocks of their footprint. (Done for the two Chiesa Madre in the fourth pass below; Belmonte's other churches still stand as generic blocks, and OSM has no other church in Capaci's baked part.)
 - Capaci's square at nw03: the CTR block stands where the photo shows the square with parked cars (the photo position may be off; not settled).
 - Molara, Aquino, Villaggio Santa Rosalia and the other small borgate keep `periph` or `rural`. Sferracavallo's west end (nw17, nw18) falls to `rural` because the `sferra` seeds lie east of the village's OSM node; not changed here.
 - Wires, satellite dishes, laundry, roof terraces; the stone setts and kerbs of the old lanes.
+
+# The two Chiesa Madre of Belmonte Mezzagno and Capaci (fourth pass)
+
+Both were generic church blocks of their footprint (27 m and 18 m tall, small windows). Now models in src/lmc-towns.js, in the same style as the Duomo di Monreale.
+
+## Which churches, and what they are drawn from
+
+- **Belmonte Mezzagno, Chiesa Madre del Santissimo Crocifisso** (OSM w487530927, `building=church`, the dedication from its name tag). No Mapillary photo shows it: the one drive through the town (March 2019) passes 67 m and more to the south-west and the houses hide it. Drawn from a frontal photo on Wikimedia Commons ("Belmonte Mezzagno (PA) - chiesa madre del Santissimo Crocifisso.jpg", Saro68, CC BY-SA 3.0) and an aerial view of the town on Commons ("Belmonte Mezzagno (PA) - vista - 01.jpg", same author), looked at only. **From the photos:** the white front framed in ochre in two orders (pilasters single and paired, the portal under a stucco figure and a medallion, windows and oculi in the outer bays, blank framed panels, the frieze and the cornice; the upper order with the bells hung in two pairs of arches under small pediments, a clock under each pair, the tall middle window, the pediment and its finial), the concave scrolls and the two obelisks, no bell tower, the terrace with its balustrade and the two flights down from a middle landing, one long gable roof of pale tiles and plain white walls (aerial). **Invented from the type:** the sides (white render, an arched window a bay), the flat roofs over the aisle and the front range, the back (the footprint's shallow apse), the door under the landing. Heights come from the photo scaled to the 23 m front of the footprint: terrace 3.2 m, the top of the pediment 23.2 m over the square.
+- **Capaci, Chiesa Madre** (OSM w370279778, tagged only "Chiesa Madre"; it.wikipedia: built from 1734, a baroque front with a pincer staircase). Five Mapillary photos from the street to its north-west (5 October 2019: 472051383873858, 269820611559767, 182537833748420, 1163620144099733, 1037298440009986), looked at only; nothing on Commons. **From the photos:** the front is the short west-north-west end, pale limestone ashlar warmer in the middle, a wavy crest climbing from two shoulders to a cross with finials on the shoulders and the crest, pilasters, the arched portal and a smaller arched door each side under an oculus, the carved window over the portal; the square bell tower flush with the front at its north end, plain ashlar with quoins, three stages, one round-arched bell opening a face, a flat top; a stone terrace with steps and an iron railing. **Invented or assumed:** the south end of the front (behind trees in every photo), the plan of the stairs (two flights from the ends to a middle landing, read from "a tenaglia"), the sides and back (grey render under a gable roof kept below the crest, since no roof shows over the front in the photos), the absence of a dome (the photos cannot tell). Heights are estimates from the photos against the 20.6 m front: shoulders 12.4 m, crest 16.6 m, tower 24.8 m.
+
+## How they sit
+
+- Footprints are the OSM outlines; the generic block is hidden (`skipIds`), its collision walls stay. The terraces and steps stand in front of the footprint: 84 m2 at Belmonte, all on the paved church square (none on the carriageway layer; Via Stagnone's edge is 1.6 m from the terrace's south corner), 63 m2 at Capaci on the open ground between the front and the road (4.1 m from the carriageway). Both get collision walls round the terrace and steps. Piazza Garibaldi's junction, given back to the road in the third pass, is 45 m and more from Belmonte's terrace and untouched.
+- The map's terrain is smoother than the towns, so Belmonte's church does not sit on a ledge: the terrace rises from the square as in the photo, the church floor is 3.2 m over it.
+- The lean renderer (src/engine-lean.js) uses every generic building as an occluder. A landmark that replaces one used to register nothing, so all of the town behind it was drawn (about 30 more draw calls and 55k triangles at Belmonte's square). src/world.js now passes a model's `userData.solids` ([flat footprint, holes, roof elevation], only where the model is solid) to the occluder grid; both churches give their body, nave and (Capaci) tower. The Duomo di Monreale, Sant'Agata and the other landmarks that replace big generic blocks do not yet, and could.
+
+## Cost (headless Chrome, 11:00, chase camera, median of 30 frames; draw calls / triangles)
+
+The models: Belmonte 966 triangles in 6 meshes (materials: the painted front, the side wall, plain, stone, tiles, balustrade), Capaci 666 triangles in 7 meshes (front, tower, side wall, plain, stone, tiles, railing).
+
+| place | desktop 1280x720 before | after | phone 844x390 before | after |
+| --- | --- | --- | --- | --- |
+| Belmonte, from Piazza Garibaldi (2252, 7480) | 326 / 618k | 338 / 619k | 352 / 647k | 360 / 644k |
+| Belmonte, church square (2236, 7462) | 240 / 551k | 251 / 571k | 258 / 551k | 267 / 567k |
+| Capaci, road past the front (-10748, -6030) | 219 / 520k | 238 / 551k | 224 / 539k | 240 / 569k |
+| Capaci, Via Generale Cascino (-10737, -6060) | 121 / 305k | 126 / 305k | 126 / 317k | 125 / 315k |
+
+The models' own share is their 6 and 7 draws and about 1k triangles; the rest is town behind them that the old, taller blocks hid (27 m over the whole of Belmonte's footprint, 18 m over Capaci's) and the lower real churches do not. Parked cars change between runs by up to about 10k triangles. All places stay under the city centre's ceiling (Quattro Canti about 640k on the phone).
+
+## Not done
+
+- Night: no floodlights or lit windows on either church (the generic blocks had lit windows); nothing in the photos says how they are lit.
+- Belmonte's terrace front (the basement with its door and windows in the photo) is plain; the stucco figure over the portal is a painted shape.
+- The square in front of Capaci's church is bare ground in the game where the photos show a paved square with parked cars.
+- Belmonte's other churches (the CTR church block at (1818, 7373), the Anime Sante del Purgatorio) stay generic.
