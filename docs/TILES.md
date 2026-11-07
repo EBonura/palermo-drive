@@ -256,6 +256,11 @@ Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `l
   and keeps its own ground up to them, the street layers' triangles are split along them (each piece draped on its own side), and walls and fences that ran into a cutting keep only their
   parts outside it. The tunnel's mesh draws the retaining walls with their coping (a parapet up to 1 m over the ground beside a deep cutting), the floor of the ramps, and over every
   portal two piers, a lintel and a concrete headwall up to the ground and its parapet. The tiles got only these two fields (a script ran the bake's tunnel_ground on the committed tiles).
+  The concrete is textured (`src/wall-tex.js`, layer `t` of the wall texture array, `concreteMaterial`): cast in place, lifts of 1.2 m with board marks, an expansion joint every 4.8 m,
+  tie holes. Its coordinates are metres along the wall, above its foot and below its coping (attribute `aConc`), so the joints keep their spacing and follow the road's grade; the shader adds
+  what depends on the wall's height: water streaks from the coping (the layer's alpha, each of its own length), a dirtier foot with damp and moss where the wall meets the road, and a tone per
+  pour that drifts along the wall. The portals use the same concrete a little cleaner. One material for every tunnel (it replaced the flat one), so no draw call was added; the layer adds 1 MB
+  to the array (1.3 with mips).
 - **Cars.** `car.deck` is the height of the deck or floor above the terrain (negative in a tunnel); `car.lift` includes it, so everything that adds `lift` to `groundY` (missions, mounts)
   follows. Both driving models use it (`src/vehicle.js` classic, `src/vehicle-sphere.js`); driving off a deck is a free fall; the camera stays above the deck and under a tunnel roof.
   Traffic on a road flagged `br` (graph edges carry it) is placed on the highest deck; pedestrians do not walk on decks (the street layers are cut there).

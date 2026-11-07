@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { Buf } from './core.js';
 import { TEX } from './streets.js';
+import { concreteMaterial } from './wall-tex.js';
 
 export const LANDMARK_ZONES = [
   // OSM ways 81030481 and 81030484 (Viale Regione Siciliana Sud Est, bridge=yes, layer 1), 40 to 50 m from the bar Baby Luna (way 81030476).
@@ -601,14 +602,25 @@ function buildDeck(st) {
   }
   return g;
 }
-let matTun = null, matLamp = null;
+let matLamp = null;
+const idHash = s => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
 function buildTunnel(st) {
   const r = st.rec, g = new THREE.Group(); g.name = 'struct_' + r.id;
   const { Q, seg, hw, W } = st.cut, m = Q.length, buf = new Buf(), road = new Buf(), lamps = new Buf(), M = TEX.asphalt.metres;
-  const white = new THREE.Color(1, 1, 1), wallC = new THREE.Color('#b5b0a2'), band = new THREE.Color('#8d897d'), ceil = new THREE.Color('#7e7a70'), lampC = new THREE.Color('#ffe2a8');
+  // the concrete (src/wall-tex.js, concreteMaterial): a warm grey, a little warmer or cooler, lighter or darker from tunnel to tunnel; the texture darkens it to about the old flat grey
+  const h0 = idHash(r.id), h1 = idHash(r.id + ':s'), tone = 0.95 + 0.1 * h0;
+  const conc = (hex) => new THREE.Color(hex).lerp(new THREE.Color(hex).offsetHSL(-0.02, -0.03, 0), h1).multiplyScalar(tone);
+  const white = new THREE.Color(1, 1, 1), wallC = conc('#d6d2c8'), portC = conc('#dedad1'), capC = conc('#c8c4ba'), band = conc('#aaa69b'), ceil = conc('#9c988f'), lampC = new THREE.Color('#ffe2a8');
   const A = (q, o, y) => [q.x + q.nx * o, y, q.z + q.nz * o];
   const rawAt = (x, z, q) => { const v = rawGround(x, z); return v === undefined ? q.g : v; };   // (a tile not loaded yet: the baked ground)
   const flat = (b, a0, a1, b1, b0, col) => quad(b, a0, a1, b1, b0, 0, 1, 0, col, [a0[0] / M, a0[2] / M, a1[0] / M, a1[2] / M, b1[0] / M, b1[2] / M, b0[0] / M, b0[2] / M]);   // (world uvs: two floors that overlap match)
+  // the concrete's coordinates at every vertex of buf, in metres: [along the wall, above its foot, below its top, dirt] (the foot is 0.3 m under the road, so the road meets a wall at 0.3)
+  const cc = [];
+  const cq = (a, b, c, d, nx, ny, nz, col, ua, ub, uc, ud, k = 1) => {   // quad() with the concrete's coordinates at its corners
+    for (const [p, u] of [[a, ua], [b, ub], [c, uc], [a, ua], [c, uc], [d, ud]]) { buf.v(p[0], p[1], p[2], nx, ny, nz, col, 0, 0, k); cc.push(u[0], u[1], u[2], u[3]); }
+  };
+  const TOPS = 6, NOTOP = 9;   // horizontal faces: up the layer, clear of the foot; and no streaks
+  const sideU = sg => (sg > 0 ? 0 : 211.7) + h0 * 97;   // the two walls of a cutting, and two tunnels, are not the same stretch of the texture
   // the top of the wall on side sg at vertex q: the ground just outside it, plus the parapet
   const topAt = (q, sg) => { const x = q.x + q.nx * sg * (W + 0.3), z = q.z + q.nz * sg * (W + 0.3), t = rawAt(x, z, q); return [t + parOf(t - q.f), t]; };
   let nextLamp = 6;
@@ -621,11 +633,12 @@ function buildTunnel(st) {
     }
     if (s === 2) {   // covered: lining, ceiling, lamps
       for (const sg of [1, -1]) {
-        const o = hw * sg;
-        quad(buf, A(a, o, a.f), A(b, o, b.f), A(b, o, b.f + TUN_H), A(a, o, a.f + TUN_H), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
-        quad(buf, A(a, o, a.f + 0.9), A(b, o, b.f + 0.9), A(b, o, b.f + 1.15), A(a, o, a.f + 1.15), -a.nx * sg, 0, -a.nz * sg, band, null, 0.9);
+        const o = hw * sg, ua = a.s + sideU(sg), ub = b.s + sideU(sg), L = (u, y) => [u, y + 0.3, TUN_H - y, 0.5];
+        cq(A(a, o, a.f), A(b, o, b.f), A(b, o, b.f + TUN_H), A(a, o, a.f + TUN_H), -a.nx * sg, 0, -a.nz * sg, wallC, L(ua, 0), L(ub, 0), L(ub, TUN_H), L(ua, TUN_H), 0.95);
+        cq(A(a, o, a.f + 0.9), A(b, o, b.f + 0.9), A(b, o, b.f + 1.15), A(a, o, a.f + 1.15), -a.nx * sg, 0, -a.nz * sg, band, L(ua, 0.9), L(ub, 0.9), L(ub, 1.15), L(ua, 1.15), 0.9);
       }
-      quad(buf, A(a, -hw, a.f + TUN_H), A(a, hw, a.f + TUN_H), A(b, hw, b.f + TUN_H), A(b, -hw, b.f + TUN_H), 0, -1, 0, ceil, null, 0.8);
+      const C = (u, o) => [u + h0 * 97, TOPS + o + hw, NOTOP, 0.3];
+      cq(A(a, -hw, a.f + TUN_H), A(a, hw, a.f + TUN_H), A(b, hw, b.f + TUN_H), A(b, -hw, b.f + TUN_H), 0, -1, 0, ceil, C(a.s, -hw), C(a.s, hw), C(b.s, hw), C(b.s, -hw), 0.8);
       while (nextLamp < a.s) nextLamp += 12;
       for (; nextLamp <= b.s; nextLamp += 12) {   // lamps every 12 m, two rows
         const t = (nextLamp - a.s) / ((b.s - a.s) || 1), x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, y = a.f + (b.f - a.f) * t + TUN_H - 0.05, tx = a.nz, tz = -a.nx;
@@ -635,15 +648,17 @@ function buildTunnel(st) {
         }
       }
     } else if (s === 0 && a.t && b.t) for (const sg of [1, -1]) {   // the tunnel's line at or over the ground: a low wall, where its lining stops a car
-      const o = hw * sg; quad(buf, A(a, o, a.f - 0.3), A(b, o, b.f - 0.3), A(b, o, b.f + 0.6), A(a, o, a.f + 0.6), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
+      const o = hw * sg, ua = a.s + sideU(sg), ub = b.s + sideU(sg);
+      cq(A(a, o, a.f - 0.3), A(b, o, b.f - 0.3), A(b, o, b.f + 0.6), A(a, o, a.f + 0.6), -a.nx * sg, 0, -a.nz * sg, wallC, [ua, 0, 0.9, 1], [ub, 0, 0.9, 1], [ub, 0.9, 0, 1], [ua, 0.9, 0, 1], 0.95);
     } else if (s === 1) for (const sg of [1, -1]) {   // open cutting: a retaining wall each side, its coping a parapet over the ground beside it
       const mx = (a.x + b.x) / 2 + (a.nx + b.nx) / 2 * sg * hw, mz = (a.z + b.z) / 2 + (a.nz + b.nz) / 2 * sg * hw;
       if (inOtherCut(r.id, mx, mz)) continue;   // inside the next carriageway's cutting
-      const [ta, ga] = topAt(a, sg), [tb, gb] = topAt(b, sg), o = hw * sg, O = W * sg, nx = a.nx * sg, nz = a.nz * sg;
-      const p0 = A(a, o, a.f - 0.3), p1 = A(b, o, b.f - 0.3), p2 = A(b, o, tb), p3 = A(a, o, ta), kb = 0.72, kt = 1;   // darker at the foot (grime off the road)
-      for (const [q, k] of [[p0, kb], [p1, kb], [p2, kt], [p0, kb], [p2, kt], [p3, kt]]) buf.v(q[0], q[1], q[2], -nx, 0, -nz, wallC, 0, 0, k);
-      quad(buf, A(a, o, ta), A(b, o, tb), A(b, O, tb), A(a, O, ta), 0, 1, 0, CONC2, null, 1);
-      quad(buf, A(a, O, ga - 0.6), A(b, O, gb - 0.6), A(b, O, tb), A(a, O, ta), nx, 0, nz, wallC, null, 0.9);
+      const [ta, ga] = topAt(a, sg), [tb, gb] = topAt(b, sg), o = hw * sg, O = W * sg, nx = a.nx * sg, nz = a.nz * sg, ua = a.s + sideU(sg), ub = b.s + sideU(sg);
+      const ha = ta - (a.f - 0.3), hb = tb - (b.f - 0.3);   // the wall's height from its foot
+      cq(A(a, o, a.f - 0.3), A(b, o, b.f - 0.3), A(b, o, tb), A(a, o, ta), -nx, 0, -nz, wallC, [ua, 0, ha, 1], [ub, 0, hb, 1], [ub, hb, 0, 1], [ua, ha, 0, 1]);
+      cq(A(a, o, ta), A(b, o, tb), A(b, O, tb), A(a, O, ta), 0, 1, 0, capC, [ua, TOPS, NOTOP, 0.3], [ub, TOPS, NOTOP, 0.3], [ub, TOPS + 0.5, NOTOP, 0.3], [ua, TOPS + 0.5, NOTOP, 0.3]);
+      const oa = ta - ga + 0.6, ob = tb - gb + 0.6;   // the outer face, from 0.6 m under the ground beside the cutting: its foot band at the ground
+      cq(A(a, O, ga - 0.6), A(b, O, gb - 0.6), A(b, O, tb), A(a, O, ta), nx, 0, nz, wallC, [ua + 0.5, 0.3, oa, 0.7], [ub + 0.5, 0.3, ob, 0.7], [ub + 0.5, ob + 0.3, 0, 0.7], [ua + 0.5, oa + 0.3, 0, 0.7], 0.95);
     }
   }
   // the ends of the walls where a cutting runs out at the ground
@@ -652,39 +667,46 @@ function buildTunnel(st) {
     if ((before === 1) === (after === 1) || before === 2 || after === 2) continue;
     const q = Q[k], tx = q.nz, tz = -q.nx;
     for (const sg of [1, -1]) {
-      const [t] = topAt(q, sg);
-      quad(buf, A(q, hw * sg, q.f - 0.3), A(q, W * sg, q.f - 0.3), A(q, W * sg, t), A(q, hw * sg, t), before === 1 ? tx : -tx, 0, before === 1 ? tz : -tz, wallC, null, 0.9);
+      const [t] = topAt(q, sg), u = q.s + sideU(sg), h = t - (q.f - 0.3);
+      cq(A(q, hw * sg, q.f - 0.3), A(q, W * sg, q.f - 0.3), A(q, W * sg, t), A(q, hw * sg, t), before === 1 ? tx : -tx, 0, before === 1 ? tz : -tz, wallC, [u, 0, h, 1], [u + 0.5, 0, h, 1], [u + 0.5, h, 0, 1], [u, h, 0, 1], 0.95);
     }
   }
-  // portals: where the cutting meets the covered tunnel, two piers and a lintel, and over them a concrete headwall up to the ground and its parapet
+  // portals: where the cutting meets the covered tunnel, two piers and a lintel, and over them a concrete headwall up to the ground and its parapet; the same concrete as the walls, a little cleaner
   for (let k = 0; k < m; k++) {
     const before = k > 0 ? seg[k - 1] : -1, after = k + 1 < m ? seg[k] : -1;
     if ((before === 2) === (after === 2)) continue;
     const q = Q[k], nb = after === 2 ? 1 : -1, fx = q.nz * nb, fz = -q.nx * nb;   // from the portal into the tunnel
     const c = (o, y, d) => [q.x + q.nx * o + fx * d, y, q.z + q.nz * o + fz * d];
-    const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep
-      quad(buf, c(x0, y0, 0), c(x1, y0, 0), c(x1, y1, 0), c(x0, y1, 0), -fx, 0, -fz, band, null, 1);
-      quad(buf, c(x0, y1, 0), c(x1, y1, 0), c(x1, y1, 0.9), c(x0, y1, 0.9), 0, 1, 0, band, null, 1);
-    };
-    const yl = q.f + TUN_H, yh = yl + 1.1;
-    box(-W, -hw + 0.1, q.f, yh); box(hw - 0.1, W, q.f, yh);   // piers
-    box(-W, W, yl, yh);                                        // lintel
+    const yl = q.f + TUN_H, yh = yl + 1.1, foot = q.f - 0.3;
     const N = 4, os = [], ts = [], gs = [];
     for (let i = 0; i <= N; i++) { const o = -W + 2 * W * i / N, p = c(o, 0, 0.5), t = rawAt(p[0], p[2], q); os.push(o); gs.push(t); ts.push(Math.max(yh, t + CUT_PAR)); }
+    const pu = o => o * nb + W + h0 * 53;   // across the face, the same way whichever end
+    const P = (o, y, d = 0.55) => [pu(o), y - foot, lin(os, ts, o) - y, d];   // a point of the face: streaks from the headwall's coping run down over the lintel
+    const T = (o, d) => [pu(o), TOPS + d, NOTOP, 0.3];
+    const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep
+      cq(c(x0, y0, 0), c(x1, y0, 0), c(x1, y1, 0), c(x0, y1, 0), -fx, 0, -fz, portC, P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1));
+      cq(c(x0, y1, 0), c(x1, y1, 0), c(x1, y1, 0.9), c(x0, y1, 0.9), 0, 1, 0, capC, T(x0, 0), T(x1, 0), T(x1, 0.9), T(x0, 0.9));
+    };
+    box(-W, -hw + 0.1, q.f, yh); box(hw - 0.1, W, q.f, yh);   // piers
+    box(-W, W, yl, yh);                                        // lintel
     for (let i = 0; i < N; i++) {
       const o0 = os[i], o1 = os[i + 1], mid = c((o0 + o1) / 2, 0, 0.45);
       if (ts[i] <= yh + 0.01 && ts[i + 1] <= yh + 0.01) continue;
       if (inOtherCut(r.id, mid[0], mid[2])) continue;
-      quad(buf, c(o0, yh, 0), c(o1, yh, 0), c(o1, ts[i + 1], 0), c(o0, ts[i], 0), -fx, 0, -fz, CONC, null, 0.95);            // face
-      quad(buf, c(o0, ts[i], 0), c(o1, ts[i + 1], 0), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), 0, 1, 0, CONC2, null, 1);       // coping
-      quad(buf, c(o0, Math.min(yh, gs[i] - 0.6), 0.9), c(o1, Math.min(yh, gs[i + 1] - 0.6), 0.9), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), fx, 0, fz, CONC, null, 0.9);   // back (its parapet shows from above)
+      cq(c(o0, yh, 0), c(o1, yh, 0), c(o1, ts[i + 1], 0), c(o0, ts[i], 0), -fx, 0, -fz, portC, P(o0, yh), P(o1, yh), P(o1, ts[i + 1]), P(o0, ts[i]), 0.95);   // face
+      cq(c(o0, ts[i], 0), c(o1, ts[i + 1], 0), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), 0, 1, 0, capC, T(o0, 0), T(o1, 0), T(o1, 0.9), T(o0, 0.9));       // coping
+      const b0 = Math.min(yh, gs[i] - 0.6), b1 = Math.min(yh, gs[i + 1] - 0.6);
+      cq(c(o0, b0, 0.9), c(o1, b1, 0.9), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), fx, 0, fz, portC, P(o0, b0, 0.7), P(o1, b1, 0.7), P(o1, ts[i + 1], 0.7), P(o0, ts[i], 0.7), 0.95);   // back (its parapet shows from above)
     }
-    for (const [i, sg] of [[0, -1], [N, 1]]) quad(buf, c(os[i], gs[i] - 0.6, 0), c(os[i], gs[i] - 0.6, 0.9), c(os[i], ts[i], 0.9), c(os[i], ts[i], 0), q.nx * sg, 0, q.nz * sg, CONC, null, 0.9);   // its ends
+    for (const [i, sg] of [[0, -1], [N, 1]]) {   // its ends
+      const u = pu(os[i]), y0 = gs[i] - 0.6, E = (d, y) => [u + d, y - foot, ts[i] - y, 0.55];
+      cq(c(os[i], y0, 0), c(os[i], y0, 0.9), c(os[i], ts[i], 0.9), c(os[i], ts[i], 0), q.nx * sg, 0, q.nz * sg, portC, E(0, y0), E(0.9, y0), E(0.9, ts[i]), E(0, ts[i]), 0.95);
+    }
   }
   if (!matLamp) matLamp = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
-  if (!matTun) matTun = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
   mats();
-  const mt = buf.mesh(matTun), mr = road.mesh(matAsph); mt.castShadow = true; mt.receiveShadow = true; mr.receiveShadow = true;
+  const mt = buf.mesh(concreteMaterial()), mr = road.mesh(matAsph); mt.castShadow = true; mt.receiveShadow = true; mr.receiveShadow = true;
+  mt.geometry.setAttribute('aConc', new THREE.BufferAttribute(new Float32Array(cc), 4));
   g.add(mt, mr);
   if (lamps.p.length) g.add(lamps.mesh(matLamp));
   return g;

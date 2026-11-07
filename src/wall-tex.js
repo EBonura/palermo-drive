@@ -22,8 +22,9 @@ export const LAYER = {
   n: { i: 9, pw: 4.0, ph: 3.0 },   // lime wash without a fallen patch: village, garden and parapet walls (src/fence-walls.js), so not every plaster wall carries the same torn mark
   o: { i: 10, pw: 3.2, ph: 2.4 },  // old rubble wall grown over: moss in the joints, ivy hanging from the top, weeds (the lanes of the hills and the countryside, zw22)
   m: { i: 11, pw: 4.0, ph: 3.0 },  // old render gone grey and mossy: black algae runs from the top, moss, a curtain of ivy here and there
+  t: { i: 12, pw: 4.8, ph: 3.6 },  // cast in place concrete of the tunnel cuttings and portals (src/bridges.js, concreteMaterial): lifts of 1.2 m, an expansion joint every 4.8 m; its alpha is the streak mask
 };
-const N_LAYERS = 12;
+const N_LAYERS = 13;
 
 // run `fn(x, y)` for the element at (x, y) of size (w, h) and for its copies across the edges of the tile, so the texture repeats without a seam
 function wrap(x, y, w, h, fn) {
@@ -242,6 +243,44 @@ const PAINT = {
     ivy(g, r, sx, sy, 2, 1.8);
     speckles(g, r, 3000, ['rgba(0,0,0,0.10)', 'rgba(70,90,40,0.12)']);
   },
+  t(g, r, sx, sy) {   // cast in place concrete: y 0 of the layer is the top of a lift (bridges.js maps v to minus the metres above the wall's foot), three lifts of 1.2 m with board marks,
+    // an expansion joint at x 0, formwork joints between, tie holes, cement mottling, a few rust runs and repairs. Height dependent dirt (streaks off the coping, the dirty foot, moss) is the shader's.
+    g.fillStyle = '#dddbd5'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 70; i++) {   // mottling: the pour, cement laitance, curing
+      const x = r() * S, y = r() * S, rx = 30 + r() * 90, ry = 20 + r() * 50, c = r() < 0.55 ? [118, 110, 96] : r() < 0.6 ? [255, 252, 244] : [150, 140, 118], a = 0.025 + r() * 0.05;
+      wrap(x - rx, y - ry, 2 * rx, 2 * ry, (X, Y) => { const gr = g.createRadialGradient(X + rx, Y + ry, 1, X + rx, Y + ry, rx); gr.addColorStop(0, rgba(c, a)); gr.addColorStop(1, rgba(c, 0)); g.fillStyle = gr; g.beginPath(); g.ellipse(X + rx, Y + ry, rx, ry, r() * 3, 0, 7); g.fill(); });
+    }
+    const lift = 1.2 * sy;
+    for (let y0 = 0; y0 < S - 1; y0 += lift) {   // board marks: planks 12 to 20 cm, each a shade off, a hairline between them
+      let y = y0;
+      while (y < y0 + lift - 4) {
+        const h = Math.min((0.12 + r() * 0.08) * sy, y0 + lift - y), k = r();
+        g.fillStyle = k < 0.5 ? rgba([70, 66, 58], 0.02 + r() * 0.04) : rgba([255, 255, 250], 0.03 + r() * 0.05); g.fillRect(0, y, S, h);
+        g.fillStyle = 'rgba(60,56,50,0.07)'; g.fillRect(0, y + h - 1, S, 1);
+        y += h;
+      }
+      // the lift joint: a groove and the grout that bled out under it
+      g.fillStyle = 'rgba(46,42,36,0.30)'; g.fillRect(0, y0 - 1, S, 2); if (y0 === 0) g.fillRect(0, S - 1, S, 1);
+      g.fillStyle = 'rgba(255,255,248,0.22)'; g.fillRect(0, y0 + 1.5, S, 1.5);
+      const gr = g.createLinearGradient(0, y0 + 3, 0, y0 + 3 + 0.12 * sy); gr.addColorStop(0, 'rgba(70,64,54,0.12)'); gr.addColorStop(1, 'rgba(70,64,54,0)'); g.fillStyle = gr; g.fillRect(0, y0 + 3, S, 0.12 * sy);
+      for (let x = 0.3 * sx; x < S; x += 0.6 * sx) for (const yy of [0.3, 0.9]) {   // tie holes, filled: a dark plug in a paler ring
+        if (r() < 0.12) continue;
+        const X = x + (r() - 0.5) * 3, Y = y0 + yy * sy;
+        g.fillStyle = 'rgba(255,255,248,0.18)'; g.beginPath(); g.arc(X, Y, 4.2, 0, 7); g.fill();
+        g.fillStyle = 'rgba(52,48,42,0.30)'; g.beginPath(); g.arc(X, Y, 2.2, 0, 7); g.fill();
+        if (r() < 0.12) { const len = (0.15 + r() * 0.5) * sy, gr2 = g.createLinearGradient(0, Y, 0, Y + len); gr2.addColorStop(0, 'rgba(130,72,36,0.30)'); gr2.addColorStop(1, 'rgba(130,72,36,0)'); g.fillStyle = gr2; g.fillRect(X - 1.5, Y + 2, 3, len); }   // a rust run
+      }
+    }
+    for (const [x, a, w] of [[0, 0.5, 3.5], [1.2, 0.1, 1.5], [2.4, 0.22, 2], [3.6, 0.1, 1.5]]) {   // the expansion joint (sealant), a formwork joint, the plywood panel seams
+      const X = x * sx; g.fillStyle = `rgba(40,36,32,${a})`; wrap(X - w / 2, 0, w, S, (XX, YY) => g.fillRect(XX, YY, w, S));
+      g.fillStyle = `rgba(255,255,248,${a * 0.45})`; wrap(X + w / 2, 0, 1.5, S, (XX, YY) => g.fillRect(XX, YY, 1.5, S));
+    }
+    for (let i = 0; i < 3; i++) {   // patch repairs and honeycombing along a lift joint: rougher, a shade darker or paler
+      const w = (0.2 + r() * 0.6) * sx, h = (0.08 + r() * 0.2) * sy, x = r() * S, y = Math.floor(r() * 3) * lift + (r() < 0.5 ? -h * 0.6 : 2), c = r() < 0.5 ? [150, 144, 132] : [214, 210, 200];
+      wrap(x, y, w, h, (X, Y) => { g.fillStyle = rgba(c, 0.18); g.beginPath(); g.ellipse(X + w / 2, Y + h / 2, w / 2, h / 2, 0, 0, 7); g.fill(); for (let q = 0; q < 26; q++) { g.fillStyle = 'rgba(50,46,40,0.18)'; g.fillRect(X + r() * w, Y + r() * h, 1 + r() * 2, 1 + r() * 2); } });
+    }
+    speckles(g, r, 9000, ['rgba(0,0,0,0.10)', 'rgba(255,255,255,0.10)', 'rgba(90,80,64,0.09)']);
+  },
   cap(g, r, sx, sy) {   // coping: pale slabs with fine joints and a little weathering
     g.fillStyle = '#d9d3c4'; g.fillRect(0, 0, S, S);
     for (let y = 0; y < S; y += 1.0 * sy) for (let x = ((y / sy) % 2) * 0.5 * sx; x < S + sx; x += 1.0 * sx) { const k = 0.92 + r() * 0.14; g.fillStyle = `rgba(${Math.round(222 * k)},${Math.round(216 * k)},${Math.round(200 * k)},1)`; g.fillRect(x + 1, y + 1, 1.0 * sx - 2, 1.0 * sy - 2); }
@@ -249,11 +288,26 @@ const PAINT = {
   },
 };
 
+// a layer's alpha, where it carries a mask (the colour of every layer is opaque): grey on black, the red channel becomes the alpha
+const MASK = {
+  t(g, r, sx) {   // the water streaks of the concrete: columns the full height of the tile, wide faint sheets and narrow dark runs, ragged along their length; the shader fades each from the coping down
+    g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 34; i++) {
+      const narrow = i >= 12, x = r() * S, w = (narrow ? 0.05 + r() * 0.1 : 0.2 + r() * 0.6) * sx, a = narrow ? 0.6 + r() * 0.4 : 0.35 + r() * 0.4, n = 12;
+      for (let k = 0; k < n; k++) {   // in pieces down the tile, each a little narrower or wider, a little shifted
+        const y = k * S / n, ww = w * (0.6 + r() * 0.7), xx = x + (r() - 0.5) * w * 0.25, aa = a * (0.7 + r() * 0.3);
+        wrap(xx - ww / 2, y, ww, S / n, (X, Y) => { const gr = g.createLinearGradient(X, 0, X + ww, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, `rgba(255,255,255,${aa})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(X, Y, ww, S / n + 0.5); });
+      }
+    }
+  },
+};
 function pixels(kind, seed) {
   const cv = document.createElement('canvas'); cv.width = cv.height = S;
   const g = cv.getContext('2d', { willReadFrequently: true }), L = LAYER[kind];
   PAINT[kind](g, rng(seed), S / L.pw, S / L.ph);
-  const px = g.getImageData(0, 0, S, S).data; cv.width = cv.height = 0;   // (on iOS a canvas nobody holds still counts until the collector finds it)
+  const px = g.getImageData(0, 0, S, S).data;
+  if (MASK[kind]) { g.globalAlpha = 1; MASK[kind](g, rng(seed + 1), S / L.pw, S / L.ph); const m = g.getImageData(0, 0, S, S).data; for (let i = 3; i < px.length; i += 4) px[i] = m[i - 3]; }
+  cv.width = cv.height = 0;   // (on iOS a canvas nobody holds still counts until the collector finds it)
   return px;
 }
 
@@ -276,7 +330,7 @@ export function wallTexture() {
   TEX.format = THREE.RGBAFormat; TEX.type = THREE.UnsignedByteType;
   TEX.wrapS = TEX.wrapT = THREE.RepeatWrapping; TEX.minFilter = THREE.LinearMipmapLinearFilter; TEX.magFilter = THREE.LinearFilter; TEX.generateMipmaps = true;
   TEX.anisotropy = 4; TEX.colorSpace = THREE.SRGBColorSpace; TEX.needsUpdate = true;
-  // the pixels (12 MB) go once they are on the GPU; a lost GL context paints them again (they are seeded: the same ones)
+  // the pixels (13 MB) go once they are on the GPU; a lost GL context paints them again (they are seeded: the same ones)
   TEX.onUpdate = () => { TEX.image.data = null; DATA = null; };
   document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(S * S * 4 * N_LAYERS); KINDS.forEach((k, n) => d.set(pixels(k, 4100 + n * 37), LAYER[k].i * S * S * 4)); TEX.image.data = d; TEX.needsUpdate = true; });
   return TEX;
@@ -297,4 +351,34 @@ export function wallMaterial() {
   };
   MAT.customProgramCacheKey = () => 'wall-array-v1';
   return MAT;
+}
+// The concrete of the tunnel cuttings and portals (src/bridges.js buildTunnel): the same texture array, layer t, and one attribute aConc per vertex, in metres:
+// x along the wall, y above the wall's foot, z below its top (the coping), w how dirty (1 a retaining wall, less on the portal and the coping). The layer repeats in x and y,
+// so the joints keep their spacing on any wall; what depends on the wall's height is done here: streaks from the coping (the layer's alpha) that end at a length that varies
+// along the wall, a dirtier band at the foot with a ragged top, damp and moss where the wall meets the road (0.3 m over the foot), and a tone per pour (each 4.8 m panel and
+// 1.2 m lift) with a slow drift along the wall, so a long wall does not repeat. One material for every tunnel, so no draw call is added.
+let CMAT = null;
+const CGLSL = `
+float cN( float x ) { float i = floor( x ), f = fract( x ); f = f * f * ( 3.0 - 2.0 * f ); return mix( wtH( vec2( i, 0.5 ) ), wtH( vec2( i + 1.0, 0.5 ) ), f ); }`;
+export function concreteMaterial() {
+  if (CMAT) return CMAT;
+  const tex = wallTexture(), L = LAYER.t, f = v => v.toFixed(6);
+  CMAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
+  CMAT.onBeforeCompile = (sh) => {
+    sh.uniforms.wallTex = { value: tex };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aConc; varying vec4 vCc;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCc = aConc;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform highp sampler2DArray wallTex; varying vec4 vCc;' + GLSL + CGLSL)
+      .replace('#include <map_fragment>', `float cu = vCc.x, cf = vCc.y, cd = vCc.w;
+        vec4 ctx = texture( wallTex, vec3( cu * ${f(1 / L.pw)}, -cf * ${f(1 / L.ph)}, ${L.i}.0 ) );
+        vec3 cc = ctx.rgb * ( 0.93 + 0.1 * wtH( vec2( floor( cu * ${f(1 / L.pw)} ), floor( cf * ${f(1 / 1.2)} ) ) ) ) * ( 0.92 + 0.16 * cN( cu * 0.06 + 13.0 ) );   // a tone per pour, a slow drift
+        float cst = ctx.a * ( 1.0 - smoothstep( 0.05, 0.8 + 3.4 * cN( cu * 0.83 + 5.1 ), vCc.z ) ) * cd;   // streaks off the coping, each its own length
+        cc *= mix( vec3( 1.0 ), vec3( 0.40, 0.40, 0.37 ), cst ) * ( 1.0 - 0.14 * cd * ( 1.0 - smoothstep( 0.0, 0.3, vCc.z ) ) );   // and the drip line under it
+        float cn = cN( cu * 0.55 + 31.0 ), cm = cN( cu * 1.7 + 77.0 );
+        cc *= mix( vec3( 1.0 ), vec3( 0.62, 0.58, 0.52 ), ( 1.0 - smoothstep( 0.3, 1.0 + 0.9 * cn, cf ) ) * cd );   // the dirty foot, its top ragged
+        cc = mix( cc, cc * vec3( 0.50, 0.62, 0.36 ), ( 1.0 - smoothstep( 0.3, 0.45 + 0.5 * cm, cf ) ) * smoothstep( 0.3, 0.65, cm ) * cd );   // damp and moss along the road
+        diffuseColor.rgb *= cc;`);
+  };
+  CMAT.customProgramCacheKey = () => 'conc-array-v1';
+  return CMAT;
 }
