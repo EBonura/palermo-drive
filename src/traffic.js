@@ -7,7 +7,8 @@
 // its current edge with pure pursuit, and brakes with the Intelligent Driver Model for leaders (found
 // along its route, in a forward corridor, and the player), corners, junction priority (rank of the road
 // class, then yield to the right). Vehicles are spawned out of
-// view around the camera, despawned out of view, and drawn with one InstancedMesh per model.
+// view around the camera, despawned out of view, and drawn with one InstancedMesh per model. A knot that nobody can untie (each waits for the next, round in a
+// ring) is broken by unjam(); a vehicle that has stood in one place too long is taken away once nobody sees it (cull). tools/perf/gridlock.mjs counts gridlocks.
 import * as THREE from 'three';
 import { proj, freeCanvas } from './core.js';
 import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
@@ -239,13 +240,21 @@ Object.assign(MODELS, buildPoliceModels());
       if (c.id === e.rev || !(guided ? baseAllowed(c, ty.cls) : allowed(c, ty))) { ws.push(0); continue; }
       const cos = e.dx * c.dx + e.dz * c.dz;
       let w = ty.bus ? 1 : c.pw;
-      w *= cos > 0.9 ? 2.2 : cos > 0.3 ? 1.0 : cos > -0.3 ? 0.9 : 0.35;
+      w *= cos > 0.9 ? 2.2 : cos > 0.3 ? 1.0 : cos > -0.3 ? 0.9 : cos > -0.5 ? 0.35 : 0.01;   // a turn sharper than 120 degrees only when there is no other way: a car cannot make it inside its lane, it swings into the oncoming one and the two lock
       if (c.name && c.name === e.name) w *= 1.8;
       if (c.ped) w *= 0.4;
       ws.push(w); tot += w; any = c;
     }
     if (v) { biasRoute(v, outs, ws); if (guided && v.rt.lost) for (let i = 0; i < outs.length; i++) if (ws[i] > 0 && !allowed(outs[i], ty)) ws[i] = 0; tot = 0; for (const w of ws) tot += w; }   // (a knife-grinder who has lost his loop roams like the rest)
-    if (tot <= 0) return null;
+    if (tot <= 0) {   // a bus off its line (replan) with no bus road on: a road a car may take, straight on or a main road (tertiary and up), never a sharp turn into a back street
+      if (!(ty.bus && v && !v.plan)) return null;
+      let best = null, bs = -9;
+      for (const c of outs) {
+        const cos = e.dx * c.dx + e.dz * c.dz, sc = cos + (c.rank >= 3 ? 0.5 : 0);
+        if (c.id !== e.rev && (cos > 0.7 || (c.rank >= 3 && cos > -0.3)) && sc > bs && allowed(c, TYPES.panda)) { bs = sc; best = c; }
+      }
+      return best;
+    }
     let r = Math.random() * tot;
     for (let i = 0; i < outs.length; i++) if ((r -= ws[i]) <= 0 && ws[i] > 0) return outs[i];
     return any;
@@ -275,6 +284,20 @@ Object.assign(MODELS, buildPoliceModels());
       return;
     }
     while (r.length < 4) { const n = pickNext(r[r.length - 1], v.ty, v); if (!n) break; r.push(n); }
+  }
+  // A bus whose line ran out (its plan was matched while the tiles further on were not in): onto the line's new plan if that goes on from where it is, else it drives
+  // on like any other vehicle, its board unchanged. Without this it stands at the end of its old plan with a queue behind it until it is culled.
+  function replan(v) {
+    const r = v.route, last = r[r.length - 1], old = v.plan;
+    if (old.closed || (v.pidx + 1 < old.edges.length && !old.edges[v.pidx + 1].dead)) return;
+    for (const pl of PLANS) {
+      if (pl === old || pl.ref !== old.ref || pl.to !== old.to) continue;
+      const i = pl.edges.indexOf(last); if (i < 0 || (i + 1 >= pl.edges.length && !pl.closed)) continue;
+      const n = pl.edges.length; v.plan = pl; v.pidx = i; v.cur = ((i - (r.length - 1)) % n + n) % n;
+      v.si = 0; while (v.si < pl.stops.length && pl.stops[v.si].i <= v.cur) v.si++;
+      return;
+    }
+    v.row = old.row; v.plan = null;
   }
   const laneOff = (e, v) => e.ow ? (e.w < 7 ? 0.55 : v.pref * Math.min(e.w / 4, 2.6)) : Math.min(e.w / 4, 2.6);
 
@@ -385,16 +408,18 @@ Object.assign(MODELS, buildPoliceModels());
     for (let i = 0; i < 4; i += 2) for (let j = 0; j < 4; j += 2) if (segX(PA, i, PB, j)) return true;
     return false;
   }
+  const S = v => v.jamT || 0;   // jam time (integrate): unlike stuck it is not reset by a moment's creep, so a breaker that lets a vehicle go keeps letting it go until it has moved
   function mustHold(v, e, rem, exitSpace) {
     const n = e.b, ty = v.ty, sg = e.sg;   // sg: the junction is signalled, and the light is green for this vehicle (red and amber stop it before it gets here)
     if (NDEG[n] < 3) return false;
-    if (sg ? v.stuck > 3.5 : v.wait > 9) return false;               // gridlock breaker (at a signal: stopped for 3.5 s on green, the green is not to be wasted)
-    if (exitSpace < ty.L + 1.2 && v.wait < 2) { v.why2 = v.exitO; return true; } // keep the box clear, briefly
+    if (sg ? S(v) > 3.5 : v.wait > 9) return false;               // gridlock breaker (at a signal: stopped for 3.5 s on green, the green is not to be wasted)
+    const gh = v.ghost && v.ghost.until > time ? v.ghost.set : null;
+    if (exitSpace < ty.L + 1.2 && v.wait < 2 && !(gh && gh.has(v.exitO))) { v.why2 = v.exitO; return true; } // keep the box clear, briefly
     const occ = NOCC[n]; if (!occ) return false;
     const en = v.route[1];
     const eager = v.wait > 2.5;
     for (let i = 0; i < occ.length; i++) {
-      const o = occ[i]; if (o === v) continue;
+      const o = occ[i]; if (o === v || (gh && gh.has(o))) continue;
       const oe = o.route[0];
       if (oe.b !== n) { // already past the node and still inside it
         if (oe.a === n && o.t < 4.5 && oe !== en && o.v > 0.3 && Math.abs(oe.dx * e.dx + oe.dz * e.dz) < 0.75 && v.wait < 6) { v.why2 = o; return true; }
@@ -458,6 +483,7 @@ Object.assign(MODELS, buildPoliceModels());
       if (gap < minGap) { minGap = gap; blocker = o; }
     };
     // leaders along the route
+    const gh = v.ghost && v.ghost.until > time ? v.ghost.set : null;   // a deadlock being broken (unjam): the vehicles of the knot do not see one another for a moment
     let base = -v.t;
     for (let k = 0; k < route.length && k < 3; k++) {
       const list = route[k].veh;
@@ -465,8 +491,9 @@ Object.assign(MODELS, buildPoliceModels());
         const o = list[i]; if (o === v) continue;
         const d = base + o.t;
         if (k === 0 && d <= 0) continue;
+        if (gh && gh.has(o)) continue;
         if (k === 1 && o.v < 2 && o.t - o.ty.L / 2 < exitSpace) { exitSpace = o.t - o.ty.L / 2; v.exitO = o; } // free room past the node
-        if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
+        if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10 && !o.qP)) continue;
         interact(d - L2 - o.ty.L / 2, o.v, o);
       }
       base = k === 0 ? rem : base + route[k].len;
@@ -483,8 +510,9 @@ Object.assign(MODELS, buildPoliceModels());
       const ofx = Math.sin(o.h), ofz = Math.cos(o.h), cj = ofx * fx + ofz * fz, sj = Math.abs(ofx * rx + ofz * rz), acj = Math.abs(cj);
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
-      if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10)) continue;
-      if (cj < 0.45 && v.stuck > 3 && v.id < o.id) continue; // crossing or oncoming standoff: the lower id drives on
+      if (gh && gh.has(o)) continue;
+      if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10 && !o.qP)) continue;
+      if (cj < 0.45 && S(v) > 3 && v.id < o.id) continue; // crossing or oncoming standoff: the lower id drives on
       interact(al - L2 - hl, (o.v) * cj, o);
     }
     { // the player
@@ -533,7 +561,7 @@ Object.assign(MODELS, buildPoliceModels());
       const sg = rem - L2 - NBOX[e0.b];
       if (sg > -1.2 && sp * sp / (2 * Math.max(sg, 0.1)) < 6.5) interact(sg, 0, null);
       if (sp < 0.5 && sg < 4) v.wait += dt;
-    } else v.wait = 0;
+    } else if (sp > 3) v.wait = 0;   // (not at once: when a breaker below lets it go it must stay let go, or it holds again the next step and never moves; reset as it passes the node)
     // traffic signals: stop at the line on red, and on amber when it can be done without standing on the brake. A light that has held a vehicle for a minute lets it go: a jam
     // that never clears is worse than one run light, and the queue behind it must not outlast the clock.
     let lit = false;
@@ -552,6 +580,7 @@ Object.assign(MODELS, buildPoliceModels());
     }
     if (lit) v.sigW += dt; else if (v.sigW < 60) v.sigW = 0; else if ((v.sigW += dt) > 66) v.sigW = 0;
     v.sigHold = lit;
+    if (route.length < 4 && (stepN + v.id) % 30 === 0) { if (v.plan && !v.tour) replan(v); extendRoute(v); }   // a route cut short (the road on was not loaded yet, or not judged usable yet): look again now and then
     if (!route[1] && rem < 60) interact(rem - L2 - 0.4, 0, null); // end of the road
     if (v.plan) { // the next bus stop on the line: pull up with the front door at the pole, wait, go on
       const pl = v.plan, n = pl.edges.length;
@@ -568,6 +597,7 @@ Object.assign(MODELS, buildPoliceModels());
       }
     }
     v.blocker = blocker; v.hold = hold;
+    v.qP = blocker === 'player' || !!(blocker && (blocker.qP || blocker.hold2));   // in a queue behind the lapa or a double-parked car: the ones behind do not give up on it and drive through
     if (!v.filtO) { // make room for a honking lapa: edge towards the kerb where the road allows
       let room = 0; if (v.hornT > 0) room = clamp(e0.w / 2 - 0.45 - ty.W / 2 - laneOff(e0, v), 0, 1.3);
       v.latT = room;
@@ -618,10 +648,13 @@ Object.assign(MODELS, buildPoliceModels());
     // progress along the route
     let t = (v.x - NX[e0.a]) * e0.dx + (v.z - NZ[e0.a]) * e0.dz;
     for (let g = 0; g < 2 && t > e0.len - 0.3 && route[1]; g++) {
-      route.shift(); if (v.plan) { v.cur = (v.cur + 1) % v.plan.edges.length; if (v.cur === 0) v.si = 0; } extendRoute(v); e0 = route[0];
+      route.shift(); v.wait = 0; if (v.plan) { v.cur = (v.cur + 1) % v.plan.edges.length; if (v.cur === 0) v.si = 0; } extendRoute(v); e0 = route[0];
       t = (v.x - NX[e0.a]) * e0.dx + (v.z - NZ[e0.a]) * e0.dz;
     }
     v.t = t;
+    // jam time: how long it has stood within 6 m of one spot, not counting a red light, a bus stop or pulling up to double-park
+    if (!(Math.abs(v.x - v.jx) < 6 && Math.abs(v.z - v.jz) < 6)) { v.jx = v.x; v.jz = v.z; v.jamT = 0; }
+    else if (!(v.sigHold || v.hold2 || v.dwell > 0)) v.jamT += dt;
     if (ty.scooter) v.roll += (clamp(-v.yaw * v.v * 0.05, -0.38, 0.38) - v.roll) * Math.min(1, 6 * dt);
     v.age += dt;
     // honks: the player is in the way, or a delayed one after a bump
@@ -706,6 +739,30 @@ Object.assign(MODELS, buildPoliceModels());
     for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && !(v.cop && v.cop.mode === 'direct')) { if (!v.lazy) control(v, dt); else if ((v.id + stepN) & 1) control(v, dt * 2); } }
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
     for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && (!v.lazy || ((v.id + stepN) & 1))) bumpParked(v); }
+    if (stepN % 15 === 0) unjam();
+  }
+  // Deadlock: follow who each standing vehicle waits for (the leader it brakes for, else the one it gives way to at the junction). When that comes back round to
+  // itself, every vehicle in the ring has stood for seconds and none is at a red light or behind the lapa, nobody in the ring will ever move: they stop seeing
+  // one another for a few seconds and drive on (they pass through each other, which is less odd than a knot that never clears).
+  const CHAIN = [];
+  let ujStamp = 0;
+  function unjam() {
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i]; if (!(v.jamT > 5) || (v.ghost && v.ghost.until > time)) continue;
+      CHAIN.length = 0; ujStamp++;
+      for (let o = v, k = 0; k < 64; k++) {   // (a ring can be long: a one-way loop round a square full of cars)
+        const at = o.ujS === ujStamp ? o.ujK : -1;
+        if (at >= 0) {
+          const ring = CHAIN.slice(at);
+          if (ring.length > 1 && ring.every(m => m.jamT > 4 && !m.sigHold)) { const set = new Set(ring); for (const m of ring) m.ghost = { until: time + 4, set }; }
+          break;
+        }
+        o.ujS = ujStamp; o.ujK = CHAIN.length; CHAIN.push(o);
+        const nx = o.blocker === 'player' ? null : o.blocker || (o.hold ? o.why2 : null);
+        if (!nx || nx.dead || nx.sigHold || nx.fly || nx.hold2 || nx.dwell > 0) break;   // (a red light, a double-parked car, a bus at its stop: they will move)
+        o = nx;
+      }
+    }
   }
   function markLazy(cx, cz, camY) {
     for (let i = 0; i < vs.length; i++) {
@@ -743,9 +800,10 @@ Object.assign(MODELS, buildPoliceModels());
       let kill = (!keep && d2 > R_DESPAWN * R_DESPAWN) || v.route[0].dead;
       const lat = Math.abs((v.x - NX[v.route[0].a]) * v.route[0].rx + (v.z - NZ[v.route[0].a]) * v.route[0].rz);
       if (lat > 8 && !(v.cop && v.cop.mode === 'direct')) kill = true;
-      if (!kill && (v.stuck > 35 || (!v.route[1] && v.stuck > 6) || v.age > 600)) {
+      // the safety net: stopped for 35 s, or less than 6 m on in 30 s (jamT), goes as soon as it is out of sight; after 140 s even in sight, unless the camera is right there
+      if (!kill && (v.stuck > 35 || v.jamT > 30 || (!v.route[1] && v.stuck > 6) || v.age > 600)) {
         const vis = d2 < 45 * 45 || inView(v.x, 1, v.z, v.ty.L * 0.6);
-        if (!vis || v.stuck > 140) kill = d2 > 30 * 30;
+        if (!vis || v.stuck > 140 || v.jamT > 140) kill = d2 > 30 * 30;
       }
       if (!kill && !keep && d2 > R_KEEP_UNSEEN * R_KEEP_UNSEEN && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6 + 2)) kill = true;
       if (v.hide && !inView(v.x, groundY(v.x, v.z) + 1, v.z, v.ty.L * 0.6)) kill = true;
@@ -765,7 +823,7 @@ Object.assign(MODELS, buildPoliceModels());
       // the simulation steps 30 times a second: on a faster screen the vehicle is drawn where it has got to since the last step, or it would judder against the camera
       const ahead = v.fly ? 0 : v.v * acc, px = v.x + s * ahead, pz = v.z + c * ahead;
       A[o + 12] = px; const dk = v.route[0] && v.route[0].br ? topY(px, pz) : NaN; A[o + 13] = (dk === dk ? dk : groundY(px, pz)) + (v.fly ? v.fly.y : 0); A[o + 14] = pz; A[o + 15] = 1;
-      if (v.plan && v.name === 'bus') SIGN_ROW.array[n] = v.plan.row;
+      if (v.name === 'bus') SIGN_ROW.array[n] = v.plan ? v.plan.row : v.row || 0;
       const O = m.userData.owner || (m.userData.owner = new Int32Array(CAP));   // (a colour only goes to the GPU when another vehicle takes the slot)
       if (O[n] !== v.id) { O[n] = v.id; const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b; m.instanceColor.needsUpdate = true; }
       for (let q = 0, circ = v.ty.circ; q < circ.length; q++) {   // (objects kept from frame to frame: this runs for every vehicle in every frame)
