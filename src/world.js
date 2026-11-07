@@ -1287,7 +1287,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     for (const l of lms) { // landmark models standing in for those generic buildings
       // a model reads the ground under its whole footprint: wait (8 s at most) for the tiles round it that are on their way, so it stands on the streamed ground and not on the far grid
       for (let t0 = performance.now(); t.want >= 2 && performance.now() - t0 < 8000 && lmNeighboursPending(l);) yield new Promise(r => setTimeout(r, 200));
-      try { const o = l.build(ctx); if (o) { bg.add(o); yield; } } catch (e) { console.error('[world] landmark', l.name, e); }
+      try { const o = l.build(ctx); if (o) { bg.add(o); if (occ) for (const s of o.userData.solids || []) occ.add(...s); yield; } } catch (e) { console.error('[world] landmark', l.name, e); }   // userData.solids: [flat, holes, roofY] the model stands solid up to, so it hides what is behind it as the generic building did (src/engine-lean.js)
     }
     if (t.want < 2) { disposeObj(bg); return; }
     setPart(t, 'bldFull', bg);
