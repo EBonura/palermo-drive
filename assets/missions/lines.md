@@ -945,6 +945,60 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Chi fa? Un ti ieccasti! Ora è tardu!  
   _What, you did not throw yourself in! Now it is too late!_
 
+## Fratelli La Penna (Teatro Massimo; drafts, {price} is the price in euro)
+
+### stop
+
+- Ti fiaimmi! Ti fiaimmi un minutu!  
+  _Stop! Stop a minute!_
+
+### ask
+
+- Na pinna ru Teatru Massimu: {price} euru. Prezzu r’amicu!  
+  _A Teatro Massimo pen: {price} euro. Friend price!_
+- Cu sta pinna scrivi sulu cosi bbeddi. {price} euru, cu u scuantu.  
+  _With this pen you only write nice things. {price} euro, with the discount._
+
+### paid
+
+- Grazzi, cumpà! A pinna è a tia, a garanzia è a mia.  
+  _Thanks, pal! The pen is yours, the guarantee is mine._
+
+### driverPaid
+
+- Na pinna. Cara comu l’oru.  
+  _One pen. Pricey as gold._
+
+### refuse
+
+- Comu?! Un a voi?!  
+  _What?! You do not want it?!_
+- Frati, curriti! Chistu un paga!  
+  _Brothers, run! This one is not paying!_
+
+### chase
+
+- Unni vai? A pinna è a tia!  
+  _Where are you going? The pen is yours!_
+- Talìa ca scrivi puru sutt’acqua!  
+  _Look, it even writes underwater!_
+- Ti pigghiamu, ti pigghiamu!  
+  _We will catch you!_
+
+### caught
+
+- Pigghiatu! E ora paghi.  
+  _Caught you! Now you pay._
+- Accussì s’impara. A pinna è a tia!  
+  _That will teach you. The pen is yours!_
+
+### escaped
+
+- Un haiu chiù ciatu...  
+  _I am out of breath..._
+- Vabbè... a prossima vuota!  
+  _Fine... next time!_
+
 ## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
 
 ### cries
@@ -1165,6 +1219,13 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _Throw yourself in the rubbish, there is no room left here!_
 - Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu!  
   _Hey driver! At the Bellolampo landfill there is a cell waiting for you!_
+
+### call: penna
+
+- Pinni! Pinni bbuani! Accattativi na pinna!  
+  _Pens! Good pens! Buy a pen!_
+- Ou lapista! Talìa chi pinna, è r’oru!  
+  _Hey driver! Look at this pen, it is gold!_
 
 ### call: race
 

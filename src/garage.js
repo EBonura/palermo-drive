@@ -7,6 +7,8 @@
 //
 // Money: the "Turisti affamati" mode credits every paid fare by dispatching a 'pd-fare' window event ({ detail: { amount } },
 // see the one-line hook in src/missions.js). The wallet persists in localStorage and is spent on vehicles and parts in the Garage.
+// The wallet can be in debt: charge() (the pen sellers, src/event-penna.js) takes the whole sum even when it is not there. Nothing can be bought while it is below the price, fines and
+// thefts (debit) take nothing from a wallet at or below zero, and fares pay the debt off first.
 // Test links: ?cash=500 (adds cash for this page load), ?own=all (everything unlocked, nothing saved),
 // ?veh=vespa&liv=rosso&parts=spoiler:gt,neon:rosa,rims:spinner (forces the look for screenshots, nothing saved).
 // A custom colour is a livery id "c" + body hex, optionally "-" + trim hex: ?liv=cc42f2a-f2f0ea
@@ -162,7 +164,7 @@ try {
   if (s && typeof s === 'object') {
     if (VEHICLES.some(v => v.id === s.type)) st.type = s.type;
     if (s.owned && typeof s.owned === 'object') st.owned = s.owned;
-    if (Number.isFinite(s.cash)) st.cash = Math.max(0, s.cash);
+    if (Number.isFinite(s.cash)) st.cash = s.cash;   // a debt is kept (charge below)
     if (s.cfg && typeof s.cfg === 'object') {              // ver 2: a setup per base
       for (const v of VEHICLES) { const c = s.cfg[v.id]; if (c && typeof c === 'object') st.cfg[v.id] = { liv: validLivery(v.id, c.liv) ? c.liv : defaultLivery(v.id), parts: cleanParts(v.id, c.parts) }; }
     } else {                                               // ver 1: one livery per vehicle and one set of parts worn by whatever you drove
@@ -230,7 +232,9 @@ export const garage = {
     st.cash -= pr; st.owned[ownedKey.p(part, opt)] = 1; save(); emit(); return true;
   },
   // Fines (src/police.js): takes at most what the wallet holds and returns what was actually taken.
-  debit(amount) { amount = Math.min(Math.max(0, Math.round(+amount) || 0), st.cash); if (amount > 0) { st.cash -= amount; save(); emit(); } return amount; },
+  debit(amount) { amount = Math.min(Math.max(0, Math.round(+amount) || 0), Math.max(0, st.cash)); if (amount > 0) { st.cash -= amount; save(); emit(); } return amount; },
+  // A price that is paid whatever the wallet holds (src/event-penna.js): the wallet may go below zero. Returns what was taken.
+  charge(amount) { amount = Math.max(0, Math.round(+amount) || 0); if (amount > 0) { st.cash -= amount; save(); emit(); } return amount; },
   credit(amount) { if (amount > 0 && Number.isFinite(amount)) { st.cash += amount; save(); emit(); } },
   onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   // which parts a look wears that the player does not own (test links and previews): used by the garage to warn

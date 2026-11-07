@@ -12,7 +12,7 @@ import { garage, LIVERIES, PALETTE, categoriesFor, partOpts, partById, vehicleBy
 import { esc } from './esc.js';
 
 
-const eur = v => '€ ' + (Math.round(v * 2) / 2).toString().replace('.', ',');
+const eur = v => (v < 0 ? '−€ ' : '€ ') + (Math.round(Math.abs(v) * 2) / 2).toString().replace('.', ',');   // a debt (src/garage.js charge) shows with a minus sign
 
 const S = {
   pick: ['Scegli il mezzo', 'Choose your ride'], custom: ['Personalizza', 'Customise'], step: ['Passo', 'Step'],
@@ -63,6 +63,7 @@ const CSS = `
 .gx-crumb { font: 600 clamp(10px, 2.2vh, 13px)/1 var(--pd-cond); letter-spacing: .24em; text-transform: uppercase; color: var(--pd-amber); white-space: nowrap; }
 .gx-crumb.pop { color: #fff; }
 .gx-cash { flex: 0 0 auto; font: 700 clamp(17px, 3.8vh, 24px)/1 var(--pd-cond); letter-spacing: .08em; color: var(--pd-amber); background: rgba(255,255,255,.08); padding: 5px 10px; border-radius: 3px; box-shadow: inset 0 0 0 2px rgba(245,169,201,.35); white-space: nowrap; }
+.gx-cash.neg { color: #ff5a4a; box-shadow: inset 0 0 0 2px rgba(255,90,74,.6); }   /* in debt (src/garage.js charge) */
 .gx-name { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 4px; }
 .gx-name[hidden] { display: none; }
 .gx-name label { flex: 0 0 auto; font: 700 clamp(12px, 2.8vh, 17px)/1 var(--pd-cond); letter-spacing: .16em; text-transform: uppercase; color: var(--pd-amber); }
@@ -234,7 +235,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   function paintHead() {
     const v = vehicleById(sel);
     const crumb = popT > 0 ? `<span class="gx-crumb pop">${esc(popMsg)}</span>` : `<span class="gx-crumb">${step === 3 ? esc(tr('who')) : `${esc(tr('step'))} ${step} / 2`}</span>`;
-    elHead.innerHTML = `<div class="gx-ttl"><h2 class="pd-h">${esc(step === 1 ? tr('pick') : step === 3 ? tr('driver') : baseName(v))}</h2>${crumb}</div><div class="gx-cash">${eur(garage.cash)}</div>`;
+    elHead.innerHTML = `<div class="gx-ttl"><h2 class="pd-h">${esc(step === 1 ? tr('pick') : step === 3 ? tr('driver') : baseName(v))}</h2>${crumb}</div><div class="gx-cash${garage.cash < 0 ? ' neg' : ''}">${eur(garage.cash)}</div>`;
   }
   function paintBases() {
     elM1.innerHTML = `<div class="gx-bases">${ORDER.map(id => {

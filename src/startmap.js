@@ -23,11 +23,11 @@ const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
   here: ['Amunì, parti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
-  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], night: ['di notte', 'at night'],
+  fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], penna: ['Pinni', 'Pens'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
-const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a' };
+const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
 const C = {
@@ -354,6 +354,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     else if (e.kind === 'leaf') { g.beginPath(); g.ellipse(0, -14, 4.5, 9, 0.6, 0, 7); g.fill(); }
     else if (e.kind === 'horns') { g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(-8, -24); g.quadraticCurveTo(-8, -12, 0, -11); g.quadraticCurveTo(8, -12, 8, -24); g.stroke(); }
     else if (e.kind === 'dump') { g.fillRect(-8, -18, 16, 3); g.beginPath(); g.moveTo(-8, -15); g.lineTo(-5, -8); g.lineTo(5, -8); g.lineTo(8, -15); g.closePath(); g.fill(); }
+    else if (e.kind === 'penna') { g.lineWidth = 3.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-6, -7); g.lineTo(6, -21); g.stroke(); g.lineWidth = 1.6; g.beginPath(); g.moveTo(-6, -7); g.lineTo(-8.5, -4.5); g.stroke(); }   // a pen, nib down
     else if (e.kind === 'race') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) & 1) g.fillRect(-9 + i * 4.5, -25 + j * 4.5, 4.5, 4.5); }
     if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
     if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
