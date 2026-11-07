@@ -9,6 +9,7 @@
 // class, then yield to the right). Vehicles are spawned out of
 // view around the camera, despawned out of view, and drawn with one InstancedMesh per model. A knot that nobody can untie (each waits for the next, round in a
 // ring) is broken by unjam(); a vehicle that has stood in one place too long is taken away once nobody sees it (cull). tools/perf/gridlock.mjs counts gridlocks.
+// A vehicle stopped behind something that is not going to move (the lapa standing still, a double-parked car, a bus at its stop) goes round it when there is room (planOt).
 import * as THREE from 'three';
 import { proj, freeCanvas } from './core.js';
 import { topY } from './bridges.js';   // the highest deck at a point: traffic on a bridge road drives on it
@@ -230,7 +231,7 @@ Object.assign(MODELS, buildPoliceModels());
   let nextId = 0;
   const agentsOut = [];
   const PK_OBS = [], PK_NEAR = [], PK_NEAR2 = [];   // scratch: the parked cars beside a vehicle's lane
-  let police = null, gags = null, arrotini = null;   // created at the end of createTraffic
+  let police = null, gags = null, arrotini = null, peds = null;   // created at the end of createTraffic (peds: src/pedestrians.js, bound later)
 
   const allowed = (c, ty) => baseAllowed(c, ty.cls) && G.alive[ty.cls][c.id] === 1 && (c.ped || c.w >= ty.minW);
   function pickNext(e, ty, v) {
@@ -350,7 +351,7 @@ Object.assign(MODELS, buildPoliceModels());
     for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return false;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-      lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false,
+      lat: 0, latT: 0, drv: 0.88 + Math.random() * 0.26, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, rv: 0, ot: null, otW: 0, otNext: 0, gap: 1e9,
       yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null,
     };
     extendRoute(v);
@@ -380,7 +381,7 @@ Object.assign(MODELS, buildPoliceModels());
     let si = 0; while (si < pl.stops.length && (pl.stops[si].i < i || (pl.stops[si].i === i && pl.stops[si].t < t + 8))) si++;
     const v = {
       id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref: 1,
-      lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0,
+      lat: 0, latT: 0, drv: 0.92 + Math.random() * 0.16, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, rv: 0, ot: null, otW: 0, otNext: 0, gap: 1e9, yaw: 0, roll: 0,
       col: pickW(ty.colObjs), age: 0, blocker: null, plan: pl, cur: i, pidx: i, si: name === 'bus' ? si : pl.stops.length, dwell: 0,
     };
     extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
@@ -451,9 +452,171 @@ Object.assign(MODELS, buildPoliceModels());
     return false;
   }
 
+  // ---------- going round a stopped obstacle ----------
+  // In Palermo nobody waits behind a double-parked car or an Ape that has stopped: after a beat (and often a horn) they pull out round it. The first vehicle stopped right
+  // behind something that will stand there a while (stopped) asks planOt for a way round: on a two-way road through the oncoming lane, on a one-way road on whichever side
+  // has room. There is none when the asphalt is too narrow, a parked car, a wall or someone on foot is in the way, the oncoming lane is not clear for long enough, or there
+  // is no free room to get back into its lane past the obstacle before the next junction (so it never jumps a queue at a light or a give-way: the queue is in that room).
+  // Anything stopped in that room is gone round in the same go. v.ot then holds the manoeuvre (stepOt): ph 0 backs off a metre or two when it stopped too close to swing
+  // out, 1 out and past (it gives up while its nose is not yet past the obstacle if the oncoming lane fills or the obstacle moves off), 2 back into its lane.
+  let pStill = 0;   // seconds the lapa has stood still
+  const OT = { tried: 0, started: 0, done: 0, aborted: 0, why: {}, no: {} };   // (?debug: traffic.debug.OT; why: the reasons for giving up, counted)
+  const otGiveUp = k => { OT.aborted++; OT.why[k] = (OT.why[k] || 0) + 1; };
+  const otNo = k => { OT.no[k] = (OT.no[k] || 0) + 1; return null; };   // (why a look for a way round found none, counted)
+  const oX = o => o === 'player' ? car.x : o.x, oZ = o => o === 'player' ? car.z : o.z, oV = o => o === 'player' ? hyp2(car.vx, car.vz) : o.v;
+  const otExt = (o, dx, dz) => {   // half extents along and across a road of direction (dx, dz)
+    const h = o === 'player' ? car.th : o.h, hl = o === 'player' ? 1.5 : o.ty.L / 2, hw = o === 'player' ? 0.75 : o.ty.W / 2;
+    const cj = Math.abs(Math.sin(h) * dx + Math.cos(h) * dz), sj = Math.sqrt(Math.max(0, 1 - cj * cj));
+    return [cj * hl + sj * hw, sj * hl + cj * hw];
+  };
+  function stopped(o) {   // it will stand there a while: the lapa still for 3 s, a double-parked car, a bus at its stop, a vehicle stood for 8 s with nothing in front of it
+    if (o === 'player') return pStill > 3;
+    if (o.fly || o.cop || o.ot) return false;
+    if (o.hold2 === 2 || o.dwell > 0) return true;
+    return o.v < 0.3 && S(o) > 8 && !o.sigHold && !o.hold && o.gap > 8 && !!o.route[1];
+  }
+  function laneFree(v, p, short) {   // nothing in the strip it passes along: oncoming that would get there before it is back in, anything ahead in the strip, anything coming up fast behind
+    const ty = v.ty, L2 = ty.L / 2, tv = (v.x - p.ax) * p.dx + (v.z - p.az) * p.dz, end = p.front + ty.L + 3 - tv, T = short ? (p.front + 2 - tv) / 3 + 1 : end / 3 + 2;   // (short: already on its way out, is it still worth going on)
+    const inWay = (x, z, h, sp, hl0, hw0) => {
+      const a = (x - p.ax) * p.dx + (z - p.az) * p.dz - tv, b = (x - p.ax) * p.rx + (z - p.az) * p.rz;
+      const cj0 = Math.sin(h) * p.dx + Math.cos(h) * p.dz, cj = Math.abs(cj0), sj = Math.sqrt(Math.max(0, 1 - cj * cj)), ha = cj * hl0 + sj * hw0, hw = sj * hl0 + cj * hw0;
+      if (Math.abs(b - p.lat) >= hw + ty.W / 2 + 0.4) return false;
+      if (cj0 < -0.3) return a + ha > -L2 && a - ha < (short ? p.front + 2 - tv : end) + sp * T + 6;
+      if (a + ha < -L2) return cj0 > 0.3 && sp > 1.5 && a + ha > -L2 - 3 - sp * 2.5;   // (a queue standing behind it is not in its way)
+      return a - ha < end + 2;
+    };
+    for (let i = 0; i < vs.length; i++) {
+      const o = vs[i]; if (o === v || p.o.includes(o)) continue;
+      if (Math.abs(o.x - v.x) > 110 || Math.abs(o.z - v.z) > 110) continue;
+      if (inWay(o.x, o.z, o.h, o.v, o.ty.L / 2, o.ty.W / 2)) return false;
+    }
+    return p.o.includes('player') || !inWay(car.x, car.z, car.th, hyp2(car.vx, car.vz), 1.5, 0.75);
+  }
+  function planOt(v, e0, o0) {
+    OT.tried++;
+    const ty = v.ty, L2 = ty.L / 2, ax = NX[e0.a], az = NZ[e0.a], dx = e0.dx, dz = e0.dz, rx = e0.rx, rz = e0.rz, own = laneOff(e0, v), tv = v.t;
+    // back in before the next junction and its stop line (or the one after, when the road only bends at a vertex)
+    const n = e0.b, e1 = v.route[1];
+    let lim = e0.len - Math.max(NBOX[n], 2) - 2 - (e0.sg ? STOP_BACK : 0);
+    if (e1 && NDEG[n] === 2 && e1.dx * dx + e1.dz * dz > 0.94 && e1.ow === e0.ow) lim = e0.len + e1.len - Math.max(NBOX[e1.b], 2) - 2 - (e1.sg ? STOP_BACK : 0);
+    // the obstacle, and whatever else stands in its lane in the room it needs to get back in: stopped, it is gone round too; anything else, there is no way back in
+    const set = [o0];
+    let back = 1e9, front = -1e9, lo = 1e9, hi = -1e9;
+    const take = o => { const [ha, hw] = otExt(o, dx, dz), c = (oX(o) - ax) * dx + (oZ(o) - az) * dz, l = (oX(o) - ax) * rx + (oZ(o) - az) * rz;
+      back = Math.min(back, c - ha); front = Math.max(front, c + ha); lo = Math.min(lo, l - hw); hi = Math.max(hi, l + hw); };
+    take(o0);
+    for (let it = 0; ; it++) {
+      let add = null, bad = false;
+      const chk = o => {
+        if (set.includes(o)) return 0;
+        const ox = oX(o), oz = oZ(o); if (Math.abs(ox - v.x) > 80 || Math.abs(oz - v.z) > 80) return 0;
+        const [ha, hw] = otExt(o, dx, dz), c = (ox - ax) * dx + (oz - az) * dz, l = (ox - ax) * rx + (oz - az) * rz;
+        if (c - ha > front + ty.L + 4 || c + ha < front - 0.5) return 0;
+        if (l + hw < own - ty.W / 2 - 0.3 || l - hw > own + ty.W / 2 + 0.3) return 0;
+        if (stopped(o)) { add = o; return 1; }
+        bad = true; return -1;
+      };
+      for (let i = 0; i < vs.length && !add && !bad; i++) if (vs[i] !== v) chk(vs[i]);
+      if (!add && !bad) chk('player');
+      if (bad || (add && it >= 3)) return otNo('queue');
+      if (!add) break;
+      set.push(add); take(add);
+    }
+    if (front + ty.L + 4 > lim) return otNo('junction');
+    if (back - tv - L2 < 1.2 && !roomBehind(v)) return otNo('close');
+    // which side: the oncoming lane on a two-way road, either on a one-way road; on the asphalt with a margin from the kerb
+    const hwR = e0.w / 2 - 0.3, left = lo - 0.7 - ty.W / 2, right = hi + 0.7 + ty.W / 2;   // (0.7 m clear of it: a car at an angle sticks out)
+    const sides = [];
+    if (left - ty.W / 2 >= -hwR) sides.push(left);
+    if (e0.ow && right + ty.W / 2 <= hwR) sides.push(right);
+    if (sides.length === 2 && Math.abs(sides[1] - own) < Math.abs(sides[0] - own)) sides.reverse();
+    const s0 = tv - L2, s1 = front + ty.L + 3, mid = (s0 + s1) / 2;
+    next: for (const lat of sides) {
+      // parked cars along the strip
+      const nc = parked.near(ax + dx * mid + rx * lat, az + dz * mid + rz * lat, (s1 - s0) / 2 + 4, PK_NEAR);
+      for (let ci = 0; ci < nc; ci++) {
+        const c = PK_NEAR[ci], oa = (c.x - ax) * dx + (c.z - az) * dz, ol = (c.x - ax) * rx + (c.z - az) * rz;
+        const cj = Math.abs(Math.sin(c.rot) * dx + Math.cos(c.rot) * dz), sj = Math.abs(Math.sin(c.rot) * rx + Math.cos(c.rot) * rz);
+        if (oa + cj * c.sp.L / 2 + sj * c.sp.W / 2 < s0 || oa - cj * c.sp.L / 2 - sj * c.sp.W / 2 > s1) continue;
+        if (Math.abs(ol - lat) < sj * c.sp.L / 2 + cj * c.sp.W / 2 + ty.W / 2 + 0.25) { otNo('parked'); continue next; }
+      }
+      // walls (the road widths of the map are not always right), and people on foot
+      const r = ty.W / 2 + 0.25;
+      let ok = true;
+      for (let s = s0; s <= s1 + 0.01 && ok; s += 2) {
+        const px = ax + dx * s + rx * lat, pz = az + dz * s + rz * lat;
+        walls2d.query(px - r, pz - r, px + r, pz + r, seg => { if (!ok || seg.lv !== undefined) return; const q = closestOnSeg(px, pz, seg); if (hyp2(px - q[0], pz - q[1]) < r) ok = false; });
+        if (ok && peds && peds.near(px, pz, r + 0.8) > 0) ok = false;
+      }
+      if (ok && peds) for (const sc of gags.scenes) for (const id of [sc.ida, sc.idb]) {   // the drivers of a double-parking quarrel, out on the road
+        const i = id > 0 && sc.state !== 'done' ? peds.info(id) : null; if (!i) continue;
+        const a = (i.x - ax) * dx + (i.z - az) * dz, b = (i.x - ax) * rx + (i.z - az) * rz;
+        if (a > s0 - 1 && a < s1 + 1 && Math.abs(b - lat) < r + 0.8) ok = false;
+      }
+      if (!ok) { otNo('wall/foot'); continue; }
+      const p = { o: set, lat, ax, az, dx, dz, rx, rz, back, front, ph: back - tv - L2 < 3 ? 0 : 1, t0: time, tb: time, com: false, vmax: 2.5, st: 0, backs: 0, re: false };
+      if (!laneFree(v, p)) { otNo('lane'); continue; }
+      return p;
+    }
+    return sides.length ? null : otNo('narrow');
+  }
+  function circGap(v, o, ahead) {   // the least distance between the collision circles of v (moved ahead metres on) and of o (the lapa: its two circles)
+    const s = Math.sin(v.h), c = Math.cos(v.h), vx = v.x + s * ahead, vz = v.z + c * ahead, pl = o === 'player', os = Math.sin(pl ? car.th : o.h), oc = Math.cos(pl ? car.th : o.h), oc2 = pl ? null : o.ty.circ;
+    let m = 1e9;
+    for (const [zo, r] of v.ty.circ) for (let j = 0, nj = pl ? 2 : oc2.length; j < nj; j++) {
+      const zo2 = pl ? (j ? -PAX : PAX) : oc2[j][0], r2 = pl ? PR : oc2[j][1], ox = (pl ? car.x : o.x) + os * zo2, oz = (pl ? car.z : o.z) + oc * zo2;
+      const d = hyp2(vx + s * zo - ox, vz + c * zo - oz) - r - r2; if (d < m) m = d;
+    }
+    return m;
+  }
+  function swingGap(v, o) {   // how far v may go on along its present heading before it comes within 0.08 m of o (its collision circles: a little fat at the corners)
+    for (let s = 0; s <= 3; s += 0.25) if (circGap(v, o, s) < 0.08) return s;
+    return 99;
+  }
+  const otTouch = (v, p) => { let m = 1e9; for (const o of p.o) if (o === 'player' || !o.dead) m = Math.min(m, circGap(v, o, 0)); return m; };
+  function roomBehind(v) {   // room to back off a little: not into the junction behind, the vehicle behind or the lapa
+    const e = v.route[0], L2 = v.ty.L / 2;
+    if (v.t - L2 < 2.5) return false;
+    for (const o of e.veh) if (o !== v && o.t < v.t && v.t - L2 - (o.t + o.ty.L / 2) < 1.2) return false;
+    const dx = car.x - v.x, dz = car.z - v.z, fx = Math.sin(v.h), fz = Math.cos(v.h), al = dx * fx + dz * fz;
+    return !(al < 0 && al > -(L2 + 3.5) && Math.abs(dx * fz - dz * fx) < 2);
+  }
+  function stepOt(v, p) {   // false: done or given up (v.ot is cleared)
+    const L2 = v.ty.L / 2;
+    if (time - p.t0 > 25) { otGiveUp('time'); return false; }
+    const vA = (v.x - p.ax) * p.dx + (v.z - p.az) * p.dz;
+    if (p.ph === 0) {
+      const gap = p.back - vA - L2, room = roomBehind(v);
+      if (p.re ? time - p.tb > 1.5 || !room || otTouch(v, p) > 0.7 : gap >= 3.6 || time - p.tb > 3 || !room) {
+        if (!p.re && gap < 1.2) { otGiveUp('close'); v.otNext = time + 3; return false; }
+        p.ph = 1; p.st = 0;
+      } else v.rv = 0.9;
+      return true;
+    }
+    if (p.ph === 1) {
+      if (v.v < 0.1 && otTouch(v, p) < 0.2) {   // stuck with a corner against it: back off a little and try again, twice at most
+        if (!p.st) p.st = time;
+        else if (time - p.st > 1.5) { if (++p.backs > 2) { otGiveUp('stall'); v.otNext = time + 4; return false; } p.ph = 0; p.re = true; p.tb = time; return true; }
+      } else p.st = 0;
+      p.vmax = vA - L2 > p.back ? 7 : 2.5;   // slowly until its tail is past the obstacle's
+      if (!p.com) {
+        if (vA + L2 > p.back - 0.8) p.com = true;   // up to it with the nose out: it goes
+        else {
+          let gone = false; for (const o of p.o) if (o !== 'player' && (o.dead || o.fly)) gone = true; else if (oV(o) > 1) gone = true;
+          if (gone || ((stepN + v.id) % 3 === 0 && !laneFree(v, p, true))) { otGiveUp(gone ? 'moved' : 'lane'); v.otNext = time + 2; return false; }
+        }
+      }
+      if (vA - L2 > p.front + 1.2) p.ph = 2;
+      return true;
+    }
+    if (Math.abs(v.lat) < 0.3 || vA - L2 > p.front + 25) { OT.done++; return false; }
+    return true;
+  }
+
   function control(v, dt) {
     const ty = v.ty, route = v.route, e0 = route[0], rem = e0.len - v.t, L2 = ty.L / 2;
     const sp = v.v, a = ty.a, b = ty.b, sab = 2 * Math.sqrt(a * b);
+    v.rv = 0;
     const bo = v.boost || 1; // police and scared lookouts drive faster than the road allows
     let v0 = Math.min(e0.v * ty.vf * v.drv * bo, ty.vcap * bo);
     const vbase = v0;
@@ -476,7 +639,9 @@ Object.assign(MODELS, buildPoliceModels());
 
     let minI = 0, minGap = 1e9, blocker = null, exitSpace = 1e9;
     const filt = ty.scooter && v.filtO && Math.abs(v.lat) > 1.0;
+    const ot = v.ot && v.ot.ph ? v.ot.o : null;   // going round these (planOt): not leaders on the route, and close up to them while the nose swings out
     const interact = (gap, vl, o) => {
+      if (o && !ot && (o === 'player' ? pStill > 3 : o.hold2 === 2 || o.dwell > 0)) gap -= 2;   // stop two metres further back from what will stand there a while: room to pull out round it
       const sStar = ty.s0 + Math.max(0, sp * ty.T + sp * (sp - vl) / sab), g = gap > 0.05 ? gap : 0.05;
       const term = -a * (sStar / g) * (sStar / g);
       if (term < minI) minI = term;
@@ -493,7 +658,7 @@ Object.assign(MODELS, buildPoliceModels());
         if (k === 0 && d <= 0) continue;
         if (gh && gh.has(o)) continue;
         if (k === 1 && o.v < 2 && o.t - o.ty.L / 2 < exitSpace) { exitSpace = o.t - o.ty.L / 2; v.exitO = o; } // free room past the node
-        if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10 && !o.qP)) continue;
+        if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10 && !o.qP) || (ot && ot.includes(o))) continue;
         interact(d - L2 - o.ty.L / 2, o.v, o);
       }
       base = k === 0 ? rem : base + route[k].len;
@@ -511,6 +676,7 @@ Object.assign(MODELS, buildPoliceModels());
       const hl = acj * o.ty.L / 2 + sj * o.ty.W / 2, hw = sj * o.ty.L / 2 + acj * o.ty.W / 2;
       if (Math.abs(lt) >= hw + ty.W / 2 + 0.15) continue;
       if (gh && gh.has(o)) continue;
+      if (ot && ot.includes(o)) { interact(swingGap(v, o) + ty.s0 - 0.2, 0, o); continue; }   // the nose is not out yet: on as long as its line takes it clear
       if ((filt && o === v.filtO) || (o.hold && o.why2 === v) || (v.stuck > 20 && o.stuck > 10 && !o.qP)) continue;
       if (cj < 0.45 && S(v) > 3 && v.id < o.id) continue; // crossing or oncoming standoff: the lower id drives on
       interact(al - L2 - hl, (o.v) * cj, o);
@@ -522,7 +688,7 @@ Object.assign(MODELS, buildPoliceModels());
         if (al > 0 && al < reach + L2 + 2) {
           const pfx = Math.sin(car.th), pfz = Math.cos(car.th), cj = pfx * fx + pfz * fz, sj = Math.abs(pfx * rx + pfz * rz), acj = Math.abs(cj);
           const hl = acj * 1.5 + sj * 0.75, hw = sj * 1.5 + acj * 0.75, lt = dx * rx + dz * rz;
-          if (Math.abs(lt) < hw + ty.W / 2 + 0.2) interact(al - L2 - hl, (car.vx * fx + car.vz * fz), 'player');
+          if (Math.abs(lt) < hw + ty.W / 2 + 0.2) interact(ot && ot.includes('player') ? swingGap(v, 'player') + ty.s0 - 0.2 : al - L2 - hl, (car.vx * fx + car.vz * fz), 'player');
         }
       }
     }
@@ -596,7 +762,7 @@ Object.assign(MODELS, buildPoliceModels());
         d0 = k === 0 ? rem : d0 + route[k].len; // distance to the start of route[k + 1]
       }
     }
-    v.blocker = blocker; v.hold = hold;
+    v.blocker = blocker; v.hold = hold; v.gap = minGap;
     v.qP = blocker === 'player' || !!(blocker && (blocker.qP || blocker.hold2));   // in a queue behind the lapa or a double-parked car: the ones behind do not give up on it and drive through
     if (!v.filtO) { // make room for a honking lapa: edge towards the kerb where the road allows
       let room = 0; if (v.hornT > 0) room = clamp(e0.w / 2 - 0.45 - ty.W / 2 - laneOff(e0, v), 0, 1.3);
@@ -616,7 +782,22 @@ Object.assign(MODELS, buildPoliceModels());
         if (want) { v.latT = want; v.filtO = blocker; }
       }
     }
+    // going round a stopped obstacle: a beat behind it first, then out when planOt finds the room and the lane clear
+    if (v.ot) {
+      const p = v.ot;
+      if (!stepOt(v, p)) v.ot = null;
+      else if (p.ph === 0) v0 = 0.6;
+      else { v.filtO = null; v.latT = p.ph === 1 ? clamp(p.lat - laneOff(e0, v), -5, 5) : 0; if (p.ph === 1) v0 = Math.min(v0, p.vmax); }
+    } else if (blocker && minGap < 9 && sp < 1 && !hold && !lit && !v.cop && !v.hold2 && !v.dp && !v.filtO && !e0.br && stopped(blocker)) {
+      v.otW = (v.otW || 0) + dt;   // the beat: 1.2 to 2.8 s, longer behind a double-parker (time for the quarrel of src/gags.js)
+      if (v.otW > 1.2 + (v.id % 5) * 0.4 + (blocker.dp ? 3.5 : 0) && time >= (v.otNext || 0)) {
+        v.otNext = time + 0.6;
+        const p = planOt(v, e0, blocker);
+        if (p) { v.ot = p; OT.started++; v.otW = 0; if (!(blocker === 'player' || blocker.dp) && Math.random() < 0.5) honk(v); }   // (behind the lapa and a double-parker it honks already)
+      }
+    } else v.otW = 0;
     let acc = a * (1 - Math.pow(sp / v0, 4)) + minI;
+    if (v.ot && v.ot.ph === 0) acc = -3;
     v.acc = clamp(acc, -9, a);
   }
 
@@ -631,7 +812,7 @@ Object.assign(MODELS, buildPoliceModels());
     // steer: pure pursuit on the lane line
     let e0 = route[0];
     v.lat += (v.latT - v.lat) * Math.min(1, 3 * dt);
-    const Ld = Math.max(2.5, 2.0 + v.v * 0.55), s = v.t + Ld;
+    const Ld = v.ot && v.ot.ph === 1 && !v.ot.com ? 1.6 : Math.max(2.5, 2.0 + v.v * 0.55), s = v.t + Ld;   // (pulling out round an obstacle: a sharper turn)
     let tx, tz;
     if (s <= e0.len || !route[1]) {
       const o = laneOff(e0, v) + v.lat;
@@ -643,7 +824,7 @@ Object.assign(MODELS, buildPoliceModels());
     const err = wrapPi(Math.atan2(tx - v.x, tz - v.z) - v.h), maxYaw = v.v / ty.rmin;
     v.yaw = clamp(err * 3.5, -maxYaw, maxYaw);
     v.h += v.yaw * dt;
-    v.x += (Math.sin(v.h) * v.v + v.ex) * dt; v.z += (Math.cos(v.h) * v.v + v.ez) * dt;
+    v.x += (Math.sin(v.h) * (v.v - v.rv) + v.ex) * dt; v.z += (Math.cos(v.h) * (v.v - v.rv) + v.ez) * dt;   // (rv: backing off a little before going round, stepOt)
     const damp = Math.exp(-4 * dt); v.ex *= damp; v.ez *= damp;
     // progress along the route
     let t = (v.x - NX[e0.a]) * e0.dx + (v.z - NZ[e0.a]) * e0.dz;
@@ -734,6 +915,7 @@ Object.assign(MODELS, buildPoliceModels());
   // ---------- step ----------
   function stepAll(dt) {
     time += dt; sigT = signalClock.now();
+    pStill = hyp2(car.vx, car.vz) < 0.5 ? pStill + dt : 0;
     buildOcc(); stepN++;
     // the driver of a vehicle far away or out of view thinks at half the rate (it goes on moving on its last decision): nobody can see the difference, and this is most of the cost of the traffic
     for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && !(v.cop && v.cop.mode === 'direct')) { if (!v.lazy) control(v, dt); else if ((v.id + stepN) & 1) control(v, dt * 2); } }
@@ -938,7 +1120,7 @@ Object.assign(MODELS, buildPoliceModels());
     const sg = () => Math.random() < 0.5 ? -1 : 1;
     v.fly = { vx, vz, vy, y: 0.15, yaw: sg() * (2 + Math.random() * 4) * tame, sp: (Math.random() - 0.5) * 7 * tame, sr: sg() * (3 + Math.random() * 6) * tame,
       bounces: 0, phase: 0, t: 0, chain, hit: new Set() };
-    v.v = 0; v.dwell = 0; v.filtO = null; v.stopT = 0; v.latT = 0;
+    v.v = 0; v.dwell = 0; v.filtO = null; v.stopT = 0; v.latT = 0; v.ot = null; v.rv = 0;
   }
   function stepFly(v, dt) {
     const f = v.fly, ty = v.ty;
@@ -1113,7 +1295,7 @@ Object.assign(MODELS, buildPoliceModels());
       let clear = true; for (const o of vs) if (hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) { clear = false; break; }
       if (!clear) continue;
       const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-        lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+        lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, rv: 0, ot: null, otW: 0, otNext: 0, gap: 1e9, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
       extendRoute(v);
       if (v.route.length < 2 && e.len < 40) continue;
       vs.push(v); counts[name] = (counts[name] || 0) + 1;
@@ -1128,7 +1310,7 @@ Object.assign(MODELS, buildPoliceModels());
     if (dc < R_SPAWN_MIN || hyp2(x - car.x, z - car.z) < 18 || (dc < R_FAR && inView(x, groundY(x, z) + 1, z, ty.L * 0.6 + 3))) return null;
     for (const o of vs) if (Math.abs(o.x - x) < 14 && Math.abs(o.z - z) < 14 && hyp2(o.x - x, o.z - z) < (ty.L + o.ty.L) * 0.5 + 4) return null;
     const v = { id: ++nextId, ty, name, x, z, h: Math.atan2(e.dx, e.dz), v: Math.min(e.v * ty.vf, ty.vcap) * 0.7, ex: 0, ez: 0, route: [e], t, pref,
-      lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
+      lat: 0, latT: 0, drv: 0.9 + Math.random() * 0.15, stopT: 0, honkAt: -1, blockT: 0, wait: 0, stuck: 0, sigW: 0, sigHold: false, rv: 0, ot: null, otW: 0, otNext: 0, gap: 1e9, yaw: 0, roll: 0, col: pickW(ty.colObjs), age: 0, blocker: null };
     if (init) init(v);
     extendRoute(v); vs.push(v); counts[name] = (counts[name] || 0) + 1;
     return v;
@@ -1178,7 +1360,7 @@ Object.assign(MODELS, buildPoliceModels());
     vehicles: vs, arrotini: arrotini.list, bindClock: arrotini.bindClock,   // src/city-audio.js: the vehicles to hear, and the knife-grinders (each on duty has x, z, h and v, his vehicle once he is near enough to have one); bindClock(game.time): they work from 07:30 to 20:00
     setQuality(q) { densK = q === 'low' ? 0.5 : 1; },   // 'low' halves the cap on cars (the cars already there leave as they pass out of range); low / medium / high from main.js applySettings
     setVolume(v) { audio.vol = clamp(+v || 0, 0, 1); if (audio.master) audio.master.gain.value = audio.vol * 0.12; police.setVolume(v); },
-    bindPedestrians(api) { police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
+    bindPedestrians(api) { peds = api; police.bindPedestrians(api); gags.bindPedestrians(api); carrozze.bindPedestrians(api); },   // called by pedestrians.js once it is built
     // The cross-tile road graph, for routing (missions, minimap route line). Only tiles at full detail are in it.
     //   nearestNode(x, z, maxDist = 60, drivable = true) -> node id or -1
     //   nodePos(n) -> [x, z]
@@ -1187,7 +1369,7 @@ Object.assign(MODELS, buildPoliceModels());
     //   plan(x, z, hx, hz, targets, opts), edgeFor(x, z, hx, hz, maxd, out), tileLoaded(x, z): the guidance queries of src/route-guide.js (see traffic-graph.js)
     //   ready(x, z, r = 120) -> true when drivable roads are resident within r metres
     //   version: bumps whenever tiles are added or dropped; stats() -> { nodes, edges, tiles, vehicles, tileMs }
-    debug: { vs, police, gags, carrozze, vendors, arrotini, tourPlan, TYPES, G, TOURS, shortest },   // ?debug probes
+    debug: { vs, police, gags, carrozze, vendors, arrotini, tourPlan, TYPES, G, TOURS, shortest, OT },   // ?debug probes
     graph: {
       nearestNode: G.nearestNode, path: G.path, nodePos: n => [NX[n], NZ[n]],
       plan: G.plan, edgeFor: G.edgeFor, tileLoaded: G.tileLoaded,   // route guidance (src/route-guide.js): the way on from the car to several targets, with a head start each
