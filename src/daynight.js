@@ -222,11 +222,17 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     [38.115684, 13.361460, 60, 0.8], [38.1199, 13.3573, 90, 1.0], [38.1146, 13.3558, 90, 1.0], [38.1112, 13.3540, 95, 0.9],
     [38.1151, 13.3622, 55, 0.85], [38.12865, 13.35672, 85, 0.9], [38.11052, 13.35243, 55, 0.9],
   ].map(([la, lo, r, k]) => { const [x, z] = proj(la, lo); return new THREE.Vector4(x, z, r, k); });
-  const FL = { value: FLOOD.concat(Array.from({ length: 7 - FLOOD.length }, () => new THREE.Vector4(0, 0, 1, 0))) };
+  // The discs never move, so they are constants in the shader text rather than a uniform array: a uniform array is flattened and uploaded again on every
+  // draw that changes material (three.js does not compare arrays), on every washed material, by day too. Math.fround: the same float32 values the upload gave.
+  // The box round all of them (x0, z0, x1, z1): outside it, and on whatever is not a wall, the flood term is exactly 0, so the loop below is skipped there.
+  const g9 = v => { const t = String(Math.fround(v)); return /[.e]/.test(t) ? t : t + '.0'; };
+  const v4 = a => `vec4(${a.map(g9).join(', ')})`;
+  const FLOOD_GLSL = 'const vec4 uFlood[7] = vec4[7](' + FLOOD.map(f => v4([f.x, f.y, f.z, f.w])).concat(Array.from({ length: 7 - FLOOD.length }, () => v4([0, 0, 1, 0]))).join(', ') + ');\n'
+    + 'const vec4 uFloodBox = ' + v4([Math.min(...FLOOD.map(f => f.x - f.z)), Math.min(...FLOOD.map(f => f.y - f.z)), Math.max(...FLOOD.map(f => f.x + f.z)), Math.max(...FLOOD.map(f => f.y + f.z))]) + ';\n';
   NK.value.z = groundY(0, 0);
   const LT = { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, LB = { value: new THREE.Vector4(0, 0, 1, 1) }; // lamp/street light field (built the first time it gets dark)
   LT.value.needsUpdate = true;
-  const WASH_DECL = 'uniform vec4 uNightK;\nuniform vec4 uFlood[7];\nuniform sampler2D uLampTex;\nuniform vec4 uLampBox;\n';
+  const WASH_DECL = 'uniform vec4 uNightK;\n' + FLOOD_GLSL + 'uniform sampler2D uLampTex;\nuniform vec4 uLampBox;\n';
   const WASH_ROUGH = `
     #ifndef FLAT_SHADED
     if (uNightK.x > 0.002) { vec3 gn = normalize(vNormal) * mat3(viewMatrix); roughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.4), uNightK.x * uNightK.w * smoothstep(0.85, 0.97, gn.y)); }
@@ -240,7 +246,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       vec3 lf = texture2D(uLampTex, (wpos.xz - uLampBox.xy) * uLampBox.zw).rgb;   // r: street lamps, g: along the streets
       float near = clamp(lf.r * 1.4 + lf.g * 0.9, 0.0, 1.4);
       float fl = 0.0;
-      for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, length(wpos.xz - f.xy))); }
+      if (wall > 0.0 && wpos.x > uFloodBox.x && wpos.z > uFloodBox.y && wpos.x < uFloodBox.z && wpos.z < uFloodBox.w)   // (fl only counts on walls, and is 0 beyond every disc)
+        for (int i = 0; i < 7; i++) { vec4 f = uFlood[i]; vec2 fd = wpos.xz - f.xy; float d2 = dot(fd, fd); if (d2 < f.z * f.z) fl += f.w * (1.0 - smoothstep(f.z * 0.35, f.z, sqrt(d2))); }
       float gnd = smoothstep(0.7, 0.92, wn.y) * exp(-hb / 2.5) * near;                 // streets and piazzas: amber-brown under and between the lamps
       float wl = uNightK.y * wall * exp(-hb / 9.0) * (0.3 + near);                   // lamp-lit street: sodium orange
       float wf = fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;                       // floodlit landmarks: warmer cream-gold, like the stone in the night photos
@@ -257,7 +264,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     m.onBeforeCompile = function (sh, r) {
       prev.call(this, sh, r);
       if (!sh.fragmentShader.includes('#include <common>')) return;   // a callback that rewrote the shader's head: leave it alone
-      sh.uniforms.uNightK = NK; sh.uniforms.uFlood = FL; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
+      sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\n' + WASH_DECL)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
@@ -270,9 +277,12 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   scene.traverse(o => { for (const m of matsOf(o)) if (m.isMeshStandardMaterial && !seenMats.has(m)) { seenMats.add(m); wash(m); } });
   const SMP = THREE.MeshStandardMaterial.prototype, baseBeforeRender = SMP.onBeforeRender;   // MeshPhysicalMaterial inherits it
   SMP.onBeforeRender = function (r, sc, cam, geo, obj, grp) {
-    if (sc === scene && !seenMats.has(this)) {
-      seenMats.add(this);
-      if (!honest(obj)) { wash(this); this.needsUpdate = true; }   // free before the first compile; a material compiled elsewhere first recompiles once
+    if (sc === scene) {
+      if (!seenMats.has(this)) {
+        seenMats.add(this);
+        if (!honest(obj)) { wash(this); this.needsUpdate = true; }   // free before the first compile; a material compiled elsewhere first recompiles once
+      }
+      this.onBeforeRender = baseBeforeRender;   // decided once: its later draws skip this hook (Material.copy does not carry it, so a clone still comes here)
     }
     baseBeforeRender.call(this, r, sc, cam, geo, obj, grp);
   };
