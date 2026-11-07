@@ -29,6 +29,16 @@ try {
     run('height of 6553 m (bad)', [['s', lifted(65535)]]);
     run('height of 1000.1 m (bad)', [['s', lifted(10001)]]);
     run('height of 12.3 m (fine)', [['s', lifted(123)]]);
+    // the fast STATE channel (src/p2p/p2p.js, HELLO and FAST)
+    const fast = (mut, n = 19) => { const b = new Uint8Array(n); b[0] = 10; b[1] = ++sq; b.set([0, 0, 8, 0, 128], 3); mut && mut(b); return b; };
+    run('fast: hello of the wrong size or value (bad)', [['f', new Uint8Array([9])], ['f', new Uint8Array([9, 2])], ['f', new Uint8Array([9, 0, 0])]]);
+    run('fast: not bytes, empty, unknown type (bad)', [['f', 'x'], ['f', null], ['f', new Uint8Array(0)], ['f', new Uint8Array([11, 0])]]);
+    run('fast: wrong sizes (bad)', [['f', fast(null, 18)], ['f', fast(null, 20)], ['f', fast(null, 2000)]]);
+    run('fast: reserved flag bits, height flag without bytes (bad)', [['f', fast(b => { b[15] = 0x20; })], ['f', fast(b => { b[15] = 8; })]]);
+    run('fast: position beyond +-20 km (bad)', [['f', fast(b => { b.set([255, 255, 255, 255, 255], 3); })]]);
+    run('fast: height of 6553 m (bad)', [['f', fast(b => { b[15] = 8; new DataView(b.buffer).setUint16(19, 65535, true); }, 21)]]);
+    run('fast: extreme speed, curvature, accel (clamped, fine)', [['f', fast(b => { const v = new DataView(b.buffer); v.setInt16(10, -32768, true); v.setInt16(16, 32767, true); v.setInt8(18, -128); })]]);
+    run('fast: a copy and an older one (dropped)', (() => { const a = fast(b => { b[1] = 200; b[2] = 0; }), o = fast(b => { b[1] = 100; b[2] = 0; }); return [['f', a], ['f', a.slice()], ['f', o]]; })());
     return out;
   });
   for (const [k, v] of Object.entries(r)) console.log(k.padEnd(34), JSON.stringify(v));

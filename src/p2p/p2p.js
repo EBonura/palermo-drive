@@ -21,7 +21,20 @@
 //   OFFER [4][kind u8][offer id u8]                   a drink (0 cicchetto, 1 birra) for a player close by; ACCEPT [5][id] answers it, CONFIRM [6][id] says the giver paid
 //   STATE [2][seq u8][state 11 bytes][height u16]?    position 5 bytes, heading u8, speed i8, steer i8, roll i8, lean i8, flags u8 (bit 0 nitro, 1 brake, 2 drift, 3 height follows);
 //         height: how far the car stands above the ground at its x, z, in tenths of a metre (a bridge deck, a roof, the air: car.lift); sent only above 0.6 m, so a car on the road costs nothing extra
+//
+// STATE goes on a channel of its own where both ends have it (this version on): an unreliable, unordered data channel on the same RTCPeerConnection, pre-negotiated on
+// stream FAST_ID by both ends (nothing is signalled, Trystero and its connection code are not touched). A lost STATE is not sent again and does not hold the next one back,
+// and a message carries no Trystero framing (a room token of 64 bytes and an action header of 36: 103 bytes on every message). On that channel:
+//   HELLO [9][heard u8]                               sent every HELLO_MS until the other end has been heard on this channel and says it heard us (heard 1). An older version never
+//                                                     answers (it has no such channel; what reaches it there is dropped by the browser): after HELLO_TRIES it is left alone, and it
+//                                                     gets STATE through Trystero, exactly as before
+//   FAST  [10][time u16][position 5][heading u16][speed i16][steer i8][roll i8][lean i8][flags u8][curvature i16][accel i8][height u16]?
+//         time: the sender's clock in ms (mod 65536), so the receiver knows when each state was true and how late it came; speed in 1/100 m/s; curvature of the path in
+//         1/10000 per metre; acceleration in 1/10 m/s2; the rest as in STATE. Sent only when the car leaves the path that predict() (src/predict.js) draws from the last
+//         one sent (a turn, braking, a weave), at most every SEND_NEAR ms close by, and at least every KEEP_MOVING ms moving or KEEP_PARKED ms still. The receiver draws
+//         the car a little behind its latest state, carried on by predict(), so sending less often adds no lag.
 import { createRemotes } from '../remotes.js';
+import { predict } from '../predict.js';
 import { getLang as lang } from '../lang.js';   // the language shown, 'it' | 'en' (src/lang.js)
 import { strategies, selfId, pauseRelayReconnection, resumeRelayReconnection } from './trystero.js';
 import { PHRASES, CATEGORIES } from './phrases.js';
@@ -48,7 +61,11 @@ const GONE_MS = 1500;          // a player whose last connection closed is dropp
 const CHECK_MS = 500;          // how often the room set is re-evaluated
 const OFFER_R = 25, OFFER_TTL_MS = 15000, OFFER_GAP_MS = 10000, DRINK_PRICE = 1;   // metres to the receiver, how long an offer stands, least time between two, euro
 const SAY_GAP_MS = 1500;       // least time between two phrases from one player (checked on both ends)
-const SEND_NEAR = 100, SEND_MID = 200, SEND_FAR = 1000, SEND_AFAR = 2500; // state interval by distance to the receiver: < 150 m, < 350 m, < 1200 m, farther
+const SEND_NEAR = 100, SEND_MID = 200, SEND_FAR = 1000, SEND_AFAR = 2500; // state interval by distance to the receiver: < 150 m, < 350 m, < 1200 m, farther (the least interval on the fast channel)
+const FAST_ID = 101, MSG_HELLO = 9, MSG_FAST = 10, FAST_LEN = 19, HELLO_MS = 500, HELLO_TRIES = 40;   // the game's STATE channel (see the top of this file)
+const KEEP_MOVING = 1000, KEEP_PARKED = 2000;   // ms: the longest without a state on the fast channel, moving and still (STALE_MS drops a player after 6 s)
+// how far the car may be from where the receiver draws it before a new state goes (close by; times the distance over 50 m farther out): metres, radians, m/s
+const DR_POS = 0.2, DR_TH = 0.035, DR_V = 0.5, DR_STEER = 0.1, DR_ROLL = 0.05, DR_LEAN = 0.1, DR_H = 0.2;
 // The most other players held at once, wherever they are: connected, sent to, shown. Players are taken from the closest outward until this many (a room counts as
 // all of its members). Chosen from the phone-profile measurements in docs/P2P-MULTIPLAYER.md (section "The closest players"). ?maxp=N overrides it for the tests.
 const MAX_PLAYERS = 8;
@@ -59,6 +76,7 @@ const PRESENCE_IDLE_MS = 60000;       // a paused or hidden game stops publishin
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const q8 = (v, scale) => clamp(Math.round(v / scale * 127), -127, 127);
+const wrapPI = a => a - TAU * Math.floor((a + Math.PI) / TAU);
 
 export function createP2P(env) {
   const { car, game, vehicle } = env;
@@ -100,7 +118,7 @@ export function createP2P(env) {
   const rm = createRemotes(env);
   const rooms = new Map();   // key -> { key, i, j, room, state, info, peers: Set, t0, tFirstPeer, joined }
   const peers = new Map();   // peerId -> { id, rooms: Set(roomKey), name, livery, seq, lastRx, x, z, nextTx, goneAt, tokens, tokT, rx }
-  const stats = { txMsgs: 0, txBytes: 0, rxMsgs: 0, rxBytes: 0, rxDropped: 0, rxDup: 0, rxBad: 0, joins: 0, leaves: 0, relayTx: 0, limits: 0, halts: 0 };
+  const stats = { txMsgs: 0, txBytes: 0, rxMsgs: 0, rxBytes: 0, rxDropped: 0, rxDup: 0, rxBad: 0, joins: 0, leaves: 0, relayTx: 0, limits: 0, halts: 0, fastTx: 0, fastRx: 0, hellos: 0, fastErr: 0, fastNeg: 0 };
   let lastChecked = -1e9, lastInfoKey = '', started = false;
 
   // ---------- HUD (debug) ----------
@@ -223,7 +241,8 @@ export function createP2P(env) {
       let p = peers.get(id); if (!p) { p = newPeer(id); peers.set(id, p); }
       if (!p.rooms.size) p.since = t;
       p.rooms.add(k); p.goneAt = 0;
-      sendInfoTo(r, id); sendStateTo([id], performance.now(), true);
+      const ik = infoKey(); if (p.infoKey !== ik) { p.infoKey = ik; sendInfoTo(r, id); }   // once per player, not once per room it shares with us
+      ensureFast(p); sendStateTo([id], performance.now(), true);
     };
     r.room.onPeerLeave = id => detach(r, id, 'peerLeave');
   }
@@ -239,11 +258,13 @@ export function createP2P(env) {
     const p = peers.get(id); if (!p) return;
     p.rooms.delete(r.key);
     if (why) ev(why, { room: r.key, peer: id.slice(0, 4) });
-    if (!p.rooms.size) p.goneAt = performance.now();
+    if (!p.rooms.size) { p.goneAt = performance.now(); p.infoKey = ''; }
   }
-  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, since: performance.now(), x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
+  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, since: performance.now(), x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false,
+    infoKey: '', pc: null, fc: null, fast: false, fastAck: false, fastState: false, hellos: 0, helloT: 0, dr: null, fts: -1, pend: null });
 
   // ---------- outgoing ----------
+  const infoKey = () => myName + '|' + vehId() + '|' + livId();
   const route = p => { let best = null; for (const k of p.rooms) if (rooms.has(k) && (best === null || k < best)) best = k; return best; };
   function sendInfoTo(r, id) {
     const nm = new TextEncoder().encode(myName).slice(0, MAX_NAME_BYTES);
@@ -262,10 +283,90 @@ export function createP2P(env) {
     if (lift) dv.setUint16(MSG_STATE, Math.round(lift * 10), true);
     return b;
   }
+  // the STATE channel of a peer: made once per RTCPeerConnection (Trystero shares one between all the rooms of a pair), on both ends alike, so it needs no signalling
+  const chans = new WeakMap();   // RTCPeerConnection -> its RTCDataChannel (or null if the browser would not make it)
+  const fastOpen = p => !!(p.fc && p.fc.readyState === 'open');
+  function pcOf(p) { for (const k of p.rooms) { const r = rooms.get(k), pc = r && r.room.getPeers()[p.id]; if (pc) return pc; } return null; }
+  function ensureFast(p) {
+    const pc = pcOf(p), dead = !pc || pc.connectionState === 'closed' || pc.connectionState === 'failed';
+    if (p.pc === pc && !dead && !(p.fc && p.fc.readyState === 'closed')) return;
+    p.pc = dead ? null : pc; p.fc = null; p.fast = p.fastAck = p.fastState = false; p.hellos = 0; p.helloT = 0; p.dr = null;   // p.fts stays: the same sender clock
+    if (dead) return;
+    let ch = chans.get(pc);
+    if (ch === undefined || (ch && ch.readyState === 'closed')) {
+      ch = null;
+      try {
+        if (testing) pc.addEventListener('negotiationneeded', () => { stats.fastNeg++; });   // must never happen: the channel is not signalled
+        ch = pc.createDataChannel('pd-state', { negotiated: true, id: FAST_ID, ordered: false, maxRetransmits: 0 }); ch.binaryType = 'arraybuffer';
+        const id = p.id; ch.onmessage = e => onFast(id, e.data);
+      } catch (e) { stats.fastErr++; ch = null; }
+      chans.set(pc, ch);
+    }
+    p.fc = ch;
+  }
+  // what the car is doing, for the prediction the receiver makes: how fast the heading turns and the speed changes, smoothed over about 80 ms of frames
+  const kin = { t: 0, th: 0, v: 0, w: 0, a: 0 };
+  function trackKin(now) {
+    const dt = (now - kin.t) / 1000, v = car.vf || 0;
+    if (kin.t && dt > 0 && dt < 0.5) { const f = Math.min(1, dt / 0.08); kin.w += (wrapPI(car.th - kin.th) / dt - kin.w) * f; kin.a += ((v - kin.v) / dt - kin.a) * f; } else { kin.w = 0; kin.a = 0; }
+    kin.t = now; kin.th = car.th; kin.v = v;
+  }
+  const flagsNow = lift => (car.nosAmt > 0.15 ? 1 : 0) | (car.braking ? 2 : 0) | (car.drift > 0.3 ? 4 : 0) | (lift ? 8 : 0);
+  const liftNow = () => car.lift > LIFT_MIN ? Math.min(MAX_LIFT, car.lift) : 0;
+  function packFast(now) {
+    const lift = liftNow(), b = new Uint8Array(lift ? FAST_LEN + 2 : FAST_LEN), dv = new DataView(b.buffer), v = car.vf || 0;
+    b[0] = MSG_FAST; dv.setUint16(1, Math.round(now) & 0xffff, true);
+    const xq = clamp(Math.round(car.x * POS_UNITS) + POS_MID, 0, POS_MAX), zq = clamp(Math.round(car.z * POS_UNITS) + POS_MID, 0, POS_MAX);
+    dv.setUint32(3, (xq | ((zq & 0xfff) << 20)) >>> 0, true); b[7] = zq >>> 12;
+    dv.setUint16(8, Math.round(((car.th % TAU) + TAU) % TAU / TAU * 65536) & 0xffff, true);
+    dv.setInt16(10, clamp(Math.round(v * 100), -32767, 32767), true);
+    dv.setInt8(12, q8(car.steer || 0, 0.7)); dv.setInt8(13, q8(car.roll || 0, 0.5)); dv.setInt8(14, q8(car.lean || 0, 1));
+    b[15] = flagsNow(lift);
+    dv.setInt16(16, Math.abs(v) > 1 ? clamp(Math.round(kin.w / v * 10000), -30000, 30000) : 0, true);
+    dv.setInt8(18, clamp(Math.round(kin.a * 10), -127, 127));
+    if (lift) dv.setUint16(FAST_LEN, Math.round(lift * 10), true);
+    return b;
+  }
+  function unpackFast(b) {   // null if the bytes are not a state a real client sends
+    if (b.length < FAST_LEN || b[0] !== MSG_FAST || b[15] & 0xf0 || b.length !== (b[15] & 8 ? FAST_LEN + 2 : FAST_LEN)) return null;
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    const lo = dv.getUint32(3, true), xq = lo & 0xfffff, zq = (lo >>> 20) | (b[7] << 12);
+    const x = (xq - POS_MID) / POS_UNITS, z = (zq - POS_MID) / POS_UNITS, h = b[15] & 8 ? dv.getUint16(FAST_LEN, true) / 10 : 0;
+    if (!(Math.abs(x) < 20000 && Math.abs(z) < 20000) || h > MAX_LIFT) return null;
+    return { t16: dv.getUint16(1, true), x, z, th: dv.getUint16(8, true) / 65536 * TAU, v: clamp(dv.getInt16(10, true) / 100, -60, 60), steer: dv.getInt8(12) / 127 * 0.7, roll: dv.getInt8(13) / 127 * 0.5, lean: dv.getInt8(14) / 127,
+      fl: b[15] & 7, k: clamp(dv.getInt16(16, true) / 10000, -3, 3), a: dv.getInt8(18) / 10, h };
+  }
+  // does peer p need a state now: the car is no longer where predict() puts it from the last one sent, or it is time for the keepalive
+  function fastDue(p, now, d) {
+    const dr = p.dr; if (!dr) return true;
+    const age = now - dr.t, band = d < 150 ? SEND_NEAR : d < 350 ? SEND_MID : d < 1200 ? SEND_FAR : SEND_AFAR;
+    if (age < band - 5) return false;
+    const v = car.vf || 0, moving = Math.abs(v) > 0.2 || Math.abs(dr.v) > 0.2;
+    if (age >= Math.max(band, moving ? KEEP_MOVING : KEEP_PARKED)) return true;
+    const f = Math.max(1, d / 50), pr = predict(dr, Math.min(age, 1500) / 1000), lift = liftNow();
+    return Math.hypot(car.x - pr.x, car.z - pr.z) > DR_POS * f || Math.abs(wrapPI(car.th - pr.th)) > DR_TH * f || Math.abs(v - pr.v) > DR_V * f
+      || flagsNow(lift) !== (dr.fl | (dr.h ? 8 : 0)) || Math.abs((car.steer || 0) - dr.steer) > DR_STEER || Math.abs((car.roll || 0) - dr.roll) > DR_ROLL || Math.abs((car.lean || 0) - dr.lean) > DR_LEAN || Math.abs(lift - dr.h) > DR_H;
+  }
+  function sendFast(now) {
+    let pk = null, st = null;
+    for (const p of peers.values()) {
+      if (!p.rooms.size || !fastOpen(p)) continue;
+      if (!(p.fast && p.fastAck)) {   // hello until both ends know the channel works
+        if (p.hellos < HELLO_TRIES && now - p.helloT > HELLO_MS) { p.hellos++; p.helloT = now; stats.hellos++; try { p.fc.send(new Uint8Array([MSG_HELLO, p.fast ? 1 : 0])); } catch (e) { /* closing */ } }
+        if (!p.fast) continue;
+      }
+      if (p.held === false || game.state !== 'play' || p.fc.bufferedAmount > 65536) continue;
+      const d = Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : 0;
+      if (!fastDue(p, now, d)) continue;
+      if (!pk) { pk = packFast(now); st = unpackFast(pk); }
+      try { p.fc.send(pk); stats.fastTx++; stats.txMsgs++; stats.txBytes += pk.length; p.dr = { ...st, t: now }; } catch (e) { /* closing: the next frame tries again */ }
+    }
+  }
   function sendStateTo(ids, now, force) {
     const byRoom = new Map();
     for (const id of ids) {
       const p = peers.get(id); if (!p) continue;
+      if (p.fast && fastOpen(p)) continue;   // its states go on the fast channel (sendFast)
       if (p.held === false || (!force && now < p.nextTx)) continue;   // not one of the closest MAXP: nothing is sent
       const d = Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : 0;
       p.nextTx = now + (d < 150 ? SEND_NEAR : d < 350 ? SEND_MID : d < 1200 ? SEND_FAR : SEND_AFAR) - 5;
@@ -294,6 +395,7 @@ export function createP2P(env) {
     p.name = clean(new TextDecoder().decode(b.subarray(4))) || 'Player';
     p.lastRx = now;
     if (p.shown) rm.setInfo(rm.remotes.get(id), p.name, p.livery, p.vehicle);
+    else if (p.pend) { const s = p.pend; p.pend = null; place(p, id, now, s, r); }   // a state that came before the name (the fast channel does not wait for Trystero's): shown now, not at the next state, which may be 2 s away
   }
   function onState(r, id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
@@ -302,6 +404,7 @@ export function createP2P(env) {
     if (!admit(p, now)) { stats.rxDropped++; return; }
     const dseq = (b[1] - p.seq) & 255;
     if (p.seq >= 0 && (dseq === 0 || dseq > 128)) { stats.rxDup++; return; }   // a copy through another room, or out of order
+    if (p.fastState) { stats.rxDup++; return; }   // this player's states come on the fast channel now: one late through Trystero would be out of place
     p.seq = b[1];
     const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
     const lo = dv.getUint32(2, true), xq = lo & 0xfffff, zq = (lo >>> 20) | (b[6] << 12);
@@ -310,18 +413,43 @@ export function createP2P(env) {
     const v = clamp(dv.getInt8(8) / 2, -60, 60);
     const h = b[12] & 8 ? dv.getUint16(MSG_STATE, true) / 10 : 0;
     if (h > MAX_LIFT) { stats.rxBad++; return; }
-    p.x = x; p.z = z; p.lastRx = now; p.h = h;
+    place(p, id, now, { t: now, x, z, th: b[7] / 256 * TAU, v, steer: dv.getInt8(9) / 127 * 0.7, roll: dv.getInt8(10) / 127 * 0.5, lean: dv.getInt8(11) / 127, fl: b[12] & 7, h }, r);
+  }
+  // the fast channel (untrusted too): HELLO and FAST
+  function onFast(id, raw) {
+    const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
+    if (!p) { stats.rxDropped++; return; }   // a player we have just let go: the shared connection outlives the rooms for a while (SHARED_IDLE_MS)
+    if (!b || !b.length) { stats.rxBad++; return; }
+    if (b[0] === MSG_HELLO) {
+      if (b.length !== 2 || b[1] > 1) { stats.rxBad++; return; }
+      if (!admit(p, now)) { stats.rxDropped++; return; }
+      if (!p.fast) { p.fast = true; p.helloT = 0; }   // answer at once
+      if (b[1]) p.fastAck = true;
+      return;
+    }
+    const s = unpackFast(b); if (!s) { stats.rxBad++; return; }
+    stats.rxBytes += b.length;
+    if (!admit(p, now)) { stats.rxDropped++; return; }
+    p.fast = p.fastAck = true;
+    if (p.fts >= 0) { const d = (s.t16 - p.fts) & 0xffff; if (d === 0 || d > 32768) { stats.rxDup++; return; } p.fts += d; } else p.fts = s.t16;   // older than the last one (the channel keeps no order): dropped
+    p.fastState = true; stats.fastRx++;
+    s.t = now; s.ts = p.fts;
+    place(p, id, now, s, rooms.get(route(p)) || null, 'fast');
+  }
+  function place(p, id, now, s, r, via = 'trystero') {   // a valid state from player p: kept for the ranking, drawn if p is one of ours
+    const { x, z } = s;
+    p.x = x; p.z = z; p.lastRx = now; p.h = s.h;
     if (p.held === false) return;   // known, but not among the closest MAXP: its position is kept for the ranking, nothing is drawn
-    if (p.livery < 0) return;   // INFO not here yet (it was sent first, and arrives first unless it came through another room)
+    if (p.livery < 0) { p.pend = s; return; }   // INFO not here yet: kept until it is (onInfo)
     if (!p.shown) {
       if (rm.remotes.size >= MAXP) { rank(now); if (p.held === false || rm.remotes.size >= MAXP) return; }   // full: a newcomer is shown only if it is closer than the farthest one, who is then taken off
       if (rm.remotes.size >= MAX_REMOTES) return;
       p.shown = true; p.far = Math.hypot(x - car.x, z - car.z) > DRAW_R;
       const first = rm.ensure(id); rm.setFar(first, p.far); rm.setInfo(first, p.name || 'Player', p.livery, p.vehicle);
-      ev('firstState', { peer: id.slice(0, 4), room: r.key, msSinceRoom: Math.round(now - r.t0) });
+      ev('firstState', { peer: id.slice(0, 4), room: r && r.key, msSinceRoom: r ? Math.round(now - r.t0) : undefined, via });
     }
     const rem = rm.remotes.get(id); if (!rem) return;
-    rm.addSnap(rem, { t: now, x, z, th: b[7] / 256 * TAU, v, steer: dv.getInt8(9) / 127 * 0.7, roll: dv.getInt8(10) / 127 * 0.5, lean: dv.getInt8(11) / 127, fl: b[12] & 7, h });
+    rm.addSnap(rem, s);
   }
 
   // A phrase reaches the players who can see our car: within DRAW_R metres (the range at which another player is drawn as a car and not a ring on the maps). The sender sends to
@@ -702,7 +830,7 @@ export function createP2P(env) {
     known.forEach((p, n) => {
       p.held = n < slots;
       if (!p.shown) return;
-      if (!p.held) { rm.remove(p.id); p.shown = false; p.seq = -1; ev('unheld', { peer: p.id.slice(0, 4) }); return; }
+      if (!p.held) { rm.remove(p.id); p.shown = false; p.seq = -1; p.fts = -1; ev('unheld', { peer: p.id.slice(0, 4) }); return; }
       const d = dist(p), far = p.far ? d > DRAW_R : d > DRAW_OUT;
       if (far !== p.far) { p.far = far; rm.setFar(rm.remotes.get(p.id), far); ev(far ? 'far' : 'near', { peer: p.id.slice(0, 4), m: Math.round(d) }); }
     });
@@ -733,14 +861,16 @@ export function createP2P(env) {
       if (playing && !document.hidden) { idleSince = 0; if (!presence.running && !quiet && !halted) presence.start(); }
       else { if (!idleSince) idleSince = now; if (presence.running && now - idleSince > IDLE_MS) { presence.stop(true); chooser.reset(); lastListed = ''; } }
     }
-    if (now - lastChecked > CHECK_MS) { lastChecked = now; if (!halted) evaluate(now); rank(now); }
+    if (now - lastChecked > CHECK_MS) { lastChecked = now; if (!halted) evaluate(now); rank(now); for (const p of peers.values()) if (p.rooms.size) ensureFast(p); }
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
       sendAcc = 0;
-      const key2 = myName + '|' + vehId() + '|' + livId();
-      if (key2 !== lastInfoKey) { lastInfoKey = key2; for (const r of rooms.values()) sendInfoTo(r, null); }
+      const key2 = infoKey();
+      if (key2 !== lastInfoKey) { lastInfoKey = key2; for (const p of peers.values()) { const k = route(p); if (k !== null && p.infoKey !== key2) { p.infoKey = key2; sendInfoTo(rooms.get(k), p.id); } } }   // to each player once, through one room
       if (game.state === 'play') sendStateTo([...peers.keys()], now, false);
     }
+    if (game.state === 'play') trackKin(now);
+    sendFast(now);
     for (const p of peers.values()) {
       if ((p.goneAt && now - p.goneAt > GONE_MS) || (!p.rooms.size && !p.goneAt)) {
         if (p.shown) rm.remove(p.id);
@@ -749,7 +879,7 @@ export function createP2P(env) {
       } else if (p.shown && now - p.lastRx > STALE_MS) {
         // quiet for a while (the other page was locked, or in the background): take the car off the street but keep the record, the connection
         // is still open and nothing would add it again. Its next STATE shows it again with the name and livery we already have.
-        rm.remove(p.id); p.shown = false; p.seq = -1;
+        rm.remove(p.id); p.shown = false; p.seq = -1; p.fts = -1;
         ev('drop', { peer: p.id.slice(0, 4), why: 'stale' });
       }
     }
@@ -777,7 +907,8 @@ export function createP2P(env) {
     isOnline: online,
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
-      peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),
+      peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()), fast: p.fast, fastAck: p.fastAck, fastState: p.fastState, chan: p.fc ? p.fc.readyState : '-' })),
+      fastChannel: id => { const p = peers.get(id) || [...peers.values()].find(q => q.id.startsWith(id)); const c = p && p.fc; return c && { label: c.label, id: c.id, ordered: c.ordered, maxRetransmits: c.maxRetransmits, maxPacketLifeTime: c.maxPacketLifeTime, negotiated: c.negotiated, state: c.readyState }; },
       presence, MAXP, home: () => chooser.home && { ...chooser.home }, banned: chooser.banned, guard, halted: () => halted,
       rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
@@ -789,7 +920,7 @@ export function createP2P(env) {
       // test hook (tools/p2p/fuzz.mjs): feeds hostile messages from a made-up peer through the real handlers
       fuzz(msgs, refill = true) {
         const id = 'fuzz-peer', r = { key: 'fuzz' }; peers.get(id) || peers.set(id, newPeer(id)); const p = peers.get(id); let threw = 0;
-        for (const [kind, bytes] of msgs) { if (refill) p.tokens = RATE_BURST; try { if (kind === 'o') onOffer(id, bytes); else (kind === 'i' ? onInfo : onState)(r, id, bytes); } catch (e) { threw++; } }
+        for (const [kind, bytes] of msgs) { if (refill) p.tokens = RATE_BURST; try { if (kind === 'o') onOffer(id, bytes); else if (kind === 'f') onFast(id, bytes); else (kind === 'i' ? onInfo : onState)(r, id, bytes); } catch (e) { threw++; } }
         return { threw, h: p.h, name: p.name, vehicle: p.vehicle, livery: p.livery, rxBad: stats.rxBad, rxDropped: stats.rxDropped, drawn: rm.remotes.size };
       } },
   };

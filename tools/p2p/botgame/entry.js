@@ -14,7 +14,7 @@ window.bot = {
   stop() { game.state = 'wait'; },
 };
 function move(dt) {
-  if (mv.mode === 'circle') { mv.ang += mv.v / mv.r * dt; car.x = mv.cx + Math.cos(mv.ang) * mv.r; car.z = mv.cz + Math.sin(mv.ang) * mv.r; car.th = mv.ang + Math.PI / 2; car.vf = mv.v; }
+  if (mv.mode === 'circle') { mv.ang += mv.v / mv.r * dt; car.x = mv.cx + Math.cos(mv.ang) * mv.r; car.z = mv.cz + Math.sin(mv.ang) * mv.r; car.th = -mv.ang; car.vf = mv.v; }   // the heading it really moves along (x goes with sin, z with cos): the fast channel predicts the path from it
   else if (mv.mode === 'line' || mv.mode === 'bounce') {
     car.vf = mv.v; car.x += Math.sin(car.th) * mv.v * dt; car.z += Math.cos(car.th) * mv.v * dt;
     if (mv.mode === 'bounce' && mv.box) {
