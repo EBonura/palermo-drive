@@ -1108,20 +1108,21 @@ function makeIndex(buildings) {
     const outer = pairs(b.p), holes = (b.holes || []).map(pairs);
     let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const [x, z] of outer) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
-    const o = { outer, holes, x0, z0, x1, z1 }; bl.push(o);
+    const o = { outer, holes, x0, z0, x1, z1, h: b.h || 0 }; bl.push(o);
     for (let ix = Math.floor(x0 / BC); ix <= Math.floor(x1 / BC); ix++) for (let iz = Math.floor(z0 / BC); iz <= Math.floor(z1 / BC); iz++) {
       const k = bkey(ix, iz); let a = bgrid.get(k); if (!a) bgrid.set(k, a = []); a.push(o);
     }
   }
   const cellB = (x, z) => bgrid.get(bkey(Math.floor(x / BC), Math.floor(z / BC)));
-  function inB(x, z) {
-    const a = cellB(x, z); if (!a) return false;
+  function bAt(x, z) {   // the building at (x, z), or null
+    const a = cellB(x, z); if (!a) return null;
     for (const o of a) {
       if (x < o.x0 || x > o.x1 || z < o.z0 || z > o.z1) continue;
-      if (inPoly(o.outer, x, z)) { let hole = false; for (const h of o.holes) if (inPoly(h, x, z)) { hole = true; break; } if (!hole) return true; }
+      if (inPoly(o.outer, x, z)) { let hole = false; for (const h of o.holes) if (inPoly(h, x, z)) { hole = true; break; } if (!hole) return o; }
     }
-    return false;
+    return null;
   }
+  const inB = (x, z) => bAt(x, z) !== null;
   // nearest wall edge within maxd: {d, px, pz, nx, nz} with n pointing away from the building
   function nearWall(x, z, maxd) {
     let best = null;
@@ -1148,7 +1149,7 @@ function makeIndex(buildings) {
     }
     return best;
   }
-  return { bl, inB, nearWall };
+  return { bl, inB, bAt, nearWall };
 }
 
 // Parked cars: instanced in 100 m cells (a 500 m tile is hundreds of them: the distance cull has to be fine), and the ones the lapa moved are
@@ -1526,13 +1527,13 @@ function* generate(S, BUD) {
   {
     const zb = new MB(), col = C('#d9d7cc'), colw = C('#bdbcb2');
     let nz = 0; const done = [];
-    const zebra = (cx, cz, tx, tz) => {
+    const zebra = (cx, cz, tx, tz, rnd = rand) => {   // (rnd: the side-street zebras below draw from their own stream, so that adding them moves nothing else in the tile)
       // stripes lie along the road (t) and are stacked across it (n)
       const nx = -tz, nzz = tx;
       const e1 = march(cx, cz, nx, nzz, 9, road), e2 = march(cx, cz, -nx, -nzz, 9, road);
       if (e1 + e2 < 4.5 || e1 + e2 > 16) return;
       for (let u = -e2 + 0.45; u <= e1 - 0.45; u += 0.95) {
-        const k = rand() < 0.2 ? 0.7 : 1, c = rand() < 0.2 ? colw : col;
+        const k = rnd() < 0.2 ? 0.7 : 1, c = rnd() < 0.2 ? colw : col;
         const hw = 0.25, hl = 1.6;
         const q = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([a, b]) => { const x = cx + tx * a + nx * (u + b), z = cz + tz * a + nzz * (u + b); return [x, groundY(x, z) + 0.025, z]; });
         zb.face(c, [q[0], q[3], q[2], q[1]], k); // CCW viewed from above
@@ -1549,7 +1550,29 @@ function* generate(S, BUD) {
       zebra(nr.px, nr.pz, nr.tx, nr.tz);
     }
     // junction arms on real streets
+    const MAIN = new Set(['primary', 'secondary', 'tertiary']), SIDE = new Set(['residential', 'unclassified', 'living_street']);
+    const zr = rng(S.seed3 + 4241);
     for (const j of junctions) {
+      // the mouth of a side street on a main road (zw18, Via Bronte at Via Castellana; the survey's "a zebra at the corner" all over the west): a zebra across the side street
+      // just past the flare of its mouth. A side street that ends on a main road running through is a junction of two ways and three arms, which the test below skipped.
+      let arms = 0, main = false;
+      for (const ri of j.roads) { const r = S.roads[ri], q = r.p, last = q.length - 2; let ix = -1; for (let i = 0; i < q.length; i += 2) if (Math.abs(q[i] - j.x) < 0.2 && Math.abs(q[i + 1] - j.z) < 0.2) { ix = i; break; } arms += ix === 0 || ix === last ? 1 : 2; if (MAIN.has(r.k)) main = true; }
+      if (main && arms >= 3) for (const ri of j.roads) {
+        const r = S.roads[ri]; if (!SIDE.has(r.k) || r.br || r.tn) continue;
+        const p = pairs(r.p), idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx !== 0 && idx !== p.length - 1) continue;   // (the street has to end here)
+        const o = idx === 0 ? p[1] : p[p.length - 2], L = hyp2(o[0] - j.x, o[1] - j.z), pick = zr(); if (L < 9) continue;
+        const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, wAt = d => { const x = j.x + tx * d, z = j.z + tz * d; return march(x, z, -tz, tx, 9, road) + march(x, z, tz, -tx, 9, road); };
+        const wref = Math.min(15, wAt(Math.min(L - 1, 30)));   // the street's own width, well in
+        let cx = 0, cz = 0, ok = false;
+        for (let d = 4; d <= Math.min(24, L - 3); d += 0.5) {   // past the flare of the mouth (a street meeting the main road at a slant is wide there, zw18 for 20 m): the first spot where it is its own width, and a step further
+          const w = wAt(d);
+          if (w >= 4.5 && w <= wref + 1.5) { cx = j.x + tx * (d + 1.2); cz = j.z + tz * (d + 1.2); ok = true; break; }
+        }
+        // a town street (houses round it, or a pavement within 3 m of its asphalt) always has its crossing; a country lane one time in two
+        const town = ok && (builtUp(cx, cz) >= 0.4 || [1, -1].some(sg => { const e = march(cx, cz, -tz * sg, tx * sg, 9, road); for (let q = 0.6; q <= 3; q += 0.6) if (raisedMask(cx - tz * sg * (e + q), cz + tx * sg * (e + q))) return true; return false; }));
+        if (!ok || (!town && pick > 0.5) || done.some(d => hyp2(d[0] - cx, d[1] - cz) < 9) || !road(cx, cz) || !inBounds(cx, cz) || fastAt(r, cx, cz)) continue;
+        zebra(cx, cz, tx, tz, zr);
+      }
       if (j.roads.size < 3 && j.n < 3) continue;
       for (const ri of j.roads) {
         const r = S.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
@@ -1825,13 +1848,34 @@ function* generate(S, BUD) {
       }
       return false;
     };
+    // The tile's budget (PK_CAP) used to be spent in the order the roads come in the tile, so in a dense tile the last streets got no car at all (zs22: the cap of 900
+    // was reached at road 84 of 92 and both kerbs of Via Guadagna stayed empty). A first pass adds up what the streets would ask for (occupancy x kerb length / a car's
+    // pitch, both sides where the mapped carriageway is wide enough, PK_YIELD of the slots ending up as cars) and, when that is over the budget, every street's occupancy
+    // is scaled down by the same factor, so the cars thin out evenly over the tile instead of stopping at one street.
+    const PK_YIELD = 0.64, plan = [];
+    let want = 0;
+    for (let ri = 0; ri < S.roads.length; ri++) {
+      const r = S.roads[ri]; if ((ri & 63) === 63 && BUD.over()) yield;
+      const cls = PK_CLASS[r.k]; if (!cls || r.br || r.tn) { plan.push(null); continue; }
+      const p = pairs(r.p); if (p.length < 2) { plan.push(null); continue; }
+      const cum = [0]; for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + hyp2(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]));
+      const len = cum[cum.length - 1]; if (len < 8) { plan.push(null); continue; }
+      let h = len / 2, k = 1; while (k < cum.length - 1 && cum[k] < h) k++;
+      const u = (h - cum[k - 1]) / (cum[k] - cum[k - 1] || 1), mid = [p[k - 1][0] + (p[k][0] - p[k - 1][0]) * u, p[k - 1][1] + (p[k][1] - p[k - 1][1]) * u];
+      // outside the old centre a street of houses that no district seed reaches counts as built-up (builtUp), as in the photos, and a car may stand with its wheels on the very edge of the asphalt; a fast road keeps what it had
+      const fast = (r.ms || 0) >= 60 || viale(r, mid[0], mid[1]), outskirts = !fast && !oldCity(mid[0], mid[1]), bu = outskirts ? builtUp(mid[0], mid[1]) : 0;
+      const zc = Math.min(1.3, zoneCars(r)), dE = distEff(mid[0], mid[1]);
+      const occ = Math.min(0.93, cls * (zc < 1 ? zc + (1 - zc) * bu : zc) * Math.max(0.6, Math.min(1, 1.2 - (dE > 1300 ? dE + (1300 - dE) * bu : dE) / 4000)) * 1.05);
+      plan.push({ p, cum, len, outskirts, occ });
+      if (r.pk || !fastAt(r, mid[0], mid[1])) want += occ * len * ((r.cw || r.w || 6) >= (r.o ? 6 : 8) ? 2 : 1) / 5.4 * PK_YIELD;
+    }
+    const pkScale = want > PK_CAP * 0.95 ? PK_CAP * 0.95 / want : 1;
+    stats.parked_scale = Math.round(pkScale * 100) / 100;
     let n = 0;
     for (let ri = 0; ri < S.roads.length && carCount < PK_CAP; ri++) {
-      const r = S.roads[ri]; if (BUD.over()) yield;
-      const cls = PK_CLASS[r.k]; if (!cls || r.br || r.tn) continue;
-      const p = pairs(r.p); if (p.length < 2) continue;
-      const cum = [0]; for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + hyp2(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]));
-      const len = cum[cum.length - 1]; if (len < 8) continue;
+      const r = S.roads[ri], pl = plan[ri]; if (BUD.over()) yield;
+      if (!pl) continue;
+      const { p, cum, len, outskirts } = pl, occ = pl.occ * pkScale;
       let seg = 0;
       const at = sv => {
         sv = Math.max(0, Math.min(len, sv));
@@ -1840,10 +1884,6 @@ function* generate(S, BUD) {
         const a = p[seg], b = p[seg + 1], l = cum[seg + 1] - cum[seg] || 1, u = (sv - cum[seg]) / l;
         return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
       };
-      // outside the old centre a street of houses that no district seed reaches counts as built-up (builtUp), as in the photos, and a car may stand with its wheels on the very edge of the asphalt; a fast road keeps what it had
-      const mid = at(len / 2), fast = (r.ms || 0) >= 60 || viale(r, mid[0], mid[1]), outskirts = !fast && !oldCity(mid[0], mid[1]), bu = outskirts ? builtUp(mid[0], mid[1]) : 0;
-      const zc = Math.min(1.3, zoneCars(r)), dE = distEff(mid[0], mid[1]);
-      const occ = Math.min(0.93, cls * (zc < 1 ? zc + (1 - zc) * bu : zc) * Math.max(0.6, Math.min(1, 1.2 - (dE > 1300 ? dE + (1300 - dE) * bu : dE) / 4000)) * 1.05);
       const pStay = 0.93, pStart = Math.min(0.9, occ * (1 - pStay) / Math.max(0.05, 1 - occ));
       // Every random number here comes from a generator seeded by the tile and the road, and every slot takes the same draws and the same step whether
       // it is filled or not: a tile built again (its neighbours may differ this time: walls, other tiles' props) puts the same cars on the same spots,
@@ -1879,7 +1919,9 @@ function* generate(S, BUD) {
           const x = c[0] + nx * d, z = c[1] + nz * d;
           const paint = (rburn < 0.07 && zoneOf(x, z) === 'zen') ? C(['#2a2420', '#3a2a20', '#4a3022', '#241f1c'][Math.floor(rcol * 4) % 4])
             : paintBy(model, rcol, rshade);
-          if (blocked(x, z, hx, hz, L) || !placeCar(x, z, hx, hz, model, paint, outskirts ? 0.3 : 0)) { run = false; continue; }
+          // a car whose outer corners miss the asphalt by a hand's width (the kerb is not quite parallel to the mapped line, the mask has 0.5 m cells) is tried again 0.35 m further
+          // in, where the lanes stay open: before, every such miss ended the run, and a wide street with a wavy kerb (zs22) kept only one car in three
+          if (blocked(x, z, hx, hz, L) || (!placeCar(x, z, hx, hz, model, paint, outskirts ? 0.3 : 0) && !(e + e2 - ext - 0.35 >= free && placeCar(x - nx * 0.35, z - nz * 0.35, hx, hz, model, paint, outskirts ? 0.3 : 0)))) { run = false; continue; }
           n++;
         }
       }
@@ -2592,8 +2634,46 @@ function* generate(S, BUD) {
         }
       }
     }
+    // c) street lamps hung on a wire across the street from facade to facade, as in the blocks of flats of the 1960s and 70s quarters (zs22, Via Guadagna): on a built-up
+    // street outside the walled town with houses of three floors or more on both sides, at most 26 m apart, one span every 26 to 38 m on about half of such streets.
+    // The wire and the lamp go into the same wire mesh (no new draw call). They do not light up at night (the lamps of src/daynight.js are the poles').
+    let nc = 0;
+    {
+      const bAt = S.idx.bAt, CAT_CAP = Math.round(50 * DEN), lampCol = C('#3a3b3d'), lensCol = C('#e9e6d8');
+      const facade = (cx, cz, nx, nz) => {   // the first building wall from the centre line along (nx, nz), within 16 m: [distance, building]
+        for (let d = 1.5; d <= 16; d += 0.5) { const o = bAt(cx + nx * d, cz + nz * d); if (o) return [d, o]; }
+        return null;
+      };
+      for (const r of S.roads) {
+        if (nc >= CAT_CAP) break;
+        if (!(r.k === 'residential' || r.k === 'tertiary' || r.k === 'secondary' || r.k === 'unclassified' || r.k === 'living_street') || r.br || r.tn || r.j === 'roundabout' || r.p.length < 4) continue;
+        if ((r.ms || 0) >= 60 || /Regione Siciliana/.test(r.n || '') || isFastRoad(r)) continue;
+        const p = pairs(r.p), mid = p[p.length >> 1];
+        if (hyp2(mid[0], mid[1]) < 1100 || pspot(p[0][0], p[0][1], 21) > 0.5 || builtUp(mid[0], mid[1]) < 0.6) continue;   // (not in the walled town: its lamps are on brackets on the walls)
+        if (BUD.over()) yield;
+        for (let i = 0; i < p.length - 1 && nc < CAT_CAP; i++) {
+          const a = p[i], b = p[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = hyp2(dx, dz); if (L2 < 10) continue;
+          const tx = dx / L2, tz = dz / L2, nx = -tz, nz = tx;
+          for (let s = 8 + 12 * pspot(a[0], a[1], 22); s < L2 - 6; s += 26 + 12 * pspot(a[0] + s, a[1], 23)) {
+            const cx = a[0] + tx * s, cz = a[1] + tz * s;
+            if (!inBounds(cx, cz) || nearJunction(cx, cz, 10) || !road(cx, cz)) continue;
+            const fl = facade(cx, cz, nx, nz), fr = facade(cx, cz, -nx, -nz);
+            if (!fl || !fr || fl[0] + fr[0] > 26 || fl[1].h < 9 || fr[1].h < 9) continue;
+            const lx = cx + nx * (fl[0] - 0.35), lz = cz + nz * (fl[0] - 0.35), rx = cx - nx * (fr[0] - 0.35), rz = cz - nz * (fr[0] - 0.35);
+            const y = Math.max(groundY(lx, lz), groundY(rx, rz), groundY(cx, cz)) + Math.min(7.4, Math.min(fl[1].h, fr[1].h) - 1.5), span = fl[0] + fr[0], sag = 0.012 * span + 0.15;
+            wire(lx, y, lz, rx, y, rz, sag);
+            // the lamp: a short stem from the lowest point of the wire and a flat shade with a pale lens under it
+            const mx = (lx + rx) / 2, mz = (lz + rz) / 2, my = y - sag, hs = 0.28;
+            wm.box(mx - 0.03, my - 0.45, mz - 0.03, mx + 0.03, my, mz + 0.03, lampCol);
+            wm.frust(my - 0.62, [mx - hs, mz - hs, mx + hs, mz + hs], my - 0.45, [mx - 0.1, mz - 0.1, mx + 0.1, mz + 0.1], lampCol, 0.7, 1, false);
+            wm.face(lensCol, [[mx - hs + 0.03, my - 0.625, mz - hs + 0.03], [mx + hs - 0.03, my - 0.625, mz - hs + 0.03], [mx + hs - 0.03, my - 0.625, mz + hs - 0.03], [mx - hs + 0.03, my - 0.625, mz + hs - 0.03]]);
+            nc++; nw++;
+          }
+        }
+      }
+    }
     if (nw) res.wires = wm.geo();
-    stats.poles_rural = np; stats.wire_spans = nw; stats.lamps_rural = nl;
+    stats.poles_rural = np; stats.wire_spans = nw; stats.lamps_rural = nl; stats.catenary = nc;
   }
 
   return res;

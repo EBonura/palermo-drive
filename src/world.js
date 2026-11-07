@@ -1029,36 +1029,66 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // was the tan stripe beside 12 of the 45 south-east viewpoints), narrower than the mapped width, and left out where the street layers already cover the ground (the hard mask: asphalt, paving, pavements).
   const TRACK_COL = new THREE.Color().setRGB(1.2, 0.95, 0.68);   // a tint over the verge texture (dusty grey-brown): packed earth, a little warmer than the verges
   let trackMat = null;
+  const MOUTH_COL = new THREE.Color().setRGB(0.93, 0.92, 0.9);   // the asphalt texture as it is, a shade darker than the town's (patched, dusty)
+  // The last MOUTH m of a track before it meets a road with asphalt are paved too, as in the photos of the country lanes (zs39, Villabate: the photo is on asphalt 10 m up
+  // a track that OSM tags gravel, where it turns onto the lane): the track is resampled every 3 m and the stretch that near the asphalt is drawn with the asphalt texture,
+  // in a second mesh of the same group (one more draw call in a tile with tracks).
+  const MOUTH = 11, MOUTH_STEP = 3;
+  let mouthMat = null;
   function* buildTracks(t) {
     const roads = t.data.roads.filter(r => r.k === 'track'); if (!roads.length) return null;
-    const P = [], N = [], Cc = [], UV = [], I = [], M = GROUND_TEX.verge.metres;
+    const out = [[], []].map(() => ({ P: [], N: [], Cc: [], UV: [], I: [] })), MS = [GROUND_TEX.verge.metres, GROUND_TEX.asphalt.metres];   // 0 earth, 1 the paved mouths
+    const hard = (x, z, tx, tz) => maskAt(x, z, 'hard') === true || maskAt(x + tz * 2.5, z - tx * 2.5, 'hard') === true || maskAt(x - tz * 2.5, z + tx * 2.5, 'hard') === true;
     for (const r of roads) {
-      const p = pairs(r.p), hw = Math.max(r.w || 3.5, 2.2) * 0.34;
-      let prev = -1;   // index of the last pair of vertices of the current run (a run ends where a street layer covers the track)
+      const q = pairs(r.p), hw = Math.max(r.w || 3.5, 2.2) * 0.34;
+      const p = [q[0]];   // resampled every MOUTH_STEP m, keeping the corners
+      for (let i = 1; i < q.length; i++) { const a = q[i - 1], b = q[i], n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / MOUTH_STEP)); for (let k = 1; k <= n; k++) p.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); }
+      const tan = [], hd = [], arc = [0];
       for (let i = 0; i < p.length; i++) {
         const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
-        let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
-        if (maskAt(p[i][0], p[i][1], 'hard') === true || maskAt(p[i][0] + tz * 2.5, p[i][1] - tx * 2.5, 'hard') === true || maskAt(p[i][0] - tz * 2.5, p[i][1] + tx * 2.5, 'hard') === true) { prev = -1; continue; }
-        const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw, v = P.length / 3;
-        P.push(lx, groundY(lx, lz) + 0.17, lz, rx, groundY(rx, rz) + 0.17, rz); N.push(0, 1, 0, 0, 1, 0);
-        UV.push(lx / M, lz / M, rx / M, rz / M);
-        const k = 0.88 + 0.12 * Math.sin(i * 1.7 + p[i][0] * 0.05); Cc.push(TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k, TRACK_COL.r * k, TRACK_COL.g * k, TRACK_COL.b * k);
-        if (prev >= 0) I.push(prev, prev + 1, v, prev + 1, v + 1, v);   // strip quads: vertices come in left/right pairs along each run (wound counter-clockwise seen from above)
-        prev = v;
+        let tx = b[0] - a[0], tz = b[1] - a[1]; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L; tan.push([tx, tz]);
+        hd.push(hard(p[i][0], p[i][1], tx, tz));
+        if (i) arc.push(arc[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]));
+      }
+      const near = arc.map(() => 1e9);   // metres along the track to the nearest point on the asphalt
+      for (let i = 0, last = -1e9; i < p.length; i++) { if (hd[i]) last = arc[i]; near[i] = arc[i] - last; }
+      for (let i = p.length - 1, last = 1e9; i >= 0; i--) { if (hd[i]) last = arc[i]; near[i] = Math.min(near[i], last - arc[i]); }
+      for (const kind of [0, 1]) {
+        const o = out[kind], M = MS[kind];
+        let prev = -1;   // index of the last pair of vertices of the current run (a run ends where a street layer covers the track, or where the other surface takes over)
+        for (let i = 0; i < p.length; i++) {
+          // the earth runs up to the first vertex of the mouth, and the mouth from its last vertex on the earth side up to the asphalt
+          const isMouth = !hd[i] && near[i] <= MOUTH, inRun = hd[i] ? false : kind === 1 ? isMouth || (i > 0 && !hd[i - 1] && near[i - 1] <= MOUTH) || (i + 1 < p.length && !hd[i + 1] && near[i + 1] <= MOUTH) : !isMouth || (i > 0 && !hd[i - 1] && near[i - 1] > MOUTH) || (i + 1 < p.length && !hd[i + 1] && near[i + 1] > MOUTH);
+          if (!inRun) { prev = -1; continue; }
+          const [tx, tz] = tan[i];
+          const lx = p[i][0] + tz * hw, lz = p[i][1] - tx * hw, rx = p[i][0] - tz * hw, rz = p[i][1] + tx * hw, v = o.P.length / 3;
+          o.P.push(lx, groundY(lx, lz) + 0.17, lz, rx, groundY(rx, rz) + 0.17, rz); o.N.push(0, 1, 0, 0, 1, 0);
+          o.UV.push(lx / M, lz / M, rx / M, rz / M);
+          const k = 0.88 + 0.12 * Math.sin(i * 1.7 + p[i][0] * 0.05), c = kind ? MOUTH_COL : TRACK_COL;
+          o.Cc.push(c.r * k, c.g * k, c.b * k, c.r * k, c.g * k, c.b * k);
+          if (prev >= 0) o.I.push(prev, prev + 1, v, prev + 1, v + 1, v);   // strip quads: vertices come in left/right pairs along each run (wound counter-clockwise seen from above)
+          prev = v;
+        }
       }
       if (sliceOver()) yield;
     }
-    if (!I.length) return null;
+    if (!out[0].I.length && !out[1].I.length) return null;
     yield;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Cc), 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2));
-    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(I), 1));
+    const g = new THREE.Group(); let tris = 0;
     trackMat = trackMat || new THREE.MeshStandardMaterial({ map: GROUND_TEX.verge, vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
-    const m = new THREE.Mesh(geo, trackMat); m.receiveShadow = true; m.name = 'tracks';
-    const g = new THREE.Group(); g.add(m); g.userData.tris = I.length / 3;
+    mouthMat = mouthMat || new THREE.MeshStandardMaterial({ map: GROUND_TEX.asphalt, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
+    for (const kind of [0, 1]) {
+      const o = out[kind]; if (!o.I.length) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(o.P), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(o.N), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(o.Cc), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(o.UV), 2));
+      geo.setIndex(new THREE.BufferAttribute(new Uint32Array(o.I), 1));
+      const m = new THREE.Mesh(geo, kind ? mouthMat : trackMat); m.receiveShadow = true; m.name = kind ? 'track_mouths' : 'tracks';
+      g.add(m); tris += o.I.length / 3;
+    }
+    g.userData.tris = tris;
     return g;
   }
 
@@ -1162,6 +1192,14 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // ---------- ground colours relative to the city's own (tile.gt): two 25 x 25 grids of 20 m cells, two hex digits a cell: lightness, warmth ----------
   const GT_STEP = { t: 0.04, a: 0.015 }, _gt = new THREE.Color();
   const decodeTint = str => { if (!str) return null; const a = new Uint8Array(1250); for (let i = 0; i < 1250; i++) a[i] = parseInt(str[i], 16); return a; };
+  // The asphalt takes the hard-surface tint of the orthophotos, but lightened by at most ASPH_LIGHT: a cell whose "asphalt" pixels are dust, a bare verge or a sunlit
+  // concrete apron reads the top of the scale (digit f, 6 % of all cells, x1.37), and a whole carriageway came out pale beige with its white lines lost on it (nw13, the A29
+  // and Via Nazionale at Isola; the photo's asphalt is mid grey). Darker cells and the warmth are kept as they are.
+  const ASPH_LIGHT = 1.05;
+  function asphaltTint(fn) {
+    if (!fn) return null;
+    return (x, z) => { const c = fn(x, z); if (c.g > ASPH_LIGHT) c.multiplyScalar(ASPH_LIGHT / c.g); return c; };
+  }
   function tintFn(t, grp) { // -> (x, z) -> Color multiplier (shared object), or null
     const g = t.gt && t.gt[grp]; if (!g) return null;
     const x0 = t.i * T, z0 = t.j * T, st = GT_STEP[grp];
@@ -1205,7 +1243,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
-    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => (l === 'asphalt' || l === 'paving') ? tintFn(t, 'a') : null });
+    yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'asphalt' ? asphaltTint(tintFn(t, 'a')) : l === 'paving' ? tintFn(t, 'a') : null });
     t.pvf = null;
     if (t.want === 0) { disposeObj(g); return; }
     setPart(t, 'streets', g);
