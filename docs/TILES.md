@@ -129,6 +129,10 @@ pedestrians (per-tile walkable blocks, district crowd profiles), props (per-tile
   `--out DIR` bakes elsewhere, `--publish-from DIR` installs an existing stage, `--tiles i_j,i_j` (with `--out`) bakes a few tiles for
   debugging. A stage can be tried in the game with `?worldurl=/data/world_stage/` before publishing. Never run `tiles.py` bare
   while the game is served: it empties `world/tiles/` first.
+- **After a rebake: the wall tags.** The 800 SUCA and 800A tags (src/suca.js) are baked from the tiles' footprints and roads into
+  `src/suca-tags.js`. Run `node tools/suca-bake.mjs` after publishing new tiles (a few seconds; it prints the tags per district tier and
+  how many saved ids carry over) and commit the new file; `node tools/suca-bake.mjs --check` only says whether every baked tag still sits on
+  its wall. A tile whose tags lost their walls also says so in the console (`[suca] tile ...`) when it loads. Needs tools/build/node_modules.
 
 ## Ground update (see docs/faithfulness/ground.md)
 

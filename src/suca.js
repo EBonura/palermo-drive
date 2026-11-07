@@ -1,25 +1,20 @@
 // SUCA and 800A: the spray-painted tags every Palermitano knows, as a collectible. Owned by the core.
-// Tags go on walls that face a drivable street, across the whole city: each world tile that reaches full detail (world.onTile) picks its
-// own from its building footprints and roads with a fixed seed (the same walls for everyone), denser in popular areas (src/districts.js
-// zones: centro, Borgo Vecchio, ZEN), and drops them when it unloads. 800A uses the same eight spray styles as SUCA. Driving within 7 m of
-// one collects it: the paint burns away (a noise dissolve with a glowing pink and amber edge, driven per tag by the `dis` vertex attribute)
-// and leaves the greyed ghost with a check mark underneath, flecks of paint burst off the wall, a chime plays and the toast bounces
-// ("SUCA 7/340"). Collected ids persist in localStorage.
-// One atlas texture, one mesh for every live tag (rebuilt when a tile comes or goes). progress() is { found, total }: total counts the
-// tags of every tile the player has seen so far (kept in localStorage), so it grows as the city streams in.
+// Exactly SUCA_TOTAL (800) tags in the whole city, both words together, the same for everyone: tools/suca-bake.mjs picks them from the
+// building footprints and roads of every world tile (walls facing a drivable street, away from the landmarks, spread by district
+// popularity: centro, Borgo Vecchio, ZEN first) and writes src/suca-tags.js. Run `node tools/suca-bake.mjs` again after a tile rebake;
+// `--check` says whether the baked tags still sit on their walls. Here each tile that reaches full detail (world.onTile) puts up its own
+// tags from that file (height from the ground along the wall, as the ground is only known then) and drops them when it unloads.
+// 800A uses the same eight spray styles as SUCA. Driving within 7 m of one collects it: the paint burns away (a noise dissolve with a
+// glowing pink and amber edge, driven per tag by the `dis` vertex attribute) and leaves the greyed ghost with a check mark underneath,
+// flecks of paint burst off the wall, a chime plays and the toast bounces ("SUCA 7/800"). Collected ids persist in localStorage; saved ids
+// that are not tags any more are moved (SUCA_MOVED) or dropped on load, so found never exceeds the total.
+// One atlas texture, one mesh for every live tag (rebuilt when a tile comes or goes). progress() is { found, total }, total always SUCA_TOTAL.
 import * as THREE from 'three';
 import { zone } from './hud.js';
-import { groundY, pairs, signedArea, inPoly, rng, freeCanvas } from './core.js';
-import { zoneAt } from './districts.js';
+import { groundY, pairs, rng, freeCanvas } from './core.js';
+import { SUCA_TAGS, SUCA_TOTAL, SUCA_MOVED } from './suca-tags.js';
 
-const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, T = 500, BUDGET = 0.9, WORDS = ['SUCA', '800A'];
-// Never on the big landmarks (x, z, r): Quattro Canti, Pretoria, Aquile, Cattedrale, Teatro Massimo, Normanni, Porta Nuova, Martorana, Santa Caterina.
-// The city landmark models (landmarks-city.js) and the manifest landmarks are added when they have loaded.
-const KEEPOUT = [[17, 0, 45], [82, 69, 55], [-456, 151, 75], [-478, 124, 60], [-358, -491, 80], [-700, 502, 95], [-752, 396, 50], [141, 108, 40], [118, 27, 45], [157, 12, 45]];
-// popularity of a district: 3 centro, Borgo Vecchio, ZEN; 2 busy quarters; 0 empty country; everything else 1. Per tile: tags wanted and the first minimum spacing (m)
-const TIER = { old: 3, alberg: 3, kalsa: 3, corso: 3, roma: 3, politeama: 3, centro: 3, borgoV: 3, zen: 3, rural: 0, favorita: 0,
-  noce: 2, zisa: 2, stazione: 2, cep: 2, viaLib: 2, sacco: 2, avenue: 2, resut: 2, cruillas: 2, calat: 2, oreto: 2, brancaccio: 2, corsoMille: 2 };
-const QUOTA = [1, 4, 9, 18], SPACE = [260, 170, 110, 70];
+const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, WORDS = ['SUCA', '800A'];
 // the collect effect, seconds since the tag was collected: a punch (0 to PUNCH), the dissolve (D0 to D0 + DD), then the ghost settles (until DUR)
 const DUR = 1.4, D0 = .12, DD = 1.15, PUNCH = .22, EDGE = .22, NFLECK = 48, NDRIP = 6, NP = 360;
 
@@ -186,111 +181,33 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-// ---------- placement: one world tile at a time, as a generator the update loop runs in small slices ----------
-const gridAdd = (m, cell, x0, z0, x1, z1, item) => {
-  for (let i = Math.floor(Math.min(x0, x1) / cell); i <= Math.floor(Math.max(x0, x1) / cell); i++)
-    for (let j = Math.floor(Math.min(z0, z1) / cell); j <= Math.floor(Math.max(z0, z1) / cell); j++) { const k = i * 100003 + j; let a = m.get(k); if (!a) m.set(k, a = []); a.push(item); }
-};
-// stable hashes: a wall always gets the same dice whatever else is in the tile
-const hstr = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
-const dice = (h, k) => { h = Math.imul(h ^ Math.imul(k + 1, 0x9E3779B1), 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
-
-function* pickTile(t, { skip, drivable, keepAll }) {
-  const d = t.data, B = d.buildings, N = B.length, x0 = t.i * T, z0 = t.j * T;
-  const keep = keepAll.filter(k => k[0] > x0 - k[2] && k[0] < x0 + T + k[2] && k[1] > z0 - k[2] && k[1] < z0 + T + k[2]);
-  const roads = new Map(), blds = new Map(), bp = new Array(N), bbox = new Array(N);
-  for (const r of d.roads) {
-    if (!drivable.has(r.k)) continue;
-    for (let i = 0; i + 3 < r.p.length; i += 2) gridAdd(roads, 30, r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w, r.k, r.n || '']);
-  }
-  for (let bi = 0; bi < N; bi++) {
-    const pts = bp[bi] = pairs(B[bi].p);
-    let a = 1e9, c = 1e9, e = -1e9, f = -1e9;
-    for (const [x, z] of pts) { if (x < a) a = x; if (x > e) e = x; if (z < c) c = z; if (z > f) f = z; }
-    gridAdd(blds, 32, a, c, e, f, bi); bbox[bi] = [a, c, e, f];
-    if ((bi & 63) === 63) yield;
-  }
-  const solid = (x, z) => {
-    const a = blds.get(Math.floor(x / 32) * 100003 + Math.floor(z / 32));
-    if (a) for (const i of a) { const q = bbox[i]; if (x >= q[0] && x <= q[2] && z >= q[1] && z <= q[3] && inPoly(bp[i], x, z)) return true; }
-    return false;
-  };
-  const nearRoad = (x, z) => {
-    let best = null, bd = 1e9;
-    for (let i = Math.floor((x - 9) / 30); i <= Math.floor((x + 9) / 30); i++) for (let j = Math.floor((z - 9) / 30); j <= Math.floor((z + 9) / 30); j++) {
-      const a = roads.get(i * 100003 + j); if (!a) continue;
-      for (const s of a) {
-        const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz, u = l2 ? Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / l2)) : 0;
-        const qx = s[0] + dx * u, qz = s[1] + dz * u, dd = Math.sqrt((x - qx) * (x - qx) + (z - qz) * (z - qz));
-        if (dd < bd) { bd = dd; best = { d: dd, qx, qz, w: s[4], k: s[5], n: s[6], tx: dx / Math.sqrt(l2 || 1), tz: dz / Math.sqrt(l2 || 1) }; }
-      }
-    }
-    return best;
-  };
-  const plazas = (d.areas || []).filter(a => a.k === 'plaza').map(a => pairs(a.p));
-  // footprints a landmark model replaced keep clear too
-  for (let bi = 0; bi < N; bi++) if (skip.has(B[bi].id)) { const c = bp[bi]; keep.push([c.reduce((s, p) => s + p[0], 0) / c.length, c.reduce((s, p) => s + p[1], 0) / c.length, 35]); }
-  const tile = TIER[zoneAt(x0 + T / 2, z0 + T / 2, '', 1e9)] ?? 1, out = [];
-  for (let bi = 0; bi < N; bi++) {
-    const b = B[bi];
-    if ((bi & 15) === 15) yield;
-    if (skip.has(b.id) || !(b.h >= 3.5) || b.k === 'church' || b.hi || b.t === 'church' || b.t === 'civic' || b.t === 'monastery') continue;
-    const pts = bp[bi], n = pts.length, sa = signedArea(pts), h0 = hstr(b.id);
-    for (let i = 0; i < n; i++) {
-      const a = pts[i], c = pts[(i + 1) % n], dx = c[0] - a[0], dz = c[1] - a[1], L = Math.sqrt(dx * dx + dz * dz);
-      if (L < 5) continue;
-      const hh = Math.imul(h0, 31) + i | 0, big = dice(hh, 0) < .16;
-      let hw = 2.5 + dice(hh, 1) * 1.1 + (big ? 1.2 : 0);
-      hw = Math.min(hw, (L - 1.4) / 2, b.h - 1.6);
-      if (hw < 1.7) continue;
-      const margin = hw + .7, u = margin + dice(hh, 2) * (L - 2 * margin), tx0 = dx / L, tz0 = dz / L;
-      let nx = sa > 0 ? tz0 : -tz0, nz = sa > 0 ? -tx0 : tx0;
-      const x = a[0] + tx0 * u, z = a[1] + tz0 * u;
-      if (inPoly(pts, x + nx * .4, z + nz * .4)) { nx = -nx; nz = -nz; }
-      let near = false;
-      for (const k of keep) if ((x - k[0]) * (x - k[0]) + (z - k[1]) * (z - k[1]) < k[2] * k[2]) { near = true; break; }
-      if (near) continue;
-      const px = x + nx * .4, pz = z + nz * .4;
-      if (solid(px, pz) || solid(px + tx0 * hw, pz + tz0 * hw) || solid(px - tx0 * hw, pz - tz0 * hw)) continue;
-      const rd = nearRoad(px, pz);
-      if (!rd || rd.d > 7.5 || rd.d - rd.w / 2 < .2) continue;
-      const vx = (rd.qx - x) / rd.d, vz = (rd.qz - z) / rd.d;
-      if (vx * nx + vz * nz < .5) continue;
-      let clear = true;
-      for (let s = .8; s < rd.d - .3 && clear; s += 1) if (solid(x + vx * s, z + vz * s)) clear = false;
-      if (!clear) continue;
-      const tier = TIER[zoneAt(x, z, rd.n, rd.d - rd.w / 2)] ?? 1;
-      let score = dice(hh, 3) * 1.5 + tier * .6 + hw * .25;
-      if (rd.k === 'pedestrian' || rd.k === 'living_street') score += 1.4;
-      else if (rd.k === 'residential' || rd.k === 'service') score += .9;
-      if (rd.w < 7) score += .5;
-      const ah = Math.abs(rd.tx * nx + rd.tz * nz); // a wall at the end of a street is seen head on by everyone driving up it
-      if (ah > .8) score += 1.8; else if (ah > .55) score += .6;
-      if (plazas.some(p => inPoly(p, x + nx * 4, z + nz * 4))) score += .9;
-      const wd = dice(hh, 4) < .55 ? 0 : 1;
-      out.push({ id: b.id + ':' + i, x, z, nx, nz, hw, w: wd, v: (dice(hh, 5) * 8) | 0, bh: b.h, score });
-    }
-  }
-  out.sort((p, q) => q.score - p.score || (p.id < q.id ? -1 : 1));
-  const want = QUOTA[tile], chosen = [];
-  for (let sp = SPACE[tile]; chosen.length < want && sp > 24; sp *= .85) {
-    for (const c of out) {
-      if (chosen.length >= want) break;
-      if (!chosen.includes(c) && chosen.every(o => (o.x - c.x) * (o.x - c.x) + (o.z - c.z) * (o.z - c.z) >= sp * sp)) chosen.push(c);
-    }
-    yield;
-  }
-  return chosen.sort((p, q) => (p.id < q.id ? -1 : 1));
+// ---------- placement: the baked tags of one world tile ----------
+const ALL = new Set(Object.values(SUCA_TAGS).flatMap(l => l.map(r => r[0])));
+// a baked tag still on the edge of its building it was baked on? (false after a tile rebake that moved the wall: rerun tools/suca-bake.mjs)
+function onWall(d, id, x, z) {
+  const k = id.lastIndexOf(':'), bid = id.slice(0, k), i = +id.slice(k + 1), b = d.buildings && d.buildings.find(q => q.id === bid);
+  if (!b) return false;
+  const pts = pairs(b.p), a = pts[i], c = pts[(i + 1) % pts.length];
+  if (!a) return false;
+  const dx = c[0] - a[0], dz = c[1] - a[1], l2 = dx * dx + dz * dz, u = l2 ? ((x - a[0]) * dx + (z - a[1]) * dz) / l2 : 0;
+  return u >= -.01 && u <= 1.01 && Math.hypot(a[0] + dx * u - x, a[1] + dz * u - z) < .1;
 }
 
 // ---------- the collectible ----------
-export function createSuca({ scene, drivable, mapMarkers, skip, world = null, getVolume = () => .8 }) {
-  const L = [], done = new Set(), seen = {}, cache = new Map(), queue = [], active = new Set(); // L: live tags of the tiles at full detail
-  let seenTotal = 0, ready = false, keepAll = KEEPOUT.slice(), skipAll = new Set(skip), job = null, dirty = false, manifestDone = false;
-  try { const a = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(a)) for (const id of a) done.add(id); } catch (e) { /* private mode */ }
-  try { const o = JSON.parse(localStorage.getItem(KEY + '.seen')) || {}; for (const k in o) if (o[k] > 0) { seen[k] = o[k]; seenTotal += o[k]; } } catch (e) { /* private mode */ }
-  // city landmark models and manifest landmarks: more places to keep clear (tiles wait for them before placing)
-  import('./landmarks-city.js').then(m => { for (const l of m.CITY_LANDMARKS || []) { keepAll.push([l.x, l.z, (l.radius || 40) + 15]); for (const id of l.skipIds || []) skipAll.add(id); } }).catch(() => {}).then(() => { ready = true; });
+export function createSuca({ scene, mapMarkers, world = null, getVolume = () => .8 }) {
+  const L = [], done = new Set(); // L: live tags of the tiles at full detail
+  let dirty = false;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) { /* private mode */ } };
+  // saved ids: a tag that is still one stays found, a tag that is gone counts for the new one within a few metres (SUCA_MOVED), anything else
+  // is dropped (older saves, tags of a previous bake). The cleaned list is written back, and the old per-tile totals key goes.
+  try {
+    const a = JSON.parse(localStorage.getItem(KEY));
+    if (Array.isArray(a)) {
+      for (const id of a) { const m = ALL.has(id) ? id : SUCA_MOVED[id]; if (m && ALL.has(m)) done.add(m); }
+      if (done.size !== a.length) save();
+    }
+    localStorage.removeItem(KEY + '.seen');
+  } catch (e) { /* private mode */ }
 
   const pos = new Float32Array(CAP * 12), nor = new Float32Array(CAP * 12), uv = new Float32Array(CAP * 8), col = new Float32Array(CAP * 12).fill(1), idx = new Uint16Array(CAP * 6);
   const dis = new Float32Array(CAP * 4); // per vertex: seconds since collected over DUR, 0 for a tag at rest (read by the dissolve shader)
@@ -397,28 +314,26 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
   }
   // a tile's picks become live tags: height from the ground along the wall, a hand above the pavement
   function addTile(t, picks) {
-    for (const p of picks) {
-      const tx = p.nz, tz = -p.nx, g = Math.max(groundY(p.x, p.z), groundY(p.x + tx * p.hw, p.z + tz * p.hw), groundY(p.x - tx * p.hw, p.z - tz * p.hw), groundY(p.x + p.nx * 1.5, p.z + p.nz * 1.5));
-      L.push({ id: p.id, x: p.x, z: p.z, nx: p.nx, nz: p.nz, hw: p.hw, w: p.w, v: p.v, word: WORDS[p.w], y: g + .4 + p.hw / 2, tile: t });
+    if (L.some(o => o.tile === t)) return; // already up (a second 'full' without a 'drop' in between)
+    for (const [id, x, z, deg, hw, w, v] of picks) {
+      const nx = Math.cos(deg * Math.PI / 180), nz = Math.sin(deg * Math.PI / 180), tx = nz, tz = -nx;
+      const g = Math.max(groundY(x, z), groundY(x + tx * hw, z + tz * hw), groundY(x - tx * hw, z - tz * hw), groundY(x + nx * 1.5, z + nz * 1.5));
+      L.push({ id, x, z, nx, nz, hw, w, v, word: WORDS[w], y: g + .4 + hw / 2, tile: t });
     }
     dirty = true;
   }
-  const saveSeen = () => { try { localStorage.setItem(KEY + '.seen', JSON.stringify(seen)); } catch (e) { /* private mode */ } };
-  function finish(t, picks) {
-    cache.set(t.id, picks);
-    if (cache.size > 40) cache.delete(cache.keys().next().value);
-    if (seen[t.id] !== picks.length) { seenTotal += picks.length - (seen[t.id] || 0); if (picks.length) seen[t.id] = picks.length; else delete seen[t.id]; saveSeen(); }
-    if (active.has(t)) addTile(t, picks);
-  }
+  const checked = new Set();
   function tileEvent(kind, t) {
+    const picks = SUCA_TAGS[t.id];
+    if (!picks) return;
     if (kind === 'full') {
-      active.add(t);
-      const c = cache.get(t.id);
-      if (c) addTile(t, c); else queue.push(t);
+      if (!checked.has(t.id) && t.data) {
+        checked.add(t.id);
+        const off = picks.filter(p => !onWall(t.data, p[0], p[1], p[2])).map(p => p[0]);
+        if (off.length) { console.warn(`[suca] tile ${t.id}: ${off.join(' ')} no longer on their walls (tiles rebaked? run node tools/suca-bake.mjs)`); }
+      }
+      addTile(t, picks);
     } else {
-      active.delete(t);
-      const q = queue.indexOf(t); if (q >= 0) queue.splice(q, 1);
-      if (job && job.t === t) job = null;
       let w = 0; for (let i = 0; i < L.length; i++) if (L[i].tile !== t) L[w++] = L[i];
       if (w !== L.length) { L.length = w; dirty = true; }
     }
@@ -446,7 +361,7 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
   toast.className = 'pd-suca-toast'; toast.setAttribute('role', 'status'); toast.setAttribute('aria-live', 'polite');
   zone('pick').appendChild(toast);
   let toastTimer = 0;
-  const progress = () => ({ found: done.size, total: Math.max(seenTotal, done.size) });
+  const progress = () => ({ found: done.size, total: SUCA_TOTAL });
   function showToast(word) {
     const p = progress();
     toast.innerHTML = `<small>Graffiti</small><b>${word} ${p.found}/${p.total}</b>`;
@@ -467,31 +382,13 @@ export function createSuca({ scene, drivable, mapMarkers, skip, world = null, ge
 
   function collect(i) {
     const t = L[i];
-    done.add(t.id);
-    try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) { /* private mode */ }
+    done.add(t.id); save();
     t.pop = 0;
     showToast(t.word); emit(t); chime();
   }
 
   let slow = 0;
   function update(dt, car) {
-    if (!manifestDone && world?.manifest) { manifestDone = true; for (const l of world.manifest.landmarks || []) keepAll.push([l.x, l.z, 25]); }
-    if (ready && manifestDone && !job && queue.length) { // nearest waiting tile first
-      let bi = 0, bd = 1e18;
-      for (let i = 0; i < queue.length; i++) { const q = queue[i], d = (q.cx - car.x) ** 2 + (q.cz - car.z) ** 2; if (d < bd) { bd = d; bi = i; } }
-      const t = queue.splice(bi, 1)[0];
-      job = { t, gen: pickTile(t, { skip: skipAll, drivable, keepAll }) };
-    }
-    if (job) {
-      const t0 = performance.now(), j = job;
-      try {
-        for (;;) {
-          const r = j.gen.next();
-          if (r.done) { if (job === j) { job = null; finish(j.t, r.value); } break; }
-          if (job !== j || performance.now() - t0 > BUDGET) break;
-        }
-      } catch (e) { console.error('[suca] tile', e); if (job === j) job = null; }
-    }
     if (dirty) rebuild();
     if ((slow -= dt) <= 0) { slow = .5; syncMarkers(car); }
     clock += dt; fu.uTime.value = clock;

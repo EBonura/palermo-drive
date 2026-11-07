@@ -37,8 +37,9 @@ waves or shouts from the kerb (Benny outside the pizzeria, racers revving at the
 
 ## World fixes
 
-- **Wall tags**: SUCA and 800A (800A uses the same spray styles as SUCA), across the whole city, denser in popular areas (centro, Borgo,
-  ZEN), more of them and bigger so they're easy to see. Still collectible.
+- **Wall tags**: SUCA and 800A (800A uses the same spray styles as SUCA), exactly 800 in the whole city (both words together, the
+  same for everyone, the counter reads n/800 from the start), denser in popular areas (centro, Borgo, ZEN). Baked by `tools/suca-bake.mjs`
+  into `src/suca-tags.js`. Still collectible.
 - **Gates**: every Palermo gate that really is an arch becomes a drivable-through arch: at least Porta Nuova, Porta Garibaldi, Porta dei
   Greci, Porta Carini, Porta Sant'Agata, checked against photos. Porta Felice stays two open pylons (the real one has no top, so the
   Festino carro can pass).
