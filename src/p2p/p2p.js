@@ -328,7 +328,7 @@ export function createP2P(env) {
   // those only, and a receiver checks its own distance too, since a message comes from a stranger: past that range there is no bubble, no line and no sound.
   const reach = p => !!(p && p.held !== false && p.rooms.size && Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_MS && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
   const inReach = () => { let n = 0; for (const p of peers.values()) if (reach(p)) n++; return n; };
-  const SAID = { it: 'dici', en: 'said' };   // "izzy dici “ciao curò”": wording to be corrected by the owner
+  const SAID = { it: 'rici', en: 'said' };   // "izzy rici “ciao curò”": the owner's spelling (7 Nov: rici, not dici)
   function onSay(id, raw) {
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
     if (!p || !b || b.length !== 2 || b[0] !== 3 || b[1] >= PHRASES.length) { stats.rxBad++; return; }
