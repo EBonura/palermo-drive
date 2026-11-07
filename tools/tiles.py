@@ -1703,7 +1703,7 @@ def tile_payload(i, j):
     if G.get("fence_tree") is not None:
         import fences as fnc
         from shapely.ops import unary_union
-        cutg = unary_union([G["cut_geoms"][k] for k in G["cut_tree"].query(tile)]) if "cut_tree" in G and len(G["cut_tree"].query(tile)) else None
+        cutg = unary_union([G["fcut_geoms"][k] for k in G["fcut_tree"].query(tile)]) if "fcut_tree" in G and len(G["fcut_tree"].query(tile)) else None
         carr_g, carr_t = G["rs"]["carriageway"] if "rs" in G else ([], shapely.STRtree([]))
         fn = fnc.tile_fences(tx0, tz0, T, G["fence_items"], G["fence_tree"], G["bld_geoms"], G["bld_tree"], cutg, carr_g, carr_t, I, D, poly_only)
 
@@ -2531,15 +2531,36 @@ def build(offline=False):
         G["rs"] = load_road_surfaces()
         tun = [ls.buffer(max(rec["w"], 6) / 2 + 6, quad_segs=2) for rec, ls in roads if rec.get("tn")]
         G.update(tunnel_geoms=tun, tunnel_tree=tree(tun))
-        cuts = [LineString(zip(r["p"][0::2], r["p"][1::2])).buffer(r["w"] / 2 + 0.6, quad_segs=2) for r in structs if r["k"] == "b" and not r.get("ov")]
-        for r in structs:   # a long flyover is lifted only around the roads that pass under it (src/bridges.js): the rest of it takes the road off the ground like any deck
-            if r["k"] == "b" and r.get("ov") and r.get("oc") and not r.get("f"):
-                ln = LineString(zip(r["p"][0::2], r["p"][1::2]))
-                if ln.length > OV_LOCAL:
-                    away = ln.difference(shapely.unary_union([ln.interpolate(s).buffer(OV_CLEAR) for s in r["oc"]]))
-                    if not away.is_empty:
-                        cuts.append(away.buffer(r["w"] / 2 + 0.6, quad_segs=2))
-        G.update(cut_geoms=cuts, cut_tree=tree(cuts))
+        # A deck takes the road off the ground under it, and only under it. The round cap of the buffer reached w / 2 + 0.6 m past each end of the deck, so the
+        # approach lost its asphalt for 5 to 7 m before every bridge and the car crossed rough ground onto the deck (Via Palmerino, b81531217, viewpoint su17):
+        # the cap is trimmed square at the deck's two ends. The fences keep the round cut (a railing at a deck end would stand by the parapet's end).
+        def ends_off(g, ln, hw):
+            c = list(ln.coords)
+            for (ax, az), (bx, bz) in ((c[0], c[1]), (c[-1], c[-2])):
+                dx, dz = ax - bx, az - bz
+                ll = math.hypot(dx, dz) or 1
+                dx, dz = dx / ll, dz / ll
+                nx, nz, e = -dz, dx, hw + 1
+                g = g.difference(Polygon([(ax + nx * e, az + nz * e), (ax + nx * e + dx * e, az + nz * e + dz * e),
+                                          (ax - nx * e + dx * e, az - nz * e + dz * e), (ax - nx * e, az - nz * e)]))
+            return g
+        cuts, fcuts = [], []
+        for ov in (False, True):
+            for r in structs:
+                if r["k"] != "b" or bool(r.get("ov")) != ov:
+                    continue
+                ln, hw = LineString(zip(r["p"][0::2], r["p"][1::2])), r["w"] / 2 + 0.6
+                part = ln
+                if ov:   # a long flyover is lifted only around the roads that pass under it (src/bridges.js): the rest of it takes the road off the ground like any deck
+                    if not (r.get("oc") and not r.get("f") and ln.length > OV_LOCAL):
+                        continue
+                    part = ln.difference(shapely.unary_union([ln.interpolate(s).buffer(OV_CLEAR) for s in r["oc"]]))
+                    if part.is_empty:
+                        continue
+                g = part.buffer(hw, quad_segs=2)
+                fcuts.append(g)
+                cuts.append(ends_off(g, ln, hw))
+        G.update(cut_geoms=cuts, cut_tree=tree(cuts), fcut_geoms=fcuts, fcut_tree=tree(fcuts))
         lanes = [ls.buffer((rec.get("cw") or CARRIAGEWAY.get(rec["k"]) or rec["w"]) / 2 + RS_SLACK, quad_segs=4)
                  for rec, ls in roads if not rec.get("tn") and (rec["k"] in CARRIAGEWAY or rec["k"] == "pedestrian")]
         G.update(lane_geoms=lanes, lane_tree=tree(lanes))

@@ -273,7 +273,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   const tiles = new Map(), cache = new Map(); // tiles: nk -> Tile; cache: parsed JSON of tiles that are not resident (LRU by insertion)
   const wallGrid = new SegGrid(16), nameGrid = new SegGrid(30);
   walls2d.ext = wallGrid; streets.ext = nameGrid;
-  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z) }); initQuays({ wallGrid }); setStructRoot(root); initFences({ wall: wallGrid, scene: root });
+  initStructs({ wallGrid, ground: (x, z) => tileGround(x, z), hasTile: (x, z) => !M || !!M.tiles[Math.floor(x / T) + '_' + Math.floor(z / T)] }); initQuays({ wallGrid }); setStructRoot(root); initFences({ wall: wallGrid, scene: root });
   let M = null, farM = () => 0, world = null, landPoly = null, farCity = null, farTask = null, wantedOnce = false, visPending = 1, farMissing = 0;
   let tasks = [], pending = [], inflight = 0;
   // City landmarks (src/landmarks-city.js, written by the landmarks work): CITY_LANDMARKS = [{ name, x, z, radius, skipIds, build(ctx) -> Object3D }].

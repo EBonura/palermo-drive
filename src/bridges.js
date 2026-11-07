@@ -41,7 +41,7 @@ const CELL = 24;
 const hh = (a, b) => Math.hypot(a, b);
 
 // ---------- registry ----------
-let walls = null, rawGround = null;
+let walls = null, rawGround = null, inTiles = () => true;
 const S = new Map();                   // id -> structure state
 const byTile = new Map();              // tile key -> Set of ids
 const levelGrid = new Map(), chanGrid = new Map();
@@ -54,7 +54,11 @@ function gridDel(grid, id) {
   for (const [k, a] of grid) { let w = 0; for (let i = 0; i < a.length; i++) if (a[i].id !== id) a[w++] = a[i]; if (w) a.length = w; else grid.delete(k); }
 }
 
-export function initStructs({ wallGrid, ground }) { walls = wallGrid; rawGround = ground; }
+// inTiles(x, z): is there a world tile at (x, z)? Beyond the tiles the ground is the coarse far grid and the hills drawn over it, which no structure follows: the
+// pieces of a structure built there stood in the air or sank into the hillside (the tunnel t71512408 at 480 m runs out of the tiles at z 8000, and its far
+// mouth's portal stood alone on the slope). A deck with a vertex out there is not built, nor are the pieces of a tunnel out there, and a tunnel's cutting is not
+// cut out of the ground there (its walls would not be drawn, and the next tile's terrain had a hole where a cutting just beyond its edge reached into it).
+export function initStructs({ wallGrid, ground, hasTile }) { walls = wallGrid; rawGround = ground; if (hasTile) inTiles = hasTile; }
 
 // y along the centreline (vertex k, cumulative length s)
 function profile(st) {
@@ -332,7 +336,10 @@ export function registerStructs(d, key) {
       if (!r.rf) r.rv = r.rv.map(v => densify(v, 8));   // (the bake cuts the lines into pieces and measures the floor under each vertex: rf)
       r.rv.forEach((rv, li) => chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r, r.rf ? r.rf[li] : null)));
       st.bed = Math.min(...chans.map(c => c.bedY[c.si]));
-    } else if (r.k === 't' && (st.cut = cutPath(st))) for (const q of st.cut.quads) { st.carve = true; gridAdd(cutGrid, q.bx0, q.bz0, q.bx1, q.bz1, q); }   // the open cutting at its mouths, walled
+    } else if (r.k === 't' && (st.cut = cutPath(st))) for (const q of st.cut.quads) {   // the open cutting at its mouths, walled (not beyond the tiles, where no wall is drawn: see initStructs)
+      if (!inTiles(q.ax, q.az) || !inTiles(q.ax + q.dx, q.az + q.dz)) continue;
+      st.carve = true; gridAdd(cutGrid, q.bx0, q.bz0, q.bx1, q.bz1, q);
+    }
     if (r.k === 'b' && r.ov && r.ud && r.oc && r.ud.length === r.oc.length) for (const u of r.ud) chans.push(makeChannel(r.id, u.p, u.w, 0, null, Infinity, 'dip', r, u.f, u));
     st.chans = chans;
     for (const c of chans) { st.carve = true; gridAdd(chanGrid, c.bx0, c.bz0, c.bx1, c.bz1, c); }
@@ -471,7 +478,8 @@ function addWalls(st) {
 }
 
 // ---------- meshes ----------
-const CONC = new THREE.Color('#b4afa3'), CONC2 = new THREE.Color('#9d988c'), PAVE = new THREE.Color('#c4c1b6'), DARK = new THREE.Color('#58564f');
+const CONC = new THREE.Color('#b4afa3'), CONC2 = new THREE.Color('#9d988c'), PAVE = new THREE.Color('#c4c1b6'), DARK = new THREE.Color('#58564f'), WHITE = new THREE.Color(1, 1, 1);
+const APRON = 1.5, APRON_DEEP = 0.35, APRON_MAX = 0.6;   // deck ends: the apron's length, how far under the ground it ends, the most the deck may stand off the ground for one
 let matConc = null, matAsph = null, matWater = null, matBed = null;
 function mats() {
   if (matConc) return;
@@ -487,8 +495,10 @@ function quad(b, a, bb, c, d, nx, ny, nz, col, uv = null, k = 1) { // a b c d co
 }
 
 function buildDeck(st) {
-  const r = st.rec, g = new THREE.Group(); g.name = 'struct_' + r.id;
-  const p = r.p, n = p.length / 2, ys = st.ys, cw = r.f ? 0 : r.cw, ph = cw / 2 + (r.f ? 0 : SIDEWALK), po = r.w / 2;
+  const r = st.rec, p = r.p, n = p.length / 2;
+  for (let k = 0; k < n; k++) if (!inTiles(p[2 * k], p[2 * k + 1])) return null;   // (see initStructs)
+  const g = new THREE.Group(); g.name = 'struct_' + r.id;
+  const ys = st.ys, cw = r.f ? 0 : r.cw, ph = cw / 2 + (r.f ? 0 : SIDEWALK), po = r.w / 2;
   const conc = new Buf(), asph = new Buf(), M = TEX.asphalt.metres;
   const T = [], N = [];
   for (let k = 0; k < n; k++) { // tangent and left normal per vertex (mitred)
@@ -560,6 +570,22 @@ function buildDeck(st) {
       face(sg * po, sg * ph, y + KERB, y + KERB + PARAPET_H);     // parapet
     } else for (const sg of [1, -1]) face(sg * po, sg * (po - PARAPET_W), y, y + PARAPET_H);
   }
+  // the approach: from each end an apron at the deck's height slopes down under the ground APRON m out, asphalt across the carriageway and concrete beyond it. The
+  // terrain is drawn 0.2 m under the ground, so the slab's end stood as a thin grey edge between the approach and the deck (su17, Viadotto Argonauti); where a
+  // street layer covers the approach the apron is under it. An end that stands more than APRON_MAX m off the ground beside it keeps its abutment face.
+  for (const end of [0, n - 1]) {
+    const k = end, y = ys[k], sg = end === 0 ? -1 : 1, ox = T[k][0] * sg, oz = T[k][1] * sg, s0 = st.cum[k], s1 = s0 + sg * APRON;
+    const pts = (r.f ? [-po, po] : [-po, -cw / 2, cw / 2, po]).map(o => {
+      const a = at(k, o, y), x = a[0] + ox * APRON, z = a[2] + oz * APRON, g0 = rawGround(x, z), g = g0 === undefined ? NaN : carve(x, z, g0);
+      return { o, a, b: [x, g - APRON_DEEP, z], g };
+    });
+    if (!pts.every(q => Math.abs(y - q.g) <= APRON_MAX)) continue;   // (NaN: no ground there yet)
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const road = !r.f && i === 1, p0 = pts[i], p1 = pts[i + 1], uv = (o, s) => [o / M, s / M];
+      if (end) quad(road ? asph : conc, p0.a, p1.a, p1.b, p0.b, 0, 1, 0, road ? WHITE : CONC, road ? [...uv(p0.o, s0), ...uv(p1.o, s0), ...uv(p1.o, s1), ...uv(p0.o, s1)] : null);
+      else quad(road ? asph : conc, p0.b, p1.b, p1.a, p0.a, 0, 1, 0, road ? WHITE : CONC, road ? [...uv(p0.o, s1), ...uv(p1.o, s1), ...uv(p1.o, s0), ...uv(p0.o, s0)] : null);
+    }
+  }
   // piers
   if (r.k === 'b' && !r.f && st.L > 40 && (!r.ov || r.oc)) {
     const bed = r.rv && st.bed !== undefined ? st.bed : null, np = Math.max(1, Math.round(st.L / 30)) ;
@@ -624,8 +650,10 @@ function buildTunnel(st) {
   // the top of the wall on side sg at vertex q: the ground just outside it, plus the parapet
   const topAt = (q, sg) => { const x = q.x + q.nx * sg * (W + 0.3), z = q.z + q.nz * sg * (W + 0.3), t = rawAt(x, z, q); return [t + parOf(t - q.f), t]; };
   let nextLamp = 6;
+  const IN = q => inTiles(q.x, q.z);   // (see initStructs)
   for (let k = 0; k + 1 < m; k++) {
     const a = Q[k], b = Q[k + 1], s = seg[k];
+    if (!IN(a) || !IN(b)) continue;
     if (a.t && b.t) flat(road, A(a, -hw, a.f + 0.01), A(a, hw, a.f + 0.01), A(b, hw, b.f + 0.01), A(b, -hw, b.f + 0.01), white);   // the tunnel's road, covered or open
     else if (s === 1) for (const [o0, o1] of [[-hw, 0], [0, hw]]) {   // the floor of a ramp's cutting, under the street layers (carved ground: what the car drives on)
       const y = (q, o) => { const x = q.x + q.nx * o, z = q.z + q.nz * o; return carve(x, z, rawAt(x, z, q)) - 0.02; };
@@ -664,7 +692,7 @@ function buildTunnel(st) {
   // the ends of the walls where a cutting runs out at the ground
   for (let k = 0; k < m; k++) {
     const before = k > 0 ? seg[k - 1] : -1, after = k + 1 < m ? seg[k] : -1;
-    if ((before === 1) === (after === 1) || before === 2 || after === 2) continue;
+    if ((before === 1) === (after === 1) || before === 2 || after === 2 || !IN(Q[k])) continue;
     const q = Q[k], tx = q.nz, tz = -q.nx;
     for (const sg of [1, -1]) {
       const [t] = topAt(q, sg), u = q.s + sideU(sg), h = t - (q.f - 0.3);
@@ -674,7 +702,7 @@ function buildTunnel(st) {
   // portals: where the cutting meets the covered tunnel, two piers and a lintel, and over them a concrete headwall up to the ground and its parapet; the same concrete as the walls, a little cleaner
   for (let k = 0; k < m; k++) {
     const before = k > 0 ? seg[k - 1] : -1, after = k + 1 < m ? seg[k] : -1;
-    if ((before === 2) === (after === 2)) continue;
+    if ((before === 2) === (after === 2) || !IN(Q[k])) continue;
     const q = Q[k], nb = after === 2 ? 1 : -1, fx = q.nz * nb, fz = -q.nx * nb;   // from the portal into the tunnel
     const c = (o, y, d) => [q.x + q.nx * o + fx * d, y, q.z + q.nz * o + fz * d];
     const yl = q.f + TUN_H, yh = yl + 1.1, foot = q.f - 0.3;
