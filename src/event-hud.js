@@ -1,6 +1,6 @@
 // The overlay of the free-roam events (src/missions.js and its event-*.js modules, src/races.js): one small card at the top centre of two or three short lines (what it is and the time, what to do with its count, the place or distance, and a thin progress bar along its bottom edge), a big countdown, short lines one at a time and a results panel. They stand in the HUD's zones (src/hud.js).
 // createEventHud({ camera, car, groundY }) -> { set(o), clear(), count(big, sub), toast(text, sub, neg), result(html, secs), burst(), update(dt) }
-//   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the arrow at the edge of the screen or null), ledger ([text, ...]) })
+//   set({ label, title, sub, time (string), low (bool), frac (0..1 or null), target ({x, z} for the arrow at the edge of the screen or null), ledger ([text or { t, neg }, ...]) })   neg: drawn red
 //   While there is a target that is behind the camera or off the screen, an arrow at the edge of the screen points the way to it, with the distance (.ev-edge).
 import * as THREE from 'three';
 import { vp } from './viewport.js';
@@ -23,6 +23,7 @@ const CSS = `
 .ev-bar i { display: block; height: 100%; width: 100%; transform-origin: left; border-radius: 2px; background: linear-gradient(90deg, #f5a9c9, #e8559a); }
 .ev-bar.low i { background: #ff4a3a; } .ev-bar.off { display: none; }
 .ev-card:has(.ev-bar.off) { padding-bottom: 6px; }
+.ev-ledger .neg, .ev-result .neg { color: #ff5a4a; }   /* money below zero (the wallet in debt, src/event-penna.js) */
 .ev-ledger { margin: 3px 0 0 10px; display: flex; gap: 8px; align-items: baseline; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: #ffd1e6; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .ev-toasts { pointer-events: none; display: flex; flex-direction: column; align-items: center; }
 .ev-toasts:empty { display: none; }
@@ -122,13 +123,13 @@ export function createEventHud({ camera, car, groundY }) {
     // text is written only when it changed (called a few times per second at most)
     set(o) {
       root.classList.add('on');
-      const key = [o.label, o.title, o.sub, o.time, o.low, o.frac == null ? '' : o.frac.toFixed(3), o.ledger && o.ledger.join('|')].join('~');
+      const key = [o.label, o.title, o.sub, o.time, o.low, o.frac == null ? '' : o.frac.toFixed(3), o.ledger && o.ledger.map(t => typeof t === 'object' ? t.t + (t.neg ? '-' : '') : t).join('|')].join('~');
       target = o.target || null;
       if (key === cache) return; cache = key;
       elLab.textContent = o.label || ''; elTitle.textContent = o.title || ''; elSub.textContent = o.sub || ''; elTime.textContent = o.time || '';
       elTime.classList.toggle('low', !!o.low); elBar.classList.toggle('off', o.frac == null); elBar.classList.toggle('low', !!o.low);
       if (o.frac != null) elBarI.style.transform = `scaleX(${Math.min(1, Math.max(0, o.frac)).toFixed(3)})`;
-      elLedger.innerHTML = o.ledger ? o.ledger.map(t => `<span>${esc(t)}</span>`).join('') : '';
+      elLedger.innerHTML = o.ledger ? o.ledger.map(t => typeof t === 'object' ? `<span${t.neg ? ' class="neg"' : ''}>${esc(t.t)}</span>` : `<span>${esc(t)}</span>`).join('') : '';
     },
     // the leash (src/missions.js): a red banner while the lapa is too far from the mission area, with the seconds left; leash(false) hides it
     leash(on, big, sub) { if (!on) { leashEl.classList.remove('on'); return; } if (leashB.textContent !== big) leashB.textContent = big; if (leashS.textContent !== sub) leashS.textContent = sub; leashEl.classList.add('on'); },

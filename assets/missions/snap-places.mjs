@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ROOT, loadNet, snap, nodeNear, route, pts, plen, simplify, simplifyClear, reachTo, proj } from './roadnet.mjs';
-import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP } from '../../src/event-places.js';
+import { FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP, PENNA } from '../../src/event-places.js';
 import { DESTS } from './lines.js';
 
 const net = loadNet();   // the roads the game builds (assets/missions/roadnet.mjs BUILT): routes run on these
@@ -174,6 +174,9 @@ delete SNAP['rave:mouth'];
     console.log('dump route', Math.round(L), 'm; start', SNAP['dump:start'].join(' '), 'mouth', SNAP['dump:mouth'].join(' '), 'rim', SNAP['dump:rim'].join(' '), 'cut segs', netL.cut.segs);
   } else { ROUTES['dump'] = []; console.log('dump NO ROUTE'); }
 }
+
+// ---- Fratelli La Penna (src/event-penna.js): the brothers' spot in front of the Teatro Massimo, no route (the chase is on foot, wherever the lapa goes)
+place('penna:' + PENNA.id, PENNA.lat, PENNA.lon, PENNA.onStreet);
 
 // ---- race tracks
 function follow(start, name, len, hint) {

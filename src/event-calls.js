@@ -1,8 +1,11 @@
 // The people who call the lapa (free-roam events): a fare on the kerb, an urgent passenger, a food seller who lost the goods. Every event place is a
 // slot (src/missions.js builds them from src/event-places.js and the baked src/event-routes.js). A character is spawned only when the lapa is
 // near, bounces and shouts from the kerb; stop next to them to accept. Races have no caller: src/races.js puts the racers at the start line.
+// The pen sellers (kind 'penna', src/event-penna.js) are three, and they do not wait for the lapa to stop: driving past them within PASS_R is enough, they step out and stop it.
+// A slot with `day` is there only by day, one with `night` only at night.
 // createCalls(X) -> { slots, setSlots(list), update(dt, allowed) -> accepted slot | null, release(slot), clear(), hideBeacon() }
 import { CALL, FRIEND, NIGHT_CLIENTS, HORNS_LINES } from '../assets/missions/lines.js';
+import { PENNA_LOOKS } from './event-penna.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -12,8 +15,8 @@ const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
 const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
-const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a' };
-const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8;
+const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
+const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8, PASS_R = 13;   // PASS_R: the pen sellers stop a lapa that passes this close
 export const KIND_COLOR = COLORS;
 
 export function createCalls(X) {
@@ -45,6 +48,10 @@ export function createCalls(X) {
       const sp = X.sideSpot({ x: s.x, z: s.z, dx: s.dx, dz: s.dz, w: s.w }, s.w / 2 + 1.5);
       s.kerb = { x: sp.x, z: sp.z };
     }
+    if (s.kind === 'penna') {   // the three brothers in a row along the kerb, facing the road
+      PENNA_LOOKS.forEach((v, k) => { const o = (k - 1) * 1.5, id = pedestrians.spawnScripted(v, s.kerb.x + s.dx * o, s.kerb.z + s.dz * o); if (id >= 0) { pedestrians.face(id, s.x + s.dx * o, s.z + s.dz * o); s.callers.push(id); } });
+      s.friend = null; s.shoutT = rand(1, 3); return;
+    }
     const v = variantFor(s), id = pedestrians.spawnScripted(v, s.kerb.x, s.kerb.z); if (id < 0) return;
     s.friend = v.startsWith('amico') ? v.slice(0, 6) : null;   // 'amico1' / 'amico2': their own lines, here and in the ride (src/event-fares.js)
     pedestrians.face(id, s.x, s.z);
@@ -54,7 +61,7 @@ export function createCalls(X) {
   function lineFor(s) {
     if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
     if (s.nc) return pickLine(NIGHT_CLIENTS[s.nc].client.flag, s);
-    const L = s.kind === 'dump' ? CALL.dump : s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
+    const L = s.kind === 'penna' ? CALL.penna : s.kind === 'dump' ? CALL.dump : s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
     return pickLine(L, s);
   }
   function pickLine(L, s) {
@@ -70,7 +77,7 @@ export function createCalls(X) {
     const t = X.now(), night = X.isNight();
     for (const s of slots) {
       if (s.kind === 'race') continue;
-      const d = Math.hypot(car.x - s.x, car.z - s.z), ready = allowed && t >= s.coolUntil && (!s.night || night);
+      const d = Math.hypot(car.x - s.x, car.z - s.z), ready = allowed && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
       if (!ready) { if (s.callers.length) despawn(s); continue; }
       if (s.callers.length) {
         if (d > DROP_R) { despawn(s); continue; }
@@ -78,7 +85,8 @@ export function createCalls(X) {
         s.shoutT -= dt;
         if (s.shoutT <= 0 && d < 75) { s.shoutT = rand(6, 10); say(lineFor(s), headOf(s.callers[0]), 0); }
         if (d < nd) { nd = d; nearest = s; }
-        if (armed && X.held !== s && d < ACCEPT_R && speed() < 2.2) { s.holdT = (s.holdT || 0) + dt; if (s.holdT > 0.35) accepted = s; } else s.holdT = 0;
+        if (s.kind === 'penna') { if (armed && X.held !== s && d < PASS_R && !(car.agl > 2)) accepted = s; }   // passing by is enough: they stop the lapa (src/event-penna.js)
+        else if (armed && X.held !== s && d < ACCEPT_R && speed() < 2.2) { s.holdT = (s.holdT || 0) + dt; if (s.holdT > 0.35) accepted = s; } else s.holdT = 0;
       } else if (doSpawn && d < SPAWN_R && present() < MAX_CALLERS && car.type !== 'sulky') spawn(s);
     }
     // the nearest caller gets the pink ring
@@ -91,7 +99,7 @@ export function createCalls(X) {
     if (markT <= 0) {
       markT = 1;
       for (const s of slots) {
-        const d = Math.hypot(car.x - s.x, car.z - s.z), want = allowed && d < 750 && t >= s.coolUntil && (!s.night || night);
+        const d = Math.hypot(car.x - s.x, car.z - s.z), want = allowed && d < 750 && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
         if (want && !s.marker) s.marker = X.addMarker(s.x, s.z, COLORS[s.kind], 6);
         else if (!want && s.marker) { X.dropMarker(s.marker); s.marker = null; }
       }

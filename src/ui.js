@@ -949,7 +949,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // Nothing about the missions is kept here: names, places and the night flag come from events(), done / best from missions.status(id). A kind this file has never heard of
   // still gets its own group. Vai goes through startAt(), the path of the start map, so the lapa is placed on the nearest road and the world streams in under the transition.
   const MKIND = { fare: 'mFare', urgent: 'mUrgent', food: 'mFood', race: 'mRace', pub: 'mPub', malu: 'mMalu' };
-  const MGROUP = { rave: 'malu', leaf: 'malu', horns: 'malu', dump: 'malu' };   // the rave, the happy leaves, the horns and the landfill are one group
+  const MGROUP = { rave: 'malu', leaf: 'malu', horns: 'malu', dump: 'malu', penna: 'malu' };   // the rave, the happy leaves, the horns, the landfill and the pen sellers are one group
   // the funny groups (Maluchiffari, then the pubs) sit in the middle of the list; the rest keeps its order around them
   const MORDER = ['fare', 'urgent', 'malu', 'pub', 'food', 'race'];
   const MCOL = { ...KIND_COLOR, pub: '#ffb02e', malu: KIND_COLOR.rave };

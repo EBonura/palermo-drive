@@ -656,6 +656,8 @@ export const CALL = {
   leaf: [["Psst cucì, a'gghiri nni Cipressi p'accattari... vabbé u sai, runami un passaggio amunì", 'Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on'], ['Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.', 'We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention.']],
   // the landfill mission (src/event-dump.js, docs/discarica.md): Palermitan, written by an agent: for the owner to correct. "Bbaiecca 'a munnizza" is the owner's own wording.
   dump: [["Bbaiecca 'a munnizza, ca ’ccà un c’è chiù postu!", "Throw yourself in the rubbish, there is no room left here!"], ['Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu!', 'Hey driver! At the Bellolampo landfill there is a cell waiting for you!']],
+  // Fratelli La Penna (src/event-penna.js): three invented brothers who sell pens in front of the Teatro Massimo. Palermitan, written by an agent: DRAFTS for the owner to correct.
+  penna: [['Pinni! Pinni bbuani! Accattativi na pinna!', 'Pens! Good pens! Buy a pen!'], ['Ou lapista! Talìa chi pinna, è r’oru!', 'Hey driver! Look at this pen, it is gold!']],
   race: [['Cu vinci, paga! Amunì!', 'Winner buys! Let\'s go!'], ['Fermati ccà e cuorri cu nuatri!', 'Stop here and race with us!'], ['Tri, dui, unu... cuasi!', 'Three, two, one... almost!']],
 };
 // Two pals of the lapista (the cameo friends of the cast, ids amico1_* and amico2_*) who sometimes wave the lapa down for a ride. Same shape as the other
@@ -1022,4 +1024,18 @@ export const DUMP_LINES = {
   fall: [['Maaammaaa!', 'Mummyyyy!'], ['Ahahahaaa!', 'Wheeeee!']],
   land: [['Ciaf! Chi puzza!', 'Splat! What a stink!'], ['Sugnu ’n mezzu â munnizza, ma sugnu cuntentu!', 'I am in the middle of the rubbish, but I am happy!']],
   fail: [['Chi fa? Un ti ieccasti! Ora è tardu!', 'What, you did not throw yourself in! Now it is too late!']],
+};
+
+// ---- Fratelli La Penna (src/event-penna.js): three invented brothers who sell pens at a silly price in front of the Teatro Massimo. They stop the lapa as it passes, ask a fortune for one pen,
+// and chase it on foot if you drive off. Cheeky street banter about an overpriced pen, nobody real. Palermitan written by an agent: every line is a DRAFT for the owner to correct.
+// {price} is the price in euro, written by the module.
+export const PENNA_LINES = {
+  stop: [['Ti fiaimmi! Ti fiaimmi un minutu!', 'Stop! Stop a minute!']],
+  ask: [['Na pinna ru Teatru Massimu: {price} euru. Prezzu r’amicu!', 'A Teatro Massimo pen: {price} euro. Friend price!'], ['Cu sta pinna scrivi sulu cosi bbeddi. {price} euru, cu u scuantu.', 'With this pen you only write nice things. {price} euro, with the discount.']],
+  paid: [['Grazzi, cumpà! A pinna è a tia, a garanzia è a mia.', 'Thanks, pal! The pen is yours, the guarantee is mine.']],
+  driverPaid: [['Na pinna. Cara comu l’oru.', 'One pen. Pricey as gold.']],
+  refuse: [['Comu?! Un a voi?!', 'What?! You do not want it?!'], ['Frati, curriti! Chistu un paga!', 'Brothers, run! This one is not paying!']],
+  chase: [['Unni vai? A pinna è a tia!', 'Where are you going? The pen is yours!'], ['Talìa ca scrivi puru sutt’acqua!', 'Look, it even writes underwater!'], ['Ti pigghiamu, ti pigghiamu!', 'We will catch you!']],
+  caught: [['Pigghiatu! E ora paghi.', 'Caught you! Now you pay.'], ['Accussì s’impara. A pinna è a tia!', 'That will teach you. The pen is yours!']],
+  escaped: [['Un haiu chiù ciatu...', 'I am out of breath...'], ['Vabbè... a prossima vuota!', 'Fine... next time!']],
 };
