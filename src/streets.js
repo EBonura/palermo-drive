@@ -358,7 +358,7 @@ const CAR_W = { motorway: 8, motorway_link: 4.5, trunk: 9, trunk_link: 4.5, prim
 const EDGE_LINED = new Set(['motorway', 'trunk', 'primary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary', 'secondary_link']);
 const EDGE_IF_FAST = new Set(['tertiary', 'tertiary_link', 'unclassified']);   // these too when OSM gives them a limit of 50 or more
 const PAINT = new THREE.Color('#dedbd0');
-const DASH = 2.2, PERIOD = 5.9, SAMPLE = 1.2, APPROACH = 15, STOP_BACK = 6.5, SHOULDER_IN = 1.3;
+const DASH = 2.2, PERIOD = 5.9, SAMPLE = 1.2, APPROACH = 15, STOP_BACK = 6.5, SHOULDER_IN = 1.3, THIN = 4.8;
 const NOEXP = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noexpressway');
 const fastRoad = isFastRoad;   // (src/road-class.js: the motorways, the expressways and their slip roads, and the Viale's carriageways whatever the data says their class is)
 let paintMat = null;
@@ -399,6 +399,8 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
     nq++;
   };
   const mask = tile && tile.streets && tile.streets.aoi && !NOEXP && roads.some(fastRoad) ? yield* rasterMaskIter([tile.streets.asphalt || []], tile.streets.aoi, 2) : null;
+  // the same asphalt mask (src/props.js asks for it next, so it is made once) for the width of the ordinary streets: see `thin` below
+  const amask = mask || (tile && tile.streets && tile.streets.aoi && tile.streets.asphalt && tile.streets.asphalt.length ? yield* rasterMaskIter([tile.streets.asphalt], tile.streets.aoi, 2) : null);
   let seed = 12345; const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   let n = 0;
   for (let id = 0; id < roads.length; id++) {
@@ -433,6 +435,21 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       const o = offAt(i, f) * (1 - u) + offAt(i + 1, f) * u, tx = s0.tx + (s1.tx - s0.tx) * u, tz = s0.tz + (s1.tz - s0.tz) * u, l = Math.hypot(tx, tz) || 1;
       return [s0.x + (s1.x - s0.x) * u - tz / l * o, s0.z + (s1.z - s0.z) * u + tx / l * o];
     };
+    // A lane narrower than THIN m of asphalt has no centre line and no lane dividers (zw22, Via Cannolicchio: 4.4 m of asphalt between two walls, painted as a two-lane
+    // road because OSM gives every residential street the same 5.5 m). The width is measured across the asphalt at each sample (0.5 m cells, so a 5.5 m street reads 5 to 5.5)
+    // and averaged over 7 samples; where the centre line is off the asphalt nothing is measured and the mapped width stands.
+    let thin = null;
+    if (amask && !fastRoad(r)) {
+      const wd = S.map(s => {
+        if (!amask(s.x, s.z)) return -1;
+        const nx = -s.tz, nz = s.tx; let a = 0, b = 0;
+        while (a < 7 && amask(s.x + nx * (a + 0.5), s.z + nz * (a + 0.5))) a += 0.5;
+        while (b < 7 && amask(s.x - nx * (b + 0.5), s.z - nz * (b + 0.5))) b += 0.5;
+        return a + b + 0.5;
+      });
+      thin = S.map((s, i) => { let t = 0, k = 0; for (let j = Math.max(0, i - 3); j <= Math.min(m - 1, i + 3); j++) if (wd[j] >= 0) { t += wd[j]; k++; } return k >= 3 && t / k < THIN; });
+      if (!thin.some(Boolean)) thin = null;
+    }
     const freeAt = a => { const i = Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE))); return !blocked[i]; };
     // f across the carriageway; mode 'dash' | 'solid' | 'centre' (dashed, solid for the last APPROACH m before a junction)
     const openAt = a => !fastOpen || fastOpen[Math.min(m - 1, Math.max(0, Math.round((a - S[0].a) / SAMPLE)))];
@@ -451,6 +468,7 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
         const d0 = Math.max(a0, k * PERIOD), d1 = Math.min(a1, k * PERIOD + DASH); if (d1 - d0 < 0.6) continue;
         const dm = (d0 + d1) / 2, i = Math.min(m - 1, Math.max(0, Math.round((dm - a0) / SAMPLE)));
         if (blocked[i] || !freeAt(d0) || !freeAt(d1)) continue;
+        if (thin && f > 0 && f < 1 && thin[i]) continue;   // a lane too narrow for two
         if (mode === 'centre' && near[i] < APPROACH) continue;   // the approach line paints here instead
         if (rng() < 0.07) continue;   // a few dashes have worn away
         const p = pos(d0, f), q = pos(d1, f);
@@ -458,8 +476,8 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       }
       if (mode === 'centre') {   // the approach: solid from the junction back APPROACH m
         for (let i = 0; i + 1 < m;) {
-          if (blocked[i] || near[i] >= APPROACH) { i++; continue; }
-          let j = i; while (j + 1 < m && !blocked[j + 1] && near[j + 1] < APPROACH && S[j + 1].a - S[i].a < 6) j++;
+          if (blocked[i] || near[i] >= APPROACH || (thin && thin[i])) { i++; continue; }
+          let j = i; while (j + 1 < m && !blocked[j + 1] && near[j + 1] < APPROACH && !(thin && thin[j + 1]) && S[j + 1].a - S[i].a < 6) j++;
           if (j > i) { const p = pos(S[i].a, f), q = pos(S[j].a, f); quad(p[0], p[1], q[0], q[1], hw, 0.8 + 0.2 * rng()); }
           i = j + 1;
         }
@@ -474,7 +492,9 @@ export function* roadMarksIter(roads, crossings, skip, tile) {
       line(0.5, 'centre', 0.075);   // two lanes: dashed white centre line, solid on the way to a junction
     }
     const edgeOld = EDGE_LINED.has(r.k) || (EDGE_IF_FAST.has(r.k) && (r.ms || 0) >= 50 && !r.pk);
-    if (w >= 7 && (edgeOld || isFastRoad(r))) { line(0, 'solid', 0.06, !edgeOld); line(1, 'solid', 0.06, !edgeOld); }   // (a lane has them only where it is a fast road)
+    // (a lane has them only where it is a fast road). A fast road's lines are put at the asphalt it really has (the mask above), so a carriageway the data gives 6 m (the A29
+    // at Isola, two lanes and a shoulder: nw13) has them too; before, anything under 7 m mapped had none.
+    if ((w >= 7 || (mask && fastRoad(r))) && (edgeOld || isFastRoad(r))) { line(0, 'solid', 0.06, !edgeOld); line(1, 'solid', 0.06, !edgeOld); }
     if (sliceOver()) yield;
   }
   // stop lines: a bar across the lanes that approach a traffic signal, STOP_BACK m before it, on every road that meets it

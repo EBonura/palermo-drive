@@ -11,7 +11,8 @@
 //     the photos (nw30, nw29, zw33), so it becomes a rail, or is dropped where the rail rule already put one (`rails`: nothing is drawn twice); a wall over FAST m away is left as mapped;
 //   * near the sea (open water within 70 m on either side, low ground) a wall is a parapet: 0.8 to 1.2 m, with a railing on it or in plain stone, so it never blocks the view of the water (nw19, nw22);
 //   * on open ground beside a country road (unclassified and up) where the ground falls away beyond it, it is the road's guard rail (zw23): the CTR line is the top of the fill;
-//   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, with a mesh over a low wall now and then;
+//   * in hill villages and the countryside (high ground, or open or green land beside the road) it is rubble stone, dry stone, lime wash or block, with a mesh over a low wall now and then
+//     and, on high or green ground, a garden hedge with the plot's mesh over it;
 //     on high or green ground most of it is old and grown over (moss, ivy, weeds: zw22), and on open lowland it is knee to waist high, a field or garden wall (nw02);
 //   * in a town it is lime wash (with and without a fallen patch), worn plaster, block or rubble, 1.5 to 2.1 m; the old town keeps its walls as mapped.
 // They carry `bk: 'w'` (src/fences.js breakSpeed) so they break at the speed a wall of their new height did, not as the stone and block kinds, which stay solid.
@@ -226,13 +227,14 @@ export function* roadsideWalls(list, roads, buildings, tram, areas, rails) {
         if (u < 0.8) return [piece('q', H(1.0, 1.4))];
         return [piece('n', H(0.4, 0.8), { rail: { s: 2, h: H(1.1, 1.5) } })];   // mesh over a low wall
       }
-      // high ground and green land: old lanes, half the walls grown over with moss, ivy and weeds
+      // high ground and green land: old lanes, half the walls grown over with moss, ivy and weeds, and now and then a garden hedge with the chain-link of the plot showing over it (zw22)
       if (u < 0.3) return [piece('o', H(1.0, hill ? 1.9 : 1.5))];
       if (u < 0.5) return [piece('m', H(1.3, 2.1))];
       if (u < 0.6) return [piece('s', H(1.0, hill ? 1.9 : 1.5))];
-      if (u < 0.72) return [piece('d', H(0.9, 1.4))];
-      if (u < 0.82) return [piece('n', H(1.3, 1.9))];
-      if (u < 0.88) return [piece('q', H(1.6, 2.0))];
+      if (u < 0.7) return [piece('d', H(0.9, 1.4))];
+      if (u < 0.8) return [piece('h', H(1.4, 1.9), { bk: 'h', rail: { s: 2, h: H(0.5, 0.8) } })];
+      if (u < 0.86) return [piece('n', H(1.3, 1.9))];
+      if (u < 0.92) return [piece('q', H(1.6, 2.0))];
       return [piece('n', H(0.4, 0.8), { rail: { s: 2, h: H(1.1, 1.5) } })];
     }
     if (old) return [{ ...r, p }];   // the old town keeps its mapped walls
