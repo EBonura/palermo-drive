@@ -614,6 +614,7 @@ function instantiate(tpl, livery, local) {
   const map = local ? null : clonedSet(tpl.type, livery), mat = m => (map && map.get(m)) || m;
   const sp = tpl.spec, tp = sp.tiltPivot, A = tpl.A;
   const root = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group(), meshes = [];
+  root.userData.honestLight = true;   // src/daynight.js leaves vehicles out of its night wash
   root.add(lean); lean.add(tilt); tilt.position.set(tp[0], tp[1] - (A.drop || 0), tp[2]);   // A.drop: lowered or lifted suspension
   const fill = (parent, list) => { if (!list) return; for (const b of list) { const m = new THREE.Mesh(b.geom, mat(b.mat)); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
   const Pm = { tilt }, stripObjs = [];
