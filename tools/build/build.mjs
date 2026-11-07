@@ -60,13 +60,17 @@ const plugin = {
   },
 };
 
+// TURN for the multiplayer (src/p2p/p2p.js): from the PD_TURN_URLS (comma separated), PD_TURN_USER and PD_TURN_PASS environment variables,
+// the repository's Actions secrets on GitHub (.github/workflows/pages.yml). Unset locally: the build has no TURN.
+const TURN = process.env.PD_TURN_URLS && process.env.PD_TURN_USER && process.env.PD_TURN_PASS
+  ? [{ urls: process.env.PD_TURN_URLS.split(',').map(u => u.trim()).filter(Boolean), username: process.env.PD_TURN_USER, credential: process.env.PD_TURN_PASS }] : null;
 const t0 = Date.now();
 const res = await esbuild.build({
   stdin: { contents: entrySrc, resolveDir: ROOT, sourcefile: 'entry.js' },
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
-  define: { __PD_PROD__: 'true', __PD_P2P__: flag('p2p', true) ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
+  define: { __PD_PROD__: 'true', __PD_TURN__: JSON.stringify(TURN), __PD_P2P__: flag('p2p', true) ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
 let appJs = null;

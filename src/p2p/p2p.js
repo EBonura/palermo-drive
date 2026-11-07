@@ -84,6 +84,10 @@ export function createP2P(env) {
   const relayUrls = (params.get('relays') || '').split(',').filter(u => /^wss:\/\/[\w.:-]+(\/[\w./-]*)?$/.test(u));
   const strat = strategies[kind];
   // manualReconnection: Trystero no longer pauses and resumes relay reconnection by itself when the browser goes offline and online; this file does (below), so that a player who chose to be solo stays disconnected
+  // TURN (Metered, shared with the board game): for networks where two players cannot link directly (mobile carriers, phone hotspots, Wi-Fi
+  // that isolates devices). Baked in at build time from the PD_TURN_* secrets (tools/build/build.mjs); a browser has to be given TURN credentials,
+  // so they are public in the page. Without them (development, local builds) there is no TURN and the relay fallback below is the only way round.
+  const TURN = typeof __PD_TURN__ !== 'undefined' && Array.isArray(__PD_TURN__) && __PD_TURN__.length ? __PD_TURN__ : null;
   const relayConfig = { manualReconnection: true, ...(relayUrls.length ? { urls: relayUrls } : kind === 'nostr' ? { urls: RELAYS } : { redundancy: num('red', 3, 1, 10) }) };
   const log = [];   // timing events for the measurements: { t, ev, ... }
   const ev = (name, o) => { const e = { t: Math.round(performance.now()), ev: name, ...o }; log.push(e); if (log.length > 2000) log.shift(); };
@@ -124,11 +128,13 @@ export function createP2P(env) {
   // ICE and connection states. "no answer" means the relays never carried the other side's reply; "failed" with srflx means a NAT or the
   // network blocked the direct path, the case a TURN relay is for. Also the relay warnings Trystero logs (rate limits, refusals). Only with ?p2p.
   // ?p2p&iceblock (tests only): every connection made from now on may use TURN candidates only, and there is no TURN server, so ICE finds no path, as on the phones. __p2p.iceBlock(false) lifts it for the next attempts.
-  const rtc = { made: 0, tries: [], warns: 0, lastWarn: '', block: testing && params.has('iceblock') };
+  // ?p2p&turnonly (tests only): connections may use the TURN relay only, as on a network that blocks direct links, to check the relay itself.
+  const rtc = { made: 0, tries: [], warns: 0, lastWarn: '', block: testing && params.has('iceblock'), turnOnly: testing && params.has('turnonly') };
   if (testing && typeof window.RTCPeerConnection === 'function') {
     const Orig = window.RTCPeerConnection;
     const Wrapped = function (...a) {
       if (rtc.block) a[0] = { ...(a[0] || {}), iceTransportPolicy: 'relay', iceServers: [] };
+      else if (rtc.turnOnly) a[0] = { ...(a[0] || {}), iceTransportPolicy: 'relay' };
       const pc = new Orig(...a), t = { pc, cand: new Set(), remote: false };
       rtc.made++; rtc.tries.push(t); if (rtc.tries.length > 16) rtc.tries.shift();
       pc.addEventListener('icecandidate', e => { if (e.candidate && e.candidate.type) t.cand.add(e.candidate.type); });
@@ -154,7 +160,7 @@ export function createP2P(env) {
     const t0 = performance.now(), short = k => { const [i, j, s] = (k || '').split(':').slice(2); return `${i},${j}${s ? '/' + s : ''}`; };
     const evs = log.filter(e => /^(join|leave|peerJoin|peerLeave|drop|joinError|joinThrew|limit|halt)$/.test(e.ev) || (e.room && e.members !== undefined)).slice(-6)
       .map(e => `${Math.round((t0 - e.t) / 1000)}s ${e.ev}${e.room ? ' ' + short(e.room) : ''}${e.peer ? ' ' + e.peer : ''}${e.why ? ' ' + e.why : ''}`).join(' | ');
-    return `tries ${rtc.made} (last ${rtc.tries.length}): ${states}\nanswer from them ${remote}/${rtc.tries.length}  my addresses ${[...cand].join(' ') || 'none'}\nrelays open ${up}/${socks.length}  presence ${presence.ready ? 'ready' : 'waiting'}${net}\nrelay warnings ${rtc.warns}${rtc.lastWarn ? ': ' + rtc.lastWarn : ''}\nhome ${home}  me ${selfId.slice(0, 4)}  seen ${seen}\nevents ${evs || 'none'}`;
+    return `tries ${rtc.made} (last ${rtc.tries.length}): ${states}\nanswer from them ${remote}/${rtc.tries.length}  my addresses ${[...cand].join(' ') || 'none'}\nrelays open ${up}/${socks.length}  turn ${TURN ? 'on' : 'off'}${rtc.turnOnly ? ' ONLY' : ''}  presence ${presence.ready ? 'ready' : 'waiting'}${net}\nrelay warnings ${rtc.warns}${rtc.lastWarn ? ': ' + rtc.lastWarn : ''}\nhome ${home}  me ${selfId.slice(0, 4)}  seen ${seen}\nevents ${evs || 'none'}`;
   };
 
   // the Garage draws its own screen and the main loop skips the frame (so update() below does not run): the buttons are hidden by a rule that follows the page, not by a frame
@@ -228,7 +234,7 @@ export function createP2P(env) {
     const r = { key: k, i, j, s: sh || 0, room: null, state: null, info: null, peers: new Set(), t0: performance.now(), tFirstPeer: 0, joined: false };
     rooms.set(k, r); stats.joins++;
     try {
-      r.room = strat.joinRoom({ appId: APP_ID, relayConfig, _test_only_sharedPeerIdleMs: SHARED_IDLE_MS }, k, { onJoinError: e => ev('joinError', { room: k, error: String(e && e.error) }) });
+      r.room = strat.joinRoom({ appId: APP_ID, relayConfig, ...(TURN ? { turnConfig: TURN } : {}), _test_only_sharedPeerIdleMs: SHARED_IDLE_MS }, k, { onJoinError: e => ev('joinError', { room: k, error: String(e && e.error) }) });
     } catch (e) { ev('joinThrew', { room: k, error: String(e) }); rooms.delete(k); return; }
     ev('join', { room: k });
     r.info = r.room.makeAction('i'); r.state = r.room.makeAction('s'); r.say = r.room.makeAction('c');
