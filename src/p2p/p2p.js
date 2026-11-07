@@ -132,7 +132,14 @@ export function createP2P(env) {
     const states = Object.entries(by).map(([k, v]) => `${k} ${v}`).join(', ') || 'none';
     const socks = Object.values(strat.sockets() || {}), up = socks.filter(w => w && w.readyState === 1).length;
     const net = navigator.connection ? ` ${navigator.connection.type || ''}${navigator.connection.effectiveType ? ' ' + navigator.connection.effectiveType : ''}` : '';
-    return `tries ${rtc.made} (last ${rtc.tries.length}): ${states}\nanswer from them ${remote}/${rtc.tries.length}  my addresses ${[...cand].join(' ') || 'none'}\nrelays open ${up}/${socks.length}  presence ${presence.ready ? 'ready' : 'waiting'}${net}\nrelay warnings ${rtc.warns}${rtc.lastWarn ? ': ' + rtc.lastWarn : ''}`;
+    // who presence believes is online, by their home room (first listed), with the start of their key: a reload leaves the old key listed until it expires
+    const seen = presenceOn ? presence.list().map(e => { const h = e.rooms && e.rooms[0]; return `${e.id.slice(0, 3)}@${h ? `${h[0]},${h[1]}${h[2] ? '/' + h[2] : ''}` : '?'}`; }).join(' ') : '-';
+    const home = chooser.home ? `${chooser.home.i},${chooser.home.j}${chooser.home.s ? '/' + chooser.home.s : ''}` : '-';
+    // the last room events, newest last: join, leave and the reason the chooser gave, peers coming and going
+    const t0 = performance.now(), short = k => { const [i, j, s] = (k || '').split(':').slice(2); return `${i},${j}${s ? '/' + s : ''}`; };
+    const evs = log.filter(e => /^(join|leave|peerJoin|peerLeave|drop|joinError|joinThrew|limit|halt)$/.test(e.ev) || (e.room && e.members !== undefined)).slice(-6)
+      .map(e => `${Math.round((t0 - e.t) / 1000)}s ${e.ev}${e.room ? ' ' + short(e.room) : ''}${e.peer ? ' ' + e.peer : ''}${e.why ? ' ' + e.why : ''}`).join(' | ');
+    return `tries ${rtc.made} (last ${rtc.tries.length}): ${states}\nanswer from them ${remote}/${rtc.tries.length}  my addresses ${[...cand].join(' ') || 'none'}\nrelays open ${up}/${socks.length}  presence ${presence.ready ? 'ready' : 'waiting'}${net}\nrelay warnings ${rtc.warns}${rtc.lastWarn ? ': ' + rtc.lastWarn : ''}\nhome ${home}  me ${selfId.slice(0, 4)}  seen ${seen}\nevents ${evs || 'none'}`;
   };
 
   // the Garage draws its own screen and the main loop skips the frame (so update() below does not run): the buttons are hidden by a rule that follows the page, not by a frame
