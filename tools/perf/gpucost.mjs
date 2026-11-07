@@ -29,6 +29,7 @@ const LAT0 = 38.11572, LON0 = 13.36126, KX = Math.cos(LAT0 * Math.PI / 180) * 11
 const ll = (lat, lon) => [((lon - LON0) * KX).toFixed(1), (-(lat - LAT0) * KZ).toFixed(1)].join(',');
 const SPOTS = {
   qc: '17.5,0,0', ballaro: '24.9,488.6,-2.01', viaroma: ll(38.1183, 13.3632), regione: ll(38.090479, 13.343314), mondello: '-3033.1,-10177.4,-1.07',
+  guadagna: '500,1540,-2.31', monreale: '-6125,3752,1.25', belmonte: ll(38.0485, 13.3911),
   pretoria: ll(38.11535, 13.3622), maqueda: ll(38.1176, 13.3601), vittorio: ll(38.1151, 13.3637), zisa: '-1758.8,-43.6,-0.14',
 };
 const names = String(arg('spots', 'qc')).split(',');
