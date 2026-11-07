@@ -248,6 +248,14 @@ Now (city-wide, from OSM `bridge=yes|viaduct|movable|aqueduct`, `tunnel=yes`, `l
   the covered part), and where a road over a mouth is wider than the tunnel way reaches, the tunnel is carried on under it. A tunnel floor no longer counts as a level for anything above its ceiling,
   so a car on a road over a covered tunnel stays on that road (it used to snap down to the tunnel floor). The tiles got only these fields (a script wrote them into the committed tiles from the
   bake's own code); 9 tiles that the ramps reach got the tunnel record.
+- **Tunnel cuttings and portals** (`pg`, `ag`; tools/structures.py tunnel_ground, src/bridges.js cutPath). Where a tunnel's floor goes under the ground, the cutting was the terrain carved
+  at 45 degrees (3:1 along a ramp) on a 2.5 m grid: from the road below the mouth was a band of tilted triangles from the floor to the top, over the opening as well, and the street layers and
+  fences beside it hung down into it. The bake now gives every tunnel the ground along its line every 4 m (`pg`) and under every vertex of the roads out of its mouths (`ag`), so the runtime
+  tells the open cutting from the covered part the same way whichever tiles have loaded (and the dip of a flat underpass no longer depends on them either). The cutting is walled: within its
+  retaining walls (on the line of the tunnel's lining, 0.5 m thick) the ground is the floor, outside them it is untouched. At full detail the terrain mesh is cut away exactly along the walls
+  and keeps its own ground up to them, the street layers' triangles are split along them (each piece draped on its own side), and walls and fences that ran into a cutting keep only their
+  parts outside it. The tunnel's mesh draws the retaining walls with their coping (a parapet up to 1 m over the ground beside a deep cutting), the floor of the ramps, and over every
+  portal two piers, a lintel and a concrete headwall up to the ground and its parapet. The tiles got only these two fields (a script ran the bake's tunnel_ground on the committed tiles).
 - **Cars.** `car.deck` is the height of the deck or floor above the terrain (negative in a tunnel); `car.lift` includes it, so everything that adds `lift` to `groundY` (missions, mounts)
   follows. Both driving models use it (`src/vehicle.js` classic, `src/vehicle-sphere.js`); driving off a deck is a free fall; the camera stays above the deck and under a tunnel roof.
   Traffic on a road flagged `br` (graph edges carry it) is placed on the highest deck; pedestrians do not walk on decks (the street layers are cut there).

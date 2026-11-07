@@ -28,7 +28,7 @@ import { GARDEN_REGION as GR } from './gardens.js';
 import { fastIndex } from './expressway.js';   // where the fast roads are: the pavements along them are shoulders
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
 import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
-import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved } from './bridges.js'; // bridges, viaducts, tunnels
+import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved, cutTouches, cutPieces, inCut } from './bridges.js'; // bridges, viaducts, tunnels
 import { pitchGround, pitchDepth } from './stadium-ground.js';
 import { dumpGround, dumpSurf } from './discarica-ground.js';   // the pit and the pad of the landfill mission (src/discarica.js)
 import { raveGround, raveSurf, raveWood, raveWoodTile } from './rave-ground.js';   // the dance floor of the rave in the woods of Monte Pellegrino and its track (src/rave.js)
@@ -299,7 +299,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     farM = gridSampler(M.far);
     hooks.bounds = [M.bbox[0], M.bbox[1], M.bbox[2], M.bbox[3]];
     hooks.ground = (x, z) => { const y = tileGround(x, z); return y === undefined ? y : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y))))); }; // + the river trenches and tunnel cuttings (src/bridges.js), then the platform of the stadium's playing area (src/stadium-ground.js) and the dance floor of the rave (src/rave-ground.js), then the pad and the pit of the landfill (src/discarica-ground.js)
-    hooks.level = levelY; hooks.fall = carTick;
+    hooks.level = levelY; hooks.fall = carTick; hooks.cutPieces = cutPieces; hooks.inCut = inCut;   // (the street layers and the fences split along / are cut short at the walls of a tunnel's cutting, src/streets.js, src/fences.js)
     initTrams({ raised: (x, z) => raised(x, z), scene: root });   // after hooks.fall: the trams wrap it
     { const pts = pairs(M.land); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
@@ -591,7 +591,11 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* terrainMesh(t, stride) {
     // cells follow the near grid (5 m where the bake carved a road bench into it, else 10 m), twice as coarse at low detail
     const tc = tileCarved(t.k), cell = tileQuays(t.k) ? Math.min(t.nearStep || 5, tc === 2 ? 2.5 : 5) : tc === 2 ? 2.5 : t.nearStep || (t.shape || tc ? 5 : 25), step = cell * stride, n = Math.round(T / step) + 1;   // (a river trench or tunnel cutting needs fine cells)
-    const x0 = t.i * T, z0 = t.j * T, g = groundY;
+    const x0 = t.i * T, z0 = t.j * T;
+    // a tunnel's open cutting (src/bridges.js) is walled: at full detail the terrain is cut away along its walls and stands as it is up to them (its ground
+    // without the cutting), the floor being the tunnel's own mesh; on a coarser grid the step is left to the cells
+    const clip = stride === 1 && cutTouches(x0, z0, x0 + T, z0 + T);
+    const g = clip ? (x, z) => { const y = tileGround(x, z); return y === undefined ? groundY(x, z) : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y, true))))); } : groundY;
     const nb = n * n, total = nb + 4 * n, pvf = t.pvf = yield* paveFieldIter(t), rdf = yield* roadFieldIter(t);   // the grid, then the skirt (below): one set of arrays, sized for both
     const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), pav = new Float32Array(total), yar = new Float32Array(total), rda = new Float32Array(total);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
@@ -651,23 +655,58 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     for (let i = 0, q = 0; i < n; i++) { sk[q++] = at(i, 0); sk[q++] = at(i, n - 1); sk[q++] = at(0, i); sk[q++] = at(n - 1, i); }
     for (let q = 0; q < sk.length; q++) { const v = sk[q], a = v * 3, b = (nb + q) * 3; pos[b] = pos[a]; pos[b + 1] = pos[a + 1] - SKIRT; pos[b + 2] = pos[a + 2]; nor[b] = nor[a]; nor[b + 1] = nor[a + 1]; nor[b + 2] = nor[a + 2]; col[b] = col[a]; col[b + 1] = col[a + 1]; col[b + 2] = col[a + 2]; uv[(nb + q) * 2] = uv[v * 2]; uv[(nb + q) * 2 + 1] = uv[v * 2 + 1]; pav[nb + q] = pav[v]; yar[nb + q] = yar[v]; rda[nb + q] = rda[v]; }
     const nIdx = (n - 1) * (n - 1) * 6 + (n - 1) * 24, idx = total < 65536 ? new Uint16Array(nIdx) : new Uint32Array(nIdx); let ii = 0;
-    for (let j = 0; j < n - 1; j++) { for (let i = 0; i < n - 1; i++) { const k = j * n + i; idx[ii++] = k; idx[ii++] = k + n; idx[ii++] = k + 1; idx[ii++] = k + 1; idx[ii++] = k + n; idx[ii++] = k + n + 1; } if (sliceOver()) yield; }
+    const xv = [], xi = [];   // cut cells: their pieces outside the cutting, as new vertices (interpolated in the triangle, so the surface is unchanged) after the skirt's
+    const piece = (A, B, Cc, P) => {
+      const ax = pos[A * 3], az = pos[A * 3 + 2], bx = pos[B * 3], bz = pos[B * 3 + 2], cx = pos[Cc * 3], cz = pos[Cc * 3 + 2], det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+      const ids = [];
+      for (let q = 0; q < P.length; q += 2) {
+        const x = P[q], z = P[q + 1], wa = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / det, wb = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / det, wc = 1 - wa - wb;
+        ids.push(total + xv.length); xv.push([A, B, Cc, wa, wb, wc]);
+      }
+      for (let q = 1; q + 1 < ids.length; q++) xi.push(ids[0], ids[q], ids[q + 1]);
+    };
+    const tri = (A, B, Cc) => {
+      const pc = clip ? cutPieces(pos[A * 3], pos[A * 3 + 2], pos[B * 3], pos[B * 3 + 2], pos[Cc * 3], pos[Cc * 3 + 2]) : null;
+      if (!pc) { idx[ii++] = A; idx[ii++] = B; idx[ii++] = Cc; return; }
+      for (const P of pc.out) piece(A, B, Cc, P);
+    };
+    for (let j = 0; j < n - 1; j++) {
+      const cutRow = clip && cutTouches(x0 - 1, z0 + j * step - 1, x0 + T + 1, z0 + (j + 1) * step + 1);
+      for (let i = 0; i < n - 1; i++) {
+        const k = j * n + i;
+        if (cutRow && cutTouches(x0 + i * step, z0 + j * step, x0 + (i + 1) * step, z0 + (j + 1) * step)) { tri(k, k + n, k + 1); tri(k + 1, k + n, k + n + 1); continue; }
+        idx[ii++] = k; idx[ii++] = k + n; idx[ii++] = k + 1; idx[ii++] = k + 1; idx[ii++] = k + n; idx[ii++] = k + n + 1;
+      }
+      if (sliceOver()) yield;
+    }
     // skirt quads, one strip per side (double-sided material, so winding does not matter)
     for (let i = 0; i < n - 1; i++) {
       const s0 = nb + i * 4, s1 = nb + (i + 1) * 4;
-      for (let side = 0; side < 4; side++) { const a = sk[i * 4 + side], b = sk[(i + 1) * 4 + side], sa = s0 + side, sb = s1 + side; idx[ii++] = a; idx[ii++] = b; idx[ii++] = sa; idx[ii++] = b; idx[ii++] = sb; idx[ii++] = sa; }
+      for (let side = 0; side < 4; side++) {
+        const a = sk[i * 4 + side], b = sk[(i + 1) * 4 + side], sa = s0 + side, sb = s1 + side;
+        if (clip && (inCut(pos[a * 3], pos[a * 3 + 2]) || inCut(pos[b * 3], pos[b * 3 + 2]) || inCut((pos[a * 3] + pos[b * 3]) / 2, (pos[a * 3 + 2] + pos[b * 3 + 2]) / 2))) continue;   // (it would hang across a cutting)
+        idx[ii++] = a; idx[ii++] = b; idx[ii++] = sa; idx[ii++] = b; idx[ii++] = sb; idx[ii++] = sa;
+      }
+    }
+    let A = [pos, nor, col, uv, pav, yar, rda], I = idx;
+    if (xv.length || ii < nIdx) {   // the cut: append the pieces' vertices (every attribute interpolated) and indices
+      const nv = total + xv.length, sz = [3, 3, 3, 2, 1, 1, 1];
+      A = A.map((a, q) => { const b = new Float32Array(nv * sz[q]); b.set(a); const d = sz[q];
+        for (let v = 0; v < xv.length; v++) { const [a0, a1, a2, w0, w1, w2] = xv[v], o = (total + v) * d; for (let c = 0; c < d; c++) b[o + c] = a[a0 * d + c] * w0 + a[a1 * d + c] * w1 + a[a2 * d + c] * w2; }
+        return b; });
+      I = nv < 65536 ? new Uint16Array(ii + xi.length) : new Uint32Array(ii + xi.length); I.set(idx.subarray(0, ii)); I.set(xi, ii); ii += xi.length;
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    geo.setAttribute('aPave', new THREE.BufferAttribute(pav, 1));
-    geo.setAttribute('aYard', new THREE.BufferAttribute(yar, 1));
-    geo.setAttribute('aRoad', new THREE.BufferAttribute(rda, 1));
-    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    geo.setAttribute('position', new THREE.BufferAttribute(A[0], 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(A[1], 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(A[2], 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(A[3], 2));
+    geo.setAttribute('aPave', new THREE.BufferAttribute(A[4], 1));
+    geo.setAttribute('aYard', new THREE.BufferAttribute(A[5], 1));
+    geo.setAttribute('aRoad', new THREE.BufferAttribute(A[6], 1));
+    geo.setIndex(new THREE.BufferAttribute(I, 1));
     const m = new THREE.Mesh(geo, getLowMats().terrain); m.receiveShadow = true; m.name = 'terrain_' + t.id;
-    m.userData.tris = ii / 3;
+    m.userData.tris = ii / 3; m.userData.cut = clip;
     return m;
   }
 
@@ -1182,6 +1221,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     t.stage = 'masks'; yield* buildRaised(t);
     if (t.want < 2) return;
     t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
+    onTileFull(t.k);   // (the tunnels' walls and portals at once: this terrain is cut away under them)
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
@@ -1223,7 +1263,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     onTileDrop(t.k); emit('drop', t);
     setPart(t, 'bldFull', null); setPart(t, 'quays', null); disposeQuayMeshes(t.k); setPart(t, 'fences', null); setPart(t, 'tram', null); dropFences(t.k); setPart(t, 'streetsHi', null); setPart(t, 'paint', null); setPart(t, 'tracks', null); setPart(t, 'trees', null);
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.sandb = undefined; t.gsegs = null; t.hasFull = false;
-    if (t.lod === 2 || !t.parts.bldLow) {
+    if (t.lod === 2 || !t.parts.bldLow || t.parts.terrain?.userData.cut) {
       if (yield* ensureData(t)) {
         if (!t.parts.bldLow) setPart(t, 'bldLow', yield* lowBuildings(t));
         setPart(t, 'terrain', yield* terrainMesh(t, 2));

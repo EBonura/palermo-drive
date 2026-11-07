@@ -9,6 +9,8 @@ road draped over whatever the ground model said). Here every structure becomes a
    ov: 1 when the bridge goes over another road (a flyover: ramps and clearance instead of a trench), oc: metres along the deck where the lower roads cross under it, ud: for every crossing {s, w: the lower road's width, c: metres along p to the crossing, p: its line round the crossing, f: the ground under p (add_heights)},
    xc: (tunnels) [[metres along p, width along p], ...] of the surface roads that cross over it, xg: per crossing the lowest ground round it (add_heights),
    ap: (tunnels with xc) [start, end]: the road leaving each mouth, outward, AP_LEN m [x,z,...] (src/bridges.js sinks it into a ramp where the tunnel has to go deeper to pass under a road),
+   pg: (tunnels) the ground along p every PG_STEP m of its length (and at its end), ag: (tunnels with ap) the ground under every vertex of ap (add_heights): what src/bridges.js
+   reads to tell the open cutting from the covered part and how deep the floor has to go, whichever tiles have loaded,
    ow: 1 one-way, f: 1 footway}
 
 The records go into every tile the structure (buffered) touches; the runtime keeps one copy per id. Heights are NOT baked: the deck
@@ -29,6 +31,7 @@ PARAPET = 0.5
 DIP_CLEAR = 8.0   # metres from the edge of the lower road to either end of the deck that the sinking road needs
 DIP_HALF, DIP_STEP = 56.0, 8.0   # a lower road is followed this far each side of a flyover, with a vertex every DIP_STEP metres (it sinks where it passes under)
 AP_LEN, AP_STEP = 80.0, 8.0   # a tunnel's approach roads are followed this far out of each mouth (a ramp at 10 % from 8 m down), a vertex every AP_STEP metres
+PG_STEP = 4.0   # pg: the ground along a tunnel, a sample every PG_STEP metres
 XG_ALONG, XG_ACROSS = 1.5, 5.0   # xg: the ground is read across the crossing road's width plus XG_ALONG, and out to XG_ACROSS beyond each side of the tunnel
 SURFACE = ("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "motorway_link", "trunk_link",
            "primary_link", "secondary_link", "tertiary_link")
@@ -265,6 +268,16 @@ def crossing_ground(rec, ground):
     return out
 
 
+def tunnel_ground(rec, ground):
+    """pg: the ground along a tunnel's centreline every PG_STEP m (the last sample at its end); ag: the ground under every vertex of the roads out of its
+    mouths (ap). src/bridges.js reads the open cutting, the portals and the depth of the floor from these, so they do not depend on which tiles have loaded."""
+    line = LineString(list(zip(rec["p"][0::2], rec["p"][1::2])))
+    n = max(1, int(math.ceil(line.length / PG_STEP - 1e-6)))
+    pg = [round(ground(*line.interpolate(min(line.length, k * PG_STEP)).coords[0][:2]), 2) for k in range(n + 1)]
+    ag = [[round(ground(a[k], a[k + 1]), 2) for k in range(0, len(a), 2)] for a in rec.get("ap", [])]
+    return pg, ag
+
+
 def add_heights(world_dir, structs, far_f, T, log=print):
     """After the tiles are written: y0, y1 = the ground the game will show at both ends of every structure (the tile's near grid where it
     has one, else the manifest far grid, the same two sources src/world.js tileGround() reads), written into every tile that holds the
@@ -306,6 +319,7 @@ def add_heights(world_dir, structs, far_f, T, log=print):
     rivers = {}
     heights_ud = {}
     xgs = {}
+    pgs = {}
     for r in structs:
         p = r["p"]
         a, b = (p[0], p[1]), (p[-2], p[-1])
@@ -318,6 +332,8 @@ def add_heights(world_dir, structs, far_f, T, log=print):
             u["f"] = [round(ground(u["p"][k], u["p"][k + 1]), 2) for k in range(0, len(u["p"]), 2)]
         if r.get("xc"):
             xgs[r["id"]] = crossing_ground(r, ground)
+        if r["k"] == "t":
+            pgs[r["id"]] = tunnel_ground(r, ground)
     n = 0
     for f in glob.glob(os.path.join(world_dir, "tiles", "*.json")):
         raw = open(f, "rb").read()
@@ -332,6 +348,10 @@ def add_heights(world_dir, structs, far_f, T, log=print):
                 r["ud"] = heights_ud[r["id"]]["ud"]
             if r["id"] in xgs:
                 r["xg"] = xgs[r["id"]]
+            if r["id"] in pgs:
+                r["pg"] = pgs[r["id"]][0]
+                if pgs[r["id"]][1]:
+                    r["ag"] = pgs[r["id"]][1]
         tmp = f + ".part"
         with open(tmp, "w") as fh:
             json.dump(d, fh, separators=(",", ":"), ensure_ascii=False)
