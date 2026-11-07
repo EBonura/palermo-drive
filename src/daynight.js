@@ -364,6 +364,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     lamp_pole: { bulbs: [[-1.45, 8.74, 0], [1.45, 8.74, 0]], pools: [[-1.45, 0, 0], [1.45, 0, 0]], size: 3.6, r: 10, col: '#ff9628', k: 0.95 },
     lamp_wall: { bulbs: [[0, 4.15, 0.74]], pools: [[0, 0, 1.9]], size: 2.1, r: 6.4, col: '#ffa23e', k: 0.85 },
     candelabra: { bulbs: [[0, 4.35, 0], ...[0, 1, 2, 3].map(i => [Math.cos(i * Math.PI / 2 + 0.78) * 0.4, 4.15, Math.sin(i * Math.PI / 2 + 0.78) * 0.4])], pools: [[0, 0, 0]], size: 1.5, r: 6.8, col: '#ffb050', k: 0.75 },
+    lamp_wire: { size: 2.8, r: 8.5, col: '#ffa23e', k: 0.9 },   // a lamp hung on a wire over the middle of the street (src/props.js: the wire mesh's userData.lampPts, x, ground y, z, lens height)
   };
   let lamps = null; // { halo: Points, haloMat, pools: InstancedMesh, poolMat, pos: Float32Array of bulb xyz }
   // props.js builds lamps per tile as tiles stream in and out and says so with 'pd-lamps-changed': the glows are rebuilt from the scene (at most every 1.5 s)
@@ -378,6 +379,16 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), col = new THREE.Color();
     let hashK = 0;
     scene.traverse(o => {
+      const lp = o.userData.lampPts;
+      if (lp) {   // the lamps on wires: one bulb each, its pool right under it
+        const kind = LAMP_KINDS.lamp_wire, base = new THREE.Color(kind.col);
+        for (let i = 0; i < lp.length; i += 4) {
+          const wob = 0.8 + 0.2 * Math.abs(Math.sin((lp[i] * 12.9898 + lp[i + 2] * 78.233) * 43758.5453 + (hashK++)));
+          bulbs.push(lp[i], lp[i + 1] + lp[i + 3], lp[i + 2]); bulbCol.push(base.r * wob, base.g * wob, base.b * wob); bulbSize.push(kind.size * (0.9 + 0.2 * wob));
+          poolM.push(lp[i], lp[i + 1] + 0.07, lp[i + 2], kind.r * (0.9 + 0.2 * wob)); poolC.push(base.r * kind.k * wob, base.g * kind.k * wob, base.b * kind.k * wob);
+        }
+        return;
+      }
       if (!o.isInstancedMesh) return;
       const kind = LAMP_KINDS[o.userData.kind]; if (!kind) return;
       const base = new THREE.Color(kind.col);

@@ -17,7 +17,7 @@
 // so the loading screen and the start transition lift as soon as the view is complete instead of waiting for the whole ring.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex, weld } from './core.js';
-import { streetsIter, roadMarksIter, TEX as GROUND_TEX, histW } from './streets.js';
+import { streetsIter, roadMarksIter, sideZebrasIter, TEX as GROUND_TEX, histW } from './streets.js';
 import { slice, sliceOver } from './slice.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
@@ -1268,7 +1268,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     setPart(t, 'streetsHi', g);
     t.stage = 'paint'; {
       const aoi = D.streets && D.streets.aoi, inC = aoi ? (x, z) => x > aoi[0] && x < aoi[2] && z > aoi[1] && z < aoi[3] : null; // the centro's paint is src/roadwear.js
-      const items = (t.data.props || {}).items || [], mk = yield* roadMarksIter(t.data.roads, items.filter(i => i.k === 'crossing'), inC, { streets: t.data.streets, signals: items.filter(i => i.k === 'signal') });
+      const items = (t.data.props || {}).items || [], crossings = items.filter(i => i.k === 'crossing');
+      // the zebras at the mouths of side streets: decided before the paint, which leaves them clear; src/props.js draws them (its tile seed, seed3 + 4241)
+      t.sideZebras = yield* sideZebrasIter(t.data.roads, { streets: t.data.streets, buildings: t.data.buildings, crossings, raised, seed: 4242 + t.i * 7919 + t.j * 104729 + 4241 });
+      const mk = yield* roadMarksIter(t.data.roads, crossings, inC, { streets: t.data.streets, signals: items.filter(i => i.k === 'signal'), zebras: t.sideZebras });
       if (t.want < 2) { if (mk) disposeObj(mk); return; }
       if (mk) setPart(t, 'paint', mk);
     }

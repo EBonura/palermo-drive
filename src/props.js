@@ -1527,10 +1527,10 @@ function* generate(S, BUD) {
   {
     const zb = new MB(), col = C('#d9d7cc'), colw = C('#bdbcb2');
     let nz = 0; const done = [];
-    const zebra = (cx, cz, tx, tz, rnd = rand) => {   // (rnd: the side-street zebras below draw from their own stream, so that adding them moves nothing else in the tile)
+    const zebra = (cx, cz, tx, tz, rnd = rand, ext = null) => {   // (rnd: the side-street zebras below draw from their own stream, so that adding them moves nothing else in the tile; ext: their measured width)
       // stripes lie along the road (t) and are stacked across it (n)
       const nx = -tz, nzz = tx;
-      const e1 = march(cx, cz, nx, nzz, 9, road), e2 = march(cx, cz, -nx, -nzz, 9, road);
+      const e1 = ext ? ext.e1 : march(cx, cz, nx, nzz, 9, road), e2 = ext ? ext.e2 : march(cx, cz, -nx, -nzz, 9, road);
       if (e1 + e2 < 4.5 || e1 + e2 > 16) return;
       for (let u = -e2 + 0.45; u <= e1 - 0.45; u += 0.95) {
         const k = rnd() < 0.2 ? 0.7 : 1, c = rnd() < 0.2 ? colw : col;
@@ -1549,30 +1549,14 @@ function* generate(S, BUD) {
       if (nr.road.k === 'service' && rand() < 0.5 || fastAt(nr.road, nr.px, nr.pz)) continue;
       zebra(nr.px, nr.pz, nr.tx, nr.tz);
     }
-    // junction arms on real streets
-    const MAIN = new Set(['primary', 'secondary', 'tertiary']), SIDE = new Set(['residential', 'unclassified', 'living_street']);
+    // the mouth of a side street on a main road: a zebra across the side street just past the flare of its mouth (src/streets.js sideZebrasIter decides where, with the paint, which
+    // leaves it clear); drawn here with the junction it belongs to, so the zebras placed after it see it as before
+    const side = new Map(), jk = (x, z) => Math.round(x * 10) + ',' + Math.round(z * 10);
+    for (const q of S.sideZebras) { const k = jk(q.jx, q.jz); if (!side.has(k)) side.set(k, []); side.get(k).push(q); }
     const zr = rng(S.seed3 + 4241);
     for (const j of junctions) {
-      // the mouth of a side street on a main road (zw18, Via Bronte at Via Castellana; the survey's "a zebra at the corner" all over the west): a zebra across the side street
-      // just past the flare of its mouth. A side street that ends on a main road running through is a junction of two ways and three arms, which the test below skipped.
-      let arms = 0, main = false;
-      for (const ri of j.roads) { const r = S.roads[ri], q = r.p, last = q.length - 2; let ix = -1; for (let i = 0; i < q.length; i += 2) if (Math.abs(q[i] - j.x) < 0.2 && Math.abs(q[i + 1] - j.z) < 0.2) { ix = i; break; } arms += ix === 0 || ix === last ? 1 : 2; if (MAIN.has(r.k)) main = true; }
-      if (main && arms >= 3) for (const ri of j.roads) {
-        const r = S.roads[ri]; if (!SIDE.has(r.k) || r.br || r.tn) continue;
-        const p = pairs(r.p), idx = p.findIndex(v => Math.abs(v[0] - j.x) < 0.2 && Math.abs(v[1] - j.z) < 0.2); if (idx !== 0 && idx !== p.length - 1) continue;   // (the street has to end here)
-        const o = idx === 0 ? p[1] : p[p.length - 2], L = hyp2(o[0] - j.x, o[1] - j.z), pick = zr(); if (L < 9) continue;
-        const tx = (o[0] - j.x) / L, tz = (o[1] - j.z) / L, wAt = d => { const x = j.x + tx * d, z = j.z + tz * d; return march(x, z, -tz, tx, 9, road) + march(x, z, tz, -tx, 9, road); };
-        const wref = Math.min(15, wAt(Math.min(L - 1, 30)));   // the street's own width, well in
-        let cx = 0, cz = 0, ok = false;
-        for (let d = 4; d <= Math.min(24, L - 3); d += 0.5) {   // past the flare of the mouth (a street meeting the main road at a slant is wide there, zw18 for 20 m): the first spot where it is its own width, and a step further
-          const w = wAt(d);
-          if (w >= 4.5 && w <= wref + 1.5) { cx = j.x + tx * (d + 1.2); cz = j.z + tz * (d + 1.2); ok = true; break; }
-        }
-        // a town street (houses round it, or a pavement within 3 m of its asphalt) always has its crossing; a country lane one time in two
-        const town = ok && (builtUp(cx, cz) >= 0.4 || [1, -1].some(sg => { const e = march(cx, cz, -tz * sg, tx * sg, 9, road); for (let q = 0.6; q <= 3; q += 0.6) if (raisedMask(cx - tz * sg * (e + q), cz + tx * sg * (e + q))) return true; return false; }));
-        if (!ok || (!town && pick > 0.5) || done.some(d => hyp2(d[0] - cx, d[1] - cz) < 9) || !road(cx, cz) || !inBounds(cx, cz) || fastAt(r, cx, cz)) continue;
-        zebra(cx, cz, tx, tz, zr);
-      }
+      for (const q of side.get(jk(j.x, j.z)) || []) zebra(q.x, q.z, q.tx, q.tz, zr, q);
+      // junction arms on real streets
       if (j.roads.size < 3 && j.n < 3) continue;
       for (const ri of j.roads) {
         const r = S.roads[ri]; if (!(r.k === 'primary' || r.k === 'secondary' || r.k === 'tertiary')) continue;
@@ -2636,8 +2620,9 @@ function* generate(S, BUD) {
     }
     // c) street lamps hung on a wire across the street from facade to facade, as in the blocks of flats of the 1960s and 70s quarters (zs22, Via Guadagna): on a built-up
     // street outside the walled town with houses of three floors or more on both sides, at most 26 m apart, one span every 26 to 38 m on about half of such streets.
-    // The wire and the lamp go into the same wire mesh (no new draw call). They do not light up at night (the lamps of src/daynight.js are the poles').
-    let nc = 0;
+    // The wire and the lamp go into the same wire mesh (no new draw call). At night they light like the other street lamps: their bulbs ride on the wire mesh (res.wireLamps:
+    // x, ground y, z, height of the lens above the ground), which src/daynight.js reads into its halos and pools of light.
+    let nc = 0; const wireLamps = [];
     {
       const bAt = S.idx.bAt, CAT_CAP = Math.round(50 * DEN), lampCol = C('#3a3b3d'), lensCol = C('#e9e6d8');
       const facade = (cx, cz, nx, nz) => {   // the first building wall from the centre line along (nx, nz), within 16 m: [distance, building]
@@ -2667,12 +2652,13 @@ function* generate(S, BUD) {
             wm.box(mx - 0.03, my - 0.45, mz - 0.03, mx + 0.03, my, mz + 0.03, lampCol);
             wm.frust(my - 0.62, [mx - hs, mz - hs, mx + hs, mz + hs], my - 0.45, [mx - 0.1, mz - 0.1, mx + 0.1, mz + 0.1], lampCol, 0.7, 1, false);
             wm.face(lensCol, [[mx - hs + 0.03, my - 0.625, mz - hs + 0.03], [mx + hs - 0.03, my - 0.625, mz - hs + 0.03], [mx + hs - 0.03, my - 0.625, mz + hs - 0.03], [mx - hs + 0.03, my - 0.625, mz + hs - 0.03]]);
+            const gm = groundY(mx, mz); wireLamps.push(mx, gm, mz, my - 0.66 - gm);
             nc++; nw++;
           }
         }
       }
     }
-    if (nw) res.wires = wm.geo();
+    if (nw) { res.wires = wm.geo(); if (wireLamps.length) res.wireLamps = new Float32Array(wireLamps); }
     stats.poles_rural = np; stats.wire_spans = nw; stats.lamps_rural = nl; stats.catenary = nc;
   }
 
@@ -2731,6 +2717,7 @@ function* instantiate(res, parent, BUD) {
   if (res.wires) {   // the wires between the poles of the tile: one mesh, culled by distance like the cells
     const w = new THREE.Mesh(res.wires, MATS.dbl); w.name = 'prop_wires'; w.matrixAutoUpdate = false; w.castShadow = false; w.receiveShadow = false;
     res.wires.computeBoundingSphere(); w.boundingSphere = res.wires.boundingSphere; w.userData.kind = 'wires'; w.userData.maxd = 450 * PFAR;
+    if (res.wireLamps) w.userData.lampPts = res.wireLamps;   // the lamps hung on wires: src/daynight.js lights them
     parent.add(w); meshes.push(w); geos.push(res.wires); tris += res.wires.attributes.position.count / 3;
   }
   if (res.rails) {
@@ -2781,6 +2768,7 @@ export function buildProps(ctx) {
       ctx, tk: t.k, tram, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
       x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
       idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
+      sideZebras: t.sideZebras || [],   // the zebras at the mouths of side streets (src/streets.js sideZebrasIter, made with the tile's paint)
       roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [], green: (st.green || []).concat(st.verge || []),
       sand: sandRings(d),
       fences: d.fences || [], areas: d.areas || [], den, carCap: Math.round(420 * den), treeCap: Math.round(420 * den), megaCap: 10,
@@ -2809,7 +2797,7 @@ export function buildProps(ctx) {
       lamps.update();
       for (const im of inst.meshes) { im.visible = false; cull.push(im); }
       scene.add(job.group);
-      job.lamps = inst.meshes.some(im => im.userData.kind === 'lamp_pole' || im.userData.kind === 'lamp_wall' || im.userData.kind === 'candelabra');
+      job.lamps = inst.meshes.some(im => im.userData.kind === 'lamp_pole' || im.userData.kind === 'lamp_wall' || im.userData.kind === 'candelabra' || im.userData.lampPts);
       tstats.built++; tstats.instances += inst.total; tstats.tris += inst.tris; tstats.lamps += job.lamps ? 1 : 0;
       job.ms = performance.now() - job.t0; tstats.ms += job.ms; tstats.cpu += job.cpu || 0; if (job.ms > tstats.msMax) tstats.msMax = job.ms;
       job.stats = res.stats; job.S = null; job.res = null; job.phase = 3;

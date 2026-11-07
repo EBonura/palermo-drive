@@ -1605,6 +1605,15 @@ def streets_for_tile(tx0, tz0):
             raised = D(D(D(D(D(I(space, zone), asphalt), paving), green), water), sand)
             raised = poly_only(raised.buffer(-0.15).buffer(0.15))
 
+    # Beyond the world's bbox there is no `land` (build_land stops at it), so every street layer stopped there, while the roads, clipped to the tile, go on to its edge:
+    # 57 km of road in 59 edge tiles had paint and no asphalt (Via Ferrovia Est up to the tunnel at 480 m, tile -9_15). There the OSM carriageways are the asphalt,
+    # less the bridge decks and the buildings. (The committed tiles were patched with the same rule.)
+    beyond = D(D(car, box(*world_rect())), bl) if not car.is_empty else car
+    if not beyond.is_empty:
+        if "cut_tree" in G:
+            beyond = D(beyond, layer(G["cut_tree"], G["cut_geoms"]))
+        asphalt = poly_only(unary_union([asphalt, beyond]))
+
     curbs = []
     if not RS_ON:
         median = shapely.Polygon()
