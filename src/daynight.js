@@ -209,10 +209,14 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   const U = sky.material.uniforms;
 
   // ------------------------------------------------------------------------------------------ warm night wash on every standard material
-  // Palermo's streets glow orange and the landmarks are floodlit from below. Instead of lights, every MeshStandardMaterial that exists
-  // now gets a few shader lines (chained onto its own onBeforeCompile): at night the walls take a warm glow that fades with height above
+  // Palermo's streets glow orange and the landmarks are floodlit from below. Instead of lights, every MeshStandardMaterial in the scene
+  // gets a few shader lines (chained onto its own onBeforeCompile): at night the walls take a warm glow that fades with height above
   // street level, the floodlit landmarks a stronger one, and up-facing ground turns glossy so it reflects the orange horizon of the env map.
   // One shared uniform block, no extra passes, a single branch that is skipped by day.
+  // Most materials reach the scene later (streamed tiles, props, landmarks, bridges, trams), so besides the ones here now, a material is
+  // patched the first time it is drawn in this scene: MeshStandardMaterial.prototype.onBeforeRender runs just before three.js picks the
+  // program, so a new material compiles once, already washed (no extra compile, no scene walk). Vehicle models (root userData.honestLight,
+  // src/vehicle-models.js: the player's lapa, rivals, remote players) stay honestly lit.
   const NK = { value: new THREE.Vector4(0, 0.3, 0, 1) }; // x night amount (lamps on), y street bounce, z street level (m), w paving gloss
   const FLOOD = [ // [lat, lon, radius m, strength]
     [38.115684, 13.361460, 60, 0.8], [38.1199, 13.3573, 90, 1.0], [38.1146, 13.3558, 90, 1.0], [38.1112, 13.3540, 95, 0.9],
@@ -242,27 +246,36 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       float wf = fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;                       // floodlit landmarks: warmer cream-gold, like the stone in the night photos
       totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * uNightK.x * (vec3(1.0, 0.5, 0.15) * (wl + gnd * 0.8) + vec3(1.0, 0.66, 0.34) * wf);
     }`;
-  const seenMats = new Set();
-  vehicle?.rig?.root?.traverse(o => { if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) seenMats.add(m); }); // the player's lapa stays honestly lit
-  function patchMaterials() {
-    scene.traverse(o => {
-      for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
-        if (!m.isMeshStandardMaterial || seenMats.has(m)) continue;
-        seenMats.add(m);
-        const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
-        m.onBeforeCompile = function (sh, r) {
-          if (prev) prev.call(this, sh, r);
-          sh.uniforms.uNightK = NK; sh.uniforms.uFlood = FL; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
-          sh.fragmentShader = sh.fragmentShader
-            .replace('#include <common>', '#include <common>\n' + WASH_DECL)
-            .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
-            .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>' + WASH_EMIT);
-        };
-        m.customProgramCacheKey = function () { return (key ? key.call(this) : prev ? prev.toString() : '') + '|dnwash'; };
-      }
-    });
+  const seenMats = new WeakSet();   // weak: streamed tiles drop their materials
+  const matsOf = o => Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+  const honest = o => { for (; o; o = o.parent) if (o.userData.honestLight) return true; return false; };
+  const DEFAULT_KEY = THREE.Material.prototype.customProgramCacheKey;
+  function wash(m) {
+    const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
+    if (prev.dnwash) return;   // a module copied a washed callback onto another material
+    const own = key !== DEFAULT_KEY;   // the default key is onBeforeCompile's source, which after this would be the same for every material
+    m.onBeforeCompile = function (sh, r) {
+      prev.call(this, sh, r);
+      if (!sh.fragmentShader.includes('#include <common>')) return;   // a callback that rewrote the shader's head: leave it alone
+      sh.uniforms.uNightK = NK; sh.uniforms.uFlood = FL; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\n' + WASH_DECL)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>' + WASH_EMIT);
+    };
+    m.onBeforeCompile.dnwash = true;
+    m.customProgramCacheKey = function () { return (own ? key.call(this) : prev.toString()) + '|dnwash'; };
   }
-  patchMaterials();
+  scene.traverse(o => { if (o.userData.honestLight) o.traverse(q => { for (const m of matsOf(q)) seenMats.add(m); }); });
+  scene.traverse(o => { for (const m of matsOf(o)) if (m.isMeshStandardMaterial && !seenMats.has(m)) { seenMats.add(m); wash(m); } });
+  const SMP = THREE.MeshStandardMaterial.prototype, baseBeforeRender = SMP.onBeforeRender;   // MeshPhysicalMaterial inherits it
+  SMP.onBeforeRender = function (r, sc, cam, geo, obj, grp) {
+    if (sc === scene && !seenMats.has(this)) {
+      seenMats.add(this);
+      if (!honest(obj)) { wash(this); this.needsUpdate = true; }   // free before the first compile; a material compiled elsewhere first recompiles once
+    }
+    baseBeforeRender.call(this, r, sc, cam, geo, obj, grp);
+  };
 
   // ---- the clock
   const qTime = params.get('time'), qSpeed = params.get('timespeed');
