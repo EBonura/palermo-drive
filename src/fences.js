@@ -249,6 +249,15 @@ hooks.tick = tickFences;
 
 // ---------- building a tile ----------
 const hh = Math.hypot;
+// a wall or fence that runs into a tunnel's open cutting (src/bridges.js) stood on the ground the cutting took away: it was drawn from the top of the
+// retaining wall down to the floor, a tilted slab. It keeps the parts outside the cutting.
+function outOfCuts(r) {
+  const pts = resample(r.p, 1), runs = []; let run = [];
+  for (const q of pts) { if (hooks.inCut(q[0], q[1])) { if (run.length >= 4) runs.push(run); run = []; } else run.push(q[0], q[1]); }
+  if (run.length === pts.length * 2) return [r];
+  if (run.length >= 4) runs.push(run);
+  return runs.map(p => ({ ...r, p }));
+}
 function resample(p, step) { // flat polyline -> points about `step` apart (at most 20 % longer), keeping the corners
   const out = [[p[0], p[1]]];
   for (let k = 2; k < p.length; k += 2) {
@@ -286,6 +295,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   const signs = ctx ? buildSigns(ctx) : null;   // direction signs and gantries of the motorways (src/direction-signs.js)
   if ((!list || !list.length) && !signs) return null;
   list = (list || []).map(lowPrecinct);
+  if (hooks.inCut) list = list.flatMap(outOfCuts);
   panelAssets();
   yield* wallTextureSteps();   // the wall textures, a layer per step, the first time only
   const group = new THREE.Group(); group.name = 'fences';

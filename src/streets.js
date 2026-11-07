@@ -3,7 +3,7 @@
 // buildStreets(streets, opts) returns a Group; streetsIter is the same thing as a generator that yields every few polygons,
 // so the world streamer can spread a tile over several frames.
 import * as THREE from 'three';
-import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMaskIter } from './core.js';
+import { groundY, FBuf, weld, pairs, canvasTex, rnd, speckle, rasterMaskIter, hooks } from './core.js';
 import { sliceOver } from './slice.js';
 import { gardenDraw, gardenPatch, GARDEN_REGION as GR } from './gardens.js';
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';
@@ -223,7 +223,21 @@ function drape(buf, a, b, c, lift, col, m, max, depth = 0) {
     else { const d = c.clone().lerp(a, 0.5); drape(buf, a, b, d, lift, col, m, max, depth + 1); drape(buf, d, b, c, lift, col, m, max, depth + 1); }
     return;
   }
+  if (NUDGE) {   // a piece cut along a tunnel's cutting: its corners on the wall line read the ground on their own side of it (a hair towards the middle)
+    const cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3;
+    for (const p of [a, b, c]) buf.v(p.x, GROUND(p.x + (cx - p.x) * 0.02, p.y + (cy - p.y) * 0.02) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
+    return;
+  }
   for (const p of [a, b, c]) buf.v(p.x, GROUND(p.x, p.y) + lift, p.y, 0, 1, 0, TINT ? TINT(p.x, p.y) : col, p.x / m, p.y / m);
+}
+let NUDGE = false;
+// drape a triangle, split first along the walls of any tunnel cutting it crosses (src/bridges.js cutPieces): draped whole it hung from the top of the wall to the floor
+function drapeCut(buf, a, b, c, lift, col, m, max) {
+  const pc = hooks.cutPieces ? hooks.cutPieces(a.x, a.y, b.x, b.y, c.x, c.y) : null;
+  if (!pc) { drape(buf, a, b, c, lift, col, m, max); return; }
+  NUDGE = true;
+  for (const P of pc.out.concat(pc.in)) for (let q = 2; q + 3 < P.length; q += 2) drape(buf, new THREE.Vector2(P[0], P[1]), new THREE.Vector2(P[q], P[q + 1]), new THREE.Vector2(P[q + 2], P[q + 3]), lift, col, m, max);
+  NUDGE = false;
 }
 let TINT = null;   // opts.tint(layer) -> (x, z) -> THREE.Color: the colours of the orthophotos relative to the layer's own texture (tile.gt, src/world.js)
 export const LAYERS = { asphalt: 0.0, paving: 0.01, sand: 0.005, verge: 0.004, water: -0.25, raised: CURB, median: CURB, green: CURB + 0.01 };
@@ -275,7 +289,7 @@ export function* streetsIter(streets, group, opts = {}) {
       for (const t of tris3) {
         let [a, b, c] = t.map(i => all[i]);
         if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b];
-        drape(buf, a, b, c, lift, WHITE, yard ? ym : m, dmax);
+        drapeCut(buf, a, b, c, lift, WHITE, yard ? ym : m, dmax);
         if (sliceOver()) { const tt = TINT; yield; GROUND = g0; FINE = f0; TINT = tt; }
       }
     }

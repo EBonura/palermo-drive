@@ -93,7 +93,20 @@ const XC_ALONG = 1.5, XC_MARGIN = 0.5;   // a road over a tunnel (rec.xc): the f
 // it lower than a mouth, the ramp down to it is on the road outside (rec.ap), as in a real underpass (OSM's tunnel way is the covered part): st.ramp.
 function tunnelDip(st) {   // floor: portal grades, plus a dip where the terrain above is not a hill
   const r = st.rec, p = r.p, n = p.length / 2;
-  let minG = 1e9; for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) minG = Math.min(minG, g); }   // undefined: that tile has no ground yet
+  let minG = 1e9;
+  if (r.pg) {   // the baked ground along the tunnel: the same whichever tiles have loaded
+    // Not over the climb at either end where the ground rises steadily from the mouth until it covers the floor: under a hill that climb is the open cutting,
+    // and counted as the lowest ground it sank every hill tunnel 6 m or more under the grade between its mouths (7 to 13 m in eight tunnels, 6.9 m in
+    // the Galleria Sferracavallo). A flat underpass never gets that cover, so it still dips under the lowest of all its ground.
+    const g = r.pg, m = g.length, grade = k => r.y0 + (r.y1 - r.y0) * k / ((m - 1) || 1), over = k => g[k] - grade(k) >= TUN_COVER + 0.5;
+    let i0 = 0, i1 = m - 1;
+    while (i0 < m - 1 && !over(i0) && g[i0 + 1] >= g[i0] - 0.1) i0++;
+    while (i1 > 0 && !over(i1) && g[i1 - 1] >= g[i1] - 0.1) i1--;
+    if (over(i0) && over(i1) && i0 <= i1) {   // a hill: the floor follows the grade, down only where the ground in between does not cover it
+      let need = 0; for (let k = i0; k <= i1; k++) need = Math.max(need, grade(k) + TUN_COVER + 0.5 - g[k]);
+      minG = (r.y0 + r.y1) / 2 + TUN_COVER + 0.5 - need;
+    } else for (const v of g) minG = Math.min(minG, v);
+  } else for (let k = 0; k < n; k++) { const g = rawGround(p[2 * k], p[2 * k + 1]); if (g !== undefined) minG = Math.min(minG, g); }   // undefined: that tile has no ground yet
   const base = (r.y0 + r.y1) / 2;
   const dip = Math.min(14, Math.max(0, base - (minG - TUN_COVER - 0.5)));   // a flat underpass: the floor sits so that the ground over it is a roof everywhere; a hill covers a level road by itself
   st.dip = dip; const R = dip > 0 ? Math.min(st.L / 2, dip / TUN_SLOPE) : 0; st.R = R;
@@ -118,15 +131,157 @@ function underRoads(st) {
   // tunnel on under it along the road out of that mouth, or the ramp outside would cut the edge of that road
   if (!r.__ap) {
     const L = st.L, o0 = B(0) < r.y0 - 0.05 ? Math.max(0, ...need.map(([c, hc]) => hc + 1 - c)) : 0, o1 = B(L) < r.y1 - 0.05 ? Math.max(0, ...need.map(([c, hc]) => c + hc + 1 - L)) : 0;
-    r.__ap = r.ap.slice(); r.__x0 = 0;
+    r.__ap = r.ap.slice(); r.__x0 = 0; r.__x1 = 0;
     if (o0 > 0) { const [h, rest] = cutLine(r.ap[0], o0), pre = []; for (let k = h.length - 2; k >= 0; k -= 2) pre.push(h[k], h[k + 1]); r.p = pre.concat(r.p); r.__ap[0] = rest; r.__x0 = o0; for (const q of need) q[0] += o0; }
-    if (o1 > 0) { const [h, rest] = cutLine(r.ap[1], o1); r.p = r.p.concat(h); r.__ap[1] = rest; }
+    if (o1 > 0) { const [h, rest] = cutLine(r.ap[1], o1); r.p = r.p.concat(h); r.__ap[1] = rest; r.__x1 = o1; }
     if (o0 > 0 || o1 > 0) { profile(st); tunnelDip(st); }
   }
   const n = st.ys.length;
   for (let k = 0; k < n; k++) st.ys[k] = Math.min(st.ys[k], B(st.cum[k]));
   const long = f => { let l = 0; for (let k = 2; k < f.length; k += 2) l += hh(f[k] - f[k - 2], f[k + 1] - f[k - 1]); return l > 2; };   // (a road out that is no road: the mouth of the next tunnel)
   st.ramp = [st.ys[0] < r.y0 - 0.05 && long(r.__ap[0]) ? st.ys[0] : null, st.ys[n - 1] < r.y1 - 0.05 && long(r.__ap[1]) ? st.ys[n - 1] : null];   // the floor at a mouth that is below the ground there
+}
+
+// ---------- the open cutting of a tunnel: retaining walls and portals ----------
+// A tunnel is one path for this: the road out of its start mouth where that is a ramp (st.ramp, reversed), the tunnel line, the ramp out of its end mouth.
+// Every vertex has a floor (st.ys; a ramp climbs at TUN_SLOPE from the floor at its mouth) and the ground over it from the bake (rec.pg along the tunnel,
+// rec.ag along the roads out), so the same cutting comes out whichever tiles have loaded. A stretch of the tunnel line with less than TUN_COVER of ground over
+// its floor, and every ramp below the ground, is an open cutting; the rest of the tunnel line is covered, and a portal stands where one meets the other.
+// The cutting is walled: within its walls (CUT_T thick, their inner face on the line of the tunnel's lining) the ground is the floor (carve), outside them it is
+// the ground as it is. On a 2.5 m terrain grid that step was a band of tilted triangles from the floor to the top, over the tunnel's mouth as well; now the
+// terrain mesh is cut along the walls (cutPieces, src/world.js) and so are the street layers (src/streets.js), and buildTunnel draws the walls, the floor of
+// the ramps and a concrete headwall over every portal.
+const PG_STEP = 4;                     // rec.pg: a sample every PG_STEP m of the tunnel's baked line (tools/structures.py)
+const CUT_T = 0.5, CUT_PAR = 1.0;      // retaining wall thickness; parapet over the ground at the top of a deep cutting (a shallow one gets less)
+const cutGrid = new Map();
+const lin = (xs, ys, s) => {   // piecewise linear, held at the ends
+  const n = xs.length; if (!n) return undefined; if (s <= xs[0]) return ys[0]; if (s >= xs[n - 1]) return ys[n - 1];
+  let a = 0, b = n - 1; while (b - a > 1) { const m = (a + b) >> 1; if (xs[m] <= s) a = m; else b = m; }
+  return ys[a] + (ys[b] - ys[a]) * (s - xs[a]) / ((xs[b] - xs[a]) || 1);
+};
+const cumOf = f => { const c = [0]; for (let k = 2; k < f.length; k += 2) c.push(c[c.length - 1] + hh(f[k] - f[k - 2], f[k + 1] - f[k - 1])); return c; };
+const parOf = d => Math.max(0.15, Math.min(CUT_PAR, d * 0.4));   // the parapet over the top of a wall d m high
+function cutPath(st) {
+  const r = st.rec, p = r.p, n = p.length / 2, x0 = r.__x0 || 0, L0 = st.L - x0 - (r.__x1 || 0);
+  const pg = r.pg, pgS = pg ? pg.map((_, k) => Math.min(k * PG_STEP, L0)) : null;
+  const ag = e => r.ap && r.ap[e] && r.ag && r.ag[e] ? [cumOf(r.ap[e]), r.ag[e]] : null, A = [ag(0), ag(1)];
+  const raw = (x, z, f) => { const g = rawGround(x, z); return g === undefined ? f + TUN_COVER : g; };   // (no bake data: the ground as loaded, covered where there is none yet)
+  const G = (s, x, z, f) => {   // the ground at metres s along the tunnel line
+    const u = s - x0;
+    if (u < 0 && A[0]) return lin(A[0][0], A[0][1], -u);
+    if (u > L0 && A[1]) return lin(A[1][0], A[1][1], u - L0);
+    return pg ? lin(pgS, pg, u) : raw(x, z, f);
+  };
+  const P = [];
+  const ramp = e => {   // the vertices of the ramp out of mouth e, from the mouth outward
+    const y = st.ramp ? st.ramp[e] : null; if (y === null || y === undefined) return [];
+    const f = densify(r.__ap[e], 4), c = cumOf(f), o = e ? r.__x1 || 0 : x0, out = [];
+    for (let k = 1; k < c.length; k++) { const x = f[2 * k], z = f[2 * k + 1], fl = y + TUN_SLOPE * c[k]; out.push({ x, z, f: fl, g: A[e] ? lin(A[e][0], A[e][1], c[k] + o) : raw(x, z, fl), t: 0 }); }
+    return out;
+  };
+  P.push(...ramp(0).reverse());
+  for (let k = 0; k < n; k++) P.push({ x: p[2 * k], z: p[2 * k + 1], f: st.ys[k], g: G(st.cum[k], p[2 * k], p[2 * k + 1], st.ys[k]), t: 1 });
+  P.push(...ramp(1));
+  // the points where the depth of the floor under the ground crosses TUN_COVER (a portal) or 0 (where a cutting runs out)
+  const Q = [P[0]];
+  for (let k = 1; k < P.length; k++) {
+    const a = P[k - 1], b = P[k], da = a.g - a.f, db = b.g - b.f, ts = [];
+    if (a.t && b.t && (da - TUN_COVER) * (db - TUN_COVER) < 0) ts.push((TUN_COVER - da) / (db - da));
+    if (da * db < 0) ts.push(-da / (db - da));
+    ts.sort((u, v) => u - v);
+    for (const t of ts) if (t > 0.01 && t < 0.99) Q.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, f: a.f + (b.f - a.f) * t, g: a.g + (b.g - a.g) * t, t: a.t && b.t ? 1 : 0 });
+    Q.push(b);
+  }
+  const m = Q.length; if (m < 2) return null;
+  for (let k = 0; k < m; k++) {   // mitred left normal, metres along
+    const a = Q[Math.max(0, k - 1)], b = Q[Math.min(m - 1, k + 1)], l = hh(b.x - a.x, b.z - a.z) || 1;
+    Q[k].nx = -(b.z - a.z) / l; Q[k].nz = (b.x - a.x) / l; Q[k].s = k ? Q[k - 1].s + hh(Q[k].x - Q[k - 1].x, Q[k].z - Q[k - 1].z) : 0;
+  }
+  // per segment: 2 covered (inside the tunnel, the ground a roof over it), 1 open cutting, 0 at the ground (nothing to cut)
+  const seg = new Uint8Array(m - 1);
+  for (let k = 0; k + 1 < m; k++) {
+    const a = Q[k], b = Q[k + 1], da = a.g - a.f, db = b.g - b.f;
+    seg[k] = a.t && b.t && Math.min(da, db) >= TUN_COVER - 1e-3 ? 2 : Math.max(da, db) > 0.02 && Math.min(da, db) > -1e-3 ? 1 : 0;
+  }
+  const hw = r.w / 2 - 0.3, W = hw + CUT_T, quads = [];
+  for (let k = 0; k + 1 < m; k++) {
+    if (seg[k] !== 1) continue;
+    const a = Q[k], b = Q[k + 1];
+    let c = [a.x + a.nx * W, a.z + a.nz * W, b.x + b.nx * W, b.z + b.nz * W, b.x - b.nx * W, b.z - b.nz * W, a.x - a.nx * W, a.z - a.nz * W];
+    let ar = 0; for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; ar += c[2 * i] * c[2 * j + 1] - c[2 * j] * c[2 * i + 1]; }
+    if (ar < 0) c = [c[6], c[7], c[4], c[5], c[2], c[3], c[0], c[1]];   // counter-clockwise (x right, z down the screen of the formula)
+    const pl = [];   // inside: nx * x + nz * z <= d for each edge
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4, ex = c[2 * j] - c[2 * i], ez = c[2 * j + 1] - c[2 * i + 1], l = hh(ex, ez) || 1, nx = ez / l, nz = -ex / l; pl.push(nx, nz, nx * c[2 * i] + nz * c[2 * i + 1]); }
+    const xs = [c[0], c[2], c[4], c[6]], zs = [c[1], c[3], c[5], c[7]];
+    quads.push({ id: r.id, st, k, ax: a.x, az: a.z, dx: b.x - a.x, dz: b.z - a.z, l2: (b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1, fa: a.f, fb: b.f, hw, c, pl,
+      bx0: Math.min(...xs), bz0: Math.min(...zs), bx1: Math.max(...xs), bz1: Math.max(...zs) });
+  }
+  return { Q, seg, hw, W, quads };
+}
+const inQuad = (q, x, z) => { const p = q.pl; return p[0] * x + p[1] * z <= p[2] + 1e-6 && p[3] * x + p[4] * z <= p[5] + 1e-6 && p[6] * x + p[7] * z <= p[8] + 1e-6 && p[9] * x + p[10] * z <= p[11] + 1e-6; };
+const quadFloor = (q, x, z) => q.fa + (q.fb - q.fa) * Math.max(0, Math.min(1, ((x - q.ax) * q.dx + (z - q.az) * q.dz) / q.l2));
+// is (x, z) on the floor of another tunnel's open cutting (the walls of two cuttings side by side, the carriageways of the Viale over Via Emily Balch, stand in each other's road)
+function inOtherCut(id, x, z) {
+  const a = cutGrid.get(ck(Math.floor(x / CELL), Math.floor(z / CELL))); if (!a) return false;
+  for (const q of a) {
+    if (q.id === id || x < q.bx0 || x > q.bx1 || z < q.bz0 || z > q.bz1) continue;
+    const t = ((x - q.ax) * q.dx + (z - q.az) * q.dz) / q.l2; if (t < 0 || t > 1) continue;
+    if (hh(x - q.ax - q.dx * t, z - q.az - q.dz * t) < q.hw - 0.05) return true;
+  }
+  return false;
+}
+// is (x, z) within the walls of an open cutting?
+export function inCut(x, z) {
+  const a = cutGrid.size ? cutGrid.get(ck(Math.floor(x / CELL), Math.floor(z / CELL))) : null; if (!a) return false;
+  for (const q of a) if (x >= q.bx0 && x <= q.bx1 && z >= q.bz0 && z <= q.bz1 && inQuad(q, x, z)) return true;
+  return false;
+}
+// any cutting within the box?
+export function cutTouches(x0, z0, x1, z1) {
+  if (!cutGrid.size) return false;
+  for (let ix = Math.floor(x0 / CELL); ix <= Math.floor(x1 / CELL); ix++) for (let iz = Math.floor(z0 / CELL); iz <= Math.floor(z1 / CELL); iz++) {
+    const a = cutGrid.get(ck(ix, iz)); if (a) for (const q of a) if (q.bx1 >= x0 && q.bx0 <= x1 && q.bz1 >= z0 && q.bz0 <= z1) return true;
+  }
+  return false;
+}
+// a convex polygon [x, z, ...] cut by the line nx * x + nz * z = d: the part with nx * x + nz * z <= d (keep 1) or >= d (keep -1)
+function clipPoly(P, nx, nz, d, keep) {
+  const out = [], n = P.length / 2;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, ax = P[2 * i], az = P[2 * i + 1], bx = P[2 * j], bz = P[2 * j + 1];
+    const sa = (nx * ax + nz * az - d) * keep, sb = (nx * bx + nz * bz - d) * keep;
+    if (sa <= 0) out.push(ax, az);
+    if ((sa < 0 && sb > 0) || (sa > 0 && sb < 0)) { const t = sa / (sa - sb); out.push(ax + (bx - ax) * t, az + (bz - az) * t); }
+  }
+  return out;
+}
+const polyArea = P => { let a = 0; const n = P.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; a += P[2 * i] * P[2 * j + 1] - P[2 * j] * P[2 * i + 1]; } return Math.abs(a) / 2; };
+// A triangle of a ground-draped mesh, cut along the walls of every open cutting it crosses: null where it crosses none, else { out: polygons outside every
+// cutting, in: polygons inside one } (convex, [x, z, ...], the triangle's winding). The terrain keeps `out` only; the street layers drape both.
+export function cutPieces(ax, az, bx, bz, cx, cz) {
+  if (!cutGrid.size) return null;
+  const x0 = Math.min(ax, bx, cx), x1 = Math.max(ax, bx, cx), z0 = Math.min(az, bz, cz), z1 = Math.max(az, bz, cz);
+  let qs = null;
+  for (let ix = Math.floor(x0 / CELL); ix <= Math.floor(x1 / CELL); ix++) for (let iz = Math.floor(z0 / CELL); iz <= Math.floor(z1 / CELL); iz++) {
+    const a = cutGrid.get(ck(ix, iz)); if (a) for (const q of a) if (q.bx1 >= x0 && q.bx0 <= x1 && q.bz1 >= z0 && q.bz0 <= z1) (qs || (qs = new Set())).add(q);
+  }
+  if (!qs) return null;
+  let out = [[ax, az, bx, bz, cx, cz]], hit = false; const ins = [];
+  for (const q of qs) {
+    const next = [];
+    for (const P of out) {
+      const pieces = []; let rest = P;
+      for (let i = 0; i < 4 && rest.length >= 6; i++) {
+        const o = clipPoly(rest, q.pl[3 * i], q.pl[3 * i + 1], q.pl[3 * i + 2], -1);
+        if (o.length >= 6 && polyArea(o) > 1e-4) pieces.push(o);
+        rest = clipPoly(rest, q.pl[3 * i], q.pl[3 * i + 1], q.pl[3 * i + 2], 1);
+      }
+      if (rest.length >= 6 && polyArea(rest) > 1e-4) { next.push(...pieces); ins.push(rest); hit = true; }
+      else next.push(P);   // (it does not reach into this one: kept whole)
+    }
+    out = next;
+  }
+  return hit ? { out, in: ins } : null;
 }
 
 function densify(p, step) {
@@ -176,8 +331,7 @@ export function registerStructs(d, key) {
       if (!r.rf) r.rv = r.rv.map(v => densify(v, 8));   // (the bake cuts the lines into pieces and measures the floor under each vertex: rf)
       r.rv.forEach((rv, li) => chans.push(makeChannel(r.id, rv, r.rw, bed, null, Infinity, 'river', r, r.rf ? r.rf[li] : null)));
       st.bed = Math.min(...chans.map(c => c.bedY[c.si]));
-    } else if (r.k === 't') chans.push(makeChannel(r.id, p, r.w, 0, st, TUN_COVER, 'tunnel', r));
-    if (st.ramp) st.ramp.forEach((y, e) => { if (y !== null) chans.push(makeChannel(r.id, r.__ap[e], r.w, y, null, Infinity, 'ramp', r)); });   // the road out of a mouth, sunk to the floor there and climbing at TUN_SLOPE
+    } else if (r.k === 't' && (st.cut = cutPath(st))) for (const q of st.cut.quads) { st.carve = true; gridAdd(cutGrid, q.bx0, q.bz0, q.bx1, q.bz1, q); }   // the open cutting at its mouths, walled
     if (r.k === 'b' && r.ov && r.ud && r.oc && r.ud.length === r.oc.length) for (const u of r.ud) chans.push(makeChannel(r.id, u.p, u.w, 0, null, Infinity, 'dip', r, u.f, u));
     st.chans = chans;
     for (const c of chans) { st.carve = true; gridAdd(chanGrid, c.bx0, c.bz0, c.bx1, c.bz1, c); }
@@ -196,7 +350,7 @@ export function unregisterStructs(key) {
     const st = S.get(id); if (!st) continue;
     st.tiles.delete(key);
     if (st.tiles.size) continue;
-    S.delete(id); gridDel(levelGrid, id); gridDel(chanGrid, id);
+    S.delete(id); gridDel(levelGrid, id); gridDel(chanGrid, id); gridDel(cutGrid, id);
     if (walls) walls.removeTile('s' + id);
     disposeMeshes(st);
   }
@@ -208,7 +362,6 @@ function makeChannel(id, flat, width, bed, st, thr, kind, rec, rf, dip) {
   for (let k = 1; k < n; k++) cum[k] = cum[k - 1] + hh(flat[2 * k] - flat[2 * k - 2], flat[2 * k + 1] - flat[2 * k - 1]);
   const hw = kind === 'river' ? width / 2 + 1.2 : kind === 'dip' ? width / 2 + 2.5 : width / 2 + 0.6;
   let sc = 0;
-  if (kind === 'ramp') for (let k = 0; k < n; k++) bedY[k] = bedOld[k] = bed + TUN_SLOPE * cum[k];   // from the tunnel mouth outward (rec.ap): bed is the floor at the mouth
   if (kind === 'dip') {   // the lower road under a flyover: the baked ground under every vertex, minus DIP where the road is under the deck and a little beyond it
     const half = rec.w / 2 + DIP_FLAT;
     for (let k = 0; k < n; k++) { const t = Math.max(0, Math.abs(cum[k] - dip.c) - half) / DIP_RAMP, f = Math.max(0, 1 - t); bedY[k] = rf[k] - DIP * f * f * (3 - 2 * f); bedOld[k] = bedY[k]; }
@@ -243,29 +396,27 @@ function distSegs(flat, x, z) {
 }
 // nearest point of a channel's line: [distance, bed height there]
 function nearest(c, x, z) {
-  let best = 1e9, bh = 0, back = false;
+  let best = 1e9, bh = 0;
   for (let k = 0; k + 1 < c.n; k++) {
     const ax = c.pts[2 * k], az = c.pts[2 * k + 1], dx = c.pts[2 * k + 2] - ax, dz = c.pts[2 * k + 3] - az, l2 = dx * dx + dz * dz || 1;
-    const tr = ((x - ax) * dx + (z - az) * dz) / l2, t = Math.max(0, Math.min(1, tr)), ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez);   // (no Math.hypot: this runs for every terrain sample near a river trench or a tunnel)
-    if (d < best) { best = d; back = (k === 0 && tr < 0) || (k + 2 === c.n && tr > 1); bh = c.kind !== 'tunnel' ? c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t : yAt(c.st, c.cum[k] + (c.cum[k + 1] - c.cum[k]) * t); }
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez);   // (no Math.hypot: this runs for every terrain sample near a river trench or a flyover)
+    if (d < best) { best = d; bh = c.bedY[k] + (c.bedY[k + 1] - c.bedY[k]) * t; }
   }
-  c.d = best; c.back = back; return bh;
+  c.d = best; return bh;
 }
-export function carve(x, z, y) {
-  if (chanGrid.size === 0) return y;
-  const a = chanGrid.get(ck(Math.floor(x / CELL), Math.floor(z / CELL))); if (!a) return y;
-  for (const c of a) {
+// noCut: leave the tunnels' open cuttings out (the terrain mesh of a full detail tile, which is cut away there instead: src/world.js)
+export function carve(x, z, y, noCut) {
+  const cell = ck(Math.floor(x / CELL), Math.floor(z / CELL));
+  const a = chanGrid.size ? chanGrid.get(cell) : null;
+  if (a) for (const c of a) {
     if (x < c.bx0 || x > c.bx1 || z < c.bz0 || z > c.bz1) continue;
-    const bh = nearest(c, x, z);
-    if (c.kind === 'tunnel') {
-      const clear = y - bh; if (clear >= c.thr || c.d > c.hw + 8) continue;   // under a hill: covered, the terrain stays as the roof
-      const w = c.d <= c.hw ? 0 : (c.d - c.hw) * 1.0;                          // vertical-ish walls: 45 degrees beyond the lining
-      y = Math.min(y, bh + w + (c.d <= c.hw ? 0 : 0));
-    } else {
-      if (c.back && c.kind === 'ramp') continue;   // behind the mouth (over the tunnel, where the ground is its roof) or past the end of the road out (the next tunnel's mouth)
-      const w = Math.max(0, c.d - c.hw) * (c.kind === 'ramp' ? 3 : 0.9);   // (a ramp is walled: its sides do not take the ground of a road beside its mouth, the Viale's side road at the Via Belgio link)
-      if (bh + w < y) y = bh + w;
-    }
+    const bh = nearest(c, x, z), w = Math.max(0, c.d - c.hw) * 0.9;
+    if (bh + w < y) y = bh + w;
+  }
+  const q = !noCut && cutGrid.size ? cutGrid.get(cell) : null;
+  if (q) for (const c of q) {   // a tunnel's open cutting: the floor within its walls, the ground untouched outside them
+    if (x < c.bx0 || x > c.bx1 || z < c.bz0 || z > c.bz1 || !inQuad(c, x, z)) continue;
+    const f = quadFloor(c, x, z); if (f < y) y = f;
   }
   return y;
 }
@@ -453,47 +604,82 @@ function buildDeck(st) {
 let matTun = null, matLamp = null;
 function buildTunnel(st) {
   const r = st.rec, g = new THREE.Group(); g.name = 'struct_' + r.id;
-  const p = r.p, L = st.L, step = 4, n = Math.max(2, Math.ceil(L / step) + 1), hw = r.w / 2 - 0.3, buf = new Buf(), road = new Buf(), M = TEX.asphalt.metres;
-  const at = s => { // point, tangent and floor height at arc length s
-    const cum = st.cum; let k = 1; while (k < cum.length - 1 && cum[k] < s) k++;
-    const t = Math.max(0, Math.min(1, (s - cum[k - 1]) / ((cum[k] - cum[k - 1]) || 1))), ax = p[2 * k - 2], az = p[2 * k - 1], bx = p[2 * k], bz = p[2 * k + 1], l = hh(bx - ax, bz - az) || 1;
-    return { x: ax + (bx - ax) * t, z: az + (bz - az) * t, tx: (bx - ax) / l, tz: (bz - az) / l, y: yAt(st, s) };
-  };
-  const P = [];
-  for (let i = 0; i < n; i++) {
-    const q = at(Math.min(L, i * L / (n - 1))); q.nx = -q.tz; q.nz = q.tx;
-    const gnd = rawGround(q.x, q.z); q.open = gnd - q.y; q.top = q.y + Math.max(0.6, Math.min(TUN_H, q.open + 0.4)); q.cov = q.open >= TUN_COVER; q.s = i * L / (n - 1);
-    P.push(q);
+  const { Q, seg, hw, W } = st.cut, m = Q.length, buf = new Buf(), road = new Buf(), lamps = new Buf(), M = TEX.asphalt.metres;
+  const white = new THREE.Color(1, 1, 1), wallC = new THREE.Color('#b5b0a2'), band = new THREE.Color('#8d897d'), ceil = new THREE.Color('#7e7a70'), lampC = new THREE.Color('#ffe2a8');
+  const A = (q, o, y) => [q.x + q.nx * o, y, q.z + q.nz * o];
+  const rawAt = (x, z, q) => { const v = rawGround(x, z); return v === undefined ? q.g : v; };   // (a tile not loaded yet: the baked ground)
+  const flat = (b, a0, a1, b1, b0, col) => quad(b, a0, a1, b1, b0, 0, 1, 0, col, [a0[0] / M, a0[2] / M, a1[0] / M, a1[2] / M, b1[0] / M, b1[2] / M, b0[0] / M, b0[2] / M]);   // (world uvs: two floors that overlap match)
+  // the top of the wall on side sg at vertex q: the ground just outside it, plus the parapet
+  const topAt = (q, sg) => { const x = q.x + q.nx * sg * (W + 0.3), z = q.z + q.nz * sg * (W + 0.3), t = rawAt(x, z, q); return [t + parOf(t - q.f), t]; };
+  let nextLamp = 6;
+  for (let k = 0; k + 1 < m; k++) {
+    const a = Q[k], b = Q[k + 1], s = seg[k];
+    if (a.t && b.t) flat(road, A(a, -hw, a.f + 0.01), A(a, hw, a.f + 0.01), A(b, hw, b.f + 0.01), A(b, -hw, b.f + 0.01), white);   // the tunnel's road, covered or open
+    else if (s === 1) for (const [o0, o1] of [[-hw, 0], [0, hw]]) {   // the floor of a ramp's cutting, under the street layers (carved ground: what the car drives on)
+      const y = (q, o) => { const x = q.x + q.nx * o, z = q.z + q.nz * o; return carve(x, z, rawAt(x, z, q)) - 0.02; };
+      flat(road, A(a, o0, y(a, o0)), A(a, o1, y(a, o1)), A(b, o1, y(b, o1)), A(b, o0, y(b, o0)), white);
+    }
+    if (s === 2) {   // covered: lining, ceiling, lamps
+      for (const sg of [1, -1]) {
+        const o = hw * sg;
+        quad(buf, A(a, o, a.f), A(b, o, b.f), A(b, o, b.f + TUN_H), A(a, o, a.f + TUN_H), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
+        quad(buf, A(a, o, a.f + 0.9), A(b, o, b.f + 0.9), A(b, o, b.f + 1.15), A(a, o, a.f + 1.15), -a.nx * sg, 0, -a.nz * sg, band, null, 0.9);
+      }
+      quad(buf, A(a, -hw, a.f + TUN_H), A(a, hw, a.f + TUN_H), A(b, hw, b.f + TUN_H), A(b, -hw, b.f + TUN_H), 0, -1, 0, ceil, null, 0.8);
+      while (nextLamp < a.s) nextLamp += 12;
+      for (; nextLamp <= b.s; nextLamp += 12) {   // lamps every 12 m, two rows
+        const t = (nextLamp - a.s) / ((b.s - a.s) || 1), x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, y = a.f + (b.f - a.f) * t + TUN_H - 0.05, tx = a.nz, tz = -a.nx;
+        for (const o of [-hw * 0.45, hw * 0.45]) {
+          const c = (a2, b2) => [x + a.nx * (o + a2) + tx * b2, y, z + a.nz * (o + a2) + tz * b2];
+          quad(lamps, c(-0.25, -0.5), c(0.25, -0.5), c(0.25, 0.5), c(-0.25, 0.5), 0, -1, 0, lampC, null, 1);
+        }
+      }
+    } else if (s === 0 && a.t && b.t) for (const sg of [1, -1]) {   // the tunnel's line at or over the ground: a low wall, where its lining stops a car
+      const o = hw * sg; quad(buf, A(a, o, a.f - 0.3), A(b, o, b.f - 0.3), A(b, o, b.f + 0.6), A(a, o, a.f + 0.6), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
+    } else if (s === 1) for (const sg of [1, -1]) {   // open cutting: a retaining wall each side, its coping a parapet over the ground beside it
+      const mx = (a.x + b.x) / 2 + (a.nx + b.nx) / 2 * sg * hw, mz = (a.z + b.z) / 2 + (a.nz + b.nz) / 2 * sg * hw;
+      if (inOtherCut(r.id, mx, mz)) continue;   // inside the next carriageway's cutting
+      const [ta, ga] = topAt(a, sg), [tb, gb] = topAt(b, sg), o = hw * sg, O = W * sg, nx = a.nx * sg, nz = a.nz * sg;
+      const p0 = A(a, o, a.f - 0.3), p1 = A(b, o, b.f - 0.3), p2 = A(b, o, tb), p3 = A(a, o, ta), kb = 0.72, kt = 1;   // darker at the foot (grime off the road)
+      for (const [q, k] of [[p0, kb], [p1, kb], [p2, kt], [p0, kb], [p2, kt], [p3, kt]]) buf.v(q[0], q[1], q[2], -nx, 0, -nz, wallC, 0, 0, k);
+      quad(buf, A(a, o, ta), A(b, o, tb), A(b, O, tb), A(a, O, ta), 0, 1, 0, CONC2, null, 1);
+      quad(buf, A(a, O, ga - 0.6), A(b, O, gb - 0.6), A(b, O, tb), A(a, O, ta), nx, 0, nz, wallC, null, 0.9);
+    }
   }
-  const white = new THREE.Color(1, 1, 1), wallC = new THREE.Color('#b5b0a2'), band = new THREE.Color('#8d897d'), ceil = new THREE.Color('#7e7a70');
-  for (let i = 0; i + 1 < n; i++) {
-    const a = P[i], b = P[i + 1], A = (q, o, y) => [q.x + q.nx * o, y, q.z + q.nz * o];
-    quad(road, A(a, -hw, a.y + 0.01), A(a, hw, a.y + 0.01), A(b, hw, b.y + 0.01), A(b, -hw, b.y + 0.01), 0, 1, 0, white, [-hw / M, a.s / M, hw / M, a.s / M, hw / M, b.s / M, -hw / M, b.s / M]);
-    for (const sg of [1, -1]) { // lining of both sides, from the floor to the top (in the cut: up to the ground)
-      const o = hw * sg, ty0 = a.top, ty1 = b.top;
-      quad(buf, A(a, o, a.y), A(b, o, b.y), A(b, o, ty1), A(a, o, ty0), -a.nx * sg, 0, -a.nz * sg, wallC, null, 0.95);
-      quad(buf, A(a, o, a.y + 0.9), A(b, o, b.y + 0.9), A(b, o, b.y + 1.15), A(a, o, a.y + 1.15), -a.nx * sg, 0, -a.nz * sg, band, null, 0.9);
+  // the ends of the walls where a cutting runs out at the ground
+  for (let k = 0; k < m; k++) {
+    const before = k > 0 ? seg[k - 1] : -1, after = k + 1 < m ? seg[k] : -1;
+    if ((before === 1) === (after === 1) || before === 2 || after === 2) continue;
+    const q = Q[k], tx = q.nz, tz = -q.nx;
+    for (const sg of [1, -1]) {
+      const [t] = topAt(q, sg);
+      quad(buf, A(q, hw * sg, q.f - 0.3), A(q, W * sg, q.f - 0.3), A(q, W * sg, t), A(q, hw * sg, t), before === 1 ? tx : -tx, 0, before === 1 ? tz : -tz, wallC, null, 0.9);
     }
-    if (a.cov && b.cov) quad(buf, A(a, -hw, a.y + TUN_H), A(a, hw, a.y + TUN_H), A(b, hw, b.y + TUN_H), A(b, -hw, b.y + TUN_H), 0, -1, 0, ceil, null, 0.8);
   }
-  // portals: a frame (two piers and a lintel) where the cut becomes covered, and a row of ceiling lamps inside
-  const lamps = new Buf(), lampC = new THREE.Color('#ffe2a8');
-  for (let i = 0; i < n; i++) {
-    const q = P[i], prev = P[i - 1], next = P[i + 1];
-    for (const [edge, nb] of [[q.cov && (prev ? !prev.cov : st.ramp && st.ramp[0] !== null), 1], [q.cov && (next ? !next.cov : st.ramp && st.ramp[1] !== null), -1]]) {   // (a mouth with the ramp outside it is covered from its first metre)
-      if (!edge) continue;
-      const fx = q.tx * nb, fz = q.tz * nb;   // from the portal into the tunnel
-      const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep
-        const c = (o, y, d) => [q.x + q.nx * o - fx * d, y, q.z + q.nz * o - fz * d];
-        for (const [a2, b2, c2, d2, nx, ny, nz] of [[c(x0, y0, 0), c(x1, y0, 0), c(x1, y1, 0), c(x0, y1, 0), -fx, 0, -fz], [c(x0, y1, 0), c(x1, y1, 0), c(x1, y1, -0.9), c(x0, y1, -0.9), 0, 1, 0]]) quad(buf, a2, b2, c2, d2, nx, ny, nz, band, null, 1);
-      };
-      box(-hw - 1.0, -hw + 0.1, q.y, q.y + TUN_H + 1.1); box(hw - 0.1, hw + 1.0, q.y, q.y + TUN_H + 1.1);   // piers
-      box(-hw - 1.0, hw + 1.0, q.y + TUN_H, q.y + TUN_H + 1.1);                                              // lintel
+  // portals: where the cutting meets the covered tunnel, two piers and a lintel, and over them a concrete headwall up to the ground and its parapet
+  for (let k = 0; k < m; k++) {
+    const before = k > 0 ? seg[k - 1] : -1, after = k + 1 < m ? seg[k] : -1;
+    if ((before === 2) === (after === 2)) continue;
+    const q = Q[k], nb = after === 2 ? 1 : -1, fx = q.nz * nb, fz = -q.nx * nb;   // from the portal into the tunnel
+    const c = (o, y, d) => [q.x + q.nx * o + fx * d, y, q.z + q.nz * o + fz * d];
+    const box = (x0, x1, y0, y1) => { // a slab across the width between lateral offsets x0..x1 and heights y0..y1, 0.9 m deep
+      quad(buf, c(x0, y0, 0), c(x1, y0, 0), c(x1, y1, 0), c(x0, y1, 0), -fx, 0, -fz, band, null, 1);
+      quad(buf, c(x0, y1, 0), c(x1, y1, 0), c(x1, y1, 0.9), c(x0, y1, 0.9), 0, 1, 0, band, null, 1);
+    };
+    const yl = q.f + TUN_H, yh = yl + 1.1;
+    box(-W, -hw + 0.1, q.f, yh); box(hw - 0.1, W, q.f, yh);   // piers
+    box(-W, W, yl, yh);                                        // lintel
+    const N = 4, os = [], ts = [], gs = [];
+    for (let i = 0; i <= N; i++) { const o = -W + 2 * W * i / N, p = c(o, 0, 0.5), t = rawAt(p[0], p[2], q); os.push(o); gs.push(t); ts.push(Math.max(yh, t + CUT_PAR)); }
+    for (let i = 0; i < N; i++) {
+      const o0 = os[i], o1 = os[i + 1], mid = c((o0 + o1) / 2, 0, 0.45);
+      if (ts[i] <= yh + 0.01 && ts[i + 1] <= yh + 0.01) continue;
+      if (inOtherCut(r.id, mid[0], mid[2])) continue;
+      quad(buf, c(o0, yh, 0), c(o1, yh, 0), c(o1, ts[i + 1], 0), c(o0, ts[i], 0), -fx, 0, -fz, CONC, null, 0.95);            // face
+      quad(buf, c(o0, ts[i], 0), c(o1, ts[i + 1], 0), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), 0, 1, 0, CONC2, null, 1);       // coping
+      quad(buf, c(o0, Math.min(yh, gs[i] - 0.6), 0.9), c(o1, Math.min(yh, gs[i + 1] - 0.6), 0.9), c(o1, ts[i + 1], 0.9), c(o0, ts[i], 0.9), fx, 0, fz, CONC, null, 0.9);   // back (its parapet shows from above)
     }
-    if (q.cov && i % 3 === 1) for (const o of [-hw * 0.45, hw * 0.45]) {   // lamps every 12 m, two rows
-      const c = (a2, b2) => [q.x + q.nx * (o + a2) + q.tx * b2, q.y + TUN_H - 0.05, q.z + q.nz * (o + a2) + q.tz * b2];
-      quad(lamps, c(-0.25, -0.5), c(0.25, -0.5), c(0.25, 0.5), c(-0.25, 0.5), 0, -1, 0, lampC, null, 1);
-    }
+    for (const [i, sg] of [[0, -1], [N, 1]]) quad(buf, c(os[i], gs[i] - 0.6, 0), c(os[i], gs[i] - 0.6, 0.9), c(os[i], ts[i], 0.9), c(os[i], ts[i], 0), q.nx * sg, 0, q.nz * sg, CONC, null, 0.9);   // its ends
   }
   if (!matLamp) matLamp = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   if (!matTun) matTun = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
@@ -527,7 +713,7 @@ export function onTileFull(key) {
   for (const id of mine) {
     const st = S.get(id); if (!st) continue;
     st.full.add(key);
-    if (!st.meshes && groundReady(st)) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : buildTunnel(st); root.add(st.meshes); } catch (e) { console.error('[bridges]', id, e); } }
+    if (!st.meshes && (st.cut || groundReady(st))) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : st.cut ? buildTunnel(st) : null; if (st.meshes) root.add(st.meshes); } catch (e) { console.error('[bridges]', id, e); } }   // (a tunnel reads its cutting from the bake, and the baked ground where a tile is not loaded)
   }
 }
 export function onTileDrop(key) {
