@@ -28,8 +28,9 @@ import { PHRASES, CATEGORIES } from './phrases.js';
 import { createWheel } from './wheel.js';
 import { createPanel } from './panel.js';
 import { zone } from '../hud.js';
-import { RELAYS, PRESENCE_RELAYS } from './relays.js';
+import { RELAYS, PRESENCE_RELAYS, FALLBACK_RELAYS } from './relays.js';
 import { createPresence } from './presence.js';
+import { createFallback } from './fallback.js';
 import { createChooser, MAX_LISTED } from './rooms.js';
 import { createGuard } from './guard.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
@@ -56,6 +57,18 @@ const DRAW_R = 400, DRAW_OUT = 480;   // metres: a player farther than this is a
 const SHARED_IDLE_MS = 15000;         // Trystero keeps the connection to a player for this long after the last room you shared closes (its default is 2 minutes): long enough for a room swap, short enough that a player we dropped is not connected for minutes. The option's name says test only; it is read in the vendored 0.26.0 and costs nothing if a later version ignores it
 const PRESENCE_WAIT_MS = 3000;        // the first room waits this long for the list of who is online (then goes without it)
 const PRESENCE_IDLE_MS = 60000;       // a paused or hidden game stops publishing and reading presence after this long
+// The relay fallback (src/p2p/fallback.js; docs/P2P-MULTIPLAYER.md, "Relay fallback"): for a player in a room of ours whose WebRTC connection does not open, the same messages go through two Nostr relays.
+const FB_WAIT_MS = 6000;       // presence lists more players in a room than we are connected to, for this long: listen on that room's fallback topic and say hello there
+const FB_HELLO_MS = 10000;     // a hello (INFO and STATE) in such a room this often, with a little jitter
+const FB_TTL_MS = 25000;       // a player heard on the fallback topics with no hello in a room of ours for this long is forgotten (one who only wrote to us gets this long from the first message)
+const FB_QUIET_MS = 5000;      // one who has written nothing to our inbox for this long (closed the page, or no longer sends to us) is not drawn: the car goes a little before a quiet direct one would (STALE_MS)
+const FB_MAX = 4;              // the most players one player sends its STATE to through the relays: the closest ones, those who write to us first (fbStep)
+const FB_STATE_MS = 320;       // STATE through the relays at most this often (on the 100 ms send tick: about 3 a second); with more than 4 players in our rooms, longer in proportion,
+const FB_STATE_MAX_MS = 700;   // up to this (and longer with distance, as the direct STATE)
+const FB_TO_MAX = 6;           // with those who write to us and were not among our FB_MAX, the most we send to (one event reaches them all: more receivers, not more events)
+const FB_HEARD_MS = 15000;     // one who has said nothing (hello or message) for this long is not sent to: one and a half hellos
+const FB_HOLD_MS = 15000;      // a player we start sending to is kept at least this long
+const FB_CAND_MAX = 16;        // the most strangers remembered from the fallback topics
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const q8 = (v, scale) => clamp(Math.round(v / scale * 127), -127, 127);
@@ -110,10 +123,12 @@ export function createP2P(env) {
   // (signalling reached us), the candidate types we gathered (host = this network, srflx = our public address via STUN, relay = TURN), and the
   // ICE and connection states. "no answer" means the relays never carried the other side's reply; "failed" with srflx means a NAT or the
   // network blocked the direct path, the case a TURN relay is for. Also the relay warnings Trystero logs (rate limits, refusals). Only with ?p2p.
-  const rtc = { made: 0, tries: [], warns: 0, lastWarn: '' };
+  // ?p2p&iceblock (tests only): every connection made from now on may use TURN candidates only, and there is no TURN server, so ICE finds no path, as on the phones. __p2p.iceBlock(false) lifts it for the next attempts.
+  const rtc = { made: 0, tries: [], warns: 0, lastWarn: '', block: testing && params.has('iceblock') };
   if (testing && typeof window.RTCPeerConnection === 'function') {
     const Orig = window.RTCPeerConnection;
     const Wrapped = function (...a) {
+      if (rtc.block) a[0] = { ...(a[0] || {}), iceTransportPolicy: 'relay', iceServers: [] };
       const pc = new Orig(...a), t = { pc, cand: new Set(), remote: false };
       rtc.made++; rtc.tries.push(t); if (rtc.tries.length > 16) rtc.tries.shift();
       pc.addEventListener('icecandidate', e => { if (e.candidate && e.candidate.type) t.cand.add(e.candidate.type); });
@@ -150,7 +165,7 @@ export function createP2P(env) {
   // The frames are counted where they leave, in WebSocket.send, so Trystero's and presence's are counted alike and a socket Trystero has just reopened is covered from its first frame. Other sockets (src/net.js) pass straight through.
   let halted = false;
   const guard = createGuard({ clock: () => performance.now(), onHit: (what, ms) => { stats.limits++; ev('limit', { what, ms }); if (what === 'frames') setTimeout(halt, 0); } });   // (later: this can be inside a Trystero call)
-  const relayAddrs = new Set((relayUrls.length ? relayUrls : [...RELAYS, ...PRESENCE_RELAYS]).map(u => new URL(u).href));
+  const relayAddrs = new Set((relayUrls.length ? relayUrls : [...RELAYS, ...PRESENCE_RELAYS, ...FALLBACK_RELAYS]).map(u => new URL(u).href));
   const wsSend = WebSocket.prototype.send;
   WebSocket.prototype.send = function (m) { if (relayAddrs.has(this.url)) { if (!guard.allow('frames')) return; stats.relayTx++; } wsSend.call(this, m); };
 
@@ -160,6 +175,9 @@ export function createP2P(env) {
   const MAXP = Math.round(num('maxp', MAX_PLAYERS, 1, 40)), IDLE_MS = num('idlems', PRESENCE_IDLE_MS, 1000, 600000);   // ?idlems=N: for the tests
   const presenceOn = kind === 'nostr' && params.get('presence') !== 'off' && !grid3;
   const presence = createPresence({ topic: `${APP_ID}:presence${CELL === 500 ? '' : ':c' + CELL}${ns ? ':' + ns : ''}`, urls: relayUrls.length ? relayUrls.slice(0, 3) : PRESENCE_RELAYS, onChange: () => { lastChecked = -1e9; }, allow: () => guard.allow('presence') });
+  // the relay fallback: only with presence (it is how a player knows somebody in the room is missing), and ?fb=off turns it off for the comparisons
+  const fbOn = presenceOn && params.get('fb') !== 'off';
+  const fb = createFallback({ urls: relayUrls.length ? relayUrls.slice(0, 2) : FALLBACK_RELAYS, app: APP_ID, ns, selfId, allow: () => guard.allow('fallback'), onEvent: (id, room, msgs) => fbIn(id, room, msgs) });
   const key = (i, j, s = 0) => `${ns}:${CELL}:${i}:${j}` + (s ? ':' + s : '');
   const rectDist = (x, z, i, j) => Math.hypot(Math.max(i * CELL - x, 0, x - (i + 1) * CELL), Math.max(j * CELL - z, 0, z - (j + 1) * CELL));
   const chooser = createChooser({ maxp: MAXP, cell: CELL, hyst: HYST, key, selfId });
@@ -171,8 +189,8 @@ export function createP2P(env) {
       if (!presence.ready && now - presence.startedAt < PRESENCE_WAIT_MS) return;
     }
     if (!presenceOn || !presence.ready) { legacy(x, z, ci, cj, now); return; }
-    const o = chooser.step(now, x, z, presence.list(), rooms, peers);
-    for (const { r, why } of o.leave) { ev(why, { room: r.key, members: r.peers.size + 1, linked: linkedCount() }); leaveCell(r); }
+    const o = chooser.step(now, x, z, presence.list(), roomsSeen(), peers);
+    for (const { r: v, why } of o.leave) { const r = rooms.get(v.key); if (!r) continue; ev(why, { room: r.key, members: r.peers.size + 1, linked: linkedCount() }); leaveCell(r); }
     for (const q of o.join) joinCell(q.key, q.i, q.j, q.s);
     // tell the others which rooms we are in (home first)
     const home = chooser.home;
@@ -181,7 +199,19 @@ export function createP2P(env) {
       if (txt !== lastListed) { lastListed = txt; presence.publish(list); }
     }
   }
-  const linkedCount = () => { let n = 0; for (const p of peers.values()) if (p.rooms.size) n++; return n; };
+  // linked: connected directly (in a room with us) or through the relay fallback
+  const linked = p => p.rooms.size > 0 || p.fb;
+  const linkedCount = () => { let n = 0; for (const p of peers.values()) if (linked(p)) n++; return n; };
+  // the rooms as the chooser (src/p2p/rooms.js) should see them: a player we reach through the relays counts as a member of the rooms we heard their hello in, so a room held only for them is not taken for a decoy and left
+  function roomsSeen() {
+    if (!fbCand.size) return rooms;
+    const v = new Map();
+    for (const [k, r] of rooms) {
+      const extra = []; for (const c of fbCand.values()) { const p = peers.get(c.id); if (p && p.fb && c.rooms.has(k)) extra.push(c.id); }
+      v.set(k, extra.length ? { ...r, peers: new Set([...r.peers, ...extra]) } : r);
+    }
+    return v;
+  }
   function legacy(x, z, ci, cj, now) {
     chooser.reset();
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {   // MARGIN < CELL: no cell farther than the ring around ours is in reach
@@ -211,14 +241,17 @@ export function createP2P(env) {
       const t = performance.now(); if (first) { r.tFirstPeer = t; }
       ev('peerJoin', { room: k, peer: id.slice(0, 4), ms: Math.round(t - r.t0) });
       let p = peers.get(id); if (!p) { p = newPeer(id); peers.set(id, p); }
-      if (!p.rooms.size) p.since = t;
+      if (!linked(p)) p.since = t;
       p.rooms.add(k); p.goneAt = 0;
+      if (p.fb) fbLet(p, t, 'upgrade');   // the direct connection opened after all: the relays are no longer used for this player
+      fbCand.delete(id); fbTo.delete(id);
       sendInfoTo(r, id); sendStateTo([id], performance.now(), true);
     };
     r.room.onPeerLeave = id => detach(r, id, 'peerLeave');
   }
   function leaveCell(r) {
     ev('leave', { room: r.key, peers: r.peers.size }); stats.leaves++;
+    if (r.fbArmed && fb.running && !halted) fb.post(r.key, []);   // a goodbye on that room's fallback topic: we are no longer in it (if we still share another room with them, our hello there keeps us)
     for (const id of [...r.peers]) detach(r, id, null);
     rooms.delete(r.key);
     try { r.room.leave(); } catch (e) { /* ignore */ }
@@ -228,15 +261,19 @@ export function createP2P(env) {
     const p = peers.get(id); if (!p) return;
     p.rooms.delete(r.key);
     if (why) ev(why, { room: r.key, peer: id.slice(0, 4) });
-    if (!p.rooms.size) p.goneAt = performance.now();
+    if (!linked(p)) p.goneAt = performance.now();
   }
-  const newPeer = id => ({ id, rooms: new Set(), name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, since: performance.now(), x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
+  const newPeer = id => ({ id, rooms: new Set(), fb: false, fseq: -1, name: '', vehicle: 'calessino', livery: -1, seq: -1, lastRx: 0, since: performance.now(), x: NaN, z: NaN, nextTx: 0, goneAt: 0, tokens: RATE_BURST, tokT: performance.now(), shown: false });
 
   // ---------- outgoing ----------
   const route = p => { let best = null; for (const k of p.rooms) if (rooms.has(k) && (best === null || k < best)) best = k; return best; };
-  function sendInfoTo(r, id) {
+  function infoBytes() {
     const nm = new TextEncoder().encode(myName).slice(0, MAX_NAME_BYTES);
     const b = new Uint8Array(4 + nm.length); b[0] = 1; b[1] = vehId(); b[2] = livId(); b[3] = nm.length; b.set(nm, 4);
+    return b;
+  }
+  function sendInfoTo(r, id) {
+    const b = infoBytes();
     stats.txMsgs++; stats.txBytes += b.length;
     r.info.send(b, id ? { target: id } : undefined).catch(() => {});
   }
@@ -284,14 +321,14 @@ export function createP2P(env) {
     p.lastRx = now;
     if (p.shown) rm.setInfo(rm.remotes.get(id), p.name, p.livery, p.vehicle);
   }
-  function onState(r, id, raw) {
+  function onState(r, id, raw, viaRelay) {   // viaRelay: through the fallback, which numbers its states on its own (one counter for all the receivers of an event)
     const p = known(id), b = plain(raw), now = performance.now(); stats.rxMsgs++;
     if (!p || !b || b[0] !== 2 || b.length < MSG_STATE || b[12] & 0xf0 || b.length !== (b[12] & 8 ? MSG_STATE + 2 : MSG_STATE)) { stats.rxBad++; return; }
     stats.rxBytes += b.length;
     if (!admit(p, now)) { stats.rxDropped++; return; }
-    const dseq = (b[1] - p.seq) & 255;
-    if (p.seq >= 0 && (dseq === 0 || dseq > 128)) { stats.rxDup++; return; }   // a copy through another room, or out of order
-    p.seq = b[1];
+    const sk = viaRelay ? 'fseq' : 'seq', dseq = (b[1] - p[sk]) & 255;
+    if (p[sk] >= 0 && (dseq === 0 || dseq > 128)) { stats.rxDup++; return; }   // a copy through another room, or out of order
+    p[sk] = b[1];
     const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
     const lo = dv.getUint32(2, true), xq = lo & 0xfffff, zq = (lo >>> 20) | (b[6] << 12);
     const x = (xq - POS_MID) / POS_UNITS, z = (zq - POS_MID) / POS_UNITS;
@@ -307,7 +344,7 @@ export function createP2P(env) {
       if (rm.remotes.size >= MAX_REMOTES) return;
       p.shown = true; p.far = Math.hypot(x - car.x, z - car.z) > DRAW_R;
       const first = rm.ensure(id); rm.setFar(first, p.far); rm.setInfo(first, p.name || 'Player', p.livery, p.vehicle);
-      ev('firstState', { peer: id.slice(0, 4), room: r.key, msSinceRoom: Math.round(now - r.t0) });
+      ev('firstState', { peer: id.slice(0, 4), room: r.key, msSinceRoom: Math.round(now - r.t0), via: viaRelay ? 'relay' : 'direct' });
     }
     const rem = rm.remotes.get(id); if (!rem) return;
     rm.addSnap(rem, { t: now, x, z, th: b[7] / 256 * TAU, v, steer: dv.getInt8(9) / 127 * 0.7, roll: dv.getInt8(10) / 127 * 0.5, lean: dv.getInt8(11) / 127, fl: b[12] & 7, h });
@@ -315,7 +352,7 @@ export function createP2P(env) {
 
   // A phrase reaches the players who can see our car: within DRAW_R metres (the range at which another player is drawn as a car and not a ring on the maps). The sender sends to
   // those only, and a receiver checks its own distance too, since a message comes from a stranger: past that range there is no bubble, no line and no sound.
-  const reach = p => !!(p && p.held !== false && p.rooms.size && Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_MS && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
+  const reach = p => !!(p && p.held !== false && linked(p) && Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_MS && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
   const inReach = () => { let n = 0; for (const p of peers.values()) if (reach(p)) n++; return n; };
   const SAID = { it: 'dici', en: 'said' };   // "izzy dici “ciao curò”": wording to be corrected by the owner
   function onSay(id, raw) {
@@ -330,11 +367,12 @@ export function createP2P(env) {
   let lastSaid = -1e9;
   function say(idx) {
     const now = performance.now(); if (!(idx >= 0 && idx < PHRASES.length) || now - lastSaid < SAY_GAP_MS) return false;
-    const byRoom = new Map(); let n = 0;
-    for (const p of peers.values()) { if (!reach(p)) continue; const k = route(p); if (k !== null) { if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(p.id); n++; } }
+    const byRoom = new Map(), viaRelay = []; let n = 0;
+    for (const p of peers.values()) { if (!reach(p)) continue; const k = route(p); if (k !== null) { if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(p.id); n++; } else if (p.fb) { viaRelay.push(p.id); n++; } }
     if (!n) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr(`Entro ${DRAW_R} m`, `Within ${DRAW_R} m`), true); return false; }
     lastSaid = now; const b = new Uint8Array([3, idx]);
     for (const [k, list] of byRoom) { stats.txMsgs += list.length; stats.txBytes += 2 * list.length; rooms.get(k).say.send(b, { target: list }).catch(() => {}); }
+    if (viaRelay.length) { stats.txMsgs += viaRelay.length; stats.txBytes += 2 * viaRelay.length; fb.send(viaRelay, [b]); }   // one event for all of them
     panel.line(myName, SAID[lang()], PHRASES[idx], true);   // what you said, in the same form as on their screens (the bubble is over your car on theirs)
     return true;
   }
@@ -401,7 +439,11 @@ export function createP2P(env) {
   const nameOf = id => { const p = peers.get(id); return (p && p.name) || 'Player'; };
   const here = id => { const p = peers.get(id); return !!(p && p.shown && rm.remotes.get(id)); };   // somebody we can see on the street
   const dist = id => { const p = peers.get(id); return p && Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : Infinity; };
-  const sendOffer = (id, bytes) => { const p = peers.get(id), k = p && route(p); if (k === null || k === undefined) return false; stats.txMsgs++; stats.txBytes += bytes.length; rooms.get(k).offer.send(bytes, { target: id }).catch(() => {}); return true; };
+  const sendOffer = (id, bytes) => {
+    const p = peers.get(id), k = p && route(p);
+    if (k === null || k === undefined) { if (!p || !p.fb) return false; stats.txMsgs++; stats.txBytes += bytes.length; fb.send([id], [bytes]); return true; }   // through the relays
+    stats.txMsgs++; stats.txBytes += bytes.length; rooms.get(k).offer.send(bytes, { target: id }).catch(() => {}); return true;
+  };
   const reply = (id, offerId, code) => sendOffer(id, new Uint8Array([7, code, offerId]));
   // what the giver waits for: a line under the buttons until the answer comes (a toast only lasts two seconds)
   function note(text) {
@@ -561,8 +603,8 @@ export function createP2P(env) {
   // The notice behind the i: three short paragraphs, kept true by hand (docs/P2P-MULTIPLAYER.md, joinlog/README.md). The second one follows PLAYLOG_ON.
   // WHO_SEES is the one sentence about who can see a player: if that changes (who is told what), change it here and nowhere else.
   const WHO_SEES = {
-    it: 'Se giochi online, i giocatori più vicini a te, ovunque siano in città, vedono il tuo nome, la tua posizione e il tuo indirizzo IP: una connessione diretta funziona così. I server che mettono in contatto i giocatori vedono anche il tuo indirizzo IP. Su una lista pubblica, senza nomi, si legge in quale zona di 500 m è ogni giocatore online.',
-    en: 'If you play online, the players closest to you, wherever they are in the city, can see your name, your position and your IP address: that is how a direct connection works. The servers that connect players see your IP address too. A public list, with no names, shows which 500 m area each online player is in.' };
+    it: 'Se giochi online, i giocatori più vicini a te, ovunque siano in città, vedono il tuo nome, la tua posizione e il tuo indirizzo IP: una connessione diretta funziona così. Se una connessione diretta non funziona, il tuo nome, la tua posizione e quello che dici passano invece per quei server, dove chiunque può leggerli. I server che mettono in contatto i giocatori vedono anche il tuo indirizzo IP. Su una lista pubblica, senza nomi, si legge in quale zona di 500 m è ogni giocatore online.',
+    en: 'If you play online, the players closest to you, wherever they are in the city, can see your name, your position and your IP address: that is how a direct connection works. If a direct connection does not work, your name, your position and what you say go through those servers instead, where anyone can read them. The servers that connect players see your IP address too. A public list, with no names, shows which 500 m area each online player is in.' };
   const KEPT = {
     it: 'Non raccogliamo informazioni personali. Non teniamo il tuo indirizzo, la tua posizione né un identificativo che dura nel tempo.',
     en: 'We do not collect personal information. We keep no address, no position and no ID that lasts.' };
@@ -651,7 +693,9 @@ export function createP2P(env) {
 
   function goOffline() {
     panel.clear(); wheel.close(); presence.stop(true); chooser.reset(); chooser.clear(); lastListed = '';   // no list of who is online, no more events
+    fbGoodbye();
     for (const r of [...rooms.values()]) leaveCell(r);
+    fbCand.clear(); fbTo = new Set(); fb.listen([]); setTimeout(() => { if (!online()) fb.stop(); }, 400);   // the goodbyes leaveCell posts are signed first: the sockets shut a moment later
     for (const p of peers.values()) if (p.shown) rm.remove(p.id);
     peers.clear(); myOffer = null; incoming = null; closeCard(); note(null);   // an offer in the air is over with the player it was for
     goQuiet();
@@ -667,6 +711,7 @@ export function createP2P(env) {
     if (halted) return; halted = true; stats.halts++; ev('halt', { until: Math.round(guard.until('frames')) });
     presence.stop(false); chooser.reset(); lastListed = '';
     for (const r of [...rooms.values()]) leaveCell(r);
+    fb.stop(); fbQuit(performance.now());
     pauseRelayReconnection(); shutSockets();
   }
   // a page in the background has no frames, so update() below does not run there: its own timer ends presence after PRESENCE_IDLE_MS hidden (it starts again on the first frame back)
@@ -684,18 +729,151 @@ export function createP2P(env) {
   // beyond DRAW_R is a dot with a name on the maps, not a car.
   function rank(now) {
     const known = [], unknown = [];
-    for (const p of peers.values()) { if (!p.rooms.size) continue; (Number.isFinite(p.x) ? known : unknown).push(p); }
+    for (const p of peers.values()) { if (!linked(p)) continue; (Number.isFinite(p.x) ? known : unknown).push(p); }
     const dist = p => Math.hypot(p.x - car.x, p.z - car.z);
     known.sort((a, b) => dist(a) - (a.held ? 50 : 0) - (dist(b) - (b.held ? 50 : 0)));
     const slots = MAXP;   // a player we have not heard a position from yet takes no slot (it sends us its first state within a moment, and then it is ranked); it is sent to, so that it can rank us
     known.forEach((p, n) => {
       p.held = n < slots;
       if (!p.shown) return;
-      if (!p.held) { rm.remove(p.id); p.shown = false; p.seq = -1; ev('unheld', { peer: p.id.slice(0, 4) }); return; }
+      if (!p.held) { rm.remove(p.id); p.shown = false; p.seq = p.fseq = -1; ev('unheld', { peer: p.id.slice(0, 4) }); return; }
       const d = dist(p), far = p.far ? d > DRAW_R : d > DRAW_OUT;
       if (far !== p.far) { p.far = far; rm.setFar(rm.remotes.get(p.id), far); ev(far ? 'far' : 'near', { peer: p.id.slice(0, 4), m: Math.round(d) }); }
     });
     for (const p of unknown) p.held = true;
+  }
+
+  // ---------- the relay fallback ----------
+  // Who: a player in a room of ours whose WebRTC connection does not open. Presence (src/p2p/presence.js) says how many others are in each of our rooms; when that stays above the
+  // number we are connected to for FB_WAIT_MS, the room is "armed": we listen on its fallback topic and say hello there (INFO and STATE) every FB_HELLO_MS.
+  // Two sets, one per direction, so that neither end depends on the other's choice:
+  //   fbTo     who we send STATE to: at most FB_MAX, the closest of those heard (hello or inbox) who are not connected directly. One who already writes to us comes first (300 m of credit),
+  //            one already in the set stays for FB_HOLD_MS at least and then keeps its place over anybody less than 150 m closer; so pairs form and hold (each change is a car
+  //            that disappears on somebody's screen), and one who does not write back gives way, after FB_HOLD_MS, to one who does. On top of those, we write back to whoever
+  //            writes to us, up to FB_TO_MAX in all, so a player whose choices are all taken by others is still seen and sees.
+  //   p.fb     who we draw through the relays: whoever writes to our inbox (they hold us), the closest MAXP, until they stop for FB_QUIET_MS or say goodbye.
+  // So a car on the screen is always one that streams to us, never one frozen because it chose others. The messages are the same bytes and go through the same checks (admit, onInfo,
+  // onState...) as the direct ones. When the direct connection opens after all (onPeerJoin above), the relays stop for that player. While the relays are used for anybody, every room of ours
+  // is armed (a room swap would otherwise lose them). A player heard from, but with no hello in a room of ours for FB_TTL_MS, is forgotten.
+  const fbCand = new Map();   // Trystero id -> { id, rooms: Map(room key -> time of the last hello there), first, last, inboxAt, x, z, info, state, nextTx, infoSent }
+  let fbTo = new Set(), fbSeq = 0, fbTaken = 0, fbLastTx = -1e9;
+  const FB_ROOM = { key: 'relay', t0: 0 };
+  function fbPos(c, b) {   // a candidate's position from a STATE, only to rank it (onState checks everything properly once it is drawn)
+    if (b.length < MSG_STATE) return;
+    const lo = (b[2] | b[3] << 8 | b[4] << 16 | b[5] << 24) >>> 0, x = ((lo & 0xfffff) - POS_MID) / POS_UNITS, z = (((lo >>> 20) | (b[6] << 12)) - POS_MID) / POS_UNITS;
+    if (Math.abs(x) < 20000 && Math.abs(z) < 20000) { c.x = x; c.z = z; }
+  }
+  function fbDispatch(p, m) {
+    if (m[0] === 1) onInfo(FB_ROOM, p.id, m);
+    else if (m[0] === 2) { FB_ROOM.t0 = p.since; onState(FB_ROOM, p.id, m, true); }
+    else if (m[0] === 3) onSay(p.id, m);
+    else if (m[0] >= 4 && m[0] <= 7) onOffer(p.id, m);
+    else stats.rxBad++;
+  }
+  function fbIn(id, roomKey, msgs) {   // an event from src/p2p/fallback.js: roomKey is the room whose topic it came on (a hello or a goodbye), null for our inbox
+    if (!fbOn || !online() || halted || typeof id !== 'string') return;
+    const now = performance.now(), p = peers.get(id);
+    if (p && p.rooms.size) return;   // connected directly: the other end will notice in a moment
+    if (roomKey !== null && !rooms.has(roomKey)) return;
+    let c = fbCand.get(id);
+    if (!c) {
+      if (!msgs.length || fbCand.size >= FB_CAND_MAX) return;
+      c = { id, rooms: new Map(), first: now, last: now, inboxAt: 0, toSince: 0, x: NaN, z: NaN, info: null, state: null, nextTx: 0, infoSent: false }; fbCand.set(id, c);
+    }
+    if (!msgs.length) {   // a goodbye: on a room's topic, they left that room (a room swap: they say hello in the next one); in our inbox, they have let us go (closed the page, went solo)
+      if (roomKey !== null) { c.rooms.delete(roomKey); return; }
+      fbCand.delete(id); fbTo.delete(id); if (p && p.fb) fbLet(p, now, 'fbBye'); return;
+    }
+    if (roomKey !== null) c.rooms.set(roomKey, now); else c.inboxAt = now;
+    c.last = now;
+    for (const m of msgs) { if (m[0] === 1) c.info = m; else if (m[0] === 2) { c.state = m; fbPos(c, m); } }
+    if (p && p.fb) for (const m of msgs) fbDispatch(p, m);   // (one not drawn yet is drawn at the next fbStep, from what is kept here)
+  }
+  function fbGoodbye() {   // to everybody we write to or draw through the relays: one event, no messages
+    if (!fb.running) return; const ids = new Set(fbTo); for (const p of peers.values()) if (p.fb) ids.add(p.id);
+    if (ids.size) fb.send([...ids], []);
+  }
+  function fbLet(p, now, why) {
+    p.fb = false; p.fseq = -1; ev(why, { peer: p.id.slice(0, 4) });
+    if (!p.rooms.size) p.goneAt = now;
+  }
+  function fbQuit(now) { if (fb.active) { fb.listen([]); fb.setActive(false); } for (const p of peers.values()) if (p.fb) fbLet(p, now, 'fbOff'); fbCand.clear(); fbTo = new Set(); }
+  // every CHECK_MS: which rooms to listen on, who to draw and who to write to
+  function fbStep(now) {
+    if (!fbOn) return;
+    if (!online() || halted || !presence.running || !presence.ready) { fbQuit(now); return; }
+    const listed = new Map(); for (const e of presence.list()) for (const [i, j, s] of e.rooms) { const k = key(i, j, s); listed.set(k, (listed.get(k) || 0) + 1); }
+    const ok = [];   // heard from lately (FB_HEARD_MS), not connected directly, and in a room of ours (or new, and writing to us)
+    for (const c of [...fbCand.values()]) {
+      for (const [k, t] of c.rooms) if (!rooms.has(k) || now - t > FB_TTL_MS) c.rooms.delete(k);
+      const p = peers.get(c.id);
+      if ((p && p.rooms.size) || now - c.last > FB_TTL_MS || (!c.rooms.size && now - c.first > FB_TTL_MS)) { fbCand.delete(c.id); continue; }
+      if (now - c.last < FB_HEARD_MS) ok.push(c);
+    }
+    const d = c => { const p = peers.get(c.id), x = p && Number.isFinite(p.x) ? p.x : c.x, z = p && Number.isFinite(p.z) ? p.z : c.z; return Number.isFinite(x) ? Math.hypot(x - car.x, z - car.z) : 1e5; };
+    // drawn: those who write to us
+    const draw = new Set(ok.filter(c => now - c.inboxAt < FB_QUIET_MS).sort((a, b) => d(a) - d(b)).slice(0, MAXP).map(c => c.id));
+    for (const id of draw) {
+      let p = peers.get(id); const c = fbCand.get(id);
+      if (!p) { p = newPeer(id); peers.set(id, p); }
+      if (p.fb) continue;
+      p.fb = true; p.goneAt = 0; p.since = now; fbTaken++;
+      ev('fbOn', { peer: id.slice(0, 4) });
+      if (c.info) fbDispatch(p, c.info); if (c.state) fbDispatch(p, c.state);   // what they last said, so the car shows at once
+    }
+    for (const p of peers.values()) if (p.fb && !draw.has(p.id)) fbLet(p, now, 'fbOff');
+    // written to: the closest FB_MAX, those who write to us first
+    const score = c => fbTo.has(c.id) && now - c.toSince < FB_HOLD_MS ? -1e6 : d(c) - (now - c.inboxAt < 3000 ? 300 : 0) - (fbTo.has(c.id) ? 150 : 0);
+    const to = new Set(ok.sort((a, b) => score(a) - score(b)).slice(0, FB_MAX).map(c => c.id));
+    for (const c of ok) if (to.size < FB_TO_MAX && !to.has(c.id) && now - c.inboxAt < 3000) to.add(c.id);   // and we write back to whoever writes to us, up to FB_TO_MAX: nobody draws a car that does not see them
+    for (const id of to) if (!fbTo.has(id)) { const c = fbCand.get(id); c.nextTx = 0; c.infoSent = false; c.toSince = now; ev('fbTo', { peer: id.slice(0, 4) }); }
+    fbTo = to;
+    // the rooms to listen on
+    const using = fbTo.size > 0 || draw.size > 0, armed = [];
+    for (const r of rooms.values()) {
+      if ((listed.get(r.key) || 0) > r.peers.size) { if (!r.missSince) r.missSince = now; } else r.missSince = 0;
+      const was = r.fbArmed;
+      r.fbArmed = using || (!!r.missSince && now - r.missSince > FB_WAIT_MS && now - r.t0 > FB_WAIT_MS);   // using the relays for anybody: every room of ours, at once, so a room swap does not lose them
+      if (r.fbArmed && !was) { r.fbHelloAt = 0; ev('fbArm', { room: r.key }); }
+      if (r.fbArmed) armed.push(r.key);
+    }
+    fb.listen(armed);
+    fb.setActive(armed.length > 0 || using);
+  }
+  // with every send tick (game playing): the hellos due, then one STATE event for everybody in fbTo who is due (INFO in it for those who have not had it)
+  function fbSend(now) {
+    if (!fbOn || !fb.running) return;
+    for (const r of rooms.values()) if (r.fbArmed && now >= (r.fbHelloAt || 0)) {
+      r.fbHelloAt = now + FB_HELLO_MS * (0.85 + Math.random() * 0.3);
+      const st = packState(); st[1] = fbSeq = (fbSeq + 1) & 255;
+      fb.post(r.key, [infoBytes(), st]);
+    }
+    if (!fbTo.size) return;
+    const cs = [...fbTo].map(id => fbCand.get(id)).filter(c => c && !(peers.get(c.id) && peers.get(c.id).held === false));
+    if (now - fbLastTx < FB_STATE_MS - 20 || !cs.some(c => now >= c.nextTx)) return;   // never two STATE events closer than FB_STATE_MS, whatever the schedules say
+    // the more players in our rooms, the less often (presence counts everybody there, connected or not): about 3 a second up to 4, then down to FB_STATE_MAX_MS
+    let crowd = linkedCount(); { const listed = new Map(); for (const e of presence.list()) for (const [i, j, s] of e.rooms) { const k = key(i, j, s); listed.set(k, (listed.get(k) || 0) + 1); } for (const r of rooms.values()) crowd = Math.max(crowd, listed.get(r.key) || 0); }
+    const every = Math.min(FB_STATE_MAX_MS, FB_STATE_MS * Math.max(1, crowd / 4)), due = []; let needInfo = false;
+    for (const c of cs) {
+      if (c.nextTx - now >= every) continue;   // one is due: everybody who would be due before the next one goes in the same event, so they are sent together from then on
+      const p = peers.get(c.id), x = p && Number.isFinite(p.x) ? p.x : c.x, z = p && Number.isFinite(p.z) ? p.z : c.z, dd = Number.isFinite(x) ? Math.hypot(x - car.x, z - car.z) : 0;
+      c.nextTx = now + Math.max(every, dd < 350 ? 0 : dd < 1200 ? SEND_FAR : SEND_AFAR);
+      due.push(c.id); if (!c.infoSent) { needInfo = true; c.infoSent = true; }
+    }
+    if (!due.length) return;
+    const st = packState(); st[1] = fbSeq = (fbSeq + 1) & 255; fbLastTx = now;
+    stats.txMsgs += due.length; stats.txBytes += st.length * due.length;
+    fb.send(due, needInfo ? [infoBytes(), st] : [st]).then(sent => { if (!sent && needInfo) for (const id of due) { const c = fbCand.get(id); if (c) c.infoSent = false; } });   // not sent: INFO goes again with the next one
+  }
+  // for the test box: events a second, over the last few seconds
+  const fbRate = { t: 0, tx: 0, rx: 0, txS: 0, rxS: 0 };
+  function fbText(now) {
+    const dt = (now - fbRate.t) / 1000;
+    if (dt >= 2) { fbRate.txS = (fb.stats.txEvents - fbRate.tx) / dt; fbRate.rxS = (fb.stats.rxEvents - fbRate.rx) / dt; fbRate.t = now; fbRate.tx = fb.stats.txEvents; fbRate.rx = fb.stats.rxEvents; }
+    if (!fbOn) return 'fallback off';
+    let on = 0; for (const p of peers.values()) if (p.fb) on++;
+    const armedN = [...rooms.values()].filter(r => r.fbArmed).length, rel = fb.relays().map(r => `${new URL(r.url).host.replace(/^(nostr|relay)\./, '').replace(/\.[a-z]+$/, '')} ${r.state}${r.writer ? '*' : ''}`).join(', ');
+    return `relay fallback: drawn ${on}, sent to ${fbTo.size} (heard ${fbCand.size}, rooms ${armedN})  ev/s out ${fbRate.txS.toFixed(1)} in ${fbRate.rxS.toFixed(1)}  ${fb.running ? rel : 'sockets closed'}${fb.stats.refused ? `  refused ${fb.stats.refused}` : ''}${rtc.block ? '  ICE BLOCKED' : ''}`;
   }
   // ---------- frame ----------
   let idleSince = 0, hudT = 0, sendAcc = 0, linkTxt = '-', linkT = 0;
@@ -704,12 +882,12 @@ export function createP2P(env) {
     const playing = game.state === 'play', on = online();
     if (!on || !playing) panel.set({ show: false, title: '', sub: '', label: '' });
     else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
-      let linked = 0; for (const p of peers.values()) if (p.rooms.size && p.held !== false) linked++;
+      let nLinked = 0; for (const p of peers.values()) if (linked(p) && p.held !== false) nLinked++;
       const near = inReach(), keys = !document.documentElement.classList.contains('touch');
       panel.set({
         show: true, idle: !near, open: wheel.isOpen, label: tr('Parla', 'Talk') + (keys ? ' (T)' : ''),
-        title: linked ? tr(`${linked} ${linked === 1 ? 'giocatore' : 'giocatori'}`, `${linked} ${linked === 1 ? 'player' : 'players'}`) : 'Online',
-        sub: !linked ? tr('ancora nessuno', 'no one yet') : near ? tr(`${near} entro ${DRAW_R} m`, `${near} within ${DRAW_R} m`) : tr(`nessuno entro ${DRAW_R} m`, `none within ${DRAW_R} m`),
+        title: nLinked ? tr(`${nLinked} ${nLinked === 1 ? 'giocatore' : 'giocatori'}`, `${nLinked} ${nLinked === 1 ? 'player' : 'players'}`) : 'Online',
+        sub: !nLinked ? tr('ancora nessuno', 'no one yet') : near ? tr(`${near} entro ${DRAW_R} m`, `${near} within ${DRAW_R} m`) : tr(`nessuno entro ${DRAW_R} m`, `none within ${DRAW_R} m`),
       });
     }
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
@@ -722,23 +900,23 @@ export function createP2P(env) {
       if (playing && !document.hidden) { idleSince = 0; if (!presence.running && !quiet && !halted) presence.start(); }
       else { if (!idleSince) idleSince = now; if (presence.running && now - idleSince > IDLE_MS) { presence.stop(true); chooser.reset(); lastListed = ''; } }
     }
-    if (now - lastChecked > CHECK_MS) { lastChecked = now; if (!halted) evaluate(now); rank(now); }
+    if (now - lastChecked > CHECK_MS) { lastChecked = now; if (!halted) evaluate(now); fbStep(now); rank(now); }
     sendAcc += dt * 1000;
     if (sendAcc >= SEND_NEAR - 5) {
       sendAcc = 0;
       const key2 = myName + '|' + vehId() + '|' + livId();
-      if (key2 !== lastInfoKey) { lastInfoKey = key2; for (const r of rooms.values()) sendInfoTo(r, null); }
-      if (game.state === 'play') sendStateTo([...peers.keys()], now, false);
+      if (key2 !== lastInfoKey) { lastInfoKey = key2; for (const r of rooms.values()) sendInfoTo(r, null); for (const c of fbCand.values()) c.infoSent = false; }
+      if (game.state === 'play') { sendStateTo([...peers.keys()], now, false); fbSend(now); }
     }
     for (const p of peers.values()) {
-      if ((p.goneAt && now - p.goneAt > GONE_MS) || (!p.rooms.size && !p.goneAt)) {
+      if ((p.goneAt && now - p.goneAt > GONE_MS) || (!linked(p) && !p.goneAt)) {
         if (p.shown) rm.remove(p.id);
         ev('drop', { peer: p.id.slice(0, 4), why: 'left' });
         peers.delete(p.id);
       } else if (p.shown && now - p.lastRx > STALE_MS) {
         // quiet for a while (the other page was locked, or in the background): take the car off the street but keep the record, the connection
         // is still open and nothing would add it again. Its next STATE shows it again with the name and livery we already have.
-        rm.remove(p.id); p.shown = false; p.seq = -1;
+        rm.remove(p.id); p.shown = false; p.seq = p.fseq = -1;
         ev('drop', { peer: p.id.slice(0, 4), why: 'stale' });
       }
     }
@@ -746,7 +924,7 @@ export function createP2P(env) {
     if (testing && now - hudT > 500) {
       hudT = now;
       if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
-      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}\n${rtcText()}`;
+      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}\n${fbText(now)}\n${rtcText()}`;
     }
   }
 
@@ -765,9 +943,11 @@ export function createP2P(env) {
     enabled: true, update, openName, players: () => rm.list(), get online() { return peers.size > 0; },
     isOnline: online,
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
-    debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
-      peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),
+    debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets(), ...fb.sockets()],   // the room signalling sockets, then the presence ones, then the fallback ones
+      peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), fb: p.fb, rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()) })),
       presence, MAXP, home: () => chooser.home && { ...chooser.home }, banned: chooser.banned, guard, halted: () => halted,
+      fb, fbCand, fbTo: () => [...fbTo], fbText: () => fbText(performance.now()), fbTaken: () => fbTaken, iceBlock: on => { rtc.block = !!on; }, iceBlocked: () => rtc.block,   // the relay fallback, and the test switch for WebRTC
+      fbPeers: () => [...peers.values()].filter(p => p.fb).map(p => p.id),
       rawSockets: () => strat.sockets() || {},   // test hook: the signalling WebSockets themselves
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/p2p/offer.mjs)
       resetOffers(keepMute) { lastOfferAt = -1e9; for (const p of peers.values()) { p.lastOffer = 0; if (!keepMute) p.mutedUntil = 0; } },
@@ -783,6 +963,6 @@ export function createP2P(env) {
       } },
   };
   window.__p2p = api.debug;
-  addEventListener('pagehide', () => { for (const r of rooms.values()) { try { r.room.leave(); } catch (e) { /* ignore */ } } });
+  addEventListener('pagehide', () => { fbGoodbye(); for (const r of rooms.values()) { if (r.fbArmed && fb.running) fb.post(r.key, []); try { r.room.leave(); } catch (e) { /* ignore */ } } });   // the goodbyes on the fallback topics may not make it out of a closing page: the others then let us go after FB_QUIET_MS
   return api;
 }

@@ -5,8 +5,11 @@
 import * as THREE from 'three';
 import { LIVERIES as ALL_LIVERIES } from './garage.js';
 
-const DELAY = 150;             // interpolation buffer, ms
-const EXTRAP = 250;            // longest extrapolation, ms
+const DELAY = 150;             // interpolation buffer, ms: the least. Each remote's own buffer follows how often its snapshots really come (gap and jitter, below), so a car
+const DELAY_MAX = 800;         // sent 3 times a second (the relay fallback, src/p2p/fallback.js) is drawn about half a second late but between real positions, not guessed
+const EXTRAP = 250;            // longest extrapolation, ms (or one and a half times the usual gap between snapshots, if longer, up to EXTRAP_MAX)
+const EXTRAP_MAX = 800;
+const SMOOTH = 0.2;            // seconds: when a new snapshot moves the path (a guess that was wrong, a late one), the car glides to it over about this long instead of jumping
 const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
 const PINK = '#ff6fae', PINK_D = '#e8559a';
@@ -21,13 +24,28 @@ export function createRemotes(env) {
 
   function addSnap(r, s) {
     const l = r.snaps[r.snaps.length - 1];
+    s.arr = s.t;
+    let before = null;
     if (l) {
-      const gap = s.t - l.t, d = Math.hypot(s.x - l.x, s.z - l.z);
+      const gap = s.t - l.arr, d = Math.hypot(s.x - l.x, s.z - l.z);
+      // when it was really there: the arrival time carries the network's jitter (on the relays tens of ms in a gap of 300), which would show as a car that surges and brakes.
+      // A moving car tells us itself: the distance it went at the speed it reported. Kept within a little of the arrival, so an error cannot add up
+      const v = (Math.abs(l.v) + Math.abs(s.v)) / 2;
+      if (gap > 150 && v > 3 && d < 25 + 0.045 * gap) s.t = Math.max(l.t + 30, clamp(l.t + d / v * 1000, s.arr - 120, s.arr + 60));
       if (d > 25 + 0.045 * gap) r.snaps.length = 0; // teleport (respawn, or came back from far away)
-      else if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: s.t - 100 }); // it sat still until just now
+      else { if (r.model) before = sample(r, s.arr); if (gap > 300 && Math.abs(l.v) < 0.5) r.snaps.push({ ...l, t: Math.max(l.t + 1, s.t - 100) }); }   // it sat still until just now
+      if (gap > 0 && gap < 3000) {   // how often snapshots come, and how unevenly: one late snapshot raises the jitter at once, and it comes down slowly, so the buffer is ready for the next one
+        if (!r.gap) { r.gap = gap; r.jit = gap * 0.2; } else { const dev = Math.abs(gap - r.gap); r.jit += (dev - r.jit) * (dev > r.jit ? 0.3 : 0.02); r.gap += (gap - r.gap) * 0.1; }
+      }
     }
     r.snaps.push(s); if (r.snaps.length > 16) r.snaps.shift();
     r.have = true;
+    // where the car is drawn must not jump because a snapshot arrived (a guess that was off, or a late one): the difference goes into an offset that fades over SMOOTH seconds. A teleport is not smoothed
+    if (before) {
+      const after = sample(r, s.arr);
+      r.ox += before.x - after.x; r.oz += before.z - after.z; r.oth += wrapPI(before.th - after.th);
+      if (Math.hypot(r.ox, r.oz) > 12) r.ox = r.oz = r.oth = 0;
+    } else r.ox = r.oz = r.oth = 0;
   }
 
   const flameGeo = new THREE.ConeGeometry(0.1, 1, 8, 1, true).translate(0, 0.5, 0).rotateX(-Math.PI / 2);
@@ -61,7 +79,7 @@ export function createRemotes(env) {
 
   function makeRemote(id) {
     const marker = { x: 0, z: 0, color: PLAYER_DOT, size: 5, shape: 'ring', player: true, name: '' };   // name: plain text, drawn with fillText by the maps
-    return { id, name: '', livery: -1, far: false, info: null, snaps: [], have: false, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
+    return { id, name: '', livery: -1, far: false, info: null, snaps: [], have: false, gap: 0, jit: 0, delay: DELAY, ox: 0, oz: 0, oth: 0, qx: 0, qz: 0, hq: false, model: null, type: '', tag: null, flames: null, marker, alpha: 0, target: 1, lift: 0, y: 0, shadow: true, fadeMats: null, spin: 0, shown: false };
   }
   // liv indexes the livery list of `type` (a vehicle id); without a type it is the old relay call: the local vehicle's list, drawn as a lapa.
   // Both come from the network, so an unknown vehicle is a lapa and an unknown livery is the first one of its vehicle.
@@ -139,21 +157,42 @@ export function createRemotes(env) {
   }
 
   function sample(r, now) {
-    const s = r.snaps, rt = now - DELAY;
+    const s = r.snaps, rt = now - r.delay;
     while (s.length > 2 && s[1].t <= rt) s.shift();
     const a = s[0], b = s[1];
     if (!b || rt >= b.t) {
-      const l = s[s.length - 1], dt = clamp(rt - l.t, 0, EXTRAP) / 1000;
+      const l = s[s.length - 1], dt = clamp(rt - l.t, 0, clamp(r.gap * 1.5, EXTRAP, EXTRAP_MAX)) / 1000;
       return { x: l.x + Math.sin(l.th) * l.v * dt, z: l.z + Math.cos(l.th) * l.v * dt, th: l.th, v: l.v, steer: l.steer, roll: l.roll, lean: l.lean, fl: l.fl, h: l.h || 0 };
     }
     if (rt <= a.t) return a;
     const k = (rt - a.t) / (b.t - a.t), m = (p, q) => p + (q - p) * k;
-    return { x: m(a.x, b.x), z: m(a.z, b.z), th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl, h: m(a.h || 0, b.h || 0) };
+    // the path between two snapshots: a curve that leaves a and arrives at b along their headings (Hermite), so a car sent 3 times a second still goes round a corner instead of
+    // cutting it in straight lines; plain straight lines when the headings do not fit the way it went (reversing, a spin, a slide)
+    let x = m(a.x, b.x), z = m(a.z, b.z);
+    const cx = b.x - a.x, cz = b.z - a.z, c = Math.hypot(cx, cz), T = (b.t - a.t) / 1000;
+    if (c > 0.5) {
+      const tan = q => { const vx = Math.sin(q.th) * q.v * T, vz = Math.cos(q.th) * q.v * T, n = Math.hypot(vx, vz), f = n > 1.5 * c ? 1.5 * c / n : 1; return [vx * f, vz * f, n > 1e-6 ? (vx * cx + vz * cz) / (n * c) : 0]; };
+      const [ax, az, ca] = tan(a), [bx, bz, cb] = tan(b);
+      if (ca > 0.5 && cb > 0.5) {
+        const k2 = k * k, k3 = k2 * k, h10 = k3 - 2 * k2 + k, h11 = k3 - k2, h01 = 3 * k2 - 2 * k3;
+        x = a.x + cx * h01 + ax * h10 + bx * h11; z = a.z + cz * h01 + az * h10 + bz * h11;
+      }
+    }
+    return { x, z, th: a.th + wrapPI(b.th - a.th) * k, v: m(a.v, b.v), steer: m(a.steer, b.steer), roll: m(a.roll, b.roll), lean: m(a.lean, b.lean), fl: b.fl, h: m(a.h || 0, b.h || 0) };
+  }
+  // the buffer follows the snapshots, gently: every ms it grows is a ms of slow motion and every ms it shrinks one of hurry, so it moves at 150 ms a second up (the car at 85 %)
+  // and 30 down (103 %), and only when it is clearly off
+  function follow(r, dt) {
+    const want = clamp(r.gap + 2 * r.jit + 30, DELAY, DELAY_MAX), off = want - r.delay;
+    if (off > 20) r.delay += Math.min(off, 150 * dt); else if (off < -60) r.delay -= Math.min(-off, 30 * dt);
   }
 
     function poseRemote(r, dt, now) {
     const m = r.model; if (!m || !r.snaps.length) return;
+    follow(r, dt);
     const p = sample(r, now);
+    const fade = Math.exp(-dt / SMOOTH);   // the offset left by a snapshot that moved the path (addSnap) r.ox *= fade; r.oz *= fade; r.oth *= fade;
+    p.x += r.ox; p.z += r.oz; p.th += r.oth;
     // height over the ground: a curb, or what the sender says (a bridge deck, a roof, the air), brought along with the same interpolation as x and z, then eased a little
     const gy = groundY(p.x, p.z), lt = Math.max(p.h || 0, raisedMask(p.x, p.z) ? CURB : 0);
     r.lift += (lt - r.lift) * Math.min(1, (p.h > 0.3 || r.lift > 0.6 ? 30 : 12) * dt);
