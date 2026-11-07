@@ -30,8 +30,8 @@ solid white edge lines, green gantry signs, scrub verges. The game had ordinary 
   Its width is measured on the tile's asphalt (edge to the next asphalt within 34 m, which must be another way of the Viale running alongside), and a row of stone pines with a palm now and then (one in five) goes down its middle every 11 m,
   no tree within 8 m of another; where the strip is under 6 m (one guard rail in the middle) the trunk stands 0.7 m beside the middle. Before, the canopy rule put a pine 1.8 m off the asphalt every 22 m on both sides of every way, so a wide
   median had two rows and a narrow one had its trunks on the rail; that rule keeps the outer edges.
-- **Billboards** (`billboard_a`, `billboard_b` in `src/props.js`; photos su07, su09, nw30; no data source): on the open stretches of the fast roads, at most one in 250 m of carriageway (the clearances below leave fewer: 6 in the full-detail area round zi15, 2 round su07, 1 round su09, none at the north-west end), 5.5 m beyond the asphalt on the
-  right of travel, angled to the oncoming traffic; never near a junction, a building or another billboard, on a slope or next to other asphalt. Two poster designs, one draw call each per props cell that has one.
+- **Billboards** (`billboard` in `src/props.js`, adverts in `src/adverts.js`; photos su07, su09, nw30; no data source): on the open stretches of the fast roads, at most one in 250 m of carriageway (the clearances below leave fewer: 6 in the full-detail area round zi15, 2 round su07, 1 round su09, none at the north-west end), 5.5 m beyond the asphalt on the
+  right of travel, angled to the oncoming traffic; never near a junction, a building or another billboard, on a slope or next to other asphalt. Twelve invented adverts (the owner's approved proposals, Palermitan lines as written, no translation), picked by a hash of the position and stepped on so the billboards of a tile within 800 m differ; one atlas of 2048 x 768, one draw call per props cell that has one. Two lamps over the poster light it softly at night.
 
 ## Road paint (src/streets.js `roadMarksIter`)
 
