@@ -37,7 +37,7 @@ const S = {
   collections: ['Collezioni', 'Collections'],
   radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio accesa o spenta', 'Radio on or off'],
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qFull: ['Schermo', 'Screen'],
-  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSeen: ['trovati finora, su quelli visti', 'found so far, out of those seen'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
+  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
   missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'],
   mKick: ['Missione', 'Mission'], mStart: ['Comincia missione', 'Start mission'], mNotNow: ['No mi siddia', 'Not now'],   // the card that asks whether to start (the owner's words)
@@ -788,13 +788,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   // ---- collections: SUCA / 800A tags, food events, races, fares ----
   const colRows = screens.collections.querySelector('.pd-colrows'), fakeProg = params.has('fakeprogress');
-  const sucaProgress = () => suca?.progress?.() || (fakeProg ? { found: 14, total: 60 } : null);
+  const sucaProgress = () => suca?.progress?.() || (fakeProg ? { found: 14, total: 800 } : null);
   const missionProgress = () => missions?.progress?.() || (fakeProg ? { food: { done: 1, total: 4 }, races: { won: 2, total: 5 }, fares: 7 } : null);
   function renderCollections() {
     const i = lang === 'it' ? 0 : 1, sp = sucaProgress(), mp = missionProgress();
     const bar = (label, done, total, note) => `<div class="pd-col"><div class="pd-colh"><span>${esc(label)}</span><b>${done == null ? '-' : total ? `${done} / ${total}` : done}</b></div>${total ? `<div class="pd-colbar"><i style="width:${Math.round(clamp(done / total, 0, 1) * 100)}%"></i></div>` : ''}${note ? `<div class="pd-colnote">${esc(note)}</div>` : ''}</div>`;
-    // the SUCA total only counts tags in tiles seen so far (it grows as the city streams in), hence the note
-    colRows.innerHTML = bar(S.colSuca[i], sp && sp.found, sp && sp.total, S.colSeen[i])
+    colRows.innerHTML = bar(S.colSuca[i], sp && sp.found, sp && sp.total)
       + bar(S.colFood[i], mp && mp.food && mp.food.done, mp && mp.food && mp.food.total)
       + bar(S.colRaces[i], mp && mp.races && mp.races.won, mp && mp.races && mp.races.total)
       + bar(S.colFares[i], mp && mp.fares, 0)

@@ -168,7 +168,7 @@ The owner's rule: desktop and phone show exactly the same graphics. Only the ren
 | anisotropy cap | 4 | 4 / none | `main.js` (all textures), `sea.js`, `suca.js` |
 | sea | `LOW` shader (two wave layers, no weed), coarse field 32 m, fine window 1.2 km at 3 m | LOW, 32 m, 1.2 km at 3 m / full shader, 24 m, 1.6 km at 2 m | the water covers a big share of the screen on the coast: the fragment cost is the one to keep low |
 | pedestrian atlases | far: whole cast at 1 texel per design unit, 6.2 MB (8.3 with mips); near: 3 texels per unit for the people close to the camera, 3.7 MB phone / 5.6 MB desktop (see the pedestrian sprites section) | half / full | |
-| suca atlas | 0.625 scale, budget 0.9 ms | 0.5, 0.6 / 0.75, 1.2 | |
+| suca atlas | 0.625 scale | 0.5 / 0.75 | the tags are baked (src/suca-tags.js), so there is no placement work at run time any more |
 | minimap pieces | 256 px per tile, 18 kept | 192, 14 / 384, 24 | |
 | day/night | env map re-bake at most once a second; the real night lights follow the quality tier only (no longer "never on phones") | 1.4 s / 0.55 s | |
 
