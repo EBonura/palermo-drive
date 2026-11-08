@@ -6,7 +6,9 @@ import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMaskIter, freeCanvas } from './core.js';
 import { paintAtlas, COLS as POSTER_COLS, ROWS as POSTER_ROWS, CELL_W, CELL_H, COUNT as POSTERS, DW as POSTER_DW, DH as POSTER_DH } from './adverts.js';   // the twelve adverts on the billboards
 import { NIGHT } from './daynight.js';   // (read only: its shared night uniform lights the billboards)
+import { paintAtlas as paintSigns, COLS as SIGN_COLS, ROWS as SIGN_ROWS, CELL_W as SIGN_W, CELL_H as SIGN_H, BRANDS, brandOf } from './supermarkets.js';   // the supermarkets' parody signs
 import { zoneAt, ZONES } from './districts.js';
+import { SUCA_TAGS } from './suca-tags.js';   // (the SUCA wall tags are collectibles: a shopfront never covers one)
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
 import { treeCleared } from './tree-clear.js';
@@ -193,6 +195,11 @@ ape('ape', false); ape('apetaxi', true);
   }
   cd.prism(0, 0, 3.75, 3.95, 0.04, 0.04, 6, blk); cd.lump(0, 4.35, 0, 0.18, 0.22, 0.18, C('#f1ede0'), 0, 0.05, 0.8);
   def('candelabra', cd);
+  // a supermarket's totem at the entrance of its car park: two posts and a sign box 4.4 to 5.4 m up, front +z; the sign's two faces are in the tile's supermarket mesh (res.smk)
+  const tm = new MB(), post = C('#7d8287');
+  for (const x of [-0.9, 0.9]) tm.box(x - 0.09, 0, -0.09, x + 0.09, 4.42, 0.09, post, 0.7, 1, false);
+  tm.box(-1.68, 4.38, -0.14, 1.68, 5.42, 0.14, C('#34373c'), 0.85, 1, true);
+  def('smk_totem', tm);
 }
 
 // Utility pole of the power and telephone lines along the roads of the outskirts: a tapered shaft (grey concrete; the instance colour turns it wood brown) with a cross arm and three
@@ -512,6 +519,31 @@ if ( vPart >= 0.0 ) diffuseColor *= sampledDiffuseColor;`)
   m.customProgramCacheKey = () => 'billboard-poster';
   return m;
 }
+// The supermarkets' material (generate, 2b): the atlas of the sixteen parody signs (src/supermarkets.js, 1024 x 1024, 5.6 MB with its mipmaps), made with the first tile that
+// has a store and freed after upload like the posters. uv inside 0..1 reads the atlas; uv.x -1 is a part in its vertex colour that glows warm by uv.y at night (the shop
+// windows), uv.x -2 one that glows in its own colour by uv.y (the bands, the sign boxes). The sign faces glow as a backlit sign does.
+let SIGN_MAT = null;
+function signMat() {
+  if (SIGN_MAT) return SIGN_MAT;
+  const cv = document.createElement('canvas'); cv.width = SIGN_COLS * SIGN_W; cv.height = SIGN_ROWS * SIGN_H;
+  const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+  paintSigns(cv.getContext('2d'), cv.width, cv.height); map.needsUpdate = true; freeCanvas(map, (g, w, h) => paintSigns(g, w, h));   // (the fonts are the page's own by the time a tile builds)
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, map, roughness: 0.6, metalness: 0.0 });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uWin = NIGHT.win;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWin;')
+      .replace('#include <map_fragment>', `vec4 sampledDiffuseColor = texture2D( map, max( vMapUv, 0.0 ) );
+if ( vMapUv.x >= 0.0 ) diffuseColor *= sampledDiffuseColor;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+{ float nk = smoothstep( 0.0, 0.08, uWin );
+  if ( vMapUv.x >= 0.0 ) totalEmissiveRadiance += diffuseColor.rgb * 0.55 * nk;
+  else if ( vMapUv.x > -1.5 ) totalEmissiveRadiance += vec3( 1.0, 0.82, 0.58 ) * vMapUv.y * nk;
+  else totalEmissiveRadiance += diffuseColor.rgb * vMapUv.y * nk; }`);
+  };
+  m.customProgramCacheKey = () => 'supermarket-sign';
+  return SIGN_MAT = m;
+}
 const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
@@ -604,6 +636,7 @@ const SPECS = {
   kiosk: { kind: 'solid', c: [[-0.8, 0, 1.1], [0.8, 0, 1.1]] },
   hedge: { kind: 'hedge', c: [[-1.0, 0, 0.5], [0, 0, 0.5], [1.0, 0, 0.5]], thr: 1.8, H: 1.1, crown: 1.5 },   // a clipped hedge block (the Libertà ones): bursts into leaves and clumps above 1.8 m/s (effective, see src/fences.js) and leaves a gap for the session
   fountain: { kind: 'solid', c: [[0, 0, 1.6]] },
+  smk_totem: { kind: 'solid', c: [[-0.9, 0, 0.2], [0.9, 0, 0.2]] },
   // rubbish: soft things burst into debris, loose junk is launched like a light prop
   bags: { kind: 'bags', c: [[0, 0, 0.55]], thr: 0.9, n: 3, slow: 0.03 },
   bag_pile0: { kind: 'bags', c: [[0, 0, 0.75]], thr: 0.9, n: 3, slow: 0.03 },
@@ -1566,9 +1599,126 @@ function* generate(S, BUD) {
       const ox = w.px + w.nx * 1.5, oz = w.pz + w.nz * 1.5;
       if (inB(ox, oz) || (asphalt(ox, oz) && !raisedMask(ox, oz) && !paving(ox, oz))) continue;   // no awnings over the carriageway
       const ey = groundY(w.px, w.pz) + (raisedMask(ox, oz) ? CURB : 0);
-      put('awning', w.px + w.nx * 0.05, ey, w.pz + w.nz * 0.05, Math.atan2(w.nx, w.nz), 1, C(pick(AW)));
+      const col = C(pick(AW));
+      if (!(it.shop === 'supermarket' && brandOf(it.n) >= 0)) put('awning', w.px + w.nx * 0.05, ey, w.pz + w.nz * 0.05, Math.atan2(w.nx, w.nz), 1, col);   // a chain's store has its own front (2b); its draws and its spacing stay, so the rest of the tile is as it was
       placed.push([w.px, w.pz]);
     }
+  }
+
+  // ---------- 2b. supermarkets: every store of a chain (src/supermarkets.js: OSM shop=supermarket, or a building named after the chain) wears the chain's parody on its real
+  // building, on the wall that faces its street. On a palazzo's ground floor: a glazed shopfront (lit inside at night), a band of the chain's colour over it and the sign
+  // on the band, under the first floor's balconies. On a low hall: the band along the top of the wall and the sign on it, standing a little over the parapet. A car park beside it gets a totem at the
+  // entrance. All of it is one merged mesh per tile on the sign atlas (res.smk), plus the totems' posts as props. Nothing here draws from the tile's random stream.
+  {
+    const SP = [], SC = [], SU = [], shops = [], fronts = [], totems = [], SK = 0.002;   // positions, colours, uvs (the atlas, or x -1: warm glow y, x -2: own-colour glow y)
+    const cellUv = k => { const c = k % SIGN_COLS, r = Math.floor(k / SIGN_COLS); return [(c + SK) / SIGN_COLS, (c + 1 - SK) / SIGN_COLS, 1 - (r + 1 - SK * 4) / SIGN_ROWS, 1 - (r + SK * 4) / SIGN_ROWS]; };
+    const sc3 = new THREE.Color();
+    // a frame on a wall: origin (ox, oz), n out of the wall, r = the viewer's right (looking at the wall), y absolute
+    const frame = (ox, oz, nx, nz) => { const rx = nz, rz = -nx; return (u, y, w) => [ox + rx * u + nx * w, y, oz + rz * u + nz * w]; };
+    const quad = (a, b, c, d, col, ua = null) => {   // a b c d counter-clockwise seen from the front; ua: [u0, u1, v0, v1] over a..d, else [part, glow]
+      for (const [p, i] of [[a, 0], [b, 1], [c, 2], [a, 0], [c, 2], [d, 3]]) {
+        SP.push(p[0], p[1], p[2]); SC.push(col.r, col.g, col.b);
+        if (ua && ua.length === 4) SU.push(i === 0 || i === 3 ? ua[0] : ua[1], i < 2 ? ua[2] : ua[3]); else SU.push(ua ? ua[0] : -1, ua ? ua[1] : 0);
+      }
+    };
+    // a box in a frame: u0..u1 along the wall, y0..y1, w0..w1 out of it; front: uv of the front face (the sign) or null
+    const box = (F, u0, u1, y0, y1, w0, w1, col, part = null, front = null) => {
+      quad(F(u0, y0, w1), F(u1, y0, w1), F(u1, y1, w1), F(u0, y1, w1), front ? WHITE : col, front || part);
+      const side = col.clone().multiplyScalar(0.8);
+      quad(F(u1, y0, w1), F(u1, y0, w0), F(u1, y1, w0), F(u1, y1, w1), side, part);
+      quad(F(u0, y0, w0), F(u0, y0, w1), F(u0, y1, w1), F(u0, y1, w0), side, part);
+      quad(F(u0, y1, w0), F(u0, y1, w1), F(u1, y1, w1), F(u1, y1, w0), col, part);
+      quad(F(u0, y0, w1), F(u0, y0, w0), F(u1, y0, w0), F(u1, y0, w1), side.multiplyScalar(0.7), part);
+    };
+    const RANK = { primary: 6, secondary: 5, tertiary: 4, unclassified: 2, residential: 2, living_street: 1, service: -2 };
+    const Hof = b => b.r !== undefined && b.g !== undefined ? b.r - b.g : (b.h || 6);
+    const tags = [], ti = Math.round(S.x0 / 500), tj = Math.round(S.z0 / 500);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (const q of SUCA_TAGS[(ti + di) + '_' + (tj + dj)] || []) tags.push(q);
+    const sites = [];
+    for (let i = 0; i < S.ownCount; i++) {
+      const b = S.bdata[i]; if (!b.n || b.n.length > 24) continue;   // (a building named after the chain: a long name is a mall or an office that merely contains the word)
+      const k = brandOf(b.n); if (k < 0) continue;
+      const o = bl[i], x = (o.x0 + o.x1) / 2, z = (o.z0 + o.z1) / 2;
+      if (inBounds(x, z)) sites.push({ k, o, x, z, own: true, H: Hof(b) });
+    }
+    for (const it of osm) {
+      if (it.k !== 'shop' || it.shop !== 'supermarket') continue;
+      const k = brandOf(it.n); if (k < 0 || sites.some(s => s.k === k && hyp2(s.x - it.x, s.z - it.z) < 60)) continue;   // (the node of a store whose building is mapped too)
+      let o = S.idx.bAt(it.x, it.z);
+      if (!o) { const w = nearWall(it.x, it.z, 15); if (w) o = S.idx.bAt(w.px - w.nx * 0.3, w.pz - w.nz * 0.3); }
+      if (!o) continue;
+      const bi = bl.indexOf(o), b = S.bdata[bi];
+      if (bi >= S.ownCount && b.n && brandOf(b.n) === k) continue;   // the neighbouring tile dresses its own building
+      sites.push({ k, o, x: it.x, z: it.z, own: false, H: Hof(b) });
+    }
+    for (const s of sites) {
+      // the wall: long, facing a street close by (the bigger the better), and for a mapped shop the one nearest to it; never a party wall
+      const ring = s.o.outer; let best = null;
+      for (let q = 0; q < ring.length; q++) {
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz); if (L < 4) continue;
+        const tx = dx / L, tz = dz / L, mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2; let nx = tz, nz = -tx;
+        const tagged = tags.some(q => { const u = (q[1] - A[0]) * tx + (q[2] - A[1]) * tz; return u > -q[4] && u < L + q[4] && Math.abs((q[1] - A[0]) * tz - (q[2] - A[1]) * tx) < 1.5; });   // a SUCA tag on the wall: no glass over it
+        if (inB(mx + nx * 0.4, mz + nz * 0.4)) { nx = -nx; nz = -nz; }
+        if (inB(mx + nx * 0.4, mz + nz * 0.4) || inB(mx + nx * 3, mz + nz * 3)) continue;
+        const nr = nearRoad(mx + nx * 3, mz + nz * 3, 40); if (!nr) continue;
+        const dr = hyp2(nr.px - mx, nr.pz - mz); if (((nr.px - mx) * nx + (nr.pz - mz) * nz) / Math.max(1, dr) < 0.3) continue;
+        const t = Math.max(0, Math.min(L, (s.x - A[0]) * tx + (s.z - A[1]) * tz)), dn = s.own ? 0 : hyp2(A[0] + tx * t - s.x, A[1] + tz * t - s.z);
+        const sc = Math.min(L, 30) - dr * 0.6 - dn * 1.5 + (RANK[nr.road.k] || 0) - (tagged ? 6 : 0);
+        if (!best || sc > best.sc) best = { sc, A, tx, tz, nx, nz, L, t: s.own ? L / 2 : t, tagged };
+      }
+      if (!best) continue;
+      const { A, tx, tz, nx, nz, L } = best, low = s.H < 7.5, br = BRANDS[s.k], band = new THREE.Color(br.band), trim = new THREE.Color(br.trim);
+      let hs = Math.min(s.own ? (low ? 20 : 7) : 4.5, L / 2 - 0.3), tc = Math.max(hs + 0.3, Math.min(L - hs - 0.3, best.t));
+      const cx = A[0] + tx * tc, cz = A[1] + tz * tc, F = frame(cx, cz, nx, nz), rs = tx * nz - tz * nx > 0 ? 1 : -1;   // rs: the edge runs along the viewer's right (1) or left
+      const at = u => { const x = cx + tx * u * rs, z = cz + tz * u * rs; return gy(x + nx * 0.8, z + nz * 0.8); };
+      const gw = Math.min(hs, 6), yL = at(-gw), yR = at(gw), y0 = Math.max(yL, yR), yTop = Math.min(at(-hs), at(hs)) + s.H;
+      // the shopfront: glass from the pavement up (the sky in it, paler at the top), mullions every 2.4 m, lit warm inside at night
+      const gTop = y0 + 2.5, gLo = new THREE.Color('#2e3c44'), gHi = new THREE.Color('#617784');
+      if (!best.tagged) {
+        quad(F(-gw, yL + 0.1, 0.07), F(gw, yR + 0.1, 0.07), F(gw, gTop, 0.07), F(-gw, gTop, 0.07), gLo, [-1, 0.05]);
+        for (let i = SC.length - 18, j = SU.length - 12; i < SC.length; i += 3, j += 2) if (SP[i + 1] > gTop - 0.01) { SC[i] = gHi.r; SC[i + 1] = gHi.g; SC[i + 2] = gHi.b; SU[j + 1] = 0.22; }   // (at night the ceiling lights: brighter at the top)
+        for (let u = -gw; u <= gw + 0.01; u += Math.max(1.6, (2 * gw) / Math.max(1, Math.round(2 * gw / 2.4)))) box(F, u - 0.06, u + 0.06, Math.min(yL, yR) + 0.1, gTop, 0.05, 0.11, sc3.set('#5d6468'));
+      }
+      let sw = Math.min(2 * hs - 0.4, low ? 10 : 4.2), sh = sw / 4, sy;   // (on a palazzo the sign stays under the balconies of the first floor, about 3.8 m up)
+      if (low) {   // the band along the top of the hall, the sign on it standing over the parapet by up to 40 % of its height
+        const bTop = Math.max(yTop, gTop + 0.9), bBot = bTop - 0.85;
+        box(F, -hs, hs, bBot, bTop, 0.02, 0.12, band, [-2, 0.35]);
+        sy = Math.max(gTop + 0.25, bTop - sh * 0.6);
+        if (sy > gTop + 0.25) box(F, -0.45, 0.45, bBot, sy, 0.1, 0.14, trim);   // a short stand where the sign rises over the band
+      } else {   // the band over the shop windows, the sign on it
+        box(F, -gw - 0.3, gw + 0.3, gTop, gTop + 0.85, 0.02, 0.12, band, [-2, 0.35]);
+        sy = gTop + 0.425 - sh / 2;
+      }
+      box(F, -sw / 2, sw / 2, sy, sy + sh, 0.1, 0.24, trim, [-2, 0.25], cellUv(s.k));
+      shops.push(...F(0, y0, 1.2), -1.7); fronts.push(cx, y0, cz, nx, nz, s.k);   // the light the windows spill on the pavement: a lamp for src/daynight.js (userData.lampPts: x, ground y, z, height) whose pool is wanted, its halo sunk under the ground (a halo over the door washed out the sign)
+      // the car park nearest the shop's front, within 70 m: a totem where its edge comes closest to a street, facing it
+      let lot = null, ld = 70;
+      for (const a of P.areas) {
+        if (a.k !== 'parking' || a.ptype === 'underground' || a.ptype === 'multi-storey') continue;
+        for (let i = 0; i < a.p.length; i += 2) { const d = hyp2(a.p[i] - cx, a.p[i + 1] - cz); if (d < ld) { ld = d; lot = a; } }
+      }
+      if (!lot || totems.includes(lot)) continue;
+      const lp = pairs(lot.p); let tb = null;
+      for (let i = 0; i < lp.length - 1; i++) {
+        const a = lp[i], b = lp[i + 1], l = hyp2(b[0] - a[0], b[1] - a[1]);
+        for (let u = 1; u < l - 1; u += 3) {
+          const x = a[0] + (b[0] - a[0]) * u / l, z = a[1] + (b[1] - a[1]) * u / l;
+          if (!inBounds(x, z) || inB(x, z) || nearWall(x, z, 2) || occHit(x, z, 1.5) || road(x, z) || road(x + 1.8, z) || road(x - 1.8, z) || road(x, z + 1.8) || road(x, z - 1.8)) continue;   // (off the asphalt by a car's width: the cars parked along the kerb stay where they were)
+          const nr = nearRoad(x, z, 25); if (nr && (!tb || nr.d < tb.d)) tb = { x, z, d: nr.d, px: nr.px, pz: nr.pz };
+        }
+      }
+      if (!tb) continue;
+      const fl = hyp2(tb.px - tb.x, tb.pz - tb.z) || 1, fx = (tb.px - tb.x) / fl, fz = (tb.pz - tb.z) / fl, ty = gy(tb.x, tb.z);
+      put('smk_totem', tb.x, ty, tb.z, Math.atan2(fx, fz)); occAdd(tb.x, tb.z, 1.2); totems.push(lot);
+      for (const sd of [1, -1]) { const T = frame(tb.x, tb.z, fx * sd, fz * sd); quad(T(-1.6, ty + 4.5, 0.145), T(1.6, ty + 4.5, 0.145), T(1.6, ty + 5.3, 0.145), T(-1.6, ty + 5.3, 0.145), WHITE, cellUv(s.k)); }
+    }
+    if (SP.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(SP, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(SC, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(SU, 2));
+      g.computeVertexNormals();
+      res.smk = { geo: g, lamps: new Float32Array(shops), fronts };
+    }
+    stats.supermarkets = sites.length; stats.smk_totems = totems.length;
   }
 
   // ---------- 3. zebra crossings (decals) from OSM nodes plus junction arms
@@ -2778,6 +2928,11 @@ function* instantiate(res, parent, BUD) {
     if (res.wireLamps) w.userData.lampPts = res.wireLamps;   // the lamps hung on wires: src/daynight.js lights them
     parent.add(w); meshes.push(w); geos.push(res.wires); tris += res.wires.attributes.position.count / 3;
   }
+  if (res.smk) {   // the supermarkets' fronts and signs (generate, 2b): one mesh, culled by distance like the cells; its shop doors are lamps for src/daynight.js
+    const m = new THREE.Mesh(res.smk.geo, signMat()); m.name = 'prop_supermarkets'; m.matrixAutoUpdate = false; m.castShadow = false; m.receiveShadow = true;
+    res.smk.geo.computeBoundingSphere(); m.boundingSphere = res.smk.geo.boundingSphere; m.userData.kind = 'supermarkets'; m.userData.maxd = 700 * PFAR; m.userData.lampPts = res.smk.lamps; m.userData.fronts = res.smk.fronts;   // (fronts: x, y, z, nx, nz, chain of each store, for tools)
+    parent.add(m); meshes.push(m); geos.push(res.smk.geo); tris += res.smk.geo.attributes.position.count / 3;
+  }
   if (res.rails) {
     const a = new THREE.Mesh(res.rails.posts, MATS.dbl); a.matrixAutoUpdate = false; a.castShadow = true; a.receiveShadow = true; parent.add(a);
     const b = new THREE.Mesh(res.rails.panels, panelMat()); b.matrixAutoUpdate = false; b.castShadow = true; b.receiveShadow = true; parent.add(b);
@@ -2820,12 +2975,12 @@ export function buildProps(ctx) {
       if (o.data.tram && o.data.tram.r) for (const q of o.data.tram.r) tram.push(q.p);   // tracks over the border keep cars off the tile's edge too
       for (const r of o.data.roads) if (r.n && MARKET_OR_POOR.test(r.n)) nroads.push(r);   // their street names still make this tile's edge scruffy
     }
-    const k = t.i * 7919 + t.j * 104729, den = PDEN;
+    const k = t.i * 7919 + t.j * 104729, den = PDEN, blds = d.buildings.concat(nb);
     const st = d.streets || {};
     return {
       ctx, tk: t.k, tram, P: d.props || { items: [], areas: [], counts: {} }, seed: 1868 + k, seed2: 7011 + k, seed3: 4242 + k, cell: 250,
       x0, z0, x1, z1, aoi: [x0, z0, x1, z1], inBounds: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
-      idx: makeIndex(d.buildings.concat(nb)), ownCount: d.buildings.length,
+      idx: makeIndex(blds), bdata: blds, ownCount: d.buildings.length,   // (bdata[i] is the building of idx.bl[i]: its name and heights)
       sideZebras: t.sideZebras || [],   // the zebras at the mouths of side streets (src/streets.js sideZebrasIter, made with the tile's paint)
       roads: d.roads, hotRoads: d.roads.concat(nroads), curbs: st.curbs || [], asphalt: st.asphalt || [], paving: st.paving || [], green: (st.green || []).concat(st.verge || []),
       sand: sandRings(d),

@@ -9,7 +9,7 @@ export const COLS = 4, ROWS = 3, COUNT = 12;     // the atlas: 4 x 3 posters
 export const CELL_W = 512, CELL_H = 256;         // pixels per poster in the atlas (2048 x 768 in all)
 
 let headF = null;
-const head = g => {
+export const head = g => {
   if (!headF) {
     g.font = '40px monospace'; const a = g.measureText('MWMWiiii').width;
     g.font = '40px Impact, monospace'; const b = g.measureText('MWMWiiii').width;
@@ -24,7 +24,7 @@ const SERIF_I = s => `italic 400 ${s}px Georgia, "Times New Roman", serif`;
 
 // One line of text whose ink fills the box [left, top, right, bottom] (inclusive, design units): the height sets the size, the width a horizontal scale.
 // sp: letter-spaced (the small capitals of the advertiser's name): the width is made up with spacing instead.
-function fit(g, text, font, [l, t, r, b], col, sp = false) {
+export function fit(g, text, font, [l, t, r, b], col, sp = false) {
   g.font = font(100); let m = g.measureText(text);
   const size = 100 * (b - t + 1) / (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
   g.font = font(size); m = g.measureText(text);
