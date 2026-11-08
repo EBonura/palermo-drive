@@ -895,7 +895,7 @@ export function createPedestrians(env) {
       const u = clamp((c.t - 0.3) / 0.6, 0, 1), tip = c.keep ? 0 : u * u * (3 - 2 * u) * 1.15 * c.rd;     // tips over after the rider bolts
       pos[i * 3] = c.x; pos[i * 3 + 1] = c.y; pos[i * 3 + 2] = c.z;
       lodPick(CHAIRV, dir, hyp2(c.vx, c.vz) > 0.15 ? (Math.floor((c.ph % 1) * 4) & 3) + 1 : 0, dist, 1, false); A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = 1; A[i * 4 + 3] = tip;
-      B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1;
+      B[i * 4] = clamp((fadeStart - dist) / 16, 0, 1); B[i * 4 + 1] = c.sh; B[i * 4 + 2] = 1; B[i * 4 + 3] = 0;
     }
     return k;
   }
@@ -1146,7 +1146,7 @@ export function createPedestrians(env) {
       lodPick(VAR[i], dir, pose, dist, SIZE[i], NEARF[i]); NEARF[i] = lodNear;
       A[w * 4] = lodX; A[w * 4 + 1] = lodY; A[w * 4 + 2] = SIZE[i]; A[w * 4 + 3] = ROLL[i];
       const fade = clamp((fadeStart - dist) / 16, 0, 1) * clamp(AGE[i] / 0.8, 0, 1) * (LEAVE[i] >= 0 ? Math.max(0, LEAVE[i]) : 1);
-      B[w * 4] = fade; B[w * 4 + 1] = SHC[i] * (1 - nightK); B[w * 4 + 2] = BRI[i];
+      B[w * 4] = fade; B[w * 4 + 1] = SHC[i] * (1 - nightK); B[w * 4 + 2] = BRI[i]; B[w * 4 + 3] = 0;   // iB.w every frame: the slots shift as people come and go, and one a bather had last frame would sink this one to the neck (and clip it)
       w++;
     }
     const nc = writeChairs(w, cpx, cpz, fadeStart), nb = writeBeach(w + nc, cpx, cpz, fadeStart), all = w + nc + nb;
