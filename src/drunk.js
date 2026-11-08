@@ -29,7 +29,7 @@ const ROLL = 0.16, YAW = 0.06, PITCH = 0.025, ZOOM = 0.04, SIDE = 0.45;   // the
 const IDLE = 2;             // seconds sober before the render target is freed
 
 // What a pub pours (the drink of its own errand where there is one) and what the rave has; [palermitan, english] pairs are for the owner to correct.
-const DRINK = { krust: 'Moretti', whisky: 'Whisky', taverna: 'Zibibbu', punkfunk: 'Birra', magione: 'Birra', lizard: 'Birra', monkey: 'Paulaner', sanlorenzo: 'Birra artigianali' };
+const DRINK = { krust: 'Moretti', whisky: 'Whisky', taverna: 'Zibibbu', punkfunk: 'Birra', magione: 'Birra', lizard: 'Birra', monkey: 'Paulaner', sanlorenzo: 'Birra artigianali', polacco: 'Birra polacca' };
 const RAVE_DRINKS = ['Vodka e Red Bull', 'Spritz', 'Amaro', 'Birra a canna'];
 // after the nth drink of the stack
 const LINES = [
@@ -52,8 +52,8 @@ const BROKE = [
 ];
 const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the speakers.'];
 // A finished errand (src/event-pubs.js) pays in drinks too, as the thanks of the house promise (src/pub-places.js): how many are free for the rest of that night.
-// Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey and Sanlorenzo promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
-const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1 };
+// Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey, Sanlorenzo and Dal polacco promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
+const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1, polacco: 1 };
 const FREE_PUB = ['Offri a casa, comu ti dissi!', 'On the house, as I told you!'];
 const GONE = ['Ti passau!', 'It wore off!'], GONE_SUB = ['Torni a vidiri una strata sula.', 'You see just one road again.'];
 

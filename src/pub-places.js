@@ -10,7 +10,8 @@
 //   music      id of a file in assets/music played near the door (Krust only)
 //   errand     the night-only event: window [from, to] game hours, what is lost, how many, lines
 //
-// No fabricated facts: names, addresses and sign texts come from docs/pubs.md; the lines are the game's own jokes.
+// No fabricated facts: names, addresses and sign texts come from docs/pubs.md; the lines are the game's own jokes. The one exception is marked real: false
+// (Dal polacco): a friend's in-joke placed on the owner's request, not a venue, and its src says so.
 
 // art: the Italian article for "Cerca ...!"; shape: drawn by src/event-pubs.js
 export const ITEMS = {
@@ -22,6 +23,7 @@ export const ITEMS = {
   chitarre: { it: 'chitarre', en: 'guitars', art: 'le', shape: 'guitar' },
   boccali: { it: 'buccali ri birra', en: 'beer mugs', art: 'i', shape: 'mug' },
   barili: { it: 'varrili ri tavuli', en: 'table barrels', art: 'i', shape: 'barrel' },
+  polacca: { it: 'casci ri birra polacca', en: 'crates of Polish beer', art: 'le', shape: 'pcrate' },   // DRAFT (Dal polacco)
 };
 
 // Start-map and list points of interest that are not a pub: [name, lat, lon], appended to SPOTS in src/main.js (see the report of the pubs work).
@@ -153,6 +155,25 @@ export const PUBS = [
       start: ['Attruova i buccali ri birra!', 'Find the beer mugs!'],
       thanks: [['Si ’nu tisoru! Stasira a prima birra è pi tia!', 'You are a treasure! Tonight the first beer is yours!'], ['Saivati i buccali! Brindamu ô Mircatu!', 'Mugs saved! A toast to the Mercato!']],
       none: [['Nienti buccali? Si vivi ra buttiglia, allura.', 'No mugs? Then we drink from the bottle.']],
+    },
+  },
+
+  // ---- Via Corrado Lancia (Olivuzza), invented: a friend of the owner asked for "un pub con scritto 'Dal polacco'" always under his house at number 40.
+  // Not a real bar and nothing about it is researched: the owner asked for it as the friend's in-joke. OSM has no house numbers on this street, so number 40 is a
+  // guess (see src and docs/pubs.md section 13): the even side taken as the south one, numbers counted from the Via Imera end, about 140 m along the 173 m street.
+  // Every line here is a DRAFT for the owner to correct.
+  {
+    id: 'polacco', name: 'Dal polacco', sub: 'Via Corrado Lancia 40', real: false,
+    lat: 38.115549, lon: 13.3477082, onStreet: 'Corrado Lancia', src: 'invented: a friend\'s in-joke placed at his address on the owner\'s request, not a real bar. The door is a guess: OSM way 43055723 has no house numbers (node 7576050480, tagged Via Corrado Lancia 25, stands on Corso Tukory, 1.1 km away), so 40 is put on the south side (even numbers on the left walking away from Via Imera, as on Corso Finocchiaro Aprile nearby), on the frontage of building way 279324273, about 140 m from Via Imera',
+    front: 'polacco', open: [17, 2],
+    crowd: { mix: { locals: 0.55, young: 0.45 }, props: 'beer', night: 7, day: 2, r: 2.6 },
+    caller: 'ragazzo',
+    errand: {
+      item: 'polacca', n: 8, window: [18, 6], who: 'Il polacco', pay: 2.5, bonus: 12,
+      call: [['Ao! Mi sunnu scumparsi i casci ri birra polacca! Aiutami!', 'Hey! My crates of Polish beer have vanished! Help me!'], ['Lapista! Sutta casa c’è sempri u pub, ma stasira un c’è a birra!', 'Driver! There is always a pub under the house, but tonight there is no beer!'], ['Fermati! U furgunettu ra Polonia pirdiu tuttu ’nta strata!', 'Stop! The van from Poland dropped everything on the road!']],
+      start: ['Attruova i casci ri birra polacca!', 'Find the crates of Polish beer!'],
+      thanks: [['Na zdrowie! Stasira a prima birra a offru iu!', 'Na zdrowie! Tonight the first beer is on me!'], ['Si ’nu frati! Dal polacco a puaitta è sempri aperta pi tia!', 'You are a brother! At Dal polacco the door is always open for you!']],
+      none: [['Nienti? Allura stasira si brinna câ gazzosa.', 'Nothing? Then tonight we toast with lemon soda.']],
     },
   },
 ];

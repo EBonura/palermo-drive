@@ -21,7 +21,7 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 - **Races:** a sprint on Viale Regione Siciliana, laps at the Università and on Viale dell'Olimpo, and the night Corse
   clandestine in Viale delle Scienze, against tuned cars, lape, scooters and horse carriages. Finish in the first three and the prize goes in your wallet.
 - **Pubs, after dark:** Krust on Via Dante with its metal crowd (and Terrorage playing outside), Lizard, Monkey, Whisky & Drink,
-  Taverna Azzurra, PunkFunk, Piazza Magione and Sanlorenzo Mercato, each with an errand of its own. A few secrets are hidden around town;
+  Taverna Azzurra, PunkFunk, Piazza Magione, Sanlorenzo Mercato and Dal polacco (a friend's in-joke, under his house in Via Corrado Lancia), each with an errand of its own. A few secrets are hidden around town;
   the Collezioni screen shows what you have found.
 - **The crowd and the street:** the pedestrians are pixel-art people built from the Liberated Pixel Cup layers, in the quarter's own
   mix (nonne, students, tourists, tifosi, metal kids). Horse carriages carry tourists round the Cattedrale, the Quattro Canti and the
