@@ -18,6 +18,11 @@
 // Flying into one: each puff fades as the camera nears its middle (no quad edge ever reaches the camera), the fog closes in to the cloud's own colour
 // and one extra quad far ahead (the same draw) veils the sky, which the fog does not touch. Cost: one draw call, one program compiled while loading,
 // a few hundred instances written each frame. ?clouds=off leaves them out (and the sky dome as it was), for comparing.
+//
+// Their shadows: every cloud darkens the sun's direct light on the ground where the sun projects it, so the patches move with the wind, lie
+// further from their cloud the lower the sun is, stretch out in the morning and evening and fade with the sun at dusk. The footprints are painted
+// on the CPU into a small top-down texture (below, 'the shadows on the ground'), and the lit materials multiply the sun's light by one lookup in it
+// (src/daynight.js for the standard materials, src/sea.js, src/pedestrians.js). ?clouds=off leaves the lookup out of every shader.
 import * as THREE from 'three';
 import { groundY } from './core.js';
 
@@ -139,6 +144,39 @@ function aces(c, expo) {
   const fr = rtt(ir), fg = rtt(ig), fb = rtt(ib);
   return c.setRGB(clamp(1.60475 * fr - 0.53108 * fg - 0.07367 * fb, 0, 1), clamp(-0.10208 * fr + 1.10813 * fg - 0.00605 * fb, 0, 1), clamp(-0.00327 * fr - 0.07276 * fg + 1.07602 * fb, 0, 1));
 }
+
+// ------------------------------------------------------------------------------------------------ the shadows on the ground
+// Not a second shadow map: a cloud's shadow is soft, kilometres wide and the sun is the same for all of them, so each puff's footprint is painted, as
+// the sun projects it onto sea level, into a 256 x 256 texture of the 16 km round the camera (62 m a texel, smooth enough with linear filtering), and a
+// surface at height y looks itself up at its own projection onto sea level, x - y * Lx / Ly: one lookup, exact for every height, from the street to
+// Monte Cuccio, with no reading of the ground on the CPU. A sphere's shadow on the ground is an ellipse stretched by 1 / Ly along the sun's azimuth,
+// so the puffs are painted as such. Red is how much of the sun a cloud takes there; green the height of the cloud's middle (8 m steps), above which
+// nothing is shaded by it (the wings above the clouds, a summit poking out). At the rim the filtering mixes the green with the empty texels round it, so
+// a summit right under a cloud's edge loses the shadow a little early: only on the soft edge, where nobody can tell.
+// The painting is spread over a few frames into a second buffer (a few thousand texels a frame), then the two swap: in between, the shader moves the
+// last finished picture along with the wind, so the shadows glide every frame. Few ALU, one RG8 lookup per lit pixel, 128 KB, behind a uniform
+// branch that skips it all at night and on ?clouds=off is not even compiled. Day only: under the moon the city's light is the lamps.
+// Low graphics keeps them: measured, the lookup is about 3 % of the GPU's frame at 16 times the phone's pixels and the painting under 0.1 ms a frame
+// at a 4x CPU slowdown, and without them the clouds float over a city they do not touch.
+export const CLOUD_SHADOWS = new URLSearchParams(location.search).get('clouds') !== 'off';
+const SS = 256, SPAN = 16000, TEX = SPAN / SS;    // the shadow texture: texels a side, metres it covers
+const SH_K = 0.72;                                // how much of the sun a thick cloud takes (the rest is the light it lets through and scatters down)
+const SH_PER = 8;                                 // clouds painted a frame: a new picture every 11 frames or so
+const shBuf = [new Uint8Array(SS * SS * 2), new Uint8Array(SS * SS * 2)];
+const shTex = new THREE.DataTexture(shBuf[0], SS, SS, THREE.RGFormat);
+shTex.colorSpace = THREE.NoColorSpace; shTex.generateMipmaps = false; shTex.minFilter = shTex.magFilter = THREE.LinearFilter; shTex.unpackAlignment = 2;
+shTex.needsUpdate = true;
+// The shared uniforms (the same objects in every material that has the lookup): the texture; the box (x0, z0 of the picture as it is now, 1 / SPAN);
+// x, y: Lx / Ly and Lz / Ly of the sun the picture was painted for, z: strength (0 skips the lookup), w unused.
+export const CLOUD_U = { uCloudTex: { value: shTex }, uCloudBox: { value: new THREE.Vector4(0, 0, 1 / SPAN, 1 / SPAN) }, uCloudL: { value: new THREE.Vector4(0, 0, 0, 0) } };
+export const CLOUD_GLSL = `
+uniform sampler2D uCloudTex; uniform vec4 uCloudBox; uniform vec4 uCloudL;
+float cloudSun(vec3 p) {   // the share of the sun that gets past the clouds to world point p (src/clouds.js); call it only when uCloudL.z > 0
+  vec2 c = texture2D(uCloudTex, (p.xz - p.y * uCloudL.xy - uCloudBox.xy) * uCloudBox.zw).rg;
+  float mid = c.g * 2040.0;
+  return 1.0 - uCloudL.z * c.r * smoothstep(mid + 60.0, mid - 60.0, p.y);
+}
+`;
 
 // ------------------------------------------------------------------------------------------------ the field
 // Build-up that stays over the mountains of the Conca d'Oro (the heights round them read from the far terrain): Monte Cuccio to the west, the ridge
@@ -279,6 +317,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
       }
     }
     keys.sort();
+    if (CLOUD_SHADOWS && !shOff) shadows(night);
     first = false;
 
     // -- inside a cloud: the fog closes in to the cloud's colour, and the veil covers the sky the fog does not reach
@@ -315,7 +354,62 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
     stats.puffs = n; stats.inside = inside;
   }
   const _v = new THREE.Vector3();
-  const stats = { puffs: 0, inside: 0 };
+  const stats = { puffs: 0, inside: 0, pictures: 0 };
+
+  // -- the shadows (above, 'the shadows on the ground'). PIC is the picture being painted (PIC.i the next cloud, -1 between pictures), SHOW the one shown.
+  const PIC = { i: -1, d0: 0, ox: 0, oz: 0, lx: 0, lz: 0, ly: 1, ax: 1, az: 0, cx: 0, cz: 0 }, SHOW = { d0: 0, ox: 0, oz: 0, lx: 0, lz: 0 };
+  let front = 0, shAll = true, shOff = false;
+  function shStart() {
+    const L = SUN_DIR, cam = camera.position, ly = Math.max(L.y, 0.02), hl = Math.hypot(L.x, L.z), g = groundY(cam.x, cam.z) || 0;
+    PIC.lx = L.x / ly; PIC.lz = L.z / ly; PIC.ly = Math.max(L.y, 0.15);   // (the stretch stops at 6.7 times: under that the shadows have faded out anyway)
+    PIC.ax = hl > 1e-4 ? L.x / hl : 1; PIC.az = hl > 1e-4 ? L.z / hl : 0;
+    PIC.ox = cam.x - g * PIC.lx - SPAN / 2; PIC.oz = cam.z - g * PIC.lz - SPAN / 2;   // centred where the ground round the camera looks itself up
+    PIC.cx = cam.x; PIC.cz = cam.z; PIC.d0 = drift; PIC.i = 0;
+    shBuf[1 - front].fill(0);
+  }
+  function shPaint(c, buf) {   // one cloud's puffs (the body and the skirt: the towers stand over them), where they were at PIC.d0, projected onto sea level
+    const cam = camera.position, dd = c.fixed ? 0 : drift - PIC.d0, x = c.x - WIND.x * dd, z = c.z - WIND.y * dd;
+    const a = (1 - ss(FADE0, FADE1, Math.hypot(x - cam.x, z - cam.z))) * c.op;
+    if (a < 0.01) return;
+    const H = c.H * c.k * (0.8 + 0.4 * c.k), mid = Math.min(255, Math.round((c.base + H * 0.5) / 8)), a2 = a * 255 * 2.5;   // 2.5: flat inside, a soft rim over the outer 60 %
+    const { ax, az, ly, lx, lz, ox, oz } = PIC;
+    for (let p = 0; p < c.keep; p++) {
+      const Q = c.puffs[p], r = Q.r * c.k * 0.9, py = c.base + Q.y * H / c.H;   // 0.9: the puff texture's soft disc is a little inside its quad
+      const X = x + Q.x * c.k - py * lx - ox, Z = z + Q.z * c.k - py * lz - oz;
+      const ra = r / ly, ia = 1 / (ra * ra), ib = 1 / (r * r);
+      const ex = Math.sqrt(ra * ra * ax * ax + r * r * az * az), ez = Math.sqrt(ra * ra * az * az + r * r * ax * ax);   // the box round the ellipse
+      const i0 = Math.max(1, Math.ceil((X - ex) / TEX - 0.5)), i1 = Math.min(SS - 2, Math.floor((X + ex) / TEX - 0.5));   // the outer ring stays 0: beyond the box, no shadow
+      const j0 = Math.max(1, Math.ceil((Z - ez) / TEX - 0.5)), j1 = Math.min(SS - 2, Math.floor((Z + ez) / TEX - 0.5));
+      for (let j = j0; j <= j1; j++) {
+        const dz = (j + 0.5) * TEX - Z;
+        for (let i = i0, o = (j * SS + i0) * 2; i <= i1; i++, o += 2) {
+          const dx = (i + 0.5) * TEX - X, u = dx * ax + dz * az, v = dz * ax - dx * az, q = u * u * ia + v * v * ib;
+          if (q >= 1) continue;
+          const val = Math.min(255, (1 - q) * a2);
+          if (buf[o] < val) buf[o] = val;
+          if (buf[o + 1] < mid) buf[o + 1] = mid;
+        }
+      }
+    }
+  }
+  function shadows(night) {
+    // by day only: gone as the sun gets low (they stretch kilometres away from their clouds by then) and before the moon takes over the light
+    const k = SH_K * ss(0.07, 0.2, SUN_DIR.y) * ss(0.02, 0, night), L = CLOUD_U.uCloudL.value;
+    if (k <= 0) { L.z = 0; shAll = true; return; }   // nothing to paint at night: a whole picture at once when the sun is back
+    const cam = camera.position;
+    if (Math.abs(cam.x - PIC.cx) + Math.abs(cam.z - PIC.cz) > 2000) shAll = true;   // a teleport: the picture round the old place is no use
+    if (shAll || PIC.i < 0) shStart();
+    const buf = shBuf[1 - front], end = shAll ? clouds.length : Math.min(clouds.length, PIC.i + SH_PER);
+    for (; PIC.i < end; PIC.i++) if (clouds[PIC.i].seen) shPaint(clouds[PIC.i], buf);
+    shAll = false;
+    if (PIC.i >= clouds.length) {   // finished: show it
+      front = 1 - front; shTex.image.data = shBuf[front]; shTex.needsUpdate = true;
+      SHOW.d0 = PIC.d0; SHOW.ox = PIC.ox; SHOW.oz = PIC.oz; SHOW.lx = PIC.lx; SHOW.lz = PIC.lz; PIC.i = -1; stats.pictures++;
+    }
+    const dd = drift - SHOW.d0;
+    CLOUD_U.uCloudBox.value.set(SHOW.ox + WIND.x * dd, SHOW.oz + WIND.y * dd, 1 / SPAN, 1 / SPAN);   // the shown picture moved on with the wind (the four clouds over the mountains too: a metre or so)
+    L.set(SHOW.lx, SHOW.lz, k, 0);
+  }
 
   // compiled now, while the game loads, like the night materials (src/daynight.js)
   try { geo.instanceCount = 1; renderer.compile(mesh, camera, scene); geo.instanceCount = 0; } catch (e) { console.warn('[clouds] not compiled ahead', e); }
@@ -323,8 +417,17 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
   return {
     enabled: true, update, stats, mesh,
     setQuality(q) { lowTier = q === 'low'; },
-    setOn(v) { on = !!v; mesh.visible = on; if (skyCov) skyCov.value = on ? 0 : cov0; },   // tests: off is the sky as it was before (same page, same tiles)
-    setDrift(s) { drift = s; for (const c of clouds) c.seen = false; },   // tests: the same sky every time
+    noShadows() { CLOUD_U.uCloudL.value.z = 0; },   // until the next update
+    setShadows(v) { shOff = !v; shAll = true; if (shOff) CLOUD_U.uCloudL.value.z = 0; },   // tests: the shadows alone off (no painting, the lookup skipped)
+    shadowAt(x, y, z) {   // tests: what the shaders see at a world point (1 in the sun), from the shown picture, nearest texel
+      const L = CLOUD_U.uCloudL.value, B = CLOUD_U.uCloudBox.value;
+      const i = Math.floor((x - y * L.x - B.x) / TEX), j = Math.floor((z - y * L.y - B.y) / TEX);
+      if (L.z <= 0 || i < 0 || j < 0 || i >= SS || j >= SS) return 1;
+      const o = (j * SS + i) * 2, d = shBuf[front], mid = d[o + 1] * 8;
+      return 1 - L.z * d[o] / 255 * ss(mid + 60, mid - 60, y);
+    },
+    setOn(v) { on = !!v; mesh.visible = on; if (skyCov) skyCov.value = on ? 0 : cov0; if (!on) CLOUD_U.uCloudL.value.z = 0; else shAll = true; },   // tests: off is the sky as it was before (same page, same tiles), shadows too
+    setDrift(s) { drift = s; for (const c of clouds) c.seen = false; shAll = true; },   // tests: the same sky every time
     get drift() { return drift; },
     clouds,
   };

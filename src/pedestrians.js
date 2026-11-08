@@ -25,6 +25,7 @@
 // - Beaches: bathers wade, swim and chat in the shallows, sunbathers sit on towels on the sand (section "the beaches"). They share the crowd's sprite draw, and by day only.
 import { FLEW, placeLine } from './shouts.js';
 import * as THREE from 'three';
+import { CLOUD_SHADOWS, CLOUD_U, CLOUD_GLSL } from './clouds.js';   // the clouds' shadows on the crowd
 import { zoneAt as districtAt } from './districts.js';
 import { fastAt } from './road-class.js';
 import { pitchCentre } from './stadium-ground.js';
@@ -515,6 +516,9 @@ export function createPedestrians(env) {
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB;
       uniform vec2 uFarSz; uniform vec2 uNearSz; uniform float uPx;
       varying vec2 vUvF; varying vec2 vUvN; varying float vNear; varying float vFade; varying float vSun; varying float vBright; varying float vY; varying float vClip;
+      #ifdef CLOUD_SH
+      ${CLOUD_GLSL}
+      #endif
       #include <fog_pars_vertex>
       void main() {
         // iB.w: hide the lower part of the sprite below this fraction of its height (seated passengers show no legs); 0 for the crowd. Below -1 it is a bather: -(10 + d), d metres
@@ -535,6 +539,9 @@ export function createPedestrians(env) {
         vUvN = (vec2(code, iA.y) + vec2(ux * ${CELL_W * 3}.0, (1.0 - uv.y) * ${CELL_H * 3}.0)) / uNearSz;
         vNear = near;
         vFade = iB.x; vSun = iB.y; vBright = iB.z;
+        #ifdef CLOUD_SH
+        if (uCloudL.z > 0.0) vSun *= cloudSun(iPos);   // under a cloud's shadow (src/clouds.js), like the street they stand on
+        #endif
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
@@ -557,6 +564,7 @@ export function createPedestrians(env) {
       }`,
   });
   spriteMat.uniforms.mapFar.value = atlas.far; spriteMat.uniforms.mapNear.value = atlas.near; spriteMat.uniforms.uFarSz.value = farSz;   // UniformsUtils.merge clones textures: the atlases must be the very ones the uploads go into
+  if (CLOUD_SHADOWS) { spriteMat.defines.CLOUD_SH = 1; Object.assign(spriteMat.uniforms, CLOUD_U); }
   const sprites = new THREE.Mesh(mkGeo(), spriteMat); sprites.frustumCulled = false; sprites.renderOrder = 2; scene.add(sprites);
   sprites.onBeforeRender = r => { rendererRef = r; };
   // soft blob shadow lying on the ground, pushed away from the sun
@@ -567,6 +575,9 @@ export function createPedestrians(env) {
     vertexShader: `
       attribute vec3 iPos; attribute vec4 iA; attribute vec4 iB; uniform vec2 uSunDir;
       varying vec2 vP; varying float vA; varying float vRip; varying float vPh;
+      #ifdef CLOUD_SH
+      ${CLOUD_GLSL}
+      #endif
       #include <fog_pars_vertex>
       void main() {
         vec2 q = vec2(position.x * 2.0, position.y * 2.0 - 1.0);
@@ -581,7 +592,11 @@ export function createPedestrians(env) {
           vec2 along = uSunDir, across = vec2(-uSunDir.y, uSunDir.x);
           vec2 off = (along * q.y * 0.85 + across * q.x * 0.5) * iA.z + along * 0.3;
           wp = vec3(iPos.x + off.x, iPos.y + 0.03, iPos.z + off.y);
-          vA = iB.x * mix(0.14, 0.5, iB.y) * (iA.w == 0.0 ? 1.0 : 0.6);
+          float sun = iB.y;
+          #ifdef CLOUD_SH
+          if (uCloudL.z > 0.0) sun *= cloudSun(iPos);   // a cloud takes the sun away: the shadow goes soft like the one under a wall
+          #endif
+          vA = iB.x * mix(0.14, 0.5, sun) * (iA.w == 0.0 ? 1.0 : 0.6);
         }
         vP = q;
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
@@ -601,6 +616,7 @@ export function createPedestrians(env) {
         #include <fog_fragment>
       }`,
   });
+  if (CLOUD_SHADOWS) { shadowMat.defines.CLOUD_SH = 1; Object.assign(shadowMat.uniforms, CLOUD_U); }
   const shadows = new THREE.Mesh(mkGeo(), shadowMat); shadows.frustumCulled = false; shadows.renderOrder = 1; scene.add(shadows);
 
   // ======================================================================== simulation state
