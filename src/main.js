@@ -37,6 +37,7 @@ import { watchVersion } from './version.js'; // "new version" button on the titl
 import { createPerf } from './perf.js'; // Auto graphics: holds 60 fps on any device by moving resolution, draw distance, shadows and crowd (src/perf.js, docs/PERF.md)
 import { createClouds } from './clouds.js';   // 3D fair-weather cumulus round the camera, one draw (src/clouds.js)
 import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fog, lamps, windows, headlights (src/daynight.js)
+import { createWeather } from './weather.js';   // the day's weather: clear, cumulus, overcast, scirocco, rain (src/weather.js), stepped by the day/night cycle
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
 import { createPlayLog } from './playlog.js'; // anonymous play and performance counts to our own service, off until src/playlog-url.js has an address (src/playlog.js)
@@ -278,7 +279,7 @@ const shouts = createShouts(camera);
 // Modules without env access (props) can raise a balloon with a 'pd-shout' event.
 addEventListener('pd-shout', e => { const d = e.detail || {}; shouts.shout(d.x, d.y, d.z, d.text, d.follow); });   // follow: a parked car in the air keeps its balloon (src/props.js)
 let horn; // created once game settings exist (volume)
-let clouds = null, cloudTier = 'medium'; // src/clouds.js, made after the day/night cycle; applyLevel may run first and only leaves the tier here
+let clouds = null, weather = null, cloudTier = 'medium'; // src/clouds.js, made after the day/night cycle; applyLevel may run first and only leaves the tier here
 const worldEnv = { scene, camera, car, groundY, raisedMask, CURB, walls2d, closestOnSeg, D, shout: shouts.shout, world }; // world: the tile streamer, see docs/TILES.md for onTile
 const stadium = createStadium({ ...worldEnv, vehicle });
 const traffic = createTraffic(worldEnv);
@@ -380,7 +381,7 @@ function applyLevel(L) {
   pedestrians.setQuality?.(L.crowd);
   traffic.setQuality?.(L.crowd);
   roadwear.setQuality?.(L.road || 'medium');
-  cloudTier = L.crowd; clouds?.setQuality(L.crowd);   // Low draws about half the puffs
+  cloudTier = L.crowd; clouds?.setQuality(L.crowd); weather?.setQuality(L.crowd);   // Low draws about half the puffs and half the rain
 }
 // First drive on a keyboard: say once where the controls are, then get out of the way.
 function showKeyHint() {
@@ -430,7 +431,9 @@ watchVersion(game);
 const coords = createCoords({ game, car, camera, groundY, perf, minimap });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
-const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world });   // world: the streamed tiles' roads for the night light field
+weather = createWeather({ scene, renderer, camera, game }); weather.setQuality(cloudTier);
+if (window.game) window.game.weather = weather;
+const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world, weather });   // world: the streamed tiles' roads for the night light field
 clouds = createClouds({ scene, renderer, camera, sky, sun, hemi, game, SUN_DIR }); clouds.setQuality(cloudTier);   // after the day/night cycle: they read its sun, sky light and fog
 if (window.game) window.game.clouds = clouds;
 if (params.get('engine') !== 'off') { const lean = createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }); if (window.game) window.game.lean = lean; }   // ?engine=off draws as three.js does on its own (for comparing)
