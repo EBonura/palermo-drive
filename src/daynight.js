@@ -13,11 +13,13 @@
 // windows (a uniform read by the facade shader in buildings.js), the player's headlights and tail lamps, a clock above the street in the map capsule.
 // Settings (game.settings.timeStart 'morning'|'afternoon'|'sunset'|'night', timeSpeed 'off'|'slow'|'normal'|'fast') come from the
 // Options screen; ?time=HH (also 19.5) freezes the clock for screenshots, ?timespeed=MINUTES_PER_DAY lets it run again.
+// The weather (src/weather.js, stepped from here with the hour shown) bends the palette after it is blended: weatherPalette below.
 import * as THREE from 'three';
 import { D, groundY, proj, freeCanvas } from './core.js';
 import { MAT } from './vehicle-art.js';
 import { SHADE, envProbe } from './shading.js';
 import { CLOUD_SHADOWS, CLOUD_U, CLOUD_GLSL } from './clouds.js';
+import { WX } from './weather.js';
 
 // Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
 export const NIGHT = { win: { value: 0 } };
@@ -95,6 +97,7 @@ const DAY_SKY_H = '#6cc2fb', DAY_SKY_Z = '#1a58b0';
 const SKY_UNIFORMS = `
 uniform float uMix; uniform float uTime; uniform float uStars; uniform float uSunVis;
 uniform vec3 uDayH; uniform vec3 uDayZ; uniform float uDayG; uniform vec3 uSkyH; uniform vec3 uSkyZ; uniform vec3 uGlow; uniform vec3 uDome; uniform vec3 uSunV; uniform vec3 uMoonV; uniform float uMoon;
+uniform vec4 uWx; uniform vec3 uWxH; uniform vec3 uWxZ; uniform vec3 uWxG;   // the weather (x how much of the dome it paints, y a pale sun disc, z mottling, w time), its horizon, zenith and the glow round the sun
 float pdHash(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
 vec3 pdTwilight(vec3 d) {
   float h = clamp(d.y, 0.0, 1.0);
@@ -128,6 +131,22 @@ vec3 pdTwilight(vec3 d) {
   return g;
 }
 `;
+// The weather's dome (src/weather.js): a grey or dusty gradient over whatever the clock painted, mottled like a cloud deck (the Sky's own noise, which it
+// defines before main; not on Low), a haze round the sun and, through dust, a pale disc. Behind a uniform branch: nothing of it runs under a clear or cumulus sky.
+const SKY_WEATHER = `
+float pdNoNoise(vec2 p) { return 0.0; }
+vec3 pdWeather(vec3 c, vec3 d) {
+  vec3 g = mix(uWxH, uWxZ, pow(clamp(d.y, 0.0, 1.0), 0.5));
+  if (uWx.z > 0.001 && d.y > 0.0) {
+    vec2 p = d.xz / (d.y + 0.1) * 1.3 + uWx.w * vec2(0.006, 0.0025);   // a deck a few kilometres up, drifting with the clouds' wind
+    g *= 1.0 + uWx.z * PD_NOISE(p) * 0.15 * smoothstep(0.0, 0.2, d.y);   // one octave: a second cost as much again (measured) for little to see
+  }
+  float s = max(dot(d, uSunV), 0.0);
+  g += uWxG * (pow(s, 6.0) * 0.45 + pow(s, 64.0) * 0.6);
+  c = mix(c, g, uWx.x);
+  return c + vec3(1.0, 0.93, 0.8) * smoothstep(0.99982, 0.99992, s) * uWx.y;
+}
+`;
 function patchSky(sky) {
   const u = sky.material.uniforms;
   Object.assign(u, {
@@ -135,13 +154,15 @@ function patchSky(sky) {
     uDayH: { value: new THREE.Color(DAY_SKY_H) }, uDayZ: { value: new THREE.Color(DAY_SKY_Z) }, uDayG: { value: 0.4 },
     uSkyH: { value: new THREE.Color() }, uSkyZ: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uDome: { value: new THREE.Color() },
     uSunV: { value: new THREE.Vector3(0, 1, 0) }, uMoonV: { value: new THREE.Vector3(0, -1, 0) },
+    uWx: { value: new THREE.Vector4() }, uWxH: { value: new THREE.Color() }, uWxZ: { value: new THREE.Color() }, uWxG: { value: new THREE.Color() },
   });
   // The physical sky is far brighter than the city under our exposure and ACES clips it to white: scale its output down (0.42) so the
   // zenith reads the saturated blue of a clear Palermo day. r183 dropped Sky's legacy gamma (retColor = pow(texColor, ...)); put it back.
   const m = /gl_FragColor = vec4\( ([^;]*?), 1\.0 \);/.exec(sky.material.fragmentShader);
   if (!m) { console.warn('[daynight] sky shader not recognised, leaving the day sky alone'); return; }
   const expr = m[1], day = expr.includes('0.42') ? expr : (expr.includes('texColor') && !expr.includes('pow') ? 'pow( texColor, vec3( 1.0 / 2.4 ) )' : expr) + ' * 0.42';
-  sky.material.fragmentShader = SKY_UNIFORMS + sky.material.fragmentShader.replace(m[0],
+  const fs0 = sky.material.fragmentShader, wx = SKY_WEATHER.replace(/PD_NOISE/g, fs0.includes('float noise( vec2 p )') ? 'noise' : 'pdNoNoise');   // (no noise in the Sky: a plain gradient)
+  sky.material.fragmentShader = SKY_UNIFORMS + fs0.replace('void main() {', wx + 'void main() {').replace(m[0],
     `vec3 dayCol = ${day};
      vec3 dirN = normalize( vWorldPosition - cameraPosition );
      { // x2: the physical sky reads pale grey-white (zenith 199, 207, 216 at 30 degrees up); the style guide wants a saturated clean blue, zenith #3a7ebf to horizon #8ac8f7. Blend towards that
@@ -150,7 +171,9 @@ function patchSky(sky) {
        float sc = max( dot( dirN, uSunV ), 0.0 );
        dayCol = mix( dayCol, dg, uDayG * ( 1.0 - 0.85 * pow( sc, 10.0 ) ) );
      }
-     gl_FragColor = vec4( uMix > 0.001 ? mix( dayCol, pdTwilight( dirN ), uMix ) : dayCol, 1.0 );`);
+     vec3 skyCol = uMix > 0.001 ? mix( dayCol, pdTwilight( dirN ), uMix ) : dayCol;
+     if ( uWx.x > 0.001 ) skyCol = pdWeather( skyCol, dirN );
+     gl_FragColor = vec4( skyCol, 1.0 );`);
   sky.material.needsUpdate = true;
 }
 
@@ -203,7 +226,7 @@ void main() {
 }`;
 
 // ------------------------------------------------------------------------------------------------ createDayNight
-export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world }) {
+export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world, weather }) {
   const params = new URLSearchParams(location.search);
   const st = game.settings;
   patchSky(sky);
@@ -219,6 +242,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // program, so a new material compiles once, already washed (no extra compile, no scene walk). Vehicle models (root userData.honestLight,
   // src/vehicle-models.js: the player's lapa, rivals, remote players) stay honestly lit.
   const NK = { value: new THREE.Vector4(0, 0.3, 0, 1) }; // x night amount (lamps on), y street bounce, z street level (m), w paving gloss
+  const WET = { value: 0 };   // how wet the ground is (src/weather.js)
   const FLOOD = [ // [lat, lon, radius m, strength]
     [38.115684, 13.361460, 60, 0.8], [38.1199, 13.3573, 90, 1.0], [38.1146, 13.3558, 90, 1.0], [38.1112, 13.3540, 95, 0.9],
     [38.1151, 13.3622, 55, 0.85], [38.12865, 13.35672, 85, 0.9], [38.11052, 13.35243, 55, 0.9],
@@ -234,10 +258,15 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   const LT = { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, LB = { value: new THREE.Vector4(0, 0, 1, 1) }; // lamp/street light field (built the first time it gets dark)
   LT.value.needsUpdate = true;
   const LW0 = LT.value, LW = { value: LW0 }, LWK = { value: new THREE.Vector4(0, 0, 0, 1) };   // beyond the centro, the same field round the camera (below, 'the light field round the camera'): xy its centre (x, z), z texture repeats a metre, w half its side (m)
-  const WASH_DECL = 'uniform vec4 uNightK;\n' + FLOOD_GLSL + 'uniform sampler2D uLampTex;\nuniform vec4 uLampBox;\nuniform sampler2D uLampWin;\nuniform vec4 uLampWinK;\n';
+  const WASH_DECL = 'uniform vec4 uNightK;\nuniform float uWet;\n' + FLOOD_GLSL + 'uniform sampler2D uLampTex;\nuniform vec4 uLampBox;\nuniform sampler2D uLampWin;\nuniform vec4 uLampWinK;\n';
   const WASH_ROUGH = `
     #ifndef FLAT_SHADED
     if (uNightK.x > 0.002) { vec3 gn = normalize(vNormal) * mat3(viewMatrix); roughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.4), uNightK.x * uNightK.w * smoothstep(0.85, 0.97, gn.y)); }
+    if (uWet > 0.002) {   // rain (src/weather.js): wet stone and asphalt go darker and glossy, so they mirror the grey sky; grass and earth (the saturated colours) only darker, walls a little
+      vec3 gw = normalize(vNormal) * mat3(viewMatrix); float up = smoothstep(0.55, 0.9, gw.y);
+      float grey = 1.0 - smoothstep(0.06, 0.2, max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b)));
+      diffuseColor.rgb *= 1.0 - uWet * (0.1 + 0.3 * up); roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.3 + 0.06, uWet * up * grey * (1.0 - smoothstep(120.0, 400.0, length(vViewPosition))));   // (near only: far off, grazing, the whole hillside would mirror the bright horizon)
+    }
     #endif`;
   const WASH_EMIT = `
     if (uNightK.x > 0.002) {
@@ -276,7 +305,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       if (!sh.fragmentShader.includes('#include <common>')) return;   // a callback that rewrote the shader's head: leave it alone
       let f = sh.fragmentShader;
       if (night) {
-        sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB; sh.uniforms.uLampWin = LW; sh.uniforms.uLampWinK = LWK;
+        sh.uniforms.uNightK = NK; sh.uniforms.uWet = WET; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB; sh.uniforms.uLampWin = LW; sh.uniforms.uLampWinK = LWK;
         f = f.replace('#include <common>', '#include <common>\n' + WASH_DECL)
           .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
           .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>' + WASH_EMIT);
@@ -326,6 +355,36 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
 
   addEventListener('pd-time-hour', e => { if (!forced && Number.isFinite(+e.detail)) jumpTo(+e.detail); }); // the Options time slider (src/ui.js)
   addEventListener('pd-time-set', () => { if (!forced && START_HOURS[st.timeStart] !== undefined) { seenStart = st.timeStart; jumpTo(START_HOURS[st.timeStart]); } });
+
+  // ---- the weather (src/weather.js): WX is this frame's mix of states. Its colours are daylight colours: each is scaled to the brightness the hour gives
+  // the palette colour it goes into (against that colour at noon), and fades out as it gets dark, so dawn and dusk keep their light and the night stays as tuned.
+  const DAYC = K(12, {}), DAY_H = new THREE.Color(DAY_SKY_H), DAY_Z = new THREE.Color(DAY_SKY_Z), _w = new THREE.Color(), refH = new THREE.Color(), refZ = new THREE.Color();
+  const LUM = c => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const wxMix = (col, ref, m, target) => { if (m > 0.001) col.lerp(_w.copy(target).multiplyScalar(LUM(col) / Math.max(1e-4, LUM(ref))), m); };
+  function weatherPalette(night) {
+    const W = WX, day = 1 - night, nm = 1 - 0.9 * night;
+    WET.value = W.wet;
+    if (W.sunK === 1 && W.hemiM === 0 && W.fogM === 0 && W.fogK === 1 && W.sunM === 0 && W.dark === 0) return;   // cumulus, as the palette was made for
+    P.sunI *= W.sunK;
+    if (W.sunDesat > 0) { const l = LUM(P.sun); P.sun.lerp(_w.setRGB(l, l, l), W.sunDesat); }   // through cloud the sun is whiter
+    if (W.sunM > 0) { const l = LUM(P.sun); P.sun.lerp(_w.copy(W.sun).multiplyScalar(l / LUM(W.sun)), W.sunM); }   // through dust, more orange
+    P.hemiI *= lerp(1, W.hemiK, day) * (1 - W.dark * night);   // under cloud the sky gives more of the light; an overcast night is a little darker
+    wxMix(P.hemiS, DAYC.hemiS, W.hemiM * nm, W.hemi);
+    wxMix(P.fog, DAYC.fog, W.fogM * nm, W.fog);
+    P.fogK *= lerp(1, W.fogK, 1 - 0.6 * night);
+    P.expo *= lerp(1, W.expoK, day);
+    wxMix(P.envZ, DAYC.envZ, W.hemiM * 0.8 * nm, W.hemi); wxMix(P.envH, DAYC.envH, W.fogM * 0.6 * nm, W.fog);   // the reflections and the ambient follow the sky
+  }
+  function weatherSky(mixG, night, altD) {
+    const W = WX, x = U.uWx.value, t = Math.max(mixG, night);
+    U.showSunDisc.value = 1 - W.hide; U.uSunVis.value *= 1 - W.hide;   // behind cloud or dust the sun's own disc goes (the scirocco draws a pale one)
+    x.set(W.skyM * (1 - 0.85 * night), W.disc * ss(-1.5, 2, altD), W.deck, realNow % 100000);
+    if (x.x <= 0.001) return;
+    refH.copy(DAY_H).lerp(P.skyH, t); refZ.copy(DAY_Z).lerp(P.skyZ, t);   // the sky the clock paints now: the weather's takes its brightness, and at dusk a little of its colour
+    U.uWxH.value.copy(W.skyH).multiplyScalar(LUM(refH) / LUM(DAY_H)).lerp(refH, 0.3 * mixG);
+    U.uWxZ.value.copy(W.skyZ).multiplyScalar(LUM(refZ) / LUM(DAY_Z)).lerp(refZ, 0.3 * mixG);
+    U.uWxG.value.copy(W.glow).multiplyScalar(ss(-3, 8, altD));
+  }
 
   // ---- the sun's light
   const sunV = new THREE.Vector3(), moonV = new THREE.Vector3(), seaDir = new THREE.Vector3(), _c = new THREE.Color();
@@ -736,17 +795,20 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       if (jump.t >= 1) { jump = null; vis = hour; lastEvent = -1; }   // tell the others again when it lands: with the clock frozen no 'pd-time' would follow the stale one sent as it left
     }
 
-    // -- sun, moon, palette
+    // -- sun, moon, palette, weather
+    weather?.update(dt, vis);
     const alt = sunVector(vis, sunV);
     moonV.copy(sunV).negate();
     palette(vis);
     const altD = alt / DEG;
     const night = ss(2.5, -9.5, altD);                // 0 in daylight, 1 once the sun is 9 degrees under
+    const sunI0 = P.sunI;                             // (the sun's share of the light's direction stays the clock's)
+    weatherPalette(night);
     const dusk = Math.exp(-Math.pow((altD + 2) / 6.5, 2));     // peaks as the sun meets the sea
     const sunUp = altD > -0.6;
     time.hour = vis; time.night = night; time.day = 1 - night; time.dusk = dusk; time.isNight = night > 0.5; time.sunUp = sunUp;
-    const moonI = 0.5 * ss(-1, -9, altD) * ss(0.02, 0.14, moonV.y);
-    const wS = P.sunI / 2.9, wM = moonI / 0.5 * 0.75;
+    const moonI0 = 0.5 * ss(-1, -9, altD) * ss(0.02, 0.14, moonV.y), moonI = moonI0 * (1 - WX.dark);
+    const wS = sunI0 / 2.9, wM = moonI0 / 0.5 * 0.75;
     lightDir.copy(sunV).multiplyScalar(wS + 1e-4).addScaledVector(moonV, wM);
     if (lightDir.lengthSq() < 1e-8) lightDir.copy(moonV);
     lightDir.normalize();
@@ -771,8 +833,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     U.uMix.value = Math.max(mixG, night); U.uTime.value = realNow;
     U.uSkyH.value.copy(P.skyH); U.uSkyZ.value.copy(P.skyZ); U.uGlow.value.copy(P.glow); U.uDome.value.copy(P.dome);
     U.uSunV.value.copy(sunV); U.uSunVis.value = ss(-2.5, 0.5, altD);
-    U.uMoonV.value.copy(moonV); U.uMoon.value = ss(-3, -11, altD) * ss(0, 0.08, moonV.y);
-    U.uStars.value = ss(-6, -15, altD);
+    U.uMoonV.value.copy(moonV); U.uMoon.value = ss(-3, -11, altD) * ss(0, 0.08, moonV.y) * WX.stars;
+    U.uStars.value = ss(-6, -15, altD) * WX.stars;
+    weatherSky(mixG, night, altD);
 
     // environment map
     {
@@ -787,10 +850,14 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     }
     if (seaU) {
       seaU.uSunDir.value.copy(seaDir);
-      _seaSun.copy(P.sun).multiplyScalar(Math.min(1, P.sunI / 2.5)).add(_c.copy(MOON).multiplyScalar(0.45 * moonI / 0.5));
+      _seaSun.copy(P.sun).multiplyScalar(Math.min(1, P.sunI / 2.5) * (1 - 0.9 * WX.hide + 0.25 * WX.disc)).add(_c.copy(MOON).multiplyScalar(0.45 * moonI / 0.5));   // (a hidden sun leaves no glint)
       seaU.uSunCol.value.copy(_seaSun);
       seaU.uHorizon.value.copy(DAY_SEA_H).lerp(P.skyH, Math.max(mixG, night)); seaU.uZenith.value.copy(DAY_SEA_Z).lerp(P.skyZ, Math.max(mixG, night));
-      if (seaU.uAmb) seaU.uAmb.value.copy(P.amb);
+      if (U.uWx.value.x > 0.001) {   // the sea mirrors the weather's sky, at the brightness of the one it mirrored
+        const k = U.uWx.value.x * 0.85, h = seaU.uHorizon.value, z = seaU.uZenith.value;
+        h.lerp(_w.copy(WX.skyH).multiplyScalar(LUM(h) / LUM(DAY_SEA_H)), k); z.lerp(_w.copy(WX.skyZ).multiplyScalar(LUM(z) / LUM(DAY_SEA_Z)), k);
+      }
+      if (seaU.uAmb) { seaU.uAmb.value.copy(P.amb); if (WX.seaM > 0) seaU.uAmb.value.multiply(_c.setRGB(1, 1, 1).lerp(WX.sea, WX.seaM * (1 - 0.9 * night))); }   // under a grey or dusty sky the water's own colour dulls
     }
 
     // lamps, windows, vehicle lights

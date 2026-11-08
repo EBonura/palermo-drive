@@ -23,8 +23,13 @@
 // further from their cloud the lower the sun is, stretch out in the morning and evening and fade with the sun at dusk. The footprints are painted
 // on the CPU into a small top-down texture (below, 'the shadows on the ground'), and the lit materials multiply the sun's light by one lookup in it
 // (src/daynight.js for the standard materials, src/sea.js, src/pedestrians.js). ?clouds=off leaves the lookup out of every shader.
+//
+// The weather (src/weather.js, WX) sets how many there are: each cloud has a rank, and shows as the coverage passes it, growing as it fades in. The 84
+// as shipped are ranked 0 to 0.85 (the four over the mountains first: a clear day keeps a little build-up there), so coverage 1 is the sky as it was;
+// EXTRA more, ranked above 1, come in for an overcast or rainy sky, which also makes them bigger and greyer underneath.
 import * as THREE from 'three';
 import { groundY } from './core.js';
+import { WX } from './weather.js';
 
 const { clamp, lerp } = THREE.MathUtils;
 const ss = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
@@ -32,7 +37,7 @@ const SEED = 0x5a1e4d07;
 const TILE = 20000;                           // the wrapped field (m)
 const FADE0 = 8000, FADE1 = 9600;             // clouds fade out between these (horizontal distance), before the wrap at 10 km
 const LOD0 = 3500, LOD1 = 5500;               // between these a cloud lets its smaller puffs go and the body puffs grow to fill in (far away they are a few pixels)
-const NCLOUD = 84, MAXP = 900;                // clouds in the field; puff slots (the veil included)
+const NCLOUD = 84, EXTRA = 76, MAXP = 1600;   // clouds in the field as shipped; more for a grey sky (src/weather.js); puff slots (the veil included)
 const WIND = new THREE.Vector2(0.92, 0.39).multiplyScalar(4);   // m/s, towards the east-south-east
 const STRIDE = 12;                            // floats per instance: x y z r | base top alpha veil | rotation variant (spare) unfaded
 const VEIL_D = 9000;                          // the sky veil's distance ahead of the camera while inside a cloud
@@ -110,7 +115,7 @@ void main() {
   #include <fog_vertex>
 }`;
 const FRAG = `
-uniform sampler2D uMap; uniform vec3 uL; uniform vec3 uSun; uniform vec3 uSkyA; uniform vec3 uGndA; uniform vec3 uGlow; uniform float uVeil;
+uniform sampler2D uMap; uniform vec3 uL; uniform vec3 uSun; uniform vec3 uSkyA; uniform vec3 uGndA; uniform vec3 uGlow; uniform float uVeil; uniform float uGrey;
 varying vec2 vUv; varying vec3 vWp; varying vec4 vB; varying vec3 vR; varying vec3 vU; varying vec3 vF; varying float vK;
 #include <fog_pars_fragment>
 void main() {
@@ -127,7 +132,8 @@ void main() {
     float shade = mix(0.5, 1.0, smoothstep(0.0, 0.85, h)) * mix(1.0, 0.8, t.b * (1.0 - h));    // the lower and thicker parts sit in the cloud's own shade
     vec3 v = normalize(vWp - cameraPosition);
     float fwd = pow(max(dot(v, uL), 0.0), 8.0) * (1.0 - t.a * 0.8) * 0.8;   // the silver edge looking towards the sun: only on the frayed fringes (the thin middle of every puff would ring each one)
-    vec3 col = uSun * (sunSide * shade + fwd) + mix(uGndA, uSkyA, clamp(h * 0.75 + n.y * 0.35, 0.0, 1.0)) + uGlow * (1.0 - h) * (1.0 - h);
+    vec3 col = uSun * (sunSide * shade + fwd * (1.0 - uGrey)) + mix(uGndA, uSkyA, clamp(h * 0.75 + n.y * 0.35, 0.0, 1.0)) + uGlow * (1.0 - h) * (1.0 - h);
+    col *= (1.0 - 0.3 * uGrey) * (1.0 - uGrey * (0.5 - 0.3 * h) * (0.6 + 0.4 * t.b));   // a grey sky's clouds: duller all over, dark heavy undersides
     gl_FragColor = vec4(col, a);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -184,28 +190,31 @@ float cloudSun(vec3 p) {   // the share of the sun that gets past the clouds to 
 const ANCHORS = [[-8500, 0, 1500], [-6500, 10000, 1400], [2500, 5500, 1250], [-8500, -5000, 1100]];
 function makeClouds() {
   const rnd = mulberry32(SEED), out = [];
-  for (let i = 0; i < NCLOUD + ANCHORS.length; i++) {
-    const A = ANCHORS[i - NCLOUD];
-    const s = rnd(), W = A ? A[2] : 480 + 1050 * Math.pow(s, 1.8), H = W * (0.26 + rnd() * 0.2);   // width and thickness (m): mostly small, a few big ones, wider than tall
-    const n = Math.min(15, Math.round(5 + W / 140));
-    const ang = rnd() * Math.PI, ca = Math.cos(ang), sa = Math.sin(ang), stretch = 1 + rnd() * 0.6;
-    const puffs = [];
-    for (let k = 0; k < n; k++) {
-      // in layers, the order also the order of importance (Low and the far clouds keep the first ones): the body, a wide flat skirt, then the towers on top
-      const f = k / n, layer = k < 2 ? 0 : f < 0.55 ? 1 : 2, a = rnd() * Math.PI * 2;
-      const rr = layer === 0 ? rnd() * 0.1 : layer === 1 ? 0.2 + Math.sqrt(rnd()) * 0.3 : Math.sqrt(rnd()) * 0.24;
-      const y = (layer === 0 ? 0.4 : layer === 1 ? 0.2 + rnd() * 0.15 : 0.5 + rnd() * 0.35 * (1 - rr / 0.3)) * H;
-      const r = (layer === 0 ? 0.38 : layer === 1 ? 0.25 + 0.08 * rnd() : 0.2 + 0.08 * rnd()) * W;   // big and overlapping: one mass, not a bunch of balls
-      const lx = Math.cos(a) * rr * stretch, lz = Math.sin(a) * rr;
-      puffs.push({ x: (lx * ca - lz * sa) * W, z: (lx * sa + lz * ca) * W, y, r, rot: rnd() * Math.PI * 2, v: (rnd() * 4) | 0, seed: rnd() });
-    }
-    out.push({
-      x0: A ? A[0] : (rnd() - 0.5) * TILE, z0: A ? A[1] : (rnd() - 0.5) * TILE, fixed: !!A, W, H, base0: 450 + rnd() * 170, op: 0.88 + rnd() * 0.12, puffs, keep: Math.ceil(n * 0.5),
-      // live state: where it is, how big the land under it lets it grow (k), its base; sx, sz where the ground was last read
-      x: 0, z: 0, k: 1, kT: 1, base: 0, baseT: 0, sx: 1e9, sz: 1e9, seen: false,
-    });
-  }
+  for (let i = 0; i < NCLOUD + ANCHORS.length; i++) out.push(oneCloud(rnd, ANCHORS[i - NCLOUD]));
+  const r2 = mulberry32(SEED ^ 0x3d1f0b5);   // (a stream of their own: the clouds above are the ones that shipped)
+  for (const c of out) c.rank = c.fixed ? 0.03 : 0.08 + 0.77 * r2();
+  for (let i = 0; i < EXTRA; i++) { const c = oneCloud(r2); c.rank = 1.02 + 0.85 * r2(); out.push(c); }
   return out;
+}
+function oneCloud(rnd, A) {   // a cloud's shape and place from the stream rnd; A: one of the anchors over the mountains
+  const s = rnd(), W = A ? A[2] : 480 + 1050 * Math.pow(s, 1.8), H = W * (0.26 + rnd() * 0.2);   // width and thickness (m): mostly small, a few big ones, wider than tall
+  const n = Math.min(15, Math.round(5 + W / 140));
+  const ang = rnd() * Math.PI, ca = Math.cos(ang), sa = Math.sin(ang), stretch = 1 + rnd() * 0.6;
+  const puffs = [];
+  for (let k = 0; k < n; k++) {
+    // in layers, the order also the order of importance (Low and the far clouds keep the first ones): the body, a wide flat skirt, then the towers on top
+    const f = k / n, layer = k < 2 ? 0 : f < 0.55 ? 1 : 2, a = rnd() * Math.PI * 2;
+    const rr = layer === 0 ? rnd() * 0.1 : layer === 1 ? 0.2 + Math.sqrt(rnd()) * 0.3 : Math.sqrt(rnd()) * 0.24;
+    const y = (layer === 0 ? 0.4 : layer === 1 ? 0.2 + rnd() * 0.15 : 0.5 + rnd() * 0.35 * (1 - rr / 0.3)) * H;
+    const r = (layer === 0 ? 0.38 : layer === 1 ? 0.25 + 0.08 * rnd() : 0.2 + 0.08 * rnd()) * W;   // big and overlapping: one mass, not a bunch of balls
+    const lx = Math.cos(a) * rr * stretch, lz = Math.sin(a) * rr;
+    puffs.push({ x: (lx * ca - lz * sa) * W, z: (lx * sa + lz * ca) * W, y, r, rot: rnd() * Math.PI * 2, v: (rnd() * 4) | 0, seed: rnd() });
+  }
+  return {
+    x0: A ? A[0] : (rnd() - 0.5) * TILE, z0: A ? A[1] : (rnd() - 0.5) * TILE, fixed: !!A, W, H, base0: 450 + rnd() * 170, op: 0.88 + rnd() * 0.12, puffs, keep: Math.ceil(n * 0.5),
+    // live state: where it is, how big the land under it lets it grow (k), its base; sx, sz where the ground was last read
+    x: 0, z: 0, k: 1, kT: 1, base: 0, baseT: 0, sx: 1e9, sz: 1e9, seen: false, rank: 0, a: 1, g: 1,   // rank, a, g: the weather's (above)
+  };
 }
 
 export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SUN_DIR }) {
@@ -229,7 +238,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
 
   const U = {
     uMap: { value: puffTexture() }, uL: { value: new THREE.Vector3(0, 1, 0) }, uSun: { value: new THREE.Color() }, uSkyA: { value: new THREE.Color() },
-    uGndA: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uVeil: { value: 0 },
+    uGndA: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uVeil: { value: 0 }, uGrey: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), vertexShader: VERT, fragmentShader: FRAG,
@@ -275,6 +284,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
     U.uGndA.value.copy(hemi.groundColor).lerp(hemi.color, 0.7).multiplyScalar(hemi.intensity * 1.55);   // the undersides: grey, not the brown of the streets
     U.uGlow.value.copy(DOME).multiplyScalar(0.07 * night);   // the city's sodium light on the undersides
     const opK = 1 - 0.35 * night;
+    U.uGrey.value = WX.cGrey;
 
     // -- clouds round the camera, puffs into the staging buffer with their sort keys (far first)
     let n = 0, near = 0;
@@ -289,7 +299,9 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
       x -= Math.round(x / TILE) * TILE; z -= Math.round(z / TILE) * TILE;
       const dh = Math.sqrt(x * x + z * z), fade = 1 - ss(FADE0, FADE1, dh);
       c.x = x + cam.x; c.z = z + cam.z;
-      if (fade <= 0) { c.seen = false; continue; }
+      c.a = ss(c.rank, c.rank + 0.12, WX.cov);   // the weather: shown as the coverage passes its rank, growing as it comes
+      if (fade <= 0 || c.a <= 0) { c.seen = false; continue; }
+      c.g = WX.cSize * (0.55 + 0.45 * c.a);
       const jumped = Math.abs(c.x - c.sx) + Math.abs(c.z - c.sz) > 1500;   // first sight, a wrap or a teleport: read the ground and take it at once
       if (!c.seen || jumped || first) { readGround(c); c.k = c.kT; c.base = c.baseT; }
       else {
@@ -297,14 +309,14 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
         const e = 1 - Math.exp(-dt / 8); c.k += (c.kT - c.k) * e; c.base += (c.baseT - c.base) * e;
       }
       c.seen = true;
-      const H = c.H * c.k * (0.8 + 0.4 * c.k), top = c.base + H * 1.05, alpha = fade * c.op * opK;   // over the mountains they also tower
+      const ck = c.k * c.g, H = c.H * c.k * (0.8 + 0.4 * c.k) * c.g, top = c.base + H * 1.05, alpha = fade * c.op * opK * c.a;   // over the mountains they also tower
       const lod = lowTier ? 1 : ss(LOD0, LOD1, Math.sqrt(dh * dh + (c.base - cam.y) ** 2)), np = lod >= 1 ? c.keep : c.puffs.length;
-      const k = c.k * (1 + 0.2 * lod);
-      const cy = cam.y - c.base, cr = c.W * c.k * 0.9;
+      const k = ck * (1 + 0.2 * lod);
+      const cy = cam.y - c.base, cr = c.W * ck * 0.9;
       const close = dh < cr + 50 && cy > -100 && cy < H + 100;   // the camera may be in this one
       for (let p = 0; p < np && n < MAXP - 1; p++) {
         const P = c.puffs[p], br = 1 + 0.05 * Math.sin(drift * 0.07 + P.seed * 40);   // puffs breathe a little
-        const px = c.x + P.x * c.k, py = c.base + P.y * H / c.H, pz = c.z + P.z * c.k, r = P.r * k * br, pa = p < c.keep ? alpha : alpha * (1 - lod);
+        const px = c.x + P.x * ck, py = c.base + P.y * H / c.H, pz = c.z + P.z * ck, r = P.r * k * br, pa = p < c.keep ? alpha : alpha * (1 - lod);
         const ex = px - cam.x, ey = py - cam.y, ez = pz - cam.z, d = Math.sqrt(ex * ex + ey * ey + ez * ez);
         if (close) near = Math.max(near, 1 - ss(0.3 * r, 0.62 * r, d));
         if (d < 0.19 * r || d - r > hidden || pa < 0.004) continue;   // faded out round the camera, lost in the fog, or gone: no quad to fill
@@ -369,13 +381,13 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
   }
   function shPaint(c, buf) {   // one cloud's puffs (the body and the skirt: the towers stand over them), where they were at PIC.d0, projected onto sea level
     const cam = camera.position, dd = c.fixed ? 0 : drift - PIC.d0, x = c.x - WIND.x * dd, z = c.z - WIND.y * dd;
-    const a = (1 - ss(FADE0, FADE1, Math.hypot(x - cam.x, z - cam.z))) * c.op;
+    const a = (1 - ss(FADE0, FADE1, Math.hypot(x - cam.x, z - cam.z))) * c.op * c.a, ck = c.k * c.g;
     if (a < 0.01) return;
-    const H = c.H * c.k * (0.8 + 0.4 * c.k), mid = Math.min(255, Math.round((c.base + H * 0.5) / 8)), a2 = a * 255 * 2.5;   // 2.5: flat inside, a soft rim over the outer 60 %
+    const H = c.H * c.k * (0.8 + 0.4 * c.k) * c.g, mid = Math.min(255, Math.round((c.base + H * 0.5) / 8)), a2 = a * 255 * 2.5;   // 2.5: flat inside, a soft rim over the outer 60 %
     const { ax, az, ly, lx, lz, ox, oz } = PIC;
     for (let p = 0; p < c.keep; p++) {
-      const Q = c.puffs[p], r = Q.r * c.k * 0.9, py = c.base + Q.y * H / c.H;   // 0.9: the puff texture's soft disc is a little inside its quad
-      const X = x + Q.x * c.k - py * lx - ox, Z = z + Q.z * c.k - py * lz - oz;
+      const Q = c.puffs[p], r = Q.r * ck * 0.9, py = c.base + Q.y * H / c.H;   // 0.9: the puff texture's soft disc is a little inside its quad
+      const X = x + Q.x * ck - py * lx - ox, Z = z + Q.z * ck - py * lz - oz;
       const ra = r / ly, ia = 1 / (ra * ra), ib = 1 / (r * r);
       const ex = Math.sqrt(ra * ra * ax * ax + r * r * az * az), ez = Math.sqrt(ra * ra * az * az + r * r * ax * ax);   // the box round the ellipse
       const i0 = Math.max(1, Math.ceil((X - ex) / TEX - 0.5)), i1 = Math.min(SS - 2, Math.floor((X + ex) / TEX - 0.5));   // the outer ring stays 0: beyond the box, no shadow
@@ -394,7 +406,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
   }
   function shadows(night) {
     // by day only: gone as the sun gets low (they stretch kilometres away from their clouds by then) and before the moon takes over the light
-    const k = SH_K * ss(0.07, 0.2, SUN_DIR.y) * ss(0.02, 0, night), L = CLOUD_U.uCloudL.value;
+    const k = SH_K * WX.shK * ss(0.07, 0.2, SUN_DIR.y) * ss(0.02, 0, night), L = CLOUD_U.uCloudL.value;   // (less sun under a grey sky: weaker patches, src/weather.js)
     if (k <= 0) { L.z = 0; shAll = true; return; }   // nothing to paint at night: a whole picture at once when the sun is back
     const cam = camera.position;
     if (Math.abs(cam.x - PIC.cx) + Math.abs(cam.z - PIC.cz) > 2000) shAll = true;   // a teleport: the picture round the old place is no use
