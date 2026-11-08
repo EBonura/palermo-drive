@@ -1,5 +1,5 @@
-// Peer to peer multiplayer, on by default (?p2p=off turns it off): no server of ours. Players find each other through public signalling (Trystero:
-// Nostr relays by default, ?p2p=torrent or ?p2p=mqtt for the others) and then talk over WebRTC data channels.
+// Peer to peer multiplayer, on by default (?p2p=off turns it off): no server of ours. Players find each other through public signalling (Trystero over
+// Nostr relays, the same as the board game) and then talk over WebRTC data channels, direct or through the TURN relay.
 // Write-up and numbers: docs/P2P-MULTIPLAYER.md. Nothing connects until the player says yes on the name card, which says what others can see. ?p2p in the address is the test mode: the debug box shows and a name is enough to join.
 //
 // Rooms follow the map. The world is cut into square cells (CELL metres, 500 = one world tile). A player is in the room of every
@@ -82,18 +82,17 @@ export function createP2P(env) {
   const { car, game, vehicle } = env;
   const params = new URLSearchParams(location.search);
   const num = (k, d, lo, hi) => { const v = parseFloat(params.get(k)); return Number.isFinite(v) ? clamp(v, lo, hi) : d; };
-  const kind = ['nostr', 'torrent', 'mqtt'].includes(params.get('p2p')) ? params.get('p2p') : 'nostr';
   const CELL = num('cell', 500, 100, 4000), MARGIN = num('margin', 150, 0, 2000), HYST = num('hyst', 60, 0, 1000);
   const grid3 = params.get('mode') === 'grid3';
   const ns = (params.get('ns') || '').replace(/[^\w-]/g, '').slice(0, 24);   // separate the rooms of a test run from everybody else's
   const relayUrls = (params.get('relays') || '').split(',').filter(u => /^wss:\/\/[\w.:-]+(\/[\w./-]*)?$/.test(u));
-  const strat = strategies[kind];
+  const strat = strategies.nostr;
   // manualReconnection: Trystero no longer pauses and resumes relay reconnection by itself when the browser goes offline and online; this file does (below), so that a player who chose to be solo stays disconnected
   // TURN (Metered, shared with the board game): for networks where two players cannot link directly (mobile carriers, phone hotspots, Wi-Fi
   // that isolates devices). Baked in at build time from the PD_TURN_* secrets (tools/build/build.mjs); a browser has to be given TURN credentials,
   // so they are public in the page. Without them (development, local builds) there is no TURN: a pair that cannot link directly does not connect.
   const TURN = typeof __PD_TURN__ !== 'undefined' && Array.isArray(__PD_TURN__) && __PD_TURN__.length ? __PD_TURN__ : null;
-  const relayConfig = { manualReconnection: true, ...(relayUrls.length ? { urls: relayUrls } : kind === 'nostr' ? { urls: RELAYS } : { redundancy: num('red', 3, 1, 10) }) };
+  const relayConfig = { manualReconnection: true, urls: relayUrls.length ? relayUrls : RELAYS };
   const log = [];   // timing events for the measurements: { t, ev, ... }
   const ev = (name, o) => { const e = { t: Math.round(performance.now()), ev: name, ...o }; log.push(e); if (log.length > 2000) log.shift(); };
 
@@ -182,7 +181,7 @@ export function createP2P(env) {
   // Who to hold, and why this settles: src/p2p/rooms.js. The list of who is online and in which rooms comes from src/p2p/presence.js (plain Nostr events, no WebRTC). Without presence (another strategy, ?presence=off,
   // or no relay answered) the old rule applies: the rooms within MARGIN metres of the car, shard 0.
   const MAXP = Math.round(num('maxp', MAX_PLAYERS, 1, 40)), IDLE_MS = num('idlems', PRESENCE_IDLE_MS, 1000, 600000);   // ?idlems=N: for the tests
-  const presenceOn = kind === 'nostr' && params.get('presence') !== 'off' && !grid3;
+  const presenceOn = params.get('presence') !== 'off' && !grid3;
   const presence = createPresence({ topic: `${APP_ID}:presence${CELL === 500 ? '' : ':c' + CELL}${ns ? ':' + ns : ''}`, urls: relayUrls.length ? relayUrls.slice(0, 3) : PRESENCE_RELAYS, onChange: () => { lastChecked = -1e9; }, allow: () => guard.allow('presence') });
   const key = (i, j, s = 0) => `${ns}:${CELL}:${i}:${j}` + (s ? ':' + s : '');
   const rectDist = (x, z, i, j) => Math.hypot(Math.max(i * CELL - x, 0, x - (i + 1) * CELL), Math.max(j * CELL - z, 0, z - (j + 1) * CELL));
@@ -887,7 +886,7 @@ export function createP2P(env) {
     if (testing && now - hudT > 500) {
       hudT = now;
       if (now - linkT > 3000 && peers.size) { linkT = now; wire().then(w => { linkTxt = `${w.open}/${w.pcs} open: direct ${w.link.host}, stun ${w.link.srflx + w.link.prflx}, relay ${w.link.relay}  up ${(w.sent / 1024).toFixed(0)} KB dn ${(w.recv / 1024).toFixed(0)} KB`; }).catch(() => {}); }
-      hud.textContent = `p2p ${kind} ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}\n${rtcText()}`;
+      hud.textContent = `p2p ${grid3 ? 'grid3' : 'near'} cell ${CELL} m  ${myName}\nrooms ${[...rooms.values()].map(r => `${r.i},${r.j}${r.s ? '/' + r.s : ''}:${r.peers.size}`).join(' ')}  online ${presenceOn ? presence.size : '-'} (max ${MAXP})${halted ? ' HALTED' : ''}\npeers ${peers.size} drawn ${rm.remotes.size}  tx ${stats.txMsgs} rx ${stats.rxMsgs}\nlinks ${linkTxt}\n${rtcText()}`;
     }
   }
 
@@ -906,7 +905,7 @@ export function createP2P(env) {
     enabled: true, update, openName, players: () => rm.list(), get online() { return peers.size > 0; },
     isOnline: online,
     statsName: () => named && agreed && !quiet && rooms.size > 0 ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
-    debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, kind, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
+    debug: { log, stats, rooms, peers, remotes: rm.remotes, wire, selfId, CELL, MARGIN, HYST, grid3, relays: () => [...Object.keys(strat.sockets() || {}).map(u => [u, (strat.sockets()[u] || {}).readyState]), ...presence.sockets()],   // the room signalling sockets, then the presence ones
       peerInfo: () => [...peers.values()].map(p => ({ id: p.id.slice(0, 4), rooms: [...p.rooms].map(k => k.split(':').slice(2).join(',')), shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x), nextIn: Math.round(p.nextTx - performance.now()), fast: p.fast, fastAck: p.fastAck, fastState: p.fastState, chan: p.fc ? p.fc.readyState : '-' })),
       fastChannel: id => { const p = peers.get(id) || [...peers.values()].find(q => q.id.startsWith(id)); const c = p && p.fc; return c && { label: c.label, id: c.id, ordered: c.ordered, maxRetransmits: c.maxRetransmits, maxPacketLifeTime: c.maxPacketLifeTime, negotiated: c.negotiated, state: c.readyState }; },
       presence, MAXP, home: () => chooser.home && { ...chooser.home }, banned: chooser.banned, guard, halted: () => halted,

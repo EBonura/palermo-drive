@@ -1,8 +1,8 @@
 // Cold start and reliability of the signalling services, without the game: two bot pages enter a brand new room, one after the other.
 // Reports how long the second one needs to find the first and how many pairs never connect within 30 s. N trials per strategy.
-//   node tools/p2p/cold.mjs [--kinds nostr,torrent,mqtt] [--n 8] [--relays wss://a,wss://b]
+//   node tools/p2p/cold.mjs [--kinds nostr] [--n 8] [--relays wss://a,wss://b]
 import { start, bots, closeAll, sleep, arg } from './lib.mjs';
-const kinds = arg('kinds', 'nostr,torrent,mqtt').split(','), N = +arg('n', 8), relays = arg('relays', '');
+const kinds = arg('kinds', 'nostr').split(','), N = +arg('n', 8), relays = arg('relays', '');
 const h = await start({ root: '.' });
 try {
   for (const kind of kinds) {

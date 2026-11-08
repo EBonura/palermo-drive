@@ -6,10 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url)), ROOT = path.resolve(HERE, '../..');
 const entry = `
-import { joinRoom as nostr, getRelaySockets as nostrSockets, defaultRelayUrls as nostrRelays, selfId, pauseRelayReconnection, resumeRelayReconnection } from '@trystero-p2p/nostr';   // the pause is shared by Nostr and BitTorrent (one lock in @trystero-p2p/core)
-import { joinRoom as torrent, getRelaySockets as torrentSockets, defaultRelayUrls as torrentRelays } from '@trystero-p2p/torrent';
-import { joinRoom as mqtt, getRelaySockets as mqttSockets, defaultRelayUrls as mqttRelays } from '@trystero-p2p/mqtt';
-export const strategies = { nostr: { joinRoom: nostr, sockets: nostrSockets, relays: nostrRelays }, torrent: { joinRoom: torrent, sockets: torrentSockets, relays: torrentRelays }, mqtt: { joinRoom: mqtt, sockets: mqttSockets, relays: mqttRelays } };
+import { joinRoom as nostr, getRelaySockets as nostrSockets, defaultRelayUrls as nostrRelays, selfId, pauseRelayReconnection, resumeRelayReconnection } from '@trystero-p2p/nostr';   // Nostr only: the board game uses the same (BitTorrent and MQTT were removed on 8 Nov, nothing used them)
+export const strategies = { nostr: { joinRoom: nostr, sockets: nostrSockets, relays: nostrRelays } };
 import { schnorr } from '@noble/secp256k1';   // already inside the Nostr strategy; src/p2p/presence.js signs its own events with it
 export { selfId, pauseRelayReconnection, resumeRelayReconnection, schnorr };
 `;

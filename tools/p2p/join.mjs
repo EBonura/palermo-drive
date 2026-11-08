@@ -1,6 +1,6 @@
 // How long until a player who enters a room sees the people already there? A sits in the middle of a cell. B starts far away,
 // is moved next to A (joins A's room), then away again (leaves), N times. Times are from B's room join to B's first state of A.
-//   node tools/p2p/join.mjs --root <dist> [--kind nostr|torrent|mqtt] [--n 6] [--relays wss://a,wss://b]
+//   node tools/p2p/join.mjs --root <dist> [--kind nostr] [--n 6] [--relays wss://a,wss://b]
 import { start, player, events, sleep, arg } from './lib.mjs';
 const kind = arg('kind', 'nostr'), N = +arg('n', 6), relays = arg('relays', ''), ns = 'join' + Date.now().toString(36);
 const h = await start();

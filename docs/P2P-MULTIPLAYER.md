@@ -40,7 +40,7 @@ URL options (all optional):
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `p2p=nostr`, `torrent`, `mqtt` | which public signalling service | nostr |
+| `p2p` | test mode: the debug box shows and a name is enough to join (signalling is always Nostr; BitTorrent and MQTT were removed on 8 Nov) | off |
 | `ns=text` | rooms are separate per value, so test runs only meet each other | none |
 | `name=` | your name | name saved by the relay client, else `P2P` plus 3 letters |
 | `cell=500` | cell size in metres | 500 (one world tile) |
