@@ -551,7 +551,92 @@ function buildSanlorenzo() {
   return F.finish();
 }
 
-const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo };
+// ---------------------------------------------------------------------------------------------------------------------------------- Dal polacco
+// Via Corrado Lancia 40 (Olivuzza), invented on the owner's request (a friend's in-joke, src/pub-places.js): no photos, so it is drawn as the ground floor of the
+// 1960s palazzine of the street, grey stone slabs to 1 m and pale render above, kept under the first-floor balconies of the tile building (about 3.8 m). The pub has one shop opening under a roller-shutter box,
+// a white board with DAL POLACCO in deep red over a red band (the Polish colours, the only nod), a glazed door and window on a warm room; on its left the portone of the
+// palazzo with the number 40 and the intercom (the friend lives upstairs), on its right a neighbour's grey garage shutter. White plastic tables, a chalkboard, crates.
+// By day, before 17:00, the shop shutter is down.
+function polSign() {
+  const [c, g] = canvas(640, 140);
+  g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, 640, 140);
+  g.fillStyle = '#c8202e'; g.fillRect(0, 100, 640, 40);                                       // the red band: white over red
+  g.strokeStyle = '#8a8478'; g.lineWidth = 6; g.strokeRect(3, 3, 634, 134);
+  g.fillStyle = '#b01826'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '700 74px Georgia, "Times New Roman", serif'; g.fillText('DAL POLACCO', 320, 54);
+  g.fillStyle = '#f4f1ea'; g.font = '700 22px Arial, sans-serif'; g.fillText('P U B', 320, 121);
+  return texOf(c, 4);
+}
+function polWall() {
+  const P = wallPaint(7.0, 3.8, { base: '#dccdb0', courses: 0, plinth: 0, speck: 6000, dark: '#6a6458', light: '#f4efe2' }), { g } = P;
+  for (let u = -3.5; u < 3.5; u += 0.6) { rectM(P, u, 0, 0.6, 1.0, rnd() < 0.5 ? '#a8a49a' : '#b4b0a6'); g.strokeStyle = 'rgba(50,48,44,.45)'; g.lineWidth = 2; g.strokeRect(P.x(u), P.y(1.0), 0.6 * P.PX, 1.0 * P.PX); }   // stone slabs to a metre
+  rectM(P, -3.5, 1.0, 7.0, 0.04, 'rgba(0,0,0,.25)');
+  for (let i = 0; i < 120; i++) rectM(P, -3.5 + rnd() * 7, 1 + rnd() * 2.8, 0.05 + rnd() * 0.25, 0.02 + rnd() * 0.06, 'rgba(70,64,54,.1)');   // stains in the render
+  rectM(P, -1.35, 0, 2.7, 2.45, '#1a1612');                                                   // the shop opening (the door quads cover it)
+  rectM(P, -1.45, 2.45, 2.9, 0.32, '#8e8b84'); for (let m = 0; m < 0.32; m += 0.07) rectM(P, -1.45, 2.45 + m, 2.9, 0.012, 'rgba(0,0,0,.25)');   // roller-shutter box
+  // the portone of the palazzo on the left: bronze aluminium in a travertine frame, the number 40 over it, the intercom beside it
+  rectM(P, -3.15, 0, 1.3, 2.6, '#cfc6b0'); rectM(P, -3.0, 0, 1.0, 2.3, '#5a4630');
+  for (const a of [-2.95, -2.5]) { rectM(P, a, 0.25, 0.4, 1.95, '#6e5a40'); rectM(P, a + 0.05, 1.05, 0.3, 1.0, '#2a3036'); }
+  rectM(P, -2.75, 2.36, 0.5, 0.2, '#eae6da'); g.fillStyle = '#1e3a6a'; g.font = '700 17px Arial'; g.textAlign = 'center'; g.fillText('40', P.x(-2.5), P.y(2.41));
+  rectM(P, -1.78, 1.25, 0.16, 0.34, '#b8b4aa'); for (let k = 0; k < 6; k++) rectM(P, -1.75, 1.3 + k * 0.045, 0.1, 0.025, '#4a4a48');
+  // a neighbour's grey garage shutter on the right
+  rectM(P, 1.85, 0, 1.4, 2.3, '#7e8084'); for (let m = 0; m < 2.3; m += 0.08) rectM(P, 1.85, m, 1.4, 0.015, 'rgba(0,0,0,.3)'); rectM(P, 1.8, 2.3, 1.5, 0.08, '#5e6064');
+  return texOf(P.c);
+}
+function polInside() {   // the shutter up: a glass door on the left, a window on the right, a warm room with a bar, bottles, a red and white scarf on the wall
+  const [c, g] = canvas(270, 275), gr = g.createLinearGradient(0, 0, 0, 275);
+  gr.addColorStop(0, '#3a2414'); gr.addColorStop(0.6, '#8a5a2a'); gr.addColorStop(1, '#c8904a'); g.fillStyle = gr; g.fillRect(0, 0, 270, 275);
+  g.fillStyle = '#5a3a1e'; g.fillRect(120, 40, 140, 90); for (let r = 0; r < 3; r++) for (let u = 0; u < 12; u++) { g.fillStyle = ['#d8a040', '#3a6a3a', '#a83a2a', '#e8e0c8'][(r + u) % 4]; g.fillRect(126 + u * 11, 48 + r * 28, 6, 20); }   // bottle shelves
+  g.fillStyle = '#f0ece2'; g.fillRect(130, 20, 60, 9); g.fillStyle = '#c8202e'; g.fillRect(190, 20, 60, 9);                 // a white and red scarf over the shelves
+  g.fillStyle = '#6a3e1c'; g.fillRect(110, 175, 160, 60); g.fillStyle = '#9a6430'; g.fillRect(110, 170, 160, 8);       // the bar counter
+  for (let i = 0; i < 3; i++) { g.fillStyle = '#e8b030'; g.fillRect(140 + i * 40, 150, 12, 20); g.fillStyle = '#fbf6e6'; g.fillRect(140 + i * 40, 146, 12, 5); }   // three beers on the counter
+  for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(20,12,8,.65)'; g.beginPath(); g.arc(30 + i * 60 + rnd() * 10, 150 + rnd() * 20, 13, 0, TAU); g.fill(); g.fillRect(18 + i * 60, 160, 26, 70); }   // people, as dark shapes
+  g.fillStyle = 'rgba(255,240,210,.12)'; g.fillRect(0, 0, 270, 275);
+  g.fillStyle = '#2c2c2e'; g.fillRect(0, 0, 270, 6); g.fillRect(0, 0, 6, 275); g.fillRect(264, 0, 6, 275); g.fillRect(100, 0, 7, 275); g.fillRect(100, 190, 170, 6);   // aluminium frames
+  g.fillStyle = 'rgba(200,220,235,.12)'; g.beginPath(); g.moveTo(10, 10); g.lineTo(60, 10); g.lineTo(10, 90); g.fill(); g.beginPath(); g.moveTo(115, 10); g.lineTo(190, 10); g.lineTo(115, 110); g.fill();   // reflections
+  g.fillStyle = '#c8a050'; g.fillRect(84, 120, 6, 30);                                         // door handle
+  return texOf(c);
+}
+function polShutter() {
+  const [c, g] = canvas(270, 275);
+  g.fillStyle = '#9a9c9e'; g.fillRect(0, 0, 270, 275);
+  for (let m = 0; m < 275; m += 7) { g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, m + 4, 270, 3); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(0, m, 270, 1.5); }
+  g.fillStyle = '#6a6c70'; g.fillRect(0, 264, 270, 11); g.fillStyle = '#4a4a4c'; g.fillRect(125, 248, 20, 6);
+  g.fillStyle = '#f2eee4'; g.fillRect(150, 60, 64, 22); g.fillStyle = '#c8202e'; g.fillRect(150, 82, 64, 22);               // a white and red sticker
+  speck(g, 270, 275, 700, 0.25, '#000', '#d8dadc');
+  return texOf(c);
+}
+function polBoard() {   // the chalkboard by the door. DRAFT lines: "NA ZDROWIE!" (cheers, in Polish) and "birra fridda" (cold beer)
+  const [c, g] = canvas(160, 220);
+  g.fillStyle = '#7a5430'; g.fillRect(0, 0, 160, 220); g.fillStyle = '#1e2420'; g.fillRect(10, 10, 140, 200);
+  g.fillStyle = '#f2efe4'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '700 20px "Marker Felt", "Chalkduster", "Comic Sans MS", sans-serif'; g.fillText('NA ZDROWIE!', 80, 50);
+  g.font = '400 22px "Marker Felt", "Chalkduster", "Comic Sans MS", sans-serif'; g.fillText('birra', 80, 105); g.fillText('fridda', 80, 133);
+  g.fillStyle = '#c8202e'; g.fillRect(40, 168, 80, 8); g.fillStyle = '#f2efe4'; g.fillRect(40, 160, 80, 8);
+  speck(g, 160, 220, 300, 0.2, '#000', '#cfd8d0');
+  return texOf(c);
+}
+function buildPolacco() {
+  const F = new Front();
+  F.quad(polWall(), 0, 0, 0.03, 7.0, 3.8, { offset: 2, glow: 0.08 });
+  const room = F.quad(polInside(), 0, 0, 0.08, 2.7, 2.45, { basic: true }), shut = F.quad(polShutter(), 0, 0, 0.11, 2.7, 2.45, { offset: 1 });
+  F.box(-1.4, 0, 0.09, 0.1, 2.5, 0.12, '#3a3a3c'); F.box(1.4, 0, 0.09, 0.1, 2.5, 0.12, '#3a3a3c');
+  F.box(0, 2.8, 0.08, 3.3, 0.72, 0.08, '#6a665e'); F.quad(polSign(), 0, 2.83, 0.13, 3.2, 0.66, { glow: 0.55, offset: 1 });   // under the tile's first-floor balconies
+  F.box(-2.5, 2.58, 0.08, 1.4, 0.05, 0.12, '#bfb6a0');                                       // travertine lintel over the portone
+  // a wall lamp beside the door and the warm spill of the room
+  F.box(1.65, 2.35, 0.1, 0.06, 0.2, 0.06, '#202020'); F.box(1.65, 2.2, 0.18, 0.2, 0.17, 0.18, '#202020'); F.box(1.65, 2.22, 0.28, 0.14, 0.11, 0.02, '#ffd890'); F.light(1.65, 2.3, 0.38, 1.6, '#ffbf6a', 0.9);
+  F.light(0, 1.4, 0.4, 3.0, '#ffc070', 0.55);
+  // the chalkboard and a stack of white and red crates by the door
+  F.quad(polBoard(), 1.75, 0.08, 0.75, 0.56, 0.78, { rough: 1 }); F.box(1.75, 0, 0.71, 0.6, 0.08, 0.06, '#5a3a20');
+  for (let k = 0; k < 3; k++) { F.box(-1.75, k * 0.3, 0.45, 0.5, 0.26, 0.36, '#ece8e0'); F.box(-1.75, k * 0.3 + 0.26, 0.45, 0.52, 0.04, 0.38, '#c8202e'); }
+  // white plastic tables and chairs on the pavement, the way every bar of the quarter has them
+  for (const [tx, tz] of [[-2.4, 1.9], [2.6, 2.0]]) { F.table(tx, tz, 0.4, 0.72, '#e8e6e0', '#f2f0ea'); F.chair(tx - 0.58, tz, Math.PI / 2, '#eceae4'); F.chair(tx + 0.58, tz, -Math.PI / 2, '#eceae4'); F.chair(tx, tz + 0.58, Math.PI, '#eceae4'); }
+  F.cyl(-3.25, 0, 0.45, 0.24, 0.45, '#8a5a3a', 10, 0.2); F.push(new THREE.SphereGeometry(0.42, 8, 6).scale(1, 1.4, 1).translate(-3.25, 1.0, 0.45), '#3f6e38');   // a ficus in a pot by the portone
+  F.pool(0, 1.6, 3.2, '#ffb060', 0.45);
+  F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  return F.finish();
+}
+
+const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo, polacco: buildPolacco };
 
 export function buildFront(kind) {
   const b = BUILDERS[kind]; if (!b) return null;
