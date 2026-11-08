@@ -16,6 +16,7 @@ const SEA_VCOLOR4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor')
 import { pairs, rng } from './core.js';
 import { li, T } from './lang.js';   // the game over card is written in the language shown, one at a time (src/lang.js)
 import { createWake } from './sea-wake.js';   // the wake of a lapa on floats (src/sea-wake.js)
+import { CLOUD_SHADOWS, CLOUD_U, CLOUD_GLSL } from './clouds.js';   // the clouds' shadows on the water
 
 export const SEA_Y = -0.2;   // the water surface (src/vehicle-water.js floats on it)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -200,6 +201,9 @@ uniform vec4 uClear;
 uniform vec3 uAmb;   // [day/night] src/daynight.js: scales the water colour and foam (1 by day, dark blue at night)
 varying vec3 vWorld;
 #include <fog_pars_fragment>
+#ifdef CLOUD_SH
+${CLOUD_GLSL}
+#endif
 
 float shoreDist(vec2 p) {
   float c = texture2D(uSdfC, (p - uBoxC.xy) * uBoxC.zw).r;
@@ -253,7 +257,11 @@ void main() {
   #endif
   vec3 trans = exp(-vec3(0.55, 0.11, 0.075) * depth);                           // red goes first
   vec3 scat = mix(vec3(0.020, 0.50, 0.46), vec3(0.004, 0.085, 0.24), 1.0 - exp(-depth * 0.13));
-  float lit = 0.62 + 0.55 * max(dot(N, uSunDir), 0.0);
+  float sunK = 1.0;   // [clouds] src/clouds.js: under a cloud the water loses the sun's glint and a good part of its light
+  #ifdef CLOUD_SH
+  if (uCloudL.z > 0.0) sunK = cloudSun(vWorld);
+  #endif
+  float lit = (0.62 + 0.55 * max(dot(N, uSunDir), 0.0) * sunK) * (0.6 + 0.4 * sunK);
   vec3 body = (bed * trans * trans * exp(-depth * 0.3) + scat * (1.0 - exp(-depth * 0.5))) * lit * uAmb;
 
   // sky reflection (fresnel) and the sun glint path
@@ -262,7 +270,7 @@ void main() {
   vec3 Rf = reflect(-V, N); Rf.y = abs(Rf.y);
   vec3 col = mix(body, skyCol(Rf), fres);
   float sd = max(dot(Rf, uSunDir), 0.0);
-  col += uSunCol * (pow(sd, 900.0) * 34.0 + pow(sd, 90.0) * 1.3 + pow(sd, 7.0) * 0.07) * (0.35 + 0.65 * fres);
+  col += uSunCol * (pow(sd, 900.0) * 34.0 + pow(sd, 90.0) * 1.3 + pow(sd, 7.0) * 0.07) * (0.35 + 0.65 * fres) * sunK;
 
   // shoreline: lapping foam, crisp waterline, lines of surf running out from the edge
   float n1 = texture2D(uNrm, p / 9.0 + vec2(uTime * 0.010, 0.0)).a;
@@ -487,8 +495,9 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   }]);
   const waterMat = new THREE.ShaderMaterial({
     uniforms, vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, fog: true, transparent: true, depthWrite: true,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -8, defines: { LOW: 1 },
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -8, defines: CLOUD_SHADOWS ? { LOW: 1, CLOUD_SH: 1 } : { LOW: 1 },
   });
+  if (CLOUD_SHADOWS) Object.assign(waterMat.uniforms, CLOUD_U);
   const water = new THREE.Mesh(makeDisc(), waterMat);
   water.position.y = SEA_Y; water.frustumCulled = false; water.renderOrder = -10; water.visible = false;
   scene.add(water);

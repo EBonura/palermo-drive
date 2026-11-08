@@ -467,6 +467,7 @@ renderer.setAnimationLoop(now => {
   if (game.garage) { // the Garage: draw its scene and nothing else, so the street is exactly as it was when we come back (the flyover clock is held too)
     if (titleT0 >= 0) titleT0 += Math.max(0, away);
     acc = 0; game.garage.frame(dt, now / 1000);
+    clouds.noShadows?.();   // the vehicles' materials carry the clouds' shadows, and the Garage stands at the city's origin
     renderer.render(game.garage.scene, game.garage.camera);
     return;
   }

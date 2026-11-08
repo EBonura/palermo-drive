@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { D, groundY, proj, freeCanvas } from './core.js';
 import { MAT } from './vehicle-art.js';
 import { SHADE, envProbe } from './shading.js';
+import { CLOUD_SHADOWS, CLOUD_U, CLOUD_GLSL } from './clouds.js';
 
 // Shared uniforms other modules read (buildings.js facade shader): imported, never copied.
 export const NIGHT = { win: { value: 0 } };
@@ -256,34 +257,48 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       float wf = fl * (0.35 + 0.65 * exp(-hb / 24.0)) * wall;                       // floodlit landmarks: warmer cream-gold, like the stone in the night photos
       totalEmissiveRadiance += (diffuseColor.rgb * 0.7 + 0.03) * uNightK.x * (vec3(1.0, 0.5, 0.15) * (wl + gnd * 0.8) + vec3(1.0, 0.66, 0.34) * wf);
     }`;
+  // The clouds' shadows (src/clouds.js) on the same materials: the sun's direct light times the share the clouds let through, next to its shadow map
+  // lookup, so what already stands in a building's shade is not darkened twice, and only the sun: the sky light and the lamps stay as they are.
+  // Vehicles (left out of the wash) get this part too, or a lapa would stay sunlit in a street gone grey. With ?clouds=off it is not compiled in.
+  const CLOUD_LIGHTS = () => 'float cloudK = 1.0;\nif (uCloudL.z > 0.0) cloudK = cloudSun(cameraPosition - vViewPosition * mat3(viewMatrix));\n'
+    + THREE.ShaderChunk.lights_fragment_begin.replace('getDirectionalLightInfo( directionalLight, directLight );', '$&\n\t\tdirectLight.color *= cloudK;');
   const seenMats = new WeakSet();   // weak: streamed tiles drop their materials
   const matsOf = o => Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
   const honest = o => { for (; o; o = o.parent) if (o.userData.honestLight) return true; return false; };
   const DEFAULT_KEY = THREE.Material.prototype.customProgramCacheKey;
-  function wash(m) {
+  function wash(m, night = true) {   // night false: only the clouds' shadows (vehicles)
     const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
     if (prev.dnwash) return;   // a module copied a washed callback onto another material
+    if (!night && !CLOUD_SHADOWS) return;
     const own = key !== DEFAULT_KEY;   // the default key is onBeforeCompile's source, which after this would be the same for every material
     m.onBeforeCompile = function (sh, r) {
       prev.call(this, sh, r);
       if (!sh.fragmentShader.includes('#include <common>')) return;   // a callback that rewrote the shader's head: leave it alone
-      sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB; sh.uniforms.uLampWin = LW; sh.uniforms.uLampWinK = LWK;
-      sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\n' + WASH_DECL)
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>' + WASH_EMIT);
+      let f = sh.fragmentShader;
+      if (night) {
+        sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB; sh.uniforms.uLampWin = LW; sh.uniforms.uLampWinK = LWK;
+        f = f.replace('#include <common>', '#include <common>\n' + WASH_DECL)
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>' + WASH_EMIT);
+      }
+      if (CLOUD_SHADOWS && f.includes('#include <lights_fragment_begin>')) {
+        Object.assign(sh.uniforms, CLOUD_U);
+        f = f.replace('#include <common>', '#include <common>\n' + CLOUD_GLSL).replace('#include <lights_fragment_begin>', CLOUD_LIGHTS());
+      }
+      sh.fragmentShader = f;
     };
     m.onBeforeCompile.dnwash = true;
-    m.customProgramCacheKey = function () { return (own ? key.call(this) : prev.toString()) + '|dnwash'; };
+    m.customProgramCacheKey = function () { return (own ? key.call(this) : prev.toString()) + (night ? '|dnwash' : '|dncloud'); };
   }
-  scene.traverse(o => { if (o.userData.honestLight) o.traverse(q => { for (const m of matsOf(q)) seenMats.add(m); }); });
+  scene.traverse(o => { if (o.userData.honestLight) o.traverse(q => { for (const m of matsOf(q)) if (!seenMats.has(m)) { seenMats.add(m); if (m.isMeshStandardMaterial) wash(m, false); } }); });
   scene.traverse(o => { for (const m of matsOf(o)) if (m.isMeshStandardMaterial && !seenMats.has(m)) { seenMats.add(m); wash(m); } });
   const SMP = THREE.MeshStandardMaterial.prototype, baseBeforeRender = SMP.onBeforeRender;   // MeshPhysicalMaterial inherits it
   SMP.onBeforeRender = function (r, sc, cam, geo, obj, grp) {
     if (sc === scene) {
       if (!seenMats.has(this)) {
         seenMats.add(this);
-        if (!honest(obj)) { wash(this); this.needsUpdate = true; }   // free before the first compile; a material compiled elsewhere first recompiles once
+        const h = honest(obj);
+        if (!h || CLOUD_SHADOWS) { wash(this, !h); this.needsUpdate = true; }   // free before the first compile; a material compiled elsewhere first recompiles once
       }
       this.onBeforeRender = baseBeforeRender;   // decided once: its later draws skip this hook (Material.copy does not carry it, so a clone still comes here)
     }
