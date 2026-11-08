@@ -427,7 +427,7 @@ watchVersion(game);
 const coords = createCoords({ game, car, camera, groundY, perf, minimap });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
-const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
+const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world });   // world: the streamed tiles' roads for the night light field
 if (params.get('engine') !== 'off') { const lean = createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }); if (window.game) window.game.lean = lean; }   // ?engine=off draws as three.js does on its own (for comparing)
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
 // The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title

@@ -1,6 +1,6 @@
 // Day/night cycle. Owned by the day/night work.
 //
-//   const dn = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle });
+//   const dn = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world });
 //   dn.update(dt)   // every frame, before the camera is placed and the frame rendered
 //
 // game.time = { hour 0..24, isNight, night 0..1 (0 day, 1 dark), dusk 0..1 (twilight, peaks as the sun touches the horizon),
@@ -202,7 +202,7 @@ void main() {
 }`;
 
 // ------------------------------------------------------------------------------------------------ createDayNight
-export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle }) {
+export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world }) {
   const params = new URLSearchParams(location.search);
   const st = game.settings;
   patchSky(sky);
@@ -232,7 +232,8 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   NK.value.z = groundY(0, 0);
   const LT = { value: new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1) }, LB = { value: new THREE.Vector4(0, 0, 1, 1) }; // lamp/street light field (built the first time it gets dark)
   LT.value.needsUpdate = true;
-  const WASH_DECL = 'uniform vec4 uNightK;\n' + FLOOD_GLSL + 'uniform sampler2D uLampTex;\nuniform vec4 uLampBox;\n';
+  const LW0 = LT.value, LW = { value: LW0 }, LWK = { value: new THREE.Vector4(0, 0, 0, 1) };   // beyond the centro, the same field round the camera (below, 'the light field round the camera'): xy its centre (x, z), z texture repeats a metre, w half its side (m)
+  const WASH_DECL = 'uniform vec4 uNightK;\n' + FLOOD_GLSL + 'uniform sampler2D uLampTex;\nuniform vec4 uLampBox;\nuniform sampler2D uLampWin;\nuniform vec4 uLampWinK;\n';
   const WASH_ROUGH = `
     #ifndef FLAT_SHADED
     if (uNightK.x > 0.002) { vec3 gn = normalize(vNormal) * mat3(viewMatrix); roughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.4), uNightK.x * uNightK.w * smoothstep(0.85, 0.97, gn.y)); }
@@ -243,7 +244,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       vec3 wn = normalize(normal * mat3(viewMatrix));
       float hb = max(wpos.y - uNightK.z, 0.0);
       float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, hb);   // not on curbs and kerb faces
-      vec3 lf = texture2D(uLampTex, (wpos.xz - uLampBox.xy) * uLampBox.zw).rgb;   // r: street lamps, g: along the streets
+      vec2 cu = (wpos.xz - uLampBox.xy) * uLampBox.zw, wd = abs(wpos.xz - uLampWinK.xy);
+      vec3 lf = texture2D(uLampTex, cu).rgb, lw = texture2D(uLampWin, wpos.xz * uLampWinK.z).rgb;   // r: street lamps, g: along the streets
+      if (any(lessThan(cu, vec2(0.0))) || any(greaterThan(cu, vec2(1.0)))) lf = lw * (1.0 - smoothstep(uLampWinK.w * 0.88, uLampWinK.w, max(wd.x, wd.y)));   // beyond the centro field: the one round the car, faded out at its edge
       float near = clamp(lf.r * 1.4 + lf.g * 0.9, 0.0, 1.4);
       float fl = 0.0;
       if (wall > 0.0 && wpos.x > uFloodBox.x && wpos.z > uFloodBox.y && wpos.x < uFloodBox.z && wpos.z < uFloodBox.w)   // (fl only counts on walls, and is 0 beyond every disc)
@@ -264,7 +267,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     m.onBeforeCompile = function (sh, r) {
       prev.call(this, sh, r);
       if (!sh.fragmentShader.includes('#include <common>')) return;   // a callback that rewrote the shader's head: leave it alone
-      sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB;
+      sh.uniforms.uNightK = NK; sh.uniforms.uLampTex = LT; sh.uniforms.uLampBox = LB; sh.uniforms.uLampWin = LW; sh.uniforms.uLampWinK = LWK;
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\n' + WASH_DECL)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WASH_ROUGH)
@@ -376,6 +379,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     candelabra: { bulbs: [[0, 4.35, 0], ...[0, 1, 2, 3].map(i => [Math.cos(i * Math.PI / 2 + 0.78) * 0.4, 4.15, Math.sin(i * Math.PI / 2 + 0.78) * 0.4])], pools: [[0, 0, 0]], size: 1.5, r: 6.8, col: '#ffb050', k: 0.75 },
     lamp_wire: { size: 2.8, r: 8.5, col: '#ffa23e', k: 0.9 },   // a lamp hung on a wire over the middle of the street (src/props.js: the wire mesh's userData.lampPts, x, ground y, z, lens height)
   };
+  const DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);   // the streets the light field glows along
   let lamps = null; // { halo: Points, haloMat, pools: InstancedMesh, poolMat, pos: Float32Array of bulb xyz }
   // props.js builds lamps per tile as tiles stream in and out and says so with 'pd-lamps-changed': the glows are rebuilt from the scene (at most every 1.5 s)
   let lampsStale = false, lampsAt = -9, field = null;   // field: the light field below, its texture and the lamp pools painted on it
@@ -433,7 +437,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       if (!field) {
         const [bx0, bz0, bx1, bz1] = D.bounds, pad = 40, X0 = bx0 - pad, Z0 = bz0 - pad, W = bx1 - bx0 + 2 * pad, H = bz1 - bz0 + 2 * pad, S = 1024 / Math.max(W, H);
         const cv = document.createElement('canvas'); cv.width = Math.ceil(W * S); cv.height = Math.ceil(H * S);
-        const g = cv.getContext('2d'), DRIVE = new Set(['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'pedestrian']);
+        const g = cv.getContext('2d');
         const disc = (px, pz, pr) => {
           const x = (px - X0) * S, z = (pz - Z0) * S, rad = pr * 1.1 * S, gr = g.createRadialGradient(x, z, 0, x, z, rad);
           gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
@@ -469,6 +473,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       }
       if (added) field.tex.needsUpdate = true;
     } catch (e) { console.warn('[daynight] lamp field skipped', e); field = false; }   // and not tried again
+    for (let i = 0; i < poolM.length; i += 4) winLamp(poolM[i], poolM[i + 2], poolM[i + 3]);
     const n = bulbs.length / 3, np = poolM.length / 4;
     if (!n) return { none: true };
     const geo = new THREE.BufferGeometry();
@@ -486,6 +491,126 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     scene.add(pools);
     console.log(`[daynight] ${n} lamp glows, ${np} light pools`);
     return { halo, haloMat, pools, poolMat, pos: new Float32Array(bulbs), n };
+  }
+
+  // ------------------------------------------------------------------------------------------ the light field round the camera
+  // The field above covers the baked centro (D.roads). The rest of the city streams in 500 m tiles that carry their own roads (world.tileData), and props.js
+  // puts lamps on them, so beyond the centro the shader reads a second field of the same scale that follows the camera: 1024 px (about 2 km), 16 x 16 cells
+  // of 64 px addressed modulo the texture (RepeatWrapping), so moving on repaints only the row or column of cells that comes in, and a city-wide field
+  // (20 km at 2 m a pixel) is never needed. A cell is painted on a small canvas from everything known and copied to its place in the texture
+  // (copyTextureToTexture: one 16 KB texSubImage2D), nearest first and a few a frame; with every cell up to date nothing is painted or uploaded.
+  // tools/tiles.py cuts every road at the tile borders: there the two halves end square (a round cap each would add up to a bright spot on every border, the
+  // 'lighter' paint counts both), and every other end gets the round cap the centro field's streets have, as a half disc of its own.
+  const WN = 16, WC = 64, WT = 500, WS = 1024 / Math.max(D.bounds[2] - D.bounds[0] + 80, D.bounds[3] - D.bounds[1] + 80), WM = WC / WS;   // WS: the centro field's scale (px a metre), WM: a cell's side (m)
+  const WIN_K = new Set([...DRIVE, 'motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);   // and the fast roads, under the double-arm poles of src/props.js
+  const BANDS = [2.6, 1.7, 1.0];   // the street's three soft bands, 0.16 each, as in the centro field
+  const CB = [D.bounds[0] - 40, D.bounds[1] - 40, D.bounds[2] + 40, D.bounds[3] + 40];   // the centro field's box: the shader never reads this one there
+  const wLamps = new Map(), wSeen = new Set();   // lamp pools by cell (x, z, r, ...), and every pool met so far
+  const ck = (i, j) => (i + 4096) * 8192 + j + 4096, ci = c => Math.floor(c / 8192) - 4096, cj = c => c % 8192 - 4096, slot = (i, j) => (i & 15) * 16 + (j & 15);
+  let win = null;   // { tex, ox, oz (the window's first cell), dirty: Set of cell keys, lit: per texture slot, painted, roads: tile key -> streets, g, src, black, at, poll }
+  function winLamp(x, z, r) {
+    const k = Math.round(x * 10) * 4e5 + Math.round(z * 10);   // the same lamp every time its tile comes back (tiles are seeded)
+    if (wSeen.has(k)) return;
+    wSeen.add(k);
+    const e = r * 1.1;
+    for (let i = Math.floor((x - e) / WM); i <= Math.floor((x + e) / WM); i++) for (let j = Math.floor((z - e) / WM); j <= Math.floor((z + e) / WM); j++) {
+      const c = ck(i, j); let a = wLamps.get(c); if (!a) wLamps.set(c, a = []); a.push(x, z, r);
+      if (win && i >= win.ox && j >= win.oz && i < win.ox + WN && j < win.oz + WN) win.dirty.add(c);
+    }
+  }
+  const RE = 30;   // the most a street's bands reach from its centre line (m): half the widest band of the widest road, (14 + 5) * 1.3
+  const winRoads = (d, ti, tj) => {   // a tile's streets, with their reach as a box; the paths in field pixels are made at the first paint
+    const out = [], onEdge = (x, z) => Math.min(Math.abs(x - ti * WT), Math.abs(x - ti * WT - WT), Math.abs(z - tj * WT), Math.abs(z - tj * WT - WT)) < 0.05;
+    for (const r of d.roads || []) {
+      if (!WIN_K.has(r.k) || r.tn || !r.p || r.p.length < 4) continue;   // (not the tunnels: the hillside over them would glow)
+      const p = r.p, n = p.length, e = (r.w + 5) * 1.3; let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (let i = 0; i < n; i += 2) { x0 = Math.min(x0, p[i]); x1 = Math.max(x1, p[i]); z0 = Math.min(z0, p[i + 1]); z1 = Math.max(z1, p[i + 1]); }
+      const caps = [];   // x, z (px) and the outward heading of each end that gets a round cap
+      for (const [a, step] of [[0, 2], [n - 2, -2]]) {
+        if (onEdge(p[a], p[a + 1])) continue;
+        let b = a + step; while (b + step >= 0 && b + step < n && Math.abs(p[b] - p[a]) + Math.abs(p[b + 1] - p[a + 1]) < 1e-3) b += step;
+        caps.push(p[a] * WS, p[a + 1] * WS, Math.atan2(p[a + 1] - p[b + 1], p[a] - p[b]));
+      }
+      out.push({ p, caps, w: (r.w + 5) * WS, path: null, x0: x0 - e, z0: z0 - e, x1: x1 + e, z1: z1 + e });
+    }
+    return out;
+  };
+  function winPaint(i, j) {   // one cell, as the centro field paints it: streets in green, lamp discs in red, added ('lighter')
+    const g = win.g, x0 = i * WM, z0 = j * WM, x1 = x0 + WM, z1 = z0 + WM, s = slot(i, j);
+    if (x0 > CB[0] && z0 > CB[1] && x1 < CB[2] && z1 < CB[3]) return;   // all inside the centro field (its slot was cleared when the cell came in)
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, WC, WC);
+    g.globalCompositeOperation = 'lighter'; g.setTransform(1, 0, 0, 1, -i * WC, -j * WC); g.strokeStyle = g.fillStyle = 'rgba(0,255,0,0.16)';
+    let any = false;
+    for (let ti = Math.floor((x0 - RE) / WT); ti <= Math.floor((x1 + RE) / WT); ti++) for (let tj = Math.floor((z0 - RE) / WT); tj <= Math.floor((z1 + RE) / WT); tj++) {
+      const rs = win.roads.get((ti + 200) * 1000 + tj + 200); if (!rs) continue;
+      for (const r of rs) {
+        if (r.x1 < x0 || r.x0 > x1 || r.z1 < z0 || r.z0 > z1) continue;
+        if (!r.path) { r.path = new Path2D(); for (let k = 0; k < r.p.length; k += 2) r.path[k ? 'lineTo' : 'moveTo'](r.p[k] * WS, r.p[k + 1] * WS); }
+        for (const wk of BANDS) {
+          const w = r.w * wk; g.lineWidth = w; g.stroke(r.path);
+          if (r.caps.length) { g.beginPath(); for (let k = 0; k < r.caps.length; k += 3) { const x = r.caps[k], z = r.caps[k + 1], a = r.caps[k + 2]; g.moveTo(x, z); g.arc(x, z, w / 2, a - Math.PI / 2, a + Math.PI / 2); g.closePath(); } g.fill(); }
+        }
+        any = true;
+      }
+    }
+    const L = wLamps.get(ck(i, j));
+    if (L) for (let k = 0; k < L.length; k += 3) {
+      const x = L[k] * WS, z = L[k + 1] * WS, rad = L[k + 2] * 1.1 * WS, gr = g.createRadialGradient(x, z, 0, x, z, rad);
+      gr.addColorStop(0, 'rgba(255,0,0,0.5)'); gr.addColorStop(0.5, 'rgba(255,0,0,0.2)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x - rad, z - rad, rad * 2, rad * 2); any = true;
+    }
+    if (any || win.lit[s]) { renderer.copyTextureToTexture(win.src, win.tex, null, win.at.set((i & 15) * WC, (j & 15) * WC)); win.lit[s] = any ? 1 : 0; }   // (a cell with nothing on it is already black)
+    win.painted++;
+  }
+  function tickWin(now) {
+    if (win === false || !world || !world.tileData) return;
+    try {
+      if (!win) {
+        const tex = new THREE.DataTexture(null, WN * WC, WN * WC); tex.source.dataReady = false;   // no pixels on the CPU side: the GPU texture starts black and the cells are copied in
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.NoColorSpace; tex.needsUpdate = true;
+        const cv = () => { const c = document.createElement('canvas'); c.width = c.height = WC; return c; }, a = cv(), b = cv(), g = a.getContext('2d');
+        b.getContext('2d').fillRect(0, 0, WC, WC); g.lineCap = 'butt'; g.lineJoin = 'round';   // (the round ends are drawn apart, above)
+        win = { tex, ox: -1e6, oz: -1e6, dirty: new Set(), lit: new Uint8Array(WN * WN), painted: 0, roads: new Map(), g, src: new THREE.Texture(a), black: new THREE.Texture(b), at: new THREE.Vector2(), poll: -9, lost: false };
+        renderer.initTexture(tex); LW.value = tex;
+        renderer.domElement.addEventListener('webglcontextrestored', () => { win.lost = true; });   // three makes the texture again, empty: every cell is painted again
+      }
+      const fi = Math.floor(camera.position.x / WM), fj = Math.floor(camera.position.z / WM);   // follow what is seen: the camera, by a cell either side of the window's middle
+      let ox = win.ox, oz = win.oz;
+      if (fi < ox + 7 || fi > ox + 8) ox = fi - (fi < ox + 7 ? 7 : 8);
+      if (fj < oz + 7 || fj > oz + 8) oz = fj - (fj < oz + 7 ? 7 : 8);
+      if (ox !== win.ox || oz !== win.oz || win.lost) {
+        const jump = win.lost || Math.abs(ox - win.ox) >= WN || Math.abs(oz - win.oz) >= WN;
+        if (jump && !win.lost && win.ox > -1e5) { win.tex.dispose(); renderer.initTexture(win.tex); }   // somewhere else entirely: a new, black texture rather than 256 cells cleared one by one
+        if (jump) { win.lit.fill(0); win.dirty.clear(); win.lost = false; }
+        for (const c of win.dirty) if (ci(c) < ox || cj(c) < oz || ci(c) >= ox + WN || cj(c) >= oz + WN) win.dirty.delete(c);
+        for (let i = ox; i < ox + WN; i++) for (let j = oz; j < oz + WN; j++) {
+          if (!jump && i >= win.ox && j >= win.oz && i < win.ox + WN && j < win.oz + WN) continue;   // in the window already
+          const s = slot(i, j);
+          if (win.lit[s]) { renderer.copyTextureToTexture(win.black, win.tex, null, win.at.set((i & 15) * WC, (j & 15) * WC)); win.lit[s] = 0; }   // the slot still shows the cell that left
+          win.dirty.add(ck(i, j));
+        }
+        win.ox = ox; win.oz = oz;
+        LWK.value.set((ox + WN / 2) * WM, (oz + WN / 2) * WM, WS / (WN * WC), WN / 2 * WM);
+      }
+      if (now - win.poll > 0.25) {   // the tiles' streets as they stream in (kept while their tile is near the window, so a repaint never loses a street whose tile left the cache)
+        win.poll = now;
+        const x0 = ox * WM, z0 = oz * WM, x1 = x0 + WN * WM, z1 = z0 + WN * WM;
+        for (const k of win.roads.keys()) { const ti = Math.floor(k / 1000) - 200, tj = k % 1000 - 200; if ((ti + 2) * WT < x0 || (ti - 1) * WT > x1 || (tj + 2) * WT < z0 || (tj - 1) * WT > z1) win.roads.delete(k); }
+        for (let ti = Math.floor((x0 - RE) / WT); ti <= Math.floor((x1 + RE) / WT); ti++) for (let tj = Math.floor((z0 - RE) / WT); tj <= Math.floor((z1 + RE) / WT); tj++) {
+          const k = (ti + 200) * 1000 + tj + 200; if (win.roads.has(k)) continue;
+          const d = world.tileData(ti, tj); if (!d) continue;
+          const rs = winRoads(d, ti, tj); win.roads.set(k, rs); if (!rs.length) continue;
+          for (let i = Math.max(ox, Math.floor((ti * WT - RE) / WM)); i <= Math.min(ox + WN - 1, Math.floor(((ti + 1) * WT + RE) / WM)); i++)
+            for (let j = Math.max(oz, Math.floor((tj * WT - RE) / WM)); j <= Math.min(oz + WN - 1, Math.floor(((tj + 1) * WT + RE) / WM)); j++) win.dirty.add(ck(i, j));
+        }
+      }
+      const t0 = performance.now(), px = camera.position.x / WM - 0.5, pz = camera.position.z / WM - 0.5;
+      for (let n = 0; n < 6 && win.dirty.size && performance.now() - t0 < 1; n++) {   // nearest first, a millisecond a frame at most
+        let best = 0, bd = 1e9;
+        for (const c of win.dirty) { const d = (ci(c) - px) ** 2 + (cj(c) - pz) ** 2; if (d < bd) { bd = d; best = c; } }
+        win.dirty.delete(best); winPaint(ci(best), cj(best));
+      }
+    } catch (e) { console.warn('[daynight] light field round the camera skipped', e); win = false; LW.value = LW0; LWK.value.set(0, 0, 0, 1); }   // (the shader then reads black beyond the centro)
   }
 
   // ------------------------------------------------------------------------------------------ the player's lights
@@ -669,6 +794,7 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
         lamps.haloMat.uniforms.uAmt.value = lampOn * 1.15;
         lamps.poolMat.opacity = lampOn * 0.36;
       }
+      tickWin(realNow);
     } else if (lamps && !lamps.none) lamps.halo.visible = lamps.pools.visible = false;
     updateHeadlights(headOn);
     if (car) car.tailGlow = headOn;
