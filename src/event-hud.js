@@ -87,6 +87,8 @@ export function createEventHud({ camera, car, groundY }) {
   let target = null, resultT = 0, countT = 0, cache = '';
   const _p = new THREE.Vector3();
   let edgeText = '', edgeOn = false;
+  const put = (el, v, html) => { if (el._v !== v) { el._v = v; if (html) el.innerHTML = v; else el.textContent = v; } };   // (._v: what this module last wrote there)
+  let shown = false; const show = on => { if (on !== shown) { shown = on; root.classList.toggle('on', on); } };   // set() is called on every frame of a mission, and classList.add writes the attribute again even when the class is there
   const setEdge = on => { if (on !== edgeOn) { edgeOn = on; edge.classList.toggle('on', on); } };   // a class write every frame restyles the page even when nothing changes
   // the arrow at the edge of the screen: where the target is in the camera's own frame (x right, y up, the view down -z); on the screen it needs no arrow, off it or behind it the arrow sits where the
   // direction to it meets the border of the free part of the screen: inside the zones of src/hud.js (the columns left and right, the card on top, the gauges below) and the touch pads
@@ -101,8 +103,9 @@ export function createEventHud({ camera, car, groundY }) {
     } else { dx = _p.x / Math.max(1, Math.abs(_p.z)) * 2; dy = 1; }   // behind: at the bottom, towards the side it is on
     const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
     const cx = W / 2, cy = (top + bot) / 2, tx = dx > 0.001 ? (W - mx - cx) / dx : dx < -0.001 ? (mx - cx) / dx : 1e9, ty = dy > 0.001 ? (bot - cy) / dy : dy < -0.001 ? (top - cy) / dy : 1e9, t = Math.min(tx, ty);
-    edge.style.transform = `translate(${(cx + dx * t).toFixed(1)}px, ${(cy + dy * t).toFixed(1)}px)`;
-    edgeSvg.style.rotate = `${(Math.atan2(dx, -dy) * 180 / Math.PI).toFixed(1)}deg`;
+    const at = `translate(${(cx + dx * t).toFixed(1)}px, ${(cy + dy * t).toFixed(1)}px)`, rot = `${(Math.atan2(dx, -dy) * 180 / Math.PI).toFixed(1)}deg`;
+    if (at !== edge._v) edge.style.transform = edge._v = at;
+    if (rot !== edgeSvg._v) edgeSvg.style.rotate = edgeSvg._v = rot;
     const d = Math.hypot(target.x - car.x, target.z - car.z), txt = d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d / 10) * 10 + ' m';
     if (txt !== edgeText) { edgeText = txt; edgeLab.textContent = txt; }
     setEdge(true);
@@ -122,19 +125,20 @@ export function createEventHud({ camera, car, groundY }) {
   const api = {
     // text is written only when it changed (called a few times per second at most)
     set(o) {
-      root.classList.add('on');
+      show(true);
       const key = [o.label, o.title, o.sub, o.time, o.low, o.frac == null ? '' : o.frac.toFixed(3), o.ledger && o.ledger.map(t => typeof t === 'object' ? t.t + (t.neg ? '-' : '') : t).join('|')].join('~');
       target = o.target || null;
       if (key === cache) return; cache = key;
-      elLab.textContent = o.label || ''; elTitle.textContent = o.title || ''; elSub.textContent = o.sub || ''; elTime.textContent = o.time || '';
+      // each part on its own: the seconds or the metres change several times a second, and writing the four lines and the ledger again each time has the browser lay out all of them
+      put(elLab, o.label || ''); put(elTitle, o.title || ''); put(elSub, o.sub || ''); put(elTime, o.time || '');
       elTime.classList.toggle('low', !!o.low); elBar.classList.toggle('off', o.frac == null); elBar.classList.toggle('low', !!o.low);
       if (o.frac != null) elBarI.style.transform = `scaleX(${Math.min(1, Math.max(0, o.frac)).toFixed(3)})`;
-      elLedger.innerHTML = o.ledger ? o.ledger.map(t => typeof t === 'object' ? `<span${t.neg ? ' class="neg"' : ''}>${esc(t.t)}</span>` : `<span>${esc(t)}</span>`).join('') : '';
+      put(elLedger, o.ledger ? o.ledger.map(t => typeof t === 'object' ? `<span${t.neg ? ' class="neg"' : ''}>${esc(t.t)}</span>` : `<span>${esc(t)}</span>`).join('') : '', true);
     },
     // the leash (src/missions.js): a red banner while the lapa is too far from the mission area, with the seconds left; leash(false) hides it
     leash(on, big, sub) { if (!on) { leashEl.classList.remove('on'); return; } if (leashB.textContent !== big) leashB.textContent = big; if (leashS.textContent !== sub) leashS.textContent = sub; leashEl.classList.add('on'); },
-    hide() { root.classList.remove('on'); setEdge(false); target = null; cache = ''; },
-    clear() { root.classList.remove('on'); leashEl.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },   // the queue of lines runs out by itself
+    hide() { show(false); setEdge(false); target = null; cache = ''; },
+    clear() { show(false); leashEl.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },   // the queue of lines runs out by itself
     count(big, sub) { count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     // one line at a time: a warning (neg) goes to the front of the queue, the queue keeps the newest three, the same line again just restarts, and a waiting line cuts the one on screen short
     toast(text, sub, neg) {

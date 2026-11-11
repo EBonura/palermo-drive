@@ -24,7 +24,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   const mini = canvas.getContext('2d');
   const RES = 256, S = RES / T, CAP = 18; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
-  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0, blanks: 0, dead: 0, resets: 0, lost: 0 };
+  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0, skipped: 0, blanks: 0, dead: 0, resets: 0, lost: 0 };
 
   // ---------- per tile pieces ----------
   const pieces = new Map(); // key -> { c, g, i, j, detail } (insertion order = LRU order)
@@ -38,7 +38,8 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   }
   let active = []; // pieces around the car, refreshed by scan()
   let landPath = null, bbox = null;
-  let scanT = 0, scanI = 1e9, scanJ = 1e9, sinceDraw = 1, lastSig = NaN;
+  let scanT = 0, scanI = 1e9, scanJ = 1e9, sinceDraw = 1, lastSig = NaN, paintStamp = 0;
+  addEventListener('resize', () => paintStamp++);
   const key = (i, j) => i * 4096 + j;
 
   // a marker's shape says what it is: round (default) someone to meet, target where to go now, diamond something to pick up, cross a graffiti to spray, triangle a food stall
@@ -71,7 +72,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     bbox = M.bbox;
   }
   function paintBase(p) {
-    const g = p.g;
+    const g = p.g; paintStamp++;
     g.setTransform(S, 0, 0, S, -p.i * T * S, -p.j * T * S); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setLineDash([]); g.lineCap = g.lineJoin = 'round';   // the whole state, every time: a context may have been reset
     g.fillStyle = SEA; g.fillRect(p.i * T, p.j * T, T, T);
     g.fillStyle = LAND; g.fill(landPath);
@@ -167,6 +168,20 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   }
 
   // ---------- frame ----------
+  // Everything the picture on the canvas is made of, value by value, as it was when it was last drawn. sameAsDrawn(false) says whether a new picture would be the same one; sameAsDrawn(true) notes the values.
+  // paintStamp counts the paintings of the pieces (and what else changes the picture without changing a value here: the page resized, which decides whether a player's name is written).
+  const drawn = []; let n = 0, same = true, noting = false;
+  const put = v => { if (drawn[n] !== v) { same = false; if (noting) drawn[n] = v; } n++; };
+  function sameAsDrawn(note) {
+    n = 0; same = true; noting = note;
+    put(car.x); put(car.z); put(car.th); put(zoom); put(paintStamp); put(stats.dead); put(landPath);
+    put(mapRoute.length); put(mapRoute.i0 || 0); put(mapRoute.px); put(mapRoute.pz);
+    let rs = 0; for (let i = 0; i < mapRoute.length; i++) rs += (mapRoute[i][0] * 0.37 + mapRoute[i][1] * 0.11) * (i + 1);
+    put(rs); put(mapMarkers.length);
+    for (const m of mapMarkers) { put(m.x); put(m.z); put(m.size); put(m.shape); put(m.color); put(m.player); put(m.name); }
+    if (note) drawn.length = n; else if (drawn.length !== n) same = false;
+    return same;
+  }
   function draw(dt) {
     const t0 = performance.now();
     const v = Math.abs(car.vf || 0);
@@ -178,15 +193,17 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       const ci = Math.floor(car.x / T), cj = Math.floor(car.z / T);
       scanT -= dt || 0.016;
       if (scanT <= 0 || ci !== scanI || cj !== scanJ || !landPath) { scanT = 0.2; scanI = ci; scanJ = cj; scan(R); }
-      if (upgradeOne()) sinceDraw = 1;
+      if (upgradeOne()) { sinceDraw = 1; paintStamp++; }   // a piece got its detail (or a fresh base after a reset): the picture is another one even with the lapa standing still
     }
-    // A canvas drawn every frame goes through the page's compositing every frame (on Safari that is the dear part): 30 times a second while anything moves, a heading up map turning at that rate
-    // looks the same, and twice a second while nothing does (standing still), which also catches what the sum below cannot see, such as a marker changing colour.
+    // A canvas drawn every frame goes through the page's compositing every frame (a new texture for the browser each time; on Safari that is the dear part): 30 times a second while anything moves,
+    // a heading up map turning at that rate looks the same; twice a second for what the sum below cannot see, such as a marker changing colour or a move smaller than its steps;
+    // and not at all while the picture would come out the same to the pixel (standing still): sameAsDrawn compares everything the picture is made of with what is on the canvas.
     sinceDraw += dt || 0.016;
     let sig = Math.round(car.x * 4) * 1.7 + Math.round(car.z * 4) * 2.3 + Math.round(car.th * 200) * 31 + Math.round(zoom * 500) * 97 + mapRoute.length + (mapRoute.i0 || 0);
     for (const m of mapMarkers) sig += m.x * 0.7 + m.z * 1.3 + (m.size || 0);
     if (sinceDraw < (sig !== lastSig ? 0.03 : 0.5)) return;
-    sinceDraw = 0; lastSig = sig;
+    if (sig === lastSig && sameAsDrawn(false)) { stats.skipped++; sinceDraw = 0; return; }   // (and looks again in half a second, not on every frame)
+    sinceDraw = 0; lastSig = sig; sameAsDrawn(true);
     mini.save();
     mini.clearRect(0, 0, W, W);
     mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();

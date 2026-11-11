@@ -855,6 +855,37 @@ That is a seventh less parked by day and 11 to 20 % less on the drives. The nigh
 **The same game.** The crowd draws on `Math.random` and the check tools do not repeat themselves, so the proof is a build that checks itself (made for the test and thrown away): the new source with the old computation run beside each new one and a count of the times they disagree. It went through `crowdcheck.mjs`, the six checks of `gamecheck.mjs`, the three scenes by day and two by night, and four junctions of `gridlock.mjs`. `parked.near` returned the same cars in the same order as the sift of every prop in over 1.7 million calls. The copied positions were the vehicles' own in over 36 million reads. Nobody within the lapa's reach was missing from its list in over 49,000 physics steps. Of over 14 million hash cells left unwalked, none held anyone within 0.7 m. Zero disagreements in each. One difference remains on paper: a person hashed to a far cell whose bucket happens to coincide with a skipped one, and who came within 0.7 m by moving more than 0.8 m in one frame, was pushed before by that accident and is not now.
 
 The tools agree as far as they can tell. `crowdcheck.mjs`: nobody on screen without an instance in 354,356 checks. `gamecheck.mjs`: the fare, the pub hunt and the dump go through the same phases in both builds, and people, cars and props are knocked about in both. `tools/release/smoke.mjs` passes. `gridlock.mjs` gives no run through a red light in either build and jams of 0 to 15 s before against 0 to 8 after, but two runs of one build with one seed give different counts, so it says only that nothing broke. `tilehash.mjs` finds 22 parts different between the builds and 17 between two runs of the old one (16 and 18 the other way round), the same kinds in each: props, terrain, full buildings. `shotdiff.mjs` finds 0 pixels different at `capo_stalls` and `lapa_qc`; at the other four the difference is what moves by itself (a vehicle in view, a marker's rings and its beam, a patch of light), and the old build against itself differs too: 34,064 pixels at `ballaro_stalls` against 55,090 between the builds, 65,530 against 177,683 at `lapa_mondello`, 185,825 against 188,604 at `lapa_night`, and 11,591 at `lapa_qc`, where the two builds had none. `gpucost.mjs diff` compares a variant inside one page and cannot compare two builds.
+## The page's layers over the canvas (`tools/perf/hudlayers.mjs`)
+
+On the owner's old Android phone (Mali-G72, Chrome 131) the `hud0` variant of `?bench` left the frame as long as it was and took 22.8 ms off the mean time between animation frames, out of about 140: that is Chrome putting the page together over the canvas, after the game's frame. `hudlayers.mjs` counts what the page asks of the compositor, in headless Chrome at that phone's window (680 x 277 at ratio 3, CPU 4x, 4 s a scene): style passes, layouts, paints, rasters and DOM writes per frame, and from the compositor's own description of a frame its render passes, quads, layers and how much of the screen it blends. Counts and areas are exact. Nothing here is a phone figure: headless keeps the compositor at scale 1, and whether the 22.8 ms shrink has to be read on the phone with `?bench`.
+
+**What the traces showed.** Chrome merged everything standing over the canvas into two layers, 685 x 286 and 407 x 264 CSS px, blended whole on every frame, and the canvas itself was blended too because three.js always asks for `alpha: true`: 2.69 screens of blending for a parked lapa. One digit of the speed rastered the 407 x 264 layer again (0.87 times a frame while driving). Two endless animations of screens that were out of sight (`pd-pulse`, `pd-more`) cost a style pass on every frame of the game, and the minimap canvas was drawn again twice a second while nothing on it changed.
+
+| per frame | style passes (elements) | paints | rasters | DOM writes | render passes | quads | screens blended | layers (screens of layer) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| parked, before | 1 (1.99) | 0 | 0.02 | 0 | 1 | 9 | 2.69 | 10 (6.53) |
+| parked, after | 0 | 0 | 0.02 | 0 | 1 | 8 | 0.59 | 12 (5.41) |
+| driving, before | 1.07 (8.16) | 1.14 | 0.87 | 5.38 | 5 | 17 | 2.9 | 14 (6.64) |
+| driving, after | 1.03 (6.24) | 1.12 | 0.67 | 5.22 | 4.93 | 16.9 | 0.77 | 17 (5.50) |
+| a mission, before | 1 (3.35) | 0.55 | 0.18 | 2.75 | 1.99 | 11 | 2.84 | 11 (6.62) |
+| a mission, after | 0.24 (0.46) | 0.05 | 0.12 | 0.36 | 1.99 | 11 | 0.82 | 14 (5.58) |
+| balloons, before | 1.03 (3.05) | 0.08 | 0.07 | 0.94 | 3.75 | 14.5 | 2.83 | 14 (6.67) |
+| balloons, after | 0.4 (0.9) | 0.08 | 0.07 | 0.87 | 4.5 | 15 | 0.73 | 16 (5.51) |
+
+The canvas hands over one texture a frame in every row. Night is the parked row. The passes of the balloons rows follow how many balloons happened to be in view. With every page layer hidden (`?clean`) the floor is 1 quad and nothing blended. What is rastered while driving went from the merged layer (about half a screen a frame) to the bottom zone (152 x 35, a third of the frames) and the police's thin bar (200 x 2).
+
+**What changed.**
+- *An opaque canvas* (`src/main.js`): the WebGL 2 context is made by the game with `alpha: false` and three's other attributes, and handed to three. `?ctx=old` is three's own context. Same picture: `shotdiff.mjs --qa ctx=old` gives 0 differing pixels at Capo's stalls and at the lapa's close-up with the clouds off, and elsewhere only what the old context differs from itself by (stars, a pulsing beam); real WebKit reads back `alpha: false` and no pixel that is not opaque. `gpucost.mjs diff` compares inside one page and cannot compare a context attribute.
+- *A layer for each zone* (`src/ui.css`, `src/mobile.css`): `will-change: opacity` on the HUD's zones, the two pad groups and the two thin bars of the map capsule. `?layers=0` leaves it to Chrome as before.
+- *Hidden screens hold their animations* (`.pd-gone`, `src/ui.js`), from the end of the fade out until the screen is shown again.
+- *The minimap* (`src/minimap.js`) is not drawn while every input of its picture is what was last drawn.
+- *Writes only on a change* in `src/shouts.js` and `src/event-hud.js`.
+
+**Does it look the same?** The HUD in ten states (play, night, a toast, a mission, the arrow at the edge, balloons, pause, title, menu, options) was pictured over a fixed grid of colours at 2040 x 831 and compared with main. With `layers=0` eight states are the same to the pixel, the title differs in 89 pixels by one level (main against itself: 20) and one run of play in 16 thousand by one or two. With the layers, about 20 thousand pixels of 1.7 million differ by one level in 255 and a few dozen by two, on soft edges and gradients, because the browser's dither and edge smoothing start from a layer's corner; pause has 232 thousand by one and the title 270 thousand by one or two (four at most). The largest are 22 pixels at the end of the NOS bar's fill, up to 10 levels. No shape, colour or position moves. That is not identical to the bit, so it is the owner's call; `?layers=0` is there to compare.
+
+**Left as it is, because it would change the look.** Each balloon's `backdrop-filter: blur(2px)` is a render pass of its own (1 pass parked, about 5 with balloons). The edge arrow's pulse is a style pass a frame while a mission shows it. The capsule bars animate `width`, which rasters; a `scaleX` would not, and would round the fill's end differently.
+
+**Not measured here.** `desynchronized` reads back `false` in headless Chrome and `powerPreference` changes no count (`?ctx=desync`, `?ctx=hp`, `?ctx=lp` are for a phone run; none is shipped).
 
 ## Measuring
 
@@ -869,5 +900,7 @@ node tools/build/spotbench.mjs --url http://localhost:8792/ --runs 3            
 node tools/build/profile.mjs --root <dist built with --minify=false> --profile phone                # CPU + allocation profile
 tools/release/withbrowser.sh node tools/perf/memory.mjs --root <dist> [--phone] [--starts 20] [--snap drive|starts|none] [--lose --shots dir] [--alloc]   # memory after load, a drive and a cycle of starts; heap snapshot by category (--minify=false keeps the names)
 node tools/perf/benchrun.mjs --webkit --root <dist> --out <dir> [--q 'bs=qc&bv=sh0,flat']            # ?bench as the phone runs it, in real WebKit: the two result pages as pictures, text and JSON (headless Chrome without --webkit, under withbrowser.sh)
+tools/release/withbrowser.sh node tools/perf/hudlayers.mjs --root <dist> --label new --out <dir> [--scenes parked,drive,mission,balloons,night,arrow] [--q 'ctx=old']   # what the page's layers ask of the compositor per frame, at the old Android phone's window
+tools/release/withbrowser.sh node tools/perf/shotdiff.mjs --a <dist> --b <dist> --out <dir> [--qa 'ctx=old']   # same picture? two builds, or one build under a switch in the address
 ```
 `measure.mjs --root <source tree> --cdn <dir with three@r160>` measures the old layout (how the baseline was taken: `git archive bd6bf5f`).

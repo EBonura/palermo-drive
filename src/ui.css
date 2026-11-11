@@ -93,6 +93,7 @@ html.pd-title :is(#hud, .tc) { visibility: hidden !important; }
   transition: opacity .28s ease, transform .28s ease, visibility 0s linear .28s;
 }
 .pd-screen.on { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
+.pd-screen.pd-gone:not(.on) :is(.pd-tap, .pd-more) { animation-play-state: paused; }   /* out of sight (src/ui.js, mk): an animation nobody sees costs a style pass on every frame of the game */
 
 /* ---------- logo ---------- */
 .pd-logo { display: block; width: 100%; line-height: 0; filter: drop-shadow(0 6px 22px rgba(10,6,9,.55)); }
@@ -278,6 +279,13 @@ html.touch { --bar-w: min(260px, 36vw); }   /* the slim bar top left (menu butto
   --sl: max(10px, env(safe-area-inset-left)); --sr: max(12px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(10px, env(safe-area-inset-bottom));
   --obj: min(360px, 36vw); --wide: max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))); --mini: clamp(100px, 16vh, 128px); --cap: 360px; --capsule: rgba(13,7,10,.8); }   /* --obj: the width of the big moments (mission poster, caught card, result). --wide: the most any line under the mission line may take. --mini and --cap: the map capsule's height (the round map fills it) and width */
 .hz { position: absolute; display: flex; flex-direction: column; }
+/* Each zone is a layer of its own for the browser's compositor: will-change: opacity asks for the layer and moves nothing (soft edges and gradients come out one level in 255 away here and there,
+   because the browser's dither starts from the layer's corner). Left to itself Chrome merges whatever stands over the 3D canvas into one or two layers as big as all they hold together, nearly a screen each: blended over the whole picture on every frame,
+   and painted again whole for one digit of the speed. A zone's own layer is as big as the zone, and a new digit repaints the bottom zone alone. The two thin bars in the map capsule (how long the gang's
+   patience or the police's chase lasts, src/danger-hud.js and src/police.js) move all the time they are shown: as layers they are repainted alone, not the capsule. Measured with tools/perf/hudlayers.mjs, docs/PERF.md.
+   ?layers=0 in the address (the class pd-flat, src/ui.js) leaves it all to Chrome as before, for comparing; the pads of src/mobile.css with it. */
+#hud .hz, #hud :is(.pg-bar, .pw-bar) { will-change: opacity; }
+html.pd-flat #hud :is(.hz, .pg-bar, .pw-bar), html.pd-flat :is(.tc-steer, .tc-drive) { will-change: auto; }
 .hz-status { left: var(--sl); top: calc(var(--st) + 50px); align-items: flex-start; gap: 6px; }   /* under the slim bar top left */
 .hz-top { left: 50%; top: var(--st); transform: translateX(-50%); width: max-content; align-items: center; }
 .hz-top > * { display: flex; flex-direction: column; align-items: center; }
