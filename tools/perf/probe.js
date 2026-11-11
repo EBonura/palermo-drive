@@ -95,6 +95,8 @@
     sprite1: () => patchAll('sprite1', sh => { sh.fragmentShader = sh.fragmentShader.replace('vec4 cf = texture2D(mapFar, vUvF), cn = texture2D(mapNear, vUvN);\n        vec4 c = vNear > 0.5 ? cn : cf;', 'vec4 c = vNear > 0.5 ? texture2D(mapNear, vUvN) : texture2D(mapFar, vUvF);'); }, m => m.uniforms && m.uniforms.mapNear),
     unweld: () => { const U = []; S.traverse(o => { if (o.isMesh && o.geometry?.index && /^(street_|landmarks-|low_roofs)|:/.test(o.name) && o.geometry.attributes.position?.array) { const g = o.geometry; U.push([o, g]); o.geometry = g.toNonIndexed(); o.geometry.drawRange = g.drawRange; } }); return () => U.forEach(([o, g]) => { o.geometry.dispose(); o.geometry = g; }); },   // the shared vertices of src/core.js weld() undone
     whole: () => { G.lean.wholeParts = true; return () => { G.lean.wholeParts = false; }; },
+    order0: () => { R.setOpaqueSort(null); return () => R.setOpaqueSort(window.__lean.cutoutsLast); },   // three's own opaque order: the cut-outs among the solid draws by material id, as before src/engine-lean.js put them last (not with ?lean=...,sort)
+    same: () => () => {},   // nothing changed: what two draws of the same instant differ by on their own
     ibl1: () => patchAll('ibl1', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', THREE.ShaderChunk.lights_fragment_maps.replace('vec3 iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );', 'vec3 iblRadiance; if ( material.roughness >= 0.8 ) iblRadiance = iblIrradiance / PI; else iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );')); }),
     envfit: () => { const L = []; S.traverse(o => { if (o.isLightProbe) { L.push(o); o.visible = false; } }); const u = patchAll('envfit', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', window.__shade.CHUNKS0.lights_fragment_maps); }); return () => { L.forEach(o => { o.visible = true; }); u(); }; },   // the sky reflection as cube map lookups again (src/shading.js)
     sprfull: () => { const U = []; S.traverse(o => { const u = o.material?.uniforms?.uBoxOn; if (u && !U.includes(u)) { U.push(u); u.value = 0; } }); return () => U.forEach(u => { u.value = 1; }); },   // the crowd's quads at the whole cell again
@@ -231,30 +233,50 @@
     return { name, base: +a.toFixed(2), with: +b.toFixed(2), d: +(b - a).toFixed(2), pct: +((b - a) / a * 100).toFixed(1), js: +med(B.map(x => x.js)).toFixed(2), baseRounds: A.map(x => +x.tot.toFixed(1)), withRounds: B.map(x => +x.tot.toFixed(1)) };
   }
 
-  // The same instant drawn both ways inside one task (nothing moves in between): how many pixels differ, and by how much. At the iPhone's pixel ratio.
+  // The same instant drawn both ways inside one task, with the clock held (what moves on its own, the mission ring or the cached shadow map's refresh, stays put between the two):
+  // how many pixels differ, and by how much. At the iPhone's pixel ratio. With points, at that many random places on the roads round the spot instead of where the car stands.
   function grab(w, h) { const a = new Uint8Array(w * h * 4), fb = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, a); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fb); return a; }
-  async function diff(v, shots) {
+  async function diff(v, shots, points) {
     const on = VARIANTS[v]; if (!on) return { error: 'no variant ' + v };
     await frame();
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
     const off = on(); R.render(S, G.camera); off();                 // compiles the variant's programs first, so that the pair below sits in one task with no hitch in between
-    await frame();
-    R.render(S, G.camera); const a = grab(w, h), ja = shots ? R.domElement.toDataURL('image/jpeg', 0.8) : '';
-    const off2 = on(); R.render(S, G.camera); const b = grab(w, h), jb = shots ? R.domElement.toDataURL('image/jpeg', 0.8) : ''; off2();
-    let n1 = 0, n4 = 0, n8 = 0, n32 = 0, mx = 0;
-    for (let i = 0; i < a.length; i += 4) { const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])); if (d > 1) n1++; if (d > 4) n4++; if (d > 8) n8++; if (d > 32) n32++; if (d > mx) mx = d; }
-    const T = w * h, pc = n => +(n / T * 100).toFixed(4);
-    return { diff: v, w, h, over1: pc(n1), over4: pc(n4), over8: pc(n8), over32: pc(n32), max: mx, ja, jb };
+    let n0 = 0, n1 = 0, n4 = 0, n8 = 0, n32 = 0, mx = 0, ja = '', jb = '', views = 0, differ = 0;
+    const next = points ? roadPlaces() : null, where = [];
+    for (let q = 0; q < (points || 1); q++) {
+      const at = next ? next() : [G.car.x, G.car.z]; if (!at) continue;
+      for (let i = 0; i < (next ? 20 : 1); i++) await frame();
+      const pn = performance.now, t0 = pn.call(performance); performance.now = () => t0;
+      try {
+        for (let i = 0; i < 8; i++) R.render(S, G.camera);          // a cached shadow map on its way is finished first
+        R.render(S, G.camera); const a = grab(w, h); if (shots && !next) ja = R.domElement.toDataURL('image/jpeg', 0.8);
+        const off2 = on(); R.render(S, G.camera); const b = grab(w, h); if (shots && !next) jb = R.domElement.toDataURL('image/jpeg', 0.8); off2();
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) { const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])); if (d) n++; if (d > 1) n1++; if (d > 4) n4++; if (d > 8) n8++; if (d > 32) n32++; if (d > mx) mx = d; }
+        views++; n0 += n; if (n) { differ++; if (where.length < 12) where.push([Math.round(at[0]), Math.round(at[1]), n]); }
+      } finally { performance.now = pn; }
+    }
+    const T = w * h * views, pc = n => +(n / T * 100).toFixed(4);
+    return { diff: v, w, h, views, differ, pixels: n0, where, over1: pc(n1), over4: pc(n4), over8: pc(n8), over32: pc(n32), max: mx, ja, jb };
+  }
+
+  // Random places on the roads of the full detail tiles, the same ones every run: each call puts the car at the next (null where it cannot stand).
+  function roadPlaces() {
+    const seed = []; for (const t of G.world.fullTiles()) { const d = t.data; if (d && d.roads) for (const o of d.roads) if (o.p && o.p.length >= 4 && !o.tn && !o.br) seed.push(o.p); }
+    const rnd = (() => { let s = 12345; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+    return () => {
+      const p = seed[(rnd() * seed.length) | 0], k = ((rnd() * (p.length / 2 - 1)) | 0) * 2, u = rnd(), x = p[k] + (p[k + 2] - p[k]) * u, z = p[k + 1] + (p[k + 3] - p[k + 1]) * u;
+      try { G.placeAt(x, z, Math.atan2(p[k + 2] - p[k], p[k + 3] - p[k + 1]) + (rnd() < 0.5 ? Math.PI : 0) + (rnd() - 0.5) * 0.6); } catch (e) { return null; }
+      return [x, z];
+    };
   }
 
   // Random places on the roads: the frame with only the parts in view against the same instant with every part of every mesh. A pixel that differs is a part that should have been drawn.
   async function partcheck(points) {
-    const seed = []; for (const t of G.world.fullTiles()) { const d = t.data; if (d && d.roads) for (const o of d.roads) if (o.p && o.p.length >= 4 && !o.tn && !o.br) seed.push(o.p); }
-    const rnd = (() => { let s = 12345; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+    const next = roadPlaces();
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight; let bad = 0, worst = 0, pts = 0, saved = 0, where = [];
     for (let q = 0; q < points; q++) {
-      const p = seed[(rnd() * seed.length) | 0], k = ((rnd() * (p.length / 2 - 1)) | 0) * 2, u = rnd(), x = p[k] + (p[k + 2] - p[k]) * u, z = p[k + 1] + (p[k + 3] - p[k + 1]) * u;
-      try { G.placeAt(x, z, Math.atan2(p[k + 2] - p[k], p[k + 3] - p[k + 1]) + (rnd() < 0.5 ? Math.PI : 0) + (rnd() - 0.5) * 0.6); } catch (e) { continue; }
+      const at = next(); if (!at) continue; const [x, z] = at;
       for (let i = 0; i < 14; i++) await frame();
       R.render(S, G.camera); const a = grab(w, h), ja = P.partShots ? R.domElement.toDataURL('image/jpeg', 0.7) : '';
       G.lean.wholeParts = true; R.render(S, G.camera); const b = grab(w, h), jb = P.partShots ? R.domElement.toDataURL('image/jpeg', 0.7) : ''; G.lean.wholeParts = false;
@@ -267,7 +289,7 @@
 
   async function main() {
     while (!(window.game && window.game.renderer && !document.getElementById('loading'))) await sleep(250);
-    G = window.game; R = G.renderer; S = G.scene; THREE = await import('three'); window.__shade = await import(location.origin + '/src/shading.js');
+    G = window.game; R = G.renderer; S = G.scene; THREE = await import('three'); window.__shade = await import(location.origin + '/src/shading.js'); window.__lean = await import(location.origin + '/src/engine-lean.js').catch(() => ({}));
     post({ phase: 'loaded', t: Math.round(performance.now()), dpr: devicePixelRatio, size: [innerWidth, innerHeight], renderer: (() => { const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })(), attr: gl.getContextAttributes(), timer: !!gl.getExtension('EXT_disjoint_timer_query_webgl2') });
     // the world around the car first: the tile under it at full detail and nothing in view still on its way (a minute at most on a busy machine)
     for (const t0 = performance.now(); performance.now() - t0 < 60000; await sleep(250)) {
@@ -293,7 +315,7 @@
       if (step.do === 'partcheck') post(await partcheck(step.points || 40));
       if (step.do === 'idpass') post(await idpass());
       if (step.do === 'eval') { await frame(); post({ eval: await (new Function('G', 'R', 'S', 'THREE', 'gl', 'return (async () => {' + step.js + '})()'))(G, R, S, THREE, gl) }); }
-      if (step.do === 'diff') post(await diff(step.v, step.shots));
+      if (step.do === 'diff') post(await diff(step.v, step.shots, step.points));
       if (step.do === 'shot') { R.setPixelRatio(step.spr || pr0); for (let i = 0; i < 6; i++) await frame(); post({ shot: R.domElement.toDataURL('image/jpeg', 0.85) }); }
     }
     post('done');

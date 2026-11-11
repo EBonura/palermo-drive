@@ -18,6 +18,23 @@ const RAYS = 320, REC = 24;           // rays are even in screen x, so at the ce
 const EMPTY = -1e9, BOX = 6;          // a box: x0, z0, x1, z1, top, bottom
 const key = (i, j) => (i + 2048) * 4096 + j + 2048;
 
+// The order of the opaque draws, for every path (src/main.js sets it, with or without the engine): three's own, by material, except that the cut-outs (alphaTest: the shader may discard a pixel)
+// come after the solid draws of the same renderOrder. A tile-based GPU (every iPhone) shades a solid pixel only if nothing solid ends up in front of it, in whatever order; a pixel that may be
+// discarded is shaded wherever nothing drawn before it is in front. So, as Apple advises: solid, then cut-out, then transparent (docs/PERF-ENGINE.md, "Cut-outs after the solid draws").
+// Where a cut-out and a solid cross, the odd sample has the same depth in both and the later draw wins it, so a material with userData.keepOrder stays where three puts it (the fence panels,
+// src/fences.js). ?order=off leaves three's order, for comparing; ?order=all moves those too.
+const ORDER = new URLSearchParams(location.search).get('order');
+const kind = [];   // by material id: 1 solid, 2 cut-out. Asked once per material: alphaTest is a getter, and reading it at every comparison cost more than the rest of the sort
+const mark = m => kind[m.id] = m.alphaTest > 0 && (ORDER === 'all' || !m.userData.keepOrder) ? 2 : 1;
+const cut = ORDER === 'off' ? () => 0 : m => kind[m.id] || mark(m);
+export const cutoutsLast = ORDER === 'off' ? null : (a, b) => {
+  if (a.groupOrder !== b.groupOrder) return a.groupOrder - b.groupOrder;
+  if (a.renderOrder !== b.renderOrder) return a.renderOrder - b.renderOrder;
+  const ma = a.material, mb = b.material, ia = ma.id, ib = mb.id;
+  if (ia !== ib) return (kind[ia] || mark(ma)) - (kind[ib] || mark(mb)) || ia - ib;
+  return a.materialVariant - b.materialVariant || a.z - b.z || a.id - b.id;
+};
+
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
   const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
   const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
@@ -390,7 +407,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   }
 
   // ---------- front to back ----------
-  if (on.sort) renderer.setOpaqueSort((a, b) => a.groupOrder - b.groupOrder || a.renderOrder - b.renderOrder || a.z - b.z || a.id - b.id);
+  if (on.sort) renderer.setOpaqueSort((a, b) => a.groupOrder - b.groupOrder || a.renderOrder - b.renderOrder || cut(a.material) - cut(b.material) || a.z - b.z || a.id - b.id);
 
   // ---------- the cached shadow map ----------
   let origRender = null;

@@ -82,7 +82,7 @@ function panelAssets() {
     const g = cv.getContext('2d'); g.clearRect(0, 0, W, H); s.draw(g, W, H);
     g.fillStyle = '#4a4d4c'; g.fillRect(0, 0, 3, H);                       // an opaque column: the posts sample it
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    return new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
+    return new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85, userData: { keepOrder: true } });   // keepOrder: drawn just before the walls, as three orders them, not with the other cut-outs (src/engine-lean.js): a rail's panel is sunk 4 cm into the cap of its wall, and on the line where they cross the later draw wins the odd pixel
   });
   const p = [], uv = [], idx = [];
   const quad = (a, b, c, d, u) => { const o = p.length / 3; p.push(...a, ...b, ...c, ...d); uv.push(...u); idx.push(o, o + 1, o + 2, o, o + 2, o + 3); };
