@@ -685,8 +685,15 @@ function makePhysics(env) {
   const cellIJ = (i, j) => (i + 4096) * 8192 + (j + 4096);   // whole city: x within +-6.7 km, z within -12 .. +5.6 km
   const cellK = (x, z) => cellIJ(Math.floor(x / 8), Math.floor(z / 8));
   const grid = new Map();
-  const gAdd = c => { const k = cellK(c.x, c.z); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); c.gk = k; };
-  const gDel = c => { const a = grid.get(c.gk); if (a) { const i = a.indexOf(c); if (i >= 0) a.splice(i, 1); } };
+  const pgrid = new Map();   // the parked cars alone, in the same cells and the same order: the traffic asks for them at every vehicle and step (parked.near), and they are one prop in many
+  const isPark = c => c.sp !== undefined && c.sp.kind === 'park';
+  const pocc = new Uint16Array(65536);   // how many of them stand in each cell, the cells folded onto a 2 km square: most cells asked about hold none, and a zero here says so without a Map lookup
+  const pslot = k => ((k >> 13) & 255) << 8 | (k & 255);
+  const gAdd = c => { const k = cellK(c.x, c.z); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); c.gk = k; if (isPark(c)) { let b = pgrid.get(k); if (!b) pgrid.set(k, b = []); b.push(c); pocc[pslot(k)]++; } };
+  const gDel = c => {
+    const a = grid.get(c.gk); if (a) { const i = a.indexOf(c); if (i >= 0) a.splice(i, 1); }
+    const b = pgrid.get(c.gk); if (b) { const i = b.indexOf(c); if (i >= 0) { b.splice(i, 1); pocc[pslot(c.gk)]--; } }
+  };
   let simT = 0, tick = 0, lastShout = -9, camPos = null;
   const dirty = new Set(), dyn = [], broken = new Set(), goneHedge = new Set();   // goneHedge: hedge blocks burst this session, by position (they survive the tile unloading)
   const hedgeKey = c => Math.round(c.x0 * 4) + ',' + Math.round(c.z0 * 4);
@@ -843,7 +850,8 @@ function makePhysics(env) {
     out.length = 0;
     const i0 = Math.floor((x - r) / 8), i1 = Math.floor((x + r) / 8), j0 = Math.floor((z - r) / 8), j1 = Math.floor((z + r) / 8);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-      const lst = grid.get(cellIJ(i, j)); if (!lst) continue;
+      const k = cellIJ(i, j); if (pocc[pslot(k)] === 0) continue;
+      const lst = pgrid.get(k); if (lst === undefined) continue;
       for (let q = 0; q < lst.length; q++) { const c = lst[q]; if (c.st === 0 && c.sp.kind === 'park' && !c.dead) out.push(c); }
     }
     return out.length;

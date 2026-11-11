@@ -8,7 +8,7 @@
 //   * the trams: assets/traffic/tram-lines.js has the seven line patterns (path along the OSM tracks, stops with their chainage, the timetable headway).
 //     Every pattern gets a few trams (as many as the headway asks for, at most five), each of three articulated modules following the path; they
 //     slow to every stop, wait, and at the end of the line start on the other direction. They are solid: the lapa bounces off a module, and a tram
-//     stops for a car on the track ahead. Trams run from the physics step (hooks.tick) and collide from hooks.fall, wrapped here, so nothing else needs to know.
+//     stops for a car on the track ahead. Trams run from the physics step (hooks.tick) and collide from hooks.fall, wrapped here; the world draws them once a frame (drawTrams).
 import * as THREE from 'three';
 import { Buf, groundY, hooks } from './core.js';
 import { TRAM_PATTERNS } from '../assets/traffic/tram-lines.js';
@@ -154,7 +154,7 @@ function startTrams() {
     const n = Math.max(1, Math.min(5, Math.round(pt.L / (pt.head * 60 * SPEED))));
     const col = new THREE.Color(pt.color).lerp(new THREE.Color('#ffffff'), 0.82);
     for (let k = 0; k < n; k++) {
-      const T = { pi, pt, s: (pt.L / n) * k + 30, v: SPEED * (k % 2 ? 0.6 : 1), dwell: 0, hold: 0, next: 0, idx: mi };
+      const T = { pi, pt, s: (pt.L / n) * k + 30, v: SPEED * (k % 2 ? 0.6 : 1), dwell: 0, hold: 0, next: 0, idx: mi, px: new Float64Array(MODULES), pz: new Float64Array(MODULES), pyaw: new Float64Array(MODULES) };
       T.next = pt.stops.findIndex(st => st.s > T.s);
       for (let m = 0; m < MODULES; m++) { meshes.setColorAt(mi + m, col); }
       mi += MODULES; trams.push(T);
@@ -188,20 +188,26 @@ function stepTrams(dt, pats, other) {
       else { T.s = 4; T.dwell = 6; }
     }
   }
-  writeInstances();
+  moved = true;
 }
 function blocked(T, car) { // a car on the track within 14 m ahead of the nose
   const f = at(T.pt, T.s), fx = Math.sin(f.yaw), fz = Math.cos(f.yaw), dx = car.x - f.x, dz = car.z - f.z, along = dx * fx + dz * fz, side = Math.abs(dx * fz - dz * fx);
   return along > -2 && along < 14 && side < 2.6;
 }
+// Where module m of a tram is: its centre and heading, from the tram's chainage. The collision asks at every physics step, and only for the trams near the lapa.
+function place(T, m) { const a = at(T.pt, T.s - m * (MOD_LEN + GAP) - MOD_LEN / 2); T.px[m] = a.x; T.pz[m] = a.z; T.pyaw[m] = a.yaw; }
+// The instances are written once a frame (drawTrams, called from world.update before the frame is drawn), not at each of the 2 to 4 physics steps in it:
+// only the last write of a frame was ever seen.
+let moved = true;
+export function drawTrams() { if (moved) writeInstances(); }
 function writeInstances() {
   if (!meshes) return;
+  moved = false;
   for (const T of trams) {
     for (let m = 0; m < MODULES; m++) {
       const s = T.s - m * (MOD_LEN + GAP) - MOD_LEN / 2, a = at(T.pt, s), x = a.x, z = a.z, yaw = a.yaw;
       _e.set(0, yaw, 0, 'YXZ'); _q.setFromEuler(_e); _p.set(x, groundY(x, z) + (raisedFn(x, z) ? LIFT_RAISED : LIFT), z);
       meshes.setMatrixAt(T.idx + m, _m.compose(_p, _q, _s));
-      T['x' + m] = x; T['z' + m] = z; T['y' + m] = yaw;
     }
   }
   meshes.instanceMatrix.needsUpdate = true;
@@ -212,11 +218,13 @@ function collideTrams(car) {
   if (car.agl > 3) return;   // flying over it (src/vehicle-air.js)
   const sn = Math.sin(car.th), cs = Math.cos(car.th);
   for (const T of trams) {
-    if (Math.abs(T.x0 - car.x) > 40 || Math.abs(T.z0 - car.z) > 40) continue;
+    place(T, 0);
+    if (Math.abs(T.px[0] - car.x) > 40 || Math.abs(T.pz[0] - car.z) > 40) continue;
     for (let m = 0; m < MODULES; m++) {
-      const yaw = T['y' + m], fx = Math.sin(yaw), fz = Math.cos(yaw);
+      if (m) place(T, m);
+      const yaw = T.pyaw[m], fx = Math.sin(yaw), fz = Math.cos(yaw);
       for (const o of [-3, 0, 3]) {
-        const cx = T['x' + m] + fx * o, cz = T['z' + m] + fz * o;
+        const cx = T.px[m] + fx * o, cz = T.pz[m] + fz * o;
         for (const a of [0.72, -0.72]) {
           const px = car.x + sn * a, pz = car.z + cs * a;
           let nx = px - cx, nz = pz - cz, d = hh(nx, nz); const rs = R_CAR + R_TRAM;
@@ -232,4 +240,4 @@ function collideTrams(car) {
   }
 }
 export const tramStats = () => ({ trams: trams.length });
-export const tramDebug = () => trams.map(T => ({ line: T.pt.line, dir: T.pt.dir, s: Math.round(T.s), v: +T.v.toFixed(1), x: Math.round(T.x0), z: Math.round(T.z0), dwell: Math.round(T.dwell), yaw: T.y0 }));
+export const tramDebug = () => trams.map(T => { place(T, 0); return { line: T.pt.line, dir: T.pt.dir, s: Math.round(T.s), v: +T.v.toFixed(1), x: Math.round(T.px[0]), z: Math.round(T.pz[0]), dwell: Math.round(T.dwell), yaw: T.pyaw[0] }; });

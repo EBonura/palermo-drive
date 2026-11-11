@@ -75,6 +75,7 @@ function play(ms, dir) { // resolves when the flip is done
     requestAnimationFrame(step);
   });
 }
+export const covering = () => !!root && root.classList.contains('on');   // the squares are up, from the first flip in to the last flip out (asked every frame by src/danger.js)
 const announce = on => { try { dispatchEvent(new CustomEvent('pd-cover', { detail: on })); } catch (e) { /* no events */ } };   // the screen is covered (true) or free again (false): src/perf.js ignores frames meanwhile and makes its rebuilding changes now
 const wait = ms => new Promise(r => setTimeout(r, ms));
 

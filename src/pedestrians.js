@@ -679,19 +679,17 @@ export function createPedestrians(env) {
     sunH = [dx / l, dz / l]; sunTan = dy / l;
     shadowUniforms.uSunDir.value.set(-sunH[0], -sunH[1]);
   };
-  let sunHit = false;
   const segHit = s => {
     // ray from (rx,rz) along sunH for rl metres against wall segment s
-    const ex = s[2] - s[0], ez = s[3] - s[1], den = sunH[0] * ez - sunH[1] * ex; if (Math.abs(den) < 1e-6) return;
+    const ex = s[2] - s[0], ez = s[3] - s[1], den = sunH[0] * ez - sunH[1] * ex; if (Math.abs(den) < 1e-6) return false;
     const ax = s[0] - rx0, az = s[1] - rz0, t = (ax * ez - az * ex) / den, u = (ax * sunH[1] - az * sunH[0]) / den;
-    if (t > 0.3 && t < rl0 && u >= 0 && u <= 1) sunHit = true;
+    return t > 0.3 && t < rl0 && u >= 0 && u <= 1;
   };
   let rx0 = 0, rz0 = 0, rl0 = 0;
   const inSun = (x, z) => {
-    rx0 = x; rz0 = z; rl0 = 14 / sunTan * 0.75 + 4; if (rl0 > 28) rl0 = 28; sunHit = false;
+    rx0 = x; rz0 = z; rl0 = 14 / sunTan * 0.75 + 4; if (rl0 > 28) rl0 = 28;
     const ex = x + sunH[0] * rl0, ez = z + sunH[1] * rl0;
-    walls2d.query(Math.min(x, ex), Math.min(z, ez), Math.max(x, ex), Math.max(z, ez), segHit);
-    return sunHit ? 0 : 1;
+    return walls2d.some(Math.min(x, ex), Math.min(z, ez), Math.max(x, ex), Math.max(z, ez), segHit) ? 0 : 1;   // (the first wall in the way is enough: the rest are not asked)
   };
 
   // free distance (metres) along a heading, 0.5 m steps; runPen counts carriageway cells crossed
@@ -835,7 +833,16 @@ export function createPedestrians(env) {
 
   // spatial hash for pedestrian-pedestrian spacing
   const HS = 1024, hHead = new Int16Array(HS), hNext = new Int16Array(CAP);
-  const hkey = (ix, iz) => ((ix * 73856093) ^ (iz * 19349663)) & (HS - 1);
+  const hkey = (ix, iz) => (Math.imul(ix, 73856093) ^ Math.imul(iz, 19349663)) & (HS - 1);   // (imul: the same bits as the product cut to 32, without the detour through a double)
+  // keep person i a little away from whoever is in bucket k (within 0.7 m; REACH: that and a hair, for the cells that are left out in update)
+  const REACH = 0.7001;
+  const apart = (i, k, dti) => {
+    for (let j = hHead[k]; j >= 0; j = hNext[j]) {
+      if (j === i) continue;
+      const dx = X[i] - X[j], dz = Z[i] - Z[j], d2 = dx * dx + dz * dz;
+      if (d2 < 0.49 && d2 > 1e-6) { const d = Math.sqrt(d2); pushOut(i, dx / d, dz / d, (0.7 - d) * 1.6 * dti); }
+    }
+  };
 
   function stepDodgeChecks(dt) {
     // car heading towards a pedestrian: hop out of the way after a short reaction time
@@ -951,7 +958,7 @@ export function createPedestrians(env) {
   const camQ = new THREE.Vector3();
   function update(dt, cam) {
     const t0 = performance.now();
-    dt = Math.min(dt, 0.05); frameNo++;
+    dt = Math.min(dt, 0.05); frameNo++; nearStale = true;
     cam = cam || camera;
     { const gt = gameRef && gameRef.time; if (gt && (gt.night !== lastNight || gt.isNight !== lastIsNight)) { lastNight = gt.night; lastIsNight = gt.isNight; setTime(gt); } }   // only when it changes, so an event or a debug override is not undone every frame
     nightK += (nightTarget - nightK) * Math.min(1, 0.6 * dt);
@@ -1023,7 +1030,7 @@ export function createPedestrians(env) {
     stepDodgeChecks(dt);
 
     // spatial hash
-    hHead.fill(-1);
+    hHead.fill(-1); let mvx = 0, mvz = 0;   // how far anyone has gone, on each axis, from where these lists have them
     for (let i = 0; i < N.n; i++) { const k = hkey(Math.floor(X[i] / 1.5), Math.floor(Z[i] / 1.5)); hNext[i] = hHead[k]; hHead[k] = i; }
 
     const sfx = Math.sin(car.th), sfz = Math.cos(car.th), seeAll = jumped || !started0;
@@ -1039,6 +1046,7 @@ export function createPedestrians(env) {
       }
       if ((ACC[i] += dt) < every) continue;
       const dti = Math.min(ACC[i], 0.25); ACC[i] = 0;
+      const hx = X[i], hz = Z[i];   // where the spatial hash has this one
       if (MIR[i] > 0) { MIR[i] -= dti; HOP[i] = MIR[i] > 0 ? 0.1 * Math.abs(Math.sin(MIR[i] * 9)) : 0; if (MIR[i] <= 0) seatAgain(i); }
       // decision tick, staggered (at half the rate for those off the screen or far away)
       if ((STEER[i] -= dti) <= 0 && st <= WAIT) { const slow = every >= 0.05; STEER[i] = slow ? 0.24 : 0.1 + Math.random() * 0.04; steer(i, slow ? 0.24 : 0.12); st = ST[i]; }
@@ -1058,13 +1066,23 @@ export function createPedestrians(env) {
           else { V[i] = 0; STEER[i] = 0; THT[i] += (Math.random() < 0.5 ? 1 : -1) * 1.2; }
         }
         // keep a little distance from the others and from the lapa
-        const ix = Math.floor(X[i] / 1.5), iz = Math.floor(Z[i] / 1.5);
-        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-          for (let j = hHead[hkey(ix + a, iz + b)]; j >= 0; j = hNext[j]) {
-            if (j === i) continue;
-            const dx = X[i] - X[j], dz = Z[i] - Z[j], d2 = dx * dx + dz * dz;
-            if (d2 < 0.49 && d2 > 1e-6) { const d = Math.sqrt(d2); pushOut(i, dx / d, dz / d, (0.7 - d) * 1.6 * dti); }
-          }
+        // The nine cells around, in the order of the two loops this was; the three hashes of each axis are worked out once. A cell too far for anyone in it
+        // to be within 0.7 m is not walked (four to five of the nine are left). The lists are as they were when this frame began, so "too far" allows for
+        // how far anyone has gone since (mvx, mvz), and it is asked again before each cell, since a push moves this one. Two of the nine can share a
+        // bucket (then its people were met twice; only two on a diagonal can, the hashes of neighbours on one axis always differ in their low ten bits):
+        // when they do, all nine are walked as before. The same pushes in the same order as walking all nine.
+        const ix = Math.floor(X[i] / 1.5), iz = Math.floor(Z[i] / 1.5), M = HS - 1;
+        const a0 = Math.imul(ix - 1, 73856093), a1 = Math.imul(ix, 73856093), a2 = Math.imul(ix + 1, 73856093), b0 = Math.imul(iz - 1, 19349663), b1 = Math.imul(iz, 19349663), b2 = Math.imul(iz + 1, 19349663);
+        const p0 = (a0 ^ a1) & M, p1 = (a1 ^ a2) & M, p2 = (a0 ^ a2) & M, q0 = (b0 ^ b1) & M, q1 = (b1 ^ b2) & M, q2 = (b0 ^ b2) & M;
+        if (p0 === q0 || p0 === q1 || p0 === q2 || p1 === q0 || p1 === q1 || p1 === q2 || p2 === q0 || p2 === q1 || p2 === q2) {
+          apart(i, (a0 ^ b0) & M, dti); apart(i, (a0 ^ b1) & M, dti); apart(i, (a0 ^ b2) & M, dti);
+          apart(i, (a1 ^ b0) & M, dti); apart(i, (a1 ^ b1) & M, dti); apart(i, (a1 ^ b2) & M, dti);
+          apart(i, (a2 ^ b0) & M, dti); apart(i, (a2 ^ b1) & M, dti); apart(i, (a2 ^ b2) & M, dti);
+        } else {
+          const xa = ix * 1.5 + REACH + mvx, xb = ix * 1.5 + 1.5 - REACH - mvx, za = iz * 1.5 + REACH + mvz, zb = iz * 1.5 + 1.5 - REACH - mvz;   // this side of xa the cells of ix - 1 are within reach, beyond xb those of ix + 1
+          if (X[i] < xa && Z[i] < za) apart(i, (a0 ^ b0) & M, dti); if (X[i] < xa) apart(i, (a0 ^ b1) & M, dti); if (X[i] < xa && Z[i] > zb) apart(i, (a0 ^ b2) & M, dti);
+          if (Z[i] < za) apart(i, (a1 ^ b0) & M, dti); apart(i, (a1 ^ b1) & M, dti); if (Z[i] > zb) apart(i, (a1 ^ b2) & M, dti);
+          if (X[i] > xb && Z[i] < za) apart(i, (a2 ^ b0) & M, dti); if (X[i] > xb) apart(i, (a2 ^ b1) & M, dti); if (X[i] > xb && Z[i] > zb) apart(i, (a2 ^ b2) & M, dti);
         }
         const cdx = X[i] - car.x, cdz = Z[i] - car.z;
         if (cdx * cdx + cdz * cdz < 16) {
@@ -1109,6 +1127,8 @@ export function createPedestrians(env) {
       }
       // sun shading eases to its target
       SHC[i] += (SHT[i] - SHC[i]) * Math.min(1, 4 * dti);
+      // the farthest anyone has gone from where the hash has them (only in their own turn: nobody moves anybody else here)
+      const mx = Math.abs(X[i] - hx), mz = Math.abs(Z[i] - hz); if (mx > mvx) mvx = mx; if (mz > mvz) mvz = mz;
     }
     updateChairs(dt, cx, cz); updateBeach(dt, cx, cz);
     lodEnd(dt);
@@ -1156,13 +1176,20 @@ export function createPedestrians(env) {
   }
 
   // ======================================================================== the lapa meets a pedestrian (runs at 120 Hz)
-  const COFF = [-1.0, 0, 1.0], CR = 0.72, PR = 0.3;
+  // Only who is within reach of the lapa is asked at each step: the list is taken once a frame (the crowd only moves in update) and again when the lapa
+  // has gone NEAR_M metres from where it was taken, in the crowd's own order, so the same people are met in the same order as when everyone was asked.
+  const COFF = [-1.0, 0, 1.0], CR = 0.72, PR = 0.3, NEAR_M = 4, nearList = new Int16Array(CAP);
+  let nearN = 0, nearX = 0, nearZ = 0, nearStale = true;
   function collidePlayer(c) {
     collideBeach(c);
     const n = N.n; if (!n) return;
+    if (nearStale || Math.abs(c.x - nearX) > NEAR_M || Math.abs(c.z - nearZ) > NEAR_M) {
+      nearStale = false; nearX = c.x; nearZ = c.z; nearN = 0;
+      for (let i = 0, r = 3 + NEAR_M; i < n; i++) { const dx = X[i] - c.x, dz = Z[i] - c.z; if (dx <= r && dx >= -r && dz <= r && dz >= -r) nearList[nearN++] = i; }
+    }
     const spd = hyp2(c.vx, c.vz), sfx2 = Math.sin(c.th), sfz2 = Math.cos(c.th);
-    for (let i = 0; i < n; i++) {
-      const dx0 = X[i] - c.x, dz0 = Z[i] - c.z;
+    for (let q = 0; q < nearN; q++) {
+      const i = nearList[q], dx0 = X[i] - c.x, dz0 = Z[i] - c.z;
       if (dx0 > 3 || dx0 < -3 || dz0 > 3 || dz0 < -3 || ST[i] >= FLY) continue;
       for (let k = 0; k < 3; k++) {
         const dx = X[i] - (c.x + sfx2 * COFF[k]), dz = Z[i] - (c.z + sfz2 * COFF[k]), d2 = dx * dx + dz * dz, rr = CR + PR;

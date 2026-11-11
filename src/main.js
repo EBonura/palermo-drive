@@ -226,6 +226,14 @@ class Grid {
     for (let ix = Math.floor(x0 / c); ix <= Math.floor(x1 / c); ix++)
       for (let iz = Math.floor(z0 / c); iz <= Math.floor(z1 / c); iz++) { const a = this.m.get(this.key(ix, iz)); if (a) for (const s of a) fn(s); }
   }
+  // query that stops at the first segment fn says yes to: is there one in the box?
+  some(x0, z0, x1, z1, fn) {
+    if (this.ext && this.ext.some(x0, z0, x1, z1, fn)) return true;
+    const c = this.cell;
+    for (let ix = Math.floor(x0 / c); ix <= Math.floor(x1 / c); ix++)
+      for (let iz = Math.floor(z0 / c); iz <= Math.floor(z1 / c); iz++) { const a = this.m.get(this.key(ix, iz)); if (a) for (let i = 0; i < a.length; i++) if (fn(a[i])) return true; }
+    return false;
+  }
 }
 
 const walls2d = new Grid(16);
