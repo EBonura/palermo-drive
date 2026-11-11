@@ -490,11 +490,20 @@ function posterMaterial() {
   const cv = document.createElement('canvas'); cv.width = POSTER_COLS * CELL_W; cv.height = POSTER_ROWS * CELL_H;
   const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   const paint = () => { paintAtlas(cv.getContext('2d'), cv.width, cv.height); map.needsUpdate = true; freeCanvas(map, (g, w, h) => paintAtlas(g, w, h)); };
-  // the headlines are Impact; a device without it uses Barlow Condensed, which the page loads (src/ui.css): wait for it there, a little
-  const probe = cv.getContext('2d'); probe.font = '40px monospace'; const a = probe.measureText('MWMWiiii').width; probe.font = '40px Impact, monospace';
-  if (probe.measureText('MWMWiiii').width !== a || !document.fonts?.load) paint();
-  else Promise.race([document.fonts.load('700 40px "Barlow Condensed"'), new Promise(r => setTimeout(r, 4000))]).then(paint, paint);
+  // Painted and uploaded when the first billboard is placed (userData.need, called where a tile's props put one), not at the start: the billboards stand along the fast
+  // roads only, and until one is near the atlas would hold 8 MB of the GPU's memory for nothing. A tile is built over many frames, so the atlas
+  // is there before its billboards are drawn.
+  let asked = false;
+  const need = () => {
+    if (asked) return; asked = true;
+    // the headlines are Impact; a device without it uses Barlow Condensed, which the page loads (src/ui.css): wait for it there, a little
+    const pc = document.createElement('canvas'); pc.width = pc.height = 1;
+    const probe = pc.getContext('2d'); probe.font = '40px monospace'; const a = probe.measureText('MWMWiiii').width; probe.font = '40px Impact, monospace';
+    if (probe.measureText('MWMWiiii').width !== a || !document.fonts?.load) paint();
+    else Promise.race([document.fonts.load('700 40px "Barlow Condensed"'), new Promise(r => setTimeout(r, 4000))]).then(paint, paint);
+  };
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, map, roughness: 0.75, metalness: 0.0 });
+  m.userData.need = need;
   m.onBeforeCompile = sh => {
     sh.uniforms.uWin = NIGHT.win;
     sh.vertexShader = sh.vertexShader
@@ -1846,7 +1855,7 @@ function* generate(S, BUD) {
           const near = bbs.filter(q => hyp2(q[0] - x, q[1] - z) < 800).map(q => q[2]);
           let k = Math.floor(hash3(x, z, 1.7) * POSTERS) % POSTERS;
           for (let j = 0; j < POSTERS && near.includes(k); j++) k = (k + 5) % POSTERS;   // (5 and 12 are coprime: the steps visit every advert)
-          put('billboard', x, gy(x, z), z, Math.atan2(fx, fz), 1, posterCol(k)); occAdd(x, z, 3.2); bbs.push([x, z, k]); n++;
+          MATS.poster.userData.need(); put('billboard', x, gy(x, z), z, Math.atan2(fx, fz), 1, posterCol(k)); occAdd(x, z, 3.2); bbs.push([x, z, k]); n++;
         }
       }
     }

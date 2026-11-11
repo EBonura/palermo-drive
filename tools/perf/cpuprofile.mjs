@@ -25,6 +25,8 @@ const SCENES = {
   qc: { name: 'Quattro Canti, standing', at: [17.5, 0, 0] },
   guadagna: { name: 'Via Guadagna, standing', at: [500, 1540, -2.31] },
   belmonte: { name: 'Belmonte Mezzagno, Corso Aldo Moro, standing', at: [2618, 7431, 0] },
+  vucciria: { name: 'Vucciria, Piazza Garraffello, standing', at: [321.4, -245.4, 0] },
+  monreale: { name: 'Monreale, the Duomo square, standing', at: [-6125, 3752, 1.25] },
   maqueda: { name: 'Via Maqueda, driving through Quattro Canti', v: 12, line: [133, 229, 102, 169, 78, 121, 63, 92, 44, 55, 30, 28, 16, 0, 0, -30, -50, -126, -69, -164, -94, -214, -115, -254, -136, -296, -179, -379, -211, -443, -240, -500, -255, -529, -277, -573, -297, -609] },
   ballaro: { name: 'Ballaro, Via Albergheria at market speed', v: 7, line: [-285, 645, -264, 630, -245, 618, -227, 608, -209, 599, -189, 588, -169, 578, -131, 558, -113, 544, -96, 533, -68, 513, -49, 500, -8, 469, 25, 489, 50, 500] },
   viale: { name: 'Viale Regione, driving fast (streaming)', v: 26, line: [-2826, -627, -2809, -818, -2791, -1000, -2775, -1176, -2751, -1449, -2728, -1514, -2724, -1579, -2712, -1692, -2705, -1763, -2692, -1890, -2685, -1958, -2677, -2022, -2670, -2089, -2656, -2212, -2646, -2298, -2637, -2387, -2624, -2506, -2614, -2570, -2602, -2635] },

@@ -275,8 +275,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       float hb = max(wpos.y - uNightK.z, 0.0);
       float wall = (1.0 - abs(wn.y)) * smoothstep(0.35, 1.8, hb);   // not on curbs and kerb faces
       vec2 cu = (wpos.xz - uLampBox.xy) * uLampBox.zw, wd = abs(wpos.xz - uLampWinK.xy);
-      vec3 lf = texture2D(uLampTex, cu).rgb, lw = texture2D(uLampWin, wpos.xz * uLampWinK.z).rgb;   // r: street lamps, g: along the streets
-      if (any(lessThan(cu, vec2(0.0))) || any(greaterThan(cu, vec2(1.0)))) lf = lw * (1.0 - smoothstep(uLampWinK.w * 0.88, uLampWinK.w, max(wd.x, wd.y)));   // beyond the centro field: the one round the car, faded out at its edge
+      vec3 lf;   // r: street lamps, g: along the streets. One lookup a pixel, in the field it lies in (neither texture has mipmaps, so a lookup inside a branch reads the same texels)
+      if (any(lessThan(cu, vec2(0.0))) || any(greaterThan(cu, vec2(1.0)))) lf = texture2D(uLampWin, wpos.xz * uLampWinK.z).rgb * (1.0 - smoothstep(uLampWinK.w * 0.88, uLampWinK.w, max(wd.x, wd.y)));   // beyond the centro field: the one round the car, faded out at its edge
+      else lf = texture2D(uLampTex, cu).rgb;
       float near = clamp(lf.r * 1.4 + lf.g * 0.9, 0.0, 1.4);
       float fl = 0.0;
       if (wall > 0.0 && wpos.x > uFloodBox.x && wpos.z > uFloodBox.y && wpos.x < uFloodBox.z && wpos.z < uFloodBox.w)   // (fl only counts on walls, and is 0 beyond every disc)
@@ -289,8 +290,17 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // The clouds' shadows (src/clouds.js) on the same materials: the sun's direct light times the share the clouds let through, next to its shadow map
   // lookup, so what already stands in a building's shade is not darkened twice, and only the sun: the sky light and the lamps stay as they are.
   // Vehicles (left out of the wash) get this part too, or a lapa would stay sunlit in a street gone grey. With ?clouds=off it is not compiled in.
-  const CLOUD_LIGHTS = () => 'float cloudK = 1.0;\nif (uCloudL.z > 0.0) cloudK = cloudSun(cameraPosition - vViewPosition * mat3(viewMatrix));\n'
-    + THREE.ShaderChunk.lights_fragment_begin.replace('getDirectionalLightInfo( directionalLight, directLight );', '$&\n\t\tdirectLight.color *= cloudK;');
+  // The lookup is only made where the sun reaches the pixel at all: not on a surface that faces away from it (lightOn, src/shading.js) and not in the full
+  // shade of a building (the shadow map's answer, taken first; the two factors still multiply in the old order, cloud then shadow). The cloud texture has
+  // no mipmaps, so a lookup inside a branch reads the same texel. A light loop this does not recognise (?shade=off, another three.js) keeps the plain form.
+  const CLOUD_AT = 'cloudSun( cameraPosition - vViewPosition * mat3( viewMatrix ) )';
+  const CLOUD_LIGHTS = () => {
+    const c = THREE.ShaderChunk.lights_fragment_begin, on = c.includes('lightOn = LIGHT_ON;') ? 'lightOn && uCloudL.z > 0.0' : 'uCloudL.z > 0.0';
+    const gated = c.replace(/directLight\.color \*= (\( [^;\n]*? \) \? getShadow\( directionalShadowMap\[ i \][^;\n]*? : 1\.0);(\s*)#endif/,
+      `{ float sunSh = $1;\n\t\tif ( ${on} && sunSh > 0.0 ) directLight.color *= ${CLOUD_AT};\n\t\tdirectLight.color *= sunSh; }$2#else\n\t\tif ( ${on} ) directLight.color *= ${CLOUD_AT};\n\t\t#endif`);
+    if (gated !== c) return gated;
+    return 'float cloudK = 1.0;\nif (uCloudL.z > 0.0) cloudK = ' + CLOUD_AT + ';\n' + c.replace('getDirectionalLightInfo( directionalLight, directLight );', '$&\n\t\tdirectLight.color *= cloudK;');
+  };
   const seenMats = new WeakSet();   // weak: streamed tiles drop their materials
   const matsOf = o => Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
   const honest = o => { for (; o; o = o.parent) if (o.userData.honestLight) return true; return false; };
@@ -322,8 +332,10 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   scene.traverse(o => { if (o.userData.honestLight) o.traverse(q => { for (const m of matsOf(q)) if (!seenMats.has(m)) { seenMats.add(m); if (m.isMeshStandardMaterial) wash(m, false); } }); });
   scene.traverse(o => { for (const m of matsOf(o)) if (m.isMeshStandardMaterial && !seenMats.has(m)) { seenMats.add(m); wash(m); } });
   const SMP = THREE.MeshStandardMaterial.prototype, baseBeforeRender = SMP.onBeforeRender;   // MeshPhysicalMaterial inherits it
+  let litMat = null;   // a standard material drawn in this scene: the way to three's light uniforms (the real lights, below)
   SMP.onBeforeRender = function (r, sc, cam, geo, obj, grp) {
     if (sc === scene) {
+      litMat = this;
       if (!seenMats.has(this)) {
         seenMats.add(this);
         const h = honest(obj);
@@ -740,11 +752,34 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   // the number of lights is part of every program (three.js keys its shaders on it), so adding them at the first dusk recompiled every material in view at
   // once (a 0.34 to 0.56 s freeze in headless Chrome on a fast Mac at 4x CPU, and about 30 programs kept twice). A light at intensity 0 skips its BRDF in
   // src/shading.js, so by day it costs a branch on the GPU and its uniforms on the CPU.
-  let rl = null, rlAcc = 0;
+  let rl = null, rlAcc = 0, holdLights = params.get('lighthold') !== 'off';   // ?lighthold=off: the dark lights' uniforms follow the camera as three.js has them (for comparing)
   if (st.quality !== 'low') {
     const pts = [0, 1].map(() => { const l = new THREE.PointLight('#ff9a3c', 0, 38, 1.5); l.castShadow = false; scene.add(l); return { l, tx: 0, ty: 0, tz: 0, k: 0 }; });
     const spot = new THREE.SpotLight('#fff0cf', 0, 42, 0.5, 0.75, 1.5); spot.castShadow = false; scene.add(spot, spot.target);
     rl = { pts, spot };
+  }
+  // Dark, they must not cost uniforms either. three.js works each light's place out in view space every frame and sends it to every program whose copy differs: with the
+  // camera moving that is a uniform3f for the two lamps' positions and the headlight's position and direction in each program of the frame, about 110 calls by day for values
+  // no pixel reads (src/shading.js skips a dark light whole). While a light is at intensity 0 the vectors three keeps for it take no new value, so every program's copy stays
+  // as it is; the frame it comes on they follow it again. The vectors are found through a drawn material's uniforms, by our lights' own range and decay (the Garage's scene
+  // has lights of its own). Private to three.js r187: where it is not as expected, nothing is held and the lights work as before.
+  const HOLD = ['setFromMatrixPosition', 'applyMatrix4', 'sub', 'transformDirection'], held = function () { return this; };
+  let rlU = null, rlTry = 0;   // rlU: { pts: [uniforms, uniforms], spot: uniforms, on: [bool, bool] }
+  function holdDark() {
+    if (!rlU) {
+      if (!litMat || ++rlTry % 30 !== 1) return;
+      const u = renderer.properties.get(litMat).uniforms, P = u && u.pointLights && u.pointLights.value, S = u && u.spotLights && u.spotLights.value;
+      const ok = (a, n, l) => Array.isArray(a) && a.length === n && a.every(q => q && q.position && q.position.isVector3 && q.distance === l.distance && q.decay === l.decay);
+      if (!ok(P, 2, rl.pts[0].l) || !ok(S, 1, rl.spot) || !S[0].direction || !S[0].direction.isVector3) return;   // (a material last drawn in the Garage, or one since disposed: another try in half a second)
+      rlU = { pts: P.slice(), spot: S[0], on: [true, true] };
+    }
+    const set = (i, vs, dark) => {
+      if (rlU.on[i] === !dark) return;
+      rlU.on[i] = !dark;
+      for (const v of vs) for (const k of HOLD) { if (dark) v[k] = held; else delete v[k]; }
+    };
+    set(0, [rlU.pts[0].position, rlU.pts[1].position], rl.pts[0].l.intensity === 0 && rl.pts[1].l.intensity === 0);
+    set(1, [rlU.spot.position, rlU.spot.direction], rl.spot.intensity === 0);
   }
   function updateRealLights(dt, lampOn, headOn) {
     if (!rl) return;
@@ -769,6 +804,11 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
       rl.spot.position.set(car.x + sn * 1.3, gy + 0.9, car.z + cs * 1.3); rl.spot.target.position.set(car.x + sn * 14, gy - 0.2, car.z + cs * 14);
       rl.spot.intensity = (car.stripped || car.kind === 'horse') ? 0 : 90 * headOn;
     }
+    if (holdLights) holdDark();
+  }
+  function setLightHold(v) {   // tests: off lets go of the vectors at once
+    holdLights = !!v;
+    if (!v && rlU) { for (const q of [rlU.pts[0].position, rlU.pts[1].position, rlU.spot.position, rlU.spot.direction]) for (const k of HOLD) delete q[k]; rlU.on[0] = rlU.on[1] = true; }
   }
 
   // ------------------------------------------------------------------------------------------ per frame
@@ -900,5 +940,5 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   } catch (e) { console.warn('[daynight] night materials not compiled ahead', e); }
 
   update(0); // first frame: everything in place before the title flyover renders
-  return { update, time, jumpTo, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow) };
+  return { update, time, jumpTo, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow), setLightHold };
 }

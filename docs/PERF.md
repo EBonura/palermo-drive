@@ -399,6 +399,171 @@ Main ms per frame, phone profile 4x, `?fixres`, before (e0c4db68) and after, two
 
 The two runs of one cell differ by up to 3.2 ms, so this table cannot show 0.3 ms either way; the in-page numbers above are the ones to read. Desktop Chrome with CPU throttling is a stand-in for a phone: it scales the JS, not the GPU or Safari's shader compiler.
 
+## The week of 4 to 8 November: what it cost, and what was taken back (11 November)
+
+The goal behind this pass: the game at 60 fps with full graphics on an older iPhone (XR or 11). The pass of 4 November ended at aa685c26; main is 45 commits on (e0ba3fd7), with real clouds and their shadows, weather, the night wash on the whole city, supermarkets, billboards, the survey buildings of the towns, tunnel portals, graffiti, parked cars on every street and traffic that overtakes. This is what those cost, measured, and the part that could be removed without changing the picture. **No iPhone was measured.** A Mac's GPU is never the limit at the phone's resolution, so GPU costs are shares of the frame at 16 times the phone's pixels (`gpucost.mjs`, k = 4), not phone milliseconds.
+
+About the noise, because it decides what the numbers can carry. The Mac was shared with other agents all day (load average 10 to 40, other WebKit and Chrome pages drawing at the same time). Counts are exact (draws, triangles, GL calls, programs, bytes). Times are not: the same build moved by 1 to 3 ms of main thread between runs, and by 5 % or more of the GPU frame between rounds. So every time below comes from alternation: two builds loaded at the same moment and run side by side, or one page that switches a feature off and on in turn. A GPU share under about 3 % is inside the noise unless the rounds agree in sign.
+
+### What the week cost
+
+**Draw calls and triangles: nothing, except the new towns.** `gpucost.mjs census --frames 40` (WebKit, mean of 40 frames, what reaches GL: the part drawing of `src/engine-lean.js` makes three's own count too high), cumulus sky, the high camera of the earlier passes, aa685c26 against e0ba3fd7. The shadow pass is included in the draws and triangles; its own column is the usual frame (the cached static map redraws a slice of 100k to 400k triangles on about one frame in ten, in both builds).
+
+| spot, hour | draws base | draws main | triangles base | triangles main | shadow pass triangles, usual frame (base / main) | programs | uniform calls a frame |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti, 12 h | 353 | 353 | 363k | 360k | 12k / 12k | 71 / 73 | 395 / 562 |
+| Quattro Canti, 22 h | 361 | 372 | 357k | 334k | 12k / 12k | 100 / 72 | 502 / 542 |
+| Via Maqueda, 12 h | 381 | 374 | 444k | 431k | 24k / 23k | 69 / 71 | 498 / 687 |
+| Via Maqueda, 22 h | 400 | 392 | 441k | 426k | 23k / 22k | 103 / 72 | 620 / 668 |
+| Ballaro, 12 h | 451 | 446 | 669k | 655k | 22k / 22k | 68 / 70 | 408 / 576 |
+| Ballaro, 22 h | 444 | 438 | 594k | 575k | 22k / 21k | 97 / 70 | 502 / 538 |
+| Vucciria, 12 h | 243 | 241 | 229k | 230k | 17k / 19k | 68 / 71 | 310 / 461 |
+| Vucciria, 22 h | 318 | 308 | 238k | 225k | 19k / 16k | 97 / 73 | 545 / 576 |
+| Viale Regione, 12 h | 488 | 492 | 808k | 803k | 21k / 22k | 67 / 70 | 327 / 500 |
+| Viale Regione, 22 h | 495 | 499 | 800k | 793k | 21k / 22k | 96 / 70 | 430 / 484 |
+| Mondello, 12 h | 484 | 474 | 716k | 713k | 18k / 18k | 67 / 68 | 324 / 496 |
+| Mondello, 22 h | 472 | 468 | 699k | 710k | 19k / 19k | 94 / 68 | 428 / 482 |
+| Monreale, Duomo, 12 h | 314 | 405 | 303k | 597k | 19k / 21k | 66 / 67 | 436 / 619 |
+| Monreale, Duomo, 22 h | 323 | 405 | 299k | 586k | 20k / 19k | 97 / 68 | 552 / 605 |
+| Via Guadagna, 12 h | 327 | 340 | 281k | 282k | 16k / 17k | 66 / 69 | 492 / 661 |
+| Via Guadagna, 22 h | 336 | 338 | 256k | 279k | 17k / 16k | 98 / 69 | 604 / 645 |
+
+Seven of the eight spots draw what they drew on 4 November, within the traffic and crowd of the moment. Monreale went from 303k to 597k triangles and from 314 to 405 draws: that is the town itself (392f5942, aeda4dc4: survey buildings, walls and fences, trees and props, the far relief). Supermarkets, billboards, graffiti, tunnel portals, the pine row and the parked cars went into the existing pools and atlases and do not show as draws. Programs: 1 to 3 more by day (clouds, rain, the billboards' poster), about 28 fewer at night since the lights stay in the scene all day.
+
+The same count from the chase camera (the game's default, and the one the GPU shares below use), noon, with the tree after this pass as the third figure:
+
+| spot, hour | draws base | draws main | draws cut | triangles base | triangles main | triangles cut | shadow pass triangles, usual frame (base / main / cut) | programs | uniform calls a frame |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti, 12 h | 334 | 342 | 326 | 327k | 329k | 337k | 12k / 12k / 13k | 71 / 73 / 73 | 389 / 548 / 452 |
+| Via Maqueda, 12 h | 370 | 370 | 384 | 417k | 408k | 414k | 25k / 25k / 25k | 69 / 71 / 71 | 493 / 681 / 569 |
+| Ballaro, 12 h | 423 | 424 | 419 | 601k | 594k | 585k | 21k / 22k / 22k | 69 / 71 / 71 | 411 / 581 / 477 |
+| Vucciria, 12 h | 339 | 329 | 381 | 344k | 335k | 425k | 17k / 18k / 19k | 70 / 74 / 73 | 350 / 521 / 443 |
+| Viale Regione, 12 h | 490 | 492 | 497 | 751k | 745k | 723k | 20k / 20k / 20k | 67 / 70 / 70 | 331 / 508 / 408 |
+| Mondello, 12 h | 490 | 470 | 485 | 684k | 699k | 688k | 19k / 19k / 19k | 67 / 67 / 68 | 324 / 496 / 404 |
+| Monreale, Duomo, 12 h | 321 | 409 | 405 | 276k | 544k | 559k | 19k / 19k / 20k | 66 / 67 / 68 | 474 / 667 / 567 |
+| Via Guadagna, 12 h | 325 | 332 | 327 | 283k | 295k | 309k | 18k / 18k / 18k | 66 / 69 / 69 | 492 / 661 / 561 |
+
+The 381 draws and 425k triangles of the last tree at Vucciria were the moment, not the tree: two more loads of each gave 333 draws on main and 330 on the last tree, 334k triangles on both, 521 and 417 uniform calls.
+
+**Uniform calls: +150 to +190 a frame by day, +30 to +55 at night.** Three sources: the two lamp lights and the headlight kept in the scene all day (their place in view space changes with the camera, so each program gets `uniform3f` calls for them every frame: about 110), the light probe that carries the sky's reflection since c9fc36a9 (a `uniform3fv` of 9 vectors on every material change, about 44; three.js does not compare arrays) and the cloud shadows' box, which moves with the wind (a `uniform4f` in each program, about 27).
+
+**Main thread: about +1.2 ms a frame at the 4x slowdown.** `cpuprofile.mjs`, phone profile (844 x 390 at DPR 3), unminified production builds of both trees loaded at the same moment, two pairs per scene and hour. The absolute numbers are high because two throttled pages share a busy machine; read the differences.
+
+| scene, hour | main thread ms a frame, base to main (each pair) | renderer.render | clouds.update | traffic |
+| --- | --- | --- | --- | --- |
+| Quattro Canti, 12 h | 13.32 to 13.93 (+0.47, +0.74) | 8.62 to 8.91 | 0.00 to 0.37 | 0.68 to 0.69 |
+| Quattro Canti, 22 h | 14.59 to 15.44 (+0.87, +0.83) | 10.10 to 10.51 | 0.00 to 0.35 | 0.80 to 0.91 |
+| Via Maqueda, 12 h | 20.75 to 22.05 (+1.07, +1.53) | 11.48 to 12.02 | 0.00 to 0.32 | 1.35 to 1.55 |
+| Via Maqueda, 22 h | 18.68 to 20.42 (+1.91, +1.57) | 10.88 to 11.59 | 0.00 to 0.37 | 1.47 to 2.08 |
+| Ballaro, 12 h | 20.42 to 20.51 (+0.83, -0.65) | 10.65 to 10.57 | 0.00 to 0.40 | 1.73 to 1.78 |
+| Ballaro, 22 h | 28.05 to 28.25 (-0.31, +0.71) | 15.29 to 14.84 | 0.00 to 0.44 | 3.12 to 3.17 |
+| Vucciria, 12 h | 11.43 to 12.00 (+0.38, +0.76) | 6.46 to 6.62 | 0.00 to 0.31 | 0.63 to 0.69 |
+| Vucciria, 22 h | 13.29 to 14.20 (+0.95, +0.87) | 7.96 to 8.31 | 0.00 to 0.36 | 0.80 to 0.97 |
+| Viale Regione (driving), 12 h | 19.45 to 20.31 (+1.90, -0.19) | 10.82 to 11.31 | 0.00 to 0.40 | 2.46 to 2.62 |
+| Viale Regione (driving), 22 h | 23.05 to 24.64 (+2.18, +0.99) | 13.11 to 13.55 | 0.00 to 0.31 | 2.92 to 3.21 |
+| Mondello, 12 h | 22.41 to 23.25 (+1.28, +0.38) | 12.98 to 13.28 | 0.00 to 0.41 | 1.25 to 1.41 |
+| Mondello, 22 h | 23.88 to 24.84 (+0.84, +1.08) | 14.91 to 15.03 | 0.00 to 0.39 | 1.89 to 1.86 |
+| Monreale, Duomo, 12 h | 18.23 to 21.74 (+2.06, +4.96) | 12.67 to 14.58 | 0.00 to 0.46 | 1.09 to 1.27 |
+| Monreale, Duomo, 22 h | 17.46 to 19.81 (+2.58, +2.13) | 12.48 to 14.09 | 0.00 to 0.36 | 1.13 to 1.24 |
+| Via Guadagna, 12 h | 16.29 to 17.57 (+1.41, +1.15) | 10.93 to 11.46 | 0.00 to 0.49 | 1.39 to 1.85 |
+| Via Guadagna, 22 h | 17.19 to 18.16 (+1.59, +0.37) | 11.75 to 12.21 | 0.00 to 0.23 | 1.00 to 1.35 |
+
+29 of 32 pairs are slower on main, by 1.16 ms on average (median 0.99). Where it goes: `clouds.update` 0.3 to 0.5 ms (new), `renderer.render` +0.2 to +0.7 ms (the uniforms above; +1.6 to +1.9 at Monreale for its 91 extra draws), traffic +0.05 to +0.6 where there is traffic (42ada03f, overtaking), the weather and the palette 0.05. Ballaro is inside the noise.
+
+**Memory: +19 MB of textures, 8 of them for nothing.** `memory.mjs --phone --at x,z --no-drive --starts 0`, after a load at each spot, MiB (aa685c26 / e0ba3fd7 / after this pass):
+
+| spot | GPU textures (base / main / cut) | GPU buffers | geometry kept in JS | 2D canvases | heap + ArrayBuffers after a collection | renderer process |
+| --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti | 255 / 273 / 265 | 75 / 74 / 74 | 47 / 48 / 48 | 16 / 16 / 16 | 118 / 122 / 123 | 262 / 281 / 274 |
+| Via Maqueda | 255 / 273 / 265 | 33 / 34 / 34 | 75 / 74 / 73 | 16 / 16 / 16 | 140 / 140 / 140 | 289 / 293 / 291 |
+| Ballaro | 262 / 281 / 273 | 72 / 70 / 70 | 44 / 49 / 53 | 16 / 16 / 16 | 115 / 124 / 135 | 255 / 286 / 285 |
+| Vucciria | 256 / 275 / 267 | 30 / 30 / 30 | 71 / 71 / 72 | 16 / 17 / 17 | 134 / 137 / 137 | 285 / 297 / 292 |
+| Viale Regione | 206 / 224 / 216 | 45 / 46 / 45 | 55 / 55 / 55 | 11 / 11 / 11 | 125 / 127 / 128 | 271 / 271 / 269 |
+| Mondello | 210 / 223 / 215 | 50 / 49 / 50 | 23 / 24 / 23 | 11 / 11 / 11 | 87 / 90 / 89 | 228 / 234 / 227 |
+| Monreale, Duomo | 206 / 231 / 223 | 24 / 32 / 32 | 51 / 68 / 62 | 11 / 11 / 11 | 117 / 141 / 132 | 250 / 287 / 274 |
+| Via Guadagna | 243 / 262 / 254 | 38 / 38 / 39 | 67 / 68 / 67 | 11 / 11 / 11 | 134 / 137 / 136 | 275 / 289 / 280 |
+
+The +19 MB of GPU textures on main: the billboards' advert atlas 8.0 (2048 x 768, uploaded at the start wherever the player is), the supermarket signs 5.3 where a store is near, three more layers in the wall array 4.0, two more facade layers 0.7, the puff atlas and the cloud shadows 0.5. Canvases did not grow (every new painted texture is freed after upload). Monreale holds 17 MB more geometry in JS and 8 MB more buffers: the town.
+
+**GPU, by feature, in WebKit.** One page, the feature switched off and on in turn, chase camera, median of the paired rounds, share of the frame at 16 times the phone's pixels. On main at noon under cumulus (10 rounds):
+
+| spot | the three dark lights hidden | cloud shadows off | the old painted sky put back |
+| --- | --- | --- | --- |
+| Quattro Canti | -12.3 % | -3.5 % | +0.7 % |
+| Via Maqueda | -13.4 % | -3.5 % | -2.7 % |
+| Ballaro | -11.0 % | -1.2 % | +1.6 % |
+| Vucciria | -13.1 % | -1.7 % | +0.4 % |
+| Viale Regione | -6.7 % | -4.0 % | +12.3 % |
+| Mondello | -7.6 % | -2.7 % | +7.3 % |
+| Monreale, Duomo | -8.7 % | -1.0 % | -6.0 % |
+| Via Guadagna | -12.7 % | +1.2 % | +4.9 % |
+
+The dearest thing by day was not a feature anyone sees: the lamp lights and the headlight, dark, cost 7 to 13 % of every noon frame, because three.js works a light out for each pixel before finding it dark. The cloud shadows are 1 to 4 %. The painted clouds the sky dome had before cost 7 to 12 % where the sky is open and nothing in the centro; the dome no longer paints them, so under cumulus the real clouds about pay for themselves.
+
+The cloud puffs, hidden against shown, and drawn as whole squares against fitted (below), on the tree after this pass, 6 rounds:
+
+| spot, sky, hour | puffs hidden | whole squares for fitted |
+| --- | --- | --- |
+| Quattro Canti, cumulus, 12 h | -3.7 % | -0.7 % |
+| Viale Regione, cumulus, 12 h | -9.5 % | +6.3 % |
+| Mondello, cumulus, 12 h | -4.6 % | +0.1 % |
+| Monreale, cumulus, 12 h | +3.9 % | -0.6 % |
+| Viale Regione, cumulus, 22 h | -9.2 % | |
+| Quattro Canti, overcast, 12 h | -3.4 % | -2.6 % |
+| Viale Regione, overcast, 12 h | -20.4 % | +8.4 % |
+| Mondello, overcast, 12 h | -13.8 % | +7.3 % |
+| Quattro Canti, rain, 12 h | -3.3 % | -1.3 % |
+| Viale Regione, rain, 12 h | -20.6 % | +7.5 % |
+| Mondello, rain, 12 h | -9.9 % | +5.2 % |
+
+Each weather against cumulus in the same page (`--v wx=...`, 45 s for the sky to settle, 6 rounds): clear +0.8 % at Quattro Canti, -5.6 % on Viale Regione, -3.8 % at Mondello; scirocco +0.7, +2.2, -3.2 %; overcast +5.4, +21.3, +20.0 %; rain +2.8, +20.5, +30.6 %. A grey sky costs a fifth of the frame where the sky is open, and it is the puffs: there are nearly twice as many clouds, they are bigger, and every one is blended over the last. In rain the streaks themselves are inside the noise (+2.4, 0.0, -4.0 %) and the wet ground is 0 to 6 % (-5.6 % at Quattro Canti, -5.9 and +1.0 on Viale Regione in two runs, -4.4 and -1.0 at Mondello).
+
+At 22:00 on main (10 rounds): the night wash off takes 7 to 15 % from the frame (Quattro Canti -14.7, Via Maqueda -11.4, Ballaro -9.8, Vucciria -15.4, Viale Regione -7.0, Mondello -12.9, Monreale -11.1, Via Guadagna -12.8), the two lamp lights and the headlight, lit, 5 to 24 % (-13.9, -20.6, -18.1, -24.2, -4.8, -7.5, -23.8, -8.9; a second run after this pass gave -15.3 at Quattro Canti, -15.1 at Ballaro and -17.2 on Viale Regione, so the low figures of the open spots are not firm).
+
+The new town was not switched off in a page; the two checkouts were loaded in turn instead (`whole`, three loads each, noon). In the Duomo square of Monreale the frame at 16 times the phone's pixels went from 6.9 to 8.3 ms a draw, about 20 % longer, every sample of main above every sample of aa685c26. About 9 points of that are the dark lights of the table above; the rest is the town and the sky, not separated.
+
+### What was taken back
+
+Each is its own commit with its numbers; the picture was compared in one page at a fixed instant, the saving switched off and on (`gpucost.mjs diff`).
+
+- **The dark lights cost nothing in the shader** (`src/shading.js`): a light whose colour is zero is skipped before its direction, distance, falloff and cone. The old path against the new one at noon, the frame longer by 7.6 % at Quattro Canti, 10.0 Via Maqueda, 6.3 Ballaro, 13.0 Vucciria, 5.8 Viale Regione, 5.7 Mondello, 5.6 Monreale, 11.0 Via Guadagna.
+- **The dark lights send no uniforms** (`src/daynight.js`): while a light is at intensity 0 the vectors three keeps for it are held still, so no program's copy changes. Uniform calls a frame, chase camera, noon: 548 to 452 at Quattro Canti, 681 to 569 Via Maqueda, 581 to 477 Ballaro, 521 to 443 Vucciria, 508 to 408 Viale Regione, 496 to 404 Mondello, 667 to 567 Monreale, 661 to 561 Via Guadagna. The time it saves could not be resolved (0.20 ms a frame, give or take 0.88, at 4x). It reaches into three.js r187 internals and does nothing where they are not as expected.
+- **The cloud shadow is looked up only where the sun reaches**: too small to measure (the whole shadow is 1 to 4 %).
+- **The night wash reads one lamp field a pixel, not two**: inside the noise as well (the old form against the new one, between 4.7 % shorter and 3.4 % longer over eight spots).
+- **Clouds out of view are not placed, sorted and uploaded** (`src/clouds.js`): `clouds.update` in a tight loop at 4x with the camera turning, 0.37 to 0.05 ms a frame on a clear day, 0.29 to 0.08 under cumulus, 0.50 to 0.30 under an overcast sky. Over 400 random views each under cumulus and rain, none of the puffs left out was inside the frustum.
+- **The advert atlas is painted when the first billboard is placed** (`src/props.js`): 8 MB of GPU memory less everywhere but near a billboard (the memory table above).
+- **A puff is an octagon round what its texture holds, cut at the cloud's base** (`src/clouds.js`, the last column of the puff table): 6 to 8 % of the frame on Viale Regione under every sky, 5 to 7 % at Mondello under a grey one, nothing in the centro.
+
+The pixel comparisons, on the final tree on top of a4a50947 (whose `diff` holds the clock between the two draws), at Quattro Canti, Ballaro, Viale Regione, Mondello and the Duomo square of Monreale at 12:00, 18:30 and 22:00, each saving put back as it was: 0 pixels differ for the dark lights, the uniform hold, the cloud shadow, the wash and the cloud cull, at every spot and hour, and the frame against itself is 0 everywhere. The fitted puffs differ on 13 to 39 of the frame's 1.3 million pixels in the centro, 187 to 320 on Viale Regione and 131 to 202 at Mondello, never by more than 1 of 255 (0 at Monreale): a puff's texture coordinate is interpolated across other triangles, which moves its last bit. In rain and under an overcast sky on Viale Regione and at Mondello the same (438 pixels at most, 0.033 %, by 1). Before the clock was held, Quattro Canti and Mondello could not be read (two captures of one instant differed by themselves); they can now. The billboard was compared by eye in pictures from the two trees.
+
+Tried and dropped: skipping a lit lamp or the headlight for a pixel beyond its range. Same picture, but at 22:00 the frame was 2.3 to 4.7 % shorter without the test than with it, so it is not in.
+
+### Not cut, and what each costs
+
+Nothing here can go without changing the picture, or it needs work beyond a perf pass.
+
+- **The puffs under a grey sky**: still 10 to 21 % of the frame where the sky is open, after the fitting. What would take it down changes the picture: fewer or smaller clouds in the grey sky (`EXTRA` in `src/clouds.js`), the clouds drawn into a smaller buffer, or one flat layer for the far ones.
+- **The night wash**: 7 to 15 % of a night frame.
+- **The lamp lights and the headlight when lit**: 5 to 24 % of a night frame.
+- **The cloud shadows**: 1 to 4 % by day. **The wet ground**: 0 to 6 % in rain.
+- **Monreale's town**: +91 draws, +290k triangles, +2 to +5 ms of main thread at 4x in the Duomo square. Merging its buildings by material at build time, or a coarser far copy, would be the way; neither was tried.
+- **Traffic that overtakes**: +0.05 to +0.6 ms at 4x where there is traffic.
+- **The light probe's and the cloud box's uniforms**: about 70 calls a frame.
+- **Textures**: the supermarket signs 5.3 MB near a store, three wall layers 4.0 MB, two facade layers 0.7 MB.
+
+### Switches for measuring (test links and `?debug` calls)
+
+`?weather=clear|cumulus|overcast|scirocco|rain` holds a state and `?clouds=off` leaves the clouds and their shadows out (both existed); `?lighthold=off` lets the dark lights' uniforms follow the camera again (new). With `?debug`: `game.weather.set(name, seconds)`, `game.clouds.setOn(v)`, `.setShadows(v)`, `.setCull(v)`, `.setTight(v)`, `game.dayNight.setLightHold(v)`. In `gpucost.mjs`: `--v clouds0,rain0,wet0,csh0,wash0,lamps0` switch a feature off, `skyfbm` puts the old painted sky back, `--v wx=rain` is another weather against the page's own, `--v darklights,cshall,wash2,cloudquad,cloudcull0,lhold0` put each saving of this pass back as it was, `--v same` is the floor of `diff`; `census --frames 40` counts what reaches GL; `whole` times a checkout's frame for comparing two. `switchcost.mjs` (new) times a switch inside one Chrome page, and with `--bench` in tight loops. `clouds0` and `rain0` first hid a mesh that its own update showed again the next frame, and measured nothing; they hold it hidden now.
+
+### Smells met on the way (not touched)
+
+- The boats (three instanced meshes, 53k triangles) are drawn whenever the coast is inside the frustum, from Monreale too.
+- `washtex0` in `tools/perf/probe.js` no longer matches the wash's shader (it reports a third of the frame, which is wrong).
+- `gpucost.mjs --spots` splits on commas, so a raw `x,z` cannot be passed; and it defaults to the high camera, which hides the sky.
+- three.js uploads array uniforms without comparing them: the light probe's 9 vectors go up on every material change.
+- `src/traffic.js`, `src/police.js` and `src/gags.js` still branch on a coarse pointer, against the one profile for every device.
+- The uniform hold of the dark lights depends on three.js r187 internals: check it at the next three.js update.
+
 ## Pipeline
 
 - `tools/build/` (own `package.json`, pinned: esbuild 0.28.2, three 0.187.0, sharp, puppeteer-core). `cd tools/build && npm ci && node build.mjs` writes `dist/`. The source tree, the import map and the python dev server are untouched.

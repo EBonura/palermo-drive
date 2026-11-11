@@ -19,12 +19,12 @@
     if (type === 'webgl2' && this.id === 'view') { attr = { ...(attr || {}), ...(P.attr || {}) }; const c = gc.call(this, type, attr); gl = c; window.__gl = c; return c; }
     return gc.call(this, type, attr);
   };
-  const counts = {}; let counting = false, beforeDraw = null;
+  const counts = {}; let counting = false, beforeDraw = null, onDraw = null;
   const GLP = WebGL2RenderingContext.prototype;
   for (const k of Object.getOwnPropertyNames(GLP)) {
     const d = Object.getOwnPropertyDescriptor(GLP, k); if (typeof d.value !== 'function') continue;
     const f = d.value, dr = k.startsWith('draw');
-    GLP[k] = function (...a) { if (counting) counts[k] = (counts[k] || 0) + 1; if (dr && beforeDraw) beforeDraw(this); return f.apply(this, a); };
+    GLP[k] = function (...a) { if (counting) counts[k] = (counts[k] || 0) + 1; if (dr && beforeDraw) beforeDraw(this); if (dr && onDraw) onDraw(k, a); return f.apply(this, a); };
   }
   // ---------- the frame loop
   const raf = window.requestAnimationFrame.bind(window);
@@ -81,6 +81,7 @@
   }
   const setMat = (pred, key, val) => { const undo = []; for (const m of mats()) if (pred(m)) { const v = m[key]; m[key] = val; m.needsUpdate = true; undo.push(() => { m[key] = v; m.needsUpdate = true; }); } return () => undo.forEach(f => f()); };
   const hide = pred => { const hid = []; S.traverse(o => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.visible && pred(o)) { o.visible = false; hid.push(o); } }); return () => hid.forEach(o => { o.visible = true; }); };
+  const hold = pred => { const hid = []; S.traverse(o => { if (o.visible && pred(o)) { Object.defineProperty(o, 'visible', { get() { return false; }, set() {}, configurable: true }); hid.push(o); } }); return () => hid.forEach(o => { delete o.visible; o.visible = true; }); };   // hide, for an object whose own update shows it again every frame
   const matOf = o => Array.isArray(o.material) ? o.material[0] : o.material;
   const VARIANTS = {
     sh0: () => { R.shadowMap.enabled = false; recompile(); return () => { R.shadowMap.enabled = true; recompile(); }; },
@@ -103,6 +104,17 @@
     lamps0: () => { const L = []; S.traverse(o => { if ((o.isPointLight || o.isSpotLight) && o.visible) { o.visible = false; L.push(o); } }); return () => L.forEach(o => { o.visible = true; }); },
     wash0: () => { let nk = null; for (const m of mats()) { const u = R.properties.get(m).uniforms; if (u && u.uNightK) { nk = u.uNightK; break; } } if (!nk) return () => {}; const v = nk.value, x0 = v.x; Object.defineProperty(v, 'x', { get() { return 0; }, set() {}, configurable: true }); return () => { delete v.x; v.x = x0; }; },   // the night wash of src/daynight.js skipped by its uniform branch
     csh0: () => { let cl = null; for (const m of mats()) { const u = R.properties.get(m).uniforms; if (u && u.uCloudL) { cl = u.uCloudL; break; } } if (!cl) return () => {}; const v = cl.value, z0 = v.z; Object.defineProperty(v, 'z', { get() { return 0; }, set() {}, configurable: true }); return () => { delete v.z; v.z = z0; }; },   // the clouds' shadows (src/clouds.js) skipped by their uniform branch
+    clouds0: () => hold(o => o.name === 'clouds'),   // the cloud puffs (src/clouds.js), their shadows left on
+    rain0: () => hold(o => o.name === 'rain'),       // the rain streaks (src/weather.js)
+    skyfbm: () => { let u = null; S.traverse(o => { const c = o.material?.uniforms?.cloudCoverage; if (c && o.material.uniforms.uWx) u = c; }); if (!u) return () => {}; const v = u.value; u.value = 0.4; return () => { u.value = v; }; },   // the Sky addon's own painted clouds back on (what the dome cost before src/clouds.js)
+    wet0: () => { let w = null; for (const m of mats()) { const u = R.properties.get(m).uniforms; if (u && u.uWet) { w = u.uWet; break; } } if (!w) return () => {}; const v = w.value; Object.defineProperty(w, 'value', { get() { return 0; }, set() {}, configurable: true }); return () => { delete w.value; w.value = v; }; },   // the wet ground of src/weather.js skipped by its uniform branch
+    cloudcull0: () => { const c = G.clouds; if (!c || !c.setCull) return () => {}; c.setCull(false); c.update(0); return () => { c.setCull(true); c.update(0); }; },   // every cloud's puffs written, not only those in view (src/clouds.js). The update in between also paints a little of the shadows' next picture: one diff in twenty or so catches the swap
+    lhold0: () => { const d = G.dayNight; if (!d || !d.setLightHold) return () => {}; d.setLightHold(false); return () => d.setLightHold(true); },   // the dark lights' uniforms sent every frame again (src/daynight.js)
+    cloudquad: () => { const c = G.clouds; if (!c || !c.setTight) return () => {}; c.setTight(false); return () => c.setTight(true); },   // every cloud puff as its whole quad, not the octagon round its lobes cut at the base (src/clouds.js)
+    // the cuts of the 11 November pass put back as they were, for measuring them and for checking that they change no pixel
+    darklights: () => patchAll('darklights', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_begin>', THREE.ShaderChunk.lights_fragment_begin).replace(/(point|spot)Light\.color != vec3\( 0\.0 \)/g, 'true'); }),   // the lamp lights and headlight worked out for every pixel while they are dark, as three.js has them (src/shading.js)
+    cshall: () => patchAll('cshall', sh => { sh.fragmentShader = sh.fragmentShader.replace(/if \( lightOn && uCloudL\.z > 0\.0 && sunSh > 0\.0 \)/, 'if ( uCloudL.z > 0.0 )'); }, m => R.properties.get(m).uniforms?.uCloudL),   // the clouds' shadow looked up on every lit pixel, also where the sun does not reach (src/daynight.js)
+    wash2: () => patchAll('wash2', sh => { sh.fragmentShader = sh.fragmentShader.replace(/vec3 lf;[^\n]*\n[^\n]*\n\s*else lf = texture2D\(uLampTex, cu\)\.rgb;/, 'vec3 lf = texture2D(uLampTex, cu).rgb, lw = texture2D(uLampWin, wpos.xz * uLampWinK.z).rgb;\n      if (any(lessThan(cu, vec2(0.0))) || any(greaterThan(cu, vec2(1.0)))) lf = lw * (1.0 - smoothstep(uLampWinK.w * 0.88, uLampWinK.w, max(wd.x, wd.y)));'); }, m => R.properties.get(m).uniforms?.uNightK),   // both lamp fields looked up on every pixel of the night wash (src/daynight.js)
     washbox: () => {   // the flood loop of the night wash only on walls inside the box round the floodlights, and each disc only within its radius (exact; what src/daynight.js does since this pass, so only for measuring the tree before it, which had uFlood as a uniform)
       let fl = null; for (const m of mats()) { const u = R.properties.get(m).uniforms; if (u && u.uFlood) { fl = u.uFlood.value; break; } } if (!fl) return () => {};
       let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const f of fl) if (f.w > 0) { x0 = Math.min(x0, f.x - f.z); z0 = Math.min(z0, f.y - f.z); x1 = Math.max(x1, f.x + f.z); z1 = Math.max(z1, f.y + f.z); }
@@ -150,9 +162,17 @@
   // categories by what draws them: material type and the program key are the most stable handle there is
   const catOf = o => { const m = matOf(o); if (!m) return '?'; const k = (m.customProgramCacheKey && m.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey ? m.customProgramCacheKey() : '') || ''; return m.type.replace('Material', '') + (k ? ':' + String(k).replace(/\s+/g, ' ').slice(0, 24) : '') + (m.transparent ? ':T' : '') + (m.alphaTest > 0 ? ':A' : ''); };
 
-  async function census() {
-    const out = {}, tot = { draws: 0, tris: 0, shadowDraws: 0, shadowTris: 0 };
+  async function census(n = 1) {   // n frames, the counts as a mean per frame (the cached shadow map of src/engine-lean.js redraws a slice of the static casters on some frames only)
+    const out = {}, tot = { draws: 0, tris: 0, shadowDraws: 0, shadowTris: 0, glDraws: 0, glTris: 0, glShadowDraws: 0, glShadowTris: 0 };
     const rbd = R.renderBufferDirect;
+    // what reaches GL: src/engine-lean.js turns a mesh sorted by part into a few draws of the runs in view, so three's own count (tris, whole meshes) is too high
+    let cur = null, curShadow = false;
+    onDraw = (k, a) => {
+      const el = k === 'drawElements' || k === 'drawElementsInstanced', n = k === 'drawRangeElements' ? a[3] : el ? a[1] : a[2], inst = k === 'drawElementsInstanced' ? a[4] : k === 'drawArraysInstanced' ? a[3] : 1;
+      const t = (a[0] === 4 ? n / 3 : a[0] === 5 || a[0] === 6 ? Math.max(0, n - 2) : 0) * inst;
+      if (curShadow) { tot.glShadowDraws++; tot.glShadowTris += t; } else { tot.glDraws++; tot.glTris += t; }
+      if (cur) { cur.glDraws++; cur.glTris += t; }
+    };
     R.renderBufferDirect = function (cam, sc, geo, mat, obj, grp) {
       const shadow = !!(mat.isMeshDepthMaterial || mat.isMeshDistanceMaterial);
       const n = geo.index ? geo.index.count : (geo.attributes.position ? geo.attributes.position.count : 0);
@@ -160,15 +180,23 @@
       const inst = obj.isInstancedMesh ? obj.count : (geo.isInstancedBufferGeometry ? geo.instanceCount : 1);
       const tris = (obj.isMesh ? c / 3 : c) * (inst === Infinity ? 1 : inst);
       const k = shadow ? 'shadow' : catOf(obj);
-      const e = out[k] || (out[k] = { draws: 0, tris: 0, names: new Set() }); e.draws++; e.tris += tris; if (e.names.size < 4) e.names.add((obj.name || obj.parent?.name || obj.type).slice(0, 24));
+      const e = out[k] || (out[k] = { draws: 0, tris: 0, glDraws: 0, glTris: 0, names: new Set() }); e.draws++; e.tris += tris; if (e.names.size < 4) e.names.add((obj.name || obj.parent?.name || obj.type).slice(0, 24));
       if (shadow) { tot.shadowDraws++; tot.shadowTris += tris; } else { tot.draws++; tot.tris += tris; }
-      return rbd.apply(this, arguments);
+      cur = e; curShadow = shadow;
+      const r = rbd.apply(this, arguments);
+      cur = null; curShadow = false;
+      return r;
     };
     for (const k in counts) delete counts[k];
-    counting = true; await frame(); counting = false;
-    R.renderBufferDirect = rbd;
-    const gls = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 24);
-    const rows = Object.entries(out).map(([k, e]) => [k, e.draws, Math.round(e.tris), [...e.names].join('/')]).sort((a, b) => b[2] - a[2]);
+    let shMin = Infinity, shMax = 0, last = 0;
+    counting = true; for (let i = 0; i < n; i++) { await frame(); const d = tot.glShadowTris - last; last = tot.glShadowTris; if (d < shMin) shMin = d; if (d > shMax) shMax = d; } counting = false;
+    R.renderBufferDirect = rbd; onDraw = null;
+    const per = v => Math.round(v / n * 10) / 10;
+    for (const k in tot) tot[k] = per(tot[k]);
+    tot.frames = n; tot.shadowTrisMin = Math.round(shMin); tot.shadowTrisMax = Math.round(shMax);
+    const gls = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 24).map(([k, v]) => [k, per(v)]);
+    const rows = Object.entries(out).map(([k, e]) => [k, per(e.draws), per(e.tris), [...e.names].join('/'), per(e.glDraws), per(e.glTris)]).sort((a, b) => b[5] - a[5]);
+    tot.programs = R.info.programs.length; tot.geometries = R.info.memory.geometries; tot.textures = R.info.memory.textures;
     return { tot, gl: Object.fromEntries(gls), rows };
   }
 
@@ -302,12 +330,13 @@
     for (const step of P.plan || []) {
       if (step.pr) { R.setPixelRatio(step.pr); for (let i = 0; i < 20; i++) await frame(); }
       if (step.rep) rep = step.rep;
-      if (step.do === 'census') post({ census: await census(), pr: R.getPixelRatio(), buf: [gl.drawingBufferWidth, gl.drawingBufferHeight] });
+      if (step.do === 'census') post({ census: await census(step.n || 1), pr: R.getPixelRatio(), buf: [gl.drawingBufferWidth, gl.drawingBufferHeight] });
       if (step.do === 'fps') { sync = !!step.sync; const t0 = performance.now(); let n = 0; while (performance.now() - t0 < (step.ms || 4000)) { await frame(); n++; } sync = true; post({ fps: +(n / ((performance.now() - t0) / 1000)).toFixed(1), pr: R.getPixelRatio() }); }
       if (step.do === 'time') post({ time: await sample(step.n || 40), pr: R.getPixelRatio(), buf: [gl.drawingBufferWidth, gl.drawingBufferHeight], tag: step.tag || '' });
       if (step.do === 'ab') {
         let on = VARIANTS[step.v];
         if (!on && step.v.startsWith('flat=')) { const pat = step.v.slice(5), re = pat[0] === '=' ? { test: c => c === pat.slice(1) } : new RegExp(pat), C = new Set(); S.traverse(o => { const m = matOf(o); if (m && re.test(catOf(o))) C.add(m); }); on = () => patchAll('flatc', sh => { sh.fragmentShader = sh.fragmentShader.replace(/void main\(\) \{/, 'void main() { gl_FragColor = vec4(0.5); return;\n'); }, m => C.has(m)); }   // flat==Name: that category exactly
+        if (!on && step.v.startsWith('wx=')) { const name = step.v.slice(3); on = () => { G.weather.set(name, 0); return () => G.weather.set(null); }; }   // another weather (src/weather.js) against the page's own: give it --warm 40 or more, the clouds' shadows and the wet ground take a second to follow
         if (!on && step.v.startsWith('cat=')) { const re = new RegExp(step.v.slice(4)); on = () => hide(o => re.test(catOf(o))); }
         if (!on) { post({ error: 'no variant ' + step.v }); continue; }
         post({ ab: await ab(step.v, on, step.rounds || 3, step.n || 16, step.warm || 10), pr: R.getPixelRatio() });
