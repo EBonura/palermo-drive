@@ -1,7 +1,7 @@
-// Runs ?bench (src/bench.js, the phone measuring itself) on this machine at the phone's window size and keeps what the phone would show: the two result pages as pictures, their text and the JSON.
+// Runs ?bench (src/bench.js, the phone measuring itself) on this machine at the phone's window size and keeps what the phone would show: the result pages as pictures, their text and the JSON.
 //   tools/release/withbrowser.sh node tools/perf/benchrun.mjs --out <dir> [--root <a built dist or a checkout>] [--cpu 4] [--q 'bs=qc&bv=sh0,flat'] [--tag name]     headless Chrome (--cpu: CDP slowdown, to see how long a slow device takes)
 //   node tools/perf/benchrun.mjs --webkit --out <dir> [--root ...] [--q ...]                                                                                          real WebKit (tools/perf/wk.swift: off screen, silent)
-// The page runs exactly what the phone runs, the reload without MSAA included; this only waits for it, flips the two pages and saves them. ?benchpr=2 is added so a display at ratio 1 still draws the phone's 1792 x 828.
+// The page runs exactly what the phone runs, its second page loads included (the one without MSAA); this only waits for it, flips through the pages and saves them. ?benchpr=2 is added so a display at ratio 1 still draws the phone's 1792 x 828.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,8 +47,7 @@ if (arg('webkit', false)) {
     (async () => {
       for (let last = '';;) { const b = window.__pdBench, t = [...(document.body ? document.body.children : [])].map(e => e.textContent).find(t => /^BENCH  /.test(t)) || ''; if (t !== last) post({ strip: last = t }); if (b && b.tap) { b.tap(); b.tap = null; } if (b && b.done) break; await sleep(500); }
       const b = window.__pdBench; post({ texts: b.text(), json: JSON.stringify(b.res) });
-      b.page(0); await sleep(800); post('snap:' + ${JSON.stringify(shot(1))}); await sleep(5000);
-      b.page(1); await sleep(800); post('snap:' + ${JSON.stringify(shot(2))}); await sleep(5000);
+      for (let n = 0; n < b.text().length; n++) { b.page(n); await sleep(800); post('snap:' + ${JSON.stringify(shot('#'))}.replace('#', n + 1)); await sleep(5000); }
       post('done');
     })();
   })();`);
@@ -64,8 +63,8 @@ if (arg('webkit', false)) {
   const b = await puppeteer.launch({ executablePath: process.env.PD_CHROME, headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
   const p = await b.newPage(), wait = ms => new Promise(r => setTimeout(r, ms));
   await p.setViewport({ width: W, height: H, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
-  p.on('pageerror', e => console.log('  [page error]', e.message.slice(0, 300)));
-  p.on('console', m => { if (m.type() === 'error') console.log('  [console]', m.text().slice(0, 300)); });
+  p.on('pageerror', e => console.log('  [page error]', String(e.stack || e.message).slice(0, 600)));
+  p.on('console', m => { if (m.type() === 'error') console.log('  [console]', m.text().slice(0, 600)); });
   if (arg('cpu', '')) { const c = await p.createCDPSession(); await c.send('Emulation.setCPUThrottlingRate', { rate: +arg('cpu') }); }
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
   let last = '';
@@ -78,7 +77,7 @@ if (arg('webkit', false)) {
   }
   const out = await p.evaluate(() => ({ texts: window.__pdBench.text(), json: JSON.stringify(window.__pdBench.res) })).catch(() => null);
   if (out) {
-    for (const n of [0, 1]) { await p.evaluate(k => window.__pdBench.page(k), n); await wait(300); await p.screenshot({ path: path.join(OUT, `${TAG}-page${n + 1}.png`) }); }
+    for (let n = 0; n < out.texts.length; n++) { await p.evaluate(k => window.__pdBench.page(k), n); await wait(300); await p.screenshot({ path: path.join(OUT, `${TAG}-page${n + 1}.png`) }); }
     keep(out.texts, out.json);
   }
   await b.close();
