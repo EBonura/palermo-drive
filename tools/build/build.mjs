@@ -45,9 +45,17 @@ const entrySrc = DATA_MODE === 'bin'
   ? `import ${JSON.stringify('pd-boot-data')};\nimport ${JSON.stringify(path.join(ROOT, 'src/main.js'))};\n`
   : `import ${JSON.stringify(path.join(ROOT, 'src/main.js'))};\n`;
 
+// The benchmark (?bench, src/bench.js) is a file of its own next to the bundle: main.js imports it only for that link, so players never download it. It has no imports, so nothing is bundled twice.
+let benchName = '';
+if (fs.existsSync(path.join(ROOT, 'src/bench.js'))) {
+  const bench = esbuild.transformSync(fs.readFileSync(path.join(ROOT, 'src/bench.js'), 'utf8'), { minify: flag('minify', 'true') !== 'false', format: 'esm', target: ['chrome90', 'safari15', 'firefox90'], charset: 'utf8' }).code;
+  benchName = `bench.${hash(Buffer.from(bench))}.js`; fs.writeFileSync(path.join(OUT, 'js', benchName), bench);
+}
+
 const plugin = {
   name: 'pd',
   setup(b) {
+    b.onResolve({ filter: /\/bench\.js$/ }, a => benchName && a.kind === 'dynamic-import' ? { path: './' + benchName, external: true } : null);
     b.onResolve({ filter: /^pd-boot-data$/ }, () => ({ path: 'pd-boot-data', namespace: 'pd' }));
     b.onLoad({ filter: /.*/, namespace: 'pd' }, () => ({
       contents: `import { loadBlobs } from ${JSON.stringify(path.join(HERE, 'runtime/loader.js'))};\n` +
