@@ -434,6 +434,7 @@ applySettings();
 weather = createWeather({ scene, renderer, camera, game }); weather.setQuality(cloudTier);
 if (window.game) window.game.weather = weather;
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world, weather });   // world: the streamed tiles' roads for the night light field
+if (window.game) window.game.dayNight = dayNight;
 clouds = createClouds({ scene, renderer, camera, sky, sun, hemi, game, SUN_DIR }); clouds.setQuality(cloudTier);   // after the day/night cycle: they read its sun, sky light and fog
 if (window.game) window.game.clouds = clouds;
 renderer.setOpaqueSort(cutoutsLast);   // solid draws, then cut-outs, then (as ever) the transparent ones; ?order=off for three's own order (src/engine-lean.js)

@@ -93,21 +93,42 @@ function puffTexture() {
   const t = new THREE.DataTexture(d, W, W, THREE.RGBAFormat);
   t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   t.needsUpdate = true;
+  // how far from a puff's middle any of the four has something in it, as a share of the half width (about 0.75: the lobes fill a little over a quarter of the square)
+  let reach = 0;
+  for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 0) { const px = ((i % S) + 0.5) / S - 0.5, py = ((j % S) + 0.5) / S - 0.5; reach = Math.max(reach, px * px + py * py); }
+  t.userData.reach = Math.sqrt(reach) * 2;
   return t;
 }
 
 // ------------------------------------------------------------------------------------------------ the shader
 const VERT = `
 attribute vec4 iA; attribute vec4 iB; attribute vec4 iC;   // x y z r | base top alpha veil | rotation variant (spare) unfaded
+uniform vec3 uTight;   // x: how far from its middle a puff's texture has anything in it (1: the quad's edge), y: pixels a metre covers 1 m away, z: 0 leaves every quad whole (tests)
 varying vec2 vUv; varying vec3 vWp; varying vec4 vB; varying vec3 vR; varying vec3 vU; varying vec3 vF; varying float vK;
 #include <fog_pars_vertex>
 void main() {
   vec3 f = iA.xyz - cameraPosition; float d = max(length(f), 1e-3); f /= d;
-  vec3 R = normalize(cross(f, abs(f.y) > 0.995 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0))), U = cross(R, f);   // faces the camera's position, not its axis: turning the view never spins a puff
+  bool steep = abs(f.y) > 0.995;
+  vec3 R = normalize(cross(f, steep ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0))), U = cross(R, f);   // faces the camera's position, not its axis: turning the view never spins a puff
   float c = cos(iC.x), s = sin(iC.x);
   vR = R * c + U * s; vU = U * c - R * s; vF = -f;
-  vec3 wp = iA.xyz + (vR * position.x + vU * position.y) * iA.w;
-  vUv = (uv + vec2(mod(iC.y, 2.0), floor(iC.y * 0.5))) * 0.5;
+  // Most of a puff's quad is empty: the lobes fill a quarter of the texture, and the flat base cuts what hangs under it. A puff that is big on the screen is drawn as
+  // the octagon round what the texture holds, upright, with its foot cut along the base: the pixels left out are those the fragment shader would have fetched and
+  // thrown away (alpha 0). The octagon is grown by as many texels as the texture's coarser copies can spread its edge at this size on the screen (twice a texel of
+  // the coarsest copy in use, from an upper bound of 1.5 times the texels a pixel covers), so nothing that shows is cut; a small far puff keeps its whole quad.
+  float rho = uTight.x + max(2.0, 384.0 * d / (iA.w * uTight.y)) / 64.0;
+  vec2 q; vec3 wp;   // q: the vertex in the puff's own turned frame, -1..1
+  if (uTight.z > 0.5 && rho <= 0.92 && iB.w > -0.5 && !steep) {
+    vec2 o = position.xy * rho;   // in the camera's upright frame: R is level, so a height on the quad is a height in the world
+    float cut = min((iB.x - 0.04 * max(iB.y - iB.x, 1.0) - iA.y) / (U.y * iA.w), rho);   // where the fragment shader's base (below) goes to nothing
+    if (o.y < cut) o = vec2(sign(o.x) * min(rho, rho * 1.41421356 - abs(cut)), cut);   // a corner under the base slides up the octagon's own edge to it
+    wp = iA.xyz + (R * o.x + U * o.y) * iA.w;
+    q = vec2(o.x * c + o.y * s, o.y * c - o.x * s);
+  } else {
+    q = sign(position.xy);
+    wp = iA.xyz + (vR * q.x + vU * q.y) * iA.w;
+  }
+  vUv = (q * 0.5 + 0.5 + vec2(mod(iC.y, 2.0), floor(iC.y * 0.5))) * 0.5;
   vWp = wp; vB = iB;
   vK = iC.w > 0.5 ? 1.0 : smoothstep(0.18, 0.7, d / iA.w);   // a puff fades as the camera nears its middle, long before its quad could cut the view
   vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
@@ -210,8 +231,9 @@ function oneCloud(rnd, A) {   // a cloud's shape and place from the stream rnd; 
     const lx = Math.cos(a) * rr * stretch, lz = Math.sin(a) * rr;
     puffs.push({ x: (lx * ca - lz * sa) * W, z: (lx * sa + lz * ca) * W, y, r, rot: rnd() * Math.PI * 2, v: (rnd() * 4) | 0, seed: rnd() });
   }
+  let reach = 0; for (const p of puffs) reach = Math.max(reach, Math.sqrt(p.x * p.x + p.z * p.z) + 1.8 * p.r);   // how far a puff's quad can stand from the cloud's axis (its corner, grown by the far LOD and the breathing), before the cloud's own scale
   return {
-    x0: A ? A[0] : (rnd() - 0.5) * TILE, z0: A ? A[1] : (rnd() - 0.5) * TILE, fixed: !!A, W, H, base0: 450 + rnd() * 170, op: 0.88 + rnd() * 0.12, puffs, keep: Math.ceil(n * 0.5),
+    x0: A ? A[0] : (rnd() - 0.5) * TILE, z0: A ? A[1] : (rnd() - 0.5) * TILE, fixed: !!A, W, H, base0: 450 + rnd() * 170, op: 0.88 + rnd() * 0.12, puffs, keep: Math.ceil(n * 0.5), reach,
     // live state: where it is, how big the land under it lets it grow (k), its base; sx, sz where the ground was last read
     x: 0, z: 0, k: 1, kT: 1, base: 0, baseT: 0, sx: 1e9, sz: 1e9, seen: false, rank: 0, a: 1, g: 1,   // rank, a, g: the weather's (above)
   };
@@ -226,9 +248,10 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
   if (skyCov) skyCov.value = 0;
 
   const clouds = makeClouds();
-  const quad = new THREE.PlaneGeometry(2, 2);
-  const geo = new THREE.InstancedBufferGeometry();
-  geo.index = quad.index; geo.setAttribute('position', quad.attributes.position); geo.setAttribute('uv', quad.attributes.uv);
+  // an octagon round the unit circle; the vertex shader fits it to the puff, or opens it out into the whole quad (each pair of corners on one of the quad's)
+  const T8 = Math.tan(Math.PI / 8), geo = new THREE.InstancedBufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([1, T8, 0, T8, 1, 0, -T8, 1, 0, -1, T8, 0, -1, -T8, 0, -T8, -1, 0, T8, -1, 0, 1, -T8, 0]), 3));
+  geo.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7]);
   const data = new Float32Array(MAXP * STRIDE), stage = new Float32Array(MAXP * STRIDE), keys = new Uint32Array(MAXP);
   const ib = new THREE.InstancedInterleavedBuffer(data, STRIDE, 1); ib.setUsage(THREE.DynamicDrawUsage);
   geo.setAttribute('iA', new THREE.InterleavedBufferAttribute(ib, 4, 0));
@@ -238,8 +261,9 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
 
   const U = {
     uMap: { value: puffTexture() }, uL: { value: new THREE.Vector3(0, 1, 0) }, uSun: { value: new THREE.Color() }, uSkyA: { value: new THREE.Color() },
-    uGndA: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uVeil: { value: 0 }, uGrey: { value: 0 },
+    uGndA: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uVeil: { value: 0 }, uGrey: { value: 0 }, uTight: { value: new THREE.Vector3(1, 700, 1) },
   };
+  U.uTight.value.x = U.uMap.value.userData.reach;
   const mat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), vertexShader: VERT, fragmentShader: FRAG,
     fog: true, transparent: true, depthWrite: false, depthTest: true,
@@ -269,7 +293,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
     c.sx = c.x; c.sz = c.z;
   }
 
-  let on = true;
+  let on = true, cull = true;
   function update(dt) {
     if (game.state !== 'pause') drift += dt;
     if (!on) return;
@@ -285,12 +309,16 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
     U.uGlow.value.copy(DOME).multiplyScalar(0.07 * night);   // the city's sodium light on the undersides
     const opK = 1 - 0.35 * night;
     U.uGrey.value = WX.cGrey;
+    renderer.getDrawingBufferSize(_sz); U.uTight.value.y = _sz.y / (2 * Math.tan(camera.fov * Math.PI / 360));
 
     // -- clouds round the camera, puffs into the staging buffer with their sort keys (far first)
     let n = 0, near = 0;
     const ei = inside * inside * (3 - 2 * inside), hidden = 2.3 / lerp(scene.fog.density, IN_FOG, ei * ei);   // past this the fog (last frame's, inside a cloud) leaves nothing of a puff to see
     const qk = MAXP <= 1024 ? 1024 : 2048, dx0 = WIND.x * drift, dz0 = WIND.y * drift;
-    keys.fill(0xffffffff);
+    // Only the clouds the camera can see are written: a cloud whose every quad lies outside a cone round the view gives no puff (the GPU would clip them all, after the
+    // CPU had placed, sorted and uploaded them). The cone is the screen's corner plus 17 degrees, more than the camera turns after this (the drunk wobble, src/drunk.js).
+    camera.getWorldDirection(_v);
+    const cone = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.sqrt(1 + camera.aspect * camera.aspect)) * 1.05 + 0.3, coneC = Math.cos(cone), coneS = Math.sin(cone), coneOn = cull && cone < 1.5;
     rr = (rr + 1) % clouds.length;
     for (let i = 0; i < clouds.length; i++) {
       const c = clouds[i];
@@ -314,6 +342,10 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
       const k = ck * (1 + 0.2 * lod);
       const cy = cam.y - c.base, cr = c.W * ck * 0.9;
       const close = dh < cr + 50 && cy > -100 && cy < H + 100;   // the camera may be in this one
+      if (coneOn && !close) {   // out of view: the sphere round the whole cloud against the cone (how far along the view, how far off it)
+        const vy = c.base + H * 0.5 - cam.y, al = x * _v.x + vy * _v.y + z * _v.z, off = Math.sqrt(Math.max(0, x * x + vy * vy + z * z - al * al));
+        if (off * coneC - al * coneS > c.reach * ck + H * 0.5) continue;
+      }
       for (let p = 0; p < np && n < MAXP - 1; p++) {
         const P = c.puffs[p], br = 1 + 0.05 * Math.sin(drift * 0.07 + P.seed * 40);   // puffs breathe a little
         const px = c.x + P.x * ck, py = c.base + P.y * H / c.H, pz = c.z + P.z * ck, r = P.r * k * br, pa = p < c.keep ? alpha : alpha * (1 - lod);
@@ -328,7 +360,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
         n++;
       }
     }
-    keys.sort();
+    keys.subarray(0, n).sort();   // (only the slots written this frame)
     if (CLOUD_SHADOWS && !shOff) shadows(night);
     first = false;
 
@@ -348,7 +380,6 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
       const F = k => 1 - Math.exp(-(k * VEIL_D) * (k * VEIL_D)), f0 = F(d0);
       U.uVeil.value = (F(f.density) - f0) / Math.max(1e-3, 1 - f0);   // the sky whitens as much as the far ground does on top of its usual haze, so no horizon line shows between them
       const o = 0;   // the veil goes first: it is the farthest thing drawn
-      camera.getWorldDirection(_v);
       const r = VEIL_D * Math.tan(camera.fov * Math.PI / 360) * Math.max(camera.aspect, 1) * 1.6;
       data[o] = cam.x + _v.x * VEIL_D; data[o + 1] = cam.y + _v.y * VEIL_D; data[o + 2] = cam.z + _v.z * VEIL_D; data[o + 3] = r;
       data[o + 4] = 0; data[o + 5] = 1; data[o + 6] = 1; data[o + 7] = -1;
@@ -365,7 +396,7 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
     mesh.visible = total > 0;
     stats.puffs = n; stats.inside = inside;
   }
-  const _v = new THREE.Vector3();
+  const _v = new THREE.Vector3(), _sz = new THREE.Vector2();
   const stats = { puffs: 0, inside: 0, pictures: 0 };
 
   // -- the shadows (above, 'the shadows on the ground'). PIC is the picture being painted (PIC.i the next cloud, -1 between pictures), SHOW the one shown.
@@ -439,6 +470,8 @@ export function createClouds({ scene, renderer, camera, sky, sun, hemi, game, SU
       return 1 - L.z * d[o] / 255 * ss(mid + 60, mid - 60, y);
     },
     setOn(v) { on = !!v; mesh.visible = on; if (skyCov) skyCov.value = on ? 0 : cov0; if (!on) CLOUD_U.uCloudL.value.z = 0; else shAll = true; },   // tests: off is the sky as it was before (same page, same tiles), shadows too
+    setCull(v) { cull = !!v; },   // tests: every cloud written, in view or not (the picture must be the same)
+    setTight(v) { U.uTight.value.z = v ? 1 : 0; },   // tests: every puff as its whole quad (the picture must be the same)
     setDrift(s) { drift = s; for (const c of clouds) c.seen = false; shAll = true; },   // tests: the same sky every time
     get drift() { return drift; },
     clouds,

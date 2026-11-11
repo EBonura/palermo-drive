@@ -1,6 +1,6 @@
 // Memory of the built game: where it goes and whether it comes back (docs/PERF.md, "Memory").
 //
-//   tools/release/withbrowser.sh node tools/perf/memory.mjs [--root dist] [--phone] [--starts 6] [--snap drive|load|starts|none] [--json out.json] [--q a=1&b=2] [--lose] [--shots dir] [--no-drive] [--alloc]
+//   tools/release/withbrowser.sh node tools/perf/memory.mjs [--root dist] [--phone] [--starts 6] [--snap drive|load|starts|none] [--json out.json] [--q a=1&b=2] [--lose] [--shots dir] [--no-drive] [--alloc] [--at x,z]
 //
 // Serves --root (a build, cd tools/build && node build.mjs; --minify=false keeps the class names readable in the heap snapshot) and opens one headless Chrome from
 // PD_CHROME, which withbrowser.sh sets (chrome-headless-shell; silent: --mute-audio, --use-angle=metal --enable-gpu). Desktop is 1280x720 at pixel ratio 2 (2048 shadows: the default tier); --phone is 844x390 at 3 with touch.
@@ -274,7 +274,7 @@ async function start(spotIndex) {
   return name;
 }
 
-const [qx, qz] = [17.5, 0];
+const [qx, qz] = String(arg('at', '17.5,0')).split(',').map(Number);   // --at x,z: the load (and the last start's comparison) somewhere else than Quattro Canti; use with --no-drive --starts 0 for a place's memory after a load
 const t0 = Date.now();
 watchPeak();
 const ALLOC = !!arg('alloc', false);   // --alloc: sampling allocation profile of the load, garbage included: who churns the heap

@@ -23,7 +23,10 @@ if (SHADE) {
     .replace(/(get(?:Point|Spot|Sun|Directional)LightInfo\( [^;]*directLight \);)/g, '$1\n\t\tlightOn = LIGHT_ON;')
     .replace(/\( directLight\.visible && receiveShadow \)/g, '( lightOn && receiveShadow )')
     .replace(/RE_Direct\( directLight,/g, 'if ( lightOn ) RE_Direct( directLight,')
-    .replace('irradiance += getLightProbeIrradiance( lightProbe, geometryNormal );', '');
+    .replace('irradiance += getLightProbeIrradiance( lightProbe, geometryNormal );', '')
+    // A dark lamp or headlight (src/daynight.js keeps its three lights in the scene all day at intensity 0, so that dusk compiles nothing) is skipped whole, before its direction,
+    // distance and falloff are worked out for the pixel: three only finds it dark after all of that. The branch is on a uniform, the same for every pixel of the frame.
+    .replace(/((point|spot)Light = \2Lights\[ i \];)([\s\S]*?RE_Direct\( directLight,[^\n]*\n)/g, '$1\n\t\tif ( $2Light.color != vec3( 0.0 ) ) {$3\t\t}\n');
   C.lights_fragment_maps = C.lights_fragment_maps
     .replace('iblIrradiance += getIBLIrradiance( geometryNormal );', `#ifdef USE_LIGHT_PROBES
 			float envY = dot( geometryNormal, viewMatrix[ 1 ].xyz );

@@ -1,6 +1,7 @@
 // What each feature costs on an Apple GPU, measured in real WebKit (a WKWebView, ANGLE on Metal: the same tile-based GPU family as an iPhone's).
-//   node tools/perf/gpucost.mjs costs [--spots qc,ballaro] [--k 4] [--v sh0,fog0,...] [--rounds 10] [--n 12] [--pr 2] [--rep 4]   # per-feature cost, base against each variant in the same page
-//   node tools/perf/gpucost.mjs census [--spots qc]                                                    # draws and triangles by material, GL calls in one frame
+//   node tools/perf/gpucost.mjs costs [--spots qc,ballaro] [--k 4] [--v sh0,fog0,...] [--rounds 10] [--n 12] [--pr 2] [--rep 4] [--warm 8]   # per-feature cost, base against each variant in the same page (--v wx=rain: another weather)
+//   node tools/perf/gpucost.mjs census [--spots qc] [--frames 30]                                      # draws and triangles by material (three's count of whole meshes and what reaches GL), GL calls, programs: one frame, or the mean of several
+//   node tools/perf/gpucost.mjs whole [--spots qc] [--k 4] [--n 60] [--root dir]                         # the whole frame at the raised pixel ratio (three samples) and at the phone's: for comparing two checkouts, page by page in turn
 //   node tools/perf/gpucost.mjs scan [--spots qc]                                                      # frame time against pixel ratio: what follows the pixels and what does not
 //   node tools/perf/gpucost.mjs aa [--spots qc] [--k 4] [--pairs 2]                                   # MSAA on against off: separate pages (a context attribute), alternated
 //   node tools/perf/gpucost.mjs shots --out <dir> [--spots qc] [--times 12,20]                         # JPEGs at the iPhone's pixel ratio for comparing the look
@@ -30,7 +31,7 @@ const ll = (lat, lon) => [((lon - LON0) * KX).toFixed(1), (-(lat - LAT0) * KZ).t
 const SPOTS = {
   qc: '17.5,0,0', ballaro: '24.9,488.6,-2.01', viaroma: ll(38.1183, 13.3632), regione: ll(38.090479, 13.343314), mondello: '-3033.1,-10177.4,-1.07',
   guadagna: '500,1540,-2.31', monreale: '-6125,3752,1.25', belmonte: ll(38.0485, 13.3911),
-  pretoria: ll(38.11535, 13.3622), maqueda: ll(38.1176, 13.3601), vittorio: ll(38.1151, 13.3637), zisa: '-1758.8,-43.6,-0.14',
+  pretoria: ll(38.11535, 13.3622), maqueda: ll(38.1176, 13.3601), vittorio: ll(38.1151, 13.3637), zisa: '-1758.8,-43.6,-0.14', vucciria: ll(38.1179401, 13.3649292),
 };
 const names = String(arg('spots', 'qc')).split(',');
 const THREE_DIR = path.join(fs.realpathSync(path.join(HERE, '../build/node_modules')), 'three');
@@ -88,9 +89,10 @@ const results = {};
 try {
   for (const spot of names) {
     console.log(`${spot} (${SPOTS[spot] || spot})`);
-    if (MODE === 'census') results[spot] = await page(port, spot, [{ do: 'census', pr: PR }]);
+    if (MODE === 'census') results[spot] = await page(port, spot, [{ do: 'census', pr: PR, n: +arg('frames', 1) }]);
     if (MODE === 'scan') results[spot] = await page(port, spot, [1, 1.5, 2, 3, 4, 6, 8].map(pr => ({ do: 'time', pr, n: 40 })));
-    if (MODE === 'costs') results[spot] = await page(port, spot, [{ do: 'time', pr: PR * K, n: 30 }, ...(arg('pr', '') ? [{ pr: +arg('pr') }] : []), { rep: +arg('rep', 4) }, ...String(arg('v', DEFAULT_V)).split(',').map(v => ({ do: 'ab', v, rounds: ROUNDS, n: +arg('n', 12), warm: 8 }))]);
+    if (MODE === 'costs') results[spot] = await page(port, spot, [{ do: 'time', pr: PR * K, n: 30 }, ...(arg('pr', '') ? [{ pr: +arg('pr') }] : []), { rep: +arg('rep', 4) }, ...String(arg('v', DEFAULT_V)).split(',').map(v => ({ do: 'ab', v, rounds: ROUNDS, n: +arg('n', 12), warm: +arg('warm', 8) }))]);
+    if (MODE === 'whole') results[spot] = await page(port, spot, [{ rep: +arg('rep', 4) }, ...[0, 1, 2].map(i => ({ do: 'time', pr: PR * K, n: +arg('n', 60), tag: 'k' + K })), { rep: 1 }, { do: 'time', pr: PR, n: +arg('n', 60) * 2, tag: 'phone' }]);
     if (MODE === 'aa') {
       const r = [];
       for (let i = 0; i < +arg('pairs', 2); i++) for (const aa of [true, false]) {
@@ -128,5 +130,5 @@ try {
     }
   }
 } finally { srv.close(); }
-if (MODE === 'census') for (const [spot, m] of Object.entries(results)) { const c = m.find(o => o.census)?.census; if (!c) continue; console.log(spot, JSON.stringify(c.tot), 'GL calls', JSON.stringify(c.gl)); for (const r of c.rows.slice(0, +arg('top', 40))) console.log('  ' + String(r[0]).padEnd(44) + String(r[1]).padStart(5) + String(r[2]).padStart(10) + '  ' + r[3]); }
+if (MODE === 'census') for (const [spot, m] of Object.entries(results)) { const c = m.find(o => o.census)?.census; if (!c) continue; console.log(spot, JSON.stringify(c.tot), 'GL calls', JSON.stringify(c.gl)); console.log('  ' + 'material'.padEnd(44) + 'draws  whole tris   GL draws   GL tris'); for (const r of c.rows.slice(0, +arg('top', 40))) console.log('  ' + String(r[0]).padEnd(44) + String(r[1]).padStart(5) + String(r[2]).padStart(12) + String(r[4]).padStart(11) + String(r[5]).padStart(10) + '  ' + r[3]); }
 if (arg('json', '')) fs.writeFileSync(arg('json'), JSON.stringify(results, null, 1));
