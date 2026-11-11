@@ -27,7 +27,7 @@ import { createHills } from './hills.js';   // finer far mesh for the hill tiles
 import { GARDEN_REGION as GR } from './gardens.js';
 import { fastIndex } from './expressway.js';   // where the fast roads are: the pavements along them are shoulders
 import { initFences, buildFences, dropFences } from './fences.js';   // walls and fences
-import { initTrams, buildTram } from './trams.js';   // tram tracks, poles, platforms and the trams
+import { initTrams, buildTram, drawTrams } from './trams.js';   // tram tracks, poles, platforms and the trams
 import { initStructs, registerStructs, unregisterStructs, carve, levelY, carTick, setStructRoot, onTileFull, onTileDrop, tileCarved, cutTouches, cutPieces, inCut } from './bridges.js'; // bridges, viaducts, tunnels
 import { pitchGround, pitchDepth } from './stadium-ground.js';
 import { dumpGround, dumpSurf } from './discarica-ground.js';   // the pit and the pad of the landfill mission (src/discarica.js)
@@ -94,6 +94,12 @@ class SegGrid {
     const c = this.cell;
     for (let ix = Math.floor(x0 / c); ix <= Math.floor(x1 / c); ix++)
       for (let iz = Math.floor(z0 / c); iz <= Math.floor(z1 / c); iz++) { const a = this.m.get(ix * 100003 + iz); if (a) for (const s of a) fn(s); }
+  }
+  some(x0, z0, x1, z1, fn) {   // query that stops at the first segment fn says yes to
+    const c = this.cell;
+    for (let ix = Math.floor(x0 / c); ix <= Math.floor(x1 / c); ix++)
+      for (let iz = Math.floor(z0 / c); iz <= Math.floor(z1 / c); iz++) { const a = this.m.get(ix * 100003 + iz); if (a) for (let i = 0; i < a.length; i++) if (fn(a[i])) return true; }
+    return false;
   }
 }
 
@@ -1575,6 +1581,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       hills?.contextRestored(); farCity?.contextRestored();
     },
     update(dt, cam) {
+      drawTrams();   // first, on the ground as the physics steps of this frame saw it
       if (!M) { if (tasks.length) runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs); return; }
       const t0 = performance.now();
       const f = tele || cam.position;

@@ -14,6 +14,7 @@
 // block sequence fast; with ?debug, window.pdDanger = { add(points), set(points), state(), areas }.
 import { CELL, X0, Z0, W, H, ALPHA, NAMES, LEVELS, GRID } from './danger-data.js';
 import { T } from './lang.js';
+import { covering } from './transition.js';
 
 const Q = new URLSearchParams(location.search);
 const FORCED = Math.min(5, Math.max(0, Math.round(+Q.get('danger')) || 0)), FAST = Q.has('dangerfast'), SEED = Math.max(0, +Q.get('dangerscore') || 0);
@@ -33,8 +34,8 @@ export const dangerAt = (x, z) => FORCED || LEVELS[upl(x, z)];
 export const areaAt = (x, z) => NAMES[upl(x, z)];
 export const areaId = upl;
 
-// the screen is covered: the loading screen, the title, or a transition (src/transition.js, a .pd-tr with .on)
-export const covered = () => !!(document.getElementById('loading') || document.querySelector('.pd-tr.on') || document.documentElement.classList.contains('pd-title'));
+// the screen is covered: the loading screen, the title, or a transition (src/transition.js says so: this is asked every frame, and a selector query each time was time spent to learn the same thing)
+export const covered = () => !!(document.getElementById('loading') || covering() || document.documentElement.classList.contains('pd-title'));
 export const toast = (text, sub, neg) => dispatchEvent(new CustomEvent('pd-toast', { detail: { text, sub, neg } }));   // shown by src/event-hud.js
 
 // ---------- the rates: the one table to tune by playing ----------

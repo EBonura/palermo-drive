@@ -669,9 +669,9 @@ Object.assign(MODELS, buildPoliceModels());
     const fx = Math.sin(v.h), fz = Math.cos(v.h), rx = -fz, rz = fx;
     const reach = 6 + sp * 1.4;
     for (let i = 0; i < vs.length; i++) {
-      const o = vs[i]; if (o === v) continue;
-      const dx = o.x - v.x, dz = o.z - v.z;
+      const dx = PX[i] - v.x, dz = PZ[i] - v.z;   // where everybody is, taken once a step (stepAll): most of them are far away and their objects are never touched
       if (dx > 30 || dx < -30 || dz > 30 || dz < -30) continue;
+      const o = vs[i]; if (o === v) continue;
       const al = dx * fx + dz * fz; if (al <= 0 || al > reach + L2 + o.ty.L / 2) continue;
       const lt = dx * rx + dz * rz;
       const ofx = Math.sin(o.h), ofz = Math.cos(o.h), cj = ofx * fx + ofz * fz, sj = Math.abs(ofx * rx + ofz * rz), acj = Math.abs(cj);
@@ -915,10 +915,13 @@ Object.assign(MODELS, buildPoliceModels());
   });
 
   // ---------- step ----------
+  let PX = new Float64Array(256), PZ = new Float64Array(256);
   function stepAll(dt) {
     time += dt; sigT = signalClock.now();
     pStill = hyp2(car.vx, car.vz) < 0.5 ? pStill + dt : 0;
     buildOcc(); stepN++;
+    if (PX.length < vs.length) { PX = new Float64Array(vs.length * 2); PZ = new Float64Array(vs.length * 2); }
+    for (let i = 0; i < vs.length; i++) { PX[i] = vs[i].x; PZ[i] = vs[i].z; }   // nobody moves and nobody joins or leaves until every driver has decided (control), so one copy serves them all
     // the driver of a vehicle far away or out of view thinks at half the rate (it goes on moving on its last decision): nobody can see the difference, and this is most of the cost of the traffic
     for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (!v.fly && !(v.cop && v.cop.mode === 'direct')) { if (!v.lazy) control(v, dt); else if ((v.id + stepN) & 1) control(v, dt * 2); } }
     for (let i = 0; i < vs.length; i++) integrate(vs[i], dt);
