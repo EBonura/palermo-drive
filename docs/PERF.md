@@ -730,9 +730,89 @@ Nothing changes for players: `main.js` imports `src/bench.js` only when the addr
 
 `tools/perf/benchrun.mjs` runs the same page here, in headless Chrome or in real WebKit (`--webkit`, the off-screen `tools/perf/wk.swift`), at the phone's window size, and keeps the two pages as pictures, their text and the JSON. On the M3 Max (11 Nov 2026, the machine busy with other work, so the figures wander) the whole run takes just under four minutes in both, every spot holds 60 fps with frames finished in 6 to 16 ms, and the costs are small against the noise, which is why the phone has to do this itself. At Quattro Canti the frame agrees with `gpucost.mjs costs --k 1 --rep 1` (12.0 ms against 11.6) and the five switches the two tools share (`shpass0`, `whole`, `csh0`, `transp0`, `cutout0`) all come out under 1.5 ms in both. The benchmark's file is 34 KB (15 KB gzip) and only `?bench` fetches it; the app bundle grew by 634 bytes for the hook in `main.js` and the mesh names.
 
+## The draw path (`src/engine-lean.js`, `?draw=`, 11 November 2026)
+
+The owner's old Android phone (Mali-G72, Chrome 131) put `draw`, which is `renderer.render` with the shadow pass inside it, at 21.2 ms of the 31.2 ms the game's code takes in a frame at Quattro Canti by day (267 draws, 620k triangles) and at 25.8 of 39.2 at night (236 draws): about 80 microseconds of main thread a draw. The aim of this pass was to halve that with the picture the same to the pixel. It was not halved. What is in takes about a tenth off `renderer.render` on the throttled Mac and 6 to 8 % off the GL calls of a frame, and the rest of this section says where the remainder sits and why it does not come out of the draw path. No phone was measured after the change: the switches below are there so that the benchmark can.
+
+### Method
+
+`tools/perf/drawcpu.mjs`, in headless Chrome at the phone's window (844 x 390 at ratio 3), the main thread throttled 6 times, the lapa parked and the clock held. One page has every GL function wrapped before the game's scripts run and counts the calls of a frame by name. Another, with nothing wrapped, calls `renderer.render` over and over inside one task with the camera turned a hair each call (as it is while driving, so every uniform that follows the view goes up again) and times it. The machine was doing other agents' work the whole time, so two runs cannot be compared: on a quiet machine the unchanged build took 6.9 ms a call at Quattro Canti at noon and 7.4 at night, later runs of the same code 11 to 13. Every saving below therefore comes from one page, the switch off and on in alternating blocks of the same loop (24 pairs, the mean of the differences, plus or minus 1.96 standard errors).
+
+### What the profile showed
+
+Nothing stands out. With the three parts below in, at Quattro Canti at noon, of the time in `renderer.render`:
+
+| stage | share |
+| --- | --- |
+| three issuing the draws (`renderObjects`), of which its per-draw `setProgram` is over half | 46 % |
+| the occlusion cull of `src/engine-lean.js` (`scene.onBeforeRender`) | 24 % |
+| three walking the scene and filling its lists (`projectObject`) | 14 % |
+| the shadow pass | 8 % |
+| the props' distance cull, which also runs in `scene.onBeforeRender` | 4 % |
+| `updateMatrixWorld`, the sort | 3 %, 2 % |
+
+What reaches GL in a frame there, before: 1350 calls for 259 draws of three's, so about five a draw. 352 are draws (a mesh drawn by parts sends several), 400 uniforms, 270 `bindVertexArray`, 94 `bindTexture` and 76 `activeTexture`, 62 `useProgram`, 86 changes of render state. three already leaves out a call that would change nothing, with one exception: an array uniform (the light probe's nine vectors, a shadow matrix) is sent on every change of material whether or not it changed.
+
+The main view's 232 draws come in 89 runs of one material, on 40 programs. The first draw of a run needs all of three's work (the material's uniforms, its render state, its textures). The other 143 repeat the material of the draw before them, and for those three still asks which program, compares every render state, looks at the shadow maps' texture units and goes through the vertex array's attributes one by one, to find nothing to do.
+
+### What changed
+
+Three parts, each with its own switch, none of which changes what is drawn or in what order.
+
+- **`tree`: the occlusion test asks a tree over the rays.** A box used to be tested against every ray of the fan it spans. A binary tree over the rays, rebuilt with the fan each frame, keeps for each node the furthest first wall and the lowest slope among its rays (and the same of the last walls, and the widest view), so a box behind all of them is settled at one node; where a node cannot say, its halves are asked, down to the single ray and the test as it was. The answer is the same as asking every ray.
+- **`quick`: a draw with the material of the draw before it goes straight to GL.** The three matrices through three's own uniform cache, the vertex array three made for the mesh, the draw. It is taken only when everything three would look at is known to be as it was (same material and version, camera, scene, side, tone mapping, the same instancing, winding, vertex colour and tangent bits, `receiveShadow`, no callbacks on the mesh, no clipping planes, the geometry's attributes and index unchanged); a skinned or morphed mesh, a wireframe, a shader material that asks for its uniforms again and anything else it cannot check cheaply are left to three. The shadow map's draws go the same way with a vertex array of their own. 143 of the main view's 232 draws at Quattro Canti take it, and 12 of the shadow pass's 36.
+- **`uni`: an array uniform is not sent again while it holds the same numbers.** Vector arrays longer than one vector and 4 x 4 matrices, remembered by uniform location; a call with an offset or a transpose is passed through and forgotten.
+
+In one page, at 6x, ms of `renderer.render` a call and GL calls a frame:
+
+| spot, hour | three's draws | old path, ms | new, ms | saves, ms | GL calls | of which uniforms |
+| --- | --- | --- | --- | --- | --- | --- |
+| Quattro Canti 12:00 | 259 | 12.06 | 10.93 | 1.21 ± 0.15 (10 %) | 1350 to 1239 | 400 to 290 |
+| Quattro Canti 22:30 | 261 | 12.78 | 11.42 | 1.26 ± 0.16 (10 %) | 1478 to 1374 | 506 to 398 |
+| Viale Regione 12:00 | 370 | 14.63 | 13.44 | 1.28 ± 0.36 (9 %) | 1541 to 1446 | 350 to 254 |
+| Viale Regione 22:30 | 382 | 17.56 | 16.43 | 0.82 ± 0.54 (5 %) | 1686 to 1591 | 460 to 364 |
+| Vucciria 12:00 | 243 | 15.13 | 14.70 | 1.47 ± 1.63 | 1416 to 1309 | 505 to 398 |
+| Vucciria 22:30 | 242 | 16.01 | 14.20 | 1.59 ± 1.30 | 1519 to 1419 | 613 to 513 |
+| Mondello 12:00 | 392 | 8.50 | 5.62 | 1.79 ± 1.09 | 1553 to 1442 | 345 to 235 |
+| Mondello 22:30 | 384 | 17.03 | 15.08 | 1.40 ± 0.49 (8 %) | 1663 to 1553 | 447 to 337 |
+
+The two ms columns are medians of their blocks and the saving is the mean of the 24 paired differences, so on a noisy run they need not subtract. The old path was the dearer one in all 24 pairs at Quattro Canti, day and night, and in 14 to 22 of 24 elsewhere; the Vucciria and Mondello runs fell in a busy stretch of the machine (Mondello at noon swung between 3 and 8 ms a call by itself) and their spread says so. Nowhere did the new path come out dearer.
+
+Each part alone at Quattro Canti, noon and night: `tree` 0.57 ± 0.26 and 0.71 ± 0.28 ms, `quick` 0.82 ± 0.30 and 0.83 ± 0.25, `uni` 0.01 ± 0.39 and 0.08 ± 0.31. `uni` saves no time that this Mac can see; it is in for the 95 to 110 calls a frame it keeps from GL, each of which on Android is written into a buffer for another process. Draws, `bindVertexArray`, `useProgram`, texture and state calls are the same before and after: three was not sending redundant ones, and `quick` only saves the JavaScript that found that out.
+
+### The picture
+
+`gpucost.mjs diff --v same,draw0` draws one instant through the new path and through the old one in the same page, at a batch of random places on the roads round a spot (`--points`). At Quattro Canti, Viale Regione, Vucciria and Mondello, at 12:00, 18:30 and 22:30, 8 views each: 0 pixels differ in all 96, and the frame against itself is 0 as well. Each part alone (`tree0`, `quick0`, `uni0`) at Quattro Canti and Ballarò at 12:00 and 22:30, 6 views each: 0. `tools/release/smoke.mjs` and `tools/perf/gamecheck.mjs` pass on the build, and a lost GL context comes back with its tiles and no error (`memory.mjs --lose`): the vertex arrays and the uniforms remembered are dropped with it.
+
+### Why not half
+
+The 89 first draws of a material run are where the time is now, and they need what three does for them. Fewer of them means fewer materials in view or an order that groups them by program, and neither is exact: where two surfaces of different materials cross, the odd sample has the same depth in both and the later draw wins it, so any change of order between materials moves pixels (below). The cull is a quarter of the call and pays for itself in draws. The walk, the sort and the matrix update are a fifth together, spread over the whole scene. The idle sway moves the camera every frame even when the lapa is parked, so nothing can be kept from one frame to the next. What would take the next large piece is outside the draw path: fewer materials and fewer meshes in view from the builders (86 materials on 40 programs at Quattro Canti), so that more draws are repeats and there are fewer of them.
+
+### Tried and dropped
+
+- **The opaque list by program, then material** (solids before cut-outs kept): 62 program binds a frame towards 40. Not exact: at Quattro Canti at noon, 12 random views, 47 pixels differed in 5 of them, the largest by 46 of 255, where the frame against itself gave 0. Not in.
+- **Keeping the cull's answer while the camera is still**: it never is (the idle sway).
+- **A shorter scene walk**: three walks 256 top entries, draws 234 meshes and drops 121 with its own frustum test. Skipping that test for meshes the cull already passed would be about 1 %.
+- **Joining part runs across small gaps**: 352 GL draws towards 255 and the same picture, but it trades triangles for calls, and which is dearer is the phone's to say. Not written.
+- **One draw for the same material across tiles**: needs the builders or `WEBGL_multi_draw`, which lost meshes on an older iPhone.
+
+### Switches for measuring
+
+`?draw=off` leaves all three parts out (the path as it was), `?draw=tree,quick` keeps only the parts named. While the game runs, `game.lean.draw.tree`, `.quick` and `.uni` set to `false` turn a part off and `true` back on (the object `createLeanEngine` returns has them, so `src/bench.js` can flip them through the `lean` it is given; a part left out in the address stays out). In `gpucost.mjs`: `--v draw0` is the old path, `tree0`, `quick0` and `uni0` one part off. `drawcpu.mjs --ab all,tree,quick,uni` times them in one page.
+
+### Smells met on the way (not touched)
+
+- `quick` and `uni` wrap functions of the GL context and of the renderer and rest on how three.js r187 draws (`renderBufferDirect`, `setProgram`, the uniform cache, `WebGLShadowMap`). Check both at the next three.js update: `gpucost.mjs diff --v same,draw0` must stay at 0.
+- 73 programs are linked for one scene, and a view has 86 materials on 40 of them, sorted by material id, so the program changes 62 times a frame.
+- Texture units: of the 94 `bindTexture` of a frame at Quattro Canti (40 textures), 43 put a texture on another unit than the one it was on last. Two textures that nearly every material uses (by the look of it the shadow maps) land on units 2 to 8 depending on how many textures of its own the material has before them, since three hands out units per material in the order of its uniforms. A fixed unit for them would take those binds and their `activeTexture` away; it means reaching into three's unit allocation, so it was not tried.
+- The props' distance cull, the slice of time for their tile jobs (`pump`), `phys.flush` and `lamps.update` run inside `renderer.render` (the `scene.onBeforeRender` of `src/props.js`), so the benchmark books them under `draw`.
+- `src/engine-lean.js` keeps typed arrays and per-frame records in `userData`, which three copies as JSON on `clone()` and `toJSON()`.
+- The chase camera's idle sway redraws a parked scene from a slightly different place every frame: nothing a frame works out can be reused in the next.
+
 ## Measuring
 
 ```
+tools/release/withbrowser.sh node tools/perf/drawcpu.mjs --root <dist built with --minify=false> [--spots qc,regione] [--times 12,22.5] [--ab all,tree,quick,uni] [--profile 1]   # renderer.render in ms a call at 6x, GL calls a frame by kind, the draw path's switches off and on in one page
 node tools/build/build.mjs                                    # dist/
 node tools/build/measure.mjs --root dist --profile phone --net slow4g --cpu 4 --out /tmp/x.json
 node tools/build/measure.mjs --url https://ebonura.github.io/palermo-drive/ --profile desktop      # the live site

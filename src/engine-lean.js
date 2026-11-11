@@ -35,8 +35,17 @@ export const cutoutsLast = ORDER === 'off' ? null : (a, b) => {
   return a.materialVariant - b.materialVariant || a.z - b.z || a.id - b.id;
 };
 
+// Less main-thread work for the same draws (docs/PERF.md, "The draw path"). Test switches: ?draw=off leaves all of it out, ?draw=tree,quick keeps only the parts named;
+// game.lean.draw.quick = false turns one off while the game runs (a part left out in the address stays out).
+//   tree   the occlusion test asks a tree over the rays instead of every ray a box spans
+//   quick  a draw with the same material as the one before it goes straight to GL, past three's program and state checks
+//   uni    an array uniform is not sent again while it holds the same numbers (three compares single values only)
+const DRAW = new URLSearchParams(location.search).get('draw');
+const drawPart = n => DRAW === null || (DRAW !== 'off' && DRAW.split(',').includes(n));
+
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
   const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
+  const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni') }, hook = { quick: draw.quick, uni: draw.uni };
   const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
 
   // ---------- occluder grids, one per full detail tile, from the same solids the building generator emits ----------
@@ -272,6 +281,38 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     }
     st.steps = steps;
   }
+  // A tree over the rays, rebuilt with the fan. A node knows, of the rays under it: the furthest first wall and the lowest slope of a first wall, the same of the last (highest) walls,
+  // and the widest view. A box beyond every first wall and under the lowest of them is hidden along all those rays at once; so is one beyond every last wall and under the lowest of those,
+  // and one above or below the view along all of them. Where a node cannot say, its halves are asked, down to the single ray and the test as it was: the answer is the same as asking every ray.
+  const TN = 512, tD1 = new Float32Array(2 * TN).fill(Infinity), tS1 = new Float32Array(2 * TN).fill(-Infinity), tDL = new Float32Array(2 * TN).fill(Infinity), tSL = new Float32Array(2 * TN).fill(-Infinity);
+  const tTop = new Float32Array(2 * TN).fill(Infinity), tBot = new Float32Array(2 * TN).fill(-Infinity);
+  let useTree = false, qd = 0, qt = 0, qb = 0;
+  function buildTree() {
+    for (let e = 0, i = TN; e <= RAYS; e++, i++) {
+      const n = recN[e], base = e * REC;
+      if (n) { tD1[i] = recD[base]; tS1[i] = recS[base]; tDL[i] = recD[base + n - 1]; tSL[i] = recS[base + n - 1]; }
+      else { tD1[i] = Infinity; tS1[i] = -Infinity; tDL[i] = Infinity; tSL[i] = -Infinity; }
+      tTop[i] = sTop[e]; tBot[i] = sBot[e];
+    }
+    for (let i = TN - 1; i > 0; i--) {
+      const a = 2 * i, b = a + 1;
+      tD1[i] = tD1[a] > tD1[b] ? tD1[a] : tD1[b]; tS1[i] = tS1[a] < tS1[b] ? tS1[a] : tS1[b];
+      tDL[i] = tDL[a] > tDL[b] ? tDL[a] : tDL[b]; tSL[i] = tSL[a] < tSL[b] ? tSL[a] : tSL[b];
+      tTop[i] = tTop[a] > tTop[b] ? tTop[a] : tTop[b]; tBot[i] = tBot[a] < tBot[b] ? tBot[a] : tBot[b];
+    }
+  }
+  function hid(i) {   // is the box in qd (distance), qt and qb (slopes of its top and bottom) hidden along every ray under node i
+    const top = tTop[i];
+    if (qt < tBot[i] || qb > top) return true;
+    const t = qt < top ? qt : top;
+    if (tD1[i] <= qd && tS1[i] > t) return true;
+    if (tDL[i] <= qd && tSL[i] > t) return true;
+    if (i < TN) return hid(2 * i) && hid(2 * i + 1);
+    const e = i - TN, base = e * REC; let k = recN[e] - 1;
+    if (k < 0 || recS[base + k] <= t) return false;
+    while (k >= 0 && recD[base + k] > qd) k--;
+    return k >= 0 && recS[base + k] > t;
+  }
   // 0 visible, 1 behind the walls, 2 outside the fan
   function test(B, o) {
     const x0 = B[o], z0 = B[o + 1], x1 = B[o + 2], z1 = B[o + 3], top = B[o + 4], bot = B[o + 5];
@@ -290,6 +331,14 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     let e0 = Math.floor((lo + X) / (2 * X) * RAYS) - 1, e1 = Math.ceil((hi + X) / (2 * X) * RAYS) + 1;
     if (e0 < 0) e0 = 0; if (e1 > RAYS) e1 = RAYS;
     const y = top - camY, yb = bot - camY, fd = Math.sqrt(far), tan = y >= 0 ? y / d0 : y / fd, tanB = yb >= 0 ? yb / fd : yb / d0;
+    if (useTree) {
+      qd = d0; qt = tan; qb = tanB;
+      for (let l = e0 + TN, r = e1 + TN + 1; l < r; l >>= 1, r >>= 1) {
+        if (l & 1 && !hid(l++)) return 0;
+        if (r & 1 && !hid(--r)) return 0;
+      }
+      return 1;
+    }
     for (let e = e0; e <= e1; e++) {
       // along this ray all of it above the top of the view or below its bottom: from the high camera that is the hills and the far city, drawn for nothing
       const st = sTop[e], t = tan < st ? tan : st;
@@ -333,6 +382,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   const prevBR = scene.onBeforeRender, prevAR = scene.onAfterRender;
   scene.onBeforeRender = function (r, sc, cam, ...rest) {
     prevBR.call(this, r, sc, cam, ...rest);
+    drawReset();
     if (cam !== camera || api.bypass) return;
     const t0 = performance.now();
     if (!groups.length || structureChanged()) rebuild();
@@ -344,6 +394,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       st.grids = grids.size;
       const t2 = performance.now();
       setupFan(cam);
+      useTree = draw.tree && fanOK; if (useTree) buildTree();
       const t3 = performance.now(); st.fanT += t3 - t2;
       flat.length = 0; hiddenNow.length = 0; frameNo++; st.runTris = 0; st.runWhole = 0;
       for (let n = 0; n < always.length; n++) {
@@ -374,17 +425,17 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     }
     st.cullMs = performance.now() - t0;
   };
-  scene.onAfterRender = function (...a) { restore(); prevAR.apply(this, a); };
+  scene.onAfterRender = function (...a) { restore(); drawReset(); prevAR.apply(this, a); };
   const restore = () => { if (trueChildren.saved) { scene.children = trueChildren.saved; trueChildren.saved = null; } };
 
   // ---------- drawing only the runs in view ----------
   // Between three's own call and GL: its render of a mesh with runs picked this frame becomes a few plain draws with no state change in between, for the main view only.
-  if (on.parts) {
-    const gl0 = renderer.getContext(), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
-    let cur = null;
+  const gl0 = renderer.getContext(), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
+  const runsOf = (c, mat, ob) => { const R = ob.userData.leanRuns; return R && R.frame === frameNo && c === camera && !api.bypass && !api.wholeParts && !mat.isMeshDepthMaterial && !mat.isMeshDistanceMaterial ? R : null; };
+  let cur = null, drawReset = () => {};
+  if (on.parts && !hook.quick) {
     renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
-      const R = ob.userData.leanRuns;
-      cur = R && R.frame === frameNo && c === camera && !api.bypass && !api.wholeParts && !mat.isMeshDepthMaterial && !mat.isMeshDistanceMaterial ? R : null;
+      cur = runsOf(c, mat, ob);
       rbd.call(this, c, sc, g, mat, ob, grp);
       cur = null;
     };
@@ -393,6 +444,122 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       const R = cur, b = type === gl0.UNSIGNED_INT ? 4 : type === gl0.UNSIGNED_SHORT ? 2 : 1; cur = null;
       for (let i = 0; i < R.n; i++) de(mode, R.counts[i], type, R.firsts[i] * b);   // plain draws: WEBGL_multi_draw lost the 16-bit meshes (the ground) on an older iPhone
     };
+  }
+
+  // ---------- a draw that repeats the last one's material ----------
+  // Two draws in three of the main view use the material of the draw before them (the list is sorted by material), and so do most of the shadow map's. three still goes through all of it again:
+  // which program, every render state, the shadow maps' texture units, the vertex array's attributes one by one, and finds nothing to do. Here such a draw is the three matrices (through three's
+  // own uniform cache), the vertex array three made for the mesh, and the draw. Everything three would look at is checked first, and what cannot be checked cheaply (a skinned or morphed mesh, a wireframe, callbacks, clipping planes,
+  // a shader material that asks for its uniforms again) is left to three.
+  let contextLost = () => {};
+  if (hook.quick) {
+    const TRI = gl0.TRIANGLES, bva = gl0.bindVertexArray.bind(gl0), usp = gl0.useProgram.bind(gl0), dva = gl0.deleteVertexArray.bind(gl0), da = gl0.drawArrays.bind(gl0), dei = gl0.drawElementsInstanced.bind(gl0), dai = gl0.drawArraysInstanced.bind(gl0);
+    const info = renderer.info, props = renderer.properties, noBR = THREE.Object3D.prototype.onBeforeRender, noAR = THREE.Object3D.prototype.onAfterRender, noMBR = THREE.Material.prototype.onBeforeRender, noBS = THREE.Object3D.prototype.onBeforeShadow, noAS = THREE.Object3D.prototype.onAfterShadow;
+    let threeVao = gl0.getParameter(gl0.VERTEX_ARRAY_BINDING), glVao = threeVao, prog = gl0.getParameter(gl0.CURRENT_PROGRAM), epoch = 1, dType = -1, plain = true;
+    let runMat = null, runCam = null, runSc = null, runVer = 0, runSig = 0, runSide = 0, runRS = false, runTM = 0, runU = false, uMV, uN, uM;   // the draw three made last: its material, and what of its mesh three's choice of program and state hung on
+    gl0.bindVertexArray = v => { threeVao = glVao = v; bva(v); };
+    gl0.useProgram = p => { prog = p; runMat = null; usp(p); };
+    const srt = renderer.setRenderTarget; renderer.setRenderTarget = function (a, b, c) { runMat = null; return srt.call(this, a, b, c); };   // three starts its materials over there too
+    gl0.deleteVertexArray = v => { epoch++; if (v === glVao) glVao = null; if (v === threeVao) threeVao = null; dva(v); };   // a geometry or a program let go: every mesh asks three for its vertex array again
+    // three is not told that another vertex array is bound; the one it believes in comes back the moment it draws or touches a vertex array's state without binding one first
+    const backToThree = () => { if (glVao !== threeVao) { bva(threeVao); glVao = threeVao; } };
+    for (const name of ['enableVertexAttribArray', 'disableVertexAttribArray', 'vertexAttribPointer', 'vertexAttribIPointer', 'vertexAttribDivisor']) { const f = gl0[name].bind(gl0); gl0[name] = (a, b, c, d, e, g) => { backToThree(); f(a, b, c, d, e, g); }; }
+    const bb = gl0.bindBuffer.bind(gl0), EAB = gl0.ELEMENT_ARRAY_BUFFER; gl0.bindBuffer = (t, b) => { if (t === EAB) backToThree(); bb(t, b); };
+    gl0.drawElements = function (mode, cnt, type, off) {
+      dType = type; backToThree();
+      if (!cur) return de(mode, cnt, type, off);
+      const R = cur, b = type === gl0.UNSIGNED_INT ? 4 : type === gl0.UNSIGNED_SHORT ? 2 : 1; cur = null;
+      for (let i = 0; i < R.n; i++) de(mode, R.counts[i], type, R.firsts[i] * b);   // plain draws: WEBGL_multi_draw lost the 16-bit meshes (the ground) on an older iPhone
+    };
+    gl0.drawArrays = (m, s, n) => { dType = 0; backToThree(); da(m, s, n); };
+    gl0.drawElementsInstanced = (m, n, t, o, k) => { dType = t; backToThree(); dei(m, n, t, o, k); };
+    gl0.drawArraysInstanced = (m, s, n, k) => { dType = 0; backToThree(); dai(m, s, n, k); };
+    drawReset = () => { backToThree(); runMat = null; plain = renderer.clippingPlanes.length === 0 && !renderer.localClippingEnabled; };
+    contextLost = () => { epoch++; threeVao = glVao = null; prog = null; runMat = null; };
+    // What three's choice of program and of face winding takes from the mesh and its geometry; -1 for what is left to three.
+    const sig = (ob, g, mat) => {
+      if (ob.isMesh !== true || ob.isSkinnedMesh === true || ob.isBatchedMesh === true || g.isInstancedBufferGeometry === true) return -1;
+      const M = g.morphAttributes; if (M.position !== undefined || M.normal !== undefined || M.color !== undefined) return -1;
+      const A = g.attributes, col = A.color; let s = ob.matrixWorld.determinantAffine() < 0 ? 1 : 0;
+      if (ob.isInstancedMesh === true) { s |= 2; if (ob.instanceColor !== null) s |= 4; if (ob.morphTexture !== null) s |= 8; }
+      if (mat.vertexColors === true && !!col && col.itemSize === 4) s |= 16;
+      if (!!A.tangent && (!!mat.normalMap || mat.anisotropy > 0)) s |= 32;
+      return s;
+    };
+    // The vertex array three bound for a mesh, kept on the mesh, good while the geometry has the same attributes and the same index, uploaded (three sends a changed index up in its own draw).
+    const stale = d => { d.epoch = 0; return false; };
+    const fresh = (d, g, ob) => {
+      const ix = g.index; if (d.idx !== ix || (ix !== null && ix.version !== d.idxVer) || d.im !== ob.instanceMatrix || d.ic !== ob.instanceColor) return stale(d);
+      const A = g.attributes, ao = d.ao; let i = 0;
+      for (const k in A) if (A[k] !== ao[i++]) return stale(d);
+      return i === ao.length || stale(d);
+    };
+    const record = (ob, g, depth) => {
+      let d = depth ? ob._leanDepth : ob._leanDraw; const ix = g.index;
+      if (d === undefined) d = ob[depth ? '_leanDepth' : '_leanDraw'] = { geo: null, prog: null, vao: null, epoch: 0, idx: null, idxVer: 0, type: 0, bytes: 1, im: undefined, ic: undefined, ao: [] };   // (not in userData: three copies that as JSON)
+      else if (d.epoch === epoch && d.geo === g && d.prog === prog && d.vao === threeVao && d.type === dType) return;
+      d.geo = g; d.prog = prog; d.vao = threeVao; d.epoch = epoch; d.idx = ix; d.idxVer = ix !== null ? ix.version : 0; d.type = dType; d.bytes = dType === gl0.UNSIGNED_INT ? 4 : dType === gl0.UNSIGNED_SHORT ? 2 : 1; d.im = ob.instanceMatrix; d.ic = ob.instanceColor;
+      const A = g.attributes, ao = d.ao; let i = 0; for (const k in A) ao[i++] = A[k]; ao.length = i;
+    };
+    function quick(g, mat, ob, grp, R) {
+      const d = mat.isMeshDepthMaterial === true || mat.isMeshDistanceMaterial === true ? ob._leanDepth : ob._leanDraw;   // a mesh is drawn into the shadow map with another program, so another vertex array
+      if (d === undefined || d.geo !== g || d.prog !== prog || d.epoch !== epoch || !fresh(d, g, ob)) return false;
+      if (!runU) {
+        const cp = props.get(mat).currentProgram; if (!cp || cp.program !== prog) { runMat = null; return false; }
+        const U = cp.getUniforms().map; uMV = U.modelViewMatrix; uN = U.normalMatrix; uM = U.modelMatrix; runU = true;
+      }
+      if (uMV !== undefined) uMV.setValue(gl0, ob.modelViewMatrix);
+      if (uN !== undefined) uN.setValue(gl0, ob.normalMatrix);
+      if (uM !== undefined) uM.setValue(gl0, ob.matrixWorld);
+      const ix = g.index, dr = g.drawRange; let s = dr.start, e = dr.start + dr.count;   // the range, as three works it out
+      if (grp !== null) { if (grp.start > s) s = grp.start; if (grp.start + grp.count < e) e = grp.start + grp.count; }
+      if (ix !== null) { if (s < 0) s = 0; if (ix.count < e) e = ix.count; }
+      else { const p = g.attributes.position; if (p !== undefined && p !== null) { if (s < 0) s = 0; if (p.count < e) e = p.count; } }
+      const n = e - s; if (n < 0 || n === Infinity) return true;
+      if (glVao !== d.vao) { bva(d.vao); glVao = d.vao; }
+      if (ob.isInstancedMesh === true) {
+        const k = ob.count; if (k === 0) return true;
+        if (ix !== null) dei(TRI, n, d.type, s * d.bytes, k); else dai(TRI, s, n, k);
+        info.update(n, TRI, k);
+      } else {
+        if (ix === null) da(TRI, s, n);
+        else if (R) for (let i = 0; i < R.n; i++) de(TRI, R.counts[i], d.type, R.firsts[i] * d.bytes);
+        else de(TRI, n, d.type, s * d.bytes);
+        info.update(n, TRI, 1);
+      }
+      return true;
+    }
+    renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
+      const R = on.parts ? runsOf(c, mat, ob) : null, s = draw.quick && plain && !api.bypass ? sig(ob, g, mat) : -1;
+      if (mat === runMat && s === runSig && c === runCam && sc === runSc && mat.version === runVer && mat.side === runSide && mat.wireframe !== true && ob.receiveShadow === runRS && ob.onBeforeRender === noBR && ob.onBeforeShadow === noBS && renderer.toneMapping === runTM && quick(g, mat, ob, grp, R)) {
+        if (ob.onAfterRender !== noAR || ob.onAfterShadow !== noAS) runMat = null;
+        return;
+      }
+      cur = R; dType = -1;
+      rbd.call(this, c, sc, g, mat, ob, grp);
+      cur = null;
+      const ug = mat.uniformsGroups;
+      if (s >= 0 && ob.onAfterRender === noAR && ob.onAfterShadow === noAS && mat.onBeforeRender === noMBR && mat.wireframe !== true && mat.isNodeMaterial !== true && mat.uniformsNeedUpdate !== true && (ug === undefined || ug.length === 0)) {
+        runMat = mat; runCam = c; runSc = sc; runVer = mat.version; runSig = s; runSide = mat.side; runRS = ob.receiveShadow; runTM = renderer.toneMapping; runU = false;
+        if (dType >= 0) record(ob, g, mat.isMeshDepthMaterial === true || mat.isMeshDistanceMaterial === true);
+      } else runMat = null;
+    };
+  }
+
+  // ---------- array uniforms that have not changed ----------
+  // three keeps the last value of a single uniform and skips the upload when it is the same; arrays always go up: the nine light probe vectors and the shadow matrix of every lit material, each frame.
+  if (hook.uni) {
+    let held = new WeakMap(); const lost = contextLost; contextLost = () => { lost(); held = new WeakMap(); };
+    // Only what no other call can set: an array of more than one vector (a single one may also go up through uniform3f, which is not watched here) and a matrix.
+    const same = (loc, v, min) => {
+      if (loc === null) return false;
+      if (!draw.uni || !(v instanceof Float32Array) || v.length <= min) { held.delete(loc); return false; }
+      const n = v.length; let c = held.get(loc);
+      if (c !== undefined && c.length === n) { let i = 0; while (i < n && c[i] === v[i]) i++; if (i === n) return true; } else held.set(loc, c = new Float32Array(n));
+      c.set(v); return false;
+    };
+    for (const [name, min] of [['uniform2fv', 2], ['uniform3fv', 3], ['uniform4fv', 4]]) { const f = gl0[name].bind(gl0); gl0[name] = function (loc, v, o, n) { if (o !== undefined) { if (loc !== null) held.delete(loc); return f(loc, v, o, n); } if (!same(loc, v, min)) f(loc, v); }; }
+    const m4 = gl0.uniformMatrix4fv.bind(gl0); gl0.uniformMatrix4fv = function (loc, tr, v, o, n) { if (o !== undefined || tr) { if (loc !== null) held.delete(loc); return m4(loc, tr, v, o, n); } if (!same(loc, v, 0)) m4(loc, false, v); };
   }
 
   // ---------- the matrix walk ----------
@@ -492,12 +659,13 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   const hookShadows = () => { origRender = renderer.shadowMap.render; renderer.shadowMap.render = shadowRender; };
   hookShadows();
   // A lost GL context takes the render targets with it (phones can do this when the app goes to the background) and three comes back with a new shadow map object: hook it again, the maps start over.
-  renderer.domElement.addEventListener('webglcontextrestored', () => { hookShadows(); liveRT = staticRT = pendRT = null; sun.shadow.map = null; pendLight.shadow.map = null; size = 0; poseReady = false; job = null; staticsDirty = true; });
+  renderer.domElement.addEventListener('webglcontextrestored', () => { contextLost(); hookShadows(); liveRT = staticRT = pendRT = null; sun.shadow.map = null; pendLight.shadow.map = null; size = 0; poseReady = false; job = null; staticsDirty = true; });
 
   const api = {
     bypass: false,   // set by the bench: one render exactly as without this module (the whole scene, three's own shadow pass)
     wholeParts: false,   // set by the bench: draw every part of a mesh sorted by part
     parts: on,
+    draw,   // the draw path's switches, live: game.lean.draw.quick = false
     stats: () => ({ ...st, subs: st_.subs, subPending: subQueue.length }),
     hiddenNow,
     debug: { recN, recD, recS, grids, leaves: () => leaves, always: () => always, pose, view: () => ({ X, fanOK, camY, sTop, sBot }) },
