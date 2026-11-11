@@ -143,6 +143,38 @@ Shadows. Static casters go into a cached depth map, a sixth per frame, while the
 
 Private behaviour it relies on, so pin three and retest on every upgrade: `sm.render` is replaced, `renderer.clear` is stubbed during the shadow calls, `properties.get(rt).__webglFramebuffer` is read for the blit, and `scene.children` is swapped.
 
+## Cut-outs after the solid draws
+
+Three sorts the opaque draws by material id, so a cut-out material (`alphaTest`: its shader can discard a pixel) was drawn wherever its material happened to be created. The lapa's driver came about a third of the way down the list. The buildings' cut-out layer came after the building walls but before every street surface, garden wall, prop and landmark: at Quattro Canti 114 solid draws followed the first cut-out, on Viale Regione 198. A tile-based GPU (every iPhone) hides solid pixels behind solid ones in any order, but it has to run the shader of a pixel that may be discarded wherever nothing drawn so far is in front of it. Apple's advice is solid first, then cut-out, then blended.
+
+`cutoutsLast` in `src/engine-lean.js` is three's own comparison with one key added after `renderOrder`: solid before cut-out. `src/main.js` hands it to the renderer for every path, `?engine=off` included, and the `sort` part keeps the same key ahead of its depth sort. Nothing crosses a `renderOrder` or the line between opaque and transparent. The crowd's sprites discard as well and need nothing: at `renderOrder` 2 they were already last. `?order=off` puts three's order back, for comparing; `?order=all` moves the fence panels too (see below).
+
+What moves is the driver, the buildings' cut-out layer (4 to 8 draws) and the landmark kits' balustrades and rails: 5 to 9 of the 200 to 370 opaque draws of a frame.
+
+### The picture
+
+`node tools/perf/gpucost.mjs diff --v order0` draws the same instant in both orders in one page, with the clock held, at the iPhone's pixel ratio (1688 x 780). Pixels that differ at all:
+
+| | 12:00 | 18:30 | 22:00 |
+| --- | --- | --- | --- |
+| Quattro Canti | 0 | 0 | 0 |
+| Ballaro | 0 | 0 | 0 |
+| Viale Regione (22 cut-out draws, 13 of them fences and guard rails) | 0 | 0 | 0 |
+| Mondello | 0 | 0 | 0 |
+| Monreale, the Duomo square | 0 | 0 | 0 |
+
+The same at 30 random places on the roads round each of nine spots (those five, Belmonte, Via Guadagna, Piazza Zisa and Via Roma; `--points 30`): 0 in 270 views. The Garage (its own scene, the same renderer): 0.
+
+The fence panels are the one exception to "every cut-out last", and the reason is a pixel. With them last too, 38 pixels differed in 20 of 315 views (at most 5 of the 1.3 million in a view), all on Viale Regione, at Mondello and at Monreale, and all from one pair: a rail's panel and the wall it stands on. `src/fences.js` sinks the panel 4 cm into the cap of its wall, and on the line where the two cross the odd sample has exactly the same depth in both, so the later draw wins it. That was the wall; with the panels last it was the panel. Nobody would see it, but the rule here is no change, so the fence materials carry `userData.keepOrder` and stay where three puts them, just before the walls. Only the garden walls, a few props, the bridges and the landmarks are drawn after them, so little is given up. Any cut-out that crosses a solid drawn later in three's order can do the same; none of the others did in these views.
+
+### What it costs and what it saves
+
+- Main thread, phone profile at a 4x slowdown (`tools/perf/cpuprofile.mjs`, three alternated runs each, a very busy machine): the sort and its comparison take 0.26 ms a frame against 0.23 standing at Quattro Canti and 0.31 against 0.29 driving through Ballaro (medians; the runs spread from 0.17 to 0.39 in either order, following the load). No difference that stands out of the noise. A first version read `alphaTest` at every comparison and did cost more: it is a getter on a number, 0.2 ms a frame for the comparison alone and 1 to 1.4 MB/s of garbage in Chrome. So the answer is kept per material id.
+- Program switches in the main pass: 59 against 60 at Quattro Canti, the same at the other four spots (53 to 58). One to four more texture binds.
+- GPU: `gpucost.mjs costs --k 4 --v same,order0` (WebKit, 16 times the pixels, the old order against the new alternated in one page, 40 to 60 pairs a spot at the five spots over three runs, load average 9 to 44 from other work). The old order minus the new is 0.0 % of the GPU's time as the median of the 220 pairs and -0.7 % +- 0.7 as the mean; the same order drawn twice gives +1.0 % and +2.7 % +- 1.1 over 210. In milliseconds (medians, new then old): Quattro Canti 9.0 and 9.0, Ballaro 10.7 and 11.1, Viale Regione 12.2 and 11.1, Mondello 10.4 and 10.3, Monreale 12.4 and 11.8, where the control pairs differ by 0.1 to 0.8. Nothing above the noise on this Mac, whose GPU is far bigger than a phone's.
+
+The gain, if there is one, is on a phone's GPU. `?order=off` against the default is the pair to measure there.
+
 ## Not tested, and what to watch
 
 - **A real phone.** Nothing here ran on one. CDP throttling slows JavaScript only, not the GPU process or the GPU.

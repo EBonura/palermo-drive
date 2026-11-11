@@ -41,7 +41,7 @@ import { createWeather } from './weather.js';   // the day's weather: clear, cum
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
 import { createPlayLog } from './playlog.js'; // anonymous play and performance counts to our own service, off until src/playlog-url.js has an address (src/playlog.js)
-import { createLeanEngine } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
+import { createLeanEngine, cutoutsLast } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
 
 // Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
 // (plus Noce and Zisa from Nominatim, which have no place node).
@@ -436,6 +436,7 @@ if (window.game) window.game.weather = weather;
 const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game, SUN_DIR, car, vehicle, world, weather });   // world: the streamed tiles' roads for the night light field
 clouds = createClouds({ scene, renderer, camera, sky, sun, hemi, game, SUN_DIR }); clouds.setQuality(cloudTier);   // after the day/night cycle: they read its sun, sky light and fog
 if (window.game) window.game.clouds = clouds;
+renderer.setOpaqueSort(cutoutsLast);   // solid draws, then cut-outs, then (as ever) the transparent ones; ?order=off for three's own order (src/engine-lean.js)
 if (params.get('engine') !== 'off') { const lean = createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }); if (window.game) window.game.lean = lean; }   // ?engine=off draws as three.js does on its own (for comparing)
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
 // The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title

@@ -4,7 +4,7 @@
 //   node tools/perf/gpucost.mjs scan [--spots qc]                                                      # frame time against pixel ratio: what follows the pixels and what does not
 //   node tools/perf/gpucost.mjs aa [--spots qc] [--k 4] [--pairs 2]                                   # MSAA on against off: separate pages (a context attribute), alternated
 //   node tools/perf/gpucost.mjs shots --out <dir> [--spots qc] [--times 12,20]                         # JPEGs at the iPhone's pixel ratio for comparing the look
-//   node tools/perf/gpucost.mjs diff --v gate,vogel [--spots qc] [--times 12,18.5,23] [--out dir]      # the same instant drawn with and without a variant: pixel differences
+//   node tools/perf/gpucost.mjs diff --v gate,vogel [--spots qc] [--times 12,18.5,23] [--out dir] [--points 30]   # the same instant drawn with and without a variant: pixel differences (--points: at random places on the roads round the spot)
 //   node tools/perf/gpucost.mjs waste [--spots qc] [--top 45]                                          # each object in a flat colour: triangles drawn against pixels that reach the screen
 //   node tools/perf/gpucost.mjs eval --js file [--spots qc]                                            # a snippet run in the settled page (G, R, S, THREE, gl), its result as JSON
 //   node tools/perf/gpucost.mjs partcheck [--spots qc] [--points 40]                                   # random road places: only the parts in view against every part, pixels that differ
@@ -112,9 +112,9 @@ try {
     }
     if (MODE === 'diff') {
       for (const t of String(arg('times', '12,18.5,23')).split(',')) {
-        const m = await page(port, spot, String(arg('v', 'gate')).split(',').map(v => ({ do: 'diff', v, shots: !!OUT, pr: PR })), { q: `time=${t}` });
+        const m = await page(port, spot, String(arg('v', 'gate')).split(',').map(v => ({ do: 'diff', v, shots: !!OUT, pr: PR, points: +arg('points', 0) })), { q: `time=${t}` });
         for (const o of m.filter(x => x.diff)) {
-          console.log(`  ${spot} ${t} h ${o.diff}: over 1 of 255 ${o.over1} %, over 4 ${o.over4} %, over 8 ${o.over8} %, over 32 ${o.over32} %, largest ${o.max}`);
+          console.log(`  ${spot} ${t} h ${o.diff}: ${o.pixels} pixels differ${o.views > 1 ? ` in ${o.differ} of ${o.views} views ${JSON.stringify(o.where)}` : ''}, over 1 of 255 ${o.over1} %, over 4 ${o.over4} %, over 8 ${o.over8} %, over 32 ${o.over32} %, largest ${o.max}`);
           if (OUT && o.ja) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `${spot}-${t}-${o.diff}-a.jpg`), Buffer.from(o.ja.split(',')[1], 'base64')); fs.writeFileSync(path.join(OUT, `${spot}-${t}-${o.diff}-b.jpg`), Buffer.from(o.jb.split(',')[1], 'base64')); }
         }
       }
