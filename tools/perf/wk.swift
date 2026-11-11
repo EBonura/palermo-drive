@@ -1,5 +1,5 @@
 // A bare WKWebView (real WebKit, ANGLE on Metal, this Mac's Apple GPU) for measuring: no Xcode, built by tools/perf/gpucost.mjs with swiftc.
-//   wk <url> <probe.js> <width> <height> <seconds>     every message the probe posts goes to stdout; "done" ends it, and so does the time limit
+//   wk <url> <probe.js> <width> <height> <seconds>     every message the probe posts goes to stdout; "done" ends it, and so does the time limit; "snap:<path>" saves a PNG of the page instead
 // Nothing shows and nothing plays: no Dock icon and never active, a fully transparent window far outside every display that takes no mouse, and the probe stops all
 // audio before the page runs. It refuses to run if the window would touch a display. WebKit keeps drawing because its occlusion detection and inactive scheduling are off.
 import Cocoa
@@ -8,6 +8,13 @@ import WebKit
 final class Sink: NSObject, WKScriptMessageHandler {
   func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
     let s = "\(m.body)"
+    if s.hasPrefix("snap:"), let v = m.webView {   // "snap:<path>": a PNG of the page as it stands (tools/perf/benchrun.mjs keeps the result pages of ?bench this way)
+      v.takeSnapshot(with: nil) { img, _ in
+        if let t = img?.tiffRepresentation, let r = NSBitmapImageRep(data: t), let png = r.representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: String(s.dropFirst(5)))) }
+        print("{\"snapped\":\(img != nil)}"); fflush(stdout)
+      }
+      return
+    }
     print(s); fflush(stdout)
     if s == "done" { exit(0) }
   }

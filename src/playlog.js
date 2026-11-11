@@ -5,7 +5,7 @@
 // There is no lasting id: the visit id is random for this page load, lives in this closure and is never stored. Nothing about it is saved in localStorage; the only saved thing is the player's off switch
 // (there is no off switch since 4 Nov 2026, the owner's decision). No position, route, chat phrase, neighbourhood, address or user agent is in a report.
 //
-// While PLAYLOG_URL (src/playlog-url.js) is empty nothing is sent. Never sent: automated browsers (navigator.webdriver) and the test and screenshot addresses (?p2p, ?ns=, ?fixres, ?clean, ?debug).
+// While PLAYLOG_URL (src/playlog-url.js) is empty nothing is sent. Never sent: automated browsers (navigator.webdriver) and the test and screenshot addresses (?p2p, ?ns=, ?fixres, ?clean, ?debug, ?bench).
 // A build made with --playlog=<url> (tools/build/build.mjs) is for local tests of this module: it sends from those addresses too.
 //
 //   const log = createPlayLog({ game, car, renderer, perf, getName, getPlayers, getMissionId });   // getName(): the chosen name when playing online, else ''; getPlayers(): other players drawn
@@ -30,7 +30,7 @@ function gpuFamily(renderer) {   // the maker only, never the model
 
 export function createPlayLog({ game, car, renderer, perf, getName = () => '', getPlayers = () => 0, getMissionId = () => '' }) {
   const params = new URLSearchParams(location.search);
-  const blocked = !URL_ || (!TEST && (navigator.webdriver || ['p2p', 'ns', 'fixres', 'clean', 'debug'].some(k => params.has(k))));
+  const blocked = !URL_ || (!TEST && (navigator.webdriver || ['p2p', 'ns', 'fixres', 'clean', 'debug', 'bench'].some(k => params.has(k))));
   if (blocked) return { update() {}, enabled: false };
 
   const vid = rnd();   // this page load only

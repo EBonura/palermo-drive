@@ -182,10 +182,11 @@ Object.assign(MODELS, buildPoliceModels());
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3);
     m.instanceColor.setUsage(THREE.DynamicDrawUsage);
     m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true;
-    scene.add(m); MESH[name] = m;
+    m.name = 'traffic_' + name; scene.add(m); MESH[name] = m;   // named for the measuring tools (src/bench.js hides the traffic by it)
   }
   const DECAL = makePoliceDecal(MESH.apePol, CAP); scene.add(DECAL);   // the word POLIZIA on the lapino
   const CART_DECAL = makeCarrettoDecal(MESH.carretto, CAP); scene.add(CART_DECAL);   // the painted boards of the Sicilian cart
+  DECAL.name = CART_DECAL.name = 'traffic_decal';
   const TEAM_ROW = ROWS.length; if (BUS_ROUTES.length) ROWS.push({ ref: '', to: 'ROSANERO' });   // the team bus's LED board
   // LED destination boards: one atlas row per line, picked per instance
   const SIGN_ROW = new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1);
@@ -218,6 +219,7 @@ Object.assign(MODELS, buildPoliceModels());
     const geoT = busSignGeometry(); geoT.setAttribute('row', new THREE.InstancedBufferAttribute(new Float32Array(CAP).fill(TEAM_ROW), 1));
     SIGN_T = new THREE.InstancedMesh(geoT, mat, CAP);
     SIGN_T.instanceMatrix = MESH.teamBus.instanceMatrix; SIGN_T.count = 0; SIGN_T.frustumCulled = false; scene.add(SIGN_T);
+    SIGN.name = SIGN_T.name = 'traffic_sign';
   }
   for (const t of Object.values(TYPES)) t.colObjs = t.cols.map(([h, w]) => [new THREE.Color(h), w]);
 

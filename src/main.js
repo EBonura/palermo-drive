@@ -1,6 +1,6 @@
-import './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
+import { canvasStats } from './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
 import './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
-import './shading.js';   // cheaper shader chunks, before anything compiles (src/shading.js)
+import { SHADE, CHUNKS0 } from './shading.js';   // cheaper shader chunks, before anything compiles (src/shading.js)
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { D, FLOOR, LAT0, LON0, KX, KZ, proj, HAS_NEAR, NEAR, nearH, farH, inNear, groundY,
@@ -400,7 +400,7 @@ horn = createHorn({ keys, car, getVolume: () => game.settings.volume ?? 0.8 });
 addEventListener('pd-gesture', () => { vehicle.unlockAudio?.(); horn.unlock(); });
 for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend']) addEventListener(ev, () => horn.unlock(), { passive: true });
 // Screenshot/debug links skip the title screen.
-if (['spot', 'campos', 'debug', 'play'].some(k => params.has(k))) game.state = 'play';
+if (['spot', 'campos', 'debug', 'play', 'bench'].some(k => params.has(k))) game.state = 'play';
 // ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
 // Both get the world, the player and the shell state. update(dt) runs every frame (missions only while
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
@@ -437,8 +437,10 @@ const dayNight = createDayNight({ scene, renderer, sun, sky, hemi, camera, game,
 clouds = createClouds({ scene, renderer, camera, sky, sun, hemi, game, SUN_DIR }); clouds.setQuality(cloudTier);   // after the day/night cycle: they read its sun, sky light and fog
 if (window.game) window.game.clouds = clouds;
 renderer.setOpaqueSort(cutoutsLast);   // solid draws, then cut-outs, then (as ever) the transparent ones; ?order=off for three's own order (src/engine-lean.js)
-if (params.get('engine') !== 'off') { const lean = createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }); if (window.game) window.game.lean = lean; }   // ?engine=off draws as three.js does on its own (for comparing)
+const lean = params.get('engine') !== 'off' ? createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }) : null; if (lean && window.game) window.game.lean = lean;   // ?engine=off draws as three.js does on its own (for comparing)
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
+// ?bench: the device measures itself and shows the numbers (src/bench.js, docs/PERF.md). A file of its own that only this link fetches: without the parameter nothing of it loads or runs.
+if (params.has('bench')) import('./bench.js').then(m => m.runBench({ game, renderer, scene, camera, vehicle, world, lean, cutoutsLast, canvasStats, CHUNKS0: SHADE && CHUNKS0, sys: { traffic, pedestrians, world, dayNight, clouds, weather, minimap, sea, cityAudio, missions, roadwear, markets, shouts, net, drunk, suca, stadium, carretto, coords, playlog, horn, vehicle, props: propsApi } }));
 // The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title
 // never shows tiles popping in; the rest of the ring keeps building behind it. The flyover clock holds at 0 meanwhile (a moving camera
 // would bring new tiles into view), and world.hurry lets the streamer use most of each frame while the screen is covered. The wait is

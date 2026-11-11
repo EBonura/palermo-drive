@@ -565,7 +565,7 @@ export function createPedestrians(env) {
   });
   spriteMat.uniforms.mapFar.value = atlas.far; spriteMat.uniforms.mapNear.value = atlas.near; spriteMat.uniforms.uFarSz.value = farSz;   // UniformsUtils.merge clones textures: the atlases must be the very ones the uploads go into
   if (CLOUD_SHADOWS) { spriteMat.defines.CLOUD_SH = 1; Object.assign(spriteMat.uniforms, CLOUD_U); }
-  const sprites = new THREE.Mesh(mkGeo(), spriteMat); sprites.frustumCulled = false; sprites.renderOrder = 2; scene.add(sprites);
+  const sprites = new THREE.Mesh(mkGeo(), spriteMat); sprites.frustumCulled = false; sprites.renderOrder = 2; sprites.name = 'crowd'; scene.add(sprites);   // the four crowd meshes are named for the measuring tools (src/bench.js hides the crowd by it)
   sprites.onBeforeRender = r => { rendererRef = r; };
   // soft blob shadow lying on the ground, pushed away from the sun
   const shadowUniforms = { uSunDir: { value: new THREE.Vector2(0.92, -0.38) }, uT: { value: 0 } };
@@ -617,7 +617,7 @@ export function createPedestrians(env) {
       }`,
   });
   if (CLOUD_SHADOWS) { shadowMat.defines.CLOUD_SH = 1; Object.assign(shadowMat.uniforms, CLOUD_U); }
-  const shadows = new THREE.Mesh(mkGeo(), shadowMat); shadows.frustumCulled = false; shadows.renderOrder = 1; scene.add(shadows);
+  const shadows = new THREE.Mesh(mkGeo(), shadowMat); shadows.frustumCulled = false; shadows.renderOrder = 1; shadows.name = 'crowd_shadows'; scene.add(shadows);
 
   // ======================================================================== simulation state
   const N = { n: 0 };
@@ -1200,8 +1200,8 @@ export function createPedestrians(env) {
     g.setAttribute('iPos', sPos); g.setAttribute('iA', sA); g.setAttribute('iB', sB);
     g.instanceCount = 0; return g;
   };
-  const sSprites = new THREE.Mesh(mkGeoS(), spriteMat); sSprites.frustumCulled = false; sSprites.renderOrder = 2; scene.add(sSprites);
-  const sShadows = new THREE.Mesh(mkGeoS(), shadowMat); sShadows.frustumCulled = false; sShadows.renderOrder = 1; scene.add(sShadows);
+  const sSprites = new THREE.Mesh(mkGeoS(), spriteMat); sSprites.frustumCulled = false; sSprites.renderOrder = 2; sSprites.name = 'crowd_scripted'; scene.add(sSprites);
+  const sShadows = new THREE.Mesh(mkGeoS(), shadowMat); sShadows.frustumCulled = false; sShadows.renderOrder = 1; sShadows.name = 'crowd_scripted_shadows'; scene.add(sShadows);
   const scripted = new Map(); let nextScriptId = 1, scriptClock = 0;
   const vIndex = v => {   // a type id picks one of its people at random (a named one, like 'amico1_giacca', has just one)
     if (typeof v === 'number') return v;
