@@ -290,6 +290,7 @@ function creditsMarkdown(md, base) {
 export function setupUI({ game, applySettings, missions, suca, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
+  if (params.get('layers') === '0') root.classList.add('pd-flat');   // test switch: the HUD's zones and the pads are not layers of their own (src/ui.css, .hz)
 
   // ---- settings: defaults from main.js, then localStorage, then validation ----
   const st = game.settings;
@@ -323,7 +324,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   const two = (key, extra = '') => `<span class="pd-in" data-k="${key}" data-two ${extra}></span>`;   // data-two: written as one line, in the language shown
   const screens = {};
-  const mk = (name, cls, html) => { const s = h('section', `pd-screen pd-s-${name} ${cls || ''}`, html, { 'data-name': name }); screens[name] = s; ui.append(s); return s; };
+  const mk = (name, cls, html) => { const s = h('section', `pd-screen pd-gone pd-s-${name} ${cls || ''}`, html, { 'data-name': name }); screens[name] = s; ui.append(s); return s; };
+  // A screen out of sight keeps its endless animations ("tap to start" pulsing, the "more below" arrow), and the browser works out their styles on every frame of the game. .pd-gone holds them still (src/ui.css):
+  // it comes when the screen has finished fading out (the end of the visibility transition of .pd-screen) and goes when the screen is shown, so the fade looks as before.
+  ui.addEventListener('transitionend', e => { const s = e.target; if (e.propertyName === 'visibility' && s.classList.contains('pd-screen')) s.classList.toggle('pd-gone', !s.classList.contains('on')); });
 
   // title
   mk('title', '', `<div class="pd-logo">${logoSVG('t')}</div>
@@ -508,7 +512,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (name === 'garage' && cur !== 'garage') garageUI.enter();
     if (cur === 'start' && name !== 'start') startMap.hide();
     cur = name;
-    for (const k in screens) screens[k].classList.toggle('on', k === name);
+    for (const k in screens) { screens[k].classList.toggle('on', k === name); if (k === name) screens[k].classList.toggle('pd-gone', false); }   // (.pd-gone comes back when it has faded out again)
     lockUntil = now() + 260;
     game.noRender = false; // the start map is opaque: main.js skips drawing the world under it
     syncState();

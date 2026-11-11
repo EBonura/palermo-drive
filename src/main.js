@@ -120,7 +120,13 @@ SPOTS.push(['Discarica di Bellolampo (la strada di servizio)', 38.1448135, 13.27
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: new URLSearchParams(location.search).get('aa') !== '0' });
+// The browser composites this canvas under the HUD every frame. An opaque canvas is laid down without blending and nothing behind it is drawn; a canvas with alpha is blended over the page's background, all of it.
+// three asks for alpha: true whatever it is given (and keeps the picture opaque with a clear alpha of 1), so the context is made here, with the attributes three would ask for but alpha, and handed to it.
+// In the address: ?ctx=old is three's own context as before, for comparing; ?ctx=desync (desynchronized), ?ctx=hp and ?ctx=lp (powerPreference high-performance, low-power) are for measuring only. docs/PERF.md
+const ctxQ = (new URLSearchParams(location.search).get('ctx') || '').split(','), antialias = new URLSearchParams(location.search).get('aa') !== '0';
+const context = ctxQ.includes('old') ? null : canvas.getContext('webgl2', { alpha: false, depth: true, stencil: false, antialias, premultipliedAlpha: true, preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: false,
+  powerPreference: ctxQ.includes('hp') ? 'high-performance' : ctxQ.includes('lp') ? 'low-power' : 'default', desynchronized: ctxQ.includes('desync') });
+const renderer = new THREE.WebGLRenderer(context ? { canvas, context, antialias } : { canvas, antialias });   // no WebGL 2: three says so itself
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;

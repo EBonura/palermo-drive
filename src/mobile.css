@@ -22,6 +22,7 @@ html.touch .tc {
   display: block; position: fixed; inset: 0; z-index: 45; pointer-events: none;   /* over the balloons (40), under the HUD zones (50) */
 }
 .tc * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tc-steer, .tc-drive { will-change: opacity; }   /* each group of pads a small layer of its own for the compositor, not one as wide as the screen between the two (src/ui.css, .hz) */
 
 /* pads: the transparent border enlarges the hit area, so neighbouring pads touch and a slide never falls in a gap */
 .tc .pad {
