@@ -476,6 +476,28 @@ if (world) world.hurry = true;
 })();
 let last = performance.now(), acc = 0, rotHeld = false;
 const STEP = 1 / 120;
+// What is drawn is the lapa between its last two physics steps, not at the last one: on a display that shows 120 frames a second the steps a frame gets come out 0, 1 or 2 by the hair the refresh
+// clock is off, so the lapa would stand still for a frame and jump the next, and the chase camera, which looks at it from behind, would pitch up and down by the jump. The physics is untouched; only
+// updateVisual and updateCamera see the blend (drawBlend(true) ... drawBlend(false)), and the true state goes back at once, so everything else (net, sea, missions, the sun) reads the steps as they were.
+// ?lerp=off draws the last step as before.
+const LERP = new URLSearchParams(location.search).get('lerp') !== 'off';
+const BLEND = ['x', 'z', 'th', 'hop', 'lift', 'pitch', 'roll', 'lean', 'steer'], prevPose = {}, curPose = {}, mixed = {};
+let blended = false;
+const savePose = () => { for (const k of BLEND) prevPose[k] = car[k]; };
+function drawBlend(on) {
+  if (on) {
+    const a = acc / STEP;
+    if (!LERP || game.state !== 'play' || !(a > 0) || prevPose.x === undefined || car.flying || Math.abs(car.x - prevPose.x) > 3 || Math.abs(car.z - prevPose.z) > 3) return;
+    const dth = Math.atan2(Math.sin(car.th - prevPose.th), Math.cos(car.th - prevPose.th));
+    if (Math.abs(dth) > 1) return;
+    const f = a > 1 ? 1 : a;
+    for (const k of BLEND) { curPose[k] = car[k]; car[k] = k === 'th' ? car.th - dth * (1 - f) : prevPose[k] + (car[k] - prevPose[k]) * f; mixed[k] = car[k]; }
+    blended = true;
+  } else if (blended) {
+    blended = false;
+    for (const k of BLEND) car[k] = curPose[k] + (car[k] - mixed[k]);   // (what the drawing changed in the pose, a knock on the pitch, stays)
+  }
+}
 // A lost GL context (phones can do this in the background): the tiles under the car are built again, and the car waits for its ground and walls (under 15 s).
 canvas.addEventListener('webglcontextrestored', () => {
   if (!world) return;
@@ -506,6 +528,7 @@ function frame(now) {
   if (mobile.rotatePrompt()) { if (game.state === 'play') { game.pause(); rotHeld = true; } } else if (rotHeld) { rotHeld = false; game.resume(); }
   if (game.state === 'play') {
     for (acc += dt; acc >= STEP; acc -= STEP) {
+      savePose();
       physics(STEP);
       const high = car.agl > 3, wet = car.wet > 0.5;   // up in the air the street cannot touch the lapa (src/vehicle-air.js); on the water there are no potholes or sand
       if (!high) { traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
@@ -533,6 +556,7 @@ function frame(now) {
   if (game.state === 'play' && !(world && world.isLand(car.x, car.z))) sea.checkPlayer?.({ car, game, vehicle, placeAt, shout: shouts.shout });
 
   dayNight.update(dt); // advances the clock (play only) and relights everything; rewrites SUN_DIR
+  drawBlend(true);
   const carPos = vehicle.updateVisual(dt);
   const sunY = car.flying ? Math.min(carPos.y, groundY(car.x, car.z) + 25) : carPos.y;   // up in the air the shadows stay on the city below (the shadow box is 320 m wide)
   sun.position.set(carPos.x, sunY, carPos.z).addScaledVector(SUN_DIR, 300);
@@ -540,7 +564,8 @@ function frame(now) {
 
   if (freeCam) freeCam();
   else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu
-  else updateCamera(dt);
+  else updateCamera(game.state === 'pause' ? 0 : dt);   // paused, the lapa stands still but keeps its speed: with time going on the camera's buzz (it grows with speed) shook the whole picture
+  drawBlend(false);
   if (world) world.overview = game.state === 'title';
   pedestrians.draw(camera); // the crowd's instances, for where the camera is now
   world?.update(dt, camera); // stream tiles around the camera
