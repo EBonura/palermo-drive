@@ -41,6 +41,8 @@ import { createWeather } from './weather.js';   // the day's weather: clear, cum
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
 import { createPlayLog } from './playlog.js'; // anonymous play and performance counts to our own service, off until src/playlog-url.js has an address (src/playlog.js)
+import { townAt } from './districts.js';   // (?rec names the district a stutter happened in)
+import { areaAt } from './danger.js';
 import { createLeanEngine, cutoutsLast } from './engine-lean.js'; // street-canyon culling, cached shadow map (docs/PERF-ENGINE.md); ?engine=off for comparing
 
 // Neighbourhoods for the start picker's second tab: OSM place=suburb/neighbourhood/quarter nodes inside the comune
@@ -456,6 +458,9 @@ const lean = params.get('engine') !== 'off' ? createLeanEngine({ renderer, scene
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
 // ?bench: the device measures itself and shows the numbers (src/bench.js, docs/PERF.md). A file of its own that only this link fetches: without the parameter nothing of it loads or runs.
 if (params.has('bench')) import('./bench.js').then(m => m.runBench({ game, renderer, scene, camera, vehicle, world, lean, cutoutsLast, canvasStats, roadVerts, CHUNKS0: SHADE && CHUNKS0, sys: { traffic, pedestrians, world, dayNight, clouds, weather, minimap, sea, cityAudio, missions, roadwear, markets, shouts, net, drunk, suca, stadium, carretto, coords, playlog, horn, vehicle, props: propsApi } }));
+// ?rec: the stutter recorder (src/rec.js, docs/PERF.md). Also a file of its own that only this link fetches. `rec` stays null without the parameter: the loop below then does what it always did.
+let rec = null;
+if (params.has('rec')) import('./rec.js').then(m => { rec = m.startRec({ game, renderer, camera, vehicle, world, perf, T, district: (x, z) => townAt(x, z) || areaAt(x, z) || 'Palermo', sys: { traffic, pedestrians, world, dayNight, clouds, minimap, sea, cityAudio, missions, roadwear, markets, shouts, net, drunk, suca, stadium, carretto, coords, playlog, horn, vehicle, props: propsApi } }); });
 // The loading screen stays up until everything the first view can see is built (world.visiblePending() is 0 for two frames), so the title
 // never shows tiles popping in; the rest of the ring keeps building behind it. The flyover clock holds at 0 meanwhile (a moving camera
 // would bring new tiles into view), and world.hurry lets the streamer use most of each frame while the screen is covered. The wait is
@@ -483,7 +488,12 @@ canvas.addEventListener('webglcontextrestored', () => {
   })();
 });
 renderer.setAnimationLoop(now => {
-  if (perf.frame(now)) return; // [perf pass] true: the 30 fps cap skips this refresh
+  if (rec) rec.begin(now);
+  const skip = perf.frame(now); // [perf pass] true: the 30 fps cap skips this refresh
+  if (!skip) frame(now);
+  if (rec) rec.end(skip);
+});
+function frame(now) {
   const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); const away = now - last; last = now; // never negative (headless virtual time)
   if (game.garage) { // the Garage: draw its scene and nothing else, so the street is exactly as it was when we come back (the flyover clock is held too)
     if (titleT0 >= 0) titleT0 += Math.max(0, away);
@@ -538,4 +548,4 @@ renderer.setAnimationLoop(now => {
   updateHud(dt);
   minimap.draw(dt);
   if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; drunk.render is renderer.render when sober, and while drunk the wobble of the camera plus the screen shader (src/drunk.js)
-});
+}

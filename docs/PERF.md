@@ -960,6 +960,29 @@ The canvas hands over one texture a frame in every row. Night is the parked row.
 
 **Not measured here.** `desynchronized` reads back `false` in headless Chrome and `powerPreference` changes no count (`?ctx=desync`, `?ctx=hp`, `?ctx=lp` are for a phone run; none is shipped).
 
+## Where the stutters are (`?rec`, `src/rec.js`)
+
+`?bench` says what a place costs on average; a stutter is one frame, and it happens while someone plays. `?rec` is for that. Open the game with `?rec` in the address (for the old Android phone `https://ebonura.github.io/palermo-drive/?rec`, add `&play` to skip the title), play as usual for as long as the stutters take to show, tap the red REC pill, tap Stop, then Copy JSON and paste it into the chat (or Save file, where the paste is too big for the keyboard). Nothing is sent anywhere. A tab Safari evicts and reloads keeps the last recording in localStorage: the panel then offers Copy previous. Without `?rec` the file is not fetched and the game runs as before (the production build keeps it out of the bundle, as it does `bench.js`).
+
+**The pill** stands under the map capsule at the right edge (it follows the capsule when the police line makes it taller): on a landscape phone the band between the capsule and the NOS pad, on a desktop window the corner. It shows the time and a running count of stutters, written once a second. A tap opens the panel in the middle of the screen: Stop, Continue, Copy JSON, Save file. The game keeps running behind it.
+
+**What it records**, one row per drawn frame in typed arrays used as a ring (120000 rows, about 20 minutes at 100 frames a second; nothing is allocated per frame and the page is not touched): the time between drawn frames as the player gets them; the refreshes the 30 fps cap skipped (they only count); the game's own code in that frame split by system (the wrapped calls the loop makes, the same list as `?bench`; `rest` is what `main.js` does itself: physics, camera, HUD text); new shader programs, textures and geometries; a fall of the JS heap over 1 MB between frames (Chrome only: likely a garbage collection); whether the GPU had not finished the frame before (a fence a frame, asked about without blocking, skipped where there is none); the page being hidden; a teleport; a change of the cap or tier; the world's streaming state (view tiles pending, building jobs, downloads, tiles built, from `world.peek`); the lapa's place and speed; the district; the game state. Every cap or tier change (`perf.governor`) and every state or visibility change is also an event with its time. Chrome's `long-animation-frame` entries (else `longtask`) are kept alongside, with their scripts, for the stutters to pick up.
+
+**A stutter** is a drawn frame whose interval from the previous drawn frame is at least 50 ms and over 1.8 times the median of the drawn frames in the 5 s before and after it, not counting a frame the page was hidden for. So a steady 30 fps from the cap is not one and a missed frame in it (66 ms) is. The interval is the gap before the frame showed, so what ran in it is the frame before: each stutter carries the split of that frame (`p`) and of its own (`c`). `why` gives one cause: `shader` (programs grew and the code took 30 % of the gap), a system name (the code took half of it), `outside` (the main thread was busy for 30 % of the gap with something the loop does not count: a long animation frame, or the frame starting late), `gc`, `gpu` (the fence was late) or `wait` (the main thread was idle: the browser, the GPU process or the display held the frame). The stutters are worked out when the JSON is made, from the rows, not while playing.
+
+**The JSON** (version 1; the `legend` object in it explains the short keys): game version, device (model, OS, browser, GPU, screen, ratio, cores, memory, refresh rate), the address, duration, `tiers` (every cap and tier the game ran in, with the time), `ev` (state and visibility changes), a `summary` (frames, drawn fps, median, 90th and 99th percentile interval, stutter count and per minute, the same for play alone, the causes counted, the share of frames the GPU was late on), `tl` (one entry a second for the whole session: drawn frames, longest interval, mean game ms, stutters, state), and the worst 150 stutters by interval with time since load, interval, the split of both frames, events of both, the world's streaming state, place, speed, district, state, and the long-animation-frame scripts (invoker, source file by index in `files`, function, character position in the minified bundle). About 330 bytes a stutter and 14 a second of timeline: under 65 KB for 10 minutes with all 150.
+
+**What it costs** (`tools/perf/recrun.mjs --overhead`, main thread script and task time a frame by CDP metrics, parked at Quattro Canti, alternating with and without `?rec`): see the table below.
+
+| CPU | script ms/frame, plain | script ms/frame, `?rec` | task ms/frame, plain | task ms/frame, `?rec` | runs of 20 s each |
+|---|---|---|---|---|---|
+| x1 | 2.52 | 2.33 | 2.68 | 2.48 | 3 + 3 |
+| x4 (a slow phone's order) | 7.29 | 7.68 | 7.71 | 8.16 | 4 + 4 |
+
+So the recorder costs about 0.4 ms a frame at CPU x4 (5 %), and at CPU x1 less than the run-to-run spread (0.4 ms at x1 and 1.3 at x4: the figures are no better than that). What it does each frame: about thirty wrapped calls with two clock reads each, one fence and a few typed array writes.
+
+**Testing it** (`tools/perf/recrun.mjs --root <dist>`): drives at the phone window and at a desktop one, makes three stalls on purpose (a 120 ms frame, a task of 150 ms outside the frames, a new shader program), takes pictures of the pill and the panel, stops, copies the JSON and checks that it parses, has stutters and a timeline, and fits the size.
+
 ## Measuring
 
 ```

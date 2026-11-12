@@ -45,17 +45,18 @@ const entrySrc = DATA_MODE === 'bin'
   ? `import ${JSON.stringify('pd-boot-data')};\nimport ${JSON.stringify(path.join(ROOT, 'src/main.js'))};\n`
   : `import ${JSON.stringify(path.join(ROOT, 'src/main.js'))};\n`;
 
-// The benchmark (?bench, src/bench.js) is a file of its own next to the bundle: main.js imports it only for that link, so players never download it. It has no imports, so nothing is bundled twice.
-let benchName = '';
-if (fs.existsSync(path.join(ROOT, 'src/bench.js'))) {
-  const bench = esbuild.transformSync(fs.readFileSync(path.join(ROOT, 'src/bench.js'), 'utf8'), { minify: flag('minify', 'true') !== 'false', format: 'esm', target: ['chrome90', 'safari15', 'firefox90'], charset: 'utf8' }).code;
-  benchName = `bench.${hash(Buffer.from(bench))}.js`; fs.writeFileSync(path.join(OUT, 'js', benchName), bench);
+// The benchmark (?bench, src/bench.js) and the stutter recorder (?rec, src/rec.js) are files of their own next to the bundle: main.js imports each only for its link, so players never download them. They have no imports, so nothing is bundled twice.
+const sideFiles = {};
+for (const side of ['bench', 'rec']) {
+  if (!fs.existsSync(path.join(ROOT, `src/${side}.js`))) continue;
+  const code = esbuild.transformSync(fs.readFileSync(path.join(ROOT, `src/${side}.js`), 'utf8'), { minify: flag('minify', 'true') !== 'false', format: 'esm', target: ['chrome90', 'safari15', 'firefox90'], charset: 'utf8' }).code;
+  sideFiles[side] = `${side}.${hash(Buffer.from(code))}.js`; fs.writeFileSync(path.join(OUT, 'js', sideFiles[side]), code);
 }
 
 const plugin = {
   name: 'pd',
   setup(b) {
-    b.onResolve({ filter: /\/bench\.js$/ }, a => benchName && a.kind === 'dynamic-import' ? { path: './' + benchName, external: true } : null);
+    b.onResolve({ filter: /\/(bench|rec)\.js$/ }, a => a.kind === 'dynamic-import' && sideFiles[path.basename(a.path, '.js')] ? { path: './' + sideFiles[path.basename(a.path, '.js')], external: true } : null);
     b.onResolve({ filter: /^pd-boot-data$/ }, () => ({ path: 'pd-boot-data', namespace: 'pd' }));
     b.onLoad({ filter: /.*/, namespace: 'pd' }, () => ({
       contents: `import { loadBlobs } from ${JSON.stringify(path.join(HERE, 'runtime/loader.js'))};\n` +
