@@ -1616,6 +1616,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
         drawCalls: renderer.info.render.calls, rendTris: renderer.info.render.triangles, far: farCity ? farCity.stats() : null };
     },
+    peek(o) { o[0] = stat.built; o[1] = tasks.length; o[2] = pending.length; o[3] = inflight; o[4] = visPending; },   // ?rec reads the streaming state every frame without allocating (src/rec.js)
     resetStats() { stat.frames = 0; stat.workSum = 0; stat.workMax = 0; stat.hitches = 0; },
     tiles, cfg: CFG,
   };
