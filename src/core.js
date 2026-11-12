@@ -31,7 +31,7 @@ export const inNear = (x, z) => x >= NEAR.x0 && x <= NEAR.x1 && z >= NEAR.z0 && 
 // World streaming (src/world.js): hooks.ground(x, z) answers from the loaded tiles' near grids and the
 // whole-city far grid, or returns undefined to fall through to the baked centro data below. hooks.bounds is the driveable box.
 export const WORLD = true; // the whole city always streams in tiles (kept for modules that still read it)
-export const hooks = { ground: null, bounds: D.bounds, level: null, fall: null, breakFence: null, tick: null, plunge: null, cutPieces: null, inCut: null };   // level(x, z, yRef): deck or tunnel floor under a car (src/bridges.js); fall(car, ball): jump-spot tick; plunge(car, ball): the sphere model's last word on the ball (src/discarica.js: the lapa goes over the rim of the landfill pit); cutPieces, inCut: a triangle split along the walls of the tunnels' cuttings, a point inside one (src/bridges.js)
+export const hooks = { ground: null, bounds: D.bounds, level: null, fall: null, breakFence: null, tick: null, plunge: null, cutPieces: null, inCut: null, prep: null };   // level(x, z, yRef): deck or tunnel floor under a car (src/bridges.js); fall(car, ball): jump-spot tick; plunge(car, ball): the sphere model's last word on the ball (src/discarica.js: the lapa goes over the rim of the landfill pit); cutPieces, inCut: a triangle split along the walls of the tunnels' cuttings, a point inside one (src/bridges.js)
 export const groundY = (x, z) => {
   if (hooks.ground) { const y = hooks.ground(x, z); if (y !== undefined) return y; }
   return inNear(x, z) ? nearH(x, z) : farH(x, z);

@@ -346,6 +346,9 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
     baseBeforeRender.call(this, r, sc, cam, geo, obj, grp);
   };
 
+  // For src/warm.js, which links a program before its first draw: what the hook above does to a material at its first draw (the night glow and the clouds' shadows are chained on), done first, so the program linked ahead is the one the draw uses.
+  function prewash(o) { const h = honest(o); for (const m of matsOf(o)) if (m.isMeshStandardMaterial && !seenMats.has(m)) { seenMats.add(m); if (!h || CLOUD_SHADOWS) wash(m, !h); } }
+
   // ---- the clock
   const qTime = params.get('time'), qSpeed = params.get('timespeed');
   const forced = qTime !== null && qTime !== '' && Number.isFinite(+qTime);
@@ -940,5 +943,5 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   } catch (e) { console.warn('[daynight] night materials not compiled ahead', e); }
 
   update(0); // first frame: everything in place before the title flyover renders
-  return { update, time, jumpTo, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow), setLightHold };
+  return { update, time, jumpTo, prewash, get lampsBuilt() { return !!lamps; }, bakeEnv: () => bakeEnv(realNow), setLightHold };
 }

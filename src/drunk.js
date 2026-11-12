@@ -249,6 +249,9 @@ export function createDrunk({ game, car, camera, missions }) {
     const scn = new THREE.Scene(); scn.add(quad);
     return { copy, uniforms, mat, quad, scn, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
   }
+  // the screen pass's program, linked at load: a first drink would otherwise stall the frame for it. The material stays alive (the program stays cached) while the copy texture and the geometry go.
+  let kept = null;
+  function warm(renderer) { if (kept) return; try { const p = makePost(2, 2); renderer.compile(p.scn, p.cam); kept = p.mat; p.copy.dispose(); p.quad.geometry.dispose(); } catch (e) { /* the first drink will do it */ } }
   function dropPost() { idleAt = 0; if (!post) return; post.copy.dispose(); post.mat.dispose(); post.quad.geometry.dispose(); post = null; }
   const smooth = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
 
@@ -282,5 +285,5 @@ export function createDrunk({ game, car, camera, missions }) {
     renderer.render(post.scn, post.cam);
   }
 
-  return { update, render, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, max: MAX, get full() { return units > MAX - 1 + 0.001; }, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
+  return { update, render, warm, reset, drink, gift, setUnits(n) { units = Math.max(0, Math.min(MAX, n)); }, price: PRICE, max: MAX, get full() { return units > MAX - 1 + 0.001; }, get units() { return units; }, get post() { return !!post; }, get level() { return shown; }, get spot() { return spot; }, get visible() { return visible; }, get cool() { return cool; } };
 }

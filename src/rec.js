@@ -21,7 +21,8 @@ const LEGEND = {
   ms: 'ms the game\'s own code ran in that frame', lag: 'ms from the refresh to the start of the game\'s code (the page was busy with something else)',
   p: 'the frame before: its code split by system, ms (it ran inside the gap, usually the culprit)', c: 'this frame: the same',
   split: 'draw (three.js drawing, shadow is a part of it), traffic, crowd, world (streaming), daynight, clouds, minimap, sea, audio, missions, roadwear, markets, hud, net, lapa, props, other, rest (physics, camera, HUD text: what main.js does itself)',
-  ev: 'events of that frame, then pe of the frame before: p+N new shader programs, t+N textures, g+N geometries, gc=N the JS heap fell by N MB, gpu the GPU had not finished the frame before, hid page hidden in the gap, tp teleport, cap the cap or tier changed',
+  ev: 'events of that frame, then pe of the frame before: p+N new shader programs (named in `prog` of the stutter and in `progs`), t+N textures, g+N geometries, gc=N the JS heap fell by N MB, gpu the GPU had not finished the frame before, hid page hidden in the gap, tp teleport, cap the cap or tier changed',
+  prog: 'the programs that the frame before and this frame made, as material type, material name, four hex digits of the program key', progs: 'every frame in the recording that made a shader program (up to 40): [seconds, state, names]',
   w: 'world streaming at that frame: [visible tiles still pending, building jobs, downloads, tiles built]', pos: 'x, z in metres (the city origin is Quattro Canti), speed in km/h', d: 'district', st: 'state: title, play, pause, garage',
   loaf: 'Chrome long-animation-frame entries overlapping the gap: s start (s), d ms, rs ms to the start of rendering, scr scripts [ms, invoker, index in files, function, char position]', tl: 'timeline, one entry a second from tl.t0: fps drawn frames, worst longest interval ms, game mean game ms, n stutters, st state (0 title, 1 play, 2 pause, 3 garage)',
   why: 'shader, a system name, outside (the main thread was busy with something else), gc, gpu (the GPU was late) or wait (nothing the recorder can see: other page code where the browser gives no long animation frames, the GPU process or the display held the frame); see the head of src/rec.js', files: 'source files of the loaf scripts, by index', summary: 'late: % of frames that began while the GPU was still on the one before; why: stutters by cause', rule: `drawn frame, interval >= ${MIN_MS} ms and > ${RATIO} x the median of the drawn frames within ${WIN} s either side, page not hidden in the gap`,
@@ -54,7 +55,7 @@ export function startRec(E) {
   const info = R.info, peek = new Float64Array(5), memInfo = typeof performance !== 'undefined' && performance.memory ? true : false;
   let lagF = 0, rawF = 0, t0 = 0, lateF = false, capF = false, hidF = false, prevRaw = 0, prevDrawn = 0, skipN = 0, nP = 0, nT = 0, nG = 0, built0 = -1, heap0 = 0, px = 0, pz = 0, havePos = false, med = 0, live = 0, frames = 0;
   let pend = null, pendT = 0, FEN = typeof gl.fenceSync === 'function', pollN = 0, lastKey = '';
-  const tiers = [], events = [], loaf = [];
+  const tiers = [], events = [], loaf = [], pnames = new Map();   // pnames: row > the names of the programs that frame made (only rows that made one have an entry, so a frame without a new program allocates nothing)
   const ev = (kind, text) => { if (events.length < 300) events.push([r2(now() / 1000), kind, text]); };
   const stateOf = () => game.garage ? 3 : game.state === 'play' ? 1 : game.state === 'pause' ? 2 : 0;
   let lastState = -1;
@@ -82,7 +83,9 @@ export function startRec(E) {
     for (let k = 0; k < NS; k++) { const v = acc[k]; spA[b + k] = v > 655 ? 65535 : (v * 100 + 0.5) | 0; if (k !== SHADOW) sum += v; }
     // what else happened this frame
     const np = info.programs ? info.programs.length : 0, nt = info.memory.textures, ng = info.memory.geometries;
+    if (pnames.size) pnames.delete(i);
     dpA[i] = nP && np > nP ? Math.min(255, np - nP) : 0; dtA[i] = nT && nt > nT ? Math.min(255, nt - nT) : 0; dgA[i] = nG && ng > nG ? Math.min(255, ng - nG) : 0; nP = np; nT = nt; nG = ng;
+    if (dpA[i]) pnames.set(i, progNames(np, dpA[i]));
     let fl = st << 6;
     if (lateF) fl |= F.LATE;
     if (hidF) fl |= F.HID;
@@ -106,6 +109,19 @@ export function startRec(E) {
     // the fence for this frame (asked about at the start of the next one) and, a few times a second, the cap and tier
     if (FEN && !pend) { try { pend = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); pendT = t1; gl.flush(); } catch (e) { FEN = false; pend = null; } }
     if ((++pollN & 15) === 0) poll();
+  }
+
+  // the programs a frame made: three appends each new one to info.programs, so they are the last ones. Material type, the material's name if it has one, and four hex digits of the program's key (the same key in two recordings is the same program).
+  // Called only on a frame that made one (a compile is milliseconds anyway); at most four are named.
+  function progNames(np, k) {
+    const out = [];
+    for (let j = Math.max(0, np - k); j < np && out.length < 4; j++) {
+      const p = info.programs[j]; if (!p) continue;
+      let h = 0; const key = String(p.cacheKey || ''); for (let c = 0; c < key.length; c++) h = (h * 31 + key.charCodeAt(c)) | 0;
+      out.push(`${p.type || p.name || '?'}${p.name && p.type ? ' ' + String(p.name).slice(0, 20) : ''} ${(h >>> 16).toString(16).padStart(4, '0')}`);
+    }
+    if (k > out.length) out.push('+' + (k - out.length) + ' more');
+    return out;
   }
 
   // the cap and the governor's tier (src/perf.js): a change of cadence can feel like a stutter, so every change is logged
@@ -201,12 +217,15 @@ export function startRec(E) {
       if (skA[q]) o.sk = skA[q];
       if (lagA[q] >= 1) o.lag = r1(lagA[q]);
       const e = evs(q), pe = evs(pq); if (e.length) o.ev = e; if (pe.length) o.pe = pe;
+      const pn = (pnames.get(pq) || []).concat(pnames.get(q) || []); if (pn.length) o.prog = pn.slice(0, 6);
       o.w = [vsA[q], jbA[q], nwA[q], blA[q]]; o.pos = [Math.round(xA[q]), Math.round(zA[q]), Math.round(vfA[q] * 3.6)]; o.d = district(xA[q], zA[q]); o.st = STATE_NAME[flA[q] >> 6 & 3];
       const la = l.slice(0, 3).map(e => { const r = { s: r2(e.s / 1000), d: Math.round(e.d) }; if (e.rs) r.rs = Math.round(e.rs); if (e.scr) r.scr = e.scr.map(c => { let f = files.indexOf(c[2]); if (f < 0) f = files.push(c[2]) - 1; return [c[0], c[1], f, c[3], c[4]]; }); return r; });
       if (la.length) o.loaf = la;
       return o;
     });
     if (files.length) out.files = files;
+    const progs = []; for (let j = 0; j < cnt && progs.length < 40; j++) { const nm = pnames.get(row(j)); if (nm) progs.push([r2(tA[row(j)] / 1000), (flA[row(j)] >> 6 & 3) === 1 ? 'play' : STATE_NAME[flA[row(j)] >> 6 & 3], ...nm]); }
+    if (progs.length) out.progs = progs;
     const s = sorted(all), sp = sorted(play), mins = activeMs / 60000, topSys = Object.entries(why).sort((a, b) => b[1] - a[1]);
     let gsum = 0, gn = 0; for (let j = 0; j < cnt; j++) { gsum += msA[row(j)]; gn++; }
     out.summary = {

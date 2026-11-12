@@ -18,7 +18,7 @@
 // Secret spot: LANDMARK_ZONES. Falling off the Ponte Corleone (Viale Regione Siciliana over the Oreto, next to Baby Luna) fires
 // window event 'pd-landmark' with { id: 'baby-luna-jump', x, z, fall } once per fall, and calls the listeners of onLandmarkEvent().
 import * as THREE from 'three';
-import { Buf } from './core.js';
+import { Buf, hooks } from './core.js';
 import { TEX } from './streets.js';
 import { concreteMaterial } from './wall-tex.js';
 
@@ -763,7 +763,7 @@ export function onTileFull(key) {
   for (const id of mine) {
     const st = S.get(id); if (!st) continue;
     st.full.add(key);
-    if (!st.meshes && (st.cut || groundReady(st))) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : st.cut ? buildTunnel(st) : null; if (st.meshes) root.add(st.meshes); } catch (e) { console.error('[bridges]', id, e); } }   // (a tunnel reads its cutting from the bake, and the baked ground where a tile is not loaded)
+    if (!st.meshes && (st.cut || groundReady(st))) { try { st.meshes = st.rec.k === 'b' ? buildDeck(st) : st.cut ? buildTunnel(st) : null; if (st.meshes) { hooks.prep?.(st.meshes); root.add(st.meshes); } } catch (e) { console.error('[bridges]', id, e); } }   // (a tunnel reads its cutting from the bake, and the baked ground where a tile is not loaded)
   }
 }
 export function onTileDrop(key) {
