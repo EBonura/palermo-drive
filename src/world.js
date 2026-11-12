@@ -476,6 +476,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       // nothing under the world root moves after it is placed (checked at the centro, the port, Mondello, the stadium: no matrix changed in 10 s of driving), so the matrices are
       // computed once here and the per-frame updateMatrixWorld walk skips them (it was 279 of 534 updates a frame at Quattro Canti)
       obj.traverse(o => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+      hooks.prep?.(obj);   // the programs its materials need are linked now, not at the first draw (src/warm.js)
       root.add(obj);
     }
     else { delete t.parts[name]; delete t.tris[name]; }

@@ -20,6 +20,7 @@ import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
 import { createNet } from './net.js';
+import { createWarm } from './warm.js';   // shader programs linked before the first draw that needs them (src/warm.js)
 import { createDrunk } from './drunk.js';   // a drink at a pub's door or at the rave: the screen wobbles (src/drunk.js)
 import { createShouts } from './shouts.js';
 import { createCityAudio } from './city-audio.js';   // traffic noise, horns, l'arrotino, the market voices
@@ -456,6 +457,8 @@ if (window.game) window.game.clouds = clouds;
 renderer.setOpaqueSort(cutoutsLast);   // solid draws, then cut-outs, then (as ever) the transparent ones; ?order=off for three's own order (src/engine-lean.js)
 const lean = params.get('engine') !== 'off' ? createLeanEngine({ renderer, scene, camera, sun, world, parts: (params.get('lean') || 'occ,shadow,walk').split(',') }) : null; if (lean && window.game) window.game.lean = lean;   // ?engine=off draws as three.js does on its own (for comparing)
 renderer.compile(scene, camera); // [perf pass] issue every program link up front so the driver compiles them in parallel instead of one by one on first use
+// and the ones that arrive later (a tile's bridge or fence, a mission's beams, the shadow pass's depth programs, the drink shader) are linked when they join the scene, not at their first draw; ?warm=off for comparing
+if (params.get('warm') !== 'off') { const warm = createWarm({ renderer, scene, camera, prewash: dayNight.prewash }); warm.warmDepth(); hooks.prep = warm.prepare; drunk.warm(renderer); if (window.game) window.game.warm = warm; }
 // ?bench: the device measures itself and shows the numbers (src/bench.js, docs/PERF.md). A file of its own that only this link fetches: without the parameter nothing of it loads or runs.
 if (params.has('bench')) import('./bench.js').then(m => m.runBench({ game, renderer, scene, camera, vehicle, world, lean, cutoutsLast, canvasStats, roadVerts, CHUNKS0: SHADE && CHUNKS0, sys: { traffic, pedestrians, world, dayNight, clouds, weather, minimap, sea, cityAudio, missions, roadwear, markets, shouts, net, drunk, suca, stadium, carretto, coords, playlog, horn, vehicle, props: propsApi } }));
 // ?rec: the stutter recorder (src/rec.js, docs/PERF.md). Also a file of its own that only this link fetches. `rec` stays null without the parameter: the loop below then does what it always did.
