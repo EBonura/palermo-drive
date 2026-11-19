@@ -106,7 +106,7 @@ export function createErrand(X) {
   function finish(ok) {
     e.phase = 'done'; e.thanks = 5.5; X.setPhase('done'); X.guide.off();
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { hud.result(`<h3>${T('Nienti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
+    if (!ok) { hud.result(`<h3>${T('Nianti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
     const base = Math.round(e.got * e.E.pay * 2) / 2, bonus = e.got >= e.total ? e.E.bonus : 0, total = base + bonus; e.pay = total;
     X.addFare(total, 'food');   // 'food' (not a fare): the pay counts in the wallet but not in the ride count
     say(pick(e.E.thanks), headOf, 0.6);

@@ -48,7 +48,7 @@ const BROKE = [
   ['Sienza picciuli un si vivi. Va’ a travagghiari!', 'No money, no drink. Go and work!'],
   ['Un hai picciuli? Talìa sutta u sidili.', 'No money? Look under the seat.'],
   ['Ci vonnu dui euru, un abbasta taliari.', 'It takes two euros, looking is not enough.'],
-  ['Acqua ro rubinettu? Chidda è gratis.', 'Tap water? That one is free.'],
+  ['Acqua ru rubinettu? Chidda è gratis.', 'Tap water? That one is free.'],
 ];
 const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the speakers.'];
 // A finished errand (src/event-pubs.js) pays in drinks too, as the thanks of the house promise (src/pub-places.js): how many are free for the rest of that night.

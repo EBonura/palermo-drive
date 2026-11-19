@@ -46,7 +46,7 @@ export const PUBS = [
       call: [['Ao! M’arrubbaru i casci ri Moretti! Aiutami!', 'Hey! Someone stole my Moretti crates! Help me!'], ['Fermati! Ci vo a birra, a serata è longa!', 'Stop! We need beer, the night is long!'], ['Lapista! I casci ri Moretti sunnu scumparsi!', 'Driver! The Moretti crates are gone!']],
       start: ['Attruova i casci ri Moretti!', 'Find the Moretti crates!'],
       thanks: [['Si ’nu mitu! Stasira a birra è gratis, pi tia!', 'You are a legend! Tonight the beer is on the house, for you!'], ['\\m/ Acchiana a viviri, picciotto!', '\\m/ Come in and drink, kid!']],
-      none: [['Nienti?! Sienza Moretti u metal è sulu rumuri.', 'Nothing?! Without Moretti metal is just noise.']],
+      none: [['Nianti?! Sienza Moretti u metal è sulu rumuri.', 'Nothing?! Without Moretti metal is just noise.']],
     },
   },
 
@@ -62,7 +62,7 @@ export const PUBS = [
       call: [['Minchia, mi sunnu scumparsi i casci ri whisky ra furgunetta!', 'Damn, the cases of whisky vanished off my van!'], ['Ao! U currieri l’ha pirduti ’nta strata! Aiutami!', 'Hey! The courier dropped them on the road! Help me!'], ['Lapista! Sienza whisky a biriria è ’n’acqua minirali!', 'Driver! Without whisky this place is a mineral water bar!']],
       start: ['Attruova i buttigghi ri whisky!', 'Find the whisky bottles!'],
       thanks: [['Ti offru ’nu bicchierinu, ma unu sulu!', 'I\'ll buy you a shot, but only one!'], ['Si ’nu granni! Stasira si brinna!', 'You are great! Tonight we toast!']],
-      none: [['Nienti? Stasira si vivi acqua ro rubinettu.', 'Nothing? Tonight it is tap water.']],
+      none: [['Nianti? Stasira si vivi acqua ru rubinettu.', 'Nothing? Tonight it is tap water.']],
     },
   },
   // ---- the Vucciria lane: carved MAGGIORE over a turquoise shopfront, a blue awning, a lane packed shoulder to shoulder. Real hours end at 22:00, the game's errand does not.
@@ -74,10 +74,10 @@ export const PUBS = [
     caller: 'vendor2',
     errand: {
       item: 'fiaschi', n: 8, window: [18, 6], who: 'Pietro', pay: 2.5, bonus: 12,
-      call: [['Aiutu! Mi sunnu cadduti i fiaschi ri Sangue ri Sicilia ro carrettu!', 'Help! My flasks of Sangue di Sicilia fell off the cart!'], ['Ni videmu â Taverna... ma sienza vinu un c’è Taverna!', 'See you at the Taverna... but with no wine there is no Taverna!'], ['Ao! U vinu duci sta ruzzuliannu pi tutta a città!', 'Hey! The sweet wine is rolling all over town!']],
+      call: [['Aiutu! Mi sunnu cadduti i fiaschi ri Sangue ri Sicilia ru carrettu!', 'Help! My flasks of Sangue di Sicilia fell off the cart!'], ['Ni videmu â Taverna... ma sienza vinu un c’è Taverna!', 'See you at the Taverna... but with no wine there is no Taverna!'], ['Ao! U vinu duci sta ruzzuliannu pi tutta a città!', 'Hey! The sweet wine is rolling all over town!']],
       start: ['Attruova i fiaschi ri Sangue ri Sicilia!', 'Find the Sangue di Sicilia flasks!'],
       thanks: [['Si ’n’angilu! Ti tegnu ’nu bicchieri ri Zibibbu!', 'You are an angel! I will keep a glass of Zibibbo for you!'], ['Saivata a serata! Veni â Taverna, offru iu!', 'Evening saved! Come to the Taverna, it is on me!']],
-      none: [['Nienti? Mi tuccherà vinniri l’acqua...', 'Nothing? I will have to sell water...']],
+      none: [['Nianti? Mi tuccherà vinniri l’acqua...', 'Nothing? I will have to sell water...']],
     },
   },
   // ---- Via Napoli: a record shop with a bar, a black sign box, gig posters on the glass, a deck
@@ -89,10 +89,10 @@ export const PUBS = [
     caller: 'dj',
     errand: {
       item: 'dischi', n: 8, window: [18, 6], who: 'Il DJ', pay: 2.5, bonus: 12,
-      call: [['Ao! M’è vulata via a cascia ri dischi! Sunnu trentatrì giri, un frisbee!', 'Hey! My box of records flew off! They are LPs, not frisbees!'], ['Aiutu! I vinili ro Record Store Day sunnu scumparsi!', 'Help! The Record Store Day vinyls are gone!'], ['Sienza dischi stasira c’è sulu u silenziu!', 'Without records tonight there is only silence!']],
+      call: [['Ao! M’è vulata via a cascia ri dischi! Sunnu trentatrì giri, un frisbee!', 'Hey! My box of records flew off! They are LPs, not frisbees!'], ['Aiutu! I vinili ru Record Store Day sunnu scumparsi!', 'Help! The Record Store Day vinyls are gone!'], ['Sienza dischi stasira c’è sulu u silenziu!', 'Without records tonight there is only silence!']],
       start: ['Attruova i dischi ’n vinili!', 'Find the vinyl records!'],
       thanks: [['Rock! Stasira u primu giru u offru iu!', 'Rock! The first round tonight is on me!'], ['Si u me roadie prifiritu!', 'You are my favourite roadie!']],
-      none: [['Nienti dischi? Allura sunamu a cappella.', 'No records? Then we play a cappella.']],
+      none: [['Nianti dischi? Allura sunamu a cappella.', 'No records? Then we play a cappella.']],
     },
   },
   // ---- Piazza Magione: the lawn and the steps are never empty; the Whisky and Drink Magione bar stands on the piazza. The record is the lawn (the crowd sits there), the
@@ -108,7 +108,7 @@ export const PUBS = [
       call: [['Ao! I fusti mi sunnu ruzzuliati pi tutta a chiazza!', 'Hey! The kegs rolled away across the whole piazza!'], ['Aiutu! U pratu è siccu, sienza fusti!', 'Help! The lawn is dry without the kegs!'], ['Lapista! Ricuperami i fusti ri birra!', 'Driver! Get my beer kegs back!']],
       start: ['Attruova i fusti ri birra!', 'Find the beer kegs!'],
       thanks: [['Si ’nu granni! Assettati supra u pratu e vivi!', 'You are great! Sit on the lawn and drink!'], ['Evviva! A chiazza è saiva!', 'Hooray! The piazza is saved!']],
-      none: [['Nienti fusti? Allura si vivi acqua supra u pratu.', 'No kegs? Then we drink water on the lawn.']],
+      none: [['Nianti fusti? Allura si vivi acqua supra u pratu.', 'No kegs? Then we drink water on the lawn.']],
     },
   },
 
@@ -124,7 +124,7 @@ export const PUBS = [
       call: [['Ao! U furgoni râ band pirdiu i chitarre ’nta strata!', 'Hey! The band\'s van dropped the guitars on the road!'], ['Aiutu! Stasira c’è u cuncertu e i chitarre sunnu scumparsi!', 'Help! Tonight is the gig and the guitars are gone!'], ['Lapista! Sienza chitarre è sulu karaoke!', 'Driver! Without guitars it is just karaoke!']],
       start: ['Attruova i chitarre!', 'Find the guitars!'],
       thanks: [['Ti mettu ’nta lista, trasi gratis pi sempri!', 'I will put you on the list, you get in free forever!'], ['Si u nostru roadie! ’Nu applausu!', 'You are our roadie! A round of applause!']],
-      none: [['Nienti chitarre? Allura stasira si fa u silenziu.', 'No guitars? Then tonight we do silence.']],
+      none: [['Nianti chitarre? Allura stasira si fa u silenziu.', 'No guitars? Then tonight we do silence.']],
     },
   },
   // ---- Piazza Sant'Anna: a narrow ochre doorway with peeling plaster, barrel-top tables against the wall, the whole piazza turns into an open-air pub at night
@@ -139,7 +139,7 @@ export const PUBS = [
       call: [['Ao! I varrili ri tavuli sunnu ruzzuliati ’ngiù pâ chiazza!', 'Hey! The table barrels rolled down the piazza!'], ['Aiutu! U Monkey è sienza tavuli, puaittami i varrili!', 'Help! The Monkey has no tables, bring me the barrels!'], ['Lapista! Un si po viviri ’n peri tutta a sira!', 'Driver! You cannot drink standing up all evening!']],
       start: ['Attruova i varrili ri tavuli!', 'Find the table barrels!'],
       thanks: [['Grazie! Ti puaittu ’na Paulaner, offri a casa!', 'Thanks! I will bring you a Paulaner, on the house!'], ['Si ’nu mitu! I tavuli sunnu saivi!', 'You are a legend! The tables are saved!']],
-      none: [['Nienti varrili? Stasira si vivi ’n peri.', 'No barrels? Tonight we drink standing.']],
+      none: [['Nianti varrili? Stasira si vivi ’n peri.', 'No barrels? Tonight we drink standing.']],
     },
   },
   // ---- San Lorenzo, far to the north: a converted market hall behind a dark glazed front, thin white serif capitals "SANLORENZO / MERCATO", warm light and string lights
@@ -151,10 +151,10 @@ export const PUBS = [
     caller: 'vendor',
     errand: {
       item: 'boccali', n: 8, window: [18, 6], who: 'Il birraio', pay: 2.5, bonus: 12,
-      call: [['Aiutu! I buccali sunnu finuti ’nta strata, e ni sieivunu trecientu o iornu!', 'Help! The mugs ended up on the road, and we need three hundred a day!'], ['Ao! Sienza buccali a birra artigianali un si sieivi!', 'Hey! Without mugs the craft beer cannot be served!'], ['Lapista! M’annu puaittatu via i buccali ro carrellu!', 'Driver! They took the mugs off my cart!']],
+      call: [['Aiutu! I buccali sunnu finuti ’nta strata, e ni sieivunu trecientu o iornu!', 'Help! The mugs ended up on the road, and we need three hundred a day!'], ['Ao! Sienza buccali a birra artigianali un si sieivi!', 'Hey! Without mugs the craft beer cannot be served!'], ['Lapista! M’annu puaittatu via i buccali ru carrellu!', 'Driver! They took the mugs off my cart!']],
       start: ['Attruova i buccali ri birra!', 'Find the beer mugs!'],
       thanks: [['Si ’nu tisoru! Stasira a prima birra è pi tia!', 'You are a treasure! Tonight the first beer is yours!'], ['Saivati i buccali! Brindamu ô Mircatu!', 'Mugs saved! A toast to the Mercato!']],
-      none: [['Nienti buccali? Si vivi ra buttiglia, allura.', 'No mugs? Then we drink from the bottle.']],
+      none: [['Nianti buccali? Si vivi ra buttiglia, allura.', 'No mugs? Then we drink from the bottle.']],
     },
   },
 
@@ -173,7 +173,7 @@ export const PUBS = [
       call: [['Ao! Mi sunnu scumparsi i casci ri birra polacca! Aiutami!', 'Hey! My crates of Polish beer have vanished! Help me!'], ['Lapista! Sutta casa c’è sempri u pub, ma stasira un c’è a birra!', 'Driver! There is always a pub under the house, but tonight there is no beer!'], ['Fermati! U furgunettu ra Polonia pirdiu tuttu ’nta strata!', 'Stop! The van from Poland dropped everything on the road!']],
       start: ['Attruova i casci ri birra polacca!', 'Find the crates of Polish beer!'],
       thanks: [['Na zdrowie! Stasira a prima birra a offru iu!', 'Na zdrowie! Tonight the first beer is on me!'], ['Si ’nu frati! Dal polacco a puaitta è sempri aperta pi tia!', 'You are a brother! At Dal polacco the door is always open for you!']],
-      none: [['Nienti? Allura stasira si brinna câ gazzosa.', 'Nothing? Then tonight we toast with lemon soda.']],
+      none: [['Nianti? Allura stasira si brinna câ gazzosa.', 'Nothing? Then tonight we toast with lemon soda.']],
     },
   },
 ];
