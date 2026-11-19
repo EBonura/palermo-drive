@@ -24,6 +24,7 @@ import { createPolice, createBeacons } from './police.js';   // wanted system, p
 import { createGags } from './gags.js';                         // lookouts, the team bus, double-parking quarrels
 import { createCarrozze } from './carrozze.js';                 // the tourist carrozze: their loop, coachman and passengers
 import { createVendors } from './vendors.js';                   // the Apes and carrozze that call out now and then
+import { sfx } from './sfx.js';                                 // a hit car makes a noise (Nov 2026: it made none)
 import { createArrotini } from './arrotini.js';             // the knife-grinders: several, each on a loop of his own in a quarter of the city, by day only
 
 // ---------- tuning ----------
@@ -1214,12 +1215,13 @@ Object.assign(MODELS, buildPoliceModels());
             launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0, heavy ? 0.35 : 1);
             v.x -= nx * pen; v.z -= nz * pen;
             const j = (ty.yeetJ || 0.1) * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
-            shoutAt(v); v.honkAt = time + 0.5; police.chaos(v.cop ? 'hitcop' : 'yeet');
+            shoutAt(v); v.honkAt = time + 0.5; police.chaos(v.cop ? 'hitcop' : 'yeet'); sfx('crunch', clamp(0.6 + rel / 16, 0.6, 1.4));
             return;
           }
           const shP = mv / (mp + mv), shV = mp / (mp + mv);
           pc.x += nx * pen * shP; pc.z += nz * pen * shP; v.x -= nx * pen * shV; v.z -= nz * pen * shV;
           if (vn < 0) {
+            if (vn < -1.2) sfx('crunch', clamp(-vn / 6, 0.25, 0.9));   // a shunt: quieter than sending it flying
             const arm = a * (lx * nx + lz * nz), j = -(1 + E) * vn / (1 / mp + 1 / mv + arm * arm / I_YAW);
             pc.vx += j / mp * nx; pc.vz += j / mp * nz; pc.w = clamp(pc.w + clamp(j * arm / I_YAW * 0.7, -1.6, 1.6), -3.2, 3.2);
             pc.vf = pc.vx * sn + pc.vz * cs;

@@ -931,6 +931,7 @@ export function createPedestrians(env) {
   function knock(i, nx, nz) {
     for (const f of knockCbs) { try { f(X[i], Z[i], VAR[i]); } catch (e) { /* listener failed: keep playing */ } }
     if (VAR[i] === WCV) { heal(i, nx, nz); return; }
+    sfx('bonk', 1);
     ST[i] = FLY; TMR[i] = 0; env.shout?.(X[i], Y[i] + 1.9, Z[i], Math.random() < 0.4 ? FLEW : undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
     // launched like a yeeted car (src/traffic.js): high, far and spinning, scaled by the lapa's speed
     const sp = Math.min(hyp2(car.vx, car.vz), 22);
@@ -1433,7 +1434,7 @@ export function createPedestrians(env) {
   }
   function knockBather(b, nx, nz) {
     for (const f of knockCbs) { try { f(b.x, b.z, b.v); } catch (e) { /* listener failed: keep playing */ } }
-    b.st = 2; b.tmr = 0; b.chat = false; if (b.water) splash(b.x, b.z, 1.6);
+    sfx('bonk', 1); b.st = 2; b.tmr = 0; b.chat = false; if (b.water) splash(b.x, b.z, 1.6);
     env.shout?.(b.x, (b.water ? SEA_Y : b.y) + 1.9, b.z, Math.random() < 0.4 ? FLEW : undefined, () => ({ x: b.x, y: (b.water ? SEA_Y : b.y) + 1.9, z: b.z }));
     const sp = Math.min(hyp2(car.vx, car.vz), 22), vy = Math.min(12.5, Math.max(5.5, 4.5 + sp * 0.55));   // like the crowd: high, far and spinning, by the lapa's speed
     b.vx = car.vx * 0.9 + nx * 3; b.vz = car.vz * 0.9 + nz * 3; b.vy = vy; b.tf = 2 * vy / 12; b.rd = (car.vx * nz - car.vz * nx) >= 0 ? 1 : -1; b.roll = 0; b.hop = 0.05;
