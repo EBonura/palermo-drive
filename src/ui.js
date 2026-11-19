@@ -79,7 +79,7 @@ const S = {
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
-  startQ: ['Da dove parti?', 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
+  startQ: ["Runni vo' paittiri?", 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
   pinH: ['Schermo intero come un\'app', 'Full screen, like an app'],
