@@ -1,5 +1,21 @@
 # Palermo Drive: to-do
 
+## Where things stand (2026-11-19)
+
+- **In hand: sound effects.** The driving, the city bed and the set pieces have sound; fares, missions, races, menus, the Garage, the bust, rain, trams, people, props and
+  the ambience (sea, gulls, bells, cicadas) do not. The owner picks each sound from variants on an audition page before anything is wired in. New cues go through one shared
+  helper on the radio's AudioContext rather than a context per module (thirteen modules have their own today).
+- **Parked: phone performance.** The owner drove the 12 November build (shaders linked ahead, no camera bob) and saw no stutters. Four branches stay unshipped and are not
+  being worked on: `worktree-agent-a74f31086bbd64622` (fewer materials, behind `?mats=off`), `worktree-agent-adde33cb08472e3af` (draw order, tooling only),
+  `worktree-agent-a4902bcf629f46720` (load time, a tool and notes), `worktree-agent-a362fcae3053a24a5` (smaller vertex format). The options that change the picture on weak
+  phones (render scale, MSAA, fewer far triangles) were never decided. See docs/PERF.md before picking any of it up.
+- **Not now: the look pass** on the city and its models with Blender.
+- **Not in the main game:** the rides to the pulle, the two night clients after the same (Via Lincoln, Via Bandiera) and Fuogghi allegri exist only with `?vm18` in the
+  address (src/missions.js). U cuinnutu stays in.
+- **Dependency bumps:** the three dependabot pull requests were closed unmerged on 2026-11-19 (two crates in `relay/`, one for a Go `server/` that no longer exists).
+- The sections below date from October and early November and have not been checked against the game since: some of it is done, and multiplayer is no longer shelved
+  (WebRTC with a TURN relay since 7 November).
+
 ## Integration pass (lead, before publishing)
 
 - `computeBoundingSphere(): Computed radius is NaN`: no NaN in the scene; most likely src/context.js computing
