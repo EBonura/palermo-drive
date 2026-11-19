@@ -14,8 +14,9 @@ die() { echo "error: $*" >&2; exit 1; }
 
 [ $# -eq 5 ] || usage
 PROJECT_ID=$1; REGION=$2; ACCOUNT=$3; BILLING=$4; AMOUNT=$5
-case "$ACCOUNT" in *@work.example) die "refusing to use a work account";; esac
-case "$PROJECT_ID" in *work*) die "refusing to use what looks like a work project";; esac
+# only the game's own Google account and project: a slip of the fingers must not deploy this anywhere else
+case "$ACCOUNT" in *@gmail.com) ;; *) die "ACCOUNT must be the game's own Google account";; esac
+case "$PROJECT_ID" in palermo-drive*) ;; *) die "the project must be the game's own (palermo-drive...)";; esac
 CONFIG=palermo-drive
 gcloud config configurations list --format='value(name)' 2>/dev/null | grep -qx "$CONFIG" || die "gcloud configuration '$CONFIG' does not exist (DEPLOY.md, step 1)"
 export CLOUDSDK_ACTIVE_CONFIG_NAME=$CONFIG

@@ -1,6 +1,6 @@
 # Car radio music (src/radio.js, assets/music/)
 
-Four free-licence tracks for the in-game radio, all verified on the source page as CC BY 4.0, CC0 or public domain
+The free-licence tracks for the in-game radio, all verified on the source page as CC BY 4.0, CC0 or public domain
 (the Alamia e Sperandeo tracks have their own section below).
 Every file was re-encoded for the web with ffmpeg: leading silence trimmed, loudness normalised to about -17 LUFS,
 resampled to 44.1 kHz and written as MP3 (96 kbps stereo for the modern recordings, 64 kbps mono for the
