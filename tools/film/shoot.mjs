@@ -20,6 +20,7 @@ await p.setViewport({ width: Math.round(size / zoom), height: Math.round((shot.h
 p.on('pageerror', e => errs.push(e.message.slice(0, 200)));
 // the held clock: until hold() the page runs in real time through these wrappers; after it, time and animation frames move only when step() says so
 await p.evaluateOnNewDocument(() => {
+  window.__megas = []; window.__megaTap = (x, z, nx, nz, name) => window.__megas.push([Math.round(x * 10) / 10, Math.round(z * 10) / 10, Math.round(nx * 100) / 100, Math.round(nz * 100) / 100, name]);   // src/props.js reports its big rubbish heaps: a shot can look for one
   const realNow = performance.now.bind(performance), realRAF = window.requestAnimationFrame.bind(window), d0 = Date.now() - performance.now();
   let held = false, vt = 0, q = [], id = 0;
   const now = () => held ? vt : realNow();

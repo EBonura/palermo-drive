@@ -5,7 +5,7 @@
 An irreverent driving game through Palermo in a lapa, in the browser. The whole city and Mondello are rebuilt from open
 map and survey data, and you roam it freely, picking up whoever waves at you from the kerb.
 
-**Play:** https://ebonura.github.io/palermo-drive/ (on a phone, turn it to landscape)
+**Play:** https://palermo-drive.it/ (on a phone, turn it to landscape)
 
 Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 

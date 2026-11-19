@@ -20,7 +20,7 @@ gcloud auth list --format='value(account)' 2>/dev/null | grep -qx "$ACCOUNT" || 
 G=(gcloud "--project=$PROJECT" "--account=$ACCOUNT" --quiet)
 HERE=$(cd "$(dirname "$0")" && pwd)
 SA_NAME=joinlog-run; SA="$SA_NAME@$PROJECT.iam.gserviceaccount.com"; ROLE=joinlogWriter; DATASET=joinlog; SERVICE=joinlog
-ORIGINS=${ORIGINS:-https://ebonura.github.io}
+ORIGINS=${ORIGINS:-https://ebonura.github.io,https://palermo-drive.it,https://www.palermo-drive.it}
 Q=(bq "--project_id=$PROJECT" "--location=$REGION")   # bq uses the credentials of the active gcloud configuration
 
 "${G[@]}" iam service-accounts describe "$SA" >/dev/null 2>&1 || "${G[@]}" iam service-accounts create "$SA_NAME" --display-name="Play log service (no keys)"
@@ -98,7 +98,7 @@ done
 # Cloud Run: smallest practical size, one instance at most and none kept warm, request-based billing (no --no-cpu-throttling), a short timeout, public (the game is the caller; the service checks Origin itself).
 "${G[@]}" run deploy "$SERVICE" --source="$HERE" --region="$REGION" --service-account="$SA" --allow-unauthenticated \
   --execution-environment=gen1 --cpu=1 --memory=128Mi --concurrency=1 --min-instances=0 --max-instances=1 --timeout=15 --cpu-throttling \
-  --set-env-vars="PROJECT=$PROJECT,DATASET=$DATASET,TABLE=$TABLE,LOCATION=$REGION,ORIGINS=$ORIGINS,DAILY_ROWS=${DAILY_ROWS:-3000},DAILY_REQS=${DAILY_REQS:-20000}"
+  --set-env-vars="^@^PROJECT=$PROJECT@DATASET=$DATASET@TABLE=$TABLE@LOCATION=$REGION@ORIGINS=$ORIGINS@DAILY_ROWS=${DAILY_ROWS:-3000}@DAILY_REQS=${DAILY_REQS:-20000}"   # (@ between the variables: ORIGINS holds commas)
 # Request logs hold the caller's address, so this service's logs are not kept at all.
 FILTER="resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$SERVICE\""
 "${G[@]}" logging sinks describe _Default --format='value(exclusions.name)' | grep -q "$SERVICE" || "${G[@]}" logging sinks update _Default --add-exclusion="name=$SERVICE,filter=$FILTER,description=play log service: no request logs (they carry addresses)"
