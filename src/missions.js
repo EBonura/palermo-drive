@@ -814,6 +814,6 @@ function build(env) {
   // Ganci, the shrines of Santa Rosalia and the night cornetto kiosks (src/friend-stops.js); they share the drawing helpers and the nitro treat of the vendors above
   const friend = worldOn() ? createFriendStops({ env, scene, car, game, pedestrians, walls2d, groundAt, hud, toast, burst, T, say, isNight, busy: () => !!S.ev, speed, driverPos, makeBeacon, addMarker, dropMarker, buildKiosk, nitroTreat, std, glowTex }) : null;
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps, pennas };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, vendors, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps, pennas };
   return api;
 }

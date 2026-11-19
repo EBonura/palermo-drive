@@ -1,6 +1,6 @@
 // Renders the trailer's title graphics (tools/film/titles.html) frame by frame: transparent ones as ProRes 4444 with alpha, the ones on black as H.264.
 //   tools/release/withbrowser.sh node tools/film/titles.mjs <out dir> <wide|tall> <titles.json>
-// titles.json: [{ name, kind: 'over'|'place'|'card'|'review'|'links'|'logo'|'bonnie'|'flip', text: 'line|line', color, dur, scale }]; anchor (where every text sits) is set once for the format.
+// titles.json: [{ name, kind: 'over'|'place'|'card'|'review'|'links'|'logo'|'bonnie'|'flip', text: 'line|line', color, dur, scale, seq (the lines land one by one, all big) }]; anchor (where every text sits) is set once for the format.
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
@@ -17,7 +17,7 @@ let logo = '';
 for (const t of list) {
   const p = await b.newPage(); await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
   await p.evaluateOnNewDocument(svg => { window.__logoSVG = svg; }, logo);
-  const q = new URLSearchParams({ kind: t.kind, text: t.text || '', color: t.color || 'white', dur: String(t.dur || 1.6), anchor: String(t.anchor || ANCHOR), scale: String(t.scale || 1), bg: t.alpha ? 'none' : '' });
+  const q = new URLSearchParams({ kind: t.kind, text: t.text || '', color: t.color || 'white', dur: String(t.dur || 1.6), anchor: String(t.anchor || ANCHOR), scale: String(t.scale || 1), bg: t.alpha ? 'none' : '', seq: t.seq ? '1' : '' });
   await p.goto(base + 'tools/film/titles.html?' + q, { waitUntil: 'load' }); await p.evaluate(() => window.ready);
   const dir = path.join(out, `.${t.name}-${V}`); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const alpha = t.kind === 'over' || t.kind === 'place' || t.kind === 'flip' || !!t.alpha, n = Math.round((t.dur || 1.6) * FPS);

@@ -11,6 +11,8 @@ import SPECS from '../assets/facades/specs.js';
 import { heroLayers } from './hero-facades.js';
 import { NIGHT } from './daynight.js'; // [day/night] shared uniform: share of lit windows (0 by day)
 import { ZONES, zoneAt, floorsAt, applyDistrictHeights } from './districts.js';
+import { PUB_ROUTES } from './pub-routes.js';
+const PUB_DOORS = Object.values(PUB_ROUTES).map(r => r.door);   // the pubs' hand-built fronts (src/pub-fronts.js) doors: see pubSign below
 
 const T = 256;
 
@@ -1920,6 +1922,8 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           }
           if (W.canopy) ocanopy((nb - W.canopy.k[1]) / nb, (nb - W.canopy.k[0]) / nb, yg + (W.canopy.dy ?? -1.2), W.canopy.dp || 2.2);
         }
+        // a pub's hand-built front carries its sign 3 to 6 m up: no balcony of this wall may hang in front of it (Krust and Punkfunk had a railing across theirs)
+        function pubSign(t, yFloor, w2) { if (yFloor - yg >= 7) return false; const cx = ax + dx * t, cz = az + dz * t; for (const d of PUB_DOORS) { const al = (d[0] - cx) * ux + (d[1] - cz) * uz, off = Math.abs((d[0] - cx) * nx + (d[1] - cz) * nz); if (Math.abs(al) < w2 + 4.5 && off < 6) return true; } return false; }
         function ocanopy(t0, t1, yB, dp) {   // a glazed entrance canopy: the glass sloping down from the wall to an iron fascia, an iron soffit and two end faces; 10 triangles
           const px0 = ax + dx * t0, pz0 = az + dz * t0, px1 = ax + dx * t1, pz1 = az + dz * t1, qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp;
           const yw = yB + 0.55, fa = 0.3, sl = Math.hypot(dp, yw - yB), sx = nx * (yw - yB) / sl, sy = dp / sl, sz = nz * (yw - yB) / sl, LB = LID.blank, ir = B.iron;
@@ -1930,6 +1934,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           gbuf.t([px1, yw, pz1, 0, 0, .7], [qx1, yB, qz1, .3, 0, .8], [px1, yw - fa, pz1, 0, .1, .6], ux, 0, uz, LB, ir); gbuf.t([qx1, yB - fa, qz1, 0, 0, .7], [qx1, yB, qz1, .3, .1, .8], [px1, yw - fa, pz1, 0, .1, .6], ux, 0, uz, LB, ir);
         }
         function obalc(t, yFloor, w2, nBr, rl0, dp) {   // one old-town balcony: a slab (front, soffit, two ends), stone brackets under it, the iron rail on top
+          if (pubSign(t, yFloor, w2)) return;
           if (w2 < 0.6) return;
           const cx = ax + dx * t, cz = az + dz * t, th = 0.2, yb = yFloor + 0.05, yt = yb + th, px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
           const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = slabC, LB = L.blank;
@@ -1949,6 +1954,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           stats.balconies++;
         }
         function pwBalc(t, yFloor, w2, dp, rl0, top, sl0, sr0) {   // a deep post-war balcony: slab front, soffit and (on the first floor, where a camera can see it) the top; rail on the front and on the sides that are not against a neighbouring balcony, 8 to 12 triangles
+          if (pubSign(t, yFloor, w2)) return;
           if (w2 < 0.8) return;
           const cx = ax + dx * t, cz = az + dz * t, th = 0.17, yb = yFloor + 0.08, yt = yb + th, px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
           const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = B.slab, LB = L.blank;
@@ -1962,6 +1968,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
           stats.balconies++;
         }
         function balcony(t, yFloor, w2, brackets, nBr, rl0) {
+          if (pubSign(t, yFloor, w2)) return;
           const cx = ax + dx * t, cz = az + dz * t, dp = 0.78, th = 0.16, yb = yFloor + 0.09, yt = yb + th;
           const px0 = cx - ux * w2, pz0 = cz - uz * w2, px1 = cx + ux * w2, pz1 = cz + uz * w2;
           const qx0 = px0 + nx * dp, qz0 = pz0 + nz * dp, qx1 = px1 + nx * dp, qz1 = pz1 + nz * dp, sl = B.slab, LB = L.blank;
