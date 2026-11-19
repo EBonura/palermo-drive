@@ -27,10 +27,10 @@ const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let draw = () => {};
 
-// one block of text at the anchor: the first line big, the rest small under it; it slams in, holds, and is whipped out sideways
+// one block of text at the anchor (a letter of this face is about 0.62 of its size wide, hence the fit): the first line big, the rest small under it; it slams in, holds, and is whipped out sideways
 function textBlock(color, size, at = ANCHOR) {
   const el = mk('div', 'txt' + (color === 'pink' ? ' pink' : ''), esc(lines[0] || '') + lines.slice(1).map(l => `<small>${esc(l)}</small>`).join(''));
-  const fit = Math.min(size, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.62);   // (a letter of this face is about 0.62 of its size wide) el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
+  const fit = Math.min(size, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.62); el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
   const bar = mk('div', 'bar'); bar.style.fontSize = fit + 'px'; bar.style.top = (H * at + fit * 0.62) + 'px';
   return t => {
     const a = back(t / 0.22), out = ss(DUR - 0.16, DUR, t), sc = 0.35 + 0.65 * a + (1 - ss(0, 0.5, t)) * 0.04 * Math.sin(t * 70);
