@@ -114,6 +114,7 @@ function busOf(name, pan) {
 }
 
 export function sfx(name, k = 1, pan = 0) {
+  globalThis.__sfxTap?.(name, k);   // tools/film listens: its clips are filmed without sound, and the edit puts a sound where the game made one
   const c = CUES[name]; if (!c || !(k > 0.02) || !ready()) return;
   const t = ctx.currentTime; if (t - (lastAt[name] ?? -9) < c[1]) return;
   lastAt[name] = t;
