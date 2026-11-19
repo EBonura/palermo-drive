@@ -12,8 +12,9 @@ set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
 [ $# -ge 4 ] || { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 PROJECT=$1; REGION=$2; ACCOUNT=$3; TABLE=$4; BUDGET=${5:-}
-case "$ACCOUNT" in *@fastly.com) die "refusing to use a work account";; esac
-case "$PROJECT" in *csoc*|*fastly*) die "refusing to use what looks like a work project";; esac
+# only the game's own Google account and project: a slip of the fingers must not deploy this anywhere else
+case "$ACCOUNT" in *@gmail.com) ;; *) die "ACCOUNT must be the game's own Google account";; esac
+case "$PROJECT" in palermo-drive*) ;; *) die "the project must be the game's own (palermo-drive...)";; esac
 case "$TABLE" in events|events_test) ;; *) die "TABLE must be events or events_test";; esac
 export CLOUDSDK_ACTIVE_CONFIG_NAME=palermo-drive
 gcloud auth list --format='value(account)' 2>/dev/null | grep -qx "$ACCOUNT" || die "$ACCOUNT is not logged in: gcloud auth login $ACCOUNT"

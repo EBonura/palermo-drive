@@ -7,7 +7,7 @@
 # 4. builds the contact sheets in ROUND_DIR/sheets (tools/faith_sheet.py: game left, photo right; --grid for the game-only shots)
 # Then read the sheets and write docs/faithfulness/survey/round-N.md (see round-2.md for the layout). Photos stay in ROUND_DIR, never in the repo.
 set -e
-export PATH=/Users/ebonura/.nvm/versions/node/v22.15.0/bin:$PATH
+export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
 R=${1:-/private/tmp/claude-501/round3}; PORT=${2:-9655}; HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 mkdir -p $R/game && git archive HEAD | tar -x -C $R/game && git rev-parse --short HEAD > $R/game/.sha
 python3 tools/mapillary_refs.py $R

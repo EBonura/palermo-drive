@@ -15,6 +15,7 @@ No attribution is required, credit is given anyway.
 
 | File | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
+| The interface fonts (`ui/fonts/barlow-400.woff2`, `barlow-600.woff2`, `barlow-condensed-600.woff2`, `barlow-condensed-700.woff2`, `mr-dafoe.woff2`, `racing-sans-one.woff2`) | The four families' own designers, named on each family's page | Google Fonts, https://fonts.google.com (Barlow, Barlow Condensed, Mr Dafoe, Racing Sans One) | SIL Open Font License 1.1 | Latin subsets as WOFF2 |
 | Sports hatchback model (`cars/hatchback-sports.glb`) | Kenney (www.kenney.nl) | Car Kit 3.1, https://kenney.nl/assets/car-kit (mirrored by the author at https://opengameart.org/content/car-kit) | CC0 1.0 | none |
 | Colour map texture of the car kit (`cars/Textures/colormap.png`) | Kenney, Car Kit 3.1 | same as above | CC0 1.0 | the green paint swatch (x 192-255, y 128-255) was hue-shifted to red |
 

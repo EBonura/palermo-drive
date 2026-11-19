@@ -456,7 +456,7 @@ scenario B N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 219 s
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,7,5,4,8],[55,0,0,0,0]]
 
 
-=== stress.mjs --root dist --scenario H --maxp 12 --n 13 --real 1 --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/H12.json
+=== stress.mjs --root dist --scenario H --maxp 12 --n 13 --real 1 --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/H12.json
 scenario H N=13 (1 real game pages + 12 bots) cap 12 (?maxp) seed 1, ran 160 s
   connect (ms from own start): first peer {"n":12,"min":365,"p50":1149,"p90":2048,"max":2787} first seen {"n":12,"min":366,"p50":1153,"p90":2240,"max":2788} never connected 0 never saw 0; real pages first peer {"n":1,"min":631,"p50":631,"p90":631,"max":631} seen {"n":1,"min":636,"p50":636,"p90":636,"max":636}
   end state: last room change at 46 s (last player started at 23 s, run 160 s); 13 players, shown {"n":13,"min":12,"p50":12,"p90":12,"max":12} (expected 12), below expected 0, linked {"n":13,"min":12,"p50":12,"p90":12,"max":12}; rooms 2 sizes 13,13; home shards 2 sizes 12,1
@@ -482,7 +482,7 @@ scenario H N=13 (1 real game pages + 12 bots) cap 12 (?maxp) seed 1, ran 160 s
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B0","task":14.82918890506226,"script":6.571607633834707,"heapMB":6.087959289550781,"perPage":1},{"throttle":4,"name":"B1","task":29.183806732032735,"script":13.41847771151319,"heapMB":6.441417694091797,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[28,13,13,12,2],[42,13,13,12,2],[54,13,13,12,2],[65,13,13,12,2],[76,13,13,12,2],[89,13,13,12,2],[113,13,13,12,2],[124,13,13,12,2],[134,13,13,12,2],[144,13,13,12,2]]
 
-=== stress.mjs --root dist --scenario H --maxp 16 --n 17 --real 1 --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/H16.json
+=== stress.mjs --root dist --scenario H --maxp 16 --n 17 --real 1 --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/H16.json
 scenario H N=17 (1 real game pages + 16 bots) cap 16 (?maxp) seed 1, ran 163 s
   connect (ms from own start): first peer {"n":16,"min":329,"p50":765,"p90":1663,"max":1746} first seen {"n":16,"min":329,"p50":768,"p90":1675,"max":1784} never connected 0 never saw 0; real pages first peer {"n":1,"min":765,"p50":765,"p90":765,"max":765} seen {"n":1,"min":768,"p50":768,"p90":768,"max":768}
   end state: last room change at 91 s (last player started at 9 s, run 163 s); 17 players, shown {"n":17,"min":16,"p50":16,"p90":16,"max":16} (expected 16), below expected 0, linked {"n":17,"min":16,"p50":16,"p90":16,"max":16}; rooms 2 sizes 17,17; home shards 2 sizes 16,1
@@ -508,7 +508,7 @@ scenario H N=17 (1 real game pages + 16 bots) cap 16 (?maxp) seed 1, ran 163 s
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B0","task":20.67607695184818,"script":9.293220366545786,"heapMB":7.186012268066406,"perPage":1},{"throttle":4,"name":"B1","task":40.08024651208169,"script":16.96022634882435,"heapMB":6.074668884277344,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[11,17,16,15,2],[26,17,17,16,2],[63,17,17,16,2],[91,17,17,16,2],[101,17,17,16,2],[112,17,17,16,2],[122,17,17,16,2],[133,17,17,16,2],[144,17,17,16,2]]
 
-=== stress.mjs --root dist --scenario H --maxp 24 --n 25 --real 1 --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/H24.json
+=== stress.mjs --root dist --scenario H --maxp 24 --n 25 --real 1 --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/H24.json
 scenario H N=25 (1 real game pages + 24 bots) cap 24 (?maxp) seed 1, ran 152 s
   connect (ms from own start): first peer {"n":24,"min":465,"p50":1387,"p90":2515,"max":4437} first seen {"n":24,"min":467,"p50":1417,"p90":2529,"max":4463} never connected 0 never saw 0; real pages first peer {"n":1,"min":956,"p50":956,"p90":956,"max":956} seen {"n":1,"min":997,"p50":997,"p90":997,"max":997}
   end state: last room change at 85 s (last player started at 84 s, run 152 s); 25 players, shown {"n":25,"min":24,"p50":24,"p90":24,"max":24} (expected 24), below expected 0, linked {"n":25,"min":24,"p50":24,"p90":24,"max":24}; rooms 1 sizes 25; home shards 1 sizes 25
@@ -534,7 +534,7 @@ scenario H N=25 (1 real game pages + 24 bots) cap 24 (?maxp) seed 1, ran 152 s
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B0","task":11.927602111327573,"script":5.617912982666467,"heapMB":8.814811706542969,"perPage":1},{"throttle":4,"name":"B1","task":29.615155349828505,"script":12.706899996669888,"heapMB":7.938117980957031,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[90,25,25,24,1],[100,25,25,24,1],[110,25,25,24,1],[120,25,25,24,1],[130,25,25,24,1],[140,25,25,24,1],[151,25,25,24,1]]
 
-=== stress.mjs --root dist --scenario H --maxp 32 --n 33 --real 1 --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/H32.json
+=== stress.mjs --root dist --scenario H --maxp 32 --n 33 --real 1 --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/H32.json
 scenario H N=33 (1 real game pages + 32 bots) cap 32 (?maxp) seed 1, ran 156 s
   connect (ms from own start): first peer {"n":31,"min":292,"p50":1455,"p90":85757,"max":89358} first seen {"n":31,"min":293,"p50":1460,"p90":85757,"max":89358} never connected 1 never saw 1; real pages first peer {"n":1,"min":511,"p50":511,"p90":511,"max":511} seen {"n":1,"min":513,"p50":513,"p90":513,"max":513}
   end state: last room change at 56 s (last player started at 11 s, run 156 s); 33 players, shown {"n":33,"min":0,"p50":31,"p90":31,"max":31} (expected 32), below expected 33, linked {"n":33,"min":0,"p50":31,"p90":31,"max":31}; rooms 2 sizes 32,1; home shards 2 sizes 32,1
@@ -560,7 +560,7 @@ scenario H N=33 (1 real game pages + 32 bots) cap 32 (?maxp) seed 1, ran 156 s
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B0","task":21.704908530223275,"script":9.675856152472816,"heapMB":10.816299438476562,"perPage":1},{"throttle":4,"name":"B1","task":45.80278228611176,"script":22.19789009969859,"heapMB":10.121723175048828,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[34,0,0,0,0],[72,33,0,0,2],[85,33,3,2,2],[116,33,32,31,2],[126,33,32,31,2],[136,33,32,31,2],[147,33,32,31,2]]
 
-=== stress.mjs --root dist --scenario H --maxp 16 --n 17 --real 1 --phone --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/Hphone16.json
+=== stress.mjs --root dist --scenario H --maxp 16 --n 17 --real 1 --phone --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/Hphone16.json
 scenario H N=17 (1 real game pages + 16 bots) cap 16 (?maxp) phone profile seed 1, ran 152 s
   connect (ms from own start): first peer {"n":16,"min":285,"p50":605,"p90":6511,"max":11211} first seen {"n":16,"min":286,"p50":620,"p90":8647,"max":11319} never connected 0 never saw 0; real pages first peer {"n":1,"min":5533,"p50":5533,"p90":5533,"max":5533} seen {"n":1,"min":7592,"p50":7592,"p90":7592,"max":7592}
   end state: last room change at 71 s (last player started at 9 s, run 152 s); 17 players, shown {"n":17,"min":16,"p50":16,"p90":16,"max":16} (expected 16), below expected 0, linked {"n":17,"min":16,"p50":16,"p90":16,"max":16}; rooms 2 sizes 17,17; home shards 2 sizes 16,1
@@ -586,7 +586,7 @@ scenario H N=17 (1 real game pages + 16 bots) cap 16 (?maxp) phone profile seed 
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B0","task":23.408213305898492,"script":9.768758573388203,"heapMB":7.041740417480469,"perPage":1},{"throttle":4,"name":"B1","task":35.41982887223718,"script":14.607469263876263,"heapMB":5.8283538818359375,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[11,17,14,13,2],[22,17,17,16,2],[35,17,17,16,2],[54,17,17,16,2],[65,17,17,16,2],[77,17,17,16,2],[88,17,17,16,2],[99,17,17,16,2],[110,17,17,16,2],[122,17,17,16,2],[144,17,17,16,2]]
 
-=== stress.mjs --root dist --scenario P --n 4 --real 1 --end 120 --steady 40 --append docs/p2p/measurements.txt --json /Users/ebonura/.cache/palermo-drive/stress-out/P4.json
+=== stress.mjs --root dist --scenario P --n 4 --real 1 --end 120 --steady 40 --append docs/p2p/measurements.txt --json ~/.cache/palermo-drive/stress-out/P4.json
 scenario P N=4 (1 real game pages + 3 bots) cap 8 (shipped) seed 1, ran 122 s
   connect (ms from own start): first peer {"n":3,"min":599,"p50":625,"p90":717,"max":717} first seen {"n":3,"min":599,"p50":625,"p90":718,"max":718} never connected 0 never saw 0; real pages first peer {"n":0} seen {"n":0}
   end state: last room change at 12 s (last player started at 11 s, run 122 s); 4 players, shown {"n":4,"min":3,"p50":3,"p90":3,"max":3} (expected 3), below expected 0, linked {"n":4,"min":3,"p50":3,"p90":3,"max":3}; rooms 1 sizes 4; home shards 1 sizes 4
@@ -624,7 +624,7 @@ B at 8 was run twice before: the first (load 46 to 108) lost its samples, the se
 
 ---------- BEFORE (load 22 to 147)
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/B8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/before/B8.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 177 s
   connect (ms from own start): first peer {"n":0} first seen {"n":0} never connected 6 never saw 6; real pages first peer {"n":0} seen {"n":0}
   end state: last room change at 0 s (last player started at 45 s, run 177 s); 0 players, shown {"n":0} (expected 7), below expected 0, linked {"n":0}; rooms 0 sizes ; home shards 0 sizes 
@@ -648,7 +648,7 @@ scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 177 s
   whole run room events (all players): {"join":0,"leave":0,"peerJoin":0,"peerLeave":0,"drop":0,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"joinError":0}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[135,0,0,0,0]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario C --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/C8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario C --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/before/C8.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario C N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 248 s
   connect (ms from own start): first peer {"n":7,"min":566,"p50":621,"p90":2401,"max":2401} first seen {"n":7,"min":569,"p50":621,"p90":2402,"max":2402} never connected 0 never saw 0; real pages first peer {"n":1,"min":577,"p50":577,"p90":577,"max":577} seen {"n":1,"min":580,"p50":580,"p90":580,"max":580}
   end state: last room change at 207 s (last player started at 0 s, run 248 s); 0 players, shown {"n":0} (expected 7), below expected 0, linked {"n":0}; rooms 0 sizes ; home shards 0 sizes 
@@ -672,7 +672,7 @@ scenario C N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 248 s
   whole run room events (all players): {"join":18,"leave":5,"peerJoin":64,"peerLeave":18,"drop":30,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"joinError":10}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,8,0,0,0],[10,8,8,7,1],[21,8,8,7,1],[31,8,8,7,1],[42,8,8,7,1],[52,8,8,7,1],[64,8,8,7,1],[78,8,8,4,3]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario E --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/E8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario E --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/before/E8.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario E N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 226 s
   connect (ms from own start): first peer {"n":7,"min":301,"p50":521,"p90":1594,"max":1594} first seen {"n":7,"min":302,"p50":521,"p90":1594,"max":1594} never connected 0 never saw 0; real pages first peer {"n":1,"min":329,"p50":329,"p90":329,"max":329} seen {"n":1,"min":330,"p50":330,"p90":330,"max":330}
   end state: last room change at 108 s (last player started at 9 s, run 226 s); 0 players, shown {"n":0} (expected 7), below expected 0, linked {"n":0}; rooms 0 sizes ; home shards 0 sizes 
@@ -696,7 +696,7 @@ scenario E N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 226 s
   whole run room events (all players): {"join":232,"leave":169,"peerJoin":2172,"peerLeave":1039,"drop":13,"unheld":0,"decoy":0,"overfull":0,"overcap":0,"joinError":109}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,8,8,7,6],[21,8,8,7,9],[31,8,8,7,5],[42,8,8,7,6],[52,8,8,7,6],[62,8,8,7,7],[74,8,8,7,8],[86,8,8,7,10],[99,8,8,7,8]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/A8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/before/A8.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario A N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 151 s
   connect (ms from own start): first peer {"n":7,"min":426,"p50":1155,"p90":2835,"max":2835} first seen {"n":7,"min":426,"p50":1156,"p90":2838,"max":2838} never connected 0 never saw 0; real pages first peer {"n":1,"min":1200,"p50":1200,"p90":1200,"max":1200} seen {"n":1,"min":1205,"p50":1205,"p90":1205,"max":1205}
   end state: last room change at 31 s (last player started at 29 s, run 151 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 1 sizes 8; home shards 1 sizes 8
@@ -721,7 +721,7 @@ scenario A N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 151 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.69,"gpuCores":0,"browserCores":0.01,"otherCores":0.5,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,4,4,3,1],[36,8,8,7,1],[47,8,8,7,1],[57,8,8,7,1],[68,8,8,7,1],[78,8,8,7,1],[89,8,8,7,1],[99,8,8,7,1],[110,8,8,7,1],[121,8,8,7,1],[132,8,8,7,1]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/A16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/before/A16.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario A N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":478,"p50":755,"p90":1065,"max":1148} first seen {"n":15,"min":478,"p50":772,"p90":1067,"max":1149} never connected 0 never saw 0; real pages first peer {"n":1,"min":544,"p50":544,"p90":544,"max":544} seen {"n":1,"min":548,"p50":548,"p90":548,"max":548}
   end state: last room change at 23 s (last player started at 19 s, run 137 s); 16 players, shown {"n":16,"min":7,"p50":7,"p90":7,"max":7} (expected 8), below expected 16, linked {"n":16,"min":7,"p50":7,"p90":7,"max":7}; rooms 2 sizes 8,8; home shards 2 sizes 8,8
@@ -746,7 +746,7 @@ scenario A N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.59,"gpuCores":0,"browserCores":0.01,"otherCores":0.37,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[16,11,11,10,2],[27,16,16,7,2],[38,16,16,7,2],[48,16,16,7,2],[58,16,16,7,2],[69,16,16,7,2],[79,16,16,7,2],[89,16,16,7,2],[99,16,16,7,2],[110,16,16,7,2],[120,16,16,7,2],[130,16,16,7,2]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario D --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/D16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario D --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/before/D16.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario D N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 121 s
   connect (ms from own start): first peer {"n":15,"min":288,"p50":398,"p90":719,"max":736} first seen {"n":15,"min":289,"p50":398,"p90":737,"max":751} never connected 0 never saw 0; real pages first peer {"n":1,"min":344,"p50":344,"p90":344,"max":344} seen {"n":1,"min":346,"p50":346,"p90":346,"max":346}
   end state: last room change at 70 s (last player started at 45 s, run 121 s); 16 players, shown {"n":16,"min":7,"p50":7,"p90":7,"max":7} (expected 8), below expected 16, linked {"n":16,"min":7,"p50":7,"p90":7,"max":7}; rooms 3 sizes 8,8,8; home shards 3 sizes 8,7,1
@@ -771,7 +771,7 @@ scenario D N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 121 s
   browser CPU (steady 45 s): {"windowS":45,"rendererCoresUsed":0.84,"gpuCores":0,"browserCores":0.04,"otherCores":0.51,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,1,0,0,0],[10,4,4,3,1],[21,7,7,6,1],[31,11,11,10,2],[41,14,14,7,2],[52,16,16,7,3],[63,16,16,7,3],[75,16,16,7,3],[85,16,16,7,3],[96,16,16,7,3],[120,16,16,7,3]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario C --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/C16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario C --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/before/C16.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario C N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 228 s
   connect (ms from own start): first peer {"n":15,"min":1265,"p50":3550,"p90":5574,"max":6911} first seen {"n":15,"min":1266,"p50":3905,"p90":6318,"max":6912} never connected 0 never saw 0; real pages first peer {"n":1,"min":4636,"p50":4636,"p90":4636,"max":4636} seen {"n":1,"min":4741,"p50":4741,"p90":4741,"max":4741}
   end state: last room change at 96 s (last player started at 1 s, run 228 s); 0 players, shown {"n":0} (expected 8), below expected 0, linked {"n":0}; rooms 0 sizes ; home shards 0 sizes 
@@ -795,7 +795,7 @@ scenario C N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 228 s
   whole run room events (all players): {"join":126,"leave":44,"peerJoin":880,"peerLeave":257,"drop":147,"unheld":35,"decoy":0,"overfull":6,"overcap":0,"joinError":45}
   timeline [s, active, seeing someone, max linked, rooms]: [[19,16,15,10,2],[42,16,16,8,2],[53,16,16,8,2],[64,16,16,8,2],[75,16,15,9,9],[85,16,15,9,11],[207,0,0,0,0]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/E16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/before/E16.json --append ~/.cache/palermo-drive/p2p-fix/runs/before/measurements.txt
 scenario E N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 206 s
   connect (ms from own start): first peer {"n":13,"min":574,"p50":1841,"p90":8998,"max":48800} first seen {"n":13,"min":649,"p50":2079,"p90":17476,"max":49872} never connected 2 never saw 2; real pages first peer {"n":1,"min":1290,"p50":1290,"p90":1290,"max":1290} seen {"n":1,"min":1325,"p50":1325,"p90":1325,"max":1325}
   end state: last room change at 189 s (last player started at 99 s, run 206 s); 14 players, shown {"n":14,"min":6,"p50":8,"p90":8,"max":8} (expected 8), below expected 6, linked {"n":14,"min":10,"p50":14,"p90":15,"max":15}; rooms 21 sizes 10,8,7,7,6,6,6,6,5,5,4,4,3,3,3,3,2,2,1,1,1; home shards 8 sizes 4,4,1,1,1,1,1,1
@@ -821,7 +821,7 @@ scenario E N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 206 s
 
 ---------- BEFORE, A at 32 and B at 8 again (load 16 to 29)
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 32 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before2/A32.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 32 --json ~/.cache/palermo-drive/p2p-fix/runs/before2/A32.json --append ~/.cache/palermo-drive/p2p-fix/runs/before2/measurements.txt
 scenario A N=32 (2 real game pages + 30 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":31,"min":302,"p50":674,"p90":2345,"max":2767} first seen {"n":31,"min":302,"p50":682,"p90":2361,"max":2767} never connected 0 never saw 0; real pages first peer {"n":2,"min":626,"p50":768,"p90":768,"max":768} seen {"n":2,"min":629,"p50":771,"p90":771,"max":771}
   end state: last room change at 27 s (last player started at 24 s, run 137 s); 32 players, shown {"n":32,"min":5,"p50":8,"p90":8,"max":8} (expected 8), below expected 14, linked {"n":32,"min":5,"p50":8,"p90":8,"max":8}; rooms 4 sizes 9,9,8,6; home shards 4 sizes 9,9,8,6
@@ -847,7 +847,7 @@ scenario A N=32 (2 real game pages + 30 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":1.23,"gpuCores":0,"browserCores":0.02,"otherCores":0.71,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[15,20,19,18,3],[31,32,32,8,4],[42,32,32,8,4],[52,32,32,8,4],[62,32,32,8,4],[73,32,32,8,4],[83,32,32,8,4],[93,32,32,8,4],[103,32,32,8,4],[114,32,32,8,4],[124,32,32,8,4],[134,32,32,8,4]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before2/B8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/before2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/before2/B8.json --append ~/.cache/palermo-drive/p2p-fix/runs/before2/measurements.txt
 scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":7,"min":437,"p50":732,"p90":2258,"max":2258} first seen {"n":7,"min":512,"p50":753,"p90":2258,"max":2258} never connected 0 never saw 0; real pages first peer {"n":1,"min":437,"p50":437,"p90":437,"max":437} seen {"n":1,"min":513,"p50":513,"p90":513,"max":513}
   end state: last room change at 137 s (last player started at 14 s, run 137 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 13 sizes 8,8,8,8,7,7,4,4,4,4,4,4,1; home shards 8 sizes 1,1,1,1,1,1,1,1
@@ -874,7 +874,7 @@ scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
 
 ---------- AFTER (load 4 to 8)
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/B8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario B --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/B8.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":7,"min":293,"p50":327,"p90":371,"max":371} first seen {"n":7,"min":294,"p50":327,"p90":371,"max":371} never connected 0 never saw 0; real pages first peer {"n":1,"min":293,"p50":293,"p90":293,"max":293} seen {"n":1,"min":294,"p50":294,"p90":294,"max":294}
   end state: last room change at 14 s (last player started at 14 s, run 137 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 8 sizes 8,1,1,1,1,1,1,1; home shards 8 sizes 1,1,1,1,1,1,1,1
@@ -900,7 +900,7 @@ scenario B N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.23,"gpuCores":0,"browserCores":0.01,"otherCores":0.17,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,4,4,3,4],[20,8,8,7,8],[30,8,8,7,8],[41,8,8,7,8],[51,8,8,7,8],[61,8,8,7,8],[71,8,8,7,8],[81,8,8,7,8],[92,8,8,7,8],[102,8,8,7,8],[112,8,8,7,8],[122,8,8,7,8],[132,8,8,7,8]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario B --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/B16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario B --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/B16.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario B N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":279,"p50":306,"p90":384,"max":418} first seen {"n":15,"min":280,"p50":312,"p90":384,"max":418} never connected 0 never saw 0; real pages first peer {"n":1,"min":306,"p50":306,"p90":306,"max":306} seen {"n":1,"min":312,"p50":312,"p90":312,"max":312}
   end state: last room change at 130 s (last player started at 20 s, run 137 s); 16 players, shown {"n":16,"min":5,"p50":8,"p90":8,"max":8} (expected 8), below expected 7, linked {"n":16,"min":7,"p50":9,"p90":10,"max":10}; rooms 16 sizes 7,5,5,5,5,5,4,4,1,1,1,1,1,1,1,1; home shards 16 sizes 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
@@ -926,7 +926,7 @@ scenario B N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.3,"gpuCores":0,"browserCores":0.02,"otherCores":0.18,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,7,7,6,7],[20,16,16,12,16],[30,16,16,13,16],[41,16,16,11,16],[51,16,16,11,16],[61,16,16,12,16],[71,16,16,11,16],[81,16,16,11,16],[91,16,16,10,16],[102,16,16,10,16],[112,16,16,10,16],[122,16,16,10,16],[132,16,16,10,16]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario C --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/C8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario C --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/C8.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario C N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 215 s
   connect (ms from own start): first peer {"n":7,"min":322,"p50":423,"p90":1833,"max":1833} first seen {"n":7,"min":351,"p50":425,"p90":1833,"max":1833} never connected 0 never saw 0; real pages first peer {"n":1,"min":322,"p50":322,"p90":322,"max":322} seen {"n":1,"min":352,"p50":352,"p90":352,"max":352}
   end state: last room change at 148 s (last player started at 0 s, run 215 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 1 sizes 8; home shards 1 sizes 8
@@ -952,7 +952,7 @@ scenario C N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 215 s
   browser CPU (steady 45 s): {"windowS":45,"rendererCoresUsed":0.3,"gpuCores":0,"browserCores":0.01,"otherCores":0.2,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,8,0,0,0],[10,8,8,7,1],[20,8,8,7,1],[30,8,8,7,1],[41,8,8,7,1],[51,8,8,7,1],[61,8,8,7,1],[71,8,8,7,3],[81,8,8,7,3],[91,8,8,7,5],[102,8,8,7,5],[112,8,8,7,5],[122,8,8,7,5],[132,8,8,7,3],[142,8,8,7,3],[152,8,8,7,1],[163,8,8,7,1],[173,8,8,7,1],[183,8,8,7,1],[193,8,8,7,1],[215,8,8,7,1]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario C --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/C16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario C --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/C16.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario C N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 215 s
   connect (ms from own start): first peer {"n":15,"min":299,"p50":599,"p90":3077,"max":3077} first seen {"n":15,"min":303,"p50":599,"p90":3077,"max":3078} never connected 0 never saw 0; real pages first peer {"n":1,"min":303,"p50":303,"p90":303,"max":303} seen {"n":1,"min":305,"p50":305,"p90":305,"max":305}
   end state: last room change at 182 s (last player started at 0 s, run 215 s); 16 players, shown {"n":16,"min":6,"p50":7,"p90":8,"max":8} (expected 8), below expected 11, linked {"n":16,"min":6,"p50":8,"p90":10,"max":10}; rooms 3 sizes 9,7,4; home shards 2 sizes 9,7
@@ -978,7 +978,7 @@ scenario C N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 215 s
   browser CPU (steady 45 s): {"windowS":45,"rendererCoresUsed":0.45,"gpuCores":0,"browserCores":0.01,"otherCores":0.26,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,16,0,0,0],[10,16,16,8,2],[20,16,16,8,2],[30,16,16,8,2],[41,16,16,8,2],[51,16,16,8,2],[61,16,16,8,2],[71,16,16,11,5],[81,16,16,11,6],[91,16,16,14,11],[101,16,16,12,12],[111,16,16,13,12],[121,16,16,13,11],[132,16,16,12,12],[142,16,16,12,12],[152,16,16,15,9],[162,16,16,15,7],[172,16,16,10,6],[182,16,16,10,3],[192,16,16,10,3],[215,16,16,10,3]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario E --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/E8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario E --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/E8.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario E N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":7,"min":292,"p50":331,"p90":392,"max":392} first seen {"n":7,"min":293,"p50":331,"p90":392,"max":392} never connected 0 never saw 0; real pages first peer {"n":1,"min":292,"p50":292,"p90":292,"max":292} seen {"n":1,"min":293,"p50":293,"p90":293,"max":293}
   end state: last room change at 137 s (last player started at 9 s, run 137 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 4 sizes 8,2,1,1; home shards 4 sizes 4,2,1,1
@@ -1004,7 +1004,7 @@ scenario E N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.26,"gpuCores":0,"browserCores":0.01,"otherCores":0.17,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,8,8,7,5],[20,8,8,7,5],[30,8,8,7,4],[40,8,8,7,5],[50,8,8,7,7],[61,8,8,7,5],[71,8,8,7,3],[81,8,8,7,5],[91,8,8,7,7],[101,8,8,7,4],[111,8,8,7,5],[121,8,8,7,4],[131,8,8,7,4]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/E16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/E16.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario E N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":266,"p50":315,"p90":350,"max":357} first seen {"n":15,"min":267,"p50":316,"p90":354,"max":361} never connected 0 never saw 0; real pages first peer {"n":1,"min":276,"p50":276,"p90":276,"max":276} seen {"n":1,"min":277,"p50":277,"p90":277,"max":277}
   end state: last room change at 135 s (last player started at 10 s, run 137 s); 16 players, shown {"n":16,"min":2,"p50":7,"p90":8,"max":8} (expected 8), below expected 12, linked {"n":16,"min":2,"p50":10,"p90":13,"max":14}; rooms 12 sizes 9,7,6,5,3,3,3,2,2,2,1,1; home shards 9 sizes 6,2,2,1,1,1,1,1,1
@@ -1030,7 +1030,7 @@ scenario E N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.53,"gpuCores":0,"browserCores":0.08,"otherCores":0.26,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,16,16,13,11],[20,16,16,13,11],[30,16,16,15,11],[40,16,16,12,10],[50,16,16,11,11],[61,16,16,12,11],[71,16,16,14,10],[81,16,16,13,11],[91,16,16,14,10],[101,16,16,14,9],[111,16,16,12,10],[121,16,16,14,11],[131,16,16,14,11]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 8 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/A8.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 8 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/A8.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario A N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":7,"min":290,"p50":323,"p90":387,"max":387} first seen {"n":7,"min":290,"p50":325,"p90":387,"max":387} never connected 0 never saw 0; real pages first peer {"n":1,"min":323,"p50":323,"p90":323,"max":323} seen {"n":1,"min":325,"p50":325,"p90":325,"max":325}
   end state: last room change at 18 s (last player started at 18 s, run 137 s); 8 players, shown {"n":8,"min":7,"p50":7,"p90":7,"max":7} (expected 7), below expected 0, linked {"n":8,"min":7,"p50":7,"p90":7,"max":7}; rooms 1 sizes 8; home shards 1 sizes 8
@@ -1056,7 +1056,7 @@ scenario A N=8 (1 real game pages + 7 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.33,"gpuCores":0,"browserCores":0.01,"otherCores":0.22,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,4,4,3,1],[20,8,8,7,1],[30,8,8,7,1],[40,8,8,7,1],[51,8,8,7,1],[61,8,8,7,1],[71,8,8,7,1],[81,8,8,7,1],[91,8,8,7,1],[101,8,8,7,1],[112,8,8,7,1],[122,8,8,7,1],[132,8,8,7,1]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/A16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/A16.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario A N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":278,"p50":317,"p90":392,"max":489} first seen {"n":15,"min":285,"p50":318,"p90":396,"max":490} never connected 0 never saw 0; real pages first peer {"n":1,"min":278,"p50":278,"p90":278,"max":278} seen {"n":1,"min":285,"p50":285,"p90":285,"max":285}
   end state: last room change at 20 s (last player started at 19 s, run 137 s); 16 players, shown {"n":16,"min":6,"p50":8,"p90":8,"max":8} (expected 8), below expected 7, linked {"n":16,"min":6,"p50":8,"p90":8,"max":8}; rooms 2 sizes 9,7; home shards 2 sizes 9,7
@@ -1082,7 +1082,7 @@ scenario A N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.41,"gpuCores":0,"browserCores":0.01,"otherCores":0.25,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,7,7,6,1],[20,16,16,8,2],[30,16,16,8,2],[41,16,16,8,2],[51,16,16,8,2],[61,16,16,8,2],[71,16,16,8,2],[81,16,16,8,2],[91,16,16,8,2],[102,16,16,8,2],[112,16,16,8,2],[122,16,16,8,2],[132,16,16,8,2]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 32 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/A32.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 32 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/A32.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario A N=32 (2 real game pages + 30 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":31,"min":272,"p50":314,"p90":370,"max":2303} first seen {"n":31,"min":272,"p50":323,"p90":375,"max":2304} never connected 0 never saw 0; real pages first peer {"n":2,"min":286,"p50":300,"p90":300,"max":300} seen {"n":2,"min":291,"p50":302,"p90":302,"max":302}
   end state: last room change at 20 s (last player started at 20 s, run 137 s); 32 players, shown {"n":32,"min":4,"p50":8,"p90":8,"max":8} (expected 8), below expected 5, linked {"n":32,"min":4,"p50":8,"p90":8,"max":8}; rooms 4 sizes 9,9,9,5; home shards 4 sizes 9,9,9,5
@@ -1109,7 +1109,7 @@ scenario A N=32 (2 real game pages + 30 bots) cap 8 (shipped) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.87,"gpuCores":0,"browserCores":0.01,"otherCores":0.52,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,13,13,8,2],[20,32,32,8,4],[30,32,32,8,4],[41,32,32,8,4],[51,32,32,8,4],[61,32,32,8,4],[71,32,32,8,4],[81,32,32,8,4],[92,32,32,8,4],[102,32,32,8,4],[112,32,32,8,4],[122,32,32,8,4],[132,32,32,8,4]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario D --n 16 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/D16.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario D --n 16 --json ~/.cache/palermo-drive/p2p-fix/runs/after2/D16.json --append ~/.cache/palermo-drive/p2p-fix/runs/after2/measurements.txt
 scenario D N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 120 s
   connect (ms from own start): first peer {"n":15,"min":276,"p50":320,"p90":404,"max":3335} first seen {"n":15,"min":276,"p50":325,"p90":404,"max":3335} never connected 0 never saw 0; real pages first peer {"n":1,"min":280,"p50":280,"p90":280,"max":280} seen {"n":1,"min":282,"p50":282,"p90":282,"max":282}
   end state: last room change at 47 s (last player started at 45 s, run 120 s); 16 players, shown {"n":16,"min":6,"p50":8,"p90":8,"max":8} (expected 8), below expected 7, linked {"n":16,"min":6,"p50":8,"p90":8,"max":8}; rooms 2 sizes 9,7; home shards 2 sizes 9,7
@@ -1137,7 +1137,7 @@ scenario D N=16 (1 real game pages + 15 bots) cap 8 (shipped) seed 1, ran 120 s
 
 ---------- AFTER, 10 players (9 and 1), with the give gap at 1 minute instead of 5 (a rule that did not fire in the AFTER runs above) (load 3 to 6)
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 10 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after3/A10.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after3/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 10 --json ~/.cache/palermo-drive/p2p-fix/runs/after3/A10.json --append ~/.cache/palermo-drive/p2p-fix/runs/after3/measurements.txt
 scenario A N=10 (1 real game pages + 9 bots) cap 8 (shipped) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":9,"min":277,"p50":322,"p90":11066,"max":11066} first seen {"n":9,"min":277,"p50":322,"p90":11066,"max":11066} never connected 0 never saw 0; real pages first peer {"n":1,"min":303,"p50":303,"p90":303,"max":303} seen {"n":1,"min":305,"p50":305,"p90":305,"max":305}
   end state: last room change at 30 s (last player started at 18 s, run 137 s); 10 players, shown {"n":10,"min":1,"p50":7,"p90":7,"max":7} (expected 8), below expected 10, linked {"n":10,"min":1,"p50":7,"p90":7,"max":7}; rooms 2 sizes 8,2; home shards 2 sizes 8,2
@@ -1164,7 +1164,7 @@ scenario A N=10 (1 real game pages + 9 bots) cap 8 (shipped) seed 1, ran 137 s
   solo bot pages (netcode alone on a main thread): [{"throttle":1,"name":"B9","task":7.483767695462959,"script":3.8023443883080725,"heapMB":4.995578765869141,"perPage":1}]
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,5,5,4,1],[20,10,9,8,2],[30,10,10,7,2],[41,10,10,7,2],[51,10,10,7,2],[61,10,10,7,2],[71,10,10,7,2],[81,10,10,7,2],[91,10,10,7,2],[102,10,10,7,2],[112,10,10,7,2],[122,10,10,7,2],[132,10,10,7,2]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario C --n 10 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after3/C10.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/after3/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario C --n 10 --json ~/.cache/palermo-drive/p2p-fix/runs/after3/C10.json --append ~/.cache/palermo-drive/p2p-fix/runs/after3/measurements.txt
 scenario C N=10 (1 real game pages + 9 bots) cap 8 (shipped) seed 1, ran 215 s
   connect (ms from own start): first peer {"n":9,"min":358,"p50":868,"p90":18902,"max":18902} first seen {"n":9,"min":369,"p50":868,"p90":18903,"max":18903} never connected 0 never saw 0; real pages first peer {"n":1,"min":367,"p50":367,"p90":367,"max":367} seen {"n":1,"min":370,"p50":370,"p90":370,"max":370}
   end state: last room change at 215 s (last player started at 0 s, run 215 s); 10 players, shown {"n":10,"min":6,"p50":7,"p90":8,"max":8} (expected 8), below expected 6, linked {"n":10,"min":6,"p50":9,"p90":9,"max":9}; rooms 3 sizes 8,7,1; home shards 2 sizes 8,2
@@ -1302,7 +1302,7 @@ scenario B N=8 (0 real game pages + 8 bots) cap 8 (shipped) seed 1, ran 422 s
 
 ---------- AFTER, ?maxp=12 at 16 players (load 3 to 5)
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario B --n 16 --maxp 12 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/B.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario B --n 16 --maxp 12 --json ~/.cache/palermo-drive/p2p-fix/runs/cap12/B.json --append ~/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
 scenario B N=16 (1 real game pages + 15 bots) cap 12 (?maxp) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":269,"p50":343,"p90":398,"max":414} first seen {"n":15,"min":270,"p50":352,"p90":402,"max":417} never connected 0 never saw 0; real pages first peer {"n":1,"min":350,"p50":350,"p90":350,"max":350} seen {"n":1,"min":361,"p50":361,"p90":361,"max":361}
   end state: last room change at 134 s (last player started at 20 s, run 137 s); 16 players, shown {"n":16,"min":7,"p50":12,"p90":12,"max":12} (expected 12), below expected 6, linked {"n":16,"min":11,"p50":13,"p90":14,"max":14}; rooms 16 sizes 10,8,6,6,6,2,2,2,1,1,1,1,1,1,1,1; home shards 16 sizes 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
@@ -1328,7 +1328,7 @@ scenario B N=16 (1 real game pages + 15 bots) cap 12 (?maxp) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.36,"gpuCores":0,"browserCores":0.03,"otherCores":0.22,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,7,7,6,7],[20,16,16,13,16],[30,16,16,14,16],[41,16,16,15,16],[51,16,16,15,16],[61,16,16,15,16],[71,16,16,14,16],[81,16,16,14,16],[91,16,16,15,16],[102,16,16,15,16],[112,16,16,15,16],[122,16,16,15,16],[132,16,16,15,16]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --maxp 12 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/E.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario E --n 16 --maxp 12 --json ~/.cache/palermo-drive/p2p-fix/runs/cap12/E.json --append ~/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
 scenario E N=16 (1 real game pages + 15 bots) cap 12 (?maxp) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":262,"p50":335,"p90":396,"max":402} first seen {"n":15,"min":264,"p50":337,"p90":401,"max":409} never connected 0 never saw 0; real pages first peer {"n":1,"min":262,"p50":262,"p90":262,"max":262} seen {"n":1,"min":264,"p50":264,"p90":264,"max":264}
   end state: last room change at 137 s (last player started at 10 s, run 137 s); 16 players, shown {"n":16,"min":6,"p50":11,"p90":12,"max":12} (expected 12), below expected 9, linked {"n":16,"min":10,"p50":13,"p90":15,"max":15}; rooms 11 sizes 11,8,7,7,6,5,4,2,1,1,1; home shards 7 sizes 4,4,2,2,2,1,1
@@ -1354,7 +1354,7 @@ scenario E N=16 (1 real game pages + 15 bots) cap 12 (?maxp) seed 1, ran 137 s
   browser CPU (steady 60 s): {"windowS":60,"rendererCoresUsed":0.57,"gpuCores":0,"browserCores":0.08,"otherCores":0.29,"note":"cores = CPU seconds per wall second, summed over every process of the browser started by this run (includes the real game pages; \"other\" holds the network and utility processes, where the WebRTC sockets live)"}
   timeline [s, active, seeing someone, max linked, rooms]: [[0,0,0,0,0],[10,16,16,14,10],[20,16,16,15,10],[30,16,16,15,9],[41,16,16,15,9],[51,16,16,15,9],[61,16,16,15,9],[71,16,16,15,8],[81,16,16,15,9],[91,16,16,15,9],[102,16,16,15,9],[112,16,16,15,10],[122,16,16,15,10],[132,16,16,15,11]]
 
-=== stress.mjs --root /Users/ebonura/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --maxp 12 --json /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/A.json --append /Users/ebonura/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
+=== stress.mjs --root ~/.cache/palermo-drive/p2p-fix/dist --scenario A --n 16 --maxp 12 --json ~/.cache/palermo-drive/p2p-fix/runs/cap12/A.json --append ~/.cache/palermo-drive/p2p-fix/runs/cap12/measurements.txt
 scenario A N=16 (1 real game pages + 15 bots) cap 12 (?maxp) seed 1, ran 137 s
   connect (ms from own start): first peer {"n":15,"min":278,"p50":341,"p90":397,"max":482} first seen {"n":15,"min":279,"p50":355,"p90":399,"max":482} never connected 0 never saw 0; real pages first peer {"n":1,"min":341,"p50":341,"p90":341,"max":341} seen {"n":1,"min":357,"p50":357,"p90":357,"max":357}
   end state: last room change at 20 s (last player started at 19 s, run 137 s); 16 players, shown {"n":16,"min":2,"p50":12,"p90":12,"max":12} (expected 12), below expected 3, linked {"n":16,"min":2,"p50":12,"p90":12,"max":12}; rooms 2 sizes 13,3; home shards 2 sizes 13,3

@@ -45,10 +45,7 @@ The repository is public (`github.com/EBonura/palermo-drive`, 173 commits, one a
 
 ### 2. Work e-mail address in a public personal repository (Low, Fixed in HEAD)
 
-`tools/context.py` line 33 sent `contact ebonura@fastly.com` in the User-Agent of its Overpass requests. It now says `contact https://github.com/EBonura/palermo-drive`. The old address stays in
-the history (commits that touched that line). Rewriting history of a repository with Pages and 173 commits is not worth it for an address that is already on a work profile; if you want it gone anyway,
-that needs `git filter-repo` and a force push. The personal Google account `bonniestudiosdev@gmail.com` is named in `relay/DEPLOY.md`, `deploy.sh` and `docs/TODO.md` as the deployment account: public
-on purpose, but it is also the login name of that account, so enable two-step verification on it.
+`tools/context.py` line 33 used to send a personal contact address in the User-Agent of its Overpass requests. It now says `contact https://github.com/EBonura/palermo-drive`, and on 19 November 2026 the history was rewritten so that the old address is in no commit of `main`.
 
 ### 3. `.gitignore` coverage (Low, Fixed)
 
