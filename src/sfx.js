@@ -25,7 +25,7 @@ function ready() {
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     for (const k in beds) delete beds[k];
     for (const k in bufs) delete bufs[k]; for (const k in loads) delete loads[k];
-    for (const k of ['tock', 'rustle', 'jingle-start', 'jingle-win', 'jingle-fail']) load(k);   // the short ones are wanted the moment something happens
+    for (const k of ['crash-light', 'crash-heavy1', 'crash-heavy2', 'glass1', 'glass2', 'wood-break', 'bags1', 'bags2', 'bonk1', 'bonk2', 'jingle-start', 'jingle-win', 'jingle-fail']) load(k);   // the short ones are wanted the moment something happens
     vol0 = duck0 = -1;
   }
   if (c.state !== 'running') return false;   // a suspended context would queue the sound and play it late
@@ -77,11 +77,13 @@ const CUES = {
   }],
   // things in the street
   clang:  ['world', 0.09, (o, t, k) => { for (const [f, g, d] of [[412, 0.25, 0.5], [1087, 0.18, 0.35], [1810, 0.12, 0.22], [2954, 0.07, 0.12]]) tone(o, t, f * (0.92 + Math.random() * 0.16), d, g * k, 'triangle', 0, 0.002); hiss(o, t, 0.07, 0.3 * k, 'bandpass', 2200, 0.7); }],   // a bin, a sign, a railing
-  tock:   ['world', 0.09, (o, t, k) => sample(o, t, 'tock', 0.9 * k, 0.9 + Math.random() * 0.25)],   // a cone, a crate, a chair (a recording: a plank)
-  rustle: ['world', 0.12, (o, t, k) => sample(o, t, 'rustle', 1.1 * k, 0.85 + Math.random() * 0.3)],   // a hedge, a rubbish pile, a parasol (a recording: cloth)
-  crunch: ['world', 0.12, (o, t, k) => { hiss(o, t, 0.18, 0.5 * k, 'lowpass', 2600, 0.7, 500, 0.003); tone(o, t, 150, 0.2, 0.4 * k, 'sine', 55, 0.003); for (let i = 0; i < 4; i++) hiss(o, t + 0.05 + Math.random() * 0.3, 0.03, 0.15 * k, 'highpass', 5000 + Math.random() * 3000); }],   // a parked car: bodywork and a little glass
+  // (Nov 2026: the owner chose recordings for the things the lapa hits, src/sfx.js FILES; metal is still the synthesised clang until one is chosen)
+  tock:   ['world', 0.09, (o, t, k) => sample(o, t, 'wood-break', 0.5 * k, 0.92 + Math.random() * 0.2)],   // a crate, a stall, a chair: a wooden crate breaking, kept low
+  rustle: ['world', 0.12, (o, t, k) => sample(o, t, any('bags1', 'bags2'), 0.8 * k, 0.9 + Math.random() * 0.2)],   // a rubbish pile, cardboard, a hedge: a bag of rubbish dropped, or a box
+  crunch: ['world', 0.12, (o, t, k) => { if (k < 0.75) { sample(o, t, 'crash-light', 0.35 + 0.45 * k, 0.94 + Math.random() * 0.14); return; }   // a car: a clank for a tap or a shunt,
+    sample(o, t, any('crash-heavy1', 'crash-heavy2'), Math.min(0.85, 0.55 * k + 0.15), 0.95 + Math.random() * 0.1); sample(o, t + 0.04, any('glass1', 'glass2'), 0.28 * k, 0.95 + Math.random() * 0.15); }],   // a crash with breaking glass for a real hit
   splash: ['world', 0.15, (o, t, k) => { hiss(o, t, 1, 0.45 * k, 'lowpass', 3000, 0.6, 300, 0.03); tone(o, t, 90, 0.4, 0.4 * k, 'sine', 40); }],   // a big one with weight
-  bonk:   ['world', 0.08, (o, t, k) => { tone(o, t, 210, 0.13, 0.55 * k, 'sine', 70, 0.003); hiss(o, t, 0.05, 0.3 * k, 'lowpass', 900); tone(o, t + 0.03, 520, 0.16, 0.18 * k, 'triangle', 240, 0.004); }],   // somebody sent flying: a thud with a short comic drop (a stand-in until the owner picks a recording)
+  bonk:   ['world', 0.08, (o, t, k) => sample(o, t, any('bonk1', 'bonk2'), 0.7 * k, 0.94 + Math.random() * 0.14)],   // somebody sent flying: a comic bonk or a body thud (both levelled to the same peak)
   thump:  ['world', 0.15, (o, t, k) => { for (const dt of [0, 0.1]) { tone(o, t + dt, 130, 0.2, 0.45 * k, 'sine', 50, 0.004); hiss(o, t + dt, 0.08, 0.25 * k, 'lowpass', 700); } }],   // landing: front wheels, then rear
   scatter: ['world', 0.5, (o, t, k) => { for (let i = 0; i < 4; i++) hiss(o, t + i * 0.09, 0.05, 0.3 * k, 'lowpass', 700); }],   // people jumping clear: slippers slapping
   // traffic and the city
@@ -92,7 +94,8 @@ const CUES = {
 };
 
 // ---- recordings (assets/audio, credits in assets/CREDITS.md): fetched and decoded when first wanted; a one-shot asked for before its file is in plays as soon as it is, if that is within a second ----
-const FILES = { 'jingle-start': 'jingle-start.m4a', 'jingle-win': 'jingle-win.m4a', 'jingle-fail': 'jingle-fail.m4a', tock: 'tock.wav', rustle: 'rustle.wav', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
+const FILES = { 'jingle-start': 'jingle-start.m4a', 'jingle-win': 'jingle-win.m4a', 'jingle-fail': 'jingle-fail.m4a', 'crash-light': 'crash-light.m4a', 'crash-heavy1': 'crash-heavy1.m4a', 'crash-heavy2': 'crash-heavy2.m4a', glass1: 'glass1.m4a', glass2: 'glass2.m4a', 'wood-break': 'wood-break.m4a', bags1: 'bags1.m4a', bags2: 'bags2.m4a', bonk1: 'bonk1.m4a', bonk2: 'bonk2.m4a', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
+const any = (...a) => a[(Math.random() * a.length) | 0];
 const urlOf = file => new URL('../assets/audio/' + file, import.meta.url).href;
 const bufs = {}, loads = {};
 function load(key) {
