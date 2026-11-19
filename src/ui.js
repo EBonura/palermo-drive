@@ -75,6 +75,7 @@ const S = {
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
+  balloons: ['Fumetti', 'Speech balloons'], bS: ['Piccoli', 'Small'], bM: ['Medi', 'Medium'], bL: ['Grandi', 'Large'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
@@ -302,6 +303,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
+  st.balloons = ['s', 'm', 'l'].includes(saved.balloons) ? saved.balloons : 'm'; dispatchEvent(new CustomEvent('pd-balloon', { detail: st.balloons }));   // the size of the speech balloons (src/shouts.js)
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice
@@ -362,6 +364,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
+    { key: 'balloons', label: 'balloons', type: 'seg', vals: [['s', 'bS'], ['m', 'bM'], ['l', 'bL']] }, // how big the speech balloons are (src/shouts.js)
     { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
   ];
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
@@ -864,7 +867,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again
       if (key === 'timeNow') dispatchEvent(new CustomEvent('pd-time-hour', { detail: value }));
       if (key === 'handling') vehicle?.setPhysics?.(value);
-      if (key === 'units' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'balloons') dispatchEvent(new CustomEvent('pd-balloon', { detail: value }));
+      if (key === 'units' || key === 'balloons' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }

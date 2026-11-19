@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- The trailer's title graphics, drawn in the game's own look and stepped frame by frame by tools/film/titles.mjs (window.draw(t) paints second t; nothing here runs on a clock).
+     ?kind=over|place|card|review|links|logo|bonnie|flip  &text=line one|line two  &color=pink|white  &dur=1.6  &anchor=0.74 (where the text sits, as a share of the height: the same for every title) -->
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Racing Sans One'; src: url('../../assets/ui/fonts/racing-sans-one.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-weight: 700; src: url('../../assets/ui/fonts/barlow-condensed-700.woff2') format('woff2'); }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+#stage { position: fixed; inset: 0; }
+.txt { position: absolute; left: 50%; text-align: center; white-space: nowrap; text-transform: uppercase; font-family: 'Racing Sans One', Impact, sans-serif; color: #fff; letter-spacing: .03em; line-height: 1.02;
+  -webkit-text-stroke: .045em #0b0709; paint-order: stroke fill; text-shadow: 0 0 .35em rgba(232,85,154,.9), 0 .07em .1em rgba(0,0,0,.65); will-change: transform, opacity; }
+.txt.pink { color: #ff6fb0; text-shadow: 0 0 .4em rgba(255,207,74,.75), 0 .07em .1em rgba(0,0,0,.65); }
+.txt small { display: block; font: 700 .34em/1.25 'Barlow Condensed', 'Arial Narrow', sans-serif; letter-spacing: .2em; -webkit-text-stroke: 0; text-shadow: 0 0 .5em rgba(232,85,154,.8), 0 .1em .15em rgba(0,0,0,.7); margin-top: .25em; }
+.bar { position: absolute; left: 50%; height: .09em; background: #e8559a; box-shadow: 0 0 .5em #e8559a; transform-origin: 50% 50%; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#logo { position: absolute; left: 50%; top: 40%; filter: drop-shadow(0 .5vh 2.4vh rgba(232,85,154,.55)); }
+#logo svg { display: block; width: 100%; height: auto; overflow: visible; }
+#bon { position: absolute; left: 50%; top: 46%; }
+</style>
+<div id="stage"></div>
+<script>
+const Q = new URLSearchParams(location.search), kind = Q.get('kind') || 'over', lines = (Q.get('text') || '').split('|').filter(Boolean), DUR = +Q.get('dur') || 1.6, ANCHOR = +Q.get('anchor') || 0.74;
+const W = innerWidth, H = innerHeight, S = document.getElementById('stage'), tall = H > W;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x, ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const back = u => { const c = 1.9; u = clamp(u, 0, 1) - 1; return 1 + (c + 1) * u * u * u + c * u * u; };   // overshoots and settles: a slam
+const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; S.appendChild(e); return e; };
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+let draw = () => {};
+
+// one block of text at the anchor: the first line big, the rest small under it; it slams in, holds, and is whipped out sideways
+function textBlock(color, size, at = ANCHOR) {
+  const el = mk('div', 'txt' + (color === 'pink' ? ' pink' : ''), esc(lines[0] || '') + lines.slice(1).map(l => `<small>${esc(l)}</small>`).join(''));
+  const fit = Math.min(size, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
+  const bar = mk('div', 'bar'); bar.style.fontSize = fit + 'px'; bar.style.top = (H * at + fit * 0.62) + 'px';
+  return t => {
+    const a = back(t / 0.22), out = ss(DUR - 0.16, DUR, t), sc = 0.35 + 0.65 * a + (1 - ss(0, 0.5, t)) * 0.04 * Math.sin(t * 70);
+    el.style.opacity = clamp(t / 0.06, 0, 1) * (1 - out);
+    el.style.transform = `translate(-50%, -50%) translateX(${out * W * 0.5}px) skewX(-8deg) scale(${sc})`;
+    const bw = fit * 0.5 * (lines[0] || '').length * ss(0.1, 0.4, t) * (1 - out);
+    bar.style.width = bw + 'px'; bar.style.transform = 'translate(-50%, 0) skewX(-30deg)'; bar.style.opacity = lines.length > 1 ? 0 : 1 - out;
+  };
+}
+
+if (kind === 'place') {   // a place name: bottom right, small, sliding in from the edge with a pink bar under it
+  const el = mk('div', 'txt', esc(lines[0] || '')), fs = tall ? W * 0.062 : H * 0.062, mr = W * 0.045, mb = tall ? H * 0.3 : H * 0.085;   // (in the tall cut the apps' own buttons cover the bottom: the name sits above them)
+  el.style.cssText = `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb}px;text-align:right;transform-origin:100% 100%`;
+  const bar = mk('div', 'bar'); bar.style.cssText = `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb - fs * 0.16}px`;
+  draw = t => { const a = back(t / 0.2), out = ss(DUR - 0.14, DUR, t); el.style.opacity = clamp(t / 0.05, 0, 1) * (1 - out); el.style.transform = `translateX(${(1 - a) * W * 0.25}px) skewX(-8deg)`;
+    bar.style.width = (fs * 0.5 * (lines[0] || '').length * ss(0.08, 0.3, t)) + 'px'; bar.style.opacity = 1 - out; bar.style.transform = 'skewX(-30deg)'; };
+}
+if (kind === 'over') draw = textBlock(Q.get('color') || 'white', (tall ? W * 0.17 : H * 0.17) * (+Q.get('scale') || 1));
+// the rosanero checkerboard as a flag in the wind, darkened so that the text over it keeps its contrast: the ground of every card
+function flag(dark) {
+  document.body.style.background = '#0b0709'; const cv = mk('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), sz = Math.max(W, H) / 11, A = sz * 0.3, nx = Math.ceil(W / sz) + 3, ny = Math.ceil(H / sz) + 3;
+  const pt = (i, j, t) => { const x = (i - 1.5) * sz, y = (j - 1.5) * sz, ph = x * 0.0042 + y * 0.0026 - t * 2.1, p2 = x * 0.0019 - y * 0.0047 + t * 1.3; return [x + A * Math.sin(ph) + A * 0.4 * Math.sin(p2), y + A * 0.8 * Math.cos(ph * 0.9 + 1) + A * 0.5 * Math.sin(p2 + 2), Math.cos(ph)]; };
+  const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.hypot(W, H) * 0.6); vg.addColorStop(0, `rgba(11,7,9,${dark})`); vg.addColorStop(1, `rgba(11,7,9,${Math.min(1, dark + 0.3)})`);
+  return t => { g.fillStyle = '#0b0709'; g.fillRect(0, 0, W, H);
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { if ((i + j) % 2) continue; const a = pt(i, j, t), b = pt(i + 1, j, t), c = pt(i + 1, j + 1, t), d = pt(i, j + 1, t), l = 0.72 + 0.28 * (a[2] + c[2]) / 2;   // lit on the crest of the wave, in shade in its trough
+      g.fillStyle = `rgb(${232 * l | 0},${85 * l | 0},${154 * l | 0})`; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]); g.fill(); }
+    g.fillStyle = vg; g.fillRect(0, 0, W, H); };
+}
+if (kind === 'card') { const bg = flag(0.66), tx = textBlock(Q.get('color') || 'white', (tall ? W * 0.12 : H * 0.13) * (+Q.get('scale') || 1), 0.5); draw = t => { bg(t); tx(t); }; }   // dead centre
+if (kind === 'review') {   // a (made-up) review: five stars, the words as they were said, and who said it. text: 'the words|the name'
+  const bg = flag(0.74), u = Math.min(W, H) / 100, box = mk('div'); box.style.cssText = `position:absolute;left:50%;top:50%;width:${tall ? 86 : 70}%;text-align:center;color:#fff;text-shadow:0 .08em .25em rgba(0,0,0,.85)`;
+  const q = lines[0] || '', qs = u * (q.length > 90 ? 5.2 : q.length > 45 ? 6.6 : 9);
+  box.innerHTML = `<div style="font:${u * 7}px/1 sans-serif;color:#ffcf4a;letter-spacing:.12em;text-shadow:0 0 .4em rgba(255,207,74,.7)">★★★★★</div><div style="font:${qs}px/1.12 'Racing Sans One',Impact,sans-serif;margin:.35em 0 .4em;-webkit-text-stroke:.04em #0b0709;paint-order:stroke fill">“${esc(q)}”</div><div style="font:700 ${u * 4.2}px/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#ff6fb0">${esc(lines[1] || '')}</div>`;
+  S.appendChild(box); const [st, qt, nm] = box.children;
+  draw = t => { bg(t); const a = back(t / 0.25), out = ss(DUR - 0.16, DUR, t); box.style.opacity = clamp(t / 0.06, 0, 1) * (1 - out); box.style.transform = `translate(-50%, -50%) rotate(-2deg) scale(${0.5 + 0.5 * a})`;
+    st.style.clipPath = `inset(0 ${(1 - ss(0.1, 0.55, t)) * 100}% 0 0)`; nm.style.opacity = ss(0.45, 0.7, t); };
+}
+if (kind === 'links') {   // the last page: a heading, a small line under it, then one row per link ("ig:@name", "yt:@name", "itch:address", "gh:address"), each with its icon
+  const bg = flag(0.8), u = Math.min(W, H) / 100, rows = lines.slice(2).map(l => l.split(/:(.*)/)), cols = tall ? 1 : 2;
+  const IC = { ig: '<rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="#fff" stroke-width="2"/><circle cx="17.2" cy="6.8" r="1.2" fill="#fff"/>',
+    yt: '<rect x="1.5" y="5" width="21" height="14" rx="4.5" fill="#fff"/><path d="M10 8.6v6.8l5.8-3.4z" fill="#0b0709"/>',
+    itch: '<path d="M3 4h18l1.5 4.2c0 1.5-1.2 2.6-2.6 2.6s-2.6-1.1-2.6-2.6c0 1.5-1.2 2.6-2.6 2.6S12 9.7 12 8.2c0 1.5-1.2 2.6-2.6 2.6S6.8 9.7 6.8 8.2c0 1.5-1.2 2.6-2.6 2.6S1.5 9.7 1.5 8.2z" fill="#fff"/><path d="M3.5 12.5v7.5h17v-7.5h-2.5v5h-12v-5z" fill="#fff"/>',
+    gh: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' };
+  const hd = mk('div', 'txt', esc(lines[0] || '') + `<small>${esc(lines[1] || '')}</small>`), hs = Math.min(u * 9, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); hd.style.fontSize = hs + 'px'; hd.style.top = (H * (tall ? 0.3 : 0.27)) + 'px';
+  const fs = u * (tall ? 5.2 : 4.6), cw = tall ? W * 0.84 : W * 0.4, x0 = W / 2 - cw * cols / 2, y0 = H * (tall ? 0.45 : 0.52), rh = fs * 2.3;
+  const els = rows.map(([k, v], i) => { const e = mk('div'); e.style.cssText = `position:absolute;left:${x0 + (i % cols) * cw}px;top:${y0 + Math.floor(i / cols) * rh}px;width:${cw}px;display:flex;align-items:center;gap:${fs * 0.5}px;font:700 ${fs}px/1 'Barlow Condensed','Arial Narrow',sans-serif;color:#fff;letter-spacing:.04em;text-shadow:0 .08em .2em rgba(0,0,0,.8)`;
+    e.innerHTML = `<svg viewBox="0 0 24 24" width="${fs * 1.5}" height="${fs * 1.5}" style="flex:none;filter:drop-shadow(0 0 ${fs * 0.25}px #e8559a)">${IC[k] || ''}</svg><span>${esc(v || '')}</span>`; return e; });
+  draw = t => { bg(t); const a = back(t / 0.25); hd.style.opacity = clamp(t / 0.08, 0, 1); hd.style.transform = `translate(-50%, -50%) skewX(-8deg) scale(${0.5 + 0.5 * a})`;
+    els.forEach((e, i) => { const k = ss(0.3 + i * 0.12, 0.5 + i * 0.12, t); e.style.opacity = k; e.style.transform = `translateX(${(1 - k) * -40}px)`; }); };
+}
+if (kind === 'flip') {   // the game's checkerboard: rosanero squares flip in on a diagonal wave, cover the picture, and flip out the same way
+  const cv = mk('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), n = tall ? 6 : 10, sz = Math.ceil(W / n), rows = Math.ceil(H / sz);
+  draw = t => { g.clearRect(0, 0, W, H); const u = t / DUR, cover = u < 0.5;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < n; c++) { const d = (c + r) / (n + rows), k = cover ? ss(d * 0.55, d * 0.55 + 0.45, u * 2) : 1 - ss(d * 0.55, d * 0.55 + 0.45, u * 2 - 1); if (k <= 0) continue;
+      g.fillStyle = (c + r) % 2 ? '#e8559a' : '#0b0709'; const w = sz * k; g.fillRect(c * sz + (sz - w) / 2, r * sz, w + 0.5, sz + 0.5); } };
+}
+if (kind === 'bonnie') { document.body.style.background = '#000';
+  const im = mk('img'); im.id = 'bon'; im.src = '../../assets/ui/bonnie-studios.png'; const sz = Math.min(W, H) * 0.42; im.style.width = sz + 'px';
+  const tx = mk('div', 'txt', '<small>presenta</small>'); tx.style.fontSize = (Math.min(W, H) * 0.09) + 'px'; tx.style.top = (H * 0.72) + 'px';
+  draw = t => { const a = back(t / 0.3), out = ss(DUR - 0.18, DUR, t); im.style.opacity = clamp(t / 0.1, 0, 1) * (1 - out); im.style.transform = `translate(-50%, -50%) scale(${0.6 + 0.4 * a})`;
+    tx.style.opacity = ss(0.25, 0.45, t) * (1 - out); tx.style.transform = 'translate(-50%, -50%)'; };
+}
+if (kind === 'logo') { const bg = Q.get('bg') !== 'none' ? flag(0.74) : null;   // the game's logo slams in, then the lines come up one by one at the anchor
+  const lg = mk('div'); lg.id = 'logo'; lg.innerHTML = window.__logoSVG || ''; const lw = Math.min(W * 0.86, H * 0.9); lg.style.width = lw + 'px';
+  const ls = lines.map((l, i) => { const e = mk('div', 'txt', `<small style="font-size:1em;margin:0">${esc(l)}</small>`); e.style.fontSize = (tall ? W * 0.055 : H * 0.052) + 'px'; e.style.top = (H * (ANCHOR - 0.02) + i * (tall ? W * 0.075 : H * 0.07)) + 'px'; return e; });
+  draw = t => { if (bg) bg(t); const a = back(t / 0.3); lg.style.opacity = clamp(t / 0.08, 0, 1); lg.style.transform = `translate(-50%, -50%) rotate(${(1 - a) * -6}deg) scale(${0.3 + 0.7 * a + 0.012 * Math.sin(t * 3)})`;
+    ls.forEach((e, i) => { const u = ss(0.55 + i * 0.32, 0.75 + i * 0.32, t); e.style.opacity = u; e.style.transform = `translate(-50%, -50%) translateY(${(1 - u) * 30}px)`; }); };
+}
+window.draw = draw; window.ready = document.fonts.ready.then(() => { draw(0); return true; });
+</script>
