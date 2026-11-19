@@ -24,7 +24,7 @@ export const INSULTS = [
   'U paliaimmu è miraculusu!',
   "Mancu cu'u lignu!!",
   'Pigghialu stu nummaro i taigga',
-  'Sì nuddu immiscatu cu niainti',
+  'Sì nuddu immiscatu cu nianti',
   "Ma u ciaivviaddu l'hai pi spaittiri 'aricchi?",
   'Minchia ra niagghia',
   'Minchia ra cosa inutili',

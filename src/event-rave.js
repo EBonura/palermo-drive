@@ -220,7 +220,7 @@ export function createRaveEvents(X, rave) {
   }
   function finishLeaf(ok, why) {
     e.phase = 'done'; e.thanks = ok ? 5 : 3.6; X.setPhase('done'); X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null; homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
-    if (!ok) { friendOff(false); fsay('fail', 0.5); hud.result(`<h3>${why === 'none' ? T('Nienti da purtari', 'Nothing to bring') : T('Taiddu assai!', 'Far too late!')}</h3>`, 3); if (why === 'none') say(pick(RL.leafNone), X.driverPos, 2.6); return; }
+    if (!ok) { friendOff(false); fsay('fail', 0.5); hud.result(`<h3>${why === 'none' ? T('Nianti da purtari', 'Nothing to bring') : T('Taiddu assai!', 'Far too late!')}</h3>`, 3); if (why === 'none') say(pick(RL.leafNone), X.driverPos, 2.6); return; }
     friendOff(true); fsay('off', 0.6);
     const L = SNAP['rave:leaf'], base = Math.round((6 + e.got * 3.5) * 2) / 2, bonus = e.got >= e.total ? 10 : 0, total = base + bonus; e.pay = total; X.addFare(total, 'food');
     say(pick(RL.leafThanks), headAt(L[0], L[1], 2.4), 3);

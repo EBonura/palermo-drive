@@ -4,7 +4,7 @@
 // Owned by the traffic work; driven by src/traffic.js (createVendors(env, T)). The lines are Palermitan, written for the game: the owner may want to put his own.
 const rand = (a, b) => a + Math.random() * (b - a);
 export const LINES = {
-  apeSfincione: ['Sfinciuni càvudu! Sfinciuni!', 'Cu voli u sfinciuni? Càvudu càvudu!', 'Sfinciuni, sfinciuni di Bagheria!'],
+  apeSfincione: ['Sfinciuni càvudu! Sfinciuni!', 'Cu voli u sfinciuni? Càvudu càvudu!', 'Sfinciuni, sfinciuni ri Bagheria!'],
   apeFood: ['Panelle e crocchè, càvuri càvuri!', 'Pani e panelle! Pani e panelle!', 'Cu voli i panelle? Sunnu càvudi!'],
   apeFrutta: ['Aranci duci, aranci!', 'Frutta frisca! Bedda frutta frisca!', 'Chi bedda frutta, signura! Pigghiatilla!'],
   carrozza: ['Giru in carrozza, signuri! Giru in carrozza!', 'Cu voli fari u giru? Quattru Canti e Tiatru!'],

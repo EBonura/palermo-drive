@@ -127,11 +127,11 @@ export const DRIVER = {
     ['Schietta o maritata? Ma prima arrivamu.', 'Plain or "married" (with cheese)? First we have to get there.'],
   ],
   fast: [
-    ['Talìa chi velocità! Sugnu u Schumacher di Bagheria!', 'Look at that speed! I am the Schumacher of Bagheria!'],
-    ['Chistu è u Gran Premiu di Mondellu!', 'This is the Mondello Grand Prix! (?)'],
+    ['Talìa chi velocità! Sugnu u Schumacher ri Bagheria!', 'Look at that speed! I am the Schumacher of Bagheria!'],
+    ['Chistu è u Gran Premiu ri Mondellu!', 'This is the Mondello Grand Prix! (?)'],
   ],
   drift: [
-    ['Mizzica, di traversu comu un pisci!', 'Damn, sideways like a fish!'],
+    ['Mizzica, ri traversu comu un pisci!', 'Damn, sideways like a fish!'],
     ['Nta stu vicolu si fa accussì!', 'In this alley this is how it is done! (?)'],
   ],
   wheels: [
@@ -161,7 +161,7 @@ export const DRIVER = {
     ['Ca meusa vi aspetta. Vi salutu!', 'The spleen sandwich is waiting for you. Goodbye!'],
   ],
   fail: [
-    ['Nun mi dicissi nenti: ju sugnu in orariu... palermitanu!', 'Do not say anything: I am on time... Palermo time!'],
+    ['Nun mi dicissi nianti: ju sugnu in orariu... palermitanu!', 'Do not say anything: I am on time... Palermo time!'],
     ['Cu avi pressa, parti prima.', 'Whoever is in a hurry should have left earlier. (?)'],
   ],
   stig: [
@@ -261,10 +261,10 @@ export const SPACCIA = {
   hail: ['Ou curò, chi tti siaibbi?', 'Hey buddy, what do you need? (owner\'s spelling, kept as is)'],
   // the driver's dismissive answers
   driver: [
-    ['Nenti, nenti: sugnu fermu pi viriri u panorama.', 'Nothing, nothing: I am stopped to admire the view. (?)'],
+    ['Nianti, nianti: sugnu fermu pi viriri u panorama.', 'Nothing, nothing: I am stopped to admire the view. (?)'],
     ['Curò, ju sugnu lapista, nun sugnu cliente. Annamu.', 'Buddy, I am a lapa driver, not a customer. Let us go. (?)'],
-    ['Vossia sbagghiau persona: ju vegnu di missa.', 'You have the wrong person: I am coming from Mass. (?)'],
-    ['Grazzi, ma haiu già a me dosi di guai: a patenti.', 'Thanks, but I already have my dose of trouble: my licence. (?)'],
+    ['Vossia sbagghiau persona: ju vegnu ri missa.', 'You have the wrong person: I am coming from Mass. (?)'],
+    ['Grazzi, ma haiu già a me dosi ri guai: a patenti.', 'Thanks, but I already have my dose of trouble: my licence. (?)'],
     ['Staiu aspittannu a me cummari. Idda nun sapi ca ci sugnu ju.', 'I am waiting for my girlfriend. She does not know I am here. (?)'],
   ],
 };
@@ -288,40 +288,40 @@ export const FAVORITA = {
       ['Ehi! Tassista! Ccà, ccà. No, nun guardari a mmia.', 'Hey! Taxi! Here, here. No, do not look at me. (?)'],
     ],
     board: [
-      ['Bonasira. Sugnu... un ispettori. Di... cosi. Pi lavoru.', 'Good evening. I am... an inspector. Of... things. For work. (?)'],
+      ['Bonasira. Sugnu... un ispettori. Ri... cosi. Pi lavoru.', 'Good evening. I am... an inspector. Of... things. For work. (?)'],
       ['Chi bedda nuttata. Nuddu mi canusci, vero?', 'What a lovely night. Nobody knows me, right? (?)'],
     ],
     ask: [
       ['Mi porti ai viali da Favorita. Pi... na passiata. Salutari: u medicu m\'ha ordinatu.', 'Take me to the avenues of the Favorita. For... a walk. Healthy: the doctor ordered it. (?)'],
-      ['Va ammirari i pini, ccà. Sunnu pini di valuri storicu.', 'I go to admire the pines there. They are of historical value. (?)'],
-      ['Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni di condominiu.', 'Something confidential. My wife thinks I am at a condominium meeting. (?)'],
+      ['Va ammirari i pini, ccà. Sunnu pini ri valuri storicu.', 'I go to admire the pines there. They are of historical value. (?)'],
+      ['Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni ri condominiu.', 'Something confidential. My wife thinks I am at a condominium meeting. (?)'],
     ],
     ambient: [
-      ['Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all\'occhi.', 'Why sunglasses at night? For... the moon. It hurts my eyes. (?)'],
+      ['Chi malu occhiali, ri notti? Pi... a luna. Mi fa mali all\'occhi.', 'Why sunglasses at night? For... the moon. It hurts my eyes. (?)'],
       ['Cchiù araciu! Mi pari ca mi talia tuttu u quartieri.', 'Slower! It feels like the whole neighbourhood is looking at me. (?)'],
       ['Nun mi taliari nta u specchiettu, grazzi.', 'Do not look at me in the mirror, thanks. (?)'],
       ['Si mi ricanuscinu mi rovinu: sugnu... cunsigghieri.', 'If they recognise me I am ruined: I am... a councillor. (?)'],
       ['Chistu è un impermeabili. Perché? Pi... a pioggia.', 'This is a raincoat. Why? For... the rain. (?) (it is not raining)'],
     ],
-    fast: [['Mi viniu u giramentu di testa... o è u rimorsu?', 'I feel dizzy... or is it remorse? (?)']],
-    drift: [['Mamma mia! Se mi vidi cu a lapa di traversu, mi runi a prima pagina!', 'Mamma mia! If they see me in a sideways lapa I make the front page! (?)']],
+    fast: [['Mi viniu u giramentu ri testa... o è u rimorsu?', 'I feel dizzy... or is it remorse? (?)']],
+    drift: [['Mamma mia! Se mi vidi cu a lapa ri traversu, mi runi a prima pagina!', 'Mamma mia! If they see me in a sideways lapa I make the front page! (?)']],
     wheels: [['Du roti! Cu u me cori! Chiamati u cunfissuri!', 'Two wheels! With my heart! Call the confessor! (?)']],
     miss: [['Nun m\'ammazzari, ca ancora haiu... tanti pini d\'ammirari!', 'Do not kill me, I still have... so many pines to admire! (?)']],
     hitPed: [['Chi è, un testimoni? Nun m\'ha vistu nuddu, vero?', 'What, a witness? Nobody saw me, right? (?)']],
     hitWall: [['Chi botta! Mi vagnu u... impermeabili.', 'What a bump! I am wetting my... raincoat. (?)']],
     late: [['Prestu, prestu, ca fra picca mi veni u rimorsu! O me muggheri.', 'Hurry, hurry, soon remorse comes! Or my wife. (?)']],
     arrive: [
-      ['Ecco, ecco, grazzi. Teni, e nun diri nenti a nuddu!', 'Here, here, thanks. Keep it, and tell nobody! (?)'],
+      ['Ecco, ecco, grazzi. Teni, e nun diri nianti a nuddu!', 'Here, here, thanks. Keep it, and tell nobody! (?)'],
       ['Ti pregu, ti pregu: nun lu diri a nuddu. Ju ccà nun ci sugnu mai statu. Mai.', 'I beg you: tell nobody. I was never here. Never. (?)'],
     ],
-    fail: [['Nun fa nenti, m\'addummannu a casa... a pedi... cu a cuscienza.', 'Never mind, I will go home... on foot... with my conscience. (?)']],
+    fail: [['Nun fa nianti, m\'addummannu a casa... a pedi... cu a cuscienza.', 'Never mind, I will go home... on foot... with my conscience. (?)']],
     // the answer to the glam folk who greet him by name
     caught: [['Bonasira... nun... nun ci canusciu, signurina.', 'Good evening... I do not... I do not know you, miss. (?)']],
   },
   // the driver, who sees everything and says it with a straight face
   driver: {
     board: [['Salutari, eh? Certu, certu. A Favorita è u postu giustu pi u cori.', 'Healthy, of course. The Favorita is the right place for the heart. (?)']],
-    depart: [['Cinturi? Nun serbi: ccà nuddu viri nenti.', 'Seatbelts? No need: nobody sees anything here. (?)']],
+    depart: [['Cinturi? Nun serbi: ccà nuddu viri nianti.', 'Seatbelts? No need: nobody sees anything here. (?)']],
     ask: [['Tranquillu, avvucatu: ju sugnu na tomba.', 'Relax, lawyer: I am a tomb. (?)']],
     arrive: [
       ['Sugnu na tomba, avvucatu. Ma u tassametru parla.', 'I am a tomb, lawyer. But the meter talks. (?)'],
@@ -331,9 +331,9 @@ export const FAVORITA = {
   // the glam night folk greeting him; two of them know him, which is the whole joke
   chorus: [
     ['Buonasira, Cunsigghieri!', 'Good evening, Councillor! (?)'],
-    ['Talè, u signuri di sempri!', 'Look, the usual gentleman! (?)'],
+    ['Talè, u signuri ri sempri!', 'Look, the usual gentleman! (?)'],
     ['Cunsigghieri, e i pini? Li ammirati sempri?', 'Councillor, and the pines? Still admiring them? (?)'],
-    ['Cumu va, Avvucatu? E a riunioni di condominiu?', 'How is it going, Lawyer? And the condominium meeting? (?)'],
+    ['Cumu va, Avvucatu? E a riunioni ri condominiu?', 'How is it going, Lawyer? And the condominium meeting? (?)'],
   ],
 };
 
@@ -370,15 +370,15 @@ export const NIGHT_CLIENTS = {
       hitWall: [['Chi botta! Mi cariu u cappeddu!', 'What a bump! My hat fell off!']],
       late: [['Curri, ca si fa tardu e mi viri a luna!', 'Hurry, it is getting late and the moon sees me!']],
       arrive: [
-        ['Ecco, ecco. Teni, e... vabbé u sai: nuddu sapi nenti.', 'Here, here. Keep it, and... well, you know: nobody knows anything.'],
+        ['Ecco, ecco. Teni, e... vabbé u sai: nuddu sapi nianti.', 'Here, here. Keep it, and... well, you know: nobody knows anything.'],
         ['Grazzi, amicu. Tu un m’ha vistu. Mai.', 'Thanks, friend. You did not see me. Never.'],
       ],
-      fail: [['Nun fa nenti, ci vaiu a pedi... cu u cappeddu ’n testa.', 'Never mind, I will go on foot... with my hat on.']],
+      fail: [['Nun fa nianti, ci vaiu a pedi... cu u cappeddu ’n testa.', 'Never mind, I will go on foot... with my hat on.']],
     },
     driver: {
       board: [['Tranquillu, cumpari. Via Lincoln, certu. Pi... a cosa.', 'Relax, pal. Via Lincoln, of course. For... the thing.']],
       depart: [['Annamu, annamu, ca a nuttata è longa.', 'Let us go, let us go, the night is long.']],
-      ask: [['A mia nuddu m’ha ittu nenti.', 'Nobody told me anything.']],
+      ask: [['A mia nuddu m’ha ittu nianti.', 'Nobody told me anything.']],
       arrive: [['Bonanuttata, cumpari. Ma u tassametru parla.', 'Good night, pal. But the meter talks.']],
     },
   },
@@ -398,7 +398,7 @@ export const NIGHT_CLIENTS = {
         ['Nun ti dugnu autri spiegazioni, vabbé u sai.', 'I will give you no more explanations, well, you know.'],
       ],
       ambient: [
-        ['Mi raccumannu: cu me muggheri nenti. Vabbé u sai.', 'Not a word to my wife. Well, you know.'],
+        ['Mi raccumannu: cu me muggheri nianti. Vabbé u sai.', 'Not a word to my wife. Well, you know.'],
         ['Nni Nicoletta ci vaiu pi... affari. Riceve ancora, eh, ju u sacciu.', 'I go to Nicoletta’s for... business. She is still receiving, eh, I know it.'],
         ['Chi calurusa sta nuttata, eh? Mi senti u cori...', 'Quite a warm night, eh? My heart...'],
         ['Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci.', 'Look, they know me: I put the newspaper over my face.'],
@@ -412,14 +412,14 @@ export const NIGHT_CLIENTS = {
       late: [['Prestu, ca i cannola s’ammuscianu!', 'Hurry, the cannoli are going soft!']],
       arrive: [
         ['Ecco, ecco: grazzi. Teni, e vabbé u sai: muto.', 'Here, here: thanks. Keep it, and well, you know: mum.'],
-        ['Mi raccumannu: nuddu sapi nenti. Salutami... vabbé u sai.', 'Please: nobody knows anything. Say hello for me to... well, you know.'],
+        ['Mi raccumannu: nuddu sapi nianti. Salutami... vabbé u sai.', 'Please: nobody knows anything. Say hello for me to... well, you know.'],
       ],
-      fail: [['Nun fa nenti, ci vaiu a pedi... cu i cannola ’n manu.', 'Never mind, I will go on foot... with the cannoli in my hand.']],
+      fail: [['Nun fa nianti, ci vaiu a pedi... cu i cannola ’n manu.', 'Never mind, I will go on foot... with the cannoli in my hand.']],
     },
     driver: {
       board: [['Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu.', 'Via Bandiera, well, you know. I am blind and deaf.'], ['Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita.', 'To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime.']],
       depart: [['Araciu araciu, ca i cannola un si spezzanu.', 'Gently, gently, so the cannoli do not break.']],
-      ask: [['Nenti ri nenti, cumpari. Mutu.', 'Nothing about nothing, pal. Mum.']],
+      ask: [['Nianti ri nianti, cumpari. Mutu.', 'Nothing about nothing, pal. Mum.']],
       arrive: [['Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.', 'We are here, pal. Say hello to... nobody. But the meter talks.']],
     },
   },
@@ -434,28 +434,28 @@ export const NIGHT_CLIENTS = {
       flag: [
         ['Lapista! Runami un passaggiu, amunì! Sugnu calmissimu, eh!', 'Driver! Give me a lift, come on! I am very calm, eh!'],
         ['Ehi, tu! Fermati, ca haiu pressa... ma sugnu calmu!', 'Hey, you! Stop, I am in a hurry... but I am calm!'],
-        ['Lapista! Ccà! Nenti ri gravi, mi ci vo sulu un passaggiu!', 'Driver! Here! Nothing serious, I only need a lift!'],
+        ['Lapista! Ccà! Nianti ri gravi, mi ci vo sulu un passaggiu!', 'Driver! Here! Nothing serious, I only need a lift!'],
       ],
       board: [
         ['Bongiornu. Sugnu calmu. Calmissimu. Talìa, un mi trema mancu a manu.', 'Good day. I am calm. Very calm. Look, my hand is not even shaking.'],
-        ['Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nenti.', 'Do not worry, I am calm. Talk if you like, I hear nothing.'],
+        ['Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nianti.', 'Do not worry, I am calm. Talk if you like, I hear nothing.'],
       ],
       ask: [
         ['Mi puaitti all’Hotel Eufemia, all’Isula ri Fìmmini. Cucì, basta.', 'Take me to the Hotel Eufemia, in Isola delle Femmine. That is it.'],
-        ['Hotel Eufemia, all’Isula ri Fìmmini. Nenti ri chiù, nenti ri menu. Cucì.', 'Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it.'],
-        ['Amunì all’Hotel Eufemia. Un ti spiegu nenti, tantu sugnu calmu.', 'Let us go to the Hotel Eufemia. I will not explain, I am calm anyway.'],
+        ['Hotel Eufemia, all’Isula ri Fìmmini. Nianti ri chiù, nianti ri menu. Cucì.', 'Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it.'],
+        ['Amunì all’Hotel Eufemia. Un ti spiegu nianti, tantu sugnu calmu.', 'Let us go to the Hotel Eufemia. I will not explain, I am calm anyway.'],
       ],
       // in this order, one every fifteen seconds or so
       ambient: [
-        ['Un mumentu, talìu u cillulari... nenti. Megghiu accussì.', 'One moment, I check the phone... nothing. Better that way.'],
+        ['Un mumentu, talìu u cillulari... nianti. Megghiu accussì.', 'One moment, I check the phone... nothing. Better that way.'],
         ['Ju sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì.', 'I am calm, but you keep at it, eh? Faster, come on.'],
-        ['Cuntrollu n’autra vota u cillulari. Nenti. Cchiù nenti c’è, cchiù mi preoccupu.', 'I check the phone again. Nothing. The more nothing there is, the more I worry.'],
+        ['Cuntrollu n’autra vota u cillulari. Nianti. Cchiù nianti c’è, cchiù mi preoccupu.', 'I check the phone again. Nothing. The more nothing there is, the more I worry.'],
         ['Dimmi na cosa: si ti dicu ca sugnu tranquillu, ti pari ca è viaru?', 'Tell me something: if I say I am calm, does it seem true to you?'],
-        ['Ju un ci vaiu pi cuntrullari nenti, eh. Ci vaiu... pi ripusarimi.', 'I am not going there to check anything, eh. I am going... to rest.'],
+        ['Ju un ci vaiu pi cuntrullari nianti, eh. Ci vaiu... pi ripusarimi.', 'I am not going there to check anything, eh. I am going... to rest.'],
         ['Cchiù prestu, pi favuri! No pirchì... sulu pirchì sì.', 'Faster, please! Not for any reason... just because.'],
-        ['U cillulari è quasi scarricu. Un fa nenti. Un fa nenti.', 'The phone is almost flat. Never mind. Never mind.'],
+        ['U cillulari è quasi scarricu. Un fa nianti. Un fa nianti.', 'The phone is almost flat. Never mind. Never mind.'],
       ],
-      near: [['Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nenti!', 'Wait, slowly! Slowly, slowly... I do not want to know anything!']],
+      near: [['Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nianti!', 'Wait, slowly! Slowly, slowly... I do not want to know anything!']],
       near2: [['Rallenta... no, un rallintari. Sì, rallenta. Un mi puazzu firari i nuddu, mancu ri mia.', 'Slow down... no, do not. Yes, slow down. I cannot trust anybody, not even myself.']],
       close: [['Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Forsi.', 'Stop here... no, keep going... no, stop. Wait for me, I will be a minute. Maybe.']],
       fast: [['Maronna! Cchiù araciu... no, un araciu... boh! Sugnu calmu!', 'Madonna! Slower... no, not slower... who knows! I am calm!']],
@@ -463,14 +463,14 @@ export const NIGHT_CLIENTS = {
       wheels: [['Du roti! Sugnu calmu! Sugnu calmu!', 'Two wheels! I am calm! I am calm!']],
       miss: [['Araciu, ca haiu già truappi pinsiari!', 'Easy, I already have too many thoughts!']],
       hitPed: [['Chi fu? Un mi ci mettiri puru chistu, ca sugnu calmu!', 'What was that? Do not add this one too, I am calm!']],
-      hitWall: [['Chi botta! Un fa nenti, sugnu calmu... sugnu calmu...', 'What a bump! Never mind, I am calm... I am calm...']],
+      hitWall: [['Chi botta! Un fa nianti, sugnu calmu... sugnu calmu...', 'What a bump! Never mind, I am calm... I am calm...']],
       late: [['Curri, ca mi veni l’ansia! Sugnu calmu, ma curri!', 'Hurry, my anxiety is coming! I am calm, but hurry!']],
       arrive: [
         ['Teni ’sti picciuli. Aspettami ccà... no, un aspittari. Anzi sì. Anzi... accumpagnami.', 'Take this money. Wait for me here... no, do not wait. Actually yes. Actually... come with me.'],
         ['Grazzi. Va beni, trasu. Tu aspetta ccà. O veni cu mia? Accumpagnami, va.', 'Thanks. Fine, I am going in. You wait here. Or come with me? Come with me, go on.'],
         ['Teni i picciuli. Sugnu calmu, talìa: mi trema sulu a facci.', 'Keep the money. I am calm, look: only my face is shaking.'],
       ],
-      fail: [['Un fa nenti, ci vaiu a pedi. Tantu sugnu calmu.', 'Never mind, I will go on foot. I am calm anyway.']],
+      fail: [['Un fa nianti, ci vaiu a pedi. Tantu sugnu calmu.', 'Never mind, I will go on foot. I am calm anyway.']],
     },
     driver: {
       board: [['Bongiornu. All’Isula ri Fìmmini, allura.', 'Good day. To Isola delle Femmine, then.']],
@@ -594,7 +594,7 @@ export const PREGHIERA = {
   pray: [
     ['Santuzza, pirdunami i luci russi.', 'Santuzza, forgive me the red lights.'],
     ['Un fu curpa mia: u marciapieri era ddà.', 'It was not my fault: the pavement was just there.'],
-    ['Giuru ca di dumani cuntu fina a dui prima ri sorpassari.', 'I swear that from tomorrow I count to two before overtaking.'],
+    ['Giuru ca ri dumani cuntu fina a dui prima ri sorpassari.', 'I swear that from tomorrow I count to two before overtaking.'],
     ['Santuzza, tu ca vii tuttu: talìa ri n’autra banna.', 'Santuzza, you who see everything: look the other way.'],
   ],
   amen: [['Amen. E ora ripartu, ma cu giudiziu.', 'Amen. And now I am off, but sensibly.'], ['Grazii, Santuzza. Ni viremu ô prossimu semaforu russu.', 'Thank you, Santuzza. See you at the next red light.']],
@@ -666,7 +666,7 @@ export const FRIEND = {
   amico1: {
     hail: [['Lapista! Fermati! Ti offru ’na stigghiola... a metà.', 'Driver! Stop! I will buy you a stigghiola... half of one.'], ['Ehi, amunì! Mi runi ’nu passaggiu? Pagu doppu!', 'Hey, come on! A lift? I pay later!'], ['Talìa chi cuincidienza! Libiru?', 'Look at that, what luck! Free?'], ['Fratì! Mi puaitti? Haiu lassatu u motorinu a casa!', 'Brother! Can you take me? I left the scooter at home!']],
     board: [['Biedda matri, ’sta cosa va ’ntô seriu!', 'Holy mother, this thing is for real!'], ['Paiti puru, iu mi riggu ô tettu.', 'Go ahead, I will hold on to the roof.']],
-    ambient: [['Sai ca ccà l’aria è sempri buona? Doppu i tri.', 'You know the air here is always nice? After three o’clock.'], ['Iu u dicu sempri: a tangenziali è n’opinioni.', 'I always say it: the ring road is an opinion.'], ['Si viri ’nu bar apiertu, fai finta ri nienti.', 'If you see an open bar, pretend you did not.']],
+    ambient: [['Sai ca ccà l’aria è sempri buona? Doppu i tri.', 'You know the air here is always nice? After three o’clock.'], ['Iu u dicu sempri: a tangenziali è n’opinioni.', 'I always say it: the ring road is an opinion.'], ['Si viri ’nu bar apiertu, fai finta ri nianti.', 'If you see an open bar, pretend you did not.']],
     drift: [['Minchia! Arrè, arrè!', 'Wow! Again, again!']], wheels: [['Supra dui ruoti! M’è passata a sunnulenza!', 'On two wheels! My sleepiness is gone!']],
     fast: [['Va’, va’! Fai finta ca è ’u Giro!', 'Go, go! Pretend it is the Giro!']], miss: [['Pi ’nu capiddu! Ti haiu a dari ’na granita.', 'By a hair! I owe you a granita.']],
     hitWall: [['Era u muru ca spuntau, eh!', 'The wall came out of nowhere, right!']], hitPed: [['Scusati! Scusati a tutti! Siemu ri fretta!', 'Sorry! Sorry everyone! We are in a hurry!']],
@@ -907,22 +907,22 @@ export const STORIES = {
   // Trenta buorsi: thirty shopping bags, one passenger, no room for the driver
   'tx-lib': {
     board: [['Scusa, fammi spaziu: haiu trenta buorsi. Sì, trenta.', 'Sorry, make some room: I have thirty bags. Yes, thirty.']],
-    ambient: [['Talìa nto specchiettu... no, u specchiettu un si viri cchiù. Un fa nenti, va’ a senzu.', 'Look in the mirror... no, you cannot see the mirror any more. Never mind, go by feel.']],
+    ambient: [['Talìa nto specchiettu... no, u specchiettu un si viri cchiù. Un fa nianti, va’ a senzu.', 'Look in the mirror... no, you cannot see the mirror any more. Never mind, go by feel.']],
     arrive: [['Grazzi! Mi runi na manu a scarricari? Sunnu sulu trenta.', 'Thanks! Give me a hand unloading? There are only thirty.']],
     hitWall: [['Ahia! I buorsi! Chidda cu i scarpi no!', 'Ouch! The bags! Not the one with the shoes!']],
   },
   // Un ci u rissiru: nobody told them the Fiera is closed
   'tx-fiera': {
-    board: [['Chiusa! E nuddu mi dissi nenti! Sugnu vinutu pi nenti!', 'Closed! And nobody told me anything! I came for nothing!']],
+    board: [['Chiusa! E nuddu mi dissi nianti! Sugnu vinutu pi nianti!', 'Closed! And nobody told me anything! I came for nothing!']],
     ambient: [['Tutti u sapianu ca a Fiera era chiusa. Tutti, tranni a mia.', 'Everybody knew the Fiera was closed. Everybody except me.']],
     arrive: [['Almenu ccà è apertu, spiramu. Talìa prima tu, va.', 'At least this one is open, I hope. You check first, go on.']],
-    hitWall: [['Chiusu puru ccà! E nuddu mi dissi nenti!', 'Closed here too! And nobody told me anything!']],
+    hitWall: [['Chiusu puru ccà! E nuddu mi dissi nianti!', 'Closed here too! And nobody told me anything!']],
   },
   // U custumi sutta a giacca: office clothes, swimming trunks underneath, off to the beach
   'tx-mondello': {
     board: [['Un ti scantari: sutta a giacca haiu u custumi. Amunì â praia.', 'Do not be shocked, I have trunks under my jacket. To the beach!']],
     ambient: [['Si mi telefuna u capu, ju sugnu ancora n’ufficiu. Capisti?', 'If the boss calls, I am still at the office. Understood?']],
-    arrive: [['Ahh, u mari! Teni, e un diri nenti ô capu.', 'Ahh, the sea! Keep it, and tell the boss nothing.']],
+    arrive: [['Ahh, u mari! Teni, e un diri nianti ô capu.', 'Ahh, the sea! Keep it, and tell the boss nothing.']],
     hitWall: [['Attentu ca mi sgualcisci a cammisa! Haiu na riunioni... nta l’acqua.', 'Careful, you will crease my shirt! I have a meeting... in the water.']],
   },
   // A nanna ca fici a spisa: grandma, six bags and an opinion on your driving
@@ -943,13 +943,13 @@ export const STORIES = {
   'tx-giardino': {
     board: [['Curri! U cani mi scappò! Era ccà un mumentu fa!', 'Hurry! The dog got away from me! He was here a moment ago!']],
     ambient: [['Talìa ddà! No, chiddu è un gattu. Talìa ddocu! No, è un mutorinu.', 'Look over there! No, that is a cat. Look there! No, that is a scooter.']],
-    arrive: [['Mi sa ca è già a casa, cu na bistecca. Un fa nenti, grazzi u stissu.', 'I bet he is already home with a steak. Never mind, thanks anyway.']],
+    arrive: [['Mi sa ca è già a casa, cu na bistecca. Un fa nianti, grazzi u stissu.', 'I bet he is already home with a steak. Never mind, thanks anyway.']],
     hitWall: [['Ecco, ora u cani si fa tri risati.', 'There, now the dog is having a good laugh.']],
   },
   // U semaforu ca un cancia: stuck at the same light since this morning
   'tx-calatafimi': {
-    board: [['Finalmenti! Staiu fermu a stu semaforu di stamatina.', 'Finally! I have been stuck at this light since this morning.']],
-    ambient: [['Ccà u russu dura cchiù di na missa ri Natali.', 'Here the red lasts longer than a Christmas Mass.']],
+    board: [['Finalmenti! Staiu fermu a stu semaforu ri stamatina.', 'Finally! I have been stuck at this light since this morning.']],
+    ambient: [['Ccà u russu dura cchiù ri na missa ri Natali.', 'Here the red lasts longer than a Christmas Mass.']],
     arrive: [['Semu arrivati senza mai fermarni! Mi sta cumminciannu a piaciri.', 'We got here without stopping once! I am starting to like it.']],
     hitWall: [['Chistu è comu u semaforu: un si move mai.', 'This one is like the traffic light: it never moves.']],
   },
@@ -971,8 +971,8 @@ export const FAVORITA_VARIANTS = {
     arrive: [['Grazzi. A prossima vota... ma chi dicu, u sai già.', 'Thanks. Next time... what am I saying, you already know.']],
   },
   'fare:pulle-stz': {
-    board: [['Bonasira! Curri, curri! Vabbé u sai, sugnu di cursa.', 'Good evening! Go, go! Well, you know, I am in a hurry.']],
-    ask: [['A Favorita, ma di cursa, vabbé u sai: ca me muggheri torna prestu.', 'To the Favorita, but fast, well, you know: my wife comes home soon.']],
+    board: [['Bonasira! Curri, curri! Vabbé u sai, sugnu ri cursa.', 'Good evening! Go, go! Well, you know, I am in a hurry.']],
+    ask: [['A Favorita, ma ri cursa, vabbé u sai: ca me muggheri torna prestu.', 'To the Favorita, but fast, well, you know: my wife comes home soon.']],
     arrive: [['Ecco, ecco, vabbé u sai: ju ccà un ci sugnu mai statu. Ciao!', 'Here, here, well, you know: I was never here. Bye!']],
   },
 };
@@ -989,7 +989,7 @@ export const URGENT_LINES = {
 // The owner when the lost food is brought back
 export const FOOD = {
   thanks: [['Grazie, grazie! Si ’n’angilu cu tri ruoti!', 'Thank you, thank you! You are an angel with three wheels!'], ['M’ha saibbatu a iurnata! Ti offru quarchi cosa!', 'You saved my day! Let me treat you!']],
-  none: [['Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
+  none: [['Nianti?! Pacienza... tuoina quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
 };
 
 // The rave missions: toasts, results and what people say. Palermitan, written by an agent (for the owner to correct); [Sicilian, English].
@@ -999,7 +999,7 @@ export const RAVE_LINES = {
   late: [['Taiddu assai! A genti si ni iu a casa.', 'Far too late! The people have gone home.']],
   hit: [['Crac! Attientu a li casse!', 'Crack! Mind the speakers!'], ['Ahia! Sunnu dilicati, ti l’haiu dittu!', 'Ouch! They are delicate, I told you!']],
   leafThanks: [['Ahhh, chi biedda ciauru r’allegria! Grazie, amicu.', 'Ahhh, what a lovely smell of cheer! Thanks, friend.']],
-  leafNone: [['Nienti?! Pacienza, ci piensamu nuatri.', 'Nothing?! Never mind, we will see to it ourselves.']],
+  leafNone: [['Nianti?! Pacienza, ci piensamu nuatri.', 'Nothing?! Never mind, we will see to it ourselves.']],
   // the friend riding along in the lapa on "Fuogghi allegri" (src/event-rave.js); Palermitan drafts for the owner to correct
   friend: {
     board: [['Amunì, amunì, ca è tardu!', 'Come on, come on, it is late!'], ['Paiti, paiti, ca ni stannu aspittannu!', 'Go, go, they are waiting for us!']],
