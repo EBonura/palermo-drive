@@ -161,7 +161,7 @@ export function createHornsEvents(X, opts = {}) {
       if (s < -2 && near < 80) e.armed = true;   // the lapa is on the Maqueda side, in front of the arch (the street turns off Via Maqueda only a few metres before it)
       if (e.prevS !== null && Math.abs(lat) < GATE_HALF) {
         if (e.prevS < 0 && s >= 0 && e.armed && (car.vx * g.ux + car.vz * g.uz) > 0.3) { crossed(); return; }
-        if (e.prevS >= 0 && s < 0 && e.wrongT <= 0) { e.wrongT = 6; hud.toast(T('Ri ddà un vali!', 'Not from that side!'), T('Trasi ri Maqueda', 'Come in from Maqueda')); }
+        if (e.prevS >= 0 && s < 0 && e.wrongT <= 0) { e.wrongT = 6; hud.toast(T('Ri ddà un vali!', 'Not from that side!'), T('Trasi ri via Maqueda', 'Come in from Via Maqueda')); }
       }
       e.wrongT -= dt; e.prevS = s;
       // the street has seen the horns: people along the way shout the line
