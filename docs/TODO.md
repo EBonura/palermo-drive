@@ -2,9 +2,9 @@
 
 ## Where things stand (2026-11-19)
 
-- **In hand: sound effects.** The driving, the city bed and the set pieces have sound; fares, missions, races, menus, the Garage, the bust, rain, trams, people, props and
-  the ambience (sea, gulls, bells, cicadas) do not. The owner picks each sound from variants on an audition page before anything is wired in. New cues go through one shared
-  helper on the radio's AudioContext rather than a context per module (thirteen modules have their own today).
+- **Done: sound effects** (19 November). The owner chose 36 sounds from an audition page: 26 are made in code and 10 are CC0 recordings. They go through src/sfx.js (cues and beds on the radio's
+  AudioContext) and src/ambience.js (how loud each bed is). Checked in a muted headless browser only: levels and mix wait for the owner's ear. The thirteen older sound modules still have a
+  context each.
 - **Parked: phone performance.** The owner drove the 12 November build (shaders linked ahead, no camera bob) and saw no stutters. Four branches stay unshipped and are not
   being worked on: `worktree-agent-a74f31086bbd64622` (fewer materials, behind `?mats=off`), `worktree-agent-adde33cb08472e3af` (draw order, tooling only),
   `worktree-agent-a4902bcf629f46720` (load time, a tool and notes), `worktree-agent-a362fcae3053a24a5` (smaller vertex format). The options that change the picture on weak

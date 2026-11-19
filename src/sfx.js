@@ -1,4 +1,4 @@
-// Short game sounds and ambient beds, synthesised but for seven recordings, on the car radio's AudioContext (src/radio.js: it exists from the game's first tap, and
+// Short game sounds and ambient beds, synthesised but for ten recordings, on the car radio's AudioContext (src/radio.js: it exists from the game's first tap, and
 // src/audio-recover.js brings it back after the page was in the background). One place for the cues that tell the player something happened, so a
 // module wanting a sound makes no context of its own:
 //
@@ -25,7 +25,7 @@ function ready() {
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     for (const k in beds) delete beds[k];
     for (const k in bufs) delete bufs[k]; for (const k in loads) delete loads[k];
-    load('tock'); load('rustle');   // the two short ones are wanted the moment something is hit
+    for (const k of ['tock', 'rustle', 'jingle-start', 'jingle-win', 'jingle-fail']) load(k);   // the short ones are wanted the moment something happens
     vol0 = duck0 = -1;
   }
   if (c.state !== 'running') return false;   // a suspended context would queue the sound and play it late
@@ -63,10 +63,10 @@ const CUES = {
   warn:   ['world', 0.3, (o, t) => notes(o, t, [880, 880, 880], 0.11, 0.07, 0.18, 'square')],   // three fast beeps
   count:  ['world', 0.2, (o, t) => { tone(o, t, 880, 0.14, 0.25, 'sine'); hiss(o, t, 0.01, 0.2, 'highpass', 4000); }],   // a clean pip with a click
   go:     ['world', 0.2, (o, t) => chord(o, t, [440, 554, 659], 0.7, 0.14, 'sawtooth')],   // a three-note air horn
-  start:  ['world', 0.3, (o, t) => notes(o, t, [659, 784, 659, 523, 659], 0.075, 0.12, 0.18, 'triangle')],   // a tarantella lick
+  start:  ['world', 0.3, (o, t) => sample(o, t, 'jingle-start', 0.45, 1)],   // a pizzicato jingle (the owner swapped the three mission jingles for recordings the same day)
   cash:   ['world', 0.3, (o, t) => { tone(o, t, 140, 0.12, 0.4, 'sine', 70); chord(o, t + 0.09, [1760, 2637], 0.8, 0.14, 'sine'); }],   // the till: thunk and bell
-  win:    ['world', 0.5, (o, t) => { notes(o, t, [784, 880, 988, 1047, 1175, 1319], 0.07, 0.12, 0.16, 'triangle'); chord(o, t + 0.45, [1047, 1319, 1568], 0.7, 0.12, 'triangle'); }],   // a tarantella run to a chord
-  fail:   ['world', 0.5, (o, t) => [392, 370, 349, 262].forEach((f, i) => tone(o, t + i * 0.2, f, i === 3 ? 0.6 : 0.2, 0.18, 'sawtooth', f * 0.94))],   // four notes sinking
+  win:    ['world', 0.5, (o, t) => sample(o, t, 'jingle-win', 0.45, 1)],   // a pizzicato jingle, three notes up
+  fail:   ['world', 0.5, (o, t) => sample(o, t, 'jingle-fail', 0.45, 1)],   // a pizzicato jingle, three notes sliding down
   treat:  ['world', 0.3, (o, t) => { hiss(o, t, 0.35, 0.15, 'bandpass', 900, 1.2, 4200, 0.05); notes(o, t + 0.05, [784, 988, 1175, 1568], 0.06, 0.2, 0.15, 'triangle'); }],   // nitro from a stigghiola or a granita: a fizz and four notes
   // the police
   heat:   ['world', 0.6, (o, t) => { for (let i = 0; i < 2; i++) { tone(o, t + i * 0.3, 740, 0.14, 0.18, 'square'); tone(o, t + i * 0.3 + 0.15, 560, 0.14, 0.18, 'square'); } }],   // a little ni-no, twice
@@ -91,7 +91,7 @@ const CUES = {
 };
 
 // ---- recordings (assets/audio, credits in assets/CREDITS.md): fetched and decoded when first wanted; a one-shot asked for before its file is in plays as soon as it is, if that is within a second ----
-const FILES = { tock: 'tock.wav', rustle: 'rustle.wav', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
+const FILES = { 'jingle-start': 'jingle-start.m4a', 'jingle-win': 'jingle-win.m4a', 'jingle-fail': 'jingle-fail.m4a', tock: 'tock.wav', rustle: 'rustle.wav', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
 const urlOf = file => new URL('../assets/audio/' + file, import.meta.url).href;
 const bufs = {}, loads = {};
 function load(key) {
@@ -174,4 +174,4 @@ export function bed(name, level, pan = 0, k = -1) {
   if (b.on && b.lv === 0 && t - b.zeroAt > 2) { (b.p || b.g).disconnect(); b.on = false; }   // unplugged while silent: nothing downstream to compute
 }
 
-export const sfxDebug = () => ({ ctx: ctx && ctx.state, vol: vol0, duck: duck0, beds: Object.fromEntries(Object.entries(beds).map(([k, b]) => [k, +b.lv.toFixed(2)])), last: { ...lastAt } });
+export const sfxDebug = () => ({ ctx: ctx && ctx.state, vol: vol0, duck: duck0, beds: Object.fromEntries(Object.entries(beds).map(([k, b]) => [k, +b.lv.toFixed(2)])), last: { ...lastAt }, files: Object.keys(bufs) });
