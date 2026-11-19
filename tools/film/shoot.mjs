@@ -4,7 +4,7 @@
 // shot.json: { query: "spot=1&time=17.5", size: 1920, fps: 60, seconds: 5, settle: 6, preroll: 1,
 //              keys: [{ key: "ArrowUp", from: 0, to: 5 }, { key: "Space", from: 2.4, to: 3 }] }   (times in seconds of the clip; preroll runs the keys' t < 0 part unfilmed)
 // Writes <out dir>/f_00001.jpg ...; tools/film/take.sh shoots one format, encodes it and makes a contact sheet. The picture is the canvas only: no HUD, menu or bubbles.
-// shot.json may also have: height (with size as the width), heading (degrees, set before the clip), cam (a film camera, see below; it needs the filmCam hook of src/main.js, which ?debug exposes).
+// shot.json may also have: menu: '.pd-in-garage' (film a screen of the shell instead of the street: the selector to wait for; implies the whole page), hud: true (film the whole page, not the canvas: the HUD, cards and speech balloons), script: [{ at, js }] (page code run at a moment of the clip), p2p: true, height (with size as the width), heading (degrees, set before the clip), cam (a film camera, see below; it needs the filmCam hook of src/main.js, which ?debug exposes).
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
@@ -27,10 +27,17 @@ await p.evaluateOnNewDocument(() => {
   window.cancelAnimationFrame = i => { q = q.filter(e => e[0] !== i); };
   const pump = ts => { const run = q; q = []; for (const e of run) { try { e[1](ts); } catch (err) { console.error(err); } } };
   const loop = () => { if (!held) { pump(realNow()); realRAF(loop); } }; realRAF(loop);
-  window.__film = { hold() { held = true; vt = realNow(); }, step(ms) { vt += ms; pump(vt); } };
+  // timers too, once held: a toast that stays 1.9 s stays 114 frames, however long the frames take to save
+  const rST = window.setTimeout.bind(window), rCT = window.clearTimeout.bind(window), rSI = window.setInterval.bind(window), rCI = window.clearInterval.bind(window), timers = new Map(); let tid = 1e9;
+  window.setTimeout = (fn, ms = 0, ...a) => { if (!held || typeof fn !== 'function') return rST(fn, ms, ...a); timers.set(++tid, { at: vt + Math.max(0, +ms || 0), fn, a, every: 0 }); return tid; };
+  window.setInterval = (fn, ms = 0, ...a) => { if (!held || typeof fn !== 'function') return rSI(fn, ms, ...a); const e = Math.max(1, +ms || 0); timers.set(++tid, { at: vt + e, fn, a, every: e }); return tid; };
+  window.clearTimeout = id => { if (!timers.delete(id)) rCT(id); }; window.clearInterval = id => { if (!timers.delete(id)) rCI(id); };
+  const runTimers = () => { for (let n = 0; n < 500; n++) { let due = null, did = 0; for (const [id, t] of timers) if (t.at <= vt && (!due || t.at < due.at)) { due = t; did = id; } if (!due) break; if (due.every) due.at += due.every; else timers.delete(did); try { due.fn(...due.a); } catch (err) { console.error(err); } } };
+  window.__film = { hold() { held = true; vt = realNow(); }, step(ms) { vt += ms; runTimers(); pump(vt); } };
 });
-await p.goto(base + '?help=0&debug&play&clean&fixres&gfx=high&p2p=off&' + (shot.query || ''), { waitUntil: 'domcontentloaded', timeout: 120000 });
-await p.waitForFunction(() => !document.getElementById('loading') && window.game && window.game.car, { timeout: 240000, polling: 250 });
+await p.goto(base + '?help=0&fixres&gfx=high&' + (shot.menu ? '' : 'debug&play&') + (shot.hud ? '' : 'clean&') + (shot.p2p ? '' : 'p2p=off&') + (shot.query || ''), { waitUntil: 'domcontentloaded', timeout: 120000 });
+if (shot.menu) await p.waitForFunction(sel => !document.getElementById('loading') && !!document.querySelector(sel), { timeout: 240000, polling: 250 }, shot.menu);   // menu: a screen of the shell (the Garage), filmed as a page: no debug handle, no driving
+else await p.waitForFunction(() => !document.getElementById('loading') && window.game && window.game.car, { timeout: 240000, polling: 250 });
 await wait((shot.settle ?? 6) * 1000);   // the tiles round the start finish building
 if (shot.heading !== undefined) await p.evaluate(d => { const c = window.game.car; c.th = d * Math.PI / 180; c.vx = c.vz = 0; }, shot.heading);   // degrees: 0 south (+z), 90 east, 180 north, 270 west
 await p.evaluate(() => window.__film.hold());
@@ -64,6 +71,12 @@ if (shot.cam) await p.evaluate((C, secs) => {
       let d = car.th - th; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; th += d * Math.min(1, dt / (C.smooth || 0.001));
       const p = at(C.rel, th, car.x, car.z), L = C.look || [0, 0.9, 2], l = at(L, car.th, car.x, car.z), high = car.flying && car.agl > 4, q = high ? [p[0], p[2]] : clear(p[0], p[2], dt);   // over the roofs there is no wall to step round
       const fy = car.flying ? car.fy : null; cam.position.set(q[0], fy !== null ? Math.max(fy + C.rel[1], gy(q[0], q[1]) + 1.2) : p[1] + (1 - pull) * 4.5, q[1]); if (!high && hit(car.x, car.z, q[0], q[1]) < 0.999) window.__filmBlocked = (window.__filmBlocked || 0) + 1; cam.lookAt(l[0], fy !== null ? fy + L[1] : l[1], l[2]);
+    } else if (C.type === 'slide') {   // slides between two places looking at a third, all on the map: { from: [x, z, up], to: [x, z, up], lookAt: [x, z, up], seconds }
+      const u = ease(Math.min(1, t / (C.seconds || secs))), L = (A, B) => A + (B - A) * u, x = L(C.from[0], C.to[0]), z = L(C.from[1], C.to[1]);
+      cam.position.set(x, gy(C.lookAt[0], C.lookAt[1]) + L(C.from[2], C.to[2]), z); cam.lookAt(C.lookAt[0], gy(C.lookAt[0], C.lookAt[1]) + C.lookAt[2], C.lookAt[1]);
+    } else if (C.type === 'around') {   // circles a place on the map from above its roofs and looks at it: { center: [x, z], radius, up, speed, start, lookUp }
+      const a = ((C.start || 0) + (C.speed || 10) * t) * Math.PI / 180, g = gy(C.center[0], C.center[1]);
+      cam.position.set(C.center[0] + Math.sin(a) * C.radius, g + (C.up || 20), C.center[1] + Math.cos(a) * C.radius); cam.lookAt(C.center[0], g + (C.lookUp ?? 5), C.center[1]);
     } else if (C.type === 'orbit') {
       const a = ((C.start || 0) + (C.speed || 30) * t) * Math.PI / 180, q = clear(car.x + Math.sin(a) * C.radius, car.z + Math.cos(a) * C.radius, dt), x = q[0], z = q[1];
       cam.position.set(x, Math.max(gy(x, z) + 0.6, carY() + (C.up || 2)), z); cam.lookAt(car.x, carY(), car.z);
@@ -80,15 +93,16 @@ if (shot.drive) await p.evaluate(D => {
   const car = window.game.car, th0 = car.th, x0 = car.x, z0 = car.z;
   const pts = (D.rel || []).map(([r, f]) => [x0 + Math.cos(th0) * r + Math.sin(th0) * f, z0 - Math.sin(th0) * r + Math.cos(th0) * f]).concat(D.points || []);
   let i = 0, slow = 0, back = 0, backDir = 1; window.__filmStuck = 0;
+  window.__filmGo = arr => { pts.length = 0; for (const q of arr) pts.push(q); i = 0; };   // a staging script may give the driver new points (a tag it has just looked up, the goal)
   window.__filmDrive = dt => {
     const k = {}; if (i >= pts.length) { if (D.loop) i = 0; else { k.ArrowUp = true; return k; } }
-    const dx = pts[i][0] - car.x, dz = pts[i][1] - car.z, sp = Math.hypot(car.vx, car.vz);
+    const P = pts[i], dx = P[0] - car.x, dz = P[1] - car.z, sp = Math.hypot(car.vx, car.vz);
     if (Math.hypot(dx, dz) < (D.reach || 9)) i++;
     let err = Math.atan2(dx, dz) - car.th; while (err > Math.PI) err -= 2 * Math.PI; while (err < -Math.PI) err += 2 * Math.PI;
     if (back > 0) { back -= dt; k.ArrowDown = true; k[backDir > 0 ? 'ArrowRight' : 'ArrowLeft'] = true; return k; }
     slow = sp < 1.2 ? slow + dt : 0;
     if (slow > 0.5) { slow = 0; back = 0.8; backDir = err > 0 ? 1 : -1; window.__filmStuck++; return k; }
-    const cap = pts[i][2] || D.maxSpeed || 0; if (!cap || sp < cap) { k.ArrowUp = true; if (D.nitro) k.ShiftLeft = true; }   // a point may carry its own speed limit, in m/s: [x, z, 9]
+    const cap = P[2] || D.maxSpeed || 0; if (!cap || sp < cap) { k.ArrowUp = true; if (D.nitro) k.ShiftLeft = true; }   // a point may carry its own speed limit, in m/s: [x, z, 9]
     if (err > 0.05) k.ArrowLeft = true; else if (err < -0.05) k.ArrowRight = true;
     if (Math.abs(err) > (D.drift || 0.7) && sp > 7) k.Space = true;
     return k;
@@ -96,19 +110,22 @@ if (shot.drive) await p.evaluate(D => {
 }, shot.drive);
 const keysAt = t => { const k = {}; for (const e of shot.keys || []) if (t >= e.from && t < e.to) k[e.key] = true; return k; };
 
-const frame = (t, grab) => p.evaluate((ks, ms, grab) => {
-  const K = window.game.keys; for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'KeyF', 'KeyH', 'KeyW', 'KeyA', 'KeyS', 'KeyD']) K[k] = !!ks[k];
+const frame = (t, grab) => p.evaluate((ks, ms, grab, hud) => {
+  const K = window.game ? window.game.keys : {}; for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'KeyF', 'KeyH', 'KeyW', 'KeyA', 'KeyS', 'KeyD']) K[k] = !!ks[k];
   if (window.__filmDrive) { const d = window.__filmDrive(ms / 1000); for (const k in d) if (d[k]) K[k] = true; }
   window.__film.step(ms);
-  return grab ? window.game.renderer.domElement.toDataURL('image/jpeg', 0.95) : null;
-}, keysAt(t), 1000 / fps, grab);
+  if (hud) for (const a of document.getAnimations()) { if (!a.__film) { a.__film = true; a.pause(); } a.currentTime = (+a.currentTime || 0) + ms; }   // CSS animations step with the clock too
+  return grab && !hud ? window.game.renderer.domElement.toDataURL('image/jpeg', 0.95) : null;
+}, keysAt(t), 1000 / fps, grab, !!shot.hud);
 const pre = Math.round((shot.preroll ?? 1) * fps), n = Math.round(shot.seconds * fps), t0 = Date.now();
 for (let i = -pre; i < n; i++) {
   const url = await frame(i / fps, i >= 0);
+  if (shot.script) for (const sc of shot.script) if (Math.round(sc.at * fps) === i) { let r; if (sc.click) { const q = await p.evaluate(sel => { const b = document.querySelector(sel); if (!b) return null; b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); const c = b.getBoundingClientRect(); return [c.x + c.width / 2, c.y + c.height / 2]; }, sc.click); if (q) await p.mouse.click(q[0], q[1]); r = q; } else r = await p.evaluate(sc.js); if (shot.verbose) console.log('script', sc.at, JSON.stringify(r)); }   // { at, js } runs page code, { at, click: 'selector' } clicks with the mouse   // staging: { at: seconds, js: 'code run in the page' }
+  if (shot.hud && i >= 0) await p.screenshot({ path: path.join(out, 'f_' + String(i + 1).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 93 });   // the whole page: HUD, cards, balloons
   if (url) fs.writeFileSync(path.join(out, 'f_' + String(i + 1).padStart(5, '0') + '.jpg'), Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
   if (i > 0 && i % 60 === 0) await wait(150);   // a breath for the tile workers and the garbage collector
 }
-const st = await p.evaluate(() => { const c = window.game.car, r = window.game.renderer.domElement; return { behindWall: window.__filmBlocked || 0, stuck: window.__filmStuck || 0,  x: Math.round(c.x), z: Math.round(c.z), kmh: Math.round(Math.hypot(c.vx, c.vz) * 3.6), canvas: r.width + 'x' + r.height }; });
-const th = await p.evaluate(() => Math.round(window.game.car.th * 180 / Math.PI));
+const st = shot.menu ? { menu: shot.menu } : await p.evaluate(() => { const c = window.game.car, r = window.game.renderer.domElement; return { behindWall: window.__filmBlocked || 0, stuck: window.__filmStuck || 0,  x: Math.round(c.x), z: Math.round(c.z), kmh: Math.round(Math.hypot(c.vx, c.vz) * 3.6), canvas: r.width + 'x' + r.height }; });
+const th = shot.menu ? 0 : await p.evaluate(() => Math.round(window.game.car.th * 180 / Math.PI));
 console.log('heading', th, `${n} frames in ${((Date.now() - t0) / 1000).toFixed(0)} s`, JSON.stringify(st), errs.length ? 'ERR ' + errs.join(' | ') : 'no errors');
 await b.close(); process.exit(0);
