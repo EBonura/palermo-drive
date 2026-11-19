@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { vp } from './viewport.js';
 import { esc } from './esc.js';
 import { zone } from './hud.js';
+import { sfx } from './sfx.js';   // the sounds of the lines, the countdown and the result card
 
 const CSS = `
 #ev-hud { width: max-content; min-width: 168px; max-width: min(var(--wide), 340px); display: none;
@@ -114,6 +115,7 @@ export function createEventHud({ camera, car, groundY }) {
   const LINE_MS = 1900, LINE_MIN = 900, lineQ = [];
   let live = null, lineTimer = 0;
   function showLine(text, sub, neg) {
+    sfx(neg ? 'warn' : 'toast');
     toasts.innerHTML = `<div class="ev-toast${neg ? ' neg' : ''}"><span>${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
     live = { text, t: performance.now() };
     clearTimeout(lineTimer); lineTimer = setTimeout(nextLine, LINE_MS);
@@ -139,7 +141,7 @@ export function createEventHud({ camera, car, groundY }) {
     leash(on, big, sub) { if (!on) { leashEl.classList.remove('on'); return; } if (leashB.textContent !== big) leashB.textContent = big; if (leashS.textContent !== sub) leashS.textContent = sub; leashEl.classList.add('on'); },
     hide() { show(false); setEdge(false); target = null; cache = ''; },
     clear() { show(false); leashEl.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },   // the queue of lines runs out by itself
-    count(big, sub) { count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
+    count(big, sub) { sfx(/^\d+$/.test(big) ? 'count' : 'go'); count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     // one line at a time: a warning (neg) goes to the front of the queue, the queue keeps the newest three, the same line again just restarts, and a waiting line cuts the one on screen short
     toast(text, sub, neg) {
       if (live && live.text === text) { showLine(text, sub, neg); return; }
@@ -148,8 +150,10 @@ export function createEventHud({ camera, car, groundY }) {
       if (!live) nextLine();
       else { clearTimeout(lineTimer); lineTimer = setTimeout(nextLine, Math.max(0, LINE_MIN - (performance.now() - live.t))); }
     },
-    result(html, secs) { result.innerHTML = html; result.classList.add('on'); resultT = secs; },
+    // the card's sound: a card that stays under four seconds is a failure (every event's "too late" card), a longer one is the pay; `tone` says it outright ('cash' | 'fail' | '')
+    result(html, secs, tone) { sfx(tone ?? (secs < 4 ? 'fail' : 'cash')); result.innerHTML = html; result.classList.add('on'); resultT = secs; },
     burst() {
+      sfx('win');
       const cols = ['#e8559a', '#f5a9c9', '#ffd24a', '#fff4e0', '#6bbf59', '#ff8a3a'];
       for (let i = 0; i < 30; i++) {
         const e = mk('', '', conf, 'i'), a = rand(0, Math.PI * 2), d = rand(90, 260);

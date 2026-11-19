@@ -35,6 +35,7 @@ import { LPC_CELL, LPC_GROUND, LPC_PX, LPC_HIP } from '../assets/peds/lpc/cast.j
 import { createLpcAtlas } from '../assets/peds/lpc/atlas.js';
 import { createPedAtlas } from '../assets/peds/atlas.js';
 import { LK } from '../assets/peds/model.js';
+import { sfx } from './sfx.js';
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -868,7 +869,7 @@ export function createPedestrians(env) {
       if (!ok) { dx = -px; dz = -pz; ok = cell(X[i] + dx * 1.3, Z[i] + dz * 1.3) && cell(X[i] + dx * 2.5, Z[i] + dz * 2.5); }
       if (!ok) { REACT[i] = -2; continue; }
       if (VAR[i] === WCV) { heal(i, dx, dz); continue; }
-      ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i], Math.random() < 0.3 ? FLEW : undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
+      sfx('scatter', 0.8); ST[i] = DODGE; TMR[i] = 0; VX[i] = dx * 5.2; VZ[i] = dz * 5.2; TH[i] = THT[i] = Math.atan2(dx, dz); ROLL[i] = 0; V[i] = 0; REACT[i] = -2; env.shout?.(X[i], Y[i] + 1.9, Z[i], Math.random() < 0.3 ? FLEW : undefined, (() => { const id = i; return () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }); })());
     }
   }
 
@@ -1372,7 +1373,7 @@ export function createPedestrians(env) {
     if (!a.length) return -1;
     const vi = a[(Math.random() * a.length) | 0]; return atlas.farDone[vi] ? vi : -1;
   };
-  const splash = (x, z, r) => { if (splashes.length < 12) splashes.push({ x, z, t: 0, r }); };
+  const splash = (x, z, r) => { if (splashes.length < 12) splashes.push({ x, z, t: 0, r }); if (r >= 1) sfx('splash', r * 0.5); };   // (the small rings of someone wading make no sound)
   // 0 stand, 1 wade, 2 swim, 3 sunbather; st: 0 as it is, 1 hopping aside, 2 flying, 3 lying, 4 getting up
   function addBather(x, z, kind, v, th, depth) {
     bathers.push({ x, z, kind, v, th, tt: th, depth, st: 0, age: 0, leave: -1, hop: 0, vx: 0, vz: 0, vy: 0, roll: 0, rd: 1, tmr: 0, tf: 0, react: -1, ph: Math.random(), size: rand(0.97, 1.03), chk: Math.random() * 0.4, spl: rand(5, 18), jump: -1, bob: Math.random() * 6, y: 0, water: kind < 3, nr: false, chat: false, stall: 0, depthT: 0 });

@@ -41,6 +41,7 @@ import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, 
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { createGuide, GUIDE } from './route-guide.js';
 import { transition } from './transition.js';
+import { sfx } from './sfx.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -658,6 +659,7 @@ function build(env) {
     if (S.ev) return;
     calls.release(slot);
     S.ev = { slot, s0: session };
+    sfx('start');
     dispatchEvent(new CustomEvent('pd-event-busy', { detail: true }));   // src/vehicle-events.js: the ZEN gag waits
     talkQ.length = 0;
     if (slot.kind === 'fare' || slot.kind === 'urgent') fares.start(slot);
@@ -689,7 +691,7 @@ function build(env) {
   function nitroTreat(v, title, sub, serve) {
     v.cd = 50;
     car.nos = Math.min(car.nosMax, car.nos + 0.8); car.nosLock = false;   // a pollanche is 0.5 up to full
-    toast(title, sub); burst();
+    toast(title, sub); burst(); sfx('treat');
     say(pick(serve), () => ({ x: v.x, y: v.gy + 0.2, z: v.z }), 0);
   }
   function eatStigghiola(v) {
@@ -704,7 +706,7 @@ function build(env) {
   function eatPollanche(v) {   // a small bonus: half a tank of nitro
     v.cd = 45;
     car.nos = Math.min(1, car.nos + 0.5); car.nosLock = false;
-    toast('POLLANCHE!', T('Un po\' di nitro', 'A bit of nitro'));
+    toast('POLLANCHE!', T('Un po\' di nitro', 'A bit of nitro')); sfx('treat');
     say(pick(POLLANCHE.serve), () => ({ x: v.x, y: v.gy + 0.2, z: v.z }), 0);
   }
   const KINDS = {   // what each kind of vendor does: the pin colour, how far its cries carry, and what you get

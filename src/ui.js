@@ -17,6 +17,7 @@ import { createStartMap } from './startmap.js';   // the illustrated city map of
 import { esc } from './esc.js';
 import { KIND_COLOR } from './event-calls.js';   // the colour of each kind of mission, for the Missioni list
 import { getLang, setLang } from './lang.js';   // the one language at a time (src/lang.js)
+import { sfx } from './sfx.js';
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -630,11 +631,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function openPause() {
     if (game.state !== 'play' || busy) return;
     for (const k in screens) delete lastFocus[k];   // the panel opens on "Torna a guidare", not where the last visit left the focus
-    game.pause(); stack = []; go('side');
+    game.pause(); stack = []; go('side'); sfx('open');
   }
   function closePause() {
     if (game.state !== 'pause' || cur === 'garage') return;
-    game.resume(); go(null); gesture();
+    game.resume(); go(null); gesture(); sfx('close');
   }
   // The minimap opens the big map: that is how a player changes place. The game waits behind it (as under the side menu), Back goes straight back to the street.
   function openMap() {
@@ -1169,6 +1170,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (bd && DOCKED.has(bd) && downOnBackdrop && game.state === 'pause') { downOnBackdrop = false; return closePause(); }
     const t = e.target.closest ? e.target.closest('button, .pd-s-title') : null;
     if (!t) return;
+    if (t !== menuBtn && t.dataset.do !== 'resume' && !t.classList.contains('pd-s-title')) sfx(t.dataset.do === 'back' || t.dataset.do === 'quit' ? 'back' : 'tick');   // (the menu button and Torna a guidare have the pause menu's own two sounds)
     if (t === menuBtn) return openPause();   // (the bar's own buttons, play or pause and next, carry data-do like the panel's)
     if (t === fsBtn) return fullscreen();
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }

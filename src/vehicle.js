@@ -24,6 +24,7 @@ import { createTrails } from './vehicle-trails.js';   // vapour from the wing ti
 import { QUALITY } from './mobile.js';
 import { vp } from './viewport.js';
 import { createCameraClear } from './camera-clear.js';   // the chase camera stays under tunnel roofs, gate vaults and flyover decks
+import { sfx } from './sfx.js';
 
 const PI = Math.PI, TAU = PI * 2;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -450,6 +451,7 @@ export function createVehicle(env) {
     const hit = kind === 'land' ? a : 1;
     car.hopV = Math.min(2.6, car.hopV + 0.5 + 0.12 * hit);
     cam.trauma = Math.max(cam.trauma, kind === 'land' ? clamp(0.1 + hit / 22, 0, 0.7) : 0.2);
+    if (kind === 'land') sfx(b === 'water' ? 'splash' : 'thump', clamp(0.3 + hit / 10, 0.3, 1.2));
     if (b !== 'water' && !(kind === 'up' && car.wet > 0.5)) {   // dust at the wheels
       const y = groundY(car.x, car.z) + car.lift + 0.15, sn = Math.sin(car.th), cs = Math.cos(car.th);
       for (let i = 0; i < 10; i++) { const sg = i % 2 ? 1 : -1, r = 0.3 + Math.random() * 0.5; puff(car.x - sn * rearZ + cs * rearTrack * sg, y, car.z - cs * rearZ - sn * rearTrack * sg, cs * sg * r * 2 + (Math.random() - 0.5), -sn * sg * r * 2 + (Math.random() - 0.5), 1.0 + Math.random() * 0.8); }

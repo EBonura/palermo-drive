@@ -20,7 +20,7 @@ No attribution is required, credit is given anyway.
 
 ## Audio
 
-The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Audio, src/vehicle-audio.js --> (no sample), and so are the traffic rumble, the cars passing by and the beeps of the traffic's horns<!-- src/city-audio.js -->. The recordings are:
+The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Audio, src/vehicle-audio.js --> (no sample), and so are the traffic rumble, the cars passing by and the beeps of the traffic's horns<!-- src/city-audio.js -->. The recordings are: The short game sounds (menus, fares, missions, races, the police, things knocked over) and the wind, crickets, gulls, hooves and the tram's rumble are synthesised too<!-- src/sfx.js -->; the recordings among them are in the table.
 
 | File | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
@@ -29,6 +29,13 @@ The engine, horn melodies and subwoofer beat are synthesised in code<!-- Web Aud
 | L'arrotino's loudspeaker announcement (`audio/arrotino.m4a`) | Camelia.boban | ["Donne, è arrivato l'arrotino"](https://commons.wikimedia.org/wiki/File:Donne,_%C3%A8_arrivato_l%27arrotino.mp3), Wikimedia Commons (own work, recorded in the Monteverde quarter of Rome, 16 November 2022) | CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/) | converted to mono 24 kHz AAC and levelled; the loudspeaker sound is a filter applied while it plays<!-- src/city-audio.js -->, and the clip is looped with gaps. The clip and these edits stay CC BY-SA 4.0 |
 | Car horns in the traffic (`audio/horns.m4a`) | keweldog ["car horn.wav"](https://freesound.org/people/keweldog/sounds/182474/), DeVern ["Car Horn Honk.wav"](https://freesound.org/people/DeVern/sounds/349922/), wanaki ["Car Horn_Irritated driver stuck in traffic.wav"](https://freesound.org/people/wanaki/sounds/569613/), csnmedia ["La cucaracha car Horn.wav"](https://freesound.org/people/csnmedia/sounds/388276/) | freesound.org | CC0 1.0 | seven horns cut from the four recordings (from the site's preview files), levelled and joined into one mono AAC file |
 | The market quarter's voices (`audio/mercato.m4a`) | SUPERORI, ["mercato 1.wav"](https://freesound.org/people/SUPERORI/sounds/158419/) (a market in Palermo, Ballaro and Vucciria) | freesound.org | CC0 1.0 | filtered, levelled, a two second crossfade so that it loops, mono AAC |
+| A light thing knocked over (`audio/tock.wav`) | Kenney | Impact Sounds, `impactPlank_medium_000.ogg`, https://kenney.nl/assets/impact-sounds | CC0 1.0 | converted to 22.05 kHz mono WAV |
+| Leaves, rubbish and cloth brushed past (`audio/rustle.wav`) | Kenney | RPG Audio, `cloth1.ogg`, https://kenney.nl/assets/rpg-audio | CC0 1.0 | converted to 22.05 kHz mono WAV |
+| The tram's bell (`audio/tram-bell.m4a`) | Profispiesser, ["FXSaSc Berlin Tram Train Ring Bell Alexanderplatz.wav"](https://freesound.org/people/Profispiesser/sounds/543825/) | freesound.org | CC0 1.0 | from the site's preview: leading silence removed, first 5 s, faded out, mono AAC |
+| The church bell (`audio/church-bell.m4a`) | Paul368, ["Italian church bell close up no background noise.WAV"](https://freesound.org/people/Paul368/sounds/369678/) (a church in Palermo) | freesound.org | CC0 1.0 | from the site's preview: 9 s from 1:18, faded out, mono AAC |
+| Rain (`audio/rain.m4a`) | Victormaa, ["forest heavy rain loop.wav"](https://freesound.org/people/Victormaa/sounds/671409/) | freesound.org | CC0 1.0 | from the site's preview: 20 s, its end crossfaded into its start so it loops, loudness normalised, mono AAC |
+| The sea (`audio/sea.m4a`) | madamdata, ["Waves at Punggol Beach"](https://freesound.org/people/madamdata/sounds/709210/) | freesound.org | CC0 1.0 | from the site's preview: 24 s from 0:06, crossfaded to loop, loudness normalised, mono AAC |
+| Cicadas (`audio/cicadas.m4a`) | Nox_Sound, ["Ambiance_Cicadas_Loop_01.wav"](https://freesound.org/people/Nox_Sound/sounds/515055/) | freesound.org | CC0 1.0 | from the site's preview: 20 s, crossfaded to loop, loudness normalised, mono AAC |
 
 ## Traffic (src/traffic.js, assets/traffic/)
 
