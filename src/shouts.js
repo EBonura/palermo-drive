@@ -55,6 +55,9 @@ export function placeLine(x, z, sand) {   // sand: the spot is on a beach (the c
 export const FLEW = 'Minchia vulavu';
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
+// How big the balloons are drawn: the player's choice in Options (src/ui.js sends 'pd-balloon' with 's', 'm' or 'l'). Small is the size they had until Nov 2026, which was hard to read.
+const SIZES = { s: 1, m: 1.4, l: 1.9 }; let SIZE = SIZES.m;
+addEventListener('pd-balloon', e => { SIZE = SIZES[e.detail] || SIZES.m; });
 export const lifeFor = t => Math.min(6, LIFE + Math.max(0, t.length - 20) * 0.07);   // a long line stays long enough to be read
 const CROWD_MAX = 8, CROWD_LIFE = 3.2;
 
@@ -69,7 +72,7 @@ export function createShouts(camera) {
   let last = -1, lastAt = -Infinity, clock = 0, focused = false;
   // the passenger's balloon: rosanero, so it stands out from the street's insults
   const style = document.createElement('style');
-  style.textContent = '.shout.pax { background: rgba(232,85,154,.94); color: #fff; } .shout.pax::after { border-top-color: rgba(232,85,154,.94); }'
+  style.textContent = '.shout.left { transform-origin: 100% 100%; } .shout.right { transform-origin: 0 100%; } .shout.pax { background: rgba(232,85,154,.94); color: #fff; } .shout.pax::after { border-top-color: rgba(232,85,154,.94); }'
     + ' .shout.crowd { max-width: min(24vw, 128px); padding: 2px 5px 3px; border-width: 1.5px; font-size: clamp(9px, 1.4vw, 11px); box-shadow: 1px 1px 0 rgba(232,85,154,.7); backdrop-filter: none; -webkit-backdrop-filter: none; }';
   document.head.appendChild(style);
 
@@ -130,8 +133,8 @@ export function createShouts(camera) {
       if (!s.side) { s.side = x < w / 2 ? -1 : 1; s.el.classList.add(s.side < 0 ? 'left' : 'right'); }
       const ox = s.side * 18, ax = s.side < 0 ? -100 : 0;
       // it stays on the screen, and on a desktop out of the map's column on the right (a phone's column ends in the top band)
-      const bx = s.side < 0 ? Math.max(8 + s.w, x + ox) : Math.min(w - 8 - s.w - (h >= 520 && y - s.h < 340 ? 222 : 0), x + ox);
-      const tf = `translate(${bx.toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${(0.6 + 0.4 * pop).toFixed(2)})`, op = fade.toFixed(2);
+      const sw = s.w * (s.crowd ? 1 : SIZE), sh = s.h * (s.crowd ? 1 : SIZE), bx = s.side < 0 ? Math.max(8 + sw, x + ox) : Math.min(w - 8 - sw - (h >= 520 && y - sh < 340 ? 222 : 0), x + ox);
+      const tf = `translate(${bx.toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${((0.6 + 0.4 * pop) * (s.crowd ? 1 : SIZE)).toFixed(2)})`, op = fade.toFixed(2);
       if (tf !== s.tf) s.el.style.transform = s.tf = tf;
       if (op !== s.op) s.el.style.opacity = s.op = op;
     }

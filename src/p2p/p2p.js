@@ -916,6 +916,13 @@ export function createP2P(env) {
       say, offer, inReach, feedLine: (name, idx, mine) => panel.line(name, SAID[lang()], PHRASES[idx], !!mine),   // test hooks (tools/p2p/feed.mjs, the screenshots): a line in the section, and the peers' reach
       name: () => myName, offerState: () => ({ myOffer, incoming: incoming && { ...incoming }, card: !!card, muted: [...peers.values()].map(p => p.mutedUntil || 0) }), gameState: () => game.state,
       setName: n => { myName = clean(n) || myName; },
+      // test hook (tools/film, the trailer): a made-up player drawn by the real code, with nothing on the network. move(snapshot) every frame keeps it alive and within reach; say(index) is a phrase received from it
+      puppet(id, name, vehicle = 'calessino', livery = 0) {
+        peers.get(id) || peers.set(id, newPeer(id)); const p = peers.get(id); p.name = clean(name); p.vehicle = vehicle; p.livery = livery; p.shown = true; p.held = true; p.rooms.add('puppet');
+        const r = rm.ensure(id); rm.setFar(r, false); rm.setInfo(r, p.name, livery, vehicle);
+        return { move(sn) { const now = performance.now(); p.x = sn.x; p.z = sn.z; p.lastRx = now; rm.addSnap(r, { t: now, steer: 0, roll: 0, lean: 0, fl: 0, ...sn }); },
+          say(i) { rm.say(r, PHRASES[i], performance.now()); panel.line(p.name, SAID[lang()], PHRASES[i], false); } };
+      },
       // test hook (tools/p2p/fuzz.mjs): feeds hostile messages from a made-up peer through the real handlers
       fuzz(msgs, refill = true) {
         const id = 'fuzz-peer', r = { key: 'fuzz' }; peers.get(id) || peers.set(id, newPeer(id)); const p = peers.get(id); let threw = 0;
