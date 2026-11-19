@@ -560,7 +560,10 @@ function build(env) {
   };
   const URGENT_DEF = Object.fromEntries(URGENT.map(u => ['urgent:' + u.id, u]));
   const slots = [];
-  const mkSlot = (o, key) => { const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
+  // The missions that are not in the main game: the rides to the pulle and the two night clients after the same, and the happy leaves. They exist only with ?vm18 in the address
+  // (no pin, no caller, no line in the Missioni list without it). U cuinnutu says nothing explicit and stays in.
+  const VM18 = params.has('vm18'), vm18 = o => o.kind === 'leaf' || o.sub === 'pulle' || (o.sub === 'nightc' && o.nc !== 'cuinnutu');
+  const mkSlot = (o, key) => { if (!VM18 && vm18(o)) return; const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
   FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
   FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.title ? { title: f.title } : {}), ...(f.ped ? { ped: f.ped } : {}), ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
