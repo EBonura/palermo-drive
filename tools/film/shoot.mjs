@@ -43,7 +43,7 @@ await p.evaluate(() => window.__film.hold());
 if (shot.cam) await p.evaluate((C, secs) => {
   const G = window.game, car = G.car, th0 = car.th, x0 = car.x, z0 = car.z, gy = (x, z) => G.groundY(x, z);
   const at = (rel, th, cx, cz) => { const s = Math.sin(th), c = Math.cos(th), x = cx + c * rel[0] + s * rel[2], z = cz - s * rel[0] + c * rel[2]; return [x, gy(x, z) + rel[1], z]; };
-  const carY = () => gy(car.x, car.z) + (car.flying ? (car.fy || 0) : 0) + (C.lookUp ?? 0.9);
+  const carY = () => (car.flying ? car.fy : gy(car.x, car.z)) + (C.lookUp ?? 0.9);   // (car.fy: the wheels' height above the sea while it flies)
   const ease = u => u * u * (3 - 2 * u);
   // the same pull-in as the game's chase camera: a wall, a trunk or a kiosk between the lapa and the camera brings the camera in front of it (fast in, slowly back out)
   const hit = (x0, z0, x1, z1) => { let tMin = 1; G.walls2d.query(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), s => { if (s.lv !== undefined) return; const rx = x1 - x0, rz = z1 - z0, sx = s[2] - s[0], sz = s[3] - s[1], den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) return; const t = ((s[0] - x0) * sz - (s[1] - z0) * sx) / den, u = ((s[0] - x0) * rz - (s[1] - z0) * rx) / den; if (t >= 0 && t < tMin && u >= 0 && u <= 1) tMin = t; }); if (C.props && G.props && G.props.occlude) tMin = Math.min(tMin, G.props.occlude(x0, z0, x1, z1)); return tMin; };   // walls always; trunks, poles and kiosks only with cam.props (in a busy square they pull the camera onto the lapa's roof)
@@ -62,7 +62,8 @@ if (shot.cam) await p.evaluate((C, secs) => {
     if (C.fov && cam.fov !== C.fov) { cam.fov = C.fov; cam.updateProjectionMatrix(); }
     if (C.type === 'follow') {
       let d = car.th - th; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; th += d * Math.min(1, dt / (C.smooth || 0.001));
-      const p = at(C.rel, th, car.x, car.z), l = at(C.look || [0, 0.9, 2], car.th, car.x, car.z), q = clear(p[0], p[2], dt); cam.position.set(q[0], p[1] + (1 - pull) * 4.5 + (car.flying ? (car.fy || 0) : 0), q[1]); if (hit(car.x, car.z, q[0], q[1]) < 0.999) window.__filmBlocked = (window.__filmBlocked || 0) + 1; cam.lookAt(l[0], l[1] + (car.flying ? (car.fy || 0) : 0), l[2]);
+      const p = at(C.rel, th, car.x, car.z), L = C.look || [0, 0.9, 2], l = at(L, car.th, car.x, car.z), high = car.flying && car.agl > 4, q = high ? [p[0], p[2]] : clear(p[0], p[2], dt);   // over the roofs there is no wall to step round
+      const fy = car.flying ? car.fy : null; cam.position.set(q[0], fy !== null ? Math.max(fy + C.rel[1], gy(q[0], q[1]) + 1.2) : p[1] + (1 - pull) * 4.5, q[1]); if (!high && hit(car.x, car.z, q[0], q[1]) < 0.999) window.__filmBlocked = (window.__filmBlocked || 0) + 1; cam.lookAt(l[0], fy !== null ? fy + L[1] : l[1], l[2]);
     } else if (C.type === 'orbit') {
       const a = ((C.start || 0) + (C.speed || 30) * t) * Math.PI / 180, q = clear(car.x + Math.sin(a) * C.radius, car.z + Math.cos(a) * C.radius, dt), x = q[0], z = q[1];
       cam.position.set(x, Math.max(gy(x, z) + 0.6, carY() + (C.up || 2)), z); cam.lookAt(car.x, carY(), car.z);
