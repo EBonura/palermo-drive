@@ -2388,6 +2388,7 @@ function* generate(S, BUD) {
       if (occHit(px + nx * 1.5, pz + nz * 1.5, 2.6) || nearJunction(px, pz, 7)) return false;
       const burnt = rt() < (zoneOf(px, pz) === 'zen' ? 0.6 : 0.28), name = burnt ? 'mega_burnt' + Math.floor(rt() * 2) : 'mega' + Math.floor(rt() * 3);
       put(name, px, gy(px, pz), pz, Math.atan2(nx, nz), RT(0.95, 1.1)); occAdd(px + nx * 1.5, pz + nz * 1.5, 2.8); megas++; st.mega = (st.mega || 0) + 1;
+      globalThis.__megaTap?.(px, pz, nx, nz, name);   // tools/film: where the big heaps are
       return true;
     };
     const free = (x, z) => !inB(x, z) && !occHit(x, z, 0.55);

@@ -19,7 +19,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 </style>
 <div id="stage"></div>
 <script>
-const Q = new URLSearchParams(location.search), kind = Q.get('kind') || 'over', lines = (Q.get('text') || '').split('|').filter(Boolean), DUR = +Q.get('dur') || 1.6, SEQ = !!Q.get('seq'), ANCHOR = +Q.get('anchor') || 0.74;
+const Q = new URLSearchParams(location.search), kind = Q.get('kind') || 'over', lines = (Q.get('text') || '').split('|').filter(Boolean), DUR = +Q.get('dur') || 1.6, SEQ = !!Q.get('seq'), SEQ0 = +Q.get('seq0') || 0.5, SEQ1 = +Q.get('seq1') || 0.45, ANCHOR = +Q.get('anchor') || 0.74;
 const W = innerWidth, H = innerHeight, S = document.getElementById('stage'), tall = H > W;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x, ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const back = u => { const c = 1.9; u = clamp(u, 0, 1) - 1; return 1 + (c + 1) * u * u * u + c * u * u; };   // overshoots and settles: a slam
@@ -35,7 +35,7 @@ function textBlock(color, size, at = ANCHOR, smallPx = 0) {   // smallPx: the sm
   return t => {
     const a = back(t / 0.22), out = ss(DUR - 0.16, DUR, t), sc = 0.35 + 0.65 * a + (1 - ss(0, 0.5, t)) * 0.04 * Math.sin(t * 70);
     el.style.opacity = clamp(t / 0.06, 0, 1) * (1 - out);
-    sq.forEach((e, i) => { const k = back((t - 0.5 - i * 0.45) / 0.2); e.style.opacity = t > 0.5 + i * 0.45 ? 1 : 0; e.style.transform = `scale(${0.4 + 0.6 * k})`; });   // &seq=1: the lines after the first are as big as it and land one by one
+    sq.forEach((e, i) => { const k = back((t - SEQ0 - i * SEQ1) / 0.2); e.style.opacity = t > SEQ0 + i * SEQ1 ? 1 : 0; e.style.transform = `scale(${0.4 + 0.6 * k})`; });   // &seq=1: the lines after the first are as big as it and land one by one
     el.style.transform = `translate(-50%, -50%) translateX(${out * W * 0.5}px) skewX(-8deg) scale(${sc})`;
     const bw = fit * 0.5 * (lines[0] || '').length * ss(0.1, 0.4, t) * (1 - out);
     bar.style.width = bw + 'px'; bar.style.transform = 'translate(-50%, 0) skewX(-30deg)'; bar.style.opacity = lines.length > 1 ? 0 : 1 - out;
@@ -44,9 +44,9 @@ function textBlock(color, size, at = ANCHOR, smallPx = 0) {   // smallPx: the sm
 
 if (kind === 'place') {   // a place name: bottom right, small, sliding in from the edge with a pink bar under it
   const el = mk('div', 'txt', esc(lines[0] || '')), fs = tall ? W * 0.062 : H * 0.062, mr = W * 0.045, mb = tall ? H * 0.3 : H * 0.085;   // (in the tall cut the apps' own buttons cover the bottom: the name sits above them)
-  el.style.cssText = `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb}px;text-align:right;transform-origin:100% 100%`;
-  const bar = mk('div', 'bar'); bar.style.cssText = `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb - fs * 0.16}px`;
-  draw = t => { const a = back(t / 0.2), out = ss(DUR - 0.14, DUR, t); el.style.opacity = clamp(t / 0.05, 0, 1) * (1 - out); el.style.transform = `translateX(${(1 - a) * W * 0.25}px) skewX(-8deg)`;
+  const LEFT = Q.get('side') === 'left'; el.style.cssText = LEFT ? `font-size:${fs}px;left:${mr}px;right:auto;top:auto;bottom:${mb}px;text-align:left;transform-origin:0 100%;transform:none` : `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb}px;text-align:right;transform-origin:100% 100%`;
+  const bar = mk('div', 'bar'); bar.style.cssText = LEFT ? `font-size:${fs}px;left:${mr}px;right:auto;top:auto;bottom:${mb - fs * 0.16}px` : `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb - fs * 0.16}px`;
+  draw = t => { const a = back(t / 0.2), out = ss(DUR - 0.14, DUR, t); el.style.opacity = clamp(t / 0.05, 0, 1) * (1 - out); el.style.transform = `translateX(${(1 - a) * W * 0.25 * (LEFT ? -1 : 1)}px) skewX(-8deg)`;
     bar.style.width = (fs * 0.5 * (lines[0] || '').length * ss(0.08, 0.3, t)) + 'px'; bar.style.opacity = 1 - out; bar.style.transform = 'skewX(-30deg)'; };
 }
 if (kind === 'over') draw = textBlock(Q.get('color') || 'white', (tall ? W * 0.17 : H * 0.17) * (+Q.get('scale') || 1));
@@ -96,8 +96,8 @@ if (kind === 'bonnie') { document.body.style.background = '#000';
 }
 if (kind === 'logo') { const bg = Q.get('bg') !== 'none' ? flag(0.74) : null;   // the game's logo slams in, then the lines come up one by one at the anchor
   const lg = mk('div'); lg.id = 'logo'; lg.innerHTML = window.__logoSVG || ''; const lw = Math.min(W * 0.86, H * 0.9); lg.style.width = lw + 'px';
-  const step = tall ? W * 0.075 : H * 0.07, ls = (tall ? lines.flatMap(l => /\.\w+\//.test(l) ? [l] : l.split(', ')) : lines).map((l, i) => {   // (the tall frame is narrow: a line with a comma becomes two)
-     const url = /\.\w+\//.test(l), e = mk('div', 'txt', url ? esc(l) : `<small style="font-size:1em;margin:0">${esc(l)}</small>`); e.style.fontSize = (url ? Math.min((tall ? W * 0.055 : H * 0.052) * 1.9, W * 0.92 / l.length / 0.56) : tall ? W * 0.055 : H * 0.052) + 'px'; e.style.top = (H * (ANCHOR - 0.02) + i * step + (url ? step * 0.7 : 0)) + 'px';
+  const step = tall ? W * 0.075 : H * 0.07, ls = (tall ? lines.flatMap(l => /\.[a-z]{2,}(\/|$)/i.test(l) ? [l] : l.split(', ')) : lines).map((l, i) => {   // (the tall frame is narrow: a line with a comma becomes two)
+     const url = /\.[a-z]{2,}(\/|$)/i.test(l), e = mk('div', 'txt', url ? esc(l) : `<small style="font-size:1em;margin:0">${esc(l)}</small>`); e.style.fontSize = (url ? Math.min((tall ? W * 0.055 : H * 0.052) * 1.9, W * 0.92 / l.length / 0.56) : tall ? W * 0.055 : H * 0.052) + 'px'; e.style.top = (H * (ANCHOR - 0.02) + i * step + (url ? step * 0.7 : 0)) + 'px';
     if (url) { e.style.textTransform = 'none'; e.style.color = '#ffcf4a'; e.style.textShadow = '0 0 .45em rgba(255,207,74,.8), 0 .07em .1em rgba(0,0,0,.7)'; }   // the game's address: big, in its true case (the path is case sensitive), so nobody misses it
     return e; });
   draw = t => { if (bg) bg(t); const a = back(t / 0.3); lg.style.opacity = clamp(t / 0.08, 0, 1); lg.style.transform = `translate(-50%, -50%) rotate(${(1 - a) * -6}deg) scale(${0.3 + 0.7 * a + 0.012 * Math.sin(t * 3)})`;
