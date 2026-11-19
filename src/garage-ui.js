@@ -10,6 +10,7 @@
 import { driver } from './driver.js';
 import { garage, LIVERIES, PALETTE, categoriesFor, partOpts, partById, vehicleById, customLivery, parseLivery } from './garage.js';
 import { esc } from './esc.js';
+import { sfx } from './sfx.js';
 
 
 const eur = v => (v < 0 ? '−€ ' : '€ ') + (Math.round(Math.abs(v) * 2) / 2).toString().replace('.', ',');   // a debt (src/garage.js charge) shows with a minus sign
@@ -391,13 +392,17 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
     return false;
   }
   function buyVehicle() {
-    if (!garage.buyVehicle(sel)) return;
+    const had = garage.ownsVehicle(sel);
+    if (!garage.buyVehicle(sel)) { sfx('no'); return; }
+    if (!had) sfx('buy');
     flash(tr('bought')); toStep(2);
   }
   function buyPart() {
     if (!pending) return;
     const p = pending;
-    if (garage.buyPart(p.part, p.id)) { pending = null; garage.setPart(p.part, p.id, sel); flash(tr('bought')); paintAll(); showPreview(); }
+    const had = garage.ownsPart(p.part, p.id);
+    if (!garage.buyPart(p.part, p.id)) sfx('no');
+    else { if (!had) sfx('buy'); pending = null; garage.setPart(p.part, p.id, sel); flash(tr('bought')); paintAll(); showPreview(); }
   }
   function pickBase(id, e) {
     const was = downSel; sel = id; pending = null;

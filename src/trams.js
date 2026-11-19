@@ -172,7 +172,7 @@ let car0 = null;
 function stepTrams(dt, pats, other) {
   for (const T of trams) {
     const pt = T.pt;
-    if (T.dwell > 0) { T.dwell -= dt; T.v = 0; if (T.dwell <= 0) { T.next = pt.stops.findIndex(st => st.s > T.s + 5); } continue; }
+    if (T.dwell > 0) { T.dwell -= dt; T.v = 0; if (T.dwell <= 0) { T.next = pt.stops.findIndex(st => st.s > T.s + 5); T.bell = true; } continue; }   // (bell: it rings as it leaves, src/ambience.js)
     if (T.hold > 0) { T.hold -= dt; T.v = Math.max(0, T.v - 6 * dt); }
     else {
       let vt = SPEED;
@@ -240,4 +240,15 @@ function collideTrams(car) {
   }
 }
 export const tramStats = () => ({ trams: trams.length });
+// The tram nearest to (x, z), for its sound (src/ambience.js): out = { d, x, z, v, bell }. bell is true once for a tram that has just left a stop within 110 m.
+export function tramNear(x, z, out) {
+  out.d = 1e9; out.bell = false; let bd = 1e18;
+  for (const T of trams) {
+    const dx = T.px[0] - x, dz = T.pz[0] - z, d = dx * dx + dz * dz;
+    if (T.bell) { T.bell = false; if (d < 110 * 110) out.bell = true; }
+    if (d < bd) { bd = d; out.x = T.px[0]; out.z = T.pz[0]; out.v = T.v; }
+  }
+  if (bd < 1e18) out.d = Math.sqrt(bd);
+  return out;
+}
 export const tramDebug = () => trams.map(T => { place(T, 0); return { line: T.pt.line, dir: T.pt.dir, s: Math.round(T.s), v: +T.v.toFixed(1), x: Math.round(T.px[0]), z: Math.round(T.pz[0]), dwell: Math.round(T.dwell), yaw: T.pyaw[0] }; });

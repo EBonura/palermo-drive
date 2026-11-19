@@ -15,6 +15,7 @@ import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, clock as signalClock, light as signalLight } from './signals.js';   // the traffic signals: where they stand, which road each head faces, the lamp it shows
+import { sfx } from './sfx.js';   // what a thing sounds like when the lapa knocks it over
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';   // the fast roads (the Viale's carriageways, and its lanes where nothing is built beside them): no parked cars, bins or crossings
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
@@ -949,17 +950,19 @@ function makePhysics(env) {
   }
   function hit(pc, c, nx, nz, pen, arm) {
     const sp = c.sp, vc = -(pc.vx * nx + pc.vz * nz);
+    const snd = name => sfx(name, clamp(0.35 + vc / 14, 0.35, 1.2));   // louder with the speed of the blow
     switch (sp.kind) {
       case 'veh':
-        if (c.st === 0 && vc >= sp.thr) { yeet(c, nx, nz, vc, pc); return; }
+        if (c.st === 0 && vc >= sp.thr) { snd('crunch'); yeet(c, nx, nz, vc, pc); return; }
         break;
       case 'park':
-        if (c.st === 0 && vc >= sp.thr) { launchPark(c, nx, nz, vc, pc, pen); return; }
+        if (c.st === 0 && vc >= sp.thr) { snd('crunch'); launchPark(c, nx, nz, vc, pc, pen); return; }
         if (c.st === 0) { nudgePark(c, nx, nz, pen, arm, pc); return; }
         break;
       case 'scooter':
-        if (c.st === 0 && vc >= (sp.fly)) { yeet(c, nx, nz, vc, pc); return; }
+        if (c.st === 0 && vc >= (sp.fly)) { snd('clang'); yeet(c, nx, nz, vc, pc); return; }
         if (c.st === 0 && vc >= sp.thr) {
+          snd('clang');
           // topple sideways, away from the side the lapa came from
           const rx = Math.cos(c.rot), rz = -Math.sin(c.rot), side = (nx * rx + nz * rz) > 0 ? -1 : 1;
           startFall(c, rx * side * -1 * -1, rz * side * -1 * -1, vc, 1.5, { lift: 0.3, slide: 0.2 });
@@ -967,32 +970,32 @@ function makePhysics(env) {
         }
         break;
       case 'bin':
-        if (c.st === 0 && sp.fly && vc >= sp.fly) { spawnBags(c, sp.bags, nx, nz, vc, pc); yeet(c, nx, nz, vc, pc); stats.tipped++; return; }   // hard enough: the whole bin goes
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { snd('clang'); spawnBags(c, sp.bags, nx, nz, vc, pc); yeet(c, nx, nz, vc, pc); stats.tipped++; return; }   // hard enough: the whole bin goes
         if (c.st === 0 && vc >= sp.thr) {
-          startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
+          snd('clang'); startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
         }
         break;
       case 'bags': case 'board': case 'bits': case 'object':
-        if (c.st === 0 && vc >= sp.thr) { junk(pc, c, nx, nz, vc); return; }
+        if (c.st === 0 && vc >= sp.thr) { snd(sp.kind === 'bags' ? 'rustle' : 'tock'); junk(pc, c, nx, nz, vc); return; }
         if (sp.kind !== 'object') return;    // soft: the lapa just drives through rubbish below the threshold
         break;
       case 'soft':   // a bush: through it, slowed, a puff of leaves
-        if (c.st === 0 && vc >= sp.thr && simT - (c.tsoft || -9) > 1) { c.tsoft = simT; spawnLeaves(c, -nx, -nz); stats.soft = (stats.soft || 0) + 1; }
+        if (c.st === 0 && vc >= sp.thr && simT - (c.tsoft || -9) > 1) { c.tsoft = simT; snd('rustle'); spawnLeaves(c, -nx, -nz); stats.soft = (stats.soft || 0) + 1; }
         slow(pc, nx, nz, 0.012); return;
       case 'hedge':   // a clipped hedge block: bursts into a puff of leaves and a few clumps, the gap stays for the session (the tile puts it back gone when it loads again)
         if (c.st === 0 && Math.hypot(vc, 0.55 * Math.sqrt(Math.max(0, pc.vx * pc.vx + pc.vz * pc.vz - vc * vc))) >= sp.thr) {   // effective speed: the glancing part counts too
-          c.st = 'gone'; gDel(c); goneHedge.add(hedgeKey(c)); poseInstance(c);
+          snd('rustle'); c.st = 'gone'; gDel(c); goneHedge.add(hedgeKey(c)); poseInstance(c);
           spawnLeaves(c, -nx, -nz, 30, 1); spawnLeaves(c, -nx, -nz, 7, 2.6); slow(pc, nx, nz, 0.12); stats.hedges = (stats.hedges || 0) + 1;
           try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: c.x, z: c.z, kind: 'hedge' } })); } catch (err) { /* no events */ }
           return;
         }
         break;
       case 'tree':
-        if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
+        if (c.st === 0 && vc >= sp.thr) { snd('rustle'); startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
         break;
       case 'bend':
-        if (c.st === 0 && sp.fly && vc >= sp.fly) { yeet(c, nx, nz, vc, pc); stats.bent++; return; }   // the light ones (signs on thin poles, the small bin) are torn out
-        if (c.st === 0 && vc >= sp.thr) { startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { snd('clang'); yeet(c, nx, nz, vc, pc); stats.bent++; return; }   // the light ones (signs on thin poles, the small bin) are torn out
+        if (c.st === 0 && vc >= sp.thr) { snd('clang'); startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
         break;
       default: break;
     }

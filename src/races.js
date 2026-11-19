@@ -329,7 +329,7 @@ export function createRaces(X) {
     S.hudO = { frac: null, target: null, label: T(S.def.name, S.def.en), title: finished ? T(S.place + '° posto!', 'Place ' + S.place + '!') : T('Tempo scaduto', 'Time is up'), sub: '', time: finished ? fmtT(S.t) : '' };
     hud.result(`<h3>${finished ? T(S.place + '° posto!', 'Place ' + S.place + '!') : T('Tempo scaduto', 'Time is up')}</h3>
       <div class="row"><span>${T('Tempo', 'Time')}</span><span>${finished ? fmtT(S.t) : '-'}</span></div>
-      <div class="row tot"><span>${S.prize > 0 ? T('Premio', 'Prize') : T('Niente premio, ritenta', 'No prize, try again')}</span><span>${S.prize > 0 ? '€ ' + S.prize : ''}</span></div>`, 5.5);
+      <div class="row tot"><span>${S.prize > 0 ? T('Premio', 'Prize') : T('Niente premio, ritenta', 'No prize, try again')}</span><span>${S.prize > 0 ? '€ ' + S.prize : ''}</span></div>`, 5.5, S.prize > 0 ? 'cash' : 'fail');
     if (finished && S.place === 1) hud.burst();
     if (beacon) beacon.show(false);
   }

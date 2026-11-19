@@ -8,6 +8,7 @@
 // opts.hold ms, so the lapa is seen), then reveals. It returns a Promise with work's result (or rejects with work's error after the
 // reveal). Calls made while one is running wait their turn. 'pd-cover' (detail true / false) is dispatched on window when the screen is fully covered and when it is free again. opts: cover / reveal (ms, flip-in and flip-out time), hold (ms, minimum
 // time covered), lapa (false: no spinning lapa). Input is blocked while it runs. Time based, so a hidden tab catches up when it returns.
+import { sfx } from './sfx.js';
 
 const PINK = '#e8559a', BLACK = '#0b0709';
 const COLS = 14;      // squares across; rows follow from the aspect ratio
@@ -82,6 +83,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 async function run(work, { cover = 560, reveal = 560, hold = 250, lapa = true } = {}) {
   ensure(); layout();
   root.classList.add('on'); root.classList.toggle('lapa', false);
+  sfx('whoosh');
   await play(cover, 1);
   paint(1, 1);
   announce(true);
