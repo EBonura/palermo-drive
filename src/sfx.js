@@ -81,6 +81,7 @@ const CUES = {
   rustle: ['world', 0.12, (o, t, k) => sample(o, t, 'rustle', 1.1 * k, 0.85 + Math.random() * 0.3)],   // a hedge, a rubbish pile, a parasol (a recording: cloth)
   crunch: ['world', 0.12, (o, t, k) => { hiss(o, t, 0.18, 0.5 * k, 'lowpass', 2600, 0.7, 500, 0.003); tone(o, t, 150, 0.2, 0.4 * k, 'sine', 55, 0.003); for (let i = 0; i < 4; i++) hiss(o, t + 0.05 + Math.random() * 0.3, 0.03, 0.15 * k, 'highpass', 5000 + Math.random() * 3000); }],   // a parked car: bodywork and a little glass
   splash: ['world', 0.15, (o, t, k) => { hiss(o, t, 1, 0.45 * k, 'lowpass', 3000, 0.6, 300, 0.03); tone(o, t, 90, 0.4, 0.4 * k, 'sine', 40); }],   // a big one with weight
+  bonk:   ['world', 0.08, (o, t, k) => { tone(o, t, 210, 0.13, 0.55 * k, 'sine', 70, 0.003); hiss(o, t, 0.05, 0.3 * k, 'lowpass', 900); tone(o, t + 0.03, 520, 0.16, 0.18 * k, 'triangle', 240, 0.004); }],   // somebody sent flying: a thud with a short comic drop (a stand-in until the owner picks a recording)
   thump:  ['world', 0.15, (o, t, k) => { for (const dt of [0, 0.1]) { tone(o, t + dt, 130, 0.2, 0.45 * k, 'sine', 50, 0.004); hiss(o, t + dt, 0.08, 0.25 * k, 'lowpass', 700); } }],   // landing: front wheels, then rear
   scatter: ['world', 0.5, (o, t, k) => { for (let i = 0; i < 4; i++) hiss(o, t + i * 0.09, 0.05, 0.3 * k, 'lowpass', 700); }],   // people jumping clear: slippers slapping
   // traffic and the city
