@@ -210,6 +210,7 @@ const sea = createSea({ scene, camera, renderer, sun, SUN_DIR, D, groundY, getWo
 
 // ---------- modules ----------
 let freeCam = null;
+let filmCam = null;   // a camera a capture tool drives (tools/film/shoot.mjs sets it through the debug handle): called in place of the chase camera, before anything is culled or streamed for the frame
 const ctx = { scene, renderer, skip: new Set(), raisedMask, CURB };
 prepareLandmarks(ctx);
 // Props may return { collidePlayer(car, dt) } for parked cars, bins, scooters, breakable trees.
@@ -362,7 +363,7 @@ placeAt(0, 0);
   // ?clean: the picture only, no HUD, menu, minimap or toasts (the share images, assets/ui/make-cover.sh)
   if (q.has('clean')) { const st = document.createElement('style'); st.textContent = 'body > :not(#view) { visibility: hidden !important; }'; document.head.appendChild(st); }
 }
-if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, markets, shout: shouts.shout, props: propsApi, hooks };   // props, hooks: tools/route-check reads the solid props and the bridge levels
+if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, markets, shout: shouts.shout, props: propsApi, hooks, set filmCam(f) { filmCam = typeof f === 'function' ? f : null; } };   // props, hooks: tools/route-check reads the solid props and the bridge levels
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
@@ -570,6 +571,7 @@ function frame(now) {
   sun.target.position.set(carPos.x, sunY, carPos.z);
 
   if (freeCam) freeCam();
+  else if (filmCam && game.state === 'play') filmCam(camera, car, dt);
   else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu
   else updateCamera(game.state === 'pause' ? 0 : dt);   // paused, the lapa stands still but keeps its speed: with time going on the camera's buzz (it grows with speed) shook the whole picture
   drawBlend(false);
