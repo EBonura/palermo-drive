@@ -30,7 +30,7 @@ let draw = () => {};
 // one block of text at the anchor (a letter of this face is about 0.62 of its size wide, hence the fit): the first line big, the rest small under it; it slams in, holds, and is whipped out sideways
 function textBlock(color, size, at = ANCHOR, smallPx = 0) {   // smallPx: the small lines at a size of their own (the cards: a long first line must not shrink them)
   const el = mk('div', 'txt' + (color === 'pink' ? ' pink' : ''), esc(lines[0] || '') + lines.slice(1).map(l => SEQ ? `<div class="sq">${esc(l)}</div>` : `<small>${esc(l)}</small>`).join('')), sq = [...el.querySelectorAll('.sq')]; if (smallPx) for (const e of el.querySelectorAll('small')) e.style.fontSize = smallPx + 'px';
-  const fit = Math.min(size, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.62); el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
+  const fit = Math.min(size, W * 0.9 / Math.max(1, ...(SEQ ? lines : lines.slice(0, 1)).map(l => l.length)) / 0.62); el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
   const bar = mk('div', 'bar'); bar.style.fontSize = fit + 'px'; bar.style.top = (H * at + fit * 0.62) + 'px';
   return t => {
     const a = back(t / 0.22), out = ss(DUR - 0.16, DUR, t), sc = 0.35 + 0.65 * a + (1 - ss(0, 0.5, t)) * 0.04 * Math.sin(t * 70);
@@ -75,7 +75,7 @@ if (kind === 'links') {   // the last page: a heading, a small line under it (' 
     yt: '<rect x="1.5" y="5" width="21" height="14" rx="4.5" fill="#fff"/><path d="M10 8.6v6.8l5.8-3.4z" fill="#0b0709"/>',
     itch: '<path d="M3 4h18l1.5 4.2c0 1.5-1.2 2.6-2.6 2.6s-2.6-1.1-2.6-2.6c0 1.5-1.2 2.6-2.6 2.6S12 9.7 12 8.2c0 1.5-1.2 2.6-2.6 2.6S6.8 9.7 6.8 8.2c0 1.5-1.2 2.6-2.6 2.6S1.5 9.7 1.5 8.2z" fill="#fff"/><path d="M3.5 12.5v7.5h17v-7.5h-2.5v5h-12v-5z" fill="#fff"/>',
     gh: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' };
-  const hd = mk('div', 'txt', esc(lines[0] || '') + (lines[1] || '').split(tall ? /, | \/ / : ' / ').map(l => `<small>${esc(l)}</small>`).join('')), hs = Math.min(u * 9, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); hd.style.fontSize = hs + 'px'; for (const e of hd.querySelectorAll('small')) e.style.fontSize = (tall ? W * 0.042 : H * 0.038) + 'px'; hd.style.top = (H * (tall ? 0.3 : 0.27)) + 'px';
+  const hd = mk('div', 'txt', esc(lines[0] || '') + (lines[1] || '').split(tall ? /, | \/ / : ' / ').map(l => `<small>${esc(l)}</small>`).join('')), hs = Math.min(u * 9, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); hd.style.fontSize = hs + 'px'; for (const e of hd.querySelectorAll('small')) e.style.fontSize = (tall ? W * 0.034 : H * 0.038) + 'px'; hd.style.top = (H * (tall ? 0.3 : 0.27)) + 'px';
   const fs = u * (tall ? 5.2 : 4.6), cw = tall ? W * 0.84 : W * 0.4, x0 = W / 2 - cw * cols / 2, y0 = H * (tall ? 0.45 : 0.52), rh = fs * 2.3;
   const els = rows.map(([k, v], i) => { const e = mk('div'); e.style.cssText = `position:absolute;left:${x0 + (i % cols) * cw}px;top:${y0 + Math.floor(i / cols) * rh}px;width:${cw}px;display:flex;align-items:center;gap:${fs * 0.5}px;font:700 ${fs}px/1 'Barlow Condensed','Arial Narrow',sans-serif;color:#fff;letter-spacing:.04em;text-shadow:0 .08em .2em rgba(0,0,0,.8)`;
     e.innerHTML = `<svg viewBox="0 0 24 24" width="${fs * 1.5}" height="${fs * 1.5}" style="flex:none;filter:drop-shadow(0 0 ${fs * 0.25}px #e8559a)">${IC[k] || ''}</svg><span>${esc(v || '')}</span>`; return e; });
