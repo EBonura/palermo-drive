@@ -1454,8 +1454,26 @@ function teatroFrame() {   // the dome axis of the Teatro Massimo and the direct
   const f = [0.41, 0.912], fl = Math.hypot(f[0], f[1]);
   return { cen: centroid(hi.pts), nx: f[0] / fl, nz: f[1] / fl };
 }
+// The four fountains of the Quattro Canti, one at the foot of each facade: their centres, found as buildQuattroCanti finds the facades (the four concave arcs among the building
+// vertices round the crossing), 2.15 m in front of each wall. [] when the buildings are not there.
+function qcFountains() {
+  const [cx, cz] = QC.C, { R, Rf } = QC, pts = [];
+  for (const b of D.buildings) { const p = b.p; for (let i = 0; i < p.length; i += 2) if (Math.abs(Math.hypot(p[i] - cx, p[i + 1] - cz) - R) < 0.5) pts.push(Math.atan2(p[i + 1] - cz, p[i] - cx)); }
+  if (pts.length < 8) return [];
+  pts.sort((p, q) => p - q);
+  const n = pts.length, T = 2 * Math.PI, gapOf = (a, b) => { let d = b - a; if (d < 0) d += T; return d; };
+  let k0 = 0; for (let i = 0; i < n; i++) if (gapOf(pts[i], pts[(i + 1) % n]) > 0.45) { k0 = (i + 1) % n; break; }
+  const clusters = []; let cur = [];
+  for (let j = 0; j < n; j++) { const a = pts[(k0 + j) % n]; if (cur.length && gapOf(cur[cur.length - 1], a) > 0.45) { clusters.push(cur); cur = []; } cur.push(a); }
+  if (cur.length) clusters.push(cur);
+  const out = [];
+  for (const cl of clusters) { if (cl.length < 3) continue; let a1 = cl[0], last = cl[0]; for (const a of cl) { a1 += gapOf(last, a); last = a; } const mid = (cl[0] + a1) / 2; out.push([cx + (Rf - 2.15) * Math.cos(mid), cz + (Rf - 2.15) * Math.sin(mid)]); }
+  return out;
+}
 const COLLISION = (() => {
   const out = {};
+  // Quattro Canti: the four fountains are solid (the lowest step is 2.78 m in radius): the lapa, and the camera's line to it, used to go straight through the basins
+  { const f = qcFountains(); if (f.length) out['Quattro Canti'] = f.flatMap(c => ringSegs(circleRing(c[0], c[1], 2.65, 12))); }
   // Fontana Pretoria: the iron fence ring (r 12.05) and the basin wall inside it (r 10.45): the basin is not for driving in
   { const c = pretoriaCentre(); out['Fontana Pretoria'] = [...ringSegs(circleRing(c[0], c[1], 12.05, 32)), ...ringSegs(circleRing(c[0], c[1], 10.45, 24))]; }
   // Teatro Massimo: the podium with the portico, the 24 steps and the cheek walls are one block (28 m across, from the portico's back plane 14.5 m to 39.5 m in front of the dome axis),

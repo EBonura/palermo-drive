@@ -73,7 +73,7 @@ if (shot.cam) await p.evaluate((C, secs) => {
   };
 }, shot.cam, shot.seconds);
 // the driver (shot.drive): steers for a list of points instead of pressing keys by the clock, so a bump does not leave the lapa parked against a table.
-//   { points: [[x, z], ...] world metres, or rel: [[right, forward], ...] from where the lapa starts; nitro: true; drift: 0.7 (handbrake past this heading error, radians); loop: true }
+//   { points: [[x, z] or [x, z, top speed in m/s on the way to it], ...] world metres, or rel: [[right, forward], ...] from where the lapa starts; nitro: true; drift: 0.7 (handbrake past this heading error, radians); loop: true }
 // Standing still for half a second, it backs off turning and goes again. Keys from shot.keys still apply on top (a horn, the wings).
 if (shot.drive) await p.evaluate(D => {
   const car = window.game.car, th0 = car.th, x0 = car.x, z0 = car.z;
@@ -87,7 +87,7 @@ if (shot.drive) await p.evaluate(D => {
     if (back > 0) { back -= dt; k.ArrowDown = true; k[backDir > 0 ? 'ArrowRight' : 'ArrowLeft'] = true; return k; }
     slow = sp < 1.2 ? slow + dt : 0;
     if (slow > 0.5) { slow = 0; back = 0.8; backDir = err > 0 ? 1 : -1; window.__filmStuck++; return k; }
-    k.ArrowUp = true; if (D.nitro) k.ShiftLeft = true;
+    const cap = pts[i][2] || D.maxSpeed || 0; if (!cap || sp < cap) { k.ArrowUp = true; if (D.nitro) k.ShiftLeft = true; }   // a point may carry its own speed limit, in m/s: [x, z, 9]
     if (err > 0.05) k.ArrowLeft = true; else if (err < -0.05) k.ArrowRight = true;
     if (Math.abs(err) > (D.drift || 0.7) && sp > 7) k.Space = true;
     return k;
