@@ -118,11 +118,13 @@ const keysAt = t => { const k = {}; for (const e of shot.keys || []) if (t >= e.
 const frame = (t, grab) => p.evaluate((ks, ms, grab, hud) => {
   const K = window.game ? window.game.keys : {}; for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'KeyF', 'KeyH', 'KeyW', 'KeyA', 'KeyS', 'KeyD']) K[k] = !!ks[k];
   if (window.__filmDrive) { const d = window.__filmDrive(ms / 1000); for (const k in d) if (d[k]) K[k] = true; }
-  window.__film.step(ms);
+  window.__filmN = (window.__filmN || 0) + 1; window.__film.step(ms);
   if (hud) for (const a of document.getAnimations()) { if (!a.__film) { a.__film = true; a.pause(); } a.currentTime = (+a.currentTime || 0) + ms; }   // CSS animations step with the clock too
   return grab && !hud ? window.game.renderer.domElement.toDataURL('image/jpeg', 0.95) : null;
 }, keysAt(t), 1000 / fps, grab, !!shot.hud);
 const pre = Math.round((shot.preroll ?? 1) * fps), n = Math.round(shot.seconds * fps), t0 = Date.now();
+// the clips have no sound: the game's own sound events (src/sfx.js, src/vehicle-audio.js) are logged with the clip's time, for the edit to lay a sound on each (sfx-<frames dir>.json beside it)
+await p.evaluate(() => { window.__sfxLog = []; window.__filmN = 0; window.__sfxTap = (n, k) => window.__sfxLog.push([window.__filmN, n, Math.round(k * 100) / 100]); });
 for (let i = -pre; i < n; i++) {
   const url = await frame(i / fps, i >= 0);
   if (shot.script) for (const sc of shot.script) if (Math.round(sc.at * fps) === i) { let r; if (sc.mouse) { const vp = p.viewport(), x = sc.x * vp.width, y = sc.y * vp.height; if (sc.mouse === 'down') { await p.mouse.move(x, y); await p.mouse.down(); } else if (sc.mouse === 'up') await p.mouse.up(); else await p.mouse.move(x, y); r = sc.mouse; } else if (sc.wheel) { await p.mouse.wheel({ deltaY: sc.wheel }); r = 'wheel'; } else if (sc.click) { const q = await p.evaluate(sel => { const b = document.querySelector(sel); if (!b) return null; b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); const c = b.getBoundingClientRect(); return [c.x + c.width / 2, c.y + c.height / 2]; }, sc.click); if (q) await p.mouse.click(q[0], q[1]); r = q; } else r = await p.evaluate(sc.js); if (shot.verbose) console.log('script', sc.at, JSON.stringify(r)); }   // { at, js } runs page code, { at, click: 'selector' } clicks with the mouse, { at, mouse: 'down'|'move'|'up', x, y } drags (x, y as shares of the window), { at, wheel: deltaY } scrolls   // staging: { at: seconds, js: 'code run in the page' }
@@ -132,5 +134,6 @@ for (let i = -pre; i < n; i++) {
 }
 const st = shot.menu ? { menu: shot.menu } : await p.evaluate(() => { const c = window.game.car, r = window.game.renderer.domElement; return { behindWall: window.__filmBlocked || 0, stuck: window.__filmStuck || 0,  x: Math.round(c.x), z: Math.round(c.z), kmh: Math.round(Math.hypot(c.vx, c.vz) * 3.6), canvas: r.width + 'x' + r.height }; });
 const th = shot.menu ? 0 : await p.evaluate(() => Math.round(window.game.car.th * 180 / Math.PI));
+fs.writeFileSync(path.join(path.dirname(out), `sfx-${path.basename(out)}.json`), JSON.stringify((await p.evaluate(() => window.__sfxLog)).map(([f, nm, k]) => [Math.round((f - pre) / fps * 1000) / 1000, nm, k]).filter(e => e[0] >= 0)));
 console.log('heading', th, `${n} frames in ${((Date.now() - t0) / 1000).toFixed(0)} s`, JSON.stringify(st), errs.length ? 'ERR ' + errs.join(' | ') : 'no errors');
 await b.close(); process.exit(0);

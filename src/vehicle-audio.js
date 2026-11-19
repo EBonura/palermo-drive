@@ -109,6 +109,7 @@ export function createVehicleAudio(env) {
   }
   function setVolume(v) { a.vol = clamp(+v || 0, 0, 1); if (a.master) a.master.gain.value = a.vol * 0.9; }
   function impact(mag) {
+    globalThis.__sfxTap?.('impact', mag);   // tools/film (see src/sfx.js)
     if (!a.ready) return;
     const src = a.ctx.createBufferSource(); src.buffer = a.impact;
     src.playbackRate.value = 0.8 + Math.random() * 0.3 - clamp(mag / 60, 0, 0.2);
