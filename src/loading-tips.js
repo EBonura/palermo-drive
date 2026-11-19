@@ -15,7 +15,7 @@
     ['Di notti i pub su aperti: fermati â puaitta e premi B pi viviri.', 'At night the pubs are open: stop at the door and press B to have a drink.'],
     ['Ô stadiu Barbera c’è un palluni: spingilu cû lapa e fai gol.', 'At the Barbera stadium there is a ball: push it with the lapa and score.'],
     ['Reti, muretti e siepi ri giardinu si ruimpinu si ci vai forti.', 'Fences, garden walls and hedges break if you hit them hard enough.'],
-    ['Palermu ha tanti segreti: nta Collezioni sunnu ??? finu a quannu un li trovi.', 'Palermo has plenty of secrets: they show as ??? in Collections until you find them.'],
+    ['Paliaimmu ha tanti segreti: nta Collezioni sunnu ??? finu a quannu un li trovi.', 'Palermo has plenty of secrets: they show as ??? in Collections until you find them.'],
     ['Shift è u nitro: si ricarica cû curriri e cu i sbandati.', 'Shift is the nitro: it refills as you go fast and as you drift.'],
     ['Si ti ’ncastri, premi R: ti rimetti ’nta strata.', 'If you get stuck, press R: it puts you back on the road.'],
     ['Si fai truappu buiddiellu arriva a pulizzia: si ti fiaimmi ti fannu puru a multa.', 'Cause too much chaos and the police come: if you stop, they fine you too.'],

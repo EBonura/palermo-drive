@@ -145,7 +145,7 @@ export const DRIVER = {
   hitPed: [
     ['Ma unni ti metti, nta strata?!', 'Where do you stand, in the street?!'],
     ['Scusa, bedda, nun t\'avia vistu!', 'Sorry, beautiful, I had not seen you!'],
-    ['I pedoni a Palermu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.', 'Pedestrians in Palermo are like traffic lights: they exist, but nobody pays attention. (?)'],
+    ['I pedoni a Paliaimmu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.', 'Pedestrians in Palermo are like traffic lights: they exist, but nobody pays attention. (?)'],
   ],
   hitWall: [
     ['U muru mi vinni \'ncontru, ju nun c\'entru!', 'The wall came at me, it is not my fault! (?)'],
@@ -166,7 +166,7 @@ export const DRIVER = {
   ],
   stig: [
     ['Chista è benzina vera!', 'That is real fuel!'],
-    ['Stigghiola e nitro: Palermu \'n tavola!', 'Stigghiola and nitro: Palermo on a plate!'],
+    ['Stigghiola e nitro: Paliaimmu \'n tavola!', 'Stigghiola and nitro: Palermo on a plate!'],
   ],
   ambient: [
     ['Chi cavuru! Pari ca semu nta u furnu da focacceria.', 'What heat! It feels like we are in the focacceria\'s oven. (?)'],
@@ -174,7 +174,7 @@ export const DRIVER = {
     ['L\'AMAT? Passa quannu voli iddu.', 'The AMAT bus? It comes when it feels like it.'],
     ['Arancina! Arancina, no arancinu! U sapi tuttu u munnu.', 'Arancina, not arancino! The whole world knows that.'],
     ['I sensi unici? Sunnu suggerimenti.', 'One-way streets? They are suggestions.'],
-    ['Viva Palermu e Santa Rosalia!', 'Long live Palermo and Santa Rosalia!'],
+    ['Viva Paliaimmu e Santa Rosalia!', 'Long live Palermo and Santa Rosalia!'],
     ['U russu du semaforu è un colore, nun un ordini.', 'The red of a traffic light is a colour, not an order. (?)'],
     ['Talìa chi bedda jurnata!', 'Look what a beautiful day!'],
   ],
@@ -675,7 +675,7 @@ export const FRIEND = {
   amico2: {
     hail: [['Ehi! Lapista! Puozzu acchianari? Haiu i gammi lunghi, ma m’adattu.', 'Hey! Driver! Can I get in? My legs are long, but I will manage.'], ['Fermati ’n attimu! Ti cuntu ’na cosa mentri annamu.', 'Stop a moment! I will tell you something on the way.'], ['Amunì, amunì! Mi runi ’nu strappu?', 'Come on! Can I have a ride?'], ['Scusa, si libiru? Giuru ca un arrobbu u postu a nuddu.', 'Sorry, are you free? I swear I will not take anyone’s seat.']],
     board: [['’Na picca strittu, ma havi u so fascinu.', 'A bit tight, but it has its charm.'], ['Va’ tranquillu. Iu mi chiegu ’n dui.', 'Take it easy. I will fold in half.']],
-    ambient: [['U sai ca a Palermu u semaforu è ’nu cunsigghiu?', 'You know that in Palermo the traffic light is a suggestion?'], ['Vitti ’nu gattu cu ’na Vespa, ajeri. Giuru.', 'I saw a cat on a Vespa yesterday. I swear.'], ['Ccà ogni strata havi u so ciauru: panelle o scappamentu.', 'Every street here has its smell: panelle or exhaust.']],
+    ambient: [['U sai ca a Paliaimmu u semaforu è ’nu cunsigghiu?', 'You know that in Palermo the traffic light is a suggestion?'], ['Vitti ’nu gattu cu ’na Vespa, ajeri. Giuru.', 'I saw a cat on a Vespa yesterday. I swear.'], ['Ccà ogni strata havi u so ciauru: panelle o scappamentu.', 'Every street here has its smell: panelle or exhaust.']],
     drift: [['Ahahah! Chista a cuntu!', 'Hahaha! I am telling this one!']], wheels: [['Dui ruoti! Pari ri vulari!', 'Two wheels! It feels like flying!']],
     fast: [['Va’! Sugnu già ’n ritardu ’n anticipu!', 'Go! I am already early for being late!']], miss: [['Ma u vidisti?! Era a ’nu ditu!', 'Did you see that?! It was a finger away!']],
     hitWall: [['Tuttu a postu! U muru si spustau.', 'All good! The wall moved.']], hitPed: [['Oh! Mi dispiaci! Bona iurnata!', 'Oh! Sorry! Have a good day!']],

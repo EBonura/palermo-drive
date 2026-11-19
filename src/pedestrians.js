@@ -878,7 +878,7 @@ export function createPedestrians(env) {
     if (chairs.length >= 10) chairs.shift();
     chairs.push({ x: X[i], z: Z[i], y: Y[i], th: TH[i], vx: car.vx * 0.3 + dx * 0.8, vz: car.vz * 0.3 + dz * 0.8, t: 0, rd: dx * car.vz - dz * car.vx >= 0 ? 1 : -1, ph: 0, sh: SHC[i] });
     VAR[i] = HEALV; ST[i] = DODGE; TMR[i] = 0; REACT[i] = -2; V0[i] = 6.2; V[i] = 0; VX[i] = dx * 6.2; VZ[i] = dz * 6.2; TH[i] = THT[i] = Math.atan2(dx, dz); NUDGE[i] = 0; WAITT[i] = -6;
-    const id = i; env.shout?.(X[i], Y[i] + 1.9, Z[i], 'U PALIEMMU \u00C8 MIRACULUSU!', () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }));
+    const id = i; env.shout?.(X[i], Y[i] + 1.9, Z[i], 'U PALIAIMMU \u00C8 MIRACULUSU!', () => ({ x: X[id], y: Y[id] + 1.9, z: Z[id] }));
   }
   function updateChairs(dt, cx0, cz0) {
     for (let k = chairs.length - 1; k >= 0; k--) {

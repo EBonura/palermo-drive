@@ -41,7 +41,7 @@ export const INSULTS = [
 ];
 // The owner's lines that belong to a place: the ZEN, Mondello's sand and the three markets, the last two by day. placeLine(x, z, sand) -> one of them at that spot, or null anywhere else.
 const ZEN_LINES = ['Cutiaddu? Pistuala?'], MARKET_LINES = ['Si sta muriannu ra faaameee', 'Signora i limoni signoraaaaaaaahhhhh'];
-const MONDELLO_LINES = ['Buongioinno da Mondello!', "Non ce n'è! Non ce n'è!", 'Coccobellooooooo', "Chessobelle polla', pollancheeee!"];
+const MONDELLO_LINES = ['Buongioinno da Mondello!', 'Un cci nné! Un cci nné!', 'Coccobellooooooo', "Chessobelle polla', pollancheeee!"];
 let hourNow = 12;
 addEventListener('pd-time', e => { if (Number.isFinite(e.detail?.hour)) hourNow = e.detail.hour; });
 export function placeLine(x, z, sand) {   // sand: the spot is on a beach (the crowd knows, src/pedestrians.js); only then Mondello's lines
