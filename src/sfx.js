@@ -25,7 +25,7 @@ function ready() {
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     for (const k in beds) delete beds[k];
     for (const k in bufs) delete bufs[k]; for (const k in loads) delete loads[k];
-    for (const k of ['crash-light', 'crash-heavy1', 'crash-heavy2', 'glass1', 'glass2', 'wood-break', 'bags1', 'bags2', 'bonk1', 'bonk2', 'jingle-start', 'jingle-win', 'jingle-fail']) load(k);   // the short ones are wanted the moment something happens
+    for (const k of ['crash-light', 'crash-heavy1', 'crash-heavy2', 'glass1', 'glass2', 'wood-break', 'bags1', 'bags2', 'bonk1', 'bonk2', 'bin-metal', 'sign-metal', 'pole-metal', 'rail-metal', 'jingle-start', 'jingle-win', 'jingle-fail']) load(k);   // the short ones are wanted the moment something happens
     vol0 = duck0 = -1;
   }
   if (c.state !== 'running') return false;   // a suspended context would queue the sound and play it late
@@ -76,8 +76,11 @@ const CUES = {
     tone(o, t + 0.8, 110, 0.25, 0.5, 'sine', 48); hiss(o, t + 0.8, 0.1, 0.3, 'lowpass', 900);
   }],
   // things in the street
-  clang:  ['world', 0.09, (o, t, k) => { for (const [f, g, d] of [[412, 0.25, 0.5], [1087, 0.18, 0.35], [1810, 0.12, 0.22], [2954, 0.07, 0.12]]) tone(o, t, f * (0.92 + Math.random() * 0.16), d, g * k, 'triangle', 0, 0.002); hiss(o, t, 0.07, 0.3 * k, 'bandpass', 2200, 0.7); }],   // a bin, a sign, a railing
-  // (Nov 2026: the owner chose recordings for the things the lapa hits, src/sfx.js FILES; metal is still the synthesised clang until one is chosen)
+  // (Nov 2026: the owner chose recordings for the things the lapa hits, src/sfx.js FILES; metal has one for each kind of thing, METAL in src/props.js says which is which)
+  'metal-bin':  ['world', 0.09, (o, t, k) => sample(o, t, 'bin-metal', 0.7 * k, 0.94 + Math.random() * 0.14)],   // a bin or a skip: bars dropped in a dumpster (the recording clips a little, as its author says)
+  'metal-sign': ['world', 0.09, (o, t, k) => sample(o, t, 'sign-metal', 0.7 * k, 0.94 + Math.random() * 0.14)],   // a sign or any thin sheet of metal: a signpost dropped on concrete
+  'metal-pole': ['world', 0.09, (o, t, k) => sample(o, t, 'pole-metal', 0.7 * k, 0.94 + Math.random() * 0.14)],   // a lamp post or any pole: a metal pole struck
+  'metal-rail': ['world', 0.09, (o, t, k) => sample(o, t, 'rail-metal', 0.7 * k, 0.94 + Math.random() * 0.14)],   // a railing or a fence: a metal railing struck
   tock:   ['world', 0.09, (o, t, k) => sample(o, t, 'wood-break', 0.5 * k, 0.92 + Math.random() * 0.2)],   // a crate, a stall, a chair: a wooden crate breaking, kept low
   rustle: ['world', 0.12, (o, t, k) => sample(o, t, any('bags1', 'bags2'), 0.8 * k, 0.9 + Math.random() * 0.2)],   // a rubbish pile, cardboard, a hedge: a bag of rubbish dropped, or a box
   crunch: ['world', 0.12, (o, t, k) => { if (k < 0.75) { sample(o, t, 'crash-light', 0.35 + 0.45 * k, 0.94 + Math.random() * 0.14); return; }   // a car: a clank for a tap or a shunt,
@@ -94,7 +97,7 @@ const CUES = {
 };
 
 // ---- recordings (assets/audio, credits in assets/CREDITS.md): fetched and decoded when first wanted; a one-shot asked for before its file is in plays as soon as it is, if that is within a second ----
-const FILES = { 'jingle-start': 'jingle-start.m4a', 'jingle-win': 'jingle-win.m4a', 'jingle-fail': 'jingle-fail.m4a', 'crash-light': 'crash-light.m4a', 'crash-heavy1': 'crash-heavy1.m4a', 'crash-heavy2': 'crash-heavy2.m4a', glass1: 'glass1.m4a', glass2: 'glass2.m4a', 'wood-break': 'wood-break.m4a', bags1: 'bags1.m4a', bags2: 'bags2.m4a', bonk1: 'bonk1.m4a', bonk2: 'bonk2.m4a', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
+const FILES = { 'jingle-start': 'jingle-start.m4a', 'jingle-win': 'jingle-win.m4a', 'jingle-fail': 'jingle-fail.m4a', 'crash-light': 'crash-light.m4a', 'crash-heavy1': 'crash-heavy1.m4a', 'crash-heavy2': 'crash-heavy2.m4a', glass1: 'glass1.m4a', glass2: 'glass2.m4a', 'wood-break': 'wood-break.m4a', bags1: 'bags1.m4a', bags2: 'bags2.m4a', bonk1: 'bonk1.m4a', bonk2: 'bonk2.m4a', 'bin-metal': 'bin-metal.m4a', 'sign-metal': 'sign-metal.m4a', 'pole-metal': 'pole-metal.m4a', 'rail-metal': 'rail-metal.m4a', 'tram-bell': 'tram-bell.m4a', 'church-bell': 'church-bell.m4a', rain: 'rain.m4a', sea: 'sea.m4a', cicadas: 'cicadas.m4a' };
 const any = (...a) => a[(Math.random() * a.length) | 0];
 const urlOf = file => new URL('../assets/audio/' + file, import.meta.url).href;
 const bufs = {}, loads = {};

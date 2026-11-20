@@ -21,6 +21,7 @@ import { wallMaterial, wallTextureSteps, LAYER } from './wall-tex.js';
 import { roadsideWalls } from './fence-walls.js';
 import { expresswayRails, isFastRoad } from './expressway.js';
 import { buildSigns } from './direction-signs.js';
+import { sfx } from './sfx.js';
 
 const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, MAX_RAILS = 2400, POOL = 10;
 const GUARD_BREAK = 15;   // m/s (effective, see breakFence): a steel guard rail holds a scrape and a bump, and gives way to a car that hits it head on at about 55 km/h or more
@@ -241,6 +242,7 @@ function breakFence(seg, vs, nx, nz, car) {
   if (flyers.length > POOL * 3) flyers.shift();
   car.vx += nx * vs * 0.22; car.vz += nz * vs * 0.22;            // the panel takes a little speed with it
   if (car.vf !== undefined) car.vf = car.vx * Math.sin(car.th) + car.vz * Math.cos(car.th);
+  if (f.st !== 1) sfx('metal-rail', Math.min(1.2, Math.max(0.35, 0.35 + vsIn / 14)));   // a railing, a mesh fence or a guard rail rings (the wooden fence stays quiet: it has no recording); louder with the speed of the blow, as in src/props.js
   try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: f.x, z: f.z, kind: 'fence' } })); } catch (e) { /* no events */ }
   return true;
 }

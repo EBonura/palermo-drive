@@ -585,6 +585,12 @@ const MATS = {
   def('kiosk', ks, { tint: true, dbl: true });
 }
 
+// which recording a metal thing makes when the lapa hits it (src/sfx.js: one for each kind of metal). A metal thing not listed here sounds like a sign, the lightest and most general of the four.
+const METAL = {
+  bin_big: 'metal-bin', bin_over: 'metal-bin', bin_small: 'metal-bin',   // the wheelie bins and the small street bin
+  busstop: 'metal-sign', scooter: 'metal-sign',                           // a sign on a thin pole, and thin sheet metal that clatters
+  lamp_pole: 'metal-pole', candelabra: 'metal-pole', utility_pole: 'metal-pole', signal: 'metal-pole', signal_arm: 'metal-pole', bollard: 'metal-pole', fontanella: 'metal-pole',
+};
 // ------------------------------------------------------------------ collision specs
 // c: circles [ox, oz, r] in model space (z forward). kind: park (a parked car), veh (launchable), scooter, bin, tree, bend, solid.
 // thr: closing speed in m/s above which the thing breaks, flies or falls. he/hc: body half extents and centre height for flights.
@@ -951,6 +957,7 @@ function makePhysics(env) {
   function hit(pc, c, nx, nz, pen, arm) {
     const sp = c.sp, vc = -(pc.vx * nx + pc.vz * nz);
     const snd = name => sfx(name, clamp(0.35 + vc / 14, 0.35, 1.2));   // louder with the speed of the blow
+    const clang = () => snd(METAL[c.model] || 'metal-sign');
     switch (sp.kind) {
       case 'veh':
         if (c.st === 0 && vc >= sp.thr) { snd('crunch'); yeet(c, nx, nz, vc, pc); return; }
@@ -960,9 +967,9 @@ function makePhysics(env) {
         if (c.st === 0) { nudgePark(c, nx, nz, pen, arm, pc); return; }
         break;
       case 'scooter':
-        if (c.st === 0 && vc >= (sp.fly)) { snd('clang'); yeet(c, nx, nz, vc, pc); return; }
+        if (c.st === 0 && vc >= (sp.fly)) { clang(); yeet(c, nx, nz, vc, pc); return; }
         if (c.st === 0 && vc >= sp.thr) {
-          snd('clang');
+          clang();
           // topple sideways, away from the side the lapa came from
           const rx = Math.cos(c.rot), rz = -Math.sin(c.rot), side = (nx * rx + nz * rz) > 0 ? -1 : 1;
           startFall(c, rx * side * -1 * -1, rz * side * -1 * -1, vc, 1.5, { lift: 0.3, slide: 0.2 });
@@ -970,9 +977,9 @@ function makePhysics(env) {
         }
         break;
       case 'bin':
-        if (c.st === 0 && sp.fly && vc >= sp.fly) { snd('clang'); spawnBags(c, sp.bags, nx, nz, vc, pc); yeet(c, nx, nz, vc, pc); stats.tipped++; return; }   // hard enough: the whole bin goes
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { clang(); spawnBags(c, sp.bags, nx, nz, vc, pc); yeet(c, nx, nz, vc, pc); stats.tipped++; return; }   // hard enough: the whole bin goes
         if (c.st === 0 && vc >= sp.thr) {
-          snd('clang'); startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
+          clang(); startFall(c, nx, nz, vc, 1.57, { lift: 0.55, slide: 0.9 }); spawnBags(c, sp.bags, nx, nz, vc, pc); stats.tipped++; slow(pc, nx, nz, 0.12); return;
         }
         break;
       case 'bags': case 'board': case 'bits': case 'object':
@@ -994,8 +1001,8 @@ function makePhysics(env) {
         if (c.st === 0 && vc >= sp.thr) { snd('rustle'); startFall(c, nx, nz, vc, 1.5); spawnLeaves(c, -nx, -nz); stats.trees++; slow(pc, nx, nz, 0.4); return; }
         break;
       case 'bend':
-        if (c.st === 0 && sp.fly && vc >= sp.fly) { snd('clang'); yeet(c, nx, nz, vc, pc); stats.bent++; return; }   // the light ones (signs on thin poles, the small bin) are torn out
-        if (c.st === 0 && vc >= sp.thr) { snd('clang'); startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
+        if (c.st === 0 && sp.fly && vc >= sp.fly) { clang(); yeet(c, nx, nz, vc, pc); stats.bent++; return; }   // the light ones (signs on thin poles, the small bin) are torn out
+        if (c.st === 0 && vc >= sp.thr) { clang(); startFall(c, nx, nz, vc, sp.tilt); stats.bent++; slow(pc, nx, nz, 0.18); return; }
         break;
       default: break;
     }
