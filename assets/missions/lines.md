@@ -1302,7 +1302,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### food: none
 
-- Nianti?! Pacienza... tuoina quannu hai cchiù furtuna.  
+- Nianti?! Pacienza... tuinna quannu hai cchiù furtuna.  
   _Nothing?! Never mind... come back when you are luckier._
 
 ## The clienti: mission titles (src/event-places.js FARE_SPOTS, `title`)
@@ -1801,7 +1801,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### fare:pulle-stz: ask
 
-- A Favorita, ma ri cursa, vabbè u sai: ca me muggheri torna prestu.  
+- A Favorita, ma ri cursa, vabbè u sai: ca me muggheri tuinna prestu.  
   _To the Favorita, but fast, well, you know: my wife comes home soon._
 
 ### fare:pulle-stz: arrive

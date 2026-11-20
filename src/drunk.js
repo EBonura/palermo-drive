@@ -55,7 +55,7 @@ const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the
 // Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey, Sanlorenzo and Dal polacco promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
 const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1, polacco: 1 };
 const FREE_PUB = ['Offri a casa, comu ti rissi!', 'On the house, as I told you!'];
-const GONE = ['Ti passàu!', 'It wore off!'], GONE_SUB = ['Torni a vidiri una strata sula.', 'You see just one road again.'];
+const GONE = ['Ti passàu!', 'It wore off!'], GONE_SUB = ['Tuinni a vidiri una strata sula.', 'You see just one road again.'];
 
 // The picture of a drunk: ripples, a swirl and a breathing zoom (uWave), a blur in pulses (uBlur, a radius as a fraction of the picture height), a second image (uGhost, its offset) and a dimming
 // of the edges (uVig). The target wraps mirrored, so the edge of the picture never smears however far it is pushed.

@@ -972,7 +972,7 @@ export const FAVORITA_VARIANTS = {
   },
   'fare:pulle-stz': {
     board: [['Bonasira! Curri, curri! Vabbè u sai, sugnu ri cursa.', 'Good evening! Go, go! Well, you know, I am in a hurry.']],
-    ask: [['A Favorita, ma ri cursa, vabbè u sai: ca me muggheri torna prestu.', 'To the Favorita, but fast, well, you know: my wife comes home soon.']],
+    ask: [['A Favorita, ma ri cursa, vabbè u sai: ca me muggheri tuinna prestu.', 'To the Favorita, but fast, well, you know: my wife comes home soon.']],
     arrive: [['Ecco, ecco, vabbè u sai: iu ccà un ci sugnu mai statu. Ciao!', 'Here, here, well, you know: I was never here. Bye!']],
   },
 };
@@ -989,7 +989,7 @@ export const URGENT_LINES = {
 // The owner when the lost food is brought back
 export const FOOD = {
   thanks: [['Grazzi, grazzi! Sì ’n’angilu cu tri ruoti!', 'Thank you, thank you! You are an angel with three wheels!'], ['M’ha saibbatu a iurnata! Ti offru quarchi cosa!', 'You saved my day! Let me treat you!']],
-  none: [['Nianti?! Pacienza... tuoina quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
+  none: [['Nianti?! Pacienza... tuinna quannu hai cchiù furtuna.', 'Nothing?! Never mind... come back when you are luckier.']],
 };
 
 // The rave missions: toasts, results and what people say. Palermitan, written by an agent (for the owner to correct); [Sicilian, English].
