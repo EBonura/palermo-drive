@@ -70,7 +70,7 @@ The relay is on Cloudflare's free plan, which has daily limits shared by every p
 | over for today | `Online finutu pi oggi` (red) | `/status` says `quota` (the object's free daily limit is used up), or `budget` / close 1008 "daily allowance used" (only this address's share is used; its own sentence) |
 | cannot be reached | `Online un funziona` (violet) | the socket will not open and `/status` cannot be read or says `error`: no reason is claimed |
 
-The pill is the capsule of the multiplayer section (there while driving online); above it the panel shows one or two sentences, the same sentence comes once as a toast (6.5 s) when the state changes, and "L’online tuinnàu!" once when it recovers. "Over for today" says when it comes back: 00:00 UTC on the player's own clock (01:00 in Italy in winter, 02:00 in summer, from the browser's time zone). The name card says before the choice that online runs on a free server with a daily limit. All the words are at the top of `src/online/status.js`, one constant per line (the Palermitan ones are the owner's drafts).
+The pill is the capsule of the multiplayer section (there while driving online); above it the panel shows one or two sentences, the same sentence comes once as a toast (6.5 s) when the state changes, and "L’online tuinnàu!" once when it recovers. "Over for today" says when it comes back: 00:00 UTC on the player's own clock (01:00 in Italy in winter, 02:00 in summer, from the browser's time zone). All the words are at the top of `src/online/status.js`, one constant per line (the Palermitan ones are the owner's drafts).
 
 ### How the reason is known
 
