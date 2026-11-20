@@ -2,6 +2,12 @@ name = "pd-relay"
 main = "build/index.js"
 compatibility_date = "2026-06-01"
 
+# The relay answers on the game's own domain, where a Cloudflare rate limit rule can turn a flood away before it
+# counts against the daily allowance. The workers.dev address still answers, for pages opened before the move.
+preview_urls = false   # no extra public addresses per deploy
+workers_dev = true   # setting routes turns this off by default, and the pages already open use the workers.dev address
+routes = [{ pattern = "relay.palermo-drive.it", custom_domain = true }]
+
 [build]
 command = "worker-build --release"
 watch_dir = "src"
