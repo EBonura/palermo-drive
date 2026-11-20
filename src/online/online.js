@@ -278,7 +278,7 @@ export function createOnline(env) {
     else if (/^(Digit|Numpad)[1-8]$/.test(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); wheel.pick(+e.code.slice(-1) - 1); }
   }, true);
   // ---------- a drink for somebody close by ----------
-  // Giver: picks cicchetto or birra, the nearest visible player within OFFER_R gets an OFFER and a card with Accetta / Nun mi va. On ACCEPT the
+  // Giver: picks cicchetto or birra, the nearest visible player within OFFER_R gets an OFFER and a card with Accetta / Un mi va. On ACCEPT the
   // giver pays DRINK_PRICE from the Garage wallet and sends CONFIRM; only then does the receiver get the drink (drunk.gift). Nothing happens to
   // anybody without their own yes, and every message is checked like the others.
   // Both sides always hear how it went: the giver gets a line for every outcome (accepted, no, busy, had enough, too far, gone, no answer, no money),
@@ -322,7 +322,7 @@ export function createOnline(env) {
     if (!best) { toast(tr('Nessuno vicino', 'Nobody close enough'), '', true); return false; }
     if (freeLeft() <= 0 && garage.cash < DRINK_PRICE) { toast(tr('Sienza picciuli!', 'Not enough money'), `${DRINK_PRICE} €`, true); return false; }
     const id = (offerSeq = (offerSeq + 1) & 255);
-    if (!sendOffer(best, new Uint8Array([4, kind, id]))) { toast(tr(`${nameOf(best)} un c’è chiù`, `${nameOf(best)} is gone`), '', true); return false; }
+    if (!sendOffer(best, new Uint8Array([4, kind, id]))) { toast(tr(`${nameOf(best)} un c’è cchiù`, `${nameOf(best)} is gone`), '', true); return false; }
     lastOfferAt = now; myOffer = { to: best, name: nameOf(best), id, kind, until: now + OFFER_TTL_MS };
     note(tr(`Offerta mandata a ${nameOf(best)}`, `Offer sent to ${nameOf(best)}`) + (freeLeft() > 0 ? tr(' · gratis', ' · free') : ''));
     return true;
@@ -348,12 +348,12 @@ export function createOnline(env) {
       if (keys) { const k = document.createElement('kbd'); k.textContent = yes ? 'Y' : 'N'; k.style.cssText = 'margin-left:8px;padding:1px 6px;border-radius:4px;font:700 12px system-ui,sans-serif;background:' + (yes ? '#0d0709' : '#e8559a') + ';color:' + (yes ? '#e8559a' : '#0d0709'); bt.append(k); }   // a keyboard player is told which keys answer
       bt.addEventListener('click', () => { bt.blur(); answer(yes); }); return bt; };
     const bar = document.createElement('div'); bar.className = 'pd-online-bar'; bar.style.cssText = 'position:absolute;left:0;bottom:0;height:3px;background:#e8559a';
-    card.append(q, dz, mk(tr('Accetta', 'Accept'), true), mk(tr('Nun mi va', 'No thanks'), false), bar); document.body.appendChild(card);
+    card.append(q, dz, mk(tr('Accetta', 'Accept'), true), mk(tr('Un mi va', 'No thanks'), false), bar); document.body.appendChild(card);
   }
   function answer(yes) {
     const o = incoming; closeCard(); if (!o || o.accepted) return;
     if (!yes) { reply(o.from, o.id, R_NO); decline(o); return; }
-    if (!sendOffer(o.from, new Uint8Array([5, 0, o.id]))) { incoming = null; toast(tr(`${o.name} un c’è chiù`, `${o.name} is gone`), '', true); return; }
+    if (!sendOffer(o.from, new Uint8Array([5, 0, o.id]))) { incoming = null; toast(tr(`${o.name} un c’è cchiù`, `${o.name} is gone`), '', true); return; }
     o.accepted = true; o.waitUntil = performance.now() + CONFIRM_WAIT_MS;
   }
   function decline(o) { incoming = null; const p = others.get(o.from); if (p) p.mutedUntil = performance.now() + MUTE_MS; }
@@ -397,7 +397,7 @@ export function createOnline(env) {
       } else if (code <= R_FAR) {   // to the giver
         if (!myOffer || myOffer.to !== id || myOffer.id !== b[2]) { stats.rxDropped++; return; }
         myOffer = null; note(null); const name = nameOf(id);
-        toast(code === R_NO ? tr(`${name}: nun ci va`, `${name} said no thanks`) : code === R_BUSY ? tr(`${name} è occupatu`, `${name} is busy`) : code === R_ENOUGH ? tr(`${name} n’avi abbastanza`, `${name} has had enough`) : tr(`${name} è truappu luntanu`, `${name} is too far`), '', true);
+        toast(code === R_NO ? tr(`${name}: un ci va`, `${name} said no thanks`) : code === R_BUSY ? tr(`${name} è occupatu`, `${name} is busy`) : code === R_ENOUGH ? tr(`${name} n’havi abbastanza`, `${name} has had enough`) : tr(`${name} è truappu luntanu`, `${name} is too far`), '', true);
       } else {   // to the receiver, after their yes
         if (!incoming || incoming.from !== id || incoming.id !== b[2] || !incoming.accepted) { stats.rxDropped++; return; }
         const o = incoming; incoming = null;
@@ -438,7 +438,7 @@ export function createOnline(env) {
   function offerClocks(now, playing) {
     if (myOffer) {
       const name = myOffer.name;   // the record of the player may be gone by now
-      if (!here(myOffer.to)) { note(null); myOffer = null; toast(tr(`${name} un c’è chiù`, `${name} is gone`), '', true); }
+      if (!here(myOffer.to)) { note(null); myOffer = null; toast(tr(`${name} un c’è cchiù`, `${name} is gone`), '', true); }
       else if (now > myOffer.until + ACCEPT_GRACE_MS) { note(null); myOffer = null; toast(tr(`${name} un rispunniu`, `${name} didn’t answer`), '', true); }
     }
     if (!incoming) return;
@@ -454,7 +454,7 @@ export function createOnline(env) {
       } else incoming.calmAt = 0;
       return;
     }
-    if (incoming.accepted) { if (now > incoming.waitUntil) { const n = incoming.name; incoming = null; toast(tr(`${n} un c’è chiù`, `${n} is gone`), '', true); } return; }
+    if (incoming.accepted) { if (now > incoming.waitUntil) { const n = incoming.name; incoming = null; toast(tr(`${n} un c’è cchiù`, `${n} is gone`), '', true); } return; }
     if (!playing) { reply(incoming.from, incoming.id, R_BUSY); closeCard(); incoming = null; return; }   // paused, game over: nothing to answer with
     if (now > incoming.until) { decline(incoming); closeCard(); return; }
     if (!here(incoming.from) || dist(incoming.from) > FAR_R * 1.5) { closeCard(); incoming = null; }   // its giver left or drove away: the card would be a question about nobody
