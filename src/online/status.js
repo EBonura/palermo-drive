@@ -18,7 +18,6 @@ const IT_FULL = 'Ora siemu truappu online. Riprovu iu tra picca, tu intantu ioca
 const IT_DONE = 'Pi oggi l’online finìu: u server è aggratis e i gettoni finieru. Tuinna doppu i {time}. Intantu ioca sulu.';
 const IT_OFF = 'L’online ora un funziona. Riprovu iu, tu intantu ioca.';
 const IT_BACK = 'L’online tuinnàu!';
-const IT_CARD = 'L’online camina supra un server aggratis: quannu i gettoni ri oggi finiscinu, si ioca suli finu a notti.';
 // not in the owner's list: composed from his words for the case where only THIS player's address has used its share (the pill is the same as for the day being over)
 const IT_BUDGET = 'Pi oggi i to’ gettoni finieru. Tuinna doppu i {time}. Intantu ioca sulu.';
 // ENGLISH
@@ -29,12 +28,11 @@ const EN_FULL = 'The online city is full right now. Try again in a bit, and keep
 const EN_DONE = 'Online play is finished for today: the free server has used up its daily allowance. It comes back after {time}. Solo play carries on.';
 const EN_OFF = 'Online play is not available right now. The game keeps trying, and solo play carries on.';
 const EN_BACK = 'Online is back!';
-const EN_CARD = 'Online play runs on a free server with a daily limit: when the day’s allowance runs out, it is solo play until night.';
 const EN_BUDGET = 'You have used your share of online play for today. It comes back after {time}. Solo play carries on.';
 
 export const TEXT = {
-  it: { full: IT_PILL_FULL, done: IT_PILL_DONE, off: IT_PILL_OFF, fullMsg: IT_FULL, doneMsg: IT_DONE, offMsg: IT_OFF, back: IT_BACK, card: IT_CARD, budgetMsg: IT_BUDGET },
-  en: { full: EN_PILL_FULL, done: EN_PILL_DONE, off: EN_PILL_OFF, fullMsg: EN_FULL, doneMsg: EN_DONE, offMsg: EN_OFF, back: EN_BACK, card: EN_CARD, budgetMsg: EN_BUDGET },
+  it: { full: IT_PILL_FULL, done: IT_PILL_DONE, off: IT_PILL_OFF, fullMsg: IT_FULL, doneMsg: IT_DONE, offMsg: IT_OFF, back: IT_BACK, budgetMsg: IT_BUDGET },
+  en: { full: EN_PILL_FULL, done: EN_PILL_DONE, off: EN_PILL_OFF, fullMsg: EN_FULL, doneMsg: EN_DONE, offMsg: EN_OFF, back: EN_BACK, budgetMsg: EN_BUDGET },
 };
 
 // 00:00 UTC after `now` (ms), as HH:MM on the player's own clock. tz is for the tests; the page leaves it out and gets the player's time zone.

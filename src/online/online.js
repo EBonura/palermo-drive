@@ -530,8 +530,7 @@ export function createOnline(env) {
     ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); dispatchEvent(new Event('pd-net-changed')); });
     // a press on the dim does nothing to the game; with a mouse it keeps the keyboard in the box so that Enter and Escape still reach the card
     nameCard.addEventListener('pointerdown', e => { if (e.target === nameCard && e.pointerType === 'mouse') { e.preventDefault(); input.focus(); } });
-    const limit = document.createElement('small'); limit.className = 'p2p-limit'; limit.style.cssText = 'display:block;margin:0 0 10px;font-size:12px;color:#ffd29a'; limit.textContent = TEXT[lang() === 'en' ? 'en' : 'it'].card;   // known before it happens: the free server has a daily limit
-    form.append(sub, limit, input, ok); if (editing) form.append(no); form.append(solo);
+    form.append(sub, input, ok); if (editing) form.append(no); form.append(solo);
     dlg.append(info, h, form, priv);
     nameCard.appendChild(dlg);
     // keep the layer on the part of the page that can be seen
