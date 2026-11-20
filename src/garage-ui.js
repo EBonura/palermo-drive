@@ -31,7 +31,7 @@ const S = {
   sGlasses: ['Occhiali', 'Glasses'], sHat: ['Cappello', 'Hat'], sHatCol: ['Colore del cappello', 'Hat colour'], sTop: ['Maglia', 'Top'], sTopCol: ['Colore della maglia', 'Top colour'],
   sBottom: ['Sotto', 'Bottom'], sBotCol: ['Colore', 'Colour'], sShoes: ['Scarpe', 'Shoes'], sShoeCol: ['Colore delle scarpe', 'Shoe colour'], sExtra: ['Extra', 'Extras'],
   man: ['Uomo', 'Man'], woman: ['Donna', 'Woman'], young: ['Giovane', 'Young'], older: ['Anziano', 'Older'],
-  scarf: ['Sciarpa rosanero', 'Rosanero scarf'], chain: ['Catena d\'oro', 'Gold chain'], earring: ['Orecchino', 'Earring'], tattoo: ['Tatuaggi', 'Tattoos'], leather: ['Giubbotto di pelle', 'Leather jacket'],
+  scarf: ['Sciarpa rosanero', 'Rosanero scarf'], chain: ['Catena d’oro', 'Gold chain'], earring: ['Orecchino', 'Earring'], tattoo: ['Tatuaggi', 'Tattoos'], leather: ['Giubbotto di pelle', 'Leather jacket'],
 };
 const SHORT = { cassone: ['Cassone', 'Cargo'], tascia: ['Tascia', 'Hatch'], scooterone: ['Scooterone', 'Big scooter'], motorino: ['Motorino', 'Minibike'] };
 const ORDER = ['calessino', 'cassone', 'lapa50', 'tascia', 'vespa', 'scooterone', 'motorino'];

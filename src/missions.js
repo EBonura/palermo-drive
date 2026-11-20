@@ -605,12 +605,12 @@ function build(env) {
     if (!s) return null;
     switch (s.kind) {
       case 'food': return ['Attruova ' + ITEMS[s.item].it + ' e puaittali narrè.', 'Find the ' + ITEMS[s.item].en + ' and take them back.'];
-      case 'rave': return ['Carica i casse e puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them up on Pellegrino, nice and slow: they are delicate.'];
-      case 'leaf': return ['Va’ a via Cipressi, attruova i fuogghi allegri e portali ô cumpari.', 'Go to via Cipressi, find the happy leaves and take them to the pal.'];
-      case 'dump': return ['Acchiana â discarica ri Bellolampo e ieccati ’nta vasca cû lapa.', 'Climb up to the Bellolampo landfill and throw the lapa and yourself into the cell.'];
-      case 'horns': return ['Mittiti i cuainna e passa sutta l\'Arcu ri Cutò.', 'Put on the horns and drive under the Arch of Cutò.'];
+      case 'rave': return ['Carica i casse e puaittali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati.', 'Load the speakers and take them up on Pellegrino, nice and slow: they are delicate.'];
+      case 'leaf': return ['Va’ a via Cipressi, attruova i fuogghi allegri e puaittali ô cumpari.', 'Go to via Cipressi, find the happy leaves and take them to the pal.'];
+      case 'dump': return ['Acchiana â discarica ri Bellolampo e ieccati nta vasca cû lapa.', 'Climb up to the Bellolampo landfill and throw the lapa and yourself into the cell.'];
+      case 'horns': return ['Mittiti i cuainna e passa sutta l’Arcu ri Cutò.', 'Put on the horns and drive under the Arch of Cutò.'];
       case 'penna': return ['Passa ravanti ô Teatru Massimu. Si ti fiaimmanu, o paghi a pinna o scappi.', 'Drive past the Teatro Massimo. If they stop you, pay for the pen or get away.'];   // DRAFT
-      case 'race': return ['Fermati ccà e cuorri cu nuatri: i primi tri vincinu i picciuli.', 'Stop here and race: the first three win a prize.'];   // DRAFT; the first half is the line the racers shout
+      case 'race': return ['Fermati ccà e curri cu nuavutri: i primi tri vincinu i picciuli.', 'Stop here and race: the first three win a prize.'];   // DRAFT; the first half is the line the racers shout
       case 'urgent': { const u = URGENT.find(x => 'urgent:' + x.id === id), d = u ? destName(u.to) : ''; return d ? ['Curri! Puaitta u passiggeri a ' + d + ' e un fari taiddu.', 'Hurry! Take the passenger to ' + d + ' and do not be late.'] : null; }   // DRAFT
       case 'fare': {
         if (s.sub === 'tourist') return ['Puaittali a manciari e un fari taiddu.', 'Take the tourists to a place to eat, and do not be late.'];   // DRAFT; "Puaittali a manciari" is the label of the ride
@@ -754,7 +754,7 @@ function build(env) {
   function failEvent() {   // too far for too long: the card, a short pause, then the event is over like any failed one
     const ev = S.ev; if (!ev || ev.failT > 0) return;
     ev.failT = 3.6; leash.t = LEASH_T; leash.out = false; hud.leash(false); aim.on = false; S.phase = 'done';
-    hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("Ma runni stai iennu? Cos'inutili!", 'Where are you going? You useless thing!')}</span></div>`, 3.2);
+    hud.result(`<h3>${T('Finiu a missioni', 'Mission over')}</h3><div class="row"><span>${T("Ma runni stai iennu? Cos’inutili!", 'Where are you going? You useless thing!')}</span></div>`, 3.2);
     say(pick(LEASH_LINES), driverPos, 0.2); raves.leashed(); horns.leashed(); dumps.leashed();   // a friend riding along (src/event-rave.js) gets out
   }
   const LEASH_LINES = [['Unni stai iennu?! Era ri dda banna!', 'Where are you going?! It was somewhere else!'], ['Vabbè, lassamu piaiddiri. Un mi puazzu firari i nuddu.', 'Fine, I give up. You cannot count on anyone.']];
@@ -765,7 +765,7 @@ function build(env) {
     else if (leash.out && d < A.r - LEASH_BACK) { leash.out = false; leash.t = LEASH_T; hud.leash(false); }
     if (!leash.out) return;
     leash.t -= dt;
-    hud.leash(true, T("Cosa 'nutile unni stai ieannu? ", 'Where are you going, you useless thing? ') + Math.max(0, Math.ceil(leash.t)), T('Tuinna cca ai a finiri a missiuani!!!', 'Come back, you have to finish the mission!!!') + ' · ' + Math.round(Math.max(0, d - A.r + LEASH_BACK) / 10) * 10 + ' m');
+    hud.leash(true, T("Cosa ’nutile unni stai ieannu? ", 'Where are you going, you useless thing? ') + Math.max(0, Math.ceil(leash.t)), T('Tuinna ccà ai a finiri a missioni!!!', 'Come back, you have to finish the mission!!!') + ' · ' + Math.round(Math.max(0, d - A.r + LEASH_BACK) / 10) * 10 + ' m');
     if (leash.t <= 0) failEvent();
   }
 

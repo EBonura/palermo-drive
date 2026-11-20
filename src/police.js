@@ -52,7 +52,7 @@ const BUSTED_LINES = [
   ['Giovanotto favorisca documenti', 'Young man, your papers, please.'],
   ['I frecce chi ffa? I lassaisti a casa?', 'What about your indicators? Did you leave them at home?'],
   ['Il brigadiere dice che la lapa non è una macchina da corsa.', 'The sergeant says a lapa is not a racing car.'],
-  ["Ma u viristi u semaforo russu? T'ai a canciari l'occhiali?", 'Did you see the red light? Do you need new glasses?'],
+  ["Ma u viristi u semaforo russu? T’ai a canciari l’occhiali?", 'Did you see the red light? Do you need new glasses?'],
 ];
 
 export function createPolice(env, T) {
@@ -219,7 +219,7 @@ export function createPolice(env, T) {
   function bust() {
     const lv = Math.max(1, level()), want = 20 * lv, fine = garage.debit(Math.min(want, garage.cash));
     const line = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0][langIdx()];   // the line in the language shown, no subtitle
-    card.innerHTML = `<h3>T'INCUCCIARU!</h3><p>${line}</p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
+    card.innerHTML = `<h3>T’INCUCCIARU!</h3><p>${line}</p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
     sfx('bust'); card.classList.add('on'); busted = 4.2; grace = 9; heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0;
     for (const v of pursuers()) disengage(v);
     try { dispatchEvent(new CustomEvent('pd-busted', { detail: { fine } })); } catch (e) { /* no events */ }

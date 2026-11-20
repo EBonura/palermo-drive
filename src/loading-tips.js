@@ -8,16 +8,16 @@
   var TIPS = [   // [Palermitan, English]
     ['Ô Garage ti poi accattari i galleggianti: cu chiddi guidi supra u mari.', 'You can buy floats in the Garage: with them you drive on the sea.'],
     ['Ô Garage c’è macari i ali: tieni F (o VOLA) pi acchianari e vuli supra a città.', 'The Garage also sells wings: hold F (or VOLA) to climb and fly over the city.'],
-    ['Puaitta i turisti e guadagni euro: ô Garage ti accatti mezzi nuovi e pezzi.', 'Drive tourists and earn euros: spend them on new vehicles and parts in the Garage.'],
+    ['Puaitta i turisti e guadagni euro: ô Garage ti accatti mezzi nuavi e pezzi.', 'Drive tourists and earn euros: spend them on new vehicles and parts in the Garage.'],
     ['Ô Garage poi cangiari culuri, cerchi, alettuni, neon e macari u clacson.', 'In the Garage you can change colours, rims, spoilers, neon and even the horn.'],
     ['A radio: M cancia a canzuna, N a stuta.', 'The radio: M plays the next track, N turns it on or off.'],
-    ['Nta Opzioni poi cangiari a qualità, u volumi, a lingua e puru l’ura ru iornu.', 'In Options you can change the quality, the volume, the language and even the time of day.'],
-    ['Ri notti i pub su aperti: fermati â puaitta e premi B pi viviri.', 'At night the pubs are open: stop at the door and press B to have a drink.'],
+    ['Nta Opzioni poi cangiari a qualità, u volumi, a lingua e puru l’ura rû iornu.', 'In Options you can change the quality, the volume, the language and even the time of day.'],
+    ['Ri notti i pub su apierti: fermati â puaitta e premi B pi viviri.', 'At night the pubs are open: stop at the door and press B to have a drink.'],
     ['Ô stadiu Barbera c’è un palluni: spingilu cû lapa e fai gol.', 'At the Barbera stadium there is a ball: push it with the lapa and score.'],
     ['Reti, muretti e siepi ri giardinu si ruimpinu si ci vai forti.', 'Fences, garden walls and hedges break if you hit them hard enough.'],
     ['Paliaimmu ha tanti segreti: nta Collezioni sunnu ??? finu a quannu un li trovi.', 'Palermo has plenty of secrets: they show as ??? in Collections until you find them.'],
-    ['Shift è u nitro: si ricarica cû curriri e cu i sbandati.', 'Shift is the nitro: it refills as you go fast and as you drift.'],
-    ['Si ti ’ncastri, premi R: ti rimetti ’nta strata.', 'If you get stuck, press R: it puts you back on the road.'],
+    ['Shift è u nitro: si ricarica cû curriri e cê sbandati.', 'Shift is the nitro: it refills as you go fast and as you drift.'],
+    ['Si ti ncastri, premi R: ti rimetti nta strata.', 'If you get stuck, press R: it puts you back on the road.'],
     ['Si fai truappu buiddiellu arriva a pulizzia: si ti fiaimmi ti fannu puru a multa.', 'Cause too much chaos and the police come: if you stop, they fine you too.'],
     ['Ni trovi supra Instagram: @bonnie_studios_.', 'Find us on Instagram: @bonnie_studios_.'],
   ];
@@ -30,7 +30,7 @@
       ios = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     if (phone && !pinned) TIPS.push(ios
       ? ['Mettiti Palermo Drive nta schermata Home: Condividi, «Aggiungi alla schermata Home», e s’apri a schermu sanu comu n’app.', 'Pin Palermo Drive to your home screen: Share, “Add to Home Screen”, and it opens full screen like an app.']
-      : ['Mettiti Palermo Drive nta schermata Home: menu ru browser (⋮), «Aggiungi a schermata Home», e s’apri a schermu sanu comu n’app.', 'Pin Palermo Drive to your home screen: browser menu (⋮), “Add to Home screen”, and it opens full screen like an app.']);
+      : ['Mettiti Palermo Drive nta schermata Home: menu rû browser (⋮), «Aggiungi a schermata Home», e s’apri a schermu sanu comu n’app.', 'Pin Palermo Drive to your home screen: browser menu (⋮), “Add to Home screen”, and it opens full screen like an app.']);
   } catch (e) { /* no media queries: no tip */ }
   try {
     var box = document.getElementById('loading'), el = document.getElementById('tip');

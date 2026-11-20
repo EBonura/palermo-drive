@@ -9,21 +9,21 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Acchianati, acchianati! Amunì!  
   _Climb in, climb in! Let's go!_
-- Bedda matri, quanti siti! Stringitivi, ca semu supra a lapa!  
+- Biedda matri, quanti siti! Stringitivi, ca siemu supra a lapa!  
   _Holy Mother, how many of you! Squeeze in, this is a lapa! (?)_
 
 ### depart
 
 - Amunì!  
   _Let's go!_
-- Tinitivi forti, ca si parti!  
+- Tinitivi forti, ca si paiti!  
   _Hold on tight, we are off!_
 - Cinture? Quali cinture? Ahahah.  
   _Seatbelts? What seatbelts? Hahaha._
 
 ### ask
 
-- Bona scelta, picciotti! Ci pensu iù.  
+- Bona scelta, picciotti! Ci pensu iu.  
   _Good choice, kids! Leave it to me._
 - Si mancia bonu, là. Amunì!  
   _You eat well there. Let's go!_
@@ -37,14 +37,14 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### fast
 
-- Talìa chi velocità! Sugnu u Schumacher di Bagheria!  
+- Talìa chi velocità! Sugnu u Shumaiker ri Bagheria!  
   _Look at that speed! I am the Schumacher of Bagheria!_
-- Chistu è u Gran Premiu di Mondellu!  
+- Chistu è u Gran Premiu ri Munnieddu!  
   _This is the Mondello Grand Prix! (?)_
 
 ### drift
 
-- Mizzica, di traversu comu un pisci!  
+- Mizzica, ri traversu comu un pisci!  
   _Damn, sideways like a fish!_
 - Nta stu vicolu si fa accussì!  
   _In this alley this is how it is done! (?)_
@@ -67,16 +67,16 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Ma unni ti metti, nta strata?!  
   _Where do you stand, in the street?!_
-- Scusa, bedda, nun t'avia vistu!  
+- Scusa, biedda, un t’havia vistu!  
   _Sorry, beautiful, I had not seen you!_
-- I pedoni a Palermu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.  
+- I pedoni a Paliaimmu sunnu comu i semafori: ci sunnu, ma nuddu ci fa casu.  
   _Pedestrians in Palermo are like traffic lights: they exist, but nobody pays attention. (?)_
 
 ### hitWall
 
-- U muru mi vinni 'ncontru, ju nun c'entru!  
+- U muru mi vinni ’ncontru, iu un c’entru!  
   _The wall came at me, it is not my fault! (?)_
-- Chistu è un muru normanno: nun si move.  
+- Chistu è un muru normannu: un si move.  
   _That is a Norman wall: it does not move. (?)_
 
 ### late
@@ -88,7 +88,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### arrive
 
-- Semu arrivati! Bon appetitu, picciotti!  
+- Siemu arrivati! Bon appetitu, picciotti!  
   _We have arrived! Enjoy your meal, kids!_
 - Arrivati! Pagati, ca mi scappa u tempu.  
   _Arrived! Pay up, I am running out of time._
@@ -97,35 +97,35 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### fail
 
-- Nun mi dicissi nenti: ju sugnu in orariu... palermitanu!  
+- Un mi dicissi nianti: iu sugnu in orariu... palermitanu!  
   _Do not say anything: I am on time... Palermo time!_
-- Cu avi pressa, parti prima.  
+- Cu havi pressa, paiti prima.  
   _Whoever is in a hurry should have left earlier. (?)_
 
 ### stig
 
 - Chista è benzina vera!  
   _That is real fuel!_
-- Stigghiola e nitro: Palermu 'n tavola!  
+- Stigghiola e nitro: Paliaimmu ’n tavola!  
   _Stigghiola and nitro: Palermo on a plate!_
 
 ### ambient
 
-- Chi cavuru! Pari ca semu nta u furnu da focacceria.  
+- Chi cavuru! Pari ca siemu ntô furnu râ focacceria.  
   _What heat! It feels like we are in the focacceria's oven. (?)_
 - U parcheggiu? Doppu a Missa. In doppia fila, comu sempri.  
   _Parking? After Mass. Double parked, as always. (?)_
-- L'AMAT? Passa quannu voli iddu.  
+- L’AMAT? Passa quannu voli iddu.  
   _The AMAT bus? It comes when it feels like it._
 - Arancina! Arancina, no arancinu! U sapi tuttu u munnu.  
   _Arancina, not arancino! The whole world knows that._
 - I sensi unici? Sunnu suggerimenti.  
   _One-way streets? They are suggestions._
-- Viva Palermu e Santa Rosalia!  
+- Viva Paliaimmu e Santa Rosalia!  
   _Long live Palermo and Santa Rosalia!_
-- U russu du semaforu è un colore, nun un ordini.  
+- U russu rû semaforu è un culuri, un un ordini.  
   _The red of a traffic light is a colour, not an order. (?)_
-- Talìa chi bedda jurnata!  
+- Talìa chi biedda iurnata!  
   _Look what a beautiful day!_
 
 ## Stigghiulari street cries
@@ -143,7 +143,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Teni, mangia ca è cavuda!  
   _Here, eat, it is hot! (?)_
-- Pi tia, cu u limuni!  
+- Pi tia, cû limuni!  
   _For you, with lemon! (?)_
 
 ## Tourists (English clichés per nationality)
@@ -348,15 +348,15 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### the driver answers (dismissive, no drugs mechanics: you can only drive off)
 
-- Nenti, nenti: sugnu fermu pi viriri u panorama.  
+- Nianti, nianti: sugnu fermu pi viriri u panorama.  
   _Nothing, nothing: I am stopped to admire the view. (?)_
-- Curò, ju sugnu lapista, nun sugnu cliente. Annamu.  
+- Curò, iu sugnu lapista, un sugnu cliente. Annamu.  
   _Buddy, I am a lapa driver, not a customer. Let us go. (?)_
-- Vossia sbagghiau persona: ju vegnu di missa.  
+- Vossia sbagghiàu persona: iu vegnu ri missa.  
   _You have the wrong person: I am coming from Mass. (?)_
-- Grazzi, ma haiu già a me dosi di guai: a patenti.  
+- Grazzi, ma haiu già a me dosi ri guai: a patenti.  
   _Thanks, but I already have my dose of trouble: my licence. (?)_
-- Staiu aspittannu a me cummari. Idda nun sapi ca ci sugnu ju.  
+- Staiu aspittannu a me cummari. Idda un sapi ca ci sugnu iu.  
   _I am waiting for my girlfriend. She does not know I am here. (?)_
 
 ## Night mission "A Favorita" (needs ?world=1)
@@ -365,32 +365,32 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Psst! Lapista! Fermati... ma discretamente.  
   _Psst! Driver! Stop... but discreetly. (?)_
-- Ehi! Tassista! Ccà, ccà. No, nun guardari a mmia.  
+- Ehi! Tassista! Ccà, ccà. No, un guardari a mmia.  
   _Hey! Taxi! Here, here. No, do not look at me. (?)_
 
 ### client: board
 
-- Bonasira. Sugnu... un ispettori. Di... cosi. Pi lavoru.  
+- Bonasira. Sugnu... un ispettori. Ri... cosi. Pi lavoru.  
   _Good evening. I am... an inspector. Of... things. For work. (?)_
-- Chi bedda nuttata. Nuddu mi canusci, vero?  
+- Chi biedda nuttata. Nuddu mi canusci, viaru?  
   _What a lovely night. Nobody knows me, right? (?)_
 
 ### client: ask
 
-- Mi porti ai viali da Favorita. Pi... na passiata. Salutari: u medicu m'ha ordinatu.  
+- Mi puaitti ai viali râ Favorita. Pi... na passiata. Salutari: u medicu m’ha ordinatu.  
   _Take me to the avenues of the Favorita. For... a walk. Healthy: the doctor ordered it. (?)_
-- Va ammirari i pini, ccà. Sunnu pini di valuri storicu.  
+- Va ammirari i pini, ccà. Sunnu pini ri valuri storicu.  
   _I go to admire the pines there. They are of historical value. (?)_
-- Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni di condominiu.  
+- Na cosa riservata. Me muggheri pensa ca sugnu a na riunioni ri condominiu.  
   _Something confidential. My wife thinks I am at a condominium meeting. (?)_
 
 ### client: ambient
 
-- Chi malu occhiali, di notti? Pi... a luna. Mi fa mali all'occhi.  
+- Chi malu occhiali, ri notti? Pi... a luna. Mi fa mali all’occhi.  
   _Why sunglasses at night? For... the moon. It hurts my eyes. (?)_
-- Cchiù araciu! Mi pari ca mi talia tuttu u quartieri.  
+- Cchiù araciu! Mi pari ca mi talìa tuttu u quartieri.  
   _Slower! It feels like the whole neighbourhood is looking at me. (?)_
-- Nun mi taliari nta u specchiettu, grazzi.  
+- Un mi taliari ntô specchiettu, grazzi.  
   _Do not look at me in the mirror, thanks. (?)_
 - Si mi ricanuscinu mi rovinu: sugnu... cunsigghieri.  
   _If they recognise me I am ruined: I am... a councillor. (?)_
@@ -399,27 +399,27 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### client: fast
 
-- Mi viniu u giramentu di testa... o è u rimorsu?  
+- Mi viniu u giramentu ri testa... o è u rimorsu?  
   _I feel dizzy... or is it remorse? (?)_
 
 ### client: drift
 
-- Mamma mia! Se mi vidi cu a lapa di traversu, mi runi a prima pagina!  
+- Mamma mia! Se mi vidi câ lapa ri traversu, mi runi a prima pagina!  
   _Mamma mia! If they see me in a sideways lapa I make the front page! (?)_
 
 ### client: wheels
 
-- Du roti! Cu u me cori! Chiamati u cunfissuri!  
+- Du roti! Cû me cori! Chiamati u cunfissuri!  
   _Two wheels! With my heart! Call the confessor! (?)_
 
 ### client: miss
 
-- Nun m'ammazzari, ca ancora haiu... tanti pini d'ammirari!  
+- Un m’ammazzari, ca ancora haiu... tanti pini d’ammirari!  
   _Do not kill me, I still have... so many pines to admire! (?)_
 
 ### client: hitPed
 
-- Chi è, un testimoni? Nun m'ha vistu nuddu, vero?  
+- Chi è, un testimoni? Un m’ha vistu nuddu, viaru?  
   _What, a witness? Nobody saw me, right? (?)_
 
 ### client: hitWall
@@ -434,61 +434,61 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### client: arrive
 
-- Ecco, ecco, grazzi. Teni, e nun diri nenti a nuddu!  
+- Ecco, ecco, grazzi. Teni, e un diri nianti a nuddu!  
   _Here, here, thanks. Keep it, and tell nobody! (?)_
-- Ti pregu, ti pregu: nun lu diri a nuddu. Ju ccà nun ci sugnu mai statu. Mai.  
+- Ti pregu, ti pregu: un lu diri a nuddu. Iu ccà un ci sugnu mai statu. Mai.  
   _I beg you: tell nobody. I was never here. Never. (?)_
 
 ### client: fail
 
-- Nun fa nenti, m'addummannu a casa... a pedi... cu a cuscienza.  
+- Un fa nianti, m’addummannu a casa... a pedi... câ cuscienza.  
   _Never mind, I will go home... on foot... with my conscience. (?)_
 
 ### client: caught
 
-- Bonasira... nun... nun ci canusciu, signurina.  
+- Bonasira... un... un ci canusciu, signurina.  
   _Good evening... I do not... I do not know you, miss. (?)_
 
 ### driver: board
 
-- Salutari, eh? Certu, certu. A Favorita è u postu giustu pi u cori.  
+- Salutari, eh? Certu, certu. A Favorita è u postu giustu pû cori.  
   _Healthy, of course. The Favorita is the right place for the heart. (?)_
 
 ### driver: depart
 
-- Cinturi? Nun serbi: ccà nuddu viri nenti.  
+- Cinturi? Un serbi: ccà nuddu viri nianti.  
   _Seatbelts? No need: nobody sees anything here. (?)_
 
 ### driver: ask
 
-- Tranquillu, avvucatu: ju sugnu na tomba.  
+- Tranquillu, avvucatu: iu sugnu na tomba.  
   _Relax, lawyer: I am a tomb. (?)_
 
 ### driver: arrive
 
 - Sugnu na tomba, avvucatu. Ma u tassametru parla.  
   _I am a tomb, lawyer. But the meter talks. (?)_
-- Nun c'è prublema. Ju ccà passu ogni notti: mi ricordu tutti i facci.  
+- Un c’è prublema. Iu ccà passu ogni notti: mi ricordu tutti i facci.  
   _No problem. I pass here every night: I remember all the faces. (?)_
 
 ### the glam night folk on the avenue greet him
 
 - Buonasira, Cunsigghieri!  
   _Good evening, Councillor! (?)_
-- Talè, u signuri di sempri!  
+- Talè, u signuri ri sempri!  
   _Look, the usual gentleman! (?)_
 - Cunsigghieri, e i pini? Li ammirati sempri?  
   _Councillor, and the pines? Still admiring them? (?)_
-- Cumu va, Avvucatu? E a riunioni di condominiu?  
+- Cumu va, Avvucatu? E a riunioni ri condominiu?  
   _How is it going, Lawyer? And the condominium meeting? (?)_
 
 ## Two more night clients (Via Lincoln, Via Bandiera)
 
 ### lincoln client: flag
 
-- Psst! Lapista! Ccà... ma senza fari scena.  
+- Psst! Lapista! Ccà... ma sienza fari scena.  
   _Psst! Driver! Here... but no fuss._
-- Ehi! Pi favuri, cu discriziuni. Haiu a gghiri ’nta na stratuzza.  
+- Ehi! Pi favuri, cu discriziuni. Haiu a gghiri nta na stratuzza.  
   _Hey! Please, discreetly. I have to go to a little street._
 
 ### lincoln client: board
@@ -500,22 +500,22 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### lincoln client: ask
 
-- Via Lincoln. Vabbé, u sai... pi na cosa.  
+- Via Lincoln. Vabbè, u sai... pi na cosa.  
   _Via Lincoln. Well, you know... for a thing._
-- Mi porti a via Lincoln. Haiu a... cuntrullari na cosa ri famigghia.  
+- Mi puaitti a via Lincoln. Haiu a... cuntrullari na cosa ri famigghia.  
   _Take me to Via Lincoln. I have to... check a family matter._
 - Via Lincoln, e un ti scurdari: ccà un ci sugnu mai statu.  
   _Via Lincoln, and do not forget: I have never been there._
 
 ### lincoln client: ambient
 
-- Chi viernu ca fa... mi mettu u cappeddu ’nta facci.  
+- Chi viernu ca fa... mi mettu u cappeddu nta facci.  
   _What a winter... I pull my hat over my face._
 - Cchiù araciu, ca mi talianu tutti.  
   _Slower, everyone is looking at me._
-- Un taliari ’nta u specchiettu, pi favuri.  
+- Un taliari ntô specchiettu, pi favuri.  
   _Do not look in the mirror, please._
-- Sugnu... in missioni pi cuntu ra parrocchia.  
+- Sugnu... in missioni pi cuntu râ parrocchia.  
   _I am on a mission for the parish._
 
 ### lincoln client: fast
@@ -550,19 +550,19 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### lincoln client: late
 
-- Curri, ca si fa tardu e mi viri a luna!  
+- Curri, ca si fa taiddu e mi viri a luna!  
   _Hurry, it is getting late and the moon sees me!_
 
 ### lincoln client: arrive
 
-- Ecco, ecco. Teni, e... vabbé u sai: nuddu sapi nenti.  
+- Ecco, ecco. Teni, e... vabbè u sai: nuddu sapi nianti.  
   _Here, here. Keep it, and... well, you know: nobody knows anything._
 - Grazzi, amicu. Tu un m’ha vistu. Mai.  
   _Thanks, friend. You did not see me. Never._
 
 ### lincoln client: fail
 
-- Nun fa nenti, ci vaiu a pedi... cu u cappeddu ’n testa.  
+- Un fa nianti, ci vaiu a pedi... cû cappeddu ’n testa.  
   _Never mind, I will go on foot... with my hat on._
 
 ### lincoln driver: board
@@ -577,7 +577,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### lincoln driver: ask
 
-- A mia nuddu m’ha ittu nenti.  
+- A mia nuddu m’ha ittu nianti.  
   _Nobody told me anything._
 
 ### lincoln driver: arrive
@@ -589,34 +589,34 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Psst, lapista! Accustati, ma cu garbu.  
   _Psst, driver! Pull over, but gently._
-- Ehi! Ccà! Haiu a gghiri... vabbé u sai unni.  
+- Ehi! Ccà! Haiu a gghiri... vabbè u sai unni.  
   _Hey! Here! I have to go... well, you know where._
 
 ### bandiera client: board
 
-- Bonasira. Mi porti a via Bandiera? Nni Nicoletta a Trimmutura, vabbé u sai.  
+- Bonasira. Mi puaitti a via Bandiera? Nni Nicoletta a Trimmutura, vabbè u sai.  
   _Good evening. Take me to Via Bandiera? To Nicoletta a Trimmutura’s, well, you know._
-- Un parrari assai, eh? Nicoletta mi spetta, vabbé u sai.  
+- Un parrari assai, eh? Nicoletta mi spetta, vabbè u sai.  
   _Do not talk much, eh? Nicoletta is expecting me, well, you know._
 
 ### bandiera client: ask
 
-- Via Bandiera, nni Nicoletta a Trimmutura. Vabbé u sai, no? Ci haiu a purtari i cannola.  
+- Via Bandiera, nni Nicoletta a Trimmutura. Vabbè u sai, no? Ci haiu a purtari i cannola.  
   _Via Bandiera, to Nicoletta a Trimmutura’s. Well, you know, right? I have to bring her the cannoli._
-- Nni Nicoletta a Trimmutura, via Bandiera. Chi dici? Ca è n’autru seculu? Ma chi dici, mi spetta! Vabbé u sai.  
+- Nni Nicoletta a Trimmutura, via Bandiera. Chi rici? Ca è n’autru seculu? Ma chi rici, mi spetta! Vabbè u sai.  
   _To Nicoletta a Trimmutura’s, Via Bandiera. What do you say? That it is another century? Come on, she is expecting me! Well, you know._
-- Nun ti dugnu autri spiegazioni, vabbé u sai.  
+- Un ti dugnu autri spiegazioni, vabbè u sai.  
   _I will give you no more explanations, well, you know._
 
 ### bandiera client: ambient
 
-- Mi raccumannu: cu me muggheri nenti. Vabbé u sai.  
+- Mi raccumannu: cu me muggheri nianti. Vabbè u sai.  
   _Not a word to my wife. Well, you know._
-- Nni Nicoletta ci vaiu pi... affari. Riceve ancora, eh, ju u sacciu.  
+- Nni Nicoletta ci vaiu pi... affari. Ricivi ancora, eh, iu u sacciu.  
   _I go to Nicoletta’s for... business. She is still receiving, eh, I know it._
 - Chi calurusa sta nuttata, eh? Mi senti u cori...  
   _Quite a warm night, eh? My heart..._
-- Talìa ca mi canuscinu: mi mettu u giurnali ’nta facci.  
+- Talìa ca mi canuscinu: mi mettu u iurnali nta facci.  
   _Look, they know me: I put the newspaper over my face._
 
 ### bandiera client: fast
@@ -626,7 +626,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera client: drift
 
-- Maronna! Si u sapi me suoru mi scumunica ’ntô luocu!  
+- Maronna! Si u sapi me suoru mi scumunica ntô luocu!  
   _Madonna! If my sister finds out she excommunicates me on the spot!_
 
 ### bandiera client: wheels
@@ -636,12 +636,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera client: miss
 
-- Araciu! Nicoletta mi spetta, vabbé u sai!  
+- Araciu! Nicoletta mi spetta, vabbè u sai!  
   _Easy! Nicoletta is waiting for me, well, you know!_
 
 ### bandiera client: hitPed
 
-- Un fu cuorpa mia! Un m’ha vistu nuddu!  
+- Un fu curpa mia! Un m’ha vistu nuddu!  
   _It was not my fault! Nobody saw me!_
 
 ### bandiera client: hitWall
@@ -656,19 +656,19 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera client: arrive
 
-- Ecco, ecco: grazzi. Teni, e vabbé u sai: muto.  
+- Ecco, ecco: grazzi. Teni, e vabbè u sai: muto.  
   _Here, here: thanks. Keep it, and well, you know: mum._
-- Mi raccumannu: nuddu sapi nenti. Salutami... vabbé u sai.  
+- Mi raccumannu: nuddu sapi nianti. Salutami... vabbè u sai.  
   _Please: nobody knows anything. Say hello for me to... well, you know._
 
 ### bandiera client: fail
 
-- Nun fa nenti, ci vaiu a pedi... cu i cannola ’n manu.  
+- Un fa nianti, ci vaiu a pedi... cê cannola ’n manu.  
   _Never mind, I will go on foot... with the cannoli in my hand._
 
 ### bandiera driver: board
 
-- Via Bandiera, vabbé u sai. Ju sugnu cieco e surdu.  
+- Via Bandiera, vabbè u sai. Iu sugnu cieco e surdu.  
   _Via Bandiera, well, you know. I am blind and deaf._
 - Nni Nicoletta a Trimmutura? Cumpari, chidda un c’è cchiù ri na vita.  
   _To Nicoletta a Trimmutura’s? Pal, she has been gone for a lifetime._
@@ -680,12 +680,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### bandiera driver: ask
 
-- Nenti ri nenti, cumpari. Mutu.  
+- Nianti ri nianti, cumpari. Mutu.  
   _Nothing about nothing, pal. Mum._
 
 ### bandiera driver: arrive
 
-- Ci semu, cumpari. Salutami... nuddu. Ma u tassametru parla.  
+- Ci siemu, cumpari. Salutami... nuddu. Ma u tassametru parla.  
   _We are here, pal. Say hello to... nobody. But the meter talks._
 
 ### cuinnutu client: flag
@@ -694,45 +694,45 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _Driver! Give me a lift, come on! I am very calm, eh!_
 - Ehi, tu! Fermati, ca haiu pressa... ma sugnu calmu!  
   _Hey, you! Stop, I am in a hurry... but I am calm!_
-- Lapista! Ccà! Nenti ri gravi, mi ci vo sulu un passaggiu!  
+- Lapista! Ccà! Nianti ri gravi, mi ci vo sulu un passaggiu!  
   _Driver! Here! Nothing serious, I only need a lift!_
 
 ### cuinnutu client: board
 
 - Bongiornu. Sugnu calmu. Calmissimu. Talìa, un mi trema mancu a manu.  
   _Good day. I am calm. Very calm. Look, my hand is not even shaking._
-- Un ti preoccupari, ju sugnu calmu. Parra puru, ca ju un siantu nenti.  
+- Un ti preoccupari, iu sugnu calmu. Parra puru, ca iu un siantu nianti.  
   _Do not worry, I am calm. Talk if you like, I hear nothing._
 
 ### cuinnutu client: ask
 
 - Mi puaitti all’Hotel Eufemia, all’Isula ri Fìmmini. Cucì, basta.  
   _Take me to the Hotel Eufemia, in Isola delle Femmine. That is it._
-- Hotel Eufemia, all’Isula ri Fìmmini. Nenti ri chiù, nenti ri menu. Cucì.  
+- Hotel Eufemia, all’Isula ri Fìmmini. Nianti ri cchiù, nianti ri menu. Cucì.  
   _Hotel Eufemia, Isola delle Femmine. Nothing more, nothing less. That is it._
-- Amunì all’Hotel Eufemia. Un ti spiegu nenti, tantu sugnu calmu.  
+- Amunì all’Hotel Eufemia. Un ti spiegu nianti, tantu sugnu calmu.  
   _Let us go to the Hotel Eufemia. I will not explain, I am calm anyway._
 
 ### cuinnutu client: ambient
 
-- Un mumentu, talìu u cillulari... nenti. Megghiu accussì.  
+- Un mumentu, talìu u cillulari... nianti. Megghiu accussì.  
   _One moment, I check the phone... nothing. Better that way._
-- Ju sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì.  
+- Iu sugnu calmu, ma tu curri, eh? Cchiù lestu, amunì.  
   _I am calm, but you keep at it, eh? Faster, come on._
-- Cuntrollu n’autra vota u cillulari. Nenti. Cchiù nenti c’è, cchiù mi preoccupu.  
+- Cuntrollu n’autra vuata u cillulari. Nianti. Cchiù nianti c’è, cchiù mi preoccupu.  
   _I check the phone again. Nothing. The more nothing there is, the more I worry._
 - Dimmi na cosa: si ti dicu ca sugnu tranquillu, ti pari ca è viaru?  
   _Tell me something: if I say I am calm, does it seem true to you?_
-- Ju un ci vaiu pi cuntrullari nenti, eh. Ci vaiu... pi ripusarimi.  
+- Iu un ci vaiu pi cuntrullari nianti, eh. Ci vaiu... pi ripusarimi.  
   _I am not going there to check anything, eh. I am going... to rest._
 - Cchiù prestu, pi favuri! No pirchì... sulu pirchì sì.  
   _Faster, please! Not for any reason... just because._
-- U cillulari è quasi scarricu. Un fa nenti. Un fa nenti.  
+- U cillulari è cuasi scarricu. Un fa nianti. Un fa nianti.  
   _The phone is almost flat. Never mind. Never mind._
 
 ### cuinnutu client: near
 
-- Aspetta, araciu! Araciu araciu... ca ju un vuagghiu sapiri nenti!  
+- Aspetta, araciu! Araciu araciu... ca iu un vuagghiu sapiri nianti!  
   _Wait, slowly! Slowly, slowly... I do not want to know anything!_
 
 ### cuinnutu client: near2
@@ -742,7 +742,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### cuinnutu client: close
 
-- Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Forsi.  
+- Fermati ccà... no, vai avanti... no, fermati. Aspettami, ci mettu ’nu minutu. Fuaissi.  
   _Stop here... no, keep going... no, stop. Wait for me, I will be a minute. Maybe._
 
 ### cuinnutu client: fast
@@ -772,7 +772,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### cuinnutu client: hitWall
 
-- Chi botta! Un fa nenti, sugnu calmu... sugnu calmu...  
+- Chi botta! Un fa nianti, sugnu calmu... sugnu calmu...  
   _What a bump! Never mind, I am calm... I am calm..._
 
 ### cuinnutu client: late
@@ -791,7 +791,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### cuinnutu client: fail
 
-- Un fa nenti, ci vaiu a pedi. Tantu sugnu calmu.  
+- Un fa nianti, ci vaiu a pedi. Tantu sugnu calmu.  
   _Never mind, I will go on foot. I am calm anyway._
 
 ### cuinnutu driver: board
@@ -825,12 +825,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### cuinnutu driver: near2
 
-- Ci semu quasi.  
+- Ci siemu cuasi.  
   _Nearly there._
 
 ### cuinnutu driver: close
 
-- Mi fermu unni voi tu.  
+- Mi fermu unni vuai tu.  
   _I will stop wherever you like._
 
 ### cuinnutu driver: arrive
@@ -847,7 +847,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### notme
 
-- Un u rissi iu, u rissi n'autru.  
+- Un u rissi iu, u rissi n’autru.  
   _It was not me who said it, it was someone else._
 
 ### call
@@ -859,16 +859,16 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### give
 
-- Teni ’sti cuainna, mettitilli ’ncapu e vai ô Cutò.  
+- Teni ’sti cuainna, mettitilli ncapu e vai ô Cutò.  
   _Take these horns, put them on and go to the Cutò._
-- Sutta l’arcu ri Cutò nuddu passa senza grattarisi a testa!  
+- Sutta l’arcu ri Cutò nuddu passa sienza grattarisi a testa!  
   _Nobody passes under the arch of Cutò without scratching their head!_
 
 ### go
 
-- Camina, camina, ca l’arcu è ddà ’nfunnu.  
+- Camina, camina, ca l’arcu è ddà nfunnu.  
   _Keep going, the arch is down there._
-- Attentu ca sunnu larghi, eh!  
+- Attientu ca sunnu larghi, eh!  
   _Careful, they are wide, eh!_
 
 ### scrape
@@ -882,7 +882,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Gràttiti a testa, ca ci stai passannu!  
   _Scratch your head, you are going through!_
-- Visti? Sutta l’arcu ri Cutò un si passa senza grattarisi a testa!  
+- Visti? Sutta l’arcu ri Cutò un si passa sienza grattarisi a testa!  
   _See? Under the arch of Cutò nobody passes without scratching their head!_
 
 ### careful
@@ -913,7 +913,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### give
 
-- Acchiana â discarica ri Bellolampo e ieccati ’nta vasca!  
+- Acchiana â discarica ri Bellolampo e ieccati nta vasca!  
   _Go up to the Bellolampo landfill and throw yourself in the cell!_
 
 ### sendoff
@@ -942,7 +942,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### fail
 
-- Chi fa? Un ti ieccasti! Ora è tardu!  
+- Chi fa? Un ti ieccasti! Uora è taiddu!  
   _What, you did not throw yourself in! Now it is too late!_
 
 ## Fratelli La Penna (Teatro Massimo; drafts, {price} is the price in euro)
@@ -954,9 +954,9 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### ask
 
-- Na pinna ru Teatru Massimu: {price} euru. Prezzu r’amicu!  
+- Na pinna rû Teatru Massimu: {price} euru. Prezzu r’amicu!  
   _A Teatro Massimo pen: {price} euro. Friend price!_
-- Cu sta pinna scrivi sulu cosi bbeddi. {price} euru, cu u scuantu.  
+- Cu sta pinna scrivi sulu cosi bbeddi. {price} euru, cû scuantu.  
   _With this pen you only write nice things. {price} euro, with the discount._
 
 ### paid
@@ -971,7 +971,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### refuse
 
-- Comu?! Un a voi?!  
+- Comu?! Un a vuai?!  
   _What?! You do not want it?!_
 - Frati, curriti! Chistu un paga!  
   _Brothers, run! This one is not paying!_
@@ -987,16 +987,16 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### caught
 
-- Pigghiatu! E ora paghi.  
+- Pigghiatu! E uora paghi.  
   _Caught you! Now you pay._
 - Accussì s’impara. A pinna è a tia!  
   _That will teach you. The pen is yours!_
 
 ### escaped
 
-- Un haiu chiù ciatu...  
+- Un haiu cchiù ciatu...  
   _I am out of breath..._
-- Vabbè... a prossima vuota!  
+- Vabbè... a prossima vuata!  
   _Fine... next time!_
 
 ## Pollanche (Santuario di Santa Rosalia, needs ?world=1)
@@ -1012,7 +1012,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### when serving
 
-- Teni, cu u sali e u limuni!  
+- Teni, cû sali e u limuni!  
   _Here, with salt and lemon! (?)_
 - Pi tia, ca è cavuda!  
   _For you, it is hot! (?)_
@@ -1023,7 +1023,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Granita fridda! Limuni, mennula, cafè!  
   _Ice cold granita! Lemon, almond, coffee! (?)_
-- Cu st'afa ti runu na granita!  
+- Cu st’afa ti runu na granita!  
   _In this heat, here is a granita for you! (?)_
 - Scegghi: limuni, mennula o cafè?  
   _Choose: lemon, almond or coffee? (?)_
@@ -1032,19 +1032,19 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Teni, fridda fridda!  
   _Here, ice cold! (?)_
-- Pi tia, cu a panna ’ncapu!  
+- Pi tia, câ panna ncapu!  
   _For you, with cream on top! (?)_
 
 ### the driver after the granita
 
-- Chi friscu! Amunì, ca ora si vola!  
+- Chi friscu! Amunì, ca uora si vola!  
   _How refreshing! Come on, now we fly! (?)_
 - Granita e nitro: chista è a stati!  
   _Granita and nitro: this is summer! (?)_
 
 ### the toast
 
-- Nitro ’n chiù, fridda, puru oltri u chinu  
+- Nitro ’n cchiù, fridda, puru oltri u chinu  
   _Extra nitro, ice cold, even past full_
 
 ## "Pezzo nni Ganci" (the Ganci branches, src/friend-places.js; drafts for the owner)
@@ -1069,12 +1069,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Un pezzu ô vulu e ripartu.  
   _A piece on the fly and I am off._
-- Cu u pezzu ’nta manu si guida araciu araciu.  
+- Cû pezzu nta manu si guida araciu araciu.  
   _With a piece in your hand you drive nice and slow._
 
 ### the toast
 
-- Nitro ’n chiù, cavuru, puru oltri u chinu  
+- Nitro ’n cchiù, cavuru, puru oltri u chinu  
   _Extra nitro, hot, even past full_
 
 ## "A preghiera alla Santuzza" (the shrine of the Santuario and the Festino carro; drafts)
@@ -1085,21 +1085,21 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _Santuzza, forgive me the red lights._
 - Un fu curpa mia: u marciapieri era ddà.  
   _It was not my fault: the pavement was just there._
-- Giuru ca di dumani cuntu fina a dui prima ri sorpassari.  
+- Giuru ca ri rumani cuntu fina a dui prima ri sorpassari.  
   _I swear that from tomorrow I count to two before overtaking._
 - Santuzza, tu ca vii tuttu: talìa ri n’autra banna.  
   _Santuzza, you who see everything: look the other way._
 
 ### after the blessing
 
-- Amen. E ora ripartu, ma cu giudiziu.  
+- Amen. E uora ripartu, ma cu giudiziu.  
   _Amen. And now I am off, but sensibly._
-- Grazii, Santuzza. Ni viremu ô prossimu semaforu russu.  
+- Grazzi, Santuzza. Ni viremu ô prossimu semaforu russu.  
   _Thank you, Santuzza. See you at the next red light._
 
 ### while the cooldown runs
 
-- A Santuzza ti sta taliannu: ripassa cchiù tardu.  
+- A Santuzza ti sta taliannu: ripassa cchiù taiddu.  
   _The Santuzza is watching you: come back later._
 
 ### the toast when there was something to forgive
@@ -1118,28 +1118,28 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Cornetti cavuri, appena nisciuti!  
   _Hot cornetti, just out!_
-- Cu a luna ’ncapu e u cornettu ’nta manu!  
+- Câ luna ncapu e u cornettu nta manu!  
   _With the moon above and a cornetto in hand!_
-- Cornetti cavuri cu a criema!  
+- Cornetti cavuri câ criema!  
   _Hot cornetti with custard!_
 
 ### when serving
 
 - Teni, ca è propriu nisciutu.  
   _Here, it has only just come out._
-- Pi tia, cu a criema.  
+- Pi tia, câ criema.  
   _For you, with custard._
 
 ### the driver after the cornetto
 
-- Cornettu cavuru a menzannuatti: a vita è bedda.  
+- Cornettu cavuru a menzannuatti: a vita è biedda.  
   _A hot cornetto at midnight: life is good._
-- Ora pozzu cuntinuari a notti.  
+- Uora pozzu cuntinuari a notti.  
   _Now I can go on with the night._
 
 ### the toast
 
-- Nitro ’n chiù, cavuru, puru oltri u chinu  
+- Nitro ’n cchiù, cavuru, puru oltri u chinu  
   _Extra nitro, hot, even past full_
 
 ## Appartati (parked cars with steamed windows, Pellegrino and Favorita, needs ?world=1)
@@ -1152,7 +1152,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _Hey! We were... counting the stars! (?)_
 - Stavamu sulu... ripassannu u codici stradali!  
   _We were only... revising the highway code! (?)_
-- Talè chi maleducatu! Cca c'è genti ca parla!  
+- Talè chi maleducatu! Ccà c’è genti ca parla!  
   _Look at this rude guy! People are talking here! (?)_
 
 ## Free roam events: callers, "a pulle" tourists, urgent passengers, food sellers
@@ -1199,23 +1199,23 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### call: rave
 
-- Ou! Amunì, ca i casse pû rave su ccà! Puitali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!  
+- Ou! Amunì, ca i casse pû rave su ccà! Puaittali ’n cima ô Pellegrinu, ma araciu, ca sunnu dilicati!  
   _Hey! Come on, the speakers for the rave are here! Take them up on Pellegrino, but nice and slow, they are delicate!_
-- Talè, lapista, ci mittiemu i casse ’nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!  
+- Talè, lapista, ci mittiemu i casse nta lapa e tu ti ni vai ô rave. Ti raccumannu, un li rumpiri!  
   _Look, driver, we put the speakers on the lapa and you take them to the rave. Please, do not break them!_
 - Sienza casse u rave un paiti! Pigghia sta ruobba e curri, ma cu giudiziu!  
   _No speakers, no rave! Take this stuff and run, but carefully!_
 
 ### call: leaf
 
-- Psst cucì, a'gghiri nni Cipressi p'accattari... vabbé u sai, runami un passaggio amunì  
+- Psst cucì, a gghiri nni Cipressi p’accattari... vabbè u sai, runami un passaggiu amunì  
   _Psst cousin, I have to go to Cipressi to buy... well, you know, give me a lift, come on_
-- Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ’ntô giru. Suarridi e un dari ’ntall’occhiu.  
+- Nni mancunu ’nu para ri fuogghi allegri pâ serata. Va’ a via Cipressi e talìa ntô giru. Suarridi e un dari ’ntall’occhiu.  
   _We are short of a couple of happy leaves for the night. Go to via Cipressi and look around. Smile and do not draw attention._
 
 ### call: dump
 
-- Bbaiecca 'a munnizza, ca ’ccà un c’è chiù postu!  
+- Bbaiecca a munnizza, ca ’ccà un c’è cchiù postu!  
   _Throw yourself in the rubbish, there is no room left here!_
 - Ou lapista! Â discarica ri Bellolampo c’è na vasca ca ti sta aspittannu!  
   _Hey driver! At the Bellolampo landfill there is a cell waiting for you!_
@@ -1231,7 +1231,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 - Cu vinci, paga! Amunì!  
   _Winner buys! Let's go!_
-- Fermati ccà e cuorri cu nuatri!  
+- Fermati ccà e curri cu nuavutri!  
   _Stop here and race with us!_
 - Tri, dui, unu... cuasi!  
   _Three, two, one... almost!_
@@ -1247,7 +1247,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### a pulle by day: driver
 
-- Ah! "A pulle"! Certu, certu... mi dispiaci ma ju sugnu na tomba.  
+- Ah! "A pulle"! Certu, certu... mi dispiaci ma iu sugnu na tomba.  
   _Ah! "A pulle"! Of course, of course... sorry, I am a tomb. (?)_
 - Viale Diana? Bona scelta pi vidiri i pini. Gli alberi, picciotti, solu gli alberi.  
   _Viale Diana? Good choice to see the pines. The trees, kids, only the trees. (?)_
@@ -1285,24 +1285,24 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 ### urgent: arrive
 
-- Ce l'ho fatta! Tieni, tieni tutto!  
+- Ce l’ho fatta! Tieni, tieni tutto!  
   _I made it! Here, keep it all!_
 
 ### urgent: fail
 
-- No, no, no... l'ho perso!  
+- No, no, no... l’ho perso!  
   _No, no, no... I missed it!_
 
 ### food: thanks
 
-- Grazie, grazie! Si ’n’angilu cu tri ruoti!  
+- Grazzi, grazzi! Sì ’n’angilu cu tri ruoti!  
   _Thank you, thank you! You are an angel with three wheels!_
 - M’ha saibbatu a iurnata! Ti offru quarchi cosa!  
   _You saved my day! Let me treat you!_
 
 ### food: none
 
-- Nienti?! Pacienza... tuoina quannu hai cchiù furtuna.  
+- Nianti?! Pacienza... tuoina quannu hai cchiù furtuna.  
   _Nothing?! Never mind... come back when you are luckier._
 
 ## The clienti: mission titles (src/event-places.js FARE_SPOTS, `title`)
@@ -1313,7 +1313,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _tm, Teatro Massimo_
 - Prima a Cattedrali, poi a meusa  
   _cat, Cattedrale_
-- U rre avi fami  
+- U rre havi fami  
   _pn, Palazzo dei Normanni_
 - A Funtana ra Virgogna  
   _pp, Piazza Pretoria_
@@ -1333,17 +1333,17 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
   _tx-mondello, Mondello_
 - A nanna ca fici a spisa  
   _tx-borgo, Borgo Nuovo_
-- U cucinu ra festa  
+- U cucinu râ festa  
   _tx-brancaccio, Brancaccio_
 - U cani ci scappò  
   _tx-giardino, Via Libertà (Giardino Inglese)_
 - U semaforu ca un cancia  
   _tx-calatafimi, Corso Calatafimi_
-- U studenti un si susiu  
+- U studenti un si susìu  
   _tx-resuttana, Resuttana_
 - Vabbè u sai  
   _pulle-marina, Piazza Marina_
-- Vabbè u sai, n'avutra vota  
+- Vabbè u sai, n’avutra vuata  
   _pulle-lib, Via della Libertà_
 - Vabbè u sai, ma di cursa  
   _pulle-stz, Stazione Centrale_
@@ -1444,7 +1444,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - (jp) Kamisama! I just pray! Too soon!
 - (fr) Seigneur, je viens à peine de prier!
 
-### U rre avi fami (pn)
+### U rre havi fami (pn)
 
 #### pn: board
 
@@ -1561,17 +1561,17 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-poli: board
 
-- Amunì, ca u spettaculu accuminciau! E i biglietti unni i misi?  
+- Amunì, ca u spettaculu accuminciàu! E i biglietti unni i misi?  
   _Hurry, the show has started! And where did I put the tickets?_
 
 #### tx-poli: ambient
 
-- I biglietti... nta a giacca no... nta a borsa no... forsi sunnu nto frigurifiru.  
+- I biglietti... ntâ giacca no... ntâ borsa no... fuaissi sunnu ntô frigurifiru.  
   _The tickets... not in the jacket... not in the bag... maybe they are in the fridge._
 
 #### tx-poli: arrive
 
-- Ecculi! Eranu nta a sacchetta ri darrè! Uora spiramu ca ni fannu trasiri.  
+- Ecculi! Eranu ntâ sacchetta ri darrè! Uora spiramu ca ni fannu trasiri.  
   _Here they are! They were in my back pocket! Now let us hope they let us in._
 
 #### tx-poli: hitWall
@@ -1588,17 +1588,17 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-notar: ambient
 
-- L’artuparlanti dissi ca è in ritardu? Mah, ju un ci cridu. Curri u stissu.  
+- L’artuparlanti rissi ca è in ritardu? Mah, iu un ci cridu. Curri u stissu.  
   _The loudspeaker said it is late? Hm, I do not believe it. Hurry anyway._
 
 #### tx-notar: arrive
 
-- U trenu è ancora ddà! Era in ritardu pi daveru. Ma ju un ci cridìa.  
+- U trenu è ancora ddà! Era in ritardu pi daveru. Ma iu un ci cridìa.  
   _The train is still there! It really was late. But I did not believe it._
 
 #### tx-notar: hitWall
 
-- Ecco, ora u trenu u perdu pi daveru.  
+- Ecco, uora u trenu u perdu pi daveru.  
   _There, now I really will miss the train._
 
 ### Trenta buorsi (tx-lib)
@@ -1610,7 +1610,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-lib: ambient
 
-- Talìa nto specchiettu... no, u specchiettu un si viri cchiù. Un fa nenti, va’ a senzu.  
+- Talìa ntô specchiettu... no, u specchiettu un si viri cchiù. Un fa nianti, va’ a senzu.  
   _Look in the mirror... no, you cannot see the mirror any more. Never mind, go by feel._
 
 #### tx-lib: arrive
@@ -1620,14 +1620,14 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-lib: hitWall
 
-- Ahia! I buorsi! Chidda cu i scarpi no!  
+- Ahia! I buorsi! Chidda cê scarpi no!  
   _Ouch! The bags! Not the one with the shoes!_
 
 ### Un ci u rissiru (tx-fiera)
 
 #### tx-fiera: board
 
-- Chiusa! E nuddu mi dissi nenti! Sugnu vinutu pi nenti!  
+- Chiusa! E nuddu mi rissi nianti! Sugnu vinutu pi nianti!  
   _Closed! And nobody told me anything! I came for nothing!_
 
 #### tx-fiera: ambient
@@ -1637,12 +1637,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-fiera: arrive
 
-- Almenu ccà è apertu, spiramu. Talìa prima tu, va.  
+- Almenu ccà è apiertu, spiramu. Talìa prima tu, va.  
   _At least this one is open, I hope. You check first, go on._
 
 #### tx-fiera: hitWall
 
-- Chiusu puru ccà! E nuddu mi dissi nenti!  
+- Chiusu puru ccà! E nuddu mi rissi nianti!  
   _Closed here too! And nobody told me anything!_
 
 ### U custumi sutta a giacca (tx-mondello)
@@ -1654,34 +1654,34 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-mondello: ambient
 
-- Si mi telefuna u capu, ju sugnu ancora n’ufficiu. Capisti?  
+- Si mi telefuna u capu, iu sugnu ancora n’ufficiu. Capisti?  
   _If the boss calls, I am still at the office. Understood?_
 
 #### tx-mondello: arrive
 
-- Ahh, u mari! Teni, e un diri nenti ô capu.  
+- Ahh, u mari! Teni, e un diri nianti ô capu.  
   _Ahh, the sea! Keep it, and tell the boss nothing._
 
 #### tx-mondello: hitWall
 
-- Attentu ca mi sgualcisci a cammisa! Haiu na riunioni... nta l’acqua.  
+- Attientu ca mi sgualcisci a cammisa! Haiu na riunioni... nta l’acqua.  
   _Careful, you will crease my shirt! I have a meeting... in the water._
 
 ### A nanna ca fici a spisa (tx-borgo)
 
 #### tx-borgo: board
 
-- Bongiornu, figghiu miu. Haiu sei buorsi: attentu a l’ova.  
+- Bongiornu, figghiu miu. Haiu sei buorsi: attientu a l’ova.  
   _Good day, son. I have six bags: careful with the eggs._
 
 #### tx-borgo: ambient
 
-- Cchiù araciu! Me maritu, bonanima, guidava miegghiu, e un avia mancu a patenti.  
+- Cchiù araciu! Me maritu, bonanima, guidava miegghiu, e un havia mancu a patenti.  
   _Slower! My husband, God rest him, drove better, and he did not even have a licence._
 
 #### tx-borgo: arrive
 
-- Bravu, pi sta vota ci semu. Teni, pigghiati n’aranciu pâ strata.  
+- Bravu, pi sta vuata ci siemu. Teni, pigghiati n’aranciu pâ strata.  
   _Well done, this time we made it. Here, take an orange for the road._
 
 #### tx-borgo: hitWall
@@ -1689,7 +1689,7 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Maronna! Mi s’arruppiru l’ova! E u dannu u paghi tu, eh!  
   _Madonna! My eggs broke! And you pay for the damage, eh!_
 
-### U cucinu ra festa (tx-brancaccio)
+### U cucinu râ festa (tx-brancaccio)
 
 #### tx-brancaccio: board
 
@@ -1698,12 +1698,12 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-brancaccio: ambient
 
-- Attentu a torta! Si s’abbissa, me cucinu m’ammazza.  
+- Attientu a torta! Si s’abbissa, me cucinu m’ammazza.  
   _Mind the cake! If it collapses, my cousin will kill me._
 
 #### tx-brancaccio: arrive
 
-- Semu in ritardu, ma a torta è sana. Chistu è un miraculu.  
+- Siemu in ritardu, ma a torta è sana. Chistu è un miraculu.  
   _We are late, but the cake is whole. That is a miracle._
 
 #### tx-brancaccio: hitWall
@@ -1725,29 +1725,29 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 
 #### tx-giardino: arrive
 
-- Mi sa ca è già a casa, cu na bistecca. Un fa nenti, grazzi u stissu.  
+- Mi sa ca è già a casa, cu na bistecca. Un fa nianti, grazzi u stissu.  
   _I bet he is already home with a steak. Never mind, thanks anyway._
 
 #### tx-giardino: hitWall
 
-- Ecco, ora u cani si fa tri risati.  
+- Ecco, uora u cani si fa tri risati.  
   _There, now the dog is having a good laugh._
 
 ### U semaforu ca un cancia (tx-calatafimi)
 
 #### tx-calatafimi: board
 
-- Finalmenti! Staiu fermu a stu semaforu di stamatina.  
+- Finalmenti! Staiu fermu a stu semaforu ri stamatina.  
   _Finally! I have been stuck at this light since this morning._
 
 #### tx-calatafimi: ambient
 
-- Ccà u russu dura cchiù di na missa ri Natali.  
+- Ccà u russu dura cchiù ri na missa ri Natali.  
   _Here the red lasts longer than a Christmas Mass._
 
 #### tx-calatafimi: arrive
 
-- Semu arrivati senza mai fermarni! Mi sta cumminciannu a piaciri.  
+- Siemu arrivati sienza mai fermarni! Mi sta cumminciannu a piaciri.  
   _We got here without stopping once! I am starting to like it._
 
 #### tx-calatafimi: hitWall
@@ -1755,57 +1755,57 @@ Driver and vendor lines are Palermitan/Italian with an English gloss. Please cor
 - Chistu è comu u semaforu: un si move mai.  
   _This one is like the traffic light: it never moves._
 
-### U studenti un si susiu (tx-resuttana)
+### U studenti un si susìu (tx-resuttana)
 
 #### tx-resuttana: board
 
-- Mi susii ora! L’esami è fra deci minuti e un studiai mancu.  
+- Mi susii uora! L’esami è fra deci minuti e un studiai mancu.  
   _I just woke up! Exam in ten minutes, and I have not studied._
 
 #### tx-resuttana: ambient
 
-- Spiramu ca u prufissuri si susiu tardi puru iddu.  
+- Spiramu ca u prufissuri si susìu taiddu puru iddu.  
   _Let us hope the professor got up late too._
 
 #### tx-resuttana: arrive
 
-- Ci semu! Mi manca sulu na cosa: a matiria.  
+- Ci siemu! Mi manca sulu na cosa: a matiria.  
   _We are here! Only one thing missing: the subject._
 
 #### tx-resuttana: hitWall
 
-- Perfettu: ora haiu na scusa. “Prufissuri, ci fu n’incidenti.”  
+- Perfettu: uora haiu na scusa. “Prufissuri, ci fu n’incidenti.”  
   _Perfect: now I have an excuse. "Professor, there was an accident."_
 
 ## Vabbè u sai: variations of the night client of "a pulle"
 
 ### fare:pulle-lib: board
 
-- Bonasira. Ju sugnu chiddu ri sempri: a Favorita, vabbé u sai.  
+- Bonasira. Iu sugnu chiddu ri sempri: a Favorita, vabbè u sai.  
   _Good evening. I am the usual one: the Favorita, well, you know._
 
 ### fare:pulle-lib: ask
 
-- A Favorita, n’avutra vota. Vabbé u sai: l’ultima, eh!  
+- A Favorita, n’avutra vuata. Vabbè u sai: l’ultima, eh!  
   _The Favorita, once again. Well, you know: the last time, eh!_
 
 ### fare:pulle-lib: arrive
 
-- Grazzi. A prossima vota... ma chi dicu, u sai già.  
+- Grazzi. A prossima vuata... ma chi dicu, u sai già.  
   _Thanks. Next time... what am I saying, you already know._
 
 ### fare:pulle-stz: board
 
-- Bonasira! Curri, curri! Vabbé u sai, sugnu di cursa.  
+- Bonasira! Curri, curri! Vabbè u sai, sugnu ri cursa.  
   _Good evening! Go, go! Well, you know, I am in a hurry._
 
 ### fare:pulle-stz: ask
 
-- A Favorita, ma di cursa, vabbé u sai: ca me muggheri torna prestu.  
+- A Favorita, ma ri cursa, vabbè u sai: ca me muggheri torna prestu.  
   _To the Favorita, but fast, well, you know: my wife comes home soon._
 
 ### fare:pulle-stz: arrive
 
-- Ecco, ecco, vabbé u sai: ju ccà un ci sugnu mai statu. Ciao!  
+- Ecco, ecco, vabbè u sai: iu ccà un ci sugnu mai statu. Ciao!  
   _Here, here, well, you know: I was never here. Bye!_
 

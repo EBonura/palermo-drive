@@ -27,7 +27,7 @@ export const VEHICLES = [
   V('lapa50', 'lapa', 'Lapa 50', 'Lapa 50', 'Il furgoncino', 'The little van', 20, [4, 5, 4],
     'Il furgoncino di Ballarò: piccolo, svelto e sempre in ritardo.', 'The Ballarò market van: small, quick and always late.'),
   V('vespa', 'bike', 'Vespa', 'Vespa', 'Classica, rotonda', 'Classic and round', 60, [6, 7, 6],
-    'Mezza Palermo ci va al mare: rotonda, scattante, pronta all\'impennata.', 'Half of Palermo rides one to the beach: round, nippy, ready to wheelie.'),
+    'Mezza Palermo ci va al mare: rotonda, scattante, pronta all’impennata.', 'Half of Palermo rides one to the beach: round, nippy, ready to wheelie.'),
   V('scooterone', 'bike', 'Scooterone', 'Big-wheel scooter', 'Ruote grandi, bauletto', 'Big wheels, top box', 80, [8, 4, 7],
     'Ruote grandi e bauletto: si mangia le buche e non si ferma mai.', 'Big wheels and a top box: eats potholes and never slows down.'),
   V('motorino', 'bike', 'Motorino', 'Little motorbike', 'Nudo, nervoso', 'Naked and twitchy', 50, [9, 9, 7],
@@ -95,7 +95,7 @@ export const PARTS = [
     O('tromba', 'Tromba', 'Trumpet', 38), O('oro', 'Doppio dorato', 'Gold twin', 55)] },
   { id: 'spoiler', name_it: 'Alettone', name_en: 'Spoiler', opts: [
     O('basso', 'Alettone basso', 'Lip spoiler', 12), O('gt', 'Alettone GT', 'GT wing', 25), O('gigante', 'Alettone gigante', 'Giant wing', 40),
-    O('anatra', 'Coda d\'anatra', 'Ducktail', 18), O('biplano', 'Biplano', 'Biplane', 48)] },
+    O('anatra', 'Coda d’anatra', 'Ducktail', 18), O('biplano', 'Biplano', 'Biplane', 48)] },
   { id: 'neon', name_it: 'Neon sotto', name_en: 'Underglow', opts: [
     O('rosa', 'Rosa Palermo', 'Palermo pink', 15, { color: '#ff2f9e' }), O('ciano', 'Ciano', 'Cyan', 15, { color: '#18e6ff' }),
     O('verde', 'Verde acido', 'Acid green', 15, { color: '#37ff6a' }), O('viola', 'Viola', 'Violet', 15, { color: '#9b4dff' }),
@@ -117,7 +117,7 @@ export const PARTS = [
   { id: 'sub', name_it: 'Subwoofer', name_en: 'Subwoofer', opts: [O('sub', 'Subwoofer', 'Subwoofer', 35)] },
   // The two endgame upgrades (floats: drive on the sea, src/vehicle-water.js; wings: fly, src/vehicle-air.js). Far dearer than anything else (the next dearest part is 55, the dearest vehicle 120),
   // so they take real play to earn. Fitted like any part (per base), so "None" switches them off. hint_*: the line under the section name in the Garage.
-  { id: 'swim', name_it: 'Mare', name_en: 'Sea', hint_it: 'Guida sull\'acqua', hint_en: 'Drive on the sea', opts: [O('galleggianti', 'Galleggianti e fuoribordo', 'Floats and outboard', 250)] },
+  { id: 'swim', name_it: 'Mare', name_en: 'Sea', hint_it: 'Guida sull’acqua', hint_en: 'Drive on the sea', opts: [O('galleggianti', 'Galleggianti e fuoribordo', 'Floats and outboard', 250)] },
   { id: 'fly', name_it: 'Cielo', name_en: 'Sky', hint_it: 'Tieni F per salire', hint_en: 'Hold F to climb', opts: [O('ali', 'Ali', 'Wings', 600)] },
 ];
 export const partById = id => PARTS.find(p => p.id === id);

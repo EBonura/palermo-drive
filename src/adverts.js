@@ -53,7 +53,7 @@ export const POSTERS = [
     const H = head(g), W = '#ffffff'; bg(g, '#c9271e');
     fit(g, 'U RUSSU È', H, [26, 48, 243, 100], W);
     fit(g, 'UN CUNSIGGHIU', H, [26, 108, 364, 153], W);
-    fit(g, 'Patente in tri jorna. Frenu facultativu.', SANS, [26, 171, 288, 185], W);
+    fit(g, 'Patente in tri iorna. Frenu facultativu.', SANS, [26, 171, 288, 185], W);
     fit(g, 'AUTOSCUOLA U SEMAFORU', SANS, [288, 215, 489, 225], W, true);
     rrect(g, 431, 27, 50, 150, 6, '#141414');
     disc(g, 456, 52, 19.5, '#ff4b3a'); disc(g, 456, 96, 19.5, '#3b2b15'); disc(g, 456, 140, 19.5, '#143120');
@@ -63,15 +63,15 @@ export const POSTERS = [
     const H = head(g), K = '#151310'; bg(g, '#fdd221');
     fit(g, 'SONA PRIMA CA', H, [26, 56, 359, 100], K);
     fit(g, 'SCATTA U VIEIDDI', H, [26, 109, 393, 153], K);
-    fit(g, 'Novu clacson a tri trummi. Si senti finu a Tràpani.', SANS, [26, 170, 375, 184], K);
+    fit(g, 'Nuavu clacson a tri trummi. Si senti finu a Tràpani.', SANS, [26, 170, 375, 184], K);
     fit(g, 'CLACSON PRO', SANS, [384, 215, 489, 224], K, true);
   },
   // 3 parking attendant
   g => {
     const H = head(g), W = '#ffffff'; bg(g, '#0f426c');
     fit(g, 'UN EURU, CAPU?', H, [26, 64, 370, 114], W);
-    fit(g, "Ora cu l'abbonamentu annuale", SANS, [26, 125, 388, 144], '#f8d22e');
-    fit(g, 'Ci talìu iu â machina. Quasi sempri.', SANS, [25, 161, 276, 176], W);
+    fit(g, "Uora cu l’abbonamentu annuali", SANS, [26, 125, 388, 144], '#f8d22e');
+    fit(g, 'Ci talìu iu â machina. Cuasi sempri.', SANS, [25, 161, 276, 176], W);
     fit(g, 'PARCHEGGI U CAPU S.P.A.', SANS, [298, 215, 488, 225], W, true);
   },
   // 4 arancina
@@ -79,7 +79,7 @@ export const POSTERS = [
     const H = head(g), K = '#2c1405'; bg(g, '#e7821f');
     fit(g, 'È ARANCINA.', H, [67, 62, 441, 137], K);
     fit(g, 'Finìu u discussu.', SANS, [154, 147, 354, 166], K);
-    fit(g, 'COMITATO PÂ A FINALE', SANS, [320, 213, 489, 224], K, true);
+    fit(g, 'COMITATO PÂ FINALI', SANS, [320, 213, 489, 224], K, true);
   },
   // 5 lapa
   g => {
@@ -110,8 +110,8 @@ export const POSTERS = [
   g => {
     bg(g, '#191516');
     fit(g, 'Hotel Catacombe', SERIF, [61, 70, 447, 104], '#e8dfcc');
-    fit(g, 'I clienti un si nni vannu chiù.', SERIF_I, [104, 127, 401, 145], '#e6ddd0');
-    fit(g, 'Silenziu garantitu ra seculi. Colazioni nun inclusa.', SANS, [76, 161, 431, 175], '#a39a8d');
+    fit(g, 'I clienti un si nni vannu cchiù.', SERIF_I, [104, 127, 401, 145], '#e6ddd0');
+    fit(g, 'Silenziu garantitu ra seculi. Colazioni un inclusa.', SANS, [76, 161, 431, 175], '#a39a8d');
   },
   // 9 Festa dei Morti
   g => {
@@ -125,8 +125,8 @@ export const POSTERS = [
   g => {
     const H = head(g), T = '#053c46'; bg(g, '#22b6c4');
     fit(g, 'OMBRELLONI', H, [27, 56, 291, 100], T);
-    fit(g, 'A MONDIELLU', H, [24, 109, 300, 153], T);
-    fit(g, 'Prenota ora pû 2031.', SANS, [27, 162, 269, 186], '#ffffff');
+    fit(g, 'A MUNNIEDDU', H, [24, 109, 300, 153], T);
+    fit(g, 'Prenota uora pû 2031.', SANS, [27, 162, 269, 186], '#ffffff');
     fit(g, 'VIAGGI BALLARÒ', SANS, [364, 212, 489, 224], T, true);
   },
   // 11 meme: nobody, absolutely nobody
@@ -134,8 +134,8 @@ export const POSTERS = [
     const H = head(g), K = '#0b0b0b'; bg(g, '#ffffff');
     fit(g, 'NUDDU:', H, [26, 30, 106, 53], K);
     fit(g, 'ASSOLUTAMENTI NUDDU:', H, [24, 64, 290, 87], K);
-    fit(g, 'U PALERMITANU, 0,2 SECONDI PRIMA', H, [26, 103, 471, 131], K);
-    fit(g, 'DÛ VIEIDDI:', H, [26, 132, 164, 162], K);
+    fit(g, 'U PALERMITANU, 0,2 SICUNNI PRIMA', H, [26, 103, 471, 131], K);
+    fit(g, 'RÛ VIEIDDI:', H, [26, 132, 164, 162], K);
     fit(g, 'PEEEEEEEEE', H, [26, 172, 202, 205], '#c6281f');
   },
   // 12 meme: the doctor and me

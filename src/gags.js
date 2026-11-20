@@ -8,7 +8,7 @@ const hyp = (a, b) => Math.sqrt(a * a + b * b);   // Math.hypot boxes a number p
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
 const MARKETS = [[-60, 410], [260, -220], [-390, -245]];         // Ballaro, Vucciria, Capo (same centres as the crowd density map)
-const QUINNUTU = 'SI UN QUINNUTU!!!';
+const QUINNUTU = 'SI UN CUINNUTU!!!';
 const CAFFE = 'OOU ma tutta sta premura hai? Minchia un cafè!';
 const DRIVERS = ['coppola', 'suit', 'borsa', 'nonno', 'ragazzo', 'tuta', 'macellaio', 'mamma', 'suit2', 'coppola2'];
 const CARS = new Set(['panda', 'punto', 'smart', 'taxi', 'van']);

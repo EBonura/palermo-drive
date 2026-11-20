@@ -25,7 +25,7 @@ import { concreteMaterial } from './wall-tex.js';
 export const LANDMARK_ZONES = [
   // OSM ways 81030481 and 81030484 (Viale Regione Siciliana Sud Est, bridge=yes, layer 1), 40 to 50 m from the bar Baby Luna (way 81030476).
   // A fall counts when the car leaves the deck over the parapet (vaulting it at speed, see `jump`) and drops at least `minFall` metres.
-  { id: 'baby-luna-jump', structs: ['b81030481', 'b81030484'], minFall: 4, jump: true, label: 'Bba ieccati ru baby luna' },
+  { id: 'baby-luna-jump', structs: ['b81030481', 'b81030484'], minFall: 4, jump: true, label: 'Bbaieccati ru baby luna' },
 ];
 const listeners = new Set();
 export const onLandmarkEvent = fn => { listeners.add(fn); return () => listeners.delete(fn); };

@@ -74,7 +74,7 @@ export function createFares(X) {
     } else if (f.sub === 'tourist') {
       say(fmtTpl(pick(TOURIST.ask[f.nat] || TOURIST.ask.en), f.dest), seatPos, 0.2, 9);
       say(pick(f.dest.meusa ? DRIVER.askMeusa : DRIVER.ask), driverPos, 1.8); say(pick(DRIVER.depart), driverPos, 3.6);
-    } else { say(T('Mi porti a ' + f.dest.name + ', per favore.', 'Take me to ' + f.dest.name + ', please.'), seatPos, 0.2, 9); say(pick(DRIVER.depart), driverPos, 2); }
+    } else { say(T('Mi puaitti a ' + f.dest.name + ', per favore.', 'Take me to ' + f.dest.name + ', please.'), seatPos, 0.2, 9); say(pick(DRIVER.depart), driverPos, 2); }
   }
 
   function updateBoard(dt) {

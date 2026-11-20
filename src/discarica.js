@@ -66,7 +66,7 @@ export function createDiscarica(env) {
     g.fillStyle = '#16161a'; for (let i = -4; i < 14; i++) { g.beginPath(); g.moveTo(i * 44, 0); g.lineTo(i * 44 + 22, 0); g.lineTo(i * 44 - 30, 26); g.lineTo(i * 44 - 52, 26); g.fill(); g.beginPath(); g.moveTo(i * 44, h); g.lineTo(i * 44 + 22, h); g.lineTo(i * 44 - 30, h - 26); g.lineTo(i * 44 - 52, h - 26); g.fill(); }
     g.fillRect(22, 40, w - 44, h - 80); g.fillStyle = '#f4efe0'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = "700 82px 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif"; g.fillText('DISCARICA', w / 2, h / 2 - 22);
-    g.font = "600 33px 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif"; g.fillText("DIVIETO D'ACCESSO AI NON ADDETTI", w / 2, h / 2 + 46);
+    g.font = "600 33px 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif"; g.fillText("DIVIETO D’ACCESSO AI NON ADDETTI", w / 2, h / 2 + 46);
   }, false);
 
   // ------------------------------------------------------------------ small geometry helpers: coloured, merged

@@ -14,19 +14,19 @@ export const BRANDS = [
   { real: 'Conad', re: /conad/i, name: 'CUNZAD', slogan: 'Cunzamu tuttu, puru u prezzu.', band: '#d6202a', trim: '#f39a1e' },
   { real: 'Sisa', re: /\bsisa\b/i, name: 'SISAPI', slogan: 'Unni si spenni picca. Si sapi.', band: '#d2232a', trim: '#ffffff' },
   { real: 'Lidl', re: /\blidl\b/i, name: 'LIDDU', slogan: 'Trasi, pigghia, nesci.', band: '#0b4ea2', trim: '#ffd20a' },
-  { real: 'Decò', re: /\bdec[oò](?![a-z])/i, name: 'RICÒ', slogan: 'Tuttu friscu. Quasi.', band: '#c8102e', trim: '#3c8d2f' },
-  { real: 'Ard Discount', re: /\bard\b/i, name: 'ARRIDI DISCOUNT', slogan: "A cassa t'arridi.", band: '#e94e1b', trim: '#ffd400' },
+  { real: 'Decò', re: /\bdec[oò](?![a-z])/i, name: 'RICÒ', slogan: 'Tuttu friscu. Cuasi.', band: '#c8102e', trim: '#3c8d2f' },
+  { real: 'Ard Discount', re: /\bard\b/i, name: 'ARRIDI DISCOUNT', slogan: "A cassa t’arridi.", band: '#e94e1b', trim: '#ffd400' },
   { real: 'Eurospin', re: /eurospin/i, name: 'EUROSPINGULA', slogan: 'Prezzi ca puncinu picca.', band: '#123f8f', trim: '#e3051b' },
   { real: 'Famila', re: /\bfamila\b/i, name: 'FAMI', slogan: 'Mai cchiù fami.', band: '#2e8b3a', trim: '#c4161c' },
-  { real: 'Penny', re: /\bpenny\b/i, name: 'PINNICU MARKET', slogan: "Chiusu ra l'una ê quattru.", band: '#cd1719', trim: '#ffd400' },
-  { real: 'Todis', re: /\btodis\b/i, name: 'TOTÒS', slogan: "U zu Totò t'u fa a menu.", band: '#0d7a3e', trim: '#ffd200' },
+  { real: 'Penny', re: /\bpenny\b/i, name: 'PINNICU MARKET', slogan: "Chiusu ra l’una ê quattru.", band: '#cd1719', trim: '#ffd400' },
+  { real: 'Todis', re: /\btodis\b/i, name: 'TOTÒS', slogan: "U zu Totò t’u fa a menu.", band: '#0d7a3e', trim: '#ffd200' },
   { real: 'Paghi Poco', re: /paghi ?poco/i, name: 'PAGHI PICCA', slogan: 'Pigghi assai, paghi picca, ti lamienti u stissu.', band: '#ffd400', trim: '#1d3f8f' },
-  { real: 'Coop', re: /\b(in|iper)?coop\b/i, name: 'CUOPPU', slogan: 'A cooperativa ru frittu.', band: '#e2001a', trim: '#ffffff' },
-  { real: 'Prezzemolo & Vitale', re: /prezzemolo/i, name: 'PITRUSINU & VITALI', slogan: "'N tutti i minestri.", band: '#1f4a2c', trim: '#e9dfc4' },
+  { real: 'Coop', re: /\b(in|iper)?coop\b/i, name: 'CUOPPU', slogan: 'A cooperativa rû frittu.', band: '#e2001a', trim: '#ffffff' },
+  { real: 'Prezzemolo & Vitale', re: /prezzemolo/i, name: 'PITRUSINU & VITALI', slogan: "’N tutti i minestri.", band: '#1f4a2c', trim: '#e9dfc4' },
   { real: 'MD', re: /^md\b/i, name: 'MZ MIZZICA DISCOUNT', slogan: 'Mizzica chi prezzi!', band: '#133a8a', trim: '#ffd400' },
   { real: 'Crai', re: /\bcrai\b/i, name: 'RUMANI', slogan: 'Apiertu. Rumani.', band: '#2f8f3a', trim: '#d71920' },
   { real: 'Despar', re: /despar|eurospar|interspar|^spar\b/i, name: 'SPARÌU', slogan: 'U stipendiu? Sparìu.', band: '#1b7a3a', trim: '#d71920' },
-  { real: 'Sigma', re: /\bsigma\b/i, name: 'SÌ, MA', slogan: "Sì, ma unn'è u parcheggiu?", band: '#1a4fa0', trim: '#e30613' },
+  { real: 'Sigma', re: /\bsigma\b/i, name: 'SÌ, MA', slogan: "Sì, ma unn’è u parcheggiu?", band: '#1a4fa0', trim: '#e30613' },
 ];
 // The chain a shop or building name belongs to (index into BRANDS), or -1: an independent shop keeps its own front.
 export const brandOf = n => { if (!n) return -1; for (let i = 0; i < BRANDS.length; i++) if (BRANDS[i].re.test(n)) return i; return -1; };
@@ -74,7 +74,7 @@ export const SIGNS = [
     bg(g, '#fbf7ee'); rect(g, 0, 0, DW, 8, '#c8102e'); rect(g, 0, 120, DW, 8, '#c8102e');
     fit(g, 'Ricò', SERIF_I, [96, 22, 346, 96], '#c8102e');
     ell(g, 368, 34, 22, 9, -0.6, '#3c8d2f'); ell(g, 392, 46, 20, 8, 0.5, '#57a845'); line(g, [[356, 58], [380, 40]], 3, '#2d6e23');
-    fit(g, 'Tuttu friscu. Quasi.', SERIF_I, [356, 84, 494, 100], '#2d6e23');
+    fit(g, 'Tuttu friscu. Cuasi.', SERIF_I, [356, 84, 494, 100], '#2d6e23');
   },
   // Ard: orange-red and yellow. A yellow grin.
   g => {
@@ -83,7 +83,7 @@ export const SIGNS = [
     g.strokeStyle = '#3a1a0a'; g.lineWidth = 7; g.lineCap = 'round'; g.beginPath(); g.arc(62, 62, 28, 0.35, Math.PI - 0.35); g.stroke();
     fit(g, 'ARRIDI', head(g), [128, 12, 400, 80], '#ffffff');
     fit(g, 'DISCOUNT', SANS, [128, 88, 330, 104], '#ffd400', true);
-    fit(g, "A cassa t'arridi.", SANS_I, [348, 88, 494, 104], '#fff1c2');
+    fit(g, "A cassa t’arridi.", SANS_I, [348, 88, 494, 104], '#fff1c2');
   },
   // Eurospin: blue lettering, red and yellow. A red safety pin (a spingula).
   g => {
@@ -109,7 +109,7 @@ export const SIGNS = [
     fit(g, 'z', SANS, [86, 74, 100, 90], '#ffffff'); fit(g, 'z', SANS, [100, 50, 118, 70], '#ffffff');
     fit(g, 'PINNICU', head(g), [132, 12, 400, 80], '#ffffff');
     fit(g, 'MARKET', SANS, [410, 56, 494, 78], '#ffd400', true);
-    fit(g, "Chiusu ra l'una ê quattru.", SANS_I, [134, 92, 400, 108], '#ffe7a8');
+    fit(g, "Chiusu ra l’una ê quattru.", SANS_I, [134, 92, 400, 108], '#ffe7a8');
   },
   // Todis: green and yellow. A moustache: u zu Totò.
   g => {
@@ -117,7 +117,7 @@ export const SIGNS = [
     disc(g, 62, 64, 48, '#ffd200');
     ell(g, 46, 70, 20, 11, 0.35, '#2a1a10'); ell(g, 78, 70, 20, 11, -0.35, '#2a1a10'); disc(g, 62, 64, 7, '#2a1a10');
     fit(g, 'TOTÒS', head(g), [132, 10, 400, 84], '#ffd200');
-    fit(g, "U zu Totò t'u fa a menu.", SANS_I, [134, 94, 400, 110], '#ffffff');
+    fit(g, "U zu Totò t’u fa a menu.", SANS_I, [134, 94, 400, 110], '#ffffff');
   },
   // Paghi Poco: yellow with blue and red. A red coin worn thin.
   g => {
@@ -132,7 +132,7 @@ export const SIGNS = [
     poly(g, [[22, 38], [98, 38], [60, 118]], '#d9c9a3'); poly(g, [[22, 38], [98, 38], [92, 50], [28, 50]], '#bfa979');
     rect(g, 30, 18, 24, 22, '#e9b33c'); rect(g, 52, 12, 26, 26, '#f2c75a'); ell(g, 84, 28, 14, 9, 0.3, '#c98a2c');
     fit(g, 'Cuoppu', SANS, [124, 14, 440, 86], '#e2001a');
-    fit(g, 'A cooperativa ru frittu.', SANS_I, [126, 96, 380, 112], '#a00012');
+    fit(g, 'A cooperativa rû frittu.', SANS_I, [126, 96, 380, 112], '#a00012');
   },
   // Prezzemolo & Vitale: dark green and cream, a serif. A sprig of parsley.
   g => {
@@ -140,7 +140,7 @@ export const SIGNS = [
     line(g, [[48, 112], [56, 60]], 3, '#9ccf6e');
     for (const [x, y, a] of [[40, 40, -0.6], [66, 36, 0.5], [54, 22, 0], [34, 62, -0.9], [74, 58, 0.8]]) ell(g, x, y, 14, 10, a, '#7cbf4e');
     fit(g, 'Pitrusinu & Vitali', SERIF, [98, 24, 494, 72], '#e9dfc4');
-    fit(g, "'N tutti i minestri.", SERIF_I, [180, 86, 420, 104], '#c9d9a4');
+    fit(g, "’N tutti i minestri.", SERIF_I, [180, 86, 420, 104], '#c9d9a4');
   },
   // MD: blue, yellow, red. A yellow rounded box with a red MZ.
   g => {
@@ -171,7 +171,7 @@ export const SIGNS = [
     bg(g, '#1a4fa0');
     disc(g, 62, 50, 34, '#e30613'); poly(g, [[80, 70], [94, 54], [70, 116], [52, 112]], '#e30613');
     fit(g, 'SÌ, MA...', head(g), [130, 12, 420, 84], '#ffffff');
-    fit(g, "Sì, ma unn'è u parcheggiu?", SANS_I, [132, 94, 420, 110], '#ffd0d0');
+    fit(g, "Sì, ma unn’è u parcheggiu?", SANS_I, [132, 94, 420, 110], '#ffd0d0');
   },
 ];
 

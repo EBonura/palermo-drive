@@ -41,21 +41,21 @@ const LINES = [
   ['Tuttu gira, ma iu mi siantu u rre.', 'Everything spins, but I feel like a king.'],
 ];
 // now and then, at any drink, instead of the line for that drink (owner's lines)
-const BOAST = [["L'acqua fa ruggine!", 'Water makes you rust!'], ["E ppu gradiri si nn'ammucco 60 litra!", 'And just to be polite, he downed 60 litres!']];
+const BOAST = [["L’acqua fa ruggine!", 'Water makes you rust!'], ["E ppu gradiri si nn’ammucco 60 litra!", 'And just to be polite, he downed 60 litres!']];
 const drinkLine = (n, pick) => pick(Math.random() < 0.3 ? BOAST[(Math.random() * BOAST.length) | 0] : LINES[Math.min(LINES.length, n) - 1]);
 const CUT = ['Basta! Ti n’adduni ca parri cû lampiuni?', 'Enough! Do you realise you are talking to a lamp post?'];
 const BROKE = [
   ['Sienza picciuli un si vivi. Va’ a travagghiari!', 'No money, no drink. Go and work!'],
   ['Un hai picciuli? Talìa sutta u sidili.', 'No money? Look under the seat.'],
   ['Ci vonnu dui euru, un abbasta taliari.', 'It takes two euros, looking is not enough.'],
-  ['Acqua ru rubinettu? Chidda è gratis.', 'Tap water? That one is free.'],
+  ['Acqua rû rubinettu? Chidda è gratis.', 'Tap water? That one is free.'],
 ];
 const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the speakers.'];
 // A finished errand (src/event-pubs.js) pays in drinks too, as the thanks of the house promise (src/pub-places.js): how many are free for the rest of that night.
 // Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey, Sanlorenzo and Dal polacco promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
 const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1, polacco: 1 };
-const FREE_PUB = ['Offri a casa, comu ti dissi!', 'On the house, as I told you!'];
-const GONE = ['Ti passau!', 'It wore off!'], GONE_SUB = ['Torni a vidiri una strata sula.', 'You see just one road again.'];
+const FREE_PUB = ['Offri a casa, comu ti rissi!', 'On the house, as I told you!'];
+const GONE = ['Ti passàu!', 'It wore off!'], GONE_SUB = ['Torni a vidiri una strata sula.', 'You see just one road again.'];
 
 // The picture of a drunk: ripples, a swirl and a breathing zoom (uWave), a blur in pulses (uBlur, a radius as a fraction of the picture height), a second image (uGhost, its offset) and a dimming
 // of the edges (uVig). The target wraps mirrored, so the edge of the picture never smears however far it is pushed.
@@ -147,7 +147,7 @@ export function createDrunk({ game, car, camera, missions }) {
   function drink() {
     if (!visible || !spot || cool > 0 || game.state !== 'play') return;
     cool = COOL;
-    if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi chiù.', 'No more for you.']), true); return; }
+    if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi cchiù.', 'No more for you.']), true); return; }
     if (!spot.free) {
       if (!(garage.cash >= PRICE && garage.debit(PRICE) >= PRICE)) {
         let i = Math.floor(Math.random() * BROKE.length); if (i === lastBroke) i = (i + 1) % BROKE.length; lastBroke = i;
@@ -166,7 +166,7 @@ export function createDrunk({ game, car, camera, missions }) {
   // A drink offered by another player (src/online/online.js): no pub needed and nothing to pay here (the giver paid). Returns false when the stack is full.
   function gift(name) {
     if (game.state !== 'play') return false;
-    if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi chiù.', 'No more for you.']), true); return false; }
+    if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi cchiù.', 'No more for you.']), true); return false; }
     units += 1; count += 1;
     const n = Math.ceil(units);
     toast(name + (n > 1 ? '  ×' + n : ''), drinkLine(n, pick));

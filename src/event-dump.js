@@ -13,7 +13,7 @@ import { PIT, YARD, FLOOR_D, dumpDepth } from './discarica-ground.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const pick = a => a[(Math.random() * a.length) | 0];
-export const DUMP_TITLE = "Bbaiecca 'a munnizza, e a chi ci sì bbaieccati puru tu";   // the owner's title, exactly as written
+export const DUMP_TITLE = "Bbaiecca a munnizza, e a chi ci sì bbaieccati puru tu";   // the owner's title, exactly as written
 const GIVE_T = 3.4, MOMENT_T = 0.5, STAY_T = 1.3, FALL_MAX = 6.5, CARD_T = 4.6, JUMP_V = 8;   // JUMP_V: m/s at the rim from which it is a jump and not a roll
 
 export function createDumpEvents(X, dump) {
@@ -33,7 +33,7 @@ export function createDumpEvents(X, dump) {
     if (e.cit < 0 || !pedestrians.info(e.cit)) e.cit = pedestrians.spawnScripted('tuta', car.x + Math.cos(car.th) * 2.6, car.z - Math.sin(car.th) * 2.6);
     if (e.cit >= 0) { pedestrians.face(e.cit, car.x, car.z); pedestrians.setBounce?.(e.cit, true); }
     X.calls.hideBeacon(); X.setPhase('give'); dump.hold(true); dump.state.lip = 0; token++;
-    hud.toast(T("Bbaiecca 'a munnizza!", 'Throw yourself in the rubbish!'), T('Discarica ri Bellolampo', 'Bellolampo landfill'));
+    hud.toast(T("Bbaiecca a munnizza!", 'Throw yourself in the rubbish!'), T('Discarica ri Bellolampo', 'Bellolampo landfill'));
   }
   function begin() {
     const R = X.ROUTES.dump[0], r = rim();
@@ -65,7 +65,7 @@ export function createDumpEvents(X, dump) {
       if (!e.atYard && inYard()) { e.atYard = true; hud.toast(T('Bbaiecca!', 'Throw yourself in!'), T('Ddà ’n funnu', 'Down there')); say(pick(DL.rim), X.driverPos, 0.6); }
       if (e.left <= 0) { finish(false, 'late'); return; }
       if (e.atYard) X.aim(PIT.x, PIT.z, true); else X.aim(r.x, r.z, true);
-      hud.set({ label: label(), title: e.atYard ? T('’A vasca', 'The cell') : T('Discarica ri Bellolampo', 'Bellolampo landfill'), sub: dist(e.atYard ? PIT.x : r.x, e.atYard ? PIT.z : r.z), time: mmss(Math.max(0, e.left)), low: e.left < 40, frac: e.left / e.limit, target: e.atYard ? { x: PIT.x, z: PIT.z } : r });
+      hud.set({ label: label(), title: e.atYard ? T('A vasca', 'The cell') : T('Discarica ri Bellolampo', 'Bellolampo landfill'), sub: dist(e.atYard ? PIT.x : r.x, e.atYard ? PIT.z : r.z), time: mmss(Math.max(0, e.left)), low: e.left < 40, frac: e.left / e.limit, target: e.atYard ? { x: PIT.x, z: PIT.z } : r });
       return;
     }
     if (e.phase === 'fall') {
@@ -97,10 +97,10 @@ export function createDumpEvents(X, dump) {
     }
     const jumped = F.lip >= JUMP_V, base = 10 + Math.round(e.len / 500), bonus = Math.round(6 * clamp(e.left / e.limit, 0, 1) * 2) / 2, jump = jumped ? 3 : 0, total = base + bonus + jump;
     e.pay = total; e.thanks = CARD_T; e.base = base; e.bonus = bonus; e.jump = jump; X.addFare(total, 'food');
-    const what = jumped ? T('Sautu ri classi ’nta vasca!', 'A proper jump into the cell!') : T('Ti rruzzuliasti ’nta vasca', 'You rolled into the cell');
+    const what = jumped ? T('Sautu ri classi nta vasca!', 'A proper jump into the cell!') : T('Ti rruzzuliasti nta vasca', 'You rolled into the cell');
     hud.result(`<h3>${esc(DUMP_TITLE)}</h3>
       <div class="row"><span>${what}</span><span></span></div>
-      <div class="row"><span>${T('Sì ’nta munnizza finu ô coddu', 'Neck deep in the rubbish')}</span><span></span></div>
+      <div class="row"><span>${T('Sì nta munnizza finu ô coddu', 'Neck deep in the rubbish')}</span><span></span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>
       ${bonus ? `<div class="row"><span>${T('Priestu!', 'In good time!')}</span><span>+ ${eur(bonus)}</span></div>` : ''}
       ${jump ? `<div class="row"><span>${T('Sautu', 'Jump')}</span><span>+ ${eur(jump)}</span></div>` : ''}

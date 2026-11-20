@@ -28,7 +28,7 @@ export const LINES = {
   up: ['Minchia staiu vulannu', 'Chi ccià farì a riedbull?', 'Volareeeeee! Oooouuuu!'],
   land: ['Pusai com’a ’na pinna!', 'Chi atterraggiu!'],
   hard: ['Ahia, u culu!'],
-  roof: ['Chi bella vista ri cca supra!'],
+  roof: ['Chi bella vista ri ccà supra!'],
   sea: ['Siemu na vaica!'],
 };
 

@@ -93,7 +93,7 @@ export function createPennaEvents(X) {
     const [rx, rz] = side();
     e.bros.forEach((x, k) => { if (x !== b) pedestrians.walkTo(x.id, car.x + rx * (k % 2 ? 2 : -2), car.z + rz * (k % 2 ? 2 : -2), 6); else pedestrians.face(x.id, car.x, car.z); });
     hud.toast(T('Pigghiatu!', 'Caught!'), T('A pinna a paghi u stissu', 'You pay for the pen all the same'), true);
-    card(T('A pinna, u stissu', 'The pen, all the same'), took, T("T'aggranfaru!", 'Caught!'));
+    card(T('A pinna, u stissu', 'The pen, all the same'), took, T("T’aggranfaru!", 'Caught!'));
     e.endT = Math.max(CAUGHT_HOLD, CARD_T) + 0.4;
   }
 

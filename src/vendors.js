@@ -6,9 +6,9 @@ const rand = (a, b) => a + Math.random() * (b - a);
 export const LINES = {
   apeSfincione: ['Sfinciuni càvudu! Sfinciuni!', 'Cu voli u sfinciuni? Càvudu càvudu!', 'Sfinciuni, sfinciuni ri Bagheria!'],
   apeFood: ['Panelle e crocchè, càvuri càvuri!', 'Pani e panelle! Pani e panelle!', 'Cu voli i panelle? Sunnu càvudi!'],
-  apeFrutta: ['Aranci duci, aranci!', 'Frutta frisca! Bedda frutta frisca!', 'Chi bedda frutta, signura! Pigghiatilla!'],
+  apeFrutta: ['Aranci duci, aranci!', 'Frutta frisca! Biedda frutta frisca!', 'Chi biedda frutta, signura! Pigghiatilla!'],
   carrozza: ['Giru in carrozza, signuri! Giru in carrozza!', 'Cu voli fari u giru? Quattru Canti e Tiatru!'],
-  carretto: ['U carrettu sicilianu, signuri! Beddu comu u suli!', 'Taliati i pitturi, taliati! Orlandu e i paladini!', 'Fatevi a fotografia cu u carrettu, signuri!'],
+  carretto: ['U carrettu sicilianu, signuri! Bieddu comu u suli!', 'Taliati i pitturi, taliati! Orlandu e i paladini!', 'Faciti a fotografia cû carrettu, signuri!'],
 };
 const GAP = 9, RANGE = [8, 46];
 

@@ -26,7 +26,7 @@ export const SECRETS = [
   { id: 'cicchetto-krust', title: ['Cicchetto al Krust', 'A Shot at Krust'],
     note: ['Ti sei fermato alla porta del Krust, di notte.', 'You stopped at the door of Krust, at night.'],
     on: { event: 'pd-pub-stop', when: d => d.id === 'krust' } },                                  // src/pubs.js fires it 1.5 s after the lapa stands still at a door after dark
-  { id: 'baby-luna', title: ['Bba ieccati ru baby luna', 'Bba ieccati ru baby luna'],
+  { id: 'baby-luna', title: ['Bbaieccati ru baby luna', 'Bbaieccati ru baby luna'],
     note: ['Ti sei buttato dal Ponte Corleone, accanto al vecchio Baby Luna.', 'You jumped off the Ponte Corleone, next to the old Baby Luna bar.'],
     on: { event: 'pd-landmark', when: d => d.id === 'baby-luna-jump' } },                         // src/bridges.js: the lapa fell off the Ponte Corleone (LANDMARK_ZONES)
   { id: 'primo-gol', title: ['Primu gol ô Barbera', 'First Goal at the Barbera'],

@@ -34,7 +34,7 @@ const S = {
   menu: ['Menu', 'Menu'],
   quit: ['Menu principale', 'Main menu'],
   toDrive: ['Torna a guidare', 'Back to driving'],
-  quitBusy: ['Lasci l\'evento in corso', 'You drop the current event'],
+  quitBusy: ['Lasci l’evento in corso', 'You drop the current event'],
   collections: ['Collezioni', 'Collections'],
   radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio accesa o spenta', 'Radio on or off'],
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qFull: ['Schermo', 'Screen'],
@@ -45,7 +45,7 @@ const S = {
   mFare: ['Clienti', 'Fares'], mUrgent: ['Corse urgenti', 'Urgent runs'], mFood: ['Cibo', 'Food'], mRace: ['Gare', 'Races'], mPub: ['Pub', 'Pubs'], mMalu: ['Maluchiffari', 'Shady Business'],   // the group of the rave, the happy leaves and the horns (the English title is a draft for the owner)
   mDoneRow: ['Fatta', 'Done'], mTodo: ['Da fare', 'To do'], mTried: ['Provata', 'Tried'], mBest: ['Migliore', 'Best'], mRunning: ['In corso', 'Running'],
   mNight: ['Di notte', 'At night'], mDay: ['Di giorno', 'By day'], mAny: ['Sempre', 'Any time'], mLeafNote: ['Ti chiama un amico al rave', 'A friend calls you at the rave'],
-  mOnlyNight: ['Questa missione c\'è solo di notte', 'This mission only runs at night'], mOnlyDay: ['Questa missione c\'è solo di giorno', 'This mission only runs by day'],
+  mOnlyNight: ['Questa missione c’è solo di notte', 'This mission only runs at night'], mOnlyDay: ['Questa missione c’è solo di giorno', 'This mission only runs by day'],
   mSkipNight: ['Salta alla notte, amunì', 'Skip to night and go'], mSkipDay: ['Salta al giorno, amunì', 'Skip to day and go'], mGoAnyway: ['Amunì lo stesso', 'Go anyway'],
   quality: ['Grafica', 'Graphics'],
   auto: ['Auto', 'Auto'], low: ['Bassa', 'Low'], medium: ['Media', 'Medium'], high: ['Alta', 'High'],
@@ -57,7 +57,7 @@ const S = {
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
-  cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall\'alto', 'Top-down'],
+  cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall’alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], netOn: ['Online', 'Online'], netOff: ['Offline', 'Offline'],
   controls: ['Comandi', 'Controls'], ctlKb: ['Tastiera', 'Keyboard'], ctlPad: ['Controller', 'Gamepad'], ctlTouch: ['Schermo tattile', 'Touch screen'],
@@ -74,15 +74,15 @@ const S = {
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, schermo intero', 'Menu: camera, back on the road, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radio di stu gioco? Mandami un messaggio su IG ca nn\'uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
+  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radiu ri stu iocu? Mandami un messaggiu su IG ca nn’uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
   balloons: ['Fumetti', 'Speech balloons'], bS: ['Piccoli', 'Small'], bM: ['Medi', 'Medium'], bL: ['Grandi', 'Large'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'],
-  startQ: ["Runni vo' paittiri?", 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l\'evento in corso', 'Where to? You drop the current event'],
+  startQ: ["Runni vo’ paittiri?", 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l’evento in corso', 'Where to? You drop the current event'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
-  pinH: ['Schermo intero come un\'app', 'Full screen, like an app'],
+  pinH: ['Schermo intero come un’app', 'Full screen, like an app'],
   pinDroid: ['Menu del browser (⋮), poi «Aggiungi a schermata Home». Si apre a schermo intero, senza barra.', 'Browser menu (⋮), then “Add to Home screen”. It opens full screen, with no browser bar.'],
   pinIos: ['Tocca Condividi, poi «Aggiungi alla schermata Home». Si apre a schermo intero, senza barra.', 'Tap Share, then “Add to Home Screen”. It opens full screen, with no browser bar.'],
   menuBtn: ['Menu', 'Menu'], openMap: ['Apri mappa', 'Open map'],
@@ -219,7 +219,7 @@ function readSaved() {
 // credits.md -> html (assets/CREDITS.md is written by the driving agent and read at runtime)
 // ---------------------------------------------------------------------------------------------
 // the line under the author's name; also the first line of assets/CREDITS.md and README.md, which the roll skips
-const MOTTO = 'Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli';
+const MOTTO = 'Stu iocu è gratis e open source, si u pagaisti ti futtiaru i picciuli';
 // one pass over the raw text: the few markdown pieces we use become elements, every other character goes through esc()
 // (code, **bold**, <https://autolink>, [label](url), a bare URL, a backslash escape, an &amp; style entity); only http(s) addresses ever become links
 const MD_INLINE = /`([^`]*)`|\*\*(.+?)\*\*|<(https?:[^\s<>]+)>|\[([^\]]+)\]\(((?:[^\s()]|\([^\s()]*\))*)\)|(https?:\/\/[^\s<>"]+)|\\([\\`*_\[\]()|<>#])|&(amp|lt|gt|quot|apos|#39);/g;

@@ -443,14 +443,14 @@ const LINES = [
   ['Il Foro Italico finisce lì, genio. Dopo c’è il mare.', 'The Foro Italico ends there, genius. After that it’s the sea.'],
   ['Santa Rosalia fa miracoli, ma non per chi guida così.', 'Santa Rosalia works miracles, but not for driving like that.'],
   ['Cercavi un arancino, hai trovato il fondale.', 'You were after an arancino, you found the seabed.'],
-  ['A mari ci vai cu ’a barca, non cu ’a lapa!', 'You go to sea in a boat, not in a lapa!'],
+  ['A mari ci vai câ barca, no câ lapa!', 'You go to sea in a boat, not in a lapa!'],
   ['Nemmeno il tempo di dire “cannolo” e sei già sott’acqua.', 'Not even time to say “cannolo” and you’re already under.'],
   ['Ti serviva una granita, ma questa è salata.', 'You wanted a granita, but this one is salty.'],
-  ['Talia ca bagnu! Fuori stagione, pure.', 'Look at that swim! Out of season, too.'],
+  ['Talìa chi biaddu bagnu! puru foara staciuni.', 'Look at that swim! Out of season, too.'],
   ['La lapa galleggia come un sasso. Lo sapevi? Ora sì.', 'The lapa floats like a rock. Did you know? Now you do.'],
   ['Mamma mia, che tuffo. Voto: sei e mezzo.', 'Mamma mia, what a dive. Score: six and a half.'],
 ];
-const SHOUTS = ['Minchia!', 'Mamma mia!', 'Bedda matri!', 'Aiuto!'];
+const SHOUTS = ['Minchia!', 'Mamma mia!', 'Biedda matri!', 'Aiuto!'];
 
 // ---------------------------------------------------------------------------------------------------------------
 // createSea

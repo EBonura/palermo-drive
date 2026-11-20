@@ -151,7 +151,7 @@ export function createErrand(X) {
       if (Math.hypot(car.x - v.slot.x, car.z - v.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else {
       X.aim(0, 0, false);
-      hud.set({ label: T('Grazie!', 'Thank you!'), title: v.def.name, sub: '', time: '', frac: null, target: null });
+      hud.set({ label: T('Grazzi!', 'Thank you!'), title: v.def.name, sub: '', time: '', frac: null, target: null });
       if ((e.thanks -= dt) <= 0) X.endEvent(e.pay > 0);
     }
   }

@@ -67,7 +67,7 @@ export function createRaveEvents(X, rave) {
       const v = speed(), dv = e.prevV - v; e.prevV = v; placeCargo();
       if (e.cool <= 0 && dv > 4 && v < 0.75 * (v + dv)) {   // a knock: a sudden loss of speed
         e.integ = Math.max(0, e.integ - Math.min(34, dv * 3.4)); e.cool = 0.7;
-        hud.toast(T('Crac!', 'Crack!'), T('Attientu a li casse', 'Mind the speakers'), true); say(pick(RL.hit), X.driverPos, 0.2);
+        hud.toast(T('Crac!', 'Crack!'), T('Attientu a i casse', 'Mind the speakers'), true); say(pick(RL.hit), X.driverPos, 0.2);
       }
       if (e.integ <= 0) { finish(false, 'broken'); return; }
       if (e.left <= 0) { finish(false, 'late'); return; }
@@ -176,7 +176,7 @@ export function createRaveEvents(X, rave) {
     e.contact = pedestrians.spawnScripted('nightboy2', sp.x, sp.z); if (e.contact >= 0) { pedestrians.face(e.contact, L[0], L[1]); pedestrians.setBounce?.(e.contact, true); }
     X.guide.to(L[0], L[1]);   // the way to the pal, worked out from where the car is
     homeBeacon.set(L[0], L[1]); homeBeacon.show(true); e.homeMarker = X.addMarker(L[0], L[1], '#6bbf59', 8, 'target');
-    hud.toast(T('Portali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves')); fsay('hand', 0.8);
+    hud.toast(T('Puaittali ô cumpari', 'Take them to the pal'), e.got + ' ' + T('fuogghi', 'leaves')); fsay('hand', 0.8);
   }
   function collectLeaf() {
     for (const it of e.items) {
@@ -206,9 +206,9 @@ export function createRaveEvents(X, rave) {
       e.left -= dt; X.aim(A.x, A.z, true);
       if (Math.hypot(car.x - A.x, car.z - A.z) < homeBeacon.R && speed() < 6) { finishLeaf(true); return; }
       if (e.left <= 0) { finishLeaf(false, 'late'); return; }
-      hud.set({ label: T('Portali ô cumpari', 'Take them to the pal'), title: A.name, sub: e.got + ' ' + T('fuogghi', 'leaves'), time: mmss(Math.max(0, e.left)), low: e.left < 15, frac: e.left / HAND_TIME, target: A });
+      hud.set({ label: T('Puaittali ô cumpari', 'Take them to the pal'), title: A.name, sub: e.got + ' ' + T('fuogghi', 'leaves'), time: mmss(Math.max(0, e.left)), low: e.left < 15, frac: e.left / HAND_TIME, target: A });
     } else {
-      X.aim(0, 0, false); hud.set({ label: e.pay > 0 ? T('Grazie!', 'Thank you!') : T('Finiu', 'Over'), title: A.name, sub: '', time: '', frac: null, target: null });
+      X.aim(0, 0, false); hud.set({ label: e.pay > 0 ? T('Grazzi!', 'Thank you!') : T('Finiu', 'Over'), title: A.name, sub: '', time: '', frac: null, target: null });
       if (e.pay > 0 && !e.leave && e.thanks < 2.2) { e.leave = 1; leaveTogether(); }
       if ((e.thanks -= dt) <= 0) X.endEvent(e.pay > 0);
     }

@@ -666,7 +666,7 @@ export function createPedestrians(env) {
   }
 
   // Supplied by the owner, born in Palermo: keep them exactly as written.
-  const BUS_LINES = ["minchia avi ru uri c'aspiattu", "quannu passò l'uittimu?"];
+  const BUS_LINES = ["minchia havi ru uri c’aspiattu", "quannu passò l’uittimu?"];
   let busT = 3, placeT = 6;
   const removeAt = i => { const l = --N.n; if (i !== l) for (const a of copyArrs) a[i] = a[l]; };
 

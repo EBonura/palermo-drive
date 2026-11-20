@@ -42,7 +42,7 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
   // =============================================================================================== the gang block
   const vz = el('vz-fade', '<b>...</b>');
   const Z = { state: 'out', t: 0, restoreAt: -1, wokeBalloon: false, lv: 1 };
-  const LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaio, pulitu pulitu!', 'Bentornato! Pi furtuna c\'è u telaio.'];
+  const LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaiu, pulitu pulitu!', 'Binvinutu! Pi furtuna c’è u telaiu.'];
   const ZS = Q.has('dangerfast') ? +Q.get('dangerfast') || 0.15 : 1, FADE = 3.2 * ZS, BLACK = 1.5 * ZS, WAKE = 2.4 * ZS;   // dangerfast: a test link that plays the sequence in a fraction (0.15, or dangerfast=1 for the real length) of the time
   const zf = Q.get('dangerfreeze'), zk = +Q.get('dangerk') || 0.5;   // test: freeze in state zf (fade|black|wake) once it is zk of the way through
   function zenVisual(level, dots) { // level 0 clear .. 1 black
@@ -62,16 +62,16 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
       case 'out':
         if (passOut && !evBusy && !covered()) {
           passOut = false; Z.state = 'fade'; Z.t = 0; Z.lv = dangerAt(car.x, car.z); Z.drunk = true; log('pass out fade, level', Z.lv);
-          toast(T('Ti firria a testa…', 'Your head is spinning…'), T('Bivisti truppu, un ci a fai chiù', 'You drank too much, you can\'t go on'), true);
+          toast(T('Ti firria a testa…', 'Your head is spinning…'), T('Bivisti truappu, un ci a fai cchiù', 'You drank too much, you can\'t go on'), true);
         } else if (danger.update(dt, evBusy)) {
           Z.state = 'fade'; Z.t = 0; Z.lv = dangerAt(car.x, car.z); Z.drunk = false; log('block fade, level', Z.lv);
-          toast(T('Ti hanno visto…', 'They\'ve spotted you…'), T('Meglio se avevi premuto sull\'acceleratore', 'You should have floored it'), true);
+          toast(T('Ti hanno visto…', 'They\'ve spotted you…'), T('Meglio se avevi premuto sull’acceleratore', 'You should have floored it'), true);
         }
         break;
       case 'fade': {
         if (evBusy || covered()) { Z.state = 'out'; zenVisual(0); if (Z.drunk) passOut = true; break; }   // an event or a transition took over: the gang lets you go, the drinks don't
         const was = Z.t; Z.t += dt; const k = clamp(Z.t / FADE, 0, 1); zenVisual(k * k * (3 - 2 * k));
-        if (Z.drunk && was < FADE * 0.5 && Z.t >= FADE * 0.5) toast(T('No ma vivitilla n\'avutra', 'Sure, have another one'), '', true);   // the owner's line, as the screen closes in
+        if (Z.drunk && was < FADE * 0.5 && Z.t >= FADE * 0.5) toast(T('No ma vivitilla n’avutra', 'Sure, have another one'), '', true);   // the owner's line, as the screen closes in
         if (Z.t >= FADE) {
           Z.state = 'black'; Z.t = 0; zenVisual(1, true); api.holdSim(true);
           Z.lost = garage.debit(cashLoss(Z.lv, garage.cash));
@@ -87,7 +87,7 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
       case 'wake': {
         Z.t += dt; const k = 1 - clamp(Z.t / WAKE, 0, 1); zenVisual(k * k * (3 - 2 * k));
         if (!Z.toasted && Z.t > WAKE * 0.45) { Z.toasted = true;   // once the screen has cleared enough to read it
-          toast(Z.drunk ? T('T\'addurmiscisti e ti futtieru tutti cuasi!', 'You passed out and they nicked all your stuff!') : T('Ti futtieru tutti cuasi!', 'They nicked all your stuff!'), Z.lost > 0 ? T(`Ti hanno alleggerito di € ${Z.lost}`, `They lightened you by € ${Z.lost}`) : T('Per fortuna eri al verde', 'Lucky you were broke'), true); }
+          toast(Z.drunk ? T('T’addurmiscisti e ti futtieru tutti cuasi!', 'You passed out and they nicked all your stuff!') : T('Ti futtieru tutti cuasi!', 'They nicked all your stuff!'), Z.lost > 0 ? T(`Ti hanno alleggerito di € ${Z.lost}`, `They lightened you by € ${Z.lost}`) : T('Per fortuna eri al verde', 'Lucky you were broke'), true); }
         if (!Z.wokeBalloon && Z.t > 1.1) { Z.wokeBalloon = true; const sn = Math.sin(car.th), cs = Math.cos(car.th); const x = car.x + cs * 3.2 + sn * 2, z = car.z - sn * 3.2 + cs * 2;
           dispatchEvent(new CustomEvent('pd-shout', { detail: { x, y: groundY(x, z) + 1.75, z, text: LINES[Math.floor(Math.random() * LINES.length)] } })); }
         if (Z.t >= WAKE) { log('block done'); Z.state = 'out'; zenVisual(0); }

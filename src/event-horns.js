@@ -197,7 +197,7 @@ export function createHornsEvents(X, opts = {}) {
     screech(kind === 'careless' ? 0.8 : kind === 'careful' ? 1.9 : 1.3, kind !== 'careful');
     const p = tipsAt(); burst(p[0], p[1], p[2], 18, 7);
     rig_.rollV += 6; rig_.pitchV += 3;
-    if (kind === 'careless') { rig_.broken = 1; for (let i = 0; i < 24; i++) { const q = tipsAt(); burst(q[0], q[1], q[2], 1, 8); } hud.toast(T('Cuainna a pezzi!', 'Horns in pieces!'), T('Troppu prestu!', 'Far too fast!')); say(pick(HL.careless), X.driverPos, 1.4); }
+    if (kind === 'careless') { rig_.broken = 1; for (let i = 0; i < 24; i++) { const q = tipsAt(); burst(q[0], q[1], q[2], 1, 8); } hud.toast(T('Cuainna a pezzi!', 'Horns in pieces!'), T('Truappu prestu!', 'Far too fast!')); say(pick(HL.careless), X.driverPos, 1.4); }
     else if (kind === 'careful') { hud.toast(T('Araciu araciu...', 'Slowly, slowly...'), ''); say(pick(HL.careful), X.driverPos, 1.4); }
     else hud.toast(T('Craaac!', 'Craaack!'), T('Gràttiti a testa!', 'Scratch your head!'));
     // the people beyond the arch
@@ -215,7 +215,7 @@ export function createHornsEvents(X, opts = {}) {
     const base = e.kind === 'good' ? 10 : 7, bonus = e.kind === 'good' ? Math.round(6 * clamp(e.left / e.limit, 0, 1) * 2) / 2 : 0, total = base + bonus;
     e.pay = total; e.thanks = 5; X.addFare(total, 'food');
     dispatchEvent(new CustomEvent('pd-horns', { detail: { kind: e.kind } }));   // the secret of src/achievements.js
-    const what = e.kind === 'good' ? T('Pulitu, cû cuainna!', 'Clean, with the horns!') : e.kind === 'careful' ? T('Truappu araciu', 'Far too slow') : T('Troppu prestu: cuainna rutti', 'Far too fast: broken horns');
+    const what = e.kind === 'good' ? T('Pulitu, cû cuainna!', 'Clean, with the horns!') : e.kind === 'careful' ? T('Truappu araciu', 'Far too slow') : T('Truappu prestu: cuainna rutti', 'Far too fast: broken horns');
     hud.result(`<h3>${T('U Sinnacu a primavera', 'The Mayor in Spring')}</h3>
       <div class="row"><span>${what}</span><span></span></div>
       <div class="row"><span>${T('Paga', 'Pay')}</span><span>${eur(base)}</span></div>

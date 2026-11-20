@@ -136,7 +136,7 @@ export function createFood(X) {
       if (Math.hypot(car.x - e.slot.x, car.z - e.slot.z) < homeBeacon.R && speed() < 6) finish(true);
     } else if (e.phase === 'done') {
       X.aim(0, 0, false);
-      hud.set({ label: T('Grazie!', 'Thank you!'), title: e.slot.who, sub: '', time: '', frac: null, target: null });
+      hud.set({ label: T('Grazzi!', 'Thank you!'), title: e.slot.who, sub: '', time: '', frac: null, target: null });
       if ((e.thanks -= dt) <= 0) X.endEvent(e.pay > 0);
     }
   }
