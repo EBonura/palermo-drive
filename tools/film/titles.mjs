@@ -17,7 +17,7 @@ let logo = '';
 for (const t of list) {
   const p = await b.newPage(); await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
   await p.evaluateOnNewDocument(svg => { window.__logoSVG = svg; }, logo);
-  const q = new URLSearchParams({ kind: t.kind, text: t.text || '', color: t.color || 'white', dur: String(t.dur || 1.6), anchor: String(t.anchor || ANCHOR), scale: String(t.scale || 1), bg: t.alpha ? 'none' : '', seq: t.seq ? '1' : '', seq0: String(t.seq0 || ''), seq1: String(t.seq1 || ''), side: t.side || '' });
+  const q = new URLSearchParams({ kind: t.kind, text: t.text || '', color: t.color || 'white', dur: String(t.dur || 1.6), anchor: String(t.anchor || ANCHOR), scale: String(t.scale || 1), bg: t.alpha ? 'none' : '', seq: t.seq ? '1' : '', seq0: String(t.seq0 || ''), seq1: String(t.seq1 || ''), side: t.side || '', sub: t.sub || '' });
   await p.goto(base + 'tools/film/titles.html?' + q, { waitUntil: 'load' }); await p.evaluate(() => window.ready);
   const dir = path.join(out, `.${t.name}-${V}`); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const alpha = t.kind === 'over' || t.kind === 'place' || t.kind === 'flip' || !!t.alpha, n = Math.round((t.dur || 1.6) * FPS);

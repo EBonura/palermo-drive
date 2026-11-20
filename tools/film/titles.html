@@ -11,6 +11,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   -webkit-text-stroke: .045em #0b0709; paint-order: stroke fill; text-shadow: 0 0 .35em rgba(232,85,154,.9), 0 .07em .1em rgba(0,0,0,.65); will-change: transform, opacity; }
 .txt.pink { color: #ff6fb0; text-shadow: 0 0 .4em rgba(255,207,74,.75), 0 .07em .1em rgba(0,0,0,.65); }
 .txt small { display: block; font: 700 .34em/1.25 'Barlow Condensed', 'Arial Narrow', sans-serif; letter-spacing: .2em; -webkit-text-stroke: 0; text-shadow: 0 0 .5em rgba(232,85,154,.8), 0 .1em .15em rgba(0,0,0,.7); margin-top: .25em; }
+.txt small.sb { font-size: .42em; -webkit-text-stroke: .16em #0b0709; paint-order: stroke fill; text-shadow: 0 0 .35em rgba(0,0,0,.9), 0 .08em .15em rgba(0,0,0,.9); }   /* the line under TUTTA: it sits on a busy map, so it gets the dark outline of the big lines */
 .bar { position: absolute; left: 50%; height: .09em; background: #e8559a; box-shadow: 0 0 .5em #e8559a; transform-origin: 50% 50%; }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 #logo { position: absolute; left: 50%; top: 40%; filter: drop-shadow(0 .5vh 2.4vh rgba(232,85,154,.55)); }
@@ -19,7 +20,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 </style>
 <div id="stage"></div>
 <script>
-const Q = new URLSearchParams(location.search), kind = Q.get('kind') || 'over', lines = (Q.get('text') || '').split('|').filter(Boolean), DUR = +Q.get('dur') || 1.6, SEQ = !!Q.get('seq'), SEQ0 = +Q.get('seq0') || 0.5, SEQ1 = +Q.get('seq1') || 0.45, ANCHOR = +Q.get('anchor') || 0.74;
+const Q = new URLSearchParams(location.search), kind = Q.get('kind') || 'over', lines = (Q.get('text') || '').split('|').filter(Boolean), DUR = +Q.get('dur') || 1.6, SEQ = !!Q.get('seq'), SEQ0 = +Q.get('seq0') || 0.5, SEQ1 = +Q.get('seq1') || 0.45, ANCHOR = +Q.get('anchor') || 0.74, SUB = Q.get('sub') || '';   // sub: one small line that comes up after the last line of a text (the 'over' kind): (inclusi paesi limitrofi)
 const W = innerWidth, H = innerHeight, S = document.getElementById('stage'), tall = H > W;
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x, ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const back = u => { const c = 1.9; u = clamp(u, 0, 1) - 1; return 1 + (c + 1) * u * u * u + c * u * u; };   // overshoots and settles: a slam
@@ -29,13 +30,21 @@ let draw = () => {};
 
 // one block of text at the anchor (a letter of this face is about 0.62 of its size wide, hence the fit): the first line big, the rest small under it; it slams in, holds, and is whipped out sideways
 function textBlock(color, size, at = ANCHOR, smallPx = 0) {   // smallPx: the small lines at a size of their own (the cards: a long first line must not shrink them)
-  const el = mk('div', 'txt' + (color === 'pink' ? ' pink' : ''), esc(lines[0] || '') + lines.slice(1).map(l => SEQ ? `<div class="sq">${esc(l)}</div>` : `<small>${esc(l)}</small>`).join('')), sq = [...el.querySelectorAll('.sq')]; if (smallPx) for (const e of el.querySelectorAll('small')) e.style.fontSize = smallPx + 'px';
+  const el = mk('div', 'txt' + (color === 'pink' ? ' pink' : ''), esc(lines[0] || '') + lines.slice(1).map(l => SEQ ? `<div class="sq">${esc(l)}</div>` : `<small>${esc(l)}</small>`).join('') + (SUB ? `<small class="sb">${esc(SUB)}</small>` : '')), sq = [...el.querySelectorAll('.sq')], sb = el.querySelector('.sb'); if (smallPx) for (const e of el.querySelectorAll('small')) e.style.fontSize = smallPx + 'px';
   const fit = Math.min(size, W * 0.9 / Math.max(1, ...(SEQ ? lines : lines.slice(0, 1)).map(l => l.length)) / 0.62); el.style.fontSize = fit + 'px'; el.style.top = (H * at) + 'px';
   const bar = mk('div', 'bar'); bar.style.fontSize = fit + 'px'; bar.style.top = (H * at + fit * 0.62) + 'px';
+  // The small lines are sized on their own, so a long one could run past the frame (the open source card in the tall cut did). On the first draw, which comes
+  // after the fonts are in, the widest one is measured and all of them are shrunk together to fit 90 % of the width.
+  let fitted = false;
+  const fitSmall = () => { fitted = true; const sm = [...el.querySelectorAll('small')]; if (!sm.length) return;
+    const widest = Math.max(...sm.map(e => { e.style.display = 'inline-block'; const w = e.offsetWidth; e.style.display = ''; return w; })), max = W * 0.9;
+    if (widest > max) for (const e of sm) e.style.fontSize = (parseFloat(getComputedStyle(e).fontSize) * max / widest) + 'px'; };
   return t => {
+    if (!fitted) fitSmall();
     const a = back(t / 0.22), out = ss(DUR - 0.16, DUR, t), sc = 0.35 + 0.65 * a + (1 - ss(0, 0.5, t)) * 0.04 * Math.sin(t * 70);
     el.style.opacity = clamp(t / 0.06, 0, 1) * (1 - out);
     sq.forEach((e, i) => { const k = back((t - SEQ0 - i * SEQ1) / 0.2); e.style.opacity = t > SEQ0 + i * SEQ1 ? 1 : 0; e.style.transform = `scale(${0.4 + 0.6 * k})`; });   // &seq=1: the lines after the first are as big as it and land one by one
+    if (sb) sb.style.opacity = ss(SEQ0 + Math.max(0, lines.length - 2) * SEQ1 + 0.1, SEQ0 + Math.max(0, lines.length - 2) * SEQ1 + 0.3, t);
     el.style.transform = `translate(-50%, -50%) translateX(${out * W * 0.5}px) skewX(-8deg) scale(${sc})`;
     const bw = fit * 0.5 * (lines[0] || '').length * ss(0.1, 0.4, t) * (1 - out);
     bar.style.width = bw + 'px'; bar.style.transform = 'translate(-50%, 0) skewX(-30deg)'; bar.style.opacity = lines.length > 1 ? 0 : 1 - out;
@@ -43,7 +52,7 @@ function textBlock(color, size, at = ANCHOR, smallPx = 0) {   // smallPx: the sm
 }
 
 if (kind === 'place') {   // a place name: bottom right, small, sliding in from the edge with a pink bar under it
-  const el = mk('div', 'txt', esc(lines[0] || '')), fs = tall ? W * 0.062 : H * 0.062, mr = W * 0.045, mb = tall ? H * 0.3 : H * 0.085;   // (in the tall cut the apps' own buttons cover the bottom: the name sits above them)
+  const el = mk('div', 'txt', esc(lines[0] || '') + (lines[1] ? `<small>${esc(lines[1])}</small>` : '')), fs = tall ? W * 0.062 : H * 0.062, mr = W * 0.045, mb = tall ? H * 0.3 : H * 0.085;   // (in the tall cut the apps' own buttons cover the bottom: the name sits above them)
   const LEFT = Q.get('side') === 'left'; el.style.cssText = LEFT ? `font-size:${fs}px;left:${mr}px;right:auto;top:auto;bottom:${mb}px;text-align:left;transform-origin:0 100%;transform:none` : `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb}px;text-align:right;transform-origin:100% 100%`;
   const bar = mk('div', 'bar'); bar.style.cssText = LEFT ? `font-size:${fs}px;left:${mr}px;right:auto;top:auto;bottom:${mb - fs * 0.16}px` : `font-size:${fs}px;left:auto;right:${mr}px;top:auto;bottom:${mb - fs * 0.16}px`;
   draw = t => { const a = back(t / 0.2), out = ss(DUR - 0.14, DUR, t); el.style.opacity = clamp(t / 0.05, 0, 1) * (1 - out); el.style.transform = `translateX(${(1 - a) * W * 0.25 * (LEFT ? -1 : 1)}px) skewX(-8deg)`;
@@ -75,7 +84,7 @@ if (kind === 'links') {   // the last page: a heading, a small line under it (' 
     yt: '<rect x="1.5" y="5" width="21" height="14" rx="4.5" fill="#fff"/><path d="M10 8.6v6.8l5.8-3.4z" fill="#0b0709"/>',
     itch: '<path d="M3 4h18l1.5 4.2c0 1.5-1.2 2.6-2.6 2.6s-2.6-1.1-2.6-2.6c0 1.5-1.2 2.6-2.6 2.6S12 9.7 12 8.2c0 1.5-1.2 2.6-2.6 2.6S6.8 9.7 6.8 8.2c0 1.5-1.2 2.6-2.6 2.6S1.5 9.7 1.5 8.2z" fill="#fff"/><path d="M3.5 12.5v7.5h17v-7.5h-2.5v5h-12v-5z" fill="#fff"/>',
     gh: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' };
-  const hd = mk('div', 'txt', esc(lines[0] || '') + (lines[1] || '').split(tall ? /, | \/ / : ' / ').map(l => `<small>${esc(l)}</small>`).join('')), hs = Math.min(u * 9, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); hd.style.fontSize = hs + 'px'; for (const e of hd.querySelectorAll('small')) e.style.fontSize = (tall ? W * 0.034 : H * 0.038) + 'px'; hd.style.top = (H * (tall ? 0.3 : 0.27)) + 'px';
+  const hd = mk('div', 'txt', esc(lines[0] || '') + (lines[1] || '').split(' / ').map(l => `<small>${esc(l)}</small>`).join('')), hs = Math.min(u * 9, W * 0.9 / Math.max(1, (lines[0] || '').length) / 0.5); hd.style.fontSize = hs + 'px'; for (const e of hd.querySelectorAll('small')) e.style.fontSize = (tall ? W * 0.034 : H * 0.038) + 'px'; hd.style.top = (H * (tall ? 0.3 : 0.27)) + 'px';
   const fs = u * (tall ? 5.2 : 4.6), cw = tall ? W * 0.84 : W * 0.4, x0 = W / 2 - cw * cols / 2, y0 = H * (tall ? 0.45 : 0.52), rh = fs * 2.3;
   const els = rows.map(([k, v], i) => { const e = mk('div'); e.style.cssText = `position:absolute;left:${x0 + (i % cols) * cw}px;top:${y0 + Math.floor(i / cols) * rh}px;width:${cw}px;display:flex;align-items:center;gap:${fs * 0.5}px;font:700 ${fs}px/1 'Barlow Condensed','Arial Narrow',sans-serif;color:#fff;letter-spacing:.04em;text-shadow:0 .08em .2em rgba(0,0,0,.8)`;
     e.innerHTML = `<svg viewBox="0 0 24 24" width="${fs * 1.5}" height="${fs * 1.5}" style="flex:none;filter:drop-shadow(0 0 ${fs * 0.25}px #e8559a)">${IC[k] || ''}</svg><span>${esc(v || '')}</span>`; return e; });
