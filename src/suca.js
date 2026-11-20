@@ -14,12 +14,14 @@ import { zone } from './hud.js';
 import { groundY, pairs, rng, freeCanvas } from './core.js';
 import { SUCA_TAGS, SUCA_TOTAL, SUCA_MOVED } from './suca-tags.js';
 
-const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, WORDS = ['SUCA', '800A'];
+const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, WORDS = ['SUCA', '800A', 'CULU I PUAMPA'];
 // the collect effect, seconds since the tag was collected: a punch (0 to PUNCH), the dissolve (D0 to D0 + DD), then the ghost settles (until DUR)
 const DUR = 1.4, D0 = .12, DD = 1.15, PUNCH = .22, EDGE = .22, NFLECK = 48, NDRIP = 6, NP = 360;
 
 // ---------- the atlas: 4 x 2 spray-paint variants of each word, then the same 16 greyed out with a check ----------
-const CW = 512, CH = 256, COLS = 4, ROWS = 8;
+// The third word is the rare one (see isRare): a handful of the 800 tags say CULU I PUAMPA instead, on two lines, in one of four colours (one row of the atlas, no underline or crown).
+const CW = 512, CH = 256, COLS = 4, WROWS = [2, 2, 1], WBASE = [0, 2, 4], FRESH = 5, ROWS = 2 * FRESH;   // the greyed copies sit FRESH rows below the fresh ones
+const LINES = [['SUCA'], ['800A'], ['CULU I', 'PUAMPA']], LAYOUT = [[84, 24, [112]], [84, 24, [112]], [52, 14, [64, 172]]];   // per word: letter size, gap, the height of each line
 const VARIANTS = [
   { fill: '#16161a', edge: '#d9d3c0' },
   { fill: '#16161a', edge: '#e9e4d2', ul: true },
@@ -41,20 +43,28 @@ const GLYPH = {
   U: () => [[[.1, 0], [.12, .95], ...bz([.12, .95], [.15, 1.5], [.85, 1.5], [.88, .95]), [.9, 0]]],
   C: () => [[[.92, .25], ...bz([.92, .25], [.7, -.1], [.08, -.05], [.08, .7]), ...bz([.08, .7], [.08, 1.45], [.75, 1.5], [.95, 1.1])]],
   A: () => [[[.05, 1.4], [.5, 0], [.95, 1.4]], [[.22, .95], [.78, .92]]],
+  L: () => [[[.2, 0], [.16, 1.4], [.88, 1.38]]],
+  I: () => [[[.5, 0], [.5, 1.4]]],
+  P: () => [[[.14, 1.45], [.12, 0], ...bz([.12, 0], [.98, -.05], [.98, .78], [.12, .74])]],
+  M: () => [[[.04, 1.4], [.1, 0], [.5, .92], [.9, 0], [.96, 1.4]]],
   0: () => [Array.from({ length: 28 }, (_, i) => { const a = -2.1 + i / 27 * 6.65; return [.5 + .41 * Math.cos(a), .7 + .69 * Math.sin(a)]; })],
   8: () => [Array.from({ length: 44 }, (_, i) => { const t = .12 + i / 43 * 6.2; return [.5 + Math.sin(2 * t) * (.35 + .07 * (1 - Math.cos(t)) / 2), .7 - .69 * Math.cos(t)]; })],
 };
 const polyPt = (ps, r) => { const s = ps[(r() * ps.length) | 0], i = Math.min(s.length - 2, (r() * (s.length - 1)) | 0), t = r(); return [s[i][0] + (s[i + 1][0] - s[i][0]) * t, s[i][1] + (s[i + 1][1] - s[i][1]) * t]; };
 
 function paintTag(g, V, r, word) {
-  const S = 84, gap = 24, total = 4 * S + 3 * gap, x0 = (CW - total) / 2, slant = (r() - .5) * .1, W = 21;
-  const ps = [];
-  [...word].forEach((ch, i) => {
-    const rot = (r() - .5) * .22 + slant, sc = .9 + r() * .2, cx = x0 + i * (S + gap) + S / 2, cy = 112 + (r() - .5) * 14, cs = Math.cos(rot), sn = Math.sin(rot);
-    for (const st of GLYPH[ch]()) ps.push(st.map(([x, y]) => {
-      const lx = (x - .5 + (r() - .5) * .05) * S * sc, ly = (y - .7 + (r() - .5) * .05) * S * sc;
-      return [cx + lx * cs - ly * sn, cy + lx * sn + ly * cs];
-    }));
+  const wi = WORDS.indexOf(word), [S, gap, ys] = LAYOUT[wi], lines = LINES[wi], slant = (r() - .5) * .1, W = 21 * S / 84, ps = [];
+  const total = 4 * S + 3 * gap, x0 = (CW - total) / 2;   // (the underline and the crown of the two short words go by this width)
+  lines.forEach((line, li) => {
+    const lx0 = (CW - (line.length * S + (line.length - 1) * gap)) / 2;
+    [...line].forEach((ch, i) => {
+      if (ch === ' ') return;
+      const rot = (r() - .5) * .22 + slant, sc = .9 + r() * .2, cx = lx0 + i * (S + gap) + S / 2, cy = ys[li] + (r() - .5) * 14, cs = Math.cos(rot), sn = Math.sin(rot);
+      for (const st of GLYPH[ch]()) ps.push(st.map(([x, y]) => {
+        const lx = (x - .5 + (r() - .5) * .05) * S * sc, ly = (y - .7 + (r() - .5) * .05) * S * sc;
+        return [cx + lx * cs - ly * sn, cy + lx * sn + ly * cs];
+      }));
+    });
   });
   const stroke = (w, col, blur, a = 1, list = ps) => {
     g.save(); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = col; g.lineWidth = w; g.globalAlpha = a;
@@ -96,13 +106,13 @@ function makeAtlas() {
   const k = .625, cv = document.createElement('canvas'), cw = CW * k, ch = CH * k;
   cv.width = cw * COLS; cv.height = ch * ROWS;
   const g = cv.getContext('2d', { willReadFrequently: true }), paint = () => {
-  for (let w = 0; w < 2; w++) for (let v = 0; v < VARIANTS.length; v++) {
-    const cx = (v % COLS) * cw, cy = (Math.floor(v / COLS) + 2 * w) * ch;
+  for (let w = 0; w < WORDS.length; w++) for (let v = 0; v < WROWS[w] * COLS; v++) {
+    const cx = (v % COLS) * cw, cy = (WBASE[w] + Math.floor(v / COLS)) * ch;
     g.save(); g.beginPath(); g.rect(cx, cy, cw, ch); g.clip(); g.translate(cx, cy); g.scale(k, k);
-    paintTag(g, VARIANTS[v], rng(7001 + v * 131 + w * 977), WORDS[w]);
+    paintTag(g, w < 2 ? VARIANTS[v] : { fill: VARIANTS[v * 2].fill, edge: VARIANTS[v * 2].edge }, rng(7001 + v * 131 + w * 977), WORDS[w]);   // (the rare word: the first, third, fifth and seventh style, without underline or crown)
     g.restore();
     // collected: grey and faint, with a green check in the corner (the bottom half of the atlas)
-    const im = g.getImageData(cx, cy, cw, ch), d = im.data, dy = cy + 4 * ch;
+    const im = g.getImageData(cx, cy, cw, ch), d = im.data, dy = cy + FRESH * ch;
     for (let i = 0; i < d.length; i += 4) { const l = (d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11) * .75 + 50; d[i] = d[i + 1] = d[i + 2] = l; d[i + 3] *= .5; }
     g.putImageData(im, cx, dy);
     g.save(); g.beginPath(); g.rect(cx, dy, cw, ch); g.clip(); g.translate(cx + 452 * k, dy + 52 * k); g.scale(k, k);
@@ -132,7 +142,7 @@ if (vDis > 0.) {
   float eat = smoothstep(.9, 1., x), heat = smoothstep(0., .45, x) * (1. - smoothstep(.88, 1., x));
   vec3 hot = mix(mix(vec3(.81, .09, .32), vec3(1., .42, .05), smoothstep(.1, .6, x)), vec3(1., .72, .3), smoothstep(.85, .98, x));
   float lit = 1. - smoothstep(0., .12, vDis);
-  vec4 ghost = texture2D(map, vMapUv + vec2(0., -${f3(4 / ROWS)}));
+  vec4 ghost = texture2D(map, vMapUv + vec2(0., -${f3(FRESH / ROWS)}));
   pdGlow = (hot * heat * 1.3 + vec3(1., .55, .15) * lit * .9) * diffuseColor.a * (1. - eat);
   diffuseColor = mix(diffuseColor, ghost, eat);
 }
@@ -181,6 +191,12 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+// ---------- the rare one ----------
+// About one tag in RARE says CULU I PUAMPA instead of SUCA or 800A. Which ones is fixed by the tag's id alone (a hash), so it is the same wall for everyone,
+// and it still counts as one of the 800. Nothing in src/suca-tags.js changes: a rebake keeps the rare ones rare (though not on the same walls).
+const RARE = 40;
+export function isRare(id) { let h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619); return (h >>> 0) % RARE === 0; }
+
 // ---------- placement: the baked tags of one world tile ----------
 const ALL = new Set(Object.values(SUCA_TAGS).flatMap(l => l.map(r => r[0])));
 // a baked tag still on the edge of its building it was baked on? (false after a tile rebake that moved the wall: rerun tools/suca-bake.mjs)
@@ -224,7 +240,7 @@ export function createSuca({ scene, mapMarkers, world = null, getVolume = () => 
     dis[i * 4] = dis[i * 4 + 1] = dis[i * 4 + 2] = dis[i * 4 + 3] = d;
   }
   function cell(i) {
-    const t = L[i], c = t.v % COLS, r = Math.floor(t.v / COLS) + 2 * t.w + (done.has(t.id) && t.pop === undefined ? 4 : 0);
+    const t = L[i], c = t.v % COLS, r = WBASE[t.w] + (t.w < 2 ? Math.floor(t.v / COLS) : 0) + (done.has(t.id) && t.pop === undefined ? FRESH : 0);
     uv.set([c / COLS, 1 - (r + 1) / ROWS, (c + 1) / COLS, 1 - (r + 1) / ROWS, (c + 1) / COLS, 1 - r / ROWS, c / COLS, 1 - r / ROWS], i * 8);
   }
   const geo = new THREE.BufferGeometry();
@@ -272,7 +288,7 @@ export function createSuca({ scene, mapMarkers, world = null, getVolume = () => 
   const SPARK = ['#ffb347', '#e8559a', '#fff1c2'].map(c => new THREE.Color(c));
   let clock = 0, head = 0, fxEnd = 0;
   function emit(t) {
-    const tx = t.nz, tz = -t.nx, pal = PAL[t.v];
+    const tx = t.nz, tz = -t.nx, pal = PAL[t.w === 2 ? t.v * 2 : t.v];
     for (let k = 0; k < NFLECK + NDRIP; k++, head = (head + 1) % NP) {
       const drip = k >= NFLECK, ux = .12 + .76 * Math.random(), s = (ux - .5) * 2 * t.hw, o = head * 3, o4 = head * 4;
       // the flecks leave where the dissolve front passes that part of the tag (about when the paint there is eaten)
@@ -315,7 +331,8 @@ export function createSuca({ scene, mapMarkers, world = null, getVolume = () => 
   // a tile's picks become live tags: height from the ground along the wall, a hand above the pavement
   function addTile(t, picks) {
     if (L.some(o => o.tile === t)) return; // already up (a second 'full' without a 'drop' in between)
-    for (const [id, x, z, deg, hw, w, v] of picks) {
+    for (const [id, x, z, deg, hw, w0, v0] of picks) {
+      const w = isRare(id) ? 2 : w0, v = w === 2 ? v0 % COLS : v0;   // (the rare word has four styles in its one row)
       const nx = Math.cos(deg * Math.PI / 180), nz = Math.sin(deg * Math.PI / 180), tx = nz, tz = -nx;
       const g = Math.max(groundY(x, z), groundY(x + tx * hw, z + tz * hw), groundY(x - tx * hw, z - tz * hw), groundY(x + nx * 1.5, z + nz * 1.5));
       L.push({ id, x, z, nx, nz, hw, w, v, word: WORDS[w], y: g + .4 + hw / 2, tile: t });
