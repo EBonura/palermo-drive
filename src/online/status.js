@@ -3,11 +3,11 @@
 // What can be known: 'full' and 'budget' (the relay says so, or closes with 1013 / 1008 "daily allowance used"), 'quota' (the relay's own object answers that its free daily limit is used up).
 // What cannot: if the relay does not answer /status either (Cloudflare answers for a Worker over ITS daily limit, with an error page the browser will not let a page read), it is 'unreach': not available,
 // no reason claimed.
-//   const reach = createReach({ url, onChange });   reach.failed({ code, reason }) after a socket failed (asks /status at most once at a time);   reach.opened();   reach.reset();   reach.state: null | 'full' | 'budget' | 'quota' | 'unreach'
+//   const reach = createReach({ url, onChange });   reach.failed({ code, reason, asked }) after a socket failed (asks /status at most once at a time, and only when it is worth a request: see failed());   reach.opened();   reach.reset();   reach.state: null | 'full' | 'budget' | 'quota' | 'unreach'
+// onChange(state) also comes again whenever a daily reason (quota, budget) is found to hold, so that the link can wait for midnight (src/online/link.js, daily()).
 //   const v = describe(state, lang, now) -> { tone, pill, msg, toast, recovered }
 const ASK_MS = 5000;        // how long /status may take before it counts as unreadable
-const REASK_MS = 900000;    // a daily reason (quota, budget) is asked about again after this long, in case it was a wrong guess; otherwise it stands until a socket opens
-const DAILY = { quota: 1, budget: 1 };
+const DAY_MS = 86400000;    // a daily reason (quota, budget) stands until 00:00 UTC or until a socket opens; only the player asking for online looks again before that
 
 // ---------- the words ----------
 // PALERMITAN: the owner's own spelling, drafts to be corrected by him, one constant per line. {time} is the local time of 00:00 UTC, as HH:MM.
@@ -68,12 +68,13 @@ export function readStatus(j) {
   return j.why === 'full' || j.why === 'budget' || j.why === 'quota' ? j.why : 'unreach';
 }
 
-export function createReach({ url, onChange = () => {}, fetchImpl = globalThis.fetch && globalThis.fetch.bind(globalThis), now = () => performance.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createReach({ url, onChange = () => {}, fetchImpl = globalThis.fetch && globalThis.fetch.bind(globalThis), now = () => performance.now(), wall = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
   const endpoint = statusUrl(url);
-  let state = null, asking = false, askedAt = -1e9, gen = 0, asks = 0;
-  const set = s => { if (s !== state) { state = s; onChange(s); } };
+  let state = null, asking = false, gen = 0, asks = 0, daily = null;   // daily: { why, day }, the last daily reason, kept across solo and online until its day is over
+  const set = (s, again) => { if (s !== state || again) { state = s; onChange(s); } };
+  const dayOf = t => Math.floor(t / DAY_MS), setDaily = (why, day = dayOf(wall())) => { daily = { why, day }; set(why, true); };
   async function ask(g) {
-    asking = true; asks++; askedAt = now();
+    asking = true; asks++;
     let r = null, timer = null;
     try {
       const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -83,19 +84,24 @@ export function createReach({ url, onChange = () => {}, fetchImpl = globalThis.f
     } catch (e) { r = null; }   // a failed or opaque fetch (Cloudflare's own error page has no CORS headers), a timeout, or something that is not JSON
     clearTimer(timer); asking = false;
     if (g !== gen) return;   // the socket opened or the player went solo while we waited
-    set(r === null ? 'unreach' : r === 'ok' ? null : r);   // the relay answers and has room: the failure was a passing one, nothing to say (the next ones will say it if they repeat)
+    // 'ok': the relay answers and has room, so the failure was a passing one and there is nothing to say (the next ones will say it if they repeat)
+    if (r === 'quota' || r === 'budget') setDaily(r); else { daily = null; set(r === null ? 'unreach' : r === 'ok' ? null : r); }
   }
   return {
     get state() { return state; }, get asks() { return asks; },
-    // a socket failed (it never opened, or it opened and was closed). The relay's own close codes say why when it can; otherwise ask /status, once at a time
+    // a socket failed (it never opened, or it opened and was closed). The relay's own close codes say why when it can, and a daily reason already found stands until its day is over: no request for those.
+    // Otherwise /status is asked only when nothing is known yet, or when the player asked for online (they want the answer as it is now). A page that is already showing a reason keeps showing it while the
+    // link waits: a request after each hourly attempt would double what the attempt costs the relay's daily allowance, to repeat what the player has been told.
     failed(info = {}) {
-      if (info.code === 1008 && /allowance/.test(info.reason || '')) { set('budget'); return; }
-      if (info.code === 1013) { set('full'); return; }
+      if (info.code === 1008 && /allowance/.test(info.reason || '')) { setDaily('budget'); return; }
+      if (info.code === 1013) { daily = null; set('full'); return; }
+      const over = daily && daily.day !== dayOf(wall());   // yesterday's daily reason: the day has turned, so this is the first look at whether it is over
+      if (daily && !over) { setDaily(daily.why, daily.day); return; }
+      if (state && !info.asked && !over) return;
       if (!endpoint || !fetchImpl || asking) return;
-      if (DAILY[state] && now() - askedAt < REASK_MS) return;   // already known, and it lasts until midnight UTC
       ask(gen);
     },
-    opened() { gen++; set(null); },
+    opened() { gen++; daily = null; set(null); },
     reset() { gen++; set(null); },
   };
 }

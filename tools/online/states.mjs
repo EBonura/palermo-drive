@@ -46,7 +46,8 @@ const ui = page => page.evaluate(() => {
 const shot = async (P, state) => { await P.page.screenshot({ path: path.join(SHOTS, `${lang}-${state}-${P.kind}.png`) }); };
 const dialogs = page => page.evaluate(() => [...document.querySelectorAll('[role=alertdialog],[role=alert],[role=dialog]')].filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).display !== 'none').length);
 const info = P => P.page.evaluate(() => { const r = window.__p2p.relay(); return { ...r, fails: window.__p2p.log.filter(e => e.ev === 'fail').length }; });
-const retry = async (...Ps) => { await sleep(350); for (const P of Ps) await P.page.evaluate(() => dispatchEvent(new Event('online'))); };   // the browser says the network is back: try now, not at the end of the wait
+// the player says "online" again (the switch in Options, the same answer as the card): one attempt now, whatever the link was waiting for. The browser's "online" event can no longer do this step after step: it is heard once in ten minutes.
+const retry = async (...Ps) => { await sleep(350); for (const P of Ps) await P.page.evaluate(() => dispatchEvent(new CustomEvent('pd-net-mode', { detail: true }))); };
 let A, B;
 try {
   A = await player(h, { name: 'Anna', x: 100, z: 100, size: [1100, 620], extra: 'lang=' + lang }); A.kind = 'desktop';

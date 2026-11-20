@@ -30,7 +30,8 @@ const RATE_PER_S = 40, RATE_BURST = 60;       // incoming frames per player
 const GLOBAL_PER_S = 400, GLOBAL_BURST = 800; // incoming frames from the relay altogether (12 players at 10 a second is 120)
 const STALE_MS = 6000;         // a player we hear nothing from for this long is taken off the street (its record stays: the relay says when it has left)
 const FORGET_MS = 90000;       // and one we hear nothing from for this long is forgotten, whatever the relay says
-const IDLE_MS = 30000;         // a game that has not been played for this long (paused, in the Garage, a page in the background) lets go of the relay, which closes a socket that is silent for 60 s anyway
+const HIDDEN_RETRY_MS = 600000;   // a page hidden for this long that becomes visible again asks the link to try once (src/online/link.js keeps those to one in ten minutes)
+const IDLE_MS = 30000;        // a game that has not been played for this long (paused, in the Garage, a page in the background) lets go of the relay, which closes a socket that is silent for 60 s anyway
 const CHECK_MS = 500;          // how often the players are ranked by distance
 const INFO_GAP_MS = 2200;      // least time between two INFO frames (the relay allows one every 2 s)
 const OFFER_R = 25, OFFER_TTL_MS = 15000, OFFER_GAP_MS = 10000, DRINK_PRICE = 1;   // metres to the receiver, how long an offer stands, least time between two, euro
@@ -90,8 +91,9 @@ export function createOnline(env) {
   const css = document.createElement('style'); css.textContent = 'html.pd-in-garage .pd-online{display:none!important}@keyframes pd-online-bar{from{width:100%}to{width:0}}.pd-online-bar{animation:pd-online-bar ' + OFFER_TTL_MS + 'ms linear forwards}'; document.head.appendChild(css);
 
   // ---------- the link ----------
-  // After a socket fails the relay is asked why, once (src/online/status.js): never while connected, and never more than one failed step of the backoff at a time.
-  const whyNot = createReach({ url: relayUrl });
+  // After a socket fails the relay may be asked why, at most once per attempt (src/online/status.js): never while connected, never while the link is stopped, never for a daily reason already known. A daily reason
+  // (the day's allowance, or this address's share) is passed on to the link, which then waits for 00:00 UTC (src/online/link.js); any other answer, or none, leaves it on its own timer.
+  const whyNot = createReach({ url: relayUrl, onChange: s => { if (s) link.daily(s === 'quota' || s === 'budget'); } });
   const link = createLink({
     url: relayUrl,
     onFail: info => { ev('fail', { code: info.code }); whyNot.failed(info); },
@@ -522,7 +524,7 @@ export function createOnline(env) {
     const submit = () => {
       const n = clean(input.value); if (!n) { input.focus(); return; }
       myName = n; named = true; agreed = true; saveStore({ name: n, offline: false });
-      dropName(); dispatchEvent(new Event('pd-net-changed'));
+      dropName(); dispatchEvent(new Event('pd-net-changed')); link.ask();   // saying yes again is asking: one attempt now, even if the link had given up
     };
     submitName = submit; closeName = dropName;
     ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); dispatchEvent(new Event('pd-net-changed')); });
@@ -550,7 +552,7 @@ export function createOnline(env) {
   addEventListener('pd-open-name', () => openName());
   addEventListener('pd-net-mode', e => {   // the toggle in Options (src/ui.js): the same two answers as the card
     refreshName();
-    if (e.detail) { if (!myName) return; named = true; agreed = true; saveStore({ name: myName, offline: false }); }
+    if (e.detail) { if (!myName) return; named = true; agreed = true; saveStore({ name: myName, offline: false }); link.ask(); }
     else { agreed = false; saveStore({ offline: true }); goOffline(); }
     dispatchEvent(new Event('pd-net-changed')); dropName();
   });
@@ -563,6 +565,9 @@ export function createOnline(env) {
   setInterval(() => { if (link.state !== 'idle' && performance.now() - activeAt > IDLE) link.want(false); }, 5000);
   addEventListener('offline', () => link.want(false));
   addEventListener('online', () => link.retryNow());
+  // a page that comes back after being hidden for a while may find the relay back; the link decides whether that is too soon after the last time
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = performance.now(); else if (hiddenAt && performance.now() - hiddenAt >= HIDDEN_RETRY_MS) { hiddenAt = 0; link.retryNow(); } });
   addEventListener('pagehide', () => link.want(false));
 
   // ---------- the cap on cars, whatever the relay sends ----------
