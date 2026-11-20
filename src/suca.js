@@ -19,7 +19,7 @@ const KEY = 'palermoDrive.suca', R_COLLECT = 7, OFF = 0.04, CAP = 1024, WORDS = 
 const DUR = 1.4, D0 = .12, DD = 1.15, PUNCH = .22, EDGE = .22, NFLECK = 48, NDRIP = 6, NP = 360;
 
 // ---------- the atlas: 4 x 2 spray-paint variants of each word, then the same 16 greyed out with a check ----------
-// The third word is the rare one (see isRare): a handful of the 800 tags say CULU I PUAMPA instead, on two lines, in one of four colours (one row of the atlas, no underline or crown).
+// The third word is the rare one (see isRare): one of the 800 tags says CULU I PUAMPA instead, on two lines, in one of four colours (one row of the atlas, no underline or crown).
 const CW = 512, CH = 256, COLS = 4, WROWS = [2, 2, 1], WBASE = [0, 2, 4], FRESH = 5, ROWS = 2 * FRESH;   // the greyed copies sit FRESH rows below the fresh ones
 const LINES = [['SUCA'], ['800A'], ['CULU I', 'PUAMPA']], LAYOUT = [[84, 24, [112]], [84, 24, [112]], [52, 14, [64, 172]]];   // per word: letter size, gap, the height of each line
 const VARIANTS = [
@@ -192,10 +192,10 @@ void main() {
 }`;
 
 // ---------- the rare one ----------
-// About one tag in RARE says CULU I PUAMPA instead of SUCA or 800A. Which ones is fixed by the tag's id alone (a hash), so it is the same wall for everyone,
-// and it still counts as one of the 800. Nothing in src/suca-tags.js changes: a rebake keeps the rare ones rare (though not on the same walls).
-const RARE = 40;
-export function isRare(id) { let h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619); return (h >>> 0) % RARE === 0; }
+// Exactly one of the 800 tags says CULU I PUAMPA instead of SUCA or 800A (the owner: "exactly once amongst the writings"). It is fixed by its id, so it is
+// the same wall for everyone, and it still counts as one of the 800. If a rebake of src/suca-tags.js drops this id, pick another one here.
+const RARE_ID = 'w279885052:4';
+export function isRare(id) { return id === RARE_ID; }
 
 // ---------- placement: the baked tags of one world tile ----------
 const ALL = new Set(Object.values(SUCA_TAGS).flatMap(l => l.map(r => r[0])));
