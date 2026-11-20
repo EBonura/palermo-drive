@@ -42,7 +42,7 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
   // =============================================================================================== the gang block
   const vz = el('vz-fade', '<b>...</b>');
   const Z = { state: 'out', t: 0, restoreAt: -1, wokeBalloon: false, lv: 1 };
-  const LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaiu, pulitu pulitu!', 'Binvinutu! Pi furtuna c’è u telaiu.'];
+  const LINES = ['Ti ficiru u tagliando completo!', 'Ma unni sunnu i sedili?!', 'Chi bellu telaiu, pulitu pulitu!', 'Bentuinnatu! Pi furtuna c’è u telaiu.'];
   const ZS = Q.has('dangerfast') ? +Q.get('dangerfast') || 0.15 : 1, FADE = 3.2 * ZS, BLACK = 1.5 * ZS, WAKE = 2.4 * ZS;   // dangerfast: a test link that plays the sequence in a fraction (0.15, or dangerfast=1 for the real length) of the time
   const zf = Q.get('dangerfreeze'), zk = +Q.get('dangerk') || 0.5;   // test: freeze in state zf (fade|black|wake) once it is zk of the way through
   function zenVisual(level, dots) { // level 0 clear .. 1 black
