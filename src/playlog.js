@@ -15,7 +15,7 @@ import { getLang } from './lang.js';
 
 const URL_ = typeof __PD_PLAYLOG_URL__ !== 'undefined' ? __PD_PLAYLOG_URL__ : PLAYLOG_URL;
 const TEST = typeof __PD_PLAYLOG_TEST__ !== 'undefined' && __PD_PLAYLOG_TEST__;
-export const PLAYLOG_ON = !!URL_;   // the privacy wording (src/p2p/p2p.js) follows this
+export const PLAYLOG_ON = !!URL_;   // the privacy wording (src/online/online.js) follows this
 
 const tune = TEST ? +new URLSearchParams(location.search).get('plms') || 0 : 0;   // test builds only: ?plms=<ms> shortens the 3 minutes
 const JOIN_AFTER_S = tune ? 1 : 5, ALIVE_MS = tune || 180000, MIN_BATCH_S = tune ? 1 : 20, MAX_MISSIONS = 8, JOIN_MIN_M = 5;

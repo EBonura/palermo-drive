@@ -30,14 +30,10 @@ jobs:
       - name: Install build dependencies
         run: npm ci --no-audit --no-fund
         working-directory: tools/build
-      # the build includes the peer to peer client and lets the policy reach its pinned Nostr relays (src/p2p/relays.js)
+      # the build includes the multiplayer client, and the policy lets the page reach the relay named in src/online/relay-url.js
       - name: Build dist/
         run: node build.mjs
         working-directory: tools/build
-        env:   # TURN for the multiplayer (Metered); public in the page once built, kept out of the repository
-          PD_TURN_URLS: ${{ secrets.PD_TURN_URLS }}
-          PD_TURN_USER: ${{ secrets.PD_TURN_USER }}
-          PD_TURN_PASS: ${{ secrets.PD_TURN_PASS }}
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: dist

@@ -359,7 +359,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
     if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
   }
-  // Other players, the ones we are connected to (rooms of 500 m around the lapa, src/p2p/p2p.js): so a far player is not on the map, we simply do not know where it is. A cyan ring like the minimap's, the name beside it (canvas text only: the names come from strangers).
+  // Other players, the ones we are connected to (the nearest ones the relay sends, src/online/online.js): a player the relay does not send is not on the map, we simply do not know where it is. A cyan ring like the minimap's, the name beside it (canvas text only: the names come from strangers).
   function drawPlayers() {
     const list = getPlayers && getPlayers(); if (!list || !list.length) return;
     for (const p of list) {

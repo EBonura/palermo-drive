@@ -19,7 +19,6 @@ import { setupUI } from './ui.js';
 import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
-import { createNet } from './net.js';
 import { createWarm } from './warm.js';   // shader programs linked before the first draw that needs them (src/warm.js)
 import { createDrunk } from './drunk.js';   // a drink at a pub's door or at the rave: the screen wobbles (src/drunk.js)
 import { createShouts } from './shouts.js';
@@ -421,12 +420,12 @@ addEventListener('pd-gesture', () => { vehicle.unlockAudio?.(); horn.unlock(); }
 for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend']) addEventListener(ev, () => horn.unlock(), { passive: true });
 // Screenshot/debug links skip the title screen.
 if (['spot', 'campos', 'debug', 'play', 'bench'].some(k => params.has(k))) game.state = 'play';
-// ---------- game modes and multiplayer (src/missions.js, src/net.js) ----------
+// ---------- game modes and multiplayer (src/missions.js, src/online/online.js) ----------
 // Both get the world, the player and the shell state. update(dt) runs every frame (missions only while
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
-// Multiplayer is peer to peer (src/p2p/p2p.js, docs/P2P-MULTIPLAYER.md), and nothing connects until the player says yes on its name card. ?p2p=off falls back to the relay client, which does nothing without a relay.
-const net = (typeof __PD_P2P__ === 'undefined' || __PD_P2P__) && params.get('p2p') !== 'off' ? (await import('./p2p/p2p.js')).createP2P({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions }) : createNet({ ...worldEnv, game, vehicle, mapMarkers });
+// Multiplayer goes through one relay (src/online/online.js, docs/ONLINE.md), and nothing connects until the player says yes on its name card. ?p2p=off leaves it out: the game then has no multiplayer UI at all.
+const net = (typeof __PD_ONLINE__ === 'undefined' || __PD_ONLINE__) && params.get('p2p') !== 'off' ? (await import('./online/online.js')).createOnline({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions }) : {};
 const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;

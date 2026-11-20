@@ -1,6 +1,6 @@
 # Relay status (2 November 2026)
 
-Multiplayer is shelved. The Rust relay is finished enough to pick up again, nothing is deployed, nothing is committed.
+This is the older relay and it is not the game's relay any more (20 November: the game uses `relay-worker/`, see docs/ONLINE.md; `src/net.js`, mentioned below, has been removed). The text below is the record of this folder. Multiplayer was shelved when it was written. The Rust relay is finished enough to pick up again, nothing is deployed, nothing is committed.
 
 ## State
 

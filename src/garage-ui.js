@@ -38,7 +38,7 @@ const ORDER = ['calessino', 'cassone', 'lapa50', 'tascia', 'vespa', 'scooterone'
 const BODY_IDS = ['rosso', 'arancio', 'giallo', 'lime', 'verde', 'azzurro', 'blu', 'viola', 'rosa', 'bianco', 'grigio', 'nero'];
 const TRIM_IDS = ['nero', 'bianco', 'rosa', 'oro', 'bordeaux', 'grigio', 'rosso', 'blu'];
 
-// The player's name lives in the multiplayer store (src/net.js reads it): localStorage palermoDrive.net.v1 = { name, offline }. We only ever change `name` and keep `offline` as it is; a missing or corrupt value reads as {}.
+// The player's name lives in the multiplayer store (src/online/online.js reads it): localStorage palermoDrive.net.v1 = { name, offline }. We only ever change `name` and keep `offline` as it is; a missing or corrupt value reads as {}.
 const NET_KEY = 'palermoDrive.net.v1', NAME_MAX = 16;
 let nameMem = null;   // when storage is unavailable the name still lasts for this visit
 // plain text only: whitespace collapsed, control / format (zero-width, direction marks and overrides) / separator / lone surrogate characters and blank-looking fillers removed, at most 16 UTF-16 units (net.js's limit) without cutting a pair in half
@@ -52,7 +52,7 @@ export function readName() { if (nameMem !== null) return nameMem; const n = net
 export function writeName(name) {
   nameMem = name;
   try { localStorage.setItem(NET_KEY, JSON.stringify({ ...netStore(), name, offline: !!netStore().offline })); nameMem = null; } catch (e) { /* private mode: kept in memory */ }
-  try { window.dispatchEvent(new CustomEvent('pd-name')); } catch (e) { /* ignore */ }   // src/net.js re-reads the store
+  try { window.dispatchEvent(new CustomEvent('pd-name')); } catch (e) { /* ignore */ }   // src/online/online.js re-reads the store
 }
 
 const CSS = `

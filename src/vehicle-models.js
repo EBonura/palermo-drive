@@ -1,5 +1,5 @@
 // The seven vehicles and the tamarro parts, as merged-geometry templates. Owned by the driving work.
-//   buildVehicleModel({ type, livery, parts }) -> a rig for one vehicle (used for the local car and for remote players, src/net.js)
+//   buildVehicleModel({ type, livery, parts }) -> a rig for one vehicle (used for the local car and for remote players, src/online/online.js)
 // A rig is { root, lean, tilt, bar, wheels, meshes, ... , pose(p), dispose() }, see instantiate() at the bottom.
 // Everything is built from boxes, cylinders and spheres in car-frame coordinates (origin on the ground under the middle of the
 // vehicle, +z forward, +x left, y up) by src/vehicle-kit.js, one merged mesh per material per group. A few thousand triangles each.

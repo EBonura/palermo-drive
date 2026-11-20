@@ -1,8 +1,8 @@
 // Other players drawn in the world: their own vehicle (a lapa unless the feed names another) with a name tag and a minimap dot, positions interpolated from a few snapshots.
-// Shared by src/net.js (relay) and src/p2p/p2p.js (peer to peer). They feed it: ensure(id), setInfo(r, name, livery[, vehicle]), addSnap(r, snap),
+// Used by src/online/online.js. They feed it: ensure(id), setInfo(r, name, livery[, vehicle]), addSnap(r, snap),
 // retire(r) / remove(id) when somebody leaves; the owner calls update(dt, now) every frame.
 // A snapshot is { t (performance.now), x, z, th, v, steer, roll, lean, fl }: fl bit0 nitro. A snapshot with ts (the sender's own clock, ms) also has k (the curvature of its
-// path, 1/m) and a (its acceleration, m/s2): the sender sends it only when the car's path stops following predict() (src/predict.js, src/p2p/p2p.js), so the receiver draws it just behind
+// path, 1/m) and a (its acceleration, m/s2): the sender sends it only when the car's path stops following predict() (src/predict.js, src/online/online.js), so the receiver draws it just behind
 // its latest snapshot, carried on by predict(), and its buffer follows the network's jitter, not the time between snapshots.
 import * as THREE from 'three';
 import { LIVERIES as ALL_LIVERIES } from './garage.js';
@@ -13,7 +13,7 @@ const DELAY_MAX = 400;         // at most this far behind: every link is direct 
 const EXTRAP = 250;            // longest extrapolation, ms (or one and a half times the usual gap between snapshots, if longer, up to EXTRAP_MAX)
 const EXTRAP_MAX = 800;
 const DELAY_SYNC = 30;         // the least buffer for a car with the sender's clock (ts): the latest snapshot is carried on by predict(), so the buffer only takes the network's jitter
-const EXTRAP_SYNC = 1500;      // how far predict() carries such a car past its latest snapshot (the sender sends at least once a second while moving, src/p2p/p2p.js)
+const EXTRAP_SYNC = 1500;      // how far predict() carries such a car past its latest snapshot (the sender sends at least once a second while moving, src/online/online.js)
 const SMOOTH = 0.2;            // seconds: when a new snapshot moves the path (a guess that was wrong, a late one), the car glides to it over about this long instead of jumping
 const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
@@ -149,7 +149,7 @@ export function createRemotes(env) {
     }
   }
 
-  // far: true takes the car and the name tag away (the dot on the maps stays), false brings them back, fading in. Used by src/p2p/p2p.js for players far from the camera.
+  // far: true takes the car and the name tag away (the dot on the maps stays), false brings them back, fading in. Used by src/online/online.js for players far from the camera.
   function setFar(r, far) {
     if (!r || r.far === far) return;
     r.far = far;

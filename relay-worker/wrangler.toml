@@ -1,0 +1,20 @@
+name = "pd-relay"
+main = "build/index.js"
+compatibility_date = "2026-06-01"
+
+[build]
+command = "worker-build --release"
+watch_dir = "src"
+
+# Comma separated browser origins allowed to open a socket. localhost and 127.0.0.1 on any port
+# are always allowed on top of this, for development.
+[vars]
+ORIGINS = "https://palermo-drive.it"
+
+# One object holds the whole relay, see the README for why.
+[durable_objects]
+bindings = [{ name = "RELAY", class_name = "Relay" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Relay"]

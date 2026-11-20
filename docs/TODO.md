@@ -14,7 +14,7 @@
   address (src/missions.js). U cuinnutu stays in.
 - **Dependency bumps:** the three dependabot pull requests were closed unmerged on 2026-11-19 (two crates in `relay/`, one for a Go `server/` that no longer exists).
 - The sections below date from October and early November and have not been checked against the game since: some of it is done, and multiplayer is no longer shelved
-  (WebRTC with a TURN relay since 7 November).
+  (one WebSocket relay of ours since 20 November: docs/ONLINE.md).
 
 ## Integration pass (lead, before publishing)
 
@@ -55,9 +55,7 @@
 
 ## Waiting on the owner
 
-- **Deploy the multiplayer/stats relay** on the new bonniestudiosdev@gmail.com GCP account (owner said "later"):
-  the relay is in relay/ (see relay/STATUS.md); multiplayer is shelved for now
-  src/net.js. Until then multiplayer and player stats stay off.
+- **Deploy the multiplayer relay** (relay-worker/, a Cloudflare Worker, docs/ONLINE.md) and put its address in src/online/relay-url.js. Until then "Gioca online" connects to nothing and nobody is ever there. The old relay in relay/ is not the game's any more.
 - **More photo facades**: a Mapillary access token and/or the owner's own frontal photos of key buildings.
 
 ## Next up (owner + friends' ideas)

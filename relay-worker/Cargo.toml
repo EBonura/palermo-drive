@@ -1,0 +1,17 @@
+[package]
+name = "pd-relay"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+# cdylib is the Worker build; rlib lets `cargo test` link the protocol code natively.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+worker = "0.9"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1

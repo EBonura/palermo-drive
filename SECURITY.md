@@ -11,8 +11,8 @@ Useful in a report: what you did, what happened, the address you used (with its 
 ## What is in scope
 
 - The game as served at palermo-drive.it and the code in this repository.
-- The peer to peer multiplayer (`src/p2p/`): anything one player can do to another player's game or browser.
-- The play statistics service (`joinlog/`) and the relay (`relay/`).
+- The online multiplayer (`src/online/`) and its relay (`relay-worker/`): anything one player can do to another player's game or browser, and anything a player can do to the relay.
+- The play statistics service (`joinlog/`). The older relay in `relay/` is not part of the game any more.
 
 Known and accepted: the play statistics endpoint checks the `Origin` header, which a script can forge, so the statistics can be polluted within the service's daily limits; it returns no data.
 

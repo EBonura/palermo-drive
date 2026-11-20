@@ -721,7 +721,7 @@ export function createVehicle(env) {
 
   function setVolume(v) { audio.setVolume(v); }
 
-  // ---------- remote players (src/net.js) ----------
+  // ---------- remote players (src/online/online.js) ----------
   // buildVehicleModel({ type, livery, parts }) returns a rig for any vehicle (see src/vehicle-models.js): pose it with
   // rig.pose({ pitch, roll, lean, steer, spin, t }) and add it to the scene. buildLapa(liveryId) is the old Calessino-only call.
   const buildLapa = id => buildVehicleModel({ type: 'calessino', livery: id });

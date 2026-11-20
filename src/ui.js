@@ -377,7 +377,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     </div>`;
   // How to pin the game to the home screen (a phone in a browser tab; hidden once it runs standalone or fullscreen, in CSS and here for iOS): one platform, one language, no popup
   const IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  // the player's name (the store the Garage edits too, palermoDrive.net.v1) and next to it online or offline (src/p2p/p2p.js 'pd-net-mode'). Only when multiplayer exists (html.pd-mp, src/p2p/p2p.js)
+  // the player's name (the store the Garage edits too, palermoDrive.net.v1) and next to it online or offline (src/online/online.js 'pd-net-mode'). Only when multiplayer exists (html.pd-mp, src/online/online.js)
   const NAME_ROW = `<div class="pd-row pd-name" data-name>
       <div class="pd-lab"><span data-k="nameLabel" data-two></span></div>
       <div class="pd-namerow"><input class="pd-namein" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
@@ -760,7 +760,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     screens.side.querySelector('.pd-qfull').hidden = !canFull;
   }
 
-  // ---- the player's name (Options): the same store as the Garage, and the button that opens the name card of src/p2p/p2p.js ----
+  // ---- the player's name (Options): the same store as the Garage, and the button that opens the name card of src/online/online.js ----
   const nameIn = screens.options.querySelector('.pd-namein');
   const syncName = () => { if (document.activeElement !== nameIn) nameIn.value = readName(); };
   function saveName() { const n = cleanName(nameIn.value); if (n && n !== readName()) writeName(n); nameIn.value = readName(); }
@@ -825,7 +825,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const startMap = createStartMap({
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
-    getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/p2p/p2p.js)
+    getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/online/online.js)
     getEvents: () => fakeEvents || missions?.events?.() || [],
     onStart: (x, z, it) => it?.kind === 'event' ? startAt(x, z, { ask: it.ref }) : startAt(x, z),
   });
@@ -1138,7 +1138,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   const MAPKEY = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   addEventListener('keydown', e => {
-    if (e.target && e.target.tagName === 'INPUT') return; // a text field (the driver's name in the Garage, the name card of src/net.js) types normally; it handles its own Enter and Escape
+    if (e.target && e.target.tagName === 'INPUT') return; // a text field (the driver's name in the Garage, the name card of src/online/online.js) types normally; it handles its own Enter and Escape
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const a = KEYMAP[e.code];
     if (game.state === 'play') {

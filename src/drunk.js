@@ -163,7 +163,7 @@ export function createDrunk({ game, car, camera, missions }) {
     toast(name + (n > 1 ? '  ×' + n : ''), sub);
   }
 
-  // A drink offered by another player (src/p2p/p2p.js): no pub needed and nothing to pay here (the giver paid). Returns false when the stack is full.
+  // A drink offered by another player (src/online/online.js): no pub needed and nothing to pay here (the giver paid). Returns false when the stack is full.
   function gift(name) {
     if (game.state !== 'play') return false;
     if (units > MAX - 1 + 0.001) { toast(pick(CUT), pick(['Un te n’abbuschi chiù.', 'No more for you.']), true); return false; }

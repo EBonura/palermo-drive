@@ -5,7 +5,7 @@ C=$HOME/.cache/palermo-drive; W=$C/ship-wt; M=$HOME/Desktop/repos/palermo-drive;
 export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH; setopt pipefail
 git -C $W diff --name-only --diff-filter=U | grep -q . && { echo "HOLD: unmerged files"; exit 1; }
 [ -e "$(git -C $W rev-parse --git-path CHERRY_PICK_HEAD)" ] && { echo "HOLD: a cherry-pick is in progress"; exit 1; }
-grep -lE '^(<<<<<<<|>>>>>>>)' $W/src/*.js $W/src/p2p/*.js 2>/dev/null | grep -q . && { echo "HOLD: conflict markers"; exit 1; }
+grep -lE '^(<<<<<<<|>>>>>>>)' $W/src/*.js $W/src/online/*.js 2>/dev/null | grep -q . && { echo "HOLD: conflict markers"; exit 1; }
 ln -sfn $M/tools/build/node_modules $W/tools/build/node_modules
 (cd $W/tools/build && node build.mjs | tail -1) || { echo "HOLD build"; exit 1; }
 $W/tools/release/withbrowser.sh node $W/tools/release/smoke.mjs $W/dist; ok=$?

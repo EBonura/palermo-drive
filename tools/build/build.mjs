@@ -7,7 +7,7 @@
 //   - the other runtime assets copied (tooling and source-only files skipped)
 // The development tree and its import map / dev server are never touched.
 //
-// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist   --minify=false (readable bundle for profiling)   --p2p=false (leave out the peer to peer client)   --src=<project dir>
+// Flags: --data=bin|raw (default bin)   --no-prune (keep every context building)   --simplify=0.06 (metres, 0 = off)   --out=dist   --minify=false (readable bundle for profiling)   --online=false (leave out the multiplayer client)   --test-relay (let the page policy reach a relay on localhost, for tools/online)   --src=<project dir>
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,7 +15,7 @@ import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDataBlobs } from './data.mjs';
-import { RELAYS } from '../../src/p2p/relays.js';
+import { RELAY_URL } from '../../src/online/relay-url.js';
 import { PLAYLOG_URL } from '../../src/playlog-url.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -69,17 +69,13 @@ const plugin = {
   },
 };
 
-// TURN for the multiplayer (src/p2p/p2p.js): from the PD_TURN_URLS (comma separated), PD_TURN_USER and PD_TURN_PASS environment variables,
-// the repository's Actions secrets on GitHub (.github/workflows/pages.yml). Unset locally: the build has no TURN.
-const TURN = process.env.PD_TURN_URLS && process.env.PD_TURN_USER && process.env.PD_TURN_PASS
-  ? [{ urls: process.env.PD_TURN_URLS.split(',').map(u => u.trim()).filter(Boolean), username: process.env.PD_TURN_USER, credential: process.env.PD_TURN_PASS }] : null;
 const t0 = Date.now();
 const res = await esbuild.build({
   stdin: { contents: entrySrc, resolveDir: ROOT, sourcefile: 'entry.js' },
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
-  define: { __PD_PROD__: 'true', __PD_TURN__: JSON.stringify(TURN), __PD_P2P__: flag('p2p', true) ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
+  define: { __PD_PROD__: 'true', __PD_ONLINE__: flag('online', true) !== 'false' ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
 let appJs = null;
@@ -132,9 +128,9 @@ mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}" data
 // Content-Security-Policy as a <meta> (GitHub Pages cannot send headers): the published page runs only its own bundle (no inline script, no eval), takes images, audio and fonts from itself
 // (plus data: and blob: pictures), and may talk to itself. Style is 'unsafe-inline' because the modules add their own <style> blocks.
 // Checked on the built site: title, play, Garage, a race event and the credits raise no violation. The dev tree has no policy. If a new feature loads something from elsewhere, widen it here.
-// The peer to peer client (docs/P2P-MULTIPLAYER.md) also needs the Nostr relays it pins in src/p2p/relays.js: exactly those hosts are allowed here.
+// The multiplayer client (docs/ONLINE.md) talks to one host, the relay in src/online/relay-url.js: its origin is added only when that constant is set, so with it empty the policy allows no relay at all. --test-relay also allows a relay on this machine (tools/online), for a build that is only run in tests.
 // The play log (src/playlog.js) needs its one service host, the origin of PLAYLOG_URL (src/playlog-url.js): added only when that constant is set, so with it empty the policy allows no extra host.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'" + (flag('p2p', true) ? ' ' + RELAYS.join(' ') : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'" + (flag('online', true) !== 'false' && RELAY_URL ? ' ' + new URL(RELAY_URL).origin : '') + (flag('test-relay', false) ? ' ws://127.0.0.1:* ws://localhost:*' : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
 mustReplace(/<head>/, `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`, 'the <head> tag (policy)');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version, name: versionName }));
