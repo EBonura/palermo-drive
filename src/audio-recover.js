@@ -13,13 +13,45 @@ function track(c) {
     else if (c.state !== 'running' && !document.hidden) retrySoon();   // 'suspended' by the system or 'interrupted' (iOS): ask again
   });
 }
+// Contexts made ahead of the first tap (prewarmAudio below). Opening the audio device is the dear part of `new AudioContext()` (about 200 ms for the first one on a
+// desktop, more on a phone), and every module made its context inside the first tap's event handler, so the player's first tap was one long frame. A context made
+// without a tap starts suspended; the module that asks for one is given a spare (a constructor with no arguments, as every module here calls it) and it is resumed
+// at once, which is what a context made inside the tap would have done by itself. Spares are not tracked until they are handed out, so the taps do not resume them.
+const spares = [];
+let Plain = null;
 for (const name of ['AudioContext', 'webkitAudioContext']) {
   const Base = window[name];
   if (!Base || Base.__pdTracked) continue;
-  const Tracked = class extends Base { constructor(...args) { super(...args); track(this); } };
+  Plain = Plain || Base;
+  const Tracked = class extends Base {
+    constructor(...args) {
+      if (!args.length && spares.length) {
+        const c = spares.pop(); track(c);
+        try { const p = c.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* closed meanwhile */ }
+        return c;
+      }
+      super(...args); track(this);
+    }
+  };
   Tracked.__pdTracked = true;
   window[name] = Tracked;
 }
+
+// Raises the number of spare contexts to `n`, making them one at a time with a pause between (each is a long task by itself), when the browser is idle.
+let want = 0, making = false;
+export function prewarmAudio(n, gap = 300, timeout = 1000) {
+  if (!Plain) return;
+  want = Math.max(want, n);
+  if (making) return;
+  making = true;
+  const next = () => {
+    if (spares.length >= want || document.hidden) { making = false; return; }
+    try { spares.push(new Plain()); } catch (e) { making = false; return; }   // (a browser that refuses one: the modules make their own, as before)
+    setTimeout(() => (window.requestIdleCallback || setTimeout)(next, { timeout }), gap);
+  };
+  (window.requestIdleCallback || setTimeout)(next, { timeout });
+}
+export const spareAudioContexts = () => spares.length;
 
 function notRunning() { for (const c of ctxs) if (c.state !== 'running' && c.state !== 'closed') return true; return false; }
 function kick() {

@@ -1,5 +1,5 @@
 import { canvasStats } from './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
-import './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
+import { prewarmAudio } from './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
 import { SHADE, CHUNKS0 } from './shading.js';   // cheaper shader chunks, before anything compiles (src/shading.js)
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
@@ -481,6 +481,7 @@ if (world) world.hurry = true;
   if (world) world.hurry = false;
   const el = document.getElementById('loading');
   titleT0 = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 500);
+  prewarmAudio(1);   // one spare audio context: the first one the page makes opens the audio device (100 to 200 ms, the rest are about 1 ms), so it is made here and not in the first tap (src/audio-recover.js). Not before the lift: that would hold the first screen back
 })();
 let last = performance.now(), acc = 0, rotHeld = false;
 const STEP = 1 / 120;
