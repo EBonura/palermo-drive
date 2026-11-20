@@ -77,7 +77,7 @@ try {
   const inj = await A.page.evaluate(fl => window.__p2p.inject(fl.map(f => new Uint8Array(f))), Array.from({ length: 3000 }, (_, i) => st(10, null, { t: 20000 + i * 20 })));
   ok('3000 frames at once through the relay limit: most dropped, nothing thrown', inj.threw === 0 && inj.dropped >= 2000, JSON.stringify(inj));
   const fin = await A.page.evaluate(() => ({ ...window.__p2p.stats, players: window.__p2p.peers.size, drawn: window.__p2p.remotes.size }));
-  const errs = A.errs.filter(e => !/WebSocket connection/.test(e));   // the closed port the page was given is refused, and the browser says so
+  const errs = A.errs.filter(e => !/WebSocket connection|Failed to load resource/.test(e));   // the closed port the page was given is refused, and the browser says so (for the socket, and for the one /status it then asks)
   ok('nothing was thrown in all of it, the cap held, and no page error', fin.threw === 0 && fin.players <= 16 && fin.drawn <= 8 && !errs.length, JSON.stringify({ ...fin, errs }));
 } finally { await h.close(); }
 console.log(bad ? `FAILED: ${bad}` : 'ALL PASSED');

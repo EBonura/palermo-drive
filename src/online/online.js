@@ -18,6 +18,7 @@ import { createPanel } from './panel.js';
 import { zone } from '../hud.js';
 import { createLink } from './link.js';
 import { RELAY_URL } from './relay-url.js';
+import { createReach, describe, TEXT } from './status.js';   // why there is nobody: the relay is full, over for today, or cannot be reached
 import { IN, packInfo, helloFrame, infoFrame, sayFrame, toFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
@@ -89,9 +90,12 @@ export function createOnline(env) {
   const css = document.createElement('style'); css.textContent = 'html.pd-in-garage .pd-online{display:none!important}@keyframes pd-online-bar{from{width:100%}to{width:0}}.pd-online-bar{animation:pd-online-bar ' + OFFER_TTL_MS + 'ms linear forwards}'; document.head.appendChild(css);
 
   // ---------- the link ----------
+  // After a socket fails the relay is asked why, once (src/online/status.js): never while connected, and never more than one failed step of the backoff at a time.
+  const whyNot = createReach({ url: relayUrl });
   const link = createLink({
     url: relayUrl,
-    onOpen() { stats.connects++; ev('open'); tx(helloFrame(packInfo(vehId(), livId(), myName))); sentInfoKey = infoKey(); infoAt = performance.now(); },
+    onFail: info => { ev('fail', { code: info.code }); whyNot.failed(info); },
+    onOpen() { whyNot.opened(); stats.connects++; ev('open'); tx(helloFrame(packInfo(vehId(), livId(), myName))); sentInfoKey = infoKey(); infoAt = performance.now(); },
     onFrame,
     onClose() { stats.drops++; ev('close'); forgetAll(); },
   });
@@ -301,7 +305,7 @@ export function createOnline(env) {
   let busyForce = null;   // test seam (tools/online/held.mjs)
   const inMission = () => { if (busyForce !== null) return busyForce; const m = env.missions; if (!m || !m.busy || !m.busy()) return false; const k = m.state && m.state.ev && m.state.ev.slot && m.state.ev.slot.kind; return k !== 'pub' && k !== 'rave' && k !== 'leaf'; };
   let myOffer = null, lastOfferAt = -1e9, incoming = null, offerSeq = 0, card = null, pill = null;
-  const toast = (text, sub, neg) => dispatchEvent(new CustomEvent('pd-toast', { detail: { text, sub, neg } }));   // the game's own line at the top of the screen (src/event-hud.js)
+  const toast = (text, sub, neg, ms) => dispatchEvent(new CustomEvent('pd-toast', { detail: { text, sub, neg, ms } }));   // the game's own line at the top of the screen (src/event-hud.js); ms: longer than the usual, for a sentence
   const nameOf = id => { const p = others.get(id); return (p && p.name) || 'Player'; };
   const here = id => { const p = others.get(id); return !!(p && p.shown && rm.remotes.get(id)); };   // somebody we can see on the street
   const dist = id => { const p = others.get(id); return p && Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : Infinity; };
@@ -524,7 +528,8 @@ export function createOnline(env) {
     ok.addEventListener('click', submit); no.addEventListener('click', closeName); solo.addEventListener('click', () => { agreed = false; saveStore({ offline: true }); goOffline(); closeName(); dispatchEvent(new Event('pd-net-changed')); });
     // a press on the dim does nothing to the game; with a mouse it keeps the keyboard in the box so that Enter and Escape still reach the card
     nameCard.addEventListener('pointerdown', e => { if (e.target === nameCard && e.pointerType === 'mouse') { e.preventDefault(); input.focus(); } });
-    form.append(sub, input, ok); if (editing) form.append(no); form.append(solo);
+    const limit = document.createElement('small'); limit.className = 'p2p-limit'; limit.style.cssText = 'display:block;margin:0 0 10px;font-size:12px;color:#ffd29a'; limit.textContent = TEXT[lang() === 'en' ? 'en' : 'it'].card;   // known before it happens: the free server has a daily limit
+    form.append(sub, limit, input, ok); if (editing) form.append(no); form.append(solo);
     dlg.append(info, h, form, priv);
     nameCard.appendChild(dlg);
     // keep the layer on the part of the page that can be seen
@@ -553,7 +558,7 @@ export function createOnline(env) {
 
 
   // Solo by choice means no connection at all: the socket is closed and not reopened until the player says yes again. A page that starts solo never opens it.
-  function goOffline() { link.want(false); forgetAll(); }
+  function goOffline() { link.want(false); whyNot.reset(); forgetAll(); }
   // a page that is not being played (paused, in the Garage, in the background) has no frames, so update() below does not run there: this timer is what lets go of the relay after IDLE ms. The next frame back reopens it
   setInterval(() => { if (link.state !== 'idle' && performance.now() - activeAt > IDLE) link.want(false); }, 5000);
   addEventListener('offline', () => link.want(false));
@@ -577,14 +582,26 @@ export function createOnline(env) {
     });
     for (const p of unknown) p.held = true;   // no position yet: it takes no slot, and the first state ranks it
   }
+  // One line when the reason there is nobody appears or changes, one when online comes back after that; connecting says nothing. The sentence stays in the panel as long as it is true.
+  let toldWhy = null;
+  function netToasts(on, bad, why) {
+    if (!on) { toldWhy = null; return; }
+    if (bad && why !== toldWhy) { toldWhy = why; toast(bad.pill, bad.msg, true, 6500); }
+    else if (ready && toldWhy) { toldWhy = null; toast(TEXT[lang() === 'en' ? 'en' : 'it'].back, '', false, 2500); }
+  }
   // ---------- frame ----------
   let hudT = 0;
   function update(dt) {
     const now = performance.now();
     const playing = game.state === 'play', on = online();
     if (playing) activeAt = now;
+    if (link.state === 'idle' && whyNot.state) whyNot.reset();   // not trying any more (solo, paused too long): an old reason is not shown when it starts again
+    const why = on && !ready ? whyNot.state : null, bad = why && describe(why, lang(), Date.now());
+    netToasts(on, bad, why);
     if (!on || !playing) panel.set({ show: false, title: '', sub: '', label: '' });
-    else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
+    else if (!ready) {   // nobody to talk to: connecting (quiet), or the reason there is nobody
+      panel.set(bad ? { show: true, tone: bad.tone, title: bad.pill, sub: '', msg: bad.msg, idle: true, label: '' } : { show: true, tone: 'wait', title: 'Online…', sub: '', idle: true, label: '' });
+    } else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
       let linked = 0; for (const p of others.values()) if (p.held !== false) linked++;
       const near = inReach(), keys = !document.documentElement.classList.contains('touch');
       panel.set({
@@ -623,7 +640,7 @@ export function createOnline(env) {
     statsName: () => named && agreed && ready ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     // test hooks, under the name the tools have always used (window.__p2p)
     debug: { log, stats, peers: others, remotes: rm.remotes, DRAW_R, MAX_SHOWN, MAX_TRACKED,
-      relay: () => ({ url: relayUrl, state: link.state, fails: link.fails, waitMs: Math.round(link.waitMs), ready, handle: selfHandle, online: onlineCount }),
+      relay: () => ({ url: relayUrl, state: link.state, fails: link.fails, waitMs: Math.round(link.waitMs), ready, handle: selfHandle, online: onlineCount, why: whyNot.state, asks: whyNot.asks }),
       peerInfo: () => [...others.values()].map(p => ({ handle: p.handle, name: p.name, shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x) })),
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/online/offer.mjs)
       resetOffers(keepMute) { lastOfferAt = -1e9; for (const p of others.values()) { p.lastOffer = 0; if (!keepMute) p.mutedUntil = 0; } },

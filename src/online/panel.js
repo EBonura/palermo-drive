@@ -3,7 +3,7 @@
 // It exists only while the player is online (the owner of the page calls set({ show })), so solo mode has no trace of it in the page's picture.
 // Names come from other players: every word here is set with textContent, never as HTML.
 //   const panel = createPanel({ zone, onTalk });
-//   panel.set({ show, title, sub, label, key, idle, open });   (strings are made by the page, in the language shown)
+//   panel.set({ show, title, sub, label, key, idle, open, tone, msg });   (strings are made by the page, in the language shown; tone: '' connected, or 'wait' | 'full' | 'done' | 'off' for the colour of the capsule when there is nobody to talk to, and msg the sentence that says why)
 //   panel.line(name, verb, text, mine);   panel.clear();   panel.talk is the button
 const LINE_MS = 7000, FADE_MS = 900, MAX_LINES = 3;
 const CSS = `
@@ -21,6 +21,15 @@ const CSS = `
 .mpx-ring { flex: none; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 2.5px solid #00e1ff; }
 .mpx-txt { display: flex; flex-direction: column; justify-content: center; min-width: 0; font: 700 14px/1.1 var(--pd-cond, system-ui, sans-serif); letter-spacing: .03em; white-space: nowrap; }
 .mpx-txt small { margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; opacity: .72; }
+.mpx-msg { display: none; box-sizing: border-box; max-width: min(300px, 60vw); padding: 6px 10px 6px 8px; border-radius: 12px; border-left: 3px solid var(--mpx-tone, #8a949a); background: rgba(13,7,10,.88); box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  color: #fff; font: 600 12.5px/1.3 var(--pd-sans, system-ui, sans-serif); pointer-events: none; }
+.mpx-msg.on { display: block; }
+.mpx.t-wait { --mpx-tone: #8a949a; } .mpx.t-full { --mpx-tone: #ffb020; } .mpx.t-done { --mpx-tone: #ff5a5a; } .mpx.t-off { --mpx-tone: #b5a0ff; }   /* waiting: grey, relay full: amber, finished for today: red, cannot reach it: violet */
+.mpx.t-wait .mpx-ring { border-color: rgba(138,148,154,.8); border-style: dotted; }
+.mpx.t-full .mpx-ring, .mpx.t-done .mpx-ring, .mpx.t-off .mpx-ring { background: var(--mpx-tone); border-color: var(--mpx-tone); }
+.mpx.t-wait .mpx-talk, .mpx.t-full .mpx-talk, .mpx.t-done .mpx-talk, .mpx.t-off .mpx-talk, .mpx.t-wait .mpx-key, .mpx.t-full .mpx-key, .mpx.t-done .mpx-key, .mpx.t-off .mpx-key { display: none; }   /* nobody to talk to */
+.mpx.t-wait .mpx-cap, .mpx.t-full .mpx-cap, .mpx.t-done .mpx-cap, .mpx.t-off .mpx-cap { padding-right: 12px; }
+@media (max-height: 460px) { .mpx-msg { max-width: min(300px, 46vw); padding: 4px 8px 4px 7px; font-size: 12px; line-height: 1.25; } }
 .mpx-talk { margin-left: 2px; pointer-events: auto; }
 .mpx-talk.idle { opacity: .55; }
 .mpx-talk[aria-expanded=true] { background: #e8559a; color: #0d0709; }
@@ -41,16 +50,18 @@ export function createPanel({ zone, onTalk }) {
   txt.append(t1, t2);
   const talk = el('button', 'pd-bbtn mpx-talk'); talk.type = 'button'; talk.innerHTML = ICON; talk.setAttribute('aria-haspopup', 'true'); talk.setAttribute('aria-expanded', 'false');
   const key = el('span', 'mpx-key', 'T'); key.setAttribute('aria-hidden', 'true');
-  cap.append(ring, txt, key, talk); root.append(feed, cap);
+  const msg = el('div', 'mpx-msg'); msg.setAttribute('role', 'status');   // the sentence that says why there is nobody (relay full, over for today, cannot be reached)
+  cap.append(ring, txt, key, talk); root.append(feed, msg, cap);
   (zone || document.body).appendChild(root);
   talk.addEventListener('click', () => { talk.blur(); onTalk(); });   // blur: the arrow keys go on driving
   const timers = new Set();
   let last = '';
   function set(s) {
     root.classList.toggle('on', !!s.show);
-    const sig = [s.title, s.sub, s.label, s.idle, s.open].join('|');
+    const sig = [s.title, s.sub, s.label, s.idle, s.open, s.tone, s.msg].join('|');
     if (sig !== last) {
-      last = sig; t1.textContent = s.title; t2.textContent = s.sub; talk.title = s.label; talk.setAttribute('aria-label', s.label); root.setAttribute('aria-label', s.title + ', ' + s.sub);
+      last = sig; msg.textContent = s.msg || ''; msg.classList.toggle('on', !!s.msg);
+      root.className = root.className.replace(/ t-\w+/g, '') + (s.tone ? ' t-' + s.tone : ''); t1.textContent = s.title; t2.textContent = s.sub; talk.title = s.label; talk.setAttribute('aria-label', s.label); root.setAttribute('aria-label', s.title + ', ' + s.sub);
       talk.classList.toggle('idle', !!s.idle); talk.setAttribute('aria-expanded', String(!!s.open)); root.classList.toggle('wheel', !!s.open);
     }
   }

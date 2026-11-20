@@ -2,7 +2,8 @@
 //! are in `hub`; this file only moves frames between sockets and the hub and keeps the attachments up to date.
 
 use crate::hub::{Action, Conn, Hub, Refuse};
-use crate::proto::{from_hex, origin_allowed, to_hex};
+use crate::proto::{from_hex, origin_allowed, to_hex, MAX_CONNS};
+use crate::status::{cors_origin, failure_body, status_body};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use worker::*;
@@ -25,9 +26,41 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             }
             relay(&env)?.fetch_with_request(req).await
         }
+        // Tables (BLATERO): its own origin list, so a Palermo Drive page cannot open one and the reverse.
+        "/t" => {
+            if req.headers().get("Upgrade")?.map(|u| u.eq_ignore_ascii_case("websocket")) != Some(true) {
+                return Response::error("expected a WebSocket upgrade", 426);
+            }
+            let allowed = env.var("TABLE_ORIGINS").map(|v| v.to_string()).unwrap_or_else(|_| crate::tproto::DEFAULT_TABLE_ORIGINS.to_string());
+            if !origin_allowed(req.headers().get("Origin")?.as_deref(), &allowed) {
+                return Response::error("origin not allowed", 403);
+            }
+            crate::tglue::stub(&env)?.fetch_with_request(req).await
+        }
         "/stats" => relay(&env)?.fetch_with_request(req).await,
+        "/status" => status(req, &env).await,
         _ => Response::error("not found", 404),
     }
+}
+
+/// GET /status: why a player cannot get in, for a browser that cannot read the status of a failed upgrade (see status.rs). Never fails: a call
+/// to the object that throws (its free daily limit used up, or anything else) is caught and answered as JSON too.
+async fn status(req: Request, env: &Env) -> Result<Response> {
+    let allowed = env.var("ORIGINS").map(|v| v.to_string()).unwrap_or_default();
+    let origin = req.headers().get("Origin").ok().flatten();
+    let body = match async { relay(env)?.fetch_with_request(req).await?.text().await }.await {
+        Ok(b) => b,
+        Err(e) => failure_body(&e.to_string()),
+    };
+    let mut r = Response::ok(body)?;
+    let h = r.headers_mut();
+    h.set("Content-Type", "application/json")?;
+    h.set("Cache-Control", "private, max-age=5")?; // a refused page asks by its own backoff; this keeps a second tab or a quick retry from asking twice
+    h.set("Vary", "Origin")?;
+    if let Some(o) = cors_origin(origin.as_deref(), &allowed) {
+        h.set("Access-Control-Allow-Origin", o)?;
+    }
+    Ok(r)
 }
 
 /// The one object everything lives in.
@@ -138,6 +171,12 @@ impl DurableObject for Relay {
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
+        if req.url()?.path() == "/status" {
+            let ip = req.headers().get("CF-Connecting-IP")?.unwrap_or_else(|| "unknown".into());
+            let now = now_ms();
+            let body = self.with_hub(|hub| status_body(hub.online(), MAX_CONNS, hub.len() >= MAX_CONNS, hub.budget_used(&ip, now)));
+            return Response::ok(body);
+        }
         if req.url()?.path() == "/stats" {
             let json = self.with_hub(|hub| hub.stats_json());
             let mut r = Response::ok(json)?;

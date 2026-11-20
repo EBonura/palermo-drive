@@ -47,7 +47,7 @@ try {
   const before = (await view(A)).link;
   await A.page.evaluate(() => dispatchEvent(new Event('online')));
   ok('an "online" event from the browser reconnects at once', await until(async () => (await view(A)).link.state === 'open', 3000, 100), JSON.stringify({ before, after: (await view(A)).link }));
-  const errs = A.errs.filter(e => !/WebSocket connection/.test(e));   // a refused socket is logged by the browser itself
+  const errs = A.errs.filter(e => !/WebSocket connection|Failed to load resource/.test(e));   // a refused socket, and the /status asked after it, are logged by the browser itself
   ok('no page errors other than the browser logging refused sockets', !errs.length, JSON.stringify(errs));
   await back.close();
 } finally { if (bot) await bot.close(); await h.close(); }

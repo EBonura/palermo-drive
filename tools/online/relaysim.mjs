@@ -18,13 +18,20 @@ const take = (b, now = Date.now()) => { b.tokens = Math.min(b.burst, b.tokens + 
 export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddress = 24, k = 8, sayR = 400, frameDay = 800000, onlineGapMs = 10000, helloMs = 10000, idleMs = 60000 } = {}) {
   const conns = new Map();   // handle -> connection
   const perIp = new Map(), frames = new Map();   // address -> live connections; address -> frames today
-  const counters = { upgrades: 0, refused: 0, frames: 0, malformed: 0, dropped: 0, rateDropped: 0, forwarded: 0, closed: 0 };
-  let refuseCode = 0, nextHandle = 1 + Math.floor(Math.random() * 1000);
+  const counters = { status: 0, upgrades: 0, refused: 0, frames: 0, malformed: 0, dropped: 0, rateDropped: 0, forwarded: 0, closed: 0 };
+  let refuseCode = 0, statusMode = 'real', nextHandle = 1 + Math.floor(Math.random() * 1000);
 
   // the real relay counts an IPv6 client by its /64 (relay-worker/src/proto.rs address_key): one device owns the whole block
   const addressKey = s => { const v = String(s).replace(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i, '$1'); if (!v.includes(':')) return v; const [head, tail = ''] = v.split('::'), a = head.split(':').filter(Boolean), t = tail.split(':').filter(Boolean); const full = [...a, ...Array(Math.max(0, 8 - a.length - t.length)).fill('0'), ...t]; return full.slice(0, 4).map(g => parseInt(g || '0', 16).toString(16)).join(':') + '::/64'; };
   const allowed = o => typeof o === 'string' && (origins.includes(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o));
   const server = http.createServer((req, res) => {
+    if (req.url === '/status') {   // what the real relay's GET /status answers (relay-worker/src/status.rs): JSON with CORS for a page's origin. statusMode fakes the cases the simulator cannot make for real
+      counters.status++;
+      if (statusMode === 'blackout') { res.writeHead(429, { 'content-type': 'text/html' }); res.end('error code: 1027'); return; }   // Cloudflare's own page, no CORS headers: the page cannot read it
+      const ip = addressKey(req.headers['cf-connecting-ip'] || req.socket.remoteAddress), why = statusMode === 'quota' || statusMode === 'error' ? statusMode : (frames.get(ip) || 0) >= frameDay ? 'budget' : conns.size >= maxConns ? 'full' : '';
+      const h = { 'content-type': 'application/json', 'cache-control': 'private, max-age=5', vary: 'Origin' }; if (allowed(req.headers.origin)) h['access-control-allow-origin'] = req.headers.origin;
+      res.writeHead(200, h); res.end(JSON.stringify(why ? { ok: false, why } : { ok: true, online: [...conns.values()].filter(c => c.hello).length, max: maxConns })); return;
+    }
     if (req.url === '/stats') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ...counters, connected: conns.size })); return; }
     res.writeHead(404); res.end();
   });
@@ -67,9 +74,9 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
   }
   const wsFrame = (op, payload) => { const n = payload.length, h = n < 126 ? Buffer.from([128 | op, n]) : Buffer.from([128 | op, 126, n >> 8, n & 255]); return Buffer.concat([h, payload]); };
   const raw = (c, bytes) => { if (!c.closed && c.sock.writable) c.sock.write(wsFrame(2, Buffer.from(bytes))); };
-  function kill(c, code) {
+  function kill(c, code, reason = '') {
     if (c.closed) return; counters.closed++;
-    try { c.sock.write(wsFrame(8, Buffer.from([code >> 8, code & 255]))); c.sock.end(); } catch (e) { /* gone */ }
+    try { c.sock.write(wsFrame(8, Buffer.concat([Buffer.from([code >> 8, code & 255]), Buffer.from(reason)]))); c.sock.end(); } catch (e) { /* gone */ }
     drop(c);
   }
   function drop(c) {
@@ -92,7 +99,7 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
     c.lastFrame = Date.now();
     if (f.payload.length > MAX_FRAME) { kill(c, 1009); return false; }
     const day = (frames.get(c.ip) || 0) + 1; frames.set(c.ip, day); counters.frames++;
-    if (day > frameDay) { counters.dropped++; kill(c, 1008); return false; }   // closed, as the real relay does: a dropped frame is still billed
+    if (day > frameDay) { counters.dropped++; kill(c, 1008, 'daily allowance used'); return false; }   // closed, as the real relay does: a dropped frame is still billed
     if (!take(c.all)) { counters.rateDropped++; return true; }
     const ok = frame(c, new Uint8Array(f.payload));
     if (ok === false) { counters.malformed++; if (++c.bad >= 20) { kill(c, 1008); return false; } }
@@ -172,8 +179,10 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
   return new Promise(res => server.listen(port, '127.0.0.1', () => {
     const p = server.address().port;
     res({ port: p, url: `ws://127.0.0.1:${p}/r`, stats: () => ({ ...counters, connected: conns.size }), conns: () => [...conns.values()].map(c => ({ handle: c.handle, x: c.x, z: c.z, set: [...c.set] })),
+      // set({ status, maxConns, frameDay }): status is 'real' (answers from the live state), 'quota' (the object's free daily limit is used up), 'error', or 'blackout' (the Worker itself is over its limit: Cloudflare's page, unreadable)
+      set: o => { if (o.status) statusMode = o.status; if (o.maxConns !== undefined) maxConns = o.maxConns; if (o.frameDay !== undefined) frameDay = o.frameDay; },
       refuse: code => { refuseCode = code; },   // 503 and friends: the relay is full or over its daily allowance
-      dropAll: () => { for (const c of [...conns.values()]) kill(c, 1001); },
+      dropAll: (code = 1001, reason = '') => { for (const c of [...conns.values()]) kill(c, code, reason); },
       close: () => new Promise(r => { for (const c of [...conns.values()]) { try { c.sock.destroy(); } catch (e) { /* gone */ } drop(c); } server.close(() => r()); server.closeAllConnections?.(); }) });
   }));
 }

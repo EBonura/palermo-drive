@@ -249,11 +249,16 @@ impl Bucket {
     }
 
     pub fn take(&mut self, now_ms: u64) -> bool {
+        self.take_n(now_ms, 1.0)
+    }
+
+    /// Takes `n` tokens at once (a byte budget takes one per byte); nothing is taken when there are not enough.
+    pub fn take_n(&mut self, now_ms: u64, n: f64) -> bool {
         let dt = now_ms.saturating_sub(self.last_ms) as f64 / 1000.0;
         self.last_ms = now_ms.max(self.last_ms);
         self.tokens = (self.tokens + dt * self.rate).min(self.burst);
-        if self.tokens >= 1.0 {
-            self.tokens -= 1.0;
+        if self.tokens >= n {
+            self.tokens -= n;
             true
         } else {
             false

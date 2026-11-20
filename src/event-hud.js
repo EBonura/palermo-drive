@@ -114,15 +114,15 @@ export function createEventHud({ camera, car, groundY }) {
 
   const LINE_MS = 1900, LINE_MIN = 900, lineQ = [];
   let live = null, lineTimer = 0;
-  function showLine(text, sub, neg) {
+  function showLine(text, sub, neg, ms) {   // ms: how long, for a line with a sentence in it (src/online/online.js); the usual is LINE_MS
     sfx(neg ? 'warn' : 'toast');
-    toasts.innerHTML = `<div class="ev-toast${neg ? ' neg' : ''}"><span>${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
+    toasts.innerHTML = `<div class="ev-toast${neg ? ' neg' : ''}"${ms ? ` style="animation-duration:${ms | 0}ms"` : ''}><span>${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
     live = { text, t: performance.now() };
-    clearTimeout(lineTimer); lineTimer = setTimeout(nextLine, LINE_MS);
+    clearTimeout(lineTimer); lineTimer = setTimeout(nextLine, ms || LINE_MS);
   }
-  function nextLine() { const m = lineQ.shift(); if (m) showLine(m.text, m.sub, m.neg); else { live = null; toasts.innerHTML = ''; } }
+  function nextLine() { const m = lineQ.shift(); if (m) showLine(m.text, m.sub, m.neg, m.ms); else { live = null; toasts.innerHTML = ''; } }
 
-  addEventListener('pd-toast', e => { const d = e.detail || {}; api.toast(d.text, d.sub, d.neg); });   // other modules (src/danger.js) show a toast without owning the HUD
+  addEventListener('pd-toast', e => { const d = e.detail || {}; api.toast(d.text, d.sub, d.neg, d.ms); });   // other modules (src/danger.js) show a toast without owning the HUD
 
   const api = {
     // text is written only when it changed (called a few times per second at most)
@@ -143,9 +143,9 @@ export function createEventHud({ camera, car, groundY }) {
     clear() { show(false); leashEl.classList.remove('on'); setEdge(false); target = null; cache = ''; result.classList.remove('on'); count.classList.remove('on'); resultT = 0; },   // the queue of lines runs out by itself
     count(big, sub) { sfx(/^\d+$/.test(big) ? 'count' : 'go'); count.innerHTML = `${esc(big)}${sub ? `<small>${esc(sub)}</small>` : ''}`; count.classList.remove('on'); void count.offsetWidth; count.classList.add('on'); countT = 1.1; },
     // one line at a time: a warning (neg) goes to the front of the queue, the queue keeps the newest three, the same line again just restarts, and a waiting line cuts the one on screen short
-    toast(text, sub, neg) {
-      if (live && live.text === text) { showLine(text, sub, neg); return; }
-      if (neg) lineQ.unshift({ text, sub, neg }); else lineQ.push({ text, sub, neg });
+    toast(text, sub, neg, ms) {
+      if (live && live.text === text) { showLine(text, sub, neg, ms); return; }
+      if (neg) lineQ.unshift({ text, sub, neg, ms }); else lineQ.push({ text, sub, neg, ms });
       while (lineQ.length > 3) lineQ.splice(neg ? lineQ.length - 1 : 0, 1);
       if (!live) nextLine();
       else { clearTimeout(lineTimer); lineTimer = setTimeout(nextLine, Math.max(0, LINE_MIN - (performance.now() - live.t))); }

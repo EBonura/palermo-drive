@@ -203,6 +203,13 @@ impl Hub {
         self.conns.values().filter(|c| c.helloed).count() as u16
     }
 
+    /// Has this address used its frames for today (an upgrade from it would be refused with 429)? For /status.
+    pub fn budget_used(&mut self, ip: &str, now: u64) -> bool {
+        let ip = address_key(ip);
+        self.roll_day(now);
+        self.per_address.get(&ip).is_some_and(|n| *n >= self.day_limit)
+    }
+
     pub fn conn(&self, handle: u16) -> Option<&Conn> {
         self.conns.get(&handle)
     }
@@ -937,6 +944,8 @@ mod tests {
         assert_eq!(hub.stats.dropped["address budget"], 1);
         assert_eq!(hub.len(), 1, "the socket is gone, not just ignored");
         assert_eq!(hub.accept("1.1.1.1", 2000), Err(Refuse::Budget), "and the address cannot come back today");
+        assert!(hub.budget_used("1.1.1.1", 3000) && !hub.budget_used("9.9.9.9", 3000), "/status can say whose budget is used");
+        assert!(!hub.budget_used("1.1.1.1", 86_400_000 + 1), "and it is fresh the next day");
         assert!(!hub.on_binary(other, &state(0.0, 0.0), 5000).is_empty(), "another address is not affected");
         assert!(hub.accept("1.1.1.1", 86_400_000 + 5).is_ok(), "fresh the next UTC day");
     }

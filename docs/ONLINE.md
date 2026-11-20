@@ -11,6 +11,7 @@ Until 20 November 2026 this was peer to peer (Trystero over Nostr relays, WebRTC
 | `src/online/online.js` | The client: name card and consent, players by handle, sending, drink offers, phrases, the panel and the debug box. `createOnline(env)`, called from `src/main.js`. |
 | `src/online/wire.js` | The frames, packed and read. No DOM and no socket: every byte from the relay is checked here. |
 | `src/online/link.js` | The one WebSocket and its reconnecting (backoff with jitter). Knows nothing about the game. |
+| `src/online/status.js` | Why there is nobody (relay full, over for today, cannot be reached): asking `/status`, the local time of 00:00 UTC, and every line the player is told, in both languages. |
 | `src/online/relay-url.js` | The address of the relay, in one place. Empty means the game never connects. |
 | `src/online/panel.js`, `wheel.js`, `phrases.js` | The multiplayer section on the street, the talk wheel, the fixed list of phrases. |
 | `src/remotes.js`, `src/predict.js` | Other players' cars (smoothing, the jitter buffer) and the prediction shared by sender and receiver. |
@@ -48,7 +49,30 @@ The relay gives each player a set of the nearest other players (8 in `relay-work
 
 Nothing connects until the player has a name and has said yes on the name card ("Gioca online", or Online in Options). The card asks on every page open; only the name is remembered. "Gioca da solo" closes the socket and keeps it closed.
 
-The socket is open while the player is online and the game has been played in the last 30 s. A game paused or left in the Garage for longer, or a page in the background, lets go of the relay (it closes a silent socket after 60 s anyway), and the next frame back reopens it. When the socket drops, every other player is forgotten at once (the cars go), then the page asks again after 1 s, 2 s, 4 s and so on up to 10 minutes, each wait cut at random to between half and all of its step, so a thousand pages that lost the relay together do not come back together. A connection that stayed up 15 s starts the waits again from 1 s; one that dropped at once does not. The browser's own "online" event tries again at once. An unreachable, full (503) or exhausted relay all look the same: nobody is there, the panel says "ancora nessuno", the game goes on, and no error is shown. `tools/online/link-check.mjs` and `relaydown.mjs` test this.
+The socket is open while the player is online and the game has been played in the last 30 s. A game paused or left in the Garage for longer, or a page in the background, lets go of the relay (it closes a silent socket after 60 s anyway), and the next frame back reopens it. When the socket drops, every other player is forgotten at once (the cars go), then the page asks again after 1 s, 2 s, 4 s and so on up to 10 minutes, each wait cut at random to between half and all of its step, so a thousand pages that lost the relay together do not come back together. A connection that stayed up 15 s starts the waits again from 1 s; one that dropped at once does not. The browser's own "online" event tries again at once. A relay that cannot be reached, is full (503) or is over its daily allowance all look the same to the socket, so after each failed step the page asks the relay why (next section); the game goes on whatever the answer, and no technical error is ever shown. `tools/online/link-check.mjs` and `relaydown.mjs` test the waiting.
+
+## When online is not available
+
+The relay is on Cloudflare's free plan, which has daily limits shared by every player, so "online is not there" is a normal thing that has to be said plainly. The states are told apart at a glance (code: `src/online/status.js`, shown by `online.js` and `panel.js`):
+
+| State | Pill (colour) | When |
+| --- | --- | --- |
+| connected | players count (cyan ring), talk button | as always |
+| connecting | `Online…` (grey dotted ring) | before the first answer and while asking again; says nothing else |
+| full | `Online chinu` (amber) | `/status` says `full`, or the relay closed us with 1013 |
+| over for today | `Online finutu pi oggi` (red) | `/status` says `quota` (the object's free daily limit is used up), or `budget` / close 1008 "daily allowance used" (only this address's share is used; its own sentence) |
+| cannot be reached | `Online un funziona` (violet) | the socket will not open and `/status` cannot be read or says `error`: no reason is claimed |
+
+The pill is the capsule of the multiplayer section (there while driving online); above it the panel shows one or two sentences, the same sentence comes once as a toast (6.5 s) when the state changes, and "L’online tuinnàu!" once when it recovers. "Over for today" says when it comes back: 00:00 UTC on the player's own clock (01:00 in Italy in winter, 02:00 in summer, from the browser's time zone). The name card says before the choice that online runs on a free server with a daily limit. All the words are at the top of `src/online/status.js`, one constant per line (the Palermitan ones are the owner's drafts).
+
+### How the reason is known
+
+A browser cannot read the status or body of a failed WebSocket upgrade, so there is a side channel: `GET /status` on the relay's Worker (CORS for the game's origins and localhost / 127.0.0.1 with a port, `Cache-Control: private, max-age=5`, always 200 JSON). It answers `{"ok":true,"online":n,"max":m}`, `{"ok":false,"why":"full"}`, `"budget"` (this address's frames for today are used), `"quota"` (the call to the object failed with a message that names an exceeded limit) or `"error"` (it failed for any other reason). What Cloudflare documents:
+
+- Worker over its own daily limit (free plan, 100,000 requests a day, resets at 00:00 UTC): "Cloudflare returns Error 1027" for a route that fails closed, an error page from Cloudflare, not from our code ([Workers limits](https://developers.cloudflare.com/workers/platform/limits/); the [Workers errors](https://developers.cloudflare.com/workers/observability/errors/) page lists 1027 as "Worker exceeded free tier daily request limit"). The docs do not state the HTTP status. Such a response carries no CORS headers, so the browser fails the `fetch` or shows it as opaque: the page cannot tell it from a relay that is simply down, and says "not available right now" without a reason. (Fail open, the other mode, bypasses the Worker, which is no use to a relay.)
+- Durable Object over its free limits (100,000 requests a day, 13,000 GB-s a day, plus SQLite rows; incoming WebSocket messages count 20 to 1; reset 00:00 UTC): "further operations of that type will fail with an error" ([Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/)). The docs give no message text and no status for the stub's `fetch`. Users report messages such as "Exceeded allowed volume of requests in Durable Objects free tier" (found through search results, the Cloudflare community threads themselves could not be opened from here), and some say the errors outlast the reset by a few minutes. So the Worker catches whatever the stub throws and calls it `quota` when the text speaks of exceeding something or of the free tier, `error` otherwise (`relay-worker/src/status.rs`, unit tested). This is a best guess at the wording, not a documented contract: if the text differs, the player is told "not available right now" instead of "finished for today", which is still true.
+
+The cost is kept near nothing: the page asks `/status` only after a socket has failed (once per backoff step, one request at a time), never while connected; a daily reason (`quota`, `budget`) is not asked again for 15 minutes; a close code the relay sent itself (1013, or 1008 with "daily allowance used") gives its reason with no request. The page's content security policy names the relay for both `wss:` and `https:` (`connect-src`, `tools/build/build.mjs`), so the `fetch` is allowed. `tools/online/states.mjs` walks all of it; `relaysim.mjs` has `/status` and `set({ status, maxConns, frameDay })` to produce each state.
 
 ## What the client sends, and when
 
@@ -127,6 +151,7 @@ Build the page with `node tools/build/build.mjs --test-relay --out <dist>` (the 
 | `maps.mjs` | the rings on the minimap and the big map, desktop and phone |
 | `fuzz.mjs` | hostile frames of every type |
 | `bytes.mjs` | the tables above (`--scenario pair` or `crowd`) |
+| `states.mjs` | every state of the section above on a desktop and a phone page: pill words and colour, panel, toast, local time, solo driving, request count; screenshots to `~/.cache/palermo-drive/online-states/` |
 | `link-check.mjs` | reconnecting, with a fake socket and clock; no browser |
 | `relay-rules.mjs` | the relay's rules from outside, with bots; no browser; run it against any relay |
 

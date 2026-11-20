@@ -303,6 +303,20 @@ test('no HELLO within 10 s closes the socket (on the next event); ONLINE rides o
   void b;
 });
 
+test('/status: JSON, readable from the game\'s origins only, cached a few seconds', async () => {
+  const r = await fetch(BASE + '/status', { headers: { Origin: ORIGIN } });
+  eq(r.status, 200, 'status code');
+  eq(r.headers.get('access-control-allow-origin'), ORIGIN, 'CORS for a local page');
+  assert(/max-age=\d/.test(r.headers.get('cache-control') || ''), 'a short Cache-Control');
+  assert((r.headers.get('content-type') || '').includes('application/json'), 'JSON');
+  const j = await r.json();
+  eq([j.ok, typeof j.online, j.max], [true, 'number', 300], 'the shape when there is room');
+  const evil = await fetch(BASE + '/status', { headers: { Origin: 'https://evil.example' } });
+  eq(evil.headers.get('access-control-allow-origin'), null, 'no CORS for another origin');
+  const none = await fetch(BASE + '/status');
+  eq(none.status, 200, 'no Origin header is still answered'); eq(none.headers.get('access-control-allow-origin'), null, 'and gets no CORS');
+});
+
 test('connection caps: 24 per address (429), an IPv6 /64 counts as one address, 300 in all (503)', async () => {
   await sleep(500);
   const held = [];
@@ -322,6 +336,8 @@ test('connection caps: 24 per address (429), an IPv6 /64 counts as one address, 
   let n = (await stats()).connections;
   while (n < 300) { const r = await rawUpgrade({ origin: ORIGIN, ip: freshIp() }); eq(r.status, 101, `connection ${n + 1}`); singles.push(r.socket); n++; }
   eq((await rawUpgrade({ origin: ORIGIN, ip: freshIp() })).status, 503, 'the 301st');
+  const full = await (await fetch(BASE + '/status', { headers: { Origin: ORIGIN } })).json();
+  eq([full.ok, full.why, full.max], [false, 'full', 300], '/status says the relay is full (these sockets never said HELLO, so online counts none of them)');
   singles.forEach(s => s.destroy());
   await sleep(1000);
   // 24 places held by one address and the rest by singles: a newcomer gets in and the big holder gives one up
