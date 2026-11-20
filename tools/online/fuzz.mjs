@@ -10,7 +10,8 @@ const enc = s => new TextEncoder().encode(s), u16 = n => [n & 255, n >> 8];
 const arr = b => [...b];
 const info = (v, l, nameBytes) => [v, l, nameBytes.length, ...nameBytes];
 const enter = (handle, i) => [IN.ENTER, ...u16(handle), ...i];
-const welcome = (handle, online = 3, ver = 2) => [IN.WELCOME, ver, ...u16(handle), ...u16(online)];
+const welcome = (handle, online = 3, ver = 2, k = 8) => ver === 3 ? [IN.WELCOME, 3, ...u16(handle), ...u16(online), k] : [IN.WELCOME, ver, ...u16(handle), ...u16(online)];
+const batch = (n, entries) => [8, n, ...entries.flat()];   // entries: [handle u16 bytes..., state bytes...]
 const leave = handle => [IN.LEAVE, ...u16(handle)];
 const st = (handle, mut, o = {}) => { const f = arr(stateFrame({ t: 1000, x: 100, z: 100, th: 1, v: 5, steer: 0, roll: 0, lean: 0, fl: 0, k: 0, a: 0, h: 0, ...o })); const b = [IN.STATE, ...u16(handle), ...f.slice(1)]; if (mut) mut(b); return b; };   // [4][handle][state]: the state starts at byte 3
 const say = (handle, p) => [IN.SAY, ...u16(handle), p];
@@ -24,8 +25,8 @@ try {
   // before WELCOME nothing means anything
   await run('before WELCOME: ENTER, STATE, SAY, TO, LEAVE, ONLINE are all bad', [enter(7, info(0, 0, enc('x'))), st(7), say(7, 1), to(7, 4, 0, 1), leave(7), [IN.ONLINE, 5, 0]], r => r.bad === 6 && r.players === 0);
   // WELCOME
-  await run('WELCOME of the wrong size, version 1, handle 0 (bad)', [[IN.WELCOME, 2, 1, 0], [IN.WELCOME, 2, 1, 0, 1, 0, 0], welcome(5, 1, 1), welcome(0)], r => r.bad === 4);
-  await run('a good WELCOME', [welcome(4000)], r => r.bad === 0);
+  await run('WELCOME of the wrong size, version 1, version 4, handle 0, set size 0 or 65 (bad)', [[IN.WELCOME, 2, 1, 0], [IN.WELCOME, 2, 1, 0, 1, 0, 0], [IN.WELCOME, 3, 1, 0, 1, 0], welcome(5, 1, 1), [IN.WELCOME, 4, 1, 0, 1, 0, 8], welcome(0), welcome(0, 1, 3), welcome(5, 1, 3, 0), welcome(5, 1, 3, 65)], r => r.bad === 9);
+  await run('a good WELCOME (protocol 3, 8 players: the table holds 16)', [welcome(4000, 3, 3, 8)], r => r.bad === 0);
   await run('a second WELCOME (bad)', [welcome(4001)], r => r.bad === 1);
   // ENTER
   await run('ENTER: a name with markup comes out as plain text', [enter(10, info(0, 0, enc('<img src=x onerror=alert(1)>')))], r => r.bad === 0 && r.players === 1);
@@ -66,19 +67,38 @@ try {
   ok('  ... no card on the screen', !(await A.page.evaluate(() => window.__p2p.offerState().card)));
   await run('TO: from a handle never introduced is dropped', [to(777, 4, 0, 1)], r => r.dropped === 1 && r.bad === 0);
   // ONLINE
+  // AUDIENCE and BATCH (protocol 3: this page was told protocol 3 above)
+  await run('AUDIENCE: wrong size, band 9 (bad); bands 0 to 8 (fine)', [[9], [9, 1, 1], [9, 9], [9, 255], [9, 0], [9, 3], [9, 8]], r => r.bad === 4);
+  ok('  ... the last band is kept', (await A.page.evaluate(() => window.__p2p.audience())) === 8);
+  const body = (t, x) => arr(stateFrame({ t, x, z: 100, th: 1, v: 5, steer: 0, roll: 0, lean: 0, fl: 0, k: 0, a: 0, h: 0 })).slice(1);
+  const ent = (h, t, x = 100) => [...u16(h), ...body(t, x)];
+  await run('BATCH: 3 states of known players (fine, each one drawn or kept)', [batch(3, [ent(10, 30000), ent(13, 30000), ent(10, 30020)])], r => r.bad === 0 && r.dropped === 0);
+  await run('BATCH: one entry, 17 entries, zero entries (bad)', [batch(1, [ent(10, 31000)]), batch(17, Array.from({ length: 17 }, (_, i) => ent(10, 31001 + i))), batch(0, [])], r => r.bad === 3);
+  await run('BATCH: a count that lies (more or fewer entries than it says), a short entry, a byte left over (bad)', [batch(3, [ent(10, 32000), ent(10, 32020)]), batch(2, [ent(10, 32040), ent(10, 32060), ent(10, 32080)]), [...batch(2, [ent(10, 32100), ent(10, 32120)]).slice(0, -3)], [...batch(2, [ent(10, 32140), ent(10, 32160)]), 0]], r => r.bad === 4);
+  await run('BATCH: an entry with handle 0, a reserved flag bit, a height flag with no height bytes (bad)', [batch(2, [ent(0, 33000), ent(10, 33020)]), batch(2, [ent(10, 33040), (() => { const e = ent(10, 33060); e[2 + 14] = 0x10; return e; })()]), batch(2, [ent(10, 33080), (() => { const e = ent(10, 33100); e[2 + 14] = 8; return e; })()])], r => r.bad === 3);
+  await run('BATCH: an entry with a height (20 bytes) and one without, mixed (fine)', [batch(2, [[...u16(10), ...arr(stateFrame({ t: 34000, x: 100, z: 100, th: 1, v: 5, steer: 0, roll: 0, lean: 0, fl: 0, k: 0, a: 0, h: 12.3 })).slice(1)], ent(13, 34020)])], r => r.bad === 0 && r.dropped === 0);
+  await run('BATCH: entries from a handle never introduced are dropped one by one, the others kept', [batch(3, [ent(777, 35000), ent(10, 35020), ent(778, 35040)])], r => r.bad === 0 && r.dropped === 2);
+  await run('BATCH: an old state and a copy inside a batch are dropped as such (not bad)', [batch(2, [ent(10, 36000), ent(10, 35000)])], r => r.bad === 0);
+  const binj = await A.page.evaluate(fl => window.__p2p.inject(fl.map(f => new Uint8Array(f))), Array.from({ length: 200 }, (_, i) => batch(16, Array.from({ length: 16 }, (_, j) => ent(10, 40000 + (i * 16 + j) * 20)))));
+  ok('BATCH: 200 batches of 16 (3200 states) at once: the whole relay bucket counts every state, most are dropped, nothing thrown', binj.threw === 0 && binj.dropped >= 1700, JSON.stringify(binj));
   await run('ONLINE: wrong size (bad), a good one', [[IN.ONLINE], [IN.ONLINE, 1], [IN.ONLINE, 1, 0, 0], [IN.ONLINE, 9, 0]], r => r.bad === 3);
   // the frame as a whole
   await run('not bytes, empty, 97 bytes, type 0, type 8, type 255 (bad)', [null, 'text', 12345, [], new Array(97).fill(1), [0, 1, 2], [8, 0, 0, 0], [255, 0, 0, 0]], r => r.bad === 8);
   // the table: more players than it holds
   const many = []; for (let i = 0; i < 60; i++) many.push(enter(100 + i, info(0, 0, enc('p' + i))));
   const cap = await A.page.evaluate(fr => window.__p2p.fuzz(fr.map(f => new Uint8Array(f))), many);
-  ok('ENTER: 60 more players: the table stays at its cap, the rest are dropped', cap.threw === 0 && cap.players === 16 && cap.dropped >= 50, JSON.stringify(cap));
+  ok('ENTER: 60 more players: the table stays at its cap (8 asked for and 8 more), the rest are dropped', cap.threw === 0 && cap.players === 16 && cap.dropped >= 50, JSON.stringify(cap));
   // the relay as a whole: a flood through the real entry point
   const inj = await A.page.evaluate(fl => window.__p2p.inject(fl.map(f => new Uint8Array(f))), Array.from({ length: 3000 }, (_, i) => st(10, null, { t: 20000 + i * 20 })));
   ok('3000 frames at once through the relay limit: most dropped, nothing thrown', inj.threw === 0 && inj.dropped >= 2000, JSON.stringify(inj));
-  const fin = await A.page.evaluate(() => ({ ...window.__p2p.stats, players: window.__p2p.peers.size, drawn: window.__p2p.remotes.size }));
+  const fin = await A.page.evaluate(() => ({ ...window.__p2p.stats, players: window.__p2p.peers.size, drawn: window.__p2p.cars() }));
   const errs = A.errs.filter(e => !/WebSocket connection|Failed to load resource/.test(e));   // the closed port the page was given is refused, and the browser says so (for the socket, and for the one /status it then asks)
-  ok('nothing was thrown in all of it, the cap held, and no page error', fin.threw === 0 && fin.players <= 16 && fin.drawn <= 8 && !errs.length, JSON.stringify({ ...fin, errs }));
+  ok('nothing was thrown in all of it, the cap held, and no page error', fin.threw === 0 && fin.players <= 16 && fin.drawn <= 32 && !errs.length, JSON.stringify({ ...fin, errs }));
+  // a page whose relay speaks protocol 2: nothing of protocol 3 means anything to it
+  const B = await player(h, { name: 'Bob', x: -1250, z: 250, relay: 'ws://127.0.0.1:9/r' });
+  const runB = (label, frames, check) => B.page.evaluate(fr => window.__p2p.fuzz(fr.map(f => new Uint8Array(f))), frames).then(r => ok(label, r.threw === 0 && check(r), JSON.stringify(r)));
+  await runB('a protocol 2 WELCOME, then AUDIENCE and BATCH are bad, and a protocol 3 ENTER and STATE still work', [welcome(5000, 2, 2), enter(20, info(0, 0, enc('x'))), [9, 2], batch(2, [ent(20, 50000), ent(20, 50020)]), st(20, null, { t: 51000 })], r => r.bad === 2 && r.players === 1);
+  ok('  ... and the page keeps 16 players, as it did', (await B.page.evaluate(() => window.__p2p.maxTracked())) === 16);
 } finally { await h.close(); }
 console.log(bad ? `FAILED: ${bad}` : 'ALL PASSED');
 process.exit(bad ? 1 : 0);

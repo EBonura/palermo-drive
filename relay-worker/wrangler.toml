@@ -1,6 +1,7 @@
 name = "pd-relay"
 main = "build/index.js"
 compatibility_date = "2026-06-01"
+compatibility_flags = ["no_web_socket_compression"]
 
 # The relay answers on the game's own domain, where a Cloudflare rate limit rule can turn a flood away before it
 # counts against the daily allowance. The workers.dev address still answers, for pages opened before the move.

@@ -1,6 +1,6 @@
 //! The relay's whole state machine, with no Worker types: it takes frames and a clock and returns the actions
 //! (send, close, save an attachment) the Worker glue must carry out. That keeps every rule testable natively.
-//! Nothing here sets a timer: every rule that involves time is checked when the next event arrives.
+//! Nothing here sets a timer: every rule that involves time is checked when the next event arrives. That includes batching (`flush_due`).
 
 use crate::interest::select_set;
 use crate::proto::*;
@@ -43,6 +43,16 @@ pub struct Conn {
     /// When a state from each member of `set` was last forwarded here.
     last_fwd: Vec<(u16, u64)>,
     last_state: Option<Vec<u8>>,
+    /// Protocol version this player said in HELLO (2 or 3) and how many players it receives (K for v2, what it asked for for v3). Saved in the attachment.
+    pub ver: u8,
+    pub k: usize,
+    /// v3 only, memory only: the gaps the per receiver budget allows for each member, the states waiting to be sent as one frame (handle u16 + state, and when each
+    /// came in), when the last frame of states went, and the audience band this player was last told (255: not yet).
+    bgap: Vec<(u16, u64)>,
+    box_full: Vec<u8>,
+    box_t: Vec<u64>,
+    last_flush: u64,
+    aud_sent: u8,
     all: Bucket,
     say: Bucket,
     to: Bucket,
@@ -69,6 +79,13 @@ impl Conn {
             watchers: vec![],
             last_fwd: vec![],
             last_state: None,
+            ver: VERSION,
+            k: K,
+            bgap: vec![],
+            box_full: vec![],
+            box_t: vec![],
+            last_flush: 0,
+            aud_sent: 255,
             all: Bucket::full(RATE_ALL, now),
             say: Bucket::full(RATE_SAY, now),
             to: Bucket::full(RATE_TO, now),
@@ -83,9 +100,9 @@ impl Conn {
         }
     }
 
-    /// Compact bytes for the socket attachment (a 2 KiB limit; this stays under about 170).
+    /// Compact bytes for the socket attachment (a 2 KiB limit; this stays under about 170 for a v2 player and about 310 for a v3 one holding 64).
     pub fn encode(&self) -> Vec<u8> {
-        let mut o = vec![2u8];
+        let mut o = vec![3u8];
         o.extend_from_slice(&self.handle.to_le_bytes());
         o.push(self.helloed as u8 | (self.pos.is_some() as u8) << 1);
         o.extend_from_slice(&self.connected_ms.to_le_bytes());
@@ -100,6 +117,8 @@ impl Conn {
         for m in &self.set {
             o.extend_from_slice(&m.to_le_bytes());
         }
+        o.push(self.ver);
+        o.push(self.k as u8);
         o
     }
 
@@ -128,7 +147,8 @@ impl Conn {
             }
         }
         let mut r = R(b);
-        if r.u8()? != 2 {
+        let record = r.u8()?;
+        if record != 2 && record != 3 {
             return None;
         }
         let handle = r.u16()?;
@@ -149,6 +169,13 @@ impl Conn {
         c.info = info;
         c.pos = (flags & 2 != 0).then_some((x, z));
         c.set = set;
+        if record == 3 {
+            c.ver = r.u8()?;
+            c.k = r.u8()? as usize;
+            if (c.ver != VERSION && c.ver != VERSION_3) || c.k == 0 || c.k > K_MAX {
+                return None;
+            }
+        }
         Some(c)
     }
 }
@@ -160,6 +187,40 @@ pub struct Stats {
     pub thinned: u64,
     pub bytes_in: u64,
     pub dropped: BTreeMap<&'static str, u64>,
+    /// v3: frames of batched states sent, the states in them, and how long a state waited for its frame, by millisecond (the last counts 'this long or more').
+    pub batches: u64,
+    pub batched_states: u64,
+    pub batch_wait: Vec<u64>,
+    pub audience_sent: u64,
+}
+
+impl Stats {
+    fn note_wait(&mut self, ms: u64) {
+        if self.batch_wait.is_empty() {
+            self.batch_wait = vec![0; 1001];
+        }
+        self.batch_wait[(ms as usize).min(1000)] += 1;
+    }
+}
+
+/// What the experiments of docs/ONLINE-CROWD.md change without a rebuild: the shipped values are the constants of `proto.rs`.
+#[derive(Debug, Clone)]
+pub struct Tuning {
+    pub radius: f32,
+    pub far_slots: usize,
+    pub far_gap_ms: u64,
+    pub budget_above: usize,
+    pub budget_rate: f32,
+    pub batch_ms: u64,
+    pub batch_min_held: usize,
+    pub batch_max: usize,
+    /// How many events in a row must have come less than batch_ms after the one before for the relay to count as busy (1: the last gap; more: a run of dense events).
+    pub busy_gaps: usize,
+}
+impl Default for Tuning {
+    fn default() -> Self {
+        Tuning { radius: SET_RADIUS_M, far_slots: FAR_SLOTS, far_gap_ms: FAR_GAP_MS, budget_above: BUDGET_ABOVE, budget_rate: BUDGET_STATES_PER_S, batch_ms: BATCH_MS, batch_min_held: BATCH_MIN_HELD, batch_max: BATCH_MAX, busy_gaps: BUSY_GAPS }
+    }
 }
 
 pub struct Hub {
@@ -170,12 +231,22 @@ pub struct Hub {
     per_address: HashMap<String, u32>,
     pub day_limit: u32,
     pub stats: Stats,
+    /// Players a v2 player receives (the relay's `K`, 8; the crowd tools in `hubbench/` set it to measure what a bigger one would have cost).
+    pub k: usize,
+    /// Players a v3 player receives when it does not ask for a number.
+    pub k3: usize,
+    pub tune: Tuning,
+    /// Receivers with states waiting in a box, and when the last incoming event of any player came (batching, see `flush_due`).
+    pending: Vec<u16>,
+    last_event: u64,
+    short_run: usize,
+    busy: bool,
 }
 
 impl Hub {
     /// `seed` picks where handle numbering starts, so a handle is not reused soon after a restart.
     pub fn new(seed: u16) -> Self {
-        Hub { conns: BTreeMap::new(), next: seed.max(1), last_sweep: 0, day: 0, per_address: HashMap::new(), day_limit: FRAMES_PER_IP_PER_DAY, stats: Stats::default() }
+        Hub { conns: BTreeMap::new(), next: seed.max(1), last_sweep: 0, day: 0, per_address: HashMap::new(), day_limit: FRAMES_PER_IP_PER_DAY, stats: Stats::default(), k: K, k3: K_V3, tune: Tuning::default(), pending: vec![], last_event: 0, short_run: 0, busy: false }
     }
 
     pub fn restore(&mut self, conns: Vec<Conn>) {
@@ -333,6 +404,10 @@ impl Hub {
 
     pub fn on_binary(&mut self, handle: u16, b: &[u8], now: u64) -> Vec<Action> {
         let mut acts = vec![];
+        // Batching holds states only while the relay is busy: another event came less than batch_ms ago, so the next one is likely soon (see flush_due).
+        self.short_run = if now.saturating_sub(self.last_event) < self.tune.batch_ms { self.short_run + 1 } else { 0 };
+        self.busy = self.short_run >= self.tune.busy_gaps;
+        self.last_event = now;
         let Some(c) = self.conns.get_mut(&handle) else { return acts };
         self.stats.frames_in += 1;
         self.stats.bytes_in += b.len() as u64;
@@ -385,14 +460,17 @@ impl Hub {
             }
         };
         match (helloed, frame) {
-            (false, Frame::Hello { info }) => {
+            (false, Frame::Hello { ver, want_k, info }) => {
                 let online = self.conns.values().filter(|c| c.helloed).count() as u16 + 1;
+                let k = if want_k == 0 { self.k3.clamp(1, K_MAX) } else { clamp_k(want_k) };
                 let c = self.conns.get_mut(&handle).unwrap();
                 c.info = info.to_vec();
                 c.helloed = true;
                 c.online_val = online;
                 c.online_ms = now;
-                acts.push(Action::Send(handle, welcome(handle, online)));
+                c.ver = ver;
+                c.k = if ver == VERSION_3 { k } else { self.k };
+                acts.push(Action::Send(handle, if ver == VERSION_3 { welcome3(handle, online, c.k) } else { welcome(handle, online) }));
                 acts.push(Action::Persist(handle));
             }
             (false, _) => self.kick(handle, CLOSE_POLICY, "hello first", now, &mut acts),
@@ -403,6 +481,7 @@ impl Hub {
             (true, Frame::To { handle: target, direct }) => self.on_to(handle, target, direct, now, &mut acts),
         }
         self.piggyback_online(handle, now, &mut acts);
+        self.flush_due(now, &mut acts);
         acts
     }
 
@@ -429,10 +508,23 @@ impl Hub {
             acts.push(Action::Persist(handle)); // the new position goes into the attachment with the set
         }
         let frame = state_frame(handle, body);
+        let radius = self.tune.radius;
+        let mut nearest: Option<f32> = None;
         for w in self.conns[&handle].watchers.clone() {
             let Some(r) = self.conns.get_mut(&w) else { continue };
             let Some((rx, rz)) = r.pos else { continue };
-            let wait = forward_interval_ms((rx - x).hypot(rz - z));
+            let d = (rx - x).hypot(rz - z);
+            nearest = Some(nearest.map_or(d, |n| n.min(d)));
+            let mut wait = forward_interval_ms(d);
+            let v3 = r.ver == VERSION_3;
+            if v3 {
+                if let Some(e) = r.bgap.iter().find(|e| e.0 == handle) {
+                    wait = wait.max(e.1);
+                }
+                if d > radius {
+                    wait = wait.max(self.tune.far_gap_ms);
+                }
+            }
             match r.last_fwd.iter_mut().find(|e| e.0 == handle) {
                 Some(e) if now < e.1 + wait => {
                     self.stats.thinned += 1;
@@ -442,8 +534,106 @@ impl Hub {
                 None => r.last_fwd.push((handle, now)),
             }
             self.stats.forwarded += 1;
-            acts.push(Action::Send(w, frame.clone()));
+            self.deliver(w, handle, &frame, body, now, acts);
         }
+        self.tell_audience(handle, nearest, acts);
+    }
+
+    /// One state for one receiver: straight out, or into the receiver's box when it is a v3 player holding enough players and the relay is busy.
+    fn deliver(&mut self, w: u16, from: u16, frame: &[u8], body: &[u8], now: u64, acts: &mut Vec<Action>) {
+        let bx = self.tune.batch_ms;
+        let Some(r) = self.conns.get_mut(&w) else { return };
+        let batching = r.ver == VERSION_3 && r.set.len() >= self.tune.batch_min_held && bx > 0;
+        if !batching {
+            if !r.box_t.is_empty() {
+                self.flush(w, now, acts); // the receiver dropped below the number that is batched: what waits goes first, so the order is kept
+            }
+            acts.push(Action::Send(w, frame.to_vec()));
+            return;
+        }
+        // The first state after a quiet spell, and any state while the relay is quiet, goes at once; only a state that comes within batch_ms of the last frame
+        // sent to this receiver, while other events are arriving, waits.
+        if r.box_t.is_empty() && (!self.busy || now >= r.last_flush + bx) {
+            r.last_flush = now;
+            self.stats.batches += 1;
+            self.stats.batched_states += 1;
+            self.stats.note_wait(0);
+            acts.push(Action::Send(w, frame.to_vec()));
+            return;
+        }
+        if r.box_t.is_empty() {
+            self.pending.push(w);
+        }
+        r.box_full.extend_from_slice(&from.to_le_bytes());
+        r.box_full.extend_from_slice(body);
+        r.box_t.push(now);
+        if r.box_t.len() >= self.tune.batch_max.max(2) {
+            self.flush(w, now, acts);
+        }
+    }
+
+    /// Sends what waits for `w` as one frame (a single state as the plain STATE frame).
+    fn flush(&mut self, w: u16, now: u64, acts: &mut Vec<Action>) {
+        let Some(r) = self.conns.get_mut(&w) else { return };
+        if r.box_t.is_empty() {
+            return;
+        }
+        let n = r.box_t.len();
+        for t in r.box_t.drain(..) {
+            self.stats.note_wait(now.saturating_sub(t));
+        }
+        r.last_flush = now;
+        let buf = std::mem::take(&mut r.box_full);
+        self.stats.batches += 1;
+        self.stats.batched_states += n as u64;
+        acts.push(Action::Send(w, if n == 1 { [&[4u8][..], &buf].concat() } else { batch_frame(n, &buf) }));
+    }
+
+    /// Flushes every receiver whose oldest waiting state is `batch_ms` old. Called after every event: this is the whole mechanism, there is no timer.
+    /// What bounds the wait: a state waits only if it came within batch_ms of the last frame sent to its receiver, and then until the next event of ANY player at or
+    /// after batch_ms later. It is not waiting for a frame that may never come: while it waits the relay is busy (it was entered only when another event had come less than
+    /// batch_ms before), the receiver holds at least BATCH_MIN_HELD players, and every one of them sends at least once every keepalive of its audience (1 s moving,
+    /// 4 s parked; a player held by nobody is not in a box). So the wait is at most the longest gap between two events of those players: 1 s if any of them
+    /// is moving, and the car it concerns is then also the one whose next state flushes the box; 4 s if all are parked, and nothing it holds moves.
+    fn flush_due(&mut self, now: u64, acts: &mut Vec<Action>) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let bx = self.tune.batch_ms;
+        let list = std::mem::take(&mut self.pending);
+        for w in list {
+            match self.conns.get(&w).map(|r| r.box_t.first().copied()) {
+                Some(Some(t)) if now >= t + bx => self.flush(w, now, acts),
+                Some(Some(_)) => self.pending.push(w),
+                _ => {}
+            }
+        }
+    }
+
+    /// Tells a v3 player how far the nearest player that holds it is, as a band, when the band changed. Sent on the back of events that happen anyway; never from a timer.
+    /// `nearest` is the distance to the nearest holder, None when nobody holds it. A move to a nearer band is told at once, a move to a farther one only when the
+    /// holder is AUDIENCE_STAY times past the edge, so a holder at the edge does not make the player's pace flip.
+    fn tell_audience(&mut self, handle: u16, nearest: Option<f32>, acts: &mut Vec<Action>) {
+        let Some(c) = self.conns.get_mut(&handle) else { return };
+        if c.ver != VERSION_3 {
+            return;
+        }
+        let band = nearest.map_or(0, audience_band);
+        let sent = c.aud_sent;
+        let keep = sent != 255 && sent != 0 && band > sent && nearest.is_some_and(|d| audience_band(d / AUDIENCE_STAY) <= sent);
+        if band == sent || keep {
+            return;
+        }
+        c.aud_sent = band;
+        self.stats.audience_sent += 1;
+        acts.push(Action::Send(handle, audience_frame(band)));
+    }
+
+    /// The nearest holder of `handle` by the positions known now.
+    fn audience_of(&self, handle: u16) -> Option<f32> {
+        let c = self.conns.get(&handle)?;
+        let (x, z) = c.pos?;
+        c.watchers.iter().filter_map(|w| self.conns.get(w).and_then(|r| r.pos)).map(|(rx, rz)| (rx - x).hypot(rz - z)).fold(None, |a: Option<f32>, d| Some(a.map_or(d, |a| a.min(d))))
     }
 
     fn on_say(&mut self, handle: u16, phrase: u8, now: u64, acts: &mut Vec<Action>) {
@@ -503,7 +693,29 @@ impl Hub {
             .filter(|o| o.handle != handle && o.helloed)
             .filter_map(|o| o.pos.map(|(ox, oz)| (o.handle, (ox - x).hypot(oz - z))))
             .collect();
-        let new = select_set(&c.set, &cands, K, HYSTERESIS_M);
+        let new = if c.ver == VERSION_3 {
+            // within the radius (a member stays until it is 15 % beyond it), the nearest k; plus the nearest few beyond it
+            let rad = self.tune.radius;
+            let near_c: Vec<(u16, f32)> = cands.iter().filter(|o| o.1 <= rad || (o.1 <= rad * SET_RADIUS_STAY && c.set.contains(&o.0))).copied().collect();
+            let far_c: Vec<(u16, f32)> = cands.iter().filter(|o| !near_c.iter().any(|n| n.0 == o.0)).copied().collect();
+            let mut set = select_set(&c.set, &near_c, c.k, HYSTERESIS_M);
+            let near_n = set.len();   // the budget is for the players held inside the radius: the far slots have their own, slower, pace
+            if self.tune.far_slots > 0 {
+                set.extend(select_set(&c.set, &far_c, self.tune.far_slots, HYSTERESIS_M));
+            }
+            if near_n > self.tune.budget_above {
+                let ws: Vec<(u16, f32)> = set[..near_n].iter().map(|m| (*m, 1.0 / (1.0 + cands.iter().find(|o| o.0 == *m).map_or(1e4, |o| o.1) / 60.0))).collect();
+                let tot: f32 = ws.iter().map(|w| w.1).sum();
+                let b = self.tune.budget_rate;
+                let gaps: Vec<(u16, u64)> = ws.iter().map(|(m, w)| (*m, { let rate = b * w / tot; if rate >= 10.0 { 0 } else { (1000.0 / rate) as u64 } })).collect();
+                self.conns.get_mut(&handle).unwrap().bgap = gaps;
+            } else {
+                self.conns.get_mut(&handle).unwrap().bgap.clear();
+            }
+            set
+        } else {
+            select_set(&c.set, &cands, self.k, HYSTERESIS_M)
+        };
         self.apply_set(handle, new, now, acts);
         self.conns.get_mut(&handle).unwrap().last_recompute = Some(now);
     }
@@ -515,14 +727,15 @@ impl Hub {
         if removed.is_empty() && added.is_empty() {
             return;
         }
-        for m in removed {
+        self.flush(handle, now, acts); // states waiting for this player go before any ENTER or LEAVE, so the order the player sees is the order they happened
+        for m in removed.iter().copied() {
             acts.push(Action::Send(handle, leave(m)));
             if let Some(o) = self.conns.get_mut(&m) {
                 o.watchers.retain(|w| *w != handle);
             }
             self.conns.get_mut(&handle).unwrap().last_fwd.retain(|e| e.0 != m);
         }
-        for m in added {
+        for m in added.iter().copied() {
             let o = self.conns.get_mut(&m).unwrap();
             o.watchers.push(handle);
             acts.push(Action::Send(handle, enter(m, &o.info)));
@@ -536,6 +749,11 @@ impl Hub {
         }
         self.conns.get_mut(&handle).unwrap().set = new;
         acts.push(Action::Persist(handle));
+        // whoever gained or lost a holder may now be watched from nearer or farther, or by nobody: tell it now, not at its next state
+        for m in added.into_iter().chain(removed) {
+            let near = self.audience_of(m);
+            self.tell_audience(m, near, acts);
+        }
     }
 
     fn kick(&mut self, handle: u16, code: u16, why: &'static str, now: u64, acts: &mut Vec<Action>) {
@@ -552,8 +770,11 @@ impl Hub {
             if let Some(o) = self.conns.get_mut(m) {
                 o.watchers.retain(|w| *w != handle);
             }
+            let near = self.audience_of(*m);
+            self.tell_audience(*m, near, acts);
         }
         for w in gone.watchers {
+            self.flush(w, now, acts);
             let Some(r) = self.conns.get_mut(&w) else { continue };
             r.set.retain(|m| *m != handle);
             r.last_fwd.retain(|e| e.0 != handle);
@@ -1076,5 +1297,362 @@ mod tests {
         hub.on_binary(a, &[9, 9], 0);
         let j = hub.stats_json();
         assert!(j.starts_with("{\"online\":1,\"connections\":1,") && j.contains("\"malformed\":1"), "{j}");
+    }
+
+    // ---------- protocol v3 ----------
+
+    fn hello3(name: &str, k: u8) -> Vec<u8> {
+        [&[1u8, 3, k][..], &info(name)[1..]].concat()
+    }
+    fn join3(hub: &mut Hub, name: &str, k: u8, now: u64) -> u16 {
+        let h = hub.accept(&format!("ip-{name}"), now).unwrap().0;
+        let acts = hub.on_binary(h, &hello3(name, k), now);
+        assert_eq!(of_type(&acts, h, 1).len(), 1, "WELCOME");
+        h
+    }
+    /// A v3 player that has sent one state at (x, z).
+    fn spawn3(hub: &mut Hub, name: &str, x: f64, z: f64, now: u64) -> u16 {
+        let h = join3(hub, name, 0, now);
+        hub.on_binary(h, &state(x, z), now);
+        h
+    }
+    /// Lets every set settle: three rounds of one state from everybody, 1.1 s apart, starting at `t`. Returns the time after.
+    fn settle(hub: &mut Hub, who: &[(u16, f64, f64)], t: u64) -> u64 {
+        let mut t = t;
+        for _ in 0..3 {
+            t += 1100;
+            for (h, x, z) in who {
+                hub.on_binary(*h, &state(*x, *z), t);
+            }
+        }
+        t
+    }
+    /// The (handle, state) entries of a BATCH frame, checking the frame is exactly laid out.
+    fn batch_entries(f: &[u8]) -> Vec<(u16, Vec<u8>)> {
+        assert_eq!(f[0], T_BATCH);
+        let n = f[1] as usize;
+        let (mut o, mut out) = (2, vec![]);
+        for _ in 0..n {
+            let h = u16::from_le_bytes([f[o], f[o + 1]]);
+            let l = if f[o + 2 + 14] & 8 != 0 { 20 } else { 18 };
+            out.push((h, f[o + 2..o + 2 + l].to_vec()));
+            o += 2 + l;
+        }
+        assert_eq!(o, f.len(), "no byte left over");
+        out
+    }
+
+    #[test]
+    fn v3_welcome_gives_the_set_size_and_v2_gets_the_old_welcome() {
+        let mut hub = Hub::new(1);
+        let a = hub.accept("1", 0).unwrap().0;
+        assert_eq!(sent(&hub.on_binary(a, &hello3("a", 0), 0), a), vec![&welcome3(a, 1, 32)]);
+        let b = hub.accept("2", 0).unwrap().0;
+        assert_eq!(sent(&hub.on_binary(b, &hello3("b", 200), 0), b), vec![&welcome3(b, 2, 64)], "a request over K_MAX is cut to it");
+        let c = hub.accept("3", 0).unwrap().0;
+        assert_eq!(sent(&hub.on_binary(c, &hello3("c", 12), 0), c), vec![&welcome3(c, 3, 12)]);
+        let d = hub.accept("4", 0).unwrap().0;
+        assert_eq!(sent(&hub.on_binary(d, &hello("d"), 0), d), vec![&welcome(d, 4)], "a v2 hello gets the 6 byte welcome");
+        assert_eq!((hub.conn(a).unwrap().ver, hub.conn(a).unwrap().k, hub.conn(d).unwrap().ver, hub.conn(d).unwrap().k), (3, 32, 2, 8));
+    }
+
+    #[test]
+    fn a_v2_player_keeps_its_eight_nearest_anywhere_and_never_sees_a_v3_frame() {
+        let mut hub = Hub::new(1);
+        let v2 = spawn(&mut hub, "old", 0.0, 0);
+        let mut who = vec![(v2, 0.0, 0.0)];
+        for i in 0..20 {
+            let h = spawn3(&mut hub, &format!("n{i}"), 10.0 + i as f64 * 5.0, 0.0, 0);
+            who.push((h, 10.0 + i as f64 * 5.0, 0.0));
+        }
+        let far = spawn3(&mut hub, "far", 3000.0, 0.0, 0);
+        who.push((far, 3000.0, 0.0));
+        let mut all = vec![];
+        let mut t = 0;
+        for _ in 0..4 {
+            t += 1100;
+            for (h, x, z) in &who {
+                all.extend(hub.on_binary(*h, &state(*x, *z), t));
+            }
+        }
+        assert_eq!(hub.conn(v2).unwrap().set.len(), 8);
+        assert!(sent(&all, v2).iter().all(|f| f[0] != T_BATCH && f[0] != T_AUDIENCE), "a v2 player is sent the frames of v2 only");
+    }
+
+    #[test]
+    fn a_v3_set_is_the_players_within_the_radius_plus_two_far_ones() {
+        let mut hub = Hub::new(1);
+        let me = spawn3(&mut hub, "me", 0.0, 0.0, 0);
+        let mut who = vec![(me, 0.0, 0.0)];
+        for i in 0..5 {
+            who.push((spawn3(&mut hub, &format!("n{i}"), 20.0 + i as f64 * 40.0, 0.0, 0), 20.0 + i as f64 * 40.0, 0.0));
+        }
+        for (i, d) in [2000.0, 3000.0, 4000.0, 9000.0].iter().enumerate() {
+            who.push((spawn3(&mut hub, &format!("f{i}"), *d, 0.0, 0), *d, 0.0));
+        }
+        settle(&mut hub, &who, 0);
+        let set = &hub.conn(me).unwrap().set;
+        assert_eq!(set.len(), 7, "5 near and the 2 nearest far ones: {set:?}");
+        assert!(set.contains(&who[6].0) && set.contains(&who[7].0) && !set.contains(&who[8].0) && !set.contains(&who[9].0));
+    }
+
+    #[test]
+    fn a_v3_set_is_capped_at_k_inside_the_radius() {
+        let mut hub = Hub::new(1);
+        let me = join3(&mut hub, "me", 0, 0);
+        let mut who = vec![(me, 0.0, 0.0)];
+        for i in 0..45 {
+            let x = 5.0 + i as f64 * 8.0;
+            who.push((spawn3(&mut hub, &format!("n{i}"), x, 0.0, 0), x, 0.0));
+        }
+        settle(&mut hub, &who, 0);
+        assert_eq!(hub.conn(me).unwrap().set.len(), 32, "K_V3 of the 45 within 400 m");
+        let asked = join3(&mut hub, "asked", 64, 5000);
+        who.push((asked, 0.0, 3.0));
+        settle(&mut hub, &who, 5000);
+        assert_eq!(hub.conn(asked).unwrap().set.len(), 46, "and a player that asked for 64 holds all 46 here");
+    }
+
+    #[test]
+    fn audience_tells_a_sender_nobody_holds_it_then_who_arrives_and_how_far() {
+        let mut hub = Hub::new(1);
+        let a = join3(&mut hub, "a", 0, 0);
+        let acts = hub.on_binary(a, &state(0.0, 0.0), 0);
+        assert_eq!(of_type(&acts, a, T_AUDIENCE), vec![&audience_frame(0)], "first state: nobody holds you");
+        // b arrives 30 m away: b holds a, and a is told in the same event, not at its next state
+        let b = join3(&mut hub, "b", 0, 100);
+        let acts = hub.on_binary(b, &state(30.0, 0.0), 100);
+        assert_eq!(of_type(&acts, a, T_AUDIENCE), vec![&audience_frame(1)]);
+        // nothing is repeated while it stays in the band
+        let acts = hub.on_binary(a, &state(0.0, 0.0), 1300);
+        assert!(of_type(&acts, a, T_AUDIENCE).is_empty());
+        // b drives away to 400 m: a is told at a's next state, in a farther band; b's own states do not tell a
+        hub.on_binary(b, &state(400.0, 0.0), 1400);
+        let acts = hub.on_binary(a, &state(0.0, 0.0), 2500);
+        assert_eq!(of_type(&acts, a, T_AUDIENCE), vec![&audience_frame(6)], "350 to 600 m");
+        // b leaves: a is told at once that nobody holds it
+        let acts = hub.on_close(b, 3000);
+        assert_eq!(of_type(&acts, a, T_AUDIENCE), vec![&audience_frame(0)]);
+    }
+
+    #[test]
+    fn audience_does_not_flip_at_the_edge_of_a_band_and_is_never_sent_to_v2() {
+        let mut hub = Hub::new(1);
+        let a = spawn3(&mut hub, "a", 0.0, 0.0, 0);
+        let b = spawn3(&mut hub, "b", 140.0, 0.0, 0);
+        let mut t = settle(&mut hub, &[(a, 0.0, 0.0), (b, 140.0, 0.0)], 0);
+        // a is in band 3 (100 to 150 m). b at 155 m is past the edge by less than 20 %: no news
+        hub.on_binary(b, &state(155.0, 0.0), t + 10);
+        t += 1100;
+        let acts = hub.on_binary(a, &state(0.0, 0.0), t);
+        assert!(of_type(&acts, a, T_AUDIENCE).is_empty());
+        // at 200 m (past 150 x 1.2) it is told
+        hub.on_binary(b, &state(200.0, 0.0), t + 10);
+        t += 1100;
+        let acts = hub.on_binary(a, &state(0.0, 0.0), t);
+        assert_eq!(of_type(&acts, a, T_AUDIENCE), vec![&audience_frame(4)]);
+        // a v2 player is never sent one, however its holders move
+        let old = spawn(&mut hub, "old", 0.0, 0);
+        let acts = hub.on_binary(b, &state(10.0, 0.0), t + 2000);
+        let acts2 = hub.on_binary(old, &state(0.0, 0.0), t + 3000);
+        assert!(of_type(&acts, old, T_AUDIENCE).is_empty() && of_type(&acts2, old, T_AUDIENCE).is_empty());
+    }
+
+    /// 14 v3 players within 40 m of each other, settled; returns the handles and where each stands.
+    fn crowd3(hub: &mut Hub, n: usize) -> (Vec<u16>, Vec<(u16, f64, f64)>, u64) {
+        let mut who = vec![];
+        for i in 0..n {
+            let (x, z) = ((i % 5) as f64 * 8.0, (i / 5) as f64 * 8.0);
+            who.push((spawn3(hub, &format!("c{i}"), x, z, 0), x, z));
+        }
+        let t = settle(hub, &who, 0);
+        // the rounds of `settle` send everybody's state in the same millisecond, so some wait in a box: one event a second later carries them, and the counters start from nothing
+        let t = t + 1500;
+        hub.on_binary(who[0].0, &state(who[0].1, who[0].2), t);
+        for c in hub.conns.values() {
+            assert!(c.box_t.is_empty());
+        }
+        hub.stats.batches = 0;
+        hub.stats.batched_states = 0;
+        hub.stats.batch_wait.clear();
+        (who.iter().map(|w| w.0).collect(), who, t)
+    }
+
+    #[test]
+    fn batching_holds_states_that_come_close_together_and_sends_them_as_one_frame() {
+        let mut hub = Hub::new(1);
+        let (hs, _, t) = crowd3(&mut hub, 14);
+        let r = hs[0];
+        assert!(hub.conn(r).unwrap().set.len() >= BATCH_MIN_HELD);
+        // events 5 ms apart: the relay is busy. The first state to r goes at once (nothing waiting, last frame long ago)
+        let t = t + 500;
+        let a1 = hub.on_binary(hs[1], &state(8.0, 0.0), t);
+        assert_eq!(of_type(&a1, r, 4).len(), 1, "the first goes straight out");
+        let a2 = hub.on_binary(hs[2], &state(16.0, 0.0), t + 5);
+        let a3 = hub.on_binary(hs[3], &state(24.0, 0.0), t + 10);
+        assert!(sent(&a2, r).is_empty() && sent(&a3, r).is_empty(), "the next ones wait for batch_ms");
+        // an event of anybody after batch_ms carries them
+        let a4 = hub.on_binary(hs[4], &state(32.0, 0.0), t + BATCH_MS + 6);
+        let frames = of_type(&a4, r, T_BATCH);
+        assert_eq!(frames.len(), 1, "{:?}", sent(&a4, r));
+        let es = batch_entries(frames[0]);
+        assert_eq!(es.iter().map(|e| e.0).collect::<Vec<_>>(), vec![hs[2], hs[3], hs[4]], "the two that waited, in order, and the state of the event that carries them");
+        assert!(es.iter().all(|e| e.1.len() == 18));
+    }
+
+    #[test]
+    fn batching_never_holds_a_state_while_the_relay_is_quiet() {
+        let mut hub = Hub::new(1);
+        let (hs, _, t) = crowd3(&mut hub, 14);
+        // events 200 ms apart (not busy: the last was more than batch_ms before): every state goes out as it comes
+        for i in 0..10u64 {
+            let acts = hub.on_binary(hs[1 + (i as usize % 10)], &state(8.0, 0.0), t + 500 + i * 200);
+            assert_eq!(of_type(&acts, hs[0], 4).len(), 1, "state {i}");
+        }
+        assert!(hub.conn(hs[0]).unwrap().box_t.is_empty());
+        assert_eq!(hub.stats.batches, hub.stats.batched_states, "every frame carried one state");
+    }
+
+    #[test]
+    fn a_receiver_below_the_batch_size_and_a_v2_receiver_are_never_batched() {
+        let mut hub = Hub::new(1);
+        let (hs, _, t) = crowd3(&mut hub, 8);
+        let old = spawn(&mut hub, "old", 4.0, 0);
+        settle(&mut hub, &[(hs[0], 0.0, 0.0), (old, 4.0, 0.0)], t);
+        let t = t + 3500 + 500;
+        let mut got = 0;
+        for i in 0..6u64 {
+            let a = hub.on_binary(hs[1 + i as usize % 5], &state(8.0, 0.0), t + i * 3);
+            got += of_type(&a, hs[0], 4).len() + of_type(&a, old, 4).len();
+            assert!(of_type(&a, hs[0], T_BATCH).is_empty() && of_type(&a, old, T_BATCH).is_empty());
+        }
+        assert!(got >= 6, "every state went straight out: {got}");
+    }
+
+    #[test]
+    fn what_waits_goes_before_an_enter_or_a_leave_so_the_order_is_kept() {
+        let mut hub = Hub::new(1);
+        let (hs, _, t) = crowd3(&mut hub, 14);
+        let r = hs[0];
+        let t = t + 500;
+        hub.on_binary(hs[1], &state(8.0, 0.0), t);
+        hub.on_binary(hs[2], &state(16.0, 0.0), t + 4);
+        assert_eq!(hub.conn(r).unwrap().box_t.len(), 1);
+        // hs[2] leaves: r gets its waiting state, then the LEAVE
+        let acts = hub.on_close(hs[2], t + 8);
+        let to_r = sent(&acts, r);
+        let pos = |ty: u8| to_r.iter().position(|f| f[0] == ty);
+        assert!(pos(4).is_some() && pos(3).is_some() && pos(4) < pos(3), "state before leave: {:?}", to_r.iter().map(|f| f[0]).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_batch_never_waits_for_a_frame_that_may_not_come() {
+        // random players, random gaps: after every event nothing that is due is left, and the longest wait is batch_ms plus the gap to the next event
+        let mut hub = Hub::new(1);
+        let (hs, who, mut t) = crowd3(&mut hub, 20);
+        let mut rng = 12345u64;
+        let mut next = move || { rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (rng >> 33) as u32 };
+        let mut max_gap = 0;
+        for _ in 0..4000 {
+            let gap = (next() % 30) as u64 + 1;
+            max_gap = max_gap.max(gap);
+            t += gap;
+            let i = next() as usize % hs.len();
+            hub.on_binary(hs[i], &state(who[i].1 + (next() % 5) as f64 * 0.1, who[i].2), t);
+            for c in hub.conns.values() {
+                assert!(c.box_t.first().is_none_or(|w| t < *w + BATCH_MS), "a state is left waiting past batch_ms at {t}");
+            }
+        }
+        let max_wait = hub.stats.batch_wait.iter().rposition(|n| *n > 0).unwrap() as u64;
+        assert!(max_wait < BATCH_MS + max_gap + 1, "longest wait {max_wait} ms, gaps up to {max_gap} ms");
+        assert!(hub.stats.batches < hub.stats.batched_states / 2, "and it did batch: {} frames for {} states", hub.stats.batches, hub.stats.batched_states);
+    }
+
+    #[test]
+    fn a_frame_is_at_most_batch_max_states() {
+        let mut hub = Hub::new(1);
+        let (hs, _, t) = crowd3(&mut hub, 40);
+        hub.tune.batch_ms = 10_000; // nothing is due by time: only the size flushes
+        let r = hs[0];
+        let mut frames = vec![];
+        for i in 0..39u64 {
+            let a = hub.on_binary(hs[1 + i as usize], &state(8.0, 0.0), t + 500 + i);
+            frames.extend(of_type(&a, r, T_BATCH).into_iter().cloned());
+        }
+        assert!(!frames.is_empty());
+        for f in &frames {
+            assert!(batch_entries(f).len() <= BATCH_MAX);
+        }
+    }
+
+    #[test]
+    fn a_receiver_holding_more_than_the_budget_is_sent_at_most_that_many_states_a_second() {
+        let mut hub = Hub::new(1);
+        hub.tune.budget_above = 10;
+        hub.tune.budget_rate = 40.0;
+        hub.tune.batch_ms = 0; // count the states one by one
+        let (hs, who, mut t) = crowd3(&mut hub, 40);
+        let r = hs[0];
+        let mut got = 0;
+        let t0 = t;
+        for step in 0..100u64 {
+            t += 100;
+            for i in 1..hs.len() {
+                if (step as usize + i) % 2 == 0 {
+                    got += of_type(&hub.on_binary(hs[i], &state(who[i].1, who[i].2), t), r, 4).len();
+                }
+            }
+        }
+        let rate = got as f64 / ((t - t0) as f64 / 1000.0);
+        assert!(rate < 60.0, "{rate} states a second against a budget of 40 (the rate is each state sent at 5 a second by 39 players: 195 without a budget)");
+        assert!(rate > 20.0, "{rate}");
+    }
+
+    #[test]
+    fn one_hostile_sender_cannot_push_more_than_its_rate_into_a_victim() {
+        let mut hub = Hub::new(1);
+        let v = spawn3(&mut hub, "victim", 0.0, 0.0, 0);
+        let h = spawn3(&mut hub, "hostile", 10.0, 0.0, 0);
+        settle(&mut hub, &[(v, 0.0, 0.0), (h, 10.0, 0.0)], 0);
+        let mut got = 0;
+        let start = 4000;
+        for i in 0..2000u64 {
+            // 200 states a second for 10 s, a valid state every time
+            got += sent(&hub.on_binary(h, &state(10.0 + (i % 3) as f64 * 0.05, 0.0), start + i * 5), v).len();
+        }
+        let secs = 10.0;
+        assert!(got as f64 <= RATE_ALL.0 * secs + RATE_ALL.1 + 5.0, "{got} frames in 10 s into one victim: at most the sender's own limit of {} a second and a burst of {}", RATE_ALL.0, RATE_ALL.1);
+    }
+
+    #[test]
+    fn the_attachment_keeps_the_version_and_the_set_size() {
+        let mut hub = Hub::new(1);
+        let a = spawn3(&mut hub, "a", 0.0, 0.0, 0);
+        let b = join3(&mut hub, "b", 17, 0);
+        let c = hub.conn(b).unwrap().encode();
+        let d = Conn::decode(&c, 5).unwrap();
+        assert_eq!((d.ver, d.k), (3, 17));
+        let e = Conn::decode(&hub.conn(a).unwrap().encode(), 5).unwrap();
+        assert_eq!((e.ver, e.k), (3, 32));
+        // a record of the version before this one (a relay that was asleep over a deploy) is a v2 player
+        let mut old = hub.conn(b).unwrap().encode();
+        old[0] = 2;
+        old.truncate(old.len() - 2);
+        let o = Conn::decode(&old, 5).unwrap();
+        assert_eq!((o.ver, o.k), (2, 8));
+        // a record with a bad version or size is refused
+        let mut bad = hub.conn(b).unwrap().encode();
+        let n = bad.len();
+        bad[n - 2] = 9;
+        assert!(Conn::decode(&bad, 5).is_none());
+        let mut bad = hub.conn(b).unwrap().encode();
+        bad[n - 1] = 0;
+        assert!(Conn::decode(&bad, 5).is_none());
+        // 64 holders still fit the socket attachment (2 KiB limit, hex doubles it)
+        let mut big = hub.conn(b).unwrap().clone();
+        big.set = (1..=64).collect();
+        big.ip = "2001:db8:ffff:ffff::/64".into();
+        big.info = vec![0; 64];
+        assert!(big.encode().len() * 2 < 2048, "{}", big.encode().len() * 2);
     }
 }

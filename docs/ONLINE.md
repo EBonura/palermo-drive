@@ -1,6 +1,6 @@
 # Online multiplayer
 
-Every player holds one WebSocket to the game's relay (`relay-worker/`, a Cloudflare Worker with one Durable Object), sends its own car, and receives the players near it. Nothing else: no WebRTC, no Nostr, no TURN, no list of who is online on a public service. Players never learn each other's address.
+Every player holds one WebSocket to the game's relay (`relay-worker/`, a Cloudflare Worker with one Durable Object), sends its own car, and receives the players within 400 m (the nearest 32 of them; 8 anywhere for a page from before protocol 3). Nothing else: no WebRTC, no Nostr, no TURN, no list of who is online on a public service. Players never learn each other's address.
 
 Until 20 November 2026 this was peer to peer (Trystero over Nostr relays, WebRTC data channels, TURN). What that design measured and why it was dropped is in the git history (`git log -- docs/P2P-MULTIPLAYER.md`); what still applies from it is kept below.
 
@@ -17,33 +17,35 @@ Until 20 November 2026 this was peer to peer (Trystero over Nostr relays, WebRTC
 | `src/remotes.js`, `src/predict.js` | Other players' cars (smoothing, the jitter buffer) and the prediction shared by sender and receiver. |
 | `tools/online/` | The tests, and `relaysim.mjs`, a relay simulator for them (test tooling, not the relay). |
 
-`window.__p2p` and `?p2p` keep the names the test tools have always used: `?p2p` shows the debug box and lets a name be enough to join, on a page served from localhost or 127.0.0.1 only (on any other host the name card still asks, so a link cannot put anybody online); `?p2p=off` leaves online play out altogether.
+`window.__p2p` and `?p2p` keep the names the test tools have always used: `?k=N` (the players to receive, at most 64) and `?shown=N` (the cars drawn) change the two numbers above, on a page served from localhost or 127.0.0.1 only. `?p2p` shows the debug box and lets a name be enough to join, on a page served from localhost or 127.0.0.1 only (on any other host the name card still asks, so a link cannot put anybody online); `?p2p=off` leaves online play out altogether.
 
-## Protocol v2
+## Protocol v3 (and v2)
 
 All frames are binary, little endian, the first byte is the type, at most 96 bytes. The relay's own README (`relay-worker/README.md`) is the reference for what it does; this is what the client relies on.
 
 | To the relay | Layout |
 | --- | --- |
-| 1 HELLO | `[1][2][info]` once, first |
+| 1 HELLO | `[1][3][want u8][info]` once, first. `want` is the number of players to receive (0: the relay's 32, at most 64). A page from before protocol 3 sent `[1][2][info]` and is still served exactly as it was |
 | 2 INFO | `[2][info]` the name, vehicle or livery changed (at most one every 2 s) |
-| 3 STATE | `[3][state]` the car; also the keepalive |
+| 3 STATE | `[3][state]` the car; also the keepalive (every 1 s moving and 4 s still while somebody holds us, 4 s moving and 15 s still while nobody does) |
 | 4 SAY | `[4][phrase u8]` an index into `src/online/phrases.js` |
 | 5 TO | `[5][handle u16][direct 1..8 bytes]` a drink offer or its answer |
 
 | From the relay | Layout |
 | --- | --- |
-| 1 WELCOME | `[1][2][handle u16][online u16]` the answer to HELLO |
+| 1 WELCOME | `[1][3][handle u16][online u16][set size u8]` the answer to HELLO (`[1][2][handle][online]` from a relay of protocol 2) |
 | 2 ENTER | `[2][handle u16][info]` this player is now one of yours, or changed its info (a repeat is an info update) |
 | 3 LEAVE | `[3][handle u16]` no longer one of yours |
 | 4 STATE | `[4][handle u16][state]` |
 | 5 SAY | `[5][handle u16][phrase u8]` |
 | 6 TO | `[6][from handle u16][direct]` |
 | 7 ONLINE | `[7][online u16]` the number connected changed |
+| 8 BATCH | `[8][n u8][handle u16][state] x n` 2 to 16 states the relay held for up to 40 ms to send together, each exactly a STATE frame of that handle; at most 354 bytes |
+| 9 AUDIENCE | `[9][band u8]` how far the nearest player that holds us is: 0 nobody, 1 to 8 for under 50, 100, 150, 250, 350, 600, 1200 m and beyond; sent only when it changes band |
 
 `info` is `[vehicle u8][livery u8][nameLen u8][name utf8]` (at most 16 characters, 64 bytes). `state` is `[time u16][position 5][heading u16][speed i16][steer i8][roll i8][lean i8][flags u8][curvature i16][accel i8][height u16]?`: 18 bytes, 20 with a height. Time is the sender's clock in ms mod 65536, so the receiver knows when each state was true and how late it came; position is x and z in 1/20 m, 20 bits each; speed is in 1/100 m/s; flags are bit 0 nitro, 1 brake, 2 drift, 3 height follows (the other bits must be 0); curvature of the path in 1/10000 per metre; acceleration in 1/10 m/s2; height in tenths of a metre above the ground at x, z (a bridge deck, a roof, the air), sent only above 0.6 m. A drink's messages are the direct bytes `OFFER [4][kind][id]`, `ACCEPT [5][0][id]`, `CONFIRM [6][kind][id]`, `REPLY [7][code][id]`.
 
-The relay gives each player a set of the nearest other players (8 in `relay-worker/`) and says when it changes; a player who enters the set arrives with its latest state, so it is drawn at once. A STATE reaches only the players who have the sender in their set, thinned by the distance between the two: always under 150 m, else at most one per 200 ms under 350 m, per 1 s under 1200 m, per 2.5 s farther. A SAY reaches those within 400 m. A TO reaches the target only if the target has the sender in its set.
+The relay gives each player a set of other players (the nearest 32 within 400 m and the nearest two beyond, for the maps; 8 anywhere on a relay of protocol 2) and says when it changes; a player who enters the set arrives with its latest state, so it is drawn at once. A STATE reaches only the players who have the sender in their set, thinned by the distance between the two: always under 150 m, else at most one per 200 ms under 350 m, per 1 s under 1200 m, per 2.5 s farther. A SAY reaches those within 400 m. A TO reaches the target only if the target has the sender in its set. A player that holds 12 or more has its states carried in BATCH frames while the relay is busy (`relay-worker/README.md`, "Batching"); the client treats every state of a batch as a state.
 
 ## Connecting
 
@@ -101,9 +103,9 @@ What it does not fix. 31 requests each is still 310,000 for 10,000 refused playe
 
 ## What the client sends, and when
 
-Only while the game is being played, as a STATE frame, the same rule as the peer to peer client's fast channel: a state goes when the car is no longer where `predict()` (`src/predict.js`) puts it from the last state sent (a turn, braking, a weave), and at least every second moving or every two seconds parked. Sender and receiver run the same `predict()`, and the receiver draws the car a little behind its latest state, carried on by the prediction, so sending less often adds no lag. Close by, a state goes when the car is more than 0.2 m, 2 degrees or 0.5 m/s off the prediction, or the steer, roll, lean, flags or height change; farther out the tolerances grow with the distance over 50 m.
+Only while the game is being played, as a STATE frame: a state goes when the car is no longer where `predict()` (`src/predict.js`) puts it from the last state sent (a turn, braking, a weave), and at least every second moving or every four seconds still (see below for when nobody holds us). Sender and receiver run the same `predict()`, and the receiver draws the car a little behind its latest state, carried on by the prediction, so sending less often adds no lag. Close by, a state goes when the car is more than 0.3 m, 3 degrees or 0.75 m/s off the prediction, or the steer, roll (0.075 rad), lean, flags or height change; farther out the tolerances of the path and of the body grow with the distance of the nearest holder over 25 m. (Before protocol 3: 0.2 m, 2 degrees, 0.5 m/s, roll 0.05, from 50 m, and the roll did not grow with distance.) What those tolerances cost is in `docs/ONLINE-CROWD.md`: on the pair of real pages of `bytes.mjs` the path is drawn 0.28 m off at the 95th percentile instead of 0.12 m, and 20 ms later at the start of a turn.
 
-What changed is who the pace is for. The relay thins each state by the distance to each receiver, so what a state needs is set by its nearest receiver. The client knows only its own set, not who has it in theirs, and uses the nearest player of its own set: anybody not in the set is farther than everybody in it (when the set is full), so the nearest one of ours has the highest need of anybody who gets us. A player whose position has not arrived yet counts as close. With nobody at all the far pace (one state every 2.5 s) keeps the relay knowing where we are, so that a player who arrives near us finds us, and when somebody enters the set one state goes at once. This costs a little more than needed when the nearest player of our set does not have us in its set, and never less than anybody needs.
+**Who the pace is for.** The relay thins each state by the distance to each receiver, so what a state needs is set by its nearest receiver. With protocol 3 the relay tells us (AUDIENCE) how far the nearest player that holds us is, as a band, and nobody holding us as band 0: we send for that distance, and with nobody only a keepalive (4 s moving, 15 s still; a nearer holder, or the first, is owed a state at once). Before protocol 3 the client guessed from its own set (the nearest player it holds, which is not who holds it) and a new player in the set was owed a state at once; that is still what it does when the relay does not send AUDIENCE (a relay of protocol 2, a simulator), with the old keepalives. The longest silence, 15 s, is under the relay's 60 s idle rule; what a player that vanishes without closing costs others is in the relay README.
 
 INFO goes when the name, vehicle or livery changes, at most every 2.2 s. SAY and TO go when the player talks or makes an offer.
 
@@ -112,8 +114,9 @@ INFO goes when the name, vehicle or livery changes, at most every 2.2 s. SAY and
 Everything the relay sends is bytes made by strangers. `parseFrame()` (`src/online/wire.js`) returns null for a frame that is not exactly right: unknown type, wrong length, handle 0, a name field that lies or is over 64 bytes, a phrase index we do not have, reserved flag bits, a height over 1000 m, a position beyond 20 km. After that:
 
 - Nothing but WELCOME is accepted before WELCOME, a second WELCOME is bad, and an ENTER with our own handle is bad.
-- The table of players is capped at 16 (the relay sends 8; the rest is room for an ENTER that comes before the LEAVE that makes space), and at most 8 are drawn, the nearest. A frame for a handle that was not introduced is dropped.
-- Every player has a token bucket (burst 60, 40 a second), the relay as a whole has one (burst 800, 400 a second), a phrase from one player must be 1.2 s after the last, an offer 8 s, and a new name for a player in under about 1 s is dropped.
+- The table of players is capped at the number the relay said in WELCOME plus 8 (40 for 32; 16 for a relay of protocol 2), the room for an ENTER that comes before the LEAVE that makes space. At most 32 are drawn as cars (12 on a touch screen): the nearest, and only inside 400 m; every other player held is a ring and a name on the maps, with its position kept up to date and nothing built for it. A frame for a handle that was not introduced is dropped.
+- A BATCH is checked entry by entry (2 to 16 entries, each handle not 0, each state exactly 18 or 20 bytes and valid, nothing left over); an entry for a handle that was not introduced is dropped by itself. AUDIENCE and BATCH from a relay that said protocol 2 are bad.
+- Every player has a token bucket (burst 60, 40 a second), the relay as a whole has one (burst 1,280, 640 a second, a token for every state, those inside a batch too), a phrase from one player must be 1.2 s after the last, an offer 8 s, and a new name for a player in under about 1 s is dropped.
 - Names are cleaned to plain text (control, zero width, direction override and line separator characters removed, whitespace collapsed, 16 characters) and drawn on a canvas. They are never put into the page as HTML.
 - A phrase is an index into a fixed list; a receiver more than 400 m from the sender ignores it.
 - The drink offer needs the receiver's own click; the receiver drinks only after a CONFIRM that matches an offer they accepted; the giver pays on accept. Two rounds are free for every browser.
@@ -133,8 +136,8 @@ The page's Content-Security-Policy allows one host for the game: the origin of `
 - **Wheel.** The talk button of the multiplayer section (`src/online/panel.js`, the HUD zone `social` bottom left) or T opens it; categories first, then the phrases of one (keys 1 to 8, Escape closes, Backspace goes back). It is built from `src/online/phrases.js`, so what it can send is exactly what a receiver accepts; the drink wedges make an offer. It opens only when somebody is within 400 m (`DRAW_R`). The panel shows only while online; it says how many are connected and how many are within 400 m, and above it stand the last three things said, as `name rici “phrase”` (`name said` in English).
 - **Offers.** The nearest player within 25 m gets an OFFER and a card (Accetta / Nun mi va, keys Y and N). Every outcome gives a line to the player it concerns: REPLY codes 0 no, 1 busy, 2 had enough, 3 too far, 4 cannot pay, 5 walked off, 6 on a mission. One card at a time, 10 s between offers, a player who said no is not shown another card from that giver for a minute. An offer to a player in a timed mission (`missions.busy()`, except the pub errand, the leaves and the rave) is held: the card shows 3 s after the mission ends, or the giver is told the player is busy after 120 s.
 - **Arrivals.** "X è vicino" at 60 m (again after 100 m), once a minute per player and once every 6 s overall; a small sound for a phrase and for an offer at the game's volume.
-- **Maps.** Other players are a cyan ring with a name on the minimap and the big map: the players of the set, wherever they are in the city. Beyond 400 m a player is a ring and a name and no car.
-- **Phone.** The most that is drawn is 8, chosen from phone-profile measurements made for the peer to peer client (844x390, device scale 3, CPU slowed 4x): frame time was inside the noise up to 12 other players and 16 cost about 2 ms and 5 fps; 8 kept the worst case below 15 KB/s each way. The measurement was of cars drawn, which has not changed.
+- **Maps.** Other players are a cyan ring with a name on the minimap and the big map: the players of the set (inside 400 m, and the two nearest beyond it), and the ones that are held but not drawn. A player that is not a car is a ring and a name.
+- **Phone.** The most that is drawn is 12 on a touch screen and 32 elsewhere (`SHOWN_TOUCH`, `SHOWN_DESKTOP` in `online.js`). The measurements are in `docs/ONLINE-CROWD.md` (844x390, device scale 3, CPU slowed 4x, the real game page among bots): a desktop page draws 60 fps with 64 cars; the phone profile, 57 fps with nobody, 49 with 16 cars, 36 with 32 and 26 with 64.
 
 ## Measurements
 
@@ -178,7 +181,16 @@ Build the page with `node tools/build/build.mjs --test-relay --out <dist>` (the 
 | `bytes.mjs` | the tables above (`--scenario pair` or `crowd`) |
 | `states.mjs` | every state of the section above on a desktop and a phone page: pill words and colour, panel, toast, local time, solo driving, request count; screenshots to `~/.cache/palermo-drive/online-states/` |
 | `link-check.mjs` | reconnecting, giving up, the hourly try, the daily wait, when `/status` is asked and the cost of 24 hours, with a fake socket and clock; no browser |
-| `relay-rules.mjs` | the relay's rules from outside, with bots; no browser; run it against any relay |
+| `relay-rules.mjs` | the rules of protocol 2 from outside, with v2 bots; no browser; run it against any relay (a relay of protocol 3 serves them exactly as before) |
+| `crowd.mjs` | N bots on a relay in a chosen layout (tight, street, city, mix) with the game's send rule, protocol 2 or 3; per player frames, bytes, delay and players held, and the relay's CPU with `--pid` (docs/ONLINE-CROWD.md) |
+| `pagecrowd.mjs` | one real page among bots: frame time, cars drawn, online code time, the receiver's buffer |
+| `netcompare.mjs` | the same remote car drawn from three send rules, side by side, in the real game: clips and roll numbers |
+| `extensions.mjs` | does a relay answer permessage-deflate (it should not) |
+| `relay-worker/test/v3-e2e.mjs` | protocol 3 against a running `wrangler dev`: HELLO and WELCOME, sets, audience, batches |
+
+### Protocol 3 (20 Nov)
+
+The pair above, on the relay of protocol 3 with the page of this branch (real pages, `bytes.mjs --scenario pair --relay`, 30 s each): both parked send 0.23 states a second each (0.50 before), one driving 1.4 (2.34 on average before), both driving 2.7 each (4.72). The car is drawn 0.05 m off its path at the median, 0.28 m at the 95th percentile and 0.54 m at worst (0.03, 0.12, 0.26 before) and 109 ms late at the start of a turn (88 before); steady driving is 57 ms behind as before. A crowd of 64 around one page, the relay's CPU with batching and the numbers for 8, 32 and 64 players per receiver are in `docs/ONLINE-CROWD.md`.
 
 ## Not done
 

@@ -1,8 +1,11 @@
-//! Wire format and fixed limits of relay protocol v2, with no Worker types so it runs under plain `cargo test`.
+//! Wire format and fixed limits of relay protocol v2 and v3, with no Worker types so it runs under plain `cargo test`.
 
 use std::net::IpAddr;
 
 pub const VERSION: u8 = 2;
+/// Protocol v3: the same frames plus a wanted set size in HELLO, a longer WELCOME, radius sets, BATCH and AUDIENCE frames
+/// (relay-worker/README.md). A v2 client gets exactly what it always got.
+pub const VERSION_3: u8 = 3;
 pub const MAX_FRAME: usize = 96;
 pub const MAX_MALFORMED: u32 = 20;
 /// Frames refused by the per connection rate before the socket is closed. The client paces itself under the rate, so
@@ -27,8 +30,37 @@ pub const RATE_ALL: (f64, f64) = (12.0, 30.0);
 pub const RATE_SAY: (f64, f64) = (1.0, 3.0);
 pub const RATE_TO: (f64, f64) = (2.0, 6.0);
 
-/// Players held at once, the game's MAX_PLAYERS in src/p2p/p2p.js (the spec said 12 and asked for the game's number).
+/// Players held at once by a v2 client: the game's old MAX_PLAYERS (a v2 page holds 16 and draws 8, and must never be sent more).
 pub const K: usize = 8;
+/// Players a v3 client holds unless it asks for another number in HELLO, and the most it can ask for. Everything that costs the relay
+/// by the number of receivers (frames sent for a state, work for a recompute) is bounded by K_MAX, so this is the one place to change it.
+pub const K_V3: usize = 32;
+pub const K_MAX: usize = 64;
+/// A v3 player's set is the players within this many metres (the game's DRAW_R: nothing a player does reaches farther, only the rings of the maps), the nearest K of them,
+/// plus the nearest FAR_SLOTS beyond it so that the maps are not empty. A member stays until it is this much farther than the radius, so nobody flickers at the edge.
+pub const SET_RADIUS_M: f32 = 400.0;
+pub const SET_RADIUS_STAY: f32 = 1.15;
+pub const FAR_SLOTS: usize = 2;
+/// Least time between two states of a far slot player forwarded to one receiver.
+pub const FAR_GAP_MS: u64 = 5_000;
+/// A receiver holding more than this many players shares BUDGET_STATES_PER_S states a second among them by distance (weight 1 / (1 + d / 60 m)),
+/// so that a crowd cannot cost it more than that however big K is. At 32 a tight crowd of drivers is about 210 a second, so this only acts above it.
+pub const BUDGET_ABOVE: usize = 32;
+pub const BUDGET_STATES_PER_S: f32 = 120.0;
+/// Batching (v3 receivers holding at least BATCH_MIN_HELD players): the states due for one receiver wait up to BATCH_MS for the next event of anybody, which carries
+/// them as one frame. At most BATCH_MAX in a frame. There is no timer: see `Hub::flush_due` for what bounds the wait.
+pub const BATCH_MS: u64 = 40;
+pub const BATCH_MIN_HELD: usize = 12;
+pub const BATCH_MAX: usize = 16;
+/// How many events in a row must have arrived less than BATCH_MS after the one before for the relay to count as busy (see `Hub::flush_due`).
+pub const BUSY_GAPS: usize = 1;
+/// Frame types of v3, relay to client.
+pub const T_BATCH: u8 = 8;
+pub const T_AUDIENCE: u8 = 9;
+/// Audience bands (AUDIENCE frame): 0 nobody holds the player; 1.. the distance of the nearest player that holds it, by these upper edges in metres; the last band is beyond them all.
+pub const AUDIENCE_EDGES: [f32; 7] = [50.0, 100.0, 150.0, 250.0, 350.0, 600.0, 1200.0];
+/// How much farther than a band's edge the nearest holder must be before the player is told it is in a farther band (the other way it is told at once).
+pub const AUDIENCE_STAY: f32 = 1.2;
 /// A player outside the set replaces the farthest inside it only if this many metres nearer.
 pub const HYSTERESIS_M: f32 = 30.0;
 /// Least time between two recomputes of one player's set.
@@ -58,7 +90,8 @@ pub const CLOSE_TRY_AGAIN: u16 = 1013;
 /// A client frame that passed every check for its type.
 #[derive(Debug, PartialEq)]
 pub enum Frame<'a> {
-    Hello { info: &'a [u8] },
+    /// `ver` 2 or 3; `want_k` is what a v3 client asks for (0 for the default), always 0 for v2.
+    Hello { ver: u8, want_k: u8, info: &'a [u8] },
     Info { info: &'a [u8] },
     State { body: &'a [u8], x: f32, z: f32 },
     Say { phrase: u8 },
@@ -141,10 +174,13 @@ pub fn parse(b: &[u8]) -> Result<Frame<'_>, ParseError> {
     let Some(&ty) = b.first() else { return Err(Malformed) };
     match ty {
         1 => {
-            if b.len() < 2 || b[1] != VERSION || !valid_info(&b[2..]) {
-                return Err(BadHello);
+            if b.len() >= 2 && b[1] == VERSION && valid_info(&b[2..]) {
+                Ok(Frame::Hello { ver: VERSION, want_k: 0, info: &b[2..] })
+            } else if b.len() >= 3 && b[1] == VERSION_3 && valid_info(&b[3..]) {
+                Ok(Frame::Hello { ver: VERSION_3, want_k: b[2], info: &b[3..] })
+            } else {
+                Err(BadHello)
             }
-            Ok(Frame::Hello { info: &b[2..] })
         }
         2 if valid_info(&b[1..]) => Ok(Frame::Info { info: &b[1..] }),
         3 => check_state(&b[1..]).map(|(x, z)| Frame::State { body: &b[1..], x, z }).ok_or(Malformed),
@@ -157,6 +193,37 @@ pub fn parse(b: &[u8]) -> Result<Frame<'_>, ParseError> {
 pub fn welcome(handle: u16, online: u16) -> Vec<u8> {
     let (h, o) = (handle.to_le_bytes(), online.to_le_bytes());
     vec![1, VERSION, h[0], h[1], o[0], o[1]]
+}
+
+/// The answer to a v3 HELLO: the set size this connection got.
+pub fn welcome3(handle: u16, online: u16, k: usize) -> Vec<u8> {
+    let (h, o) = (handle.to_le_bytes(), online.to_le_bytes());
+    vec![1, VERSION_3, h[0], h[1], o[0], o[1], k as u8]
+}
+
+/// What a v3 client asked for, made into the set size it gets.
+pub fn clamp_k(want: u8) -> usize {
+    if want == 0 {
+        K_V3
+    } else {
+        (want as usize).clamp(1, K_MAX)
+    }
+}
+
+/// The band of a distance to the nearest holder (1 to 8), see `AUDIENCE_EDGES`.
+pub fn audience_band(d: f32) -> u8 {
+    1 + AUDIENCE_EDGES.iter().filter(|e| d >= **e).count() as u8
+}
+
+/// `[8][n][handle u16][state] x n` from n entries already laid out (handle then state, 18 or 20 bytes of state by the height flag).
+pub fn batch_frame(n: usize, entries: &[u8]) -> Vec<u8> {
+    let mut o = vec![T_BATCH, n as u8];
+    o.extend_from_slice(entries);
+    o
+}
+
+pub fn audience_frame(band: u8) -> Vec<u8> {
+    vec![T_AUDIENCE, band]
 }
 
 pub fn enter(handle: u16, info: &[u8]) -> Vec<u8> {
@@ -303,6 +370,26 @@ pub mod tests {
         }
         // bytes worked out by hand from the game's packFast: x = 0 m, z = 0 m is 2^19 in both fields: 0x80000 in the low 20 bits, the same shifted up 20 bits
         assert_eq!(encode_pos(0.0, 0.0), [0x00, 0x00, 0x08, 0x00, 0x80]);
+    }
+
+    #[test]
+    fn v3_hello_carries_the_wanted_set_size() {
+        let h3 = |k: u8, name: &str| [&[1u8, 3, k][..], &info(name)[1..]].concat();
+        assert_eq!(parse(&h3(0, "ab")), Ok(Frame::Hello { ver: 3, want_k: 0, info: &info("ab")[1..] }));
+        assert!(matches!(parse(&h3(64, "ab")), Ok(Frame::Hello { ver: 3, want_k: 64, .. })));
+        assert_eq!(parse(&[1, 3]), Err(ParseError::BadHello), "no wanted size or info");
+        assert_eq!(parse(&[1, 4, 0, 1, 0, 0]), Err(ParseError::BadHello), "version 4 is not known");
+        assert_eq!(parse(&h3(0, &"a".repeat(17))), Err(ParseError::BadHello));
+        // a v2 hello is read exactly as before: the byte after the version is the vehicle, not a set size
+        assert_eq!(parse(&hello("ab")), Ok(Frame::Hello { ver: 2, want_k: 0, info: &info("ab")[1..] }));
+        assert_eq!((clamp_k(0), clamp_k(1), clamp_k(32), clamp_k(64), clamp_k(65), clamp_k(255)), (32, 1, 32, 64, 64, 64));
+        assert_eq!(welcome3(0x0102, 3, 32), vec![1, 3, 2, 1, 3, 0, 32]);
+    }
+
+    #[test]
+    fn audience_bands() {
+        assert_eq!((audience_band(0.0), audience_band(49.9), audience_band(50.0), audience_band(149.0), audience_band(349.0), audience_band(1199.0), audience_band(1200.0), audience_band(1e6)), (1, 1, 2, 3, 5, 7, 8, 8));
+        assert_eq!(audience_frame(3), vec![9, 3]);
     }
 
     #[test]

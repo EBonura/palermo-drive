@@ -112,9 +112,10 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
   function frame(c, b) {   // false: malformed
     if (!c.hello) {
       if (b[0] !== C.HELLO) return false;
-      if (b.length < 2 || b[1] !== 2 || !infoOk(b, 2)) { kill(c, 1008); return true; }
-      c.hello = true; c.info = b.slice(2); clearTimeout(c.helloTimer);
-      raw(c, [S.WELCOME, 2, c.handle & 255, c.handle >> 8, conns.size & 255, conns.size >> 8]); c.told = conns.size; c.toldAt = Date.now();
+      const v3 = b.length >= 3 && b[1] === 3, o = v3 ? 3 : 2;   // protocol 3 has the wanted set size after the version; this simulator keeps the old rules of who gets whom (the nearest k anywhere) and sends no batches and no audience, so a page tested against it falls back to what it knows without them
+      if (b.length < 2 || (b[1] !== 2 && !v3) || !infoOk(b, o)) { kill(c, 1008); return true; }
+      c.hello = true; c.info = b.slice(o); clearTimeout(c.helloTimer); c.k = v3 && b[2] ? Math.min(64, b[2]) : k;
+      raw(c, v3 ? [S.WELCOME, 3, c.handle & 255, c.handle >> 8, conns.size & 255, conns.size >> 8, c.k] : [S.WELCOME, 2, c.handle & 255, c.handle >> 8, conns.size & 255, conns.size >> 8]); c.told = conns.size; c.toldAt = Date.now();
       return true;
     }
     switch (b[0]) {
@@ -166,7 +167,7 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
     const others = [...conns.values()].filter(o => o !== r && o.hello && Number.isFinite(o.x)).sort((a, b) => d(a) - d(b));
     const inside = others.filter(o => r.set.has(o.handle)), outside = others.filter(o => !r.set.has(o.handle));
     const next = new Set(inside.map(o => o.handle));
-    while (next.size < k && outside.length) next.add(outside.shift().handle);
+    while (next.size < (r.k || k) && outside.length) next.add(outside.shift().handle);
     for (const o of outside) {
       let far = null; for (const h of next) { const m = conns.get(h); if (!far || d(m) > d(far)) far = m; }
       if (far && d(far) - d(o) >= 30) { next.delete(far.handle); next.add(o.handle); } else break;

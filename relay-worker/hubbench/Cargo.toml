@@ -1,0 +1,18 @@
+# Crowd simulation and CPU benchmark of the relay's hub (../src/hub.rs), natively and as WebAssembly (wasm32-wasip1).
+# It includes the relay's own source files (proto, interest, hub: no Worker types), so it measures the real rules.
+# See docs/ONLINE-CROWD.md. Build with CARGO_TARGET_DIR somewhere outside the repo and delete it afterwards.
+[package]
+name = "hubbench"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+
+[profile.release]
+# the same profile as the relay's, so the numbers are the shipped code's
+opt-level = "s"
+lto = true
+codegen-units = 1

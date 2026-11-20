@@ -4,7 +4,7 @@ This Worker has two independent parts. The first, below, is Palermo Drive's room
 
 Every player holds one WebSocket to this relay, sends its own state, and receives the players near it. Players never learn each other's network address. The relay simulates nothing and trusts nothing: it parses just enough of a state to know where a player is, decides who gets whom, and forwards the game's own small messages. The game keeps validating every byte it receives.
 
-This is protocol v2. It is not the older server in `../relay/`.
+There are two versions of the protocol on the same endpoint. **Version 3** is what the game speaks now: radius sets of up to 32 players, batched states, and a frame that tells a sender who is watching it. **Version 2** is what pages cached from before still speak, and the relay serves it exactly as it always did (8 nearest players anywhere, one frame for every state), so a page does not have to be reloaded. A connection's version is what it says in HELLO. Where this document says nothing, both versions behave the same. It is not the older server in `../relay/`.
 
 ## Hosting and why it is shaped this way
 
@@ -29,9 +29,9 @@ All frames are binary, little endian, first byte is the type. A text frame close
 
 | Type | Layout | Meaning |
 | --- | --- | --- |
-| 1 HELLO | `[1][ver u8 = 2][info]` | First frame, once. A bad or second HELLO, or any other first frame, closes the socket (1008). |
+| 1 HELLO | v3 `[1][3][want u8][info]`, v2 `[1][2][info]` | First frame, once. `want` is the number of players the client would like to receive: 0 for the relay's own (`K_V3` = 32), anything else is cut to 1..64 (`K_MAX`). A bad or second HELLO, an unknown version, or any other first frame, closes the socket (1008). |
 | 2 INFO | `[2][info]` | Name, vehicle or livery changed. At most one every 2 s. |
-| 3 STATE | `[3][state]` | The player's car. Also the keepalive: the game sends one at least every 2 s. |
+| 3 STATE | `[3][state]` | The player's car. Also the keepalive: the game sends one at least every 1 s while it moves and somebody holds it, every 4 s while it is still, and every 4 s or 15 s with nobody holding it (the AUDIENCE frame says). The relay closes a socket that is silent for 60 s. |
 | 4 SAY | `[4][phrase u8]` | A phrase for the players near. |
 | 5 TO | `[5][handle u16][direct]` | A direct message for one player. |
 
@@ -39,17 +39,23 @@ All frames are binary, little endian, first byte is the type. A text frame close
 
 | Type | Layout | Meaning |
 | --- | --- | --- |
-| 1 WELCOME | `[1][ver u8 = 2][handle u16][online u16]` | Answer to HELLO: the connection's handle (1..65535, unique among live connections) and how many players are connected. |
+| 1 WELCOME | v3 `[1][3][handle u16][online u16][k u8]`, v2 `[1][2][handle u16][online u16]` | Answer to HELLO: the connection's handle (1..65535, unique among live connections), how many players are connected, and for v3 how many players it will receive at most. |
 | 2 ENTER | `[2][handle u16][info]` | This player is now one of yours, or one of yours changed its info. Always sent before that player's first STATE. A receiver must treat a repeat for a known handle as an info update. |
 | 3 LEAVE | `[3][handle u16]` | No longer one of yours (went far, or disconnected). |
 | 4 STATE | `[4][handle u16][state]` | |
 | 5 SAY | `[5][handle u16][phrase u8]` | |
 | 6 TO | `[6][from handle u16][direct]` | |
-| 7 ONLINE | `[7][online u16]` | The number of connected players changed. At most once every 10 s per connection, and only on the back of a frame that connection sent (the game sends a state at least every 2 s), never from a timer. |
+| 7 ONLINE | `[7][online u16]` | The number of connected players changed. At most once every 10 s per connection, and only on the back of a frame that connection sent, never from a timer. |
+| 8 BATCH | `[8][n u8][handle u16][state] x n` | v3 only. 2 to 16 states for one receiver in one frame, each exactly what a STATE frame of that handle would have carried (18 bytes, 20 with the height flag), so at most 354 bytes. The receiver treats each entry as a STATE. |
+| 9 AUDIENCE | `[9][band u8]` | v3 only. How far the nearest player that holds this one is: 0 nobody, then 1 to 8 for under 50, 100, 150, 250, 350, 600, 1200 m and beyond. See "Audience". |
 
 ## Who gets whom
 
-Each player R has a set of at most `K = 8` other players: the K nearest by the last position each sent, anywhere in the city. 8 is the game's `MAX_PLAYERS` in `src/p2p/p2p.js`. A player that has not sent a STATE yet is in nobody's set and has an empty set.
+**Version 2.** Each player R has a set of at most `K = 8` other players: the K nearest by the last position each sent, anywhere in the city. A player that has not sent a STATE yet is in nobody's set and has an empty set.
+
+**Version 3.** The set is the players within `SET_RADIUS_M` = 400 m (the game's `DRAW_R`: nothing a player does reaches farther, only the rings of the maps do), the nearest K of them (32, or what HELLO asked for, at most 64), plus the nearest `FAR_SLOTS` = 2 beyond the radius so that the maps are not empty when the neighbourhood is. A member stays until it is 15 % beyond the radius. A far slot player is forwarded at most one state in `FAR_GAP_MS` = 5 s. A receiver holding more than `BUDGET_ABOVE` = 32 players is sent at most `BUDGET_STATES_PER_S` = 120 states a second, shared out by distance (weight 1 / (1 + d / 60 m)), which only acts above the shipped K.
+
+For both:
 
 - R's set is recomputed when a STATE from R arrives and at least 1 s has passed since R's last recompute, and straight away when a member of R's set disconnects. To stop two players at about the same distance swapping places, a player outside the set replaces the farthest one inside it only if it is at least 30 m nearer. Empty slots are filled with the nearest players without that margin.
 - ENTER and LEAVE tell R about changes to its set. When someone enters, its latest known state follows the ENTER at once, so it appears without waiting for its next state.
@@ -58,12 +64,24 @@ Each player R has a set of at most `K = 8` other players: the K nearest by the l
 - A TO from S to T is forwarded only if T has S in its set, otherwise dropped silently and counted.
 - Membership is not symmetric: each receiver gets its own nearest K.
 
+### Batching (v3)
+
+A v3 receiver holding at least `BATCH_MIN_HELD` = 12 players has its states carried in BATCH frames: a state that comes within `BATCH_MS` = 40 ms of the last frame sent to that receiver, while the relay is busy (another event of any player came less than 40 ms before), waits in a box for the receiver; the next event of any player at or after 40 ms from the state's arrival sends the box as one frame (16 states at most, then at once). The first state after a quiet spell, and every state while the relay is quiet, goes out as a plain STATE frame at once. The box is also sent before any ENTER or LEAVE for that receiver, so the order a player sees is the order it happened.
+
+There is no timer. The wait of a state ends at the next incoming event of anybody, so it is bounded by the gap between events, not by the clock: a waiting state is only ever one that arrived while events were arriving less than 40 ms apart, the receiver holds 12 players or more, and a held player sends at least every 1 s moving and 4 s still while somebody holds it (and the receiver is one of those who hold it). So the wait is at most 40 ms plus the gap to the next event, and that gap is at most 1 s when anybody near is moving and 4 s when everybody is still, in which case nothing waiting is a car in motion. `hub::tests::a_batch_never_waits_for_a_frame_that_may_not_come` runs 4,000 random events and asserts that nothing due is left after any event and that no wait exceeds 40 ms plus the longest gap. Measured with 64 players: median wait 33 ms, 95th percentile 50 ms (docs/ONLINE-CROWD.md).
+
+### Audience (v3)
+
+The relay tells a sender how far the nearest player that holds it is, as a band (frame 9), so that the sender sends no more than that player needs: nothing but a rare keepalive when nobody holds it, and the far band's pace when it is held only from far away. Today's game guessed it from its own set, which is not the same thing (a player we hold may not hold us). The frame is sent on the back of events that happen anyway, never from a timer: when a state from the player arrives (the nearest holder is read from the positions known then), and at once when its set of holders changes (somebody enters or leaves a set that holds it, or disconnects). A nearer band is told at once; a farther one only when the nearest holder is 20 % past the edge, so a holder standing at an edge does not make the pace flip. Until the first frame, the player knows nothing and sends as if somebody near held it.
+
+What a silent player needs from the relay: the idle rule (60 s without a frame closes the socket) and the interest recompute (a player's own set is recomputed on its own states; so a player nobody holds, which sends every 4 s moving or 15 s still, learns of newcomers at that pace, unless a newcomer holds it, in which case it is told at once and sends one). A player that vanishes without closing its socket (a locked phone, a lost connection) stays in other players' sets for at most the 60 s of the idle rule, and on their streets for at most 16 s (6 s moving; the game's `STALE_*`).
+
 ## Limits
 
 Over a limit means dropped and counted in `/stats`, unless a close is stated.
 
 - Frame size: 96 bytes at most; larger closes 1009. A malformed frame (wrong length, out of range, unknown type, off the map) is dropped and counted; the 20th malformed frame closes 1008.
-- Rate per connection: token bucket, 12 frames a second, burst 30, for all frames. SAY: 1 a second, burst 3. TO: 2 a second, burst 6. INFO: 1 every 2 s.
+- Rate per connection: token bucket, 12 frames a second, burst 30, for all frames. SAY: 1 a second, burst 3. TO: 2 a second, burst 6. INFO: 1 every 2 s. So one hostile sender can push at most 12 states, 1 SAY, 2 TO and 0.5 ENTER a second (about 15) into any one receiver, whatever K is, and the frames a socket may send are never BATCH or AUDIENCE (dropped as malformed).
 - Connections: 300 at most (503 on upgrade when full); 24 per client address (`CF-Connecting-IP`), 429 beyond. An IPv6 client counts by its /64 (one device owns the whole block), an IPv4-mapped IPv6 address as the IPv4 one. 24 because mobile carriers put many phones behind one address.
 - When the relay is full, a newcomer still gets in if the address holding the most places holds at least two more than the newcomer does: that address's connection that never said HELLO, or else the quietest, is closed with 1013. So a few addresses cannot hold all 300 places, but 300 addresses with one place each can (nothing to take from anybody).
 - Frames per client address per UTC day: 800,000. The next frame past that closes the socket (1008) and the address gets 429 on upgrade until the next day. Closed rather than ignored because every incoming frame is billed by Cloudflare whether or not it is dropped. Kept in memory only (and emptied if it ever holds 200,000 addresses).
@@ -72,7 +90,7 @@ Over a limit means dropped and counted in `/stats`, unless a close is stated.
 
 ## State and hibernation
 
-The per connection record that must survive hibernation (handle, address, whether it said HELLO, info, last position, its set) lives in the socket attachment as a hex string, about 170 bytes at most against the 2 KiB limit. The reverse lists, thinning times, token buckets and counters are in memory and are rebuilt or reset after a wake-up: the cost is a fresh bucket and an early next state from each neighbour. The attachment is rewritten about once a second per active player (on each recompute) and when the set or info changes. `/stats` counters may reset on hibernation.
+The per connection record that must survive hibernation (handle, address, whether it said HELLO, info, last position, its set, its version and set size) lives in the socket attachment as a hex string, about 170 bytes for a v2 player and at most about 310 for a v3 one holding 64 (twice that as hex) against the 2 KiB limit. A record of the layout before v3 is read as a v2 player. The reverse lists, thinning times, token buckets and counters are in memory and are rebuilt or reset after a wake-up: the cost is a fresh bucket and an early next state from each neighbour. The attachment is rewritten about once a second per active player (on each recompute) and when the set or info changes. `/stats` counters may reset on hibernation.
 
 ## Layout
 
@@ -83,7 +101,8 @@ The per connection record that must survive hibernation (handle, address, whethe
 - `src/glue.rs`: the Worker (the routes `/r`, `/t` and `/status`) and the `Relay` Durable Object, only compiled for wasm. It moves frames between sockets and the hub.
 - `src/tproto.rs`, `src/shape.rs`, `src/tables.rs`: tables (BLATERO): frames and limits, the payload shape check, the state machine. No Worker types.
 - `src/tglue.rs`: the `Tables` Durable Object, only compiled for wasm.
-- `test/e2e.mjs`, `test/load.mjs`, `test/lib.mjs`: Node scripts against `wrangler dev` for the room.
+- `test/e2e.mjs`, `test/load.mjs`, `test/lib.mjs`: Node scripts against `wrangler dev` for the room (they speak v2, which must keep working); `test/v3-e2e.mjs` is protocol v3.
+- `hubbench/`: the same `proto.rs`, `interest.rs` and `hub.rs` run natively and as WebAssembly in a simulation of a crowd and a CPU benchmark (docs/ONLINE-CROWD.md); the tools in `../tools/online/` (`crowd.mjs`) put the same crowd on a running relay.
 - `test/tables-e2e.mjs`, `test/tables-load.mjs`, `test/tlib.mjs`: the same for tables.
 
 ## Run, test, deploy
@@ -92,9 +111,10 @@ Tools: Rust with the `wasm32-unknown-unknown` target, `worker-build` 0.9 (`cargo
 
 ```
 npm install                                   # wrangler 4, dev dependency
-cargo test                                    # the rules, natively (49 unit tests for the room, 59 for tables)
+cargo test                                    # the rules, natively (69 unit tests for the room, 59 for tables)
 npx wrangler dev --port 8799 --ip 127.0.0.1   # builds and runs the Worker locally
 node test/e2e.mjs                             # every frame, every limit, against the running Worker (about 40 s)
+node test/v3-e2e.mjs                          # protocol v3: HELLO and WELCOME, sets, audience, batches (about 10 s, a fresh wrangler dev)
 node test/load.mjs                            # 60 players, 5 states a second each, 20 s
 node test/tables-e2e.mjs                      # tables: every frame, limit and close code (about 4 minutes: it waits out the idle rules)
 node test/tables-load.mjs                     # tables: 20 tables of 6 sockets, 120 s of realistic traffic
@@ -104,7 +124,7 @@ node test/tables-load.mjs                     # tables: 20 tables of 6 sockets, 
 
 Deploy (by the owner, from this folder): set `ORIGINS` (and `TABLE_ORIGINS`) in `wrangler.toml` to the games' origins if they differ, then `npx wrangler deploy`. The first deploy runs the `v1` migration that creates the SQLite Durable Object class `Relay`, and `v2` creates `Tables`. A deploy restarts both objects and drops every live socket (the games' clients reconnect by themselves), so do it at a quiet moment.
 
-## Not in v2
+## Not in v3
 
 No accounts and no bot check (a Turnstile check on the upgrade can be added later without changing the frames). No persistence. No server side simulation or anti-cheat: a player can lie about its own position.
 

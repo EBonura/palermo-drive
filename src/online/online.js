@@ -3,9 +3,10 @@
 // Write-up, protocol and numbers: docs/ONLINE.md. Frames: src/online/wire.js. The socket and its reconnecting: src/online/link.js. The address of the relay: src/online/relay-url.js.
 // Nothing connects until the player says yes on the name card, which says what others can see. ?p2p in the address is the test mode: the debug box shows and a name is enough to join.
 //
-// The relay sends us at most 12 other players, the nearest by position, and tells us when the set changes. We hold up to MAX_TRACKED of them by handle (a number the relay gives each connection) and draw the
-// MAX_SHOWN nearest, as cars through src/remotes.js, with the state prediction of src/predict.js: the sender sends a state only when its car leaves the path predict() draws from the last one sent.
-// What we send is paced for the nearest player we know (see nearest() and stateDue() below), because the relay thins what it forwards by each receiver's own distance.
+// The relay sends us the players within 400 m (the nearest 32 of them, and two beyond that so the maps are not empty) and tells us when the set changes. We hold up to maxTracked of them by handle (a number the
+// relay gives each connection) and draw the nearest 32 (12 on a touch screen) as cars through src/remotes.js, the rest as a ring and a name on the maps, with the state prediction of src/predict.js: the sender sends a state
+// only when its car leaves the path predict() draws from the last one sent. What we send is paced by our audience: the relay tells us how far the nearest player that holds us is, or that nobody does (see
+// audienceD() and stateDue() below), because it thins what it forwards by each receiver's own distance and a player nobody receives needs to send almost nothing.
 //
 // Frames come from strangers by way of the relay: every one is validated by src/online/wire.js before it is used, every player has a rate limit, the relay as a whole has one, names are reduced
 // to plain text and drawn on a canvas (never as HTML), and nothing in a frame decides how much memory is used: the table of players is capped.
@@ -19,16 +20,16 @@ import { zone } from '../hud.js';
 import { createLink } from './link.js';
 import { RELAY_URL } from './relay-url.js';
 import { createReach, describe, TEXT } from './status.js';   // why there is nobody: the relay is full, over for today, or cannot be reached
-import { IN, packInfo, helloFrame, infoFrame, sayFrame, toFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
+import { IN, AUDIENCE_LOW, packInfo, helloFrame, infoFrame, sayFrame, toFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
 const TAU = Math.PI * 2;
-const MAX_TRACKED = 16;        // players held at once (the relay sends 12 at most; the rest is room for the moment between an ENTER and the LEAVE that makes space for it)
-const MAX_SHOWN = 8;           // players drawn at once, the nearest: the phone measurements (docs/ONLINE.md) were made at 8
-const RATE_PER_S = 40, RATE_BURST = 60;       // incoming frames per player
-const GLOBAL_PER_S = 400, GLOBAL_BURST = 800; // incoming frames from the relay altogether (12 players at 10 a second is 120)
-const STALE_MS = 6000;         // a player we hear nothing from for this long is taken off the street (its record stays: the relay says when it has left)
+const TRACK_SLACK = 8;         // players held at once: what the relay said it sends (K) and this much more, the room for an ENTER that comes before the LEAVE that makes space for it (16 for a relay that said 8)
+const SHOWN_DESKTOP = 32, SHOWN_TOUCH = 12;   // cars drawn at once, the nearest; the others are held as a ring and a name on the maps. A phone with its CPU slowed 4 times drew 49 fps with 16 cars, 36 with 32 and 26 with 64 (docs/ONLINE-CROWD.md); a desktop 60 with 64
+const RATE_PER_S = 40, RATE_BURST = 60;       // incoming states per player
+const GLOBAL_PER_S = 640, GLOBAL_BURST = 1280; // incoming states from the relay altogether, each state in a batch counted: 64 players driving in a crowd send about 7 a second each, 450
+const STALE_MS = 6000, STALE_PARKED_MS = 16000, STALE_FAR_MS = 20000;   // a player we hear nothing from for this long is taken off the street (its record stays: the relay says when it has left). A parked player is sent every 4 s, one beyond the radius every 5 s
 const FORGET_MS = 90000;       // and one we hear nothing from for this long is forgotten, whatever the relay says
 const HIDDEN_RETRY_MS = 600000;   // a page hidden for this long that becomes visible again asks the link to try once (src/online/link.js keeps those to one in ten minutes)
 const IDLE_MS = 30000;        // a game that has not been played for this long (paused, in the Garage, a page in the background) lets go of the relay, which closes a socket that is silent for 60 s anyway
@@ -37,9 +38,12 @@ const INFO_GAP_MS = 2200;      // least time between two INFO frames (the relay 
 const OFFER_R = 25, OFFER_TTL_MS = 15000, OFFER_GAP_MS = 10000, DRINK_PRICE = 1;   // metres to the receiver, how long an offer stands, least time between two, euro
 const SAY_GAP_MS = 1500;       // least time between two phrases from one player (checked on both ends)
 const SEND_NEAR = 100, SEND_MID = 200, SEND_FAR = 1000, SEND_AFAR = 2500; // state interval by distance to the receiver: < 150 m, < 350 m, < 1200 m, farther (the relay thins by the same bands)
-const KEEP_MOVING = 1000, KEEP_PARKED = 2000;   // ms: the longest without a state, moving and still (STALE_MS drops a player after 6 s)
-// how far the car may be from where the receiver draws it before a new state goes (close by; times the distance over 50 m farther out): metres, radians, m/s
-const DR_POS = 0.2, DR_TH = 0.035, DR_V = 0.5, DR_STEER = 0.1, DR_ROLL = 0.05, DR_LEAN = 0.1, DR_H = 0.2;
+// ms: the longest without a state. Moving: 1 s with an audience (the draw carries on past a state for 1.5 s, src/remotes.js), 4 s with none: only the relay's idea of where we are needs keeping. Still: 4 s with an audience (a receiver
+// drops a still car after STALE_PARKED_MS), 15 s with none (the relay closes a socket that is silent for 60 s, and a ghost, a player whose page vanished without closing, stays in the relay for that long either way).
+const KEEP_MOVING = 1000, KEEP_PARKED = 4000, KEEP_MOVING_NOBODY = 4000, KEEP_PARKED_NOBODY = 15000;
+// how far the car may be from where the receiver draws it before a new state goes (close by; times the distance over DR_SCALE metres farther out): metres, radians, m/s. Measured in docs/ONLINE-CROWD.md: the position, heading and speed
+// ones add 0.07 m to the 95th percentile of the drawn error. The roll one was 0.05: on the real game's own recorded roll, 0.075 is worth 4 % of the states and 0.1 another 2 %, and the roll drawn is off by 1.8 degrees at the 95th percentile either way (tools/online/netcompare.mjs).
+const DR_POS = 0.3, DR_TH = 0.05, DR_V = 0.75, DR_STEER = 0.1, DR_ROLL = 0.075, DR_LEAN = 0.1, DR_H = 0.2, DR_SCALE = 25;
 const DRAW_R = 400, DRAW_OUT = 480;   // metres: a player farther than this is a dot with a name on the maps, not a car (fades in again inside DRAW_R)
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -77,8 +81,13 @@ export function createOnline(env) {
 
   const rm = createRemotes(env);
   const others = new Map();   // handle -> { handle, name, vehicle, livery, lastRx, x, z, tokens, tokT, shown, held, far, near, fts, infoKey, infoAt, lastSay, lastOffer, mutedUntil, lastHello }
-  const stats = { tx: 0, txBytes: 0, rx: 0, rxBytes: 0, rxBad: 0, rxDropped: 0, rxDup: 0, enters: 0, leaves: 0, threw: 0, connects: 0, drops: 0 };
+  const stats = { tx: 0, txBytes: 0, rx: 0, rxBytes: 0, rxBad: 0, rxDropped: 0, rxDup: 0, enters: 0, leaves: 0, threw: 0, connects: 0, drops: 0, batches: 0, states: 0, audience: 0, rxMs: 0, updMs: 0, updN: 0 };
   let ready = false, selfHandle = 0, onlineCount = 0;   // ready: the relay has answered our HELLO
+  let maxTracked = 16, relayVer = 0;                   // set by WELCOME: the players the relay will send and the protocol it speaks
+  let audience = null;                                  // the band the relay last told us (AUDIENCE): 0 nobody holds us, 1 to 8 how far the nearest holder is; null until told, and always on a relay of protocol 2
+  // ?k=N and ?shown=N: for the tests, on a page served from this machine only. The set size we ask for (the relay cuts it to 64) and the cars drawn.
+  const WANT_K = localPage ? Math.round(num('k', 0, 0, 64)) : 0, SHOWN_TEST = localPage ? Math.round(num('shown', 0, 0, 64)) : 0;
+  const shownCap = () => SHOWN_TEST || (document.documentElement.classList.contains('touch') ? SHOWN_TOUCH : SHOWN_DESKTOP);
   let started = false, lastChecked = -1e9, activeAt = -1e9;
 
   // ---------- HUD (debug) ----------
@@ -97,8 +106,8 @@ export function createOnline(env) {
   const link = createLink({
     url: relayUrl,
     onFail: info => { ev('fail', { code: info.code }); whyNot.failed(info); },
-    onOpen() { whyNot.opened(); stats.connects++; ev('open'); tx(helloFrame(packInfo(vehId(), livId(), myName))); sentInfoKey = infoKey(); infoAt = performance.now(); },
-    onFrame,
+    onOpen() { whyNot.opened(); stats.connects++; ev('open'); tx(helloFrame(packInfo(vehId(), livId(), myName), WANT_K)); sentInfoKey = infoKey(); infoAt = performance.now(); },
+    onFrame: testing ? d => { const t = performance.now(); onFrame(d); stats.rxMs += performance.now() - t; } : onFrame,   // with ?p2p on a local page: the time spent in handling frames, for tools/online/pagecrowd.mjs
     onClose() { stats.drops++; ev('close'); forgetAll(); },
   });
   function tx(frame) { if (!link.send(frame)) return false; stats.tx++; stats.txBytes += frame.length; return true; }
@@ -107,7 +116,7 @@ export function createOnline(env) {
     panel.clear(); wheel.close();
     for (const p of others.values()) if (p.shown) rm.remove(p.handle);
     others.clear(); myOffer = null; incoming = null; closeCard(); note(null);
-    ready = false; selfHandle = 0; last = null; forceState = false;
+    ready = false; selfHandle = 0; last = null; forceState = false; audience = null; relayVer = 0;
   }
 
   // ---------- outgoing ----------
@@ -138,6 +147,9 @@ export function createOnline(env) {
     for (const p of others.values()) { const q = Number.isFinite(p.x) ? Math.hypot(p.x - car.x, p.z - car.z) : 0; if (q < d) d = q; }
     return d;
   }
+  // The distance the pace is set for. With an audience told by the relay (protocol 3) it is the lower edge of the band of the nearest player that holds us, and Infinity for nobody; it is what the relay thins by,
+  // which our own set is only a guess at (a player we hold may not hold us, and one that holds us may be one we do not hold). Without it, the old guess.
+  const audienceD = () => audience === null ? nearest() : AUDIENCE_LOW[audience];
   let last = null, forceState = false;   // the last state sent, as the receiver reads it back (its t is our clock); a newcomer is owed one at once
   // does the receiver need a state now: the car is no longer where predict() puts it from the last one sent, or it is time for the keepalive
   function stateDue(now, d) {
@@ -147,13 +159,16 @@ export function createOnline(env) {
     if (forceState) return true;
     if (age < band - 5) return false;
     const v = car.vf || 0, moving = Math.abs(v) > 0.2 || Math.abs(last.v) > 0.2;
-    if (age >= Math.max(band, moving ? KEEP_MOVING : KEEP_PARKED)) return true;
-    const f = Math.max(1, d / 50), pr = predict(last, Math.min(age, 1500) / 1000), lift = liftNow();
+    const nobody = audience === 0, keep = moving ? (nobody ? KEEP_MOVING_NOBODY : KEEP_MOVING) : (nobody ? KEEP_PARKED_NOBODY : audience === null ? 2000 : KEEP_PARKED);   // 2 s on a relay that does not tell us: the old rule
+    if (age >= Math.max(band, keep)) return true;
+    const f = Math.max(1, d / DR_SCALE), pr = predict(last, Math.min(age, 1500) / 1000), lift = liftNow();
+    // the body (steer, roll, lean) is judged by the same distance as the path: it is a few pixels at 150 m. The lights (nitro, brake, drift) and a height are not, but nobody holding us asks for none of it.
     return Math.hypot(car.x - pr.x, car.z - pr.z) > DR_POS * f || Math.abs(wrapPI(car.th - pr.th)) > DR_TH * f || Math.abs(v - pr.v) > DR_V * f
-      || flagsNow(lift) !== (last.fl | (last.h ? 8 : 0)) || Math.abs((car.steer || 0) - last.steer) > DR_STEER || Math.abs((car.roll || 0) - last.roll) > DR_ROLL || Math.abs((car.lean || 0) - last.lean) > DR_LEAN || Math.abs(lift - last.h) > DR_H;
+      || Math.abs((car.steer || 0) - last.steer) > DR_STEER * f || Math.abs((car.roll || 0) - last.roll) > DR_ROLL * f || Math.abs((car.lean || 0) - last.lean) > DR_LEAN * f
+      || (!nobody && (flagsNow(lift) !== (last.fl | (last.h ? 8 : 0)) || Math.abs(lift - last.h) > DR_H));
   }
   function sendState(now) {
-    if (!ready || game.state !== 'play' || !stateDue(now, nearest())) return;
+    if (!ready || game.state !== 'play' || !stateDue(now, audienceD())) return;
     const f = stateFrame(carState(now));
     if (tx(f)) { last = { ...readState(f, 1), t: now }; forceState = false; }
   }
@@ -165,11 +180,15 @@ export function createOnline(env) {
     if (p.tokens < 1) return false; p.tokens--; return true;
   }
   const bucket = { tokens: GLOBAL_BURST, t: performance.now() };
+  function takeGlobal(now) {
+    bucket.tokens = Math.min(GLOBAL_BURST, bucket.tokens + (now - bucket.t) * GLOBAL_PER_S / 1000); bucket.t = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens--; return true;
+  }
   function onFrame(data) {   // a frame from the relay. Whatever is in it, nothing here may throw: the game's frame loop and the socket's handler are the callers
     const now = performance.now(); stats.rx++;
-    bucket.tokens = Math.min(GLOBAL_BURST, bucket.tokens + (now - bucket.t) * GLOBAL_PER_S / 1000); bucket.t = now;
-    if (bucket.tokens < 1) { stats.rxDropped++; return; }
-    bucket.tokens--;
+    // the whole relay's bucket is taken per state: here for every frame but a batch (which takes one for each of its states, in route())
+    const first = toBytes(data); if (!first || first[0] !== IN.BATCH) { if (!takeGlobal(now)) { stats.rxDropped++; return; } }
     try { route(data, now); } catch (e) { stats.threw++; }
   }
   function route(data, now) {
@@ -178,17 +197,33 @@ export function createOnline(env) {
     stats.rxBytes += b.length;
     if (f.type === IN.WELCOME) {
       if (ready) { stats.rxBad++; return; }   // one answer to one HELLO
-      ready = true; selfHandle = f.handle; onlineCount = f.online; last = null; ev('welcome', { handle: f.handle, online: f.online });
+      ready = true; selfHandle = f.handle; onlineCount = f.online; last = null; relayVer = f.version; maxTracked = f.k + (f.version === 3 ? TRACK_SLACK : 8); ev('welcome', { handle: f.handle, online: f.online, k: f.k });
       return;
     }
     if (!ready) { stats.rxBad++; return; }   // nothing else means anything before that
     if (f.type === IN.ONLINE) { onlineCount = f.online; return; }
+    if (f.type === IN.AUDIENCE) {   // how far the nearest holder is: a nearer one than before, or the first, is owed a state at once (it holds our latest, possibly old, from its ENTER)
+      if (relayVer < 3) { stats.rxBad++; return; }
+      if (f.band !== 0 && (audience === null || audience === 0 || f.band < audience)) forceState = true;
+      audience = f.band; stats.audience++; return;
+    }
+    if (f.type === IN.BATCH) {   // each state of a batch is a state: it has the player's own bucket and takes a token of the whole relay's, so a batch is no way round either limit
+      if (relayVer < 3) { stats.rxBad++; return; }
+      stats.batches++;
+      for (const e of f.entries) {
+        const q = others.get(e.handle);
+        if (!q) { stats.rxDropped++; continue; }
+        if (!takeGlobal(now) || !admit(q, now)) { stats.rxDropped++; continue; }
+        stats.states++; onState(q, e.s, now);
+      }
+      return;
+    }
     if (f.type === IN.ENTER) return onEnter(f, now);
     if (f.type === IN.LEAVE) return onLeave(f.handle);
     const p = others.get(f.handle);
     if (!p) { stats.rxDropped++; return; }   // a handle the relay has not introduced (or one it let go of a moment ago)
     if (!admit(p, now)) { stats.rxDropped++; return; }
-    if (f.type === IN.STATE) onState(p, f.s, now);
+    if (f.type === IN.STATE) { stats.states++; onState(p, f.s, now); }
     else if (f.type === IN.SAY) onSay(p, f.phrase, now);
     else onOffer(p, f.direct, now);
   }
@@ -197,8 +232,8 @@ export function createOnline(env) {
     if (f.handle === selfHandle) { stats.rxBad++; return; }
     let p = others.get(f.handle);
     if (!p) {
-      if (others.size >= MAX_TRACKED) { stats.rxDropped++; return; }
-      p = newPlayer(f.handle); others.set(f.handle, p); stats.enters++; forceState = true; ev('enter', { handle: f.handle });
+      if (others.size >= maxTracked) { stats.rxDropped++; return; }
+      p = newPlayer(f.handle); others.set(f.handle, p); stats.enters++; if (relayVer < 3) forceState = true; ev('enter', { handle: f.handle });   // protocol 2: a newcomer in our set is owed a state at once, the guess that it holds us too; protocol 3 tells us who holds us (AUDIENCE)
     }
     const key = f.info.vehicle + '|' + f.info.livery + '|' + f.info.name;
     if (key === p.infoKey) return;
@@ -218,12 +253,11 @@ export function createOnline(env) {
     s.t = now; s.ts = p.fts;
     place(p, now, s);
   }
-  function place(p, now, s) {   // a valid state from player p: kept for the ranking, drawn if p is one of the nearest
-    p.x = s.x; p.z = s.z; p.lastRx = now; p.h = s.h;
-    if (p.held === false) return;   // known, but not among the nearest MAX_SHOWN: its position is kept for the ranking, nothing is drawn
+  function place(p, now, s) {   // a valid state from player p: kept for the ranking, a car if p is one of the nearest, a ring and a name on the maps if not
+    p.x = s.x; p.z = s.z; p.lastRx = now; p.h = s.h; p.parked = Math.abs(s.v) < 0.2;
     if (!p.shown) {
-      if (rm.remotes.size >= MAX_SHOWN) { rank(now); if (p.held === false || rm.remotes.size >= MAX_SHOWN) return; }   // full: a newcomer is shown only if it is nearer than the farthest one, who is then taken off
-      p.shown = true; p.far = Math.hypot(s.x - car.x, s.z - car.z) > DRAW_R;
+      rank(now);   // a newcomer is ranked before anything is built for it: thirty players arriving together must not all become cars for an instant
+      p.shown = true; p.far = p.held === false || Math.hypot(s.x - car.x, s.z - car.z) > DRAW_R;
       const r = rm.ensure(p.handle); rm.setFar(r, p.far); rm.setInfo(r, p.name || 'Player', p.livery, p.vehicle);
       ev('firstState', { handle: p.handle });
     }
@@ -232,7 +266,8 @@ export function createOnline(env) {
 
   // A phrase reaches the players who can see our car: within DRAW_R metres (the range at which another player is drawn as a car and not a ring on the maps). The relay forwards it to those near, and a receiver
   // checks its own distance too, since a frame comes from a stranger: past that range there is no bubble, no line and no sound.
-  const reach = p => !!(p && p.held !== false && Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_MS && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
+  const staleMs = p => p.far ? STALE_FAR_MS : p.parked ? STALE_PARKED_MS : STALE_MS;
+  const reach = p => !!(p && p.held !== false && Number.isFinite(p.x) && performance.now() - p.lastRx < staleMs(p) && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
   const inReach = () => { let n = 0; for (const p of others.values()) if (reach(p)) n++; return n; };
   const SAID = { it: 'rici', en: 'said' };   // "izzy rici “ciao curò”": the owner's spelling (7 Nov: rici, not dici)
   function onSay(p, phrase, now) {
@@ -570,18 +605,17 @@ export function createOnline(env) {
   addEventListener('pagehide', () => link.want(false));
 
   // ---------- the cap on cars, whatever the relay sends ----------
-  // The relay sends up to 12 players and a phone is measured at MAX_SHOWN, so the players are ranked by distance: only the nearest MAX_SHOWN are drawn or listened to (a farther one is known, and idle).
-  // A player beyond DRAW_R is a dot with a name on the maps, not a car.
+  // The relay sends up to K players and a phone draws a dozen cars, so the players are ranked by distance: the nearest shownCap() may be cars (and are listened to: phrases, offers), a farther one is
+  // a ring and a name on the maps, with its position kept up to date. A player beyond DRAW_R is a ring too, not a car, whatever its rank.
   function rank(now) {
     const known = [], unknown = [];
     for (const p of others.values()) (Number.isFinite(p.x) ? known : unknown).push(p);
-    const dist = p => Math.hypot(p.x - car.x, p.z - car.z);
+    const dist = p => Math.hypot(p.x - car.x, p.z - car.z), cap = shownCap();
     known.sort((a, b) => dist(a) - (a.held ? 50 : 0) - (dist(b) - (b.held ? 50 : 0)));   // one already held has 50 m in hand, so two players at about the same distance do not swap places
     known.forEach((p, n) => {
-      p.held = n < MAX_SHOWN;
+      p.held = n < cap;
       if (!p.shown) return;
-      if (!p.held) { rm.remove(p.handle); p.shown = false; p.fts = -1; ev('unheld', { handle: p.handle }); return; }
-      const d = dist(p), far = p.far ? d > DRAW_R : d > DRAW_OUT;
+      const d = dist(p), far = !p.held || (p.far ? d > DRAW_R : d > DRAW_OUT);
       if (far !== p.far) { p.far = far; rm.setFar(rm.remotes.get(p.handle), far); ev(far ? 'far' : 'near', { handle: p.handle, m: Math.round(d) }); }
     });
     for (const p of unknown) p.held = true;   // no position yet: it takes no slot, and the first state ranks it
@@ -624,7 +658,7 @@ export function createOnline(env) {
     sendInfo(now); sendState(now);
     for (const p of others.values()) {
       if (now - p.lastRx > FORGET_MS) { if (p.shown) rm.remove(p.handle); others.delete(p.handle); ev('drop', { handle: p.handle, why: 'forgotten' }); }
-      else if (p.shown && now - p.lastRx > STALE_MS) {
+      else if (p.shown && now - p.lastRx > staleMs(p)) {
         // quiet for a while (the other page was locked, or in the background): take the car off the street but keep the record, the relay will say when the player is gone
         // and its next state shows it again with the name and livery we already have
         rm.remove(p.handle); p.shown = false; p.fts = -1;
@@ -643,7 +677,7 @@ export function createOnline(env) {
     isOnline: online,
     statsName: () => named && agreed && ready ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     // test hooks, under the name the tools have always used (window.__p2p)
-    debug: { log, stats, peers: others, remotes: rm.remotes, DRAW_R, MAX_SHOWN, MAX_TRACKED,
+    debug: { log, stats, peers: others, remotes: rm.remotes, DRAW_R, shownCap, maxTracked: () => maxTracked, audience: () => audience, relayVer: () => relayVer, cars: () => [...rm.remotes.values()].filter(r => !r.far).length,
       relay: () => ({ url: relayUrl, state: link.state, fails: link.fails, waitMs: Math.round(link.waitMs), ready, handle: selfHandle, online: onlineCount, why: whyNot.state, asks: whyNot.asks }),
       peerInfo: () => [...others.values()].map(p => ({ handle: p.handle, name: p.name, shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x) })),
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/online/offer.mjs)
@@ -668,6 +702,7 @@ export function createOnline(env) {
       inject(frames) { const t0 = stats.threw, drop0 = stats.rxDropped; for (const f of frames) onFrame(f); return { threw: stats.threw - t0, dropped: stats.rxDropped - drop0 }; },
       player: handle => { const p = others.get(handle); return p && { name: p.name, vehicle: p.vehicle, livery: p.livery, x: p.x, z: p.z, h: p.h, shown: p.shown }; } },
   };
+  if (testing) { const upd = api.update; api.update = dt => { const t = performance.now(); upd(dt); stats.updMs += performance.now() - t; stats.updN++; }; }   // the time spent in update() a frame, for tools/online/pagecrowd.mjs
   window.__p2p = api.debug;
   return api;
 }

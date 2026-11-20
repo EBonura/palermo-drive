@@ -1,4 +1,4 @@
-// The rules of protocol v2 (docs/ONLINE.md, "Who gets whom" and "Limits"), checked from outside with bots (tools/online/bot.mjs): no browser. It is the yardstick for any relay: the simulator
+// The rules of protocol v2 (a v2 bot: the relay serves it exactly as before protocol 3; v3 is relay-worker/test/v3-e2e.mjs) (docs/ONLINE.md, "Who gets whom" and "Limits"), checked from outside with bots (tools/online/bot.mjs): no browser. It is the yardstick for any relay: the simulator
 // (default, a relay of its own per run) or the real one (relay-worker/ under `wrangler dev`, with --relay). A rule the relay does not keep is a FAIL line, not a bug in this file; read the line.
 //   node tools/online/relay-rules.mjs [--relay ws://127.0.0.1:8799/r] [--k 8]
 // Each bot gives its own CF-Connecting-IP, so a relay that limits connections per address does not count them as one machine.
@@ -10,7 +10,7 @@ if (!/^wss?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) throw new Error('o
 const K = +arg('k', 8);   // the most players a set holds (the relay's own number: 8, the game's MAX_PLAYERS)
 let bad = 0; const ok = (label, v, extra = '') => { console.log(label.padEnd(72), v ? 'OK  ' : 'FAIL', extra); if (!v) bad++; };
 const all = []; let ipn = 1;
-const bot = async (o = {}) => { const b = await startBot(url, { ip: `10.1.${Math.floor(ipn / 250)}.${ipn++ % 250}`, ...o }); all.push(b); return b; };
+const bot = async (o = {}) => { const b = await startBot(url, { ver: 2, ip: `10.1.${Math.floor(ipn / 250)}.${ipn++ % 250}`, ...o }); all.push(b); return b; };
 const settle = async bots => { for (let r = 0; r < 2; r++) { for (const b of bots) b.state({ x: b.x, z: b.z }); await sleep(r ? 300 : 1250); } };   // a set is worked out when a state arrives and a second has passed since the last time
 try {
   // the handshake
