@@ -210,6 +210,11 @@ impl Hub {
         self.per_address.get(&ip).is_some_and(|n| *n >= self.day_limit)
     }
 
+    /// How many frames the address has been counted for today (for the logs).
+    pub fn frames_today(&self, ip: &str) -> u32 {
+        self.per_address.get(&address_key(ip)).copied().unwrap_or(0)
+    }
+
     pub fn conn(&self, handle: u16) -> Option<&Conn> {
         self.conns.get(&handle)
     }

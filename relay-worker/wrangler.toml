@@ -8,6 +8,10 @@ preview_urls = false   # no extra public addresses per deploy
 workers_dev = true   # setting routes turns this off by default, and the pages already open use the workers.dev address
 routes = [{ pattern = "relay.palermo-drive.it", custom_domain = true }]
 
+# Keeps what the relay logs (a refused or closed player and why) so that a report from a player can be checked afterwards.
+[observability]
+enabled = true
+
 [build]
 command = "worker-build --release"
 watch_dir = "src"

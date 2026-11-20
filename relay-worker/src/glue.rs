@@ -135,6 +135,8 @@ impl Relay {
                 }
                 Action::Close(h, code, why) => {
                     if let Some(ws) = socks.remove(&h) {
+                        // Kept in the Worker's logs: a player told to stop is rare, and without this nothing records why.
+                        console_log!("relay: closed a player, {code} {why}");
                         if let Err(e) = ws.close(Some(code), Some(why)) {
                             console_error!("close {h} failed: {e:?}");
                         }
@@ -174,7 +176,10 @@ impl DurableObject for Relay {
         if req.url()?.path() == "/status" {
             let ip = req.headers().get("CF-Connecting-IP")?.unwrap_or_else(|| "unknown".into());
             let now = now_ms();
-            let body = self.with_hub(|hub| status_body(hub.online(), MAX_CONNS, hub.len() >= MAX_CONNS, hub.budget_used(&ip, now)));
+            let (body, frames) = self.with_hub(|hub| (status_body(hub.online(), MAX_CONNS, hub.len() >= MAX_CONNS, hub.budget_used(&ip, now)), hub.frames_today(&ip)));
+            if !body.contains("\"ok\":true") {
+                console_log!("relay: status said {body}, this address has sent {frames} frames today");
+            }
             return Response::ok(body);
         }
         if req.url()?.path() == "/stats" {
@@ -192,9 +197,15 @@ impl DurableObject for Relay {
                 self.run(acts);
                 h
             }
-            Err(Refuse::Full) => return Response::error("full", 503),
-            Err(Refuse::PerAddress) => return Response::error("too many connections from this address", 429),
-            Err(Refuse::Budget) => return Response::error("this address has used today's allowance", 429),
+            Err(e) => {
+                let (why, code) = match e {
+                    Refuse::Full => ("full", 503),
+                    Refuse::PerAddress => ("too many connections from this address", 429),
+                    Refuse::Budget => ("this address has used today's allowance", 429),
+                };
+                console_log!("relay: refused a player, {code} {why}");
+                return Response::error(why, code);
+            }
         };
         let pair = WebSocketPair::new()?;
         self.state.accept_web_socket(&pair.server); // hibernatable: an idle relay is not billed
