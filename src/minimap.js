@@ -20,7 +20,7 @@ const AREA = { green: '#93b46a', forest: '#86a862', water: SEA, plaza: '#f2ead8'
 const PRE = 130; // metres beyond the visible radius that are painted ahead of time
 const EXTRA_ROADS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);
 
-export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRoute }) {
+export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRoute, followRoute = [] }) {   // followRoute: the way to a player we follow (src/online/online.js), drawn in blue
   const mini = canvas.getContext('2d');
   const RES = 256, S = RES / T, CAP = 18; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
@@ -175,9 +175,10 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   function sameAsDrawn(note) {
     n = 0; same = true; noting = note;
     put(car.x); put(car.z); put(car.th); put(zoom); put(paintStamp); put(stats.dead); put(landPath);
-    put(mapRoute.length); put(mapRoute.i0 || 0); put(mapRoute.px); put(mapRoute.pz);
+    put(mapRoute.length); put(mapRoute.i0 || 0); put(mapRoute.px); put(mapRoute.pz); put(followRoute.length); put(followRoute.i0 || 0); put(followRoute.px); put(followRoute.pz);
     let rs = 0; for (let i = 0; i < mapRoute.length; i++) rs += (mapRoute[i][0] * 0.37 + mapRoute[i][1] * 0.11) * (i + 1);
-    put(rs); put(mapMarkers.length);
+    let fs = 0; for (let i = 0; i < followRoute.length; i++) fs += (followRoute[i][0] * 0.37 + followRoute[i][1] * 0.11) * (i + 1);
+    put(rs); put(fs); put(mapMarkers.length);
     for (const m of mapMarkers) { put(m.x); put(m.z); put(m.size); put(m.shape); put(m.color); put(m.player); put(m.name); }
     if (note) drawn.length = n; else if (drawn.length !== n) same = false;
     return same;
@@ -199,7 +200,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     // a heading up map turning at that rate looks the same; twice a second for what the sum below cannot see, such as a marker changing colour or a move smaller than its steps;
     // and not at all while the picture would come out the same to the pixel (standing still): sameAsDrawn compares everything the picture is made of with what is on the canvas.
     sinceDraw += dt || 0.016;
-    let sig = Math.round(car.x * 4) * 1.7 + Math.round(car.z * 4) * 2.3 + Math.round(car.th * 200) * 31 + Math.round(zoom * 500) * 97 + mapRoute.length + (mapRoute.i0 || 0);
+    let sig = Math.round(car.x * 4) * 1.7 + Math.round(car.z * 4) * 2.3 + Math.round(car.th * 200) * 31 + Math.round(zoom * 500) * 97 + mapRoute.length + (mapRoute.i0 || 0) + followRoute.length * 7 + (followRoute.i0 || 0) * 13;
     for (const m of mapMarkers) sig += m.x * 0.7 + m.z * 1.3 + (m.size || 0);
     if (sinceDraw < (sig !== lastSig ? 0.03 : 0.5)) return;
     if (sig === lastSig && sameAsDrawn(false)) { stats.skipped++; sinceDraw = 0; return; }   // (and looks again in half a second, not on every frame)
@@ -218,17 +219,20 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     // screen space: rotate each offset by the same angle as the map (heading up), scale like the map.
     // Off-map markers are pinned to the rim so the direction still reads.
     const a = car.th - Math.PI, ca = Math.cos(a), sa = Math.sin(a), k = zoom;
-    if (mapRoute.length > 1) {
+    const drawRoute = (route, color) => {
+      if (route.length < 2) return;
       mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
       mini.lineCap = mini.lineJoin = 'round';
-      for (let pass = 0; pass < 2; pass++) {   // outline, then pink; only the part still to drive, from the car (mapRoute.i0 and .px/.pz: src/route-guide.js)
-        mini.strokeStyle = pass ? '#e8559a' : '#120a0e'; mini.lineWidth = pass ? 4 : 7; mini.beginPath(); mini.moveTo(W / 2, W / 2);
-        if (mapRoute.i0 > 0) { const dx = (mapRoute.px - car.x) * k, dz = (mapRoute.pz - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
-        for (let i = mapRoute.i0 || 0; i < mapRoute.length; i++) { const m = mapRoute[i], dx = (m[0] - car.x) * k, dz = (m[1] - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
+      for (let pass = 0; pass < 2; pass++) {   // outline, then the colour; only the part still to drive, from the car (route.i0 and .px/.pz: src/route-guide.js)
+        mini.strokeStyle = pass ? color : '#120a0e'; mini.lineWidth = pass ? 4 : 7; mini.beginPath(); mini.moveTo(W / 2, W / 2);
+        if (route.i0 > 0) { const dx = (route.px - car.x) * k, dz = (route.pz - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
+        for (let i = route.i0 || 0; i < route.length; i++) { const m = route[i], dx = (m[0] - car.x) * k, dz = (m[1] - car.z) * k; mini.lineTo(W / 2 + dx * ca - dz * sa, W / 2 + dx * sa + dz * ca); }
         mini.stroke();
       }
       mini.restore();
-    }
+    };
+    drawRoute(followRoute, '#00c8f0');   // a player we follow: blue, under a mission's pink
+    drawRoute(mapRoute, '#e8559a');
     let near = null, nearD = 1e9;   // the nearest other player on the map: its name is written beside it when the map is big enough to read it
     for (const m of mapMarkers) {
       const dx = (m.x - car.x) * k, dz = (m.z - car.z) * k;

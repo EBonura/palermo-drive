@@ -55,6 +55,8 @@ html:not(.touch) .mpx-key { display: block; }
 .mpx-rl { margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px/1.25 var(--pd-sans, system-ui, sans-serif); opacity: .85; }
 .mpx-rl .near { color: #00e1ff; font-weight: 700; }
 .mpx-go { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: linear-gradient(90deg, #e8559a, #f5a9c9); color: #1a0b12; font: 700 11px/26px var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.mpx-go.near { background: #00c8f0; color: #04161c; }   /* Segui: the blue of the way on the map */
+.mpx-go.fol { background: none; box-shadow: inset 0 0 0 1.5px #00c8f0; color: #00e1ff; }   /* Smetti */
 .mpx-go:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); cursor: default; }
 @media (max-height: 460px) { .mpx-list { max-height: calc(100vh - 120px); } .mpx-r { padding-top: 4px; padding-bottom: 4px; } }
 `;
@@ -103,7 +105,7 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
       n.append(el('b', '', r.name), el('small', '', r.veh));
       l.append(document.createTextNode(r.place + ' · '), el('span', r.near ? 'near' : '', r.dist));
       t.append(n, l);
-      const b = el('button', 'mpx-go', r.goLabel); b.type = 'button'; b.dataset.h = r.h; b.disabled = !r.go;
+      const b = el('button', 'mpx-go' + (r.fol ? ' fol' : r.near ? ' near' : ''), r.goLabel); b.type = 'button'; b.dataset.h = r.h; b.disabled = !r.go;
       row.append(t, b); list.append(row);
     }
     list.scrollTop = top;

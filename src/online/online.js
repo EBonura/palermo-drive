@@ -23,6 +23,7 @@ import { createReach, describe, TEXT } from './status.js';   // why there is nob
 import { IN, AUDIENCE_LOW, packInfo, helloFrame, infoFrame, sayFrame, toFrame, rosterFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
 import { townAt } from '../districts.js';
+import { createGuide } from '../route-guide.js';
 import { areaAt } from '../danger.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
@@ -323,7 +324,12 @@ export function createOnline(env) {
   // The relay answers a ROSTER with everybody's position in 50 m squares (relay-worker/src/proto.rs): asked when the list opens and every ROSTER_EVERY_MS while it is open.
   // A player we hold has its exact position, the others the square's. Raggiungi: not near (DRAW_R), not during a mission, and once per JUMP_GAP_MS.
   const ROSTER_EVERY_MS = 5000, JUMP_GAP_MS = 30000;
-  let listOpen = false, roster = null, rosterAsked = -1e9, rosterGot = 0, lastJump = -1e9, listAt = 0;
+  let listOpen = false, listPaused = false, roster = null, rosterAsked = -1e9, rosterGot = 0, lastJump = -1e9, listAt = 0;
+  // Segui: a blue way on the minimap to a player we hold (within DRAW_R), kept up to date as they move (src/route-guide.js on the traffic graph, as a mission's leg without a baked route).
+  // The same button stops it; it stops by itself, with a line on screen, when the player goes past DRAW_OUT or leaves. Raggiungi follows the player once we are there.
+  const followRoute = env.followRoute || [];
+  const fguide = createGuide({ car, mapRoute: followRoute, graph: () => env.traffic && env.traffic.graph });
+  let following = 0, followAt = { x: 0, z: 0 }, followClock = 0, pendingFollow = 0, pendingUntil = 0;
   const askRoster = now => { if (relayVer >= 3 && now - rosterAsked > 3100 && tx(rosterFrame())) rosterAsked = now; };
   const missionOn = () => inMission();   // (defined below with the drinks; a pub, a rave or a leaf is not a mission here either)
   const placeOf = (x, z) => townAt(x, z) || areaAt(x, z) || 'Palermo';
@@ -346,24 +352,60 @@ export function createOnline(env) {
       empty: roster ? (en ? 'Nobody else is online right now.' : 'Nessun altro è online adesso.') : (en ? 'Asking who is online…' : 'Cerco chi è online…'),
       rows: ents.map(({ e, x, z, d }) => {
         const near = d < DRAW_R, v = VEHICLES[e.info.vehicle] || VEHICLES[0];
-        const go = !near && !missionOn() && wait <= 0;
+        const fol = following === e.handle, go = fol || near || (!missionOn() && wait <= 0);
         return { h: e.handle, name: e.info.name || 'Player', veh: en ? v.name_en : v.name_it, place: placeOf(x, z), dist: near ? (en ? 'Near you' : 'Vicino a te') : distText(d), near,
-          go, goLabel: near ? (en ? 'Near' : 'Vicino') : wait > 0 ? `${wait} s` : (en ? 'Join' : 'Raggiungi') };
+          go, goLabel: fol ? (en ? 'Stop' : 'Smetti') : near ? (en ? 'Follow' : 'Segui') : wait > 0 ? `${wait} s` : (en ? 'Join' : 'Raggiungi'), fol };
       }),
     };
   }
-  function toggleList() {
-    if (!ready || game.state !== 'play') return;
-    listOpen = !listOpen; if (wheel.isOpen) wheel.close();
-    if (listOpen) askRoster(performance.now());
-    panel.setList(listOpen ? listView(performance.now()) : { open: false });
+  // the list pauses the game while it is open, as the side menu does (the owner, 21 Nov 2026); closing it, or Raggiungi, drives on
+  function closeList(resume = true) {
+    if (!listOpen) return;
+    listOpen = false; panel.setList({ open: false });
+    if (listPaused) { listPaused = false; game.hold = false; if (resume && game.state === 'pause') game.resume(); dispatchEvent(new Event('pd-state')); }
   }
+  function toggleList() {
+    if (listOpen) { closeList(); return; }
+    if (!ready || game.state !== 'play') return;
+    listOpen = true; if (wheel.isOpen) wheel.close();
+    game.pause(); listPaused = game.state === 'pause'; game.hold = listPaused; dispatchEvent(new Event('pd-state'));
+    askRoster(performance.now());
+    panel.setList(listView(performance.now()));
+  }
+  function followTarget(h) { const p = others.get(h); return p && p.x !== undefined && performance.now() - p.lastRx < 8000 ? p : null; }
+  function startFollow(h) {
+    const p = followTarget(h); if (!p) return false;
+    following = h; followAt.x = p.x; followAt.z = p.z; followClock = 0; fguide.to(p.x, p.z);
+    toast(tr(`Segui ${p.name || 'Player'}`, `Following ${p.name || 'Player'}`), tr('La strada blu sulla mappa', 'The blue way on the map'));
+    ev('follow', { handle: h }); return true;
+  }
+  function stopFollow(why) {
+    if (!following) return;
+    const p = others.get(following), n = (p && p.name) || 'Player';
+    following = 0; fguide.off();
+    if (why === 'far') toast(tr(`${n} è troppo lontano`, `${n} is too far away`), tr('Non lo segui più', 'No longer following'), true);
+    else if (why === 'gone') toast(tr(`${n} è andato via`, `${n} has left`), tr('Non lo segui più', 'No longer following'), true);
+    ev('unfollow', { why });
+  }
+  function followTick(dt, now) {
+    if (pendingFollow && now > pendingUntil) pendingFollow = 0;
+    if (pendingFollow && game.state === 'play') { const p = followTarget(pendingFollow); if (p && Math.hypot(p.x - car.x, p.z - car.z) < DRAW_R) { const h = pendingFollow; pendingFollow = 0; startFollow(h); } }
+    if (!following) return;
+    const p = followTarget(following);
+    if (!others.has(following)) return stopFollow('gone');
+    if (!p || Math.hypot(p.x - car.x, p.z - car.z) > DRAW_OUT) return stopFollow('far');
+    followClock += dt;
+    if (followClock > 1 && Math.hypot(p.x - followAt.x, p.z - followAt.z) > 20) { followClock = 0; followAt.x = p.x; followAt.z = p.z; fguide.to(p.x, p.z); }   // the way again when they have moved on
+    fguide.update(dt);
+  }
+  function followToggle(h) { if (following === h) stopFollow(''); else { stopFollow(''); startFollow(h); } panel.setList(listView(performance.now())); }
   function joinPlayer(h) {
     const now = performance.now(), it = rosterEntries().find(r => r.e.handle === h); if (!it) return;
+    if (it.d < DRAW_R || following === h) { followToggle(h); return; }   // near: Segui / Smetti
     if (missionOn()) { toast(tr('Prima finisci la missione', 'Finish the mission first'), '', true); return; }
     if (now - lastJump < JUMP_GAP_MS || it.d < DRAW_R || !game.goTo) return;
-    lastJump = now; listOpen = false; panel.setList({ open: false });
-    ev('join', { handle: h, d: Math.round(it.d) });
+    lastJump = now; closeList(false);   // (the jump's own transition resumes the game)
+    ev('join', { handle: h, d: Math.round(it.d) }); stopFollow(''); pendingFollow = h; pendingUntil = now + 30000;   // once there, follow them
     game.goTo(it.x, it.z);
   }
   const panel = createPanel({ zone: zone('social'), onTalk: toggleWheel, onList: toggleList, onGo: joinPlayer });
@@ -372,6 +414,7 @@ export function createOnline(env) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const typing = e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
     if (typing || nameCard) return;
+    if (listOpen && e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeList(); return; }
     if (card && (e.code === 'KeyY' || e.code === 'KeyN')) { e.preventDefault(); e.stopImmediatePropagation(); answer(e.code === 'KeyY'); return; }   // N is the radio's key too: the card has it first
     if (e.code === 'KeyT' && online() && game.state === 'play') { e.preventDefault(); e.stopImmediatePropagation(); toggleWheel(); return; }
     if (!wheel.isOpen) return;
@@ -696,7 +739,8 @@ export function createOnline(env) {
     if (link.state === 'idle' && whyNot.state) whyNot.reset();   // not trying any more (solo, paused too long): an old reason is not shown when it starts again
     const why = on && !ready ? whyNot.state : null, bad = why && describe(why, lang(), Date.now());
     netToasts(on, bad, why);
-    if (!on || !playing) panel.set({ show: false, title: '', sub: '', label: '' });
+    const listHold = listPaused && game.state === 'pause';   // paused by the Online list: the capsule and the list stay
+    if (!on || !(playing || listHold)) panel.set({ show: false, title: '', sub: '', label: '' });
     else if (!ready) {   // nobody to talk to: connecting (quiet), or the reason there is nobody
       panel.set(bad ? { show: true, tone: bad.tone, title: bad.pill, sub: '', msg: bad.msg, idle: true, label: '' } : { show: true, tone: 'wait', title: 'Online…', sub: '', idle: true, label: '' });
     } else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
@@ -709,7 +753,9 @@ export function createOnline(env) {
       });
     }
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
-    if (listOpen && !(on && playing && ready)) { listOpen = false; panel.setList({ open: false }); }
+    if (listOpen && listPaused && playing) { listPaused = false; game.hold = false; closeList(false); }   // something else resumed the game (Escape in the page's own menu handling): the list goes with the pause
+    if (listOpen && !(on && ready && (playing || listPaused && game.state === 'pause'))) closeList();
+    if (on && ready && playing) followTick(dt, now); else if (following && !on) stopFollow('');
     if (listOpen) { if (now - rosterAsked > ROSTER_EVERY_MS) askRoster(now); if (now - listAt > 250) { listAt = now; panel.setList(listView(now)); } }
     offerClocks(now, playing); if (playing) arrivals(now);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
@@ -762,6 +808,7 @@ export function createOnline(env) {
         return { threw, bad: stats.rxBad - bad0, dropped: stats.rxDropped - drop0, players: others.size, drawn: rm.remotes.size };
       },
       inject(frames) { const t0 = stats.threw, drop0 = stats.rxDropped; for (const f of frames) onFrame(f); return { threw: stats.threw - t0, dropped: stats.rxDropped - drop0 }; },
+      follow: () => ({ following, pending: pendingFollow, route: followRoute.length, events: log.filter(e => /follow|join/.test(e.ev)).slice(-6) }),
       player: handle => { const p = others.get(handle); return p && { name: p.name, vehicle: p.vehicle, livery: p.livery, x: p.x, z: p.z, h: p.h, shown: p.shown }; } },
   };
   if (testing) { const upd = api.update; api.update = dt => { const t = performance.now(); upd(dt); stats.updMs += performance.now() - t; stats.updN++; }; }   // the time spent in update() a frame, for tools/online/pagecrowd.mjs

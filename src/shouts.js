@@ -55,9 +55,12 @@ export function placeLine(x, z, sand) {   // sand: the spot is on a beach (the c
 export const FLEW = 'Minchia vulavu';
 
 const LIFE = 2.4, MAX = 4, COOLDOWN = 0.35;
-// How big the balloons are drawn: the player's choice in Options (src/ui.js sends 'pd-balloon' with 's', 'm' or 'l'). Small is the size they had until Nov 2026, which was hard to read.
-const SIZES = { s: 1, m: 1.4, l: 1.9 }; let SIZE = SIZES.m;
+// How big the balloons are drawn: the player's choice in Options (src/ui.js sends 'pd-balloon' with 's', 'm' or 'l'). Medium is the size they had until early Nov 2026.
+const SIZES = { s: 0.72, m: 1, l: 1.4 }; let SIZE = SIZES.m;   // one step smaller all round since 21 Nov 2026 (the owner): Large is the old Medium, Medium the old Small, Small new
 addEventListener('pd-balloon', e => { SIZE = SIZES[e.detail] || SIZES.m; });
+// How see-through they are (Options, 'pd-balloon-alpha' with 0 to 0.8): the opacity of every balloon is multiplied by 1 minus it.
+let SEE = 0;
+addEventListener('pd-balloon-alpha', e => { SEE = Math.min(0.8, Math.max(0, +e.detail || 0)); });
 export const lifeFor = t => Math.min(6, LIFE + Math.max(0, t.length - 20) * 0.07);   // a long line stays long enough to be read
 const CROWD_MAX = 8, CROWD_LIFE = 3.2;
 
@@ -134,7 +137,7 @@ export function createShouts(camera) {
       const ox = s.side * 18, ax = s.side < 0 ? -100 : 0;
       // it stays on the screen, and on a desktop out of the map's column on the right (a phone's column ends in the top band)
       const sw = s.w * (s.crowd ? 1 : SIZE), sh = s.h * (s.crowd ? 1 : SIZE), bx = s.side < 0 ? Math.max(8 + sw, x + ox) : Math.min(w - 8 - sw - (h >= 520 && y - sh < 340 ? 222 : 0), x + ox);
-      const tf = `translate(${bx.toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${((0.6 + 0.4 * pop) * (s.crowd ? 1 : SIZE)).toFixed(2)})`, op = fade.toFixed(2);
+      const tf = `translate(${bx.toFixed(0)}px, ${y.toFixed(0)}px) translate(${ax}%, -100%) rotate(var(--tilt)) scale(${((0.6 + 0.4 * pop) * (s.crowd ? 1 : SIZE)).toFixed(2)})`, op = (fade * (1 - SEE)).toFixed(2);
       if (tf !== s.tf) s.el.style.transform = s.tf = tf;
       if (op !== s.op) s.el.style.opacity = s.op = op;
     }

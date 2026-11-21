@@ -78,7 +78,7 @@ const S = {
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
   igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igHead: ['Palermitani, la radio è vostra', 'Palermo musicians, the radio is yours'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radiu ri stu iocu? Mandami un messaggiu su IG ca nn’uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
-  balloons: ['Fumetti', 'Speech balloons'], bS: ['Piccoli', 'Small'], bM: ['Medi', 'Medium'], bL: ['Grandi', 'Large'],
+  balloons: ['Fumetti', 'Speech balloons'], bS: ['Piccoli', 'Small'], bM: ['Medi', 'Medium'], bL: ['Grandi', 'Large'], balloonAlpha: ['Trasparenza fumetti', 'Balloon transparency'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
   garage: ['Il tuo mezzo', 'Your ride'], garageName: ['Garage', 'Garage'],
@@ -310,6 +310,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   st.fov = Number.isFinite(saved.fov) ? clamp(Math.round(saved.fov / 5) * 5, 50, 90) : 60; vehicle?.setFov?.(st.fov);   // the chase camera's field of view, degrees (src/vehicle.js)
   st.mapPos = saved.mapPos === 'bottom' ? 'bottom' : 'top'; document.documentElement.classList.toggle('pd-map-low', st.mapPos === 'bottom');   // where the map capsule stands (src/ui.css, .pd-map-low)
   st.balloons = ['s', 'm', 'l'].includes(saved.balloons) ? saved.balloons : 'm'; dispatchEvent(new CustomEvent('pd-balloon', { detail: st.balloons }));   // the size of the speech balloons (src/shouts.js)
+  st.balloonAlpha = Number.isFinite(saved.balloonAlpha) ? clamp(saved.balloonAlpha, 0, 0.8) : 0; dispatchEvent(new CustomEvent('pd-balloon-alpha', { detail: st.balloonAlpha }));
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
   // handling: sphere (default) or classic physics (src/vehicle.js); a ?physics= link wins over the saved choice
@@ -376,6 +377,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'timeNow', tab: 'time', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
     { key: 'timeSpeed', tab: 'time', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
     { key: 'balloons', tab: 'more', label: 'balloons', type: 'seg', vals: [['s', 'bS'], ['m', 'bM'], ['l', 'bL']] }, // how big the speech balloons are (src/shouts.js)
+    { key: 'balloonAlpha', tab: 'more', label: 'balloonAlpha', type: 'slider', min: 0, max: 0.8, step: 0.1, fmt: v => Math.round(v * 100) + '%' }, // how see-through they are (src/shouts.js)
     { key: 'coords', tab: 'more', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
   ];
   const OPT_TABS = [['audio', 'tabAudio'], ['drive', 'tabDrive'], ['time', 'tabTime'], ['more', 'tabMore']];   // Options in four tabs, each fits on a screen
@@ -525,7 +527,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   function syncState() {
     root.classList.toggle('pd-title', game.state === 'title');
-    ui.dataset.st = game.state;
+    ui.dataset.st = game.state === 'pause' && game.hold ? 'play' : game.state;   // game.hold: paused by the Online list (src/online/online.js), the screen stays as it is while driving
     ui.dataset.screen = cur || '';
     if (typeof kickBars === 'function') kickBars();   // the bar may have come on screen
   }
@@ -911,7 +913,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (key === 'fov') vehicle?.setFov?.(value);
       if (key === 'mapPos') document.documentElement.classList.toggle('pd-map-low', value === 'bottom');
       if (key === 'balloons') dispatchEvent(new CustomEvent('pd-balloon', { detail: value }));
-      if (key === 'units' || key === 'fov' || key === 'mapPos' || key === 'balloons' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'balloonAlpha') dispatchEvent(new CustomEvent('pd-balloon-alpha', { detail: value }));
+      if (key === 'units' || key === 'fov' || key === 'mapPos' || key === 'balloons' || key === 'balloonAlpha' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }

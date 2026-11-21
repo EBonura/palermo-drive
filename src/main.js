@@ -322,7 +322,17 @@ const mapMarkers = []; // { x, z, color, size } drawn on the minimap
 const mapRoute = []; // [x, z] points of the current route, drawn as a line on the minimap
 
 // ---------- minimap (src/minimap.js) ----------
-const minimap = createMinimap({ canvas: document.getElementById('mini'), car, world, DRIVABLE, mapMarkers, mapRoute });
+const followRoute = []; // the way to the player we follow (src/online/online.js), blue on the minimap
+const minimap = createMinimap({ canvas: document.getElementById('mini'), car, world, DRIVABLE, mapMarkers, mapRoute, followRoute });
+let groundGuide = null;   // marks on the road along the route to the next objective (src/ground-guide.js): a mission's way (pink) or a player we follow (blue)
+{ const q = new URLSearchParams(location.search), gg = q.get('gg'), to = (q.get('ggto') || '').split(',').map(Number);   // ?gg=1..4: another design; ?ggto=x,z: a test route from the car to there
+  if (gg !== '0') Promise.all([import('./ground-guide.js'), import('./route-guide.js')]).then(([m, rg]) => {
+    const testRoute = [], tg = rg.createGuide({ car, mapRoute: testRoute, graph: () => traffic.graph });
+    let asked = !(to.length === 2 && to.every(Number.isFinite));
+    groundGuide = m.createGroundGuide({ scene, car, groundY, heightAt: (x, z) => groundY(x, z) + (raisedMask(x, z) ? CURB : 0), routes: [[testRoute, '#ff8ac0'], [mapRoute, '#ff8ac0'], [followRoute, '#5fe3ff']], design: +gg || 4 });
+    const upd = groundGuide.update; groundGuide.update = dt => { if (!asked && game.state === 'play') { asked = true; tg.to(to[0], to[1]); } if (testRoute.length) tg.update(dt); upd(dt); };
+    if (window.game) { window.game.gg = groundGuide; window.game.ggTo = (x, z) => { asked = true; tg.to(x, z); }; window.game.ggPath = pts => { asked = true; tg.path(pts, { fixed: true }); }; }
+  }); }
 
 // ---------- HUD ----------
 const elStreet = document.getElementById('street'), elLand = document.getElementById('landmark'), elSpeed = document.getElementById('speed');
@@ -436,7 +446,7 @@ if (['spot', 'campos', 'debug', 'play', 'bench'].some(k => params.has(k))) game.
 // playing); they draw their own DOM and push minimap markers into mapMarkers.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 // Multiplayer goes through one relay (src/online/online.js, docs/ONLINE.md), and nothing connects until the player says yes on its name card. ?p2p=off leaves it out: the game then has no multiplayer UI at all.
-const net = (typeof __PD_ONLINE__ === 'undefined' || __PD_ONLINE__) && params.get('p2p') !== 'off' ? (await import('./online/online.js')).createOnline({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions }) : {};
+const net = (typeof __PD_ONLINE__ === 'undefined' || __PD_ONLINE__) && params.get('p2p') !== 'off' ? (await import('./online/online.js')).createOnline({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions, traffic, followRoute }) : {};
 const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
@@ -592,5 +602,6 @@ function frame(now) {
   clouds.update(dt); // after dayNight.update (it reads the lights and may thicken the fog inside a cloud) and once the camera is placed (the puffs face it and are sorted from it)
   updateHud(dt);
   minimap.draw(dt);
+  groundGuide?.update(dt);
   if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; drunk.render is renderer.render when sober, and while drunk the wobble of the camera plus the screen shader (src/drunk.js)
 }
