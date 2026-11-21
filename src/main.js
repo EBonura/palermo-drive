@@ -473,7 +473,7 @@ if (params.has('rec')) import('./rec.js').then(m => { rec = m.startRec({ game, r
 // would bring new tiles into view), and world.hurry lets the streamer use most of each frame while the screen is covered. The wait is
 // capped so a slow phone still gets in.
 let titleT0 = -1;
-if (world) world.hurry = true;
+if (world) world.hurry = 2;   // 2: the long build budget of the first loading screen (src/world.js cfg.loadMs)
 (function waitForCity(t0 = performance.now(), calm = 0) {
   calm = !world || world.visiblePending() === 0 ? calm + 1 : 0;
   if (calm < 2 && performance.now() - t0 < 25000) return requestAnimationFrame(() => waitForCity(t0, calm));
@@ -572,7 +572,7 @@ function frame(now) {
 
   if (freeCam) freeCam();
   else if (filmCam && game.state === 'play') filmCam(camera, car, dt);
-  else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); // flyover on the title, the garage turntable from the side menu
+  else if ((game.state === 'title' || game.state === 'pause') && game.titleCam) { if (camera.near !== 1.5) { camera.near = 1.5; camera.updateProjectionMatrix(); } game.titleCam(camera, titleT0 < 0 ? 0 : (now - titleT0) / 1000); }   // flyover on the title, the garage turntable from the side menu; high above the roofs, so a far near plane and a sharp depth buffer
   else updateCamera(game.state === 'pause' ? 0 : dt);   // paused, the lapa stands still but keeps its speed: with time going on the camera's buzz (it grows with speed) shook the whole picture
   drawBlend(false);
   if (world) world.overview = game.state === 'title';

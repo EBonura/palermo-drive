@@ -77,11 +77,11 @@ const S = {
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, schermo intero', 'Menu: camera, back on the road, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
   timeStart: ['Ora di partenza', 'Start time'], tMorning: ['Mattina', 'Morning'], tAfternoon: ['Pomeriggio', 'Afternoon'], tSunset: ['Tramonto', 'Sunset'], tNight: ['Notte', 'Night'],
-  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radiu ri stu iocu? Mandami un messaggiu su IG ca nn’uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
+  igMe: ['Creatore del gioco', 'Game creator'], igStudio: ['Lo studio, giochi PS1', 'The studio, PS1 games'], igHead: ['Palermitani, la radio è vostra', 'Palermo musicians, the radio is yours'], igMusic: ['Sei di Palermo e vuoi la tua musica aggiunta alla radiu ri stu iocu? Mandami un messaggiu su IG ca nn’uigganizzamu', 'From Palermo and want your music on this game\'s radio? Message me on IG and we\'ll sort it out'],
   balloons: ['Fumetti', 'Speech balloons'], bS: ['Piccoli', 'Small'], bM: ['Medi', 'Medium'], bL: ['Grandi', 'Large'],
   coords: ['Debug', 'Debug'], cOff: ['Spente', 'Off'], cOn: ['Accese', 'On'],
   timeNow: ['Ora', 'Time'], timeSpeed: ['Scorrere del tempo', 'Time flow'], tOff: ['Fermo', 'Frozen'], tSlow: ['Lento', 'Slow'], tNormal: ['Normale', 'Normal'], tFast: ['Veloce', 'Fast'],
-  garage: ['Il tuo mezzo', 'Your ride'],
+  garage: ['Il tuo mezzo', 'Your ride'], garageName: ['Garage', 'Garage'],
   startQ: ["Runni vo’ paittiri?", 'Where do you start?'], whereQ: ['Dove vai?', 'Where to?'], whereBusy: ['Dove vai? Lasci l’evento in corso', 'Where to? You drop the current event'],
   tabMap: ['Mappa', 'Map'], tabList: ['Lista', 'List'],
   pickLivery: ['Scegli la livrea', 'Choose a livery'],
@@ -348,16 +348,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // main menu
   const IG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>';
   const igLink = (h, k) => `<a class="pd-ig" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer"><b>@${h}</b><small data-k="${k}"></small></a>`;
+  const igHandle = h => `<a href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer">${IG}@${h}</a>`;   // the menu's neon handles
   const NOTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M9 18.5a3 3 0 1 1-2-2.83V5.2l12-2.2v13.5a3 3 0 1 1-2-2.83V7.4L9 8.87z"/></svg>';
-  mk('menu', '', `<div class="pd-mbody"><div class="pd-logo">${logoSVG('m')}</div>
+  mk('menu', '', `<div class="pd-mbody"><div class="pd-mleft"><div class="pd-logo">${logoSVG('m')}</div>
+      <div class="pd-msoc"><div class="pd-msh">${igHandle('izzy88izzy')}${igHandle('bonnie_studios_')}</div><a class="pd-msn" href="https://ig.me/m/izzy88izzy" target="_blank" rel="noopener noreferrer"><b>${NOTE}<span data-k="igHead"></span></b><span data-k="igMusic"></span></a></div></div>
     <nav class="pd-menu">
       <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
-      <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+      <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden>${two('garageName')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="missions" type="button">${two('missions')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="credits" type="button">${two('credits')}${CHEV}</button>
     </nav></div>
-    <div class="pd-mfoot"><div class="pd-msoc"><div class="pd-igs"><span class="pd-igi">${IG}</span>${igLink('izzy88izzy', 'igMe')}${igLink('bonnie_studios_', 'igStudio')}</div><a class="pd-igm" href="https://ig.me/m/izzy88izzy" target="_blank" rel="noopener noreferrer">${NOTE}<span data-k="igMusic"></span></a></div><div class="pd-vslot"></div></div>
+    <div class="pd-mfoot"><div class="pd-vslot"></div></div>
 `);
   // options
   const OPTS = [
@@ -409,8 +411,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       </div>
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
-  // the same two language buttons in the main menu's footer (the options screen, reached from the menu and from the side menu, has them too)
-  { const row = h('div', 'pd-menulang', rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')); screens.menu.querySelector('.pd-mfoot').insertBefore(row, screens.menu.querySelector('.pd-vslot')); }
+  // the same two language buttons at the foot of the main menu's buttons, as wide as they are (the options screen, reached from the menu and from the side menu, has them too)
+  { const row = h('div', 'pd-menulang', rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')); screens.menu.querySelector('.pd-menu').append(row); }
   // credits
   mk('credits', '', `<div class="pd-roll"><div class="pd-rollin"></div></div>
     <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>`);
@@ -426,7 +428,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         <button class="pd-btn sm drive" data-nav data-do="resume" type="button">${two('toDrive')}${CHEV}</button>
         <button class="pd-btn sm" data-nav data-do="map" type="button">${two('openMap')}${CHEV}</button>
         <div class="pd-sidepair"><button class="pd-btn sm" data-nav data-do="missions" type="button">${two('missions')}</button><button class="pd-btn sm" data-nav data-do="collections" type="button">${two('collections')}</button></div>
-        <button class="pd-btn sm" data-nav data-do="garage" type="button"><span class="pd-in" data-k="garage" data-sub="Garage"></span>${CHEV}</button>
+        <button class="pd-btn sm" data-nav data-do="garage" type="button">${two('garageName')}${CHEV}</button>
         <button class="pd-btn sm" data-nav data-do="controls" type="button">${two('controls')}${CHEV}</button>
         <button class="pd-btn sm" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
         <button class="pd-btn sm pd-grp pd-quit" data-nav data-do="quit" type="button"><span class="pd-in"><span class="pd-l1" data-k="quit"></span><span class="pd-l2 pd-quitsub" data-k="quitBusy" hidden></span></span>${CHEV}</button>
@@ -484,7 +486,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
   // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
-  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-bbtn pd-bstation" data-do="radioStation" type="button">${ICON_STATION}</button><button class="pd-btitle" type="button" aria-expanded="false"><span class="pd-bt1"></span><small class="pd-bt2"></small></button><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-bbtn pd-bstation" data-do="radioStation" type="button">${ICON_STATION}</button><button class="pd-btitle" type="button" aria-expanded="false"><small class="pd-bt0"></small><span class="pd-bt1"></span><small class="pd-bt2"></small></button><i class="pd-bspin" aria-hidden="true"></i><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
   bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
@@ -727,8 +729,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   // ---- the radio on screen: the bar, the top of the menu panel (both fed by the radio's view, src/radio.js), the busy warning, the fullscreen button ----
   const npL = screens.side.querySelector('.pd-npl'), npN = screens.side.querySelector('.pd-npn'), npS = screens.side.querySelector('.pd-nps');
-  const barT = bar.querySelector('.pd-bt1'), barA = bar.querySelector('.pd-bt2'), barTitle = bar.querySelector('.pd-btitle');
-  // a tap on the track name opens it to the right: the whole title, the artist small under it. Another tap, or a few seconds, closes it.
+  const barS = bar.querySelector('.pd-bt0'), barT = bar.querySelector('.pd-bt1'), barA = bar.querySelector('.pd-bt2'), barTitle = bar.querySelector('.pd-btitle');   // three lines: the station (or the pub that has the line), the song, the artist
+  // a tap on the track name opens it to the right, so a long title shows whole. Another tap, or a few seconds, closes it.
   let barOpenT = 0;
   const openBar = on => { clearTimeout(barOpenT); bar.classList.toggle('open', on); barTitle.setAttribute('aria-expanded', String(on)); if (on) barOpenT = setTimeout(() => openBar(false), 5000); };
   barTitle.addEventListener('click', () => openBar(!bar.classList.contains('open')));
@@ -746,7 +748,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     for (const b of ui.querySelectorAll('.pd-bstation')) { b.setAttribute('aria-label', S.radioStation[i]); b.title = S.radioStation[i]; }
     if (v && v.station && lastStation && v.station !== lastStation && cur == null) openBar(true);   // a new station: the bar opens on it for a few seconds, its name under the title
     if (v && v.station) lastStation = v.station;
-    barT.textContent = title; barA.textContent = v ? [v.theme ? '' : label, v.artist || ''].filter(Boolean).join(' · ') : ''; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
+    barS.textContent = label; barT.textContent = title; barA.textContent = v ? v.artist || '' : ''; bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
     for (const x of STATIONS) {   // the station cards in Options: their line in the language shown, IN ONDA on the one playing
       const sm = screens.options.querySelector(`[data-stsub="${x.id}"]`); if (sm) sm.textContent = x.sub[i];

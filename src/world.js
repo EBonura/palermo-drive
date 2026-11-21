@@ -52,6 +52,7 @@ const CFG = {
   conc: 3,
   budgetMs: +Q.get('wbudget') || 2,
   sliceMs: +Q.get('wslice') || 1.5,       // one build step (src/slice.js)
+  loadMs: +Q.get('wload') || 40,         // ...and while the first loading screen is up (world.hurry === 2): nothing moves behind it, so a frame can be long
   hurryMs: +Q.get('whurry') || 12,        // per-frame build budget while a loading screen or the start transition covers the game (world.hurry)
   viewMargin: 80,                         // metres the camera frustum is widened by when deciding what is in view (the car may turn)
   viewNear: 220,                          // tiles this close to the focus count as in view whichever way the camera points
@@ -717,6 +718,45 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     return m;
   }
 
+  // Overlapping footprints in the map data put two walls in the same plane facing the same way, and the pair flickers. A wall that lies wholly
+  // inside another one of the same plane (along it and in height) can never be seen: its two triangles are folded away. Partial overlaps stay.
+  function hideCoveredWalls(wp, wi, nv, wu) {
+    const planes = new Map();
+    for (let v = 0; v < nv; v += 4) {
+      const o = v * 3, ax = wp[o], az = wp[o + 2], bx = wp[o + 3], bz = wp[o + 5], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
+      const nx = dz / len, nz = -dx / len, u0 = -nz * ax + nx * az, u1 = -nz * bx + nx * bz;
+      const k = Math.round(Math.atan2(nz, nx) * 200) * 1e7 + Math.round((nx * ax + nz * az) * 20);   // ~0.3 degrees, 5 cm (a number: no string per wall)
+      const w = [Math.min(u0, u1), Math.max(u0, u1), Math.min(wp[o + 1], wp[o + 4]), wp[o + 7], v];
+      const L = planes.get(k); if (L) L.push(w); else planes.set(k, [w]);
+    }
+    const e = 0.05, eb = 0.7;   // eb: the foot of a wall is 0.6 m under the ground, a lower foot is never seen
+    for (const L of planes.values()) {
+      if (L.length < 2) continue;
+      for (let i = 0; i < L.length; i++) { const a = L[i]; if (a[4] < 0) continue;
+        for (let j = 0; j < L.length; j++) { const b = L[j]; if (i === j || b[4] < 0) continue;
+          if (a[0] >= b[0] - e && a[1] <= b[1] + e && a[2] >= b[2] - eb && a[3] <= b[3] + e && (j > i || a[0] > b[0] + e || a[1] < b[1] - e || a[2] > b[2] + e || a[3] < b[3] - e)) {   // a inside b (of two equal ones, the later goes)
+            const t = (a[4] / 4) * 6; for (let q = 0; q < 6; q++) wi[t + q] = a[4];   // every wall writes 4 corners and 6 indices, in step
+            a[4] = -1; break;
+          }
+          // b covers one end of a, over a's whole height: a is cut back to where b ends
+          if (a[2] >= b[2] - eb && a[3] <= b[3] + e && b[0] < a[1] - e && b[1] > a[0] + e && (b[0] <= a[0] + e) !== (b[1] >= a[1] - e)) {
+            const cut = b[0] <= a[0] + e ? b[1] : b[0];
+            trimWall(wp, wu, a[4], cut, b[0] <= a[0] + e);
+            if (b[0] <= a[0] + e) a[0] = cut; else a[1] = cut;
+          } } }
+    }
+  }
+  // Moves one end of wall v (4 corners: a low, b low, b top, a top) to the point `cut` along its line; `low`: the end with the smaller coordinate.
+  function trimWall(wp, wu, v, cut, low) {
+    const o = v * 3, ax = wp[o], az = wp[o + 2], bx = wp[o + 3], bz = wp[o + 5], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
+    const nx = dz / len, nz = -dx / len, ua = -nz * ax + nx * az, ub = -nz * bx + nx * bz, t = (cut - ua) / (ub - ua);
+    const moveA = (ua < ub) === low;   // the end to move is a when a is on the cut side
+    const px = ax + dx * t, pz = az + dz * t, py = wp[o + 1] + (wp[o + 4] - wp[o + 1]) * t, uu = wu[v * 2] + (wu[v * 2 + 2] - wu[v * 2]) * t, vv = wu[v * 2 + 1] + (wu[v * 2 + 3] - wu[v * 2 + 1]) * t;
+    const [lo, hi] = moveA ? [0, 3] : [1, 2];   // the low and top corners of that end
+    wp[o + lo * 3] = px; wp[o + lo * 3 + 1] = py; wp[o + lo * 3 + 2] = pz; wp[o + hi * 3] = px; wp[o + hi * 3 + 2] = pz;
+    wu[v * 2 + lo * 2] = uu; wu[v * 2 + lo * 2 + 1] = vv; wu[v * 2 + hi * 2] = uu;
+  }
+
   // ---------- low-detail buildings: plain extrusions ----------
   function* lowBuildings(t) {
     const d = t.data, skip = ctx.skip;
@@ -773,6 +813,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     }
     const g = new THREE.Group();
     const mk = (geo, mat, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.matrixAutoUpdate = false; g.add(m); };
+    yield;   // a slice of its own
+    hideCoveredWalls(wp, wi, wv, wu);
     if (nwi) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(wp.slice(0, wv * 3), 3));
@@ -1190,6 +1232,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       // (the production build serves the .bin twin through a fetch shim, tools/build/runtime/loader.js: always go through r.json())
       fetch(url('tiles/' + t.id + '.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); stat.bytes += +r.headers.get('content-length') || 0; return r.json(); }).then(d => {
         t.data = d; stat.fetched++;
+        dropTwins(d);   // before anything is built from it
         applyDistrictHeights(d); // low and full detail agree on storeys, no height pop on LOD swap
         prepareTile(t);
       }).catch(e => { t.failed = true; stat.errors++; console.warn('[world] tile', t.id, e); })
@@ -1216,6 +1259,22 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       const f = Math.exp((l - 8) * 0.045), dw = (w - 8) * st;
       return _gt.setRGB(Math.min(1.45, f * Math.exp(dw / 2)), f, Math.min(1.45, f * Math.exp(-dw / 2)));
     };
+  }
+  // Some footprints come twice in the map data (two OSM ways for one building: the same corners and height, often starting from another corner):
+  // drawn twice, every wall of the pair fights for the same pixels and flickers. The richer copy (more fields: type, levels) stays.
+  function dropTwins(d) {
+    const B = d.buildings; if (!B || B.length < 2) return;
+    const corners = b => { const c = []; for (let i = 0; i < b.p.length; i += 2) c.push(Math.round(b.p[i] * 10) * 1e6 + Math.round(b.p[i + 1] * 10)); return c.sort((x, y) => x - y); };
+    const key = b => { let h = b.p.length; for (let i = 0; i < b.p.length; i += 2) h = (h + Math.imul(Math.round(b.p[i] * 10) ^ Math.imul(Math.round(b.p[i + 1] * 10), 0x85ebca6b), 0x9e3779b1)) >>> 0; return h + ':' + Math.round(b.h || 0); };   // the same whatever corner the ring starts from
+    const seen = new Map(); let drop = null;
+    for (let i = 0; i < B.length; i++) {
+      const k = key(B[i]), j = seen.get(k);
+      if (j === undefined) { seen.set(k, i); continue; }
+      const ca = corners(B[j]), cb = corners(B[i]); if (ca.some((v, q) => v !== cb[q])) continue;   // a hash collision, not a twin
+      const keepB = Object.keys(B[i]).length > Object.keys(B[j]).length;
+      (drop = drop || new Set()).add(keepB ? j : i); if (keepB) seen.set(k, i);
+    }
+    if (drop) d.buildings = B.filter((_, i) => !drop.has(i));
   }
   function prepareTile(t) {
     const d = t.data;
@@ -1532,7 +1591,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     estTris: 0,
     // set by main.js while the title is up (see updateWanted); a change asks for a new allocation at once, so leaving the title does not wait for the next 0.5 s tick
     get overview() { return overviewOn; }, set overview(v) { if (v !== overviewOn) { overviewOn = v; wantedTimer = 99; } },
-    hurry: true,    // (from the start: until main.js lifts the loading screen) set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
+    hurry: 2,    // (from the start, 2: until main.js lifts the loading screen; true or 1 under the start transition) set while a loading screen or the start transition covers the game: the build budget goes up to cfg.hurryMs a frame
     get farCity() { return farCity; },
     raised,
     drivePlayer, surfaceAt,
@@ -1583,7 +1642,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     },
     update(dt, cam) {
       drawTrams();   // first, on the ground as the physics steps of this frame saw it
-      if (!M) { if (tasks.length) runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs); return; }
+      if (!M) { if (tasks.length) runTasks(world.hurry ? (world.hurry === 2 ? CFG.loadMs : CFG.hurryMs) : CFG.budgetMs); return; }
       const t0 = performance.now();
       const f = tele || cam.position;
       focus.x = f.x; focus.z = f.z;
@@ -1594,7 +1653,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       }
       markView();
       pump();
-      runTasks(world.hurry ? CFG.hurryMs : CFG.budgetMs);
+      runTasks(world.hurry ? (world.hurry === 2 ? CFG.loadMs : CFG.hurryMs) : CFG.budgetMs);
       freeStep();
       for (const t of tiles.values()) if (!t.task && !t.dead) ensureTask(t);
       if (tele) {

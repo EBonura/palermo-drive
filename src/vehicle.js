@@ -530,6 +530,7 @@ export function createVehicle(env) {
       camera.position.set(car.x + f.x * 0.3 + sx, gy0 + car.lift + car.hop * 0.7 + T.eye + sy, car.z + f.z * 0.3 + sz);
       camera.lookAt(car.x + f.x * 20, gy + 1.2 + (groundY(car.x + f.x * 20, car.z + f.z * 20) - gy0), car.z + f.z * 20);
       camera.rotateZ(cam.roll + car.roll * 0.5);
+      setNear(0.5);   // the bonnet is right under the camera
       camState.init = true;
       if (rig) rig.driver.visible = false;
       return;
@@ -557,7 +558,11 @@ export function createVehicle(env) {
     const look = f.clone().multiplyScalar(m === 3 ? 0 : 3.5).add(_p.set(car.x, gy + T.camH, car.z));
     camera.lookAt(look);
     if (cam.roll) camera.rotateZ(cam.roll);
+    // Near plane: depth precision far away grows with it, so it sits as far out as the view allows (0.5 m let distant walls fight on phones with a coarse
+    // depth buffer). A third of the way to the car keeps the lapa whole when a wall pulls the camera in; overhead, nothing is close.
+    const cp = camera.position; setNear(m === 3 ? 10 : clamp(0.3 * Math.hypot(cp.x - car.x, cp.z - car.z, cp.y - gy), 0.5, 1.5));   // (p is the look-at point by now)
   }
+  function setNear(n) { if (Math.abs(camera.near - n) > 0.05) { camera.near = n; camera.updateProjectionMatrix(); } }
 
   // ---------- mounting a look (vehicle + livery + parts) ----------
   // the ZEN gag strips the vehicle to its frame and wheels (cosmetic only: the garage and the saved look are untouched)

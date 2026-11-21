@@ -131,7 +131,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   const slots = [0, 1].map(() => {
     const el = new Audio();
     el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', ''); if (musicCross) el.crossOrigin = 'anonymous';
-    return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false, keep: false };   // keep: stopped by a pause, the file stays loaded where it was
+    return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false, keep: false, buffering: false };   // buffering: asked to play, no sound yet (a slow connection): the bar shows a spinner   // keep: stopped by a pause, the file stays loaded where it was
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
   let ambient = 1;   // duckAmbient(k): the city's own voices (the knife-grinder's loudspeaker, src/city-audio.js) turn the radio down a little; apart from outer so a pub's song does not undo it
@@ -219,7 +219,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     const track = upcoming || pick();
     upcoming = null;
     if (s.loaded !== track) release(s);
-    s.track = track; s.level = 0; s.target = 1; s.fade = fadeSec; s.playing = true;
+    s.track = track; s.level = 0; s.target = 1; s.fade = fadeSec; s.playing = true; s.buffering = true;
     load(s, track);
     const p = s.el.play();
     if (p && p.catch) p.catch(err => {
@@ -237,7 +237,8 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     if (++failures < tracks.length) playTrack(0.3);     // skip a track that will not load
   }
   for (const s of slots) {
-    s.el.addEventListener('playing', () => { if (s === slots[cur]) failures = 0; });
+    s.el.addEventListener('playing', () => { s.buffering = false; if (s === slots[cur]) failures = 0; });
+    s.el.addEventListener('waiting', () => { if (s.playing) s.buffering = true; });   // ran out of data mid-song: the spinner again until it plays
     s.el.addEventListener('error', () => { if (s.loaded) trackFailed(s); });   // not for a src that was just removed
     s.el.addEventListener('ended', () => { if (s === slots[cur] && s.playing) playTrack(0.2); });
   }
@@ -350,13 +351,13 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   });
 
   // ---- what the shell shows: one view, announced when it changes ----
-  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '', station: '' };   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
+  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '', station: '', loading: false };   // loading: a song is asked for and has not started to sound (src/ui.js shows a spinner)   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
   let taken = null;   // takeover(): { lock } while a pub or a scene has borrowed the line
   let lastKey = '', lv = new Float32Array(0), edges = [1];
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
   function setView(v) {
     Object.assign(view, v);
-    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}|${view.station}`;
+    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}|${view.station}|${view.loading}`;
     if (key !== lastKey) { lastKey = key; dispatchEvent(new CustomEvent('pd-radio', { detail: view })); }
   }
   function sync() {   // 10 Hz, from tick(): the event only goes out when something changed
@@ -364,7 +365,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     const l = langNow();
     const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
     const track = mode === 'on' ? slots[cur].track : null;
-    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id });
+    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id, loading: mode === 'on' && slots[cur].buffering });
   }
   const onTrack = () => sync();
 
@@ -415,7 +416,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
       taken = { lock, theme, analyser: an && an.getByteFrequencyData ? an : null, level: typeof level === 'function' ? level : null, buf: null };
       if (taken.analyser) taken.buf = new Uint8Array(taken.analyser.frequencyBinCount);
       if (!was && started && enabled) hold(0.4);   // the radio goes quiet, not just lower, and stays on its track
-      setView({ mode: 'on', label, title, sub: artist, artist: theme === 'match' ? '' : artist, theme });   // the match card's line is the commentary, not an artist
+      setView({ mode: 'on', label, title, sub: artist, artist: theme === 'match' ? '' : artist, theme, loading: false });   // the match card's line is the commentary, not an artist
     },
     retext({ label, title, artist } = {}) {
       if (!taken) return;

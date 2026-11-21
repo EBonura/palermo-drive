@@ -123,7 +123,8 @@ html.pd-title :is(#hud, .tc) { visibility: hidden !important; }
 .pd-mfoot { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding: 0 6px; }
 .pd-vslot { flex: none; margin-left: auto; }
 .pd-s-title .pd-vslot { position: absolute; left: calc(var(--pad-l) + 6px); bottom: var(--pad-b); margin: 0; }
-.pd-s-menu .pd-logo { width: min(46vw, 100vh, 600px); flex: 0 1 auto; }
+.pd-mleft { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 2.2vh, 18px); }   /* the logo, and under it the one card of the socials */
+.pd-s-menu .pd-logo { width: min(46vw, 82vh, 560px); flex: 0 1 auto; }
 .pd-menu { display: flex; flex-direction: column; gap: clamp(8px, 2vh, 16px); width: min(40vw, 380px); flex: 0 0 auto; }
 
 /* ---------- buttons (slanted race-game bars) ---------- */
@@ -229,8 +230,8 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 }
 .pd-fsbtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
 /* the bar: one dark capsule like the map's. Only the buttons take taps. On the street and on the menus that leave the corner free (title, main menu, credits, garage, missions); not while the menu panel or the map picker is open */
-.pd-bar { position: absolute; z-index: 3; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); box-sizing: border-box; width: var(--bar-w); height: 40px; display: none; align-items: center; gap: 2px; padding: 0 14px 0 3px;
-  border-radius: 20px; background: rgba(13,7,10,.8); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; color: #fff; -webkit-user-select: none; user-select: none; }
+.pd-bar { position: absolute; z-index: 3; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); box-sizing: border-box; width: var(--bar-w); height: 50px; display: none; align-items: center; gap: 2px; padding: 0 14px 0 3px;
+  border-radius: 25px; background: rgba(13,7,10,.8); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; color: #fff; -webkit-user-select: none; user-select: none; }
 #pd-ui[data-st=play] .pd-bar, #pd-ui[data-st=title]:is([data-screen=title], [data-screen=menu], [data-screen=credits], [data-screen=garage], [data-screen=missions]) .pd-bar { display: flex; }
 .pd-bbtn, .pd-menubtn { flex: none; position: relative; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; pointer-events: auto;
   background: rgba(255,255,255,.1); touch-action: manipulation; -webkit-appearance: none; appearance: none; transition: background .12s; -webkit-tap-highlight-color: transparent; }
@@ -253,11 +254,18 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 .pd-btitle:focus { outline: none; }
 .pd-kb .pd-btitle:focus-visible { outline: 2px solid #fff; outline-offset: 1px; border-radius: 6px; }
 .pd-btitle span { display: block; overflow: hidden; text-overflow: ellipsis; }
-.pd-btitle small { display: none; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond); letter-spacing: .06em; opacity: .72; }
-/* open: the bar grows to the right (to the middle of the screen at most, so the mission card and the minimap stay clear), the artist shows under the title */
+.pd-btitle small { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond); letter-spacing: .06em; opacity: .72; }
+.pd-btitle small:empty { display: none; }
+.pd-btitle .pd-bt0 { margin: 0 0 1px; font: 700 9px/1.1 var(--pd-cond); letter-spacing: .08em; text-transform: uppercase; color: var(--pd-amber); opacity: 1; }   /* the station, always shown above the song */
+/* a song asked for and not sounding yet (a slow connection): a small spinner in place of the bars */
+.pd-bspin { display: none; flex: none; width: 16px; height: 16px; margin: 0 4px 0 6px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.22); border-top-color: var(--pd-pink); animation: pd-spin .8s linear infinite; }
+.pd-bar.loading .pd-bspin { display: block; }
+.pd-bar.loading .pd-bbars { display: none; }
+@keyframes pd-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pd-bspin { animation-duration: 2.4s; } }
+/* open: the bar grows to the right (to the middle of the screen at most, so the mission card and the minimap stay clear), so a long title shows whole */
 .pd-bar { transition: width .18s ease; }
 .pd-bar.open { width: max(var(--bar-w), min(340px, 50vw - 14px)); }
-.pd-bar.open .pd-btitle small:not(:empty) { display: block; }
 .pd-bar.open .pd-bbars { display: none; }   /* the room the bars took goes to the title */
 @media (prefers-reduced-motion: reduce) { .pd-bar { transition: none; } }
 .pd-bbars { flex: none; display: block; margin-left: 8px; opacity: .95; }
@@ -310,7 +318,7 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 #pd-loc { font: 700 18px/1.12 var(--pd-cond); color: #fff; }
 #pd-loc > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #street:empty, #landmark:empty, #pd-loc:has(#landmark:not(:empty)) #street { display: none; }   /* a landmark takes the street's place; no street and no landmark: no row at all */
-.hz-social { left: var(--sl); top: calc(var(--st) + 48px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
+.hz-social { left: var(--sl); top: calc(var(--st) + 58px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .hz-gauges { display: flex; align-items: center; gap: 12px; }   /* speed and nitro: one compact row, phone and desktop */
@@ -340,8 +348,8 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
 .pd-mcard .sea-btn { text-align: center; justify-content: center; font-size: clamp(19px, 4.6vh, 30px); letter-spacing: .05em; }   /* COMINCIA MISSIONE has to fit on one line next to No mi siddia */
 .pd-mcard .sea-btn > span { padding-left: 0; }
 .pd-mcard .sea-btn.main { flex: 1.5 1 0; }
-.pd-menulang { flex: 0 1 auto; margin: 0 auto 0 auto; }
-.pd-menulang .pd-lang { width: min(46vw, 260px); }
+.pd-menu .pd-menulang { flex: none; margin-top: clamp(2px, 1vh, 8px); }   /* under the menu's buttons, as wide as they are */
+.pd-menulang .pd-lang { width: 100%; }
 .pd-menulang .pd-segb { min-height: clamp(34px, 7.4vh, 42px); font-size: clamp(14px, 3.1vh, 19px); }
 @media (orientation: landscape) {
   html.touch #hud { --mini: clamp(76px, 24vh, 98px); --cap: 300px; }   /* about 240 x 76 at 844 x 390: clear of the NOS pad below it and the mission column beside it */
@@ -580,8 +588,17 @@ html.touch .pd-mp-hint { display: none; }
   .pd-sl .pd-btn { min-height: 34px; }
 }
 
-/* Studio credit on the title screen: "a game by" over the Bonnie Studios logo (white on transparent). */
-.pd-msoc { flex: 0 1 auto; min-width: 0; max-width: min(49vw, 430px); display: flex; flex-direction: column; align-items: flex-start; gap: clamp(4px, 1vh, 8px); }
+.pd-msoc { display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 1.6vh, 12px); width: min(40vw, 430px); pointer-events: auto; font-family: 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; }   /* the socials under the logo: two neon handles, and the call to Palermo's musicians as a neon sign */
+.pd-msh { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; }
+.pd-msh a { display: flex; align-items: center; gap: 6px; color: #fff; text-decoration: none; font-weight: 600; font-size: clamp(12px, 2.2vh, 14.5px); letter-spacing: .05em; text-shadow: 0 0 8px rgba(232,85,154,.7); transition: color .12s ease; }
+.pd-msh a svg { width: 16px; height: 16px; color: #f5a9c9; }
+.pd-msh a:hover, .pd-msh a:focus-visible { color: #ffd9ea; }
+.pd-msn { display: flex; flex-direction: column; gap: 4px; padding: clamp(7px, 1.4vh, 11px) 16px; border: 1.5px solid #f5a9c9; border-radius: 8px; color: #fff; text-decoration: none; text-align: center;
+  background: rgba(20,8,16,.55); box-shadow: 0 0 10px rgba(232,85,154,.75), inset 0 0 10px rgba(232,85,154,.45); transition: box-shadow .15s ease, background .15s ease; }
+.pd-msn:hover, .pd-msn:focus-visible { background: rgba(40,12,30,.65); box-shadow: 0 0 16px rgba(232,85,154,.95), inset 0 0 12px rgba(232,85,154,.6); }
+.pd-msn b { display: flex; justify-content: center; align-items: center; gap: 6px; font-weight: 800; font-size: clamp(12px, 2.3vh, 15px); letter-spacing: .12em; text-transform: uppercase; color: #ffd9ea; text-shadow: 0 0 8px #e8559a; }
+.pd-msn b svg { width: 16px; height: 16px; }
+.pd-msn > span { text-transform: none; letter-spacing: .02em; font-weight: 500; font-size: clamp(10px, 1.85vh, 12px); line-height: 1.2; opacity: .85; }
 .pd-igs { display: inline-flex; align-items: stretch; min-width: 0; border-radius: 3px; overflow: hidden; pointer-events: auto;
   background: linear-gradient(90deg, rgba(34,22,28,.92), rgba(14,9,12,.8)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.38); transform: skewX(-11deg); }
 .pd-igi { display: flex; align-items: center; padding: 0 8px 0 11px; color: #e8559a; }
@@ -594,6 +611,7 @@ html.touch .pd-mp-hint { display: none; }
   background: linear-gradient(90deg, rgba(232,85,154,.34), rgba(14,9,12,.8)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.38); transform: skewX(-11deg); transition: background .12s ease;
   font: 500 clamp(10px, 2vh, 12.5px)/1.15 'Barlow Condensed','Arial Narrow',system-ui,sans-serif; letter-spacing: .02em; }
 .pd-igm svg { flex: none; color: #f5a9c9; }
+/* Studio credit on the title screen: "a game by" over the Bonnie Studios logo (white on transparent). */
 .pd-by { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
   display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
   padding: 8px 10px 10px; border-radius: 12px; background: rgba(11,7,9,.62); box-shadow: 0 0 0 1px rgba(232,85,154,.35); }
