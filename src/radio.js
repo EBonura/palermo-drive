@@ -20,11 +20,11 @@
 //   `view`, and a change of it is announced with the window event 'pd-radio' (detail: the view); src/ui.js draws it in the bar and in the menu panel.
 
 import { onAudioRecover } from './audio-recover.js';
+import { musicUrl, musicCross } from './music-url.js';   // where the files are: next to the game, or a bucket
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
-const BASE = new URL('../assets/music/', import.meta.url).href;
 
-// file (or id: <id>.m4a), title, author, licence (shown in the radio widget).
+// id (the file is <id>.m4a), title, artist (shown in the radio widget: the artist's name alone, the licences are in the credits).
 // Credits for every track: assets/music/CREDITS.md.
 const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l.
   ['abbiamo-arrivato', 'Abbiamo Arrivato'],
@@ -59,13 +59,33 @@ const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l
   ['una-storia-ose', 'Una Storia Osè'],
   ['via-pitre', 'Via Pitrè'],
   ['vucciria', 'Vucciria'],
-].map(([id, title]) => ({ id, title, by: 'Alamia e Sperandeo', lic: 'Seamusica S.r.l., used with permission' }));
+].map(([id, title]) => ({ id, title, by: 'Alamia e Sperandeo' }));
 export const TRACKS = [
-  { file: 'bushwick-tarantella.mp3', title: 'Bushwick Tarantella', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
-  { file: 'tarantella-air-force-strings.mp3', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band', lic: 'Public domain' },
-  { file: 'funiculi-funicula-banda.mp3', title: 'Funiculì, Funiculà (1903)', by: 'F. Giannini, Royal Marine Band of Italy', lic: 'Public domain' },
-  { file: 'meatball-parade.mp3', title: 'Meatball Parade', by: 'Kevin MacLeod', lic: 'CC BY 4.0' },
+  { id: 'bushwick-tarantella', title: 'Bushwick Tarantella', by: 'Kevin MacLeod' },
+  { id: 'tarantella-air-force-strings', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band' },
+  { id: 'funiculi-funicula-banda', title: 'Funiculì, Funiculà (1903)', by: 'F. Giannini, Royal Marine Band of Italy' },
+  { id: 'meatball-parade', title: 'Meatball Parade', by: 'Kevin MacLeod' },
   ...ALAMIA,
+];
+// Radio Lamiera: rock and metal from Palermo bands. Sources and permissions for every track: assets/music/CREDITS.md.
+const LAMIERA = [   // [id, title, artist]
+  ['ego-divided-fury-of-hatred', 'Fury of Hatred', 'Ego Divided'],
+  ['terrorage', 'DIY Violence', 'Terrorage'],
+  ['crimson-wind-rain-from-the-universe', 'Rain from the Universe', 'Crimson Wind'],
+  ['crimson-wind-hold-your-dreams', 'Hold Your Dreams', 'Crimson Wind'],
+  ['der-geist-the-court-of-guilty-ones', 'The Court of Guilty Ones', 'Der Geist'],
+  ['the-ace-drops-zombie-horde', 'Zombie Horde', 'The Ace Drops'],
+  ['trinakrius-killerotomia', 'Killerotomia', 'Trinakrius'],
+  ['anthirya-silver-thread', 'Silver Thread', 'AnthiryA'],
+  ['cadaver-mutilator-u-viteddazzu', 'U Viteddazzu', 'Cadaver Mutilator'],
+  ['maddaus-scappeddami', 'Scappeddami', 'Maddaus'],
+  ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
+  ['not-another-prayer-24-luglio', '24 Luglio', 'Not Another Prayer'],
+].map(([id, title, by]) => ({ id, title, by }));
+// The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
+export const STATIONS = [
+  { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica del Sud Italia', 'Southern Italian music'], tracks: TRACKS },
+  { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock e metal palermitano', 'Rock and metal from Palermo'], tracks: LAMIERA },   // sub: draft
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out
@@ -78,18 +98,16 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const T = {   // [italiano, english]
   now: ['In onda', 'Now playing'],
   off: ['Radio spenta', 'Radio off'],
-  fm: ['FM Palermo', 'FM Palermo'],
   idle: ['Tocca per ascoltare', 'Tap to listen'],
-  idleSub: ['Musica del Sud Italia', 'Southern Italian music'],
   offSub: ['Accendila col tasto', 'Switch on with the button'],
 };
 
 let instance = null;
 export const getRadio = () => instance;   // the radio if it exists, without making one (src/stadium.js)
 
-export function createRadio({ game, tracks = TRACKS } = {}) {
+export function createRadio({ game, stations = STATIONS } = {}) {
   if (instance) return instance;
-  if (typeof document === 'undefined' || !tracks.length) return null;
+  if (typeof document === 'undefined' || !stations.length) return null;
   const settings = game?.settings || {};
 
   // ---- settings ----
@@ -102,6 +120,8 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   let volume = Number.isFinite(settings.musicVolume) ? settings.musicVolume : Number.isFinite(saved.musicVolume) ? saved.musicVolume : 0.5;
   let enabled = (settings.radio ?? saved.radio) !== 'off';
   volume = clamp(volume, 0, 1);
+  let station = stations.find(x => x.id === (settings.radioStation ?? saved.radioStation)) || stations[0], tracks = station.tracks;   // the station on air, remembered (palermoDrive.settings.v1 radioStation)
+  settings.radioStation = station.id;
   settings.musicVolume = volume; settings.radio = enabled ? 'on' : 'off';
   const lang = () => (readSaved().lang === 'en' ? 1 : 0);
 
@@ -109,7 +129,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   let ctx = null, master = null, useGain = false, analyser = null, freq = null;
   const slots = [0, 1].map(() => {
     const el = new Audio();
-    el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', '');
+    el.preload = 'none'; el.loop = false; el.setAttribute('playsinline', ''); if (musicCross) el.crossOrigin = 'anonymous';
     return { el, node: null, gain: null, track: null, loaded: null, level: 0, target: 0, fade: 1, playing: false, keep: false };   // keep: stopped by a pause, the file stays loaded where it was
   });
   let cur = 0, started = false, blocked = false, failures = 0, duck = DUCK.title, lastSwitch = -1e9;
@@ -118,7 +138,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   let bag = [], last = -1, upcoming = null;
   let mem = null;   // a pause or a hand-over to a pub song: { track } on slots[cur] (its element keeps the position); resuming goes on there. Only next, or a track that ends, moves on
   let pend = false; // something asked to play while a pub song or the stadium had the line: starts when it is released
-  const srcOf = track => BASE + (track.file || track.id + '.m4a');
+  const srcOf = track => musicUrl(track.id + '.m4a');
 
   function buildGraph() {
     if (ctx) return;
@@ -247,6 +267,17 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (performance.now() - lastSwitch < 500) return;   // button mashing: one change at a time
     playTrack(SKIP_FADE);
   }
+  // setStation(id or nothing): that station, or the next one in the list. A new track from its own shuffle starts at once with the skip's crossfade; a paused radio switches on.
+  function setStation(id) {
+    const st = id ? stations.find(x => x.id === id) : stations[(stations.indexOf(station) + 1) % stations.length];
+    if (!st || st === station) return;
+    station = st; tracks = st.tracks; bag = []; last = -1; upcoming = null; mem = null; failures = 0;
+    persist({ radioStation: st.id });
+    const idle = slots[cur ^ 1]; if (!idle.playing) release(idle);   // a track of the old station loading for later
+    if (!started || taken) { pend = !!taken; sync(); return; }
+    if (!enabled) return setEnabled(true);
+    lastSwitch = -1e9; playTrack(SKIP_FADE);
+  }
   function setEnabled(on, save = true) {
     on = !!on;
     if (save) persist({ radio: on ? 'on' : 'off' }); else settings.radio = on ? 'on' : 'off';
@@ -314,16 +345,17 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (e.code === 'KeyM') next();
     else if (e.code === 'KeyN') toggle();
+    else if (e.code === 'KeyK') setStation();
   });
 
   // ---- what the shell shows: one view, announced when it changes ----
-  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '' };   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
+  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '', station: '' };   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
   let taken = null;   // takeover(): { lock } while a pub or a scene has borrowed the line
   let lastKey = '', lv = new Float32Array(0), edges = [1];
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
   function setView(v) {
     Object.assign(view, v);
-    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}`;
+    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}|${view.station}`;
     if (key !== lastKey) { lastKey = key; dispatchEvent(new CustomEvent('pd-radio', { detail: view })); }
   }
   function sync() {   // 10 Hz, from tick(): the event only goes out when something changed
@@ -331,7 +363,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     const l = langNow();
     const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
     const track = mode === 'on' ? slots[cur].track : null;
-    setView({ mode, label: track ? T.now[l] : T.fm[l], title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? `${track.by} · ${track.lic}` : mode === 'off' ? T.offSub[l] : T.idleSub[l], artist: track ? track.by : '', theme: '' });
+    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id });
   }
   const onTrack = () => sync();
 
@@ -340,6 +372,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     if (Number.isFinite(settings.musicVolume)) volume = clamp(settings.musicVolume, 0, 1);
     const on = settings.radio !== 'off';
     if (on !== enabled) { enabled = on; if (started) { if (on) resume(SKIP_FADE); else { hold(OFF_FADE); sync(); } } }
+    if (settings.radioStation && settings.radioStation !== station.id) setStation(settings.radioStation);
   });
 
   // ---- main tick: fades, ducking, auto-advance, button and toast visibility ----
@@ -370,7 +403,8 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
   tick();
 
   instance = {
-    next, toggle, setEnabled, setVolume, unlock,
+    next, toggle, setEnabled, setVolume, unlock, setStation, stations,
+    get station() { return station.id; },
     // takeover({ label, title, artist, theme: 'metal' | 'match', lock }): a pub or a scene borrows the line. The three strings replace the label, the title and the credits line in the bar and the panel (src/ui.js);
     // theme 'metal' is the dark red look, 'match' rosanero and black (La partita). lock: true also stops the next-track key (M) while it lasts; retext({ label, title, artist }) changes the lines live.
     // analyser (an AnalyserNode that is only read) or else level (a function returning 0..1) drives the bars in the top bar while the line is borrowed. While it is borrowed the radio itself is paused,
@@ -426,7 +460,7 @@ export function createRadio({ game, tracks = TRACKS } = {}) {
     get enabled() { return enabled; },
     get volume() { return volume; },
     get current() { return slots[cur].playing ? slots[cur].track : null; },
-    tracks,
+    get tracks() { return tracks; },
     debug: () => ({ useGain, ctx: ctx && ctx.state, levels: slots.map(s => +s.level.toFixed(2)), duck: +duck.toFixed(2), master: master ? +master.gain.value.toFixed(3) : null, vols: slots.map(s => s.el.volume), started, blocked, failures }),
     destroy() { clearInterval(timer); stopAll(0.1); for (const s of slots) s.el.pause(); instance = null; },
   };

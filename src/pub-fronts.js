@@ -636,7 +636,133 @@ function buildPolacco() {
   return F.finish();
 }
 
-const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo, polacco: buildPolacco };
+// ---------------------------------------------------------------------------------------------------------------------------------- Drunks
+// Piazza Sant'Anna 11 (docs/pubs.md section 9, refs/drunks ddg_11, a night photo): an ochre-orange plaster front, a first-floor iron balcony, a cream scalloped
+// canvas awning along the ground floor, a black board with "drunks" hand-lettered in lower case with a yellow outline, glass windbreak screens at the entry and
+// high bar stools on the cobbles. By day, before 18:00, the shutter is down.
+function drunksSign() {
+  const [c, g] = canvas(420, 140);
+  g.fillStyle = '#121212'; g.fillRect(0, 0, 420, 140);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 92px "Marker Felt", "Comic Sans MS", "Arial Rounded MT Bold", sans-serif';
+  g.lineJoin = 'round'; g.lineWidth = 10; g.strokeStyle = '#f2c81e'; g.strokeText('drunks', 210, 70); g.fillStyle = '#121212'; g.fillText('drunks', 210, 70);
+  g.lineWidth = 2; g.strokeStyle = '#fff3a8'; g.strokeText('drunks', 210, 70);
+  speck(g, 420, 140, 300, 0.2, '#000', '#555');
+  return texOf(c, 4);
+}
+function drunksAwning() {   // cream canvas with a scalloped edge (alpha cut-out below the band)
+  const [c, g] = canvas(600, 80);
+  g.fillStyle = '#ece0c2'; g.fillRect(0, 0, 600, 48);
+  for (let u = 0; u < 600; u += 40) { g.beginPath(); g.arc(u + 20, 48, 20, 0, Math.PI); g.fill(); }
+  g.fillStyle = 'rgba(120,96,60,.18)'; for (let u = 0; u < 600; u += 40) g.fillRect(u, 0, 2, 48);
+  return texOf(c, 4);
+}
+function drunksWall() {
+  const P = wallPaint(6.0, 5.2, { base: '#c98b4a', courses: 0, plinth: 0.6, plinthColor: '#6a645c', speck: 7000, dark: '#7a4a1c', light: '#f0c890' }), { g } = P;
+  for (let i = 0; i < 90; i++) rectM(P, -3 + rnd() * 6, 0.8 + rnd() * 4.2, 0.05 + rnd() * 0.3, 0.02 + rnd() * 0.08, 'rgba(90,50,20,.12)');   // stains
+  rectM(P, -1.6, 0, 3.2, 2.4, '#1a120c');                                                    // the shop opening (the room and shutter quads cover it)
+  rectM(P, 1.9, 0.9, 0.9, 1.6, '#3a2c20'); rectM(P, 1.95, 0.95, 0.8, 1.5, '#5a4632');           // a shuttered window on the right
+  rectM(P, -2.8, 0, 0.9, 2.4, '#4a3a2c');                                                    // the palazzo's portone on the left
+  rectM(P, -2.2, 3.4, 1.0, 1.5, '#3a2c20'); rectM(P, 1.2, 3.4, 1.0, 1.5, '#3a2c20');            // first-floor French windows behind the balcony
+  for (let i = 0; i < 6; i++) rectM(P, -1.4 + rnd() * 2.6, 2.75 + rnd() * 0.4, 0.2, 0.26, ['#e8e2d0', '#f2c81e', '#d84a3a', '#4a8ad0'][i % 4]);   // stickers above the door
+  return texOf(P.c);
+}
+function drunksInside() {   // the shutter up: a long bar with shelves of bottles in warm light, people at the counter
+  const [c, g] = canvas(320, 270), gr = g.createLinearGradient(0, 0, 0, 270);
+  gr.addColorStop(0, '#2a1608'); gr.addColorStop(0.6, '#8a4a1a'); gr.addColorStop(1, '#d08a3a'); g.fillStyle = gr; g.fillRect(0, 0, 320, 270);
+  for (let r = 0; r < 3; r++) for (let u = 0; u < 16; u++) { g.fillStyle = ['#e8b030', '#3a6a3a', '#a83a2a', '#e8e0c8', '#5a3018'][(r * 3 + u) % 5]; g.fillRect(20 + u * 18, 30 + r * 30, 8, 22); }
+  g.fillStyle = '#4a2a12'; g.fillRect(0, 170, 320, 60); g.fillStyle = '#8a5428'; g.fillRect(0, 164, 320, 8);   // the counter
+  for (let i = 0; i < 5; i++) { g.fillStyle = 'rgba(16,10,6,.7)'; g.beginPath(); g.arc(30 + i * 62 + rnd() * 10, 140 + rnd() * 16, 14, 0, TAU); g.fill(); g.fillRect(17 + i * 62, 150, 28, 80); }
+  g.fillStyle = 'rgba(200,220,235,.1)'; g.beginPath(); g.moveTo(10, 10); g.lineTo(90, 10); g.lineTo(10, 120); g.fill();
+  g.fillStyle = '#1e1e20'; g.fillRect(0, 0, 320, 6); g.fillRect(0, 0, 6, 270); g.fillRect(314, 0, 6, 270);
+  return texOf(c);
+}
+function drunksShutter() {
+  const [c, g] = canvas(320, 270);
+  g.fillStyle = '#5e6064'; g.fillRect(0, 0, 320, 270);
+  for (let m = 0; m < 270; m += 7) { g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, m + 4, 320, 3); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, m, 320, 1.5); }
+  g.fillStyle = '#f2c81e'; g.font = '900 46px "Marker Felt", "Comic Sans MS", sans-serif'; g.textAlign = 'center'; g.fillText('drunks', 160, 130);   // the name sprayed on the shutter
+  for (let i = 0; i < 14; i++) { g.fillStyle = ['#e8e2d0', '#d84a3a', '#4a8ad0', '#f2c81e'][i % 4]; g.fillRect(rnd() * 290, 170 + rnd() * 80, 18 + rnd() * 20, 12 + rnd() * 14); }   // stickers and tags
+  speck(g, 320, 270, 800, 0.25, '#000', '#c8cacc');
+  return texOf(c);
+}
+function buildDrunks() {
+  const F = new Front();
+  F.quad(drunksWall(), 0, 0, 0.03, 6.0, 5.2, { offset: 2, glow: 0.06 });
+  const room = F.quad(drunksInside(), 0, 0, 0.08, 3.2, 2.4, { basic: true }), shut = F.quad(drunksShutter(), 0, 0, 0.11, 3.2, 2.4, { offset: 1 });
+  F.box(-1.65, 0, 0.09, 0.1, 2.45, 0.12, '#2a2a2a'); F.box(1.65, 0, 0.09, 0.1, 2.45, 0.12, '#2a2a2a');
+  F.quad(drunksSign(), 0, 2.6, 0.12, 1.8, 0.6, { glow: 0.6, offset: 1 }); F.box(0, 2.56, 0.08, 1.9, 0.68, 0.06, '#0e0e0e');   // the board between the awning and the balcony
+  // the cream scalloped awning, tilted out over the pavement
+  const aw = F.quad(drunksAwning(), 0, 1.95, 0.6, 6.0, 0.7, { alpha: true, offset: 1 }); aw.rotation.x = -0.5; aw.position.z = 0.7;
+  // the first-floor balcony: a stone slab and an iron railing
+  F.box(0, 3.25, 0.45, 5.4, 0.12, 0.9, '#b8ab94'); F.box(0, 3.37, 0.88, 5.4, 0.04, 0.03, '#1a1a1a'); F.box(0, 4.15, 0.88, 5.4, 0.04, 0.04, '#1a1a1a');
+  for (let u = -2.65; u <= 2.65; u += 0.15) F.box(u, 3.37, 0.88, 0.02, 0.8, 0.02, '#1a1a1a');
+  // glass windbreak screens either side of the entry, high stools and two tall tables on the cobbles
+  for (const sx of [-2.3, 2.3]) { F.box(sx, 0, 1.4, 0.06, 1.3, 1.6, '#c8d8e0'); F.box(sx, 1.3, 1.4, 0.08, 0.05, 1.62, '#2a2a2a'); }
+  for (const [tx, tz] of [[-1.0, 1.9], [1.1, 2.1]]) {
+    F.cyl(tx, 0, tz, 0.03, 1.08, '#1a1a1a', 6); F.cyl(tx, 1.08, tz, 0.32, 0.04, '#2a1a10', 12); F.cyl(tx, 0, tz, 0.22, 0.03, '#1a1a1a', 8);
+    for (const a of [0, 2.1, 4.2]) { const sx = tx + Math.cos(a) * 0.55, sz = tz + Math.sin(a) * 0.55; F.cyl(sx, 0, sz, 0.025, 0.74, '#1a1a1a', 5); F.cyl(sx, 0.74, sz, 0.17, 0.05, '#3a2418', 10); }
+  }
+  F.light(0, 2.4, 0.5, 3.2, '#ffb050', 0.8); F.light(0, 1.4, 0.4, 3.0, '#ffa040', 0.55);
+  F.pool(0, 1.8, 3.4, '#ffa050', 0.5);
+  F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  return F.finish();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------- Mind House
+// Via San Lorenzo 273: the Mind music factory's live club, studios and rehearsal rooms, "dal design industrial" (LiveSicilia, BlogSicilia). No photo of the front
+// was found, so it is drawn as an industrial unit of the street: grey render over a concrete plinth, a wide ribbed steel shutter that rolls up on the club at night,
+// a black board with MIND HOUSE in white over a magenta strip, gig posters in steel frames, flight cases and a stack of amps by the door, a cable reel.
+function mindSign() {
+  const [c, g] = canvas(640, 150);
+  g.fillStyle = '#0c0c0e'; g.fillRect(0, 0, 640, 150); g.fillStyle = '#e0358a'; g.fillRect(0, 128, 640, 22);
+  g.fillStyle = '#f4f4f2'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 86px "Arial Black", Impact, sans-serif'; g.fillText('MIND', 230, 66);
+  g.font = '300 58px "Helvetica Neue", Arial, sans-serif'; g.fillText('HOUSE', 480, 70);
+  return texOf(c, 4);
+}
+function mindWall() {
+  const P = wallPaint(8.0, 4.6, { base: '#8e9092', courses: 0, plinth: 0.5, plinthColor: '#6a6a68', speck: 9000, dark: '#4a4c4e', light: '#c8cacc' }), { g } = P;
+  for (let u = -4; u < 4; u += 1.0) rectM(P, u, 0.5, 0.02, 4.1, 'rgba(0,0,0,.18)');   // panel joints
+  rectM(P, -2.0, 0, 4.0, 3.0, '#121214');                                              // the club's opening (room and shutter cover it)
+  for (const px of [-3.6, 2.7]) { rectM(P, px, 0.9, 0.9, 1.3, '#2a2a2c'); rectM(P, px + 0.05, 0.95, 0.8, 1.2, ['#e0358a', '#f2c81e'][px < 0 ? 0 : 1]); rectM(P, px + 0.12, 1.5, 0.66, 0.5, '#111'); }   // poster frames
+  for (let i = 0; i < 40; i++) rectM(P, -4 + rnd() * 8, 0.6 + rnd() * 3.8, 0.04 + rnd() * 0.2, 0.02 + rnd() * 0.05, 'rgba(30,30,32,.18)');
+  return texOf(P.c);
+}
+function mindInside() {   // the shutter up: a dark club, a stage with a drum kit under magenta and blue light, a crowd in silhouette
+  const [c, g] = canvas(400, 300), gr = g.createLinearGradient(0, 0, 0, 300);
+  gr.addColorStop(0, '#0a0610'); gr.addColorStop(0.55, '#2a0e2a'); gr.addColorStop(1, '#4a1a3a'); g.fillStyle = gr; g.fillRect(0, 0, 400, 300);
+  for (const [x, col] of [[90, 'rgba(224,53,138,.45)'], [310, 'rgba(60,120,255,.4)']]) { g.fillStyle = col; g.beginPath(); g.moveTo(x - 10, 0); g.lineTo(x + 10, 0); g.lineTo(x + 90, 190); g.lineTo(x - 90, 190); g.fill(); }
+  g.fillStyle = '#1a1214'; g.fillRect(60, 150, 280, 40);                                // the stage
+  g.fillStyle = '#d8d8d0'; g.beginPath(); g.arc(200, 140, 16, 0, TAU); g.fill(); g.fillStyle = '#c03030'; g.fillRect(170, 130, 60, 20);   // drum kit
+  for (let i = 0; i < 8; i++) { g.fillStyle = 'rgba(6,4,8,.85)'; g.beginPath(); g.arc(25 + i * 50 + rnd() * 10, 220 + rnd() * 14, 15, 0, TAU); g.fill(); g.fillRect(11 + i * 50, 230, 30, 70); }
+  g.fillStyle = '#1a1a1c'; g.fillRect(0, 0, 400, 6); g.fillRect(0, 0, 6, 300); g.fillRect(394, 0, 6, 300);
+  return texOf(c);
+}
+function mindShutter() {
+  const [c, g] = canvas(400, 300);
+  g.fillStyle = '#7a7e82'; g.fillRect(0, 0, 400, 300);
+  for (let m = 0; m < 300; m += 9) { g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(0, m + 5, 400, 4); g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(0, m, 400, 2); }
+  g.fillStyle = '#e0358a'; g.fillRect(150, 110, 100, 26); g.fillStyle = '#fff'; g.font = '700 18px Arial'; g.textAlign = 'center'; g.fillText('MIND', 200, 129);   // a sticker
+  for (let i = 0; i < 10; i++) { g.fillStyle = ['#e8e2d0', '#e0358a', '#4a8ad0', '#f2c81e'][i % 4]; g.fillRect(rnd() * 370, 180 + rnd() * 100, 16 + rnd() * 20, 10 + rnd() * 14); }
+  speck(g, 400, 300, 900, 0.25, '#000', '#d0d2d4');
+  return texOf(c);
+}
+function buildMindhouse() {
+  const F = new Front();
+  F.quad(mindWall(), 0, 0, 0.03, 8.0, 4.6, { offset: 2, glow: 0.05 });
+  const room = F.quad(mindInside(), 0, 0, 0.08, 4.0, 3.0, { basic: true }), shut = F.quad(mindShutter(), 0, 0, 0.11, 4.0, 3.0, { offset: 1 });
+  F.box(-2.05, 0, 0.09, 0.1, 3.05, 0.14, '#3a3c3e'); F.box(2.05, 0, 0.09, 0.1, 3.05, 0.14, '#3a3c3e'); F.box(0, 3.0, 0.1, 4.2, 0.3, 0.2, '#4a4c4e');   // steel frame and shutter box
+  F.box(0, 3.35, 0.08, 4.6, 1.0, 0.08, '#0c0c0e'); F.quad(mindSign(), 0, 3.38, 0.13, 4.4, 1.0, { glow: 0.6, offset: 1 });
+  F.box(0, 3.3, 0.2, 4.6, 0.04, 0.06, '#e0358a'); F.light(-1.5, 3.3, 0.3, 1.6, '#ff4aa0', 0.7); F.light(1.5, 3.3, 0.3, 1.6, '#ff4aa0', 0.7);   // the magenta strip
+  // flight cases, a stack of amps and a cable reel by the door
+  F.box(-3.0, 0, 0.7, 1.0, 0.6, 0.6, '#1a1a1c'); F.box(-3.0, 0.6, 0.7, 0.8, 0.5, 0.55, '#202022'); for (const y of [0.05, 0.5]) F.box(-3.0, y, 1.01, 1.02, 0.04, 0.02, '#a8aaac');
+  F.box(3.0, 0, 0.6, 0.8, 0.7, 0.45, '#141414'); F.box(3.0, 0.7, 0.6, 0.8, 0.7, 0.45, '#181818'); F.box(3.0, 0.15, 0.84, 0.66, 0.5, 0.02, '#3a3a3a'); F.box(3.0, 0.85, 0.84, 0.66, 0.5, 0.02, '#3a3a3a');
+  F.push(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 14).rotateX(Math.PI / 2).translate(2.0, 0.35, 1.6), '#c83030');
+  F.light(0, 1.5, 0.4, 3.6, '#c060ff', 0.45); F.pool(0, 1.8, 3.6, '#d070ff', 0.35);
+  F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  return F.finish();
+}
+
+const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo, polacco: buildPolacco, drunks: buildDrunks, mindhouse: buildMindhouse };
 
 export function buildFront(kind) {
   const b = BUILDERS[kind]; if (!b) return null;

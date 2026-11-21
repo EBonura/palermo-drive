@@ -110,7 +110,7 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 
 ## Car radio (src/radio.js, assets/music/)
 
-Four tracks (plus the Alamia e Sperandeo songs below), details and the full attribution text in [the music credits](music/CREDITS.md). Re-encoded to MP3 for the web (loudness
+Four tracks (plus the Alamia e Sperandeo songs below), details and the full attribution text in [the music credits](music/CREDITS.md). Re-encoded for the web (loudness
 normalised, nothing else changed).
 
 | File | Author | Source | Licence | Changes |
@@ -162,6 +162,10 @@ Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https:/
 ## Terrorage
 
 One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/pubs.js -->, played at the door of the Krust pub. Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+
+## Radio Lamiera
+
+The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema and "24 Luglio" by Not Another Prayer. Used with the permission of the bands. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
 
 ## Pedestrian sprites (LPC)
 

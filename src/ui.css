@@ -273,8 +273,8 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 html.touch #pd-ui[data-st=title] .pd-fsbtn.ok { display: flex; }
 
 /* ---------- the HUD: one place for each kind of message (the map of who goes where is in src/hud.js) ---------- */
-:root { --bar-w: min(300px, 34vw); }
-html.touch { --bar-w: min(260px, 36vw); }   /* the slim bar top left (menu button, play, next, the track) */
+:root { --bar-w: min(336px, 38vw); }
+html.touch { --bar-w: min(296px, 40vw); }   /* the slim bar top left (menu button, play, next, station, the track) */
 #hud { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: #fff;
   --sl: max(10px, env(safe-area-inset-left)); --sr: max(12px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(10px, env(safe-area-inset-bottom));
   --obj: min(360px, 36vw); --wide: max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))); --mini: clamp(100px, 16vh, 128px); --cap: 360px; --capsule: rgba(13,7,10,.8); }   /* --obj: the width of the big moments (mission poster, caught card, result). --wide: the most any line under the mission line may take. --mini and --cap: the map capsule's height (the round map fills it) and width */

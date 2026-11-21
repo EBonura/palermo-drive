@@ -18,6 +18,7 @@ import { esc } from './esc.js';
 import { KIND_COLOR } from './event-calls.js';   // the colour of each kind of mission, for the Missioni list
 import { getLang, setLang } from './lang.js';   // the one language at a time (src/lang.js)
 import { sfx } from './sfx.js';
+import { STATIONS } from './radio.js';   // the radio's stations, for the Options row
 
 const SETTINGS_KEY = 'palermoDrive.settings.v1';
 
@@ -53,7 +54,7 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], radioStation: ['Cambia stazione', 'Change station'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
@@ -68,7 +69,7 @@ const S = {
   ctlSwap: ['Cambia mezzo', 'Swap vehicle'], ctlCam: ['Camera', 'Camera'], ctlReset: ['Torna in strada', 'Back on the road'],
   ctlMap: ['Mappa grande, cambia posto (o clicca la minimappa)', 'Big map, change place (or click the minimap)'],
   ctlJump: ['Salta a un punto di partenza (1 è i Quattro Canti)', 'Jump to a starting point (1 is Quattro Canti)'],
-  ctlNext: ['Brano dopo', 'Next track'], ctlRadio: ['Radio accesa o spenta', 'Radio on or off'], ctlTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'],
+  ctlNext: ['Brano dopo', 'Next track'], ctlStation: ['Cambia stazione radio', 'Change radio station'], ctlRadio: ['Radio accesa o spenta', 'Radio on or off'], ctlTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'],
   ctlMenu: ['Menu', 'Menu'], ctlThis: ['Questi comandi', 'This screen'],
   ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Indietro', 'Back'],
   ctlSteer: ['Sterza a sinistra e a destra', 'Steer left and right'], ctlGas: ['Accelera', 'Accelerate'], ctlRev: ['Retromarcia e freno', 'Reverse and brake'],
@@ -208,6 +209,7 @@ const ICON_RESET = '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" />
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
 const ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/><path d="M19 5v14"/></svg>';
+const ICON_STATION = '<svg viewBox="0 0 24 24"><path d="M12 12.5V21"/><circle cx="12" cy="10" r="2"/><path d="M8.5 6.5a5 5 0 0 0 0 7M15.5 6.5a5 5 0 0 1 0 7M5.6 3.6a9 9 0 0 0 0 12.8M18.4 3.6a9 9 0 0 1 0 12.8"/></svg>';   // another station
 const ICON_FULL = '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>';
 const ICON_EXIT = '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>';
 const CHEV = '<svg class="pd-chev" viewBox="0 0 12 18"><path d="M2 2l8 7-8 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -301,6 +303,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (Number.isFinite(saved.volume)) st.volume = clamp(saved.volume, 0, 1);
   st.musicVolume = Number.isFinite(saved.musicVolume) ? clamp(saved.musicVolume, 0, 1) : (st.musicVolume ?? 0.5); // car radio (src/radio.js)
   st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
+  st.radioStation = STATIONS.some(x => x.id === saved.radioStation) ? saved.radioStation : STATIONS[0].id;   // the station on air (src/radio.js reads and saves it)
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
@@ -361,6 +364,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'volume', label: 'volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
     { key: 'musicVolume', label: 'musicVolume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
     { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
+    { key: 'radioStation', label: 'station', type: 'seg', vals: STATIONS.map(x => [x.id, null, x.name.replace(/^Radio /, '')]) },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
     { key: 'fov', label: 'fov', type: 'slider', min: 50, max: 90, step: 5, fmt: v => v + '°' },
@@ -408,6 +412,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-np">
         <button class="pd-bbtn pd-bpow" data-nav data-do="radioPower" type="button"></button>
         <button class="pd-bbtn pd-bnext" data-nav data-do="radioNext" type="button">${ICON_NEXT}</button>
+        <button class="pd-bbtn pd-bstation" data-nav data-do="radioStation" type="button">${ICON_STATION}</button>
         <div class="pd-npt"><small class="pd-npl"></small><b class="pd-npn"></b><span class="pd-nps"></span></div>
       </div>
       <div class="pd-stack pd-sidelist">
@@ -472,7 +477,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
   // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
-  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-btitle" type="button" aria-expanded="false"><span class="pd-bt1"></span><small class="pd-bt2"></small></button><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-bbtn pd-bstation" data-do="radioStation" type="button">${ICON_STATION}</button><button class="pd-btitle" type="button" aria-expanded="false"><span class="pd-bt1"></span><small class="pd-bt2"></small></button><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
   bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
@@ -700,6 +705,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'controls': return go('controls', { push: true });
       case 'quit': return quit();
       case 'radioNext': getRadio?.()?.next(); return;
+      case 'radioStation': { const r = getRadio?.(); if (!r) return; r.unlock(); r.setStation(); return; }   // the next station; a radio not started yet starts on it
       case 'radioPower': { const r = getRadio?.(); if (!r) return; const first = idleAtDown; idleAtDown = false; if (first || r.view.mode === 'idle') r.unlock(); else r.toggle(); return; }   // the very first tap only starts the radio, it does not also switch it off
       case 'qCam': vehicle.camState.mode = (vehicle.camState.mode + 1) % 4; vehicle.camState.init = false; return;
       case 'qReset': return vehicle.placeAt(vehicle.car.x, vehicle.car.z);
@@ -719,6 +725,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const openBar = on => { clearTimeout(barOpenT); bar.classList.toggle('open', on); barTitle.setAttribute('aria-expanded', String(on)); if (on) barOpenT = setTimeout(() => openBar(false), 5000); };
   barTitle.addEventListener('click', () => openBar(!bar.classList.contains('open')));
   const quitSub = screens.side.querySelector('.pd-quitsub');
+  let lastStation = '';
   function syncRadio(view) {   // view: the one in the 'pd-radio' event (the radio announces itself before getRadio() can return it)
     const v = view && view.title !== undefined && !(view instanceof Event) ? view : getRadio?.()?.view, i = lang === 'it' ? 0 : 1;
     const mode = v ? v.mode : st.radio === 'off' ? 'off' : 'idle', playing = mode === 'on';
@@ -728,7 +735,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       b.setAttribute('aria-label', S.radioPower[i]); b.title = S.radioPower[i];
     }
     for (const b of ui.querySelectorAll('.pd-bnext')) { b.setAttribute('aria-label', S.radioNext[i]); b.title = S.radioNext[i]; }
-    barT.textContent = title; barA.textContent = v ? v.artist || '' : ''; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
+    for (const b of ui.querySelectorAll('.pd-bstation')) { b.setAttribute('aria-label', S.radioStation[i]); b.title = S.radioStation[i]; }
+    if (v && v.station && lastStation && v.station !== lastStation && cur == null) openBar(true);   // a new station: the bar opens on it for a few seconds, its name under the title
+    if (v && v.station) lastStation = v.station;
+    barT.textContent = title; barA.textContent = v ? [v.theme ? '' : label, v.artist || ''].filter(Boolean).join(' · ') : ''; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
   }
   addEventListener('pd-radio', e => { syncRadio(e.detail); kickBars(); });
@@ -790,7 +800,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const sect = k => `<div class="pd-ctlh">${esc(S[k][i])}</div>`;
     const row = (keys, k) => `<div class="pd-ctlr"><span class="pd-ctlk">${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span><span class="pd-ctlt">${esc(S[k][i])}</span></div>`;
     const kb = [[['W', 'A', 'S', 'D', '←↑↓→'], 'ctlDrive'], [['Space'], 'ctlHand'], [['Shift'], 'ctlNitro'], [['H'], 'ctlHorn'], [['B'], 'ctlDrink'], [['F'], 'ctlFly'], [['V'], 'ctlSwap'], [['C'], 'ctlCam'], [['R'], 'ctlReset'],
-      [['G'], 'ctlMap'], [['1 - 9'], 'ctlJump'], [['M'], 'ctlNext'], [['N'], 'ctlRadio'], [['T'], 'ctlTalk'], [['Esc', 'P'], 'ctlMenu'], [['?', 'F1'], 'ctlThis']];
+      [['G'], 'ctlMap'], [['1 - 9'], 'ctlJump'], [['M'], 'ctlNext'], [['N'], 'ctlRadio'], [['K'], 'ctlStation'], [['T'], 'ctlTalk'], [['Esc', 'P'], 'ctlMenu'], [['?', 'F1'], 'ctlThis']];
     const pad = [[['Start'], 'ctlStart'], [['Select'], 'ctlSelect'], [['D-pad', '◎'], 'ctlMove'], [['A'], 'ctlOk'], [['B'], 'ctlBack']];
     const tc = [[['‹', '›'], 'ctlSteer'], [['GAS'], 'ctlGas'], [['RETRO'], 'ctlRev'], [['FRENO'], 'ctlHand'], [['NOS'], 'ctlNitro'], [['CLACSON'], 'ctlHorn'], [['VOLA'], 'ctlFly'],
       [['☰'], 'ctlTapMenu'], [['◎'], 'ctlTapMap'], [['💬'], 'ctlTapTalk'], [['BERE'], 'ctlTapDrink']];
@@ -864,7 +874,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
     if (key === 'lang') { lang = value; setLang(value); applyLang(); garageUI.applyLang(); }   // setLang: <html lang> and the 'pd-lang' event, for everything outside this file
-    else if (key === 'musicVolume' || key === 'radio') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
+    else if (key === 'musicVolume' || key === 'radio' || key === 'radioStation') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
     else {
       st[key] = value;
       if (key === 'volume') vehicle?.setVolume?.(value);

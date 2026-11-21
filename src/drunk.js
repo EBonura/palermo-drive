@@ -29,7 +29,7 @@ const ROLL = 0.16, YAW = 0.06, PITCH = 0.025, ZOOM = 0.04, SIDE = 0.45;   // the
 const IDLE = 2;             // seconds sober before the render target is freed
 
 // What a pub pours (the drink of its own errand where there is one) and what the rave has; [palermitan, english] pairs are for the owner to correct.
-const DRINK = { krust: 'Moretti', whisky: 'Whisky', taverna: 'Zibibbu', punkfunk: 'Birra', magione: 'Birra', lizard: 'Birra', monkey: 'Paulaner', sanlorenzo: 'Birra artigianali', polacco: 'Birra polacca' };
+const DRINK = { krust: 'Moretti', whisky: 'Whisky', taverna: 'Zibibbu', punkfunk: 'Birra', magione: 'Birra', lizard: 'Birra', monkey: 'Paulaner', sanlorenzo: 'Birra artigianali', polacco: 'Birra polacca', drunks: 'Shot', mindhouse: 'Birra' };
 const RAVE_DRINKS = ['Vodka e Red Bull', 'Spritz', 'Amaro', 'Birra a canna'];
 // after the nth drink of the stack
 const LINES = [
@@ -53,7 +53,7 @@ const BROKE = [
 const FREE = ['Gratis! I casse i puaittasti tu.', 'On the house! You brought the speakers.'];
 // A finished errand (src/event-pubs.js) pays in drinks too, as the thanks of the house promise (src/pub-places.js): how many are free for the rest of that night.
 // Krust says the beer is free tonight; Whisky, Taverna, PunkFunk, Monkey, Sanlorenzo and Dal polacco promise one (a shot, a glass, the first round, a Paulaner, the first beer); Magione and Lizard promise none.
-const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1, polacco: 1 };
+const FREE_ROUND = { krust: Infinity, whisky: 1, taverna: 1, punkfunk: 1, monkey: 1, sanlorenzo: 1, polacco: 1, drunks: 1 };   // Drunks promises the first shot; Mind House free entry, not a drink
 const FREE_PUB = ['Offri a casa, comu ti rissi!', 'On the house, as I told you!'];
 const GONE = ['Ti passàu!', 'It wore off!'], GONE_SUB = ['Tuinni a vidiri una strata sula.', 'You see just one road again.'];
 
@@ -134,13 +134,15 @@ export function createDrunk({ game, car, camera, missions }) {
     if (missions?.state?.ev) { const k = missions.state.ev.slot && missions.state.ev.slot.kind; if (k !== 'pub' && k !== 'leaf') return null; }   // a fare, a race, a delivery: no button in a timed run (the pub errand and the leaves keep it)
     const r = missions?.rave;
     if (r && r.live() && Math.hypot(car.x - r.site.x, car.z - r.site.z) < RAVE_R) return { id: 'rave', free: r.powered(), name: '', rave: true };
+    let best = null, bd = Infinity;   // the nearest pub in reach: Monkey and Drunks share Piazza Sant'Anna, so the first one in the list is not always the one you stand at
     if (night && missions?.pubs) for (const v of missions.pubs.venues) {
-      const id = v.def.id;
-      if (Math.hypot(car.x - v.door.x, car.z - v.door.z) >= (REACH[id] || DOOR_R) && Math.hypot(car.x - v.slot.x, car.z - v.slot.z) >= ROAD_R) continue;
-      const pk = perks[id];
-      return { id: 'pub:' + id, free: !!(pk && pk.night === nightNo && pk.left > 0), perk: pk, name: DRINK[id] || 'Birra' };
+      const id = v.def.id, dd = Math.hypot(car.x - v.door.x, car.z - v.door.z), ds = Math.hypot(car.x - v.slot.x, car.z - v.slot.z);
+      if (dd >= (REACH[id] || DOOR_R) && ds >= ROAD_R) continue;
+      if (Math.min(dd, ds) < bd) { bd = Math.min(dd, ds); best = v; }
     }
-    return null;
+    if (!best) return null;
+    const id = best.def.id, pk = perks[id];
+    return { id: 'pub:' + id, free: !!(pk && pk.night === nightNo && pk.left > 0), perk: pk, name: DRINK[id] || 'Birra' };
   }
 
   // ------------------------------------------------------------------ drinking

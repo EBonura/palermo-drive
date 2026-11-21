@@ -24,6 +24,7 @@ export const ITEMS = {
   boccali: { it: 'buccali ri birra', en: 'beer mugs', art: 'i', shape: 'mug' },
   barili: { it: 'varrili ri tavuli', en: 'table barrels', art: 'i', shape: 'barrel' },
   polacca: { it: 'casci ri birra polacca', en: 'crates of Polish beer', art: 'le', shape: 'pcrate' },   // DRAFT (Dal polacco)
+  birre: { it: 'buttigghi ri birra', en: 'beer bottles', art: 'le', shape: 'beer' },   // DRAFT (Drunks)
 };
 
 // Start-map and list points of interest that are not a pub: [name, lat, lon], appended to SPOTS in src/main.js (see the report of the pubs work).
@@ -174,6 +175,43 @@ export const PUBS = [
       start: ['Attruova i casci ri birra polacca!', 'Find the crates of Polish beer!'],
       thanks: [['Na zdrowie! Stasira a prima birra a offru iu!', 'Na zdrowie! Tonight the first beer is on me!'], ['Si ’nu frati! Dal polacco a puaitta è sempri aperta pi tia!', 'You are a brother! At Dal polacco the door is always open for you!']],
       none: [['Nianti? Allura stasira si brinna câ gazzosa.', 'Nothing? Then tonight we toast with lemon soda.']],
+    },
+  },
+
+  // ---- Piazza Sant'Anna 11, a few doors from Monkey (docs/pubs.md section 9): an ochre-orange palazzo with an iron balcony, a cream scalloped awning over the
+  // ground floor, a black board with "drunks" hand-lettered in yellow outline, glass windbreak screens, high stools on the cobbles. Known for its one-euro shots.
+  // Added on the owner's request (21 Nov 2026). Every line is a DRAFT for the owner to correct.
+  {
+    id: 'drunks', name: 'Drunks', sub: 'Piazza Sant\'Anna 11', real: true,
+    lat: 38.1147289, lon: 13.3650293, src: 'OpenStreetMap node 10735085647 (Piazza Sant\'Anna 11, Tu-Su 18:00-02:30); front after docs/pubs.md section 9',
+    front: 'drunks', open: [18, 3],
+    crowd: { mix: { young: 0.6, night: 0.25, tourists: 0.15 }, props: 'beer', night: 11, day: 2, r: 3.2 },
+    caller: 'nightboy2',
+    errand: {
+      item: 'birre', n: 8, window: [18, 6], who: 'Il barista', pay: 2.5, bonus: 12,
+      call: [['Ao! U furgone ri birra s’apriu e i buttigghi sunnu pi tutta a chiazza!', 'Hey! The beer van opened and the bottles are all over the piazza!'], ['Lapista! Sienza birra u Drunks un è cchiù u Drunks!', 'Driver! Without beer Drunks is not Drunks any more!'], ['Aiutu! A birra a un euro finìu, attruovami i buttigghi!', 'Help! The one-euro beer ran out, find me the bottles!']],
+      start: ['Attruova i buttigghi ri birra!', 'Find the beer bottles!'],
+      thanks: [['Sì ’nu mitu! U primu shot è pi tia!', 'You are a legend! The first shot is on me!'], ['Saivata a serata! Brinnamu a Sant’Anna!', 'The night is saved! A toast to Sant’Anna!']],
+      none: [['Nianti birra? Allura stasira shot r’acqua.', 'No beer? Then tonight it is water shots.']],
+    },
+  },
+
+  // ---- Via San Lorenzo 273, a short way up the street from Sanlorenzo Mercato: Mind House, the Mind music factory's live club with studios and rehearsal rooms
+  // in about 600 square metres "dal design industrial" (LiveSicilia and BlogSicilia, Nov 2025). No photo of the front was found, so it is drawn as an industrial
+  // unit: grey render, a ribbed steel shutter, a black MIND HOUSE board, posters. Added on the owner's request (21 Nov 2026), his mission idea: "Aiuta Valerio
+  // a recuperare i vinili". Every line is a DRAFT for the owner to correct.
+  {
+    id: 'mindhouse', name: 'Mind House', sub: 'Via San Lorenzo 273', real: true,
+    lat: 38.167018, lon: 13.3159153, onStreet: 'San Lorenzo', src: 'OpenStreetMap node 13136276279 (Mind House, Via San Lorenzo 273); address in LiveSicilia and BlogSicilia; no photo of the front, drawn',
+    front: 'mindhouse', open: [20, 3],
+    crowd: { mix: { metal: 0.45, young: 0.4, night: 0.15 }, props: 'beer', night: 10, day: 1, r: 3.4 },
+    caller: 'dj',
+    errand: {
+      item: 'dischi', n: 8, window: [18, 6], who: 'Valerio', pay: 2.5, bonus: 12,
+      call: [['Ao! Aiuta a Valerio a ricupirari i vinili! Ciarreru ru furgone!', 'Hey! Help Valerio get his records back! They fell off the van!'], ['Lapista! Stasira c’è u dj set e i vinili sunnu ruzzuliati pi tutta a strata!', 'Driver! There is a DJ set tonight and the records rolled all down the street!'], ['Aiutu! Sienza vinili a Mind è muta!', 'Help! Without records the Mind is silent!']],
+      start: ['Aiuta a Valerio a ricupirari i vinili!', 'Help Valerio get his records back!'],
+      thanks: [['Grazzi! Pi tia l’ingressu è sempri aggratis!', 'Thanks! For you the entrance is always free!'], ['Saivati i vinili! U dj set ri stasira u dedicu a tia!', 'Records saved! Tonight’s DJ set is for you!']],
+      none: [['Nianti vinili? Allura stasira sunamu i cassetti.', 'No records? Then tonight we play cassettes.']],
     },
   },
 ];

@@ -5,6 +5,7 @@
 // createPubs(X, { game }) -> { venues, slots, update(dt, idle) -> accepted slot | null, start(slot), updateEvent(dt), stop(), cheer(venue), music }
 //   Window event 'pd-pub-stop' { id, name, hour }: the lapa stood still at a pub's door after dark (src/achievements can listen).
 //   X is the helper object of src/missions.js. Test links: ?event=pub:krust (puts the lapa at the pub), &auto accepts at once.
+import { musicUrl, musicCross } from './music-url.js';
 import * as THREE from 'three';
 import { PUBS } from './pub-places.js';
 import { PUB_ROUTES } from './pub-routes.js';
@@ -17,7 +18,7 @@ import { onAudioRecover } from './audio-recover.js';
 const BUILD_R = 320, SHOW_R = 460, DROP_R = 900;                  // front: build, show, throw away (metres)
 const CROWD_R = 140, CROWD_DROP = 210;                            // people in front
 const OFFER_R = 150, ACCEPT_R = 11;                               // the caller appears, the lapa stops next to them
-const MUSIC_URL = id => new URL('../assets/music/' + id + '.m4a', import.meta.url).href;
+const MUSIC_URL = id => musicUrl(id + '.m4a');   // src/music-url.js: next to the game, or a bucket
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const inHours = (h, [a, b]) => (a <= b ? h >= a && h < b : h >= a || h < b);
 
@@ -32,7 +33,7 @@ function createMusic(def, door, game, car, camera) {
   const mv = () => Number.isFinite(game?.settings?.musicVolume) ? game.settings.musicVolume : 0.5;
   function open() {
     if (el) return;
-    el = new Audio(); el.preload = 'auto'; el.loop = true; el.setAttribute('playsinline', ''); el.src = url;
+    el = new Audio(); el.preload = 'auto'; el.loop = true; el.setAttribute('playsinline', ''); if (musicCross) el.crossOrigin = 'anonymous'; el.src = url;
     try {
       ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
       const src = ctx.createMediaElementSource(el); gain = ctx.createGain(); gain.gain.value = 0;

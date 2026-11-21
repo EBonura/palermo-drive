@@ -27,6 +27,12 @@ function itemGeo(shape) {
       const x = -0.2 + i * 0.2, z = -0.1 + j * 0.2;
       P.push(col(new THREE.CylinderGeometry(0.05, 0.055, 0.28, 8).translate(x, 0.5, z), '#6a3a14'), col(new THREE.CylinderGeometry(0.02, 0.05, 0.1, 8).translate(x, 0.69, z), '#6a3a14'), col(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 8).translate(x, 0.76, z), '#e0b84a'));
     }
+  } else if (shape === 'beer') {   // Drunks: a black six-pack carrier with a yellow band (the colours of its sign) of brown bottles with yellow labels
+    P.push(col(new THREE.BoxGeometry(0.5, 0.22, 0.34).translate(0, 0.11, 0), '#1a1a1c'), col(new THREE.BoxGeometry(0.52, 0.05, 0.36).translate(0, 0.2, 0), '#e8c21e'), col(new THREE.BoxGeometry(0.06, 0.3, 0.3).translate(0, 0.37, 0), '#1a1a1c'));
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+      const x = -0.16 + i * 0.16, z = -0.08 + j * 0.16;
+      P.push(col(new THREE.CylinderGeometry(0.05, 0.055, 0.3, 8).translate(x, 0.37, z), '#5a2e10'), col(new THREE.CylinderGeometry(0.056, 0.056, 0.1, 8).translate(x, 0.34, z), '#f0c828'), col(new THREE.CylinderGeometry(0.02, 0.05, 0.1, 8).translate(x, 0.57, z), '#5a2e10'));
+    }
   } else if (shape === 'bottle') {   // three amber bottles with black labels in a cardboard case
     P.push(col(new THREE.BoxGeometry(0.6, 0.25, 0.3).translate(0, 0.12, 0), '#a9803f'));
     for (let i = 0; i < 3; i++) { const x = -0.18 + i * 0.18; P.push(col(new THREE.CylinderGeometry(0.06, 0.065, 0.34, 8).translate(x, 0.42, 0), '#9a5a14'), col(new THREE.CylinderGeometry(0.025, 0.06, 0.12, 8).translate(x, 0.65, 0), '#9a5a14'), col(new THREE.BoxGeometry(0.13, 0.14, 0.135).translate(x, 0.4, 0), '#161212'), col(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 8).translate(x, 0.73, 0), '#d8b848')); }

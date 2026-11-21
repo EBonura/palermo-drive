@@ -768,7 +768,12 @@ export function createVehicle(env) {
     const on = mode === 'sphere'; if (on === SPHERE) return;
     SPHERE = on; sphere.reset(); car.psiPrev = Math.atan2(car.vx, car.vz); car.psiDot = 0; car.hop = car.hopV = 0;
   };
-  api.setFov = deg => { baseFov = clamp(+deg || 60, 40, 100); };
+  // the player's field of view: applied to the camera at once, so the view behind the Options panel changes while the slider moves (the game is paused there and updateCamera does not run)
+  api.setFov = deg => {
+    const v = clamp(+deg || 60, 40, 100), d = v - baseFov; baseFov = v;
+    if (!d) return;
+    cam.fov += d; camera.fov += d; camera.updateProjectionMatrix();
+  };
   api.physicsMode = () => SPHERE ? 'sphere' : 'classic';
   api.fly = () => ({ wings: !!car.wings, floats: !!car.floats, flying: !!car.flying, agl: car.agl, y: car.fy, wet: car.wet });
   events = createVehicleEvents({ scene, camera, car, groundY, roadVerts, api, audio, mobile: QUALITY });

@@ -16,6 +16,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDataBlobs } from './data.mjs';
 import { RELAY_URL } from '../../src/online/relay-url.js';
+import { MUSIC_BASE } from '../../src/music-url.js';   // the music in a bucket: left out of the site, allowed by the policy
 import { PLAYLOG_URL } from '../../src/playlog-url.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -130,7 +131,7 @@ mustReplace(/<head>/, `<head>\n<meta name="pd-version" content="${version}" data
 // Checked on the built site: title, play, Garage, a race event and the credits raise no violation. The dev tree has no policy. If a new feature loads something from elsewhere, widen it here.
 // The multiplayer client (docs/ONLINE.md) talks to one host, the relay in src/online/relay-url.js: the socket (wss) and the one GET /status it asks after a failed connect (https, named too so that it never depends on a browser matching wss to https). Its origin is added only when that constant is set, so with it empty the policy allows no relay at all. --test-relay also allows a relay on this machine (tools/online), for a build that is only run in tests.
 // The play log (src/playlog.js) needs its one service host, the origin of PLAYLOG_URL (src/playlog-url.js): added only when that constant is set, so with it empty the policy allows no extra host.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'" + (flag('online', true) !== 'false' && RELAY_URL ? ' ' + new URL(RELAY_URL).origin + ' https://' + new URL(RELAY_URL).host : '') + (flag('test-relay', false) ? ' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*' : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:" + (MUSIC_BASE ? ' ' + new URL(MUSIC_BASE).origin : '') + "; font-src 'self'; connect-src 'self'" + (flag('online', true) !== 'false' && RELAY_URL ? ' ' + new URL(RELAY_URL).origin + ' https://' + new URL(RELAY_URL).host : '') + (flag('test-relay', false) ? ' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*' : '') + (PLAYLOG ? ' ' + new URL(PLAYLOG).origin : '') + "; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'";
 mustReplace(/<head>/, `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`, 'the <head> tag (policy)');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ v: version, name: versionName }));
@@ -143,6 +144,7 @@ function copyTree(src, dst) {
     if (e.name.startsWith('.')) continue;
     const s = path.join(src, e.name), d = path.join(dst, e.name);
     if (e.isDirectory()) { if (!SKIP_DIR.has(e.name)) copyTree(s, d); }
+    else if (MUSIC_BASE && path.basename(src) === 'music' && /\.(m4a|mp3|opus|ogg)$/.test(e.name)) continue;   // served from the bucket (src/music-url.js)
     else if (!SKIP_FILE.test(e.name) || e.name === 'CREDITS.md') { fs.mkdirSync(dst, { recursive: true }); fs.copyFileSync(s, d); }
   }
 }

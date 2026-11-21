@@ -4,7 +4,8 @@ The free-licence tracks for the in-game radio, all verified on the source page a
 (the Alamia e Sperandeo tracks have their own section below).
 Every file was re-encoded for the web with ffmpeg: leading silence trimmed, loudness normalised to about -17 LUFS,
 resampled to 44.1 kHz and written as MP3 (96 kbps stereo for the modern recordings, 64 kbps mono for the
-historical 78 rpm and band recordings). Nothing else was changed (no edits, no cuts at the end).
+historical 78 rpm and band recordings), then, so that every track of the radio is in one format, converted from those MP3s to
+HE-AAC in M4A (about 40 kbps, `<id>.m4a`) like the rest. Nothing else was changed (no edits, no cuts at the end).
 
 Attribution text required by the CC BY 4.0 licence (Kevin MacLeod, incompetech.com):
 
@@ -13,10 +14,10 @@ Attribution text required by the CC BY 4.0 licence (Kevin MacLeod, incompetech.c
 
 | Title (file) | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
-| Bushwick Tarantella (`bushwick-tarantella.mp3`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
-| Meatball Parade (`meatball-parade.mp3`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
-| Tarantella, traditional, arr. William Popp (`tarantella-air-force-strings.mp3`) | Air Force Strings, United States Air Force Band (from "International Mosaic", 2009) | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain (work of the US Government) | web re-encode, loudness normalised |
-| Funiculì, Funiculà (`funiculi-funicula-banda.mp3`) | Ferruccio Giannini with chorus and the Royal Marine Band of Italy, Victor Talking Machine Co. (1903); music by Luigi Denza | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav | Public domain | web re-encode (mono), loudness normalised |
+| Bushwick Tarantella (`bushwick-tarantella.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
+| Meatball Parade (`meatball-parade.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
+| Tarantella, traditional, arr. William Popp (`tarantella-air-force-strings.m4a`) | Air Force Strings, United States Air Force Band (from "International Mosaic", 2009) | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain (work of the US Government) | web re-encode, loudness normalised |
+| Funiculì, Funiculà (`funiculi-funicula-banda.m4a`) | Ferruccio Giannini with chorus and the Royal Marine Band of Italy, Victor Talking Machine Co. (1903); music by Luigi Denza | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav | Public domain | web re-encode (mono), loudness normalised |
 
 ## Alamia e Sperandeo (32 tracks)
 
@@ -64,8 +65,29 @@ leading silence trimmed, metadata reduced to title and artist. Nothing else was 
 
 ## Terrorage
 
-The house song of the Krust pub: it is not on the car radio, it only plays at the pub's door, audible within about 28 m (src/pubs.js, loaded only when the lapa is within 90 m). Used with the permission of the band.
+The house song of the Krust pub, also on Radio Lamiera (below). At the pub it plays at the door, audible within about 28 m (src/pubs.js, loaded only when the lapa is within 90 m). Used with the permission of the band.
 
 | Title (file) | Artist | Permission | Changes |
 | --- | --- | --- | --- |
 | DIY Violence (`terrorage.m4a`) | Terrorage | used with permission of the band | re-encoded (HE-AAC in M4A, about 40 kbps), loudness normalised to about -17 LUFS, metadata reduced to title (DIY Violence) and artist (Terrorage); no edits, no cuts |
+
+## Radio Lamiera
+
+The rock and metal station of the car radio. Every band gave its permission: Ego Divided by a Facebook message to the game's author; Crimson Wind, Der Geist, The Ace Drops, Trinakrius, AnthiryA, Cadaver Mutilator and Maddaus are the game's author's own bands and recordings, and he holds the rights. Terrorage, as above.
+
+Changes made to every track: leading silence trimmed, loudness normalised to about -17 LUFS, re-encoded for the web (HE-AAC in M4A, about 40 kbps, 44.1 kHz stereo, as `<id>.m4a`), metadata reduced to title and artist. Nothing else was changed (no edits, no cuts).
+
+| Title (file id) | Artist | Permission | Source |
+| --- | --- | --- | --- |
+| Fury of Hatred (`ego-divided-fury-of-hatred`) | Ego Divided (from The Abyss, 2026) | used with permission of the band (Facebook message) | WAV given by the band |
+| DIY Violence (`terrorage`) | Terrorage | used with permission of the band | as above |
+| Rain from the Universe (`crimson-wind-rain-from-the-universe`) | Crimson Wind (from The Wings of Salvation, 2011) | the author's own band | https://www.youtube.com/watch?v=JDzwd6ApwX4 |
+| Hold Your Dreams (`crimson-wind-hold-your-dreams`) | Crimson Wind (from The Wings of Salvation, 2011) | the author's own band | https://www.youtube.com/watch?v=YS6GSbLmHPA |
+| The Court of Guilty Ones (`der-geist-the-court-of-guilty-ones`) | Der Geist (from The Pain We Don't Feel, 2012) | the author's own band | https://www.youtube.com/watch?v=kTNyJoXI6_w |
+| Zombie Horde (`the-ace-drops-zombie-horde`) | The Ace Drops | the author's own band | https://www.youtube.com/watch?v=RralNWRWQmw |
+| Killerotomia (`trinakrius-killerotomia`) | Trinakrius | the author's own band | https://www.youtube.com/watch?v=wEMravxdZTw |
+| Silver Thread (`anthirya-silver-thread`) | AnthiryA | the author's own band | https://www.youtube.com/watch?v=dIP1DTRnqvQ |
+| U Viteddazzu (`cadaver-mutilator-u-viteddazzu`) | Cadaver Mutilator | the author's own band | https://www.youtube.com/watch?v=nWoK-npXA9s |
+| Scappeddami (`maddaus-scappeddami`) | Maddaus | the author's own recording | https://www.youtube.com/watch?v=OtqlwuRofR0 |
+| Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | sent by the band to the game for its radio (21 Nov 2026) | WAV sent by email |
+| 24 Luglio (`not-another-prayer-24-luglio`) | Not Another Prayer | sent by the band to the game for its radio (21 Nov 2026) | WAV sent by email |
