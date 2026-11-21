@@ -336,7 +336,11 @@ export function createOnline(env) {
   const distText = d => d < 1000 ? `${Math.max(10, Math.round(d / 10) * 10)} m` : `${(d / 1000).toFixed(d < 10000 ? 1 : 0).replace('.', lang() === 'en' ? '.' : ',')} km`;
   function rosterEntries() {
     const out = [];
-    for (const e of roster || []) {
+    if (!roster) {   // the relay has not answered yet: the players we already hold, at once (the list opens first, the rest comes in)
+      for (const p of others.values()) if (p.x !== undefined && p.name) { const v = VEHICLES.findIndex(q => q.id === p.vehicle); out.push({ e: { handle: p.handle, info: { name: p.name, vehicle: Math.max(0, v) } }, x: p.x, z: p.z, d: Math.hypot(p.x - car.x, p.z - car.z) }); }
+      return out.sort((a, b) => a.d - b.d);
+    }
+    for (const e of roster) {
       if (e.handle === selfHandle) continue;
       const p = others.get(e.handle), exact = p && p.x !== undefined && performance.now() - p.lastRx < 10000;
       const x = exact ? p.x : e.x, z = exact ? p.z : e.z;
@@ -348,8 +352,8 @@ export function createOnline(env) {
     const en = lang() === 'en', wait = Math.ceil((JUMP_GAP_MS - (now - lastJump)) / 1000), ents = rosterEntries();
     return {
       open: true,
-      head: roster ? (en ? `Online · ${ents.length + 1}` : `Online · ${ents.length + 1}`) : (en ? 'Online…' : 'Online…'),
-      empty: roster ? (en ? 'Nobody else is online right now.' : 'Nessun altro è online adesso.') : (en ? 'Asking who is online…' : 'Cerco chi è online…'),
+      head: `Online · ${roster ? ents.length + 1 : Math.max(onlineCount, ents.length + 1)}`,
+      empty: roster || onlineCount <= 1 ? (en ? 'Nobody else is online right now.' : 'Nessun altro è online adesso.') : (en ? 'Asking who is online…' : 'Cerco chi è online…'),
       rows: ents.map(({ e, x, z, d }) => {
         const near = d < DRAW_R, v = VEHICLES[e.info.vehicle] || VEHICLES[0];
         const fol = following === e.handle, go = fol || near || (!missionOn() && wait <= 0);
@@ -358,7 +362,7 @@ export function createOnline(env) {
       }),
     };
   }
-  // the list pauses the game while it is open, as the side menu does (the owner, 21 Nov 2026); closing it, or Raggiungi, drives on
+  // the list does not pause the game (the owner, 21 Nov 2026: the side menu pauses, the players list does not)
   function closeList(resume = true) {
     if (!listOpen) return;
     listOpen = false; panel.setList({ open: false });
@@ -368,13 +372,12 @@ export function createOnline(env) {
     if (listOpen) { closeList(); return; }
     if (!ready || game.state !== 'play') return;
     listOpen = true; if (wheel.isOpen) wheel.close();
-    game.pause(); listPaused = game.state === 'pause'; game.hold = listPaused; dispatchEvent(new Event('pd-state'));
     askRoster(performance.now());
     panel.setList(listView(performance.now()));
   }
   function followTarget(h) { const p = others.get(h); return p && p.x !== undefined && performance.now() - p.lastRx < 8000 ? p : null; }
   function startFollow(h) {
-    const p = followTarget(h); if (!p) return false;
+    const p = followTarget(h); if (!p) { toast(tr('Non lo vedo ancora', 'Not in sight yet'), tr('Riprova tra un attimo', 'Try again in a moment'), true); return false; }   // in the list but not yet among the players the relay sends us (a tap that did nothing said nothing)
     following = h; followAt.x = p.x; followAt.z = p.z; followClock = 0; fguide.to(p.x, p.z);
     toast(tr(`Segui ${p.name || 'Player'}`, `Following ${p.name || 'Player'}`), tr('La strada blu sulla mappa', 'The blue way on the map'));
     ev('follow', { handle: h }); return true;
@@ -409,6 +412,7 @@ export function createOnline(env) {
     game.goTo(it.x, it.z);
   }
   const panel = createPanel({ zone: zone('social'), onTalk: toggleWheel, onList: toggleList, onGo: joinPlayer });
+  addEventListener('pointerdown', e => { if (listOpen && !panel.root.contains(e.target)) closeList(); }, true);   // a tap anywhere else folds the list away (and still does what it was for: the pads keep driving)
   // T opens and closes it, 1 to 8 pick, Escape closes: in the capture phase, ahead of the game's own handler (src/ui.js adds its listener later)
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
@@ -745,11 +749,12 @@ export function createOnline(env) {
       panel.set(bad ? { show: true, tone: bad.tone, title: bad.pill, sub: '', msg: bad.msg, idle: true, label: '' } : { show: true, tone: 'wait', title: 'Online…', sub: '', idle: true, label: '' });
     } else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
       let linked = 0; for (const p of others.values()) if (p.held !== false) linked++;
+      let hear = 0; for (const p of others.values()) if (Number.isFinite(p.x) && now - p.lastRx < STALE_FAR_MS && Math.hypot(p.x - car.x, p.z - car.z) <= SAY_R) hear++;
       const near = inReach(), keys = !document.documentElement.classList.contains('touch');
       panel.set({
         show: true, idle: !near, open: wheel.isOpen, label: tr('Parla', 'Talk') + (keys ? ' (T)' : ''),
         title: linked ? tr(`${linked} ${linked === 1 ? 'giocatore' : 'giocatori'}`, `${linked} ${linked === 1 ? 'player' : 'players'}`) : 'Online',
-        sub: !linked ? tr('ancora nessuno', 'no one yet') : near ? tr(`${near} entro ${DRAW_R} m`, `${near} within ${DRAW_R} m`) : tr(`nessuno entro ${DRAW_R} m`, `none within ${DRAW_R} m`),
+        sub: !linked ? tr('ancora nessuno', 'no one yet') : hear ? tr(`${hear} ${hear === 1 ? 'vicino' : 'vicini'}`, `${hear} nearby`) : tr('nessuno vicino', 'nobody nearby'),   // the players who hear what you say (within SAY_R), not a distance (the owner, 21 Nov 2026)
       });
     }
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say

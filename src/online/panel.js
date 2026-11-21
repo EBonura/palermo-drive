@@ -30,7 +30,8 @@ const CSS = `
 .mpx.t-wait .mpx-talk, .mpx.t-full .mpx-talk, .mpx.t-done .mpx-talk, .mpx.t-off .mpx-talk, .mpx.t-wait .mpx-key, .mpx.t-full .mpx-key, .mpx.t-done .mpx-key, .mpx.t-off .mpx-key { display: none; }   /* nobody to talk to */
 .mpx.t-wait .mpx-cap, .mpx.t-full .mpx-cap, .mpx.t-done .mpx-cap, .mpx.t-off .mpx-cap { padding-right: 12px; }
 @media (max-height: 460px) { .mpx-msg { max-width: min(300px, 46vw); padding: 4px 8px 4px 7px; font-size: 12px; line-height: 1.25; } }
-.mpx-talk { margin-left: 2px; pointer-events: auto; }
+.mpx-talk { margin-left: 2px; pointer-events: auto; touch-action: manipulation; }
+.mpx-talk::before { inset: -8px !important; }   /* a bigger target for a thumb */
 .mpx-talk.idle { opacity: .55; }
 .mpx-talk[aria-expanded=true] { background: #e8559a; color: #0d0709; }
 .mpx-key { display: none; flex: none; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.16); font: 700 11px/1.3 system-ui, sans-serif; }
@@ -38,7 +39,8 @@ html:not(.touch) .mpx-key { display: block; }
 @media (max-width: 720px) { .mpx.wheel .mpx-feed { opacity: 0; } }   /* the ring of the wheel reaches this far left on a small screen */
 @media (max-height: 460px) { .mpx-feed > :nth-last-child(n+3) { display: none; } .mpx, .mpx-feed { gap: 3px; } .mpx-line { padding-top: 3px; padding-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }   /* a short screen has room for two single lines, under the mission card and its messages */
 @media (prefers-reduced-motion: reduce) { .mpx-line { transition: none; } }
-.mpx-cap { pointer-events: auto; cursor: pointer; }
+.mpx-cap { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }   /* manipulation: no wait for a double tap */
+.mpx-list, .mpx-go { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .mpx-chev { flex: none; width: 14px; height: 14px; margin-left: -2px; opacity: .6; transition: transform .15s ease; }
 .mpx.list .mpx-chev { transform: rotate(180deg); }
 .mpx-list { display: none; box-sizing: border-box; width: min(300px, 46vw); max-height: min(330px, calc(100vh - 150px)); overflow: auto; padding: 6px; border-radius: 14px; background: rgba(13,7,10,.92);
@@ -75,10 +77,17 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
   const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); chev.setAttribute('viewBox', '0 0 24 24'); chev.setAttribute('class', 'mpx-chev'); chev.innerHTML = '<path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
   const list = el('div', 'mpx-list'); list.setAttribute('role', 'list');
   cap.append(ring, txt, chev, key, talk); root.append(feed, msg, cap, list);
-  cap.addEventListener('click', e => { if (talk.contains(e.target)) return; onList?.(); });   // the capsule opens the list of everybody online (the talk button keeps its own job)
-  list.addEventListener('click', e => { const b = e.target.closest('.mpx-go'); if (b && !b.disabled) onGo?.(+b.dataset.h); });
   (zone || document.body).appendChild(root);
-  talk.addEventListener('click', () => { talk.blur(); onTalk(); });   // blur: the arrow keys go on driving
+  // Taps act on the press, not on the click: a phone's click waits for the finger to lift without moving, and a thumb on the move while driving often fails that,
+  // so the talk button, the capsule and the list's buttons took two or three tries. A mouse or the keyboard still uses click (Enter, Space).
+  const press = (elx, fn, only) => {   // only(e): the press counts only on these targets (the list scrolls under a finger anywhere else)
+    let at = 0;
+    elx.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' || e.button > 0 || (only && !only(e))) return; e.preventDefault(); e.stopPropagation(); at = performance.now(); fn(e); });
+    elx.addEventListener('click', e => { if (performance.now() - at < 800) { e.preventDefault(); return; } fn(e); });
+  };
+  press(talk, e => { e.stopPropagation?.(); talk.blur(); onTalk(); });   // blur: the arrow keys go on driving
+  press(cap, e => { if (talk.contains(e.target)) return; onList?.(); });   // the capsule opens the list of everybody online (the talk button keeps its own job)
+  press(list, e => { const b = e.target.closest('.mpx-go'); if (b && !b.disabled) onGo?.(+b.dataset.h); }, e => !!e.target.closest('.mpx-go'));
   const timers = new Set();
   let last = '';
   function set(s) {
@@ -91,24 +100,35 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
     }
   }
   // the list: { open, head, empty, rows: [{ h, name, veh, place, dist, near, go, goLabel }] }, every word from another player set as text
+  // The rows are kept and only their words change: rebuilding them four times a second while players move swallowed a tap that fell between a press and its release.
   let listSig = '';
+  const head = el('div', 'mpx-lh'), emptyEl = el('div', 'mpx-le'), rowsBy = new Map();
+  list.append(head, emptyEl);
+  function rowFor(h) {
+    let r = rowsBy.get(h); if (r) return r;
+    const row = el('div', 'mpx-r'), t = el('div', 'mpx-rt'), n = el('div', 'mpx-rn'), l = el('div', 'mpx-rl'), name = el('b'), veh = el('small'), place = el('span'), dist = el('span'), b = el('button', 'mpx-go');
+    row.setAttribute('role', 'listitem'); b.type = 'button'; b.dataset.h = h;
+    n.append(name, veh); l.append(place, document.createTextNode(' · '), dist); t.append(n, l); row.append(t, b);
+    r = { row, name, veh, place, dist, b }; rowsBy.set(h, r); return r;
+  }
   function setList(L) {
     root.classList.toggle('list', !!L.open);
     if (!L.open) { listSig = ''; return; }
     const sig = JSON.stringify(L); if (sig === listSig) return; listSig = sig;
-    const top = list.scrollTop; list.textContent = '';
-    list.append(el('div', 'mpx-lh', L.head));
-    if (!L.rows.length) list.append(el('div', 'mpx-le', L.empty));
-    for (const r of L.rows) {
-      const row = el('div', 'mpx-r'), t = el('div', 'mpx-rt'), n = el('div', 'mpx-rn'), l = el('div', 'mpx-rl');
-      row.setAttribute('role', 'listitem');
-      n.append(el('b', '', r.name), el('small', '', r.veh));
-      l.append(document.createTextNode(r.place + ' · '), el('span', r.near ? 'near' : '', r.dist));
-      t.append(n, l);
-      const b = el('button', 'mpx-go' + (r.fol ? ' fol' : r.near ? ' near' : ''), r.goLabel); b.type = 'button'; b.dataset.h = r.h; b.disabled = !r.go;
-      row.append(t, b); list.append(row);
-    }
-    list.scrollTop = top;
+    head.textContent = L.head; emptyEl.textContent = L.empty; emptyEl.hidden = L.rows.length > 0;
+    const keep = new Set();
+    L.rows.forEach((d, i) => {
+      const r = rowFor(d.h); keep.add(d.h);
+      if (r.name.textContent !== d.name) r.name.textContent = d.name;
+      if (r.veh.textContent !== d.veh) r.veh.textContent = d.veh;
+      if (r.place.textContent !== d.place) r.place.textContent = d.place;
+      if (r.dist.textContent !== d.dist) r.dist.textContent = d.dist;
+      r.dist.className = d.near ? 'near' : '';
+      if (r.b.textContent !== d.goLabel) r.b.textContent = d.goLabel;
+      r.b.className = 'mpx-go' + (d.fol ? ' fol' : d.near ? ' near' : ''); r.b.disabled = !d.go;
+      if (list.children[i + 2] !== r.row) list.insertBefore(r.row, list.children[i + 2] || null);   // in order, moved only when the order changed
+    });
+    for (const [h, r] of rowsBy) if (!keep.has(h)) { r.row.remove(); rowsBy.delete(h); }
   }
   function drop(l) { l.remove(); }
   function line(name, verb, text, mine) {
