@@ -81,15 +81,19 @@ const LAMIERA = [   // [id, title, artist]
   ['maddaus-scappeddami', 'Scappeddami', 'Maddaus'],
   ['diskonnekt-piombo', 'Piombo', 'Diskonnekt'],
   ['necrass-amore-ittico', 'Amore Ittico', 'Necrass'],
-  ['thy-majestie-the-chosen', 'The Chosen', 'Thy Majestie'],
+  ['thy-majestie-the-chosen-cut', 'The Chosen', 'Thy Majestie'],
   ['throne-of-molok-seed-of-revenge', 'Seed of Revenge', 'Throne of Molok'],
   ['lamiera-to-the-truth', 'To The Truth', 'Lamiera'],
+  ['meet-my-maker-the-fall', 'The Fall', 'Meet My Maker'],
+  ['eraser-let-me-rot', 'Let Me Rot', 'Eraser'],
+  ['eraser-mutual-overkill-deterrence', 'Mutual Overkill Deterrence', 'Eraser'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // Radio Palifornia: the owner adds tracks as they arrive (21 Nov 2026). Sources and permissions: assets/music/CREDITS.md.
 const PALIFORNIA = [   // [id, title, artist]
   ['not-another-prayer-24-luglio', '24 Luglio', 'Not Another Prayer'],
   ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
   ['enneo2-spirito-funky-45', 'Spirito Funky', 'Enneo 2 feat. Dalila Galati e Izzy Bonura'],
+  ['collateral-effect-dissociazione', 'Dissociazione', 'Collateral Effect'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [

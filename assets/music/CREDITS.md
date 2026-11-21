@@ -90,9 +90,12 @@ Changes made to every track: leading silence trimmed, loudness normalised to abo
 | Scappeddami (`maddaus-scappeddami`) | Maddaus | https://www.youtube.com/watch?v=OtqlwuRofR0 |
 | Piombo (`diskonnekt-piombo`) | Diskonnekt (from La morte del sole, 2026, the single with the official video) | https://www.youtube.com/watch?v=ZQx-8z4UsEw (Diskonnekt Official) |
 | Amore Ittico (`necrass-amore-ittico`, video intro removed: the song from 36.4 s) | Necrass (official videoclip, 2011) | https://www.youtube.com/watch?v=oouceWmPjfc (qanatvideo) |
-| The Chosen (`thy-majestie-the-chosen`) | Thy Majestie | https://www.youtube.com/watch?v=ImhWwMp1Z10 |
+| The Chosen (`thy-majestie-the-chosen-cut`, horn intro removed: the song from 12.5 s) | Thy Majestie | https://www.youtube.com/watch?v=ImhWwMp1Z10 |
 | Seed of Revenge (`throne-of-molok-seed-of-revenge`) | Throne of Molok | https://www.youtube.com/watch?v=w9pvc7a17Vs |
 | To The Truth (`lamiera-to-the-truth`) | Lamiera (from the EP To the Truth, promo 2011) | https://www.youtube.com/watch?v=IlTmMmuC2vo (LamieraOfficial) |
+| The Fall (`meet-my-maker-the-fall`) | Meet My Maker (the band's most viewed video) | https://www.youtube.com/watch?v=1tXDad5Sa2k |
+| Let Me Rot (`eraser-let-me-rot`) | Eraser (from the demo Fuck Off And Grind, recorded 14 February 2015; the band's most viewed song on its channel) | https://www.youtube.com/watch?v=f_oHLJYdgFk (Eraser Grind) |
+| Mutual Overkill Deterrence (`eraser-mutual-overkill-deterrence`) | Eraser (title track of the LP Mutual Overkill Deterrence, Night Animal Records) | https://www.youtube.com/watch?v=k9My8Dro5SM (Night Animal Records) |
 
 ## Radio Palifornia
 
@@ -103,3 +106,4 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | 24 Luglio (`not-another-prayer-24-luglio`) | Not Another Prayer | WAV sent by email |
 | Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | WAV sent by email |
 | Spirito Funky (`enneo2-spirito-funky-45`, video intro removed: the song from 0:45) | Enneo 2 feat. Dalila Galati e Izzy Bonura (Street Label Records, 2014) | https://www.youtube.com/watch?v=2dU1ytNn7JI |
+| Dissociazione (`collateral-effect-dissociazione`) | Collateral Effect (their first single) | https://www.youtube.com/watch?v=R6WX0IAMjG4 |

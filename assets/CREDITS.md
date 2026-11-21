@@ -108,64 +108,91 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Ortofoto Regione Siciliana ATA 2012-2013 (15 cm and 25 cm): only colour values derived from it, no imagery | Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica, Nodo Regionale S.I.T.R. | https://www.sitr.regione.sicilia.it/geoportale/it/metadata/details/608 | CC BY 4.0 (as stated by the service record) | one colour per roof and one relative tint per 20 m ground cell, extracted, shadow-filtered and colour-rebalanced |
 
 
-## Car radio (src/radio.js, assets/music/)
+## Car radio: Radio Abbanniata
 
-Four tracks (plus the Alamia e Sperandeo songs below), details and the full attribution text in [the music credits](music/CREDITS.md). Re-encoded for the web (loudness
-normalised, nothing else changed).
+Southern Italian music: four free-licence tracks and the songs of Alamia e Sperandeo. Every track was re-encoded for the web and loudness normalised; nothing else changed. Full details in [the music credits](music/CREDITS.md).
 
-| File | Author | Source | Licence | Changes |
-| --- | --- | --- | --- | --- |
-| Bushwick Tarantella | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | web re-encode |
-| Meatball Parade | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | web re-encode |
-| Tarantella (trad., arr. William Popp) | Air Force Strings, US Air Force Band | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain | web re-encode |
-| Funiculì, Funiculà (1903) | Ferruccio Giannini, Royal Marine Band of Italy (Victor) | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav | Public domain | web re-encode, mono |
+| Title | Author | Licence | Source |
+| --- | --- | --- | --- |
+| Bushwick Tarantella | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 |
+| Meatball Parade | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 |
+| Tarantella (trad., arr. William Popp) | Air Force Strings, US Air Force Band | Public domain | https://commons.wikimedia.org/wiki/File:Tarantella.ogg |
+| Funiculì, Funiculà (1903) | Ferruccio Giannini, Royal Marine Band of Italy (Victor); music by Luigi Denza | Public domain | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav |
 
 ## Alamia e Sperandeo
 
-Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/). Re-encoded for the web and loudness normalised, nothing else changed. Full list in [the music credits](music/CREDITS.md).
+Songs by Giovanni Alamia and Tony Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/).
 
-| Title | Author | Source | Licence | Changes |
-| --- | --- | --- | --- | --- |
-| Abbiamo Arrivato | Alamia e Sperandeo | https://www.youtube.com/watch?v=fGn45VtSeak | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Acqua Di Cielo | Alamia e Sperandeo | https://www.youtube.com/watch?v=MSM2u1TkLB8 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Broadway (Un Sogno Americano) | Alamia e Sperandeo | https://www.youtube.com/watch?v=PrfgC5KPNnw | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Brutti, Sporchi E Monelli | Alamia e Sperandeo | https://www.youtube.com/watch?v=KiXRogGmKNc | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Cachi | Alamia e Sperandeo | https://www.youtube.com/watch?v=occgwmI21wU | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Canzoncine Per Bambini | Alamia e Sperandeo | https://www.youtube.com/watch?v=JwbdVcSCwjs | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Ciauru Ro Mari | Alamia e Sperandeo | https://www.youtube.com/watch?v=kZFV6Lel2Bw | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Cu dici ca lu carceri è galera | Alamia e Sperandeo | https://www.youtube.com/watch?v=4GKJl8_NwGE | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Discorsi Di Taverna | Alamia e Sperandeo | https://www.youtube.com/watch?v=uAnUc997NEg | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Inno Del Palermo | Alamia e Sperandeo | https://www.youtube.com/watch?v=jGS8U6geDA4 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| L'onorevole | Alamia e Sperandeo | https://www.youtube.com/watch?v=E-trP-b8LjY | Seamusica S.r.l. | re-encoded, loudness normalised |
-| La Bicicletta | Alamia e Sperandeo | https://www.youtube.com/watch?v=YxYntoyESU4 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| La Farmacia | Alamia e Sperandeo | https://www.youtube.com/watch?v=Rz5TUYrB_CI | Seamusica S.r.l. | re-encoded, loudness normalised |
-| La Partita | Alamia e Sperandeo | https://www.youtube.com/watch?v=bJk2g9PJAYs | Seamusica S.r.l. | re-encoded, loudness normalised |
-| La Punta | Alamia e Sperandeo | https://www.youtube.com/watch?v=9FNlH6T41PY | Seamusica S.r.l. | re-encoded, loudness normalised |
-| La Scampagnata | Alamia e Sperandeo | https://www.youtube.com/watch?v=VKFUETsJpbI | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Malacarne | Alamia e Sperandeo | https://www.youtube.com/watch?v=3Wix5sFX_cI | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Mare Mare | Alamia e Sperandeo | https://www.youtube.com/watch?v=mUT7X0pJapw | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Minchia Pititto | Alamia e Sperandeo | https://www.youtube.com/watch?v=fOGJhwdb564 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Passeggiando In Un Ponticello | Alamia e Sperandeo | https://www.youtube.com/watch?v=JVznrvl9t-I | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Passeggiata Alla Marina | Alamia e Sperandeo | https://www.youtube.com/watch?v=FbmX0Zhwr4M | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Rap Ghiaccio | Alamia e Sperandeo | https://www.youtube.com/watch?v=dU3uhhuFbAw | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Sai Che Ti Dico | Alamia e Sperandeo | https://www.youtube.com/watch?v=eGumdkiQiMA | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Tirituppiti | Alamia e Sperandeo | https://www.youtube.com/watch?v=1JuVwrhCDio | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Tram Elettrico | Alamia e Sperandeo | https://www.youtube.com/watch?v=2CtOgkHVqyE | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Trazzieri | Alamia e Sperandeo | https://www.youtube.com/watch?v=NN5rMO9mZ-U | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Tutti Per La Press | Alamia e Sperandeo | https://www.youtube.com/watch?v=x-tVoszt2y4 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Una Giornata Qualunque | Alamia e Sperandeo | https://www.youtube.com/watch?v=ssJRaQqCn9I | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Una Storia Disonesta | Alamia e Sperandeo | https://www.youtube.com/watch?v=2rKWJn2QJh8 | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Una Storia Osè | Alamia e Sperandeo | https://www.youtube.com/watch?v=jgTvbsjmHNQ | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Via Pitrè | Alamia e Sperandeo | https://www.youtube.com/watch?v=4IKpMnQRLvY | Seamusica S.r.l. | re-encoded, loudness normalised |
-| Vucciria | Alamia e Sperandeo | https://www.youtube.com/watch?v=xjldjsJ5f_c | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Title | Author | Licence | Source |
+| --- | --- | --- | --- |
+| Abbiamo Arrivato | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
+| Acqua Di Cielo | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
+| Broadway (Un Sogno Americano) | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| Brutti, Sporchi E Monelli | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Cachi | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Canzoncine Per Bambini | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Ciauru Ro Mari | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Cu dici ca lu carceri è galera | Alamia e Sperandeo | Seamusica S.r.l. | Album not identified |
+| Discorsi Di Taverna | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Inno Del Palermo | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Tutti per la press a (2003) |
+| L'onorevole | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Tutti per la press a (2003) |
+| La Bicicletta | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| La Farmacia | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| La Partita | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| La Punta | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
+| La Scampagnata | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| Malacarne | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Mare Mare | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Minchia Pititto | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
+| Passeggiando In Un Ponticello | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Passeggiata Alla Marina | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Rap Ghiaccio | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Sai Che Ti Dico | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Tirituppiti | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Attenti e cani (2003) |
+| Tram Elettrico | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| Trazzieri | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
+| Tutti Per La Press | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Tutti per la press a (2003) |
+| Una Giornata Qualunque | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Tutti per la press a (2003) |
+| Una Storia Disonesta | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| Una Storia Osè | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
+| Via Pitrè | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
+| Vucciria | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Attenti e cani (2003) |
 
-## Terrorage
+## Car radio: Radio Lamiera
 
-One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/pubs.js -->, played at the door of the Krust pub. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+Rock and metal from Palermo bands. Re-encoded for the web and loudness normalised; a few long video intros were cut so the song starts at once. DIY Violence by Terrorage also plays at the door of the Krust pub.
 
-## Radio Lamiera
+| Title | Author | Licence | Source |
+| --- | --- | --- | --- |
+| Fury of Hatred | Ego Divided | Independent release | Single Fury of Hatred (Sorry Mom!, 2026); album The Abyss (2026) |
+| DIY Violence | Terrorage | Independent release | Album Close to Collapse (2026) |
+| Rain from the Universe | Crimson Wind | ℗ 2011 Ice Warriors Records | Album The Wings of Salvation (2011). Music: Emanuele Bonura; lyrics: Alessio Taormina, Claudio Di Girolamo, Emanuele Bonura |
+| Hold Your Dreams | Crimson Wind | ℗ 2011 Ice Warriors Records | Album The Wings of Salvation (2011). Music: Claudio Di Girolamo; lyrics: Alessio Taormina, Claudio Di Girolamo |
+| The Court of Guilty Ones | Der Geist | ℗ Der Geist; publisher Tmina Records | Album The Pain We Don't Feel (2012) |
+| Zombie Horde | The Ace Drops | Independent release | Single Zombie Hoard (2022). Riccardo Castiglione (vocals, bass, composer), Emanuele "Izzy" Bonura (guitars, arrangement) |
+| Killerotomia | Trinakrius | Independent release (demo); Hellion Records (album) | Demo Psycho (2007); album The Black Hole Mind (2008) |
+| Silver Thread | AnthiryA | Independent release | Promo Demo 2012 |
+| U Viteddazzu | Cadaver Mutilator |  | Video Cadaver Mutilator & U malu chiffari (2007) |
+| Scappeddami | Maddaus |  | Home recording (video, 2011) |
+| Piombo | Diskonnekt | Music and lyrics by Diskonnekt | EP La Morte del Sole (2026) |
+| Amore Ittico | Necrass | Qanat Records | EP Octopussy (2011) |
+| The Chosen | Thy Majestie | Scarlet Records | Album Jeanne d'Arc (2005) |
+| Seed of Revenge | Throne of Molok | Helvete & Hate Records | Album Chtonian A.E.O.N. 1010011010 (2007) |
+| To The Truth | Lamiera | Independent release | EP To the Truth (promo, 2010) |
+| The Fall | Meet My Maker | Music by Meet My Maker; lyrics by Marco Cappugi and Davide Nicosia | Single The Fall (2022) |
+| Let Me Rot | Eraser | Independent release | Demo Fuck Off And Grind (2015) |
+| Mutual Overkill Deterrence | Eraser | Night Animal Records | LP Mutual Overkill Deterrence (2020) |
 
-The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema, "24 Luglio" by Not Another Prayer and "Piombo" by Diskonnekt. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+## Car radio: Radio Palifornia
+
+Music from Palermo. Re-encoded for the web and loudness normalised.
+
+| Title | Author | Licence | Source |
+| --- | --- | --- | --- |
+| 24 Luglio | Not Another Prayer | Independent release | Single 24 Luglio (2023) |
+| Al Gelido Già Perso | Diastema |  | Studio recording |
+| Spirito Funky | Enneo 2 feat. Dalila Galati e Izzy Bonura | ℗ & © 2014 Street Label Records | Video release (2014) |
+| Dissociazione | Collateral Effect |  | First single (video, 2013) |
 
 ## Pedestrian sprites (LPC)
 
