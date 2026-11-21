@@ -122,50 +122,50 @@ normalised, nothing else changed).
 
 ## Alamia e Sperandeo
 
-Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/). Used with the permission of the rights holders. Re-encoded for the web and loudness normalised, nothing else changed. Full list in [the music credits](music/CREDITS.md).
+Thirty-two songs by Alamia e Sperandeo. Rights holder: Seamusica S.r.l. (https://www.seamusica.shop/). Re-encoded for the web and loudness normalised, nothing else changed. Full list in [the music credits](music/CREDITS.md).
 
 | Title | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
-| Abbiamo Arrivato | Alamia e Sperandeo | https://www.youtube.com/watch?v=fGn45VtSeak | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Acqua Di Cielo | Alamia e Sperandeo | https://www.youtube.com/watch?v=MSM2u1TkLB8 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Broadway (Un Sogno Americano) | Alamia e Sperandeo | https://www.youtube.com/watch?v=PrfgC5KPNnw | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Brutti, Sporchi E Monelli | Alamia e Sperandeo | https://www.youtube.com/watch?v=KiXRogGmKNc | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Cachi | Alamia e Sperandeo | https://www.youtube.com/watch?v=occgwmI21wU | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Canzoncine Per Bambini | Alamia e Sperandeo | https://www.youtube.com/watch?v=JwbdVcSCwjs | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Ciauru Ro Mari | Alamia e Sperandeo | https://www.youtube.com/watch?v=kZFV6Lel2Bw | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Cu dici ca lu carceri è galera | Alamia e Sperandeo | https://www.youtube.com/watch?v=4GKJl8_NwGE | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Discorsi Di Taverna | Alamia e Sperandeo | https://www.youtube.com/watch?v=uAnUc997NEg | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Inno Del Palermo | Alamia e Sperandeo | https://www.youtube.com/watch?v=jGS8U6geDA4 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| L'onorevole | Alamia e Sperandeo | https://www.youtube.com/watch?v=E-trP-b8LjY | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| La Bicicletta | Alamia e Sperandeo | https://www.youtube.com/watch?v=YxYntoyESU4 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| La Farmacia | Alamia e Sperandeo | https://www.youtube.com/watch?v=Rz5TUYrB_CI | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| La Partita | Alamia e Sperandeo | https://www.youtube.com/watch?v=bJk2g9PJAYs | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| La Punta | Alamia e Sperandeo | https://www.youtube.com/watch?v=9FNlH6T41PY | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| La Scampagnata | Alamia e Sperandeo | https://www.youtube.com/watch?v=VKFUETsJpbI | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Malacarne | Alamia e Sperandeo | https://www.youtube.com/watch?v=3Wix5sFX_cI | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Mare Mare | Alamia e Sperandeo | https://www.youtube.com/watch?v=mUT7X0pJapw | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Minchia Pititto | Alamia e Sperandeo | https://www.youtube.com/watch?v=fOGJhwdb564 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Passeggiando In Un Ponticello | Alamia e Sperandeo | https://www.youtube.com/watch?v=JVznrvl9t-I | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Passeggiata Alla Marina | Alamia e Sperandeo | https://www.youtube.com/watch?v=FbmX0Zhwr4M | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Rap Ghiaccio | Alamia e Sperandeo | https://www.youtube.com/watch?v=dU3uhhuFbAw | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Sai Che Ti Dico | Alamia e Sperandeo | https://www.youtube.com/watch?v=eGumdkiQiMA | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Tirituppiti | Alamia e Sperandeo | https://www.youtube.com/watch?v=1JuVwrhCDio | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Tram Elettrico | Alamia e Sperandeo | https://www.youtube.com/watch?v=2CtOgkHVqyE | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Trazzieri | Alamia e Sperandeo | https://www.youtube.com/watch?v=NN5rMO9mZ-U | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Tutti Per La Press | Alamia e Sperandeo | https://www.youtube.com/watch?v=x-tVoszt2y4 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Una Giornata Qualunque | Alamia e Sperandeo | https://www.youtube.com/watch?v=ssJRaQqCn9I | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Una Storia Disonesta | Alamia e Sperandeo | https://www.youtube.com/watch?v=2rKWJn2QJh8 | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Una Storia Osè | Alamia e Sperandeo | https://www.youtube.com/watch?v=jgTvbsjmHNQ | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Via Pitrè | Alamia e Sperandeo | https://www.youtube.com/watch?v=4IKpMnQRLvY | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
-| Vucciria | Alamia e Sperandeo | https://www.youtube.com/watch?v=xjldjsJ5f_c | Seamusica S.r.l., used with permission of the rights holders | re-encoded, loudness normalised |
+| Abbiamo Arrivato | Alamia e Sperandeo | https://www.youtube.com/watch?v=fGn45VtSeak | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Acqua Di Cielo | Alamia e Sperandeo | https://www.youtube.com/watch?v=MSM2u1TkLB8 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Broadway (Un Sogno Americano) | Alamia e Sperandeo | https://www.youtube.com/watch?v=PrfgC5KPNnw | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Brutti, Sporchi E Monelli | Alamia e Sperandeo | https://www.youtube.com/watch?v=KiXRogGmKNc | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Cachi | Alamia e Sperandeo | https://www.youtube.com/watch?v=occgwmI21wU | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Canzoncine Per Bambini | Alamia e Sperandeo | https://www.youtube.com/watch?v=JwbdVcSCwjs | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Ciauru Ro Mari | Alamia e Sperandeo | https://www.youtube.com/watch?v=kZFV6Lel2Bw | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Cu dici ca lu carceri è galera | Alamia e Sperandeo | https://www.youtube.com/watch?v=4GKJl8_NwGE | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Discorsi Di Taverna | Alamia e Sperandeo | https://www.youtube.com/watch?v=uAnUc997NEg | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Inno Del Palermo | Alamia e Sperandeo | https://www.youtube.com/watch?v=jGS8U6geDA4 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| L'onorevole | Alamia e Sperandeo | https://www.youtube.com/watch?v=E-trP-b8LjY | Seamusica S.r.l. | re-encoded, loudness normalised |
+| La Bicicletta | Alamia e Sperandeo | https://www.youtube.com/watch?v=YxYntoyESU4 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| La Farmacia | Alamia e Sperandeo | https://www.youtube.com/watch?v=Rz5TUYrB_CI | Seamusica S.r.l. | re-encoded, loudness normalised |
+| La Partita | Alamia e Sperandeo | https://www.youtube.com/watch?v=bJk2g9PJAYs | Seamusica S.r.l. | re-encoded, loudness normalised |
+| La Punta | Alamia e Sperandeo | https://www.youtube.com/watch?v=9FNlH6T41PY | Seamusica S.r.l. | re-encoded, loudness normalised |
+| La Scampagnata | Alamia e Sperandeo | https://www.youtube.com/watch?v=VKFUETsJpbI | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Malacarne | Alamia e Sperandeo | https://www.youtube.com/watch?v=3Wix5sFX_cI | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Mare Mare | Alamia e Sperandeo | https://www.youtube.com/watch?v=mUT7X0pJapw | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Minchia Pititto | Alamia e Sperandeo | https://www.youtube.com/watch?v=fOGJhwdb564 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Passeggiando In Un Ponticello | Alamia e Sperandeo | https://www.youtube.com/watch?v=JVznrvl9t-I | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Passeggiata Alla Marina | Alamia e Sperandeo | https://www.youtube.com/watch?v=FbmX0Zhwr4M | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Rap Ghiaccio | Alamia e Sperandeo | https://www.youtube.com/watch?v=dU3uhhuFbAw | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Sai Che Ti Dico | Alamia e Sperandeo | https://www.youtube.com/watch?v=eGumdkiQiMA | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Tirituppiti | Alamia e Sperandeo | https://www.youtube.com/watch?v=1JuVwrhCDio | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Tram Elettrico | Alamia e Sperandeo | https://www.youtube.com/watch?v=2CtOgkHVqyE | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Trazzieri | Alamia e Sperandeo | https://www.youtube.com/watch?v=NN5rMO9mZ-U | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Tutti Per La Press | Alamia e Sperandeo | https://www.youtube.com/watch?v=x-tVoszt2y4 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Una Giornata Qualunque | Alamia e Sperandeo | https://www.youtube.com/watch?v=ssJRaQqCn9I | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Una Storia Disonesta | Alamia e Sperandeo | https://www.youtube.com/watch?v=2rKWJn2QJh8 | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Una Storia Osè | Alamia e Sperandeo | https://www.youtube.com/watch?v=jgTvbsjmHNQ | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Via Pitrè | Alamia e Sperandeo | https://www.youtube.com/watch?v=4IKpMnQRLvY | Seamusica S.r.l. | re-encoded, loudness normalised |
+| Vucciria | Alamia e Sperandeo | https://www.youtube.com/watch?v=xjldjsJ5f_c | Seamusica S.r.l. | re-encoded, loudness normalised |
 
 ## Terrorage
 
-One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/pubs.js -->, played at the door of the Krust pub. Used with the permission of the band. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/pubs.js -->, played at the door of the Krust pub. Re-encoded for the web (HE-AAC, about 40 kbps) and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
 
 ## Radio Lamiera
 
-The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema, "24 Luglio" by Not Another Prayer and "Piombo" by Diskonnekt. Used with the permission of the bands. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema, "24 Luglio" by Not Another Prayer and "Piombo" by Diskonnekt. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
 
 ## Pedestrian sprites (LPC)
 

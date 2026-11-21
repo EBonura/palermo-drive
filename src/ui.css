@@ -286,8 +286,15 @@ html.touch { --bar-w: min(296px, 40vw); }   /* the slim bar top left (menu butto
    ?layers=0 in the address (the class pd-flat, src/ui.js) leaves it all to Chrome as before, for comparing; the pads of src/mobile.css with it. */
 #hud .hz, #hud :is(.pg-bar, .pw-bar) { will-change: opacity; }
 html.pd-flat #hud :is(.hz, .pg-bar, .pw-bar), html.pd-flat :is(.tc-steer, .tc-drive) { will-change: auto; }
-.hz-status { left: var(--sl); top: calc(var(--st) + 50px); align-items: flex-start; gap: 6px; }   /* under the slim bar top left */
-.hz-top { left: 50%; top: var(--st); transform: translateX(-50%); width: max-content; align-items: center; }
+.hz-status { left: var(--sl); bottom: var(--sb); align-items: flex-start; gap: 6px; }   /* bottom left (the coordinates, a debug option): above the steering pads on a touch screen, above the map capsule when it is at the bottom */
+html.touch .hz-status { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
+html.pd-map-low .hz-status { bottom: calc(var(--sb) + var(--mini) + 10px); }
+html.touch.pd-map-low .hz-status { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + var(--mini) + 18px); }
+/* The mission column is always top centre (the owner's layout, 21 Nov 2026): the top left is the music bar and the players section under it, the top right the map capsule.
+   --gap is the room between them, the same on both sides so the column stays centred; the mission card and the lines under it are never wider. */
+#hud { --gap: calc(100vw - 2 * (max(var(--bar-w) + var(--sl), var(--cap) + var(--sr)) + 10px)); }
+html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)); }
+.hz-top { left: 50%; top: var(--st); transform: translateX(-50%); width: max-content; align-items: center; --obj: min(360px, 36vw, var(--gap)); --wide: min(max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))), var(--gap)); }
 .hz-top > * { display: flex; flex-direction: column; align-items: center; }
 .hz-top > :not(.hz-obj) > * { margin-top: 5px; }
 .hz-obj { gap: 5px; }
@@ -303,8 +310,7 @@ html.pd-flat #hud :is(.hz, .pg-bar, .pw-bar), html.pd-flat :is(.tc-steer, .tc-dr
 #pd-loc { font: 700 18px/1.12 var(--pd-cond); color: #fff; }
 #pd-loc > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #street:empty, #landmark:empty, #pd-loc:has(#landmark:not(:empty)) #street { display: none; }   /* a landmark takes the street's place; no street and no landmark: no row at all */
-.hz-social { left: var(--sl); bottom: var(--sb); align-items: flex-start; width: max-content; max-width: min(300px, 46vw); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
-html.touch .hz-social { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
+.hz-social { left: var(--sl); top: calc(var(--st) + 48px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .hz-gauges { display: flex; align-items: center; gap: 12px; }   /* speed and nitro: one compact row, phone and desktop */
@@ -341,29 +347,19 @@ html.pd-in-garage :is(#hud, .ev-edge) { visibility: hidden !important; }
   html.touch #hud { --mini: clamp(76px, 24vh, 98px); --cap: 300px; }   /* about 240 x 76 at 844 x 390: clear of the NOS pad below it and the mission column beside it */
   html.touch #pd-loc { font-size: 16px; }
 }
-/* the mission line and what stands under it (the come-back banner, a tag picked up, short lines, the result) go to the left, under the slim bar and ending before the capsule: on a phone, and on a desktop window that is narrow */
-html.touch .hz-top { left: var(--sl); top: calc(var(--st) + 46px); transform: none; --wide: calc(100vw - var(--sl) - var(--sr) - var(--cap) - 18px); }
-html.touch .hz-top > * { align-items: flex-start; }
+/* a narrow desktop window: a smaller map capsule (the mission column stays top centre, narrower: --gap) */
 @media (max-width: 1100px) {
   html:not(.touch) #hud { --cap: 310px; --mini: 100px; }
-  html:not(.touch) .hz-top { left: var(--sl); top: calc(var(--st) + 46px); transform: none; --wide: calc(100vw - var(--sl) - var(--sr) - var(--cap) - 18px); }
-  html:not(.touch) .hz-top > * { align-items: flex-start; }
 }
-/* The map capsule at the bottom left instead (Options, Minimappa: In basso; html.pd-map-low, src/ui.js): the round map becomes its left end and the multiplayer section stands above it.
-   On a touch screen the capsule stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high), and the mission column takes the top right corner the capsule left. */
+/* The map capsule at the bottom left instead (Options, Minimappa: In basso; html.pd-map-low, src/ui.js): the round map becomes its left end.
+   On a touch screen the capsule stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high); the mission column, top centre, gets wider (--gap). */
 html.pd-map-low .hz-map { right: auto; top: auto; left: var(--sl); bottom: var(--sb); align-items: flex-start; }
 html.pd-map-low #where { align-items: flex-start; }
 html.pd-map-low #pd-card { grid-template-columns: var(--mini) minmax(0, 1fr); }
 html.pd-map-low #pd-mapw { grid-area: 1 / 1; }
 html.pd-map-low #pd-info { grid-area: 1 / 2; padding: 0 calc(var(--mini) * .24) 0 8px; }
-html.pd-map-low .hz-social { bottom: calc(var(--sb) + var(--mini) + 10px); }
 html.touch.pd-map-low .hz-map { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
-html.touch.pd-map-low .hz-social { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + var(--mini) + 18px); }
-html.touch.pd-map-low .hz-top { left: auto; right: var(--sr); top: var(--st); --wide: calc(100vw - var(--sl) - var(--sr) - var(--bar-w) - 18px); }
-html.touch.pd-map-low .hz-top > * { align-items: flex-end; }
 @media (max-width: 1100px) {   /* a narrow desktop window: with the capsule gone from the top right the mission column goes back to the top centre */
-  html:not(.touch).pd-map-low .hz-top { left: 50%; top: var(--st); transform: translateX(-50%); --wide: max(var(--obj), min(520px, 100vw - 2 * (var(--bar-w) + 70px))); }
-  html:not(.touch).pd-map-low .hz-top > * { align-items: center; }
 }
 html.touch .hz-gauges { gap: 8px; }
 html.touch #speed { font-size: 22px; }

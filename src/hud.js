@@ -1,9 +1,9 @@
 // The HUD's places: one for each kind of message, so that two kinds can't land on each other. The zones are in index.html, their CSS in src/ui.css;
 // a zone is a flex column, so what stands in it pushes the rest along and nothing positions itself. Every module asks for its zone here.
 //   (the slim bar top left, src/ui.js: the menu button, play or pause, next track and what is playing; it also exists on the menus, so it stays out of #hud. It grows to the right when opened, so nothing else stands in its row)
-//   social   bottom left (above the steering pads on a touch screen): the multiplayer section, only while online (src/online/panel.js): the last things said, then the capsule with the player count and the talk button
-//   status   left, under that bar: the coordinates (src/coords.js)
-//   (top centre: on a touch screen, and on a narrow desktop window, the whole obj..pick..feed column moves left instead, under the bar and ending before the map capsule, src/ui.css)
+//   social   top left, under the slim bar: the multiplayer section, only while online (src/online/panel.js): the capsule with the player count and the talk button, the last things said under it
+//   status   bottom left (above the steering pads on a touch screen, above the map capsule when it is at the bottom): the coordinates (src/coords.js)
+//   (the obj..pick..feed column is always top centre, phones included, between the bar and the map capsule: its width is --gap, src/ui.css)
 //   obj      top centre: the mission card (src/event-hud.js) or the question on arriving at one (src/ui.js), the score at the Barbera (src/stadium-ball.js)
 //   alert    under it: the "come back" banner (src/event-hud.js). There is one: new text replaces the old
 //   moment   under that: the mission result, busted, a secret found. One at a time: the higher one hides the lower (busted, result), a secret waits for them
