@@ -18,6 +18,9 @@ const SMOOTH = 0.2;            // seconds: when a new snapshot moves the path (a
 const FADE = 0.5;              // seconds
 const TAU = Math.PI * 2;
 const PINK = '#ff6fae', PINK_D = '#e8559a';
+// How another player is marked from afar: the name high above them (PM_H m), bigger and seen through buildings, with a cone of light from it down to them
+// (2, the owner's choice, 21 Nov 2026). ?pmark=1 a dotted line instead, 3 the dots and a ring on the ground, 0 the old low tag.
+const PMQ = new URLSearchParams(location.search).get('pmark'), PMARK = PMQ === null ? 2 : +PMQ, PM_H = 7;
 export const PLAYER_DOT = '#00e1ff';   // other players on the maps: a cyan RING, a colour and a shape nothing else on the minimap or the big map uses (mission marks are filled green, orange, yellow, purple and pink discs, diamonds, triangles and crosses)
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
@@ -145,6 +148,7 @@ export function createRemotes(env) {
       r.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
       r.tag.scale.set(0.066 * map.image.width / map.image.height, 0.066, 1);
       r.tag.position.set(0, 2.55, 0); r.tag.renderOrder = 20;
+      if (PMARK) { r.tag.position.y = PM_H; r.tag.scale.multiplyScalar(1.35); r.tag.center.set(0.5, 0); r.tag.material.depthTest = false; }
       if (r.model) r.model.root.add(r.tag);
     }
   }
@@ -239,12 +243,38 @@ export function createRemotes(env) {
     m.pose({ pitch: 0, roll: p.roll, lean: p.lean, steer: p.steer, spin: r.spin, t: now / 1000, speed: Math.abs(p.v) });
     if (r.flames) { const on = (p.fl & 1) === 1; for (const f of r.flames) { f.visible = on; if (on) f.scale.set(1.3, 1.3, 1.6 + Math.random() * 0.8); } }
     r.marker.x = p.x; r.marker.z = p.z;
+    if (PMARK) markDeco(r, p.x, gy + r.lift, p.z, now);
     const d = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
     r.tagA = clamp((330 - d) / 100, 0, 1);
     const sh = d < 90; if (sh !== r.shadow) { r.shadow = sh; for (const me of m.meshes) me.castShadow = sh && me.userData.sh; }
     if (!r.shown) { r.shown = true; m.root.visible = true; mapMarkers.push(r.marker); }
   }
 
+  function markDeco(r, x, y, z, now) {
+    if (!r.mk) {
+      const g = new THREE.Group(); g.renderOrder = 19; scene.add(g); r.mk = g;
+      if (PMARK === 1 || PMARK === 3) {   // a dotted line from the tag down to the roof
+        const n = 26, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) pos[i * 3 + 1] = 2.3 + (PM_H - 2.5) * i / (n - 1);
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: PINK, size: PMARK === 3 ? 7 : 9, sizeAttenuation: false, transparent: true, depthTest: false, fog: false }));
+        pts.frustumCulled = false; pts.renderOrder = 19; g.add(pts); r.mkDots = pts;
+      }
+      if (PMARK === 2) {   // a cone of light, wide at the tag, its tip on the car
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(1.6, PM_H - 2.4, 24, 1, true).translate(0, (PM_H - 2.4) / 2, 0).rotateX(Math.PI).translate(0, PM_H, 0),
+          new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.35, depthWrite: false, depthTest: false, side: THREE.DoubleSide, fog: false }));
+        cone.renderOrder = 19; g.add(cone); r.mkCone = cone;
+      }
+      if (PMARK === 3) {   // a ring on the ground under them, pulsing outwards
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.8, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
+        ring.position.y = 0.08; ring.renderOrder = 19; g.add(ring); r.mkRing = ring;
+      }
+    }
+    r.mk.position.set(x, y, z); r.mk.visible = !!(r.model && r.model.root.visible);
+    const t = now / 1000;
+    if (r.mkDots) { const pa = r.mkDots.geometry.attributes.position; for (let i = 0; i < pa.count; i++) pa.array[i * 3 + 1] = 2.3 + (PM_H - 2.5) * (((i / pa.count) + t * 0.35) % 1); pa.needsUpdate = true; }   // the dots slide down towards the player
+    if (r.mkCone) r.mkCone.material.opacity = 0.28 + 0.1 * Math.sin(t * 3);
+    if (r.mkRing) { const k = (t * 0.8) % 1; r.mkRing.scale.setScalar(1.2 + 2.6 * k); r.mkRing.material.opacity = 0.85 * (1 - k); }
+  }
   // A short phrase above a player's car for a few seconds (the p2p phrase picker). The text is drawn on a canvas, never inserted as HTML.
   function clearBubble(r) {
     if (!r.bubble) return;

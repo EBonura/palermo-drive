@@ -12,7 +12,7 @@ import * as THREE from 'three';
 const N = 12, SPACING = 7, START = 9, STRETCH = 1.7, SIZE = 1.9;   // SIZE: metres across (the owner chose design 4, smaller, 21 Nov 2026)   // marks, metres between them, metres ahead of the car where the first one stands
 
 const VERT = `
-attribute float aK;      // the mark's place along the run, 0 first .. 1 last
+attribute float aK;      // the mark's phase in the wave, growing along the way
 attribute float aFade;   // fade at the ends of the run and with distance
 varying vec2 vUv; varying float vK; varying float vFade;
 void main() {
@@ -28,7 +28,7 @@ float ring(float r, float rad, float w) { return smoothstep(rad - w, rad - w * 0
 void main() {
   // vUv.y points the way (forward), vUv.x across it
   float a = 0.0, dk = 0.0;
-  float wave = fract(uT * 0.55 - vK * 1.4);                 // a wave running forward along the marks
+  float wave = fract(uT * 0.55 - vK);                       // a wave running forward along the marks (vK grows along the way)
   float pulse = exp(-pow((wave - 0.5) * 4.0, 2.0));          // 0..1, peaks as the wave passes
   if (uDesign == 1) {
     float s = 0.62 + 0.3 * pulse;
@@ -75,31 +75,41 @@ export function createGroundGuide({ scene, car, groundY, heightAt = groundY, rou
   const FWD = new THREE.Vector3(0, 0, -1), dir = new THREE.Vector3();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3(), scl = new THREE.Vector3();
   let t = 0;
-  // the point `s` metres along the route ahead of the car (route.i0, .px/.pz: where the car is on it, src/route-guide.js), and the direction there
+  // The marks stand still on the road: at every SPACING metres of the route counted from its start (not from the car), so driving on only
+  // brings new ones in ahead and lets the passed ones fade; the wave of light runs over them in the direction to go.
   const P = { x: 0, z: 0, dx: 0, dz: 1, ok: false };
-  function along(route, s) {
-    let px = route.i0 > 0 ? route.px : route[0][0], pz = route.i0 > 0 ? route.pz : route[0][1];
-    for (let i = Math.max(route.i0 || 0, 0); i < route.length; i++) {
-      const q2 = route[i], dx = q2[0] - px, dz = q2[1] - pz, L = Math.hypot(dx, dz);
-      if (L > 1e-6 && s <= L) { P.x = px + dx * s / L; P.z = pz + dz * s / L; P.dx = dx / L; P.dz = dz / L; P.ok = true; return P; }
-      s -= L; px = q2[0]; pz = q2[1];
+  function carS(route) {   // how far along the route the car is (route.i0, .px/.pz: its place on it, src/route-guide.js)
+    let s = 0; const i0 = Math.min(route.i0 || 0, route.length - 1);
+    for (let i = 1; i < i0; i++) s += Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]);
+    if (i0 > 0) s += Math.hypot(route.px - route[i0 - 1][0], route.pz - route[i0 - 1][1]);
+    return s;
+  }
+  function at(route, s) {   // the point s metres from the route's start, and the direction there
+    for (let i = 1; i < route.length; i++) {
+      const a = route[i - 1], b = route[i], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz);
+      if (L > 1e-6 && s <= L) { P.x = a[0] + dx * s / L; P.z = a[1] + dz * s / L; P.dx = dx / L; P.dz = dz / L; P.ok = true; return P; }
+      s -= L;
     }
     P.ok = false; return P;
   }
+  const sm = (a, b, x) => { const t2 = Math.min(1, Math.max(0, (x - a) / (b - a))); return t2 * t2 * (3 - 2 * t2); };
   function update(dt) {
     t += dt; mat.uniforms.uT.value = t;
     const pick = routes.find(([r]) => r.length > 1);
     if (!pick) { mesh.count = 0; return; }
     const [route, col] = pick; mat.uniforms.uCol.value.set(col);
+    const s0 = carS(route), first = Math.ceil((s0 + START * 0.5) / SPACING), reach = START + N * SPACING;
     let n = 0;
-    for (let i = 0; i < N; i++) {
-      const s = START + i * SPACING, p = along(route, s); if (!p.ok) break;
+    for (let k = first; k < first + N + 1 && n < N; k++) {
+      const s = k * SPACING, ahead = s - s0, p = at(route, s); if (!p.ok) break;
+      const fade = sm(START * 0.5, START + SPACING, ahead) * (1 - sm(reach - SPACING * 3, reach, ahead));   // in ahead of the lapa, out at the far end
+      if (fade <= 0.01) continue;
       const y = heightAt(p.x, p.z) + 0.05, size = SIZE;
       const slope = (heightAt(p.x + p.dx * 1.5, p.z + p.dz * 1.5) - heightAt(p.x - p.dx * 1.5, p.z - p.dz * 1.5)) / 3;   // tilted with the street, along the way
       q.setFromUnitVectors(FWD, dir.set(p.dx, slope, p.dz).normalize());   // the quad's forward (uv.y, which the flat plane has along -z) along the way
       pos.set(p.x, y, p.z); scl.set(size, 1, size * STRETCH); m4.compose(pos, q, scl); mesh.setMatrixAt(n, m4);
-      aK.array[n] = i / (N - 1);
-      aFade.array[n] = Math.min(1, (i + 1) / 3) * Math.min(1, (N - i) / 4);
+      aK.array[n] = (k % 1000) * 0.13;   // the mark's own phase in the wave: it belongs to the mark, so the wave does not jump as the car moves
+      aFade.array[n] = fade;
       n++;
     }
     mesh.count = n; mesh.instanceMatrix.needsUpdate = true; aK.needsUpdate = true; aFade.needsUpdate = true;
