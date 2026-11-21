@@ -63,7 +63,6 @@ const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l
 export const TRACKS = [
   { id: 'bushwick-tarantella', title: 'Bushwick Tarantella', by: 'Kevin MacLeod' },
   { id: 'tarantella-air-force-strings', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band' },
-  { id: 'funiculi-funicula-banda', title: 'Funiculì, Funiculà (1903)', by: 'F. Giannini, Royal Marine Band of Italy' },
   { id: 'meatball-parade', title: 'Meatball Parade', by: 'Kevin MacLeod' },
   ...ALAMIA,
 ];
@@ -97,9 +96,9 @@ const PALIFORNIA = [   // [id, title, artist]
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [
-  { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica del Sud Italia', 'Southern Italian music'], tracks: TRACKS },
-  { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock e metal palermitano', 'Rock and metal from Palermo'], tracks: LAMIERA },   // sub: draft
-  { id: 'palifornia', name: 'Radio Palifornia', sub: ['Musica palermitana', 'Music from Palermo'], tracks: PALIFORNIA },   // sub: draft
+  { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica popolare', 'Folk and popular'], tracks: TRACKS },
+  { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock & metal', 'Rock & metal'], tracks: LAMIERA },   // sub: draft
+  { id: 'palifornia', name: 'Radio Palifornia', sub: ['Rap, funk & rock', 'Rap, funk & rock'], tracks: PALIFORNIA },   // sub: draft
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out

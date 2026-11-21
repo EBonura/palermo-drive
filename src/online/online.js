@@ -20,8 +20,10 @@ import { zone } from '../hud.js';
 import { createLink } from './link.js';
 import { RELAY_URL } from './relay-url.js';
 import { createReach, describe, TEXT } from './status.js';   // why there is nobody: the relay is full, over for today, or cannot be reached
-import { IN, AUDIENCE_LOW, packInfo, helloFrame, infoFrame, sayFrame, toFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
+import { IN, AUDIENCE_LOW, packInfo, helloFrame, infoFrame, sayFrame, toFrame, rosterFrame, stateFrame, readState, parseFrame, toBytes, cleanName as clean } from './wire.js';
 import { garage, VEHICLES, LIVERIES } from '../garage.js';
+import { townAt } from '../districts.js';
+import { areaAt } from '../danger.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
 const TAU = Math.PI * 2;
@@ -116,7 +118,7 @@ export function createOnline(env) {
     panel.clear(); wheel.close();
     for (const p of others.values()) if (p.shown) rm.remove(p.handle);
     others.clear(); myOffer = null; incoming = null; closeCard(); note(null);
-    ready = false; selfHandle = 0; last = null; forceState = false; audience = null; relayVer = 0;
+    ready = false; selfHandle = 0; last = null; forceState = false; audience = null; relayVer = 0; roster = null;
   }
 
   // ---------- outgoing ----------
@@ -202,6 +204,7 @@ export function createOnline(env) {
     }
     if (!ready) { stats.rxBad++; return; }   // nothing else means anything before that
     if (f.type === IN.ONLINE) { onlineCount = f.online; return; }
+    if (f.type === IN.ROSTER) { roster = f.list; onlineCount = f.online; rosterGot = performance.now(); return; }
     if (f.type === IN.AUDIENCE) {   // how far the nearest holder is: a nearer one than before, or the first, is owed a state at once (it holds our latest, possibly old, from its ENTER)
       if (relayVer < 3) { stats.rxBad++; return; }
       if (f.band !== 0 && (audience === null || audience === 0 || f.band < audience)) forceState = true;
@@ -316,7 +319,54 @@ export function createOnline(env) {
     wheel.setCategories(buildWheel()); wheel.open();
   }
   const toggleWheel = () => { if (wheel.isOpen) wheel.close(); else openWheel(); };
-  const panel = createPanel({ zone: zone('social'), onTalk: toggleWheel });
+  // ---------- the Online list: everybody connected, with the neighbourhood and how far, and Raggiungi (a jump there, as the start map does) ----------
+  // The relay answers a ROSTER with everybody's position in 50 m squares (relay-worker/src/proto.rs): asked when the list opens and every ROSTER_EVERY_MS while it is open.
+  // A player we hold has its exact position, the others the square's. Raggiungi: not near (DRAW_R), not during a mission, and once per JUMP_GAP_MS.
+  const ROSTER_EVERY_MS = 5000, JUMP_GAP_MS = 30000;
+  let listOpen = false, roster = null, rosterAsked = -1e9, rosterGot = 0, lastJump = -1e9, listAt = 0;
+  const askRoster = now => { if (relayVer >= 3 && now - rosterAsked > 3100 && tx(rosterFrame())) rosterAsked = now; };
+  const missionOn = () => inMission();   // (defined below with the drinks; a pub, a rave or a leaf is not a mission here either)
+  const placeOf = (x, z) => townAt(x, z) || areaAt(x, z) || 'Palermo';
+  const distText = d => d < 1000 ? `${Math.max(10, Math.round(d / 10) * 10)} m` : `${(d / 1000).toFixed(d < 10000 ? 1 : 0).replace('.', lang() === 'en' ? '.' : ',')} km`;
+  function rosterEntries() {
+    const out = [];
+    for (const e of roster || []) {
+      if (e.handle === selfHandle) continue;
+      const p = others.get(e.handle), exact = p && p.x !== undefined && performance.now() - p.lastRx < 10000;
+      const x = exact ? p.x : e.x, z = exact ? p.z : e.z;
+      out.push({ e, x, z, d: Math.hypot(x - car.x, z - car.z) });
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+  function listView(now) {
+    const en = lang() === 'en', wait = Math.ceil((JUMP_GAP_MS - (now - lastJump)) / 1000), ents = rosterEntries();
+    return {
+      open: true,
+      head: roster ? (en ? `Online · ${ents.length + 1}` : `Online · ${ents.length + 1}`) : (en ? 'Online…' : 'Online…'),
+      empty: roster ? (en ? 'Nobody else is online right now.' : 'Nessun altro è online adesso.') : (en ? 'Asking who is online…' : 'Cerco chi è online…'),
+      rows: ents.map(({ e, x, z, d }) => {
+        const near = d < DRAW_R, v = VEHICLES[e.info.vehicle] || VEHICLES[0];
+        const go = !near && !missionOn() && wait <= 0;
+        return { h: e.handle, name: e.info.name || 'Player', veh: en ? v.name_en : v.name_it, place: placeOf(x, z), dist: near ? (en ? 'Near you' : 'Vicino a te') : distText(d), near,
+          go, goLabel: near ? (en ? 'Near' : 'Vicino') : wait > 0 ? `${wait} s` : (en ? 'Join' : 'Raggiungi') };
+      }),
+    };
+  }
+  function toggleList() {
+    if (!ready || game.state !== 'play') return;
+    listOpen = !listOpen; if (wheel.isOpen) wheel.close();
+    if (listOpen) askRoster(performance.now());
+    panel.setList(listOpen ? listView(performance.now()) : { open: false });
+  }
+  function joinPlayer(h) {
+    const now = performance.now(), it = rosterEntries().find(r => r.e.handle === h); if (!it) return;
+    if (missionOn()) { toast(tr('Prima finisci la missione', 'Finish the mission first'), '', true); return; }
+    if (now - lastJump < JUMP_GAP_MS || it.d < DRAW_R || !game.goTo) return;
+    lastJump = now; listOpen = false; panel.setList({ open: false });
+    ev('join', { handle: h, d: Math.round(it.d) });
+    game.goTo(it.x, it.z);
+  }
+  const panel = createPanel({ zone: zone('social'), onTalk: toggleWheel, onList: toggleList, onGo: joinPlayer });
   // T opens and closes it, 1 to 8 pick, Escape closes: in the capture phase, ahead of the game's own handler (src/ui.js adds its listener later)
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
@@ -514,8 +564,8 @@ export function createOnline(env) {
   // The notice behind the i: three short paragraphs, kept true by hand (docs/ONLINE.md, joinlog/README.md). The second one follows PLAYLOG_ON.
   // WHO_SEES is the one sentence about who can see a player: if that changes (who is told what), change it here and nowhere else.
   const WHO_SEES = {
-    it: 'Se giochi online, i giocatori più vicini a te, ovunque siano in città, vedono il tuo nome e la tua posizione. Il nostro server, ospitato su Cloudflare, vede il tuo indirizzo IP mentre ti collega a loro: lo tiene solo finché sei collegato, e gli altri giocatori non lo vedono.',
-    en: 'If you play online, the players closest to you, wherever they are in the city, can see your name and your position. Our server, hosted on Cloudflare, sees your IP address while it connects you to them. It keeps it only while you are connected, and the other players do not see it.' };
+    it: 'Se giochi online, i giocatori più vicini a te, ovunque siano in città, vedono il tuo nome e la tua posizione, e tutti i giocatori online vedono il tuo nome e il quartiere in cui sei (nella lista Online, a meno di 50 m). Il nostro server, ospitato su Cloudflare, vede il tuo indirizzo IP mentre ti collega a loro: lo tiene solo finché sei collegato, e gli altri giocatori non lo vedono.',
+    en: 'If you play online, the players closest to you, wherever they are in the city, can see your name and your position, and everybody online can see your name and the neighbourhood you are in (in the Online list, to within 50 m). Our server, hosted on Cloudflare, sees your IP address while it connects you to them. It keeps it only while you are connected, and the other players do not see it.' };
   const KEPT = {
     it: 'Non raccogliamo informazioni personali. Non teniamo il tuo indirizzo, la tua posizione né un identificativo che dura nel tempo.',
     en: 'We do not collect personal information. We keep no address, no position and no ID that lasts.' };
@@ -659,6 +709,8 @@ export function createOnline(env) {
       });
     }
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
+    if (listOpen && !(on && playing && ready)) { listOpen = false; panel.setList({ open: false }); }
+    if (listOpen) { if (now - rosterAsked > ROSTER_EVERY_MS) askRoster(now); if (now - listAt > 250) { listAt = now; panel.setList(listView(now)); } }
     offerClocks(now, playing); if (playing) arrivals(now);
     if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
     link.want(on && now - activeAt < IDLE);

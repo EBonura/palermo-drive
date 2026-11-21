@@ -468,6 +468,13 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       u.freed = true;
     }
   }
+  // setPart from inside a tile job: the bounding spheres of the new meshes are worked out first, a slice at a time. Left to three they were computed
+  // in the first frame that draws the tile, all at once (Box3.setFromBufferAttribute was a fifth of the worst frames while driving).
+  function* place(t, name, obj, tris) {
+    if (obj) { const ms = []; obj.traverse(o => { if (o.isMesh && o.geometry && !o.geometry.boundingSphere && o.geometry.attributes.position?.array) ms.push(o.geometry); });
+      for (const g of ms) { g.computeBoundingSphere(); if (sliceOver()) yield; } }
+    setPart(t, name, obj, tris);
+  }
   function setPart(t, name, obj, tris) {
     const old = t.parts[name];
     if (old) disposeObj(old);
@@ -1314,16 +1321,16 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function* buildLow(t) {
     if (t.want === 0) return;
     t.stage = 'shape'; yield* computeShape(t);
-    t.stage = 'terrain'; setPart(t, 'terrain', yield* terrainMesh(t, 2));
+    t.stage = 'terrain'; yield* place(t, 'terrain', yield* terrainMesh(t, 2));
     yield;
     const g = new THREE.Group(); t.stage = 'streetsLow';
     yield* streetsIter(t.data.streets, g, { layers: ['asphalt', 'paving', 'sand', 'water'], curbs: false, offset: true, drape: 18, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'asphalt' ? asphaltTint(tintFn(t, 'a')) : l === 'paving' ? tintFn(t, 'a') : null });
     t.pvf = null;
     if (t.want === 0) { disposeObj(g); return; }
-    setPart(t, 'streets', g);
+    yield* place(t, 'streets', g);
     t.stage = 'bldLow'; const low = yield* lowBuildings(t);
     if (t.want === 0) { disposeObj(low); return; }
-    setPart(t, 'bldLow', low);
+    yield* place(t, 'bldLow', low);
     t.lod = 1; stat.built++;
   }
   function* buildFull(t) {
@@ -1332,14 +1339,14 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     if (t.want < 2) return;
     t.stage = 'masks'; yield* buildRaised(t);
     if (t.want < 2) return;
-    t.stage = 'terrainFull'; setPart(t, 'terrain', yield* terrainMesh(t, 1));
+    t.stage = 'terrainFull'; yield* place(t, 'terrain', yield* terrainMesh(t, 1));
     onTileFull(t.k);   // (the tunnels' walls and portals at once: this terrain is cut away under them)
     yield;
     const g = new THREE.Group(); t.stage = 'streetsHi';
     yield* streetsIter(t.data.streets, g, { layers: ['raised', 'median', 'verge', 'green'], curbs: true, offset: true, drape: 9, fine: t.benched, ground: groundFor(t), chunk: 0, density: densOf(t), fast: fastIndex(t.data.roads), tint: l => l === 'green' ? tintFn(t, 't') : l === 'raised' ? tintFn(t, 'a') : null });
     t.pvf = null;
     if (t.want < 2) { disposeObj(g); return; }
-    setPart(t, 'streetsHi', g);
+    yield* place(t, 'streetsHi', g);
     t.stage = 'paint'; {
       const aoi = D.streets && D.streets.aoi, inC = aoi ? (x, z) => x > aoi[0] && x < aoi[2] && z > aoi[1] && z < aoi[3] : null; // the centro's paint is src/roadwear.js
       const items = (t.data.props || {}).items || [], crossings = items.filter(i => i.k === 'crossing');
@@ -1347,14 +1354,14 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       t.sideZebras = yield* sideZebrasIter(t.data.roads, { streets: t.data.streets, buildings: t.data.buildings, crossings, raised, seed: 4242 + t.i * 7919 + t.j * 104729 + 4241 });
       const mk = yield* roadMarksIter(t.data.roads, crossings, inC, { streets: t.data.streets, signals: items.filter(i => i.k === 'signal'), zebras: t.sideZebras });
       if (t.want < 2) { if (mk) disposeObj(mk); return; }
-      if (mk) setPart(t, 'paint', mk);
+      if (mk) yield* place(t, 'paint', mk);
     }
-    t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) setPart(t, 'quays', qg); }
-    t.stage = 'fences'; { const fg = yield* buildFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences), t.k, t.data); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) setPart(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate)
-    t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) setPart(t, 'tram', tg); }
-    t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) setPart(t, 'tracks', tr); }
+    t.stage = 'quays'; { const qg = buildQuayMeshes(t.k); if (qg) yield* place(t, 'quays', qg); }
+    t.stage = 'fences'; { const fg = yield* buildFences(cityIn(t).reduce((f, l) => l.clearFences ? l.clearFences(f) : f, t.data.fences), t.k, t.data); if (t.want < 2) { if (fg) disposeObj(fg); dropFences(t.k); return; } if (fg) yield* place(t, 'fences', fg); }   // (a landmark may leave out the fences across its way in: the stadium's gate)
+    t.stage = 'tram'; { const tg = buildTram(t.data.tram, t.k); if (tg) yield* place(t, 'tram', tg); }
+    t.stage = 'tracks'; { const tr = yield* buildTracks(t); if (tr) yield* place(t, 'tracks', tr); }
     if (t.want < 2) return;
-    t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) setPart(t, 'trees', tg); }
+    t.stage = 'trees'; { const tg = yield* buildTrees(t); if (tg) yield* place(t, 'trees', tg); }
     if (t.want < 2) return;
     t.stage = 'bldFull'; const bg = new THREE.Group(), lms = cityIn(t);
     const occ = hooks.occ?.begin(t);   // the lean renderer: the building solids of this tile become its occluder grid (src/engine-lean.js)
@@ -1367,7 +1374,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       try { const o = l.build(ctx); if (o) { bg.add(o); if (occ) for (const s of o.userData.solids || []) occ.add(...s); yield; } } catch (e) { console.error('[world] landmark', l.name, e); }   // userData.solids: [flat, holes, roofY] the model stands solid up to, so it hides what is behind it as the generic building did (src/engine-lean.js)
     }
     if (t.want < 2) { disposeObj(bg); return; }
-    setPart(t, 'bldFull', bg);
+    yield* place(t, 'bldFull', bg);
     setPart(t, 'bldLow', null);
     t.lod = 2;
     onTileFull(t.k); emit('full', t);
@@ -1380,8 +1387,8 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     unregisterPhysics(t); t.raised = null; t.hard = undefined; t.sandb = undefined; t.gsegs = null; t.hasFull = false;
     if (t.lod === 2 || !t.parts.bldLow || t.parts.terrain?.userData.cut) {
       if (yield* ensureData(t)) {
-        if (!t.parts.bldLow) setPart(t, 'bldLow', yield* lowBuildings(t));
-        setPart(t, 'terrain', yield* terrainMesh(t, 2));
+        if (!t.parts.bldLow) yield* place(t, 'bldLow', yield* lowBuildings(t));
+        yield* place(t, 'terrain', yield* terrainMesh(t, 2));
         t.pvf = null;
       }
     }

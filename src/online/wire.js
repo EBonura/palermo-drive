@@ -12,9 +12,10 @@ import { PHRASES } from './phrases.js';
 
 export const PROTOCOL = 3, MAX_FRAME = 96, MAX_BATCH = 16, MAX_BATCH_FRAME = 2 + MAX_BATCH * 22, MAX_SET = 64;   // MAX_FRAME is what the relay may send in one frame, a BATCH aside: it is what a client may send
 export const AUDIENCE_LOW = [Infinity, 0, 50, 100, 150, 250, 350, 600, 1200];   // by band: the distance the nearest holder is at least
-export const OUT = { HELLO: 1, INFO: 2, STATE: 3, SAY: 4, TO: 5 };
-export const IN = { WELCOME: 1, ENTER: 2, LEAVE: 3, STATE: 4, SAY: 5, TO: 6, ONLINE: 7, BATCH: 8, AUDIENCE: 9, SAY_FAR: 10 };   // SAY_FAR [10][handle][phrase][info]: a phrase from a player within 1 km that we do not hold (relay-worker/src/proto.rs)
+export const OUT = { HELLO: 1, INFO: 2, STATE: 3, SAY: 4, TO: 5, ROSTER: 6 };   // ROSTER [6]: who is online, all of them (protocol 3, at most every 3 s)
+export const IN = { WELCOME: 1, ENTER: 2, LEAVE: 3, STATE: 4, SAY: 5, TO: 6, ONLINE: 7, BATCH: 8, AUDIENCE: 9, SAY_FAR: 10, ROSTER: 11 };   // SAY_FAR [10][handle][phrase][info]: a phrase from a player within 1 km that we do not hold (relay-worker/src/proto.rs)
 export const MAX_NAME_BYTES = 64, MAX_NAME_RUNES = 16;
+export const ROSTER_MAX = 40, ROSTER_GRID = 50, MAX_ROSTER_FRAME = 4 + ROSTER_MAX * (6 + 3 + 64);   // the list of everybody online: positions in 50 m squares (relay-worker/src/proto.rs T_ROSTER)
 export const MAX_DIRECT = 8;
 const STATE_LEN = 18, MAX_LIFT = 1000, LIFT_MIN = 0.6;   // metres: the ceiling of src/vehicle-air.js is 700 above the sea
 const POS_UNITS = 20, POS_MID = 1 << 19, POS_MAX = (1 << 20) - 1, WORLD = 20000;   // the map is inside 13 km of the origin; anything beyond 20 km is a lie
@@ -41,6 +42,7 @@ export const helloFrame = (info, wantK = 0) => { const b = new Uint8Array(3 + in
 export const helloFrame2 = info => { const b = new Uint8Array(2 + info.length); b[0] = OUT.HELLO; b[1] = 2; b.set(info, 2); return b; };   // protocol 2, for the tests of a page from before
 export const infoFrame = info => { const b = new Uint8Array(1 + info.length); b[0] = OUT.INFO; b.set(info, 1); return b; };
 export const sayFrame = phrase => new Uint8Array([OUT.SAY, phrase]);
+export const rosterFrame = () => new Uint8Array([OUT.ROSTER]);
 export const toFrame = (handle, direct) => { const b = new Uint8Array(3 + direct.length); b[0] = OUT.TO; b[1] = handle & 255; b[2] = handle >> 8; b.set(direct, 3); return b; };
 // s: { t (ms), x, z, th, v, steer, roll, lean, fl (bits 0 to 2), k, a, h (metres above the ground) }. The frame is [3][state], so the state starts at byte 1.
 export function stateFrame(s) {
@@ -84,7 +86,7 @@ const u16 = (b, o) => b[o] | (b[o + 1] << 8);
 // One frame from the relay as { type, ... }, or null if it is not one a real relay sends: wrong type, wrong length, handle 0, a phrase index we do not have, a state out of range.
 export function parseFrame(data) {
   const b = toBytes(data);
-  if (!b || !b.length || b.length > (b[0] === IN.BATCH ? MAX_BATCH_FRAME : MAX_FRAME)) return null;
+  if (!b || !b.length || b.length > (b[0] === IN.BATCH ? MAX_BATCH_FRAME : b[0] === IN.ROSTER ? MAX_ROSTER_FRAME : MAX_FRAME)) return null;
   switch (b[0]) {
     case IN.WELCOME: {   // protocol 2: 6 bytes, no set size (a relay from before this one); protocol 3: 7 bytes with the number of players it will send
       if (!(b[1] === 2 && b.length === 6) && !(b[1] === 3 && b.length === 7 && b[6] >= 1 && b[6] <= MAX_SET) || !u16(b, 2)) return null;
@@ -109,6 +111,19 @@ export function parseFrame(data) {
     case IN.SAY: return b.length === 4 && u16(b, 1) && b[3] < PHRASES.length ? { type: IN.SAY, handle: u16(b, 1), phrase: b[3] } : null;
     case IN.SAY_FAR: { if (b.length < 7 || !u16(b, 1) || b[3] >= PHRASES.length) return null; const info = readInfo(b, 4); return info && { type: IN.SAY_FAR, handle: u16(b, 1), phrase: b[3], info }; }
     case IN.TO: return b.length >= 4 && b.length <= 3 + MAX_DIRECT && u16(b, 1) ? { type: IN.TO, handle: u16(b, 1), direct: b.subarray(3) } : null;
+    case IN.ROSTER: {   // [11][online u16][n] then n times [handle u16][x i16][z i16][info]: every length checked, the frame ends where the last entry does
+      if (b.length < 4 || b[3] > ROSTER_MAX) return null;
+      const dv = new DataView(b.buffer, b.byteOffset, b.byteLength), list = []; let o = 4;
+      for (let i = 0; i < b[3]; i++) {
+        if (o + 9 > b.length || !u16(b, o)) return null;
+        const nl = b[o + 8], end = o + 9 + nl; if (nl > MAX_NAME_BYTES || end > b.length) return null;
+        const info = readInfo(b.subarray(o + 6, end), 0); if (!info) return null;
+        const x = dv.getInt16(o + 2, true) * ROSTER_GRID, z = dv.getInt16(o + 4, true) * ROSTER_GRID;
+        if (!(Math.abs(x) < WORLD && Math.abs(z) < WORLD)) return null;
+        list.push({ handle: u16(b, o), x, z, info }); o = end;
+      }
+      return o === b.length ? { type: IN.ROSTER, online: u16(b, 1), list } : null;
+    }
     case IN.ONLINE: return b.length === 3 ? { type: IN.ONLINE, online: u16(b, 1) } : null;
     default: return null;
   }

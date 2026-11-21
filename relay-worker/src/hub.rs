@@ -57,6 +57,8 @@ pub struct Conn {
     say: Bucket,
     to: Bucket,
     last_info_ms: Option<u64>,
+    /// When this player was last sent the roster (memory only).
+    last_roster_ms: Option<u64>,
     malformed: u32,
     rate_strikes: u32,
     last_strike_ms: u64,
@@ -90,6 +92,7 @@ impl Conn {
             say: Bucket::full(RATE_SAY, now),
             to: Bucket::full(RATE_TO, now),
             last_info_ms: None,
+            last_roster_ms: None,
             malformed: 0,
             rate_strikes: 0,
             last_strike_ms: 0,
@@ -479,10 +482,33 @@ impl Hub {
             (true, Frame::State { body, x, z }) => self.on_state(handle, body, x, z, now, &mut acts),
             (true, Frame::Say { phrase }) => self.on_say(handle, phrase, now, &mut acts),
             (true, Frame::To { handle: target, direct }) => self.on_to(handle, target, direct, now, &mut acts),
+            (true, Frame::Roster) => self.on_roster(handle, now, &mut acts),
         }
         self.piggyback_online(handle, now, &mut acts);
         self.flush_due(now, &mut acts);
         acts
+    }
+
+    /// Everybody online with a known position, nearest to the asker first, positions on the ROSTER_GRID_M grid. v3 players only; at most once per ROSTER_EVERY_MS.
+    fn on_roster(&mut self, handle: u16, now: u64, acts: &mut Vec<Action>) {
+        let c = self.conns.get_mut(&handle).unwrap();
+        if c.ver != VERSION_3 || c.last_roster_ms.is_some_and(|t| now < t + ROSTER_EVERY_MS) {
+            self.count_drop("roster rate");
+            return;
+        }
+        c.last_roster_ms = Some(now);
+        let me = c.pos;
+        let mut list: Vec<(f32, u16, f32, f32, &[u8])> = self
+            .conns
+            .values()
+            .filter(|o| o.helloed && o.handle != handle)
+            .filter_map(|o| o.pos.map(|(x, z)| (me.map_or(0.0, |(mx, mz)| (x - mx).hypot(z - mz)), o.handle, x, z, o.info.as_slice())))
+            .collect();
+        list.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        list.truncate(ROSTER_MAX);
+        let online = self.conns.values().filter(|c| c.helloed).count() as u16;
+        let entries: Vec<(u16, f32, f32, &[u8])> = list.iter().map(|e| (e.1, e.2, e.3, e.4)).collect();
+        acts.push(Action::Send(handle, roster_frame(online, &entries)));
     }
 
     fn on_info(&mut self, handle: u16, info: &[u8], now: u64, acts: &mut Vec<Action>) {
@@ -1347,6 +1373,40 @@ mod tests {
         hub.on_binary(h, &state(x, z), now);
         h
     }
+    #[test]
+    fn roster_lists_everybody_with_a_position_nearest_first_on_a_grid() {
+        let mut hub = Hub::new(1);
+        let a = spawn3(&mut hub, "anna", 0.0, 0.0, 0);
+        let b = spawn3(&mut hub, "bea", 3010.0, -1240.0, 0);
+        let c = spawn3(&mut hub, "carlo", 120.0, 20.0, 0);
+        let _quiet = join3(&mut hub, "dino", 0, 0);   // no state yet: not listed
+        let acts = hub.on_binary(a, &[6], 10);
+        let r = of_type(&acts, a, T_ROSTER);
+        assert_eq!(r.len(), 1);
+        let f = r[0];
+        assert_eq!(u16::from_le_bytes([f[1], f[2]]), 4, "online count");
+        assert_eq!(f[3], 2, "two others with a position");
+        let h0 = u16::from_le_bytes([f[4], f[5]]);
+        assert_eq!(h0, c, "nearest first");
+        assert_eq!(i16::from_le_bytes([f[6], f[7]]), 2, "120 m on the 50 m grid");
+        let n0 = f[10 + 2] as usize;
+        let at = 10 + 3 + n0;
+        assert_eq!(u16::from_le_bytes([f[at], f[at + 1]]), b);
+        assert_eq!(i16::from_le_bytes([f[at + 2], f[at + 3]]), 60);
+        assert_eq!(i16::from_le_bytes([f[at + 4], f[at + 5]]), -25);
+        // asked again at once: dropped; after the gap: answered
+        assert!(of_type(&hub.on_binary(a, &[6], 500), a, T_ROSTER).is_empty());
+        assert_eq!(of_type(&hub.on_binary(a, &[6], 3100), a, T_ROSTER).len(), 1);
+    }
+
+    #[test]
+    fn roster_is_not_for_v2_players() {
+        let mut hub = Hub::new(1);
+        let a = spawn(&mut hub, "old", 0.0, 0);
+        let _b = spawn3(&mut hub, "new", 10.0, 0.0, 0);
+        assert!(of_type(&hub.on_binary(a, &[6], 10), a, T_ROSTER).is_empty());
+    }
+
     /// Lets every set settle: three rounds of one state from everybody, 1.1 s apart, starting at `t`. Returns the time after.
     fn settle(hub: &mut Hub, who: &[(u16, f64, f64)], t: u64) -> u64 {
         let mut t = t;

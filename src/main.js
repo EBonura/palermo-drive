@@ -130,7 +130,18 @@ const canvas = document.getElementById('view');
 const ctxQ = (new URLSearchParams(location.search).get('ctx') || '').split(','), antialias = new URLSearchParams(location.search).get('aa') !== '0';
 const context = ctxQ.includes('old') ? null : canvas.getContext('webgl2', { alpha: false, depth: true, stencil: false, antialias, premultipliedAlpha: true, preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: false,
   powerPreference: ctxQ.includes('hp') ? 'high-performance' : ctxQ.includes('lp') ? 'low-power' : 'default', desynchronized: ctxQ.includes('desync') });
-const renderer = new THREE.WebGLRenderer(context ? { canvas, context, antialias } : { canvas, antialias });   // no WebGL 2: three says so itself
+// No 3D at all: the browser has blocked WebGL for the site (after the graphics chip crashed or reset once, Chrome says "Web page caused context loss and was blocked"
+// until it is restarted) or the device has none. The loading screen says what to do instead of hanging.
+function noWebGL(e) {
+  const el = document.getElementById('loading'), it = !/^en/i.test(navigator.language || '');
+  if (el) el.innerHTML = `<div style="max-width:min(88vw,560px);text-align:center;line-height:1.35;text-transform:none;letter-spacing:0;color:#fff">${it
+    ? '<b style="font-size:1.2em">Il browser ha bloccato la grafica 3D</b><br><br>Chiudi del tutto il browser (tutte le finestre, o chiudi l\'app) e riaprilo, poi torna su palermo-drive.it.'
+    : '<b style="font-size:1.2em">Your browser has blocked 3D graphics</b><br><br>Close the browser completely (every window, or quit the app), reopen it and come back to palermo-drive.it.'}</div>`;
+  throw e;
+}
+let renderer;
+try { renderer = new THREE.WebGLRenderer(context ? { canvas, context, antialias } : { canvas, antialias }); }   // no WebGL 2: three says so itself
+catch (e) { noWebGL(e); }
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
 // [perf pass] The production build defines __PD_PROD__: skipping the per-program compile/link status query lets the browser compile shaders in parallel.
 if (typeof __PD_PROD__ !== 'undefined') renderer.debug.checkShaderErrors = false;

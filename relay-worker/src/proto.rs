@@ -72,6 +72,13 @@ pub const SAY_RADIUS_M: f32 = 400.0;
 /// How far a phrase is heard at all (the owner asked for 1 km, 21 Nov 2026): beyond SAY_RADIUS_M, or from a player the receiver does not hold,
 /// it goes as SAY_FAR with the sender's info, to v3 players only. The sets (and the traffic of states) stay at SET_RADIUS_M.
 pub const SAY_FAR_RADIUS_M: f32 = 1000.0;
+/// The list of everybody online (v3 only, asked for with a ROSTER frame [6] when the game opens its players panel): [11][online u16][n u8] then n times
+/// [handle u16][x i16][z i16][info], positions in ROSTER_GRID_M squares so no player is placed nearer than that, nearest to the asker first, at most ROSTER_MAX.
+pub const T_ROSTER: u8 = 11;
+pub const ROSTER_MAX: usize = 40;
+pub const ROSTER_GRID_M: f32 = 50.0;
+/// Least time between two ROSTER answers to one player (a request inside it is dropped and counted).
+pub const ROSTER_EVERY_MS: u64 = 3_000;
 /// The game rejects any position with |x| or |z| at or beyond this (src/p2p/p2p.js, unpackFast).
 pub const WORLD_LIMIT_M: f32 = 20_000.0;
 
@@ -101,6 +108,7 @@ pub enum Frame<'a> {
     State { body: &'a [u8], x: f32, z: f32 },
     Say { phrase: u8 },
     To { handle: u16, direct: &'a [u8] },
+    Roster,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -191,6 +199,7 @@ pub fn parse(b: &[u8]) -> Result<Frame<'_>, ParseError> {
         3 => check_state(&b[1..]).map(|(x, z)| Frame::State { body: &b[1..], x, z }).ok_or(Malformed),
         4 if b.len() == 2 => Ok(Frame::Say { phrase: b[1] }),
         5 if (4..=3 + MAX_DIRECT).contains(&b.len()) => Ok(Frame::To { handle: u16::from_le_bytes([b[1], b[2]]), direct: &b[3..] }),
+        6 if b.len() == 1 => Ok(Frame::Roster),
         _ => Err(Malformed),
     }
 }
@@ -253,6 +262,21 @@ pub fn state_frame(from: u16, body: &[u8]) -> Vec<u8> {
 pub fn say_frame(from: u16, phrase: u8) -> Vec<u8> {
     let h = from.to_le_bytes();
     vec![5, h[0], h[1], phrase]
+}
+
+/// `entries`: (handle, x, z, info) of the players to list, nearest first, already cut to ROSTER_MAX.
+pub fn roster_frame(online: u16, entries: &[(u16, f32, f32, &[u8])]) -> Vec<u8> {
+    let mut o = vec![T_ROSTER];
+    o.extend_from_slice(&online.to_le_bytes());
+    o.push(entries.len() as u8);
+    for (h, x, z, info) in entries {
+        o.extend_from_slice(&h.to_le_bytes());
+        for v in [x, z] {
+            o.extend_from_slice(&((v / ROSTER_GRID_M).round().clamp(i16::MIN as f32, i16::MAX as f32) as i16).to_le_bytes());
+        }
+        o.extend_from_slice(info);
+    }
+    o
 }
 
 pub fn say_far_frame(from: u16, phrase: u8, info: &[u8]) -> Vec<u8> {

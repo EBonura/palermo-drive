@@ -17,7 +17,6 @@ Attribution text required by the CC BY 4.0 licence (Kevin MacLeod, incompetech.c
 | Bushwick Tarantella (`bushwick-tarantella.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
 | Meatball Parade (`meatball-parade.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
 | Tarantella, traditional, arr. William Popp (`tarantella-air-force-strings.m4a`) | Air Force Strings, United States Air Force Band (from "International Mosaic", 2009) | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain (work of the US Government) | web re-encode, loudness normalised |
-| Funiculì, Funiculà (`funiculi-funicula-banda.m4a`) | Ferruccio Giannini with chorus and the Royal Marine Band of Italy, Victor Talking Machine Co. (1903); music by Luigi Denza | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav | Public domain | web re-encode (mono), loudness normalised |
 
 ## Alamia e Sperandeo (32 tracks)
 

@@ -38,10 +38,29 @@ html:not(.touch) .mpx-key { display: block; }
 @media (max-width: 720px) { .mpx.wheel .mpx-feed { opacity: 0; } }   /* the ring of the wheel reaches this far left on a small screen */
 @media (max-height: 460px) { .mpx-feed > :nth-last-child(n+3) { display: none; } .mpx, .mpx-feed { gap: 3px; } .mpx-line { padding-top: 3px; padding-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }   /* a short screen has room for two single lines, under the mission card and its messages */
 @media (prefers-reduced-motion: reduce) { .mpx-line { transition: none; } }
+.mpx-cap { pointer-events: auto; cursor: pointer; }
+.mpx-chev { flex: none; width: 14px; height: 14px; margin-left: -2px; opacity: .6; transition: transform .15s ease; }
+.mpx.list .mpx-chev { transform: rotate(180deg); }
+.mpx-list { display: none; box-sizing: border-box; width: min(300px, 46vw); max-height: min(330px, calc(100vh - 150px)); overflow: auto; padding: 6px; border-radius: 14px; background: rgba(13,7,10,.92);
+  box-shadow: 0 8px 24px rgba(0,0,0,.45), inset 0 0 0 1px rgba(245,169,201,.22); color: #fff; pointer-events: auto; overscroll-behavior: contain; }
+.mpx.list .mpx-list { display: block; }
+.mpx-lh { padding: 2px 6px 6px; font: 700 12px/1.2 var(--pd-cond, system-ui, sans-serif); letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+.mpx-le { padding: 8px; font: 500 12px/1.3 var(--pd-sans, system-ui, sans-serif); opacity: .75; }
+.mpx-r { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; }
+.mpx-r + .mpx-r { border-top: 1px solid rgba(255,255,255,.07); }
+.mpx-rt { flex: 1; min-width: 0; }
+.mpx-rn { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.mpx-rn b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 14px/1.15 var(--pd-cond, system-ui, sans-serif); letter-spacing: .03em; color: #ff6fae; unicode-bidi: isolate; }
+.mpx-rn small { flex: none; font: 500 10.5px/1.2 var(--pd-sans, system-ui, sans-serif); opacity: .6; }
+.mpx-rl { margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px/1.25 var(--pd-sans, system-ui, sans-serif); opacity: .85; }
+.mpx-rl .near { color: #00e1ff; font-weight: 700; }
+.mpx-go { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: linear-gradient(90deg, #e8559a, #f5a9c9); color: #1a0b12; font: 700 11px/26px var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.mpx-go:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); cursor: default; }
+@media (max-height: 460px) { .mpx-list { max-height: calc(100vh - 120px); } .mpx-r { padding-top: 4px; padding-bottom: 4px; } }
 `;
 const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6.5L8 20.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>';
 
-export function createPanel({ zone, onTalk }) {
+export function createPanel({ zone, onTalk, onList, onGo }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const root = el('div', 'mpx pd-p2p'); root.setAttribute('role', 'group');   // pd-p2p: hidden in the Garage by the page rule in src/p2p/p2p.js
@@ -51,7 +70,11 @@ export function createPanel({ zone, onTalk }) {
   const talk = el('button', 'pd-bbtn mpx-talk'); talk.type = 'button'; talk.innerHTML = ICON; talk.setAttribute('aria-haspopup', 'true'); talk.setAttribute('aria-expanded', 'false');
   const key = el('span', 'mpx-key', 'T'); key.setAttribute('aria-hidden', 'true');
   const msg = el('div', 'mpx-msg'); msg.setAttribute('role', 'status');   // the sentence that says why there is nobody (relay full, over for today, cannot be reached)
-  cap.append(ring, txt, key, talk); root.append(feed, msg, cap);
+  const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); chev.setAttribute('viewBox', '0 0 24 24'); chev.setAttribute('class', 'mpx-chev'); chev.innerHTML = '<path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
+  const list = el('div', 'mpx-list'); list.setAttribute('role', 'list');
+  cap.append(ring, txt, chev, key, talk); root.append(feed, msg, cap, list);
+  cap.addEventListener('click', e => { if (talk.contains(e.target)) return; onList?.(); });   // the capsule opens the list of everybody online (the talk button keeps its own job)
+  list.addEventListener('click', e => { const b = e.target.closest('.mpx-go'); if (b && !b.disabled) onGo?.(+b.dataset.h); });
   (zone || document.body).appendChild(root);
   talk.addEventListener('click', () => { talk.blur(); onTalk(); });   // blur: the arrow keys go on driving
   const timers = new Set();
@@ -65,6 +88,26 @@ export function createPanel({ zone, onTalk }) {
       talk.classList.toggle('idle', !!s.idle); talk.setAttribute('aria-expanded', String(!!s.open)); root.classList.toggle('wheel', !!s.open);
     }
   }
+  // the list: { open, head, empty, rows: [{ h, name, veh, place, dist, near, go, goLabel }] }, every word from another player set as text
+  let listSig = '';
+  function setList(L) {
+    root.classList.toggle('list', !!L.open);
+    if (!L.open) { listSig = ''; return; }
+    const sig = JSON.stringify(L); if (sig === listSig) return; listSig = sig;
+    const top = list.scrollTop; list.textContent = '';
+    list.append(el('div', 'mpx-lh', L.head));
+    if (!L.rows.length) list.append(el('div', 'mpx-le', L.empty));
+    for (const r of L.rows) {
+      const row = el('div', 'mpx-r'), t = el('div', 'mpx-rt'), n = el('div', 'mpx-rn'), l = el('div', 'mpx-rl');
+      row.setAttribute('role', 'listitem');
+      n.append(el('b', '', r.name), el('small', '', r.veh));
+      l.append(document.createTextNode(r.place + ' · '), el('span', r.near ? 'near' : '', r.dist));
+      t.append(n, l);
+      const b = el('button', 'mpx-go', r.goLabel); b.type = 'button'; b.dataset.h = r.h; b.disabled = !r.go;
+      row.append(t, b); list.append(row);
+    }
+    list.scrollTop = top;
+  }
   function drop(l) { l.remove(); }
   function line(name, verb, text, mine) {
     const l = el('div', 'mpx-line' + (mine ? ' mine' : ''));
@@ -75,5 +118,5 @@ export function createPanel({ zone, onTalk }) {
     timers.add(a);
   }
   function clear() { for (const t of timers) clearTimeout(t); timers.clear(); feed.textContent = ''; }
-  return { root, talk, set, line, clear, get lines() { return [...feed.children].map(l => l.textContent); } };
+  return { root, talk, set, setList, line, clear, get lines() { return [...feed.children].map(l => l.textContent); } };
 }

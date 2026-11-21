@@ -108,16 +108,21 @@ The ground heights of the whole-city tiles come from three open datasets. Nothin
 | Ortofoto Regione Siciliana ATA 2012-2013 (15 cm and 25 cm): only colour values derived from it, no imagery | Regione Siciliana, Assessorato Regionale del Territorio e dell'Ambiente, Dipartimento Urbanistica, Nodo Regionale S.I.T.R. | https://www.sitr.regione.sicilia.it/geoportale/it/metadata/details/608 | CC BY 4.0 (as stated by the service record) | one colour per roof and one relative tint per 20 m ground cell, extracted, shadow-filtered and colour-rebalanced |
 
 
+## Music: rights
+
+All songs on the car radio remain the property of their artists and rights holders. They are played in a free, non-commercial game to support music from Palermo; no ownership of any song is claimed. A rights holder who wants a song credited differently or removed can write on Instagram to @izzy88izzy and it will be done promptly.
+
+Tutti i brani della radio restano di proprietà dei rispettivi artisti e titolari dei diritti. Sono trasmessi in un gioco gratuito e senza scopo di lucro per far conoscere la musica palermitana; non si rivendica alcun diritto sui brani. Chi detiene i diritti e vuole un credito diverso o la rimozione di un brano può scrivere su Instagram a @izzy88izzy e sarà fatto subito.
+
 ## Car radio: Radio Abbanniata
 
-Southern Italian music: four free-licence tracks and the songs of Alamia e Sperandeo. Every track was re-encoded for the web and loudness normalised; nothing else changed. Full details in [the music credits](music/CREDITS.md).
+Three free-licence tracks and the songs of Alamia e Sperandeo. Every track was re-encoded for the web and loudness normalised; nothing else changed. Full details in [the music credits](music/CREDITS.md).
 
 | Title | Author | Licence | Source |
 | --- | --- | --- | --- |
 | Bushwick Tarantella | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 |
 | Meatball Parade | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 |
 | Tarantella (trad., arr. William Popp) | Air Force Strings, US Air Force Band | Public domain | https://commons.wikimedia.org/wiki/File:Tarantella.ogg |
-| Funiculì, Funiculà (1903) | Ferruccio Giannini, Royal Marine Band of Italy (Victor); music by Luigi Denza | Public domain | https://commons.wikimedia.org/wiki/File:Victor_C-2404_%28Ferruccio_Giannini%29.wav |
 
 ## Alamia e Sperandeo
 

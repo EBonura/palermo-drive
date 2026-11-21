@@ -54,7 +54,7 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], onAir: ['In onda', 'On air'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationAll: ['Tutta musica palermitana', 'All music from Palermo'], stationRights: ['Tutti i brani restano di proprietà dei rispettivi artisti e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica palermitana. Per un credito diverso o la rimozione di un brano scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs remain the property of their artists and rights holders, played without profit to support music from Palermo. To have a song credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
   tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
@@ -383,8 +383,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   OPTS.push(LANG_OPT);
   // the stations as two cards: the name, its line, and IN ONDA on the one playing (src/radio.js STATIONS; the card is a .pd-segb so the click and aria-pressed work as for any choice)
   const stationHTML = o => `<div class="pd-row pd-strow" data-opt="${o.key}">
-      <div class="pd-lab"><span data-k="${o.label}" data-two></span></div>
+      <div class="pd-lab"><span data-k="${o.label}" data-two></span><span class="pd-stallrow"><small class="pd-stall" data-k="stationAll"></small><button class="pd-stinfo" type="button" aria-expanded="false" aria-label="Diritti della musica · Music rights" title="Diritti della musica · Music rights">i</button></span></div>
       <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span><b>${esc(x.name)}</b><small data-stsub="${x.id}"></small><i data-k="onAir"></i></span></button>`).join('')}</div>
+      <p class="pd-stnote" hidden data-k="stationRights"></p>
     </div>`;
   const rowHTML = o => o.key === 'radioStation' ? stationHTML(o) : `<div class="pd-row" data-opt="${o.key}">
       <div class="pd-lab"><span data-k="${o.label}" data-two></span>${o.type === 'slider' ? '<span class="pd-val"></span>' : ''}</div>
@@ -412,6 +413,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-actions"><button class="pd-btn sm" data-nav data-do="back" type="button">${two('back')}</button></div>
     </div>`);
   // the same two language buttons at the foot of the main menu's buttons, as wide as they are (the options screen, reached from the menu and from the side menu, has them too)
+  { const btn = screens.options.querySelector('.pd-stinfo'), note = screens.options.querySelector('.pd-stnote');   // the (i) by Stazione: the music rights notice, short (the full one is in the credits)
+    const show = on => { note.hidden = !on; btn.setAttribute('aria-expanded', String(on)); btn.classList.toggle('on', on); };
+    btn.addEventListener('click', e => { e.stopPropagation(); show(note.hidden); }); note.addEventListener('click', e => { e.stopPropagation(); show(false); }); }   // a tap on the note closes it
   { const row = h('div', 'pd-menulang', rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')); screens.menu.querySelector('.pd-menu').append(row); }
   // credits
   mk('credits', '', `<div class="pd-roll"><div class="pd-rollin"></div></div>
@@ -650,6 +654,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       await settle();
     })).catch(() => {}).then(() => { busy = false; });
   }
+  game.goTo = (x, z) => startAt(x, z);   // the Online list's Raggiungi (src/online/online.js): the same cover, placing and streaming as the start map
   function openPause() {
     if (game.state !== 'play' || busy) return;
     for (const k in screens) delete lastFocus[k];   // the panel opens on "Torna a guidare", not where the last visit left the focus
