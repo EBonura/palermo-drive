@@ -54,7 +54,8 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], radioStation: ['Cambia stazione', 'Change station'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], onAir: ['In onda', 'On air'],
+  tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'],
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
@@ -302,8 +303,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const saved = readSaved();
   if (Number.isFinite(saved.volume)) st.volume = clamp(saved.volume, 0, 1);
   st.musicVolume = Number.isFinite(saved.musicVolume) ? clamp(saved.musicVolume, 0, 1) : (st.musicVolume ?? 0.5); // car radio (src/radio.js)
-  st.radio = saved.radio === 'off' ? 'off' : (st.radio ?? 'on');
-  st.radioStation = STATIONS.some(x => x.id === saved.radioStation) ? saved.radioStation : STATIONS[0].id;   // the station on air (src/radio.js reads and saves it)
+  st.radio = 'on'; st.radioStation = STATIONS[0].id;   // every game starts with the radio on, on Radio Abbanniata (the owner's choice, 21 Nov 2026); Options and the bar change it for the session. src/radio.js reads both
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
@@ -361,24 +361,30 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 `);
   // options
   const OPTS = [
-    { key: 'volume', label: 'volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
-    { key: 'musicVolume', label: 'musicVolume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
-    { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
-    { key: 'radioStation', label: 'station', type: 'seg', vals: STATIONS.map(x => [x.id, null, x.name.replace(/^Radio /, '')]) },
-    { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
-    { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
-    { key: 'fov', label: 'fov', type: 'slider', min: 50, max: 90, step: 5, fmt: v => v + '°' },
-    { key: 'mapPos', label: 'mapPos', type: 'seg', vals: [['top', 'mapTop'], ['bottom', 'mapBottom']] },
-    { key: 'handling', label: 'physics', type: 'seg', vals: [['sphere', 'phSphere'], ['classic', 'phClassic']] },
-    { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
-    { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
-    { key: 'timeSpeed', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
-    { key: 'balloons', label: 'balloons', type: 'seg', vals: [['s', 'bS'], ['m', 'bM'], ['l', 'bL']] }, // how big the speech balloons are (src/shouts.js)
-    { key: 'coords', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
+    { key: 'volume', tab: 'audio', label: 'volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'musicVolume', tab: 'audio', label: 'musicVolume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'radio', tab: 'audio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
+    { key: 'radioStation', tab: 'audio', label: 'station', type: 'seg', vals: STATIONS.map(x => [x.id, null, x.name.replace(/^Radio /, '')]) },
+    { key: 'units', tab: 'drive', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
+    { key: 'camera', tab: 'drive', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
+    { key: 'fov', tab: 'drive', label: 'fov', type: 'slider', min: 50, max: 90, step: 5, fmt: v => v + '°' },
+    { key: 'mapPos', tab: 'drive', label: 'mapPos', type: 'seg', vals: [['top', 'mapTop'], ['bottom', 'mapBottom']] },
+    { key: 'handling', tab: 'drive', label: 'physics', type: 'seg', vals: [['sphere', 'phSphere'], ['classic', 'phClassic']] },
+    { key: 'timeStart', tab: 'time', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
+    { key: 'timeNow', tab: 'time', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
+    { key: 'timeSpeed', tab: 'time', label: 'timeSpeed', type: 'seg', vals: [['off', 'tOff'], ['slow', 'tSlow'], ['normal', 'tNormal'], ['fast', 'tFast']] },
+    { key: 'balloons', tab: 'more', label: 'balloons', type: 'seg', vals: [['s', 'bS'], ['m', 'bM'], ['l', 'bL']] }, // how big the speech balloons are (src/shouts.js)
+    { key: 'coords', tab: 'more', label: 'coords', type: 'seg', vals: [['off', 'cOff'], ['on', 'cOn']] }, // position on screen, for reporting a spot (src/coords.js)
   ];
+  const OPT_TABS = [['audio', 'tabAudio'], ['drive', 'tabDrive'], ['time', 'tabTime'], ['more', 'tabMore']];   // Options in four tabs, each fits on a screen
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
   OPTS.push(LANG_OPT);
-  const rowHTML = o => `<div class="pd-row" data-opt="${o.key}">
+  // the stations as two cards: the name, its line, and IN ONDA on the one playing (src/radio.js STATIONS; the card is a .pd-segb so the click and aria-pressed work as for any choice)
+  const stationHTML = o => `<div class="pd-row pd-strow" data-opt="${o.key}">
+      <div class="pd-lab"><span data-k="${o.label}" data-two></span></div>
+      <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span><b>${esc(x.name)}</b><small data-stsub="${x.id}"></small><i data-k="onAir"></i></span></button>`).join('')}</div>
+    </div>`;
+  const rowHTML = o => o.key === 'radioStation' ? stationHTML(o) : `<div class="pd-row" data-opt="${o.key}">
       <div class="pd-lab"><span data-k="${o.label}" data-two></span>${o.type === 'slider' ? '<span class="pd-val"></span>' : ''}</div>
       ${o.type === 'seg'
         ? `<div class="pd-seg" role="group">${o.vals.map(v => `<button class="pd-segb" data-nav type="button" data-v="${v[0]}" aria-pressed="false"><span ${v[1] ? `data-k="${v[1]}"` : ''}>${v[2] || ''}</span></button>`).join('')}</div>`
@@ -395,8 +401,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
       <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2>${rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')}</div>
+      <div class="pd-otabs" role="tablist">${OPT_TABS.map(([t, k]) => `<button class="pd-otab" data-nav data-do="optTab" data-tab="${t}" role="tab" type="button" aria-selected="false"><span data-k="${k}"></span></button>`).join('')}</div>
       <div class="pd-scrollwrap">
-        <div class="pd-grid">${OPTS.filter(o => o !== LANG_OPT).map(rowHTML).join('')}${NAME_ROW}${PIN_ROW}</div>
+        <div class="pd-grid">${OPT_TABS.map(([t]) => `<div class="pd-tabp" data-tab="${t}">${OPTS.filter(o => o.tab === t).map(rowHTML).join('')}${t === 'more' ? NAME_ROW + PIN_ROW : ''}</div>`).join('')}</div>
         <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
         <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
       </div>
@@ -691,6 +698,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   function act(name, el) {
     switch (name) {
+      case 'optTab': return setOptTab(el.dataset.tab);
       case 'drive': return go('start', { push: true });
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
@@ -740,6 +748,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (v && v.station) lastStation = v.station;
     barT.textContent = title; barA.textContent = v ? [v.theme ? '' : label, v.artist || ''].filter(Boolean).join(' · ') : ''; bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
+    for (const x of STATIONS) {   // the station cards in Options: their line in the language shown, IN ONDA on the one playing
+      const sm = screens.options.querySelector(`[data-stsub="${x.id}"]`); if (sm) sm.textContent = x.sub[i];
+      const card = screens.options.querySelector(`.pd-stcard[data-v="${x.id}"]`); if (card) card.classList.toggle('air', !!(v && v.station === x.id && playing));
+    }
   }
   addEventListener('pd-radio', e => { syncRadio(e.detail); kickBars(); });
 
@@ -889,6 +901,15 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     }
     save(); syncOptions();
   }
+  // the Options tabs: one panel shown at a time, the last one chosen kept for the session
+  let optTab = 'audio';
+  function setOptTab(t) {
+    optTab = t;
+    for (const b of screens.options.querySelectorAll('.pd-otab')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
+    for (const p of screens.options.querySelectorAll('.pd-tabp')) p.classList.toggle('on', p.dataset.tab === t);
+    const g = screens.options.querySelector('.pd-grid'); if (g) { g.scrollTop = 0; g.dispatchEvent(new Event('scroll')); }
+  }
+  setOptTab(optTab);
   const optValue = o => o.key === 'lang' ? lang : st[o.key];
   function syncOptions() {
     for (const o of OPTS) {

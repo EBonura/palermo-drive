@@ -91,3 +91,4 @@ Changes made to every track: leading silence trimmed, loudness normalised to abo
 | Scappeddami (`maddaus-scappeddami`) | Maddaus | the author's own recording | https://www.youtube.com/watch?v=OtqlwuRofR0 |
 | Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | sent by the band to the game for its radio (21 Nov 2026) | WAV sent by email |
 | 24 Luglio (`not-another-prayer-24-luglio`) | Not Another Prayer | sent by the band to the game for its radio (21 Nov 2026) | WAV sent by email |
+| Piombo (`diskonnekt-piombo`) | Diskonnekt (from La morte del sole, 2026, the single with the official video) | verbal permission from the singer to the game's author (21 Nov 2026) | https://www.youtube.com/watch?v=ZQx-8z4UsEw (Diskonnekt Official) |

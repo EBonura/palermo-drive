@@ -81,6 +81,7 @@ const LAMIERA = [   // [id, title, artist]
   ['maddaus-scappeddami', 'Scappeddami', 'Maddaus'],
   ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
   ['not-another-prayer-24-luglio', '24 Luglio', 'Not Another Prayer'],
+  ['diskonnekt-piombo', 'Piombo', 'Diskonnekt'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [

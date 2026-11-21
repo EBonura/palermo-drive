@@ -44,7 +44,7 @@ const KEEP_MOVING = 1000, KEEP_PARKED = 4000, KEEP_MOVING_NOBODY = 4000, KEEP_PA
 // how far the car may be from where the receiver draws it before a new state goes (close by; times the distance over DR_SCALE metres farther out): metres, radians, m/s. Measured in docs/ONLINE-CROWD.md: the position, heading and speed
 // ones add 0.07 m to the 95th percentile of the drawn error. The roll one was 0.05: on the real game's own recorded roll, 0.075 is worth 4 % of the states and 0.1 another 2 %, and the roll drawn is off by 1.8 degrees at the 95th percentile either way (tools/online/netcompare.mjs).
 const DR_POS = 0.3, DR_TH = 0.05, DR_V = 0.75, DR_STEER = 0.1, DR_ROLL = 0.075, DR_LEAN = 0.1, DR_H = 0.2, DR_SCALE = 25;
-const DRAW_R = 400, DRAW_OUT = 480;   // metres: a player farther than this is a dot with a name on the maps, not a car (fades in again inside DRAW_R)
+const DRAW_R = 400, DRAW_OUT = 480, SAY_R = 1000;   // SAY_R: how far a phrase is heard (the owner's 1 km, 21 Nov 2026); past DRAW_R it comes as a line with the name, no bubble (IN.SAY_FAR)   // DRAW_R, DRAW_OUT: metres, a player farther than this is a dot with a name on the maps, not a car (fades in again inside DRAW_R)
 
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const wrapPI = a => a - TAU * Math.floor((a + Math.PI) / TAU);
@@ -218,6 +218,7 @@ export function createOnline(env) {
       }
       return;
     }
+    if (f.type === IN.SAY_FAR) return onSayFar(f, now);
     if (f.type === IN.ENTER) return onEnter(f, now);
     if (f.type === IN.LEAVE) return onLeave(f.handle);
     const p = others.get(f.handle);
@@ -269,6 +270,8 @@ export function createOnline(env) {
   const staleMs = p => p.far ? STALE_FAR_MS : p.parked ? STALE_PARKED_MS : STALE_MS;
   const reach = p => !!(p && p.held !== false && Number.isFinite(p.x) && performance.now() - p.lastRx < staleMs(p) && Math.hypot(p.x - car.x, p.z - car.z) <= DRAW_R);
   const inReach = () => { let n = 0; for (const p of others.values()) if (reach(p)) n++; return n; };
+  // for a phrase: anyone we know of within SAY_R (the relay sends us the nearest players beyond DRAW_R too, so if anybody is within 1 km we know one of them)
+  const inSayReach = () => { for (const p of others.values()) if (Number.isFinite(p.x) && performance.now() - p.lastRx < STALE_FAR_MS && Math.hypot(p.x - car.x, p.z - car.z) <= SAY_R) return true; return false; };
   const SAID = { it: 'rici', en: 'said' };   // "izzy rici “ciao curò”": the owner's spelling (7 Nov: rici, not dici)
   function onSay(p, phrase, now) {
     if (now - (p.lastSay || -1e9) < SAY_GAP_MS * 0.8) { stats.rxDropped++; return; }
@@ -276,10 +279,17 @@ export function createOnline(env) {
     if (!p.shown || !Number.isFinite(p.x) || Math.hypot(p.x - car.x, p.z - car.z) > DRAW_R) { stats.rxDropped++; return; }   // too far to be a car on our street: not for us
     p.lastSay = now; rm.say(rem, PHRASES[phrase], now); panel.line(p.name || 'Player', SAID[lang()], PHRASES[phrase], false); chirp('say');
   }
+  // a phrase from up to SAY_R away, from a player we do not see as a car: a line with the name only. The relay keeps the pace (one a second); this keeps a stranger's flood out too
+  const farSaid = new Map();
+  function onSayFar(f, now) {
+    if (now - (farSaid.get(f.handle) || -1e9) < SAY_GAP_MS * 0.8 || !takeGlobal(now)) { stats.rxDropped++; return; }
+    farSaid.set(f.handle, now); if (farSaid.size > 64) farSaid.delete(farSaid.keys().next().value);
+    panel.line(f.info.name || 'Player', SAID[lang()], PHRASES[f.phrase], false); chirp('say');
+  }
   let lastSaid = -1e9;
   function say(idx) {
     const now = performance.now(); if (!(idx >= 0 && idx < PHRASES.length) || now - lastSaid < SAY_GAP_MS) return false;
-    if (!inReach() || !tx(sayFrame(idx))) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr(`Entro ${DRAW_R} m`, `Within ${DRAW_R} m`), true); return false; }
+    if (!inSayReach() || !tx(sayFrame(idx))) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr('Entro 1 km', 'Within 1 km'), true); return false; }
     lastSaid = now;
     panel.line(myName, SAID[lang()], PHRASES[idx], true);   // what you said, in the same form as on their screens (the bubble is over your car on theirs)
     return true;
@@ -302,7 +312,7 @@ export function createOnline(env) {
   }
   const online = () => named && agreed;   // the player said yes (the name card, or Online in Options) and has not gone solo since
   function openWheel() {
-    if (!inReach()) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr(`Entro ${DRAW_R} m`, `Within ${DRAW_R} m`), true); return; }
+    if (!inSayReach()) { toast(tr('Nessuno vicino', 'Nobody close enough'), tr('Entro 1 km', 'Within 1 km'), true); return; }
     wheel.setCategories(buildWheel()); wheel.open();
   }
   const toggleWheel = () => { if (wheel.isOpen) wheel.close(); else openWheel(); };

@@ -165,7 +165,7 @@ One song, "DIY Violence" by Terrorage<!-- music/terrorage.m4a, played from src/p
 
 ## Radio Lamiera
 
-The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema and "24 Luglio" by Not Another Prayer. Used with the permission of the bands. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
+The rock and metal station of the car radio: "Fury of Hatred" by Ego Divided, "DIY Violence" by Terrorage, "Rain from the Universe" and "Hold Your Dreams" by Crimson Wind, "The Court of Guilty Ones" by Der Geist, "Zombie Horde" by The Ace Drops, "Killerotomia" by Trinakrius, "Silver Thread" by AnthiryA, "U Viteddazzu" by Cadaver Mutilator, "Scappeddami" by Maddaus, "Al Gelido Già Perso" by Diastema, "24 Luglio" by Not Another Prayer and "Piombo" by Diskonnekt. Used with the permission of the bands. Re-encoded for the web and loudness normalised, nothing else changed. Details in [the music credits](music/CREDITS.md).
 
 ## Pedestrian sprites (LPC)
 

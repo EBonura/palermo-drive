@@ -57,6 +57,8 @@ pub const BUSY_GAPS: usize = 1;
 /// Frame types of v3, relay to client.
 pub const T_BATCH: u8 = 8;
 pub const T_AUDIENCE: u8 = 9;
+/// A phrase from a player the receiver does not hold (v3 only): [10][handle u16][phrase][info], so it can be shown with the sender's name.
+pub const T_SAY_FAR: u8 = 10;
 /// Audience bands (AUDIENCE frame): 0 nobody holds the player; 1.. the distance of the nearest player that holds it, by these upper edges in metres; the last band is beyond them all.
 pub const AUDIENCE_EDGES: [f32; 7] = [50.0, 100.0, 150.0, 250.0, 350.0, 600.0, 1200.0];
 /// How much farther than a band's edge the nearest holder must be before the player is told it is in a farther band (the other way it is told at once).
@@ -67,6 +69,9 @@ pub const HYSTERESIS_M: f32 = 30.0;
 pub const RECOMPUTE_MS: u64 = 1_000;
 /// A phrase reaches players this close: the game's DRAW_R (the spec said 250).
 pub const SAY_RADIUS_M: f32 = 400.0;
+/// How far a phrase is heard at all (the owner asked for 1 km, 21 Nov 2026): beyond SAY_RADIUS_M, or from a player the receiver does not hold,
+/// it goes as SAY_FAR with the sender's info, to v3 players only. The sets (and the traffic of states) stay at SET_RADIUS_M.
+pub const SAY_FAR_RADIUS_M: f32 = 1000.0;
 /// The game rejects any position with |x| or |z| at or beyond this (src/p2p/p2p.js, unpackFast).
 pub const WORLD_LIMIT_M: f32 = 20_000.0;
 
@@ -248,6 +253,13 @@ pub fn state_frame(from: u16, body: &[u8]) -> Vec<u8> {
 pub fn say_frame(from: u16, phrase: u8) -> Vec<u8> {
     let h = from.to_le_bytes();
     vec![5, h[0], h[1], phrase]
+}
+
+pub fn say_far_frame(from: u16, phrase: u8, info: &[u8]) -> Vec<u8> {
+    let h = from.to_le_bytes();
+    let mut o = vec![T_SAY_FAR, h[0], h[1], phrase];
+    o.extend_from_slice(info);
+    o
 }
 
 pub fn to_frame(from: u16, direct: &[u8]) -> Vec<u8> {

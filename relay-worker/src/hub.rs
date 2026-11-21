@@ -644,13 +644,23 @@ impl Hub {
         }
         let Some((x, z)) = c.pos else { return };
         let watchers = c.watchers.clone();
+        let info = c.info.clone();
         let frame = say_frame(handle, phrase);
         let near: Vec<u16> = watchers
             .into_iter()
             .filter(|w| self.conns.get(w).and_then(|r| r.pos).is_some_and(|(rx, rz)| (rx - x).hypot(rz - z) <= SAY_RADIUS_M))
             .collect();
-        self.stats.forwarded += near.len() as u64;
+        // the rest of the v3 players within SAY_FAR_RADIUS_M hear it too, with the sender's name: they do not hold the sender as a car
+        let far_frame = say_far_frame(handle, phrase, &info);
+        let far: Vec<u16> = self
+            .conns
+            .iter()
+            .filter(|(h, r)| **h != handle && r.helloed && r.ver == VERSION_3 && !near.contains(h) && r.pos.is_some_and(|(rx, rz)| (rx - x).hypot(rz - z) <= SAY_FAR_RADIUS_M))
+            .map(|(h, _)| *h)
+            .collect();
+        self.stats.forwarded += (near.len() + far.len()) as u64;
         acts.extend(near.into_iter().map(|w| Action::Send(w, frame.clone())));
+        acts.extend(far.into_iter().map(|w| Action::Send(w, far_frame.clone())));
     }
 
     fn on_to(&mut self, handle: u16, target: u16, direct: &[u8], now: u64, acts: &mut Vec<Action>) {
@@ -981,6 +991,27 @@ mod tests {
         let s = spawn(&mut hub, "s", 0.0, 0);
         let acts = hub.on_binary(s, &say(1), 1200);
         assert!(of_type(&acts, lonely, 5).is_empty());
+    }
+
+    #[test]
+    fn say_far_reaches_v3_players_within_a_kilometre_with_the_name() {
+        let mut hub = Hub::new(1);
+        let s = spawn3(&mut hub, "s", 0.0, 0.0, 0);
+        let near = spawn3(&mut hub, "near", 100.0, 0.0, 0);
+        let mid = spawn3(&mut hub, "mid", 700.0, 0.0, 0);
+        let edge = spawn3(&mut hub, "edge", 999.0, 0.0, 0);
+        let beyond = spawn3(&mut hub, "beyond", 1001.0, 0.0, 0);
+        let old = spawn(&mut hub, "old", 600.0, 0); // a v2 player: no SAY_FAR
+        let t = settle(&mut hub, &[(s, 0.0, 0.0), (near, 100.0, 0.0), (mid, 700.0, 0.0), (edge, 999.0, 0.0), (beyond, 1001.0, 0.0)], 0);
+        let acts = hub.on_binary(s, &say(30), t + 100);
+        assert_eq!(of_type(&acts, near, 5), vec![&say_frame(s, 30)], "near: the plain SAY");
+        assert!(of_type(&acts, near, T_SAY_FAR).is_empty(), "near: not twice");
+        let far_frame = say_far_frame(s, 30, &hub.conn(s).unwrap().info);
+        assert_eq!(of_type(&acts, mid, T_SAY_FAR), vec![&far_frame], "700 m: SAY_FAR with the info");
+        assert_eq!(of_type(&acts, edge, T_SAY_FAR).len(), 1, "999 m");
+        assert!(of_type(&acts, beyond, T_SAY_FAR).is_empty() && of_type(&acts, beyond, 5).is_empty(), "beyond 1 km: nothing");
+        assert!(of_type(&acts, old, T_SAY_FAR).is_empty(), "a v2 player never gets SAY_FAR");
+        assert!(of_type(&acts, s, T_SAY_FAR).is_empty() && of_type(&acts, s, 5).is_empty(), "not to the sender");
     }
 
     #[test]

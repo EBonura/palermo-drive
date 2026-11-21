@@ -13,7 +13,7 @@ import { PHRASES } from './phrases.js';
 export const PROTOCOL = 3, MAX_FRAME = 96, MAX_BATCH = 16, MAX_BATCH_FRAME = 2 + MAX_BATCH * 22, MAX_SET = 64;   // MAX_FRAME is what the relay may send in one frame, a BATCH aside: it is what a client may send
 export const AUDIENCE_LOW = [Infinity, 0, 50, 100, 150, 250, 350, 600, 1200];   // by band: the distance the nearest holder is at least
 export const OUT = { HELLO: 1, INFO: 2, STATE: 3, SAY: 4, TO: 5 };
-export const IN = { WELCOME: 1, ENTER: 2, LEAVE: 3, STATE: 4, SAY: 5, TO: 6, ONLINE: 7, BATCH: 8, AUDIENCE: 9 };
+export const IN = { WELCOME: 1, ENTER: 2, LEAVE: 3, STATE: 4, SAY: 5, TO: 6, ONLINE: 7, BATCH: 8, AUDIENCE: 9, SAY_FAR: 10 };   // SAY_FAR [10][handle][phrase][info]: a phrase from a player within 1 km that we do not hold (relay-worker/src/proto.rs)
 export const MAX_NAME_BYTES = 64, MAX_NAME_RUNES = 16;
 export const MAX_DIRECT = 8;
 const STATE_LEN = 18, MAX_LIFT = 1000, LIFT_MIN = 0.6;   // metres: the ceiling of src/vehicle-air.js is 700 above the sea
@@ -107,6 +107,7 @@ export function parseFrame(data) {
     case IN.LEAVE: return b.length === 3 && u16(b, 1) ? { type: IN.LEAVE, handle: u16(b, 1) } : null;
     case IN.STATE: { if (b.length < 3 + STATE_LEN || !u16(b, 1)) return null; const s = readState(b, 3); return s && { type: IN.STATE, handle: u16(b, 1), s }; }
     case IN.SAY: return b.length === 4 && u16(b, 1) && b[3] < PHRASES.length ? { type: IN.SAY, handle: u16(b, 1), phrase: b[3] } : null;
+    case IN.SAY_FAR: { if (b.length < 7 || !u16(b, 1) || b[3] >= PHRASES.length) return null; const info = readInfo(b, 4); return info && { type: IN.SAY_FAR, handle: u16(b, 1), phrase: b[3], info }; }
     case IN.TO: return b.length >= 4 && b.length <= 3 + MAX_DIRECT && u16(b, 1) ? { type: IN.TO, handle: u16(b, 1), direct: b.subarray(3) } : null;
     case IN.ONLINE: return b.length === 3 ? { type: IN.ONLINE, online: u16(b, 1) } : null;
     default: return null;

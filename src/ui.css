@@ -688,3 +688,62 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-ctlk { flex: 0 0 auto; width: clamp(96px, 20vh, 128px); display: flex; flex-wrap: wrap; gap: 3px; }
 .pd-ctlk kbd { min-width: 22px; box-sizing: border-box; padding: 3px 6px; border-radius: 4px; text-align: center; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.28); font: 700 clamp(12px, 2.8vh, 15px)/1 var(--pd-cond); letter-spacing: .06em; color: #fff; }
 .pd-ctlt { min-width: 0; font: 600 clamp(13px, 3vh, 17px)/1.2 var(--pd-cond); letter-spacing: .03em; color: #fff; }
+
+/* ---------- Options: four tabs, one panel at a time (src/ui.js OPT_TABS). Each setting is a row, the name on the left and the control on the right,
+   with a hairline between rows; the choices are quieter than the menus' buttons, so the one that is on is what stands out. In the docked panel (paused)
+   and on a narrow screen the name goes above the control. */
+.pd-otabs { display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.12); margin: -2px 0 0; }
+.pd-otab { flex: 1 1 0; min-width: 0; position: relative; padding: clamp(6px, 1.6vh, 11px) 6px; border: 0; background: none; cursor: pointer; color: rgba(255,255,255,.55);
+  font: 700 clamp(13px, 2.8vh, 17px)/1 var(--pd-cond); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-appearance: none; appearance: none; transition: color .12s; }
+.pd-otab::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 3px; border-radius: 2px; background: transparent; transition: background .15s, left .15s, right .15s; }
+.pd-otab[aria-selected=true] { color: #fff; }
+.pd-otab[aria-selected=true]::after { left: 8%; right: 8%; background: linear-gradient(90deg, var(--pd-amber), var(--pd-pink)); }
+@media (hover: hover) { .pd-otab:hover { color: #fff; } }
+.pd-otab:focus { outline: none; }
+.pd-kb .pd-otab:focus { outline: 2px solid #fff; outline-offset: -2px; border-radius: 4px; }
+.pd-s-options .pd-grid { display: block; padding-top: 2px; }
+.pd-tabp { display: none; }
+.pd-tabp.on { display: block; }
+.pd-s-options .pd-tabp .pd-row { display: grid; grid-template-columns: minmax(150px, 32%) minmax(0, 1fr); align-items: center; gap: 6px 22px; padding: clamp(7px, 1.7vh, 13px) 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.pd-s-options .pd-tabp .pd-row:last-child { border-bottom: 0; }
+html.pd-mp .pd-s-options .pd-tabp .pd-row.pd-name { display: grid; }
+.pd-s-options .pd-tabp .pd-netseg { flex: 0 0 auto; }
+.pd-s-options .pd-tabp .pd-netseg .pd-segb { flex: 0 0 auto; padding: 0 clamp(10px, 1.6vw, 16px); }
+.pd-s-options .pd-tabp .pd-row.pd-pin { display: none; }
+html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; }
+.pd-s-options .pd-tabp .pd-lab { font-size: clamp(13px, 2.8vh, 17px); letter-spacing: .12em; color: rgba(255,255,255,.78); }
+.pd-s-options .pd-tabp .pd-val { color: var(--pd-amber); font-variant-numeric: tabular-nums; }
+.pd-s-options .pd-tabp .pd-segb { min-height: clamp(36px, 8vh, 44px); font-size: clamp(13px, 3vh, 17px); background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.pd-s-options .pd-tabp .pd-segb[aria-pressed=true] { background: linear-gradient(90deg, var(--pd-pink), var(--pd-amber)); box-shadow: 0 0 10px rgba(232,85,154,.3); }
+@media (hover: hover) { .pd-s-options .pd-tabp .pd-segb:not([aria-pressed=true]):hover { background: rgba(255,255,255,.14); } }
+.pd-s-options .pd-tabp .pd-slider { height: clamp(36px, 8vh, 44px); }
+.pd-s-options .pd-tabp .pd-track { height: 8px; margin-top: -4px; box-shadow: none; background: rgba(255,255,255,.12); }
+/* the stations: two cards, the name in the script of the radio, its line under it, IN ONDA on the one that is playing */
+.pd-stcards { gap: 8px; }
+.pd-s-options .pd-tabp .pd-stcard { min-height: clamp(54px, 12vh, 70px); padding: 0 12px; text-align: left; text-transform: none; letter-spacing: 0; }
+.pd-stcard > span { display: flex; flex-direction: column; justify-content: center; gap: 2px; position: relative; }
+.pd-stcard b { font: 700 clamp(15px, 3.4vh, 20px)/1.05 var(--pd-cond); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-stcard small { font: 500 clamp(11px, 2.3vh, 13px)/1.15 var(--pd-sans); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-stcard i { display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%); padding: 3px 6px; border-radius: 3px; font: 700 10px/1 var(--pd-cond); font-style: normal; letter-spacing: .14em; text-transform: uppercase; background: rgba(10,6,9,.75); color: #fff; }
+.pd-stcard.air i { display: block; }
+.pd-stcard.air i::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #ff4a6a; vertical-align: 1px; animation: pd-air 1.2s ease-in-out infinite; }
+@keyframes pd-air { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .pd-stcard.air i::before { animation: none; } }
+.pd-stcard.air b { padding-right: 70px; }
+/* narrow: the docked panel while paused, and phones held upright or small windows: the name above the control */
+#pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-row, .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: 1fr; gap: 6px; }
+@media (max-width: 640px) { .pd-s-options .pd-tabp .pd-row { grid-template-columns: 1fr; gap: 6px; } }
+#pd-ui[data-st=pause] .pd-otab { font-size: 12px; letter-spacing: .06em; padding: 8px 2px; }
+/* a short screen (a phone held sideways): tighter rows, and the stations beside their name like the other rows, so each tab fits without scrolling */
+@media (max-height: 460px) {
+  .pd-s-options .pd-tabp .pd-row { padding: 3px 2px; }
+  .pd-s-options .pd-tabp .pd-segb { min-height: 34px; }
+  .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(150px, 32%) minmax(0, 1fr); gap: 6px 22px; }
+  .pd-s-options .pd-tabp .pd-stcard { min-height: 46px; }
+  .pd-s-options .pd-tabp .pd-segb, .pd-s-options .pd-tabp .pd-slider { min-height: 36px; height: auto; }
+  .pd-s-options .pd-tabp .pd-slider { height: 36px; }
+  .pd-otab { padding: 5px 4px; }
+}
+/* the docked panel (paused) is narrow: one station card under the other */
+#pd-ui[data-st=pause] .pd-stcards { flex-direction: column; gap: 6px; }
+#pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-stcard { min-height: 44px; }

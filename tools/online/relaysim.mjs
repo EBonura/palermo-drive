@@ -15,7 +15,7 @@ const C = { HELLO: 1, INFO: 2, STATE: 3, SAY: 4, TO: 5 }, S = { WELCOME: 1, ENTE
 const bucketOf = (rate, burst) => ({ rate, burst, tokens: burst, t: Date.now() });
 const take = (b, now = Date.now()) => { b.tokens = Math.min(b.burst, b.tokens + (now - b.t) * b.rate / 1000); b.t = now; if (b.tokens < 1) return false; b.tokens--; return true; };
 
-export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddress = 24, k = 8, sayR = 400, frameDay = 800000, onlineGapMs = 10000, helloMs = 10000, idleMs = 60000 } = {}) {
+export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddress = 24, k = 8, sayR = 400, sayFarR = 1000, frameDay = 800000, onlineGapMs = 10000, helloMs = 10000, idleMs = 60000 } = {}) {
   const conns = new Map();   // handle -> connection
   const perIp = new Map(), frames = new Map();   // address -> live connections; address -> frames today
   const counters = { status: 0, upgrades: 0, refused: 0, frames: 0, malformed: 0, dropped: 0, rateDropped: 0, forwarded: 0, closed: 0 };
@@ -146,7 +146,12 @@ export function startRelaySim({ port = 0, origins = [], maxConns = 300, perAddre
       case C.SAY: {
         if (b.length !== 2) return false;
         if (!take(c.say)) { counters.rateDropped++; return true; }
-        for (const r of conns.values()) if (r.set.has(c.handle) && Math.hypot(r.x - c.x, r.z - c.z) <= sayR) send(r, Buffer.from([S.SAY, c.handle & 255, c.handle >> 8, b[1]]));
+        for (const r of conns.values()) {
+          if (r === c || !Number.isFinite(r.x)) continue;
+          const d = Math.hypot(r.x - c.x, r.z - c.z);
+          if (r.set.has(c.handle) && d <= sayR) send(r, Buffer.from([S.SAY, c.handle & 255, c.handle >> 8, b[1]]));
+          else if (d <= sayFarR && c.info) send(r, Buffer.concat([Buffer.from([10, c.handle & 255, c.handle >> 8, b[1]]), Buffer.from(c.info)]));   // SAY_FAR with the sender's info, as the relay does (relay-worker/src/proto.rs)
+        }
         return true;
       }
       case C.TO: {
