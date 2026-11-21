@@ -257,6 +257,10 @@ html.touch .pd-row.pd-pin:not([hidden]) { display: flex; }
 .pd-btitle small { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond); letter-spacing: .06em; opacity: .72; }
 .pd-btitle small:empty { display: none; }
 .pd-btitle .pd-bt0 { margin: 0 0 1px; font: 700 9px/1.1 var(--pd-cond); letter-spacing: .08em; text-transform: uppercase; color: var(--pd-amber); opacity: 1; }   /* the station, always shown above the song */
+/* a new song or station: the line slides in from the right (ui.js slideTo) */
+.pd-btitle .pd-slide { animation: pd-slidein .42s cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes pd-slidein { from { transform: translateX(18px); opacity: 0; } }   /* to the line's own opacity (the artist is dimmer) */
+@media (prefers-reduced-motion: reduce) { .pd-btitle .pd-slide { animation: none; } }
 /* a song asked for and not sounding yet (a slow connection): a small spinner in place of the bars */
 .pd-bspin { display: none; flex: none; width: 16px; height: 16px; margin: 0 4px 0 6px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.22); border-top-color: var(--pd-pink); animation: pd-spin .8s linear infinite; }
 .pd-bar.loading .pd-bspin { display: block; }

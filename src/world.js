@@ -1275,6 +1275,14 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       (drop = drop || new Set()).add(keepB ? j : i); if (keepB) seen.set(k, i);
     }
     if (drop) d.buildings = B.filter((_, i) => !drop.has(i));
+    // A split building whose parts repeat one outline (levels stacked in the map data with no base height: every copy is drawn from the ground,
+    // so the copies' facades fight along the whole front, Via Altarello): one part per outline, the tallest.
+    for (const b of d.buildings) {
+      if (!b.split || !b.parts || b.parts.length < 2) continue;
+      const best = new Map();
+      for (const q of b.parts) { const k = corners({ p: q[0] }).join(','), o = best.get(k); if (!o || q[1] > o[1]) best.set(k, q); }
+      if (best.size < b.parts.length) b.parts = b.parts.filter(q => best.get(corners({ p: q[0] }).join(',')) === q);
+    }
   }
   function prepareTile(t) {
     const d = t.data;

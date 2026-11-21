@@ -73,20 +73,29 @@ const LAMIERA = [   // [id, title, artist]
   ['terrorage', 'DIY Violence', 'Terrorage'],
   ['crimson-wind-rain-from-the-universe', 'Rain from the Universe', 'Crimson Wind'],
   ['crimson-wind-hold-your-dreams', 'Hold Your Dreams', 'Crimson Wind'],
-  ['der-geist-the-court-of-guilty-ones', 'The Court of Guilty Ones', 'Der Geist'],
-  ['the-ace-drops-zombie-horde', 'Zombie Horde', 'The Ace Drops'],
+  ['der-geist-the-court-of-guilty-ones-cut', 'The Court of Guilty Ones', 'Der Geist'],
+  ['the-ace-drops-zombie-horde-cut', 'Zombie Horde', 'The Ace Drops'],
   ['trinakrius-killerotomia', 'Killerotomia', 'Trinakrius'],
   ['anthirya-silver-thread', 'Silver Thread', 'AnthiryA'],
   ['cadaver-mutilator-u-viteddazzu', 'U Viteddazzu', 'Cadaver Mutilator'],
   ['maddaus-scappeddami', 'Scappeddami', 'Maddaus'],
-  ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
-  ['not-another-prayer-24-luglio', '24 Luglio', 'Not Another Prayer'],
   ['diskonnekt-piombo', 'Piombo', 'Diskonnekt'],
+  ['necrass-amore-ittico', 'Amore Ittico', 'Necrass'],
+  ['thy-majestie-the-chosen', 'The Chosen', 'Thy Majestie'],
+  ['throne-of-molok-seed-of-revenge', 'Seed of Revenge', 'Throne of Molok'],
+  ['lamiera-to-the-truth', 'To The Truth', 'Lamiera'],
+].map(([id, title, by]) => ({ id, title, by }));
+// Radio Palifornia: the owner adds tracks as they arrive (21 Nov 2026). Sources and permissions: assets/music/CREDITS.md.
+const PALIFORNIA = [   // [id, title, artist]
+  ['not-another-prayer-24-luglio', '24 Luglio', 'Not Another Prayer'],
+  ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
+  ['enneo2-spirito-funky-45', 'Spirito Funky', 'Enneo 2 feat. Dalila Galati e Izzy Bonura'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [
   { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica del Sud Italia', 'Southern Italian music'], tracks: TRACKS },
   { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock e metal palermitano', 'Rock and metal from Palermo'], tracks: LAMIERA },   // sub: draft
+  { id: 'palifornia', name: 'Radio Palifornia', sub: ['Musica palermitana', 'Music from Palermo'], tracks: PALIFORNIA },   // sub: draft
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out

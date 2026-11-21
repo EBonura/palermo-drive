@@ -72,9 +72,9 @@ The house song of the Krust pub, also on Radio Lamiera (below). At the pub it pl
 
 ## Radio Lamiera
 
-The rock and metal station of the car radio. Crimson Wind, Der Geist, The Ace Drops, Trinakrius, AnthiryA, Cadaver Mutilator and Maddaus are the game's author's own bands and recordings, and he holds the rights. Terrorage, as above.
+The rock and metal station of the car radio. Crimson Wind, Der Geist, The Ace Drops, Trinakrius, AnthiryA, Cadaver Mutilator, Maddaus and Lamiera are the game's author's own bands and recordings, and he holds the rights. Terrorage, as above.
 
-Changes made to every track: leading silence trimmed, loudness normalised to about -17 LUFS, re-encoded for the web (HE-AAC in M4A, about 40 kbps, 44.1 kHz stereo, as `<id>.m4a`), metadata reduced to title and artist. Nothing else was changed (no edits, no cuts).
+Changes made to every track: leading silence trimmed, loudness normalised to about -17 LUFS, re-encoded for the web (HE-AAC in M4A, about 40 kbps, 44.1 kHz stereo, as `<id>.m4a`), metadata reduced to title and artist. Nothing else was changed, except the two intros marked in the table.
 
 | Title (file id) | Artist | Source |
 | --- | --- | --- |
@@ -82,12 +82,24 @@ Changes made to every track: leading silence trimmed, loudness normalised to abo
 | DIY Violence (`terrorage`) | Terrorage | as above |
 | Rain from the Universe (`crimson-wind-rain-from-the-universe`) | Crimson Wind (from The Wings of Salvation, 2011) | https://www.youtube.com/watch?v=JDzwd6ApwX4 |
 | Hold Your Dreams (`crimson-wind-hold-your-dreams`) | Crimson Wind (from The Wings of Salvation, 2011) | https://www.youtube.com/watch?v=YS6GSbLmHPA |
-| The Court of Guilty Ones (`der-geist-the-court-of-guilty-ones`) | Der Geist (from The Pain We Don't Feel, 2012) | https://www.youtube.com/watch?v=kTNyJoXI6_w |
-| Zombie Horde (`the-ace-drops-zombie-horde`) | The Ace Drops | https://www.youtube.com/watch?v=RralNWRWQmw |
+| The Court of Guilty Ones (`der-geist-the-court-of-guilty-ones-cut`, spoken intro removed) | Der Geist (from The Pain We Don't Feel, 2012) | https://www.youtube.com/watch?v=kTNyJoXI6_w |
+| Zombie Horde (`the-ace-drops-zombie-horde-cut`, video intro removed) | The Ace Drops | https://www.youtube.com/watch?v=RralNWRWQmw |
 | Killerotomia (`trinakrius-killerotomia`) | Trinakrius | https://www.youtube.com/watch?v=wEMravxdZTw |
 | Silver Thread (`anthirya-silver-thread`) | AnthiryA | https://www.youtube.com/watch?v=dIP1DTRnqvQ |
 | U Viteddazzu (`cadaver-mutilator-u-viteddazzu`) | Cadaver Mutilator | https://www.youtube.com/watch?v=nWoK-npXA9s |
 | Scappeddami (`maddaus-scappeddami`) | Maddaus | https://www.youtube.com/watch?v=OtqlwuRofR0 |
-| Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | WAV sent by email |
-| 24 Luglio (`not-another-prayer-24-luglio`) | Not Another Prayer | WAV sent by email |
 | Piombo (`diskonnekt-piombo`) | Diskonnekt (from La morte del sole, 2026, the single with the official video) | https://www.youtube.com/watch?v=ZQx-8z4UsEw (Diskonnekt Official) |
+| Amore Ittico (`necrass-amore-ittico`, video intro removed: the song from 36.4 s) | Necrass (official videoclip, 2011) | https://www.youtube.com/watch?v=oouceWmPjfc (qanatvideo) |
+| The Chosen (`thy-majestie-the-chosen`) | Thy Majestie | https://www.youtube.com/watch?v=ImhWwMp1Z10 |
+| Seed of Revenge (`throne-of-molok-seed-of-revenge`) | Throne of Molok | https://www.youtube.com/watch?v=w9pvc7a17Vs |
+| To The Truth (`lamiera-to-the-truth`) | Lamiera (from the EP To the Truth, promo 2011) | https://www.youtube.com/watch?v=IlTmMmuC2vo (LamieraOfficial) |
+
+## Radio Palifornia
+
+A station of its own for tracks the game's author receives from Palermo bands (21 November 2026). Changes made to every track as on Radio Lamiera: leading silence trimmed, loudness normalised, re-encoded for the web, nothing else.
+
+| Title (file id) | Artist | Source |
+| --- | --- | --- |
+| 24 Luglio (`not-another-prayer-24-luglio`) | Not Another Prayer | WAV sent by email |
+| Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | WAV sent by email |
+| Spirito Funky (`enneo2-spirito-funky-45`, video intro removed: the song from 0:45) | Enneo 2 feat. Dalila Galati e Izzy Bonura (Street Label Records, 2014) | https://www.youtube.com/watch?v=2dU1ytNn7JI |

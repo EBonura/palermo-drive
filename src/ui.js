@@ -402,10 +402,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     </div>`;
   const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
-      <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2>${rowHTML(LANG_OPT).replace('class="pd-row"', 'class="pd-row pd-lang"').replace(/<div class="pd-lab">.*?<\/div>/s, '')}</div>
+      <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2></div>
       <div class="pd-otabs" role="tablist">${OPT_TABS.map(([t, k]) => `<button class="pd-otab" data-nav data-do="optTab" data-tab="${t}" role="tab" type="button" aria-selected="false"><span data-k="${k}"></span></button>`).join('')}</div>
       <div class="pd-scrollwrap">
-        <div class="pd-grid">${OPT_TABS.map(([t]) => `<div class="pd-tabp" data-tab="${t}">${OPTS.filter(o => o.tab === t).map(rowHTML).join('')}${t === 'more' ? NAME_ROW + PIN_ROW : ''}</div>`).join('')}</div>
+        <div class="pd-grid">${OPT_TABS.map(([t]) => `<div class="pd-tabp" data-tab="${t}">${t === 'more' ? rowHTML(LANG_OPT) : ''}${OPTS.filter(o => o.tab === t).map(rowHTML).join('')}${t === 'more' ? NAME_ROW + PIN_ROW : ''}</div>`).join('')}</div>
         <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
         <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
       </div>
@@ -736,6 +736,13 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   barTitle.addEventListener('click', () => openBar(!bar.classList.contains('open')));
   const quitSub = screens.side.querySelector('.pd-quitsub');
   let lastStation = '';
+  // a line of the bar that changes (a new song, a new station) slides in from the right, the three lines one after the other
+  const slideTo = (el, text, delay) => {
+    if (el.textContent === text) return;
+    el.textContent = text;
+    if (!text || !el.dataset.shown) { if (text) el.dataset.shown = '1'; return; }   // the first text a line gets just appears
+    el.classList.remove('pd-slide'); void el.offsetWidth; el.style.animationDelay = delay + 'ms'; el.classList.add('pd-slide');
+  };
   function syncRadio(view) {   // view: the one in the 'pd-radio' event (the radio announces itself before getRadio() can return it)
     const v = view && view.title !== undefined && !(view instanceof Event) ? view : getRadio?.()?.view, i = lang === 'it' ? 0 : 1;
     const mode = v ? v.mode : st.radio === 'off' ? 'off' : 'idle', playing = mode === 'on';
@@ -748,7 +755,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     for (const b of ui.querySelectorAll('.pd-bstation')) { b.setAttribute('aria-label', S.radioStation[i]); b.title = S.radioStation[i]; }
     if (v && v.station && lastStation && v.station !== lastStation && cur == null) openBar(true);   // a new station: the bar opens on it for a few seconds, its name under the title
     if (v && v.station) lastStation = v.station;
-    barS.textContent = label; barT.textContent = title; barA.textContent = v ? v.artist || '' : ''; bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
+    slideTo(barS, label, 0); slideTo(barT, title, 70); slideTo(barA, v ? v.artist || '' : '', 140); bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
     for (const x of STATIONS) {   // the station cards in Options: their line in the language shown, IN ONDA on the one playing
       const sm = screens.options.querySelector(`[data-stsub="${x.id}"]`); if (sm) sm.textContent = x.sub[i];
