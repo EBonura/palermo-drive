@@ -749,12 +749,13 @@ export function createOnline(env) {
       panel.set(bad ? { show: true, tone: bad.tone, title: bad.pill, sub: '', msg: bad.msg, idle: true, label: '' } : { show: true, tone: 'wait', title: 'Online…', sub: '', idle: true, label: '' });
     } else {   // the multiplayer section: how many are connected, how many of them can see what we say (within DRAW_R)
       let linked = 0; for (const p of others.values()) if (p.held !== false) linked++;
+      const total = Math.max(onlineCount, linked + 1);
       let hear = 0; for (const p of others.values()) if (Number.isFinite(p.x) && now - p.lastRx < STALE_FAR_MS && Math.hypot(p.x - car.x, p.z - car.z) <= SAY_R) hear++;
       const near = inReach(), keys = !document.documentElement.classList.contains('touch');
       panel.set({
         show: true, idle: !near, open: wheel.isOpen, label: tr('Parla', 'Talk') + (keys ? ' (T)' : ''),
-        title: linked ? tr(`${linked} ${linked === 1 ? 'giocatore' : 'giocatori'}`, `${linked} ${linked === 1 ? 'player' : 'players'}`) : 'Online',
-        sub: !linked ? tr('ancora nessuno', 'no one yet') : hear ? tr(`${hear} ${hear === 1 ? 'vicino' : 'vicini'}`, `${hear} nearby`) : tr('nessuno vicino', 'nobody nearby'),   // the players who hear what you say (within SAY_R), not a distance (the owner, 21 Nov 2026)
+        title: total > 1 ? tr(`${total} giocatori online`, `${total} players online`) : 'Online',   // everybody connected, us included (the relay's count): the players the relay sends us are only the nearest few plus two far ones, so that was always 2 or so
+        sub: total <= 1 ? tr('ancora nessuno', 'no one yet') : hear ? tr(`${hear} ${hear === 1 ? 'vicino' : 'vicini'}`, `${hear} nearby`) : tr('nessuno vicino', 'nobody nearby'),   // the players who hear what you say (within SAY_R), not a distance (the owner, 21 Nov 2026)
       });
     }
     if (wheel.isOpen && !(on && playing && inReach())) wheel.close();   // nobody within reach any more, or paused: nothing to say
