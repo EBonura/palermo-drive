@@ -9,7 +9,7 @@
 //   moment   under that: the mission result, busted, a secret found. One at a time: the higher one hides the lower (busted, result), a secret waits for them
 //   pick     under that: a tag picked up (src/suca.js). A new one replaces the old, with its count
 //   feed     under that: short lines, tips and warnings (event-hud toast(), 'pd-toast'). One at a time, in a short queue: a warning goes first, the same line twice just restarts
-//   map      top right: the map capsule (#pd-card), one dark shape with the round minimap as its right end and the words in a column to its left (#pd-info): the clock, the street or the landmark beside you (src/main.js),
+//   map      top right (bottom left if the player picks Minimappa: In basso, src/ui.css .pd-map-low): the map capsule (#pd-card), one dark shape with the round minimap as its right end and the words in a column to its left (#pd-info): the clock, the street or the landmark beside you (src/main.js),
 //            the area with its danger diamonds and, right under them, the police line (src/police.js). A tap on the map opens the big map (src/ui.js)
 //   act      bottom centre: the one thing you can do here (the drink button, src/drunk.js) and the first-drive hint
 //   gauges   under it: the speed and the nitro bar, one compact row

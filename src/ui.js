@@ -57,6 +57,7 @@ const S = {
   units: ['Unità', 'Units'],
   camera: ['Camera iniziale', 'Default camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
+  fov: ['Campo visivo', 'Field of view'], mapPos: ['Minimappa', 'Minimap'], mapTop: ['In alto', 'Top'], mapBottom: ['In basso', 'Bottom'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall’alto', 'Top-down'],
   language: ['Lingua', 'Language'],
   nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], netOn: ['Online', 'Online'], netOff: ['Offline', 'Offline'],
@@ -303,6 +304,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   if (['kmh', 'mph'].includes(saved.units)) st.units = saved.units;
   if (Number.isInteger(saved.camera) && saved.camera >= 0 && saved.camera <= 3) st.camera = saved.camera;
   st.coords = saved.coords === 'on' ? 'on' : 'off';
+  st.fov = Number.isFinite(saved.fov) ? clamp(Math.round(saved.fov / 5) * 5, 50, 90) : 60; vehicle?.setFov?.(st.fov);   // the chase camera's field of view, degrees (src/vehicle.js)
+  st.mapPos = saved.mapPos === 'bottom' ? 'bottom' : 'top'; document.documentElement.classList.toggle('pd-map-low', st.mapPos === 'bottom');   // where the map capsule stands (src/ui.css, .pd-map-low)
   st.balloons = ['s', 'm', 'l'].includes(saved.balloons) ? saved.balloons : 'm'; dispatchEvent(new CustomEvent('pd-balloon', { detail: st.balloons }));   // the size of the speech balloons (src/shouts.js)
   st.timeStart = ['morning', 'afternoon', 'sunset', 'night'].includes(saved.timeStart) ? saved.timeStart : (st.timeStart ?? 'morning'); // day/night clock (src/daynight.js reads these)
   st.timeSpeed = ['off', 'slow', 'normal', 'fast'].includes(saved.timeSpeed) ? saved.timeSpeed : (st.timeSpeed ?? 'normal');
@@ -360,6 +363,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     { key: 'radio', label: 'radio', type: 'seg', vals: [['on', 'radioOn'], ['off', 'radioOff']] },
     { key: 'units', label: 'units', type: 'seg', vals: [['kmh', null, 'km/h'], ['mph', null, 'mph']] },
     { key: 'camera', label: 'camera', type: 'seg', vals: [[0, 'cam0'], [1, 'cam1'], [2, 'cam2'], [3, 'cam3']] },
+    { key: 'fov', label: 'fov', type: 'slider', min: 50, max: 90, step: 5, fmt: v => v + '°' },
+    { key: 'mapPos', label: 'mapPos', type: 'seg', vals: [['top', 'mapTop'], ['bottom', 'mapBottom']] },
     { key: 'handling', label: 'physics', type: 'seg', vals: [['sphere', 'phSphere'], ['classic', 'phClassic']] },
     { key: 'timeStart', label: 'timeStart', type: 'seg', vals: [['morning', 'tMorning'], ['afternoon', 'tAfternoon'], ['sunset', 'tSunset'], ['night', 'tNight']] },
     { key: 'timeNow', label: 'timeNow', type: 'slider', min: 0, max: 23.5, step: 0.5, fmt: v => `${Math.floor(v)}:${v % 1 ? '30' : '00'}` }, // sets the clock now (src/daynight.js)
@@ -867,8 +872,10 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (key === 'timeStart') dispatchEvent(new Event('pd-time-set')); // src/daynight.js: jump the clock to the chosen start, even when it is the same choice again
       if (key === 'timeNow') dispatchEvent(new CustomEvent('pd-time-hour', { detail: value }));
       if (key === 'handling') vehicle?.setPhysics?.(value);
+      if (key === 'fov') vehicle?.setFov?.(value);
+      if (key === 'mapPos') document.documentElement.classList.toggle('pd-map-low', value === 'bottom');
       if (key === 'balloons') dispatchEvent(new CustomEvent('pd-balloon', { detail: value }));
-      if (key === 'units' || key === 'balloons' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
+      if (key === 'units' || key === 'fov' || key === 'mapPos' || key === 'balloons' || key === 'timeStart' || key === 'timeSpeed' || key === 'timeNow' || key === 'handling') { /* main.js / src/daynight.js read it every frame */ } else if (immediate) applySettings(); else scheduleApply();
     }
     save(); syncOptions();
   }

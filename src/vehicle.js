@@ -89,7 +89,7 @@ export const LIVERIES = ALL_LIVERIES.calessino;
 
 export function createVehicle(env) {
   const { scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock, sea, world } = env;   // viewBlock(x0, z0, x1, z1): where tall props hide the car from the chase camera (props.js occlude), optional
-  const baseFov = camera.fov;
+  let baseFov = camera.fov;   // the player's field of view (Options, api.setFov); speed and nitro widen it from here
   const audio = createVehicleAudio({ keys });
 
   // ---------- the rig: the vehicle model currently driven (rebuilt when the vehicle or a geometry part changes) ----------
@@ -768,6 +768,7 @@ export function createVehicle(env) {
     const on = mode === 'sphere'; if (on === SPHERE) return;
     SPHERE = on; sphere.reset(); car.psiPrev = Math.atan2(car.vx, car.vz); car.psiDot = 0; car.hop = car.hopV = 0;
   };
+  api.setFov = deg => { baseFov = clamp(+deg || 60, 40, 100); };
   api.physicsMode = () => SPHERE ? 'sphere' : 'classic';
   api.fly = () => ({ wings: !!car.wings, floats: !!car.floats, flying: !!car.flying, agl: car.agl, y: car.fy, wet: car.wet });
   events = createVehicleEvents({ scene, camera, car, groundY, roadVerts, api, audio, mobile: QUALITY });
