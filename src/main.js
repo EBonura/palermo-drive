@@ -448,7 +448,7 @@ setSfxSource(() => radio);
 const ambience = createAmbience({ camera, car, game, traffic, groundY, getWorld: () => world });
 const cityAudio = createCityAudio({ scene, camera, car, game, traffic, getRadio: () => radio, mapMarkers, groundY });   // on the radio's AudioContext, so also from the first tap
 if (window.game) { window.game.cityAudio = cityAudio; window.game.ambience = ambience; import('./sfx.js').then(m => { window.game.sfx = m; }); }
-watchVersion(game);
+watchVersion(game, { busy: () => missions?.busy?.(), keys });   // a new version: a wall over the game, after the mission in progress (src/version.js)
 const coords = createCoords({ game, car, camera, groundY, perf, minimap });
 applySettings();
 // [day/night] after setupUI so the saved start time and cycle speed are known. SUN_DIR becomes the live light direction (sun, then moon).
