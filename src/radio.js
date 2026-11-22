@@ -28,7 +28,6 @@ const SETTINGS_KEY = 'palermoDrive.settings.v1';
 // Credits for every track: assets/music/CREDITS.md.
 const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l.
   ['abbiamo-arrivato', 'Abbiamo Arrivato'],
-  ['acqua-di-cielo', 'Acqua Di Cielo'],
   ['broadway-un-sogno-americano', 'Broadway (Un Sogno Americano)'],
   ['brutti-sporchi-e-monelli', 'Brutti, Sporchi E Monelli'],
   ['cachi', 'Cachi'],

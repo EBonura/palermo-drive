@@ -131,7 +131,6 @@ Songs by Giovanni Alamia and Tony Sperandeo. Rights holder: Seamusica S.r.l. (ht
 | Title | Author | Licence | Source |
 | --- | --- | --- | --- |
 | Abbiamo Arrivato | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
-| Acqua Di Cielo | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Abbiamo Arrivato (2003) |
 | Broadway (Un Sogno Americano) | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Estate '90 (2003) |
 | Brutti, Sporchi E Monelli | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
 | Cachi | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |

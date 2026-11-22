@@ -29,7 +29,6 @@ leading silence trimmed, metadata reduced to title and artist. Nothing else was 
 | Title (file id) | Artists | Rights holder | Source | Changes |
 | --- | --- | --- | --- | --- |
 | Abbiamo Arrivato (`abbiamo-arrivato`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | https://www.youtube.com/watch?v=fGn45VtSeak | re-encoded (Opus and HE-AAC), loudness normalised |
-| Acqua Di Cielo (`acqua-di-cielo`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | https://www.youtube.com/watch?v=MSM2u1TkLB8 | re-encoded (Opus and HE-AAC), loudness normalised |
 | Broadway (Un Sogno Americano) (`broadway-un-sogno-americano`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | https://www.youtube.com/watch?v=PrfgC5KPNnw | re-encoded (Opus and HE-AAC), loudness normalised |
 | Brutti, Sporchi E Monelli (`brutti-sporchi-e-monelli`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | https://www.youtube.com/watch?v=KiXRogGmKNc | re-encoded (Opus and HE-AAC), loudness normalised |
 | Cachi (`cachi`) | Alamia e Sperandeo | Seamusica S.r.l. (https://www.seamusica.shop/) | https://www.youtube.com/watch?v=occgwmI21wU | re-encoded (Opus and HE-AAC), loudness normalised |
