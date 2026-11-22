@@ -306,7 +306,7 @@ const { car, camState, placeAt, physics, updateCamera } = vehicle;
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar: inside the gauges pill, along its bottom edge (src/ui.css)
 const walletHud = createWalletHud({ garage: wallet });
 const hitPops = createHitPop(camera);
-createHitPay({ garage: wallet, onPay: amt => hitPops.pop(car.x + Math.sin(car.th) * 1.8, groundY(car.x, car.z) + 1.3, car.z + Math.cos(car.th) * 1.8, amt) });   // a little ahead of the nose, where the hit is
+createHitPay({ garage: wallet, onPay: amt => hitPops.pop(car.x + Math.sin(car.th) * 1.8 - Math.cos(car.th) * 1.2, groundY(car.x, car.z) + 1.3, car.z + Math.cos(car.th) * 1.8 + Math.sin(car.th) * 1.2, amt) });   // a little ahead of the nose and 1.2 m to the right, so it sits beside the path, not in it
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------

@@ -4,12 +4,12 @@
 import * as THREE from 'three';
 import { vp } from './viewport.js';
 
-const LIFE = 1.1, RISE = 1.7, MAX = 3;   // seconds alive, metres climbed, popups at once
+const ALPHA = 0.75, LIFE = 1.1, RISE = 1.7, MAX = 3;   // seconds alive, metres climbed, popups at once
 const CSS = `
 .pd-hitpops { position: fixed; inset: 0; pointer-events: none; z-index: 41; overflow: hidden; }
-.pd-hitpop { position: absolute; left: 0; top: 0; font: 800 clamp(22px, 4.2vw, 34px)/1 var(--pd-cond, 'Barlow Condensed', system-ui, sans-serif); letter-spacing: .03em; color: #8dffa0; white-space: nowrap;
-  -webkit-text-stroke: 3px rgba(10,14,10,.9); paint-order: stroke fill; text-shadow: 0 2px 6px rgba(0,0,0,.7); will-change: transform, opacity; }
-.pd-hitpop.big { color: #ffe27a; font-size: clamp(28px, 5.4vw, 44px); }   /* the car sent flying: bigger and gold */
+.pd-hitpop { position: absolute; left: 0; top: 0; font: 800 clamp(14px, 1.7vw, 22px)/1 var(--pd-cond, 'Barlow Condensed', system-ui, sans-serif); letter-spacing: .03em; color: #8dffa0; white-space: nowrap;
+  -webkit-text-stroke: 2px rgba(10,14,10,.5); paint-order: stroke fill; text-shadow: 0 1px 4px rgba(0,0,0,.45); will-change: transform, opacity; }
+.pd-hitpop.big { color: #ffe27a; font-size: clamp(17px, 2.1vw, 26px); }   /* the car sent flying: a little bigger and gold */
 `;
 const euro = v => { const n = Math.round(v * 100); return `+${Math.floor(n / 100)},${String(n % 100).padStart(2, '0')} €`; };
 
@@ -34,7 +34,7 @@ export function createHitPop(camera) {
         const x = (v.x + 1) / 2 * vp.w, y = Math.min(vp.h - 120, Math.max(70, (1 - v.y) / 2 * vp.h));   // the point stays in the world, but a fast lapa drives past it: the number is held on the screen (above the gauges) for its second
         const sc = k < 0.12 ? 0.6 + 0.4 * (k / 0.12) + 0.25 * Math.sin(Math.PI * k / 0.12) : 1;   // a small pop at the start
         s.el.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -50%) scale(${sc.toFixed(2)})`;
-        s.el.style.opacity = k < 0.6 ? 1 : (1 - (k - 0.6) / 0.4).toFixed(2);
+        s.el.style.opacity = (ALPHA * (k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6)).toFixed(2);   // a bit see-through, fading out
       }
     },
   };
