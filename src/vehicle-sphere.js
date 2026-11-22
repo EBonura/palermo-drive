@@ -33,15 +33,16 @@ const TUNE = {
   tascia: { kGrip: 14, kSlide: 2.4, wDrift: 1.3, hbKick: 0.85, keep: 0.9, e: 0.1, mu: 0.08, resp: 13, bumpK: 0.7, slopeMax: 0.85, wMul: 1 },
 };
 
-export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit, waterAt }) {   // waterAt(x, z): the height of the water a lapa on floats rides on, else NaN (src/vehicle-water.js)
+export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit, waterAt, rampAt, onLand }) {   // waterAt(x, z): the height of the water a lapa on floats rides on, else NaN (src/vehicle-water.js)
   let P = { ...BASE };
-  const S = { y: 0, vy: 0, vb: 0, ready: false, px: 0, pz: 0, kerb: 0, slopeF: 0, side: 0, grad: 0, hbPrev: false, hit: 0, air: false, fv: 0 };
+  const S = { y: 0, vy: 0, vb: 0, ready: false, px: 0, pz: 0, kerb: 0, slopeF: 0, side: 0, grad: 0, hbPrev: false, hit: 0, air: false, fv: 0, ramp: false };
 
   // the ground under the ball: the terrain, or a bridge deck / tunnel floor (src/bridges.js hooks.level) that the ball is on or a step below
   const gY = (x, z) => {
     if (hooks.level && S.ready) { const y = hooks.level(x, z, S.y); if (y === y) return y; }
-    const g = groundY(x, z), w = waterAt ? waterAt(x, z) : NaN;
-    return w > g ? w : g;   // floats: over the sea the ground is the water's surface
+    const g = groundY(x, z), w = waterAt ? waterAt(x, z) : NaN, r = rampAt ? rampAt(x, z) : NaN;   // r: the top of a ramp (src/ramps.js), standing on the ground
+    const f = w > g ? w : g;   // floats: over the sea the ground is the water's surface
+    return r > f ? r : f;
   };
   // the ground, a deck or the water under (x, z) for something at height yRef (the flying lapa lands on it), see src/vehicle-air.js
   const floorAt = (x, z, yRef) => {
@@ -128,7 +129,8 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     const v1 = Math.hypot(vf, vl);
 
     // ----- steering: the heading follows the input, not the ball -----
-    const delta = T.lock / (1 + (v1 / T.lockV) ** 2);
+    const aK = S.air ? 0.25 : 1;   // off the ground the wheels steer and grip very little: the lapa lands the way it took off
+    const delta = T.lock / (1 + (v1 / T.lockV) ** 2) * aK;
     const wCap = T.aGrip * 0.95 * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) / Math.max(Math.abs(vf), 3);
     const wN = clamp(vf * Math.tan(delta * car.sIn) / T.L * P.wMul, -wCap, wCap) * (1 - 0.5 * car.wheelie / (T.wheelie || 1));
     let wT = wN;
@@ -148,7 +150,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     sn = Math.sin(car.th); cs = Math.cos(car.th);
     vf = car.vx * sn + car.vz * cs; vl = car.vx * cs - car.vz * sn;
     {
-      const wetG = 1 - WET_GRIP * (car.wet || 0);   // on the water the lapa slides (src/vehicle-water.js)
+      const wetG = (1 - WET_GRIP * (car.wet || 0)) * (S.air ? 0.2 : 1);   // on the water the lapa slides (src/vehicle-water.js)
       const kG = (P.kGrip + (P.kSlide - P.kGrip) * d) * wetG;
       const aCap = (T.aGrip + (T.aDrift - T.aGrip) * d) * (1 - T.tipGrip * car.tip) * (1 - 0.75 * car.gripLoss) * wetG;
       const dv = Math.min(Math.abs(vl), Math.min(Math.abs(vl) * kG, aCap) * dt);
@@ -167,7 +169,7 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     const [gf, gs] = tilt(sn, cs);
     const gx = gf * sn + gs * cs, gz = gf * cs - gs * sn, m = Math.hypot(gx, gz);
     S.grad = m;
-    if (m > P.slopeMax && !car.flying) {
+    if (m > P.slopeMax && !car.flying && !S.air) {
       const ux = gx / m, uz = gz / m, ex = m - P.slopeMax, up = car.vx * ux + car.vz * uz;
       car.vx -= ux * 9.81 * Math.min(ex * 3, 1.5) * dt; car.vz -= uz * 9.81 * Math.min(ex * 3, 1.5) * dt;
       if (up > 0) { const k = Math.min(1, 14 * dt * clamp(ex / 0.15, 0, 1)); car.vx -= ux * up * k; car.vz -= uz * up * k; }
@@ -190,9 +192,10 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     const h = surface(dt, sn, cs);
     if (S.air) { // in the air (a vaulted parapet): free fall until the ground is there
       S.fv -= 22 * dt; S.y += S.fv * dt;
-      if (S.y <= h) { S.y = h; S.air = false; if (S.fv < -6) car.hopV = Math.min(1.2, car.hopV + 0.6); S.fv = 0; }
+      if (S.y <= h) { S.y = h; S.air = false; if (S.fv < -3 && onLand) onLand(-S.fv); else if (S.fv < -6) car.hopV = Math.min(1.2, car.hopV + 0.6); S.fv = 0; }
       S.vy = 0;
     } else if (S.ready && car.deck > 1.5 && h < S.y - 2.5) { S.air = true; S.fv = 0; }   // drove off the end of a deck: fall, do not snap
+    else if (S.ready && S.ramp && h < S.y - 0.3) { S.air = true; S.fv = S.vy; }   // the ground fell away under the lip of a ramp faster than the body can follow it: it leaves with the climb it had (speed and slope make the jump, nothing else does)
     else if (!S.ready || Math.abs(h - S.y) > 4 || Math.hypot(car.x - S.px, car.z - S.pz) > 4) { S.y = h; S.vy = 0; S.ready = true; }
     else {
       const lim = (Math.hypot(car.vx, car.vz) * (S.grad + 0.35) + 2.5) * dt, y0 = S.y;
@@ -203,6 +206,8 @@ export function createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, 
     }
     if (car.flying) { S.y = car.fy; S.vy = S.vb = S.fv = 0; S.air = false; S.ready = true; }   // in flight the height is src/vehicle-air.js's
     S.px = car.x; S.pz = car.z;
+    { const r = rampAt ? rampAt(car.x, car.z) : NaN; S.ramp = r === r && r > groundY(car.x, car.z) + 0.15; }   // on a ramp as of this step (the next one sees the lip)
+    car.jump = S.air || S.ramp;   // the camera follows the body's own height (vehicle.js)
     car.lift = S.y - groundY(car.x, car.z);
     car.deck = car.flying ? 0 : hooks.level && !S.air ? (() => { const y = hooks.level(car.x, car.z, S.y); return y === y ? S.y - groundY(car.x, car.z) : 0; })() : (S.air ? (car.deck || 0) : 0);   // height of the deck or tunnel floor under the car above the terrain, 0 on the ground
     if (hooks.fall) hooks.fall(car, S);

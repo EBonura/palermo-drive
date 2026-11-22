@@ -225,7 +225,7 @@ export function createVehicle(env) {
   // the sphere model (src/vehicle-sphere.js, the default) replaces the yaw, grip, movement and wall response below; everything else is shared
   let SPHERE = qs.get('physics') !== 'classic';   // switchable at run time: api.setPhysics('classic' | 'sphere')
   const water = createWater({ car, sea });
-  const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; }, waterAt: water.floorAt });
+  const sphere = createSphere({ car, T, walls2d, closestOnSeg, raisedMask, CURB, groundY, hooks, onHit: m => { if (m > hitMag) hitMag = m; }, waterAt: water.floorAt, rampAt: env.rampAt, onLand: hit => landed(hit) });
   const trails = createTrails({ scene });
   const air = createAir({ car, keys, groundY, floorAt: sphere.floorAt, roofAt: (x, z) => world ? world.roofAt(x, z) : NaN, detailAt: (x, z) => world ? world.detailAt(x, z) : 2, isWater: water.isWater, onEvent: (kind, a, b, x, z) => airEvent(kind, a, b, x, z) });
   if (qs.get('drive')) for (const k of qs.get('drive').split(',')) keys[k.length === 1 ? 'Key' + k.toUpperCase() : k] = true;
@@ -303,7 +303,9 @@ export function createVehicle(env) {
     if (hb) brakeA += T.hbrake * (SPHERE ? 0.45 : 1);   // sphere: the handbrake is mostly a yaw flick and a grip cut, not a brake
     if (car.gripLoss > 0) { aDrive *= 1 - 0.4 * car.gripLoss; brakeA *= 1 - 0.5 * car.gripLoss; }   // e6: gravel, sand and grass (src/world.js drivePlayer) and potholes: the tyres spin and lock before they bite
     // in the air nothing rolls or brakes the engine, so the speed holds when the throttle is let go; on the water what is above the water top speed is dragged off
-    const coast = flying ? 0.25 + 0.5 * T.drag * vf * vf : (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf + wet * 0.55 * Math.max(0, Math.abs(vf) - WET_TOP * T.gearV[T.nG]);
+    const jumping = SPHERE && sphere.state.air;   // off a ramp (the sphere model): the wheels spin on nothing
+    if (jumping) { aDrive *= 0.15; brakeA = 0; }
+    const coast = flying || jumping ? 0.25 + 0.5 * T.drag * vf * vf : (thrOn ? 0 : 1.1 * SS) + T.roll + T.drag * vf * vf + wet * 0.55 * Math.max(0, Math.abs(vf) - WET_TOP * T.gearV[T.nG]);
     // Gravity along the slope: the Cassaro really does climb towards Porta Nuova.
     const slope = flying ? 0 : (gB(car.x + sn * 1.2, car.z + cs * 1.2) - gB(car.x - sn * 1.2, car.z - cs * 1.2)) / 2.4;
     vf += (aDrive - 9.81 * slope) * dt;
@@ -409,7 +411,7 @@ export function createVehicle(env) {
     }
     // in the air the lapa banks into its turns (a left turn rolls it left, the other way round to a lapa on the road) and its nose follows the climb
     const rollT = flying ? -car.sIn * 0.5 : clamp(car.ay * T.rollGain, -T.rollMax, T.rollMax) + Math.atan(side) * (T.bike ? 0.4 : 1);
-    const pitchT = flying ? -clamp(car.fvy * 0.03, -0.5, 0.42) : clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
+    const pitchT = flying ? -clamp(car.fvy * 0.03, -0.5, 0.42) : SPHERE && sphere.state.air ? -clamp(Math.atan2(sphere.state.fv, Math.max(6, Math.abs(vf))), -0.5, 0.5) : clamp(-car.ax * T.pitchK, -T.pitchMax, T.pitchMax) - Math.atan(SPHERE ? sphere.state.slopeF : slope) - car.wheelie;
     car.roll += (rollT - car.roll) * Math.min(1, 7 * dt);
     car.pitch += (pitchT - car.pitch) * Math.min(1, 7 * dt);
     if (!SPHERE) {   // the sphere model sets car.lift (and car.deck) itself
@@ -457,6 +459,12 @@ export function createVehicle(env) {
       for (let i = 0; i < 10; i++) { const sg = i % 2 ? 1 : -1, r = 0.3 + Math.random() * 0.5; puff(car.x - sn * rearZ + cs * rearTrack * sg, y, car.z - cs * rearZ - sn * rearTrack * sg, cs * sg * r * 2 + (Math.random() - 0.5), -sn * sg * r * 2 + (Math.random() - 0.5), 1.0 + Math.random() * 0.8); }
     }
     if (kind === 'land' && hit > 8) { car.vx *= 0.7; car.vz *= 0.7; }   // a hard landing (fast and steep) costs speed, never the lapa
+  }
+
+  // touch-down after a ramp (src/ramps.js, the sphere model's air): the body bounces, the camera shakes, a thump and dust, and a very hard one costs some speed
+  function landed(hit) {
+    airEvent('land', Math.min(hit, 8), 'ground');
+    if (hit > 12) { const k = 1 - Math.min(0.2, (hit - 12) * 0.02); car.vx *= k; car.vz *= k; }
   }
 
   // A wheel dropped into a pothole (src/roadwear.js): s = severity (about 0.1 small hole, 1 big hole at speed), side +1 left / -1 right,
@@ -512,7 +520,7 @@ export function createVehicle(env) {
     const ca = m === 2 ? car.th : cam.ang;
     const f = _c.set(Math.sin(ca), 0, Math.cos(ca));
 
-    const gy0 = groundY(car.x, car.z), gy = gy0 + (car.flying || car.wet > 0.02 ? car.lift : car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js); in the air or on the water the body's own height
+    const gy0 = groundY(car.x, car.z), gy = gy0 + (car.flying || car.jump || car.wet > 0.02 ? car.lift : car.deck || 0);   // car.deck: a bridge deck or tunnel floor under the car (src/bridges.js); in the air or on the water the body's own height
     // field of view: speed, nitro punch
     const fovT = baseFov + sp01 * 11 + cam.nosEnv * 10 + cam.kick * 6 + cam.mom * 9;
     cam.fov += (fovT - cam.fov) * Math.min(1, 7 * dt);

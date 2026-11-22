@@ -10,7 +10,7 @@ import { T } from './lang.js';   // one language at a time (src/lang.js)
 import { buildStreets, CURB } from './streets.js'; // street building moved out of main.js so world tiles reuse it
 import { createWorld } from './world.js';
 import { buildBuildings } from './buildings.js';
-import { buildProps } from './props.js';
+import { buildProps, parked } from './props.js';
 import { prepareLandmarks } from './landmarks.js';   // the centro landmarks themselves are built by the streamer (world.js, CENTRO_LANDMARKS)
 import { buildContext } from './context.js';
 import { QUALITY, setupMobile } from './mobile.js';
@@ -27,6 +27,7 @@ import { createAmbience } from './ambience.js';   // rain, the scirocco, the sea
 import { setSfxSource } from './sfx.js';   // the game's short sounds and beds, on the radio's AudioContext
 import { createCityAudio } from './city-audio.js';   // traffic noise, horns, l'arrotino, the market voices
 import { createMarkets } from './markets.js';   // Ballaro, the Vucciria and the Capo as living markets: stall lines along the real streets, awnings, crates, vendors
+import { createRamps } from './ramps.js';   // ramps and a car transporter trailer in the streets: the lapa leaves the ground from them (src/vehicle-sphere.js)
 import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
 import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
 import { createRoadWear } from './roadwear.js';
@@ -302,7 +303,11 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 // ---------- player car (src/vehicle.js) ----------
-const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
+const ramps = createRamps({ scene, camera, groundY, walls2d });
+{ const near = parked.near, bump = parked.bump;   // the traffic steers round the work zones of the ramps as round parked cars (src/ramps.js)
+  parked.near = (x, z, r, out) => { near(x, z, r, out); return ramps.zonesNear(x, z, r, out); };
+  parked.bump = (c, ...a) => c.ramp ? 1 : bump(c, ...a); }
+const vehicle = createVehicle({ rampAt: ramps.surfaceAt, scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar: inside the gauges pill, along its bottom edge (src/ui.css)
 const walletHud = createWalletHud({ garage: wallet });
@@ -583,7 +588,7 @@ function frame(now) {
   if (game.state === 'play') missions.update?.(dt);
   drunk.update(dt);
   if (game.state === 'play') suca.update(dt, car);
-  if (game.state === 'play') { stadium.update(dt); carretto.update(dt); markets.update(dt); }
+  if (game.state === 'play') { stadium.update(dt); carretto.update(dt); ramps.update(dt); markets.update(dt); }
   coords.update();
   roadwear.update?.(dt);
   net.update?.(dt);

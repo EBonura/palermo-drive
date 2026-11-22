@@ -14,6 +14,7 @@ import { treeGeo } from './treegeo.js';
 import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
+import { placed as rampZones } from './ramp-spots.js';   // the road works around the ramps: no parked cars inside (src/ramps.js)
 import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, clock as signalClock, light as signalLight } from './signals.js';   // the traffic signals: where they stand, which road each head faces, the lamp it shows
 import { sfx } from './sfx.js';   // what a thing sounds like when the lapa knocks it over
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';   // the fast roads (the Viale's carriageways, and its lanes where nothing is built beside them): no parked cars, bins or crossings
@@ -2047,6 +2048,7 @@ function* generate(S, BUD) {
       const ax = ln[i], az = ln[i + 1], bx = ln[i + 2], bz = ln[i + 3];
       if (Math.max(ax, bx) > S.x0 - 20 && Math.min(ax, bx) < S.x1 + 20 && Math.max(az, bz) > S.z0 - 20 && Math.min(az, bz) < S.z1 + 20) rails.push([ax, az, bx, bz]);
     }
+    const RZ = rampZones(), inRampZone = (x, z) => { for (const q of RZ) if (hyp2(q.zx - x, q.zz - z) < q.zl / 2 + 4) return true; return false; };
     const nearList = (list, x, z, r) => { for (const q of list) if (hyp2(q[0] - x, q[1] - z) < r) return true; return false; };
     const nearRail = (x, z, r) => {
       for (const q of rails) {
@@ -2058,7 +2060,7 @@ function* generate(S, BUD) {
     const blocked = (x, z, hx, hz, L) => {   // the car's centre and its two ends
       for (const k of [0, -0.45, 0.45]) {
         const px = x + hx * L * k, pz = z + hz * L * k;
-        if (nearJunction(px, pz, 6) || nearList(zebras, px, pz, 3.2) || nearList(stops, px, pz, 12) || (rails.length && nearRail(px, pz, 2.7))) return true;
+        if (nearJunction(px, pz, 6) || nearList(zebras, px, pz, 3.2) || nearList(stops, px, pz, 12) || inRampZone(px, pz) || (rails.length && nearRail(px, pz, 2.7))) return true;
       }
       return false;
     };
