@@ -14,6 +14,7 @@
 // spots: [{ name, x, z, q }], quarters: [{ name, x, z }], getEvents(): [{ id, kind, name, x, z, night? }], getCar(): { x, z, th } | null.
 
 import { esc } from './esc.js';
+import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter that has its eyes on you, filled (the same as on the minimap)
 const ASSET = new URL('../assets/ui/startmap.json', import.meta.url).href;
 const CELL = 1000;                     // metres per road/area cell
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -243,6 +244,12 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (roads.c && k >= 0.1) drawRoads('c', C.roadC[0], C.roadC[1], 4.5, 1.1);
     if (roads.b && k >= 0.035) drawRoads('b', C.roadB[0], C.roadB[1], 9, 1.5);
     if (roads.a) drawRoads('a', C.roadA[0], C.roadA[1], 14, 2.4);
+    { const car = getCar && getCar(), tr = trouble(), zone = car && tr.score > TUNE.notice ? zoneOutline(car.x, car.z) : null;
+      if (zone) {   // red in the hunt, amber before: the quarter to get out of, with its border
+        const hunt = tr.stage >= 3, q = zone.cells, sz = zone.cell;
+        g.fillStyle = hunt ? 'rgba(255,59,43,.28)' : 'rgba(255,176,32,.18)'; g.beginPath(); for (let i = 0; i < q.length; i += 2) g.rect(q[i], q[i + 1], sz, sz); g.fill();
+        g.strokeStyle = hunt ? '#ff4b3b' : '#ffb020'; g.lineWidth = 3 / k; g.setLineDash([10 / k, 7 / k]); g.beginPath(); const e = zone.segs; for (let i = 0; i < e.length; i += 4) { g.moveTo(e[i], e[i + 1]); g.lineTo(e[i + 2], e[i + 3]); } g.stroke(); g.setLineDash([]);
+      } }
     g.restore();
     // screen space: labels, pins
     g.setTransform(dpr, 0, 0, dpr, 0, 0);

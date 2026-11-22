@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { garage } from './garage.js';
 import { FINE_PER_LEVEL } from './economy.js';
 import { dangerAt, areaId, covered, resetTrouble, trouble, gang } from './danger.js';
-import { createDangerHud } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
+import { createDangerHud, popPips } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
 import { vp } from './viewport.js';
 import { zone } from './hud.js';
 import { li as langIdx } from './lang.js';   // one language at a time (src/lang.js)
@@ -70,7 +70,7 @@ export function createPolice(env, T) {
 
   // ---------- chaos in ----------
   const GAIN = { yeet: 0.7, chain: 0.15, knock: 0.45, hitcop: 1.1, fence: 0.08, hedge: 0.06, wall: 0.2 }, LIMIT = { yeet: 0.3, chain: 0.3, knock: 0.12, hitcop: 0.5, fence: 0.4, hedge: 0.4, wall: 0.5 };   // fence, hedge and wall: smashed garden walls and fences (src/fences.js, src/props.js)
-  const HEAT_RATE = 0.6;
+  const HEAT_RATE = 0.3;   // halved on 22 Nov 2026 (the owner: a little mess and the sirens were full)
   function chaos(kind, amt) {
     if (busted > 0 || grace > 0) return;
     const lim = LIMIT[kind];
@@ -153,14 +153,14 @@ export function createPolice(env, T) {
     const ms = mobs(), want = Math.min(MOB_N[dangerAt(car.x, car.z) - 1] || 2, 1 + Math.floor((time - huntT0) / 10));   // one to start with, one more every 10 s you stay, up to the quarter's cap
     if (ms.length < want && time >= nextMob) {
       const v = T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 75, (x, z) => areaId(x, z) === hunt) || T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 140, (x, z) => areaId(x, z) === hunt);   // close, out of view: they come out of the alleys round you
-      if (v) { v.cop = { id: ++copId, mob: true, area: hunt, bestT: time, pursue: true, mode: 'road', slot: 0, stuckT: 0, noLosT: 0, keep: true, tx: v.x, tz: v.z }; v.boost = 1.9; v.drv = 1.2; }
+      if (v) { v.cop = { id: ++copId, mob: true, area: hunt, bestT: time, pursue: true, mode: 'road', slot: 0, stuckT: 0, noLosT: 0, keep: true, tx: v.x, tz: v.z }; v.boost = 2.6; v.drv = 1.3; }
       nextMob = time + 2.5;
     }
     let slot = 0, near = 0, close = false;
     for (const v of ms) {
       const c = v.cop, d = hyp(v.x - car.x, v.z - car.z);
       if (v.fly) continue;
-      c.los = d < 70 && los(v.x, v.z, car.x, car.z); c.noLosT = c.los ? 0 : c.noLosT + dt;
+      c.los = d < 100 && los(v.x, v.z, car.x, car.z); c.noLosT = c.los ? 0 : c.noLosT + dt;
       if (c.mode === 'road') {   // on the roads: heading away, or out of the quarter, turn round (as the police do)
         c.awayT = d > (c.prevD ?? d) + 0.3 || areaId(v.x, v.z) !== c.area ? (c.awayT || 0) + dt : 0; c.prevD = d;
         if (c.awayT > 1 && time > (c.uCool || 0)) { c.awayT = 0; c.uCool = time + 4; T.uturn(v); }
@@ -168,8 +168,8 @@ export function createPolice(env, T) {
       if (d < (c.best ?? 1e9) - 3) { c.best = d; c.bestT = time; }   // getting nowhere (a dead end, a crowd, a jam): out of view it goes, and a new one comes
       else if (time - (c.bestT ?? time) > 5 && d > 15 && !T.inView(v.x, 1, v.z, 4)) { T.removeVehicle(v); nextMob = Math.min(nextMob, time + 0.5); continue; }
       if (c.los && time > (c.sayAt || 0) && d < 45) { c.sayAt = time + 4 + Math.random() * 3; mobSay(v); }   // in sight: they shout at you, now and then
-      if (c.mode === 'road' && d < 55 && (c.los || time > (c.directCool || 0))) { c.mode = 'direct'; c.stuckT = 0; }   // they know the alleys: straight at the lapa, also round a corner
-      else if (c.mode === 'direct' && (d > 60 || (c.noLosT > 2.5 && d > 25) || c.stuckT > 3)) { toRoad(v); c.directCool = time + 3; }
+      if (c.mode === 'road' && (d < 55 || (d < 90 && c.los)) && (c.los || time > (c.directCool || 0))) { c.mode = 'direct'; c.stuckT = 0; }   // they know the alleys: straight at the lapa, also round a corner
+      else if (c.mode === 'direct' && (d > 100 || (c.noLosT > 2.5 && d > 25) || c.stuckT > 3)) { toRoad(v); c.directCool = time + 3; }
       if (c.mode === 'direct') c.slot = slot++;
       if (d < 4 || (d < 8 && c.los)) near++;   // touching, or right by the lapa and in sight: not through a wall from the next alley
       if (d < 18) close = true;
@@ -208,9 +208,9 @@ export function createPolice(env, T) {
     const err = wrapPi(Math.atan2(dx, dz) - v.h), maxYaw = Math.max(v.v, 1.6) / ty.rmin;
     v.yaw = clamp(err * 3.2, -maxYaw, maxYaw); v.h += v.yaw * dt;
     const psp = hyp(car.vx, car.vz), pd = hyp(car.x - v.x, car.z - v.z);
-    let vd = Math.min(d * 1.1, c.mob ? Math.max(15, psp + 5) : ty.copV);
+    let vd = Math.min(d * 1.1, c.mob ? Math.max(22, psp + 8) : ty.copV);
     if (Math.abs(err) > 1.0) vd *= 0.5;
-    if (pd < 14) vd = Math.min(vd, psp + (c.mob ? 4.5 : 3));     // close in gently: ramming the lapa at speed just yeets the police car (the picciotti push a little harder)
+    if (pd < 14) vd = Math.min(vd, psp + (c.mob ? 7 : 3));     // close in gently: ramming the lapa at speed just yeets the police car (the picciotti push a little harder)
     v.v += clamp(vd - v.v, -9 * dt, 4.5 * dt);
     if (v.stopT > 0) { v.stopT = Math.max(0, v.stopT - dt); v.v *= 0.9; }
     const nx = v.x + (Math.sin(v.h) * v.v + v.ex) * dt, nz = v.z + (Math.cos(v.h) * v.v + v.ez) * dt;
@@ -276,7 +276,7 @@ export function createPolice(env, T) {
     if (!shown) return;
     const txt = toastT > 0 && lv === 0 ? WANTED_TEXT.escaped : seen ? WANTED_TEXT.seen : startT > time && !pursuers().length ? WANTED_TEXT.alert : WANTED_TEXT.hidden;
     if (txt !== hText) { hText = txt; elT.textContent = txt; hud.classList.toggle('clear', toastT > 0 && lv === 0); }
-    if (lv !== hLevel) { if (lv > hLevel && hLevel >= 0) sfx('heat'); hLevel = lv; pips.forEach((p, i) => p.classList.toggle('f', i < lv)); }
+    if (lv !== hLevel) { if (lv > hLevel && hLevel >= 0) { sfx('heat'); popPips(pips, hLevel, lv, 'rgba(232,85,154,.55)'); } hLevel = lv; pips.forEach((p, i) => p.classList.toggle('f', i < lv)); }
     const sn = seen && lv > 0;
     if (sn !== hSeen) { hSeen = sn; hud.classList.toggle('seen', sn); }
     const bar = Math.round(heat / 5 * 100);
@@ -330,8 +330,8 @@ export function createPolice(env, T) {
     mobTick(dt, sp);
     // chaos that comes from driving rather than from a single hit
     if (sp > 6.5 && peds && busted <= 0 && grace <= 0 && !(car.agl > 3)) {   // (not up in the air: wings, src/vehicle-air.js)
-      if (peds.near(car.x, car.z, 11) >= 5) chaos('market', 0.45 * dt * 4);
-      if (raisedMask(car.x, car.z) && peds.near(car.x, car.z, 6) >= 2) chaos('sidewalk', 0.3 * dt * 4);
+      if (peds.near(car.x, car.z, 11) >= 5) chaos('market', 0.45 * dt);   // a quarter of what it was (22 Nov 2026): a few seconds on a pavement filled the sirens
+      if (raisedMask(car.x, car.z) && peds.near(car.x, car.z, 6) >= 2) chaos('sidewalk', 0.3 * dt);
     }
     const ps = pursuers();
     // who can see the lapa?

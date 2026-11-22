@@ -237,6 +237,16 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     if (zone) {   // the quarter that has its eyes on you: its border, and an arrow on the rim towards the nearest way out (amber, red and blinking in the hunt)
       const hunt = tr.stage >= 3, on = !hunt || Math.round(performance.now() / 250) % 2 === 0, col = hunt ? '#ff4b3b' : '#ffb020';
       mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
+      {   // the quarter itself, filled: what is in and what is out (the owner, 22 Nov 2026: the border alone did not say which side was which)
+        mini.fillStyle = hunt ? 'rgba(255,59,43,.26)' : 'rgba(255,176,32,.16)'; mini.beginPath();
+        const q = zone.cells, s = zone.cell;
+        for (let i = 0; i < q.length; i += 2) {
+          const pts = [[q[i], q[i + 1]], [q[i] + s, q[i + 1]], [q[i] + s, q[i + 1] + s], [q[i], q[i + 1] + s]];
+          pts.forEach(([x, z], j) => { const dx = (x - car.x) * k, dz = (z - car.z) * k, X = W / 2 + dx * ca - dz * sa, Y = W / 2 + dx * sa + dz * ca; if (j) mini.lineTo(X, Y); else mini.moveTo(X, Y); });
+          mini.closePath();
+        }
+        mini.fill();
+      }
       mini.lineCap = 'round'; mini.setLineDash([7, 5]);
       for (let pass = 0; pass < 2; pass++) {
         mini.strokeStyle = pass ? col : 'rgba(18,10,14,.8)'; mini.lineWidth = pass ? 3 : 5.5; mini.globalAlpha = pass && !on ? 0.45 : 1; mini.beginPath();

@@ -42,11 +42,12 @@ let zKey = '', zOut = null;
 export function zoneOutline(x, z) {
   const id = upl(x, z), c0 = Math.floor((x - X0) / CELL), r0 = Math.floor((z - Z0) / CELL), key = id + ':' + c0 + ':' + r0;
   if (key === zKey) return zOut;
-  zKey = key; const segs = []; let ex = null, ed = Infinity;
+  zKey = key; const segs = [], cellsIn = []; let ex = null, ed = Infinity;
   const at = (c, r) => c < 0 || r < 0 || c >= W || r >= H ? -1 : cells[r * W + c];
   for (let r = r0 - ZR; r <= r0 + ZR; r++) for (let c = c0 - ZR; c <= c0 + ZR; c++) {
     if (at(c, r) !== id) continue;
     const x0 = X0 + c * CELL, z0 = Z0 + r * CELL, x1 = x0 + CELL, z1 = z0 + CELL;
+    cellsIn.push(x0, z0);
     for (const [dc, dr, ax, az, bx, bz] of [[1, 0, x1, z0, x1, z1], [-1, 0, x0, z0, x0, z1], [0, 1, x0, z1, x1, z1], [0, -1, x0, z0, x1, z0]]) {
       if (at(c + dc, r + dr) === id) continue;
       segs.push(ax, az, bx, bz);
@@ -54,7 +55,7 @@ export function zoneOutline(x, z) {
       if (d < ed) { ed = d; ex = [mx, mz]; }
     }
   }
-  zOut = id ? { id, segs, exit: ex } : null;
+  zOut = id ? { id, segs, cells: cellsIn, cell: CELL, exit: ex } : null;
   return zOut;
 }
 
@@ -65,8 +66,9 @@ export const toast = (text, sub, neg) => dispatchEvent(new CustomEvent('pd-toast
 // ---------- the rates: the one table to tune by playing ----------
 export const TUNE = {
   // Touchiness: score points one unit of police chaos adds, by the area's level 1..5 (a car sent flying is 0.7 units, a person knocked over 0.45).
-  // Level 1 almost never gets there (about 43 cars to reach "searching"), level 3 is 7 cars, level 5 (the ZEN) is 2.
-  gain: [2, 6, 12, 24, 46],
+  // Five eyes (80 points) take about 229 cars sent flying in level 1, 76 in level 2, 38 in level 3, 23 in level 4 and 14 in the ZEN (the owner, 22 Nov 2026: it filled after a little mess,
+  // and 7 cars in the ZEN was still too few; it was 2, 6, 12, 24, 46, three cars in the ZEN, then 1, 3, 6, 10, 16).
+  gain: [0.5, 1.5, 3, 5, 8],
   // How much of the police's chaos each kind counts for the gang. Fast driving through crowds is a stream of small events, so it counts less.
   kind: { yeet: 1, chain: 1, knock: 1, hitcop: 0.5, fence: 1, hedge: 1, wall: 1, market: 0.35, sidewalk: 0.35 },
   night: 1.3,        // the same damage counts for this much more at night

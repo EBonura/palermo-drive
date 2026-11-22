@@ -8,6 +8,13 @@ import { townAt } from './districts.js';
 import { sfx } from './sfx.js';
 
 const CSS = `
+  /* one more eye or siren lit (the owner, 22 Nov 2026): the new pip pops and the screen's edge flashes in the row's colour */
+  @keyframes pd-pip-pop { 0% { transform: scale(2.4); filter: brightness(2); } 60% { transform: scale(.85); } 100% { transform: scale(1); filter: none; } }
+  .pd-pop { animation: pd-pip-pop .55s cubic-bezier(.2,1.6,.4,1) both; }
+  #pd-pips-flash { position: fixed; inset: 0; pointer-events: none; z-index: 5; opacity: 0; box-shadow: inset 0 0 0 0 transparent; }
+  #pd-pips-flash.on { animation: pd-edge .8s ease-out both; }
+  @keyframes pd-edge { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .pd-pop, #pd-pips-flash.on { animation: none; } }
   /* the area with its danger diamonds (row 2, plus for a few seconds after the area changes the words "neighbourhood danger") and the gang row are parts of the map capsule, src/ui.css */
   #pd-hood { display: none; flex-direction: column; font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
   #pd-hood.on { display: flex; }
@@ -50,6 +57,13 @@ const WORDS = {
 const HOOD_C = ['#9fd39a', '#f2d36b', '#f0a04b', '#ef6a4b', '#ff3b5c'];   // quiet green to ZEN red
 const EX_MS = 5000;   // "neighbourhood danger" is spelt out for this long after the area changes, then only the diamonds stay
 
+// the pop and the edge flash, shared with the police row (src/police.js)
+let flashEl = null;
+export function popPips(pips, from, to, color) {
+  for (let i = Math.max(0, from); i < to; i++) { const p = pips[i]; if (!p) continue; p.classList.remove('pd-pop'); void p.offsetWidth; p.classList.add('pd-pop'); }
+  if (!flashEl) { flashEl = document.createElement('div'); flashEl.id = 'pd-pips-flash'; document.body.appendChild(flashEl); }
+  flashEl.style.boxShadow = `inset 0 0 70px 14px ${color}`; flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on');
+}
 export function createDangerHud(car) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
   const hood = document.createElement('div'); hood.id = 'pd-hood';
@@ -71,7 +85,7 @@ export function createDangerHud(car) {
     if (l !== lv) { lv = l; elLv.textContent = l; hood.style.setProperty('--hc', HOOD_C[l - 1] || HOOD_C[0]); }
     // the eyes: 20 points each, so the first one opens with the first damage; the row shows from there, as the police row does from the first siren
     const f = tr.score > 0 ? Math.min(5, Math.ceil(tr.score / (TUNE.max / 5) - 1e-6)) : 0;
-    if (f !== filled) { if (f > filled && filled >= 0 && f >= 3) sfx('heat'); filled = f; pips.forEach((p, i) => p.classList.toggle('f', i < f)); }
+    if (f !== filled) { if (f > filled && filled >= 0 && f >= 3) sfx('heat'); if (f > filled && filled >= 0) popPips(pips, filled, f, f >= 5 ? 'rgba(255,59,43,.6)' : 'rgba(255,150,60,.5)'); filled = f; pips.forEach((p, i) => p.classList.toggle('f', i < f)); }
     const safe = tr.stage < 3 && tr.safe > 0, row = safe ? 'safe' : f > 0 ? tr.stage : 0;
     if ((row !== 0) !== gOn) { gOn = row !== 0; gang.classList.toggle('on', gOn); }
     if (!gOn) { gKey = ''; return; }

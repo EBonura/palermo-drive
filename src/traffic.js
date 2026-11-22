@@ -1205,10 +1205,10 @@ Object.assign(MODELS, buildPoliceModels());
           if (d >= rs) continue;
           touched = true;
           if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
-          const pen = rs - d, mp = 1, mv = ty.mass, lx = cs, lz = -sn;
+          const mob = v.cop && v.cop.mob, pen = rs - d, mp = 1, mv = mob ? 1.6 : ty.mass, lx = cs, lz = -sn;   // a hunting picciotto rides like a wall: heavier than the lapa, never sent flying (the owner, 22 Nov 2026)
           const vn = (pc.vx + pc.w * a * lx - (vsn * v.v + v.ex)) * nx + (pc.vz + pc.w * a * lz - (vcs * v.v + v.ez)) * nz;
           const heavy = mv >= 5;   // a bus: knocked over only by a real hit (ty.yeetV), a short hop, tipping rather than tumbling
-          if (vn < -(heavy ? ty.yeetV || 1e9 : 4)) { // YEET: the vehicle is launched, the lapa only gets a light knock
+          if (!mob && vn < -(heavy ? ty.yeetV || 1e9 : 4)) { // YEET: the vehicle is launched, the lapa only gets a light knock
             const rel = -vn, sc = heavy ? ty.yeetK : mv <= 1.3 ? 1 : 0.65, pv = hyp2(pc.vx, pc.vz) || 1;
             let ux = -nx * 0.45 + pc.vx / pv * 0.55, uz = -nz * 0.45 + pc.vz / pv * 0.55; const um = hyp2(ux, uz) || 1; ux /= um; uz /= um;
             const hs = clamp(rel * 1.3 + 3, 6, 28) * sc;
@@ -1362,7 +1362,7 @@ Object.assign(MODELS, buildPoliceModels());
   const carrozze = createCarrozze(env, T), vendors = createVendors(env, T);
   arrotini = createArrotini(T, { NX, NZ, NOUT, nearestNode: G.nearestNode });
 
-  return {
+  const api = {
     update, collidePlayer,
     agents: () => agentsOut,
     vehicles: vs, arrotini: arrotini.list, bindClock: arrotini.bindClock,   // src/city-audio.js: the vehicles to hear, and the knife-grinders (each on duty has x, z, h and v, his vehicle once he is near enough to have one); bindClock(game.time): they work from 07:30 to 20:00
@@ -1386,4 +1386,6 @@ Object.assign(MODELS, buildPoliceModels());
       stats: () => { let ow = 0, alive = 0; for (const e of EDGES) if (e) { if (e.ow) ow++; if (e.alive) alive++; } return { nodes: NX.length, edges: EDGES.length, oneway: ow, alive, tiles: G.tiles.size, vehicles: vs.length, target, cands: candEdges.length, plans: PLANS.length, buses: counts.bus || 0, tileMs, aliveMs: +aliveMs.toFixed(1), aliveMax: +aliveMax.toFixed(1) }; },
     },
   };
+  if (location.search.includes('debug')) window.pdTraffic = api;   // test hook (the chase tests drive the lapa along graph.path)
+  return api;
 }
