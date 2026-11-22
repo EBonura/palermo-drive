@@ -300,7 +300,25 @@ export function createRaces(X) {
       const lap = S.laps > 1 ? clamp(Math.floor(Math.max(0, S.total) / trk.L) + 1, 1, S.laps) : 1, left = Math.max(0, S.finishS - S.total), n = S.rivals.length + 1;
       S.hudO = { label: T(S.def.name, S.def.en), title: (S.state === 'count' ? '' : S.rank + ' / ' + n) + (S.laps > 1 ? '   ' + T('Giro ', 'Lap ') + lap + '/' + S.laps : ''), sub: Math.round(left) + ' m', time: S.state === 'race' ? fmtT(S.t) : '', frac: clamp(S.total / S.finishS, 0, 1), target: { x: ax, z: az } };
     }
-    if (S.hudO) { hud.set(S.hudO); if (S.hudO.target) { S.hudO.target.x = ax; S.hudO.target.z = az; X.aim(ax, az, S.state === 'race'); if (beacon) { beacon.set(ax, az); beacon.show(S.state === 'race'); } } }
+    if (S.hudO) { hud.set(S.hudO); if (S.hudO.target) { S.hudO.target.x = ax; S.hudO.target.z = az; X.aim(ax, az, S.state === 'race'); if (beacon) { beacon.set(ax, az); beacon.show(S.state === 'race'); hoopSet(ax, az, a.tx, a.tz, S.state === 'race'); } } }
+  }
+  // The next checkpoint: from far away the pillar of light (the beacon) says where it is; from HOOP_NEAR metres the pillar thins out and a half hoop across the road
+  // takes its place, whole at HOOP_FULL. It is only a sign: a checkpoint is still counted by the distance along the racing line, so driving beside it counts too.
+  const HOOP_R = 6.5, HOOP_NEAR = 150, HOOP_FULL = 95, BEAM_W = 0.35;
+  let hoop = null;
+  function hoopSet(x, z, tx, tz, on) {
+    const k = on ? clamp((HOOP_NEAR - Math.hypot(car.x - x, car.z - z)) / (HOOP_NEAR - HOOP_FULL), 0, 1) : 0;
+    if (beacon) { beacon.beam.visible = k < 1; const w = BEAM_W * (1 - k) + 0.001; beacon.beam.scale.set(w, 1, w); }
+    if (!hoop) {
+      if (!k) return;
+      const mat = c => new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, toneMapped: false, fog: false });
+      hoop = { g: new THREE.Group(), tube: mat('#5ac8ff'), core: mat('#ffffff') };
+      hoop.g.add(new THREE.Mesh(new THREE.TorusGeometry(HOOP_R, 0.5, 8, 40, PI), hoop.tube), new THREE.Mesh(new THREE.TorusGeometry(HOOP_R, 0.2, 6, 40, PI), hoop.core));   // half a torus standing on its two ends
+      X.scene.add(hoop.g);
+    }
+    hoop.g.visible = k > 0; if (!k) return;
+    hoop.g.position.set(x, groundAt(x, z) - 0.2, z); hoop.g.rotation.y = Math.atan2(tx, tz); hoop.g.scale.setScalar(0.7 + 0.3 * k);
+    hoop.tube.opacity = 0.8 * k; hoop.core.opacity = 0.95 * k;
   }
   function rivalsUpdate(dt, go) {
     const trk = R.trk;
@@ -332,7 +350,7 @@ export function createRaces(X) {
       <div class="row"><span>${T('Tempo', 'Time')}</span><span>${finished ? fmtT(S.t) : '-'}</span></div>
       <div class="row tot"><span>${S.prize > 0 ? T('Premio', 'Prize') : T('Niente premio, ritenta', 'No prize, try again')}</span><span>${S.prize > 0 ? '€ ' + S.prize : ''}</span></div>`, 5.5, S.prize > 0 ? 'cash' : 'fail');
     if (finished && S.place === 1) hud.burst();
-    if (beacon) beacon.show(false);
+    if (beacon) beacon.show(false); hoopSet(0, 0, 0, 1, false);
   }
   async function leave() {
     const S = R; if (!S || S.leaving) return; S.leaving = true;
@@ -352,7 +370,7 @@ export function createRaces(X) {
     disposeRivals(R.rivals); disposeCrowd(R.crowd); disposeSpec(R.spec); if (R.escorts) disposeEscorts(R.escorts);
     if (R.sulky) { vehicle.lockSwap(false); vehicle.preview(null); }
     vehicle.holdSim(false);
-    if (beacon) beacon.show(false);
+    if (beacon) beacon.show(false); hoopSet(0, 0, 0, 1, false);
     R = null;
   }
   function stop() {
@@ -361,7 +379,7 @@ export function createRaces(X) {
   }
 
   function update(dt, allowed) {
-    if (!beacon) { beacon = X.makeBeacon('#5ac8ff', 9); beacon.beam.scale.set(0.35, 1, 0.35); }
+    if (!beacon) { beacon = X.makeBeacon('#5ac8ff', 9); beacon.beam.scale.set(BEAM_W, 1, BEAM_W); }
     if (R) { raceUpdate(dt); return null; }
     if (!allowed) { if (stage) stageDown(); startRing.show(false); return null; }
     // stage the nearest race that is in range (the night race only after dark)
