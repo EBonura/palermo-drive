@@ -325,14 +325,21 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 .hz-social { left: var(--sl); top: calc(var(--st) + 58px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hz-gauges { display: flex; align-items: center; gap: 16px; position: relative; padding: 7px 26px 13px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* one pill like the map capsule (#pd-card): wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
+.hz-gauges { display: flex; align-items: center; gap: 16px; position: relative; padding: 7px 26px 18px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* one pill like the map capsule (#pd-card): wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
 .hz-gauges #speed, .hz-gauges #pd-wallet { font-family: var(--pd-cond); font-weight: 700; font-size: 30px; letter-spacing: .01em; text-shadow: none; }   /* the condensed face of the map capsule's street name */
 .hz-gauges #speed small, .hz-gauges #pd-wallet small, #hud .hz-gauges .nosbar-l { font-family: var(--pd-cond); font-weight: 600; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; text-shadow: none; margin-left: 4px; }   /* every unit and label in the pink of the map capsule's area name */
-#hud .hz-gauges .nosbar { position: absolute; left: 26px; right: 26px; bottom: 5px; width: auto; padding: 0; background: none; }   /* the nitro: a thin line along the bottom edge of the pill, under the money and the speed (the owner, 22 Nov) */
-#hud .hz-gauges .nosbar-l { display: none; }
-#hud .hz-gauges .nosbar-t { height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); box-shadow: none; }
-#hud .hz-gauges .nosbar.on .nosbar-t { box-shadow: 0 0 8px 1px rgba(95,224,255,.75); }   /* boosting: the line glows */
+#hud .hz-gauges .nosbar { position: absolute; left: 26px; right: 26px; bottom: 6px; width: auto; padding: 0; background: none; gap: 8px; }   /* the nitro: a line along the bottom edge of the pill, under the money and the speed, its label at the left end (the owner, 22 Nov) */
+#hud .hz-gauges .nosbar-l { font-size: 9px; line-height: 1; letter-spacing: .2em; margin: 0; }
+#hud .hz-gauges .nosbar-t { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); box-shadow: none; overflow: visible; transition: transform .2s; }
+#hud .hz-gauges .nosbar-t i { border-radius: 2px; }
+/* Boosting: the line burns. The fill turns into a flame running towards its tip (blue at the root, white hot at the end), the line swells a little and the glow flickers; the label lights up. */
+#hud .hz-gauges .nosbar.on .nosbar-l { color: #bff3ff; text-shadow: 0 0 6px rgba(95,224,255,.9); }
+#hud .hz-gauges .nosbar.on .nosbar-t { transform: scaleY(1.5); animation: pd-nos-flicker .14s steps(2) infinite; }
+#hud .hz-gauges .nosbar.on .nosbar-t i { background: repeating-linear-gradient(90deg, #1f6bff 0 8px, #4fd2ff 8px 14px, #e8fbff 14px 16px), linear-gradient(90deg, #2b7bff, #fff); background-size: 32px 100%, 100% 100%; background-blend-mode: screen; animation: pd-nos-burn .35s linear infinite; }
 #hud .hz-gauges .nosbar.over .nosbar-t { box-shadow: 0 0 8px 1px rgba(255,200,60,.7); }
+@keyframes pd-nos-burn { to { background-position: 32px 0, 0 0; } }
+@keyframes pd-nos-flicker { 0% { box-shadow: 0 0 6px 1px rgba(95,224,255,.6), 0 -2px 10px rgba(120,200,255,.35); } 100% { box-shadow: 0 0 11px 2px rgba(150,235,255,.9), 0 -3px 14px rgba(120,200,255,.5); } }
+@media (prefers-reduced-motion: reduce) { #hud .hz-gauges .nosbar.on .nosbar-t, #hud .hz-gauges .nosbar.on .nosbar-t i { animation: none; } }
 #mini { display: block; width: 100%; height: 100%; border-radius: 50%; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: filter .12s; }   /* a tap opens the big map (src/ui.js) */
 @media (hover: hover) { #mini:hover { filter: brightness(1.1) saturate(1.1); } }
 #mini:active { filter: brightness(.92); }
@@ -380,12 +387,13 @@ html.pd-map-low #pd-info { grid-area: 1 / 2; padding: 0 calc(var(--mini) * .24) 
 html.touch.pd-map-low .hz-map { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
 @media (max-width: 1100px) {   /* a narrow desktop window: with the capsule gone from the top right the mission column goes back to the top centre */
 }
-html.touch .hz-gauges { gap: 12px; padding: 5px 18px 11px; }
-html.touch #hud .hz-gauges .nosbar { left: 18px; right: 18px; bottom: 4px; }
+html.touch .hz-gauges { gap: 12px; padding: 5px 18px 15px; }
+html.touch #hud .hz-gauges .nosbar { left: 18px; right: 18px; bottom: 5px; }
 .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 16px; background: linear-gradient(rgba(255,255,255,.14), rgba(255,255,255,.14)) left center / 1px 64% no-repeat; }   /* short hairlines between wallet, speed and nitro */
 html.touch .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 12px; }
 html.touch .hz-gauges #speed, html.touch .hz-gauges #pd-wallet { font-size: 22px; }
-html.touch .hz-gauges #speed small, html.touch .hz-gauges #pd-wallet small, html.touch #hud .hz-gauges .nosbar-l { font-size: 9px; }
+html.touch .hz-gauges #speed small, html.touch .hz-gauges #pd-wallet small { font-size: 9px; }
+html.touch #hud .hz-gauges .nosbar-l { font-size: 8px; }
 html.touch #speed { font-size: 22px; }
 html.touch #speed small { font-size: 9px; }
 html.touch #hud .nosbar { width: 84px; }
