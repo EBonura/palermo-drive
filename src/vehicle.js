@@ -760,7 +760,7 @@ export function createVehicle(env) {
     return ok;
   };
   api.puff = puff;
-  api.camFx = ({ trauma = 0, kick = 0 } = {}) => { cam.trauma = Math.max(cam.trauma, trauma); cam.kick = Math.max(cam.kick, kick); };   // a shake and a field-of-view punch (the landfill plunge, src/discarica.js)
+  api.camFx = ({ trauma = 0, kick = 0, hop = 0 } = {}) => { cam.trauma = Math.max(cam.trauma, trauma); cam.kick = Math.max(cam.kick, kick); if (hop) car.hopV = Math.min(2.6, car.hopV + hop); };   // a shake and a field-of-view punch (the landfill plunge, src/discarica.js)
   api.camMoment = k => { cam.mom = clamp(+k || 0, 0, 1); };   // 0..1: the chase camera backs off and rises, the field of view opens (src/event-dump.js sets it while the lapa falls)
   api.air = air; api.water = water;   // test hooks and the wake (src/main.js)
   api.teleport = (x, z, th) => {

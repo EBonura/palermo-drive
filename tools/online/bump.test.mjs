@@ -47,12 +47,12 @@ test('a head on bump: both cars are pushed apart, equal and opposite, nobody gai
     car.x += car.vx * STEP; car.z += car.vz * STEP;
     bump.collide(car, rem, i * STEP * 1000);
   }
-  assert.ok(car.vz < 4.5, 'our car lost most of its speed: ' + car.vz);
+  assert.ok(car.vz < 2.5, 'our car lost almost all its speed: ' + car.vz);
   assert.ok(speed(car) ** 2 < e0);
   assert.equal(sent.length, 1, 'one message for the bump');
   const h = B.readHit(sent[0][1]);
   assert.equal(sent[0][0], 7);
-  assert.ok(h.dvz > 4 && h.dvz <= B.MAX_DV, 'they are pushed forward: ' + h.dvz);
+  assert.ok(h.dvz > 7 && h.dvz <= B.MAX_DV, 'they are pushed forward: ' + h.dvz);
   assert.ok(Math.abs(h.dvz - (10 - car.vz)) < 0.3, 'what they get is what we gave up (to the wire rounding): ' + h.dvz + ' vs ' + (10 - car.vz));
 });
 

@@ -12,7 +12,8 @@
 // Delay: the other car is drawn 30 to 150 ms late and a message takes as long again, so for that long after a bump the other car is still drawn where it was before we hit it. For GRACE_MS
 // after a bounce off a player (or a message from them) that player is left alone completely: no second bounce off the stale picture, no message from them counted on top of our own bounce.
 // So a bump that both phones see is felt once on each car, not twice, up to a round trip of about GRACE_MS.
-const PR = 0.74, PAX = 0.72, I_YAW = 1.7, E = 0.25;   // the player's circles, the same as src/traffic.js
+const PR = 0.74, PAX = 0.72, I_YAW = 1.7;   // the player's circles and yaw inertia, the same as src/traffic.js
+const E_HIT = 0.7;   // how lively two players' cars bounce apart (traffic uses 0.25, which only slows you: 12 m/s into a parked car left 4.5 m/s, now 1.5 m/s and the other car is sent off at 10)
 const REACH2 = 3.0 * 3.0;                              // two cars are nowhere near touching beyond this centre distance (2 * PAX + 2 * PR = 2.92)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
@@ -50,8 +51,8 @@ function take(b, n, now) {
   b.tokens -= n; return true;
 }
 
-// send(handle, bytes): the page's own sender (it checks that the player is still held). crunch(strength 0..1): the sound of a bump.
-export function createBump({ send, crunch = () => {} }) {
+// send(handle, bytes): the page's own sender (it checks that the player is still held). crunch(strength 0..1): the sound of a bump. feel(strength 0..1): the shake and hop of the camera and body.
+export function createBump({ send, crunch = () => {}, feel = () => {} }) {
   const per = new Map();   // handle -> { bounced, got, lastSend, ax, az, aw, last, rx }
   const stats = { contacts: 0, bounces: 0, sent: 0, delayed: 0, recv: 0, applied: 0, drops: { bad: 0, unseen: 0, far: 0, dup: 0, rate: 0, dir: 0, budget: 0, air: 0 } };
   let tx = null, budget = null;
@@ -92,7 +93,7 @@ export function createBump({ send, crunch = () => {} }) {
           car.x += nx * pen; car.z += nz * pen;   // an obstacle: the car is moved out, all the way. The other phone moves theirs out of ours too
           const vn = (car.vx + car.w * a * lx - rvx) * nx + (car.vz + car.w * a * lz - rvz) * nz;
           if (vn >= 0) continue;
-          const arm = a * (lx * nx + lz * nz), j = -(1 + E) * vn / (2 + arm * arm / I_YAW);   // two cars of the same weight
+          const arm = a * (lx * nx + lz * nz), j = -(1 + E_HIT) * vn / (2 + arm * arm / I_YAW);   // two cars of the same weight
           car.vx += j * nx; car.vz += j * nz; car.w = clamp(car.w + clamp(j * arm / I_YAW * 0.7, -1.6, 1.6), -3.2, 3.2);
           const rarm = b * (rlx * -nx + rlz * -nz);   // what the other car feels, at its own contact point
           s.ax -= j * nx; s.az -= j * nz; s.aw += clamp(j * rarm / I_YAW * 0.7, -1.6, 1.6);
@@ -103,7 +104,7 @@ export function createBump({ send, crunch = () => {} }) {
       trySend(r.id, s, now);
     }
     if (touched) car.vf = car.vx * sn + car.vz * cs;
-    if (hardest > 1.2) crunch(clamp(hardest / 8, 0.25, 0.9));
+    if (hardest > 0.8) { crunch(clamp(hardest / 8, 0.25, 0.9)); feel(clamp(hardest / 12, 0.15, 1)); }
   }
 
   // what is still to be sent after the contact ended (a push that went over the gap), and the records of players long gone
@@ -135,7 +136,7 @@ export function createBump({ send, crunch = () => {} }) {
     car.vx += h.dvx; car.vz += h.dvz; car.w = clamp(car.w + h.dw, -3.2, 3.2);
     car.vf = car.vx * Math.sin(car.th) + car.vz * Math.cos(car.th);
     s.until = now + GRACE_MS; stats.applied++;
-    if (m > 1.5) crunch(clamp(m / 8, 0.25, 0.9));
+    if (m > 1.0) { crunch(clamp(m / 8, 0.25, 0.9)); feel(clamp(m / 10, 0.15, 1)); }
     return true;
   }
 

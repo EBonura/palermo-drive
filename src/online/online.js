@@ -117,7 +117,7 @@ export function createOnline(env) {
   });
   function tx(frame) { if (!link.send(frame)) return false; stats.tx++; stats.txBytes += frame.length; return true; }
   const bumpOn = params.get('bump') !== 'off';   // ?bump=off: cars of other players are only drawn (tests)
-  const bump = createBump({ send: (id, bytes) => others.has(id) && tx(toFrame(id, bytes)), crunch: k => sfx('crunch', k) });
+  const bump = createBump({ send: (id, bytes) => others.has(id) && tx(toFrame(id, bytes)), crunch: k => sfx('crunch', k), feel: k => vehicle.camFx({ trauma: 0.3 + 0.6 * k, kick: 0.3 + 0.7 * k, hop: 0.4 + 1.4 * k }) });
   // everything about the others goes when the link does: a car on the street whose player the relay can no longer vouch for is a ghost
   function forgetAll() {
     panel.clear(); wheel.close();
