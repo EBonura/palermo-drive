@@ -132,7 +132,7 @@ const canvas = document.getElementById('view');
 // The browser composites this canvas under the HUD every frame. An opaque canvas is laid down without blending and nothing behind it is drawn; a canvas with alpha is blended over the page's background, all of it.
 // three asks for alpha: true whatever it is given (and keeps the picture opaque with a clear alpha of 1), so the context is made here, with the attributes three would ask for but alpha, and handed to it.
 // In the address: ?ctx=old is three's own context as before, for comparing; ?ctx=desync (desynchronized), ?ctx=hp and ?ctx=lp (powerPreference high-performance, low-power) are for measuring only. docs/PERF.md
-const ctxQ = (new URLSearchParams(location.search).get('ctx') || '').split(','), antialias = new URLSearchParams(location.search).get('aa') !== '0';
+const ctxQ = (new URLSearchParams(location.search).get('ctx') || '').split(','), aaQ = new URLSearchParams(location.search).get('aa'), antialias = aaQ === '1' || (aaQ !== '0' && !QUALITY.mobile);   // no MSAA on touch devices (measured 1 to 2.5 ms a frame, and at pixel ratio 2 the edges hold up); ?aa=1 turns it on, ?aa=0 off elsewhere
 const context = ctxQ.includes('old') ? null : canvas.getContext('webgl2', { alpha: false, depth: true, stencil: false, antialias, premultipliedAlpha: true, preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: false,
   powerPreference: ctxQ.includes('hp') ? 'high-performance' : ctxQ.includes('lp') ? 'low-power' : 'default', desynchronized: ctxQ.includes('desync') });
 // No 3D at all: the browser has blocked WebGL for the site (after the graphics chip crashed or reset once, Chrome says "Web page caused context loss and was blocked"
@@ -410,7 +410,8 @@ function applySettings() {
   const st = game.settings, q = params.get('gfx') || 'high';
   if (q === 'auto') perf.configure({ auto: true, ceil: Math.min(devicePixelRatio, 2) });
   else {
-    const tier = { low: [1, 0], medium: [1.5, 1024], high: [2, 2048] }[q] || [2, 2048];
+    const hi = [2, 1024];   // half the shadow map on every device (a quarter of the texels, about 45 MB less GPU memory); ?sh=2048 brings it back for comparing
+    const tier = { low: [1, 0], medium: [1.5, 1024], high: hi }[q] || hi;
     // ?pr= ?sh= ?crowd= ?road= ?aa=0: one thing at a time, to find on a real phone what costs the frames
     perf.configure({ auto: false, ratio: Math.min(devicePixelRatio, +params.get('pr') || tier[0]) });
     applyLevel({ dd: 1, sh: params.has('sh') ? +params.get('sh') : tier[1], crowd: params.get('crowd') || q, road: params.get('road') || q });

@@ -124,7 +124,7 @@ try {
     if (MODE === 'shots') {
       fs.mkdirSync(OUT, { recursive: true });
       for (const t of String(arg('times', '12,20')).split(',')) {
-        const m = await page(port, spot, [{ do: 'shot', spr: PR }], { q: `time=${t}` });
+        const m = await page(port, spot, [{ do: 'shot', spr: PR }], { q: `time=${t}${Q ? '&' + Q : ''}`, attr: arg('aa', '') ? { antialias: arg('aa') === '1' } : null });
         const s = m.find(o => o.shot); if (s) { const f = path.join(OUT, `${spot}-${t}${arg('tag', '') ? '-' + arg('tag') : ''}.jpg`); fs.writeFileSync(f, Buffer.from(s.shot.split(',')[1], 'base64')); console.log('  ' + f); }
       }
     }
