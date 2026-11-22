@@ -565,7 +565,7 @@ function frame(now) {
       savePose();
       physics(STEP);
       const high = car.agl > 3, wet = car.wet > 0.5;   // up in the air the street cannot touch the lapa (src/vehicle-air.js); on the water there are no potholes or sand
-      if (!high) { traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); }
+      if (!high) { traffic.collidePlayer?.(car); pedestrians.collidePlayer?.(car); net.collidePlayer?.(car); }
       if (!high && !wet) roadwear.collidePlayer?.(car, STEP);
       if (!high) propsApi.collidePlayer?.(car, STEP);
       if (!high && !wet) world?.drivePlayer(car, STEP); /* world: off-road grip and bumps */

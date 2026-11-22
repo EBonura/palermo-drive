@@ -242,7 +242,7 @@ export function createRemotes(env) {
     r.spin += p.v * dt / ((m.wheels[0] && m.wheels[0].r) || 0.23);
     m.pose({ pitch: 0, roll: p.roll, lean: p.lean, steer: p.steer, spin: r.spin, t: now / 1000, speed: Math.abs(p.v) });
     if (r.flames) { const on = (p.fl & 1) === 1; for (const f of r.flames) { f.visible = on; if (on) f.scale.set(1.3, 1.3, 1.6 + Math.random() * 0.8); } }
-    r.marker.x = p.x; r.marker.z = p.z;
+    r.marker.x = p.x; r.marker.z = p.z; r.pose = p;   // r.pose: where it is drawn, for src/online/bump.js
     if (PMARK) markDeco(r, p.x, gy + r.lift, p.z, now);
     const d = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
     r.tagA = clamp((330 - d) / 100, 0, 1);

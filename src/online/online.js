@@ -25,6 +25,8 @@ import { garage, VEHICLES, LIVERIES } from '../garage.js';
 import { townAt } from '../districts.js';
 import { createGuide } from '../route-guide.js';
 import { areaAt } from '../danger.js';
+import { createBump, HIT as HIT_TYPE } from './bump.js';   // other players' cars bump ours (docs/ONLINE.md)
+import { sfx } from '../sfx.js';
 import { PLAYLOG_ON } from '../playlog.js';   // true once src/playlog-url.js has an address: the wording below then says what is saved
 
 const TAU = Math.PI * 2;
@@ -114,6 +116,8 @@ export function createOnline(env) {
     onClose() { stats.drops++; ev('close'); forgetAll(); },
   });
   function tx(frame) { if (!link.send(frame)) return false; stats.tx++; stats.txBytes += frame.length; return true; }
+  const bumpOn = params.get('bump') !== 'off';   // ?bump=off: cars of other players are only drawn (tests)
+  const bump = createBump({ send: (id, bytes) => others.has(id) && tx(toFrame(id, bytes)), crunch: k => sfx('crunch', k) });
   // everything about the others goes when the link does: a car on the street whose player the relay can no longer vouch for is a ghost
   function forgetAll() {
     panel.clear(); wheel.close();
@@ -230,6 +234,7 @@ export function createOnline(env) {
     if (!admit(p, now)) { stats.rxDropped++; return; }
     if (f.type === IN.STATE) { stats.states++; onState(p, f.s, now); }
     else if (f.type === IN.SAY) onSay(p, f.phrase, now);
+    else if (f.direct[0] === HIT_TYPE) bump.receive(car, rm.remotes.get(p.handle), f.direct, now);
     else onOffer(p, f.direct, now);
   }
   // ENTER: a player is now one of ours, or one of ours changed its info (a repeated ENTER with nothing new is nothing)
@@ -779,7 +784,7 @@ export function createOnline(env) {
         ev('drop', { handle: p.handle, why: 'stale' });
       }
     }
-    rm.update(dt, now);
+    rm.update(dt, now); bump.flush(now);
     if (testing && now - hudT > 500) {
       hudT = now;
       hud.textContent = `online ${link.state}${link.fails ? ' (failed ' + link.fails + ')' : ''}  ${myName}  handle ${selfHandle || '-'}  connected ${onlineCount || '-'}\nplayers ${others.size} drawn ${rm.remotes.size}  tx ${stats.tx} rx ${stats.rx} bad ${stats.rxBad} dropped ${stats.rxDropped}\nrelay ${relayUrl || 'none'}`;
@@ -787,11 +792,12 @@ export function createOnline(env) {
   }
 
   const api = {
-    enabled: true, update, openName, players: () => rm.list(), get online() { return others.size > 0; },
+    enabled: true, update,
+    collidePlayer: c => { if (bumpOn && ready && game.state === 'play') bump.collide(c, rm.remotes, performance.now()); },   // called by the physics step (src/main.js) openName, players: () => rm.list(), get online() { return others.size > 0; },
     isOnline: online,
     statsName: () => named && agreed && ready ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     // test hooks, under the name the tools have always used (window.__p2p)
-    debug: { log, stats, peers: others, remotes: rm.remotes, DRAW_R, shownCap, maxTracked: () => maxTracked, audience: () => audience, relayVer: () => relayVer, cars: () => [...rm.remotes.values()].filter(r => !r.far).length,
+    debug: { log, stats, bump: bump.stats, peers: others, remotes: rm.remotes, DRAW_R, shownCap, maxTracked: () => maxTracked, audience: () => audience, relayVer: () => relayVer, cars: () => [...rm.remotes.values()].filter(r => !r.far).length,
       relay: () => ({ url: relayUrl, state: link.state, fails: link.fails, waitMs: Math.round(link.waitMs), ready, handle: selfHandle, online: onlineCount, why: whyNot.state, asks: whyNot.asks }),
       peerInfo: () => [...others.values()].map(p => ({ handle: p.handle, name: p.name, shown: p.shown, held: p.held, far: p.far, age: Math.round(performance.now() - p.lastRx), x: Math.round(p.x) })),
       wallet: () => garage.cash, free: () => freeLeft(), spend: n => garage.debit(n),   // test hooks (tools/online/offer.mjs)
