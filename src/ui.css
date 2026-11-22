@@ -325,37 +325,21 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 .hz-social { left: var(--sl); top: calc(var(--st) + 58px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hz-gauges { display: flex; align-items: center; gap: 16px; position: relative; padding: 8px 34px 31px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* one pill like the map capsule (#pd-card): wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
+.hz-gauges { display: flex; align-items: center; gap: 16px; position: relative; padding: 8px 32px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* one pill like the map capsule (#pd-card): wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
 .hz-gauges #speed, .hz-gauges #pd-wallet { font-family: var(--pd-cond); font-weight: 700; font-size: 30px; letter-spacing: .01em; text-shadow: none; }   /* the condensed face of the map capsule's street name */
-.hz-gauges #speed small, .hz-gauges #pd-wallet small, #hud .hz-gauges .nosbar-l { font-family: var(--pd-cond); font-weight: 600; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; text-shadow: none; margin-left: 4px; }   /* every unit and label in the pink of the map capsule's area name */
-#hud .hz-gauges .nosbar { position: absolute; left: 16px; right: 16px; bottom: 8px; width: auto; padding: 0; background: none; flex-direction: column; align-items: stretch; gap: 3px;
-  transition: left .22s cubic-bezier(.3, 1.6, .5, 1), right .22s cubic-bezier(.3, 1.6, .5, 1); }   /* the nitro: its label, then a line the full width of the pill along its bottom edge (the owner, 22 Nov): full means edge to edge */
-#hud .hz-gauges .nosbar-l { font-size: 10px; line-height: 1; letter-spacing: .2em; margin: 0 0 0 14px; }
-#hud .hz-gauges .nosbar-t { flex: none; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); box-shadow: none; overflow: visible; transition: transform .2s; }
-#hud .hz-gauges .nosbar-t i, #hud .hz-gauges .nosbar-t b { border-radius: 3px; }
-/* Boosting: the line burns and breaks out of the pill. The fill turns into a flame running towards its tip (blue at the root, white hot at the end) and the glow flickers; the line shoots
-   past both ends of the pill, the pill shakes, cracks light up where the line came through and sparks fly off the two broken ends. Reduced motion: the line still breaks out, nothing moves. */
-#hud .hz-gauges .nosbar.on { left: -14px; right: -14px; }
-#hud .hz-gauges .nosbar.on .nosbar-l { color: #bff3ff; text-shadow: 0 0 6px rgba(95,224,255,.9); margin-left: 44px; }
-#hud .hz-gauges .nosbar.on .nosbar-t { transform: scaleY(1.35); animation: pd-nos-flicker .14s steps(2) infinite; }
-#hud .hz-gauges .nosbar.on .nosbar-t i { background: repeating-linear-gradient(90deg, #1f6bff 0 8px, #4fd2ff 8px 14px, #e8fbff 14px 16px), linear-gradient(90deg, #2b7bff, #fff); background-size: 32px 100%, 100% 100%; background-blend-mode: screen; animation: pd-nos-burn .35s linear infinite; }
-#hud .hz-gauges .nosbar.over .nosbar-t { box-shadow: 0 0 8px 1px rgba(255,200,60,.7); }
-#hud .hz-gauges .nosbar-t::before, #hud .hz-gauges .nosbar-t::after { content: ''; position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; opacity: 0; pointer-events: none;
-  background: radial-gradient(circle at 30% 40%, #fff 0 1.2px, transparent 2px), radial-gradient(circle at 75% 25%, #bff3ff 0 1px, transparent 1.8px), radial-gradient(circle at 60% 80%, #5fe0ff 0 1.3px, transparent 2px), radial-gradient(circle at 15% 75%, #fff 0 .9px, transparent 1.6px); }   /* sparks, one cluster at each broken end */
-#hud .hz-gauges .nosbar-t::before { left: -12px; transform: scaleX(-1); }
-#hud .hz-gauges .nosbar-t::after { right: -12px; }
-#hud .hz-gauges .nosbar.on .nosbar-t::before, #hud .hz-gauges .nosbar.on .nosbar-t::after { animation: pd-nos-spark .3s linear infinite; }
-#hud .hz-gauges .nosbar.on .nosbar-t::before { animation-delay: -.15s; }
-.hz-gauges::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .15s;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='40' viewBox='0 0 44 40'%3E%3Cg fill='none' stroke='%23bff3ff' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M44 33 L31 29 L24 33 L14 26 L5 28'/%3E%3Cpath d='M31 29 L27 18 L19 13'/%3E%3Cpath d='M24 33 L18 39'/%3E%3Cpath d='M14 26 L9 17'/%3E%3C/g%3E%3C/svg%3E") right 2px bottom 0 / 44px 40px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='40' viewBox='0 0 44 40'%3E%3Cg transform='translate(44 0) scale(-1 1)' fill='none' stroke='%23bff3ff' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M44 33 L31 29 L24 33 L14 26 L5 28'/%3E%3Cpath d='M31 29 L27 18 L19 13'/%3E%3Cpath d='M24 33 L18 39'/%3E%3Cpath d='M14 26 L9 17'/%3E%3C/g%3E%3C/svg%3E") left 2px bottom 0 / 44px 40px no-repeat; }   /* the cracks where the line broke through; the left one is the same drawing mirrored */
-.hz-gauges:has(.nosbar.on)::after { opacity: 1; filter: drop-shadow(0 0 3px rgba(95,224,255,.9)); animation: pd-nos-crack .14s steps(2) infinite; }
-.hz-gauges:has(.nosbar.on) { animation: pd-nos-shake .12s linear infinite; }
+.hz-gauges #speed small, .hz-gauges #pd-wallet small, #hud .hz-bottom > .nosbar .nosbar-l { font-family: var(--pd-cond); font-weight: 600; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; text-shadow: none; margin-left: 4px; }   /* every unit and label in the pink of the map capsule's area name */
+#hud .hz-bottom > .nosbar { width: 180px; gap: 9px; margin-top: -3px; padding: 6px 14px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* the nitro: its own slim pill under the money and the speed, the same dark capsule (the owner, 22 Nov) */
+#hud .hz-bottom > .nosbar .nosbar-l { font-size: 10px; line-height: 1; letter-spacing: .2em; margin: 0; }
+#hud .hz-bottom > .nosbar .nosbar-t { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); box-shadow: none; transition: transform .2s; }
+#hud .hz-bottom > .nosbar .nosbar-t i, #hud .hz-bottom > .nosbar .nosbar-t b { border-radius: 3px; }
+/* Boosting: the line burns. The fill turns into a flame running towards its tip (blue at the root, white hot at the end), the line swells a little and the glow flickers; the label lights up. */
+#hud .hz-bottom > .nosbar.on .nosbar-l { color: #bff3ff; text-shadow: 0 0 6px rgba(95,224,255,.9); }
+#hud .hz-bottom > .nosbar.on .nosbar-t { transform: scaleY(1.35); animation: pd-nos-flicker .14s steps(2) infinite; }
+#hud .hz-bottom > .nosbar.on .nosbar-t i { background: repeating-linear-gradient(90deg, #1f6bff 0 8px, #4fd2ff 8px 14px, #e8fbff 14px 16px), linear-gradient(90deg, #2b7bff, #fff); background-size: 32px 100%, 100% 100%; background-blend-mode: screen; animation: pd-nos-burn .35s linear infinite; }
+#hud .hz-bottom > .nosbar.over .nosbar-t { box-shadow: 0 0 8px 1px rgba(255,200,60,.7); }
 @keyframes pd-nos-burn { to { background-position: 32px 0, 0 0; } }
 @keyframes pd-nos-flicker { 0% { box-shadow: 0 0 6px 1px rgba(95,224,255,.6), 0 -2px 10px rgba(120,200,255,.35); } 100% { box-shadow: 0 0 11px 2px rgba(150,235,255,.9), 0 -3px 14px rgba(120,200,255,.5); } }
-@keyframes pd-nos-spark { 0% { opacity: 1; translate: 0 0; scale: .6; } 100% { opacity: 0; translate: 10px -6px; scale: 1.4; } }
-@keyframes pd-nos-crack { 0% { opacity: .75; } 100% { opacity: 1; } }
-@keyframes pd-nos-shake { 0%, 100% { translate: 0 0; } 25% { translate: .8px -.6px; } 50% { translate: -.7px .5px; } 75% { translate: .5px .7px; } }
-@media (prefers-reduced-motion: reduce) { #hud .hz-gauges .nosbar.on .nosbar-t, #hud .hz-gauges .nosbar.on .nosbar-t i, #hud .hz-gauges .nosbar.on .nosbar-t::before, #hud .hz-gauges .nosbar.on .nosbar-t::after, .hz-gauges:has(.nosbar.on), .hz-gauges:has(.nosbar.on)::after { animation: none; } #hud .hz-gauges .nosbar { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #hud .hz-bottom > .nosbar.on .nosbar-t, #hud .hz-bottom > .nosbar.on .nosbar-t i { animation: none; } }
 #mini { display: block; width: 100%; height: 100%; border-radius: 50%; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: filter .12s; }   /* a tap opens the big map (src/ui.js) */
 @media (hover: hover) { #mini:hover { filter: brightness(1.1) saturate(1.1); } }
 #mini:active { filter: brightness(.92); }
@@ -403,15 +387,14 @@ html.pd-map-low #pd-info { grid-area: 1 / 2; padding: 0 calc(var(--mini) * .24) 
 html.touch.pd-map-low .hz-map { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
 @media (max-width: 1100px) {   /* a narrow desktop window: with the capsule gone from the top right the mission column goes back to the top centre */
 }
-html.touch .hz-gauges { gap: 12px; padding: 6px 24px 26px; }
-html.touch #hud .hz-gauges .nosbar { left: 12px; right: 12px; bottom: 6px; }
-html.touch #hud .hz-gauges .nosbar.on { left: -10px; right: -10px; }
-html.touch #hud .hz-gauges .nosbar-t { height: 5px; }
+html.touch .hz-gauges { gap: 12px; padding: 6px 22px; }
+html.touch #hud .hz-bottom > .nosbar { width: 130px; padding: 5px 11px; gap: 7px; }
+html.touch #hud .hz-bottom > .nosbar .nosbar-t { height: 5px; }
 .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 16px; background: linear-gradient(rgba(255,255,255,.14), rgba(255,255,255,.14)) left center / 1px 64% no-repeat; }   /* short hairlines between wallet, speed and nitro */
 html.touch .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 12px; }
 html.touch .hz-gauges #speed, html.touch .hz-gauges #pd-wallet { font-size: 22px; }
 html.touch .hz-gauges #speed small, html.touch .hz-gauges #pd-wallet small { font-size: 9px; }
-html.touch #hud .hz-gauges .nosbar-l { font-size: 9px; }
+html.touch #hud .hz-bottom > .nosbar .nosbar-l { font-size: 9px; }
 html.touch #speed { font-size: 22px; }
 html.touch #speed small { font-size: 9px; }
 html.touch #hud .nosbar { width: 84px; }
