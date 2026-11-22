@@ -302,8 +302,8 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar stands next to the speed
-createWalletHud({ garage: wallet });
-createHitPay({ garage: wallet });
+const walletHud = createWalletHud({ garage: wallet });
+createHitPay({ garage: wallet, onPay: walletHud.pop });
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
