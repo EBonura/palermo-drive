@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { garage } from './garage.js';
 import { FINE_PER_LEVEL } from './economy.js';
-import { dangerAt, areaId, covered, resetTrouble, trouble } from './danger.js';
+import { dangerAt, areaId, covered, resetTrouble, trouble, gang } from './danger.js';
 import { createDangerHud } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
 import { vp } from './viewport.js';
 import { zone } from './hud.js';
@@ -124,7 +124,7 @@ export function createPolice(env, T) {
   // While a quarter hunts you (five eyes, src/danger.js) scooters with two picciotti come out of its side streets, faster than the police in their own streets, and box the
   // lapa in; stopped among them for a moment, it is the fermo at once. They never leave their quarter: at its border they brake, shout and turn back. Sent flying, they count
   // as no chaos. The police wait at the border of a quarter that hunts you (holdAtBorder below), so only one chase is ever on.
-  const MOB_N = [1, 1, 2, 2, 3], MOB_NAMES = ['vespa', 'vespaB'];
+  const MOB_N = [2, 2, 3, 3, 4], MOB_NAMES = ['vespa', 'vespaB'];
   // what the picciotti shout once they have the lapa in sight (the owner's lines, 22 Nov 2026); [Palermitan, English]
   const MOB_SAY = [['Fieimmati ca un ti fazzu niainti!', 'Stop, I won\'t do anything to you!'], ['Ooooou cucììììì!', 'Oiiii, cousin!'], ['Fieimmati cos’inutile!', 'Stop, you useless thing!']];
   const mobSay = v => { const l = MOB_SAY[(Math.random() * MOB_SAY.length) | 0]; T.shoutAt(v, langIdx() ? l[1] : l[0]); };
@@ -137,25 +137,26 @@ export function createPolice(env, T) {
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true, fog: false, toneMapped: false });
     const pool = [0, 1, 2].map(() => { const sp = new THREE.Sprite(mat); sp.visible = false; sp.renderOrder = 60; sp.scale.set(0.9, 0.9, 1); env.scene?.add(sp); return sp; });
-    return { place(list) { pool.forEach((sp, i) => { const v = list[i]; sp.visible = !!v && !v.fly; if (sp.visible) { const bob = 0.12 * Math.sin(time * 5 + i); sp.position.set(v.x, T.groundY(v.x, v.z) + 2.6 + bob, v.z); } }); } };
+    return { place(list) { pool.forEach((sp, i) => { const v = list[i]; sp.visible = !!v && !v.fly; if (sp.visible) { const bob = 0.12 * Math.sin(time * 5 + i); sp.position.set(v.x, T.groundY(v.x, v.z) + 2.6 + bob, v.z); sp.updateMatrixWorld(); /* its own matrix: the lean engine's scene walk skips what it does not expect to move */ } }); } };
   })();
-  let mobArea = -1, nextMob = 0, caughtT = 0;
+  let mobArea = -1, nextMob = 0, caughtT = 0, huntT0 = 0;
+  const BOX_S = 3;   // seconds stopped among them before the fermo (the bar fills meanwhile)
   const mobs = () => { const out = []; for (const v of vs) if (v.cop && v.cop.mob) out.push(v); return out; };
   function mobLeave(v) { if (v.cop.mode === 'direct') toRoad(v); v.cop = null; v.boost = 1; v.drv = 0.9 + Math.random() * 0.15; }   // back to being a scooter in the traffic
   function mobTick(dt, sp) {
     const tr = trouble(), hunt = tr.stage >= 3 && busted <= 0 && !covered() ? tr.id : -1;
     if (hunt !== mobArea) {   // the hunt ended (you got out, the fermo, a blessing) or another quarter took over: the ones still out go home
       for (const v of mobs()) { mobLeave(v); if (hunt < 0) { v.honkAt = time; T.shoutAt(v); } }
-      mobArea = hunt; nextMob = time + 1.2; caughtT = 0;
+      mobArea = hunt; nextMob = time + 1.2; caughtT = 0; huntT0 = time; gang.box = 0; gang.close = false;
     }
     if (hunt < 0) return;
-    const ms = mobs(), want = MOB_N[dangerAt(car.x, car.z) - 1] || 1;
+    const ms = mobs(), want = Math.min(MOB_N[dangerAt(car.x, car.z) - 1] || 2, 1 + Math.floor((time - huntT0) / 10));   // one to start with, one more every 10 s you stay, up to the quarter's cap
     if (ms.length < want && time >= nextMob) {
       const v = T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 75, (x, z) => areaId(x, z) === hunt) || T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 140, (x, z) => areaId(x, z) === hunt);   // close, out of view: they come out of the alleys round you
       if (v) { v.cop = { id: ++copId, mob: true, area: hunt, bestT: time, pursue: true, mode: 'road', slot: 0, stuckT: 0, noLosT: 0, keep: true, tx: v.x, tz: v.z }; v.boost = 1.9; v.drv = 1.2; }
       nextMob = time + 2.5;
     }
-    let slot = 0, near = 0;
+    let slot = 0, near = 0, close = false;
     for (const v of ms) {
       const c = v.cop, d = hyp(v.x - car.x, v.z - car.z);
       if (v.fly) continue;
@@ -170,11 +171,13 @@ export function createPolice(env, T) {
       if (c.mode === 'road' && d < 55 && (c.los || time > (c.directCool || 0))) { c.mode = 'direct'; c.stuckT = 0; }   // they know the alleys: straight at the lapa, also round a corner
       else if (c.mode === 'direct' && (d > 60 || (c.noLosT > 2.5 && d > 25) || c.stuckT > 3)) { toRoad(v); c.directCool = time + 3; }
       if (c.mode === 'direct') c.slot = slot++;
-      if (d < 8) near++;
+      if (d < 4 || (d < 8 && c.los)) near++;   // touching, or right by the lapa and in sight: not through a wall from the next alley
+      if (d < 18) close = true;
     }
     // boxed in: stopped (or crawling) with picciotti right by the lapa for a moment
-    if (near > 0 && sp < 3 && !(car.agl > 3)) { caughtT += dt * (1 + 0.5 * (near - 1)); if (caughtT >= 1.4) { caughtT = 0; dispatchEvent(new Event('pd-gang-catch')); } }
-    else caughtT = Math.max(0, caughtT - dt * 0.5);
+    if (near > 0 && sp < 3 && !(car.agl > 3)) { caughtT += dt * (1 + 0.3 * (near - 1)); if (caughtT >= BOX_S) { caughtT = 0; dispatchEvent(new Event('pd-gang-catch')); } }
+    else caughtT = Math.max(0, caughtT - dt * 0.7);
+    gang.box = Math.min(1, caughtT / BOX_S); gang.close = close;
   }
   // the police do not go into a quarter that is hunting you: they stop at its border and wait, and pick you up again when you come out
   function holdAtBorder(v, nx, nz) { return mobArea >= 0 && areaId(nx, nz) === mobArea; }

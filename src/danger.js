@@ -72,8 +72,8 @@ export const TUNE = {
   night: 1.3,        // the same damage counts for this much more at night
   max: 100,          // the score cap; the five eyes are 20 points each (the owner, 22 Nov 2026: the quarter is a twin of the police, five eyes beside five sirens)
   notice: 40,        // over this, three eyes: "noticed"
-  search: 80,        // over this, five eyes: the hunt, the countdown runs and the picciotti come out (src/police.js)
-  seconds: FAST ? 5 : 20,   // the countdown of the hunt, always the same length (no hidden speed factor any more)
+  search: 80,        // over this, five eyes: the hunt, the picciotti come out (src/police.js)
+  seconds: FAST ? 5 : 20,   // (no longer used: the hunt has no timer since 22 Nov, only the picciotti boxing you in end it in a fermo)
   out: 0.35,         // the countdown under this much left: "get out of the quarter", the lookouts shout
   refill: 12,        // seconds for the bar to fill again once the score is back under `search`
   hold: 8,           // seconds without damage before the score starts to fade
@@ -98,6 +98,8 @@ const areas = new Map();   // area id -> { s: score, quiet: seconds since the la
 // What the HUD draws (src/danger-hud.js): the score of the area the car is in, the stage (1 calm, 2 noticed, 3 searching, 4 get out), the bar (1 full .. 0 empty), and how long the "safe" words stay
 const tr = { id: -1, score: 0, stage: 1, bar: 1, safe: 0 };
 export const trouble = () => tr;
+// what the picciotti are doing to you (src/police.js writes it every quarter second): box 0..1, how boxed in the lapa is (full: the fermo); close, one of them is near
+export const gang = { box: 0, close: false };
 export const resetTrouble = () => { if (areas.size || tr.score) { areas.clear(); Object.assign(tr, { id: -1, score: 0, stage: 1, bar: 1, safe: 0 }); } };   // back on the title: a new drive starts clean
 
 export function createDanger({ car }) {
@@ -130,13 +132,14 @@ export function createDanger({ car }) {
       let stage = s < TUNE.notice ? 1 : s < TUNE.search ? 2 : 3;
       if (a) {
         if (stage < 3) a.bar = Math.min(1, a.bar + dt / TUNE.refill);
-        else if (!busy && !covered() && !document.querySelector('#pd-busted.on')) {   // not during an event, a transition or the busted card
-          a.bar -= dt / TUNE.seconds;
-          if (a.bar <= 0 || caught) { caught = false; areas.delete(id); hot = -1; tr.stage = 1; tr.score = 0; tr.bar = 1; return true; }
+        else if (busy || covered() || document.querySelector('#pd-busted.on')) caught = false;   // a box-in that ends during an event, a transition or the busted card does not wait to fire later
+        else {   // not during an event, a transition or the busted card
+          a.bar = 1 - gang.box;   // no timer any more (the owner, 22 Nov 2026: a fermo with nobody round you made no sense): only the picciotti boxing you in
+          if (caught) { caught = false; areas.delete(id); hot = -1; tr.stage = 1; tr.score = 0; tr.bar = 1; return true; }
         }
       }
       const bar = a ? a.bar : 1;
-      if (stage === 3 && bar < TUNE.out) stage = 4;
+      if (stage === 3 && gang.close) stage = 4;   // one of them is on you: get out of the quarter
       // out of the area where the bar was running for a moment: you got away
       if (stage >= 3) { hot = id; hotOut = 0; }
       else if (hot === id) hot = -1;   // it cooled down while you stayed

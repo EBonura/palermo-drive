@@ -77,7 +77,7 @@ export function createDangerHud(car) {
     if (!gOn) { gKey = ''; return; }
     const key = row + lg;
     if (key !== gKey) { gKey = key; elG.textContent = WORDS[row][lg === 'en' ? 1 : 0]; gang.classList.toggle('hunt', row === 3 || row === 4); gang.classList.toggle('out', row === 4); gang.classList.toggle('safe', row === 'safe'); }
-    const bar = Math.round((row === 'safe' ? 1 : tr.stage >= 3 ? tr.bar : tr.score / TUNE.max) * 100);   // the score, like the police's heat; in the hunt the countdown
+    const bar = Math.round((row === 'safe' ? 1 : tr.stage >= 3 ? 1 - tr.bar : tr.score / TUNE.max) * 100);   // the score, like the police's heat; in the hunt how boxed in you are (full: the fermo)
     if (bar !== gBar) { gBar = bar; elBar.style.width = bar + '%'; }
   }
   return { els: [hood, gang], draw };
