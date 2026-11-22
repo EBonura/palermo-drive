@@ -9,6 +9,6 @@ export function createHitPay({ garage, onPay }) {
     if (!pay) return;
     const now = performance.now() / 1000;
     if (now - last < HIT_GAP) return;
-    last = now; garage.credit(pay); onPay?.(pay);   // the wallet shows a small "+0,25 €" (src/wallet-hud.js)
+    last = now; garage.credit(pay); onPay?.(pay);   // main.js floats the amount over the hit (src/hit-pop.js); the wallet counter ticks up and flashes (src/wallet-hud.js)
   });
 }

@@ -5,11 +5,12 @@
 import { zone } from './hud.js';
 
 const CSS = `
-#pd-wallet { position: relative; flex: none; min-width: 4.6ch; text-align: right; font-size: 30px; font-weight: 800; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; color: #f5d27a; pointer-events: none; transition: color .15s; }   /* the same type as #speed (index.html); min-width: the pill does not jump as the number grows */
+#pd-wallet { position: relative; transform-origin: 100% 50%; flex: none; min-width: 4.6ch; text-align: right; font-size: 30px; font-weight: 800; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; color: #f5d27a; pointer-events: none; transition: color .15s; }   /* the same type as #speed (index.html); min-width: the pill does not jump as the number grows */
 #pd-wallet .c { font-size: .62em; letter-spacing: 0; }   /* the cents, smaller, like the small digits on a price tag */
 #pd-wallet small { font-size: 11px; font-weight: 600; margin-left: 3px; }
 #pd-wallet.neg { color: #ff5a4a; }
-#pd-wallet.up { color: #7be08a; }
+#pd-wallet.up { color: #7be08a; animation: pd-wbump .45s ease-out; }
+@keyframes pd-wbump { 0% { transform: scale(1); } 25% { transform: scale(1.28); } 100% { transform: scale(1); } }
 #pd-wallet.down { color: #ff5a4a; }
 html.touch #pd-wallet { font-size: 22px; }
 html.touch #pd-wallet small { font-size: 9px; }

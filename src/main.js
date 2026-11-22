@@ -38,6 +38,7 @@ import { POI_SPOTS } from './pub-places.js';
 import { createCoords } from './coords.js'; // ?coords or Options: position on screen for bug reports (src/coords.js)
 import { createWalletHud } from './wallet-hud.js'; // the money you hold, always on the street (src/wallet-hud.js)
 import { garage as wallet } from './garage.js';
+import { createHitPop } from './hit-pop.js'; // the reward floating up from the hit point (src/hit-pop.js)
 import { createHitPay } from './hit-pay.js'; // a few cents for a person knocked over or a car sent flying (src/hit-pay.js, numbers in src/economy.js)
 import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
 import { createPerf } from './perf.js'; // Auto graphics: holds 60 fps on any device by moving resolution, draw distance, shadows and crowd (src/perf.js, docs/PERF.md)
@@ -304,7 +305,8 @@ const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, rais
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar: inside the gauges pill, along its bottom edge (src/ui.css)
 const walletHud = createWalletHud({ garage: wallet });
-createHitPay({ garage: wallet, onPay: walletHud.pop });
+const hitPops = createHitPop(camera);
+createHitPay({ garage: wallet, onPay: amt => hitPops.pop(car.x + Math.sin(car.th) * 1.8, groundY(car.x, car.z) + 1.3, car.z + Math.cos(car.th) * 1.8, amt) });   // a little ahead of the nose, where the hit is
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------
@@ -584,6 +586,7 @@ function frame(now) {
   net.update?.(dt);
   playlog.update(dt);
   shouts.update(game.state === 'pause' ? 0 : dt);
+  hitPops.update(game.state === 'pause' ? 0 : dt);
   horn.update(dt, game.state === 'play');
   // sea.update animates the water; checkPlayer ends the run when the lapa drives into the sea.
   sea.update?.(dt, camera);
