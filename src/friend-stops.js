@@ -228,7 +228,7 @@ export function createFriendStops(h) {
     for (const gl of glows) { const op = gl.day + (gl.night - gl.day) * nk; if (gl.s.material.opacity !== op) gl.s.material.opacity = op; }
     for (const k of Object.values(KIND)) if (k.tick) k.tick(dt);
     slowT -= dt;
-    if (slowT <= 0) { slowT = 1; for (const s of stops) if (s.built && s.g) { const gy = groundAt(s.x, s.z); if (Math.abs(gy - s.gy) > 0.25) { s.gy = gy; s.g.position.y = gy; } } }   // the terrain refines as tiles stream in
+    if (slowT <= 0) { slowT = 1; for (const s of stops) if (s.built && s.g) { const gy = groundAt(s.x, s.z); if (Math.abs(gy - s.gy) > 0.25) { const m = s.g.userData.leanMover; if (m) { m.box[4] += gy - s.gy; m.box[5] += gy - s.gy; } s.gy = gy; s.g.position.y = gy; } } }   // the terrain refines as tiles stream in
     for (const s of stops) {
       const K = KIND[s.kind];
       if (!s.built && Math.hypot(car.x - s.x, car.z - s.z) < (K.radius || BUILD_R)) {

@@ -68,7 +68,7 @@ export function createGovernor(opt = {}) {
   const st = { lowers: 0, raises: 0, cpuVerdicts: 0, fails: 0, trials: 0, trialsOk: 0, to30: 0, deferred: 0 };
 
   const mult30 = () => Math.max(1, Math.floor(33.33 / R + 0.25));   // display refreshes per frame at 30 fps: 2 at 60 Hz, 3 at 90, 4 at 120
-  const mult60 = () => Math.max(1, Math.floor(1000 / R / 60 + 0.05));   // at 60 fps: 1 up to 119 Hz (90 Hz has no even way to 60, it runs at 90), 2 at 120 and 144 Hz (60 and 72 fps, an even cadence), 3 at 180, 4 at 240
+  const mult60 = () => 1;   // at 60 fps the frame is never held back by whole refreshes: createPerf's frame() holds every display above 60 Hz to 60 fps by time
   const mult = () => mode === 60 ? mult60() : mult30();
   const period = () => mode === 60 ? Math.max(1000 / 60, mult60() * R) : mult30() * R;
   const floor = () => mode === 60 ? C.floor60 : C.floor30;
@@ -205,13 +205,14 @@ export function createGovernor(opt = {}) {
 }
 
 const KEY = 'palermoDrive.autogfx.v1';
+const FRAME60 = 1000 / 60;
 const RATES = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 200, 240];
 const snapRefresh = ms => { const hz = 1000 / ms; let best = hz, bd = 0.04; for (const r of RATES) { const d = Math.abs(hz - r) / r; if (d < bd) { bd = d; best = r; } } return 1000 / best; };
 
 export function createPerf({ renderer, apply = () => {}, gate = () => true }) {
   const params = new URLSearchParams(location.search);
   const off = params.has('fixres');              // ?fixres: nothing adapts (benchmarks)
-  let auto = false, ceil = 1, fixed = 1, started = false, covered = 0, R = 0, rawLast = 0, rawBuf = [], lastExec = 0, skipping = false;
+  let auto = false, ceil = 1, fixed = 1, started = false, covered = 0, R = 0, rawLast = 0, rawBuf = [], lastExec = 0, due = 0, skipping = false;
   let applied = 0, fps = 60, lastFrame = 0, dirty = false, lastSaved = '', gov = null, saveAt = 0, source = '';
   const sig = () => {
     let gl = '';
@@ -258,11 +259,15 @@ export function createPerf({ renderer, apply = () => {}, gate = () => true }) {
       // refresh interval from the raw animation frame deltas (also the skipped ones): the lowest estimate seen, snapped to a real display rate
       const d = now - rawLast; rawLast = now;
       if (d > 3 && d < 60) { rawBuf.push(d); if (rawBuf.length >= 90) { rawBuf.sort((a, b) => a - b); const e = snapRefresh(rawBuf[22]); rawBuf = []; R = R ? Math.min(R, e) : e; gov?.setRefresh(R); } }
-      if (!auto || !gov) { if (d > 0 && d < 250) fps += (1000 / d - fps) * 0.05; return false; }
-      const m = gov.get(), r = R || 1000 / 60;
-      if (m.mult > 1) {   // the cap: every 2nd refresh (or 3rd, 4th ...) runs, the others return at once. At 30 fps that is 60 Hz / 2, 90 / 3, 120 / 4; at 60 fps on 120 and 144 Hz displays every 2nd. Manual tiers never get here
+      const m = auto && gov ? gov.get() : null, r = R || 1000 / 60;
+      if (m && m.mult > 1) {   // the 30 fps cap: every 2nd refresh (or 3rd, 4th ...) runs, the others return at once: 60 Hz / 2, 90 / 3, 120 / 4
         if (lastExec && now - lastExec < (m.mult - 0.5) * r) return true;
+      } else if (r < FRAME60 * 0.92) {   // the 60 fps ceiling, in every mode (manual tiers too): on a display above 60 Hz a frame is drawn when it is due, so the average is 60 and the battery and heat of a 90, 120 or 144 Hz phone are saved. Not a whole number of refreshes at 90 and 144 Hz: those alternate short and long frames
+        if (!due || now - due > 100) due = now;
+        if (now < due - r * 0.25) return true;
+        due += FRAME60;
       }
+      if (!m) { const e = lastExec ? now - lastExec : 0; lastExec = now; if (e > 0 && e < 250) fps += (1000 / e - fps) * 0.05; return false; }
       const dt = lastExec ? now - lastExec : 0; lastExec = now;
       if (dt > 0 && dt < 250) fps += (1000 / dt - fps) * 0.05;
       const act = !covered && !document.hidden && !document.getElementById('loading') && gate();

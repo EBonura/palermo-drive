@@ -10,7 +10,8 @@
 // card, ?ui=start the picker, &view=list its list), ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES),
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
-import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';
+import { garage, VEHICLES, PARTS, partOpts } from './garage.js';   // the welcome screen shows the wallet, the ride and what is still locked   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
@@ -29,9 +30,12 @@ const S = {
   tapTouch: ['Tocca per iniziare', 'Tap to start'],
   tapKey: ['Premi per iniziare', 'Press to start'],
   drive: ['Guida', 'Drive'],
+  welTitle: ['Benvenutu m’Paliaimmu · cu guida?', 'Welcome to Palermo · who drives?'], welWho: ['Chi guida?', 'Who is driving?'], welNetOn: ['Guidi con gli altri giocatori in città.', 'You drive with the other players in town.'],
+  welNetOff: ['Guidi da solo: nessuno ti vede.', 'You drive alone: nobody sees you.'], welCash: ['Portafoglio', 'Wallet'], welRide: ['Il tuo mezzo', 'Your ride'],
+  welCustom: ['Personalizza', 'Customise'], welDriver: ['Autista', 'Driver'], welGo: ['Parti', 'Drive'], welEarn: ['Guadagni euro con le missioni in città, e ti sblocchi mezzi, vernici e pezzi.', 'Earn euros from missions around town to unlock rides, paint and parts.'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
-  back: ['Indietro', 'Back'],
+  back: ['Arrieri', 'Back'],
   menu: ['Menu', 'Menu'],
   quit: ['Menu principale', 'Main menu'],
   toDrive: ['Torna a guidare', 'Back to driving'],
@@ -72,7 +76,7 @@ const S = {
   ctlJump: ['Salta a un punto di partenza (1 è i Quattro Canti)', 'Jump to a starting point (1 is Quattro Canti)'],
   ctlNext: ['Brano dopo', 'Next track'], ctlStation: ['Cambia stazione radio', 'Change radio station'], ctlRadio: ['Radio accesa o spenta', 'Radio on or off'], ctlTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'],
   ctlMenu: ['Menu', 'Menu'], ctlThis: ['Questi comandi', 'This screen'],
-  ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Indietro', 'Back'],
+  ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Arrieri', 'Back'],
   ctlSteer: ['Sterza a sinistra e a destra', 'Steer left and right'], ctlGas: ['Accelera', 'Accelerate'], ctlRev: ['Retromarcia e freno', 'Reverse and brake'],
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, schermo intero', 'Menu: camera, back on the road, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
@@ -480,6 +484,26 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="gx-root"></div>
     </div>`);   // the garage draws its own Back / Done row (src/garage-ui.js): step 2 backs out to step 1
 
+  // welcome: after Guida from the title, before the start picker. Who you are (name, online or alone), your ride and what money unlocks, then the map
+  mk('welcome', '', `<div class="pd-card pd-wel">
+      <div class="pd-weltop"><div class="pd-welk" data-k="welTitle"></div><button class="pd-welback" data-nav data-do="back" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span data-k="back"></span></button></div>
+      <input class="pd-namein pd-welname" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
+      <div class="pd-welrow">
+        <div class="pd-welnet" role="group"><button data-nav data-wnet="on" type="button" aria-pressed="false"><i></i><span data-k="netOn"></span></button><button data-nav data-wnet="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div>
+        <div class="pd-welcash"><small data-k="welCash"></small><b></b></div>
+      </div>
+      <div class="pd-welnote"></div>
+      <div class="pd-welride">
+        <div class="pd-welrt"><small data-k="welRide"></small><b></b></div>
+        <button class="pd-welmini" data-nav data-do="garage" type="button"><span data-k="welCustom"></span></button>
+        <button class="pd-welmini" data-nav data-do="welDriver" type="button"><span data-k="welDriver"></span></button>
+      </div>
+      <div class="pd-wellocks"></div>
+      <div class="pd-wellocks pd-welparts"></div>
+      <div class="pd-welearn" data-k="welEarn"></div>
+      <div class="pd-welgo"><button class="pd-btn drive" data-nav data-do="welGo" type="button">${two('welGo')}</button></div>
+    </div>`);   // the panel stands on the right, the garage's turntable shows the ride on the left (src/garage-scene.js)
+
   // start picker: the map fills the screen, or a list grouped by quartiere docks on the right
   mk('start', '', `<div class="pd-mp" data-view="map"></div>
     <div class="pd-sbar">
@@ -522,7 +546,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
 
   // ---- state and screen management ----
   let cur = null, stack = [], busy = false, lockUntil = 0;
-  const lastFocus = {};
+  const lastFocus = { welcome: screens.welcome.querySelector('[data-do=welGo]') };   // the welcome screen's keys and pad start on Parti
   const now = () => performance.now();
 
   function syncState() {
@@ -539,6 +563,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     setCam();
     if (cur === 'garage' && name !== 'garage') garageUI.leave();
     if (name === 'garage' && cur !== 'garage') garageUI.enter();
+    if (name === 'welcome' && !game.garage) { document.documentElement.classList.add('pd-in-garage'); garageScene.enter(); }   // back from the Garage: its turntable again
+    if (cur === 'welcome' && name !== 'welcome' && name !== 'garage') { garageScene.leave(); document.documentElement.classList.remove('pd-in-garage'); }
     if (cur === 'start' && name !== 'start') startMap.hide();
     cur = name;
     for (const k in screens) { screens[k].classList.toggle('on', k === name); if (k === name) screens[k].classList.toggle('pd-gone', false); }   // (.pd-gone comes back when it has faded out again)
@@ -548,6 +574,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (name) {
       if (name === 'options') { if (game.time) st.timeNow = Math.round(game.time.hour * 2) / 2 % 24; syncOptions(); syncName(); } // the time slider opens on the current game time
       if (name === 'start') openStart();
+      if (name === 'welcome') renderWelcome();
       if (name === 'side') syncSide();
       if (name === 'collections') renderCollections();
       if (name === 'missions') renderMissions();
@@ -576,6 +603,14 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function enterGarage() {
     if (busy) return; busy = true; gesture();
     transition(async () => { go('garage', { push: true }); await garageFrames(3); }).catch(() => {}).then(() => { busy = false; });
+  }
+  function enterWelcome() {   // through the checkerboard, as the Garage: the turntable's room is built and drawn under it
+    if (busy) return; busy = true; gesture();
+    transition(async () => { go('welcome', { push: true }); await garageFrames(3); }).catch(() => {}).then(() => { busy = false; });
+  }
+  function leaveWelcome() {
+    if (busy) return; busy = true;
+    transition(async () => { go('start', { push: true }); await startMap.whenReady(4000); await garageFrames(2); }).catch(() => {}).then(() => { busy = false; });
   }
   function leaveGarage() {
     if (busy) return; busy = true;
@@ -708,7 +743,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function act(name, el) {
     switch (name) {
       case 'optTab': return setOptTab(el.dataset.tab);
-      case 'drive': return go('start', { push: true });
+      case 'drive': return game.state === 'title' ? enterWelcome() : go('start', { push: true });
+      case 'welGo': welSaveName(); return leaveWelcome();
+      case 'welDriver': garageUI.driverNext?.(); return enterGarage();
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
       case 'options': return go('options', { push: true });
@@ -733,6 +770,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js) in their own scene (src/garage-scene.js) ----
   const garageScene = createGarageScene({ renderer, vehicle, game });
   const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), scene: garageScene, getLang: () => lang, onExit: () => goBack() });
+  { const gc = screens.garage.querySelector('.pd-garage'), wc = screens.welcome.querySelector('.pd-wel'); garageScene.setPanel(() => (cur === 'welcome' ? wc : gc)?.offsetWidth || 0); }   // the turntable frames the ride left of whichever panel is up
 
   // ---- the radio on screen: the bar, the top of the menu panel (both fed by the radio's view, src/radio.js), the busy warning, the fullscreen button ----
   const npL = screens.side.querySelector('.pd-npl'), npN = screens.side.querySelector('.pd-npn'), npS = screens.side.querySelector('.pd-nps');
@@ -819,6 +857,37 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     syncNet();
   });
   addEventListener('pd-net-changed', syncNet); syncNet();
+
+  // ---- the welcome screen: the same name store and online switch as Options, the wallet, the ride, and the next things money buys ----
+  const W = screens.welcome, welName = W.querySelector('.pd-welname'), welNet = [...W.querySelectorAll('[data-wnet]')];
+  const welEur = v => (v < 0 ? '−€ ' : '€ ') + (Math.round(Math.abs(v) * 2) / 2).toString().replace('.', ',');   // as the Garage writes it
+  function welSaveName() { const n = cleanName(welName.value); if (n && n !== readName()) writeName(n); welName.value = readName(); }
+  welName.addEventListener('change', welSaveName);
+  welName.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.key === 'Enter') welSaveName(); else welName.value = readName(); welName.blur(); } });
+  function syncWelNet() {
+    const on = !!net?.isOnline?.(), i = lang === 'it' ? 0 : 1;
+    for (const b of welNet) b.setAttribute('aria-pressed', String((b.dataset.wnet === 'on') === on));
+    W.querySelector('.pd-welnote').textContent = S[on ? 'welNetOn' : 'welNetOff'][i];
+  }
+  for (const b of welNet) b.addEventListener('click', () => {
+    if (b.dataset.wnet === 'on') { welSaveName(); if (!readName()) { welName.focus(); return; } }
+    dispatchEvent(new CustomEvent('pd-net-mode', { detail: b.dataset.wnet === 'on' }));
+    syncWelNet(); syncNet();
+  });
+  addEventListener('pd-net-changed', syncWelNet);
+  function renderWelcome() {
+    const i = lang === 'it' ? 0 : 1, v = VEHICLES.find(x => x.id === garage.type) || VEHICLES[0];
+    if (document.activeElement !== welName) welName.value = readName();
+    W.querySelector('.pd-welcash b').textContent = welEur(garage.cash);
+    W.querySelector('.pd-welrt b').textContent = i ? v.name_en : v.name_it;
+    const locked = VEHICLES.filter(x => !garage.ownsVehicle(x.id)).sort((a, b) => a.price - b.price).slice(0, 3);
+    const chip = (name, price) => `<button class="pd-welock" data-nav data-do="garage" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>${esc(name)}</span><b>${esc(welEur(price))}</b></button>`;
+    W.querySelector('.pd-wellocks').innerHTML = locked.map(x => chip(i ? x.name_en : x.name_it, x.price)).join('');
+    const parts = [];   // the cheapest locked option of each part that fits this ride, three of them
+    for (const p of PARTS) { const o = partOpts(p.id, v.id).filter(q => !garage.ownsPart(p.id, q.id)).sort((a, b) => garage.partPrice(p.id, a.id) - garage.partPrice(p.id, b.id))[0]; if (o) parts.push({ name: i ? o.name_en : o.name_it, price: garage.partPrice(p.id, o.id) }); }
+    W.querySelector('.pd-welparts').innerHTML = parts.sort((a, b) => a.price - b.price).slice(0, 3).map(x => chip(x.name, x.price)).join('');
+    syncWelNet();
+  }
 
   // ---- controls: what the buttons do on this device. The list is made again each time the screen opens (a phone gets its pads, a computer its keys and the gamepad) ----
   const ctlGrid = screens.controls.querySelector('.pd-ctlgrid');
@@ -1288,8 +1357,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (want === 'controls') setTimeout(() => { openPause(); go('controls', { push: true }); }, 50);
   } else {
     syncState();
-    go(['menu', 'options', 'credits', 'garage', 'start', 'missions'].includes(want) ? want : want === 'none' ? null : 'title');
-    if (want === 'options' || want === 'credits' || want === 'garage' || want === 'start' || want === 'missions') stack = ['menu'];
+    go(['menu', 'options', 'credits', 'garage', 'start', 'missions', 'welcome'].includes(want) ? want : want === 'none' ? null : 'title');
+    if (want === 'options' || want === 'credits' || want === 'garage' || want === 'start' || want === 'missions' || want === 'welcome') stack = ['menu'];
   }
   lastState = game.state;
   requestAnimationFrame(tick);

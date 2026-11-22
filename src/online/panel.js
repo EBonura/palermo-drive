@@ -17,7 +17,10 @@ const CSS = `
 .mpx-n { display: inline-block; max-width: 8.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; color: #ff6fae; font-weight: 700; unicode-bidi: isolate; }   /* a long name gives way, the words stay */
 .mpx-line.mine .mpx-n { color: #fff; }
 .mpx-v { opacity: .72; font-weight: 500; }
-.mpx-cap { display: flex; align-items: center; gap: 8px; height: 40px; box-sizing: border-box; padding: 0 3px 0 12px; border-radius: 20px; background: rgba(13,7,10,.8); box-shadow: 0 2px 10px rgba(0,0,0,.3); color: #fff; pointer-events: none; }
+.mpx-box { box-sizing: border-box; border-radius: 20px; background: rgba(13,7,10,.8); box-shadow: 0 2px 10px rgba(0,0,0,.3); color: #fff; overflow: hidden; transition: border-radius .15s ease; }   /* the capsule and, when it opens, the list under it: one card that grows in place */
+.mpx.list .mpx-box { width: min(300px, 46vw); border-radius: 18px; background: rgba(13,7,10,.92); box-shadow: 0 8px 24px rgba(0,0,0,.45), inset 0 0 0 1px rgba(245,169,201,.22); }
+.mpx-cap { display: flex; align-items: center; gap: 8px; height: 40px; box-sizing: border-box; padding: 0 3px 0 12px; color: #fff; pointer-events: none; }
+.mpx.list .mpx-txt { flex: 1; }
 .mpx-ring { flex: none; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 2.5px solid #00e1ff; }
 .mpx-txt { display: flex; flex-direction: column; justify-content: center; min-width: 0; font: 700 14px/1.1 var(--pd-cond, system-ui, sans-serif); letter-spacing: .03em; white-space: nowrap; }
 .mpx-txt small { margin-top: 1px; font: 600 10.5px/1.1 var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; opacity: .72; }
@@ -30,7 +33,8 @@ const CSS = `
 .mpx.t-wait .mpx-talk, .mpx.t-full .mpx-talk, .mpx.t-done .mpx-talk, .mpx.t-off .mpx-talk, .mpx.t-wait .mpx-key, .mpx.t-full .mpx-key, .mpx.t-done .mpx-key, .mpx.t-off .mpx-key { display: none; }   /* nobody to talk to */
 .mpx.t-wait .mpx-cap, .mpx.t-full .mpx-cap, .mpx.t-done .mpx-cap, .mpx.t-off .mpx-cap { padding-right: 12px; }
 @media (max-height: 460px) { .mpx-msg { max-width: min(300px, 46vw); padding: 4px 8px 4px 7px; font-size: 12px; line-height: 1.25; } }
-.mpx-talk { margin-left: 2px; pointer-events: auto; touch-action: manipulation; }
+.mpx-talk { width: auto; gap: 6px; margin-left: 2px; padding: 0 12px 0 9px; border-radius: 17px; pointer-events: auto; touch-action: manipulation; }   /* an icon and a word */
+.mpx-tw { font: 700 12px/1 var(--pd-cond, system-ui, sans-serif); letter-spacing: .08em; text-transform: uppercase; }
 .mpx-talk::before { inset: -8px !important; }   /* a bigger target for a thumb */
 .mpx-talk.idle { opacity: .55; }
 .mpx-talk[aria-expanded=true] { background: #e8559a; color: #0d0709; }
@@ -43,10 +47,8 @@ html:not(.touch) .mpx-key { display: block; }
 .mpx-list, .mpx-go { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .mpx-chev { flex: none; width: 14px; height: 14px; margin-left: -2px; opacity: .6; transition: transform .15s ease; }
 .mpx.list .mpx-chev { transform: rotate(180deg); }
-.mpx-list { display: none; box-sizing: border-box; width: min(300px, 46vw); max-height: min(330px, calc(100vh - 150px)); overflow: auto; padding: 6px; border-radius: 14px; background: rgba(13,7,10,.92);
-  box-shadow: 0 8px 24px rgba(0,0,0,.45), inset 0 0 0 1px rgba(245,169,201,.22); color: #fff; pointer-events: auto; overscroll-behavior: contain; }
+.mpx-list { display: none; box-sizing: border-box; max-height: min(290px, calc(100vh - 190px)); overflow: auto; padding: 2px 6px 6px; border-top: 1px solid rgba(255,255,255,.09); pointer-events: auto; overscroll-behavior: contain; }
 .mpx.list .mpx-list { display: block; }
-.mpx-lh { padding: 2px 6px 6px; font: 700 12px/1.2 var(--pd-cond, system-ui, sans-serif); letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
 .mpx-le { padding: 8px; font: 500 12px/1.3 var(--pd-sans, system-ui, sans-serif); opacity: .75; }
 .mpx-r { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; }
 .mpx-r + .mpx-r { border-top: 1px solid rgba(255,255,255,.07); }
@@ -56,13 +58,15 @@ html:not(.touch) .mpx-key { display: block; }
 .mpx-rn small { flex: none; font: 500 10.5px/1.2 var(--pd-sans, system-ui, sans-serif); opacity: .6; }
 .mpx-rl { margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px/1.25 var(--pd-sans, system-ui, sans-serif); opacity: .85; }
 .mpx-rl .near { color: #00e1ff; font-weight: 700; }
-.mpx-go { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: linear-gradient(90deg, #e8559a, #f5a9c9); color: #1a0b12; font: 700 11px/26px var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.mpx-go { flex: none; display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 8px; border: 0; border-radius: 13px; background: linear-gradient(90deg, #e8559a, #f5a9c9); color: #1a0b12; font: 700 11px/26px var(--pd-cond, system-ui, sans-serif); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.mpx-go svg { flex: none; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .mpx-go.near { background: #00c8f0; color: #04161c; }   /* Segui: the blue of the way on the map */
 .mpx-go.fol { background: none; box-shadow: inset 0 0 0 1.5px #00c8f0; color: #00e1ff; }   /* Smetti */
 .mpx-go:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); cursor: default; }
-@media (max-height: 460px) { .mpx-list { max-height: calc(100vh - 120px); } .mpx-r { padding-top: 4px; padding-bottom: 4px; } }
+@media (max-height: 460px) { .mpx-list { max-height: calc(100vh - 170px); } .mpx-r { padding-top: 4px; padding-bottom: 4px; } }
 `;
-const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6.5L8 20.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>';
+const GO = { follow: '<path d="M12 3l7 17-7-4-7 4z"/>', join: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.300"/>', stop: '<path d="M6 6l12 12M18 6L6 18"/>', wait: '<circle cx="12" cy="12" r="8"/><path d="M12 7.500V12l3 2"/>' };
+const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L15 5v14L3 13.5z"/><path d="M6 14.5l1.2 5h3L9.500 16"/><path d="M18 9l3-1.500M18.500 12H22M18 15l3 1.500"/></svg>';   // a megaphone with lines coming out: the button is for shouting
 
 export function createPanel({ zone, onTalk, onList, onGo }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
@@ -71,12 +75,12 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
   const feed = el('div', 'mpx-feed'); feed.setAttribute('role', 'log'); feed.setAttribute('aria-live', 'polite');
   const cap = el('div', 'mpx-cap'), ring = el('span', 'mpx-ring'), txt = el('div', 'mpx-txt'), t1 = el('span'), t2 = el('small');
   txt.append(t1, t2);
-  const talk = el('button', 'pd-bbtn mpx-talk'); talk.type = 'button'; talk.innerHTML = ICON; talk.setAttribute('aria-haspopup', 'true'); talk.setAttribute('aria-expanded', 'false');
+  const talk = el('button', 'pd-bbtn mpx-talk'); talk.type = 'button'; talk.innerHTML = ICON; const tw = el('span', 'mpx-tw'); talk.appendChild(tw); talk.setAttribute('aria-haspopup', 'true'); talk.setAttribute('aria-expanded', 'false');
   const key = el('span', 'mpx-key', 'T'); key.setAttribute('aria-hidden', 'true');
   const msg = el('div', 'mpx-msg'); msg.setAttribute('role', 'status');   // the sentence that says why there is nobody (relay full, over for today, cannot be reached)
   const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); chev.setAttribute('viewBox', '0 0 24 24'); chev.setAttribute('class', 'mpx-chev'); chev.innerHTML = '<path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
   const list = el('div', 'mpx-list'); list.setAttribute('role', 'list');
-  cap.append(ring, txt, chev, key, talk); root.append(feed, msg, cap, list);
+  cap.append(ring, txt, chev, key, talk); const box = el('div', 'mpx-box'); box.append(cap, list); root.append(feed, msg, box);
   (zone || document.body).appendChild(root);
   // Taps act on the press, not on the click: a phone's click waits for the finger to lift without moving, and a thumb on the move while driving often fails that,
   // so the talk button, the capsule and the list's buttons took two or three tries. A mouse or the keyboard still uses click (Enter, Space).
@@ -92,30 +96,30 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
   let last = '';
   function set(s) {
     root.classList.toggle('on', !!s.show);
-    const sig = [s.title, s.sub, s.label, s.idle, s.open, s.tone, s.msg].join('|');
+    const sig = [s.title, s.sub, s.label, s.word, s.idle, s.open, s.tone, s.msg].join('|');
     if (sig !== last) {
       last = sig; msg.textContent = s.msg || ''; msg.classList.toggle('on', !!s.msg);
-      root.className = root.className.replace(/ t-\w+/g, '') + (s.tone ? ' t-' + s.tone : ''); t1.textContent = s.title; t2.textContent = s.sub; talk.title = s.label; talk.setAttribute('aria-label', s.label); root.setAttribute('aria-label', s.title + ', ' + s.sub);
+      root.className = root.className.replace(/ t-\w+/g, '') + (s.tone ? ' t-' + s.tone : ''); t1.textContent = s.title; t2.textContent = s.sub; tw.textContent = s.word || s.label || ''; talk.title = s.label; talk.setAttribute('aria-label', s.label); root.setAttribute('aria-label', s.title + ', ' + s.sub);
       talk.classList.toggle('idle', !!s.idle); talk.setAttribute('aria-expanded', String(!!s.open)); root.classList.toggle('wheel', !!s.open);
     }
   }
   // the list: { open, head, empty, rows: [{ h, name, veh, place, dist, near, go, goLabel }] }, every word from another player set as text
   // The rows are kept and only their words change: rebuilding them four times a second while players move swallowed a tap that fell between a press and its release.
   let listSig = '';
-  const head = el('div', 'mpx-lh'), emptyEl = el('div', 'mpx-le'), rowsBy = new Map();
-  list.append(head, emptyEl);
+  const emptyEl = el('div', 'mpx-le'), rowsBy = new Map();
+  list.append(emptyEl);
   function rowFor(h) {
     let r = rowsBy.get(h); if (r) return r;
     const row = el('div', 'mpx-r'), t = el('div', 'mpx-rt'), n = el('div', 'mpx-rn'), l = el('div', 'mpx-rl'), name = el('b'), veh = el('small'), place = el('span'), dist = el('span'), b = el('button', 'mpx-go');
-    row.setAttribute('role', 'listitem'); b.type = 'button'; b.dataset.h = h;
+    row.setAttribute('role', 'listitem'); b.type = 'button'; b.dataset.h = h; const bi = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); bi.setAttribute('viewBox', '0 0 24 24'); bi.setAttribute('aria-hidden', 'true'); const bt = el('span'); b.append(bi, bt);
     n.append(name, veh); l.append(place, document.createTextNode(' · '), dist); t.append(n, l); row.append(t, b);
-    r = { row, name, veh, place, dist, b }; rowsBy.set(h, r); return r;
+    r = { row, name, veh, place, dist, b, bi, bt, ik: '' }; rowsBy.set(h, r); return r;
   }
   function setList(L) {
     root.classList.toggle('list', !!L.open);
     if (!L.open) { listSig = ''; return; }
     const sig = JSON.stringify(L); if (sig === listSig) return; listSig = sig;
-    head.textContent = L.head; emptyEl.textContent = L.empty; emptyEl.hidden = L.rows.length > 0;
+    emptyEl.textContent = L.empty; emptyEl.hidden = L.rows.length > 0;
     const keep = new Set();
     L.rows.forEach((d, i) => {
       const r = rowFor(d.h); keep.add(d.h);
@@ -124,9 +128,10 @@ export function createPanel({ zone, onTalk, onList, onGo }) {
       if (r.place.textContent !== d.place) r.place.textContent = d.place;
       if (r.dist.textContent !== d.dist) r.dist.textContent = d.dist;
       r.dist.className = d.near ? 'near' : '';
-      if (r.b.textContent !== d.goLabel) r.b.textContent = d.goLabel;
+      if (r.bt.textContent !== d.goLabel) r.bt.textContent = d.goLabel;
+      if (r.ik !== d.kind) { r.ik = d.kind; r.bi.innerHTML = GO[d.kind] || ''; }
       r.b.className = 'mpx-go' + (d.fol ? ' fol' : d.near ? ' near' : ''); r.b.disabled = !d.go;
-      if (list.children[i + 2] !== r.row) list.insertBefore(r.row, list.children[i + 2] || null);   // in order, moved only when the order changed
+      if (list.children[i + 1] !== r.row) list.insertBefore(r.row, list.children[i + 1] || null);   // in order, moved only when the order changed
     });
     for (const [h, r] of rowsBy) if (!keep.has(h)) { r.row.remove(); rowsBy.delete(h); }
   }

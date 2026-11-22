@@ -302,6 +302,12 @@ function build(env) {
   const box = (w, h, d, mat, x, y, z, parent, shadow = false) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = shadow; parent.add(m); return m; };
   const cyl = (r, h, mat, x, y, z, parent, rz = 0, shadow = false) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 8), mat); m.position.set(x, y, z); m.rotation.z = rz; m.castShadow = shadow; parent.add(m); return m; };
 
+  // A cart or a kiosk stands still: with a box in world space the street-canyon culling (src/engine-lean.js, userData.leanMover, as for the boats in src/sea.js) leaves it out
+  // while the buildings hide it, instead of drawing its 17 or so parts from across the quarter. Padded, so a sprite or an opening shutter is always inside. Again when the ground under it settles.
+  const leanBox = g => {
+    g.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(g), P = 0.6;
+    g.userData.leanMover = { box: [b.min.x - P, b.min.z - P, b.max.x + P, b.max.z + P, b.max.y + P, b.min.y - P], parts: null };
+  };
   function buildVendor(o) {
     const pl = place(o);
     const sn = pl.road, side = sideSpot(sn, sn.w / 2 + 1.3);
@@ -348,6 +354,7 @@ function build(env) {
     v.ring = makeBeacon('#ff9d2e', 4.5, { beam: false }); v.ring.set(px + vx0 * 1.7, pz + vz0 * 1.7); v.ring.show(true);
     v.sx = px + vx0 * 1.7; v.sz = pz + vz0 * 1.7;
     v.marker = o.marker || addMarker(px, pz, '#ff7a1a', 4);
+    leanBox(g);
     return v;
   }
   for (const o of VENDORS) { try { vendors.push(buildVendor(o)); } catch (e) { console.warn('[missions] vendor', o.id, e); } }
@@ -417,6 +424,7 @@ function build(env) {
     const v = { o, pl: null, kind: 'granita', x: px, z: pz, gy, g, coal: null, glow: null, cid, cd: 0, ring: null, marker: o.marker || addMarker(px, pz, '#59c9e8', 5, 'triangle'), shoutT: rand(2, 8), seed: Math.random() * 10, mkSeller, parts: { shutter, lamp: lampStrip }, vx0, vz0, wl };
     v.sx = px + vx0 * 6.0; v.sz = pz + vz0 * 6.0;   // the stop: the carriageway edge in front of the counter
     v.ring = makeBeacon(o.ring || '#59c9e8', 4.5, { beam: false }); v.ring.set(v.sx, v.sz); v.ring.show(true);
+    leanBox(g);
     return v;
   }
 
@@ -499,7 +507,7 @@ function build(env) {
     pollT = 1.5;
     polls.forEach((p, i) => {
       const gy = groundAt(p.x, p.z);
-      if (Math.abs(gy - p.gy) > 0.25) { p.gy = gy; if (p.plume) p.plume[0].setY(p.plume[1], gy + 1.1); if (p.v) p.v.g.position.y = gy; }   // terrain refines as tiles stream in
+      if (Math.abs(gy - p.gy) > 0.25) { p.gy = gy; if (p.plume) p.plume[0].setY(p.plume[1], gy + 1.1); if (p.v) { p.v.g.position.y = gy; leanBox(p.v.g); } }   // terrain refines as tiles stream in
       if (!p.built && Math.hypot(car.x - p.x, car.z - p.z) < 420) {
         p.built = true;
         try { const th = Math.atan2(p.o.rx, p.o.rz) - Math.PI / 2, v = p.kind === 'granita' ? buildKiosk({ ...p.o, marker: p.marker }, p.x, p.z, th) : buildVendorAt({ ...p.o, marker: p.marker }, null, p.x, p.z, th, p.kind === 'stigghiola' ? undefined : 'pollanche'); vendors.push(v); p.v = v; }

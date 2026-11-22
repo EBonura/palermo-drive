@@ -357,13 +357,12 @@ export function createOnline(env) {
     const en = lang() === 'en', wait = Math.ceil((JUMP_GAP_MS - (now - lastJump)) / 1000), ents = rosterEntries();
     return {
       open: true,
-      head: `Online · ${roster ? ents.length + 1 : Math.max(onlineCount, ents.length + 1)}`,
       empty: roster || onlineCount <= 1 ? (en ? 'Nobody else is online right now.' : 'Nessun altro è online adesso.') : (en ? 'Asking who is online…' : 'Cerco chi è online…'),
       rows: ents.map(({ e, x, z, d }) => {
         const near = d < DRAW_R, v = VEHICLES[e.info.vehicle] || VEHICLES[0];
         const fol = following === e.handle, go = fol || near || (!missionOn() && wait <= 0);
         return { h: e.handle, name: e.info.name || 'Player', veh: en ? v.name_en : v.name_it, place: placeOf(x, z), dist: near ? (en ? 'Near you' : 'Vicino a te') : distText(d), near,
-          go, goLabel: fol ? (en ? 'Stop' : 'Smetti') : near ? (en ? 'Follow' : 'Segui') : wait > 0 ? `${wait} s` : (en ? 'Join' : 'Raggiungi'), fol };
+          go, kind: fol ? 'stop' : near ? 'follow' : wait > 0 ? 'wait' : 'join', goLabel: fol ? (en ? 'Stop' : 'Smetti') : near ? (en ? 'Follow' : 'Segui') : wait > 0 ? `${wait} s` : (en ? 'Join' : 'Raggiungi'), fol };
       }),
     };
   }
@@ -625,7 +624,7 @@ export function createOnline(env) {
     it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
     en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
   const NONE = { it: 'Non salviamo nulla.', en: 'We store nothing.' };
-  const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Privacy e dati', back: 'Indietro' },
+  const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Privacy e dati', back: 'Arrieri' },
     en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'Privacy and data', back: 'Back' } };
   const privParts = l => [KEPT[l], PLAYLOG_ON ? STATS[l] : NONE[l], WHO_SEES[l]];
   let nameCard = null, submitName = null, closeName = null, nameFit = null;
@@ -758,7 +757,7 @@ export function createOnline(env) {
       let hear = 0; for (const p of others.values()) if (Number.isFinite(p.x) && now - p.lastRx < STALE_FAR_MS && Math.hypot(p.x - car.x, p.z - car.z) <= SAY_R) hear++;
       const near = inReach(), keys = !document.documentElement.classList.contains('touch');
       panel.set({
-        show: true, idle: !near, open: wheel.isOpen, label: tr('Parla', 'Talk') + (keys ? ' (T)' : ''),
+        show: true, idle: !near, open: wheel.isOpen, label: tr('Abbannìa', 'Shout') + (keys ? ' (T)' : ''), word: tr('Abbannìa', 'Shout'),
         title: total > 1 ? tr(`${total} giocatori online`, `${total} players online`) : 'Online',   // everybody connected, us included (the relay's count): the players the relay sends us are only the nearest few plus two far ones, so that was always 2 or so
         sub: total <= 1 ? tr('ancora nessuno', 'no one yet') : hear ? tr(`${hear} ${hear === 1 ? 'vicino' : 'vicini'}`, `${hear} nearby`) : tr('nessuno vicino', 'nobody nearby'),   // the players who hear what you say (within SAY_R), not a distance (the owner, 21 Nov 2026)
       });

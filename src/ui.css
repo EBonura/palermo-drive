@@ -603,7 +603,7 @@ html.touch .pd-mp-hint { display: none; }
 #pd-ui[data-st=pause] .pd-s-options .pd-lang { width: 100%; }
 .pd-s-collections { justify-content: flex-end; }
 .pd-coll { width: min(92vw, 430px); }
-.pd-colrows { display: flex; flex-direction: column; gap: clamp(10px, 2.4vh, 18px); padding: 4px 6px 4px 4px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; scrollbar-width: thin; }   /* a short screen scrolls the rows, so the Indietro row under them stays on the screen */
+.pd-colrows { display: flex; flex-direction: column; gap: clamp(10px, 2.4vh, 18px); padding: 4px 6px 4px 4px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; scrollbar-width: thin; }   /* a short screen scrolls the rows, so the Arrieri (back) row under them stays on the screen */
 .pd-colh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font: 700 clamp(15px, 3.4vh, 21px)/1.1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; color: var(--pd-amber); }
 .pd-colh b { font: 400 clamp(17px, 3.8vh, 24px)/1 var(--pd-race); letter-spacing: .04em; color: #fff; white-space: nowrap; }
 .pd-colbar { height: 11px; margin-top: 6px; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); transform: skewX(-11deg); overflow: hidden; }
@@ -731,6 +731,49 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-namein:focus, .pd-kb .pd-namein:focus { box-shadow: inset 0 0 0 2px var(--pd-amber); background: rgba(0,0,0,.55); }
 .pd-netseg { flex: 0 0 auto; display: flex; gap: 6px; }
 .pd-netseg .pd-segb { padding: 0 clamp(10px, 2vw, 18px); font-size: clamp(13px, 3vh, 18px); }
+/* the welcome screen (src/ui.js 'welcome'): the ride on the Garage's turntable on the left, one panel on the right: who drives, online or alone, the wallet, the ride, what money unlocks, Parti */
+.pd-s-welcome { justify-content: flex-end; }
+#pd-ui[data-screen=welcome] .pd-fsbtn { display: none !important; }   /* it would sit on the panel's corner; full screen is in the title and the menus */
+#pd-ui[data-screen=welcome] .pd-scrim { opacity: 1; background: linear-gradient(270deg, rgba(10,6,9,.62) 0%, rgba(10,6,9,.3) 45%, rgba(10,6,9,0) 75%), linear-gradient(0deg, rgba(232,85,154,.18), transparent 40%); }
+.pd-wel { width: min(46vw, 440px); gap: clamp(6px, 1.7vh, 13px); }
+.pd-welk { font: 700 clamp(11px, 2.6vh, 14px)/1.1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--pd-pink, #f5a9c9); }
+.pd-wel .pd-welname { flex: none; width: 100%; height: auto; padding: 0 0 4px; border-radius: 0; background: none; box-shadow: inset 0 -2px 0 rgba(255,255,255,.28);
+  font: 400 clamp(28px, 8vh, 46px)/1.1 'Racing Sans One', var(--pd-cond); letter-spacing: .02em; text-transform: uppercase; }
+.pd-wel .pd-welname:focus { background: none; box-shadow: inset 0 -2px 0 var(--pd-amber); }
+.pd-welrow { display: flex; align-items: center; gap: 10px; }
+.pd-welnet { display: flex; padding: 3px; border-radius: 999px; background: rgba(0,0,0,.45); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.pd-welnet button { display: flex; align-items: center; gap: 7px; height: clamp(28px, 7vh, 36px); padding: 0 clamp(10px, 1.8vw, 16px); border: 0; border-radius: 999px; background: none; color: rgba(255,255,255,.7); cursor: pointer;
+  font: 700 clamp(12px, 2.8vh, 15px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
+.pd-welnet i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .5; }
+.pd-welnet [data-wnet=on][aria-pressed=true] { background: #00c8f0; color: #04161c; } .pd-welnet [data-wnet=on][aria-pressed=true] i { opacity: 1; box-shadow: 0 0 0 3px rgba(4,22,28,.25); }
+.pd-welnet [data-wnet=off][aria-pressed=true] { background: rgba(255,255,255,.88); color: #1a0b12; }
+.pd-welcash { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.pd-welcash small { font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
+.pd-welcash b { font: 700 clamp(20px, 5.4vh, 30px)/1 var(--pd-cond); color: var(--pd-amber, #ffb020); }
+.pd-welnote { margin-top: -2px; font: 500 clamp(11px, 2.5vh, 14px)/1.3 var(--pd-sans); opacity: .72; }
+.pd-welride { display: flex; align-items: stretch; gap: 6px; padding-top: clamp(6px, 1.6vh, 12px); border-top: 1px solid rgba(255,255,255,.12); }
+.pd-welrt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.pd-welrt small { font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
+.pd-welrt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 clamp(17px, 4.4vh, 24px)/1.1 var(--pd-cond); letter-spacing: .03em; text-transform: uppercase; }
+.pd-welmini { flex: none; padding: 0 clamp(8px, 1.4vw, 13px); border: 0; border-radius: 3px; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); color: #fff; cursor: pointer;
+  font: 700 clamp(11px, 2.5vh, 13px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
+.pd-welmini:hover, .pd-welmini:focus-visible, .pd-welock:hover, .pd-welock:focus-visible { background: rgba(232,85,154,.3); }
+.pd-wellocks { display: flex; gap: 6px; }
+.pd-welock { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 5px; padding: clamp(5px, 1.2vh, 8px) 7px; border: 0; border-radius: 3px; background: rgba(0,0,0,.35); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+  color: rgba(255,255,255,.82); cursor: pointer; font: 600 clamp(10px, 2.3vh, 12px)/1.1 var(--pd-cond); letter-spacing: .04em; text-transform: uppercase; }
+.pd-welock svg { flex: none; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; opacity: .65; }
+.pd-welock span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.pd-welock b { flex: none; color: var(--pd-amber, #ffb020); }
+.pd-welparts { margin-top: clamp(-4px, -.6vh, -2px); }
+.pd-welearn { font: 500 clamp(10px, 2.3vh, 13px)/1.3 var(--pd-sans); opacity: .65; }
+.pd-welgo { display: flex; gap: 6px; margin-top: clamp(0px, .6vh, 6px); }
+.pd-welgo .pd-btn { flex: 1 1 auto; }
+.pd-weltop { display: flex; align-items: center; gap: 8px; }
+.pd-weltop .pd-welk { flex: 1 1 auto; min-width: 0; }
+.pd-welback { flex: none; display: flex; align-items: center; gap: 2px; height: 26px; padding: 0 9px 0 4px; border: 0; border-radius: 13px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.85); cursor: pointer;
+  font: 700 clamp(10px, 2.3vh, 12px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
+.pd-welback svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-aspect-ratio: 1/1) { .pd-s-welcome { align-items: flex-end; } .pd-wel { width: min(94vw, 480px); } }
 .pd-ctl { gap: clamp(6px, 1.4vh, 12px); }
 .pd-ctlgrid { display: flex; flex-direction: column; gap: 0; }
 .pd-ctlgrid > * { flex: 0 0 auto; }

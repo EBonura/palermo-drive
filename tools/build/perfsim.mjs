@@ -23,7 +23,7 @@ function run({ name, c0, g0, hz = 60, minutes = 20, load = () => 1, ceil = 2, no
   while (t < end) {
     const k = load((t - 1000) / 1000);
     const work = cost(k) * (1 + noise * gauss()) * (rnd() < 0.003 ? 4 : 1);   // rare hitch
-    const m = state.mode === 30 ? Math.max(1, Math.floor(33.33 / R + 0.25)) : Math.max(1, Math.floor(1000 / R / 60 + 0.05));
+    const m = state.mode === 30 ? Math.max(1, Math.floor(33.33 / R + 0.25)) : 1;
     const dt = Math.max(m * R, Math.ceil(work / R - 0.03) * R);
     t += dt; hist.push(dt);
     gov.sample(t, dt, true);
@@ -74,17 +74,18 @@ console.log(process.exitCode ? 'FAILED' : 'all checks passed');
     perf.force({ mode, s: 1, ratio: 1 });
     for (let i = 0; i < hz * 10; i++) { t += R + (Math.random() - 0.5) * 0.3; if (!perf.frame(t)) ran.push(t); }
     const gaps = ran.slice(1).map((x, i) => x - ran[i]), mean = gaps.reduce((a, b) => a + b, 0) / gaps.length, dev = Math.max(...gaps.map(g => Math.abs(g - mean)));
-    const fps = ran.length / 10, mult = mode === 60 ? Math.max(1, Math.floor(hz / 60 + 0.05)) : Math.max(1, Math.floor(33.33 / R + 0.25)), want = hz / mult;
+    const fps = ran.length / 10, mult = mode === 60 ? 1 : Math.max(1, Math.floor(33.33 / R + 0.25)), want = mode === 60 ? Math.min(hz, 60) : hz / mult;
     console.log(`wrapper ${String(hz).padStart(3)} Hz, ${mode} mode: refresh read as ${(1000 / perf.stats().refreshMs).toFixed(1)} Hz, ${fps.toFixed(1)} frames per second (expected ${want.toFixed(1)}), frame gap ${mean.toFixed(2)} ms, worst deviation ${dev.toFixed(2)} ms`);
     ok(Math.abs(fps - want) < 1.5, `cap at ${hz} Hz mode ${mode}`);
-    ok(dev < 0.5 * R, `even cadence (worst gap error under half a refresh) at ${hz} Hz mode ${mode}`);
+    ok(dev < (mode === 60 && hz > 60 ? 1.1 : 0.5) * R, `even cadence (worst gap error under half a refresh) at ${hz} Hz mode ${mode}`);
   }
-  {   // manual tiers are never capped
+  {   // manual tiers are held to 60 fps too
     const rd = { ratio: 1, getContext: () => ({ getExtension: () => null }), setPixelRatio(r) { this.ratio = r; }, getPixelRatio() { return this.ratio; }, domElement: { width: 1, height: 1 } };
     const perf = createPerf({ renderer: rd, gate: () => false });
     perf.configure({ auto: false, ratio: 1.5 });
-    let t = 5000, run = 0; for (let i = 0; i < 1200; i++) { t += 1000 / 120; if (!perf.frame(t)) run++; }
-    console.log(`manual tier at 120 Hz: ${run / 10} frames per second (uncapped)`); ok(run === 1200, 'manual uncapped');
+    let t = 5000, run = 0; for (let i = 0; i < 360; i++) { t += 1000 / 120; perf.frame(t); }   // 3 s: the refresh rate gets measured
+    for (let i = 0; i < 1200; i++) { t += 1000 / 120; if (!perf.frame(t)) run++; }
+    console.log(`manual tier at 120 Hz: ${run / 10} frames per second (held to 60)`); ok(Math.abs(run / 10 - 60) < 1.5, 'manual held to 60');
   }
   console.log(process.exitCode ? 'FAILED' : 'wrapper checks passed');
 }

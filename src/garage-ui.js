@@ -18,7 +18,7 @@ const eur = v => (v < 0 ? '−€ ' : '€ ') + (Math.round(Math.abs(v) * 2) / 2
 const S = {
   pick: ['Scegli il mezzo', 'Choose your ride'], custom: ['Personalizza', 'Customise'], step: ['Passo', 'Step'],
   speed: ['Velocità', 'Speed'], accel: ['Accelerazione', 'Accel'], grip: ['Tenuta', 'Grip'],
-  back: ['Indietro', 'Back'], vehicles: ['Mezzi', 'Vehicles'], next: ['Personalizza', 'Customise'], done: ['Fatto', 'Done'],
+  back: ['Arrieri', 'Back'], vehicles: ['Mezzi', 'Vehicles'], next: ['Personalizza', 'Customise'], done: ['Fatto', 'Done'],
   buy: ['Compra', 'Buy'], need: ['Servono altri', 'Need'], bought: ['Comprato!', 'Bought!'],
   stock: ['Di serie', 'Stock'], mine: ['Tuo', 'Owned'], inUse: ['In uso', 'In use'], none: ['Nessuno', 'None'],
   livery: ['Livrea', 'Livery'], body: ['Carrozzeria', 'Body colour'], trim: ['Dettagli', 'Details'], auto: ['Originale', 'Original'],
@@ -187,6 +187,7 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
   scene.setPanel(() => card ? card.offsetWidth : 0);
   scene.setInput(screen, card);                          // drag to turn round the vehicle, pinch or wheel to zoom; not over the panel   // the scene frames the vehicle in the space left of the panel
   button.hidden = false;
+let wantDriver = false;
   const Q = new URLSearchParams(location.search);   // test links: ?ui=garage&gveh=vespa&gstep=2&gcat=neon
   let step = 1, sel = garage.type, cat = 'paint', pending = null, hv = null, popMsg = '', popT = 0, entered = false, lastPtr = 'mouse', downSel = null;
   const lastCat = {};
@@ -492,8 +493,10 @@ export function setupGarageUI({ screen, button, scene, getLang, onExit }) {
       document.documentElement.classList.add('pd-in-garage'); scene.enter(garage.lookOf(sel));
       step = 1; paintAll(); showPreview();
       if (Q.get('gstep') === '2' && garage.ownsVehicle(sel)) toStep(2);
+      if (wantDriver) { wantDriver = false; toDriver(); }   // the welcome screen's Autista button (src/ui.js)
       if (Q.get('gstep') === 'driver') { if (Q.get('gtab') && DTABS.some(t => t[0] === Q.get('gtab'))) D.tab = Q.get('gtab'); toDriver(); }
     },
+    driverNext() { wantDriver = true; },
     leave() { entered = false; if (document.activeElement === elNameIn) elNameIn.blur(); pending = null; hv = null; scene.leave(); document.documentElement.classList.remove('pd-in-garage'); },
     render() { if (entered) paintAll(); },
     applyLang() { if (entered) paintAll(); },

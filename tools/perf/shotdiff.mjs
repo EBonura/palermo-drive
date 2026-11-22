@@ -23,6 +23,9 @@ const SHOTS = {
   lapa_qc: { time: 17, at: [17.5, 0, 0], cam: [3.6, 1.2, 1], look: [0, 1.1, 0] },
   lapa_night: { time: 22, at: [-3033, -10177, -1.07], cam: [-7, 2.5, -3], look: [3, 0.5, 5] },
   qc_street: { time: 13, at: [17.5, 0, 0], cam: [0, 1.8, -14], look: [0, 1.5, 30] },
+  vucciria: { time: 12, at: [210, -182, 0], cam: [0, 3, -9], look: [0, 1.5, 20] },
+  cart_close: { time: 12, at: [314, -245, 0], cam: [-6, 3, 0], look: [10, 1, 0] },
+  cart_far: { time: 12, at: [290, -245, 0], cam: [-8, 4, 0], look: [40, 1, 0] },
 };
 const seed = () => { let s = 12345; Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
 const browser = await puppeteer.launch({ executablePath: process.env.PD_CHROME, headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });

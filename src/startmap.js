@@ -46,6 +46,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       <button class="pd-btn sm" type="button" data-nav data-map="clzoom"><span class="pd-in"><span class="pd-l1" data-t="zinh"></span></span></button></div>
     <div class="pd-mp-hint"></div>`;
   const cv = host.querySelector('.pd-mp-cv'), g = cv.getContext('2d');
+  cv.style.opacity = '0';   // shown only once every layer is in (the owner, 22 Nov 2026: wait a moment longer rather than see the map fill in)
   const pop = host.querySelector('.pd-mp-pop'), popT = pop.querySelector('.pd-mp-pt'), popS = pop.querySelector('.pd-mp-ps'), hint = host.querySelector('.pd-mp-hint');
   const evBtn = host.querySelector('.pd-mp-ev');
   const clEl = host.querySelector('.pd-mp-cl'), clT = clEl.querySelector('.pd-mp-clt'), clList = clEl.querySelector('.pd-mp-cll');
@@ -378,6 +379,23 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     text(L.you[li()], x, y + 20, 12, 700, '#8a1020');
   }
 
+  // ---------- ready: coast, hillshade, roads and areas, the centro's footprints all built ----------
+  const isReady = () => !!M && !terrainJob && !!data && (haveBld || !D || !D.buildings);
+  // whenReady(maxMs): builds what is missing with a bigger budget per frame (the screen is covered by the checkerboard meanwhile) and resolves when the map can open whole, or after maxMs
+  function whenReady(maxMs = 4000) {
+    const t0 = performance.now();
+    return new Promise(res => {
+      const step = () => {
+        if (!M) prepManifest();
+        if (M && !data) load();
+        if (terrainJob && terrainJob(24)) terrainJob = null;
+        if (data && !haveBld) centroBuildings();
+        if (isReady() || performance.now() - t0 > maxMs) { dirty = true; res(isReady()); return; }
+        requestAnimationFrame(step);
+      };
+      step();
+    });
+  }
   // ---------- frame loop (only while something changed) ----------
   function mark() { dirty = true; schedule(); }
   function schedule() { if (!raf && shown) raf = requestAnimationFrame(frame); }
@@ -386,9 +404,11 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (!M) prepManifest();
     if (terrainJob) { if (terrainJob(5)) { terrainJob = null; } dirty = true; }
     if (M && !data) load();
+    if (data && !haveBld) centroBuildings();
     if (dirty) draw();
+    if (cv.style.opacity === '0' && isReady()) cv.style.opacity = '';   // the first frame with everything drawn
     placePop(); placeCl();
-    if (terrainJob || !M || !data) schedule();
+    if (terrainJob || !M || !data || !isReady()) schedule();
   }
 
   // ---------- popup ----------
@@ -501,7 +521,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
 
   return {
     show() {
-      shown = true; closePop(); clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
+      shown = true; closePop(); cv.style.opacity = '0';   // (again: the canvas was emptied by hide(); the next whole frame shows it) clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
       events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins();
       evBtn.setAttribute('aria-pressed', String(showEvents));
       prepManifest(); applyLang(); load();
@@ -529,6 +549,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       }
       return false;
     },
+    whenReady,
     startSelected() { if (sel && onStart) onStart(sel.x, sel.z, sel); },
     // test hook (?mapdebug): view state and the screen position of every pin
     debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, clusters: (layout(), clusters.map(c => ({ n: c.m.length, x: Math.round(c.x), y: Math.round(c.y) }))), pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
