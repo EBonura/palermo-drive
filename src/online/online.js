@@ -695,8 +695,10 @@ export function createOnline(env) {
   }, true);
   // the name and the online choice live in Options (src/ui.js), which asks for the card with this event; html.pd-mp tells it that there is multiplayer to choose
   addEventListener('pd-open-name', () => openName());
+  let answered = false;   // the player chose online or alone on the welcome screen or in Options: the card at the start does not ask again
   addEventListener('pd-net-mode', e => {   // the toggle in Options (src/ui.js): the same two answers as the card
     refreshName();
+    answered = true;
     if (e.detail) { if (!myName) return; named = true; agreed = true; saveStore({ name: myName, offline: false }); link.ask(); }
     else { agreed = false; saveStore({ offline: true }); goOffline(); }
     dispatchEvent(new Event('pd-net-changed')); dropName();
@@ -768,7 +770,7 @@ export function createOnline(env) {
     if (on && ready && playing) followTick(dt, now); else if (following && !on) stopFollow('');
     if (listOpen) { if (now - rosterAsked > ROSTER_EVERY_MS) askRoster(now); if (now - listAt > 250) { listAt = now; panel.setList(listView(now)); } }
     offerClocks(now, playing); if (playing) arrivals(now);
-    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !screenshots) setTimeout(openName, 800); }
+    if (!started) { if (game.state !== 'play') return; started = true; ev('start', { x: Math.round(car.x), z: Math.round(car.z) }); if (!(named && agreed) && !answered && !screenshots) setTimeout(openName, 800); }
     link.want(on && now - activeAt < IDLE);
     if (!on) { rm.update(dt, now); return; }
     if (now - lastChecked > CHECK_MS) { lastChecked = now; rank(now); }

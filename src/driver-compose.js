@@ -114,9 +114,12 @@ async function frames(sp, st, anim, idx) {
   const [full, head, torso] = await Promise.all([composeAnim(st.layers, body, anim), composeAnim(st.layers.filter(l => isHead(l.id)), body, anim), composeAnim(st.layers.filter(l => isTorso(l.id)), body, anim)]);
   const skin = ramp('body', sp.skin), skinSet = new Set(skin.map(rgbKey)), res = {};
   for (const dir of DIRS) {
-    const f = frameOf(full, dir, idx), hd = X.bbox(frameOf(head, dir, idx));
+    const hf = frameOf(head, dir, idx), f = frameOf(full, dir, idx), hd = X.bbox(hf);
     if (hd) {
-      const A = { hd, dir, sit: false, torso: torso ? X.maskOf(frameOf(torso, dir, idx)) : new Uint8Array(FRAME * FRAME),
+      // the eye row of this head: its topmost white of the eye (the head's middle is too high on the LPC heads, the glasses sat on the fringe)
+      let ey;
+      for (let y = hd.y0 + Math.round(hd.h * 0.3); y <= hd.y1 && ey === undefined; y++) for (let x = hd.x0; x <= hd.x1; x++) { const i = (y * FRAME + x) * 4; if (hf[i + 3] && hf[i] > 230 && hf[i + 1] > 230 && hf[i + 2] > 230) { ey = y; break; } }
+      const A = { hd, dir, ey, sit: false, torso: torso ? X.maskOf(frameOf(torso, dir, idx)) : new Uint8Array(FRAME * FRAME),
         skinAt: (x, y) => { if (x < 0 || y < 0 || x >= FRAME || y >= FRAME) return false; const i = (y * FRAME + x) * 4; return !!f[i + 3] && skinSet.has((f[i] << 16) | (f[i + 1] << 8) | f[i + 2]); } };
       for (const [kind, ...a] of st.extras) {
         switch (kind) {

@@ -136,7 +136,6 @@ Songs by Giovanni Alamia and Tony Sperandeo. Rights holder: Seamusica S.r.l. (ht
 | Brutti, Sporchi E Monelli | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
 | Cachi | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
 | Canzoncine Per Bambini | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
-| Ciauru Ro Mari | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Trazzieri (2003) |
 | Cu dici ca lu carceri è galera | Alamia e Sperandeo | Seamusica S.r.l. | Album not identified |
 | Discorsi Di Taverna | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Brutti, sporchi e monelli (2003) |
 | Inno Del Palermo | Alamia e Sperandeo | ℗ 2003 Seamusica | Album Tutti per la press a (2003) |

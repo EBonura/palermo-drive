@@ -4,6 +4,6 @@
 //   FINE_PER_LEVEL the police fine when busted, euro per level 1..5 (never more than the wallet holds)
 //   GANG_LOSS      what a gang block takes, by the area's level 1..5: [share of the wallet, least euro, most euro] (src/danger.js)
 export const PAY_X = 3;
-export const HIT = { knock: 0.25, yeet: 0.5 }, HIT_GAP = 1;   // 1 s since 22 Nov (was 3, the owner wanted them more often): at most 0.50 euro a second, about 30 a minute flat out
+export const HIT = { knock: 0.25, yeet: 1 }, HIT_GAP = 1;   // 1 s since 22 Nov (was 3, the owner wanted them more often); a car sent flying doubled to 1 euro the same day (the owner): at most 1 euro a second, about 60 a minute flat out
 export const FINE_PER_LEVEL = 5;
 export const GANG_LOSS = [[0, 0, 0], [0.04, 2, 8], [0.08, 3, 15], [0.12, 5, 30], [0.2, 8, 60]];

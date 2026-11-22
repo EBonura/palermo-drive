@@ -240,6 +240,7 @@ export function createDrunk({ game, car, camera, missions }) {
   const sz = new THREE.Vector2();
   function makeCopy(w, h) {   // holds what the canvas shows, tone mapped and in its colour space already, so the pass draws it back untouched
     const t = new THREE.FramebufferTexture(w, h);
+    t.format = THREE.RGBFormat; t.internalFormat = 'RGB8';   // the canvas has no alpha (src/main.js, alpha: false): copying it into an RGBA texture is an invalid operation and left the copy, so the screen, black
     t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
     return t;
   }

@@ -11,7 +11,7 @@
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
 import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';
-import { garage, VEHICLES, PARTS, partOpts } from './garage.js';   // the welcome screen shows the wallet, the ride and what is still locked   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
+import { garage, VEHICLES } from './garage.js';   // the welcome screen shows the wallet and the ride   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
 import { createStartMap } from './startmap.js';   // the illustrated city map of the start picker
@@ -32,7 +32,9 @@ const S = {
   drive: ['Guida', 'Drive'],
   welTitle: ['Benvenutu m’Paliaimmu · cu guida?', 'Welcome to Palermo · who drives?'], welWho: ['Chi guida?', 'Who is driving?'], welNetOn: ['Guidi con gli altri giocatori in città.', 'You drive with the other players in town.'],
   welNetOff: ['Guidi da solo: nessuno ti vede.', 'You drive alone: nobody sees you.'], welCash: ['Portafoglio', 'Wallet'], welRide: ['Il tuo mezzo', 'Your ride'],
-  welCustom: ['Personalizza', 'Customise'], welDriver: ['Autista', 'Driver'], welGo: ['Parti', 'Drive'], welEarn: ['Guadagni euro con le missioni in città, e ti sblocchi mezzi, vernici e pezzi.', 'Earn euros from missions around town to unlock rides, paint and parts.'],
+  welCustom: ['Vernici, cerchi, neon, adesivi', 'Paint, rims, neon, stickers'], welDriver: ['Capiddi, occhiali, vestiti', 'Hair, glasses, clothes'], welDriverT: ['Il tuo autista', 'Your driver'], welEdit: ['Personalizza', 'Customise'],
+  welCops: ['Accura ca ci su sbirri: si fai danni t’assicutanu, e si ti fiaimmi cu iddi vicinu paghi a multa.', 'Mind the cops: cause damage and they chase you, stop with them close and you pay a fine.'],
+  welFermo: ['Ogni quaittiari talìa: si fai truappu buiddiellu ti fannu u fiermu e ti futtinu i picciuli. Quannu sutta u so nomu, in autu a destra, parti a barra, niesci ru quaittiari prima ca finisci.', 'Every quarter is watching: cause too much chaos and you get stopped and robbed. When a bar starts under its name, top right, leave the quarter before it runs out.'], welGo: ['Parti', 'Drive'], welNeedName: ['Scrivi un nome per guidare online, o scegli Offline.', 'Type a name to drive online, or pick Offline.'], welEarn: ['Guadagni euro con le missioni in città, e ti sblocchi mezzi, vernici e pezzi.', 'Earn euros from missions around town to unlock rides, paint and parts.'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
   back: ['Arrieri', 'Back'],
@@ -493,13 +495,14 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         <div class="pd-welcash"><small data-k="welCash"></small><b></b></div>
       </div>
       <div class="pd-welnote"></div>
-      <div class="pd-welride">
-        <div class="pd-welrt"><small data-k="welRide"></small><b></b></div>
-        <button class="pd-welmini" data-nav data-do="garage" type="button"><span data-k="welCustom"></span></button>
-        <button class="pd-welmini" data-nav data-do="welDriver" type="button"><span data-k="welDriver"></span></button>
+      <div class="pd-welcust">
+        <button class="pd-welcard" data-nav data-do="garage" type="button"><small data-k="welRide"></small><b class="pd-welveh"></b><span data-k="welCustom"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
+        <button class="pd-welcard" data-nav data-do="welDriver" type="button"><small data-k="welDriverT"></small><b data-k="welEdit"></b><span data-k="welDriver"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
       </div>
-      <div class="pd-wellocks"></div>
-      <div class="pd-wellocks pd-welparts"></div>
+      <div class="pd-weltips">
+        <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14v3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/></svg><span data-k="welCops"></span></p>
+        <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><span data-k="welFermo"></span></p>
+      </div>
       <div class="pd-welearn" data-k="welEarn"></div>
       <div class="pd-welgo"><button class="pd-btn drive" data-nav data-do="welGo" type="button">${two('welGo')}</button></div>
     </div>`);   // the panel stands on the right, the garage's turntable shows the ride on the left (src/garage-scene.js)
@@ -606,6 +609,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   }
   function enterWelcome() {   // through the checkerboard, as the Garage: the turntable's room is built and drawn under it
     if (busy) return; busy = true; gesture();
+    welPick = null;   // every visit from the title starts on Online
     transition(async () => { go('welcome', { push: true }); await garageFrames(3); }).catch(() => {}).then(() => { busy = false; });
   }
   function leaveWelcome() {
@@ -744,7 +748,14 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     switch (name) {
       case 'optTab': return setOptTab(el.dataset.tab);
       case 'drive': return game.state === 'title' ? enterWelcome() : go('start', { push: true });
-      case 'welGo': welSaveName(); return leaveWelcome();
+      case 'welGo': {   // Online is the default here (the owner, 22 Nov 2026): Parti with it still on puts the player online, and online needs a name
+        welSaveName();
+        if (welPick === null && !net?.isOnline?.()) {
+          if (!readName()) { W.querySelector('.pd-welnote').textContent = S.welNeedName[lang === 'it' ? 0 : 1]; welName.focus(); return; }
+          dispatchEvent(new CustomEvent('pd-net-mode', { detail: true })); syncNet();
+        }
+        return leaveWelcome();
+      }
       case 'welDriver': garageUI.driverNext?.(); return enterGarage();
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
@@ -864,14 +875,16 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function welSaveName() { const n = cleanName(welName.value); if (n && n !== readName()) writeName(n); welName.value = readName(); }
   welName.addEventListener('change', welSaveName);
   welName.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.key === 'Enter') welSaveName(); else welName.value = readName(); welName.blur(); } });
+  let welPick = null;   // what the player pressed on this screen in this visit; null: nothing yet, and Online shows as chosen
   function syncWelNet() {
-    const on = !!net?.isOnline?.(), i = lang === 'it' ? 0 : 1;
+    const on = welPick === null || !!net?.isOnline?.(), i = lang === 'it' ? 0 : 1;
     for (const b of welNet) b.setAttribute('aria-pressed', String((b.dataset.wnet === 'on') === on));
     W.querySelector('.pd-welnote').textContent = S[on ? 'welNetOn' : 'welNetOff'][i];
   }
   for (const b of welNet) b.addEventListener('click', () => {
-    if (b.dataset.wnet === 'on') { welSaveName(); if (!readName()) { welName.focus(); return; } }
-    dispatchEvent(new CustomEvent('pd-net-mode', { detail: b.dataset.wnet === 'on' }));
+    if (b.dataset.wnet === 'on') { welSaveName(); if (!readName()) { W.querySelector('.pd-welnote').textContent = S.welNeedName[lang === 'it' ? 0 : 1]; welName.focus(); return; } }
+    welPick = b.dataset.wnet === 'on';
+    dispatchEvent(new CustomEvent('pd-net-mode', { detail: welPick }));
     syncWelNet(); syncNet();
   });
   addEventListener('pd-net-changed', syncWelNet);
@@ -879,13 +892,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const i = lang === 'it' ? 0 : 1, v = VEHICLES.find(x => x.id === garage.type) || VEHICLES[0];
     if (document.activeElement !== welName) welName.value = readName();
     W.querySelector('.pd-welcash b').textContent = welEur(garage.cash);
-    W.querySelector('.pd-welrt b').textContent = i ? v.name_en : v.name_it;
-    const locked = VEHICLES.filter(x => !garage.ownsVehicle(x.id)).sort((a, b) => a.price - b.price).slice(0, 3);
-    const chip = (name, price) => `<button class="pd-welock" data-nav data-do="garage" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>${esc(name)}</span><b>${esc(welEur(price))}</b></button>`;
-    W.querySelector('.pd-wellocks').innerHTML = locked.map(x => chip(i ? x.name_en : x.name_it, x.price)).join('');
-    const parts = [];   // the cheapest locked option of each part that fits this ride, three of them
-    for (const p of PARTS) { const o = partOpts(p.id, v.id).filter(q => !garage.ownsPart(p.id, q.id)).sort((a, b) => garage.partPrice(p.id, a.id) - garage.partPrice(p.id, b.id))[0]; if (o) parts.push({ name: i ? o.name_en : o.name_it, price: garage.partPrice(p.id, o.id) }); }
-    W.querySelector('.pd-welparts').innerHTML = parts.sort((a, b) => a.price - b.price).slice(0, 3).map(x => chip(x.name, x.price)).join('');
+    W.querySelector('.pd-welveh').textContent = i ? v.name_en : v.name_it;
     syncWelNet();
   }
 

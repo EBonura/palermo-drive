@@ -90,14 +90,14 @@ export function fazzoletto(f, A, col = 'black') {
 // ---------- glasses, stubble ----------
 const GL = [[18, 14, 20], [58, 34, 24], [150, 96, 44], [236, 236, 244]];   // near-black frame, a tortoiseshell brown, amber flecks, the glint on the lens
 export function roundGlasses(f, A, tort = true) {   // round frames, big enough to read: two rings of 5 pixels wide, a bridge and temples
-  const { hd: h, dir } = A, ey = h.y0 + Math.round(h.h * 0.5), cx = Math.round(h.cx);
+  const { hd: h, dir } = A, ey = A.ey ?? h.y0 + Math.round(h.h * 0.5), cx = Math.round(h.cx);
   const ring = (x, y) => { for (const [dx, dy] of [[-1, -2], [0, -2], [1, -2], [2, -1], [2, 0], [2, 1], [1, 2], [0, 2], [-1, 2], [-2, 1], [-2, 0], [-2, -1]]) put(f, x + dx, y + dy, (dx === -1 && dy === -2 || dx === 2 && dy === 1) && tort ? GL[2] : GL[0]); put(f, x - 1, y - 1, GL[3]); };
   if (dir === 'back') return;
   if (dir === 'front') { ring(cx - 4, ey); ring(cx + 4, ey); put(f, cx - 1, ey - 1, GL[0]); put(f, cx, ey - 1, GL[0]); put(f, cx + 1, ey - 1, GL[0]); put(f, cx - 7, ey - 1, GL[0]); put(f, cx + 7, ey - 1, GL[0]); }
   else { const s = sideOf(dir); ring(cx + s * 3, ey); for (let k = 0; k < 6; k++) put(f, cx + s * (5 + k), ey - 1, GL[0]); }
 }
 export function rectGlasses(f, A) {   // big dark rectangular frames, thick on the top
-  const { hd: h, dir } = A, ey = h.y0 + Math.round(h.h * 0.5), cx = Math.round(h.cx), K = GL[0], Br = GL[1];
+  const { hd: h, dir } = A, ey = A.ey ?? h.y0 + Math.round(h.h * 0.5), cx = Math.round(h.cx), K = GL[0], Br = GL[1];
   const box = (x, y, w) => { for (let i = 0; i < w; i++) { put(f, x + i, y - 3, K); put(f, x + i, y - 2, K); put(f, x + i, y + 1, Br); } for (const yy of [-1, 0]) { put(f, x, y + yy, K); put(f, x + w - 1, y + yy, K); } put(f, x + 1, y - 1, GL[3]); };
   if (dir === 'back') return;
   if (dir === 'front') { box(cx - 7, ey, 6); box(cx + 1, ey, 6); put(f, cx - 1, ey - 2, K); put(f, cx, ey - 2, K); put(f, cx - 8, ey - 2, K); put(f, cx + 7, ey - 2, K); }

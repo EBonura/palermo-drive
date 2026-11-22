@@ -33,7 +33,6 @@ const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l
   ['brutti-sporchi-e-monelli', 'Brutti, Sporchi E Monelli'],
   ['cachi', 'Cachi'],
   ['canzoncine-per-bambini', 'Canzoncine Per Bambini'],
-  ['ciauru-ro-mari', 'Ciauru Ro Mari'],
   ['cu-dici-ca-lu-carceri-e-galera', 'Cu dici ca lu carceri è galera'],
   ['discorsi-di-taverna', 'Discorsi Di Taverna'],
   ['inno-del-palermo', 'Inno Del Palermo'],
