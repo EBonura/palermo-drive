@@ -766,6 +766,10 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-welock b { flex: none; color: var(--pd-amber, #ffb020); }
 .pd-welparts { margin-top: clamp(-4px, -.6vh, -2px); }
 .pd-welearn { font: 500 clamp(10px, 2.3vh, 13px)/1.3 var(--pd-sans); opacity: .65; }
+@media (max-height: 460px) { .pd-welnote:not(.warn) { display: none; } .pd-wel { gap: 4px; } }   /* a phone on its side: the line under Online and Offline gives way to the radio switch, except for the one that asks for a name */
+.pd-welradio small { flex: none; font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--pd-pink, #f5a9c9); }
+.pd-welst3 button { height: clamp(24px, 5.6vh, 32px); padding: 0 clamp(8px, 1.6vw, 14px); }
+.pd-welst3 button[aria-pressed=true] { background: linear-gradient(90deg, var(--pd-orange), var(--pd-pink)); color: #1a0b12; }
 .pd-welcust { display: flex; gap: 6px; padding-top: clamp(4px, 1.2vh, 10px); border-top: 1px solid rgba(255,255,255,.12); }
 .pd-welcard { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: clamp(5px, 1.4vh, 10px) 34px clamp(5px, 1.4vh, 10px) 10px; border: 0; border-radius: 3px;
   background: linear-gradient(135deg, rgba(232,85,154,.22), rgba(232,85,154,.06)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.4); color: #fff; cursor: pointer; text-align: left; }
@@ -773,7 +777,6 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-welcard b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 clamp(15px, 4vh, 21px)/1.1 var(--pd-cond); letter-spacing: .03em; text-transform: uppercase; }
 .pd-welcard > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 clamp(10px, 2.3vh, 12.5px)/1.2 var(--pd-sans); opacity: .78; }
 .pd-weled { position: absolute; right: 9px; top: 50%; width: 18px; height: 18px; margin-top: -9px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; opacity: .85; }
-.pd-welcard { padding-right: 8px; } .pd-weled { display: none; }   /* three cards side by side: the room goes to the words */
 .pd-welcard:hover, .pd-welcard:focus-visible { background: linear-gradient(135deg, rgba(232,85,154,.4), rgba(232,85,154,.14)); }
 .pd-weltips { display: flex; flex-direction: column; gap: clamp(2px, .8vh, 6px); }
 .pd-weltips p { display: flex; gap: 7px; align-items: flex-start; margin: 0; font: 500 clamp(10px, 2.3vh, 12.5px)/1.28 var(--pd-sans); opacity: .82; }

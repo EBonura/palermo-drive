@@ -495,11 +495,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         <div class="pd-welnet" role="group"><button data-nav data-wnet="on" type="button" aria-pressed="false"><i></i><span data-k="netOn"></span></button><button data-nav data-wnet="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div>
         <div class="pd-welcash"><small data-k="welCash"></small><b></b></div>
       </div>
+      <div class="pd-welrow pd-welradio"><small data-k="welRadio"></small><div class="pd-welnet pd-welst3" role="group">${STATIONS.map(x => `<button data-nav data-st="${x.id}" type="button" aria-pressed="false"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div></div>
       <div class="pd-welnote"></div>
       <div class="pd-welcust">
         <button class="pd-welcard" data-nav data-do="garage" type="button"><small data-k="welRide"></small><b class="pd-welveh"></b><span data-k="welCustom"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
         <button class="pd-welcard" data-nav data-do="welDriver" type="button"><small data-k="welDriverT"></small><b data-k="welEdit"></b><span data-k="welDriver"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
-        <button class="pd-welcard" data-nav data-do="welRadio" type="button"><small data-k="welRadio"></small><b class="pd-welst"></b><span class="pd-welstsub"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 4l3 3-3 3"/><path d="M4 11V9a2 2 0 0 1 2-2h14"/><path d="M7 20l-3-3 3-3"/><path d="M20 13v2a2 2 0 0 1-2 2H4"/></svg></button>
       </div>
       <div class="pd-weltips">
         <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14v3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/></svg><span data-k="welCops"></span></p>
@@ -753,12 +753,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       case 'welGo': {   // Online is the default here (the owner, 22 Nov 2026): Parti with it still on puts the player online, and online needs a name
         welSaveName();
         if (welPick === null && !net?.isOnline?.()) {
-          if (!readName()) { W.querySelector('.pd-welnote').textContent = S.welNeedName[lang === 'it' ? 0 : 1]; welName.focus(); return; }
+          if (!readName()) { const note = W.querySelector('.pd-welnote'); note.textContent = S.welNeedName[lang === 'it' ? 0 : 1]; note.classList.add('warn'); welName.focus(); return; }
           dispatchEvent(new CustomEvent('pd-net-mode', { detail: true })); syncNet();
         }
         return leaveWelcome();
       }
-      case 'welRadio': { const k = STATIONS.findIndex(x => x.id === st.radioStation); setOpt('radioStation', STATIONS[(k + 1) % STATIONS.length].id); renderWelcome(); return; }   // the same setting as Options
       case 'welDriver': garageUI.driverNext?.(); return enterGarage();
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
@@ -882,10 +881,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   function syncWelNet() {
     const on = welPick === null || !!net?.isOnline?.(), i = lang === 'it' ? 0 : 1;
     for (const b of welNet) b.setAttribute('aria-pressed', String((b.dataset.wnet === 'on') === on));
-    W.querySelector('.pd-welnote').textContent = S[on ? 'welNetOn' : 'welNetOff'][i];
+    const note = W.querySelector('.pd-welnote'); note.textContent = S[on ? 'welNetOn' : 'welNetOff'][i]; note.classList.remove('warn');
   }
+  for (const b of W.querySelectorAll('.pd-welst3 button')) b.addEventListener('click', () => { setOpt('radioStation', b.dataset.st); renderWelcome(); });   // the same setting as Options
   for (const b of welNet) b.addEventListener('click', () => {
-    if (b.dataset.wnet === 'on') { welSaveName(); if (!readName()) { W.querySelector('.pd-welnote').textContent = S.welNeedName[lang === 'it' ? 0 : 1]; welName.focus(); return; } }
+    if (b.dataset.wnet === 'on') { welSaveName(); if (!readName()) { const note = W.querySelector('.pd-welnote'); note.textContent = S.welNeedName[lang === 'it' ? 0 : 1]; note.classList.add('warn'); welName.focus(); return; } }
     welPick = b.dataset.wnet === 'on';
     dispatchEvent(new CustomEvent('pd-net-mode', { detail: welPick }));
     syncWelNet(); syncNet();
@@ -896,8 +896,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (document.activeElement !== welName) welName.value = readName();
     W.querySelector('.pd-welcash b').textContent = welEur(garage.cash);
     W.querySelector('.pd-welveh').textContent = i ? v.name_en : v.name_it;
-    const stn = STATIONS.find(x => x.id === st.radioStation) || STATIONS[0];   // the radio card: the station, its line; a tap goes on to the next
-    W.querySelector('.pd-welst').textContent = stn.name.replace(/^Radio /, ''); W.querySelector('.pd-welstsub').textContent = stn.sub[i];
+    for (const b of W.querySelectorAll('.pd-welst3 button')) b.setAttribute('aria-pressed', String(b.dataset.st === (st.radioStation || STATIONS[0].id)));   // the radio switch
     syncWelNet();
   }
 
