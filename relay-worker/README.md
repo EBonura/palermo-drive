@@ -8,7 +8,7 @@ There are two versions of the protocol on the same endpoint. **Version 3** is wh
 
 ## Hosting and why it is shaped this way
 
-One Worker (Rust, `worker` crate 0.9, built with `worker-build`) and ONE Durable Object (`id_from_name("main")`, SQLite class, WebSocket Hibernation API), created with the location hint `weur` because the players are in Italy. The hint only applies when the object is first created.
+One Worker (Rust, `worker` crate 0.9, built with `worker-build`) and ONE Durable Object (`id_from_name("main")`, SQLite class, WebSocket Hibernation API), created inside the `eu` jurisdiction (the `JURISDICTION` var in `wrangler.toml`, used as `ns.jurisdiction("eu").idFromName("main")`), so it runs and stores data only in the EU. A jurisdiction makes a different id from an unrestricted one, so switching starts with an empty room. `wrangler dev` (workerd) does not implement jurisdictions: run it with `--var JURISDICTION:` to leave it empty locally.
 
 The free plan allows 100,000 requests a day, with incoming WebSocket messages counted 20 to 1 (about 2 million a day), and 13,000 GB-s a day, which is about one busy object all day. It stops with errors when exceeded and never bills. Outgoing messages are free. So incoming frames are the scarce resource, nothing here uses a timer (an alarm would keep an idle object awake), and every time based rule is checked lazily when the next event arrives.
 

@@ -21,6 +21,8 @@ watch_dir = "src"
 # are always allowed on top of this, for development.
 [vars]
 ORIGINS = "https://palermo-drive.it"
+# Palermo Drive's room runs and stores data only in the EU. Empty (wrangler dev --var JURISDICTION:) for local runs.
+JURISDICTION = "eu"
 # The same for tables (BLATERO). The itch.io game frame is served from this host, which every HTML5 game on itch shares.
 TABLE_ORIGINS = "https://html-classic.itch.zone"
 

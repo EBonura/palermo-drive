@@ -6,10 +6,8 @@ use crate::proto::{from_hex, origin_allowed, to_hex, MAX_CONNS};
 use crate::status::{cors_origin, failure_body, status_body};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use worker::wasm_bindgen::JsCast;
 use worker::*;
-
-/// The players are in Italy: ask for the object to live in western Europe.
-const LOCATION_HINT: &str = "weur";
 
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
@@ -63,9 +61,22 @@ async fn status(req: Request, env: &Env) -> Result<Response> {
     Ok(r)
 }
 
-/// The one object everything lives in.
+/// The one object everything lives in. With the JURISDICTION var set ("eu" in wrangler.toml) its id is made inside that
+/// jurisdiction, so it runs and stores data only there. The `worker` crate has no call for a named id in a jurisdiction,
+/// so this is `ns.jurisdiction("eu")` by hand. The jurisdiction makes a different id from the old unrestricted "main", so
+/// the room starts empty after the switch. workerd (`wrangler dev`) does not implement jurisdictions, so local runs set
+/// the var empty (see README); a deploy cannot, because the var lives in wrangler.toml.
 fn relay(env: &Env) -> Result<Stub> {
-    env.durable_object("RELAY")?.id_from_name("main")?.get_stub_with_location_hint(LOCATION_HINT)
+    let ns = env.durable_object("RELAY")?;
+    let jd = env.var("JURISDICTION").map(|v| v.to_string()).unwrap_or_default();
+    if jd.is_empty() {
+        return ns.id_from_name("main")?.get_stub();
+    }
+    let sub = worker::js_sys::Reflect::get(ns.as_ref(), &"jurisdiction".into())?
+        .dyn_into::<worker::js_sys::Function>()?
+        .call1(ns.as_ref(), &jd.into())?;
+    let sub: ObjectNamespace = sub.unchecked_into();
+    sub.id_from_name("main")?.get_stub()
 }
 
 fn now_ms() -> u64 {
