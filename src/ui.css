@@ -751,8 +751,15 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 @media (max-height: 460px) {   /* a phone on its side: everything stays on the screen, "Parti" included */
   .pd-wel { gap: 4px; }
   .pd-wel .pd-welname { font-size: 24px; }
-  .pd-welsw .pd-welnet button { height: 24px; }
+  .pd-welsw .pd-welnet button { height: 22px; }
+  .pd-welcard { padding-top: 3px; padding-bottom: 3px; }
+  .pd-weltips p { line-height: 1.2; }
   .pd-welearn { display: none; }
+  .pd-welgo .pd-btn { min-height: 0; height: 46px; }
+  .pd-welcash b { font-size: 16px; }
+  .pd-welsw { gap: 2px; }
+  .pd-weltips { gap: 1px; }
+  .pd-weltiph { padding-bottom: 0; }
 }
 .pd-welradnote { font: 500 clamp(11px, 2.5vh, 14px)/1.3 var(--pd-sans); opacity: .72; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pd-welnet { display: flex; padding: 3px; border-radius: 999px; background: rgba(0,0,0,.45); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
@@ -789,6 +796,7 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-weled { position: absolute; right: 9px; top: 50%; width: 18px; height: 18px; margin-top: -9px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; opacity: .85; }
 .pd-welcard:hover, .pd-welcard:focus-visible { background: linear-gradient(135deg, rgba(232,85,154,.4), rgba(232,85,154,.14)); }
 .pd-weltips { display: flex; flex-direction: column; gap: clamp(2px, .8vh, 6px); }
+.pd-weltiph { font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--pd-pink, #f5a9c9); padding-bottom: 1px; }
 .pd-weltips p { display: flex; gap: 7px; align-items: flex-start; margin: 0; font: 500 clamp(10px, 2.3vh, 12.5px)/1.28 var(--pd-sans); opacity: .82; }
 .pd-weltips svg { flex: none; width: 15px; height: 15px; margin-top: 1px; fill: none; stroke: #ffb020; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .pd-welgo { display: flex; gap: 6px; margin-top: clamp(0px, .6vh, 6px); }
