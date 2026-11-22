@@ -8,7 +8,8 @@
 // While PLAYLOG_URL (src/playlog-url.js) is empty nothing is sent. Never sent: automated browsers (navigator.webdriver) and the test and screenshot addresses (?p2p, ?ns=, ?fixres, ?clean, ?debug, ?bench).
 // A build made with --playlog=<url> (tools/build/build.mjs) is for local tests of this module: it sends from those addresses too.
 //
-//   const log = createPlayLog({ game, car, renderer, perf, getName, getPlayers, getMissionId });   // getName(): the chosen name when playing online, else ''; getPlayers(): other players drawn
+//   const log = createPlayLog({ game, car, renderer, perf, getName, getPlayers, getMissionId, getShadow, getGfx });   // getName(): the chosen name when playing online, else ''; getPlayers(): other players drawn; getShadow(): the shadow map size in use (0 off); getGfx(): 'auto', 'low', 'medium' or 'high'
+// Two more reports, 'ctxlost' and 'ctxrestored', say that the browser took the GL context away and gave it back (at most 3 of each a visit, only after the player has been driving). They carry what the other reports carry: the maker of the GPU, the graphics level, shadow size, resolution, memory and a yes or no for "inside another app's browser" (worked out here, from the user agent, which is read on this page and never sent).
 //   log.update(dt);                                                      // every frame
 import { PLAYLOG_URL } from './playlog-url.js';
 import { getLang } from './lang.js';
@@ -28,7 +29,12 @@ function gpuFamily(renderer) {   // the maker only, never the model
   } catch (e) { return 'other'; }
 }
 
-export function createPlayLog({ game, car, renderer, perf, getName = () => '', getPlayers = () => 0, getMissionId = () => '' }) {
+const SHADOW_SIZES = [0, 256, 512, 1024, 2048, 4096], GFX = ['auto', 'low', 'medium', 'high'];
+function inAppBrowser() {   // one yes or no: a web view inside another app (Instagram, TikTok, Facebook, Snapchat, LINE, WeChat, an Android or iOS web view). The text it comes from stays on this page.
+  try { const u = navigator.userAgent || ''; return /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|Bytedance|Snapchat|Line\/|Twitter|LinkedInApp|Pinterest|MicroMessenger|Telegram|; wv\)/i.test(u) || (/iPhone|iPad/.test(u) && !/Safari\//.test(u)) ? 1 : 0; } catch (e) { return 0; }
+}
+
+export function createPlayLog({ game, car, renderer, perf, getName = () => '', getPlayers = () => 0, getMissionId = () => '', getShadow = () => -1, getGfx = () => '' }) {
   const params = new URLSearchParams(location.search);
   const blocked = !URL_ || (!TEST && (navigator.webdriver || ['p2p', 'ns', 'fixres', 'clean', 'debug', 'bench'].some(k => params.has(k))));
   if (blocked) return { update() {}, enabled: false };
@@ -36,7 +42,7 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
   const vid = rnd();   // this page load only
   const device = matchMedia('(pointer: coarse)').matches ? 'phone' : 'desktop';
   const version = document.querySelector('meta[name="pd-version"]')?.dataset.name || '0.0.dev';
-  const gpu = gpuFamily(renderer);
+  const gpu = gpuFamily(renderer), iab = inAppBrowser();
   const on = () => true;
 
   let joined = false, t0 = 0, lastSend = 0, playTotal = 0, lastX = NaN, lastZ = NaN, playersAt = 0;
@@ -57,6 +63,17 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
     go();
   }
 
+  // what the player's screen is doing now, real values: the graphics level, the shadow map in use (the Auto ladder's own number only when Auto is on), the resolution, memory, GPU maker and the app-browser flag
+  function state(o) {
+    const st = perf && perf.stats && perf.stats(), g = st && st.state;
+    const gfx = String(getGfx() || ''); if (GFX.includes(gfx)) o.gfx = gfx;
+    let sh = -1; try { sh = getShadow(); } catch (e) { /* none */ }
+    if (SHADOW_SIZES.includes(sh)) o.sh = sh; else if (g && g.level) o.sh = g.level.sh;
+    if (g && g.level) { o.lv = g.s; o.mo = g.mode; }
+    const rs = st && st.ratio > 0 ? st.ratio : renderer.getPixelRatio(); if (rs > 0) o.rs = Math.min(400, Math.max(10, Math.round(rs * 100)));
+    const mem = performance.memory && performance.memory.usedJSHeapSize; if (mem > 0) o.mem = Math.min(65535, Math.round(mem / 1048576 / 10) * 10);
+    o.gpu = gpu; o.iab = iab;
+  }
   function build(t, withBatch) {
     const o = { v: 1, t, vid, d: device, l: getLang(), g: version, s: Math.max(0, Math.round((performance.now() - t0) / 1000)) };
     const name = getName(); if (name) o.n = name;
@@ -68,11 +85,7 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
       let need = Math.ceil(b.frames * 0.01), ms = 120; for (let i = 120; i >= 0; i--) { need -= b.hist[i]; if (need <= 0) { ms = i; break; } }
       o.p1 = ms;   // the slowest 1% of frames took at least this many ms
     }
-    const st = perf && perf.stats && perf.stats(), g = st && st.state;
-    if (g && g.level) { o.lv = g.s; o.mo = g.mode; o.sh = g.level.sh; }
-    if (st && st.ratio > 0) o.rs = Math.round(st.ratio * 100);
-    const mem = performance.memory && performance.memory.usedJSHeapSize; if (mem > 0) o.mem = Math.min(65535, Math.round(mem / 1048576 / 10) * 10);
-    o.gpu = gpu;
+    state(o);
     if (typeof car.type === 'string' && /^[a-z0-9_.:-]{1,24}$/.test(car.type)) o.veh = car.type;
     if (b.dist >= 1) o.dist = Math.min(500000, Math.round(b.dist));
     if (b.cash > 0) o.cash = Math.min(1000000, b.cash);
@@ -90,6 +103,17 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
   }
 
   addEventListener('pagehide', () => { if (joined) send('leave', true); });
+
+  // The browser took the GL context (a phone in the background, memory pressure) and may give it back. Only watched here: nothing about the game's own handling of it (src/main.js and the modules) changes.
+  const ctxN = { ctxlost: 0, ctxrestored: 0 };
+  for (const [dom, t] of [['webglcontextlost', 'ctxlost'], ['webglcontextrestored', 'ctxrestored']]) {
+    renderer.domElement.addEventListener(dom, () => {
+      if (!on() || !joined || ctxN[t] >= 3) return;
+      ctxN[t]++;
+      const o = build(t, false); state(o);
+      post(JSON.stringify(o), document.hidden);
+    });
+  }
 
   return {
     enabled: true,

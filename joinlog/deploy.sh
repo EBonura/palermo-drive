@@ -33,7 +33,7 @@ Q=(bq "--project_id=$PROJECT" "--location=$REGION")   # bq uses the credentials 
 "${Q[@]}" query --use_legacy_sql=false --nouse_cache "
 CREATE TABLE IF NOT EXISTS \`$PROJECT.$DATASET.$TABLE\` (
   ts TIMESTAMP NOT NULL OPTIONS (description = 'server time'),
-  event STRING OPTIONS (description = 'join, alive (a batch about every 3 minutes of driving) or leave'),
+  event STRING OPTIONS (description = 'join, alive (a batch about every 3 minutes of driving), leave, ctxlost or ctxrestored (the browser took the GL context away, or gave it back)'),
   visit STRING OPTIONS (description = 'random per page load, never saved on the device'),
   name STRING OPTIONS (description = 'the name chosen on the name card, only for players online by their own yes'),
   device STRING, lang STRING, version STRING,
@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS \`$PROJECT.$DATASET.$TABLE\` (
   fps INT64, fps_slow_ms INT64 OPTIONS (description = 'the slowest 1 percent of frames took at least this many ms'),
   auto_lvl INT64 OPTIONS (description = 'step of the Auto graphics ladder, 0 best'), fps_mode INT64 OPTIONS (description = '60 or 30'),
   shadow INT64 OPTIONS (description = 'shadow map size, 0 off'), res_pct INT64 OPTIONS (description = 'resolution scale in percent'),
-  mem_mb INT64, gpu STRING OPTIONS (description = 'maker only'), vehicle STRING,
+  mem_mb INT64, gpu STRING OPTIONS (description = 'maker only'), gfx STRING OPTIONS (description = 'graphics level: auto, low, medium or high'),
+  iab INT64 OPTIONS (description = '1 when the game runs inside another app web view (worked out on the page, the user agent is not sent), else 0'), vehicle STRING,
   dist_m INT64, cash INT64 OPTIONS (description = 'money earned in the batch'), busts INT64,
   missions STRING OPTIONS (description = 'id=started.done.failed;...')
 ) PARTITION BY TIMESTAMP_TRUNC(ts, DAY) OPTIONS (partition_expiration_days = 365, description = 'Play log: rows older than 12 months are deleted by BigQuery itself');" >/dev/null

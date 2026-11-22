@@ -455,7 +455,7 @@ if (['spot', 'campos', 'debug', 'play', 'bench'].some(k => params.has(k))) game.
 const missions = createMissions({ ...worldEnv, game, vehicle, pedestrians, traffic, mapMarkers, mapRoute, placeAt, proj });
 // Multiplayer goes through one relay (src/online/online.js, docs/ONLINE.md), and nothing connects until the player says yes on its name card. ?p2p=off leaves it out: the game then has no multiplayer UI at all.
 const net = (typeof __PD_ONLINE__ === 'undefined' || __PD_ONLINE__) && params.get('p2p') !== 'off' ? (await import('./online/online.js')).createOnline({ ...worldEnv, game, vehicle, mapMarkers, getDrunk: () => drunk, missions, traffic, followRoute }) : {};
-const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id });
+const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id, getShadow: () => renderer.shadowMap.enabled ? sun.shadow.mapSize.x : 0, getGfx: () => params.get('gfx') || 'high' });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
 const drunk = createDrunk({ game, car, camera, missions });

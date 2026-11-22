@@ -49,6 +49,12 @@ async function httpTests() {
   let r = await post(GOOD); check('a good report is written', r.status === 204 && r.body === '' && rows(sink).length === 1, `${r.status}`);
   const row = rows(sink)[0] || {};
   check('the row has the fixed columns, no address', row.event === 'alive' && row.visit === GOOD.vid && row.missions === 'fare:t=1.1.0' && !JSON.stringify(row).match(/203\.0|127\.0/), JSON.stringify(row));
+  const CTX = { v: 1, t: 'ctxlost', vid: '0123456789abcdef', d: 'phone', l: 'it', g: '0.4.dev', s: 90, gfx: 'high', sh: 2048, rs: 200, mem: 210, gpu: 'apple', iab: 1 };
+  r = await post(CTX); check('a ctxlost report is written with the graphics level, shadow size and app-browser flag', r.status === 204 && rows(sink).at(-1).event === 'ctxlost' && rows(sink).at(-1).gfx === 'high' && rows(sink).at(-1).shadow === 2048 && rows(sink).at(-1).iab === 1, JSON.stringify(rows(sink).at(-1)));
+  r = await post({ ...CTX, t: 'ctxrestored' }); check('a ctxrestored report is written', r.status === 204 && rows(sink).at(-1).event === 'ctxrestored', `${r.status}`);
+  r = await post({ ...CTX, ua: 'Mozilla/5.0' }); check('a user agent is refused', r.status === 400, `${r.status}`);
+  r = await post({ ...CTX, gfx: 'ultra' }); check('an unknown graphics level is refused', r.status === 400, `${r.status}`);
+  r = await post({ ...CTX, iab: 2 }); check('an app-browser flag other than 0 or 1 is refused', r.status === 400, `${r.status}`);
   r = await post(GOOD, { origin: 'http://localhost:5555' }); check('a localhost origin listed for dev is allowed', r.status === 204, `${r.status}`);
   r = await post(GOOD, { origin: 'https://evil.example' }); check('a wrong origin is refused', r.status === 403, `${r.status}`);
   r = await post(GOOD, { origin: 'https://ebonura.github.io.evil.example' }); check('an origin that only starts like the real one is refused', r.status === 403, `${r.status}`);
@@ -120,13 +126,13 @@ async function browserTests(root) {
   const svc = service(18788, origin, sink, { ADDR_BURST: '100', ADDR_PER_MIN: '600' });   // the test build reports every 3 s, far faster than a player, so this address gets a wider allowance   // 18788: the address the test build was made with
   await up(18788);
   const browser = await puppeteer.launch({ executablePath: process.env.CHROME || (process.env.PD_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'), headless: 'new', args: ['--mute-audio', '--use-angle=metal', '--enable-gpu'] });
-  async function open(store, extra) {
+  async function open(store, extra, gfx = 'auto') {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage(), errs = [];
     await page.setViewport({ width: 960, height: 540 });
     await page.evaluateOnNewDocument(s => { Object.defineProperty(document, 'hidden', { get: () => false }); Object.defineProperty(document, 'visibilityState', { get: () => 'visible' }); if (s) localStorage.setItem('palermoDrive.net.v1', s); }, store);
     page.on('pageerror', e => errs.push(e.message.slice(0, 200))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 200)); });
     const reqs = []; page.on('request', r => { if (r.url().includes(':18788')) reqs.push(r.method() + ' ' + r.url()); });
-    await page.goto(`${origin}/?help=0&play&debug&plms=3000&gfx=auto&at=137,-212,0${extra}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${origin}/?help=0&play&debug&plms=3000&gfx=${gfx}&at=137,-212,0${extra}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.game && !document.getElementById('loading'), { timeout: 300000, polling: 250 });
     return { page, errs, ctx, reqs };
   }
@@ -148,15 +154,18 @@ async function browserTests(root) {
     check('one request per report, none per event', a.reqs.length === rows(sink).length, `${a.reqs.length} requests, ${rows(sink).length} rows`);
     check('distance is counted (a few metres here)', al && al.dist_m > 0, String(al?.dist_m));
     check('the perf fields are there with Auto graphics', al && al.auto_lvl !== null && [30, 60].includes(al.fps_mode) && al.shadow !== null && al.res_pct > 0, JSON.stringify(al));
-    const nBefore = rows(sink).length;
-    check('the Options row exists', await a.page.evaluate(() => !!document.querySelector('[data-opt="stats"] .pd-segb[data-v="off"]')));
-    await a.page.evaluate(() => document.querySelector('[data-opt="stats"] .pd-segb[data-v="off"]').click());
-    check('the off choice is saved with the other settings', await a.page.evaluate(() => JSON.parse(localStorage.getItem('palermoDrive.settings.v1') || '{}').stats === 'off'));
-    await sleep(8000);
-    check('switched off in Options: nothing more is sent', rows(sink).length === nBefore, `${nBefore} -> ${rows(sink).length}`);
-    await a.page.evaluate(() => document.querySelector('[data-opt="stats"] .pd-segb[data-v="on"]').click());
-    await sleep(5000);
-    check('switched on again: reports resume', rows(sink).length > nBefore);
+    // there has been no Options switch since 4 Nov 2026, so the off and on steps only run on a build that still has one
+    if (await a.page.evaluate(() => !!document.querySelector('[data-opt="stats"] .pd-segb[data-v="off"]'))) {
+      const nBefore = rows(sink).length;
+      check('the Options row exists', await a.page.evaluate(() => !!document.querySelector('[data-opt="stats"] .pd-segb[data-v="off"]')));
+      await a.page.evaluate(() => document.querySelector('[data-opt="stats"] .pd-segb[data-v="off"]').click());
+      check('the off choice is saved with the other settings', await a.page.evaluate(() => JSON.parse(localStorage.getItem('palermoDrive.settings.v1') || '{}').stats === 'off'));
+      await sleep(8000);
+      check('switched off in Options: nothing more is sent', rows(sink).length === nBefore, `${nBefore} -> ${rows(sink).length}`);
+      await a.page.evaluate(() => document.querySelector('[data-opt="stats"] .pd-segb[data-v="on"]').click());
+      await sleep(5000);
+      check('switched on again: reports resume', rows(sink).length > nBefore);
+    }
     const n2 = rows(sink).length;
     await a.page.evaluate(() => dispatchEvent(new Event('pagehide'))); await sleep(1500);
     rs = rows(sink); check('pagehide sends a leave row (sendBeacon)', rs.length === n2 + 1 && rs.at(-1).event === 'leave' && rs.at(-1).secs > 5, JSON.stringify(rs.at(-1)));
@@ -164,7 +173,22 @@ async function browserTests(root) {
     const stored = await a.page.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
     check('the visit id is not stored anywhere', !stored.includes([...visits][0]));
     check('no console errors (CSP included)', a.errs.length === 0, a.errs.join(' | '));
+    const nc = rows(sink).length;
+    for (const t of ['webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextrestored']) { await a.page.evaluate(t => document.getElementById('view').dispatchEvent(new Event(t)), t); await sleep(400); }   // spaced out: the test sink writes a row in two steps
+    await sleep(1500);
+    const cx = rows(sink).slice(nc).filter(x => x.event.startsWith('ctx'));
+    check('a lost and a restored context are reported, at most 3 of each, with real settings and no more fields than the others', cx.filter(x => x.event === 'ctxlost').length === 3 && cx.filter(x => x.event === 'ctxrestored').length === 1 && cx.every(x => x.gfx === 'auto' && x.shadow !== null && x.res_pct > 0 && x.gpu && (x.iab === 0 || x.iab === 1) && x.fps === null), cx.map(x => x.event).join() + ' ' + JSON.stringify(cx[0]));
     await a.ctx.close();
+
+    // a player on the production default (no ?gfx): no Auto ladder, but the real shadow size and the graphics level are there
+    const m0 = rows(sink).length;
+    const mp = await open(JSON.stringify({ name: 'Carla', offline: true }), '&ns=pltest4', 'high');
+    await answer(mp.page, 'Gioca da solo');
+    await drive(mp.page);
+    await sleep(8000);
+    const mr = rows(sink).slice(m0).find(x => x.event === 'alive');
+    check('the default (high) graphics: gfx, shadow size and resolution are real, the Auto fields stay empty', !!mr && mr.gfx === 'high' && mr.shadow === 2048 && mr.res_pct > 0 && mr.auto_lvl === null && mr.fps_mode === null, JSON.stringify(mr));
+    await mp.ctx.close();
 
     // solo by choice: stats but no name
     const s0 = rows(sink).length;

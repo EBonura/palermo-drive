@@ -31,6 +31,8 @@ struct Raw {
     rs: Option<u32>,
     mem: Option<u32>,
     gpu: Option<String>,
+    gfx: Option<String>,
+    iab: Option<u32>,
     veh: Option<String>,
     dist: Option<u32>,
     cash: Option<u32>,
@@ -95,7 +97,7 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
     if r.v != 1 {
         return None;
     }
-    let event = one_of(&r.t, &["join", "alive", "leave"])?;
+    let event = one_of(&r.t, &["join", "alive", "leave", "ctxlost", "ctxrestored"])?;
     if r.vid.len() != 16 || !r.vid.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
         return None;
     }
@@ -114,6 +116,10 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
     let gpu = match &r.gpu {
         None => None,
         Some(g) => Some(one_of(g, &["apple", "nvidia", "amd", "intel", "adreno", "mali", "other"])?.to_string()),
+    };
+    let gfx = match &r.gfx {
+        None => None,
+        Some(g) => Some(one_of(g, &["auto", "low", "medium", "high"])?.to_string()),
     };
     let veh = match &r.veh {
         None => None,
@@ -162,6 +168,8 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
         ("res_pct", Val::I(within(r.rs, 10, 400)?)),
         ("mem_mb", Val::I(within(r.mem, 0, 65_535)?)),
         ("gpu", Val::S(gpu)),
+        ("gfx", Val::S(gfx)),
+        ("iab", Val::I(within(r.iab, 0, 1)?)),
         ("vehicle", Val::S(veh)),
         ("dist_m", Val::I(within(r.dist, 0, 500_000)?)),
         ("cash", Val::I(within(r.cash, 0, 1_000_000)?)),
@@ -174,7 +182,7 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
 mod tests {
     use super::*;
 
-    const OK: &str = r#"{"v":1,"t":"alive","vid":"0123456789abcdef","n":"Anna","d":"phone","l":"it","g":"0.4.12","s":600,"pl":2,"ps":170,"fps":58,"p1":31,"lv":2,"mo":60,"sh":1024,"rs":100,"mem":210,"gpu":"apple","veh":"calessino","dist":3200,"cash":12,"bust":1,"m":{"fare:taxi":[1,1,0]}}"#;
+    const OK: &str = r#"{"v":1,"t":"alive","vid":"0123456789abcdef","n":"Anna","d":"phone","l":"it","g":"0.4.12","s":600,"pl":2,"ps":170,"fps":58,"p1":31,"lv":2,"mo":60,"sh":1024,"rs":100,"mem":210,"gpu":"apple","gfx":"high","iab":0,"veh":"calessino","dist":3200,"cash":12,"bust":1,"m":{"fare:taxi":[1,1,0]}}"#;
 
     fn name_of(rows: &[(&str, Val)]) -> Option<String> {
         match rows.iter().find(|(k, _)| *k == "name").unwrap() {
@@ -186,8 +194,17 @@ mod tests {
     #[test]
     fn accepts_a_full_report() {
         let r = parse(OK.as_bytes()).expect("valid");
-        assert_eq!(r.len(), 22);
+        assert_eq!(r.len(), 24);
         assert_eq!(name_of(&r).as_deref(), Some("Anna"));
+    }
+
+    #[test]
+    fn accepts_the_context_events_and_nothing_extra() {
+        let ok = |t: &str| parse(format!(r#"{{"v":1,"t":"{t}","vid":"0123456789abcdef","d":"phone","l":"it","g":"0.4.12","s":90,"gfx":"high","sh":2048,"rs":200,"mem":210,"gpu":"apple","iab":1}}"#).as_bytes());
+        assert!(ok("ctxlost").is_some());
+        assert!(ok("ctxrestored").is_some());
+        assert!(ok("ctxgone").is_none());
+        assert!(parse(br#"{"v":1,"t":"ctxlost","vid":"0123456789abcdef","d":"phone","l":"it","g":"0.4.12","s":90,"ua":"Mozilla/5.0"}"#).is_none()); // a user agent is never accepted
     }
 
     #[test]
@@ -217,6 +234,8 @@ mod tests {
         bad(&OK.replace("\"sh\":1024", "\"sh\":1000"));
         bad(&OK.replace("apple", "Apple M2 Pro"));
         bad(&OK.replace("calessino", "Calessino!"));
+        bad(&OK.replace("\"gfx\":\"high\"", "\"gfx\":\"ultra\""));
+        bad(&OK.replace("\"iab\":0", "\"iab\":2"));
         bad(&OK.replace("\"bust\":1", "\"bust\":1,\"ip\":\"1.2.3.4\""));
         bad(&OK.replace("[1,1,0]", "[1,1]"));
         bad(&OK.replace("[1,1,0]", "[1,1,99]"));
