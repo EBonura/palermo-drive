@@ -105,3 +105,5 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | Al Gelido Già Perso (`diastema-al-gelido-gia-perso`) | Diastema | WAV sent by email |
 | Spirito Funky (`enneo2-spirito-funky-45`, video intro removed: the song from 0:45) | Enneo 2 feat. Dalila Galati e Izzy Bonura (Street Label Records, 2014) | https://www.youtube.com/watch?v=2dU1ytNn7JI |
 | Dissociazione (`collateral-effect-dissociazione`) | Collateral Effect (their first single) | https://www.youtube.com/watch?v=R6WX0IAMjG4 |
+| Moto Continuo (`azzardo-moto-continuo`) | Azzardo ft. SieroBrownie (prod. YouArt Beats) | MP3 sent by email |
+| Aria Fresca (`sierobrownie-aria-fresca`) | SieroBrownie | MP3 sent by email |

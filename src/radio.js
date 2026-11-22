@@ -92,6 +92,8 @@ const PALIFORNIA = [   // [id, title, artist]
   ['diastema-al-gelido-gia-perso', 'Al Gelido Già Perso', 'Diastema'],
   ['enneo2-spirito-funky-45', 'Spirito Funky', 'Enneo 2 feat. Dalila Galati e Izzy Bonura'],
   ['collateral-effect-dissociazione', 'Dissociazione', 'Collateral Effect'],
+  ['azzardo-moto-continuo', 'Moto Continuo', 'Azzardo ft. SieroBrownie'],
+  ['sierobrownie-aria-fresca', 'Aria Fresca', 'SieroBrownie'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [
