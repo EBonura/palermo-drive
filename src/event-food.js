@@ -8,6 +8,7 @@ import { PAY_X } from './economy.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FOOD } from '../assets/missions/lines.js';
 import { esc } from './esc.js';
+import { FOOD_ART } from './item-art.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -59,7 +60,7 @@ export function createFood(X) {
   function start(slot) {
     const P = slot.food, item = X.ITEMS[slot.item], H = X.HUNT[slot.pid];
     e = { slot, P, item, phase: 'hunt', left: HUNT_TIME, items: [], got: 0, huntGot: 0, cap: HUNT_N, t: 0, thanks: 0, restT: 0 };
-    e.mesh = new THREE.InstancedMesh(itemGeo(item.shape, item.c[0], item.c[1]), itemMat, HUNT_N);
+    e.mesh = new THREE.InstancedMesh(FOOD_ART[slot.item] ? FOOD_ART[slot.item]() : itemGeo(item.shape, item.c[0], item.c[1]), itemMat, HUNT_N);
     e.beams = new THREE.InstancedMesh(beamGeo, beamMat, HUNT_N);
     e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     e.mesh.count = e.beams.count = 0;

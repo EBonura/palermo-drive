@@ -7,25 +7,14 @@
 // createRaveEvents(X, rave) -> { start(slot), update(dt), stop(), active() }
 import * as THREE from 'three';
 import { PAY_X } from './economy.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAVE_LINES as RL } from '../assets/missions/lines.js';
 import { RAVE } from './event-places.js';
 import { SNAP } from './event-routes.js';
+import { leafArt } from './item-art.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const pick = a => a[(Math.random() * a.length) | 0];
 const R_PICK2 = 3.6 * 3.6, HUNT_TIME = 85, HAND_TIME = 70;
-
-// one coloured merged geometry: three green leaves on a stem with a little yellow smiling face over them (the "happy leaf": a wink, nothing more)
-function leafGeo() {
-  const col = (g, hex) => { g = g.index ? g.toNonIndexed() : g; g.deleteAttribute('uv'); const c = new THREE.Color(hex), a = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < a.length; i += 3) { a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
-  const P = [];
-  for (const [k, a] of [[0, 0], [1, 1.0], [2, -1.0]]) P.push(col(new THREE.SphereGeometry(0.5, 8, 6).scale(0.3, 0.05, 0.95).rotateX(-0.5).translate(0, 0.45, 0.3).rotateY(a), k ? '#2f9a34' : '#46b83f'));
-  P.push(col(new THREE.CylinderGeometry(0.03, 0.045, 0.5, 6).translate(0, 0.25, 0), '#2a7a2c'));
-  P.push(col(new THREE.SphereGeometry(0.2, 10, 8).translate(0, 1.15, 0), '#ffd83a'), col(new THREE.SphereGeometry(0.03, 6, 4).translate(-0.075, 1.2, 0.185), '#1a1208'), col(new THREE.SphereGeometry(0.03, 6, 4).translate(0.075, 1.2, 0.185), '#1a1208'),
-    col(new THREE.TorusGeometry(0.08, 0.015, 5, 10, Math.PI).rotateZ(Math.PI).translate(0, 1.14, 0.19), '#1a1208'));
-  const g = mergeGeometries(P); g.translate(0, 0.3, 0); g.scale(1.5, 1.5, 1.5); return g;
-}
 
 export function createRaveEvents(X, rave) {
   const { scene, car, pedestrians, T, hud, eur, speed, say, groundAt, seatPos, seatFn } = X;
@@ -152,7 +141,7 @@ export function createRaveEvents(X, rave) {
   function startHunt() {
     const H = X.HUNT.leaf.hunt, n = Math.min(7, H.length / 2);
     e.phase = 'hunt'; e.left = HUNT_TIME; X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null;
-    e.mesh = new THREE.InstancedMesh(leafGeo(), itemMat, n); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, n); e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
+    e.mesh = new THREE.InstancedMesh(leafArt(), itemMat, n); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, n); e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     scene.add(e.mesh, e.beams);
     for (let i = 0; i < n; i++) { const x = H[i * 2], z = H[i * 2 + 1], y = groundAt(x, z); e.items.push({ x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#7ad65a', 5, 'diamond') }); }
     e.total = n; setItems();
