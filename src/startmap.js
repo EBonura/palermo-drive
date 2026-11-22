@@ -25,6 +25,7 @@ const L = {
   here: ['Amunì, paiti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], penna: ['Pinni', 'Pens'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
+  hintPad: ['Levetta: muovi · LT e RT: zoom · LB e RB: luoghi · X: eventi · Y: lista · A: scegli', 'Stick: pan · LT and RT: zoom · LB and RB: places · X: events · Y: list · A: choose'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
 const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
@@ -505,6 +506,8 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   }
   function pan(dx, dz) { vx += dx / k; vz += dz / k; clampView(); mark(); }
 
+  function setHint() { hint.textContent = (document.documentElement.classList.contains('pd-gp') ? L.hintPad : L.hint)[li()]; }   // the pad's buttons while a pad is in use (src/gamepad.js)
+  addEventListener('pd-padmode', setHint);
   function applyLang() {
     for (const e of host.querySelectorAll('[data-t]')) {
       const key = e.dataset.t, i = li();
@@ -512,7 +515,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       else e.textContent = L[key][i];
     }
     evBtn.setAttribute('aria-label', L.events[li()]);
-    hint.textContent = L.hint[li()];
+    setHint();
     host.querySelector('.pd-mp-pop .pd-l1').textContent = L.here[li()];
     if (sel) { sel = itemOf({ kind: sel.kind, ref: sel.ref, x: sel.x, z: sel.z }); fillPop(); }
     if (cl) { fillCl(); clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); }

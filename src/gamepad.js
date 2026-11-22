@@ -76,7 +76,7 @@ export function setupGamepad({ game }) {
 
   // while the pad is in use the touch pads are out of the way; a touch or a click brings them back
   let padMode = false;
-  function setPadMode(on) { if (on === padMode) return; padMode = on; root.classList.toggle('pd-gp', on); }
+  function setPadMode(on) { if (on === padMode) return; padMode = on; root.classList.toggle('pd-gp', on); dispatchEvent(new Event('pd-padmode')); }
   addEventListener('pointerdown', () => setPadMode(false), true);
 
   // ---- what the pad is talking to right now ----
@@ -95,20 +95,9 @@ export function setupGamepad({ game }) {
   }
 
   // ---- small movers for the screens that are not driven by keys ----
-  function step(list, dir) {   // the next one in that direction, by position on the screen (the same scoring as the menus in src/ui.js)
-    const a = document.activeElement;
-    if (!list.length) return;
-    if (!list.includes(a)) { list[0].focus({ preventScroll: true }); return; }
-    const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    let best = null, bs = Infinity;
-    for (const it of list) {
-      if (it === a) continue;
-      const q = it.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
-      const along = dir === 'up' ? -dy : dir === 'down' ? dy : dir === 'left' ? -dx : dx, off = dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
-      if (along < 4) continue;
-      const s = along + off * 2.2; if (s < bs) { bs = s; best = it; }
-    }
-    if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
+  function walk(list, d) {   // the card and the list read in order: up and left go back one, down and right forward
+    const a = list.indexOf(document.activeElement), n = list[Math.max(0, Math.min(list.length - 1, a < 0 ? 0 : a + (d === 'up' || d === 'left' ? -1 : 1)))];
+    if (n) { n.focus({ preventScroll: true }); n.scrollIntoView?.({ block: 'nearest' }); }
   }
   const dlgItems = () => { const d = document.querySelector('[aria-modal="true"]'); return d ? [...d.querySelectorAll('button, input')].filter(e => e.offsetParent !== null && !e.disabled) : []; };
   const listItems = () => [...document.querySelectorAll('.mpx-list .mpx-go')].filter(e => e.offsetParent !== null && !e.disabled);
@@ -162,8 +151,10 @@ export function setupGamepad({ game }) {
     }
     if (c === 'list' || c === 'dialog') {
       const items = c === 'list' ? listItems() : dlgItems();
-      if (!items.includes(document.activeElement) && items.length && (dir.up || dir.down || dir.left || dir.right || A)) { if (A) { items[0].focus({ preventScroll: true }); } else step(items, 'down'); }
-      for (const d of ['up', 'down', 'left', 'right']) repeat('n' + d, dir[d], t, () => { if (items.includes(document.activeElement)) step(items, d); });
+      if (!items.includes(document.activeElement) && items.length && (dir.up || dir.down || dir.left || dir.right || A)) {   // the first touch lands on the first one
+        items[0].focus({ preventScroll: true }); for (const d in dir) repeat('n' + d, dir[d], t, () => {}); return;
+      }
+      for (const d of ['up', 'down', 'left', 'right']) repeat('n' + d, dir[d], t, () => { walk(items, d); });
       if (A) { const a = document.activeElement; if (items.includes(a)) { if (a.tagName === 'INPUT') a.focus(); else a.click(); } }
       if (B || START) tap('Escape');
       return;

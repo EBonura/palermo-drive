@@ -1233,9 +1233,11 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       if (it === a) continue;
       const q = it.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
       const along = dir === 'up' ? -dy : dir === 'down' ? dy : dir === 'left' ? -dx : dx;
-      const off = dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
+      const vert = dir === 'up' || dir === 'down';
+      const gap = vert ? Math.max(0, Math.max(r.left, q.left) - Math.min(r.right, q.right)) : Math.max(0, Math.max(r.top, q.top) - Math.min(r.bottom, q.bottom));   // how far off the line the two boxes are (0 when they overlap): a wide slider under a tab counts as straight below it
+      const off = gap * 2.2 + (vert ? Math.abs(dx) : Math.abs(dy)) * 0.25;
       if (along < 4) continue;
-      const s = along + off * 2.2;
+      const s = along + off;
       if (s < bs) { bs = s; best = it; }
     }
     if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
