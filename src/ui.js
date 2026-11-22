@@ -499,8 +499,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-welcust">
         <button class="pd-welcard" data-nav data-do="garage" type="button"><small data-k="welRide"></small><b class="pd-welveh"></b><span data-k="welCustom"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
         <button class="pd-welcard" data-nav data-do="welDriver" type="button"><small data-k="welDriverT"></small><b data-k="welEdit"></b><span data-k="welDriver"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
+        <button class="pd-welcard" data-nav data-do="welRadio" type="button"><small data-k="welRadio"></small><b class="pd-welst"></b><span class="pd-welstsub"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 4l3 3-3 3"/><path d="M4 11V9a2 2 0 0 1 2-2h14"/><path d="M7 20l-3-3 3-3"/><path d="M20 13v2a2 2 0 0 1-2 2H4"/></svg></button>
       </div>
-      <div class="pd-welradio" data-opt="radioStation"><small data-k="welRadio"></small><div class="pd-seg" role="group">${STATIONS.map(x => `<button class="pd-segb" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div></div>   <!-- the same choice as in Options: setOpt('radioStation') through the .pd-segb click, aria-pressed by syncOptions -->
       <div class="pd-weltips">
         <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14v3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/></svg><span data-k="welCops"></span></p>
         <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><span data-k="welFermo"></span></p>
@@ -758,6 +758,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         }
         return leaveWelcome();
       }
+      case 'welRadio': { const k = STATIONS.findIndex(x => x.id === st.radioStation); setOpt('radioStation', STATIONS[(k + 1) % STATIONS.length].id); renderWelcome(); return; }   // the same setting as Options
       case 'welDriver': garageUI.driverNext?.(); return enterGarage();
       case 'viewMap': case 'viewList': { const v = name === 'viewMap' ? 'map' : 'list'; return v === startView ? undefined : setView(v); }
       case 'mapgo': return startMap.startSelected();
@@ -895,6 +896,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (document.activeElement !== welName) welName.value = readName();
     W.querySelector('.pd-welcash b').textContent = welEur(garage.cash);
     W.querySelector('.pd-welveh').textContent = i ? v.name_en : v.name_it;
+    const stn = STATIONS.find(x => x.id === st.radioStation) || STATIONS[0];   // the radio card: the station, its line; a tap goes on to the next
+    W.querySelector('.pd-welst').textContent = stn.name.replace(/^Radio /, ''); W.querySelector('.pd-welstsub').textContent = stn.sub[i];
     syncWelNet();
   }
 
