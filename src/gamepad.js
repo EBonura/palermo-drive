@@ -192,7 +192,7 @@ export function setupGamepad({ game }) {
     const K = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
     for (const d in K) repeat('m' + d, dir[d], t, () => tap(K[d]));
     if (A) {   // on a vehicle in the Garage, A is the green button under the list (Personalizza, buy), as the focus has already chosen the vehicle
-      const go = (document.activeElement?.dataset?.gx || '').startsWith('base:') && document.querySelector('[data-name=garage].on .gx-go');
+      const go = (document.activeElement?.dataset?.gx || '').startsWith('base:') && document.querySelector('[data-name=garage].on .gx-go, [data-name=garage].on .gx-need');   // (the "Servono altri" box answers with a no)
       if (go) go.click(); else tap('Enter');
     }
     if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');

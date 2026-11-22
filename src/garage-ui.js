@@ -133,6 +133,10 @@ const CSS = `
 .gx-foot .pd-btn.drive.sm { min-height: clamp(38px, 8.4vh, 52px); }
 .gx-need { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 0 10px; border-radius: 3px; background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); font: 600 clamp(12px, 2.8vh, 17px)/1.1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.8); text-align: center; }
 .gx-need b { color: var(--pd-amber); margin-left: .4em; }
+.gx-need.gx-nope { background: rgba(255,70,70,.28); box-shadow: inset 0 0 0 2px #ff5a5a, 0 0 18px rgba(255,70,70,.55); color: #fff; animation: gx-shake .5s ease-in-out; }   /* a try to buy what the wallet cannot pay: the box goes red and shakes */
+.gx-need.gx-nope b { color: #fff; }
+@keyframes gx-shake { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-8px); } 35% { transform: translateX(7px); } 55% { transform: translateX(-5px); } 75% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .gx-need.gx-nope { animation: none; } }
 .gx-need.earn { font-size: clamp(11px, 2.4vh, 14px); }
 
 @media (max-height: 460px) {
@@ -378,6 +382,13 @@ let wantDriver = false;
 
   // ---- actions ----
   const flash = msg => { popMsg = msg; popT = 1.6; };
+  let nopeTimer = 0;
+  function denyBuy() {   // tried to buy something the wallet cannot pay: the sound, and the "Servono altri" box goes red and shakes
+    sfx('no');
+    const n = elFoot.querySelector('.gx-need'); if (!n) return;
+    n.classList.remove('gx-nope'); void n.offsetWidth; n.classList.add('gx-nope');
+    clearTimeout(nopeTimer); nopeTimer = setTimeout(() => n.classList.remove('gx-nope'), 900);
+  }
   function focusFirst() {
     const el = step === 1 ? elM1.querySelector(`[data-gx="base:${sel}"]`) : elTabs.querySelector('[aria-pressed=true]');
     if (el) el.focus({ preventScroll: true });
@@ -410,12 +421,14 @@ let wantDriver = false;
     const touchFirst = lastPtr === 'touch' && e.detail && was !== id;
     if (garage.ownsVehicle(id) && !touchFirst) return toStep(2);
     paintDetail(); paintFoot(); showPreview();
+    if (!garage.ownsVehicle(id) && !touchFirst && garage.cash < vehicleById(id).price) denyBuy();   // a click on a vehicle that is not yours and not affordable
   }
   function pickOpt(part, id) {
     if (id === '' || garage.ownsPart(part, id)) { pending = null; garage.setPart(part, id, sel); } else pending = { k: 'part', part, id };
     if (part === 'horn' && id) scene.testHorn();
     hv = { k: 'part', part, id };
     paintAll(); showPreview();
+    if (pending && garage.cash < garage.partPrice(pending.part, pending.id)) denyBuy();   // the part is not yours and not affordable
   }
   function pickLiv(id) { pending = null; hv = null; garage.setLivery(id, sel); paintAll(); showPreview(); }
   function pickBody(hex) {
@@ -427,6 +440,7 @@ let wantDriver = false;
     pickLiv(customLivery(body, hex ? '#' + hex : null));
   }
   function click(e) {
+    if (e.target.closest && e.target.closest('.gx-need')) return denyBuy();
     const b = e.target.closest && e.target.closest('[data-gx]'); if (!b) return;
     const [k, a, c] = b.dataset.gx.split(':');
     if (k === 'base') pickBase(a, e);
