@@ -370,7 +370,8 @@ let wantDriver = false;
       if (garage.cash >= price) main = `<button class="pd-btn sm drive gx-go" data-nav data-gx="buyp" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('buy'))} · ${eur(price)}</span></span></button>`;
       else main = `<div class="gx-need">${esc(tr('need'))}<b>${eur(price - garage.cash)}</b></div>`;
     } else main = `<button class="pd-btn sm drive gx-go" data-nav data-gx="done" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('done'))} ✓</span></span></button>`;
-    elFoot.className = step === 1 ? 'gx-foot f3' : 'gx-foot'; elFoot.innerHTML = back + (step === 1 ? drv : '') + main;
+    const rnd = `<button class="pd-btn sm" data-nav data-gx="rndlook" type="button"><span class="pd-in"><span class="pd-l1">${esc(tr('random'))}</span></span></button>`;
+    elFoot.className = 'gx-foot f3'; elFoot.innerHTML = back + (step === 1 ? drv : rnd) + main;
   }
   function paintAll() {
     keep(() => {
@@ -431,6 +432,22 @@ let wantDriver = false;
     if (pending && garage.cash < garage.partPrice(pending.part, pending.id)) denyBuy();   // the part is not yours and not affordable
   }
   function pickLiv(id) { pending = null; hv = null; garage.setLivery(id, sel); paintAll(); showPreview(); }
+  // Casuale: a new look from what is free and what the wallet already owns, so it never spends money: a colour (a body and a details colour, or a preset for the horse),
+  // and for every part either stock or one of the options that are yours. The sea floats and the wings stay as they are.
+  function randomLook() {
+    const pick = a => a[(Math.random() * a.length) | 0];
+    if (sel === 'sulky') garage.setLivery(pick(LIVERIES.sulky).id, sel);
+    else {
+      const col = id => PALETTE.find(p => p.id === id).color;
+      garage.setLivery(customLivery(col(pick(BODY_IDS)), Math.random() < 0.3 ? null : col(pick(TRIM_IDS))), sel);
+    }
+    for (const pid of categoriesFor(sel).flatMap(c => c.parts || [])) {
+      if (pid === 'swim' || pid === 'fly') continue;
+      const mine = partOpts(pid, sel).filter(o => garage.ownsPart(pid, o.id));
+      if (!mine.length || Math.random() < 0.4) garage.setPart(pid, '', sel); else garage.setPart(pid, pick(mine).id, sel);
+    }
+    pending = null; hv = null; sfx('tick'); paintAll(); showPreview();
+  }
   function pickBody(hex) {
     const cu = parseLivery(garage.liveryOf(sel)); pickLiv(customLivery('#' + hex, cu && cu.trim ? cu.trim : null));
   }
@@ -456,6 +473,7 @@ let wantDriver = false;
     else if (k === 'dtg') toggleDrv(a);
     else if (k === 'drrnd') randomDrv();
     else if (k === 'drorig') originalDrv();
+    else if (k === 'rndlook') randomLook();
     else if (k === 'back') { if (!goBack() && onExit) onExit(); }
     else if (k === 'done') { if (onExit) onExit(); }
     else if (k === 'buyv') buyVehicle();

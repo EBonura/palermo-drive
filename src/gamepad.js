@@ -195,7 +195,8 @@ export function setupGamepad({ game }) {
       const go = (document.activeElement?.dataset?.gx || '').startsWith('base:') && document.querySelector('[data-name=garage].on .gx-go, [data-name=garage].on .gx-need');   // (the "Servono altri" box answers with a no)
       if (go) go.click(); else tap('Enter');
     }
-    if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');
+    if (B) tap('Escape'); if (START) tap('KeyP'); if (X) tap('KeyE');
+    if (Y) { const rnd = document.querySelector('[data-name=garage].on [data-gx=rndlook], [data-name=garage].on [data-gx=drrnd]'); if (rnd) rnd.click(); else tap('KeyL'); }   // in the Garage, Y is Casuale
     if (LB) tabStep(-1); if (RB) tabStep(1);
   }
   // LB and RB turn the tabs of a screen (the Garage's categories and the driver's, the tabs of Options), as on a console
