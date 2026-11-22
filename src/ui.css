@@ -336,8 +336,10 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 #hud .hz-gauges .nosbar-t b { top: calc(100% + 4px); height: 100%; border-radius: 3px; }
 #hud .hz-gauges .nosbar-t::after { content: ''; position: absolute; left: 0; right: 0; top: calc(100% + 4px); height: 100%; border-radius: 3px; background: rgba(255,210,80,.14); display: none; }
 #hud .hz-gauges .nosbar.over .nosbar-t::after { display: block; }
-.hz-gauges:has(.nosbar.over) { padding-bottom: 32px; }
+.hz-gauges:has(.nosbar.over) { padding-bottom: 32px; }   /* 10 px taller: the blue bar keeps its place under the numbers, the gold one fits under it, inside the pill */
+#hud .hz-gauges .nosbar.over { bottom: 18px; }
 html.touch .hz-gauges:has(.nosbar.over) { padding-bottom: 27px; }
+html.touch #hud .hz-gauges .nosbar.over { bottom: 15px; }
 /* Boosting: the bars burn. The fill turns into a flame running towards its tip (blue at the root, white hot at the end; gold for the overcharge), the glow flickers, the label lights up. */
 #hud .hz-gauges .nosbar.on .nosbar-l { color: #bff3ff; text-shadow: 0 0 6px rgba(95,224,255,.9); }
 #hud .hz-gauges .nosbar.on .nosbar-t { animation: pd-nos-flicker .14s steps(2) infinite; }
