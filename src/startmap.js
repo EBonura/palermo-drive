@@ -25,7 +25,7 @@ const L = {
   here: ['Amunì, paiti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], penna: ['Pinni', 'Pens'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
-  hintPad: ['Levetta: muovi · LT e RT: zoom · LB e RB: luoghi · X: eventi · Y: lista · A: scegli', 'Stick: pan · LT and RT: zoom · LB and RB: places · X: events · Y: list · A: choose'],
+  hintPad: ['Levetta sinistra: muovi · destra: puntatore · A: clicca · LT e RT: zoom · X: eventi · Y: lista', 'Left stick: pan · right stick: pointer · A: click · LT and RT: zoom · X: events · Y: list'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
 const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
@@ -506,6 +506,14 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   }
   function pan(dx, dz) { vx += dx / k; vz += dz / k; clampView(); mark(); }
 
+  // The gamepad drives the map like a mouse (src/gamepad.js): the left stick pans, the triggers zoom around the pointer, A clicks where the pointer is
+  addEventListener('pd-map-drive', e => {
+    if (!cv.offsetParent) return;
+    const d = e.detail, r = cv.getBoundingClientRect(), px = d.x - r.left, py = d.y - r.top;
+    if (d.dx || d.dy) pan(d.dx, d.dy);
+    if (d.zoom && d.zoom !== 1) zoomAt(d.zoom, px, py);
+    if (d.click) { const hit = pick(px, py, 18); if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop(); }
+  });
   function setHint() { hint.textContent = (document.documentElement.classList.contains('pd-gp') ? L.hintPad : L.hint)[li()]; }   // the pad's buttons while a pad is in use (src/gamepad.js)
   addEventListener('pd-padmode', setHint);
   function applyLang() {

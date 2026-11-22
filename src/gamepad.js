@@ -7,11 +7,11 @@
 // Driving                          Menus and screens                    Talk wheel / list / cards
 //   left stick, steer               stick or d-pad  move                 stick or d-pad  choose (wheel), move (list, card)
 //   RT or A       gas               A  confirm      B  back              A confirm, B back
-//   LT            brake, reverse    Start  close the menu                offer card: A accept, B refuse
+//   LB or stick down  reverse       Start  close the menu                offer card: A accept, B refuse
 //   X handbrake  B horn             Y  map or list (the picker)          arrival card: A yes, B no
-//   RB nitro     Y fly              X  events on the map
-//   LB camera    Select big map     LB / RB  previous / next pin
-//   Start menu   L3 reset car       LT / RT or right stick  zoom the map
+//   LT nitro     Y fly              X  events on the map
+//   RB camera    Select big map
+//   Start menu   L3 reset car       The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
 //   R3 players   d-pad up talk
 //   d-pad down drink, left radio on or off, right next song
 // The first press of a button on a page is what makes the browser announce a pad ('gamepadconnected'): the popup says so, and says so again when it goes.
@@ -35,6 +35,10 @@ const CSS = `
 .pd-gp-pop.off svg { stroke: #9a8b92; }
 .pd-gp-pop small { display: block; margin-top: 1px; font: 500 11px/1.2 var(--pd-sans, system-ui, sans-serif); letter-spacing: 0; opacity: .72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
 html.pd-gp .tc { display: none !important; }
+.pd-gp-cur { position: fixed; left: 0; top: 0; z-index: 650; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; box-sizing: border-box; border: 3px solid #fff; background: rgba(232,85,154,.55);
+  box-shadow: 0 0 0 2px rgba(13,7,10,.8), 0 2px 10px rgba(0,0,0,.5); pointer-events: none; display: none; will-change: transform; }
+.pd-gp-cur.on { display: block; }
+.pd-gp-cur.press { background: #fff; }
 .mpx-go:focus { outline: 2px solid #fff; outline-offset: 2px; }
 [aria-modal="true"] button:focus, [aria-modal="true"] input:focus { outline: 3px solid #fff; outline-offset: 2px; }
 .pd-p2p g[role=menuitem].gp-sel path { fill: rgba(232,85,154,.6) !important; stroke: #fff !important; }
@@ -90,6 +94,7 @@ export function setupGamepad({ game }) {
       : game.state === 'play' && document.querySelector('.pd-mcard.on') ? 'arrive'
       : wheelEl() ? 'wheel'
       : document.querySelector('.mpx.list') ? 'list'
+      : mapOn() ? 'map'
       : game.state === 'play' ? 'drive' : 'menu';
     return ctxVal;
   }
@@ -108,6 +113,18 @@ export function setupGamepad({ game }) {
     gs.forEach((g, k) => g.classList.toggle('gp-sel', k === i));
   }
 
+  // ---- the map: the left stick pans, the right stick moves a pointer, the triggers zoom, A clicks ----
+  const cur = document.createElement('div'); cur.className = 'pd-gp-cur'; cur.setAttribute('aria-hidden', 'true'); document.body.appendChild(cur);
+  let cx = innerWidth / 2, cy = innerHeight / 2;
+  const mapOn = () => { const sc = document.querySelector('[data-name=start].on'); return !!sc && sc.dataset.view === 'map' && !!sc.querySelector('.pd-mp-cv')?.offsetParent; };
+  const curve = v => Math.sign(v) * Math.pow(Math.max(0, (Math.abs(v) - 0.12) / 0.88), 1.6);   // a dead zone, then a gentle start: small pushes are slow and precise
+  function clickAt(x, y) {
+    cur.classList.add('press'); setTimeout(() => cur.classList.remove('press'), 120);
+    const el = document.elementFromPoint(x, y); if (!el) return;
+    if (el.tagName === 'CANVAS') { dispatchEvent(new CustomEvent('pd-map-drive', { detail: { x, y, click: true } })); return; }
+    (el.closest('button, [data-map], [role=button], .pd-mp-row') || el).click();
+  }
+
   // ---- the poll ----
   const prev = {}, rep = {};
   const edge = (k, on) => { const was = !!prev[k]; prev[k] = on; return on && !was; };
@@ -116,15 +133,17 @@ export function setupGamepad({ game }) {
     if (!on) { r.on = false; return; }
     if (!r.on) { r.on = true; r.t0 = r.t1 = t; fn(); } else if (t - r.t0 > 380 && t - r.t1 > 120) { r.t1 = t; fn(); }
   }
-  let lastCtx = '';
+  let lastCtx = '', lastT = 0;
   function frame(t) {
     requestAnimationFrame(frame);
+    const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
     const list = pads(); if (!list.length) return;
     const gp = list.find(g => g.buttons.some(b => b.pressed) || g.axes.some(a => Math.abs(a) > 0.5)) || list[0];
     const b = i => !!gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.4);
-    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, ry = gp.axes[3] || 0;
-    if (b(0) || b(1) || b(2) || b(3) || b(9) || Math.abs(ax) > 0.6 || Math.abs(ay) > 0.6) { if (!seen) { seen = true; root.classList.add('pd-gp-seen'); } setPadMode(true); }
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    if (gp.buttons.some(x => x && (x.pressed || x.value > 0.4)) || gp.axes.some(v => Math.abs(v) > 0.5)) { if (!seen) { seen = true; root.classList.add('pd-gp-seen'); } setPadMode(true); }
     const c = context(t);
+    cur.classList.toggle('on', c === 'map' && padMode);
     if (c !== lastCtx) { if (c !== 'drive') releaseAll(); if (c !== 'wheel') { wheelSel = -1; wheelMark(-1); } lastCtx = c; }
     const dir = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6 };
     const A = edge('a', b(0)), B = edge('b', b(1)), X = edge('x', b(2)), Y = edge('y', b(3)), LB = edge('lb', b(4)), RB = edge('rb', b(5)), SEL = edge('sel', b(8)), START = edge('start', b(9)), L3 = edge('l3', b(10)), R3 = edge('r3', b(11));
@@ -132,9 +151,9 @@ export function setupGamepad({ game }) {
 
     if (c === 'drive') {
       hold('KeyA', ax < -0.3); hold('KeyD', ax > 0.3);
-      hold('KeyW', b(7) || b(0)); hold('KeyS', b(6));
-      hold('Space', b(2)); hold('KeyH', b(1)); hold('ShiftLeft', b(5)); hold('KeyF', b(3));
-      if (LB) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
+      hold('KeyW', b(7) || b(0)); hold('KeyS', b(4) || ay > 0.6);
+      hold('Space', b(2)); hold('KeyH', b(1)); hold('ShiftLeft', b(6)); hold('KeyF', b(3));
+      if (RB) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
       if (R3) document.querySelector('.mpx.on .mpx-cap')?.click();
       if (dUp) tap('KeyT'); if (dDown) tap('KeyB'); if (dLeft) tap('KeyN'); if (dRight) tap('KeyM');
       return;
@@ -159,12 +178,22 @@ export function setupGamepad({ game }) {
       if (B || START) tap('Escape');
       return;
     }
-    // the menus, the map picker, the Garage, the title: the keys of the keyboard
+    if (c === 'map') {
+      const rx = gp.axes[2] || 0, rpy = gp.axes[3] || 0;
+      cx = Math.max(0, Math.min(innerWidth, cx + curve(rx) * 1100 * dt)); cy = Math.max(0, Math.min(innerHeight, cy + curve(rpy) * 1100 * dt));
+      cur.style.transform = `translate(${cx}px, ${cy}px)`;
+      const px = curve(ax) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0), py = curve(ay) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
+      const zin = gp.buttons[7] ? gp.buttons[7].value : 0, zout = gp.buttons[6] ? gp.buttons[6].value : 0;
+      const zoom = Math.exp((zin - zout) * 1.4 * dt);
+      if (px || py || Math.abs(zoom - 1) > 1e-4) dispatchEvent(new CustomEvent('pd-map-drive', { detail: { dx: px * 900 * dt, dy: py * 900 * dt, zoom, x: cx, y: cy } }));
+      if (A) clickAt(cx, cy);
+      if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');
+      return;
+    }
+    // the menus, the Garage, the title: the keys of the keyboard
     const K = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
     for (const d in K) repeat('m' + d, dir[d], t, () => tap(K[d]));
     if (A) tap('Enter'); if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');
-    if (RB) tap('Tab'); if (LB) tap('Tab', true);
-    repeat('zi', b(7) || ry < -0.6, t, () => tap('Equal')); repeat('zo', b(6) || ry > 0.6, t, () => tap('Minus'));
   }
   requestAnimationFrame(frame);
 }
