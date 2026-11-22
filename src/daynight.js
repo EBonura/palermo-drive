@@ -438,16 +438,16 @@ export function createDayNight({ scene, renderer, sun, sky, hemi, camera, game, 
   let seaU = null, seaTries = 0;
   const DAY_SEA_H = C('#a8cbe6'), DAY_SEA_Z = C('#3d7fc4'), _seaSun = new THREE.Color();
 
-  // ---- the clock: small and quiet, the first row of the words column in the map capsule (#pd-info, src/ui.css), above the street, with the sun or moon dot
+  // ---- the clock: a small chip on the lower rim of the round minimap (#pd-mapw, src/ui.css), half over the map and half under the capsule, with the sun or moon dot
   let clockEl = null, clockShown = '';
   try {
-    const info = document.getElementById('pd-info');
+    const info = document.getElementById('pd-mapw');
     if (info) {
       const css = document.createElement('style');
-      css.textContent = '#pd-clock{display:flex;align-items:center;margin-bottom:1px;font:600 11px/1.1 var(--pd-cond,"Barlow Condensed",system-ui,sans-serif);letter-spacing:.08em;color:rgba(255,255,255,.72);white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none}' +
+      css.textContent = '#pd-clock{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);display:flex;align-items:center;padding:3px 9px 3px 8px;border-radius:999px;background:rgba(13,7,10,.92);box-shadow:0 1px 6px rgba(0,0,0,.35);font:600 11px/1.1 var(--pd-cond,"Barlow Condensed",system-ui,sans-serif);letter-spacing:.08em;color:rgba(255,255,255,.85);white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none}' +
         '#pd-clock i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;background:#ffd36a;box-shadow:0 0 5px #ffd36a}#pd-clock i.n{background:#c8d4ff;box-shadow:inset -1.5px -1px 0 #5a6aa0,0 0 5px #aab8ff}';
       document.head.appendChild(css);
-      clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; info.prepend(clockEl);
+      clockEl = document.createElement('div'); clockEl.id = 'pd-clock'; info.append(clockEl);
     }
   } catch (e) { /* no HUD: fine */ }
   function showClock() {

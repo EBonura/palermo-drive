@@ -317,13 +317,11 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 #where { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-shadow: none; }
 #pd-card { position: relative; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) var(--mini); width: var(--cap); border-radius: calc(var(--mini) / 2); background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }
 #pd-card:not(:has(#pd-hood.on)) { display: none; }   /* not while the screen is covered (title, loading, transition): police.js */
-#pd-info { grid-area: 1 / 1; min-width: 0; align-self: center; padding: 7px 12px 7px calc(var(--mini) * .26); text-align: left; }   /* the column of words: the clock, the street, the area with its diamonds, the police line */
+#pd-info { grid-area: 1 / 1; min-width: 0; align-self: center; padding: 7px 12px 7px calc(var(--mini) * .26); text-align: left; }   /* the column of words: the street, the area with its diamonds, the neighbourhood row, the police line (the clock is a chip on the map's lower rim) */
 #pd-mapw { grid-area: 1 / 2; align-self: center; position: relative; width: var(--mini); height: var(--mini); }
-/* Air: the words never reach the capsule's top and bottom edges. While both the neighbourhood row and the police line are up, the clock moves from its own row to the right end of the street's row and the spelt out "neighbourhood danger" steps aside (the owner, 22 Nov: too busy, but the time stays). */
-#pd-info:has(#pd-gang.on):has(#pd-wanted.on) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; }
-#pd-info:has(#pd-gang.on):has(#pd-wanted.on) > * { grid-column: 1 / -1; }
-#pd-info:has(#pd-gang.on):has(#pd-wanted.on) > #pd-loc { grid-area: 1 / 1; }
-#pd-info:has(#pd-gang.on):has(#pd-wanted.on) > #pd-clock { grid-area: 1 / 2; margin: 0; }
+/* Air: the words never reach the capsule's top and bottom edges. The clock is not in the words column: it is a chip on the lower rim of the round map (src/daynight.js), so the capsule keeps 9px clear under it.
+   While both the neighbourhood row and the police line are up, the spelt out "neighbourhood danger" steps aside (the owner, 22 Nov: too busy). */
+#pd-card { margin-bottom: 9px; }
 #pd-info:has(#pd-gang.on):has(#pd-wanted.on) #pd-hood .ph-t { display: none; }
 #pd-loc { font: 700 18px/1.12 var(--pd-cond); color: #fff; }
 #pd-loc > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
