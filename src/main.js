@@ -470,7 +470,7 @@ const placeStart = (x, z) => new Promise(done => {
 });
 let radio = null;
 setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
-setupGamepad({ game });
+setupGamepad({ game, car });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 setSfxSource(() => radio);
 const ambience = createAmbience({ camera, car, game, traffic, groundY, getWorld: () => world });

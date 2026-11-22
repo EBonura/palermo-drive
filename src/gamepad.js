@@ -7,7 +7,7 @@
 // Driving                          Menus and screens                    Talk wheel / list / cards
 //   left stick, steer               stick or d-pad  move                 stick or d-pad  choose (wheel), move (list, card)
 //   RT gas        LT brake, reverse A  confirm      B  back              A confirm, B back
-//   A nitro       X handbrake       Start  close the menu                offer card: A accept, B refuse
+//   A nitro       and handbrake     Start  close the menu                offer card: A accept, B refuse
 //   B horn        Y camera          Y  map or list (the picker)          arrival card: A yes, B no
 //   RB fly        Select big map    X  events on the map
 //   Start menu    L3 reset car      The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
@@ -44,7 +44,7 @@ html.pd-gp .tc { display: none !important; }
 `;
 const ICON = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9.5 9h13a5 5 0 0 1 4.9 4l1.5 8a3.2 3.2 0 0 1-5.6 2.4L20 20.5h-8L8.2 23.4A3.2 3.2 0 0 1 2.6 21l1.5-8a5 5 0 0 1 4.9-4z"/><path d="M9 13v4M7 15h4"/><circle cx="21" cy="13.5" r=".8"/><circle cx="23.5" cy="16" r=".8"/></svg>';
 
-export function setupGamepad({ game }) {
+export function setupGamepad({ game, car }) {
   const css = document.createElement('style'); css.textContent = CSS; document.head.appendChild(css);
 
   // ---- the popup: a pad came, a pad went ----
@@ -131,7 +131,7 @@ export function setupGamepad({ game }) {
     if (!on) { r.on = false; return; }
     if (!r.on) { r.on = true; r.t0 = r.t1 = t; fn(); } else if (t - r.t0 > 380 && t - r.t1 > 120) { r.t1 = t; fn(); }
   }
-  let lastCtx = '', lastT = 0;
+  let lastCtx = '', lastT = 0, slide = false;
   function frame(t) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
@@ -150,7 +150,10 @@ export function setupGamepad({ game }) {
     if (c === 'drive') {
       hold('KeyA', ax < -0.3); hold('KeyD', ax > 0.3);
       hold('KeyW', b(7)); hold('KeyS', b(6));   // RT gas, LT brake and reverse (the common racing-game layout)
-      hold('ShiftLeft', b(0)); hold('Space', b(2)); hold('KeyH', b(1)); hold('KeyF', b(5));   // A nitro, X handbrake, B horn, RB fly
+      // LT is the brake, reverse from a stop, and the handbrake: held while turning hard at speed it also locks the rear wheels, to slide the corner
+      slide = b(6) && car && car.vf > 7 && Math.abs(ax) > (slide ? 0.35 : 0.55);
+      hold('Space', slide);
+      hold('ShiftLeft', b(0)); hold('KeyH', b(1)); hold('KeyF', b(5));   // A nitro, B horn, RB fly
       if (Y) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
       if (R3) document.querySelector('.mpx.on .mpx-cap')?.click();
       if (dUp) tap('KeyT'); if (dDown) tap('KeyB'); if (dLeft) tap('KeyN'); if (dRight) tap('KeyM');
