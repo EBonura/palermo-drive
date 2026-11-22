@@ -490,13 +490,18 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
   // welcome: after Guida from the title, before the start picker. Who you are (name, online or alone), your ride and what money unlocks, then the map
   mk('welcome', '', `<div class="pd-card pd-wel">
       <div class="pd-weltop"><div class="pd-welk" data-k="welTitle"></div><button class="pd-welback" data-nav data-do="back" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span data-k="back"></span></button></div>
-      <input class="pd-namein pd-welname" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
-      <div class="pd-welrow">
-        <div class="pd-welnet" role="group"><button data-nav data-wnet="on" type="button" aria-pressed="false"><i></i><span data-k="netOn"></span></button><button data-nav data-wnet="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div>
+      <div class="pd-welnamerow">
+        <input class="pd-namein pd-welname" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
         <div class="pd-welcash"><small data-k="welCash"></small><b></b></div>
       </div>
-      <div class="pd-welrow pd-welradio"><small data-k="welRadio"></small><div class="pd-welnet pd-welst3" role="group">${STATIONS.map(x => `<button data-nav data-st="${x.id}" type="button" aria-pressed="false"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div></div>
-      <div class="pd-welnote"></div>
+      <div class="pd-welsw">
+        <div class="pd-welnet" role="group"><button data-nav data-wnet="on" type="button" aria-pressed="false"><i></i><span data-k="netOn"></span></button><button data-nav data-wnet="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div>
+        <div class="pd-welnote"></div>
+      </div>
+      <div class="pd-welsw">
+        <div class="pd-welnet pd-welst3" role="group">${STATIONS.map(x => `<button data-nav data-st="${x.id}" type="button" aria-pressed="false"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div>
+        <div class="pd-welradnote"></div>
+      </div>
       <div class="pd-welcust">
         <button class="pd-welcard" data-nav data-do="garage" type="button"><small data-k="welRide"></small><b class="pd-welveh"></b><span data-k="welCustom"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
         <button class="pd-welcard" data-nav data-do="welDriver" type="button"><small data-k="welDriverT"></small><b data-k="welEdit"></b><span data-k="welDriver"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
@@ -896,7 +901,9 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (document.activeElement !== welName) welName.value = readName();
     W.querySelector('.pd-welcash b').textContent = welEur(garage.cash);
     W.querySelector('.pd-welveh').textContent = i ? v.name_en : v.name_it;
-    for (const b of W.querySelectorAll('.pd-welst3 button')) b.setAttribute('aria-pressed', String(b.dataset.st === (st.radioStation || STATIONS[0].id)));   // the radio switch
+    const stn = STATIONS.find(x => x.id === st.radioStation) || STATIONS[0];   // the radio switch, and what the station is
+    for (const b of W.querySelectorAll('.pd-welst3 button')) b.setAttribute('aria-pressed', String(b.dataset.st === stn.id));
+    W.querySelector('.pd-welradnote').textContent = `${stn.name} · ${stn.sub[i]} · ${stn.tracks.length} ${i ? 'tracks' : 'brani'}`;
     syncWelNet();
   }
 

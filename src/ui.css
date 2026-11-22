@@ -740,7 +740,21 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-wel .pd-welname { flex: none; width: 100%; height: auto; padding: 0 0 4px; border-radius: 0; background: none; box-shadow: inset 0 -2px 0 rgba(255,255,255,.28);
   font: 400 clamp(28px, 8vh, 46px)/1.1 'Racing Sans One', var(--pd-cond); letter-spacing: .02em; text-transform: uppercase; }
 .pd-wel .pd-welname:focus { background: none; box-shadow: inset 0 -2px 0 var(--pd-amber); }
-.pd-welrow { display: flex; align-items: center; gap: 10px; }
+.pd-welnamerow { display: flex; align-items: flex-end; gap: 12px; }
+.pd-welnamerow .pd-welname { flex: 1 1 auto; width: auto; min-width: 0; }
+.pd-welnamerow .pd-welcash { flex: none; margin: 0 0 4px; }
+/* two switches, one under the other: the same width, the same corners, each with the line that says what it does */
+.pd-welsw { display: flex; flex-direction: column; gap: 3px; }
+.pd-welsw .pd-welnet { width: 100%; box-sizing: border-box; }
+.pd-welsw .pd-welnet button { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0 4px; height: clamp(26px, 6.4vh, 36px); }
+.pd-welst3 [aria-pressed=true] { background: linear-gradient(90deg, var(--pd-orange), var(--pd-pink)); color: #1a0b12; }
+@media (max-height: 460px) {   /* a phone on its side: everything stays on the screen, "Parti" included */
+  .pd-wel { gap: 4px; }
+  .pd-wel .pd-welname { font-size: 24px; }
+  .pd-welsw .pd-welnet button { height: 24px; }
+  .pd-welearn { display: none; }
+}
+.pd-welradnote { font: 500 clamp(11px, 2.5vh, 14px)/1.3 var(--pd-sans); opacity: .72; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pd-welnet { display: flex; padding: 3px; border-radius: 999px; background: rgba(0,0,0,.45); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
 .pd-welnet button { display: flex; align-items: center; gap: 7px; height: clamp(28px, 7vh, 36px); padding: 0 clamp(10px, 1.8vw, 16px); border: 0; border-radius: 999px; background: none; color: rgba(255,255,255,.7); cursor: pointer;
   font: 700 clamp(12px, 2.8vh, 15px)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
@@ -750,7 +764,7 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-welcash { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
 .pd-welcash small { font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
 .pd-welcash b { font: 700 clamp(20px, 5.4vh, 30px)/1 var(--pd-cond); color: var(--pd-amber, #ffb020); }
-.pd-welnote { margin-top: -2px; font: 500 clamp(11px, 2.5vh, 14px)/1.3 var(--pd-sans); opacity: .72; }
+.pd-welnote { font: 500 clamp(11px, 2.5vh, 14px)/1.3 var(--pd-sans); opacity: .72; }
 .pd-welride { display: flex; align-items: stretch; gap: 6px; padding-top: clamp(6px, 1.6vh, 12px); border-top: 1px solid rgba(255,255,255,.12); }
 .pd-welrt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .pd-welrt small { font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
@@ -766,10 +780,6 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-welock b { flex: none; color: var(--pd-amber, #ffb020); }
 .pd-welparts { margin-top: clamp(-4px, -.6vh, -2px); }
 .pd-welearn { font: 500 clamp(10px, 2.3vh, 13px)/1.3 var(--pd-sans); opacity: .65; }
-@media (max-height: 460px) { .pd-welnote:not(.warn) { display: none; } .pd-wel { gap: 4px; } }   /* a phone on its side: the line under Online and Offline gives way to the radio switch, except for the one that asks for a name */
-.pd-welradio small { flex: none; font: 600 clamp(9px, 2vh, 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--pd-pink, #f5a9c9); }
-.pd-welst3 button { height: clamp(24px, 5.6vh, 32px); padding: 0 clamp(8px, 1.6vw, 14px); }
-.pd-welst3 button[aria-pressed=true] { background: linear-gradient(90deg, var(--pd-orange), var(--pd-pink)); color: #1a0b12; }
 .pd-welcust { display: flex; gap: 6px; padding-top: clamp(4px, 1.2vh, 10px); border-top: 1px solid rgba(255,255,255,.12); }
 .pd-welcard { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: clamp(5px, 1.4vh, 10px) 34px clamp(5px, 1.4vh, 10px) 10px; border: 0; border-radius: 3px;
   background: linear-gradient(135deg, rgba(232,85,154,.22), rgba(232,85,154,.06)); box-shadow: inset 0 0 0 1px rgba(245,169,201,.4); color: #fff; cursor: pointer; text-align: left; }
