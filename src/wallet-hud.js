@@ -1,4 +1,4 @@
-// The wallet on the street: the first part of the gauges pill (src/ui.css .hz-gauges), then the speed; the nitro has its own slim pill under it. The money you hold, in euro and cents, always on while you drive.
+// The wallet on the street: the first part of the gauges pill (src/ui.css .hz-gauges), then the speed, with the nitro bar (and its overcharge bar) along the bottom. The money you hold, in euro and cents, always on while you drive.
 // It redraws only when the wallet changes (src/garage.js onChange) and flashes green for a gain, red for a loss. Below zero (a debt, src/event-penna.js) it is red with a minus sign.
 // pop(amount): a small "+0,25 €" rises from the wallet and fades (the hit rewards, src/hit-pay.js).
 //   import { createWalletHud } from './wallet-hud.js';   const wallet = createWalletHud({ garage }); wallet.pop(0.25)
