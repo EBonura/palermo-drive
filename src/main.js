@@ -16,6 +16,7 @@ import { buildContext } from './context.js';
 import { QUALITY, setupMobile } from './mobile.js';
 import { createVehicle } from './vehicle.js';
 import { setupUI } from './ui.js';
+import { setupGamepad } from './gamepad.js';   // a controller drives and navigates everything (src/gamepad.js)
 import { createTraffic } from './traffic.js';
 import { createPedestrians } from './pedestrians.js';
 import { createMissions } from './missions.js';
@@ -469,6 +470,7 @@ const placeStart = (x, z) => new Promise(done => {
 });
 let radio = null;
 setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
+setupGamepad({ game });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 setSfxSource(() => radio);
 const ambience = createAmbience({ camera, car, game, traffic, groundY, getWorld: () => world });

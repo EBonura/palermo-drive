@@ -939,14 +939,6 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     else if (e.code === 'Escape' || e.code === 'KeyM') { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) menu(); }
     else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Tab') { e.stopImmediatePropagation(); if (e.code !== 'Tab') { e.preventDefault(); overlay.toggleFocus(); } }
   }, true);
-  let padPrev = [false, false];
-  function pollPad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [], gp = [...pads].find(g => g && g.connected); if (!gp) return;
-    const a = !!(gp.buttons[0] && gp.buttons[0].pressed), b = !!(gp.buttons[1] && gp.buttons[1].pressed);
-    if (a && !padPrev[0]) retry(); if (b && !padPrev[1]) menu();
-    padPrev = [a, b];
-  }
-
   // -- per-frame
   const _sz = new THREE.Vector2();
   let time = 0;
@@ -967,7 +959,7 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
     }
     if (S.on) {
       if (S.game.state !== 'over') endDrown(); // somebody else (the shell) took the game out of 'over'
-      else { stepDrown(dt); if (S.shown) pollPad(); }
+      else stepDrown(dt);
     }
   }
   function checkPlayer(a) {

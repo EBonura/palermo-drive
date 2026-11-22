@@ -76,7 +76,7 @@ const S = {
   ctlJump: ['Salta a un punto di partenza (1 è i Quattro Canti)', 'Jump to a starting point (1 is Quattro Canti)'],
   ctlNext: ['Brano dopo', 'Next track'], ctlStation: ['Cambia stazione radio', 'Change radio station'], ctlRadio: ['Radio accesa o spenta', 'Radio on or off'], ctlTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'],
   ctlMenu: ['Menu', 'Menu'], ctlThis: ['Questi comandi', 'This screen'],
-  ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Arrieri', 'Back'],
+  ctlStart: ['Menu', 'Menu'], ctlSelect: ['Mappa grande', 'Big map'], ctlPadGas: ['Gas', 'Gas'], ctlPadRev: ['Retro e freno', 'Reverse and brake'], ctlPadSteer: ['Sterzo', 'Steer'], ctlPadMore: ['Su: parla. Giù: bevi. Sinistra: radio. Destra: canzone', 'Up: talk. Down: drink. Left: radio. Right: next song'], ctlPadPlayers: ['Giocatori online', 'Players online'], ctlPadMap: ['Mappa: lista o mappa', 'Picker: list or map'], ctlPadPins: ['Mappa: punto dopo o prima', 'Map: next or previous pin'], ctlPadZoom: ['Mappa: zoom', 'Map: zoom'], ctlMove: ['Muoviti nei menu', 'Move in menus'], ctlOk: ['Conferma', 'Confirm'], ctlBack: ['Arrieri', 'Back'],
   ctlSteer: ['Sterza a sinistra e a destra', 'Steer left and right'], ctlGas: ['Accelera', 'Accelerate'], ctlRev: ['Retromarcia e freno', 'Reverse and brake'],
   ctlTapMap: ['Tocca la minimappa: mappa grande, cambia posto', 'Tap the minimap: big map, change place'], ctlTapMenu: ['Menu: camera, in strada, schermo intero', 'Menu: camera, back on the road, full screen'],
   ctlTapTalk: ['Parla con i giocatori vicini (online)', 'Talk to nearby players (online)'], ctlTapDrink: ['Bevi: il tasto compare ai pub e al rave', 'Drink: the button shows up at pubs and at the rave'],
@@ -898,10 +898,12 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const row = (keys, k) => `<div class="pd-ctlr"><span class="pd-ctlk">${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span><span class="pd-ctlt">${esc(S[k][i])}</span></div>`;
     const kb = [[['W', 'A', 'S', 'D', '←↑↓→'], 'ctlDrive'], [['Space'], 'ctlHand'], [['Shift'], 'ctlNitro'], [['H'], 'ctlHorn'], [['B'], 'ctlDrink'], [['F'], 'ctlFly'], [['V'], 'ctlSwap'], [['C'], 'ctlCam'], [['R'], 'ctlReset'],
       [['G'], 'ctlMap'], [['1 - 9'], 'ctlJump'], [['M'], 'ctlNext'], [['N'], 'ctlRadio'], [['K'], 'ctlStation'], [['T'], 'ctlTalk'], [['Esc', 'P'], 'ctlMenu'], [['?', 'F1'], 'ctlThis']];
-    const pad = [[['Start'], 'ctlStart'], [['Select'], 'ctlSelect'], [['D-pad', '◎'], 'ctlMove'], [['A'], 'ctlOk'], [['B'], 'ctlBack']];
+    const pad = [[['◎'], 'ctlPadSteer'], [['RT', 'A'], 'ctlPadGas'], [['LT'], 'ctlPadRev'], [['X'], 'ctlHand'], [['RB'], 'ctlNitro'], [['B'], 'ctlHorn'], [['Y'], 'ctlFly'], [['LB'], 'ctlCam'], [['L3'], 'ctlReset'], [['R3'], 'ctlPadPlayers'], [['D-pad'], 'ctlPadMore'],
+      [['Start'], 'ctlStart'], [['Select'], 'ctlSelect'], [['D-pad', '◎'], 'ctlMove'], [['A'], 'ctlOk'], [['B'], 'ctlBack'], [['Y'], 'ctlPadMap'], [['LB', 'RB'], 'ctlPadPins'], [['LT', 'RT'], 'ctlPadZoom']];
     const tc = [[['‹', '›'], 'ctlSteer'], [['GAS'], 'ctlGas'], [['RETRO'], 'ctlRev'], [['FRENO'], 'ctlHand'], [['NOS'], 'ctlNitro'], [['CLACSON'], 'ctlHorn'], [['VOLA'], 'ctlFly'],
       [['☰'], 'ctlTapMenu'], [['◎'], 'ctlTapMap'], [['💬'], 'ctlTapTalk'], [['BERE'], 'ctlTapDrink']];
-    ctlGrid.innerHTML = touchUI ? sect('ctlTouch') + tc.map(r => row(...r)).join('') : sect('ctlKb') + kb.map(r => row(...r)).join('') + sect('ctlPad') + pad.map(r => row(...r)).join('');
+    const hasPad = document.documentElement.classList.contains('pd-gp-seen') || !touchUI;   // a pad has been used on this page (a phone with a pad), or a computer
+    ctlGrid.innerHTML = (touchUI ? sect('ctlTouch') + tc.map(r => row(...r)).join('') : sect('ctlKb') + kb.map(r => row(...r)).join('')) + (hasPad ? sect('ctlPad') + pad.map(r => row(...r)).join('') : '');
     ctlGrid.scrollTop = 0; syncCtlRail();
   }
   addEventListener('pd-controls', () => { if (game.state === 'play' && !busy) { openPause(); go('controls', { push: true }); } });   // the ? key (src/main.js)
@@ -1310,22 +1312,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (t.dataset.do) return act(t.dataset.do, t);
   });
 
-  // gamepad (standard mapping): d-pad / left stick navigate, A confirm, B back, Start pause
-  const held = {};
-  function pollPad(t) {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const gp = [...pads].find(g => g && g.connected); if (!gp) return;
-    const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
-    const cs = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6, ok: b(0), back: b(1), pause: b(9), map: b(8) };
-    for (const k in cs) {
-      const hh = held[k] || (held[k] = { on: false, t0: 0, t1: 0 });
-      if (cs[k]) {
-        const dirKey = k === 'up' || k === 'down' || k === 'left' || k === 'right';
-        if (!hh.on) { hh.on = true; hh.t0 = hh.t1 = t; setKb(true); input(k); }
-        else if (dirKey && t - hh.t0 > 380 && t - hh.t1 > 130) { hh.t1 = t; input(k); }
-      } else hh.on = false;
-    }
-  }
+  // the gamepad presses these same keys (src/gamepad.js)
 
   // ---- loop: state sync, gamepad, credits scroll ----
   let lastT = now(), lastState = '', nextLivCheck = 0;
@@ -1334,7 +1321,6 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     if (game.state !== lastState) { lastState = game.state; syncState(); kickBars(); }
     if (arrived && game.state === 'play' && Math.hypot(vehicle.car.x - arrived.x, vehicle.car.z - arrived.z) > 25) answerArrival(false);   // put elsewhere (R, a swap): that is an answer too
     if (arrived) syncAsk();
-    pollPad(t);
     garageUI.tick(dt);
     if (cur === 'credits' && t > rollPause) {
       if (Math.abs(roll.scrollTop - rollY) > 1.5) rollY = roll.scrollTop; // the user scrolled by hand
