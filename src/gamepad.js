@@ -6,14 +6,12 @@
 //
 // Driving                          Menus and screens                    Talk wheel / list / cards
 //   left stick, steer               stick or d-pad  move                 stick or d-pad  choose (wheel), move (list, card)
-//   RT or A       gas               A  confirm      B  back              A confirm, B back
-//   LB or stick down  reverse       Start  close the menu                offer card: A accept, B refuse
-//   X handbrake  B horn             Y  map or list (the picker)          arrival card: A yes, B no
-//   LT nitro     Y fly              X  events on the map
-//   RB camera    Select big map
-//   Start menu   L3 reset car       The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
-//   R3 players   d-pad up talk
-//   d-pad down drink, left radio on or off, right next song
+//   RT gas        LT brake, reverse A  confirm      B  back              A confirm, B back
+//   A nitro       X handbrake       Start  close the menu                offer card: A accept, B refuse
+//   B horn        Y camera          Y  map or list (the picker)          arrival card: A yes, B no
+//   RB fly        Select big map    X  events on the map
+//   Start menu    L3 reset car      The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
+//   R3 players    d-pad up talk, down drink, left radio on or off, right next song
 // The first press of a button on a page is what makes the browser announce a pad ('gamepadconnected'): the popup says so, and says so again when it goes.
 import { T } from './lang.js';
 
@@ -151,9 +149,9 @@ export function setupGamepad({ game }) {
 
     if (c === 'drive') {
       hold('KeyA', ax < -0.3); hold('KeyD', ax > 0.3);
-      hold('KeyW', b(7) || b(0)); hold('KeyS', b(4) || ay > 0.6);
-      hold('Space', b(2)); hold('KeyH', b(1)); hold('ShiftLeft', b(6)); hold('KeyF', b(3));
-      if (RB) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
+      hold('KeyW', b(7)); hold('KeyS', b(6));   // RT gas, LT brake and reverse (the common racing-game layout)
+      hold('ShiftLeft', b(0)); hold('Space', b(2)); hold('KeyH', b(1)); hold('KeyF', b(5));   // A nitro, X handbrake, B horn, RB fly
+      if (Y) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
       if (R3) document.querySelector('.mpx.on .mpx-cap')?.click();
       if (dUp) tap('KeyT'); if (dDown) tap('KeyB'); if (dLeft) tap('KeyN'); if (dRight) tap('KeyM');
       return;

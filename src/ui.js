@@ -905,7 +905,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     const row = (keys, k) => `<div class="pd-ctlr"><span class="pd-ctlk">${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}</span><span class="pd-ctlt">${esc(S[k][i])}</span></div>`;
     const kb = [[['W', 'A', 'S', 'D', '←↑↓→'], 'ctlDrive'], [['Space'], 'ctlHand'], [['Shift'], 'ctlNitro'], [['H'], 'ctlHorn'], [['B'], 'ctlDrink'], [['F'], 'ctlFly'], [['V'], 'ctlSwap'], [['C'], 'ctlCam'], [['R'], 'ctlReset'],
       [['G'], 'ctlMap'], [['1 - 9'], 'ctlJump'], [['M'], 'ctlNext'], [['N'], 'ctlRadio'], [['K'], 'ctlStation'], [['T'], 'ctlTalk'], [['Esc', 'P'], 'ctlMenu'], [['?', 'F1'], 'ctlThis']];
-    const pad = [[['◎'], 'ctlPadSteer'], [['RT', 'A'], 'ctlPadGas'], [['LB', '◎ ↓'], 'ctlPadRev'], [['X'], 'ctlHand'], [['LT'], 'ctlNitro'], [['B'], 'ctlHorn'], [['Y'], 'ctlFly'], [['RB'], 'ctlCam'], [['L3'], 'ctlReset'], [['R3'], 'ctlPadPlayers'], [['D-pad'], 'ctlPadMore'],
+    const pad = [[['◎'], 'ctlPadSteer'], [['RT'], 'ctlPadGas'], [['LT'], 'ctlPadRev'], [['A'], 'ctlNitro'], [['X'], 'ctlHand'], [['B'], 'ctlHorn'], [['RB'], 'ctlFly'], [['Y'], 'ctlCam'], [['L3'], 'ctlReset'], [['R3'], 'ctlPadPlayers'], [['D-pad'], 'ctlPadMore'],
       [['Start'], 'ctlStart'], [['Select'], 'ctlSelect'], [['D-pad', '◎'], 'ctlMove'], [['A'], 'ctlOk'], [['B'], 'ctlBack'], [['Y'], 'ctlPadMap'], [['◎ L'], 'ctlPadPan'], [['◎ R', 'A'], 'ctlPadPoint'], [['LT', 'RT'], 'ctlPadZoom']];
     const tc = [[['‹', '›'], 'ctlSteer'], [['GAS'], 'ctlGas'], [['RETRO'], 'ctlRev'], [['FRENO'], 'ctlHand'], [['NOS'], 'ctlNitro'], [['CLACSON'], 'ctlHorn'], [['VOLA'], 'ctlFly'],
       [['☰'], 'ctlTapMenu'], [['◎'], 'ctlTapMap'], [['💬'], 'ctlTapTalk'], [['BERE'], 'ctlTapDrink']];
