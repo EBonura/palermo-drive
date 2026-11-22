@@ -1205,7 +1205,7 @@ Object.assign(MODELS, buildPoliceModels());
           if (d >= rs) continue;
           touched = true;
           if (d < 1e-4) { nx = sn; nz = cs; d = 1e-4; } else { nx /= d; nz /= d; }
-          const mob = v.cop && v.cop.mob, pen = rs - d, mp = 1, mv = mob ? 1.6 : ty.mass, lx = cs, lz = -sn;   // a hunting picciotto rides like a wall: heavier than the lapa, never sent flying (the owner, 22 Nov 2026)
+          const mob = v.cop && (v.cop.mob || v.cop.pursue), pen = rs - d, mp = 1, mv = mob ? (v.cop.mob ? 1.6 : 2.4) : ty.mass, lx = cs, lz = -sn;   // a hunting picciotto or a chasing police car rides like a wall: heavier than the lapa, never sent flying (the owner, 22 Nov 2026)
           const vn = (pc.vx + pc.w * a * lx - (vsn * v.v + v.ex)) * nx + (pc.vz + pc.w * a * lz - (vcs * v.v + v.ez)) * nz;
           const heavy = mv >= 5;   // a bus: knocked over only by a real hit (ty.yeetV), a short hop, tipping rather than tumbling
           if (!mob && vn < -(heavy ? ty.yeetV || 1e9 : 4)) { // YEET: the vehicle is launched, the lapa only gets a light knock

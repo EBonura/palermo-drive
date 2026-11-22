@@ -124,7 +124,7 @@ export function createPolice(env, T) {
   // While a quarter hunts you (five eyes, src/danger.js) scooters with two picciotti come out of its side streets, faster than the police in their own streets, and box the
   // lapa in; stopped among them for a moment, it is the fermo at once. They never leave their quarter: at its border they brake, shout and turn back. Sent flying, they count
   // as no chaos. The police wait at the border of a quarter that hunts you (holdAtBorder below), so only one chase is ever on.
-  const MOB_N = [2, 2, 3, 3, 4], MOB_NAMES = ['vespa', 'vespaB'];
+  const MOB_N = [5, 5, 6, 7, 8], MOB_NAMES = ['vespa', 'vespaB'];
   // what the picciotti shout once they have the lapa in sight (the owner's lines, 22 Nov 2026); [Palermitan, English]
   const MOB_SAY = [['Fieimmati ca un ti fazzu niainti!', 'Stop, I won\'t do anything to you!'], ['Ooooou cucììììì!', 'Oiiii, cousin!'], ['Fieimmati cos’inutile!', 'Stop, you useless thing!']];
   const mobSay = v => { const l = MOB_SAY[(Math.random() * MOB_SAY.length) | 0]; T.shoutAt(v, langIdx() ? l[1] : l[0]); };
@@ -150,11 +150,11 @@ export function createPolice(env, T) {
       mobArea = hunt; nextMob = time + 1.2; caughtT = 0; huntT0 = time; gang.box = 0; gang.close = false;
     }
     if (hunt < 0) return;
-    const ms = mobs(), want = Math.min(MOB_N[dangerAt(car.x, car.z) - 1] || 2, 1 + Math.floor((time - huntT0) / 10));   // one to start with, one more every 10 s you stay, up to the quarter's cap
+    const ms = mobs(), want = Math.min(MOB_N[dangerAt(car.x, car.z) - 1] || 5, 2 + Math.floor((time - huntT0) / 5));   // two at once, one more every 5 s you stay, up to the quarter's cap (the owner, 22 Nov 2026: way more of them)
     if (ms.length < want && time >= nextMob) {
       const v = T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 75, (x, z) => areaId(x, z) === hunt) || T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 140, (x, z) => areaId(x, z) === hunt);   // close, out of view: they come out of the alleys round you
       if (v) { v.cop = { id: ++copId, mob: true, area: hunt, bestT: time, pursue: true, mode: 'road', slot: 0, stuckT: 0, noLosT: 0, keep: true, tx: v.x, tz: v.z }; v.boost = 2.6; v.drv = 1.3; }
-      nextMob = time + 2.5;
+      nextMob = time + 1.2;
     }
     let slot = 0, near = 0, close = false;
     for (const v of ms) {
@@ -175,7 +175,7 @@ export function createPolice(env, T) {
       if (d < 18) close = true;
     }
     // boxed in: stopped (or crawling) with picciotti right by the lapa for a moment
-    if (near > 0 && sp < 3 && !(car.agl > 3)) { caughtT += dt * (1 + 0.3 * (near - 1)); if (caughtT >= BOX_S) { caughtT = 0; dispatchEvent(new Event('pd-gang-catch')); } }
+    if (near > 0 && sp < 3 && !(car.agl > 3)) { caughtT += dt * (near >= 2 ? 1.5 : 1); /* two or more on you: 2 s instead of 3 */ if (caughtT >= BOX_S) { caughtT = 0; dispatchEvent(new Event('pd-gang-catch')); } }
     else caughtT = Math.max(0, caughtT - dt * 0.7);
     gang.box = Math.min(1, caughtT / BOX_S); gang.close = close;
   }
@@ -185,17 +185,18 @@ export function createPolice(env, T) {
   // Off-graph "box in" driving, 30 Hz from traffic.integrate. Targets a slot around the player; never rams at speed.
   function mobTarget(c) {   // the picciotti: one cuts in ahead, the others ride at the lapa's flanks, closer than the police
     const sp = hyp(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx, lead = clamp(sp * 0.7, 0, 14);
-    const k = c.slot % 3, side = k === 1 ? 1 : -1;
-    if (k === 0) { c.tx = car.x + fx * (4.5 + lead * 0.5); c.tz = car.z + fz * (4.5 + lead * 0.5); }
-    else { c.tx = car.x + rx * side * 2.2 + fx * (0.5 + lead * 0.3); c.tz = car.z + rz * side * 2.2 + fz * (0.5 + lead * 0.3); }
+    const k = c.slot % 4, side = k === 1 ? 1 : -1;
+    if (k === 0) { c.tx = car.x + fx * (3 + lead * 0.4); c.tz = car.z + fz * (3 + lead * 0.4); }   // cuts in right in front
+    else if (k === 3) { c.tx = car.x + fx * 0.5; c.tz = car.z + fz * 0.5; }   // rams the lapa: they are heavier than it (src/traffic.js collidePlayer), so it gets shoved
+    else { c.tx = car.x + rx * side * 1.6 + fx * (0.3 + lead * 0.25); c.tz = car.z + rz * side * 1.6 + fz * (0.3 + lead * 0.25); }   // tight at its sides
   }
   function slotTarget(c) {
     const sp = hyp(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx;
     const lead = clamp(sp * 0.9, 0, 18);
     switch (c.slot % 5) {
-      case 0: c.tx = car.x + fx * (7 + lead * 0.6); c.tz = car.z + fz * (7 + lead * 0.6); break;
-      case 1: c.tx = car.x + rx * 3.4 + fx * (1 + lead * 0.35); c.tz = car.z + rz * 3.4 + fz * (1 + lead * 0.35); break;
-      case 2: c.tx = car.x - rx * 3.4 + fx * (1 + lead * 0.35); c.tz = car.z - rz * 3.4 + fz * (1 + lead * 0.35); break;
+      case 0: c.tx = car.x + fx * (5 + lead * 0.5); c.tz = car.z + fz * (5 + lead * 0.5); break;   // closer than before (22 Nov 2026: the police box you in as the picciotti do)
+      case 1: c.tx = car.x + rx * 2.6 + fx * (0.8 + lead * 0.3); c.tz = car.z + rz * 2.6 + fz * (0.8 + lead * 0.3); break;
+      case 2: c.tx = car.x - rx * 2.6 + fx * (0.8 + lead * 0.3); c.tz = car.z - rz * 2.6 + fz * (0.8 + lead * 0.3); break;
       case 3: c.tx = car.x - fx * 4.6; c.tz = car.z - fz * 4.6; break;
       default: c.tx = car.x + rx * 3 + fx * (6 + lead * 0.5); c.tz = car.z + rz * 3 + fz * (6 + lead * 0.5);
     }
@@ -210,7 +211,7 @@ export function createPolice(env, T) {
     const psp = hyp(car.vx, car.vz), pd = hyp(car.x - v.x, car.z - v.z);
     let vd = Math.min(d * 1.1, c.mob ? Math.max(22, psp + 8) : ty.copV);
     if (Math.abs(err) > 1.0) vd *= 0.5;
-    if (pd < 14) vd = Math.min(vd, psp + (c.mob ? 7 : 3));     // close in gently: ramming the lapa at speed just yeets the police car (the picciotti push a little harder)
+    if (pd < 14) vd = Math.min(vd, psp + (c.mob ? 7 : 5.5));     // close in gently: ramming the lapa at speed just yeets the police car (the picciotti push a little harder)
     v.v += clamp(vd - v.v, -9 * dt, 4.5 * dt);
     if (v.stopT > 0) { v.stopT = Math.max(0, v.stopT - dt); v.v *= 0.9; }
     const nx = v.x + (Math.sin(v.h) * v.v + v.ex) * dt, nz = v.z + (Math.cos(v.h) * v.v + v.ez) * dt;
