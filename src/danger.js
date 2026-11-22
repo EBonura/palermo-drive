@@ -5,10 +5,10 @@
 // THE NEIGHBOURHOOD SCORE. Nothing is random: every area keeps a score (0..100) that only goes up when the player does damage in it, with the very events that feed the
 // police (src/police.js sends 'pd-chaos' for each: cars sent flying, people knocked over, smashed fences and walls, fast driving through crowds). The area's level (1..5)
 // is how touchy it is: the same crash adds 2 points in a quiet area and 46 in the ZEN. Zero damage is zero risk, everywhere.
-//   calm (score under notice) -> noticed ("Ti stannu taliannu...") -> searching (score over search: a bar drains, "Ti stannu circannu!") -> get out (bar low, lookouts shout)
+//   calm (under three eyes) -> noticed (three eyes, "Ti stannu taliannu...") -> hunted (five eyes: a 20 s countdown, the picciotti chase you, "Ti stannu circannu!") -> get out (countdown low, lookouts shout)
 //   -> the bar is empty and you are still in that area: the gang blocks the road (src/vehicle-events.js plays it: fade, black, wake up stripped).
 // Leave the area before the bar runs out and you are safe. A score fades slowly once the player has been quiet for a while, in the areas left behind too (so it is
-// remembered for a minute or two if you come back). Standing still with a high score is worse: the bar drains faster (speedMul) and the score does not fade.
+// remembered for a minute or two if you come back). Parked with a high score, or hunted (five eyes), the score of the area you are in does not fade: get out of the quarter.
 // Police patrols still read dangerAt() in src/police.js: a rough area draws the gang, a quiet one draws the police.
 // Test links: ?danger=1..5 forces the level everywhere; ?dangerscore=N starts with N points in the area you start in; ?dangerfast shortens the bar to 5 s and plays the
 // block sequence fast; with ?debug, window.pdDanger = { add(points), set(points), state(), areas }.
@@ -35,6 +35,29 @@ export const dangerAt = (x, z) => FORCED || LEVELS[upl(x, z)];
 export const areaAt = (x, z) => NAMES[upl(x, z)];
 export const areaId = upl;
 
+// The border of an area round a point, for the minimap (src/minimap.js) once the area has its eyes on you: the cell edges of area `id` within R cells of (x, z),
+// as flat [x0, z0, x1, z1, ...], and `exit`, the nearest point just outside it. Worked out again only when the car moves to another cell.
+const ZR = 9;
+let zKey = '', zOut = null;
+export function zoneOutline(x, z) {
+  const id = upl(x, z), c0 = Math.floor((x - X0) / CELL), r0 = Math.floor((z - Z0) / CELL), key = id + ':' + c0 + ':' + r0;
+  if (key === zKey) return zOut;
+  zKey = key; const segs = []; let ex = null, ed = Infinity;
+  const at = (c, r) => c < 0 || r < 0 || c >= W || r >= H ? -1 : cells[r * W + c];
+  for (let r = r0 - ZR; r <= r0 + ZR; r++) for (let c = c0 - ZR; c <= c0 + ZR; c++) {
+    if (at(c, r) !== id) continue;
+    const x0 = X0 + c * CELL, z0 = Z0 + r * CELL, x1 = x0 + CELL, z1 = z0 + CELL;
+    for (const [dc, dr, ax, az, bx, bz] of [[1, 0, x1, z0, x1, z1], [-1, 0, x0, z0, x0, z1], [0, 1, x0, z1, x1, z1], [0, -1, x0, z0, x1, z0]]) {
+      if (at(c + dc, r + dr) === id) continue;
+      segs.push(ax, az, bx, bz);
+      const mx = (ax + bx) / 2 + dc * 12, mz = (az + bz) / 2 + dr * 12, d = (mx - x) ** 2 + (mz - z) ** 2;   // just over the edge
+      if (d < ed) { ed = d; ex = [mx, mz]; }
+    }
+  }
+  zOut = id ? { id, segs, exit: ex } : null;
+  return zOut;
+}
+
 // the screen is covered: the loading screen, the title, or a transition (src/transition.js says so: this is asked every frame, and a selector query each time was time spent to learn the same thing)
 export const covered = () => !!(document.getElementById('loading') || covering() || document.documentElement.classList.contains('pd-title'));
 export const toast = (text, sub, neg) => dispatchEvent(new CustomEvent('pd-toast', { detail: { text, sub, neg } }));   // shown by src/event-hud.js
@@ -47,19 +70,17 @@ export const TUNE = {
   // How much of the police's chaos each kind counts for the gang. Fast driving through crowds is a stream of small events, so it counts less.
   kind: { yeet: 1, chain: 1, knock: 1, hitcop: 0.5, fence: 1, hedge: 1, wall: 1, market: 0.35, sidewalk: 0.35 },
   night: 1.3,        // the same damage counts for this much more at night
-  max: 100,          // the score cap; the five diamonds are 20 points each
-  notice: 35,        // from here the row shows: "noticed"
-  search: 60,        // from here the bar drains: "searching"
-  seconds: FAST ? 5 : 40,   // how long the bar lasts at cruising speed (speedMul below speeds it up or slows it down)
-  out: 0.35,         // the bar under this much left: "get out", the lookouts shout
+  max: 100,          // the score cap; the five eyes are 20 points each (the owner, 22 Nov 2026: the quarter is a twin of the police, five eyes beside five sirens)
+  notice: 40,        // over this, three eyes: "noticed"
+  search: 80,        // over this, five eyes: the hunt, the countdown runs and the picciotti come out (src/police.js)
+  seconds: FAST ? 5 : 20,   // the countdown of the hunt, always the same length (no hidden speed factor any more)
+  out: 0.35,         // the countdown under this much left: "get out of the quarter", the lookouts shout
   refill: 12,        // seconds for the bar to fill again once the score is back under `search`
   hold: 8,           // seconds without damage before the score starts to fade
   fade: 0.5,         // points per second it fades (in every area, also the ones you left)
   lookout: 5,        // seconds between the lookouts' shouts while you are told to get out
   safe: 2.6,         // seconds the "safe" words stay after you left an area in time
 };
-// Standing around is what gets you: red lights, traffic, parking. Flooring it is safer.
-const speedMul = v => v < 2 ? 3 : v < 6 ? 2 : v < 14 ? 1 : 0.35;
 // Cash lost in a block: a share of the wallet, at least MIN and at most MAX, never more than the wallet holds. Level 1 loses nothing (it never happens).
 const LOSS = GANG_LOSS;   // share, min, max (euro) by level (src/economy.js)
 export const cashLoss = (lv, cash) => { const [k, lo, hi] = LOSS[lv - 1]; return Math.max(0, Math.min(Math.floor(cash), Math.min(hi, Math.max(lo, Math.round(cash * k))))); };
@@ -67,9 +88,9 @@ export const cashLoss = (lv, cash) => { const [k, lo, hi] = LOSS[lv - 1]; return
 // What the lookouts shout from their scooters once you are told to get out. DRAFT Palermitan for the owner to correct; [Palermitan, English].
 const LOOKOUT = [
   ['Nesci ri ccà!', 'Get out of here!'],
-  ['Ccà un si resta, vattìnni!', 'You don\'t stay here, beat it!'],
+  ['Tiest’i balatuni ti nnà gghiri!', 'Blockhead, you\'ve got to go!'],
   ['Chiamati i picciotti!', 'Call the boys!'],
-  ['Talè, è iddu!', 'Look, it\'s him!'],
+  ['Talia, iddu è!', 'Look, that\'s him!'],
 ];
 
 // ---------- the score, per area ----------
@@ -80,8 +101,9 @@ export const trouble = () => tr;
 export const resetTrouble = () => { if (areas.size || tr.score) { areas.clear(); Object.assign(tr, { id: -1, score: 0, stage: 1, bar: 1, safe: 0 }); } };   // back on the title: a new drive starts clean
 
 export function createDanger({ car }) {
-  let night = false, lookT = 0, seed = SEED, hot = -1, hotOut = 0, seedT = 0, seedId = -1;   // hot: the area where the bar was running, hotOut: seconds since you left it
+  let night = false, caught = false, lookT = 0, seed = SEED, hot = -1, hotOut = 0, seedT = 0, seedId = -1;   // hot: the area where the bar was running, hotOut: seconds since you left it
   addEventListener('pd-time', e => { night = !!(e.detail && e.detail.isNight); });
+  addEventListener('pd-gang-catch', () => { caught = true; });   // the picciotti boxed the lapa in (src/police.js)
   const here = () => { const id = upl(car.x, car.z); let a = areas.get(id); if (!a) areas.set(id, a = { s: 0, quiet: 0, bar: 1 }); return a; };
   const add = pts => { const a = here(); a.s = Math.min(TUNE.max, Math.max(0, a.s + pts)); a.quiet = 0; };
   // the police's chaos events, as they happen (src/police.js): the same crash that brings the police adds to the score of the area it happened in
@@ -89,17 +111,18 @@ export function createDanger({ car }) {
     const d = e.detail || {}, lv = dangerAt(car.x, car.z);
     add((d.amt || 0) * (TUNE.kind[d.kind] ?? 1) * TUNE.gain[lv - 1] * (night ? TUNE.night : 1));
   });
-  if (Q.has('debug')) window.pdDanger = { add, set: n => { const a = here(); a.s = n; a.quiet = 0; }, state: () => tr, areas };
+  if (Q.has('debug')) window.pdDanger = { add, set: n => { const a = here(); a.s = n; a.quiet = 0; }, state: () => tr, areas, areaId: upl };
   return {
     // call every frame while the game runs; true when a gang blocks the road now
     update(dt, busy) {
       const x = car.x, z = car.z, id = upl(x, z), sp = Math.sqrt(car.vx * car.vx + car.vz * car.vz);
+      if (caught && !(areas.get(id) && areas.get(id).s >= TUNE.search)) caught = false;   // boxed in by picciotti of an area you have just left: nothing
       if (seed) { seedT = id === seedId && !covered() ? seedT + dt : 0; seedId = id; if (seedT > 2) { here().s = Math.min(TUNE.max, seed); seed = 0; } }   // ?dangerscore: once the car has stayed in one area for a moment (a ?at= jump needs the world to stream in first)
       // every area's score fades once it has been quiet for a while; the ones you left too, so they are remembered a minute or two. Not while you park in a bad one.
       // The bar of an area you are not in fills up again, slowly: stepping over a border and back does not give you a fresh one.
       for (const [k, a] of areas) {
         a.quiet += dt;
-        if (a.quiet > TUNE.hold && !(k === id && sp < 2 && a.s >= TUNE.notice)) { a.s -= TUNE.fade * dt; if (a.s <= 0) { areas.delete(k); continue; } }
+        if (a.quiet > TUNE.hold && !(k === id && ((sp < 2 && a.s >= TUNE.notice) || a.s >= TUNE.search))) { a.s -= TUNE.fade * dt; if (a.s <= 0) { areas.delete(k); continue; } }
         if (k !== id) a.bar = Math.min(1, a.bar + dt / TUNE.refill);
       }
       tr.id = id; tr.safe = Math.max(0, tr.safe - dt);
@@ -108,8 +131,8 @@ export function createDanger({ car }) {
       if (a) {
         if (stage < 3) a.bar = Math.min(1, a.bar + dt / TUNE.refill);
         else if (!busy && !covered() && !document.querySelector('#pd-busted.on')) {   // not during an event, a transition or the busted card
-          a.bar -= dt / TUNE.seconds * speedMul(sp);
-          if (a.bar <= 0) { areas.delete(id); hot = -1; tr.stage = 1; tr.score = 0; tr.bar = 1; return true; }
+          a.bar -= dt / TUNE.seconds;
+          if (a.bar <= 0 || caught) { caught = false; areas.delete(id); hot = -1; tr.stage = 1; tr.score = 0; tr.bar = 1; return true; }
         }
       }
       const bar = a ? a.bar : 1;
@@ -125,6 +148,8 @@ export function createDanger({ car }) {
       return false;
     },
     level: () => dangerAt(car.x, car.z),
+    catch() { caught = true; },   // the picciotti boxed the lapa in (src/police.js): the block now, if the hunt is on here
+    hunt: () => tr.stage >= 3 ? tr.id : -1,   // the area hunting you, or -1
   };
 }
 

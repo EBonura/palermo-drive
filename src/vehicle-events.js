@@ -65,7 +65,7 @@ export function createVehicleEvents({ scene, camera, car, groundY, roadVerts, ap
           toast(T('Ti firria a testa…', 'Your head is spinning…'), T('Bivisti truappu, un ci a fai cchiù', 'You drank too much, you can\'t go on'), true);
         } else if (danger.update(dt, evBusy)) {
           Z.state = 'fade'; Z.t = 0; Z.lv = dangerAt(car.x, car.z); Z.drunk = false; log('block fade, level', Z.lv);
-          toast(T('Ti hanno visto…', 'They\'ve spotted you…'), T('Meglio se avevi premuto sull’acceleratore', 'You should have floored it'), true);
+          toast(T('I picciotti t’attrovaru…', 'The picciotti got you…'), T('Ti ficiru u fiermu', 'They pulled you over'), true);   // DRAFT Palermitan for the owner
         }
         break;
       case 'fade': {

@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { garage } from './garage.js';
 import { FINE_PER_LEVEL } from './economy.js';
-import { dangerAt, covered, resetTrouble } from './danger.js';
+import { dangerAt, areaId, covered, resetTrouble, trouble } from './danger.js';
 import { createDangerHud } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
 import { vp } from './viewport.js';
 import { zone } from './hud.js';
@@ -118,9 +118,74 @@ export function createPolice(env, T) {
   function engageAmbient() {
     for (const v of vs) if (v.cop && !v.cop.pursue && !v.fly && hyp(v.x - car.x, v.z - car.z) < 200) engage(v);
   }
-  function pursuers() { const out = []; for (const v of vs) if (v.cop && v.cop.pursue) out.push(v); return out; }
+  function pursuers() { const out = []; for (const v of vs) if (v.cop && v.cop.pursue && !v.cop.mob) out.push(v); return out; }
+
+  // ---------- the picciotti: the quarter's own chase, the twin of the police (the owner, 22 Nov 2026) ----------
+  // While a quarter hunts you (five eyes, src/danger.js) scooters with two picciotti come out of its side streets, faster than the police in their own streets, and box the
+  // lapa in; stopped among them for a moment, it is the fermo at once. They never leave their quarter: at its border they brake, shout and turn back. Sent flying, they count
+  // as no chaos. The police wait at the border of a quarter that hunts you (holdAtBorder below), so only one chase is ever on.
+  const MOB_N = [1, 1, 2, 2, 3], MOB_NAMES = ['vespa', 'vespaB'];
+  // what the picciotti shout once they have the lapa in sight (the owner's lines, 22 Nov 2026); [Palermitan, English]
+  const MOB_SAY = [['Fieimmati ca un ti fazzu niainti!', 'Stop, I won\'t do anything to you!'], ['Ooooou cucììììì!', 'Oiiii, cousin!'], ['Fieimmati cos’inutile!', 'Stop, you useless thing!']];
+  const mobSay = v => { const l = MOB_SAY[(Math.random() * MOB_SAY.length) | 0]; T.shoutAt(v, langIdx() ? l[1] : l[0]); };
+  // the mark over a picciotto: the eye of the quarter row in a red badge, seen through walls and stalls (as the other players' names are), so they never pass for traffic
+  const mobMark = (() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+    g.fillStyle = '#ff4b3b'; g.beginPath(); g.arc(32, 32, 27, 0, Math.PI * 2); g.fill(); g.lineWidth = 5; g.strokeStyle = '#1a0b08'; g.stroke();
+    g.fillStyle = '#fff3e0'; g.beginPath(); g.moveTo(12, 32); g.quadraticCurveTo(32, 12, 52, 32); g.quadraticCurveTo(32, 52, 12, 32); g.fill();
+    g.fillStyle = '#1a0b08'; g.beginPath(); g.arc(32, 32, 7, 0, Math.PI * 2); g.fill();
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true, fog: false, toneMapped: false });
+    const pool = [0, 1, 2].map(() => { const sp = new THREE.Sprite(mat); sp.visible = false; sp.renderOrder = 60; sp.scale.set(0.9, 0.9, 1); env.scene?.add(sp); return sp; });
+    return { place(list) { pool.forEach((sp, i) => { const v = list[i]; sp.visible = !!v && !v.fly; if (sp.visible) { const bob = 0.12 * Math.sin(time * 5 + i); sp.position.set(v.x, T.groundY(v.x, v.z) + 2.6 + bob, v.z); } }); } };
+  })();
+  let mobArea = -1, nextMob = 0, caughtT = 0;
+  const mobs = () => { const out = []; for (const v of vs) if (v.cop && v.cop.mob) out.push(v); return out; };
+  function mobLeave(v) { if (v.cop.mode === 'direct') toRoad(v); v.cop = null; v.boost = 1; v.drv = 0.9 + Math.random() * 0.15; }   // back to being a scooter in the traffic
+  function mobTick(dt, sp) {
+    const tr = trouble(), hunt = tr.stage >= 3 && busted <= 0 && !covered() ? tr.id : -1;
+    if (hunt !== mobArea) {   // the hunt ended (you got out, the fermo, a blessing) or another quarter took over: the ones still out go home
+      for (const v of mobs()) { mobLeave(v); if (hunt < 0) { v.honkAt = time; T.shoutAt(v); } }
+      mobArea = hunt; nextMob = time + 1.2; caughtT = 0;
+    }
+    if (hunt < 0) return;
+    const ms = mobs(), want = MOB_N[dangerAt(car.x, car.z) - 1] || 1;
+    if (ms.length < want && time >= nextMob) {
+      const v = T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 75, (x, z) => areaId(x, z) === hunt) || T.spawnWhere(MOB_NAMES[(Math.random() * 2) | 0], 22, 140, (x, z) => areaId(x, z) === hunt);   // close, out of view: they come out of the alleys round you
+      if (v) { v.cop = { id: ++copId, mob: true, area: hunt, bestT: time, pursue: true, mode: 'road', slot: 0, stuckT: 0, noLosT: 0, keep: true, tx: v.x, tz: v.z }; v.boost = 1.9; v.drv = 1.2; }
+      nextMob = time + 2.5;
+    }
+    let slot = 0, near = 0;
+    for (const v of ms) {
+      const c = v.cop, d = hyp(v.x - car.x, v.z - car.z);
+      if (v.fly) continue;
+      c.los = d < 70 && los(v.x, v.z, car.x, car.z); c.noLosT = c.los ? 0 : c.noLosT + dt;
+      if (c.mode === 'road') {   // on the roads: heading away, or out of the quarter, turn round (as the police do)
+        c.awayT = d > (c.prevD ?? d) + 0.3 || areaId(v.x, v.z) !== c.area ? (c.awayT || 0) + dt : 0; c.prevD = d;
+        if (c.awayT > 1 && time > (c.uCool || 0)) { c.awayT = 0; c.uCool = time + 4; T.uturn(v); }
+      }
+      if (d < (c.best ?? 1e9) - 3) { c.best = d; c.bestT = time; }   // getting nowhere (a dead end, a crowd, a jam): out of view it goes, and a new one comes
+      else if (time - (c.bestT ?? time) > 5 && d > 15 && !T.inView(v.x, 1, v.z, 4)) { T.removeVehicle(v); nextMob = Math.min(nextMob, time + 0.5); continue; }
+      if (c.los && time > (c.sayAt || 0) && d < 45) { c.sayAt = time + 4 + Math.random() * 3; mobSay(v); }   // in sight: they shout at you, now and then
+      if (c.mode === 'road' && d < 55 && (c.los || time > (c.directCool || 0))) { c.mode = 'direct'; c.stuckT = 0; }   // they know the alleys: straight at the lapa, also round a corner
+      else if (c.mode === 'direct' && (d > 60 || (c.noLosT > 2.5 && d > 25) || c.stuckT > 3)) { toRoad(v); c.directCool = time + 3; }
+      if (c.mode === 'direct') c.slot = slot++;
+      if (d < 8) near++;
+    }
+    // boxed in: stopped (or crawling) with picciotti right by the lapa for a moment
+    if (near > 0 && sp < 3 && !(car.agl > 3)) { caughtT += dt * (1 + 0.5 * (near - 1)); if (caughtT >= 1.4) { caughtT = 0; dispatchEvent(new Event('pd-gang-catch')); } }
+    else caughtT = Math.max(0, caughtT - dt * 0.5);
+  }
+  // the police do not go into a quarter that is hunting you: they stop at its border and wait, and pick you up again when you come out
+  function holdAtBorder(v, nx, nz) { return mobArea >= 0 && areaId(nx, nz) === mobArea; }
 
   // Off-graph "box in" driving, 30 Hz from traffic.integrate. Targets a slot around the player; never rams at speed.
+  function mobTarget(c) {   // the picciotti: one cuts in ahead, the others ride at the lapa's flanks, closer than the police
+    const sp = hyp(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx, lead = clamp(sp * 0.7, 0, 14);
+    const k = c.slot % 3, side = k === 1 ? 1 : -1;
+    if (k === 0) { c.tx = car.x + fx * (4.5 + lead * 0.5); c.tz = car.z + fz * (4.5 + lead * 0.5); }
+    else { c.tx = car.x + rx * side * 2.2 + fx * (0.5 + lead * 0.3); c.tz = car.z + rz * side * 2.2 + fz * (0.5 + lead * 0.3); }
+  }
   function slotTarget(c) {
     const sp = hyp(car.vx, car.vz), fx = sp > 2 ? car.vx / sp : Math.sin(car.th), fz = sp > 2 ? car.vz / sp : Math.cos(car.th), rx = -fz, rz = fx;
     const lead = clamp(sp * 0.9, 0, 18);
@@ -135,17 +200,19 @@ export function createPolice(env, T) {
   function drive(v, dt) {
     const c = v.cop, ty = v.ty;
     if (v.fly) { T.stepFly(v, dt); return; }
-    slotTarget(c);
+    if (c.mob) mobTarget(c); else slotTarget(c);
     const dx = c.tx - v.x, dz = c.tz - v.z, d = hyp(dx, dz);
     const err = wrapPi(Math.atan2(dx, dz) - v.h), maxYaw = Math.max(v.v, 1.6) / ty.rmin;
     v.yaw = clamp(err * 3.2, -maxYaw, maxYaw); v.h += v.yaw * dt;
     const psp = hyp(car.vx, car.vz), pd = hyp(car.x - v.x, car.z - v.z);
-    let vd = Math.min(d * 1.1, ty.copV);
+    let vd = Math.min(d * 1.1, c.mob ? Math.max(15, psp + 5) : ty.copV);
     if (Math.abs(err) > 1.0) vd *= 0.5;
-    if (pd < 14) vd = Math.min(vd, psp + 3);     // close in gently: ramming the lapa at speed just yeets the police car
+    if (pd < 14) vd = Math.min(vd, psp + (c.mob ? 4.5 : 3));     // close in gently: ramming the lapa at speed just yeets the police car (the picciotti push a little harder)
     v.v += clamp(vd - v.v, -9 * dt, 4.5 * dt);
     if (v.stopT > 0) { v.stopT = Math.max(0, v.stopT - dt); v.v *= 0.9; }
-    v.x += (Math.sin(v.h) * v.v + v.ex) * dt; v.z += (Math.cos(v.h) * v.v + v.ez) * dt;
+    const nx = v.x + (Math.sin(v.h) * v.v + v.ex) * dt, nz = v.z + (Math.cos(v.h) * v.v + v.ez) * dt;
+    if (c.mob ? areaId(nx, nz) !== c.area : holdAtBorder(v, nx, nz)) { v.v *= 0.6; v.ex *= 0.5; v.ez *= 0.5; c.stuckT = 0; }   // the border: the picciotti stay in, the police stay out
+    else { v.x = nx; v.z = nz; }
     const damp = Math.exp(-4 * dt); v.ex *= damp; v.ez *= damp;
     for (const o of vs) { // keep clear of the rest of the traffic
       if (o === v || o.fly) continue;
@@ -172,7 +239,7 @@ export function createPolice(env, T) {
   @keyframes pw-b1 { 0% { fill: #f08cb4; } 50% { fill: #1a1114; } } @keyframes pw-b2 { 0% { fill: #1a1114; } 50% { fill: #f08cb4; } }
   #pd-wanted .pw-t { font: 700 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .02em; color: #f5a9c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* the condensed face: RIESTA AMMUCCIATU… does not fit beside the diamonds in Racing Sans One */
   #pd-wanted .pw-pips { display: flex; gap: 2px; flex: 0 0 auto; }
-  #pd-wanted .pw-pips i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(245,169,201,.55); }
+  #pd-wanted .pw-pips i { width: 9px; height: 6px; border-radius: 5px 5px 1px 1px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1.5px rgba(245,169,201,.55); }   /* five sirens, the twin of the quarter's five eyes (src/danger-hud.js) */
   #pd-wanted .pw-pips i.f { background: #e8559a; box-shadow: 0 0 6px #ff4fa3, inset 0 0 0 1.5px #ffd1e6; }
   #pd-wanted .pw-bar { flex: 0 0 100%; height: 2px; margin-top: 3px; border-radius: 1px; background: rgba(255,255,255,.14); overflow: hidden; }   /* how close the escape is, under the line */
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
@@ -257,6 +324,7 @@ export function createPolice(env, T) {
   // ---------- per frame ----------
   function tick(dt) {
     const lv = level(), sp = hyp(car.vx, car.vz);
+    mobTick(dt, sp);
     // chaos that comes from driving rather than from a single hit
     if (sp > 6.5 && peds && busted <= 0 && grace <= 0 && !(car.agl > 3)) {   // (not up in the air: wings, src/vehicle-air.js)
       if (peds.near(car.x, car.z, 11) >= 5) chaos('market', 0.45 * dt * 4);
@@ -276,8 +344,9 @@ export function createPolice(env, T) {
       } else c.prevD = d;
     }
     seen = any;
+    if (mobArea >= 0) for (const v of ps) if (!v.fly && areaId(v.x, v.z) === mobArea) v.stopT = Math.max(v.stopT || 0, 0.4);   // inside the quarter that hunts you: the police stand and wait
     if (heat > 0) {
-      if (seen) { unseenT = 0; armed = true; } else { unseenT += dt; if (unseenT > 4.5 && (armed || time > startT + 40)) heat -= dt * 0.1; } // cops that never found you let the heat go too
+      if (seen) { unseenT = 0; armed = true; } else if (mobArea >= 0) { /* the police wait at the border: the heat waits with them */ } else { unseenT += dt; if (unseenT > 4.5 && (armed || time > startT + 40)) heat -= dt * 0.1; } // cops that never found you let the heat go too
       if (heat <= 0) { heat = 0; armed = false; toastT = 2.6; sfx('cool'); for (const v of ps) disengage(v); }
     }
     // box in: close cops with a line of sight leave the road graph and take a slot around the lapa
@@ -296,7 +365,7 @@ export function createPolice(env, T) {
       if (n > 0 && sp < 3.5 && !(car.agl > 3)) { bustT += dt * (1 + 0.4 * (n - 1)); if (bustT >= 2.2) bust(); } else bustT = Math.max(0, bustT - dt * 0.5);
     }
     // reinforcements
-    if (lv > 0 && time >= startT && time >= nextSpawn && ps.length < Math.min(MAXCOPS, lv)) {
+    if (lv > 0 && mobArea < 0 && time >= startT && time >= nextSpawn && ps.length < Math.min(MAXCOPS, lv)) {
       let lapini = 0; for (const v of ps) if (v.ty.model === 'apePol') lapini++;
       const name = lv >= 2 && lapini === 0 && Math.random() < 0.28 ? 'apePol' : Math.random() < 0.5 ? 'polizia' : 'carab';
       const v = T.spawnCop(name, 70, 135, true);
@@ -321,6 +390,7 @@ export function createPolice(env, T) {
     const pulse = night ? 1 : 0.65, size = night ? 2.6 : 1.9;
     for (const v of vs) {
       const c = v.cop; if (!c || !c.pursue) continue;
+      if (c.mob) { if (!v.fly) { const y = T.groundY(v.x, v.z) + 2.05, k = 0.6 + 0.4 * Math.sin(time * 9 + c.id); fx.add(v.x, y, v.z, 1, 0.42, 0.08, size * 0.7 * k); } continue; }   // a picciotto: an amber glow over his head, so they read in the traffic
       const lb = LB[v.ty.model]; if (!lb) continue;
       const ph = Math.floor((time * 6 + c.id * 0.37) % 2) === 0, sn = Math.sin(v.h), cs = Math.cos(v.h), y = T.groundY(v.x, v.z) + lb[1] + (v.fly ? v.fly.y : 0);
       if (v.fly) continue;
@@ -346,18 +416,19 @@ export function createPolice(env, T) {
     // siren: the nearest chasing car sets the volume and the pan
     let near = 1e9, pan = 0;
     if (heat > 0) for (const v of vs) {
-      if (!v.cop || !v.cop.pursue || v.fly) continue;
+      if (!v.cop || !v.cop.pursue || v.cop.mob || v.fly) continue;
       const d = hyp(v.x - camera.position.x, v.z - camera.position.z);
       if (d < near) { near = d; const rx = Math.cos(camera.rotation.y), rz = -Math.sin(camera.rotation.y); pan = ((v.x - camera.position.x) * rx + (v.z - camera.position.z) * rz) / (d + 8); }
     }
     sirenUpdate(near, pan);
+    mobMark.place(mobs());
     glow(fx);
     drawHud();
   }
   // the lapa is frozen while the busted card is up (120 Hz hook from traffic.collidePlayer)
   function collide(pc) { if (busted > 0) { pc.vx = pc.vz = pc.w = pc.vf = 0; } }
 
-  if (location.search.includes('debug')) window.pdPolice = { stat, vs, chaos, level };   // test hook
+  if (location.search.includes('debug')) window.pdPolice = { stat, vs, chaos, level, mobs };   // test hook
   return {
     update, drive, chaos, collide, isCop, makeCop, engage,
     stat, heat: () => heat, level, isNight: () => night,

@@ -1215,7 +1215,7 @@ Object.assign(MODELS, buildPoliceModels());
             launch(v, ux * hs, uz * hs, clamp(4.5 + rel * 0.55, 5.5, 12.5) * sc, 0, heavy ? 0.35 : 1);
             v.x -= nx * pen; v.z -= nz * pen;
             const j = (ty.yeetJ || 0.1) * rel; pc.vx += nx * j; pc.vz += nz * j; pc.vf = pc.vx * sn + pc.vz * cs;
-            shoutAt(v); v.honkAt = time + 0.5; police.chaos(v.cop ? 'hitcop' : 'yeet'); sfx('crunch', clamp(0.6 + rel / 16, 0.6, 1.4));
+            shoutAt(v); v.honkAt = time + 0.5; if (!(v.cop && v.cop.mob)) police.chaos(v.cop ? 'hitcop' : 'yeet');   // a picciotto sent flying is self-defence: no chaos sfx('crunch', clamp(0.6 + rel / 16, 0.6, 1.4));
             return;
           }
           const shP = mv / (mp + mv), shV = mp / (mp + mv);
@@ -1232,7 +1232,7 @@ Object.assign(MODELS, buildPoliceModels());
       }
       if (touched) {
         if (v.dp) gags.bump(v);
-        if (v.cop && hyp2(pc.vx, pc.vz) > 6) police.chaos('hitcop');
+        if (v.cop && !v.cop.mob && hyp2(pc.vx, pc.vz) > 6) police.chaos('hitcop');
         if (v.stopT <= 0) { v.honkAt = time + 0.35 + Math.random() * 0.3; shoutAt(v); }
         v.stopT = Math.max(v.stopT, 1.0 + Math.random() * 0.8);
         wallPush(v);
@@ -1339,6 +1339,7 @@ Object.assign(MODELS, buildPoliceModels());
   }
   const fx = createBeacons(scene, camera);
   const T = { vs, TYPES, car, camera, groundY, shoutAt, inView, snap, wallPush, stepFly, spawnOffscreen, spawnAt,
+    spawnWhere: (name, dmin, dmax, ok) => spawnOffscreen(name, dmin, dmax, (mx, mz, e) => ok(mx, mz) && hyp2(NX[e.b] - car.x, NZ[e.b] - car.z) < hyp2(NX[e.a] - car.x, NZ[e.a] - car.z) - 3),   // the picciotti of a quarter (src/police.js): out of view, on a road inside it, heading for the lapa   // the picciotti of a quarter (src/police.js): out of view, on a road inside it
     spawnCop: (name, dmin, dmax, toward) => spawnOffscreen(name, dmin, dmax, toward ? (mx, mz, e) => hyp2(NX[e.b] - car.x, NZ[e.b] - car.z) < hyp2(NX[e.a] - car.x, NZ[e.a] - car.z) - 5 : null),
     uturn(v) { // a police car heading away from the lapa swings round on a two-way road
       const e = v.route[0]; if (!e || e.rev < 0 || v.cop.mode !== 'road') return false;

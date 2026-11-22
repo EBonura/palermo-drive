@@ -13,6 +13,7 @@
 // is painted again, and while one stays blank the land is drawn directly under the pieces, so the map is never solid sea.
 //
 
+import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter's border and the way out, once it has three eyes on you
 const W = 200; // canvas size in px (the CSS size varies, see ui/mobile css)
 const T = 500; // tile size in metres (docs/TILES.md)
 const SEA = '#3a8bb5', LAND = '#e4dccb', BLD = '#b98f62', TRACK = '#d6c7a2';
@@ -202,6 +203,8 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     sinceDraw += dt || 0.016;
     let sig = Math.round(car.x * 4) * 1.7 + Math.round(car.z * 4) * 2.3 + Math.round(car.th * 200) * 31 + Math.round(zoom * 500) * 97 + mapRoute.length + (mapRoute.i0 || 0) + followRoute.length * 7 + (followRoute.i0 || 0) * 13;
     for (const m of mapMarkers) sig += m.x * 0.7 + m.z * 1.3 + (m.size || 0);
+    const tr = trouble(), zone = tr.score > TUNE.notice ? zoneOutline(car.x, car.z) : null;
+    if (zone) sig += zone.id * 0.013 + (tr.stage >= 3 ? 5 : 3) + Math.round(performance.now() / 250) % 2 * 0.5;   // (the hunt's border blinks)
     if (sinceDraw < (sig !== lastSig ? 0.03 : 0.5)) return;
     if (sig === lastSig && sameAsDrawn(false)) { stats.skipped++; sinceDraw = 0; return; }   // (and looks again in half a second, not on every frame)
     sinceDraw = 0; lastSig = sig; sameAsDrawn(true);
@@ -231,6 +234,27 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       }
       mini.restore();
     };
+    if (zone) {   // the quarter that has its eyes on you: its border, and an arrow on the rim towards the nearest way out (amber, red and blinking in the hunt)
+      const hunt = tr.stage >= 3, on = !hunt || Math.round(performance.now() / 250) % 2 === 0, col = hunt ? '#ff4b3b' : '#ffb020';
+      mini.save(); mini.beginPath(); mini.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); mini.clip();
+      mini.lineCap = 'round'; mini.setLineDash([7, 5]);
+      for (let pass = 0; pass < 2; pass++) {
+        mini.strokeStyle = pass ? col : 'rgba(18,10,14,.8)'; mini.lineWidth = pass ? 3 : 5.5; mini.globalAlpha = pass && !on ? 0.45 : 1; mini.beginPath();
+        const g = zone.segs;
+        for (let i = 0; i < g.length; i += 4) {
+          const ax = (g[i] - car.x) * k, az = (g[i + 1] - car.z) * k, bx = (g[i + 2] - car.x) * k, bz = (g[i + 3] - car.z) * k;
+          mini.moveTo(W / 2 + ax * ca - az * sa, W / 2 + ax * sa + az * ca); mini.lineTo(W / 2 + bx * ca - bz * sa, W / 2 + bx * sa + bz * ca);
+        }
+        mini.stroke();
+      }
+      mini.restore();
+      if (zone.exit) {
+        const dx = (zone.exit[0] - car.x) * k, dz = (zone.exit[1] - car.z) * k, px = dx * ca - dz * sa, pz = dx * sa + dz * ca, r = Math.hypot(px, pz) || 1, rr = Math.min(r, W / 2 - 13), ux = px / r, uz = pz / r;
+        const tx = W / 2 + ux * rr, tz = W / 2 + uz * rr, nx = -uz, nz = ux;
+        mini.fillStyle = col; mini.strokeStyle = '#120a0e'; mini.lineWidth = 2.5; mini.lineJoin = 'round';
+        mini.beginPath(); mini.moveTo(tx + ux * 9, tz + uz * 9); mini.lineTo(tx - ux * 5 + nx * 7, tz - uz * 5 + nz * 7); mini.lineTo(tx - ux * 2, tz - uz * 2); mini.lineTo(tx - ux * 5 - nx * 7, tz - uz * 5 - nz * 7); mini.closePath(); mini.stroke(); mini.fill();
+      }
+    }
     drawRoute(followRoute, '#00c8f0');   // a player we follow: blue, under a mission's pink
     drawRoute(mapRoute, '#e8559a');
     let near = null, nearD = 1e9;   // the nearest other player on the map: its name is written beside it when the map is big enough to read it
