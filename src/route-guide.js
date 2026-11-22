@@ -1,7 +1,7 @@
 // Route guidance: the pink line on the minimap and the big arrow over the lapa (src/missions.js wires it in).
 //
 // A route is a flat x,z polyline. Missions give it a baked one (guide.path(pts), src/event-routes.js) or just a place (guide.to(x, z), for the
-// legs that have no baked route: bringing the food back to the vendor). The guide tracks the car along it (s0 = metres driven, d = metres off it),
+// legs that have no baked route: bringing the food back to the vendor, a ride from anywhere, a delivery; a place beyond the loaded tiles is led towards, part by part). The guide tracks the car along it (s0 = metres driven, d = metres off it),
 // and when the car strays it computes a new way from where it is with the traffic graph (src/traffic-graph.js plan):
 //   - destination on a loaded tile: straight to it;
 //   - else to the best point of the rest of the baked route that is on loaded tiles (lowest driving time to it plus the time left on the
@@ -22,6 +22,7 @@ export const GUIDE = {
   RATE: 1,          // s between searches at the very least
   HOLD: 3,          // s after a new route before the next one
   RETRY: 3,         // s before trying again when there was no road near the car, or no way
+  TOWARD: 5,        // s between the plans towards a place that is beyond the loaded tiles (guide.to)
   V_REF: 11,        // m/s: what the rest of a baked route is worth in driving time
   STEP: 40,         // m between the candidate join points along the rest of the baked route (its own vertices are candidates too)
   MAXC: 140,        // candidates at most
@@ -130,6 +131,11 @@ export function createGuide({ car, mapRoute, graph }) {   // graph: () => traffi
       res = g.plan(car.x, car.z, hx, hz, tg, opt);
       if (res) { const p = res.pts, ex = dest.x - p[p.length - 2], ez = dest.z - p[p.length - 1]; if (ex * ex + ez * ez > 4) p.push(dest.x, dest.z); }
     }
+    if (!res && mode === 2 && dest && g.path) {   // a place with no baked route, beyond the loaded tiles (a ride from anywhere, a delivery): the way towards it as far as the roads here go
+      // (the graph's own search ends at the node it can reach that is nearest the place); update() asks again every TOWARD seconds, and as the tiles load the line grows until the place itself is here
+      const r = g.path(car.x, car.z, dest.x, dest.z, 20000);
+      if (r && r.pts.length >= 4 && r.len > 40) { res = { pts: r.pts, cost: 0 }; kind = 'toward'; }
+    }
     if (!res && mode === 1) {   // else to the best point of the rest of the baked route that is here, and on along it
       let sFrom = bS; if (!rIsB) { scan(B, car.x, car.z, 0, B.cum.length - 1, bMax - 100); if (SC.d < 60) sFrom = Math.max(bS, SC.s); }
       candidates(sFrom, g);
@@ -162,6 +168,7 @@ export function createGuide({ car, mapRoute, graph }) {   // graph: () => traffi
       else { scan(B, car.x, car.z, Math.max(0, B.cursor - 6), Math.min(B.cum.length - 1, B.cursor + 40), bMax - 80); if (SC.d < 30) { B.cursor = SC.i; bS = SC.s; if (bS > bMax) bMax = bS; } }
     }
     if (fixed || !graph) return;
+    if (mode === 2 && st.kind === 'toward' && since >= GUIDE.TOWARD) { replan('toward'); return; }   // only part of the way so far: the next part, now that the lapa has moved on
     const sp = Math.hypot(car.vx, car.vz), arriving = R.len - R.s0 < 30;
     if (car.flying || (car.wet || 0) > 0.3 || arriving) { offT = awayN = wrongT = 0; return; }
     // 1. far from the route for a while

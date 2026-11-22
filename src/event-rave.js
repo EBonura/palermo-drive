@@ -144,7 +144,7 @@ export function createRaveEvents(X, rave) {
     e.mesh = new THREE.InstancedMesh(leafArt(), itemMat, n); e.beams = new THREE.InstancedMesh(beamGeo, beamMat, n); e.mesh.frustumCulled = e.beams.frustumCulled = false; e.beams.renderOrder = 5;
     scene.add(e.mesh, e.beams);
     for (let i = 0; i < n; i++) { const x = H[i * 2], z = H[i * 2 + 1], y = groundAt(x, z); e.items.push({ x, z, y, ph: Math.random() * 6, got: false, marker: X.addMarker(x, z, '#7ad65a', 5, 'diamond') }); }
-    e.total = n; setItems();
+    e.total = n; setItems(); X.seek(e.items);   // the way to the nearest one, on the road and on the map (src/missions.js seek)
     hud.toast(T('Attruova i fuogghi allegri!', 'Find the happy leaves!'), RAVE.leaf.name); fsay('arrive', 0.6);
   }
   function setItems() {
@@ -161,7 +161,7 @@ export function createRaveEvents(X, rave) {
     const L = SNAP['rave:leaf'];
     e.phase = 'hand'; e.left = HAND_TIME;
     for (const it of e.items) if (it.marker) { X.dropMarker(it.marker); it.marker = null; }
-    for (const it of e.items) if (!it.got) it.got = true; setItems();
+    X.seek(null); for (const it of e.items) if (!it.got) it.got = true; setItems();
     const sp = X.sideSpot({ x: L[0], z: L[1], dx: L[2], dz: L[3], w: L[4] }, L[4] / 2 + 1.6);
     e.contact = pedestrians.spawnScripted('nightboy2', sp.x, sp.z); if (e.contact >= 0) { pedestrians.face(e.contact, L[0], L[1]); pedestrians.setBounce?.(e.contact, true); }
     X.guide.to(L[0], L[1]);   // the way to the pal, worked out from where the car is
@@ -190,7 +190,7 @@ export function createRaveEvents(X, rave) {
     } else if (e.phase === 'hunt') {
       e.left -= dt; collectLeaf(); setItems();
       if (e.left <= 0 || e.got >= e.total) { if (e.got === 0) finishLeaf(false, 'none'); else startHand(); return; }
-      const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
+      const nl = X.seekAt() || nearestLeft(); X.aim(nl.x, nl.z, true);
       hud.set({ label: T('Attruova i fuogghi allegri', 'Find the happy leaves'), title: T('Fuogghi ', 'Leaves ') + e.got + ' / ' + e.total, sub: A.name, time: mmss(Math.max(0, e.left)), low: e.left < 15, frac: e.left / HUNT_TIME, target: nl });
     } else if (e.phase === 'hand') {
       e.left -= dt; X.aim(A.x, A.z, true);

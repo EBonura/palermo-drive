@@ -1570,7 +1570,29 @@ export function createPedestrians(env) {
     for (let k = 0; k < N.n; k++) { const i = (s + k) % N.n, d = (X[i] - x) ** 2 + (Z[i] - z) ** 2; if (d >= a2 && d <= b2) return { x: X[i], y: Y[i] + 1.95, z: Z[i] }; }
     return null;
   }
-  const api = { personNear, spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, draw, collidePlayer, setQuality, stats, spawnScripted, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
+  // A crowd of the cast's own sprites for a job module (the Festino, src/job-festino.js): its own instanced mesh on the crowd's material and atlas, so one draw call and the same
+  // light as everybody else, placed by the caller every frame. Nothing here collides or thinks: they are a picture.
+  //   const c = pedestrians.spriteCrowd(n, ids) -> { n, cast (the cast numbers of those ids), put(i, x, y, z, v, th, pose, size), show(count), dispose() }
+  //   put: v a cast number, th the way they face, pose 0 standing or 1..4 walking; the cell is chosen from the side the camera sees, as for everyone. show(count) draws the first count.
+  function spriteCrowd(n, ids) {
+    const p = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage), a = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage), b = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage);
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(quadPos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(quadUv, 2)); g.setIndex([0, 1, 2, 0, 2, 3]);
+    g.setAttribute('iPos', p); g.setAttribute('iA', a); g.setAttribute('iB', b); g.instanceCount = 0;
+    const mesh = new THREE.Mesh(g, spriteMat); mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.name = 'crowd_extra'; mesh.visible = false; scene.add(mesh);
+    const cast = []; for (const id of ids) for (const vi of variantsOf(id)) cast.push(vi);
+    const P = p.array, A = a.array, B = b.array;
+    return { n, cast,
+      put(i, x, y, z, v, th, pose, size) {
+        const dxc = camera.position.x - x, dzc = camera.position.z - z, dist = hyp2(dxc, dzc) || 1, wx = Math.sin(th), wz = Math.cos(th), tx = dxc / dist, tz = dzc / dist, s = wx * tx + wz * tz, c = wx * tz - wz * tx;
+        lodSee = false; lodPick(v, Math.abs(s) >= Math.abs(c) ? (s > 0 ? 0 : 1) : (c > 0 ? 3 : 2), pose, dist, size, false);
+        P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z; A[i * 4] = lodX; A[i * 4 + 1] = lodY; A[i * 4 + 2] = size; A[i * 4 + 3] = 0;
+        B[i * 4] = 1; B[i * 4 + 1] = 0.6 * (1 - nightK); B[i * 4 + 2] = 1; B[i * 4 + 3] = 0;
+      },
+      show(count) { g.instanceCount = count; mesh.visible = count > 0; p.needsUpdate = a.needsUpdate = b.needsUpdate = true; },
+      dispose() { scene.remove(mesh); g.dispose(); } };
+  }
+  const api = { personNear, spawnCrowd, removeCrowd, crowdFamilies: () => Object.keys(FAMILIES), bindGame: g => { gameRef = g; }, night: () => ({ night: nightCrowd, k: nightK, hour: hourNow }), update, draw, collidePlayer, setQuality, stats, spawnScripted, variantsOf, spriteCrowd, walkTo, face, attachTo, detach, remove, info, setBounce, setSize, near, miracle, onKnock: f => { knockCbs.push(f); } };
   if (params.has('debug')) { window.__peds.beach = { bathers, splashes, beachAll, waterAt, nearBeach, sandDist, knockBather, k: () => beachK }; window.__peds.api = api; window.__peds.dbg = { sSprites, sPos, sA, sB, atlas, spriteMat, sprites }; }
   env.traffic?.bindPedestrians?.(api);   // police, lookouts, the team bus and the double-parking quarrels (src/police.js, src/gags.js) use this API
   return api;

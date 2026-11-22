@@ -4,7 +4,7 @@
 // bucketed into 250 m cells so frustum culling still works.
 import * as THREE from 'three';
 import { groundY, pairs, signedArea, rng, inPoly, proj, rasterMaskIter, freeCanvas } from './core.js';
-import { paintAtlas, COLS as POSTER_COLS, ROWS as POSTER_ROWS, CELL_W, CELL_H, COUNT as POSTERS, DW as POSTER_DW, DH as POSTER_DH } from './adverts.js';   // the twelve adverts on the billboards
+import { paintAtlas, COLS as POSTER_COLS, ROWS as POSTER_ROWS, CELL_W, CELL_H, COUNT as POSTERS, DW as POSTER_DW, DH as POSTER_DH } from './adverts.js';   // the thirteen adverts on the billboards
 import { NIGHT } from './daynight.js';   // (read only: its shared night uniform lights the billboards)
 import { paintAtlas as paintSigns, COLS as SIGN_COLS, ROWS as SIGN_ROWS, CELL_W as SIGN_W, CELL_H as SIGN_H, BRANDS, brandOf } from './supermarkets.js';   // the supermarkets' parody signs
 import { zoneAt, ZONES } from './districts.js';
@@ -160,7 +160,7 @@ ape('ape', false); ape('apetaxi', true);
   }
   def('lamp_pole', mb);
   // a roadside billboard of the fast roads (photos su07, su09, nw30): a 6 x 2.82 m poster on two steel posts, 4 m up, front +z, with a walkway under it and two lamps over it.
-  // One model for all twelve adverts (src/adverts.js): the poster quad reads its cell of the advert atlas by the instance colour (posterMat), the rest are vertex colours.
+  // One model for all thirteen adverts (src/adverts.js): the poster quad reads its cell of the advert atlas by the instance colour (posterMat), the rest are vertex colours.
   // uv marks the parts: the poster 0..1, the frame -1, the lamp lenses -2 (lit at night).
   const steel = C('#6d7175'), frame = C('#4a4d50'), bb = new MB(), PY0 = 4.1, PY1 = 4.1 + 6 * POSTER_DH / POSTER_DW;
   for (const x of [-2.2, 2.2]) bb.box(x - 0.14, 0, -0.14, x + 0.14, 4.1, 0.14, steel, 0.7, 1, false);
@@ -483,7 +483,7 @@ for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_
 }
 
 // ------------------------------------------------------------------ materials / instancing
-// The billboards' material: one atlas of the twelve adverts (src/adverts.js, 2048 x 768, 8.4 MB with its mipmaps), painted once and freed after upload like the other painted
+// The billboards' material: one atlas of the thirteen adverts (src/adverts.js, 512 x 3328: one column, 9.1 MB with its mipmaps, 0.7 MB a poster), painted once and freed after upload like the other painted
 // textures. The instance colour's red channel is the advert (posterCol); uv says the part (poster 0..1, frame -1, lamp lens -2). At night (NIGHT.win, daynight.js) the lamps
 // glow and the poster takes a soft light, stronger at the top under them. No extra draw: one InstancedMesh per props cell, as before.
 const posterCol = k => new THREE.Color((k + 0.5) / 16, 0, 0);
@@ -492,7 +492,7 @@ function posterMaterial() {
   const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   const paint = () => { paintAtlas(cv.getContext('2d'), cv.width, cv.height); map.needsUpdate = true; freeCanvas(map, (g, w, h) => paintAtlas(g, w, h)); };
   // Painted and uploaded when the first billboard is placed (userData.need, called where a tile's props put one), not at the start: the billboards stand along the fast
-  // roads only, and until one is near the atlas would hold 8 MB of the GPU's memory for nothing. A tile is built over many frames, so the atlas
+  // roads only, and until one is near the atlas would hold 11 MB of the GPU's memory for nothing. A tile is built over many frames, so the atlas
   // is there before its billboards are drawn.
   let asked = false;
   const need = () => {
@@ -1851,7 +1851,7 @@ function* generate(S, BUD) {
   }
   {
     // billboards along the open fast roads (photos su07, su09, nw30; none in the OSM data): now and then, on the right of travel well beyond the rail and the tall lamps, angled to the traffic that comes,
-    // one of the twelve adverts. Never near a junction or a building, on or next to the asphalt (it may stand in a separator wide enough), on a slope or within 40 m of another one. About one in BB_EVERY m of each carriageway.
+    // one of the thirteen adverts. Never near a junction or a building, on or next to the asphalt (it may stand in a separator wide enough), on a slope or within 40 m of another one. About one in BB_EVERY m of each carriageway.
     const BB_STEP = 30, BB_EVERY = 250, BB_OFF = 5.5;
     const bbs = []; let n = 0;
     for (const r of S.roads) {
@@ -1872,7 +1872,7 @@ function* generate(S, BUD) {
           // the advert: a fixed hash of the position (the same for everyone), stepped on past the ones the billboards of this tile within 800 m already show
           const near = bbs.filter(q => hyp2(q[0] - x, q[1] - z) < 800).map(q => q[2]);
           let k = Math.floor(hash3(x, z, 1.7) * POSTERS) % POSTERS;
-          for (let j = 0; j < POSTERS && near.includes(k); j++) k = (k + 5) % POSTERS;   // (5 and 12 are coprime: the steps visit every advert)
+          for (let j = 0; j < POSTERS && near.includes(k); j++) k = (k + 5) % POSTERS;   // (5 and 13 are coprime: the steps visit every advert)
           MATS.poster.userData.need(); put('billboard', x, gy(x, z), z, Math.atan2(fx, fz), 1, posterCol(k)); occAdd(x, z, 3.2); bbs.push([x, z, k]); n++;
         }
       }

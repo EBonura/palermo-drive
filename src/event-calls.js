@@ -18,6 +18,7 @@ const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor']
 const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8, PASS_R = 13;   // PASS_R: the pen sellers stop a lapa that passes this close
 export const KIND_COLOR = COLORS;
+export const JOBS = new Set(['fare', 'urgent', 'food']);   // the jobs: they reach the lapa as a call wherever it is; every other kind is an encounter that waits at its place
 
 export function createCalls(X) {
   const { car, pedestrians, speed, say } = X;
@@ -52,13 +53,14 @@ export function createCalls(X) {
       PENNA_LOOKS.forEach((v, k) => { const o = (k - 1) * 1.5, id = pedestrians.spawnScripted(v, s.kerb.x + s.dx * o, s.kerb.z + s.dz * o); if (id >= 0) { pedestrians.face(id, s.x + s.dx * o, s.z + s.dz * o); s.callers.push(id); } });
       s.friend = null; s.shoutT = rand(1, 3); return;
     }
-    const v = variantFor(s), id = pedestrians.spawnScripted(v, s.kerb.x, s.kerb.z); if (id < 0) return;
+    const v = s.offerPed || variantFor(s), id = pedestrians.spawnScripted(s.offerPed && s.offerV >= 0 ? s.offerV : v, s.kerb.x, s.kerb.z); if (id < 0) return;   // offerPed, offerV: the very person whose face was on the call card (src/mission-director.js)
     s.friend = v.startsWith('amico') ? v.slice(0, 6) : null;   // 'amico1' / 'amico2': their own lines, here and in the ride (src/event-fares.js)
     pedestrians.face(id, s.x, s.z);
     s.callers.push(id); s.shoutT = rand(1, 4);
   }
   function despawn(s) { for (const id of s.callers) pedestrians.remove(id); s.callers.length = 0; }
   function lineFor(s) {
+    if (s.callLine) return pickLine(s.callLine, s);   // a job module's own lines: [[palermitan, english], ...]
     if (s.friend && s.kind === 'fare') return pickLine(FRIEND[s.friend].hail);
     if (s.nc) return pickLine(NIGHT_CLIENTS[s.nc].client.flag, s);
     const L = s.kind === 'penna' ? CALL.penna : s.kind === 'dump' ? CALL.dump : s.kind === 'horns' ? HORNS_LINES.call : s.kind === 'rave' ? CALL.rave : s.kind === 'leaf' ? CALL.leaf : s.kind === 'food' ? CALL.food : s.kind === 'urgent' ? [X.URGENT_DEF[s.id].say] : s.sub === 'tourist' ? CALL.tourist : s.sub === 'pulle' ? (X.isNight() ? X.FAVORITA_FLAG : CALL.pulle) : CALL.taxi;
@@ -77,7 +79,7 @@ export function createCalls(X) {
     const t = X.now(), night = X.isNight();
     for (const s of slots) {
       if (s.kind === 'race') continue;
-      const d = Math.hypot(car.x - s.x, car.z - s.z), ready = allowed && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
+      const d = Math.hypot(car.x - s.x, car.z - s.z), ready = allowed && t >= s.coolUntil && (!s.night || night) && (!s.day || !night) && (!JOBS.has(s.kind) || X.offer === s);   // a job has a caller only once its call was answered (src/mission-director.js)
       if (!ready) { if (s.callers.length) despawn(s); continue; }
       if (s.callers.length) {
         if (d > DROP_R) { despawn(s); continue; }
@@ -99,7 +101,7 @@ export function createCalls(X) {
     if (markT <= 0) {
       markT = 1;
       for (const s of slots) {
-        const d = Math.hypot(car.x - s.x, car.z - s.z), want = allowed && d < 750 && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
+        const d = Math.hypot(car.x - s.x, car.z - s.z), want = allowed && (JOBS.has(s.kind) ? X.offer === s : d < 750) && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
         if (want && !s.marker) s.marker = X.addMarker(s.x, s.z, COLORS[s.kind], 6);
         else if (!want && s.marker) { X.dropMarker(s.marker); s.marker = null; }
       }
@@ -109,5 +111,5 @@ export function createCalls(X) {
   // the event takes the callers over (the passengers stay in the world)
   function release(s) { armed = false; callBeacon.show(false); beaconSlot = null; if (s.marker) { X.dropMarker(s.marker); s.marker = null; } }
   function clear() { for (const s of slots) { despawn(s); if (s.marker) { X.dropMarker(s.marker); s.marker = null; } } callBeacon.show(false); beaconSlot = null; }
-  return { get slots() { return slots; }, setSlots(l) { slots = l; }, update, release, clear, hideBeacon: () => callBeacon.show(false), armed: () => armed, arm: () => { armed = true; }, disarm: () => { armed = false; } };
+  return { get slots() { return slots; }, setSlots(l) { slots = l; }, variantFor, lineFor, update, release, clear, hideBeacon: () => callBeacon.show(false), armed: () => armed, arm: () => { armed = true; }, disarm: () => { armed = false; } };
 }

@@ -24,7 +24,10 @@ import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, STIGGHIOLA_FAR, POLLANCHE
 import { WORLD, hooks } from './core.js';
 import { createNightLife } from './missions-night.js';
 import { createEventHud } from './event-hud.js';
-import { createCalls, KIND_COLOR } from './event-calls.js';
+import { createCalls, KIND_COLOR, JOBS } from './event-calls.js';
+import { createDirector } from './mission-director.js';
+import { createCallCard } from './call-card.js';
+import { loadJobs } from './jobs.js';
 import { createFares } from './event-fares.js';
 import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
@@ -37,7 +40,7 @@ import { createDiscarica } from './discarica.js';
 import { createDumpEvents, DUMP_TITLE } from './event-dump.js';
 import { createPennaEvents, PENNA_TITLE, PENNA_COOL } from './event-penna.js';
 import { createAchievements } from './achievements.js';
-import { ITEMS, FOOD_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP, PENNA } from './event-places.js';
+import { ITEMS, FOOD_PLACES, HUNT_PLACES, TAXI_DESTS, FARE_SPOTS, PULLE_DEST, URGENT, RACES, RAVE, HORNS, DUMP, PENNA } from './event-places.js';
 import { SNAP, ROUTES, HUNT, TRACKS } from './event-routes.js';
 import { createGuide, GUIDE } from './route-guide.js';
 import { transition } from './transition.js';
@@ -209,6 +212,26 @@ function build(env) {
   // strays, recalculated by src/route-guide.js. The big arrow over the lapa points GUIDE.AHEAD m ahead along it, so it turns with the streets,
   // and the minimap draws the part still to drive (mapRoute). Without a route the arrow points straight at the target.
   const guide = createGuide({ car, mapRoute, graph: () => traffic && traffic.graph });
+  // One guidance for everything there is to reach (the owner, 22 Nov 2026: "le frecce a terra ... usate ovunque dobbiamo raggiungere qualcosa, insieme alla segnalazione sulla mappa,
+  // parte dello stesso sistema"). A place is led to by the guide: its route is the line on the minimap, the marks on the road (src/ground-guide.js draws them along mapRoute, as it
+  // does in blue for a player we follow) and what the big arrow over the lapa follows. Things to pick up in any order (the items of a hunt) are led to the same way, one at a time:
+  // seek(list) takes the list ({ x, z, got } each) and keeps the guide on the nearest one still there, moving on as they are picked up; seek(null) ends it. seekAt() is that one.
+  const seeking = { list: null, cur: null, t: 0 };
+  function seek(list) { if (!list && seeking.list) guide.off(); seeking.list = list || null; seeking.cur = null; seeking.t = 0; }
+  function updateSeek(dt) {
+    const L = seeking.list; if (!L) return;
+    seeking.t -= dt;
+    let cur = seeking.cur && !seeking.cur.got ? seeking.cur : null;
+    if (!cur || seeking.t <= 0) {   // the nearest still there; another one has to be clearly nearer to take the lead (two at the same distance do not swap back and forth)
+      seeking.t = 0.6; let b = null, bd = Infinity;
+      for (let i = 0; i < L.length; i++) { const it = L[i]; if (it.got) continue; const d = Math.hypot(it.x - car.x, it.z - car.z); if (d < bd) { bd = d; b = it; } }
+      if (b && cur && b !== cur && bd > 0.75 * Math.hypot(cur.x - car.x, cur.z - car.z)) b = cur;
+      cur = b;
+    }
+    if (cur === seeking.cur) return;
+    seeking.cur = cur;
+    if (cur) guide.to(cur.x, cur.z); else { seeking.list = null; }   // none left: whoever asked sets the next way (back to the shop) itself
+  }
   const aim = { on: false, x: 0, z: 0 };
 
   // 3D guide arrow hovering over the lapa. It points along the computed route ~32 m ahead (so it turns
@@ -573,7 +596,7 @@ function build(env) {
   // (no pin, no caller, no line in the Missioni list without it). U cuinnutu says nothing explicit and stays in.
   const VM18 = params.has('vm18'), vm18 = o => o.kind === 'leaf' || o.sub === 'pulle' || (o.sub === 'nightc' && o.nc !== 'cuinnutu');
   const mkSlot = (o, key) => { if (!VM18 && vm18(o)) return; const s = SNAP[key]; if (!s) { console.warn('[missions] no road point for', key, '(run assets/missions/snap-places.mjs)'); return; } slots.push({ ...o, key, x: s[0], z: s[1], dx: s[2], dz: s[3], w: s[4], road: s[5], callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null }); };
-  FOOD_PLACES.forEach((p, i) => mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
+  FOOD_PLACES.forEach((p, i) => HUNT_PLACES.has(p.id) && mkSlot({ id: 'food:' + p.id, kind: 'food', sub: 'food', num: i, item: p.item, who: p.who, g: p.g, name: p.name, food: p, pid: p.id }, 'food:' + p.id));
   FARE_SPOTS.forEach(f => mkSlot({ id: 'fare:' + f.id, kind: 'fare', sub: f.kind, name: f.name, ...(f.title ? { title: f.title } : {}), ...(f.ped ? { ped: f.ped } : {}), ...(f.nc ? { nc: f.nc, night: !f.day } : {}) }, 'fare:' + f.id));   // nc: a night client (assets/missions/lines.js NIGHT_CLIENTS)
   URGENT.forEach(u => mkSlot({ id: 'urgent:' + u.id, kind: 'urgent', sub: 'urgent', name: u.name }, 'urgent:' + u.id));
   // the rave missions (night): the sound man at the centro sociale ExKarcere, and the friend at the rave (docs/rave.md). Each brings its own leash area: the line between its two places and a
@@ -596,7 +619,7 @@ function build(env) {
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
   let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
-  const events = () => [...slots.map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, ...(s.title ? { title: s.title } : {}), x: s.x, z: s.z, ...(s.night ? { night: true } : {}), ...(s.day ? { day: true } : {}) })),
+  const events = () => [...slots.filter(s => !s.street).map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, ...(s.title ? { title: s.title } : {}), x: s.x, z: s.z, ...(s.night ? { night: true } : {}), ...(s.day ? { day: true } : {}), ...(JOBS.has(s.kind) ? { call: true } : {}) })),   // call: a job that comes as a call (no pin on the map, no Vai)
     ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
   // the Missioni screen (src/ui.js): done / tried / best pay of one event by id, and ready(id) so the caller is there at once (an event just left or finished waits out a cooldown)
   const status = id => {
@@ -632,12 +655,12 @@ function build(env) {
   const arrive = () => { calls.disarm(); pubs?.disarm(); };
   const stand = id => {   // -> [x, z, th]: where the lapa stands, in the road at the caller's spot
     const s = slots.find(x => x.id === id) || (pubs && pubs.slots.find(x => x.id === id)); if (!s) return null;
-    s.coolUntil = 0; arrive(); X.held = s;   // held: this one waits for the answer, and does not take a "no" back until the lapa has left (update below)
+    s.coolUntil = 0; arrive(); X.held = s; if (JOBS.has(s.kind)) { director.cancel(); X.offer = s; }   // held: this one waits for the answer, and does not take a "no" back until the lapa has left (update below)
     for (const o of [...slots, ...(pubs ? pubs.slots : [])]) if (o !== s && o.kind !== 'race' && Math.hypot(o.x - s.x, o.z - s.z) < 30) o.coolUntil = Math.max(o.coolUntil, now() + 60);   // another caller on the same spot does not take the lapa first
     return [s.x, s.z, Math.atan2(s.dx, s.dz)];   // the middle of the road: at the lane offset of the ?event link a wall was 0.7 m away on a narrow street
   };
   const ready = id => { const at = stand(id); X.held = null; calls.arm(); pubs?.arm(); return at; };
-  const progress = () => ({ secrets: secrets.list(), pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => prog.food[p.id]).length, total: FOOD_PLACES.length }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
+  const progress = () => ({ secrets: secrets.list(), pubs: { done: pubs ? pubs.slots.filter(s => s.hours && prog.pubs[s.id]).length : 0, total: pubs ? pubs.slots.filter(s => s.hours).length : 0 }, food: { done: FOOD_PLACES.filter(p => HUNT_PLACES.has(p.id) && prog.food[p.id]).length, total: HUNT_PLACES.size }, races: { won: RACES.filter(r => prog.races[r.id] === 1).length, total: RACES.length }, fares: prog.fares });
 
   const X = {
     scene, camera, car, vehicle, pedestrians, traffic, params, world: env.world, groundAt, T, lang, now, isNight, hud, eur, speed, say, driverPos, seatPos, seatFn, toast,
@@ -650,6 +673,7 @@ function build(env) {
     addFare(total, what) { session += total; if (what !== 'food') { prog.fares++; saveProg(); } dispatchEvent(new CustomEvent('pd-fare', { detail: { amount: total } })); },   // the Garage wallet listens (src/garage.js)
     addRaceResult(id, won) { if (won) prog.races[id] = 1; else if (!prog.races[id]) prog.races[id] = 2; saveProg(); },
     endEvent: (ok, aborted) => endEvent(ok, aborted),
+    seek, seekAt: () => seeking.cur,   // the things to pick up, led to one at a time (above, at the guide)
   };
   const calls = X.calls = createCalls(X);
   calls.setSlots(slots);
@@ -659,12 +683,16 @@ function build(env) {
   hooks.plunge = dump.plunge;
   { const [px, pz] = env.proj(DUMP.site.lat, DUMP.site.lon); addMarker(px, pz, '#8a6a3a', 6, 'triangle'); }   // the landfill on the minimap, always: brown, like the callers of its mission
   const pennas = createPennaEvents(X);
+  X.kinds = {}; X.slots = slots; X.start = slot => startEvent(slot); X.snapRoad = snapRoad; X.findSpot = findSpot; X.walls2d = walls2d; X.game = game; X.proj = env.proj;   // for the job modules
+  const director = X.director = createDirector(X, { slots, fares, card: createCallCard({ T, eur }) });   // the jobs come as calls (src/mission-director.js)
   pubs = createPubs(X, { game });
+  loadJobs(X);
   races.buildSlots(slots.filter(s => s.kind === 'race'));
   for (const s of slots) if (s.kind === 'race') s.coolUntil = 0;
 
   function startEvent(slot) {
     if (S.ev) return;
+    director.taken(slot);
     calls.release(slot);
     S.ev = { slot, s0: session };
     sfx('start');
@@ -677,11 +705,13 @@ function build(env) {
     else if (slot.kind === 'horns') horns.start(slot);
     else if (slot.kind === 'dump') dumps.start(slot);
     else if (slot.kind === 'penna') pennas.start(slot);
+    else if (X.kinds[slot.kind]) X.kinds[slot.kind].start(slot);   // a job module (src/mission-director.js)
     else races.start(slot);
   }
   function endEvent(ok, aborted) {
     const ev = S.ev; if (!ev) return;
-    fares.stop(); food.stop(); pubs.stop(); raves.stop(); horns.stop(); dumps.stop(); pennas.stop();
+    seek(null);
+    fares.stop(); food.stop(); pubs.stop(); raves.stop(); horns.stop(); dumps.stop(); pennas.stop(); for (const k in X.kinds) X.kinds[k].stop?.();
     if (aborted && ev.slot.kind === 'race') races.stop();
     if (ev.slot.kind === 'food' && ok) { prog.food[ev.slot.pid] = 1; saveProg(); }
     if (ev.slot.kind === 'pub' && ok) { prog.pubs[ev.slot.id] = 1; saveProg(); }
@@ -791,22 +821,23 @@ function build(env) {
     dt = clamp(dt, 0, 0.1);
     S.t += dt; hudUsed = false; aim.on = false;
     if (X.held && Math.hypot(car.x - X.held.x, car.z - X.held.z) > 40) X.held = null;
-    if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
+    if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot && JOBS.has(evSlot.kind)) { director.cancel(); X.offer = evSlot; } if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
     updateVendors(dt); updatePoll(dt); friend?.update(dt); secrets.update(dt); rave.update(dt); dump.update(dt); pennas.tick(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
+    director.update(dt, idle); for (const k in X.kinds) X.kinds[k].tick?.(dt, idle);
     if (idle) {
       if (evSlot && evSlot.testReady && S.t > evSlot.testReady && params.has('auto') && (evSlot.kind === 'race' || evSlot.kind === 'pub' || evSlot.callers.length)) { const s = evSlot; evSlot = null; startEvent(s); }
       else if (accepted) startEvent(accepted);
       else if (raceGo) startEvent(raceGo);
       else if (pubGo) startEvent(pubGo);
     } else if (S.ev.failT > 0) { if ((S.ev.failT -= dt) <= 0) endEvent(false, S.ev.slot.kind === 'race'); }
-    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); horns.update(dt); dumps.update(dt); pennas.update(dt); updateLeash(dt); }
+    else { fares.update(dt); food.update(dt); pubs.updateEvent(dt); raves.update(dt); horns.update(dt); dumps.update(dt); pennas.update(dt); for (const k in X.kinds) X.kinds[k].update?.(dt); updateLeash(dt); }
     updateTalk(dt);
     hud.update(dt);
     if (!hudUsed) hud.hide();
-    guide.update(dt);
+    updateSeek(dt); guide.update(dt);
     updateArrow3d(dt, aim.on && S.phase !== 'board' && S.phase !== 'finish' && S.phase !== 'done', aim.x, aim.z);
   }
 
@@ -815,13 +846,13 @@ function build(env) {
   function stop() {
     if (S.ev) endEvent(false, true);
     else { races.stop(); }
-    calls.clear(); guide.off(); aim.on = false; hud.clear(); talkQ.length = 0;
+    director.cancel(); calls.clear(); guide.off(); aim.on = false; hud.clear(); talkQ.length = 0;
   }
 
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   // Ganci, the shrines of Santa Rosalia and the night cornetto kiosks (src/friend-stops.js); they share the drawing helpers and the nitro treat of the vendors above
   const friend = worldOn() ? createFriendStops({ env, scene, car, game, pedestrians, walls2d, groundAt, hud, toast, burst, T, say, isNight, busy: () => !!S.ev, speed, driverPos, makeBeacon, addMarker, dropMarker, buildKiosk, nitroTreat, std, glowTex }) : null;
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, vendors, calls, fares, food, races, pubs, secrets, X, rave, raves, horns, dump, dumps, pennas };
+  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, vendors, calls, fares, food, races, pubs, secrets, X, director, rave, raves, horns, dump, dumps, pennas };
   return api;
 }

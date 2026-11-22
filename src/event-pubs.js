@@ -93,13 +93,13 @@ export function createErrand(X) {
     scene.add(e.mesh, e.beams);
     for (let k = 0; k + 1 < I.length; k += 2) e.items.push({ x: I[k], z: I[k + 1], y: groundAt(I[k], I[k + 1]), ph: Math.random() * 6, got: false, marker: X.addMarker(I[k], I[k + 1], '#ffb02e', 5, 'diamond') });
     X.calls.hideBeacon();
-    X.setPhase('hunt');
+    X.setPhase('hunt'); X.seek(e.items);   // the way to the nearest one, on the road and on the map (src/missions.js seek)
     hud.toast(T2(E.start), venue.def.name);
     say(pick(E.call), headOf, 0);
   }
 
   function startReturn() {
-    e.phase = 'return'; X.setPhase('return');
+    e.phase = 'return'; X.setPhase('return'); X.seek(null);
     for (const it of e.items) if (!it.got && it.marker) { X.dropMarker(it.marker); it.marker = null; }
     for (const it of e.items) it.got = true;                      // what is left on the road is gone
     setItems();
@@ -148,7 +148,7 @@ export function createErrand(X) {
       e.left -= dt;
       if (e.left <= 0 || e.got >= e.total) startReturn();
       else {
-        const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
+        const nl = X.seekAt() || nearestLeft(); X.aim(nl.x, nl.z, true);
         const m = Math.max(0, e.left);
         hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: iname(e.item) + '  ' + e.got + ' / ' + e.total, sub: v.def.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / e.time, target: nl });
       }

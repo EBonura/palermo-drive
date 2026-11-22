@@ -1,12 +1,14 @@
-// The adverts on the roadside billboards (src/props.js): twelve posters for invented Palermo businesses, the owner's approved proposals, painted in code
+// The adverts on the roadside billboards (src/props.js): thirteen posters for invented Palermo businesses (twelve of them the owner's approved proposals, the thirteenth Tekkamancia's), painted in code
 // into one atlas. No photos, no real brands or people. The Palermitan lines are the owner's, letter for letter: never "correct" them, never translate them.
 // Each poster is laid out in the proposal's own units (a 506 x 238 poster, 2.13:1); every line of text is fitted to the box its ink fills in the proposal,
 // so the layout holds whatever font a device has. Headlines in Impact where there is one (Barlow Condensed, which the game ships, where there is not).
 // No three.js here: tools can import it to paint a poster on its own.
 
 export const DW = 506, DH = 238;                 // design units (the proposal's poster)
-export const COLS = 4, ROWS = 3, COUNT = 12;     // the atlas: 4 x 3 posters
-export const CELL_W = 512, CELL_H = 256;         // pixels per poster in the atlas (2048 x 768 in all)
+// The atlas is one column of posters, one under the other: every poster has its 512 x 256 pixels and the sheet is exactly as big as the posters need. (It was 4 x 3 while there
+// were twelve; a thirteenth in that grid wanted a whole fourth row, four posters' worth of memory for one, which the owner would not have. A column grows by one poster for one poster.)
+export const COLS = 1, ROWS = 13, COUNT = 13;
+export const CELL_W = 512, CELL_H = 256;         // pixels per poster in the atlas (512 x 3328 in all; within the 4096 a side that every phone's GPU takes)
 
 let headF = null;
 export const head = g => {
@@ -149,6 +151,16 @@ export const POSTERS = [
     fit(g, 'PANI CÂ', H, [273, 53, 388, 90], W);
     fit(g, 'MEUSA,', H, [273, 99, 381, 133], W);
     fit(g, 'MARITATA', H, [273, 139, 418, 169], W);
+  },
+  // 13 Tekkamancia, the invented delivery company of the job in src/job-delivery.js (bright teal, a rider's box on a scooter wheel)
+  g => {
+    const H = head(g), K = '#0b2a2e', W = '#ffffff'; bg(g, '#19d3b2');
+    fit(g, 'TEKKAMANCIA', H, [26, 52, 372, 118], K);
+    fit(g, 'Arriva cavuru. Arriva uora uora.', SANS, [27, 134, 318, 152], W);   // Palermitan: the owner passed it on 22 Nov 2026
+    fit(g, 'CUNSIGNI Â CASA', SANS, [288, 215, 489, 225], K, true);
+    rrect(g, 396, 38, 88, 80, 8, '#ff7a1a'); rrect(g, 396, 38, 88, 18, 8, '#c4560a'); rrect(g, 411, 70, 58, 8, 3, W);   // the box, its lid and its stripe
+    disc(g, 440, 158, 26, K); disc(g, 440, 158, 11, '#19d3b2');                                                        // the wheel
+    g.fillStyle = K; g.fillRect(436, 118, 8, 22);                                                                      // the rack under the box
   },
 ];
 

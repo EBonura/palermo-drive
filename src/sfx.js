@@ -59,6 +59,7 @@ const CUES = {
   buy:    ['ui', 0.15, (o, t) => { for (let i = 0; i < 5; i++) hiss(o, t + i * 0.035, 0.02, 0.2, 'bandpass', 3000, 3); tone(o, t + 0.2, 2093, 0.5, 0.2, 'sine'); }],   // a ratchet, then a ding
   no:     ['ui', 0.15, (o, t) => tone(o, t, 150, 0.32, 0.25, 'sawtooth', 120)],   // not enough money: one long raspberry
   // events
+  ring:   ['ui', 0.5, (o, t) => { for (let k = 0; k < 2; k++) for (let i = 0; i < 6; i++) tone(o, t + k * 0.42 + i * 0.05, i % 2 ? 1320 : 1100, 0.05, 0.16, 'square'); }],   // a phone: two short trills (the call card, src/call-card.js)
   toast:  ['world', 0.12, (o, t) => tone(o, t, 1175, 0.4, 0.16, 'sine')],   // a single glass ping
   warn:   ['world', 0.3, (o, t) => notes(o, t, [880, 880, 880], 0.11, 0.07, 0.18, 'square')],   // three fast beeps
   count:  ['world', 0.2, (o, t) => { tone(o, t, 880, 0.14, 0.25, 'sine'); hiss(o, t, 0.01, 0.2, 'highpass', 4000); }],   // a clean pip with a click

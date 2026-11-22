@@ -960,7 +960,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
     getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/online/online.js)
-    getEvents: () => fakeEvents || missions?.events?.() || [],
+    getEvents: () => fakeEvents || (missions?.events?.() || []).filter(e => !e.call),   // the jobs come as calls (src/mission-director.js): they have no pin
     onStart: (x, z, it) => it?.kind === 'event' ? startAt(x, z, { ask: it.ref }) : startAt(x, z),
   });
   if (params.has('mapdebug')) window.__pdMap = startMap;
@@ -1140,7 +1140,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
               <div class="pd-msm">${r.title && r.name !== r.q ? `<span>${esc(r.name)}</span>` : ''}<span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
               <div class="pd-msm">${state}</div>
               ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
-            <button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button></div>`;
+            ${r.call ? '' : `<button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button>`}</div>`;
         }).join('') : '');
     }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
     closeAsk(true);

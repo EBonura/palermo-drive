@@ -8,7 +8,7 @@
 //   left stick, steer               stick or d-pad  move                 stick or d-pad  choose (wheel), move (list, card)
 //   RT gas        LT brake, reverse A  confirm      B  back              A confirm, B back
 //   A nitro       and handbrake     Start  close the menu                offer card: A accept, B refuse
-//   B horn        Y camera          Y  map or list (the picker)          arrival card: A yes, B no
+//   B horn        Y camera          Y  map or list (the picker)          X answers a call (driving)          arrival card: A yes, B no
 //   RB fly        Select big map    X  events on the map
 //   Start menu    L3 reset car      The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
 //   R3 players    In menus: LB / RB turn the tabs (Garage, Options). d-pad up talk, down drink, left radio on or off, right next song
@@ -154,6 +154,7 @@ export function setupGamepad({ game, car }) {
       slide = b(6) && car && car.vf > 7 && Math.abs(ax) > (slide ? 0.35 : 0.55);
       hold('Space', slide);
       hold('ShiftLeft', b(0)); hold('KeyH', b(1)); hold('KeyF', b(5));   // A nitro, B horn, RB fly
+      if (X) tap('KeyQ');   // X answers a call (src/call-card.js)
       if (Y) tap('KeyC'); if (SEL) tap('KeyG'); if (START) tap('KeyP'); if (L3) tap('KeyR');
       if (R3) document.querySelector('.mpx.on .mpx-cap')?.click();
       if (dUp) tap('KeyT'); if (dDown) tap('KeyB'); if (dLeft) tap('KeyN'); if (dRight) tap('KeyM');

@@ -69,7 +69,7 @@ export function createFood(X) {
     e.mesh.count = e.beams.count = e.items.length;
     e.total = e.items.length;
     X.calls.hideBeacon();
-    X.setPhase('hunt');
+    X.setPhase('hunt'); X.seek(e.items);   // the way to the nearest one, on the road and on the map (src/missions.js seek)
     hud.toast(T('Attruova ' + item.it + '!', 'Find the ' + item.en + '!'), slot.name);
   }
 
@@ -79,7 +79,7 @@ export function createFood(X) {
     return b || { x: e.slot.x, z: e.slot.z };
   }
   function startReturn() {
-    e.phase = 'return'; X.setPhase('return'); X.guide.off();   // the hunt had no route; the way back is set below
+    e.phase = 'return'; X.setPhase('return'); X.seek(null); X.guide.off();   // the hunt's way to the items ends; the way back is set below
     for (const it of e.items) if (!it.got && it.marker) { X.dropMarker(it.marker); it.marker = null; }
     // what is left on the road is gone
     for (const it of e.items) if (!it.got) it.got = true;
@@ -129,7 +129,7 @@ export function createFood(X) {
       e.left -= dt;
       const rest = e.items.filter(i => !i.got).length;
       if (e.left <= 0 || (e.huntGot >= HUNT_N && rest === 0)) { startReturn(); return; }
-      const nl = nearestLeft(); X.aim(nl.x, nl.z, true);
+      const nl = X.seekAt() || nearestLeft(); X.aim(nl.x, nl.z, true);
       const m = Math.max(0, e.left);
       hud.set({ label: T('Attruova ' + e.item.it, 'Find the ' + e.item.en), title: iname(e.item) + '  ' + e.got + ' / ' + HUNT_N, sub: e.slot.name, time: Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'), low: m < 15, frac: e.left / HUNT_TIME, target: nl });
     } else if (e.phase === 'return') {

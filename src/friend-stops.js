@@ -222,6 +222,9 @@ export function createFriendStops(h) {
   for (const o of CORNETTI) stops.push(frame(o, 'cornetto', { marker: null, open: false, queue: [], label: 'cornetto:' + o.id }));
 
   // ---------------------------------------------------------------------------------------------------- update
+  // On a Festino night the carro is out in the procession (src/job-festino.js says so with 'pd-festino', detail true or false): the one on the lawn is away, with its ring and its pin.
+  // There is one carro: the owner's ruling of 22 Nov 2026.
+  let carroOut = false; addEventListener('pd-festino', e => { carroOut = !!e.detail; });
   let slowT = 0;
   function update(dt) {
     const nk = nightK();
@@ -232,8 +235,12 @@ export function createFriendStops(h) {
     for (const s of stops) {
       const K = KIND[s.kind];
       if (!s.built && Math.hypot(car.x - s.x, car.z - s.z) < (K.radius || BUILD_R)) {
-        s.built = true; s.gy = groundAt(s.x, s.z);
+        s.built = true; s.gy = groundAt(s.x, s.z); s.out = null;
         try { K.build(s); } catch (e) { console.warn('[friend-stops] build', s.label, e); }
+      }
+      if (s.kind === 'carro') {
+        if (s.out !== carroOut) { s.out = carroOut; if (s.g) s.g.visible = !carroOut; if (s.ring) s.ring.show(!carroOut); if (carroOut && s.marker) { dropMarker(s.marker); s.marker = null; } else if (!carroOut && !s.marker) s.marker = addMarker(s.x, s.z, '#f5d77a', 5, 'diamond'); }
+        if (carroOut) continue;
       }
       if (s.built || K.always) K.update(s, dt);
     }

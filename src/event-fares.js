@@ -40,11 +40,19 @@ export function createFares(X) {
   };
   function tip(amount, label) { amount *= PAY_X; f.tips += amount; toast('+' + eur(amount), label); }
 
+  const routesOf = slot => (X.ROUTES[slot.key] || []).filter(r => r[0] !== lastDest || X.ROUTES[slot.key].length < 2);
+  const basePay = (slot, len) => Math.round((slot.kind === 'urgent' ? 8 + len / 90 : slot.sub === 'pulle' || slot.sub === 'nightc' ? 9 + len / 70 : 4 + len / 110) * PAY_X * 2) / 2;
+  // quote(slot): the ride is chosen before the passenger is met, so that a call (src/mission-director.js) can say where it goes and what it pays; start() then takes that very ride
+  function quote(slot) {
+    if (slot.street) { if (!slot.ride) return null; slot.quoted = slot.ride; }   // a ride from anywhere (src/fare-street.js): its destination and length are chosen there, and it has no baked route
+    else { const opts = routesOf(slot); if (!opts.length) return null; slot.quoted = pick(opts); }
+    return { pay: basePay(slot, slot.quoted[1]), dest: X.destInfo(slot.quoted[0]).name };
+  }
   function start(slot) {
     const sub = slot.sub, urgent = slot.kind === 'urgent', night = X.isNight();
-    const opts = (X.ROUTES[slot.key] || []).filter(r => r[0] !== lastDest || X.ROUTES[slot.key].length < 2);
-    if (!opts.length) { X.endEvent(false); return; }
-    const [destId, len, flat] = pick(opts); lastDest = destId;
+    const opts = routesOf(slot);
+    if (!slot.quoted && !opts.length) { X.endEvent(false); return; }
+    const [destId, len, flat] = slot.quoted || pick(opts); lastDest = destId; slot.quoted = null;
     const dest = X.destInfo(destId);
     const pts = flat;
     f = { slot, sub, urgent, friend: slot.friend || null, nat: natPick(), pulleNight: sub === 'pulle' && night, cl: slot.nc ? NIGHT_CLIENTS[slot.nc] : sub === 'pulle' && night ? favoritaFor(slot.id) : null, story: slot.kind === 'fare' && !slot.friend ? STORIES[slot.id.slice(5)] || null : null, storyN: 0, dest, len, pts, chars: slot.callers.slice().map((id, i) => ({ id, seated: false, slot: i, next: 0 })), phase: 'board', doorT: 0,
@@ -56,9 +64,11 @@ export function createFares(X) {
       if (i0) { const id = pedestrians.spawnScripted(pick(TOURIST_POOL), i0.x + 0.8, i0.z + 0.4); if (id >= 0) f.chars.push({ id, seated: false, slot: 1, next: 0 }); }
     }
     // pay and clock
-    if (urgent) { f.base = Math.round((8 + len / 90) * PAY_X * 2) / 2; f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18; }
-    else if (sub === 'pulle' || sub === 'nightc') { f.base = Math.round((9 + len / 70) * PAY_X * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
-    else { f.base = Math.round((4 + len / 110) * PAY_X * 2) / 2; f.limit = f.left = len / 8.4 + 22; }
+    f.base = basePay(slot, len);
+    if (!pts) f.leashR = Math.max(520, 0.35 * Math.hypot(dest.x - slot.x, dest.z - slot.z) + 250);   // no baked route to measure: the corridor src/missions.js allows round the straight line
+    if (urgent) f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18;
+    else if (sub === 'pulle' || sub === 'nightc') f.limit = f.left = len / 8.4 + 30;
+    else f.limit = f.left = len / 8.4 + 22;
     hud.toast(urgent ? T('Curri!', 'Hurry!') : T('Si paiti!', 'Off we go!'), dest.name);
     X.setPhase('board');
   }
@@ -66,7 +76,7 @@ export function createFares(X) {
   function startRide() {
     f.phase = 'ride'; X.setPhase('ride');
     X.calls.hideBeacon();
-    X.guide.path(f.pts);
+    if (f.pts) X.guide.path(f.pts); else X.guide.to(f.dest.x, f.dest.z);   // no baked route (a ride from anywhere): the guide finds the way
     X.destBeacon.set(f.dest.x, f.dest.z); X.destBeacon.show(true); X.destMarker = X.addMarker(f.dest.x, f.dest.z, '#ffd24a', 8, 'target');
     if (f.urgent) { say(pick(X.URGENT_DEF[f.slot.id].say), seatPos, 0.2); tline('board', 2.2); dline('board', 3.6); }
     else if (f.sub === 'pulle' || f.sub === 'nightc') {
@@ -214,5 +224,5 @@ export function createFares(X) {
   function stigghiola() { if (f && f.phase === 'ride' && f.wantsStig && !f.stigDone) { f.stigDone = true; tip(6, T('Stigghiola pê turisti', 'Stigghiola for the tourists')); tline('eat'); } }
   // sea: ends the ride like running out of time
   function drowned() { if (f && f.phase === 'ride') finish(false); }
-  return { start, update, stop, active: () => !!f, stigghiola, drowned, get state() { return f; } };
+  return { start, quote, update, stop, active: () => !!f, stigghiola, drowned, get state() { return f; } };
 }
