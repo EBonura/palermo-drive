@@ -325,7 +325,7 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 .hz-social { left: var(--sl); top: calc(var(--st) + 58px); flex-direction: column-reverse; align-items: flex-start; width: max-content; max-width: var(--bar-w); pointer-events: none; }   /* the multiplayer section (src/online/panel.js), bottom left; on a touch screen it stands above the steering pads (src/mobile.css, .tc-steer: edge + 1.3 pads high) */
 .hz-bottom { left: 50%; bottom: var(--sb); transform: translateX(-50%); width: max-content; align-items: center; gap: 8px; }
 .hz-act { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hz-gauges { display: flex; align-items: center; gap: 12px; }   /* speed and nitro: one compact row, phone and desktop */
+.hz-gauges { display: flex; align-items: center; gap: 14px; padding: 6px 16px; border-radius: 14px; background: var(--capsule); }   /* one capsule like the map's: wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
 #mini { display: block; width: 100%; height: 100%; border-radius: 50%; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: filter .12s; }   /* a tap opens the big map (src/ui.js) */
 @media (hover: hover) { #mini:hover { filter: brightness(1.1) saturate(1.1); } }
 #mini:active { filter: brightness(.92); }
@@ -373,7 +373,9 @@ html.pd-map-low #pd-info { grid-area: 1 / 2; padding: 0 calc(var(--mini) * .24) 
 html.touch.pd-map-low .hz-map { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px) * 1.3 + 8px); }
 @media (max-width: 1100px) {   /* a narrow desktop window: with the capsule gone from the top right the mission column goes back to the top centre */
 }
-html.touch .hz-gauges { gap: 8px; }
+html.touch .hz-gauges { gap: 10px; padding: 4px 12px; }
+.hz-gauges > :not(:first-child):not([hidden]) { border-left: 1px solid rgba(255,255,255,.2); padding-left: 14px; }   /* thin rules between wallet, speed and nitro */
+html.touch .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 10px; }
 html.touch #speed { font-size: 22px; }
 html.touch #speed small { font-size: 9px; }
 html.touch #hud .nosbar { width: 84px; }
