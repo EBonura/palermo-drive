@@ -14,14 +14,14 @@ const CSS = `
   #pd-hood .ph-t { display: none; margin-top: 1px; font: 600 10px/1.1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #d9c3cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #pd-hood.ex .ph-t { display: block; }
   #pd-hood .ph-r { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
-  #pd-hood .ph-lv { min-width: 11px; padding: 0 3px; border-radius: 5px; font: 700 9px/12px 'Barlow Condensed', system-ui, sans-serif; text-align: center; color: #170d11; background: var(--hc, #f5a9c9); }   /* the area's level, 1..5 */
+  #pd-hood .ph-lv { min-width: 11px; padding: 0 3px; border-radius: 5px; font: 700 9px/12px 'Barlow Condensed', system-ui, sans-serif; text-align: center; color: var(--hc, #f5a9c9); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc, #f5a9c9) 55%, transparent); }   /* the area's level, 1..5: a quiet outlined number in the area's tint, the diamonds beside it carry the colour */
   #pd-hood .ph-p { display: flex; gap: 2px; flex: 0 0 auto; }
   #pd-hood .ph-p i { width: 8px; height: 8px; transform: rotate(45deg) scale(.8); background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--hc, #f5a9c9) 60%, transparent); }
   #pd-hood .ph-p i.f { background: var(--hc, #f5a9c9); box-shadow: 0 0 5px var(--hc, #f5a9c9); }
-  #pd-gang { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.12);
-    font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }   /* the same shape as the police row under it */
+  #pd-gang { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 5px;
+    font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }   /* the same shape as the police row under it; no rule above it, its own bar is the line */
   #pd-gang.on { display: flex; }
-  #pd-gang .pg-ico { width: 17px; height: 17px; flex: 0 0 auto; }
+  #pd-gang .pg-ico { width: 15px; height: 15px; flex: 0 0 auto; }
   #pd-gang .pg-ico .pu { transform-origin: 12px 12px; }
   #pd-gang.out .pg-ico .pu { animation: pg-look .5s steps(1) infinite; }
   @keyframes pg-look { 0% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
@@ -31,7 +31,7 @@ const CSS = `
   #pd-gang .pg-bar { flex: 0 0 100%; height: 2px; margin-top: 3px; border-radius: 1px; background: rgba(255,255,255,.14); overflow: hidden; }   /* how long is left, under the line */
   #pd-gang .pg-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ef6a4b, #f2d36b); transition: width .3s linear; }
   #pd-gang.safe .pg-bar b { background: #9fd39a; }
-  @media (max-height: 460px) { #pd-gang .pg-ico, #pd-wanted .pw-ico { width: 14px; height: 14px; } #pd-gang, #pd-wanted { margin-top: 2px; padding-top: 2px; } #pd-gang .pg-bar, #pd-wanted .pw-bar { margin-top: 2px; } }   /* a phone on its side: the rows are a little tighter so that the capsule stays about as tall as the map */
+  @media (max-height: 460px) { #pd-gang .pg-ico, #pd-wanted .pw-ico { width: 13px; height: 13px; } #pd-gang, #pd-wanted { margin-top: 4px; } #pd-gang .pg-bar, #pd-wanted .pw-bar { margin-top: 2px; } }   /* a phone on its side: the rows are a little tighter so that the capsule stays about as tall as the map */
 `;
 
 // the words of the gang row, by stage: DRAFT Palermitan for the owner to correct, then the English (one language at a time, src/lang.js)

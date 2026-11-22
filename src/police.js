@@ -162,11 +162,11 @@ export function createPolice(env, T) {
   const css = document.createElement('style');
   css.textContent = `
   /* the police line is a part of the map capsule, src/ui.css, under the area, its diamonds and the gang row (src/danger-hud.js) */
-  #pd-wanted { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 6px; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.12);
+  #pd-wanted { display: none; pointer-events: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 6px; margin-top: 5px;
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; color: #fff; }   /* the police line stands in the words column, right under the area and its diamonds, which it lines up with */
   #pd-wanted.on { display: flex; }
   #pd-wanted .pw-l { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; }
-  #pd-wanted .pw-ico { width: 17px; height: 17px; flex: 0 0 auto; }
+  #pd-wanted .pw-ico { width: 15px; height: 15px; flex: 0 0 auto; }
   #pd-wanted .pw-ico .d { transform-origin: 12px 18px; }
   #pd-wanted.seen .pw-ico .b1 { animation: pw-b1 .34s steps(1) infinite; } #pd-wanted.seen .pw-ico .b2 { animation: pw-b2 .34s steps(1) infinite; }
   @keyframes pw-b1 { 0% { fill: #f08cb4; } 50% { fill: #1a1114; } } @keyframes pw-b2 { 0% { fill: #1a1114; } 50% { fill: #f08cb4; } }
