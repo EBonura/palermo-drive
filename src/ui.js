@@ -34,6 +34,7 @@ const S = {
   welNetOff: ['Guidi da solo: nessuno ti vede.', 'You drive alone: nobody sees you.'], welCash: ['Portafoglio', 'Wallet'], welRide: ['Il tuo mezzo', 'Your ride'],
   welCustom: ['Vernici, cerchi, neon, adesivi', 'Paint, rims, neon, stickers'], welDriver: ['Capiddi, occhiali, vestiti', 'Hair, glasses, clothes'], welDriverT: ['Il tuo autista', 'Your driver'], welEdit: ['Personalizza', 'Customise'],
   welCops: ['Accura ca ci su sbirri: si fai danni t’assicutanu, e si ti fiaimmi cu iddi vicinu paghi a multa.', 'Mind the cops: cause damage and they chase you, stop with them close and you pay a fine.'],
+  welRadio: ['Radio', 'Radio'],
   welFermo: ['Ogni quaittiari talìa: si fai truappu buiddiellu ti fannu u fiermu e ti futtinu i picciuli. Quannu parti a barra, sutta u nomu, in avutu a destra, niesci ru quaittiari prima ca finisci.', 'Every quarter is watching: cause too much chaos and you get stopped and robbed. When a bar starts under its name, top right, leave the quarter before it runs out.'], welGo: ['Parti', 'Drive'], welNeedName: ['Scrivi un nome per guidare online, o scegli Offline.', 'Type a name to drive online, or pick Offline.'], welEarn: ['Guadagni euro con le missioni in città, e ti sblocchi mezzi, vernici e pezzi.', 'Earn euros from missions around town to unlock rides, paint and parts.'],
   options: ['Opzioni', 'Options'],
   credits: ['Crediti', 'Credits'],
@@ -499,6 +500,7 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
         <button class="pd-welcard" data-nav data-do="garage" type="button"><small data-k="welRide"></small><b class="pd-welveh"></b><span data-k="welCustom"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
         <button class="pd-welcard" data-nav data-do="welDriver" type="button"><small data-k="welDriverT"></small><b data-k="welEdit"></b><span data-k="welDriver"></span><svg class="pd-weled" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
       </div>
+      <div class="pd-welradio" data-opt="radioStation"><small data-k="welRadio"></small><div class="pd-seg" role="group">${STATIONS.map(x => `<button class="pd-segb" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div></div>   <!-- the same choice as in Options: setOpt('radioStation') through the .pd-segb click, aria-pressed by syncOptions -->
       <div class="pd-weltips">
         <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14v3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/></svg><span data-k="welCops"></span></p>
         <p><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><span data-k="welFermo"></span></p>
