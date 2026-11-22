@@ -1243,7 +1243,8 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       const vert = dir === 'up' || dir === 'down';
       const gap = vert ? Math.max(0, Math.max(r.left, q.left) - Math.min(r.right, q.right)) : Math.max(0, Math.max(r.top, q.top) - Math.min(r.bottom, q.bottom));   // how far off the line the two boxes are (0 when they overlap): a wide slider under a tab counts as straight below it
       const off = gap * 2.2 + (vert ? Math.abs(dx) : Math.abs(dy)) * 0.25;
-      if (along < 4) continue;
+      if (!vert && Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top) < Math.min(r.height, q.height) * 0.4) continue;   // Left and Right stay in their row
+      if (along < Math.max(4, (vert ? r.height : r.width) * 0.25)) continue;   // beside it, not just the 6 px a focused card slides over its neighbour
       const s = along + off;
       if (s < bs) { bs = s; best = it; }
     }

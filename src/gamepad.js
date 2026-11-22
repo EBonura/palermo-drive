@@ -11,7 +11,7 @@
 //   B horn        Y camera          Y  map or list (the picker)          arrival card: A yes, B no
 //   RB fly        Select big map    X  events on the map
 //   Start menu    L3 reset car      The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
-//   R3 players    d-pad up talk, down drink, left radio on or off, right next song
+//   R3 players    In menus: LB / RB turn the tabs (Garage, Options). d-pad up talk, down drink, left radio on or off, right next song
 // The first press of a button on a page is what makes the browser announce a pad ('gamepadconnected'): the popup says so, and says so again when it goes.
 import { T } from './lang.js';
 
@@ -191,7 +191,22 @@ export function setupGamepad({ game }) {
     // the menus, the Garage, the title: the keys of the keyboard
     const K = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
     for (const d in K) repeat('m' + d, dir[d], t, () => tap(K[d]));
-    if (A) tap('Enter'); if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');
+    if (A) {   // on a vehicle in the Garage, A is the green button under the list (Personalizza, buy), as the focus has already chosen the vehicle
+      const go = (document.activeElement?.dataset?.gx || '').startsWith('base:') && document.querySelector('[data-name=garage].on .gx-go');
+      if (go) go.click(); else tap('Enter');
+    }
+    if (B) tap('Escape'); if (START) tap('KeyP'); if (Y) tap('KeyL'); if (X) tap('KeyE');
+    if (LB) tabStep(-1); if (RB) tabStep(1);
+  }
+  // LB and RB turn the tabs of a screen (the Garage's categories and the driver's, the tabs of Options), as on a console
+  function tabStep(d) {
+    const sc = document.querySelector('.pd-screen.on'); if (!sc) return;
+    const tabs = [...sc.querySelectorAll('[data-gx^="tab:"], [data-gx^="dtab:"], .pd-otab')].filter(e => e.offsetParent !== null);
+    if (tabs.length < 2) return;
+    const at = tabs.findIndex(e => e.getAttribute('aria-pressed') === 'true' || e.getAttribute('aria-selected') === 'true');
+    const n = tabs[(Math.max(0, at) + d + tabs.length) % tabs.length];
+    n.focus({ preventScroll: true });   // the Garage's tabs open on focus
+    if (n.classList.contains('pd-otab')) n.click();   // the tabs of Options on a click
   }
   requestAnimationFrame(frame);
 }
