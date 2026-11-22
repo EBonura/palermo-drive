@@ -4,6 +4,7 @@
 // drifts, two wheels and close calls. Hitting pedestrians or cars costs nothing. Pay goes to the Garage wallet through 'pd-fare' (src/garage.js).
 // createFares(X) -> { start(slot), update(dt), stop(), active(), stigghiola() }; X is the context built in src/missions.js.
 import { TOURIST, DRIVER, FAVORITA, NIGHT_CLIENTS, PULLE, URGENT_LINES, NATIONS, FRIEND, STORIES, favoritaFor } from '../assets/missions/lines.js';
+import { PAY_X } from './economy.js';
 import { esc } from './esc.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -37,7 +38,7 @@ export function createFares(X) {
     const L = f && f.cl ? f.cl.driver[key] : f && f.urgent && key === 'board' ? URGENT_LINES.driver : null;
     const src = L || DRIVER[key]; if (src) say(pick(src), driverPos, delay);
   };
-  function tip(amount, label) { f.tips += amount; toast('+' + eur(amount), label); }
+  function tip(amount, label) { amount *= PAY_X; f.tips += amount; toast('+' + eur(amount), label); }
 
   function start(slot) {
     const sub = slot.sub, urgent = slot.kind === 'urgent', night = X.isNight();
@@ -55,9 +56,9 @@ export function createFares(X) {
       if (i0) { const id = pedestrians.spawnScripted(pick(TOURIST_POOL), i0.x + 0.8, i0.z + 0.4); if (id >= 0) f.chars.push({ id, seated: false, slot: 1, next: 0 }); }
     }
     // pay and clock
-    if (urgent) { f.base = Math.round((8 + len / 90) * 2) / 2; f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18; }
-    else if (sub === 'pulle' || sub === 'nightc') { f.base = Math.round((9 + len / 70) * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
-    else { f.base = Math.round((4 + len / 110) * 2) / 2; f.limit = f.left = len / 8.4 + 22; }
+    if (urgent) { f.base = Math.round((8 + len / 90) * PAY_X * 2) / 2; f.limit = f.left = len / (17.5 * (X.URGENT_TIGHT[slot.id] || 1)) + 18; }
+    else if (sub === 'pulle' || sub === 'nightc') { f.base = Math.round((9 + len / 70) * PAY_X * 2) / 2; f.limit = f.left = len / 8.4 + 30; }
+    else { f.base = Math.round((4 + len / 110) * PAY_X * 2) / 2; f.limit = f.left = len / 8.4 + 22; }
     hud.toast(urgent ? T('Curri!', 'Hurry!') : T('Si paiti!', 'Off we go!'), dest.name);
     X.setPhase('board');
   }

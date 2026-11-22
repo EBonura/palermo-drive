@@ -14,6 +14,7 @@
 // block sequence fast; with ?debug, window.pdDanger = { add(points), set(points), state(), areas }.
 import { CELL, X0, Z0, W, H, ALPHA, NAMES, LEVELS, GRID } from './danger-data.js';
 import { T } from './lang.js';
+import { GANG_LOSS } from './economy.js';
 import { covering } from './transition.js';
 
 const Q = new URLSearchParams(location.search);
@@ -60,7 +61,7 @@ export const TUNE = {
 // Standing around is what gets you: red lights, traffic, parking. Flooring it is safer.
 const speedMul = v => v < 2 ? 3 : v < 6 ? 2 : v < 14 ? 1 : 0.35;
 // Cash lost in a block: a share of the wallet, at least MIN and at most MAX, never more than the wallet holds. Level 1 loses nothing (it never happens).
-const LOSS = [[0, 0, 0], [0.08, 3, 15], [0.15, 6, 30], [0.25, 10, 60], [0.4, 15, 120]];   // share, min, max (euro) by level
+const LOSS = GANG_LOSS;   // share, min, max (euro) by level (src/economy.js)
 export const cashLoss = (lv, cash) => { const [k, lo, hi] = LOSS[lv - 1]; return Math.max(0, Math.min(Math.floor(cash), Math.min(hi, Math.max(lo, Math.round(cash * k))))); };
 
 // What the lookouts shout from their scooters once you are told to get out. DRAFT Palermitan for the owner to correct; [Palermitan, English].

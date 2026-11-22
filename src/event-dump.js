@@ -8,6 +8,7 @@
 // the T(...) calls below, for the owner to correct; the title is the owner's.
 // createDumpEvents(X, dump) -> { start(slot), update(dt), stop(), leashed(), active() }
 import { DUMP_LINES as DL } from '../assets/missions/lines.js';
+import { PAY_X } from './economy.js';
 import { SNAP } from './event-routes.js';
 import { PIT, YARD, FLOOR_D, dumpDepth } from './discarica-ground.js';
 
@@ -95,7 +96,7 @@ export function createDumpEvents(X, dump) {
       hud.result(`<h3>${T('Taiddu assai!', 'Far too late!')}</h3><div class="row"><span>${T('A munnizza s’a pigghiau n’autru', 'Somebody else took the rubbish')}</span></div>`, 3);
       say(pick(DL.fail), X.driverPos, 0.4); return;
     }
-    const jumped = F.lip >= JUMP_V, base = 10 + Math.round(e.len / 500), bonus = Math.round(6 * clamp(e.left / e.limit, 0, 1) * 2) / 2, jump = jumped ? 3 : 0, total = base + bonus + jump;
+    const jumped = F.lip >= JUMP_V, base = (10 + Math.round(e.len / 500)) * PAY_X, bonus = Math.round(6 * PAY_X * clamp(e.left / e.limit, 0, 1) * 2) / 2, jump = jumped ? 3 * PAY_X : 0, total = base + bonus + jump;
     e.pay = total; e.thanks = CARD_T; e.base = base; e.bonus = bonus; e.jump = jump; X.addFare(total, 'food');
     const what = jumped ? T('Sautu ri classi nta vasca!', 'A proper jump into the cell!') : T('Ti rruzzuliasti nta vasca', 'You rolled into the cell');
     hud.result(`<h3>${esc(DUMP_TITLE)}</h3>

@@ -9,6 +9,7 @@
 // plays the siren and shows the rosanero HUD.
 import * as THREE from 'three';
 import { garage } from './garage.js';
+import { FINE_PER_LEVEL } from './economy.js';
 import { dangerAt, covered, resetTrouble } from './danger.js';
 import { createDangerHud } from './danger-hud.js';   // the area, its diamonds and the gang row, above the police row in the same capsule
 import { vp } from './viewport.js';
@@ -217,7 +218,7 @@ export function createPolice(env, T) {
   card.id = 'pd-busted';
   zone('moment').appendChild(card);
   function bust() {
-    const lv = Math.max(1, level()), want = 20 * lv, fine = garage.debit(Math.min(want, garage.cash));
+    const lv = Math.max(1, level()), want = FINE_PER_LEVEL * lv, fine = garage.debit(Math.min(want, garage.cash));
     const line = BUSTED_LINES[(Math.random() * BUSTED_LINES.length) | 0][langIdx()];   // the line in the language shown, no subtitle
     card.innerHTML = `<h3>T’INCUCCIARU!</h3><p>${line}</p><div class="fine">${fine > 0 ? 'MULTA −€' + fine : 'MULTA €0 · SEI AL VERDE'}</div>`;
     sfx('bust'); card.classList.add('on'); busted = 4.2; grace = 9; heat = 0; armed = false; bustT = 0; seen = false; unseenT = 0;

@@ -7,6 +7,7 @@
 // carrozza (horse carriage) is the traffic model of assets/traffic/models.js.
 // createRaces(X) -> { slots, update(dt, allowed) -> slot to start | null, start(slot), stop(), active(), stageOf() }
 import * as THREE from 'three';
+import { PAY_X } from './economy.js';
 import { Kit, box, sph } from './vehicle-kit.js';
 import { buildModels, makeMaterial } from '../assets/traffic/models.js';
 import { SPEED_SCALE as SS } from './vehicle.js';   // the player's speed scale (?speed=): opponents' speeds and accelerations follow it
@@ -323,7 +324,7 @@ export function createRaces(X) {
     const S = R; S.state = 'finish'; S.resultT = 6; X.setPhase('finish');
     const ahead = S.rivals.filter(r => r.done).length;
     S.place = finished ? ahead + 1 : S.rivals.length + 1;
-    S.prize = finished ? (S.def.prize[S.place - 1] || 0) : 0;
+    S.prize = finished ? (S.def.prize[S.place - 1] || 0) * PAY_X : 0;
     if (S.prize > 0) vehicle.garage.credit(S.prize);
     X.addRaceResult(S.def.id, finished && S.place === 1);
     S.hudO = { frac: null, target: null, label: T(S.def.name, S.def.en), title: finished ? T(S.place + '° posto!', 'Place ' + S.place + '!') : T('Tempo scaduto', 'Time is up'), sub: '', time: finished ? fmtT(S.t) : '' };

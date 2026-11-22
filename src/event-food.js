@@ -4,6 +4,7 @@
 // own item. Items are one InstancedMesh with a light column each.
 // createFood(X) -> { start(slot), update(dt), stop(), active() }
 import * as THREE from 'three';
+import { PAY_X } from './economy.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FOOD } from '../assets/missions/lines.js';
 import { esc } from './esc.js';
@@ -92,7 +93,7 @@ export function createFood(X) {
     e.phase = 'done'; e.thanks = 5.5; X.setPhase('done'); X.guide.off();
     homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
     if (!ok) { hud.result(`<h3>${T('Nianti ri puaittari', 'Nothing to bring back')}</h3>`, 3); e.pay = 0; return; }
-    const base = Math.round(e.got * 1.5 * 2) / 2, bonus = e.got >= e.total ? 10 : 0;
+    const base = Math.round(e.got * 1.5 * PAY_X * 2) / 2, bonus = e.got >= e.total ? 10 * PAY_X : 0;
     const total = base + bonus; e.pay = total;
     X.addFare(total, 'food');
     say(pick(FOOD.thanks)[0], () => ({ x: e.slot.kerb.x, y: groundAt(e.slot.kerb.x, e.slot.kerb.z) + 2, z: e.slot.kerb.z }), 0.6);

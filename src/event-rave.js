@@ -6,6 +6,7 @@
 // The text is Palermitan, written by an agent: it is all in assets/missions/lines.js (RAVE_LINES, CALL.rave, CALL.leaf) and in the T(...) calls below, for the owner to correct.
 // createRaveEvents(X, rave) -> { start(slot), update(dt), stop(), active() }
 import * as THREE from 'three';
+import { PAY_X } from './economy.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAVE_LINES as RL } from '../assets/missions/lines.js';
 import { RAVE } from './event-places.js';
@@ -88,7 +89,7 @@ export function createRaveEvents(X, rave) {
       hud.result(`<h3>${why === 'broken' ? T('Casse rutte!', 'Speakers broken!') : T('Taiddu assai!', 'Far too late!')}</h3><div class="row"><span>${why === 'broken' ? T('U rave un paiti', 'The rave is off') : T('A genti si ni iu', 'The people went home')}</span></div>`, 3.4);
       say(pick(why === 'broken' ? RL.broken : RL.late), X.driverPos, 0.4); return;
     }
-    const base = Math.round((12 + e.len / 500) * 2) / 2, got = Math.round(base * e.integ / 100 * 2) / 2, bonus = Math.round(8 * clamp(e.left / e.limit, 0, 1) * 2) / 2, total = got + bonus;
+    const base = Math.round((12 + e.len / 500) * PAY_X * 2) / 2, got = Math.round(base * e.integ / 100 * 2) / 2, bonus = Math.round(8 * PAY_X * clamp(e.left / e.limit, 0, 1) * 2) / 2, total = got + bonus;
     e.pay = total; X.addFare(total, 'food'); rave.setPowered(true);
     say(pick(RL.thanks), headAt(rave.stage.x, rave.stage.z, 2.6), 0.8);
     hud.result(`<h3>${T('Rave ô Pellegrinu', 'The rave on Pellegrino')}</h3>
@@ -222,7 +223,7 @@ export function createRaveEvents(X, rave) {
     e.phase = 'done'; e.thanks = ok ? 5 : 3.6; X.setPhase('done'); X.guide.off(); X.destBeacon.show(false); X.dropMarker(X.destMarker); X.destMarker = null; homeBeacon.show(false); X.dropMarker(e.homeMarker); e.homeMarker = null;
     if (!ok) { friendOff(false); fsay('fail', 0.5); hud.result(`<h3>${why === 'none' ? T('Nianti da purtari', 'Nothing to bring') : T('Taiddu assai!', 'Far too late!')}</h3>`, 3); if (why === 'none') say(pick(RL.leafNone), X.driverPos, 2.6); return; }
     friendOff(true); fsay('off', 0.6);
-    const L = SNAP['rave:leaf'], base = Math.round((6 + e.got * 3.5) * 2) / 2, bonus = e.got >= e.total ? 10 : 0, total = base + bonus; e.pay = total; X.addFare(total, 'food');
+    const L = SNAP['rave:leaf'], base = Math.round((6 + e.got * 3.5) * PAY_X * 2) / 2, bonus = e.got >= e.total ? 10 * PAY_X : 0, total = base + bonus; e.pay = total; X.addFare(total, 'food');
     say(pick(RL.leafThanks), headAt(L[0], L[1], 2.4), 3);
     hud.result(`<h3>${T('Fuogghi allegri', 'Happy leaves')}</h3>
       <div class="row"><span>${T('Purtati', 'Brought')}</span><span>${e.got} / ${e.total}</span></div>

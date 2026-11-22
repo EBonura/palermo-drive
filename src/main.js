@@ -35,6 +35,9 @@ import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
 import { POI_SPOTS } from './pub-places.js';
 import { createCoords } from './coords.js'; // ?coords or Options: position on screen for bug reports (src/coords.js)
+import { createWalletHud } from './wallet-hud.js'; // the money you hold, always on the street (src/wallet-hud.js)
+import { garage as wallet } from './garage.js';
+import { createHitPay } from './hit-pay.js'; // a few cents for a person knocked over or a car sent flying (src/hit-pay.js, numbers in src/economy.js)
 import { watchVersion } from './version.js'; // "new version" button on the title screen (src/version.js)
 import { createPerf } from './perf.js'; // Auto graphics: holds 60 fps on any device by moving resolution, draw distance, shadows and crowd (src/perf.js, docs/PERF.md)
 import { createClouds } from './clouds.js';   // 3D fair-weather cumulus round the camera, one draw (src/clouds.js)
@@ -299,6 +302,8 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const vehicle = createVehicle({ scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar stands next to the speed
+createWalletHud({ garage: wallet });
+createHitPay({ garage: wallet });
 world?.bind({ placeAt }); // world: lets ?at=x,z / world.teleport place the car once the destination has streamed in
 
 // ---------- traffic and pedestrians (src/traffic.js, src/pedestrians.js) ----------

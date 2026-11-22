@@ -7,6 +7,7 @@
 // the direction of travel towards Ballarò), so it works with or without the model.
 // createHornsEvents(X, { game }) -> { start(slot), update(dt), stop(), leashed(), active() }
 import * as THREE from 'three';
+import { PAY_X } from './economy.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HORNS_LINES as HL } from '../assets/missions/lines.js';
 import { HORNS } from './event-places.js';
@@ -212,7 +213,7 @@ export function createHornsEvents(X, opts = {}) {
       hud.result(`<h3>${T('Taiddu assai!', 'Far too late!')}</h3><div class="row"><span>${T('I cuainna si li pigghiau n’autru', 'Somebody else took the horns')}</span></div>`, 3);
       say(pick(HL.fail), X.driverPos, 0.4); return;
     }
-    const base = e.kind === 'good' ? 10 : 7, bonus = e.kind === 'good' ? Math.round(6 * clamp(e.left / e.limit, 0, 1) * 2) / 2 : 0, total = base + bonus;
+    const base = (e.kind === 'good' ? 10 : 7) * PAY_X, bonus = e.kind === 'good' ? Math.round(6 * PAY_X * clamp(e.left / e.limit, 0, 1) * 2) / 2 : 0, total = base + bonus;
     e.pay = total; e.thanks = 5; X.addFare(total, 'food');
     dispatchEvent(new CustomEvent('pd-horns', { detail: { kind: e.kind } }));   // the secret of src/achievements.js
     const what = e.kind === 'good' ? T('Pulitu, cû cuainna!', 'Clean, with the horns!') : e.kind === 'careful' ? T('Truappu araciu', 'Far too slow') : T('Truappu prestu: cuainna rutti', 'Far too fast: broken horns');
