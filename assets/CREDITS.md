@@ -196,6 +196,9 @@ Music from Palermo. Re-encoded for the web and loudness normalised.
 | Al Gelido Già Perso | Diastema |  | Studio recording |
 | Spirito Funky | Enneo 2 feat. Dalila Galati e Izzy Bonura | ℗ & © 2014 Street Label Records | Video release (2014) |
 | Dissociazione | Collateral Effect |  | First single (video, 2013) |
+| Moto Continuo | Azzardo ft. SieroBrownie |  | MP3 sent by email |
+| Aria Fresca | SieroBrownie |  | MP3 sent by email |
+| 2 Am | magikAAAAArp |  | WAV file |
 
 ## Pedestrian sprites (LPC)
 
