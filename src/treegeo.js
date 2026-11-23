@@ -290,19 +290,27 @@ const BUILD = {
   },
   // Ficus macrophylla / magnolioides (the big dark trees of the squares and the avenues): a huge fluted trunk on flaring buttress roots that splits at once into heavy limbs, a very wide, dense, dark dome, aerial roots hanging
   ficus() {
-    const m = new Mini(), bark = C('#85796a'), bark2 = C('#625849'), r = rnd(41);   // Commons "Il ficus magnolioides piazza Marina": a smooth grey-brown trunk, not a dark one
-    m.tube([[0, 0, 0], [0.1, 1.5, 0], [0, 3.0, 0.1]], [1.25, 0.95, 0.75], 8, bark, { col2: bark2, mot: 0.4, seed: 2, flute: 0.16, dark: 0.7 });
-    const nf = 10;
-    for (let i = 0; i < nf; i++) {   // buttress roots: thin wedges that run up the trunk and out over the ground
-      const a = TAU * i / nf + r() * 0.5, h = 1.5 + 1.3 * r(), out = 1.9 + 1.1 * r(), w = 0.22 + 0.16 * r(), ca = Math.cos(a), sa = Math.sin(a);
-      const T = [ca * 0.95, h + 0.4, sa * 0.95], O = [ca * out * 1.2, 0.0, sa * out * 1.2], S1 = [ca * 1.15 - sa * w, 0, sa * 1.15 + ca * w], S2 = [ca * 1.15 + sa * w, 0, sa * 1.15 - ca * w];
+    // Commons "Il ficus magnolioides piazza Marina" and "Ficus macrophylla - Piazza Marina": several huge smooth grey-brown trunks fused together and fluted, flaring into buttress roots, heavy limbs that twist out
+    // nearly level, a broad crown that is airier than a dome (light comes through it), and curtains of hanging aerial roots round the trunks and under the limbs.
+    const m = new Mini(), bark = C('#8f8474'), bark2 = C('#665b4c'), r = rnd(41);
+    m.tube([[0, 0, 0], [0.1, 1.2, 0], [0.05, 2.6, 0.1]], [1.7, 1.35, 1.05], 9, bark, { col2: bark2, mot: 0.35, seed: 2, flute: 0.3, dark: 0.72 });
+    for (let k = 0; k < 2; k++) { const a = k * 2.4 + 0.6; m.tube([[Math.cos(a) * 1.3, 0, Math.sin(a) * 1.3], [Math.cos(a) * 1.5, 1.6, Math.sin(a) * 1.5], [Math.cos(a) * 1.0, 3.2, Math.sin(a) * 1.0]], [0.8, 0.62, 0.45], 7, bark, { col2: bark2, mot: 0.35, seed: 3 + k, flute: 0.22, dark: 0.72 }); }   // two more trunks grown into the first
+    const nf = 12;
+    for (let i = 0; i < nf; i++) {   // buttress roots: wedges that run up the trunk and out over the ground
+      const a = TAU * i / nf + r() * 0.4, h = 1.6 + 1.5 * r(), out = 2.6 + 1.8 * r(), w = 0.3 + 0.2 * r(), ca = Math.cos(a), sa = Math.sin(a);
+      const T = [ca * 1.25, h + 0.4, sa * 1.25], O = [ca * out * 1.3, 0.0, sa * out * 1.3], S1 = [ca * 1.65 - sa * w, 0, sa * 1.65 + ca * w], S2 = [ca * 1.65 + sa * w, 0, sa * 1.65 - ca * w];
       m.tri(T, S1, O, bark2, 0.9, [ca, 0.4, sa], 0.7).tri(T, O, S2, bark2, 0.8, [ca, 0.4, sa], 0.7);
     }
-    const tips = boughs(m, [0, 2.9, 0], [0, 1, 0], 3.0, 0.62, { levels: 2, fan: 1, kids: 5, fork0: 1.15, fork: 1.0, shrink: 0.9, up: 0.12, wob: 0.3, col: bark, col2: bark2, mot: 0.3, nseg: 2, segs: [6, 4] }, 41);
-    const L = tips.map((t, i) => ({ c: [t.p[0] + t.d[0] * 1.5, t.p[1] + 1.5, t.p[2] + t.d[2] * 1.5], r: [4.2, 2.8, 4.2], n: 1, d: i < 2 ? 1 : 0 }));
-    L.push({ c: [0, 8.2, 0], r: [4.0, 2.7, 4.0], n: 1, d: 1 });
-    for (let i = 0; i < 6; i++) { const t = tips[i % tips.length], k = 0.35 + 0.5 * ((i * 0.37) % 1), x = t.p[0] + t.d[0] * k * 1.5, z = t.p[2] + t.d[2] * k * 1.5, y0 = t.p[1] - 0.3; m.tube([[x, y0, z], [x * 1.02, y0 * 0.55, z * 1.02], [x * 1.04, 0.15, z * 1.04]], [0.05 + 0.02 * (i % 3), 0.045, 0.04], 4, bark2, { seed: 5 + i, dark: 0.85 }); }   // aerial roots hanging from the limbs to the ground
-    crown(m, L, { seed: 21, cols: ['#2f4a24', '#385a2b', '#2b4421', '#3b5d2d', '#33522a'].map(C), cen: [0, 6.8, 0], R: [8.0, 3.8, 8.0], size: 1.15, gain: 0.95, kLow: 0.55, inside: 0.6, bias: 0.5 });
+    const tips = boughs(m, [0, 2.5, 0], [0, 1, 0], 4.4, 0.8, { levels: 3, fan: 1, kids: lv => lv === 0 ? 5 : lv === 1 ? 3 : 2, fork0: 1.2, fork: 0.8, shrink: 0.8, up: 0.12, wob: 0.55, col: bark, col2: bark2, mot: 0.3, nseg: [3, 2, 2], segs: [7, 5, 4] }, 41);
+    const L = tips.map((t, i) => ({ c: [t.p[0] + t.d[0] * 1.2, t.p[1] + 1.1, t.p[2] + t.d[2] * 1.2], r: [2.3 + 0.5 * (i % 3), 1.5, 2.3 + 0.5 * ((i + 1) % 3)], n: 2, d: i < 3 ? 1 : 0 }));
+    L.push({ c: [0, 8.8, 0], r: [2.8, 1.9, 2.8], n: 2, d: 1 });
+    // aerial roots: a curtain of thin columns from the limbs to the ground, and a few thick ones against the trunks
+    for (let i = 0; i < 16; i++) {
+      const t = tips[i % tips.length], k = 0.25 + 0.7 * ((i * 0.37) % 1), x = t.p[0] * k, z = t.p[2] * k, y0 = (t.p[1] - 2.6) * k + 2.7, sway = 0.15 * Math.sin(i * 1.7);
+      m.tube([[x, y0, z], [x * 1.01 + sway, y0 * 0.55, z * 1.01], [x * 1.02, 0.12, z * 1.02 - sway]], [0.07 + 0.03 * (i % 3), 0.06, 0.05], 4, bark2, { seed: 5 + i, dark: 0.85 });
+    }
+    for (let i = 0; i < 7; i++) { const a = i * 0.9 + 0.3, rr = 1.9 + 0.5 * (i % 2); m.tube([[Math.cos(a) * 1.4, 3.0, Math.sin(a) * 1.4], [Math.cos(a) * rr, 1.5, Math.sin(a) * rr], [Math.cos(a) * rr * 1.05, 0.0, Math.sin(a) * rr * 1.05]], [0.16, 0.14, 0.17], 5, bark2, { seed: 15 + i, dark: 0.8, flute: 0.2 }); }
+    crown(m, L, { seed: 21, cols: ['#3a5e2a', '#456c30', '#2f5025', '#4d7634', '#3a5f2c'].map(C), cen: [0, 7.4, 0], R: [9.0, 3.6, 9.0], size: 1.15, gain: 1.0, kLow: 0.55, inside: 0.55, bias: 0.5 });
     return m.geo();
   },
   // Quercus ilex and the other dark broadleaves of the Favorita (holm oak, carob, eucalyptus): a short thick forked trunk and a big, dense, very dark lobed dome that meets the next one along an avenue (the tunnel of Viale Diana)
