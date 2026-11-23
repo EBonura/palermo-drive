@@ -540,7 +540,8 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
 
   return {
     show() {
-      shown = true; closePop(); cv.style.opacity = '0';   // (again: the canvas was emptied by hide(); the next whole frame shows it) clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
+      shown = true; closePop(); cv.style.opacity = '0';   // (again: the canvas was emptied by hide(); the next whole frame shows it)
+      clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
       events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins();
       evBtn.setAttribute('aria-pressed', String(showEvents));
       prepManifest(); applyLang(); load();

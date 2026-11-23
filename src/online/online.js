@@ -794,7 +794,8 @@ export function createOnline(env) {
 
   const api = {
     enabled: true, update,
-    collidePlayer: c => { if (bumpOn && ready && game.state === 'play') bump.collide(c, rm.remotes, performance.now()); },   // called by the physics step (src/main.js) openName, players: () => rm.list(), get online() { return others.size > 0; },
+    collidePlayer: c => { if (bumpOn && ready && game.state === 'play') bump.collide(c, rm.remotes, performance.now()); },   // called by the physics step (src/main.js)
+    players: () => rm.list(), get online() { return others.size > 0; },   // the maps and the play log ask for these
     isOnline: online,
     statsName: () => named && agreed && ready ? myName : '',   // the play log (src/playlog.js) sends the name only while the player is online by their own yes; solo and unanswered send none
     // test hooks, under the name the tools have always used (window.__p2p)

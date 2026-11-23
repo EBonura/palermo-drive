@@ -248,14 +248,19 @@ export function createPolice(env, T) {
   #pd-wanted .pw-bar { flex: 0 0 100%; height: 2px; margin-top: 3px; border-radius: 1px; background: rgba(255,255,255,.14); overflow: hidden; }   /* how close the escape is, under the line */
   #pd-wanted .pw-bar b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f5a9c9, #e8559a); transition: width .3s linear; }
   #pd-wanted.clear .pw-t { color: #fff; text-shadow: 0 0 8px #e8559a; }
-  #pd-busted { display: none; transform: skewX(-6deg); box-sizing: border-box; min-width: var(--obj); max-width: var(--wide); padding: 10px 22px 12px; text-align: center; pointer-events: none;
+  #pd-busted { display: none; transform: skewX(-6deg); box-sizing: border-box; min-width: max(var(--obj), min(300px, 92vw)); max-width: var(--wide); padding: 10px 22px 12px; text-align: center; pointer-events: none;
     background: linear-gradient(90deg, rgba(11,7,9,.92), rgba(48,12,32,.9)); border-top: 4px solid #e8559a; border-bottom: 4px solid #1a1114; box-shadow: 0 6px 30px rgba(0,0,0,.55), 0 0 0 2px #e8559a; color: #fff;
     font-family: 'Racing Sans One','Barlow Condensed',Impact,sans-serif; }
   #pd-busted.on { display: block; animation: pd-busted-in .25s ease-out; }
   @keyframes pd-busted-in { from { opacity: 0; transform: skewX(-6deg) scale(.92); } }
   .hz-moment:has(#pd-busted.on) .ev-result { display: none; }   /* one moment at a time: src/hud.js */
   #pd-busted > * { transform: skewX(6deg); }
-  #pd-busted h3 { margin: 0 0 6px; font-weight: 400; font-size: clamp(24px, 6vh, 42px); line-height: 1; letter-spacing: .08em; text-shadow: 0 0 14px #e8559a, 0 3px 0 #1a1114; }
+  @media (max-width: 900px) {   /* a phone: the column it sits in is only as wide as the gap between the bars, so the card hangs centred under the top HUD instead, at its own width */
+    #pd-busted { position: absolute; left: 50%; top: calc(var(--mini) + 64px); width: max-content; max-width: 92vw; min-width: 0; transform: translateX(-50%) skewX(-6deg); }
+    #pd-busted.on { animation-name: pd-busted-in-n; }
+  }
+  @keyframes pd-busted-in-n { from { opacity: 0; transform: translateX(-50%) skewX(-6deg) scale(.92); } }
+  #pd-busted h3 { margin: 0 0 6px; font-weight: 400; font-size: clamp(18px, min(6vh, 6vw), 42px); line-height: 1; letter-spacing: .06em; white-space: nowrap; text-shadow: 0 0 14px #e8559a, 0 3px 0 #1a1114; }
   #pd-busted p { margin: 0; font: 700 clamp(13px, 2.9vh, 18px)/1.25 system-ui, sans-serif; }
   #pd-busted small { display: block; margin-top: 2px; font: 600 clamp(11px, 2.3vh, 14px)/1.2 system-ui, sans-serif; opacity: .75; }
   #pd-busted .fine { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.3); font-size: clamp(16px, 3.6vh, 24px); letter-spacing: .1em; color: #f5a9c9; }`;
