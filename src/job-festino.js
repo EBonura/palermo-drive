@@ -415,7 +415,7 @@ export default function setup(X) {
       if (!C.toasted && d < 320 && idle) { C.toasted = true; hud.toast(tx(L.toast), tx(L.toastSub)); }
     }
     miracleCd = Math.max(0, miracleCd - dt);
-    if (d < MIRACLE_R && miracleCd <= 0) { miracleCd = MIRACLE_COOL; car.nosFreeT = MIRACLE_S; car.nosLock = false; hud.toast(L.miracle[0], tx([L.miracle[1], L.miracle[2]])); burst(); shoutViva(); }
+    if (d < MIRACLE_R && miracleCd <= 0) { miracleCd = MIRACLE_COOL; car.nosFreeT = MIRACLE_S; car.nosLock = false; hud.toast(L.miracle[0], tx([L.miracle[1], L.miracle[2]])); hud.burst(); shoutViva(); }
     const sky = d < SKY_R && h >= 0 && (h >= 19.5 || h < 3) || (FORCE && d < SKY_R && X.isNight());
     if (sky) { if (!fw && endSky) fireworksOn(); } else if (fw && d > SKY_R + 300) fireworksOff();
   }
