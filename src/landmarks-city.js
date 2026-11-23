@@ -18,6 +18,37 @@ import { MONDELLO_LANDMARKS } from './lmc-mondello.js';
 import { GATES } from './lmc-gates.js';
 import { ARCO_CUTO } from './lmc-cuto.js';   // the Arco di Cutò and the front of the Palazzo Filangeri di Cutò on Via Maqueda (src/lmc-cuto.js)
 import { TOWN_LANDMARKS } from './lmc-towns.js';   // the towns: Villabate's Chiesa Madre di Sant'Agata, bell tower of San Giuseppe and bandstand, the Duomo di Monreale, the Chiesa Madre of Belmonte Mezzagno and of Capaci (src/lmc-towns.js)
+import { SAN_FRANCESCO } from './lmc-sanfrancesco.js';
+import { SANT_AGOSTINO } from './lmc-santagostino.js';
+import { SALVATORE } from './lmc-salvatore.js';
+import { SANT_IGNAZIO } from './lmc-santignazio.js';
+import { POSTE } from './lmc-poste.js';
+import { GESU } from './lmc-gesu.js';
+import { TEATINI } from './lmc-teatini.js';
+import { SANTA_CITA } from './lmc-santacita.js';
+import { MARTORANA } from './lmc-martorana.js';
+import { CARMINE } from './lmc-carmine.js';
+import { SANTA_TERESA } from './lmc-santateresa.js';
+import { PIETA } from './lmc-pieta.js';
+import { MAGIONE } from './lmc-magione.js';
+import { BATCH_A } from './lmc-batchA.js';
+import { BATCH_B } from './lmc-batchB.js';
+import { BATCH_C } from './lmc-batchC.js';
+import { BATCH_D } from './lmc-batchD.js';
+import { BATCH_E } from './lmc-batchE.js';
+import { BATCH_F } from './lmc-batchF.js';
+import { BATCH_G } from './lmc-batchG.js';
+import { BATCH_H } from './lmc-batchH.js';
+import { BATCH_I } from './lmc-batchI.js';
+import { BATCH_J } from './lmc-batchJ.js';
+import { BATCH_K } from './lmc-batchK.js';
+import { BATCH_L } from './lmc-batchL.js';
+import { BATCH_M } from './lmc-batchM.js';
+import { BATCH_N } from './lmc-batchN.js';
+import { BATCH_O } from './lmc-batchO.js';
+import { BATCH_P } from './lmc-batchP.js';
+import { CHURCHES } from './lmc-churches.js';
+import { SAN_DOMENICO } from './lmc-sandomenico.js';   // the Chiesa di San Domenico: front, two bell towers, nave (src/lmc-sandomenico.js)
 import { EUFEMIA } from './lmc-eufemia.js';   // the sign of the Hotel Eufemia in Isola delle Femmine, the destination of the U cuinnutu fare (src/lmc-eufemia.js)
 
 export const CITY_LANDMARKS = [
@@ -30,5 +61,12 @@ export const CITY_LANDMARKS = [
   ...GATES,
   ARCO_CUTO,
   EUFEMIA,
+  ...CHURCHES,
+  ...BATCH_M, ...BATCH_N, ...BATCH_O, ...BATCH_P, 
+  ...BATCH_I, ...BATCH_J, ...BATCH_K, ...BATCH_L, 
+  ...BATCH_E, ...BATCH_F, ...BATCH_G, ...BATCH_H, 
+  ...BATCH_A, ...BATCH_B, ...BATCH_C, ...BATCH_D, 
+  GESU, TEATINI, SANTA_CITA, MARTORANA, CARMINE, SANTA_TERESA, PIETA, MAGIONE, 
+  SAN_DOMENICO, SAN_FRANCESCO, SANT_AGOSTINO, SALVATORE, SANT_IGNAZIO, POSTE,
   ...TOWN_LANDMARKS,
 ];

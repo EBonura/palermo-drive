@@ -1,13 +1,16 @@
 // City landmarks, Mondello: the lido cabins on the sand, the blue seafront lamp posts, the Torre di Mondello (the old tonnara tower),
 // and the little fishing harbour (moored and beached gozzi, the pontile). Registered in src/landmarks-city.js.
 // Every shape here was checked against photos (Wikimedia Commons Category:Mondello and its harbour, tower and Alle Terrazze categories) and satellite views:
-//  - cabins: narrow wooden huts, vertically striped in one colour and white (red, blue, pink, green, yellow), louvred door in the middle, shallow roof,
-//    standing in back-to-back rows that run from the promenade towards the water, a few metres apart, with the umbrellas in the aisles
+//  - cabins: narrow wooden huts painted sky blue / turquoise with white frames (boarded front with a louvred door under a small gable with a round vent, side walls
+//    in white-framed panels with X braces), a low red or salmon corrugated gable roof with a short overhang, a few cream or mint ones among them, standing side by
+//    side in back-to-back rows that run from the promenade towards the water, a few metres apart, with the umbrellas in the aisles.
+//    Commons files read for the cabins: "Mondello 5.jpg" (close cabins on the sand: blue panelled walls, white frames, X braces, gable with a round vent, red roofs),
+//    "Mondello beach.jpg" (aerial: back-to-back double rows, roofs in red, salmon and white, cabin about 1.3 m wide and 1.5 to 2 m deep, doors on the aisles)
 //  - lamp posts: slender cobalt-blue steel posts with a double arm, all along the seafront and the piazza
 //  - tower: round, sandy-tan rubble tower about 14 m tall with a crown of merlons, a single slit window high up
 //  - boats: wooden gozzi, white hulls with a red line, blue or yellow strakes, hauled out on the slipway or moored along the quay
 import * as THREE from 'three';
-import { PI, defMat, begin, end, box, bx, cyl, sphere, prism, panel, shell, mul, tr, frame, groundY, groundRange, pairsOf, centroid, initShared, RNG, noiseDots, streaks } from './lmc-kit.js';
+import { PI, defMat, begin, end, part, rotY, box, bx, cyl, sphere, prism, panel, shell, mul, tr, frame, groundY, groundRange, pairsOf, centroid, initShared, RNG, noiseDots, streaks } from './lmc-kit.js';
 
 // landward edge of the sand [z, x] (from the OSM beach polygon, which is the back of the dry beach)
 const LAND = [[-10020, -3128], [-9980, -3137], [-9940, -3158], [-9900, -3159], [-9860, -3153], [-9820, -3147], [-9780, -3141], [-9740, -3128], [-9700, -3104],
@@ -25,19 +28,10 @@ function shoreFrame(z) {
   return { tx, tz, nx, nz };
 }
 
-const PAL = { red: '#c4352d', blue: '#2f66b2', pink: '#e27c97', green: '#3d8d5c', yellow: '#e6b93a', teal: '#2f9fa6' };
 function defMats() {
   initShared();
-  for (const k in PAL) {
-    defMat('mnCab_' + k, 64, 96, [1, 1], (g, w, h) => {
-      g.fillStyle = '#f2ecdd'; g.fillRect(0, 0, w, h);
-      g.fillStyle = PAL[k]; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 8, h);
-      g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(0, 0, w, 6);                                   // fascia shadow
-      g.fillStyle = '#5a3a28'; g.fillRect(16, 22, 32, h - 22);                                    // the door
-      g.fillStyle = 'rgba(255,235,200,0.35)'; for (let y = 28; y < h - 6; y += 6) g.fillRect(18, y, 28, 1.5);   // louvres
-      g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, h - 8, w, 8);                               // sand at the foot
-    });
-  }
+  defMat('mnCabW', 256, 256, [1, 1], paintCabinWalls);
+  defMat('mnCabR', 256, 256, [1, 1], paintCabinRoof);
   defMat('mnStone', 128, 128, [4, 4], (g, w, h) => {
     g.fillStyle = '#c8ab82'; g.fillRect(0, 0, w, h);
     noiseDots(g, w, h, 900, 3.2, 901, ['rgba(120,92,60,0.22)', 'rgba(236,214,172,0.28)', 'rgba(90,70,48,0.16)']);
@@ -50,25 +44,192 @@ function defMats() {
 // ====================================================================================================
 // lido cabins
 // ====================================================================================================
-const KEYS = Object.keys(PAL);
+// Cabin atlas (256 x 256), walls: FRONT (the boarded door wall), SIDE (white-framed panels with X braces, also the back), GABLE (the small gable above the door),
+// TRIM (white painted board for the fascia) and DECK (grey weathered boards for the step and the soffit). All regions are in pixels.
+const AT = { front: [2, 2, 112, 192], side: [118, 2, 136, 192], gable: [2, 200, 112, 50], trim: [118, 200, 68, 50], deck: [188, 200, 66, 50] };
+const CW = 1.28, CD = 1.36, CY0 = -0.4, CH = 2.12, CR = 0.4;      // cabin width along the row, depth, foot below ground, eave height, gable rise
+function paintCabinWalls(g, w, h) {
+  const r = RNG(951), rr = (a, b) => a + (b - a) * r();
+  g.fillStyle = '#7a8a8e'; g.fillRect(0, 0, w, h);
+  const pxm = 192 / (CH - CY0);                                // pixels per metre, vertically
+  const groundY_ = (x, y0, hh) => y0 + (CH / (CH - CY0)) * hh; // canvas y of the ground line in a wall region
+  // boarded wall in sky blue, with the wear of salt and sun; (x0, y0, ww, hh) is a region
+  const boards = (x0, y0, ww, hh, bw) => {
+    const cols = ['#79c1da', '#82c8de', '#74bad4', '#7cc4d9', '#6db4cf'];
+    for (let x = 0, i = 0; x < ww; x += bw, i++) {
+      g.fillStyle = cols[(i * 7 + (r() * 3 | 0)) % cols.length]; g.fillRect(x0 + x, y0, bw, hh);
+      g.fillStyle = 'rgba(40,96,128,0.55)'; g.fillRect(x0 + x, y0, 1, hh);                       // groove
+      g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(x0 + x + 1, y0, 1, hh);
+      g.fillStyle = 'rgba(20,50,70,0.08)'; g.fillRect(x0 + x + bw - 2, y0, 2, hh);
+    }
+    // grain and knots
+    for (let i = 0; i < ww * hh / 90; i++) { g.fillStyle = r() < 0.5 ? 'rgba(30,80,110,0.12)' : 'rgba(255,255,255,0.10)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 1, 2 + r() * 8); }
+  };
+  const white = '#eef0e8';
+  const rect = (c, x, y, ww, hh) => { g.fillStyle = c; g.fillRect(x, y, ww, hh); };
+  // weathering shared by every wall region: flaking paint, rust streaks under the nails, salt at the foot, grime under the eave, sand at the bottom
+  const wear = (x0, y0, ww, hh, nails) => {
+    const gy = groundY_(x0, y0, hh);
+    for (let i = 0; i < 26; i++) {                                                                    // flaked paint: pale patches and the grey wood under them
+      const x = x0 + r() * ww, y = y0 + 10 + r() * (hh - 30), sw = 2 + r() * 7, sh = 1 + r() * 5;
+      g.fillStyle = r() < 0.5 ? 'rgba(236,238,228,0.55)' : 'rgba(120,112,98,0.6)'; g.fillRect(x, y, sw, sh);
+    }
+    for (const [nx, ny] of nails) {                                                                   // nails with a rust run
+      g.fillStyle = '#5a4a40'; g.fillRect(x0 + nx, y0 + ny, 2, 2);
+      const gr = g.createLinearGradient(0, y0 + ny, 0, y0 + ny + 18 + r() * 16); gr.addColorStop(0, 'rgba(150,78,40,0.55)'); gr.addColorStop(1, 'rgba(150,78,40,0)');
+      g.fillStyle = gr; g.fillRect(x0 + nx, y0 + ny + 1, 2, 34);
+    }
+    const sg = g.createLinearGradient(0, gy - 44, 0, gy); sg.addColorStop(0, 'rgba(255,255,240,0)'); sg.addColorStop(1, 'rgba(255,255,240,0.32)');   // salt bloom
+    g.fillStyle = sg; g.fillRect(x0, gy - 44, ww, 44);
+    for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(255,255,245,0.2)'; g.fillRect(x0 + r() * ww, gy - 36 + r() * 34, 4 + r() * 10, 1 + r() * 2); }
+    const eg = g.createLinearGradient(0, y0, 0, y0 + 22); eg.addColorStop(0, 'rgba(10,24,40,0.42)'); eg.addColorStop(1, 'rgba(10,24,40,0)');   // under the roof edge
+    g.fillStyle = eg; g.fillRect(x0, y0, ww, 22);
+    const dg = g.createLinearGradient(0, gy - 6, 0, y0 + hh); dg.addColorStop(0, 'rgba(120,96,64,0)'); dg.addColorStop(0.2, 'rgba(150,126,86,0.75)'); dg.addColorStop(1, 'rgba(190,170,128,1)');   // splashed sand, then sand
+    g.fillStyle = dg; g.fillRect(x0, gy - 6, ww, y0 + hh - gy + 6);
+  };
+
+  // ---- FRONT: boards, white frame, louvred door with a number plate
+  { const [x0, y0, ww, hh] = AT.front, gy = groundY_(x0, y0, hh);
+    boards(x0, y0, ww, hh, 7);
+    rect(white, x0, y0, 6, hh); rect(white, x0 + ww - 6, y0, 6, hh); rect(white, x0, y0, ww, 6);               // posts and head rail
+    rect('#d8dcd2', x0 + 5, y0 + 5, 1, hh - 5); rect('#d8dcd2', x0 + ww - 7, y0 + 5, 1, hh - 5);
+    rect(white, x0, gy - 8, ww, 7);                                                                          // foot rail
+    const dx = x0 + 20, dy = y0 + 30, dw = ww - 40, dh = gy - 9 - dy;
+    rect('#f4f4ec', dx - 4, dy - 4, dw + 8, dh + 4);                                                            // door frame
+    rect('#c9b68e', dx, dy, dw, dh);                                                                            // door leaf, cream-brown
+    g.fillStyle = 'rgba(80,60,36,0.55)'; for (let y = dy + 6; y < dy + dh - 4; y += 6) g.fillRect(dx + 3, y, dw - 6, 2);   // louvres, shadow
+    g.fillStyle = 'rgba(255,244,214,0.55)'; for (let y = dy + 8; y < dy + dh - 4; y += 6) g.fillRect(dx + 3, y, dw - 6, 1);
+    rect('#6e5a3a', dx + dw / 2 - 1, dy, 2, dh);                                                                // meeting stile
+    rect('#5b5048', dx + dw - 8, dy + dh * 0.52, 3, 9);                                                         // latch
+    rect('#4a4038', dx + 2, dy + 8, 4, 3); rect('#4a4038', dx + 2, dy + dh - 14, 4, 3);                         // hinges
+    rect('#f4f4ec', dx + dw / 2 - 11, dy - 20, 22, 13);                                                         // number plate over the door
+    g.fillStyle = '#243040'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('27', dx + dw / 2, dy - 13);
+    const sh = g.createLinearGradient(0, dy, dx + dw, dy); sh.addColorStop(0, 'rgba(0,0,0,0.22)'); sh.addColorStop(0.2, 'rgba(0,0,0,0)'); g.fillStyle = sh; g.fillRect(dx, dy, dw, dh);
+    wear(x0, y0, ww, hh, [[10, 40], [ww - 12, 52], [12, 120], [ww - 10, 130], [ww / 2, 14], [30, 21], [ww - 32, 24]]);
+  }
+  // ---- SIDE: two white-framed panels with X braces
+  { const [x0, y0, ww, hh] = AT.side, gy = groundY_(x0, y0, hh);
+    boards(x0, y0, ww, hh, 8);
+    const pw = (ww - 18) / 2, top = y0 + 6, bot = gy - 9;
+    rect(white, x0, y0, ww, 7); rect(white, x0, gy - 9, ww, 8);                                                 // head and foot rails
+    rect(white, x0, y0, 6, hh); rect(white, x0 + ww - 6, y0, 6, hh); rect(white, x0 + ww / 2 - 3, y0, 6, hh);  // posts and mullion
+    g.strokeStyle = white; g.lineWidth = 3;
+    for (const px of [x0 + 6, x0 + ww / 2 + 3]) {                                                              // the X braces
+      g.beginPath(); g.moveTo(px, top + 2); g.lineTo(px + pw - 3, bot); g.moveTo(px + pw - 3, top + 2); g.lineTo(px, bot); g.stroke();
+    }
+    g.strokeStyle = 'rgba(60,70,60,0.28)'; g.lineWidth = 1;
+    for (const px of [x0 + 6, x0 + ww / 2 + 3]) { g.beginPath(); g.moveTo(px + 2, top + 3); g.lineTo(px + pw - 1, bot); g.moveTo(px + pw - 1, top + 3); g.lineTo(px + 2, bot); g.stroke(); }
+    wear(x0, y0, ww, hh, [[10, 30], [ww / 2 - 8, 60], [ww - 14, 90], [20, 140], [ww / 2 + 12, 128], [ww - 22, 20]]);
+  }
+  // ---- GABLE: blue boards, white barge lines, round vent
+  { const [x0, y0, ww, hh] = AT.gable;
+    boards(x0, y0, ww, hh, 7);
+    g.strokeStyle = white; g.lineWidth = 5; g.beginPath(); g.moveTo(x0, y0 + hh); g.lineTo(x0 + ww / 2, y0 + 2); g.lineTo(x0 + ww, y0 + hh); g.stroke();
+    rect(white, x0, y0 + hh - 4, ww, 4);
+    g.fillStyle = '#e8ecdf'; g.beginPath(); g.arc(x0 + ww / 2, y0 + hh * 0.62, 7.5, 0, 6.3); g.fill();
+    g.fillStyle = '#1f2a33'; g.beginPath(); g.arc(x0 + ww / 2, y0 + hh * 0.62, 5, 0, 6.3); g.fill();
+    g.strokeStyle = 'rgba(200,210,200,0.7)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0 + ww / 2 - 5, y0 + hh * 0.62); g.lineTo(x0 + ww / 2 + 5, y0 + hh * 0.62); g.moveTo(x0 + ww / 2, y0 + hh * 0.62 - 5); g.lineTo(x0 + ww / 2, y0 + hh * 0.62 + 5); g.stroke();
+    const eg = g.createLinearGradient(0, y0, 0, y0 + hh); eg.addColorStop(0, 'rgba(10,24,40,0.0)'); eg.addColorStop(1, 'rgba(10,24,40,0.28)'); g.fillStyle = eg; g.fillRect(x0, y0, ww, hh);
+    for (let i = 0; i < 8; i++) { g.fillStyle = 'rgba(236,238,228,0.5)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 2 + r() * 6, 1 + r() * 3); }
+  }
+  // ---- TRIM: white painted board, scuffed
+  { const [x0, y0, ww, hh] = AT.trim;
+    rect('#ecece2', x0, y0, ww, hh);
+    for (let i = 0; i < 30; i++) { g.fillStyle = r() < 0.5 ? 'rgba(140,130,110,0.35)' : 'rgba(255,255,255,0.5)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 2 + r() * 8, 1 + r() * 2); }
+    g.fillStyle = 'rgba(160,110,70,0.35)'; for (let i = 0; i < 6; i++) g.fillRect(x0 + r() * ww, y0 + r() * hh, 1, 6 + r() * 10);
+  }
+  // ---- DECK: grey weathered boards
+  { const [x0, y0, ww, hh] = AT.deck;
+    for (let y = 0; y < hh; y += 10) { g.fillStyle = ['#8d8576', '#9a9382', '#827b6c'][(y / 10) % 3]; g.fillRect(x0, y0 + y, ww, 10); g.fillStyle = 'rgba(30,24,16,0.5)'; g.fillRect(x0, y0 + y, ww, 1); }
+    for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(40,32,20,0.22)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 4 + r() * 14, 1); }
+    for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(214,196,150,0.35)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 2 + r() * 4, 2); }
+  }
+}
+function paintCabinRoof(g, w, h) {
+  const r = RNG(952);
+  const rib = 16;                                                                              // 16 ribs across
+  g.fillStyle = '#cf5a4b'; g.fillRect(0, 0, w, h);
+  for (let x = 0; x < w; x += rib) {
+    const gr = g.createLinearGradient(x, 0, x + rib, 0); gr.addColorStop(0, 'rgba(90,20,14,0.38)'); gr.addColorStop(0.25, 'rgba(255,170,140,0.28)'); gr.addColorStop(0.6, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(70,14,10,0.34)');
+    g.fillStyle = gr; g.fillRect(x, 0, rib, h);
+  }
+  for (let i = 0; i < 24; i++) { g.fillStyle = r() < 0.65 ? 'rgba(240,160,140,0.4)' : 'rgba(130,40,28,0.3)'; g.fillRect(r() * w, r() * h, 10 + r() * 40, 6 + r() * 30); }      // faded and darker paint
+  streaks(g, w, h, 34, 953, 0.4, 120, '60,18,10');
+  for (let i = 0; i < 16; i++) {                                                                // rust bloom
+    const x = r() * w, y = r() * h, rad = 4 + r() * 14, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, 'rgba(150,72,30,0.6)'); gr.addColorStop(1, 'rgba(150,72,30,0)');
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  for (const y of [14, h - 14]) for (let x = rib / 2; x < w; x += rib * 2) { g.fillStyle = '#4a2a22'; g.fillRect(x, y, 3, 3); g.fillStyle = 'rgba(160,84,40,0.55)'; g.fillRect(x, y + 3, 2, 10); }   // screws and their runs
+  for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(244,240,226,0.5)'; g.fillRect(r() * w, r() * h, 4 + r() * 8, 3 + r() * 5); }   // gull droppings and salt
+  const eg = g.createLinearGradient(0, h - 26, 0, h); eg.addColorStop(0, 'rgba(60,24,16,0)'); eg.addColorStop(1, 'rgba(60,24,16,0.45)'); g.fillStyle = eg; g.fillRect(0, h - 26, w, 26);   // drip edge
+  g.fillStyle = 'rgba(40,12,8,0.4)'; g.fillRect(0, 0, w, 6);                                    // ridge
+}
+// one cabin, door towards +x, centred on its floor plan; wall geometry (material mnCabW) and roof geometry (mnCabR)
+let CABGEO = null;
+function cabinGeos() {
+  if (CABGEO) return CABGEO;
+  const W2 = CW / 2, D2 = CD / 2, xf = D2 + 0.16, xb = -D2 - 0.06, zs = W2 + 0.1, ye = CH - 0.06, yr = CH + CR;
+  const mk = () => ({ p: [], n: [], u: [] });
+  const wall = mk(), roof = mk();
+  const px = (reg, x, y) => [(reg[0] + x * reg[2]) / 256, 1 - (reg[1] + (1 - y) * reg[3]) / 256];     // x, y in 0..1 of the region (y up)
+  const tri = (B, a, b, c, n, ua, ub, uc) => {
+    const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const cx = ab[1] * ac[2] - ab[2] * ac[1], cy = ab[2] * ac[0] - ab[0] * ac[2], cz = ab[0] * ac[1] - ab[1] * ac[0];
+    if (cx * n[0] + cy * n[1] + cz * n[2] < 0) { [b, c] = [c, b]; [ub, uc] = [uc, ub]; }
+    for (const [pp, uu] of [[a, ua], [b, ub], [c, uc]]) { B.p.push(pp[0], pp[1], pp[2]); B.n.push(n[0], n[1], n[2]); B.u.push(uu[0], uu[1]); }
+  };
+  // quad seen from outside: bl, br, tr, tl and the region's uv corners
+  const quad = (B, bl, br, tr_, tl, n, reg, u0 = 0, u1 = 1, v0 = 0, v1 = 1) => {
+    const a = px(reg, u0, v0), b = px(reg, u1, v0), c = px(reg, u1, v1), d = px(reg, u0, v1);
+    tri(B, bl, br, tr_, n, a, b, c); tri(B, bl, tr_, tl, n, a, c, d);
+  };
+  const y0 = CY0;
+  // walls; the door wall uses the whole FRONT region, the other three the SIDE region (the back is plain boards)
+  quad(wall, [D2, y0, W2], [D2, y0, -W2], [D2, CH, -W2], [D2, CH, W2], [1, 0, 0], AT.front);
+  quad(wall, [-D2, y0, W2], [D2, y0, W2], [D2, CH, W2], [-D2, CH, W2], [0, 0, 1], AT.side);
+  quad(wall, [D2, y0, -W2], [-D2, y0, -W2], [-D2, CH, -W2], [D2, CH, -W2], [0, 0, -1], AT.side);
+  quad(wall, [-D2, y0, -W2], [-D2, y0, W2], [-D2, CH, W2], [-D2, CH, -W2], [-1, 0, 0], AT.side, 0.5, 1, 0, 1);
+  // gables
+  tri(wall, [D2, CH, W2], [D2, CH, -W2], [D2, yr, 0], [1, 0, 0], px(AT.gable, 0, 0), px(AT.gable, 1, 0), px(AT.gable, 0.5, 1));
+  tri(wall, [-D2, CH, -W2], [-D2, CH, W2], [-D2, yr, 0], [-1, 0, 0], px(AT.gable, 0, 0), px(AT.gable, 1, 0), px(AT.gable, 0.5, 1));
+  // soffit and the two eave boards
+  quad(wall, [xb, ye, -zs], [xf, ye, -zs], [xf, ye, zs], [xb, ye, zs], [0, -1, 0], AT.deck, 0, 1, 0, 0.9);
+  quad(wall, [xb, ye - 0.09, zs], [xf, ye - 0.09, zs], [xf, ye, zs], [xb, ye, zs], [0, 0, 1], AT.trim, 0, 1, 0, 0.4);
+  quad(wall, [xf, ye - 0.09, -zs], [xb, ye - 0.09, -zs], [xb, ye, -zs], [xf, ye, -zs], [0, 0, -1], AT.trim, 0, 1, 0, 0.4);
+  // door step: top, front and both sides
+  const sx = D2 + 0.3, sz = 0.46, sy = 0.16;
+  quad(wall, [D2, sy, sz], [sx, sy, sz], [sx, sy, -sz], [D2, sy, -sz], [0, 1, 0], AT.deck, 0, 1, 0, 0.7);
+  quad(wall, [sx, y0, sz], [sx, y0, -sz], [sx, sy, -sz], [sx, sy, sz], [1, 0, 0], AT.deck, 0, 1, 0, 0.3);
+  quad(wall, [D2, y0, sz], [sx, y0, sz], [sx, sy, sz], [D2, sy, sz], [0, 0, 1], AT.deck, 0, 0.3, 0, 0.3);
+  quad(wall, [sx, y0, -sz], [D2, y0, -sz], [D2, sy, -sz], [sx, sy, -sz], [0, 0, -1], AT.deck, 0, 0.3, 0, 0.3);
+  // roof slopes (ridge along x): u along the ridge, v from the ridge down to the eave
+  const sl = Math.hypot(CR + 0.06, zs), nzv = (CR + 0.06) / sl, nyv = zs / sl;
+  tri(roof, [xb, yr, 0], [xf, yr, 0], [xf, ye, zs], [0, nyv, nzv], [0, 0], [1, 0], [1, 1]); tri(roof, [xb, yr, 0], [xf, ye, zs], [xb, ye, zs], [0, nyv, nzv], [0, 0], [1, 1], [0, 1]);
+  tri(roof, [xf, yr, 0], [xb, yr, 0], [xb, ye, -zs], [0, nyv, -nzv], [0, 0], [1, 0], [1, 1]); tri(roof, [xf, yr, 0], [xb, ye, -zs], [xf, ye, -zs], [0, nyv, -nzv], [0, 0], [1, 1], [0, 1]);
+  const build = (B) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.u, 2)); return g; };
+  return CABGEO = { wall: build(wall), roof: build(roof) };
+}
+const WALLT = ['#ffffff', '#f6fbff', '#e8f4ee', '#f4f8e4', '#ffffff', '#e2f0f6', '#fff6e0'];      // tints on the blue walls: most stay sky blue, a few go mint or sand
+const ROOFT = ['#ffffff', '#ffffff', '#f4cfc4', '#d9a69c', '#ffffff', '#e8e2dc', '#c9d6d8'];     // red, salmon, darker red, a few whitened or grey-blue
 function cabinBlocks(za, zb, seed, gap) {
-  const rn = RNG(seed);
+  const rn = RNG(seed), tn = RNG(seed + 7), G = cabinGeos();
   begin(0);
   for (let z = za; z <= zb; z += gap + Math.floor(rn() * 4)) {
     const f = shoreFrame(z), P = [landX(z) + 3.2 * f.nx, z + 3.2 * f.nz];
     if (Math.hypot(P[0] + 3043, P[1] + 9598) < 45) continue;                                        // the Stabilimento gate keeps its forecourt
     let tw = 0; while (tw < 70 && groundY(P[0] + f.nx * tw, P[1] + f.nz * tw) > 0.3) tw += 1;        // distance to the waterline
     const n = Math.min(13, Math.floor((tw - 9) / 1.3)); if (n < 3) continue;
-    const kA = KEYS[(rn() * KEYS.length) | 0], kB = rn() < 0.55 ? kA : KEYS[(rn() * KEYS.length) | 0];
+    const kA = (rn() * WALLT.length) | 0, kB = rn() < 0.55 ? kA : (rn() * WALLT.length) | 0;
     for (let r = 0; r < 2; r++) {
-      const key = 'mnCab_' + (r ? kB : kA), off = (r ? 1 : -1) * 0.72;
+      const kw = r ? kB : kA, off = (r ? 1 : -1) * 0.72;
       for (let i = 0; i < n; i++) {
         const t = 1.2 + i * 1.3;
         const wx = P[0] + f.nx * t - f.nz * off, wz = P[1] + f.nz * t + f.nx * off, y = groundY(wx, wz);   // sideways = (-nz, nx) * off
         if (y < 0.3) continue;
-        const M = frame(wx, y, wz, f.nx, f.nz);
-        bx(key, M, -0.62, 0.62, -0.4, 2.2, -0.7, 0.7, { uv: 'keep', noao: true });
-        bx('flat', M, -0.7, 0.7, 2.2, 2.36, -0.78, 0.78, { c: r ? '#d9d2c0' : '#c9c2b0', noao: true });
+        const M = frame(wx, y, wz, f.nx, f.nz), Mc = r ? mul(M, rotY(PI)) : M;                        // the door faces the aisle: away from the other row
+        const wc = tn() < 0.82 ? WALLT[kw] : WALLT[(tn() * WALLT.length) | 0], rc = ROOFT[(tn() * ROOFT.length) | 0];
+        part('mnCabW', G.wall, { M: Mc, c: wc, uv: 'keep', noao: true });
+        part('mnCabR', G.roof, { M: Mc, c: rc, uv: 'keep', noao: true });
       }
     }
   }

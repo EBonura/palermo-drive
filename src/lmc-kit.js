@@ -17,6 +17,20 @@ const DEFS = {};   // key -> { w, h, texM, paint, opts }
 const CACHE = {};  // key -> THREE.MeshStandardMaterial
 let BINS = {}, TRIS = 0, BASEY = 0;
 
+// A shared weathering coat for the painted stone fronts and walls of the monuments (the key names end in Front, Wall, Body, Nave, Tower, Block or Wing): soot and damp that streak down from the
+// ledges, big soft stains, grime thickening towards the foot, and a fine grain, so a flat painted colour reads as old stone. Seeded from the key, so a texture is the same every time it is painted.
+const WEATHER = /^(sd|sf|sa|sv|si|gs|tb|sc|ma|ca|st|pd|mg|po|ni|an|ga|tn|mt|vv|or|lu|gr|cw|cm|ag|bf|rm|pr|ba|bb|bc|bd|be|bg|bh)[A-Za-z]*(Front|Wall|Body|Nave|Tower|Block|Wing|F|W)$/;
+function weather(g, w, h, key) {
+  let sd = 0; for (let i = 0; i < key.length; i++) sd = (sd * 31 + key.charCodeAt(i)) >>> 0; const r = rng(sd + 77);
+  g.save();
+  for (let i = 0; i < 7; i++) { const x = r() * w, y = r() * h, rad = (0.15 + r() * 0.25) * Math.max(w, h), k = r(), c = k < 0.55 ? '40,30,20' : k < 0.8 ? '255,248,230' : '110,100,80', a = 0.08 + r() * 0.1; const gr = g.createRadialGradient(x, y, 1, x, y, rad); gr.addColorStop(0, `rgba(${c},${a})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - rad, y - rad, 2 * rad, 2 * rad); }
+  const n = Math.round(w / 6);
+  for (let i = 0; i < n; i++) { const x = r() * w, y0 = r() * h * 0.7, len = h * (0.12 + r() * 0.4), wd = 1 + r() * (w / 70), a = 0.07 + r() * 0.15; const gr = g.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, `rgba(36,28,20,${a})`); gr.addColorStop(0.8, `rgba(36,28,20,${a * 0.6})`); gr.addColorStop(1, 'rgba(36,28,20,0)'); g.fillStyle = gr; g.fillRect(x, y0, wd, len); }
+  const gb = g.createLinearGradient(0, h, 0, h * 0.78); gb.addColorStop(0, 'rgba(40,30,20,0.28)'); gb.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gb; g.fillRect(0, h * 0.78, w, h * 0.22);
+  const gt = g.createLinearGradient(0, 0, 0, h * 0.12); gt.addColorStop(0, 'rgba(40,30,20,0.16)'); gt.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gt; g.fillRect(0, 0, w, h * 0.12);
+  for (let i = 0; i < w * h / 70; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,250,235,0.07)' : 'rgba(50,40,28,0.09)'; g.fillRect(r() * w, r() * h, 1 + r() * 1.5, 1 + r() * 1.5); }
+  g.restore();
+}
 export function defMat(key, w, h, texM, paint, opts = {}) { if (!DEFS[key]) DEFS[key] = { w, h, texM, paint, opts }; }
 function getMat(key) {
   if (CACHE[key]) return CACHE[key];
@@ -24,6 +38,7 @@ function getMat(key) {
   if (d.paint) {
     const cv = document.createElement('canvas'); cv.width = d.w; cv.height = d.h;
     d.paint(cv.getContext('2d'), d.w, d.h);
+    if (WEATHER.test(key) && d.w >= 96) weather(cv.getContext('2d'), d.w, d.h, key);
     map = freeCanvas(new THREE.CanvasTexture(cv), d.paint); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   }
   const { noShadow, ...mo } = d.opts;
