@@ -56,6 +56,7 @@
 @media (prefers-reduced-motion: reduce) { #loading #tip { transition: none; } }
 
 /* ---------- root ---------- */
+#pd-uiframe { position: fixed; inset: 0; z-index: 500; overflow: hidden; pointer-events: none; contain: strict; }
 #pd-ui {
   position: fixed; inset: 0 auto auto 0; width: calc(100% / var(--ui-z, 1)); height: calc(100% / var(--ui-z, 1)); transform: scale(var(--ui-z, 1)); transform-origin: 0 0; z-index: 500; pointer-events: none; overflow: hidden;
   font-family: var(--pd-sans); color: #fff; -webkit-font-smoothing: antialiased;

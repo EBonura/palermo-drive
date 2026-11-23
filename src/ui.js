@@ -566,7 +566,9 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   note.querySelector('.pd-stnx').addEventListener('click', e => { e.stopPropagation(); noteDone(); });
   function maybeNote(v) { if (v && v.station === 'sessanta' && v.mode === 'on' && note.hidden && !noteSeen()) { note.hidden = false; for (const e of note.querySelectorAll('[data-k]')) applyLangTo(e); clearTimeout(noteT); noteT = setTimeout(noteDone, 16000); } }
   ui.append(bar, note, fsBtn);
-  document.body.append(ui);
+  // The menu layer is laid out bigger than the screen and scaled down (src/viewport.js, #pd-ui in ui.css). A fixed box bigger than the screen made Chrome and DuckDuckGo on
+  // iPhone shift the page off the notch side (a light strip on the left): this frame, exactly the screen and clipping, holds it so nothing reaches past the screen.
+  const uiFrame = h('div', '', null, { id: 'pd-uiframe' }); uiFrame.append(ui); document.body.append(uiFrame);
   ui.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }); // keep mobile.js's page lockdown off our scrolling
   ui.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
   ui.addEventListener('touchend', e => e.stopPropagation(), { passive: true });
