@@ -98,6 +98,7 @@ export function createRamps(env) {
       }
       quad([-hw, 0, L], [hw, 0, L], [hw, hL, L], [-hw, hL, L], C.plateD);   // the back, facing the way the lapa leaves
       box(-hw, hw, hL - 0.14, hL, L - 0.35, L + 0.02, C.dark);   // the lip plate
+      for (let k = 0; k < Math.round(K.w / 0.4); k++) { const a = -hw + k * 0.4; quad([a, hL - 0.5, L + 0.012], [a + 0.4, hL - 0.5, L + 0.012], [a + 0.4, hL - 0.2, L + 0.012], [a, hL - 0.2, L + 0.012], k % 2 ? C.black : C.yellow); }   // a hazard band across the back face
       for (const x of [-hw + 0.35, hw - 0.35]) { box(x - 0.15, x + 0.15, 0.3, hL - 0.3, L, L + 0.05, C.plate); }   // braces on the back face
       for (const sg of [-1, 1]) for (let k = 0; k < 4; k++) quad([sg * (hw + 0.13), hL + 0.001, L - 0.7 + k * 0.2], [sg * (hw + 0.13), hL + 0.001, L - 0.7 + k * 0.2 + 0.1], [sg * (hw + 0.13), hL - 0.14, L - 0.7 + k * 0.2 + 0.1], [sg * (hw + 0.13), hL - 0.14, L - 0.7 + k * 0.2], k % 2 ? C.red : C.white);   // reflective lip marks (thin, on the outside)
     } else {
@@ -107,15 +108,19 @@ export function createRamps(env) {
         side(sg, 6, L, 0.62, C.white);                       // the skirt, 0.62 m off the ground
         const x0 = sg > 0 ? hw : -hw - 0.02, x1 = sg > 0 ? hw + 0.02 : -hw;
         box(x0, x1, 0.95, 1.2, 6, L, C.blue);                // the band along the skirt
+        for (let z = 8.8; z < L - 0.2; z += 2.2) { box(sg > 0 ? hw : -hw - 0.012, sg > 0 ? hw + 0.012 : -hw, 0.66, hAt(z), z - 0.03, z + 0.03, [0.78, 0.8, 0.82]); }   // the seams of the skirt panels
         for (let z = 6.6; z < L - 0.2; z += 2.2) { const h = hAt(z); box(sg > 0 ? hw : -hw - 0.06, sg > 0 ? hw + 0.06 : -hw, h, h + 0.95, z - 0.04, z + 0.04, C.plateD); }   // posts of the side rail
         for (const dy of [0.45, 0.9]) { for (let z = 6.6; z < L - 2.4; z += 2.2) { const h0 = hAt(z), h1 = hAt(z + 2.2); tri2([sg * (hw + 0.06), h0 + dy, z], [sg * (hw + 0.06), h1 + dy, z + 2.2], [sg * (hw + 0.06), h1 + dy + 0.07, z + 2.2], C.plateD), tri2([sg * (hw + 0.06), h0 + dy, z], [sg * (hw + 0.06), h1 + dy + 0.07, z + 2.2], [sg * (hw + 0.06), h0 + dy + 0.07, z], C.plateD); } }
       }
       box(-hw + 0.35, hw - 0.35, 0.62, 1.0, 6, L - 0.4, C.dark);   // the chassis under the bed
-      for (const z of [9.6, 11.0, 12.4]) for (const sg of [-1, 1]) { cyl(sg * (hw - 0.02), 0.5, z, 0.5, 0.17, C.tyre, 12); cyl(sg * (hw + 0.1), 0.5, z, 0.22, 0.03, C.grey, 8); }   // wheels with a hub
-      for (const sg of [-1, 1]) box(sg > 0 ? hw - 0.1 : -hw - 0.35, sg > 0 ? hw + 0.35 : -hw + 0.1, 1.0, 1.06, 8.9, 13.1, C.dark);   // mudguards
+      for (const z of [9.6, 11.0, 12.4]) for (const sg of [-1, 1]) { cyl(sg * (hw + 0.04), 0.5, z, 0.5, 0.15, [0.09, 0.09, 0.1], 14); cyl(sg * (hw + 0.2), 0.5, z, 0.24, 0.02, C.grey, 10); }   // wheels standing out of the skirt, with a hub
+      for (const sg of [-1, 1]) box(sg > 0 ? hw - 0.1 : -hw - 0.4, sg > 0 ? hw + 0.4 : -hw + 0.1, 1.04, 1.1, 8.9, 13.1, C.dark);   // mudguards over the wheels
       for (const sg of [-1, 1]) box(sg * (hw - 0.5) - 0.05, sg * (hw - 0.5) + 0.05, 0, 0.9, 6.6, 6.7, C.dark);   // the landing legs
       for (const sg of [-1, 1]) box(sg * (hw - 0.3) - 0.14, sg * (hw - 0.3) + 0.14, 0.7, 0.8, 5.9, 6.03, C.red);   // rear reflectors on the hinge
-      quad([-hw, 0.62, L], [hw, 0.62, L], [hw, hL, L], [-hw, hL, L], C.red); box(-hw, hw, hL - 0.1, hL + 0.001, L - 0.3, L + 0.02, C.dark);   // the end of the bed
+      quad([-hw, 0.62, L], [hw, 0.62, L], [hw, hL, L], [-hw, hL, L], C.white); box(-hw, hw, hL - 0.1, hL + 0.001, L - 0.3, L + 0.02, C.dark);   // the front end of the trailer: white like its skirt, with a blue band, a red and white reflective strip and two marker lights
+      quad([-hw, 1.05, L + 0.004], [hw, 1.05, L + 0.004], [hw, 1.3, L + 0.004], [-hw, 1.3, L + 0.004], C.blue);
+      for (let k = 0; k < Math.round(K.w / 0.25); k++) { const a = -hw + k * 0.25; quad([a, 0.66, L + 0.004], [a + 0.25, 0.66, L + 0.004], [a + 0.25, 0.8, L + 0.004], [a, 0.8, L + 0.004], k % 2 ? C.white : C.red); }
+      for (const sg of [-1, 1]) box(sg * (hw - 0.25) - 0.1, sg * (hw - 0.25) + 0.1, 1.45, 1.6, L, L + 0.05, C.amber);
       box(-hw + 0.3, hw - 0.3, hL - 0.02, hL + 0.001, L - 0.3, L, C.yellow);
     }
 
@@ -143,17 +148,20 @@ export function createRamps(env) {
     for (let a = bx0 + 0.35; a < bx1 - 0.2; a += 2) { for (const sg of [-0.28, 0.28]) { box(xT - 0.02 + sg * 0.0, xT + 0.02, 0, 0.55, a + sg, a + sg + 0.035, stand); } box(xT - 0.26, xT + 0.26, 0, 0.03, a - 0.3, a + 0.3, stand); }   // the folding frame: two legs and a spreader foot
     for (const z of [bx0 + 0.15, bx1 - 0.25]) { box(xT - 0.09, xT + 0.09, 1.0, 1.1, z, z + 0.12, C.dark); box(xT - 0.07, xT + 0.07, 1.1, 1.22, z + 0.01, z + 0.11, C.amber); }   // the lamps
     // the orange net on the kerb side: a textured sheet, stakes every 2 m with an orange cap
-    NT.push(xK, 0.08, bx0, xK, 0.08, bx1, xK, NET_H, bx1, xK, 0.08, bx0, xK, NET_H, bx1, xK, NET_H, bx0); { const u1 = (bx1 - bx0) / 0.5, v1 = (NET_H - 0.08) / 0.5; NTU.push(0, 0, u1, 0, u1, v1, 0, 0, u1, v1, 0, v1); }
+    NT.push(xK, 0.08, bx0, xK, 0.08, bx1, xK, NET_H, bx1, xK, 0.08, bx0, xK, NET_H, bx1, xK, NET_H, bx0); { const u1 = (bx1 - bx0) / 0.3, v1 = (NET_H - 0.08) / 0.3; NTU.push(0, 0, u1, 0, u1, v1, 0, 0, u1, v1, 0, v1); }
     for (let a = bx0; a <= bx1 + 0.01; a += 2) { const z = Math.min(a, bx1 - 0.03); box(xK - 0.025, xK + 0.025, 0, NET_H + 0.12, z, z + 0.05, [0.2, 0.4, 0.2]); box(xK - 0.04, xK + 0.04, NET_H + 0.12, NET_H + 0.2, z - 0.01, z + 0.06, C.orange); }
     signX(R_LAV, xK + 0.035, 0.85, bx0 + 3.4, 0.55, 0.85); signX(R_VIE, xK + 0.035, 0.85, bx0 + 4.5, 0.55, 0.85);
     const cone = null;   // (the cones are their own instances, see coneGeos)
     const sandbag = (x, s, col = C.sand) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, col);
     { const x = hw + 1.3, s = bx0 - 0.5;   // the triangle sign on a folding stand (two legs apart at the bottom), an orange sandbag on its foot
-      for (const dx of [-0.42, 0.42]) { box(x + dx - 0.02, x + dx + 0.02, 0, 0.75, s - 0.03, s + 0.03, stand); sandbag(x + dx, s - 0.05, orangeBag); }
-      box(x - 0.4, x + 0.4, 0.7, 0.75, s - 0.025, s + 0.03, stand);
+      for (const dx of [-1, 1]) {   // splayed legs, flat steel: wide at the ground, close together under the sign
+        quad([x + dx * 0.52, 0, s - 0.025], [x + dx * 0.52, 0, s + 0.025], [x + dx * 0.3, 0.78, s + 0.025], [x + dx * 0.3, 0.78, s - 0.025], stand);
+        quad([x + dx * 0.52 - 0.025, 0, s], [x + dx * 0.52 + 0.025, 0, s], [x + dx * 0.3 + 0.025, 0.78, s], [x + dx * 0.3 - 0.025, 0.78, s], stand);
+        sandbag(x + dx * 0.4, s - 0.02, orangeBag); }
+      box(x - 0.31, x + 0.31, 0.7, 0.76, s - 0.025, s + 0.03, stand); box(x - 0.5, x + 0.5, 0.02, 0.05, s - 0.02, s + 0.02, stand);
       signZ(R_TRI, x, 1.2, s - 0.04, 1.05, 1.05);
       const bx = hw + 3.3, bs = bx0 - 2.6;   // the blue disc with the white arrow, on its own stand
-      for (const dx of [-0.3, 0.3]) box(bx + dx - 0.02, bx + dx + 0.02, 0, 0.7, bs - 0.03, bs + 0.03, stand);
+      box(bx - 0.025, bx + 0.025, 0, 0.8, bs - 0.025, bs + 0.025, stand); box(bx - 0.35, bx + 0.35, 0, 0.04, bs - 0.03, bs + 0.03, stand); box(bx - 0.03, bx + 0.03, 0, 0.04, bs - 0.3, bs + 0.3, stand); sandbag(bx - 0.3, bs - 0.15, orangeBag);   // one pole on a cross foot with a sandbag
       signZ(R_BLUE, bx, 1.0, bs - 0.04, 0.8, 0.8);
     }
     sandbag(xT + 0.2, bx1 + 0.3, orangeBag); sandbag(xT + 0.2, bx1 + 0.45, orangeBag);
@@ -178,27 +186,32 @@ export function createRamps(env) {
     const triPath = (cx, top, bot, half) => { x.beginPath(); x.moveTo(cx, top); x.lineTo(cx + half, bot); x.lineTo(cx - half, bot); x.closePath(); };
     const worker = (ox, oy, k) => {   // a black man bent over a shovel, and the heap
       x.save(); x.translate(ox, oy); x.scale(k, k); x.fillStyle = x.strokeStyle = '#111'; x.lineCap = 'round'; x.lineJoin = 'round';
-      x.beginPath(); x.arc(-14, -34, 11, 0, 6.2832); x.fill();
-      x.lineWidth = 14; x.beginPath(); x.moveTo(-16, -20); x.lineTo(-4, 14); x.lineTo(-22, 42); x.moveTo(-4, 14); x.lineTo(16, 40); x.stroke();   // body and legs
-      x.lineWidth = 10; x.beginPath(); x.moveTo(-14, -12); x.lineTo(14, 4); x.stroke();                                                          // the arm
-      x.lineWidth = 6; x.beginPath(); x.moveTo(14, 4); x.lineTo(42, 40); x.stroke();                                                              // the shovel
+      x.beginPath(); x.arc(-16, -40, 15, 0, 6.2832); x.fill();
+      x.lineWidth = 22; x.beginPath(); x.moveTo(-18, -20); x.lineTo(-4, 16); x.stroke();                                                         // the bent back
+      x.lineWidth = 18; x.beginPath(); x.moveTo(-4, 16); x.lineTo(-24, 46); x.moveTo(-4, 16); x.lineTo(18, 44); x.stroke();                        // the legs
+      x.lineWidth = 15; x.beginPath(); x.moveTo(-12, -8); x.lineTo(16, 8); x.stroke();                                                           // the arm
+      x.lineWidth = 8; x.beginPath(); x.moveTo(16, 8); x.lineTo(46, 44); x.stroke();                                                              // the shovel
       x.beginPath(); x.moveTo(30, 46); x.lineTo(70, 46); x.lineTo(54, 26); x.closePath(); x.fill(); x.restore(); };
     triPath(128, 10, 238, 118); x.fillStyle = '#d1261b'; x.fill(); triPath(128, 62, 214, 80); x.fillStyle = '#f5c518'; x.fill(); worker(120, 150, 0.95);   // the triangle sign
     x.fillStyle = '#1f5fb5'; x.beginPath(); x.arc(128, 384, 120, 0, 6.2832); x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 6; x.beginPath(); x.arc(128, 384, 112, 0, 6.2832); x.stroke();
     x.fillStyle = '#fff'; x.save(); x.translate(128, 384); x.rotate(-0.6); x.beginPath(); x.moveTo(-80, 0); x.lineTo(-20, -44); x.lineTo(-20, -18); x.lineTo(78, -18); x.lineTo(78, 18); x.lineTo(-20, 18); x.lineTo(-20, 44); x.closePath(); x.fill(); x.restore();   // the arrow
     const plate = ox => { x.fillStyle = '#f7f6f2'; x.fillRect(ox + 4, 4, 248, 504); x.strokeStyle = '#999'; x.lineWidth = 3; x.strokeRect(ox + 4, 4, 248, 504); };
     plate(256); triPath(256 + 128, 24, 190, 86); x.fillStyle = '#d1261b'; x.fill(); triPath(256 + 128, 62, 172, 54); x.fillStyle = '#f5c518'; x.fill(); worker(256 + 124, 124, 0.6);
-    x.fillStyle = '#111'; x.textAlign = 'center'; x.font = '900 70px sans-serif'; x.fillText('LAVORI', 256 + 128, 300); x.fillText('IN', 256 + 128, 372); x.fillText('CORSO', 256 + 128, 444);
+    x.fillStyle = '#111'; x.textAlign = 'center'; x.font = '900 52px sans-serif'; x.fillText('LAVORI', 256 + 128, 300); x.fillText('IN', 256 + 128, 372); x.fillText('CORSO', 256 + 128, 444);
     plate(512); x.strokeStyle = '#d1261b'; x.lineWidth = 16; x.beginPath(); x.arc(512 + 128, 130, 72, 0, 6.2832); x.stroke(); x.beginPath(); x.moveTo(512 + 78, 80); x.lineTo(512 + 178, 180); x.stroke();
-    x.fillStyle = '#111'; x.beginPath(); x.arc(512 + 128, 128, 36, 0, 6.2832); x.fill(); x.fillStyle = '#111'; x.font = '800 34px sans-serif';
+    { const hx = 512 + 128, hy = 130; x.fillStyle = '#111';   // a raised hand
+      x.beginPath(); x.roundRect(hx - 22, hy - 4, 44, 46, 10); x.fill();
+      for (const [fx, fh] of [[-22, 44], [-8, 54], [6, 54], [20, 44]]) { x.beginPath(); x.roundRect(hx + fx - 6, hy - fh + 6, 12, fh, 6); x.fill(); }
+      x.beginPath(); x.roundRect(hx - 38, hy + 6, 30, 12, 6); x.fill(); }
+    x.fillStyle = '#111'; x.font = '800 32px sans-serif';
     ['VIETATO', 'L’INGRESSO', 'AI NON', 'ADDETTI', 'AI LAVORI'].forEach((t, i) => x.fillText(t, 512 + 128, 262 + i * 52));
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
-  const netTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');   // the orange plastic net: orange with round holes
-    x.fillStyle = '#f0661a'; x.fillRect(0, 0, 64, 64); x.globalCompositeOperation = 'destination-out';
-    for (const [px, py] of [[16, 16], [48, 16], [0, 48], [32, 48], [64, 48], [16, 80], [48, 80], [0, 16], [32, 16], [64, 16], [16, 48], [48, 48]]) { x.beginPath(); x.arc(px, py, 11, 0, 6.2832); x.fill(); }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; })();
+  const netTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');   // the orange plastic net: a diamond lattice of strands, open between
+    x.strokeStyle = '#f26a14'; x.lineWidth = 5; x.lineCap = 'butt';
+    for (let k = -3; k <= 3; k++) { x.beginPath(); x.moveTo(k * 32, 0); x.lineTo(k * 32 + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k * 32, 64); x.lineTo(k * 32 + 64, 0); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
   const signMat = new THREE.MeshStandardMaterial({ map: signTex, alphaTest: 0.4, roughness: 0.55, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const netMat = new THREE.MeshStandardMaterial({ map: netTex, alphaTest: 0.5, roughness: 0.8, side: THREE.DoubleSide });
+  const netMat = new THREE.MeshStandardMaterial({ map: netTex, alphaTest: 0.35, roughness: 0.8, side: THREE.DoubleSide });
   const meshes = {}, geos = {};
   for (const kind of Object.keys(KINDS)) {
     const mine = list.filter(r => r.kind === kind); if (!mine.length) continue;
@@ -233,6 +246,7 @@ export function createRamps(env) {
   // where the cones stand, in each ramp's frame (x to its left, s along it): a taper out into the street in front, three at the end, two at the entrance
   const coneSpots = r => { const hw = r.K.w / 2, bx0 = -ZONE_BEFORE, bx1 = r.L + ZONE_AFTER; return [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.9], [-(hw + 0.45), bx1 + 0.9], [hw + 1.7, bx1 + 0.9], [-hw, bx0 - 0.5], [hw, bx0 - 0.5]]; };
   const NC = coneSpots(list[0] || { K: KINDS.ramp, L: 10 }).length, coneN = list.length * NC;
+  const hasSticker = i => { let h = Math.imul(i + 1, 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; return (h >>> 0) % 5 === 0; };   // the same cones every time: about a fifth of them
   let coneMesh = null, stickMesh = null;
   if (coneN) {
     coneMesh = new THREE.InstancedMesh(coneGeos.g, mat, coneN); stickMesh = new THREE.InstancedMesh(coneGeos.sg, stickerMat, coneN);
@@ -258,7 +272,8 @@ export function createRamps(env) {
       const r = list[zi], near = Math.hypot(r.x - cx, r.z - cz) < SEE, sp = coneSpots(r);
       for (let k = 0; k < sp.length; k++) {
         const [lx, ls] = sp[k], wx = r.x + r.cs * lx + r.sn * ls, wz = r.z - r.sn * lx + r.cs * ls;
-        m4.compose(p3.set(wx, near ? groundY(wx, wz) + (raisedMask && raisedMask(wx, wz) ? CURB : 0) + 0.005 : -1000, wz), q4.setFromAxisAngle(up, r.th), one); coneMesh.setMatrixAt(zi * NC + k, m4); stickMesh.setMatrixAt(zi * NC + k, m4);
+        m4.compose(p3.set(wx, near ? groundY(wx, wz) + (raisedMask && raisedMask(wx, wz) ? CURB : 0) + 0.005 : -1000, wz), q4.setFromAxisAngle(up, r.th), one); coneMesh.setMatrixAt(zi * NC + k, m4);
+        if (hasSticker(zi * NC + k)) stickMesh.setMatrixAt(zi * NC + k, m4); else stickMesh.setMatrixAt(zi * NC + k, m4.compose(p3.set(0, -1000, 0), q4.set(0, 0, 0, 1), one));   // the easter egg is on about one cone in five
       }
       if (near) anyCone = true;
     }
