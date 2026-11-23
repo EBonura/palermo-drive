@@ -10,12 +10,10 @@ HE-AAC in M4A (about 40 kbps, `<id>.m4a`) like the rest. Nothing else was change
 Attribution text required by the CC BY 4.0 licence (Kevin MacLeod, incompetech.com):
 
 - "Bushwick Tarantella" Kevin MacLeod (incompetech.com). Licensed under Creative Commons: By Attribution 4.0 License, http://creativecommons.org/licenses/by/4.0/
-- "Meatball Parade" Kevin MacLeod (incompetech.com). Licensed under Creative Commons: By Attribution 4.0 License, http://creativecommons.org/licenses/by/4.0/
 
 | Title (file) | Author | Source | Licence | Changes |
 | --- | --- | --- | --- | --- |
 | Bushwick Tarantella (`bushwick-tarantella.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
-| Meatball Parade (`meatball-parade.m4a`) | Kevin MacLeod (incompetech.com) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 , licence terms at https://incompetech.com/music/royalty-free/licenses/ | CC BY 4.0 | web re-encode, loudness normalised |
 | Tarantella, traditional, arr. William Popp (`tarantella-air-force-strings.m4a`) | Air Force Strings, United States Air Force Band (from "International Mosaic", 2009) | https://commons.wikimedia.org/wiki/File:Tarantella.ogg | Public domain (work of the US Government) | web re-encode, loudness normalised |
 
 ## Alamia e Sperandeo (32 tracks)

@@ -61,7 +61,6 @@ const ALAMIA = [   // [id, title as tagged]; Alamia e Sperandeo, Seamusica S.r.l
 export const TRACKS = [
   { id: 'bushwick-tarantella', title: 'Bushwick Tarantella', by: 'Kevin MacLeod' },
   { id: 'tarantella-air-force-strings', title: 'Tarantella', by: 'Air Force Strings, US Air Force Band' },
-  { id: 'meatball-parade', title: 'Meatball Parade', by: 'Kevin MacLeod' },
   ...ALAMIA,
 ];
 // Radio Lamiera: rock and metal from Palermo bands. Sources and permissions for every track: assets/music/CREDITS.md.

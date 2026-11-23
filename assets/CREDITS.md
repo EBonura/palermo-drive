@@ -121,7 +121,6 @@ Three free-licence tracks and the songs of Alamia e Sperandeo. Every track was r
 | Title | Author | Licence | Source |
 | --- | --- | --- | --- |
 | Bushwick Tarantella | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300002 |
-| Meatball Parade | Kevin MacLeod (incompetech.com) | CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500014 |
 | Tarantella (trad., arr. William Popp) | Air Force Strings, US Air Force Band | Public domain | https://commons.wikimedia.org/wiki/File:Tarantella.ogg |
 
 ## Alamia e Sperandeo
