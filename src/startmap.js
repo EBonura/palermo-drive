@@ -14,6 +14,7 @@
 // spots: [{ name, x, z, q }], quarters: [{ name, x, z }], getEvents(): [{ id, kind, name, x, z, night? }], getCar(): { x, z, th } | null.
 
 import { esc } from './esc.js';
+import { vp } from './viewport.js';
 import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter that has its eyes on you, filled (the same as on the minimap)
 const ASSET = new URL('../assets/ui/startmap.json', import.meta.url).href;
 const CELL = 1000;                     // metres per road/area cell
@@ -186,8 +187,8 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     clampView(); mark();
   }
   function resize() {
-    const r = host.getBoundingClientRect(); if (!r.width) return;
-    dpr = Math.min(devicePixelRatio || 1, 2); W = Math.round(r.width); H = Math.round(r.height);
+    if (!host.offsetWidth) return;   // (W and H are in the menu's own pixels, the virtual screen of src/viewport.js: pointer offsets and the popups are in them; the canvas has the real pixels)
+    dpr = Math.min(devicePixelRatio || 1, 2) * vp.z; W = host.offsetWidth; H = host.offsetHeight;
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); limits(); mark();
   }
 
@@ -517,7 +518,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   // The gamepad drives the map like a mouse (src/gamepad.js): the left stick pans, the triggers zoom around the pointer, A clicks where the pointer is
   addEventListener('pd-map-drive', e => {
     if (!cv.offsetParent) return;
-    const d = e.detail, r = cv.getBoundingClientRect(), px = d.x - r.left, py = d.y - r.top;
+    const d = e.detail, r = cv.getBoundingClientRect(), px = (d.x - r.left) / vp.z, py = (d.y - r.top) / vp.z;
     if (d.dx || d.dy) pan(d.dx, d.dy);
     if (d.zoom && d.zoom !== 1) zoomAt(d.zoom, px, py);
     if (d.click) { const hit = pick(px, py, 18); if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop(); }

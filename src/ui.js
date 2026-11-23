@@ -11,6 +11,7 @@
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
 import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';
+import { vp } from './viewport.js';   // sets --vh, the height that is really visible (menus size from it)
 import { garage, VEHICLES } from './garage.js';   // the welcome screen shows the wallet and the ride   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
@@ -296,7 +297,7 @@ function creditsMarkdown(md, base) {
     head = null;
     if (!line || /^# /.test(line) || /^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flush(); continue; }
     if (line.replace(/^\*\*|\*\*$/g, '') === MOTTO) { flush(); continue; }   // shown under the author's name instead
-    if (/^##+ /.test(line)) { flush(); out.push(`<h3 style="font-size:.8em;margin-top:3vh">${inl(creditHead(line.replace(/^#+ /, '')))}</h3>`); }
+    if (/^##+ /.test(line)) { flush(); out.push(`<h3 style="font-size:.8em;margin-top:calc(var(--vh, 1vh) * 3)">${inl(creditHead(line.replace(/^#+ /, '')))}</h3>`); }
     else if (/^[-*] /.test(line)) { flush(); out.push(`<p>${inl(line.slice(2))}</p>`); }
     else para.push(line);
   }
@@ -368,7 +369,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   mk('menu', '', `<div class="pd-mbody"><div class="pd-mleft"><div class="pd-logo">${logoSVG('m')}</div>
       <div class="pd-msoc"><div class="pd-msh">${igHandle('izzy88izzy')}${igHandle('bonnie_studios_')}</div><a class="pd-msn" href="https://ig.me/m/izzy88izzy" target="_blank" rel="noopener noreferrer"><b>${NOTE}<span data-k="igHead"></span></b><span data-k="igMusic"></span></a></div></div>
     <nav class="pd-menu">
-      <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,5.4vh,34px)">${two('drive')}${CHEV}</button>
+      <button class="pd-btn drive" data-nav data-do="drive" type="button" style="font-size:clamp(22px,calc(var(--vh, 1vh) * 5.4),34px)">${two('drive')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="garage" data-garage type="button" hidden>${two('garageName')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="missions" type="button">${two('missions')}${CHEV}</button>
       <button class="pd-btn" data-nav data-do="options" type="button">${two('options')}${CHEV}</button>
@@ -806,7 +807,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   // ---- garage: vehicle, paint and tamarro parts (src/garage-ui.js) in their own scene (src/garage-scene.js) ----
   const garageScene = createGarageScene({ renderer, vehicle, game });
   const garageUI = setupGarageUI({ screen: screens.garage, button: ui.querySelector('[data-garage]'), scene: garageScene, getLang: () => lang, onExit: () => goBack() });
-  { const gc = screens.garage.querySelector('.pd-garage'), wc = screens.welcome.querySelector('.pd-wel'); garageScene.setPanel(() => (cur === 'welcome' ? wc : gc)?.offsetWidth || 0); }   // the turntable frames the ride left of whichever panel is up
+  { const gc = screens.garage.querySelector('.pd-garage'), wc = screens.welcome.querySelector('.pd-wel'); garageScene.setPanel(() => ((cur === 'welcome' ? wc : gc)?.offsetWidth || 0) * vp.z); }   // the turntable frames the ride left of whichever panel is up
 
   // ---- the radio on screen: the bar, the top of the menu panel (both fed by the radio's view, src/radio.js), the busy warning, the fullscreen button ----
   const npL = screens.side.querySelector('.pd-npl'), npN = screens.side.querySelector('.pd-npn'), npS = screens.side.querySelector('.pd-nps');
@@ -1184,7 +1185,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
               <div class="pd-msm">${r.title && r.name !== r.q ? `<span>${esc(r.name)}</span>` : ''}<span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
               <div class="pd-msm">${state}</div>
               ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
-            ${r.call ? '' : `<button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button>`}</div>`;
+            ${`<button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button>`}</div>`;
         }).join('') : '');
     }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
     closeAsk(true);
@@ -1269,7 +1270,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
       <h3>${T('credFonts')}</h3>
       <p><b>Mr Dafoe, Racing Sans One, Barlow, Barlow Condensed</b>SIL Open Font License 1.1 · Google Fonts</p>
       <div class="pd-end">${esc(S.credThanks[i])}</div>
-      <p style="margin-top:2vh;opacity:.7"><small>${esc(S.credStreet[i])}</small></p>`;
+      <p style="margin-top:calc(var(--vh, 1vh) * 2);opacity:.7"><small>${esc(S.credStreet[i])}</small></p>`;
   }
   function loadAssetCredits() {
     if (assetsLoaded) return; assetsLoaded = true;

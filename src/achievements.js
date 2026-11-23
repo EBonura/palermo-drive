@@ -45,9 +45,9 @@ const CSS = `
 .pd-secret.on { display: block; animation: pd-secret-in .55s cubic-bezier(.2,1.5,.4,1) forwards; }
 .pd-secret.off { display: block; animation: pd-secret-out .5s ease-in forwards; }
 .pd-secret > * { transform: skewX(5deg); }
-.pd-secret small { display: block; font-weight: 700; font-size: clamp(11px, 2.4vh, 14px); letter-spacing: .3em; color: #ffcf4a; }
-.pd-secret b { display: block; margin: 3px 0 2px; font: 400 clamp(22px, 6vh, 40px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .05em; text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); -webkit-text-stroke: 1px #0b0709; paint-order: stroke fill; text-transform: none; }
-.pd-secret span { display: block; font-weight: 600; font-size: clamp(11px, 2.5vh, 15px); letter-spacing: .08em; opacity: .88; text-transform: none; }
+.pd-secret small { display: block; font-weight: 700; font-size: clamp(11px, calc(var(--rvh, 1vh) * 2.4), 14px); letter-spacing: .3em; color: #ffcf4a; }
+.pd-secret b { display: block; margin: 3px 0 2px; font: 400 clamp(22px, calc(var(--rvh, 1vh) * 6), 40px)/1.05 'Racing Sans One','Barlow Condensed',Impact,sans-serif; letter-spacing: .05em; text-shadow: 0 0 14px #e8559a, 0 3px 6px rgba(0,0,0,.6); -webkit-text-stroke: 1px #0b0709; paint-order: stroke fill; text-transform: none; }
+.pd-secret span { display: block; font-weight: 600; font-size: clamp(11px, calc(var(--rvh, 1vh) * 2.5), 15px); letter-spacing: .08em; opacity: .88; text-transform: none; }
 .pd-secret i { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4px; background: #ffcf4a; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); opacity: 0;
   animation: pd-secret-spark 1.1s ease-out forwards; animation-delay: var(--d); transform: skewX(5deg); }
 @keyframes pd-secret-in { 0% { opacity: 0; transform: scale(.6) skewX(-5deg); } 100% { opacity: 1; transform: scale(1) skewX(-5deg); } }
