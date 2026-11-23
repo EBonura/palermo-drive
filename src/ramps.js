@@ -10,7 +10,6 @@
 // car is parked inside it (src/props.js reads the same list, src/ramp-spots.js).
 // ?ramp=x,z,th[,kind][;x,z,th...] puts ramps there instead (screenshots, tests); kind is 'ramp' or 'truck'.
 import * as THREE from 'three';
-import { makeMaterial } from '../assets/traffic/models.js';
 import { KINDS, placed, ZONE_BEFORE, ZONE_AFTER } from './ramp-spots.js';   // where they stand and the shapes (shared with the props and the traffic)
 
 const SEE = 450, EDGE = 0.3;
@@ -50,7 +49,29 @@ export function createRamps(env) {
   }
 
   // ---------- the meshes ----------
-  const mat = makeMaterial(); mat.side = THREE.DoubleSide;   // thin plates and mesh bars are seen from both sides
+  // The surface of every solid piece: the flat vertex colours get a light weathering in the shader, with no texture coordinates needed (the geometry has none): a fine grain and big soft
+  // blotches (triplanar, from one small noise texture), dirt thrown up from the ground, and faint vertical streaks where rain ran down. Subtle: it breaks up the plain colours, it does not paint.
+  const noiseTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), d = x.createImageData(64, 64);
+    let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+    for (let i = 0; i < 64 * 64; i++) { const v = 90 + rnd() * 165; d.data.set([v, v, v, 255], i * 4); } x.putImageData(d, 0, 0);
+    const b = document.createElement('canvas'); b.width = b.height = 128; const y = b.getContext('2d'); y.imageSmoothingEnabled = true; y.drawImage(c, 0, 0, 128, 128);   // up-scaled with smoothing: soft value noise
+    const t = new THREE.CanvasTexture(b); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; })();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.08, side: THREE.DoubleSide });   // thin plates and mesh bars are seen from both sides
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.tNoise = { value: noiseTex };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = position; vWN = normal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      uniform sampler2D tNoise; varying vec3 vWP; varying vec3 vWN;
+      float triN(vec3 p, vec3 n, float k) { vec3 w = abs(n); w /= (w.x + w.y + w.z + 1e-4); return texture2D(tNoise, p.zy * k).r * w.x + texture2D(tNoise, p.xz * k).r * w.y + texture2D(tNoise, p.xy * k).r * w.z; }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      { float g = triN(vWP, vWN, 1.7), b = triN(vWP + 7.3, vWN, 0.23), st = texture2D(tNoise, vec2((vWP.x + vWP.z) * 1.6, vWP.y * 0.3)).r;
+        float dirt = smoothstep(0.75, 0.0, vWP.y);
+        diffuseColor.rgb *= 0.84 + 0.32 * g;
+        diffuseColor.rgb *= 0.86 + 0.24 * b;
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.55, 0.48), dirt * (0.3 + 0.55 * b));
+        diffuseColor.rgb *= 1.0 - 0.2 * smoothstep(0.58, 0.95, st) * smoothstep(0.0, 1.6, vWP.y); }`);
+  };
+  mat.customProgramCacheKey = () => 'ramps-weathered';
   const C = {
     yellow: [0.96, 0.74, 0.05], black: [0.1, 0.1, 0.11], plate: [0.44, 0.46, 0.5], plateD: [0.3, 0.32, 0.36], rust: [0.4, 0.27, 0.12], dark: [0.13, 0.13, 0.14], tyre: [0.06, 0.06, 0.07],
     white: [0.92, 0.92, 0.9], red: [0.75, 0.1, 0.08], orange: [0.97, 0.4, 0.04], amber: [1, 0.62, 0.02], blue: [0.12, 0.3, 0.62], deck: [0.36, 0.38, 0.42], mesh: [0.62, 0.64, 0.66], sand: [0.6, 0.52, 0.36], grey: [0.6, 0.6, 0.6],
@@ -92,7 +113,7 @@ export function createRamps(env) {
     if (!truck) {
       // the steel kicker: solid side plates the whole height with ribs standing out, a skid rail under, a yellow top edge, the back closed and braced, a bent lip
       for (const sg of [-1, 1]) {
-        for (let r = 1.2; r < L; r += 2.2) { const h = hAt(r) - 0.12; box(sg > 0 ? hw : hw * -1 - 0.1, sg > 0 ? hw + 0.1 : -hw, 0.12, h, r - 0.07, r + 0.07, C.plateD); }   // ribs
+        for (let r = 1.2; r < L; r += 2.2) { const h = hAt(r) - 0.12; box(sg > 0 ? hw : hw * -1 - 0.1, sg > 0 ? hw + 0.1 : -hw, 0.12, h, r - 0.07, r + 0.07, [0.55, 0.57, 0.61]); }   // ribs
         box(sg > 0 ? hw : -hw - 0.12, sg > 0 ? hw + 0.12 : -hw, 0, 0.14, 0, L, C.dark);   // the skid rail
         side(sg, 0, L, 0, C.plate, 0);
       }
