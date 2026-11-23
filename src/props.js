@@ -342,17 +342,85 @@ for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_
   def('umbrella', um, { tint: true, dbl: true });
 }
 
-// Cafe table with two chairs (front +z). People are billboard sprites in src/pedestrians.js
-{
-  const mb = new MB(), tb = C('#d9d4c6'), ch = C('#4b3a2c');
-  mb.prism(0, 0, 0.0, 0.7, 0.04, 0.04, 4, C('#2a2a2d'), { cap: false }); mb.prism(0, 0, 0.7, 0.74, 0.38, 0.38, 6, tb, { k0: 0.8 });
-  for (const s of [-1, 1]) {
-    mb.box(s * 0.62 - 0.2, 0.43, -0.2, s * 0.62 + 0.2, 0.48, 0.2, ch, 0.9, 1, false);
-    mb.box(s * 0.62 - 0.16, 0.0, -0.16, s * 0.62 + 0.16, 0.43, 0.16, ch, 1, 1, false);
-    mb.box(s * 0.62 - 0.2, 0.48, s > 0 ? -0.2 : 0.16, s * 0.62 + 0.2, 0.9, s > 0 ? -0.16 : 0.2, ch, 0.9, 1, false);
-  }
-  def('cafe_set', mb);
+// Cafe set (front +z): a small square wooden table and wooden bentwood chairs, the way the bars of the centro put them on the pavement.
+// Photos: Piazza San Domenico from above (Wikimedia Commons "Vista Piazza San Domenico" family), Piazza Marina, Via Maqueda.
+// A chair is built in its own frame (seat faces +z, back at -z) and copied into the set with a turn: MB has no transforms, so the copy is done on the raw arrays.
+function addXf(dst, src, x, z, ry) {
+  const c = Math.cos(ry), s = Math.sin(ry), n = src.p.length;
+  for (let i = 0; i < n; i += 3) { const px = src.p[i], pz = src.p[i + 2]; dst.p.push(x + c * px + s * pz, src.p[i + 1], z - s * px + c * pz); dst.c.push(src.c[i], src.c[i + 1], src.c[i + 2]); }
 }
+const WOOD = C('#7a5434'), WOOD_D = C('#5a3d24'), WOOD_L = C('#95693f'), IRON = C('#2a2a2d');
+function chairModel(seat = WOOD_L, frame = WOOD) {
+  const m = new MB(), w = 0.2, lg = 0.018;
+  m.box(-w, 0.43, -w, w, 0.47, w, seat, 0.9, 1);                                   // seat
+  for (const [x, z] of [[-w + 0.02, -w + 0.02], [w - 0.02, -w + 0.02], [-w + 0.02, w - 0.02], [w - 0.02, w - 0.02]]) m.box(x - lg, 0, z - lg, x + lg, 0.43, z + lg, frame, 0.8, 1, false);   // four legs
+  for (const x of [-w + 0.02, w - 0.02]) m.box(x - lg, 0.47, -w + 0.02 - lg, x + lg, 0.9, -w + 0.02 + lg, frame, 0.85, 1, false);              // the back posts
+  m.box(-w + 0.02, 0.62, -w + 0.005, w - 0.02, 0.68, -w + 0.035, frame, 0.9, 1, false);                                                      // two back rails
+  m.box(-w + 0.02, 0.78, -w + 0.005, w - 0.02, 0.88, -w + 0.035, frame, 0.9, 1, false);
+  m.box(-w + 0.02, 0.2, -w + 0.04, w - 0.02, 0.23, w - 0.04, frame, 0.7, 0.9, false);                                                        // a stretcher between the legs
+  return m;
+}
+function tableModel(top = WOOD_L, base = WOOD_D, r = 0.34) {
+  const m = new MB(), lg = 0.025;
+  m.box(-r, 0.7, -r, r, 0.74, r, top, 0.85, 1);
+  m.box(-r + 0.03, 0.66, -r + 0.03, r - 0.03, 0.7, r - 0.03, base, 0.7, 0.9, false);                                                          // apron under the top
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.box(sx * (r - 0.05) - lg, 0, sz * (r - 0.05) - lg, sx * (r - 0.05) + lg, 0.7, sz * (r - 0.05) + lg, base, 0.8, 1, false);
+  return m;
+}
+{
+  const mb = new MB(), ch = chairModel(), tb = tableModel();
+  addXf(mb, tb, 0, 0, 0);
+  addXf(mb, ch, -0.56, 0, Math.PI / 2 + 0.06);   // chairs face the table: the one on the left looks +x
+  addXf(mb, ch, 0.56, 0, -Math.PI / 2 - 0.05);
+  addXf(mb, ch, 0.04, 0.56, Math.PI + 0.08);     // the third on the street side, back to the road
+  def('cafe_set', mb);
+  // the second look of the same set (darker table, black frames, rattan-pale seats): half the terraces get it, so a street is not one set repeated
+  const m2 = new MB(), c2 = chairModel(C('#b99a62'), C('#2c2a28')), t2 = tableModel(C('#d6cfbf'), C('#2c2a28'), 0.36);
+  addXf(m2, t2, 0, 0, 0); addXf(m2, c2, -0.58, 0.02, Math.PI / 2); addXf(m2, c2, 0.58, -0.02, -Math.PI / 2);
+  def('cafe_set_b', m2);
+}
+
+// Rectangular planters (fioriere) and terracotta pots, the street dressing of the bars and the churches.
+// Photos: Via Maqueda (long dark-green concrete troughs with box and flowers down both sides, Commons "Via maqueda.JPG" and the Teatro Massimo view),
+// Piazza Marina (a row of terracotta pots on the cobbles), Piazza San Domenico (pots dotted round the benches), Sant'Anna (pots on the church step).
+// Planter along x, 1.1 x 0.42 m, 0.42 m high: a lipped trough, soil, then the plants. Pots stand 0.4 m high with a 0.45 m plant on top.
+const GREENS = ['#3f6b34', '#4a7a3a', '#35602e'];
+function planterModel(kind) {
+  const m = new MB(), body = C('#46504a'), rim = C('#5c665e'), soil = C('#3a2c20');
+  m.frust(0, [-0.54, -0.2, 0.54, 0.2], 0.4, [-0.55, -0.21, 0.55, 0.21], body, 0.75, 1, false);
+  m.box(-0.57, 0.4, -0.23, 0.57, 0.44, 0.23, rim, 0.9, 1);   // the lip
+  m.box(-0.5, 0.44, -0.17, 0.5, 0.45, 0.17, soil, 0.8, 0.9, false);
+  const g = C(GREENS[kind % 3]);
+  if (kind === 0) { for (const x of [-0.34, 0, 0.34]) m.lump(x, 0.62, 0, 0.2, 0.19, 0.17, g, 1, 0.14, 0.55, kind * 7 + x * 10); }                         // clipped box balls
+  else if (kind === 1) {                                                                                                                                  // geraniums: a green mound with red heads
+    for (const x of [-0.3, 0.05, 0.36]) m.lump(x, 0.57, 0, 0.19, 0.13, 0.15, g, 1, 0.12, 0.6, x * 9);
+    for (const [x, y, z] of [[-0.38, 0.7, 0.04], [-0.22, 0.68, -0.06], [-0.02, 0.72, 0.05], [0.14, 0.69, -0.05], [0.3, 0.71, 0.06], [0.42, 0.68, -0.03]]) m.lump(x, y, z, 0.07, 0.05, 0.07, C('#c42f33'), 0, 0.1, 0.8, x * 5);
+  } else {                                                                                                                                                // white marguerites among oleander-green
+    for (const x of [-0.3, 0.05, 0.36]) m.lump(x, 0.58, 0, 0.2, 0.14, 0.15, g, 1, 0.12, 0.6, x * 3);
+    for (const [x, y, z] of [[-0.34, 0.71, 0.03], [-0.12, 0.7, -0.05], [0.1, 0.73, 0.04], [0.28, 0.7, -0.03], [0.44, 0.69, 0.05]]) m.lump(x, y, z, 0.07, 0.05, 0.07, C('#f1eee2'), 0, 0.1, 0.85, x * 4);
+  }
+  return m;
+}
+function potModel(kind) {
+  const m = new MB(), clay = C('#b5653b'), clayD = C('#a15830'), soil = C('#3a2c20');
+  const big = kind >= 2, s = big ? 1.55 : 1.2;   // Piazza Marina: the pots are about 0.5 m high and as wide, with a dense shrub twice as wide as the rim
+  m.prism(0, 0, 0, 0.36 * s, 0.14 * s, 0.2 * s, 9, clay, { k0: 0.7 });
+  m.prism(0, 0, 0.36 * s, 0.42 * s, 0.215 * s, 0.215 * s, 9, clayD, { k0: 0.9 });   // the rolled rim
+  m.prism(0, 0, 0.42 * s, 0.43 * s, 0.18 * s, 0.18 * s, 9, soil);
+  if (kind === 0) { m.lump(0, 0.43 * s + 0.22, 0, 0.36, 0.28, 0.36, C(GREENS[0]), 1, 0.2, 0.55, 3); m.lump(0.12, 0.43 * s + 0.38, 0.08, 0.2, 0.17, 0.2, C(GREENS[2]), 1, 0.2, 0.6, 5); }                           // a leafy shrub
+  else if (kind === 1) { const y0 = 0.43 * s; m.lump(0, y0 + 0.17, 0, 0.3, 0.21, 0.3, C(GREENS[1]), 1, 0.15, 0.6, 9); for (const [x, y, z] of [[0.14, 0.2, 0.12], [-0.12, 0.17, 0.15], [0.03, 0.27, -0.14], [-0.2, 0.2, -0.05]]) m.lump(x, y0 + y + 0.1, z, 0.08, 0.06, 0.08, C('#d84a3a'), 0, 0.1, 0.8, x * 8); }   // geranium
+  else if (kind === 2) { m.prism(0, 0, 0.62, 1.02, 0.025, 0.02, 5, C('#5a4632'), { cap: false }); m.lump(0, 1.28, 0, 0.3, 0.28, 0.3, C('#2f5f2e'), 1, 0.1, 0.65, 21); }   // a clipped bay ball on a stem
+  else {   // an agave: a rosette of spear leaves leaning out (flat quads, drawn double sided)
+    for (let i = 0; i < 11; i++) {
+      const a = i * 2.4 + (i % 2) * 0.3, lean = 0.12 + (i % 3) * 0.09, len = 0.5 + (i % 4) * 0.07, wd = 0.045, col = C(i % 2 ? '#5f7f4c' : '#729160');
+      const ca = Math.cos(a), sa = Math.sin(a), px = -sa * wd, pz = ca * wd, b = 0.43 * s, tip = [ca * (lean + 0.18) * len * 1.2, b + len * (1 - lean * 0.5), sa * (lean + 0.18) * len * 1.2];
+      m.face(col, [[px, b, pz], [-px, b, -pz], [tip[0] * 0.5 - px * 1.6, b + (tip[1] - b) * 0.45, tip[2] * 0.5 - pz * 1.6], tip, [tip[0] * 0.5 + px * 1.6, b + (tip[1] - b) * 0.45, tip[2] * 0.5 + pz * 1.6]], 1);
+    }
+  }
+  return m;
+}
+for (let k = 0; k < 3; k++) def('planter' + k, planterModel(k));
+for (let k = 0; k < 4; k++) def('pot' + k, potModel(k), { dbl: k === 3 });
 
 // Shop awning, wall at z=0 and out is +z; two-tone stripes via vertex colour
 {
@@ -638,7 +706,15 @@ const SPECS = {
   busstop: { kind: 'bend', c: [[0, 0, 0.12]], thr: 4.5, fly: 8, m: 0.4, he: [0.25, 1.35, 0.25], hc: 1.35, ghost: true, tilt: 1.0, H: 2.7 },   // a sign on a thin pole: light
   bench: { kind: 'object', c: [[-0.7, 0, 0.32], [0.7, 0, 0.32]], thr: 3.5, m: 1.0, he: [0.9, 0.45, 0.25], hc: 0.45, ghost: true },
   stall_table: { kind: 'object', c: [[-0.65, 0, 0.5], [0.65, 0, 0.5]], thr: 2.5, m: 0.8, he: [0.9, 0.45, 0.5], hc: 0.45, ghost: true },
-  cafe_set: { kind: 'object', c: [[0, 0, 0.55]], thr: 2.2, m: 0.6, he: [0.7, 0.45, 0.7], hc: 0.45, ghost: true },     // table and plastic chairs
+  cafe_set: { kind: 'object', c: [[0, 0, 0.55]], thr: 2.2, m: 0.6, he: [0.7, 0.45, 0.7], hc: 0.45, ghost: true },     // table and wooden chairs
+  cafe_set_b: { kind: 'object', c: [[0, 0, 0.55]], thr: 2.2, m: 0.6, he: [0.7, 0.45, 0.7], hc: 0.45, ghost: true },
+  planter0: { kind: 'object', c: [[-0.4, 0, 0.25], [0.4, 0, 0.25]], thr: 3.0, m: 1.0, he: [0.57, 0.3, 0.24], hc: 0.3, ghost: true },   // a trough of concrete and earth: heavy
+  planter1: { kind: 'object', c: [[-0.4, 0, 0.25], [0.4, 0, 0.25]], thr: 3.0, m: 1.0, he: [0.57, 0.3, 0.24], hc: 0.3, ghost: true },
+  planter2: { kind: 'object', c: [[-0.4, 0, 0.25], [0.4, 0, 0.25]], thr: 3.0, m: 1.0, he: [0.57, 0.3, 0.24], hc: 0.3, ghost: true },
+  pot0: { kind: 'object', c: [[0, 0, 0.22]], thr: 2.0, m: 0.25, he: [0.22, 0.3, 0.22], hc: 0.3, ghost: true },
+  pot1: { kind: 'object', c: [[0, 0, 0.22]], thr: 2.0, m: 0.25, he: [0.22, 0.3, 0.22], hc: 0.3, ghost: true },
+  pot2: { kind: 'object', c: [[0, 0, 0.3]], thr: 2.5, m: 0.5, he: [0.3, 0.5, 0.3], hc: 0.5, ghost: true },
+  pot3: { kind: 'object', c: [[0, 0, 0.3]], thr: 2.5, m: 0.5, he: [0.3, 0.5, 0.3], hc: 0.5, ghost: true },
   umbrella: { kind: 'object', c: [[0, 0, 0.15]], thr: 2.2, m: 0.4, he: [0.5, 1.0, 0.5], hc: 1.0, ghost: true },       // sits over a cafe set or a stall table: they go together
   sunbed: { kind: 'object', c: [[0, 0, 0.5]], thr: 1.5, m: 0.4, he: [0.35, 0.25, 0.9], hc: 0.25, ghost: true },
   beach_umbrella: { kind: 'object', c: [[0, 0, 0.2]], thr: 2.5, m: 0.4, he: [0.5, 1.1, 0.5], hc: 1.1, ghost: true },
@@ -1269,7 +1345,7 @@ const CELL_OF = { panda: 100, punto: 100, smart: 100, van: 100 };
 // things narrower than about a metre (their shadow is one to three texels of the 1024 map there, 0.31 m each, and the cell is still drawn), and the ones up to two metres at 80 m.
 const SHADOW_D = { panda: 60, punto: 60, smart: 60, van: 60,
   utility_pole: 60, bollard: 60, hydrant: 60, phone: 60, postbox: 60, cabinet: 60, bin_small: 60, fontanella: 60, litter0: 60, litter1: 60, litter_cafe: 60, cardboard: 60, mwaste0: 60, mwaste1: 60, mcrates: 60, busstop: 60,
-  bag_pile0: 80, bag_pile1: 80, bag_pile2: 80, bag_pile3: 80, bin_big: 80, bin_over: 80, scooter: 80, cafe_set: 80, bench: 80, stall_table: 80 };
+  bag_pile0: 80, bag_pile1: 80, bag_pile2: 80, bag_pile3: 80, bin_big: 80, bin_over: 80, scooter: 80, cafe_set: 80, cafe_set_b: 80, bench: 80, stall_table: 80, planter0: 60, planter1: 60, planter2: 60, pot0: 50, pot1: 50, pot2: 60, pot3: 60 };
 const PARKED_MOVED = new Map();
 // The traffic's side (src/traffic.js): parked cars as obstacles beside its lanes, and what happens when a vehicle runs into one.
 //   near(x, z, r, out)  fills `out` (the caller's own scratch array) with the parked cars (standing, not flying) in the grid cells within r and returns how many: car.x, car.z, car.rot (nose direction), car.sp.L / W / m / c
@@ -2190,7 +2266,7 @@ function* generate(S, BUD) {
 
   // ---------- 7b. cafe tables at real cafe/bar/restaurant positions, and people on foot
   {
-    let sets = 0;
+    let sets = 0, planters = 0;
     const UMB = ['#ece4ca', '#e8dfc0', '#2f6b49', '#2f5f93', '#b73a2c', '#d9d4c2'];
     const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
     for (const it of osm) {
@@ -2203,11 +2279,92 @@ function* generate(S, BUD) {
         const u = (i - (n - 1) / 2) * 2.3, x = w.px + w.nx * 1.5 + tx * u, z = w.pz + w.nz * 1.5 + tz * u;
         if (!walkable(x, z) || occHit(x, z, 1.0) || nearWall(x, z, 1.0)) continue;
         const rot = Math.atan2(w.nx, w.nz) + R(-0.4, 0.4);
-        put('cafe_set', x, gy(x, z), z, rot, 1); occAdd(x, z, 1.1); sets++; placed++;
+        put(rand() < 0.5 ? 'cafe_set' : 'cafe_set_b', x, gy(x, z), z, rot, 1); occAdd(x, z, 1.1); sets++; placed++;
         if (rand() < 0.55) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.8, C(pick(UMB)));
       }
+      // the terrace is closed at its two ends by a planter, the way the bars fence their dehors (Via Maqueda, Piazza San Domenico photos)
+      if (placed && rand() < 0.7) {
+        const half = ((n - 1) / 2) * 2.3 + 1.95, ty = Math.atan2(-tz, tx) + R(-0.05, 0.05), k = Math.floor(rand() * 3);
+        for (const sgn of [-1, 1]) {
+          if (sgn > 0 && rand() < 0.3) continue;
+          const x = w.px + w.nx * 1.5 + tx * half * sgn, z = w.pz + w.nz * 1.5 + tz * half * sgn;
+          if (!walkable(x, z) || occHit(x, z, 0.5) || nearWall(x, z, 0.5)) continue;
+          put('planter' + k, x, gy(x, z), z, ty, 1); occAdd(x, z, 0.7); planters++;
+        }
+      }
     }
-    stats.cafe_sets = sets;
+    stats.cafe_sets = sets; stats.planters = planters;
+  }
+
+  // ---------- 7c. pots in front of churches and dotted round the piazzas (Sant'Anna, Piazza Marina, Piazza San Domenico photos)
+  {
+    let pots = 0;
+    const walk = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
+    const flank = (x, z, tx, tz, nx, nz, big) => {   // a pot or two either side of a door at (x, z)
+      for (const sgn of [-1, 1]) {
+        const px = x + tx * 1.7 * sgn + nx * 0.55, pz = z + tz * 1.7 * sgn + nz * 0.55;
+        if (!walk(px, pz) || occHit(px, pz, 0.5) || (nearJunction && nearJunction(px, pz, 3))) continue;
+        put('pot' + (big ? 2 + Math.floor(rand() * 2) : Math.floor(rand() * 2)), px, gy(px, pz), pz, R(0, TAU), big ? R(0.95, 1.1) : R(0.9, 1.1)); occAdd(px, pz, 0.5); pots++;
+        if (big && rand() < 0.75) {   // a smaller one beside it, further out
+          const qx = x + tx * 2.5 * sgn + nx * 0.5, qz = z + tz * 2.5 * sgn + nz * 0.5;
+          if (walk(qx, qz) && !occHit(qx, qz, 0.4)) { put('pot' + Math.floor(rand() * 2), qx, gy(qx, qz), qz, R(0, TAU), R(0.9, 1.1)); occAdd(qx, qz, 0.4); pots++; }
+        }
+      }
+    };
+    const wor = i => { const b = S.bdata[i]; return b && (b.k === 'church' || b.t === 'church' || b.t === 'cathedral' || b.am === 'place_of_worship'); };
+    for (let i = 0; i < S.ownCount; i++) {
+      if (BUD.over()) yield;
+      const o = own[i], ring = o && o.outer; if (!ring) continue;
+      const church = wor(i);
+      // a church: the pair of pots flanking the middle of the longest side that gives onto walkable ground (the door is usually in the middle of the front)
+      if (church) {
+        let best = null;
+        for (let q = 0; q < ring.length; q++) {
+          const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
+          if (L < 6) continue;
+          let nx = dz / L, nz = -dx / L; const mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2;
+          if (inB(mx + nx * 0.5, mz + nz * 0.5)) { nx = -nx; nz = -nz; }
+          if (!inBounds(mx, mz, 6) || !walk(mx + nx * 1.2, mz + nz * 1.2)) continue;
+          if (!best || L > best.L) best = { L, mx, mz, nx, nz, tx: dx / L, tz: dz / L };
+        }
+        if (best) flank(best.mx + best.nx * 0.5, best.mz + best.nz * 0.5, best.tx, best.tz, best.nx, best.nz, true);
+        continue;
+      }
+      // other fronts on pedestrian stone: a pot beside the door now and then
+      const dist = distEff(o.outer[0][0], o.outer[0][1]);
+      if (dist > 900) continue;
+      for (let q = 0; q < ring.length; q++) {
+        const A = ring[q], B = ring[(q + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz);
+        if (L < 7 || rand() > 0.07 * DEN) continue;
+        let nx = dz / L, nz = -dx / L; const mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2;
+        if (!inBounds(mx, mz, 6)) continue;
+        if (inB(mx + nx * 0.5, mz + nz * 0.5)) { nx = -nx; nz = -nz; }
+        if (!paving(mx + nx * 1.2, mz + nz * 1.2)) continue;
+        flank(mx + nx * 0.4, mz + nz * 0.4, dx / L, dz / L, nx, nz, false);
+      }
+    }
+    // Via Maqueda between Piazza Verdi and the Quattro Canti: long dark troughs of box and flowers down both kerbs, one every few metres (Commons "Via maqueda.JPG", Teatro Massimo view)
+    {
+      const [vx, vz] = proj(38.1199, 13.3573), ax = vx, az = vz, bx = 0, bz = 0, abx = bx - ax, abz = bz - az, ab2 = abx * abx + abz * abz;
+      const inRun = (x, z) => { const t = ((x - ax) * abx + (z - az) * abz) / ab2; if (t < 0.02 || t > 0.98) return false; const qx = ax + abx * t - x, qz = az + abz * t - z; return qx * qx + qz * qz < 45 * 45; };
+      S.roads.forEach(r => {
+        if (!r.n || !/maqueda/i.test(r.n)) return;
+        const p = pairs(r.p);
+        for (let i = 0; i < p.length - 1; i++) {
+          const A = p[i], B = p[i + 1], dx = B[0] - A[0], dz = B[1] - A[1], L = hyp2(dx, dz); if (L < 3) continue;
+          const tx = dx / L, tz = dz / L;
+          for (let s = 2 + 3 * hash3(A[0], A[1], 4.4); s < L - 1; s += 5) {
+            const cx = A[0] + tx * s, cz = A[1] + tz * s; if (!inBounds(cx, cz) || !inRun(cx, cz) || nearJunction(cx, cz, 7)) continue;
+            for (const side of [-1, 1]) {
+              const off = r.w / 2 + 0.35, x = cx - tz * side * off, z = cz + tx * side * off;
+              if (!walk(x, z) || occHit(x, z, 0.8) || nearWall(x, z, 0.2)) continue;
+              put('planter' + Math.floor(hash3(x, z, 1.9) * 3), x, gy(x, z), z, Math.atan2(-tz, tx), 1); occAdd(x, z, 0.8); pots++;
+            }
+          }
+        }
+      });
+    }
+    stats.pots = pots;
   }
 
   // ---------- 8. OSM parking lots: fill with parked cars
@@ -2900,7 +3057,7 @@ function* generate(S, BUD) {
 
 // ------------------------------------------------------------------ instances -> meshes
 // How far (m) each model is drawn; the cell meshes are culled by distance in the scene's onBeforeRender
-const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
+const FAR = { bag_pile3: 260, mega0: 420, mega1: 420, mega2: 420, mega_burnt0: 420, mega_burnt1: 420, bag_pile0: 220, bag_pile1: 220, bag_pile2: 220, bin_over: 380, cardboard: 220, dump_mattress: 260, dump_fridge: 260, dump_chair: 260, dump_sofa: 260, dump_wreck: 260, litter0: 110, litter1: 110, litter_cafe: 110, mwaste0: 160, mwaste1: 160, mcrates: 200, cafe_set: 280, cafe_set_b: 280, planter0: 200, planter1: 200, planter2: 200, pot0: 160, pot1: 160, pot2: 200, pot3: 200, scooter: 300, bin_small: 250, bags: 250, bollard: 280, hydrant: 200, phone: 250, postbox: 200, cabinet: 200, bench: 300, lamp_wall: 320, awning: 300, stall_table: 320, umbrella: 340,
   signal: 350, signal_arm: 380, busstop: 300, bin_big: 380, panda: 130, punto: 130, smart: 130, van: 130, ape: 500, apetaxi: 500, lamp_pole: 650, utility_pole: 500, candelabra: 450, monument: 600, monument_s: 600, shelter: 350, fountain: 600,
   shrub: 350, ficus: 1300, holm_b: 1100, jacaranda: 1000, tree: 1000, holm: 1100, orange: 800, pine: 1100, pine_b: 1100, plane: 1100, plane_b: 1100, plane_bare: 1100, plane_bare_b: 1100, aleppo: 1100, palm_fan_a: 1300, palm_fan_b: 1500, palm_fan_c: 1100, palm_date_a: 1100, palm_date_b: 1200,
   beach_umbrella: 420, sunbed: 220, kiosk: 450, hedge: 260 };

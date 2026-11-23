@@ -18,6 +18,8 @@ const SPOTS = {
   zisa: ['Piazza Zisa', -1758.8, -43.6, -0.14],
   porto: ['the port (Via Crispi)', 91.6, -1300.1, -2.71],
   mondello: ['Mondello piazza', -3033.1, -10177.4, -1.07],
+  sdom: ['Piazza San Domenico (cafes, pots)', 240, -318, 0],
+  maq: ['Via Maqueda (planter rows)', -100, -125, 0.55],
 };
 const names = String(arg('spots', Object.keys(SPOTS).join(','))).split(',');
 const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
