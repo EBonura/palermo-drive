@@ -24,6 +24,7 @@ import { buildSigns } from './direction-signs.js';
 import { sfx } from './sfx.js';
 
 const BREAK_SPEED = 2.6, PANEL = 2.5, MAX_PANELS = 1400, MAX_RAILS = 2400, POOL = 10;
+const EX_BREAK = 5;       // m/s (effective): the rails the fast-road rule builds (src/expressway.js: the median and the sides of Viale Regione Siciliana and the like) give way to a firm push, so a player can cross from one carriageway to the other
 const GUARD_BREAK = 15;   // m/s (effective, see breakFence): a steel guard rail holds a scrape and a bump, and gives way to a car that hits it head on at about 55 km/h or more
 const KIND = {
   w: { th: 0.35, col: ['#d6caa8', '#cdbe98', '#c4b594', '#ddd2b6', '#c9bba0', '#d3c3a4'] },
@@ -315,7 +316,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
         const id = key + ':' + li + ':' + i; if (broken.has(id)) continue;
         const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2, yaw = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
         const f = { id, st, x: mx, z: mz, y: groundY(mx, mz) - 0.04, yaw, len, h: r.h, i: panels[st].length, tile: null, gone: false };
-        if (rail) { f.thr = GUARD_BREAK; nRail++; } else nPanels++;
+        if (rail) { f.thr = r.ex ? EX_BREAK : GUARD_BREAK; nRail++; } else nPanels++;
         panels[st].push(f);
         addSeg(a[0], a[1], b[0], b[1], f);
       }
