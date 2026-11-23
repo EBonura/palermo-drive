@@ -140,7 +140,7 @@ export function createVehicle(env) {
   // ---------- state ----------
   const car = {
     x: 0, z: 0, th: 0, vx: 0, vz: 0, vf: 0, steer: 0, roll: 0, pitch: 0, lastVf: 0, lift: 0,
-    w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosMax: 1.8, nosAmt: 0, nosOn: false, nosLock: false,
+    w: 0, sIn: 0, thr: 0, slip: 0, drift: 0, rpm: 0.15, gear: 1, shiftT: 0, nos: 0.6, nosMax: 1.8, nosAmt: 0, nosOn: false, nosLock: false, nosFreeT: 0,
     psiPrev: 0, psiDot: 0, dLatch: 0, ax: 0, ay: 0, braking: false, scrape: 0, tip: 0, livery: 'blu', type: 'calessino', kind: 'lapa',
     hop: 0, hopV: 0, gripLoss: 0, kickT: 0, kickSgn: 0, skid: 0,   // road wear: bounce spring, grip lost to a pothole, forced two-wheel lean / high-side, tyre scrub 0..1
     lean: 0,           // signed visual lean -1..1 (lapa: tip * side, bike: bank). net.js sends this.
@@ -250,7 +250,8 @@ export function createVehicle(env) {
     car.slip = v0 > 2 && vf > 0.5 ? clamp(Math.atan2(-vl, vf), -1.4, 1.4) : 0;   // + = nose left of the velocity
 
     // ----- nitro -----
-    const nosFree = car.flying && car.agl > 1;   // up in the air the nitro never runs out (src/vehicle-air.js)
+    if (car.nosFreeT > 0) car.nosFreeT = Math.max(0, car.nosFreeT - dt);   // a miracle of the Santuzza (src/job-festino.js): the nitro never runs out for car.nosFreeT seconds
+    const nosFree = (car.flying && car.agl > 1) || car.nosFreeT > 0;   // up in the air the nitro never runs out (src/vehicle-air.js)
     if (!nosKey || nosFree) car.nosLock = false;
     const nosWant = !!nosKey && (nosFree || (car.nos > 0.002 && !car.nosLock)) && vf > -1;
     if (nosKey && !nosFree && car.nos <= 0.002) car.nosLock = true;
@@ -721,7 +722,7 @@ export function createVehicle(env) {
 
     // bar
     if (active === nosHidden) { nosEl.hidden = !active; nosHidden = !active; }
-    const aloft = car.flying && car.agl > 1, q = aloft ? 1 : Math.round(Math.min(1, car.nos) * 200) / 200;   // the bar reads full while the nitro is free in the air
+    const aloft = (car.flying && car.agl > 1) || car.nosFreeT > 0, q = aloft ? 1 : Math.round(Math.min(1, car.nos) * 200) / 200;   // the bar reads full while the nitro is free in the air
     if (q !== nosShown) { nosShown = q; nosFill.style.transform = `scaleX(${q})`; }
     const ov = Math.round(clamp((Math.max(aloft ? 1 : 0, car.nos) - 1) / (car.nosMax - 1), 0, 1) * 200) / 200;   // the overcharge from a stigghiola: a gold layer over the full bar
     if (ov !== overShown) { overShown = ov; nosOver.style.transform = `scaleX(${ov})`; nosEl.classList.toggle('over', ov > 0); }

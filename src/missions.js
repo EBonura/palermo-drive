@@ -619,8 +619,10 @@ function build(env) {
   // the shell asks for the pins in the language it shows
   const secrets = createAchievements({ game, car, groundY });   // secret achievements (src/achievements.js), listed in Collezioni through progress().secrets
   let pubs = null;   // the pubs and their night errands (src/pubs.js), made below once X exists
+  const pins = [];   // live map pins that jobs add and remove (X.pins)
   const events = () => [...slots.filter(s => !s.street).map(s => ({ id: s.id, kind: s.kind, name: s.kind === 'race' ? T(s.def.name, s.def.en) : s.name, ...(s.title ? { title: s.title } : {}), x: s.x, z: s.z, ...(s.night ? { night: true } : {}), ...(s.day ? { day: true } : {}), ...(JOBS.has(s.kind) ? { call: true } : {}) })),   // call: a job that comes as a call (no pin on the map, no Vai)
-    ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : [])];
+    ...(pubs ? pubs.slots.filter(s => s.hours).map(s => ({ id: s.id, kind: 'pub', name: s.name, x: s.x, z: s.z, night: true })) : []),
+    ...pins.map(p => ({ ...p }))];   // pins: places that move and are only on the map (the Festino carro, src/job-festino.js), plain: no mission behind them
   // the Missioni screen (src/ui.js): done / tried / best pay of one event by id, and ready(id) so the caller is there at once (an event just left or finished waits out a cooldown)
   const status = id => {
     const k = id.slice(0, id.indexOf(':')), r = k === 'race' ? prog.races[id.slice(5)] : 0, d = prog.done[id];
@@ -664,7 +666,7 @@ function build(env) {
 
   const X = {
     scene, camera, car, vehicle, pedestrians, traffic, params, world: env.world, groundAt, T, lang, now, isNight, hud, eur, speed, say, driverPos, seatPos, seatFn, toast,
-    makeBeacon, addMarker, dropMarker, guide, destBeacon, destMarker: null, vendors, charHead, ITEMS, ROUTES, HUNT, TRACKS, URGENT_DEF, destInfo, transition, phone: !!(window.matchMedia && matchMedia('(pointer: coarse)').matches),
+    pins, makeBeacon, addMarker, dropMarker, guide, destBeacon, destMarker: null, vendors, charHead, ITEMS, ROUTES, HUNT, TRACKS, URGENT_DEF, destInfo, transition, phone: !!(window.matchMedia && matchMedia('(pointer: coarse)').matches),
     URGENT_TIGHT: Object.fromEntries(URGENT.map(u => ['urgent:' + u.id, u.tight])), FAVORITA_FLAG: FAVORITA.client.flag,
     sideSpot, pathClear,
     aim: (x, z, on) => { aim.x = x; aim.z = z; aim.on = on; },

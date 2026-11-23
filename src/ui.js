@@ -1001,7 +1001,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
     getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/online/online.js)
     getEvents: () => fakeEvents || (missions?.events?.() || []).filter(e => !e.call),   // the jobs come as calls (src/mission-director.js): they have no pin
-    onStart: (x, z, it) => it?.kind === 'event' ? startAt(x, z, { ask: it.ref }) : startAt(x, z),
+    onStart: (x, z, it) => it?.kind === 'event' && !it.ref.plain ? startAt(x, z, { ask: it.ref }) : it?.ref?.go ? startAt(it.ref.go[0], it.ref.go[1]) : startAt(x, z),
   });
   if (params.has('mapdebug')) window.__pdMap = startMap;
   function setView(v) {
@@ -1162,7 +1162,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   function nearestQ(x, z) { let q = '', bd = Infinity; for (const c of QX) { const d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z); if (d < bd) { bd = d; q = c.name; } } return q; }
   function renderMissions() {
     const i = lang === 'it' ? 0 : 1, run = missions?.state?.ev?.slot?.id;
-    msRows = (missions?.events?.() || []).map((e, n) => ({ ...e, n, ...(missions?.status?.(e.id) || {}), q: nearestQ(e.x, e.z), g: MGROUP[e.kind] || e.kind }));
+    msRows = (missions?.events?.() || []).filter(e => !e.plain).map((e, n) => ({ ...e, n, ...(missions?.status?.(e.id) || {}), q: nearestQ(e.x, e.z), g: MGROUP[e.kind] || e.kind }));
     const groups = [...new Set(msRows.map(r => r.g))].sort((a, b) => ((MORDER.indexOf(a) + 1) || 99) - ((MORDER.indexOf(b) + 1) || 99));
     const total = msRows.length, done = msRows.filter(r => r.done).length, pct = total ? Math.round(done / total * 100) : 0;
     msScreen.querySelector('.pd-mscount b').textContent = `${done} / ${total}`;

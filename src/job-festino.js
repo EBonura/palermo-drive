@@ -41,7 +41,9 @@ const HOSPITALS = ['ospedale', 'policlinico', 'villasofia'];
 // ---- words
 const MAYOR = ['Viva Palermo e Santa Rosalia!', 'Long live Palermo and Santa Rosalia!'];   // the owner's line, letter for letter
 const ANSWER = ['Viva!', 'Hooray!'];
+const MIRACLE_R = 14, MIRACLE_S = 60, MIRACLE_COOL = 300;   // the Santuzza's miracle: the lapa within MIRACLE_R m of the carro gets MIRACLE_S seconds of free nitro (car.nosFreeT in src/vehicle.js), then MIRACLE_COOL seconds before the next (a design choice, to tune by playing)
 const L = {
+  miracle: ['A santuzza ti fici u miraculu!', 'Nitro infinito pi nu minutu', 'Infinite nitro for one minute'],   // the title is the owner's own words (23 Nov 2026); the subtitle is a draft
   call: [   // what the sick person shouts, and the card says (Palermitan: the owner passed these on 22 Nov 2026)
     ['Aiutu! Mmiazzu â fudda c’è un cristianu ca si sienti mali, puaittatilu ô spitali!', 'Help! A man feels sick in the crowd, take him to the hospital!'],
     ['Curri! Na signura sta mali cu stu cavuru, ô spitali!', 'Quick! A lady is ill in this heat, to the hospital!'],
@@ -137,6 +139,7 @@ export default function setup(X) {
   // ---- the carro itself: s (arc length), dir (+1 towards the Foro Italico), a pause at the ends
   const C = { s: 0, dir: 1, pause: 0, x: 0, z: 0, gy: 0, yaw: 0, dirVis: 1, k: 1, tx: 0, tz: 1, held: false, qcT: 0, shoutT: 8, toasted: false, d: 1e9 };
   let marker = null;
+  const pin = { id: 'carro:festino', kind: 'carro', plain: true, name: 'Carro di Santa Rosalia', x: 0, z: 0, night: true, go: null };   // read by the start map through missions.events() (X.pins)
   const slot = { id: 'festino:1', kind: 'festino', sub: 'festino', name: 'Festino di Santa Rosalia', x: 0, z: 0, dx: 1, dz: 0, w: 6, callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null, ped: 'nonno', callLine: L.call,
     leash: () => ({ a: [slot.x, slot.z], b: slot.dest ? [slot.dest.x, slot.dest.z] : [slot.x, slot.z], r: 520 }), dest: null };
 
@@ -342,10 +345,12 @@ export default function setup(X) {
       at(C.s, _o); C.x = _o.x; C.z = _o.z; C.tx = _o.tx; C.tz = _o.tz; C.yaw = Math.atan2(C.tx, C.tz); C.gy = groundAt(C.x, C.z);
       if (!X.slots.includes(slot)) X.slots.push(slot);
       marker = X.addMarker(C.x, C.z, '#f5d77a', 7, 'diamond');
+      if (X.pins && !X.pins.includes(pin)) X.pins.push(pin);
     } else {
       unbuild(); fireworksOff(); wakeWalls(false);
       const i = X.slots.indexOf(slot); if (i >= 0) { if (X.director.state.slot === slot) X.director.cancel(); X.slots.splice(i, 1); }
       if (marker) { X.dropMarker(marker); marker = null; }
+      if (X.pins) { const i = X.pins.indexOf(pin); if (i >= 0) X.pins.splice(i, 1); }
     }
   }
   function build() {
@@ -379,8 +384,11 @@ export default function setup(X) {
     const f = C.pause > 0 ? -C.dir : C.dir, rate = (C.pause > 0 ? 0.5 : 1.5) * dt;   // facing the way it goes next while it waits at an end
     C.yaw += clamp(angDiff(Math.atan2(C.tx * f, C.tz * f), C.yaw), -rate, rate);
     if (marker) { marker.x = C.x; marker.z = C.z; }
+    // the pin on the big map: the carro itself, and where Portami lì puts the lapa, on the road ahead of it, outside its box
+    pin.x = C.x; pin.z = C.z; pin.go = [C.x + C.tx * C.dir * (BOX[1] + 10), C.z + C.tz * C.dir * (BOX[1] + 10)];
   }
 
+  let miracleCd = 0;
   function tick(dt, idle) {
     // one hour comparison when it is off
     const h = hourNow(), ev = h >= 0 && (h >= EVE0 || h < EVE1);
@@ -406,6 +414,8 @@ export default function setup(X) {
       if ((C.shoutT <= 0 && d < 160) || (passQC && d < 200)) { C.shoutT = rnd(16, 28); if (passQC) C.qcT = 60; shoutViva(); }
       if (!C.toasted && d < 320 && idle) { C.toasted = true; hud.toast(tx(L.toast), tx(L.toastSub)); }
     }
+    miracleCd = Math.max(0, miracleCd - dt);
+    if (d < MIRACLE_R && miracleCd <= 0) { miracleCd = MIRACLE_COOL; car.nosFreeT = MIRACLE_S; car.nosLock = false; hud.toast(L.miracle[0], tx([L.miracle[1], L.miracle[2]])); burst(); shoutViva(); }
     const sky = d < SKY_R && h >= 0 && (h >= 19.5 || h < 3) || (FORCE && d < SKY_R && X.isNight());
     if (sky) { if (!fw && endSky) fireworksOn(); } else if (fw && d > SKY_R + 300) fireworksOff();
   }
