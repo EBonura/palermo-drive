@@ -332,7 +332,7 @@ html.pd-map-low #hud { --gap: calc(100vw - 2 * (var(--bar-w) + var(--sl) + 10px)
 .hz-gauges { display: flex; align-items: center; gap: 16px; position: relative; padding: 8px 32px 22px; border-radius: 999px; background: var(--capsule); box-shadow: 0 2px 10px rgba(0,0,0,.3); }   /* one pill like the map capsule (#pd-card): wallet | speed | nitro (src/wallet-hud.js), phone and desktop */
 .hz-gauges #speed, .hz-gauges #pd-wallet { font-family: var(--pd-cond); font-weight: 700; font-size: 30px; letter-spacing: .01em; text-shadow: none; }   /* the condensed face of the map capsule's street name */
 .hz-gauges #speed small, .hz-gauges #pd-wallet small, #hud .hz-gauges .nosbar-l { font-family: var(--pd-cond); font-weight: 600; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #f5a9c9; text-shadow: none; margin-left: 4px; }   /* every unit and label in the pink of the map capsule's area name */
-#hud .hz-gauges .nosbar { position: absolute; left: 30px; right: 30px; bottom: 8px; width: auto; padding: 0; background: none; gap: 9px; align-items: flex-start; }   /* the nitro: inside the pill along its bottom edge, under the money and the speed, its label at the left end (the owner, 22 Nov) */
+#hud .hz-gauges .nosbar { position: absolute; left: 16px; right: 16px; bottom: 8px; width: auto; padding: 0; background: none; gap: 9px; align-items: flex-start; }   /* the nitro: inside the pill along its bottom edge, under the money and the speed, its label at the left end (the owner, 22 Nov) */
 #hud .hz-gauges .nosbar-l { font-size: 10px; line-height: 6px; letter-spacing: .2em; margin: 0; }
 #hud .hz-gauges .nosbar-t { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); box-shadow: none; overflow: visible; transition: transform .2s; }
 #hud .hz-gauges .nosbar-t i { border-radius: 3px; }
@@ -401,7 +401,7 @@ html.touch.pd-map-low .hz-map { bottom: calc(var(--sb) + clamp(64px, 25vh, 108px
 @media (max-width: 1100px) {   /* a narrow desktop window: with the capsule gone from the top right the mission column goes back to the top centre */
 }
 html.touch .hz-gauges { gap: 12px; padding: 6px 22px 18px; }
-html.touch #hud .hz-gauges .nosbar { left: 22px; right: 22px; bottom: 6px; gap: 7px; }
+html.touch #hud .hz-gauges .nosbar { left: 12px; right: 12px; width: auto; bottom: 6px; gap: 7px; }
 html.touch #hud .hz-gauges .nosbar-t { height: 5px; }
 html.touch #hud .hz-gauges .nosbar-l { line-height: 5px; }
 .hz-gauges > :not(:first-child):not([hidden]) { padding-left: 16px; background: linear-gradient(rgba(255,255,255,.14), rgba(255,255,255,.14)) left center / 1px 64% no-repeat; }   /* short hairlines between wallet, speed and nitro */
