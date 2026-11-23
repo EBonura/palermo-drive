@@ -961,3 +961,7 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
   #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row, #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(120px, 28%) minmax(0, 1fr); gap: 6px 18px; }
 }
 #pd-ui[data-st] .pd-s-options .pd-stcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+/* Missioni: the names smaller still, and the radio switch of the welcome screen on one line (four stations: each name stays whole on one row, smaller, never folded) */
+.pd-msn { font-size: min(clamp(14px, calc(var(--vh, 1vh) * 3.1), 19px), 3.6cqi); line-height: 1.1; }
+.pd-welst3 button { white-space: nowrap; font-size: min(clamp(11px, calc(var(--vh, 1vh) * 2.5), 14px), 2.7cqi); letter-spacing: .04em; padding: 0 2px; }
+.pd-welst3 button span { overflow: hidden; text-overflow: ellipsis; }
