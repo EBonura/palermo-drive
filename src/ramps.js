@@ -56,7 +56,7 @@ export function createRamps(env) {
     white: [0.92, 0.92, 0.9], red: [0.75, 0.1, 0.08], orange: [0.97, 0.4, 0.04], amber: [1, 0.62, 0.02], blue: [0.12, 0.3, 0.62], deck: [0.36, 0.38, 0.42], mesh: [0.62, 0.64, 0.66], sand: [0.6, 0.52, 0.36], grey: [0.6, 0.6, 0.6],
   };
   function geo(kind) {
-    const K = KINDS[kind], P = [], Cc = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
+    const K = KINDS[kind], P = [], Cc = [], SG = [], SGU = [], NT = [], NTU = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
     const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
     const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
     const tri2 = (a, b, c, col) => { tri(a, b, c, col); tri(a, c, b, col); };   // seen from both sides (signs)
@@ -119,31 +119,47 @@ export function createRamps(env) {
       box(-hw + 0.3, hw - 0.3, hL - 0.02, hL + 0.001, L - 0.3, L, C.yellow);
     }
 
-    // ----- the road works: on the traffic side red and white barrier boards with amber lamps, on the kerb side mesh fence panels, cones, signs, sandbags -----
-    const bx0 = -ZONE_BEFORE, bx1 = L + ZONE_AFTER, xT = hw + 0.55, xK = -(hw + 0.45);
-    for (let a = bx0; a < bx1 - 0.01; a += 0.5) { const b = Math.min(bx1, a + 0.5), col = Math.floor((a - bx0) / 0.5) % 2 ? C.white : C.red; box(xT - 0.04, xT + 0.04, 0.5, 1.0, a, b, col); box(xT - 0.04, xT + 0.04, 0.38, 0.5, a, b, C.dark); }
-    for (let a = bx0 + 0.3; a < bx1; a += 2) { box(xT - 0.3, xT + 0.3, 0, 0.07, a, a + 0.1, C.dark); box(xT - 0.035, xT + 0.035, 0.07, 0.5, a, a + 0.07, C.dark); }
+    // ----- the road works, as they are in Palermo (the owner's photos, 23 Nov 2026): red and white diagonal barrier boards on folding frames on the traffic side, an orange plastic net on stakes on the kerb side
+    // with the white plates "LAVORI IN CORSO" and "VIETATO L'INGRESSO", the triangle sign (yellow, a black man with a shovel) on a stand with an orange sandbag, the blue arrow disc, cones with collars -----
+    const bx0 = -ZONE_BEFORE, bx1 = L + ZONE_AFTER, xT = hw + 0.55, xK = -(hw + 0.45), NET_H = 1.3, stand = [0.55, 0.57, 0.6], orangeBag = [0.93, 0.42, 0.08];
+    const rect = (x, y, w, h) => [x / 1024, 1 - (y + h) / 512, (x + w) / 1024, 1 - y / 512];   // a cell of the sign atlas as uv (u0, vBottom, u1, vTop)
+    const R_TRI = rect(0, 0, 256, 256), R_BLUE = rect(0, 256, 256, 256), R_LAV = rect(256, 0, 256, 512), R_VIE = rect(512, 0, 256, 512);
+    const signZ = (r, cx, cy, cz, w, h) => {   // a plate facing back along the ramp (towards the traffic coming up the street): seen from there the +x side is on the left
+      SG.push(cx + w / 2, cy - h / 2, cz, cx - w / 2, cy - h / 2, cz, cx - w / 2, cy + h / 2, cz, cx + w / 2, cy - h / 2, cz, cx - w / 2, cy + h / 2, cz, cx + w / 2, cy + h / 2, cz);
+      SGU.push(r[0], r[1], r[2], r[1], r[2], r[3], r[0], r[1], r[2], r[3], r[0], r[3]);
+    };
+    const signX = (r, cx, cy, cz, w, h) => {   // a plate on the net facing the street (+x): seen from there the +z side is on the left
+      SG.push(cx, cy - h / 2, cz + w / 2, cx, cy - h / 2, cz - w / 2, cx, cy + h / 2, cz - w / 2, cx, cy - h / 2, cz + w / 2, cx, cy + h / 2, cz - w / 2, cx, cy + h / 2, cz + w / 2);
+      SGU.push(r[0], r[1], r[2], r[1], r[2], r[3], r[0], r[1], r[2], r[3], r[0], r[3]);
+    };
+    // the barrier boards: diagonal stripes (the bottom edge of a stripe is 0.45 m behind its top edge), clipped to the zone, on folding frames with two legs
+    const cl = v => Math.min(bx1, Math.max(bx0, v));
+    for (let a = bx0 - 0.5; a < bx1; a += 0.5) {
+      const col = Math.round((a - bx0) / 0.5) % 2 ? C.white : C.red, b0 = cl(a), b1 = cl(a + 0.5), t0 = cl(a + 0.45), t1 = cl(a + 0.95);
+      if (b1 - b0 < 1e-4 && t1 - t0 < 1e-4) continue;
+      quad([xT + 0.045, 0.5, b0], [xT + 0.045, 0.5, b1], [xT + 0.045, 1.0, t1], [xT + 0.045, 1.0, t0], col);
+    }
+    box(xT - 0.02, xT + 0.04, 0.5, 1.0, bx0, bx1, [0.8, 0.8, 0.8]); box(xT - 0.02, xT + 0.05, 0.48, 0.5, bx0, bx1, C.dark); box(xT - 0.02, xT + 0.05, 1.0, 1.02, bx0, bx1, C.dark);   // the board behind the stripes and its rims
+    for (let a = bx0 + 0.35; a < bx1 - 0.2; a += 2) { for (const sg of [-0.28, 0.28]) { box(xT - 0.02 + sg * 0.0, xT + 0.02, 0, 0.55, a + sg, a + sg + 0.035, stand); } box(xT - 0.26, xT + 0.26, 0, 0.03, a - 0.3, a + 0.3, stand); }   // the folding frame: two legs and a spreader foot
     for (const z of [bx0 + 0.15, bx1 - 0.25]) { box(xT - 0.09, xT + 0.09, 1.0, 1.1, z, z + 0.12, C.dark); box(xT - 0.07, xT + 0.07, 1.1, 1.22, z + 0.01, z + 0.11, C.amber); }   // the lamps
-    for (let a = bx0; a < bx1 - 0.2; a += 3.4) {   // mesh panels: a frame and wire bars on concrete feet
-      const b = Math.min(bx1, a + 3.3); box(xK - 0.02, xK + 0.02, 0.05, 0.1, a, b, C.mesh); box(xK - 0.02, xK + 0.02, 1.9, 1.96, a, b, C.mesh);
-      for (let z = a; z < b; z += 0.22) box(xK - 0.012, xK + 0.012, 0.1, 1.9, z, z + 0.024, C.mesh);
-      box(xK - 0.3, xK + 0.3, 0, 0.2, a, a + 0.5, C.grey); box(xK - 0.3, xK + 0.3, 0, 0.2, b - 0.5, b, C.grey);   // the feet
-      box(xK - 0.03, xK + 0.03, 0.2, 1.96, a, a + 0.05, C.mesh); box(xK - 0.03, xK + 0.03, 0.2, 1.96, b - 0.05, b, C.mesh);
+    // the orange net on the kerb side: a textured sheet, stakes every 2 m with an orange cap
+    NT.push(xK, 0.08, bx0, xK, 0.08, bx1, xK, NET_H, bx1, xK, 0.08, bx0, xK, NET_H, bx1, xK, NET_H, bx0); { const u1 = (bx1 - bx0) / 0.5, v1 = (NET_H - 0.08) / 0.5; NTU.push(0, 0, u1, 0, u1, v1, 0, 0, u1, v1, 0, v1); }
+    for (let a = bx0; a <= bx1 + 0.01; a += 2) { const z = Math.min(a, bx1 - 0.03); box(xK - 0.025, xK + 0.025, 0, NET_H + 0.12, z, z + 0.05, [0.2, 0.4, 0.2]); box(xK - 0.04, xK + 0.04, NET_H + 0.12, NET_H + 0.2, z - 0.01, z + 0.06, C.orange); }
+    signX(R_LAV, xK + 0.035, 0.85, bx0 + 3.4, 0.55, 0.85); signX(R_VIE, xK + 0.035, 0.85, bx0 + 4.5, 0.55, 0.85);
+    const cone = null;   // (the cones are their own instances, see coneGeos)
+    const sandbag = (x, s, col = C.sand) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, col);
+    { const x = hw + 1.3, s = bx0 - 0.5;   // the triangle sign on a folding stand (two legs apart at the bottom), an orange sandbag on its foot
+      for (const dx of [-0.42, 0.42]) { box(x + dx - 0.02, x + dx + 0.02, 0, 0.75, s - 0.03, s + 0.03, stand); sandbag(x + dx, s - 0.05, orangeBag); }
+      box(x - 0.4, x + 0.4, 0.7, 0.75, s - 0.025, s + 0.03, stand);
+      signZ(R_TRI, x, 1.2, s - 0.04, 1.05, 1.05);
+      const bx = hw + 3.3, bs = bx0 - 2.6;   // the blue disc with the white arrow, on its own stand
+      for (const dx of [-0.3, 0.3]) box(bx + dx - 0.02, bx + dx + 0.02, 0, 0.7, bs - 0.03, bs + 0.03, stand);
+      signZ(R_BLUE, bx, 1.0, bs - 0.04, 0.8, 0.8);
     }
-    const sandbag = (x, s) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, C.sand);
-    { const x = hw + 1.3, s = bx0 - 0.5;   // a tripod sign: the red triangle with a white field and a black figure, a second sign under it, sandbags on the legs
-      for (const dx of [-0.35, 0.35]) { box(x + dx - 0.02, x + dx + 0.02, 0, 1.55, s - 0.04, s - 0.02, C.dark); sandbag(x + dx, s - 0.1); }
-      box(x - 0.025, x + 0.025, 1.0, 2.9, s - 0.03, s + 0.02, C.dark);
-      for (const sd of [-1, 1]) {
-        const z = s - sd * 0.04, f = (xx, yy) => [x + xx * sd, yy, z];
-        tri2(f(-0.52, 1.95), f(0.52, 1.95), f(0, 2.9), C.red); tri2(f(-0.37, 2.02), f(0.37, 2.02), f(0, 2.62), C.white);
-        const z2 = s - sd * 0.045; box(x - 0.05, x + 0.05, 2.1, 2.4, Math.min(z2, s - sd * 0.05) - 0.003, Math.max(z2, s - sd * 0.05) + 0.003, C.black);   // the figure, a bar
-        const zr = s - sd * 0.04; for (let i = 0; i < 12; i++) { const a0 = i / 12 * 6.2832, a1 = (i + 1) / 12 * 6.2832; tri2([x, 1.35, zr], [x + Math.cos(a0) * 0.3, 1.35 + Math.sin(a0) * 0.3, zr], [x + Math.cos(a1) * 0.3, 1.35 + Math.sin(a1) * 0.3, zr], C.red); tri2([x, 1.35, zr - sd * 0.002], [x + Math.cos(a0) * 0.22, 1.35 + Math.sin(a0) * 0.22, zr - sd * 0.002], [x + Math.cos(a1) * 0.22, 1.35 + Math.sin(a1) * 0.22, zr - sd * 0.002], C.white); }   // a speed disc
-      }
-      box(x - 0.045, x + 0.045, 1.27, 1.43, s - 0.052, s - 0.048, C.black);   // the "30"
-    }
-    sandbag(xT + 0.2, bx1 + 0.3); sandbag(xT + 0.2, bx1 + 0.45);
+    sandbag(xT + 0.2, bx1 + 0.3, orangeBag); sandbag(xT + 0.2, bx1 + 0.45, orangeBag);
     const g = new THREE.BufferGeometry();
+    const uvg = (pos, uv) => { const q = new THREE.BufferGeometry(); q.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); q.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); q.computeVertexNormals(); return q; };
+    g.userData.signs = uvg(SG, SGU); g.userData.net = uvg(NT, NTU);
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
     g.computeVertexNormals();
     return g;
@@ -157,13 +173,41 @@ export function createRamps(env) {
     x.strokeStyle = '#16161a'; x.lineWidth = 8; x.strokeRect(4, 4, 248, 152);                // a black edge round all of it
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
   const stickerMat = new THREE.MeshStandardMaterial({ map: stickerTex, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  // the sign atlas (1024x512): the triangle "lavori" sign and the blue arrow disc on the left (transparent outside their shapes), the two white plates beside them
+  const signTex = (() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 512; const x = c.getContext('2d');
+    const triPath = (cx, top, bot, half) => { x.beginPath(); x.moveTo(cx, top); x.lineTo(cx + half, bot); x.lineTo(cx - half, bot); x.closePath(); };
+    const worker = (ox, oy, k) => {   // a black man bent over a shovel, and the heap
+      x.save(); x.translate(ox, oy); x.scale(k, k); x.fillStyle = x.strokeStyle = '#111'; x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath(); x.arc(-14, -34, 11, 0, 6.2832); x.fill();
+      x.lineWidth = 14; x.beginPath(); x.moveTo(-16, -20); x.lineTo(-4, 14); x.lineTo(-22, 42); x.moveTo(-4, 14); x.lineTo(16, 40); x.stroke();   // body and legs
+      x.lineWidth = 10; x.beginPath(); x.moveTo(-14, -12); x.lineTo(14, 4); x.stroke();                                                          // the arm
+      x.lineWidth = 6; x.beginPath(); x.moveTo(14, 4); x.lineTo(42, 40); x.stroke();                                                              // the shovel
+      x.beginPath(); x.moveTo(30, 46); x.lineTo(70, 46); x.lineTo(54, 26); x.closePath(); x.fill(); x.restore(); };
+    triPath(128, 10, 238, 118); x.fillStyle = '#d1261b'; x.fill(); triPath(128, 62, 214, 80); x.fillStyle = '#f5c518'; x.fill(); worker(120, 150, 0.95);   // the triangle sign
+    x.fillStyle = '#1f5fb5'; x.beginPath(); x.arc(128, 384, 120, 0, 6.2832); x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 6; x.beginPath(); x.arc(128, 384, 112, 0, 6.2832); x.stroke();
+    x.fillStyle = '#fff'; x.save(); x.translate(128, 384); x.rotate(-0.6); x.beginPath(); x.moveTo(-80, 0); x.lineTo(-20, -44); x.lineTo(-20, -18); x.lineTo(78, -18); x.lineTo(78, 18); x.lineTo(-20, 18); x.lineTo(-20, 44); x.closePath(); x.fill(); x.restore();   // the arrow
+    const plate = ox => { x.fillStyle = '#f7f6f2'; x.fillRect(ox + 4, 4, 248, 504); x.strokeStyle = '#999'; x.lineWidth = 3; x.strokeRect(ox + 4, 4, 248, 504); };
+    plate(256); triPath(256 + 128, 24, 190, 86); x.fillStyle = '#d1261b'; x.fill(); triPath(256 + 128, 62, 172, 54); x.fillStyle = '#f5c518'; x.fill(); worker(256 + 124, 124, 0.6);
+    x.fillStyle = '#111'; x.textAlign = 'center'; x.font = '900 70px sans-serif'; x.fillText('LAVORI', 256 + 128, 300); x.fillText('IN', 256 + 128, 372); x.fillText('CORSO', 256 + 128, 444);
+    plate(512); x.strokeStyle = '#d1261b'; x.lineWidth = 16; x.beginPath(); x.arc(512 + 128, 130, 72, 0, 6.2832); x.stroke(); x.beginPath(); x.moveTo(512 + 78, 80); x.lineTo(512 + 178, 180); x.stroke();
+    x.fillStyle = '#111'; x.beginPath(); x.arc(512 + 128, 128, 36, 0, 6.2832); x.fill(); x.fillStyle = '#111'; x.font = '800 34px sans-serif';
+    ['VIETATO', 'L’INGRESSO', 'AI NON', 'ADDETTI', 'AI LAVORI'].forEach((t, i) => x.fillText(t, 512 + 128, 262 + i * 52));
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
+  const netTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');   // the orange plastic net: orange with round holes
+    x.fillStyle = '#f0661a'; x.fillRect(0, 0, 64, 64); x.globalCompositeOperation = 'destination-out';
+    for (const [px, py] of [[16, 16], [48, 16], [0, 48], [32, 48], [64, 48], [16, 80], [48, 80], [0, 16], [32, 16], [64, 16], [16, 48], [48, 48]]) { x.beginPath(); x.arc(px, py, 11, 0, 6.2832); x.fill(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; })();
+  const signMat = new THREE.MeshStandardMaterial({ map: signTex, alphaTest: 0.4, roughness: 0.55, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const netMat = new THREE.MeshStandardMaterial({ map: netTex, alphaTest: 0.5, roughness: 0.8, side: THREE.DoubleSide });
   const meshes = {}, geos = {};
   for (const kind of Object.keys(KINDS)) {
     const mine = list.filter(r => r.kind === kind); if (!mine.length) continue;
     geos[kind] = geo(kind);
     const m = new THREE.InstancedMesh(geos[kind], mat, mine.length);
     m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(m); meshes[kind] = { m, mine };
+    const ex = [new THREE.InstancedMesh(geos[kind].userData.signs, signMat, mine.length), new THREE.InstancedMesh(geos[kind].userData.net, netMat, mine.length)];
+    for (const e of ex) { e.frustumCulled = false; e.visible = false; e.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
+    ex[1].castShadow = true; scene.add(m, ...ex); meshes[kind] = { m, mine, ex };
   }
   // ----- the cones: one cone (with its square foot and the sticker) instanced for all of them, each standing on the ground under it, not on the ramp's base (a kerb or a camber would bury it) -----
   const coneGeos = (() => {
@@ -220,13 +264,13 @@ export function createRamps(env) {
     }
     if (coneMesh) { coneMesh.instanceMatrix.needsUpdate = stickMesh.instanceMatrix.needsUpdate = true; coneMesh.visible = stickMesh.visible = anyCone; }
     for (const kind in meshes) {
-      const { m, mine } = meshes[kind]; let any = false;
+      const { m, mine, ex } = meshes[kind]; let any = false;
       for (let i = 0; i < mine.length; i++) {
         const r = mine[i], near = Math.hypot(r.x - cx, r.z - cz) < SEE;
         if (near) { r.base = lowest(r); any = true; }
-        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one));
+        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one)); for (const e of ex) e.setMatrixAt(i, m4);
       }
-      m.instanceMatrix.needsUpdate = true; m.visible = any;
+      m.instanceMatrix.needsUpdate = true; m.visible = any; for (const e of ex) { e.instanceMatrix.needsUpdate = true; e.visible = any; }
     }
   }
   return { surfaceAt, update, list, zonesNear };
