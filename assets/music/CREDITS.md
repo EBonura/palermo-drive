@@ -107,3 +107,4 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | Moto Continuo (`azzardo-moto-continuo`) | Azzardo ft. SieroBrownie (prod. YouArt Beats) | MP3 sent by email |
 | Aria Fresca (`sierobrownie-aria-fresca`) | SieroBrownie | MP3 sent by email |
 | 2 Am (`magikaarp-2-am`) | magikAAAAArp | WAV file |
+| Aura (`mario-bajardi-aura`) | Mario Bajardi (album AURA, 2025) | MP3 sent by email |

@@ -199,6 +199,7 @@ Music from Palermo. Re-encoded for the web and loudness normalised.
 | Moto Continuo | Azzardo ft. SieroBrownie |  | MP3 sent by email |
 | Aria Fresca | SieroBrownie |  | MP3 sent by email |
 | 2 Am | magikAAAAArp |  | WAV file |
+| Aura | Mario Bajardi |  | MP3 sent by email |
 
 ## Pedestrian sprites (LPC)
 
