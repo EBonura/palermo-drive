@@ -6,11 +6,13 @@
 // The physics asks surfaceAt(x, z) (the height of the top, or NaN when there is no ramp there) and the sphere model takes the higher of the ground and that.
 // The meshes are two merged geometries (one per kind, built once, all ramps of a kind in one draw call each) that are only visible within SEE metres.
 // Each piece stands on the right of its street as road works do: barrier boards on both flanks from 6 m before the foot to 3 m after the lip, cones, a "lavori in corso" sign
-// on its pole, and the boards on the traffic side are walls for the lapa. The traffic steers round the whole zone (it sees it as one long parked obstacle, zonesNear below) and no
+// on its pole. The boards on the traffic side are walls for the lapa below 3.2 m/s and break off above it, and the cones fly when it hits them: both are bodies (gravity, spin, bounces, then they lie where they fell). The traffic steers round the whole zone (it sees it as one long parked obstacle, zonesNear below) and no
 // car is parked inside it (src/props.js reads the same list, src/ramp-spots.js).
 // ?ramp=x,z,th[,kind][;x,z,th...] puts ramps there instead (screenshots, tests); kind is 'ramp' or 'truck'.
 import * as THREE from 'three';
-import { KINDS, placed, ZONE_BEFORE, ZONE_AFTER } from './ramp-spots.js';   // where they stand and the shapes (shared with the props and the traffic)
+import { KINDS, placed, ZONE_BEFORE, ZONE_AFTER } from './ramp-spots.js';
+import { hooks } from './core.js';
+import { sfx } from './sfx.js';   // where they stand and the shapes (shared with the props and the traffic)
 
 const SEE = 450, EDGE = 0.3;
 const STICKER_TEXT = ['PROPERTY OF', 'EDDY'];   // the easter egg on the cones of the work zones   // metres: drawn within SEE, the sides fall away over EDGE
@@ -158,16 +160,7 @@ export function createRamps(env) {
       SG.push(cx, cy - h / 2, cz + w / 2, cx, cy - h / 2, cz - w / 2, cx, cy + h / 2, cz - w / 2, cx, cy - h / 2, cz + w / 2, cx, cy + h / 2, cz - w / 2, cx, cy + h / 2, cz + w / 2);
       SGU.push(r[0], r[1], r[2], r[1], r[2], r[3], r[0], r[1], r[2], r[3], r[0], r[3]);
     };
-    // the barrier boards: diagonal stripes (the bottom edge of a stripe is 0.45 m behind its top edge), clipped to the zone, on folding frames with two legs
-    const cl = v => Math.min(bx1, Math.max(bx0, v));
-    for (let a = bx0 - 0.5; a < bx1; a += 0.5) {
-      const col = Math.round((a - bx0) / 0.5) % 2 ? C.white : C.red, b0 = cl(a), b1 = cl(a + 0.5), t0 = cl(a + 0.45), t1 = cl(a + 0.95);
-      if (b1 - b0 < 1e-4 && t1 - t0 < 1e-4) continue;
-      quad([xT + 0.045, 0.5, b0], [xT + 0.045, 0.5, b1], [xT + 0.045, 1.0, t1], [xT + 0.045, 1.0, t0], col);
-    }
-    box(xT - 0.02, xT + 0.04, 0.5, 1.0, bx0, bx1, [0.8, 0.8, 0.8]); box(xT - 0.02, xT + 0.05, 0.48, 0.5, bx0, bx1, C.dark); box(xT - 0.02, xT + 0.05, 1.0, 1.02, bx0, bx1, C.dark);   // the board behind the stripes and its rims
-    for (let a = bx0 + 0.35; a < bx1 - 0.2; a += 2) { for (const sg of [-0.28, 0.28]) { box(xT - 0.02 + sg * 0.0, xT + 0.02, 0, 0.55, a + sg, a + sg + 0.035, stand); } box(xT - 0.26, xT + 0.26, 0, 0.03, a - 0.3, a + 0.3, stand); }   // the folding frame: two legs and a spreader foot
-    for (const z of [bx0 + 0.15, bx1 - 0.25]) { box(xT - 0.09, xT + 0.09, 1.0, 1.1, z, z + 0.12, C.dark); box(xT - 0.07, xT + 0.07, 1.1, 1.22, z + 0.01, z + 0.11, C.amber); }   // the lamps
+    // (the barrier boards are their own breakable pieces, see panelGeo below)
     // the orange net on the kerb side: a textured sheet, stakes every 2 m with an orange cap
     NT.push(xK, 0.08, bx0, xK, 0.08, bx1, xK, NET_H, bx1, xK, 0.08, bx0, xK, NET_H, bx1, xK, NET_H, bx0); { const u1 = (bx1 - bx0) / 0.3, v1 = (NET_H - 0.08) / 0.3; NTU.push(0, 0, u1, 0, u1, v1, 0, 0, u1, v1, 0, v1); }
     for (let a = bx0; a <= bx1 + 0.01; a += 2) { const z = Math.min(a, bx1 - 0.03); box(xK - 0.025, xK + 0.025, 0, NET_H + 0.12, z, z + 0.05, [0.2, 0.4, 0.2]); box(xK - 0.04, xK + 0.04, NET_H + 0.12, NET_H + 0.2, z - 0.01, z + 0.06, C.orange); }
@@ -274,31 +267,151 @@ export function createRamps(env) {
     for (const m of [coneMesh, stickMesh]) { m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
     coneMesh.castShadow = true; coneMesh.receiveShadow = true; scene.add(coneMesh, stickMesh);
   }
-  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), p3 = new THREE.Vector3();
-  // the boards on the traffic side are walls for the lapa (the right ones stand 0.45 m from the ramp, in the gap by the kerb)
-  if (walls2d) for (const z of zones) {
-    const hw = z.w / 2 + 0.55, sn = Math.sin(z.th), cs = Math.cos(z.th), s0 = -ZONE_BEFORE, s1 = z.L + ZONE_AFTER;
-    const a = [z.x + sn * s0 + cs * hw, z.z + cs * s0 - sn * hw], b = [z.x + sn * s1 + cs * hw, z.z + cs * s1 - sn * hw];
-    walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]);
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), q5 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), p3 = new THREE.Vector3(), v3 = new THREE.Vector3();
+  const gAt = (x, z) => groundY(x, z) + (raisedMask && raisedMask(x, z) ? CURB : 0);
+
+  // ----- the barrier boards: 2 m of striped board on its folding frame, each one its own instance, so the lapa can smash it; a lamp on the first and the last -----
+  const PL = 2.0, BOARD_THR = 3.2;   // metres of board per piece; the speed into it (m/s) above which a piece breaks instead of being a wall
+  const panelGeo = (() => {
+    const P = [], Cc = [];
+    const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
+    const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
+    const box = (x0, x1, y0, y1, z0, z1, col) => {
+      quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], col); quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], col);
+      quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], col); quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], col);
+      quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], col);
+    };
+    const cl = v => Math.min(PL, Math.max(0, v)), white = C.white;
+    for (let a = -0.5; a < PL; a += 0.5) {   // diagonal stripes: the bottom edge of a stripe is 0.45 m behind its top edge, clipped to the piece
+      const col = Math.round(a / 0.5) % 2 ? white : C.red, b0 = cl(a), b1 = cl(a + 0.5), t0 = cl(a + 0.45), t1 = cl(a + 0.95);
+      if (b1 - b0 < 1e-4 && t1 - t0 < 1e-4) continue;
+      quad([0.045, 0.5, b0], [0.045, 0.5, b1], [0.045, 1.0, t1], [0.045, 1.0, t0], col);
+    }
+    box(-0.02, 0.04, 0.5, 1.0, 0, PL, [0.8, 0.8, 0.8]); box(-0.02, 0.05, 0.48, 0.5, 0, PL, C.dark); box(-0.02, 0.05, 1.0, 1.02, 0, PL, C.dark);   // the board behind the stripes and its rims
+    for (const sg of [-0.28, 0.28]) box(-0.02, 0.02, 0, 0.55, 1.0 + sg, 1.0 + sg + 0.035, [0.55, 0.57, 0.6]);   // the folding frame: two legs ...
+    box(-0.26, 0.26, 0, 0.03, 0.7, 1.3, [0.55, 0.57, 0.6]);                                                       // ... and a spreader foot
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); g.computeVertexNormals(); return g;
+  })();
+  const lampGeo = (() => {
+    const P = [], Cc = [];
+    const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
+    const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
+    const box = (x0, x1, y0, y1, z0, z1, col) => {
+      quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], col); quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], col);
+      quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], col); quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], col);
+      quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], col);
+    };
+    box(-0.09, 0.09, 1.0, 1.1, 0, 0.12, C.dark); box(-0.07, 0.07, 1.1, 1.22, 0.01, 0.11, C.amber);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); g.computeVertexNormals(); return g;
+  })();
+
+  // ----- the pieces that can move: every cone and every board is a body. Standing it is static; a blow turns it into a flyer (gravity, spin, bounces), and after a few bounces it lies where it fell for the session -----
+  // type 0 a cone, 1 a board; state 0 standing, 1 flying, 2 lying
+  const bodies = [], zoneNear = new Uint8Array(list.length);
+  const coneBodies = [], panelBodies = [];
+  const world = (r, lx, ls) => [r.x + r.cs * lx + r.sn * ls, r.z - r.sn * lx + r.cs * ls];
+  const mkBody = (type, zi, x, z, th, extra) => { const b = { type, zi, x, y: 0, z, th, state: 0, vx: 0, vy: 0, vz: 0, w: new THREE.Vector3(), q: new THREE.Quaternion().setFromAxisAngle(up, th), qT: new THREE.Quaternion(), settle: 0, t: 0, idx: 0, gone: false, ...extra }; bodies.push(b); return b; };
+  list.forEach((r, zi) => {
+    coneSpots(r).forEach(([lx, ls], k) => { const [x, z] = world(r, lx, ls); const b = mkBody(0, zi, x, z, r.th, { idx: zi * NC + k, stick: hasSticker(zi * NC + k) }); coneBodies.push(b); });
+    const hw = r.K.w / 2, bx0 = -ZONE_BEFORE, bx1 = r.L + ZONE_AFTER, n = Math.ceil((bx1 - bx0) / PL);
+    for (let j = 0; j < n; j++) {
+      const ls = bx0 + j * PL, len = Math.min(PL, bx1 - ls), [x, z] = world(r, hw + 0.55, ls);
+      const b = mkBody(1, zi, x, z, r.th, { idx: panelBodies.length, len, lamp: j === 0 ? 0 : j === n - 1 ? 1 : -1, lampLs: j === 0 ? bx0 + 0.15 : bx1 - 0.25, lx: hw + 0.55, thr: BOARD_THR, rp: true, segs: [] });
+      const [x1, z1] = world(r, hw + 0.55, ls + len), seg = [x, z, x1, z1]; seg.fn = b; seg.o = seg.slice(); b.segs.push(seg); if (walls2d) walls2d.addSeg(seg, x, z, x1, z1);
+      panelBodies.push(b);
+    }
+  });
+  let panelMesh = null, lampMesh = null;
+  if (panelBodies.length) {
+    panelMesh = new THREE.InstancedMesh(panelGeo, mat, panelBodies.length); lampMesh = new THREE.InstancedMesh(lampGeo, mat, list.length * 2);
+    for (const m of [panelMesh, lampMesh]) { m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
+    panelMesh.castShadow = true; panelMesh.receiveShadow = true; scene.add(panelMesh, lampMesh);
   }
+  const HIDE = new THREE.Matrix4().compose(new THREE.Vector3(0, -1000, 0), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+  function put(b) {   // the matrices of a body (and of its sticker or lamp)
+    m4.compose(p3.set(b.x, b.y, b.z), b.q, one);
+    if (b.type === 0) { coneMesh.setMatrixAt(b.idx, m4); stickMesh.setMatrixAt(b.idx, b.stick ? m4 : HIDE); coneMesh.instanceMatrix.needsUpdate = stickMesh.instanceMatrix.needsUpdate = true; }
+    else { panelMesh.setMatrixAt(b.idx, m4); panelMesh.instanceMatrix.needsUpdate = true; }
+  }
+  function putLamp(b) {   // a lamp stands on its piece: gone when the piece is gone
+    if (b.lamp < 0 || !lampMesh) return;
+    const r = list[b.zi], [x, z] = world(r, b.lx, b.lampLs), k = b.zi * 2 + b.lamp;
+    if (b.state !== 0 || b.gone) lampMesh.setMatrixAt(k, HIDE); else lampMesh.setMatrixAt(k, m4.compose(p3.set(x, b.y, z), q5.setFromAxisAngle(up, r.th), one));
+    lampMesh.instanceMatrix.needsUpdate = true;
+  }
+  const rnd = () => Math.random();
+  function launch(b, vx, vy, vz, spin) {
+    b.state = 1; b.vx = vx; b.vy = vy; b.vz = vz; b.t = 0; b.settle = 0;
+    b.w.set(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5); if (b.w.lengthSq() < 1e-4) b.w.set(1, 0, 0); b.w.setLength(spin);
+    if (b.type === 1) { b.gone = true; for (const s of b.segs) { s[0] = s[1] = s[2] = s[3] = 1e7; } putLamp(b); }
+  }
+  function rest(b) {   // it lands: it lies where it fell, on its side, turned any way
+    b.state = 2; b.vx = b.vy = b.vz = 0; b.w.set(0, 0, 0); b.settle = 0.5;
+    const yaw = new THREE.Quaternion().setFromAxisAngle(up, rnd() * 6.2832), lay = new THREE.Quaternion().setFromAxisAngle(b.type === 0 ? v3.set(1, 0, 0) : v3.set(0, 0, 1), Math.PI / 2 * (rnd() < 0.5 ? 1 : -1));
+    b.qT.copy(yaw).multiply(lay);
+  }
+  const clearance = b => b.type === 0 ? 0.23 : 0.12, restY = b => b.type === 0 ? 0.23 : 0.07;
+  function stepBody(b, dt) {
+    b.t += dt; b.vy -= 9.8 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    const w = b.w.length(); if (w > 1e-3) { q5.setFromAxisAngle(v3.copy(b.w).divideScalar(w), w * dt); b.q.premultiply(q5); }
+    const gy = gAt(b.x, b.z);
+    if (b.vy < 0 && b.y < gy + clearance(b)) {
+      b.y = gy + clearance(b); b.vy = -b.vy * 0.36; b.vx *= 0.78; b.vz *= 0.78; b.w.multiplyScalar(0.72);
+      if (Math.abs(b.vy) < 1.1 && Math.hypot(b.vx, b.vz) < 1.8) { b.y = gy + restY(b); rest(b); }
+    }
+    if (b.state === 1 && b.t > 5) { b.y = gy + restY(b); rest(b); }
+  }
+  let car = null;
+  const R_CAR = 0.95;
+  function hitCones() {   // the lapa runs into cones: they fly (and a lying one can be kicked again)
+    if (!car || !coneBodies.length) return;
+    const sp = Math.hypot(car.vx, car.vz); if (sp < 0.8 || (car.lift || 0) > 1.0) return;
+    for (const b of coneBodies) {
+      if (!zoneNear[b.zi] || b.state === 1) continue;
+      const dx = b.x - car.x, dz = b.z - car.z, d = Math.hypot(dx, dz); if (d > R_CAR) continue;
+      const nx = d > 1e-3 ? dx / d : Math.sin(car.th), nz = d > 1e-3 ? dz / d : Math.cos(car.th), k = 1.5 + 0.25 * sp;
+      launch(b, car.vx * 0.85 + nx * k, Math.min(8, 2.2 + 0.28 * sp), car.vz * 0.85 + nz * k, 4 + sp * 0.7);
+      if (b.state === 0 || true) b.y = Math.max(b.y, gAt(b.x, b.z) + 0.2);
+      sfx('thump', Math.min(0.5, 0.15 + sp / 40));
+    }
+  }
+  // a board hit above BOARD_THR m/s breaks off its post and flies (the fences' hook, src/fences.js: the lapa asks it about any wall piece that carries a panel, seg.fn)
+  const chain = hooks.breakFence;
+  hooks.breakFence = (seg, vs, nx, nz, c) => {
+    const b = seg.fn; if (!b || !b.rp) return chain ? chain(seg, vs, nx, nz, c) : false;
+    if (b.gone || vs < b.thr) return false;
+    const sp = Math.hypot(c.vx, c.vz);
+    launch(b, -nx * (2.5 + vs * 0.5) + c.vx * 0.35, 3 + Math.min(5, vs * 0.45), -nz * (2.5 + vs * 0.5) + c.vz * 0.35, 3 + sp * 0.25);
+    b.y = Math.max(b.y, gAt(b.x, b.z) + 0.2);
+    c.vx += nx * vs * 0.22; c.vz += nz * vs * 0.22; if (c.vf !== undefined) c.vf = c.vx * Math.sin(c.th) + c.vz * Math.cos(c.th);   // the board takes a little speed with it
+    sfx('metal-rail', Math.min(1.2, Math.max(0.35, 0.35 + vs / 14)));
+    try { dispatchEvent(new CustomEvent('pd-fence', { detail: { x: b.x, z: b.z, kind: 'fence' } })); } catch (e) { /* no events */ }
+    return true;
+  };
+
   // the traffic's view of a work zone: one long parked obstacle made of circles (the same fields as a parked car, src/props.js parked.near)
   const obstacles = zones.map(z => { const r = z.zw / 2, c = []; for (let zo = -z.zl / 2 + r; zo <= z.zl / 2 - r + 0.01; zo += r * 1.2) c.push([0, zo, r]); return { x: z.zx, z: z.zz, rot: z.th, st: 0, ramp: true, sp: { L: z.zl, W: z.zw, m: 1e6, c, kind: 'ramp' } }; });
   function zonesNear(x, z, r, out) { for (const o of obstacles) if (Math.hypot(o.x - x, o.z - z) < r + o.sp.L / 2 + 2) out.push(o); return out.length; }
   let tick = 1;
   function update(dt) {
-    tick += dt; if (tick < 0.5) return; tick = 0;
+    dt = Math.min(dt, 0.05);
     const cx = camera.position.x, cz = camera.position.z;
-    let anyCone = false;
-    for (let zi = 0; zi < list.length && coneMesh; zi++) {
-      const r = list[zi], near = Math.hypot(r.x - cx, r.z - cz) < SEE, sp = coneSpots(r);
-      for (let k = 0; k < sp.length; k++) {
-        const [lx, ls] = sp[k], wx = r.x + r.cs * lx + r.sn * ls, wz = r.z - r.sn * lx + r.cs * ls;
-        m4.compose(p3.set(wx, near ? groundY(wx, wz) + (raisedMask && raisedMask(wx, wz) ? CURB : 0) + 0.005 : -1000, wz), q4.setFromAxisAngle(up, r.th), one); coneMesh.setMatrixAt(zi * NC + k, m4);
-        if (hasSticker(zi * NC + k)) stickMesh.setMatrixAt(zi * NC + k, m4); else stickMesh.setMatrixAt(zi * NC + k, m4.compose(p3.set(0, -1000, 0), q4.set(0, 0, 0, 1), one));   // the easter egg is on about one cone in five
-      }
-      if (near) anyCone = true;
+    for (const b of bodies) {   // flyers and settling pieces, every frame
+      if (b.state === 1) { stepBody(b, dt); put(b); }
+      else if (b.state === 2 && b.settle > 0) { b.settle -= dt; b.q.slerp(b.qT, 1 - Math.exp(-12 * dt)); put(b); }
     }
-    if (coneMesh) { coneMesh.instanceMatrix.needsUpdate = stickMesh.instanceMatrix.needsUpdate = true; coneMesh.visible = stickMesh.visible = anyCone; }
+    hitCones();
+    tick += dt; if (tick < 0.5) return; tick = 0;
+    for (let zi = 0; zi < list.length; zi++) zoneNear[zi] = Math.hypot(list[zi].x - cx, list[zi].z - cz) < SEE ? 1 : 0;
+    let anyCone = false, anyPanel = false;
+    for (const b of bodies) {   // standing and lying pieces: on the ground under them (the fine heights arrive late), hidden when their zone is far
+      const near = zoneNear[b.zi]; if (b.state === 1) { if (near) { if (b.type === 0) anyCone = true; else anyPanel = true; } continue; }
+      if (near) { b.y = gAt(b.x, b.z) + (b.state === 2 ? restY(b) : (b.type === 0 ? 0.005 : 0.0)); put(b); putLamp(b); if (b.type === 0) anyCone = true; else if (!b.gone) anyPanel = true; else anyPanel = true; }
+      else if (b.type === 0) { coneMesh.setMatrixAt(b.idx, HIDE); stickMesh.setMatrixAt(b.idx, HIDE); coneMesh.instanceMatrix.needsUpdate = stickMesh.instanceMatrix.needsUpdate = true; }
+      else { panelMesh.setMatrixAt(b.idx, HIDE); panelMesh.instanceMatrix.needsUpdate = true; if (b.lamp >= 0) { lampMesh.setMatrixAt(b.zi * 2 + b.lamp, HIDE); lampMesh.instanceMatrix.needsUpdate = true; } }
+    }
+    if (coneMesh) coneMesh.visible = stickMesh.visible = anyCone;
+    if (panelMesh) panelMesh.visible = lampMesh.visible = anyPanel;
     for (const kind in meshes) {
       const { m, mine, ex } = meshes[kind]; let any = false;
       for (let i = 0; i < mine.length; i++) {
@@ -309,5 +422,5 @@ export function createRamps(env) {
       m.instanceMatrix.needsUpdate = true; m.visible = any; for (const e of ex) { e.instanceMatrix.needsUpdate = true; e.visible = any; }
     }
   }
-  return { surfaceAt, update, list, zonesNear };
+  return { surfaceAt, update, list, zonesNear, bindCar: c => { car = c; }, bodies };   // bodies: for tests (window.game.ramps with ?debug)
 }

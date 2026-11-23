@@ -310,6 +310,7 @@ const ramps = createRamps({ scene, camera, groundY, walls2d, raisedMask, CURB })
   parked.bump = (c, ...a) => c.ramp ? 1 : bump(c, ...a); }
 const vehicle = createVehicle({ rampAt: ramps.surfaceAt, scene, camera, keys, walls2d, closestOnSeg, raisedMask, CURB, roadVerts, viewBlock: propsApi.occlude, sea, world });   // sea, world: floats and wings (src/vehicle-water.js, src/vehicle-air.js)
 const { car, camState, placeAt, physics, updateCamera } = vehicle;
+ramps.bindCar(car);   // the cones and the barrier boards of the work zones fly when the lapa hits them (src/ramps.js)
 zone('gauges').append(document.querySelector('.nosbar'));   // the nitro bar: inside the gauges pill, along its bottom edge (src/ui.css)
 const walletHud = createWalletHud({ garage: wallet });
 const hitPops = createHitPop(camera);
@@ -398,7 +399,7 @@ placeAt(0, 0);
   // ?clean: the picture only, no HUD, menu, minimap or toasts (the share images, assets/ui/make-cover.sh)
   if (q.has('clean')) { const st = document.createElement('style'); st.textContent = 'body > :not(#view) { visibility: hidden !important; }'; document.head.appendChild(st); }
 }
-if (location.search.includes('debug')) window.game = { perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, markets, shout: shouts.shout, props: propsApi, hooks, pedestrians, set filmCam(f) { filmCam = typeof f === 'function' ? f : null; } };   // props, hooks: tools/route-check reads the solid props and the bridge levels
+if (location.search.includes('debug')) window.game = { ramps, perf, world, car, keys, physics, renderer, scene, camera, placeAt, proj, updateCamera, groundY, walls2d, markets, shout: shouts.shout, props: propsApi, hooks, pedestrians, set filmCam(f) { filmCam = typeof f === 'function' ? f : null; } };   // props, hooks: tools/route-check reads the solid props and the bridge levels
 // ---------- game state and settings (title screen, menus and options live in src/ui.js) ----------
 // state: 'title' (menus over a flyover, no driving), 'play', 'pause'. ui.js may set game.titleCam
 // to a function (camera, seconds) that moves the camera while not playing.
