@@ -36,7 +36,7 @@
 <link rel="apple-touch-icon" href="assets/ui/apple-touch-icon.png">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #cfd9e0; font-family: system-ui, -apple-system, sans-serif; }
-  canvas#view { display: block; }
+  canvas#view { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
   /* The HUD's zones and their places are in src/ui.css, the map of who goes where is in src/hud.js. */
   .hud { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
   /* The map capsule (street, area, danger, the clock, the police line, the round minimap) is styled in src/ui.css; its parts are filled by src/main.js, police.js and daynight.js. */

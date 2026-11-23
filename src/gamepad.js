@@ -13,6 +13,7 @@
 //   Start menu    L3 reset car      The map: left stick pans, right stick moves a pointer, A clicks, LT / RT zoom
 //   R3 players    In menus: LB / RB turn the tabs (Garage, Options). d-pad up talk, down drink, left radio on or off, right next song
 // The first press of a button on a page is what makes the browser announce a pad ('gamepadconnected'): the popup says so, and says so again when it goes.
+import { vp } from './viewport.js';
 import { T } from './lang.js';
 
 const root = document.documentElement;
@@ -113,7 +114,7 @@ export function setupGamepad({ game, car }) {
 
   // ---- the map: the left stick pans, the right stick moves a pointer, the triggers zoom, A clicks ----
   const cur = document.createElement('div'); cur.className = 'pd-gp-cur'; cur.setAttribute('aria-hidden', 'true'); document.body.appendChild(cur);
-  let cx = innerWidth / 2, cy = innerHeight / 2;
+  let cx = vp.w / 2, cy = vp.h / 2;
   const mapOn = () => { const sc = document.querySelector('[data-name=start].on'); return !!sc && sc.dataset.view === 'map' && !!sc.querySelector('.pd-mp-cv')?.offsetParent; };
   const curve = v => Math.sign(v) * Math.pow(Math.max(0, (Math.abs(v) - 0.12) / 0.88), 1.6);   // a dead zone, then a gentle start: small pushes are slow and precise
   function clickAt(x, y) {
@@ -182,7 +183,7 @@ export function setupGamepad({ game, car }) {
     }
     if (c === 'map') {
       const rx = gp.axes[2] || 0, rpy = gp.axes[3] || 0;
-      cx = Math.max(0, Math.min(innerWidth, cx + curve(rx) * 1100 * dt)); cy = Math.max(0, Math.min(innerHeight, cy + curve(rpy) * 1100 * dt));
+      cx = Math.max(0, Math.min(vp.w, cx + curve(rx) * 1100 * dt)); cy = Math.max(0, Math.min(vp.h, cy + curve(rpy) * 1100 * dt));
       cur.style.transform = `translate(${cx}px, ${cy}px)`;
       const px = curve(ax) + (b(15) ? 1 : 0) - (b(14) ? 1 : 0), py = curve(ay) + (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
       const zin = gp.buttons[7] ? gp.buttons[7].value : 0, zout = gp.buttons[6] ? gp.buttons[6].value : 0;

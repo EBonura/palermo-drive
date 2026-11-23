@@ -8,6 +8,7 @@
 // opts.hold ms, so the lapa is seen), then reveals. It returns a Promise with work's result (or rejects with work's error after the
 // reveal). Calls made while one is running wait their turn. 'pd-cover' (detail true / false) is dispatched on window when the screen is fully covered and when it is free again. opts: cover / reveal (ms, flip-in and flip-out time), hold (ms, minimum
 // time covered), lapa (false: no spinning lapa). Input is blocked while it runs. Time based, so a hidden tab catches up when it returns.
+import { vp } from './viewport.js';
 import { sfx } from './sfx.js';
 
 const PINK = '#e8559a', BLACK = '#0b0709';
@@ -45,7 +46,7 @@ function ensure() {
   root.append(cv, lapa); document.body.append(root);
 }
 function layout() {
-  const dpr = Math.min(devicePixelRatio || 1, 2), w = innerWidth, h = innerHeight;
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = vp.w, h = vp.h;
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   size = Math.ceil(w / COLS); cols = COLS; rows = Math.ceil(h / size);
@@ -53,7 +54,7 @@ function layout() {
 }
 // u: 0 clear, 1 covered. dir 1: flipping in, -1: flipping out (the wave runs top-left to bottom-right both ways).
 function paint(u, dir) {
-  g.clearRect(0, 0, innerWidth, innerHeight);
+  g.clearRect(0, 0, vp.w, vp.h);
   const span = cols + rows - 2, stag = 1 - FLIP;
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const d = (c + r) / span * stag;

@@ -1,4 +1,5 @@
 import { canvasStats } from './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
+import { onViewport } from './viewport.js';
 import { prewarmAudio } from './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)
 import { SHADE, CHUNKS0 } from './shading.js';   // cheaper shader chunks, before anything compiles (src/shading.js)
 import * as THREE from 'three';
@@ -192,19 +193,12 @@ sun.shadow.bias = -0.0003;
 sun.shadow.normalBias = 0.5;
 scene.add(sun, sun.target);
 
-// The page's real size, not innerWidth: on an iPhone that can be stale when the resize event fires (after a rotation, or when the toolbar moves), and the canvas stayed short of the screen.
-let viewW = 0, viewH = 0;
-function resize() {
-  const de = document.documentElement, w = de.clientWidth || innerWidth, h = de.clientHeight || innerHeight;
-  if (w === viewW && h === viewH) return;
-  viewW = w; viewH = h;
-  renderer.setSize(w, h);
+// The picture follows the one measured size of the page (src/viewport.js): the canvas fills the page by CSS (index.html: fixed, inset 0, 100%), and its pixels are set here.
+onViewport(({ w, h }) => {
+  renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-}
-addEventListener('resize', resize);
-new ResizeObserver(resize).observe(document.documentElement);
-resize();
+});
 
 // ---------- palettes ----------
 const ROAD_COL = {

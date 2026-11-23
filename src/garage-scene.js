@@ -6,6 +6,7 @@
 //
 // GARAGES is the list of places. A new garage is one entry: an id, names, an unlock rule and a builder (see src/garage-officina.js for what the
 // builder returns). Only the officina exists so far. available() / select(id) are the stubs the unlock screen will use.
+import { vp } from './viewport.js';
 import * as THREE from 'three';
 import { garage } from './garage.js';
 import { tickShared } from './vehicle-models.js';
@@ -124,7 +125,7 @@ export function createGarageScene({ renderer, vehicle, game }) {
   // ---- the camera: the turntable does the turning, the camera only stands, breathes and moves in on what is being looked at ----
   function frame(dt, sec) {
     if (!open || !room) return;
-    const W = innerWidth, H = innerHeight, land = W > H * 1.1, pw = land ? clamp(panelPx(), 0, W * 0.8) : 0;
+    const W = vp.w, H = vp.h, land = W > H * 1.1, pw = land ? clamp(panelPx(), 0, W * 0.8) : 0;
     const k = kind === 'bike' ? 0.72 : kind === 'car' ? 1.18 : 1, kh = k < 1 ? 0.8 : 1, fix = Q.has('gfix');
     // the turntable
     const Y = S.yaw, F = focus, azBase = room.cam.az;

@@ -11,7 +11,7 @@
 // ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
 
 import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';
-import { vp } from './viewport.js';   // sets --vh, the height that is really visible (menus size from it)
+import { vp } from './viewport.js';   // the one measured size of the page (menus scale from it)
 import { garage, VEHICLES } from './garage.js';   // the welcome screen shows the wallet and the ride   // the Garage screen (vehicles, paint, tamarro parts) lives in its own module
 import { createGarageScene } from './garage-scene.js';   // the place it happens in: its own scene, not the street
 import { transition } from './transition.js';     // rosanero squares + spinning lapa, covers loading
@@ -967,8 +967,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     const need = welCard.scrollHeight, have = welCard.clientHeight;
     if (need > have + 1) welCard.style.zoom = Math.max(0.5, have / need).toFixed(3);
   }
-  addEventListener('resize', () => setTimeout(fitWelcome, 30));
-  if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(fitWelcome, 30));
+  addEventListener('pd-viewport', () => setTimeout(fitWelcome, 30));
   function renderWelcome() {
     const i = lang === 'it' ? 0 : 1, v = VEHICLES.find(x => x.id === garage.type) || VEHICLES[0];
     if (document.activeElement !== welName) welName.value = readName();
@@ -1228,7 +1227,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
       if (el.scrollWidth > el.clientWidth + 1) el.style.fontSize = Math.max(9, parseFloat(getComputedStyle(el).fontSize) * el.clientWidth / el.scrollWidth - 0.2).toFixed(1) + 'px';
     }
   }
-  addEventListener('resize', () => { if (cur === 'missions') setTimeout(fitMsNames, 50); });
+  addEventListener('pd-viewport', () => { if (cur === 'missions') setTimeout(fitMsNames, 50); });
   function toggleGroup(g) {
     const sc = msList.scrollTop;
     msOpen.has(g) ? msOpen.delete(g) : msOpen.add(g);
