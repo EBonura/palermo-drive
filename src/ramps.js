@@ -13,7 +13,8 @@ import * as THREE from 'three';
 import { makeMaterial } from '../assets/traffic/models.js';
 import { KINDS, placed, ZONE_BEFORE, ZONE_AFTER } from './ramp-spots.js';   // where they stand and the shapes (shared with the props and the traffic)
 
-const SEE = 450, EDGE = 0.3;   // metres: drawn within SEE, the sides fall away over EDGE
+const SEE = 450, EDGE = 0.3;
+const STICKER_TEXT = ['PROPERTY OF', 'EDDY'];   // the easter egg on the cones of the work zones   // metres: drawn within SEE, the sides fall away over EDGE
 
 export function createRamps(env) {
   const { scene, camera, groundY, walls2d } = env;
@@ -55,7 +56,7 @@ export function createRamps(env) {
     white: [0.92, 0.92, 0.9], red: [0.75, 0.1, 0.08], orange: [0.97, 0.4, 0.04], amber: [1, 0.62, 0.02], blue: [0.12, 0.3, 0.62], deck: [0.36, 0.38, 0.42], mesh: [0.62, 0.64, 0.66], sand: [0.6, 0.52, 0.36], grey: [0.6, 0.6, 0.6],
   };
   function geo(kind) {
-    const K = KINDS[kind], P = [], Cc = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
+    const K = KINDS[kind], P = [], Cc = [], SP = [], SU = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
     const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
     const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
     const tri2 = (a, b, c, col) => { tri(a, b, c, col); tri(a, c, b, col); };   // seen from both sides (signs)
@@ -135,6 +136,8 @@ export function createRamps(env) {
       const ring = (ya, yb, col) => { for (let i = 0; i < n; i++) { const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, ra = rr(ya), rb = rr(yb);
         quad([x + Math.cos(a0) * ra, y0 + ya, s + Math.sin(a0) * ra], [x + Math.cos(a0) * rb, y0 + yb, s + Math.sin(a0) * rb], [x + Math.cos(a1) * rb, y0 + yb, s + Math.sin(a1) * rb], [x + Math.cos(a1) * ra, y0 + ya, s + Math.sin(a1) * ra], col); } };
       ring(0, band[0], C.orange); ring(band[0], band[1], C.white); ring(band[1], h, C.orange);
+      { const zz = s - 0.09, yc = y0 + 0.42, w = 0.07, hh = 0.045;   // a little sticker on the white band, facing the traffic that comes up the street (the easter egg: STICKER_TEXT)
+        SP.push(x + w, yc - hh, zz, x - w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc + hh, zz); SU.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); }
     };
     for (const [x, s] of [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.9], [xK, bx1 + 0.9], [hw + 1.7, bx1 + 0.9], [-hw, bx0 - 0.5], [hw, bx0 - 0.5]]) cone(x, s);
     const sandbag = (x, s) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, C.sand);
@@ -151,17 +154,26 @@ export function createRamps(env) {
     }
     sandbag(xT + 0.2, bx1 + 0.3); sandbag(xT + 0.2, bx1 + 0.45);
     const g = new THREE.BufferGeometry();
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(SP, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(SU, 2)); sg.computeVertexNormals(); g.userData.stickers = sg;
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
     g.computeVertexNormals();
     return g;
   }
+  // the sticker: white label, black letters, a red rule (a canvas texture, one for all the cones)
+  const stickerTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 160; const x = c.getContext('2d');
+    x.fillStyle = '#f3efe4'; x.fillRect(0, 0, 256, 160); x.strokeStyle = '#1a1a1a'; x.lineWidth = 6; x.strokeRect(5, 5, 246, 150);
+    x.fillStyle = '#1a1a1a'; x.textAlign = 'center'; x.font = '700 29px sans-serif'; x.fillText(STICKER_TEXT[0], 128, 50); x.font = '900 82px sans-serif'; x.fillText(STICKER_TEXT[1], 128, 128);
+    x.fillStyle = '#c0231c'; x.fillRect(30, 62, 196, 6);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
+  const stickerMat = new THREE.MeshStandardMaterial({ map: stickerTex, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const meshes = {}, geos = {};
   for (const kind of Object.keys(KINDS)) {
     const mine = list.filter(r => r.kind === kind); if (!mine.length) continue;
     geos[kind] = geo(kind);
     const m = new THREE.InstancedMesh(geos[kind], mat, mine.length);
     m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(m); meshes[kind] = { m, mine };
+    const sm = new THREE.InstancedMesh(geos[kind].userData.stickers, stickerMat, mine.length); sm.frustumCulled = false; sm.visible = false; sm.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(m, sm); meshes[kind] = { m, sm, mine };
   }
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), p3 = new THREE.Vector3();
   // the boards on the traffic side are walls for the lapa (the right ones stand 0.45 m from the ramp, in the gap by the kerb)
@@ -178,13 +190,13 @@ export function createRamps(env) {
     tick += dt; if (tick < 0.5) return; tick = 0;
     const cx = camera.position.x, cz = camera.position.z;
     for (const kind in meshes) {
-      const { m, mine } = meshes[kind]; let any = false;
+      const { m, sm, mine } = meshes[kind]; let any = false;
       for (let i = 0; i < mine.length; i++) {
         const r = mine[i], near = Math.hypot(r.x - cx, r.z - cz) < SEE;
         if (near) { r.base = lowest(r); any = true; }
-        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one));
+        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one)); sm.setMatrixAt(i, m4);
       }
-      m.instanceMatrix.needsUpdate = true; m.visible = any;
+      m.instanceMatrix.needsUpdate = sm.instanceMatrix.needsUpdate = true; m.visible = sm.visible = any;
     }
   }
   return { surfaceAt, update, list, zonesNear };
