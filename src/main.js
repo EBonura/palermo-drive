@@ -609,6 +609,7 @@ function frame(now) {
   drawBlend(false);
   if (world) world.overview = game.state === 'title';
   pedestrians.draw(camera); // the crowd's instances, for where the camera is now
+  traffic.draw?.(camera, SUN_DIR, drunk.level > 0.001 || drunk.post); // the same for the traffic pools: what neither the view nor the sun's shadow can show is left out (a wobbling camera keeps all)
   world?.update(dt, camera); // stream tiles around the camera
   clouds.update(dt); // after dayNight.update (it reads the lights and may thicken the fog inside a cloud) and once the camera is placed (the puffs face it and are sorted from it)
   updateHud(dt);

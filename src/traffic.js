@@ -999,27 +999,53 @@ Object.assign(MODELS, buildPoliceModels());
     }
   }
 
-  function writeInstances() {
-    for (const k in MESH) MESH[k].count = 0;
+  // the circles the other systems steer round (every vehicle, seen or not): written in the step's frame, the camera has no say
+  function writeAgents() {
     let nOut = 0;
     for (let i = 0; i < vs.length; i++) {
-      const v = vs[i], m = MESH[v.ty.model], n = m.count++;
-      const c = Math.cos(v.h), s = Math.sin(v.h), cr = Math.cos(v.roll), sr = Math.sin(v.roll), pi = v.pitch || 0, cp = Math.cos(pi), sp = Math.sin(pi), o = n * 16, A = m.instanceMatrix.array;
-      A[o] = c * cr + s * sr * sp; A[o + 1] = sr * cp; A[o + 2] = -s * cr + c * sr * sp; A[o + 3] = 0;
-      A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
-      A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
-      // the simulation steps 30 times a second: on a faster screen the vehicle is drawn where it has got to since the last step, or it would judder against the camera
-      const ahead = v.fly ? 0 : v.v * acc, px = v.x + s * ahead, pz = v.z + c * ahead;
-      A[o + 12] = px; const dk = v.route[0] && v.route[0].br ? topY(px, pz) : NaN; A[o + 13] = (dk === dk ? dk : groundY(px, pz)) + (v.fly ? v.fly.y : 0); A[o + 14] = pz; A[o + 15] = 1;
-      if (v.name === 'bus') SIGN_ROW.array[n] = v.plan ? v.plan.row : v.row || 0;
-      const O = m.userData.owner || (m.userData.owner = new Int32Array(CAP));   // (a colour only goes to the GPU when another vehicle takes the slot)
-      if (O[n] !== v.id) { O[n] = v.id; const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b; m.instanceColor.needsUpdate = true; }
+      const v = vs[i], c = Math.cos(v.h), s = Math.sin(v.h);
       for (let q = 0, circ = v.ty.circ; q < circ.length; q++) {   // (objects kept from frame to frame: this runs for every vehicle in every frame)
         const a = agentsOut[nOut] || (agentsOut[nOut] = { x: 0, z: 0, r: 0 }); nOut++;
         a.x = v.x + s * circ[q][0]; a.z = v.z + c * circ[q][0]; a.r = circ[q][1];
       }
     }
     agentsOut.length = nOut;
+  }
+  // The pools' matrices, for the camera as it is placed now (src/main.js calls this after the camera moved, every frame). A vehicle that neither the camera nor the sun's shadow can show is
+  // left out: the shadow is the vehicle's sphere swept along the light down to the ground (the longest it can reach: 80 m), tested against the same view. loose (a wobbling camera, src/drunk.js) keeps all.
+  const dFr = new THREE.Frustum(), dFm = new THREE.Matrix4(), dInv = new THREE.Matrix4(), dSp = new THREE.Sphere(), dSw = new THREE.Sphere();
+  function writeInstances(cam, sunDir, loose) {
+    for (const k in MESH) MESH[k].count = 0;
+    const cull = !!cam && !loose;
+    let lx = 0, ly = 0, lz = 0, sinE = 1;
+    if (cull) {
+      cam.updateMatrixWorld(); dInv.copy(cam.matrixWorld).invert(); dFm.multiplyMatrices(cam.projectionMatrix, dInv); dFr.setFromProjectionMatrix(dFm);
+      lx = -sunDir.x; ly = -sunDir.y; lz = -sunDir.z; sinE = sunDir.y;   // the way the light travels
+    }
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i], c = Math.cos(v.h), s = Math.sin(v.h);
+      const ahead = v.fly ? 0 : v.v * acc, px = v.x + s * ahead, pz = v.z + c * ahead;
+      const dk = v.route[0] && v.route[0].br ? topY(px, pz) : NaN, py = (dk === dk ? dk : groundY(px, pz)) + (v.fly ? v.fly.y : 0);
+      if (cull) {
+        const ty = v.ty, r = Math.hypot(ty.L * 0.5, ty.W * 0.5, 2.4) + 1;   // the body, thrown about or not, lies inside this ball (the model stands up to about 4 m)
+        dSp.center.set(px, py + 2, pz); dSp.radius = r;
+        if (!dFr.intersectsSphere(dSp)) {
+          const T = sinE > 0.0625 ? Math.min(80, (v.fly ? 60 : 4.5) / sinE) : 80, h = T * 0.5;
+          dSw.center.set(px + lx * h, py + 2 + ly * h, pz + lz * h); dSw.radius = r + h;
+          if (!dFr.intersectsSphere(dSw)) continue;
+        }
+      }
+      const m = MESH[v.ty.model], n = m.count++;
+      const cr = Math.cos(v.roll), sr = Math.sin(v.roll), pi = v.pitch || 0, cp = Math.cos(pi), sp = Math.sin(pi), o = n * 16, A = m.instanceMatrix.array;
+      A[o] = c * cr + s * sr * sp; A[o + 1] = sr * cp; A[o + 2] = -s * cr + c * sr * sp; A[o + 3] = 0;
+      A[o + 4] = -c * sr + s * cr * sp; A[o + 5] = cr * cp; A[o + 6] = s * sr + c * cr * sp; A[o + 7] = 0;
+      A[o + 8] = s * cp; A[o + 9] = -sp; A[o + 10] = c * cp; A[o + 11] = 0;
+      // the simulation steps 30 times a second: on a faster screen the vehicle is drawn where it has got to since the last step, or it would judder against the camera
+      A[o + 12] = px; A[o + 13] = py; A[o + 14] = pz; A[o + 15] = 1;
+      if (v.name === 'bus') SIGN_ROW.array[n] = v.plan ? v.plan.row : v.row || 0;
+      const O = m.userData.owner || (m.userData.owner = new Int32Array(CAP));   // (a colour only goes to the GPU when another vehicle takes the slot)
+      if (O[n] !== v.id) { O[n] = v.id; const C = m.instanceColor.array; C[n * 3] = v.col.r; C[n * 3 + 1] = v.col.g; C[n * 3 + 2] = v.col.b; m.instanceColor.needsUpdate = true; }
+    }
     for (const k in MESH) { const m = MESH[k]; if (!m.count) continue; const q = m.instanceMatrix; q.clearUpdateRanges(); q.addUpdateRange(0, m.count * 16); q.needsUpdate = true; }   // only the slots in use, and nothing for a model with no vehicle on the road
     if (SIGN) { SIGN.count = MESH.bus.count; if (SIGN.count) SIGN_ROW.needsUpdate = true; SIGN_T.count = MESH.teamBus.count; }
     DECAL.count = MESH.apePol.count; CART_DECAL.count = MESH.carretto.count;
@@ -1113,7 +1139,7 @@ Object.assign(MODELS, buildPoliceModels());
     arrotini.update(Math.min(dt, 0.1));   // the knife-grinders: where each one is on his loop, and one that comes within range takes shape on the road (src/arrotini.js)
     fx.begin(); police.update(Math.min(dt, 0.1), fx); gags.update(Math.min(dt, 0.1), fx); fx.end();
     carrozze.update(Math.min(dt, 0.1)); vendors.update(Math.min(dt, 0.1));
-    writeInstances();
+    writeAgents();
   }
 
   // ---------- speech balloons ----------
@@ -1363,7 +1389,7 @@ Object.assign(MODELS, buildPoliceModels());
   arrotini = createArrotini(T, { NX, NZ, NOUT, nearestNode: G.nearestNode });
 
   const api = {
-    update, collidePlayer,
+    update, draw: writeInstances, collidePlayer,
     agents: () => agentsOut,
     vehicles: vs, arrotini: arrotini.list, bindClock: arrotini.bindClock,   // src/city-audio.js: the vehicles to hear, and the knife-grinders (each on duty has x, z, h and v, his vehicle once he is near enough to have one); bindClock(game.time): they work from 07:30 to 20:00
     setQuality(q) { densK = q === 'low' ? 0.5 : 1; },   // 'low' halves the cap on cars (the cars already there leave as they pass out of range); low / medium / high from main.js applySettings
