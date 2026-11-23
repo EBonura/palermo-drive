@@ -11,6 +11,7 @@ import { zoneAt, ZONES } from './districts.js';
 import { SUCA_TAGS } from './suca-tags.js';   // (the SUCA wall tags are collectibles: a shopfront never covers one)
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
+import { treeDetail } from './tree-detail.js';
 import { treeCleared } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
@@ -307,22 +308,22 @@ ape('ape', false); ape('apetaxi', true);
 }
 
 // Palms, ficus, pine, orange, generic broadleaf: all in src/treegeo.js (canopies of overlapping clumps, forked trunks, fan and date palms with arching fronds); the palms are double sided (fronds are single sheets)
-for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']) MODELS[n] = { geo: treeGeo(n), mat: 'dbl', tint: true };
+for (const n of ['palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']) MODELS[n] = { geo: treeGeo(n), mat: 'tree', tint: true };
 
 {
-  MODELS.ficus = { geo: treeGeo('ficus'), mat: 'dbl', tint: true };      // large Ficus macrophylla / microcarpa
-  MODELS.orange = { geo: treeGeo('orange'), mat: 'dbl', tint: true };    // bitter orange / citrus street tree
-  MODELS.tree = { geo: treeGeo('tree'), mat: 'dbl', tint: true };        // generic broadleaf (carob, holm oak, olive, jacaranda...)
-  MODELS.pine = { geo: treeGeo('stone'), mat: 'dbl', tint: true };       // umbrella pine
-  MODELS.plane_bare = { geo: treeGeo('plane_bare'), mat: 'dbl', tint: true };   // the same plane without leaves (winter, and the planes of Via Ernesto Basile and Viale Michelangelo in the photos)
-  MODELS.holm = { geo: treeGeo('holm'), mat: 'dbl', tint: true };        // the holm oak: a very dark, dense, lobed dome
-  MODELS.plane = { geo: treeGeo('plane'), mat: 'dbl', tint: true };
-  MODELS.plane_b = { geo: treeGeo('plane_b'), mat: 'dbl', tint: true };   // a second individual of the planes, the bare planes and the stone pines (picked by position in placeTree): a row of trees is not one tree repeated
-  MODELS.plane_bare_b = { geo: treeGeo('plane_bare_b'), mat: 'dbl', tint: true };
-  MODELS.jacaranda = { geo: treeGeo('jacaranda'), mat: 'dbl', tint: true };   // lilac in blossom
-  MODELS.holm_b = { geo: treeGeo('holm_b'), mat: 'dbl', tint: true };
-  MODELS.pine_b = { geo: treeGeo('stone_b'), mat: 'dbl', tint: true };      // n4: the plane tree (Via della Liberta, the old avenues)
-  MODELS.aleppo = { geo: treeGeo('aleppo'), mat: 'dbl', tint: true };    // n4: the Aleppo pine (the hills, Monte Gallo, the Favorita)
+  MODELS.ficus = { geo: treeGeo('ficus'), mat: 'tree', tint: true };      // large Ficus macrophylla / microcarpa
+  MODELS.orange = { geo: treeGeo('orange'), mat: 'tree', tint: true };    // bitter orange / citrus street tree
+  MODELS.tree = { geo: treeGeo('tree'), mat: 'tree', tint: true };        // generic broadleaf (carob, holm oak, olive, jacaranda...)
+  MODELS.pine = { geo: treeGeo('stone'), mat: 'tree', tint: true };       // umbrella pine
+  MODELS.plane_bare = { geo: treeGeo('plane_bare'), mat: 'tree', tint: true };   // the same plane without leaves (winter, and the planes of Via Ernesto Basile and Viale Michelangelo in the photos)
+  MODELS.holm = { geo: treeGeo('holm'), mat: 'tree', tint: true };        // the holm oak: a very dark, dense, lobed dome
+  MODELS.plane = { geo: treeGeo('plane'), mat: 'tree', tint: true };
+  MODELS.plane_b = { geo: treeGeo('plane_b'), mat: 'tree', tint: true };   // a second individual of the planes, the bare planes and the stone pines (picked by position in placeTree): a row of trees is not one tree repeated
+  MODELS.plane_bare_b = { geo: treeGeo('plane_bare_b'), mat: 'tree', tint: true };
+  MODELS.jacaranda = { geo: treeGeo('jacaranda'), mat: 'tree', tint: true };   // lilac in blossom
+  MODELS.holm_b = { geo: treeGeo('holm_b'), mat: 'tree', tint: true };
+  MODELS.pine_b = { geo: treeGeo('stone_b'), mat: 'tree', tint: true };      // n4: the plane tree (Via della Liberta, the old avenues)
+  MODELS.aleppo = { geo: treeGeo('aleppo'), mat: 'tree', tint: true };    // n4: the Aleppo pine (the hills, Monte Gallo, the Favorita)
   MODELS.shrub = { geo: treeGeo('oleander'), mat: 'dbl', tint: false };   // oleander: an upright clump of arching stems with pink flower tips (src/treegeo.js); and the clipped hedge block
   const hd = new MB(); hd.box(-1.5, 0, -0.45, 1.5, 1.1, 0.45, C('#3f6a30'), 0.6, 1); def('hedge', hd, { tint: true });
 }
@@ -625,6 +626,7 @@ if ( vMapUv.x >= 0.0 ) diffuseColor *= sampledDiffuseColor;`)
 const MATS = {
   std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 }),
   dbl: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide }),
+  tree: treeDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide })),   // the trees: the same, with the leaf and bark detail texture (src/tree-detail.js)
   veh: makeMaterial(),   // the traffic material: instance colour tints only the paintwork
   sig: signalMaterial(),   // traffic signal heads: the red channel of the instance colour says which lens is lit
   poster: posterMaterial(),   // the billboards: the red channel of the instance colour says which advert

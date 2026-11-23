@@ -190,6 +190,11 @@ function boughs(m, p0, d0, L0, r0, o, seed, level = 0, out = []) {
 
 // A crown: a few solid lobes (see Mini.lobe) with a fringe of leaf sprays on their shells (L: [{c, r: [rx, ry, rz], d: detail, n: sprays}])
 function crown(m, L, o) {
+  if (o.sat) {   // satellite lobes: small bumps on the shell of the big ones, so the crown is a cluster of leaf masses with a broken outline and not three smooth lumps
+    const rr = rnd(o.seed * 5 + 3), extra = [];
+    for (const l of L) { if (l.r[0] < 1.1) continue; for (let k = 0; k < o.sat; k++) { const a = rr() * TAU, y = -0.1 + 0.9 * rr(), q = Math.sqrt(1 - y * y), sc = 0.36 + 0.2 * rr(); extra.push({ c: [l.c[0] + Math.cos(a) * q * l.r[0] * 0.8, l.c[1] + y * l.r[1] * 0.82, l.c[2] + Math.sin(a) * q * l.r[2] * 0.8], r: [l.r[0] * sc, l.r[1] * sc * 1.1, l.r[2] * sc], n: 1, d: 0 }); } }
+    L = L.concat(extra);
+  }
   const lobes = L.map(l => ({ c: l.c, r: l.r, n: l.n ?? 0, s: l.s ?? 1 }));
   L.forEach((l, i) => m.lobe(l.c, l.r[0], l.r[1], l.r[2], o.cols[0], o.seed * 3 + i * 17, { detail: l.d ?? 0, jit: l.j ?? o.jit, flat: l.flat ?? o.flat, cols: o.cols, cen: o.cen, R: o.R, kLow: o.kLow, bias: o.bias, gain: o.gain, others: lobes.filter((_, j) => j !== i), inside: o.hide ?? 0.42, w: o.w }));
   if (lobes.some(l => l.n)) m.foliage(lobes, { disc: 5, seed: o.seed, cols: o.cols, centre: o.cen, radius: o.R, size: o.size, gain: o.gain, kLow: o.kLow, inside: 0.74, bias: o.bias, core: 0, cup: o.cup, w: o.sw });
@@ -275,7 +280,7 @@ const BUILD = {
     const tips = boughs(m, trunk[2], [0, 1, 0], v ? 3.4 : 3.0, 0.24, { levels: 3, fan: 1, kids: lv => lv === 0 ? (v ? 3 : 4) : 2, fork0: v ? 0.7 : 0.62, fork: 0.55, shrink: 0.72, up: 0.3, wob: 0.35, col: bark, col2: bark2, mot: 0.3, nseg: [2, 2, 1], segs: [5, 4, 3] }, 23 + 40 * v);
     const L = tips.slice(0, v ? 5 : 6).map((t, i) => ({ c: [t.p[0] + t.d[0] * 0.5, t.p[1] + 1.0 + t.d[1] * 0.3, t.p[2] + t.d[2] * 0.5], r: [3.5 + 0.4 * (i & 1), 2.6, 3.5 + 0.4 * (i & 1)], n: 2, d: i < 2 ? 1 : 0 }));
     L.push({ c: [0.1, v ? 10.4 : 10.0, 0], r: [3.4, 2.4, 3.4], n: 2, d: 1 });
-    crown(m, L, { seed: 14 + 17 * v, cols: ['#648c48', '#6e9650', '#5a8340', '#779d54'].map(C), cen: [0.1, 8.6, 0], R: [6.3, 3.9, 6.3], size: 0.95, kLow: 0.55, gain: 1.1, inside: 0.62, bias: 0.55 });
+    crown(m, L, { sat: 2, seed: 14 + 17 * v, cols: ['#648c48', '#6e9650', '#5a8340', '#779d54'].map(C), cen: [0.1, 8.6, 0], R: [6.3, 3.9, 6.3], size: 0.95, kLow: 0.55, gain: 1.1, inside: 0.62, bias: 0.55 });
     return m.geo();
   },
   // Pinus pinea: a tall straight trunk, orange-brown in plates, that rises bare to 9 m and spreads into a few stout limbs, and a wide, flat-topped umbrella of dark green clouds with the sky between
@@ -285,7 +290,7 @@ const BUILD = {
     m.tube(trunk, [0.5, 0.38, 0.31, 0.27], 6, bark, { col2: bark2, mot: 0.4, seed: 4 + v, dark: 0.6, jit: 0.3 });
     const top = trunk[3], pads = v ? [[-0.6, 10.0, 0.3, 4.3, 2.3, 4.0], [-4.3, 9.1, 1.0, 3.1, 1.8, 3.0], [3.5, 9.5, -1.6, 3.3, 1.9, 3.2]] : [[0.3, 10.8, 0.2, 4.7, 2.4, 4.4], [4.2, 10.0, 1.6, 3.3, 1.9, 3.2], [-3.9, 10.2, -1.6, 3.5, 2.0, 3.3], [0.4, 9.9, -4.3, 3.0, 1.8, 2.9]];
     const L = pads.map(([x, y, z, rx, ry, rz], i) => { m.tube([top, [x * 0.7, y - 1.2, z * 0.7]], [0.27, 0.12], 4, bark, { seed: 11 + x, dark: 0.8 }); return { c: [x, y, z], r: [rx, ry, rz], n: 2, d: i < 1 ? 1 : 0, flat: 0.5 }; });
-    crown(m, L, { seed: 12 + v, cols: ['#2b4a2b', '#33563a', '#2e5033', '#37593b'].map(C), cen: [0.2, 10.2, 0], R: [6.4, 3.0, 6.4], size: 1.1, kLow: 0.6, gain: 1.0, inside: 0.7, bias: 0.6, jit: 0.42 });
+    crown(m, L, { sat: 2, seed: 12 + v, cols: ['#2b4a2b', '#33563a', '#2e5033', '#37593b'].map(C), cen: [0.2, 10.2, 0], R: [6.4, 3.0, 6.4], size: 1.1, kLow: 0.6, gain: 1.0, inside: 0.7, bias: 0.6, jit: 0.42 });
     return m.geo();
   },
   // Ficus macrophylla / magnolioides (the big dark trees of the squares and the avenues): a huge fluted trunk on flaring buttress roots that splits at once into heavy limbs, a very wide, dense, dark dome, aerial roots hanging
@@ -310,7 +315,7 @@ const BUILD = {
       m.tube([[x, y0, z], [x * 1.01 + sway, y0 * 0.55, z * 1.01], [x * 1.02, 0.12, z * 1.02 - sway]], [0.07 + 0.03 * (i % 3), 0.06, 0.05], 4, bark2, { seed: 5 + i, dark: 0.85 });
     }
     for (let i = 0; i < 7; i++) { const a = i * 0.9 + 0.3, rr = 1.9 + 0.5 * (i % 2); m.tube([[Math.cos(a) * 1.4, 3.0, Math.sin(a) * 1.4], [Math.cos(a) * rr, 1.5, Math.sin(a) * rr], [Math.cos(a) * rr * 1.05, 0.0, Math.sin(a) * rr * 1.05]], [0.16, 0.14, 0.17], 5, bark2, { seed: 15 + i, dark: 0.8, flute: 0.2 }); }
-    crown(m, L, { seed: 21, cols: ['#3a5e2a', '#456c30', '#2f5025', '#4d7634', '#3a5f2c'].map(C), cen: [0, 7.4, 0], R: [9.0, 3.6, 9.0], size: 1.15, gain: 1.0, kLow: 0.55, inside: 0.55, bias: 0.5 });
+    crown(m, L, { sat: 2, seed: 21, cols: ['#3a5e2a', '#456c30', '#2f5025', '#4d7634', '#3a5f2c'].map(C), cen: [0, 7.4, 0], R: [9.0, 3.6, 9.0], size: 1.15, gain: 1.0, kLow: 0.55, inside: 0.55, bias: 0.5 });
     return m.geo();
   },
   // Quercus ilex and the other dark broadleaves of the Favorita (holm oak, carob, eucalyptus): a short thick forked trunk and a big, dense, very dark lobed dome that meets the next one along an avenue (the tunnel of Viale Diana)
@@ -321,7 +326,7 @@ const BUILD = {
     const tips = boughs(m, trunk[2], [0, 1, 0], v ? 2.4 : 2.7, 0.3, { levels: 2, fan: 1, kids: v ? 3 : 4, fork0: v ? 1.1 : 0.95, fork: 0.85, shrink: 0.78, up: 0.25, wob: 0.3, col: bark, col2: bark2, mot: 0.3, nseg: 2, segs: [5, 4] }, 61 + 20 * v);
     const L = tips.slice(0, 4).map((t, i) => ({ c: [t.p[0] + t.d[0] * 0.8, t.p[1] + 1.4, t.p[2] + t.d[2] * 0.8], r: [3.0, 2.5, 3.0], n: 2, d: i < 2 ? 1 : 0 }));
     L.push({ c: [v ? -0.4 : 0.1, v ? 7.0 : 7.6, 0], r: [3.1, 2.4, 3.1], n: 2, d: 1 });
-    crown(m, L, { seed: 51 + v, cols: ['#24391f', '#2b4526', '#2e4a2f', '#213519', '#30492c'].map(C), cen: [0.1, 6.6, 0], R: [5.0, 3.4, 5.0], size: 1.1, gain: 0.95, kLow: 0.6, inside: 0.62, bias: 0.55 });
+    crown(m, L, { sat: 2, seed: 51 + v, cols: ['#24391f', '#2b4526', '#2e4a2f', '#213519', '#30492c'].map(C), cen: [0.1, 6.6, 0], R: [5.0, 3.4, 5.0], size: 1.1, gain: 0.95, kLow: 0.6, inside: 0.62, bias: 0.55 });
     return m.geo();
   },
   holm_b() { return this.holm(1); },
@@ -330,9 +335,9 @@ const BUILD = {
     const m = new Mini(), bark = C('#6e5a44'), bark2 = C('#52422f');
     m.tube([[0, 0, 0], [0.1, 1.5, 0], [0.1, 2.8, 0]], [0.26, 0.2, 0.17], 5, bark, { col2: bark2, mot: 0.35, seed: 7 });
     const tips = boughs(m, [0.1, 2.7, 0], [0, 1, 0], 1.9, 0.14, { levels: 2, fan: 1, kids: 3, fork0: 0.8, fork: 0.75, shrink: 0.7, up: 0.25, wob: 0.3, col: bark, nseg: 2, segs: [4, 4] }, 71);
-    const L = tips.slice(0, 3).map((t, i) => ({ c: [t.p[0] + t.d[0] * 0.6, t.p[1] + 0.9, t.p[2] + t.d[2] * 0.6], r: [1.9, 1.6, 1.9], n: 3, d: i === 0 ? 1 : 0 }));
-    L.push({ c: [0.1, 5.4, 0], r: [1.9, 1.5, 1.9], n: 3, d: 0 });
-    crown(m, L, { seed: 31, cols: ['#587e3a', '#648a40', '#527a38'].map(C), cen: [0, 4.8, 0], R: [3.2, 2.5, 3.2], size: 1.0, kLow: 0.55, inside: 0.62, bias: 0.5 });
+    const L = tips.slice(0, 3).map((t, i) => ({ c: [t.p[0] + t.d[0] * 0.6, t.p[1] + 0.9, t.p[2] + t.d[2] * 0.6], r: [1.9, 1.6, 1.9], n: 5, d: i === 0 ? 1 : 0 }));
+    L.push({ c: [0.1, 5.4, 0], r: [1.9, 1.5, 1.9], n: 5, d: 0 });
+    crown(m, L, { sat: 3, seed: 31, cols: ['#587e3a', '#648a40', '#527a38'].map(C), cen: [0, 4.8, 0], R: [3.2, 2.5, 3.2], size: 1.0, kLow: 0.55, inside: 0.62, bias: 0.5 });
     return m.geo();
   },
   // Nerium oleander: an upright vase-shaped clump of dark grey-green narrow leaves with pink flower clusters (the shrub of the medians and the verges): two stacked lobes, a few leaf sprays on the outline, flowers on the shell
@@ -354,14 +359,14 @@ const BUILD = {
     const tips = boughs(m, [-0.05, 3.3, 0.25], [0, 1, 0], 2.4, 0.17, { levels: 2, fan: 1, kids: 3, fork0: 0.85, fork: 0.7, shrink: 0.7, up: 0.2, wob: 0.35, col: bark, nseg: 2, segs: [4, 4] }, 83);
     const L = tips.slice(0, 3).map((t, i) => ({ c: [t.p[0] + t.d[0] * 0.8, t.p[1] + 0.9, t.p[2] + t.d[2] * 0.8], r: [2.8, 1.8, 2.8], n: 3, d: i < 2 ? 1 : 0, flat: 0.5 }));
     L.push({ c: [0, 6.8, 0], r: [2.6, 1.6, 2.6], n: 3, d: 1, flat: 0.5 });
-    crown(m, L, { seed: 33, cols: ['#b9a6dc', '#a891d2', '#c4b4e4', '#9d88cc', '#8fb066', '#a2c27a'].map(C), cen: [0, 6.2, 0], R: [4.2, 2.5, 4.2], size: 0.9, kLow: 0.68, gain: 1.15, inside: 0.62, bias: 0.5 });
+    crown(m, L, { sat: 2, seed: 33, cols: ['#b9a6dc', '#a891d2', '#c4b4e4', '#9d88cc', '#8fb066', '#a2c27a'].map(C), cen: [0, 6.2, 0], R: [4.2, 2.5, 4.2], size: 0.9, kLow: 0.68, gain: 1.15, inside: 0.62, bias: 0.5 });
     return m.geo();
   },
   // bitter orange / citrus street tree: short trunk, small dense round crown with a few fruit
   orange() {
     const m = new Mini();
     m.tube([[0, 0, 0], [0, 1.0, 0], [0, 1.9, 0]], [0.16, 0.13, 0.1], 4, C('#5b4a3a'), { seed: 9 });
-    crown(m, [{ c: [0, 3.0, 0], r: [1.7, 1.4, 1.7], d: 1 }, { c: [0.9, 2.5, 0.5], r: [0.9, 0.8, 0.9], d: 0 }, { c: [-0.8, 2.6, -0.5], r: [0.9, 0.8, 0.9], d: 0 }], { seed: 41, cols: ['#46703a', '#527c40', '#3f6a34'].map(C), cen: [0, 3.0, 0], R: [1.9, 1.5, 1.9], size: 0.8, kLow: 0.55, inside: 0.6, bias: 0.6 });
+    crown(m, [{ c: [0, 3.0, 0], r: [1.7, 1.4, 1.7], d: 1, n: 5 }, { c: [0.9, 2.5, 0.5], r: [1.1, 0.9, 1.1], d: 0, n: 3 }, { c: [-0.8, 2.6, -0.5], r: [1.1, 0.9, 1.1], d: 0, n: 3 }, { c: [0.1, 3.9, -0.3], r: [1.2, 0.9, 1.2], d: 0, n: 3 }], { sat: 3, seed: 41, cols: ['#46703a', '#527c40', '#3f6a34'].map(C), cen: [0, 3.0, 0], R: [1.9, 1.5, 1.9], size: 0.8, kLow: 0.55, inside: 0.6, bias: 0.6 });
     for (const [x, y, z] of [[1.5, 2.9, 0.7], [-1.2, 3.5, 1.0], [0.3, 4.0, -1.2], [-0.6, 2.5, -1.4]]) m.tri([x - 0.2, y, z], [x + 0.2, y, z], [x, y + 0.22, z + 0.05], C('#e48a1c'), 1.1, [x, 0.3, z], 0.8);   // a few oranges: small bright triangles on the outside of the crown
     return m.geo();
   },
@@ -377,7 +382,7 @@ const BUILD = {
     }
     // thin, flat, slightly ragged pads at the ends of the branches: the sky shows between them
     const L = tips.map((p, i) => ({ c: [p[0], p[1] + 0.45, p[2]], r: [(lo ? 2.1 : 1.9) - 0.25 * (i & 1), 0.8, lo ? 2.0 : 1.8], n: lo ? 2 : 3, flat: 0.45 }));
-    crown(m, L, { seed: 9, cols: ['#718f42', '#678640', '#779545', '#7e9b4a'].map(C), cen: [0.4, 6.0, 0.1], R: [3.2, 2.2, 3.2], size: lo ? 1.3 : 1.0, gain: 1.0, kLow: 0.65, bias: 0.4, cup: 0.45, jit: 0.45 });
+    crown(m, L, { sat: lo ? 0 : 1, seed: 9, cols: ['#718f42', '#678640', '#779545', '#7e9b4a'].map(C), cen: [0.4, 6.0, 0.1], R: [3.2, 2.2, 3.2], size: lo ? 1.3 : 1.0, gain: 1.0, kLow: 0.65, bias: 0.4, cup: 0.45, jit: 0.45 });
     return m.geo();
   },
   plane_b() { return this.plane(1); },
