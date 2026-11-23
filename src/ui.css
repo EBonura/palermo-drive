@@ -811,7 +811,7 @@ html.pd-mp .pd-row.pd-name { display: flex; }
 .pd-weltiph { font: 600 clamp(9px, calc(var(--vh, 1vh) * 2), 11px)/1 var(--pd-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--pd-pink, #f5a9c9); padding-bottom: 1px; }
 .pd-weltips p { display: flex; gap: 7px; align-items: flex-start; margin: 0; font: 500 clamp(10px, calc(var(--vh, 1vh) * 2.3), 12.5px)/1.28 var(--pd-sans); opacity: .82; }
 .pd-weltips svg { flex: none; width: 15px; height: 15px; margin-top: 1px; fill: none; stroke: #ffb020; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.pd-welgo { position: sticky; bottom: clamp(12px, calc(var(--vh, 1vh) * 3), 26px); z-index: 1; display: flex; gap: 6px; margin-top: clamp(0px, calc(var(--vh, 1vh) * .6), 6px); }
+.pd-welgo { display: flex; gap: 6px; margin-top: clamp(0px, calc(var(--vh, 1vh) * .6), 6px); }
 .pd-welgo .pd-btn { flex: 1 1 auto; }
 .pd-weltop { display: flex; align-items: center; gap: 8px; }
 .pd-weltop .pd-welk { flex: 1 1 auto; min-width: 0; }
@@ -861,7 +861,8 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 .pd-s-options .pd-tabp .pd-track { height: 8px; margin-top: -4px; box-shadow: none; background: rgba(255,255,255,.12); }
 /* the stations: two cards, the name in the script of the radio, its line under it, IN ONDA on the one that is playing */
 .pd-stcards { gap: 8px; }
-.pd-stcards .pd-stcard { flex: none; }   /* four stations no longer fit the panel: the cards keep their height and the tab scrolls, they do not squeeze into each other */
+.pd-stcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }   /* four stations: two by two, each card the full half of the row, nothing hidden off the side */
+.pd-stcards .pd-stcard { min-width: 0; }
 .pd-strow { position: relative; }
 .pd-stallrow { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .pd-stallrow .pd-stall { margin-top: 0; }
@@ -917,7 +918,9 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 /* ---------- text sized from the panel's own width ----------
    The panels below are size containers, so cqi is a hundredth of the panel's width: on a narrow panel (a phone upright, a short phone on its side) the text and the buttons in it shrink
    with the panel instead of folding onto extra lines. Each size keeps its height-based value as the ceiling, so nothing grows on a big screen. */
-.pd-ms, .pd-side, .pd-s-options .pd-card, .pd-wel { container-type: inline-size; }
+.pd-ms, .pd-side, .pd-s-options .pd-card { container-type: inline-size; }
+/* the welcome panel scrolls as one column: its rows keep their own height (Safari let the tips shrink under Parti) and Parti, pinned to the bottom, covers what scrolls under it */
+.pd-wel > *, .pd-weltips > *, .pd-welsw > * { flex-shrink: 0; }
 .pd-mshead .pd-h { font-size: min(clamp(24px, calc(var(--vh, 1vh) * 5.8), 40px), 9.2cqi); }
 .pd-mscount { font-size: min(clamp(14px, calc(var(--vh, 1vh) * 3), 19px), 4.4cqi); }
 .pd-mscount b { font-size: min(clamp(20px, calc(var(--vh, 1vh) * 4.6), 30px), 7cqi); }
@@ -947,3 +950,14 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 .pd-stnotice a { display: inline-flex; align-items: center; gap: 7px; margin-top: 3px; color: #f5a9c9; text-decoration: none; font: 700 12px/1.1 var(--pd-cond); letter-spacing: .08em; text-transform: uppercase; }
 .pd-stnotice a svg { width: 22px; height: 16px; }
 .pd-stnx { position: absolute; top: 4px; right: 6px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font: 400 18px/1 sans-serif; cursor: pointer; }
+/* Options rows react to the panel's own width, not to the screen: in a narrow panel (docked in game, a phone upright) the name goes above its control and the control gets the whole
+   width; in a wide one they sit side by side. The four stations are always two by two. This replaces the screen-size rules above for these rows (they had the docked panel squeezed into two columns). */
+@container (max-width: 560px) {
+  #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row, #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  #pd-ui[data-st] .pd-s-options .pd-tabp .pd-lab { font-size: 12.5px; letter-spacing: .1em; line-height: 1.15; }
+  #pd-ui[data-st] .pd-s-options .pd-stall { font-size: 11px; }
+}
+@container (min-width: 561px) {
+  #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row, #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(120px, 28%) minmax(0, 1fr); gap: 6px 18px; }
+}
+#pd-ui[data-st] .pd-s-options .pd-stcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }

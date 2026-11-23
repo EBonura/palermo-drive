@@ -616,7 +616,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     if (name) {
       if (name === 'options') { if (game.time) st.timeNow = Math.round(game.time.hour * 2) / 2 % 24; syncOptions(); syncName(); } // the time slider opens on the current game time
       if (name === 'start') openStart();
-      if (name === 'welcome') renderWelcome();
+      if (name === 'welcome') { renderWelcome(); setTimeout(fitWelcome, 30); }
       if (name === 'side') syncSide();
       if (name === 'collections') renderCollections();
       if (name === 'missions') renderMissions();
@@ -956,6 +956,17 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     syncWelNet(); syncNet();
   });
   addEventListener('pd-net-changed', syncWelNet);
+  // The welcome panel always shows all of itself: when its rows are taller than the room it has, the whole panel is zoomed down until they fit (text, switches and Parti together),
+  // never scrolled under Parti. Measured after every render and on every resize (the phone turning, the browser bars sliding).
+  const welCard = W.querySelector('.pd-wel');
+  function fitWelcome() {
+    if (cur !== 'welcome') return;
+    welCard.style.zoom = '';
+    const need = welCard.scrollHeight, have = welCard.clientHeight;
+    if (need > have + 1) welCard.style.zoom = Math.max(0.5, have / need).toFixed(3);
+  }
+  addEventListener('resize', () => setTimeout(fitWelcome, 30));
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(fitWelcome, 30));
   function renderWelcome() {
     const i = lang === 'it' ? 0 : 1, v = VEHICLES.find(x => x.id === garage.type) || VEHICLES[0];
     if (document.activeElement !== welName) welName.value = readName();

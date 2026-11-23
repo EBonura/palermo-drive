@@ -8,11 +8,13 @@ addEventListener('resize', read); addEventListener('orientationchange', read);
 // phone every panel, text and button shrinks together instead of falling off the screen or needing a scroll (src/ui.css, #pd-ui). --ui-z is that scale (1 on anything big enough);
 // --vh and --vw are one hundredth of the virtual screen, in the virtual pixels the menu styles work in (they use calc(var(--vh, 1vh) * N) in place of vh, and the same for vw).
 // CSS vh is the tallest the window gets (a phone browser with its address bar hidden), so it is not used: visualViewport is what is on screen right now and fires as the bars slide in and out.
-const MIN_H = 440, MIN_W = 400;
+// The reference screen the menus are drawn for, one per orientation: on its side a phone is measured against 900 x 480, upright against 420 x 760. The scale is
+// whichever of width and height is shorter of the reference, so a wide but short screen and a tall but narrow one both get everything in, and nothing grows past 1.
+const REF = { land: [900, 480], port: [420, 760] };
 const root = document.documentElement;
 const setVh = () => {
   const vv = window.visualViewport, h = (vv && vv.height) || innerHeight, w = (vv && vv.width) || innerWidth; if (!(h > 0 && w > 0)) return;
-  const z = Math.min(1, h / MIN_H, w / MIN_W); vp.z = z;
+  const [rw, rh] = w >= h ? REF.land : REF.port, z = Math.max(0.5, Math.min(1, w / rw, h / rh)); vp.z = z;
   root.style.setProperty('--ui-z', z.toFixed(4)); root.style.setProperty('--vh', (h / z / 100) + 'px'); root.style.setProperty('--vw', (w / z / 100) + 'px');
   root.style.setProperty('--rvh', (h / 100) + 'px'); root.style.setProperty('--rvw', (w / 100) + 'px');   // the real screen, for the HUD and the loading screen, which are not scaled
 };
