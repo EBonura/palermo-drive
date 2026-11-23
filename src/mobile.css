@@ -5,8 +5,9 @@
 .tc, .rot { display: none; }
 
 html.touch, html.touch body {
-  height: 100vh; height: 100dvh;
-  position: fixed; inset: 0; width: 100%;
+  /* sized by inset 0 alone, like the 3D view, the HUD and the probe of src/viewport.js: a width of 100% or a height of 100dvh is the page's nominal size, which Chrome on an
+     iPhone sets short of the notch side while it draws the page across it, and this box clipped the HUD and the pads at that shorter width */
+  position: fixed; inset: 0; width: auto; height: auto;
   overflow: hidden; overscroll-behavior: none;
   touch-action: none;
   -webkit-user-select: none; user-select: none;
