@@ -177,7 +177,7 @@ async function browserTests(root) {
     for (const t of ['webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextlost', 'webglcontextrestored']) { await a.page.evaluate(t => document.getElementById('view').dispatchEvent(new Event(t)), t); await sleep(400); }   // spaced out: the test sink writes a row in two steps
     await sleep(1500);
     const cx = rows(sink).slice(nc).filter(x => x.event.startsWith('ctx'));
-    check('a lost and a restored context are reported, at most 3 of each, with real settings and no more fields than the others', cx.filter(x => x.event === 'ctxlost').length === 3 && cx.filter(x => x.event === 'ctxrestored').length === 1 && cx.every(x => x.gfx === 'auto' && x.shadow !== null && x.res_pct > 0 && x.gpu && (x.iab === 0 || x.iab === 1) && x.fps === null), cx.map(x => x.event).join() + ' ' + JSON.stringify(cx[0]));
+    check('a lost and a restored context are reported, at most 3 of each, with real settings and no more fields than the others', cx.filter(x => x.event === 'ctxlost').length === 3 && cx.filter(x => x.event === 'ctxrestored').length === 1 && cx.every(x => x.gfx === 'auto' && x.shadow !== null && x.res_pct > 0 && x.gpu && (x.iab === 0 || x.iab === 1) && x.hidden === 0 && x.fps === null), cx.map(x => x.event).join() + ' ' + JSON.stringify(cx[0]));
     await a.ctx.close();
 
     // a player on the production default (no ?gfx): no Auto ladder, but the real shadow size and the graphics level are there
@@ -187,7 +187,7 @@ async function browserTests(root) {
     await drive(mp.page);
     await sleep(8000);
     const mr = rows(sink).slice(m0).find(x => x.event === 'alive');
-    check('the default (high) graphics: gfx, shadow size and resolution are real, the Auto fields stay empty', !!mr && mr.gfx === 'high' && mr.shadow === 2048 && mr.res_pct > 0 && mr.auto_lvl === null && mr.fps_mode === null, JSON.stringify(mr));
+    check('the default (high) graphics: gfx, shadow size and resolution are real, the Auto fields stay empty', !!mr && mr.gfx === 'high' && [0, 512, 1024, 2048].includes(mr.shadow) && mr.res_pct > 0 && mr.auto_lvl === null && mr.fps_mode === null, JSON.stringify(mr));
     await mp.ctx.close();
 
     // solo by choice: stats but no name

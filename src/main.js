@@ -47,6 +47,7 @@ import { createDayNight } from './daynight.js'; // day/night cycle: sun, sky, fo
 import { createWeather } from './weather.js';   // the day's weather: clear, cumulus, overcast, scirocco, rain (src/weather.js), stepped by the day/night cycle
 import { createMinimap } from './minimap.js'; // round minimap, per-tile pieces (src/minimap.js)
 import { zone } from './hud.js'; // the HUD's zones: one place for each kind of message (src/hud.js)
+import { watchGlContext } from './glcontext.js';
 import { createPlayLog } from './playlog.js'; // anonymous play and performance counts to our own service, off until src/playlog-url.js has an address (src/playlog.js)
 import { townAt } from './districts.js';   // (?rec names the district a stutter happened in)
 import { areaAt } from './danger.js';
@@ -548,6 +549,7 @@ canvas.addEventListener('webglcontextrestored', () => {
     world.hurry = false; if (held && game.state === 'pause') game.resume();
   })();
 });
+watchGlContext(canvas);   // a context that stays lost: say so and offer a reload (src/glcontext.js)
 renderer.setAnimationLoop(now => {
   if (rec) rec.begin(now);
   const skip = perf.frame(now); // [perf pass] true: the 30 fps cap skips this refresh

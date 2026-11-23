@@ -33,6 +33,7 @@ struct Raw {
     gpu: Option<String>,
     gfx: Option<String>,
     iab: Option<u32>,
+    hid: Option<u32>,
     veh: Option<String>,
     dist: Option<u32>,
     cash: Option<u32>,
@@ -170,6 +171,7 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
         ("gpu", Val::S(gpu)),
         ("gfx", Val::S(gfx)),
         ("iab", Val::I(within(r.iab, 0, 1)?)),
+        ("hidden", Val::I(within(r.hid, 0, 1)?)),
         ("vehicle", Val::S(veh)),
         ("dist_m", Val::I(within(r.dist, 0, 500_000)?)),
         ("cash", Val::I(within(r.cash, 0, 1_000_000)?)),
@@ -182,7 +184,7 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
 mod tests {
     use super::*;
 
-    const OK: &str = r#"{"v":1,"t":"alive","vid":"0123456789abcdef","n":"Anna","d":"phone","l":"it","g":"0.4.12","s":600,"pl":2,"ps":170,"fps":58,"p1":31,"lv":2,"mo":60,"sh":1024,"rs":100,"mem":210,"gpu":"apple","gfx":"high","iab":0,"veh":"calessino","dist":3200,"cash":12,"bust":1,"m":{"fare:taxi":[1,1,0]}}"#;
+    const OK: &str = r#"{"v":1,"t":"alive","vid":"0123456789abcdef","n":"Anna","d":"phone","l":"it","g":"0.4.12","s":600,"pl":2,"ps":170,"fps":58,"p1":31,"lv":2,"mo":60,"sh":1024,"rs":100,"mem":210,"gpu":"apple","gfx":"high","iab":0,"hid":1,"veh":"calessino","dist":3200,"cash":12,"bust":1,"m":{"fare:taxi":[1,1,0]}}"#;
 
     fn name_of(rows: &[(&str, Val)]) -> Option<String> {
         match rows.iter().find(|(k, _)| *k == "name").unwrap() {
@@ -194,7 +196,7 @@ mod tests {
     #[test]
     fn accepts_a_full_report() {
         let r = parse(OK.as_bytes()).expect("valid");
-        assert_eq!(r.len(), 24);
+        assert_eq!(r.len(), 25);
         assert_eq!(name_of(&r).as_deref(), Some("Anna"));
     }
 
@@ -236,6 +238,7 @@ mod tests {
         bad(&OK.replace("calessino", "Calessino!"));
         bad(&OK.replace("\"gfx\":\"high\"", "\"gfx\":\"ultra\""));
         bad(&OK.replace("\"iab\":0", "\"iab\":2"));
+        bad(&OK.replace("\"hid\":1", "\"hid\":2"));
         bad(&OK.replace("\"bust\":1", "\"bust\":1,\"ip\":\"1.2.3.4\""));
         bad(&OK.replace("[1,1,0]", "[1,1]"));
         bad(&OK.replace("[1,1,0]", "[1,1,99]"));

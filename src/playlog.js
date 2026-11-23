@@ -110,7 +110,7 @@ export function createPlayLog({ game, car, renderer, perf, getName = () => '', g
     renderer.domElement.addEventListener(dom, () => {
       if (!on() || !joined || ctxN[t] >= 3) return;
       ctxN[t]++;
-      const o = build(t, false); state(o);
+      const o = build(t, false); state(o); o.hid = document.hidden ? 1 : 0;   // in the background when it happened: the usual, harmless kind
       post(JSON.stringify(o), document.hidden);
     });
   }
