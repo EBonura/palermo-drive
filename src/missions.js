@@ -33,6 +33,7 @@ import { createFood } from './event-food.js';
 import { createRaces } from './races.js';
 import { createPubs } from './pubs.js';
 import { createFriendStops } from './friend-stops.js';
+import { createWanderer } from './wanderer.js';
 import { createRave } from './rave.js';
 import { createRaveEvents } from './event-rave.js';
 import { createHornsEvents } from './event-horns.js';
@@ -824,7 +825,7 @@ function build(env) {
     S.t += dt; hudUsed = false; aim.on = false;
     if (X.held && Math.hypot(car.x - X.held.x, car.z - X.held.z) > 40) X.held = null;
     if (wantEv && !evPlaced && S.t > 1.2) { evPlaced = true; evSlot = slots.find(s => s.id === wantEv) || pubs.slots.find(s => s.id === wantEv) || null; if (evSlot && JOBS.has(evSlot.kind)) { director.cancel(); X.offer = evSlot; } if (evSlot) placeAtEvent(evSlot).then(() => { evSlot.testReady = S.t + 2.5; }); else console.warn('[missions] ?event=', wantEv, 'is not an event; ids:', slots.map(s => s.id).join(' ')); }
-    updateVendors(dt); updatePoll(dt); friend?.update(dt); secrets.update(dt); rave.update(dt); dump.update(dt); pennas.tick(dt);
+    updateVendors(dt); updatePoll(dt); friend?.update(dt); wanderer?.update(dt); secrets.update(dt); rave.update(dt); dump.update(dt); pennas.tick(dt);
     night.update(dt, !S.ev);
     const idle = !S.ev;
     const accepted = calls.update(dt, idle), raceGo = races.update(dt, idle), pubGo = pubs.update(dt, idle);
@@ -854,7 +855,9 @@ function build(env) {
   const night = createNightLife({ env, say, groundAt, findSpot, isNight, worldOn, driverPos });
   // Ganci, the shrines of Santa Rosalia and the night cornetto kiosks (src/friend-stops.js); they share the drawing helpers and the nitro treat of the vendors above
   const friend = worldOn() ? createFriendStops({ env, scene, car, game, pedestrians, walls2d, groundAt, hud, toast, burst, T, say, isNight, busy: () => !!S.ev, speed, driverPos, makeBeacon, addMarker, dropMarker, buildKiosk, nitroTreat, std, glowTex }) : null;
+  const wanderer = worldOn() ? createWanderer({ env, car, pedestrians, params, scene }) : null;   // the Sicilian Wanderer, a likeness cameo standing in the Vucciria (src/wanderer.js)
+  X.wanderer = wanderer;   // src/job-wanderer.js
   const api = { mode: 'free', setMode, update, stop, events, progress, busy: () => !!S.ev, state: S, pubs, rave, status, describe, ready, stand, arrive };   // pubs and rave: src/drunk.js reads their doors and the stage
-  if (params.has('debug')) window.__missions = { S, slots, prog, polls, api, night, friend, vendors, calls, fares, food, races, pubs, secrets, X, director, rave, raves, horns, dump, dumps, pennas };
+  if (params.has('debug')) window.__missions = { wanderer, S, slots, prog, polls, api, night, friend, vendors, calls, fares, food, races, pubs, secrets, X, director, rave, raves, horns, dump, dumps, pennas };
   return api;
 }

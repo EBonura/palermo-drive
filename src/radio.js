@@ -97,11 +97,57 @@ const PALIFORNIA = [   // [id, title, artist]
   ['mario-bajardi-aura', 'Aura', 'Mario Bajardi'],
   ['loro-my-girlfriend-is-a-nazi-zombie', 'My girlfriend is a nazi zombie', 'Loro'],
 ].map(([id, title, by]) => ({ id, title, by }));
+// Radio Sessanta SeCunti: the "Sessanta SeCunti" YouTube Shorts of Dario Cascio (The Sicilian Wanderer), the audio of his 40 most viewed ones, played with his authorization (23 Nov 2026).
+// Each track is also the Short it comes from: the bar and the menu panel show a small YouTube button for it (view.link). Credits: assets/music/CREDITS.md.
+const SESSANTA_BY = 'Dario Cascio - Sicilian Wanderer', SESSANTA_CHANNEL = 'https://www.youtube.com/@TheSicilianWanderer';
+const SESSANTA = [   // [id after "sessanta-" (the file is sessanta-<id>.m4a), title, YouTube Short id]
+  ['mose-a-mondello', 'Mosè a Mondello', 'FDz8y6Q_CTU'],
+  ['a-mmari-semu', 'A Mmari Semu', 'vsSD2NtWf8Q'],
+  ['frischi-e-pirita', 'Frischi e Pirita', 'H6W-4R6tdTk'],
+  ['chi-cosa-tinta', 'Chi Cosa Tinta', 'rWeAgMhOpKs'],
+  ['vuci-luntani', 'Vuci Luntani', '3XWhNzO-Az4'],
+  ['capruna', 'Capruna', 'so0rvJp-sqA'],
+  ['par-aieri', 'Par\'Aieri', 'ZZUKLR7RBIY'],
+  ['lagnusu', 'Lagnusu', '1w5zxYhe-6Q'],
+  ['grazzi-santuzza', 'Grazzi Santuzza', 'lj3VFS0ua0Y'],
+  ['broru', 'Broru', 'PM8ZXYgfj3A'],
+  ['quattr-e-rui', 'Quattr\'e Rui', 'ws6urQ_OqnY'],
+  ['san-martino', 'San Martino', 'Bq4qdN8iC0A'],
+  ['ligna-e-crape', 'Ligna e Crape', 'YzxITU6KOj8'],
+  ['u-zu-vanni', 'U Zu Vanni', 'B659BZFu-2o'],
+  ['sauta-a-jatta', 'Sauta A Jatta?', 'faboWgCwnZo'],
+  ['empedocle', 'Empedocle', 'hOMeIA5lWrQ'],
+  ['cu-t-addifenni-palermo', 'Cu T\'Addifenni, Palermo?', 'bBrRPW1RXes'],
+  ['ma-comu-finiu', 'Ma Comu Finiu?', '1ZhHW49HKzU'],
+  ['tu-no', 'Tu No', 'uD4aJ7fcGGM'],
+  ['san-giovanni', 'San Giovanni', 'FwE4z-J5ET4'],
+  ['don-pitruzzu-all-opira', 'Don Pitruzzu All\'Opira', 'qgnpnToLXpo'],
+  ['fera', 'Fera', 'HGHneSwt6VI'],
+  ['sparatrap', 'Sparatrap', 'E5H88Bbl440'],
+  ['bandita', 'Bandita', 'XtOKjL1jZC8'],
+  ['cafiata', 'Cafiata', 'xQ5wn7-Onio'],
+  ['via-del-4-aprile', 'Via del 4 Aprile', '11m3KRlNRWI'],
+  ['italianissa', 'Italianissa', 'F6r-wZup8QY'],
+  ['300-liri', '300 Liri', '0ZYTb-eORGc'],
+  ['lucia-lucia', 'Lucia Lucia', 'H5o59Lx3BdY'],
+  ['a-micce', 'A Miccè', '9IfEO9ROE8Q'],
+  ['a-fiera-ru-mediterraneo', '\'A Fiera Ru Mediterraneo', 'ow-vSIA46dE'],
+  ['mali-vistuti', 'Mali Vistuti', 'thE3pk5a4HU'],
+  ['palermitanismi', 'Palermitanismi', 'AHRGBRCbN3g'],
+  ['milicia', 'Milicia', 'eWi4T94tNdE'],
+  ['a-schifiu-finiu', 'A Schifiu Finiu', 'b2Pjv0kEgbA'],
+  ['ammucca-lapuni', 'Ammucca Lapuni', 'TfBr1VDNDd8'],
+  ['sarde', 'Sarde', 'BYtnZevxQXY'],
+  ['villa-gardenia', 'Villa Gardenia', 'n6XSXv93LtA'],
+  ['scarpuzzi', 'Scarpuzzi', 'x09GKDhFzyM'],
+  ['pinu-tagghiacapiddi', 'Pinu Tagghiacapiddi', '3-R0r9P3sPg'],
+].map(([id, title, v]) => ({ id: 'sessanta-' + id, title, by: SESSANTA_BY, link: 'https://www.youtube.com/shorts/' + v }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [
   { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica popolare', 'Folk and popular'], tracks: TRACKS },
   { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock & metal', 'Rock & metal'], tracks: LAMIERA },   // sub: draft
   { id: 'palifornia', name: 'Radio Palifornia', sub: ['Rap, funk & rock', 'Rap, funk & rock'], tracks: PALIFORNIA },   // sub: draft
+  { id: 'sessanta', name: 'Sessanta SeCunti', sub: ['Sessanta sicunni ri palermitanu', 'Sixty seconds of Palermitan'], tracks: SESSANTA, link: SESSANTA_CHANNEL },   // sub: draft
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out
@@ -366,13 +412,13 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   });
 
   // ---- what the shell shows: one view, announced when it changes ----
-  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '', station: '', loading: false };   // loading: a song is asked for and has not started to sound (src/ui.js shows a spinner)   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
+  const view = { mode: 'idle', label: '', title: '', sub: '', artist: '', theme: '', station: '', loading: false, link: '' };   // link: a web address the shell offers as a small button (a station of someone's own channel), or ''   // loading: a song is asked for and has not started to sound (src/ui.js shows a spinner)   // artist: the name of the artist alone, or '' when there is none to show (the bar's expanded title, src/ui.js). mode: 'on' | 'off' | 'idle' (not started, or waiting for a tap); theme: '' | 'metal' | 'match' while a pub or a scene has borrowed the line
   let taken = null;   // takeover(): { lock } while a pub or a scene has borrowed the line
   let lastKey = '', lv = new Float32Array(0), edges = [1];
   const langNow = () => { const l = document.documentElement.lang; return l ? (l === 'en' ? 1 : 0) : lang(); };
   function setView(v) {
     Object.assign(view, v);
-    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}|${view.station}|${view.loading}`;
+    const key = `${view.mode}|${view.label}|${view.title}|${view.sub}|${view.artist}|${view.theme}|${view.station}|${view.loading}|${view.link}`;
     if (key !== lastKey) { lastKey = key; dispatchEvent(new CustomEvent('pd-radio', { detail: view })); }
   }
   function sync() {   // 10 Hz, from tick(): the event only goes out when something changed
@@ -380,7 +426,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     const l = langNow();
     const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
     const track = mode === 'on' ? slots[cur].track : null;
-    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id, loading: mode === 'on' && slots[cur].buffering });
+    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id, loading: mode === 'on' && slots[cur].buffering, link: (track && track.link) || station.link || '' });
   }
   const onTrack = () => sync();
 
@@ -431,7 +477,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
       taken = { lock, theme, analyser: an && an.getByteFrequencyData ? an : null, level: typeof level === 'function' ? level : null, buf: null };
       if (taken.analyser) taken.buf = new Uint8Array(taken.analyser.frequencyBinCount);
       if (!was && started && enabled) hold(0.4);   // the radio goes quiet, not just lower, and stays on its track
-      setView({ mode: 'on', label, title, sub: artist, artist: theme === 'match' ? '' : artist, theme, loading: false });   // the match card's line is the commentary, not an artist
+      setView({ mode: 'on', label, title, sub: artist, artist: theme === 'match' ? '' : artist, theme, loading: false, link: '' });   // the match card's line is the commentary, not an artist
     },
     retext({ label, title, artist } = {}) {
       if (!taken) return;

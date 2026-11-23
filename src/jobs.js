@@ -7,6 +7,7 @@ const MODULES = [
   () => import('./job-roadworks.js'),   // streets closed for works
   () => import('./job-pedalo.js'),      // the pedalò of Mondello
   () => import('./job-festino.js'),     // the Festino di Santa Rosalia
+  () => import('./job-wanderer.js'),    // the Sicilian Wanderer: a drive for his video, and back to do it again
 ];
 export function loadJobs(X) {
   for (const load of MODULES) load().then(m => m.default(X)).catch(e => { if (X.params.has('debug')) console.warn('[missions] job module not loaded:', e && e.message); });

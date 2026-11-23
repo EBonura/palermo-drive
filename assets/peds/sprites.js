@@ -131,6 +131,12 @@ const TYPES = [
   { id: 'swim_w2', swim: 'onepiece', gen: true, sex: 'f', age: 'young', sleeve: 'none', top: '#2f6bb0', bottom: { type: 'shorts', col: '#2f6bb0', len: 3 }, legCol: '#d9a98a', shoes: '#a8684a', speed: 1.0, styles: [['long', 3], ['wavy', 2.5], ['ponytail', 2], ['bun', 2], ['bob', 1.5]] },
   { id: 'summer_m', sandals: true, gen: true, age: 'adult', sleeve: 'none', top: '#f0eee8', glasses: '#18161a', bottom: { type: 'shorts', col: '#c8b78e', len: 9 }, shoes: '#a8684a', speed: 1.1 },
   { id: 'summer_w', sandals: true, gen: true, sex: 'f', age: 'adult', sleeve: 'none', top: '#f0eee8', bottom: { type: 'skirt', col: '#3f9ab8', len: 9 }, legCol: '#d9a98a', shoes: '#a8684a', hat: { type: 'straw', col: '#e8dca8', col2: '#d9443c' }, speed: 1.1 },
+  // ---- a creator the owner knows ("The Sicilian Wanderer", Dario Cascio), as a likeness cameo: bald, a full grey beard under a darker moustache, silver hoops in both ears, ink on the right forearm and the chest,
+  // a stocky build and a big smile; a pale linen shirt open at the collar. He stands filming on his phone (src/wanderer.js). wanderer_tweed is his other look: grey tweed jacket, flat cap, grey tee. Neither is in the crowd.
+  { id: 'wanderer', gen: false, age: 'adult', tw: 14, skin: '#b48c5c', hair: '#9a9894', hairStyle: 'bald', face: { beard: 'full', beardCol: '#8f8d89', mustacheCol: '#2e2a27' }, top: '#c9d8e6', collar: true, sleeve: 'short', ramps: { skin: 'taupe', top: 'sky', bottom: 'white', shoes: 'white', beard: 'white', mustache: 'dark_gray' },
+    hoops: true, wandererFace: true, tattoo: '#2f3f52', tattooForearm: true, tattooSide: 'right', chestInk: true, filming: true, bottom: { type: 'trousers', col: '#c9b998' }, shoes: '#ecebe6', speed: 0.9 },
+  { id: 'wanderer_tweed', gen: false, age: 'adult', tw: 14, skin: '#b48c5c', hair: '#9a9894', hairStyle: 'bald', face: { beard: 'full', beardCol: '#8f8d89', mustacheCol: '#2e2a27' }, top: '#7b7e82', collar: true, sleeve: 'long', ramps: { skin: 'olive', top: 'slate', shoes: 'white', beard: 'white', mustache: 'dark_gray' },
+    hat: { type: 'flatcap', col: '#6d6e70' }, hoops: true, wandererFace: true, filming: true, bottom: { type: 'trousers', col: '#33363b' }, shoes: '#ecebe6', speed: 0.9 },
 ];
 
 // who is who: sex (default m) and age group (default adult); varyTop / varyBottom let the generator change the colours of the generic everyday types
@@ -150,7 +156,7 @@ const W = {
   tifoso: [4, 5, 2, 3, 14], tifoso2: [3, 4, 2, 2, 12], tifosa: [3, 4, 1, 2, 10], tifoso_kid: [2, 2, 1, 1, 6], tifoso_nonno: [1.5, 1.5, 1.5, 0.5, 5],
   tuta: [5, 4, 3, 2, 3], skinny: [4, 5, 3, 3, 3], motorino: [3, 2, 3, 1, 2], motorina: [2, 2, 2, 1, 2], nonno_gilet: [5, 2, 5, 1, 1], nonna2: [6, 3, 7, 1, 1.5], nonna3: [5, 2, 5, 1, 1],
   pescivendolo: [0.5, 0, 8, 0, 0], macellaio: [0.3, 0, 4, 0, 0], shopper: [2, 5, 3, 3, 3], beach_m: [0.5, 1.5, 0.5, 3, 0.5], beach_w: [0.5, 1.5, 0.5, 3, 0.5], mamma: [3, 3, 2, 2, 2],
-  wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0], cocchiere: [0, 0, 0, 0, 0], carrettiere: [0, 0, 0, 0, 0],
+  wheelchair: [0.5, 1.2, 2, 0.8, 0.3], healed: [0, 0, 0, 0, 0], chair_empty: [0, 0, 0, 0, 0], cocchiere: [0, 0, 0, 0, 0], carrettiere: [0, 0, 0, 0, 0], wanderer: [0, 0, 0, 0, 0], wanderer_tweed: [0, 0, 0, 0, 0],
   swim_m: [0, 0, 0, 0, 0], swim_w: [0, 0, 0, 0, 0], swim_w2: [0, 0, 0, 0, 0], summer_m: [0, 0, 0, 0, 0], summer_w: [0, 0, 0, 0, 0],   // the places add these (see the header of the summer types above)
   scuola: [2, 1, 1, 1, 1], suora: [1, 1, 0.3, 3, 0.2], vigile: [0.5, 1.5, 0.5, 1.5, 1.5], cameriere: [1, 3, 1, 3, 1],
 };

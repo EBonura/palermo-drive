@@ -22,20 +22,20 @@ export function stackOf(sp, idx) {
   if (sp.chair === 'empty') return { id: sp.id, body: 'male', layers: [], extras: [['wheelchair', 'black', true]], emptyChair: true, noSit: true };
   const kid = sp.ageGroup === 'kid', teen = sp.ageGroup === 'teen', old = sp.ageGroup === 'old', fem = sp.sex === 'f', key = sp.id + idx;
   const body = kid ? 'child' : teen ? 'teen' : fem ? 'female' : 'male';
-  const skin = nearestRamp('body', sp.skin), eye = eyeOf(sp.face && sp.face.eyeCol);
+  const RM = sp.ramps || {}, skin = RM.skin || nearestRamp('body', sp.skin), eye = eyeOf(sp.face && sp.face.eyeCol);
   const headId = kid ? 'head/heads/human/heads_human_child' : fem ? (old ? 'head/heads/human/heads_human_female_elderly' : 'head/heads/human/heads_human_female') : (old ? 'head/heads/human/heads_human_male_elderly' : 'head/heads/human/heads_human_male');
   const L = [{ id: 'body/body', mat: { body: skin } }, { id: headId, mat: { body: skin, eye } }];
   const X = [];   // extras: [name, ...args]
-  const B = sp.bottom || {}, topC = cloth(sp.top || '#2a2e38'), swimCol = (sp.swim === 'trunks' ? TRUNKS : SUIT)[hashN(key + 'suit', sp.swim === 'trunks' ? TRUNKS.length : SUIT.length)];
+  const B = sp.bottom || {}, topC = RM.top || cloth(sp.top || '#2a2e38'), swimCol = (sp.swim === 'trunks' ? TRUNKS : SUIT)[hashN(key + 'suit', sp.swim === 'trunks' ? TRUNKS.length : SUIT.length)];
   // ----- legs
-  const legCol = B.type === 'robe' ? cloth(B.col) : cloth(B.col || '#2a2e38');
+  const legCol = RM.bottom || (B.type === 'robe' ? cloth(B.col) : cloth(B.col || '#2a2e38'));
   if (kid) { const def = getDef(B.type === 'skirt' ? 'legs/skirts/legs_childskirts' : 'legs/pants/legs_childpants'); L.push({ id: def === getDef('legs/skirts/legs_childskirts') ? 'legs/skirts/legs_childskirts' : 'legs/pants/legs_childpants', variant: pickVariant(def, legCol) }); }
   else if (sp.swim) L.push({ id: sp.swim === 'trunks' ? 'legs/shorts/legs_shorts' : 'legs/shorts/legs_shorts_short', mat: { cloth: swimCol } });
   else if (B.type === 'shorts') L.push({ id: 'legs/shorts/legs_shorts', mat: { cloth: legCol } });
   else if (B.type === 'skirt' || B.type === 'robe') L.push({ id: 'legs/skirts/legs_skirts_plain', mat: { cloth: B.type === 'skirt' && !B.long ? cloth(B.col) : legCol } });
   else L.push({ id: 'legs/pants/legs_pants', mat: { cloth: B.jeans ? 'blue' : legCol } });
   // ----- shoes
-  const shoeC = cloth(sp.shoes || '#2c2622');
+  const shoeC = RM.shoes || cloth(sp.shoes || '#2c2622');
   const sandals = sp.sandals || (sp.swim && hashN(key + 'sandals', 2) === 0);   // flip-flops: the generator's sandals; the other swimmers go barefoot
   if (sp.swim && !sandals) { /* barefoot */ }
   else if (sandals) L.push({ id: 'feet/feet_sandals', mat: { cloth: shoeC } });
@@ -66,8 +66,9 @@ export function stackOf(sp, idx) {
     if (old && hs === 'short') defs = fem ? HAIR_FEM_SHORT : ['hair/bald/hair_balding'];
     if (defs.length) { const d = defs[hashN(key, defs.length)]; L.push({ id: d, mat: { hair: hairName } }); }
   }
-  const fb = sp.face && sp.face.beard, beardName = sp.face && sp.face.beardCol ? (DYED.test(sp.face.beardCol) ? dyedHair(sp.face.beardCol) : naturalHair(sp.face.beardCol)) : hairName;
+  const fb = sp.face && sp.face.beard, beardName = RM.beard ? RM.beard : sp.face && sp.face.beardCol ? (DYED.test(sp.face.beardCol) ? dyedHair(sp.face.beardCol) : naturalHair(sp.face.beardCol)) : hairName;
   if (fb && BEARD[fb] && !kid) L.push({ id: BEARD[fb], mat: { hair: beardName } });
+  if (fb === 'full' && sp.face.mustacheCol && !kid) L.push({ id: BEARD.moustache, mat: { hair: RM.mustache || dyedHair(sp.face.mustacheCol) } });   // a moustache of its own colour over a beard of another (grey beard, dark moustache)
   if (sp.face && sp.face.stubble && !kid) X.push(['stubble']);
   // ----- glasses
   if (sp.glasses) { const g = sp.glasses; X.push([g.style === 'round' ? 'roundGlasses' : 'rectGlasses', g.style, g.tortoise]); }
@@ -76,10 +77,14 @@ export function stackOf(sp, idx) {
   if (h) { if (h.type === 'scarf') X.push(['fazzoletto', 'black']); else if (h.type === 'flatcap') X.push(['flatCap', cloth(h.col)]); else if (h.type === 'peaked') X.push(['peakedCap', lumOf(h.col) > 0.6 ? 'white' : 'navy', h.col2 && lumOf(h.col2) > 0.6 ? 'white' : 'yellow']); else if (h.type === 'straw') X.push(['strawHat', cloth(h.col), h.col2 ? cloth(h.col2) : 'red']); else if (h.type === 'helmet') X.push(['helmet', 'white']); else if (h.type === 'cap') X.push(['cap', cloth(h.col)]); else if (h.type === 'top') X.push(['topHat', 'black']); else if (h.type === 'hood') L.push({ id: 'headwear/coverings/hoods/hat_hood_cloth', mat: { cloth: cloth(h.col) } }); }
   if (sp.swim) { const t = TOWEL[hashN(key + 'towel', TOWEL.length)]; X.push(['towel', t[0], t[1]]); if (!sp.glasses && hashN(key + 'shades', 5) < 2) X.push(['rectGlasses']); if (sp.swim !== 'trunks' && hashN(key + 'hat', 4) === 0 && !sp.hat) X.push(['strawHat', 'tan', swimCol]); }
   // ----- skin art and small things
-  if (sp.tattoo && (sp.sleeveTattoo || sp.tattooForearm)) X.push(['tattoo', 'arms']);
+  if (sp.tattoo && (sp.sleeveTattoo || sp.tattooForearm)) X.push(['tattoo', 'arms', sp.tattooSide]);
   if (sp.neckTattoo) X.push(['tattoo', 'neck']);
   if (B.ripped) X.push(['rip']);
   if (sp.earring) X.push(['earring']);
+  if (sp.hoops) X.push(['hoops']);
+  if (sp.wandererFace) X.push(['wandererFace']);
+  if (sp.chestInk) X.push(['chestInk']);
+  if (sp.filming) X.push(['filming', topC]);
   // ----- carried
   if (sp.bag) X.push(['hold', 'bag', cloth(sp.bag), 'l']); if (sp.tote) X.push(['hold', 'bag', cloth(sp.tote), 'l']); if (sp.purse) X.push(['hold', 'purse', cloth(sp.purse), 'l']); if (sp.briefcase) X.push(['hold', 'briefcase', cloth(sp.briefcase), 'l']);
   if (sp.bag2) X.push(['hold', 'bag', cloth(sp.bag2), 'r']); if (sp.helmetHand) X.push(['hold', 'helmet', 'white', 'l']); if (sp.phone) X.push(['hold', 'phone', null, 'r']);

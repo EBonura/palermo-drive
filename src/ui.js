@@ -63,8 +63,8 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationAll: ['Tutta musica palermitana', 'All music from Palermo'], stationRights: ['Tutti i brani restano di proprietà dei rispettivi artisti e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica palermitana. Per un credito diverso o la rimozione di un brano scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs remain the property of their artists and rights holders, played without profit to support music from Palermo. To have a song credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
-  tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], sessantaNoteT: ['Sessanta SeCunti', 'Sessanta SeCunti'], sessantaNote: ['Sessanta sicunni ri palermitanu, ri Dario Cascio, The Sicilian Wanderer.', 'Sixty seconds of Palermitan, by Dario Cascio, The Sicilian Wanderer.'], stationDario: ['Sessanta SeCunti è di Dario Cascio, The Sicilian Wanderer: Talìa u canali', 'Sessanta SeCunti is by Dario Cascio, The Sicilian Wanderer: watch the channel'], stationAll: ['Musica e voci palermitane', 'Music and voices from Palermo'], stationRights: ['Tutti i brani e gli audio restano di proprietà dei rispettivi artisti, autori e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica e la lingua palermitana. Per un credito diverso o la rimozione di un brano o di un audio scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs and recordings remain the property of their artists, authors and rights holders, played without profit to support the music and the language of Palermo. To have a song or recording credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
+  tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'], radioVideo: ['Talìa u video', 'Watch the video'], radioChannel: ['Talìa u canali', 'Watch the channel'],
   units: ['Unità', 'Units'],
   camera: ['Camera', 'Camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
@@ -225,6 +225,8 @@ const ICON_RESET = '<svg viewBox="0 0 48 48"><path d="M12 24a12 12 0 1 0 4-9" />
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
 const ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/><path d="M19 5v14"/></svg>';
+const ICON_YT = '<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="6" fill="#f00"/><path d="M11.2 5.6v8.8L19 10z" fill="#fff"/></svg>';   // the play-button style of the video site, inline: a station that is someone's own channel (view.link) offers it
+const YT_A = `<a class="pd-bbtn pd-byt" data-nav href="#" target="_blank" rel="noopener noreferrer" hidden>${ICON_YT}</a>`;
 const ICON_STATION = '<svg viewBox="0 0 24 24"><path d="M12 12.5V21"/><circle cx="12" cy="10" r="2"/><path d="M8.5 6.5a5 5 0 0 0 0 7M15.5 6.5a5 5 0 0 1 0 7M5.6 3.6a9 9 0 0 0 0 12.8M18.4 3.6a9 9 0 0 1 0 12.8"/></svg>';   // another station
 const ICON_FULL = '<svg viewBox="0 0 48 48"><path d="M8 18V8h10M30 8h10v10M40 30v10H30M18 40H8V30" /></svg>';
 const ICON_EXIT = '<svg viewBox="0 0 48 48"><path d="M18 8v10H8M40 18H30V8M30 40V30h10M8 30h10v10" /></svg>';
@@ -403,6 +405,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
       <div class="pd-lab"><span data-k="${o.label}" data-two></span><span class="pd-stallrow"><small class="pd-stall" data-k="stationAll"></small><button class="pd-stinfo" type="button" aria-expanded="false" aria-label="Diritti della musica · Music rights" title="Diritti della musica · Music rights">i</button></span></div>
       <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span><b>${esc(x.name)}</b><small data-stsub="${x.id}"></small><i data-k="onAir"></i></span></button>`).join('')}</div>
       <p class="pd-stnote" hidden data-k="stationRights"></p>
+      <a class="pd-stdario" href="https://www.youtube.com/@TheSicilianWanderer" target="_blank" rel="noopener noreferrer">${ICON_YT}<span data-k="stationDario"></span></a>
     </div>`;
   const rowHTML = o => o.key === 'radioStation' ? stationHTML(o) : `<div class="pd-row" data-opt="${o.key}">
       <div class="pd-lab"><span data-k="${o.label}" data-two></span>${o.type === 'slider' ? '<span class="pd-val"></span>' : ''}</div>
@@ -453,6 +456,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
         <button class="pd-bbtn pd-bpow" data-nav data-do="radioPower" type="button"></button>
         <button class="pd-bbtn pd-bnext" data-nav data-do="radioNext" type="button">${ICON_NEXT}</button>
         <button class="pd-bbtn pd-bstation" data-nav data-do="radioStation" type="button">${ICON_STATION}</button>
+        ${YT_A}
         <div class="pd-npt"><small class="pd-npl"></small><b class="pd-npn"></b><span class="pd-nps"></span></div>
       </div>
       <div class="pd-stack pd-sidelist">
@@ -545,14 +549,23 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   const menuBtn = h('button', 'pd-menubtn', ICON_MENU, { type: 'button', 'aria-label': 'Menu' });
   // The slim bar top left: the round menu button (while driving), play or pause for the radio, next track, and what is playing in one line. It is the radio's only face on the street and the menus
   // (the menu panel has the same controls on top); the words come from the radio's view (src/radio.js, event 'pd-radio').
-  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-bbtn pd-bstation" data-do="radioStation" type="button">${ICON_STATION}</button><button class="pd-btitle" type="button" aria-expanded="false"><small class="pd-bt0"></small><span class="pd-bt1"></span><small class="pd-bt2"></small></button><i class="pd-bspin" aria-hidden="true"></i><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
+  const bar = h('div', 'pd-bar', `<button class="pd-bbtn pd-bpow" data-do="radioPower" type="button"></button><button class="pd-bbtn pd-bnext" data-do="radioNext" type="button">${ICON_NEXT}</button><button class="pd-bbtn pd-bstation" data-do="radioStation" type="button">${ICON_STATION}</button><button class="pd-btitle" type="button" aria-expanded="false"><small class="pd-bt0"></small><span class="pd-bt1"></span><small class="pd-bt2"></small></button>${YT_A}<i class="pd-bspin" aria-hidden="true"></i><canvas class="pd-bbars" aria-hidden="true"></canvas>`, { role: 'group' });
   bar.prepend(menuBtn);
   const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
   const fsBtn = h('button', 'pd-fsbtn' + (canFull ? ' ok' : ''), ICON_FULL, { type: 'button', 'aria-label': 'Fullscreen' });
   const onFs = () => { fsBtn.innerHTML = document.fullscreenElement || document.webkitFullscreenElement ? ICON_EXIT : ICON_FULL; };
   document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
   if (params.has('campos') && !params.has('hud')) ui.hidden = true; // free-camera screenshots: no shell on top
-  ui.append(bar, fsBtn);
+  // the first time the Sessanta SeCunti station is on air: a small dismissable card under the bar that says whose it is and links to his channel (remembered, once)
+  const NOTE_KEY = 'palermoDrive.sessantaNote.v1';
+  const note = h('div', 'pd-stnotice', `<button class="pd-stnx" type="button" aria-label="Chiudi · Close">×</button><b data-k="sessantaNoteT"></b><span data-k="sessantaNote"></span><a href="https://www.youtube.com/@TheSicilianWanderer" target="_blank" rel="noopener noreferrer">${ICON_YT}<span data-k="radioChannel"></span></a>`);
+  note.hidden = true;
+  let noteT = 0;
+  const noteSeen = () => { try { return localStorage.getItem(NOTE_KEY) === '1'; } catch (e) { return false; } };
+  const noteDone = () => { note.hidden = true; clearTimeout(noteT); try { localStorage.setItem(NOTE_KEY, '1'); } catch (e) { /* storage unavailable: it may show again */ } };
+  note.querySelector('.pd-stnx').addEventListener('click', e => { e.stopPropagation(); noteDone(); });
+  function maybeNote(v) { if (v && v.station === 'sessanta' && v.mode === 'on' && note.hidden && !noteSeen()) { note.hidden = false; for (const e of note.querySelectorAll('[data-k]')) applyLangTo(e); clearTimeout(noteT); noteT = setTimeout(noteDone, 16000); } }
+  ui.append(bar, note, fsBtn);
   document.body.append(ui);
   ui.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }); // keep mobile.js's page lockdown off our scrolling
   ui.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
@@ -835,6 +848,10 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     }
     for (const b of ui.querySelectorAll('.pd-bnext')) { b.setAttribute('aria-label', S.radioNext[i]); b.title = S.radioNext[i]; }
     for (const b of ui.querySelectorAll('.pd-bstation')) { b.setAttribute('aria-label', S.radioStation[i]); b.title = S.radioStation[i]; }
+    const link = v && v.mode !== 'off' ? v.link || '' : '';   // a station of someone's own channel: the button for the song's video, or the channel
+    for (const b of ui.querySelectorAll('.pd-byt')) { b.hidden = !link; if (link) { b.href = link; const t = link.includes('/shorts/') ? S.radioVideo[i] : S.radioChannel[i]; b.setAttribute('aria-label', t); b.title = t; } }
+    bar.dataset.yt = link ? '1' : '';
+    maybeNote(v);
     if (v && v.station && lastStation && v.station !== lastStation && cur == null) openBar(true);   // a new station: the bar opens on it for a few seconds, its name under the title
     if (v && v.station) lastStation = v.station;
     slideTo(barS, label, 0); slideTo(barT, title, 70); slideTo(barA, v ? v.artist || '' : '', 140); bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');

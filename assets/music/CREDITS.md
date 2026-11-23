@@ -108,3 +108,50 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | 2 Am (`magikaarp-2-am`) | magikAAAAArp | WAV file |
 | Aura (`mario-bajardi-aura`) | Mario Bajardi (album AURA, 2025) | MP3 sent by email |
 | My girlfriend is a nazi zombie (`loro-my-girlfriend-is-a-nazi-zombie`) | Loro (2022) | M4A sent by email |
+
+## Radio Sessanta SeCunti
+
+The audio of the 40 most viewed "Sessanta SeCunti" YouTube Shorts by Dario Cascio, The Sicilian Wanderer (https://www.youtube.com/@TheSicilianWanderer), 23 November 2026. Changes made to every track as on the other stations: leading silence trimmed, loudness normalised, re-encoded for the web (HE-AAC in M4A), metadata reduced to title and artist, nothing else. The player shows a button to the track's own Short.
+
+| Title (file id) | Artist | Source |
+| --- | --- | --- |
+| Mosè a Mondello (`sessanta-mose-a-mondello`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/FDz8y6Q_CTU |
+| A Mmari Semu (`sessanta-a-mmari-semu`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/vsSD2NtWf8Q |
+| Frischi e Pirita (`sessanta-frischi-e-pirita`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/H6W-4R6tdTk |
+| Chi Cosa Tinta (`sessanta-chi-cosa-tinta`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/rWeAgMhOpKs |
+| Vuci Luntani (`sessanta-vuci-luntani`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/3XWhNzO-Az4 |
+| Capruna (`sessanta-capruna`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/so0rvJp-sqA |
+| Par'Aieri (`sessanta-par-aieri`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/ZZUKLR7RBIY |
+| Lagnusu (`sessanta-lagnusu`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/1w5zxYhe-6Q |
+| Grazzi Santuzza (`sessanta-grazzi-santuzza`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/lj3VFS0ua0Y |
+| Broru (`sessanta-broru`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/PM8ZXYgfj3A |
+| Quattr'e Rui (`sessanta-quattr-e-rui`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/ws6urQ_OqnY |
+| San Martino (`sessanta-san-martino`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/Bq4qdN8iC0A |
+| Ligna e Crape (`sessanta-ligna-e-crape`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/YzxITU6KOj8 |
+| U Zu Vanni (`sessanta-u-zu-vanni`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/B659BZFu-2o |
+| Sauta A Jatta? (`sessanta-sauta-a-jatta`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/faboWgCwnZo |
+| Empedocle (`sessanta-empedocle`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/hOMeIA5lWrQ |
+| Cu T'Addifenni, Palermo? (`sessanta-cu-t-addifenni-palermo`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/bBrRPW1RXes |
+| Ma Comu Finiu? (`sessanta-ma-comu-finiu`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/1ZhHW49HKzU |
+| Tu No (`sessanta-tu-no`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/uD4aJ7fcGGM |
+| San Giovanni (`sessanta-san-giovanni`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/FwE4z-J5ET4 |
+| Don Pitruzzu All'Opira (`sessanta-don-pitruzzu-all-opira`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/qgnpnToLXpo |
+| Fera (`sessanta-fera`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/HGHneSwt6VI |
+| Sparatrap (`sessanta-sparatrap`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/E5H88Bbl440 |
+| Bandita (`sessanta-bandita`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/XtOKjL1jZC8 |
+| Cafiata (`sessanta-cafiata`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/xQ5wn7-Onio |
+| Via del 4 Aprile (`sessanta-via-del-4-aprile`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/11m3KRlNRWI |
+| Italianissa (`sessanta-italianissa`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/F6r-wZup8QY |
+| 300 Liri (`sessanta-300-liri`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/0ZYTb-eORGc |
+| Lucia Lucia (`sessanta-lucia-lucia`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/H5o59Lx3BdY |
+| A Miccè (`sessanta-a-micce`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/9IfEO9ROE8Q |
+| 'A Fiera Ru Mediterraneo (`sessanta-a-fiera-ru-mediterraneo`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/ow-vSIA46dE |
+| Mali Vistuti (`sessanta-mali-vistuti`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/thE3pk5a4HU |
+| Palermitanismi (`sessanta-palermitanismi`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/AHRGBRCbN3g |
+| Milicia (`sessanta-milicia`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/eWi4T94tNdE |
+| A Schifiu Finiu (`sessanta-a-schifiu-finiu`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/b2Pjv0kEgbA |
+| Ammucca Lapuni (`sessanta-ammucca-lapuni`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/TfBr1VDNDd8 |
+| Sarde (`sessanta-sarde`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/BYtnZevxQXY |
+| Villa Gardenia (`sessanta-villa-gardenia`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/n6XSXv93LtA |
+| Scarpuzzi (`sessanta-scarpuzzi`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/x09GKDhFzyM |
+| Pinu Tagghiacapiddi (`sessanta-pinu-tagghiacapiddi`) | Dario Cascio - The Sicilian Wanderer | https://www.youtube.com/shorts/3-R0r9P3sPg |

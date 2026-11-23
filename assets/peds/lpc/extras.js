@@ -168,11 +168,12 @@ export function ripKnees(f, A, skin) {
   const { hd: h, dir } = A; if (dir !== 'front') return; const cy = h.y1 + 20, cx = Math.round(h.cx);
   for (const dx of [-4, 3]) for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1], [1, 2]]) if (a(f, cx + dx + x, cy + y)) put(f, cx + dx + x, cy + y, skin[3]);
 }
-export function tattoo(f, A, where = 'arms', ink = [[40, 52, 84], [70, 86, 120]]) {   // ink over the skin of the arms (and the neck)
+export function tattoo(f, A, where = 'arms', side = null, ink = [[40, 52, 84], [70, 86, 120]]) {   // ink over the skin of the arms (and the neck); side 'right' keeps it to the person's right arm (the left of the picture from the front, the right from behind; both arms show in profile)
   const { hd: h, dir } = A; const y0 = where === 'neck' ? h.y1 - 1 : h.y1 + 4, y1 = where === 'neck' ? h.y1 + 2 : h.y1 + 24;
   for (let y = y0; y <= y1; y++) for (let x = 0; x < F; x++) {
     if (!A.skinAt(x, y)) continue; if (where === 'neck' && Math.abs(x - h.cx) > 3) continue;
-    if (((x * 3 + y * 5) % 7 < 3) || y % 4 === 0) put(f, x, y, ink[(x + y) & 1]);
+    if (side === 'right' && where === 'arms' && ((dir === 'front' && x > h.cx) || (dir === 'back' && x < h.cx))) continue;
+    if (side ? ((x * 3 + y * 5) % 7 < 2 && y > h.y1 + 9) : (((x * 3 + y * 5) % 7 < 3) || y % 4 === 0)) put(f, x, y, ink[(x + y) & 1]);   // a side asks for a sparse ink on the forearm only
   }
 }
 export function earring(f, A, col = 'silver') { const { hd: h, dir } = A; if (dir === 'back') return; const y = h.y0 + Math.round(h.h * 0.62); put(f, Math.round(h.x0) + (dir === 'right' ? 12 : 0), y, [225, 225, 235]); if (dir === 'front') put(f, Math.round(h.x1), y, [225, 225, 235]); }
@@ -322,3 +323,69 @@ export function cheer(f, A, skin) {
     for (let y = top - 1; y <= top + 2; y++) put(f, x, y + sag, y === top - 1 || y === top + 2 ? (c === B[3] ? B[1] : R[1]) : c); }
 }
 export const GLASSY = { GL };
+
+// ---------- the Sicilian Wanderer (src/wanderer.js): hoops, ink on the chest, the phone held up ----------
+// two silver hoops, one in each ear: a ring of 3 by 4 pixels hanging from the lobe, so it still reads at the size of a crowd sprite (the plain earring above is one pixel)
+export function hoops(f, A) {
+  const { hd: h, dir } = A; if (dir === 'back') return; const y = h.y0 + Math.round(h.h * 0.55), S = [236, 236, 244], D = [150, 154, 172];
+  const ring = (x, s) => { for (const [dx, dy, c] of [[0, 0, S], [s, 0, S], [2 * s, 1, S], [2 * s, 2, D], [s, 3, D], [0, 3, S]]) put(f, x + dx, y + dy, c); };   // a C of 3 by 4 pixels open towards the head
+  if (dir === 'front') { ring(Math.round(h.x0), -1); ring(Math.round(h.x1), 1); } else ring(dir === 'left' ? Math.round(h.x1) - 2 : Math.round(h.x0) + 2, dir === 'left' ? 1 : -1);
+}
+// a full grey beard (salt and pepper, a darker edge underneath) over a dark moustache, and the big smile under it: the LPC head has no mouth, so the face is painted here. The head is about 22 by 19 px, the eyes
+// at y0 + 11..15 and the chin at y1; the beard takes the cheeks and the jaw and hangs 2 rows below the chin, over the collar.
+export function wandererFace(f, A, skin) {
+  const { hd: h, dir } = A; if (dir === 'back') return;
+  const y1 = Math.round(h.y1), cx = Math.round(h.cx), x0 = Math.round(h.x0), x1 = Math.round(h.x1);
+  const G = [[168, 172, 174], [204, 207, 208], [128, 134, 140], [92, 98, 104]], M = [[44, 38, 34], [70, 62, 56]];   // beard greys: mid, light, shadow, edge; moustache
+  const grain = (x, y) => { const k = (x * 7 + y * 13) % 9; return k < 2 ? G[1] : k > 6 ? G[2] : G[0]; };
+  const rows = dir === 'front'
+    ? [[y1 - 3, x0 + 2, x0 + 4], [y1 - 3, x1 - 4, x1 - 2], [y1 - 2, x0 + 2, x0 + 6], [y1 - 2, x1 - 6, x1 - 2], [y1 - 1, x0 + 3, x1 - 3], [y1, x0 + 3, x1 - 3], [y1 + 1, x0 + 5, x1 - 5], [y1 + 2, cx - 3, cx + 2]]
+    : null;
+  if (dir === 'front') {
+    for (const [y, a0, a1] of rows) for (let x = a0; x <= a1; x++) put(f, x, y, y === y1 + 2 ? G[3] : y === y1 + 1 ? G[2] : grain(x, y));
+    for (let x = cx - 4; x <= cx + 3; x++) put(f, x, y1 - 2, M[0]);                                   // moustache: a bar with the ends drooping
+    for (const x of [cx - 5, cx + 4]) put(f, x, y1 - 1, M[0]); put(f, cx - 4, y1 - 1, M[1]); put(f, cx + 3, y1 - 1, M[1]);
+    for (let x = cx - 2; x <= cx + 1; x++) put(f, x, y1 - 1, [238, 236, 228]);                       // the smile: teeth under the moustache
+    put(f, cx - 3, y1 - 1, [120, 60, 56]); put(f, cx + 2, y1 - 1, [120, 60, 56]);
+    // the collar open on the chest: a V of skin under the beard
+    for (const [y, w] of [[y1 + 3, 2], [y1 + 4, 1], [y1 + 5, 0]]) for (let x = cx - w; x <= cx + w; x++) put(f, x, y, skin[3]);
+  } else {   // profile, facing left (the atlas mirrors it for right): beard over the jaw, the moustache at the front, the smile a pale notch
+    const fx = dir === 'left' ? x0 : x1, sg = dir === 'left' ? 1 : -1, at = d => fx + sg * d;
+    for (const [y, a0, a1] of [[y1 - 2, 3, 8], [y1 - 1, 1, 8], [y1, 1, 8], [y1 + 1, 2, 6], [y1 + 2, 2, 4]]) for (let d = a0; d <= a1; d++) put(f, at(d), y, y === y1 + 2 ? G[3] : y === y1 + 1 ? G[2] : grain(at(d), y));
+    for (let d = 0; d <= 3; d++) put(f, at(d), y1 - 2, M[0]); put(f, at(0), y1 - 1, M[0]); put(f, at(1), y1 - 1, [238, 236, 228]);
+  }
+}
+// a patch of ink on the chest, in the open collar, a little off centre
+export function chestInk(f, A) {
+  const { hd: h, dir } = A; if (dir !== 'front') return; const ink = [[40, 52, 84], [70, 86, 120]], cx = Math.round(h.cx) + 2;
+  for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [1, 2], [2, 1], [2, 2]]) if (A.skinAt(cx + dx, Math.round(h.y1) + 3 + dy)) put(f, cx + dx, Math.round(h.y1) + 3 + dy, ink[(dx + dy) & 1]);
+}
+
+// a phone held up, filming, in the right hand (the left of the picture from the front): the arm that hung at the side is taken away and redrawn bent, the forearm up beside the head (so the face stays in view) and
+// a phone standing upright in the fist, its back to the camera with the lens block at the top. In profile the hand holds it out in front of the face. Pose 0 only (the others keep the arms they have).
+export function filming(f, A, skin, sleeve) {
+  const { hd: h, dir } = A; if (dir === 'back') return;
+  const cx = Math.round(h.cx), y1 = Math.round(h.y1), sh = y1 + 5, K = [14, 14, 18], P = [44, 46, 56], L = [120, 170, 200];
+  const limb = (x0, y0, x1, y1b, r2) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1b - y0)), pts = [], seen = new Set(); for (let k = 0; k <= n; k++) { const px = x0 + (x1 - x0) * k / n, py = y0 + (y1b - y0) * k / n; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = Math.round(px) + dx, y = Math.round(py) + dy; if ((x - px) ** 2 + (y - py) ** 2 <= r2 && !seen.has(key(x, y))) { seen.add(key(x, y)); pts.push([x, y]); } } } return pts; };
+  const RED = [235, 40, 40], SCR = [150, 205, 235], SCR2 = [90, 150, 200];
+  if (dir === 'front') {
+    // both arms redrawn bent: the upper arms drop from the shoulders, the forearms come in to grip a phone held in front of the chest (its back to the viewer: dark slab, lens block, a red REC dot above it)
+    for (let y = sh - 1; y < F; y++) for (let x = 0; x < F; x++) if (x <= cx - 9 || x >= cx + 9) f[(y * F + x) * 4 + 3] = 0;
+    const ex = 11, ey = sh + 9;
+    for (const s of [-1, 1]) {
+      const ua = limb(cx + s * 9, sh + 1, cx + s * ex, ey, 2.3), fa = limb(cx + s * ex, ey, cx + s * 4, y1 + 9, 1.8);
+      shape(f, fa, () => skin[3], skin[0]); shape(f, ua, (x) => (Math.abs(x - cx) > 10 ? sleeve[2] : sleeve[3]), sleeve[0]);
+    }
+    for (let y = y1 + 6; y < y1 + 11; y += 2) put(f, cx - 7, y, [52, 64, 92]);   // ink on the forearm
+    for (let y = y1 + 3; y <= y1 + 12; y++) for (let x = cx - 4; x <= cx + 4; x++) put(f, x, y, (x === cx - 4 || x === cx + 4 || y === y1 + 3 || y === y1 + 12) ? K : (x === cx + 3 || y === y1 + 11 ? [28, 30, 38] : P));
+    for (const [dx, dy] of [[-3, 0], [-2, 0], [-3, 1], [-2, 1]]) put(f, cx + dx, y1 + 4 + dy, [24, 24, 30]);   // the camera block, top left of the back
+    put(f, cx - 3, y1 + 4, L); put(f, cx - 2, y1 + 5, [60, 90, 120]); put(f, cx + 2, y1 + 4, [210, 210, 190]);   // lens glint, a second lens, the flash
+    for (const sd of [-1, 1]) { const xa = sd < 0 ? cx - 6 : cx + 3, xb = xa + 3; shape(f, rect(xa, y1 + 7, xb, y1 + 10), (x, y) => (y === y1 + 7 ? skin[2] : y >= y1 + 9 ? skin[4] : skin[3]), skin[0]); }   // both hands, drawn like the ones at his sides: a skin fist with the dark outline, gripping the phone's edges
+    put(f, cx + 4, y1 + 1, RED); put(f, cx + 5, y1 + 1, RED); put(f, cx + 4, y1 + 2, RED); put(f, cx + 5, y1 + 2, RED); put(f, cx + 3, y1 + 1, [255, 190, 190]);   // REC
+  } else {
+    const x0 = Math.round(h.x0), x1 = Math.round(h.x1), fx = dir === 'left' ? x0 : x1, sg = dir === 'left' ? -1 : 1;   // sg: the way he faces
+    shape(f, limb(cx + sg * 3, sh + 5, fx + sg * 6, y1 - 1, 1.7), () => skin[3], skin[0]);   // a forearm raised in front of the chest (the other arm hangs as it was)
+    for (let y = y1 - 9; y <= y1; y++) for (let d = 0; d <= 3; d++) put(f, fx + sg * (3 + d), y, (d === 3 || y === y1 - 9 || y === y1) ? K : (y === y1 - 8 ? [30, 30, 38] : (d === 0 ? SCR : SCR2)));   // the screen turned a little to us: lit
+    put(f, fx + sg * 5, y1 - 7, [255, 255, 255]); put(f, fx + sg * 3, y1 - 12, RED); put(f, fx + sg * 4, y1 - 12, RED); put(f, fx + sg * 3, y1 - 11, RED); put(f, fx + sg * 4, y1 - 11, RED);
+  }
+}

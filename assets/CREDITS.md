@@ -202,6 +202,57 @@ Music from Palermo. Re-encoded for the web and loudness normalised.
 | Aura | Mario Bajardi |  | MP3 sent by email |
 | My girlfriend is a nazi zombie | Loro |  | M4A sent by email |
 
+## The Sicilian Wanderer
+
+Dario Cascio, [The Sicilian Wanderer](https://www.youtube.com/@TheSicilianWanderer), Sicilian creator of the "Sessanta SeCunti" Shorts. In the game: the likeness cameo of him filming with his phone in Piazza Garraffello (the character, his look and the mission "The Sicilian Wanderer", all drawn and written for the game) and the radio station Sessanta SeCunti, made of his Shorts.
+
+## Car radio: Radio Sessanta SeCunti
+
+"Sessanta SeCunti" is a series of 60 second YouTube Shorts in Palermitan by Dario Cascio, [The Sicilian Wanderer](https://www.youtube.com/@TheSicilianWanderer). The station plays the audio of his 40 most viewed ones; the radio's bar has a button for the Short that is playing, and for his channel. Re-encoded for the web and loudness normalised.
+
+| Title | Author | Source |
+| --- | --- | --- |
+| Mosè a Mondello | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/FDz8y6Q_CTU) |
+| A Mmari Semu | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/vsSD2NtWf8Q) |
+| Frischi e Pirita | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/H6W-4R6tdTk) |
+| Chi Cosa Tinta | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/rWeAgMhOpKs) |
+| Vuci Luntani | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/3XWhNzO-Az4) |
+| Capruna | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/so0rvJp-sqA) |
+| Par'Aieri | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/ZZUKLR7RBIY) |
+| Lagnusu | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/1w5zxYhe-6Q) |
+| Grazzi Santuzza | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/lj3VFS0ua0Y) |
+| Broru | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/PM8ZXYgfj3A) |
+| Quattr'e Rui | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/ws6urQ_OqnY) |
+| San Martino | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/Bq4qdN8iC0A) |
+| Ligna e Crape | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/YzxITU6KOj8) |
+| U Zu Vanni | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/B659BZFu-2o) |
+| Sauta A Jatta? | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/faboWgCwnZo) |
+| Empedocle | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/hOMeIA5lWrQ) |
+| Cu T'Addifenni, Palermo? | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/bBrRPW1RXes) |
+| Ma Comu Finiu? | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/1ZhHW49HKzU) |
+| Tu No | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/uD4aJ7fcGGM) |
+| San Giovanni | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/FwE4z-J5ET4) |
+| Don Pitruzzu All'Opira | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/qgnpnToLXpo) |
+| Fera | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/HGHneSwt6VI) |
+| Sparatrap | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/E5H88Bbl440) |
+| Bandita | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/XtOKjL1jZC8) |
+| Cafiata | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/xQ5wn7-Onio) |
+| Via del 4 Aprile | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/11m3KRlNRWI) |
+| Italianissa | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/F6r-wZup8QY) |
+| 300 Liri | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/0ZYTb-eORGc) |
+| Lucia Lucia | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/H5o59Lx3BdY) |
+| A Miccè | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/9IfEO9ROE8Q) |
+| 'A Fiera Ru Mediterraneo | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/ow-vSIA46dE) |
+| Mali Vistuti | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/thE3pk5a4HU) |
+| Palermitanismi | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/AHRGBRCbN3g) |
+| Milicia | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/eWi4T94tNdE) |
+| A Schifiu Finiu | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/b2Pjv0kEgbA) |
+| Ammucca Lapuni | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/TfBr1VDNDd8) |
+| Sarde | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/BYtnZevxQXY) |
+| Villa Gardenia | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/n6XSXv93LtA) |
+| Scarpuzzi | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/x09GKDhFzyM) |
+| Pinu Tagghiacapiddi | Dario Cascio - The Sicilian Wanderer | [YouTube Short](https://www.youtube.com/shorts/3-R0r9P3sPg) |
+
 ## Pedestrian sprites (LPC)
 
 The people are composed from layers of the [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) (the Liberated Pixel Cup art and its many contributors on OpenGameArt), plus our own painted details on top. Every layer used, with its authors, licences and links, is listed in [the sprite credits](peds/lpc/CREDITS.md); the licence note for that art (kept apart because part of it is share-alike) is [the sprite licence note](peds/lpc/LICENSE.md). Where a layer offers a permissive licence (CC0, CC-BY, OGA-BY) next to CC-BY-SA / GPL we use it under the permissive one. <!-- The atlas is rebuilt with node tools/lpc/build.mjs. -->
