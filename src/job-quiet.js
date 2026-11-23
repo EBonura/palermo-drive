@@ -68,7 +68,7 @@ export default function setup(X) {
     const pay = Math.round((PAY_BASE + p.d / PAY_PER_M) / 5) * 5, secs = Math.round(LIMIT_BASE + p.d * LIMIT_PER_M), area = areaAt(p.x, p.z);
     job = { x: p.x, z: p.z, d: p.d, pay, secs, area };
     slot.x = car.x; slot.z = car.z;
-    return { slot, instant: true, ped: 'nightboy', col: '#7d8cff', pay, who: 'Gaetano',
+    return { slot, instant: true, ped: 'nightboy', col: '#7d8cff', tag: T('Mutu e araciu', 'Quiet job'), pay, who: 'Gaetano',
       line: T('Puaitta sta busta rintra ô quaittiari. Araciu araciu, sienza fari scrusciu: un s’avi a arruspigghiari nuddu.', 'Take this envelope into the quarter. Slowly, no noise: nobody must wake up.'),
       note: T('araciu araciu', 'nice and slow'),
       where: area || T('quaittiari', 'quarter'),
@@ -79,7 +79,7 @@ export default function setup(X) {
     const noise = Math.min(100, Math.round(e.m * 100)), left = Math.max(0, Math.ceil(e.secs - e.t)), d = Math.round(Math.hypot(car.x - e.x, car.z - e.z) / 10) * 10;
     if (noise !== e.shownN || left !== e.shownT || d !== e.shownD) {
       e.shownN = noise; e.shownT = left; e.shownD = d;
-      hudO.label = T('Cunsigna a taci maci', 'Quiet delivery');
+      hudO.label = T('Mutu e araciu', 'Quiet delivery');
       hudO.title = e.area || T('Quaittiari', 'Quarter');
       hudO.sub = `${d} m  ·  ${eur(e.pay)}  ·  ${T('scrusciu', 'noise')} ${noise}%`;
       hudO.time = left + ' s';

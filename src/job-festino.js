@@ -434,7 +434,7 @@ export default function setup(X) {
     const sn = placeCall(), hs = hospitalFor(sn.x, sn.z); if (!hs) return null;
     Object.assign(slot, { x: sn.x, z: sn.z, dx: sn.dx, dz: sn.dz, w: sn.w, kerb: null, coolUntil: 0, ped: pick(LOOKS), dest: hs.dest });
     const len = hs.d * 1.35, pay = Math.round((8 + len / 90) * PAY_X * 2) / 2; slot.len = len; slot.pay = pay;
-    return { slot, ped: X.director.face(slot), col: KIND_COLOR.festino, pay, note: T('cchiù i manci', 'plus tips'), where: '→ ' + hs.dest.name, who: tx(L.who), line: X.calls.lineFor(slot),
+    return { slot, ped: X.director.face(slot), col: KIND_COLOR.festino, tag: T('Fistinu', 'Festino'), pay, note: T('cchiù i manci', 'plus tips'), where: '→ ' + hs.dest.name, who: tx(L.who), line: X.calls.lineFor(slot),
       drop: () => { slot.offerPed = null; slot.offerV = -1; } };
   });
   let e = null;   // the ride: { chars, phase, dest, left, limit, base, tips, t, talkT }

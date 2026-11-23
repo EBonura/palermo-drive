@@ -100,7 +100,7 @@ export default function setup(X) {
     const dest = customer(s), d = Math.hypot(dest.x - s.x, dest.z - s.z), len = d * ROAD_K, it = ITEMS[s.item];
     s.quoted = { dest, d, len, pay: pay(len) };
     const f = { items: X.lang() === 'en' ? it.en : it.it, shop: s.name, dest: dest.name };
-    return { slot: s, ped: X.director.face(s), col: COL, who: 'Tekkamancia', line: fill(tx(pick(CARD)), f), pay: s.quoted.pay, note: tx(L.note), where: '→ ' + dest.name, drop: () => { s.quoted = null; s.offerPed = null; s.offerV = -1; } };
+    return { slot: s, ped: X.director.face(s), col: COL, tag: tx(['Cunsigna', 'Delivery']), who: 'Tekkamancia', line: fill(tx(pick(CARD)), f), pay: s.quoted.pay, note: tx(L.note), where: '→ ' + dest.name, drop: () => { s.quoted = null; s.offerPed = null; s.offerV = -1; } };
   });
 
   // ---- the event

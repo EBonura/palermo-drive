@@ -24,7 +24,7 @@ export function createDirector(X, { slots, fares, card }) {
   let ask = X.params.get('call');
   const st = { mode: 'wait', t: X.params.has('call') ? FIRST - 3 : 0, beat: FIRST, offer: null, slot: null, d0: 0, last: null };
   // The job types. add(type, find): find(far) looks for a job of that type for where the lapa is now and returns an offer, or null when there is none:
-  //   { slot, who, line, pay, note (small words beside the pay), where (shown before the distance), ped (a cast id or a cast number), col, instant, drop() }
+  //   { slot, tag (the type's name: the small coloured pill of the card), who, line, pay, note (small words beside the pay), where (shown before the distance), ped (a cast id or a cast number), col (the pill's colour), instant, drop() }
   //   slot: { id, kind, x, z, ... } the event slot that src/missions.js starts. A slot with a caller (one of the slots of src/event-calls.js, its kind in JOBS) starts when the lapa
   //   stops next to them, as ever. instant: true starts it the moment the call is answered (a job with nobody to meet: X.start(slot), handled by X.kinds[slot.kind]).
   //   drop(): the call was not answered or was lost, undo what find() prepared.
@@ -55,12 +55,13 @@ export function createDirector(X, { slots, fares, card }) {
   const streets = createStreetFares(X);
   // the three jobs that were callers on fixed kerbs: a taxi ride, an urgent run, a lost food hunt
   // A ride (taxi or urgent) is also made from anywhere: a passenger put on a road near the lapa, when no fixed kerb is within reach and now and then when one is.
+  const TAG = { fare: ['Taxi', 'Taxi'], urgent: ['Urgenti', 'Urgent'], food: ['Cibo', 'Food'] };   // the type's name in the pill of the card (Cibo is the owner's word on the Missioni screen; the other two are drafts for him)
   for (const type of JOBS) add(type, far => {
     let s = place(type, far, o => !o.street);
     if (type !== 'food' && (!s || X.params.has('street') || Math.random() < STREET)) s = (type === 'fare' ? streets.taxi() : streets.urgent()) || s;
     if (!s) return null;
     const q = type === 'food' ? { pay: FOOD_MAX, note: T('ô massimu', 'at most') } : fares.quote(s); if (!q) return null;
-    return { slot: s, ped: face(s), col: KIND_COLOR[s.kind], pay: q.pay, note: q.note || T('cchiù i manci', 'plus tips'), where: q.dest ? '→ ' + q.dest : '', drop: () => unface(s),
+    return { slot: s, ped: face(s), col: KIND_COLOR[s.kind], tag: TAG[type] ? T(TAG[type][0], TAG[type][1]) : '', pay: q.pay, note: q.note || T('cchiù i manci', 'plus tips'), where: q.dest ? '→ ' + q.dest : '', drop: () => unface(s),
       who: type === 'food' ? s.who : s.title || (type === 'urgent' ? s.name : T('Un passiggeri', 'A passenger')), line: X.calls.lineFor(s) };
   });
   function ring() {
@@ -68,7 +69,7 @@ export function createDirector(X, { slots, fares, card }) {
     for (let n = 0; n < n0 * 2; n++) {   // a type with nothing near here gives its turn to the next card; a whole round with none, and the second round looks farther
       const type = deal(), m = makers.find(k => k.type === type), o = m && m.find(n < n0 ? FAR : FAR_OUT); if (!o) continue;
       const far = o.instant ? '' : Math.round(dist(o.slot) / 10) * 10 + ' m';
-      card.show({ ped: o.ped, col: o.col || KIND_COLOR[o.slot.kind], secs: RING, pay: o.pay, note: o.note || '', who: o.who, line: o.line, where: [o.where, far].filter(Boolean).join('  ·  ') });
+      card.show({ ped: o.ped, tag: o.tag || '', col: o.col || KIND_COLOR[o.slot.kind], secs: RING, pay: o.pay, note: o.note || '', who: o.who, line: o.line, where: [o.where, far].filter(Boolean).join('  ·  ') });
       st.mode = 'ring'; st.offer = o; st.slot = o.slot; st.last = type; return true;
     }
     return false;

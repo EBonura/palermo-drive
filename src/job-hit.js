@@ -31,7 +31,7 @@ export default function setup(X) {
     const n = MIN_N + ((Math.random() * (MAX_N - MIN_N + 1)) | 0), secs = Math.round(n * PER_PERSON * rnd(1 - JITTER, 1 + JITTER) + MARGIN), pay = BASE + n * PER_HEAD;
     job = { n, secs, pay };
     slot.x = car.x; slot.z = car.z;
-    return { slot, instant: true, ped: 'tuta', col: '#ff5a4a', pay, who: 'Nino',
+    return { slot, instant: true, ped: 'tuta', col: '#ff5a4a', tag: T('Travagghieddu', 'Job'), pay, who: 'Nino',
       line: T(`Pigghia ri piattu ${n} cristiani nta ${secs} sicunni. Nianti dumanni.`, `Knock ${n} people over in ${secs} seconds. No questions.`),
       note: T('si ci a fai', 'if you make it'),
       where: T('uora uora', 'right now'),
