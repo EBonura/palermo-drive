@@ -185,6 +185,7 @@ Rock and metal from Palermo bands. Re-encoded for the web and loudness normalise
 | The Fall | Meet My Maker | Music by Meet My Maker; lyrics by Marco Cappugi and Davide Nicosia | Single The Fall (2022) |
 | Let Me Rot | Eraser | Independent release | Demo Fuck Off And Grind (2015) |
 | Mutual Overkill Deterrence | Eraser | Night Animal Records | LP Mutual Overkill Deterrence (2020) |
+| No Work | Stesso Sporco Sangue |  | Audio file sent by WhatsApp |
 
 ## Car radio: Radio Palifornia
 

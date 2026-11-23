@@ -84,6 +84,7 @@ const LAMIERA = [   // [id, title, artist]
   ['meet-my-maker-the-fall', 'The Fall', 'Meet My Maker'],
   ['eraser-let-me-rot', 'Let Me Rot', 'Eraser'],
   ['eraser-mutual-overkill-deterrence', 'Mutual Overkill Deterrence', 'Eraser'],
+  ['stesso-sporco-sangue-no-work', 'No Work', 'Stesso Sporco Sangue'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // Radio Palifornia: the owner adds tracks as they arrive (21 Nov 2026). Sources and permissions: assets/music/CREDITS.md.
 const PALIFORNIA = [   // [id, title, artist]
