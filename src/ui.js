@@ -65,7 +65,7 @@ const S = {
   radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationAll: ['Tutta musica palermitana', 'All music from Palermo'], stationRights: ['Tutti i brani restano di proprietà dei rispettivi artisti e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica palermitana. Per un credito diverso o la rimozione di un brano scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs remain the property of their artists and rights holders, played without profit to support music from Palermo. To have a song credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
   tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'],
   units: ['Unità', 'Units'],
-  camera: ['Camera iniziale', 'Default camera'],
+  camera: ['Camera', 'Camera'],
   physics: ['Guida', 'Handling'], phClassic: ['Classica', 'Classic'], phSphere: ['Arcade', 'Arcade'],
   fov: ['Campo visivo', 'Field of view'], mapPos: ['Minimappa', 'Minimap'], mapTop: ['In alto', 'Top'], mapBottom: ['In basso', 'Bottom'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall’alto', 'Top-down'],
@@ -1114,7 +1114,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     function sync() {
       const max = list.scrollHeight - list.clientHeight, can = max > 2;
       wrap.classList.toggle('can-scroll', can);
-      if (!can) return;
+      if (!can) { wrap.classList.remove('more-below', 'more-above'); return; }   // nothing to scroll: no arrow and no fade either (they stayed on from a tab that did scroll: the arrow over the buttons, the last row faded out, and a list that would not move)
       const rh = rail.clientHeight; th = Math.max(52, rh * list.clientHeight / list.scrollHeight); room = Math.max(1, rh - th);
       thumb.style.height = th + 'px'; thumb.style.transform = `translateY(${list.scrollTop / max * room}px)`;
       wrap.classList.toggle('more-below', list.scrollTop < max - 4); wrap.classList.toggle('more-above', list.scrollTop > 4);
@@ -1123,7 +1123,11 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     new ResizeObserver(sync).observe(list);
     new MutationObserver(sync).observe(screen, { attributes: true, attributeFilter: ['class'] }); // opening the screen
     rail.addEventListener('wheel', e => { list.scrollTop += e.deltaY; e.preventDefault(); }, { passive: false });
-    more.addEventListener('click', () => list.scrollBy({ top: list.clientHeight * .8, behavior: 'smooth' }));
+    more.addEventListener('click', () => {   // a tap on the arrow: on down the list, smoothly where the browser can, and at once where a smooth scroll did nothing
+      const from = list.scrollTop, by = list.clientHeight * .8;
+      try { list.scrollBy({ top: by, behavior: 'smooth' }); } catch (e) { list.scrollTop = from + by; }
+      setTimeout(() => { if (Math.abs(list.scrollTop - from) < 2) list.scrollTop = from + by; }, 350);
+    });
     let grab = null;
     rail.addEventListener('pointerdown', e => {
       rail.setPointerCapture(e.pointerId); e.preventDefault();
