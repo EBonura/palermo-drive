@@ -5,8 +5,7 @@
 // "Viva Palermo e Santa Rosalia!", to Porta Felice and the Foro Italico, where there are fireworks; the road is closed to cars. The carro that stands on the Foro Italico lawn all year (src/friend-stops.js)
 // is another thing and stays (its builder is private to that file, so this carro is drawn here, in the same box and cylinder style: a boat shaped float, a tall stern tower, the saint on top, bulbs).
 //
-// When it is on: in the evening (19:30 to 03:00 game time) on about one night in three (a draw per night: the first night of a session from the real day number and a seed kept in localStorage, then one
-// per game night, so that a reload the same day gives the same answer), always on the real 14 and 15 July, and always with ?festino=1 (any hour; ?time=22 for the evening). Off, nothing exists: tick()
+// When it is on: from 16:00 to 06:00 game time, every day (SHARE below can bring back a draw per night, from the real day number and a seed kept in localStorage), always on the real 14 and 15 July, and always with ?festino=1 (any hour; ?time=22 for the evening). Off, nothing exists: tick()
 // is one hour comparison. The cart's position is only a number (an arc length and a direction), moved every frame at WALK m/s: it walks the route (the Cassaro chained from the road data, D.roads,
 // from the Palazzo Reale end to the Foro Italico, smoothed and resampled every STEP metres) and turns back at both ends after a pause, the whole night, wherever the lapa is. It starts each evening at the
 // Quattro Canti, where the mayor climbs on.
@@ -32,7 +31,7 @@ const WALK = 1.2, PAUSE = 14, STEP = 2;            // m/s of the carro, seconds 
 const BUILD_R = 500, DROP_R = 700, CALL_R = 1500, SKY_R = 2200;   // metres from the lapa: the cart and the crowd are built, dropped, a call may ring, the fireworks are drawn
 const HOLD = 3.5, BOX = [-15, 9, 3.4];             // the carro waits while the lapa is this near its box; the box: metres behind, ahead (travel frame), half width
 const CROWD_N = 250, CROWD_PHONE = 120;
-const EVE0 = 19.5, EVE1 = 3, SHARE = 1 / 3;        // the evening (game hours, wrapping midnight) and the share of nights with a Festino
+const EVE0 = 16, EVE1 = 6, SHARE = 1;        // the hours it is out (game hours, wrapping midnight: 16:00 to 06:00) and the share of days with a Festino: every day (the owner, 23 Nov 2026: always there, for more hours; was 19:30 to 03:00 on one night in three)
 const FAR = 1e7;
 const KERB = 0.9;                                  // metres the people along the kerbs stand beyond the half width of the street
 const SPOT = [40, 80];                             // metres from the cart: where a sick person calls
@@ -139,7 +138,7 @@ export default function setup(X) {
   // ---- the carro itself: s (arc length), dir (+1 towards the Foro Italico), a pause at the ends
   const C = { s: 0, dir: 1, pause: 0, x: 0, z: 0, gy: 0, yaw: 0, dirVis: 1, k: 1, tx: 0, tz: 1, held: false, qcT: 0, shoutT: 8, toasted: false, d: 1e9 };
   let marker = null;
-  const pin = { id: 'carro:festino', kind: 'carro', plain: true, name: 'Carro di Santa Rosalia', x: 0, z: 0, night: true, go: null };   // read by the start map through missions.events() (X.pins)
+  const pin = { id: 'carro:festino', kind: 'carro', plain: true, name: 'Carro di Santa Rosalia', x: 0, z: 0, go: null };   // read by the start map through missions.events() (X.pins)
   const slot = { id: 'festino:1', kind: 'festino', sub: 'festino', name: 'Festino di Santa Rosalia', x: 0, z: 0, dx: 1, dz: 0, w: 6, callers: [], coolUntil: 0, shoutT: 0, holdT: 0, kerb: null, marker: null, ped: 'nonno', callLine: L.call,
     leash: () => ({ a: [slot.x, slot.z], b: slot.dest ? [slot.dest.x, slot.dest.z] : [slot.x, slot.z], r: 520 }), dest: null };
 
