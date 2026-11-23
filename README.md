@@ -1,19 +1,29 @@
-# Palermo Drive
+<p align="center">
+  <img src="assets/ui/cover.png" alt="Palermo Drive: a lapa in the Quattro Canti crossing among the crowd, under the game's logo" width="720">
+</p>
 
-*3 ruote 2 frecce 1 clacson 0 dignità.*
+<p align="center"><em>3 ruote 2 frecce 1 clacson 0 dignità.</em></p>
 
 An irreverent driving game through Palermo in a lapa, in the browser. The whole city and Mondello are rebuilt from open
-map and survey data, and you roam it freely, picking up whoever waves at you from the kerb.
+map and survey data, and you roam it freely, picking up whoever waves at you from the kerb. No install, no account, free.
 
-**Play:** https://palermo-drive.it/ (on a phone, turn it to landscape)
+**Play:** https://palermo-drive.it/ (on a phone, turn it to landscape)  
+**Trailer:** https://youtu.be/LT4LByM3iSI
 
 Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Chasing the scooter that stole Benny's pizzette](docs/screenshots/food-hunt.jpg) | ![A pedalò race at Mondello](docs/screenshots/mondello-pedalo.jpg) |
+| ![The Festino di Santa Rosalia, the carro and the crowd](docs/screenshots/santa-rosalia-carro.jpg) | ![Roadworks and a crowd in Via Roma](docs/screenshots/via-roma-roadworks.jpg) |
+
 ## What you can do
 
-- Drive anywhere: from the Quattro Canti to Mondello, up Monte Pellegrino to Santa Rosalia, out to the ZEN and Brancaccio.
+- **Drive anywhere:** from the Quattro Canti to Mondello, up Monte Pellegrino to Santa Rosalia, out to the ZEN and Brancaccio.
   Pick a start point on the city map or from the list of quartieri. The ground is the real ground: hills, river valleys,
-  flyovers, underpasses and tunnels, the port with the Stazione Marittima, the Quattro Canti, the Cattedrale, La Zisa and La Cuba.
+  flyovers, underpasses and tunnels, the port with the Stazione Marittima, the Cattedrale, La Zisa and La Cuba.
 - **Fares:** tourists in the centro, regular taxi rides, urgent runs across town, and passengers who want to go "a pulle"
   at the Favorita, day and night. A timer, and a tip that grows with speed.
 - **Food chases:** Benny has lost his pizzette, and he is not the only one. About forty places across the city (real
@@ -23,13 +33,17 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 - **Pubs, after dark:** Krust on Via Dante with its metal crowd (and Terrorage playing outside), Lizard, Monkey, Whisky & Drink,
   Taverna Azzurra, PunkFunk, Piazza Magione, Sanlorenzo Mercato, Dal polacco (a friend's in-joke, under his house in Via Corrado Lancia), Drunks and Mind House, each with an errand of its own. A few secrets are hidden around town;
   the Collezioni screen shows what you have found.
-- **The crowd and the street:** the pedestrians are pixel-art people built from the Liberated Pixel Cup layers, in the quarter's own
-  mix (nonne, students, tourists, tifosi, metal kids). Horse carriages carry tourists round the Cattedrale, the Quattro Canti and the
-  Teatro Massimo, a painted carretto siciliano stands by the Cattedrale and Piazza Pretoria and wanders the Vucciria, Apes call out
-  their sfincione and panelle, and AMAT buses and trams run their real routes.
+- **Santa Rosalia:** the carro goes up the city every day, and the Santuzza may do you a miracle if you are there.
+- **The crowd and the street:** pixel-art pedestrians in the quarter's own mix (nonne, students, tourists, tifosi, metal kids).
+  Horse carriages carry tourists round the Cattedrale, the Quattro Canti and the Teatro Massimo, a painted carretto siciliano
+  wanders the Vucciria, Apes call out their sfincione and panelle, and AMAT buses and trams run their real routes.
+  Watch out for roadworks, the police and the scooters.
 - **Stadio Renzo Barbera:** drive in through the gate and onto the pitch, under stands full of rosanero tifosi.
 - **The garage:** the Officina ru ziu Turiddu. Pick a vehicle, paint and tune it, and make your own driver ("Il tuo autista"), who then
-  sits in the lapa. It is all saved in your browser. The dearest parts are the floats (drive on the sea) and the wings (fly).
+  sits in the lapa. The dearest parts are the floats (drive on the sea) and the wings (fly).
+- **Radio:** three stations, Radio Abbanniata, Radio Lamiera (rock and metal) and Radio Palifornia.
+- **Multiplayer:** other players drive the same streets with you and can talk through short chat phrases.
+- **Saving:** your garage and progress are kept in your browser. A cloud save code (Options, Altro) lets you carry them to another device.
 - Collect the SUCA and 800A tags sprayed on walls all over town, outrun the police, and watch the neighbourhood's danger level.
 
 ## Controls
@@ -44,6 +58,20 @@ Stu gioco è gratis e open source, si u pagaisti ti futtiaru i picciuli.
 | Horn | H | CLACSON |
 | Menu | Esc or P | the button top left |
 | Radio | M next track, N on/off | in the menu |
+
+## Run it locally
+
+```bash
+python3 -m http.server 8790 --bind 127.0.0.1
+```
+
+Then open http://localhost:8790. Every push to `main` builds the site (`tools/build`, which packs the data into a
+compact binary format) and publishes it to GitHub Pages.
+
+## How it is built
+
+The game is plain JavaScript (ES modules) with three.js, loaded straight in the browser with no framework. Multiplayer and cloud saves run on a small relay written in Rust
+as a Cloudflare Worker with Durable Objects (`relay-worker/`). Music is served from Cloudflare R2.
 
 ## How the city is made
 
@@ -62,18 +90,9 @@ The baked files are in the repo, so you only need the tools to change the map:
 
 The Python tools run in `tools/.venv`. Design notes, faithfulness reviews and performance rules are in `docs/`.
 
-## Run it locally
-
-```bash
-python3 -m http.server 8790 --bind 127.0.0.1
-```
-
-Then open http://localhost:8790. Every push to `main` builds the site (`tools/build`, which packs the data into a
-compact binary format) and publishes it to GitHub Pages.
-
 ## Credits and licences
 
-The game's code is under the MIT licence, see [LICENSE](LICENSE). That covers the source code, including `src/`, `tools/` and `relay/`. It doesn't cover the assets and data listed below, which keep their own licences and terms. That includes the map data and the music used with permission. The two friends drawn as characters in the game are real people, so their sprites aren't covered either.
+The game's code is under the MIT licence, see [LICENSE](LICENSE). That covers the source code, including `src/`, `tools/` and `relay/` and `relay-worker/`. It doesn't cover the assets and data listed below, which keep their own licences and terms. That includes the map data and the music used with permission. The two friends drawn as characters in the game are real people, so their sprites aren't covered either.
 
 - Map data © OpenStreetMap contributors, Open Database License (ODbL). The baked map files (`world/`,
   `palermo-data.js`, `props-data.js`, `context-data.js`, `assets/ui/startmap.json`) are derived from it and are
