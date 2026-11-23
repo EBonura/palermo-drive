@@ -49,61 +49,107 @@ export function createRamps(env) {
   }
 
   // ---------- the meshes ----------
-  const mat = makeMaterial();
-  const C = { steel: [0.95, 0.72, 0.05], steelD: [0.42, 0.3, 0.06], stripe: [0.13, 0.13, 0.14], dark: [0.12, 0.12, 0.13], bed: [0.38, 0.42, 0.5], bedS: [0.7, 0.72, 0.76], tyre: [0.06, 0.06, 0.07], red: [0.7, 0.12, 0.1] };
+  const mat = makeMaterial(); mat.side = THREE.DoubleSide;   // thin plates and mesh bars are seen from both sides
+  const C = {
+    yellow: [0.96, 0.74, 0.05], black: [0.1, 0.1, 0.11], plate: [0.44, 0.46, 0.5], plateD: [0.3, 0.32, 0.36], rust: [0.4, 0.27, 0.12], dark: [0.13, 0.13, 0.14], tyre: [0.06, 0.06, 0.07],
+    white: [0.92, 0.92, 0.9], red: [0.75, 0.1, 0.08], orange: [0.97, 0.4, 0.04], amber: [1, 0.62, 0.02], blue: [0.12, 0.3, 0.62], deck: [0.36, 0.38, 0.42], mesh: [0.62, 0.64, 0.66], sand: [0.6, 0.52, 0.36], grey: [0.6, 0.6, 0.6],
+  };
   function geo(kind) {
-    const K = KINDS[kind], P = [], Cc = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0];
+    const K = KINDS[kind], P = [], Cc = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
     const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
     const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
-    const box = (x0, x1, y0, y1, z0, z1, col) => {   // local x lateral, y up, z forward
+    const tri2 = (a, b, c, col) => { tri(a, b, c, col); tri(a, c, b, col); };   // seen from both sides (signs)
+    const box = (x0, x1, y0, y1, z0, z1, col) => {   // local x lateral, y up, z forward; closed
       quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], col); quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], col);
       quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], col); quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], col);
       quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], col);
     };
-    const cyl = (cx, cy, cz, r, w, col) => {   // a wheel with its axle along x
-      const n = 10;
+    const cyl = (cx, cy, cz, r, w, col, n = 10) => {   // a wheel with its axle along x
       for (let i = 0; i < n; i++) {
         const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, y0 = cy + Math.cos(a0) * r, z0 = cz + Math.sin(a0) * r, y1 = cy + Math.cos(a1) * r, z1 = cz + Math.sin(a1) * r;
         quad([cx - w, y0, z0], [cx - w, y1, z1], [cx + w, y1, z1], [cx + w, y0, z0], col);
         tri([cx + w, cy, cz], [cx + w, y0, z0], [cx + w, y1, z1], col); tri([cx - w, cy, cz], [cx - w, y1, z1], [cx - w, y0, z0], col);
       }
     };
-    // the top, in strips along the profile (the stripes are a warning pattern across it), and the plain sides and back below it
-    const bedC = kind === 'truck' ? C.bed : C.steel;
+    const hAt = s => { for (let i = 1; i < p.length; i++) if (s <= p[i][0]) return p[i - 1][1] + (p[i][1] - p[i - 1][1]) * (s - p[i - 1][0]) / (p[i][0] - p[i - 1][0]); return hL; };
+    // a side panel under the deck between z0 and z1, from y0 up to the deck line, on the side sg (+1 left x=+hw, -1 right), pushed out by o
+    const side = (sg, z0, z1, y0, col, o = 0) => { const x = sg * (hw + o), a = hAt(z0), b = hAt(z1); if (a <= y0 && b <= y0) return; sg > 0 ? quad([x, y0, z1], [x, y0, z0], [x, Math.max(y0, a), z0], [x, Math.max(y0, b), z1], col) : quad([x, y0, z0], [x, y0, z1], [x, Math.max(y0, b), z1], [x, Math.max(y0, a), z0], col); };
+
+    // ----- the deck: strips along the profile, a thin slab edge, the kerb lips -----
     for (let i = 1; i < p.length; i++) {
-      const [s0, h0] = p[i - 1], [s1, h1] = p[i], n = Math.max(1, Math.round((s1 - s0) / 1.0));
+      const [s0, h0] = p[i - 1], [s1, h1] = p[i], n = Math.max(1, Math.round((s1 - s0) / 0.5));
+      const first = i === 1;
       for (let k = 0; k < n; k++) {
         const a = s0 + (s1 - s0) * k / n, b = s0 + (s1 - s0) * (k + 1) / n, ya = h0 + (h1 - h0) * k / n, yb = h0 + (h1 - h0) * (k + 1) / n;
-        const col = kind === 'ramp' ? (k % 2 ? C.stripe : C.steel) : (i === 1 ? (k % 2 ? C.stripe : C.steelD) : bedC);
-        quad([-hw, ya, a], [hw, ya, a], [hw, yb, b], [-hw, yb, b], col);
+        const col = !truck ? (k % 2 ? C.black : C.yellow) : first ? (k % 2 ? C.black : C.yellow) : (k % 4 < 2 ? C.deck : [0.33, 0.35, 0.39]);   // the loading ramp of the trailer wears the same warning stripes, its bed is plank-grey
+        quad([-hw, ya, a], [-hw, yb, b], [hw, yb, b], [hw, ya, a], col);   // facing up
       }
-      const kerb = kind === 'truck' ? 0.14 : 0.1;   // a low lip along each side
-      quad([-hw, h0, s0], [-hw, h1, s1], [-hw, h1 + kerb, s1], [-hw, h0 + kerb, s0], C.bedS);
-      quad([hw, h1, s1], [hw, h0, s0], [hw, h0 + kerb, s0], [hw, h1 + kerb, s1], C.bedS);
-      const sc = kind === 'truck' ? C.bedS : C.steelD;
-      quad([-hw, 0, s0], [-hw, 0, s1], [-hw, h1, s1], [-hw, h0, s0], sc);
-      quad([hw, 0, s1], [hw, 0, s0], [hw, h0, s0], [hw, h1, s1], sc);
+      const lip = 0.12;   // the kerb lip along each side, in white-grey (trailer) or yellow (ramp)
+      const lc = truck ? C.white : C.yellow;
+      quad([-hw, h0, s0], [-hw, h1, s1], [-hw, h1 + lip, s1], [-hw, h0 + lip, s0], lc); quad([hw, h1, s1], [hw, h0, s0], [hw, h0 + lip, s0], [hw, h1 + lip, s1], lc);
     }
-    const hl = p[p.length - 1][1];
-    quad([hw, 0, L], [-hw, 0, L], [-hw, hl, L], [hw, hl, L], kind === 'truck' ? C.red : C.steelD);   // the back face at the lip
-    if (kind === 'truck') {   // chassis under the bed, wheels at the back of the trailer, a landing leg
-      box(-hw + 0.3, hw - 0.3, 0.55, 0.9, 5.5, L - 0.5, C.dark);
-      for (const z of [10.2, 11.6, 13.0]) for (const sg of [-1, 1]) cyl(sg * (hw - 0.05), 0.5, z, 0.5, 0.17, C.tyre);
-      box(-hw + 0.5, -hw + 0.7, 0, 1.0, 6.5, 6.7, C.dark); box(hw - 0.7, hw - 0.5, 0, 1.0, 6.5, 6.7, C.dark);
+    if (!truck) {
+      // the steel kicker: solid side plates the whole height with ribs standing out, a skid rail under, a yellow top edge, the back closed and braced, a bent lip
+      for (const sg of [-1, 1]) {
+        for (let r = 1.2; r < L; r += 2.2) { const h = hAt(r) - 0.12; box(sg > 0 ? hw : hw * -1 - 0.1, sg > 0 ? hw + 0.1 : -hw, 0.12, h, r - 0.07, r + 0.07, C.plateD); }   // ribs
+        box(sg > 0 ? hw : -hw - 0.12, sg > 0 ? hw + 0.12 : -hw, 0, 0.14, 0, L, C.dark);   // the skid rail
+        side(sg, 0, L, 0, C.plate, 0);
+      }
+      quad([-hw, 0, L], [hw, 0, L], [hw, hL, L], [-hw, hL, L], C.plateD);   // the back, facing the way the lapa leaves
+      box(-hw, hw, hL - 0.14, hL, L - 0.35, L + 0.02, C.dark);   // the lip plate
+      for (const x of [-hw + 0.35, hw - 0.35]) { box(x - 0.15, x + 0.15, 0.3, hL - 0.3, L, L + 0.05, C.plate); }   // braces on the back face
+      for (const sg of [-1, 1]) for (let k = 0; k < 4; k++) quad([sg * (hw + 0.13), hL + 0.001, L - 0.7 + k * 0.2], [sg * (hw + 0.13), hL + 0.001, L - 0.7 + k * 0.2 + 0.1], [sg * (hw + 0.13), hL - 0.14, L - 0.7 + k * 0.2 + 0.1], [sg * (hw + 0.13), hL - 0.14, L - 0.7 + k * 0.2], k % 2 ? C.red : C.white);   // reflective lip marks (thin, on the outside)
+    } else {
+      // the car transporter trailer: the loading ramp (steel sides), then the bed with a white body skirt over a dark chassis, rails, three axles, a landing leg, a blue band
+      for (const sg of [-1, 1]) {
+        side(sg, 0, 6, 0, C.plate);                          // the loading ramp's sides
+        side(sg, 6, L, 0.62, C.white);                       // the skirt, 0.62 m off the ground
+        const x0 = sg > 0 ? hw : -hw - 0.02, x1 = sg > 0 ? hw + 0.02 : -hw;
+        box(x0, x1, 0.95, 1.2, 6, L, C.blue);                // the band along the skirt
+        for (let z = 6.6; z < L - 0.2; z += 2.2) { const h = hAt(z); box(sg > 0 ? hw : -hw - 0.06, sg > 0 ? hw + 0.06 : -hw, h, h + 0.95, z - 0.04, z + 0.04, C.plateD); }   // posts of the side rail
+        for (const dy of [0.45, 0.9]) { for (let z = 6.6; z < L - 2.4; z += 2.2) { const h0 = hAt(z), h1 = hAt(z + 2.2); tri2([sg * (hw + 0.06), h0 + dy, z], [sg * (hw + 0.06), h1 + dy, z + 2.2], [sg * (hw + 0.06), h1 + dy + 0.07, z + 2.2], C.plateD), tri2([sg * (hw + 0.06), h0 + dy, z], [sg * (hw + 0.06), h1 + dy + 0.07, z + 2.2], [sg * (hw + 0.06), h0 + dy + 0.07, z], C.plateD); } }
+      }
+      box(-hw + 0.35, hw - 0.35, 0.62, 1.0, 6, L - 0.4, C.dark);   // the chassis under the bed
+      for (const z of [9.6, 11.0, 12.4]) for (const sg of [-1, 1]) { cyl(sg * (hw - 0.02), 0.5, z, 0.5, 0.17, C.tyre, 12); cyl(sg * (hw + 0.1), 0.5, z, 0.22, 0.03, C.grey, 8); }   // wheels with a hub
+      for (const sg of [-1, 1]) box(sg > 0 ? hw - 0.1 : -hw - 0.35, sg > 0 ? hw + 0.35 : -hw + 0.1, 1.0, 1.06, 8.9, 13.1, C.dark);   // mudguards
+      for (const sg of [-1, 1]) box(sg * (hw - 0.5) - 0.05, sg * (hw - 0.5) + 0.05, 0, 0.9, 6.6, 6.7, C.dark);   // the landing legs
+      for (const sg of [-1, 1]) box(sg * (hw - 0.3) - 0.14, sg * (hw - 0.3) + 0.14, 0.7, 0.8, 5.9, 6.03, C.red);   // rear reflectors on the hinge
+      quad([-hw, 0.62, L], [hw, 0.62, L], [hw, hL, L], [-hw, hL, L], C.red); box(-hw, hw, hL - 0.1, hL + 0.001, L - 0.3, L + 0.02, C.dark);   // the end of the bed
+      box(-hw + 0.3, hw - 0.3, hL - 0.02, hL + 0.001, L - 0.3, L, C.yellow);
     }
-    // ----- the road works around it: barrier boards on both flanks, cones, the sign -----
-    const white = [0.92, 0.92, 0.9], orange = [0.95, 0.38, 0.05], bx0 = -ZONE_BEFORE, bx1 = L + ZONE_AFTER;
-    for (const x of [hw + 0.55, -(hw + 0.45)]) {
-      for (let a = bx0; a < bx1 - 0.01; a += 0.5) { const b = Math.min(bx1, a + 0.5), col = Math.floor((a - bx0) / 0.5) % 2 ? white : C.red; box(x - 0.05, x + 0.05, 0.45, 1.05, a, b, col); }
-      for (let a = bx0 + 0.3; a < bx1; a += 2) { box(x - 0.22, x + 0.22, 0, 0.08, a, a + 0.12, C.dark); box(x - 0.04, x + 0.04, 0.08, 0.45, a, a + 0.1, C.dark); }   // the feet
+
+    // ----- the road works: on the traffic side red and white barrier boards with amber lamps, on the kerb side mesh fence panels, cones, signs, sandbags -----
+    const bx0 = -ZONE_BEFORE, bx1 = L + ZONE_AFTER, xT = hw + 0.55, xK = -(hw + 0.45);
+    for (let a = bx0; a < bx1 - 0.01; a += 0.5) { const b = Math.min(bx1, a + 0.5), col = Math.floor((a - bx0) / 0.5) % 2 ? C.white : C.red; box(xT - 0.04, xT + 0.04, 0.5, 1.0, a, b, col); box(xT - 0.04, xT + 0.04, 0.38, 0.5, a, b, C.dark); }
+    for (let a = bx0 + 0.3; a < bx1; a += 2) { box(xT - 0.3, xT + 0.3, 0, 0.07, a, a + 0.1, C.dark); box(xT - 0.035, xT + 0.035, 0.07, 0.5, a, a + 0.07, C.dark); }
+    for (const z of [bx0 + 0.15, bx1 - 0.25]) { box(xT - 0.09, xT + 0.09, 1.0, 1.1, z, z + 0.12, C.dark); box(xT - 0.07, xT + 0.07, 1.1, 1.22, z + 0.01, z + 0.11, C.amber); }   // the lamps
+    for (let a = bx0; a < bx1 - 0.2; a += 3.4) {   // mesh panels: a frame and wire bars on concrete feet
+      const b = Math.min(bx1, a + 3.3); box(xK - 0.02, xK + 0.02, 0.05, 0.1, a, b, C.mesh); box(xK - 0.02, xK + 0.02, 1.9, 1.96, a, b, C.mesh);
+      for (let z = a; z < b; z += 0.22) box(xK - 0.012, xK + 0.012, 0.1, 1.9, z, z + 0.024, C.mesh);
+      box(xK - 0.3, xK + 0.3, 0, 0.2, a, a + 0.5, C.grey); box(xK - 0.3, xK + 0.3, 0, 0.2, b - 0.5, b, C.grey);   // the feet
+      box(xK - 0.03, xK + 0.03, 0.2, 1.96, a, a + 0.05, C.mesh); box(xK - 0.03, xK + 0.03, 0.2, 1.96, b - 0.05, b, C.mesh);
     }
-    const cone = (x, s) => { const n = 6, r0 = 0.17, r1 = 0.03, h = 0.7; box(x - 0.2, x + 0.2, 0, 0.03, s - 0.2, s + 0.2, C.dark);
-      for (let i = 0; i < n; i++) { const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, c = i % 2 ? orange : white; tri([x + Math.cos(a0) * r0, 0.03, s + Math.sin(a0) * r0], [x + Math.cos(a1) * r0, 0.03, s + Math.sin(a1) * r0], [x, 0.03 + h, s], c); tri([x + Math.cos(a1) * r0, 0.03, s + Math.sin(a1) * r0], [x + Math.cos(a0) * r0, 0.03, s + Math.sin(a0) * r0], [x, 0.03 + h, s], c); } };
-    for (const [x, s] of [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.8], [-(hw + 0.45), bx1 + 0.8], [hw + 1.6, bx1 + 0.8]]) cone(x, s);
-    { const x = hw + 1.3, s = bx0 - 0.4, red = C.red;   // the sign on its pole: a red triangle, a white one inside, facing the lapa coming up the street
-      box(x - 0.03, x + 0.03, 0, 2.1, s - 0.03, s + 0.03, C.dark);
-      for (const sd of [-1, 1]) { const z = s - sd * 0.05; tri(sd > 0 ? [x - 0.5, 2.05, z] : [x + 0.5, 2.05, z], sd > 0 ? [x + 0.5, 2.05, z] : [x - 0.5, 2.05, z], [x, 2.95, z], red); const z2 = s - sd * 0.06; tri(sd > 0 ? [x - 0.3, 2.15, z2] : [x + 0.3, 2.15, z2], sd > 0 ? [x + 0.3, 2.15, z2] : [x - 0.3, 2.15, z2], [x, 2.72, z2], white); }
-      box(x - 0.04, x + 0.04, 2.25, 2.45, s - 0.075, s - 0.065, C.dark); }
+    const cone = (x, s) => {   // orange, 0.75 m, a white reflective collar, a square black foot
+      const n = 8, r0 = 0.15, r1 = 0.035, h = 0.7, y0 = 0.04, rr = y => r0 + (r1 - r0) * (y / h), band = [0.34, 0.5];
+      box(x - 0.2, x + 0.2, 0, y0, s - 0.2, s + 0.2, C.dark);
+      const ring = (ya, yb, col) => { for (let i = 0; i < n; i++) { const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, ra = rr(ya), rb = rr(yb);
+        quad([x + Math.cos(a0) * ra, y0 + ya, s + Math.sin(a0) * ra], [x + Math.cos(a0) * rb, y0 + yb, s + Math.sin(a0) * rb], [x + Math.cos(a1) * rb, y0 + yb, s + Math.sin(a1) * rb], [x + Math.cos(a1) * ra, y0 + ya, s + Math.sin(a1) * ra], col); } };
+      ring(0, band[0], C.orange); ring(band[0], band[1], C.white); ring(band[1], h, C.orange);
+    };
+    for (const [x, s] of [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.9], [xK, bx1 + 0.9], [hw + 1.7, bx1 + 0.9], [-hw, bx0 - 0.5], [hw, bx0 - 0.5]]) cone(x, s);
+    const sandbag = (x, s) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, C.sand);
+    { const x = hw + 1.3, s = bx0 - 0.5;   // a tripod sign: the red triangle with a white field and a black figure, a second sign under it, sandbags on the legs
+      for (const dx of [-0.35, 0.35]) { box(x + dx - 0.02, x + dx + 0.02, 0, 1.55, s - 0.04, s - 0.02, C.dark); sandbag(x + dx, s - 0.1); }
+      box(x - 0.025, x + 0.025, 1.0, 2.9, s - 0.03, s + 0.02, C.dark);
+      for (const sd of [-1, 1]) {
+        const z = s - sd * 0.04, f = (xx, yy) => [x + xx * sd, yy, z];
+        tri2(f(-0.52, 1.95), f(0.52, 1.95), f(0, 2.9), C.red); tri2(f(-0.37, 2.02), f(0.37, 2.02), f(0, 2.62), C.white);
+        const z2 = s - sd * 0.045; box(x - 0.05, x + 0.05, 2.1, 2.4, Math.min(z2, s - sd * 0.05) - 0.003, Math.max(z2, s - sd * 0.05) + 0.003, C.black);   // the figure, a bar
+        const zr = s - sd * 0.04; for (let i = 0; i < 12; i++) { const a0 = i / 12 * 6.2832, a1 = (i + 1) / 12 * 6.2832; tri2([x, 1.35, zr], [x + Math.cos(a0) * 0.3, 1.35 + Math.sin(a0) * 0.3, zr], [x + Math.cos(a1) * 0.3, 1.35 + Math.sin(a1) * 0.3, zr], C.red); tri2([x, 1.35, zr - sd * 0.002], [x + Math.cos(a0) * 0.22, 1.35 + Math.sin(a0) * 0.22, zr - sd * 0.002], [x + Math.cos(a1) * 0.22, 1.35 + Math.sin(a1) * 0.22, zr - sd * 0.002], C.white); }   // a speed disc
+      }
+      box(x - 0.045, x + 0.045, 1.27, 1.43, s - 0.052, s - 0.048, C.black);   // the "30"
+    }
+    sandbag(xT + 0.2, bx1 + 0.3); sandbag(xT + 0.2, bx1 + 0.45);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
     g.computeVertexNormals();
