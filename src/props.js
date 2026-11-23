@@ -357,7 +357,6 @@ function chairModel(seat = WOOD_L, frame = WOOD) {
   for (const x of [-w + 0.02, w - 0.02]) m.box(x - lg, 0.47, -w + 0.02 - lg, x + lg, 0.9, -w + 0.02 + lg, frame, 0.85, 1, false);              // the back posts
   m.box(-w + 0.02, 0.62, -w + 0.005, w - 0.02, 0.68, -w + 0.035, frame, 0.9, 1, false);                                                      // two back rails
   m.box(-w + 0.02, 0.78, -w + 0.005, w - 0.02, 0.88, -w + 0.035, frame, 0.9, 1, false);
-  m.box(-w + 0.02, 0.2, -w + 0.04, w - 0.02, 0.23, w - 0.04, frame, 0.7, 0.9, false);                                                        // a stretcher between the legs
   return m;
 }
 function tableModel(top = WOOD_L, base = WOOD_D, r = 0.34) {
@@ -2266,34 +2265,42 @@ function* generate(S, BUD) {
 
   // ---------- 7b. cafe tables at real cafe/bar/restaurant positions, and people on foot
   {
-    let sets = 0, planters = 0;
+    let sets = 0, planters = 0, benches = 0;
     const UMB = ['#ece4ca', '#e8dfc0', '#2f6b49', '#2f5f93', '#b73a2c', '#d9d4c2'];
     const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
     for (const it of osm) {
       if (it.k !== 'cafe') continue;
       if (rand() > (it.out === 'yes' ? 1 : (CAFE_OUT[zoneOf(it.x, it.z)] ?? 0.45))) continue;
       const w = nearWall(it.x, it.z, 9); if (!w) continue;
-      const tx = -w.nz, tz = w.nx, n = 1 + Math.floor(rand() * 3);
-      let placed = 0;
-      for (let i = 0; i < n; i++) {
-        const u = (i - (n - 1) / 2) * 2.3, x = w.px + w.nx * 1.5 + tx * u, z = w.pz + w.nz * 1.5 + tz * u;
-        if (!walkable(x, z) || occHit(x, z, 1.0) || nearWall(x, z, 1.0)) continue;
-        const rot = Math.atan2(w.nx, w.nz) + R(-0.4, 0.4);
-        put(rand() < 0.5 ? 'cafe_set' : 'cafe_set_b', x, gy(x, z), z, rot, 1); occAdd(x, z, 1.1); sets++; placed++;
-        if (rand() < 0.55) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.8, C(pick(UMB)));
+      // A terrace as in the Piazza San Domenico photo: two rows of tables along the frontage (the second row only where the pavement allows it), an umbrella over most of them,
+      // a planter closing each end and a bench against the wall beside it. Sets are skipped one by one where the ground is not walkable, so a narrow pavement gets a single row.
+      const tx = -w.nz, tz = w.nx, n = 3 + Math.floor(rand() * 4), GAP = 1.9, rows = rand() < 0.7 ? [1.5, 3.2] : [1.5];
+      let placed = 0, xmin = 1e9, xmax = -1e9;
+      const half = ((n - 1) / 2) * GAP;
+      for (const v of rows) {
+        for (let i = 0; i < n; i++) {
+          const u = (i - (n - 1) / 2) * GAP + (v > 2 ? GAP / 2 : 0) * (i ? 0 : 0) + R(-0.15, 0.15), x = w.px + w.nx * v + tx * u, z = w.pz + w.nz * v + tz * u;
+          if (!walkable(x, z) || occHit(x, z, 0.7) || nearWall(x, z, 1.0)) continue;
+          const rot = Math.atan2(w.nx, w.nz) + R(-0.35, 0.35);
+          put(rand() < 0.5 ? 'cafe_set' : 'cafe_set_b', x, gy(x, z), z, rot, 1); occAdd(x, z, 0.8); sets++; placed++;
+          if (rand() < 0.5) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.85, C(pick(UMB)));
+          if (u < xmin) xmin = u; if (u > xmax) xmax = u;
+        }
       }
-      // the terrace is closed at its two ends by a planter, the way the bars fence their dehors (Via Maqueda, Piazza San Domenico photos)
-      if (placed && rand() < 0.7) {
-        const half = ((n - 1) / 2) * 2.3 + 1.95, ty = Math.atan2(-tz, tx) + R(-0.05, 0.05), k = Math.floor(rand() * 3);
-        for (const sgn of [-1, 1]) {
-          if (sgn > 0 && rand() < 0.3) continue;
-          const x = w.px + w.nx * 1.5 + tx * half * sgn, z = w.pz + w.nz * 1.5 + tz * half * sgn;
-          if (!walkable(x, z) || occHit(x, z, 0.5) || nearWall(x, z, 0.5)) continue;
-          put('planter' + k, x, gy(x, z), z, ty, 1); occAdd(x, z, 0.7); planters++;
+      if (!placed) continue;
+      for (const sgn of [-1, 1]) {
+        const e = sgn < 0 ? xmin : xmax, ty = Math.atan2(-tz, tx) + R(-0.05, 0.05);
+        if (rand() < 0.8) {   // the planter at the end of the terrace
+          const x = w.px + w.nx * 1.5 + tx * (e + sgn * 1.35), z = w.pz + w.nz * 1.5 + tz * (e + sgn * 1.35);
+          if (walkable(x, z) && !occHit(x, z, 0.5) && !nearWall(x, z, 0.5)) { put('planter' + Math.floor(rand() * 3), x, gy(x, z), z, ty, 1); occAdd(x, z, 0.7); planters++; }
+        }
+        if (rand() < 0.55) {  // a bench against the wall beside the terrace, facing the street
+          const x = w.px + w.nx * 0.6 + tx * (e + sgn * 2.3), z = w.pz + w.nz * 0.6 + tz * (e + sgn * 2.3);
+          if (walkable(x, z) && !occHit(x, z, 0.8) && !nearWall(x, z, 0.3)) { put('bench', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + R(-0.1, 0.1)); occAdd(x, z, 0.9); benches++; }
         }
       }
     }
-    stats.cafe_sets = sets; stats.planters = planters;
+    stats.cafe_sets = sets; stats.planters = planters; stats.cafe_benches = benches;
   }
 
   // ---------- 7c. pots in front of churches and dotted round the piazzas (Sant'Anna, Piazza Marina, Piazza San Domenico photos)
