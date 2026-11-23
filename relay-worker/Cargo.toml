@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 worker = "0.9"
+serde_json = "1"
 
 [profile.release]
 opt-level = "s"

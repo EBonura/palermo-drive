@@ -233,3 +233,7 @@ Each socket's attachment, a hex string of about 90 characters against the 2 KiB 
 No Origin or a wrong one. No HELLO in 10 s, a second HELLO, any first frame that is not HELLO. A code that is not 5 characters of the game's alphabet, or a pid that is not a v4 UUID (no arbitrary channel names). A kind other than 1 to 4, a payload over its cap or whose top level is not exactly its kind's shape. A TO to a slot that is not live at the same table; no cross table frame, no listing of tables or members, no directory. A 9th socket in a table, a 31st table, more tables or codes per address than the limits. Text frames. No persistence and no history: a table dies with its last socket.
 
 A determined person can still run 8 scripted sockets in a table of their own, with BLATERO shaped JSON, as a private channel. That is as far as "not a bus" can honestly go without accounts.
+
+## Cloud saves
+
+A third part of the same Worker: `POST /save`, `/save/driver`, `/save/get`, `/save/delete`, one small Durable Object per player (class `Saves`, SQLite class, migration `v3`) named by the SHA-256 of a random code the browser keeps, in the same EU jurisdiction. The rules are in `src/save.rs` (tested natively: `cargo test --lib save`), the Cloudflare side in `src/sglue.rs`. `test/save-e2e.mjs` runs the routes against `wrangler dev`. What is saved, the limits, the retention alarm and the privacy notes are in `docs/CLOUD-SAVE.md`.

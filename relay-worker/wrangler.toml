@@ -29,7 +29,7 @@ TABLE_ORIGINS = "https://html-classic.itch.zone"
 # One object holds the whole relay, see the README for why. Tables (BLATERO) are a second class with ONE instance of
 # its own, so a fault or a flood on one game cannot take the other's object down.
 [durable_objects]
-bindings = [{ name = "RELAY", class_name = "Relay" }, { name = "TABLES", class_name = "Tables" }]
+bindings = [{ name = "RELAY", class_name = "Relay" }, { name = "TABLES", class_name = "Tables" }, { name = "SAVES", class_name = "Saves" }]
 
 [[migrations]]
 tag = "v1"
@@ -38,3 +38,8 @@ new_sqlite_classes = ["Relay"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Tables"]
+
+# Cloud saves: one small object per player (src/sglue.rs), in the same EU jurisdiction.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Saves"]

@@ -70,6 +70,12 @@ const S = {
   fov: ['Campo visivo', 'Field of view'], mapPos: ['Minimappa', 'Minimap'], mapTop: ['In alto', 'Top'], mapBottom: ['In basso', 'Bottom'],
   cam0: ['Dietro', 'Chase'], cam1: ['Alta', 'High'], cam2: ['Cabina', 'Cab'], cam3: ['Dall’alto', 'Top-down'],
   language: ['Lingua', 'Language'],
+  cloudH: ['Salvataggio cloud', 'Cloud save'],
+  cloudNote: ['I tuoi progressi si salvano da soli sul nostro server (nell’UE) con questo codice casuale. Scrivilo da qualche parte: su un altro dispositivo, o se cancelli i dati del browser, serve per ritrovarli.', 'Your progress saves itself to our server (in the EU) under this random code. Write it down: on another device, or after you clear your browser data, you need it to get it back.'],
+  cloudCopy: ['Copia', 'Copy'], cloudCopied: ['Copiato', 'Copied'], cloudRestore: ['Ripristina', 'Restore'], cloudDelete: ['Cancella dal server', 'Delete from server'], cloudOn: ['Riattiva', 'Turn on'],
+  cloudNew: ['In attesa del primo salvataggio', 'Waiting for the first save'], cloudSaved: ['Salvato', 'Saved'], cloudBusy: ['Salvataggio…', 'Saving…'], cloudError: ['Nessuna rete: riprovo', 'No network: trying again'], cloudRefused: ['Il server non ha accettato questo salvataggio', 'The server did not accept this save'], cloudOff: ['Salvataggio cloud spento', 'Cloud save is off'],
+  cloudBad: ['Codice non valido', 'Not a valid code'], cloudNone: ['Nessun salvataggio con questo codice', 'No save with that code'], cloudNet: ['Server non raggiungibile', 'Server not reachable'], cloudGone: ['Cancellato dal server. Il salvataggio automatico è spento.', 'Deleted from the server. Automatic saving is off.'],
+  cloudAsk: ['Questo dispositivo ha più progressi del salvataggio cloud. Sostituirli?', 'This device has more progress than the cloud save. Replace it?'],
   nameLabel: ['Il tuo nome', 'Your name'], namePh: ['Nome', 'Name'], netOn: ['Online', 'Online'], netOff: ['Offline', 'Offline'],
   controls: ['Comandi', 'Controls'], ctlKb: ['Tastiera', 'Keyboard'], ctlPad: ['Controller', 'Gamepad'], ctlTouch: ['Schermo tattile', 'Touch screen'],
   ctlDrive: ['Guida: gas, retro, sterzo', 'Drive: gas, reverse, steer'], ctlHand: ['Freno a mano', 'Handbrake'], ctlNitro: ['Nitro', 'Nitro'], ctlHorn: ['Clacson', 'Horn'],
@@ -301,7 +307,7 @@ function creditsMarkdown(md, base) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ game, applySettings, missions, suca, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
+export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
   if (params.get('layers') === '0') root.classList.add('pd-flat');   // test switch: the HUD's zones and the pads are not layers of their own (src/ui.css, .hz)
@@ -411,12 +417,22 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
       <div class="pd-namerow"><input class="pd-namein" data-nav type="text" maxlength="16" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done">
         <div class="pd-seg pd-netseg"><button class="pd-segb" data-nav data-net="on" type="button" aria-pressed="false"><span data-k="netOn"></span></button><button class="pd-segb" data-nav data-net="off" type="button" aria-pressed="true"><span data-k="netOff"></span></button></div></div>
     </div>`;
+  const CLOUD_ROW = `<div class="pd-row pd-cloud" data-cloud>
+      <div class="pd-lab"><span data-k="cloudH"></span></div>
+      <div class="pd-cloudbody">
+        <p class="pd-pint" data-k="cloudNote"></p>
+        <div class="pd-namerow"><input class="pd-cloudf pd-cloudcode" data-nav type="text" readonly spellcheck="false"><button class="pd-btn sm" data-nav data-cl="copy" type="button"><span data-k="cloudCopy"></span></button></div>
+        <div class="pd-namerow"><input class="pd-cloudf pd-cloudin" data-nav type="text" maxlength="40" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"><button class="pd-btn sm" data-nav data-cl="restore" type="button"><span data-k="cloudRestore"></span></button></div>
+        <div class="pd-namerow"><button class="pd-btn sm" data-nav data-cl="remove" type="button"><span data-k="cloudDelete"></span></button></div>
+        <p class="pd-pint pd-cloudmsg"></p>
+      </div>
+    </div>`;
   const PIN_ROW = `<div class="pd-row pd-pin"${navigator.standalone === true ? ' hidden' : ''}><div class="pd-lab"><span data-k="pinH"></span></div><p class="pd-pint" data-k="${IOS ? 'pinIos' : 'pinDroid'}"></p></div>`;
   mk('options', '', `<div class="pd-card">
       <div class="pd-head"><h2 class="pd-h" data-k="options" data-two></h2></div>
       <div class="pd-otabs" role="tablist">${OPT_TABS.map(([t, k]) => `<button class="pd-otab" data-nav data-do="optTab" data-tab="${t}" role="tab" type="button" aria-selected="false"><span data-k="${k}"></span></button>`).join('')}</div>
       <div class="pd-scrollwrap">
-        <div class="pd-grid">${OPT_TABS.map(([t]) => `<div class="pd-tabp" data-tab="${t}">${t === 'more' ? rowHTML(LANG_OPT) : ''}${OPTS.filter(o => o.tab === t).map(rowHTML).join('')}${t === 'more' ? NAME_ROW + PIN_ROW : ''}</div>`).join('')}</div>
+        <div class="pd-grid">${OPT_TABS.map(([t]) => `<div class="pd-tabp" data-tab="${t}">${t === 'more' ? rowHTML(LANG_OPT) : ''}${OPTS.filter(o => o.tab === t).map(rowHTML).join('')}${t === 'more' ? NAME_ROW + (cloud ? CLOUD_ROW : '') + PIN_ROW : ''}</div>`).join('')}</div>
         <div class="pd-rail" aria-hidden="true"><div class="pd-railthumb"></div></div>
         <button class="pd-more" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 18 12"><path d="M2 2l7 8 7-8"/></svg></button>
       </div>
@@ -877,6 +893,30 @@ export function setupUI({ game, applySettings, missions, suca, getRadio, world, 
     syncNet();
   });
   addEventListener('pd-net-changed', syncNet); syncNet();
+
+  // ---- the cloud save (Options, More): the code, restoring from a code, and deleting the server's copy (src/cloud-save.js) ----
+  if (cloud) {
+    const box = screens.options.querySelector('[data-cloud]'), code = box.querySelector('.pd-cloudcode'), inp = box.querySelector('.pd-cloudin'), msg = box.querySelector('.pd-cloudmsg');
+    const rm = box.querySelector('[data-cl="remove"]'), say = k => { msg.textContent = (S[k] || [k, k])[lang === 'it' ? 0 : 1]; };
+    const sync = () => { const s = cloud.status(), off = s.state === 'off'; code.value = off ? '' : cloud.code(); rm.firstElementChild.dataset.k = off ? 'cloudOn' : 'cloudDelete'; rm.firstElementChild.textContent = S[off ? 'cloudOn' : 'cloudDelete'][lang === 'it' ? 0 : 1];
+      if (!msg.dataset.keep) { const k = 'cloud' + s.state[0].toUpperCase() + s.state.slice(1); msg.textContent = (S[k] || S.cloudNew)[lang === 'it' ? 0 : 1] + (s.t && s.state === 'saved' ? ' · ' + new Date(s.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''); } };
+    const flash = k => { msg.dataset.keep = '1'; say(k); setTimeout(() => { delete msg.dataset.keep; sync(); }, 4000); };
+    box.addEventListener('click', async e => {
+      const b = e.target.closest('[data-cl]'); if (!b) return;
+      if (b.dataset.cl === 'copy') { try { await navigator.clipboard.writeText(code.value); flash('cloudCopied'); } catch (err) { code.select(); } }
+      else if (b.dataset.cl === 'restore') {
+        const r = await cloud.restore(inp.value);
+        if (r.ok) return;
+        if (r.why === 'ask') { if (confirm(S.cloudAsk[lang === 'it' ? 0 : 1])) r.apply(); return; }
+        flash(r.why === 'bad' ? 'cloudBad' : r.why === 'none' ? 'cloudNone' : 'cloudNet');
+      } else if (b.dataset.cl === 'remove') {
+        if (cloud.status().state === 'off') { cloud.enable(); sync(); return; }
+        flash((await cloud.remove()) ? 'cloudGone' : 'cloudNet'); sync();
+      }
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); box.querySelector('[data-cl="restore"]').click(); } else e.stopPropagation(); });   // a text field keeps its keys
+    setInterval(() => { if (box.offsetParent) sync(); }, 1500); sync();
+  }
 
   // ---- the welcome screen: the same name store and online switch as Options, the wallet, the ride, and the next things money buys ----
   const W = screens.welcome, welName = W.querySelector('.pd-welname'), welNet = [...W.querySelectorAll('[data-wnet]')];

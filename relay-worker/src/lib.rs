@@ -4,6 +4,7 @@
 pub mod hub;
 pub mod interest;
 pub mod proto;
+pub mod save;
 pub mod shape;
 pub mod tables;
 pub mod tproto;
@@ -11,5 +12,7 @@ pub mod status;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
+#[cfg(target_arch = "wasm32")]
+mod sglue;
 #[cfg(target_arch = "wasm32")]
 mod tglue;

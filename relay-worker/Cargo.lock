@@ -306,6 +306,7 @@ dependencies = [
 name = "pd-relay"
 version = "1.0.0"
 dependencies = [
+ "serde_json",
  "worker",
 ]
 

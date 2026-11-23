@@ -27,6 +27,7 @@ import { createAmbience } from './ambience.js';   // rain, the scirocco, the sea
 import { setSfxSource } from './sfx.js';   // the game's short sounds and beds, on the radio's AudioContext
 import { createCityAudio } from './city-audio.js';   // traffic noise, horns, l'arrotino, the market voices
 import { createMarkets } from './markets.js';   // Ballaro, the Vucciria and the Capo as living markets: stall lines along the real streets, awnings, crates, vendors
+import { createCloudSave } from './cloud-save.js';   // progress saved to the server by itself, restored with a code (Options)
 import { createRamps } from './ramps.js';   // ramps and a car transporter trailer in the streets: the lapa leaves the ground from them (src/vehicle-sphere.js)
 import { createCarrettoProp } from './carretto.js';   // the painted Sicilian cart that stands near the Cattedrale and the Quattro Canti
 import { createStadium } from './stadium.js';   // the Barbera's crowd cheers while the lapa is on the pitch
@@ -478,7 +479,8 @@ const placeStart = (x, z) => new Promise(done => {
   world.teleport(x, z, () => { placeAt(x, z); clearTimeout(t); done(); });
 });
 let radio = null;
-setupUI({ game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
+const cloud = createCloudSave(); cloud.start();
+setupUI({ cloud, game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 setupGamepad({ game, car });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 setSfxSource(() => radio);

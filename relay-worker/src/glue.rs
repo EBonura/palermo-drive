@@ -35,6 +35,8 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             }
             crate::tglue::stub(&env)?.fetch_with_request(req).await
         }
+        // Cloud saves: one object per player, see sglue.rs and save.rs.
+        "/save" | "/save/driver" | "/save/get" | "/save/delete" => crate::sglue::handle(req, &env).await,
         "/stats" => relay(&env)?.fetch_with_request(req).await,
         "/status" => status(req, &env).await,
         _ => Response::error("not found", 404),
