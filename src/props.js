@@ -756,6 +756,9 @@ const SPECS = {
   dump_sofa: { kind: 'object', c: [[0, 0, 0.9]], thr: 2.5, m: 1.0, he: [0.9, 0.45, 0.4], hc: 0.45, ghost: true },
   dump_wreck: { kind: 'object', c: [[0, 0, 0.6]], thr: 1.6, m: 0.3, he: [0.6, 0.2, 0.35], hc: 0.2, ghost: true },
 };
+// the real extent of the tree meshes (src/treegeo.js, at scale 1): the radius of the crown, and of the trunk with its buttress roots; SPECS.crown is a nominal value for sizing, not this
+const MESH_R = { ficus: 9.5, plane: 6.5, plane_bare: 4.5, pine: 6.5, holm: 5.2, jacaranda: 4.3, tree: 3.3, aleppo: 3.3, orange: 2.0, palm_date_a: 4.0, palm_date_b: 4.5, palm_fan_a: 3.4, palm_fan_b: 3.4, palm_fan_c: 3.0 };
+const BASE_R = { ficus: 2.0, plane: 0.6, plane_bare: 0.6, pine: 0.5, holm: 0.7, jacaranda: 0.4, tree: 0.35, aleppo: 0.35, orange: 0.3, palm_date_a: 0.55, palm_date_b: 0.6, palm_fan_a: 0.35, palm_fan_b: 0.35, palm_fan_c: 0.35 };
 const TREE_VARIANT = new Set(['plane', 'plane_bare', 'pine', 'holm']);   // models with a second individual (name + '_b')
 const TREE_LIKE = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
 const SCALE_R = new Set(['jacaranda', 'holm_b', 'plane_b', 'plane_bare_b', 'pine_b', 'shrub', 'ficus', 'tree', 'holm', 'orange', 'pine', 'plane', 'plane_bare', 'aleppo', 'palm_fan_a', 'palm_fan_b', 'palm_fan_c', 'palm_date_a', 'palm_date_b']);
@@ -1592,6 +1595,12 @@ function* generate(S, BUD) {
     if (m === 'plane' && bareAt(x, z)) m = 'plane_bare';
     return { m, t: tintOf(hex), code };
   };
+  // the nearest asphalt to a spot within `max` m, as [distance, unit x, unit z] pointing to it: 12 directions in steps of half a metre (distance `max` and no direction when none is that near)
+  const asphaltNear = (x, z, max) => {
+    if (asphalt(x, z)) return [0, 0, 0];
+    for (let d = 0.5; d <= max; d += 0.5) for (let k = 0; k < 12; k++) { const a = k * 0.5236, ca = Math.cos(a), sa = Math.sin(a); if (asphalt(x + ca * d, z + sa * d)) return [d - 0.25, ca, sa]; }
+    return [max, 0, 0];
+  };
   const treePts = [];   // where the trees stand (the street trees of 13 keep their distance)
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
     if (!inBounds(x, z) || road(x, z) || inB(x, z) || treeCleared(x, z)) return false;
@@ -1599,7 +1608,20 @@ function* generate(S, BUD) {
     if (TREE_VARIANT.has(kind) && hash3(x * 0.73, z * 0.41, 3.7) < 0.5) kind += '_b';   // (by position, not from the random stream of the tile)
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
     const wd = nearWall(x, z, 1.1); if (wd && kind !== 'shrub') return false;
-    const s = R(0.85, 1.2) * canopy, tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
+    let s = R(0.85, 1.2) * canopy;
+    // Kerb clearance by size (the trees used to be checked only at the trunk point, so a big one at the kerb put its trunk or buttress roots on the carriageway): the trunk and its roots must clear the
+    // asphalt by their own radius. A tree that is too close is moved straight away from the road to where it fits (the crown may still lean over the road, as street trees do); if it cannot be moved
+    // (a wall or another prop is in the way) a big one is left out and a small one stays. Nothing is shrunk: a stunted tree looks wrong.
+    const kk = kind.replace(/_b$/, ''), mr = MESH_R[kk];
+    if (mr) {
+      const need = (BASE_R[kk] ?? 0.5) * s + 0.3, [d, ax, az] = asphaltNear(x, z, need);
+      if (d < need) {
+        const m = need - d + 0.3, nx = x - ax * m, nz = z - az * m;
+        if (!(ax || az) || !inBounds(nx, nz) || inB(nx, nz) || asphaltNear(nx, nz, need)[0] < need * 0.95 || (kind !== 'shrub' && nearWall(nx, nz, 1.1)) || occHit(nx, nz, Math.min(r, 1.6) * 0.6)) { if (mr * s > 3) return false; }
+        else { x = nx; z = nz; }
+      }
+    }
+    const tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
     put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6); treePts.push([x, z]);
     return true;
   };
