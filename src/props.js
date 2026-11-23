@@ -2270,22 +2270,26 @@ function* generate(S, BUD) {
     const walkable = (x, z) => !inB(x, z) && (raisedMask(x, z) || paving(x, z));
     for (const it of osm) {
       if (it.k !== 'cafe') continue;
-      if (rand() > (it.out === 'yes' ? 1 : (CAFE_OUT[zoneOf(it.x, it.z)] ?? 0.45))) continue;
+      if (rand() > (it.out === 'yes' ? 1 : (CAFE_OUT[zoneOf(it.x, it.z)] ?? 0.9))) continue;
       const w = nearWall(it.x, it.z, 9); if (!w) continue;
       // A terrace as in the Piazza San Domenico photo: two rows of tables along the frontage (the second row only where the pavement allows it), an umbrella over most of them,
       // a planter closing each end and a bench against the wall beside it. Sets are skipped one by one where the ground is not walkable, so a narrow pavement gets a single row.
-      const tx = -w.nz, tz = w.nx, n = 3 + Math.floor(rand() * 4), GAP = 1.9, rows = rand() < 0.7 ? [1.5, 3.2] : [1.5];
+      const tx = -w.nz, tz = w.nx, n = 4 + Math.floor(rand() * 5), GAP = 1.9, rr = rand(), rows = rr < 0.35 ? [1.5, 3.2, 4.9, 6.6] : rr < 0.7 ? [1.5, 3.2, 4.9] : rr < 0.92 ? [1.5, 3.2] : [1.5];   // as deep as the pavement allows: on a piazza the tables run well out from the frontage
       let placed = 0, xmin = 1e9, xmax = -1e9;
-      const half = ((n - 1) / 2) * GAP;
-      for (const v of rows) {
+      rows.forEach((v, ri) => {
         for (let i = 0; i < n; i++) {
-          const u = (i - (n - 1) / 2) * GAP + (v > 2 ? GAP / 2 : 0) * (i ? 0 : 0) + R(-0.15, 0.15), x = w.px + w.nx * v + tx * u, z = w.pz + w.nz * v + tz * u;
+          const u = (i - (n - 1) / 2) * GAP + (ri % 2) * GAP / 2 + R(-0.15, 0.15), x = w.px + w.nx * v + tx * u, z = w.pz + w.nz * v + tz * u;
           if (!walkable(x, z) || occHit(x, z, 0.7) || nearWall(x, z, 1.0)) continue;
           const rot = Math.atan2(w.nx, w.nz) + R(-0.35, 0.35);
           put(rand() < 0.5 ? 'cafe_set' : 'cafe_set_b', x, gy(x, z), z, rot, 1); occAdd(x, z, 0.8); sets++; placed++;
-          if (rand() < 0.5) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.85, C(pick(UMB)));
+          if (rand() < 0.6) put('umbrella', x, gy(x, z), z, R(0, TAU), 0.85, C(pick(UMB)));
           if (u < xmin) xmin = u; if (u > xmax) xmax = u;
         }
+      });
+      // benches against the wall between the terrace and the door, every other table of the first row
+      for (let i = 0; i < n; i += 2) {
+        const u = (i - (n - 1) / 2) * GAP + GAP / 2, x = w.px + w.nx * 0.6 + tx * u, z = w.pz + w.nz * 0.6 + tz * u;
+        if (rand() < 0.5 && walkable(x, z) && !occHit(x, z, 0.15) && !nearWall(x, z, 0.3)) { put('bench', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + R(-0.1, 0.1)); occAdd(x, z, 0.3); benches++; }
       }
       if (!placed) continue;
       for (const sgn of [-1, 1]) {
@@ -2294,9 +2298,9 @@ function* generate(S, BUD) {
           const x = w.px + w.nx * 1.5 + tx * (e + sgn * 1.35), z = w.pz + w.nz * 1.5 + tz * (e + sgn * 1.35);
           if (walkable(x, z) && !occHit(x, z, 0.5) && !nearWall(x, z, 0.5)) { put('planter' + Math.floor(rand() * 3), x, gy(x, z), z, ty, 1); occAdd(x, z, 0.7); planters++; }
         }
-        if (rand() < 0.55) {  // a bench against the wall beside the terrace, facing the street
+        if (rand() < 0.8) {  // a bench against the wall beside the terrace, facing the street
           const x = w.px + w.nx * 0.6 + tx * (e + sgn * 2.3), z = w.pz + w.nz * 0.6 + tz * (e + sgn * 2.3);
-          if (walkable(x, z) && !occHit(x, z, 0.8) && !nearWall(x, z, 0.3)) { put('bench', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + R(-0.1, 0.1)); occAdd(x, z, 0.9); benches++; }
+          if (walkable(x, z) && !occHit(x, z, 0.15) && !nearWall(x, z, 0.3)) { put('bench', x, gy(x, z), z, Math.atan2(w.nx, w.nz) + R(-0.1, 0.1)); occAdd(x, z, 0.3); benches++; }
         }
       }
     }
