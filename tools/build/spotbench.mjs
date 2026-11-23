@@ -18,6 +18,8 @@ const SPOTS = {
   zisa: ['Piazza Zisa', -1758.8, -43.6, -0.14],
   porto: ['the port (Via Crispi)', 91.6, -1300.1, -2.71],
   mondello: ['Mondello piazza', -3033.1, -10177.4, -1.07],
+  foro: ['Foro Italico (date and fan palms)', 900, 330, 3.14],
+  marina: ['Piazza Marina (ficus, palms)', 330, -470, 0],
   sdom: ['Piazza San Domenico (cafes, pots)', 240, -318, 0],
   maq: ['Via Maqueda (planter rows)', -100, -125, 0.55],
 };

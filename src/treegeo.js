@@ -200,51 +200,68 @@ function crown(m, L, o) {
 // Washingtonia / Trachycarpus (palm_fan_*): a slender, slightly leaning trunk in rings of leaf scars with a shaggy dead skirt, and a head of palmate fronds at every angle: each a stalk with a fan of narrow, hanging
 // leaflet blades that part towards the tips (young fronds stand up, old ones arch over and hang), so the outline is spiky and the sky shows between the blades.
 function fanPalm(H, n, seed, o = {}) {
-  const m = new Mini(), r = rnd(seed * 3.3), trunk = C(o.trunk ?? '#8a7c66'), trunk2 = C('#6a5d4a'), dead = C('#85774a'), g1 = C('#5a8530'), g2 = C('#86b240'), g3 = C('#6c9a38');
-  const lean = [(r() - 0.5) * 0.12 * H, (r() - 0.5) * 0.12 * H], pts = [];
-  for (let i = 0; i <= 5; i++) { const t = i / 5; pts.push([lean[0] * t * t + (i ? (r() - 0.5) * 0.06 : 0), H * t, lean[1] * t * t]); }
-  const top = pts[5];
-  m.tube(pts, [0.34, 0.25, 0.21, 0.19, 0.18, 0.17], 5, trunk, { col2: trunk2, mot: 0.35, band: 0.12, seed, rot: 0.2, dark: 0.8, jit: 0.25 });
-  for (let i = 0; i < 5; i++) {   // the dead skirt: old fronds hanging against the trunk under the head
-    const a = i * TAU / 5 + r(), dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx, L = 1.4 + 1.0 * r();
-    m.tri([top[0] + dx * 0.25, top[1] - 0.05, top[2] + dz * 0.25], [top[0] + dx * 0.55 + px * 0.34, top[1] - L, top[2] + dz * 0.55 + pz * 0.34], [top[0] + dx * 0.55 - px * 0.34, top[1] - L + 0.3, top[2] + dz * 0.55 - pz * 0.34], dead, 0.85, [dx, 0, dz], 0.6);
+  const m = new Mini(), r = rnd(seed * 3.3), trunk = C(o.trunk ?? '#8a7c66'), trunk2 = C('#6a5d4a'), dead = C('#85774a'), dead2 = C('#6d6038'), greens = ['#4a7a2b', '#5a8a30', '#42702a', '#66953a'].map(C);
+  const lean = [(r() - 0.5) * 0.12 * H, (r() - 0.5) * 0.12 * H], pts = [], rad = [], rings = Math.max(6, Math.round(H / 0.5));
+  for (let i = 0; i <= rings; i++) { const t = i / rings; pts.push([lean[0] * t * t + (i ? (r() - 0.5) * 0.05 : 0), H * t, lean[1] * t * t]); rad.push(0.3 - 0.1 * t + (i & 1 ? 0.025 : 0) + (i === 0 ? 0.08 : 0)); }
+  m.tube(pts, rad, 6, trunk, { col2: trunk2, mot: 0.35, band: 0.1, seed, rot: 0.2, dark: 0.8, jit: 0.25 });
+  const top = pts[rings];
+  for (let i = 0; i < 12; i++) {   // the skirt: the dead fronds hanging down the trunk under the head, a shaggy sleeve
+    const a = i * TAU / 12 + r() * 0.4, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx, L = 1.6 + 1.3 * r(), cl = i & 1 ? dead : dead2;
+    m.tri([top[0] + dx * 0.22, top[1] - 0.05, top[2] + dz * 0.22], [top[0] + dx * 0.6 + px * 0.3, top[1] - L, top[2] + dz * 0.6 + pz * 0.3], [top[0] + dx * 0.6 - px * 0.3, top[1] - L + 0.3, top[2] + dz * 0.6 - pz * 0.3], cl, 0.85, [dx, 0, dz], 0.6);
   }
-  for (let i = 0; i < n; i++) {
-    const a = i * 2.39996 + seed, ring = i % 3, el = [1.05, 0.4, -0.2][ring] + (r() - 0.5) * 0.3, ce = Math.cos(el), se = Math.sin(el), Ls = (ring === 0 ? 1.0 : 1.7) + 0.5 * r(), dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
-    const P = [top[0] + dx * ce * Ls, top[1] + 0.2 + se * Ls - (ring ? 0.4 : 0), top[2] + dz * ce * Ls], mid = lerp([top[0], top[1] + 0.2, top[2]], P, 0.5);
-    mid[1] += 0.35 * Ls * (ring === 2 ? 0.2 : 1);
-    const col = ring === 0 ? g2 : ring === 1 ? g3 : g1, bl = (ring === 0 ? 1.7 : 2.3) + 0.5 * r(), fan = 1.7 + 0.3 * r(), hub = [P[0], P[1], P[2]];
-    m.tri([mid[0] + px * 0.05, mid[1], mid[2] + pz * 0.05], [hub[0] + px * 0.04, hub[1], hub[2] + pz * 0.04], [hub[0] - px * 0.04, hub[1], hub[2] - pz * 0.04], C('#6a7a3a'), 1, [px, 0.2, pz], 0.5);
-    const M = 7;
-    for (let j = 0; j < M; j++) {
-      const f = (j / (M - 1) - 0.5) * fan, ang = a + f, w = 0.5 + 0.5 * Math.cos(f * 1.6), L = bl * (0.62 + 0.45 * w) * (0.88 + 0.24 * r()), cx = Math.cos(ang), cz = Math.sin(ang);
-      const up = ring === 0 ? 0.6 : ring === 1 ? 0.05 : -0.35, tip = [hub[0] + cx * L * (ring === 0 ? 0.55 : 1), hub[1] + up * L * 0.5 - (ring === 0 ? 0.25 : 0.7) * L * (0.4 + 0.6 * Math.abs(f) / (fan * 0.5)), hub[2] + cz * L * (ring === 0 ? 0.55 : 1), 1];
-      const sd = 0.24 + 0.07 * r(), tx = -Math.sin(ang), tz = Math.cos(ang);
-      const b0 = [hub[0] + tx * sd, hub[1], hub[2] + tz * sd, 0.85], b1 = [hub[0] - tx * sd, hub[1], hub[2] - tz * sd, 0.85];
-      m.tri(b0, tip, b1, j & 1 ? col : tint(col, 1.1, 1.08, 0.95), 0.85 + 0.3 * r(), [0.35 * cx, 1, 0.35 * cz], 0.9);
+  const total = Math.round(n * 1.3);
+  for (let i = 0; i < total; i++) {
+    const a = i * 2.39996 + seed, tier = i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2, el = [1.1, 0.5, -0.1][tier] + (r() - 0.5) * 0.3, ce = Math.cos(el), se = Math.sin(el), Ls = [0.9, 1.5, 1.9][tier] + 0.4 * r(), dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
+    const hub = [top[0] + dx * ce * Ls, top[1] + 0.25 + se * Ls - (tier ? 0.3 : 0), top[2] + dz * ce * Ls], mid = lerp([top[0], top[1] + 0.2, top[2]], hub, 0.5);
+    mid[1] += 0.3 * Ls * (tier === 2 ? 0.2 : 1);
+    m.tri([mid[0] + px * 0.04, mid[1], mid[2] + pz * 0.04], [hub[0] + px * 0.035, hub[1], hub[2] + pz * 0.035], [hub[0] - px * 0.035, hub[1], hub[2] - pz * 0.035], C('#6a7a3a'), 1, [px, 0.2, pz], 0.5);   // the petiole
+    const col = greens[(i + tier) % 4], M = 9, fan = 2.0 + 0.3 * r(), Lb = [1.7, 2.1, 2.4][tier] * (0.9 + 0.2 * r()), droop = [0.5, 0.9, 1.5][tier];
+    for (let j = 0; j < M; j++) {   // a segment of the blade: a kite with a kink, rising from the hub and falling at the tip
+      const f = (j / (M - 1) - 0.5) * fan, ang = a + f, cx = Math.cos(ang), cz = Math.sin(ang), w = 0.6 + 0.4 * Math.cos(f * 1.3), L = Lb * (0.7 + 0.35 * w) * (0.9 + 0.2 * r()), tx = -Math.sin(ang), tz = Math.cos(ang);
+      const kin = [hub[0] + cx * L * 0.5, hub[1] + 0.25 * L * (tier === 2 ? 0.2 : 1) - droop * L * 0.08, hub[2] + cz * L * 0.5], tip = [hub[0] + cx * L, hub[1] - droop * L * (0.3 + 0.35 * Math.abs(f)) * 0.6, hub[2] + cz * L];
+      const sd = 0.1 + 0.03 * r(), kw = 0.16 + 0.04 * r(), cc = j & 1 ? col : tint(col, 1.1, 1.08, 0.95), kv = 0.85 + 0.3 * r();
+      m.tri([hub[0] + tx * sd, hub[1], hub[2] + tz * sd, 0.85], [hub[0] - tx * sd, hub[1], hub[2] - tz * sd, 0.85], [kin[0] + tx * kw, kin[1], kin[2] + tz * kw, 1], cc, kv, [0.35 * cx, 1, 0.35 * cz], 0.9);
+      m.tri([hub[0] - tx * sd, hub[1], hub[2] - tz * sd, 0.85], [kin[0] - tx * kw, kin[1], kin[2] - tz * kw, 1], [kin[0] + tx * kw, kin[1], kin[2] + tz * kw, 1], cc, kv, [0.35 * cx, 1, 0.35 * cz], 0.9);
+      m.tri([kin[0] + tx * kw, kin[1], kin[2] + tz * kw, 1], [kin[0] - tx * kw, kin[1], kin[2] - tz * kw, 1], [tip[0], tip[1], tip[2], 1], cc, kv * 1.05, [0.35 * cx, 1, 0.35 * cz], 0.9);
     }
   }
   return m.geo();
 }
-// Phoenix canariensis (palm_date_*): a thick trunk with a swelling under the crown and a big dense head of long, arching feather fronds, each a curved midrib with two rows of narrow leaflets (the lower fronds hang down)
-function datePalm(H, n, seed) {   // (n fronds)
-  const m = new Mini(), r = rnd(seed * 2.9), trunk = C('#9a8662'), trunk2 = C('#74644a'), c1 = C('#5c8a32'), c2 = C('#97bb52'), c3 = C('#709a40');
-  const lx = (r() - 0.5) * 0.1 * H, lz = (r() - 0.5) * 0.1 * H, pts = [0, 1, 2, 3, 4].map(i => [lx * (i / 4) ** 2, H * i / 4, lz * (i / 4) ** 2]);
-  m.tube(pts, [0.6, 0.5, 0.46, 0.44, 0.5], 7, trunk, { col2: trunk2, mot: 0.45, seed, band: 0.16, dark: 0.8, jit: 0.3 });
-  m.tube([[pts[4][0], H - 0.1, pts[4][2]], [pts[4][0], H + 0.4, pts[4][2]]], [0.56, 0.5], 7, C('#6c5a3a'), { seed, cap: true, dark: 0.9 });
-  const top = [pts[4][0], H + 0.4, pts[4][2]];
-  // the fronds: every one a curved ribbon of quads whose two edges are cut in a sawtooth (the leaflets of a feather frond, as a solid blade with a notched edge: 10 triangles instead of a comb of 20), young ones upright, old ones arching over and hanging
-  for (let i = 0; i < n; i++) {
-    const a = i * 2.39996 + seed, ring = [0, 1, 2, 3, 2, 1][i % 6], dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx, cc = ring === 0 ? c2 : ring === 1 ? c3 : c1, c4 = tint(cc, 1.12, 1.1, 0.9);
-    const L = 4.8 + 0.9 * r() - (ring === 0 ? 1.0 : 0), lift = [5.0, 5.0, 4.4, 3.8][ring] + 0.4 * r(), grav = [3.0, 4.0, 4.6, 5.0][ring] + 0.4 * r(), out = [0.5, 0.8, 1, 1.05][ring], Wm = (ring === 0 ? 1.3 : 1.9) + 0.3 * r();
-    const at = t => [top[0] + dx * L * out * t, top[1] + 0.1 + lift * t - grav * t * t, top[2] + dz * L * out * t];
-    const ST = 6, ls = [], rs = [];
-    for (let s = 0; s <= ST; s++) {
-      const q = at(0.08 + 0.92 * s / ST), hw = Wm * (s === 0 ? 0.12 : Math.sin(Math.PI * (0.12 + 0.78 * s / ST))), dr = 0.8 * hw;   // (the edges hang below the midrib: a V)
-      ls.push([q[0] + px * hw * (s & 1 ? 1.1 : 0.3), q[1] - dr, q[2] + pz * hw * (s & 1 ? 1.1 : 0.3), 0.9]); rs.push([q[0] - px * hw * (s & 1 ? 0.3 : 1.1), q[1] - dr, q[2] - pz * hw * (s & 1 ? 0.3 : 1.1), 0.9]);
+// Phoenix canariensis (palm_date_*): the palm of the Foro Italico, Piazza Due Palme and the old avenues (Commons photos "Foro italico 4" and "Palermo-Piazza-Due-Palme"): a thick trunk in a pineapple
+// pattern of diamond leaf scars with a swelling under the crown, and a big dense dome of long feather fronds. Each frond is a curved rachis (a thin ribbon) with pairs of narrow leaflets in a V, the young fronds
+// standing up round the heart, the old ones arching over and the lowest hanging; the dead ones at the bottom are brown. n: how many fronds in the tiers (19 and 20 of the old model became about 38 and 40).
+function datePalm(H, n, seed) {
+  const m = new Mini(), r = rnd(seed * 2.9), trunk = C('#a08a62'), trunk2 = C('#6f5d41'), dead = C('#8b7a4a');
+  const lx = (r() - 0.5) * 0.08 * H, lz = (r() - 0.5) * 0.08 * H, rings = Math.max(8, Math.round(H / 0.42)), pts = [], rad = [];
+  for (let i = 0; i <= rings; i++) { const t = i / rings; pts.push([lx * t * t, H * t, lz * t * t]); rad.push(0.52 + 0.1 * Math.sin(Math.PI * Math.min(1, t * 6)) * (1 - t) + 0.12 * t * t * t - 0.05 * t + (i & 1 ? 0.035 : 0)); }   // flared at the foot, scar rings (alternate rings a little fatter), a swelling under the crown
+  m.tube(pts, rad, 7, trunk, { col2: trunk2, mot: 0.3, seed, band: 0.12, dark: 0.8, jit: 0.2, rot: 0.2 });
+  const top = [pts[rings][0], H + 0.15, pts[rings][2]];
+  m.tube([[top[0], H - 0.2, top[2]], [top[0], H + 0.45, top[2]]], [0.6, 0.38], 7, C('#6c5a3a'), { seed, cap: true, dark: 0.9 });
+  const greens = ['#3f6c2a', '#4a7830', '#55843a', '#3a6527', '#628f3e'].map(C), Lbase = Math.max(3.6, Math.min(5.0, 0.6 * H + 0.5));
+  const tiers = [{ k: 0.24, p: 1.3, bend: 0.65, L: 0.85, lf: 0.85 }, { k: 0.34, p: 0.95, bend: 0.95, L: 1.0, lf: 1.0 }, { k: 0.42, p: 0.5, bend: 1.15, L: 1.05, lf: 1.0 }];
+  const total = Math.round(n * 1.95);   // n of the old model counted only the big fronds
+  let idx = 0;
+  tiers.forEach((T, ti) => {
+    const cnt = Math.round(total * T.k);
+    for (let i = 0; i < cnt; i++, idx++) {
+      const a = idx * 2.39996 + seed + ti, dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx, Lr = Lbase * T.L * (0.9 + 0.2 * r()), p0 = T.p + (r() - 0.5) * 0.3, bend = T.bend * (0.85 + 0.3 * r());
+      const dry = ti === 2 && i % 6 === 0;   // an old brown frond hanging at the bottom
+      const NS = 9, rach = [top.slice()]; let q = top.slice();
+      for (let st = 1; st <= NS; st++) { const t = st / NS, pitch = p0 - bend * Math.pow(t, 1.15), cp = Math.cos(pitch), sp = Math.sin(pitch); q = [q[0] + dx * cp * Lr / NS, q[1] + sp * Lr / NS, q[2] + dz * cp * Lr / NS]; rach.push(q); }
+      const col = dry ? dead : greens[(idx + ti) % greens.length], col2 = tint(col, 1.12, 1.1, 0.92);
+      for (let st = 0; st < NS; st++) {   // the rachis: a thin ribbon
+        const A = rach[st], B = rach[st + 1], w = 0.05 * (1 - st / NS) + 0.012;
+        m.tri([A[0] - px * w, A[1], A[2] - pz * w], [A[0] + px * w, A[1], A[2] + pz * w], [B[0] - px * w, B[1], B[2] - pz * w], tint(col, 0.85, 0.85, 0.7), 0.9, [0, 1, 0], 0.7);
+      }
+      for (let st = 1; st < NS; st++) {   // pairs of leaflets in a V, longest in the middle of the frond, hanging a little at the tips
+        const t = st / NS, A = rach[st], Tn = norm(sub(rach[st + 1], rach[st - 1])), Lf = (0.45 + 1.4 * Math.sin(Math.PI * (0.1 + 0.85 * t))) * T.lf * (dry ? 0.7 : 1) * (0.9 + 0.2 * r()), side = [px, 0, pz];
+        for (const sg of [-1, 1]) {
+          const d = norm([sg * side[0] * 0.9 + Tn[0] * 0.55, -0.42 + Tn[1] * 0.35, sg * side[2] * 0.9 + Tn[2] * 0.55]), tip = [A[0] + d[0] * Lf, A[1] + d[1] * Lf - 0.1 * t, A[2] + d[2] * Lf], hw = 0.14 + 0.05 * (1 - t);
+          m.tri([A[0] - Tn[0] * hw, A[1] - Tn[1] * hw, A[2] - Tn[2] * hw], [A[0] + Tn[0] * hw, A[1] + Tn[1] * hw, A[2] + Tn[2] * hw], tip, st & 1 ? col : col2, 0.8 + 0.5 * t + 0.15 * r(), [0.3 * dx, 1, 0.3 * dz], 0.85);
+        }
+      }
     }
-    for (let s = 0; s < ST; s++) { const col = s & 1 ? c4 : cc, k = 1.3 + 0.2 * r(); m.tri(ls[s], rs[s], rs[s + 1], col, k, [0.3 * dx, 1, 0.3 * dz], 0.9).tri(ls[s], rs[s + 1], ls[s + 1], col, k, [0.3 * dx, 1, 0.3 * dz], 0.9); }
-  }
+  });
   return m.geo();
 }
 
@@ -273,18 +290,18 @@ const BUILD = {
   },
   // Ficus macrophylla / magnolioides (the big dark trees of the squares and the avenues): a huge fluted trunk on flaring buttress roots that splits at once into heavy limbs, a very wide, dense, dark dome, aerial roots hanging
   ficus() {
-    const m = new Mini(), bark = C('#6b5e4e'), bark2 = C('#4f463a'), r = rnd(41);
+    const m = new Mini(), bark = C('#85796a'), bark2 = C('#625849'), r = rnd(41);   // Commons "Il ficus magnolioides piazza Marina": a smooth grey-brown trunk, not a dark one
     m.tube([[0, 0, 0], [0.1, 1.5, 0], [0, 3.0, 0.1]], [1.25, 0.95, 0.75], 8, bark, { col2: bark2, mot: 0.4, seed: 2, flute: 0.16, dark: 0.7 });
-    const nf = 7;
+    const nf = 10;
     for (let i = 0; i < nf; i++) {   // buttress roots: thin wedges that run up the trunk and out over the ground
       const a = TAU * i / nf + r() * 0.5, h = 1.5 + 1.3 * r(), out = 1.9 + 1.1 * r(), w = 0.22 + 0.16 * r(), ca = Math.cos(a), sa = Math.sin(a);
-      const T = [ca * 0.95, h, sa * 0.95], O = [ca * out, 0.0, sa * out], S1 = [ca * 1.15 - sa * w, 0, sa * 1.15 + ca * w], S2 = [ca * 1.15 + sa * w, 0, sa * 1.15 - ca * w];
+      const T = [ca * 0.95, h + 0.4, sa * 0.95], O = [ca * out * 1.2, 0.0, sa * out * 1.2], S1 = [ca * 1.15 - sa * w, 0, sa * 1.15 + ca * w], S2 = [ca * 1.15 + sa * w, 0, sa * 1.15 - ca * w];
       m.tri(T, S1, O, bark2, 0.9, [ca, 0.4, sa], 0.7).tri(T, O, S2, bark2, 0.8, [ca, 0.4, sa], 0.7);
     }
     const tips = boughs(m, [0, 2.9, 0], [0, 1, 0], 3.0, 0.62, { levels: 2, fan: 1, kids: 5, fork0: 1.15, fork: 1.0, shrink: 0.9, up: 0.12, wob: 0.3, col: bark, col2: bark2, mot: 0.3, nseg: 2, segs: [6, 4] }, 41);
     const L = tips.map((t, i) => ({ c: [t.p[0] + t.d[0] * 1.5, t.p[1] + 1.5, t.p[2] + t.d[2] * 1.5], r: [4.2, 2.8, 4.2], n: 1, d: i < 2 ? 1 : 0 }));
     L.push({ c: [0, 8.2, 0], r: [4.0, 2.7, 4.0], n: 1, d: 1 });
-    for (let i = 0; i < 3; i++) { const t = tips[i * 2 % tips.length], x = t.p[0] + t.d[0] * 0.5, z = t.p[2] + t.d[2] * 0.5; m.tube([[x, t.p[1], z], [x * 1.02, 2.2, z * 1.02]], [0.08, 0.05], 4, bark2, { seed: 5 + i, dark: 0.9 }); }
+    for (let i = 0; i < 6; i++) { const t = tips[i % tips.length], k = 0.35 + 0.5 * ((i * 0.37) % 1), x = t.p[0] + t.d[0] * k * 1.5, z = t.p[2] + t.d[2] * k * 1.5, y0 = t.p[1] - 0.3; m.tube([[x, y0, z], [x * 1.02, y0 * 0.55, z * 1.02], [x * 1.04, 0.15, z * 1.04]], [0.05 + 0.02 * (i % 3), 0.045, 0.04], 4, bark2, { seed: 5 + i, dark: 0.85 }); }   // aerial roots hanging from the limbs to the ground
     crown(m, L, { seed: 21, cols: ['#2f4a24', '#385a2b', '#2b4421', '#3b5d2d', '#33522a'].map(C), cen: [0, 6.8, 0], R: [8.0, 3.8, 8.0], size: 1.15, gain: 0.95, kLow: 0.55, inside: 0.6, bias: 0.5 });
     return m.geo();
   },
