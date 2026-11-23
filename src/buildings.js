@@ -484,26 +484,84 @@ layer('res_e', (g, r) => { // painted balcony
 });
 
 // ---- church / civic stone
+// Church walls, drawn the way a Palermo church wall reads from the street: dressed limestone in fine courses, a pilaster at each bay edge (half a pier on each side of the tile, so two bays meet in one),
+// a plinth, a deep modillion cornice with the tall arched clerestory window under it, a monumental portal with a pediment and a rose window over it. One storey of the nave wall is 6.4 m (a tile).
+// (ch_low stays the plain ashlar of every stone building's party walls; the church ground floor is ch_base.)
 layer('ch_low', (g, r) => { ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72); dado(g, 50, .35); for (let i = 0; i < 4; i++) streak(g, r() * T, r() * 60, 120, 10, .12); });
-layer('ch_door', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
-  g.fillStyle = '#f2e9d0'; g.beginPath(); g.moveTo(60, T); g.lineTo(60, 120); g.quadraticCurveTo(128, 0, 196, 120); g.lineTo(196, T); g.fill();
-  g.fillStyle = '#3a2a1e'; g.beginPath(); g.moveTo(76, T); g.lineTo(76, 126); g.quadraticCurveTo(128, 30, 180, 126); g.lineTo(180, T); g.fill();
-  g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(126, 90, 4, T - 90);
-  g.fillStyle = '#b9ae98'; g.fillRect(56, T - 10, 144, 10); dado(g, 40, .3);
+function chStone(g, r) {   // dressed limestone: tight courses, soft warm and cool wash, damp bands, a few lighter replacement stones
+  ashlar(g, r, 0, 0, T, T, '#eae5d7', 32, 64, .13);
+  softNoise(g, r, 3, '150,112,80', .1); softNoise(g, r, 6, '98,84,66', .1); softNoise(g, r, 3, '60,52,44', .08, 2.4); softNoise(g, r, 11, '255,252,240', .08);
+  for (let i = 0; i < 5; i++) { const x = ((r() * 4) | 0) * 64 + 3, y = ((r() * 8) | 0) * 32 + 2; g.fillStyle = 'rgba(255,248,226,.16)'; g.fillRect(x, y, 61, 30); }
+}
+function chPiers(g, w = 15, cap = 0) {   // half a pilaster on each side of the tile: lit left edge, shaded right edge and a soft shadow thrown on the wall to the right of it; cap: y of its capital (0: none)
+  for (const x of [0, T - w]) {
+    g.fillStyle = 'rgba(255,250,236,.17)'; g.fillRect(x, 0, w, T);
+    if (x) { g.fillStyle = 'rgba(255,252,240,.5)'; g.fillRect(x, 0, 2.2, T); }
+    else { g.fillStyle = 'rgba(50,38,24,.42)'; g.fillRect(w - 2.8, 0, 2.8, T); const gr = g.createLinearGradient(w, 0, w + 14, 0); gr.addColorStop(0, 'rgba(40,30,18,.26)'); gr.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = gr; g.fillRect(w, 0, 14, T); }
+    if (cap) { g.fillStyle = 'rgba(255,250,236,.4)'; g.fillRect(x - (x ? 4 : 0), cap, w + 4, 9); g.fillStyle = 'rgba(40,30,18,.42)'; g.fillRect(x - (x ? 4 : 0), cap + 9, w + 4, 3); }
+  }
+}
+function chGlass(g, x, y, w, h) {   // dark glass with a faint reflection, bluish dark so the night shader lights it
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#34414f'); gr.addColorStop(1, '#10161e'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+  g.fillStyle = 'rgba(200,215,230,.13)'; g.beginPath(); g.moveTo(x, y + h * .6); g.lineTo(x + w * .6, y); g.lineTo(x + w, y); g.lineTo(x, y + h * .95); g.fill();
+}
+layer('ch_base', (g, r) => {   // the church ground floor: courses of ashlar, a moulded plinth, a stone string course along the top; mostly blind
+  chStone(g, r);
+  chPiers(g);
+  g.fillStyle = 'rgba(70,56,40,.22)'; g.fillRect(0, T - 52, T, 52);                                       // plinth: darker, grimed stone
+  g.fillStyle = '#ece5d1'; g.fillRect(0, T - 58, T, 7); g.fillStyle = 'rgba(255,255,250,.55)'; g.fillRect(0, T - 58, T, 1.6); g.fillStyle = 'rgba(40,30,20,.36)'; g.fillRect(0, T - 51, T, 4);
+  for (let i = 0; i < 3; i++) streak(g, r() * T, r() * 80, 130, 10, .13);
+  g.fillStyle = '#ece5d1'; g.fillRect(0, 0, T, 6); g.fillStyle = 'rgba(40,30,20,.3)'; g.fillRect(0, 6, T, 4);   // the string course that closes the ground floor
 });
-layer('ch_mid', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
-  g.fillStyle = '#d8cba8'; g.beginPath(); g.moveTo(52, T); g.lineTo(52, 90); g.quadraticCurveTo(128, -20, 204, 90); g.lineTo(204, T); g.fill();
-  g.fillStyle = '#e9dec3'; g.beginPath(); g.moveTo(62, T); g.lineTo(62, 94); g.quadraticCurveTo(128, -2, 194, 94); g.lineTo(194, T); g.fill();
-  g.fillStyle = '#1d2227'; g.beginPath(); g.moveTo(112, 190); g.lineTo(112, 100); g.quadraticCurveTo(128, 60, 144, 100); g.lineTo(144, 190); g.fill();
-  g.fillStyle = '#c9bd9c'; g.fillRect(104, 190, 48, 6);
-  for (let i = 0; i < 3; i++) streak(g, 60 + r() * 140, 100 + r() * 60, 100, 10, .14);
+layer('ch_mid', (g, r) => { chStone(g, r); chPiers(g); for (let i = 0; i < 3; i++) streak(g, 40 + r() * 170, r() * 120, 120, 10, .13); });   // plain pilastered nave wall (also the church's party walls)
+layer('ch_top', (g, r) => {   // the clerestory: a modillion cornice under the roof, a tall round-arched window with a moulded surround and a keystone, a sill
+  chStone(g, r);
+  chPiers(g, 15, 34);
+  const gr = g.createLinearGradient(0, 40, 0, 96); gr.addColorStop(0, 'rgba(40,30,18,.34)'); gr.addColorStop(1, 'rgba(40,30,18,0)'); g.fillStyle = gr; g.fillRect(0, 40, T, 56);   // the cornice's shadow on the wall
+  g.fillStyle = '#efe9d6'; g.fillRect(0, 0, T, 10); g.fillStyle = 'rgba(255,255,250,.6)'; g.fillRect(0, 0, T, 2); g.fillStyle = 'rgba(40,30,18,.3)'; g.fillRect(0, 10, T, 5);
+  g.fillStyle = '#e4dcc6'; g.fillRect(0, 15, T, 24);
+  for (let x = 4; x < T; x += 16) { g.fillStyle = '#efe9d6'; g.fillRect(x, 15, 9, 19); g.fillStyle = 'rgba(40,30,18,.4)'; g.fillRect(x + 9, 15, 3, 19); g.fillStyle = 'rgba(40,30,18,.28)'; g.fillRect(x - 1, 34, 11, 5); }
+  g.fillStyle = 'rgba(255,255,250,.45)'; g.fillRect(0, 39, T, 2); g.fillStyle = 'rgba(40,30,18,.38)'; g.fillRect(0, 41, T, 3);
+  const cx = 128, sp = 128, hw = 30, sill = 214, fr = 12;
+  g.save(); g.shadowColor = 'rgba(40,30,20,.45)'; g.shadowBlur = 6; g.shadowOffsetX = 3; g.shadowOffsetY = 4; g.fillStyle = '#efe8d5'; archPath(g, cx, sp, hw + fr, sill + fr); g.fill(); g.restore();
+  g.fillStyle = '#efe8d5'; archPath(g, cx, sp, hw + fr, sill + fr); g.fill();
+  g.fillStyle = 'rgba(255,252,240,.5)'; g.fillRect(cx - hw - fr, sp, 2.5, sill - sp + fr); g.fillStyle = 'rgba(60,45,30,.3)'; g.fillRect(cx + hw + fr - 2.5, sp, 2.5, sill - sp + fr);
+  g.fillStyle = '#16120f'; archPath(g, cx, sp, hw, sill); g.fill();
+  g.save(); archPath(g, cx, sp, hw - 5, sill); g.clip(); chGlass(g, cx - hw, sp - hw, hw * 2, sill - sp + hw); g.fillStyle = '#e4ddcc'; g.fillRect(cx - 1.5, sp - hw, 3, sill - sp + hw); g.fillRect(cx - hw, sp + 28, hw * 2, 2.5); g.restore();
+  g.fillStyle = '#e4dbc2'; g.beginPath(); g.moveTo(cx - 10, sp - hw - fr + 3); g.lineTo(cx + 10, sp - hw - fr + 3); g.lineTo(cx + 13, sp - hw - fr - 12); g.lineTo(cx - 13, sp - hw - fr - 12); g.closePath(); g.fill(); g.strokeStyle = 'rgba(60,45,30,.5)'; g.lineWidth = 1.4; g.stroke();   // keystone
+  g.fillStyle = '#f2ecdd'; g.fillRect(cx - hw - fr - 7, sill + fr, 2 * (hw + fr) + 14, 7); g.fillStyle = 'rgba(40,30,20,.4)'; g.fillRect(cx - hw - fr - 7, sill + fr + 7, 2 * (hw + fr) + 14, 4);
+  g.fillStyle = 'rgba(70,58,44,.16)'; g.fillRect(cx - hw - fr, sill + fr + 11, 2 * (hw + fr), 28);
+  for (let i = 0; i < 2; i++) streak(g, 40 + r() * 170, 120 + r() * 60, 90, 10, .12);
 });
-layer('ch_top', (g, r) => {
-  ashlar(g, r, 0, 0, T, T, '#e6e1d3', 36, 72);
-  for (const x of [64, 192]) { g.fillStyle = '#d4c7a2'; g.beginPath(); g.moveTo(x - 24, 150); g.lineTo(x - 24, 90); g.arc(x, 90, 24, Math.PI, 0); g.lineTo(x + 24, 150); g.fill(); g.fillStyle = '#20262c'; g.beginPath(); g.moveTo(x - 16, 150); g.lineTo(x - 16, 92); g.arc(x, 92, 16, Math.PI, 0); g.lineTo(x + 16, 150); g.fill(); }
-  band(g, T - 18, 10, '#f3ead2');
+layer('ch_door', (g, r) => {   // the portal: two columns on plinths carrying an entablature and a curved pediment, wooden doors under a glazed lunette, three steps
+  chStone(g, r); chPiers(g);
+  const cx = 128;
+  g.save(); g.shadowColor = 'rgba(40,30,20,.45)'; g.shadowBlur = 7; g.shadowOffsetX = 4; g.shadowOffsetY = 4; g.fillStyle = '#efe8d5'; g.fillRect(36, 70, 184, T - 70); g.restore();   // the aedicule stands proud
+  g.fillStyle = '#ece4cf'; g.fillRect(36, 70, 184, T - 70);
+  for (const x of [38, 186]) {   // columns: lit and shaded side, capital, base
+    const cg = g.createLinearGradient(x, 0, x + 32, 0); cg.addColorStop(0, '#f6f0df'); cg.addColorStop(.4, '#eae2cd'); cg.addColorStop(1, '#a89f8a'); g.fillStyle = cg; g.fillRect(x, 92, 32, T - 92);
+    g.fillStyle = '#efe8d5'; g.fillRect(x - 4, 86, 40, 10); g.fillStyle = 'rgba(40,30,18,.4)'; g.fillRect(x - 4, 96, 40, 3); g.fillStyle = '#e0d7c0'; g.fillRect(x - 5, T - 28, 42, 28); g.fillStyle = 'rgba(40,30,18,.3)'; g.fillRect(x - 5, T - 28, 42, 3);
+  }
+  g.fillStyle = '#efe8d5'; g.fillRect(28, 62, 200, 26); g.fillStyle = 'rgba(255,255,250,.55)'; g.fillRect(28, 62, 200, 2); g.fillStyle = 'rgba(40,30,18,.4)'; g.fillRect(28, 88, 200, 4);   // entablature
+  g.fillStyle = 'rgba(40,30,18,.26)'; g.beginPath(); g.moveTo(26, 64); g.quadraticCurveTo(cx, 6, 230, 64); g.closePath(); g.fill();   // pediment: shadow, stone, dark tympanum
+  g.fillStyle = '#efe8d5'; g.strokeStyle = 'rgba(60,45,30,.55)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(24, 62); g.quadraticCurveTo(cx, 0, 232, 62); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = 'rgba(70,55,40,.42)'; g.beginPath(); g.moveTo(44, 58); g.quadraticCurveTo(cx, 18, 212, 58); g.closePath(); g.fill();
+  g.fillStyle = '#e4dbc2'; g.beginPath(); g.arc(cx, 40, 8, 0, 7); g.fill(); g.strokeStyle = 'rgba(60,45,30,.5)'; g.stroke();
+  g.fillStyle = '#16120f'; archPath(g, cx, 130, 38, T - 18); g.fill();   // the doorway: dark arched opening, glazed lunette, two timber leaves
+  g.save(); archPath(g, cx, 130, 33, T - 18); g.clip(); chGlass(g, cx - 38, 92, 76, 40); oleaf(g, r, cx - 38, 138, 38, T - 156, WOOD[0]); oleaf(g, r, cx, 138, 38, T - 156, WOOD[0]); g.fillStyle = '#e4ddcc'; g.fillRect(cx - 38, 134, 76, 5); g.restore();
+  g.fillStyle = 'rgba(255,252,240,.4)'; g.fillRect(cx - 41, 128, 3, T - 146); g.fillStyle = 'rgba(40,30,18,.4)'; g.fillRect(cx + 38, 128, 3, T - 146);
+  for (let i = 0; i < 3; i++) { g.fillStyle = i % 2 ? '#d8cfb8' : '#e6dec9'; g.fillRect(24 - i * 4, T - 18 + i * 6, 208 + i * 8, 6); g.fillStyle = 'rgba(40,30,18,.3)'; g.fillRect(24 - i * 4, T - 18 + i * 6 + 5, 208 + i * 8, 1.5); }   // steps
+});
+layer('ch_rose', (g, r) => {   // the storey over the portal: a rose window in a stone ring with spokes, pier edges either side
+  chStone(g, r); chPiers(g);
+  const cx = 128, cy = 128, R = 54;
+  g.save(); g.shadowColor = 'rgba(40,30,20,.45)'; g.shadowBlur = 7; g.shadowOffsetX = 4; g.shadowOffsetY = 4; g.fillStyle = '#efe8d5'; g.beginPath(); g.arc(cx, cy, R + 13, 0, 7); g.fill(); g.restore();
+  g.fillStyle = '#efe8d5'; g.beginPath(); g.arc(cx, cy, R + 13, 0, 7); g.fill(); g.strokeStyle = 'rgba(60,45,30,.4)'; g.lineWidth = 1.4; g.beginPath(); g.arc(cx, cy, R + 8, 0, 7); g.stroke();
+  g.fillStyle = '#16120f'; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R - 5, 0, 7); g.clip(); chGlass(g, cx - R, cy - R, 2 * R, 2 * R); g.restore();
+  g.strokeStyle = '#e4ddcc'; g.lineWidth = 3; for (let i = 0; i < 8; i++) { const a = i / 8 * 6.2832; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); g.stroke(); }
+  g.beginPath(); g.arc(cx, cy, R * .5, 0, 7); g.stroke(); g.fillStyle = '#e4ddcc'; g.beginPath(); g.arc(cx, cy, 7, 0, 7); g.fill();
+  g.fillStyle = 'rgba(70,58,44,.16)'; g.fillRect(cx - R - 10, cy + R + 16, 2 * R + 20, 24);
 });
 
 
@@ -1414,7 +1472,7 @@ const PAL = {
   n19: ['#d9cab7', '#c9a293', '#d8c48a', '#c4b09a', '#dcc9a6', '#cfa88d', '#e0d2b8', '#c7a373', '#af9c8d', '#d8b0a0', '#e3d28f', '#e9e2d2', '#d99a78', '#bba898'].map(C),
   res: ['#c7a373', '#d8c48a', '#cf9a6b', '#e2d8c4', '#b8aea0', '#c98f78', '#d6b58a', '#bfae8e', '#dcc7a0', '#9fb0a6', '#d99a78', '#e3d28f', '#cdb8a0', '#c4a6a0', '#e8e0cc', '#a9b6a2'].map(C),
   pw: ['#e0dcd2', '#e4dccc', '#dcd8cc', '#e0d4b4', '#dccb8c', '#e2d6a0', '#d0a08c', '#d8b09c', '#c98a6a', '#d6cfc0', '#cfcabe', '#e6e0d4', '#d9c9a8', '#c8c2b4'].map(C),   // 1950s to 80s render: white, cream, pale yellow, salmon, a little terracotta, grey
-  church: ['#b09062', '#a6875b', '#bda37a'].map(C),
+  church: ['#c9b78c', '#bfae84', '#d2c6a6', '#b8a577', '#c8bda6', '#b09062', '#d6cdb4', '#a6875b'].map(C),
 };
 const STYLES = {
   bar: { pal: 'bar', bay: 4.2, g0: 4.9, fh: 4.4, parapet: 0.9, corn: 0.6, nobile: true, up: ['bar_up_g', 'bar_up_b'], nob: ['bar_nob_tri', 'bar_nob_seg'], rail: 'rail_b', balcUpper: 0.2, pitch: 0.12,
@@ -1428,7 +1486,7 @@ const STYLES = {
     pwf: { pat: [.06, .36, .22, .22, .14], depth: [1.15, 1.6], pilot: .45, brick: .06 },
     ground: [['pwg', 3], ['g_lobby', 1.6], ['g_pilot', .8], ['pw_shop', 1], ['g_garage', .8]] },
   church: { pal: 'church', rail: 'rail_a', bay: 5.0, g0: 5.2, fh: 6.4, parapet: 0.0, corn: 0.3, nobile: false, up: ['ch_mid'], church: true, pitch: 0.6,
-    ground: [['ch_low', 6], ['ch_door', 1]] },
+    ground: [['ch_base', 6], ['ch_door', 1]] },
   low: { pal: 'res', bay: 4.0, g0: 99, fh: 3.3, parapet: 0.6, corn: 0.0, nobile: false, up: ['res_a'], rail: 'rail_a', balcUpper: 0, pitch: 0.4,
     ground: [['g_shop_s', 3], ['g_garage', 2], ['g_door2', 1.5], ['blank_g', 1]] },
   // ---- district styles (see docs/districts.md) ----
@@ -1477,7 +1535,7 @@ const TOWN_GROUND = {
   side: [['g_garage', 3.2], ['g_door2', 2.4], ['og_door', 1], ['g_shop_s', 1.2], ['g_bottega', .5], ['g_bar', .25], ['g_pane', .2], ['og_low', .8]],
   minor: [['g_garage', 3.6], ['g_door2', 2.8], ['og_door', 1.2], ['og_low', 1.2], ['g_shop_s', .4]],
 };
-const REPEATABLE = new Set(['pwg', 'og_door', 'og_shop', 'og_low', 'g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
+const REPEATABLE = new Set(['pwg', 'og_door', 'og_shop', 'og_low', 'g_shop_s', 'g_shop_o', 'g_win', 'pw_shop', 'g_garage', 'ch_low', 'ch_base', 'blank_g', 'ind_a', 'silo', 'ruin_wall', 'zen_g', 'bch_a', 'g_mk_a', 'g_mk_b', 'g_mk_c']);
 
 // =====================================================================================
 // Spatial lookups
@@ -1768,8 +1826,12 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         bm = bpEdge(ax, az, bx, bz);
         if (bm) { const w = B.spec.walls[bm.i]; if (w) W = { ...sp, ...w }; }
       }
-      if (kind === 'party' && !S.silo || len < 2.6 && !S.silo) {
-        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? (B.old ? L.ost_wall : L.ch_low) : B.old ? L.old_wall : L.blank_v, 0.72, 0.97, 0, len / 4);
+      if ((kind === 'party' && !S.silo || len < 2.6 && !S.silo) && S.church && yTop - Math.min(foot0, foot1) > 12) {   // a church wall nobody fronts: pilastered nave wall with the cornice and the clerestory window at the top (it is what shows over the roofs round it)
+        const yc = yTop - 6.4, lo = Math.min(foot0, foot1);
+        strip(0, 1, foot0, foot1, yc, yc, 0, (yc - lo) / 6.4, L.ch_mid, 0.72, 0.97, 0, len / 5);
+        strip(0, 1, yc, yc, yTop, yTop, 0, 1, L.ch_top, 0.97, 0.93, 0, len / 5);
+      } else if (kind === 'party' && !S.silo || len < 2.6 && !S.silo) {
+        strip(0, 1, foot0, foot1, yTop, yTop, 0, (yTop - Math.min(foot0, foot1)) / 4, B.stoneWall ? (B.old ? L.ost_wall : S.church ? L.ch_mid : L.ch_low) : B.old ? L.old_wall : L.blank_v, 0.72, 0.97, 0, len / 4);
       } else {
         nb = W.bays ? Math.max(1, W.bays | 0) : Math.max(1, Math.round(len / ((W.bay || S.bay) * (B.bayK || 1))));
         const bw = len / nb;
@@ -1782,7 +1844,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         // ground floor runs
         const runs = [];
         const addRun = (lay, brk, h) => { const q = runs[runs.length - 1]; if (q && q.lay === lay && !brk && REPEATABLE.has(lay)) q.n++; else runs.push({ lay, n: 1, h }); };   // brk: a new house starts here, so a run never crosses two colours
-        if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.7 ? 'ch_door' : 'ch_low');
+        if (S.church) for (let i = 0; i < nb; i++) addRun(nb > 2 && i === (nb >> 1) && kind === 'street' && r() < 0.9 ? 'ch_door' : 'ch_base');
         else if (W.bl && W.bl.ground) for (let i = 0; i < nb; i++) addRun(W.bl.ground[(nb - 1 - i) % W.bl.ground.length]);   // a hand-drawn facade (src/hero-facades.js): the layer of every bay, in order
         else if (kind === 'street') {
           let prev = null;
@@ -1842,8 +1904,15 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
             }
             col = B.col;
           } else if (S.church) {
-            if (nUp >= 2) strip(0, 1, yg, yg, yg + fh * (nUp - 1), yg + fh * (nUp - 1), 0, nUp - 1, L.ch_mid, 0.95, 0.97, 0, nb);
-            strip(0, 1, yg + fh * (nUp - 1), yg + fh * (nUp - 1), yTop, yTop, 0, 1, nUp >= 2 ? L.ch_top : L.ch_mid, 0.97, 0.93, 0, nb);
+            // the nave wall: plain pilastered storeys, the clerestory with its cornice on top; over the portal the first storey is the rose window (the portal is the ground run of ch_door)
+            let dB = -1; for (let i = 0, a = 0; i < runs.length; a += runs[i++].n) if (runs[i].lay === 'ch_door') { dB = a; break; }
+            const wall = (b0, b1, rose) => {
+              const t0 = b0 / nb, t1 = b1 / nb, yc = yg + fh * (nUp - 1);
+              if (rose && nUp >= 2) { strip(t0, t1, yg, yg, yg + fh, yg + fh, 0, 1, L.ch_rose, 0.95, 0.97, b0, b1); if (nUp >= 3) strip(t0, t1, yg + fh, yg + fh, yc, yc, 0, nUp - 2, L.ch_mid, 0.95, 0.97, b0, b1); }
+              else if (nUp >= 2) strip(t0, t1, yg, yg, yc, yc, 0, nUp - 1, L.ch_mid, 0.95, 0.97, b0, b1);
+              strip(t0, t1, yc, yc, yTop, yTop, 0, 1, L.ch_top, 0.97, 0.93, b0, b1);
+            };
+            if (dB < 0) wall(0, nb, false); else { if (dB > 0) wall(0, dB, false); wall(dB, dB + 1, true); if (dB + 1 < nb) wall(dB + 1, nb, false); }
           } else {
             let start = 1, y0 = yg;
             if (hasNob && W.bl && W.bl.nob) { for (let i = 0; i < nb; i++) strip(i / nb, (i + 1) / nb, yg, yg, yg + fh1, yg + fh1, 0, 1, L[W.bl.nob[(nb - 1 - i) % W.bl.nob.length]], 0.94, 0.98, 0, 1); start = 2; y0 = yg + fh1; }
@@ -2032,6 +2101,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
         else if (touches(mx + nx * 0.6, mz + nz * 0.6) || touches(mx + nx * 1.3, mz + nz * 1.3)) kind = 'party';
         else {
           kind = roadNear(mx + nx * 2.2, mz + nz * 2.2).d < 3.2 ? 'street' : 'back';
+          if (kind === 'back' && B.S.church && len >= 6 && !touches(mx + nx * 3, mz + nz * 3) && !touches(mx + nx * 9, mz + nz * 9)) kind = 'street';   // a church wall that looks onto open ground (a piazza, a churchyard) is its front: portal, rose window
           // Set-back fronts: on the wide avenues and in the housing estates the facade stands behind a garden strip, a service lane or a parking row, and is still
           // the front (shops, balconies). Look further out along the normal for a street, stopping at the first building in the way.
           if (kind === 'back' && B.reach && len > 6) for (let t = 5; t <= B.reach; t += 4) {
@@ -2065,7 +2135,7 @@ export function* buildBuildingsIter(ctx, data = D, group = new THREE.Group()) {
     } else {
       const { ua, ub, vm } = ridge, lay = B.pitchLay ?? (B.greyRoof ? LID.tiles_grey : LID.tiles), k = B.roofK;
       const RP = p => { const u = p[0] * ax + p[1] * az, uc = Math.min(ub, Math.max(ua, u)); return [uc * ax - vm * az, uc * az + vm * ax, uc]; };
-      const Eave = p => { const u = p[0] * ax + p[1] * az, v = -p[0] * az + p[1] * ax, uc = Math.min(ub, Math.max(ua, u)); return [p[0], yTop, p[1], u / 3, Math.hypot(u - uc, v - vm) * 1.15 / 3, k]; };
+      const Eave = p => { const u = p[0] * ax + p[1] * az, v = -p[0] * az + p[1] * ax, uc = Math.min(ub, Math.max(ua, u)); return [p[0], yTop, p[1], u / 3, Math.abs(v - vm) * 1.15 / 3, k]; };   // the texture is laid on the plan (along the ridge, across it), so a hip end is not stretched into streaks
       const Rid = (p, q) => [q[0], roofY, q[1], q[2] / 3, 0, k];
       const N = outerPts.length;
       for (let i = 0; i < N; i++) {
