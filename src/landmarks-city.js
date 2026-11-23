@@ -48,6 +48,8 @@ import { BATCH_N } from './lmc-batchN.js';
 import { BATCH_O } from './lmc-batchO.js';
 import { BATCH_P } from './lmc-batchP.js';
 import { CHURCHES } from './lmc-churches.js';
+import { PIAZZA } from './lmc-piazza.js';
+import { PIAZZA2 } from './lmc-piazza2.js';
 import { SAN_DOMENICO } from './lmc-sandomenico.js';   // the Chiesa di San Domenico: front, two bell towers, nave (src/lmc-sandomenico.js)
 import { EUFEMIA } from './lmc-eufemia.js';   // the sign of the Hotel Eufemia in Isola delle Femmine, the destination of the U cuinnutu fare (src/lmc-eufemia.js)
 
@@ -67,6 +69,7 @@ export const CITY_LANDMARKS = [
   ...BATCH_E, ...BATCH_F, ...BATCH_G, ...BATCH_H, 
   ...BATCH_A, ...BATCH_B, ...BATCH_C, ...BATCH_D, 
   GESU, TEATINI, SANTA_CITA, MARTORANA, CARMINE, SANTA_TERESA, PIETA, MAGIONE, 
+  ...PIAZZA, ...PIAZZA2,
   SAN_DOMENICO, SAN_FRANCESCO, SANT_AGOSTINO, SALVATORE, SANT_IGNAZIO, POSTE,
   ...TOWN_LANDMARKS,
 ];

@@ -42,10 +42,182 @@ function deck(key, r0, r1, y, a0, a1, seg, o = {}, down = false) {
 function band(key, r0, r1, y0, y1, a0, a1, seg, o = {}) { arcWall(key, r1, y0, y1, a0, a1, seg, o); deck(key, r0, r1, y1, a0, a1, seg, o); deck(key, r0, r1, y0, a0, a1, seg, { ...o, noao: true }, true); }
 
 // ====================================================================================================
-// 1. Teatro Politeama Garibaldi
+// 1. Teatro Politeama Garibaldi (Damiani Almeyda, 1874), redrawn from Commons photos (names only):
+//    Palermo Teatro Politeama BW 2012-10-09 16-44-27.jpg (3/4 view: arch block, ground portico, first gallery, drum, dome, end pavilion),
+//    Politeama Garibaldi arco centrale.jpg (arch from below: archivolt, angels, eagle corbel, stained glass, cornice, frieze, quadriga),
+//    Politeama portico.jpg (red-footed fluted ground columns, teal Pompeian wall, orange band), Palermo-Politeama-bjs-1.jpg, Teatro Politeama Garibaldi.jpg,
+//    Politeama Palermo.jpg, Palermo, Teatro Politeama.jpg (front and side views, column counts and spacing), Politeama Garibaldi quadriga bronzea.jpg and
+//    Teatro Politeama, Palermo, frontón sobre arco, Sicilia, Italia, 2015.JPG (palmette crest, putti frieze, inscription, trophy panels, terracotta antefixes),
+//    Palermo-AP-p1070686.jpg (rear side of the rotunda, tall end pavilion, polychrome band), Palermo-Politeama-bjs-2.jpg (Ionic capitals, ochre Pompeian wall, dark figure frieze).
+// Not seen in any photo: the stage house behind, the rear block and the side streets' walls (kept as plain walls); the exact column count (read as 9 per side from the photos).
+// ====================================================================================================
+const PG_D = PI / 180;
+const rotXm = (a) => new THREE.Matrix4().makeRotationX(a);
+const pgRegion = (x0, y0, w, h) => ({ uvk: [w / 512, h / 512], uvo: [x0 / 512, 1 - (y0 + h) / 512] });   // a piece of the 512x512 relief atlas, y0 from the top
+function pgSoil(g, w, h, seed, lite = '255,246,222', dark = '70,50,30', n = 22, a = 0.16) {   // soft patches of soot and bleached stone plus rain streaks
+  const r = RNG(seed);
+  for (let i = 0; i < n; i++) {
+    const x = r() * w, y = r() * h, rad = (0.1 + r() * 0.22) * Math.max(w, h), c = r() < 0.6 ? dark : lite, al = a * (0.4 + r() * 0.8);
+    const gr = g.createRadialGradient(x, y, 1, x, y, rad); gr.addColorStop(0, `rgba(${c},${al})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
+  }
+  streaks(g, w, h, Math.round(w / 12), seed + 3, 0.1, h * 0.45, dark);
+  noiseDots(g, w, h, w * h / 120, 1.6, seed + 5, ['rgba(70,50,30,0.10)', 'rgba(255,246,222,0.08)']);
+}
+function pgMats() {
+  defMat('pgtPlast', 256, 256, [3.2, 3.2], (g, w, h) => { g.fillStyle = '#e8d6ae'; g.fillRect(0, 0, w, h); pgSoil(g, w, h, 701, '255,246,222', '70,50,30', 18, 0.1); });
+  defMat('pgtStone', 512, 512, [6.4, 6.4], (g, w, h) => { paintAshlar(g, w, h, 6.4, 6.4, 0.8, 1.5, '#e2cda2', '#b39a6c', 711, 2, 0.05); pgSoil(g, w, h, 712, '255,246,222', '70,50,30', 24, 0.1); });
+  // fluted shaft, one turn of the cylinder per tile
+  defMat('pgtCol', 128, 256, [2.4, 6], (g, w, h) => {
+    g.fillStyle = '#ebe0c6'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 16; i++) { const x = i * 8, gr = g.createLinearGradient(x, 0, x + 8, 0); gr.addColorStop(0, 'rgba(90,70,40,0.42)'); gr.addColorStop(0.5, 'rgba(255,250,235,0.12)'); gr.addColorStop(1, 'rgba(90,70,40,0.30)'); g.fillStyle = gr; g.fillRect(x, 0, 8, h); }
+    pgSoil(g, w, h, 721, '255,246,222', '80,60,36', 10, 0.18);
+  });
+  // first-floor gallery wall, one bay per tile (2.5 m wide, 6.4 m tall): dado, ochre field with window and a floating figure, dark figured frieze at the top
+  defMat('pgtPomp', 256, 512, [2.5046, 6.4], (g, w, h) => {
+    const Y = (m) => (6.4 - m) * 80, r = RNG(731);
+    g.fillStyle = '#d4a03c'; g.fillRect(0, 0, w, h); pgSoil(g, w, h, 732, '240,205,120', '120,70,20', 16, 0.22);
+    g.fillStyle = '#5a2b22'; g.fillRect(0, Y(0.9), w, 0.9 * 80); g.fillStyle = '#c0502f'; g.fillRect(0, Y(0.9), w, 4);
+    g.strokeStyle = '#b04a30'; g.lineWidth = 3; g.strokeRect(14, Y(0.75), w - 28, 0.55 * 80);
+    g.fillStyle = '#4a221e'; g.fillRect(0, 0, w, Y(4.8)); g.fillStyle = '#e6d3a8'; g.fillRect(0, Y(4.8), w, 4); g.fillStyle = '#b04a30'; g.fillRect(0, Y(4.8) + 4, w, 3);
+    for (const fx of [48, 128, 208]) { g.fillStyle = r() < 0.5 ? '#c9814a' : '#e0c9a0'; g.beginPath(); g.ellipse(fx, 62, 9, 24, (r() - 0.5) * 0.5, 0, 7); g.fill(); g.beginPath(); g.arc(fx + 2, 30, 7, 0, 7); g.fill(); g.fillRect(fx - 22, 48 + r() * 8, 44, 3); }
+    // window
+    const wx = (w - 133) / 2, wy = Y(4.4), wh = 3.4 * 80;
+    g.fillStyle = '#e4d3aa'; g.fillRect(wx - 9, wy - 9, 151, wh + 18); g.fillStyle = '#2e3a40'; g.fillRect(wx, wy, 133, wh * 0.62); g.fillStyle = '#241c18'; g.fillRect(wx, wy + wh * 0.62, 133, wh * 0.38);
+    g.fillStyle = '#6a2a2a'; g.fillRect(wx + 6, wy + wh * 0.62, 18, wh * 0.38); g.fillRect(wx + 109, wy + wh * 0.62, 18, wh * 0.38);
+    g.fillStyle = 'rgba(15,12,10,0.8)'; g.fillRect(wx + 65, wy, 3, wh); g.fillRect(wx, wy + wh * 0.62, 133, 3);
+    g.fillStyle = '#e4d3aa'; g.fillRect(wx - 12, wy - 14, 157, 6);
+    // floating figure, left of the window
+    g.fillStyle = '#e9a687'; g.beginPath(); g.ellipse(32, 275, 9, 34, -0.35, 0, 7); g.fill(); g.beginPath(); g.arc(38, 238, 6, 0, 7); g.fill();
+    g.strokeStyle = '#f0c8a8'; g.lineWidth = 4; g.beginPath(); g.moveTo(24, 262); g.quadraticCurveTo(10, 250, 8, 232); g.stroke();
+    g.fillStyle = 'rgba(176,74,48,0.5)'; g.fillRect(0, 0, 3, h); g.fillRect(w - 3, 0, 3, h);
+  });
+  // ground wall: teal Pompeian field, dark panelled dado with an orange band, maroon band at the top, glazed door in each bay (6.9 m tall)
+  defMat('pgtPompG', 256, 512, [2.5046, 6.9], (g, w, h) => {
+    const k = h / 6.9, Y = (m) => h - m * k;
+    g.fillStyle = '#2f5b57'; g.fillRect(0, 0, w, h); pgSoil(g, w, h, 741, '150,190,170', '10,30,28', 18, 0.25);
+    g.fillStyle = '#1d2528'; g.fillRect(0, Y(1.0), w, 1.0 * k); g.strokeStyle = '#b04a30'; g.lineWidth = 3; g.strokeRect(14, Y(0.85), w - 28, 0.7 * k);
+    g.fillStyle = '#d78a2c'; g.fillRect(0, Y(1.35), w, 0.35 * k); g.fillStyle = '#8a3a22'; g.fillRect(0, Y(1.35), w, 3);
+    g.fillStyle = '#6d2f27'; g.fillRect(0, 0, w, Y(5.5)); g.fillStyle = '#d6a64a'; g.fillRect(0, Y(5.5), w, 5);
+    const dw = 1.5 * w / 2.5046, dx = (w - dw) / 2, dy = Y(3.5);
+    g.fillStyle = '#b89a6a'; g.fillRect(dx - 8, dy - 8, dw + 16, Y(0) - dy + 8); g.fillStyle = '#1b1714'; g.fillRect(dx, dy, dw, Y(0) - dy);
+    g.fillStyle = 'rgba(120,150,160,0.25)'; g.fillRect(dx + 6, dy + 6, dw / 2 - 9, (Y(0) - dy) * 0.5); g.fillRect(dx + dw / 2 + 3, dy + 6, dw / 2 - 9, (Y(0) - dy) * 0.5);
+    g.fillStyle = 'rgba(184,154,106,0.9)'; g.fillRect(dx + dw / 2 - 1.5, dy, 3, Y(0) - dy); g.fillRect(dx, dy + (Y(0) - dy) * 0.55, dw, 3);
+  });
+  // polychrome frieze (ground entablature, impost cornices and the end pavilions): ochre with turquoise metopes, cream triglyphs
+  defMat('pgtFrieze', 512, 128, [6.0, 1.2], (g, w, h) => {
+    g.fillStyle = '#d8ac4c'; g.fillRect(0, 0, w, h); pgSoil(g, w, h, 751, '245,225,160', '110,70,20', 8, 0.2);
+    for (let x = 0; x < w; x += 60) {
+      g.fillStyle = '#3f8279'; g.fillRect(x + 8, 22, 30, 84); g.fillStyle = '#cfe3d6'; g.beginPath(); g.arc(x + 23, 64, 8, 0, 7); g.fill();
+      g.fillStyle = '#efe0b6'; for (let t = 0; t < 3; t++) g.fillRect(x + 40 + t * 5, 22, 3, 84);
+    }
+    g.fillStyle = '#8a3b2a'; g.fillRect(0, 8, w, 6); g.fillRect(0, h - 14, w, 6);
+  });
+  // relief atlas 512x512 (rows from the top): 0-128 putti frieze, 128-192 palmette crest, 192-320 trophy and two angels, 320-352 inscription, 352-384 dentils
+  defMat('pgtRelief', 512, 512, [1, 1], (g, w, h) => {
+    const r = RNG(761);
+    g.fillStyle = '#d9c29a'; g.fillRect(0, 0, w, h); pgSoil(g, w, h, 762, '255,246,222', '70,50,30', 16, 0.14);
+    // putti frieze
+    g.fillStyle = '#c4a876'; g.fillRect(6, 10, w - 12, 108);
+    for (let x = 18; x < w - 20; x += 22) {
+      const hh = 34 + r() * 14, y = 100 - hh;
+      for (const [dx, dy, col] of [[2, 2, '#8f7650'], [0, 0, '#ecdcb6']]) {
+        g.fillStyle = col; g.beginPath(); g.arc(x + dx, y + dy, 7, 0, 7); g.fill(); g.beginPath(); g.ellipse(x + dx, y + dy + 20, 7, 13, (r() - 0.5) * 0.5, 0, 7); g.fill();
+        g.fillRect(x - 12 + dx, y + 12 + dy - r() * 8, 24, 3); g.fillRect(x - 5 + dx, y + 30 + dy, 3, 18); g.fillRect(x + 3 + dx, y + 30 + dy, 3, 18);
+      }
+    }
+    // palmette crest
+    g.fillStyle = '#d4b480'; g.fillRect(0, 132, w, 56);
+    for (let i = 0; i < 8; i++) {
+      const cx = i * 64 + 32; g.strokeStyle = '#8d7650'; g.fillStyle = '#ecd9ae'; g.lineWidth = 2;
+      for (let j = -3; j <= 3; j++) { g.save(); g.translate(cx, 184); g.rotate(j * 0.34); g.beginPath(); g.ellipse(0, -24, 5.5, 20, 0, 0, 7); g.fill(); g.stroke(); g.restore(); }
+    }
+    // trophy panel (lyre) 0..128 x 192..320
+    g.fillStyle = '#cfb687'; g.fillRect(0, 192, 128, 128); g.strokeStyle = '#8f7650'; g.lineWidth = 6; g.strokeRect(6, 198, 116, 116);
+    g.strokeStyle = '#efdfba'; g.lineWidth = 5; g.beginPath(); g.arc(64, 262, 28, 0.2, PI - 0.2, false); g.moveTo(42, 250); g.lineTo(42, 222); g.moveTo(86, 250); g.lineTo(86, 222); g.stroke();
+    g.lineWidth = 3; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(48 + k * 8, 232); g.lineTo(48 + k * 8, 276); g.stroke(); }
+    g.lineWidth = 5; g.beginPath(); g.moveTo(24, 300); g.lineTo(104, 214); g.moveTo(104, 300); g.lineTo(24, 214); g.stroke();
+    // two angels (184x128 each), facing each other: head, tilted draped body, big wing, arm holding a wreath
+    for (const x0 of [128, 312]) {
+      g.save(); g.translate(x0, 192); g.fillStyle = '#cfb687'; g.fillRect(0, 0, 184, 128); g.strokeStyle = '#8f7650'; g.lineWidth = 4; g.strokeRect(3, 3, 178, 122);
+      for (const [dx, dy, col] of [[2, 2, '#8f7650'], [0, 0, '#efdfba']]) {
+        g.fillStyle = col; g.strokeStyle = col; g.lineCap = 'round';
+        g.beginPath(); g.ellipse(dx + 96, dy + 40, 12, 46, 0.9, 0, 7); g.fill(); g.beginPath(); g.ellipse(dx + 112, dy + 34, 11, 40, 1.05, 0, 7); g.fill();   // wing
+        g.beginPath(); g.moveTo(dx + 40, dy + 86); g.lineTo(dx + 78, dy + 50); g.lineTo(dx + 116, dy + 112); g.closePath(); g.fill();                       // drapery
+        g.lineWidth = 15; g.beginPath(); g.moveTo(dx + 62, dy + 76); g.lineTo(dx + 76, dy + 44); g.stroke();                                              // torso
+        g.beginPath(); g.arc(dx + 72, dy + 30, 10, 0, 7); g.fill();                                                                                         // head
+        g.lineWidth = 7; g.beginPath(); g.moveTo(dx + 72, dy + 52); g.quadraticCurveTo(dx + 46, dy + 46, dx + 28, dy + 62); g.stroke();                      // arm
+        g.lineWidth = 5; g.beginPath(); g.arc(dx + 22, dy + 68, 11, 0, 7); g.stroke();                                                                      // wreath
+      }
+      g.restore();
+    }
+    // inscription 512x32 at y 320
+    g.fillStyle = '#d9c49a'; g.fillRect(0, 320, w, 32); g.fillStyle = '#6c5232'; g.font = 'bold 24px serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
+    g.fillText('★  POLITEAMA  ★  GARIBALDI  ★', w / 2, 337);
+    g.strokeStyle = '#8d7650'; g.lineWidth = 3; for (const x of [28, w - 28]) { g.beginPath(); g.ellipse(x, 336, 16, 6, 0, 0, 7); g.stroke(); }
+    // dentils at y 352
+    g.fillStyle = '#c9ad7a'; g.fillRect(0, 352, w, 32); g.fillStyle = '#ead8b0'; for (let x = 0; x < w; x += 43) g.fillRect(x + 6, 354, 22, 26);
+    g.fillStyle = 'rgba(60,40,20,0.35)'; for (let x = 0; x < w; x += 43) g.fillRect(x + 6, 376, 22, 4);
+  });
+  // stained glass of the entrance arch, 6.3 m x 11.5 m: blue sunburst over the springing, green and maroon lattice, leaded dark lattice below the 3 m mark
+  defMat('pgtGlass', 256, 512, [1, 1], (g, w, h) => {
+    const sy = h / 11.5, cy = (11.5 - 8.35) * sy;
+    g.fillStyle = '#15171a'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 18; i++) { const a0 = PI + i * PI / 18, a1 = a0 + PI / 18; g.fillStyle = ['#2d46a3', '#3a58b8', '#1f2f7a'][i % 3]; g.beginPath(); g.moveTo(w / 2, cy); g.arc(w / 2, cy, w * 0.5, a0, a1); g.closePath(); g.fill(); g.strokeStyle = '#10142a'; g.lineWidth = 2; g.stroke(); }
+    g.fillStyle = '#8e8e96'; g.beginPath(); g.arc(w / 2, cy, 40, PI, 0); g.fill(); g.strokeStyle = '#3a3a44'; g.lineWidth = 3; g.stroke(); g.fillStyle = '#5a5a66'; g.fillRect(w / 2 - 14, cy - 28, 28, 28);
+    const y1 = (11.5 - 3.0) * sy;
+    for (let gx = 0; gx < 8; gx++) for (let gy = 0; gy < 8; gy++) {
+      const x = gx * (w / 8), y = cy + gy * ((y1 - cy) / 8), cw = w / 8, ch = (y1 - cy) / 8;
+      g.fillStyle = '#3f9a5d'; g.fillRect(x + 2, y + 2, cw - 4, ch - 4); g.fillStyle = '#7a2f45'; g.fillRect(x + cw * 0.3, y + ch * 0.3, cw * 0.4, ch * 0.4); g.strokeStyle = '#15171a'; g.lineWidth = 2; g.strokeRect(x + cw * 0.3, y + ch * 0.3, cw * 0.4, ch * 0.4);
+    }
+    for (let gx = 0; gx < 6; gx++) for (let gy = 0; gy < 6; gy++) {
+      const x = gx * (w / 6) + (gy % 2 ? w / 12 : 0), y = y1 + gy * ((h - y1) / 6), cw = w / 6, ch = (h - y1) / 6;
+      g.fillStyle = (gx + gy) % 3 === 0 ? '#b9953a' : (gx + gy) % 3 === 1 ? '#6d4a7a' : '#7a2f45'; g.beginPath(); g.moveTo(x, y + ch / 2); g.lineTo(x + cw / 2, y + 2); g.lineTo(x + cw, y + ch / 2); g.lineTo(x + cw / 2, y + ch - 2); g.closePath(); g.fill();
+    }
+  }, { roughness: 0.3 });
+  // end pavilions: ashlar front with red arched door, first-floor window and attic window
+  defMat('pgtPav', 512, 512, [6.8, 20.6], (g, w, h) => paintFacade(g, w, h, 6.8, 20.6, {
+    base: '#d8c08f', trim: '#ecdcb6', glass: '#3a2a22', seed: 771, ashlar: { base: '#d9c293', joint: '#ab9468', course: 0.7, block: 1.4, seed: 772 },
+    bands: [{ y: 5.9, h: 0.9, c: '#cfa24a' }, { y: 7.3, h: 0.3, c: '#e6d6b0' }, { y: 15.6, h: 0.8, c: '#e6d6b0' }], pil: { xs: [0.3, 6.5], w: 0.6, c: '#e4d3ac' },
+    rows: [{ y0: 0, y1: 3.4, xs: [3.4], w: 1.4, kind: 'door', glass: '#9c3a28' }, { y0: 8.6, y1: 12.8, xs: [3.4], w: 1.6, kind: 'rect', ped: true }, { y0: 16.6, y1: 19.0, xs: [3.4], w: 1.4, kind: 'rect' }] }));
+}
+
+// bronze horse facing +z standing on its hind hooves at the origin of M, reared by phi (radians); about 3.4 m to the ears at phi = 0.9
+function pgHorse(M0, phi, o = {}) {
+  const M = mul(M0, new THREE.Matrix4().makeScale(1.3, 1.3, 1.3)), c = o.c || '#46604f', k = 'bronze', n = true, B = mul(M, mul(tr(0, 1.5, 0), rotXm(-phi)));
+  box(k, 0.85, 1.0, 2.0, { M: B, p: [0, -0.55, -0.1], c, noao: n });
+  box(k, 0.8, 1.1, 0.7, { M: B, p: [0, -0.6, 0.8], c, noao: n });
+  box(k, 0.42, 1.3, 0.55, { M: B, p: [0, 0.0, 1.0], rx: 0.55, c, noao: n });
+  box(k, 0.3, 0.85, 0.32, { M: B, p: [0, 1.05, 1.62], rx: 2.1, c, noao: n });
+  box(k, 0.1, 1.25, 0.14, { M: B, p: [0, 0.08, 0.82], rx: 0.55, c: '#33463b', noao: n });
+  for (const sx of [-1, 1]) {
+    box(k, 0.07, 0.2, 0.07, { M: B, p: [sx * 0.12, 1.1, 1.38], rx: 0.2, c, noao: n });
+    box(k, 0.2, 0.85, 0.24, { M: B, p: [sx * 0.28, -0.1, 0.85], rx: 2.2, c, noao: n });
+    box(k, 0.15, 0.8, 0.17, { M: B, p: [sx * 0.28, -0.6, 1.54], rx: 3.4, c, noao: n });
+    box(k, 0.3, 0.9, 0.4, { M, p: [sx * 0.3, 0.7, -0.1], rx: -0.35, c, noao: n });
+    box(k, 0.18, 0.8, 0.2, { M, p: [sx * 0.3, 0, -0.35], rx: 0.3, c, noao: n });
+    box(k, 0.22, 0.12, 0.34, { M, p: [sx * 0.3, 0, -0.25], c: '#2f3f35', noao: n });
+  }
+  box(k, 0.2, 1.1, 0.2, { M: B, p: [0, -0.2, -1.1], rx: -2.4, c: '#33463b', noao: n });
+}
+// nude rider seated on a horse built with pgHorse(M, phi): arm raised with a palm branch
+function pgRider(M0, phi, o = {}) {
+  const M = mul(M0, new THREE.Matrix4().makeScale(1.3, 1.3, 1.3)), c = o.c || '#46604f', k = 'bronze', n = true, B = mul(M, mul(tr(0, 1.5, 0), rotXm(-phi)));
+  box(k, 0.45, 0.85, 0.3, { M: B, p: [0, 0.4, -0.15], c, noao: n });
+  sphere(k, 0.17, { M: B, p: [0, 1.4, -0.12], c, seg: 6, noao: n });
+  box(k, 0.12, 0.85, 0.12, { M: B, p: [0.28, 0.95, -0.12], rz: -0.55, c, noao: n });
+  box(k, 0.04, 0.9, 0.04, { M: B, p: [0.65, 1.55, -0.12], rz: 0.35, c: '#5c7a52', noao: n });
+  box(k, 0.12, 0.7, 0.12, { M: B, p: [-0.26, 0.55, -0.12], rz: 0.9, c, noao: n });
+  for (const sx of [-1, 1]) box(k, 0.17, 0.75, 0.2, { M: B, p: [sx * 0.3, -0.35, -0.1], rz: sx * 0.35, c, noao: n });
+}
+
+// ====================================================================================================
+// buildPolitea. Frame M: origin at the centre of the semicircle, +z out of the front (towards Piazza Ruggero Settimo), x across.
+// From the front: ground portico of fluted columns (red-footed) in front of a teal Pompeian wall, polychrome frieze, first gallery of Ionic columns in front of an ochre
+// Pompeian wall with a dark figured frieze, dentilled cornice, salmon drum with palmette crest, glazed copper dome; in the middle the arch block (archivolt, stained glass, eagle
+// corbel, angels, inscription, putti frieze, trophy panels, palmette crest) carrying the quadriga and a horse-and-rider group at each corner; a tall pavilion at each end of the rotunda.
 // ====================================================================================================
 function buildPolitea(ctx) {
-  initShared(); ensureTrunk();
+  initShared(); ensureTrunk(); pgMats();
   const fp = FP.politeama, pts = pairsOf(fp.p), gr = groundRange(pts);
   const FX = -0.891, FZ = 0.454;                          // front normal (towards Piazza Ruggero Settimo, west-south-west)
   const OX = -408.2, OZ = -1037.5;                        // centre of the semicircular colonnade
@@ -60,78 +232,135 @@ function buildPolitea(ctx) {
     g.fillStyle = '#c9b88c'; g.fillRect(8, 10, w - 16, h - 20); g.strokeStyle = '#8a7650'; g.lineWidth = 3; g.strokeRect(8, 10, w - 16, h - 20);
     const r = RNG(412); g.fillStyle = '#eee3c4'; for (let x = 22; x < w - 20; x += 22) { const hh = 30 + r() * 38; g.fillRect(x, h - 16 - hh, 9, hh); g.beginPath(); g.arc(x + 4, h - 20 - hh, 6, 0, 7); g.fill(); g.fillRect(x - 4, h - 16 - hh * 0.6, 17, 5); }
   });
-  const STONE = '#ffffff';
-  const A0 = -PI / 2, A1 = PI / 2, SEG = 42;
-  // ---- foundations and steps
+  const PL = 'pgtPlast', ST = 'pgtStone', CREAM = '#ffffff';
+  const A0 = -PI / 2, A1 = PI / 2, SEG = 48;
+  // ---- foundations
   bx('tufa', M, -27, 27, -(gr.hi - gr.lo) - 1.5, -0.12, -50, 33, { c: '#b9a67c' });
-  // ---- ground arcade of the semicircle
-  const NB = 21, R0 = 23.2, ARC_D = 3.6, BAYH = 7.6;
-  arcWall('dark', R0 - ARC_D + 0.2, 0, BAYH, A0, A1, SEG, { M, c: '#4a3a30', noao: true });
-  for (let k = 0; k < NB; k++) {
-    const a = -PI / 2 + (k + 0.5) * PI / NB, rr = R0 - ARC_D, bw = 2 * R0 * Math.sin(PI / NB / 2) + 0.03;
-    archBay('tufa', bw, BAYH, 2.3, 5.4, ARC_D, { M: mul(M, mul(rotY(a), tr(0, 0, rr))), c: STONE });
-  }
-  // cornice slab between the storeys, and the first-floor deck
-  band('tufa', 18.6, R0 + 1.0, BAYH, BAYH + 0.6, A0, A1, SEG, { M, c: '#eadcb8' });
-  // ---- upper storey: wall with windows and a colonnade
-  const WY0 = BAYH + 0.6, WY1 = 15.4;
-  arcWall('polWall', 19.6, WY0, WY1, A0, A1, SEG, { M });
-  const NC = 29;
-  for (let k = 0; k <= NC; k++) {
-    const a = -PI / 2 + k * PI / NC, x = Math.sin(a) * 22.7, z = Math.cos(a) * 22.7, Mc = mul(M, mul(tr(x, WY0, z), rotY(a)));
-    cyl('marble', 0.32, 0.38, WY1 - WY0 - 0.9, 8, { M: Mc, p: [0, 0.35, 0], c: '#f0e6c8' });
-    box('tufa', 0.9, 0.35, 0.9, { M: Mc, c: STONE }); box('tufa', 0.95, 0.55, 0.95, { M: Mc, p: [0, WY1 - WY0 - 0.55, 0], c: STONE });
-  }
-  // entablature and attic ring
-  band('tufa', 19.6, 24.0, WY1, WY1 + 1.5, A0, A1, SEG, { M, c: '#e6d6ac' });
-  band('tufa', 19.6, 24.5, WY1 + 1.5, WY1 + 1.9, A0, A1, SEG, { M, c: '#efe1ba' });
-  // roof ring (terracotta) and the low lead dome
-  lathe('tile', [[24.2, 0], [22, 0.7], [16, 2.3], [14.5, 2.7]], 42, { M, p: [0, WY1 + 1.9, 0], t0: -PI / 2, tl: PI, c: '#d8a48e', noao: true });
-  cyl('stone', 14.5, 14.5, 3.2, 28, { M, p: [0, WY1 + 4.6, 0], c: '#cbbf9f' });
-  lathe('lead', [[14.5, 0], [13.2, 1.4], [9.5, 3.2], [4, 4.3], [0.01, 4.6]], 28, { M, p: [0, WY1 + 7.8, 0], noao: true });
 
-  // ---- central arch block with the quadriga
-  const BW = 15.7, BZ1 = 26.9, BZ0 = 10.5, AH = 17.5;
-  archBay('tufa', BW, AH, 8.4, 12.8, BZ1 - 22.4, { M: mul(M, tr(0, 0, 22.4)), c: STONE });
-  bx('tufa', M, -BW / 2, BW / 2, 0, AH, BZ0, 22.4, { c: STONE });
-  box('dark', 8.2, 12.2, 0.3, { M: mul(M, tr(0, 0.1, 22.5)), c: '#1c1612', noao: true });
-  for (const sg of [-1, 1]) {
-    for (const [w, y0, h] of [[1.2, 2.2, 3.4], [1.2, 9.0, 3.4]]) box('dark', w, h, 0.25, { M: mul(M, tr(sg * 6.1, y0, BZ1 + 0.02)), c: '#37291f', noao: true });
-    for (const x of [sg * 3.0, sg * 4.2]) { cyl('marble', 0.32, 0.36, 11.8, 8, { M: mul(M, tr(x, 0.3, BZ1 + 0.2)), c: '#f0e6c8' }); box('tufa', 0.9, 0.5, 0.9, { M: mul(M, tr(x, 12.1, BZ1 + 0.2)), c: STONE }); }
+  // ---- the rotunda. Radii: wall 17.5, columns 20.6, slab edge 22.3, cornice 22.8 (inside the footprint)
+  const RW = 17.5, RC = 20.6, BAY = 8.2 * PG_D, K0 = 24 * PG_D, NCOL = 9;
+  const colAng = []; for (const sg of [-1, 1]) for (let k = 0; k < NCOL; k++) colAng.push(sg * (K0 + k * BAY));
+  const sideArcs = [[K0, K0 + (NCOL - 1) * BAY], [-(K0 + (NCOL - 1) * BAY), -K0]];
+  // stylobate and ground wall
+  band(PL, 17.2, 22.0, 0, 0.5, A0, A1, SEG, { M, c: '#cfc2a0' });
+  for (const [a0, a1] of sideArcs) {
+    arcWall('pgtPompG', RW, 0.5, 7.4, a0, a1, 24, { M });
+    deck(PL, RW, RC + 0.9, 7.4, a0, a1, 24, { M, c: '#b8ad98', noao: true }, true);
   }
-  bx('tufa', M, -BW / 2 - 0.8, BW / 2 + 0.8, AH, AH + 0.8, BZ0, BZ1 + 0.9, { c: '#eadcb8' });
-  bx('tufa', M, -BW / 2 - 0.2, BW / 2 + 0.2, AH + 0.8, AH + 1.2, BZ0, BZ1 + 0.3, { c: '#e0d0a4' });
-  panel('polFrieze', BW, 4.4, { M: mul(M, tr(0, AH + 1.2, BZ1 + 0.02)), uvk: [1, 1] });
-  bx('tufa', M, -BW / 2, BW / 2, AH + 1.2, AH + 5.6, BZ0, BZ1 - 0.02, { c: STONE });
-  bx('tufa', M, -BW / 2 - 0.6, BW / 2 + 0.6, AH + 5.6, AH + 6.4, BZ0, BZ1 + 0.7, { c: '#eadcb8' });
-  bx('tufa', M, -6, 6, AH + 6.4, AH + 7.4, BZ1 - 8.6, BZ1 - 3.4, { c: '#d9c89e' });
-  // the quadriga: four bronze horses abreast, a charioteer, and a horse-and-rider group on each corner
-  const QY = AH + 7.4, MQ = mul(M, tr(0, QY, BZ1 - 6));
-  box('bronze', 3.6, 0.6, 3.2, { M: MQ, p: [0, 0.2, -2.4], c: '#5d6b4f' });
-  box('bronze', 2.6, 2.4, 0.5, { M: MQ, p: [0, 0.8, -3.7], c: '#5d6b4f' });
-  statue('bronze', mul(MQ, tr(0, 0.8, -2.4)), 3.4, { c: '#6f7d5c', noao: true });
-  for (let i = 0; i < 4; i++) horse(mul(MQ, tr((i - 1.5) * 1.1, 0, 0)), 1.45, { rear: i % 2 === 0, c: '#6f7d5c' });
-  for (const sg of [-1, 1]) { const Mh = mul(MQ, tr(sg * 6.0, 0, 0.6)); horse(Mh, 1.5, { c: '#6f7d5c', rear: true }); statue('bronze', mul(Mh, tr(0, 1.7, -0.1)), 2.3, { c: '#6f7d5c', noao: true }); }
-  // ---- stage house behind the colonnade
-  const SW = 58.8, SZ0 = -1.0, SZ1 = -43.3;
-  bx('polBack', M, -SW / 2, SW / 2, 0, 29, SZ1, SZ0);
-  bx('polBack', M, -21.3, 21.3, 0, 22, SZ1 - 9, SZ1 + 0.1);
-  bx('stone', M, -SW / 2 - 0.4, SW / 2 + 0.4, 29, 30, SZ1 - 0.4, SZ0 + 0.4, { c: '#d0c3a0' });
-  bx('flat', M, -SW / 2 + 3, SW / 2 - 3, 30, 30.4, SZ1 + 3, SZ0 - 3, { c: '#9a948a' });
-  bx('stone', M, -21.7, 21.7, 22, 22.8, SZ1 - 9.4, SZ1 + 0.1, { c: '#d0c3a0' });
-  // ---- the monument in the piazza: stepped base, pedestal and statue, ringed by an iron railing
-  const MZ = 49, MM = mul(M, tr(0, 0, MZ));
-  for (let i = 0; i < 3; i++) cyl('marble', 7.2 - i * 1.0, 7.4 - i * 1.0, 0.25, 12, { M: MM, p: [0, -0.1 + i * 0.25 - 0.0, 0], c: '#cfc9bb' });
-  cyl('marble', 2.0, 2.4, 4.0, 8, { M: MM, p: [0, 0.65, 0], c: '#d6d0c2' }); box('marble', 3.2, 0.5, 3.2, { M: MM, p: [0, 4.65, 0], c: '#dcd6c8' });
-  statue('marble', mul(MM, tr(0, 5.1, 0)), 3.6, { c: '#d8d2c2' });
-  for (let k = 0; k < 16; k++) { const a = k * PI / 8 + PI / 16; rail(mul(MM, mul(rotY(a), tr(0, 0, 8.6))), 3.5, 1.2, { c: '#ffffff' }); }
+  // ground colonnade: fluted shafts, lower third painted red, simple abacus
+  for (const a of colAng) {
+    const x = Math.sin(a) * RC, z = Math.cos(a) * RC, Mc = mul(M, mul(tr(x, 0.5, z), rotY(a)));
+    cyl('pgtCol', 0.4, 0.42, 1.6, 10, { M: Mc, c: '#b5503a' });
+    cyl('pgtCol', 0.36, 0.4, 3.1, 10, { M: Mc, p: [0, 1.6, 0], c: CREAM, uvo: [0, 0.27] });
+    box(PL, 1.0, 0.18, 1.0, { M: Mc, p: [0, 4.7, 0], c: '#efe3c4', noao: true }); cyl(PL, 0.5, 0.36, 0.28, 10, { M: Mc, p: [0, 4.45, 0], c: '#e8dbb8', noao: true });
+    box(PL, 0.95, 0.2, 0.95, { M: Mc, p: [0, -0.0, 0], c: '#e6d8b4' });
+  }
+  // ground entablature (architrave, polychrome frieze) and the slab of the first gallery
+  band(PL, 17.4, 21.6, 5.4, 5.9, A0, A1, SEG, { M, c: '#eadbb4' });
+  arcWall('pgtFrieze', 21.7, 5.9, 6.8, A0, A1, SEG, { M, uvk: [(A1 - A0) * 21.7 / 6.0, 1], noao: true });
+  band(PL, 17.4, 22.3, 6.8, 7.4, A0, A1, SEG, { M, c: '#e6d6ae' });
+
+  // first gallery: ochre Pompeian wall, Ionic columns, entablature with dentils and cornice
+  for (const [a0, a1] of sideArcs) arcWall('pgtPomp', RW, 7.4, 13.8, a0, a1, 24, { M });
+  for (const a of colAng) {
+    const x = Math.sin(a) * RC, z = Math.cos(a) * RC, Mc = mul(M, mul(tr(x, 7.4, z), rotY(a)));
+    cyl('pgtCol', 0.34, 0.38, 5.4, 10, { M: Mc, p: [0, 0.35, 0], c: CREAM, uvk: [1, 0.9], uvo: [0, 0.05] });
+    box(PL, 0.95, 0.35, 0.95, { M: Mc, c: '#efe3c4' }); cyl(PL, 0.42, 0.42, 0.25, 10, { M: Mc, p: [0, 0.3, 0], c: '#b5503a', noao: true });
+    cyl(PL, 0.18, 0.18, 1.0, 8, { M: Mc, p: [0, 5.95, 0], rz: PI / 2, c: '#e6d8b4', noao: true });                  // Ionic bolster
+    for (const sx of [-1, 1]) cyl(PL, 0.24, 0.24, 0.14, 10, { M: Mc, p: [sx * 0.5 + (sx > 0 ? 0.07 : -0.07), 5.76, 0], rz: PI / 2, c: '#79b4a2', noao: true });   // turquoise volutes
+    box(PL, 1.1, 0.16, 1.1, { M: Mc, p: [0, 6.26, 0], c: '#efe3c4', noao: true });
+  }
+  band(PL, 17.4, 22.0, 13.8, 14.7, A0, A1, SEG, { M, c: '#e6d6ae' });                                               // architrave
+  arcWall('pgtRelief', 22.1, 14.7, 15.05, A0, A1, SEG, { M, ...pgRegion(0, 352, 512, 32), uvk: [(A1 - A0) * 22.1 / 2.4, 32 / 512], noao: true });   // dentils
+  band(PL, 17.4, 22.8, 15.05, 15.7, A0, A1, SEG, { M, c: '#eadbb4' });                                             // cornice
+  // drum, palmette crest, glazed ring and dome
+  arcWall(PL, 19.4, 15.7, 19.0, A0, A1, SEG, { M, c: '#f8b0a4', noao: false });
+  for (let k = -4; k <= 4; k++) { const a = k * 19 * PG_D * 0.99, Mw = mul(M, mul(tr(Math.sin(a) * 19.45, 16.7, Math.cos(a) * 19.45), rotY(a))); box('pgtStone', 0.9, 1.5, 0.12, { M: Mw, c: '#ecdcb6', noao: true }); box('dark', 0.64, 1.2, 0.15, { M: Mw, p: [0, 0.15, 0.0], c: '#2a2d30', noao: true }); }
+  band(PL, 17.4, 20.3, 19.0, 19.5, A0, A1, SEG, { M, c: '#eadbb4' });
+  arcWall('pgtRelief', 20.3, 19.5, 20.2, A0, A1, SEG, { M, ...pgRegion(0, 128, 512, 64), uvk: [(A1 - A0) * 20.3 / 2.8, 64 / 512], noao: true });
+  cyl('flat', 17.6, 17.6, 0.7, 40, { M, p: [0, 19.0, 0], c: '#8a857a', noao: true });                                 // roof of the drum, round the dome
+  cyl('dark', 12.3, 12.3, 1.5, 32, { M, p: [0, 19.7, 0], c: '#3a4448', noao: true });
+  lathe('lead', [[12.9, 0], [11.8, 1.0], [8.8, 2.6], [4.5, 3.6], [0.01, 3.9]], 32, { M, p: [0, 21.2, 0], c: '#a9bdad', noao: true });
+
+  // ---- arch block (width 15.7 m, front at z = 26.9)
+  const BW = 15.7, BZ1 = 26.9, BZ0 = 12, OW = 6.3, OH = 11.5, SP = OH - OW / 2, ZF = BZ1 - 1.0;
+  bx(ST, M, -BW / 2, BW / 2, 0, 19.9, BZ0, ZF, { c: '#f6eed6' });
+  archBay(ST, BW, 12.2, OW, OH - 7.3, 1.0, { M: mul(M, tr(0, 7.3, ZF)), c: '#f6eed6' });                                 // upper front wall with the arched opening
+  for (const sg of [-1, 1]) {
+    bx(PL, M, sg > 0 ? 3.15 : -7.85, sg > 0 ? 7.85 : -3.15, 0, 7.3, ZF, BZ1, { c: '#f2ead6' });                          // white piers each side of the portal
+    bx(PL, M, sg * 5.2 - 1.1, sg * 5.2 + 1.1, 3.4, 5.3, BZ1, BZ1 + 0.05, { c: '#cfc19f' });                             // inscription plaque
+    for (const x of [sg * 3.75, sg * 7.15]) {
+      const Mc = mul(M, tr(x, 0, BZ1 + 0.5));
+      box(PL, 1.0, 0.4, 1.0, { M: Mc, c: '#efe6d0' }); cyl('pgtCol', 0.36, 0.38, 5.1, 10, { M: Mc, p: [0, 0.4, 0], c: '#f4eddc' }); box(PL, 1.0, 0.3, 1.0, { M: Mc, p: [0, 5.5, 0], c: '#efe6d0' });
+    }
+    panel('pgtFrieze', 4.7, 0.9, { M: mul(M, tr(sg * 5.5, 5.9, BZ1 + 0.52)), uvk: [4.7 / 6.0, 0.75], uvo: [0, 0.1] });
+    bx(PL, M, sg > 0 ? 3.1 : -7.9, sg > 0 ? 7.9 : -3.1, 6.8, 7.4, ZF, BZ1 + 0.5, { c: '#e6d6ae' });                      // impost cornice
+    bx(PL, M, sg > 0 ? 7.3 : -7.85, sg > 0 ? 7.85 : -7.3, 7.9, 16.3, BZ1, BZ1 + 0.14, { c: '#ecdcb6' });                  // corner pilasters
+    bx(PL, M, sg > 0 ? 2.85 : -3.45, sg > 0 ? 3.45 : -2.85, 7.4, 8.2, BZ1 - 0.1, BZ1 + 0.6, { c: '#e6d6ae' });              // impost blocks
+    // side face of the block, past the rotunda: pilaster strips and a tall window
+    bx(PL, M, sg > 0 ? BW / 2 : -BW / 2 - 0.12, sg > 0 ? BW / 2 + 0.12 : -BW / 2, 9.2, 13.2, 22.8, 25.2, { c: '#ecdcb6' }); box('dark', 0.1, 3.4, 1.3, { M: mul(M, tr(sg * (BW / 2 + 0.13), 9.6, 24.0)), c: '#2a2d30', noao: true });
+    const sx0 = sg > 0 ? BW / 2 : -BW / 2 - 0.12, sx1 = sg > 0 ? BW / 2 + 0.12 : -BW / 2;
+    bx(PL, M, sx0, sx1, 7.4, 16.3, 21.6, 22.3, { c: '#ecdcb6' }); bx(PL, M, sx0, sx1, 7.4, 16.3, 26.2, 26.9, { c: '#ecdcb6' });
+    bx(PL, M, sg > 0 ? BW / 2 : -BW / 2 - 0.5, sg > 0 ? BW / 2 + 0.5 : -BW / 2, 6.8, 7.4, 20.5, BZ1 + 0.5, { c: '#e6d6ae' });
+  }
+  // steps
+  bx(PL, M, -4.4, 4.4, 0, 0.3, BZ1 - 0.2, BZ1 + 1.4, { c: '#cfc6b0' }); bx(PL, M, -4.0, 4.0, 0.3, 0.6, BZ1 - 0.2, BZ1 + 0.8, { c: '#d8cfba' });
+  // stained glass, set back in the opening, and the dark vestibule behind it
+  extrude('pgtGlass', archShape(OW, OH), 0.06, { M: mul(M, tr(0, 0, ZF + 0.05)), uv: 'keep', uvk: [1 / OW, 1 / OH], uvo: [0.5, 0], noao: true });
+  // archivolt: two stepped rings from the impost blocks over the springing
+  for (const [ro, ri, d] of [[4.3, 3.15, 0.3], [5.4, 4.3, 0.14]]) {
+    const s = new THREE.Shape(), y0 = 7.6; s.moveTo(-ro, y0); s.lineTo(ro, y0); s.lineTo(ro, SP); s.absarc(0, SP, ro, 0, PI, false); s.lineTo(-ro, y0);
+    const hl = new THREE.Path(); hl.moveTo(-ri, y0); hl.lineTo(-ri, SP); hl.absarc(0, SP, ri, PI, 0, true); hl.lineTo(ri, y0); hl.lineTo(-ri, y0); s.holes.push(hl);
+    extrude(PL, s, d, { M: mul(M, tr(0, 0, BZ1)), c: '#efe0ba' });
+  }
+  bx(PL, M, -BW / 2, BW / 2, 14.0, 15.6, BZ1 - 0.02, BZ1 + 0.03, { c: '#ead9b0' });                                    // smooth zone under the cornice
+  bx(PL, M, -0.5, 0.5, 13.6, 14.7, BZ1, BZ1 + 0.6, { c: '#dcc79c' }); bx('bronze', M, -0.2, 0.2, 13.9, 14.4, BZ1 + 0.6, BZ1 + 0.75, { c: '#7a6a50' });   // eagle corbel
+  for (const sg of [-1, 1]) panel('pgtRelief', 2.6, 2.0, { M: mul(M, tr(sg * 3.95, 12.0, BZ1 + 0.03)), uvk: [(sg > 0 ? -184 : 184) / 512, 128 / 512], uvo: [(sg > 0 ? 312 : 128) / 512, 1 - 320 / 512] });   // angels in the spandrels, facing each other
+  panel('pgtRelief', 11.4, 0.7, { M: mul(M, tr(0, 15.65, BZ1 + 0.1)), ...pgRegion(0, 320, 512, 32) });                  // inscription POLITEAMA GARIBALDI
+  panel('pgtRelief', BW + 0.6, 0.3, { M: mul(M, tr(0, 16.3, BZ1 + 0.1)), uvk: [(BW + 0.6) / 3.4 * 1.0, 32 / 512], uvo: [0, 1 - 384 / 512] });   // dentils under the cornice
+  bx(PL, M, -BW / 2 - 0.5, BW / 2 + 0.5, 16.6, 17.2, BZ0, BZ1 + 0.8, { c: '#eadbb4' });
+  bx(PL, M, -BW / 2 - 0.25, BW / 2 + 0.25, 16.3, 16.6, BZ0, BZ1 + 0.45, { c: '#e2d0a6' });
+  // attic: putti frieze flanked by two trophy panels, framed by corner pilasters
+  bx(PL, M, -BW / 2, BW / 2, 17.2, 19.5, BZ1 - 0.1, BZ1 - 0.0, { c: '#efe0ba' });
+  bx(PL, M, -4.7, 4.7, 17.3, 19.4, BZ1, BZ1 + 0.05, { c: '#e2d0a6' });
+  panel('pgtRelief', 9.0, 1.9, { M: mul(M, tr(0, 17.45, BZ1 + 0.08)), ...pgRegion(0, 0, 512, 128) });
+  for (const sg of [-1, 1]) {
+    panel('pgtRelief', 1.9, 1.9, { M: mul(M, tr(sg * 6.0, 17.45, BZ1 + 0.08)), ...pgRegion(0, 192, 128, 128) });
+    bx(PL, M, sg * 5.0 - 0.15, sg * 5.0 + 0.15, 17.3, 19.4, BZ1, BZ1 + 0.1, { c: '#ecdcb6' }); bx(PL, M, sg * 7.0 - 0.15, sg * 7.0 + 0.15, 17.3, 19.4, BZ1, BZ1 + 0.1, { c: '#ecdcb6' });
+    bx(PL, M, sg > 0 ? 7.45 : -7.85, sg > 0 ? 7.85 : -7.45, 17.2, 19.5, BZ1, BZ1 + 0.18, { c: '#ecdcb6' });
+  }
+  bx(PL, M, -BW / 2 - 0.3, BW / 2 + 0.3, 19.5, 19.9, BZ0, BZ1 + 0.5, { c: '#eadbb4' });
+  // palmette crest on the front and the two sides, with terracotta antefixes at the corners
+  panel('pgtRelief', BW + 0.6, 1.0, { M: mul(M, tr(0, 19.9, BZ1 + 0.42)), ...pgRegion(0, 128, 512, 64), uvk: [(BW + 0.6) / 2.8, 64 / 512] });
+  for (const sg of [-1, 1]) panel('pgtRelief', BZ1 - BZ0 + 0.5, 1.0, { M: mul(M, mul(tr(sg * (BW / 2 + 0.28), 19.9, (BZ0 + BZ1 + 0.5) / 2), rotY(sg * PI / 2))), ...pgRegion(0, 128, 512, 64), uvk: [(BZ1 - BZ0 + 0.5) / 2.8, 64 / 512] });
+  for (const sx of [-1, 1]) for (const z of [BZ1 + 0.4, BZ0]) box('tile', 0.45, 0.6, 0.3, { M: mul(M, tr(sx * (BW / 2 + 0.3), 19.9, z)), c: '#e0905c', noao: true });
+  // the quadriga (four horses abreast and the charioteer with a palm) and a horse-and-rider group on each corner, in dark green bronze
+  const MQ = mul(M, tr(0, 19.9, BZ1 - 4.2));
+  bx(PL, M, -9.4, 9.4, 19.9, 20.2, BZ1 - 6.5, BZ1 - 1.2, { c: '#d9c89e' });
+  for (let i = 0; i < 4; i++) pgHorse(mul(MQ, mul(tr((i - 1.5) * 2.2, 0.3, 1.2 - (i === 1 || i === 2 ? 0.2 : 0)), rotY((i === 0 ? 0.12 : i === 3 ? -0.12 : 0)))), i === 1 || i === 2 ? 0.7 : 0.95, { c: i % 2 ? '#425a4b' : '#4b6655' });
+  box('bronze', 1.7, 1.1, 2.1, { M: MQ, p: [0, 0.3, -2.9], c: '#46604f', noao: true });
+  for (const sx of [-1, 1]) cyl('bronze', 0.95, 0.95, 0.16, 12, { M: MQ, p: [sx * 0.95, 0.95, -2.9], rz: PI / 2 * sx, c: '#3d5446', noao: true });
+  statue('bronze', mul(MQ, tr(0, 1.4, -2.9)), 3.5, { c: '#4b6655', noao: true });
+  box('bronze', 0.16, 1.4, 0.16, { M: MQ, p: [0.6, 3.3, -2.9], rz: -0.35, c: '#4b6655', noao: true }); box('bronze', 0.06, 1.0, 0.06, { M: MQ, p: [1.0, 4.6, -2.9], rz: 0.3, c: '#5c7a52', noao: true });
+  for (const sg of [-1, 1]) { const Mg = mul(M, mul(tr(sg * 6.7, 19.9, BZ1 - 2.6), rotY(sg * PI / 2))); pgHorse(Mg, 0.95, { c: '#4b6655' }); pgRider(Mg, 0.95, { c: '#4b6655' }); }
+
+  // ---- end pavilions (tall, ashlar, red arched door, polychrome band) and the stage house behind
+  const PW0 = 22.6, PW1 = 29.4, PH = 20.6, SZ0 = -1.0, SZ1 = -43.3, SW = 58.8;
+  bx('polBack', M, -SW / 2, SW / 2, 0, PH, SZ1, SZ0);
+  for (const sg of [-1, 1]) {
+    panel('pgtPav', PW1 - PW0, PH, { M: mul(M, tr(sg * (PW0 + PW1) / 2, 0, SZ0 + 0.03)), noao: true });
+    bx(PL, M, sg > 0 ? PW0 : -PW1, sg > 0 ? PW1 : -PW0, PH, PH + 0.5, SZ0 - 0.1, SZ0 + 0.5, { c: '#e4d3aa' });
+  }
+  bx(PL, M, -PW1 - 0.1, PW1 + 0.1, PH, PH + 0.5, SZ1 - 0.1, SZ0 + 0.1, { c: '#d9c89e' });
+  bx('flat', M, -SW / 2 + 3, SW / 2 - 3, PH + 0.5, PH + 0.9, SZ1 + 3, SZ0 - 3, { c: '#9a948a' });
+  bx('polBack', M, -21.3, 21.3, 0, 19, SZ1 - 9, SZ1 + 0.1);
+  bx(PL, M, -21.7, 21.7, 19, 19.6, SZ1 - 9.4, SZ1 + 0.1, { c: '#d0c3a0' });
   return end('Politeama Garibaldi');
 }
 
 export const POLITEAMA = {
   name: 'Politeama Garibaldi', x: -409, z: -1039, radius: 70, skipIds: [FP.politeama.id],
   // iron railing round the monument (an octagon of r ~ 8.6 m centred 49 m in front of the colonnade)
-  walls: (() => { const OX = -408.2, OZ = -1037.5, fx = -0.891, fz = 0.454, cx = OX + fx * 49, cz = OZ + fz * 49, o = []; for (let k = 0; k < 8; k++) { const a = k * PI / 4, b = (k + 1) * PI / 4; o.push([cx + Math.cos(a) * 8.6, cz + Math.sin(a) * 8.6, cx + Math.cos(b) * 8.6, cz + Math.sin(b) * 8.6]); } return o; })(),
   build: buildPolitea,
 };
 

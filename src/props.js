@@ -19,6 +19,7 @@ import { placed as rampZones } from './ramp-spots.js';   // the road works aroun
 import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, clock as signalClock, light as signalLight } from './signals.js';   // the traffic signals: where they stand, which road each head faces, the lamp it shows
 import { sfx } from './sfx.js';   // what a thing sounds like when the lapa knocks it over
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';   // the fast roads (the Viale's carriageways, and its lanes where nothing is built beside them): no parked cars, bins or crossings
+const BRONZES = [[-568.7, -974.6], [-560.7, -960.7], [-552.2, -943.8]];
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -1662,6 +1663,7 @@ function* generate(S, BUD) {
     if (k === 'monument') {
       if (it.tour === 'artwork' && it.support === 'ground' && !it.mem) continue;   // mosaics and the like
       if (inB(it.x, it.z) || road(it.x, it.z)) continue;
+      if (BRONZES.some(q => Math.hypot(it.x - q[0], it.z - q[1]) < 4)) continue;   // Nautica, I Senzatetto and Lavoro in Piazza Castelnuovo are modelled (src/lmc-piazza.js)
       const dp = it.art === 'statue' ? Math.hypot(it.x - 71.5, it.z - 25.8) : 99;   // Fontana Pretoria (src/landmarks.js): the statues of its precinct are figures; the one in the middle of the basin is in the model, behind a fence
       if (dp < 10) continue;
       put(dp < 24 ? 'monument_s' : 'monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
