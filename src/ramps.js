@@ -17,7 +17,7 @@ const SEE = 450, EDGE = 0.3;
 const STICKER_TEXT = ['PROPERTY OF', 'EDDY'];   // the easter egg on the cones of the work zones   // metres: drawn within SEE, the sides fall away over EDGE
 
 export function createRamps(env) {
-  const { scene, camera, groundY, walls2d } = env;
+  const { scene, camera, groundY, walls2d, raisedMask, CURB } = env;   // raisedMask, CURB: a kerb or pavement is a little above the terrain (the cones stand on it)
   const zones = placed(), list = zones.map(p => ({ x: p.x, z: p.z, th: p.th, kind: p.kind }));
   const q = new URLSearchParams(location.search).get('ramp');   // ?ramp=x,z,th[,kind];...
   if (q) { list.length = 0; for (const t of q.split(';')) { const [x, z, th, kind] = t.split(','); list.push({ x: +x, z: +z, th: +th || 0, kind: kind || 'ramp' }); } }
@@ -56,7 +56,7 @@ export function createRamps(env) {
     white: [0.92, 0.92, 0.9], red: [0.75, 0.1, 0.08], orange: [0.97, 0.4, 0.04], amber: [1, 0.62, 0.02], blue: [0.12, 0.3, 0.62], deck: [0.36, 0.38, 0.42], mesh: [0.62, 0.64, 0.66], sand: [0.6, 0.52, 0.36], grey: [0.6, 0.6, 0.6],
   };
   function geo(kind) {
-    const K = KINDS[kind], P = [], Cc = [], SP = [], SU = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
+    const K = KINDS[kind], P = [], Cc = [], hw = K.w / 2, p = K.profile, L = p[p.length - 1][0], truck = kind === 'truck', hL = p[p.length - 1][1];
     const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
     const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
     const tri2 = (a, b, c, col) => { tri(a, b, c, col); tri(a, c, b, col); };   // seen from both sides (signs)
@@ -130,16 +130,6 @@ export function createRamps(env) {
       box(xK - 0.3, xK + 0.3, 0, 0.2, a, a + 0.5, C.grey); box(xK - 0.3, xK + 0.3, 0, 0.2, b - 0.5, b, C.grey);   // the feet
       box(xK - 0.03, xK + 0.03, 0.2, 1.96, a, a + 0.05, C.mesh); box(xK - 0.03, xK + 0.03, 0.2, 1.96, b - 0.05, b, C.mesh);
     }
-    const cone = (x, s) => {   // orange, 0.75 m, a white reflective collar, a square black foot
-      const n = 8, r0 = 0.15, r1 = 0.035, h = 0.7, y0 = 0.04, rr = y => r0 + (r1 - r0) * (y / h), band = [0.34, 0.5];
-      box(x - 0.2, x + 0.2, 0, y0, s - 0.2, s + 0.2, C.dark);
-      const ring = (ya, yb, col) => { for (let i = 0; i < n; i++) { const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, ra = rr(ya), rb = rr(yb);
-        quad([x + Math.cos(a0) * ra, y0 + ya, s + Math.sin(a0) * ra], [x + Math.cos(a0) * rb, y0 + yb, s + Math.sin(a0) * rb], [x + Math.cos(a1) * rb, y0 + yb, s + Math.sin(a1) * rb], [x + Math.cos(a1) * ra, y0 + ya, s + Math.sin(a1) * ra], col); } };
-      ring(0, band[0], C.orange); ring(band[0], band[1], C.white); ring(band[1], h, C.orange);
-      { const zz = s - 0.09, yc = y0 + 0.42, w = 0.07, hh = 0.045;   // a little sticker on the white band, facing the traffic that comes up the street (the easter egg: STICKER_TEXT)
-        SP.push(x + w, yc - hh, zz, x - w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc + hh, zz); SU.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); }
-    };
-    for (const [x, s] of [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.9], [xK, bx1 + 0.9], [hw + 1.7, bx1 + 0.9], [-hw, bx0 - 0.5], [hw, bx0 - 0.5]]) cone(x, s);
     const sandbag = (x, s) => box(x - 0.2, x + 0.2, 0, 0.13, s - 0.12, s + 0.12, C.sand);
     { const x = hw + 1.3, s = bx0 - 0.5;   // a tripod sign: the red triangle with a white field and a black figure, a second sign under it, sandbags on the legs
       for (const dx of [-0.35, 0.35]) { box(x + dx - 0.02, x + dx + 0.02, 0, 1.55, s - 0.04, s - 0.02, C.dark); sandbag(x + dx, s - 0.1); }
@@ -154,16 +144,17 @@ export function createRamps(env) {
     }
     sandbag(xT + 0.2, bx1 + 0.3); sandbag(xT + 0.2, bx1 + 0.45);
     const g = new THREE.BufferGeometry();
-    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(SP, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(SU, 2)); sg.computeVertexNormals(); g.userData.stickers = sg;
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
     g.computeVertexNormals();
     return g;
   }
   // the sticker: white label, black letters, a red rule (a canvas texture, one for all the cones)
   const stickerTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 160; const x = c.getContext('2d');
-    x.fillStyle = '#f3efe4'; x.fillRect(0, 0, 256, 160); x.strokeStyle = '#1a1a1a'; x.lineWidth = 6; x.strokeRect(5, 5, 246, 150);
-    x.fillStyle = '#1a1a1a'; x.textAlign = 'center'; x.font = '700 29px sans-serif'; x.fillText(STICKER_TEXT[0], 128, 50); x.font = '900 82px sans-serif'; x.fillText(STICKER_TEXT[1], 128, 128);
-    x.fillStyle = '#c0231c'; x.fillRect(30, 62, 196, 6);
+    x.fillStyle = '#f6f2e8'; x.fillRect(0, 0, 256, 160);                                   // white label
+    x.fillStyle = '#c0231c'; x.fillRect(0, 0, 256, 62);                                      // a red band across the top with the small words in white
+    x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = '800 33px sans-serif'; x.fillText(STICKER_TEXT[0], 128, 44);
+    x.fillStyle = '#16161a'; x.font = '900 92px sans-serif'; x.fillText(STICKER_TEXT[1], 128, 142);   // the name big and black under it
+    x.strokeStyle = '#16161a'; x.lineWidth = 8; x.strokeRect(4, 4, 248, 152);                // a black edge round all of it
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; })();
   const stickerMat = new THREE.MeshStandardMaterial({ map: stickerTex, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const meshes = {}, geos = {};
@@ -172,8 +163,37 @@ export function createRamps(env) {
     geos[kind] = geo(kind);
     const m = new THREE.InstancedMesh(geos[kind], mat, mine.length);
     m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const sm = new THREE.InstancedMesh(geos[kind].userData.stickers, stickerMat, mine.length); sm.frustumCulled = false; sm.visible = false; sm.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(m, sm); meshes[kind] = { m, sm, mine };
+    scene.add(m); meshes[kind] = { m, mine };
+  }
+  // ----- the cones: one cone (with its square foot and the sticker) instanced for all of them, each standing on the ground under it, not on the ramp's base (a kerb or a camber would bury it) -----
+  const coneGeos = (() => {
+    const P = [], Cc = [], SP = [], SU = [];
+    const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) Cc.push(...col); };
+    const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
+    const box = (x0, x1, y0, y1, z0, z1, col) => {
+      quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], col); quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], col);
+      quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], col); quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], col);
+      quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], col);
+    };
+    const x = 0, s = 0, n = 8, r0 = 0.15, r1 = 0.035, h = 0.7, y0 = 0.085, rr = y => r0 + (r1 - r0) * (y / h), band = [0.34, 0.5];
+    box(x - 0.23, x + 0.23, 0, 0.02, s - 0.23, s + 0.23, [0.2, 0.2, 0.21]); box(x - 0.23, x + 0.23, 0.02, 0.055, s - 0.23, s + 0.23, C.dark); box(x - 0.2, x + 0.2, 0.055, y0, s - 0.2, s + 0.2, C.dark);   // the square rubber foot, in three steps
+    const ring = (ya, yb, col) => { for (let i = 0; i < n; i++) { const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832, ra = rr(ya), rb = rr(yb);
+      quad([x + Math.cos(a0) * ra, y0 + ya, s + Math.sin(a0) * ra], [x + Math.cos(a0) * rb, y0 + yb, s + Math.sin(a0) * rb], [x + Math.cos(a1) * rb, y0 + yb, s + Math.sin(a1) * rb], [x + Math.cos(a1) * ra, y0 + ya, s + Math.sin(a1) * ra], col); } };
+    ring(0, band[0], C.orange); ring(band[0], band[1], C.white); ring(band[1], h, C.orange);
+    { const zz = -0.09, yc = y0 + 0.42, w = 0.07, hh = 0.045;   // the sticker on the white band, facing back along the ramp's direction, towards the traffic coming up the street (the easter egg: STICKER_TEXT)
+      SP.push(x + w, yc - hh, zz, x - w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc - hh, zz, x - w, yc + hh, zz, x + w, yc + hh, zz); SU.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); g.computeVertexNormals();
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(SP, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(SU, 2)); sg.computeVertexNormals();
+    return { g, sg };
+  })();
+  // where the cones stand, in each ramp's frame (x to its left, s along it): a taper out into the street in front, three at the end, two at the entrance
+  const coneSpots = r => { const hw = r.K.w / 2, bx0 = -ZONE_BEFORE, bx1 = r.L + ZONE_AFTER; return [[hw + 1.2, bx0 - 1.2], [hw + 1.9, bx0 - 3.4], [hw + 2.6, bx0 - 5.6], [hw + 0.55, bx1 + 0.9], [-(hw + 0.45), bx1 + 0.9], [hw + 1.7, bx1 + 0.9], [-hw, bx0 - 0.5], [hw, bx0 - 0.5]]; };
+  const NC = coneSpots(list[0] || { K: KINDS.ramp, L: 10 }).length, coneN = list.length * NC;
+  let coneMesh = null, stickMesh = null;
+  if (coneN) {
+    coneMesh = new THREE.InstancedMesh(coneGeos.g, mat, coneN); stickMesh = new THREE.InstancedMesh(coneGeos.sg, stickerMat, coneN);
+    for (const m of [coneMesh, stickMesh]) { m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
+    coneMesh.castShadow = true; coneMesh.receiveShadow = true; scene.add(coneMesh, stickMesh);
   }
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), p3 = new THREE.Vector3();
   // the boards on the traffic side are walls for the lapa (the right ones stand 0.45 m from the ramp, in the gap by the kerb)
@@ -189,14 +209,24 @@ export function createRamps(env) {
   function update(dt) {
     tick += dt; if (tick < 0.5) return; tick = 0;
     const cx = camera.position.x, cz = camera.position.z;
+    let anyCone = false;
+    for (let zi = 0; zi < list.length && coneMesh; zi++) {
+      const r = list[zi], near = Math.hypot(r.x - cx, r.z - cz) < SEE, sp = coneSpots(r);
+      for (let k = 0; k < sp.length; k++) {
+        const [lx, ls] = sp[k], wx = r.x + r.cs * lx + r.sn * ls, wz = r.z - r.sn * lx + r.cs * ls;
+        m4.compose(p3.set(wx, near ? groundY(wx, wz) + (raisedMask && raisedMask(wx, wz) ? CURB : 0) + 0.005 : -1000, wz), q4.setFromAxisAngle(up, r.th), one); coneMesh.setMatrixAt(zi * NC + k, m4); stickMesh.setMatrixAt(zi * NC + k, m4);
+      }
+      if (near) anyCone = true;
+    }
+    if (coneMesh) { coneMesh.instanceMatrix.needsUpdate = stickMesh.instanceMatrix.needsUpdate = true; coneMesh.visible = stickMesh.visible = anyCone; }
     for (const kind in meshes) {
-      const { m, sm, mine } = meshes[kind]; let any = false;
+      const { m, mine } = meshes[kind]; let any = false;
       for (let i = 0; i < mine.length; i++) {
         const r = mine[i], near = Math.hypot(r.x - cx, r.z - cz) < SEE;
         if (near) { r.base = lowest(r); any = true; }
-        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one)); sm.setMatrixAt(i, m4);
+        m.setMatrixAt(i, m4.compose(p3.set(r.x, near ? r.base : -1000, r.z), q4.setFromAxisAngle(up, r.th), one));
       }
-      m.instanceMatrix.needsUpdate = sm.instanceMatrix.needsUpdate = true; m.visible = sm.visible = any;
+      m.instanceMatrix.needsUpdate = true; m.visible = any;
     }
   }
   return { surfaceAt, update, list, zonesNear };

@@ -304,7 +304,7 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 // ---------- player car (src/vehicle.js) ----------
-const ramps = createRamps({ scene, camera, groundY, walls2d });
+const ramps = createRamps({ scene, camera, groundY, walls2d, raisedMask, CURB });
 { const near = parked.near, bump = parked.bump;   // the traffic steers round the work zones of the ramps as round parked cars (src/ramps.js)
   parked.near = (x, z, r, out) => { near(x, z, r, out); return ramps.zonesNear(x, z, r, out); };
   parked.bump = (c, ...a) => c.ramp ? 1 : bump(c, ...a); }
