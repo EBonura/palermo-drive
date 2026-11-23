@@ -966,3 +966,26 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 .pd-msn { font-size: min(clamp(14px, calc(var(--vh, 1vh) * 3.1), 19px), 3.6cqi); line-height: 1.1; }
 .pd-welst3 button { white-space: nowrap; font-size: min(clamp(11px, calc(var(--vh, 1vh) * 2.5), 14px), 2.7cqi); letter-spacing: .04em; padding: 0 2px; }
 .pd-welst3 button span { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Missioni rows, reworked: one tap per row ----------
+   The whole row is the button. The name on one line, never cut (src/ui.js fitMsNames shrinks it if it must), one line of where and when, the state as a tag on the right, an arrow. */
+.pd-mslist > .pd-msrow { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; min-height: 0; padding: 6px 8px 6px 16px; border: 0; border-radius: 3px; position: relative; cursor: pointer;
+  background: rgba(0,0,0,.38); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); color: #fff; text-align: left; font: inherit; -webkit-appearance: none; appearance: none; }
+.pd-mslist > .pd-msrow::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; border-radius: 3px 0 0 3px; background: var(--k, var(--pd-pink)); }
+@media (hover: hover) { .pd-mslist > .pd-msrow:hover { background: rgba(232,85,154,.22); } }
+.pd-mslist > .pd-msrow:focus { outline: none; } .pd-kb .pd-mslist > .pd-msrow:focus, .pd-mslist > .pd-msrow.pd-hot { box-shadow: inset 0 0 0 2px #fff; background: rgba(232,85,154,.25); }
+.pd-mslist > .pd-msrow.done { background: rgba(245,169,201,.08); }
+.pd-mslist > .pd-msrow.done .pd-msn { opacity: .75; }
+.pd-mslist > .pd-msrow.run { box-shadow: inset 0 0 0 2px #fff, 0 0 14px rgba(232,85,154,.6); }
+.pd-msrow .pd-msmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; transform: none; }
+.pd-msrow .pd-msn { display: block; white-space: nowrap; overflow: hidden; text-align: left; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-shadow: none; text-transform: uppercase;   /* (.pd-msn is also the socials' class under the logo: none of its frame here) */
+ 
+  font: 700 min(clamp(15px, calc(var(--vh, 1vh) * 3.4), 20px), 4.8cqi)/1.15 var(--pd-cond); letter-spacing: .04em; color: #fff; }
+.pd-msrow .pd-msm { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 10px; white-space: nowrap; font: 600 min(clamp(10px, calc(var(--vh, 1vh) * 2.2), 13px), 2.8cqi)/1.15 var(--pd-cond); letter-spacing: .08em; }
+.pd-msrow .pd-msm.hint { white-space: normal; text-transform: none; letter-spacing: .02em; }
+.pd-mstag { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 3px; white-space: nowrap; background: rgba(255,255,255,.1); color: rgba(255,255,255,.8);
+  font: 700 min(clamp(10px, calc(var(--vh, 1vh) * 2.2), 13px), 2.7cqi)/1 var(--pd-cond); letter-spacing: .1em; text-transform: uppercase; }
+.pd-mstag.todo { background: rgba(232,85,154,.25); color: #ffd9ea; }
+.pd-mstag.ok { background: rgba(255,176,32,.18); color: var(--pd-amber); }
+.pd-mstag svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.pd-msrow > .pd-chev { flex: none; width: 10px; height: 16px; margin: 0 2px 0 0; opacity: .7; transform: none; }

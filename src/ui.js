@@ -1209,18 +1209,26 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
       return `<button class="pd-btn sm pd-qh pd-msgh" style="--k:${col}" data-nav data-grp="${esc(g)}" aria-expanded="${open}" type="button"><span class="pd-in"><span class="pd-l1">${esc(l1)}</span></span><b>${rows.filter(r => r.done).length} / ${rows.length}</b>${CHEV}</button>`
         + (open ? rows.map(r => {
           const when = r.night ? ['mNight', ICON_MOON] : r.day ? ['mDay', ICON_SUN] : ['mAny', ICON_ANY], off = r.night ? !nightNow() : r.day ? nightNow() : false;
-          const state = r.done ? `<span class="ok">${ICON_TICK}${S.mDoneRow[i]}</span>${r.best ? `<span>${S.mBest[i]} ${eur(r.best)}</span>` : ''}` : r.tried ? `<span>${S.mTried[i]}</span>` : `<span>${S.mTodo[i]}</span>`;
-          return `<div class="pd-msrow${r.done ? ' done' : ''}${run === r.id ? ' run' : ''}"><div class="pd-msinfo" style="--k:${MCOL[r.kind] || 'var(--pd-pink)'}"><div class="pd-msmain">
-              <div class="pd-msn">${esc(r.title || r.name)}</div>
-              <div class="pd-msm">${r.title && r.name !== r.q ? `<span>${esc(r.name)}</span>` : ''}<span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</div>
-              <div class="pd-msm">${state}</div>
-              ${r.kind === 'leaf' ? `<div class="pd-msm hint">${S.mLeafNote[i]}</div>` : ''}</div></div>
-            ${`<button class="pd-btn sm pd-msgo" data-nav data-go="${esc(r.id)}" type="button" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-in"><span class="pd-l1">${S.mGo[i]}</span></span></button>`}</div>`;
+          // one row, one tap: the whole row goes there. The name on top (whole, never cut: fitMsNames() shrinks it if the row is too narrow), one line of where and when under it, the state as a tag on the right
+          const tag = r.done ? `<span class="pd-mstag ok">${ICON_TICK}${r.best ? esc(eur(r.best)) : S.mDoneRow[i]}</span>` : r.tried ? `<span class="pd-mstag">${S.mTried[i]}</span>` : `<span class="pd-mstag todo">${S.mTodo[i]}</span>`;
+          return `<button class="pd-msrow${r.done ? ' done' : ''}${run === r.id ? ' run' : ''}" data-nav data-go="${esc(r.id)}" type="button" style="--k:${MCOL[r.kind] || 'var(--pd-pink)'}" aria-label="${esc(S.mGo[i] + ': ' + (r.title || r.name))}"><span class="pd-msmain">
+              <span class="pd-msn">${esc(r.title || r.name)}</span>
+              <span class="pd-msm">${r.title && r.name !== r.q ? `<span>${esc(r.name)}</span>` : ''}<span>${esc(r.q)}</span><span class="${off ? 'off' : ''}">${when[1]}${S[when[0]][i]}</span>${run === r.id ? `<span class="ok">${S.mRunning[i]}</span>` : ''}</span>
+              ${r.kind === 'leaf' ? `<span class="pd-msm hint">${S.mLeafNote[i]}</span>` : ''}</span>${tag}${CHEV}</button>`;
         }).join('') : '');
     }).join('') : `<div class="pd-colnote">${S.colNone[i]}</div>`;
     closeAsk(true);
     syncMsRail();
+    setTimeout(fitMsNames, 0);
   }
+  // A mission's name is never cut: when it is wider than its row it is set smaller, just enough to fit on one line
+  function fitMsNames() {
+    for (const el of msList.querySelectorAll('.pd-msn')) {
+      el.style.fontSize = '';
+      if (el.scrollWidth > el.clientWidth + 1) el.style.fontSize = Math.max(9, parseFloat(getComputedStyle(el).fontSize) * el.clientWidth / el.scrollWidth - 0.2).toFixed(1) + 'px';
+    }
+  }
+  addEventListener('resize', () => { if (cur === 'missions') setTimeout(fitMsNames, 50); });
   function toggleGroup(g) {
     const sc = msList.scrollTop;
     msOpen.has(g) ? msOpen.delete(g) : msOpen.add(g);
