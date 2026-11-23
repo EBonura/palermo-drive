@@ -95,6 +95,7 @@ const PALIFORNIA = [   // [id, title, artist]
   ['sierobrownie-aria-fresca', 'Aria Fresca', 'SieroBrownie'],
   ['magikaarp-2-am', '2 Am', 'magikAAAAArp'],
   ['mario-bajardi-aura', 'Aura', 'Mario Bajardi'],
+  ['loro-my-girlfriend-is-a-nazi-zombie', 'My girlfriend is a nazi zombie', 'Loro'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [

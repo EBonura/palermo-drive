@@ -200,6 +200,7 @@ Music from Palermo. Re-encoded for the web and loudness normalised.
 | Aria Fresca | SieroBrownie |  | MP3 sent by email |
 | 2 Am | magikAAAAArp |  | WAV file |
 | Aura | Mario Bajardi |  | MP3 sent by email |
+| My girlfriend is a nazi zombie | Loro |  | M4A sent by email |
 
 ## Pedestrian sprites (LPC)
 

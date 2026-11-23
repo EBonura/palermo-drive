@@ -108,3 +108,4 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | Aria Fresca (`sierobrownie-aria-fresca`) | SieroBrownie | MP3 sent by email |
 | 2 Am (`magikaarp-2-am`) | magikAAAAArp | WAV file |
 | Aura (`mario-bajardi-aura`) | Mario Bajardi (album AURA, 2025) | MP3 sent by email |
+| My girlfriend is a nazi zombie (`loro-my-girlfriend-is-a-nazi-zombie`) | Loro (2022) | M4A sent by email |
