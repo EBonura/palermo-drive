@@ -7,6 +7,7 @@
 //   X is the helper object of src/missions.js. Test links: ?event=pub:krust (puts the lapa at the pub), &auto accepts at once.
 import { musicUrl, musicCross } from './music-url.js';
 import * as THREE from 'three';
+import { hooks } from './core.js';
 import { PUBS } from './pub-places.js';
 import { PUB_ROUTES } from './pub-routes.js';
 import { buildFrontIter } from './pub-fronts.js';
@@ -95,16 +96,21 @@ export function createPubs(X, { game }) {
   let armed = false, tick = 0, markT = 0;
   // the fronts in the making: v.build is the generator of src/pub-fronts.js (a canvas painted or a few pieces of furniture a step), queued is the order they were asked in. One at a time, because the
   // canvases share one random stream and a front must come out the same whenever it is built; the nearest of those waiting goes first. A front joins the scene when it is whole.
-  const queued = []; let cur = null;
+  const queued = [], uploads = []; let cur = null;
   function stopBuild(v) { if (!v.build) return; v.build.return(); v.build = null; const i = queued.indexOf(v); if (i >= 0) queued.splice(i, 1); if (cur === v) cur = null; }
   function buildFronts() {   // steps until the budget would be passed by one more step of the length of the last (a step is not cut short)
+    // a finished front's pictures go to the GPU one a frame before it is shown: shown at once, three.js sent them all in the frame of its first draw (a wall is 1 to 1.7 million pixels), 145 to 185 ms on two phones
+    if (uploads.length) { const v = uploads[0]; if (!v.front) uploads.shift(); else { hooks.initTex(v.up.pop()); if (!v.up.length) uploads.shift(); return; } }
     let s = performance.now(); const t0 = s;
     for (;;) {
       if (!cur) { for (const v of queued) if (!cur || v.d < cur.d) cur = v; if (!cur) return; }
       const v = cur, r = v.build.next();
       if (r.done) {
         queued.splice(queued.indexOf(v), 1); v.build = null; cur = null; v.front = r.value;
-        if (v.front) { v.front.group.visible = false; scene.add(v.front.group); place(v); }   // (shown by the next slow tick if it is within SHOW_R)
+        if (v.front) {   // (shown by a slow tick once it is within SHOW_R and its pictures are on the GPU)
+          v.front.group.visible = false; scene.add(v.front.group); place(v);
+          v.up = []; if (hooks.initTex) { const seen = new Set(); v.front.group.traverse(o => { for (const m of (Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])) for (const k of ['map', 'emissiveMap', 'alphaMap']) if (m[k] && !seen.has(m[k])) { seen.add(m[k]); v.up.push(m[k]); } }); if (v.up.length) uploads.push(v); }
+        }
       }
       const n = performance.now(); if (n - t0 + (n - s) > FRONT_MS) return; s = n;
     }
@@ -150,8 +156,8 @@ export function createPubs(X, { game }) {
         if (!v.front && !v.build && d < BUILD_R) { v.build = buildFrontIter(v.def.front); queued.push(v); }
         else if (v.build && d > DROP_R) stopBuild(v);
         if (v.front) {
-          const sh = d < SHOW_R; if (sh !== v.shown) { v.shown = sh; v.front.group.visible = sh; }
-          if (d > DROP_R) { scene.remove(v.front.group); v.front.dispose(); v.front = null; v.shown = false; }
+          const sh = d < SHOW_R && !(v.up && v.up.length); if (sh !== v.shown) { v.shown = sh; v.front.group.visible = sh; }
+          if (d > DROP_R) { scene.remove(v.front.group); v.front.dispose(); v.front = null; v.shown = false; v.up = null; }
           else if ((v.yT -= 0.5) <= 0) { v.yT = 3; const gy = groundAt(v.door.x + v.n.x * 0.8, v.door.z + v.n.z * 0.8); if (Math.abs(gy - v.y) > 0.2) place(v); }
         }
         // people in front: the crowd of the hour, replaced when the hour changes from day to open
