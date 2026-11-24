@@ -1,0 +1,7 @@
+{
+  "name": "pd-bench",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Runs the game's own ?bench in the phone's browser on AWS Device Farm and keeps what it measured",
+  "scripts": { "test": "node bench.js" }
+}

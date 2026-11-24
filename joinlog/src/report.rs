@@ -39,6 +39,22 @@ struct Raw {
     cash: Option<u32>,
     bust: Option<u32>,
     m: Option<BTreeMap<String, [u32; 3]>>,
+    // the device, once a visit, in the join report (worked out on the page: the user agent itself is never sent)
+    gm: Option<String>,
+    dm: Option<String>,
+    os: Option<String>,
+    ov: Option<String>,
+    br: Option<String>,
+    bv: Option<u32>,
+    scw: Option<u32>,
+    sch: Option<u32>,
+    dpr: Option<u32>,
+    cw: Option<u32>,
+    ch: Option<u32>,
+    co: Option<u32>,
+    ram: Option<u32>,
+    gl: Option<u32>,
+    mts: Option<u32>,
 }
 
 fn within(v: Option<u32>, lo: u32, hi: u32) -> Option<Option<i64>> {
@@ -56,6 +72,24 @@ fn one_of(v: &str, list: &[&'static str]) -> Option<&'static str> {
 // ids from the game: lower case letters, digits and _ . : -
 fn ident(s: &str, max: usize) -> bool {
     !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.:-".contains(&b))
+}
+
+// a short label the page has already cleaned (a GPU's or a phone's model name): letters, digits, spaces and ( ) . _ , / + : - only
+fn label(v: &Option<String>, max: usize) -> Option<Option<String>> {
+    match v {
+        None => Some(None),
+        Some(s) if !s.is_empty() && s.len() <= max && s.trim() == s && s.bytes().all(|b| b.is_ascii_alphanumeric() || b" ()._,/+:-".contains(&b)) => Some(Some(s.clone())),
+        _ => None,
+    }
+}
+
+// an operating system's version: digits and dots
+fn dotted(v: &Option<String>, max: usize) -> Option<Option<String>> {
+    match v {
+        None => Some(None),
+        Some(s) if !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_digit() || b == b'.') && s.as_bytes()[0] != b'.' => Some(Some(s.clone())),
+        _ => None,
+    }
 }
 
 fn version_ok(s: &str) -> bool {
@@ -127,6 +161,14 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
         Some(v) if ident(v, 24) => Some(v.clone()),
         _ => return None,
     };
+    let os = match &r.os {
+        None => None,
+        Some(v) => Some(one_of(v, &["android", "ios", "windows", "macos", "linux", "chromeos", "other"])?.to_string()),
+    };
+    let browser = match &r.br {
+        None => None,
+        Some(v) => Some(one_of(v, &["chrome", "safari", "firefox", "edge", "samsung", "opera", "duckduckgo", "other"])?.to_string()),
+    };
     let mo = within(r.mo, 30, 60)?;
     if matches!(mo, Some(x) if x != 30 && x != 60) {
         return None;
@@ -177,6 +219,21 @@ pub fn parse(body: &[u8]) -> Option<Vec<(&'static str, Val)>> {
         ("cash", Val::I(within(r.cash, 0, 1_000_000)?)),
         ("busts", Val::I(within(r.bust, 0, 1000)?)),
         ("missions", Val::S(missions)),
+        ("gpu_model", Val::S(label(&r.gm, 80)?)),
+        ("model", Val::S(label(&r.dm, 40)?)),
+        ("os", Val::S(os)),
+        ("os_ver", Val::S(dotted(&r.ov, 16)?)),
+        ("browser", Val::S(browser)),
+        ("browser_ver", Val::I(within(r.bv, 1, 999)?)),
+        ("screen_w", Val::I(within(r.scw, 100, 10_000)?)),
+        ("screen_h", Val::I(within(r.sch, 100, 10_000)?)),
+        ("dpr_pct", Val::I(within(r.dpr, 50, 800)?)),
+        ("canvas_w", Val::I(within(r.cw, 1, 16_384)?)),
+        ("canvas_h", Val::I(within(r.ch, 1, 16_384)?)),
+        ("cores", Val::I(within(r.co, 1, 512)?)),
+        ("ram_mb", Val::I(within(r.ram, 128, 65_536)?)),
+        ("webgl", Val::I(within(r.gl, 1, 2)?)),
+        ("max_tex", Val::I(within(r.mts, 256, 65_536)?)),
     ])
 }
 
@@ -196,7 +253,7 @@ mod tests {
     #[test]
     fn accepts_a_full_report() {
         let r = parse(OK.as_bytes()).expect("valid");
-        assert_eq!(r.len(), 25);
+        assert_eq!(r.len(), 40);
         assert_eq!(name_of(&r).as_deref(), Some("Anna"));
     }
 
@@ -213,6 +270,30 @@ mod tests {
     fn accepts_a_nameless_minimal_report() {
         let r = parse(br#"{"v":1,"t":"join","vid":"0123456789abcdef","d":"desktop","l":"en","g":"0.4.dev","s":0}"#).expect("valid");
         assert_eq!(name_of(&r), None);
+    }
+
+    #[test]
+    fn accepts_the_device_details_of_a_join() {
+        const J: &str = r#"{"v":1,"t":"join","vid":"0123456789abcdef","d":"phone","l":"it","g":"0.4.12","s":5,"gm":"ANGLE (ARM, Mali-G72, OpenGL ES 3.2)","dm":"SM-A515F","os":"android","ov":"10","br":"chrome","bv":131,"scw":360,"sch":800,"dpr":300,"cw":1360,"ch":554,"co":8,"ram":4096,"gl":2,"mts":8192}"#;
+        let r = parse(J.as_bytes()).expect("valid");
+        let s = |k: &str| match r.iter().find(|(c, _)| *c == k).unwrap() {
+            (_, Val::S(v)) => v.clone(),
+            _ => None,
+        };
+        assert_eq!(s("gpu_model").as_deref(), Some("ANGLE (ARM, Mali-G72, OpenGL ES 3.2)"));
+        assert_eq!(s("model").as_deref(), Some("SM-A515F"));
+        assert_eq!(s("os_ver").as_deref(), Some("10"));
+        let bad = |from: &str, to: &str| assert!(parse(J.replace(from, to).as_bytes()).is_none(), "{to}");
+        bad("SM-A515F", "SM-A515F<script>");
+        bad("SM-A515F", " SM-A515F");
+        bad("SM-A515F", &"x".repeat(41));
+        bad("Mali-G72", "Mali-G72\\u0000");
+        bad("\"android\"", "\"symbian\"");
+        bad("\"ov\":\"10\"", "\"ov\":\"10; rv\"");
+        bad("\"chrome\"", "\"netscape\"");
+        bad("\"bv\":131", "\"bv\":0");
+        bad("\"dpr\":300", "\"dpr\":5000");
+        bad("\"gl\":2", "\"gl\":3");
     }
 
     #[test]

@@ -8,7 +8,9 @@ One row per report. A player sends one report after a few seconds of driving (`j
 
 Columns (`ts` is server time): `event`, `visit` (random per page load, never stored on the device), `name`, `device` (phone or desktop), `lang`, `version`, `secs` (since the visit began), `players` (most other players drawn at once, online only), `play_s` (driving seconds in the batch), `fps`, `fps_slow_ms` (the slowest 1 percent of frames took at least this long), `auto_lvl`, `fps_mode`, `shadow`, `res_pct`, `mem_mb`, `gpu` (maker only), `gfx` (graphics level: auto, low, medium or high), `iab` (1 when the game runs inside another app's web view, worked out on the page from the user agent, which is never sent), `hidden` (`ctxlost` and `ctxrestored` only: 1 when the page was in the background), `vehicle`, `dist_m`, `cash`, `busts`, `missions` (`id=started.done.failed;...`).
 
-Never saved: address, user agent, location, position, route, chat phrases, neighbourhood, any id that lasts. Partitions older than 12 months are deleted by BigQuery itself (`partition_expiration_days = 365`).
+Since 24 Nov 2026 a `join` row also says what the game runs on: `gpu_model`, `model` (the phone, where the browser gives it), `os`, `os_ver`, `browser`, `browser_ver`, `screen_w`, `screen_h`, `dpr_pct`, `canvas_w`, `canvas_h`, `cores`, `ram_mb`, `webgl`, `max_tex`. The view `devices` joins them to how the visit ran.
+
+Never saved: address, the user agent text, location, position, route, chat phrases, neighbourhood, any id that lasts. Partitions older than 12 months are deleted by BigQuery itself (`partition_expiration_days = 365`).
 
 ## Volume
 

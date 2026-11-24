@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS \`$PROJECT.$DATASET.$TABLE\` (
   dist_m INT64, cash INT64 OPTIONS (description = 'money earned in the batch'), busts INT64,
   missions STRING OPTIONS (description = 'id=started.done.failed;...')
 ) PARTITION BY TIMESTAMP_TRUNC(ts, DAY) OPTIONS (partition_expiration_days = 365, description = 'Play log: rows older than 12 months are deleted by BigQuery itself');" >/dev/null
+# the device, sent once a visit in the join report (24 Nov 2026): added to a table that already exists, before the service that writes them is deployed
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+ALTER TABLE \`$PROJECT.$DATASET.$TABLE\`
+  ADD COLUMN IF NOT EXISTS gpu_model STRING OPTIONS (description = 'the GPU as WebGL names it, join reports only'),
+  ADD COLUMN IF NOT EXISTS model STRING OPTIONS (description = 'the phone model where the browser gives it (Android), join reports only'),
+  ADD COLUMN IF NOT EXISTS os STRING, ADD COLUMN IF NOT EXISTS os_ver STRING,
+  ADD COLUMN IF NOT EXISTS browser STRING, ADD COLUMN IF NOT EXISTS browser_ver INT64 OPTIONS (description = 'major version'),
+  ADD COLUMN IF NOT EXISTS screen_w INT64 OPTIONS (description = 'screen size in CSS pixels'), ADD COLUMN IF NOT EXISTS screen_h INT64,
+  ADD COLUMN IF NOT EXISTS dpr_pct INT64 OPTIONS (description = 'device pixel ratio in percent'),
+  ADD COLUMN IF NOT EXISTS canvas_w INT64 OPTIONS (description = 'the drawing buffer at the join'), ADD COLUMN IF NOT EXISTS canvas_h INT64,
+  ADD COLUMN IF NOT EXISTS cores INT64, ADD COLUMN IF NOT EXISTS ram_mb INT64 OPTIONS (description = 'as the browser rounds it'),
+  ADD COLUMN IF NOT EXISTS webgl INT64, ADD COLUMN IF NOT EXISTS max_tex INT64;" >/dev/null
 "${Q[@]}" query --use_legacy_sql=false --nouse_cache "
 CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.visits\` OPTIONS (description = 'One row per visit') AS
 SELECT visit, MIN(ts) AS first_seen, MAX(ts) AS last_seen,
@@ -58,6 +70,11 @@ SELECT visit, MIN(ts) AS first_seen, MAX(ts) AS last_seen,
   SAFE_DIVIDE(SUM(fps * play_s), SUM(IF(fps IS NULL, 0, play_s))) AS avg_fps, MAX(players) AS most_players_seen,
   SUM(IFNULL(dist_m, 0)) AS distance_m, SUM(IFNULL(cash, 0)) AS money, SUM(IFNULL(busts, 0)) AS busts, COUNT(*) AS reports
 FROM \`$PROJECT.$DATASET.$TABLE\` GROUP BY visit;" >/dev/null
+"${Q[@]}" query --use_legacy_sql=false --nouse_cache "
+CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.devices\` OPTIONS (description = 'One row per visit that said what it runs on: the device and how the game ran on it') AS
+SELECT j.visit, j.ts AS joined, j.device, j.os, j.os_ver, j.browser, j.browser_ver, j.model, j.gpu_model, j.cores, j.ram_mb, j.screen_w, j.screen_h, j.dpr_pct, j.canvas_w, j.canvas_h, j.webgl, j.max_tex,
+  v.driving_seconds, ROUND(v.avg_fps, 1) AS avg_fps, v.left_cleanly, v.reports
+FROM \`$PROJECT.$DATASET.$TABLE\` j JOIN \`$PROJECT.$DATASET.visits\` v USING (visit) WHERE j.event = 'join' AND j.os IS NOT NULL;" >/dev/null
 "${Q[@]}" query --use_legacy_sql=false --nouse_cache "
 CREATE OR REPLACE VIEW \`$PROJECT.$DATASET.daily\` OPTIONS (description = 'Per day (UTC): visits and play time') AS
 SELECT DATE(first_seen) AS day, COUNT(*) AS visits, COUNTIF(name IS NOT NULL) AS online_visits, COUNT(DISTINCT name) AS names,

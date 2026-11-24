@@ -621,8 +621,8 @@ export function createOnline(env) {
     it: 'Non raccogliamo informazioni personali. Non teniamo il tuo indirizzo, la tua posizione né un identificativo che dura nel tempo.',
     en: 'We do not collect personal information. We keep no address, no position and no ID that lasts.' };
   const STATS = {
-    it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
-    en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
+    it: 'Ogni giocatore, anche da solo, invia conteggi anonimi su come gioca e su come gira il gioco: missioni, soldi, chilometri, fotogrammi, e su che tipo di telefono o computer gira. Se giochi online, salviamo con loro anche il nome che scegli, quindi meglio un soprannome. Teniamo tutto fino a 12 mesi.',
+    en: 'Every player, even playing alone, sends anonymous counts about how they play and how the game runs: missions, money, distance, frame rate, and what kind of phone or computer it runs on. If you play online, we save the name you chose with them, so pick a nickname. We keep it all for up to 12 months.' };
   const NONE = { it: 'Non salviamo nulla.', en: 'We store nothing.' };
   const NAME_TXT = { it: { ask: 'Come ti chiami?', again: 'Online o da solo?', sub: 'Guida online con altri giocatori. Puoi cambiarlo quando vuoi.', edit: 'Il tuo nome', ph: 'Nome', join: 'Gioca online', save: 'Salva', close: 'Chiudi', solo: 'Gioca da solo', info: 'Privacy e dati', back: 'Arrieri' },
     en: { ask: "What's your name?", again: 'Online or solo?', sub: 'Drive online with other players. You can change it any time.', edit: 'Your name', ph: 'Name', join: 'Play online', save: 'Save', close: 'Close', solo: 'Play alone', info: 'Privacy and data', back: 'Back' } };
