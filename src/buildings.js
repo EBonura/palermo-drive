@@ -20,7 +20,9 @@ const T = 256;
 const AT = /[?&]atlast=128(&|$)/.test(location.search) ? 128 : T;
 // More tests of the same kind (the half-size atlas did not stop the crashes): ?tb=nodraw never draws the buildings (their atlas is then never uploaded either), ?tb=flat draws them with
 // plain vertex colours and no atlas, ?tb=nomip draws them as ever with an atlas that has no mipmaps and no anisotropy. Each changes the picture: to measure, never an option.
-const TB = (/[?&]tb=(nodraw|flat|nomip)(&|$)/.exec(location.search) || [])[1] || '';
+// nomip stopped the crashes, so two more to tell its halves apart: ?tb=aniso1 keeps the GPU's mipmaps and drops the anisotropy; ?tb=cpumip keeps the anisotropy and hands the GPU
+// mipmaps made here (mipLevels below) instead of asking it to make them: the same picture by another road through the driver.
+const TB = (/[?&]tb=(nodraw|flat|nomip|aniso1|cpumip)(&|$)/.exec(location.search) || [])[1] || '';
 
 // =====================================================================================
 // Tile painting
@@ -1342,6 +1344,27 @@ function* paintAtlas(data) {
   }
   cv.width = cv.height = 0; if (small) small.width = small.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
 }
+// The atlas's mipmap levels made on the page: each level the 2x2 mean of the one above, colour averaged in linear light (the atlas is sRGB, and that is how a GPU makes them), alpha as it is.
+// Returns [{ w, data }] for levels 1 up to the 1x1.
+const S2L = new Float32Array(256), L2S = new Uint8Array(4096);
+for (let i = 0; i < 256; i++) { const c = i / 255; S2L[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+for (let i = 0; i < 4096; i++) { const l = i / 4095, c = l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055; L2S[i] = Math.round(255 * c); }
+function mipLevels(data, size, layers) {
+  const out = []; let src = data, w = size;
+  while (w > 1) {
+    const h = w >> 1, dst = new Uint8Array(h * h * 4 * layers);
+    for (let k = 0; k < layers; k++) {
+      const so = k * w * w * 4, dn = k * h * h * 4;
+      for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) {
+        const a = so + ((2 * y) * w + 2 * x) * 4, b = a + 4, c = a + w * 4, d = c + 4, o = dn + (y * h + x) * 4;
+        for (let ch = 0; ch < 3; ch++) dst[o + ch] = L2S[Math.round((S2L[src[a + ch]] + S2L[src[b + ch]] + S2L[src[c + ch]] + S2L[src[d + ch]]) * 0.25 * 4095)];
+        dst[o + 3] = (src[a + 3] + src[b + 3] + src[c + 3] + src[d + 3] + 2) >> 2;
+      }
+    }
+    out.push({ w: h, data: dst }); src = dst; w = h;
+  }
+  return out;
+}
 function* buildAtlasIter() {
   const data = new Uint8Array(AT * AT * 4 * LAYERS.length);
   yield* paintAtlas(data);
@@ -1351,8 +1374,16 @@ function* buildAtlasIter() {
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
   if (TB === 'nomip') { tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.anisotropy = 1; }
+  if (TB === 'aniso1') tex.anisotropy = 1;
+  if (TB === 'cpumip') { tex.generateMipmaps = false; tex.mipmaps = Array.from({ length: Math.log2(AT) + 1 }, () => ({})); }   // (three makes room for that many levels and fills the first; the rest go up in onUpdate)
   tex.needsUpdate = true;
-  tex.onUpdate = () => { tex.image.data = null; };
+  tex.onUpdate = () => {
+    if (TB === 'cpumip' && tex.image.data) {   // three has just uploaded level 0 and the texture is still the bound one
+      const gl = document.getElementById('view').getContext('webgl2'), L = mipLevels(tex.image.data, AT, LAYERS.length);
+      if (gl) L.forEach((m, i) => gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, i + 1, 0, 0, 0, m.w, m.w, LAYERS.length, gl.RGBA, gl.UNSIGNED_BYTE, m.data));
+    }
+    tex.image.data = null;
+  };
   document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(AT * AT * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
   return tex;
 }

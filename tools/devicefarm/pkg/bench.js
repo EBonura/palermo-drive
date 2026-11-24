@@ -74,7 +74,11 @@ async function glrecTest(S, js) {
   }
 }
 (async () => {
-  const t0 = Date.now(), s = await wd('POST', '/session', { capabilities: { alwaysMatch: { 'appium:newCommandTimeout': 1500 }, firstMatch: [{}] } }), id = s.sessionId, S = '/session/' + id;
+  const t0 = Date.now(); let s = null;
+  for (let k = 1; !s; k++) {   // the phone's Chrome is sometimes not there yet ("chrome not reachable"): three tries, 15 s apart
+    try { s = await wd('POST', '/session', { capabilities: { alwaysMatch: { 'appium:newCommandTimeout': 1500 }, firstMatch: [{}] } }); } catch (e) { console.log('session try', k, 'failed:', e.message.slice(0, 160)); if (k >= 3) throw e; await sleep(15000); }
+  }
+  const id = s.sessionId, S = '/session/' + id;
   const js = (script, args = [], wait) => wd('POST', S + (wait ? '/execute/async' : '/execute/sync'), { script, args });   // wait: the script answers through its last argument when it is done
   let code = 1;
   let MODE = 'bench'; try { MODE = fs.readFileSync(path.join(__dirname, 'mode.txt'), 'utf8').trim() || 'bench'; } catch (e) { /* no file: the bench */ }
