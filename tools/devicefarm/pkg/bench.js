@@ -47,12 +47,17 @@ async function ctxTest(S, js, out) {
 // The recorder (?glrec, src/gl-recorder.js): the game loaded three times from scratch, each time left to load where it starts and then sent to two more places, with the GPU memory it has asked
 // for sampled all along. If the context is lost, the summary holds the totals at that moment and the last calls before it.
 const GLREC_URL = process.env.PD_GLREC_URL || 'https://palermo-drive.it/?debug&play&help=0&p2p=off&radio=off&cloud=off&glrec';
+let MODE_NOW = 'bench';
 async function glrecTest(S, js) {
   const brief = () => js("var r = window.__glrec && window.__glrec.summary(0); return r ? { t: r.t, tex: r.texMB, buf: r.bufMB, rb: r.rbMB, up: r.upMB, texN: r.texN, programs: r.programs, lost: r.lost.length, loading: !!document.getElementById('loading') } : null;").catch(e => ({ error: e.message.slice(0, 120) }));
   const watch = async (label, secs) => { for (let i = 0; i < secs / 5; i++) { await sleep(5000); const b = await brief(); console.log('glrec', label, JSON.stringify(b)); if (b && b.lost >= 3) return; } };
-  for (let pass = 1; pass <= (+process.env.PD_GLREC_PASSES || 3); pass++) {
+  // mode.txt "glrec-atlas": the same loads by turns with the wall atlas as shipped and at half size (?atlast=128), small first, to see whether a phone that dies after the atlas stops dying
+  const AB = MODE_NOW === 'glrec-atlas', N = AB ? 6 : (+process.env.PD_GLREC_PASSES || 3);
+  for (let pass = 1; pass <= N; pass++) {
+    const small = AB && pass % 2 === 1, url = GLREC_URL + (small ? '&atlast=128' : '');
+    console.log('glrec pass', pass, AB ? (small ? 'SMALL atlas' : 'atlas as shipped') : '');
     await wd('POST', S + '/url', { url: 'about:blank' }).catch(() => {}); await sleep(1500);
-    await wd('POST', S + '/url', { url: GLREC_URL });
+    await wd('POST', S + '/url', { url });
     await wd('POST', S + '/orientation', { orientation: 'LANDSCAPE' }).catch(() => {});
     await watch(`pass ${pass}, loading`, 75);
     for (const [name, x, z] of [['Mondello', -3033, -10177], ['Ballaro', 150, 560]]) {
@@ -60,6 +65,7 @@ async function glrecTest(S, js) {
       await watch(`pass ${pass}, ${name}`, 35);
     }
     const sum = await js('return window.__glrec ? window.__glrec.summary(80) : null;').catch(e => ({ error: e.message.slice(0, 200) }));
+    if (sum && !sum.error) sum.atlas = small ? 'small' : 'shipped';
     keep(`glrec-${pass}.json`, JSON.stringify(sum));
     const p = await wd('GET', S + '/screenshot').catch(() => null); if (p) keep(`glrec-${pass}.png`, Buffer.from(p, 'base64'));
     console.log('glrec pass', pass, 'done:', sum && !sum.error ? `${sum.lost.length} lost, peak ${JSON.stringify(sum.peakMB)}, uploaded ${sum.upMB} MB, ${sum.programs} programs (compile ${sum.compileMs} ms, link ${sum.linkMs} ms)` : JSON.stringify(sum));
@@ -70,7 +76,8 @@ async function glrecTest(S, js) {
   const js = (script, args = [], wait) => wd('POST', S + (wait ? '/execute/async' : '/execute/sync'), { script, args });   // wait: the script answers through its last argument when it is done
   let code = 1;
   let MODE = 'bench'; try { MODE = fs.readFileSync(path.join(__dirname, 'mode.txt'), 'utf8').trim() || 'bench'; } catch (e) { /* no file: the bench */ }
-  if (MODE === 'glrec') {
+  MODE_NOW = MODE;
+  if (MODE === 'glrec' || MODE === 'glrec-atlas') {
     try { console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 300)); await wd('POST', S + '/timeouts', { script: 30000, pageLoad: 180000 }).catch(() => {}); await glrecTest(S, js); code = 0; } catch (e) { console.log('glrec FAILED', e.message); keep('error.txt', String(e.stack || e) + '\n'); }
     await wd('DELETE', S).catch(() => {}); process.exit(code);
   }

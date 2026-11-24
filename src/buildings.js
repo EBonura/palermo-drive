@@ -15,6 +15,9 @@ import { PUB_ROUTES } from './pub-routes.js';
 const PUB_DOORS = Object.values(PUB_ROUTES).map(r => r.door);   // the pubs' hand-built fronts (src/pub-fronts.js) doors: see pubSign below
 
 const T = 256;
+// A test only (the owner, 24 Nov 2026: prove a suspicion before fixing it): ?atlast=128 uploads the wall atlas at half its size, a quarter of its memory (20 MB for 80), to see whether
+// a phone whose GPU process dies after the upload (tools/devicefarm, docs/PERF.md "The recorder") stops dying. The walls are painted as ever and scaled down: blurrier, never an option.
+const AT = /[?&]atlast=128(&|$)/.test(location.search) ? 128 : T;
 
 // =====================================================================================
 // Tile painting
@@ -1321,6 +1324,7 @@ for (const [name, first, n] of [['res_up', 'res_a', 5], ['n19_up', 'n19_up_g', 3
 function* paintAtlas(data) {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
   const g = cv.getContext('2d', { willReadFrequently: true });
+  const small = AT === T ? null : document.createElement('canvas'), gs = small ? (small.width = small.height = AT, small.getContext('2d', { willReadFrequently: true })) : null;
   const sheet = /[?&]atlas=1/.test(location.search) ? document.createElement('canvas') : null; // debug contact sheet
   if (sheet) { sheet.width = 8 * 160; sheet.height = Math.ceil(LAYERS.length / 8) * 160; sheet.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:#7a8a9a'; document.body.appendChild(sheet); }
   for (let i = 0; i < LAYERS.length; i++) {
@@ -1328,23 +1332,24 @@ function* paintAtlas(data) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, T, T);
     L.fn(g, rng(9100 + i * 131));
     if (sheet) sheet.getContext('2d').drawImage(cv, (i % 8) * 160, ((i / 8) | 0) * 160, 160, 160);
-    const px = g.getImageData(0, 0, T, T).data;
-    for (let y = 0; y < T; y++) data.set(px.subarray(y * T * 4, (y + 1) * T * 4), (i * T + (T - 1 - y)) * T * 4); // flip: v = 1 is the top
+    if (gs) { gs.clearRect(0, 0, AT, AT); gs.drawImage(cv, 0, 0, AT, AT); }
+    const px = (gs || g).getImageData(0, 0, AT, AT).data;
+    for (let y = 0; y < AT; y++) data.set(px.subarray(y * AT * 4, (y + 1) * AT * 4), (i * AT + (AT - 1 - y)) * AT * 4); // flip: v = 1 is the top
     yield;
   }
-  cv.width = cv.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
+  cv.width = cv.height = 0; if (small) small.width = small.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
 }
 function* buildAtlasIter() {
-  const data = new Uint8Array(T * T * 4 * LAYERS.length);
+  const data = new Uint8Array(AT * AT * 4 * LAYERS.length);
   yield* paintAtlas(data);
-  const tex = new THREE.DataArrayTexture(data, T, T, LAYERS.length);
+  const tex = new THREE.DataArrayTexture(data, AT, AT, LAYERS.length);
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
   tex.onUpdate = () => { tex.image.data = null; };
-  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(T * T * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(AT * AT * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
   return tex;
 }
 
