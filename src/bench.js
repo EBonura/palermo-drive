@@ -210,7 +210,7 @@ export async function runBench(E) {
     p2.push('What limits: the display when every refresh gets its frame. Else the code, when it alone is longer than the refreshes the frame has. Else the GPU, when the picture is not finished within them (by the fence; by the read where there is none). Else the page is held back by something else: a cap of the browser, Low Power Mode, heat.');
     if (res.clock) p2.push(`The costs on page 3 were clocked by ${res.clock === 'fence' ? 'the fence, the next frame held until it signals' : 'the read'}${res.clockWhy ? ' (' + res.clockWhy + ')' : ''}.`);
     const heavy = spots.slice(1).filter(s => s.day).sort((a, b) => b.day.js - a.day.js)[0];
-    const sp = (s, tm) => { const m = s && s[tm]; if (m && m.split) p2.push(`code at ${s.name}, ${tm}: ` + Object.entries(m.split).sort((a, b) => b[1] - a[1]).slice(0, 9).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ')); };
+    const sp = (s, tm) => { const m = s && s[tm]; if (m && m.split) p2.push(`code at ${s.name}, ${tm}: ` + Object.entries(m.split).sort((a, b) => b[1] - a[1]).slice(0, 9).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', '));  if (m && m.anat) { const a = m.anat; p2.push(`  its draw, ${f1(a.render)} ms: ${a.nFirst} draws that begin a run of one material ${f1(a.first)}, ${a.nRep} that repeat it ${f1(a.rep)}, the cull and what else runs before the scene is drawn ${f1(a.cull)}, the shadow pass ${f1(a.sh)} (${a.nSh} draws), three's walk, sort and matrices ${f1(a.other)}`); } };
     sp(s0, 'day'); sp(s0, 'night'); sp(heavy, 'day');
     p2.push('  ms a frame. draw: three.js walking, sorting and issuing the frame (shadow: the shadow pass inside it). rest: physics, camera, HUD text. Every place is in the JSON.');
 
@@ -585,12 +585,26 @@ export async function runBench(E) {
     if (m.js > room) return after > P * 0.92 ? { by: 'code', k, also: 'gpu' } : { by: 'code', k };
     return { by: m.js + after > room || m.late > 0.3 ? 'gpu' : 'held', k };
   }
+  // The draw taken apart, on frames of its own (its clocks would weigh on the readings): ms a frame in the cull and the other work the scene does before it is drawn, in the shadow pass, in the draws that begin a
+  // run of one material and in those that repeat the material of the draw before them (how many of each), and what is left of renderer.render (three walking the scene, sorting, the matrices).
+  async function anatomy() {
+    const A = { cull: 0, sh: 0, first: 0, rep: 0, render: 0, nFirst: 0, nRep: 0, nSh: 0 }, rbd = R.renderBufferDirect, obr = S.onBeforeRender, shr = R.shadowMap.render, rr = R.render;
+    let inSh = 0, prev = null, n = 0;
+    R.renderBufferDirect = function (c, sc, g, mat) { if (inSh) { A.nSh++; return rbd.apply(this, arguments); } const same = mat === prev; prev = mat; const t = now(); try { return rbd.apply(this, arguments); } finally { const d = now() - t; if (same) { A.rep += d; A.nRep++; } else { A.first += d; A.nFirst++; } } };
+    S.onBeforeRender = function () { const t = now(); try { return obr.apply(this, arguments); } finally { A.cull += now() - t; } };
+    R.shadowMap.render = function () { inSh = 1; const t = now(); try { return shr.apply(this, arguments); } finally { A.sh += now() - t; inSh = 0; } };
+    R.render = function () { prev = null; const t = now(); try { return rr.apply(this, arguments); } finally { A.render += now() - t; n++; } };
+    try { await take({ ms: 1500, min: 30, max: 120 }); } finally { R.renderBufferDirect = rbd; S.onBeforeRender = obr; R.shadowMap.render = shr; R.render = rr; }
+    if (!n) return null; const q = v => r2(v / n);
+    return { cull: q(A.cull), sh: q(A.sh), first: q(A.first), rep: q(A.rep), other: q(Math.max(0, A.render - A.cull - A.sh - A.first - A.rep)), render: q(A.render), nFirst: Math.round(A.nFirst / n), nRep: Math.round(A.nRep / n), nSh: Math.round(A.nSh / n) };
+  }
   async function reading() {
     // 1. as the player gets it: free running frames, no fence pending, nothing read back
     const s0 = snap(), F = await take({ ms: 1100, min: 24, max: 120 }), s1 = snap();
     const iv = sorted(F.map(f => f.iv)), js = tmean(F.map(f => f.js)), ps = sys.pedestrians && sys.pedestrians.stats, last = F[F.length - 1];
     const m = { people: ps ? ps.count : 0, want: ps ? Math.round(ps.target) : 0, cars: sys.traffic && sys.traffic.vehicles ? sys.traffic.vehicles.length : 0, fps: r1(1000 / mean(F.map(f => f.iv))), iv: [at(iv, 0.5), at(iv, 0.95), iv[iv.length - 1]].map(r1),
       js: r2(js), jsp: r1(at(sorted(F.map(f => f.js)), 0.95)), calls: last.calls, tris: last.tris, split: split(s0, s1, js) };
+    try { m.anat = await anatomy(); } catch (e) { /* a renderer without these hooks */ }
     // 2. the same frames with a fence after each: when the GPU had finished (fd: by then at the latest, fl: not yet by then), and how often a frame began with the one before unfinished
     if (FENCE && fenceOK !== false) {
       const G = await take({ ms: 500, min: 10, max: 60, s: 3 }); sync = 0; await drain();

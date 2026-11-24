@@ -807,6 +807,10 @@ The costs are small against the noise on this machine, which is why the phone ha
 
 The drive line of page 1 also gives the game's code averaged over the whole drive by system, and the same over the frames that came more than 50 ms apart. `?bd=qc,vucciria` makes the same drive from those places too, along the road the lapa stands on, so a drive through the centre can be read beside Viale Regione.
 
+### The draw, taken apart on the phone (24 Nov 2026)
+
+Under each `code at` line of page 2 the bench gives `its draw`: ms a frame of `renderer.render` in the draws that begin a run of one material, in those that repeat the material before them, in the cull and whatever else runs in `scene.onBeforeRender`, in the shadow pass, and the remainder (three walking the scene, the sort, the matrices). It is clocked on frames of its own (`anatomy` in `src/bench.js`), with a clock round every draw, so read it as shares.
+
 ### What page 4 adds (24 Nov 2026)
 
 Four blocks for telling odd phones apart, none of which costs the run more than a fraction of a second:
