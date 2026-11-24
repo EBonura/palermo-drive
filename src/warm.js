@@ -60,6 +60,27 @@ export function createWarm({ renderer, scene, camera, prewash }) {   // prewash(
     stats.ms += performance.now() - t0;
   }
 
+  // The programs that only a few places need, linked while the loading screen is up instead of in the middle of a drive: a phone without KHR_parallel_shader_compile stops for a third of a second at each
+  // (24 Nov 2026: every phone of a Device Farm run froze 270 to 390 ms 30 m into a drive from the Quattro Canti, where a pub's sign first joins the scene). A program is shared by every material with the same
+  // parameters on the same kind of mesh, so a stand-in with those parameters makes it: nothing of these is ever drawn. The list is what tools/perf/shaders.mjs still finds linked after loading on a tour of
+  // the city; a material with a shader of its own (the tunnels' concrete, the boats' tint) is its module's to warm and is not here.
+  function warmLate() {
+    const tex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); tex.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.PlaneGeometry(1, 1), geoC = new THREE.PlaneGeometry(1, 1); geoC.setAttribute('color', new THREE.BufferAttribute(new Float32Array(12).fill(1), 3));
+    const S = THREE.MeshStandardMaterial, B = THREE.MeshBasicMaterial, list = [
+      [new S({ map: tex, vertexColors: true, side: THREE.DoubleSide }), geoC, true],                                   // a landmark's tiled or painted surface (Porta Nuova's majolica)
+      [new S({ map: tex, transparent: true }), geo, false],                                                          // a pub front's painted sign
+      [new S({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0 }), geo, false],                 // and its lit one
+      [new B({ map: tex, transparent: true, opacity: 0, fog: false, blending: THREE.AdditiveBlending, depthWrite: false }), geo, false],   // its pool of light on the pavement
+      [new B({ map: tex, side: THREE.DoubleSide, toneMapped: false }), geo, false],                                  // a banner that keeps its own colours
+      [new S({ transparent: true, opacity: 0.82 }), geoC, false],                                                    // the glass of a bridge's or tunnel's fittings
+      [new B({ vertexColors: true, side: THREE.DoubleSide }), geoC, false],                                          // and their unlit parts
+    ];
+    const t0 = performance.now();
+    for (const [m, g, rs] of list) { const o = new THREE.Mesh(g, m); o.receiveShadow = rs; if (prewash) prewash(o); try { compile(o); stats.late = (stats.late || 0) + 1; } catch (e) { /* the first draw will do it */ } keep.push(m); }
+    keep.push(tex, geo, geoC); stats.ms += performance.now() - t0;
+  }
+
   // the depth programs every street needs: a caster with a map and with a cut-out map, one-sided and two-sided
   function warmDepth() {
     const geo = new THREE.PlaneGeometry(1, 1), tex = new THREE.Texture(), mats = [];
@@ -79,5 +100,5 @@ export function createWarm({ renderer, scene, camera, prewash }) {   // prewash(
     queueMicrotask(() => { for (const o of objs) prepare(o); });
     return r;
   };
-  return { prepare, warmDepth, stats, seen, kind, off() { on = false; } };
+  return { prepare, warmDepth, warmLate, stats, seen, kind, off() { on = false; } };
 }
