@@ -803,6 +803,17 @@ The table above is in the order the run takes them, the first row first; within 
 
 The costs are small against the noise on this machine, which is why the phone has to do this itself. The benchmark's file is 49 KB (21 KB gzip) in the build and only `?bench` fetches it.
 
+### What page 4 adds (24 Nov 2026)
+
+Four blocks for telling odd phones apart, none of which costs the run more than a fraction of a second:
+
+- **Over the run**: at every place, the same small sum timed (it grows when the phone slows its processor down, as a hot one does), the page's own memory where the browser gives it (Chrome, in coarse steps), and the textures, geometries and shader programs alive. Set beside the first place measured again at the end, it tells a phone that got hot from a page that filled up.
+- **Stalls**: free running frames that took over 100 ms, counted apart for reading a place, travelling to one and switching things for the costs, with the three longest and when they came. Plus the browser's own count of long tasks (Chrome).
+- **Odd things**: the GL context lost, the page hidden or resized, the screen lock let go.
+- **Loading**: from the browser's record of every file, how long something was on the wire and how long the phone worked on its own, by kind of file, with the slowest three and what the browser says of the connection.
+
+`tools/devicefarm/` runs the bench on real phones of AWS Device Farm (`run.sh`, then `fetch.sh`), with `bt=480` so a slow phone still gets its readings by night.
+
 ## The draw path (`src/engine-lean.js`, `?draw=`, 11 November 2026)
 
 The owner's old Android phone (Mali-G72, Chrome 131) put `draw`, which is `renderer.render` with the shadow pass inside it, at 21.2 ms of the 31.2 ms the game's code takes in a frame at Quattro Canti by day (267 draws, 620k triangles) and at 25.8 of 39.2 at night (236 draws): about 80 microseconds of main thread a draw. The aim of this pass was to halve that with the picture the same to the pixel. It was not halved. What is in takes about a tenth off `renderer.render` on the throttled Mac and 6 to 8 % off the GL calls of a frame, and the rest of this section says where the remainder sits and why it does not come out of the draw path. No phone was measured after the change: the switches below are there so that the benchmark can.

@@ -45,6 +45,16 @@ export async function runBench(E) {
   // ---------- the frame loop: the game's animation callbacks run from here, so a frame can be timed to the moment the GPU has finished it, or held back altogether
   const raf = window.requestAnimationFrame.bind(window), px = new Uint8Array(4), each = new Set();
   let cbs = [], rid = 0, hold = false, waiters = [], lastT = 0, lastErr = '', lost = 0, gap = 0, nF = 0;
+  // ---------- watching the whole run for trouble (the owner, 24 Nov 2026: full visibility, odd phones included): frames that stalled, the browser's own long tasks, the GL context lost,
+  // the page hidden or resized, the screen lock let go. Three buckets, because a stall means something different in each: reading a place (what a player gets), travelling to one, switching things for the costs.
+  const stalls = () => ({ n100: 0, n250: 0, top: [] });
+  const W = { on: false, t0: 0, step: '', phase: 'read', pub: { read: stalls(), travel: stalls(), cost: stalls(), lt: { ok: false, n: 0, ms: 0, max: 0 }, ctx: 0, hid: 0, resz: 0, wakeLost: 0 } };
+  const stall = ms => { const b = W.pub[W.phase]; b.n100++; if (ms > 250) b.n250++; b.top.push([Math.round((now() - W.t0) / 1000), Math.round(ms), W.step]); b.top.sort((p, q) => q[1] - p[1]); b.top.length = Math.min(b.top.length, 5); };
+  try { new PerformanceObserver(l => { if (W.on) for (const e of l.getEntries()) { const q = W.pub.lt; q.n++; q.ms = Math.round(q.ms + e.duration); q.max = Math.max(q.max, Math.round(e.duration)); } }).observe({ type: 'longtask' }); W.pub.lt.ok = true; } catch (e) { /* Safari and Firefox do not report them */ }
+  R.domElement.addEventListener('webglcontextlost', () => { if (W.on) W.pub.ctx++; });
+  document.addEventListener('visibilitychange', () => { if (W.on && document.hidden) W.pub.hid++; });
+  addEventListener('resize', () => { if (W.on) W.pub.resz++; });
+  let wasFree = false;
   let sync = 0;   // 0 free, 1 wait by reading a pixel, 2 a fence after each frame and the next frame held until it signals, 3 free with a fence after each frame
   window.requestAnimationFrame = cb => { cbs.push([++rid, cb]); return rid; };   // three asks for its next frame by name each time, so this takes over from the next frame on
   window.cancelAnimationFrame = h => { cbs = cbs.filter(c => c[0] !== h); };
@@ -67,8 +77,9 @@ export async function runBench(E) {
     raf(tick);
     if (pend.length) poll();   // here it says whether the GPU had finished the last frame when this one began
     const q = pend.length;
-    if (sync === 2 && q) return;   // the fence of the last frame has not signalled: this refresh goes by without a frame
+    if (sync === 2 && q) { wasFree = false; return; }   // the fence of the last frame has not signalled: this refresh goes by without a frame
     const o = { iv: t - lastT, js: 0, tot: 0, q }; lastT = t; nF++; if (o.iv > gap) gap = o.iv;
+    { const free = sync === 0 && !hold; if (W.on && free && wasFree && o.iv > 100 && o.iv < 60000) stall(o.iv); wasFree = free; }   // free running frames only: a frame held for a fence or a read is slow on purpose
     let rode = false;
     if (!hold) {
       const run = cbs; cbs = [];
@@ -167,7 +178,7 @@ export async function runBench(E) {
     p1.push(`PALERMO DRIVE BENCH  ${res.ver || ''}  ${(res.at || '').slice(0, 16).replace('T', ' ')} UTC  took ${res.ms ? mmss(res.ms) : '(not finished)'}${res.total ? ' (aims at ' + mmss(res.total * 1000) + ')' : ''}  MSAA ${g.aa ? 'on x' + g.samples : 'off'}`);
     p1.push(`${d.model || '?'}${d.os ? ', ' + d.os : ''}${d.browser ? ' ' + d.browser : ''}  screen ${d.screen ? d.screen.join('x') : '?'} @${d.dpr}  page ${d.page ? d.page.join('x') : '?'}  canvas ${d.canvas ? d.canvas.join('x') : '?'} px (ratio ${d.ratio})  ${d.cores || '?'} cores`);
     p1.push(`${String(g.gpu || '?').slice(0, 44)}  ${String(g.ver || '').slice(0, 9)}  max texture ${g.lim ? g.lim.tex : '?'}  multi_draw ${has('WEBGL_multi_draw')}  parallel compile ${has('KHR_parallel_shader_compile')}  GPU timer ${has('EXT_disjoint_timer_query_webgl2')}`);
-    p1.push(`display ${d.hz ? d.hz + ' Hz' : '?'} (${f1(d.idle)} animation frames a second with nothing drawn)  clock step ${d.clock} ms  page ready after ${secs(d.load)} s  screen kept awake: ${d.wake ? 'yes' : 'NO'}`);
+    p1.push(`display ${d.hz ? d.hz + ' Hz' : '?'} (${f1(d.idle)} animation frames a second with nothing drawn)  clock step ${d.clock} ms  page ready after ${secs(d.load)} s  screen kept awake: ${d.wake ? 'yes' : 'NO'}${d.bat ? `  battery ${d.bat.pct} %${d.bat.plug ? ', charging' : ''}` : ''}`);
     p1.push(`canvas memory ${d.cv ? f1(d.cv.mb) + ' MB in ' + d.cv.n + ' canvases, peak ' + f1(d.cv.peakMB) : '?'}  mediump ${g.mediump || '?'} bits  weather by the schedule: ${res.wx || '?'} (measured under fair weather)`);
     for (const w of res.warn || []) p1.push('! ' + w);
     p1.push('');
@@ -236,6 +247,26 @@ export async function runBench(E) {
       const a = r.was, b = r.now, far = Math.abs(a.people - b.people) > 0.1 * Math.max(a.people, b.people, 10);
       p4.push(`SECOND PAGE LOAD, ${r.label} (?${r.q}, to measure: never an option), ${s0 ? s0.name : ''} by day, before to after: fps ${f1(a.fps)} to ${f1(b.fps)}, between frames ${f1(a.iv[0])} to ${f1(b.iv[0])} ms, code ${f1(a.js)} to ${f1(b.js)}, fence ${f1(a.fd)} to ${f1(b.fd)}, read ${f1(a.tot)} to ${f1(b.tot)}; ${a.people} and ${b.people} people${far ? ': too different a crowd for a fair pair' : ''}`);
     }
+    const pr = [...spots, ...(res.again ? [{ ...res.again, name: '  again, at end' }] : [])].filter(q => q.probe), nn = v => v === null || v === undefined ? '?' : v;
+    if (pr.length) {
+      p4.push('OVER THE RUN  at: minutes in. sum: the same small sum timed, ms (it grows when the phone slows its processor down). heap: the page\'s own memory, MB. Then the textures, geometries and shader programs alive.');
+      p4.push(P('place', 19) + L('at', 6) + L('sum', 7) + L('heap', 7) + L('tex', 6) + L('geo', 7) + L('prog', 6));
+      for (const q of pr) p4.push(P(q.name, 19) + L(mmss(q.probe.t * 1000), 6) + L(f1(q.probe.cpu), 7) + L(nn(q.probe.heap), 7) + L(nn(q.probe.tex), 6) + L(nn(q.probe.geo), 7) + L(nn(q.probe.prog), 6));
+      const a = pr[0].probe, z = pr[pr.length - 1].probe;
+      if (pr.length > 1) p4.push(`first to last: the sum ${sg((z.cpu / a.cpu - 1) * 100, 0)} %` + (a.heap !== null && z.heap !== null ? `, heap ${sg(z.heap - a.heap, 0)} MB` : '') + `, textures ${sg(z.tex - a.tex, 0)}, geometries ${sg(z.geo - a.geo, 0)}, programs ${sg(z.prog - a.prog, 0)}`);
+    }
+    const wt = res.watch;
+    if (wt) {
+      const b = (nm, q) => q && q.n100 ? `${nm}: ${q.n100}${q.n250 ? ' (' + q.n250 + ' over 250 ms)' : ''}, the longest ${q.top.slice(0, 3).map(t => `${t[1]} ms at ${mmss(t[0] * 1000)} (${t[2]})`).join(', ')}` : `${nm}: none`;
+      p4.push('STALLS (free running frames that took over 100 ms)  ' + [b('reading a place or driving', wt.read), b('travelling', wt.travel), b('switching things for the costs', wt.cost)].join('; '));
+      p4.push('long tasks (the browser\'s own count of work over 50 ms): ' + (wt.lt && wt.lt.ok ? `${wt.lt.n}, ${secs(wt.lt.ms)} s in all, the longest ${wt.lt.max} ms` : 'this browser does not report them'));
+      const odd = [wt.ctx && `the GL context was lost ${wt.ctx} times`, wt.hid && `the page was hidden ${wt.hid} times`, wt.resz && `the page changed size ${wt.resz} times`, wt.wakeLost && `the screen lock was let go ${wt.wakeLost} times`].filter(Boolean);
+      p4.push('ODD THINGS DURING THE RUN: ' + (odd.length ? odd.join('; ') : 'none seen'));
+    }
+    const ld = res.load;
+    if (ld && !ld.na) p4.push(`LOADING  ready after ${secs(d.load)} s${ld.cached ? ' (the page came from the cache)' : ''}: the page itself in at ${secs(ld.html)} s, then ${ld.n}${ld.full ? ' or more' : ''} files; something was on the wire for ${secs(ld.net)} s of it (the last file in at ${secs(ld.lastNet)} s), which leaves about ${secs(Math.max(0, d.load - ld.net))} s of the phone's own work. `
+      + Object.entries(ld.kinds).map(([k, v]) => `${k}: ${v.n} files, ${v.kb} kB, the last at ${secs(v.end)} s`).join('; ') + `. slowest: ${ld.slow.map(q => `${q[0]} ${secs(q[1])} s (${q[2]} kB)`).join(', ')}`
+      + (ld.conn ? `. connection: ${ld.conn.type}, ${nn(ld.conn.down)} Mbit/s, ${nn(ld.conn.rtt)} ms${ld.conn.save ? ', data saver ON' : ''}` : ''));
     const drop = res.drop || [];
     p4.push('LEFT OUT: ' + (drop.length ? drop.map(q => `${q[0]} (${q[1]})`).join('; ') : 'nothing'));
     const todo = q => [q.tile && 'the tile under the lapa in full detail', q.vis && q.vis + ' things in view', q.boxes && q.boxes + ' bounding boxes', q.jobs && q.jobs + ' building jobs', q.net && q.net + ' downloads'].filter(Boolean).join(', ') || 'the frames had not calmed down';
@@ -515,7 +546,7 @@ export async function runBench(E) {
   // settled: the tile under the lapa is at full detail, nothing in view is still to come and the engine has its boxes; quiet: no job left, or nothing built for a second.
   // When the cap ends the wait, pend says what was still to do, and the reading is taken all the same.
   async function arrive(x, z, th, cap) {
-    const t = now(), h0 = world.hurry, o = { settled: false, quiet: false }; world.hurry = true;
+    const t = now(), h0 = world.hurry, o = { settled: false, quiet: false }, ph = W.phase; world.hurry = true; W.phase = 'travel';
     try {
       if (Math.abs(game.time.hour - DAY) > 0.02) sys.dayNight.jumpTo(DAY);   // every place is read by day first: the sky turns during the journey
       await new Promise(done => { const k = setTimeout(done, Math.max(3000, 0.6 * cap)); try { vehicle.placeAt(x, z, th); } catch (e) { /* no road yet */ } world.teleport(x, z, () => { clearTimeout(k); done(); }); });
@@ -532,6 +563,7 @@ export async function runBench(E) {
       if (!o.settled || !o.quiet) o.pend = { tile: tileFull() ? 0 : 1, vis: world.visiblePending(), boxes: lean ? lean.stats().pendingBoxes || 0 : 0, jobs: st.queued + st.pending, net: st.inflight };
     } finally { world.hurry = h0; }
     await steady(1500);
+    W.phase = ph;
     o.wait = Math.round(now() - t);
     return o;
   }
@@ -623,7 +655,7 @@ export async function runBench(E) {
 
   // ---------- the run
   let res = null, wake = null, t0 = 0, loadMs = 0, restore = () => {};
-  const lock = async () => { try { wake = await Promise.race([navigator.wakeLock.request('screen'), new Promise((_, no) => setTimeout(no, 1500))]); return true; } catch (e) { return false; } };   // (a request that never answers counts as a no)
+  const lock = async () => { try { wake = await Promise.race([navigator.wakeLock.request('screen'), new Promise((_, no) => setTimeout(no, 1500))]); if (wake && wake.addEventListener) wake.addEventListener('release', () => { if (W.on) W.pub.wakeLost++; }); return true; } catch (e) { return false; } };   // (a request that never answers counts as a no)
   const mmss = ms => { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   function fixed() {   // the same conditions every run: the clock stopped, fair weather, the chase camera. Put back at the end.
     const st = game.settings, sp = st.timeSpeed, pr = R.getPixelRatio(), h = game.time.hour;
@@ -634,7 +666,8 @@ export async function runBench(E) {
     addEventListener('pagehide', restore);
   }
   async function first() {   // what every page load needs before it measures
-    res.dev = device(); res.dev.load = loadMs; res.gl = glInfo();
+    res.dev = device(); res.dev.load = loadMs; res.gl = glInfo(); res.load = loadInfo(); res.watch = W.pub;   // (res.watch is the live count: every save of the run carries it as it stands)
+    try { const b = navigator.getBattery && await Promise.race([navigator.getBattery(), sleep(600)]); if (b) res.dev.bat = { pct: Math.round(b.level * 100), plug: !!b.charging }; } catch (e) { /* not told */ }
     // the display: animation frames with nothing drawn at all. 30 on a 60 Hz phone is the system holding the page back (Low Power Mode does exactly this)
     hold = true; const I = (await take({ ms: 800, min: 12, skip: 3 })).map(f => f.iv); hold = false;
     res.dev.idle = r1(1000 / mean(I)); res.dev.hz = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 240].reduce((b, r) => Math.abs(r - res.dev.idle) < Math.abs(b - res.dev.idle) ? r : b, 60);
@@ -644,7 +677,28 @@ export async function runBench(E) {
     if (coarse && res.dev.idle < 45) res.warn.push(`only ${res.dev.idle} animation frames a second with nothing drawn: Low Power Mode is on (or the system is holding this page back). Every number below is capped at that: switch it off and run again.`);
     if (!res.dev.wake && coarse) res.warn.push('this browser could not keep the screen awake: if the phone dimmed or locked during the run, the numbers are no good.');
   }
-  const progress = what => { const left = BUDGET - (now() - t0); say(`BENCH  ${mmss(now() - t0)}  ${what}  ·  ${left > 5000 ? 'about ' + mmss(left) + ' left' : 'nearly done'}  ·  leave the phone alone`); store.run = { t: Date.now(), step: what, res }; save(); };
+  // One small reading at every place that needs no scene: the same sum timed (the best of three, ms: it grows when the phone slows its processor down, as a hot one does) and what the
+  // page holds in memory. Set beside the places' frame rates it tells a phone that got hot from a page that filled up.
+  let sink = 0;
+  function probe() {
+    let best = 1e9; for (let k = 0; k < 3; k++) { const a = now(); let x = 0; for (let i = 1; i < 1500000; i++) x += Math.sqrt(i) % 7; sink = x; best = Math.min(best, now() - a); }
+    const mi = R.info.memory || {}, pm = performance.memory, cs = canvasStats ? canvasStats() : null;
+    return { t: Math.round((now() - t0) / 1000), cpu: r1(best), heap: pm ? Math.round(pm.usedJSHeapSize / 1048576) : null, tex: mi.textures, geo: mi.geometries, prog: R.info.programs ? R.info.programs.length : null, cv: cs ? r1(cs.mb) : null };
+  }
+  // What the wait before the game was spent on, from the browser's own record of every file: how much of it something was on the wire, and the rest (reading the code, building the city).
+  function loadInfo() {
+    try {
+      const nav = performance.getEntriesByType('navigation')[0], rs = performance.getEntriesByType('resource').filter(e => e.startTime < loadMs), kinds = {}, kb = e => (e.transferSize || e.encodedBodySize || 0) / 1024;
+      const kind = n => /\.m?js(\?|$)/.test(n) ? 'code' : /\.(json|bin|gz|br|pdt)(\?|$)/.test(n) ? 'data' : /\.(png|jpe?g|webp|avif|svg|ktx2?)(\?|$)/.test(n) ? 'pictures' : /\.(m4a|mp3|ogg|wav)(\?|$)/.test(n) ? 'sound' : /\.(woff2?|ttf|css)(\?|$)/.test(n) ? 'fonts, styles' : 'other';
+      for (const e of rs) { const n = kind(e.name), k = kinds[n] || (kinds[n] = { n: 0, kb: 0, end: 0 }); k.n++; k.kb += kb(e); k.end = Math.max(k.end, e.responseEnd); }
+      for (const k of Object.values(kinds)) { k.kb = Math.round(k.kb); k.end = Math.round(k.end); }
+      const sp = rs.map(e => [e.startTime, e.responseEnd]).sort((a, b) => a[0] - b[0]); let net = nav ? nav.responseEnd : 0, end = net; for (const [a, b] of sp) if (b > end) { net += b - Math.max(a, end); end = b; }   // the time something was on the wire: the spans laid over one another
+      const slow = rs.slice().sort((a, b) => b.duration - a.duration).slice(0, 3).map(e => [e.name.split('/').pop().split('?')[0].slice(0, 40), Math.round(e.duration), Math.round(kb(e))]), c = navigator.connection;
+      return { html: nav ? Math.round(nav.responseEnd) : null, dcl: nav ? Math.round(nav.domContentLoadedEventEnd) : null, cached: nav ? nav.transferSize === 0 : null, n: rs.length, full: rs.length >= 250, net: Math.round(net), lastNet: Math.round(end), kinds, slow,
+        conn: c ? { type: c.effectiveType || '?', down: c.downlink, rtt: c.rtt, save: !!c.saveData } : null };
+    } catch (e) { return { na: String(e && e.message || e).slice(0, 80) }; }
+  }
+  const progress = what => { W.step = what; const left = BUDGET - (now() - t0); say(`BENCH  ${mmss(now() - t0)}  ${what}  ·  ${left > 5000 ? 'about ' + mmss(left) + ' left' : 'nearly done'}  ·  leave the phone alone`); store.run = { t: Date.now(), step: what, res }; save(); };
   const short = e => String(e && e.message || e).slice(0, 80);
 
   // one place: the journey, the wait, the reading by day. What a reading by day and one by night take here is learnt as the run goes.
@@ -655,13 +709,14 @@ export async function runBench(E) {
     Object.assign(s, await arrive(x, z, th, cap)); s.car = [r1(car.x), r1(car.z)];
     if (sys.clouds && sys.clouds.setDrift) sys.clouds.setDrift(0);   // the same sky at every visit
     progress(`${name}: day`); const t = now(); await setTime(DAY); s.day = await reading(); dayEst = (dayEst + now() - t) / 2;
+    s.probe = probe();
     return s;
   }
   async function nightOf(s) { progress(`${s.name}: night`); const t = now(); await setTime(NIGHT); s.night = await reading(); delete s.noNight; nightEst = (nightEst + now() - t) / 2; }
 
   async function stage1() {
     res = { v: 2, ver: (document.querySelector('meta[name="pd-version"]') || { dataset: {} }).dataset.name || 'dev', at: new Date().toISOString(), href: location.search, total: BUDGET / 1000, spots: [], notes: [], drop: [], re: [] };
-    t0 = now(); fixed(); say('BENCH  starting'); await first();
+    t0 = now(); W.t0 = t0; W.on = true; fixed(); say('BENCH  starting'); await first();
     const ask = (Q.get('bs') || '').split(',').map(id => SPOTS.find(s => s[0] === id)).filter(Boolean), list = ask.length ? ask : SPOTS, cv = Q.get('bv') ? Q.get('bv').split(',') : null;   // ?bs=qc,mondello and ?bv=sh0,fog0 narrow a run to some places and variants
     // 1. The tour: the plain reading of every place by day, whatever happens. Up to tourEnd a place also gets its reading by night; past it the nights are left out.
     // The wait at each place is what is left up to hardEnd shared among the places still to come, so a device that loads slowly gets shorter waits (and says what was not ready) instead of fewer places.
@@ -693,6 +748,7 @@ export async function runBench(E) {
     // 3. Back where the tour began: its reading again (the first one was the first thing this page ever measured), and that is the page as shipped the costs are set against
     const s0 = res.spots[0];
     if (back) res.again = await visit(list[0], clamp(hardEnd - now() - dayEst, 6000, 30000), {});
+    W.phase = 'cost';
     await costsAndRest(s0, cv);
   }
   const reUrl = r => { const u = new URL(home, location.href); for (const [k, v] of new URLSearchParams(r.q)) u.searchParams.set(k, v); u.searchParams.set('bench', 're'); return u.href; };
@@ -766,7 +822,7 @@ export async function runBench(E) {
     finish();
   }
   function finish(head) {
-    restore(); hold = true; strip.remove();   // the game stops drawing under the panel: the phone cools down for the next run
+    W.on = false; restore(); hold = true; strip.remove();   // the game stops drawing under the panel: the phone cools down for the next run
     store.last = res; delete store.run; delete store.re; save();
     try { history.replaceState(null, '', home); } catch (e) { /* the address stays as it is */ }
     api.done = true; show(res, head);

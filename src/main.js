@@ -446,6 +446,7 @@ function showKeyHint() {
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 700); }, 4500);
 }
 const params = new URLSearchParams(location.search);
+if (params.has('bench')) try { performance.setResourceTimingBufferSize(4000); } catch (e) { /* the default of 250 files then */ }   // the bench reads the browser's record of every file to say what the loading was spent on (src/bench.js)
 horn = createHorn({ keys, car, getVolume: () => game.settings.volume ?? 0.8 });
 // Game audio starts inside the user's tap: the shell dispatches 'pd-gesture' on the title tap, Drive and Resume (src/ui.js gesture(), which also calls vehicle.unlockAudio; the radio listens to the event too),
 // and the horn's own context is made here as well, so that the first honk does not create it outside a gesture.

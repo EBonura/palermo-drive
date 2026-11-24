@@ -1,10 +1,10 @@
 // Runs on the AWS Device Farm test host, beside one real phone (tools/devicefarm/run.sh sends it there). It opens the game's own ?bench (src/bench.js: the phone
 // measures itself) in the phone's browser through the Appium server the host has started, waits for it to finish and keeps what it measured in the run's
 // artifacts ($DEVICEFARM_LOG_DIR): the JSON, the text of the result pages, a picture, and the GPU's name as soon as the page is up (in case the run dies later).
-// No dependencies: plain WebDriver calls with the fetch of the host's Node. PD_URL changes the address (a test), PD_MAX_MIN the patience.
+// No dependencies: plain WebDriver calls with the fetch of the host's Node. PD_URL changes the address (a test), PD_MAX_MIN the patience. The run is given 8 minutes (bt=480) instead of the page's own 5, so a slow phone still gets its readings by night.
 const fs = require('fs'), path = require('path');
 const BASE = 'http://127.0.0.1:4723' + (process.env.APPIUM_BASE_PATH || ''), OUT = process.env.DEVICEFARM_LOG_DIR || '.';
-const URL_ = process.env.PD_URL || 'https://palermo-drive.it/?help=0&bench=new', MAX_MS = (+process.env.PD_MAX_MIN || 14) * 60000;
+const URL_ = process.env.PD_URL || 'https://palermo-drive.it/?help=0&bench=new&bt=480', MAX_MS = (+process.env.PD_MAX_MIN || 17) * 60000;
 const NAME = (process.env.DEVICEFARM_DEVICE_NAME || 'device').replace(/[^A-Za-z0-9]+/g, '-'), sleep = ms => new Promise(r => setTimeout(r, ms));
 const keep = (file, data) => fs.writeFileSync(path.join(OUT, `pd-${NAME}-${file}`), data);
 async function wd(method, url, body) {
