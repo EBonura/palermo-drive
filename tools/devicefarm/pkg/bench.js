@@ -2,6 +2,7 @@
 // measures itself) in the phone's browser through the Appium server the host has started, waits for it to finish and keeps what it measured in the run's
 // artifacts ($DEVICEFARM_LOG_DIR): the JSON, the text of the result pages, a picture, and the GPU's name as soon as the page is up (in case the run dies later).
 // Then, on the same phone, the lost GL context (ctxTest below): the browser sent to the background and brought back, and the context taken away on purpose, with what the game did each time.
+// With mode.txt saying glrec (run.sh writes it from PD_MODE) it does neither and runs the recorder instead (glrecTest below): what the game asks of the GPU while it loads, for a phone whose GPU process dies.
 // No dependencies: plain WebDriver calls with the fetch of the host's Node. PD_URL changes the address (a test), PD_MAX_MIN the patience. The run is given 8 minutes (bt=480) instead of the page's own 5, so a slow phone still gets its readings by night.
 const fs = require('fs'), path = require('path');
 const BASE = 'http://127.0.0.1:4723' + (process.env.APPIUM_BASE_PATH || ''), OUT = process.env.DEVICEFARM_LOG_DIR || '.';
@@ -43,10 +44,36 @@ async function ctxTest(S, js, out) {
   await sleep(4000); await state('after4s'); await shot('3-after-forced-4s');
   await sleep(16000); await state('after20s'); await shot('4-after-forced-20s');
 }
+// The recorder (?glrec, src/gl-recorder.js): the game loaded three times from scratch, each time left to load where it starts and then sent to two more places, with the GPU memory it has asked
+// for sampled all along. If the context is lost, the summary holds the totals at that moment and the last calls before it.
+const GLREC_URL = process.env.PD_GLREC_URL || 'https://palermo-drive.it/?debug&play&help=0&p2p=off&radio=off&cloud=off&glrec';
+async function glrecTest(S, js) {
+  const brief = () => js("var r = window.__glrec && window.__glrec.summary(0); return r ? { t: r.t, tex: r.texMB, buf: r.bufMB, rb: r.rbMB, up: r.upMB, texN: r.texN, programs: r.programs, lost: r.lost.length, loading: !!document.getElementById('loading') } : null;").catch(e => ({ error: e.message.slice(0, 120) }));
+  const watch = async (label, secs) => { for (let i = 0; i < secs / 5; i++) { await sleep(5000); const b = await brief(); console.log('glrec', label, JSON.stringify(b)); if (b && b.lost >= 3) return; } };
+  for (let pass = 1; pass <= (+process.env.PD_GLREC_PASSES || 3); pass++) {
+    await wd('POST', S + '/url', { url: 'about:blank' }).catch(() => {}); await sleep(1500);
+    await wd('POST', S + '/url', { url: GLREC_URL });
+    await wd('POST', S + '/orientation', { orientation: 'LANDSCAPE' }).catch(() => {});
+    await watch(`pass ${pass}, loading`, 75);
+    for (const [name, x, z] of [['Mondello', -3033, -10177], ['Ballaro', 150, 560]]) {
+      await js("var g = window.game; if (g && g.world) { try { g.placeAt(arguments[0], arguments[1]); } catch (e) {} g.world.teleport(arguments[0], arguments[1], function () { try { g.placeAt(arguments[0], arguments[1]); } catch (e) {} }); } return true;", [x, z]).catch(e => console.log('glrec teleport:', e.message.slice(0, 120)));
+      await watch(`pass ${pass}, ${name}`, 35);
+    }
+    const sum = await js('return window.__glrec ? window.__glrec.summary(80) : null;').catch(e => ({ error: e.message.slice(0, 200) }));
+    keep(`glrec-${pass}.json`, JSON.stringify(sum));
+    const p = await wd('GET', S + '/screenshot').catch(() => null); if (p) keep(`glrec-${pass}.png`, Buffer.from(p, 'base64'));
+    console.log('glrec pass', pass, 'done:', sum && !sum.error ? `${sum.lost.length} lost, peak ${JSON.stringify(sum.peakMB)}, uploaded ${sum.upMB} MB, ${sum.programs} programs (compile ${sum.compileMs} ms, link ${sum.linkMs} ms)` : JSON.stringify(sum));
+  }
+}
 (async () => {
   const t0 = Date.now(), s = await wd('POST', '/session', { capabilities: { alwaysMatch: { 'appium:newCommandTimeout': 1500 }, firstMatch: [{}] } }), id = s.sessionId, S = '/session/' + id;
   const js = (script, args = [], wait) => wd('POST', S + (wait ? '/execute/async' : '/execute/sync'), { script, args });   // wait: the script answers through its last argument when it is done
   let code = 1;
+  let MODE = 'bench'; try { MODE = fs.readFileSync(path.join(__dirname, 'mode.txt'), 'utf8').trim() || 'bench'; } catch (e) { /* no file: the bench */ }
+  if (MODE === 'glrec') {
+    try { console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 300)); await wd('POST', S + '/timeouts', { script: 30000, pageLoad: 180000 }).catch(() => {}); await glrecTest(S, js); code = 0; } catch (e) { console.log('glrec FAILED', e.message); keep('error.txt', String(e.stack || e) + '\n'); }
+    await wd('DELETE', S).catch(() => {}); process.exit(code);
+  }
   try {
     console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 400));
     await wd('POST', S + '/timeouts', { script: 30000, pageLoad: 180000 }).catch(e => console.log('timeouts:', e.message));

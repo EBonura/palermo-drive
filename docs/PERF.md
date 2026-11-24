@@ -1046,3 +1046,10 @@ tools/release/withbrowser.sh node tools/perf/shotdiff.mjs --a <dist> --b <dist> 
 node tools/perf/benchrun.mjs --webkit --root <dist> --out <dir> [--q 'bs=qc&bv=sh0,flat']            # ?bench as the phone runs it, in real WebKit: the four result pages as pictures, text and JSON (headless Chrome without --webkit, under withbrowser.sh)
 ```
 `measure.mjs --root <source tree> --cdn <dir with three@r160>` measures the old layout (how the baseline was taken: `git archive bd6bf5f`).
+
+## The recorder (`?glrec`, `src/gl-recorder.js`)
+
+For a phone whose GPU process dies (24 Nov 2026: a Galaxy A13 5G, Mali-G57, lost its context three times to a crash inside the Mali driver with the phone short of memory). With `?glrec` in the address every heavy WebGL call is noted with its size and the time it took: texture and buffer uploads, storage, render buffers, shader compiles, program links. `window.__glrec.summary()` gives the memory asked of the GPU now and at its peak, a sample of it twice a second, the 25 largest allocations, every call over 30 ms, and at each lost context the totals at that moment with the last 80 calls before it. Sizes are what the page asked for, from the formats: a driver may hold more. Draw calls are not wrapped. Without the parameter the file does nothing.
+
+`PD_MODE=glrec tools/devicefarm/run.sh "<name>" <device arn>` loads the game three times on a real phone with the recorder on and keeps a summary of each.
+

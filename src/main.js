@@ -1,3 +1,4 @@
+import './gl-recorder.js';   // first of all: with ?glrec it wraps the WebGL contexts before any is made (it does nothing without the parameter)
 import { canvasStats } from './canvas-tally.js';   // first of all: notes every canvas, for the ?coords box
 import { onViewport } from './viewport.js';
 import { prewarmAudio } from './audio-recover.js';   // first: wraps AudioContext so every context the game makes is resumed when the page comes back (phones)

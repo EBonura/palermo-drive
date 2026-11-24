@@ -1,10 +1,11 @@
 #!/bin/zsh
 # run.sh <run name> <device arn>...   packs tools/devicefarm/pkg, uploads it to the Device Farm project and starts one run of the game's ?bench on the phones given.
-# Prints the run's ARN; tools/devicefarm/fetch.sh <run arn> waits for it and brings back what each phone measured. Uses the AWS profile palermo-drive (us-west-2) only.
+# PD_MODE=glrec ./run.sh ... runs the GPU call recorder (?glrec) instead of the bench. Prints the run's ARN; tools/devicefarm/fetch.sh <run arn> waits for it and brings back what each phone measured. Uses the AWS profile palermo-drive (us-west-2) only.
 # Every device minute counts against the account (1,000 free once, then $0.17 a minute): the job is cut at 25 minutes a phone.
 set -e
 export AWS_PROFILE=palermo-drive AWS_DEFAULT_REGION=us-west-2
 H=${0:A:h}; C=$HOME/.cache/palermo-drive/devicefarm; P=$(cat $C/project-arn.txt); NAME=$1; shift
+echo ${PD_MODE:-bench} >| $H/pkg/mode.txt   # PD_MODE=glrec: the recorder instead of the bench (pkg/bench.js)
 (cd $H/pkg && find . -name 'pd-bench-*.tgz' -delete && npm pack --silent >/dev/null && rm -f ../pd-bench.zip && zip -q ../pd-bench.zip pd-bench-*.tgz)
 U=$(aws devicefarm create-upload --project-arn $P --name pd-bench.zip --type APPIUM_WEB_NODE_TEST_PACKAGE --query 'upload.[arn,url]' --output text)
 UA=${U%%$'\t'*}; curl -s -T $H/pd-bench.zip "${U#*$'\t'}"
