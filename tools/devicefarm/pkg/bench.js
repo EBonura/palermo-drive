@@ -1,6 +1,7 @@
 // Runs on the AWS Device Farm test host, beside one real phone (tools/devicefarm/run.sh sends it there). It opens the game's own ?bench (src/bench.js: the phone
 // measures itself) in the phone's browser through the Appium server the host has started, waits for it to finish and keeps what it measured in the run's
 // artifacts ($DEVICEFARM_LOG_DIR): the JSON, the text of the result pages, a picture, and the GPU's name as soon as the page is up (in case the run dies later).
+// Then, on the same phone, the lost GL context (ctxTest below): the browser sent to the background and brought back, and the context taken away on purpose, with what the game did each time.
 // No dependencies: plain WebDriver calls with the fetch of the host's Node. PD_URL changes the address (a test), PD_MAX_MIN the patience. The run is given 8 minutes (bt=480) instead of the page's own 5, so a slow phone still gets its readings by night.
 const fs = require('fs'), path = require('path');
 const BASE = 'http://127.0.0.1:4723' + (process.env.APPIUM_BASE_PATH || ''), OUT = process.env.DEVICEFARM_LOG_DIR || '.';
@@ -12,9 +13,39 @@ async function wd(method, url, body) {
   if (!r.ok) throw new Error(`${method} ${url}: ${r.status} ${JSON.stringify(j.value && j.value.message || j).slice(0, 300)}`);
   return j.value;
 }
+// The lost GL context, the two ways a player meets it. 1: the browser goes to the background for a while and comes back (phones may take the context then; Mali ones do in the play log).
+// 2: the context is taken away with the page in view, as a phone short of memory does, and given back. After each: did the events fire, is the game drawing again, how fast, is the
+// "graphics stopped" card up, and a picture of the screen to look at. PD_CTX=0 leaves it out.
+const CTX_URL = process.env.PD_CTX_URL || 'https://palermo-drive.it/?debug&play&help=0&p2p=off&radio=off&cloud=off';
+async function ctxTest(S, js, out) {
+  const shot = async n => { const p = await wd('GET', S + '/screenshot').catch(() => null); if (p) keep(`ctx-${n}.png`, Buffer.from(p, 'base64')); };
+  const state = label => js(`var g = window.game, c = window.__ctx, R = g.renderer, n0 = c.frames, t0 = performance.now(), done = arguments[arguments.length - 1];
+    setTimeout(function () { var card = [].slice.call(document.querySelectorAll('[role=alert]')).some(function (e) { return /Reload|Ricarica/.test(e.textContent); });
+      done({ lost: c.lost, back: c.back, hid: c.hid, log: c.log.slice(-8), fps: Math.round((c.frames - n0) / ((performance.now() - t0) / 1000) * 10) / 10, calls: R.info.render.calls, tris: R.info.render.triangles,
+        isLost: R.getContext().isContextLost(), pending: g.world && g.world.visiblePending ? g.world.visiblePending() : null, card: card, hidden: document.hidden }); }, 3000);`, [], true)
+    .then(v => { out[label] = v; console.log('ctx', label, JSON.stringify(v)); return v; }).catch(e => { out[label] = { error: e.message.slice(0, 200) }; console.log('ctx', label, 'FAILED', e.message.slice(0, 200)); return null; });
+  await wd('POST', S + '/url', { url: CTX_URL });
+  let ready = false; for (let i = 0; i < 40 && !ready; i++) { await sleep(3000); ready = await js("return !!(window.game && window.game.renderer && !document.getElementById('loading'));").catch(() => false); }
+  if (!ready) { out.na = 'the game did not finish loading'; return; }
+  await js(`var c = window.__ctx = { lost: 0, back: 0, hid: 0, frames: 0, log: [] }, cv = window.game.renderer.domElement, t0 = performance.now(), at = function () { return Math.round((performance.now() - t0) / 100) / 10; };
+    cv.addEventListener('webglcontextlost', function () { c.lost++; c.log.push([at(), 'lost', document.hidden ? 'hidden' : 'in view']); });
+    cv.addEventListener('webglcontextrestored', function () { c.back++; c.log.push([at(), 'restored', document.hidden ? 'hidden' : 'in view']); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) c.hid++; c.log.push([at(), document.hidden ? 'page hidden' : 'page shown', '']); });
+    (function f() { c.frames++; requestAnimationFrame(f); })(); return true;`);
+  await sleep(4000); await state('before'); await shot('1-before');
+  // 1. to the background for 20 seconds and back
+  const bg = await wd('POST', S + '/execute/sync', { script: 'mobile: backgroundApp', args: [{ seconds: 20 }] }).then(() => 'ok').catch(e => e.message.slice(0, 160));
+  out.background = bg; console.log('ctx background:', bg);
+  await sleep(6000); await state('afterBackground'); await shot('2-after-background');
+  // 2. the context taken away in view, given back 1.5 s later; the game may take up to 15 s to rebuild
+  const forced = await js(`var x = window.game.renderer.getContext().getExtension('WEBGL_lose_context'); if (!x) return 'no WEBGL_lose_context'; x.loseContext(); setTimeout(function () { x.restoreContext(); }, 1500); return 'ok';`).catch(e => e.message.slice(0, 160));
+  out.forced = forced; console.log('ctx forced:', forced);
+  await sleep(4000); await state('after4s'); await shot('3-after-forced-4s');
+  await sleep(16000); await state('after20s'); await shot('4-after-forced-20s');
+}
 (async () => {
   const t0 = Date.now(), s = await wd('POST', '/session', { capabilities: { alwaysMatch: { 'appium:newCommandTimeout': 1500 }, firstMatch: [{}] } }), id = s.sessionId, S = '/session/' + id;
-  const js = (script, args = []) => wd('POST', S + '/execute/sync', { script, args });
+  const js = (script, args = [], wait) => wd('POST', S + (wait ? '/execute/async' : '/execute/sync'), { script, args });   // wait: the script answers through its last argument when it is done
   let code = 1;
   try {
     console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 400));
@@ -45,6 +76,7 @@ async function wd(method, url, body) {
       console.log([].concat(out.texts).join('\n\n')); console.log('finished in', Math.round((Date.now() - t0) / 1000), 's'); code = 0;
     }
   } catch (e) { console.log('FAILED', e.message); keep('error.txt', String(e.stack || e) + '\n'); }
+  if (process.env.PD_CTX !== '0') { const out = {}; try { await ctxTest(S, js, out); } catch (e) { out.error = String(e.message || e).slice(0, 300); console.log('ctx FAILED', out.error); } keep('ctx.json', JSON.stringify(out, null, 1)); }
   await wd('DELETE', S).catch(() => {});
   process.exit(code);
 })();

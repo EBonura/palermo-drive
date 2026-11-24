@@ -808,7 +808,7 @@ export async function runBench(E) {
   async function stage2() {
     const p = store.re, r = RELOADS.find(q => q.id === p.list[p.i]); res = p.res; home = p.home; p.tries = 1; save();
     t0 = now() - res.ms - Math.max(0, Date.now() - p.t);   // the clock of the run goes on across the load
-    const keep = { dev: res.dev, gl: res.gl, warn: res.warn }; fixed(); await first(); Object.assign(res, keep);
+    const keep = { dev: res.dev, gl: res.gl, warn: res.warn, load: res.load, watch: res.watch }; fixed(); await first(); Object.assign(res, keep);   // (the loading and the watch are the first page load's: this one comes from the cache and measures one place)
     const s = res.spots[0], def = SPOTS.find(d => d[0] === s.id), out = { id: r.id, label: r.label, q: r.q }, brief = m => ({ fps: m.fps, iv: m.iv, js: m.js, fd: m.fd, tot: m.tot, people: m.people, lim: m.lim });
     if (r.off && !r.off()) out.na = `the page did not change with ?${r.q}`;
     else { const a = await visit(def, clamp(1.5 * s.wait, 6000, 30000), {}); Object.assign(out, { was: brief((res.again || s).day), now: brief(a.day), wait: a.wait, settled: a.settled }); }
