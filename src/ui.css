@@ -851,35 +851,29 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 .pd-s-options .pd-tabp .pd-slider { height: clamp(36px, calc(var(--vh, 1vh) * 8), 44px); }
 .pd-s-options .pd-tabp .pd-track { height: 8px; margin-top: -4px; box-shadow: none; background: rgba(255,255,255,.12); }
 /* the stations: three cards, the name in the script of the radio, its line under it, IN ONDA on the one that is playing */
-.pd-stcards { gap: 8px; }
 .pd-strow { position: relative; }
-.pd-stallrow { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
-.pd-stallrow .pd-stall { margin-top: 0; }
+/* the station: a switch like the other choices, and one line under it about the chosen station (the owner, 24 Nov 2026: the three cards with a name and a line each were a mess at every size) */
+.pd-stbox { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.pd-s-options .pd-tabp .pd-stcard { padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+.pd-stline { display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0; font: 500 clamp(11px, calc(var(--vh, 1vh) * 2.4), 13.5px)/1.2 var(--pd-sans); letter-spacing: 0; text-transform: none; color: rgba(255,255,255,.78); }
+.pd-stdesc { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-stair { flex: none; padding: 2px 6px; border-radius: 3px; font: 700 9.5px/1.1 var(--pd-cond); font-style: normal; letter-spacing: .14em; text-transform: uppercase; background: rgba(232,85,154,.22); color: #fff; }
+.pd-stair[hidden] { display: none; }
+.pd-stair::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #ff4a6a; vertical-align: 1px; animation: pd-air 1.2s ease-in-out infinite; }
 .pd-stinfo { flex: none; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55); background: none; color: #fff; font: italic 700 11px/15px Georgia, 'Times New Roman', serif; text-align: center; cursor: pointer; pointer-events: auto; }
 .pd-stnote[hidden] { display: none; }
 .pd-stinfo.on, .pd-stinfo:hover { background: var(--pd-pink); border-color: var(--pd-pink); }
 .pd-stnote { position: absolute; inset: 4px 0; z-index: 2; display: flex; align-items: center; margin: 0; padding: 6px 14px; overflow: auto; border-left: 2px solid var(--pd-pink); border-radius: 4px; background: #1b1016; opacity: 1; z-index: 5; box-shadow: 0 6px 18px rgba(0,0,0,.5); cursor: pointer; font: 500 clamp(11px, calc(var(--vh, 1vh) * 2.2), 13px)/1.35 var(--pd-sans); text-transform: none; letter-spacing: 0; color: rgba(255,255,255,.85); }
-.pd-strow .pd-lab { flex-direction: column; align-items: flex-start; justify-content: center; }
-.pd-stall { display: block; margin-top: 3px; font: 600 clamp(10px, calc(var(--vh, 1vh) * 2.1), 12px)/1.15 var(--pd-sans); letter-spacing: .02em; text-transform: none; color: var(--pd-pink); opacity: .95; }   /* what the three stations share, under STAZIONE */
-.pd-s-options .pd-tabp .pd-stcard { min-height: clamp(54px, calc(var(--vh, 1vh) * 12), 70px); padding: 6px 12px; text-align: left; text-transform: none; letter-spacing: 0; }
-.pd-stcard > span { display: flex; flex-direction: column; justify-content: center; gap: 2px; position: relative; }
-.pd-stcard b { font: 700 clamp(15px, calc(var(--vh, 1vh) * 3.4), 20px)/1.05 var(--pd-cond); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-stcard small { font: 500 clamp(11px, calc(var(--vh, 1vh) * 2.3), 13px)/1.2 var(--pd-sans); opacity: .75; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }   /* the line may take two rows */
-.pd-stcard i { order: -1; align-self: flex-start; visibility: hidden; margin-bottom: 2px; padding: 2px 6px; border-radius: 3px; font: 700 9.5px/1.1 var(--pd-cond); font-style: normal; letter-spacing: .14em; text-transform: uppercase; background: rgba(10,6,9,.75); color: #fff; }   /* IN ONDA: its own line above the name (the room is kept on every card, so the three stay the same height) */
-.pd-stcard.air i { visibility: visible; }
-.pd-stcard.air i::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #ff4a6a; vertical-align: 1px; animation: pd-air 1.2s ease-in-out infinite; }
 @keyframes pd-air { 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .pd-stcard.air i::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pd-stair::before { animation: none; } }
 /* narrow: the docked panel while paused, and phones held upright or small windows: the name above the control */
-#pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-row, .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: 1fr; gap: 6px; }
+#pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-row { grid-template-columns: 1fr; gap: 6px; }
 @media (max-width: 640px) { .pd-s-options .pd-tabp .pd-row { grid-template-columns: 1fr; gap: 6px; } }
 #pd-ui[data-st=pause] .pd-otab { font-size: 12px; letter-spacing: .06em; padding: 8px 2px; }
 /* a short screen (a phone held sideways): tighter rows, and the stations beside their name like the other rows, so each tab fits without scrolling */
 @media (max-height: 460px) {
   .pd-s-options .pd-tabp .pd-row { padding: 3px 2px; }
   .pd-s-options .pd-tabp .pd-segb { min-height: 34px; }
-  .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(150px, 32%) minmax(0, 1fr); gap: 6px 22px; }
-  .pd-s-options .pd-tabp .pd-stcard { min-height: 46px; }
   .pd-s-options .pd-tabp .pd-segb, .pd-s-options .pd-tabp .pd-slider { min-height: 36px; height: auto; }
   .pd-s-options .pd-tabp .pd-slider { height: 36px; }
   .pd-otab { padding: 5px 4px; }
@@ -889,9 +883,6 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
   #pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-lab { font-size: 12px; letter-spacing: .08em; line-height: 1.15; flex-wrap: wrap; }
   #pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-segb { font-size: 12.5px; letter-spacing: .04em; padding-left: 4px; padding-right: 4px; }
 }
-/* the docked panel (paused) is narrow: one station card under the other */
-#pd-ui[data-st=pause] .pd-stcards { flex-direction: column; gap: 6px; }
-#pd-ui[data-st=pause] .pd-s-options .pd-tabp .pd-stcard { min-height: 44px; }
 
 /* the cloud save row in Options (src/cloud-save.js): the label on the left, everything else in one column */
 .pd-cloudbody { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -923,9 +914,8 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 .pd-msq .pd-l1 { font-size: min(clamp(16px, calc(var(--vh, 1vh) * 3.6), 22px), 4.8cqi); }
 /* the radio: the now-playing strip of the side menu, the station cards of Options, the switch on the welcome screen */
 .pd-npn { font-size: min(16px, 4.8cqi); } .pd-nps { font-size: min(11px, 3.4cqi); } .pd-npl { font-size: min(9px, 2.8cqi); }
-.pd-stcard b { font-size: min(clamp(15px, calc(var(--vh, 1vh) * 3.4), 20px), 4.4cqi); letter-spacing: .04em; }
-.pd-stcard small { font-size: min(clamp(11px, calc(var(--vh, 1vh) * 2.3), 13px), 3.1cqi); }
-.pd-stall { font-size: min(clamp(10px, calc(var(--vh, 1vh) * 2.1), 12px), 2.9cqi); }
+.pd-s-options .pd-tabp .pd-stcard { font-size: min(clamp(12px, calc(var(--vh, 1vh) * 2.9), 17px), 4.2cqi); letter-spacing: .05em; }
+.pd-stline { font-size: min(clamp(11px, calc(var(--vh, 1vh) * 2.4), 13.5px), 3.3cqi); }
 .pd-welst3 button { font-size: min(clamp(12px, calc(var(--vh, 1vh) * 2.8), 15px), 3.4cqi); letter-spacing: .06em; }
 .pd-welradnote, .pd-welnote { font-size: min(clamp(11px, calc(var(--vh, 1vh) * 2.5), 14px), 3.2cqi); }
 .pd-btn.pd-msgo { min-width: min(clamp(70px, calc(var(--vh, 1vh) * 17), 92px), 19cqi); padding: 0 min(clamp(10px, calc(var(--vh, 1vh) * 2), 16px), 2.6cqi); }
@@ -934,8 +924,6 @@ html.touch .pd-s-options .pd-tabp .pd-row.pd-pin:not([hidden]) { display: grid; 
 @container (max-width: 560px) {
   #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row, #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   #pd-ui[data-st] .pd-s-options .pd-tabp .pd-lab { font-size: 12.5px; letter-spacing: .1em; line-height: 1.15; }
-  #pd-ui[data-st] .pd-s-options .pd-stall { font-size: 11px; }
-  #pd-ui[data-st] .pd-s-options .pd-stcards { flex-direction: column; gap: 6px; }   /* three cards side by side would cut the names in a narrow panel */
 }
 @container (min-width: 561px) {
   #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row, #pd-ui[data-st] .pd-s-options .pd-tabp .pd-row.pd-strow { grid-template-columns: minmax(120px, 28%) minmax(0, 1fr); gap: 6px 18px; }

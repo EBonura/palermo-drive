@@ -63,7 +63,7 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationAll: ['Musica e voci palermitane', 'Music and voices from Palermo'], stationRights: ['Tutti i brani e gli audio restano di proprietà dei rispettivi artisti, autori e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica e la lingua palermitana. Per un credito diverso o la rimozione di un brano o di un audio scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs and recordings remain the property of their artists, authors and rights holders, played without profit to support the music and the language of Palermo. To have a song or recording credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationRights: ['Tutti i brani e gli audio restano di proprietà dei rispettivi artisti, autori e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica e la lingua palermitana. Per un credito diverso o la rimozione di un brano o di un audio scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs and recordings remain the property of their artists, authors and rights holders, played without profit to support the music and the language of Palermo. To have a song or recording credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
   tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'], radioVideo: ['Talìa u video', 'Watch the video'], radioChannel: ['Talìa u canali', 'Watch the channel'],
   units: ['Unità', 'Units'],
   camera: ['Camera', 'Camera'],
@@ -401,9 +401,13 @@ export function setupUI({ cloud, game, applySettings, missions, suca, tapes, map
   const LANG_OPT = { key: 'lang', label: 'language', type: 'seg', vals: [['it', null, 'Sicilianu'], ['en', null, 'English']] };   // each language is named in itself; 'Sicilianu' is a draft for the owner
   OPTS.push(LANG_OPT);
   // the stations as two cards: the name, its line, and IN ONDA on the one playing (src/radio.js STATIONS; the card is a .pd-segb so the click and aria-pressed work as for any choice)
+  // The station: one switch like the other choices of the tab (the short names, as on the welcome screen), and under it one line about the chosen station with the (i) of the music rights.
   const stationHTML = o => `<div class="pd-row pd-strow" data-opt="${o.key}">
-      <div class="pd-lab"><span data-k="${o.label}" data-two></span><span class="pd-stallrow"><small class="pd-stall" data-k="stationAll"></small><button class="pd-stinfo" type="button" aria-expanded="false" aria-label="Diritti della musica · Music rights" title="Diritti della musica · Music rights">i</button></span></div>
-      <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span><b>${esc(x.name)}</b><small data-stsub="${x.id}"></small><i data-k="onAir"></i></span></button>`).join('')}</div>
+      <div class="pd-lab"><span data-k="${o.label}" data-two></span></div>
+      <div class="pd-stbox">
+        <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false" title="${esc(x.name)}"><span>${esc(x.name.replace(/^Radio /, ''))}</span></button>`).join('')}</div>
+        <p class="pd-stline"><i class="pd-stair" data-k="onAir" hidden></i><span class="pd-stdesc"></span><button class="pd-stinfo" type="button" aria-expanded="false" aria-label="Diritti della musica · Music rights" title="Diritti della musica · Music rights">i</button></p>
+      </div>
       <p class="pd-stnote" hidden data-k="stationRights"></p>
     </div>`;
   const rowHTML = o => o.key === 'radioStation' ? stationHTML(o) : `<div class="pd-row" data-opt="${o.key}">
@@ -847,9 +851,11 @@ export function setupUI({ cloud, game, applySettings, missions, suca, tapes, map
     if (v && v.station) lastStation = v.station;
     slideTo(barS, label, 0); slideTo(barT, title, 70); slideTo(barA, v ? v.artist || '' : '', 140); bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
     npL.textContent = label; npN.textContent = title; npS.textContent = sub; screens.side.querySelector('.pd-np').dataset.theme = v ? v.theme : '';
-    for (const x of STATIONS) {   // the station cards in Options: their line in the language shown, IN ONDA on the one playing
-      const sm = screens.options.querySelector(`[data-stsub="${x.id}"]`); if (sm) sm.textContent = x.sub[i];
-      const card = screens.options.querySelector(`.pd-stcard[data-v="${x.id}"]`); if (card) card.classList.toggle('air', !!(v && v.station === x.id && playing));
+    {   // the station switch in Options: the line under it is about the chosen station, in the language shown, with IN ONDA while it is the one playing
+      const stn = STATIONS.find(x => x.id === st.radioStation) || STATIONS[0];   // the chosen one, by the setting (the radio may still be on its way to it)
+      const d = screens.options.querySelector('.pd-stdesc'), air = screens.options.querySelector('.pd-stair');
+      if (d) d.textContent = `${stn.name} · ${stn.sub[i]} · ${stn.tracks.length} ${i ? 'tracks' : 'brani'}`;
+      if (air) air.hidden = !(v && v.station === stn.id && playing);
     }
   }
   addEventListener('pd-radio', e => { syncRadio(e.detail); kickBars(); });
@@ -1067,7 +1073,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, tapes, map
   const scheduleApply = () => { clearTimeout(applyTimer); applyTimer = setTimeout(() => applySettings(), 220); };
   function setOpt(key, value, immediate = true) {
     if (key === 'lang') { lang = value; setLang(value); applyLang(); garageUI.applyLang(); }   // setLang: <html lang> and the 'pd-lang' event, for everything outside this file
-    else if (key === 'musicVolume' || key === 'radio' || key === 'radioStation') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); } // src/radio.js listens
+    else if (key === 'musicVolume' || key === 'radio' || key === 'radioStation') { st[key] = value; dispatchEvent(new Event('pd-music-setting')); if (key === 'radioStation') syncRadio(); } // src/radio.js listens; the line under the station switch follows the choice at once
     else {
       st[key] = value;
       if (key === 'volume') vehicle?.setVolume?.(value);
