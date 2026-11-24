@@ -1053,3 +1053,21 @@ For a phone whose GPU process dies (24 Nov 2026: a Galaxy A13 5G, Mali-G57, lost
 
 `PD_MODE=glrec tools/devicefarm/run.sh "<name>" <device arn>` loads the game three times on a real phone with the recorder on and keeps a summary of each.
 
+### What the recorder found: the wall atlas's mipmaps (24 Nov 2026)
+
+A Galaxy A13 5G (Mali-G57 MC2, Android 11, 32-bit Chrome) lost its GL context on every load, a few seconds after the buildings appeared, and again on every rebuild: its system log showed Chrome's GPU process dying of a segmentation fault inside `libGLES_mali.so`. One thing was switched at a time, by turns on the same phone, three loads each:
+
+| the game with | loads that crashed |
+|---|---|
+| the atlas at a quarter of its memory | 3 of 3 |
+| the buildings not drawn | 0 of 2 |
+| the buildings drawn without the atlas | 0 of 3 |
+| the atlas with no mipmaps and no anisotropy | 0 of 3 |
+| the GPU's mipmaps, no anisotropy | 3 of 3 |
+| mipmaps made on the page, anisotropy 8 | 0 of 3 |
+| nothing changed | 3 of 3, every time |
+
+So it was `gl.generateMipmap` on the 239-layer sRGB array texture, and nothing else: not its size, not the memory (the runs that never crashed held the most), not the geometry, not the shader, not the anisotropy. `src/buildings.js` now makes the mipmaps itself, each layer's as it is painted (about 0.6 ms a layer on a Mac), and uploads them in the texture's `onUpdate`, because three r187 uploads only the first level of a `DataArrayTexture`. Read back from the GPU on ten layers, they are the GPU's own within 1 in 255 (2 on a tenth of a percent of texels). `?atlasmip=gpu` is the old way, kept to measure against.
+
+A lesson kept: three guesses came before the right one (shader compiles, the atlas's size, the total memory) and each was disproved by a run that cost a quarter of an hour. Test the suspicion before building the fix.
+

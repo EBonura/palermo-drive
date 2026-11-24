@@ -15,18 +15,6 @@ import { PUB_ROUTES } from './pub-routes.js';
 const PUB_DOORS = Object.values(PUB_ROUTES).map(r => r.door);   // the pubs' hand-built fronts (src/pub-fronts.js) doors: see pubSign below
 
 const T = 256;
-// A test only (the owner, 24 Nov 2026: prove a suspicion before fixing it): ?atlast=128 uploads the wall atlas at half its size, a quarter of its memory (20 MB for 80), to see whether
-// a phone whose GPU process dies after the upload (tools/devicefarm, docs/PERF.md "The recorder") stops dying. The walls are painted as ever and scaled down: blurrier, never an option.
-const AT = /[?&]atlast=128(&|$)/.test(location.search) ? 128 : T;
-// More tests of the same kind (the half-size atlas did not stop the crashes): ?tb=nodraw never draws the buildings (their atlas is then never uploaded either), ?tb=flat draws them with
-// plain vertex colours and no atlas, ?tb=nomip draws them as ever with an atlas that has no mipmaps and no anisotropy. Each changes the picture: to measure, never an option.
-// nomip stopped the crashes, so two more to tell its halves apart: ?tb=aniso1 keeps the GPU's mipmaps and drops the anisotropy; ?tb=cpumip keeps the anisotropy and hands the GPU
-// mipmaps made here (mipLevels below) instead of asking it to make them: the same picture by another road through the driver.
-const TB = (/[?&]tb=(nodraw|flat|nomip|aniso1|cpumip)(&|$)/.exec(location.search) || [])[1] || '';
-
-// =====================================================================================
-// Tile painting
-// =====================================================================================
 const LAYERS = [], LID = {};
 function layer(name, fn) { LID[name] = LAYERS.length; LAYERS.push({ name, fn }); }
 
@@ -1325,11 +1313,35 @@ for (const [name, first, n] of [['res_up', 'res_a', 5], ['n19_up', 'n19_up_g', 3
 }
 
 // Build the 2D-array texture once (a generator that yields per layer, so the world streamer can warm it up in slices).
-// Its pixels (61 MB of JavaScript memory) are dropped once they are on the GPU; a lost GL context takes them with it (phones can do this in the background), so they are drawn again on restore. The layers are seeded: the same pixels come back.
-function* paintAtlas(data) {
+// Its pixels (61 MB of JavaScript memory, 20 more for the mipmaps) are dropped once they are on the GPU; a lost GL context takes them with it (phones can do this in the background), so they are drawn again on restore. The layers are seeded: the same pixels come back.
+//
+// The mipmaps are made here, layer by layer as each is painted, and handed to the GPU ready made: it is never asked to make them (gl.generateMipmap). On a Galaxy A13 5G (Mali-G57,
+// Android 11, 32-bit Chrome) that one request, for this texture of 239 layers, crashed Chrome's GPU process inside the Mali driver a few seconds later on every load, and again on every
+// rebuild after it: two freezes of ten seconds and a city that never came back whole. Found on real phones with one thing switched at a time (tools/devicefarm, docs/PERF.md "The recorder",
+// 24 Nov 2026): not the size of the atlas, not the memory, not the geometry, not the shader, not the anisotropy. ?atlasmip=gpu is the old way, kept only to measure against.
+const MIP_GPU = /[?&]atlasmip=gpu(&|$)/.test(location.search), MIPS = Math.log2(T);   // the levels below the first: 128 down to 1
+const S2L = new Float32Array(256), L2S = new Uint8Array(4096);   // sRGB to linear light and back: the colours of a mipmap are averaged in linear light, as a GPU does for an sRGB texture
+for (let i = 0; i < 256; i++) { const c = i / 255; S2L[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+for (let i = 0; i < 4096; i++) { const l = i / 4095, c = l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055; L2S[i] = Math.round(255 * c); }
+const newMips = () => Array.from({ length: MIPS }, (_, i) => { const w = T >> (i + 1); return { w, data: new Uint8Array(w * w * 4 * LAYERS.length) }; });
+// one layer's mipmaps: each level the 2x2 mean of the one above (alpha as it is, not through the light curve)
+function mipLayer(data, mips, k) {
+  let src = data, w = T;
+  for (const m of mips) {
+    const h = m.w, dst = m.data, so = k * w * w * 4, dn = k * h * h * 4;
+    for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) {
+      const a = so + ((2 * y) * w + 2 * x) * 4, b = a + 4, c = a + w * 4, d = c + 4, o = dn + (y * h + x) * 4;
+      dst[o] = L2S[Math.round((S2L[src[a]] + S2L[src[b]] + S2L[src[c]] + S2L[src[d]]) * 1023.75)];
+      dst[o + 1] = L2S[Math.round((S2L[src[a + 1]] + S2L[src[b + 1]] + S2L[src[c + 1]] + S2L[src[d + 1]]) * 1023.75)];
+      dst[o + 2] = L2S[Math.round((S2L[src[a + 2]] + S2L[src[b + 2]] + S2L[src[c + 2]] + S2L[src[d + 2]]) * 1023.75)];
+      dst[o + 3] = (src[a + 3] + src[b + 3] + src[c + 3] + src[d + 3] + 2) >> 2;
+    }
+    src = dst; w = h;
+  }
+}
+function* paintAtlas(data, mips) {
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
   const g = cv.getContext('2d', { willReadFrequently: true });
-  const small = AT === T ? null : document.createElement('canvas'), gs = small ? (small.width = small.height = AT, small.getContext('2d', { willReadFrequently: true })) : null;
   const sheet = /[?&]atlas=1/.test(location.search) ? document.createElement('canvas') : null; // debug contact sheet
   if (sheet) { sheet.width = 8 * 160; sheet.height = Math.ceil(LAYERS.length / 8) * 160; sheet.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:#7a8a9a'; document.body.appendChild(sheet); }
   for (let i = 0; i < LAYERS.length; i++) {
@@ -1337,61 +1349,36 @@ function* paintAtlas(data) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, T, T);
     L.fn(g, rng(9100 + i * 131));
     if (sheet) sheet.getContext('2d').drawImage(cv, (i % 8) * 160, ((i / 8) | 0) * 160, 160, 160);
-    if (gs) { gs.clearRect(0, 0, AT, AT); gs.drawImage(cv, 0, 0, AT, AT); }
-    const px = (gs || g).getImageData(0, 0, AT, AT).data;
-    for (let y = 0; y < AT; y++) data.set(px.subarray(y * AT * 4, (y + 1) * AT * 4), (i * AT + (AT - 1 - y)) * AT * 4); // flip: v = 1 is the top
+    const px = g.getImageData(0, 0, T, T).data;
+    for (let y = 0; y < T; y++) data.set(px.subarray(y * T * 4, (y + 1) * T * 4), (i * T + (T - 1 - y)) * T * 4); // flip: v = 1 is the top
+    if (mips) mipLayer(data, mips, i);
     yield;
   }
-  cv.width = cv.height = 0; if (small) small.width = small.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
-}
-// The atlas's mipmap levels made on the page: each level the 2x2 mean of the one above, colour averaged in linear light (the atlas is sRGB, and that is how a GPU makes them), alpha as it is.
-// Returns [{ w, data }] for levels 1 up to the 1x1.
-const S2L = new Float32Array(256), L2S = new Uint8Array(4096);
-for (let i = 0; i < 256; i++) { const c = i / 255; S2L[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-for (let i = 0; i < 4096; i++) { const l = i / 4095, c = l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055; L2S[i] = Math.round(255 * c); }
-function mipLevels(data, size, layers) {
-  const out = []; let src = data, w = size;
-  while (w > 1) {
-    const h = w >> 1, dst = new Uint8Array(h * h * 4 * layers);
-    for (let k = 0; k < layers; k++) {
-      const so = k * w * w * 4, dn = k * h * h * 4;
-      for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) {
-        const a = so + ((2 * y) * w + 2 * x) * 4, b = a + 4, c = a + w * 4, d = c + 4, o = dn + (y * h + x) * 4;
-        for (let ch = 0; ch < 3; ch++) dst[o + ch] = L2S[Math.round((S2L[src[a + ch]] + S2L[src[b + ch]] + S2L[src[c + ch]] + S2L[src[d + ch]]) * 0.25 * 4095)];
-        dst[o + 3] = (src[a + 3] + src[b + 3] + src[c + 3] + src[d + 3] + 2) >> 2;
-      }
-    }
-    out.push({ w: h, data: dst }); src = dst; w = h;
-  }
-  return out;
+  cv.width = cv.height = 0; for (const c of [OBASE, OSTONE]) if (c) c.width = c.height = 0; OBASE = OSTONE = null;   // the painters' canvases: made again if a lost GL context paints the atlas again
 }
 function* buildAtlasIter() {
-  const data = new Uint8Array(AT * AT * 4 * LAYERS.length);
-  yield* paintAtlas(data);
-  const tex = new THREE.DataArrayTexture(data, AT, AT, LAYERS.length);
+  const data = new Uint8Array(T * T * 4 * LAYERS.length); let mips = MIP_GPU ? null : newMips();
+  yield* paintAtlas(data, mips);
+  const tex = new THREE.DataArrayTexture(data, T, T, LAYERS.length);
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
-  if (TB === 'nomip') { tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.anisotropy = 1; }
-  if (TB === 'aniso1') tex.anisotropy = 1;
-  if (TB === 'cpumip') { tex.generateMipmaps = false; tex.mipmaps = Array.from({ length: Math.log2(AT) + 1 }, () => ({})); }   // (three makes room for that many levels and fills the first; the rest go up in onUpdate)
+  tex.generateMipmaps = MIP_GPU; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
+  if (!MIP_GPU) tex.mipmaps = Array.from({ length: MIPS + 1 }, () => ({}));   // three makes room for that many levels and uploads only the first of a DataArrayTexture (r187): the rest go up in onUpdate
   tex.needsUpdate = true;
   tex.onUpdate = () => {
-    if (TB === 'cpumip' && tex.image.data) {   // three has just uploaded level 0 and the texture is still the bound one
-      const gl = document.getElementById('view').getContext('webgl2'), L = mipLevels(tex.image.data, AT, LAYERS.length);
-      if (gl) L.forEach((m, i) => gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, i + 1, 0, 0, 0, m.w, m.w, LAYERS.length, gl.RGBA, gl.UNSIGNED_BYTE, m.data));
+    if (mips) {   // three has just uploaded the first level and this texture is still the bound one
+      const gl = document.getElementById('view')?.getContext('webgl2');
+      if (gl) mips.forEach((m, i) => gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, i + 1, 0, 0, 0, m.w, m.w, LAYERS.length, gl.RGBA, gl.UNSIGNED_BYTE, m.data));
     }
-    tex.image.data = null;
+    tex.image.data = null; mips = null;
   };
-  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(AT * AT * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(T * T * 4 * LAYERS.length), m = MIP_GPU ? null : newMips(); for (const _ of paintAtlas(d, m)); tex.image.data = d; mips = m; tex.needsUpdate = true; });
   return tex;
 }
 
 function atlasMaterial(tex, cutout) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout && TB !== 'flat' ? 0.45 : 0 });
-  if (TB === 'nodraw') m.visible = false;
-  if (TB === 'flat') return m;   // (the test: no atlas, the shader three ships)
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout ? 0.45 : 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uTex = { value: tex };
     sh.uniforms.uWin = NIGHT.win; sh.uniforms.uGrp = { value: GRPV };

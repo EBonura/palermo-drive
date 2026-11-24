@@ -52,11 +52,11 @@ async function glrecTest(S, js) {
   const brief = () => js("var r = window.__glrec && window.__glrec.summary(0); return r ? { t: r.t, tex: r.texMB, buf: r.bufMB, rb: r.rbMB, up: r.upMB, texN: r.texN, programs: r.programs, lost: r.lost.length, loading: !!document.getElementById('loading') } : null;").catch(e => ({ error: e.message.slice(0, 120) }));
   const watch = async (label, secs) => { for (let i = 0; i < secs / 5; i++) { await sleep(5000); const b = await brief(); console.log('glrec', label, JSON.stringify(b)); if (b && b.lost >= 3) return; } };
   // mode.txt "glrec-atlas": the same loads by turns with the wall atlas as shipped and at half size (?atlast=128), small first, to see whether a phone that dies after the atlas stops dying
-  // mode.txt "glrec-arms:a,b,c": the same loads by turns with each test switch of src/buildings.js (?tb=...; "shipped" is the game as it is), three rounds, the first place only: which one stops the crashes
+  // mode.txt "glrec-arms:a,b,c": the same loads by turns with each test switch of src/buildings.js ("shipped" is the game as it is, "gpumip" is ?atlasmip=gpu, the old way of making the atlas's mipmaps), three rounds, the first place only: which one stops the crashes
   const ARMS = /^glrec-arms:/.test(MODE_NOW) ? MODE_NOW.split(':')[1].split(',').filter(Boolean) : null;
   const AB = MODE_NOW === 'glrec-atlas', N = ARMS ? ARMS.length * 3 : AB ? 6 : (+process.env.PD_GLREC_PASSES || 3);
   for (let pass = 1; pass <= N; pass++) {
-    const arm = ARMS ? ARMS[(pass - 1) % ARMS.length] : '', small = AB && pass % 2 === 1, url = GLREC_URL + (small ? '&atlast=128' : '') + (arm && arm !== 'shipped' ? '&tb=' + arm : '');
+    const arm = ARMS ? ARMS[(pass - 1) % ARMS.length] : '', small = AB && pass % 2 === 1, url = GLREC_URL + (small ? '&atlast=128' : '') + (arm === 'gpumip' ? '&atlasmip=gpu' : arm && arm !== 'shipped' ? '&tb=' + arm : '');
     console.log('glrec pass', pass, ARMS ? 'ARM ' + arm : AB ? (small ? 'SMALL atlas' : 'atlas as shipped') : '');
     await wd('POST', S + '/url', { url: 'about:blank' }).catch(() => {}); await sleep(1500);
     await wd('POST', S + '/url', { url });
