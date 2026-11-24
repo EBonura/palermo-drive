@@ -496,13 +496,15 @@ function build(env) {
     });
     if (SHARE && !plumeShared) plumeShared = { u, mat: plumeMat };
     const plume = new THREE.Mesh(geo, plumeMat);
-    plume.frustumCulled = false; plume.renderOrder = 6;
+    // culled like any mesh, from a sphere that holds every column whole: its height, the wind's drift at the top (0.3 of it), the sway (6.4 m) and the widest puff (50 m across)
+    const bound = () => { let cx = 0, cy = 0, cz = 0, r = 0; for (let k = 0; k < n; k++) { cx += base[k * 3]; cy += base[k * 3 + 1]; cz += base[k * 3 + 2]; } cx /= n; cy /= n; cz /= n; for (let k = 0; k < n; k += PUFFS) r = Math.max(r, Math.hypot(base[k * 3] - cx, base[k * 3 + 1] - cy, base[k * 3 + 2] - cz)); geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, cy + PLUME_H / 2, cz), r + PLUME_H / 2 + PLUME_H * 0.32 + 6.4 + 36); };
+    bound(); plume.renderOrder = 6;
     plume.onBeforeRender = () => {
       u.uTime.value = now() % 5000;
       if (scene.fog) { u.uFogD.value = scene.fog.density; if (scene.fog.color) { u.uFog.value.copy(scene.fog.color); u.uLight.value = Math.min(1, Math.max(0.1, (0.3 * scene.fog.color.r + 0.59 * scene.fog.color.g + 0.11 * scene.fog.color.b) / 0.65)); } }   // follows the day/night haze
     };
     scene.add(plume);
-    return { mesh: plume, setY(vi, y) { for (let i = 0; i < PUFFS; i++) base[(vi * PUFFS + i) * 3 + 1] = y; iBase.needsUpdate = true; } };
+    return { mesh: plume, setY(vi, y) { for (let i = 0; i < PUFFS; i++) base[(vi * PUFFS + i) * 3 + 1] = y; iBase.needsUpdate = true; bound(); } };
   }
   const plumeStig = vendors.length ? makePlume(vendors.map(v => ({ x: v.x, y: v.gy + 1.1, z: v.z }))) : null;
 

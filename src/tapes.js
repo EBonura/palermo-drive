@@ -84,7 +84,7 @@ export function createTapes({ scene, car, groundY, proj, mapMarkers, getRadio = 
   function build(t) {
     const g = new THREE.Group(), m = new THREE.Mesh(geo, mat), bm = new THREE.Mesh(beamGeo, beamMat);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: .8 }));
-    s.scale.set(GLOW, GLOW, 1); s.renderOrder = 3; bm.renderOrder = 2; bm.frustumCulled = false;
+    s.scale.set(GLOW, GLOW, 1); s.renderOrder = 3; bm.renderOrder = 2;
     g.add(m, s, bm); g.userData = { m, s, bm }; t.node = g;
   }
   const show = t => { if (!t.node) build(t); if (!t.node.parent) scene.add(t.node); };

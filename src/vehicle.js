@@ -100,6 +100,7 @@ export function createVehicle(env) {
   const flameGeo = (r, h) => { const g = new THREE.ConeGeometry(r, h, 10, 1, true); g.translate(0, h / 2, 0); g.rotateX(-PI / 2); return g; };
   const FLAME_O = flameGeo(0.1, 1), FLAME_I = flameGeo(0.05, 0.7);
   const brakeMat = new THREE.MeshBasicMaterial({ color: '#ff1a10', transparent: true, opacity: 0, depthWrite: false, fog: false });
+  const brakeLamps = [];   // their meshes: left out of the draw while the lamps are dark (opacity 0 draws nothing, but each was a draw and a change of material every frame)
   const BRAKE_G = new THREE.BoxGeometry(0.15, 0.07, 0.04);
   const glowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -600,7 +601,7 @@ export function createVehicle(env) {
     rig = buildLocalRig(look); rig.geo = geoKey(look); curLook = look;
     const tp = rig.tpl.spec.tiltPivot, A = rig.A;
     // brake lights glow over the tail lamps; nitro flames and glow at the exhaust
-    for (const [x, y, z] of A.tails) { const m = new THREE.Mesh(BRAKE_G, brakeMat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.02); rig.tilt.add(m); }
+    for (const [x, y, z] of A.tails) { const m = new THREE.Mesh(BRAKE_G, brakeMat); m.position.set(x - tp[0], y - tp[1], z - tp[2] - 0.02); m.visible = brakeMat.opacity > 0; rig.tilt.add(m); brakeLamps.push(m); }
     flames = [];
     const ex = A.kind === 'bike' ? A.exh.slice(0, 1) : A.exh;
     if (ex.length) {
@@ -665,7 +666,7 @@ export function createVehicle(env) {
     const P = _pose; P.speed = Math.abs(car.vf); P.pitch = car.pitch + wv * 0.03 * Math.sin(now * 1.7); P.roll = car.roll + wv * 0.04 * Math.sin(now * 1.3 + 1); P.lean = car.lean; P.steer = car.steer; P.spin = car.spin; P.t = now; P.lockRear = !!keys.Space && Math.abs(car.vf) > 1;
     rig.pose(P);
     tickShared(now);
-    brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : (car.tailGlow || 0) * 0.45; // tail lamps stay dimly lit at night (src/daynight.js sets car.tailGlow)
+    brakeMat.opacity = active && (car.braking || keys.Space) ? 0.85 : (car.tailGlow || 0) * 0.45; const lit = brakeMat.opacity > 0; for (const m of brakeLamps) m.visible = lit; // tail lamps stay dimly lit at night (src/daynight.js sets car.tailGlow)
 
     // nitro flames
     const n = car.nosAmt, fl = n > 0.05;
