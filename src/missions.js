@@ -20,6 +20,7 @@
 // Speech uses env.shout (src/shouts.js). Lines live in assets/missions/lines.js (review copy: lines.md).
 import { lifeFor } from './shouts.js';
 import * as THREE from 'three';
+import { SHARE } from './mat-share.js';
 import { DRIVER, VENDOR, VENDOR_SERVE, DESTS, VENDORS, STIGGHIOLA_FAR, POLLANCHE, GRANITA, FAVORITA } from '../assets/missions/lines.js';
 import { WORLD, hooks } from './core.js';
 import { createNightLife } from './missions-night.js';
@@ -181,12 +182,12 @@ function build(env) {
     const u = { uTime: { value: 0 }, uCol: { value: new THREE.Color(col) }, uAlpha: { value: 1 } };
     const ring = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: u, vertexShader: RING_V, fragmentShader: RING_F, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
-    ring.frustumCulled = false; ring.renderOrder = 3; group.add(ring);
+    ring.frustumCulled = SHARE; ring.renderOrder = 3; group.add(ring);   // the ring's sphere is worked out in set(); it was never culled, so every ring of the city was drawn from anywhere (?mats=off)
     let beam = null;
     if (opt.beam !== false) {
       const H = opt.height || 90, bg = new THREE.CylinderGeometry(1.8, 1.3, H, 20, 1, true); bg.translate(0, H / 2, 0);
       beam = new THREE.Mesh(bg, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true }));
-      beam.frustumCulled = false; beam.renderOrder = 4; group.add(beam);
+      beam.frustumCulled = SHARE; beam.renderOrder = 4; group.add(beam);
     }
     const b = {
       x: 0, z: 0, R, group, u, ring, beam,
@@ -198,7 +199,7 @@ function build(env) {
           const a = (j / seg) * TAU, f = fr[i + 1], px = x + Math.cos(a) * f * R, pz = z + Math.sin(a) * f * R;
           p.set([px, groundAt(px, pz) + 0.14, pz], (1 + i * seg + j) * 3);
         }
-        geo.attributes.position.needsUpdate = true;
+        geo.attributes.position.needsUpdate = true; geo.computeBoundingSphere();
         if (beam) beam.position.set(x, groundAt(x, z), z);
       },
       show(on) { group.visible = on; },
@@ -455,6 +456,7 @@ function build(env) {
   // smoke plumes: GPU-animated camera-facing quads, one instance per puff
   const PUFFS = 110, PLUME_H = 120;
   // pts: [{ x, y, z }], one smoke column each; returns { mesh, setY(i, y) } (the base height can follow terrain that streams in)
+  let plumeShared = null;   // the smoke of every vendor site, the far sites and the pollanche: one material and one set of uniforms (they were three, with the same numbers in each)
   function makePlume(pts) {
     const n = pts.length * PUFFS, geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
@@ -462,8 +464,8 @@ function build(env) {
     const base = new Float32Array(n * 3), seed = new Float32Array(n * 3);
     pts.forEach((v, vi) => { for (let i = 0; i < PUFFS; i++) { const k = vi * PUFFS + i; base.set([v.x, v.y, v.z], k * 3); seed.set([(i + Math.random() * 0.9) / PUFFS, Math.random(), Math.random()], k * 3); } });
     const iBase = new THREE.InstancedBufferAttribute(base, 3); geo.setAttribute('iBase', iBase); geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 3)); geo.instanceCount = n;
-    const u = { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 }, uLight: { value: 1 } };
-    const plume = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    const u = SHARE && plumeShared ? plumeShared.u : { uTime: { value: 0 }, uH: { value: PLUME_H }, uWind: { value: new THREE.Vector2(0.3, 0.1) }, uFog: { value: new THREE.Color('#a9c4da') }, uFogD: { value: 0.00014 }, uLight: { value: 1 } };
+    const plumeMat = SHARE && plumeShared ? plumeShared.mat : new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true,
       vertexShader: `
         attribute vec3 iBase; attribute vec3 iSeed; uniform float uTime; uniform float uH; uniform vec2 uWind;
@@ -491,7 +493,9 @@ function build(env) {
           col = mix(col, uFog, 1.0 - exp(-uFogD * uFogD * vDist * vDist));
           gl_FragColor = vec4(col, a);
         }`,
-    }));
+    });
+    if (SHARE && !plumeShared) plumeShared = { u, mat: plumeMat };
+    const plume = new THREE.Mesh(geo, plumeMat);
     plume.frustumCulled = false; plume.renderOrder = 6;
     plume.onBeforeRender = () => {
       u.uTime.value = now() % 5000;

@@ -91,7 +91,8 @@ async function glrecTest(S, js) {
     console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 400));
     await wd('POST', S + '/timeouts', { script: 30000, pageLoad: 180000 }).catch(e => console.log('timeouts:', e.message));
     await wd('POST', S + '/orientation', { orientation: 'LANDSCAPE' }).catch(e => console.log('orientation:', e.message));   // the bench waits while the phone is upright
-    await wd('POST', S + '/url', { url: URL_ });
+    const ASK = /^bench:/.test(MODE) ? MODE.slice(6) : '';   // mode.txt "bench:bs=qc&bv=lean0,quick0": the bench narrowed to some places and variants (src/bench.js), and no lost-context test after it
+    await wd('POST', S + '/url', { url: ASK ? 'https://palermo-drive.it/?help=0&bench=new&' + ASK : URL_ });
     const who = await js(`var c = document.createElement('canvas'), g = c.getContext('webgl2') || c.getContext('webgl'), x = g && g.getExtension('WEBGL_debug_renderer_info');
       return { gpu: g ? String(x ? g.getParameter(x.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER)) : 'no WebGL', ua: navigator.userAgent, w: innerWidth, h: innerHeight, dpr: devicePixelRatio, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null };`).catch(e => ({ error: e.message }));
     console.log('device', JSON.stringify(who)); keep('device.json', JSON.stringify({ name: process.env.DEVICEFARM_DEVICE_NAME, os: process.env.DEVICEFARM_DEVICE_OS_VERSION, ...who }, null, 1));
@@ -116,7 +117,7 @@ async function glrecTest(S, js) {
       console.log([].concat(out.texts).join('\n\n')); console.log('finished in', Math.round((Date.now() - t0) / 1000), 's'); code = 0;
     }
   } catch (e) { console.log('FAILED', e.message); keep('error.txt', String(e.stack || e) + '\n'); }
-  if (process.env.PD_CTX !== '0') { const out = {}; try { await ctxTest(S, js, out); } catch (e) { out.error = String(e.message || e).slice(0, 300); console.log('ctx FAILED', out.error); } keep('ctx.json', JSON.stringify(out, null, 1)); }
+  if (process.env.PD_CTX !== '0' && !/^bench:/.test(MODE)) { const out = {}; try { await ctxTest(S, js, out); } catch (e) { out.error = String(e.message || e).slice(0, 300); console.log('ctx FAILED', out.error); } keep('ctx.json', JSON.stringify(out, null, 1)); }
   await wd('DELETE', S).catch(() => {});
   process.exit(code);
 })();

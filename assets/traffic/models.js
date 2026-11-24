@@ -3,6 +3,7 @@
 // the driver's right is -x. Each model is one non-indexed geometry with per-vertex colour and a
 // `tint` attribute: 1 = multiplied by the per-instance colour (body paint), 0 = fixed colour.
 import * as THREE from 'three';
+import { SHARE } from '../../src/mat-share.js';
 
 const cc = new Map();
 const col = h => { let c = cc.get(h); if (!c) cc.set(h, c = new THREE.Color(h)); return c; };
@@ -426,7 +427,9 @@ export function buildParkedModels() {
 // One material for every vehicle. Vertex colour gives the fixed parts; the instance colour only
 // multiplies vertices whose `tint` attribute is 1 (the paintwork), so glass and tyres stay put.
 const V4 = !THREE.ShaderChunk.color_pars_vertex.includes('vec3 vColor');
+let SHARED = null;   // the parked cars (src/props.js), the traffic, the carretto and the races asked for one each: four materials with every parameter the same, so four runs
 export function makeMaterial() {
+  if (SHARE && SHARED) return SHARED;
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 });
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader
@@ -436,6 +439,7 @@ export function makeMaterial() {
         `${V4 ? 'vColor = vec4(1.0);' : 'vColor = vec3(1.0);'}\n#ifdef USE_COLOR\nvColor.rgb *= color.rgb;\n#endif\n#ifdef USE_INSTANCING_COLOR\nvColor.rgb *= mix(vec3(1.0), instanceColor.xyz, tint);\n#endif`);
   };
   m.customProgramCacheKey = () => 'traffic-tint';
+  if (SHARE) SHARED = m;
   return m;
 }
 

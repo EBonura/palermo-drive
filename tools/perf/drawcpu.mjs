@@ -1,7 +1,8 @@
 // What renderer.render costs the main thread, and what it sends to GL: the numbers behind "The draw path" in docs/PERF.md.
 //   cd tools/build && node build.mjs --minify=false --out=/some/dir
 //   tools/release/withbrowser.sh node tools/perf/drawcpu.mjs --root /some/dir [--spots qc,regione,vucciria,mondello] [--times 12,22.5] [--cpu 6] [--q 'draw=off'] [--blocks 24] [--n 12]
-//        [--profile 1] [--top 40] [--ab all,tree,quick,uni] [--label base] [--out dir] [--raw 1] [--mats 1] [--census 1]
+//        [--profile 1] [--top 40] [--ab all,tree,quick,uni] [--label base] [--out dir] [--raw 1] [--mats 1] [--census 1] [--table 1]
+//   table    (--table 1) the materials of the main view: draws and meshes of each, its program, what tells it from the others on the program, the builder (needs a build whose Material constructor keeps `this.__stk = new Error().stack`)
 // Two pages per spot and hour (phone profile: 844 x 390 at DPR 3, touch, the lapa parked, the clock held): one that counts, one that times (--census 1: only the first).
 //   census   every GL call of a frame, by name (mean of 30 frames), with three's own draw count
 //   time     renderer.render called over and over inside one task under CDP CPU throttling, the camera still and turned a hair each call (as it is while driving, so every
@@ -22,7 +23,7 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ?
 const ROOT = path.resolve(arg('root', path.join(REPO, 'dist'))), CPU = +arg('cpu', 6), BLOCKS = +arg('blocks', 24), N = +arg('n', 12), TOP = +arg('top', 40), LABEL = arg('label', 'run'), OUT = arg('out', '');
 const LAT0 = 38.11572, LON0 = 13.36126, KX = Math.cos(LAT0 * Math.PI / 180) * 111320, KZ = 110540;
 const ll = (lat, lon) => [((lon - LON0) * KX).toFixed(1), (-(lat - LAT0) * KZ).toFixed(1), 0].join(',');
-const SPOTS = { qc: '15,5,0', vucciria: '210,-182,0', regione: ll(38.090479, 13.343314), mondello: '-3033.1,-10177.4,-1.07', ballaro: '24.9,488.6,-2.01', monreale: '-6125,3752,1.25' };   // the places of src/bench.js
+const SPOTS = { qc: '15,5,0', vucciria: '210,-182,0', regione: ll(38.090479, 13.343314), mondello: '-3033.1,-10177.4,-1.07', ballaro: '24.9,488.6,-2.01', viaroma: ll(38.1183, 13.3632), monreale: '-6125,3752,1.25' };   // the places of src/bench.js
 const spots = String(arg('spots', 'qc')).split(','), times = String(arg('times', '12,22.5')).split(',');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const med = a => a.length ? [...a].sort((x, y) => x - y)[a.length >> 1] : 0, mean = a => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
@@ -69,6 +70,20 @@ const PAGE = () => {
       try { D.frame(); } finally { R.renderBufferDirect = rbd; }
       return seq;
     },
+    // --table: one row a draw of the main view (not the shadow pass), with what tells one material from another and where it was made
+    // (the build must be patched to keep `__stk`, see matcensus.md notes in docs/PERF.md; without it the builder column says "?")
+    rows() {
+      const rbd = R.renderBufferDirect, seq = [], P = R.properties;
+      R.renderBufferDirect = function (c, sc, g, m, o, grp) {
+        if (!m.isMeshDepthMaterial && !m.isMeshDistanceMaterial) {
+          const pr = P.get(m).currentProgram, shared = m.userData && m.userData.shared;
+          seq.push({ id: m.id, type: m.type.replace('Material', ''), col: m.color ? m.color.getHexString() : '', map: m.map ? (m.map.name || m.map.uuid.slice(0, 6)) : '', side: m.side, tr: m.transparent ? 1 : 0, at: m.alphaTest, vc: m.vertexColors ? 1 : 0, dw: m.depthWrite ? 1 : 0, bl: m.blending, em: m.emissive ? m.emissive.getHexString() : '', rough: m.roughness, metal: m.metalness, op: m.opacity, po: m.polygonOffset ? m.polygonOffsetFactor + '/' + m.polygonOffsetUnits : '', prog: pr ? pr.id : -1, defs: pr ? pr.cacheKey.length : 0, key: m.customProgramCacheKey ? String(m.customProgramCacheKey()).slice(0, 30) : '', mesh: o.name || o.type, par: (o.parent && o.parent.name) || '', inst: o.isInstancedMesh ? o.count : 0, geo: g.id, tris: (g.index ? g.index.count : g.attributes.position ? g.attributes.position.count : 0) / 3 | 0, stk: m.__stk || '' });
+        }
+        return rbd.apply(this, arguments);
+      };
+      try { D.frame(); } finally { R.renderBufferDirect = rbd; }
+      return seq;
+    },
   };
 };
 
@@ -107,6 +122,27 @@ const PRE = () => {
   const P = WebGL2RenderingContext.prototype, S = window.__glc = { C: null };
   for (const k of Object.getOwnPropertyNames(P)) { const d = Object.getOwnPropertyDescriptor(P, k); if (!d || typeof d.value !== 'function') continue; const f = d.value; P[k] = function (...a) { const C = S.C; if (C) C[k] = (C[k] || 0) + 1; return f.apply(this, a); }; }
 };
+// the builder of a material: the first frames of its creation stack outside three, as function [module]
+const builderOf = stk => { const out = []; for (const l of String(stk).split('\n').slice(1)) { const m = l.match(/^\s*at (?:(.*?) \()?[^()]*?app\.[^:/]*\.js:(\d+):\d+\)?\s*$/); if (!m) continue; const mod = moduleAt(+m[2] - 1); if (mod === 'three' || mod === 'core.js') continue; out.push((m[1] || '(top level)') + ' [' + mod + ']'); if (out.length === 2) break; } return out.join(' < ') || '?'; };
+// materials that differ only by their id (every parameter the shader reads is the same): the "twins" a merge could fold into one
+const sig = r => [r.type, r.prog, r.col, r.map, r.side, r.tr, r.at, r.vc, r.dw, r.bl, r.em, r.rough, r.metal, r.op, r.po, r.key].join('|');
+function printTable(R) {
+  const by = new Map();
+  for (const r of R.rows) { let e = by.get(r.id); if (!e) by.set(r.id, e = { ...r, draws: 0, tris: 0, meshes: new Set(), names: new Set(), order: by.size }); e.draws++; e.tris += r.tris * Math.max(1, r.inst ? 1 : 1); e.meshes.add(r.geo + '/' + r.mesh); if (e.names.size < 3) e.names.add(r.mesh); }
+  let runs = 0, last = -1; for (const r of R.rows) { if (r.id !== last) runs++; last = r.id; }
+  console.log(`\n## ${R.spot} ${R.time} h: ${R.rows.length} draws, ${runs} runs, ${by.size} materials, ${new Set(R.rows.map(r => r.prog)).size} programs`);
+  const tw = new Map(); for (const e of by.values()) { const k = sig(e); if (!tw.has(k)) tw.set(k, []); tw.get(k).push(e); }
+  R.twins = [...tw.values()].filter(l => l.length > 1).map(l => ({ ids: l.map(e => e.id), draws: l.reduce((x, e) => x + e.draws, 0), what: l[0].type + ' ' + (l[0].col || l[0].map || '') + ' ' + [...l[0].names].join('/'), by: builderOf(l[0].stk) }));
+  console.log('twins (same on every parameter, different material): ' + (R.twins.length ? R.twins.map(t => `[${t.ids.join(',')}] ${t.draws} draws ${t.what} ${t.by}`).join(' ; ') : 'none'));
+  R.byMat = [...by.values()].map(e => ({ id: e.id, type: e.type, prog: e.prog, draws: e.draws, meshes: e.meshes.size, tris: e.tris, col: e.col, map: e.map, side: e.side, kind: e.tr ? 'T' : e.at ? 'C' : 'O', rough: e.rough, metal: e.metal, em: e.em, names: [...e.names], by: builderOf(e.stk) }));
+  R.runs = runs; R.nDraws = R.rows.length; delete R.rows;
+
+  const progs = new Map(); for (const e of by.values()) { if (!progs.has(e.prog)) progs.set(e.prog, []); progs.get(e.prog).push(e); }
+  for (const [p, list] of [...progs].sort((a, b) => b[1].reduce((x, e) => x + e.draws, 0) - a[1].reduce((x, e) => x + e.draws, 0))) {
+    console.log(`program ${p}: ${list.length} materials, ${list.reduce((x, e) => x + e.draws, 0)} draws`);
+    for (const e of list.sort((a, b) => a.order - b.order)) console.log(`  mat ${String(e.id).padStart(4)} ${e.type.padEnd(8)} draws ${String(e.draws).padStart(3)} meshes ${String(e.meshes.size).padStart(3)} tris ${String(e.tris).padStart(7)} | col ${e.col || '-'} map ${e.map || '-'} side ${e.side} ${e.tr ? 'T' : e.at ? 'C' : 'O'} vc ${e.vc} dw ${e.dw} em ${e.em || '-'} r ${e.rough} m ${e.metal} | ${[...e.names].join('/')} | ${builderOf(e.stk)}`);
+  }
+}
 const SWITCHES = arg('ab') ? String(arg('ab')).split(',') : [];
 const results = [];
 for (const spot of spots) for (const time of times) {
@@ -128,6 +164,7 @@ for (const spot of spots) for (const time of times) {
   const census = await page.evaluate(() => window.__dc.census(30));
   R.calls = census.calls; R.tris = census.tris; R.programs = census.programs; R.gl = summarise(census.gl); if (arg('raw')) R.glRaw = census.gl;
   R.lean = await page.evaluate(() => { const s = window.game.lean && window.game.lean.stats(); return s ? { drawn: s.drawn, always: s.always, leaves: s.leaves, hidden: s.hidden, outside: s.outside } : null; });
+  if (arg('table')) { R.rows = await page.evaluate(() => window.__dc.rows()); printTable(R); }   // with --census 1 it stops after the census page, as ever; without it the timing goes on, so one pass has both
   if (arg('mats')) R.mats = await page.evaluate(() => window.__dc.mats());
   const abGl = {};
   for (const sw of SWITCHES) abGl[sw] = await page.evaluate(sw => {

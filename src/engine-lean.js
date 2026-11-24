@@ -46,7 +46,7 @@ const drawPart = n => DRAW === null || (DRAW !== 'off' && DRAW.split(',').includ
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
   const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
   const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni') }, hook = { quick: draw.quick, uni: draw.uni };
-  const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
+  const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0, shTris: 0, shWhole: 0 };
 
   // ---------- occluder grids, one per full detail tile, from the same solids the building generator emits ----------
   const grids = new Map(), rasterQueue = [];
@@ -431,7 +431,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   // ---------- drawing only the runs in view ----------
   // Between three's own call and GL: its render of a mesh with runs picked this frame becomes a few plain draws with no state change in between, for the main view only.
   const gl0 = renderer.getContext(), de = gl0.drawElements.bind(gl0), rbd = renderer.renderBufferDirect;
-  const runsOf = (c, mat, ob) => { const R = ob.userData.leanRuns; return R && R.frame === frameNo && c === camera && !api.bypass && !api.wholeParts && !mat.isMeshDepthMaterial && !mat.isMeshDistanceMaterial ? R : null; };
+  const runsOf = (c, mat, ob) => { if (mat.isMeshDepthMaterial) { const S = shMode !== 'off' && c === pendLight.shadow.camera ? ob.userData.leanShR : undefined; return S && S.tag === shTag ? S : null; } const R = ob.userData.leanRuns; return R && R.frame === frameNo && c === camera && !api.bypass && !api.wholeParts && !mat.isMeshDepthMaterial && !mat.isMeshDistanceMaterial ? R : null; };
   let cur = null, drawReset = () => {};
   if (on.parts && !hook.quick) {
     renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
@@ -621,6 +621,50 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     statics.length = 0;
     for (let n = 0; n < leaves.length; n++) { const l = leaves[n]; if (l.castShadow && l.visible && groupOk[leafGroup[n]]) statics.push(l); }
   }
+  // ?shset=new (live: game.lean.setShSet('new')): the static casters are drawn into the cached map only where their triangles can land in the light's box. A chunk the box does not touch is not drawn,
+  // and a chunk sorted by part (the main view's runs, above) is drawn as the runs whose box meets the light's frustum. Triangles outside the frustum are clipped by the GPU anyway, so the map is the same.
+  // ?shset=tight is that plus a smaller box (SH_TIGHT m of half-width instead of 160): the one part that changes the picture. Default: off.
+  const SH_TIGHT = 110, SH_FULL = { left: -160, right: 160, top: 160, bottom: -160 }, SH_M = 2;   // SH_M: metres of margin round the frustum
+  const shq = new URLSearchParams(location.search).get('shset');
+  let shMode = shq === 'new' || shq === 'tight' ? shq : 'off', shTag = 0, shSeq = 0;
+  const shL = { px: 0, py: 0, pz: 0, xx: 0, xz: 0, yx: 0, yy: 0, yz: 0, zx: 0, zy: 0, zz: 0 };
+  function shBasis(p) {   // three's lookAt for the light: the camera sits at pose + d, looks at pose, up is +y
+    const len = Math.hypot(p.dx, p.dy, p.dz), zx = p.dx / len, zy = p.dy / len, zz = p.dz / len;
+    let xx = zz, xz = -zx; const xl = Math.hypot(xx, xz) || 1; xx /= xl; xz /= xl;   // up x z
+    shL.px = p.x + p.dx; shL.py = p.y + p.dy; shL.pz = p.z + p.dz;
+    shL.xx = xx; shL.xz = xz; shL.zx = zx; shL.zy = zy; shL.zz = zz;
+    shL.yx = zy * xz; shL.yy = zz * xx - zx * xz; shL.yz = -zy * xx;
+  }
+  function shBox(x0, z0, x1, z1, y1, y0) {   // does the world box meet the light's frustum: all eight corners beyond one plane say no
+    const c = sun.shadow.camera; let l = 0, r = 0, t = 0, b = 0, nr = 0, fr = 0;
+    for (let k = 0; k < 8; k++) {
+      const dx = (k & 1 ? x1 : x0) - shL.px, dy = (k & 2 ? y1 : y0) - shL.py, dz = (k & 4 ? z1 : z0) - shL.pz;
+      const lx = dx * shL.xx + dz * shL.xz, ly = dx * shL.yx + dy * shL.yy + dz * shL.yz, d = -(dx * shL.zx + dy * shL.zy + dz * shL.zz);
+      if (lx < c.left - SH_M) l++; if (lx > c.right + SH_M) r++; if (ly < c.bottom - SH_M) b++; if (ly > c.top + SH_M) t++; if (d < c.near - SH_M) nr++; if (d > c.far + SH_M) fr++;
+    }
+    return !(l === 8 || r === 8 || t === 8 || b === 8 || nr === 8 || fr === 8);
+  }
+  function shPick(l) {
+    const U = l.userData, R = U.leanRuns, F = U.leanSub, B = U.leanBox;
+    if (!R || !F || !B) return true;   // not sorted by part: three's own test against the bounding sphere stays
+    if (!shBox(B[0], B[1], B[2], B[3], B[4], B[5])) return false;
+    let S = U.leanShR;
+    if (!S || S.src !== R) S = U.leanShR = { src: R, firsts: new Int32Array(R.firsts.length), counts: new Int32Array(R.counts.length), n: 0, tag: 0, frame: -1 };
+    const { start, count } = R, firsts = S.firsts, counts = S.counts; let n = 0, tot = 0;
+    for (let p = 0, q = 0; q < F.length; p++, q += BOX) {
+      if (!shBox(F[q], F[q + 1], F[q + 2], F[q + 3], F[q + 4], F[q + 5])) continue;
+      tot += count[p];
+      if (n && firsts[n - 1] + counts[n - 1] === start[p]) counts[n - 1] += count[p]; else { firsts[n] = start[p]; counts[n] = count[p]; n++; }
+    }
+    st.shTris += tot / 3; st.shWhole += (start[start.length - 1] + count[count.length - 1]) / 3;
+    if (!n) return false;
+    S.n = n; S.tag = shTag; return true;
+  }
+  function setShSet(mode) {
+    shMode = mode === 'new' || mode === 'tight' ? mode : 'off';
+    for (const cam of [sun.shadow.camera, pendLight.shadow.camera]) { Object.assign(cam, shMode === 'tight' ? { left: -SH_TIGHT, right: SH_TIGHT, top: SH_TIGHT, bottom: -SH_TIGHT } : SH_FULL); cam.updateProjectionMatrix(); }
+    poseReady = false; job = null; staticsDirty = true;   // a new map, drawn whole, the next frame
+  }
   const shadowRender = function (lights, sc, cam) {
     restore();   // what occ took out of the main view may still cast a shadow into it
     if (this.autoUpdate === false && this.needsUpdate === false) return;
@@ -630,13 +674,15 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     const moved = !poseReady || Math.hypot(tx.x - pose.x, tx.z - pose.z) > MOVE;
     const turned = poseReady && (sx * pose.dx + sy * pose.dy + sz * pose.dz) / (Math.hypot(sx, sy, sz) * Math.hypot(pose.dx, pose.dy, pose.dz)) < ANG;
     if (!job && (moved || turned || (staticsDirty && now - lastRefresh > MAXAGE))) {
-      job = { n: 0, pose: {}, first: true }; snapped(job.pose, tx.x, tx.y, tx.z, sx, sy, sz); setLight(pendLight, job.pose);
+      job = { n: 0, pose: {}, first: true }; snapped(job.pose, tx.x, tx.y, tx.z, sx, sy, sz); setLight(pendLight, job.pose); if (shMode !== 'off') shBasis(job.pose);
       collectStatics(); staticsDirty = false; st.statics = statics.length; lastRefresh = now;
     }
     const clear = renderer.clear;
     if (job) {   // a slice of the static casters into the map that is on its way; the very first map, or a jump, is drawn whole
       const per = poseReady ? Math.ceil(statics.length / SLICES) : statics.length;
-      staGroup.children = statics.slice(job.n, job.n + per); job.n += per;
+      let sl = statics.slice(job.n, job.n + per); job.n += per;
+      if (shMode !== 'off') { shTag = ++shSeq; sl = sl.filter(shPick); }
+      staGroup.children = sl;
       if (!job.first) renderer.clear = noop;
       origRender.call(this, [pendLight], staGroup, cam);
       renderer.clear = clear; job.first = false;
@@ -661,7 +707,9 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   // A lost GL context takes the render targets with it (phones can do this when the app goes to the background) and three comes back with a new shadow map object: hook it again, the maps start over.
   renderer.domElement.addEventListener('webglcontextrestored', () => { contextLost(); hookShadows(); liveRT = staticRT = pendRT = null; sun.shadow.map = null; pendLight.shadow.map = null; size = 0; poseReady = false; job = null; staticsDirty = true; });
 
+  if (shMode === 'tight') { Object.assign(sun.shadow.camera, { left: -SH_TIGHT, right: SH_TIGHT, top: SH_TIGHT, bottom: -SH_TIGHT }); sun.shadow.camera.updateProjectionMatrix(); }
   const api = {
+    setShSet, get shMode() { return shMode; },
     bypass: false,   // set by the bench: one render exactly as without this module (the whole scene, three's own shadow pass)
     wholeParts: false,   // set by the bench: draw every part of a mesh sorted by part
     parts: on,

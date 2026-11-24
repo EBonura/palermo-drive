@@ -755,13 +755,17 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
   const spray = makePoints(260, 5), bubbles = makePoints(120, -20);
   function emit(sys, o) {
     const p = sys.st[sys.i]; sys.i = (sys.i + 1) % sys.N;
-    Object.assign(p, { on: true, age: 0, g: 0, drag: 0, rise: false }, o);
+    Object.assign(p, { on: true, age: 0, g: 0, drag: 0, rise: false }, o); sys.dirty = true;
     sys.col.set([o.r ?? 1, o.gc ?? 1, o.b ?? 1], (sys.i + sys.N - 1) % sys.N * 3);
   }
+  // With no particle alive and the last one's end already on the GPU there is nothing to step, send or draw: away from the water (most of the city) the two systems used to re-send
+  // their four buffers each and be drawn, every frame, for nothing (24 Nov 2026: 8 of the 30 buffer uploads of a frame at Quattro Canti, and 2 of its draws).
   function stepPoints(sys, dt) {
+    let live = 0;
     for (let i = 0; i < sys.N; i++) {
       const p = sys.st[i];
       if (!p.on) { sys.alpha[i] = 0; continue; }
+      live++;
       p.age += dt; const u = p.age / p.life;
       if (u >= 1) { p.on = false; sys.alpha[i] = 0; sys.pos[i * 3 + 1] = -9999; continue; }
       p.vy -= p.g * dt; const k = Math.exp(-p.drag * dt); p.vx *= k; p.vz *= k; if (p.drag) p.vy *= k;
@@ -770,7 +774,9 @@ export function createSea({ scene, camera: cam0, renderer, sun, SUN_DIR, D, grou
       sys.pos[i * 3] = p.x; sys.pos[i * 3 + 1] = p.y; sys.pos[i * 3 + 2] = p.z;
       sys.size[i] = p.s0 + (p.s1 - p.s0) * u; sys.alpha[i] = p.a0 * (1 - u * u);
     }
-    for (const a of ['position', 'aSize', 'aAlpha', 'aCol']) sys.g.attributes[a].needsUpdate = true;
+    if (live || sys.dirty) for (const a of ['position', 'aSize', 'aAlpha', 'aCol']) sys.g.attributes[a].needsUpdate = true;
+    sys.pts.visible = live > 0 || !!sys.dirty;   // (the frame after the last one ends still goes up and is drawn: every point at alpha 0, as before)
+    sys.dirty = live > 0;
   }
 
   // ring and foam patch on the surface

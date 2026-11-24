@@ -5,6 +5,7 @@
 // Frame of a front: origin on the wall at the pavement under the door, +x to the right as seen from the street, +y up, +z out into the street.
 //   buildFront(kind) -> { group, update(night 0..1, open bool, t seconds), dispose() }
 // The photos these are drawn from are listed in docs/pubs.md (reference only, nothing is copied from them).
+import { SHARE } from './mat-share.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -57,13 +58,13 @@ class Front {
   light(x, y, z, size, color, k = 1) {
     const mat = new THREE.SpriteMaterial({ map: glowTexture(), color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false });
     const s = new THREE.Sprite(mat); s.scale.set(size, size, 1); s.position.set(x, y, z); this.group.add(s); this.owned.push(mat);
-    this.lights.push({ mat, k }); return s;
+    this.lights.push({ mat, k, o: s }); return s;
   }
   // warm pool of light on the pavement in front of the door
   pool(x, z, r, color, k = 0.5) {
     const mat = new THREE.MeshBasicMaterial({ map: glowTexture(), color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2).rotateX(-Math.PI / 2), mat); m.position.set(x, 0.05, z); m.renderOrder = 2; this.group.add(m); this.owned.push(mat, m.geometry);
-    this.pools.push({ mat, k }); return m;
+    this.pools.push({ mat, k, o: m }); return m;
   }
   // street furniture (rotated about y by ry)
   place(g, x, y, z, ry, color) { if (ry) g.rotateY(ry); return this.push(g.translate(x, y, z), color); }
@@ -86,8 +87,9 @@ class Front {
   }
   update(night, open, t) {
     for (const s of this.signs) { s.mat.emissiveIntensity = s.k * night; }
-    for (const l of this.lights) l.mat.opacity = Math.min(1, l.k * night * (0.92 + 0.08 * Math.sin(t * 11 + l.k * 7)));
-    for (const p of this.pools) p.mat.opacity = p.k * night;
+    // an additive draw at opacity 0 adds nothing, so it is left out: by day every light and pool of a front was a draw and a material run for no pixel (?mats=off draws them as before)
+    for (const l of this.lights) { l.mat.opacity = Math.min(1, l.k * night * (0.92 + 0.08 * Math.sin(t * 11 + l.k * 7))); if (SHARE) l.o.visible = l.mat.opacity > 0; }
+    for (const p of this.pools) { p.mat.opacity = p.k * night; if (SHARE) p.o.visible = p.mat.opacity > 0; }
     for (const h of this.hooks) h(night, open, t);
   }
   dispose() { for (const o of this.owned) o.dispose?.(); }
