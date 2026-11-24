@@ -512,12 +512,16 @@ if (params.has('rec')) import('./rec.js').then(m => { rec = m.startRec({ game, r
 // would bring new tiles into view), and world.hurry lets the streamer use most of each frame while the screen is covered. The wait is
 // capped so a slow phone still gets in.
 let titleT0 = -1;
+// While the loading screen covers the canvas a drawn frame shows nobody anything, and drawing took a fifth of the load on a slow CPU: one frame in every LOAD_DRAW_MS is drawn (the draw is still what uploads
+// textures and buffers, links programs and gives the props' builders their turn, so it is not stopped), the rest of each frame goes to the streamer. ?loaddraw=0 draws every frame, as before.
+const LOAD_DRAW_MS = params.has('loaddraw') ? +params.get('loaddraw') : 250; let loadingUp = true, loadDrawn = -1e9;
 if (world) world.hurry = 2;   // 2: the long build budget of the first loading screen (src/world.js cfg.loadMs)
 (function waitForCity(t0 = performance.now(), calm = 0) {
   calm = !world || world.visiblePending() === 0 ? calm + 1 : 0;
   if (calm < 2 && performance.now() - t0 < 25000) return requestAnimationFrame(() => waitForCity(t0, calm));
   if (world) world.hurry = false;
   const el = document.getElementById('loading');
+  loadingUp = false;
   titleT0 = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 500);
   prewarmAudio(1);   // one spare audio context: the first one the page makes opens the audio device (100 to 200 ms, the rest are about 1 ms), so it is made here and not in the first tap (src/audio-recover.js). Not before the lift: that would hold the first screen back
 })();
@@ -624,5 +628,6 @@ function frame(now) {
   updateHud(dt);
   minimap.draw(dt);
   groundGuide?.update(dt);
+  if (loadingUp && LOAD_DRAW_MS > 0) { const tn = performance.now(); if (tn - loadDrawn < LOAD_DRAW_MS) return; loadDrawn = tn; }
   if (!game.noRender) drunk.render(renderer, scene, camera, !!freeCam); // the start picker's map is opaque: nothing to draw under it; drunk.render is renderer.render when sober, and while drunk the wobble of the camera plus the screen shader (src/drunk.js)
 }

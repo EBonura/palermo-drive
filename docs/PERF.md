@@ -811,6 +811,10 @@ The drive line of page 1 also gives the game's code averaged over the whole driv
 
 Under each `code at` line of page 2 the bench gives `its draw`: ms a frame of `renderer.render` in the draws that begin a run of one material, in those that repeat the material before them, in the cull and whatever else runs in `scene.onBeforeRender`, in the shadow pass, and the remainder (three walking the scene, the sort, the matrices). It is clocked on frames of its own (`anatomy` in `src/bench.js`), with a clock round every draw, so read it as shares.
 
+### What a GL call costs (`calls1k`, `calls3k`, 24 Nov 2026)
+
+`?bench&bv=calls1k,calls3k` issues 1000 and 3000 more GL calls a frame that change nothing drawn (the mipmap hint, to and fro) before the scene. The frame's change over the count is the price of one call past the page: the browser's GPU process and the driver. It says how much a merge of draws is worth on a phone before anyone builds one.
+
 ### What page 4 adds (24 Nov 2026)
 
 Four blocks for telling odd phones apart, none of which costs the run more than a fraction of a second:
@@ -1015,6 +1019,36 @@ Result (`tools/perf/shaders.mjs`): title and night start 0 programs at a draw (3
 ### The programs of a few places, linked at load (24 Nov 2026)
 
 On five Device Farm phones a drive from the Quattro Canti along the Corso froze for 270 to 390 ms about 30 m in, all of it in the draw (the A51 for 2.2 s once more further on). None of those Chromes has `KHR_parallel_shader_compile`, so a program linked when its mesh joins the scene stops the page just as one linked at its first draw does: `prepare` moves the link, it does not make it free. What joined there was a pub front, whose sign's program nothing before it had needed. A tour of ten places on a Mac after loading at the Quattro Canti linked twelve programs: Porta Nuova's majolica, the pub fronts' sign, lit sign and pool of light, a banner, the bridges' glass and unlit parts, the tunnels' concrete, the boats' tinted Lambert (two) and two that no mesh in the scene held afterwards. `warmLate()` in `src/warm.js` links seven of them behind the loading screen from stand-in materials with the same parameters (a program belongs to the parameters, not to the material). After it the same tour links five: the concrete and the boats, which have shaders of their own and are their modules' to warm, and the two unknown ones at the Cala. The loading screen links five more programs for it.
+
+## Pub fronts built a few milliseconds a frame (`src/pubs.js`, `src/pub-fronts.js`, `tools/perf/pubfront.mjs`, 24 Nov 2026)
+
+On five Device Farm phones one frame of 120 to 170 ms (43 ms on an iPhone 11) sat in the missions update on a drive from the Quattro Canti along the Corso: a pub front built in one go when the lapa came within `BUILD_R` (320 m), several canvases painted and a solid mesh merged. All the pubs within 320 m are asked for in the same half-second tick, so on the Corso three of them (Taverna, PunkFunk, Lizard) landed in one call.
+
+Done: every builder in `src/pub-fronts.js` is a generator (`buildFrontIter`, `buildFront` runs it whole) that yields after each painted canvas, after each group of furniture and every 1500 specks of a wall's stucco (the wall canvases were half the cost). `src/pubs.js` queues the fronts, builds one at a time, nearest first, and steps the generator until one more step as long as the last would pass `FRONT_MS` (2 ms); the front joins the scene when whole and the next slow tick shows it. A front still out of reach beyond `DROP_R` stops its build. It is serial because the canvases share one random stream (`rnd`): a front's pixels depend on the fronts painted before it, as they always did, and two builds interleaving would change them. `BUILD_R` is unchanged: a front is whole 0.14 to 0.7 s after it is asked for, 2 to 10 m of driving later, at about 270 to 315 m, where a 6 m facade is a few pixels.
+
+Same picture, proved: `tools/release/withbrowser.sh node tools/perf/pubfront.mjs identity` loads the file as it was in git (`--old <ref>`, default HEAD) and the new one in one page, builds each of the 11 kinds both ways in the same order and compares for every object its position, material settings, every geometry array (position, normal, color, hashed byte for byte) and every canvas of the textures (`getImageData`, hashed), plus the visibility and opacity after `update` at day, night shut and night open. Result: 11 of 11 identical. The check does fail when it should: changing one speck count in Lizard and one box in another front made 6 of 11 differ (the later fronts differ through the random stream, which shows the order matters and is kept).
+
+Measured (headless Chrome, CPU slowed 6 times, `?debug&play&p2p=off&help=0`, the lapa driven from (15, 5) to (371, -177) at 16 m/s with `game.placeAt` each frame, the fronts thrown away first so each is built on the way; median of 3 runs, `pubfront.mjs drive`):
+
+| | longest pubs update in a frame | longest frame | the three-front call |
+|---|---|---|---|
+| before, `time=22.5` | 61.7 ms (54.1, 62.3, 61.7) | 117 ms | 54 to 62 ms |
+| after, `time=22.5` | 6.6 ms (6.6, 7.5, 6.1) | 133 ms | none |
+| before, `time=12` | 50.7 ms (27.2, 50.7, 66.6) | 133 ms | 51 to 67 ms |
+| after, `time=12` | 6.6 ms (6.6, 6.0, 10.1) | 133 ms | none |
+
+The longest frame did not move because it is not the fronts: a 117 to 133 ms frame at 23.6 s, near the end of the drive, is in every run before and after with the pubs' update at 0.0 ms (not looked into). The frames that followed a front's completion: before, 67 to 100 ms in the 250 ms after the three-front call; after, 33 to 50 ms. Each front alone was 17 to 29 ms in one call before and takes 5 to 14 calls of 2 to 7 ms now. The time spent on the fronts in all is a little more (14 to 36 ms a front at 6x in the drive, steps cost some overhead), spread over frames.
+
+A tour past nine pubs (`pubfront.mjs tour`, 30 m/s: Corso, Magione, back, Polacco, Krust, Whisky): before, nine fronts in six calls of 63, 26, 22, 23, 29 and 58 ms; after, every front in 7 to 13 calls, the longest single call 10.1 ms (Whisky, the first time its script font is used) and 5 to 9 ms for the rest. Every front was whole 0.2 to 0.6 s after being asked for, 5 to 19 m on.
+
+Not solved: the first build in a page is slower than the rest (JIT, and the first text drawn in a font such as Impact: one step of 40 ms at 6x on the Krust sign, 24 ms for the Mind House one). That is the first front of a session only, and a step cannot be cut finer than a `fillText`. A font warm-up at load would take it away; not done here (src/warm.js is not mine). Also not measured: the first draw of a front's textures (a 1.4 Mpx wall is 5.6 MB of upload). No frame near a completion was over 50 ms in headless Chrome, but a phone's GPU may differ; if a Device Farm run shows it, the upload could go a texture a frame as `freeCanvas` does in `src/core.js` (that needs a renderer in reach of `pubs.js`, which `X` does not carry).
+
+For the worker pool (`work-pool.js`, `tasks.js`, not merged): the canvas painting is the part worth moving. Each wall (1 to 1.7 Mpx) is about half of a front and is pure 2D drawing from numbers (an `OffscreenCanvas` task returning an `ImageBitmap`); signs, doors and shutters are small and pure too. The merge of the solids is a few ms and the geometry classes are cheap to ship as plain arrays. The obstacle is `rnd`: the painters draw from one shared stream in the order of the code, so a task would need the stream's state in and out (or one seed per canvas, which changes the pictures once and then is stable). Text drawing in a worker needs the same fonts.
+
+`pubfront.mjs drive|tour|identity` is the tool; a build with `node tools/build/build.mjs --out=<dir> --minify=false` serves the first two, the third runs from the source tree.
+### Fewer frames drawn behind the loading screen (24 Nov 2026)
+
+A profile of a cold load at 6x had three.js drawing for 4.2 s of the 20.7 s the loading screen was up: full frames that nobody sees. `src/main.js` now draws one frame in every 250 ms while the screen is up (`?loaddraw=0` draws every frame as before, `?loaddraw=1000` one a second); the draw is not stopped, because it is what uploads textures and buffers, links programs and gives the props' builders their turn. `loadtime.mjs --cpu 6` on a machine busy with other work, three alternating runs, loading screen out at: every frame 26.7, 24.9, 25.6 s (the wait is capped at 25 s after the page's own start); one in 250 ms 23.9, 23.7, 23.2 s; one a second 22.4, 21.9 s (two runs). With one a second the first four frames after the lift were 61 to 81 ms against 29 to 47, so 250 ms was taken.
 
 ## The first tap, the first flight, the first hit (20 November 2026)
 

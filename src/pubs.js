@@ -9,13 +9,14 @@ import { musicUrl, musicCross } from './music-url.js';
 import * as THREE from 'three';
 import { PUBS } from './pub-places.js';
 import { PUB_ROUTES } from './pub-routes.js';
-import { buildFront } from './pub-fronts.js';
+import { buildFrontIter } from './pub-fronts.js';
 import { createErrand } from './event-pubs.js';
 import { createRadio } from './radio.js';
 import { createNotes } from './pub-notes.js';
 import { onAudioRecover } from './audio-recover.js';
 
 const BUILD_R = 320, SHOW_R = 460, DROP_R = 900;                  // front: build, show, throw away (metres)
+const FRONT_MS = 2;                                               // what the build of the fronts may take of a frame (ms): the steps run until it is used up, one front at a time
 const CROWD_R = 140, CROWD_DROP = 210;                            // people in front
 const OFFER_R = 150, ACCEPT_R = 11;                               // the caller appears, the lapa stops next to them
 const MUSIC_URL = id => musicUrl(id + '.m4a');   // src/music-url.js: next to the game, or a bucket
@@ -87,11 +88,27 @@ export function createPubs(X, { game }) {
     const R = PUB_ROUTES[def.id]; if (!R) { console.warn('[pubs] no baked route for', def.id, '(run assets/missions/snap-pubs.mjs)'); continue; }
     const door = { x: R.door[0], z: R.door[1] }, n = { x: R.n[0], z: R.n[1] };
     const slot = { id: 'pub:' + def.id, kind: 'pub', sub: 'pub', name: def.name, x: R.road[0], z: R.road[1], dx: R.road[2], dz: R.road[3], w: R.road[4], night: false, hours: def.errand ? def.errand.window : null, coolUntil: 0, marker: null, holdT: 0 };
-    const v = { def, route: R, door, n, slot, front: null, shown: false, crowd: [], crowdKind: '', crowdTry: 0, caller: -1, shoutT: 0, ring: null, y: 0, yT: 0, music: null, d: 1e9, cheerT: 0, stopT: 0, stopFired: false, notes: null };
+    const v = { def, route: R, door, n, slot, front: null, build: null, shown: false, crowd: [], crowdKind: '', crowdTry: 0, caller: -1, shoutT: 0, ring: null, y: 0, yT: 0, music: null, d: 1e9, cheerT: 0, stopT: 0, stopFired: false, notes: null };
     slot.venue = v; venues.push(v);
   }
   const errand = createErrand(X);
   let armed = false, tick = 0, markT = 0;
+  // the fronts in the making: v.build is the generator of src/pub-fronts.js (a canvas painted or a few pieces of furniture a step), queued is the order they were asked in. One at a time, because the
+  // canvases share one random stream and a front must come out the same whenever it is built; the nearest of those waiting goes first. A front joins the scene when it is whole.
+  const queued = []; let cur = null;
+  function stopBuild(v) { if (!v.build) return; v.build.return(); v.build = null; const i = queued.indexOf(v); if (i >= 0) queued.splice(i, 1); if (cur === v) cur = null; }
+  function buildFronts() {   // steps until the budget would be passed by one more step of the length of the last (a step is not cut short)
+    let s = performance.now(); const t0 = s;
+    for (;;) {
+      if (!cur) { for (const v of queued) if (!cur || v.d < cur.d) cur = v; if (!cur) return; }
+      const v = cur, r = v.build.next();
+      if (r.done) {
+        queued.splice(queued.indexOf(v), 1); v.build = null; cur = null; v.front = r.value;
+        if (v.front) { v.front.group.visible = false; scene.add(v.front.group); place(v); }   // (shown by the next slow tick if it is within SHOW_R)
+      }
+      const n = performance.now(); if (n - t0 + (n - s) > FRONT_MS) return; s = n;
+    }
+  }
   const hour = () => game.time ? game.time.hour : 12;
   const winOpen = v => !!v.def.errand && inHours(hour(), v.def.errand.window);
   const isOpen = v => inHours(hour(), v.def.open);
@@ -130,7 +147,8 @@ export function createPubs(X, { game }) {
       const d = v.d = Math.hypot(car.x - v.door.x, car.z - v.door.z);
       // front: built when near, hidden when a bit further, thrown away when far
       if (slow) {
-        if (!v.front && d < BUILD_R) { v.front = buildFront(v.def.front); if (v.front) { scene.add(v.front.group); place(v); } }
+        if (!v.front && !v.build && d < BUILD_R) { v.build = buildFrontIter(v.def.front); queued.push(v); }
+        else if (v.build && d > DROP_R) stopBuild(v);
         if (v.front) {
           const sh = d < SHOW_R; if (sh !== v.shown) { v.shown = sh; v.front.group.visible = sh; }
           if (d > DROP_R) { scene.remove(v.front.group); v.front.dispose(); v.front = null; v.shown = false; }
@@ -163,6 +181,7 @@ export function createPubs(X, { game }) {
         if (armed && X.held !== v.slot && here && speed() < 2.2) { v.slot.holdT += dt; if (v.slot.holdT > 0.35) accepted = v.slot; } else v.slot.holdT = 0;
       } else if (slow && d < OFFER_R && car.type !== 'sulky') spawnCaller(v);
     }
+    buildFronts();
     // minimap pins for the pubs within reach
     markT -= dt;
     if (markT <= 0) {
@@ -190,7 +209,7 @@ export function createPubs(X, { game }) {
   function clear() { for (const v of venues) { dropCaller(v); dropCrowd(v); if (v.slot.marker) { X.dropMarker(v.slot.marker); v.slot.marker = null; } } }
   // the music of the houses that have one: made on first use, they load their file only when the lapa is close
   for (const v of venues) if (v.def.music) v.music = createMusic(v.def, v.door, game, car, X.camera);
-  const api = { venues, slots: venues.map(v => v.slot), update, start, updateEvent: dt => errand.update(dt), stop, clear, cheer, errand, arm: () => { armed = true; }, disarm: () => { armed = false; } };
+  const api = { get building() { return cur; }, venues, slots: venues.map(v => v.slot), update, start, updateEvent: dt => errand.update(dt), stop, clear, cheer, errand, arm: () => { armed = true; }, disarm: () => { armed = false; } };
   X.pubs = api;
   return api;
 }

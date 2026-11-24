@@ -4,6 +4,8 @@
 //
 // Frame of a front: origin on the wall at the pavement under the door, +x to the right as seen from the street, +y up, +z out into the street.
 //   buildFront(kind) -> { group, update(night 0..1, open bool, t seconds), dispose() }
+//   buildFrontIter(kind) is the same as a generator that yields after each painted canvas, so that src/pubs.js can build a front a few milliseconds a frame (docs/PERF.md, pub fronts)
+//   The canvases share one random stream (rnd): they are painted in the order of the code, and a front is built whole before the next one starts, so the picture does not depend on the slicing.
 // The photos these are drawn from are listed in docs/pubs.md (reference only, nothing is copied from them).
 import { SHARE } from './mat-share.js';
 import * as THREE from 'three';
@@ -13,12 +15,15 @@ const TAU = Math.PI * 2;
 const hex = h => new THREE.Color(h);
 const rnd = (() => { let s = 12345; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; })();
 
+function* P(paint) { const t = paint(); yield; return t; }   // one step of a front's build: a canvas painted, then the frame is given back
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
 function texOf(c, aniso = 4) { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = aniso; return t; }
-function speck(g, w, h, n, a, dark = '#000', light = '#fff') {
-  for (let i = 0; i < n; i++) { g.fillStyle = (i & 1 ? dark : light); g.globalAlpha = a * (0.4 + rnd() * 0.6); g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+function speck(g, w, h, n, a, dark = '#000', light = '#fff', from = 0, to = n) {
+  for (let i = from; i < to; i++) { g.fillStyle = (i & 1 ? dark : light); g.globalAlpha = a * (0.4 + rnd() * 0.6); g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
   g.globalAlpha = 1;
 }
+
+function* speckIter(g, w, h, n, a, dark, light) { for (let i = 0; i < n; i += 1500) { speck(g, w, h, n, a, dark, light, i, Math.min(n, i + 1500)); yield; } }   // the same specks in pieces of 1500, a step each
 
 let glowTex = null;
 function glowTexture() {
@@ -120,9 +125,9 @@ function krustSign() {
   speck(g, 256, 256, 500, 0.35, '#555', '#fff');
   return texOf(c, 8);
 }
-function krustWall() {
+function* krustWall() {
   const PX = 100, W = 6.6, H = 5.7, [c, g] = canvas(W * PX, H * PX), y = m => (H - m) * PX, x = m => (m + W / 2) * PX;
-  g.fillStyle = '#e4d5b8'; g.fillRect(0, 0, W * PX, H * PX); speck(g, W * PX, H * PX, 5000, 0.12, '#8a7a5c', '#fff4dc');
+  g.fillStyle = '#e4d5b8'; g.fillRect(0, 0, W * PX, H * PX); yield* speckIter(g, W * PX, H * PX, 5000, 0.12, '#8a7a5c', '#fff4dc');
   // rustication of the ground floor: courses every 45 cm, a shadow line under each
   for (let m = 0.8; m < 3.7; m += 0.45) { g.fillStyle = 'rgba(120,100,70,.28)'; g.fillRect(0, y(m) - 1, W * PX, 3); g.fillStyle = 'rgba(255,248,230,.25)'; g.fillRect(0, y(m) + 2, W * PX, 2); }
   // grey rough-cut base course, 80 cm, either side of the pink frame
@@ -155,20 +160,20 @@ function krustDoorway() {   // the shutter up: a dark doorway, an amber floor, a
   return texOf(c);
 }
 
-function buildKrust() {
+function* buildKrust() {
   const F = new Front();
-  const wall = krustWall();
+  const wall = yield* krustWall();
   F.quad(wall, 0, 0, 0.03, 6.6, 5.7, { offset: 2, glow: 0.22 });
   // the dusty pink frame (3D, 8 cm proud) round the doorway and the little lip under the sign
   const PK = '#c99aa0', fw = 0.3;
   F.box(-1.45, 0, 0.07, fw, 5.1, 0.1, PK); F.box(1.45, 0, 0.07, fw, 5.1, 0.1, PK); F.box(0, 4.85, 0.07, 3.2, fw, 0.1, PK);   // the frame is tall: the sign is 1.9 m, readable from across the street
   F.box(0, 2.82, 0.06, 2.35, 0.1, 0.08, '#b98a90');                              // lintel of the shutter box
   // shutter and, at night, the doorway behind it
-  const door = F.quad(krustDoorway(), 0, 0, 0.1, 2.2, 2.8, { basic: true, name: 'doorway' }), shut = F.quad(krustShutter(), 0, 0, 0.13, 2.2, 2.8, { offset: 1, name: 'shutter' });
+  const door = F.quad(yield* P(krustDoorway), 0, 0, 0.1, 2.2, 2.8, { basic: true, name: 'doorway' }), shut = F.quad(yield* P(krustShutter), 0, 0, 0.13, 2.2, 2.8, { offset: 1, name: 'shutter' });
   F.box(-1.12, 0, 0.14, 0.06, 2.8, 0.1, '#243a2c'); F.box(1.12, 0, 0.14, 0.06, 2.8, 0.1, '#243a2c');
   // the sign: a 80 cm square plate
   F.box(0, 2.95, 0.1, 2.0, 1.9, 0.05, '#c9c9c9');
-  F.quad(krustSign(), 0, 3.0, 0.14, 1.8, 1.8, { glow: 0.28, offset: 1 });
+  F.quad(yield* P(krustSign), 0, 3.0, 0.14, 1.8, 1.8, { glow: 0.28, offset: 1 });
   // lanterns
   for (const sx of [-1, 1]) {
     const lx = sx * 2.05;
@@ -181,15 +186,16 @@ function buildKrust() {
   for (const bx of [1.05, 1.7]) { F.box(bx, 0, 0.5, 0.55, 0.95, 0.62, '#2f6a45'); F.box(bx, 0.95, 0.5, 0.6, 0.07, 0.68, '#27583a'); }
   F.pool(0, 1.5, 3.4, '#ff9a42', 0.55);
   F.hooks.push((night, open) => { door.visible = open; shut.visible = !open; });
+  yield;
   return F.finish();
 }
 
 
 // ---------------------------------------------------------------------------------------------------------------------------------- shared paint
 // a stucco wall with courses (rustication) and a stone plinth; returns the canvas context in a frame of metres (y up from the pavement)
-function wallPaint(W, H, o) {
+function* wallPaint(W, H, o) {
   const PX = 100, [c, g] = canvas(W * PX, H * PX), y = m => (H - m) * PX, x = m => (m + W / 2) * PX;
-  g.fillStyle = o.base; g.fillRect(0, 0, W * PX, H * PX); speck(g, W * PX, H * PX, o.speck || 5000, 0.12, o.dark || '#6a5a40', o.light || '#fff4dc');
+  g.fillStyle = o.base; g.fillRect(0, 0, W * PX, H * PX); yield* speckIter(g, W * PX, H * PX, o.speck || 5000, 0.12, o.dark || '#6a5a40', o.light || '#fff4dc');
   if (o.courses) for (let m = o.plinth || 0.6; m < (o.top || 3.6); m += o.courses) { g.fillStyle = 'rgba(90,70,40,.28)'; g.fillRect(0, y(m) - 1, W * PX, 3); g.fillStyle = 'rgba(255,248,230,.22)'; g.fillRect(0, y(m) + 2, W * PX, 2); }
   if (o.plinth) {
     g.fillStyle = o.plinthColor || '#8c877f'; g.fillRect(0, y(o.plinth), W * PX, o.plinth * PX);
@@ -223,8 +229,8 @@ function wdLightbox() {
   g.font = '600 14px Arial, sans-serif'; g.fillText('B I R R E R I A  /  D R I N K E R I A', 160, 92);
   return texOf(c, 4);
 }
-function wdWall() {
-  const P = wallPaint(7.0, 4.8, { base: '#d9b25f', courses: 0.5, plinth: 0.95, top: 3.7, dark: '#6e5428' }), { g } = P;
+function* wdWall() {
+  const P = yield* wallPaint(7.0, 4.8, { base: '#d9b25f', courses: 0.5, plinth: 0.95, top: 3.7, dark: '#6e5428' }), { g } = P;
   // window opening, left: dark, a TV and a hot dog poster; entrance, right: a red-lit bar
   rectM(P, -2.4, 1.15, 1.5, 2.0, '#1d1410'); rectM(P, -2.4, 1.15, 1.5, 0.08, '#8c877f');
   rectM(P, -1.9, 2.35, 0.55, 0.38, '#2a3a58'); rectM(P, -1.84, 2.4, 0.43, 0.28, '#a9c4ea');                                  // the TV
@@ -238,20 +244,21 @@ function wdWall() {
   g.strokeStyle = '#5a4a38'; g.lineWidth = 6; g.strokeRect(P.x(0.1), P.y(3.0), 1.7 * P.PX, 3.0 * P.PX);
   return texOf(P.c);
 }
-function buildWhisky() {
-  const F = new Front(), wall = wdWall();
+function* buildWhisky() {
+  const F = new Front(), wall = yield* wdWall();
   F.quad(wall, 0, 0, 0.03, 7.0, 4.8, { offset: 2, glow: 0.08 });
   F.box(-1.65, 0.95, 0.07, 1.7, 0.06, 0.12, '#8c877f');                                      // window sill
   F.box(0.95, 3.0, 0.12, 1.9, 0.06, 0.2, '#2a2420');                                         // a short dark canopy over the entrance
-  F.quad(wdNeon(), -2.05, 2.55, 0.1, 0.55, 0.44, { glow: 0.9, offset: 1 });
-  F.quad(wdLightbox(), 0.95, 3.25, 0.1, 1.5, 0.66, { glow: 0.9, offset: 1 });
+  F.quad(yield* P(wdNeon), -2.05, 2.55, 0.1, 0.55, 0.44, { glow: 0.9, offset: 1 });
+  F.quad(yield* P(wdLightbox), 0.95, 3.25, 0.1, 1.5, 0.66, { glow: 0.9, offset: 1 });
   for (const lx of [-0.3, 2.2]) { F.box(lx, 2.1, 0.12, 0.08, 0.4, 0.08, '#151515'); F.box(lx, 2.2, 0.2, 0.18, 0.28, 0.18, '#151515'); F.box(lx, 2.24, 0.3, 0.12, 0.2, 0.02, '#ffcf7a'); F.light(lx, 2.35, 0.4, 1.7, '#ffb15a', 0.85); }
   // balconies above, purple uplight under each
   for (const bx of [-1.6, 1.9]) { F.box(bx, 3.9, 0.4, 1.7, 0.08, 0.8, '#1a1a1c'); F.box(bx, 3.98, 0.78, 1.7, 0.5, 0.03, '#1a1a1c'); F.light(bx, 3.8, 0.5, 2.2, '#a64cf0', 0.8); }
   // terrace on the pavement: cream parasols, round tables, black chairs
   F.parasol(-2.2, 2.1, '#ece4cc'); F.parasol(2.6, 2.4, '#ece4cc');
-  for (const [tx, tz] of [[-2.2, 2.1], [-3.0, 3.4], [2.6, 2.4], [3.3, 3.6]]) { F.table(tx, tz); F.chair(tx - 0.55, tz, Math.PI / 2); F.chair(tx + 0.55, tz, -Math.PI / 2); F.chair(tx, tz + 0.55, Math.PI); }
+  for (const [tx, tz] of [[-2.2, 2.1], [-3.0, 3.4], [2.6, 2.4], [3.3, 3.6]]) { F.table(tx, tz); F.chair(tx - 0.55, tz, Math.PI / 2); F.chair(tx + 0.55, tz, -Math.PI / 2); F.chair(tx, tz + 0.55, Math.PI); yield; }
   F.pool(0.6, 1.6, 3.4, '#ffa050', 0.45);
+  yield;
   return F.finish();
 }
 
@@ -259,8 +266,8 @@ function buildWhisky() {
 // Vucciria, Discesa dei Maccheronai 9: a pale grey-beige stone front with a long raised band of carved capitals "MAGGIORE" (the old family sign), under it in
 // blue-grey "TAVERNA  TA  AZZURRA"; two bays in bright turquoise paint, a glass window of lit bottles on the left and an open doorway down two steps on the
 // right; a ribbed blue awning on a dark pergola above; a cream pull-down shutter at the edge; a bench on the lane. Photos: refs/taverna_azzurra ddg_7, 8, 16, 18, 23.
-function tavWall() {
-  const P = wallPaint(6.6, 5.6, { base: '#b8ae9a', courses: 0, plinth: 0, speck: 7000, dark: '#5a5244', light: '#e8e0cc' }), { g } = P;
+function* tavWall() {
+  const P = yield* wallPaint(6.6, 5.6, { base: '#b8ae9a', courses: 0, plinth: 0, speck: 7000, dark: '#5a5244', light: '#e8e0cc' }), { g } = P;
   // stone slabs
   for (let r = 0; r < 12; r++) for (let u = -3.3 - (r & 1 ? 0.5 : 0); u < 3.3; u += 1.0) { g.strokeStyle = 'rgba(70,62,50,.28)'; g.lineWidth = 2; g.strokeRect(P.x(u), P.y(0.5 * (r + 1)), 1.0 * P.PX, 0.5 * P.PX); }
   // the sign band: cream plate, MAGGIORE in big carved serif capitals, TAVERNA TA AZZURRA in blue-grey under it
@@ -286,9 +293,9 @@ function tavWall() {
   rectM(P, 2.7, 3.0, 0.22, 0.28, '#f0ece0'); g.fillStyle = '#3a3a3a'; g.font = '700 22px Arial'; g.textAlign = 'center'; g.fillText('9', P.x(2.81), P.y(3.08));
   return texOf(P.c);
 }
-function buildTaverna() {
+function* buildTaverna() {
   const F = new Front();
-  F.quad(tavWall(), 0, 0, 0.03, 6.6, 5.6, { offset: 2, glow: 0.12 });
+  F.quad(yield* tavWall(), 0, 0, 0.03, 6.6, 5.6, { offset: 2, glow: 0.12 });
   // blue canvas awning on a dark pergola over the band
   F.box(0, 5.45, 0.02, 6.6, 0.1, 0.1, '#2c2622');
   for (let i = 0; i < 9; i++) { const ux = -3.0 + i * 0.75; F.box(ux, 5.35, 0.7, 0.07, 0.07, 1.4, '#2c2622'); }
@@ -301,6 +308,7 @@ function buildTaverna() {
   F.light(-1.75, 2.0, 0.3, 3.2, '#4aa8ff', 0.55); F.light(1.45, 1.8, 0.3, 3.0, '#ffb060', 0.7);
   for (const lx of [-3.2, 3.2]) F.light(lx, 3.6, 0.5, 2.0, '#ffd090', 0.5);
   F.pool(0, 1.7, 3.2, '#ffa860', 0.4);
+  yield;
   return F.finish();
 }
 
@@ -332,32 +340,33 @@ function pfDoor() {
   for (const [px, py] of [[8, 70], [8, 150], [196, 90], [196, 170]]) { g.fillStyle = ['#f2f0e4', '#e8d85a', '#d94abf'][(px + py) % 3]; g.fillRect(px, py, 50, 66); g.fillStyle = '#151515'; for (let r = 0; r < 5; r++) g.fillRect(px + 5, py + 8 + r * 11, 30 + rnd() * 12, 4); }
   return texOf(c);
 }
-function pfWall() {
-  const P = wallPaint(6.4, 4.8, { base: '#d8c8a8', courses: 0.5, plinth: 0.6, top: 4.3, dark: '#7a6840', plinthColor: '#9a948a' }), { g } = P;
+function* pfWall() {
+  const P = yield* wallPaint(6.4, 4.8, { base: '#d8c8a8', courses: 0.5, plinth: 0.6, top: 4.3, dark: '#7a6840', plinthColor: '#9a948a' }), { g } = P;
   rectM(P, -1.25, 0, 2.5, 3.0, '#0c0c0c');                                                   // the opening (the door quad covers it)
   g.fillStyle = '#4a60c0'; g.font = '700 30px "Brush Script MT", cursive'; g.save(); g.translate(P.x(3.0), P.y(2.6)); g.rotate(-0.4); g.fillText('~ ~', 0, 0); g.restore();   // a bit of graffiti on the right
   rectM(P, 2.3, 3.1, 0.3, 0.38, '#f0ece0'); g.fillStyle = '#222'; g.font = '700 24px Arial'; g.textAlign = 'center'; g.fillText('10', P.x(2.45), P.y(3.2));
   return texOf(P.c);
 }
-function buildPunkfunk() {
+function* buildPunkfunk() {
   const F = new Front();
-  F.quad(pfWall(), 0, 0, 0.03, 6.4, 4.8, { offset: 2, glow: 0.08 });
-  F.quad(pfDoor(), 0, 0, 0.1, 2.5, 3.0, { basic: true });
+  F.quad(yield* pfWall(), 0, 0, 0.03, 6.4, 4.8, { offset: 2, glow: 0.08 });
+  F.quad(yield* P(pfDoor), 0, 0, 0.1, 2.5, 3.0, { basic: true });
   // black steel frame of the doorway and the two door leaves' mullions
   F.box(-1.3, 0, 0.1, 0.12, 3.1, 0.14, '#0c0c0c'); F.box(1.3, 0, 0.1, 0.12, 3.1, 0.14, '#0c0c0c'); F.box(0, 3.0, 0.1, 2.72, 0.12, 0.14, '#0c0c0c'); F.box(0, 0, 0.1, 0.06, 3.0, 0.1, '#0c0c0c');
   // the black box sign with the white text, and the banner on the left
-  F.box(0, 3.25, 0.1, 2.3, 0.85, 0.1, '#0a0a0a'); F.quad(pfSign(), 0, 3.3, 0.16, 2.1, 0.65, { glow: 0.3, offset: 1 });
-  F.quad(pfBanner(), -2.05, 0.85, 0.07, 0.5, 2.3, { glow: 0.2, offset: 1 });
+  F.box(0, 3.25, 0.1, 2.3, 0.85, 0.1, '#0a0a0a'); F.quad(yield* P(pfSign), 0, 3.3, 0.16, 2.1, 0.65, { glow: 0.3, offset: 1 });
+  F.quad(yield* P(pfBanner), -2.05, 0.85, 0.07, 0.5, 2.3, { glow: 0.2, offset: 1 });
   // two black spheres on the pavement
   F.sphere(2.6, 0, 1.1, 0.46, '#202226'); F.sphere(-1.5, 0, 0.55, 0.2, '#202226');
   // the deck: a low wooden platform on the left with a grey rail, dark slat tables, folding chairs, a planter of bougainvillea
   F.box(-3.7, 0, 1.55, 3.4, 0.16, 2.2, '#6b4a30');
   F.box(-3.7, 0.86, 2.6, 3.4, 0.04, 0.04, '#7a7e82'); F.box(-5.4, 0.86, 1.55, 0.04, 0.04, 2.2, '#7a7e82');
   for (const [px, pz] of [[-5.4, 2.6], [-4.55, 2.6], [-3.7, 2.6], [-2.85, 2.6], [-2.0, 2.6], [-5.4, 1.5]]) F.box(px, 0.16, pz, 0.04, 0.7, 0.04, '#7a7e82');
-  for (const [tx, tz] of [[-4.5, 1.2], [-3.1, 1.6], [-3.8, 2.1]]) { F.table(tx, tz, 0.34, 0.74, '#1c1c1e', '#2a2624'); F.chair(tx - 0.5, tz, Math.PI / 2, '#2c2c30'); F.chair(tx + 0.5, tz, -Math.PI / 2, '#2c2c30'); }
+  for (const [tx, tz] of [[-4.5, 1.2], [-3.1, 1.6], [-3.8, 2.1]]) { F.table(tx, tz, 0.34, 0.74, '#1c1c1e', '#2a2624'); F.chair(tx - 0.5, tz, Math.PI / 2, '#2c2c30'); F.chair(tx + 0.5, tz, -Math.PI / 2, '#2c2c30'); yield; }
   F.box(-2.2, 0.16, 2.3, 0.7, 0.45, 0.4, '#3a3a3a'); F.box(-2.2, 0.6, 2.3, 0.6, 0.35, 0.34, '#d94aa0');
   F.light(0, 2.7, 0.4, 3.4, '#d94abf', 0.55); F.light(0, 1.6, 0.4, 3.0, '#ffb050', 0.45);
   F.pool(0, 1.7, 3.4, '#ff8ad8', 0.3);
+  yield;
   return F.finish();
 }
 
@@ -373,8 +382,8 @@ function wdmSign() {
   g.font = 'italic 600 22px Georgia, serif'; g.fillStyle = '#f2ead2'; g.fillText('Magione', 250, 152);
   return texOf(c, 4);
 }
-function wdmWall() {
-  const P = wallPaint(6.0, 5.6, { base: '#e8b33a', courses: 0, plinth: 0.5, top: 3.5, speck: 7000, dark: '#9a6a14', plinthColor: '#8c8478' }), { g } = P;
+function* wdmWall() {
+  const P = yield* wallPaint(6.0, 5.6, { base: '#e8b33a', courses: 0, plinth: 0.5, top: 3.5, speck: 7000, dark: '#9a6a14', plinthColor: '#8c8478' }), { g } = P;
   // narrow doorway with a brown door, wide arched entrance with the red-lit bar
   rectM(P, -2.35, 0, 0.95, 2.3, '#4a2e1c'); rectM(P, -2.25, 0.1, 0.75, 2.1, '#6a3e22'); for (let i = 0; i < 4; i++) rectM(P, -2.25, 0.4 + i * 0.5, 0.75, 0.04, 'rgba(0,0,0,.35)');
   g.fillStyle = '#e8b33a'; g.beginPath(); g.moveTo(P.x(-0.4), P.y(0)); g.lineTo(P.x(-0.4), P.y(2.4)); g.arc(P.x(0.55), P.y(2.4), 0.95 * P.PX, Math.PI, TAU); g.lineTo(P.x(1.5), P.y(0)); g.closePath();
@@ -387,18 +396,19 @@ function wdmWall() {
   for (const bx of [-1.7, 1.9]) { rectM(P, bx - 0.45, 3.9, 0.9, 1.5, '#1d1a18'); rectM(P, bx - 0.45, 3.9, 0.9, 0.05, '#8a8478'); }
   return texOf(P.c);
 }
-function buildWdMagione() {
+function* buildWdMagione() {
   const F = new Front();
-  F.quad(wdmWall(), 0, 0, 0.03, 6.0, 5.6, { offset: 2, glow: 0.12 });
-  F.quad(wdmSign(), 0.55, 2.55, 0.12, 2.1, 0.9, { glow: 0.5, offset: 1 });
+  F.quad(yield* wdmWall(), 0, 0, 0.03, 6.0, 5.6, { offset: 2, glow: 0.12 });
+  F.quad(yield* P(wdmSign), 0.55, 2.55, 0.12, 2.1, 0.9, { glow: 0.5, offset: 1 });
   // brown double doors folded back against the wall on both sides of the arch
   F.box(-0.52, 0, 0.08, 0.1, 2.5, 0.8, '#5a3820'); F.box(1.62, 0, 0.08, 0.1, 2.5, 0.8, '#5a3820');
   for (const lx of [-0.75, 1.85]) { F.box(lx, 2.55, 0.1, 0.03, 0.4, 0.03, '#161616'); F.box(lx, 2.2, 0.16, 0.18, 0.34, 0.18, '#141414'); F.box(lx, 2.24, 0.26, 0.12, 0.24, 0.02, '#ffcf7a'); F.light(lx, 2.35, 0.36, 1.6, '#ffb15a', 0.85); }
   for (const bx of [-1.7, 1.9]) { F.box(bx, 3.75, 0.4, 1.4, 0.07, 0.8, '#161616'); F.box(bx, 3.82, 0.78, 1.4, 0.55, 0.03, '#161616'); F.light(bx, 3.6, 0.5, 2.6, '#a64cf0', 0.9); }
   F.light(0.55, 1.8, 0.3, 3.0, '#ff6a50', 0.55);
   // plastic chairs and high tables on the piazza
-  for (const [tx, tz] of [[-1.8, 2.4], [0.4, 3.3], [2.6, 2.6], [-0.7, 4.3]]) { F.table(tx, tz, 0.36, 1.05, '#2a2420', '#d8d2c0'); F.chair(tx - 0.55, tz, Math.PI / 2, '#d8d4c8'); F.chair(tx + 0.55, tz, -Math.PI / 2, '#d8d4c8'); }
+  for (const [tx, tz] of [[-1.8, 2.4], [0.4, 3.3], [2.6, 2.6], [-0.7, 4.3]]) { F.table(tx, tz, 0.36, 1.05, '#2a2420', '#d8d2c0'); F.chair(tx - 0.55, tz, Math.PI / 2, '#d8d4c8'); F.chair(tx + 0.55, tz, -Math.PI / 2, '#d8d4c8'); yield; }
   F.pool(0.5, 2.4, 3.6, '#c27aff', 0.3);
+  yield;
   return F.finish();
 }
 
@@ -420,8 +430,8 @@ function lizSign() {
   speck(g, 420, 100, 700, 0.5, '#15110e', '#9a948a');
   return texOf(c, 4);
 }
-function lizWall() {
-  const P = wallPaint(5.6, 5.4, { base: '#8e8573', courses: 0, plinth: 0, speck: 8000, dark: '#40382c', light: '#c8bfa8' }), { g } = P;
+function* lizWall() {
+  const P = yield* wallPaint(5.6, 5.4, { base: '#8e8573', courses: 0, plinth: 0, speck: 8000, dark: '#40382c', light: '#c8bfa8' }), { g } = P;
   for (let i = 0; i < 400; i++) rectM(P, -2.8 + rnd() * 5.6, rnd() * 5.4, 0.06 + rnd() * 0.2, 0.04 + rnd() * 0.1, rnd() < 0.5 ? 'rgba(60,52,40,.12)' : 'rgba(200,190,170,.1)');
   rectM(P, -1.1, 0, 2.2, 2.65, '#1a1410');                                                 // the opening, the door quad covers it
   rectM(P, -1.55, 3.3, 3.1, 0.6, '#7d7566'); for (let m = 0; m < 0.6; m += 0.08) rectM(P, -1.55, 3.3 + m, 3.1, 0.015, 'rgba(0,0,0,.25)');   // roller-shutter box
@@ -440,18 +450,19 @@ function lizDoor() {
   g.fillStyle = '#f2f2ee'; g.fillRect(166, 70, 40, 56); g.fillStyle = '#2a60b0'; g.beginPath(); g.arc(186, 92, 11, 0, TAU); g.fill(); g.fillStyle = '#fff'; g.font = '700 9px Arial'; g.textAlign = 'center'; g.fillText('WiFi', 186, 96); g.fillStyle = '#222'; g.fillText('FREE ZONE', 186, 116);   // the sticker
   return texOf(c);
 }
-function buildLizard() {
+function* buildLizard() {
   const F = new Front();
-  F.quad(lizWall(), 0, 0, 0.03, 5.6, 5.4, { offset: 2, glow: 0.08 });
-  F.quad(lizDoor(), 0, 0, 0.1, 2.2, 2.65, { basic: true });
+  F.quad(yield* lizWall(), 0, 0, 0.03, 5.6, 5.4, { offset: 2, glow: 0.08 });
+  F.quad(yield* P(lizDoor), 0, 0, 0.1, 2.2, 2.65, { basic: true });
   F.box(-1.15, 0, 0.1, 0.1, 2.7, 0.12, '#0e0e0e'); F.box(1.15, 0, 0.1, 0.1, 2.7, 0.12, '#0e0e0e'); F.box(0, 2.62, 0.1, 2.4, 0.1, 0.12, '#0e0e0e');
-  F.box(0, 2.7, 0.08, 3.1, 0.64, 0.1, '#0c0a08'); F.quad(lizSign(), 0, 2.74, 0.14, 2.95, 0.6, { glow: 0.5, offset: 1 });
+  F.box(0, 2.7, 0.08, 3.1, 0.64, 0.1, '#0c0a08'); F.quad(yield* P(lizSign), 0, 2.74, 0.14, 2.95, 0.6, { glow: 0.5, offset: 1 });
   // the floodlight over the door and the warm spill from the opening
   F.box(0, 4.2, 0.12, 0.3, 0.22, 0.3, '#2a2a2a'); F.light(0, 4.0, 0.4, 2.6, '#fff2d0', 0.95); F.light(0, 1.3, 0.4, 3.2, '#ffd8a0', 0.55);
   // cream square parasols with the beer brand on the valance, round tables, red and blue folding chairs on the lane
   F.parasol(-1.9, 2.2, '#efe8d2', 1.35); F.parasol(2.0, 2.8, '#efe8d2', 1.35);
-  for (const [tx, tz, a, b] of [[-1.9, 2.2, '#b82a2a', '#2a52b8'], [2.0, 2.8, '#2a52b8', '#b82a2a'], [-2.8, 3.6, '#b82a2a', '#b82a2a']]) { F.table(tx, tz, 0.4, 0.74, '#2a2420', '#d6d0c2'); F.chair(tx - 0.58, tz, Math.PI / 2, a); F.chair(tx + 0.58, tz, -Math.PI / 2, b); }
+  for (const [tx, tz, a, b] of [[-1.9, 2.2, '#b82a2a', '#2a52b8'], [2.0, 2.8, '#2a52b8', '#b82a2a'], [-2.8, 3.6, '#b82a2a', '#b82a2a']]) { F.table(tx, tz, 0.4, 0.74, '#2a2420', '#d6d0c2'); F.chair(tx - 0.58, tz, Math.PI / 2, a); F.chair(tx + 0.58, tz, -Math.PI / 2, b); yield; }
   F.pool(0, 1.7, 3.2, '#ffb870', 0.4);
+  yield;
   return F.finish();
 }
 
@@ -467,8 +478,8 @@ function monkeySign() {
   speck(g, 300, 120, 400, 0.3, '#5a4a30', '#fff');
   return texOf(c, 4);
 }
-function monkeyWall() {
-  const P = wallPaint(4.8, 4.8, { base: '#d8b25a', courses: 0, plinth: 0.9, plinthColor: '#5c5a56', speck: 6000, dark: '#8a6a24', light: '#f4dc98' }), { g } = P;
+function* monkeyWall() {
+  const P = yield* wallPaint(4.8, 4.8, { base: '#d8b25a', courses: 0, plinth: 0.9, plinthColor: '#5c5a56', speck: 6000, dark: '#8a6a24', light: '#f4dc98' }), { g } = P;
   // peeling patches: grey stone showing through the plaster
   for (let k = 0; k < 14; k++) { const cx = -2.3 + rnd() * 4.6, cy = 1.0 + rnd() * 3.4, r = 0.12 + rnd() * 0.38; g.fillStyle = rnd() < 0.7 ? 'rgba(150,146,134,.85)' : 'rgba(110,104,92,.8)'; g.beginPath(); for (let a = 0; a < 7; a++) { const rr = r * (0.6 + rnd() * 0.6), ang = a / 7 * TAU; g.lineTo(P.x(cx + Math.cos(ang) * rr), P.y(cy + Math.sin(ang) * rr)); } g.closePath(); g.fill(); }
   rectM(P, -0.7, 0, 1.4, 2.55, '#241a12');                                             // the doorway
@@ -477,11 +488,11 @@ function monkeyWall() {
   rectM(P, 1.0, 0.9, 1.3, 2.4, '#4a4a46'); for (let m = 0; m < 2.4; m += 0.09) rectM(P, 1.0, 0.9 + m, 1.3, 0.015, 'rgba(0,0,0,.35)');   // a pull-down shutter on the right
   return texOf(P.c);
 }
-function buildMonkey() {
+function* buildMonkey() {
   const F = new Front();
-  F.quad(monkeyWall(), 0, 0, 0.03, 4.8, 4.8, { offset: 2, glow: 0.06 });
+  F.quad(yield* monkeyWall(), 0, 0, 0.03, 4.8, 4.8, { offset: 2, glow: 0.06 });
   F.box(0, 2.6, 0.09, 1.5, 0.08, 0.14, '#6a5a44');
-  F.quad(monkeySign(), 0, 2.72, 0.1, 1.2, 0.48, { glow: 0.45, offset: 1 });
+  F.quad(yield* P(monkeySign), 0, 2.72, 0.1, 1.2, 0.48, { glow: 0.45, offset: 1 });
   F.box(-0.78, 0, 0.1, 0.08, 2.6, 0.14, '#2a2a2a'); F.box(0.78, 0, 0.1, 0.08, 2.6, 0.14, '#2a2a2a');
   F.box(-1.1, 0.9, 0.12, 1.5, 0.05, 0.3, '#8a8478');                                      // a stone sill under the white panel
   // a wall lantern, and the warm light of the doorway
@@ -490,11 +501,12 @@ function buildMonkey() {
   // half-barrel tables on pallet benches along the wall, a closed parasol, potted plants
   for (const [bx, bz] of [[-1.5, 1.0], [1.7, 1.2], [0.2, 2.6]]) {
     F.cyl(bx, 0, bz, 0.42, 0.78, '#8a5e30', 14, 0.47); F.cyl(bx, 0.78, bz, 0.48, 0.05, '#b88a50', 14); F.cyl(bx, 0.3, bz, 0.5, 0.04, '#3a3a3e', 14); F.cyl(bx, 0.62, bz, 0.5, 0.04, '#3a3a3e', 14);
-    F.box(bx, 0, bz + 0.8, 1.3, 0.38, 0.32, '#b08a56');
+    F.box(bx, 0, bz + 0.8, 1.3, 0.38, 0.32, '#b08a56'); yield;
   }
   F.cyl(2.5, 0, 2.4, 0.03, 2.5, '#d8d4c8', 6); F.push(new THREE.ConeGeometry(0.2, 2.0, 6).translate(2.5, 2.3, 2.4), '#e8e2d0');
   for (const [px, pz, h] of [[-2.4, 0.5, 0.9], [2.4, 0.6, 0.7], [-1.0, 3.2, 0.8]]) { F.cyl(px, 0, pz, 0.26, 0.42, '#a8643c', 10, 0.2); F.push(new THREE.SphereGeometry(0.36, 8, 6).scale(1, h, 1).translate(px, 0.42 + 0.3, pz), '#3f7a3a'); }
   F.pool(0, 1.8, 3.2, '#ffa060', 0.45);
+  yield;
   return F.finish();
 }
 
@@ -526,8 +538,8 @@ function slBunting() {
   for (let i = 0; i < 24; i++) { const x = 16 + i * 33, y = 6 + Math.sin(i / 24 * Math.PI) * 17; g.fillStyle = i % 2 ? '#f0c830' : '#2a62c8'; g.beginPath(); g.moveTo(x - 11, y); g.lineTo(x + 11, y); g.lineTo(x, y + 28); g.closePath(); g.fill(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-function slWall() {
-  const P = wallPaint(10, 5.6, { base: '#c9b79c', courses: 0, plinth: 0, speck: 9000, dark: '#6a5a40', light: '#f0e6cc' }), { g } = P;
+function* slWall() {
+  const P = yield* wallPaint(10, 5.6, { base: '#c9b79c', courses: 0, plinth: 0, speck: 9000, dark: '#6a5a40', light: '#f0e6cc' }), { g } = P;
   for (let r = 0; r < 12; r++) for (let u = -5 - (r & 1 ? 0.6 : 0); u < 5; u += 1.2) { g.strokeStyle = 'rgba(80,66,44,.25)'; g.lineWidth = 2; g.strokeRect(P.x(u), P.y(0.5 * (r + 1)), 1.2 * P.PX, 0.5 * P.PX); }
   rectM(P, -4.3, 0.35, 8.6, 3.35, '#0e0e10');                                                 // the glazed front (the quad covers it)
   rectM(P, -4.5, 3.7, 9.0, 0.2, '#8a8070'); rectM(P, -4.5, 0.2, 9.0, 0.18, '#8a8070');       // sill and lintel
@@ -535,21 +547,22 @@ function slWall() {
   rectM(P, -5, 5.0, 10, 0.6, '#7d8286'); for (let u = -5; u < 5; u += 0.25) rectM(P, u, 5.0, 0.04, 0.6, 'rgba(0,0,0,.28)');
   return texOf(P.c);
 }
-function buildSanlorenzo() {
+function* buildSanlorenzo() {
   const F = new Front();
-  F.quad(slWall(), 0, 0, 0.03, 10, 5.6, { offset: 2, glow: 0.08 });
-  F.quad(slGlass(), 0, 0.4, 0.07, 8.4, 3.2, { basic: true });
+  F.quad(yield* slWall(), 0, 0, 0.03, 10, 5.6, { offset: 2, glow: 0.08 });
+  F.quad(yield* P(slGlass), 0, 0.4, 0.07, 8.4, 3.2, { basic: true });
   for (let i = -3; i <= 3; i++) F.box(i * 1.2, 0.35, 0.1, 0.07, 3.35, 0.1, '#1a1a1c');            // mullions
   F.box(0, 3.65, 0.1, 8.6, 0.08, 0.1, '#1a1a1c'); F.box(0, 0.32, 0.1, 8.6, 0.08, 0.1, '#1a1a1c');
-  F.box(0, 3.95, 0.08, 4.4, 1.0, 0.1, '#0c0c0e'); F.quad(slSign(), 0, 4.0, 0.14, 4.2, 0.9, { glow: 0.45, offset: 1 });
-  F.quad(slBunting(), 0, 3.1, 1.0, 8.4, 0.74, { alpha: true, rough: 1 });
+  F.box(0, 3.95, 0.08, 4.4, 1.0, 0.1, '#0c0c0e'); F.quad(yield* P(slSign), 0, 4.0, 0.14, 4.2, 0.9, { glow: 0.45, offset: 1 });
+  F.quad(yield* P(slBunting), 0, 3.1, 1.0, 8.4, 0.74, { alpha: true, rough: 1 });
   // string lights along the front, a warm halo for the glass
   for (let i = -4; i <= 4; i++) F.light(i * 1.0, 3.35 - Math.abs(i) * 0.02, 0.9, 0.7, '#ffd890', 0.75);
   F.light(-2.6, 1.8, 0.4, 4.4, '#ffb060', 0.5); F.light(2.6, 1.8, 0.4, 4.4, '#ffb060', 0.5);
   // picnic tables and plastic chairs on the covered terrace, a rack of bikes
-  for (const [tx, tz] of [[-3.0, 2.2], [0.0, 2.4], [3.0, 2.2]]) { F.box(tx, 0.72, tz, 1.8, 0.05, 0.8, '#b08a56'); for (const dz of [-0.62, 0.62]) F.box(tx, 0.42, tz + dz, 1.8, 0.05, 0.28, '#b08a56'); F.box(tx - 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); F.box(tx + 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); }
-  for (const [cx, cz, ry] of [[-1.6, 3.6, 0.2], [-0.8, 3.7, -0.2], [1.5, 3.7, 0.3], [2.2, 3.5, -0.3]]) F.chair(cx, cz, ry, '#d8d4c8');
+  for (const [tx, tz] of [[-3.0, 2.2], [0.0, 2.4], [3.0, 2.2]]) { F.box(tx, 0.72, tz, 1.8, 0.05, 0.8, '#b08a56'); for (const dz of [-0.62, 0.62]) F.box(tx, 0.42, tz + dz, 1.8, 0.05, 0.28, '#b08a56'); F.box(tx - 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); F.box(tx + 0.7, 0, tz, 0.06, 0.72, 0.9, '#6a5236'); yield; }
+  for (const [cx, cz, ry] of [[-1.6, 3.6, 0.2], [-0.8, 3.7, -0.2], [1.5, 3.7, 0.3], [2.2, 3.5, -0.3]]) { F.chair(cx, cz, ry, '#d8d4c8'); yield; }
   F.pool(0, 2.2, 5.2, '#ffa860', 0.4);
+  yield;
   return F.finish();
 }
 
@@ -568,8 +581,8 @@ function polSign() {
   g.fillStyle = '#f4f1ea'; g.font = '700 22px Arial, sans-serif'; g.fillText('P U B', 320, 121);
   return texOf(c, 4);
 }
-function polWall() {
-  const P = wallPaint(7.0, 3.8, { base: '#dccdb0', courses: 0, plinth: 0, speck: 6000, dark: '#6a6458', light: '#f4efe2' }), { g } = P;
+function* polWall() {
+  const P = yield* wallPaint(7.0, 3.8, { base: '#dccdb0', courses: 0, plinth: 0, speck: 6000, dark: '#6a6458', light: '#f4efe2' }), { g } = P;
   for (let u = -3.5; u < 3.5; u += 0.6) { rectM(P, u, 0, 0.6, 1.0, rnd() < 0.5 ? '#a8a49a' : '#b4b0a6'); g.strokeStyle = 'rgba(50,48,44,.45)'; g.lineWidth = 2; g.strokeRect(P.x(u), P.y(1.0), 0.6 * P.PX, 1.0 * P.PX); }   // stone slabs to a metre
   rectM(P, -3.5, 1.0, 7.0, 0.04, 'rgba(0,0,0,.25)');
   for (let i = 0; i < 120; i++) rectM(P, -3.5 + rnd() * 7, 1 + rnd() * 2.8, 0.05 + rnd() * 0.25, 0.02 + rnd() * 0.06, 'rgba(70,64,54,.1)');   // stains in the render
@@ -617,24 +630,25 @@ function polBoard() {   // the chalkboard by the door. DRAFT lines: "NA ZDROWIE!
   speck(g, 160, 220, 300, 0.2, '#000', '#cfd8d0');
   return texOf(c);
 }
-function buildPolacco() {
+function* buildPolacco() {
   const F = new Front();
-  F.quad(polWall(), 0, 0, 0.03, 7.0, 3.8, { offset: 2, glow: 0.08 });
-  const room = F.quad(polInside(), 0, 0, 0.08, 2.7, 2.45, { basic: true }), shut = F.quad(polShutter(), 0, 0, 0.11, 2.7, 2.45, { offset: 1 });
+  F.quad(yield* polWall(), 0, 0, 0.03, 7.0, 3.8, { offset: 2, glow: 0.08 });
+  const room = F.quad(yield* P(polInside), 0, 0, 0.08, 2.7, 2.45, { basic: true }), shut = F.quad(yield* P(polShutter), 0, 0, 0.11, 2.7, 2.45, { offset: 1 });
   F.box(-1.4, 0, 0.09, 0.1, 2.5, 0.12, '#3a3a3c'); F.box(1.4, 0, 0.09, 0.1, 2.5, 0.12, '#3a3a3c');
-  F.box(0, 2.8, 0.08, 3.3, 0.72, 0.08, '#6a665e'); F.quad(polSign(), 0, 2.83, 0.13, 3.2, 0.66, { glow: 0.55, offset: 1 });   // under the tile's first-floor balconies
+  F.box(0, 2.8, 0.08, 3.3, 0.72, 0.08, '#6a665e'); F.quad(yield* P(polSign), 0, 2.83, 0.13, 3.2, 0.66, { glow: 0.55, offset: 1 });   // under the tile's first-floor balconies
   F.box(-2.5, 2.58, 0.08, 1.4, 0.05, 0.12, '#bfb6a0');                                       // travertine lintel over the portone
   // a wall lamp beside the door and the warm spill of the room
   F.box(1.65, 2.35, 0.1, 0.06, 0.2, 0.06, '#202020'); F.box(1.65, 2.2, 0.18, 0.2, 0.17, 0.18, '#202020'); F.box(1.65, 2.22, 0.28, 0.14, 0.11, 0.02, '#ffd890'); F.light(1.65, 2.3, 0.38, 1.6, '#ffbf6a', 0.9);
   F.light(0, 1.4, 0.4, 3.0, '#ffc070', 0.55);
   // the chalkboard and a stack of white and red crates by the door
-  F.quad(polBoard(), 1.75, 0.08, 0.75, 0.56, 0.78, { rough: 1 }); F.box(1.75, 0, 0.71, 0.6, 0.08, 0.06, '#5a3a20');
+  F.quad(yield* P(polBoard), 1.75, 0.08, 0.75, 0.56, 0.78, { rough: 1 }); F.box(1.75, 0, 0.71, 0.6, 0.08, 0.06, '#5a3a20');
   for (let k = 0; k < 3; k++) { F.box(-1.75, k * 0.3, 0.45, 0.5, 0.26, 0.36, '#ece8e0'); F.box(-1.75, k * 0.3 + 0.26, 0.45, 0.52, 0.04, 0.38, '#c8202e'); }
   // white plastic tables and chairs on the pavement, the way every bar of the quarter has them
-  for (const [tx, tz] of [[-2.4, 1.9], [2.6, 2.0]]) { F.table(tx, tz, 0.4, 0.72, '#e8e6e0', '#f2f0ea'); F.chair(tx - 0.58, tz, Math.PI / 2, '#eceae4'); F.chair(tx + 0.58, tz, -Math.PI / 2, '#eceae4'); F.chair(tx, tz + 0.58, Math.PI, '#eceae4'); }
+  for (const [tx, tz] of [[-2.4, 1.9], [2.6, 2.0]]) { F.table(tx, tz, 0.4, 0.72, '#e8e6e0', '#f2f0ea'); F.chair(tx - 0.58, tz, Math.PI / 2, '#eceae4'); F.chair(tx + 0.58, tz, -Math.PI / 2, '#eceae4'); F.chair(tx, tz + 0.58, Math.PI, '#eceae4'); yield; }
   F.cyl(-3.25, 0, 0.45, 0.24, 0.45, '#8a5a3a', 10, 0.2); F.push(new THREE.SphereGeometry(0.42, 8, 6).scale(1, 1.4, 1).translate(-3.25, 1.0, 0.45), '#3f6e38');   // a ficus in a pot by the portone
   F.pool(0, 1.6, 3.2, '#ffb060', 0.45);
   F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  yield;
   return F.finish();
 }
 
@@ -658,8 +672,8 @@ function drunksAwning() {   // cream canvas with a scalloped edge (alpha cut-out
   g.fillStyle = 'rgba(120,96,60,.18)'; for (let u = 0; u < 600; u += 40) g.fillRect(u, 0, 2, 48);
   return texOf(c, 4);
 }
-function drunksWall() {
-  const P = wallPaint(6.0, 5.2, { base: '#c98b4a', courses: 0, plinth: 0.6, plinthColor: '#6a645c', speck: 7000, dark: '#7a4a1c', light: '#f0c890' }), { g } = P;
+function* drunksWall() {
+  const P = yield* wallPaint(6.0, 5.2, { base: '#c98b4a', courses: 0, plinth: 0.6, plinthColor: '#6a645c', speck: 7000, dark: '#7a4a1c', light: '#f0c890' }), { g } = P;
   for (let i = 0; i < 90; i++) rectM(P, -3 + rnd() * 6, 0.8 + rnd() * 4.2, 0.05 + rnd() * 0.3, 0.02 + rnd() * 0.08, 'rgba(90,50,20,.12)');   // stains
   rectM(P, -1.6, 0, 3.2, 2.4, '#1a120c');                                                    // the shop opening (the room and shutter quads cover it)
   rectM(P, 1.9, 0.9, 0.9, 1.6, '#3a2c20'); rectM(P, 1.95, 0.95, 0.8, 1.5, '#5a4632');           // a shuttered window on the right
@@ -687,26 +701,28 @@ function drunksShutter() {
   speck(g, 320, 270, 800, 0.25, '#000', '#c8cacc');
   return texOf(c);
 }
-function buildDrunks() {
+function* buildDrunks() {
   const F = new Front();
-  F.quad(drunksWall(), 0, 0, 0.03, 6.0, 5.2, { offset: 2, glow: 0.06 });
-  const room = F.quad(drunksInside(), 0, 0, 0.08, 3.2, 2.4, { basic: true }), shut = F.quad(drunksShutter(), 0, 0, 0.11, 3.2, 2.4, { offset: 1 });
+  F.quad(yield* drunksWall(), 0, 0, 0.03, 6.0, 5.2, { offset: 2, glow: 0.06 });
+  const room = F.quad(yield* P(drunksInside), 0, 0, 0.08, 3.2, 2.4, { basic: true }), shut = F.quad(yield* P(drunksShutter), 0, 0, 0.11, 3.2, 2.4, { offset: 1 });
   F.box(-1.65, 0, 0.09, 0.1, 2.45, 0.12, '#2a2a2a'); F.box(1.65, 0, 0.09, 0.1, 2.45, 0.12, '#2a2a2a');
-  F.quad(drunksSign(), 0, 2.6, 0.12, 1.8, 0.6, { glow: 0.6, offset: 1 }); F.box(0, 2.56, 0.08, 1.9, 0.68, 0.06, '#0e0e0e');   // the board between the awning and the balcony
+  F.quad(yield* P(drunksSign), 0, 2.6, 0.12, 1.8, 0.6, { glow: 0.6, offset: 1 }); F.box(0, 2.56, 0.08, 1.9, 0.68, 0.06, '#0e0e0e');   // the board between the awning and the balcony
   // the cream scalloped awning, tilted out over the pavement
-  const aw = F.quad(drunksAwning(), 0, 1.95, 0.6, 6.0, 0.7, { alpha: true, offset: 1 }); aw.rotation.x = -0.5; aw.position.z = 0.7;
+  const aw = F.quad(yield* P(drunksAwning), 0, 1.95, 0.6, 6.0, 0.7, { alpha: true, offset: 1 }); aw.rotation.x = -0.5; aw.position.z = 0.7;
   // the first-floor balcony: a stone slab and an iron railing
   F.box(0, 3.25, 0.45, 5.4, 0.12, 0.9, '#b8ab94'); F.box(0, 3.37, 0.88, 5.4, 0.04, 0.03, '#1a1a1a'); F.box(0, 4.15, 0.88, 5.4, 0.04, 0.04, '#1a1a1a');
-  for (let u = -2.65; u <= 2.65; u += 0.15) F.box(u, 3.37, 0.88, 0.02, 0.8, 0.02, '#1a1a1a');
+  for (let u = -2.65, k = 0; u <= 2.65; u += 0.15, k++) { F.box(u, 3.37, 0.88, 0.02, 0.8, 0.02, '#1a1a1a'); if (k % 12 === 11) yield; }
   // glass windbreak screens either side of the entry, high stools and two tall tables on the cobbles
   for (const sx of [-2.3, 2.3]) { F.box(sx, 0, 1.4, 0.06, 1.3, 1.6, '#c8d8e0'); F.box(sx, 1.3, 1.4, 0.08, 0.05, 1.62, '#2a2a2a'); }
   for (const [tx, tz] of [[-1.0, 1.9], [1.1, 2.1]]) {
     F.cyl(tx, 0, tz, 0.03, 1.08, '#1a1a1a', 6); F.cyl(tx, 1.08, tz, 0.32, 0.04, '#2a1a10', 12); F.cyl(tx, 0, tz, 0.22, 0.03, '#1a1a1a', 8);
     for (const a of [0, 2.1, 4.2]) { const sx = tx + Math.cos(a) * 0.55, sz = tz + Math.sin(a) * 0.55; F.cyl(sx, 0, sz, 0.025, 0.74, '#1a1a1a', 5); F.cyl(sx, 0.74, sz, 0.17, 0.05, '#3a2418', 10); }
+    yield;
   }
   F.light(0, 2.4, 0.5, 3.2, '#ffb050', 0.8); F.light(0, 1.4, 0.4, 3.0, '#ffa040', 0.55);
   F.pool(0, 1.8, 3.4, '#ffa050', 0.5);
   F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  yield;
   return F.finish();
 }
 
@@ -721,8 +737,8 @@ function mindSign() {
   g.font = '300 58px "Helvetica Neue", Arial, sans-serif'; g.fillText('HOUSE', 480, 70);
   return texOf(c, 4);
 }
-function mindWall() {
-  const P = wallPaint(8.0, 4.6, { base: '#8e9092', courses: 0, plinth: 0.5, plinthColor: '#6a6a68', speck: 9000, dark: '#4a4c4e', light: '#c8cacc' }), { g } = P;
+function* mindWall() {
+  const P = yield* wallPaint(8.0, 4.6, { base: '#8e9092', courses: 0, plinth: 0.5, plinthColor: '#6a6a68', speck: 9000, dark: '#4a4c4e', light: '#c8cacc' }), { g } = P;
   for (let u = -4; u < 4; u += 1.0) rectM(P, u, 0.5, 0.02, 4.1, 'rgba(0,0,0,.18)');   // panel joints
   rectM(P, -2.0, 0, 4.0, 3.0, '#121214');                                              // the club's opening (room and shutter cover it)
   for (const px of [-3.6, 2.7]) { rectM(P, px, 0.9, 0.9, 1.3, '#2a2a2c'); rectM(P, px + 0.05, 0.95, 0.8, 1.2, ['#e0358a', '#f2c81e'][px < 0 ? 0 : 1]); rectM(P, px + 0.12, 1.5, 0.66, 0.5, '#111'); }   // poster frames
@@ -748,12 +764,12 @@ function mindShutter() {
   speck(g, 400, 300, 900, 0.25, '#000', '#d0d2d4');
   return texOf(c);
 }
-function buildMindhouse() {
+function* buildMindhouse() {
   const F = new Front();
-  F.quad(mindWall(), 0, 0, 0.03, 8.0, 4.6, { offset: 2, glow: 0.05 });
-  const room = F.quad(mindInside(), 0, 0, 0.08, 4.0, 3.0, { basic: true }), shut = F.quad(mindShutter(), 0, 0, 0.11, 4.0, 3.0, { offset: 1 });
+  F.quad(yield* mindWall(), 0, 0, 0.03, 8.0, 4.6, { offset: 2, glow: 0.05 });
+  const room = F.quad(yield* P(mindInside), 0, 0, 0.08, 4.0, 3.0, { basic: true }), shut = F.quad(yield* P(mindShutter), 0, 0, 0.11, 4.0, 3.0, { offset: 1 });
   F.box(-2.05, 0, 0.09, 0.1, 3.05, 0.14, '#3a3c3e'); F.box(2.05, 0, 0.09, 0.1, 3.05, 0.14, '#3a3c3e'); F.box(0, 3.0, 0.1, 4.2, 0.3, 0.2, '#4a4c4e');   // steel frame and shutter box
-  F.box(0, 3.35, 0.08, 4.6, 1.0, 0.08, '#0c0c0e'); F.quad(mindSign(), 0, 3.38, 0.13, 4.4, 1.0, { glow: 0.6, offset: 1 });
+  F.box(0, 3.35, 0.08, 4.6, 1.0, 0.08, '#0c0c0e'); F.quad(yield* P(mindSign), 0, 3.38, 0.13, 4.4, 1.0, { glow: 0.6, offset: 1 });
   F.box(0, 3.3, 0.2, 4.6, 0.04, 0.06, '#e0358a'); F.light(-1.5, 3.3, 0.3, 1.6, '#ff4aa0', 0.7); F.light(1.5, 3.3, 0.3, 1.6, '#ff4aa0', 0.7);   // the magenta strip
   // flight cases, a stack of amps and a cable reel by the door
   F.box(-3.0, 0, 0.7, 1.0, 0.6, 0.6, '#1a1a1c'); F.box(-3.0, 0.6, 0.7, 0.8, 0.5, 0.55, '#202022'); for (const y of [0.05, 0.5]) F.box(-3.0, y, 1.01, 1.02, 0.04, 0.02, '#a8aaac');
@@ -761,13 +777,15 @@ function buildMindhouse() {
   F.push(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 14).rotateX(Math.PI / 2).translate(2.0, 0.35, 1.6), '#c83030');
   F.light(0, 1.5, 0.4, 3.6, '#c060ff', 0.45); F.pool(0, 1.8, 3.6, '#d070ff', 0.35);
   F.hooks.push((night, open) => { room.visible = open; shut.visible = !open; });
+  yield;
   return F.finish();
 }
 
 const BUILDERS = { krust: buildKrust, whisky: buildWhisky, taverna: buildTaverna, punkfunk: buildPunkfunk, wdmagione: buildWdMagione, lizard: buildLizard, monkey: buildMonkey, sanlorenzo: buildSanlorenzo, polacco: buildPolacco, drunks: buildDrunks, mindhouse: buildMindhouse };
 
-export function buildFront(kind) {
+export function* buildFrontIter(kind) {
   const b = BUILDERS[kind]; if (!b) return null;
-  const F = b();
+  const F = yield* b();
   return { group: F.group, update: (n, o, t) => F.update(n, o, t), dispose: () => F.dispose() };
 }
+export function buildFront(kind) { for (const it = buildFrontIter(kind); ;) { const r = it.next(); if (r.done) return r.value; } }   // all at once

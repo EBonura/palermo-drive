@@ -338,6 +338,9 @@ export async function runBench(E) {
   const order = f => () => { if (lean && lean.parts.sort) return 'the page already sorts by depth (?lean=sort)'; if (!f && !shipped) return 'the page already has three\'s order (?order=off)'; R.setOpaqueSort(f); return () => R.setOpaqueSort(shipped); };
   const ratio = k => () => { const r = R.getPixelRatio(); R.setPixelRatio(r * k); return () => R.setPixelRatio(r); };
   const draw0 = n => { const d = lean && lean.draw; if (!d) return 'engine-lean is off (?engine=off)'; if (!d[n]) return `the page already runs without it (?draw=)`; d[n] = false; return () => { d[n] = true; }; };
+  // What a GL call costs by itself: n more calls a frame that reach the driver and change nothing that is drawn (the mipmap hint, set to and fro; nothing makes mipmaps on the GPU during play), issued before the scene.
+  // The frame's change over n is the price of one call in the browser's GPU process and the driver, with none of the game's work in it.
+  const extraCalls = n => () => { const g2 = R.getContext(), prev = S.onBeforeRender; S.onBeforeRender = function () { for (let i = 0; i < n; i++) g2.hint(g2.GENERATE_MIPMAP_HINT, i & 1 ? g2.NICEST : g2.FASTEST); g2.hint(g2.GENERATE_MIPMAP_HINT, g2.DONT_CARE); return prev.apply(this, arguments); }; return () => { S.onBeforeRender = prev; }; };
   const V = {
     sh0: () => { R.shadowMap.enabled = false; recompile(); return () => { R.shadowMap.enabled = true; recompile(); }; },
     shpass0: () => { R.shadowMap.autoUpdate = false; R.shadowMap.needsUpdate = false; return () => { R.shadowMap.autoUpdate = true; }; },
@@ -347,6 +350,7 @@ export async function runBench(E) {
     half: ratio(0.5), tiny: ratio(0.125), r85: ratio(0.85), r70: ratio(0.7),
     flat: () => patchAll('flat', sh => { sh.fragmentShader = sh.fragmentShader.replace(/void main\(\) \{/, 'void main() { gl_FragColor = vec4(0.5); return;\n'); }),
     crowd0: () => hide(null, o => /^crowd/.test(o.name)),
+    calls1k: extraCalls(1000), calls3k: extraCalls(3000),
     traffic0: () => hide(null, o => /^traffic_/.test(o.name)),
     props0: () => hide([...S.children.filter(o => /^props_/.test(o.name)), ...parts(/^(trees|fences|quays|tram)$/), ...(sys.markets && sys.markets.markets ? sys.markets.markets.flatMap(m => m.meshes || []) : [])], o => /^(market_|fence_)/.test(o.name)),
     build0: () => hide(parts(/^(bldFull|bldLow|lm:)/), o => /^farcity_/.test(o.name)),
@@ -397,6 +401,8 @@ export async function runBench(E) {
     { id: 'hud0', label: 'HUD, page layers hidden', on: V.hud0, free: true },
     { id: 'half', label: 'half render scale', on: V.half, rounds: 2, warm: 5 },
     { id: 'tiny', label: 'render scale 1/8', on: V.tiny, rounds: 2, warm: 5 },
+    { id: 'calls1k', label: '1000 more GL calls', on: V.calls1k, ask: true },
+    { id: 'calls3k', label: '3000 more GL calls', on: V.calls3k, ask: true },
     { id: 'lean0', label: 'engine-lean bypassed', on: V.lean0 },
     { id: 'quick0', label: 'repeat draws not quick', on: V.quick0 },
     { id: 'tree0', label: 'occlusion rays, no tree', on: V.tree0 },
