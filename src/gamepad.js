@@ -121,7 +121,7 @@ export function setupGamepad({ game, car }) {
     cur.classList.add('press'); setTimeout(() => cur.classList.remove('press'), 120);
     const el = document.elementFromPoint(x, y); if (!el) return;
     if (el.tagName === 'CANVAS') { dispatchEvent(new CustomEvent('pd-map-drive', { detail: { x, y, click: true } })); return; }
-    (el.closest('button, [data-map], [role=button], .pd-mp-row') || el).click();
+    (el.closest('button, [data-map], [role=button]') || el).click();
   }
 
   // ---- the poll ----

@@ -30,10 +30,15 @@ for (const [nm, w, h] of [['desktop', 1280, 720], ['tablet', 1024, 768], ['phone
   await p.click('.pd-mp-lg'); await wait(300);
   // tap the tape by Teatro Massimo on the map: its popup names it and has no start button
   const pt = await p.evaluate(({ x, z }) => { const d = window.__pdMap.debug(); return { x: d.W / 2 + (x - d.vx) * d.k, y: d.H / 2 + (z - d.vz) * d.k }; }, t);
-  const cv = await p.evaluate(() => { const c = document.querySelector('.pd-mp-cv').getBoundingClientRect(); return { x: c.x, y: c.y }; });
-  await p.mouse.click(cv.x + pt.x, cv.y + pt.y); await wait(600);
+  const cv = await p.evaluate(() => { const c = document.querySelector('.pd-mp-cv').getBoundingClientRect(); return { x: c.x, y: c.y, s: c.width / window.__pdMap.debug().W }; });   // s: the menus are scaled to the screen (src/viewport.js), so a map pixel is s screen pixels
+  await p.mouse.click(cv.x + pt.x * cv.s, cv.y + pt.y * cv.s); await wait(600);
   console.log(nm, 'tap on a tape', JSON.stringify(await p.evaluate(() => { const q = document.querySelector('.pd-mp-pop'); return { open: !q.hidden, title: q.querySelector('.pd-mp-pt').textContent, sub: q.querySelector('.pd-mp-ps').textContent, button: !q.querySelector('button').hidden }; })));
   await p.screenshot({ path: path.join(out, `bigmap-${nm}-tap.png`) });
+  // tap a start pin (the Cattedrale): its popup opens with the start button
+  await p.mouse.click(cv.x + 5, cv.y + 5); await wait(300);
+  const pin = await p.evaluate(() => window.__pdMap.debug().pins.find(q => /Cattedrale/.test(q.n)));
+  if (pin) { await p.mouse.click(cv.x + pin.x * cv.s, cv.y + (pin.y - 12) * cv.s); await wait(600); console.log(nm, 'tap on a pin', JSON.stringify(await p.evaluate(() => { const q = document.querySelector('.pd-mp-pop'); return { open: !q.hidden, title: q.querySelector('.pd-mp-pt').textContent, button: !q.querySelector('button').hidden }; }))); await p.screenshot({ path: path.join(out, `bigmap-${nm}-pin.png`) }); }
+  else console.log(nm, 'tap on a pin: Cattedrale not among the pins');
 }
 console.log('console errors:', errs.length);
 await b.close(); srv.close?.(); fs.rmSync(udd, { recursive: true, force: true }); process.exit(errs.length ? 1 : 0);

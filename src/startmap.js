@@ -3,8 +3,8 @@
 //   - roads in three tiers, parks / woods / farmland / sand, and a built-up haze come from assets/ui/startmap.json (tools/startmap.py bakes
 //     it from the world tiles, the tiles themselves are far too big to fetch for an overview); the centro's building footprints are D.buildings.
 // Pan (drag), pinch zoom, mouse wheel, +/- buttons. Start points are pins (spots); tap one for a popup with "Parti da qui". A second layer shows
-// the events from missions.events() with their own icons and a show/hide toggle. Pins that would overlap on screen (the Quattro Canti have a dozen places and events within 400 m) are merged
-// into one numbered badge; tap it for a list of the pins under it (tap one for its start popup, or "Zoom in here" for one modest zoom step), they come apart as the map zooms. Redraws only when something changed.
+// the events from missions.events() with their own icons and a show/hide toggle. Every pin shows its own icon: where they pile up (the Quattro Canti have a dozen places and events within 400 m)
+// they come apart as the map zooms. Redraws only when something changed.
 //
 //   const map = createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, onStart });
 //   map.show() / map.hide()      the screen opened / closed (loads the data on first use)
@@ -13,7 +13,6 @@
 //   map.applyLang()              the language changed
 // spots: [{ name, x, z, q }], quarters: [{ name, x, z }], getEvents(): [{ id, kind, name, x, z, night? }], getCar(): { x, z, th } | null.
 
-import { esc } from './esc.js';
 import { drawIcon, ICON_COLOR } from './map-icons.js';   // the same icons as the minimap
 import { vp } from './viewport.js';
 import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter that has its eyes on you, filled (the same as on the minimap)
@@ -29,7 +28,7 @@ const L = {
   tape: ['Cassetta', 'Tape'], tapeGot: ['Cassetta presa', 'Tape collected'], player: ['Altro giocatore', 'Another player'], legend: ['Legenda', 'Legend'],
   here: ['Amunì, paiti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], carro: ['Festino', 'Festino float'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], penna: ['Pinni', 'Pens'], night: ['di notte', 'at night'],
-  zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
+  zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'],
   hintPad: ['Levetta sinistra: muovi · destra: puntatore · A: clicca · LT e RT: zoom · X: eventi · Y: lista', 'Left stick: pan · right stick: pointer · A: click · LT and RT: zoom · X: events · Y: list'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
@@ -52,19 +51,16 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
     <div class="pd-mp-pop" hidden><div class="pd-mp-pt"></div><div class="pd-mp-ps"></div>
       <button class="pd-btn sm drive" type="button" data-nav data-do="mapgo"><span class="pd-in"><span class="pd-l1" data-t="here"></span></span></button></div>
-    <div class="pd-mp-cl" hidden><div class="pd-mp-clt"></div><div class="pd-mp-cll" role="list"></div>
-      <button class="pd-btn sm" type="button" data-nav data-map="clzoom"><span class="pd-in"><span class="pd-l1" data-t="zinh"></span></span></button></div>
     <div class="pd-mp-hint"></div>`;
   const cv = host.querySelector('.pd-mp-cv'), g = cv.getContext('2d');
   cv.style.opacity = '0';   // shown only once every layer is in (the owner, 22 Nov 2026: wait a moment longer rather than see the map fill in)
   const pop = host.querySelector('.pd-mp-pop'), popT = pop.querySelector('.pd-mp-pt'), popS = pop.querySelector('.pd-mp-ps'), hint = host.querySelector('.pd-mp-hint');
   const evBtn = host.querySelector('.pd-mp-ev'), lgBtn = host.querySelector('.pd-mp-lg'), legEl = host.querySelector('.pd-mp-leg');
-  const clEl = host.querySelector('.pd-mp-cl'), clT = clEl.querySelector('.pd-mp-clt'), clList = clEl.querySelector('.pd-mp-cll');
   const li = () => getLang() === 'it' ? 0 : 1;
 
   // ---------- state ----------
   let playersT = 0, W = 0, H = 0, dpr = 1, k = 0.03, vx = 0, vz = 0, kMin = 0.01, shown = false, dirty = false, raf = 0;
-  let sel = null, cl = null, events = [], showEvents = true, evTick = 0, popW = 0, popH = 0, clW = 0, clH = 0, ptrKind = 'mouse';
+  let sel = null, events = [], showEvents = true, evTick = 0, popW = 0, popH = 0, ptrKind = 'mouse';
   try { showEvents = localStorage.getItem(EV_KEY) !== '0'; } catch (e) { /* private mode */ }
   const pins = []; // reused: { x, z, kind: 'spot'|'event', ref }
   let M = null, landPath = null, terrain = null, terrainJob = null, built = null, data = null, loading = false, bldPath = null, haveBld = false;
@@ -188,7 +184,6 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     vx = clamp(vx, b[0], b[2]); vz = clamp(vz, b[1], b[3]);
   }
   function zoomAt(f, px, py) { // keep the world point under (px, py) fixed
-    closeCl();
     const wx = vx + (px - W / 2) / k, wz = vz + (py - H / 2) / k;
     k = clamp(k * f, kMin, K_MAX); vx = wx - (px - W / 2) / k; vz = wz - (py - H / 2) / k;
     clampView(); mark();
@@ -279,72 +274,14 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     for (const s of spots) pins.push({ x: s.x, z: s.z, kind: 'spot', ref: s });
     if (showEvents) for (const e of events) pins.push({ x: e.x, z: e.z, kind: 'event', ref: e });
   }
-  // ---------- clusters: pins closer than CLUSTER_R pixels on screen share one badge (the selected pin always stands alone) ----------
-  const CLUSTER_R = 19, clusters = [];
-  function layout() {
-    clusters.length = 0;
-    const merge = false;   // no numbered badges (the owner, 24 Nov 2026): every pin shows its own icon, and a pile comes apart by zooming in. The badge and its list below are kept but unused
-    for (const p of pins) {
-      const x = sx(p.x), y = sy(p.z); if (x < -40 || y < -50 || x > W + 40 || y > H + 40) continue;
-      let c = null;
-      if (merge && !(sel && sel.ref === p.ref)) for (const q of clusters) if (!q.solo && (q.x - x) ** 2 + (q.y - (y - 12)) ** 2 < CLUSTER_R * CLUSTER_R) { c = q; break; }
-      if (c) { c.m.push(p); c.sx += x; c.sy += y - 12; c.x = c.sx / c.m.length; c.y = c.sy / c.m.length; }
-      else clusters.push({ x, y: y - 12, sx: x, sy: y - 12, m: [p], solo: !!(sel && sel.ref === p.ref) });
-    }
-  }
-  function drawCluster(c) {
-    const n = c.m.length, ev = c.m.some(p => p.kind === 'event'), r = 13 + Math.min(4, n / 6);
-    g.save(); g.translate(c.x, c.y);
-    g.shadowColor = 'rgba(20,8,16,.35)'; g.shadowBlur = 4; g.shadowOffsetY = 2;
-    g.fillStyle = '#e8559a'; g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.shadowColor = 'transparent';
-    g.lineWidth = 2.4; g.strokeStyle = '#fff'; g.stroke();
-    if (ev) { g.fillStyle = '#ffc83d'; g.beginPath(); g.arc(r * 0.72, -r * 0.72, 4.5, 0, 7); g.fill(); g.lineWidth = 1.4; g.strokeStyle = '#0b0709'; g.stroke(); }
-    g.fillStyle = '#fff'; g.font = "700 14px 'Barlow Condensed', system-ui, sans-serif"; g.fillText(String(n), 0, 0.5);
-    g.restore();
-  }
-  // Tap on a badge: a popup lists the pins under it (tap one to open its own start popup) with a "Zoom in" button that takes a modest step towards them
-  // (the map no longer jumps to fit them all). The list scrolls inside the room the map has; it stays on its world point when the map is panned and closes when it is zoomed.
-  const kindColour = p => p.kind === 'spot' ? '#e8559a' : KIND[p.ref.kind] || '#ffc83d';
-  function openCluster(c) {
-    closePop();
-    let wx = 0, wz = 0; for (const p of c.m) { wx += p.x; wz += p.z; } wx /= c.m.length; wz /= c.m.length;
-    const items = c.m.slice().sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'spot' ? -1 : 1) || String(itemOf(a).name).localeCompare(String(itemOf(b).name)));
-    cl = { m: items, wx, wz }; fillCl(); clEl.hidden = false;
-    // the list takes the room there is on the roomier side of the badge (the phone's landscape map is under 300 px high), at least two rows, at most 300 px
-    clList.style.setProperty('--cl-h', '400px'); const fixed = clEl.offsetHeight - clList.offsetHeight, by = sy(wz) - 12;
-    clList.style.setProperty('--cl-h', clamp(Math.max(by - 56 - 28, H - by - 30) - fixed, 88, 300) + 'px');
-    clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); mark();
-  }
-  function fillCl() {
-    if (!cl) return;
-    const n = cl.m.length;
-    clT.textContent = n + ' ' + (n === 1 ? L.place1 : L.places)[li()];
-    clList.innerHTML = cl.m.map((p, i) => { const it = itemOf(p); return `<button class="pd-mp-row" type="button" role="listitem" data-nav data-i="${i}"><i style="background:${kindColour(p)}"></i><span>${esc(it.name)}</span>${it.sub ? `<em>${esc(it.sub)}</em>` : ''}</button>`; }).join('');
-  }
-  function closeCl() { if (!cl) return false; cl = null; clEl.hidden = true; mark(); return true; }
-  function placeCl() {
-    if (!cl || clEl.hidden) return;
-    const x = sx(cl.wx), y = sy(cl.wz) - 12, up = 20, top = y - up - clH - 8 < 56;
-    const px = clamp(x, clW / 2 + 8, W - clW / 2 - 8), py = top ? y + 18 : y - up - 8;
-    clEl.style.transform = `translate(${Math.round(px - clW / 2)}px, ${Math.round(clamp(top ? py : py - clH, 4, Math.max(4, H - clH - 4)))}px)`;
-    clEl.style.setProperty('--tx', clamp(x - (px - clW / 2), 16, clW - 16) + 'px');
-    clEl.classList.toggle('below', top);
-  }
-  function zoomCluster() { // the button: one modest step, centred on the pins under the badge
-    if (!cl) return; const { wx, wz } = cl; closeCl();
-    k = clamp(k * 1.8, kMin, K_MAX); vx = wx; vz = wz; clampView(); mark();
-  }
   const pinLabels = [];   // the places' names are written after every icon is down, so no icon covers a name (without the badges the icons overlap)
   function drawPinLabels() { for (const [str, x, y, size] of pinLabels) text(str, x, y, size, 700, '#3a2a30'); }
   function drawPins() {
     pinLabels.length = 0;
     const sz = clamp(0.8 + k * 1.2, 0.8, 1.15);
-    layout();
-    const order = sel ? clusters.filter(c => c.m[0].ref !== sel.ref).concat(clusters.filter(c => c.m[0].ref === sel.ref)) : clusters;   // the selected pin last, so it is on top of a pile
-    for (const c of order) {
-      if (c.m.length > 1) { drawCluster(c); continue; }
-      const p = c.m[0];
-      const x = sx(p.x), y = sy(p.z);
+    const order = sel ? pins.filter(p => p.ref !== sel.ref).concat(pins.filter(p => p.ref === sel.ref)) : pins;   // the selected pin last, so it is on top of a pile
+    for (const p of order) {
+      const x = sx(p.x), y = sy(p.z); if (x < -40 || y < -50 || x > W + 40 || y > H + 40) continue;
       const on = sel && sel.ref === p.ref;
       g.save(); g.translate(x, y); g.scale(on ? sz * 1.25 : sz, on ? sz * 1.25 : sz);
       if (p.kind === 'spot') {
@@ -428,7 +365,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (data && !haveBld) centroBuildings();
     if (dirty) draw();
     if (cv.style.opacity === '0' && isReady()) cv.style.opacity = '';   // the first frame with everything drawn
-    placePop(); placeCl();
+    placePop();
     if (terrainJob || !M || !data || !isReady()) schedule();
   }
 
@@ -442,11 +379,11 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     pop.classList.toggle('below', top);
   }
   function openPop(item, focus) {
-    closeCl(); sel = item; fillPop(); pop.hidden = false;
+    sel = item; fillPop(); pop.hidden = false;
     popW = pop.offsetWidth; popH = pop.offsetHeight; placePop(); mark();
     if (focus && sel.kind !== 'thing') pop.querySelector('button').focus({ preventScroll: true });
   }
-  function closePop() { const c = closeCl(); if (!sel) return c; sel = null; pop.hidden = true; mark(); return true; }
+  function closePop() { if (!sel) return false; sel = null; pop.hidden = true; mark(); return true; }
   function fillPop() {
     if (!sel) return;
     popT.textContent = sel.name;
@@ -455,12 +392,11 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     const lab = L[sel.kind === 'event' ? 'there' : 'here'];   // a mission does not start from here: the game asks on arrival (src/ui.js)
     pop.querySelector('.pd-l1').textContent = lab[li()];   // one language: the one shown
   }
-  function pick(px, py, thr) { // a pin, or a cluster badge ({ m: [pins] })
-    layout();
+  function pick(px, py, thr) { // the pin nearest to the point (its head, 12 px above its tip)
     let best = null, bd = thr * thr;
-    for (const c of clusters) {
-      const y = c.m.length > 1 ? c.y : c.y + (c.m[0].kind === 'event' ? -2 : 0), d = (c.x - px) * (c.x - px) + (y - py) * (y - py);
-      if (d <= bd) { bd = d; best = c.m.length > 1 ? c : c.m[0]; }
+    for (const p of pins) {
+      const d = (sx(p.x) - px) ** 2 + (sy(p.z) - (p.kind === 'event' ? 14 : 12) - py) ** 2;
+      if (d <= bd) { bd = d; best = p; }
     }
     return best;
   }
@@ -497,7 +433,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (tap && !tap.moved && e.type === 'pointerup' && performance.now() - tap.t < 700) {
       const hit = pick(tap.x, tap.y, ptrKind === 'mouse' ? 18 : 26);
       const thing = pickThing(tap.x, tap.y, ptrKind === 'mouse' ? 9 : 14);   // a tap right on a tape or a stall is for it, even under a pin's badge; anywhere else near a pin is for the pin
-      if (thing) openPop({ ...thing }, false); else if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop();
+      if (thing) openPop({ ...thing }, false); else if (hit) openPop(itemOf(hit), false); else closePop();
       if (!legEl.hidden) toggleLegend(false);
     }
     tap = null;
@@ -505,14 +441,12 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)), e.offsetX, e.offsetY); }, { passive: false });
   cv.addEventListener('dblclick', e => zoomAt(2, e.offsetX, e.offsetY));
-  clList.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.pd-mp-row'); if (!b || !cl) return; const p = cl.m[+b.dataset.i]; if (p) openPop(itemOf(p), false); });
   host.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('[data-map]'); if (!b) return;
     if (b.dataset.map === 'zin') zoomAt(1.6, W / 2, H / 2);
     else if (b.dataset.map === 'zout') zoomAt(1 / 1.6, W / 2, H / 2);
     else if (b.dataset.map === 'events') toggleEvents();
     else if (b.dataset.map === 'legend') toggleLegend();
-    else if (b.dataset.map === 'clzoom') zoomCluster();
   });
   // the legend: every icon of the two maps with its name, drawn by the same code as the map
   function fillLegend() {
@@ -551,7 +485,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     const d = e.detail, r = cv.getBoundingClientRect(), px = (d.x - r.left) / vp.z, py = (d.y - r.top) / vp.z;
     if (d.dx || d.dy) pan(d.dx, d.dy);
     if (d.zoom && d.zoom !== 1) zoomAt(d.zoom, px, py);
-    if (d.click) { const hit = pick(px, py, 18); if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop(); }
+    if (d.click) { const hit = pick(px, py, 18); if (hit) openPop(itemOf(hit), false); else closePop(); }
   });
   function setHint() { hint.textContent = (document.documentElement.classList.contains('pd-gp') ? L.hintPad : L.hint)[li()]; }   // the pad's buttons while a pad is in use (src/gamepad.js)
   addEventListener('pd-padmode', setHint);
@@ -566,7 +500,6 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     buildThings(); if (!legEl.hidden) fillLegend();
     host.querySelector('.pd-mp-pop .pd-l1').textContent = L.here[li()];
     if (sel) { sel = itemOf({ kind: sel.kind, ref: sel.ref, x: sel.x, z: sel.z }); fillPop(); }
-    if (cl) { fillCl(); clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); }
     mark();
   }
 
@@ -585,7 +518,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     hide() { shown = false; clearInterval(playersT); closePop(); toggleLegend(false); if (raf) { cancelAnimationFrame(raf); raf = 0; } cv.width = cv.height = 1; },   // a full-screen canvas is 15 MB at pixel ratio 2: show() sizes it again
     resize,
     applyLang,
-    isOpenPop: () => !!sel || !!cl,
+    isOpenPop: () => !!sel,
     closePop,
     key(code, shift) {
       const step = 60;
@@ -604,6 +537,6 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     whenReady,
     startSelected() { if (sel && sel.kind !== 'thing' && onStart) onStart(sel.x, sel.z, sel); },
     // test hook (?mapdebug): view state and the screen position of every pin
-    debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, clusters: (layout(), clusters.map(c => ({ n: c.m.length, x: Math.round(c.x), y: Math.round(c.y) }))), pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
+    debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
   };
 }
