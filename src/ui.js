@@ -8,7 +8,7 @@
 // Everything is created from JS (styles in ui.css). Debug/test links: ?ui=menu|options|credits|spots
 // opens that screen (?ui=missions the Missioni list, ?ui=none hides the shell, ?rs=PX pre-scrolls the credits), ?play&ui=pause opens the side menu (?ui=collections the Collezioni
 // card, ?ui=start the picker, &view=list its list), ?tt=SECONDS shifts the title flyover, ?lang=en|it, ?ui=garage (with ?fakeliv to stub vehicle.LIVERIES),
-// ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls) until the events work lands.
+// ?fakeevents stubs missions.events() with a few pins (and ?fakeprogress the progress calls, the Cassette list too) until the events work lands.
 
 import { setupGarageUI, cleanName, readName, writeName } from './garage-ui.js';
 import { vp } from './viewport.js';   // the one measured size of the page (menus scale from it)
@@ -48,7 +48,7 @@ const S = {
   collections: ['Collezioni', 'Collections'],
   radioNext: ['Cambia brano', 'Next track'], radioPower: ['Radio accesa o spenta', 'Radio on or off'],
   qCam: ['Camera', 'Camera'], qReset: ['In strada', 'On the road'], qFull: ['Schermo', 'Screen'],
-  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
+  colSuca: ['Graffiti SUCA e 800A', 'SUCA and 800A tags'], colTapes: ['Cassette', 'Tapes'], tapeLbl: ['Cassetta', 'Tape'], tapePlay: ['Ascolta', 'Play'], colSecrets: ['Segreti', 'Secrets'], colFood: ['Cibo ritrovato', 'Food found'], colRaces: ['Corse vinte', 'Races won'], colFares: ['Clienti portati', 'Fares driven'],
   colNone: ['Ancora niente', 'Nothing yet'],
   missions: ['Missioni', 'Missions'], mDone: ['completate', 'completed'], mGo: ['Amunì', 'Go'],
   mKick: ['Missione', 'Mission'], mStart: ['Comincia missione', 'Start mission'], mNotNow: ['No mi siddia', 'Not now'],   // the card that asks whether to start (the owner's words)
@@ -63,7 +63,7 @@ const S = {
   volume: ['Volume', 'Volume'],
   musicVolume: ['Musica', 'Music'],
   radio: ['Radio', 'Radio'],
-  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], sessantaNoteT: ['Sessanta SeCunti', 'Sessanta SeCunti'], sessantaNote: ['Sessanta sicunni ri palermitanu, ri Dario Cascio, The Sicilian Wanderer.', 'Sixty seconds of Palermitan, by Dario Cascio, The Sicilian Wanderer.'], stationDario: ['Sessanta SeCunti è di Dario Cascio, The Sicilian Wanderer: Talìa u canali', 'Sessanta SeCunti is by Dario Cascio, The Sicilian Wanderer: watch the channel'], stationAll: ['Musica e voci palermitane', 'Music and voices from Palermo'], stationRights: ['Tutti i brani e gli audio restano di proprietà dei rispettivi artisti, autori e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica e la lingua palermitana. Per un credito diverso o la rimozione di un brano o di un audio scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs and recordings remain the property of their artists, authors and rights holders, played without profit to support the music and the language of Palermo. To have a song or recording credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
+  radioOn: ['Accesa', 'On'], radioOff: ['Spenta', 'Off'], station: ['Stazione', 'Station'], stationAll: ['Musica e voci palermitane', 'Music and voices from Palermo'], stationRights: ['Tutti i brani e gli audio restano di proprietà dei rispettivi artisti, autori e titolari dei diritti, e sono trasmessi senza scopo di lucro per far conoscere la musica e la lingua palermitana. Per un credito diverso o la rimozione di un brano o di un audio scrivi su Instagram a @izzy88izzy. I dettagli sono nei Crediti.', 'All songs and recordings remain the property of their artists, authors and rights holders, played without profit to support the music and the language of Palermo. To have a song or recording credited differently or removed, write on Instagram to @izzy88izzy. Details are in the Credits.'], onAir: ['In onda', 'On air'],
   tabAudio: ['Audio e radio', 'Audio & radio'], tabDrive: ['Guida e camera', 'Driving & camera'], tabTime: ['Tempo', 'Time'], tabMore: ['Altro', 'More'], radioStation: ['Cambia stazione', 'Change station'], radioVideo: ['Talìa u video', 'Watch the video'], radioChannel: ['Talìa u canali', 'Watch the channel'],
   units: ['Unità', 'Units'],
   camera: ['Camera', 'Camera'],
@@ -310,7 +310,7 @@ function creditsMarkdown(md, base) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
+export function setupUI({ cloud, game, applySettings, missions, suca, tapes, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
   if (params.get('layers') === '0') root.classList.add('pd-flat');   // test switch: the HUD's zones and the pads are not layers of their own (src/ui.css, .hz)
@@ -405,7 +405,6 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
       <div class="pd-lab"><span data-k="${o.label}" data-two></span><span class="pd-stallrow"><small class="pd-stall" data-k="stationAll"></small><button class="pd-stinfo" type="button" aria-expanded="false" aria-label="Diritti della musica · Music rights" title="Diritti della musica · Music rights">i</button></span></div>
       <div class="pd-seg pd-stcards" role="group">${STATIONS.map(x => `<button class="pd-segb pd-stcard" data-nav type="button" data-v="${x.id}" aria-pressed="false"><span><b>${esc(x.name)}</b><small data-stsub="${x.id}"></small><i data-k="onAir"></i></span></button>`).join('')}</div>
       <p class="pd-stnote" hidden data-k="stationRights"></p>
-      <a class="pd-stdario" href="https://www.youtube.com/@TheSicilianWanderer" target="_blank" rel="noopener noreferrer">${ICON_YT}<span data-k="stationDario"></span></a>
     </div>`;
   const rowHTML = o => o.key === 'radioStation' ? stationHTML(o) : `<div class="pd-row" data-opt="${o.key}">
       <div class="pd-lab"><span data-k="${o.label}" data-two></span>${o.type === 'slider' ? '<span class="pd-val"></span>' : ''}</div>
@@ -556,16 +555,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   const onFs = () => { fsBtn.innerHTML = document.fullscreenElement || document.webkitFullscreenElement ? ICON_EXIT : ICON_FULL; };
   document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
   if (params.has('campos') && !params.has('hud')) ui.hidden = true; // free-camera screenshots: no shell on top
-  // the first time the Sessanta SeCunti station is on air: a small dismissable card under the bar that says whose it is and links to his channel (remembered, once)
-  const NOTE_KEY = 'palermoDrive.sessantaNote.v1';
-  const note = h('div', 'pd-stnotice', `<button class="pd-stnx" type="button" aria-label="Chiudi · Close">×</button><b data-k="sessantaNoteT"></b><span data-k="sessantaNote"></span><a href="https://www.youtube.com/@TheSicilianWanderer" target="_blank" rel="noopener noreferrer">${ICON_YT}<span data-k="radioChannel"></span></a>`);
-  note.hidden = true;
-  let noteT = 0;
-  const noteSeen = () => { try { return localStorage.getItem(NOTE_KEY) === '1'; } catch (e) { return false; } };
-  const noteDone = () => { note.hidden = true; clearTimeout(noteT); try { localStorage.setItem(NOTE_KEY, '1'); } catch (e) { /* storage unavailable: it may show again */ } };
-  note.querySelector('.pd-stnx').addEventListener('click', e => { e.stopPropagation(); noteDone(); });
-  function maybeNote(v) { if (v && v.station === 'sessanta' && v.mode === 'on' && note.hidden && !noteSeen()) { note.hidden = false; for (const e of note.querySelectorAll('[data-k]')) applyLangTo(e); clearTimeout(noteT); noteT = setTimeout(noteDone, 16000); } }
-  ui.append(bar, note, fsBtn);
+  ui.append(bar, fsBtn);
   // The menu layer is laid out bigger than the screen and scaled down (src/viewport.js, #pd-ui in ui.css). A fixed box bigger than the screen made Chrome and DuckDuckGo on
   // iPhone shift the page off the notch side (a light strip on the left): this frame, exactly the screen and clipping, holds it so nothing reaches past the screen.
   const uiFrame = h('div', '', null, { id: 'pd-uiframe' }); uiFrame.append(ui); document.body.append(uiFrame);
@@ -853,7 +843,6 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     const link = v && v.mode !== 'off' ? v.link || '' : '';   // a station of someone's own channel: the button for the song's video, or the channel
     for (const b of ui.querySelectorAll('.pd-byt')) { b.hidden = !link; if (link) { b.href = link; const t = link.includes('/shorts/') ? S.radioVideo[i] : S.radioChannel[i]; b.setAttribute('aria-label', t); b.title = t; } }
     bar.dataset.yt = link ? '1' : '';
-    maybeNote(v);
     if (v && v.station && lastStation && v.station !== lastStation && cur == null) openBar(true);   // a new station: the bar opens on it for a few seconds, its name under the title
     if (v && v.station) lastStation = v.station;
     slideTo(barS, label, 0); slideTo(barT, title, 70); slideTo(barA, v ? v.artist || '' : '', 140); bar.classList.toggle('loading', !!(v && v.loading)); bar.dataset.theme = v ? v.theme : ''; bar.dataset.mode = mode; bar.title = [label, title, sub].filter(Boolean).join(' · ');
@@ -1002,15 +991,28 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
   const colRows = screens.collections.querySelector('.pd-colrows'), fakeProg = params.has('fakeprogress');
   const sucaProgress = () => suca?.progress?.() || (fakeProg ? { found: 14, total: 800 } : null);
   const missionProgress = () => missions?.progress?.() || (fakeProg ? { food: { done: 1, total: 4 }, races: { won: 2, total: 5 }, fares: 7 } : null);
+  const FAKE_TAPES = Array.from({ length: 31 }, (_, n) => ({ id: 'fake' + n, title: 'Cassetta ' + (n + 1), place: 'Piazza di prova ' + (n + 1), quartiere: ['Kalsa', 'Capo', 'Zisa', 'Ballar\u00f2'][n % 4], link: 'https://www.youtube.com/shorts/fake' + n, found: n % 3 === 0 || n === 30 }));   // test stub: 31 like the real list, every third found
+  const tapeProgress = () => fakeProg ? { found: FAKE_TAPES.filter(x => x.found).length, total: FAKE_TAPES.length } : tapes?.progress?.() || null;   // (with ?fakeprogress the stub wins: the real list may be all unfound)
+  const tapeList = () => fakeProg ? FAKE_TAPES : tapes?.list?.() || [];
+  let tapeView = null;   // the radio's last view: the tape that is on now is marked in the list (a tape plays with the label "Cassetta" / "Tape")
+  function markTape() {
+    const on = tapeView && tapeView.mode === 'on' && S.tapeLbl.includes(tapeView.label) ? tapeView.title : null;
+    for (const r of colRows.querySelectorAll('.pd-tape')) r.classList.toggle('run', on != null && r.dataset.title === on);
+  }
+  addEventListener('pd-radio', e => { tapeView = e.detail; markTape(); });
   function renderCollections() {
-    const i = lang === 'it' ? 0 : 1, sp = sucaProgress(), mp = missionProgress();
+    const i = lang === 'it' ? 0 : 1, sp = sucaProgress(), mp = missionProgress(), tp = tapeProgress();
     const bar = (label, done, total, note) => `<div class="pd-col"><div class="pd-colh"><span>${esc(label)}</span><b>${done == null ? '-' : total ? `${done} / ${total}` : done}</b></div>${total ? `<div class="pd-colbar"><i style="width:${Math.round(clamp(done / total, 0, 1) * 100)}%"></i></div>` : ''}${note ? `<div class="pd-colnote">${esc(note)}</div>` : ''}</div>`;
     colRows.innerHTML = bar(S.colSuca[i], sp && sp.found, sp && sp.total)
       + bar(S.colFood[i], mp && mp.food && mp.food.done, mp && mp.food && mp.food.total)
       + bar(S.colRaces[i], mp && mp.races && mp.races.won, mp && mp.races && mp.races.total)
       + bar(S.colFares[i], mp && mp.fares, 0)
+      + (tp ? bar(S.colTapes[i], tp.found, tp.total) + `<div class="pd-tapes">${tapeList().map(x => x.found
+        ? `<div class="pd-tape on" data-title="${esc(x.title)}"><button class="pd-tapeb" data-nav data-tape="${esc(x.id)}" type="button" aria-label="${esc(S.tapePlay[i] + ': ' + x.title)}">${ICON_PLAY}<span class="pd-tapem"><span class="pd-tapen">${esc(x.title)}</span><span class="pd-tapep">${esc(x.place)}</span></span></button><a class="pd-tapeyt" data-nav href="${esc(x.link)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(S.radioVideo[i])}" title="${esc(S.radioVideo[i])}">${ICON_YT}</a></div>`
+        : `<div class="pd-tape"><span class="pd-tapem"><span class="pd-tapen">???</span><span class="pd-tapep">${esc(x.quartiere)}</span></span></div>`).join('')}</div>` : '')
       + (mp && mp.secrets && mp.secrets.length ? `<div class="pd-colh pd-sech"><span>${S.colSecrets[i]}</span><b>${mp.secrets.filter(x => x.on).length} / ${mp.secrets.length}</b></div>`   // secrets: a locked card shows only "???" (src/achievements.js)
         + mp.secrets.map(x => `<div class="pd-col pd-sec ${x.on ? 'on' : 'lock'}"><div class="pd-colh"><span>${x.on ? esc(x.title[i]) : '???'}</span><b>${x.on ? '\u2605' : ''}</b></div>${x.on ? `<div class="pd-colnote">${esc(x.note[i])}</div>` : ''}</div>`).join('') : '');
+    markTape();
   }
 
   // ---- start picker ("Da dove parti?"): the city map or a list grouped by quartiere. Both start through startAt(). ----
@@ -1411,6 +1413,7 @@ export function setupUI({ cloud, game, applySettings, missions, suca, getRadio, 
     if (t.classList.contains('pd-s-title')) { gesture(); return go('menu'); }
     if (t.dataset.v != null) { const o = OPTS.find(x => x.key === t.closest('[data-opt]').dataset.opt); return setOpt(o.key, typeof o.vals[0][0] === 'number' ? +t.dataset.v : t.dataset.v); }
     if (t.dataset.pt != null) return startFromList(t.dataset.pt);
+    if (t.dataset.tape != null) return void tapes?.play?.(t.dataset.tape);   // the radio then announces the tape ('pd-radio') and the row is marked
     if (t.dataset.go != null) return askGo(t.dataset.go);
     if (t.dataset.grp != null) return toggleGroup(t.dataset.grp);
     if (t.dataset.ask != null) return answerAsk(t.dataset.ask);

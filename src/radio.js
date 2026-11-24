@@ -97,57 +97,13 @@ const PALIFORNIA = [   // [id, title, artist]
   ['mario-bajardi-aura', 'Aura', 'Mario Bajardi'],
   ['loro-my-girlfriend-is-a-nazi-zombie', 'My girlfriend is a nazi zombie', 'Loro'],
 ].map(([id, title, by]) => ({ id, title, by }));
-// Radio Sessanta SeCunti: the "Sessanta SeCunti" YouTube Shorts of Dario Cascio (The Sicilian Wanderer), the audio of his 40 most viewed ones, played with his authorization (23 Nov 2026).
-// Each track is also the Short it comes from: the bar and the menu panel show a small YouTube button for it (view.link). Credits: assets/music/CREDITS.md.
-const SESSANTA_BY = 'Dario Cascio - Sicilian Wanderer', SESSANTA_CHANNEL = 'https://www.youtube.com/@TheSicilianWanderer';
-const SESSANTA = [   // [id after "sessanta-" (the file is sessanta-<id>.m4a), title, YouTube Short id]
-  ['mose-a-mondello', 'Mosè a Mondello', 'FDz8y6Q_CTU'],
-  ['a-mmari-semu', 'A Mmari Semu', 'vsSD2NtWf8Q'],
-  ['frischi-e-pirita', 'Frischi e Pirita', 'H6W-4R6tdTk'],
-  ['chi-cosa-tinta', 'Chi Cosa Tinta', 'rWeAgMhOpKs'],
-  ['vuci-luntani', 'Vuci Luntani', '3XWhNzO-Az4'],
-  ['capruna', 'Capruna', 'so0rvJp-sqA'],
-  ['par-aieri', 'Par\'Aieri', 'ZZUKLR7RBIY'],
-  ['lagnusu', 'Lagnusu', '1w5zxYhe-6Q'],
-  ['grazzi-santuzza', 'Grazzi Santuzza', 'lj3VFS0ua0Y'],
-  ['broru', 'Broru', 'PM8ZXYgfj3A'],
-  ['quattr-e-rui', 'Quattr\'e Rui', 'ws6urQ_OqnY'],
-  ['san-martino', 'San Martino', 'Bq4qdN8iC0A'],
-  ['ligna-e-crape', 'Ligna e Crape', 'YzxITU6KOj8'],
-  ['u-zu-vanni', 'U Zu Vanni', 'B659BZFu-2o'],
-  ['sauta-a-jatta', 'Sauta A Jatta?', 'faboWgCwnZo'],
-  ['empedocle', 'Empedocle', 'hOMeIA5lWrQ'],
-  ['cu-t-addifenni-palermo', 'Cu T\'Addifenni, Palermo?', 'bBrRPW1RXes'],
-  ['ma-comu-finiu', 'Ma Comu Finiu?', '1ZhHW49HKzU'],
-  ['tu-no', 'Tu No', 'uD4aJ7fcGGM'],
-  ['san-giovanni', 'San Giovanni', 'FwE4z-J5ET4'],
-  ['don-pitruzzu-all-opira', 'Don Pitruzzu All\'Opira', 'qgnpnToLXpo'],
-  ['fera', 'Fera', 'HGHneSwt6VI'],
-  ['sparatrap', 'Sparatrap', 'E5H88Bbl440'],
-  ['bandita', 'Bandita', 'XtOKjL1jZC8'],
-  ['cafiata', 'Cafiata', 'xQ5wn7-Onio'],
-  ['via-del-4-aprile', 'Via del 4 Aprile', '11m3KRlNRWI'],
-  ['italianissa', 'Italianissa', 'F6r-wZup8QY'],
-  ['300-liri', '300 Liri', '0ZYTb-eORGc'],
-  ['lucia-lucia', 'Lucia Lucia', 'H5o59Lx3BdY'],
-  ['a-micce', 'A Miccè', '9IfEO9ROE8Q'],
-  ['a-fiera-ru-mediterraneo', '\'A Fiera Ru Mediterraneo', 'ow-vSIA46dE'],
-  ['mali-vistuti', 'Mali Vistuti', 'thE3pk5a4HU'],
-  ['palermitanismi', 'Palermitanismi', 'AHRGBRCbN3g'],
-  ['milicia', 'Milicia', 'eWi4T94tNdE'],
-  ['a-schifiu-finiu', 'A Schifiu Finiu', 'b2Pjv0kEgbA'],
-  ['ammucca-lapuni', 'Ammucca Lapuni', 'TfBr1VDNDd8'],
-  ['sarde', 'Sarde', 'BYtnZevxQXY'],
-  ['villa-gardenia', 'Villa Gardenia', 'n6XSXv93LtA'],
-  ['scarpuzzi', 'Scarpuzzi', 'x09GKDhFzyM'],
-  ['pinu-tagghiacapiddi', 'Pinu Tagghiacapiddi', '3-R0r9P3sPg'],
-].map(([id, title, v]) => ({ id: 'sessanta-' + id, title, by: SESSANTA_BY, link: 'https://www.youtube.com/shorts/' + v }));
+// The credit line of the tapes (src/tapes-data.js): the Sessanta SeCunti YouTube Shorts of Dario Cascio (The Sicilian Wanderer), used with his authorization (23 Nov 2026). Credits: assets/music/CREDITS.md.
+export const SESSANTA_BY = 'Dario Cascio - Sicilian Wanderer';
 // The stations, in the order the station button goes through them. name: what the bar and the menu panel show before a track starts.
 export const STATIONS = [
   { id: 'abbanniata', name: 'Radio Abbanniata', sub: ['Musica popolare', 'Folk and popular'], tracks: TRACKS },
   { id: 'lamiera', name: 'Radio Lamiera', sub: ['Rock & metal', 'Rock & metal'], tracks: LAMIERA },   // sub: draft
   { id: 'palifornia', name: 'Radio Palifornia', sub: ['Rap, funk & rock', 'Rap, funk & rock'], tracks: PALIFORNIA },   // sub: draft
-  { id: 'sessanta', name: 'Sessanta SeCunti', sub: ['Sessanta sicunni ri palermitanu', 'Sixty seconds of Palermitan'], tracks: SESSANTA, link: SESSANTA_CHANNEL },   // sub: draft
 ];
 
 const XFADE = 4;          // seconds of overlap when a track runs out
@@ -162,6 +118,7 @@ const T = {   // [italiano, english]
   off: ['Radio spenta', 'Radio off'],
   idle: ['Tocca per ascoltare', 'Tap to listen'],
   offSub: ['Accendila col tasto', 'Switch on with the button'],
+  tape: ['Cassetta', 'Tape'],
 };
 
 let instance = null;
@@ -199,6 +156,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   let outer = 1;   // duckFor(k): other music nearby (a pub's song, src/pubs.js) turns the radio down without touching the player's volume
   let bag = [], last = -1, upcoming = null;
   let mem = null;   // a pause or a hand-over to a pub song: { track } on slots[cur] (its element keeps the position); resuming goes on there. Only next, or a track that ends, moves on
+  let tape = null, tapeOnly = false;   // playTape(): the tape on air (null when a station track is); tapeOnly: the radio is off in the saved setting and is on for this tape alone
   let pend = false; // something asked to play while a pub song or the stadium had the line: starts when it is released
   const srcOf = track => musicUrl(track.id + '.m4a');
 
@@ -263,7 +221,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   }
   function preloadNext() {
     const idle = slots[cur ^ 1];
-    if (idle.playing) return;   // still fading out
+    if (idle.playing || tapeOnly) return;   // still fading out; or a tape alone (nothing follows it)
     if (!upcoming) upcoming = pick();
     load(idle, upcoming);
   }
@@ -273,6 +231,10 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     if (!started || !enabled) return;
     if (document.hidden) return;
     if (taken) { pend = true; return; }   // a pub's own song (or the stadium) has the line: the radio stays silent until it is released
+    if (tape && upcoming !== tape) {   // the tape ran out or was skipped: the station carries on, or the radio goes back off when it was on for the tape alone
+      tape = null;
+      if (tapeOnly) { tapeOnly = false; enabled = false; mem = null; stopAll(fadeSec); sync(); return; }
+    }
     mem = null; pend = false;
     const old = slots[cur];
     cur ^= 1;
@@ -343,6 +305,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   }
   function setEnabled(on, save = true) {
     on = !!on;
+    if (tapeOnly) { tapeOnly = false; if (!on) { tape = null; mem = null; } }   // the player takes the switch: the radio is on or off for real now
     if (save) persist({ radio: on ? 'on' : 'off' }); else settings.radio = on ? 'on' : 'off';
     if (on === enabled) return;
     enabled = on;
@@ -426,7 +389,7 @@ export function createRadio({ game, stations = STATIONS } = {}) {
     const l = langNow();
     const mode = !enabled ? 'off' : (!started || blocked) ? 'idle' : (slots[cur].playing && slots[cur].track) ? 'on' : 'idle';
     const track = mode === 'on' ? slots[cur].track : null;
-    setView({ mode, label: station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id, loading: mode === 'on' && slots[cur].buffering, link: (track && track.link) || station.link || '' });
+    setView({ mode, label: track && track === tape ? T.tape[l] : station.name, title: track ? track.title : mode === 'off' ? T.off[l] : T.idle[l], sub: track ? track.by : mode === 'off' ? T.offSub[l] : station.sub[l], artist: track ? track.by : '', theme: '', station: station.id, loading: mode === 'on' && slots[cur].buffering, link: (track && track.link) || station.link || '' });
   }
   const onTrack = () => sync();
 
@@ -434,7 +397,8 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   window.addEventListener('pd-music-setting', () => {
     if (Number.isFinite(settings.musicVolume)) volume = clamp(settings.musicVolume, 0, 1);
     const on = settings.radio !== 'off';
-    if (on !== enabled) { enabled = on; if (started) { if (on) resume(SKIP_FADE); else { hold(OFF_FADE); sync(); } } }
+    if (tapeOnly && on) tapeOnly = false;
+    if (!tapeOnly && on !== enabled) { enabled = on; if (started) { if (on) resume(SKIP_FADE); else { hold(OFF_FADE); sync(); } } }
     if (settings.radioStation && settings.radioStation !== station.id) setStation(settings.radioStation);
   });
 
@@ -465,8 +429,18 @@ export function createRadio({ game, stations = STATIONS } = {}) {
   const timer = setInterval(tick, 100);
   tick();
 
+  // playTape(track = { id, title, by, link }): a collected tape (src/tapes.js) plays now through the same crossfade. False when it cannot: the first gesture has not started the radio, the page is
+  // hidden, or a pub's song or the stadium has the line. A radio that is off comes on for the tape alone and goes back off when it ends or is skipped, without touching the saved switch.
+  function playTape(track) {
+    if (!track || !started || taken || document.hidden) return false;
+    if (!enabled) { tapeOnly = true; enabled = true; }
+    tape = track; upcoming = track;
+    playTrack(SKIP_FADE);
+    return true;
+  }
+
   instance = {
-    next, toggle, setEnabled, setVolume, unlock, setStation, stations,
+    next, playTape, toggle, setEnabled, setVolume, unlock, setStation, stations,
     get station() { return station.id; },
     // takeover({ label, title, artist, theme: 'metal' | 'match', lock }): a pub or a scene borrows the line. The three strings replace the label, the title and the credits line in the bar and the panel (src/ui.js);
     // theme 'metal' is the dark red look, 'match' rosanero and black (La partita). lock: true also stops the next-track key (M) while it lasts; retext({ label, title, artist }) changes the lines live.

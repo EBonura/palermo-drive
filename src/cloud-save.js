@@ -1,5 +1,5 @@
 // Cloud save: your progress follows you. The browser makes a random secret code the first time and, from then on, uploads what the game keeps in localStorage (the Garage, the missions and
-// events, the secrets, the SUCA tags, the stadium best, the name, the options and the driver) by itself: a few seconds after something changes, and when the page goes away. Nothing to
+// events, the secrets, the SUCA tags, the stadium best, the cassette tapes, the name, the options and the driver) by itself: a few seconds after something changes, and when the page goes away. Nothing to
 // sign up for. The same code typed in Options on another device (or after the browser's data was cleared) brings the save back. The server (relay-worker/src/save.rs and sglue.rs) keeps
 // one small object per code, in the EU, hashed so the code itself is not stored, and deletes it after a year without a write; Options has a button that deletes it at once.
 //
@@ -15,7 +15,7 @@ import { RELAY_URL } from './online/relay-url.js';
 import { getLang } from './lang.js';
 
 const STORE = 'palermoDrive.cloud.v1';
-const KEYS = ['palermoDrive.garage.v1', 'palermoDrive.events.v1', 'palermoDrive.secrets.v1', 'palermoDrive.suca', 'palermoDrive.stadium.best.v1', 'palermoDrive.settings.v1'];
+const KEYS = ['palermoDrive.garage.v1', 'palermoDrive.events.v1', 'palermoDrive.secrets.v1', 'palermoDrive.suca', 'palermoDrive.stadium.best.v1', 'palermoDrive.tapes.v1', 'palermoDrive.settings.v1'];   // the options stay last: KEYS.slice(0, -1) is the progress
 const NET = 'palermoDrive.net.v1', DRIVER = 'pd.driver';
 const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const PERIOD = 3000, MIN_GAP = 12000, FIRST_AFTER = 20000, RETRY = 40000;
@@ -42,7 +42,7 @@ export function createCloudSave() {
   const now = () => Date.now();
 
   // ---------- what is saved ----------
-  const progress = () => KEYS.slice(0, 5).some(k => rd(k) !== null);   // anything worth keeping (the options alone are not)
+  const progress = () => KEYS.slice(0, -1).some(k => rd(k) !== null);   // anything worth keeping (the options alone are not)
   function snapshot() {
     const e = {};
     for (const k of KEYS) { const v = rd(k); if (v !== null) e[k] = v; }
@@ -53,10 +53,10 @@ export function createCloudSave() {
     const g = parse(rd(KEYS[0])), cash = g && Number.isFinite(g.cash) ? Math.max(0, Math.round(g.cash)) : 0;
     return { blob: JSON.stringify({ v: 1, e }), cash, png };
   }
-  const scoreOf = e => {   // roughly how far a save has got: what is owned, the events done, the secrets, the tags, and the money
+  const scoreOf = e => {   // roughly how far a save has got: what is owned, the events done, the secrets, the tags and the cassette tapes, and the money
     const n = (k, f) => { const o = parse(e[k]); return o && typeof o === 'object' ? f(o) : 0; };
     const cnt = o => Object.keys(o).length;
-    return n(KEYS[0], g => cnt(g.owned || {}) * 10 + Math.max(0, g.cash || 0) / 100) + n(KEYS[1], p => cnt(p.done || {}) * 10 + (p.fares || 0)) + n(KEYS[2], cnt) * 5 + n(KEYS[3], o => (Array.isArray(o) ? o.length : cnt(o)));
+    return n(KEYS[0], g => cnt(g.owned || {}) * 10 + Math.max(0, g.cash || 0) / 100) + n(KEYS[1], p => cnt(p.done || {}) * 10 + (p.fares || 0)) + n(KEYS[2], cnt) * 5 + n(KEYS[3], o => (Array.isArray(o) ? o.length : cnt(o))) + n(KEYS[5], o => (Array.isArray(o) ? o.length : 0));
   };
 
   // ---------- the server ----------

@@ -35,6 +35,7 @@ import { createStadium } from './stadium.js';   // the Barbera's crowd cheers wh
 import { createRoadWear } from './roadwear.js';
 import { createHorn } from './horn.js';
 import { createSuca } from './suca.js'; // SUCA wall tags to collect (src/suca.js)
+import { createTapes } from './tapes.js'; // cassette tapes to collect, each plays a Short (src/tapes.js)
 import { createSea } from './sea.js';
 import { createRadio } from './radio.js';
 import { POI_SPOTS } from './pub-places.js';
@@ -461,6 +462,9 @@ const net = (typeof __PD_ONLINE__ === 'undefined' || __PD_ONLINE__) && params.ge
 const playlog = createPlayLog({ game, car, renderer, perf, getName: () => net.statsName?.() || '', getPlayers: () => net.players?.().length || 0, getMissionId: () => missions.state?.ev?.slot?.id, getShadow: () => renderer.shadowMap.enabled ? sun.shadow.mapSize.x : 0, getGfx: () => params.get('gfx') || 'high' });
 const suca = createSuca({ scene, D, skip: ctx.skip, drivable: DRIVABLE, mapMarkers, world, getVolume: () => game.settings.volume ?? 0.8 });
 if (window.game) window.game.suca = suca;
+let radio = null;   // (made below, after the UI)
+const tapes = createTapes({ scene, car, groundY, proj, mapMarkers, getRadio: () => radio, getVolume: () => game.settings.volume ?? 0.8, QUARTIERI });
+if (window.game) window.game.tapes = tapes;
 const drunk = createDrunk({ game, car, camera, missions });
 if (window.game) window.game.drunk = drunk;
 if (window.game) window.game.traffic = traffic;
@@ -473,9 +477,8 @@ const placeStart = (x, z) => new Promise(done => {
   const t = setTimeout(done, 12000);
   world.teleport(x, z, () => { placeAt(x, z); clearTimeout(t); done(); });
 });
-let radio = null;
 const cloud = createCloudSave(); cloud.start();
-setupUI({ cloud, game, applySettings, missions, suca, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
+setupUI({ cloud, game, applySettings, missions, suca, tapes, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 setupGamepad({ game, car });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 setSfxSource(() => radio);
@@ -584,7 +587,7 @@ function frame(now) {
   cityAudio.update(dt, game.state === 'pause'); ambience.update(dt);
   if (game.state === 'play') missions.update?.(dt);
   drunk.update(dt);
-  if (game.state === 'play') suca.update(dt, car);
+  if (game.state === 'play') { suca.update(dt, car); tapes.update(dt, car); }
   if (game.state === 'play') { stadium.update(dt); carretto.update(dt); ramps.update(dt); markets.update(dt); }
   coords.update();
   roadwear.update?.(dt);
