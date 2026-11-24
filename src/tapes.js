@@ -80,7 +80,7 @@ export function createTapes({ scene, car, groundY, proj, mapMarkers, getRadio = 
   beamGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0, 0, 0, -1, 0, 0, 1, 0, 1, 1, 0, 1, -1].map((v, i) => i % 3 === 0 ? v * BEAM_W / 2 : i % 3 === 2 ? v * BEAM_W / 2 : v * BEAM_H)), 3));
   beamGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1]), 2));
   beamGeo.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
-  const beamMat = new THREE.MeshBasicMaterial({ map: mkTex(64, 256, paintBeam), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const beamMat = new THREE.MeshBasicMaterial({ map: mkTex(64, 256, paintBeam), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false });   // one pass: three.js draws a two-sided see-through material twice, back then front, choosing its program again each time (two lookups and a second draw per beam in view, every frame). Added light is the same in either order
   function build(t) {
     const g = new THREE.Group(), m = new THREE.Mesh(geo, mat), bm = new THREE.Mesh(beamGeo, beamMat);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: .8 }));
