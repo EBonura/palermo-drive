@@ -14,6 +14,7 @@
 // spots: [{ name, x, z, q }], quarters: [{ name, x, z }], getEvents(): [{ id, kind, name, x, z, night? }], getCar(): { x, z, th } | null.
 
 import { esc } from './esc.js';
+import { drawIcon, ICON_COLOR } from './map-icons.js';   // the same icons as the minimap
 import { vp } from './viewport.js';
 import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter that has its eyes on you, filled (the same as on the minimap)
 const ASSET = new URL('../assets/ui/startmap.json', import.meta.url).href;
@@ -24,13 +25,17 @@ const K_MAX = 1.4;                     // px per metre at full zoom (a street is
 const EV_KEY = 'palermoDrive.mapEvents';
 
 const L = {
+  spot: ['Luogo di partenza', 'Start place'], granita: ['Granita', 'Granita kiosk'], grill: ['Stigghiola e pollanche', 'Stigghiola and corn stalls'], ganci: ['Ganci', 'Ganci'], shrine: ['Santuzza', 'Santuzza shrine'], friend: ['Amico', 'Friend'],
+  tape: ['Cassetta', 'Tape'], tapeGot: ['Cassetta presa', 'Tape collected'], player: ['Altro giocatore', 'Another player'], legend: ['Legenda', 'Legend'],
   here: ['Amunì, paiti ri ccà', 'Start here'], there: ['Portami lì', 'Take me there'], events: ['Eventi', 'Events'], you: ['Sei qui', 'You are here'],
   fare: ['Cliente', 'Fare'], carro: ['Festino', 'Festino float'], urgent: ['Corsa urgente', 'Urgent fare'], food: ['Cibo', 'Food'], pub: ['Pub', 'Pub'], race: ['Gara', 'Race'], rave: ['Rave', 'Rave'], leaf: ['Fuogghi', 'Leaves'], horns: ['Missione', 'Mission'], dump: ['Discarica', 'Landfill'], penna: ['Pinni', 'Pens'], night: ['di notte', 'at night'],
   zin: ['Ingrandisci', 'Zoom in'], zout: ['Riduci', 'Zoom out'], zinh: ['Ingrandisci qui', 'Zoom in here'], places: ['luoghi', 'places'], place1: ['luogo', 'place'],
   hintPad: ['Levetta sinistra: muovi · destra: puntatore · A: clicca · LT e RT: zoom · X: eventi · Y: lista', 'Left stick: pan · right stick: pointer · A: click · LT and RT: zoom · X: events · Y: list'],
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
-const KIND = { fare: '#ffc83d', urgent: '#ff4a3a', food: '#ff8a3d', pub: '#ffb02e', race: '#fdfdfd', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde', carro: '#f5d77a' };
+const KIND = ICON_COLOR;
+const THING = new Set(['granita', 'grill', 'ganci', 'shrine', 'friend']);   // the minimap's markers that stay where they are: they are on this map too
+const LEGEND = ['spot', 'fare', 'urgent', 'food', 'pub', 'race', 'rave', 'leaf', 'horns', 'dump', 'penna', 'carro', 'granita', 'grill', 'ganci', 'shrine', 'friend', 'tape', 'tapeGot', 'player'];
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
 const C = {
@@ -39,9 +44,11 @@ const C = {
   roadA: ['#e8559a', '#ffe2ef'], roadB: ['#cdb98f', '#fffdf6'], roadC: ['#ddd0b2', '#ffffff'],
 };
 
-export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, getPlayers, onStart }) {
+export function createStartMap({ host, world, D, spots, quarters, getLang, getCar, getEvents, getPlayers, getTapes, getMarkers, onStart }) {
   host.innerHTML = `<canvas class="pd-mp-cv" aria-hidden="true"></canvas>
     <button class="pd-mp-ev" type="button" data-nav data-map="events" aria-pressed="true"><i></i><span data-t="events"></span></button>
+    <button class="pd-mp-ev pd-mp-lg" type="button" data-nav data-map="legend" aria-pressed="false"><span data-t="legend"></span></button>
+    <div class="pd-mp-leg" hidden></div>
     <div class="pd-mp-tools"><button class="pd-mp-btn" type="button" data-nav data-map="zin" data-t="zin" data-a="1">+</button><button class="pd-mp-btn" type="button" data-nav data-map="zout" data-t="zout" data-a="1">&minus;</button></div>
     <div class="pd-mp-pop" hidden><div class="pd-mp-pt"></div><div class="pd-mp-ps"></div>
       <button class="pd-btn sm drive" type="button" data-nav data-do="mapgo"><span class="pd-in"><span class="pd-l1" data-t="here"></span></span></button></div>
@@ -51,7 +58,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   const cv = host.querySelector('.pd-mp-cv'), g = cv.getContext('2d');
   cv.style.opacity = '0';   // shown only once every layer is in (the owner, 22 Nov 2026: wait a moment longer rather than see the map fill in)
   const pop = host.querySelector('.pd-mp-pop'), popT = pop.querySelector('.pd-mp-pt'), popS = pop.querySelector('.pd-mp-ps'), hint = host.querySelector('.pd-mp-hint');
-  const evBtn = host.querySelector('.pd-mp-ev');
+  const evBtn = host.querySelector('.pd-mp-ev'), lgBtn = host.querySelector('.pd-mp-lg'), legEl = host.querySelector('.pd-mp-leg');
   const clEl = host.querySelector('.pd-mp-cl'), clT = clEl.querySelector('.pd-mp-clt'), clList = clEl.querySelector('.pd-mp-cll');
   const li = () => getLang() === 'it' ? 0 : 1;
 
@@ -262,6 +269,8 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       g.restore();
     }
     drawPins();
+    drawThings();
+    drawPinLabels();
     drawPlayers();
     drawCar();
   }
@@ -274,7 +283,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   const CLUSTER_R = 19, clusters = [];
   function layout() {
     clusters.length = 0;
-    const merge = k < K_MAX * 0.85;
+    const merge = false;   // no numbered badges (the owner, 24 Nov 2026): every pin shows its own icon, and a pile comes apart by zooming in. The badge and its list below are kept but unused
     for (const p of pins) {
       const x = sx(p.x), y = sy(p.z); if (x < -40 || y < -50 || x > W + 40 || y > H + 40) continue;
       let c = null;
@@ -325,10 +334,14 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (!cl) return; const { wx, wz } = cl; closeCl();
     k = clamp(k * 1.8, kMin, K_MAX); vx = wx; vz = wz; clampView(); mark();
   }
+  const pinLabels = [];   // the places' names are written after every icon is down, so no icon covers a name (without the badges the icons overlap)
+  function drawPinLabels() { for (const [str, x, y, size] of pinLabels) text(str, x, y, size, 700, '#3a2a30'); }
   function drawPins() {
+    pinLabels.length = 0;
     const sz = clamp(0.8 + k * 1.2, 0.8, 1.15);
     layout();
-    for (const c of clusters) {
+    const order = sel ? clusters.filter(c => c.m[0].ref !== sel.ref).concat(clusters.filter(c => c.m[0].ref === sel.ref)) : clusters;   // the selected pin last, so it is on top of a pile
+    for (const c of order) {
       if (c.m.length > 1) { drawCluster(c); continue; }
       const p = c.m[0];
       const x = sx(p.x), y = sy(p.z);
@@ -341,34 +354,32 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
         g.fillStyle = '#0b0709'; g.beginPath(); g.arc(0, -17, 3.6, 0, 7); g.fill();
       } else eventPin(p.ref, on);
       g.restore();
-      if (k >= 0.12 && p.kind === 'spot') text(p.ref.name.replace(/ \(.*/, ''), x, y + 11, 12, 700, '#3a2a30');
+      if (k >= 0.12 && p.kind === 'spot') pinLabels.push([p.ref.name.replace(/ \(.*/, ''), x, y + 11, 12]);
     }
-    if (sel) { const x = sx(sel.x), y = sy(sel.z); if (!(k >= 0.12 && sel.kind === 'spot')) text(sel.name.replace(/ \(.*/, ''), x, y + 12, 13, 700, '#3a2a30'); }
+    if (sel) { const x = sx(sel.x), y = sy(sel.z); if (!(k >= 0.12 && sel.kind === 'spot')) pinLabels.push([sel.name.replace(/ \(.*/, ''), x, y + 12, 13]); }
   }
-  function eventPin(e, on) { // own shape and glyph per kind; a night event gets a dark ring and a moon
-    const col = KIND[e.kind] || '#e8559a', night = !!e.night;
-    g.shadowColor = 'rgba(20,8,16,.4)'; g.shadowBlur = 4; g.shadowOffsetY = 2;
-    g.fillStyle = col; g.strokeStyle = night ? '#1d2a5a' : '#0b0709'; g.lineWidth = night ? 3 : 2.2; g.lineJoin = 'round';
-    g.beginPath();
-    if (e.kind === 'urgent') { g.moveTo(0, -27); g.lineTo(13, -4); g.lineTo(-13, -4); g.closePath(); }
-    else if (e.kind === 'food' || e.kind === 'pub') { if (g.roundRect) g.roundRect(-11, -26, 22, 22, 6); else g.rect(-11, -26, 22, 22); }
-    else if (e.kind === 'race') { g.rect(-11, -27, 22, 22); }
-    else g.arc(0, -14, 12, 0, 7);
-    g.fill(); g.shadowColor = 'transparent'; g.stroke();
-    g.fillStyle = '#0b0709'; g.strokeStyle = '#0b0709'; g.lineWidth = 2;
-    if (e.kind === 'fare') { g.font = "700 15px 'Barlow Condensed', system-ui, sans-serif"; g.fillText('€', 0, -14); }
-    else if (e.kind === 'urgent') { g.fillRect(-1.6, -21, 3.2, 8); g.fillRect(-1.8, -10.5, 3.6, 3.6); }
-    else if (e.kind === 'food') { g.beginPath(); g.moveTo(-6, -22); g.lineTo(6, -22); g.lineTo(0, -8); g.closePath(); g.fillStyle = '#7a2a12'; g.fill(); g.fillStyle = '#ffe9a0'; g.beginPath(); g.arc(-1, -18, 1.6, 0, 7); g.arc(2, -16, 1.4, 0, 7); g.fill(); }
-    else if (e.kind === 'pub') { g.fillStyle = '#fff8e0'; g.fillRect(-6, -22, 10, 12); g.strokeStyle = '#0b0709'; g.lineWidth = 2; g.beginPath(); g.arc(5, -16, 3.4, -1.5, 1.5); g.stroke(); g.fillStyle = '#7a4a12'; g.fillRect(-6, -22, 10, 4); }
-    else if (e.kind === 'rave') { for (let i = 0; i < 4; i++) g.fillRect(-9 + i * 5, -14 - (i % 2 ? 7 : 4), 3.2, (i % 2 ? 14 : 8)); }
-    else if (e.kind === 'leaf') { g.beginPath(); g.ellipse(0, -14, 4.5, 9, 0.6, 0, 7); g.fill(); }
-    else if (e.kind === 'horns') { g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(-8, -24); g.quadraticCurveTo(-8, -12, 0, -11); g.quadraticCurveTo(8, -12, 8, -24); g.stroke(); }
-    else if (e.kind === 'dump') { g.fillRect(-8, -18, 16, 3); g.beginPath(); g.moveTo(-8, -15); g.lineTo(-5, -8); g.lineTo(5, -8); g.lineTo(8, -15); g.closePath(); g.fill(); }
-    else if (e.kind === 'penna') { g.lineWidth = 3.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-6, -7); g.lineTo(6, -21); g.stroke(); g.lineWidth = 1.6; g.beginPath(); g.moveTo(-6, -7); g.lineTo(-8.5, -4.5); g.stroke(); }   // a pen, nib down
-    else if (e.kind === 'carro') { g.fillRect(-9, -13, 18, 4); g.beginPath(); g.moveTo(-4, -13); g.lineTo(-4, -22); g.lineTo(0, -25); g.lineTo(4, -22); g.lineTo(4, -13); g.closePath(); g.fill(); }   // the float: a hull and a tower
-    else if (e.kind === 'race') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) & 1) g.fillRect(-9 + i * 4.5, -25 + j * 4.5, 4.5, 4.5); }
-    if (night) { g.fillStyle = '#c8d4ff'; g.beginPath(); g.arc(12, -26, 6, 0, 7); g.fill(); g.fillStyle = '#1d2a5a'; g.beginPath(); g.arc(14.5, -27.5, 5, 0, 7); g.fill(); }
-    if (on) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
+  function eventPin(e, on) { // the kind's own icon (src/map-icons.js); a night event gets a dark ring and a moon
+    drawIcon(g, e.kind, 0, -14, 12, { night: !!e.night, on });
+  }
+  // ---------- things: the tapes (src/tapes.js) and the stalls, the shrine and the friends' stops of the minimap. Small, at their own spot, over the pins' tips; a tap names them (no start from them) ----------
+  const things = [];
+  function buildThings() {
+    things.length = 0;
+    for (const m of (getMarkers && getMarkers()) || []) if (THING.has(m.icon)) things.push({ kind: 'thing', icon: m.icon, x: m.x, z: m.z, name: L[m.icon][li()], sub: '' });
+    for (const t of (getTapes && getTapes()) || []) things.push({ kind: 'thing', icon: 'tape', found: t.found, x: t.x, z: t.z, name: t.found ? t.title : '???', sub: L[t.found ? 'tapeGot' : 'tape'][li()] + ' · ' + (t.found ? t.place : t.quartiere) });
+  }
+  function drawThings() {
+    const r = clamp(6.5 + k * 9, 6.5, 10);
+    for (const t of things) {
+      const x = sx(t.x), y = sy(t.z); if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      const on = sel && sel.kind === 'thing' && sel.x === t.x && sel.z === t.z;
+      drawIcon(g, t.icon, x, y, on ? r * 1.3 : r, { found: t.found, on });
+    }
+  }
+  function pickThing(px, py, thr) {
+    let best = null, bd = thr * thr;
+    for (const t of things) { const d = (sx(t.x) - px) ** 2 + (sy(t.z) - py) ** 2; if (d <= bd) { bd = d; best = t; } }
+    return best;
   }
   // Other players, the ones we are connected to (the nearest ones the relay sends, src/online/online.js): a player the relay does not send is not on the map, we simply do not know where it is. A cyan ring like the minimap's, the name beside it (canvas text only: the names come from strangers).
   function drawPlayers() {
@@ -424,7 +435,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   // ---------- popup ----------
   function placePop() {
     if (!sel || pop.hidden) return;
-    const x = sx(sel.x), y = sy(sel.z), up = sel.kind === 'event' ? 32 : 30, top = y - up - popH - 8 < 56;
+    const x = sx(sel.x), y = sy(sel.z), up = sel.kind === 'thing' ? 12 : sel.kind === 'event' ? 32 : 30, top = y - up - popH - 8 < 56;
     const px = clamp(x, popW / 2 + 8, W - popW / 2 - 8), py = top ? y + 12 : y - up - 8;
     pop.style.transform = `translate(${Math.round(px - popW / 2)}px, ${Math.round(top ? py : py - popH)}px)`;
     pop.style.setProperty('--tx', clamp(x - (px - popW / 2), 16, popW - 16) + 'px');
@@ -433,13 +444,14 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
   function openPop(item, focus) {
     closeCl(); sel = item; fillPop(); pop.hidden = false;
     popW = pop.offsetWidth; popH = pop.offsetHeight; placePop(); mark();
-    if (focus) pop.querySelector('button').focus({ preventScroll: true });
+    if (focus && sel.kind !== 'thing') pop.querySelector('button').focus({ preventScroll: true });
   }
   function closePop() { const c = closeCl(); if (!sel) return c; sel = null; pop.hidden = true; mark(); return true; }
   function fillPop() {
     if (!sel) return;
     popT.textContent = sel.name;
     popS.textContent = sel.sub;
+    pop.querySelector('button').hidden = sel.kind === 'thing';
     const lab = L[sel.kind === 'event' ? 'there' : 'here'];   // a mission does not start from here: the game asks on arrival (src/ui.js)
     pop.querySelector('.pd-l1').textContent = lab[li()];   // one language: the one shown
   }
@@ -484,7 +496,9 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     ptrs.delete(e.pointerId); pinch = 0;
     if (tap && !tap.moved && e.type === 'pointerup' && performance.now() - tap.t < 700) {
       const hit = pick(tap.x, tap.y, ptrKind === 'mouse' ? 18 : 26);
-      if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop();
+      const thing = pickThing(tap.x, tap.y, ptrKind === 'mouse' ? 9 : 14);   // a tap right on a tape or a stall is for it, even under a pin's badge; anywhere else near a pin is for the pin
+      if (thing) openPop({ ...thing }, false); else if (hit && hit.m) openCluster(hit); else if (hit) openPop(itemOf(hit), false); else closePop();
+      if (!legEl.hidden) toggleLegend(false);
     }
     tap = null;
   };
@@ -497,8 +511,24 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     if (b.dataset.map === 'zin') zoomAt(1.6, W / 2, H / 2);
     else if (b.dataset.map === 'zout') zoomAt(1 / 1.6, W / 2, H / 2);
     else if (b.dataset.map === 'events') toggleEvents();
+    else if (b.dataset.map === 'legend') toggleLegend();
     else if (b.dataset.map === 'clzoom') zoomCluster();
   });
+  // the legend: every icon of the two maps with its name, drawn by the same code as the map
+  function fillLegend() {
+    legEl.textContent = '';
+    for (const kd of LEGEND) {
+      const row = document.createElement('div'), c = document.createElement('canvas'), q = c.getContext('2d'), d = Math.min(3, window.devicePixelRatio || 1);
+      c.width = c.height = 26 * d; q.scale(d, d);
+      if (kd === 'spot') { q.translate(13, 24); q.scale(0.78, 0.78); q.fillStyle = '#e8559a'; q.fill(PIN); q.lineWidth = 2; q.strokeStyle = '#fff'; q.stroke(PIN); q.fillStyle = '#0b0709'; q.beginPath(); q.arc(0, -17, 3.6, 0, 7); q.fill(); }
+      else drawIcon(q, kd === 'tapeGot' ? 'tape' : kd, 13, 13, kd === 'tape' || kd === 'tapeGot' ? 10 : 9.5, { found: kd === 'tapeGot' });
+      const t = document.createElement('span'); t.textContent = L[kd][li()]; row.append(c, t); legEl.append(row);
+    }
+  }
+  function toggleLegend(v) {
+    const on = v === undefined ? legEl.hidden : v; if (on) fillLegend();
+    legEl.hidden = !on; lgBtn.setAttribute('aria-pressed', String(on));
+  }
   function toggleEvents(v) {
     showEvents = v === undefined ? !showEvents : v; evBtn.setAttribute('aria-pressed', String(showEvents));
     try { localStorage.setItem(EV_KEY, showEvents ? '1' : '0'); } catch (e) { /* private mode */ }
@@ -533,6 +563,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     }
     evBtn.setAttribute('aria-label', L.events[li()]);
     setHint();
+    buildThings(); if (!legEl.hidden) fillLegend();
     host.querySelector('.pd-mp-pop .pd-l1').textContent = L.here[li()];
     if (sel) { sel = itemOf({ kind: sel.kind, ref: sel.ref, x: sel.x, z: sel.z }); fillPop(); }
     if (cl) { fillCl(); clW = clEl.offsetWidth; clH = clEl.offsetHeight; placeCl(); }
@@ -543,7 +574,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
     show() {
       shown = true; closePop(); cv.style.opacity = '0';   // (again: the canvas was emptied by hide(); the next whole frame shows it)
       clearInterval(playersT); playersT = setInterval(() => { if (shown && getPlayers && getPlayers().length) mark(); }, 700);   // the others keep moving while this is open
-      events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins();
+      events = (getEvents && getEvents()) || []; evBtn.hidden = !events.length; buildPins(); buildThings();
       evBtn.setAttribute('aria-pressed', String(showEvents));
       prepManifest(); applyLang(); load();
       // the screen may still be hidden or mid-transition when this runs: fit and centre only once the map has a real size
@@ -551,7 +582,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       const place = () => { W = 0; resize(); if (!W && shown && tries++ < 60) { requestAnimationFrame(place); return; } limits(); fit(); clampView(); mark(); };
       place();
     },
-    hide() { shown = false; clearInterval(playersT); closePop(); if (raf) { cancelAnimationFrame(raf); raf = 0; } cv.width = cv.height = 1; },   // a full-screen canvas is 15 MB at pixel ratio 2: show() sizes it again
+    hide() { shown = false; clearInterval(playersT); closePop(); toggleLegend(false); if (raf) { cancelAnimationFrame(raf); raf = 0; } cv.width = cv.height = 1; },   // a full-screen canvas is 15 MB at pixel ratio 2: show() sizes it again
     resize,
     applyLang,
     isOpenPop: () => !!sel || !!cl,
@@ -571,7 +602,7 @@ export function createStartMap({ host, world, D, spots, quarters, getLang, getCa
       return false;
     },
     whenReady,
-    startSelected() { if (sel && onStart) onStart(sel.x, sel.z, sel); },
+    startSelected() { if (sel && sel.kind !== 'thing' && onStart) onStart(sel.x, sel.z, sel); },
     // test hook (?mapdebug): view state and the screen position of every pin
     debug: () => ({ W, H, k, vx, vz, terrain: !terrainJob && !!terrain, data: !!data, clusters: (layout(), clusters.map(c => ({ n: c.m.length, x: Math.round(c.x), y: Math.round(c.y) }))), pins: pins.map(p => ({ n: p.ref.name || p.ref.kind, kind: p.kind, x: Math.round(sx(p.x)), y: Math.round(sy(p.z)) })), setView(x, z, kk) { vx = x; vz = z; k = kk; clampView(); mark(); } }),
   };

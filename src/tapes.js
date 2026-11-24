@@ -143,12 +143,12 @@ export function createTapes({ scene, car, groundY, proj, mapMarkers, getRadio = 
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on', 'bump'), 3200);
   }
 
-  // minimap: an uncollected, resolved tape within MAP_R (an amber diamond, the SUCA tags are pink crosses)
+  // minimap: an uncollected, resolved tape within MAP_R (a little amber cassette, the SUCA tags are pink crosses)
   const markers = new Map();
   function syncMarkers(c) {
     for (const t of T) {
       const near = t.x !== null && !done.has(t.id) && (t.x - c.x) ** 2 + (t.z - c.z) ** 2 < MAP_R * MAP_R, m = markers.get(t);
-      if (near && !m) { const n = { x: t.x, z: t.z, color: '#ffb347', size: 4, shape: 'diamond' }; markers.set(t, n); mapMarkers.push(n); }
+      if (near && !m) { const n = { x: t.x, z: t.z, color: '#ffb347', size: 5, icon: 'tape' }; markers.set(t, n); mapMarkers.push(n); }
       else if (!near && m) { const j = mapMarkers.indexOf(m); if (j >= 0) mapMarkers.splice(j, 1); markers.delete(t); }
     }
   }
@@ -190,5 +190,6 @@ export function createTapes({ scene, car, groundY, proj, mapMarkers, getRadio = 
   const list = () => T.map(t => ({ id: t.id, title: t.title, place: t.place, quartiere: t.quartiere, link: 'https://www.youtube.com/shorts/' + t.short, found: done.has(t.id) }));
   const play = id => { const t = T.find(o => o.id === id); return !!t && done.has(id) && !!getRadio()?.playTape(credit(t)); };
   const where = id => { const t = T.find(o => o.id === id); return t && { px: t.px, pz: t.pz, x: t.x, z: t.z }; };   // for tests: the place and the road point 
-  return { update, progress, list, play, has: id => done.has(id), where };
+  const map = () => T.filter(t => t.x !== null).map(t => ({ x: t.x, z: t.z, found: done.has(t.id), title: t.title, place: t.place, quartiere: t.quartiere }));   // for the big map (src/startmap.js): every tape at its road point
+  return { update, progress, list, play, map, has: id => done.has(id), where };
 }

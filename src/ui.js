@@ -310,7 +310,7 @@ function creditsMarkdown(md, base) {
 // ---------------------------------------------------------------------------------------------
 // The shell
 // ---------------------------------------------------------------------------------------------
-export function setupUI({ cloud, game, applySettings, missions, suca, tapes, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
+export function setupUI({ cloud, game, applySettings, missions, suca, tapes, mapMarkers, getRadio, world, net, camera, renderer, scene, vehicle, placeAt, SPOTS, QUARTIERI = [], proj, groundY, D }) {
   const params = new URLSearchParams(location.search);
   const root = document.documentElement;
   if (params.get('layers') === '0') root.classList.add('pd-flat');   // test switch: the HUD's zones and the pads are not layers of their own (src/ui.css, .hz)
@@ -1031,7 +1031,9 @@ export function setupUI({ cloud, game, applySettings, missions, suca, tapes, get
   const startMap = createStartMap({
     host: screens.start.querySelector('.pd-mp'), world, D, spots: SP, quarters: QX, getLang: () => lang,
     getCar: () => game.state === 'pause' && vehicle && vehicle.car ? vehicle.car : null,
-    getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),   // other players (src/online/online.js)
+    getPlayers: () => (game.state === 'pause' && net && net.players ? net.players() : []),
+    getTapes: () => tapes?.map?.() || [],
+    getMarkers: () => mapMarkers || [],   // the minimap's markers: the stalls, the shrine and the friends' stops are on the big map too   // other players (src/online/online.js)
     getEvents: () => fakeEvents || (missions?.events?.() || []).filter(e => !e.call),   // the jobs come as calls (src/mission-director.js): they have no pin
     onStart: (x, z, it) => it?.kind === 'event' && !it.ref.plain ? startAt(x, z, { ask: it.ref }) : it?.ref?.go ? startAt(it.ref.go[0], it.ref.go[1]) : startAt(x, z),
   });

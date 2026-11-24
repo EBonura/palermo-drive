@@ -478,7 +478,7 @@ const placeStart = (x, z) => new Promise(done => {
   world.teleport(x, z, () => { placeAt(x, z); clearTimeout(t); done(); });
 });
 const cloud = createCloudSave(); cloud.start();
-setupUI({ cloud, game, applySettings, missions, suca, tapes, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
+setupUI({ cloud, game, applySettings, missions, suca, tapes, mapMarkers, getRadio: () => radio, world, net, camera, renderer, scene, vehicle, placeAt: placeStart, SPOTS, QUARTIERI, proj, groundY, D });
 setupGamepad({ game, car });
 radio = createRadio({ game }); // car radio (src/radio.js): starts on the first tap/key; its controls live in the side menu
 setSfxSource(() => radio);

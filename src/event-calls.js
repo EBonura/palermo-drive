@@ -4,6 +4,7 @@
 // The pen sellers (kind 'penna', src/event-penna.js) are three, and they do not wait for the lapa to stop: driving past them within PASS_R is enough, they step out and stop it.
 // A slot with `day` is there only by day, one with `night` only at night.
 // createCalls(X) -> { slots, setSlots(list), update(dt, allowed) -> accepted slot | null, release(slot), clear(), hideBeacon() }
+import { ICON_COLOR } from './map-icons.js';
 import { CALL, FRIEND, NIGHT_CLIENTS, HORNS_LINES } from '../assets/missions/lines.js';
 import { PENNA_LOOKS } from './event-penna.js';
 
@@ -15,7 +16,7 @@ const LOCAL_POOL = ['suit', 'suit2', 'signora', 'signora2', 'borsa', 'shopper', 
 const NIGHT_POOL = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
 const FRIEND_OUTFITS = ['giacca', 'tuta', 'mercato', 'rosanero', 'mondello'], FRIEND_CHANCE = 0.1;   // now and then a regular fare is one of the two cameo friends (assets/peds/sprites.js)
 const OWNER_POOL = ['vendor', 'vendor2', 'cameriere', 'fruttivendolo', 'vendor'];
-const COLORS = { fare: '#ff3d9a', urgent: '#ff4a3a', food: '#ffd24a', race: '#5ac8ff', rave: '#b16bff', leaf: '#7ad65a', horns: '#ffb02e', dump: '#8a6a3a', penna: '#3a8dde' };
+const COLORS = Object.fromEntries(['fare', 'urgent', 'food', 'race', 'rave', 'leaf', 'horns', 'dump', 'penna'].map(k => [k, ICON_COLOR[k]]));   // one colour per kind everywhere: the map icons (src/map-icons.js), the beam over a caller, the call card, the Missioni list
 const SPAWN_R = 210, DROP_R = 330, MAX_CALLERS = 6, ACCEPT_R = 8, PASS_R = 13;   // PASS_R: the pen sellers stop a lapa that passes this close
 export const KIND_COLOR = COLORS;
 export const JOBS = new Set(['fare', 'urgent', 'food']);   // the jobs: they reach the lapa as a call wherever it is; every other kind is an encounter that waits at its place
@@ -102,7 +103,7 @@ export function createCalls(X) {
       markT = 1;
       for (const s of slots) {
         const d = Math.hypot(car.x - s.x, car.z - s.z), want = allowed && (JOBS.has(s.kind) ? X.offer === s : d < 750) && t >= s.coolUntil && (!s.night || night) && (!s.day || !night);
-        if (want && !s.marker) s.marker = X.addMarker(s.x, s.z, COLORS[s.kind], 6);
+        if (want && !s.marker) s.marker = X.addMarker(s.x, s.z, COLORS[s.kind], 6, undefined, s.kind === 'festino' ? 'carro' : s.kind);
         else if (!want && s.marker) { X.dropMarker(s.marker); s.marker = null; }
       }
     }

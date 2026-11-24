@@ -103,7 +103,7 @@ export function createFriendStops(h) {
     stopRing(s, 4.2, '#ff7a3a');
   }
   KIND.ganci = { build: buildGanci, update: (s, dt) => vendorUpdate(s, dt, { pin: '#ff5a36', title: 'PEZZO NNI GANCI!', L: GANCI, hear: 40 }) };
-  for (const o of GANCI_SITES) stops.push(frame(o, 'ganci', { marker: addMarker(...env.proj(o.lat, o.lon), '#ff5a36', 5, 'triangle'), label: 'ganci:' + o.id }));
+  for (const o of GANCI_SITES) stops.push(frame(o, 'ganci', { marker: addMarker(...env.proj(o.lat, o.lon), '#ff5a36', 5, 'triangle', 'ganci'), label: 'ganci:' + o.id }));
 
   // ---------------------------------------------------------------------------------------------------- a statue of Santa Rosalia: robe, head, a crown of roses, arms open with roses in the hands
   function statue(B, x, y, z, k) {   // k: scale; y: the feet
@@ -183,9 +183,9 @@ export function createFriendStops(h) {
   }
   KIND.shrine = { build: buildShrine, update: updatePray, tick: dt => { blessCd = Math.max(0, blessCd - dt); } };
   KIND.carro = { build: buildCarro, update: updatePray, radius: 700 };
-  const shrine = frame(SANTUZZA, 'shrine', { marker: addMarker(...env.proj(SANTUZZA.lat, SANTUZZA.lon), '#f5d77a', 5, 'diamond'), label: 'pray:' + SANTUZZA.id, pt: 0, said: false });
+  const shrine = frame(SANTUZZA, 'shrine', { marker: addMarker(...env.proj(SANTUZZA.lat, SANTUZZA.lon), '#f5d77a', 5, 'diamond', 'shrine'), label: 'pray:' + SANTUZZA.id, pt: 0, said: false });
   stops.push(shrine);
-  if (CARRO.on) stops.push(frame(CARRO, 'carro', { marker: addMarker(...env.proj(CARRO.lat, CARRO.lon), '#f5d77a', 5, 'diamond'), label: 'pray:' + CARRO.id, pt: 0, said: false }));
+  if (CARRO.on) stops.push(frame(CARRO, 'carro', { marker: addMarker(...env.proj(CARRO.lat, CARRO.lon), '#f5d77a', 5, 'diamond', 'carro'), label: 'pray:' + CARRO.id, pt: 0, said: false }));
 
   // ---------------------------------------------------------------------------------------------------- cornetto kiosks: shuttered by day, open at night (CORNETTO_HOURS, game hours, wrapping midnight)
   const NIGHT_PEOPLE = ['nightboy', 'nightgirl', 'nightboy2', 'nightgirl2', 'nightgirl3'];
@@ -201,7 +201,7 @@ export function createFriendStops(h) {
   function setOpen(s, on, force) {
     if (!force && s.open === on) return;
     s.open = on;
-    if (on && !s.marker) s.marker = addMarker(s.x, s.z, '#ffb347', 5, 'triangle');
+    if (on && !s.marker) s.marker = addMarker(s.x, s.z, '#ffb347', 5, 'triangle', 'friend');
     if (!on && s.marker) { dropMarker(s.marker); s.marker = null; }
     if (!s.built) return;
     const k = s.k;
@@ -239,7 +239,7 @@ export function createFriendStops(h) {
         try { K.build(s); } catch (e) { console.warn('[friend-stops] build', s.label, e); }
       }
       if (s.kind === 'carro') {
-        if (s.out !== carroOut) { s.out = carroOut; if (s.g) s.g.visible = !carroOut; if (s.ring) s.ring.show(!carroOut); if (carroOut && s.marker) { dropMarker(s.marker); s.marker = null; } else if (!carroOut && !s.marker) s.marker = addMarker(s.x, s.z, '#f5d77a', 5, 'diamond'); }
+        if (s.out !== carroOut) { s.out = carroOut; if (s.g) s.g.visible = !carroOut; if (s.ring) s.ring.show(!carroOut); if (carroOut && s.marker) { dropMarker(s.marker); s.marker = null; } else if (!carroOut && !s.marker) s.marker = addMarker(s.x, s.z, '#f5d77a', 5, 'diamond', 'carro'); }
         if (carroOut) continue;
       }
       if (s.built || K.always) K.update(s, dt);

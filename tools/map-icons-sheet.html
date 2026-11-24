@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>Map icons</title>
+<style>body{margin:0;background:#1a1216;font:600 15px system-ui,sans-serif;color:#fff}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+// A sheet of the map icons (src/map-icons.js) beside the marks the minimap draws today, for a look before they are wired in. Open through tools/map-icons-sheet.mjs.
+import { drawIcon } from '../src/map-icons.js';
+const ROWS = [   // name, kind, options, the old minimap mark [shape, colour, size] or null
+  ['Fare (caller)', 'fare', {}, ['dot', '#ff3d9a', 6]], ['Urgent fare (caller)', 'urgent', {}, ['dot', '#ff4a3a', 6]], ['Food job (caller)', 'food', {}, ['dot', '#ffd24a', 6]],
+  ['Pub job', 'pub', {}, null], ['Race (caller)', 'race', {}, ['dot', '#5ac8ff', 6]], ['Rave (caller)', 'rave', {}, ['dot', '#b16bff', 6]], ['Leaves (caller)', 'leaf', {}, ['dot', '#7ad65a', 6]],
+  ['Horns mission (caller)', 'horns', {}, ['dot', '#ffb02e', 6]], ['Landfill (caller)', 'dump', {}, ['dot', '#8a6a3a', 6]], ['Penna (caller)', 'penna', {}, ['dot', '#3a8dde', 6]],
+  ['Festino float', 'carro', {}, ['diamond', '#f5d77a', 5]], ['A job at night', 'fare', { night: true }, null],
+  ['Granita kiosk', 'granita', {}, ['triangle', '#59c9e8', 5]], ['Stigghiola, pollanche', 'grill', {}, ['triangle', '#ff7a1a', 5]], ['Ganci', 'ganci', {}, ['triangle', '#ff5a36', 5]],
+  ['Santuzza shrine', 'shrine', {}, ['diamond', '#f5d77a', 5]], ['Friend stop', 'friend', {}, ['triangle', '#ffb347', 5]], ['Arrotino', 'arrotino', {}, ['dot', '#5ad1ff', 4]],
+  ['Pickup, food job', 'pickup', { color: '#ffd24a' }, ['diamond', '#ffd24a', 5]], ['Pickup, rave', 'pickup', { color: '#7ad65a' }, ['diamond', '#7ad65a', 5]],
+  ['Where to go now', 'target', { color: '#ffd24a' }, ['target', '#ffd24a', 8]], ['SUCA tag', 'suca', {}, ['cross', '#ff4fd8', 3.5]], ['Another player', 'player', {}, ['ring', '#00c8f0', 5]],
+  ['Tape', 'tape', {}, ['diamond', '#ffb347', 4]], ['Tape, collected (big map)', 'tape', { found: true }, null],
+];
+function old(g, x, y, r, shape, color) {   // the marks of src/minimap.js as they are now
+  g.fillStyle = color; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath();
+  if (shape === 'diamond') { g.moveTo(x, y - r * 1.2); g.lineTo(x + r, y); g.lineTo(x, y + r * 1.2); g.lineTo(x - r, y); g.closePath(); }
+  else if (shape === 'triangle') { g.moveTo(x, y - r * 1.2); g.lineTo(x + r * 1.1, y + r * 0.9); g.lineTo(x - r * 1.1, y + r * 0.9); g.closePath(); }
+  else if (shape === 'cross') { g.moveTo(x - r, y - r); g.lineTo(x + r, y + r); g.moveTo(x + r, y - r); g.lineTo(x - r, y + r); g.lineCap = 'round'; g.lineWidth = 4.5; g.stroke(); g.strokeStyle = color; g.lineWidth = 2.2; g.stroke(); g.lineCap = 'butt'; return; }
+  else if (shape === 'ring') { g.arc(x, y, r + 1, 0, 7); g.lineWidth = 6.5; g.strokeStyle = '#0b0709'; g.stroke(); g.lineWidth = 3.4; g.strokeStyle = color; g.stroke(); return; }
+  else if (shape === 'target') { g.arc(x, y, r + 1, 0, 7); g.fillStyle = '#fff'; g.fill(); g.stroke(); g.beginPath(); g.arc(x, y, Math.max(2, r * 0.55), 0, 7); g.fillStyle = color; g.fill(); g.stroke(); return; }
+  else g.arc(x, y, r, 0, 7);
+  g.fill(); g.stroke();
+}
+const c = document.getElementById('c'), dpr = devicePixelRatio || 1, COLS = 2, per = Math.ceil(ROWS.length / COLS), RH = 62, CW = 660, W = CW * COLS, H = 70 + per * RH + 16;
+c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px';
+const g = c.getContext('2d'); g.scale(dpr, dpr);
+await document.fonts.ready;
+const X = { name: 16, oldBig: 250, newBig: 345, oldPhone: 432, newPhone: 478, map: 548, huge: 618 }, R_NEW = 7.5;   // minimap units: the canvas is 200 across and a phone shows it about 98 px wide (0.5 px a unit)
+const tile = (x, y, w, h) => { g.fillStyle = '#f2ead7'; g.fillRect(x, y, w, h); g.fillStyle = '#b98a5e'; g.fillRect(x, y + h * 0.55, w * 0.45, h * 0.45); g.fillStyle = '#fff'; g.fillRect(x + w * 0.5, y, w * 0.14, h); };
+for (let col = 0; col < COLS; col++) {
+  const ox = col * CW; g.fillStyle = '#ffb0d0'; g.font = '700 12px system-ui, sans-serif'; g.textBaseline = 'alphabetic'; g.textAlign = 'center';
+  g.fillText('MINIMAP NOW', ox + X.oldBig, 28); g.fillText('MINIMAP NEW', ox + X.newBig, 28); g.fillText('ON A PHONE', ox + (X.oldPhone + X.newPhone) / 2, 28); g.fillText('BIG MAP', ox + X.map, 28); g.fillText('CLOSE UP', ox + X.huge, 28);
+  g.fillStyle = '#b9a9b0'; g.font = '500 11px system-ui, sans-serif'; g.fillText('enlarged 4 times', ox + (X.oldBig + X.newBig) / 2, 44); g.fillText('now, new: real size', ox + (X.oldPhone + X.newPhone) / 2, 44); g.fillText('real size', ox + X.map, 44);
+  ROWS.slice(col * per, (col + 1) * per).forEach(([name, kind, o, was], i) => {
+    const y = 70 + i * RH + RH / 2;
+    g.fillStyle = '#fff'; g.font = '600 15px system-ui, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(name, ox + X.name, y);
+    tile(ox + X.oldBig - 40, y - 27, 80, 54); tile(ox + X.newBig - 40, y - 27, 80, 54); tile(ox + X.oldPhone - 16, y - 16, 32, 32); tile(ox + X.newPhone - 16, y - 16, 32, 32); tile(ox + X.map - 27, y - 27, 54, 54);
+    if (was) { g.save(); g.translate(ox + X.oldBig, y); g.scale(2, 2); old(g, 0, 0, was[2], was[0], was[1]); g.restore(); g.save(); g.translate(ox + X.oldPhone, y); g.scale(0.5, 0.5); old(g, 0, 0, was[2], was[0], was[1]); g.restore(); }
+    g.save(); g.translate(ox + X.newBig, y); g.scale(2, 2); drawIcon(g, kind, 0, 0, R_NEW, o); g.restore();
+    g.save(); g.translate(ox + X.newPhone, y); g.scale(0.5, 0.5); drawIcon(g, kind, 0, 0, R_NEW, o); g.restore();
+    drawIcon(g, kind, ox + X.map, y, 12, o);
+    g.fillStyle = '#f2ead7'; g.fillRect(ox + X.huge - 30, y - 30, 60, 60); drawIcon(g, kind, ox + X.huge, y, 21, o);
+  });
+}
+document.title = 'ready';
+</script>

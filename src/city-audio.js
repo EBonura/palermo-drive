@@ -28,7 +28,7 @@ export function createCityAudio({ scene, camera, car, game, traffic, getRadio, m
   const L = { traffic: 0, night: 0, arr: 0, arrVis: 0, market: 0 };
   let yaw = [1, 0, 0, 0];   // the camera's right vector on the ground (x, z), and its position
   const notes = createNotes(scene, { glyphs: [3, 3, 3, 0] });   // sound lines (and the odd note) off the knife-grinder's loudspeaker
-  const pins = traffic.arrotini.map(() => ({ x: 0, z: 0, color: '#5ad1ff', size: 4 })), pinned = traffic.arrotini.map(() => false);
+  const pins = traffic.arrotini.map(() => ({ x: 0, z: 0, color: '#5ad1ff', size: 4, icon: 'arrotino' })), pinned = traffic.arrotini.map(() => false);
   const speakers = [];   // the two loudspeakers: { m (its voice chain), src (the playing announcement), state, nextAt, e (the knife-grinder it belongs to), d (his distance) }
   let nearE = null;      // the nearest knife-grinder within earshot (the radio, the sound lines)
 

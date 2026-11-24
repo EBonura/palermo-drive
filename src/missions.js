@@ -280,7 +280,7 @@ function build(env) {
     arrow3d.quaternion.setFromRotationMatrix(_am).multiply(_arrowTilt); // small roll shows the extruded thickness
   }
   // ------------------------------------------------------------------------------------ minimap markers
-  const addMarker = (x, z, color, size, shape) => { const m = { x, z, color, size, shape }; mapMarkers.push(m); return m; };
+  const addMarker = (x, z, color, size, shape, icon) => { const m = { x, z, color, size, shape, icon }; mapMarkers.push(m); return m; };   // icon: which picture of src/map-icons.js the maps draw for it
   const dropMarker = m => { if (!m) return; const i = mapMarkers.indexOf(m); if (i >= 0) mapMarkers.splice(i, 1); };
 
   // ------------------------------------------------------------------------------------ stigghiulari
@@ -377,7 +377,7 @@ function build(env) {
     const v = { o, pl, kind: kind || 'stigghiola', x: px, z: pz, gy, g, coal, glow, cid, cd: 0, ring: null, marker: null, shoutT: rand(2, 8), seed: Math.random() * 10 };
     v.ring = makeBeacon('#ff9d2e', 4.5, { beam: false }); v.ring.set(px + vx0 * 1.7, pz + vz0 * 1.7); v.ring.show(true);
     v.sx = px + vx0 * 1.7; v.sz = pz + vz0 * 1.7;
-    v.marker = o.marker || addMarker(px, pz, '#ff7a1a', 4);
+    v.marker = o.marker || addMarker(px, pz, '#ff7a1a', 4, undefined, 'grill');
     leanBox(g);
     return v;
   }
@@ -445,7 +445,7 @@ function build(env) {
       const c = [wl(lx[0], lz[0]), wl(lx[1], lz[0]), wl(lx[1], lz[1]), wl(lx[0], lz[1])];
       for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; walls2d.addSeg([a[0], a[1], b[0], b[1]], a[0], a[1], b[0], b[1]); }
     }
-    const v = { o, pl: null, kind: 'granita', x: px, z: pz, gy, g, coal: null, glow: null, cid, cd: 0, ring: null, marker: o.marker || addMarker(px, pz, '#59c9e8', 5, 'triangle'), shoutT: rand(2, 8), seed: Math.random() * 10, mkSeller, parts: { shutter, lamp: lampStrip }, vx0, vz0, wl };
+    const v = { o, pl: null, kind: 'granita', x: px, z: pz, gy, g, coal: null, glow: null, cid, cd: 0, ring: null, marker: o.marker || addMarker(px, pz, '#59c9e8', 5, 'triangle', 'granita'), shoutT: rand(2, 8), seed: Math.random() * 10, mkSeller, parts: { shutter, lamp: lampStrip }, vx0, vz0, wl };
     v.sx = px + vx0 * 6.0; v.sz = pz + vz0 * 6.0;   // the stop: the carriageway edge in front of the counter
     v.ring = makeBeacon(o.ring || '#59c9e8', 4.5, { beam: false }); v.ring.set(v.sx, v.sz); v.ring.show(true);
     leanBox(g);
@@ -512,15 +512,15 @@ function build(env) {
   if (worldOn()) {
     for (const o of POLLANCHE.sites) {
       const [px0, pz0] = env.proj(o.lat, o.lon);
-      polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#ff7a1a', 5, 'triangle') });
+      polls.push({ o, x: px0, z: pz0, gy: groundAt(px0, pz0), built: false, v: null, marker: addMarker(px0, pz0, '#ff7a1a', 5, 'triangle', 'grill') });
     }
     pollPlume = makePlume(polls.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
     polls.forEach((p, i) => { p.plume = [pollPlume, i]; });
     for (const o of GRANITA.sites) {   // the granita kiosks join the same lazy list, after the pollanche (no plume: the plume index is the list index)
       const [gx0, gz0] = env.proj(o.lat, o.lon);
-      polls.push({ o, kind: 'granita', x: gx0, z: gz0, gy: groundAt(gx0, gz0), built: false, v: null, marker: addMarker(gx0, gz0, '#59c9e8', 5, 'triangle') });
+      polls.push({ o, kind: 'granita', x: gx0, z: gz0, gy: groundAt(gx0, gz0), built: false, v: null, marker: addMarker(gx0, gz0, '#59c9e8', 5, 'triangle', 'granita') });
     }
-    const far = STIGGHIOLA_FAR.sites.map(o => { const [sx0, sz0] = env.proj(o.lat, o.lon); return { o, kind: 'stigghiola', x: sx0, z: sz0, gy: groundAt(sx0, sz0), built: false, v: null, marker: addMarker(sx0, sz0, '#ff7a1a', 5, 'triangle') }; });   // the stigghiolari outside the centro: their own plume, built at once
+    const far = STIGGHIOLA_FAR.sites.map(o => { const [sx0, sz0] = env.proj(o.lat, o.lon); return { o, kind: 'stigghiola', x: sx0, z: sz0, gy: groundAt(sx0, sz0), built: false, v: null, marker: addMarker(sx0, sz0, '#ff7a1a', 5, 'triangle', 'grill') }; });   // the stigghiolari outside the centro: their own plume, built at once
     farPlume = makePlume(far.map(p => ({ x: p.x, y: p.gy + 1.1, z: p.z })));
     far.forEach((p, i) => { p.plume = [farPlume, i]; polls.push(p); });
   }
@@ -684,7 +684,7 @@ function build(env) {
   const fares = createFares(X), food = createFood(X), races = createRaces(X), raves = createRaveEvents(X, rave), horns = createHornsEvents(X, { game });
   const dump = createDiscarica({ scene, camera, car, game, groundY: groundAt, isNight, walls2d, vehicle }), dumps = createDumpEvents(X, dump);   // the landfill: yard, pit, rubbish; the plunge over its rim is the ball model's (src/vehicle-sphere.js hooks.plunge)
   hooks.plunge = dump.plunge;
-  { const [px, pz] = env.proj(DUMP.site.lat, DUMP.site.lon); addMarker(px, pz, '#8a6a3a', 6, 'triangle'); }   // the landfill on the minimap, always: brown, like the callers of its mission
+  { const [px, pz] = env.proj(DUMP.site.lat, DUMP.site.lon); addMarker(px, pz, '#8a6a3a', 6, 'triangle', 'dump'); }   // the landfill on the minimap, always: brown, like the callers of its mission
   const pennas = createPennaEvents(X);
   X.kinds = {}; X.slots = slots; X.start = slot => startEvent(slot); X.snapRoad = snapRoad; X.findSpot = findSpot; X.walls2d = walls2d; X.game = game; X.proj = env.proj;   // for the job modules
   const director = X.director = createDirector(X, { slots, fares, card: createCallCard({ T, eur }) });   // the jobs come as calls (src/mission-director.js)

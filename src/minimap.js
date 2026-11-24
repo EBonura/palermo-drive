@@ -13,6 +13,7 @@
 // is painted again, and while one stays blank the land is drawn directly under the pieces, so the map is never solid sea.
 //
 
+import { drawIcon, ICON_COLOR } from './map-icons.js';
 import { zoneOutline, trouble, TUNE } from './danger.js';   // the quarter's border and the way out, once it has three eyes on you
 const W = 200; // canvas size in px (the CSS size varies, see ui/mobile css)
 const T = 500; // tile size in metres (docs/TILES.md)
@@ -43,24 +44,15 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   addEventListener('resize', () => paintStamp++);
   const key = (i, j) => i * 4096 + j;
 
-  // a marker's shape says what it is: round (default) someone to meet, target where to go now, diamond something to pick up, cross a graffiti to spray, triangle a food stall
-  function drawMarker(x, y, r, shape, color) {
-    mini.fillStyle = color; mini.strokeStyle = '#000'; mini.lineWidth = 1.5; mini.beginPath();
-    if (shape === 'diamond') { mini.moveTo(x, y - r * 1.2); mini.lineTo(x + r, y); mini.lineTo(x, y + r * 1.2); mini.lineTo(x - r, y); mini.closePath(); }
-    else if (shape === 'triangle') { mini.moveTo(x, y - r * 1.2); mini.lineTo(x + r * 1.1, y + r * 0.9); mini.lineTo(x - r * 1.1, y + r * 0.9); mini.closePath(); }
-    else if (shape === 'cross') {
-      mini.moveTo(x - r, y - r); mini.lineTo(x + r, y + r); mini.moveTo(x + r, y - r); mini.lineTo(x - r, y + r);
-      mini.lineCap = 'round'; mini.lineWidth = 4.5; mini.stroke(); mini.strokeStyle = color; mini.lineWidth = 2.2; mini.stroke(); mini.lineCap = 'butt'; return;
-    }
-    else if (shape === 'ring') {   // another player: a hollow ring, dark edges, a bright colour (src/remotes.js)
-      mini.arc(x, y, r + 1, 0, Math.PI * 2); mini.lineWidth = 6.5; mini.strokeStyle = '#0b0709'; mini.stroke(); mini.lineWidth = 3.4; mini.strokeStyle = color; mini.stroke(); return;
-    }
-    else if (shape === 'target') {
-      mini.arc(x, y, r + 1, 0, Math.PI * 2); mini.fillStyle = '#fff'; mini.fill(); mini.stroke();
-      mini.beginPath(); mini.arc(x, y, Math.max(2, r * 0.55), 0, Math.PI * 2); mini.fillStyle = color; mini.fill(); mini.stroke(); return;
-    }
-    else mini.arc(x, y, r, 0, Math.PI * 2);
-    mini.fill(); mini.stroke();
+  // Every marker is drawn with the icons the big map uses too (src/map-icons.js). A marker says which with `icon`; the older ones that only give a
+  // shape are read as: diamond a pickup, target where to go now, cross a SUCA tag, ring another player. One with neither is a plain dot.
+  const NO_RIM = new Set(['granita', 'grill', 'ganci', 'shrine', 'friend', 'arrotino', 'dump']);   // places that stay put: on the map when they are near, not pinned to the rim from far away (a dozen stalls round the rim said nothing)
+  const SHAPE_ICON = { diamond: 'pickup', target: 'target', cross: 'suca', ring: 'player', tape: 'tape' };
+  function drawMarker(x, y, m, off, rs) {
+    const kind = m.icon || SHAPE_ICON[m.shape], color = m.color || '#e8559a';
+    if (!kind) { mini.fillStyle = color; mini.strokeStyle = '#000'; mini.lineWidth = 1.5; mini.beginPath(); mini.arc(x, y, off ? 4 : rs, 0, Math.PI * 2); mini.fill(); mini.stroke(); return; }
+    const r = off ? 5 : kind === 'player' ? (rs + 1) * 12 / 9 : kind === 'target' ? rs + 1 : kind === 'suca' ? 5.5 : kind === 'pickup' ? 7 : 7.5;
+    drawIcon(mini, kind, x, y, r, m.icon && ICON_COLOR[kind] && kind !== 'pickup' && kind !== 'target' ? undefined : { color });   // a pickup and a target take the job's colour, and so does a kind the icons have no colour for; the rest their own
   }
   function buildLand(M) { // the coastline (and islands) as one Path2D in world metres, built once
     landPath = new Path2D();
@@ -180,7 +172,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     let rs = 0; for (let i = 0; i < mapRoute.length; i++) rs += (mapRoute[i][0] * 0.37 + mapRoute[i][1] * 0.11) * (i + 1);
     let fs = 0; for (let i = 0; i < followRoute.length; i++) fs += (followRoute[i][0] * 0.37 + followRoute[i][1] * 0.11) * (i + 1);
     put(rs); put(fs); put(mapMarkers.length);
-    for (const m of mapMarkers) { put(m.x); put(m.z); put(m.size); put(m.shape); put(m.color); put(m.player); put(m.name); }
+    for (const m of mapMarkers) { put(m.x); put(m.z); put(m.size); put(m.shape); put(m.icon); put(m.color); put(m.player); put(m.name); }
     if (note) drawn.length = n; else if (drawn.length !== n) same = false;
     return same;
   }
@@ -272,10 +264,11 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       const dx = (m.x - car.x) * k, dz = (m.z - car.z) * k;
       let px = dx * ca - dz * sa, pz = dx * sa + dz * ca;
       const r = Math.hypot(px, pz), rim = W / 2 - 8, off = r > rim;
+      if (off && NO_RIM.has(m.icon)) continue;
       if (off) { px *= rim / r; pz *= rim / r; }
       // another player's ring grows as the player comes near: 3.5 px (200 px canvas) from 400 m out, 6.5 px inside 40 m, never more, so it stays a thin ring round the arrow and clear of a mission mark
       const rs = m.player ? 3.5 + 3 * Math.min(1, Math.max(0, (400 - Math.hypot(m.x - car.x, m.z - car.z)) / 360)) : m.size || 5;
-      drawMarker(W / 2 + px, W / 2 + pz, off ? 4 : rs, m.shape, m.color || '#e8559a');
+      drawMarker(W / 2 + px, W / 2 + pz, m, off, rs);
       if (m.player && !off && r < nearD) { nearD = r; near = [m, W / 2 + px, W / 2 + pz]; }
     }
     // On a phone the map is about 98 px wide, a 200 px canvas shown at half size: a name would be 5 px tall. So there it is the dot only; from 150 px up, the nearest player gets a name.
