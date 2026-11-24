@@ -52,20 +52,22 @@ async function glrecTest(S, js) {
   const brief = () => js("var r = window.__glrec && window.__glrec.summary(0); return r ? { t: r.t, tex: r.texMB, buf: r.bufMB, rb: r.rbMB, up: r.upMB, texN: r.texN, programs: r.programs, lost: r.lost.length, loading: !!document.getElementById('loading') } : null;").catch(e => ({ error: e.message.slice(0, 120) }));
   const watch = async (label, secs) => { for (let i = 0; i < secs / 5; i++) { await sleep(5000); const b = await brief(); console.log('glrec', label, JSON.stringify(b)); if (b && b.lost >= 3) return; } };
   // mode.txt "glrec-atlas": the same loads by turns with the wall atlas as shipped and at half size (?atlast=128), small first, to see whether a phone that dies after the atlas stops dying
-  const AB = MODE_NOW === 'glrec-atlas', N = AB ? 6 : (+process.env.PD_GLREC_PASSES || 3);
+  // mode.txt "glrec-arms:a,b,c": the same loads by turns with each test switch of src/buildings.js (?tb=...; "shipped" is the game as it is), three rounds, the first place only: which one stops the crashes
+  const ARMS = /^glrec-arms:/.test(MODE_NOW) ? MODE_NOW.split(':')[1].split(',').filter(Boolean) : null;
+  const AB = MODE_NOW === 'glrec-atlas', N = ARMS ? ARMS.length * 3 : AB ? 6 : (+process.env.PD_GLREC_PASSES || 3);
   for (let pass = 1; pass <= N; pass++) {
-    const small = AB && pass % 2 === 1, url = GLREC_URL + (small ? '&atlast=128' : '');
-    console.log('glrec pass', pass, AB ? (small ? 'SMALL atlas' : 'atlas as shipped') : '');
+    const arm = ARMS ? ARMS[(pass - 1) % ARMS.length] : '', small = AB && pass % 2 === 1, url = GLREC_URL + (small ? '&atlast=128' : '') + (arm && arm !== 'shipped' ? '&tb=' + arm : '');
+    console.log('glrec pass', pass, ARMS ? 'ARM ' + arm : AB ? (small ? 'SMALL atlas' : 'atlas as shipped') : '');
     await wd('POST', S + '/url', { url: 'about:blank' }).catch(() => {}); await sleep(1500);
     await wd('POST', S + '/url', { url });
     await wd('POST', S + '/orientation', { orientation: 'LANDSCAPE' }).catch(() => {});
     await watch(`pass ${pass}, loading`, 75);
-    for (const [name, x, z] of [['Mondello', -3033, -10177], ['Ballaro', 150, 560]]) {
+    for (const [name, x, z] of ARMS ? [] : [['Mondello', -3033, -10177], ['Ballaro', 150, 560]]) {
       await js("var g = window.game; if (g && g.world) { try { g.placeAt(arguments[0], arguments[1]); } catch (e) {} g.world.teleport(arguments[0], arguments[1], function () { try { g.placeAt(arguments[0], arguments[1]); } catch (e) {} }); } return true;", [x, z]).catch(e => console.log('glrec teleport:', e.message.slice(0, 120)));
       await watch(`pass ${pass}, ${name}`, 35);
     }
     const sum = await js('return window.__glrec ? window.__glrec.summary(80) : null;').catch(e => ({ error: e.message.slice(0, 200) }));
-    if (sum && !sum.error) sum.atlas = small ? 'small' : 'shipped';
+    if (sum && !sum.error) { sum.atlas = small ? 'small' : 'shipped'; sum.arm = arm; sum.draw = await js('var R = window.game && window.game.renderer; return R ? { calls: R.info.render.calls, tris: R.info.render.triangles } : null;').catch(() => null); }
     keep(`glrec-${pass}.json`, JSON.stringify(sum));
     const p = await wd('GET', S + '/screenshot').catch(() => null); if (p) keep(`glrec-${pass}.png`, Buffer.from(p, 'base64'));
     console.log('glrec pass', pass, 'done:', sum && !sum.error ? `${sum.lost.length} lost, peak ${JSON.stringify(sum.peakMB)}, uploaded ${sum.upMB} MB, ${sum.programs} programs (compile ${sum.compileMs} ms, link ${sum.linkMs} ms)` : JSON.stringify(sum));
@@ -77,7 +79,7 @@ async function glrecTest(S, js) {
   let code = 1;
   let MODE = 'bench'; try { MODE = fs.readFileSync(path.join(__dirname, 'mode.txt'), 'utf8').trim() || 'bench'; } catch (e) { /* no file: the bench */ }
   MODE_NOW = MODE;
-  if (MODE === 'glrec' || MODE === 'glrec-atlas') {
+  if (/^glrec/.test(MODE)) {
     try { console.log('session', JSON.stringify(s.capabilities || {}).slice(0, 300)); await wd('POST', S + '/timeouts', { script: 30000, pageLoad: 180000 }).catch(() => {}); await glrecTest(S, js); code = 0; } catch (e) { console.log('glrec FAILED', e.message); keep('error.txt', String(e.stack || e) + '\n'); }
     await wd('DELETE', S).catch(() => {}); process.exit(code);
   }

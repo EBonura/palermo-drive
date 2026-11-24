@@ -18,6 +18,9 @@ const T = 256;
 // A test only (the owner, 24 Nov 2026: prove a suspicion before fixing it): ?atlast=128 uploads the wall atlas at half its size, a quarter of its memory (20 MB for 80), to see whether
 // a phone whose GPU process dies after the upload (tools/devicefarm, docs/PERF.md "The recorder") stops dying. The walls are painted as ever and scaled down: blurrier, never an option.
 const AT = /[?&]atlast=128(&|$)/.test(location.search) ? 128 : T;
+// More tests of the same kind (the half-size atlas did not stop the crashes): ?tb=nodraw never draws the buildings (their atlas is then never uploaded either), ?tb=flat draws them with
+// plain vertex colours and no atlas, ?tb=nomip draws them as ever with an atlas that has no mipmaps and no anisotropy. Each changes the picture: to measure, never an option.
+const TB = (/[?&]tb=(nodraw|flat|nomip)(&|$)/.exec(location.search) || [])[1] || '';
 
 // =====================================================================================
 // Tile painting
@@ -1347,6 +1350,7 @@ function* buildAtlasIter() {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
+  if (TB === 'nomip') { tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.anisotropy = 1; }
   tex.needsUpdate = true;
   tex.onUpdate = () => { tex.image.data = null; };
   document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(AT * AT * 4 * LAYERS.length); for (const _ of paintAtlas(d)); tex.image.data = d; tex.needsUpdate = true; });
@@ -1354,7 +1358,9 @@ function* buildAtlasIter() {
 }
 
 function atlasMaterial(tex, cutout) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout ? 0.45 : 0 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide, alphaTest: cutout && TB !== 'flat' ? 0.45 : 0 });
+  if (TB === 'nodraw') m.visible = false;
+  if (TB === 'flat') return m;   // (the test: no atlas, the shader three ships)
   m.onBeforeCompile = sh => {
     sh.uniforms.uTex = { value: tex };
     sh.uniforms.uWin = NIGHT.win; sh.uniforms.uGrp = { value: GRPV };
