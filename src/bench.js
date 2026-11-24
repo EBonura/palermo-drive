@@ -191,8 +191,8 @@ export async function runBench(E) {
     if (res.again) p1.push(row('  again, at end', res.again, null));
     p1.push('fps and the ms between animation frames (median/95th/longest) as the player gets them. code: the game\'s own code in a frame, ms. draws, tris: the draw calls and thousands of triangles of one frame.');
     p1.push('wait: seconds from setting off for the place to its being ready.' + (spots.some(s => !s.settled) ? ' *: measured before all of it had loaded.' : '') + (spots.some(s => s.settled && !s.quiet) ? ' ~: loaded, with building still going on out of view.' : '') + (spots.some(s => s.pend) ? ' Page 4 says what was still to do.' : ''));
-    const D = res.drive;
-    if (D) p1.push(D.na ? `drive: not done (${D.na})` : `drive, Viale Regione: ${D.m} m in ${D.s} s at ${D.v} m/s, ${D.n} frames. ms between frames: median ${f1(D.iv[0])}, 95th ${f1(D.iv[1])}, worst ${f1(D.iv[2])}; ${D.over50} over 50 ms, ${D.over33} over 33. code ${f1(D.js[0])} (95th ${f1(D.js[1])}), streaming at most ${f1(D.stream.max)} ms a frame.${D.worst ? ` Longest frame of code ${f1(D.worst.js)} ms at ${D.worst.m} m: ${Object.entries(D.worst.split).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, v]) => k + ' ' + f1(v)).join(', ')}.` : ''} The lapa is carried along the road: no driving physics.`);
+    const top = (o, n) => Object.entries(o).sort((x, y) => y[1] - x[1]).slice(0, n).map(([k, v]) => k + ' ' + f1(v)).join(', ');
+    for (const D of [res.drive].concat(res.drives || [])) if (D) p1.push(D.na ? `drive: not done (${D.na})` : `drive, ${D.name || 'Viale Regione'}: ${D.m} m in ${D.s} s at ${D.v} m/s, ${D.n} frames. ms between frames: median ${f1(D.iv[0])}, 95th ${f1(D.iv[1])}, worst ${f1(D.iv[2])}; ${D.over50} over 50 ms, ${D.over33} over 33. code ${f1(D.js[0])} (95th ${f1(D.js[1])}), streaming at most ${f1(D.stream.max)} ms a frame.${D.worst ? ` Longest frame of code ${f1(D.worst.js)} ms at ${D.worst.m} m: ${Object.entries(D.worst.split).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, v]) => k + ' ' + f1(v)).join(', ')}.` : ''}${D.mean ? ` The code of a frame over the whole drive, ${f1(D.jsMean)} ms: ${top(D.mean, 8)}.` : ''}${D.slow ? ` Over its ${D.slow.n} frames that came more than 50 ms apart, ${f1(D.slow.js)} ms: ${top(D.slow.split, 6)}.` : ''} The lapa is carried along the road: no driving physics.`);
     const ppl = spots.filter(s => s.day);
     if (ppl.length) p1.push('people there, day/night (a crowd fills and thins slowly after a change of place or hour): ' + ppl.map(s => `${s.name} ${s.day.people}/${s.night ? s.night.people : '-'}`).join(', '));
 
@@ -640,16 +640,18 @@ export async function runBench(E) {
     sync = 0; await drain(); await frame(); world.resetStats();
     const t = now();
     let w = null;   // the longest frame of the drive and which systems it went to
+    const first = snap(), slowT = { n: 0 }; let slowJs = 0;   // slowT: the systems' time summed over the frames that came more than 50 ms after the one before
     for (let k = 1, s = 0, a0 = snap(); s < len;) {
       const f = await frame(), a1 = snap(); F.push(f);
       if (!w || f.js > w.js) w = { js: f.js, m: s, a: a0, b: a1 };
+      if (f.iv > 50) { slowT.n++; slowJs += f.js; for (const k2 in a1) if (k2 !== 'n') slowT[k2] = (slowT[k2] || 0) + a1[k2] - (a0[k2] || 0); }
       a0 = a1;
       s = Math.min(len, (now() - t) / 1000 * DRIVE.v); while (k < P.length - 1 && cum[k] < s) k++;
       const a = P[k - 1], b = P[k], u = clamp((s - cum[k - 1]) / Math.max(0.01, cum[k] - cum[k - 1]), 0, 1);
       try { vehicle.placeAt(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, Math.atan2(b[0] - a[0], b[1] - a[1])); } catch (e) { /* between roads */ }
     }
-    const st = world.stats(), iv = sorted(F.map(f => f.iv)), js = sorted(F.map(f => f.js));
-    return { m: Math.round(len), s: r1((now() - t) / 1000), v: DRIVE.v, n: F.length, iv: [at(iv, 0.5), at(iv, 0.95), iv[iv.length - 1]].map(r1), over50: F.filter(f => f.iv > 50).length, over33: F.filter(f => f.iv > 33.4).length,
+    const st = world.stats(), iv = sorted(F.map(f => f.iv)), js = sorted(F.map(f => f.js)), last = snap(), jsMean = F.reduce((q, f) => q + f.js, 0) / Math.max(1, F.length);
+    return { mean: split(first, last, jsMean), jsMean: r1(jsMean), slow: slowT.n ? { n: slowT.n, js: r1(slowJs / slowT.n), split: split({ n: 0 }, slowT, slowJs / slowT.n) } : null, m: Math.round(len), s: r1((now() - t) / 1000), v: DRIVE.v, n: F.length, iv: [at(iv, 0.5), at(iv, 0.95), iv[iv.length - 1]].map(r1), over50: F.filter(f => f.iv > 50).length, over33: F.filter(f => f.iv > 33.4).length,
       js: [at(js, 0.5), at(js, 0.95), js[js.length - 1]].map(r1), stream: { max: r1(st.workMax), avg: r2(st.avgWork || 0), over8: st.hitches }, worst: w && { js: r1(w.js), m: Math.round(w.m), split: split(w.a, { ...w.b, n: w.a.n + 1 }, w.js) }, from, to: [r1(car.x), r1(car.z)] };
   }
 
@@ -721,6 +723,7 @@ export async function runBench(E) {
     // 1. The tour: the plain reading of every place by day, whatever happens. Up to tourEnd a place also gets its reading by night; past it the nights are left out.
     // The wait at each place is what is left up to hardEnd shared among the places still to come, so a device that loads slowly gets shorter waits (and says what was not ready) instead of fewer places.
     const tourEnd = t0 + BUDGET * TOUR, hardEnd = t0 + BUDGET * TOURMAX, back = list.length > 1 ? 1 : 0, driveMs = (DRIVE.s + 4) * 1000;
+    const also = (Q.get('bd') || '').split(',').filter(Boolean);   // ?bd=qc,vucciria: the same drive from these places too, along whatever road the lapa stands on (res.drives)
     let driveLeft = list.some(d => d[0] === DRIVE.at) ? driveMs : 0, jAvg = 0, jN = 0;
     for (let i = 0; i < list.length; i++) {
       const def = list[i], after = list.length - 1 - i + back, s = { id: def[0], name: def[1], at: [def[2], def[3]] };   // after: the places still to come, the way back to the first one among them
@@ -737,6 +740,12 @@ export async function runBench(E) {
           if (Math.abs(game.time.hour - DAY) > 0.02) { sys.dayNight.jumpTo(DAY); await sleep(1500); }
           try { res.drive = await drive(); } catch (e) { res.drive = { na: 'it failed: ' + short(e) }; }
         }
+      }
+      if (also.includes(def[0])) {
+        progress(`${s.name}: driving for ${DRIVE.s} s`);
+        if (Math.abs(game.time.hour - DAY) > 0.02) { sys.dayNight.jumpTo(DAY); await sleep(1500); }
+        let d; try { d = await drive(); } catch (e) { d = { na: s.name + ': it failed: ' + short(e) }; }
+        if (d.na && !d.na.startsWith(s.name)) d.na = s.name + ': ' + d.na; d.name = s.name; (res.drives = res.drives || []).push(d);
       }
     }
     if (!res.drive) res.drive = { na: `${SPOTS.find(d => d[0] === DRIVE.at)[1]} is not among the places of this run` };
