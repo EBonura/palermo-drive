@@ -12,14 +12,14 @@ const under = (f, bg) => { if (!bg) return; for (let i = 0; i < FRAME * FRAME; i
 const over = (f, fg) => { if (!fg) return; for (let i = 0; i < FRAME * FRAME; i++) if (fg[i * 4 + 3]) { f[i * 4] = fg[i * 4]; f[i * 4 + 1] = fg[i * 4 + 1]; f[i * 4 + 2] = fg[i * 4 + 2]; f[i * 4 + 3] = 255; } };
 
 export async function personFrames(P, want) {   // want: { drink, sit } which optional poses to make
-  const used = [], frames = {}, sheets = {}, anims = ['walk', 'idle', 'sit'].concat(P.run ? ['run'] : []);
+  const used = [], frames = {}, sheets = {}, filming = P.extras.some(e => e[0] === 'filming'), anims = ['walk', 'idle', 'sit'].concat(P.run ? ['run'] : []).concat(filming ? ['thrust'] : []);   // filming: he stands in a frame of the source's own thrust animation, where one arm is drawn reaching forward with the hand closed (assets/peds/lpc/extras.js filming)
   const subs = { head: P.layers.filter(l => isHead(l.id)), torso: P.layers.filter(l => isTorso(l.id)) }, subSheets = {};
   if (P.layers.length) for (const a of anims) { sheets[a] = await composeAnim(P, a); if (sheets[a]) used.push(...sheets[a].used); for (const k of ['head', 'torso']) subSheets[k + a] = subs[k].length ? await composeAnim({ body: P.body, layers: subs[k] }, a) : null; }
   const skinRamp = P.layers.length ? ramp('body', P.skinName).map(rgbKey) : [], skinSet = new Set(skinRamp), skinRGB = P.layers.length ? ramp('body', P.skinName) : [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
   const poses = [0, 1, 2, 3, 4].concat(want.drink ? [5] : []).concat(want.sit ? (want.drink ? [6, 7] : [6]) : []);   // pose 7 (sitting and sipping) only for those who hold a drink
   for (const dir of DIRS) for (const pose of poses) {
     let anim, idx;
-    if (P.chair) { anim = 'sit'; idx = 2; } else if (pose === 0) { anim = 'idle'; idx = 0; } else if (pose <= 4) { anim = P.run ? 'run' : 'walk'; idx = WALKF[pose - 1]; } else if (pose === 5) { anim = 'idle'; idx = 1; } else if (pose === 6) { anim = 'sit'; idx = 1; } else { anim = 'sit'; idx = 0; }
+    if (P.chair) { anim = 'sit'; idx = 2; } else if (pose === 0) { anim = filming ? 'thrust' : 'idle'; idx = filming ? 5 : 0; } else if (pose <= 4) { anim = P.run ? 'run' : 'walk'; idx = WALKF[pose - 1]; } else if (pose === 5) { anim = 'idle'; idx = 1; } else if (pose === 6) { anim = 'sit'; idx = 1; } else { anim = 'sit'; idx = 0; }
     const f = P.layers.length ? frameOf(sheets[anim], anim, dir, idx) : new Uint8ClampedArray(FRAME * FRAME * 4);
     const hd = P.layers.length ? X.bbox(frameOf(subSheets['head' + anim], anim, dir, idx)) : null;
     if (hd) {
@@ -30,7 +30,7 @@ export async function personFrames(P, want) {   // want: { drink, sit } which op
           case 'stubble': X.stubble(f, A, skinRGB); break; case 'roundGlasses': X.roundGlasses(f, A, a[1]); break; case 'rectGlasses': X.rectGlasses(f, A); break;
           case 'print': X.bandPrint(f, A, a[0], a[1], a[2]); break; case 'suit': X.suitFront(f, A, a[0]); break; case 'leather': X.leatherJacket(f, A, a[0]); break; case 'patches': X.patches(f, A); break;
           case 'rosaScarf': X.rosaScarf(f, A, a[0] || 'rosanero', a[1] || 'black'); break; case 'bandolier': X.bandolier(f, A, a[0]); break; case 'chain': X.chain(f, A); break; case 'stripe': X.stripe(f, A); break;
-          case 'tattoo': X.tattoo(f, A, a[0], a[1]); break; case 'rip': X.ripKnees(f, A, skinRGB); break; case 'earring': X.earring(f, A); break; case 'hoops': X.hoops(f, A); break; case 'chestInk': X.chestInk(f, A); break; case 'wandererFace': X.wandererFace(f, A, skinRGB); break; case 'filming': if (pose === 0) X.filming(f, A, skinRGB, ramp('cloth', a[0])); break;
+          case 'tattoo': X.tattoo(f, A, a[0], a[1]); break; case 'rip': X.ripKnees(f, A, skinRGB); break; case 'earring': X.earring(f, A); break; case 'hoops': X.hoops(f, A); break; case 'chestInk': X.chestInk(f, A); break; case 'wandererFace': X.wandererFace(f, A, skinRGB); break; case 'filming': if (pose === 0) X.filming(f, A, skinRGB); break;
           case 'backpack': X.backpack(f, A, a[0]); break; case 'bib': X.bib(f, A, a[0]); break; case 'rag': X.rag(f, A, a[0]); break;
           case 'wrench': { const w = hands.l; X.wrench(f, w.x, w.y, dir === 'left' ? -1 : 1); break; }
           case 'hold': { const hd2 = a[2] === 'r' ? hands.r : hands.l; if (pose >= 6) break; const x = hd2.x, y = hd2.y; if (a[0] === 'bag') X.bag(f, x, y + 1, a[1]); else if (a[0] === 'purse') X.purse(f, x, y + 1, a[1]); else if (a[0] === 'briefcase') X.briefcase(f, x, y + 1, a[1]); else if (a[0] === 'helmet') X.helmetHand(f, x, y - 2, a[1]); else if (a[0] === 'phone') X.phone(f, x, y - 2); break; }

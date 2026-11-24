@@ -361,31 +361,26 @@ export function chestInk(f, A) {
   for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [1, 2], [2, 1], [2, 2]]) if (A.skinAt(cx + dx, Math.round(h.y1) + 3 + dy)) put(f, cx + dx, Math.round(h.y1) + 3 + dy, ink[(dx + dy) & 1]);
 }
 
-// a phone held up, filming, in the right hand (the left of the picture from the front): the arm that hung at the side is taken away and redrawn bent, the forearm up beside the head (so the face stays in view) and
-// a phone standing upright in the fist, its back to the camera with the lens block at the top. In profile the hand holds it out in front of the face. Pose 0 only (the others keep the arms they have).
-export function filming(f, A, skin, sleeve) {
+// a phone held out in front of him, filming. The arm is not ours: for this pose the figure stands in a frame of the source's thrust animation (tools/lpc/frames.mjs), where the body and the clothes are drawn
+// with one arm reaching forward and its hand closed, so only the phone is painted here, standing in that fist. In profile it is at arm's length in front of his face, the lit screen towards him; from the
+// front the fist comes towards us at his middle and the phone stands in it with its back to us (lens block and the red light that says it is recording, on the phone itself); from behind his body hides it.
+export function filming(f, A, skin) {
   const { hd: h, dir } = A; if (dir === 'back') return;
-  const cx = Math.round(h.cx), y1 = Math.round(h.y1), sh = y1 + 5, K = [14, 14, 18], P = [44, 46, 56], L = [120, 170, 200];
-  const limb = (x0, y0, x1, y1b, r2) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1b - y0)), pts = [], seen = new Set(); for (let k = 0; k <= n; k++) { const px = x0 + (x1 - x0) * k / n, py = y0 + (y1b - y0) * k / n; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = Math.round(px) + dx, y = Math.round(py) + dy; if ((x - px) ** 2 + (y - py) ** 2 <= r2 && !seen.has(key(x, y))) { seen.add(key(x, y)); pts.push([x, y]); } } } return pts; };
-  const RED = [235, 40, 40], SCR = [150, 205, 235], SCR2 = [90, 150, 200];
+  const cx = Math.round(h.cx), y1 = Math.round(h.y1), K = [14, 14, 18], P = [44, 46, 56], P2 = [28, 30, 38], RED = [235, 40, 40], SCR = [150, 205, 235], SCR2 = [90, 150, 200];
+  const grip = (xa, xb, y) => { for (let x = xa; x <= xb; x++) { put(f, x, y - 1, skin[0]); put(f, x, y, skin[2]); put(f, x, y + 1, skin[3]); } };   // the fingers closed over the phone's foot: a dark line, then lit knuckles
   if (dir === 'front') {
-    // both arms redrawn bent: the upper arms drop from the shoulders, the forearms come in to grip a phone held in front of the chest (its back to the viewer: dark slab, lens block, a red REC dot above it)
-    for (let y = sh - 1; y < F; y++) for (let x = 0; x < F; x++) if (x <= cx - 9 || x >= cx + 9) f[(y * F + x) * 4 + 3] = 0;
-    const ex = 11, ey = sh + 9;
-    for (const s of [-1, 1]) {
-      const ua = limb(cx + s * 9, sh + 1, cx + s * ex, ey, 2.3), fa = limb(cx + s * ex, ey, cx + s * 4, y1 + 9, 1.8);
-      shape(f, fa, () => skin[3], skin[0]); shape(f, ua, (x) => (Math.abs(x - cx) > 10 ? sleeve[2] : sleeve[3]), sleeve[0]);
-    }
-    for (let y = y1 + 6; y < y1 + 11; y += 2) put(f, cx - 7, y, [52, 64, 92]);   // ink on the forearm
-    for (let y = y1 + 3; y <= y1 + 12; y++) for (let x = cx - 4; x <= cx + 4; x++) put(f, x, y, (x === cx - 4 || x === cx + 4 || y === y1 + 3 || y === y1 + 12) ? K : (x === cx + 3 || y === y1 + 11 ? [28, 30, 38] : P));
-    for (const [dx, dy] of [[-3, 0], [-2, 0], [-3, 1], [-2, 1]]) put(f, cx + dx, y1 + 4 + dy, [24, 24, 30]);   // the camera block, top left of the back
-    put(f, cx - 3, y1 + 4, L); put(f, cx - 2, y1 + 5, [60, 90, 120]); put(f, cx + 2, y1 + 4, [210, 210, 190]);   // lens glint, a second lens, the flash
-    for (const sd of [-1, 1]) { const xa = sd < 0 ? cx - 6 : cx + 3, xb = xa + 3; shape(f, rect(xa, y1 + 7, xb, y1 + 10), (x, y) => (y === y1 + 7 ? skin[2] : y >= y1 + 9 ? skin[4] : skin[3]), skin[0]); }   // both hands, drawn like the ones at his sides: a skin fist with the dark outline, gripping the phone's edges
-    put(f, cx + 4, y1 + 1, RED); put(f, cx + 5, y1 + 1, RED); put(f, cx + 4, y1 + 2, RED); put(f, cx + 5, y1 + 2, RED); put(f, cx + 3, y1 + 1, [255, 190, 190]);   // REC
+    let top = null; for (let y = y1 + 6; y <= y1 + 18 && top == null; y++) { let n = 0; for (let x = cx - 5; x <= cx + 2; x++) if (A.skinAt(x, y)) n++; if (n >= 6) top = y; }   // the fist: the first row of skin right across the middle
+    if (top == null) return; const xa = cx - 4, xb = cx + 1, t = top - 6;   // short enough to leave his beard in view
+    for (let y = t; y <= top + 1; y++) for (let x = xa; x <= xb; x++) put(f, x, y, (x === xa || x === xb || y === t) ? K : (x === xb - 1 ? P2 : P));
+    put(f, xa + 1, t + 1, [24, 24, 30]); put(f, xa + 2, t + 1, [120, 170, 200]); put(f, xa + 1, t + 2, [60, 90, 120]); put(f, xa + 2, t + 2, [24, 24, 30]); put(f, xb - 1, t + 1, RED);   // the lens block, and recording
+    grip(xa, xb, top + 1);
   } else {
-    const x0 = Math.round(h.x0), x1 = Math.round(h.x1), fx = dir === 'left' ? x0 : x1, sg = dir === 'left' ? -1 : 1;   // sg: the way he faces
-    shape(f, limb(cx + sg * 3, sh + 5, fx + sg * 6, y1 - 1, 1.7), () => skin[3], skin[0]);   // a forearm raised in front of the chest (the other arm hangs as it was)
-    for (let y = y1 - 9; y <= y1; y++) for (let d = 0; d <= 3; d++) put(f, fx + sg * (3 + d), y, (d === 3 || y === y1 - 9 || y === y1) ? K : (y === y1 - 8 ? [30, 30, 38] : (d === 0 ? SCR : SCR2)));   // the screen turned a little to us: lit
-    put(f, fx + sg * 5, y1 - 7, [255, 255, 255]); put(f, fx + sg * 3, y1 - 12, RED); put(f, fx + sg * 4, y1 - 12, RED); put(f, fx + sg * 3, y1 - 11, RED); put(f, fx + sg * 4, y1 - 11, RED);
+    const sg = dir === 'left' ? -1 : 1; let hx = null, ft = null;   // sg: the way he faces; hx: the front of the fist; ft: its top row
+    for (let k = 24; k >= 8 && hx == null; k--) for (let y = y1 + 6; y <= y1 + 14; y++) if (a(f, cx + sg * k, y)) { hx = cx + sg * k; break; }
+    if (hx == null) return;
+    for (let y = y1 + 2; y <= y1 + 16 && ft == null; y++) if (a(f, hx - sg * 3, y)) ft = y;
+    if (ft == null) return; const t = ft - 9;
+    for (let y = t; y <= ft + 1; y++) for (let d = 2; d <= 5; d++) put(f, hx - sg * d, y, (d === 2 || d === 5 || y === t) ? K : d === 4 ? (y === t + 1 ? RED : SCR) : SCR2);   // seen from the side and a little from behind: the lit screen towards him, the red recording mark at its top
+    grip(Math.min(hx - sg * 2, hx - sg * 5), Math.max(hx - sg * 2, hx - sg * 5), ft + 1);
   }
 }

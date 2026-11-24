@@ -1,4 +1,4 @@
-// "The Sicilian Wanderer": a likeness cameo of Dario Cascio, a Sicilian creator and a friend of the owner. He stands in the Vucciria filming on his phone, held in front of his chest in both hands (the cast entries
+// "The Sicilian Wanderer": a likeness cameo of Dario Cascio, a Sicilian creator and a friend of the owner. He stands in the Vucciria filming on his phone, held out in front of him in one hand (the cast entries
 // 'wanderer' and 'wanderer_tweed' of assets/peds/sprites.js, drawn by tools/lpc/cast.mjs and assets/peds/lpc/extras.js). He is the passenger of the job in src/job-wanderer.js.
 // He is a scripted character of the crowd (pedestrians.spawnScripted), added when the lapa comes within SHOW_R and taken away again beyond HIDE_R. ?wanderer=tweed puts him in the tweed jacket and flat cap.
 // A small name tag floats over his head (one sprite, one canvas, drawn when he is within LABEL_R metres), so nobody can miss who he is.

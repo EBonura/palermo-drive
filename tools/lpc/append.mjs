@@ -1,4 +1,5 @@
 // Adds the given cast entries to the atlas that is already built, without rebuilding the rest: ONLY=wanderer,wanderer_tweed node tools/lpc/append.mjs
+// REDO=1 paints entries that are already there again, in the cells they have (after a change to how they are drawn).
 // The full build (build.mjs) needs the generator's clone for the layers of every type; this one only needs the layers of the entries it adds. The entries must be the LAST ones of VARIANTS
 // (assets/peds/sprites.js) so the cell numbers of everyone else stay as they are. It keeps the cell size and the crop of the existing atlas (12, 8 of the 64 px frame, found by matching a known figure).
 import fs from 'fs'; import path from 'path';
@@ -8,16 +9,21 @@ const OUT = process.argv[2] || path.join(ROOT, 'assets/peds/lpc'), ONLY = (proce
 if (!ONLY.length) throw new Error('say which entries: ONLY=id,id');
 const index = JSON.parse(fs.readFileSync(path.join(OUT, 'index.json'))), [CW, CH] = index.cell, cols = index.cols;
 const raw = await sharp(path.join(OUT, 'atlas.png')).raw().toBuffer({ resolveWithObject: true }), W = raw.info.width;
-const cells = [];
+const cells = [], redo = [];
 for (const id of ONLY) {
   const e = VARIANTS.findIndex(v => v.id === id); if (e < 0) throw new Error('no such entry ' + id);
-  if (index.entries[e] && Object.keys(index.entries[e].cells).length) { console.log(id, 'is already in the atlas (entry', e + ')'); continue; }
+  if (index.entries[e] && Object.keys(index.entries[e].cells).length) {
+    if (!process.env.REDO) { console.log(id, 'is already in the atlas (entry', e + '); REDO=1 paints it again in the cells it has'); continue; }
+    const sp = VARIANTS[e], r = await personFrames(stackOf(sp, e), { drink: !!sp.drink && !sp.chair, sit: !!sp.sit });
+    for (const dir of ['front', 'back', 'left']) for (let pose = 0; pose < 8; pose++) { const n = index.entries[e].cells[DI[dir] * 8 + pose], f = r.frames[dir + pose]; if (n != null && f) redo.push([n, f]); }
+    continue;
+  }
   if (e !== index.entries.length) throw new Error(`${id} is entry ${e} but the atlas has ${index.entries.length}: only the last entries of VARIANTS can be appended, in order`);
   const sp = VARIANTS[e], r = await personFrames(stackOf(sp, e), { drink: !!sp.drink && !sp.chair, sit: !!sp.sit });
   index.entries.push({ id, cells: {} });
   for (const dir of ['front', 'back', 'left']) for (let pose = 0; pose < 8; pose++) if (r.frames[dir + pose]) cells.push([e, DI[dir] * 8 + pose, r.frames[dir + pose]]);
 }
-if (!cells.length) process.exit(0);
+if (!cells.length && !redo.length) process.exit(0);
 let next = Math.max(...index.entries.flatMap(en => Object.values(en.cells)), -1) + 1;
 const rows = Math.ceil((next + cells.length) / cols), H = Math.max(raw.info.height, rows * CH), atlas = Buffer.alloc(W * H * 4);
 for (let i = 0; i < W * H; i++) { atlas[i * 4] = 22; atlas[i * 4 + 1] = 16; atlas[i * 4 + 2] = 26; atlas[i * 4 + 3] = 0; }
@@ -26,7 +32,11 @@ for (const [e, c, f] of cells) {
   const n = next++; index.entries[e].cells[c] = n; const cx = (n % cols) * CW, cy = Math.floor(n / cols) * CH;
   for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) { const sx = CX0 + x, sy = CY0 + y; if (sx > 63 || sy > 63) continue; const i = (sy * 64 + sx) * 4, o = ((cy + y) * W + cx + x) * 4; if (f[i + 3]) { atlas[o] = f[i]; atlas[o + 1] = f[i + 1]; atlas[o + 2] = f[i + 2]; atlas[o + 3] = 255; } }
 }
+for (const [n, f] of redo) {
+  const cx = (n % cols) * CW, cy = Math.floor(n / cols) * CH;
+  for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) { const sx = CX0 + x, sy = CY0 + y, o = ((cy + y) * W + cx + x) * 4, i = (sy * 64 + sx) * 4, on = sx <= 63 && sy <= 63 && f[i + 3]; atlas[o] = on ? f[i] : 22; atlas[o + 1] = on ? f[i + 1] : 16; atlas[o + 2] = on ? f[i + 2] : 26; atlas[o + 3] = on ? 255 : 0; }
+}
 index.atlas = [W, H];
 await sharp(atlas, { raw: { width: W, height: H, channels: 4 } }).png({ compressionLevel: 9 }).toFile(path.join(OUT, 'atlas.png.tmp'));
 fs.renameSync(path.join(OUT, 'atlas.png.tmp'), path.join(OUT, 'atlas.png')); fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index));
-console.log('appended', cells.length, 'cells; atlas', W, 'x', H);
+console.log('appended', cells.length, 'cells, repainted', redo.length, '; atlas', W, 'x', H);
