@@ -54,6 +54,10 @@ for (const side of ['bench', 'rec']) {
   sideFiles[side] = `${side}.${hash(Buffer.from(code))}.js`; fs.writeFileSync(path.join(OUT, 'js', sideFiles[side]), code);
 }
 
+// The work pool's worker (src/worker.js, src/work-pool.js) is a file of its own next to the bundle too: a module worker with the painters it runs bundled in, loaded only when a task first needs it. The bundle learns its hashed name from __PD_WORKER__.
+const workerCode = esbuild.buildSync({ entryPoints: [path.join(ROOT, 'src/worker.js')], bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'], minify: flag('minify', 'true') !== 'false', charset: 'utf8', write: false, logLevel: 'warning' }).outputFiles[0].contents;
+const workerName = `worker.${hash(Buffer.from(workerCode))}.js`; fs.writeFileSync(path.join(OUT, 'js', workerName), workerCode);
+
 const plugin = {
   name: 'pd',
   setup(b) {
@@ -76,7 +80,7 @@ const res = await esbuild.build({
   bundle: true, format: 'esm', platform: 'browser', target: ['chrome90', 'safari15', 'firefox90'],
   minify: flag('minify', 'true') !== 'false', treeShaking: true, legalComments: 'external', charset: 'utf8',
   nodePaths: [...(flag('nodes', '') ? [path.resolve(flag('nodes', ''))] : []), path.join(HERE, 'node_modules')],   // --nodes=<dir>: try another three.js version
-  define: { __PD_PROD__: 'true', __PD_ONLINE__: flag('online', true) !== 'false' ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
+  define: { __PD_PROD__: 'true', __PD_WORKER__: JSON.stringify('./' + workerName), __PD_ONLINE__: flag('online', true) !== 'false' ? 'true' : 'false', __PD_PLAYLOG_URL__: JSON.stringify(PLAYLOG), __PD_PLAYLOG_TEST__: flag('playlog', '') ? 'true' : 'false' }, entryNames: 'app', outdir: path.join(OUT, 'js'), metafile: true, write: false, logLevel: 'warning',
   plugins: [plugin],
 });
 let appJs = null;

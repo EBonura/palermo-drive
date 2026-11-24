@@ -1117,3 +1117,29 @@ So it was `gl.generateMipmap` on the 239-layer sRGB array texture, and nothing e
 
 A lesson kept: three guesses came before the right one (shader compiles, the atlas's size, the total memory) and each was disproved by a run that cost a quarter of an hour. Test the suspicion before building the fix.
 
+
+## The work pool (`src/work-pool.js`, `src/worker.js`, `src/tasks.js`, 24 Nov 2026)
+
+The game had no Web Worker. `run(name, payload, transferList)` in `src/work-pool.js` now hands a named task from `src/tasks.js` to an idle worker and resolves with its result, buffers handed back by transfer. Workers are made when a task first needs one, never at load. Size: the reported cores less one, at least 1, at most 4 (a phone reports 8 cores but only four are fast, and every worker holds its own copy of the painters and a canvas; the cap of 4 is a judgement, not measured). An `AbortSignal` passed to `run` drops a task that is no longer wanted (queued: it never starts; running: its result is ignored).
+
+The same task function runs on the main thread when there is no `Worker` or `OffscreenCanvas`, with `?workers=off`, or when a worker cannot start (blocked file, old engine): the pool then re-runs what was queued or in flight there. `usesWorkers()` tells a caller which it is getting. A task may only use what a worker has: no DOM but `document.createElement('canvas')` (the worker defines one that makes `OffscreenCanvas`), no THREE, no game data.
+
+Served unbundled the worker is `src/worker.js` (module worker, relative imports). In the build, `tools/build/build.mjs` bundles it to `js/worker.<hash>.js` next to the bundle and defines `__PD_WORKER__` as its name. The page policy already had `worker-src 'self'`; the smoke test shows no violation.
+
+### First user: the wall atlas
+
+The 239 layers' painters moved out of `src/buildings.js` into `src/atlas-layers.js` (no THREE, no game data; `rng` into `src/rng.js`, re-exported by `core.js`) so a worker can import them; `src/atlas-task.js` paints slices of 8 layers, reads them back, flips and makes their mipmaps (`mipLayer` is the same code as before). The main thread copies each slice into place and uploads as before (`?atlasmip=gpu` still works; `?atlas=1` and a lost GL context use the old main-thread path).
+
+Identity: an OffscreenCanvas does not rasterise everything like a page canvas. Measured in headless Chrome, text and `clip()` come out a few pixels different (and `willReadFrequently` changes how an OffscreenCanvas draws, so a worker leaves it out). The worker therefore watches `fillText`, `strokeText` and `clip`; a layer that used one is reported back and painted by the main thread. That is 74 of the 239 layers. The check `tools/release/withbrowser.sh node tools/perf/atlasworker.mjs` paints the whole atlas on the main thread, through workers, through `?workers=off` and with the worker file blocked, with the GPU canvas on and off, and compares every layer and every mip level: all identical (it lists layers where the main thread differs from itself, which happened once in the GPU-on setup). Only Chrome was checked.
+
+### Measurements
+
+`loadtime.mjs --cpu 6`, alternating, one machine, `loadingScreenOut` ("loading screen lifts"):
+
+| run | main (before) | workers | `?workers=off` |
+|---|---|---|---|
+| 1 | 19.1 s | 17.4 s | 18.5 s |
+| 2 | 18.6 s | 17.1 s | 18.8 s |
+| 3 | 18.7 s | 17.5 s | 19.4 s |
+
+The 74 layers left to the main thread still cost it their painting; how the saving splits between workers and those layers was not measured.
