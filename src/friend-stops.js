@@ -32,8 +32,8 @@ export function createFriendStops(h) {
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
   function Bin() {
     const by = new Map();
-    const add = (mat, geo, x, y, z, o = {}) => {
-      const g = geo.clone(); _e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ'); _q.setFromEuler(_e);
+    const add = (mat, g, x, y, z, o = {}) => {   // g is always a geometry made for this one piece (box, cyl, sph below), so it is moved in place: copying it first was most of what building a stop cost (a frame of 130 to 146 ms on four phones when the carro came into range)
+      _e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ'); _q.setFromEuler(_e);
       _m.compose(_p.set(x, y, z), _q, _s.set(o.sx ?? 1, o.sy ?? 1, o.sz ?? 1)); g.applyMatrix4(_m);
       let l = by.get(mat); if (!l) by.set(mat, l = []); l.push(g);
     };
