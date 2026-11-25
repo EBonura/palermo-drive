@@ -122,7 +122,16 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     return p;
   }
   // A blank canvas reads back transparent: paintBase covers every pixel with something opaque. The canvas gets a new backing and the piece is painted again (the detail follows in upgradeOne).
-  function isBlank(p) { const t0 = performance.now(), b = isBlank0(p), ms = performance.now() - t0; stats.reads++; stats.readMs += ms; if (ms > stats.readMax) stats.readMax = ms; return b; }
+  // The pixel read back waits for the GPU where the canvas lives on it: 60 ms on a Pixel 2 XL and 109 on a Samsung A51 (25 Nov 2026, 14 of them in a 25 s drive, one every 2 s). A browser that reads slowly
+  // (three reads over 8 ms) and says itself when a 2D canvas is lost (contextlost, isContextLost) is asked only that from then on; one that reads slowly and does not say is read every 30 s instead of every 2.
+  const TOLD = typeof CanvasRenderingContext2D !== 'undefined' && typeof CanvasRenderingContext2D.prototype.isContextLost === 'function' && typeof HTMLCanvasElement !== 'undefined' && 'oncontextlost' in HTMLCanvasElement.prototype;
+  let slowReads = 0;
+  const dear = () => slowReads >= 3;
+  function isBlank(p) {
+    if (dear() && TOLD) return !!p.g.isContextLost();
+    const t0 = performance.now(), b = isBlank0(p), ms = performance.now() - t0; stats.reads++; stats.readMs += ms; if (ms > stats.readMax) stats.readMax = ms; if (ms > 8) slowReads++;
+    return b;
+  }
   function isBlank0(p) { try { return (p.g.isContextLost && p.g.isContextLost()) || p.g.getImageData(RES >> 1, RES >> 1, 1, 1).data[3] === 0; } catch (e) { return true; } }
   function verify(p) {
     if (!isBlank(p)) { if (p.blank) { p.blank = false; stats.dead--; } return; }
@@ -143,7 +152,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
       const p = getPiece(i, j, seen || !fresh); if (p) { active.push(p); if (!had) fresh = true; } else if (!seen && fresh) scanT = 0;   // the next one on the next frame
     }
     stats.pieces = pieces.size;
-    if ((checkT -= 0.2) <= 0 && active.length) { checkT = 2; verify(active[checkI++ % active.length]); }   // one piece every 2 s: a canvas can also lose its pixels later
+    if ((checkT -= 0.2) <= 0 && active.length) { checkT = dear() ? 30 : 2; verify(active[checkI++ % active.length]); }   // one piece every 2 s: a canvas can also lose its pixels later
   }
   function upgradeOne() { // at most one detail paint per frame
     for (const p of active) {
