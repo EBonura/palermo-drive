@@ -161,6 +161,10 @@ function startTrams() {
     }
   });
   meshes.instanceColor.needsUpdate = true; meshes.count = mi;
+  // The trams are spread over the whole city and the mesh is never culled as one: a box per tram, kept where it is drawn, lets the street-canyon culling
+  // (src/engine-lean.js, userData.leanMover, as for the boats in src/sea.js) leave the draw out when no tram can be seen from where the car is.
+  geo.computeBoundingSphere(); reach = geo.boundingSphere.center.length() + geo.boundingSphere.radius;
+  meshes.userData.leanMover = { box: [0, 0, 0, 0, 0, 0], parts: new Float32Array(trams.length * 6) };
   const other = pi => pats.findIndex((q, j) => j !== pi && q.line === pats[pi].line);
   const tick = dt => { stepTrams(dt, pats, other); };
   const prevTick = hooks.tick; hooks.tick = dtt => { if (prevTick) prevTick(dtt); tick(dtt); };
@@ -198,17 +202,24 @@ function blocked(T, car) { // a car on the track within 14 m ahead of the nose
 function place(T, m) { const a = at(T.pt, T.s - m * (MOD_LEN + GAP) - MOD_LEN / 2); T.px[m] = a.x; T.pz[m] = a.z; T.pyaw[m] = a.yaw; }
 // The instances are written once a frame (drawTrams, called from world.update before the frame is drawn), not at each of the 2 to 4 physics steps in it:
 // only the last write of a frame was ever seen.
-let moved = true;
+let moved = true, reach = 0;
 export function drawTrams() { if (moved) writeInstances(); }
 function writeInstances() {
   if (!meshes) return;
   moved = false;
+  const L = meshes.userData.leanMover, B = L.box, P = L.parts; let q = 0;
+  B[0] = B[1] = B[5] = Infinity; B[2] = B[3] = B[4] = -Infinity;
   for (const T of trams) {
+    let x0 = Infinity, z0 = Infinity, y0 = Infinity, x1 = -Infinity, z1 = -Infinity, y1 = -Infinity;
     for (let m = 0; m < MODULES; m++) {
       const s = T.s - m * (MOD_LEN + GAP) - MOD_LEN / 2, a = at(T.pt, s), x = a.x, z = a.z, yaw = a.yaw;
       _e.set(0, yaw, 0, 'YXZ'); _q.setFromEuler(_e); _p.set(x, groundY(x, z) + (raisedFn(x, z) ? LIFT_RAISED : LIFT), z);
       meshes.setMatrixAt(T.idx + m, _m.compose(_p, _q, _s));
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; if (_p.y < y0) y0 = _p.y; if (_p.y > y1) y1 = _p.y;
     }
+    P[q] = x0 - reach; P[q + 1] = z0 - reach; P[q + 2] = x1 + reach; P[q + 3] = z1 + reach; P[q + 4] = y1 + reach; P[q + 5] = y0 - reach;
+    if (P[q] < B[0]) B[0] = P[q]; if (P[q + 1] < B[1]) B[1] = P[q + 1]; if (P[q + 2] > B[2]) B[2] = P[q + 2]; if (P[q + 3] > B[3]) B[3] = P[q + 3]; if (P[q + 4] > B[4]) B[4] = P[q + 4]; if (P[q + 5] < B[5]) B[5] = P[q + 5];
+    q += 6;
   }
   meshes.instanceMatrix.needsUpdate = true;
 }

@@ -1231,6 +1231,8 @@ export function createPedestrians(env) {
   };
   const sSprites = new THREE.Mesh(mkGeoS(), spriteMat); sSprites.frustumCulled = false; sSprites.renderOrder = 2; sSprites.name = 'crowd_scripted'; scene.add(sSprites);
   const sShadows = new THREE.Mesh(mkGeoS(), shadowMat); sShadows.frustumCulled = false; sShadows.renderOrder = 1; sShadows.name = 'crowd_scripted_shadows'; scene.add(sShadows);
+  let sOnA = true, sOnB = true;   // hidden while they hold nobody (a draw of no instance still costs its program and state), switched only when that changes, so whoever else hides them is not undone
+  const sShow = (a, b) => { if (a !== sOnA) sSprites.visible = sOnA = a; if (b !== sOnB) sShadows.visible = sOnB = b; };
   const scripted = new Map(); let nextScriptId = 1, scriptClock = 0;
   const vIndex = v => {   // a type id picks one of its people at random (a named one, like 'amico1_giacca', has just one)
     if (typeof v === 'number') return v;
@@ -1303,7 +1305,7 @@ export function createPedestrians(env) {
   function updateScripted(dt, cam) {
     dt = clamp(dt, 0, 0.05); scriptClock += dt;
     const cpx = cam.position.x, cpz = cam.position.z;
-    if (!scripted.size) { sSprites.geometry.instanceCount = sShadows.geometry.instanceCount = 0; return; }
+    if (!scripted.size) { sSprites.geometry.instanceCount = sShadows.geometry.instanceCount = 0; sShow(false, false); return; }
     const sp = sPos.array, sa = sA.array, sb = sB.array;
     let k = 0;
     const order = scriptOrder; order.length = 0;
@@ -1348,7 +1350,7 @@ export function createPedestrians(env) {
       sb[i * 4] = 1; sb[i * 4 + 1] = 0.8 * (1 - nightK); sb[i * 4 + 2] = 1; sb[i * 4 + 3] = seatedNow ? (GROUND + leg - 1.3) / CELL_H : 0;
     }
     sPos.needsUpdate = sA.needsUpdate = sB.needsUpdate = true;
-    sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing;
+    sSprites.geometry.instanceCount = k; sShadows.geometry.instanceCount = standing; sShow(k > 0, standing > 0);
   }
 
 

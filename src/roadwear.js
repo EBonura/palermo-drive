@@ -677,7 +677,7 @@ export function createRoadWear(env) {
   dgeo.setAttribute('color', new THREE.BufferAttribute(dcol, 4).setUsage(THREE.DynamicDrawUsage));
   dgeo.setIndex(new THREE.BufferAttribute(didx, 1));
   const dmesh = new THREE.Mesh(dgeo, markMat); dmesh.frustumCulled = false; dmesh.receiveShadow = true; dmesh.renderOrder = 2;
-  scene.add(dmesh);
+  dmesh.visible = false; scene.add(dmesh);   // shown from the first mark until the last has faded: with none it was a draw of nothing in every frame
   let dhead = 0, dlive = 0, tNow = 0, fadeAcc = 0;
   const FADE0 = 20, FADE1 = 55;
   const wheels = [{ px: 0, pz: 0, has: false, t: 0, o: 0.66 }, { px: 0, pz: 0, has: false, t: 0, o: -0.66 }];
@@ -692,7 +692,7 @@ export function createRoadWear(env) {
           const dx = x - w.px, dz = z - w.pz, l = hyp2(dx, dz);
           if (l > 0.16) {
             if (l < 3) {   // a long jump (teleport, respawn) starts a new line instead
-              const i = dhead; dhead = (dhead + 1) % DN; dlive = Math.min(DN, dlive + 1);
+              const i = dhead; dhead = (dhead + 1) % DN; dlive = Math.min(DN, dlive + 1); dmesh.visible = true;
               const nx = -dz / l * 0.085, nz = dx / l * 0.085, y0 = groundY(w.px, w.pz) + MARK_LIFT, y1 = groundY(x, z) + MARK_LIFT, b = i * 4;
               dpos.set([w.px + nx, y0, w.pz + nz, w.px - nx, y0, w.pz - nz, x + nx, y1, z + nz, x - nx, y1, z - nz], b * 3);
               const a = clamp(sk, 0, 1) * Math.min(1, 0.35 + w.t * 1.4) * 0.7;
@@ -715,7 +715,7 @@ export function createRoadWear(env) {
         for (let k = 0; k < 4; k++) dcol[(b + k) * 4 + 3] = a;
         any = true;
       }
-      if (any) dgeo.attributes.color.needsUpdate = true;
+      if (any) dgeo.attributes.color.needsUpdate = true; else { dlive = 0; dmesh.visible = false; }
     }
   }
 
