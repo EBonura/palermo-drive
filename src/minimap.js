@@ -106,9 +106,10 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     p.detail = true; stats.detailed++;
     if (isBlank(p)) verify(p);
   }
-  function getPiece(i, j) {
+  function getPiece(i, j, make) {
     const k = key(i, j); let p = pieces.get(k);
     if (p) { pieces.delete(k); pieces.set(k, p); return p; }
+    if (!make) return null;
     if (!pool.length) for (const [q, o] of pieces) if (!active.includes(o)) { pieces.delete(q); pool.push({ c: o.c, g: o.g }); if (o.blank) { o.blank = false; stats.dead--; } break; }   // the oldest piece not in use (the view uses at most 9 of the 18)
     if (!pool.length) return null;
     const s = pool.pop();
@@ -126,14 +127,17 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     p.c.width = p.c.height = RES; p.g = p.c.getContext('2d') || p.g; p.detail = false; p.tries = 0; paintBase(p);
     const b = isBlank(p); if (b !== p.blank) { p.blank = b; stats.dead += b ? 1 : -1; }
   }
-  let checkI = 0, checkT = 0;
+  let checkI = 0, checkT = 0, fresh = false;   // fresh: a piece was made in the last scan (its base painted): the detail paint waits a frame
   function scan(R) { // pieces for every tile in the visible disc plus a margin
     if (!landPath) { if (world.manifest) buildLand(world.manifest); else return; }
     const r = R + PRE, i0 = Math.floor((car.x - r) / T), i1 = Math.floor((car.x + r) / T), j0 = Math.floor((car.z - r) / T), j1 = Math.floor((car.z + r) / T);
-    active.length = 0;
+    active.length = 0; fresh = false;
+    // A piece the view already reaches is made at once. One that only the margin reaches is made one a scan: a row of three in one frame was 35 ms of a Pixel 3a's frame and 90 to 107 of a Samsung A51's
+    // (25 Nov 2026), and the margin gives them the time.
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
       if ((i + 1) * T < bbox[0] || i * T > bbox[2] || (j + 1) * T < bbox[1] || j * T > bbox[3]) continue; // pure sea outside the baked area
-      const p = getPiece(i, j); if (p) active.push(p);
+      const seen = (i + 1) * T >= car.x - R && i * T <= car.x + R && (j + 1) * T >= car.z - R && j * T <= car.z + R, had = pieces.has(key(i, j));
+      const p = getPiece(i, j, seen || !fresh); if (p) { active.push(p); if (!had) fresh = true; } else if (!seen && fresh) scanT = 0;   // the next one on the next frame
     }
     stats.pieces = pieces.size;
     if ((checkT -= 0.2) <= 0 && active.length) { checkT = 2; verify(active[checkI++ % active.length]); }   // one piece every 2 s: a canvas can also lose its pixels later
@@ -186,8 +190,9 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     {
       const ci = Math.floor(car.x / T), cj = Math.floor(car.z / T);
       scanT -= dt || 0.016;
-      if (scanT <= 0 || ci !== scanI || cj !== scanJ || !landPath) { scanT = 0.2; scanI = ci; scanJ = cj; scan(R); }
-      if (upgradeOne()) { sinceDraw = 1; paintStamp++; }   // a piece got its detail (or a fresh base after a reset): the picture is another one even with the lapa standing still
+      let made = false;
+      if (scanT <= 0 || ci !== scanI || cj !== scanJ || !landPath) { scanT = 0.2; scanI = ci; scanJ = cj; scan(R); made = fresh; }
+      if (!made && upgradeOne()) { sinceDraw = 1; paintStamp++; }   // a piece got its detail (or a fresh base after a reset): the picture is another one even with the lapa standing still
     }
     // A canvas drawn every frame goes through the page's compositing every frame (a new texture for the browser each time; on Safari that is the dear part): 30 times a second while anything moves,
     // a heading up map turning at that rate looks the same; twice a second for what the sum below cannot see, such as a marker changing colour or a move smaller than its steps;
