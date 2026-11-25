@@ -19,6 +19,7 @@ let walls = null;
 const byTile = new Map();      // tile key -> { rings, wallSegs, data, group }
 const grid = new Map();        // cell -> rings whose box (grown by the reach of the carve) meets it
 const ck = (ix, iz) => ix * 100003 + iz;
+const HIT = new Uint16Array(4096), hk = (ix, iz) => (ix & 63) | ((iz & 63) << 6);   // how many filled cells fall on each of 4096 slots: the ground is asked thousands of times a frame, nearly always far from any quay, and a zero here answers without the map
 export function initQuays({ wallGrid }) { walls = wallGrid; }
 
 function inRing(p, x, z) {
@@ -39,7 +40,7 @@ export function registerQuays(d, key) {
     const r = { h, top, blend, p: flat, flags, x0, z0, x1, z1 }; rings.push(r);
     const m = BLEND + 1;
     for (let ix = Math.floor((x0 - m) / CELL); ix <= Math.floor((x1 + m) / CELL); ix++) for (let iz = Math.floor((z0 - m) / CELL); iz <= Math.floor((z1 + m) / CELL); iz++) {
-      const k = ck(ix, iz); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(r);
+      const k = ck(ix, iz); let a = grid.get(k); if (!a) { grid.set(k, a = []); a.h = hk(ix, iz); HIT[a.h]++; } a.push(r);
     }
   }
   if (walls) for (const w of q.w) { const s = [w[0], w[1], w[2], w[3]]; walls.addSeg('q' + key, s, w[0], w[1], w[2], w[3]); segs.push(s); }   // (its own tile key: the physics of the tile coming and going leaves them alone)
@@ -49,15 +50,15 @@ export function unregisterQuays(key) {
   const t = byTile.get(key); if (!t) return;
   if (walls) { walls.removeTile('q' + key); walls.removeTile('q' + key + 'f'); }
   const gone = new Set(t.rings);
-  for (const [k, a] of grid) { let w = 0; for (let i = 0; i < a.length; i++) if (!gone.has(a[i])) a[w++] = a[i]; if (w) a.length = w; else grid.delete(k); }
+  for (const [k, a] of grid) { let w = 0; for (let i = 0; i < a.length; i++) if (!gone.has(a[i])) a[w++] = a[i]; if (w) a.length = w; else { grid.delete(k); HIT[a.h]--; } }
   byTile.delete(key);
 }
 export const tileQuays = key => byTile.has(key);
 
 // ---------- the ground ----------
 export function carve(x, z, y) {
-  if (grid.size === 0) return y;
-  const a = grid.get(ck(Math.floor(x / CELL), Math.floor(z / CELL))); if (!a) return y;
+  const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL); if (HIT[hk(ix, iz)] === 0) return y;
+  const a = grid.get(ck(ix, iz)); if (!a) return y;
   let inside = -1e9, best = 1e9, bw = false, bh = 0, bb = 0;
   for (const r of a) {
     if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1 && inRing(r.p, x, z)) { if (r.h > inside) inside = r.h; continue; }

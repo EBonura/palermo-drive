@@ -44,14 +44,15 @@ const hh = (a, b) => Math.hypot(a, b);
 let walls = null, rawGround = null, inTiles = () => true;
 const S = new Map();                   // id -> structure state
 const byTile = new Map();              // tile key -> Set of ids
-const levelGrid = new Map(), chanGrid = new Map();
+const hits = m => { m.hit = new Uint16Array(4096); return m; }, hk = (ix, iz) => (ix & 63) | ((iz & 63) << 6);   // per grid, how many filled cells fall on each of 4096 slots: carve() is asked thousands of times a frame, nearly always far from any trench, and a zero here answers without the map
+const levelGrid = hits(new Map()), chanGrid = hits(new Map());
 const ck = (ix, iz) => ix * 100003 + iz;
 function gridAdd(grid, x0, z0, x1, z1, item) {
   for (let ix = Math.floor(Math.min(x0, x1) / CELL); ix <= Math.floor(Math.max(x0, x1) / CELL); ix++)
-    for (let iz = Math.floor(Math.min(z0, z1) / CELL); iz <= Math.floor(Math.max(z0, z1) / CELL); iz++) { const k = ck(ix, iz); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(item); }
+    for (let iz = Math.floor(Math.min(z0, z1) / CELL); iz <= Math.floor(Math.max(z0, z1) / CELL); iz++) { const k = ck(ix, iz); let a = grid.get(k); if (!a) { grid.set(k, a = []); a.h = hk(ix, iz); grid.hit[a.h]++; } a.push(item); }
 }
 function gridDel(grid, id) {
-  for (const [k, a] of grid) { let w = 0; for (let i = 0; i < a.length; i++) if (a[i].id !== id) a[w++] = a[i]; if (w) a.length = w; else grid.delete(k); }
+  for (const [k, a] of grid) { let w = 0; for (let i = 0; i < a.length; i++) if (a[i].id !== id) a[w++] = a[i]; if (w) a.length = w; else { grid.delete(k); grid.hit[a.h]--; } }
 }
 
 // inTiles(x, z): is there a world tile at (x, z)? Beyond the tiles the ground is the coarse far grid and the hills drawn over it, which no structure follows: the
@@ -158,7 +159,7 @@ function underRoads(st) {
 // the ramps and a concrete headwall over every portal.
 const PG_STEP = 4;                     // rec.pg: a sample every PG_STEP m of the tunnel's baked line (tools/structures.py)
 const CUT_T = 0.5, CUT_PAR = 1.0;      // retaining wall thickness; parapet over the ground at the top of a deep cutting (a shallow one gets less)
-const cutGrid = new Map();
+const cutGrid = hits(new Map());
 const lin = (xs, ys, s) => {   // piecewise linear, held at the ends
   const n = xs.length; if (!n) return undefined; if (s <= xs[0]) return ys[0]; if (s >= xs[n - 1]) return ys[n - 1];
   let a = 0, b = n - 1; while (b - a > 1) { const m = (a + b) >> 1; if (xs[m] <= s) a = m; else b = m; }
@@ -414,14 +415,16 @@ function nearest(c, x, z) {
 }
 // noCut: leave the tunnels' open cuttings out (the terrain mesh of a full detail tile, which is cut away there instead: src/world.js)
 export function carve(x, z, y, noCut) {
-  const cell = ck(Math.floor(x / CELL), Math.floor(z / CELL));
-  const a = chanGrid.size ? chanGrid.get(cell) : null;
+  const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL), h = hk(ix, iz), ch = chanGrid.hit[h] !== 0, cu = !noCut && cutGrid.hit[h] !== 0;
+  if (!ch && !cu) return y;
+  const cell = ck(ix, iz);
+  const a = ch ? chanGrid.get(cell) : null;
   if (a) for (const c of a) {
     if (x < c.bx0 || x > c.bx1 || z < c.bz0 || z > c.bz1) continue;
     const bh = nearest(c, x, z), w = Math.max(0, c.d - c.hw) * 0.9;
     if (bh + w < y) y = bh + w;
   }
-  const q = !noCut && cutGrid.size ? cutGrid.get(cell) : null;
+  const q = cu ? cutGrid.get(cell) : null;
   if (q) for (const c of q) {   // a tunnel's open cutting: the floor within its walls, the ground untouched outside them
     if (x < c.bx0 || x > c.bx1 || z < c.bz0 || z > c.bz1 || !inQuad(c, x, z)) continue;
     const f = quadFloor(c, x, z); if (f < y) y = f;
