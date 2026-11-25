@@ -26,8 +26,7 @@ GROUP_SPAN.forEach((s, i) => GRPV[i].set(s[0], s[1]));   // uGrp[index] = (first
 // The mipmaps are made in src/atlas-task.js, layer by layer as each is painted, and handed to the GPU ready made: it is never asked to make them (gl.generateMipmap). On a Galaxy A13 5G (Mali-G57,
 // Android 11, 32-bit Chrome) that one request, for this texture of 239 layers, crashed Chrome's GPU process inside the Mali driver a few seconds later on every load, and again on every
 // rebuild after it: two freezes of ten seconds and a city that never came back whole. Found on real phones with one thing switched at a time (tools/devicefarm, docs/PERF.md "The recorder",
-// 24 Nov 2026): not the size of the atlas, not the memory, not the geometry, not the shader, not the anisotropy. ?atlasmip=gpu is the old way, kept only to measure against.
-const MIP_GPU = /[?&]atlasmip=gpu(&|$)/.test(location.search);   // the mipmaps are made in src/atlas-task.js (the same code in a worker and here)
+// 24 Nov 2026): not the size of the atlas, not the memory, not the geometry, not the shader, not the anisotropy. The mipmaps are made in src/atlas-task.js (the same code in a worker and here).
 // the whole atlas on the main thread, one layer a slice: the way when there is no worker (the pool is off or cannot start), the way it is drawn again after a lost GL context, and the contact sheet's (?atlas=1)
 function* paintAtlas(data, mips, only) {   // only: the numbers of the layers to paint (the others are in data already), or all of them
   const cv = document.createElement('canvas'); cv.width = cv.height = T;
@@ -63,7 +62,7 @@ function* paintAtlasInPool(data, mips) {
   return true;
 }
 function* buildAtlasIter() {
-  const data = new Uint8Array(T * T * 4 * LAYERS.length); let mips = MIP_GPU ? null : newMips(LAYERS.length);
+  const data = new Uint8Array(T * T * 4 * LAYERS.length); let mips = newMips(LAYERS.length);
   let pooled = workPool.usesWorkers() && !/[?&]atlas=1/.test(location.search);
   if (pooled) { let asked = false; workersDrawLikePage().then(v => { pooled = v; asked = true; }); while (!asked) yield; }   // do the workers' canvases draw what the page's draws? (src/probe.js)
   if (!(pooled && (yield* paintAtlasInPool(data, mips)))) yield* paintAtlas(data, mips);   // a slice that failed in a worker: all of it again here
@@ -71,8 +70,8 @@ function* buildAtlasIter() {
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = MIP_GPU; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
-  if (!MIP_GPU) tex.mipmaps = Array.from({ length: MIPS + 1 }, () => ({}));   // three makes room for that many levels and uploads only the first of a DataArrayTexture (r187): the rest go up in onUpdate
+  tex.generateMipmaps = false; tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
+  tex.mipmaps = Array.from({ length: MIPS + 1 }, () => ({}));   // three makes room for that many levels and uploads only the first of a DataArrayTexture (r187): the rest go up in onUpdate
   tex.needsUpdate = true;
   tex.onUpdate = () => {
     if (mips) {   // three has just uploaded the first level and this texture is still the bound one
@@ -81,7 +80,7 @@ function* buildAtlasIter() {
     }
     tex.image.data = null; mips = null;
   };
-  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(T * T * 4 * LAYERS.length), m = MIP_GPU ? null : newMips(LAYERS.length); for (const _ of paintAtlas(d, m)); tex.image.data = d; mips = m; tex.needsUpdate = true; });
+  document.getElementById('view')?.addEventListener('webglcontextrestored', () => { const d = new Uint8Array(T * T * 4 * LAYERS.length), m = newMips(LAYERS.length); for (const _ of paintAtlas(d, m)); tex.image.data = d; mips = m; tex.needsUpdate = true; });
   return tex;
 }
 
