@@ -4,8 +4,9 @@
 // Everything is built from boxes, cylinders and spheres in car-frame coordinates (origin on the ground under the middle of the
 // vehicle, +z forward, +x left, y up) by src/vehicle-kit.js, one merged mesh per material per group. A few thousand triangles each.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Kit, box, cyl, cylX, cylZ, sph, tor, plane, hexa, prism, PI, TAU } from './vehicle-kit.js';
-import { MAT, colMat, paintedSet, paintSet, clonedSet, neonMats, stkUV } from './vehicle-art.js';
+import { MAT, colMat, paintedSet, paintSet, clonedSet, neonMats, stkUV, plainMat, makePalette, dropPalette, paintMaterial } from './vehicle-art.js';
 import { cleanLook, lookKey } from './garage.js';
 import { driver } from './driver.js';
 
@@ -590,6 +591,29 @@ export const NEON = Object.fromEntries([['rosa', '#ff2f9e'], ['ciano', '#18e6ff'
 const GEO_PARTS = ['spoiler', 'neon', 'chrome', 'rims', 'stickers', 'exhaust', 'sub', 'stance', 'roof', 'load', 'box', 'screen', 'swim', 'fly'];   // the parts that change geometry (not the horn)
 const tplKey = l => l.type + '|' + GEO_PARTS.map(k => l.parts[k] || '').join(',');
 const tplCache = new Map();
+// The plain materials of a template (vehicle-art.js plainMat) become, in each group, at most two geometries (casts a shadow, does not) whose vertices carry the
+// slot of their material in aPal; pal lists the materials by slot. The geometry is shared by every instance, which gives each its own palette (instantiate).
+function packPlain(groups) {
+  const pal = [];
+  for (const name in groups) {
+    const keep = [], by = [[], []];
+    for (const b of groups[name]) {
+      if (!plainMat(b.mat)) { keep.push(b); continue; }
+      let i = pal.indexOf(b.mat); if (i < 0) i = pal.push(b.mat) - 1;
+      b.geom.deleteAttribute('uv');
+      b.geom.setAttribute('aPal', new THREE.BufferAttribute(new Float32Array(b.geom.attributes.position.count).fill(i), 1));
+      by[b.shadow ? 0 : 1].push(b.geom);
+    }
+    for (const k of [0, 1]) {
+      const gs = by[k]; if (!gs.length) continue;
+      const geom = gs.length === 1 ? gs[0] : mergeGeometries(gs, false);
+      for (const g of gs) if (g !== geom) g.dispose();
+      keep.push({ mat: null, geom, shadow: k === 0, pal: true });
+    }
+    groups[name] = keep;
+  }
+  return pal;
+}
 function template(look) {
   const key = tplKey(look); let t = tplCache.get(key);
   if (t) { tplCache.delete(key); tplCache.set(key, t); return t; }   // most recently used last
@@ -597,7 +621,8 @@ function template(look) {
   BUILD[look.type](K, M, look.parts, A);
   addParts(K, M, look.parts, A);
   A.type = look.type;
-  t = { key, type: look.type, A, groups: K.finish(), wheels: K.wheels, anims: K.anims, spec: { wheelsIn: 'lean', leanMode: 'tip', len: A.len, ...K.spec }, users: 0, tris: 0 };
+  const groups = K.finish(), pal = packPlain(groups);
+  t = { key, type: look.type, A, groups, pal, wheels: K.wheels, anims: K.anims, spec: { wheelsIn: 'lean', leanMode: 'tip', len: A.len, ...K.spec }, users: 0, tris: 0 };
   for (const name in t.groups) for (const b of t.groups[name]) t.tris += b.geom.attributes.position.count / 3;
   tplCache.set(key, t);
   if (tplCache.size > 14) for (const [k, o] of tplCache) { if (tplCache.size <= 12) break; if (o.users <= 0 && o !== t) { for (const n in o.groups) for (const b of o.groups[n]) b.geom.dispose(); tplCache.delete(k); } }
@@ -616,7 +641,8 @@ function instantiate(tpl, livery, local) {
   const root = new THREE.Group(), lean = new THREE.Group(), tilt = new THREE.Group(), meshes = [];
   root.userData.honestLight = true;   // src/daynight.js leaves vehicles out of its night wash
   root.add(lean); lean.add(tilt); tilt.position.set(tp[0], tp[1] - (A.drop || 0), tp[2]);   // A.drop: lowered or lifted suspension
-  const fill = (parent, list) => { if (!list) return; for (const b of list) { const m = new THREE.Mesh(b.geom, mat(b.mat)); m.castShadow = b.shadow; parent.add(m); meshes.push(m); } };
+  const P = tpl.pal.length ? makePalette(tpl.pal.map(mat)) : null, paint = P && paintMaterial(P);   // one material for the plain surfaces
+  const fill = (parent, list) => { if (!list) return; for (const b of list) { const m = new THREE.Mesh(b.geom, b.pal ? paint : mat(b.mat)); m.castShadow = b.shadow; if (b.pal && !b.shadow) m.renderOrder = -1; parent.add(m); meshes.push(m); } };
   const Pm = { tilt }, stripObjs = [];
   const driver = Pm.driver = new THREE.Group(); tilt.add(driver);
   const bar = Pm.bar = new THREE.Group(); bar.position.set(sp.barPos[0] - tp[0], sp.barPos[1] - tp[1], sp.barPos[2] - tp[2]); tilt.add(bar);
@@ -668,7 +694,7 @@ function instantiate(tpl, livery, local) {
     },
     // the ZEN gag: hide everything but the frame, the wheels and the driver (the meshes tagged with a strip stage)
     setStripped(b) { rig.stripped = !!b; for (const o of stripObjs) o.visible = !b; },
-    dispose() { tpl.users--; if (root.parent) root.parent.remove(root); },
+    dispose() { tpl.users--; if (P) { dropPalette(P); paint.dispose(); } if (root.parent) root.parent.remove(root); },
   };
   return rig;
 }

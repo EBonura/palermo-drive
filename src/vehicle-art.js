@@ -181,6 +181,48 @@ for (const m of [MAT.glass, MAT.tint, MAT.plastic, MAT.lamp, MAT.tail, MAT.stick
 const colMats = new Map();
 export const colMat = (c, r = 0.8, m = 0) => { const k = `${c}|${r}|${m}`; let x = colMats.get(k); if (!x) { x = std(c, r, m); x.userData.noShadow = true; colMats.set(k, x); } return x; };
 
+// ---------- one paint material for the plain surfaces of a vehicle ----------
+// A vehicle is about 28 runs of one material and each run costs three.js 70 to 85 microseconds on a phone, so the plain materials (no texture, opaque, front
+// side, only colour, roughness, metalness and emissive differ) are drawn through one material per vehicle instance: each vertex carries the slot of its source
+// material (aPal), and the fragment shader reads the four values from a uniform array. The array is filled from the source materials once a frame (tickShared),
+// so whatever recolours them in place (the garage, liveries, the night lamps) keeps working. LAPAMAT is the old way (?lapamat=off), only to compare pictures.
+export const LAPAMAT = new URLSearchParams(location.search).get('lapamat') !== 'off';
+const mapMats = new Set();   // the calessino's painted materials but its body: a livery gives them a texture or a second side later, so they never join
+const NOTEX = ['map', 'lightMap', 'aoMap', 'emissiveMap', 'bumpMap', 'normalMap', 'displacementMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'envMap'];
+export const plainMat = m => LAPAMAT && m.constructor === THREE.MeshStandardMaterial && !mapMats.has(m) && NOTEX.every(k => !m[k]) && !m.transparent && m.alphaTest === 0 && m.opacity === 1
+  && m.side === THREE.FrontSide && !m.polygonOffset && m.depthTest && m.depthWrite && m.colorWrite && m.blending === THREE.NormalBlending && m.fog && m.envMapIntensity === 1
+  && !m.flatShading && !m.vertexColors && !m.wireframe && !m.dithering && m.visible && !Object.prototype.hasOwnProperty.call(m, 'onBeforeCompile');
+const palettes = new Set();
+export function makePalette(src) {   // src: the materials, in the order of the slots
+  const n = Math.ceil(src.length / 8) * 8, P = { src, n, v: new Float32Array(n * 8) };   // the slot count is part of the program, so it moves in steps
+  palettes.add(P); syncPalette(P); return P;
+}
+export const dropPalette = P => { palettes.delete(P); };
+function syncPalette(P) {
+  const v = P.v;
+  for (let i = 0; i < P.src.length; i++) {
+    const m = P.src[i], k = i * 8, e = m.emissive, ei = m.emissiveIntensity;
+    v[k] = m.color.r; v[k + 1] = m.color.g; v[k + 2] = m.color.b; v[k + 3] = m.roughness;
+    v[k + 4] = e.r * ei; v[k + 5] = e.g * ei; v[k + 6] = e.b * ei; v[k + 7] = m.metalness;
+  }
+}
+const syncPalettes = () => { for (const P of palettes) syncPalette(P); };
+// the material: P is shared by clones (src/remotes.js clones a material to fade a car in and out)
+export function paintMaterial(P) {
+  const m = new THREE.MeshStandardMaterial();
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uPal = { value: P.v };
+    sh.vertexShader = sh.vertexShader.replace('void main() {', 'attribute float aPal;\nflat varying float vPal;\nvoid main() {\n\tvPal = aPal;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('uniform vec3 diffuse;', `uniform vec4 uPal[${P.n * 2}];\nflat varying float vPal;\nvec3 diffuse;`)
+      .replace('uniform vec3 emissive;', 'vec3 emissive;').replace('uniform float roughness;', 'float roughness;').replace('uniform float metalness;', 'float metalness;')
+      .replace('void main() {', 'void main() {\n\tint pi = int(vPal + 0.5) * 2; vec4 pa = uPal[pi], pb = uPal[pi + 1];\n\tdiffuse = pa.rgb; roughness = pa.a; emissive = pb.rgb; metalness = pb.a;');
+  };
+  m.customProgramCacheKey = () => 'vehiclepal' + P.n;
+  m.clone = () => paintMaterial(P);
+  return m;
+}
+
 // neon: self-lit tube material per colour (toneMapped off so it stays saturated), plus the additive glow decal on the road
 const neonTube = new Map(), neonGlow = new Map();
 function neonColor(hex) { return new THREE.Color(hex); }
@@ -196,6 +238,7 @@ export function neonMats(id, hex) {
 }
 // call once per frame: the rainbow neon walks round the hue wheel (shared by every vehicle wearing it)
 export function tickShared(t) {
+  syncPalettes();
   const n = neonTube.get('arcobaleno'); if (!n) return;
   n.color.setHSL((t * 0.35) % 1, 1, 0.55); neonGlow.get('arcobaleno').color.copy(n.color);
 }
@@ -230,7 +273,7 @@ const makeSet = type => {
   return { body: std('#888888', gloss[0], gloss[1]), trim: std('#222222', 0.7) };
 };
 const sets = {};
-export const paintedSet = type => { if (!sets[type]) { sets[type] = makeSet(type); for (const k in sets[type]) MAT_STAGE.set(sets[type][k], 1); } return sets[type]; };
+export const paintedSet = type => { if (!sets[type]) { sets[type] = makeSet(type); for (const k in sets[type]) { MAT_STAGE.set(sets[type][k], 1); if (type === 'calessino' && k !== 'body') mapMats.add(sets[type][k]); } } return sets[type]; };
 export function paintSet(type, set, id) {
   const cu = parseLivery(id);   // a custom colour: body and details picked in the garage
   if (type === 'calessino') {
