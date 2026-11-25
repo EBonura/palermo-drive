@@ -892,9 +892,49 @@ The 89 first draws of a material run are where the time is now, and they need wh
 - **Joining part runs across small gaps**: 352 GL draws towards 255 and the same picture, but it trades triangles for calls, and which is dearer is the phone's to say. Not written.
 - **One draw for the same material across tiles**: needs the builders or `WEBGL_multi_draw`, which lost meshes on an older iPhone.
 
+### The first draw of a run (24 November 2026, switch `first`)
+
+The 80 to 110 draws of a frame that begin a run of one material cost 4 to 10 ms on the phones, against 2 to 3 ms for the 170 to 190 that repeat the draw before them. This pass looked for what in the first draw sends GL values it already holds. The short answer: little that can be left out exactly, and one part that was.
+
+**Where the first draw goes.** Profile of `renderer.render` at Quattro Canti at noon (`drawcpu.mjs --profile 1`, 6x, the profiler inflates every figure; two profiles of the unchanged tree, 13.6 and 16.1 ms a call): `renderBufferDirect` 5.0 to 5.7, of which `setProgram` 3.6 to 4.5. Inside `setProgram` (4.5 in the second profile, as ms a call): its own code 1.07 (the chain of "does the program change" tests, lookups), `setValueM4` 0.68, `setValue` by name 0.62 (the three matrices, the shadow samplers, `receiveShadow`, exposure), `refreshMaterialUniforms` 0.44, `getProgram` 0.29, `markUniformsLightsNeedsUpdate` 0.23, texture samplers 0.19, shadow and light matrix arrays 0.16 and 0.12 (the `flatten` under them 0.2), `useProgram` 0.13. The vertex array setup (`bindingStates.setup`) was 0.56.
+
+**What is redundant, and what is not.** To bound each piece, a copy of the build had its pieces of `setProgram` switched off one at a time (the picture is wrong, so these are ceilings, not savings; one page, alternating, 24 pairs, Quattro Canti at noon, of 9 to 13 ms): the light uniforms (`markUniformsLightsNeedsUpdate` and the upload they cause) 0.96 +- 0.69, `refreshMaterialUniforms` 0.50 +- 0.50, the upload of the material's own uniforms and textures 1.56 +- 0.36, the shadow sampler setup 0.93 +- 0.53, the camera uniforms at a change of program -0.07 +- 0.41 (nothing), all of them together 2.58 +- 0.40. So what is left in the first draw is mostly three's own uniform work, and none of it can be left out as it stands:
+
+- the material's uniform values are written by `materials.refreshMaterialUniforms`, a closure of the renderer that is not reachable (neither are `textures`, whose texture unit counter every draw resets, nor `currentRenderState`), and the game changes materials without bumping their version (night glow `emissiveIntensity`, opacity pulses, colours: `daynight.js`, `markets.js`, `pub-fronts.js`, `rave.js`, `discarica.js`, `missions-night.js` and more). A test that is exact for them is the refresh itself, which costs about what any snapshot of the fields it reads would.
+- the camera and light uniforms go through three's cache, so GL is not called when they are the same (`uni` does the same for arrays); what remains is the JavaScript of comparing them.
+
+**What changed: `first`.** For a draw that is not a repeat of the one before it, three's `renderBufferDirect` is run on a stand-in geometry (the real attributes and a draw range that ends before it starts). It does everything up to the draw, `setProgram` and `setMaterial` included, and returns where the vertex array setup and the draw would follow. Those are done by the code of the `quick` path from the vertex array three made for the mesh, which is valid when it was made for the program three has just chosen (checked after the stand-in call; if not, three draws the mesh itself, which sets the program up a second time and is exact, and happened 0 times in 1900 draws a frame by frame count at Quattro Canti). 95 draws a frame take it there, the first of a run and any repeat the `quick` path turned down. The `quick` path's own list of what has to hold applies (no skinning, morphing, wireframe, callbacks, clipping planes, shader materials that ask for their uniforms again).
+
+Nothing reaches GL differently: draws, vertex arrays, uniforms, `useProgram`, textures and state calls are the same before and after (1263 to 1261 calls a frame at Quattro Canti at noon, 1452 to 1453 at night, 1122 to 1122 and 1291 to 1291 at Vucciria). What goes is JavaScript, the vertex array's attribute walk (`setup`: 0.56 to 0.18 ms a call in the profile, the rest is draws three still makes whole) and the draw functions.
+
+In one page at 6x (`drawcpu.mjs --ab first,all`, 40 pairs, ms of `renderer.render` a call, the saving as the mean of the paired differences plus or minus 1.96 standard errors; the machine had a load average of 25 to 38 from other work, so only the pairs mean anything):
+
+| spot, hour | three's draws | `first` off, ms | `first` on, ms | `first` saves, ms | whole draw path (all four parts) saves, ms |
+| --- | --- | --- | --- | --- | --- |
+| Quattro Canti 12:00 | 273 | 12.75 | 11.82 | 0.81 +- 0.27 (6.4 %, off dearer in 33/40) | 2.01 +- 0.20 (15 %) |
+| Quattro Canti 22:30 | 289 | 14.69 | 13.88 | 0.71 +- 0.46 (4.9 %, 28/40) | 1.65 +- 0.26 (10 %) |
+| Vucciria 12:00 | 202 | 9.27 | 8.57 | 0.76 +- 0.33 (8.2 %, 30/40) | 1.13 +- 0.41 (11 %) |
+| Vucciria 22:30 | 211 | 7.68 | 7.34 | 0.40 +- 0.19 (5.1 %, 32/40) | 1.01 +- 0.24 (12 %) |
+
+An earlier run of 24 pairs at Quattro Canti at noon, in a busier stretch, read 0.24 +- 0.37 for `first`: inside its error, that is no saving; the 40 pair runs above are the ones to go by. The saving is 0.4 to 0.8 ms of the throttled Mac's 7 to 14, so about 5 to 8 %; on a phone the vertex array walk and the JavaScript scale with the CPU, so expect the same share, which `?bench` page 2 shows as the draws that begin a run (`first0` in the variants turns the part off).
+
+**The picture.** `gpucost.mjs diff --v same,first0` (`first0` is in `tools/perf/probe.js`, and `draw0` now includes `first`), 8 views at each spot, at 12:00, 18:30 and 22:30: Quattro Canti, Viale Regione and Vucciria 0 pixels differ in all 72 views; the frame against itself 0 as well. Mondello did not get through `gpucost.mjs diff`: the WKWebView never lifted the loading screen there in 20 minutes at a load average of 25 to 38, three times (the same page loads in 5 s in Chrome). So Mondello was checked in the muted Chrome by a small script of its own (one page, 8 headings round the spot, the frame with `first` off and on and off again, every colour channel of every pixel of the 1688 x 780 canvas, after eight frames to let the cached shadow map settle): 0 channels differ in all 8 views at 12:00, 18:30 and 22:30, `first` off against off 0 as well, and a control that raises the exposure by 2 % shows 3.4 to 3.7 million channels differing, so the check can see a difference. The script is not in the repository. `smoke.mjs` passes on the production build (all ten screens, no errors), `gamecheck.mjs` passes (the missions end, the pub, the dump, the people, the cars and the props run; one run showed a `429` response from some outside address on three of them, which did not come back on a second run, and the unchanged tree did not show it), and a lost GL context comes back with its tiles in 3.1 s and no error (`memory.mjs --lose`). `memory.mjs --starts` reports "the menu never reached the picker" on this machine for the unchanged tree as well.
+
+### Tried and dropped in the first-draw pass
+
+- **Light uniforms once a render call for each program.** Every light uniform of a program (not the samplers, not the camera) wrapped to send once for each render call, since all lit materials of a program hold the same lights and the GL program keeps what it was sent. At Quattro Canti at noon, 40 pairs: -0.02 +- 0.30 ms. `uni` already keeps the GL calls away, and the JavaScript of the sends is too small to see. Taken out again.
+- **The camera's uniforms once for each program and render call.** The ceiling (above) is nothing, and it would not be exact: the shadow pass sends two cameras through the one depth program.
+- **A `setProgram` of our own for a different material on the same program** (the idea behind this pass): not possible exactly, see above. The material's values cannot be taken as unchanged, and the pieces needed to refresh and upload them are inside the renderer.
+- **`shotdiff.mjs` for the pixel check.** The same build against itself gives 14 000 to 42 000 differing pixels at Mondello (things that move), so it cannot show 0. `gpucost.mjs diff` draws one instant twice in one page and can.
+
+### Smells met in the first-draw pass (not touched)
+
+- The shadow pass draws plain and instanced casters, in turn, through three's one shared `MeshDepthMaterial`. Each change flips three's `instancing` flag for it, so `getProgram` runs, makes its parameters and key, and rebuilds the uniform list twice a frame (10 flips in 10 frames each way at Quattro Canti), 0.29 ms of the 13.6 in the profile, about 2 %. Instanced casters with a `customDepthMaterial` of their own would stop it (it should not change what is drawn: the shadow pass walks the scene in order and does not sort, but that was not tried). It belongs to whoever builds the instanced pools, not to `engine-lean.js`.
+- `known` in `renderBufferDirect` used to be worked out after three's draw; a shader material with `uniformsNeedUpdate` set had it cleared by then, so the test could never catch it. It is now worked out before, which is the stricter reading.
+
 ### Switches for measuring
 
-`?draw=off` leaves all three parts out (the path as it was), `?draw=tree,quick` keeps only the parts named. While the game runs, `game.lean.draw.tree`, `.quick` and `.uni` set to `false` turn a part off and `true` back on (the object `createLeanEngine` returns has them, so `src/bench.js` can flip them through the `lean` it is given; a part left out in the address stays out). In `gpucost.mjs`: `--v draw0` is the old path, `tree0`, `quick0` and `uni0` one part off. `drawcpu.mjs --ab all,tree,quick,uni` times them in one page.
+`?draw=off` leaves all the parts out (the path as it was), `?draw=tree,quick` keeps only the parts named (`first` is the fourth, see below). While the game runs, `game.lean.draw.tree`, `.quick`, `.uni` and `.first` set to `false` turn a part off and `true` back on (the object `createLeanEngine` returns has them, so `src/bench.js` can flip them through the `lean` it is given; a part left out in the address stays out). In `gpucost.mjs`: `--v draw0` is the old path, `tree0`, `quick0`, `uni0` and `first0` one part off. `drawcpu.mjs --ab all,tree,quick,uni,first` times them in one page; the bench's variant for the fourth is `first0`.
 
 ### Smells met on the way (not touched)
 
@@ -1078,7 +1118,7 @@ The cost did not go away, it moved: the one context is made about 1 s after the 
 ## Measuring
 
 ```
-tools/release/withbrowser.sh node tools/perf/drawcpu.mjs --root <dist built with --minify=false> [--spots qc,regione] [--times 12,22.5] [--ab all,tree,quick,uni] [--profile 1]   # renderer.render in ms a call at 6x, GL calls a frame by kind, the draw path's switches off and on in one page
+tools/release/withbrowser.sh node tools/perf/drawcpu.mjs --root <dist built with --minify=false> [--spots qc,regione] [--times 12,22.5] [--ab all,tree,quick,uni,first] [--profile 1]   # renderer.render in ms a call at 6x, GL calls a frame by kind, the draw path's switches off and on in one page
 node tools/build/build.mjs                                    # dist/
 node tools/build/measure.mjs --root dist --profile phone --net slow4g --cpu 4 --out /tmp/x.json
 node tools/build/measure.mjs --url https://ebonura.github.io/palermo-drive/ --profile desktop      # the live site

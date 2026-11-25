@@ -100,8 +100,9 @@
     // the draw path's parts (src/engine-lean.js, ?draw=), one off or all three: the old path for the same instant
     tree0: () => { G.lean.draw.tree = false; return () => { G.lean.draw.tree = true; }; },
     quick0: () => { G.lean.draw.quick = false; return () => { G.lean.draw.quick = true; }; },
+    first0: () => { G.lean.draw.first = false; return () => { G.lean.draw.first = true; }; },
     uni0: () => { G.lean.draw.uni = false; return () => { G.lean.draw.uni = true; }; },
-    draw0: () => { const d = G.lean.draw; d.tree = d.quick = d.uni = false; return () => { d.tree = d.quick = d.uni = true; }; },
+    draw0: () => { const d = G.lean.draw; d.tree = d.quick = d.uni = d.first = false; return () => { d.tree = d.quick = d.uni = d.first = true; }; },
     same: () => () => {},   // nothing changed: what two draws of the same instant differ by on their own
     ibl1: () => patchAll('ibl1', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', THREE.ShaderChunk.lights_fragment_maps.replace('vec3 iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );', 'vec3 iblRadiance; if ( material.roughness >= 0.8 ) iblRadiance = iblIrradiance / PI; else iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );')); }),
     envfit: () => { const L = []; S.traverse(o => { if (o.isLightProbe) { L.push(o); o.visible = false; } }); const u = patchAll('envfit', sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', window.__shade.CHUNKS0.lights_fragment_maps); }); return () => { L.forEach(o => { o.visible = true; }); u(); }; },   // the sky reflection as cube map lookups again (src/shading.js)

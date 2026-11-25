@@ -364,7 +364,7 @@ export async function runBench(E) {
     lamps0: () => { const Ls = []; S.traverse(o => { if ((o.isPointLight || o.isSpotLight) && o.visible) { o.visible = false; Ls.push(o); } }); return Ls.length ? () => Ls.forEach(o => { o.visible = true; }) : 'no lamp lights'; },
     lean0: () => { if (!lean) return 'engine-lean is off (?engine=off)'; lean.bypass = true; return () => { lean.bypass = false; }; },
     // the three parts of the draw path (docs/PERF.md, "The draw path"), one off at a time; a part left out in the address (?draw=) is out already
-    tree0: () => draw0('tree'), quick0: () => draw0('quick'), uni0: () => draw0('uni'),
+    tree0: () => draw0('tree'), quick0: () => draw0('quick'), uni0: () => draw0('uni'), first0: () => draw0('first'),
     whole: () => { if (!lean || !lean.parts.parts) return 'no part drawing in this page'; lean.wholeParts = true; return () => { lean.wholeParts = false; }; },
     shade0: () => {   // src/shading.js undone: three's own chunks back in every program, and the sky reflection as cube map lookups again (the light probe that carries its numbers hidden)
       if (!CHUNKS0) return 'shading.js is off (?shade=off)';
@@ -407,6 +407,7 @@ export async function runBench(E) {
     { id: 'quick0', label: 'repeat draws not quick', on: V.quick0 },
     { id: 'tree0', label: 'occlusion rays, no tree', on: V.tree0 },
     { id: 'uni0', label: 'array uniforms resent', on: V.uni0 },
+    { id: 'first0', label: 'first draw of a run, three whole', on: V.first0 },
     { id: 'r70', label: 'render scale 0.7', on: V.r70, rounds: 2, warm: 5 },
     { id: 'crowd0', label: 'crowd hidden', on: V.crowd0 },
     { id: 'traffic0', label: 'traffic hidden', on: V.traffic0 },

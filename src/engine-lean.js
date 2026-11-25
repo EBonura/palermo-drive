@@ -40,12 +40,13 @@ export const cutoutsLast = ORDER === 'off' ? null : (a, b) => {
 //   tree   the occlusion test asks a tree over the rays instead of every ray a box spans
 //   quick  a draw with the same material as the one before it goes straight to GL, past three's program and state checks
 //   uni    an array uniform is not sent again while it holds the same numbers (three compares single values only)
+//   first  a draw whose material differs from the one before it still skips three's vertex array setup and draw: three does its program and state work, the rest is the quick path's
 const DRAW = new URLSearchParams(location.search).get('draw');
 const drawPart = n => DRAW === null || (DRAW !== 'off' && DRAW.split(',').includes(n));
 
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
   const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
-  const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni') }, hook = { quick: draw.quick, uni: draw.uni };
+  const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni'), first: drawPart('first') }, hook = { quick: draw.quick || draw.first, uni: draw.uni };
   const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
 
   // ---------- occluder grids, one per full detail tile, from the same solids the building generator emits ----------
@@ -511,14 +512,19 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       if (uMV !== undefined) uMV.setValue(gl0, ob.modelViewMatrix);
       if (uN !== undefined) uN.setValue(gl0, ob.normalMatrix);
       if (uM !== undefined) uM.setValue(gl0, ob.matrixWorld);
-      const ix = g.index, dr = g.drawRange; let s = dr.start, e = dr.start + dr.count;   // the range, as three works it out
+      tail(g, ob, grp, R, d);
+      return true;
+    }
+    // The draw itself, as three works it out: the range, the vertex array it made for the mesh, the call.
+    function tail(g, ob, grp, R, d) {
+      const ix = g.index, dr = g.drawRange; let s = dr.start, e = dr.start + dr.count;
       if (grp !== null) { if (grp.start > s) s = grp.start; if (grp.start + grp.count < e) e = grp.start + grp.count; }
       if (ix !== null) { if (s < 0) s = 0; if (ix.count < e) e = ix.count; }
       else { const p = g.attributes.position; if (p !== undefined && p !== null) { if (s < 0) s = 0; if (p.count < e) e = p.count; } }
-      const n = e - s; if (n < 0 || n === Infinity) return true;
+      const n = e - s; if (n < 0 || n === Infinity) return;
       if (glVao !== d.vao) { bva(d.vao); glVao = d.vao; }
       if (ob.isInstancedMesh === true) {
-        const k = ob.count; if (k === 0) return true;
+        const k = ob.count; if (k === 0) return;
         if (ix !== null) dei(TRI, n, d.type, s * d.bytes, k); else dai(TRI, s, n, k);
         info.update(n, TRI, k);
       } else {
@@ -527,19 +533,36 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
         else de(TRI, n, d.type, s * d.bytes);
         info.update(n, TRI, 1);
       }
+    }
+    // A draw whose material is not the last one's. three's renderBufferDirect is run on a stand-in geometry that has the real attributes and a draw range that ends before it starts: it does
+    // its program, uniform and state work (setProgram, setMaterial) and returns where the vertex array and the draw would follow. Those are done here, from the vertex array three made for the
+    // mesh, unless it was made for another program than the one three has just chosen: then three draws it itself.
+    const stand = { attributes: null, morphAttributes: null, index: null, drawRange: { start: 0, count: -1 } };
+    function first(self, c, sc, g, mat, ob, grp, R) {
+      const d = mat.isMeshDepthMaterial === true || mat.isMeshDistanceMaterial === true ? ob._leanDepth : ob._leanDraw;
+      if (d === undefined || d.geo !== g || d.epoch !== epoch || !fresh(d, g, ob)) return false;
+      stand.attributes = g.attributes; stand.morphAttributes = g.morphAttributes;
+      rbd.call(self, c, sc, stand, mat, ob, null);
+      if (d.prog !== prog || d.epoch !== epoch) return false;
+      tail(g, ob, grp, R, d);
       return true;
     }
     renderer.renderBufferDirect = function (c, sc, g, mat, ob, grp) {
-      const R = on.parts ? runsOf(c, mat, ob) : null, s = draw.quick && plain && !api.bypass ? sig(ob, g, mat) : -1;
-      if (mat === runMat && s === runSig && c === runCam && sc === runSc && mat.version === runVer && mat.side === runSide && mat.wireframe !== true && ob.receiveShadow === runRS && ob.onBeforeRender === noBR && ob.onBeforeShadow === noBS && renderer.toneMapping === runTM && quick(g, mat, ob, grp, R)) {
+      const R = on.parts ? runsOf(c, mat, ob) : null, s = (draw.quick || draw.first) && plain && !api.bypass ? sig(ob, g, mat) : -1;
+      if (draw.quick && mat === runMat && s === runSig && c === runCam && sc === runSc && mat.version === runVer && mat.side === runSide && mat.wireframe !== true && ob.receiveShadow === runRS && ob.onBeforeRender === noBR && ob.onBeforeShadow === noBS && renderer.toneMapping === runTM && quick(g, mat, ob, grp, R)) {
         if (ob.onAfterRender !== noAR || ob.onAfterShadow !== noAS) runMat = null;
+        return;
+      }
+      const ug = mat.uniformsGroups;
+      const known = s >= 0 && ob.onAfterRender === noAR && ob.onAfterShadow === noAS && mat.onBeforeRender === noMBR && mat.wireframe !== true && mat.isNodeMaterial !== true && mat.uniformsNeedUpdate !== true && (ug === undefined || ug.length === 0);
+      if (draw.first && known && first(this, c, sc, g, mat, ob, grp, R)) {
+        runMat = mat; runCam = c; runSc = sc; runVer = mat.version; runSig = s; runSide = mat.side; runRS = ob.receiveShadow; runTM = renderer.toneMapping; runU = false;
         return;
       }
       cur = R; dType = -1;
       rbd.call(this, c, sc, g, mat, ob, grp);
       cur = null;
-      const ug = mat.uniformsGroups;
-      if (s >= 0 && ob.onAfterRender === noAR && ob.onAfterShadow === noAS && mat.onBeforeRender === noMBR && mat.wireframe !== true && mat.isNodeMaterial !== true && mat.uniformsNeedUpdate !== true && (ug === undefined || ug.length === 0)) {
+      if (known) {
         runMat = mat; runCam = c; runSc = sc; runVer = mat.version; runSig = s; runSide = mat.side; runRS = ob.receiveShadow; runTM = renderer.toneMapping; runU = false;
         if (dType >= 0) record(ob, g, mat.isMeshDepthMaterial === true || mat.isMeshDistanceMaterial === true);
       } else runMat = null;
