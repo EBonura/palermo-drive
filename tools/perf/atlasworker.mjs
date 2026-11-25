@@ -43,9 +43,16 @@ const PAGE = async mode => {
   }
   const ms = performance.now() - t0, hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   const sha = async a => hex(await crypto.subtle.digest('SHA-256', a));
+  // the walls' texture layers (src/wall-paint.js, src/wall-task.js), the same three ways: the hash of each kind's pixels
+  const WP = await import((self.__BASE || '') + '/src/wall-paint.js'), walls = {}, wallsLeft = [];
+  if (mode === 'main' || !sameAsPage) for (const k of WP.KINDS) walls[k] = await sha(WP.pixels(k, WP.seedOf(k)));
+  else {
+    for (const k of WP.KINDS) { const r = await pool.run('walls', { kinds: [k] }); if (!r.layers.length) wallsLeft.push(k); for (const [kk, px] of r.layers) walls[kk] = await sha(px); }
+    for (const k of wallsLeft) walls[k] = await sha(WP.pixels(k, WP.seedOf(k)));
+  }
   const layers = [];   // per layer: the hash of its level 0 and of each mip level
   for (let i = 0; i < N; i++) layers.push([await sha(data.subarray(i * T * T * 4, (i + 1) * T * T * 4)), ...await Promise.all(mips.map(m => sha(m.data.subarray(i * m.w * m.w * 4, (i + 1) * m.w * m.w * 4))))].join(','));
-  return { N, ms, left: left.length, offscreen2d: typeof OffscreenCanvas !== 'undefined' && !!new OffscreenCanvas(1, 1).getContext('2d'), worker: typeof Worker !== 'undefined', usesWorkers: pool.usesWorkers() && sameAsPage, sameAsPage, total: await sha(new TextEncoder().encode(layers.join('\n'))), layers };
+  return { N, ms, walls, wallsLeft: wallsLeft.length, left: left.length, offscreen2d: typeof OffscreenCanvas !== 'undefined' && !!new OffscreenCanvas(1, 1).getContext('2d'), worker: typeof Worker !== 'undefined', usesWorkers: pool.usesWorkers() && sameAsPage, sameAsPage, total: await sha(new TextEncoder().encode(layers.join('\n'))), layers };
 };
 
 const WEBKIT = process.argv.includes('--webkit');
@@ -88,8 +95,9 @@ for (const [label, args] of Object.entries(CONFIGS)) {
   console.log(`  main thread          ${main.total}  ${main.ms.toFixed(0)} ms`);
   for (const [name, r] of cases) {
     const diff = r.layers.map((l, i) => l === main.layers[i] || unstable.has(i) ? -1 : i).filter(i => i >= 0);
-    if (diff.length) bad++;
-    console.log(`  ${name.padEnd(23)} ${r.total}  ${r.ms.toFixed(0)} ms  usesWorkers=${r.usesWorkers}  layers left to the main thread: ${r.left}  ${diff.length ? 'DIFFERENT in layers ' + diff.slice(0, 20).join(',') + ' (' + diff.length + ')' : 'IDENTICAL' + (r.total === main.total ? ' (same total hash)' : '')}`);
+    const wdiff = Object.keys(main.walls).filter(k => main.walls[k] !== r.walls[k]);
+    if (diff.length || wdiff.length) bad++;
+    console.log(`  ${name.padEnd(23)} ${r.total}  ${r.ms.toFixed(0)} ms  usesWorkers=${r.usesWorkers}  layers left to the main thread: ${r.left}, wall kinds ${wdiff.length ? 'DIFFERENT in ' + wdiff.join(',') : 'identical'} (${r.wallsLeft} of ${Object.keys(r.walls).length} left to the main thread)  ${diff.length ? 'DIFFERENT in layers ' + diff.slice(0, 20).join(',') + ' (' + diff.length + ')' : 'IDENTICAL' + (r.total === main.total ? ' (same total hash)' : '')}`);
   }
   await browser.close();
 }

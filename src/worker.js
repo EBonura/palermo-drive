@@ -1,9 +1,9 @@
 // The pool's worker (src/work-pool.js): runs the tasks of src/tasks.js, one message at a time, and answers with the result handed over, not copied.
 // The painters make their scratch canvases with document.createElement('canvas'); a worker has no document, so it gets one that makes OffscreenCanvas.
 import { TASKS } from './tasks.js';
-import { watch } from './atlas-task.js';
+import { watch } from './taint.js';
 
-watch(OffscreenCanvasRenderingContext2D.prototype);   // see atlas-task.js: what a worker's canvas does not draw like the page's is left for the main thread
+watch(OffscreenCanvasRenderingContext2D.prototype);   // see taint.js: what a worker's canvas does not draw like the page's is left for the main thread
 self.document = { createElement: () => new OffscreenCanvas(1, 1) };
 self.onmessage = e => {
   const { id, name, payload } = e.data;

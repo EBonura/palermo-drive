@@ -11,9 +11,10 @@ import SPECS from '../assets/facades/specs.js';
 import { NIGHT } from './daynight.js'; // [day/night] shared uniform: share of lit windows (0 by day)
 import { ZONES, zoneAt, floorsAt, applyDistrictHeights } from './districts.js';
 import { PUB_ROUTES } from './pub-routes.js';
-import { T, LAYERS, LID, GROUP_SPAN, GMAP, UPGRP, paintLayer, releaseLayerCanvases } from './atlas-layers.js';
-import { MIPS, newMips, mipLayer, flipInto, probeMatches } from './atlas-task.js';
-import * as workPool from './work-pool.js';   // the painters of the wall atlas (they run in the work pool's workers too)
+import { T, LAYERS, LID, GROUP_SPAN, GMAP, UPGRP, paintLayer, releaseLayerCanvases } from './atlas-layers.js';   // the painters of the wall atlas (they run in the work pool's workers too)
+import { MIPS, newMips, mipLayer, flipInto } from './atlas-task.js';
+import { workersDrawLikePage } from './probe.js';
+import * as workPool from './work-pool.js';
 const PUB_DOORS = Object.values(PUB_ROUTES).map(r => r.door);   // the pubs' hand-built fronts (src/pub-fronts.js) doors: see pubSign below
 
 const RC = new THREE.Color(), ROOF_BASE_FLAT = new THREE.Color('#d3ccbf'), ROOF_BASE_TILE = new THREE.Color('#7d7f80');   // roof tints: the photo colour over the base colour of the roof texture
@@ -64,7 +65,7 @@ function* paintAtlasInPool(data, mips) {
 function* buildAtlasIter() {
   const data = new Uint8Array(T * T * 4 * LAYERS.length); let mips = MIP_GPU ? null : newMips(LAYERS.length);
   let pooled = workPool.usesWorkers() && !/[?&]atlas=1/.test(location.search);
-  if (pooled) { let asked = false; workPool.run('probe', {}).then(px => { pooled = workPool.usesWorkers() && probeMatches(px); asked = true; }, () => { pooled = false; asked = true; }); while (!asked) yield; }   // do the workers' canvases draw what the page's draws? (see atlas-task.js)
+  if (pooled) { let asked = false; workersDrawLikePage().then(v => { pooled = v; asked = true; }); while (!asked) yield; }   // do the workers' canvases draw what the page's draws? (src/probe.js)
   if (!(pooled && (yield* paintAtlasInPool(data, mips)))) yield* paintAtlas(data, mips);   // a slice that failed in a worker: all of it again here
   const tex = new THREE.DataArrayTexture(data, T, T, LAYERS.length);
   tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;

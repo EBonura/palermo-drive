@@ -17,7 +17,9 @@
 // so the loading screen and the start transition lift as soon as the view is complete instead of waiting for the whole ring.
 import * as THREE from 'three';
 import { D, hooks, groundY, inNear, pairs, signedArea, inPoly, canvasTex, weld } from './core.js';
-import { streetsIter, roadMarksIter, sideZebrasIter, TEX as GROUND_TEX, histW } from './streets.js';
+import { streetsIter, roadMarksIter, sideZebrasIter, TEX as GROUND_TEX, histW, HIST_R0, HIST_R1 } from './streets.js';
+import * as workPool from './work-pool.js';
+import { PALETTE } from './terrain-task.js';
 import { slice, sliceOver } from './slice.js';
 import { buildBuildingsIter, warmBuildings } from './buildings.js';
 import { applyDistrictHeights, zoneAt } from './districts.js';
@@ -120,6 +122,10 @@ const COVER = {
   rail: [C.rail, 0.8, 10], grass: [C.dry, 0.8, 11],
 };
 const _c = new THREE.Color(), _r = new THREE.Color(), HAZE = new THREE.Color('#7297b4');
+const PAL = Float64Array.from(PALETTE.flatMap(k => [C[k].r, C[k].g, C[k].b]));   // the terrain palette as numbers, for the pool's terrain task (src/terrain-task.js)
+const u32eq = (a, b) => { if (a.length !== b.length) return false; const A = new Uint32Array(a.buffer, a.byteOffset, a.length), B = new Uint32Array(b.buffer, b.byteOffset, b.length); for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return false; return true; };
+const TERRCHECK = /[?&]terrcheck(&|$)/.test(location.search);
+const memoised = f => { const M = new Map(); return (x, z) => { const k = x + ',' + z; let y = M.get(k); if (y === undefined) { y = f(x, z); M.set(k, y); } return y; }; };   // ?terrcheck: every tile's vertices are made both ways and compared (window.__terrCheck)
 // h: ground height (m), slope: |gradient|, noise 0..1 (low frequency), n2 0..1 (a second, finer pattern), road 0..1 (how close to a carriageway the ground is, roadField below: the bench a road is cut into
 // is a cut or a fill of earth and scrub, not limestone, wherever it is steep)
 function terrainColor(out, h, slope, noise, n2 = 0.5, road = 0) {
@@ -498,7 +504,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // A 5 m field over the tile and 50 m beyond it (the neighbours' buildings count, so a tile border shows no seam) gives the distance to the nearest wall and how crowded the walls are
   // within 45 m; terrainMesh paves the ground that is both close to walls and in a built-up quarter, unless a land cover polygon (park, wood, sand, field) says otherwise.
   const PV_C = 5, PV_M = 50, PV_N = Math.round((T + 2 * PV_M) / PV_C) + 1;
-  function* paveFieldIter(t) {
+  function* paveFieldIter(t, ds) {   // ds: the data of the tile and its eight neighbours (neighbourData), when the caller has fixed them
     const x0 = t.i * T - PV_M, z0 = t.j * T - PV_M, n = PV_N, seed = new Uint8Array(n * n), seedR = new Uint8Array(n * n), x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C;   // seedR: the edges of the raised and paving polygons
     let any = 0;
     const mark = (ax, az, bx, bz, seed) => {
@@ -516,7 +522,7 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
       for (let q = 0; q < m; q++) { const r = (q + 1) % m; mark(p[2 * q], p[2 * q + 1], p[2 * r], p[2 * r + 1], sd); }
     };
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
-      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
+      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = ds ? ds[(di + 1) * 3 + dj + 1] : (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
       if (d && d.buildings) for (const b of d.buildings) { if (b.yb) continue; ring(b.p); if (b.holes) for (const h of b.holes) ring(h); if (sliceOver()) yield; }
       if (d && d.streets) for (const l of ['raised', 'paving']) for (const poly of d.streets[l] || []) { ring(poly[0], seedR); if (sliceOver()) yield; }
     }
@@ -560,11 +566,11 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   // terrainMesh paints the bank of a road bench as earth and scrub instead of limestone, and the first metres of flat ground beside the asphalt as a worn shoulder (photos of the outskirts: scrub,
   // dry grass and a hard shoulder up to the kerb, where the terrain was pale ochre limestone all the way).
   const RF_M = 30, RF_N = Math.round((T + 2 * RF_M) / PV_C) + 1;
-  function* roadFieldIter(t) {
+  function* roadFieldIter(t, ds) {
     const x0 = t.i * T - RF_M, z0 = t.j * T - RF_M, n = RF_N, x1 = x0 + (n - 1) * PV_C, z1 = z0 + (n - 1) * PV_C, dist = new Float32Array(n * n).fill(1e4);
     let any = 0;
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
-      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
+      const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)), d = ds ? ds[(di + 1) * 3 + dj + 1] : (o && o.data) || cache.get(nk(t.i + di, t.j + dj));
       if (!d || !d.roads) continue;
       for (const r of d.roads) {
         if (r.tn || r.br || !DRIVABLE.has(r.k) || r.k === 'service' || !r.p) continue;
@@ -611,8 +617,10 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // a tunnel's open cutting (src/bridges.js) is walled: at full detail the terrain is cut away along its walls and stands as it is up to them (its ground
     // without the cutting), the floor being the tunnel's own mesh; on a coarser grid the step is left to the cells
     const clip = stride === 1 && cutTouches(x0, z0, x0 + T, z0 + T);
-    const g = clip ? (x, z) => { const y = tileGround(x, z); return y === undefined ? groundY(x, z) : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y, true))))); } : groundY;
-    const nb = n * n, total = nb + 4 * n, pvf = t.pvf = yield* paveFieldIter(t), rdf = yield* roadFieldIter(t);   // the grid, then the skirt (below): one set of arrays, sized for both
+    const g0 = clip ? (x, z) => { const y = tileGround(x, z); return y === undefined ? groundY(x, z) : dumpGround(x, z, raveGround(x, z, pitchGround(x, z, carveQuay(x, z, carve(x, z, y, true))))); } : groundY;
+    const g = TERRCHECK ? memoised(g0) : g0;   // ?terrcheck: one answer for one place
+    let pvf = null, rdf = null;   // the paving and road fields: made by the pool's task with the vertices, else here (below)
+    const nb = n * n, total = nb + 4 * n;   // the grid, then the skirt (below): one set of arrays, sized for both
     const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uv = new Float32Array(total * 2), pav = new Float32Array(total), yar = new Float32Array(total), rda = new Float32Array(total);
     const tint = t.tint, urban = t.urban, UVS = 1 / GROUND_TEX.terrain.metres;
     const gtT = tintFn(t, 't');   // the orthophoto's ground colours, relative
@@ -620,13 +628,42 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
     // owner saw hidden roads under Monte Pellegrino). On benched tiles each low detail vertex drops to the lowest ground within 5 m,
     // so the terrain never rises above a road beside it; the notch this leaves is far below what is visible at that distance.
     const lowEnv = t.benched && stride > 1;
-    for (let j = 0; j < n; j++) {
+    // The ground is asked for the vertex and a step to each side of it: those are the grid's own points, so the grid (and one ring round it) is sampled once, a fifth of the calls. Exact only when the
+    // steps add up without rounding (x0 and z0 are multiples of 500, so any step that is a multiple of 0.5 does): otherwise each point asks as before.
+    const NL = n + 2, lat = step * 2 === Math.round(step * 2) ? new Float64Array(NL * NL) : null;
+    if (lat) for (let j = 0; j < NL; j++) { for (let i = 0; i < NL; i++) lat[j * NL + i] = g(x0 + (i - 1) * step, z0 + (j - 1) * step); if (sliceOver()) yield; }
+    // The vertices' number work (slope, normals, colours, weights) goes to the pool when there is one (src/terrain-task.js): the lattice of ground heights, the fields and the land cover are sent, the arrays come back.
+    let pooled = lat !== null && workPool.usesWorkers(), pooledRes = null;
+    const nbData = pooled || TERRCHECK ? neighbourData(t) : null;   // fixed now, for the task and (?terrcheck) for the fields made here
+    if (pooled) {
+      let lowY = null;
+      if (lowEnv) { lowY = new Float64Array(nb); for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) { const x = x0 + i * step, z = z0 + j * step; let y = lat[(j + 1) * NL + i + 1]; for (let q = 0; q < 8; q++) { const a = q * 0.7853982, m = g(x + Math.cos(a) * 5, z + Math.sin(a) * 5); if (m < y) y = m; } lowY[j * n + i] = y; } if (sliceOver()) yield; } }
+      const fld = yield* fieldsPayload(t, nbData);
+      let res = null, failed = false;
+      const latSent = TERRCHECK ? lat.slice() : lat;
+      workPool.run('terrain', { n, step, x0, z0, urban, uvs: UVS, lat: latSent, lowY, fld, tint: t.tint ? tintFlat(t) : null, pavez: pavezFlat(), gt: (t.gt && t.gt.t) || null, gtSt: GT_STEP.t, gr: GR, hist: [HIST_R0, HIST_R1], pal: PAL }, TERRCHECK ? [] : [lat.buffer]).then(r => { res = r; }, () => { failed = true; });
+      while (!res && !failed) yield;
+      if (res) { pos.set(res.pos); nor.set(res.nor); col.set(res.col); uv.set(res.uv); pav.set(res.pav); yar.set(res.yar); rda.set(res.rda); }
+      pooledRes = res; pooled = !!res;
+      if (res) { pvf = t.pvf = res.pvf; rdf = res.rdf; }
+    }
+    if (!pooled || TERRCHECK) {
+      const pv = yield* paveFieldIter(t, TERRCHECK && pooledRes ? nbData : undefined), rd = yield* roadFieldIter(t, TERRCHECK && pooledRes ? nbData : undefined);
+      if (TERRCHECK && pooledRes) {   // ?terrcheck: the pool's fields against these
+        const eq = (A, B, ks) => A === null ? B === null : B !== null && ks.every(k => u32eq(A[k], B[k]) && A.x0 === B.x0 && A.z0 === B.z0 && A.n === B.n);
+        const chk = window.__terrCheck || (window.__terrCheck = { tiles: 0, vertices: 0, bad: [] });
+        if (!eq(pv, pooledRes.pvf, ['dist', 'dens', 'dr']) || !eq(rd, pooledRes.rdf, ['dist'])) chk.bad.push(t.id + ' stride ' + stride + ': the paving or road field differs');
+        (chk.fields || (chk.fields = { tiles: 0 })).tiles++;
+      }
+      pvf = t.pvf = pv; rdf = rd;
+    }
+    for (let j = 0; j < (pooled && !TERRCHECK ? 0 : n); j++) {
       for (let i = 0; i < n; i++) {
-        const x = x0 + i * step, z = z0 + j * step, k = (j * n + i) * 3;
-        let y = g(x, z);
+        const x = x0 + i * step, z = z0 + j * step, k = (j * n + i) * 3, lk = (j + 1) * NL + i + 1;
+        let y = lat ? lat[lk] : g(x, z);
         if (lowEnv) for (let q = 0; q < 8; q++) { const a = q * 0.7853982, m = g(x + Math.cos(a) * 5, z + Math.sin(a) * 5); if (m < y) y = m; }
         const e = step;
-        const dx = (g(x + e, z) - g(x - e, z)) / (2 * e), dz = (g(x, z + e) - g(x, z - e)) / (2 * e), l = Math.hypot(dx, 1, dz);
+        const dx = ((lat ? lat[lk + 1] : g(x + e, z)) - (lat ? lat[lk - 1] : g(x - e, z))) / (2 * e), dz = ((lat ? lat[lk + NL] : g(x, z + e)) - (lat ? lat[lk - NL] : g(x, z - e))) / (2 * e), l = Math.hypot(dx, 1, dz);
         pos[k] = x; pos[k + 1] = y - 0.2; pos[k + 2] = z; nor[k] = -dx / l; nor[k + 1] = 1 / l; nor[k + 2] = -dz / l;
         const noise = (Math.sin(x * 0.013 + z * 0.009) + Math.sin(x * 0.0037 - z * 0.013)) * 0.25 + 0.5;
         const n2 = (Math.sin(x * 0.061 + z * 0.043) + Math.sin(x * 0.027 - z * 0.071 + 1.7)) * 0.25 + 0.5, slope = Math.hypot(dx, dz);
@@ -663,6 +700,23 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
         const q = (j * n + i) * 2; uv[q] = x * UVS; uv[q + 1] = z * UVS;
         if (sliceOver()) yield;
       }
+    }
+    if (TERRCHECK && pooledRes) {   // the pool's arrays against the loop's
+      const chk = window.__terrCheck || (window.__terrCheck = { tiles: 0, vertices: 0, bad: [], poolBad: [] }), bad = [];
+      for (const [name, a, b, len] of [['pos', pos, pooledRes.pos, nb * 3], ['nor', nor, pooledRes.nor, nb * 3], ['col', col, pooledRes.col, nb * 3], ['uv', uv, pooledRes.uv, nb * 2], ['pav', pav, pooledRes.pav, nb], ['yar', yar, pooledRes.yar, nb], ['rda', rda, pooledRes.rda, nb]]) {
+        const A = new Uint32Array(a.buffer, 0, len), B = new Uint32Array(b.buffer, 0, len); let c = 0;
+        for (let q = 0; q < len; q++) if (A[q] !== B[q]) c++;
+        if (c) bad.push(name + ' ' + c + ' of ' + len);
+      }
+      (chk.pool || (chk.pool = { tiles: 0, bad: [] })).tiles++; if (bad.length) chk.pool.bad.push(t.id + ' stride ' + stride + ': ' + bad.join(', '));
+    }
+    if (TERRCHECK && lat) {   // ?terrcheck: the lattice against each vertex asking for its own ground and its neighbours' (window.__terrCheck, tools/perf/terraincheck.mjs)
+      const chk = window.__terrCheck || (window.__terrCheck = { tiles: 0, vertices: 0, bad: [] }); let c = 0;
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const x = x0 + i * step, z = z0 + j * step, lk = (j + 1) * NL + i + 1, e = step;
+        if (lat[lk] !== g(x, z) || lat[lk + 1] !== g(x + e, z) || lat[lk - 1] !== g(x - e, z) || lat[lk + NL] !== g(x, z + e) || lat[lk - NL] !== g(x, z - e)) c++;
+      }
+      chk.tiles++; chk.vertices += nb; if (c) chk.bad.push(t.id + ' stride ' + stride + ': ' + c + ' of ' + nb + ' vertices have a lattice height that is not what the direct call gives');
     }
     // skirt: drop the border so cracks against neighbours (lidar vs coarse far grid, a low detail cell next to a full detail one) stay hidden.
     // On a cliff the two meshes of a tile border differ by more than the old 8 m, and the sky showed through as a bright blue sliver.
@@ -1257,6 +1311,49 @@ export function createWorld({ scene, camera, renderer, ctx, walls2d, streets, ro
   function asphaltTint(fn) {
     if (!fn) return null;
     return (x, z) => { const c = fn(x, z); if (c.g > ASPH_LIGHT) c.multiplyScalar(ASPH_LIGHT / c.g); return c; };
+  }
+  // the land cover and the landmarks' paving as flat numbers for the pool (src/terrain-task.js); a tile's cover is flattened once
+  const flatPoly = pts => { const f = new Float64Array(pts.length * 2); for (let i = 0; i < pts.length; i++) { f[i * 2] = pts[i][0]; f[i * 2 + 1] = pts[i][1]; } return f; };
+  const tintFlat = t => t.tintFlat || (t.tintFlat = t.tint.map(a => ({ x0: a.x0, z0: a.z0, x1: a.x1, z1: a.z1, s: a.s, cover: a.cover, col: { r: a.col.r, g: a.col.g, b: a.col.b }, poly: flatPoly(a.pts) })));
+  let pavezFlatOf = null, pavezFlatList = null;
+  const pavezFlat = () => pavezFlatOf === PAVEZ ? pavezFlatList : (pavezFlatOf = PAVEZ, pavezFlatList = PAVEZ.map(p => ({ x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1, poly: flatPoly(p.pts) })));
+  // The rings of a tile's buildings, its pavement and square polygons and its drivable roads, as flat arrays for the pool's field maker (src/terrain-task.js): made once for a tile's data and kept
+  // (made again if the list of buildings has been replaced since, see dropTwins). The tile and its eight neighbours go in a task.
+  const flatRings = list => {
+    let m = 0; for (const p of list) m += p.length;
+    const xy = new Float64Array(m), off = new Int32Array(list.length + 1), bb = new Float64Array(list.length * 4); let k = 0;   // bb: low x, high x, low z, high z of each
+    list.forEach((p, q) => {
+      let lx = 1e9, hx = -1e9, lz = 1e9, hz = -1e9;
+      for (let i = 0; i < p.length; i += 2) { const x = p[i], z = p[i + 1]; if (x < lx) lx = x; if (x > hx) hx = x; if (z < lz) lz = z; if (z > hz) hz = z; xy[k++] = x; xy[k++] = z; }
+      off[q + 1] = k; bb[q * 4] = lx; bb[q * 4 + 1] = hx; bb[q * 4 + 2] = lz; bb[q * 4 + 3] = hz;
+    });
+    return { xy, off, bb };
+  };
+  // the rings (or road lines) whose box touches a box: all the field maker looks at (it drops the others at once), so a task carries the strip of each neighbour that matters, not the neighbour
+  const ringsIn = (o, x0, x1, z0, z1) => {
+    const keep = []; let m = 0;
+    for (let r = 0; r + 1 < o.off.length; r++) { const q = r * 4; if (o.bb[q + 1] < x0 || o.bb[q] > x1 || o.bb[q + 3] < z0 || o.bb[q + 2] > z1) continue; keep.push(r); m += o.off[r + 1] - o.off[r]; }
+    const xy = new Float64Array(m), off = new Int32Array(keep.length + 1); let k = 0;
+    keep.forEach((r, q) => { xy.set(o.xy.subarray(o.off[r], o.off[r + 1]), k); k += o.off[r + 1] - o.off[r]; off[q + 1] = k; });
+    return { xy, off };
+  };
+  const flatData = new WeakMap();
+  function* flatOf(d) {   // a step between rings: a tile's lists are a few milliseconds of work, nine of them at once were a frame of a quarter of a second on a slow phone
+    let f = flatData.get(d); if (f && f.bref === d.buildings) return f;
+    const b = [], st = [], rd = [];
+    if (d.buildings) { let q = 0; for (const bd of d.buildings) { if (bd.yb) continue; b.push(bd.p); if (bd.holes) for (const h of bd.holes) b.push(h); if ((++q & 127) === 0 && sliceOver()) yield; } }
+    if (d.streets) for (const l of ['raised', 'paving']) for (const poly of d.streets[l] || []) st.push(poly[0]);
+    if (d.roads) for (const r of d.roads) { if (r.tn || r.br || !DRIVABLE.has(r.k) || r.k === 'service' || !r.p) continue; rd.push(r.p); }
+    f = { bref: d.buildings, b: flatRings(b), s: flatRings(st), r: flatRings(rd) }; flatData.set(d, f); return f;
+  }
+  const neighbourData = t => { const ds = []; for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const o = di === 0 && dj === 0 ? t : tiles.get(nk(t.i + di, t.j + dj)); ds.push((o && o.data) || cache.get(nk(t.i + di, t.j + dj)) || null); } return ds; };
+  function* fieldsPayload(t, ds) {
+    const rings = [], roads = [], bx0 = t.i * T - PV_M, bz0 = t.j * T - PV_M, bx1 = bx0 + (PV_N - 1) * PV_C, bz1 = bz0 + (PV_N - 1) * PV_C;   // the box of the paving field (the road field's is inside it)
+    for (const d of ds) {
+      const f = d ? yield* flatOf(d) : null;
+      rings.push(f ? { b: ringsIn(f.b, bx0, bx1, bz0, bz1), s: ringsIn(f.s, bx0, bx1, bz0, bz1) } : null); roads.push(f && d.roads ? ringsIn(f.r, bx0, bx1, bz0, bz1) : null);
+    }
+    return { T, i: t.i, j: t.j, rings, roads };
   }
   function tintFn(t, grp) { // -> (x, z) -> Color multiplier (shared object), or null
     const g = t.gt && t.gt[grp]; if (!g) return null;
