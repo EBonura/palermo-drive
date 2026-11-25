@@ -945,6 +945,49 @@ An earlier run of 24 pairs at Quattro Canti at noon, in a busier stretch, read 0
 - `src/engine-lean.js` keeps typed arrays and per-frame records in `userData`, which three copies as JSON on `clone()` and `toJSON()`.
 - The chase camera's idle sway redraws a parked scene from a slightly different place every frame: nothing a frame works out can be reused in the next.
 
+## What the steady frame rate hangs on (phones of AWS Device Farm, 25 November 2026)
+
+The stalls of a drive were taken out one by one on 24 and 25 November. This pass asked what holds the frame rate between them, with the lapa parked at Quattro Canti and at Vucciria by day.
+
+**Two different limits.** On the Androids the game's own code is the limit or next to it: 17 to 18 ms a frame on a Galaxy A13 5G, A15 and Redmi Note 13 (Mali-G57), 18 to 24 on a Pixel 3a and a Pixel 2 XL, against the 16.7 ms a frame at 60 a second has. Two thirds of it is `renderer.render`. The iPhone 11 has 9 ms of code and waits for its GPU (about 26 frames a second, the frame 29 ms by the fence), and what its frame costs follows the pixels: half the render scale takes 13.5 of 39 ms.
+
+**Unseen draws.** `?bench&bv=unseen0` puts an occlusion query round every draw of the main view for three frames and then hides whatever never passed a sample; `lapa0` hides the player's vehicle. Of about 290 objects drawn at Quattro Canti, 105 to 122 put no pixel on the screen, and with them hidden 0 to 0.001 % of the pixels differ.
+
+| phone | code of a frame | unseen hidden: code | unseen hidden: finished frame | the lapa hidden: code |
+| --- | --- | --- | --- | --- |
+| Galaxy A13 5G | 17.3 | -2.8 | -9.0 ± 2.4 | -1.6 |
+| Pixel 3a | 23.8 | -4.1 | -8.5 ± 2.0 | -1.0 |
+| iPhone 11 | 9.3 | -0.3 | -0.1 ± 1.1 | -0.9 |
+
+So on Android a sixth of the code and a tenth of the finished frame go to things nobody sees; on the iPhone, whose GPU drops hidden surfaces before shading them, nothing does. What they are (`gpucost.mjs waste --runs 1`, `--kinds 1`, and an occlusion query pass at the phone's pixel ratio): 37 of the 89 runs of one material at Quattro Canti. Parts of the lapa behind its own body, effects that were on with nothing to show, landmarks down a street behind nearer roofs, hills, far terrain and far city behind the walls, pools of props with every instance out of sight, the sea's disc and the clouds in a street with no sky.
+
+**What was done, each with the same picture.**
+- Draws of nothing are left out: the tyre smoke and the police lights while no puff or light is alive (and their three buffers a frame are not sent), the skid marks while there are none, the scripted crowd while it holds nobody.
+- The trams have a box each (`userData.leanMover`), so the street-canyon culling leaves their one draw out when none is in view. `enginebench.mjs check`: 0 false culls at 160 random places.
+- Instanced shadow casters without cut-outs have a depth material of their own (`draw.depth` in `src/engine-lean.js`). three took the shared one's program again at every change between an instanced caster and a plain one, 2 to 4 times a frame (`getProgram`, its parameters and its key: about 2 % of the draw in the profile of 24 November). `gpucost.mjs diff --v same,depth0`: 0 pixels in 32 views.
+- The occlusion tree's query takes its three numbers as arguments. Kept in variables of the closure they were made anew on the heap at every test, 2.5 MB a second.
+- `carve` of `src/bridges.js` and `src/quays.js` look at a count per slot of 4096 before asking their map of cells: 0.64 to 0.22 ms a frame at 6x on the drive through Quattro Canti, the same ground at 1.56 million points round the Oreto, Viale Regione and the Cala.
+- The vehicle's plain materials go through one paint material per instance (`paintMaterial` in `src/vehicle-art.js`): each vertex carries a palette slot as a flat varying and the colour, roughness, metalness and emissive come from a uniform array filled once a frame from the materials themselves, so the garage, the liveries and the night lamps work as before. The default lapa: 34 draws in 18 runs to 22 in 11. Not exact to the bit: of 198 views (eleven vehicles and liveries, six cameras, three hours) 186 are the same and 12 differ in 1 or 2 pixels by 1 level of 255. `?lapamat=off` is the old way, for comparing.
+
+On the phones the runs of one material in a frame went from 89 to 78 at Quattro Canti and from 53 to 42 at Vucciria. At the 70 to 85 microseconds a run costs there that is a little under a millisecond; it could not be read off the phones (below).
+
+**Looked at and left.**
+- *Occlusion queries as the cull.* They would catch nearly all of it, but the answer comes when the GPU has finished the frame, which on these phones is 3 to 6 frames later: what comes out from behind a corner would be missing for a tenth of a second or more.
+- *A cheaper change of material on the same program.* Only 8 changes a frame are between plain materials on one program (21 more at Quattro Canti differ in a texture, 1 to 6 elsewhere), and the palette above took most of those.
+- *Buildings built in the worker pool.* The builders' own work is 0.55 ms a frame of the drive at 6x, and the buildings of a tile cost 12 to 18 ms to hand over in one piece.
+- *Parts for the hills and the far terrain.* They write their index again as tiles come and go.
+- *Fewer triangles for their own sake.* Hiding every prop, tree and stall (about 170 thousand triangles) moved no phone's frame beyond its noise.
+- *The shading on an Apple GPU* (`gpucost.mjs costs`, Quattro Canti, 16 times the pixels): every pixel flat takes 52 % off the frame, and no one feature more than 12 % (specular 12, fog 6, the sky's reflection 6, shadows 5, tone mapping 4). Nothing stands out to cut with the picture kept.
+
+**Two things about measuring on the farm.** Runs cannot be set side by side: the same model read 17.3, 24.5 and 17.8 ms of code at Quattro Canti in three runs of one day (Galaxy A13 5G) and 23.8, 22.9 and 17.3 (Pixel 3a), more than anything changed that day. A change under 2 ms has to be priced inside one page, as `unseen0` and `lapa0` are. And the 1,000 free device minutes come once; after them a minute is $0.17.
+
+### Smells met on the way (not touched)
+
+- The props' shared material is on instanced pools and on `prop_wires`, a plain mesh, so where wires are in view three takes its program again twice a frame, as it did for the depth material.
+- The sea's disc follows the camera and is drawn from anywhere, behind the whole city too; the page has no cheap way to know that no water is in view.
+- Coplanar faces in the vehicle models (a lamp flush with the hood's lip) are settled by the order of the draws; the paint material's mesh that casts no shadow has `renderOrder = -1` to keep the order three had.
+- `tickShared` runs before `src/daynight.js` in a frame, so the palette's lamp emissive is a frame behind at dusk.
+
 ## Everything but the draw, on a slow phone's CPU (11 November)
 
 The first `?bench` reading from an old Android phone (Android 10, Chrome 131, Mali-G72) put the game's code at Quattro Canti, parked, at 31.2 ms a frame by day and 39.2 by night. Three.js issuing the draws is 21 to 26 of that. This section is about the rest, about 12 ms by day and 19 by night in that reading: world 4.6 / 3.9, crowd 2.0 / 2.8, traffic 1.6 / 3.1, physics with the camera and the HUD's text 2.3 / 1.2, road wear 0.05 / 3.5, sea 0.1 / 2.7, and the others under half a millisecond each.
