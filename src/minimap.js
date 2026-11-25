@@ -26,7 +26,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   const mini = canvas.getContext('2d');
   const RES = 256, S = RES / T, CAP = 18; // px per tile side, px per metre, pieces kept
   let zoom = 0.75; // px per metre on screen; eased towards the speed-dependent target
-  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0, skipped: 0, blanks: 0, dead: 0, resets: 0, lost: 0 };
+  const stats = { pieces: 0, painted: 0, detailed: 0, lastMs: 0, maxMs: 0, sumMs: 0, drawMs: 0, drawMax: 0, frames: 0, skipped: 0, blanks: 0, dead: 0, resets: 0, lost: 0, readMax: 0, readMs: 0, reads: 0, baseMax: 0 };   // read*: the one pixel read back that says whether a piece is blank; baseMax: the longest painting of the sea and the land
 
   // ---------- per tile pieces ----------
   const pieces = new Map(); // key -> { c, g, i, j, detail } (insertion order = LRU order)
@@ -67,8 +67,10 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
   function paintBase(p) {
     const g = p.g; paintStamp++;
     g.setTransform(S, 0, 0, S, -p.i * T * S, -p.j * T * S); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setLineDash([]); g.lineCap = g.lineJoin = 'round';   // the whole state, every time: a context may have been reset
+    const t0 = performance.now();
     g.fillStyle = SEA; g.fillRect(p.i * T, p.j * T, T, T);
     g.fillStyle = LAND; g.fill(landPath);
+    const ms = performance.now() - t0; if (ms > stats.baseMax) stats.baseMax = ms;
   }
   function poly(path, a) { path.moveTo(a[0], a[1]); for (let i = 2; i < a.length; i += 2) path.lineTo(a[i], a[i + 1]); }
   function paintDetail(p, d) {
@@ -120,7 +122,8 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     return p;
   }
   // A blank canvas reads back transparent: paintBase covers every pixel with something opaque. The canvas gets a new backing and the piece is painted again (the detail follows in upgradeOne).
-  function isBlank(p) { try { return (p.g.isContextLost && p.g.isContextLost()) || p.g.getImageData(RES >> 1, RES >> 1, 1, 1).data[3] === 0; } catch (e) { return true; } }
+  function isBlank(p) { const t0 = performance.now(), b = isBlank0(p), ms = performance.now() - t0; stats.reads++; stats.readMs += ms; if (ms > stats.readMax) stats.readMax = ms; return b; }
+  function isBlank0(p) { try { return (p.g.isContextLost && p.g.isContextLost()) || p.g.getImageData(RES >> 1, RES >> 1, 1, 1).data[3] === 0; } catch (e) { return true; } }
   function verify(p) {
     if (!isBlank(p)) { if (p.blank) { p.blank = false; stats.dead--; } return; }
     stats.blanks++;
@@ -287,7 +290,7 @@ export function createMinimap({ canvas, car, world, DRIVABLE, mapMarkers, mapRou
     const ms = performance.now() - t0; stats.frames++; stats.drawMs += ms; if (ms > stats.drawMax) stats.drawMax = ms;
   }
 
-  const api = { draw, pieces, stats: () => ({ ...stats, zoom, active: active.length, res: RES, cap: CAP, avgDrawMs: stats.drawMs / Math.max(1, stats.frames) }) };
+  const api = { draw, pieces, peaks() { const r = { reads: stats.reads, readMax: stats.readMax, maxMs: stats.maxMs, baseMax: stats.baseMax }; stats.reads = stats.readMax = stats.maxMs = stats.baseMax = 0; return r; },   /* the longest of each since the last asking (?bench) */ stats: () => ({ ...stats, zoom, active: active.length, res: RES, cap: CAP, avgDrawMs: stats.drawMs / Math.max(1, stats.frames) }) };
   if (location.search.includes('debug')) window.__pdMinimap = api;
   return api;
 }
