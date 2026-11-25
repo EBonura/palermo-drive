@@ -81,7 +81,7 @@ function buildTeatini() {
   prism('flat', body, y0 + EAVE, y0 + EAVE + 0.12, { c: '#a39a8c' });
   bx('tbNave', F, -NW, NW, EAVE, NAVE_TOP, NZ0, NZ1, { uvo: [0, -(y0 + EAVE) / (NAVE_TOP - EAVE)] });
   for (const [z0, z1] of [[NZ0, DZ + 9.5], [DZ - 9.5, NZ1]]) gable('tile', 'tbNave', at(0, 0, (z0 + z1) / 2), NW * 2, z0 - z1, NAVE_TOP, RISE, { ov: 0.35, c: '#b8744f', wc: '#dcc79e' });
-  bx('flat', F, -NW - 0.3, NW + 0.3, NAVE_TOP, NAVE_TOP + 0.2, DZ - 9.5, DZ + 9.5, { c: '#a39a8c' });
+  bx('flat', F, -NW - 0.3, NW + 0.3, NAVE_TOP + 0.02, NAVE_TOP + 0.2, DZ - 9.5, DZ + 9.5, { c: '#a39a8c' });   // (its underside 2 cm above the gables': at the same height the two flickered from the street)
   // the front: a stepped shape (attic narrower than the orders under it, a curved top) with the painted face on it
   const hw = FW / 2, s = new THREE.Shape();
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, MID + 0.5); s.lineTo(hw - 0.4, MID + 0.5); s.lineTo(hw - 0.4, TOP); s.quadraticCurveTo(0, TOP + 2.4, -hw + 0.4, TOP); s.lineTo(-hw + 0.4, MID + 0.5); s.lineTo(-hw, MID + 0.5); s.lineTo(-hw, 0);
