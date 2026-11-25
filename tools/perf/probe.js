@@ -101,6 +101,7 @@
     tree0: () => { G.lean.draw.tree = false; return () => { G.lean.draw.tree = true; }; },
     quick0: () => { G.lean.draw.quick = false; return () => { G.lean.draw.quick = true; }; },
     first0: () => { G.lean.draw.first = false; return () => { G.lean.draw.first = true; }; },
+    depth0: () => { const flip = v => { G.lean.draw.depth = v; S.traverse(o => { if (o.isInstancedMesh && o.castShadow) { if (!v && o.customDepthMaterial && o.customDepthMaterial.isMeshDepthMaterial) o.customDepthMaterial = undefined; } }); const l = G.lean.debug.leaves()[0]; if (l) l.matrixWorldNeedsUpdate = true; }; flip(false); return () => flip(true); },   // three's one depth material for instanced casters too; a leaf marked moved makes the cached shadow map be drawn again
     uni0: () => { G.lean.draw.uni = false; return () => { G.lean.draw.uni = true; }; },
     draw0: () => { const d = G.lean.draw; d.tree = d.quick = d.uni = d.first = false; return () => { d.tree = d.quick = d.uni = d.first = true; }; },
     same: () => () => {},   // nothing changed: what two draws of the same instant differ by on their own

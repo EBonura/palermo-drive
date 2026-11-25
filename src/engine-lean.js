@@ -41,12 +41,13 @@ export const cutoutsLast = ORDER === 'off' ? null : (a, b) => {
 //   quick  a draw with the same material as the one before it goes straight to GL, past three's program and state checks
 //   uni    an array uniform is not sent again while it holds the same numbers (three compares single values only)
 //   first  a draw whose material differs from the one before it still skips three's vertex array setup and draw: three does its program and state work, the rest is the quick path's
+//   depth  instanced shadow casters have a depth material of their own, so three does not work the shared one's program out again at each change between instanced and plain
 const DRAW = new URLSearchParams(location.search).get('draw');
 const drawPart = n => DRAW === null || (DRAW !== 'off' && DRAW.split(',').includes(n));
 
 export function createLeanEngine({ renderer, scene, camera, sun, world, parts }) {
   const on = { occ: parts.includes('occ'), shadow: parts.includes('shadow'), walk: parts.includes('walk'), sort: parts.includes('sort'), parts: parts.includes('occ') && !parts.includes('noparts') };
-  const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni'), first: drawPart('first') }, hook = { quick: draw.quick || draw.first, uni: draw.uni };
+  const draw = { tree: drawPart('tree'), quick: drawPart('quick'), uni: drawPart('uni'), first: drawPart('first'), depth: drawPart('depth') }, hook = { quick: draw.quick || draw.first, uni: draw.uni };
   const st = { rays: 0, steps: 0, tested: 0, hidden: 0, outside: 0, drawn: 0, leaves: 0, groups: 0, always: 0, rebuilds: 0, statics: 0, refreshes: 0, cullMs: 0, rasterMs: 0, grids: 0, pendingBoxes: 0, fanT: 0, leafT: 0, fr: 0 };
 
   // ---------- occluder grids, one per full detail tile, from the same solids the building generator emits ----------
@@ -287,7 +288,7 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
   // and one above or below the view along all of them. Where a node cannot say, its halves are asked, down to the single ray and the test as it was: the answer is the same as asking every ray.
   const TN = 512, tD1 = new Float32Array(2 * TN).fill(Infinity), tS1 = new Float32Array(2 * TN).fill(-Infinity), tDL = new Float32Array(2 * TN).fill(Infinity), tSL = new Float32Array(2 * TN).fill(-Infinity);
   const tTop = new Float32Array(2 * TN).fill(Infinity), tBot = new Float32Array(2 * TN).fill(-Infinity);
-  let useTree = false, qd = 0, qt = 0, qb = 0;
+  let useTree = false;
   function buildTree() {
     for (let e = 0, i = TN; e <= RAYS; e++, i++) {
       const n = recN[e], base = e * REC;
@@ -302,13 +303,13 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
       tTop[i] = tTop[a] > tTop[b] ? tTop[a] : tTop[b]; tBot[i] = tBot[a] < tBot[b] ? tBot[a] : tBot[b];
     }
   }
-  function hid(i) {   // is the box in qd (distance), qt and qb (slopes of its top and bottom) hidden along every ray under node i
+  function hid(i, qd, qt, qb) {   // is the box at distance qd, with slopes qt and qb of its top and bottom, hidden along every ray under node i (arguments, not variables of the closure: a number kept there is made anew on the heap at every test)
     const top = tTop[i];
     if (qt < tBot[i] || qb > top) return true;
     const t = qt < top ? qt : top;
     if (tD1[i] <= qd && tS1[i] > t) return true;
     if (tDL[i] <= qd && tSL[i] > t) return true;
-    if (i < TN) return hid(2 * i) && hid(2 * i + 1);
+    if (i < TN) return hid(2 * i, qd, qt, qb) && hid(2 * i + 1, qd, qt, qb);
     const e = i - TN, base = e * REC; let k = recN[e] - 1;
     if (k < 0 || recS[base + k] <= t) return false;
     while (k >= 0 && recD[base + k] > qd) k--;
@@ -333,10 +334,9 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     if (e0 < 0) e0 = 0; if (e1 > RAYS) e1 = RAYS;
     const y = top - camY, yb = bot - camY, fd = Math.sqrt(far), tan = y >= 0 ? y / d0 : y / fd, tanB = yb >= 0 ? yb / fd : yb / d0;
     if (useTree) {
-      qd = d0; qt = tan; qb = tanB;
       for (let l = e0 + TN, r = e1 + TN + 1; l < r; l >>= 1, r >>= 1) {
-        if (l & 1 && !hid(l++)) return 0;
-        if (r & 1 && !hid(--r)) return 0;
+        if (l & 1 && !hid(l++, d0, tan, tanB)) return 0;
+        if (r & 1 && !hid(--r, d0, tan, tanB)) return 0;
       }
       return 1;
     }
@@ -640,9 +640,20 @@ export function createLeanEngine({ renderer, scene, camera, sun, world, parts })
     const a = rx * cx + rz * cz, b = ux * cx + uy * cy + uz * cz, sa = parts.includes('nosnap') ? 0 : Math.round(a / tx) * tx - a, sb = parts.includes('nosnap') ? 0 : Math.round(b / tx) * tx - b;
     out.x = cx + rx * sa + ux * sb; out.y = cy + uy * sb; out.z = cz + rz * sa + uz * sb; out.dx = dx; out.dy = dy; out.dz = dz;
   }
+  // three draws every caster that has no cut-out through one MeshDepthMaterial, and works its program out again (the parameters, the key, the uniform list) each time the caster before was
+  // instanced and this one is not, or the other way round: 2 to 4 times a frame. The instanced casters get a depth material of their own, made as three makes its one, so neither changes.
+  const instDepth = new THREE.MeshDepthMaterial();
+  const ownDepth = o => {
+    if (o.isInstancedMesh !== true || !o.castShadow) return;
+    if (!draw.depth) { if (o.customDepthMaterial === instDepth) { o.customDepthMaterial = undefined; } return; }   // (game.lean.draw.depth = false: three's one material again, for comparing)
+    if (o.customDepthMaterial !== undefined) return;
+    const m = o.material;
+    if (m && !Array.isArray(m) && !m.map && !m.alphaMap && !m.displacementMap && !(m.alphaTest > 0) && m.alphaToCoverage !== true && m.clipShadows !== true) o.customDepthMaterial = instDepth;
+  };
   function collectStatics() {
     statics.length = 0;
-    for (let n = 0; n < leaves.length; n++) { const l = leaves[n]; if (l.castShadow && l.visible && groupOk[leafGroup[n]]) statics.push(l); }
+    for (let n = 0; n < leaves.length; n++) { const l = leaves[n]; if (l.castShadow && l.visible && groupOk[leafGroup[n]]) { ownDepth(l); statics.push(l); } }
+    for (let n = 0; n < always.length; n++) always[n].traverse(ownDepth);
   }
   const shadowRender = function (lights, sc, cam) {
     restore();   // what occ took out of the main view may still cast a shadow into it
