@@ -136,6 +136,7 @@ export function createVehicle(env) {
     s.pos[i * 3] = x; s.pos[i * 3 + 1] = y; s.pos[i * 3 + 2] = z;
     s.vel[i * 3] = vx; s.vel[i * 3 + 1] = 0.7 + Math.random() * 0.5; s.vel[i * 3 + 2] = vz;
     s.life[i] = 0; s.size[i] = sz;
+    s.pts.visible = true; s.pts.geometry.attributes.position.needsUpdate = true; s.pts.geometry.attributes.aLife.needsUpdate = true; s.pts.geometry.attributes.aSize.needsUpdate = true;   // a puff made after this frame's update (the events, the dump) is drawn in this frame all the same
   }
 
   // ---------- state ----------
@@ -694,15 +695,17 @@ export function createVehicle(env) {
       }
     }
     {
-      const s = smoke;
+      const s = smoke; let live = 0;
       for (let i = 0; i < SMOKE_N; i++) {
         if (s.life[i] >= 1) continue;
         s.life[i] += dt / 0.9;
         if (s.life[i] >= 1) { s.life[i] = 1; continue; }
+        live++;
         s.pos[i * 3] += s.vel[i * 3] * dt; s.pos[i * 3 + 1] += s.vel[i * 3 + 1] * dt; s.pos[i * 3 + 2] += s.vel[i * 3 + 2] * dt;
         s.vel[i * 3] *= 0.97; s.vel[i * 3 + 2] *= 0.97;
       }
-      s.pts.geometry.attributes.position.needsUpdate = true; s.pts.geometry.attributes.aLife.needsUpdate = true; s.pts.geometry.attributes.aSize.needsUpdate = true;
+      s.pts.visible = live > 0;   // with no puff alive the shader throws every point away: no draw, and its three buffers are not sent again
+      if (live) { s.pts.geometry.attributes.position.needsUpdate = true; s.pts.geometry.attributes.aLife.needsUpdate = true; s.pts.geometry.attributes.aSize.needsUpdate = true; }
       const cv = document.getElementById('view'), pr = cv && vp.h ? cv.height / vp.h : 1;   // the canvas is as tall as the window (renderer.setSize(innerWidth, innerHeight) in main.js)
       s.mat.uniforms.uScale.value = vp.h * pr / (2 * Math.tan(camera.fov * PI / 360));
     }

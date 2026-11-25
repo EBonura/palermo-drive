@@ -43,7 +43,9 @@ export function createBeacons(scene, camera) {
       pos[n * 3] = x; pos[n * 3 + 1] = y; pos[n * 3 + 2] = z; colr[n * 3] = r; colr[n * 3 + 1] = gr; colr[n * 3 + 2] = b; size[n] = s; n++;
     },
     end() {
-      g.setDrawRange(0, n); aP.needsUpdate = aC.needsUpdate = aS.needsUpdate = true;
+      g.setDrawRange(0, n); pts.visible = n > 0;   // no light on: no draw of nothing, and the buffers stay as they are
+      if (!n) return;
+      aP.needsUpdate = aC.needsUpdate = aS.needsUpdate = true;
       mat.uniforms.uScale.value = camera.projectionMatrix.elements[5] * vp.h * 0.5 * Math.min(vp.dpr, 2);
     },
   };
