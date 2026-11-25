@@ -33,7 +33,7 @@ const L = {
   hint: ['Frecce: muovi · + e −: zoom · Tab: luoghi · E: eventi · L: lista', 'Arrows: pan · + and −: zoom · Tab: places · E: events · L: list'],
 };
 const KIND = ICON_COLOR;
-const THING = new Set(['granita', 'grill', 'ganci', 'shrine', 'friend']);   // the minimap's markers that stay where they are: they are on this map too
+const THING = new Set(['granita', 'grill', 'ganci', 'shrine', 'friend', 'carro']);   // the minimap's markers that stay where they are: they are on this map too
 const LEGEND = ['spot', 'fare', 'urgent', 'food', 'pub', 'race', 'rave', 'leaf', 'horns', 'dump', 'penna', 'carro', 'granita', 'grill', 'ganci', 'shrine', 'friend', 'tape', 'tapeGot', 'player'];
 
 // palette: warm paper land, pale sea, rosanero only for the pins and the major roads
