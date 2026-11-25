@@ -278,6 +278,7 @@ export async function runBench(E) {
     if (c.ground !== undefined) p4.push(`ground: ${c.ground > 1 ? 'drawn' : 'NOT DRAWN?'} (${c.ground} % of the picture changes when it is hidden, ${K.at})  parts against whole meshes: ${c.whole} % differs`);
     if (p16 || c.ground !== undefined) p4.push(`16-bit meshes drawn by parts: ${p16 && p16.p16[1] > 0.05 ? `drawn (${p16.p16[0]} of them are ${p16.p16[1]} % of the picture at ${p16.name})` : 'none in view at any place, so this run cannot tell'}`);
     if (c.order0 !== undefined) p4.push(`same picture? three's old order against the shipped one: ${c.order0} % of the pixels differ; front to back against shipped: ${c.sort} % (the same frame drawn twice: ${c.self} %)`);
+    if (c.unseenN !== undefined) p4.push(`unseen draws: ${c.unseenN} of the ${c.unseenOf} objects drawn put no pixel on the screen; with them hidden ${c.unseen} % of the pixels differ`);
     p4.push('Only when asked (each compiles every program again, tens of seconds on a phone): ' + VARIANTS.filter(v => v.heavy).map(v => v.id).join(', ') + '. Ask with ?bench&bv=sh0,flat');
     p4.push('A web page is told neither how hot the phone is nor whether Low Power Mode is on' + (has('EXT_disjoint_timer_query_webgl2') === 'yes' ? '.' : ', and this browser gives it no GPU timer.'));
     for (const n of res.notes || []) p4.push('note: ' + n);
@@ -329,6 +330,7 @@ export async function runBench(E) {
     if (pred) S.traverse(o => { if (drawn(o) && pred(o)) h(o); });
     return hid.length ? () => hid.forEach(o => { o.visible = true; }) : 'nothing of it here';
   }
+  const hideList = L => { const hid = L.filter(o => o.visible); for (const o of hid) o.visible = false; return hid.length ? () => { for (const o of hid) o.visible = true; } : 'nothing unseen here'; };
   const uni = k => { for (const m of mats()) { const u = R.properties.get(m).uniforms; if (u && u[k]) return u[k]; } return null; };
   const pin = (v, k) => { const x = v[k]; Object.defineProperty(v, k, { get() { return 0; }, set() {}, configurable: true }); return () => { delete v[k]; v[k] = x; }; };   // a uniform's component held at 0 whatever the game writes
   // The opaque order. The page ships cutoutsLast (src/engine-lean.js, set by main.js: three's order by material with the cut-outs after the solid draws; null with ?order=off), and that is what every
@@ -341,6 +343,7 @@ export async function runBench(E) {
   // What a GL call costs by itself: n more calls a frame that reach the driver and change nothing that is drawn (the mipmap hint, set to and fro; nothing makes mipmaps on the GPU during play), issued before the scene.
   // The frame's change over n is the price of one call in the browser's GPU process and the driver, with none of the game's work in it.
   const extraCalls = n => () => { const g2 = R.getContext(), prev = S.onBeforeRender; S.onBeforeRender = function () { for (let i = 0; i < n; i++) g2.hint(g2.GENERATE_MIPMAP_HINT, i & 1 ? g2.NICEST : g2.FASTEST); g2.hint(g2.GENERATE_MIPMAP_HINT, g2.DONT_CARE); return prev.apply(this, arguments); }; return () => { S.onBeforeRender = prev; }; };
+  let dead = null, deadOf = 0;   // unseen0: the objects drawn that no pixel came from, of how many
   const V = {
     sh0: () => { R.shadowMap.enabled = false; recompile(); return () => { R.shadowMap.enabled = true; recompile(); }; },
     shpass0: () => { R.shadowMap.autoUpdate = false; R.shadowMap.needsUpdate = false; return () => { R.shadowMap.autoUpdate = true; }; },
@@ -362,6 +365,29 @@ export async function runBench(E) {
     csh0: () => { const u = uni('uCloudL'); return u ? pin(u.value, 'z') : 'no cloud shadows in the shaders'; },
     wash0: () => { const u = uni('uNightK'); return u ? pin(u.value, 'x') : 'no night wash in the shaders'; },
     lamps0: () => { const Ls = []; S.traverse(o => { if ((o.isPointLight || o.isSpotLight) && o.visible) { o.visible = false; Ls.push(o); } }); return Ls.length ? () => Ls.forEach(o => { o.visible = true; }) : 'no lamp lights'; },
+    lapa0: () => vehicle.rig ? hide([vehicle.rig.root]) : 'no vehicle',
+    // Everything that puts no pixel on the screen, hidden: what a perfect cull would save, with the same picture. An occlusion query round each draw of the main view for three frames says
+    // which objects never passed a sample; they are found once (the lapa is parked) and hidden again at each switch. The first switch hides them a few frames late, inside its warm frames.
+    unseen0: () => {
+      if (dead) return hideList(dead);
+      const rbd = R.renderBufferDirect, qs = [], seen = new Set(), all = new Set(); let fr = 0, undo = null, off = false;
+      R.renderBufferDirect = function (cam, sc, geo, mat, ob) {
+        if (cam !== C || fr > 3 || mat.isMeshDepthMaterial || mat.isMeshDistanceMaterial) return rbd.apply(this, arguments);
+        const q = gl.createQuery(); gl.beginQuery(gl.ANY_SAMPLES_PASSED, q);
+        try { return rbd.apply(this, arguments); } finally { gl.endQuery(gl.ANY_SAMPLES_PASSED); qs.push(q, ob); all.add(ob); }
+      };
+      const poll = () => {
+        fr++;
+        for (let i = qs.length - 2; i >= 0; i -= 2) if (gl.getQueryParameter(qs[i], gl.QUERY_RESULT_AVAILABLE)) { if (gl.getQueryParameter(qs[i], gl.QUERY_RESULT)) seen.add(qs[i + 1]); gl.deleteQuery(qs[i]); qs.splice(i, 2); }
+        if (fr < 4 || (qs.length && fr < 40)) return;
+        each.delete(poll); R.renderBufferDirect = rbd; for (let i = 0; i < qs.length; i += 2) { gl.deleteQuery(qs[i]); seen.add(qs[i + 1]); }
+        const keep = new Set(); for (const o of seen) for (let p = o; p; p = p.parent) keep.add(p);   // an object whose child shows stays: hiding it would hide the child
+        dead = [...all].filter(o => !keep.has(o)); deadOf = all.size;
+        if (!off) undo = hideList(dead);
+      };
+      each.add(poll);
+      return () => { off = true; each.delete(poll); if (R.renderBufferDirect !== rbd && fr <= 40 && !dead) R.renderBufferDirect = rbd; if (typeof undo === 'function') undo(); };
+    },
     lean0: () => { if (!lean) return 'engine-lean is off (?engine=off)'; lean.bypass = true; return () => { lean.bypass = false; }; },
     // the three parts of the draw path (docs/PERF.md, "The draw path"), one off at a time; a part left out in the address (?draw=) is out already
     tree0: () => draw0('tree'), quick0: () => draw0('quick'), uni0: () => draw0('uni'), first0: () => draw0('first'),
@@ -404,6 +430,8 @@ export async function runBench(E) {
     { id: 'calls1k', label: '1000 more GL calls', on: V.calls1k, ask: true },
     { id: 'calls3k', label: '3000 more GL calls', on: V.calls3k, ask: true },
     { id: 'lean0', label: 'engine-lean bypassed', on: V.lean0 },
+    { id: 'unseen0', label: 'unseen draws hidden', on: V.unseen0, warm: 14, ask: true },
+    { id: 'lapa0', label: 'the lapa hidden', on: V.lapa0, ask: true },
     { id: 'quick0', label: 'repeat draws not quick', on: V.quick0 },
     { id: 'tree0', label: 'occlusion rays, no tree', on: V.tree0 },
     { id: 'uni0', label: 'array uniforms resent', on: V.uni0 },
@@ -527,6 +555,7 @@ export async function runBench(E) {
     R.render(S, C); out.self = differ(a, grab());   // the noise floor: the same thing twice (the cached shadow map may move on a slice between two renders)
     out.ground = one(() => hide(parts(/^(terrain|streets|streetsHi)$/)));
     out.whole = one(V.whole); out.order0 = one(V.order0); out.sort = one(V.sort);
+    if (dead) { out.unseenN = dead.length; out.unseenOf = deadOf; out.unseen = one(() => hideList(dead)); }
     return out;
   }
   // The meshes with a 16-bit index that the engine draws by parts (src/engine-lean.js), hidden: how much of the picture they were. Commit b54dff6b: WEBGL_multi_draw lost exactly these

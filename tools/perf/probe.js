@@ -222,7 +222,7 @@
       m.blending = THREE.NoBlending; m.transparent = false; m.needsUpdate = true;
       undo.push(() => { if (hadOb) m.onBeforeCompile = ob; else delete m.onBeforeCompile; if (hadCk) m.customProgramCacheKey = ck; else delete m.customProgramCacheKey; m.blending = bl; m.transparent = tr; m.needsUpdate = true; });
     }
-    const rows = new Map(), byId = [];
+    const rows = new Map(), byId = [], kinds = new Map(), byKind = [], seq = [];
     const rbd = R.renderBufferDirect;
     R.renderBufferDirect = function (cam, sc, geo, mat, obj, grp) {
       if (!(mat.isMeshDepthMaterial || mat.isMeshDistanceMaterial)) {
@@ -234,6 +234,10 @@
         const key = (obj.name || pn || obj.geometry?.type || obj.type).slice(0, 26).replace(/_-?\d+_-?\d+$/, '') + ' | ' + (cats.get(obj) || catOf(obj));
         let row = rows.get(key); if (!row) { row = { key, draws: 0, tris: 0, shaded: 0, indexed: !!geo.index, px: 0, drawsHit: 0 }; rows.set(key, row); }
         row.draws++; row.tris += tris; row.shaded += geo.index ? Math.min(c, geo.attributes.position.count) * (inst === Infinity ? 1 : inst) : verts;
+        let top = obj, depth = 0; while (top.parent && top.parent !== S && top.parent.name !== 'world') { top = top.parent; depth++; }
+        const u = obj.userData, kk = (top.parent && top.parent.name === 'world' ? 'world/' : '') + (top.name || top.type).replace(/[-_]?-?\d+([_,]-?\d+)*$/, '') + (depth ? '/' + (obj.name || obj.parent.name || '').slice(0, 18).replace(/_-?\d+_-?\d+$/, '') : '') + (obj.isInstancedMesh ? ' [inst' + (u.leanSub ? ', parts' : '') + ']' : u.leanRuns ? ' [runs]' : u.leanSub ? ' [parts]' : '') + (obj.matrixAutoUpdate ? ' (moves)' : '') + (depth && obj.matrixAutoUpdate ? ' ' + [obj.parent.name, obj.geometry.type, mat.name || mat.type, mat.color ? mat.color.getHexString() : '', mat.transparent ? 'T' : '', Math.round(tris) + 't', obj.visible ? '' : 'hidden'].join(',') : '');
+        let kr = kinds.get(kk); if (!kr) { kr = { key: kk, draws: 0, drawsHit: 0, px: 0 }; kinds.set(kk, kr); } kr.draws++; byKind.push(kr);
+        seq.push([mat.id, kk]);
         byId.push(row); curId = byId.length;
       } else curId = 0;
       return rbd.apply(this, arguments);
@@ -248,8 +252,10 @@
     const hit = new Uint32Array(byId.length + 2);
     for (let i = 0; i < px.length; i += 4) { const id = px[i] | (px[i + 1] << 8) | (px[i + 2] << 16); if (id > 0 && id <= byId.length) hit[id]++; else hit[byId.length + 1]++; }
     for (let i = 1; i <= byId.length; i++) { const r = byId[i - 1]; r.px += hit[i]; if (hit[i]) r.drawsHit++; }
+    for (let i = 1; i <= byKind.length; i++) if (hit[i]) byKind[i - 1].drawsHit++;
+    const runs = []; for (let i = 0; i < seq.length; i++) { let r = runs[runs.length - 1]; if (!r || r.mat !== seq[i][0]) runs.push(r = { mat: seq[i][0], n: 0, hit: 0, kinds: {} }); r.n++; if (hit[i + 1]) r.hit++; r.kinds[seq[i][1]] = (r.kinds[seq[i][1]] || 0) + 1; }
     const T = w * h, list = [...rows.values()].map(r => ({ ...r, tris: Math.round(r.tris), shaded: Math.round(r.shaded), pxPct: +(r.px / T * 100).toFixed(2) })).sort((a, b) => b.tris - a.tris);
-    return { runTris: G.lean?.stats().runTris, runWhole: G.lean?.stats().runWhole, idpass: list, w, h, drawn: byId.length, trisAll: list.reduce((a, r) => a + r.tris, 0), trisHit: 0, background: +(hit[byId.length + 1] / T * 100).toFixed(2) };
+    return { runs, kinds: [...kinds.values()].sort((a, b) => (b.draws - b.drawsHit) - (a.draws - a.drawsHit)), runTris: G.lean?.stats().runTris, runWhole: G.lean?.stats().runWhole, idpass: list, w, h, drawn: byId.length, trisAll: list.reduce((a, r) => a + r.tris, 0), trisHit: 0, background: +(hit[byId.length + 1] / T * 100).toFixed(2) };
   }
 
   async function ab(name, on, rounds, n, warm) {

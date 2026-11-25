@@ -109,7 +109,9 @@ try {
       if (o) {
         console.log(`  ${o.w}x${o.h}, ${o.drawn} draws, ${o.trisAll} triangles, ${o.idpass.reduce((a, r) => a + r.shaded, 0)} vertices (three's count: whole meshes), of which meshes sorted by part draw ${Math.round(o.runTris || 0)} of their ${Math.round(o.runWhole || 0)} triangles; sky or empty ${o.background} % of the pixels`);
         console.log('  ' + 'name | material'.padEnd(62) + 'draws  hit     tris  verts shaded  px %');
-        for (const r of o.idpass.slice(0, +arg('top', 45))) console.log('  ' + r.key.padEnd(62) + String(r.draws).padStart(5) + String(r.drawsHit).padStart(5) + String(r.tris).padStart(9) + String(r.shaded).padStart(9) + (r.indexed ? ' i' : ' n') + String(r.pxPct).padStart(7));
+        if (arg('runs', '')) { const dead = o.runs.filter(r => !r.hit); console.log(`  ${o.runs.length} runs of one material, ${dead.length} of them with no pixel on screen (${dead.reduce((a, r) => a + r.n, 0)} draws); ${o.runs.filter(r => r.hit).reduce((a, r) => a + r.n - r.hit, 0)} unseen draws inside runs that do show`); for (const r of dead) console.log('    ' + r.n + ' x ' + Object.keys(r.kinds).join(' ; ').slice(0, 150)); }
+        else if (arg('kinds', '')) { console.log('  where it hangs in the scene'.padEnd(64) + 'draws  hit'); for (const r of o.kinds) console.log('  ' + r.key.padEnd(62) + String(r.draws).padStart(5) + String(r.drawsHit).padStart(5)); }
+        else for (const r of o.idpass.slice(0, +arg('top', 45))) console.log('  ' + r.key.padEnd(62) + String(r.draws).padStart(5) + String(r.drawsHit).padStart(5) + String(r.tris).padStart(9) + String(r.shaded).padStart(9) + (r.indexed ? ' i' : ' n') + String(r.pxPct).padStart(7));
       }
     }
     if (MODE === 'diff') {
