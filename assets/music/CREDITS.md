@@ -92,6 +92,8 @@ Changes made to every track: leading silence trimmed, loudness normalised to abo
 | Let Me Rot (`eraser-let-me-rot`) | Eraser (from the demo Fuck Off And Grind, recorded 14 February 2015; the band's most viewed song on its channel) | https://www.youtube.com/watch?v=f_oHLJYdgFk (Eraser Grind) |
 | Mutual Overkill Deterrence (`eraser-mutual-overkill-deterrence`) | Eraser (title track of the LP Mutual Overkill Deterrence, Night Animal Records) | https://www.youtube.com/watch?v=k9My8Dro5SM (Night Animal Records) |
 | No Work (`stesso-sporco-sangue-no-work`) | Stesso Sporco Sangue | Audio file sent by WhatsApp |
+| Beer! Sex!... And Fuckin' Roll!!! (`inside-the-hole-beer-sex-and-fuckin-roll`) | Inside The Hole (from Impressions, 2011) | https://www.youtube.com/watch?v=5CaJfw7rFS0 (Inside the Hole - Topic) |
+| Playboy (`lemmerde-playboy`) | Lemmerde (from Catarsiaddosso) | File shared by Francesco Less on Google Drive |
 
 ## Radio Palifornia
 
@@ -108,6 +110,9 @@ A station of its own for tracks the game's author receives from Palermo bands (2
 | 2 Am (`magikaarp-2-am`) | magikAAAAArp | WAV file |
 | Aura (`mario-bajardi-aura`) | Mario Bajardi (album AURA, 2025) | MP3 sent by email |
 | My girlfriend is a nazi zombie (`loro-my-girlfriend-is-a-nazi-zombie`) | Loro (2022) | M4A sent by email |
+| Nucleus (`bunnyblack-nucleus`) | Bunnyblack (from 00:00, 2026) | File shared by Francesco Less on Google Drive |
+| La Vampa (`francesco-less-la-vampa`) | Francesco Less (from Vuci di Diu, ViceVersa Records, 2026) | File shared by Francesco Less on Google Drive |
+| Manicomio (`roofsize-manicomio`, silence at the end removed) | Roofsize | MP3 sent by email |
 
 ## Cassette (The Sicilian Wanderer)
 

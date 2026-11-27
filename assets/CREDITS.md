@@ -185,6 +185,8 @@ Rock and metal from Palermo bands. Re-encoded for the web and loudness normalise
 | Let Me Rot | Eraser | Independent release | Demo Fuck Off And Grind (2015) |
 | Mutual Overkill Deterrence | Eraser | Night Animal Records | LP Mutual Overkill Deterrence (2020) |
 | No Work | Stesso Sporco Sangue |  | Audio file sent by WhatsApp |
+| Beer! Sex!... And Fuckin' Roll!!! | Inside The Hole | ℗ 2011 Rosalino Zappia | Album Impressions (2011) |
+| Playboy | Lemmerde |  | Album Catarsiaddosso |
 
 ## Car radio: Radio Palifornia
 
@@ -201,6 +203,9 @@ Music from Palermo. Re-encoded for the web and loudness normalised.
 | 2 Am | magikAAAAArp |  | WAV file |
 | Aura | Mario Bajardi |  | MP3 sent by email |
 | My girlfriend is a nazi zombie | Loro |  | M4A sent by email |
+| Nucleus | Bunnyblack |  | Album 00:00 (2026) |
+| La Vampa | Francesco Less | ViceVersa Records | Album Vuci di Diu (2026) |
+| Manicomio | Roofsize |  | MP3 sent by email |
 
 ## The Sicilian Wanderer
 

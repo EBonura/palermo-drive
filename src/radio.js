@@ -84,6 +84,8 @@ const LAMIERA = [   // [id, title, artist]
   ['eraser-let-me-rot', 'Let Me Rot', 'Eraser'],
   ['eraser-mutual-overkill-deterrence', 'Mutual Overkill Deterrence', 'Eraser'],
   ['stesso-sporco-sangue-no-work', 'No Work', 'Stesso Sporco Sangue'],
+  ['inside-the-hole-beer-sex-and-fuckin-roll', "Beer! Sex!... And Fuckin' Roll!!!", 'Inside The Hole'],
+  ['lemmerde-playboy', 'Playboy', 'Lemmerde'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // Radio Palifornia: the owner adds tracks as they arrive (21 Nov 2026). Sources and permissions: assets/music/CREDITS.md.
 const PALIFORNIA = [   // [id, title, artist]
@@ -96,6 +98,9 @@ const PALIFORNIA = [   // [id, title, artist]
   ['magikaarp-2-am', '2 Am', 'magikAAAAArp'],
   ['mario-bajardi-aura', 'Aura', 'Mario Bajardi'],
   ['loro-my-girlfriend-is-a-nazi-zombie', 'My girlfriend is a nazi zombie', 'Loro'],
+  ['bunnyblack-nucleus', 'Nucleus', 'Bunnyblack'],
+  ['francesco-less-la-vampa', 'La Vampa', 'Francesco Less'],
+  ['roofsize-manicomio', 'Manicomio', 'Roofsize'],
 ].map(([id, title, by]) => ({ id, title, by }));
 // The credit line of the tapes (src/tapes-data.js): the Sessanta SeCunti YouTube Shorts of Dario Cascio (The Sicilian Wanderer), used with his authorization (23 Nov 2026). Credits: assets/music/CREDITS.md.
 export const SESSANTA_BY = 'Dario Cascio - Sicilian Wanderer';
