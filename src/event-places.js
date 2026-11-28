@@ -212,7 +212,6 @@ export const DUMP = {
 };
 
 // ---------------------------------------------------------------------------------------------------------------- Fratelli La Penna (src/event-penna.js)
-// Three invented brothers who sell pens at a price nobody should pay, on the pavement in front of the steps of the Teatro Massimo. The spot is the west half of the steps'
-// frontage on Piazza Giuseppe Verdi (the one-way street right in front of them), about 30 m from the tourists' pick-up (FARE_SPOTS 'tm') so the two callers do not stand on each other.
-// The baker snaps it to that street ('penna:massimo').
-export const PENNA = { id: 'massimo', name: 'Teatro Massimo', lat: 38.1196009, lon: 13.3570583, onStreet: 'Piazza Giuseppe Verdi' };
+// Three invented brothers who sell pens at a price nobody should pay, on the paving in front of the steps of the Teatro Massimo. The spot is on the axis of the stair, about 20 m out
+// from its foot, on the way across the front that is also called Piazza Giuseppe Verdi (a pedestrian way in the tiles, so the baker adds it to the network to snap it: 'penna:massimo').
+export const PENNA = { id: 'massimo', name: 'Teatro Massimo', lat: 38.1205156, lon: 13.3580675, onStreet: 'Piazza Giuseppe Verdi' };

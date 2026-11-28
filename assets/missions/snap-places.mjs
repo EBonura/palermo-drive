@@ -176,7 +176,8 @@ delete SNAP['rave:mouth'];
 }
 
 // ---- Fratelli La Penna (src/event-penna.js): the brothers' spot in front of the Teatro Massimo, no route (the chase is on foot, wherever the lapa goes)
-place('penna:' + PENNA.id, PENNA.lat, PENNA.lon, PENNA.onStreet);
+// The paving in front of the steps is a pedestrian way in the tiles: it is snapped in a network with the ways of that name added.
+{ const netP = loadNet({ extra: new RegExp('^' + PENNA.onStreet + '$'), built: false }), [x, z] = proj(PENNA.lat, PENNA.lon), s = snap(netP, x, z, { name: PENNA.onStreet }); SNAP['penna:' + PENNA.id] = [r1(s.x), r1(s.z), r2(s.dx), r2(s.dz), s.w, s.n || '']; report.push({ id: 'penna:' + PENNA.id, road: s.n, off: Math.round(s.d), x: r1(s.x), z: r1(s.z) }); }
 
 // ---- race tracks
 function follow(start, name, len, hint) {
